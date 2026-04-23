@@ -524,6 +524,189 @@ p {
   border-top: 1px solid var(--line);
 }
 
+.page-hero {
+  padding: 48px 0 20px;
+}
+
+.page-hero-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.page-hero-copy p:last-child {
+  max-width: 760px;
+  margin-top: 18px;
+}
+
+.page-hero-panel {
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.page-hero-panel div {
+  padding: 16px 18px;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.18)),
+    linear-gradient(160deg, #f2edff 0%, #d5c8f0 100%);
+}
+
+.page-hero-panel span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.page-hero-panel strong {
+  display: block;
+  margin-top: 10px;
+  color: var(--accent-dark);
+  font-size: 24px;
+  font-family: "Cormorant Garamond", serif;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.filter-chip {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--muted);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filter-chip.is-active {
+  background: linear-gradient(180deg, #b7a8de 0%, #8e7ac0 100%);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.catalog-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.catalog-media {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 20px;
+  color: white;
+}
+
+.catalog-media-main {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(22, 18, 32, 0.16)),
+    linear-gradient(160deg, #ded3fb 0%, #7a63b1 100%);
+}
+
+.catalog-media-premium {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(17, 13, 20, 0.18)),
+    linear-gradient(160deg, #2a2438 0%, #7d618f 100%);
+}
+
+.catalog-media-sub {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(31, 24, 51, 0.08)),
+    linear-gradient(160deg, #efe8fb 0%, #b4a5d8 100%);
+}
+
+.catalog-media-experiment {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(46, 44, 26, 0.1)),
+    linear-gradient(160deg, #eef2db 0%, #c8d991 100%);
+  color: #27310f;
+}
+
+.catalog-media strong {
+  font-size: 32px;
+  font-family: "Cormorant Garamond", serif;
+}
+
+.catalog-body {
+  padding: 20px;
+}
+
+.catalog-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.catalog-meta span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.catalog-summary {
+  margin: 14px 0 0;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.catalog-details {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 0;
+}
+
+.catalog-details div {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.catalog-details dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.catalog-details dd {
+  margin: 8px 0 0;
+  color: var(--accent-dark);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
 @media (max-width: 1080px) {
   .artist-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -532,11 +715,16 @@ p {
   .roster-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .catalog-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 860px) {
   .header-inner,
   .hero-grid,
+  .page-hero-grid,
   .premium-grid,
   .business-grid,
   .coming-grid,
@@ -569,6 +757,10 @@ p {
   .hero-section,
   .content-section {
     padding: 40px 0;
+  }
+
+  .page-hero {
+    padding: 36px 0 16px;
   }
 
   .artist-grid,
@@ -610,7 +802,18 @@ p {
   .artist-media,
   .short-media,
   .roster-media,
-  .premium-placeholder {
+  .premium-placeholder,
+  .catalog-media {
     min-height: 200px;
+  }
+
+  .filter-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .filter-chip {
+    white-space: nowrap;
   }
 }

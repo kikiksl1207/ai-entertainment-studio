@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Characters | AI Entertainment Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="./index.html">
+          <span class="brand-mark">AE</span>
+          <span class="brand-copy">
+            <strong>AI Entertainment Studio</strong>
+            <small>Virtual Artist Label</small>
+          </span>
+        </a>
+
+        <nav class="main-nav" aria-label="메인 메뉴">
+          <a href="./index.html">Home</a>
+          <a href="./characters.html">Characters</a>
+          <a href="./index.html#shortform">Shortform</a>
+          <a href="./index.html#business">Business</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero">
+        <div class="shell page-hero-grid">
+          <div class="page-hero-copy">
+            <p class="eyebrow">Character Directory</p>
+            <h1>메인, 프리미엄, 서브 라인을 한눈에 보는 캐릭터 페이지</h1>
+            <p>
+              엔터사 아티스트 페이지처럼 보이되, 이후 캐릭터챗과 팬 전환 구조까지
+              확장 가능한 형태의 캐릭터 목록 페이지입니다. 지금은 메인 3인과
+              프리미엄 메인을 우선 노출하고, 나머지는 서브와 실험 라인으로 구분합니다.
+            </p>
+          </div>
+          <aside class="page-hero-panel">
+            <div>
+              <span>메인 운영</span>
+              <strong>윤세린 · 한서율 · 박도아</strong>
+            </div>
+            <div>
+              <span>프리미엄 라인</span>
+              <strong>최서진</strong>
+            </div>
+            <div>
+              <span>총 라인업</span>
+              <strong>10 Characters</strong>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="content-section">
+        <div class="shell">
+          <div class="filter-bar" id="characterFilters" aria-label="캐릭터 필터">
+            <button class="filter-chip is-active" type="button" data-filter="all">전체</button>
+            <button class="filter-chip" type="button" data-filter="main">메인</button>
+            <button class="filter-chip" type="button" data-filter="premium">프리미엄</button>
+            <button class="filter-chip" type="button" data-filter="아이돌">아이돌</button>
+            <button class="filter-chip" type="button" data-filter="모델">모델</button>
+            <button class="filter-chip" type="button" data-filter="배우">배우</button>
+            <button class="filter-chip" type="button" data-filter="스트리머">스트리머</button>
+          </div>
+
+          <div class="catalog-grid" id="characterCatalog"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-inner">
+        <div>
+          <strong>AI Entertainment Studio</strong>
+          <p>Character roster page for main, premium, and supporting artists.</p>
+        </div>
+        <p>Next: Character detail page</p>
+      </div>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
