@@ -355,13 +355,13 @@ p {
   overflow: hidden;
 }
 
-.media-link {
-  display: block;
+.clickable-card {
+  cursor: pointer;
 }
 
-.media-link:hover .artist-media,
-.media-link:hover .roster-media,
-.media-link:hover .catalog-media {
+.clickable-card:hover .artist-media,
+.clickable-card:hover .roster-media,
+.clickable-card:hover .catalog-media {
   transform: translateY(-2px);
   filter: saturate(1.04);
 }
@@ -644,6 +644,17 @@ p {
   background: linear-gradient(180deg, #b7a8de 0%, #8e7ac0 100%);
   border-color: transparent;
   color: #ffffff;
+}
+
+.active-filter-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 24px;
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .catalog-grid {
@@ -1078,6 +1089,25 @@ p {
   color: rgba(255, 255, 255, 0.86);
 }
 
+.detail-tag-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tag-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--accent-dark);
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .feed-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1140,6 +1170,44 @@ p {
 
 .package-list li + li {
   margin-top: 8px;
+}
+
+.secret-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgba(9, 8, 14, 0.74);
+  backdrop-filter: blur(8px);
+}
+
+.secret-transition-panel {
+  width: min(460px, calc(100% - 32px));
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    linear-gradient(160deg, #0d0d12 0%, #1f1b28 100%);
+  color: #ffffff;
+  box-shadow: 0 20px 64px rgba(0, 0, 0, 0.34);
+}
+
+.secret-transition-panel span {
+  display: inline-block;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.secret-transition-panel strong {
+  display: block;
+  margin-top: 12px;
+  font-size: 28px;
+  font-family: "Cormorant Garamond", serif;
 }
 
 @media (max-width: 1080px) {

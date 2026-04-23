@@ -347,15 +347,13 @@ function renderMainArtists() {
   root.innerHTML = mainArtists
     .map(
       (artist) => `
-        <article class="artist-card">
-          <a class="media-link" href="./character-detail.html?slug=${artist.slug || characters.find((item) => item.name === artist.name)?.slug || ""}" aria-label="${artist.name} 상세 보기">
-            <div class="artist-media">
-              <div>
-                <span class="eyebrow">${artist.role}</span>
-                <strong>${artist.name}</strong>
-              </div>
+        <article class="artist-card clickable-card" data-href="./character-detail.html?slug=${artist.slug || characters.find((item) => item.name === artist.name)?.slug || ""}">
+          <div class="artist-media">
+            <div>
+              <span class="eyebrow">${artist.role}</span>
+              <strong>${artist.name}</strong>
             </div>
-          </a>
+          </div>
           <div class="artist-body">
             <p>${artist.description}</p>
             <div class="tag-list">
@@ -425,12 +423,10 @@ function renderRoster() {
   root.innerHTML = roster
     .map(
       (artist) => `
-        <article class="roster-card ${statusMeta[artist.status].className}">
-          <a class="media-link" href="./character-detail.html?slug=${characters.find((item) => item.publicName === artist.name)?.slug || ""}" aria-label="${artist.name} 프로필 보기">
-            <div class="roster-media roster-media-${artist.status}">
-              <strong>${artist.name}</strong>
-            </div>
-          </a>
+        <article class="roster-card ${statusMeta[artist.status].className} clickable-card" data-href="./character-detail.html?slug=${characters.find((item) => item.publicName === artist.name)?.slug || ""}" data-secret="${artist.status === "secret" ? "true" : "false"}">
+          <div class="roster-media roster-media-${artist.status}">
+            <strong>${artist.name}</strong>
+          </div>
           <div class="roster-body">
             <div class="roster-meta">
               <span class="eyebrow">${artist.type}</span>
@@ -445,25 +441,27 @@ function renderRoster() {
     .join("");
 }
 
-function renderCharacterCatalog(filter = "all") {
+function renderCharacterCatalog(filter = "all", tagFilter = "") {
   const root = document.getElementById("characterCatalog");
   if (!root) return;
 
-  const filtered = filter === "all"
+  let filtered = filter === "all"
     ? characters
     : characters.filter((artist) => artist.type === filter || artist.tier === filter);
+
+  if (tagFilter) {
+    filtered = filtered.filter((artist) => artist.tags.includes(tagFilter));
+  }
 
   root.innerHTML = filtered
     .map(
       (artist) => `
-        <article class="catalog-card ${statusMeta[artist.status].className}">
-          <a class="media-link" href="./character-detail.html?slug=${artist.slug}" aria-label="${artist.publicName} 상세 페이지">
-            <div class="catalog-media catalog-media-${artist.tier} catalog-media-${artist.status}">
-              <span class="eyebrow">${artist.type}</span>
-              <strong>${artist.publicName}</strong>
-              <em class="catalog-status-caption">${statusMeta[artist.status].summaryLabel}</em>
-            </div>
-          </a>
+        <article class="catalog-card ${statusMeta[artist.status].className} clickable-card" data-href="./character-detail.html?slug=${artist.slug}" data-secret="${artist.status === "secret" ? "true" : "false"}">
+          <div class="catalog-media catalog-media-${artist.tier} catalog-media-${artist.status}">
+            <span class="eyebrow">${artist.type}</span>
+            <strong>${artist.publicName}</strong>
+            <em class="catalog-status-caption">${statusMeta[artist.status].summaryLabel}</em>
+          </div>
           <div class="catalog-body">
             <div class="catalog-meta">
               <span>${statusMeta[artist.status].label}</span>
@@ -489,6 +487,18 @@ function renderCharacterCatalog(filter = "all") {
       `
     )
     .join("");
+
+  const note = document.getElementById("activeFilterNote");
+  if (!note) return;
+
+  if (tagFilter) {
+    note.innerHTML = `
+      <span>현재 태그 필터: <strong>${tagFilter}</strong></span>
+      <a href="./characters.html" class="text-link">필터 해제</a>
+    `;
+  } else {
+    note.innerHTML = "";
+  }
 }
 
 function bindCharacterFilters() {
@@ -496,14 +506,20 @@ function bindCharacterFilters() {
   if (!filterRoot) return;
 
   const buttons = [...filterRoot.querySelectorAll("[data-filter]")];
+  const params = new URLSearchParams(window.location.search);
+  const activeTag = params.get("tag") || "";
 
   buttons.forEach((button) => {
     button.addEventListener("click", () => {
       buttons.forEach((item) => item.classList.remove("is-active"));
       button.classList.add("is-active");
-      renderCharacterCatalog(button.dataset.filter);
+      renderCharacterCatalog(button.dataset.filter, activeTag);
     });
   });
+
+  if (activeTag) {
+    renderCharacterCatalog("all", activeTag);
+  }
 }
 
 function renderCharacterDetail() {
@@ -596,6 +612,17 @@ function renderCharacterDetail() {
         </div>
       `;
   }
+
+  const tagNav = document.getElementById("detailTagNavigation");
+  if (tagNav) {
+    tagNav.innerHTML = artist.tags
+      .map(
+        (tag) => `
+          <a class="tag-link" href="./characters.html?tag=${encodeURIComponent(tag)}">${tag}</a>
+        `
+      )
+      .join("");
+  }
 }
 
 function renderBusinessPackages() {
@@ -618,6 +645,56 @@ function renderBusinessPackages() {
     .join("");
 }
 
+function bindCardNavigation() {
+  const cards = [...document.querySelectorAll(".clickable-card")];
+  if (!cards.length) return;
+
+  cards.forEach((card) => {
+    card.tabIndex = 0;
+    card.setAttribute("role", "link");
+
+    const navigate = () => {
+      const href = card.dataset.href;
+      if (!href) return;
+
+      const isSecret = card.dataset.secret === "true";
+
+      if (isSecret) {
+        document.body.classList.add("is-secret-transition");
+
+        const overlay = document.createElement("div");
+        overlay.className = "secret-transition";
+        overlay.innerHTML = `
+          <div class="secret-transition-panel">
+            <span>Secret Access</span>
+            <strong>비공개 프로필에 접근 중입니다</strong>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+
+        window.setTimeout(() => {
+          window.location.href = href;
+        }, 540);
+        return;
+      }
+
+      window.location.href = href;
+    };
+
+    card.addEventListener("click", (event) => {
+      if (event.target.closest("a")) return;
+      navigate();
+    });
+
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        navigate();
+      }
+    });
+  });
+}
+
 renderMainArtists();
 renderShortforms();
 renderShortformHub();
@@ -626,3 +703,4 @@ renderRoster();
 renderCharacterCatalog();
 bindCharacterFilters();
 renderCharacterDetail();
+bindCardNavigation();
