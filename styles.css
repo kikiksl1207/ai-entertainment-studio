@@ -355,6 +355,17 @@ p {
   overflow: hidden;
 }
 
+.media-link {
+  display: block;
+}
+
+.media-link:hover .artist-media,
+.media-link:hover .roster-media,
+.media-link:hover .catalog-media {
+  transform: translateY(-2px);
+  filter: saturate(1.04);
+}
+
 .artist-media,
 .short-media,
 .roster-media,
@@ -367,6 +378,7 @@ p {
     linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(23, 21, 31, 0.08)),
     linear-gradient(160deg, #eee8fb 0%, #b7a8de 100%);
   color: white;
+  transition: transform 180ms ease, filter 180ms ease;
 }
 
 .artist-media strong,

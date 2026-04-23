@@ -348,12 +348,14 @@ function renderMainArtists() {
     .map(
       (artist) => `
         <article class="artist-card">
-          <div class="artist-media">
-            <div>
-              <span class="eyebrow">${artist.role}</span>
-              <strong>${artist.name}</strong>
+          <a class="media-link" href="./character-detail.html?slug=${artist.slug || characters.find((item) => item.name === artist.name)?.slug || ""}" aria-label="${artist.name} 상세 보기">
+            <div class="artist-media">
+              <div>
+                <span class="eyebrow">${artist.role}</span>
+                <strong>${artist.name}</strong>
+              </div>
             </div>
-          </div>
+          </a>
           <div class="artist-body">
             <p>${artist.description}</p>
             <div class="tag-list">
@@ -424,9 +426,11 @@ function renderRoster() {
     .map(
       (artist) => `
         <article class="roster-card ${statusMeta[artist.status].className}">
-          <div class="roster-media roster-media-${artist.status}">
-            <strong>${artist.name}</strong>
-          </div>
+          <a class="media-link" href="./character-detail.html?slug=${characters.find((item) => item.publicName === artist.name)?.slug || ""}" aria-label="${artist.name} 프로필 보기">
+            <div class="roster-media roster-media-${artist.status}">
+              <strong>${artist.name}</strong>
+            </div>
+          </a>
           <div class="roster-body">
             <div class="roster-meta">
               <span class="eyebrow">${artist.type}</span>
@@ -453,11 +457,13 @@ function renderCharacterCatalog(filter = "all") {
     .map(
       (artist) => `
         <article class="catalog-card ${statusMeta[artist.status].className}">
-          <div class="catalog-media catalog-media-${artist.tier} catalog-media-${artist.status}">
-            <span class="eyebrow">${artist.type}</span>
-            <strong>${artist.publicName}</strong>
-            <em class="catalog-status-caption">${statusMeta[artist.status].summaryLabel}</em>
-          </div>
+          <a class="media-link" href="./character-detail.html?slug=${artist.slug}" aria-label="${artist.publicName} 상세 페이지">
+            <div class="catalog-media catalog-media-${artist.tier} catalog-media-${artist.status}">
+              <span class="eyebrow">${artist.type}</span>
+              <strong>${artist.publicName}</strong>
+              <em class="catalog-status-caption">${statusMeta[artist.status].summaryLabel}</em>
+            </div>
+          </a>
           <div class="catalog-body">
             <div class="catalog-meta">
               <span>${statusMeta[artist.status].label}</span>
