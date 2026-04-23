@@ -256,6 +256,77 @@ p {
   gap: 16px;
 }
 
+.hero-feature {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.82fr) 1.18fr;
+  overflow: hidden;
+  min-height: 430px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 30px;
+  background:
+    linear-gradient(135deg, rgba(18, 15, 29, 0.96), rgba(78, 60, 126, 0.88)),
+    linear-gradient(160deg, #181420 0%, #5f4e92 100%);
+  box-shadow: 0 24px 56px rgba(41, 29, 74, 0.18);
+}
+
+.hero-feature-media {
+  position: relative;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.16), transparent 38%),
+    linear-gradient(180deg, rgba(12, 10, 19, 0.08), rgba(12, 10, 19, 0.42));
+}
+
+.hero-feature-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+
+.hero-feature-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 28px;
+  color: #ffffff;
+}
+
+.hero-feature-label {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.96);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero-feature-body strong {
+  font-family: "Cormorant Garamond", serif;
+  font-size: clamp(40px, 5vw, 56px);
+  line-height: 0.95;
+}
+
+.hero-feature-body p {
+  max-width: 34ch;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 16px;
+}
+
+.hero-feature-link {
+  margin-top: 6px;
+  color: #ffffff;
+}
+
 .hero-card {
   min-height: 190px;
   padding: 22px;
@@ -401,6 +472,8 @@ p {
 .roster-body p {
   margin: 8px 0 0;
   font-size: 14px;
+  color: #3f3655;
+  line-height: 1.65;
 }
 
 .tag-list {
@@ -438,8 +511,9 @@ p {
 }
 
 .short-meta span {
-  color: var(--muted);
+  color: #51476a;
   font-size: 13px;
+  font-weight: 700;
 }
 
 .premium-panel {
@@ -450,7 +524,7 @@ p {
 }
 
 .premium-stat span {
-  color: var(--muted);
+  color: #5b5370;
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -492,7 +566,7 @@ p {
 .premium-points {
   margin: 18px 0 0;
   padding: 0 0 0 18px;
-  color: var(--muted);
+  color: #4d4562;
 }
 
 .premium-points li + li {
@@ -574,7 +648,7 @@ p {
 
 .page-hero-panel span {
   display: block;
-  color: var(--muted);
+  color: #584f6d;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -764,7 +838,7 @@ p {
 
 .catalog-summary {
   margin: 14px 0 0;
-  color: var(--ink);
+  color: #211b2d;
   font-size: 18px;
   font-weight: 700;
   line-height: 1.5;
@@ -782,7 +856,7 @@ p {
 }
 
 .catalog-details dt {
-  color: var(--muted);
+  color: #665d7b;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -791,7 +865,7 @@ p {
 
 .catalog-details dd {
   margin: 8px 0 0;
-  color: var(--accent-dark);
+  color: #2f2544;
   font-size: 15px;
   font-weight: 700;
   line-height: 1.6;
@@ -1212,8 +1286,8 @@ p {
   padding: 18px;
   color: #ffffff;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(22, 18, 32, 0.16)),
-    linear-gradient(160deg, #d8cdf8 0%, #7e69b4 100%);
+    linear-gradient(180deg, rgba(10, 8, 18, 0.18), rgba(10, 8, 18, 0.52)),
+    linear-gradient(160deg, #b7a6e6 0%, #564181 100%);
 }
 
 .feed-card-media strong {
@@ -1223,6 +1297,10 @@ p {
 
 .feed-card-body {
   padding: 18px;
+}
+
+.feed-card-body p {
+  color: #413852;
 }
 
 .package-grid {
@@ -1292,6 +1370,15 @@ p {
 }
 
 @media (max-width: 1080px) {
+  .hero-feature {
+    grid-template-columns: 1fr;
+    min-height: unset;
+  }
+
+  .hero-feature-media {
+    min-height: 360px;
+  }
+
   .artist-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1339,7 +1426,7 @@ p {
     grid-template-columns: 1fr;
   }
 
-  .hero-card-primary {
+  .hero-feature {
     grid-column: span 1;
   }
 
@@ -1349,6 +1436,14 @@ p {
 }
 
 @media (max-width: 640px) {
+  .hero-feature-media {
+    min-height: 300px;
+  }
+
+  .hero-feature-body {
+    padding: 22px;
+  }
+
   .hero-section,
   .content-section {
     padding: 40px 0;
