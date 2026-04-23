@@ -388,6 +388,33 @@ function mediaStyle(path) {
   return `style="background-image: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(22,18,32,0.16)), url('${path}')"`
 }
 
+function renderCatalogMedia(artist) {
+  const status = statusMeta[artist.status];
+
+  if (artist.status === "secret") {
+    return `
+      <div class="catalog-media catalog-media-${artist.tier} catalog-media-${artist.status}">
+        <div class="catalog-overlay">
+          <span class="eyebrow">${artist.type}</span>
+          <strong>${artist.publicName}</strong>
+          <em class="catalog-status-caption">${status.summaryLabel}</em>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="catalog-media catalog-media-${artist.tier} catalog-media-${artist.status}">
+      <img class="catalog-image" src="${artist.images.cover}" alt="${artist.publicName}" />
+      <div class="catalog-overlay">
+        <span class="eyebrow">${artist.type}</span>
+        <strong>${artist.publicName}</strong>
+        <em class="catalog-status-caption">${status.summaryLabel}</em>
+      </div>
+    </div>
+  `;
+}
+
 function renderMainArtists() {
   const root = document.getElementById("mainArtistGrid");
   if (!root) return;
@@ -504,11 +531,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "") {
     .map(
       (artist) => `
         <article class="catalog-card ${statusMeta[artist.status].className} clickable-card" data-href="./character-detail.html?slug=${artist.slug}" data-secret="${artist.status === "secret" ? "true" : "false"}">
-          <div class="catalog-media catalog-media-${artist.tier} catalog-media-${artist.status}"${mediaStyle(artist.images.cover)}>
-            <span class="eyebrow">${artist.type}</span>
-            <strong>${artist.publicName}</strong>
-            <em class="catalog-status-caption">${statusMeta[artist.status].summaryLabel}</em>
-          </div>
+          ${renderCatalogMedia(artist)}
           <div class="catalog-body">
             <div class="catalog-meta">
               <span>${statusMeta[artist.status].label}</span>
@@ -581,14 +604,19 @@ function renderCharacterDetail() {
   document.title = `${artist.publicName} | AI Entertainment Studio`;
 
   hero.className = `detail-hero-card ${status.className}`;
-  hero.innerHTML = `
-    <span class="eyebrow">${artist.type}</span>
-    <strong>${artist.publicName}</strong>
-    <em class="catalog-status-caption">${status.label}</em>
-  `;
-  if (artist.images.cover) {
-    hero.style.backgroundImage = `linear-gradient(180deg, rgba(255,255,255,0.08), rgba(22,18,32,0.16)), url('${artist.images.cover}')`;
-  }
+  hero.innerHTML = artist.status === "secret"
+    ? `
+      <div class="detail-hero-secret">
+        <span class="eyebrow">${artist.type}</span>
+        <strong>${artist.publicName}</strong>
+        <em class="catalog-status-caption">${status.label}</em>
+      </div>
+    `
+    : `
+      <div class="detail-hero-frame">
+        <img class="detail-hero-image" src="${artist.images.cover}" alt="${artist.publicName}" />
+      </div>
+    `;
 
   const intro = document.getElementById("detailIntro");
   if (intro) {
