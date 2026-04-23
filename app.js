@@ -12,6 +12,10 @@ const characters = [
     business: "뷰티, 향수, 패션 필름",
     tags: ["시크", "퍼포먼스", "뷰티"],
     note: "메인 A / 카리나 결",
+    images: {
+      cover: "./assets/characters/yoon-serin/cover.jpg",
+      thumb: "./assets/characters/yoon-serin/thumb.jpg"
+    },
     intro: "첫 유입을 책임지는 메인 비주얼. 차가운 무드와 강한 퍼포먼스를 함께 잡는 센터형 아이돌입니다.",
     concept: "시크하고 미래적인 무드, 뷰티와 향수 캠페인에 특히 강한 캐릭터.",
     profile: {
@@ -39,6 +43,10 @@ const characters = [
     business: "패션, 음료, 라이프스타일",
     tags: ["센터", "하이틴", "대중성"],
     note: "메인 B / 장원영 결",
+    images: {
+      cover: "./assets/characters/han-seoyul/cover.jpg",
+      thumb: "./assets/characters/han-seoyul/thumb.jpg"
+    },
     intro: "대중성과 센터 감각이 강한 메인 아이돌. 밝고 반짝이는 무드로 팬 확장력이 높은 캐릭터입니다.",
     concept: "하이틴과 럭셔리 사이를 오가며 브랜드 친화력이 높은 확장형 아이돌.",
     profile: {
@@ -66,6 +74,10 @@ const characters = [
     business: "푸드, 라이프, 커머스",
     tags: ["친근함", "리액션", "생활형"],
     note: "메인 C / 쯔양 결",
+    images: {
+      cover: "./assets/characters/park-doa/cover.jpg",
+      thumb: "./assets/characters/park-doa/thumb.jpg"
+    },
     intro: "가장 친근하게 반응을 끌어오는 생활밀착형 스타. 댓글 전환과 커뮤니티 반응에 강한 캐릭터입니다.",
     concept: "친근함, 먹방/리액션, 생활형 포맷에 최적화된 팬덤 전환 캐릭터.",
     profile: {
@@ -93,6 +105,10 @@ const characters = [
     business: "주얼리, 럭셔리 뷰티, 에디토리얼",
     tags: ["럭셔리", "에디토리얼", "프리미엄"],
     note: "프리미엄 메인 / 김혜수 결",
+    images: {
+      cover: "./assets/characters/choi-seojin/cover.jpg",
+      thumb: "./assets/characters/choi-seojin/thumb.jpg"
+    },
     intro: "엔터 전체에 무게감을 부여하는 프리미엄 메인. 광고와 화보형 협업에 가장 먼저 연결되는 간판입니다.",
     concept: "럭셔리, 에디토리얼, 하이엔드 뷰티와 주얼리에 최적화된 브랜드형 캐릭터.",
     profile: {
@@ -120,6 +136,10 @@ const characters = [
     business: "음향, 감성 캠페인, 뷰티",
     tags: ["보컬", "감성", "청아함"],
     note: "감성형 보컬 라인",
+    images: {
+      cover: "./assets/characters/oh-haerin/cover.jpg",
+      thumb: "./assets/characters/oh-haerin/thumb.jpg"
+    },
     intro: "청아한 보컬 감성을 중심으로 데뷔를 준비 중인 라인입니다.",
     concept: "감정 몰입형 숏폼과 무드형 콘텐츠에 적합한 예비 아이돌.",
     profile: {
@@ -145,6 +165,10 @@ const characters = [
     business: "패션, 뷰티, 퍼포먼스형 광고",
     tags: ["성숙함", "러블리", "무대형"],
     note: "성숙한 섹시 러블리형",
+    images: {
+      cover: "./assets/characters/min-chaeon/cover.jpg",
+      thumb: "./assets/characters/min-chaeon/thumb.jpg"
+    },
     intro: "성숙한 매력과 러블리함을 함께 가진 데뷔 예정 라인입니다.",
     concept: "무대형 퍼포먼스와 스타일링 확장이 가능한 보조 아이돌 포지션.",
     profile: {
@@ -170,6 +194,10 @@ const characters = [
     business: "스킨케어, 리빙, 뷰티",
     tags: ["내추럴", "우아함", "뷰티"],
     note: "내추럴 럭셔리형",
+    images: {
+      cover: "./assets/characters/seo-yuan/cover.jpg",
+      thumb: "./assets/characters/seo-yuan/thumb.jpg"
+    },
     intro: "자연스러운 고급감을 보여주는 데뷔 예정 모델 라인입니다.",
     concept: "뷰티와 리빙 브랜드에 맞는 잔잔하고 우아한 무드.",
     profile: {
@@ -195,6 +223,10 @@ const characters = [
     business: "비공개",
     tags: ["Secret", "Model", "Soon"],
     note: "시크릿 / 모델 라인",
+    images: {
+      cover: "./assets/characters/kang-sia/cover.jpg",
+      thumb: "./assets/characters/kang-sia/thumb.jpg"
+    },
     intro: "공개 전 시크릿 라인입니다. 정체와 구체 설정은 아직 열리지 않았습니다.",
     concept: "티저와 실루엣만 먼저 공개되는 시크릿 모델 포지션.",
     profile: {
@@ -220,6 +252,10 @@ const characters = [
     business: "비공개",
     tags: ["Secret", "Actor", "Soon"],
     note: "시크릿 / 배우 라인",
+    images: {
+      cover: "./assets/characters/lee-jiwon/cover.jpg",
+      thumb: "./assets/characters/lee-jiwon/thumb.jpg"
+    },
     intro: "배우 라인의 시크릿 포지션으로, 공개 전까지 실루엣만 유지합니다.",
     concept: "고급감 있는 티저 운영 전용 시크릿 배우 포지션.",
     profile: {
@@ -245,6 +281,10 @@ const characters = [
     business: "비공개",
     tags: ["Secret", "Style", "Soon"],
     note: "시크릿 / 스타일형",
+    images: {
+      cover: "./assets/characters/ha-yuna/cover.jpg",
+      thumb: "./assets/characters/ha-yuna/thumb.jpg"
+    },
     intro: "스타일 라인의 실험형 시크릿 캐릭터입니다.",
     concept: "차후 반응을 보고 공개 여부를 정하는 스타일형 후보.",
     profile: {
@@ -338,8 +378,15 @@ const roster = characters.map((artist) => ({
   name: artist.publicName,
   type: artist.type,
   note: artist.note,
-  status: artist.status
+  status: artist.status,
+  slug: artist.slug,
+  thumb: artist.images.thumb
 }));
+
+function mediaStyle(path) {
+  if (!path) return "";
+  return `style="background-image: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(22,18,32,0.16)), url('${path}')"`
+}
 
 function renderMainArtists() {
   const root = document.getElementById("mainArtistGrid");
@@ -348,7 +395,7 @@ function renderMainArtists() {
     .map(
       (artist) => `
         <article class="artist-card clickable-card" data-href="./character-detail.html?slug=${artist.slug || characters.find((item) => item.name === artist.name)?.slug || ""}">
-          <div class="artist-media">
+          <div class="artist-media"${mediaStyle(characters.find((item) => item.name === artist.name)?.images.cover)}>
             <div>
               <span class="eyebrow">${artist.role}</span>
               <strong>${artist.name}</strong>
@@ -424,7 +471,7 @@ function renderRoster() {
     .map(
       (artist) => `
         <article class="roster-card ${statusMeta[artist.status].className} clickable-card" data-href="./character-detail.html?slug=${characters.find((item) => item.publicName === artist.name)?.slug || ""}" data-secret="${artist.status === "secret" ? "true" : "false"}">
-          <div class="roster-media roster-media-${artist.status}">
+          <div class="roster-media roster-media-${artist.status}"${mediaStyle(artist.thumb)}>
             <strong>${artist.name}</strong>
           </div>
           <div class="roster-body">
@@ -457,7 +504,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "") {
     .map(
       (artist) => `
         <article class="catalog-card ${statusMeta[artist.status].className} clickable-card" data-href="./character-detail.html?slug=${artist.slug}" data-secret="${artist.status === "secret" ? "true" : "false"}">
-          <div class="catalog-media catalog-media-${artist.tier} catalog-media-${artist.status}">
+          <div class="catalog-media catalog-media-${artist.tier} catalog-media-${artist.status}"${mediaStyle(artist.images.cover)}>
             <span class="eyebrow">${artist.type}</span>
             <strong>${artist.publicName}</strong>
             <em class="catalog-status-caption">${statusMeta[artist.status].summaryLabel}</em>
@@ -539,6 +586,9 @@ function renderCharacterDetail() {
     <strong>${artist.publicName}</strong>
     <em class="catalog-status-caption">${status.label}</em>
   `;
+  if (artist.images.cover) {
+    hero.style.backgroundImage = `linear-gradient(180deg, rgba(255,255,255,0.08), rgba(22,18,32,0.16)), url('${artist.images.cover}')`;
+  }
 
   const intro = document.getElementById("detailIntro");
   if (intro) {
@@ -583,7 +633,7 @@ function renderCharacterDetail() {
       .map(
         (item) => `
           <article class="detail-short-card">
-            <div class="detail-short-media ${status.className}">
+            <div class="detail-short-media ${status.className}"${mediaStyle(artist.images.thumb)}>
               <span class="eyebrow">${artist.publicName}</span>
               <strong>${item.title}</strong>
             </div>

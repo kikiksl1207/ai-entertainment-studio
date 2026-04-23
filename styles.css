@@ -377,6 +377,8 @@ p {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(23, 21, 31, 0.08)),
     linear-gradient(160deg, #eee8fb 0%, #b7a8de 100%);
+  background-size: cover;
+  background-position: center;
   color: white;
   transition: transform 180ms ease, filter 180ms ease;
 }
@@ -679,6 +681,8 @@ p {
   gap: 8px;
   padding: 20px;
   color: white;
+  background-size: cover;
+  background-position: center;
 }
 
 .catalog-media-main {
@@ -933,6 +937,8 @@ p {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(22, 18, 32, 0.16)),
     linear-gradient(160deg, #ded3fb 0%, #7a63b1 100%);
+  background-size: cover;
+  background-position: center;
 }
 
 .detail-hero-card.is-public {
@@ -1059,6 +1065,8 @@ p {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(22, 18, 32, 0.16)),
     linear-gradient(160deg, #ded3fb 0%, #7a63b1 100%);
+  background-size: cover;
+  background-position: center;
 }
 
 .detail-short-media.is-secret {
