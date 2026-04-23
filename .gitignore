@@ -1,0 +1,15 @@
+.DS_Store
+Thumbs.db
+desktop.ini
+
+.env
+.env.local
+.env.*.local
+
+node_modules/
+dist/
+build/
+.next/
+
+.idea/
+.vscode/
