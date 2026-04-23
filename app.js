@@ -320,15 +320,15 @@ const statusMeta = {
 const mainArtists = [
   {
     name: "윤세린",
-    role: "Main Visual A",
-    description: "냉미녀 퍼포먼스형. 첫 유입과 강한 비주얼 각인을 담당하는 메인 간판.",
-    tags: ["카리나 결", "퍼포먼스", "뷰티/향수"]
+    role: "Main Pick",
+    description: "MVP 첫 화면을 책임지는 메인 대표. 첫 유입과 강한 비주얼 각인을 담당하는 핵심 간판.",
+    tags: ["메인 대표", "퍼포먼스", "뷰티/향수"]
   },
   {
     name: "한서율",
-    role: "Main Visual B",
-    description: "센터형 대중성. 안정적인 팬 확장과 엔터사 메인 아티스트 포지션에 적합.",
-    tags: ["장원영 결", "센터형", "대중성"]
+    role: "Main Expansion",
+    description: "센터형 대중성을 담당하는 확장 축. 안정적인 팬 확장과 메인 아이돌 포지션에 적합.",
+    tags: ["센터형", "대중성", "확장"]
   },
   {
     name: "박도아",
@@ -345,12 +345,14 @@ const mainArtists = [
 ];
 
 const shortforms = [
-  { title: "메인 비주얼 티저", artist: "윤세린", metric: "조회 12.4만", tone: "강한 첫인상과 표정 변화 중심" },
-  { title: "센터 무드 스냅", artist: "한서율", metric: "조회 9.7만", tone: "정면 비주얼과 대중성 중심" },
-  { title: "친근 리액션 포맷", artist: "박도아", metric: "조회 15.3만", tone: "생활형 리액션과 팬서비스 중심" },
-  { title: "에디토리얼 컷 무드", artist: "최서진", metric: "조회 6.2만", tone: "화보형 무드와 광고 적합도 강조" },
-  { title: "콘셉트 퍼포먼스", artist: "윤세린", metric: "조회 11.8만", tone: "세련된 콘셉트와 퍼포먼스 무드" },
-  { title: "하이틴 센터 포맷", artist: "한서율", metric: "조회 10.1만", tone: "밝고 반짝이는 센터형 무드" }
+  { title: "메인 비주얼 티저", artist: "윤세린", metric: "조회 12.4만", tone: "첫 유입용 메인 비주얼 포맷, 강한 시선과 퍼포먼스 무드 중심" },
+  { title: "콘셉트 퍼포먼스", artist: "윤세린", metric: "조회 11.8만", tone: "무대 장악력과 퍼포먼스 센터 이미지를 강화하는 핵심 포맷" },
+  { title: "센터 무드 스냅", artist: "한서율", metric: "조회 9.7만", tone: "정면 비주얼과 대중성 확장을 담당하는 센터형 포맷" },
+  { title: "하이틴 센터 포맷", artist: "한서율", metric: "조회 10.1만", tone: "밝고 반짝이는 센터 무드로 팬 확장을 노리는 포맷" },
+  { title: "친근 리액션 포맷", artist: "박도아", metric: "조회 15.3만", tone: "생활형 리액션과 댓글 반응을 팬 전환으로 연결하는 포맷" },
+  { title: "먹방 리액션 티저", artist: "박도아", metric: "저장 3.7천", tone: "친근한 먹방 크리에이터 무드로 호감과 참여를 끌어오는 포맷" },
+  { title: "에디토리얼 컷 무드", artist: "최서진", metric: "조회 6.2만", tone: "브랜드 제안과 화보형 무드를 보여주는 프리미엄 포맷" },
+  { title: "브랜드 무드 필름", artist: "최서진", metric: "완주율 68%", tone: "광고·화보 적합도를 직접 보여주는 프리미엄 쇼케이스 포맷" }
 ];
 
 const businessPackages = [
