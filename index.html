@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Entertainment Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="#top">
+          <span class="brand-mark">AE</span>
+          <span class="brand-copy">
+            <strong>AI Entertainment Studio</strong>
+            <small>Virtual Artist Label</small>
+          </span>
+        </a>
+
+        <nav class="main-nav" aria-label="메인 메뉴">
+          <a href="#artists">Artists</a>
+          <a href="#shortform">Shortform</a>
+          <a href="#premium">Premium</a>
+          <a href="#business">Business</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero-section">
+        <div class="shell hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">Official Label</p>
+            <h1>
+              엔터사처럼 보이고,
+              <br />
+              캐릭터 플랫폼처럼 작동하는
+              <br />
+              AI 아티스트 레이블
+            </h1>
+            <p class="hero-description">
+              메인 비주얼, 숏폼 피드, 프리미엄 화보 무드, 추후 캐릭터챗까지 확장 가능한
+              AI 엔터 프로젝트의 1차 웹 프로토타입입니다.
+            </p>
+
+            <div class="hero-actions">
+              <a class="button button-primary" href="#artists">메인 아티스트 보기</a>
+              <a class="button button-secondary" href="#shortform">숏폼 피드 보기</a>
+            </div>
+
+            <dl class="hero-metrics">
+              <div>
+                <dt>Main Roster</dt>
+                <dd>3 + 1</dd>
+              </div>
+              <div>
+                <dt>Total Characters</dt>
+                <dd>10</dd>
+              </div>
+              <div>
+                <dt>2nd Phase</dt>
+                <dd>Character Chat</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="hero-visual">
+            <article class="hero-card hero-card-primary">
+              <span>Main Visual A</span>
+              <strong>윤세린</strong>
+              <p>냉미녀 퍼포먼스형, 첫 유입과 화제성을 담당하는 메인 비주얼.</p>
+            </article>
+            <article class="hero-card hero-card-secondary">
+              <span>Main Visual B</span>
+              <strong>한서율</strong>
+              <p>센터형 대중성, 팬 확장에 강한 메인 아이돌.</p>
+            </article>
+            <article class="hero-card hero-card-accent">
+              <span>Community Hook</span>
+              <strong>박도아</strong>
+              <p>친근함과 후속 팬덤 전환에 유리한 생활밀착형 스타.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="artists" class="content-section">
+        <div class="shell">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Artists</p>
+              <h2>메인 3인과 프리미엄 간판</h2>
+              <p>
+                엔터사 톤의 메인 구성은 윤세린, 한서율, 박도아를 중심으로 운영하고,
+                최서진은 프리미엄 라인으로 별도 강화합니다.
+              </p>
+            </div>
+          </div>
+
+          <div class="artist-grid" id="mainArtistGrid"></div>
+        </div>
+      </section>
+
+      <section id="shortform" class="content-section section-soft">
+        <div class="shell">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Shortform Feed</p>
+              <h2>숏폼은 빠르게 소비되고, 바로 캐릭터로 이어집니다</h2>
+              <p>
+                메인 비주얼형, 팬서비스형, 콘셉트형 포맷을 반복 생산하는 구조를
+                가정한 피드 레이아웃입니다.
+              </p>
+            </div>
+          </div>
+
+          <div class="shortform-grid" id="shortformGrid"></div>
+        </div>
+      </section>
+
+      <section id="premium" class="content-section">
+        <div class="shell premium-grid">
+          <div class="premium-copy">
+            <p class="eyebrow">Premium Line</p>
+            <h2>브랜드와 화보를 위해 따로 세운 프리미엄 간판</h2>
+            <p>
+              최서진은 메인 3인과 달리 매일 전면에 서기보다, 광고·화보·럭셔리 톤에서
+              강하게 쓰는 프리미엄 라인으로 운영합니다.
+            </p>
+            <ul class="premium-points">
+              <li>럭셔리 / 프리미엄 뷰티 / 주얼리 무드 대응</li>
+              <li>엔터 전체의 무게감과 고급감을 잡는 역할</li>
+              <li>후속 광고 제안서와 화보형 콘텐츠의 대표 간판</li>
+            </ul>
+          </div>
+          <div class="premium-panel">
+            <div class="premium-stat">
+              <span>Premium Main</span>
+              <strong>최서진</strong>
+            </div>
+            <div class="premium-tags">
+              <span>Luxury</span>
+              <span>Editorial</span>
+              <span>Beauty</span>
+              <span>Jewelry</span>
+            </div>
+            <div class="premium-placeholder">Editorial Showcase Area</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="content-section section-soft">
+        <div class="shell">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Character Roster</p>
+              <h2>전체 캐릭터 라인업</h2>
+              <p>
+                10인 캐릭터를 메인, 프리미엄, 서브, 실험 라인으로 구분해 탐색할 수 있는
+                기본 목록 구조입니다.
+              </p>
+            </div>
+          </div>
+
+          <div class="roster-grid" id="rosterGrid"></div>
+        </div>
+      </section>
+
+      <section id="business" class="content-section">
+        <div class="shell business-grid">
+          <div class="business-copy">
+            <p class="eyebrow">Business</p>
+            <h2>브랜드 협업과 제휴를 위한 공식 문의 구조</h2>
+            <p>
+              이 섹션은 팬이 아닌 브랜드와 광고주를 위한 영역입니다. 캐릭터 IP 협업,
+              숏폼 패키지, 화보형 광고, 캐릭터 브랜딩까지 확장 가능한 구조로 설계합니다.
+            </p>
+          </div>
+          <div class="business-cards">
+            <article>
+              <strong>Shortform Package</strong>
+              <p>메인 캐릭터 기반 숏폼 광고와 SNS형 노출 패키지.</p>
+            </article>
+            <article>
+              <strong>Editorial Package</strong>
+              <p>프리미엄 캐릭터 기반 화보형 이미지와 브랜드 무드 캠페인.</p>
+            </article>
+            <article>
+              <strong>Character Branding</strong>
+              <p>캐릭터 프로필과 세계관을 함께 활용하는 브랜딩 제안.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="content-section section-soft">
+        <div class="shell coming-grid">
+          <div>
+            <p class="eyebrow">Next Phase</p>
+            <h2>Character Chat은 반응을 본 뒤 붙입니다</h2>
+            <p>
+              지금은 숏폼 조회수와 팬 반응을 먼저 쌓고, 이후 가장 강한 캐릭터부터
+              대화형 경험을 붙이는 구조를 가정합니다.
+            </p>
+          </div>
+          <div class="coming-panel">
+            <strong>Coming Soon</strong>
+            <p>Character Chat / Support / Membership</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-inner">
+        <div>
+          <strong>AI Entertainment Studio</strong>
+          <p>Official virtual artist label prototype for character IP, shortform, and fandom growth.</p>
+        </div>
+        <p>Phase 1: Landing / Artists / Feed / Business</p>
+      </div>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
