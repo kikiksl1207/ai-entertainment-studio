@@ -313,6 +313,27 @@ const shortforms = [
   { title: "하이틴 센터 포맷", artist: "한서율", metric: "조회 10.1만", tone: "밝고 반짝이는 센터형 무드" }
 ];
 
+const businessPackages = [
+  {
+    name: "Shortform Campaign",
+    target: "뷰티 / 패션 / 커머스",
+    summary: "메인 캐릭터를 활용한 숏폼 광고 세트와 SNS 노출 패키지",
+    deliverables: ["숏폼 3종", "썸네일 3종", "브랜드 컷 1세트"]
+  },
+  {
+    name: "Premium Editorial",
+    target: "주얼리 / 럭셔리 / 에디토리얼",
+    summary: "프리미엄 라인 중심의 화보형 콘텐츠와 브랜드 무드 연출",
+    deliverables: ["에디토리얼 컷", "브랜드 티저", "룩북형 이미지"]
+  },
+  {
+    name: "Character Branding",
+    target: "브랜드 콜라보 / IP 협업",
+    summary: "캐릭터 설정, 세계관, 반복 노출 구조를 함께 설계하는 브랜딩형 패키지",
+    deliverables: ["캐릭터 협업안", "콘텐츠 콘셉트", "운영 제안"]
+  }
+];
+
 const roster = characters.map((artist) => ({
   name: artist.publicName,
   type: artist.type,
@@ -363,6 +384,32 @@ function renderShortforms() {
               <span>${item.artist}</span>
             </div>
             <p>${item.tone}</p>
+          </div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderShortformHub() {
+  const root = document.getElementById("shortformHub");
+  if (!root) return;
+
+  root.innerHTML = shortforms
+    .map(
+      (item) => `
+        <article class="feed-card">
+          <div class="feed-card-media">
+            <span class="eyebrow">${item.artist}</span>
+            <strong>${item.title}</strong>
+          </div>
+          <div class="feed-card-body">
+            <div class="short-meta">
+              <span>${item.metric}</span>
+              <span>${item.artist}</span>
+            </div>
+            <p>${item.tone}</p>
+            <a class="text-link" href="./characters.html">캐릭터 보기</a>
           </div>
         </article>
       `
@@ -545,8 +592,30 @@ function renderCharacterDetail() {
   }
 }
 
+function renderBusinessPackages() {
+  const root = document.getElementById("businessPackageGrid");
+  if (!root) return;
+
+  root.innerHTML = businessPackages
+    .map(
+      (item) => `
+        <article class="package-card">
+          <span class="eyebrow">${item.target}</span>
+          <strong>${item.name}</strong>
+          <p>${item.summary}</p>
+          <ul class="package-list">
+            ${item.deliverables.map((detail) => `<li>${detail}</li>`).join("")}
+          </ul>
+        </article>
+      `
+    )
+    .join("");
+}
+
 renderMainArtists();
 renderShortforms();
+renderShortformHub();
+renderBusinessPackages();
 renderRoster();
 renderCharacterCatalog();
 bindCharacterFilters();

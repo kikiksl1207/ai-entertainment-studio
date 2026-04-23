@@ -1066,6 +1066,70 @@ p {
   color: rgba(255, 255, 255, 0.86);
 }
 
+.feed-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.feed-card,
+.package-card {
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.feed-card-media {
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px;
+  color: #ffffff;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(22, 18, 32, 0.16)),
+    linear-gradient(160deg, #d8cdf8 0%, #7e69b4 100%);
+}
+
+.feed-card-media strong {
+  font-size: 30px;
+  font-family: "Cormorant Garamond", serif;
+}
+
+.feed-card-body {
+  padding: 18px;
+}
+
+.package-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.package-card {
+  padding: 22px;
+}
+
+.package-card strong {
+  display: block;
+  margin-top: 14px;
+  color: var(--accent-dark);
+  font-size: 28px;
+  font-family: "Cormorant Garamond", serif;
+}
+
+.package-list {
+  margin: 18px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.package-list li + li {
+  margin-top: 8px;
+}
+
 @media (max-width: 1080px) {
   .artist-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1081,7 +1145,9 @@ p {
 
   .detail-layout,
   .detail-grid,
-  .detail-short-grid {
+  .detail-short-grid,
+  .feed-grid,
+  .package-grid {
     grid-template-columns: 1fr;
   }
 }
