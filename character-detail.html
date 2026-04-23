@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Character Detail | AI Entertainment Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="./index.html">
+          <span class="brand-mark">AE</span>
+          <span class="brand-copy">
+            <strong>AI Entertainment Studio</strong>
+            <small>Virtual Artist Label</small>
+          </span>
+        </a>
+
+        <nav class="main-nav" aria-label="메인 메뉴">
+          <a href="./index.html">Home</a>
+          <a href="./characters.html">Characters</a>
+          <a href="./index.html#shortform">Shortform</a>
+          <a href="./index.html#business">Business</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero">
+        <div class="shell detail-layout">
+          <div class="detail-hero-card" id="detailHero"></div>
+          <div class="detail-copy">
+            <div id="detailIntro"></div>
+            <div id="detailMeta" class="detail-meta-panel"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="content-section">
+        <div class="shell detail-grid">
+          <section class="detail-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Profile</p>
+                <h2>핵심 프로필</h2>
+              </div>
+            </div>
+            <dl class="detail-profile-list" id="detailProfile"></dl>
+          </section>
+
+          <section class="detail-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Shortform Highlights</p>
+                <h2>대표 숏폼</h2>
+              </div>
+            </div>
+            <div class="detail-short-grid" id="detailShorts"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="content-section section-soft">
+        <div class="shell" id="detailCta"></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-inner">
+        <div>
+          <strong>AI Entertainment Studio</strong>
+          <p>Official artist profile page for the entertainment prototype.</p>
+        </div>
+        <p><a href="./characters.html">캐릭터 목록으로 돌아가기</a></p>
+      </div>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
