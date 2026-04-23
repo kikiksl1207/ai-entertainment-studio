@@ -75,8 +75,8 @@ const characters = [
     tags: ["친근함", "리액션", "생활형"],
     note: "메인 C / 쯔양 결",
     images: {
-      cover: "./assets/characters/park-doa/cover.jpg",
-      thumb: "./assets/characters/park-doa/thumb.jpg"
+      cover: "./assets/characters/park-doa/cover.png",
+      thumb: "./assets/characters/park-doa/thumb.png"
     },
     intro: "가장 친근하게 반응을 끌어오는 생활밀착형 스타. 댓글 전환과 커뮤니티 반응에 강한 캐릭터입니다.",
     concept: "친근함, 먹방/리액션, 생활형 포맷에 최적화된 팬덤 전환 캐릭터.",
@@ -106,8 +106,8 @@ const characters = [
     tags: ["럭셔리", "에디토리얼", "프리미엄"],
     note: "프리미엄 메인 / 김혜수 결",
     images: {
-      cover: "./assets/characters/choi-seojin/cover.jpg",
-      thumb: "./assets/characters/choi-seojin/thumb.jpg"
+      cover: "./assets/characters/choi-seojin/cover.png",
+      thumb: "./assets/characters/choi-seojin/thumb.png"
     },
     intro: "엔터 전체에 무게감을 부여하는 프리미엄 메인. 광고와 화보형 협업에 가장 먼저 연결되는 간판입니다.",
     concept: "럭셔리, 에디토리얼, 하이엔드 뷰티와 주얼리에 최적화된 브랜드형 캐릭터.",
