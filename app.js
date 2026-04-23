@@ -13,8 +13,8 @@ const characters = [
     tags: ["시크", "퍼포먼스", "뷰티"],
     note: "메인 A / 카리나 결",
     images: {
-      cover: "./assets/characters/yoon-serin/cover.jpg",
-      thumb: "./assets/characters/yoon-serin/thumb.jpg"
+      cover: "./assets/characters/yoon-serin/cover.png",
+      thumb: "./assets/characters/yoon-serin/thumb.png"
     },
     intro: "첫 유입을 책임지는 메인 비주얼. 차가운 무드와 강한 퍼포먼스를 함께 잡는 센터형 아이돌입니다.",
     concept: "시크하고 미래적인 무드, 뷰티와 향수 캠페인에 특히 강한 캐릭터.",
