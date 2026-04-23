@@ -44,8 +44,8 @@ const characters = [
     tags: ["센터", "하이틴", "대중성"],
     note: "메인 B / 장원영 결",
     images: {
-      cover: "./assets/characters/han-seoyul/cover.jpg",
-      thumb: "./assets/characters/han-seoyul/thumb.jpg"
+      cover: "./assets/characters/han-seoyul/cover.png",
+      thumb: "./assets/characters/han-seoyul/thumb.png"
     },
     intro: "대중성과 센터 감각이 강한 메인 아이돌. 밝고 반짝이는 무드로 팬 확장력이 높은 캐릭터입니다.",
     concept: "하이틴과 럭셔리 사이를 오가며 브랜드 친화력이 높은 확장형 아이돌.",
