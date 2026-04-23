@@ -1,9 +1,11 @@
 const characters = [
   {
     name: "윤세린",
+    publicName: "윤세린",
     slug: "yoon-serin",
     type: "아이돌",
     tier: "main",
+    status: "public",
     reference: "카리나 결",
     summary: "냉미녀 퍼포먼스형 메인 비주얼",
     fandom: "강한 비주얼 입덕형",
@@ -13,9 +15,11 @@ const characters = [
   },
   {
     name: "한서율",
+    publicName: "한서율",
     slug: "han-seoyul",
     type: "아이돌",
     tier: "main",
+    status: "public",
     reference: "장원영 결",
     summary: "센터형 대중성과 하이틴 무드",
     fandom: "대중형 확장형",
@@ -25,9 +29,11 @@ const characters = [
   },
   {
     name: "박도아",
+    publicName: "박도아",
     slug: "park-doa",
     type: "스트리머",
     tier: "main",
+    status: "public",
     reference: "쯔양 결",
     summary: "친근함과 생활감이 강한 커뮤니티형 스타",
     fandom: "댓글·호감 전환형",
@@ -37,9 +43,11 @@ const characters = [
   },
   {
     name: "최서진",
+    publicName: "최서진",
     slug: "choi-seojin",
     type: "배우",
     tier: "premium",
+    status: "public",
     reference: "김혜수 결",
     summary: "럭셔리·에디토리얼에 강한 프리미엄 메인",
     fandom: "프리미엄 선망형",
@@ -49,9 +57,11 @@ const characters = [
   },
   {
     name: "오해린",
+    publicName: "오해린",
     slug: "oh-haerin",
     type: "아이돌",
     tier: "sub",
+    status: "debut",
     reference: "태연 결",
     summary: "감성 보컬 중심의 청아한 라인",
     fandom: "감성 몰입형",
@@ -61,9 +71,11 @@ const characters = [
   },
   {
     name: "민채온",
+    publicName: "민채온",
     slug: "min-chaeon",
     type: "아이돌",
     tier: "sub",
+    status: "debut",
     reference: "전효성 결",
     summary: "성숙한 섹시 러블리 포지션",
     fandom: "직관적 매력 소비형",
@@ -73,9 +85,11 @@ const characters = [
   },
   {
     name: "서유안",
+    publicName: "서유안",
     slug: "seo-yuan",
     type: "모델",
     tier: "sub",
+    status: "debut",
     reference: "한효주 결",
     summary: "내추럴 럭셔리 톤의 뷰티 모델",
     fandom: "호감·선망형",
@@ -85,41 +99,65 @@ const characters = [
   },
   {
     name: "강시아",
+    publicName: "Secret Trainee 01",
     slug: "kang-sia",
     type: "모델",
     tier: "sub",
+    status: "secret",
     reference: "신민아 결",
     summary: "도시적이고 세련된 패션 라인",
-    fandom: "스타일 소비형",
-    business: "향수, 패션, 여성 브랜드",
-    tags: ["도시형", "세련됨", "패션"],
-    note: "세련된 도시형"
+    fandom: "공개 전",
+    business: "비공개",
+    tags: ["Secret", "Model", "Soon"],
+    note: "시크릿 / 모델 라인"
   },
   {
     name: "이지원",
+    publicName: "Secret Trainee 02",
     slug: "lee-jiwon",
     type: "배우",
     tier: "experiment",
+    status: "secret",
     reference: "전지현 결",
     summary: "고급스럽고 대중적인 톱스타 포지션",
-    fandom: "범대중 친화형",
-    business: "하이엔드 캠페인, 패션 필름",
-    tags: ["톱스타", "고급감", "대중성"],
-    note: "고급스러운 톱스타형"
+    fandom: "공개 전",
+    business: "비공개",
+    tags: ["Secret", "Actor", "Soon"],
+    note: "시크릿 / 배우 라인"
   },
   {
     name: "하윤아",
+    publicName: "Secret Trainee 03",
     slug: "ha-yuna",
     type: "배우",
     tier: "experiment",
+    status: "secret",
     reference: "나나 결",
     summary: "도회적이고 스타일리시한 올라운더",
-    fandom: "비주얼·스타일형",
-    business: "패션, 액세서리, 라이프스타일",
-    tags: ["도회적", "스타일형", "올라운더"],
-    note: "도회적 스타일형"
+    fandom: "공개 전",
+    business: "비공개",
+    tags: ["Secret", "Style", "Soon"],
+    note: "시크릿 / 스타일형"
   }
 ];
+
+const statusMeta = {
+  public: {
+    label: "공개 활동 중",
+    summaryLabel: "공개 중",
+    className: "is-public"
+  },
+  debut: {
+    label: "데뷔 예정",
+    summaryLabel: "Debut Soon",
+    className: "is-debut"
+  },
+  secret: {
+    label: "시크릿",
+    summaryLabel: "Secret",
+    className: "is-secret"
+  }
+};
 
 const mainArtists = [
   {
@@ -158,9 +196,10 @@ const shortforms = [
 ];
 
 const roster = characters.map((artist) => ({
-  name: artist.name,
+  name: artist.publicName,
   type: artist.type,
-  note: artist.note
+  note: artist.note,
+  status: artist.status
 }));
 
 function renderMainArtists() {
@@ -218,12 +257,15 @@ function renderRoster() {
   root.innerHTML = roster
     .map(
       (artist) => `
-        <article class="roster-card">
-          <div class="roster-media">
+        <article class="roster-card ${statusMeta[artist.status].className}">
+          <div class="roster-media roster-media-${artist.status}">
             <strong>${artist.name}</strong>
           </div>
           <div class="roster-body">
-            <span class="eyebrow">${artist.type}</span>
+            <div class="roster-meta">
+              <span class="eyebrow">${artist.type}</span>
+              <span class="status-badge status-badge-${artist.status}">${statusMeta[artist.status].label}</span>
+            </div>
             <p>${artist.note}</p>
           </div>
         </article>
@@ -243,14 +285,15 @@ function renderCharacterCatalog(filter = "all") {
   root.innerHTML = filtered
     .map(
       (artist) => `
-        <article class="catalog-card">
-          <div class="catalog-media catalog-media-${artist.tier}">
+        <article class="catalog-card ${statusMeta[artist.status].className}">
+          <div class="catalog-media catalog-media-${artist.tier} catalog-media-${artist.status}">
             <span class="eyebrow">${artist.type}</span>
-            <strong>${artist.name}</strong>
+            <strong>${artist.publicName}</strong>
+            <em class="catalog-status-caption">${statusMeta[artist.status].summaryLabel}</em>
           </div>
           <div class="catalog-body">
             <div class="catalog-meta">
-              <span>${artist.reference}</span>
+              <span>${statusMeta[artist.status].label}</span>
               <span>${artist.tier}</span>
             </div>
             <p class="catalog-summary">${artist.summary}</p>

@@ -582,6 +582,41 @@ p {
   margin-bottom: 24px;
 }
 
+.status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 22px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.status-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.legend-public {
+  background: #9f8bc7;
+}
+
+.legend-debut {
+  background: #cfc7e6;
+}
+
+.legend-secret {
+  background: #1a1722;
+}
+
 .filter-chip {
   min-height: 42px;
   padding: 0 16px;
@@ -653,6 +688,16 @@ p {
   font-family: "Cormorant Garamond", serif;
 }
 
+.catalog-status-caption {
+  margin-top: 8px;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
 .catalog-body {
   padding: 20px;
 }
@@ -705,6 +750,124 @@ p {
   font-size: 15px;
   font-weight: 700;
   line-height: 1.6;
+}
+
+.catalog-card.is-debut,
+.roster-card.is-debut {
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.catalog-card.is-secret,
+.roster-card.is-secret {
+  background: rgba(21, 18, 31, 0.88);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 48px rgba(11, 8, 19, 0.28);
+}
+
+.catalog-card.is-secret .catalog-body,
+.roster-card.is-secret .roster-body {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.catalog-card.is-secret .catalog-summary,
+.catalog-card.is-secret .catalog-details dd,
+.catalog-card.is-secret .catalog-meta span,
+.roster-card.is-secret .roster-body p {
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.catalog-card.is-secret .catalog-meta span {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.catalog-card.is-secret .tag-list span {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.catalog-card.is-secret .catalog-details div {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+.catalog-media-debut,
+.roster-media-debut {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(32, 24, 49, 0.05)),
+    linear-gradient(160deg, #f2eefb 0%, #d6cce9 100%);
+  color: #3a3151;
+}
+
+.catalog-media-secret,
+.roster-media-secret {
+  position: relative;
+  background:
+    radial-gradient(circle at 50% 25%, rgba(255, 255, 255, 0.08), transparent 18%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.18)),
+    linear-gradient(160deg, #06070a 0%, #1a1722 52%, #292431 100%);
+  color: #ffffff;
+}
+
+.catalog-media-secret::before,
+.roster-media-secret::before {
+  content: "";
+  position: absolute;
+  inset: auto 50% 20px auto;
+  transform: translateX(50%);
+  width: 112px;
+  height: 150px;
+  border-radius: 64px 64px 42px 42px;
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.18) 0 24px, transparent 25px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02));
+  filter: blur(2px);
+  opacity: 0.46;
+}
+
+.catalog-media-secret::after,
+.roster-media-secret::after {
+  content: "";
+  position: absolute;
+  inset: auto 50% 18px auto;
+  transform: translateX(50%);
+  width: 96px;
+  height: 132px;
+  border-radius: 56px 56px 38px 38px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02));
+  opacity: 0.32;
+}
+
+.roster-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.status-badge-public {
+  background: rgba(159, 139, 199, 0.12);
+  color: var(--accent-dark);
+}
+
+.status-badge-debut {
+  background: rgba(207, 199, 230, 0.5);
+  color: #5b4c80;
+}
+
+.status-badge-secret {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.82);
 }
 
 @media (max-width: 1080px) {
@@ -811,6 +974,10 @@ p {
     flex-wrap: nowrap;
     overflow-x: auto;
     padding-bottom: 4px;
+  }
+
+  .status-legend {
+    font-size: 12px;
   }
 
   .filter-chip {
