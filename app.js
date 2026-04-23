@@ -641,6 +641,28 @@ function renderCharacterDetail() {
     `;
   }
 
+  const gallery = document.getElementById("detailGallery");
+  if (gallery) {
+    gallery.innerHTML = artist.status === "secret"
+      ? ""
+      : `
+        <div>
+          <p class="eyebrow">Representative Cuts</p>
+          <h3>대표 이미지</h3>
+        </div>
+        <div class="detail-gallery-grid">
+          <article class="detail-gallery-card">
+            <img class="detail-gallery-image" src="${artist.images.cover}" alt="${artist.publicName} cover" />
+            <div class="detail-gallery-caption">Cover Cut</div>
+          </article>
+          <article class="detail-gallery-card">
+            <img class="detail-gallery-image" src="${artist.images.thumb}" alt="${artist.publicName} thumbnail" />
+            <div class="detail-gallery-caption">Thumbnail Cut</div>
+          </article>
+        </div>
+      `;
+  }
+
   const profile = document.getElementById("detailProfile");
   if (profile) {
     profile.innerHTML = Object.entries(artist.profile)
