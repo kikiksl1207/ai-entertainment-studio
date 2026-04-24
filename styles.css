@@ -348,9 +348,11 @@ p {
 }
 
 .hero-feature-body strong {
-  font-size: clamp(32px, 4vw, 44px);
+  font-size: clamp(30px, 3.7vw, 42px);
   line-height: 1.02;
   text-shadow: 0 3px 18px rgba(0, 0, 0, 0.28);
+  word-break: keep-all;
+  white-space: nowrap;
 }
 
 .hero-feature-body p {
@@ -364,7 +366,7 @@ p {
 
 .hero-feature-link {
   margin-top: auto;
-  color: #ffffff;
+  color: #ffffff !important;
   display: inline-flex;
   width: fit-content;
   min-height: 34px;
