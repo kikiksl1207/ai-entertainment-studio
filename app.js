@@ -149,7 +149,7 @@ const characters = [
       광고축: "감성 캠페인 · 뷰티"
     },
     shorts: [
-      { title: "Debut Soon Mood", metric: "준비 중" }
+      { title: "데뷔 예정 무드", metric: "준비 중" }
     ]
   },
   {
@@ -178,7 +178,7 @@ const characters = [
       광고축: "패션 · 뷰티"
     },
     shorts: [
-      { title: "Debut Soon Performance", metric: "준비 중" }
+      { title: "데뷔 예정 퍼포먼스", metric: "준비 중" }
     ]
   },
   {
@@ -207,12 +207,12 @@ const characters = [
       광고축: "스킨케어 · 리빙"
     },
     shorts: [
-      { title: "Debut Soon Beauty", metric: "준비 중" }
+      { title: "데뷔 예정 뷰티", metric: "준비 중" }
     ]
   },
   {
     name: "강시아",
-    publicName: "Secret Trainee 01",
+    publicName: "시크릿 트레이니 01",
     slug: "kang-sia",
     type: "모델",
     tier: "sub",
@@ -221,7 +221,7 @@ const characters = [
     summary: "도시적이고 세련된 패션 라인",
     fandom: "공개 전",
     business: "비공개",
-    tags: ["Secret", "Model", "Soon"],
+    tags: ["시크릿", "모델", "공개예정"],
     note: "시크릿 / 모델 라인",
     images: {
       cover: "./assets/characters/kang-sia/cover.jpg",
@@ -236,12 +236,12 @@ const characters = [
       광고축: "비공개"
     },
     shorts: [
-      { title: "Secret Teaser", metric: "비공개" }
+      { title: "시크릿 티저", metric: "비공개" }
     ]
   },
   {
     name: "이지원",
-    publicName: "Secret Trainee 02",
+    publicName: "시크릿 트레이니 02",
     slug: "lee-jiwon",
     type: "배우",
     tier: "experiment",
@@ -250,7 +250,7 @@ const characters = [
     summary: "고급스럽고 대중적인 톱스타 포지션",
     fandom: "공개 전",
     business: "비공개",
-    tags: ["Secret", "Actor", "Soon"],
+    tags: ["시크릿", "배우", "공개예정"],
     note: "시크릿 / 배우 라인",
     images: {
       cover: "./assets/characters/lee-jiwon/cover.jpg",
@@ -265,12 +265,12 @@ const characters = [
       광고축: "비공개"
     },
     shorts: [
-      { title: "Secret Teaser", metric: "비공개" }
+      { title: "시크릿 티저", metric: "비공개" }
     ]
   },
   {
     name: "하윤아",
-    publicName: "Secret Trainee 03",
+    publicName: "시크릿 트레이니 03",
     slug: "ha-yuna",
     type: "배우",
     tier: "experiment",
@@ -279,7 +279,7 @@ const characters = [
     summary: "도회적이고 스타일리시한 올라운더",
     fandom: "공개 전",
     business: "비공개",
-    tags: ["Secret", "Style", "Soon"],
+    tags: ["시크릿", "스타일", "공개예정"],
     note: "시크릿 / 스타일형",
     images: {
       cover: "./assets/characters/ha-yuna/cover.jpg",
@@ -294,7 +294,7 @@ const characters = [
       광고축: "비공개"
     },
     shorts: [
-      { title: "Secret Teaser", metric: "비공개" }
+      { title: "시크릿 티저", metric: "비공개" }
     ]
   }
 ];
@@ -307,12 +307,12 @@ const statusMeta = {
   },
   debut: {
     label: "데뷔 예정",
-    summaryLabel: "Debut Soon",
+    summaryLabel: "곧 공개",
     className: "is-debut"
   },
   secret: {
     label: "시크릿",
-    summaryLabel: "Secret",
+    summaryLabel: "시크릿",
     className: "is-secret"
   }
 };
@@ -320,25 +320,25 @@ const statusMeta = {
 const mainArtists = [
   {
     name: "윤세린",
-    role: "Main Pick",
+    role: "메인 대표",
     description: "MVP 첫 화면을 책임지는 메인 대표. 첫 유입과 강한 비주얼 각인을 담당하는 핵심 간판.",
     tags: ["메인 대표", "퍼포먼스", "뷰티/향수"]
   },
   {
     name: "한서율",
-    role: "Main Expansion",
+    role: "메인 확장",
     description: "센터형 대중성을 담당하는 확장 축. 안정적인 팬 확장과 메인 아이돌 포지션에 적합.",
     tags: ["센터형", "대중성", "확장"]
   },
   {
     name: "박도아",
-    role: "Community Hook",
+    role: "커뮤니티 훅",
     description: "친근하고 생활감 있는 캐릭터. 댓글 반응과 향후 팬덤 전환에 강함.",
     tags: ["쯔양 결", "친근함", "생활형"]
   },
   {
     name: "최서진",
-    role: "Premium Main",
+    role: "프리미엄 메인",
     description: "고급감과 존재감을 살린 프리미엄 라인. 광고와 화보형 무드에 강함.",
     tags: ["김혜수 결", "럭셔리", "프리미엄"]
   }
@@ -357,19 +357,19 @@ const shortforms = [
 
 const businessPackages = [
   {
-    name: "Shortform Campaign",
+    name: "숏폼 캠페인",
     target: "뷰티 / 패션 / 커머스",
     summary: "메인 캐릭터를 활용한 숏폼 광고 세트와 SNS 노출 패키지",
     deliverables: ["숏폼 3종", "썸네일 3종", "브랜드 컷 1세트"]
   },
   {
-    name: "Premium Editorial",
+    name: "프리미엄 에디토리얼",
     target: "주얼리 / 럭셔리 / 에디토리얼",
     summary: "프리미엄 라인 중심의 화보형 콘텐츠와 브랜드 무드 연출",
     deliverables: ["에디토리얼 컷", "브랜드 티저", "룩북형 이미지"]
   },
   {
-    name: "Character Branding",
+    name: "캐릭터 브랜딩",
     target: "브랜드 콜라보 / IP 협업",
     summary: "캐릭터 설정, 세계관, 반복 노출 구조를 함께 설계하는 브랜딩형 패키지",
     deliverables: ["캐릭터 협업안", "콘텐츠 콘셉트", "운영 제안"]
@@ -628,7 +628,7 @@ function renderCharacterDetail() {
   const artist = characters.find((item) => item.slug === slug) || characters[0];
   const status = statusMeta[artist.status];
 
-  document.title = `${artist.publicName} | AI Entertainment Studio`;
+  document.title = `${artist.publicName} | AI 엔터테인먼트 스튜디오`;
 
   hero.className = `detail-hero-card ${status.className}`;
   hero.innerHTML = artist.status === "secret"
@@ -648,7 +648,7 @@ function renderCharacterDetail() {
   const intro = document.getElementById("detailIntro");
   if (intro) {
     intro.innerHTML = `
-      <p class="eyebrow">Official Profile</p>
+      <p class="eyebrow">공식 프로필</p>
       <h1>${artist.publicName}</h1>
       <p class="detail-summary">${artist.summary}</p>
       <p>${artist.intro}</p>
@@ -663,7 +663,7 @@ function renderCharacterDetail() {
       <div class="tag-list">
         <span>${artist.reference}</span>
         <span>${artist.type}</span>
-        <span>${artist.tier}</span>
+        <span>${artist.tier === "main" ? "메인" : artist.tier === "premium" ? "프리미엄" : artist.tier === "sub" ? "서브" : "실험"}</span>
       </div>
     `;
   }
@@ -674,17 +674,17 @@ function renderCharacterDetail() {
       ? ""
       : `
         <div>
-          <p class="eyebrow">Representative Cuts</p>
+          <p class="eyebrow">대표 컷</p>
           <h3>대표 이미지</h3>
         </div>
         <div class="detail-gallery-grid">
           <article class="detail-gallery-card">
-            <img class="detail-gallery-image" src="${artist.images.cover}" alt="${artist.publicName} cover" />
-            <div class="detail-gallery-caption">Cover Cut</div>
+            <img class="detail-gallery-image" src="${artist.images.cover}" alt="${artist.publicName} 커버" />
+            <div class="detail-gallery-caption">커버 컷</div>
           </article>
           <article class="detail-gallery-card">
-            <img class="detail-gallery-image" src="${artist.images.thumb}" alt="${artist.publicName} thumbnail" />
-            <div class="detail-gallery-caption">Thumbnail Cut</div>
+            <img class="detail-gallery-image" src="${artist.images.thumb}" alt="${artist.publicName} 썸네일" />
+            <div class="detail-gallery-caption">썸네일 컷</div>
           </article>
         </div>
       `;
@@ -793,7 +793,7 @@ function bindCardNavigation() {
         overlay.className = "secret-transition";
         overlay.innerHTML = `
           <div class="secret-transition-panel">
-            <span>Secret Access</span>
+            <span>시크릿 접근</span>
             <strong>비공개 프로필에 접근 중입니다</strong>
           </div>
         `;
