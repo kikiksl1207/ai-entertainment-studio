@@ -413,7 +413,7 @@ function renderCatalogMedia(artist) {
 
   return `
     <div class="catalog-media catalog-media-${artist.tier} catalog-media-${artist.status}">
-      <img class="catalog-image" src="${artist.images.cover}" alt="${artist.publicName}" />
+        <img class="catalog-image catalog-image-${artist.slug}" src="${artist.images.thumb || artist.images.cover}" alt="${artist.publicName}" />
       <div class="catalog-overlay">
         <em class="catalog-status-caption">${status.summaryLabel}</em>
       </div>
@@ -641,7 +641,7 @@ function renderCharacterDetail() {
     `
       : `
         <div class="detail-hero-frame">
-          <img class="detail-hero-image detail-hero-image-${artist.slug}" src="${artist.images.cover}" alt="${artist.publicName}" />
+          <img class="detail-hero-image detail-hero-image-${artist.slug}" src="${artist.images.thumb || artist.images.cover}" alt="${artist.publicName}" />
         </div>
       `;
 

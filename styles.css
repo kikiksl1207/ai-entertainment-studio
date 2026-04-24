@@ -296,7 +296,7 @@ p {
 .hero-feature {
   grid-column: span 2;
   display: grid;
-  grid-template-columns: minmax(360px, 1.02fr) 0.98fr;
+  grid-template-columns: minmax(240px, 0.9fr) 1.1fr;
   overflow: hidden;
   min-height: 520px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -328,7 +328,7 @@ p {
   flex-direction: column;
   justify-content: flex-start;
   gap: 10px;
-  padding: 18px 24px 22px;
+  padding: 22px 28px 26px;
   color: #ffffff;
   min-width: 0;
 }
@@ -348,19 +348,19 @@ p {
 }
 
 .hero-feature-body strong {
-  font-size: clamp(30px, 3.7vw, 42px);
-  line-height: 1.02;
+  font-size: clamp(28px, 3.2vw, 38px);
+  line-height: 1.06;
   text-shadow: 0 3px 18px rgba(0, 0, 0, 0.28);
   word-break: keep-all;
   white-space: nowrap;
 }
 
 .hero-feature-body p {
-  max-width: 26ch;
+  max-width: 22ch;
   margin: 0;
   color: rgba(255, 255, 255, 0.88);
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.6;
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.24);
 }
 
@@ -368,16 +368,20 @@ p {
   margin-top: auto;
   color: #ffffff !important;
   display: inline-flex;
+  align-self: flex-start;
   width: fit-content;
   min-height: 34px;
-  padding: 10px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 8px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 10px 22px rgba(0, 0, 0, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.07));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 3px 12px rgba(0, 0, 0, 0.22);
   text-decoration: none;
   align-items: center;
   white-space: nowrap;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.01em;
 }
 
 .hero-card {
@@ -698,10 +702,11 @@ p {
 
 .short-card-head,
 .feed-card-head {
-  display: grid;
-  justify-items: center;
-  text-align: center;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 0;
   padding: 16px 18px 14px;
   border-bottom: 1px solid rgba(112, 87, 174, 0.14);
   background:
@@ -713,12 +718,18 @@ p {
 .feed-card-head strong {
   color: var(--accent-dark);
   display: block;
-  font-size: 19px;
-  line-height: 1.25;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.45;
+  margin-top: 10px;
+  opacity: 0.82;
 }
 
 .short-card-head .eyebrow,
 .feed-card-head .eyebrow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   padding: 0;
   border-radius: 0;
   background: transparent;
@@ -726,17 +737,16 @@ p {
   font-weight: 800;
   letter-spacing: 0;
   color: var(--accent-dark);
-  position: relative;
-  width: 100%;
+  width: auto;
 }
 
 .short-card-head .eyebrow::after,
 .feed-card-head .eyebrow::after {
   content: "";
   display: block;
-  width: 72px;
+  width: 48px;
   height: 2px;
-  margin: 10px auto 0;
+  margin: 8px 0 0;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(108, 70, 187, 0.92), rgba(196, 181, 238, 0.48));
 }
@@ -1053,10 +1063,26 @@ p {
   width: 100%;
   height: 100%;
   min-height: 420px;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center top;
   display: block;
   background: linear-gradient(180deg, rgba(18, 15, 29, 0.96), rgba(39, 31, 58, 0.88));
+}
+
+.catalog-image-yoon-serin {
+  object-position: center 8%;
+}
+
+.catalog-image-han-seoyul {
+  object-position: center top;
+}
+
+.catalog-image-park-doa {
+  object-position: center 20%;
+}
+
+.catalog-image-choi-seojin {
+  object-position: center top;
 }
 
 .catalog-overlay {
@@ -1354,12 +1380,24 @@ p {
   height: 100%;
   min-height: 720px;
   object-fit: cover;
-  object-position: center 8%;
+  object-position: center 12%;
   display: block;
 }
 
 .detail-hero-image-yoon-serin {
+  object-position: center top;
+}
+
+.detail-hero-image-han-seoyul {
   object-position: center 8%;
+}
+
+.detail-hero-image-park-doa {
+  object-position: center 15%;
+}
+
+.detail-hero-image-choi-seojin {
+  object-position: center top;
 }
 
 .detail-copy {
