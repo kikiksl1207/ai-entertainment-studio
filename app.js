@@ -428,10 +428,14 @@ function renderMainArtists() {
     .map(
       (artist) => {
         const source = getCharacterByName(artist.name);
+        const mediaSrc =
+          source?.slug === "han-seoyul"
+            ? source?.images.thumb || source?.images.cover || ""
+            : source?.images.cover || source?.images.thumb || "";
         return `
         <article class="artist-card clickable-card" data-href="./character-detail.html?slug=${artist.slug || source?.slug || ""}">
           <div class="artist-media">
-            <img class="artist-media-image" src="${source?.images.cover || source?.images.thumb || ""}" alt="${artist.name}" />
+            <img class="artist-media-image" src="${mediaSrc}" alt="${artist.name}" />
             <div class="artist-media-copy">
               <span class="artist-role">${artist.role}</span>
               <strong>${artist.name}</strong>

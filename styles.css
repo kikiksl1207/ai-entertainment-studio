@@ -322,10 +322,11 @@ p {
 .hero-feature-body {
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 24px;
+  justify-content: center;
+  gap: 10px;
+  padding: 22px;
   color: #ffffff;
+  min-width: 0;
 }
 
 .hero-feature-label {
@@ -342,16 +343,17 @@ p {
 }
 
 .hero-feature-body strong {
-  font-size: clamp(34px, 4.8vw, 48px);
-  line-height: 0.95;
+  font-size: clamp(28px, 3.8vw, 40px);
+  line-height: 1.02;
   text-shadow: 0 3px 18px rgba(0, 0, 0, 0.28);
 }
 
 .hero-feature-body p {
-  max-width: 28ch;
+  max-width: 24ch;
   margin: 0;
   color: rgba(255, 255, 255, 0.88);
-  font-size: 15px;
+  font-size: 14px;
+  line-height: 1.55;
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.24);
 }
 
