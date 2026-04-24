@@ -320,26 +320,26 @@ const statusMeta = {
 const mainArtists = [
   {
     name: "윤세린",
-    role: "메인 대표",
-    description: "MVP 첫 화면을 책임지는 메인 대표. 첫 유입과 강한 비주얼 각인을 담당하는 핵심 간판.",
+    role: "대표 비주얼",
+    description: "첫 유입과 강한 인상을 책임지는 메인 대표 캐릭터. 사이트 첫 화면에서 가장 먼저 각인되는 중심 축입니다.",
     tags: ["메인 대표", "퍼포먼스", "뷰티/향수"]
   },
   {
     name: "한서율",
-    role: "메인 확장",
-    description: "센터형 대중성을 담당하는 확장 축. 안정적인 팬 확장과 메인 아이돌 포지션에 적합.",
+    role: "센터 확장",
+    description: "밝고 안정적인 센터 무드로 팬층을 넓히는 확장 축. 대중형 아이돌 라인을 맡는 캐릭터입니다.",
     tags: ["센터형", "대중성", "확장"]
   },
   {
     name: "박도아",
-    role: "커뮤니티 훅",
-    description: "친근하고 생활감 있는 캐릭터. 댓글 반응과 향후 팬덤 전환에 강함.",
+    role: "팬 소통형",
+    description: "친근함과 생활감으로 댓글 반응을 끌어오는 캐릭터. 팬 전환과 커뮤니티 분위기를 담당합니다.",
     tags: ["쯔양 결", "친근함", "생활형"]
   },
   {
     name: "최서진",
-    role: "프리미엄 메인",
-    description: "고급감과 존재감을 살린 프리미엄 라인. 광고와 화보형 무드에 강함.",
+    role: "프리미엄 간판",
+    description: "광고, 화보, 브랜드 무드에 강한 프리미엄 라인. 사이트 전체의 고급감을 끌어올리는 간판 캐릭터입니다.",
     tags: ["김혜수 결", "럭셔리", "프리미엄"]
   }
 ];
@@ -415,8 +415,6 @@ function renderCatalogMedia(artist) {
     <div class="catalog-media catalog-media-${artist.tier} catalog-media-${artist.status}">
       <img class="catalog-image" src="${artist.images.cover}" alt="${artist.publicName}" />
       <div class="catalog-overlay">
-        <span class="eyebrow">${artist.type}</span>
-        <strong>${artist.publicName}</strong>
         <em class="catalog-status-caption">${status.summaryLabel}</em>
       </div>
     </div>
@@ -435,7 +433,7 @@ function renderMainArtists() {
           <div class="artist-media">
             <img class="artist-media-image" src="${source?.images.cover || source?.images.thumb || ""}" alt="${artist.name}" />
             <div class="artist-media-copy">
-              <span class="eyebrow">${artist.role}</span>
+              <span class="artist-role">${artist.role}</span>
               <strong>${artist.name}</strong>
             </div>
           </div>
@@ -463,11 +461,11 @@ function renderShortforms() {
         const image = artist?.images.thumb || artist?.images.cover || "";
         return `
         <article class="short-card clickable-card" data-href="./character-detail.html?slug=${artist?.slug || ""}">
+          <div class="short-card-head">
+            <span class="eyebrow">${item.artist}</span>
+            <strong>${item.title}</strong>
+          </div>
           <div class="short-media"${mediaStyle(image)}>
-            <div class="short-media-copy">
-              <span class="eyebrow">${item.artist}</span>
-              <strong>${item.title}</strong>
-            </div>
             <span class="short-media-metric">${item.metric}</span>
           </div>
           <div class="short-body">
@@ -496,11 +494,11 @@ function renderShortformHub() {
         const image = artist?.images.cover || artist?.images.thumb || "";
         return `
         <article class="feed-card clickable-card" data-href="./character-detail.html?slug=${artist?.slug || ""}">
+          <div class="feed-card-head">
+            <span class="eyebrow">${item.artist}</span>
+            <strong>${item.title}</strong>
+          </div>
           <div class="feed-card-media"${mediaStyle(image)}>
-            <div class="feed-card-copy">
-              <span class="eyebrow">${item.artist}</span>
-              <strong>${item.title}</strong>
-            </div>
             <span class="feed-card-chip">${artist?.type || ""}</span>
           </div>
           <div class="feed-card-body">
@@ -560,9 +558,10 @@ function renderCharacterCatalog(filter = "all", tagFilter = "") {
         <article class="catalog-card ${statusMeta[artist.status].className} clickable-card" data-href="./character-detail.html?slug=${artist.slug}" data-secret="${artist.status === "secret" ? "true" : "false"}">
           ${renderCatalogMedia(artist)}
           <div class="catalog-body">
+            <h3 class="catalog-name">${artist.publicName}</h3>
             <div class="catalog-meta">
               <span>${statusMeta[artist.status].label}</span>
-              <span>${artist.tier}</span>
+              <span>${artist.tier === "main" ? "메인" : artist.tier === "premium" ? "프리미엄" : artist.tier === "sub" ? "서브" : "실험"}</span>
             </div>
             <p class="catalog-summary">${artist.summary}</p>
             <dl class="catalog-details">
