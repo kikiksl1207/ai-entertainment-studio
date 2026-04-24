@@ -370,12 +370,12 @@ p {
   display: inline-flex;
   width: fit-content;
   min-height: 34px;
-  padding: 14px 12px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 999px;
-  background: transparent;
-  text-decoration: underline;
-  text-underline-offset: 4px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 10px 22px rgba(0, 0, 0, 0.12);
+  text-decoration: none;
   align-items: center;
   white-space: nowrap;
 }
@@ -582,6 +582,14 @@ p {
   display: block;
 }
 
+.artist-media-image-yoon-serin {
+  object-position: center 8%;
+}
+
+.artist-media-image-park-doa {
+  object-position: center 18%;
+}
+
 .artist-media-copy,
 .short-media-copy,
 .feed-card-copy {
@@ -718,6 +726,19 @@ p {
   font-weight: 800;
   letter-spacing: 0;
   color: var(--accent-dark);
+  position: relative;
+  width: 100%;
+}
+
+.short-card-head .eyebrow::after,
+.feed-card-head .eyebrow::after {
+  content: "";
+  display: block;
+  width: 72px;
+  height: 2px;
+  margin: 10px auto 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(108, 70, 187, 0.92), rgba(196, 181, 238, 0.48));
 }
 
 .short-media {
@@ -1325,15 +1346,20 @@ p {
   border-radius: 24px;
   overflow: hidden;
   background: linear-gradient(180deg, rgba(18, 15, 29, 0.96), rgba(39, 31, 58, 0.88));
+  min-height: 720px;
 }
 
 .detail-hero-image {
   width: 100%;
-  height: auto;
-  max-height: 880px;
-  object-fit: contain;
-  object-position: center top;
+  height: 100%;
+  min-height: 720px;
+  object-fit: cover;
+  object-position: center 8%;
   display: block;
+}
+
+.detail-hero-image-yoon-serin {
+  object-position: center 8%;
 }
 
 .detail-copy {

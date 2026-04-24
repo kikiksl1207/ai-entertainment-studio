@@ -431,8 +431,8 @@ function renderMainArtists() {
         const mediaSrc = source?.images.thumb || source?.images.cover || "";
         return `
         <article class="artist-card clickable-card" data-href="./character-detail.html?slug=${artist.slug || source?.slug || ""}">
-          <div class="artist-media">
-            <img class="artist-media-image" src="${mediaSrc}" alt="${artist.name}" />
+          <div class="artist-media artist-media-${source?.slug || artist.slug || ""}">
+            <img class="artist-media-image artist-media-image-${source?.slug || artist.slug || ""}" src="${mediaSrc}" alt="${artist.name}" />
             <div class="artist-media-copy">
               <span class="artist-role">${artist.role}</span>
               <strong>${artist.name}</strong>
@@ -639,11 +639,11 @@ function renderCharacterDetail() {
         <em class="catalog-status-caption">${status.label}</em>
       </div>
     `
-    : `
-      <div class="detail-hero-frame">
-        <img class="detail-hero-image" src="${artist.images.cover}" alt="${artist.publicName}" />
-      </div>
-    `;
+      : `
+        <div class="detail-hero-frame">
+          <img class="detail-hero-image detail-hero-image-${artist.slug}" src="${artist.images.cover}" alt="${artist.publicName}" />
+        </div>
+      `;
 
   const intro = document.getElementById("detailIntro");
   if (intro) {
