@@ -426,6 +426,13 @@ p {
   overflow: hidden;
 }
 
+.artist-card .text-link,
+.short-card .text-link,
+.feed-card .text-link {
+  position: relative;
+  z-index: 1;
+}
+
 .clickable-card {
   cursor: pointer;
 }
@@ -452,6 +459,39 @@ p {
   background-position: center top;
   color: white;
   transition: transform 180ms ease, filter 180ms ease;
+}
+
+.artist-media,
+.short-media,
+.feed-card-media {
+  position: relative;
+  overflow: hidden;
+}
+
+.artist-media::after,
+.short-media::after,
+.feed-card-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(10, 8, 18, 0.04), rgba(10, 8, 18, 0.64));
+}
+
+.artist-media-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+
+.artist-media-copy,
+.short-media-copy,
+.feed-card-copy {
+  position: relative;
+  z-index: 1;
 }
 
 .artist-media strong,
@@ -501,6 +541,23 @@ p {
   align-items: flex-start;
   justify-content: space-between;
   flex-direction: column;
+}
+
+.short-media-metric,
+.feed-card-chip {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
 .short-meta {
@@ -1288,6 +1345,8 @@ p {
   background:
     linear-gradient(180deg, rgba(10, 8, 18, 0.18), rgba(10, 8, 18, 0.52)),
     linear-gradient(160deg, #b7a6e6 0%, #564181 100%);
+  background-size: cover;
+  background-position: center top;
 }
 
 .feed-card-media strong {
@@ -1301,6 +1360,21 @@ p {
 
 .feed-card-body p {
   color: #413852;
+}
+
+.roster-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.roster-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.roster-body .text-link {
+  margin-top: auto;
 }
 
 .package-grid {

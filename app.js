@@ -376,6 +376,8 @@ const businessPackages = [
   }
 ];
 
+const featuredRoster = characters.filter((artist) => ["yoon-serin", "han-seoyul", "park-doa", "choi-seojin"].includes(artist.slug));
+
 const roster = characters.map((artist) => ({
   name: artist.publicName,
   type: artist.type,
@@ -384,6 +386,10 @@ const roster = characters.map((artist) => ({
   slug: artist.slug,
   thumb: artist.images.thumb
 }));
+
+function getCharacterByName(name) {
+  return characters.find((artist) => artist.publicName === name || artist.name === name);
+}
 
 function mediaStyle(path) {
   if (!path) return "";
@@ -422,10 +428,13 @@ function renderMainArtists() {
   if (!root) return;
   root.innerHTML = mainArtists
     .map(
-      (artist) => `
-        <article class="artist-card clickable-card" data-href="./character-detail.html?slug=${artist.slug || characters.find((item) => item.name === artist.name)?.slug || ""}">
-          <div class="artist-media"${mediaStyle(characters.find((item) => item.name === artist.name)?.images.cover)}>
-            <div>
+      (artist) => {
+        const source = getCharacterByName(artist.name);
+        return `
+        <article class="artist-card clickable-card" data-href="./character-detail.html?slug=${artist.slug || source?.slug || ""}">
+          <div class="artist-media">
+            <img class="artist-media-image" src="${source?.images.cover || source?.images.thumb || ""}" alt="${artist.name}" />
+            <div class="artist-media-copy">
               <span class="eyebrow">${artist.role}</span>
               <strong>${artist.name}</strong>
             </div>
@@ -435,10 +444,11 @@ function renderMainArtists() {
             <div class="tag-list">
               ${artist.tags.map((tag) => `<span>${tag}</span>`).join("")}
             </div>
-            <a class="text-link" href="./character-detail.html?slug=${artist.slug || characters.find((item) => item.name === artist.name)?.slug || ""}">상세 보기</a>
+            <a class="text-link" href="./character-detail.html?slug=${artist.slug || source?.slug || ""}">상세 보기</a>
           </div>
         </article>
-      `
+      `;
+      }
     )
     .join("");
 }
@@ -448,11 +458,17 @@ function renderShortforms() {
   if (!root) return;
   root.innerHTML = shortforms
     .map(
-      (item) => `
-        <article class="short-card">
-          <div class="short-media">
-            <span class="eyebrow">${item.artist}</span>
-            <strong>${item.title}</strong>
+      (item) => {
+        const artist = getCharacterByName(item.artist);
+        const image = artist?.images.thumb || artist?.images.cover || "";
+        return `
+        <article class="short-card clickable-card" data-href="./character-detail.html?slug=${artist?.slug || ""}">
+          <div class="short-media"${mediaStyle(image)}>
+            <div class="short-media-copy">
+              <span class="eyebrow">${item.artist}</span>
+              <strong>${item.title}</strong>
+            </div>
+            <span class="short-media-metric">${item.metric}</span>
           </div>
           <div class="short-body">
             <div class="short-meta">
@@ -460,9 +476,11 @@ function renderShortforms() {
               <span>${item.artist}</span>
             </div>
             <p>${item.tone}</p>
+            <a class="text-link" href="./character-detail.html?slug=${artist?.slug || ""}">캐릭터 상세</a>
           </div>
         </article>
-      `
+      `;
+      }
     )
     .join("");
 }
@@ -473,11 +491,17 @@ function renderShortformHub() {
 
   root.innerHTML = shortforms
     .map(
-      (item) => `
-        <article class="feed-card">
-          <div class="feed-card-media">
-            <span class="eyebrow">${item.artist}</span>
-            <strong>${item.title}</strong>
+      (item) => {
+        const artist = getCharacterByName(item.artist);
+        const image = artist?.images.cover || artist?.images.thumb || "";
+        return `
+        <article class="feed-card clickable-card" data-href="./character-detail.html?slug=${artist?.slug || ""}">
+          <div class="feed-card-media"${mediaStyle(image)}>
+            <div class="feed-card-copy">
+              <span class="eyebrow">${item.artist}</span>
+              <strong>${item.title}</strong>
+            </div>
+            <span class="feed-card-chip">${artist?.type || ""}</span>
           </div>
           <div class="feed-card-body">
             <div class="short-meta">
@@ -485,10 +509,11 @@ function renderShortformHub() {
               <span>${item.artist}</span>
             </div>
             <p>${item.tone}</p>
-            <a class="text-link" href="./characters.html">캐릭터 보기</a>
+            <a class="text-link" href="./character-detail.html?slug=${artist?.slug || ""}">캐릭터 보기</a>
           </div>
         </article>
-      `
+      `;
+      }
     )
     .join("");
 }
@@ -496,20 +521,20 @@ function renderShortformHub() {
 function renderRoster() {
   const root = document.getElementById("rosterGrid");
   if (!root) return;
-  root.innerHTML = roster
+  root.innerHTML = featuredRoster
     .map(
       (artist) => `
-        <article class="roster-card ${statusMeta[artist.status].className} clickable-card" data-href="./character-detail.html?slug=${characters.find((item) => item.publicName === artist.name)?.slug || ""}" data-secret="${artist.status === "secret" ? "true" : "false"}">
-          <div class="roster-media roster-media-${artist.status}"${mediaStyle(artist.thumb)}>
-            <strong>${artist.name}</strong>
+        <article class="roster-card ${statusMeta[artist.status].className} clickable-card" data-href="./character-detail.html?slug=${artist.slug}" data-secret="${artist.status === "secret" ? "true" : "false"}">
+          <div class="roster-media roster-media-${artist.status}"${mediaStyle(artist.images.thumb || artist.images.cover)}>
+            <strong>${artist.publicName}</strong>
           </div>
           <div class="roster-body">
             <div class="roster-meta">
               <span class="eyebrow">${artist.type}</span>
               <span class="status-badge status-badge-${artist.status}">${statusMeta[artist.status].label}</span>
             </div>
-            <p>${artist.note}</p>
-            <a class="text-link ${artist.status === "secret" ? "is-dimmed" : ""}" href="./character-detail.html?slug=${characters.find((item) => item.publicName === artist.name)?.slug || ""}">프로필 보기</a>
+            <p>${artist.summary}</p>
+            <a class="text-link ${artist.status === "secret" ? "is-dimmed" : ""}" href="./character-detail.html?slug=${artist.slug}">프로필 보기</a>
           </div>
         </article>
       `
