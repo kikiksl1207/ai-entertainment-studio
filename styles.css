@@ -377,6 +377,7 @@ p {
   text-decoration: underline;
   text-underline-offset: 4px;
   align-items: center;
+  white-space: nowrap;
 }
 
 .hero-card {
@@ -548,6 +549,7 @@ p {
 .feed-card-media {
   position: relative;
   overflow: hidden;
+  background-repeat: no-repeat;
 }
 
 .artist-media::after,
@@ -689,7 +691,9 @@ p {
 .short-card-head,
 .feed-card-head {
   display: grid;
-  gap: 10px;
+  justify-items: center;
+  text-align: center;
+  gap: 6px;
   padding: 16px 18px 14px;
   border-bottom: 1px solid rgba(112, 87, 174, 0.14);
   background:
@@ -703,17 +707,6 @@ p {
   display: block;
   font-size: 19px;
   line-height: 1.25;
-}
-
-.short-card-head strong::after,
-.feed-card-head strong::after {
-  content: "";
-  display: block;
-  width: 56px;
-  height: 2px;
-  margin-top: 10px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(108, 70, 187, 0.9), rgba(196, 181, 238, 0.4));
 }
 
 .short-card-head .eyebrow,

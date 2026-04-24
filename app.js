@@ -428,10 +428,7 @@ function renderMainArtists() {
     .map(
       (artist) => {
         const source = getCharacterByName(artist.name);
-        const mediaSrc =
-          source?.slug === "han-seoyul"
-            ? source?.images.thumb || source?.images.cover || ""
-            : source?.images.cover || source?.images.thumb || "";
+        const mediaSrc = source?.images.thumb || source?.images.cover || "";
         return `
         <article class="artist-card clickable-card" data-href="./character-detail.html?slug=${artist.slug || source?.slug || ""}">
           <div class="artist-media">
@@ -495,7 +492,7 @@ function renderShortformHub() {
     .map(
       (item) => {
         const artist = getCharacterByName(item.artist);
-        const image = artist?.images.cover || artist?.images.thumb || "";
+          const image = artist?.images.thumb || artist?.images.cover || "";
         return `
         <article class="feed-card clickable-card" data-href="./character-detail.html?slug=${artist?.slug || ""}">
           <div class="feed-card-head">
