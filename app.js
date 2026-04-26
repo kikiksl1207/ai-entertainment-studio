@@ -413,7 +413,7 @@ function renderCatalogMedia(artist) {
 
   return `
     <div class="catalog-media catalog-media-${artist.tier} catalog-media-${artist.status}">
-        <img class="catalog-image catalog-image-${artist.slug}" src="${artist.images.thumb || artist.images.cover}" alt="${artist.publicName}" />
+        <img class="catalog-image" src="${artist.images.thumb || artist.images.cover}" alt="${artist.publicName}" />
       <div class="catalog-overlay">
         <em class="catalog-status-caption">${status.summaryLabel}</em>
       </div>
@@ -734,8 +734,26 @@ function renderCharacterDetail() {
       `
       : `
         <div class="detail-cta-card">
-          <strong>팬 반응과 숏폼 지표를 모으는 단계입니다</strong>
-          <p>후원과 캐릭터챗은 나중 단계에서 붙고, 지금은 캐릭터와 대표 숏폼을 중심으로 팬 유입을 설계합니다.</p>
+          <div class="detail-cta-info">
+            <strong>${artist.publicName}을 응원하세요</strong>
+            <p>후원은 캐릭터 외형 업그레이드, 신규 콘텐츠 해금, 팬 전용 이벤트로 이어집니다.</p>
+          </div>
+          <div class="detail-cta-actions">
+            <button class="cta-btn cta-btn-support" disabled>
+              <span class="cta-btn-icon">💜</span>
+              <span class="cta-btn-label">
+                <strong>후원하기</strong>
+                <small>준비 중</small>
+              </span>
+            </button>
+            <button class="cta-btn cta-btn-chat" disabled>
+              <span class="cta-btn-icon">💬</span>
+              <span class="cta-btn-label">
+                <strong>캐릭터챗</strong>
+                <small>준비 중</small>
+              </span>
+            </button>
+          </div>
         </div>
       `;
   }
