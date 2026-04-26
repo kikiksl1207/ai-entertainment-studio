@@ -1950,26 +1950,42 @@ p {
 }
 
 .page-business .page-hero-panel {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 20px;
+  padding: 24px;
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.page-business .page-hero-panel > div {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 20px;
-  padding: 28px;
-  backdrop-filter: blur(12px);
+  border-radius: 12px;
+  padding: 20px 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .page-business .page-hero-panel span {
-  color: rgba(200, 175, 255, 0.75);
+  color: rgba(200, 175, 255, 0.8);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  display: block;
+  margin-bottom: 8px;
 }
 
 .page-business .page-hero-panel strong {
   color: #ffffff;
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 700;
   display: block;
-  margin-top: 4px;
 }
 
 .page-business .content-section {
