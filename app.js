@@ -16,13 +16,20 @@ const characters = [
       cover: "./assets/characters/yoon-serin/cover.png",
       thumb: "./assets/characters/yoon-serin/thumb.png"
     },
-    intro: "첫 유입을 책임지는 메인 비주얼. 차가운 무드와 강한 퍼포먼스를 함께 잡는 센터형 아이돌입니다.",
-    concept: "시크하고 미래적인 무드, 뷰티와 향수 캠페인에 특히 강한 캐릭터.",
+    intro: "서울 강남 출신의 냉미녀 퍼포먼스형 아이돌. 아역모델로 시작해 SM 연습생을 거쳐 AI 엔터테인먼트 스튜디오의 메인 대표로 데뷔했습니다.",
+    concept: "차갑고 미래적인 무드, 뷰티와 향수 캠페인에 특히 강한 캐릭터. 무대 위와 일상의 온도 차가 팬들의 입덕 포인트입니다.",
     profile: {
+      생년월일: "2001년 3월 14일 (만 25세)",
+      출신지: "서울 강남구",
+      신체: "169cm",
+      혈액형: "A형",
       포지션: "메인 비주얼 / 퍼포먼스",
+      데뷔: "2024년 AI 엔터테인먼트 스튜디오 1기",
+      이전이력: "아역모델 출신 · 중학교 재학 중 SM엔터 연습생 경력",
       팬포인트: "강한 시선과 무대 장악력",
-      운영상태: "주간 메인 노출",
-      광고축: "뷰티 · 향수 · 패션 필름"
+      광고축: "뷰티 · 향수 · 패션 필름",
+      MBTI: "INTJ",
+      취미: "영화 감상, 향수 수집, 새벽 드라이브"
     },
     shorts: [
       { title: "메인 비주얼 티저", metric: "조회 12.4만" },
@@ -47,13 +54,20 @@ const characters = [
       cover: "./assets/characters/han-seoyul/cover.png",
       thumb: "./assets/characters/han-seoyul/thumb.png"
     },
-    intro: "대중성과 센터 감각이 강한 메인 아이돌. 밝고 반짝이는 무드로 팬 확장력이 높은 캐릭터입니다.",
-    concept: "하이틴과 럭셔리 사이를 오가며 브랜드 친화력이 높은 확장형 아이돌.",
+    intro: "경기도 분당 출신의 센터형 하이틴 아이돌. 중학교 시절 전국 댄스 대회 우승 이후 하이브 오디션을 거쳐 AI 엔터테인먼트 스튜디오에 합류했습니다.",
+    concept: "하이틴과 럭셔리 사이를 오가며 브랜드 친화력이 높은 확장형 아이돌. 누구와도 케미가 잘 맞는 팀의 무드메이커.",
     profile: {
+      생년월일: "2003년 6월 22일 (만 22세)",
+      출신지: "경기도 분당",
+      신체: "166cm",
+      혈액형: "O형",
       포지션: "메인 아이돌 / 센터형",
+      데뷔: "2024년 AI 엔터테인먼트 스튜디오 1기",
+      이전이력: "중학교 시절 유명 댄스 대회 입상 · 하이브 오디션 최종 합격 경력",
       팬포인트: "정면 비주얼과 대중성",
-      운영상태: "메인 2순위 노출",
-      광고축: "패션 · 음료 · 라이프스타일"
+      광고축: "패션 · 음료 · 라이프스타일",
+      MBTI: "ENFJ",
+      취미: "배드민턴, 카페 투어, 그림 그리기"
     },
     shorts: [
       { title: "센터 무드 스냅", metric: "조회 9.7만" },
@@ -78,13 +92,20 @@ const characters = [
       cover: "./assets/characters/park-doa/cover.png",
       thumb: "./assets/characters/park-doa/thumb.png"
     },
-    intro: "가장 친근하게 반응을 끌어오는 생활밀착형 스타. 댓글 전환과 커뮤니티 반응에 강한 캐릭터입니다.",
-    concept: "친근함, 먹방/리액션, 생활형 포맷에 최적화된 팬덤 전환 캐릭터.",
+    intro: "부산 해운대 출신의 생활밀착형 스타. 자체 틱톡·유튜브 채널을 운영하며 팔로워 12만을 모은 뒤 AI 엔터테인먼트 스튜디오에 합류했습니다.",
+    concept: "친근함, 먹방/리액션, 생활형 포맷에 최적화된 팬덤 전환 캐릭터. 팬들이 가장 먼저 말을 걸고 싶어지는 온기 있는 존재.",
     profile: {
+      생년월일: "2002년 11월 5일 (만 23세)",
+      출신지: "부산 해운대구",
+      신체: "163cm",
+      혈액형: "B형",
       포지션: "커뮤니티 훅 / 스트리머",
+      데뷔: "2024년 AI 엔터테인먼트 스튜디오 1기",
+      이전이력: "부산 출신 틱토커로 팔로워 12만 · 유튜브 숏폼 채널 자체 운영 경력",
       팬포인트: "리액션과 친근함",
-      운영상태: "팬덤 전환 우선",
-      광고축: "푸드 · 커머스 · 라이프"
+      광고축: "푸드 · 커머스 · 라이프",
+      MBTI: "ESFP",
+      취미: "먹방 촬영, 독서, 바다 수영"
     },
     shorts: [
       { title: "친근 리액션 포맷", metric: "조회 15.3만" },
@@ -109,13 +130,20 @@ const characters = [
       cover: "./assets/characters/choi-seojin/cover.png",
       thumb: "./assets/characters/choi-seojin/thumb.png"
     },
-    intro: "엔터 전체에 무게감을 부여하는 프리미엄 메인. 광고와 화보형 협업에 가장 먼저 연결되는 간판입니다.",
-    concept: "럭셔리, 에디토리얼, 하이엔드 뷰티와 주얼리에 최적화된 브랜드형 캐릭터.",
+    intro: "서울 용산 출신의 아역배우 출신 프리미엄 모델. 파리 에꼴 드 보자르 교환학생을 거쳐 국내외 패션위크를 경험한 뒤 AI 엔터테인먼트 스튜디오의 간판으로 합류했습니다.",
+    concept: "럭셔리, 에디토리얼, 하이엔드 뷰티와 주얼리에 최적화된 브랜드형 캐릭터. 스튜디오 전체의 무게감과 품격을 책임지는 존재.",
     profile: {
+      생년월일: "1999년 1월 28일 (만 27세)",
+      출신지: "서울 용산구",
+      신체: "172cm",
+      혈액형: "AB형",
       포지션: "프리미엄 메인 / 배우",
+      데뷔: "2024년 AI 엔터테인먼트 스튜디오 1기",
+      이전이력: "아역배우 출신 · 파리 에꼴 드 보자르 교환학생 · 국내외 패션위크 워킹 경력",
       팬포인트: "고급감과 존재감",
-      운영상태: "광고·화보 우선",
-      광고축: "주얼리 · 럭셔리 뷰티 · 에디토리얼"
+      광고축: "주얼리 · 럭셔리 뷰티 · 에디토리얼",
+      MBTI: "INFJ",
+      취미: "현대미술 관람, 와인 페어링, 필름 카메라"
     },
     shorts: [
       { title: "에디토리얼 컷 무드", metric: "조회 6.2만" },
@@ -345,14 +373,62 @@ const mainArtists = [
 ];
 
 const shortforms = [
-  { title: "메인 비주얼 티저", artist: "윤세린", metric: "조회 12.4만", tone: "첫 유입용 메인 비주얼 포맷, 강한 시선과 퍼포먼스 무드 중심" },
-  { title: "콘셉트 퍼포먼스", artist: "윤세린", metric: "조회 11.8만", tone: "무대 장악력과 퍼포먼스 센터 이미지를 강화하는 핵심 포맷" },
-  { title: "센터 무드 스냅", artist: "한서율", metric: "조회 9.7만", tone: "정면 비주얼과 대중성 확장을 담당하는 센터형 포맷" },
-  { title: "하이틴 센터 포맷", artist: "한서율", metric: "조회 10.1만", tone: "밝고 반짝이는 센터 무드로 팬 확장을 노리는 포맷" },
-  { title: "친근 리액션 포맷", artist: "박도아", metric: "조회 15.3만", tone: "생활형 리액션과 댓글 반응을 팬 전환으로 연결하는 포맷" },
-  { title: "먹방 리액션 티저", artist: "박도아", metric: "저장 3.7천", tone: "친근한 먹방 크리에이터 무드로 호감과 참여를 끌어오는 포맷" },
-  { title: "에디토리얼 컷 무드", artist: "최서진", metric: "조회 6.2만", tone: "브랜드 제안과 화보형 무드를 보여주는 프리미엄 포맷" },
-  { title: "브랜드 무드 필름", artist: "최서진", metric: "완주율 68%", tone: "광고·화보 적합도를 직접 보여주는 프리미엄 쇼케이스 포맷" }
+  {
+    title: "메인 비주얼 티저",
+    artist: "윤세린",
+    metric: "조회 12.4만",
+    tone: "첫 유입용 메인 비주얼 포맷, 강한 시선과 퍼포먼스 무드 중심",
+    image: "./assets/characters/yoon-serin/thumb.png"
+  },
+  {
+    title: "콘셉트 퍼포먼스",
+    artist: "윤세린",
+    metric: "조회 11.8만",
+    tone: "무대 장악력과 퍼포먼스 센터 이미지를 강화하는 핵심 포맷",
+    image: "./assets/characters/yoon-serin/cover.png"
+  },
+  {
+    title: "센터 무드 스냅",
+    artist: "한서율",
+    metric: "조회 9.7만",
+    tone: "정면 비주얼과 대중성 확장을 담당하는 센터형 포맷",
+    image: "./assets/characters/han-seoyul/thumb.png"
+  },
+  {
+    title: "하이틴 센터 포맷",
+    artist: "한서율",
+    metric: "조회 10.1만",
+    tone: "밝고 반짝이는 센터 무드로 팬 확장을 노리는 포맷",
+    image: "./assets/characters/han-seoyul/cover.png"
+  },
+  {
+    title: "친근 리액션 포맷",
+    artist: "박도아",
+    metric: "조회 15.3만",
+    tone: "생활형 리액션과 댓글 반응을 팬 전환으로 연결하는 포맷",
+    image: "./assets/characters/park-doa/thumb.png"
+  },
+  {
+    title: "먹방 리액션 티저",
+    artist: "박도아",
+    metric: "저장 3.7천",
+    tone: "친근한 먹방 크리에이터 무드로 호감과 참여를 끌어오는 포맷",
+    image: "./assets/characters/park-doa/cover.png"
+  },
+  {
+    title: "에디토리얼 컷 무드",
+    artist: "최서진",
+    metric: "조회 6.2만",
+    tone: "브랜드 제안과 화보형 무드를 보여주는 프리미엄 포맷",
+    image: "./assets/characters/choi-seojin/thumb.png"
+  },
+  {
+    title: "브랜드 무드 필름",
+    artist: "최서진",
+    metric: "완주율 68%",
+    tone: "광고·화보 적합도를 직접 보여주는 프리미엄 쇼케이스 포맷",
+    image: "./assets/characters/choi-seojin/cover.png"
+  }
 ];
 
 const businessPackages = [
@@ -459,7 +535,7 @@ function renderShortforms() {
     .map(
       (item) => {
         const artist = getCharacterByName(item.artist);
-        const image = artist?.images.thumb || artist?.images.cover || "";
+        const image = item.image || artist?.images.thumb || artist?.images.cover || "";
         return `
         <article class="short-card clickable-card" data-href="./character-detail.html?slug=${artist?.slug || ""}">
           <div class="short-card-head">
@@ -492,7 +568,7 @@ function renderShortformHub() {
     .map(
       (item) => {
         const artist = getCharacterByName(item.artist);
-          const image = artist?.images.thumb || artist?.images.cover || "";
+        const image = item.image || artist?.images.thumb || artist?.images.cover || "";
         return `
         <article class="feed-card clickable-card" data-href="./character-detail.html?slug=${artist?.slug || ""}">
           <div class="feed-card-head">
@@ -734,26 +810,8 @@ function renderCharacterDetail() {
       `
       : `
         <div class="detail-cta-card">
-          <div class="detail-cta-info">
-            <strong>${artist.publicName}을 응원하세요</strong>
-            <p>후원은 캐릭터 외형 업그레이드, 신규 콘텐츠 해금, 팬 전용 이벤트로 이어집니다.</p>
-          </div>
-          <div class="detail-cta-actions">
-            <button class="cta-btn cta-btn-support" disabled>
-              <span class="cta-btn-icon">💜</span>
-              <span class="cta-btn-label">
-                <strong>후원하기</strong>
-                <small>준비 중</small>
-              </span>
-            </button>
-            <button class="cta-btn cta-btn-chat" disabled>
-              <span class="cta-btn-icon">💬</span>
-              <span class="cta-btn-label">
-                <strong>캐릭터챗</strong>
-                <small>준비 중</small>
-              </span>
-            </button>
-          </div>
+          <strong>팬 반응과 숏폼 지표를 모으는 단계입니다</strong>
+          <p>후원과 캐릭터챗은 나중 단계에서 붙고, 지금은 캐릭터와 대표 숏폼을 중심으로 팬 유입을 설계합니다.</p>
         </div>
       `;
   }

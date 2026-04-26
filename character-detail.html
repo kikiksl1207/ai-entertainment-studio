@@ -27,53 +27,51 @@
     </header>
 
     <main>
+      <!-- 상단: 이미지(좌) + 이름/설명/태그(우) -->
       <section class="page-hero">
-        <div class="shell detail-layout">
+        <div class="shell detail-hero-layout">
           <div class="detail-hero-card" id="detailHero"></div>
-          <div class="detail-copy">
+          <div class="detail-intro-block">
             <div id="detailIntro"></div>
             <div id="detailMeta" class="detail-meta-panel"></div>
-            <div id="detailGallery" class="detail-gallery-panel"></div>
           </div>
         </div>
       </section>
 
+      <!-- 하단: 갤러리 + 프로필 + 숏폼 -->
       <section class="content-section">
-        <div class="shell detail-grid">
-          <section class="detail-panel">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">프로필</p>
-                <h2>핵심 프로필</h2>
-              </div>
-            </div>
-            <dl class="detail-profile-list" id="detailProfile"></dl>
-          </section>
+        <div class="shell">
+          <div class="detail-body-grid">
+            <!-- 갤러리 -->
+            <div id="detailGallery" class="detail-gallery-panel"></div>
 
-          <section class="detail-panel">
-            <div class="section-heading">
-              <div>
-                <p class="eyebrow">숏폼 하이라이트</p>
-                <h2>대표 숏폼</h2>
-              </div>
+            <!-- 프로필 -->
+            <div class="detail-profile-block">
+              <p class="eyebrow">프로필</p>
+              <h3>핵심 프로필</h3>
+              <dl class="detail-profile-list" id="detailProfile"></dl>
             </div>
+          </div>
+
+          <!-- 대표 숏폼 -->
+          <div class="detail-shorts-block">
+            <p class="eyebrow">숏폼 하이라이트</p>
+            <h3>대표 숏폼</h3>
             <div class="detail-short-grid" id="detailShorts"></div>
-          </section>
+          </div>
         </div>
       </section>
 
+      <!-- CTA -->
       <section class="content-section section-soft">
         <div class="shell" id="detailCta"></div>
       </section>
 
+      <!-- 태그 -->
       <section class="content-section">
         <div class="shell">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">태그 탐색</p>
-              <h2>이 캐릭터와 연결된 태그</h2>
-            </div>
-          </div>
+          <p class="eyebrow">태그 탐색</p>
+          <h3>이 캐릭터와 연결된 태그</h3>
           <div class="detail-tag-navigation" id="detailTagNavigation"></div>
         </div>
       </section>
