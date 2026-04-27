@@ -6,7 +6,11 @@ import {
   Headers,
   Param,
   Post,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GiftsService } from './gifts.service';
 
 type GiftOrderBody = {
@@ -26,12 +30,13 @@ export class GiftsController {
   }
 
   @Post('gift-orders')
+  @UseGuards(JwtAuthGuard)
   createGiftOrder(
-    @Headers('x-user-id') userId: string | undefined,
+    @CurrentUser() user: AuthUser,
     @Headers('idempotency-key') idempotencyKeyHeader: string | undefined,
     @Body() body: GiftOrderBody,
   ) {
-    return this.giftsService.createGiftOrder(this.requireUserId(userId), {
+    return this.giftsService.createGiftOrder(user.id, {
       artistId: this.requireField(body?.artistId, 'artistId'),
       giftProductId: this.requireField(body?.giftProductId, 'giftProductId'),
       quantity: body?.quantity,
@@ -52,14 +57,6 @@ export class GiftsController {
   @Get('artists/:artistId/equipped-items')
   getEquippedItems(@Param('artistId') artistId: string) {
     return this.giftsService.getEquippedItems(artistId);
-  }
-
-  private requireUserId(userId?: string) {
-    if (!userId) {
-      throw new BadRequestException('X-User-Id header is required until auth is implemented');
-    }
-
-    return userId;
   }
 
   private requireField(value: string | undefined, fieldName: string) {

@@ -1,12 +1,15 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
   Headers,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WalletService } from './wallet.service';
 
 type TestGrantBody = {
@@ -16,40 +19,30 @@ type TestGrantBody = {
 };
 
 @Controller('wallet')
+@UseGuards(JwtAuthGuard)
 export class WalletController {
   constructor(private readonly walletService: WalletService) {}
 
   @Get()
-  getWallet(@Headers('x-user-id') userId: string | undefined) {
-    return this.walletService.getOrCreateWallet(this.requireUserId(userId));
+  getWallet(@CurrentUser() user: AuthUser) {
+    return this.walletService.getOrCreateWallet(user.id);
   }
 
   @Get('ledger')
-  getLedger(
-    @Headers('x-user-id') userId: string | undefined,
-    @Query('take') take?: string,
-  ) {
-    return this.walletService.getLedger(this.requireUserId(userId), take);
+  getLedger(@CurrentUser() user: AuthUser, @Query('take') take?: string) {
+    return this.walletService.getLedger(user.id, take);
   }
 
   @Post('test-grant')
   grantForLocalTesting(
-    @Headers('x-user-id') userId: string | undefined,
+    @CurrentUser() user: AuthUser,
     @Headers('idempotency-key') idempotencyKeyHeader: string | undefined,
     @Body() body: TestGrantBody,
   ) {
-    return this.walletService.grantForLocalTesting(this.requireUserId(userId), {
+    return this.walletService.grantForLocalTesting(user.id, {
       amount: body?.amount,
       memo: body?.memo,
       idempotencyKey: body?.idempotencyKey ?? idempotencyKeyHeader,
     });
-  }
-
-  private requireUserId(userId?: string) {
-    if (!userId) {
-      throw new BadRequestException('X-User-Id header is required until auth is implemented');
-    }
-
-    return userId;
   }
 }

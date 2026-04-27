@@ -6,7 +6,11 @@ import {
   Headers,
   Param,
   Post,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BoostsService } from './boosts.service';
 
 type FreeLikeBody = {
@@ -36,13 +40,14 @@ export class BoostsController {
   }
 
   @Post('boost-campaigns/:campaignId/free-like')
+  @UseGuards(JwtAuthGuard)
   createFreeLike(
     @Param('campaignId') campaignId: string,
-    @Headers('x-user-id') userId: string | undefined,
+    @CurrentUser() user: AuthUser,
     @Headers('idempotency-key') idempotencyKeyHeader: string | undefined,
     @Body() body: FreeLikeBody,
   ) {
-    return this.boostsService.createFreeLike(this.requireUserId(userId), {
+    return this.boostsService.createFreeLike(user.id, {
       campaignId,
       artistId: this.requireField(body?.artistId, 'artistId'),
       idempotencyKey: body?.idempotencyKey ?? idempotencyKeyHeader,
@@ -55,12 +60,13 @@ export class BoostsController {
   }
 
   @Post('boost-orders')
+  @UseGuards(JwtAuthGuard)
   createBoostOrder(
-    @Headers('x-user-id') userId: string | undefined,
+    @CurrentUser() user: AuthUser,
     @Headers('idempotency-key') idempotencyKeyHeader: string | undefined,
     @Body() body: BoostOrderBody,
   ) {
-    return this.boostsService.createBoostOrder(this.requireUserId(userId), {
+    return this.boostsService.createBoostOrder(user.id, {
       campaignId: this.requireField(body?.campaignId, 'campaignId'),
       artistId: this.requireField(body?.artistId, 'artistId'),
       boostProductId: this.requireField(body?.boostProductId, 'boostProductId'),
@@ -69,16 +75,9 @@ export class BoostsController {
   }
 
   @Get('me/boost-events')
-  getMyBoostEvents(@Headers('x-user-id') userId: string | undefined) {
-    return this.boostsService.getMyBoostEvents(this.requireUserId(userId));
-  }
-
-  private requireUserId(userId?: string) {
-    if (!userId) {
-      throw new BadRequestException('X-User-Id header is required until auth is implemented');
-    }
-
-    return userId;
+  @UseGuards(JwtAuthGuard)
+  getMyBoostEvents(@CurrentUser() user: AuthUser) {
+    return this.boostsService.getMyBoostEvents(user.id);
   }
 
   private requireField(value: string | undefined, fieldName: string) {

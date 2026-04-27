@@ -24,21 +24,30 @@ npm install
 cp .env.example .env
 ```
 
-3. Create a local PostgreSQL database named `lumina_stage`.
+3. Set strong local secrets in `.env`.
 
-4. Apply the initial migration.
+```bash
+JWT_ACCESS_SECRET="<at-least-32-random-characters>"
+JWT_REFRESH_SECRET="<different-at-least-32-random-characters>"
+```
+
+Never commit real secrets, API keys, database passwords, JWT secrets, or PG webhook secrets.
+
+4. Create a local PostgreSQL database named `lumina_stage`.
+
+5. Apply the initial migration.
 
 ```bash
 npm run prisma:deploy
 ```
 
-5. Generate Prisma Client.
+6. Generate Prisma Client.
 
 ```bash
 npm run prisma:generate
 ```
 
-6. Start the API server.
+7. Start the API server.
 
 ```bash
 npm run start:dev
@@ -55,7 +64,15 @@ The server listens on `http://localhost:3001` by default.
 
 ## Wallet API Skeleton
 
-Auth is not implemented yet. Until JWT auth lands, user-scoped endpoints require an `X-User-Id` header containing an active `users.id` value.
+User-scoped endpoints require an access token from `POST /api/v1/auth/login` or `POST /api/v1/auth/register`.
+
+Auth endpoints:
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/me`
 
 - `GET /api/v1/wallet`
 - `GET /api/v1/wallet/ledger?take=50`
@@ -66,7 +83,7 @@ Local test grant example:
 ```bash
 curl -X POST http://localhost:3001/api/v1/wallet/test-grant \
   -H "Content-Type: application/json" \
-  -H "X-User-Id: <active-user-uuid>" \
+  -H "Authorization: Bearer <access-token>" \
   -H "Idempotency-Key: local-test-001" \
   -d "{\"amount\":100,\"memo\":\"local seed grant\"}"
 ```
@@ -91,6 +108,8 @@ Boost endpoints:
 - `GET /api/v1/me/boost-events`
 
 Gift orders and paid boost orders debit `wallet_accounts.cached_balance` and create `wallet_ledger` entries inside the same transaction. Free likes and paid boost events are stored in `artist_boost_events`; rankings read the latest snapshot when present and otherwise aggregate live events.
+
+All user-scoped gift and boost mutation APIs use `Authorization: Bearer <access-token>`. API secrets and payment provider secrets must stay in environment variables only.
 
 ## Database Notes
 
