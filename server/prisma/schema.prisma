@@ -22,19 +22,26 @@ model User {
 }
 
 model Artist {
-  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  slug           String                @unique
-  displayName    String                @map("display_name")
-  status         String                @default("draft")
-  sortOrder      Int                   @default(0) @map("sort_order")
-  launchedAt     DateTime?             @map("launched_at") @db.Timestamptz(6)
-  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime              @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug           String                  @unique
+  displayName    String                  @map("display_name")
+  status         String                  @default("draft")
+  sortOrder      Int                     @default(0) @map("sort_order")
+  launchedAt     DateTime?               @map("launched_at") @db.Timestamptz(6)
+  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                @default(now()) @map("updated_at") @db.Timestamptz(6)
   publicProfile  ArtistPublicProfile?
   visualProfile  ArtistVisualProfile?
   contentProfile ArtistContentProfile?
   artistAssets   ArtistAsset[]
   shortforms     Shortform[]
+  giftProducts   GiftProduct[]
+  giftOrders     GiftOrder[]
+  giftProgress   ArtistGiftProgress[]
+  reactionEvents ArtistReactionEvent[]
+  equippedItems  ArtistEquippedItem[]
+  boostEvents    ArtistBoostEvent[]
+  rankingScores  ArtistRankingSnapshot[]
 
   @@index([status, sortOrder], map: "idx_artists_status_sort")
   @@map("artists")
@@ -162,17 +169,19 @@ model WalletAccount {
 }
 
 model WalletLedger {
-  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  walletAccountId String        @map("wallet_account_id") @db.Uuid
-  direction       String
-  amount          Decimal       @db.Decimal(18, 2)
-  ledgerType      String        @map("ledger_type")
-  referenceType   String?       @map("reference_type")
-  referenceId     String?       @map("reference_id") @db.Uuid
-  idempotencyKey  String?       @unique @map("idempotency_key")
-  memo            String?
-  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  walletAccount   WalletAccount @relation(fields: [walletAccountId], references: [id])
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  walletAccountId   String             @map("wallet_account_id") @db.Uuid
+  direction         String
+  amount            Decimal            @db.Decimal(18, 2)
+  ledgerType        String             @map("ledger_type")
+  referenceType     String?            @map("reference_type")
+  referenceId       String?            @map("reference_id") @db.Uuid
+  idempotencyKey    String?            @unique @map("idempotency_key")
+  memo              String?
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  walletAccount     WalletAccount      @relation(fields: [walletAccountId], references: [id])
+  giftOrders        GiftOrder[]
+  artistBoostEvents ArtistBoostEvent[]
 
   @@index([walletAccountId, createdAt], map: "idx_wallet_ledger_account_created")
   @@index([referenceType, referenceId], map: "idx_wallet_ledger_reference")
@@ -192,4 +201,170 @@ model LuminaProduct {
   updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@map("lumina_products")
+}
+
+model GiftProduct {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId        String?              @map("artist_id") @db.Uuid
+  sku             String               @unique
+  name            String
+  giftKind        String               @map("gift_kind")
+  priceLumina     Decimal              @map("price_lumina") @db.Decimal(18, 2)
+  progressAmount  Decimal              @default(0) @map("progress_amount") @db.Decimal(18, 2)
+  targetAmount    Decimal?             @map("target_amount") @db.Decimal(18, 2)
+  unlockAssetId   String?              @map("unlock_asset_id") @db.Uuid
+  reactionAssetId String?              @map("reaction_asset_id") @db.Uuid
+  status          String               @default("active")
+  metadata        Json                 @default("{}")
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist          Artist?              @relation(fields: [artistId], references: [id])
+  orders          GiftOrder[]
+  progress        ArtistGiftProgress[]
+
+  @@map("gift_products")
+}
+
+model GiftOrder {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String        @map("user_id") @db.Uuid
+  artistId       String        @map("artist_id") @db.Uuid
+  giftProductId  String        @map("gift_product_id") @db.Uuid
+  walletLedgerId String?       @map("wallet_ledger_id") @db.Uuid
+  quantity       Int           @default(1)
+  totalLumina    Decimal       @map("total_lumina") @db.Decimal(18, 2)
+  status         String        @default("pending")
+  idempotencyKey String?       @unique @map("idempotency_key")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist         Artist        @relation(fields: [artistId], references: [id])
+  giftProduct    GiftProduct   @relation(fields: [giftProductId], references: [id])
+  walletLedger   WalletLedger? @relation(fields: [walletLedgerId], references: [id])
+
+  @@index([userId, createdAt], map: "idx_gift_orders_user_created")
+  @@index([artistId, createdAt], map: "idx_gift_orders_artist_created")
+  @@map("gift_orders")
+}
+
+model ArtistGiftProgress {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId      String      @map("artist_id") @db.Uuid
+  giftProductId String      @map("gift_product_id") @db.Uuid
+  currentAmount Decimal     @default(0) @map("current_amount") @db.Decimal(18, 2)
+  targetAmount  Decimal     @map("target_amount") @db.Decimal(18, 2)
+  unlockedAt    DateTime?   @map("unlocked_at") @db.Timestamptz(6)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist        Artist      @relation(fields: [artistId], references: [id])
+  giftProduct   GiftProduct @relation(fields: [giftProductId], references: [id])
+
+  @@unique([artistId, giftProductId])
+  @@map("artist_gift_progress")
+}
+
+model ArtistReactionEvent {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId     String   @map("artist_id") @db.Uuid
+  giftOrderId  String?  @map("gift_order_id") @db.Uuid
+  reactionType String   @map("reaction_type")
+  assetId      String?  @map("asset_id") @db.Uuid
+  message      String?
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  artist       Artist   @relation(fields: [artistId], references: [id])
+
+  @@index([artistId, createdAt], map: "idx_reaction_events_artist_created")
+  @@map("artist_reaction_events")
+}
+
+model ArtistEquippedItem {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId            String    @map("artist_id") @db.Uuid
+  sourceGiftProductId String?   @map("source_gift_product_id") @db.Uuid
+  assetId             String    @map("asset_id") @db.Uuid
+  slot                String
+  status              String    @default("equipped")
+  equippedAt          DateTime? @map("equipped_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist              Artist    @relation(fields: [artistId], references: [id])
+
+  @@map("artist_equipped_items")
+}
+
+model BoostCampaign {
+  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug               String                  @unique
+  name               String
+  description        String?
+  status             String                  @default("draft")
+  startsAt           DateTime                @map("starts_at") @db.Timestamptz(6)
+  endsAt             DateTime                @map("ends_at") @db.Timestamptz(6)
+  freeLikeWeight     Decimal                 @default(1) @map("free_like_weight") @db.Decimal(12, 4)
+  luminaBoostWeight  Decimal                 @default(1) @map("lumina_boost_weight") @db.Decimal(12, 4)
+  dailyFreeLikeLimit Int?                    @map("daily_free_like_limit")
+  metadata           Json                    @default("{}")
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                @default(now()) @map("updated_at") @db.Timestamptz(6)
+  events             ArtistBoostEvent[]
+  snapshots          ArtistRankingSnapshot[]
+
+  @@index([status, startsAt, endsAt], map: "idx_boost_campaigns_status_dates")
+  @@map("boost_campaigns")
+}
+
+model BoostProduct {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku         String             @unique
+  name        String
+  boostAmount Decimal            @map("boost_amount") @db.Decimal(18, 2)
+  priceLumina Decimal            @map("price_lumina") @db.Decimal(18, 2)
+  status      String             @default("active")
+  metadata    Json               @default("{}")
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  events      ArtistBoostEvent[]
+
+  @@map("boost_products")
+}
+
+model ArtistBoostEvent {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId     String        @map("campaign_id") @db.Uuid
+  userId         String        @map("user_id") @db.Uuid
+  artistId       String        @map("artist_id") @db.Uuid
+  boostType      String        @map("boost_type")
+  boostProductId String?       @map("boost_product_id") @db.Uuid
+  walletLedgerId String?       @map("wallet_ledger_id") @db.Uuid
+  rawAmount      Decimal       @map("raw_amount") @db.Decimal(18, 2)
+  weightedScore  Decimal       @map("weighted_score") @db.Decimal(18, 4)
+  idempotencyKey String?       @unique @map("idempotency_key")
+  metadata       Json          @default("{}")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  campaign       BoostCampaign @relation(fields: [campaignId], references: [id])
+  artist         Artist        @relation(fields: [artistId], references: [id])
+  boostProduct   BoostProduct? @relation(fields: [boostProductId], references: [id])
+  walletLedger   WalletLedger? @relation(fields: [walletLedgerId], references: [id])
+
+  @@index([campaignId, artistId, createdAt], map: "idx_boost_events_campaign_artist")
+  @@index([userId, createdAt], map: "idx_boost_events_user_created")
+  @@map("artist_boost_events")
+}
+
+model ArtistRankingSnapshot {
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId         String        @map("campaign_id") @db.Uuid
+  artistId           String        @map("artist_id") @db.Uuid
+  rankNo             Int           @map("rank_no")
+  totalFreeLikes     Decimal       @default(0) @map("total_free_likes") @db.Decimal(18, 2)
+  totalLuminaBoosts  Decimal       @default(0) @map("total_lumina_boosts") @db.Decimal(18, 2)
+  totalWeightedScore Decimal       @default(0) @map("total_weighted_score") @db.Decimal(18, 4)
+  snapshotAt         DateTime      @default(now()) @map("snapshot_at") @db.Timestamptz(6)
+  campaign           BoostCampaign @relation(fields: [campaignId], references: [id])
+  artist             Artist        @relation(fields: [artistId], references: [id])
+
+  @@unique([campaignId, snapshotAt, rankNo])
+  @@unique([campaignId, snapshotAt, artistId])
+  @@index([campaignId, snapshotAt, rankNo], map: "idx_ranking_snapshots_campaign_rank")
+  @@map("artist_ranking_snapshots")
 }

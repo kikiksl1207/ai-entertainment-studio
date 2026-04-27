@@ -55,7 +55,7 @@ The server listens on `http://localhost:3001` by default.
 
 ## Wallet API Skeleton
 
-Auth is not implemented yet. Until JWT auth lands, wallet endpoints require an `X-User-Id` header containing an active `users.id` value.
+Auth is not implemented yet. Until JWT auth lands, user-scoped endpoints require an `X-User-Id` header containing an active `users.id` value.
 
 - `GET /api/v1/wallet`
 - `GET /api/v1/wallet/ledger?take=50`
@@ -70,6 +70,27 @@ curl -X POST http://localhost:3001/api/v1/wallet/test-grant \
   -H "Idempotency-Key: local-test-001" \
   -d "{\"amount\":100,\"memo\":\"local seed grant\"}"
 ```
+
+## Gift And Boost MVP APIs
+
+Gift endpoints:
+
+- `GET /api/v1/artists/:artistId/gift-products`
+- `POST /api/v1/gift-orders`
+- `GET /api/v1/artists/:artistId/gift-progress`
+- `GET /api/v1/artists/:artistId/reaction-events`
+- `GET /api/v1/artists/:artistId/equipped-items`
+
+Boost endpoints:
+
+- `GET /api/v1/boost-campaigns/current`
+- `GET /api/v1/boost-campaigns/:campaignId/rankings`
+- `POST /api/v1/boost-campaigns/:campaignId/free-like`
+- `GET /api/v1/boost-products`
+- `POST /api/v1/boost-orders`
+- `GET /api/v1/me/boost-events`
+
+Gift orders and paid boost orders debit `wallet_accounts.cached_balance` and create `wallet_ledger` entries inside the same transaction. Free likes and paid boost events are stored in `artist_boost_events`; rankings read the latest snapshot when present and otherwise aggregate live events.
 
 ## Database Notes
 
