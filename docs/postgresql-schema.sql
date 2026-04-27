@@ -171,7 +171,7 @@ CREATE TABLE wallet_ledger (
   wallet_account_id uuid NOT NULL REFERENCES wallet_accounts(id),
   direction text NOT NULL CHECK (direction IN ('credit', 'debit')),
   amount numeric(18,2) NOT NULL CHECK (amount > 0),
-  ledger_type text NOT NULL CHECK (ledger_type IN ('purchase', 'gift_spend', 'chat_feature_spend', 'premium_video_spend', 'refund', 'adjustment', 'event_grant', 'hold_capture', 'hold_release')),
+  ledger_type text NOT NULL CHECK (ledger_type IN ('purchase', 'gift_spend', 'boost_spend', 'chat_feature_spend', 'premium_video_spend', 'refund', 'adjustment', 'event_grant', 'hold_capture', 'hold_release')),
   reference_type text,
   reference_id uuid,
   idempotency_key text UNIQUE,
@@ -310,6 +310,108 @@ CREATE TABLE artist_equipped_items (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE boost_campaigns (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug text NOT NULL UNIQUE,
+  name text NOT NULL,
+  description text,
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'closed', 'archived')),
+  starts_at timestamptz NOT NULL,
+  ends_at timestamptz NOT NULL,
+  free_like_weight numeric(12,4) NOT NULL DEFAULT 1 CHECK (free_like_weight >= 0),
+  lumina_boost_weight numeric(12,4) NOT NULL DEFAULT 1 CHECK (lumina_boost_weight >= 0),
+  daily_free_like_limit integer CHECK (daily_free_like_limit IS NULL OR daily_free_like_limit > 0),
+  metadata jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (ends_at > starts_at)
+);
+
+CREATE TABLE boost_products (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  sku text NOT NULL UNIQUE,
+  name text NOT NULL,
+  boost_amount numeric(18,2) NOT NULL CHECK (boost_amount > 0),
+  price_lumina numeric(18,2) NOT NULL CHECK (price_lumina > 0),
+  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'archived')),
+  metadata jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE artist_boost_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id uuid NOT NULL REFERENCES boost_campaigns(id),
+  user_id uuid NOT NULL REFERENCES users(id),
+  artist_id uuid NOT NULL REFERENCES artists(id),
+  boost_type text NOT NULL CHECK (boost_type IN ('free_like', 'lumina_boost', 'admin_grant')),
+  boost_product_id uuid REFERENCES boost_products(id),
+  wallet_ledger_id uuid REFERENCES wallet_ledger(id),
+  raw_amount numeric(18,2) NOT NULL CHECK (raw_amount > 0),
+  weighted_score numeric(18,4) NOT NULL CHECK (weighted_score >= 0),
+  idempotency_key text UNIQUE,
+  metadata jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (
+    (boost_type = 'free_like' AND boost_product_id IS NULL AND wallet_ledger_id IS NULL)
+    OR
+    (boost_type = 'lumina_boost' AND boost_product_id IS NOT NULL AND wallet_ledger_id IS NOT NULL)
+    OR
+    (boost_type = 'admin_grant' AND wallet_ledger_id IS NULL)
+  )
+);
+
+CREATE TABLE artist_ranking_snapshots (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id uuid NOT NULL REFERENCES boost_campaigns(id),
+  artist_id uuid NOT NULL REFERENCES artists(id),
+  rank_no integer NOT NULL CHECK (rank_no > 0),
+  total_free_likes numeric(18,2) NOT NULL DEFAULT 0 CHECK (total_free_likes >= 0),
+  total_lumina_boosts numeric(18,2) NOT NULL DEFAULT 0 CHECK (total_lumina_boosts >= 0),
+  total_weighted_score numeric(18,4) NOT NULL DEFAULT 0 CHECK (total_weighted_score >= 0),
+  snapshot_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (campaign_id, snapshot_at, rank_no),
+  UNIQUE (campaign_id, snapshot_at, artist_id)
+);
+
+CREATE TABLE artist_main_picks (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id uuid REFERENCES boost_campaigns(id),
+  artist_id uuid NOT NULL REFERENCES artists(id),
+  source_snapshot_id uuid REFERENCES artist_ranking_snapshots(id),
+  pick_reason text NOT NULL CHECK (pick_reason IN ('ranking_winner', 'editorial', 'event_reward')),
+  starts_at timestamptz NOT NULL,
+  ends_at timestamptz,
+  status text NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'active', 'ended', 'cancelled')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (ends_at IS NULL OR ends_at > starts_at)
+);
+
+CREATE TABLE artist_unlock_campaigns (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  boost_campaign_id uuid REFERENCES boost_campaigns(id),
+  artist_id uuid REFERENCES artists(id),
+  name text NOT NULL,
+  unlock_kind text NOT NULL CHECK (unlock_kind IN ('company_reward', 'ranking_reward', 'milestone_reward')),
+  unlock_condition jsonb NOT NULL DEFAULT '{}',
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'unlocked', 'cancelled', 'archived')),
+  unlocked_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE artist_unlock_rewards (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  unlock_campaign_id uuid NOT NULL REFERENCES artist_unlock_campaigns(id),
+  asset_id uuid REFERENCES assets(id),
+  reward_type text NOT NULL CHECK (reward_type IN ('image', 'shortform', 'outfit', 'item', 'premium_preview', 'message')),
+  title text NOT NULL,
+  description text,
+  metadata jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE premium_video_products (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   artist_id uuid REFERENCES artists(id),
@@ -405,7 +507,7 @@ CREATE TABLE chat_messages (
 CREATE TABLE user_entitlements (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES users(id),
-  entitlement_type text NOT NULL CHECK (entitlement_type IN ('premium_video', 'chat_feature', 'event_reward', 'membership')),
+  entitlement_type text NOT NULL CHECK (entitlement_type IN ('premium_video', 'chat_feature', 'boost_reward', 'event_reward', 'membership')),
   reference_type text NOT NULL,
   reference_id uuid NOT NULL,
   granted_by_reference_type text,
@@ -453,6 +555,12 @@ CREATE INDEX idx_payment_orders_user_status ON payment_orders(user_id, status);
 CREATE INDEX idx_gift_orders_user_created ON gift_orders(user_id, created_at);
 CREATE INDEX idx_gift_orders_artist_created ON gift_orders(artist_id, created_at);
 CREATE INDEX idx_reaction_events_artist_created ON artist_reaction_events(artist_id, created_at);
+CREATE INDEX idx_boost_campaigns_status_dates ON boost_campaigns(status, starts_at, ends_at);
+CREATE INDEX idx_boost_events_campaign_artist ON artist_boost_events(campaign_id, artist_id, created_at);
+CREATE INDEX idx_boost_events_user_created ON artist_boost_events(user_id, created_at);
+CREATE INDEX idx_ranking_snapshots_campaign_rank ON artist_ranking_snapshots(campaign_id, snapshot_at, rank_no);
+CREATE INDEX idx_main_picks_artist_dates ON artist_main_picks(artist_id, starts_at, ends_at);
+CREATE INDEX idx_unlock_campaigns_artist_status ON artist_unlock_campaigns(artist_id, status);
 CREATE INDEX idx_premium_unlocks_user ON user_premium_video_unlocks(user_id, unlocked_at);
 CREATE INDEX idx_chat_sessions_user_artist ON chat_sessions(user_id, artist_id, updated_at);
 CREATE INDEX idx_chat_messages_session_created ON chat_messages(chat_session_id, created_at);
