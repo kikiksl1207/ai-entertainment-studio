@@ -1,0 +1,246 @@
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Decimal } from '@prisma/client/runtime/library';
+import { randomUUID } from 'crypto';
+import { PrismaService } from '../prisma/prisma.service';
+import { PaymentProviderRegistry } from './providers/payment-provider.registry';
+
+const DEFAULT_PROVIDER = 'mock';
+const DEFAULT_CURRENCY = 'LUMINA';
+
+@Injectable()
+export class PaymentsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly providerRegistry: PaymentProviderRegistry,
+  ) {}
+
+  async createOrder(
+    userId: string,
+    input: {
+      luminaProductId?: string;
+      provider?: string;
+      idempotencyKey?: string;
+    },
+  ) {
+    if (!input.luminaProductId) {
+      throw new BadRequestException('luminaProductId is required');
+    }
+
+    const provider = input.provider ?? DEFAULT_PROVIDER;
+    const adapter = this.providerRegistry.get(provider);
+
+    if (input.idempotencyKey) {
+      const existingOrder = await this.prisma.paymentOrder.findUnique({
+        where: { idempotencyKey: input.idempotencyKey },
+        include: { luminaProduct: true, transactions: true },
+      });
+
+      if (existingOrder) {
+        return {
+          order: existingOrder,
+          checkout: adapter.createCheckoutPayload({
+            orderNo: existingOrder.orderNo,
+            amount: existingOrder.amount.toString(),
+            currency: existingOrder.currency,
+            orderName: existingOrder.luminaProduct.name,
+          }),
+          idempotentReplay: true,
+        };
+      }
+    }
+
+    const product = await this.prisma.luminaProduct.findFirst({
+      where: {
+        id: input.luminaProductId,
+        status: 'active',
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Lumina product not found');
+    }
+
+    const order = await this.prisma.paymentOrder.create({
+      data: {
+        userId,
+        luminaProductId: product.id,
+        orderNo: this.createOrderNo(),
+        status: 'pending',
+        amount: product.priceAmount,
+        currency: product.priceCurrency,
+        idempotencyKey: input.idempotencyKey,
+      },
+      include: { luminaProduct: true, transactions: true },
+    });
+
+    return {
+      order,
+      checkout: adapter.createCheckoutPayload({
+        orderNo: order.orderNo,
+        amount: order.amount.toString(),
+        currency: order.currency,
+        orderName: product.name,
+      }),
+      idempotentReplay: false,
+    };
+  }
+
+  async getOrder(userId: string, orderId: string) {
+    const order = await this.prisma.paymentOrder.findFirst({
+      where: { id: orderId, userId },
+      include: {
+        luminaProduct: true,
+        transactions: true,
+        refunds: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Payment order not found');
+    }
+
+    return order;
+  }
+
+  async handleWebhook(
+    provider: string,
+    headers: Record<string, string | string[] | undefined>,
+    body: unknown,
+  ) {
+    const adapter = this.providerRegistry.get(provider);
+    const event = adapter.verifyAndParseWebhook(headers, body);
+
+    const order = await this.prisma.paymentOrder.findUnique({
+      where: { orderNo: event.orderNo },
+      include: { luminaProduct: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Payment order not found');
+    }
+
+    if (!new Decimal(event.amount).equals(order.amount)) {
+      throw new BadRequestException('Payment amount does not match order amount');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const existingTransaction = await tx.paymentTransaction.findUnique({
+        where: {
+          provider_providerTransactionId: {
+            provider,
+            providerTransactionId: event.providerTransactionId,
+          },
+        },
+      });
+
+      if (existingTransaction) {
+        return {
+          order: await tx.paymentOrder.findUniqueOrThrow({
+            where: { id: order.id },
+            include: { luminaProduct: true, transactions: true },
+          }),
+          transaction: existingTransaction,
+          idempotentReplay: true,
+        };
+      }
+
+      const transaction = await tx.paymentTransaction.create({
+        data: {
+          paymentOrderId: order.id,
+          provider,
+          providerTransactionId: event.providerTransactionId,
+          status: event.status,
+          rawPayload: event.rawPayload as object,
+        },
+      });
+
+      if (event.status !== 'paid') {
+        const updatedOrder = await tx.paymentOrder.update({
+          where: { id: order.id },
+          data: {
+            status: event.status === 'cancelled' ? 'cancelled' : 'failed',
+            updatedAt: new Date(),
+          },
+          include: { luminaProduct: true, transactions: true },
+        });
+
+        return { order: updatedOrder, transaction, idempotentReplay: false };
+      }
+
+      if (order.status === 'paid') {
+        return {
+          order: await tx.paymentOrder.findUniqueOrThrow({
+            where: { id: order.id },
+            include: { luminaProduct: true, transactions: true },
+          }),
+          transaction,
+          idempotentReplay: true,
+        };
+      }
+
+      const wallet = await tx.walletAccount.upsert({
+        where: {
+          userId_currencyCode: {
+            userId: order.userId,
+            currencyCode: DEFAULT_CURRENCY,
+          },
+        },
+        update: {},
+        create: {
+          userId: order.userId,
+          currencyCode: DEFAULT_CURRENCY,
+        },
+      });
+
+      const creditAmount = order.luminaProduct.luminaAmount.plus(
+        order.luminaProduct.bonusAmount,
+      );
+
+      const ledger = await tx.walletLedger.create({
+        data: {
+          walletAccountId: wallet.id,
+          direction: 'credit',
+          amount: creditAmount,
+          ledgerType: 'purchase',
+          referenceType: 'payment_order',
+          referenceId: order.id,
+          idempotencyKey: `payment:${provider}:${event.providerTransactionId}`,
+          memo: `Lumina purchase: ${order.luminaProduct.name}`,
+        },
+      });
+
+      await tx.walletAccount.update({
+        where: { id: wallet.id },
+        data: {
+          cachedBalance: {
+            increment: creditAmount,
+          },
+        },
+      });
+
+      const updatedOrder = await tx.paymentOrder.update({
+        where: { id: order.id },
+        data: {
+          status: 'paid',
+          updatedAt: new Date(),
+        },
+        include: { luminaProduct: true, transactions: true },
+      });
+
+      return {
+        order: updatedOrder,
+        transaction,
+        ledger,
+        idempotentReplay: false,
+      };
+    });
+  }
+
+  private createOrderNo() {
+    return `LUMINA-${Date.now()}-${randomUUID().slice(0, 8)}`;
+  }
+}

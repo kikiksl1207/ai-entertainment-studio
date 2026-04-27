@@ -6,6 +6,7 @@ import { ChatModule } from './chat/chat.module';
 import { validateEnv } from './config/env.validation';
 import { GiftsModule } from './gifts/gifts.module';
 import { LuminaProductsModule } from './lumina-products/lumina-products.module';
+import { PaymentsModule } from './payments/payments.module';
 import { PremiumVideosModule } from './premium-videos/premium-videos.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ArtistsModule } from './public/artists/artists.module';
@@ -28,6 +29,7 @@ import { WalletModule } from './wallet/wallet.module';
     BoostsModule,
     PremiumVideosModule,
     ChatModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}

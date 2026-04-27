@@ -25,6 +25,10 @@ export function validateEnv(config: Env) {
   if (nodeEnv === 'production') {
     rejectPlaceholder(config.JWT_ACCESS_SECRET, 'JWT_ACCESS_SECRET');
     rejectPlaceholder(config.JWT_REFRESH_SECRET, 'JWT_REFRESH_SECRET');
+
+    if ((config.PAYMENT_PROVIDER ?? 'mock') === 'mock') {
+      throw new Error('PAYMENT_PROVIDER must be a real provider in production');
+    }
   }
 
   return config;

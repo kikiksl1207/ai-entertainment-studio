@@ -23,6 +23,7 @@ model User {
   chatSessions      ChatSession[]
   chatFeatureOrders ChatFeatureOrder[]
   entitlements      UserEntitlement[]
+  paymentOrders     PaymentOrder[]
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -242,18 +243,67 @@ model WalletLedger {
 }
 
 model LuminaProduct {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sku           String   @unique
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku           String         @unique
   name          String
-  luminaAmount  Decimal  @map("lumina_amount") @db.Decimal(18, 2)
-  bonusAmount   Decimal  @default(0) @map("bonus_amount") @db.Decimal(18, 2)
-  priceAmount   Decimal  @map("price_amount") @db.Decimal(18, 2)
-  priceCurrency String   @default("KRW") @map("price_currency")
-  status        String   @default("active")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  luminaAmount  Decimal        @map("lumina_amount") @db.Decimal(18, 2)
+  bonusAmount   Decimal        @default(0) @map("bonus_amount") @db.Decimal(18, 2)
+  priceAmount   Decimal        @map("price_amount") @db.Decimal(18, 2)
+  priceCurrency String         @default("KRW") @map("price_currency")
+  status        String         @default("active")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  paymentOrders PaymentOrder[]
 
   @@map("lumina_products")
+}
+
+model PaymentOrder {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String               @map("user_id") @db.Uuid
+  luminaProductId String               @map("lumina_product_id") @db.Uuid
+  orderNo         String               @unique @map("order_no")
+  status          String               @default("pending")
+  amount          Decimal              @db.Decimal(18, 2)
+  currency        String               @default("KRW")
+  idempotencyKey  String?              @unique @map("idempotency_key")
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user            User                 @relation(fields: [userId], references: [id])
+  luminaProduct   LuminaProduct        @relation(fields: [luminaProductId], references: [id])
+  transactions    PaymentTransaction[]
+  refunds         RefundTransaction[]
+
+  @@index([userId, status], map: "idx_payment_orders_user_status")
+  @@map("payment_orders")
+}
+
+model PaymentTransaction {
+  id                    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentOrderId        String       @map("payment_order_id") @db.Uuid
+  provider              String
+  providerTransactionId String       @map("provider_transaction_id")
+  status                String
+  rawPayload            Json         @default("{}") @map("raw_payload")
+  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  paymentOrder          PaymentOrder @relation(fields: [paymentOrderId], references: [id])
+
+  @@unique([provider, providerTransactionId])
+  @@map("payment_transactions")
+}
+
+model RefundTransaction {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentOrderId   String       @map("payment_order_id") @db.Uuid
+  providerRefundId String?      @map("provider_refund_id")
+  amount           Decimal      @db.Decimal(18, 2)
+  reason           String?
+  status           String       @default("requested")
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime     @default(now()) @map("updated_at") @db.Timestamptz(6)
+  paymentOrder     PaymentOrder @relation(fields: [paymentOrderId], references: [id])
+
+  @@map("refund_transactions")
 }
 
 model GiftProduct {

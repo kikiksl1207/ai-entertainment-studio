@@ -131,6 +131,25 @@ Chat endpoints:
 
 Premium video unlocks and paid chat feature orders debit `wallet_accounts.cached_balance` and write `wallet_ledger` records in the same transaction. Premium video access is also recorded in `user_premium_video_unlocks` and `user_entitlements`.
 
+## Payment Order MVP APIs
+
+Payment endpoints:
+
+- `POST /api/v1/payments/orders`
+- `GET /api/v1/payments/orders/:orderId`
+- `POST /api/v1/payments/webhooks/:provider`
+
+Payment flow:
+
+1. The client calls `POST /api/v1/payments/orders` with a `luminaProductId`.
+2. The server creates a `payment_orders` row and returns provider checkout payload data.
+3. The client opens the PG checkout using provider data.
+4. Lumina is not credited from a client-side success claim.
+5. The server credits Lumina only after `POST /api/v1/payments/webhooks/:provider` verifies and parses a provider event.
+6. A successful provider event writes `payment_transactions`, marks the order `paid`, credits `wallet_accounts.cached_balance`, and records a `wallet_ledger` purchase entry in one transaction.
+
+The current provider adapter is `mock`, which is safe for local development and keeps the production integration seam ready for Toss Payments, PortOne, or another PG later. Provider secrets must remain in environment variables such as `MOCK_PAYMENT_WEBHOOK_SECRET`; real provider keys should never be committed.
+
 ## Database Notes
 
 The first Prisma migration is copied from `../docs/postgresql-schema.sql` so the implementation stays aligned with the current backend/DB design document. The Prisma schema currently maps the public read models needed for the first API slice: artists, artist profiles, assets, artist assets, shortforms, and shortform assets. Commerce, wallet, gift, boost, premium video, and chat models remain in the SQL migration and can be added to `schema.prisma` as their API modules are implemented.
