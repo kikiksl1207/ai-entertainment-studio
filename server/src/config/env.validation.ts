@@ -22,6 +22,10 @@ export function validateEnv(config: Env) {
     throw new Error('CORS_ORIGINS environment variable is required in production');
   }
 
+  if (nodeEnv === 'production' && !config.ADMIN_EMAILS) {
+    throw new Error('ADMIN_EMAILS environment variable is required in production');
+  }
+
   if (nodeEnv === 'production') {
     rejectPlaceholder(config.JWT_ACCESS_SECRET, 'JWT_ACCESS_SECRET');
     rejectPlaceholder(config.JWT_REFRESH_SECRET, 'JWT_REFRESH_SECRET');

@@ -150,6 +150,31 @@ Payment flow:
 
 The current provider adapter is `mock`, which is safe for local development and keeps the production integration seam ready for Toss Payments, PortOne, or another PG later. Provider secrets must remain in environment variables such as `MOCK_PAYMENT_WEBHOOK_SECRET`; real provider keys should never be committed.
 
+## Admin MVP APIs
+
+Admin endpoints use `Authorization: Bearer <access-token>` and require the user's email to be listed in `ADMIN_EMAILS`.
+
+- `POST /admin/api/v1/assets`
+- `POST /admin/api/v1/artists`
+- `PATCH /admin/api/v1/artists/:artistId`
+- `POST /admin/api/v1/shortforms`
+- `PATCH /admin/api/v1/shortforms/:shortformId`
+- `POST /admin/api/v1/lumina-products`
+- `PATCH /admin/api/v1/lumina-products/:productId`
+- `POST /admin/api/v1/gift-products`
+- `PATCH /admin/api/v1/gift-products/:productId`
+- `POST /admin/api/v1/boost-products`
+- `PATCH /admin/api/v1/boost-products/:productId`
+- `POST /admin/api/v1/boost-campaigns`
+- `PATCH /admin/api/v1/boost-campaigns/:campaignId`
+- `POST /admin/api/v1/boost-campaigns/:campaignId/snapshot`
+- `POST /admin/api/v1/premium-video-products`
+- `PATCH /admin/api/v1/premium-video-products/:productId`
+- `POST /admin/api/v1/chat-feature-products`
+- `PATCH /admin/api/v1/chat-feature-products/:productId`
+
+The current admin guard is intentionally simple: it checks JWT identity against `ADMIN_EMAILS`. A future hardening pass should replace this with `admin_users` / `admin_roles` tables and audit events.
+
 ## Database Notes
 
 The first Prisma migration is copied from `../docs/postgresql-schema.sql` so the implementation stays aligned with the current backend/DB design document. The Prisma schema currently maps the public read models needed for the first API slice: artists, artist profiles, assets, artist assets, shortforms, and shortform assets. Commerce, wallet, gift, boost, premium video, and chat models remain in the SQL migration and can be added to `schema.prisma` as their API modules are implemented.
