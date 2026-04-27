@@ -1,116 +1,153 @@
-import { Body, Controller, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuthUser } from '../auth/auth.types';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { AdminService } from './admin.service';
 
 type AdminPayload = Record<string, unknown>;
+type AuditQuery = Record<string, string | undefined>;
 
 @Controller('/admin/api/v1')
 @UseGuards(AdminAuthGuard)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  @Get('audit-events')
+  getAuditEvents(@Query() query: AuditQuery) {
+    return this.adminService.getAuditEvents(query);
+  }
+
   @Post('assets')
-  createAsset(@Body() body: AdminPayload) {
-    return this.adminService.createAsset(body);
+  createAsset(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
+    return this.adminService.createAsset(user, body);
   }
 
   @Post('artists')
-  createArtist(@Body() body: AdminPayload) {
-    return this.adminService.createArtist(body);
+  createArtist(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
+    return this.adminService.createArtist(user, body);
   }
 
   @Patch('artists/:artistId')
-  updateArtist(@Param('artistId') artistId: string, @Body() body: AdminPayload) {
-    return this.adminService.updateArtist(artistId, body);
+  updateArtist(
+    @CurrentUser() user: AuthUser,
+    @Param('artistId') artistId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.updateArtist(user, artistId, body);
   }
 
   @Post('shortforms')
-  createShortform(@Body() body: AdminPayload) {
-    return this.adminService.createShortform(body);
+  createShortform(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
+    return this.adminService.createShortform(user, body);
   }
 
   @Patch('shortforms/:shortformId')
   updateShortform(
+    @CurrentUser() user: AuthUser,
     @Param('shortformId') shortformId: string,
     @Body() body: AdminPayload,
   ) {
-    return this.adminService.updateShortform(shortformId, body);
+    return this.adminService.updateShortform(user, shortformId, body);
   }
 
   @Post('lumina-products')
-  createLuminaProduct(@Body() body: AdminPayload) {
-    return this.adminService.createLuminaProduct(body);
+  createLuminaProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
+    return this.adminService.createLuminaProduct(user, body);
   }
 
   @Patch('lumina-products/:productId')
   updateLuminaProduct(
+    @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
     @Body() body: AdminPayload,
   ) {
-    return this.adminService.updateLuminaProduct(productId, body);
+    return this.adminService.updateLuminaProduct(user, productId, body);
   }
 
   @Post('gift-products')
-  createGiftProduct(@Body() body: AdminPayload) {
-    return this.adminService.createGiftProduct(body);
+  createGiftProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
+    return this.adminService.createGiftProduct(user, body);
   }
 
   @Patch('gift-products/:productId')
-  updateGiftProduct(@Param('productId') productId: string, @Body() body: AdminPayload) {
-    return this.adminService.updateGiftProduct(productId, body);
+  updateGiftProduct(
+    @CurrentUser() user: AuthUser,
+    @Param('productId') productId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.updateGiftProduct(user, productId, body);
   }
 
   @Post('boost-products')
-  createBoostProduct(@Body() body: AdminPayload) {
-    return this.adminService.createBoostProduct(body);
+  createBoostProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
+    return this.adminService.createBoostProduct(user, body);
   }
 
   @Patch('boost-products/:productId')
-  updateBoostProduct(@Param('productId') productId: string, @Body() body: AdminPayload) {
-    return this.adminService.updateBoostProduct(productId, body);
+  updateBoostProduct(
+    @CurrentUser() user: AuthUser,
+    @Param('productId') productId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.updateBoostProduct(user, productId, body);
   }
 
   @Post('boost-campaigns')
-  createBoostCampaign(@Body() body: AdminPayload) {
-    return this.adminService.createBoostCampaign(body);
+  createBoostCampaign(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
+    return this.adminService.createBoostCampaign(user, body);
   }
 
   @Patch('boost-campaigns/:campaignId')
   updateBoostCampaign(
+    @CurrentUser() user: AuthUser,
     @Param('campaignId') campaignId: string,
     @Body() body: AdminPayload,
   ) {
-    return this.adminService.updateBoostCampaign(campaignId, body);
+    return this.adminService.updateBoostCampaign(user, campaignId, body);
   }
 
   @Post('boost-campaigns/:campaignId/snapshot')
-  snapshotBoostCampaign(@Param('campaignId') campaignId: string) {
-    return this.adminService.snapshotBoostCampaign(campaignId);
+  snapshotBoostCampaign(
+    @CurrentUser() user: AuthUser,
+    @Param('campaignId') campaignId: string,
+  ) {
+    return this.adminService.snapshotBoostCampaign(user, campaignId);
   }
 
   @Post('premium-video-products')
-  createPremiumVideoProduct(@Body() body: AdminPayload) {
-    return this.adminService.createPremiumVideoProduct(body);
+  createPremiumVideoProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
+    return this.adminService.createPremiumVideoProduct(user, body);
   }
 
   @Patch('premium-video-products/:productId')
   updatePremiumVideoProduct(
+    @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
     @Body() body: AdminPayload,
   ) {
-    return this.adminService.updatePremiumVideoProduct(productId, body);
+    return this.adminService.updatePremiumVideoProduct(user, productId, body);
   }
 
   @Post('chat-feature-products')
-  createChatFeatureProduct(@Body() body: AdminPayload) {
-    return this.adminService.createChatFeatureProduct(body);
+  createChatFeatureProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
+    return this.adminService.createChatFeatureProduct(user, body);
   }
 
   @Patch('chat-feature-products/:productId')
   updateChatFeatureProduct(
+    @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
     @Body() body: AdminPayload,
   ) {
-    return this.adminService.updateChatFeatureProduct(productId, body);
+    return this.adminService.updateChatFeatureProduct(user, productId, body);
   }
 }

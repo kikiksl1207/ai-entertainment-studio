@@ -24,6 +24,7 @@ model User {
   chatFeatureOrders ChatFeatureOrder[]
   entitlements      UserEntitlement[]
   paymentOrders     PaymentOrder[]
+  auditEvents       AuditEvent[]
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -625,4 +626,21 @@ model UserEntitlement {
   @@unique([userId, entitlementType, referenceType, referenceId])
   @@index([userId, entitlementType, expiresAt, revokedAt], map: "idx_entitlements_user_active")
   @@map("user_entitlements")
+}
+
+model AuditEvent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  actorType   String   @map("actor_type")
+  action      String
+  targetType  String   @map("target_type")
+  targetId    String?  @map("target_id") @db.Uuid
+  beforeData  Json?    @map("before_data")
+  afterData   Json?    @map("after_data")
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  actorUser   User?    @relation(fields: [actorUserId], references: [id])
+
+  @@index([targetType, targetId, createdAt], map: "idx_audit_events_target")
+  @@map("audit_events")
 }

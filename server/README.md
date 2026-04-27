@@ -162,6 +162,7 @@ The current provider adapter is `mock`, which is safe for local development and 
 
 Admin endpoints use `Authorization: Bearer <access-token>` and require the user's email to be listed in `ADMIN_EMAILS`.
 
+- `GET /admin/api/v1/audit-events`
 - `POST /admin/api/v1/assets`
 - `POST /admin/api/v1/artists`
 - `PATCH /admin/api/v1/artists/:artistId`
@@ -181,7 +182,9 @@ Admin endpoints use `Authorization: Bearer <access-token>` and require the user'
 - `POST /admin/api/v1/chat-feature-products`
 - `PATCH /admin/api/v1/chat-feature-products/:productId`
 
-The current admin guard is intentionally simple: it checks JWT identity against `ADMIN_EMAILS`. A future hardening pass should replace this with `admin_users` / `admin_roles` tables and audit events.
+Admin create/update/snapshot mutations write `audit_events` rows with actor, action, target, before data, and after data. `GET /admin/api/v1/audit-events` can filter by `actorUserId`, `action`, `targetType`, and `targetId`; `take` defaults to 50 and is capped at 100.
+
+The current admin guard is intentionally simple: it checks JWT identity against `ADMIN_EMAILS`. A future hardening pass should replace this with `admin_users` / `admin_roles` tables and richer role permissions.
 
 ## Database Notes
 

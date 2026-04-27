@@ -1,15 +1,39 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { AuthUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 
 type AdminPayload = Record<string, unknown>;
+type AuditQuery = Record<string, string | undefined>;
 
 @Injectable()
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
-  createAsset(input: AdminPayload) {
-    return this.prisma.asset.create({
+  getAuditEvents(query: AuditQuery) {
+    const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
+    const where: Prisma.AuditEventWhereInput = this.clean({
+      actorUserId: this.optionalString(query, 'actorUserId'),
+      action: this.optionalString(query, 'action'),
+      targetType: this.optionalString(query, 'targetType'),
+      targetId: this.optionalString(query, 'targetId'),
+    });
+
+    return this.prisma.auditEvent.findMany({
+      where,
+      take,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        actorUser: {
+          select: { id: true, email: true, status: true },
+        },
+      },
+    });
+  }
+
+  async createAsset(user: AuthUser, input: AdminPayload) {
+    const asset = await this.prisma.asset.create({
       data: {
         assetType: this.string(input, 'assetType'),
         visibility: this.string(input, 'visibility', 'public'),
@@ -24,9 +48,12 @@ export class AdminService {
         metadata: this.json(input, 'metadata'),
       },
     });
+
+    await this.recordAudit(user, 'asset.create', 'asset', asset.id, null, asset);
+    return asset;
   }
 
-  async createArtist(input: AdminPayload) {
+  async createArtist(user: AuthUser, input: AdminPayload) {
     const artist = await this.prisma.artist.create({
       data: {
         slug: this.string(input, 'slug'),
@@ -38,11 +65,14 @@ export class AdminService {
     });
 
     await this.upsertArtistProfiles(artist.id, input);
-    return this.getArtistWithProfiles(artist.id);
+    const result = await this.getArtistWithProfiles(artist.id);
+    await this.recordAudit(user, 'artist.create', 'artist', artist.id, null, result);
+    return result;
   }
 
-  async updateArtist(artistId: string, input: AdminPayload) {
+  async updateArtist(user: AuthUser, artistId: string, input: AdminPayload) {
     await this.ensureArtist(artistId);
+    const before = await this.getArtistWithProfiles(artistId);
     await this.prisma.artist.update({
       where: { id: artistId },
       data: this.clean({
@@ -56,11 +86,13 @@ export class AdminService {
     });
 
     await this.upsertArtistProfiles(artistId, input);
-    return this.getArtistWithProfiles(artistId);
+    const result = await this.getArtistWithProfiles(artistId);
+    await this.recordAudit(user, 'artist.update', 'artist', artistId, before, result);
+    return result;
   }
 
-  createShortform(input: AdminPayload) {
-    return this.prisma.shortform.create({
+  async createShortform(user: AuthUser, input: AdminPayload) {
+    const shortform = await this.prisma.shortform.create({
       data: {
         artistId: this.optionalString(input, 'artistId'),
         title: this.string(input, 'title'),
@@ -70,10 +102,14 @@ export class AdminService {
         publishedAt: this.optionalDate(input, 'publishedAt'),
       },
     });
+
+    await this.recordAudit(user, 'shortform.create', 'shortform', shortform.id, null, shortform);
+    return shortform;
   }
 
-  updateShortform(shortformId: string, input: AdminPayload) {
-    return this.prisma.shortform.update({
+  async updateShortform(user: AuthUser, shortformId: string, input: AdminPayload) {
+    const before = await this.prisma.shortform.findUnique({ where: { id: shortformId } });
+    const shortform = await this.prisma.shortform.update({
       where: { id: shortformId },
       data: this.clean({
         artistId: this.optionalString(input, 'artistId'),
@@ -85,10 +121,13 @@ export class AdminService {
         updatedAt: new Date(),
       }),
     });
+
+    await this.recordAudit(user, 'shortform.update', 'shortform', shortformId, before, shortform);
+    return shortform;
   }
 
-  createLuminaProduct(input: AdminPayload) {
-    return this.prisma.luminaProduct.create({
+  async createLuminaProduct(user: AuthUser, input: AdminPayload) {
+    const product = await this.prisma.luminaProduct.create({
       data: {
         sku: this.string(input, 'sku'),
         name: this.string(input, 'name'),
@@ -99,10 +138,21 @@ export class AdminService {
         status: this.string(input, 'status', 'active'),
       },
     });
+
+    await this.recordAudit(
+      user,
+      'lumina_product.create',
+      'lumina_product',
+      product.id,
+      null,
+      product,
+    );
+    return product;
   }
 
-  updateLuminaProduct(productId: string, input: AdminPayload) {
-    return this.prisma.luminaProduct.update({
+  async updateLuminaProduct(user: AuthUser, productId: string, input: AdminPayload) {
+    const before = await this.prisma.luminaProduct.findUnique({ where: { id: productId } });
+    const product = await this.prisma.luminaProduct.update({
       where: { id: productId },
       data: this.clean({
         sku: this.optionalString(input, 'sku'),
@@ -115,10 +165,20 @@ export class AdminService {
         updatedAt: new Date(),
       }),
     });
+
+    await this.recordAudit(
+      user,
+      'lumina_product.update',
+      'lumina_product',
+      productId,
+      before,
+      product,
+    );
+    return product;
   }
 
-  createGiftProduct(input: AdminPayload) {
-    return this.prisma.giftProduct.create({
+  async createGiftProduct(user: AuthUser, input: AdminPayload) {
+    const product = await this.prisma.giftProduct.create({
       data: {
         artistId: this.optionalString(input, 'artistId'),
         sku: this.string(input, 'sku'),
@@ -133,10 +193,14 @@ export class AdminService {
         metadata: this.json(input, 'metadata'),
       },
     });
+
+    await this.recordAudit(user, 'gift_product.create', 'gift_product', product.id, null, product);
+    return product;
   }
 
-  updateGiftProduct(productId: string, input: AdminPayload) {
-    return this.prisma.giftProduct.update({
+  async updateGiftProduct(user: AuthUser, productId: string, input: AdminPayload) {
+    const before = await this.prisma.giftProduct.findUnique({ where: { id: productId } });
+    const product = await this.prisma.giftProduct.update({
       where: { id: productId },
       data: this.clean({
         artistId: this.optionalString(input, 'artistId'),
@@ -153,10 +217,20 @@ export class AdminService {
         updatedAt: new Date(),
       }),
     });
+
+    await this.recordAudit(
+      user,
+      'gift_product.update',
+      'gift_product',
+      productId,
+      before,
+      product,
+    );
+    return product;
   }
 
-  createBoostProduct(input: AdminPayload) {
-    return this.prisma.boostProduct.create({
+  async createBoostProduct(user: AuthUser, input: AdminPayload) {
+    const product = await this.prisma.boostProduct.create({
       data: {
         sku: this.string(input, 'sku'),
         name: this.string(input, 'name'),
@@ -166,10 +240,21 @@ export class AdminService {
         metadata: this.json(input, 'metadata'),
       },
     });
+
+    await this.recordAudit(
+      user,
+      'boost_product.create',
+      'boost_product',
+      product.id,
+      null,
+      product,
+    );
+    return product;
   }
 
-  updateBoostProduct(productId: string, input: AdminPayload) {
-    return this.prisma.boostProduct.update({
+  async updateBoostProduct(user: AuthUser, productId: string, input: AdminPayload) {
+    const before = await this.prisma.boostProduct.findUnique({ where: { id: productId } });
+    const product = await this.prisma.boostProduct.update({
       where: { id: productId },
       data: this.clean({
         sku: this.optionalString(input, 'sku'),
@@ -181,10 +266,20 @@ export class AdminService {
         updatedAt: new Date(),
       }),
     });
+
+    await this.recordAudit(
+      user,
+      'boost_product.update',
+      'boost_product',
+      productId,
+      before,
+      product,
+    );
+    return product;
   }
 
-  createBoostCampaign(input: AdminPayload) {
-    return this.prisma.boostCampaign.create({
+  async createBoostCampaign(user: AuthUser, input: AdminPayload) {
+    const campaign = await this.prisma.boostCampaign.create({
       data: {
         slug: this.string(input, 'slug'),
         name: this.string(input, 'name'),
@@ -198,10 +293,21 @@ export class AdminService {
         metadata: this.json(input, 'metadata'),
       },
     });
+
+    await this.recordAudit(
+      user,
+      'boost_campaign.create',
+      'boost_campaign',
+      campaign.id,
+      null,
+      campaign,
+    );
+    return campaign;
   }
 
-  updateBoostCampaign(campaignId: string, input: AdminPayload) {
-    return this.prisma.boostCampaign.update({
+  async updateBoostCampaign(user: AuthUser, campaignId: string, input: AdminPayload) {
+    const before = await this.prisma.boostCampaign.findUnique({ where: { id: campaignId } });
+    const campaign = await this.prisma.boostCampaign.update({
       where: { id: campaignId },
       data: this.clean({
         slug: this.optionalString(input, 'slug'),
@@ -217,9 +323,19 @@ export class AdminService {
         updatedAt: new Date(),
       }),
     });
+
+    await this.recordAudit(
+      user,
+      'boost_campaign.update',
+      'boost_campaign',
+      campaignId,
+      before,
+      campaign,
+    );
+    return campaign;
   }
 
-  async snapshotBoostCampaign(campaignId: string) {
+  async snapshotBoostCampaign(user: AuthUser, campaignId: string) {
     const campaign = await this.prisma.boostCampaign.findUnique({
       where: { id: campaignId },
     });
@@ -274,11 +390,14 @@ export class AdminService {
       }));
 
     if (rankedRows.length === 0) {
+      await this.recordAudit(user, 'boost_campaign.snapshot', 'boost_campaign', campaignId, null, {
+        rows: 0,
+      });
       return [];
     }
 
     await this.prisma.artistRankingSnapshot.createMany({ data: rankedRows });
-    return this.prisma.artistRankingSnapshot.findMany({
+    const snapshots = await this.prisma.artistRankingSnapshot.findMany({
       where: { campaignId, snapshotAt },
       include: {
         artist: {
@@ -287,10 +406,20 @@ export class AdminService {
       },
       orderBy: { rankNo: 'asc' },
     });
+
+    await this.recordAudit(
+      user,
+      'boost_campaign.snapshot',
+      'boost_campaign',
+      campaignId,
+      null,
+      { rows: snapshots },
+    );
+    return snapshots;
   }
 
-  createPremiumVideoProduct(input: AdminPayload) {
-    return this.prisma.premiumVideoProduct.create({
+  async createPremiumVideoProduct(user: AuthUser, input: AdminPayload) {
+    const product = await this.prisma.premiumVideoProduct.create({
       data: {
         artistId: this.optionalString(input, 'artistId'),
         sku: this.string(input, 'sku'),
@@ -301,10 +430,23 @@ export class AdminService {
         publishedAt: this.optionalDate(input, 'publishedAt'),
       },
     });
+
+    await this.recordAudit(
+      user,
+      'premium_video_product.create',
+      'premium_video_product',
+      product.id,
+      null,
+      product,
+    );
+    return product;
   }
 
-  updatePremiumVideoProduct(productId: string, input: AdminPayload) {
-    return this.prisma.premiumVideoProduct.update({
+  async updatePremiumVideoProduct(user: AuthUser, productId: string, input: AdminPayload) {
+    const before = await this.prisma.premiumVideoProduct.findUnique({
+      where: { id: productId },
+    });
+    const product = await this.prisma.premiumVideoProduct.update({
       where: { id: productId },
       data: this.clean({
         artistId: this.optionalString(input, 'artistId'),
@@ -317,10 +459,20 @@ export class AdminService {
         updatedAt: new Date(),
       }),
     });
+
+    await this.recordAudit(
+      user,
+      'premium_video_product.update',
+      'premium_video_product',
+      productId,
+      before,
+      product,
+    );
+    return product;
   }
 
-  createChatFeatureProduct(input: AdminPayload) {
-    return this.prisma.chatFeatureProduct.create({
+  async createChatFeatureProduct(user: AuthUser, input: AdminPayload) {
+    const product = await this.prisma.chatFeatureProduct.create({
       data: {
         sku: this.string(input, 'sku'),
         name: this.string(input, 'name'),
@@ -330,10 +482,23 @@ export class AdminService {
         metadata: this.json(input, 'metadata'),
       },
     });
+
+    await this.recordAudit(
+      user,
+      'chat_feature_product.create',
+      'chat_feature_product',
+      product.id,
+      null,
+      product,
+    );
+    return product;
   }
 
-  updateChatFeatureProduct(productId: string, input: AdminPayload) {
-    return this.prisma.chatFeatureProduct.update({
+  async updateChatFeatureProduct(user: AuthUser, productId: string, input: AdminPayload) {
+    const before = await this.prisma.chatFeatureProduct.findUnique({
+      where: { id: productId },
+    });
+    const product = await this.prisma.chatFeatureProduct.update({
       where: { id: productId },
       data: this.clean({
         sku: this.optionalString(input, 'sku'),
@@ -344,6 +509,39 @@ export class AdminService {
         metadata: this.optionalJson(input, 'metadata'),
         updatedAt: new Date(),
       }),
+    });
+
+    await this.recordAudit(
+      user,
+      'chat_feature_product.update',
+      'chat_feature_product',
+      productId,
+      before,
+      product,
+    );
+    return product;
+  }
+
+  private recordAudit(
+    user: AuthUser,
+    action: string,
+    targetType: string,
+    targetId: string | null,
+    beforeData: unknown,
+    afterData: unknown,
+    metadata: AdminPayload = {},
+  ) {
+    return this.prisma.auditEvent.create({
+      data: {
+        actorUserId: user.id,
+        actorType: 'admin',
+        action,
+        targetType,
+        targetId,
+        beforeData: this.toJson(beforeData),
+        afterData: this.toJson(afterData),
+        metadata: this.toJson(metadata),
+      },
     });
   }
 
@@ -478,5 +676,13 @@ export class AdminService {
     return Object.fromEntries(
       Object.entries(input).filter(([, value]) => value !== undefined),
     ) as T;
+  }
+
+  private toJson(value: unknown) {
+    if (value === null || value === undefined) {
+      return Prisma.JsonNull;
+    }
+
+    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
   }
 }
