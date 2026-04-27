@@ -78,9 +78,13 @@ Auth endpoints:
 
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/social/login`
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/me`
+
+Social login accepts `{ "provider": "google" | "kakao" | "apple", "token": "<provider-token>" }`.
+Google and Apple expect identity tokens; Kakao expects an access token. The server verifies the provider token before creating or linking a `user_auth_accounts` row, and only verified provider emails can be used to link an existing email account. Configure `GOOGLE_OAUTH_CLIENT_ID`, `KAKAO_REST_API_KEY`, and `APPLE_CLIENT_ID` in `.env`; if a provider is not configured, its login endpoint fails closed.
 
 - `GET /api/v1/wallet`
 - `GET /api/v1/wallet/ledger?take=50`

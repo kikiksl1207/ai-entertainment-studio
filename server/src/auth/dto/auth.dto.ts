@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @IsEmail()
@@ -24,4 +24,16 @@ export class LoginDto {
 export class RefreshDto {
   @IsString()
   refreshToken!: string;
+}
+
+export class SocialLoginDto {
+  @IsIn(['google', 'kakao', 'apple'])
+  provider!: 'google' | 'kakao' | 'apple';
+
+  @IsString()
+  token!: string;
+
+  @IsOptional()
+  @IsString()
+  displayName?: string;
 }

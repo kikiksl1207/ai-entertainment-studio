@@ -9,7 +9,8 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from './auth.types';
-import { LoginDto, RegisterDto } from './dto/auth.dto';
+import { LoginDto, RegisterDto, SocialLoginDto } from './dto/auth.dto';
+import { SocialAuthService } from './social-auth.service';
 
 const PASSWORD_HASH_ROUNDS = 12;
 
@@ -19,6 +20,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly socialAuthService: SocialAuthService,
   ) {}
 
   async register(input: RegisterDto) {
@@ -120,6 +122,110 @@ export class AuthService {
     };
   }
 
+  async socialLogin(input: SocialLoginDto) {
+    const profile = await this.socialAuthService.verifyProfile(
+      input.provider,
+      input.token,
+    );
+    const providerUserId = profile.providerUserId;
+    const verifiedEmail = profile.emailVerified
+      ? (profile.email?.trim().toLowerCase() ?? null)
+      : null;
+    const displayName =
+      input.displayName?.trim() ||
+      profile.displayName?.trim() ||
+      verifiedEmail?.split('@')[0] ||
+      `${profile.provider}_${providerUserId.slice(0, 8)}`;
+
+    const authAccount = await this.prisma.userAuthAccount.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: profile.provider,
+          providerUserId,
+        },
+      },
+      include: { user: true },
+    });
+
+    if (authAccount) {
+      this.assertUserCanLogin(authAccount.user);
+
+      await this.prisma.userAuthAccount.update({
+        where: { id: authAccount.id },
+        data: { lastLoginAt: new Date() },
+      });
+
+      return {
+        user: await this.getMe(authAccount.userId),
+        tokens: await this.issueTokens(authAccount.userId, authAccount.user.email),
+      };
+    }
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const existingUser = verifiedEmail
+        ? await tx.user.findUnique({
+            where: { email: verifiedEmail },
+          })
+        : null;
+
+      if (existingUser) {
+        this.assertUserCanLogin(existingUser);
+
+        await tx.userAuthAccount.create({
+          data: {
+            userId: existingUser.id,
+            provider: profile.provider,
+            providerUserId,
+          },
+        });
+
+        return existingUser;
+      }
+
+      const createdUser = await tx.user.create({
+        data: {
+          email: verifiedEmail,
+          status: 'active',
+        },
+      });
+
+      await tx.userAuthAccount.create({
+        data: {
+          userId: createdUser.id,
+          provider: profile.provider,
+          providerUserId,
+        },
+      });
+
+      await tx.userProfile.create({
+        data: {
+          userId: createdUser.id,
+          displayName,
+        },
+      });
+
+      await tx.userSettings.create({
+        data: {
+          userId: createdUser.id,
+        },
+      });
+
+      await tx.walletAccount.create({
+        data: {
+          userId: createdUser.id,
+          currencyCode: 'LUMINA',
+        },
+      });
+
+      return createdUser;
+    });
+
+    return {
+      user: await this.getMe(user.id),
+      tokens: await this.issueTokens(user.id, user.email),
+    };
+  }
+
   async refresh(refreshToken: string) {
     let payload: JwtPayload;
 
@@ -213,5 +319,11 @@ export class AuthService {
 
   private getJwtExpiresIn(key: string, fallback: string) {
     return (this.configService.get<string>(key) ?? fallback) as '15m';
+  }
+
+  private assertUserCanLogin(user: { status: string; deletedAt?: Date | null }) {
+    if (user.status !== 'active' || user.deletedAt) {
+      throw new UnauthorizedException('User is not active');
+    }
   }
 }

@@ -10,3 +10,13 @@ export type JwtPayload = {
   email?: string | null;
   tokenType: JwtTokenType;
 };
+
+export type SocialProvider = 'google' | 'kakao' | 'apple';
+
+export type VerifiedSocialProfile = {
+  provider: SocialProvider;
+  providerUserId: string;
+  email?: string | null;
+  emailVerified?: boolean;
+  displayName?: string | null;
+};
