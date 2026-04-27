@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Artist {
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug           String                @unique
+  displayName    String                @map("display_name")
+  status         String                @default("draft")
+  sortOrder      Int                   @default(0) @map("sort_order")
+  launchedAt     DateTime?             @map("launched_at") @db.Timestamptz(6)
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime              @default(now()) @map("updated_at") @db.Timestamptz(6)
+  publicProfile  ArtistPublicProfile?
+  visualProfile  ArtistVisualProfile?
+  contentProfile ArtistContentProfile?
+  artistAssets   ArtistAsset[]
+  shortforms     Shortform[]
+
+  @@index([status, sortOrder], map: "idx_artists_status_sort")
+  @@map("artists")
+}
+
+model ArtistPublicProfile {
+  artistId            String   @id @map("artist_id") @db.Uuid
+  tagline             String?
+  summary             String?
+  personalityKeywords String[] @default([]) @map("personality_keywords")
+  publicStory         String?  @map("public_story")
+  publicMetadata      Json     @default("{}") @map("public_metadata")
+  updatedAt           DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist              Artist   @relation(fields: [artistId], references: [id])
+
+  @@map("artist_public_profiles")
+}
+
+model ArtistVisualProfile {
+  artistId       String   @id @map("artist_id") @db.Uuid
+  visualKeywords String[] @default([]) @map("visual_keywords")
+  styleNotes     String?  @map("style_notes")
+  primaryColor   String?  @map("primary_color")
+  secondaryColor String?  @map("secondary_color")
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist         Artist   @relation(fields: [artistId], references: [id])
+
+  @@map("artist_visual_profiles")
+}
+
+model ArtistContentProfile {
+  artistId       String   @id @map("artist_id") @db.Uuid
+  contentTone    String?  @map("content_tone")
+  allowedTopics  String[] @default([]) @map("allowed_topics")
+  blockedTopics  String[] @default([]) @map("blocked_topics")
+  operatingNotes String?  @map("operating_notes")
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist         Artist   @relation(fields: [artistId], references: [id])
+
+  @@map("artist_content_profiles")
+}
+
+model Asset {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assetType       String           @map("asset_type")
+  visibility      String           @default("public")
+  storageProvider String           @default("local") @map("storage_provider")
+  storageKey      String           @map("storage_key")
+  mimeType        String           @map("mime_type")
+  fileSizeBytes   BigInt?          @map("file_size_bytes")
+  width           Int?
+  height          Int?
+  durationSeconds Decimal?         @map("duration_seconds") @db.Decimal(12, 3)
+  checksum        String?
+  metadata        Json             @default("{}")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artistAssets    ArtistAsset[]
+  shortformAssets ShortformAsset[]
+
+  @@unique([storageProvider, storageKey])
+  @@index([assetType, visibility], map: "idx_assets_type_visibility")
+  @@map("assets")
+}
+
+model ArtistAsset {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId  String   @map("artist_id") @db.Uuid
+  assetId   String   @map("asset_id") @db.Uuid
+  usageType String   @map("usage_type")
+  isPrimary Boolean  @default(false) @map("is_primary")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  artist    Artist   @relation(fields: [artistId], references: [id])
+  asset     Asset    @relation(fields: [assetId], references: [id])
+
+  @@unique([artistId, assetId, usageType])
+  @@index([artistId, usageType], map: "idx_artist_assets_artist_usage")
+  @@map("artist_assets")
+}
+
+model Shortform {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId    String?          @map("artist_id") @db.Uuid
+  title       String
+  slug        String           @unique
+  description String?
+  status      String           @default("draft")
+  publishedAt DateTime?        @map("published_at") @db.Timestamptz(6)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist      Artist?          @relation(fields: [artistId], references: [id])
+  assets      ShortformAsset[]
+
+  @@index([artistId, status, publishedAt], map: "idx_shortforms_artist_status")
+  @@map("shortforms")
+}
+
+model ShortformAsset {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shortformId String    @map("shortform_id") @db.Uuid
+  assetId     String    @map("asset_id") @db.Uuid
+  role        String
+  sortOrder   Int       @default(0) @map("sort_order")
+  shortform   Shortform @relation(fields: [shortformId], references: [id])
+  asset       Asset     @relation(fields: [assetId], references: [id])
+
+  @@unique([shortformId, assetId, role])
+  @@map("shortform_assets")
+}
