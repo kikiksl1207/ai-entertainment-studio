@@ -3,16 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI 엔터테인먼트 스튜디오</title>
+    <title>Lumina Stage</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <header class="site-header">
       <div class="shell header-inner">
         <a class="brand" href="#top">
-          <span class="brand-mark">AE</span>
-          <span class="brand-copy">
-            <strong>AI Entertainment Studio</strong>
+          <img class="brand-logo" src="./assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+          <span class="brand-copy brand-copy-fallback" style="display:flex;flex-direction:column;">
+            <strong>Lumina Stage</strong>
             <small>버추얼 아티스트 레이블</small>
           </span>
         </a>
@@ -23,6 +23,11 @@
           <a href="./shortform.html">숏폼</a>
           <a href="./business.html">비즈니스</a>
         </nav>
+
+        <div class="header-auth">
+          <a class="auth-btn auth-btn-login" href="#">로그인</a>
+          <a class="auth-btn auth-btn-signup" href="#">회원가입</a>
+        </div>
       </div>
     </header>
 
@@ -97,6 +102,54 @@
           </div>
         </div>
       </section>
+
+      <!-- 아티스트 네임 스트립 -->
+      <div class="name-strip" aria-hidden="true">
+        <div class="name-strip-inner">
+          <div class="name-strip-track">
+            <span class="name-strip-item">윤세린 <em>YOON SERIN</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item">한서율 <em>HAN SEOYUL</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item">박도아 <em>PARK DOA</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item">최서진 <em>CHOI SEOJIN</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item  name-strip-item--soon">오해린<small class="name-strip-debut">(데뷔전)</small> <em>OH HAERIN</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item  name-strip-item--soon">민채온<small class="name-strip-debut">(데뷔전)</small> <em>MIN CHAEON</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item  name-strip-item--soon">서유안<small class="name-strip-debut">(데뷔전)</small> <em>SEO YUAN</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item  name-strip-item--soon">강시아<small class="name-strip-debut">(데뷔전)</small> <em>KANG SIA</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item  name-strip-item--soon">이지원<small class="name-strip-debut">(데뷔전)</small> <em>LEE JIWON</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item  name-strip-item--soon">하윤아<small class="name-strip-debut">(데뷔전)</small> <em>HA YUNA</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item">윤세린 <em>YOON SERIN</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item">한서율 <em>HAN SEOYUL</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item">박도아 <em>PARK DOA</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item">최서진 <em>CHOI SEOJIN</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item  name-strip-item--soon">오해린<small class="name-strip-debut">(데뷔전)</small> <em>OH HAERIN</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item  name-strip-item--soon">민채온<small class="name-strip-debut">(데뷔전)</small> <em>MIN CHAEON</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item  name-strip-item--soon">서유안<small class="name-strip-debut">(데뷔전)</small> <em>SEO YUAN</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item  name-strip-item--soon">강시아<small class="name-strip-debut">(데뷔전)</small> <em>KANG SIA</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item  name-strip-item--soon">이지원<small class="name-strip-debut">(데뷔전)</small> <em>LEE JIWON</em></span>
+            <span class="name-strip-dot">✦</span>
+            <span class="name-strip-item  name-strip-item--soon">하윤아<small class="name-strip-debut">(데뷔전)</small> <em>HA YUNA</em></span>
+            <span class="name-strip-dot">✦</span>
+          </div>
+        </div>
+      </div>
 
       <section id="artists" class="content-section">
         <div class="shell">
@@ -180,31 +233,33 @@
         </div>
       </section>
 
-      <section id="business" class="content-section">
-        <div class="shell business-grid">
-          <div class="business-copy">
+      <section id="business" class="content-section section-business-surface">
+        <div class="shell">
+          <div class="business-copy-row">
+            <div>
               <p class="eyebrow">비즈니스</p>
-            <h2>브랜드 협업과 제휴를 위한 공식 문의 구조</h2>
-            <p>
-              이 섹션은 팬이 아닌 브랜드와 광고주를 위한 영역입니다. 캐릭터 IP 협업,
-              숏폼 패키지, 화보형 광고, 캐릭터 브랜딩까지 확장 가능한 구조로 설계합니다.
-            </p>
+              <h2>브랜드 협업과 제휴를 위한 공식 문의 구조</h2>
+              <p>팬이 아닌 브랜드와 광고주를 위한 영역입니다. 캐릭터 IP 협업, 숏폼 패키지, 화보형 광고, 캐릭터 브랜딩까지 확장 가능한 구조로 설계합니다.</p>
+              <a class="button button-secondary" href="./business.html">제휴 페이지 보기</a>
+            </div>
           </div>
-          <div class="business-cards">
-            <article>
+          <div class="business-cards-row">
+            <article class="business-card-big">
+              <span class="eyebrow">패키지 01</span>
               <strong>숏폼 패키지</strong>
               <p>메인 캐릭터 기반 숏폼 광고와 SNS형 노출 패키지.</p>
             </article>
-            <article>
+            <article class="business-card-big">
+              <span class="eyebrow">패키지 02</span>
               <strong>에디토리얼 패키지</strong>
               <p>프리미엄 캐릭터 기반 화보형 이미지와 브랜드 무드 캠페인.</p>
             </article>
-            <article>
+            <article class="business-card-big">
+              <span class="eyebrow">패키지 03</span>
               <strong>캐릭터 브랜딩</strong>
               <p>캐릭터 프로필과 세계관을 함께 활용하는 브랜딩 제안.</p>
             </article>
           </div>
-          <a class="button button-secondary" href="./business.html">제휴 페이지 보기</a>
         </div>
       </section>
 
@@ -229,7 +284,7 @@
     <footer class="site-footer">
       <div class="shell footer-inner">
         <div>
-          <strong>AI Entertainment Studio</strong>
+          <strong>Lumina Stage</strong>
           <p>캐릭터 IP, 숏폼, 팬덤 확장을 위한 버추얼 아티스트 레이블 프로토타입입니다.</p>
         </div>
         <p>1차 범위: 랜딩 / 아티스트 / 숏폼 / 비즈니스</p>
