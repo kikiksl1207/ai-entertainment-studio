@@ -86,6 +86,8 @@ Auth endpoints:
 Social login accepts `{ "provider": "google" | "kakao" | "apple", "token": "<provider-token>" }`.
 Google and Apple expect identity tokens; Kakao expects an access token. The server verifies the provider token before creating or linking a `user_auth_accounts` row, and only verified provider emails can be used to link an existing email account. Configure `GOOGLE_OAUTH_CLIENT_ID`, `KAKAO_REST_API_KEY`, and `APPLE_CLIENT_ID` in `.env`; if a provider is not configured, its login endpoint fails closed.
 
+Refresh tokens are stored as SHA-256 hashes in `user_refresh_tokens`. `POST /api/v1/auth/refresh` rotates the refresh token and revokes the previous one; `POST /api/v1/auth/logout` accepts `{ "refreshToken": "..." }` and revokes that token server-side. Access tokens remain short-lived and are not individually revoked.
+
 - `GET /api/v1/wallet`
 - `GET /api/v1/wallet/ledger?take=50`
 - `POST /api/v1/wallet/test-grant`

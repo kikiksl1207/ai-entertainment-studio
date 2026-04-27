@@ -30,8 +30,8 @@ export class AuthController {
   }
 
   @Post('logout')
-  logout() {
-    return { ok: true };
+  logout(@Body() body: RefreshDto) {
+    return this.authService.logout(body.refreshToken);
   }
 }
 

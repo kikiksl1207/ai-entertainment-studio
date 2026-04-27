@@ -9,6 +9,7 @@ export type JwtPayload = {
   sub: string;
   email?: string | null;
   tokenType: JwtTokenType;
+  tokenId?: string;
 };
 
 export type SocialProvider = 'google' | 'kakao' | 'apple';

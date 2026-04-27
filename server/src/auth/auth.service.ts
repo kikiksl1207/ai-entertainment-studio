@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { createHash, randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from './auth.types';
@@ -241,6 +242,10 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token is required');
     }
 
+    if (!payload.tokenId) {
+      throw new UnauthorizedException('Refresh token is not tracked');
+    }
+
     const user = await this.prisma.user.findFirst({
       where: {
         id: payload.sub,
@@ -253,10 +258,52 @@ export class AuthService {
       throw new UnauthorizedException('User is not active');
     }
 
+    const storedToken = await this.prisma.userRefreshToken.findUnique({
+      where: { id: payload.tokenId },
+    });
+
+    if (
+      !storedToken ||
+      storedToken.userId !== user.id ||
+      storedToken.revokedAt ||
+      storedToken.expiresAt <= new Date() ||
+      storedToken.tokenHash !== this.hashToken(refreshToken)
+    ) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    await this.prisma.userRefreshToken.update({
+      where: { id: storedToken.id },
+      data: { revokedAt: new Date() },
+    });
+
     return {
       user: await this.getMe(user.id),
-      tokens: await this.issueTokens(user.id, user.email),
+      tokens: await this.issueTokens(user.id, user.email, storedToken.id),
     };
+  }
+
+  async logout(refreshToken: string) {
+    try {
+      const payload = await this.jwtService.verifyAsync<JwtPayload>(refreshToken, {
+        secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+      });
+
+      if (payload.tokenType === 'refresh' && payload.tokenId) {
+        await this.prisma.userRefreshToken.updateMany({
+          where: {
+            id: payload.tokenId,
+            tokenHash: this.hashToken(refreshToken),
+            revokedAt: null,
+          },
+          data: { revokedAt: new Date() },
+        });
+      }
+    } catch {
+      // Logout remains idempotent so clients can clear local tokens safely.
+    }
+
+    return { ok: true };
   }
 
   async getMe(userId: string) {
@@ -287,7 +334,13 @@ export class AuthService {
     return user;
   }
 
-  private async issueTokens(userId: string, email?: string | null) {
+  private async issueTokens(
+    userId: string,
+    email?: string | null,
+    replacedTokenId?: string,
+  ) {
+    const refreshTokenId = randomUUID();
+    const refreshExpiresIn = this.getJwtExpiresIn('JWT_REFRESH_EXPIRES_IN', '30d');
     const accessPayload: JwtPayload = {
       sub: userId,
       email,
@@ -297,6 +350,7 @@ export class AuthService {
       sub: userId,
       email,
       tokenType: 'refresh',
+      tokenId: refreshTokenId,
     };
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -306,9 +360,25 @@ export class AuthService {
       }),
       this.jwtService.signAsync(refreshPayload, {
         secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-        expiresIn: this.getJwtExpiresIn('JWT_REFRESH_EXPIRES_IN', '30d'),
+        expiresIn: refreshExpiresIn,
       }),
     ]);
+
+    await this.prisma.userRefreshToken.create({
+      data: {
+        id: refreshTokenId,
+        userId,
+        tokenHash: this.hashToken(refreshToken),
+        expiresAt: new Date(Date.now() + this.durationToMs(refreshExpiresIn)),
+      },
+    });
+
+    if (replacedTokenId) {
+      await this.prisma.userRefreshToken.updateMany({
+        where: { id: replacedTokenId },
+        data: { replacedBy: refreshTokenId },
+      });
+    }
 
     return {
       accessToken,
@@ -319,6 +389,29 @@ export class AuthService {
 
   private getJwtExpiresIn(key: string, fallback: string) {
     return (this.configService.get<string>(key) ?? fallback) as '15m';
+  }
+
+  private hashToken(token: string) {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private durationToMs(value: string) {
+    const match = value.match(/^(\d+)([smhd])$/);
+
+    if (!match) {
+      throw new Error(`Unsupported JWT duration: ${value}`);
+    }
+
+    const amount = Number(match[1]);
+    const unit = match[2];
+    const multipliers: Record<string, number> = {
+      s: 1000,
+      m: 60 * 1000,
+      h: 60 * 60 * 1000,
+      d: 24 * 60 * 60 * 1000,
+    };
+
+    return amount * multipliers[unit];
   }
 
   private assertUserCanLogin(user: { status: string; deletedAt?: Date | null }) {
