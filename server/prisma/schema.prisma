@@ -8,17 +8,21 @@ datasource db {
 }
 
 model User {
-  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  status         String            @default("active")
-  email          String?           @unique
-  phoneNumber    String?           @unique @map("phone_number")
-  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
-  deletedAt      DateTime?         @map("deleted_at") @db.Timestamptz(6)
-  authAccounts   UserAuthAccount[]
-  profile        UserProfile?
-  settings       UserSettings?
-  walletAccounts WalletAccount[]
+  id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  status            String                   @default("active")
+  email             String?                  @unique
+  phoneNumber       String?                  @unique @map("phone_number")
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?                @map("deleted_at") @db.Timestamptz(6)
+  authAccounts      UserAuthAccount[]
+  profile           UserProfile?
+  settings          UserSettings?
+  walletAccounts    WalletAccount[]
+  videoUnlocks      UserPremiumVideoUnlock[]
+  chatSessions      ChatSession[]
+  chatFeatureOrders ChatFeatureOrder[]
+  entitlements      UserEntitlement[]
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -64,26 +68,30 @@ model UserSettings {
 }
 
 model Artist {
-  id             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  slug           String                  @unique
-  displayName    String                  @map("display_name")
-  status         String                  @default("draft")
-  sortOrder      Int                     @default(0) @map("sort_order")
-  launchedAt     DateTime?               @map("launched_at") @db.Timestamptz(6)
-  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime                @default(now()) @map("updated_at") @db.Timestamptz(6)
-  publicProfile  ArtistPublicProfile?
-  visualProfile  ArtistVisualProfile?
-  contentProfile ArtistContentProfile?
-  artistAssets   ArtistAsset[]
-  shortforms     Shortform[]
-  giftProducts   GiftProduct[]
-  giftOrders     GiftOrder[]
-  giftProgress   ArtistGiftProgress[]
-  reactionEvents ArtistReactionEvent[]
-  equippedItems  ArtistEquippedItem[]
-  boostEvents    ArtistBoostEvent[]
-  rankingScores  ArtistRankingSnapshot[]
+  id                String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug              String                  @unique
+  displayName       String                  @map("display_name")
+  status            String                  @default("draft")
+  sortOrder         Int                     @default(0) @map("sort_order")
+  launchedAt        DateTime?               @map("launched_at") @db.Timestamptz(6)
+  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                @default(now()) @map("updated_at") @db.Timestamptz(6)
+  publicProfile     ArtistPublicProfile?
+  visualProfile     ArtistVisualProfile?
+  contentProfile    ArtistContentProfile?
+  artistAssets      ArtistAsset[]
+  shortforms        Shortform[]
+  giftProducts      GiftProduct[]
+  giftOrders        GiftOrder[]
+  giftProgress      ArtistGiftProgress[]
+  reactionEvents    ArtistReactionEvent[]
+  equippedItems     ArtistEquippedItem[]
+  boostEvents       ArtistBoostEvent[]
+  rankingScores     ArtistRankingSnapshot[]
+  premiumVideos     PremiumVideoProduct[]
+  chatPersonas      ChatPersona[]
+  chatSessions      ChatSession[]
+  chatFeatureOrders ChatFeatureOrder[]
 
   @@index([status, sortOrder], map: "idx_artists_status_sort")
   @@map("artists")
@@ -127,22 +135,23 @@ model ArtistContentProfile {
 }
 
 model Asset {
-  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  assetType       String           @map("asset_type")
-  visibility      String           @default("public")
-  storageProvider String           @default("local") @map("storage_provider")
-  storageKey      String           @map("storage_key")
-  mimeType        String           @map("mime_type")
-  fileSizeBytes   BigInt?          @map("file_size_bytes")
-  width           Int?
-  height          Int?
-  durationSeconds Decimal?         @map("duration_seconds") @db.Decimal(12, 3)
-  checksum        String?
-  metadata        Json             @default("{}")
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
-  artistAssets    ArtistAsset[]
-  shortformAssets ShortformAsset[]
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assetType          String              @map("asset_type")
+  visibility         String              @default("public")
+  storageProvider    String              @default("local") @map("storage_provider")
+  storageKey         String              @map("storage_key")
+  mimeType           String              @map("mime_type")
+  fileSizeBytes      BigInt?             @map("file_size_bytes")
+  width              Int?
+  height             Int?
+  durationSeconds    Decimal?            @map("duration_seconds") @db.Decimal(12, 3)
+  checksum           String?
+  metadata           Json                @default("{}")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artistAssets       ArtistAsset[]
+  shortformAssets    ShortformAsset[]
+  premiumVideoAssets PremiumVideoAsset[]
 
   @@unique([storageProvider, storageKey])
   @@index([assetType, visibility], map: "idx_assets_type_visibility")
@@ -211,19 +220,21 @@ model WalletAccount {
 }
 
 model WalletLedger {
-  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  walletAccountId   String             @map("wallet_account_id") @db.Uuid
-  direction         String
-  amount            Decimal            @db.Decimal(18, 2)
-  ledgerType        String             @map("ledger_type")
-  referenceType     String?            @map("reference_type")
-  referenceId       String?            @map("reference_id") @db.Uuid
-  idempotencyKey    String?            @unique @map("idempotency_key")
-  memo              String?
-  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  walletAccount     WalletAccount      @relation(fields: [walletAccountId], references: [id])
-  giftOrders        GiftOrder[]
-  artistBoostEvents ArtistBoostEvent[]
+  id                  String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  walletAccountId     String                   @map("wallet_account_id") @db.Uuid
+  direction           String
+  amount              Decimal                  @db.Decimal(18, 2)
+  ledgerType          String                   @map("ledger_type")
+  referenceType       String?                  @map("reference_type")
+  referenceId         String?                  @map("reference_id") @db.Uuid
+  idempotencyKey      String?                  @unique @map("idempotency_key")
+  memo                String?
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  walletAccount       WalletAccount            @relation(fields: [walletAccountId], references: [id])
+  giftOrders          GiftOrder[]
+  artistBoostEvents   ArtistBoostEvent[]
+  premiumVideoUnlocks UserPremiumVideoUnlock[]
+  chatFeatureOrders   ChatFeatureOrder[]
 
   @@index([walletAccountId, createdAt], map: "idx_wallet_ledger_account_created")
   @@index([referenceType, referenceId], map: "idx_wallet_ledger_reference")
@@ -409,4 +420,159 @@ model ArtistRankingSnapshot {
   @@unique([campaignId, snapshotAt, artistId])
   @@index([campaignId, snapshotAt, rankNo], map: "idx_ranking_snapshots_campaign_rank")
   @@map("artist_ranking_snapshots")
+}
+
+model PremiumVideoProduct {
+  id          String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId    String?                  @map("artist_id") @db.Uuid
+  sku         String                   @unique
+  title       String
+  description String?
+  priceLumina Decimal                  @map("price_lumina") @db.Decimal(18, 2)
+  status      String                   @default("draft")
+  publishedAt DateTime?                @map("published_at") @db.Timestamptz(6)
+  createdAt   DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist      Artist?                  @relation(fields: [artistId], references: [id])
+  assets      PremiumVideoAsset[]
+  unlocks     UserPremiumVideoUnlock[]
+
+  @@map("premium_video_products")
+}
+
+model PremiumVideoAsset {
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  premiumVideoProductId String              @map("premium_video_product_id") @db.Uuid
+  assetId               String              @map("asset_id") @db.Uuid
+  role                  String
+  sortOrder             Int                 @default(0) @map("sort_order")
+  premiumVideoProduct   PremiumVideoProduct @relation(fields: [premiumVideoProductId], references: [id])
+  asset                 Asset               @relation(fields: [assetId], references: [id])
+
+  @@unique([premiumVideoProductId, assetId, role])
+  @@map("premium_video_assets")
+}
+
+model UserPremiumVideoUnlock {
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String              @map("user_id") @db.Uuid
+  premiumVideoProductId String              @map("premium_video_product_id") @db.Uuid
+  walletLedgerId        String?             @map("wallet_ledger_id") @db.Uuid
+  unlockedAt            DateTime            @default(now()) @map("unlocked_at") @db.Timestamptz(6)
+  expiresAt             DateTime?           @map("expires_at") @db.Timestamptz(6)
+  user                  User                @relation(fields: [userId], references: [id])
+  premiumVideoProduct   PremiumVideoProduct @relation(fields: [premiumVideoProductId], references: [id])
+  walletLedger          WalletLedger?       @relation(fields: [walletLedgerId], references: [id])
+
+  @@unique([userId, premiumVideoProductId])
+  @@index([userId, unlockedAt], map: "idx_premium_unlocks_user")
+  @@map("user_premium_video_unlocks")
+}
+
+model ChatPersona {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId     String        @map("artist_id") @db.Uuid
+  name         String
+  status       String        @default("active")
+  systemPrompt String        @map("system_prompt")
+  safetyRules  Json          @default("{}") @map("safety_rules")
+  modelConfig  Json          @default("{}") @map("model_config")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist       Artist        @relation(fields: [artistId], references: [id])
+  chatSessions ChatSession[]
+
+  @@map("chat_personas")
+}
+
+model ChatSession {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String             @map("user_id") @db.Uuid
+  artistId      String             @map("artist_id") @db.Uuid
+  chatPersonaId String?            @map("chat_persona_id") @db.Uuid
+  status        String             @default("active")
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user          User               @relation(fields: [userId], references: [id])
+  artist        Artist             @relation(fields: [artistId], references: [id])
+  chatPersona   ChatPersona?       @relation(fields: [chatPersonaId], references: [id])
+  messages      ChatMessage[]
+  featureOrders ChatFeatureOrder[]
+
+  @@index([userId, artistId, updatedAt], map: "idx_chat_sessions_user_artist")
+  @@map("chat_sessions")
+}
+
+model ChatFeatureProduct {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku         String             @unique
+  name        String
+  featureType String             @map("feature_type")
+  priceLumina Decimal            @map("price_lumina") @db.Decimal(18, 2)
+  status      String             @default("active")
+  metadata    Json               @default("{}")
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  orders      ChatFeatureOrder[]
+
+  @@map("chat_feature_products")
+}
+
+model ChatFeatureOrder {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String             @map("user_id") @db.Uuid
+  artistId             String             @map("artist_id") @db.Uuid
+  chatSessionId        String             @map("chat_session_id") @db.Uuid
+  chatFeatureProductId String             @map("chat_feature_product_id") @db.Uuid
+  walletLedgerId       String?            @map("wallet_ledger_id") @db.Uuid
+  status               String             @default("pending")
+  idempotencyKey       String?            @unique @map("idempotency_key")
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user                 User               @relation(fields: [userId], references: [id])
+  artist               Artist             @relation(fields: [artistId], references: [id])
+  chatSession          ChatSession        @relation(fields: [chatSessionId], references: [id])
+  chatFeatureProduct   ChatFeatureProduct @relation(fields: [chatFeatureProductId], references: [id])
+  walletLedger         WalletLedger?      @relation(fields: [walletLedgerId], references: [id])
+  messages             ChatMessage[]
+
+  @@index([userId, createdAt], map: "idx_chat_feature_orders_user_created")
+  @@map("chat_feature_orders")
+}
+
+model ChatMessage {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chatSessionId      String            @map("chat_session_id") @db.Uuid
+  senderType         String            @map("sender_type")
+  messageType        String            @default("text") @map("message_type")
+  body               String?
+  assetId            String?           @map("asset_id") @db.Uuid
+  chatFeatureOrderId String?           @map("chat_feature_order_id") @db.Uuid
+  modelMetadata      Json              @default("{}") @map("model_metadata")
+  safetyMetadata     Json              @default("{}") @map("safety_metadata")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  chatSession        ChatSession       @relation(fields: [chatSessionId], references: [id])
+  chatFeatureOrder   ChatFeatureOrder? @relation(fields: [chatFeatureOrderId], references: [id])
+
+  @@index([chatSessionId, createdAt], map: "idx_chat_messages_session_created")
+  @@map("chat_messages")
+}
+
+model UserEntitlement {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                 String    @map("user_id") @db.Uuid
+  entitlementType        String    @map("entitlement_type")
+  referenceType          String    @map("reference_type")
+  referenceId            String    @map("reference_id") @db.Uuid
+  grantedByReferenceType String?   @map("granted_by_reference_type")
+  grantedByReferenceId   String?   @map("granted_by_reference_id") @db.Uuid
+  startsAt               DateTime  @default(now()) @map("starts_at") @db.Timestamptz(6)
+  expiresAt              DateTime? @map("expires_at") @db.Timestamptz(6)
+  revokedAt              DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user                   User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId, entitlementType, referenceType, referenceId])
+  @@index([userId, entitlementType, expiresAt, revokedAt], map: "idx_entitlements_user_active")
+  @@map("user_entitlements")
 }

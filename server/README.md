@@ -111,6 +111,26 @@ Gift orders and paid boost orders debit `wallet_accounts.cached_balance` and cre
 
 All user-scoped gift and boost mutation APIs use `Authorization: Bearer <access-token>`. API secrets and payment provider secrets must stay in environment variables only.
 
+## Premium Video And Chat MVP APIs
+
+Premium video endpoints:
+
+- `GET /api/v1/premium-videos`
+- `GET /api/v1/premium-videos/:productId`
+- `POST /api/v1/premium-videos/:productId/unlock`
+- `GET /api/v1/me/premium-video-unlocks`
+
+Chat endpoints:
+
+- `POST /api/v1/chat/sessions`
+- `GET /api/v1/chat/sessions`
+- `GET /api/v1/chat/sessions/:sessionId/messages`
+- `POST /api/v1/chat/sessions/:sessionId/messages`
+- `GET /api/v1/chat-feature-products`
+- `POST /api/v1/chat-feature-orders`
+
+Premium video unlocks and paid chat feature orders debit `wallet_accounts.cached_balance` and write `wallet_ledger` records in the same transaction. Premium video access is also recorded in `user_premium_video_unlocks` and `user_entitlements`.
+
 ## Database Notes
 
 The first Prisma migration is copied from `../docs/postgresql-schema.sql` so the implementation stays aligned with the current backend/DB design document. The Prisma schema currently maps the public read models needed for the first API slice: artists, artist profiles, assets, artist assets, shortforms, and shortform assets. Commerce, wallet, gift, boost, premium video, and chat models remain in the SQL migration and can be added to `schema.prisma` as their API modules are implemented.
