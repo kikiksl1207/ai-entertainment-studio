@@ -1520,7 +1520,8 @@ p {
 }
 
 .detail-hero-card.is-public {
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(13, 13, 26, 0.95);
+  border-color: rgba(180, 150, 255, 0.15);
 }
 
 .detail-hero-card.is-debut {
@@ -1615,12 +1616,25 @@ p {
 .detail-meta-panel {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
-  padding: 16px 18px;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: var(--shadow);
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.detail-type-tag,
+.detail-tier-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(180, 150, 255, 0.2);
+  background: rgba(180, 150, 255, 0.1);
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .detail-gallery-panel {
@@ -1636,23 +1650,30 @@ p {
 .detail-gallery-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 10px;
 }
 
 .detail-gallery-card {
   overflow: hidden;
-  border-radius: 22px;
+  border-radius: 16px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.04);
 }
 
 .detail-gallery-image {
   width: 100%;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 3 / 4;
   object-fit: cover;
   object-position: center top;
   display: block;
-  background: linear-gradient(180deg, rgba(18, 15, 29, 0.96), rgba(39, 31, 58, 0.88));
+}
+
+.detail-gallery-image-crop1 {
+  object-position: center 40%;
+}
+
+.detail-gallery-image-crop2 {
+  object-position: center 20%;
 }
 
 .detail-gallery-caption {
@@ -1700,33 +1721,32 @@ p {
 
 .detail-short-grid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
   margin-top: 8px;
 }
 
 .detail-short-card {
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: 20px;
   background: rgba(255, 255, 255, 0.05);
-  display: grid;
-  grid-template-columns: 1fr 1.5fr;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
 }
 
 .detail-short-media {
-  min-height: 240px;
+  aspect-ratio: 9 / 16;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  padding: 18px;
+  justify-content: flex-end;
+  padding: 14px;
   color: #ffffff;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(22, 18, 32, 0.5)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(22, 18, 32, 0.7)),
     linear-gradient(160deg, rgba(108, 70, 187, 0.4) 0%, rgba(40, 25, 80, 0.8) 100%);
   background-size: cover;
-  background-position: center top;
+  background-position: center 30%;
 }
 
 .detail-short-media.is-secret {
@@ -2300,4 +2320,117 @@ p {
 
 .page-business .site-footer a:hover {
   color: #ffffff;
+}
+/* 캐릭터 상세 해시태그 + SNS 버튼 */
+.detail-hashtags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.detail-hashtag {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(180, 150, 255, 0.08);
+  border: 1px solid rgba(180, 150, 255, 0.15);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.detail-sns-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.detail-sns-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.detail-sns-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ink);
+}
+
+.detail-sns-btn-youtube:hover { color: #ff4444; border-color: rgba(255, 68, 68, 0.3); }
+.detail-sns-btn-insta:hover { color: #e1306c; border-color: rgba(225, 48, 108, 0.3); }
+.detail-sns-btn-tiktok:hover { color: #69c9d0; border-color: rgba(105, 201, 208, 0.3); }
+
+/* 콘셉트 박스 */
+.detail-concept-box {
+  padding: 14px 16px;
+  border-left: 2px solid rgba(180, 150, 255, 0.4);
+  background: rgba(180, 150, 255, 0.05);
+  border-radius: 0 12px 12px 0;
+}
+
+.detail-concept-text {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* 섹션 라벨 공통 */
+.detail-section-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(180, 150, 255, 0.5);
+  margin-bottom: 8px;
+}
+
+/* SNS 섹션 */
+.detail-sns-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 태그 섹션 */
+.detail-tags-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+/* 프로필 bio + 하단 고정 구조 */
+.detail-bio {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-bio p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--muted);
+}
+
+.detail-intro-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
 }

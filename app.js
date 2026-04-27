@@ -16,8 +16,8 @@ const characters = [
       cover: "./assets/characters/yoon-serin/cover.png",
       thumb: "./assets/characters/yoon-serin/thumb.png"
     },
-    intro: "서울 강남 출신의 냉미녀 퍼포먼스형 아이돌. 아역모델로 시작해 SM 연습생을 거쳐 AI 엔터테인먼트 스튜디오의 메인 대표로 데뷔했습니다.",
-    concept: "차갑고 미래적인 무드, 뷰티와 향수 캠페인에 특히 강한 캐릭터. 무대 위와 일상의 온도 차가 팬들의 입덕 포인트입니다.",
+    intro: "서울 강남에서 태어난 윤세린은 열 살 때 우연히 참가한 뮤직비디오 오디션을 계기로 아역모델로 데뷔했다. 또래보다 훨씬 강한 눈빛과 타고난 무대 감각으로 현장에서 빠르게 이름을 알렸고, 중학교 2학년 재학 중 스타에이 엔터테인먼트 연습생으로 선발되며 본격적인 아티스트의 길을 걷기 시작했다. 2년간의 혹독한 훈련을 거치며 퍼포먼스와 비주얼 양면에서 정제된 무기를 갖추게 됐고, 이후 AI 엔터테인먼트 스튜디오 1기 메인 대표로 데뷔했다. 차갑고 미래적인 무드 안에 감춰진 뜨거운 무대 에너지가 팬들의 입덕 포인트다. 뷰티·향수·패션 필름에 특히 강하며, 카메라 앞에서의 존재감은 동세대 최정상급이라는 평가를 받는다.",
+    concept: "강한 시선, 정제된 퍼포먼스, 그리고 일상과 무대 사이의 극적인 온도 차. 윤세린은 차갑게 등장해서 뜨겁게 각인된다.",
     profile: {
       생년월일: "2001년 3월 14일 (만 25세)",
       출신지: "서울 강남구",
@@ -25,7 +25,7 @@ const characters = [
       혈액형: "A형",
       포지션: "메인 비주얼 / 퍼포먼스",
       데뷔: "2024년 AI 엔터테인먼트 스튜디오 1기",
-      이전이력: "아역모델 출신 · 중학교 재학 중 SM엔터 연습생 경력",
+      이전이력: "아역모델 출신 · 중학교 재학 중 스타에이 엔터 연습생 경력",
       팬포인트: "강한 시선과 무대 장악력",
       광고축: "뷰티 · 향수 · 패션 필름",
       MBTI: "INTJ",
@@ -54,8 +54,8 @@ const characters = [
       cover: "./assets/characters/han-seoyul/cover.png",
       thumb: "./assets/characters/han-seoyul/thumb.png"
     },
-    intro: "경기도 분당 출신의 센터형 하이틴 아이돌. 중학교 시절 전국 댄스 대회 우승 이후 하이브 오디션을 거쳐 AI 엔터테인먼트 스튜디오에 합류했습니다.",
-    concept: "하이틴과 럭셔리 사이를 오가며 브랜드 친화력이 높은 확장형 아이돌. 누구와도 케미가 잘 맞는 팀의 무드메이커.",
+    intro: "경기도 분당에서 자란 한서율은 중학교 시절 전국 청소년 댄스 대회에서 2연패를 달성하며 일찌감치 재능을 증명했다. 그 이름이 업계에 퍼지면서 아이디어엠 공개 오디션 최종 합격이라는 결과로 이어졌고, 1년간의 트레이닝을 마친 후 AI 엔터테인먼트 스튜디오 1기로 합류했다. 센터에 서는 순간 공간 전체를 밝히는 반짝임이 있고, 어떤 팀원과 붙어도 자연스럽게 분위기를 끌어올리는 무드메이커 기질이 타고났다. 하이틴과 럭셔리 사이를 매끄럽게 오가는 브랜드 친화력으로 음료·패션·라이프스타일 광고에서 높은 선호도를 보인다. 팬들이 가장 많이 하는 말은 '보고 있으면 기분이 좋아진다'다.",
+    concept: "센터의 무게를 즐기되 절대 혼자 빛나지 않는다. 한서율의 존재감은 모두가 더 빛나게 만드는 방식으로 작동한다.",
     profile: {
       생년월일: "2003년 6월 22일 (만 22세)",
       출신지: "경기도 분당",
@@ -63,7 +63,7 @@ const characters = [
       혈액형: "O형",
       포지션: "메인 아이돌 / 센터형",
       데뷔: "2024년 AI 엔터테인먼트 스튜디오 1기",
-      이전이력: "중학교 시절 유명 댄스 대회 입상 · 하이브 오디션 최종 합격 경력",
+      이전이력: "중학교 시절 유명 댄스 대회 입상 · 아이디어엠 오디션 최종 합격 경력",
       팬포인트: "정면 비주얼과 대중성",
       광고축: "패션 · 음료 · 라이프스타일",
       MBTI: "ENFJ",
@@ -92,8 +92,8 @@ const characters = [
       cover: "./assets/characters/park-doa/cover.png",
       thumb: "./assets/characters/park-doa/thumb.png"
     },
-    intro: "부산 해운대 출신의 생활밀착형 스타. 자체 틱톡·유튜브 채널을 운영하며 팔로워 12만을 모은 뒤 AI 엔터테인먼트 스튜디오에 합류했습니다.",
-    concept: "친근함, 먹방/리액션, 생활형 포맷에 최적화된 팬덤 전환 캐릭터. 팬들이 가장 먼저 말을 걸고 싶어지는 온기 있는 존재.",
+    intro: "부산 해운대 바닷가 옆 동네에서 자란 박도아는 고등학교 1학년 때 아무도 모르게 시작한 틱톡 계정이 6개월 만에 팔로워 12만을 돌파하며 자신의 가능성을 스스로 증명했다. 먹방, 리액션, 일상 브이로그를 자유롭게 오가는 콘텐츠 감각이 장점이었고, 부산 특유의 직설적인 입담과 거침없는 에너지가 팬들의 마음을 사로잡았다. 유튜브 숏폼 채널도 병행 운영하며 1인 미디어 운영 경험까지 쌓은 뒤 AI 엔터테인먼트 스튜디오에 합류했다. 화려한 기술보다 '같이 있으면 편하다'는 느낌이 강점이며, 댓글과 팬 반응을 실시간으로 끌어내는 커뮤니티형 콘텐츠에서 독보적인 전환율을 보인다. 팬들이 처음 말을 걸고 싶어지는 캐릭터다.",
+    concept: "화면 속에 있어도 옆집 언니처럼 편하다. 박도아의 친근함은 설계된 것이 아니라 그냥 그런 사람이라서다.",
     profile: {
       생년월일: "2002년 11월 5일 (만 23세)",
       출신지: "부산 해운대구",
@@ -130,8 +130,8 @@ const characters = [
       cover: "./assets/characters/choi-seojin/cover.png",
       thumb: "./assets/characters/choi-seojin/thumb.png"
     },
-    intro: "서울 용산 출신의 아역배우 출신 프리미엄 모델. 파리 에꼴 드 보자르 교환학생을 거쳐 국내외 패션위크를 경험한 뒤 AI 엔터테인먼트 스튜디오의 간판으로 합류했습니다.",
-    concept: "럭셔리, 에디토리얼, 하이엔드 뷰티와 주얼리에 최적화된 브랜드형 캐릭터. 스튜디오 전체의 무게감과 품격을 책임지는 존재.",
+    intro: "서울 용산에서 태어난 최서진은 여덟 살 때 아역배우로 첫 스크린을 밟았다. 어린 나이부터 카메라 앞에서 흔들리지 않는 배우 기질이 있었고, 성장하면서 자연스럽게 패션·뷰티 모델로 영역을 넓혔다. 고등학교 졸업 후 파리 아르떼 에콜 교환학생으로 선발되어 1년간 유럽의 예술·패션 씬을 직접 경험했으며, 귀국 후 국내외 패션위크 런웨이를 다수 소화하며 고급감 있는 존재감을 확립했다. AI 엔터테인먼트 스튜디오에서는 프리미엄 라인의 간판을 맡아 스튜디오 전체의 품격을 책임진다. 주얼리·럭셔리 뷰티·에디토리얼 화보에서 독보적이며, 함께 일한 브랜드 관계자들은 하나같이 '카메라가 알아서 좋아한다'고 말한다.",
+    concept: "화려하지 않아도 존재감이 넘친다. 최서진이 있는 장면은 그 자체로 하나의 화보가 된다.",
     profile: {
       생년월일: "1999년 1월 28일 (만 27세)",
       출신지: "서울 용산구",
@@ -139,7 +139,7 @@ const characters = [
       혈액형: "AB형",
       포지션: "프리미엄 메인 / 배우",
       데뷔: "2024년 AI 엔터테인먼트 스튜디오 1기",
-      이전이력: "아역배우 출신 · 파리 에꼴 드 보자르 교환학생 · 국내외 패션위크 워킹 경력",
+      이전이력: "아역배우 출신 · 파리 아르떼 에콜 교환학생 · 국내외 패션위크 워킹 경력",
       팬포인트: "고급감과 존재감",
       광고축: "주얼리 · 럭셔리 뷰티 · 에디토리얼",
       MBTI: "INFJ",
@@ -727,20 +727,46 @@ function renderCharacterDetail() {
       <p class="eyebrow">공식 프로필</p>
       <h1>${artist.publicName}</h1>
       <p class="detail-summary">${artist.summary}</p>
-      <p>${artist.intro}</p>
-      <p>${artist.concept}</p>
+      <div class="detail-bio">
+        <p>${artist.intro}</p>
+        <p>${artist.concept}</p>
+      </div>
+      <div class="detail-intro-bottom">
+        <div class="detail-sns-section">
+          <span class="detail-section-label">SNS</span>
+          <div class="detail-sns-buttons">
+            <a class="detail-sns-btn detail-sns-btn-youtube" href="#" aria-label="유튜브">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2C0 8.1 0 12 0 12s0 3.9.6 5.8a3 3 0 0 0 2.1 2.1C4.5 20.5 12 20.5 12 20.5s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1C24 15.9 24 12 24 12s0-3.9-.5-5.8zM9.8 15.5V8.5l6.3 3.5-6.3 3.5z"/></svg>
+              유튜브
+            </a>
+            <a class="detail-sns-btn detail-sns-btn-insta" href="#" aria-label="인스타그램">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.2c3.2 0 3.6 0 4.9.1 3.3.1 4.8 1.7 4.9 4.9.1 1.3.1 1.6.1 4.8 0 3.2 0 3.6-.1 4.8-.1 3.2-1.7 4.8-4.9 4.9-1.3.1-1.6.1-4.9.1-3.2 0-3.6 0-4.8-.1-3.3-.1-4.8-1.7-4.9-4.9C2.2 15.6 2.2 15.2 2.2 12c0-3.2 0-3.6.1-4.8C2.4 3.9 4 2.3 7.2 2.3c1.2-.1 1.6-.1 4.8-.1zm0-2.2C8.7 0 8.3 0 7.1.1 2.7.3.3 2.7.1 7.1.1 8.3 0 8.7 0 12c0 3.3 0 3.7.1 4.9.2 4.4 2.6 6.8 7 7C8.3 24 8.7 24 12 24c3.3 0 3.7 0 4.9-.1 4.4-.2 6.8-2.6 7-7 .1-1.2.1-1.6.1-4.9 0-3.3 0-3.7-.1-4.9-.2-4.4-2.6-6.8-7-7C15.7 0 15.3 0 12 0zm0 5.8a6.2 6.2 0 1 0 0 12.4 6.2 6.2 0 0 0 0-12.4zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.4-11.8a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8z"/></svg>
+              인스타그램
+            </a>
+            <a class="detail-sns-btn detail-sns-btn-tiktok" href="#" aria-label="틱톡">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.6 3.3A4.5 4.5 0 0 1 15.2 0h-3.3v16.4a2.7 2.7 0 0 1-2.7 2.3 2.7 2.7 0 0 1-2.7-2.7 2.7 2.7 0 0 1 2.7-2.7c.3 0 .5 0 .8.1V9.9a6 6 0 0 0-.8-.1 6 6 0 0 0-6 6 6 6 0 0 0 6 6 6 6 0 0 0 6-6V8.2a7.8 7.8 0 0 0 4.5 1.4V6.3a4.5 4.5 0 0 1-2.1-3z"/></svg>
+              틱톡
+            </a>
+          </div>
+        </div>
+        <div class="detail-tags-section">
+          <span class="detail-section-label">태그</span>
+          <div class="detail-hashtags">
+            ${artist.tags.map(tag => `<span class="detail-hashtag">#${tag}</span>`).join("")}
+          </div>
+        </div>
+      </div>
     `;
   }
 
+  /* detailMeta — status + type + tier 태그 */
   const meta = document.getElementById("detailMeta");
   if (meta) {
+    const tierLabel = artist.tier === "main" ? "메인" : artist.tier === "premium" ? "프리미엄" : artist.tier === "sub" ? "서브" : "실험";
     meta.innerHTML = `
-      <div class="status-badge status-badge-${artist.status}">${status.label}</div>
-      <div class="tag-list">
-        <span>${artist.reference}</span>
-        <span>${artist.type}</span>
-        <span>${artist.tier === "main" ? "메인" : artist.tier === "premium" ? "프리미엄" : artist.tier === "sub" ? "서브" : "실험"}</span>
-      </div>
+      <span class="status-badge status-badge-${artist.status}">${status.label}</span>
+      <span class="detail-type-tag">${artist.type}</span>
+      <span class="detail-tier-tag">${tierLabel}</span>
     `;
   }
 
@@ -761,6 +787,14 @@ function renderCharacterDetail() {
           <article class="detail-gallery-card">
             <img class="detail-gallery-image" src="${artist.images.thumb}" alt="${artist.publicName} 썸네일" />
             <div class="detail-gallery-caption">썸네일 컷</div>
+          </article>
+          <article class="detail-gallery-card">
+            <img class="detail-gallery-image detail-gallery-image-crop1" src="${artist.images.cover}" alt="${artist.publicName} 포즈 컷" />
+            <div class="detail-gallery-caption">포즈 컷</div>
+          </article>
+          <article class="detail-gallery-card">
+            <img class="detail-gallery-image detail-gallery-image-crop2" src="${artist.images.thumb}" alt="${artist.publicName} 클로즈업" />
+            <div class="detail-gallery-caption">클로즈업</div>
           </article>
         </div>
       `;
@@ -810,8 +844,26 @@ function renderCharacterDetail() {
       `
       : `
         <div class="detail-cta-card">
-          <strong>팬 반응과 숏폼 지표를 모으는 단계입니다</strong>
-          <p>후원과 캐릭터챗은 나중 단계에서 붙고, 지금은 캐릭터와 대표 숏폼을 중심으로 팬 유입을 설계합니다.</p>
+          <div class="detail-cta-info">
+            <strong>${artist.publicName}을 응원하세요</strong>
+            <p>후원은 캐릭터 외형 업그레이드, 신규 콘텐츠 해금, 팬 전용 이벤트로 이어집니다.</p>
+          </div>
+          <div class="detail-cta-actions">
+            <button class="cta-btn cta-btn-support" disabled>
+              <span class="cta-btn-icon">💜</span>
+              <span class="cta-btn-label">
+                <strong>후원하기</strong>
+                <small>준비 중</small>
+              </span>
+            </button>
+            <button class="cta-btn cta-btn-chat" disabled>
+              <span class="cta-btn-icon">💬</span>
+              <span class="cta-btn-label">
+                <strong>캐릭터챗</strong>
+                <small>준비 중</small>
+              </span>
+            </button>
+          </div>
         </div>
       `;
   }
@@ -819,11 +871,7 @@ function renderCharacterDetail() {
   const tagNav = document.getElementById("detailTagNavigation");
   if (tagNav) {
     tagNav.innerHTML = artist.tags
-      .map(
-        (tag) => `
-          <a class="tag-link" href="./characters.html?tag=${encodeURIComponent(tag)}">${tag}</a>
-        `
-      )
+      .map(tag => `<a class="tag-link" href="./characters.html?tag=${encodeURIComponent(tag)}">${tag}</a>`)
       .join("");
   }
 }
