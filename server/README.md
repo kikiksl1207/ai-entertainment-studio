@@ -51,6 +51,25 @@ The server listens on `http://localhost:3001` by default.
 - `GET /api/v1/artists`
 - `GET /api/v1/artists/:slug`
 - `GET /api/v1/shortforms`
+- `GET /api/v1/lumina-products`
+
+## Wallet API Skeleton
+
+Auth is not implemented yet. Until JWT auth lands, wallet endpoints require an `X-User-Id` header containing an active `users.id` value.
+
+- `GET /api/v1/wallet`
+- `GET /api/v1/wallet/ledger?take=50`
+- `POST /api/v1/wallet/test-grant`
+
+Local test grant example:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/wallet/test-grant \
+  -H "Content-Type: application/json" \
+  -H "X-User-Id: <active-user-uuid>" \
+  -H "Idempotency-Key: local-test-001" \
+  -d "{\"amount\":100,\"memo\":\"local seed grant\"}"
+```
 
 ## Database Notes
 

@@ -7,6 +7,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  status         String          @default("active")
+  email          String?         @unique
+  phoneNumber    String?         @unique @map("phone_number")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  walletAccounts WalletAccount[]
+
+  @@index([status], map: "idx_users_status")
+  @@map("users")
+}
+
 model Artist {
   id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   slug           String                @unique
@@ -130,4 +144,52 @@ model ShortformAsset {
 
   @@unique([shortformId, assetId, role])
   @@map("shortform_assets")
+}
+
+model WalletAccount {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String         @map("user_id") @db.Uuid
+  currencyCode  String         @default("LUMINA") @map("currency_code")
+  status        String         @default("active")
+  cachedBalance Decimal        @default(0) @map("cached_balance") @db.Decimal(18, 2)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user          User           @relation(fields: [userId], references: [id])
+  ledgerEntries WalletLedger[]
+
+  @@unique([userId, currencyCode])
+  @@map("wallet_accounts")
+}
+
+model WalletLedger {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  walletAccountId String        @map("wallet_account_id") @db.Uuid
+  direction       String
+  amount          Decimal       @db.Decimal(18, 2)
+  ledgerType      String        @map("ledger_type")
+  referenceType   String?       @map("reference_type")
+  referenceId     String?       @map("reference_id") @db.Uuid
+  idempotencyKey  String?       @unique @map("idempotency_key")
+  memo            String?
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  walletAccount   WalletAccount @relation(fields: [walletAccountId], references: [id])
+
+  @@index([walletAccountId, createdAt], map: "idx_wallet_ledger_account_created")
+  @@index([referenceType, referenceId], map: "idx_wallet_ledger_reference")
+  @@map("wallet_ledger")
+}
+
+model LuminaProduct {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku           String   @unique
+  name          String
+  luminaAmount  Decimal  @map("lumina_amount") @db.Decimal(18, 2)
+  bonusAmount   Decimal  @default(0) @map("bonus_amount") @db.Decimal(18, 2)
+  priceAmount   Decimal  @map("price_amount") @db.Decimal(18, 2)
+  priceCurrency String   @default("KRW") @map("price_currency")
+  status        String   @default("active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("lumina_products")
 }
