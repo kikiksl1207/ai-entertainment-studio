@@ -47,7 +47,15 @@ npm run prisma:deploy
 npm run prisma:generate
 ```
 
-7. Start the API server.
+7. Seed MVP content and products.
+
+```bash
+npm run prisma:seed
+```
+
+The seed script inserts the first 4 public artists, local image asset references, shortforms, Lumina products, gift products, the launch boost campaign, premium video products, and chat feature products. The script is idempotent and can be rerun after changing seed values.
+
+8. Start the API server.
 
 ```bash
 npm run start:dev
