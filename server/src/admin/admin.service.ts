@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-import { randomUUID } from 'crypto';
+import { createHash, createHmac, randomUUID } from 'crypto';
 import { AuthUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -197,7 +197,9 @@ export class AdminService {
     const visibility = this.visibility(input, 'visibility', 'public');
     const storageProvider = this.configService.get<string>('OBJECT_STORAGE_PROVIDER') ?? 'local';
     const storageKey = this.buildStorageKey(assetType, fileName);
-    const uploadUrl = this.buildUploadUrl(storageProvider, storageKey);
+    const expiresInSeconds = this.numberFromEnv('OBJECT_UPLOAD_INTENT_TTL_SECONDS', 900);
+    const uploadUrl = this.buildUploadUrl(storageProvider, storageKey, expiresInSeconds);
+    const publicUrl = this.buildPublicAssetUrl(storageKey);
 
     const asset = await this.prisma.asset.create({
       data: {
@@ -228,12 +230,13 @@ export class AdminService {
       upload: {
         method: 'PUT',
         url: uploadUrl,
+        publicUrl,
         storageProvider,
         storageKey,
         requiredHeaders: {
           'content-type': mimeType,
         },
-        expiresInSeconds: this.numberFromEnv('OBJECT_UPLOAD_INTENT_TTL_SECONDS', 900),
+        expiresInSeconds,
         mode: storageProvider === 'local' ? 'metadata_only' : 'direct_upload_ready',
       },
     };
@@ -927,18 +930,150 @@ export class AdminService {
     return `uploads/${assetType}s/${yyyy}/${mm}/${dd}/${randomUUID()}-${fileName}`;
   }
 
-  private buildUploadUrl(storageProvider: string, storageKey: string) {
+  private buildUploadUrl(storageProvider: string, storageKey: string, expiresInSeconds: number) {
+    if (storageProvider === 'r2' || storageProvider === 's3') {
+      return this.buildS3CompatiblePresignedPutUrl(storageProvider, storageKey, expiresInSeconds);
+    }
+
+    if (storageProvider !== 'local') {
+      throw new BadRequestException('OBJECT_STORAGE_PROVIDER must be local, r2, or s3');
+    }
+
+    return `/pending-local-upload/${storageKey}`;
+  }
+
+  private buildPublicAssetUrl(storageKey: string) {
     const baseUrl = this.configService.get<string>('OBJECT_STORAGE_PUBLIC_BASE_URL');
 
     if (baseUrl) {
       return `${baseUrl.replace(/\/+$/, '')}/${storageKey}`;
     }
 
-    if (storageProvider === 'local') {
-      return `/pending-local-upload/${storageKey}`;
+    return null;
+  }
+
+  private buildS3CompatiblePresignedPutUrl(
+    storageProvider: string,
+    storageKey: string,
+    expiresInSeconds: number,
+  ) {
+    const bucket = this.envString('OBJECT_STORAGE_BUCKET');
+    const region = this.configService.get<string>('OBJECT_STORAGE_REGION') ?? 'auto';
+    const accessKeyId = this.envString('OBJECT_STORAGE_ACCESS_KEY_ID');
+    const secretAccessKey = this.envString('OBJECT_STORAGE_SECRET_ACCESS_KEY');
+    const now = new Date();
+    const amzDate = this.amzDate(now);
+    const dateStamp = amzDate.slice(0, 8);
+    const scope = `${dateStamp}/${region}/s3/aws4_request`;
+    const endpoint = this.buildObjectStorageEndpoint(storageProvider, bucket, region);
+    const url = new URL(this.joinUrlPath(endpoint, storageKey));
+    const credential = `${accessKeyId}/${scope}`;
+    const signedHeaders = 'host';
+
+    const query: Record<string, string> = {
+      'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+      'X-Amz-Credential': credential,
+      'X-Amz-Date': amzDate,
+      'X-Amz-Expires': String(expiresInSeconds),
+      'X-Amz-SignedHeaders': signedHeaders,
+    };
+
+    const canonicalQuery = this.canonicalQueryString(query);
+    const canonicalRequest = [
+      'PUT',
+      this.canonicalUri(url.pathname),
+      canonicalQuery,
+      `host:${url.host}\n`,
+      signedHeaders,
+      'UNSIGNED-PAYLOAD',
+    ].join('\n');
+    const stringToSign = [
+      'AWS4-HMAC-SHA256',
+      amzDate,
+      scope,
+      this.sha256Hex(canonicalRequest),
+    ].join('\n');
+    const signature = this.hmacHex(
+      this.signingKey(secretAccessKey, dateStamp, region, 's3'),
+      stringToSign,
+    );
+
+    url.search = `${canonicalQuery}&X-Amz-Signature=${signature}`;
+    return url.toString();
+  }
+
+  private buildObjectStorageEndpoint(storageProvider: string, bucket: string, region: string) {
+    const configuredEndpoint = this.configService.get<string>('OBJECT_STORAGE_ENDPOINT');
+
+    if (configuredEndpoint) {
+      return `${configuredEndpoint.replace(/\/+$/, '')}/${bucket}`;
     }
 
-    return storageKey;
+    if (storageProvider === 's3') {
+      return `https://${bucket}.s3.${region}.amazonaws.com`;
+    }
+
+    throw new BadRequestException('OBJECT_STORAGE_ENDPOINT is required for r2 storage');
+  }
+
+  private joinUrlPath(baseUrl: string, storageKey: string) {
+    return `${baseUrl.replace(/\/+$/, '')}/${storageKey
+      .split('/')
+      .map((part) => this.rfc3986Encode(part))
+      .join('/')}`;
+  }
+
+  private canonicalUri(pathname: string) {
+    return pathname
+      .split('/')
+      .map((part) => this.rfc3986Encode(decodeURIComponent(part)))
+      .join('/');
+  }
+
+  private canonicalQueryString(query: Record<string, string>) {
+    return Object.entries(query)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${this.rfc3986Encode(key)}=${this.rfc3986Encode(value)}`)
+      .join('&');
+  }
+
+  private rfc3986Encode(value: string) {
+    return encodeURIComponent(value).replace(/[!'()*]/g, (char) =>
+      `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
+  }
+
+  private amzDate(date: Date) {
+    return date.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  }
+
+  private sha256Hex(value: string) {
+    return createHash('sha256').update(value).digest('hex');
+  }
+
+  private signingKey(secretAccessKey: string, dateStamp: string, region: string, service: string) {
+    const dateKey = this.hmacBuffer(`AWS4${secretAccessKey}`, dateStamp);
+    const dateRegionKey = this.hmacBuffer(dateKey, region);
+    const dateRegionServiceKey = this.hmacBuffer(dateRegionKey, service);
+    return this.hmacBuffer(dateRegionServiceKey, 'aws4_request');
+  }
+
+  private hmacBuffer(key: string | Buffer, value: string) {
+    return createHmac('sha256', key).update(value).digest();
+  }
+
+  private hmacHex(key: string | Buffer, value: string) {
+    return createHmac('sha256', key).update(value).digest('hex');
+  }
+
+  private envString(key: string) {
+    const value = this.configService.get<string>(key);
+
+    if (!value) {
+      throw new BadRequestException(`${key} environment variable is required`);
+    }
+
+    return value;
   }
 
   private numberFromEnv(key: string, fallback: number) {

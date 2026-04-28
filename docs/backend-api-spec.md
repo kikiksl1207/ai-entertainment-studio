@@ -204,7 +204,8 @@ PATCH /admin/api/v1/shortforms/:shortformId
 ```
 
 `POST /admin/api/v1/assets/upload-intents` creates an asset row and returns upload
-instructions. It is the storage-provider boundary for S3/R2 integration.
+instructions. It is the storage-provider boundary for S3/R2 integration. In
+`r2` or `s3` mode, the response contains a presigned `PUT` URL.
 
 Request body:
 
@@ -225,11 +226,41 @@ Request body:
 
 Related environment variables:
 
-- `OBJECT_STORAGE_PROVIDER`: defaults to `local`
-- `OBJECT_STORAGE_PUBLIC_BASE_URL`: optional base URL for object URLs
+- `OBJECT_STORAGE_PROVIDER`: `local`, `r2`, or `s3`; defaults to `local`
+- `OBJECT_STORAGE_ENDPOINT`: required for R2, optional custom S3-compatible endpoint
+- `OBJECT_STORAGE_BUCKET`: required for R2/S3
+- `OBJECT_STORAGE_REGION`: defaults to `auto`; use an AWS region for S3
+- `OBJECT_STORAGE_ACCESS_KEY_ID`: required for R2/S3
+- `OBJECT_STORAGE_SECRET_ACCESS_KEY`: required for R2/S3
+- `OBJECT_STORAGE_PUBLIC_BASE_URL`: optional public CDN/base URL for object URLs
 - `OBJECT_UPLOAD_INTENT_TTL_SECONDS`: defaults to `900`
 - `MAX_IMAGE_UPLOAD_BYTES`: defaults to `20971520`
 - `MAX_VIDEO_UPLOAD_BYTES`: defaults to `524288000`
+
+Response shape:
+
+```json
+{
+  "asset": {
+    "id": "asset-id",
+    "assetType": "image",
+    "storageProvider": "r2",
+    "storageKey": "uploads/images/2026/04/28/uuid-serin-cover.png"
+  },
+  "upload": {
+    "method": "PUT",
+    "url": "https://...",
+    "publicUrl": "https://cdn.example.com/uploads/images/2026/04/28/uuid-serin-cover.png",
+    "storageProvider": "r2",
+    "storageKey": "uploads/images/2026/04/28/uuid-serin-cover.png",
+    "requiredHeaders": {
+      "content-type": "image/png"
+    },
+    "expiresInSeconds": 900,
+    "mode": "direct_upload_ready"
+  }
+}
+```
 
 ### Commerce / Operations
 

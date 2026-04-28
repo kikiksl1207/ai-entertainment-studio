@@ -29,6 +29,7 @@ export function validateEnv(config: Env) {
   if (nodeEnv === 'production') {
     rejectPlaceholder(config.JWT_ACCESS_SECRET, 'JWT_ACCESS_SECRET');
     rejectPlaceholder(config.JWT_REFRESH_SECRET, 'JWT_REFRESH_SECRET');
+    validateObjectStorage(config);
 
     if ((config.PAYMENT_PROVIDER ?? 'mock') === 'mock') {
       throw new Error('PAYMENT_PROVIDER must be a real provider in production');
@@ -51,5 +52,33 @@ function assertSecretLength(value: string | undefined, key: string) {
 
   if (value.length < 32) {
     throw new Error(`${key} must be at least 32 characters`);
+  }
+}
+
+function validateObjectStorage(config: Env) {
+  const provider = config.OBJECT_STORAGE_PROVIDER ?? 'local';
+
+  if (!['local', 'r2', 's3'].includes(provider)) {
+    throw new Error('OBJECT_STORAGE_PROVIDER must be local, r2, or s3');
+  }
+
+  if (provider === 'local') {
+    return;
+  }
+
+  const requiredObjectStorageKeys = [
+    'OBJECT_STORAGE_BUCKET',
+    'OBJECT_STORAGE_ACCESS_KEY_ID',
+    'OBJECT_STORAGE_SECRET_ACCESS_KEY',
+  ];
+
+  for (const key of requiredObjectStorageKeys) {
+    if (!config[key]) {
+      throw new Error(`${key} environment variable is required when OBJECT_STORAGE_PROVIDER=${provider}`);
+    }
+  }
+
+  if (provider === 'r2' && !config.OBJECT_STORAGE_ENDPOINT) {
+    throw new Error('OBJECT_STORAGE_ENDPOINT environment variable is required when OBJECT_STORAGE_PROVIDER=r2');
   }
 }
