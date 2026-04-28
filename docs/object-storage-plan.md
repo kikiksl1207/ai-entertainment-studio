@@ -71,8 +71,9 @@ AWS S3 mode:
 
 ```env
 OBJECT_STORAGE_PROVIDER=s3
-OBJECT_STORAGE_BUCKET=lumina-stage-assets
+OBJECT_STORAGE_BUCKET=oneshot-ai-storage-01
 OBJECT_STORAGE_REGION=ap-northeast-2
+OBJECT_STORAGE_KEY_PREFIX=lumina-stage
 OBJECT_STORAGE_ACCESS_KEY_ID=<aws-access-key-id>
 OBJECT_STORAGE_SECRET_ACCESS_KEY=<aws-secret-access-key>
 OBJECT_STORAGE_PUBLIC_BASE_URL=https://assets.luminastage.example
@@ -86,8 +87,19 @@ uploads/{assetType}s/yyyy/mm/dd/{uuid}-{safe-file-name}
 
 Examples:
 
-- `uploads/images/2026/04/28/<uuid>-serin-cover.png`
-- `uploads/videos/2026/04/28/<uuid>-premium-stage.mp4`
+- `lumina-stage/uploads/images/2026/04/28/<uuid>-serin-cover.png`
+- `lumina-stage/uploads/videos/2026/04/28/<uuid>-premium-stage.mp4`
+
+For the existing AWS bucket, use:
+
+```env
+OBJECT_STORAGE_PROVIDER=s3
+OBJECT_STORAGE_BUCKET=oneshot-ai-storage-01
+OBJECT_STORAGE_REGION=ap-northeast-2
+OBJECT_STORAGE_KEY_PREFIX=lumina-stage
+```
+
+The bucket name can stay as `oneshot-ai-storage-01`. The prefix keeps Lumina Stage files separated from older service files.
 
 ## Guardrails
 

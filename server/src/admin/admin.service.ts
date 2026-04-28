@@ -926,8 +926,10 @@ export class AdminService {
     const yyyy = date.getUTCFullYear();
     const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
     const dd = String(date.getUTCDate()).padStart(2, '0');
+    const prefix = this.storageKeyPrefix();
+    const path = `uploads/${assetType}s/${yyyy}/${mm}/${dd}/${randomUUID()}-${fileName}`;
 
-    return `uploads/${assetType}s/${yyyy}/${mm}/${dd}/${randomUUID()}-${fileName}`;
+    return prefix ? `${prefix}/${path}` : path;
   }
 
   private buildUploadUrl(storageProvider: string, storageKey: string, expiresInSeconds: number) {
@@ -1074,6 +1076,30 @@ export class AdminService {
     }
 
     return value;
+  }
+
+  private storageKeyPrefix() {
+    const value = this.configService.get<string>('OBJECT_STORAGE_KEY_PREFIX');
+
+    if (!value) {
+      return '';
+    }
+
+    return value
+      .trim()
+      .replace(/^\/+|\/+$/g, '')
+      .replace(/\/+/g, '/')
+      .split('/')
+      .map((part) =>
+        part
+          .normalize('NFKD')
+          .replace(/[^\w.\-]+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^[-.]+|[-.]+$/g, '')
+          .toLowerCase(),
+      )
+      .filter(Boolean)
+      .join('/');
   }
 
   private numberFromEnv(key: string, fallback: number) {

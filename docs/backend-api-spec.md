@@ -230,6 +230,7 @@ Related environment variables:
 - `OBJECT_STORAGE_ENDPOINT`: required for R2, optional custom S3-compatible endpoint
 - `OBJECT_STORAGE_BUCKET`: required for R2/S3
 - `OBJECT_STORAGE_REGION`: defaults to `auto`; use an AWS region for S3
+- `OBJECT_STORAGE_KEY_PREFIX`: optional folder prefix; recommended `lumina-stage`
 - `OBJECT_STORAGE_ACCESS_KEY_ID`: required for R2/S3
 - `OBJECT_STORAGE_SECRET_ACCESS_KEY`: required for R2/S3
 - `OBJECT_STORAGE_PUBLIC_BASE_URL`: optional public CDN/base URL for object URLs
