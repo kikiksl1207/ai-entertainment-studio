@@ -11,6 +11,6 @@ import { SocialAuthService } from './social-auth.service';
   imports: [JwtModule.register({})],
   controllers: [AuthController, MeController],
   providers: [AuthService, SocialAuthService, JwtAuthGuard, AdminAuthGuard],
-  exports: [AuthService, JwtAuthGuard, AdminAuthGuard],
+  exports: [JwtModule, AuthService, JwtAuthGuard, AdminAuthGuard],
 })
 export class AuthModule {}
