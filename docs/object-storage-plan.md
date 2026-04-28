@@ -119,3 +119,10 @@ POST /admin/api/v1/assets/:assetId/confirm-upload
 ```
 
 It should verify that the object exists in R2/S3, update `metadata.uploadIntent.status` to `uploaded`, and prevent unpublished broken asset links.
+
+Current status:
+
+- Implemented `POST /admin/api/v1/assets/:assetId/confirm-upload`.
+- In `local` storage mode, confirmation marks metadata as uploaded.
+- In `r2` or `s3` mode, confirmation sends a signed `HEAD` request to verify that the object exists before updating metadata.
+- The endpoint writes an `asset.upload.confirm` audit event.

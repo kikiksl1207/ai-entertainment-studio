@@ -60,6 +60,15 @@ export class AdminController {
     return this.adminService.createAssetUploadIntent(user, body);
   }
 
+  @Post('assets/:assetId/confirm-upload')
+  confirmAssetUpload(
+    @CurrentUser() user: AuthUser,
+    @Param('assetId') assetId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.confirmAssetUpload(user, assetId, body);
+  }
+
   @Post('artists')
   createArtist(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createArtist(user, body);

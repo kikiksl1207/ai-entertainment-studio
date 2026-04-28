@@ -252,6 +252,61 @@ export class AdminService {
     return result;
   }
 
+  async confirmAssetUpload(user: AuthUser, assetId: string, input: AdminPayload) {
+    const asset = await this.prisma.asset.findUnique({
+      where: { id: assetId },
+    });
+
+    if (!asset) {
+      throw new NotFoundException('Asset not found');
+    }
+
+    const before = asset;
+    await this.assertObjectUploaded(asset.storageProvider, asset.storageKey);
+
+    const confirmedAt = new Date().toISOString();
+    const metadata = this.metadataObject(asset.metadata);
+    const uploadIntent = this.metadataObject(metadata.uploadIntent);
+    const updatedMetadata = {
+      ...metadata,
+      uploadIntent: {
+        ...uploadIntent,
+        status: 'uploaded',
+        confirmedByUserId: user.id,
+        confirmedAt,
+        objectETag: this.optionalString(input, 'objectETag'),
+      },
+    };
+
+    const updatedAsset = await this.prisma.asset.update({
+      where: { id: asset.id },
+      data: {
+        metadata: this.toJson(updatedMetadata),
+        updatedAt: new Date(),
+      },
+    });
+
+    const result = {
+      asset: updatedAsset,
+      upload: {
+        status: 'uploaded',
+        confirmedAt,
+        publicUrl: this.buildPublicAssetUrl(updatedAsset.storageKey),
+      },
+    };
+
+    await this.recordAudit(
+      user,
+      'asset.upload.confirm',
+      'asset',
+      updatedAsset.id,
+      before,
+      result,
+    );
+
+    return result;
+  }
+
   async createArtist(user: AuthUser, input: AdminPayload) {
     const artist = await this.prisma.artist.create({
       data: {
@@ -944,6 +999,31 @@ export class AdminService {
     return `/pending-local-upload/${storageKey}`;
   }
 
+  private async assertObjectUploaded(storageProvider: string, storageKey: string) {
+    if (storageProvider === 'local') {
+      return;
+    }
+
+    if (storageProvider === 'r2' || storageProvider === 's3') {
+      const response = await fetch(
+        this.buildS3CompatibleSignedHeadUrl(storageProvider, storageKey),
+        { method: 'HEAD' },
+      );
+
+      if (response.status === 404) {
+        throw new BadRequestException('Uploaded object was not found in storage');
+      }
+
+      if (!response.ok) {
+        throw new BadRequestException('Could not verify uploaded object');
+      }
+
+      return;
+    }
+
+    throw new BadRequestException('OBJECT_STORAGE_PROVIDER must be local, r2, or s3');
+  }
+
   private buildPublicAssetUrl(storageKey: string) {
     const baseUrl = this.configService.get<string>('OBJECT_STORAGE_PUBLIC_BASE_URL');
 
@@ -983,6 +1063,50 @@ export class AdminService {
     const canonicalQuery = this.canonicalQueryString(query);
     const canonicalRequest = [
       'PUT',
+      this.canonicalUri(url.pathname),
+      canonicalQuery,
+      `host:${url.host}\n`,
+      signedHeaders,
+      'UNSIGNED-PAYLOAD',
+    ].join('\n');
+    const stringToSign = [
+      'AWS4-HMAC-SHA256',
+      amzDate,
+      scope,
+      this.sha256Hex(canonicalRequest),
+    ].join('\n');
+    const signature = this.hmacHex(
+      this.signingKey(secretAccessKey, dateStamp, region, 's3'),
+      stringToSign,
+    );
+
+    url.search = `${canonicalQuery}&X-Amz-Signature=${signature}`;
+    return url.toString();
+  }
+
+  private buildS3CompatibleSignedHeadUrl(storageProvider: string, storageKey: string) {
+    const bucket = this.envString('OBJECT_STORAGE_BUCKET');
+    const region = this.configService.get<string>('OBJECT_STORAGE_REGION') ?? 'auto';
+    const accessKeyId = this.envString('OBJECT_STORAGE_ACCESS_KEY_ID');
+    const secretAccessKey = this.envString('OBJECT_STORAGE_SECRET_ACCESS_KEY');
+    const now = new Date();
+    const amzDate = this.amzDate(now);
+    const dateStamp = amzDate.slice(0, 8);
+    const scope = `${dateStamp}/${region}/s3/aws4_request`;
+    const endpoint = this.buildObjectStorageEndpoint(storageProvider, bucket, region);
+    const url = new URL(this.joinUrlPath(endpoint, storageKey));
+    const credential = `${accessKeyId}/${scope}`;
+    const signedHeaders = 'host';
+    const query: Record<string, string> = {
+      'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+      'X-Amz-Credential': credential,
+      'X-Amz-Date': amzDate,
+      'X-Amz-Expires': '60',
+      'X-Amz-SignedHeaders': signedHeaders,
+    };
+    const canonicalQuery = this.canonicalQueryString(query);
+    const canonicalRequest = [
+      'HEAD',
       this.canonicalUri(url.pathname),
       canonicalQuery,
       `host:${url.host}\n`,
@@ -1187,6 +1311,12 @@ export class AdminService {
 
   private optionalJson(input: AdminPayload, key: string) {
     return input[key] === undefined ? undefined : this.json(input, key);
+  }
+
+  private metadataObject(value: unknown) {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as AdminPayload)
+      : {};
   }
 
   private object(input: AdminPayload, key: string) {

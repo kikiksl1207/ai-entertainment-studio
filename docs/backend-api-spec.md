@@ -196,6 +196,7 @@ POST /api/v1/chat-feature-orders
 ```http
 POST /admin/api/v1/assets
 POST /admin/api/v1/assets/upload-intents
+POST /admin/api/v1/assets/:assetId/confirm-upload
 POST /admin/api/v1/assets/:assetId/versions
 POST /admin/api/v1/artists
 PATCH /admin/api/v1/artists/:artistId
@@ -221,6 +222,18 @@ Request body:
   "metadata": {
     "usage": "artist_cover"
   }
+}
+```
+
+`POST /admin/api/v1/assets/:assetId/confirm-upload` verifies the uploaded object
+and marks `metadata.uploadIntent.status` as `uploaded`. In S3/R2 mode the server
+uses a signed `HEAD` request before updating metadata.
+
+Optional request body:
+
+```json
+{
+  "objectETag": "\"etag-from-provider\""
 }
 ```
 
