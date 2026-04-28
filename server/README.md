@@ -166,8 +166,14 @@ The current provider adapter is `mock`, which is safe for local development and 
 
 ## Admin MVP APIs
 
-Admin endpoints use `Authorization: Bearer <access-token>` and require the user's email to be listed in `ADMIN_EMAILS`.
+Admin endpoints use `Authorization: Bearer <access-token>`.
 
+Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EMAILS` remains as a bootstrap fallback so the first trusted operator can log in and create DB admin users.
+
+- `GET /admin/api/v1/admin-roles`
+- `GET /admin/api/v1/admin-users`
+- `POST /admin/api/v1/admin-users`
+- `PATCH /admin/api/v1/admin-users/:adminUserId`
 - `GET /admin/api/v1/audit-events`
 - `POST /admin/api/v1/assets`
 - `POST /admin/api/v1/artists`
@@ -190,7 +196,17 @@ Admin endpoints use `Authorization: Bearer <access-token>` and require the user'
 
 Admin create/update/snapshot mutations write `audit_events` rows with actor, action, target, before data, and after data. `GET /admin/api/v1/audit-events` can filter by `actorUserId`, `action`, `targetType`, and `targetId`; `take` defaults to 50 and is capped at 100.
 
-The current admin guard is intentionally simple: it checks JWT identity against `ADMIN_EMAILS`. A future hardening pass should replace this with `admin_users` / `admin_roles` tables and richer role permissions.
+Seeded roles:
+
+- `super_admin`: full admin access, can create/update admin users.
+- `content_admin`: content and artist operations.
+- `commerce_admin`: product, payment, gift, boost, premium video operations.
+
+For the first admin:
+
+1. Add the trusted account email to `ADMIN_EMAILS`.
+2. Log in and call `POST /admin/api/v1/admin-users` with that user's `email` or `userId` and `roleName`.
+3. Remove or narrow `ADMIN_EMAILS` once DB admin users are configured.
 
 ## Database Notes
 

@@ -3,6 +3,8 @@ export type JwtTokenType = 'access' | 'refresh';
 export type AuthUser = {
   id: string;
   email?: string | null;
+  adminRole?: string;
+  adminPermissions?: string[];
 };
 
 export type JwtPayload = {

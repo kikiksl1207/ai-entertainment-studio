@@ -21,6 +21,30 @@ type AuditQuery = Record<string, string | undefined>;
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  @Get('admin-roles')
+  getAdminRoles() {
+    return this.adminService.getAdminRoles();
+  }
+
+  @Get('admin-users')
+  getAdminUsers() {
+    return this.adminService.getAdminUsers();
+  }
+
+  @Post('admin-users')
+  createAdminUser(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
+    return this.adminService.createAdminUser(user, body);
+  }
+
+  @Patch('admin-users/:adminUserId')
+  updateAdminUser(
+    @CurrentUser() user: AuthUser,
+    @Param('adminUserId') adminUserId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.updateAdminUser(user, adminUserId, body);
+  }
+
   @Get('audit-events')
   getAuditEvents(@Query() query: AuditQuery) {
     return this.adminService.getAuditEvents(query);

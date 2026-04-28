@@ -26,6 +26,8 @@ model User {
   entitlements      UserEntitlement[]
   paymentOrders     PaymentOrder[]
   auditEvents       AuditEvent[]
+  adminAccess       AdminUser?               @relation("AdminAccess")
+  createdAdminUsers AdminUser[]              @relation("AdminCreatedBy")
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -82,6 +84,36 @@ model UserRefreshToken {
 
   @@index([userId, revokedAt, expiresAt], map: "idx_refresh_tokens_user_active")
   @@map("user_refresh_tokens")
+}
+
+model AdminRole {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String      @unique
+  description String?
+  permissions String[]    @default([])
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+  adminUsers  AdminUser[]
+
+  @@map("admin_roles")
+}
+
+model AdminUser {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String    @unique @map("user_id") @db.Uuid
+  roleId          String    @map("role_id") @db.Uuid
+  status          String    @default("active")
+  createdByUserId String?   @map("created_by_user_id") @db.Uuid
+  lastAccessAt    DateTime? @map("last_access_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user            User      @relation("AdminAccess", fields: [userId], references: [id])
+  role            AdminRole @relation(fields: [roleId], references: [id])
+  createdBy       User?     @relation("AdminCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([status], map: "idx_admin_users_status")
+  @@index([roleId], map: "idx_admin_users_role")
+  @@map("admin_users")
 }
 
 model Artist {

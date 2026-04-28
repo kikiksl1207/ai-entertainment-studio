@@ -98,9 +98,9 @@ erDiagram
 - `audit_events`
   - 관리자 보정, 환불, 자산 교체, 캐릭터 공개 상태 변경을 추적해야 한다.
 
-- `admin_users` 또는 운영자 권한 모델
-  - 초기에는 앱 사용자와 운영자를 섞지 않는 편이 좋다.
-  - 실제 백오피스가 붙을 때 `admin_users`, `admin_roles`, `admin_audit_events`로 확장한다.
+- `admin_users`, `admin_roles`
+  - 운영자 권한은 일반 사용자와 분리한다.
+  - 초기 bootstrap에는 환경변수 allowlist를 쓸 수 있지만, 실제 운영은 DB 기반 role로 관리한다.
 
 ### Maybe Later
 

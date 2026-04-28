@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { AuthUser } from '../auth/auth.types';
@@ -10,6 +16,131 @@ type AuditQuery = Record<string, string | undefined>;
 @Injectable()
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
+
+  getAdminRoles() {
+    return this.prisma.adminRole.findMany({
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  getAdminUsers() {
+    return this.prisma.adminUser.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        role: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
+  async createAdminUser(user: AuthUser, input: AdminPayload) {
+    this.assertSuperAdmin(user);
+
+    const targetUser = await this.findAdminTargetUser(input);
+    const existing = await this.prisma.adminUser.findUnique({
+      where: { userId: targetUser.id },
+    });
+
+    if (existing) {
+      throw new ConflictException('User is already an admin');
+    }
+
+    const role = await this.findAdminRole(this.string(input, 'roleName', 'content_admin'));
+    const adminUser = await this.prisma.adminUser.create({
+      data: {
+        userId: targetUser.id,
+        roleId: role.id,
+        status: this.adminStatus(input, 'status', 'active'),
+        createdByUserId: user.id,
+      },
+      include: {
+        role: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    await this.recordAudit(
+      user,
+      'admin_user.create',
+      'admin_user',
+      adminUser.id,
+      null,
+      adminUser,
+    );
+
+    return adminUser;
+  }
+
+  async updateAdminUser(user: AuthUser, adminUserId: string, input: AdminPayload) {
+    this.assertSuperAdmin(user);
+
+    const before = await this.prisma.adminUser.findUnique({
+      where: { id: adminUserId },
+      include: { role: true, user: true },
+    });
+
+    if (!before) {
+      throw new NotFoundException('Admin user not found');
+    }
+
+    const nextStatus =
+      input.status === undefined ? undefined : this.adminStatus(input, 'status');
+
+    if (before.userId === user.id && nextStatus && nextStatus !== 'active') {
+      throw new BadRequestException('You cannot deactivate your own admin access');
+    }
+
+    const roleName = this.optionalString(input, 'roleName');
+    const role = roleName ? await this.findAdminRole(roleName) : null;
+    const adminUser = await this.prisma.adminUser.update({
+      where: { id: adminUserId },
+      data: this.clean({
+        roleId: role?.id,
+        status: nextStatus,
+        updatedAt: new Date(),
+      }),
+      include: {
+        role: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    await this.recordAudit(
+      user,
+      'admin_user.update',
+      'admin_user',
+      adminUser.id,
+      before,
+      adminUser,
+    );
+
+    return adminUser;
+  }
 
   getAuditEvents(query: AuditQuery) {
     const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
@@ -592,6 +723,56 @@ export class AdminService {
     if (!artist) {
       throw new NotFoundException('Artist not found');
     }
+  }
+
+  private async findAdminTargetUser(input: AdminPayload) {
+    const userId = this.optionalString(input, 'userId');
+    const email = this.optionalString(input, 'email')?.toLowerCase();
+
+    if (!userId && !email) {
+      throw new BadRequestException('userId or email is required');
+    }
+
+    const targetUser = userId
+      ? await this.prisma.user.findUnique({ where: { id: userId } })
+      : await this.prisma.user.findUnique({ where: { email } });
+
+    if (!targetUser || targetUser.status !== 'active' || targetUser.deletedAt) {
+      throw new NotFoundException('Active user not found');
+    }
+
+    return targetUser;
+  }
+
+  private async findAdminRole(roleName: string) {
+    const role = await this.prisma.adminRole.findUnique({
+      where: { name: roleName },
+    });
+
+    if (!role) {
+      throw new NotFoundException('Admin role not found');
+    }
+
+    return role;
+  }
+
+  private assertSuperAdmin(user: AuthUser) {
+    if (
+      user.adminRole !== 'super_admin' &&
+      !user.adminPermissions?.includes('*')
+    ) {
+      throw new ForbiddenException('Super admin access is required');
+    }
+  }
+
+  private adminStatus(input: AdminPayload, key: string, fallback?: string) {
+    const status = this.string(input, key, fallback);
+
+    if (!['active', 'suspended', 'revoked'].includes(status)) {
+      throw new BadRequestException(`${key} must be active, suspended, or revoked`);
+    }
+
+    return status;
   }
 
   private string(input: AdminPayload, key: string, fallback?: string) {

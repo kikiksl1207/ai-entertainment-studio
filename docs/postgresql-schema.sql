@@ -530,6 +530,26 @@ CREATE TABLE idempotency_keys (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE admin_roles (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL UNIQUE,
+  description text,
+  permissions text[] NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE admin_users (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE REFERENCES users(id),
+  role_id uuid NOT NULL REFERENCES admin_roles(id),
+  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'revoked')),
+  created_by_user_id uuid REFERENCES users(id),
+  last_access_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE audit_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_user_id uuid REFERENCES users(id),
@@ -566,4 +586,6 @@ CREATE INDEX idx_chat_sessions_user_artist ON chat_sessions(user_id, artist_id, 
 CREATE INDEX idx_chat_messages_session_created ON chat_messages(chat_session_id, created_at);
 CREATE INDEX idx_chat_feature_orders_user_created ON chat_feature_orders(user_id, created_at);
 CREATE INDEX idx_entitlements_user_active ON user_entitlements(user_id, entitlement_type, expires_at, revoked_at);
+CREATE INDEX idx_admin_users_status ON admin_users(status);
+CREATE INDEX idx_admin_users_role ON admin_users(role_id);
 CREATE INDEX idx_audit_events_target ON audit_events(target_type, target_id, created_at);
