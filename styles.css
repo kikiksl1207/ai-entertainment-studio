@@ -2672,3 +2672,134 @@ p {
   border-top: 1px solid rgba(180, 150, 255, 0.12);
   border-bottom: 1px solid rgba(180, 150, 255, 0.12);
 }
+/* ══════════════════════════════════════
+   캐릭터 컬러 accent (CSS 변수 기반)
+   --char-accent: 캐릭터별로 JS에서 주입
+══════════════════════════════════════ */
+:root {
+  --char-accent: #9f8bc7;
+  --char-accent-soft: rgba(159, 139, 199, 0.13);
+}
+
+.artist-card:hover {
+  border-color: rgba(var(--char-accent, 159, 139, 199), 0.28);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.42), 0 0 0 1px color-mix(in srgb, var(--char-accent) 30%, transparent);
+}
+
+.catalog-card:hover {
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.38), 0 0 0 1px color-mix(in srgb, var(--char-accent) 24%, transparent);
+}
+
+/* ── 데뷔 예정 라인 그리드 (index.html) ────── */
+.debut-line-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.debut-card {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--panel);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.debut-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--char-accent) 36%, transparent);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+}
+
+.debut-card-media {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(14,12,24,0.18)),
+    linear-gradient(160deg, #ded3fb 0%, #8a75c0 100%);
+  overflow: hidden;
+}
+
+.debut-card-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+  transition: transform 260ms ease;
+}
+
+.debut-card:hover .debut-card-media img {
+  transform: scale(1.03);
+}
+
+.debut-card-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(13, 13, 26, 0.72);
+  backdrop-filter: blur(8px);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent-pop);
+  border: 1px solid rgba(212, 255, 95, 0.25);
+}
+
+.debut-card-body {
+  padding: 16px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.debut-card-type {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.debut-card-body strong {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.debut-card-body p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── detail-concept 구분 스타일 ──────────────── */
+.detail-concept {
+  font-style: italic;
+  color: var(--muted);
+  border-left: 2px solid var(--char-accent, var(--accent));
+  padding-left: 14px;
+  margin-top: 4px;
+}
+
+/* ── artist-card 호버 개선 ────────────────────── */
+.artist-card {
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.artist-card:hover {
+  transform: translateY(-2px);
+}
+
+/* ── 모바일: 데뷔 라인 ────────────────────────── */
+@media (max-width: 768px) {
+  .debut-line-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .debut-line-grid {
+    grid-template-columns: 1fr;
+  }
+}
