@@ -175,6 +175,8 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `POST /admin/api/v1/admin-users`
 - `PATCH /admin/api/v1/admin-users/:adminUserId`
 - `GET /admin/api/v1/audit-events`
+- `GET /admin/api/v1/assets`
+- `GET /admin/api/v1/assets/:assetId`
 - `POST /admin/api/v1/assets`
 - `POST /admin/api/v1/assets/upload-intents`
 - `POST /admin/api/v1/assets/:assetId/confirm-upload`

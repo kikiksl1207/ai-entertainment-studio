@@ -50,6 +50,16 @@ export class AdminController {
     return this.adminService.getAuditEvents(query);
   }
 
+  @Get('assets')
+  getAssets(@Query() query: AuditQuery) {
+    return this.adminService.getAssets(query);
+  }
+
+  @Get('assets/:assetId')
+  getAsset(@Param('assetId') assetId: string) {
+    return this.adminService.getAsset(assetId);
+  }
+
   @Post('assets')
   createAsset(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createAsset(user, body);

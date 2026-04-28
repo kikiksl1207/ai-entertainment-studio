@@ -168,6 +168,40 @@ export class AdminService {
     });
   }
 
+  async getAssets(query: AuditQuery) {
+    const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
+    const where: Prisma.AssetWhereInput = this.clean({
+      assetType: this.optionalString(query, 'assetType'),
+      visibility: this.optionalString(query, 'visibility'),
+      storageProvider: this.optionalString(query, 'storageProvider'),
+    });
+    const uploadStatus = this.optionalString(query, 'uploadStatus');
+
+    const assets = await this.prisma.asset.findMany({
+      where,
+      take,
+      orderBy: { createdAt: 'desc' },
+      include: this.assetRelationInclude(),
+    });
+
+    return assets
+      .map((asset) => this.presentAsset(asset))
+      .filter((asset) => !uploadStatus || asset.uploadStatus === uploadStatus);
+  }
+
+  async getAsset(assetId: string) {
+    const asset = await this.prisma.asset.findUnique({
+      where: { id: assetId },
+      include: this.assetRelationInclude(),
+    });
+
+    if (!asset) {
+      throw new NotFoundException('Asset not found');
+    }
+
+    return this.presentAsset(asset);
+  }
+
   async createAsset(user: AuthUser, input: AdminPayload) {
     const asset = await this.prisma.asset.create({
       data: {
@@ -916,6 +950,86 @@ export class AdminService {
         metadata: this.toJson(metadata),
       },
     });
+  }
+
+  private assetRelationInclude() {
+    return {
+      artistAssets: {
+        include: {
+          artist: {
+            select: { id: true, slug: true, displayName: true, status: true },
+          },
+        },
+      },
+      shortformAssets: {
+        include: {
+          shortform: {
+            select: { id: true, slug: true, title: true, status: true },
+          },
+        },
+      },
+      premiumVideoAssets: {
+        include: {
+          premiumVideoProduct: {
+            select: { id: true, sku: true, title: true, status: true },
+          },
+        },
+      },
+    } satisfies Prisma.AssetInclude;
+  }
+
+  private presentAsset(
+    asset: Prisma.AssetGetPayload<{
+      include: ReturnType<AdminService['assetRelationInclude']>;
+    }>,
+  ) {
+    const metadata = this.metadataObject(asset.metadata);
+    const uploadIntent = this.metadataObject(metadata.uploadIntent);
+    const uploadStatus =
+      typeof uploadIntent.status === 'string' ? uploadIntent.status : 'ready';
+
+    return {
+      id: asset.id,
+      assetType: asset.assetType,
+      visibility: asset.visibility,
+      storageProvider: asset.storageProvider,
+      storageKey: asset.storageKey,
+      url: this.buildPublicAssetUrl(asset.storageKey),
+      mimeType: asset.mimeType,
+      fileSizeBytes: asset.fileSizeBytes?.toString() ?? null,
+      width: asset.width,
+      height: asset.height,
+      durationSeconds: asset.durationSeconds?.toString() ?? null,
+      checksum: asset.checksum,
+      metadata: asset.metadata,
+      uploadStatus,
+      createdAt: asset.createdAt,
+      updatedAt: asset.updatedAt,
+      links: {
+        artists: asset.artistAssets.map((link) => ({
+          id: link.id,
+          artistId: link.artistId,
+          usageType: link.usageType,
+          isPrimary: link.isPrimary,
+          sortOrder: link.sortOrder,
+          artist: link.artist,
+        })),
+        shortforms: asset.shortformAssets.map((link) => ({
+          id: link.id,
+          shortformId: link.shortformId,
+          role: link.role,
+          sortOrder: link.sortOrder,
+          shortform: link.shortform,
+        })),
+        premiumVideos: asset.premiumVideoAssets.map((link) => ({
+          id: link.id,
+          premiumVideoProductId: link.premiumVideoProductId,
+          role: link.role,
+          sortOrder: link.sortOrder,
+          premiumVideoProduct: link.premiumVideoProduct,
+        })),
+      },
+    };
   }
 
   private async upsertArtistProfiles(artistId: string, input: AdminPayload) {

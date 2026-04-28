@@ -194,6 +194,8 @@ POST /api/v1/chat-feature-orders
 ### Content / Assets
 
 ```http
+GET /admin/api/v1/assets
+GET /admin/api/v1/assets/:assetId
 POST /admin/api/v1/assets
 POST /admin/api/v1/assets/upload-intents
 POST /admin/api/v1/assets/:assetId/confirm-upload
@@ -206,6 +208,17 @@ PATCH /admin/api/v1/shortforms/:shortformId
 POST /admin/api/v1/shortforms/:shortformId/assets
 POST /admin/api/v1/premium-video-products/:productId/assets
 ```
+
+`GET /admin/api/v1/assets` lists assets for operations. Query filters:
+
+- `assetType`
+- `visibility`
+- `storageProvider`
+- `uploadStatus`
+- `take` capped at 100
+
+The response includes public URL, upload status, and current links to artists,
+shortforms, and premium video products.
 
 `POST /admin/api/v1/assets/upload-intents` creates an asset row and returns upload
 instructions. It is the storage-provider boundary for S3/R2 integration. In
