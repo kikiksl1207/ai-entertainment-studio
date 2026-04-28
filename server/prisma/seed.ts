@@ -9,12 +9,12 @@ const artists = [
     slug: 'yoon-serin',
     displayName: '윤세린',
     sortOrder: 10,
-    tagline: '강한 첫인상과 퍼포먼스형 메인 비주얼',
-    summary: '차갑고 미래적인 무드 안에서 무대 장악력을 보여주는 Lumina Stage의 메인 라인 캐릭터.',
-    keywords: ['시크', '퍼포먼스', '뷰티'],
+    tagline: '강렬한 첫인상과 퍼포먼스가 돋보이는 메인 비주얼',
+    summary: '차갑고 미래적인 무드 안에서 무대를 장악하는 Lumina Stage의 대표 캐릭터.',
+    keywords: ['시크', '퍼포먼스', '비주얼'],
     story:
-      '서울 강남에서 태어난 윤세린은 현역 모델 출신으로, 절제된 분위기와 강한 시선으로 팬을 끌어당기는 무대형 아티스트다.',
-    visualKeywords: ['강한 시선', '절제된 무대감', '하이엔드 뷰티'],
+      '서울 강남에서 태어난 윤세린은 모델 출신의 AI 아티스트로, 절제된 분위기와 강한 시선으로 팬을 사로잡는다.',
+    visualKeywords: ['강한 시선', '네온 무대감', '하이엔드 뷰티'],
     primaryColor: '#7c3aed',
     secondaryColor: '#111827',
   },
@@ -22,11 +22,11 @@ const artists = [
     slug: 'han-seoyul',
     displayName: '한서율',
     sortOrder: 20,
-    tagline: '밝고 안정적인 필터 확장형 아이돌',
+    tagline: '밝고 안정적인 필터 감성의 아이돌형 캐릭터',
     summary: '팬에게 편안한 에너지를 주는 대중형 메인 캐릭터.',
     keywords: ['필터', '대중성', '청량'],
     story:
-      '경기 분당에서 자란 한서율은 청량한 비주얼과 밝은 반응으로 팬들이 쉽게 다가갈 수 있는 무드메이커형 아티스트다.',
+      '경기 분당에서 자란 한서율은 청량한 비주얼과 밝은 반응으로 누구에게나 쉽게 다가가는 무드메이커형 아티스트다.',
     visualKeywords: ['밝은 에너지', '청량 필터', '라이프스타일'],
     primaryColor: '#f59e0b',
     secondaryColor: '#2563eb',
@@ -36,7 +36,7 @@ const artists = [
     displayName: '박도아',
     sortOrder: 30,
     tagline: '친근함과 생활감이 강한 커뮤니티형 스타',
-    summary: '댓글 반응과 일상 전환에 강한 소통형 캐릭터.',
+    summary: '먹방 반응과 일상 대화에 강한 소통형 캐릭터.',
     keywords: ['친근함', '리액션', '생활감'],
     story:
       '부산 해운대에서 자란 박도아는 먹방, 리액션, 일상 브이로그 감각으로 팬들과 먼저 말을 주고받는 캐릭터다.',
@@ -49,10 +49,10 @@ const artists = [
     displayName: '최서진',
     sortOrder: 40,
     tagline: '럭셔리 에디토리얼에 강한 프리미엄 메인',
-    summary: '광고, 화보, 브랜드 무드에 강한 프리미엄 라인 간판 캐릭터.',
+    summary: '광고, 화보, 브랜드 무드가 강한 프리미엄 라인 간판 캐릭터.',
     keywords: ['럭셔리', '에디토리얼', '프리미엄'],
     story:
-      '서울 한남에서 태어난 최서진은 현역 배우와 패션 모델의 경계를 오가는 프리미엄 라인의 상징적인 아티스트다.',
+      '서울 성남에서 태어난 최서진은 배우와 패션 모델의 경계를 오가는 프리미엄 라인의 상징적인 아티스트다.',
     visualKeywords: ['하이엔드', '에디토리얼', '성숙한 존재감'],
     primaryColor: '#334155',
     secondaryColor: '#d4af37',
@@ -60,62 +60,14 @@ const artists = [
 ] as const;
 
 const shortforms = [
-  {
-    slug: 'yoon-serin-main-visual-teaser',
-    title: '메인 비주얼 티저',
-    artistSlug: 'yoon-serin',
-    description: '첫 진입용 메인 비주얼 쇼츠',
-    storageKey: 'assets/characters/yoon-serin/thumb.png',
-  },
-  {
-    slug: 'yoon-serin-concept-performance',
-    title: '콘셉트 퍼포먼스',
-    artistSlug: 'yoon-serin',
-    description: '무대 장악력과 퍼포먼스 필터 이미지를 강화하는 쇼츠',
-    storageKey: 'assets/characters/yoon-serin/cover.png',
-  },
-  {
-    slug: 'han-seoyul-filter-mood-look',
-    title: '필터 무드 룩',
-    artistSlug: 'han-seoyul',
-    description: '정면 비주얼과 대중성 확장에 맞춘 필터형 쇼츠',
-    storageKey: 'assets/characters/han-seoyul/thumb.png',
-  },
-  {
-    slug: 'han-seoyul-light-filter-teaser',
-    title: '청량 필터 쇼츠',
-    artistSlug: 'han-seoyul',
-    description: '밝고 반짝이는 필터 무드로 팬 확장을 노리는 쇼츠',
-    storageKey: 'assets/characters/han-seoyul/cover.png',
-  },
-  {
-    slug: 'park-doa-friendly-reaction',
-    title: '친근 리액션 쇼츠',
-    artistSlug: 'park-doa',
-    description: '생활형 리액션과 댓글 반응을 팬 전환으로 연결하는 쇼츠',
-    storageKey: 'assets/characters/park-doa/thumb.png',
-  },
-  {
-    slug: 'park-doa-mukbang-reaction-teaser',
-    title: '먹방 리액션 티저',
-    artistSlug: 'park-doa',
-    description: '친근한 먹방 크리에이터 무드로 공감과 참여를 끌어내는 쇼츠',
-    storageKey: 'assets/characters/park-doa/cover.png',
-  },
-  {
-    slug: 'choi-seojin-editorial-core',
-    title: '에디토리얼 코어 무드',
-    artistSlug: 'choi-seojin',
-    description: '브랜드 제안과 화보형 무드를 보여주는 프리미엄 쇼츠',
-    storageKey: 'assets/characters/choi-seojin/thumb.png',
-  },
-  {
-    slug: 'choi-seojin-brand-mood-film',
-    title: '브랜드 무드 필름',
-    artistSlug: 'choi-seojin',
-    description: '광고와 화보 적합도를 보여주는 프리미엄 라인 쇼츠',
-    storageKey: 'assets/characters/choi-seojin/cover.png',
-  },
+  ['yoon-serin-main-visual-teaser', '메인 비주얼 티저', 'yoon-serin', '첫 진입용 메인 비주얼 쇼츠', 'thumb'],
+  ['yoon-serin-concept-performance', '콘셉트 퍼포먼스', 'yoon-serin', '무대 장악력과 퍼포먼스 이미지를 강화하는 쇼츠', 'cover'],
+  ['han-seoyul-filter-mood-look', '필터 무드 룩', 'han-seoyul', '정면 비주얼과 대중성 확장에 맞춘 필터형 쇼츠', 'thumb'],
+  ['han-seoyul-light-filter-teaser', '청량 필터 쇼츠', 'han-seoyul', '밝고 반짝이는 필터 무드로 첫인상을 여는 쇼츠', 'cover'],
+  ['park-doa-friendly-reaction', '친근 리액션 쇼츠', 'park-doa', '생활형 리액션과 팬 반응을 대화로 연결하는 쇼츠', 'thumb'],
+  ['park-doa-mukbang-reaction-teaser', '먹방 리액션 티저', 'park-doa', '친근한 먹방 시리즈 무드로 공감과 참여를 끌어내는 쇼츠', 'cover'],
+  ['choi-seojin-editorial-core', '에디토리얼 코어 무드', 'choi-seojin', '브랜드 제안과 화보형 무드를 보여주는 프리미엄 쇼츠', 'thumb'],
+  ['choi-seojin-brand-mood-film', '브랜드 무드 필름', 'choi-seojin', '광고와 화보 적합성을 보여주는 프리미엄 라인 쇼츠', 'cover'],
 ] as const;
 
 async function main() {
@@ -182,7 +134,7 @@ async function main() {
       update: {
         contentTone: artist.tagline,
         allowedTopics: [...artist.keywords],
-        blockedTopics: ['노골적 성적 묘사', '혐오 표현', '개인정보 요구'],
+        blockedTopics: ['민감한 성적 묘사', '혐오 표현', '개인정보 요구'],
         operatingNotes: 'MVP seed profile',
         updatedAt: new Date(),
       },
@@ -190,7 +142,7 @@ async function main() {
         artistId: row.id,
         contentTone: artist.tagline,
         allowedTopics: [...artist.keywords],
-        blockedTopics: ['노골적 성적 묘사', '혐오 표현', '개인정보 요구'],
+        blockedTopics: ['민감한 성적 묘사', '혐오 표현', '개인정보 요구'],
         operatingNotes: 'MVP seed profile',
       },
     });
@@ -220,18 +172,17 @@ async function main() {
     }
   }
 
-  for (const shortformSeed of shortforms) {
-    const artist = artistBySlug.get(shortformSeed.artistSlug);
+  for (const [slug, title, artistSlug, description, assetRole] of shortforms) {
+    const artist = artistBySlug.get(artistSlug);
     if (!artist) continue;
-    const asset =
-      assetByKey.get(shortformSeed.storageKey) ??
-      (await upsertImageAsset(shortformSeed.storageKey, shortformSeed.title));
 
+    const storageKey = `assets/characters/${artistSlug}/${assetRole}.png`;
+    const asset = assetByKey.get(storageKey) ?? (await upsertImageAsset(storageKey, title));
     const shortform = await prisma.shortform.upsert({
-      where: { slug: shortformSeed.slug },
+      where: { slug },
       update: {
-        title: shortformSeed.title,
-        description: shortformSeed.description,
+        title,
+        description,
         artistId: artist.id,
         status: 'published',
         publishedAt: launchedAt,
@@ -239,9 +190,9 @@ async function main() {
       },
       create: {
         artistId: artist.id,
-        title: shortformSeed.title,
-        slug: shortformSeed.slug,
-        description: shortformSeed.description,
+        title,
+        slug,
+        description,
         status: 'published',
         publishedAt: launchedAt,
       },
@@ -393,7 +344,7 @@ async function seedPremiumAndChat() {
       where: { sku: `PREMIUM_VIDEO_${skuSuffix(artist.slug)}` },
       update: {
         title: `${artist.displayName} 프리미엄 무드 필름`,
-        description: `${artist.displayName}의 프리미엄 영상 상품`,
+        description: `${artist.displayName} 전용 프리미엄 영상 상품`,
         priceLumina: 300,
         status: 'active',
         publishedAt: launchedAt,
@@ -403,7 +354,7 @@ async function seedPremiumAndChat() {
         artistId: artistRow.id,
         sku: `PREMIUM_VIDEO_${skuSuffix(artist.slug)}`,
         title: `${artist.displayName} 프리미엄 무드 필름`,
-        description: `${artist.displayName}의 프리미엄 영상 상품`,
+        description: `${artist.displayName} 전용 프리미엄 영상 상품`,
         priceLumina: 300,
         status: 'active',
         publishedAt: launchedAt,

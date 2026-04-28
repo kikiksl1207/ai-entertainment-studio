@@ -6,6 +6,7 @@ import { BoostsModule } from './boosts/boosts.module';
 import { ChatModule } from './chat/chat.module';
 import { validateEnv } from './config/env.validation';
 import { GiftsModule } from './gifts/gifts.module';
+import { HealthController } from './health.controller';
 import { LuminaProductsModule } from './lumina-products/lumina-products.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PremiumVideosModule } from './premium-videos/premium-videos.module';
@@ -33,5 +34,6 @@ import { WalletModule } from './wallet/wallet.module';
     ChatModule,
     PaymentsModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}
