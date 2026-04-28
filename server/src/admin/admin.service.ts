@@ -428,6 +428,32 @@ export class AdminService {
     return result;
   }
 
+  async unlinkArtistAsset(user: AuthUser, artistId: string, artistAssetId: string) {
+    const link = await this.prisma.artistAsset.findUnique({
+      where: { id: artistAssetId },
+      include: { asset: true, artist: true },
+    });
+
+    if (!link || link.artistId !== artistId) {
+      throw new NotFoundException('Artist asset link not found');
+    }
+
+    await this.prisma.artistAsset.delete({
+      where: { id: artistAssetId },
+    });
+
+    const result = { deleted: true, link };
+    await this.recordAudit(
+      user,
+      'artist_asset.unlink',
+      'artist',
+      artistId,
+      link,
+      result,
+    );
+    return result;
+  }
+
   async createShortform(user: AuthUser, input: AdminPayload) {
     const shortform = await this.prisma.shortform.create({
       data: {
@@ -493,6 +519,36 @@ export class AdminService {
       'shortform',
       shortformId,
       null,
+      result,
+    );
+    return result;
+  }
+
+  async unlinkShortformAsset(
+    user: AuthUser,
+    shortformId: string,
+    shortformAssetId: string,
+  ) {
+    const link = await this.prisma.shortformAsset.findUnique({
+      where: { id: shortformAssetId },
+      include: { asset: true, shortform: true },
+    });
+
+    if (!link || link.shortformId !== shortformId) {
+      throw new NotFoundException('Shortform asset link not found');
+    }
+
+    await this.prisma.shortformAsset.delete({
+      where: { id: shortformAssetId },
+    });
+
+    const result = { deleted: true, link };
+    await this.recordAudit(
+      user,
+      'shortform_asset.unlink',
+      'shortform',
+      shortformId,
+      link,
       result,
     );
     return result;
@@ -873,6 +929,36 @@ export class AdminService {
       'premium_video_product',
       productId,
       null,
+      result,
+    );
+    return result;
+  }
+
+  async unlinkPremiumVideoAsset(
+    user: AuthUser,
+    productId: string,
+    premiumVideoAssetId: string,
+  ) {
+    const link = await this.prisma.premiumVideoAsset.findUnique({
+      where: { id: premiumVideoAssetId },
+      include: { asset: true, premiumVideoProduct: true },
+    });
+
+    if (!link || link.premiumVideoProductId !== productId) {
+      throw new NotFoundException('Premium video asset link not found');
+    }
+
+    await this.prisma.premiumVideoAsset.delete({
+      where: { id: premiumVideoAssetId },
+    });
+
+    const result = { deleted: true, link };
+    await this.recordAudit(
+      user,
+      'premium_video_asset.unlink',
+      'premium_video_product',
+      productId,
+      link,
       result,
     );
     return result;

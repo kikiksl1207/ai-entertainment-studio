@@ -203,10 +203,13 @@ POST /admin/api/v1/assets/:assetId/versions
 POST /admin/api/v1/artists
 PATCH /admin/api/v1/artists/:artistId
 POST /admin/api/v1/artists/:artistId/assets
+DELETE /admin/api/v1/artists/:artistId/assets/:artistAssetId
 POST /admin/api/v1/shortforms
 PATCH /admin/api/v1/shortforms/:shortformId
 POST /admin/api/v1/shortforms/:shortformId/assets
+DELETE /admin/api/v1/shortforms/:shortformId/assets/:shortformAssetId
 POST /admin/api/v1/premium-video-products/:productId/assets
+DELETE /admin/api/v1/premium-video-products/:productId/assets/:premiumVideoAssetId
 ```
 
 `GET /admin/api/v1/assets` lists assets for operations. Query filters:
@@ -267,6 +270,7 @@ Asset linking endpoints attach an existing uploaded asset to content records:
 - Artist assets use `usageType` such as `cover`, `thumb`, or `profile`.
 - Shortform and premium video assets use `role` such as `thumbnail`, `video`, or `preview`.
 - Assets with `metadata.uploadIntent.status = pending_upload` cannot be linked until confirmed.
+- `DELETE` asset link endpoints remove only the relation row, not the underlying asset file or metadata.
 
 Related environment variables:
 

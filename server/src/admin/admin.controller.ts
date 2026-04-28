@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -102,6 +103,15 @@ export class AdminController {
     return this.adminService.linkArtistAsset(user, artistId, body);
   }
 
+  @Delete('artists/:artistId/assets/:artistAssetId')
+  unlinkArtistAsset(
+    @CurrentUser() user: AuthUser,
+    @Param('artistId') artistId: string,
+    @Param('artistAssetId') artistAssetId: string,
+  ) {
+    return this.adminService.unlinkArtistAsset(user, artistId, artistAssetId);
+  }
+
   @Post('shortforms')
   createShortform(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createShortform(user, body);
@@ -123,6 +133,15 @@ export class AdminController {
     @Body() body: AdminPayload,
   ) {
     return this.adminService.linkShortformAsset(user, shortformId, body);
+  }
+
+  @Delete('shortforms/:shortformId/assets/:shortformAssetId')
+  unlinkShortformAsset(
+    @CurrentUser() user: AuthUser,
+    @Param('shortformId') shortformId: string,
+    @Param('shortformAssetId') shortformAssetId: string,
+  ) {
+    return this.adminService.unlinkShortformAsset(user, shortformId, shortformAssetId);
   }
 
   @Post('lumina-products')
@@ -210,6 +229,19 @@ export class AdminController {
     @Body() body: AdminPayload,
   ) {
     return this.adminService.linkPremiumVideoAsset(user, productId, body);
+  }
+
+  @Delete('premium-video-products/:productId/assets/:premiumVideoAssetId')
+  unlinkPremiumVideoAsset(
+    @CurrentUser() user: AuthUser,
+    @Param('productId') productId: string,
+    @Param('premiumVideoAssetId') premiumVideoAssetId: string,
+  ) {
+    return this.adminService.unlinkPremiumVideoAsset(
+      user,
+      productId,
+      premiumVideoAssetId,
+    );
   }
 
   @Post('chat-feature-products')
