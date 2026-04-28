@@ -180,8 +180,10 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `POST /admin/api/v1/assets/:assetId/confirm-upload`
 - `POST /admin/api/v1/artists`
 - `PATCH /admin/api/v1/artists/:artistId`
+- `POST /admin/api/v1/artists/:artistId/assets`
 - `POST /admin/api/v1/shortforms`
 - `PATCH /admin/api/v1/shortforms/:shortformId`
+- `POST /admin/api/v1/shortforms/:shortformId/assets`
 - `POST /admin/api/v1/lumina-products`
 - `PATCH /admin/api/v1/lumina-products/:productId`
 - `POST /admin/api/v1/gift-products`
@@ -193,6 +195,7 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `POST /admin/api/v1/boost-campaigns/:campaignId/snapshot`
 - `POST /admin/api/v1/premium-video-products`
 - `PATCH /admin/api/v1/premium-video-products/:productId`
+- `POST /admin/api/v1/premium-video-products/:productId/assets`
 - `POST /admin/api/v1/chat-feature-products`
 - `PATCH /admin/api/v1/chat-feature-products/:productId`
 

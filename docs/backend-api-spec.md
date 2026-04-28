@@ -200,8 +200,11 @@ POST /admin/api/v1/assets/:assetId/confirm-upload
 POST /admin/api/v1/assets/:assetId/versions
 POST /admin/api/v1/artists
 PATCH /admin/api/v1/artists/:artistId
+POST /admin/api/v1/artists/:artistId/assets
 POST /admin/api/v1/shortforms
 PATCH /admin/api/v1/shortforms/:shortformId
+POST /admin/api/v1/shortforms/:shortformId/assets
+POST /admin/api/v1/premium-video-products/:productId/assets
 ```
 
 `POST /admin/api/v1/assets/upload-intents` creates an asset row and returns upload
@@ -236,6 +239,21 @@ Optional request body:
   "objectETag": "\"etag-from-provider\""
 }
 ```
+
+Asset linking endpoints attach an existing uploaded asset to content records:
+
+```json
+{
+  "assetId": "asset-id",
+  "usageType": "cover",
+  "isPrimary": true,
+  "sortOrder": 10
+}
+```
+
+- Artist assets use `usageType` such as `cover`, `thumb`, or `profile`.
+- Shortform and premium video assets use `role` such as `thumbnail`, `video`, or `preview`.
+- Assets with `metadata.uploadIntent.status = pending_upload` cannot be linked until confirmed.
 
 Related environment variables:
 

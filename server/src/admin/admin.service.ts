@@ -345,6 +345,55 @@ export class AdminService {
     return result;
   }
 
+  async linkArtistAsset(user: AuthUser, artistId: string, input: AdminPayload) {
+    await this.ensureArtist(artistId);
+    const asset = await this.ensureAssetLinkable(this.string(input, 'assetId'));
+    const usageType = this.assetRole(input, 'usageType', 'cover');
+    const isPrimary = this.boolean(input, 'isPrimary', false);
+    const sortOrder = this.number(input, 'sortOrder', 0);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      if (isPrimary) {
+        await tx.artistAsset.updateMany({
+          where: { artistId, usageType },
+          data: { isPrimary: false },
+        });
+      }
+
+      return tx.artistAsset.upsert({
+        where: {
+          artistId_assetId_usageType: {
+            artistId,
+            assetId: asset.id,
+            usageType,
+          },
+        },
+        update: {
+          isPrimary,
+          sortOrder,
+        },
+        create: {
+          artistId,
+          assetId: asset.id,
+          usageType,
+          isPrimary,
+          sortOrder,
+        },
+        include: { asset: true },
+      });
+    });
+
+    await this.recordAudit(
+      user,
+      'artist_asset.link',
+      'artist',
+      artistId,
+      null,
+      result,
+    );
+    return result;
+  }
+
   async createShortform(user: AuthUser, input: AdminPayload) {
     const shortform = await this.prisma.shortform.create({
       data: {
@@ -378,6 +427,41 @@ export class AdminService {
 
     await this.recordAudit(user, 'shortform.update', 'shortform', shortformId, before, shortform);
     return shortform;
+  }
+
+  async linkShortformAsset(user: AuthUser, shortformId: string, input: AdminPayload) {
+    await this.ensureShortform(shortformId);
+    const asset = await this.ensureAssetLinkable(this.string(input, 'assetId'));
+    const role = this.assetRole(input, 'role', 'thumbnail');
+    const sortOrder = this.number(input, 'sortOrder', 0);
+
+    const result = await this.prisma.shortformAsset.upsert({
+      where: {
+        shortformId_assetId_role: {
+          shortformId,
+          assetId: asset.id,
+          role,
+        },
+      },
+      update: { sortOrder },
+      create: {
+        shortformId,
+        assetId: asset.id,
+        role,
+        sortOrder,
+      },
+      include: { asset: true },
+    });
+
+    await this.recordAudit(
+      user,
+      'shortform_asset.link',
+      'shortform',
+      shortformId,
+      null,
+      result,
+    );
+    return result;
   }
 
   async createLuminaProduct(user: AuthUser, input: AdminPayload) {
@@ -725,6 +809,41 @@ export class AdminService {
     return product;
   }
 
+  async linkPremiumVideoAsset(user: AuthUser, productId: string, input: AdminPayload) {
+    await this.ensurePremiumVideoProduct(productId);
+    const asset = await this.ensureAssetLinkable(this.string(input, 'assetId'));
+    const role = this.assetRole(input, 'role', 'video');
+    const sortOrder = this.number(input, 'sortOrder', 0);
+
+    const result = await this.prisma.premiumVideoAsset.upsert({
+      where: {
+        premiumVideoProductId_assetId_role: {
+          premiumVideoProductId: productId,
+          assetId: asset.id,
+          role,
+        },
+      },
+      update: { sortOrder },
+      create: {
+        premiumVideoProductId: productId,
+        assetId: asset.id,
+        role,
+        sortOrder,
+      },
+      include: { asset: true },
+    });
+
+    await this.recordAudit(
+      user,
+      'premium_video_asset.link',
+      'premium_video_product',
+      productId,
+      null,
+      result,
+    );
+    return result;
+  }
+
   async createChatFeatureProduct(user: AuthUser, input: AdminPayload) {
     const product = await this.prisma.chatFeatureProduct.create({
       data: {
@@ -846,6 +965,45 @@ export class AdminService {
     if (!artist) {
       throw new NotFoundException('Artist not found');
     }
+  }
+
+  private async ensureShortform(shortformId: string) {
+    const shortform = await this.prisma.shortform.findUnique({
+      where: { id: shortformId },
+    });
+
+    if (!shortform) {
+      throw new NotFoundException('Shortform not found');
+    }
+  }
+
+  private async ensurePremiumVideoProduct(productId: string) {
+    const product = await this.prisma.premiumVideoProduct.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Premium video product not found');
+    }
+  }
+
+  private async ensureAssetLinkable(assetId: string) {
+    const asset = await this.prisma.asset.findUnique({
+      where: { id: assetId },
+    });
+
+    if (!asset) {
+      throw new NotFoundException('Asset not found');
+    }
+
+    const metadata = this.metadataObject(asset.metadata);
+    const uploadIntent = this.metadataObject(metadata.uploadIntent);
+
+    if (uploadIntent.status && uploadIntent.status !== 'uploaded') {
+      throw new BadRequestException('Asset upload must be confirmed before linking');
+    }
+
+    return asset;
   }
 
   private async findAdminTargetUser(input: AdminPayload) {
@@ -1266,6 +1424,34 @@ export class AdminService {
     }
 
     return parsed;
+  }
+
+  private boolean(input: AdminPayload, key: string, fallback: boolean) {
+    const value = input[key] ?? fallback;
+
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    if (value === 'true') {
+      return true;
+    }
+
+    if (value === 'false') {
+      return false;
+    }
+
+    throw new BadRequestException(`${key} must be a boolean`);
+  }
+
+  private assetRole(input: AdminPayload, key: string, fallback: string) {
+    const value = this.string(input, key, fallback);
+
+    if (!/^[a-z][a-z0-9_-]{1,40}$/.test(value)) {
+      throw new BadRequestException(`${key} must be a safe role string`);
+    }
+
+    return value;
   }
 
   private optionalNumber(input: AdminPayload, key: string) {

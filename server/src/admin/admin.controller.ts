@@ -83,6 +83,15 @@ export class AdminController {
     return this.adminService.updateArtist(user, artistId, body);
   }
 
+  @Post('artists/:artistId/assets')
+  linkArtistAsset(
+    @CurrentUser() user: AuthUser,
+    @Param('artistId') artistId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.linkArtistAsset(user, artistId, body);
+  }
+
   @Post('shortforms')
   createShortform(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createShortform(user, body);
@@ -95,6 +104,15 @@ export class AdminController {
     @Body() body: AdminPayload,
   ) {
     return this.adminService.updateShortform(user, shortformId, body);
+  }
+
+  @Post('shortforms/:shortformId/assets')
+  linkShortformAsset(
+    @CurrentUser() user: AuthUser,
+    @Param('shortformId') shortformId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.linkShortformAsset(user, shortformId, body);
   }
 
   @Post('lumina-products')
@@ -173,6 +191,15 @@ export class AdminController {
     @Body() body: AdminPayload,
   ) {
     return this.adminService.updatePremiumVideoProduct(user, productId, body);
+  }
+
+  @Post('premium-video-products/:productId/assets')
+  linkPremiumVideoAsset(
+    @CurrentUser() user: AuthUser,
+    @Param('productId') productId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.linkPremiumVideoAsset(user, productId, body);
   }
 
   @Post('chat-feature-products')
