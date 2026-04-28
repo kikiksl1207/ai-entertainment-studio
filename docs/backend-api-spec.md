@@ -32,6 +32,12 @@ GET /api/v1/artists/:artistSlug
 GET /api/v1/artists/:artistSlug/assets
 ```
 
+Frontend-friendly response fields:
+
+- `slug`, `displayName`, `profile`, `visual`
+- `coverImage.url`, `thumbnailImage.url`
+- `assets[].url`, `assets[].usageType`
+
 용도:
 
 - 캐릭터 목록
@@ -42,9 +48,15 @@ GET /api/v1/artists/:artistSlug/assets
 
 ```http
 GET /api/v1/shortforms
-GET /api/v1/shortforms/:shortformId
+GET /api/v1/shortforms/:shortformSlug
 POST /api/v1/shortforms/:shortformId/view
 ```
+
+Frontend-friendly response fields:
+
+- `slug`, `title`, `description`, `artist`
+- `thumbnail.url`
+- `assets[].url`, `assets[].role`
 
 용도:
 
