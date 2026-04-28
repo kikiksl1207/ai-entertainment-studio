@@ -183,12 +183,41 @@ POST /api/v1/chat-feature-orders
 
 ```http
 POST /admin/api/v1/assets
+POST /admin/api/v1/assets/upload-intents
 POST /admin/api/v1/assets/:assetId/versions
 POST /admin/api/v1/artists
 PATCH /admin/api/v1/artists/:artistId
 POST /admin/api/v1/shortforms
 PATCH /admin/api/v1/shortforms/:shortformId
 ```
+
+`POST /admin/api/v1/assets/upload-intents` creates an asset row and returns upload
+instructions. It is the storage-provider boundary for S3/R2 integration.
+
+Request body:
+
+```json
+{
+  "assetType": "image",
+  "fileName": "serin-cover.png",
+  "mimeType": "image/png",
+  "fileSizeBytes": 1024000,
+  "visibility": "public",
+  "width": 1024,
+  "height": 1024,
+  "metadata": {
+    "usage": "artist_cover"
+  }
+}
+```
+
+Related environment variables:
+
+- `OBJECT_STORAGE_PROVIDER`: defaults to `local`
+- `OBJECT_STORAGE_PUBLIC_BASE_URL`: optional base URL for object URLs
+- `OBJECT_UPLOAD_INTENT_TTL_SECONDS`: defaults to `900`
+- `MAX_IMAGE_UPLOAD_BYTES`: defaults to `20971520`
+- `MAX_VIDEO_UPLOAD_BYTES`: defaults to `524288000`
 
 ### Commerce / Operations
 
@@ -234,4 +263,3 @@ POST /admin/api/v1/unlock-campaigns/:unlockCampaignId/rewards
 7. Premium video unlock
 8. Chat session and paid chat feature order
 9. Admin APIs
-

@@ -5,8 +5,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { randomUUID } from 'crypto';
 import { AuthUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -15,7 +17,10 @@ type AuditQuery = Record<string, string | undefined>;
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   getAdminRoles() {
     return this.prisma.adminRole.findMany({
@@ -182,6 +187,66 @@ export class AdminService {
 
     await this.recordAudit(user, 'asset.create', 'asset', asset.id, null, asset);
     return asset;
+  }
+
+  async createAssetUploadIntent(user: AuthUser, input: AdminPayload) {
+    const mimeType = this.allowedMimeType(this.string(input, 'mimeType'));
+    const assetType = this.assetTypeFromInput(input, mimeType);
+    const fileName = this.safeFileName(this.string(input, 'fileName'));
+    const fileSizeBytes = this.fileSizeBytes(input, assetType);
+    const visibility = this.visibility(input, 'visibility', 'public');
+    const storageProvider = this.configService.get<string>('OBJECT_STORAGE_PROVIDER') ?? 'local';
+    const storageKey = this.buildStorageKey(assetType, fileName);
+    const uploadUrl = this.buildUploadUrl(storageProvider, storageKey);
+
+    const asset = await this.prisma.asset.create({
+      data: {
+        assetType,
+        visibility,
+        storageProvider,
+        storageKey,
+        mimeType,
+        fileSizeBytes,
+        width: this.optionalNumber(input, 'width'),
+        height: this.optionalNumber(input, 'height'),
+        durationSeconds: this.optionalDecimal(input, 'durationSeconds'),
+        checksum: this.optionalString(input, 'checksum'),
+        metadata: this.toJson({
+          ...this.json(input, 'metadata'),
+          uploadIntent: {
+            status: 'pending_upload',
+            fileName,
+            createdByUserId: user.id,
+            createdAt: new Date().toISOString(),
+          },
+        }),
+      },
+    });
+
+    const result = {
+      asset,
+      upload: {
+        method: 'PUT',
+        url: uploadUrl,
+        storageProvider,
+        storageKey,
+        requiredHeaders: {
+          'content-type': mimeType,
+        },
+        expiresInSeconds: this.numberFromEnv('OBJECT_UPLOAD_INTENT_TTL_SECONDS', 900),
+        mode: storageProvider === 'local' ? 'metadata_only' : 'direct_upload_ready',
+      },
+    };
+
+    await this.recordAudit(
+      user,
+      'asset.upload_intent.create',
+      'asset',
+      asset.id,
+      null,
+      result,
+    );
+    return result;
   }
 
   async createArtist(user: AuthUser, input: AdminPayload) {
@@ -773,6 +838,123 @@ export class AdminService {
     }
 
     return status;
+  }
+
+  private visibility(input: AdminPayload, key: string, fallback: string) {
+    const visibility = this.string(input, key, fallback);
+
+    if (!['public', 'private'].includes(visibility)) {
+      throw new BadRequestException(`${key} must be public or private`);
+    }
+
+    return visibility;
+  }
+
+  private assetTypeFromInput(input: AdminPayload, mimeType: string) {
+    const value = this.string(input, 'assetType', mimeType.startsWith('video/') ? 'video' : 'image');
+
+    if (!['image', 'video'].includes(value)) {
+      throw new BadRequestException('assetType must be image or video');
+    }
+
+    if (value === 'image' && !mimeType.startsWith('image/')) {
+      throw new BadRequestException('image assets must use an image mimeType');
+    }
+
+    if (value === 'video' && !mimeType.startsWith('video/')) {
+      throw new BadRequestException('video assets must use a video mimeType');
+    }
+
+    return value;
+  }
+
+  private allowedMimeType(mimeType: string) {
+    const allowed = new Set([
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'video/mp4',
+      'video/webm',
+      'video/quicktime',
+    ]);
+
+    if (!allowed.has(mimeType)) {
+      throw new BadRequestException('mimeType is not allowed');
+    }
+
+    return mimeType;
+  }
+
+  private fileSizeBytes(input: AdminPayload, assetType: string) {
+    const size = this.number(input, 'fileSizeBytes');
+    const maxSize =
+      assetType === 'video'
+        ? this.numberFromEnv('MAX_VIDEO_UPLOAD_BYTES', 524_288_000)
+        : this.numberFromEnv('MAX_IMAGE_UPLOAD_BYTES', 20_971_520);
+
+    if (!Number.isInteger(size) || size < 1) {
+      throw new BadRequestException('fileSizeBytes must be a positive integer');
+    }
+
+    if (size > maxSize) {
+      throw new BadRequestException(`fileSizeBytes must be less than or equal to ${maxSize}`);
+    }
+
+    return BigInt(size);
+  }
+
+  private safeFileName(fileName: string) {
+    const cleaned = fileName
+      .normalize('NFKD')
+      .replace(/[^\w.\-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^[-.]+|[-.]+$/g, '')
+      .toLowerCase();
+
+    if (!cleaned || !cleaned.includes('.')) {
+      throw new BadRequestException('fileName must include a safe extension');
+    }
+
+    return cleaned.slice(0, 120);
+  }
+
+  private buildStorageKey(assetType: string, fileName: string) {
+    const date = new Date();
+    const yyyy = date.getUTCFullYear();
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(date.getUTCDate()).padStart(2, '0');
+
+    return `uploads/${assetType}s/${yyyy}/${mm}/${dd}/${randomUUID()}-${fileName}`;
+  }
+
+  private buildUploadUrl(storageProvider: string, storageKey: string) {
+    const baseUrl = this.configService.get<string>('OBJECT_STORAGE_PUBLIC_BASE_URL');
+
+    if (baseUrl) {
+      return `${baseUrl.replace(/\/+$/, '')}/${storageKey}`;
+    }
+
+    if (storageProvider === 'local') {
+      return `/pending-local-upload/${storageKey}`;
+    }
+
+    return storageKey;
+  }
+
+  private numberFromEnv(key: string, fallback: number) {
+    const value = this.configService.get<string>(key);
+
+    if (!value) {
+      return fallback;
+    }
+
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      throw new BadRequestException(`${key} must be a positive number`);
+    }
+
+    return parsed;
   }
 
   private string(input: AdminPayload, key: string, fallback?: string) {

@@ -55,6 +55,11 @@ export class AdminController {
     return this.adminService.createAsset(user, body);
   }
 
+  @Post('assets/upload-intents')
+  createAssetUploadIntent(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
+    return this.adminService.createAssetUploadIntent(user, body);
+  }
+
   @Post('artists')
   createArtist(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createArtist(user, body);
