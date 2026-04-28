@@ -57,6 +57,32 @@ const artists = [
     primaryColor: '#334155',
     secondaryColor: '#d4af37',
   },
+  {
+    slug: 'oh-hyerin',
+    displayName: '오혜린',
+    sortOrder: 50,
+    tagline: '깊은 감정선과 위로를 전하는 감성 메인보컬',
+    summary: '음원, 팬레터, 감성 대화에 강한 팬코어형 보컬 캐릭터.',
+    keywords: ['감성보컬', '위로', '팬코어'],
+    story:
+      '오혜린은 조용한 새벽 감성과 맑은 목소리로 팬에게 오래 남는 위로를 전하는 Lumina Stage의 감성 보컬 아티스트다.',
+    visualKeywords: ['아련한 눈빛', '페일 라벤더', '요정미'],
+    primaryColor: '#c4b5fd',
+    secondaryColor: '#64748b',
+  },
+  {
+    slug: 'cha-dohyun',
+    displayName: '차도현',
+    sortOrder: 60,
+    tagline: '젠더리스 하이패션과 무대 장악력이 강한 첫 남성 아티스트',
+    summary: '패션, 무대, 숏폼, 팬덤 확장을 함께 담당하는 남성 공개 라인 대표 캐릭터.',
+    keywords: ['하이패션', '아티스트성', '스웨그'],
+    story:
+      '차도현은 실험적인 스타일과 압도적인 무대 태도로 Lumina Stage의 남성 라인업을 여는 하이패션 K-pop 아티스트다.',
+    visualKeywords: ['날카로운 눈매', '젠더리스 패션', '체인 레이어링'],
+    primaryColor: '#111827',
+    secondaryColor: '#a855f7',
+  },
 ] as const;
 
 const shortforms = [
@@ -68,6 +94,10 @@ const shortforms = [
   ['park-doa-mukbang-reaction-teaser', '먹방 리액션 티저', 'park-doa', '친근한 먹방 시리즈 무드로 공감과 참여를 끌어내는 쇼츠', 'cover'],
   ['choi-seojin-editorial-core', '에디토리얼 코어 무드', 'choi-seojin', '브랜드 제안과 화보형 무드를 보여주는 프리미엄 쇼츠', 'thumb'],
   ['choi-seojin-brand-mood-film', '브랜드 무드 필름', 'choi-seojin', '광고와 화보 적합성을 보여주는 프리미엄 라인 쇼츠', 'cover'],
+  ['oh-hyerin-emotional-vocal', '감성 보컬 클립', 'oh-hyerin', '감성 보컬과 위로형 분위기를 보여주는 음원형 쇼츠', 'thumb'],
+  ['oh-hyerin-midnight-letter', '새벽 팬레터 무드', 'oh-hyerin', '팬레터와 감성 챗으로 이어지는 조용한 새벽 무드 쇼츠', 'cover'],
+  ['cha-dohyun-high-fashion-teaser', '하이패션 아티스트 티저', 'cha-dohyun', '첫 남성 아티스트의 하이패션 무드와 무대 존재감을 보여주는 쇼츠', 'thumb'],
+  ['cha-dohyun-stage-swag', '스테이지 스웨그', 'cha-dohyun', '젠더리스 패션과 무대 장악력을 강조하는 퍼포먼스 쇼츠', 'cover'],
 ] as const;
 
 async function main() {
@@ -312,7 +342,7 @@ async function seedBoosts() {
     where: { slug: 'mvp-launch-main-pick' },
     update: {
       name: 'MVP 런칭 메인픽',
-      description: '초기 메인 4캐릭터 부스트 캠페인',
+      description: '초기 공개 6캐릭터 부스트 캠페인',
       status: 'active',
       startsAt: launchedAt,
       endsAt: new Date('2026-12-31T14:59:59.000Z'),
@@ -324,7 +354,7 @@ async function seedBoosts() {
     create: {
       slug: 'mvp-launch-main-pick',
       name: 'MVP 런칭 메인픽',
-      description: '초기 메인 4캐릭터 부스트 캠페인',
+      description: '초기 공개 6캐릭터 부스트 캠페인',
       status: 'active',
       startsAt: launchedAt,
       endsAt: new Date('2026-12-31T14:59:59.000Z'),
