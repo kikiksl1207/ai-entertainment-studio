@@ -41,11 +41,12 @@ export class MockPaymentAdapter implements PaymentProviderAdapter {
   verifyAndParseWebhook(
     headers: Record<string, string | string[] | undefined>,
     body: unknown,
+    rawBody?: Buffer,
   ): ParsedPaymentWebhook {
     const secret = this.configService.get<string>('MOCK_PAYMENT_WEBHOOK_SECRET');
 
     if (secret) {
-      this.verifySignature(headers, body, secret);
+      this.verifySignature(headers, body, secret, rawBody);
     }
 
     const payload = body as MockWebhookBody;
@@ -67,6 +68,7 @@ export class MockPaymentAdapter implements PaymentProviderAdapter {
     headers: Record<string, string | string[] | undefined>,
     body: unknown,
     secret: string,
+    rawBody?: Buffer,
   ) {
     const signatureHeader = headers['x-mock-signature'];
     const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
@@ -76,7 +78,7 @@ export class MockPaymentAdapter implements PaymentProviderAdapter {
     }
 
     const expected = createHmac('sha256', secret)
-      .update(JSON.stringify(body))
+      .update(rawBody ?? Buffer.from(JSON.stringify(body)))
       .digest('hex');
 
     const expectedBuffer = Buffer.from(expected);

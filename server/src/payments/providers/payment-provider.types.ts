@@ -28,5 +28,6 @@ export interface PaymentProviderAdapter {
   verifyAndParseWebhook(
     headers: Record<string, string | string[] | undefined>,
     body: unknown,
+    rawBody?: Buffer,
   ): ParsedPaymentWebhook;
 }

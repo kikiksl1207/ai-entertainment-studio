@@ -164,6 +164,8 @@ Payment flow:
 
 The order's stored provider must match the webhook provider before any wallet credit is created. The current provider adapter is `mock`, which is safe for local development and keeps the production integration path ready for Toss Payments, PortOne, or another PG later. Provider secrets must remain in environment variables such as `MOCK_PAYMENT_WEBHOOK_SECRET`; real provider keys should never be committed.
 
+Payment webhook handlers preserve the raw request body so real PG adapters can verify provider signatures against the exact payload received from the provider.
+
 ## Admin MVP APIs
 
 Admin endpoints use `Authorization: Bearer <access-token>`.

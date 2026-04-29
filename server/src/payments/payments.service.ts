@@ -112,9 +112,10 @@ export class PaymentsService {
     provider: string,
     headers: Record<string, string | string[] | undefined>,
     body: unknown,
+    rawBody?: Buffer,
   ) {
     const adapter = this.providerRegistry.get(provider);
-    const event = adapter.verifyAndParseWebhook(headers, body);
+    const event = adapter.verifyAndParseWebhook(headers, body, rawBody);
 
     const order = await this.prisma.paymentOrder.findUnique({
       where: { orderNo: event.orderNo },

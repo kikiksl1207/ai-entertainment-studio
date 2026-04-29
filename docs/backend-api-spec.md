@@ -114,6 +114,7 @@ POST /api/v1/payments/webhooks/:provider
 - `payment_orders.provider`에 주문 생성 시점의 PG provider를 저장한다.
 - 실제 루미나 지급은 결제 성공 transaction이 확정된 뒤 `wallet_ledger`에 credit으로 기록한다.
 - 웹훅은 provider별 signature 검증이 필수다.
+- 웹훅 signature 검증은 파싱된 JSON이 아니라 raw request body를 기준으로 처리할 수 있어야 한다.
 - 웹훅 provider와 주문 provider가 다르면 결제를 확정하지 않는다.
 
 ### Gifts

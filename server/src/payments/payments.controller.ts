@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -8,6 +8,10 @@ type CreatePaymentOrderBody = {
   luminaProductId?: string;
   provider?: string;
   idempotencyKey?: string;
+};
+
+type WebhookRequest = {
+  rawBody?: Buffer;
 };
 
 @Controller('payments')
@@ -39,7 +43,8 @@ export class PaymentsController {
     @Param('provider') provider: string,
     @Headers() headers: Record<string, string | string[] | undefined>,
     @Body() body: unknown,
+    @Req() request: WebhookRequest,
   ) {
-    return this.paymentsService.handleWebhook(provider, headers, body);
+    return this.paymentsService.handleWebhook(provider, headers, body, request.rawBody);
   }
 }
