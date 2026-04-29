@@ -193,9 +193,7 @@ export class AdminService {
 
   async getPaymentOrder(orderId: string) {
     const order = await this.prisma.paymentOrder.findFirst({
-      where: {
-        OR: [{ id: orderId }, { orderNo: orderId }],
-      },
+      where: this.paymentOrderLookupWhere(orderId),
       include: this.paymentOrderInclude(),
     });
 
@@ -204,6 +202,118 @@ export class AdminService {
     }
 
     return order;
+  }
+
+  async createPaymentRefund(user: AuthUser, orderId: string, input: AdminPayload) {
+    const refund = await this.prisma.$transaction(async (tx) => {
+      const order = await tx.paymentOrder.findFirst({
+        where: this.paymentOrderLookupWhere(orderId),
+        include: {
+          luminaProduct: true,
+          refunds: true,
+        },
+      });
+
+      if (!order) {
+        throw new NotFoundException('Payment order not found');
+      }
+
+      if (order.status !== 'paid') {
+        throw new BadRequestException('Only paid payment orders can be refunded');
+      }
+
+      const refundableAmount = this.refundablePaymentAmount(order);
+      const amount =
+        input.amount === undefined ? refundableAmount : this.decimal(input, 'amount');
+      if (amount.lte(0)) {
+        throw new BadRequestException('amount must be greater than zero');
+      }
+
+      if (amount.gt(refundableAmount)) {
+        throw new BadRequestException('Refund amount exceeds refundable amount');
+      }
+
+      return tx.refundTransaction.create({
+        data: {
+          paymentOrderId: order.id,
+          providerRefundId: this.optionalString(input, 'providerRefundId'),
+          amount,
+          reason: this.optionalString(input, 'reason'),
+          status: this.refundStatus(input, 'status', 'requested'),
+        },
+        include: this.refundTransactionInclude(),
+      });
+    });
+
+    await this.recordAudit(
+      user,
+      'payment_refund.create',
+      'refund_transaction',
+      refund.id,
+      null,
+      refund,
+      {
+        paymentOrderId: refund.paymentOrderId,
+        orderNo: refund.paymentOrder.orderNo,
+      },
+    );
+
+    return refund;
+  }
+
+  getRefundTransactions(query: AuditQuery) {
+    const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
+    const where: Prisma.RefundTransactionWhereInput = this.clean({
+      paymentOrderId: this.optionalString(query, 'paymentOrderId'),
+      providerRefundId: this.optionalString(query, 'providerRefundId'),
+      status: this.optionalString(query, 'status'),
+    });
+
+    return this.prisma.refundTransaction.findMany({
+      where,
+      take,
+      orderBy: { createdAt: 'desc' },
+      include: this.refundTransactionInclude(),
+    });
+  }
+
+  async updateRefundTransaction(user: AuthUser, refundId: string, input: AdminPayload) {
+    const before = await this.prisma.refundTransaction.findUnique({
+      where: { id: refundId },
+      include: this.refundTransactionInclude(),
+    });
+
+    if (!before) {
+      throw new NotFoundException('Refund transaction not found');
+    }
+
+    const nextStatus =
+      input.status === undefined ? undefined : this.refundStatus(input, 'status');
+    if (nextStatus && !['cancelled', 'failed'].includes(nextStatus)) {
+      await this.ensureRefundStatusWithinPaymentAmount(before.paymentOrderId, refundId);
+    }
+
+    const refund = await this.prisma.refundTransaction.update({
+      where: { id: refundId },
+      data: this.clean({
+        providerRefundId: this.optionalString(input, 'providerRefundId'),
+        reason: this.optionalString(input, 'reason'),
+        status: nextStatus,
+        updatedAt: new Date(),
+      }),
+      include: this.refundTransactionInclude(),
+    });
+
+    await this.recordAudit(
+      user,
+      'payment_refund.update',
+      'refund_transaction',
+      refund.id,
+      before,
+      refund,
+    );
+
+    return refund;
   }
 
   async getAssets(query: AuditQuery) {
@@ -1222,6 +1332,75 @@ export class AdminService {
     } satisfies Prisma.PaymentOrderInclude;
   }
 
+  private refundTransactionInclude() {
+    return {
+      paymentOrder: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              status: true,
+            },
+          },
+          luminaProduct: true,
+        },
+      },
+    } satisfies Prisma.RefundTransactionInclude;
+  }
+
+  private paymentOrderLookupWhere(orderId: string): Prisma.PaymentOrderWhereInput {
+    const orderNoOnly = { orderNo: orderId };
+
+    if (!this.isUuid(orderId)) {
+      return orderNoOnly;
+    }
+
+    return {
+      OR: [{ id: orderId }, orderNoOnly],
+    };
+  }
+
+  private refundablePaymentAmount(
+    order: Prisma.PaymentOrderGetPayload<{ include: { refunds: true } }>,
+  ) {
+    const reservedOrCompletedRefunds = order.refunds
+      .filter((refund) => !['cancelled', 'failed'].includes(refund.status))
+      .reduce((sum, refund) => sum.plus(refund.amount), new Decimal(0));
+
+    return order.amount.minus(reservedOrCompletedRefunds);
+  }
+
+  private async ensureRefundStatusWithinPaymentAmount(
+    paymentOrderId: string,
+    refundId: string,
+  ) {
+    const order = await this.prisma.paymentOrder.findUnique({
+      where: { id: paymentOrderId },
+      include: { refunds: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Payment order not found');
+    }
+
+    const targetRefund = order.refunds.find((refund) => refund.id === refundId);
+    if (!targetRefund) {
+      throw new NotFoundException('Refund transaction not found');
+    }
+
+    const reservedOrCompletedRefunds = order.refunds
+      .filter(
+        (refund) =>
+          refund.id !== refundId && !['cancelled', 'failed'].includes(refund.status),
+      )
+      .reduce((sum, refund) => sum.plus(refund.amount), new Decimal(0));
+
+    if (reservedOrCompletedRefunds.plus(targetRefund.amount).gt(order.amount)) {
+      throw new BadRequestException('Refund status update exceeds payment amount');
+    }
+  }
+
   private presentAsset(
     asset: Prisma.AssetGetPayload<{
       include: ReturnType<AdminService['assetRelationInclude']>;
@@ -1419,6 +1598,18 @@ export class AdminService {
 
     if (!['active', 'suspended', 'revoked'].includes(status)) {
       throw new BadRequestException(`${key} must be active, suspended, or revoked`);
+    }
+
+    return status;
+  }
+
+  private refundStatus(input: AdminPayload, key: string, fallback?: string) {
+    const status = this.string(input, key, fallback);
+
+    if (!['requested', 'processing', 'succeeded', 'failed', 'cancelled'].includes(status)) {
+      throw new BadRequestException(
+        `${key} must be requested, processing, succeeded, failed, or cancelled`,
+      );
     }
 
     return status;
@@ -1781,6 +1972,12 @@ export class AdminService {
   private optionalString(input: AdminPayload, key: string) {
     const value = input[key];
     return typeof value === 'string' ? value.trim() : undefined;
+  }
+
+  private isUuid(value: string) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    );
   }
 
   private number(input: AdminPayload, key: string, fallback?: number) {

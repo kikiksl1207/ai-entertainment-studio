@@ -61,6 +61,29 @@ export class AdminController {
     return this.adminService.getPaymentOrder(orderId);
   }
 
+  @Post('payment-orders/:orderId/refunds')
+  createPaymentRefund(
+    @CurrentUser() user: AuthUser,
+    @Param('orderId') orderId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.createPaymentRefund(user, orderId, body);
+  }
+
+  @Get('refund-transactions')
+  getRefundTransactions(@Query() query: AuditQuery) {
+    return this.adminService.getRefundTransactions(query);
+  }
+
+  @Patch('refund-transactions/:refundId')
+  updateRefundTransaction(
+    @CurrentUser() user: AuthUser,
+    @Param('refundId') refundId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.updateRefundTransaction(user, refundId, body);
+  }
+
   @Get('assets')
   getAssets(@Query() query: AuditQuery) {
     return this.adminService.getAssets(query);

@@ -346,6 +346,9 @@ Response shape:
 ```http
 GET /admin/api/v1/payment-orders
 GET /admin/api/v1/payment-orders/:orderId
+POST /admin/api/v1/payment-orders/:orderId/refunds
+GET /admin/api/v1/refund-transactions
+PATCH /admin/api/v1/refund-transactions/:refundId
 POST /admin/api/v1/lumina-products
 PATCH /admin/api/v1/lumina-products/:productId
 POST /admin/api/v1/gift-products
@@ -365,6 +368,13 @@ PATCH /admin/api/v1/chat-feature-products/:productId
 - `take` capped at 100
 
 상세 응답은 사용자, 루미나 상품, PG transaction, refund transaction을 함께 포함한다.
+
+환불 운영 API는 실제 PG 환불 실행 전 단계의 기록/추적용이다.
+
+- `POST /admin/api/v1/payment-orders/:orderId/refunds`는 paid 주문에 대해서만 환불 요청 row를 만든다.
+- 기존 `requested`, `processing`, `succeeded` 환불 금액을 차감해 과환불 요청을 막는다.
+- `PATCH /admin/api/v1/refund-transactions/:refundId`는 provider refund id, 사유, 상태를 갱신한다.
+- 실제 PG 환불 호출은 Toss/PortOne 등 provider adapter가 확정된 뒤 별도 구현한다.
 
 ### Boost / Ranking Operations
 

@@ -181,6 +181,9 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `GET /admin/api/v1/audit-events`
 - `GET /admin/api/v1/payment-orders`
 - `GET /admin/api/v1/payment-orders/:orderId`
+- `POST /admin/api/v1/payment-orders/:orderId/refunds`
+- `GET /admin/api/v1/refund-transactions`
+- `PATCH /admin/api/v1/refund-transactions/:refundId`
 - `GET /admin/api/v1/assets`
 - `GET /admin/api/v1/assets/:assetId`
 - `POST /admin/api/v1/assets`
@@ -221,6 +224,8 @@ Seeded roles:
 - `super_admin`: full admin access, can create/update admin users.
 - `content_admin`: content and artist operations.
 - `commerce_admin`: product, payment, gift, boost, premium video operations.
+
+Admin refund APIs create and track refund records only. Actual PG refund execution should be implemented in the provider adapter after the production PG is selected.
 
 For the first admin:
 
