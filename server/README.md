@@ -53,7 +53,7 @@ npm run prisma:generate
 npm run prisma:seed
 ```
 
-The seed script inserts the first 4 public artists, local image asset references, shortforms, Lumina products, gift products, the launch boost campaign, premium video products, and chat feature products. The script is idempotent and can be rerun after changing seed values.
+The seed script inserts the first public artists, local image asset references, shortforms, Lumina products, gift products, the launch boost campaign, premium video products, and chat feature products. The script is idempotent and can be rerun after changing seed values.
 
 8. Start the API server.
 
@@ -73,6 +73,8 @@ The server listens on `http://localhost:3001` by default.
 ## Wallet API Skeleton
 
 User-scoped endpoints require an access token from `POST /api/v1/auth/login` or `POST /api/v1/auth/register`.
+
+New users receive a 300 Lumina signup bonus when their wallet is created. The grant is written to `wallet_ledger` with `ledgerType = signup_bonus`; balances are never stored directly on `users`.
 
 Auth endpoints:
 
@@ -261,6 +263,8 @@ $env:API_BASE_URL="https://lumina-stage-api.onrender.com"
 $env:ADMIN_ACCESS_TOKEN="<admin access token>"
 npm.cmd run verify:object-storage
 ```
+
+See `../docs/lumina-economy-policy.md` for Lumina/Stella pricing, signup/referral/attendance rewards, gift participation minimums, and accounting rules.
 
 The script creates an upload intent, uploads a generated 1x1 PNG to the presigned URL, confirms the upload, and reads back the asset.
 

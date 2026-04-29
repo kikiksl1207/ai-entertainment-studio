@@ -8,12 +8,15 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from './auth.types';
 import { LoginDto, RegisterDto, SocialLoginDto } from './dto/auth.dto';
 import { SocialAuthService } from './social-auth.service';
 
 const PASSWORD_HASH_ROUNDS = 12;
+const LUMINA_CURRENCY_CODE = 'LUMINA';
+const SIGNUP_BONUS_LUMINA = 300;
 
 @Injectable()
 export class AuthService {
@@ -68,12 +71,7 @@ export class AuthService {
         },
       });
 
-      await tx.walletAccount.create({
-        data: {
-          userId: createdUser.id,
-          currencyCode: 'LUMINA',
-        },
-      });
+      await this.createWalletWithSignupBonus(tx, createdUser.id);
 
       return createdUser;
     });
@@ -211,12 +209,7 @@ export class AuthService {
         },
       });
 
-      await tx.walletAccount.create({
-        data: {
-          userId: createdUser.id,
-          currencyCode: 'LUMINA',
-        },
-      });
+      await this.createWalletWithSignupBonus(tx, createdUser.id);
 
       return createdUser;
     });
@@ -322,7 +315,7 @@ export class AuthService {
         profile: true,
         settings: true,
         walletAccounts: {
-          where: { currencyCode: 'LUMINA' },
+          where: { currencyCode: LUMINA_CURRENCY_CODE },
         },
       },
     });
@@ -393,6 +386,34 @@ export class AuthService {
 
   private hashToken(token: string) {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private async createWalletWithSignupBonus(
+    tx: Prisma.TransactionClient,
+    userId: string,
+  ) {
+    const wallet = await tx.walletAccount.create({
+      data: {
+        userId,
+        currencyCode: LUMINA_CURRENCY_CODE,
+        cachedBalance: SIGNUP_BONUS_LUMINA,
+      },
+    });
+
+    await tx.walletLedger.create({
+      data: {
+        walletAccountId: wallet.id,
+        direction: 'credit',
+        amount: SIGNUP_BONUS_LUMINA,
+        ledgerType: 'signup_bonus',
+        referenceType: 'user',
+        referenceId: userId,
+        idempotencyKey: `signup_bonus:${userId}`,
+        memo: 'Lumina signup bonus',
+      },
+    });
+
+    return wallet;
   }
 
   private durationToMs(value: string) {

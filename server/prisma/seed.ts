@@ -424,9 +424,10 @@ async function main() {
 
 async function seedCommerce() {
   const luminaProducts = [
-    ['LUMINA_100', '루미나 100', 100, 0, 1100],
-    ['LUMINA_550', '루미나 500 + 보너스 50', 500, 50, 5500],
-    ['LUMINA_1200', '루미나 1000 + 보너스 200', 1000, 200, 11000],
+    ['LUMINA_1000', '루미나 1,000', 1000, 0, 10000],
+    ['LUMINA_3300', '루미나 3,000 + 보너스 300', 3000, 300, 30000],
+    ['LUMINA_5800', '루미나 5,000 + 보너스 800', 5000, 800, 50000],
+    ['LUMINA_12000', '루미나 10,000 + 보너스 2,000 (1 스텔라+)', 10000, 2000, 100000],
   ] as const;
 
   for (const [sku, name, luminaAmount, bonusAmount, priceAmount] of luminaProducts) {
@@ -453,10 +454,20 @@ async function seedCommerce() {
     });
   }
 
+  await prisma.luminaProduct.updateMany({
+    where: {
+      sku: { in: ['LUMINA_100', 'LUMINA_550', 'LUMINA_1200'] },
+    },
+    data: {
+      status: 'archived',
+      updatedAt: new Date(),
+    },
+  });
+
   const gifts = [
     ['GIFT_HEART', '응원 하트', 'instant', 10, 0, null],
     ['GIFT_SPOTLIGHT', '스포트라이트 응원', 'instant', 50, 0, null],
-    ['GIFT_STAGE_UNLOCK', '스테이지 의상 해금', 'progressive', 100, 100, 1000],
+    ['GIFT_STAGE_UNLOCK', '스테이지 의상 해금', 'progressive', 1000, 1000, 10000],
   ] as const;
 
   for (const artist of artists) {
@@ -490,6 +501,25 @@ async function seedCommerce() {
 }
 
 async function seedBoosts() {
+  await prisma.boostProduct.upsert({
+    where: { sku: 'BOOST_BASIC_VOTE' },
+    update: {
+      name: '루미나 기본 투표',
+      boostAmount: 10,
+      priceLumina: 10,
+      status: 'active',
+      updatedAt: new Date(),
+    },
+    create: {
+      sku: 'BOOST_BASIC_VOTE',
+      name: '루미나 기본 투표',
+      boostAmount: 10,
+      priceLumina: 10,
+      status: 'active',
+      metadata: { seed: true, policy: 'basic_paid_vote' },
+    },
+  });
+
   await prisma.boostProduct.upsert({
     where: { sku: 'BOOST_100' },
     update: {
