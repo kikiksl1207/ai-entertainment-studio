@@ -166,6 +166,8 @@ The order's stored provider must match the webhook provider before any wallet cr
 
 Payment webhook handlers preserve the raw request body so real PG adapters can verify provider signatures against the exact payload received from the provider.
 
+Paid webhook handling uses an atomic order-status transition before crediting Lumina. If the order is already `paid`, repeated or competing webhooks are treated as idempotent replays and do not create another wallet credit.
+
 ## Admin MVP APIs
 
 Admin endpoints use `Authorization: Bearer <access-token>`.

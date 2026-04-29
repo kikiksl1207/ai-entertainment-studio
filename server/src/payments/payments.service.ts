@@ -155,8 +155,15 @@ export class PaymentsService {
         };
       }
 
-      const transaction = await tx.paymentTransaction.create({
-        data: {
+      const transaction = await tx.paymentTransaction.upsert({
+        where: {
+          provider_providerTransactionId: {
+            provider,
+            providerTransactionId: event.providerTransactionId,
+          },
+        },
+        update: {},
+        create: {
           paymentOrderId: order.id,
           provider,
           providerTransactionId: event.providerTransactionId,
@@ -166,19 +173,45 @@ export class PaymentsService {
       });
 
       if (event.status !== 'paid') {
-        const updatedOrder = await tx.paymentOrder.update({
-          where: { id: order.id },
+        const nonPaidTransition = await tx.paymentOrder.updateMany({
+          where: {
+            id: order.id,
+            status: {
+              not: 'paid',
+            },
+          },
           data: {
             status: event.status === 'cancelled' ? 'cancelled' : 'failed',
             updatedAt: new Date(),
           },
+        });
+
+        const updatedOrder = await tx.paymentOrder.findUniqueOrThrow({
+          where: { id: order.id },
           include: { luminaProduct: true, transactions: true },
         });
 
-        return { order: updatedOrder, transaction, idempotentReplay: false };
+        return {
+          order: updatedOrder,
+          transaction,
+          idempotentReplay: nonPaidTransition.count === 0,
+        };
       }
 
-      if (order.status === 'paid') {
+      const paidTransition = await tx.paymentOrder.updateMany({
+        where: {
+          id: order.id,
+          status: {
+            not: 'paid',
+          },
+        },
+        data: {
+          status: 'paid',
+          updatedAt: new Date(),
+        },
+      });
+
+      if (paidTransition.count === 0) {
         return {
           order: await tx.paymentOrder.findUniqueOrThrow({
             where: { id: order.id },
@@ -229,12 +262,8 @@ export class PaymentsService {
         },
       });
 
-      const updatedOrder = await tx.paymentOrder.update({
+      const updatedOrder = await tx.paymentOrder.findUniqueOrThrow({
         where: { id: order.id },
-        data: {
-          status: 'paid',
-          updatedAt: new Date(),
-        },
         include: { luminaProduct: true, transactions: true },
       });
 
