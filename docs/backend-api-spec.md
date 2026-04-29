@@ -203,6 +203,8 @@ GET /admin/api/v1/assets/:assetId
 POST /admin/api/v1/assets
 POST /admin/api/v1/assets/upload-intents
 POST /admin/api/v1/assets/:assetId/confirm-upload
+POST /admin/api/v1/assets/:assetId/archive
+POST /admin/api/v1/assets/:assetId/restore
 POST /admin/api/v1/assets/:assetId/versions
 POST /admin/api/v1/artists
 PATCH /admin/api/v1/artists/:artistId
@@ -222,6 +224,7 @@ DELETE /admin/api/v1/premium-video-products/:productId/assets/:premiumVideoAsset
 - `visibility`
 - `storageProvider`
 - `uploadStatus`
+- `lifecycleStatus`
 - `take` capped at 100
 
 The response includes public URL, upload status, and current links to artists,
@@ -259,6 +262,24 @@ Optional request body:
   "objectETag": "\"etag-from-provider\""
 }
 ```
+
+`POST /admin/api/v1/assets/:assetId/archive` marks an asset as archived through
+`metadata.lifecycle.status`. It does not delete the database row or object
+storage file. If the asset is still linked to artists, shortforms, or premium
+videos, the request fails unless `force` is true.
+
+Request body:
+
+```json
+{
+  "reason": "replaced by final retouched image",
+  "force": false
+}
+```
+
+`POST /admin/api/v1/assets/:assetId/restore` marks an archived asset as active
+again. Archived assets cannot be linked to content and are filtered from public
+artist/shortform responses.
 
 Asset linking endpoints attach an existing uploaded asset to content records:
 

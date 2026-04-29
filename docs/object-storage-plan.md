@@ -110,6 +110,7 @@ The bucket name can stay as `oneshot-ai-storage-01`. The prefix keeps Lumina Sta
 - Default video max: 500 MB.
 - The API creates metadata first; later we should add an upload confirmation endpoint that checks object existence before publishing.
 - Public APIs must only expose uploaded/ready assets and must not expose internal `metadata`, `storageKey`, or `storageProvider`.
+- Archived assets must not be linked to content and must not appear in public APIs.
 
 ## Next implementation step
 
@@ -128,6 +129,23 @@ Current status:
 - In `r2` or `s3` mode, confirmation sends a signed `HEAD` request to verify that the object exists before updating metadata.
 - The endpoint writes an `asset.upload.confirm` audit event.
 - Public artist and shortform APIs filter out `pending_upload` assets and return only frontend-safe asset fields.
+
+## Archive / restore policy
+
+Asset deletion should be conservative.
+
+Current policy:
+
+- Use archive first, not physical deletion.
+- Archive status is stored at `metadata.lifecycle.status`.
+- `POST /admin/api/v1/assets/:assetId/archive` sets status to `archived`.
+- `POST /admin/api/v1/assets/:assetId/restore` sets status back to `active`.
+- Archive does not delete the S3/R2 object.
+- Archive fails when the asset is still linked unless `force` is true.
+- Archived assets cannot be linked again.
+- Public artist and shortform APIs filter archived assets out.
+
+Physical object deletion should be added later as a separate two-step or approval-based operation.
 
 ## End-to-end verification script
 

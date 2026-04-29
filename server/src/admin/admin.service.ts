@@ -176,6 +176,7 @@ export class AdminService {
       storageProvider: this.optionalString(query, 'storageProvider'),
     });
     const uploadStatus = this.optionalString(query, 'uploadStatus');
+    const lifecycleStatus = this.optionalString(query, 'lifecycleStatus');
 
     const assets = await this.prisma.asset.findMany({
       where,
@@ -186,7 +187,8 @@ export class AdminService {
 
     return assets
       .map((asset) => this.presentAsset(asset))
-      .filter((asset) => !uploadStatus || asset.uploadStatus === uploadStatus);
+      .filter((asset) => !uploadStatus || asset.uploadStatus === uploadStatus)
+      .filter((asset) => !lifecycleStatus || asset.lifecycleStatus === lifecycleStatus);
   }
 
   async getAsset(assetId: string) {
@@ -338,6 +340,104 @@ export class AdminService {
       result,
     );
 
+    return result;
+  }
+
+  async archiveAsset(user: AuthUser, assetId: string, input: AdminPayload) {
+    const asset = await this.prisma.asset.findUnique({
+      where: { id: assetId },
+      include: this.assetRelationInclude(),
+    });
+
+    if (!asset) {
+      throw new NotFoundException('Asset not found');
+    }
+
+    const linkedCount =
+      asset.artistAssets.length + asset.shortformAssets.length + asset.premiumVideoAssets.length;
+    const force = this.boolean(input, 'force', false);
+
+    if (linkedCount > 0 && !force) {
+      throw new BadRequestException('Asset must be unlinked before archive unless force is true');
+    }
+
+    const archivedAt = new Date().toISOString();
+    const metadata = this.metadataObject(asset.metadata);
+    const lifecycle = this.metadataObject(metadata.lifecycle);
+    const updatedMetadata = {
+      ...metadata,
+      lifecycle: {
+        ...lifecycle,
+        status: 'archived',
+        reason: this.optionalString(input, 'reason') ?? null,
+        archivedByUserId: user.id,
+        archivedAt,
+      },
+    };
+
+    const updatedAsset = await this.prisma.asset.update({
+      where: { id: asset.id },
+      data: {
+        metadata: this.toJson(updatedMetadata),
+        updatedAt: new Date(),
+      },
+      include: this.assetRelationInclude(),
+    });
+    const result = this.presentAsset(updatedAsset);
+
+    await this.recordAudit(
+      user,
+      'asset.archive',
+      'asset',
+      asset.id,
+      this.presentAsset(asset),
+      result,
+      { force, linkedCount },
+    );
+    return result;
+  }
+
+  async restoreAsset(user: AuthUser, assetId: string) {
+    const asset = await this.prisma.asset.findUnique({
+      where: { id: assetId },
+      include: this.assetRelationInclude(),
+    });
+
+    if (!asset) {
+      throw new NotFoundException('Asset not found');
+    }
+
+    const restoredAt = new Date().toISOString();
+    const metadata = this.metadataObject(asset.metadata);
+    const lifecycle = this.metadataObject(metadata.lifecycle);
+    const updatedMetadata = {
+      ...metadata,
+      lifecycle: {
+        ...lifecycle,
+        status: 'active',
+        restoredByUserId: user.id,
+        restoredAt,
+      },
+    };
+
+    const updatedAsset = await this.prisma.asset.update({
+      where: { id: asset.id },
+      data: {
+        metadata: this.toJson(updatedMetadata),
+        updatedAt: new Date(),
+      },
+      include: this.assetRelationInclude(),
+    });
+    const result = this.presentAsset(updatedAsset);
+
+    await this.recordAudit(
+      user,
+      'asset.restore',
+      'asset',
+      asset.id,
+      this.presentAsset(asset),
+      result,
+    );
     return result;
   }
 
@@ -1073,6 +1173,9 @@ export class AdminService {
     const uploadIntent = this.metadataObject(metadata.uploadIntent);
     const uploadStatus =
       typeof uploadIntent.status === 'string' ? uploadIntent.status : 'ready';
+    const lifecycle = this.metadataObject(metadata.lifecycle);
+    const lifecycleStatus =
+      typeof lifecycle.status === 'string' ? lifecycle.status : 'active';
 
     return {
       id: asset.id,
@@ -1089,6 +1192,7 @@ export class AdminService {
       checksum: asset.checksum,
       metadata: asset.metadata,
       uploadStatus,
+      lifecycleStatus,
       createdAt: asset.createdAt,
       updatedAt: asset.updatedAt,
       links: {
@@ -1201,6 +1305,12 @@ export class AdminService {
 
     if (uploadIntent.status && uploadIntent.status !== 'uploaded') {
       throw new BadRequestException('Asset upload must be confirmed before linking');
+    }
+
+    const lifecycle = this.metadataObject(metadata.lifecycle);
+
+    if (lifecycle.status === 'archived') {
+      throw new BadRequestException('Archived assets cannot be linked');
     }
 
     return asset;

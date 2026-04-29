@@ -80,6 +80,20 @@ export class AdminController {
     return this.adminService.confirmAssetUpload(user, assetId, body);
   }
 
+  @Post('assets/:assetId/archive')
+  archiveAsset(
+    @CurrentUser() user: AuthUser,
+    @Param('assetId') assetId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.archiveAsset(user, assetId, body);
+  }
+
+  @Post('assets/:assetId/restore')
+  restoreAsset(@CurrentUser() user: AuthUser, @Param('assetId') assetId: string) {
+    return this.adminService.restoreAsset(user, assetId);
+  }
+
   @Post('artists')
   createArtist(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createArtist(user, body);

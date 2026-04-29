@@ -180,6 +180,8 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `POST /admin/api/v1/assets`
 - `POST /admin/api/v1/assets/upload-intents`
 - `POST /admin/api/v1/assets/:assetId/confirm-upload`
+- `POST /admin/api/v1/assets/:assetId/archive`
+- `POST /admin/api/v1/assets/:assetId/restore`
 - `POST /admin/api/v1/artists`
 - `PATCH /admin/api/v1/artists/:artistId`
 - `POST /admin/api/v1/artists/:artistId/assets`
@@ -205,6 +207,8 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `PATCH /admin/api/v1/chat-feature-products/:productId`
 
 Admin create/update/snapshot mutations write `audit_events` rows with actor, action, target, before data, and after data. `GET /admin/api/v1/audit-events` can filter by `actorUserId`, `action`, `targetType`, and `targetId`; `take` defaults to 50 and is capped at 100.
+
+Asset archive/restore is metadata-based. Archive does not delete object storage files; it marks `metadata.lifecycle.status` as `archived`, blocks future linking, and removes the asset from public artist/shortform responses.
 
 Seeded roles:
 

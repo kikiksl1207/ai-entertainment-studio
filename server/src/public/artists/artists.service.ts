@@ -125,6 +125,11 @@ export class ArtistsService {
     }
 
     const uploadIntent = metadata.uploadIntent;
+    const lifecycle = metadata.lifecycle;
+
+    if (this.isRecord(lifecycle) && lifecycle.status === 'archived') {
+      return false;
+    }
 
     if (!this.isRecord(uploadIntent)) {
       return true;
