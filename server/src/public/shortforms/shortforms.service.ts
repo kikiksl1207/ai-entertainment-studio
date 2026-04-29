@@ -53,19 +53,18 @@ export class ShortformsService {
       };
     }>;
   }) {
-    const assets = shortform.assets.map((shortformAsset) => ({
-      id: shortformAsset.asset.id,
-      role: shortformAsset.role,
-      assetType: shortformAsset.asset.assetType,
-      storageProvider: shortformAsset.asset.storageProvider,
-      storageKey: shortformAsset.asset.storageKey,
-      url: this.assetUrl(shortformAsset.asset.storageKey),
-      mimeType: shortformAsset.asset.mimeType,
-      width: shortformAsset.asset.width,
-      height: shortformAsset.asset.height,
-      sortOrder: shortformAsset.sortOrder,
-      metadata: shortformAsset.asset.metadata,
-    }));
+    const assets = shortform.assets
+      .filter((shortformAsset) => this.isPublicReadyAsset(shortformAsset.asset.metadata))
+      .map((shortformAsset) => ({
+        id: shortformAsset.asset.id,
+        role: shortformAsset.role,
+        assetType: shortformAsset.asset.assetType,
+        url: this.assetUrl(shortformAsset.asset.storageKey),
+        mimeType: shortformAsset.asset.mimeType,
+        width: shortformAsset.asset.width,
+        height: shortformAsset.asset.height,
+        sortOrder: shortformAsset.sortOrder,
+      }));
     const thumbnail = assets.find((asset) => asset.role === 'thumbnail') ?? assets[0] ?? null;
 
     return {
@@ -84,13 +83,33 @@ export class ShortformsService {
   }
 
   private assetUrl(storageKey: string) {
-    const baseUrl = this.configService.get<string>('ASSET_PUBLIC_BASE_URL');
+    const baseUrl =
+      this.configService.get<string>('ASSET_PUBLIC_BASE_URL') ??
+      this.configService.get<string>('OBJECT_STORAGE_PUBLIC_BASE_URL');
 
     if (!baseUrl) {
       return storageKey;
     }
 
     return `${baseUrl.replace(/\/+$/, '')}/${storageKey}`;
+  }
+
+  private isPublicReadyAsset(metadata: unknown) {
+    if (!this.isRecord(metadata)) {
+      return true;
+    }
+
+    const uploadIntent = metadata.uploadIntent;
+
+    if (!this.isRecord(uploadIntent)) {
+      return true;
+    }
+
+    return uploadIntent.status === 'uploaded';
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 }
 

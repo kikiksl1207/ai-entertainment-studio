@@ -37,6 +37,8 @@ Frontend-friendly response fields:
 - `slug`, `displayName`, `profile`, `visual`
 - `coverImage.url`, `thumbnailImage.url`
 - `assets[].url`, `assets[].usageType`
+- Public responses only expose uploaded/ready assets.
+- Public responses do not expose internal asset `metadata`, `storageKey`, or `storageProvider`.
 
 용도:
 
@@ -57,6 +59,8 @@ Frontend-friendly response fields:
 - `slug`, `title`, `description`, `artist`
 - `thumbnail.url`
 - `assets[].url`, `assets[].role`
+- Public responses only expose uploaded/ready assets.
+- Public responses do not expose internal asset `metadata`, `storageKey`, or `storageProvider`.
 
 용도:
 

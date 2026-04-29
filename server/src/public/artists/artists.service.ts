@@ -73,20 +73,19 @@ export class ArtistsService {
     },
     options: { includeContentProfile?: boolean } = {},
   ) {
-    const assets = (artist.artistAssets ?? []).map((artistAsset) => ({
-      id: artistAsset.asset.id,
-      usageType: artistAsset.usageType,
-      assetType: artistAsset.asset.assetType,
-      storageProvider: artistAsset.asset.storageProvider,
-      storageKey: artistAsset.asset.storageKey,
-      url: this.assetUrl(artistAsset.asset.storageKey),
-      mimeType: artistAsset.asset.mimeType,
-      width: artistAsset.asset.width,
-      height: artistAsset.asset.height,
-      isPrimary: artistAsset.isPrimary,
-      sortOrder: artistAsset.sortOrder,
-      metadata: artistAsset.asset.metadata,
-    }));
+    const assets = (artist.artistAssets ?? [])
+      .filter((artistAsset) => this.isPublicReadyAsset(artistAsset.asset.metadata))
+      .map((artistAsset) => ({
+        id: artistAsset.asset.id,
+        usageType: artistAsset.usageType,
+        assetType: artistAsset.asset.assetType,
+        url: this.assetUrl(artistAsset.asset.storageKey),
+        mimeType: artistAsset.asset.mimeType,
+        width: artistAsset.asset.width,
+        height: artistAsset.asset.height,
+        isPrimary: artistAsset.isPrimary,
+        sortOrder: artistAsset.sortOrder,
+      }));
     const coverImage = assets.find((asset) => asset.usageType === 'cover') ?? null;
     const thumbnailImage = assets.find((asset) => asset.usageType === 'thumb') ?? coverImage;
 
@@ -109,12 +108,32 @@ export class ArtistsService {
   }
 
   private assetUrl(storageKey: string) {
-    const baseUrl = this.configService.get<string>('ASSET_PUBLIC_BASE_URL');
+    const baseUrl =
+      this.configService.get<string>('ASSET_PUBLIC_BASE_URL') ??
+      this.configService.get<string>('OBJECT_STORAGE_PUBLIC_BASE_URL');
 
     if (!baseUrl) {
       return storageKey;
     }
 
     return `${baseUrl.replace(/\/+$/, '')}/${storageKey}`;
+  }
+
+  private isPublicReadyAsset(metadata: unknown) {
+    if (!this.isRecord(metadata)) {
+      return true;
+    }
+
+    const uploadIntent = metadata.uploadIntent;
+
+    if (!this.isRecord(uploadIntent)) {
+      return true;
+    }
+
+    return uploadIntent.status === 'uploaded';
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 }

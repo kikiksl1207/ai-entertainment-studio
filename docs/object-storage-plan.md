@@ -109,6 +109,7 @@ The bucket name can stay as `oneshot-ai-storage-01`. The prefix keeps Lumina Sta
 - Default image max: 20 MB.
 - Default video max: 500 MB.
 - The API creates metadata first; later we should add an upload confirmation endpoint that checks object existence before publishing.
+- Public APIs must only expose uploaded/ready assets and must not expose internal `metadata`, `storageKey`, or `storageProvider`.
 
 ## Next implementation step
 
@@ -126,3 +127,4 @@ Current status:
 - In `local` storage mode, confirmation marks metadata as uploaded.
 - In `r2` or `s3` mode, confirmation sends a signed `HEAD` request to verify that the object exists before updating metadata.
 - The endpoint writes an `asset.upload.confirm` audit event.
+- Public artist and shortform APIs filter out `pending_upload` assets and return only frontend-safe asset fields.
