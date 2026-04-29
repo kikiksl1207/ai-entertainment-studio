@@ -19,7 +19,7 @@ Lumina Stage backend operations.
 | --- | --- | --- |
 | `super_admin` | `*` | Founder, lead backend/operator |
 | `content_admin` | `assets:write`, `artists:write`, `shortforms:write`, `audit:read` | Character producer, AI visual operator, content manager |
-| `commerce_admin` | `commerce:write`, `payments:read`, `audit:read` | Commerce/operator, CS/refund operator, business manager |
+| `commerce_admin` | `products:write`, `boosts:write`, `premium_videos:write`, `chat_products:write`, `refunds:write`, `payments:read`, `audit:read` | Commerce/operator, CS/refund operator, business manager |
 
 ## Route Matrix
 
@@ -30,19 +30,19 @@ Lumina Stage backend operations.
 | Audit events | `GET /audit-events` | `audit:read` | Included in content and commerce roles for traceability. |
 | Payment orders | `GET /payment-orders`, `GET /payment-orders/:orderId` | `payments:read` | Read-only payment investigation. |
 | Refund lookup | `GET /refund-transactions` | `payments:read` | Read-only refund investigation. |
-| Refund operations | `POST /payment-orders/:orderId/refunds`, `PATCH /refund-transactions/:refundId` | `commerce:write` | Creates or updates refund tracking records only. Actual PG refund execution is separate. |
+| Refund operations | `POST /payment-orders/:orderId/refunds`, `PATCH /refund-transactions/:refundId` | `refunds:write` | Creates or updates refund tracking records only. Actual PG refund execution is separate. |
 | Assets read | `GET /assets`, `GET /assets/:assetId` | `assets:read` or `assets:write` | `assets:write` includes read access. |
 | Assets write | `POST /assets`, upload intent, confirm upload, archive, restore | `assets:write` | Object storage and asset lifecycle operations. |
 | Artists | `POST/PATCH /artists` | `artists:write` | Character profile operations. |
 | Artist asset links | `POST/DELETE /artists/:artistId/assets...` | `artists:write` and `assets:write` | Requires both content ownership and asset ownership. |
 | Shortforms | `POST/PATCH /shortforms` | `shortforms:write` | Shortform content operations. |
 | Shortform asset links | `POST/DELETE /shortforms/:shortformId/assets...` | `shortforms:write` and `assets:write` | Requires both content ownership and asset ownership. |
-| Lumina products | `POST/PATCH /lumina-products` | `commerce:write` | Paid product catalog operations. |
-| Gift products | `POST/PATCH /gift-products` | `commerce:write` | Gift catalog operations. |
-| Boost products/campaigns | `POST/PATCH /boost-*`, snapshot | `commerce:write` | Boost commerce and ranking operations. |
-| Premium video products | `POST/PATCH /premium-video-products` | `commerce:write` | Premium content catalog operations. |
-| Premium video asset links | `POST/DELETE /premium-video-products/:productId/assets...` | `commerce:write` and `assets:write` | Requires commerce and asset permissions. |
-| Chat feature products | `POST/PATCH /chat-feature-products` | `commerce:write` | Paid chat feature catalog operations. |
+| Lumina products | `POST/PATCH /lumina-products` | `products:write` | Paid product catalog operations. |
+| Gift products | `POST/PATCH /gift-products` | `products:write` | Gift catalog operations. |
+| Boost products/campaigns | `POST/PATCH /boost-*`, snapshot | `boosts:write` | Boost commerce and ranking operations. |
+| Premium video products | `POST/PATCH /premium-video-products` | `premium_videos:write` | Premium content catalog operations. |
+| Premium video asset links | `POST/DELETE /premium-video-products/:productId/assets...` | `premium_videos:write` and `assets:write` | Requires premium video and asset permissions. |
+| Chat feature products | `POST/PATCH /chat-feature-products` | `chat_products:write` | Paid chat feature catalog operations. |
 
 ## Recommended Future Roles
 
@@ -55,13 +55,17 @@ grows.
 | `artist_operator` | `artists:write`, `assets:read`, `audit:read` | Edits character profiles but cannot upload/archive assets. |
 | `shortform_operator` | `shortforms:write`, `assets:read`, `audit:read` | Manages shortform metadata and selects existing assets. |
 | `cs_operator` | `payments:read`, `audit:read` | Investigates payment/refund issues without creating refunds. |
-| `refund_operator` | `payments:read`, `commerce:write`, `audit:read` | Can create/update refund tracking records. Use carefully because `commerce:write` is currently broad. |
+| `refund_operator` | `payments:read`, `refunds:write`, `audit:read` | Can investigate payments and create/update refund tracking records. |
+| `product_operator` | `products:write`, `audit:read` | Manages Lumina and gift product catalog without touching refunds. |
+| `boost_operator` | `boosts:write`, `audit:read` | Manages boost products, campaigns, and snapshots. |
+| `premium_video_operator` | `premium_videos:write`, `assets:read`, `audit:read` | Manages premium video product catalog and selects existing assets. |
+| `chat_product_operator` | `chat_products:write`, `audit:read` | Manages paid chat feature products. |
 
 ## Hardening Notes
 
-- Split `commerce:write` into narrower permissions before adding many operators:
-  `products:write`, `boosts:write`, `premium_videos:write`, `refunds:write`,
-  `chat_products:write`.
+- Keep commerce permissions split by operational risk. Refund tracking should
+  not be bundled with content/product catalog editing once more operators are
+  added.
 - Keep admin user management restricted to `super_admin`.
 - Keep payment webhooks outside admin routes; they must rely on provider
   signature verification, not admin permissions.

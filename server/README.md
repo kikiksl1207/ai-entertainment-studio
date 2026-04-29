@@ -229,7 +229,11 @@ Permission notes:
 
 - `*`: full access.
 - `assets:write`, `artists:write`, `shortforms:write`: content operations.
-- `commerce:write`: product, boost, premium video, chat feature, and refund operations.
+- `products:write`: Lumina and gift product operations.
+- `boosts:write`: boost product, boost campaign, and ranking snapshot operations.
+- `premium_videos:write`: premium video product operations.
+- `chat_products:write`: paid chat feature product operations.
+- `refunds:write`: refund tracking operations.
 - `payments:read`: payment and refund lookup.
 - `audit:read`: audit event lookup.
 - A `*:write` permission also allows the matching `*:read` permission.

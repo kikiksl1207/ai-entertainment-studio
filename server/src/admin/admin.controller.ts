@@ -71,7 +71,7 @@ export class AdminController {
   }
 
   @Post('payment-orders/:orderId/refunds')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('refunds:write')
   createPaymentRefund(
     @CurrentUser() user: AuthUser,
     @Param('orderId') orderId: string,
@@ -87,7 +87,7 @@ export class AdminController {
   }
 
   @Patch('refund-transactions/:refundId')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('refunds:write')
   updateRefundTransaction(
     @CurrentUser() user: AuthUser,
     @Param('refundId') refundId: string,
@@ -219,13 +219,13 @@ export class AdminController {
   }
 
   @Post('lumina-products')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('products:write')
   createLuminaProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createLuminaProduct(user, body);
   }
 
   @Patch('lumina-products/:productId')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('products:write')
   updateLuminaProduct(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
@@ -235,13 +235,13 @@ export class AdminController {
   }
 
   @Post('gift-products')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('products:write')
   createGiftProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createGiftProduct(user, body);
   }
 
   @Patch('gift-products/:productId')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('products:write')
   updateGiftProduct(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
@@ -251,13 +251,13 @@ export class AdminController {
   }
 
   @Post('boost-products')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('boosts:write')
   createBoostProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createBoostProduct(user, body);
   }
 
   @Patch('boost-products/:productId')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('boosts:write')
   updateBoostProduct(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
@@ -267,13 +267,13 @@ export class AdminController {
   }
 
   @Post('boost-campaigns')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('boosts:write')
   createBoostCampaign(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createBoostCampaign(user, body);
   }
 
   @Patch('boost-campaigns/:campaignId')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('boosts:write')
   updateBoostCampaign(
     @CurrentUser() user: AuthUser,
     @Param('campaignId') campaignId: string,
@@ -283,7 +283,7 @@ export class AdminController {
   }
 
   @Post('boost-campaigns/:campaignId/snapshot')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('boosts:write')
   snapshotBoostCampaign(
     @CurrentUser() user: AuthUser,
     @Param('campaignId') campaignId: string,
@@ -292,13 +292,13 @@ export class AdminController {
   }
 
   @Post('premium-video-products')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('premium_videos:write')
   createPremiumVideoProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createPremiumVideoProduct(user, body);
   }
 
   @Patch('premium-video-products/:productId')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('premium_videos:write')
   updatePremiumVideoProduct(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
@@ -308,7 +308,7 @@ export class AdminController {
   }
 
   @Post('premium-video-products/:productId/assets')
-  @RequireAdminPermissions('commerce:write', 'assets:write')
+  @RequireAdminPermissions('premium_videos:write', 'assets:write')
   linkPremiumVideoAsset(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
@@ -318,7 +318,7 @@ export class AdminController {
   }
 
   @Delete('premium-video-products/:productId/assets/:premiumVideoAssetId')
-  @RequireAdminPermissions('commerce:write', 'assets:write')
+  @RequireAdminPermissions('premium_videos:write', 'assets:write')
   unlinkPremiumVideoAsset(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
@@ -332,13 +332,13 @@ export class AdminController {
   }
 
   @Post('chat-feature-products')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('chat_products:write')
   createChatFeatureProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createChatFeatureProduct(user, body);
   }
 
   @Patch('chat-feature-products/:productId')
-  @RequireAdminPermissions('commerce:write')
+  @RequireAdminPermissions('chat_products:write')
   updateChatFeatureProduct(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,

@@ -204,7 +204,11 @@ POST /api/v1/chat-feature-orders
 
 - `*`: 전체 관리자 권한
 - `assets:write`, `artists:write`, `shortforms:write`: 콘텐츠 운영
-- `commerce:write`: 상품, 부스트, 프리미엄 영상, 채팅 상품, 환불 운영
+- `products:write`: 루미나/선물 상품 운영
+- `boosts:write`: 부스트 상품/캠페인/스냅샷 운영
+- `premium_videos:write`: 프리미엄 영상 상품 운영
+- `chat_products:write`: 유료 챗 기능 상품 운영
+- `refunds:write`: 환불 추적 운영
 - `payments:read`: 결제/환불 조회
 - `audit:read`: 감사로그 조회
 - `*:write` 권한은 같은 리소스의 `*:read`도 허용한다.
