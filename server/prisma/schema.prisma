@@ -311,6 +311,7 @@ model PaymentOrder {
   userId          String               @map("user_id") @db.Uuid
   luminaProductId String               @map("lumina_product_id") @db.Uuid
   orderNo         String               @unique @map("order_no")
+  provider        String               @default("mock")
   status          String               @default("pending")
   amount          Decimal              @db.Decimal(18, 2)
   currency        String               @default("KRW")

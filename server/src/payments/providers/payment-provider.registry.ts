@@ -6,12 +6,18 @@ import { PaymentProviderAdapter } from './payment-provider.types';
 @Injectable()
 export class PaymentProviderRegistry {
   private readonly providers: PaymentProviderAdapter[];
+  private readonly configuredProvider: string;
 
   constructor(configService: ConfigService) {
     this.providers = [new MockPaymentAdapter(configService)];
+    this.configuredProvider = configService.get<string>('PAYMENT_PROVIDER') ?? 'mock';
   }
 
-  get(provider = 'mock') {
+  defaultProvider() {
+    return this.configuredProvider;
+  }
+
+  get(provider = this.configuredProvider) {
     const adapter = this.providers.find((item) => item.provider === provider);
 
     if (!adapter) {

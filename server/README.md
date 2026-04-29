@@ -156,13 +156,13 @@ Payment endpoints:
 Payment flow:
 
 1. The client calls `POST /api/v1/payments/orders` with a `luminaProductId`.
-2. The server creates a `payment_orders` row and returns provider checkout payload data.
+2. The server creates a `payment_orders` row with the selected `provider` and returns provider checkout payload data.
 3. The client opens the PG checkout using provider data.
 4. Lumina is not credited from a client-side success claim.
 5. The server credits Lumina only after `POST /api/v1/payments/webhooks/:provider` verifies and parses a provider event.
 6. A successful provider event writes `payment_transactions`, marks the order `paid`, credits `wallet_accounts.cached_balance`, and records a `wallet_ledger` purchase entry in one transaction.
 
-The current provider adapter is `mock`, which is safe for local development and keeps the production integration seam ready for Toss Payments, PortOne, or another PG later. Provider secrets must remain in environment variables such as `MOCK_PAYMENT_WEBHOOK_SECRET`; real provider keys should never be committed.
+The order's stored provider must match the webhook provider before any wallet credit is created. The current provider adapter is `mock`, which is safe for local development and keeps the production integration path ready for Toss Payments, PortOne, or another PG later. Provider secrets must remain in environment variables such as `MOCK_PAYMENT_WEBHOOK_SECRET`; real provider keys should never be committed.
 
 ## Admin MVP APIs
 

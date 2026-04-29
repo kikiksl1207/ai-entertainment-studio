@@ -209,6 +209,7 @@ CREATE TABLE payment_orders (
   user_id uuid NOT NULL REFERENCES users(id),
   lumina_product_id uuid NOT NULL REFERENCES lumina_products(id),
   order_no text NOT NULL UNIQUE,
+  provider text NOT NULL DEFAULT 'mock',
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'failed', 'cancelled', 'refunded', 'partially_refunded')),
   amount numeric(18,2) NOT NULL CHECK (amount >= 0),
   currency text NOT NULL DEFAULT 'KRW',
@@ -572,6 +573,7 @@ CREATE INDEX idx_wallet_ledger_account_created ON wallet_ledger(wallet_account_i
 CREATE INDEX idx_wallet_ledger_reference ON wallet_ledger(reference_type, reference_id);
 CREATE INDEX idx_wallet_holds_account_status ON wallet_holds(wallet_account_id, status);
 CREATE INDEX idx_payment_orders_user_status ON payment_orders(user_id, status);
+CREATE INDEX idx_payment_orders_provider_status ON payment_orders(provider, status);
 CREATE INDEX idx_gift_orders_user_created ON gift_orders(user_id, created_at);
 CREATE INDEX idx_gift_orders_artist_created ON gift_orders(artist_id, created_at);
 CREATE INDEX idx_reaction_events_artist_created ON artist_reaction_events(artist_id, created_at);

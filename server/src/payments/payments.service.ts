@@ -8,7 +8,6 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 
-const DEFAULT_PROVIDER = 'mock';
 const DEFAULT_CURRENCY = 'LUMINA';
 
 @Injectable()
@@ -30,7 +29,7 @@ export class PaymentsService {
       throw new BadRequestException('luminaProductId is required');
     }
 
-    const provider = input.provider ?? DEFAULT_PROVIDER;
+    const provider = input.provider ?? this.providerRegistry.defaultProvider();
     const adapter = this.providerRegistry.get(provider);
 
     if (input.idempotencyKey) {
@@ -48,6 +47,7 @@ export class PaymentsService {
             currency: existingOrder.currency,
             orderName: existingOrder.luminaProduct.name,
           }),
+          provider: existingOrder.provider,
           idempotentReplay: true,
         };
       }
@@ -69,6 +69,7 @@ export class PaymentsService {
         userId,
         luminaProductId: product.id,
         orderNo: this.createOrderNo(),
+        provider,
         status: 'pending',
         amount: product.priceAmount,
         currency: product.priceCurrency,
@@ -85,6 +86,7 @@ export class PaymentsService {
         currency: order.currency,
         orderName: product.name,
       }),
+      provider: order.provider,
       idempotentReplay: false,
     };
   }
@@ -121,6 +123,10 @@ export class PaymentsService {
 
     if (!order) {
       throw new NotFoundException('Payment order not found');
+    }
+
+    if (order.provider !== provider) {
+      throw new BadRequestException('Payment provider does not match order provider');
     }
 
     if (!new Decimal(event.amount).equals(order.amount)) {
