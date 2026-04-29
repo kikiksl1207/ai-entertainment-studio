@@ -10,34 +10,40 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RequireAdminPermissions } from '../auth/decorators/admin-permissions.decorator';
 import { AuthUser } from '../auth/auth.types';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
+import { AdminPermissionGuard } from '../auth/guards/admin-permission.guard';
 import { AdminService } from './admin.service';
 
 type AdminPayload = Record<string, unknown>;
 type AuditQuery = Record<string, string | undefined>;
 
 @Controller('/admin/api/v1')
-@UseGuards(AdminAuthGuard)
+@UseGuards(AdminAuthGuard, AdminPermissionGuard)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('admin-roles')
+  @RequireAdminPermissions('*')
   getAdminRoles() {
     return this.adminService.getAdminRoles();
   }
 
   @Get('admin-users')
+  @RequireAdminPermissions('*')
   getAdminUsers() {
     return this.adminService.getAdminUsers();
   }
 
   @Post('admin-users')
+  @RequireAdminPermissions('*')
   createAdminUser(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createAdminUser(user, body);
   }
 
   @Patch('admin-users/:adminUserId')
+  @RequireAdminPermissions('*')
   updateAdminUser(
     @CurrentUser() user: AuthUser,
     @Param('adminUserId') adminUserId: string,
@@ -47,21 +53,25 @@ export class AdminController {
   }
 
   @Get('audit-events')
+  @RequireAdminPermissions('audit:read')
   getAuditEvents(@Query() query: AuditQuery) {
     return this.adminService.getAuditEvents(query);
   }
 
   @Get('payment-orders')
+  @RequireAdminPermissions('payments:read')
   getPaymentOrders(@Query() query: AuditQuery) {
     return this.adminService.getPaymentOrders(query);
   }
 
   @Get('payment-orders/:orderId')
+  @RequireAdminPermissions('payments:read')
   getPaymentOrder(@Param('orderId') orderId: string) {
     return this.adminService.getPaymentOrder(orderId);
   }
 
   @Post('payment-orders/:orderId/refunds')
+  @RequireAdminPermissions('commerce:write')
   createPaymentRefund(
     @CurrentUser() user: AuthUser,
     @Param('orderId') orderId: string,
@@ -71,11 +81,13 @@ export class AdminController {
   }
 
   @Get('refund-transactions')
+  @RequireAdminPermissions('payments:read')
   getRefundTransactions(@Query() query: AuditQuery) {
     return this.adminService.getRefundTransactions(query);
   }
 
   @Patch('refund-transactions/:refundId')
+  @RequireAdminPermissions('commerce:write')
   updateRefundTransaction(
     @CurrentUser() user: AuthUser,
     @Param('refundId') refundId: string,
@@ -85,26 +97,31 @@ export class AdminController {
   }
 
   @Get('assets')
+  @RequireAdminPermissions('assets:read')
   getAssets(@Query() query: AuditQuery) {
     return this.adminService.getAssets(query);
   }
 
   @Get('assets/:assetId')
+  @RequireAdminPermissions('assets:read')
   getAsset(@Param('assetId') assetId: string) {
     return this.adminService.getAsset(assetId);
   }
 
   @Post('assets')
+  @RequireAdminPermissions('assets:write')
   createAsset(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createAsset(user, body);
   }
 
   @Post('assets/upload-intents')
+  @RequireAdminPermissions('assets:write')
   createAssetUploadIntent(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createAssetUploadIntent(user, body);
   }
 
   @Post('assets/:assetId/confirm-upload')
+  @RequireAdminPermissions('assets:write')
   confirmAssetUpload(
     @CurrentUser() user: AuthUser,
     @Param('assetId') assetId: string,
@@ -114,6 +131,7 @@ export class AdminController {
   }
 
   @Post('assets/:assetId/archive')
+  @RequireAdminPermissions('assets:write')
   archiveAsset(
     @CurrentUser() user: AuthUser,
     @Param('assetId') assetId: string,
@@ -123,16 +141,19 @@ export class AdminController {
   }
 
   @Post('assets/:assetId/restore')
+  @RequireAdminPermissions('assets:write')
   restoreAsset(@CurrentUser() user: AuthUser, @Param('assetId') assetId: string) {
     return this.adminService.restoreAsset(user, assetId);
   }
 
   @Post('artists')
+  @RequireAdminPermissions('artists:write')
   createArtist(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createArtist(user, body);
   }
 
   @Patch('artists/:artistId')
+  @RequireAdminPermissions('artists:write')
   updateArtist(
     @CurrentUser() user: AuthUser,
     @Param('artistId') artistId: string,
@@ -142,6 +163,7 @@ export class AdminController {
   }
 
   @Post('artists/:artistId/assets')
+  @RequireAdminPermissions('artists:write', 'assets:write')
   linkArtistAsset(
     @CurrentUser() user: AuthUser,
     @Param('artistId') artistId: string,
@@ -151,6 +173,7 @@ export class AdminController {
   }
 
   @Delete('artists/:artistId/assets/:artistAssetId')
+  @RequireAdminPermissions('artists:write', 'assets:write')
   unlinkArtistAsset(
     @CurrentUser() user: AuthUser,
     @Param('artistId') artistId: string,
@@ -160,11 +183,13 @@ export class AdminController {
   }
 
   @Post('shortforms')
+  @RequireAdminPermissions('shortforms:write')
   createShortform(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createShortform(user, body);
   }
 
   @Patch('shortforms/:shortformId')
+  @RequireAdminPermissions('shortforms:write')
   updateShortform(
     @CurrentUser() user: AuthUser,
     @Param('shortformId') shortformId: string,
@@ -174,6 +199,7 @@ export class AdminController {
   }
 
   @Post('shortforms/:shortformId/assets')
+  @RequireAdminPermissions('shortforms:write', 'assets:write')
   linkShortformAsset(
     @CurrentUser() user: AuthUser,
     @Param('shortformId') shortformId: string,
@@ -183,6 +209,7 @@ export class AdminController {
   }
 
   @Delete('shortforms/:shortformId/assets/:shortformAssetId')
+  @RequireAdminPermissions('shortforms:write', 'assets:write')
   unlinkShortformAsset(
     @CurrentUser() user: AuthUser,
     @Param('shortformId') shortformId: string,
@@ -192,11 +219,13 @@ export class AdminController {
   }
 
   @Post('lumina-products')
+  @RequireAdminPermissions('commerce:write')
   createLuminaProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createLuminaProduct(user, body);
   }
 
   @Patch('lumina-products/:productId')
+  @RequireAdminPermissions('commerce:write')
   updateLuminaProduct(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
@@ -206,11 +235,13 @@ export class AdminController {
   }
 
   @Post('gift-products')
+  @RequireAdminPermissions('commerce:write')
   createGiftProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createGiftProduct(user, body);
   }
 
   @Patch('gift-products/:productId')
+  @RequireAdminPermissions('commerce:write')
   updateGiftProduct(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
@@ -220,11 +251,13 @@ export class AdminController {
   }
 
   @Post('boost-products')
+  @RequireAdminPermissions('commerce:write')
   createBoostProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createBoostProduct(user, body);
   }
 
   @Patch('boost-products/:productId')
+  @RequireAdminPermissions('commerce:write')
   updateBoostProduct(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
@@ -234,11 +267,13 @@ export class AdminController {
   }
 
   @Post('boost-campaigns')
+  @RequireAdminPermissions('commerce:write')
   createBoostCampaign(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createBoostCampaign(user, body);
   }
 
   @Patch('boost-campaigns/:campaignId')
+  @RequireAdminPermissions('commerce:write')
   updateBoostCampaign(
     @CurrentUser() user: AuthUser,
     @Param('campaignId') campaignId: string,
@@ -248,6 +283,7 @@ export class AdminController {
   }
 
   @Post('boost-campaigns/:campaignId/snapshot')
+  @RequireAdminPermissions('commerce:write')
   snapshotBoostCampaign(
     @CurrentUser() user: AuthUser,
     @Param('campaignId') campaignId: string,
@@ -256,11 +292,13 @@ export class AdminController {
   }
 
   @Post('premium-video-products')
+  @RequireAdminPermissions('commerce:write')
   createPremiumVideoProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createPremiumVideoProduct(user, body);
   }
 
   @Patch('premium-video-products/:productId')
+  @RequireAdminPermissions('commerce:write')
   updatePremiumVideoProduct(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
@@ -270,6 +308,7 @@ export class AdminController {
   }
 
   @Post('premium-video-products/:productId/assets')
+  @RequireAdminPermissions('commerce:write', 'assets:write')
   linkPremiumVideoAsset(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
@@ -279,6 +318,7 @@ export class AdminController {
   }
 
   @Delete('premium-video-products/:productId/assets/:premiumVideoAssetId')
+  @RequireAdminPermissions('commerce:write', 'assets:write')
   unlinkPremiumVideoAsset(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,
@@ -292,11 +332,13 @@ export class AdminController {
   }
 
   @Post('chat-feature-products')
+  @RequireAdminPermissions('commerce:write')
   createChatFeatureProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
     return this.adminService.createChatFeatureProduct(user, body);
   }
 
   @Patch('chat-feature-products/:productId')
+  @RequireAdminPermissions('commerce:write')
   updateChatFeatureProduct(
     @CurrentUser() user: AuthUser,
     @Param('productId') productId: string,

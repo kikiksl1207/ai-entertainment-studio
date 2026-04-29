@@ -172,7 +172,7 @@ Paid webhook handling uses an atomic order-status transition before crediting Lu
 
 Admin endpoints use `Authorization: Bearer <access-token>`.
 
-Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EMAILS` remains as a bootstrap fallback so the first trusted operator can log in and create DB admin users.
+Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EMAILS` remains as a bootstrap fallback so the first trusted operator can log in and create DB admin users. Admin endpoints also enforce route-level permissions from `admin_roles.permissions`.
 
 - `GET /admin/api/v1/admin-roles`
 - `GET /admin/api/v1/admin-users`
@@ -224,6 +224,15 @@ Seeded roles:
 - `super_admin`: full admin access, can create/update admin users.
 - `content_admin`: content and artist operations.
 - `commerce_admin`: product, payment, gift, boost, premium video operations.
+
+Permission notes:
+
+- `*`: full access.
+- `assets:write`, `artists:write`, `shortforms:write`: content operations.
+- `commerce:write`: product, boost, premium video, chat feature, and refund operations.
+- `payments:read`: payment and refund lookup.
+- `audit:read`: audit event lookup.
+- A `*:write` permission also allows the matching `*:read` permission.
 
 Admin refund APIs create and track refund records only. Actual PG refund execution should be implemented in the provider adapter after the production PG is selected.
 

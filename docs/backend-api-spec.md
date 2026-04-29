@@ -200,6 +200,15 @@ POST /api/v1/chat-feature-orders
 
 ## Admin APIs
 
+관리자 API는 `admin_users` + `admin_roles.permissions` 기반으로 route-level permission을 검사한다.
+
+- `*`: 전체 관리자 권한
+- `assets:write`, `artists:write`, `shortforms:write`: 콘텐츠 운영
+- `commerce:write`: 상품, 부스트, 프리미엄 영상, 채팅 상품, 환불 운영
+- `payments:read`: 결제/환불 조회
+- `audit:read`: 감사로그 조회
+- `*:write` 권한은 같은 리소스의 `*:read`도 허용한다.
+
 ### Content / Assets
 
 ```http
