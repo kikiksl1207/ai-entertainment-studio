@@ -234,6 +234,9 @@ Permission notes:
 - `audit:read`: audit event lookup.
 - A `*:write` permission also allows the matching `*:read` permission.
 
+See `../docs/admin-permission-matrix.md` for the full route permission matrix
+and recommended future operator roles.
+
 Admin refund APIs create and track refund records only. Actual PG refund execution should be implemented in the provider adapter after the production PG is selected.
 
 For the first admin:
