@@ -118,6 +118,7 @@ POST /api/v1/payments/webhooks/:provider
 - 웹훅 provider와 주문 provider가 다르면 결제를 확정하지 않는다.
 - 결제 성공 웹훅은 주문 row의 상태를 조건부로 `paid` 전환한 요청만 루미나 지급까지 진행한다.
 - 이미 `paid`인 주문에 대한 웹훅 재전송이나 중복 이벤트는 idempotent replay로 처리하고 추가 지급하지 않는다.
+- Payment and refund state transitions are documented in `docs/payment-refund-state-policy.md`.
 
 ### Gifts
 

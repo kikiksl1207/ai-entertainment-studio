@@ -168,6 +168,9 @@ Payment webhook handlers preserve the raw request body so real PG adapters can v
 
 Paid webhook handling uses an atomic order-status transition before crediting Lumina. If the order is already `paid`, repeated or competing webhooks are treated as idempotent replays and do not create another wallet credit.
 
+See `../docs/payment-refund-state-policy.md` for the payment and refund state
+transition policy that real PG adapters must follow.
+
 ## Admin MVP APIs
 
 Admin endpoints use `Authorization: Bearer <access-token>`.
