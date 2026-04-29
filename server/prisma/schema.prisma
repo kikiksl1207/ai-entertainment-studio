@@ -28,6 +28,10 @@ model User {
   auditEvents       AuditEvent[]
   adminAccess       AdminUser?               @relation("AdminAccess")
   createdAdminUsers AdminUser[]              @relation("AdminCreatedBy")
+  referralCode      UserReferralCode?
+  sentReferrals     ReferralReward[]         @relation("ReferralReferrer")
+  receivedReferral  ReferralReward?          @relation("ReferralReferred")
+  attendanceRewards DailyAttendanceReward[]
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -288,6 +292,55 @@ model WalletLedger {
   @@index([walletAccountId, createdAt], map: "idx_wallet_ledger_account_created")
   @@index([referenceType, referenceId], map: "idx_wallet_ledger_reference")
   @@map("wallet_ledger")
+}
+
+model UserReferralCode {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  code      String   @unique
+  status    String   @default("active")
+  useCount  Int      @default(0) @map("use_count")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([status], map: "idx_user_referral_codes_status")
+  @@map("user_referral_codes")
+}
+
+model ReferralReward {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referrerUserId   String   @map("referrer_user_id") @db.Uuid
+  referredUserId   String   @unique @map("referred_user_id") @db.Uuid
+  referralCodeId   String   @map("referral_code_id") @db.Uuid
+  referrerAmount   Decimal  @map("referrer_amount") @db.Decimal(18, 2)
+  referredAmount   Decimal  @map("referred_amount") @db.Decimal(18, 2)
+  referrerLedgerId String?  @map("referrer_ledger_id") @db.Uuid
+  referredLedgerId String?  @map("referred_ledger_id") @db.Uuid
+  status           String   @default("granted")
+  idempotencyKey   String   @unique @map("idempotency_key")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  referrer         User     @relation("ReferralReferrer", fields: [referrerUserId], references: [id])
+  referred         User     @relation("ReferralReferred", fields: [referredUserId], references: [id])
+
+  @@index([referrerUserId, createdAt], map: "idx_referral_rewards_referrer_created")
+  @@index([referralCodeId], map: "idx_referral_rewards_code")
+  @@map("referral_rewards")
+}
+
+model DailyAttendanceReward {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  serviceDate    DateTime @map("service_date") @db.Date
+  rewardLumina   Decimal  @map("reward_lumina") @db.Decimal(18, 2)
+  walletLedgerId String?  @map("wallet_ledger_id") @db.Uuid
+  idempotencyKey String   @unique @map("idempotency_key")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, serviceDate])
+  @@index([serviceDate], map: "idx_daily_attendance_rewards_date")
+  @@map("daily_attendance_rewards")
 }
 
 model LuminaProduct {

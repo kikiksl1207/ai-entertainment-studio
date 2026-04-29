@@ -37,6 +37,16 @@ export class RegisterDto {
   @MinLength(2)
   @MaxLength(50)
   displayName?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MinLength(6)
+  @MaxLength(24)
+  @Matches(/^[A-Z0-9_-]+$/, {
+    message: 'referralCode can include only uppercase letters, numbers, underscores, and hyphens',
+  })
+  referralCode?: string;
 }
 
 export class LoginDto {
@@ -77,4 +87,14 @@ export class SocialLoginDto {
   @MinLength(2)
   @MaxLength(50)
   displayName?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MinLength(6)
+  @MaxLength(24)
+  @Matches(/^[A-Z0-9_-]+$/, {
+    message: 'referralCode can include only uppercase letters, numbers, underscores, and hyphens',
+  })
+  referralCode?: string;
 }

@@ -1,0 +1,31 @@
+import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { AuthUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RewardsService } from './rewards.service';
+
+@Controller('rewards')
+@UseGuards(JwtAuthGuard)
+export class RewardsController {
+  constructor(private readonly rewardsService: RewardsService) {}
+
+  @Get('referral-code')
+  getReferralCode(@CurrentUser() user: AuthUser) {
+    return this.rewardsService.getOrCreateReferralCode(user.id);
+  }
+
+  @Get('referrals')
+  getReferralRewards(@CurrentUser() user: AuthUser) {
+    return this.rewardsService.getReferralRewards(user.id);
+  }
+
+  @Post('daily-attendance')
+  claimDailyAttendance(@CurrentUser() user: AuthUser) {
+    return this.rewardsService.claimDailyAttendance(user.id);
+  }
+
+  @Get('daily-attendance')
+  getDailyAttendanceHistory(@CurrentUser() user: AuthUser) {
+    return this.rewardsService.getDailyAttendanceHistory(user.id);
+  }
+}

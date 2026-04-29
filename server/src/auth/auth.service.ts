@@ -17,6 +17,7 @@ import { SocialAuthService } from './social-auth.service';
 const PASSWORD_HASH_ROUNDS = 12;
 const LUMINA_CURRENCY_CODE = 'LUMINA';
 const SIGNUP_BONUS_LUMINA = 300;
+const REFERRAL_REWARD_LUMINA = 500;
 
 @Injectable()
 export class AuthService {
@@ -72,6 +73,7 @@ export class AuthService {
       });
 
       await this.createWalletWithSignupBonus(tx, createdUser.id);
+      await this.applyReferralReward(tx, createdUser.id, input.referralCode);
 
       return createdUser;
     });
@@ -210,6 +212,7 @@ export class AuthService {
       });
 
       await this.createWalletWithSignupBonus(tx, createdUser.id);
+      await this.applyReferralReward(tx, createdUser.id, input.referralCode);
 
       return createdUser;
     });
@@ -414,6 +417,127 @@ export class AuthService {
     });
 
     return wallet;
+  }
+
+  private async applyReferralReward(
+    tx: Prisma.TransactionClient,
+    referredUserId: string,
+    referralCode?: string,
+  ) {
+    if (!referralCode) {
+      return null;
+    }
+
+    const code = await tx.userReferralCode.findFirst({
+      where: {
+        code: referralCode,
+        status: 'active',
+        user: {
+          status: 'active',
+          deletedAt: null,
+        },
+      },
+    });
+
+    if (!code) {
+      throw new BadRequestException('Referral code is not valid');
+    }
+
+    if (code.userId === referredUserId) {
+      throw new BadRequestException('Self referral is not allowed');
+    }
+
+    const existingReward = await tx.referralReward.findUnique({
+      where: { referredUserId },
+    });
+
+    if (existingReward) {
+      return existingReward;
+    }
+
+    const [referrerWallet, referredWallet] = await Promise.all([
+      tx.walletAccount.findUnique({
+        where: {
+          userId_currencyCode: {
+            userId: code.userId,
+            currencyCode: LUMINA_CURRENCY_CODE,
+          },
+        },
+      }),
+      tx.walletAccount.findUnique({
+        where: {
+          userId_currencyCode: {
+            userId: referredUserId,
+            currencyCode: LUMINA_CURRENCY_CODE,
+          },
+        },
+      }),
+    ]);
+
+    if (!referrerWallet || referrerWallet.status !== 'active') {
+      throw new BadRequestException('Referrer wallet is not active');
+    }
+
+    if (!referredWallet || referredWallet.status !== 'active') {
+      throw new BadRequestException('Referred wallet is not active');
+    }
+
+    const referrerLedger = await tx.walletLedger.create({
+      data: {
+        walletAccountId: referrerWallet.id,
+        direction: 'credit',
+        amount: REFERRAL_REWARD_LUMINA,
+        ledgerType: 'referral_reward',
+        referenceType: 'user',
+        referenceId: referredUserId,
+        idempotencyKey: `referral:referrer:${referredUserId}`,
+        memo: 'Referral reward',
+      },
+    });
+
+    const referredLedger = await tx.walletLedger.create({
+      data: {
+        walletAccountId: referredWallet.id,
+        direction: 'credit',
+        amount: REFERRAL_REWARD_LUMINA,
+        ledgerType: 'referral_signup_bonus',
+        referenceType: 'user',
+        referenceId: code.userId,
+        idempotencyKey: `referral:referred:${referredUserId}`,
+        memo: 'Referral signup bonus',
+      },
+    });
+
+    await Promise.all([
+      tx.walletAccount.update({
+        where: { id: referrerWallet.id },
+        data: { cachedBalance: { increment: REFERRAL_REWARD_LUMINA } },
+      }),
+      tx.walletAccount.update({
+        where: { id: referredWallet.id },
+        data: { cachedBalance: { increment: REFERRAL_REWARD_LUMINA } },
+      }),
+      tx.userReferralCode.update({
+        where: { id: code.id },
+        data: {
+          useCount: { increment: 1 },
+          updatedAt: new Date(),
+        },
+      }),
+    ]);
+
+    return tx.referralReward.create({
+      data: {
+        referrerUserId: code.userId,
+        referredUserId,
+        referralCodeId: code.id,
+        referrerAmount: REFERRAL_REWARD_LUMINA,
+        referredAmount: REFERRAL_REWARD_LUMINA,
+        referrerLedgerId: referrerLedger.id,
+        referredLedgerId: referredLedger.id,
+        idempotencyKey: `referral:${referredUserId}`,
+      },
+    });
   }
 
   private durationToMs(value: string) {

@@ -13,6 +13,7 @@ import { PremiumVideosModule } from './premium-videos/premium-videos.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ArtistsModule } from './public/artists/artists.module';
 import { ShortformsModule } from './public/shortforms/shortforms.module';
+import { RewardsModule } from './rewards/rewards.module';
 import { WalletModule } from './wallet/wallet.module';
 
 @Module({
@@ -33,6 +34,7 @@ import { WalletModule } from './wallet/wallet.module';
     PremiumVideosModule,
     ChatModule,
     PaymentsModule,
+    RewardsModule,
   ],
   controllers: [HealthController],
 })

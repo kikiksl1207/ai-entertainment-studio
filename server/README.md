@@ -93,6 +93,10 @@ Refresh tokens are stored as SHA-256 hashes in `user_refresh_tokens`. `POST /api
 - `GET /api/v1/wallet`
 - `GET /api/v1/wallet/ledger?take=50`
 - `POST /api/v1/wallet/test-grant`
+- `GET /api/v1/rewards/referral-code`
+- `GET /api/v1/rewards/referrals`
+- `POST /api/v1/rewards/daily-attendance`
+- `GET /api/v1/rewards/daily-attendance`
 
 Local test grant example:
 
@@ -265,6 +269,8 @@ npm.cmd run verify:object-storage
 ```
 
 See `../docs/lumina-economy-policy.md` for Lumina/Stella pricing, signup/referral/attendance rewards, gift participation minimums, and accounting rules.
+
+Reward endpoints grant Lumina through `wallet_ledger` only. `POST /api/v1/rewards/daily-attendance` grants 100 Lumina once per Korea service date. Referral codes are created with `GET /api/v1/rewards/referral-code`; passing `referralCode` to email or social signup grants 500 Lumina to the referrer and 500 Lumina to the new user.
 
 The script creates an upload intent, uploads a generated 1x1 PNG to the presigned URL, confirms the upload, and reads back the asset.
 

@@ -43,6 +43,21 @@ Referral and daily attendance rewards must be implemented with dedicated anti-ab
 - daily attendance unique key per user and service date
 - wallet ledger idempotency keys for every reward
 
+Implemented backend records:
+
+- `user_referral_codes`: one active referral code per user
+- `referral_rewards`: one granted referral reward per referred user
+- `daily_attendance_rewards`: one attendance grant per user per Korea service date
+
+Implemented reward APIs:
+
+- `GET /api/v1/rewards/referral-code`
+- `GET /api/v1/rewards/referrals`
+- `POST /api/v1/rewards/daily-attendance`
+- `GET /api/v1/rewards/daily-attendance`
+
+Email and social signup accept optional `referralCode`. If the code is valid, active, and owned by another active user, both users receive referral Lumina through wallet ledger credits.
+
 ## Gifts
 
 Small instant gifts should remain low-friction:
