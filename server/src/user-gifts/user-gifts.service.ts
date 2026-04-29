@@ -1,10 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const MIN_USER_GIFT_LUMINA = new Decimal(10);
 const MAX_USER_GIFT_LUMINA = new Decimal(100000);
+const DAILY_USER_GIFT_COUNT_LIMIT = 20;
+const DAILY_USER_GIFT_LUMINA_LIMIT = new Decimal(100000);
+const MONTHLY_USER_GIFT_LUMINA_LIMIT = new Decimal(1000000);
 
 @Injectable()
 export class UserGiftsService {
@@ -77,6 +81,8 @@ export class UserGiftsService {
       if (!recipientWallet || recipientWallet.status !== 'active') {
         throw new BadRequestException('Active recipient wallet not found');
       }
+
+      await this.enforceSenderLimits(tx, senderUserId, amount);
 
       const transfer = await tx.userGiftTransfer.create({
         data: {
@@ -210,5 +216,69 @@ export class UserGiftsService {
     }
 
     return normalizedAmount;
+  }
+
+  private async enforceSenderLimits(
+    tx: Prisma.TransactionClient,
+    senderUserId: string,
+    amount: Decimal,
+  ) {
+    const [dailySent, monthlySent] = await Promise.all([
+      tx.userGiftTransfer.aggregate({
+        where: {
+          senderUserId,
+          status: 'completed',
+          createdAt: { gte: this.startOfKoreanDay() },
+        },
+        _count: { _all: true },
+        _sum: { amountLumina: true },
+      }),
+      tx.userGiftTransfer.aggregate({
+        where: {
+          senderUserId,
+          status: 'completed',
+          createdAt: { gte: this.startOfKoreanMonth() },
+        },
+        _sum: { amountLumina: true },
+      }),
+    ]);
+
+    if ((dailySent._count._all ?? 0) >= DAILY_USER_GIFT_COUNT_LIMIT) {
+      throw new BadRequestException('Daily user gift count limit exceeded');
+    }
+
+    const dailyTotal = new Decimal(dailySent._sum.amountLumina ?? 0).plus(amount);
+    if (dailyTotal.gt(DAILY_USER_GIFT_LUMINA_LIMIT)) {
+      throw new BadRequestException('Daily user gift Lumina limit exceeded');
+    }
+
+    const monthlyTotal = new Decimal(monthlySent._sum.amountLumina ?? 0).plus(amount);
+    if (monthlyTotal.gt(MONTHLY_USER_GIFT_LUMINA_LIMIT)) {
+      throw new BadRequestException('Monthly user gift Lumina limit exceeded');
+    }
+  }
+
+  private startOfKoreanDay() {
+    return this.koreanDateBoundary({ day: '2-digit' });
+  }
+
+  private startOfKoreanMonth() {
+    return this.koreanDateBoundary({ day: undefined });
+  }
+
+  private koreanDateBoundary(options: { day?: '2-digit' }) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      ...(options.day ? { day: options.day } : {}),
+    }).formatToParts(new Date());
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = options.day
+      ? parts.find((part) => part.type === 'day')?.value
+      : '01';
+
+    return new Date(`${year}-${month}-${day}T00:00:00.000Z`);
   }
 }

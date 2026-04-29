@@ -103,13 +103,16 @@ Current rules:
 
 - minimum transfer: 10 Lumina
 - maximum transfer: 100,000 Lumina
+- daily transfer count limit: 20 sends
+- daily sent Lumina limit: 100,000 Lumina
+- monthly sent Lumina limit: 1,000,000 Lumina
 - self-send blocked
 - sender and recipient must both have active wallets
 
 Future controls:
 
 - moderation and fraud metadata
-- optional daily/monthly send limits
+- operator-configurable risk tiers
 
 ## Accounting Principles
 

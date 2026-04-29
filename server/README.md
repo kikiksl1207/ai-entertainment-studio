@@ -275,7 +275,7 @@ See `../docs/lumina-economy-policy.md` for Lumina/Stella pricing, signup/referra
 
 Reward endpoints grant Lumina through `wallet_ledger` only. `POST /api/v1/rewards/daily-attendance` grants 100 Lumina once per Korea service date. Referral codes are created with `GET /api/v1/rewards/referral-code`; passing `referralCode` to email or social signup grants 500 Lumina to the referrer and 500 Lumina to the new user.
 
-User-to-user gift transfers move Lumina between two active wallets in one transaction. The sender receives a `user_gift_send` debit ledger, the recipient receives a `user_gift_receive` credit ledger, and `user_gift_transfers` stores the visible transfer record. Minimum transfer amount is 10 Lumina.
+User-to-user gift transfers move Lumina between two active wallets in one transaction. The sender receives a `user_gift_send` debit ledger, the recipient receives a `user_gift_receive` credit ledger, and `user_gift_transfers` stores the visible transfer record. Minimum transfer amount is 10 Lumina. Sender limits are 20 transfers per Korea service day, 100,000 Lumina per day, and 1,000,000 Lumina per month.
 
 The script creates an upload intent, uploads a generated 1x1 PNG to the presigned URL, confirms the upload, and reads back the asset.
 
