@@ -218,6 +218,18 @@ For the first admin:
 2. Log in and call `POST /admin/api/v1/admin-users` with that user's `email` or `userId` and `roleName`.
 3. Remove or narrow `ADMIN_EMAILS` once DB admin users are configured.
 
+## Object Storage Verification
+
+After `OBJECT_STORAGE_*` environment variables are configured, verify S3/R2 upload flow with:
+
+```powershell
+$env:API_BASE_URL="https://lumina-stage-api.onrender.com"
+$env:ADMIN_ACCESS_TOKEN="<admin access token>"
+npm.cmd run verify:object-storage
+```
+
+The script creates an upload intent, uploads a generated 1x1 PNG to the presigned URL, confirms the upload, and reads back the asset.
+
 ## Database Notes
 
 The first Prisma migration is copied from `../docs/postgresql-schema.sql` so the implementation stays aligned with the current backend/DB design document. The Prisma schema currently maps the public read models needed for the first API slice: artists, artist profiles, assets, artist assets, shortforms, and shortform assets. Commerce, wallet, gift, boost, premium video, and chat models remain in the SQL migration and can be added to `schema.prisma` as their API modules are implemented.

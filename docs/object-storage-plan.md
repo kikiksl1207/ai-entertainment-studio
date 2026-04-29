@@ -128,3 +128,44 @@ Current status:
 - In `r2` or `s3` mode, confirmation sends a signed `HEAD` request to verify that the object exists before updating metadata.
 - The endpoint writes an `asset.upload.confirm` audit event.
 - Public artist and shortform APIs filter out `pending_upload` assets and return only frontend-safe asset fields.
+
+## End-to-end verification script
+
+The server includes a no-secret-in-repo verification script:
+
+```bash
+cd server
+npm run verify:object-storage
+```
+
+Required environment variable:
+
+```env
+ADMIN_ACCESS_TOKEN=<admin access token>
+```
+
+Optional environment variables:
+
+```env
+API_BASE_URL=https://lumina-stage-api.onrender.com
+TEST_FILE_PATH=C:\path\to\test-image.png
+TEST_ASSET_TYPE=image
+TEST_VISIBILITY=public
+TEST_USAGE=object_storage_e2e
+```
+
+Default behavior:
+
+- Creates an upload intent with a generated 1x1 PNG.
+- Uploads the file to the returned presigned `PUT` URL.
+- Calls `POST /admin/api/v1/assets/:assetId/confirm-upload`.
+- Fetches `GET /admin/api/v1/assets/:assetId`.
+- Checks the public asset URL with `HEAD` if a public URL is configured.
+
+PowerShell example:
+
+```powershell
+$env:API_BASE_URL="https://lumina-stage-api.onrender.com"
+$env:ADMIN_ACCESS_TOKEN="<admin access token>"
+npm.cmd run verify:object-storage
+```
