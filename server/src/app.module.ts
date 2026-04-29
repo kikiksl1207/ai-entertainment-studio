@@ -14,6 +14,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ArtistsModule } from './public/artists/artists.module';
 import { ShortformsModule } from './public/shortforms/shortforms.module';
 import { RewardsModule } from './rewards/rewards.module';
+import { UserGiftsModule } from './user-gifts/user-gifts.module';
 import { WalletModule } from './wallet/wallet.module';
 
 @Module({
@@ -35,6 +36,7 @@ import { WalletModule } from './wallet/wallet.module';
     ChatModule,
     PaymentsModule,
     RewardsModule,
+    UserGiftsModule,
   ],
   controllers: [HealthController],
 })

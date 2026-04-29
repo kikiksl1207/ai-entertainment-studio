@@ -32,6 +32,8 @@ model User {
   sentReferrals     ReferralReward[]         @relation("ReferralReferrer")
   receivedReferral  ReferralReward?          @relation("ReferralReferred")
   attendanceRewards DailyAttendanceReward[]
+  sentUserGifts     UserGiftTransfer[]       @relation("UserGiftSender")
+  receivedUserGifts UserGiftTransfer[]       @relation("UserGiftRecipient")
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -341,6 +343,25 @@ model DailyAttendanceReward {
   @@unique([userId, serviceDate])
   @@index([serviceDate], map: "idx_daily_attendance_rewards_date")
   @@map("daily_attendance_rewards")
+}
+
+model UserGiftTransfer {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  senderUserId       String   @map("sender_user_id") @db.Uuid
+  recipientUserId    String   @map("recipient_user_id") @db.Uuid
+  amountLumina       Decimal  @map("amount_lumina") @db.Decimal(18, 2)
+  senderLedgerId     String?  @map("sender_ledger_id") @db.Uuid
+  recipientLedgerId  String?  @map("recipient_ledger_id") @db.Uuid
+  message            String?
+  status             String   @default("completed")
+  idempotencyKey     String?  @unique @map("idempotency_key")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  sender             User     @relation("UserGiftSender", fields: [senderUserId], references: [id])
+  recipient          User     @relation("UserGiftRecipient", fields: [recipientUserId], references: [id])
+
+  @@index([senderUserId, createdAt], map: "idx_user_gift_transfers_sender_created")
+  @@index([recipientUserId, createdAt], map: "idx_user_gift_transfers_recipient_created")
+  @@map("user_gift_transfers")
 }
 
 model LuminaProduct {

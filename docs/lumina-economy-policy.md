@@ -86,12 +86,28 @@ Progressive unlocks should affect character outfits, items, images, or premium c
 
 User-to-user gifts are planned but not part of the current API surface. They should be implemented as wallet transfer ledgers, not by directly editing user balances.
 
-Required future records:
+Implemented records:
 
 - sender wallet debit ledger
 - receiver wallet credit ledger
 - transfer order row with status
 - idempotency key
+
+Implemented APIs:
+
+- `POST /api/v1/user-gifts`
+- `GET /api/v1/user-gifts/sent`
+- `GET /api/v1/user-gifts/received`
+
+Current rules:
+
+- minimum transfer: 10 Lumina
+- maximum transfer: 100,000 Lumina
+- self-send blocked
+- sender and recipient must both have active wallets
+
+Future controls:
+
 - moderation and fraud metadata
 - optional daily/monthly send limits
 
