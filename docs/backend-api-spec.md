@@ -344,6 +344,8 @@ Response shape:
 ### Commerce / Operations
 
 ```http
+GET /admin/api/v1/payment-orders
+GET /admin/api/v1/payment-orders/:orderId
 POST /admin/api/v1/lumina-products
 PATCH /admin/api/v1/lumina-products/:productId
 POST /admin/api/v1/gift-products
@@ -353,6 +355,16 @@ PATCH /admin/api/v1/premium-video-products/:productId
 POST /admin/api/v1/chat-feature-products
 PATCH /admin/api/v1/chat-feature-products/:productId
 ```
+
+`GET /admin/api/v1/payment-orders`는 결제/루미나 지급 운영 확인용이다. Query filter:
+
+- `status`
+- `provider`
+- `userId`
+- `orderNo`
+- `take` capped at 100
+
+상세 응답은 사용자, 루미나 상품, PG transaction, refund transaction을 함께 포함한다.
 
 ### Boost / Ranking Operations
 

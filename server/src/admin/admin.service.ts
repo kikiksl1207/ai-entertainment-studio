@@ -168,6 +168,44 @@ export class AdminService {
     });
   }
 
+  getPaymentOrders(query: AuditQuery) {
+    const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
+    const orderNo = this.optionalString(query, 'orderNo');
+    const where: Prisma.PaymentOrderWhereInput = this.clean({
+      userId: this.optionalString(query, 'userId'),
+      provider: this.optionalString(query, 'provider'),
+      status: this.optionalString(query, 'status'),
+      orderNo: orderNo
+        ? {
+            contains: orderNo,
+            mode: 'insensitive',
+          }
+        : undefined,
+    });
+
+    return this.prisma.paymentOrder.findMany({
+      where,
+      take,
+      orderBy: { createdAt: 'desc' },
+      include: this.paymentOrderInclude(),
+    });
+  }
+
+  async getPaymentOrder(orderId: string) {
+    const order = await this.prisma.paymentOrder.findFirst({
+      where: {
+        OR: [{ id: orderId }, { orderNo: orderId }],
+      },
+      include: this.paymentOrderInclude(),
+    });
+
+    if (!order) {
+      throw new NotFoundException('Payment order not found');
+    }
+
+    return order;
+  }
+
   async getAssets(query: AuditQuery) {
     const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
     const where: Prisma.AssetWhereInput = this.clean({
@@ -1162,6 +1200,26 @@ export class AdminService {
         },
       },
     } satisfies Prisma.AssetInclude;
+  }
+
+  private paymentOrderInclude() {
+    return {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          status: true,
+          createdAt: true,
+        },
+      },
+      luminaProduct: true,
+      transactions: {
+        orderBy: { createdAt: 'desc' as const },
+      },
+      refunds: {
+        orderBy: { createdAt: 'desc' as const },
+      },
+    } satisfies Prisma.PaymentOrderInclude;
   }
 
   private presentAsset(

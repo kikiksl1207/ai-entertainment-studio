@@ -51,6 +51,16 @@ export class AdminController {
     return this.adminService.getAuditEvents(query);
   }
 
+  @Get('payment-orders')
+  getPaymentOrders(@Query() query: AuditQuery) {
+    return this.adminService.getPaymentOrders(query);
+  }
+
+  @Get('payment-orders/:orderId')
+  getPaymentOrder(@Param('orderId') orderId: string) {
+    return this.adminService.getPaymentOrder(orderId);
+  }
+
   @Get('assets')
   getAssets(@Query() query: AuditQuery) {
     return this.adminService.getAssets(query);
