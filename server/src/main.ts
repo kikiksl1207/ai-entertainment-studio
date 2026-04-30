@@ -5,6 +5,12 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { createValidationException } from './common/validation-exception.factory';
 
+const defaultCorsOrigins = [
+  'https://lumina-stage.com',
+  'https://www.lumina-stage.com',
+  'https://ai-entertainment-studio.vercel.app',
+];
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const configService = app.get(ConfigService);
@@ -39,7 +45,10 @@ function parseCorsOrigins(value?: string) {
     return true;
   }
 
-  return value.split(',').map((origin) => origin.trim()).filter(Boolean);
+  return [...new Set([
+    ...defaultCorsOrigins,
+    ...value.split(',').map((origin) => origin.trim()).filter(Boolean),
+  ])];
 }
 
 void bootstrap();
