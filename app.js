@@ -233,12 +233,21 @@ const characterFrontAssets = {
     ]
   },
   "park-doa": {
-    cover: "./assets/characters/park-doa/reference-final/01_mukbang-main-cover.png",
-    thumb: "./assets/characters/park-doa/reference-final/02_mukbang-close-thumb.png",
+    cover: "./assets/characters/park-doa/reference-final/01_mukbang-main-smile-01.png",
+    thumb: "./assets/characters/park-doa/reference-final/09_streamer-selfie-reaction-01.png",
     gallery: [
-      ["Mukbang main", "./assets/characters/park-doa/reference-final/01_mukbang-main-cover.png"],
-      ["Mukbang close-up", "./assets/characters/park-doa/reference-final/02_mukbang-close-thumb.png"],
-      ["Reaction wave", "./assets/characters/park-doa/reference-final/03_mukbang-wave-01.png"]
+      ["Mukbang main smile", "./assets/characters/park-doa/reference-final/01_mukbang-main-smile-01.png"],
+      ["Big reaction", "./assets/characters/park-doa/reference-final/02_mukbang-big-reaction-01.png"],
+      ["Food reaction", "./assets/characters/park-doa/reference-final/03_mukbang-food-reaction-01.png"],
+      ["Table smile", "./assets/characters/park-doa/reference-final/04_mukbang-table-smile-01.png"],
+      ["Drink sofa", "./assets/characters/park-doa/reference-final/05_vlog-drink-sofa-01.png"],
+      ["Cushion smile", "./assets/characters/park-doa/reference-final/06_vlog-cushion-smile-01.png"],
+      ["Sofa natural", "./assets/characters/park-doa/reference-final/07_vlog-sofa-natural-01.png"],
+      ["Talking reaction", "./assets/characters/park-doa/reference-final/08_talking-reaction-01.png"],
+      ["Selfie reaction", "./assets/characters/park-doa/reference-final/09_streamer-selfie-reaction-01.png"],
+      ["Drink selfie", "./assets/characters/park-doa/reference-final/10_streamer-drink-selfie-01.png"],
+      ["Mukbang bite", "./assets/characters/park-doa/reference-final/11_mukbang-bite-01.png"],
+      ["Surprised bite", "./assets/characters/park-doa/reference-final/12_mukbang-surprised-bite-01.png"]
     ]
   }
 };
