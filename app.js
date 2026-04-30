@@ -180,6 +180,87 @@ const characters = [
   }
 ];
 
+const characterFrontAssets = {
+  "yoon-serin": {
+    cover: "./assets/characters/yoon-serin/reference-final/13_stage-cover-candidate-04.png",
+    thumb: "./assets/characters/yoon-serin/reference-final/10_official-profile-close-03.png",
+    gallery: [
+      ["Full body", "./assets/characters/yoon-serin/reference-final/01_full-body-reference-01.png"],
+      ["Close-up stage", "./assets/characters/yoon-serin/reference-final/02_close-up-stage-01.png"],
+      ["Profile upper", "./assets/characters/yoon-serin/reference-final/03_profile-upper-01.png"],
+      ["Upper body stage", "./assets/characters/yoon-serin/reference-final/04_upper-body-stage-01.png"],
+      ["Performance half", "./assets/characters/yoon-serin/reference-final/05_performance-half-01.png"],
+      ["Editorial close-up", "./assets/characters/yoon-serin/reference-final/06_editorial-closeup-01.png"],
+      ["Stage half body", "./assets/characters/yoon-serin/reference-final/07_stage-half-body-01.png"],
+      ["Mic command", "./assets/characters/yoon-serin/reference-final/08_stage-mic-command-02.png"],
+      ["Beauty close-up", "./assets/characters/yoon-serin/reference-final/09_beauty-closeup-02.png"],
+      ["Official profile", "./assets/characters/yoon-serin/reference-final/10_official-profile-close-03.png"],
+      ["Soft profile", "./assets/characters/yoon-serin/reference-final/11_official-profile-soft-04.png"],
+      ["Backstage corridor", "./assets/characters/yoon-serin/reference-final/12_backstage-corridor-03.png"],
+      ["Stage cover", "./assets/characters/yoon-serin/reference-final/13_stage-cover-candidate-04.png"],
+      ["Backstage side", "./assets/characters/yoon-serin/reference-final/14_backstage-corridor-02.png"],
+      ["Styling chair", "./assets/characters/yoon-serin/reference-final/15_backstage-styling-chair-01.png"],
+      ["Side profile", "./assets/characters/yoon-serin/reference-final/16_profile-side-03.png"],
+      ["Rehearsal focus", "./assets/characters/yoon-serin/reference-final/17_rehearsal-focus-02.png"],
+      ["Stage cover alt", "./assets/characters/yoon-serin/reference-final/18_stage-cover-candidate-02.png"],
+      ["Stage full body", "./assets/characters/yoon-serin/reference-final/19_stage-full-body-02.png"],
+      ["Stage upper body", "./assets/characters/yoon-serin/reference-final/20_stage-upper-body-02.png"]
+    ]
+  },
+  "han-seoyul": {
+    cover: "./assets/characters/han-seoyul/reference/cover-mid-01.png",
+    thumb: "./assets/characters/han-seoyul/reference/thumb-closeup-01.png",
+    gallery: [
+      ["Angle profile", "./assets/characters/han-seoyul/reference/angle-profile-01.png"],
+      ["Backstage emotion", "./assets/characters/han-seoyul/reference/backstage-emotion-closeup-01.png"],
+      ["Backstage in-ear", "./assets/characters/han-seoyul/reference/backstage-in-ear-01.png"],
+      ["Cover mid", "./assets/characters/han-seoyul/reference/cover-mid-01.png"],
+      ["Mirror rehearsal", "./assets/characters/han-seoyul/reference/dance-rehearsal-mirror-01.png"],
+      ["Fan service", "./assets/characters/han-seoyul/reference/fanservice-selfie-01.png"],
+      ["Focused rehearsal", "./assets/characters/han-seoyul/reference/focused-rehearsal-notes-01.png"],
+      ["Full body angle", "./assets/characters/han-seoyul/reference/full-body-angle-walk-01.png"],
+      ["Full body 01", "./assets/characters/han-seoyul/reference/full-body-reference-01.png"],
+      ["Full body 02", "./assets/characters/han-seoyul/reference/full-body-reference-02.png"],
+      ["Performance mic 01", "./assets/characters/han-seoyul/reference/performance-mic-01.png"],
+      ["Performance mic 02", "./assets/characters/han-seoyul/reference/performance-mic-02.png"],
+      ["Performance mic 03", "./assets/characters/han-seoyul/reference/performance-mic-03.png"],
+      ["Pout expression", "./assets/characters/han-seoyul/reference/pout-expression-01.png"],
+      ["Recording booth", "./assets/characters/han-seoyul/reference/recording-booth-headphone-01.png"],
+      ["Vocal practice", "./assets/characters/han-seoyul/reference/rehearsal-vocal-practice-01.png"],
+      ["Stage motion", "./assets/characters/han-seoyul/reference/stage-motion-hair-01.png"],
+      ["Thumb close-up 01", "./assets/characters/han-seoyul/reference/thumb-closeup-01.png"],
+      ["Thumb close-up 02", "./assets/characters/han-seoyul/reference/thumb-closeup-02.png"]
+    ]
+  },
+  "park-doa": {
+    cover: "./assets/characters/park-doa/reference-final/01_mukbang-main-cover.png",
+    thumb: "./assets/characters/park-doa/reference-final/02_mukbang-close-thumb.png",
+    gallery: [
+      ["Mukbang main", "./assets/characters/park-doa/reference-final/01_mukbang-main-cover.png"],
+      ["Mukbang close-up", "./assets/characters/park-doa/reference-final/02_mukbang-close-thumb.png"],
+      ["Reaction wave", "./assets/characters/park-doa/reference-final/03_mukbang-wave-01.png"]
+    ]
+  }
+};
+
+characters.forEach((artist) => {
+  const front = characterFrontAssets[artist.slug];
+  if (!front) {
+    artist.gallery = [
+      { caption: "Cover", src: artist.images.cover },
+      { caption: "Thumbnail", src: artist.images.thumb }
+    ];
+    return;
+  }
+
+  artist.images = {
+    ...artist.images,
+    cover: front.cover || artist.images.cover,
+    thumb: front.thumb || artist.images.thumb
+  };
+  artist.gallery = front.gallery.map(([caption, src]) => ({ caption, src }));
+});
+
 /* ── 상태 메타 ──────────────────────────────── */
 const statusMeta = {
   public: { label: "공개 활동 중", summaryLabel: "공개 중", className: "is-public" },
@@ -246,6 +327,7 @@ function adaptArtist(api) {
       cover: api.coverImage  || api.cover_image  || local.images?.cover,
       thumb: api.thumbImage  || api.thumb_image  || local.images?.thumb
     },
+    gallery:           local.gallery || [],
     profile:           api.profile || local.profile || {},
     shorts:            api.shorts  || local.shorts  || [],
     // 프론트 전용 필드: 항상 로컬 유지
@@ -520,13 +602,21 @@ function renderCharacterDetail() {
 
   const gallery = document.getElementById("detailGallery");
   if (gallery) {
+    const galleryItems = artist.gallery?.length
+      ? artist.gallery
+      : [
+          { caption: "Cover", src: artist.images.cover },
+          { caption: "Thumbnail", src: artist.images.thumb }
+        ];
     gallery.innerHTML = artist.status === "secret" ? "" : `
-      <div><p class="eyebrow">대표 컷</p><h3>대표 이미지</h3></div>
+      <div><p class="eyebrow">Reference pack</p><h3>운영 이미지 갤러리</h3></div>
       <div class="detail-gallery-grid">
-        <article class="detail-gallery-card"><img class="detail-gallery-image" src="${artist.images.cover}" alt="${artist.publicName} 커버" /><div class="detail-gallery-caption">커버 컷</div></article>
-        <article class="detail-gallery-card"><img class="detail-gallery-image" src="${artist.images.thumb}" alt="${artist.publicName} 썸네일" /><div class="detail-gallery-caption">썸네일 컷</div></article>
-        <article class="detail-gallery-card"><img class="detail-gallery-image detail-gallery-image-crop1" src="${artist.images.cover}" alt="${artist.publicName} 포즈 컷" /><div class="detail-gallery-caption">포즈 컷</div></article>
-        <article class="detail-gallery-card"><img class="detail-gallery-image detail-gallery-image-crop2" src="${artist.images.thumb}" alt="${artist.publicName} 클로즈업" /><div class="detail-gallery-caption">클로즈업</div></article>
+        ${galleryItems.map((item) => `
+          <article class="detail-gallery-card">
+            <img class="detail-gallery-image" src="${item.src}" alt="${artist.publicName} ${item.caption}" loading="lazy" />
+            <div class="detail-gallery-caption">${item.caption}</div>
+          </article>
+        `).join("")}
       </div>`;
   }
 
