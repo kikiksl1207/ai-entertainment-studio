@@ -182,8 +182,6 @@ const characters = [
 
 const characterFrontAssets = {
   "yoon-serin": {
-    cover: "./assets/characters/yoon-serin/reference-final/13_stage-cover-candidate-04.png",
-    thumb: "./assets/characters/yoon-serin/reference-final/10_official-profile-close-03.png",
     gallery: [
       ["Full body", "./assets/characters/yoon-serin/reference-final/01_full-body-reference-01.png"],
       ["Close-up stage", "./assets/characters/yoon-serin/reference-final/02_close-up-stage-01.png"],
@@ -208,8 +206,6 @@ const characterFrontAssets = {
     ]
   },
   "han-seoyul": {
-    cover: "./assets/characters/han-seoyul/reference/cover-mid-01.png",
-    thumb: "./assets/characters/han-seoyul/reference/thumb-closeup-01.png",
     gallery: [
       ["Angle profile", "./assets/characters/han-seoyul/reference/angle-profile-01.png"],
       ["Backstage emotion", "./assets/characters/han-seoyul/reference/backstage-emotion-closeup-01.png"],
@@ -233,8 +229,6 @@ const characterFrontAssets = {
     ]
   },
   "park-doa": {
-    cover: "./assets/characters/park-doa/reference-final/01_mukbang-main-smile-01.png",
-    thumb: "./assets/characters/park-doa/reference-final/09_streamer-selfie-reaction-01.png",
     gallery: [
       ["Mukbang main smile", "./assets/characters/park-doa/reference-final/01_mukbang-main-smile-01.png"],
       ["Big reaction", "./assets/characters/park-doa/reference-final/02_mukbang-big-reaction-01.png"],
@@ -262,11 +256,6 @@ characters.forEach((artist) => {
     return;
   }
 
-  artist.images = {
-    ...artist.images,
-    cover: front.cover || artist.images.cover,
-    thumb: front.thumb || artist.images.thumb
-  };
   artist.gallery = front.gallery.map(([caption, src]) => ({ caption, src }));
 });
 
