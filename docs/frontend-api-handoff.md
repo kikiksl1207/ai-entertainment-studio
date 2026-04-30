@@ -5,7 +5,7 @@
 Production backend:
 
 ```txt
-https://lumina-stage-api.onrender.com/api/v1
+https://api.lumina-stage.com/api/v1
 ```
 
 Local backend:
@@ -14,7 +14,11 @@ Local backend:
 http://localhost:3001/api/v1
 ```
 
-Render free instances can sleep. The first request after inactivity may take 30-60 seconds.
+Render fallback backend:
+
+```txt
+https://lumina-stage-api.onrender.com/api/v1
+```
 
 ## Health Check
 

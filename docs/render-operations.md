@@ -40,15 +40,30 @@ The seed script is designed to be idempotent for MVP content, so re-running it s
 
 ## Verification URLs
 
+Production domains:
+
+```text
+Frontend: https://lumina-stage.com
+Frontend alias: https://www.lumina-stage.com
+Backend API: https://api.lumina-stage.com
+```
+
 Health:
 
 ```text
-https://lumina-stage-api.onrender.com/health
+https://api.lumina-stage.com/health
 ```
 
 Public artists:
 
 ```text
+https://api.lumina-stage.com/api/v1/artists
+```
+
+Render fallback URLs remain usable for incident checks:
+
+```text
+https://lumina-stage-api.onrender.com/health
 https://lumina-stage-api.onrender.com/api/v1/artists
 ```
 
@@ -63,6 +78,7 @@ Expected initial public artist slugs:
 
 ## Notes
 
-- Render Free web services do not provide Shell access, so production seed work should be done through a temporary start command or a paid one-off job.
+- Render web service and Postgres should stay on paid instances for stable API wake time and database retention.
 - Do not keep `render:start:seed` as the permanent start command. It adds unnecessary startup work and can overwrite seed-managed copy.
 - Public detail profile facts are stored under `publicProfile.publicMetadata.profileFacts` in the API response.
+- Production `CORS_ORIGINS` should include `https://lumina-stage.com`, `https://www.lumina-stage.com`, the Vercel fallback URL, and local QA origins only.

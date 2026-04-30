@@ -10,7 +10,10 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   app.setGlobalPrefix('api/v1', {
-    exclude: [{ path: 'admin/api/v1/{*path}', method: RequestMethod.ALL }],
+    exclude: [
+      { path: 'admin/api/v1/{*path}', method: RequestMethod.ALL },
+      { path: 'health', method: RequestMethod.GET },
+    ],
   });
   app.useGlobalPipes(
     new ValidationPipe({
