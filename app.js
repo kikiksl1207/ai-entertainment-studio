@@ -10,20 +10,304 @@
    로컬 개발: 'http://localhost:3000'
    빈 문자열 = 로컬 데이터 fallback 자동 사용
    ─────────────────────────────────────────── */
-const API_BASE = "https://api.lumina-stage.com/api/v1";
+const API_BASE = "https://api.lumina-stage.com";
 
-async function apiFetch(path) {
+async function apiFetch(path, options = {}) {
   if (!API_BASE) return null;
+  const { method = "GET", body, auth = false, throwOnError = false } = options;
+
+  const headers = {};
+  if (body) headers["Content-Type"] = "application/json";
+  if (auth) {
+    const token = getAccessToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
+
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(API_BASE + path, { signal: controller.signal });
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(API_BASE + path, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal
+    });
     clearTimeout(timer);
-    if (!res.ok) throw new Error("API " + res.status);
+
+    if (!res.ok) {
+      if (throwOnError) {
+        const errBody = await res.json().catch(() => ({}));
+        const err = new Error(errBody.message || errBody.error?.message || `요청 실패 (${res.status})`);
+        err.status = res.status;
+        err.body = errBody;
+        throw err;
+      }
+      return null;
+    }
+
+    if (res.status === 204) return null;
     return await res.json();
-  } catch {
+  } catch (e) {
+    if (throwOnError) throw e;
     return null;
   }
+}
+
+/* ── 인증 (Auth) ───────────────────────────────
+   localStorage 기반 토큰 관리 + 로그인/회원가입/로그아웃
+   ─────────────────────────────────────────── */
+const AUTH_STORAGE_KEY = "lumina_auth";
+
+function getAuth() {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function setAuth(auth) {
+  if (auth) localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
+  else      localStorage.removeItem(AUTH_STORAGE_KEY);
+}
+function clearAuth() { setAuth(null); }
+function isLoggedIn() { return !!(getAuth()?.accessToken); }
+function getAccessToken() { return getAuth()?.accessToken || null; }
+
+async function authLogin(email, password) {
+  const data = await apiFetch("/api/v1/auth/login", {
+    method: "POST",
+    body: { email, password },
+    throwOnError: true
+  });
+  if (data?.accessToken) setAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
+  return data;
+}
+async function authRegister(email, password, displayName) {
+  const data = await apiFetch("/api/v1/auth/register", {
+    method: "POST",
+    body: { email, password, displayName },
+    throwOnError: true
+  });
+  if (data?.accessToken) setAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
+  return data;
+}
+async function authLogout() {
+  try { await apiFetch("/api/v1/auth/logout", { method: "POST", auth: true }); } catch {}
+  clearAuth();
+  updateAuthUI();
+}
+
+/* ── 인증 모달 (로그인/회원가입) ─────────────── */
+function createAuthModal() {
+  if (document.getElementById("authModal")) return;
+  const modal = document.createElement("div");
+  modal.id = "authModal";
+  modal.className = "auth-modal-overlay";
+  modal.innerHTML = `
+    <div class="auth-modal" role="dialog" aria-modal="true">
+      <button class="auth-modal-close" aria-label="닫기">✕</button>
+      <div class="auth-modal-tabs">
+        <button class="auth-modal-tab is-active" data-tab="login" type="button">로그인</button>
+        <button class="auth-modal-tab" data-tab="register" type="button">회원가입</button>
+      </div>
+      <form class="auth-modal-form" data-form="login" novalidate>
+        <h2>다시 만나서 반가워요</h2>
+        <p class="auth-modal-subtitle">Lumina Stage에 입장하세요</p>
+        <div class="auth-modal-error" data-error hidden></div>
+        <label class="auth-modal-field"><span>이메일</span>
+          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
+        <label class="auth-modal-field"><span>비밀번호</span>
+          <input type="password" name="password" required autocomplete="current-password" /></label>
+        <button type="submit" class="auth-modal-submit">로그인</button>
+      </form>
+      <form class="auth-modal-form" data-form="register" novalidate hidden>
+        <h2>Lumina Stage 가입</h2>
+        <p class="auth-modal-subtitle">팬으로서 좋아요와 응원을 보내세요</p>
+        <div class="auth-modal-error" data-error hidden></div>
+        <label class="auth-modal-field"><span>이메일</span>
+          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
+        <label class="auth-modal-field"><span>닉네임</span>
+          <input type="text" name="displayName" required autocomplete="nickname" placeholder="팬덤에서 쓸 이름" /></label>
+        <label class="auth-modal-field"><span>비밀번호 (8자 이상)</span>
+          <input type="password" name="password" required minlength="8" autocomplete="new-password" /></label>
+        <button type="submit" class="auth-modal-submit">가입하기</button>
+      </form>
+
+      <!-- 공통 소셜 로그인 영역 (활성화된 provider 자동 표시) -->
+      <div class="auth-modal-social-section" id="authSocialSection" hidden>
+        <div class="auth-modal-divider"><span>또는</span></div>
+        <div class="auth-modal-social" id="authSocialButtons"></div>
+      </div>
+
+      <!-- 탭별 푸터 -->
+      <p class="auth-modal-foot" data-foot="login">처음이신가요?
+        <button type="button" class="auth-modal-switch" data-switch="register">회원가입</button></p>
+      <p class="auth-modal-foot" data-foot="register" hidden>이미 계정이 있으신가요?
+        <button type="button" class="auth-modal-switch" data-switch="login">로그인</button></p>
+    </div>`;
+  document.body.appendChild(modal);
+  bindAuthModalEvents(modal);
+}
+
+function bindAuthModalEvents(modal) {
+  modal.querySelector(".auth-modal-close").addEventListener("click", closeAuthModal);
+  modal.addEventListener("click", e => { if (e.target === modal) closeAuthModal(); });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && modal.classList.contains("is-open")) closeAuthModal();
+  });
+  modal.querySelectorAll(".auth-modal-tab").forEach(t =>
+    t.addEventListener("click", () => switchAuthTab(t.dataset.tab)));
+  modal.querySelectorAll(".auth-modal-switch").forEach(b =>
+    b.addEventListener("click", () => switchAuthTab(b.dataset.switch)));
+
+  // 로그인 폼
+  modal.querySelector('[data-form="login"]').addEventListener("submit", async e => {
+    e.preventDefault();
+    await handleAuthSubmit(e.currentTarget, "login");
+  });
+  // 회원가입 폼
+  modal.querySelector('[data-form="register"]').addEventListener("submit", async e => {
+    e.preventDefault();
+    await handleAuthSubmit(e.currentTarget, "register");
+  });
+}
+
+async function handleAuthSubmit(form, mode) {
+  const errorEl = form.querySelector("[data-error]");
+  const submitBtn = form.querySelector(".auth-modal-submit");
+  const originalText = submitBtn.textContent;
+  errorEl.hidden = true;
+  submitBtn.disabled = true;
+  submitBtn.textContent = mode === "login" ? "로그인 중..." : "가입 중...";
+  try {
+    if (mode === "login") {
+      await authLogin(form.email.value.trim(), form.password.value);
+    } else {
+      await authRegister(form.email.value.trim(), form.password.value, form.displayName.value.trim());
+    }
+    closeAuthModal();
+    updateAuthUI();
+    form.reset();
+  } catch (err) {
+    errorEl.textContent = err.message || (mode === "login" ? "로그인에 실패했습니다." : "가입에 실패했습니다.");
+    errorEl.hidden = false;
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalText;
+  }
+}
+
+function openAuthModal(tab = "login") {
+  createAuthModal();
+  const modal = document.getElementById("authModal");
+  switchAuthTab(tab);
+  modal.classList.add("is-open");
+  document.body.style.overflow = "hidden";
+  setTimeout(() => modal.querySelector(`[data-form="${tab}"] input[name="email"]`)?.focus(), 120);
+  // 소셜 로그인 버튼 자동 로드 (활성화된 provider만)
+  renderSocialButtons();
+}
+function closeAuthModal() {
+  const modal = document.getElementById("authModal");
+  if (!modal) return;
+  modal.classList.remove("is-open");
+  document.body.style.overflow = "";
+}
+function switchAuthTab(tab) {
+  const modal = document.getElementById("authModal");
+  if (!modal) return;
+  modal.querySelectorAll(".auth-modal-tab").forEach(t => t.classList.toggle("is-active", t.dataset.tab === tab));
+  modal.querySelectorAll(".auth-modal-form").forEach(f => f.hidden = f.dataset.form !== tab);
+  modal.querySelectorAll("[data-foot]").forEach(f => f.hidden = f.dataset.foot !== tab);
+  modal.querySelectorAll("[data-error]").forEach(e => e.hidden = true);
+}
+
+/* ── 소셜 로그인 (Google/Kakao/Naver/Apple) ── */
+let _socialProvidersCache = null;
+
+async function loadSocialProviders() {
+  if (_socialProvidersCache !== null) return _socialProvidersCache;
+  const data = await apiFetch("/api/v1/auth/social/providers");
+  _socialProvidersCache = data?.providers?.filter(p => p.enabled) || [];
+  return _socialProvidersCache;
+}
+
+function getProviderIcon(provider) {
+  // 간단한 SVG 아이콘 (브랜드 로고)
+  const icons = {
+    google: '<svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.79 2.71v2.26h2.9c1.7-1.56 2.69-3.86 2.69-6.61z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.81.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.34A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7c-.18-.54-.28-1.12-.28-1.7s.1-1.16.28-1.7V4.96H.96A8.997 8.997 0 0 0 0 9c0 1.45.35 2.83.96 4.04l2.99-2.34z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A8.997 8.997 0 0 0 .96 4.96l2.99 2.34C4.66 5.17 6.65 3.58 9 3.58z"/></svg>',
+    kakao: '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#000" d="M9 1C4.58 1 1 3.85 1 7.36c0 2.27 1.49 4.26 3.74 5.39-.16.62-.6 2.27-.69 2.62-.11.43.16.43.34.31.14-.09 2.21-1.5 3.1-2.11.5.07 1.01.11 1.51.11 4.42 0 8-2.85 8-6.36S13.42 1 9 1z"/></svg>',
+    naver: '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#fff" d="M11.46 9.16L6.4 1.5H1.5v15h5.04V8.84l5.06 7.66h4.9V1.5h-5.04v7.66z"/></svg>',
+    apple: '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="currentColor" d="M14.41 9.55c-.02-2.13 1.74-3.16 1.82-3.21-1-1.46-2.55-1.66-3.1-1.68-1.32-.13-2.57.78-3.24.78-.67 0-1.7-.76-2.8-.74-1.44.02-2.77.84-3.51 2.13-1.5 2.6-.38 6.45 1.08 8.56.71 1.04 1.56 2.2 2.66 2.16 1.07-.04 1.47-.69 2.76-.69 1.29 0 1.65.69 2.78.66 1.15-.02 1.88-1.05 2.59-2.1.81-1.2 1.15-2.36 1.17-2.42-.03-.01-2.24-.86-2.21-3.45zM12.34 3.4c.59-.71.99-1.71.88-2.7-.85.03-1.88.57-2.49 1.28-.55.63-1.03 1.65-.9 2.61.95.07 1.92-.48 2.51-1.19z"/></svg>'
+  };
+  return icons[provider] || '';
+}
+
+async function renderSocialButtons() {
+  const providers = await loadSocialProviders();
+  const section = document.getElementById("authSocialSection");
+  const container = document.getElementById("authSocialButtons");
+  if (!section || !container) return;
+
+  if (!providers || providers.length === 0) {
+    section.hidden = true;
+    return;
+  }
+
+  section.hidden = false;
+  container.innerHTML = providers.map(p => `
+    <button type="button" class="auth-social-btn auth-social-${p.provider}" data-provider="${p.provider}">
+      <span class="auth-social-icon">${getProviderIcon(p.provider)}</span>
+      <span>${p.displayName}로 계속하기</span>
+    </button>
+  `).join("");
+
+  container.querySelectorAll(".auth-social-btn").forEach(btn => {
+    btn.addEventListener("click", () => handleSocialLogin(btn.dataset.provider));
+  });
+}
+
+async function handleSocialLogin(provider) {
+  // TODO: 실제 OAuth 흐름은 다음 단계에서 통합
+  // (Google Identity Services SDK 또는 redirect flow)
+  alert(`${provider} 로그인은 곧 추가됩니다!\n\nClient ID와 OAuth 흐름을 사용자와 함께 설정한 뒤 바로 동작합니다.`);
+}
+
+/* ── 헤더 UI 동기화 + 버튼 이벤트 ───────────── */
+function updateAuthUI() {
+  const auth = getAuth();
+  const loginBtn = document.querySelector(".auth-btn-login");
+  const signupBtn = document.querySelector(".auth-btn-signup");
+  if (!loginBtn || !signupBtn) return;
+  if (auth?.user) {
+    loginBtn.textContent = auth.user.displayName || auth.user.email?.split("@")[0] || "내 계정";
+    signupBtn.textContent = "로그아웃";
+    signupBtn.dataset.action = "logout";
+  } else {
+    loginBtn.textContent = "로그인";
+    signupBtn.textContent = "회원가입";
+    signupBtn.dataset.action = "signup";
+  }
+}
+function bindAuthHeaderEvents() {
+  const loginBtn = document.querySelector(".auth-btn-login");
+  const signupBtn = document.querySelector(".auth-btn-signup");
+  if (!loginBtn || !signupBtn) return;
+  loginBtn.addEventListener("click", e => {
+    e.preventDefault();
+    if (isLoggedIn()) {
+      // TODO: 사용자 드롭다운 (다음 단계)
+    } else {
+      openAuthModal("login");
+    }
+  });
+  signupBtn.addEventListener("click", e => {
+    e.preventDefault();
+    if (signupBtn.dataset.action === "logout") {
+      authLogout();
+    } else {
+      openAuthModal("register");
+    }
+  });
 }
 
 /* ── 캐릭터 마스터 데이터 (로컬 fallback) ─────
@@ -1046,6 +1330,11 @@ function initLightbox(items, artistName) {
 }
 
 async function init() {
+  // 🔥 인증 UI는 API 호출 전에 먼저 초기화 (await에 막히지 않게)
+  createAuthModal();
+  bindAuthHeaderEvents();
+  updateAuthUI();
+
   const apiArtists = await apiFetch("/api/v1/artists");
   if (apiArtists && Array.isArray(apiArtists)) {
     _artists = apiArtists.map(adaptArtist);
