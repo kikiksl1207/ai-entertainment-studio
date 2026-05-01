@@ -100,6 +100,7 @@ POST /api/v1/auth/password-resets
 POST /api/v1/auth/password-resets/confirm
 GET /api/v1/me
 PATCH /api/v1/me/password
+DELETE /api/v1/me
 GET /api/v1/me/sessions
 DELETE /api/v1/me/sessions
 DELETE /api/v1/me/sessions/:sessionId
@@ -119,6 +120,15 @@ PATCH /api/v1/me/settings
 - 요청 API는 계정 존재 여부를 노출하지 않기 위해 항상 `ok: true` 형태로 응답한다.
 - 현재는 메일 발송 adapter가 없는 skeleton 상태이며 `delivery.status = "not_configured"`를 반환한다.
 - 실제 메일 provider 연결 전까지 raw token을 로그, Git, Notion, 채팅에 남기지 않는다.
+
+Account deletion / moderation policy:
+
+- `DELETE /api/v1/me` soft-deletes the current account. Email-password accounts must send `currentPassword`; social-only accounts may omit it.
+- Account deletion sets `users.status = deleted`, sets `deleted_at`, revokes all refresh-token sessions, consumes outstanding user action tokens, deactivates the user's referral code, and writes a `user.self_delete` audit event.
+- Wallet ledgers, payment orders, gift records, and audit history are retained.
+- Admin moderation endpoints are available under `/admin/api/v1/users`: list/detail/suspend/restore/delete.
+- Suspension sets `users.status = suspended` and revokes sessions. Restore sets `users.status = active` and clears `deleted_at`; it does not restore old refresh tokens.
+- `JwtAuthGuard` checks the current DB user status on protected requests, so suspended/deleted accounts cannot continue using old access tokens.
 
 ### Wallet / Lumina
 

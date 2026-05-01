@@ -58,6 +58,48 @@ export class AdminController {
     return this.adminService.getAuditEvents(query);
   }
 
+  @Get('users')
+  @RequireAdminPermissions('*')
+  getUsers(@Query() query: AuditQuery) {
+    return this.adminService.getUsers(query);
+  }
+
+  @Get('users/:userId')
+  @RequireAdminPermissions('*')
+  getUser(@Param('userId') userId: string) {
+    return this.adminService.getUser(userId);
+  }
+
+  @Post('users/:userId/suspend')
+  @RequireAdminPermissions('*')
+  suspendUser(
+    @CurrentUser() user: AuthUser,
+    @Param('userId') userId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.suspendUser(user, userId, body);
+  }
+
+  @Post('users/:userId/restore')
+  @RequireAdminPermissions('*')
+  restoreUser(
+    @CurrentUser() user: AuthUser,
+    @Param('userId') userId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.restoreUser(user, userId, body);
+  }
+
+  @Post('users/:userId/delete')
+  @RequireAdminPermissions('*')
+  deleteUser(
+    @CurrentUser() user: AuthUser,
+    @Param('userId') userId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.deleteUser(user, userId, body);
+  }
+
   @Get('payment-orders')
   @RequireAdminPermissions('payments:read')
   getPaymentOrders(@Query() query: AuditQuery) {

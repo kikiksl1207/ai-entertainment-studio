@@ -169,6 +169,165 @@ export class AdminService {
     });
   }
 
+  getUsers(query: AuditQuery) {
+    const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
+    const email = this.optionalString(query, 'email');
+    const status = this.optionalString(query, 'status');
+    const where: Prisma.UserWhereInput = this.clean({
+      status,
+      email: email
+        ? {
+            contains: email,
+            mode: 'insensitive',
+          }
+        : undefined,
+    });
+
+    return this.prisma.user.findMany({
+      where,
+      take,
+      orderBy: { createdAt: 'desc' },
+      select: this.userModerationSelect(),
+    });
+  }
+
+  async getUser(userId: string) {
+    const user = await this.findUserForModeration(userId);
+    return user;
+  }
+
+  async suspendUser(user: AuthUser, userId: string, input: AdminPayload) {
+    this.assertNotSelf(user, userId);
+
+    const before = await this.findUserForModeration(userId);
+
+    if (before.deletedAt || before.status === 'deleted') {
+      throw new BadRequestException('Deleted user cannot be suspended');
+    }
+
+    const now = new Date();
+    const [updatedUser, revokedSessions] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          status: 'suspended',
+          updatedAt: now,
+        },
+        select: this.userModerationSelect(),
+      }),
+      this.prisma.userRefreshToken.updateMany({
+        where: {
+          userId,
+          revokedAt: null,
+        },
+        data: { revokedAt: now },
+      }),
+    ]);
+
+    await this.recordAudit(
+      user,
+      'user.suspend',
+      'user',
+      updatedUser.id,
+      before,
+      updatedUser,
+      { reason: this.optionalString(input, 'reason'), revokedSessionCount: revokedSessions.count },
+    );
+
+    return {
+      ok: true,
+      user: updatedUser,
+      revokedSessionCount: revokedSessions.count,
+    };
+  }
+
+  async restoreUser(user: AuthUser, userId: string, input: AdminPayload) {
+    const before = await this.findUserForModeration(userId);
+    const now = new Date();
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        status: 'active',
+        deletedAt: null,
+        updatedAt: now,
+      },
+      select: this.userModerationSelect(),
+    });
+
+    await this.recordAudit(
+      user,
+      'user.restore',
+      'user',
+      updatedUser.id,
+      before,
+      updatedUser,
+      { reason: this.optionalString(input, 'reason') },
+    );
+
+    return {
+      ok: true,
+      user: updatedUser,
+    };
+  }
+
+  async deleteUser(user: AuthUser, userId: string, input: AdminPayload) {
+    this.assertNotSelf(user, userId);
+
+    const before = await this.findUserForModeration(userId);
+    const now = new Date();
+    const [updatedUser, revokedSessions] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          status: 'deleted',
+          deletedAt: now,
+          updatedAt: now,
+        },
+        select: this.userModerationSelect(),
+      }),
+      this.prisma.userRefreshToken.updateMany({
+        where: {
+          userId,
+          revokedAt: null,
+        },
+        data: { revokedAt: now },
+      }),
+      this.prisma.userActionToken.updateMany({
+        where: {
+          userId,
+          consumedAt: null,
+        },
+        data: { consumedAt: now },
+      }),
+      this.prisma.userReferralCode.updateMany({
+        where: {
+          userId,
+          status: 'active',
+        },
+        data: {
+          status: 'inactive',
+          updatedAt: now,
+        },
+      }),
+    ]);
+
+    await this.recordAudit(
+      user,
+      'user.delete',
+      'user',
+      updatedUser.id,
+      before,
+      updatedUser,
+      { reason: this.optionalString(input, 'reason'), revokedSessionCount: revokedSessions.count },
+    );
+
+    return {
+      ok: true,
+      user: updatedUser,
+      revokedSessionCount: revokedSessions.count,
+    };
+  }
+
   getPaymentOrders(query: AuditQuery) {
     const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
     const orderNo = this.optionalString(query, 'orderNo');
@@ -1287,6 +1446,68 @@ export class AdminService {
     });
   }
 
+  private userModerationSelect() {
+    return {
+      id: true,
+      email: true,
+      phoneNumber: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+      deletedAt: true,
+      profile: {
+        select: {
+          displayName: true,
+        },
+      },
+      authAccounts: {
+        select: {
+          provider: true,
+          lastLoginAt: true,
+          createdAt: true,
+        },
+      },
+      walletAccounts: {
+        select: {
+          id: true,
+          currencyCode: true,
+          status: true,
+          cachedBalance: true,
+        },
+      },
+      _count: {
+        select: {
+          refreshTokens: {
+            where: {
+              revokedAt: null,
+              expiresAt: { gt: new Date() },
+            },
+          },
+          paymentOrders: true,
+          sentUserGifts: true,
+          receivedUserGifts: true,
+        },
+      },
+    } satisfies Prisma.UserSelect;
+  }
+
+  private async findUserForModeration(userId: string) {
+    if (!this.isUuid(userId)) {
+      throw new BadRequestException('userId must be a UUID');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: this.userModerationSelect(),
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
+  }
+
   private assetRelationInclude() {
     return {
       artistAssets: {
@@ -1591,6 +1812,12 @@ export class AdminService {
       !user.adminPermissions?.includes('*')
     ) {
       throw new ForbiddenException('Super admin access is required');
+    }
+  }
+
+  private assertNotSelf(user: AuthUser, targetUserId: string) {
+    if (user.id === targetUserId) {
+      throw new BadRequestException('You cannot perform this action on your own account');
     }
   }
 

@@ -15,6 +15,7 @@ import {
   ChangePasswordDto,
   ConfirmEmailVerificationDto,
   ConfirmPasswordResetDto,
+  DeleteAccountDto,
   LoginDto,
   RegisterDto,
   RequestEmailVerificationDto,
@@ -579,7 +580,120 @@ export class AuthService {
     };
   }
 
+  async deleteAccount(userId: string, input: DeleteAccountDto) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      include: {
+        authAccounts: {
+          where: { provider: 'email' },
+          select: {
+            passwordHash: true,
+          },
+          take: 1,
+        },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Active user not found');
+    }
+
+    const emailPasswordHash = user.authAccounts[0]?.passwordHash;
+
+    if (emailPasswordHash) {
+      if (!input.currentPassword) {
+        throw new BadRequestException('currentPassword is required');
+      }
+
+      const passwordMatches = await bcrypt.compare(input.currentPassword, emailPasswordHash);
+
+      if (!passwordMatches) {
+        throw new UnauthorizedException('Current password is invalid');
+      }
+    }
+
+    const now = new Date();
+    const [updatedUser, revokedSessions] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          status: 'deleted',
+          deletedAt: now,
+          updatedAt: now,
+        },
+        select: {
+          id: true,
+          email: true,
+          status: true,
+          deletedAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.userRefreshToken.updateMany({
+        where: {
+          userId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: now,
+        },
+      }),
+      this.prisma.userActionToken.updateMany({
+        where: {
+          userId,
+          consumedAt: null,
+        },
+        data: {
+          consumedAt: now,
+        },
+      }),
+      this.prisma.userReferralCode.updateMany({
+        where: {
+          userId,
+          status: 'active',
+        },
+        data: {
+          status: 'inactive',
+          updatedAt: now,
+        },
+      }),
+    ]);
+
+    await this.prisma.auditEvent.create({
+      data: {
+        actorUserId: userId,
+        actorType: 'user',
+        action: 'user.self_delete',
+        targetType: 'user',
+        targetId: userId,
+        beforeData: this.toJson({
+          id: user.id,
+          email: user.email,
+          status: user.status,
+          deletedAt: user.deletedAt,
+        }),
+        afterData: this.toJson(updatedUser),
+        metadata: this.toJson({
+          reason: this.truncateNullable(input.reason, 500),
+          revokedSessionCount: revokedSessions.count,
+        }),
+      },
+    });
+
+    return {
+      ok: true,
+      user: updatedUser,
+      revokedSessionCount: revokedSessions.count,
+    };
+  }
+
   async listActiveSessions(userId: string) {
+    await this.assertActiveUser(userId);
+
     const now = new Date();
     const sessions = await this.prisma.userRefreshToken.findMany({
       where: {
@@ -603,6 +717,8 @@ export class AuthService {
   }
 
   async revokeSession(userId: string, sessionId: string) {
+    await this.assertActiveUser(userId);
+
     const result = await this.prisma.userRefreshToken.updateMany({
       where: {
         id: sessionId,
@@ -621,6 +737,8 @@ export class AuthService {
   }
 
   async revokeAllSessions(userId: string) {
+    await this.assertActiveUser(userId);
+
     const result = await this.prisma.userRefreshToken.updateMany({
       where: {
         userId,
@@ -957,6 +1075,21 @@ export class AuthService {
     }
   }
 
+  private async assertActiveUser(userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User is not active');
+    }
+  }
+
   private hasConfig(key: string) {
     return Boolean(this.configService.get<string>(key)?.trim());
   }
@@ -969,5 +1102,13 @@ export class AuthService {
     }
 
     return normalized.slice(0, maxLength);
+  }
+
+  private toJson(value: unknown) {
+    if (value === null || value === undefined) {
+      return Prisma.JsonNull;
+    }
+
+    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
   }
 }

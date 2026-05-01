@@ -78,6 +78,19 @@ export class ChangePasswordDto {
   newPassword!: string;
 }
 
+export class DeleteAccountDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  currentPassword?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
 export class RequestEmailVerificationDto {
   @Transform(normalizeEmail)
   @IsEmail()

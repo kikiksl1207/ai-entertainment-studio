@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthUser, JwtPayload } from '../auth.types';
+import { PrismaService } from '../../prisma/prisma.service';
 
 type RequestWithAuth = {
   headers: Record<string, string | string[] | undefined>;
@@ -18,6 +19,7 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext) {
@@ -37,9 +39,25 @@ export class JwtAuthGuard implements CanActivate {
         throw new UnauthorizedException('Access token is required');
       }
 
+      const user = await this.prisma.user.findFirst({
+        where: {
+          id: payload.sub,
+          status: 'active',
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          email: true,
+        },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('User is not active');
+      }
+
       request.user = {
-        id: payload.sub,
-        email: payload.email,
+        id: user.id,
+        email: user.email ?? payload.email,
       };
 
       return true;

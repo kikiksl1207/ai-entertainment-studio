@@ -185,6 +185,7 @@ POST /auth/password-resets
 POST /auth/password-resets/confirm
 GET /me
 PATCH /me/password
+DELETE /me
 GET /me/sessions
 DELETE /me/sessions
 DELETE /me/sessions/:sessionId
@@ -208,6 +209,22 @@ Auth responses:
 - `POST /auth/password-resets/confirm` body: `{ "token": "<reset-token>", "newPassword": "<new-password>" }`.
 
 Email delivery is not connected yet. The two request endpoints currently return `delivery.status = "not_configured"` and never reveal whether the email exists. Once a mail provider is added, the frontend contract can stay the same.
+
+Account deletion:
+
+```http
+DELETE /me
+```
+
+Email-password accounts must send:
+
+```json
+{ "currentPassword": "abc12345", "reason": "optional user-entered reason" }
+```
+
+Social-only accounts may omit `currentPassword`. On success, the backend soft-deletes the user, revokes all refresh-token sessions, consumes outstanding email/password action tokens, deactivates the user's referral code, and writes a `user.self_delete` audit event. The frontend must clear local access/refresh tokens and send the user back to a logged-out state immediately. Wallet ledgers, payments, gifts, and audit history are retained server-side.
+
+If an admin suspends/deletes a user, existing access tokens also stop passing protected API guards. The frontend should treat `401` after a previously valid login as a forced logout and clear local tokens.
 
 ### Referral Code On Signup
 

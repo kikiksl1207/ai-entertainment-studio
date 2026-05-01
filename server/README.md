@@ -111,6 +111,7 @@ Auth endpoints:
 - `POST /api/v1/auth/password-resets/confirm`
 - `GET /api/v1/me`
 - `PATCH /api/v1/me/password`
+- `DELETE /api/v1/me`
 - `GET /api/v1/me/sessions`
 - `DELETE /api/v1/me/sessions`
 - `DELETE /api/v1/me/sessions/:sessionId`
@@ -127,6 +128,8 @@ Refresh tokens are stored as SHA-256 hashes in `user_refresh_tokens`. `POST /api
 `GET /api/v1/me/sessions` lists active refresh-token sessions for the current user without exposing token hashes. The response includes minimal session metadata such as `userAgent`, `ipAddress`, `createdAt`, `lastUsedAt`, and `expiresAt`. `DELETE /api/v1/me/sessions/:sessionId` revokes a selected session. `DELETE /api/v1/me/sessions` revokes all active sessions for the current user, including the current device, so clients must clear local access and refresh tokens immediately after calling it.
 
 `PATCH /api/v1/me/password` changes the password for email-password accounts after verifying the current password. It revokes all active refresh-token sessions on success, so clients must clear local access and refresh tokens and send the user back to login. Social-only accounts without an email password cannot use this endpoint until a password setup flow is added.
+
+`DELETE /api/v1/me` soft-deletes the current user account by setting `users.status = deleted` and `users.deleted_at = now()`. It revokes all active refresh-token sessions, consumes outstanding user action tokens, deactivates the user's referral code, and writes a `user.self_delete` audit event. Email-password accounts must include `{ "currentPassword": "..." }`; social-only accounts may omit it. Clients must clear local tokens immediately after success. Existing wallet ledgers, payment orders, gifts, and audit trails are retained for accounting and abuse-response history.
 
 Email verification and password reset are currently backend skeleton flows. Request endpoints always return `{ "ok": true, "delivery": { "status": "not_configured", "channel": "email" } }` so clients do not learn whether an account exists. Confirmation endpoints accept `{ "token": "..." }`; password reset confirmation also accepts `newPassword`. Tokens are stored only as SHA-256 hashes in `user_action_tokens`, expire after 24 hours for email verification and 1 hour for password reset, and are single-use. A real email adapter must send the raw token later; do not log, commit, or paste those tokens into Notion or chat.
 
@@ -243,6 +246,11 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `POST /admin/api/v1/assets/:assetId/confirm-upload`
 - `POST /admin/api/v1/assets/:assetId/archive`
 - `POST /admin/api/v1/assets/:assetId/restore`
+- `GET /admin/api/v1/users?status=active&email=user@example.com&take=50`
+- `GET /admin/api/v1/users/:userId`
+- `POST /admin/api/v1/users/:userId/suspend`
+- `POST /admin/api/v1/users/:userId/restore`
+- `POST /admin/api/v1/users/:userId/delete`
 - `POST /admin/api/v1/artists`
 - `PATCH /admin/api/v1/artists/:artistId`
 - `POST /admin/api/v1/artists/:artistId/assets`
@@ -268,6 +276,8 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `PATCH /admin/api/v1/chat-feature-products/:productId`
 
 Admin create/update/snapshot mutations write `audit_events` rows with actor, action, target, before data, and after data. `GET /admin/api/v1/audit-events` can filter by `actorUserId`, `action`, `targetType`, and `targetId`; `take` defaults to 50 and is capped at 100.
+
+User moderation endpoints are super-admin-only in the initial policy. `POST /admin/api/v1/users/:userId/suspend` sets `users.status = suspended` and revokes all active refresh-token sessions. `POST /admin/api/v1/users/:userId/delete` soft-deletes the account with `users.status = deleted`, sets `deleted_at`, revokes sessions, consumes outstanding user action tokens, and deactivates referral codes. `POST /admin/api/v1/users/:userId/restore` returns the account to `active` and clears `deleted_at`; it does not restore old refresh tokens. Admins cannot suspend or delete their own account through these endpoints.
 
 Asset archive/restore is metadata-based. Archive does not delete object storage files; it marks `metadata.lifecycle.status` as `archived`, blocks future linking, and removes the asset from public artist/shortform responses.
 

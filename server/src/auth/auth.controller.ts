@@ -16,6 +16,7 @@ import {
   ChangePasswordDto,
   ConfirmEmailVerificationDto,
   ConfirmPasswordResetDto,
+  DeleteAccountDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
@@ -112,6 +113,13 @@ export class MeController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   changePassword(@CurrentUser() user: AuthUser, @Body() body: ChangePasswordDto) {
     return this.authService.changePassword(user.id, body);
+  }
+
+  @Delete()
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  deleteAccount(@CurrentUser() user: AuthUser, @Body() body: DeleteAccountDto) {
+    return this.authService.deleteAccount(user.id, body);
   }
 
   @Get('sessions')
