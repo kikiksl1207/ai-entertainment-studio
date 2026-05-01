@@ -196,6 +196,47 @@ Auth responses:
 
 Email delivery is not connected yet. The two request endpoints currently return `delivery.status = "not_configured"` and never reveal whether the email exists. Once a mail provider is added, the frontend contract can stay the same.
 
+### Referral Code On Signup
+
+Signup and social signup can include an optional referral code.
+
+Email signup body:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "abc12345",
+  "displayName": "닉네임",
+  "referralCode": "ABC12345"
+}
+```
+
+Social signup/login body:
+
+```json
+{
+  "provider": "google",
+  "token": "<provider-token>",
+  "referralCode": "ABC12345"
+}
+```
+
+Frontend rules:
+
+- Referral code input is optional.
+- Show it only on signup/social first-entry UI, not normal email login.
+- Trim whitespace and convert to uppercase before sending.
+- Allowed characters: uppercase English letters, numbers, underscore, hyphen.
+- Length: 6-24 characters.
+- If the user leaves it blank, omit `referralCode` from the request body.
+- If the code is invalid, backend returns `400` with message `Referral code is not valid`.
+
+Reward behavior:
+
+- New user always receives 300 Lumina signup bonus.
+- Valid referral code grants 500 Lumina to the referrer and 500 Lumina to the new user.
+- Self-referral is blocked by backend.
+
 ## Commerce/Public Products
 
 ```http
