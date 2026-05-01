@@ -82,3 +82,43 @@ Expected initial public artist slugs:
 - Do not keep `render:start:seed` as the permanent start command. It adds unnecessary startup work and can overwrite seed-managed copy.
 - Public detail profile facts are stored under `publicProfile.publicMetadata.profileFacts` in the API response.
 - Production `CORS_ORIGINS` should include `https://lumina-stage.com`, `https://www.lumina-stage.com`, the Vercel fallback URL, and local QA origins only.
+
+## Production credential rotation
+
+Rotate the Render Postgres credential after any database URL, password, or connection string is exposed in chat, screenshots, logs, or external documents.
+
+Recommended order:
+
+1. Open Render dashboard.
+2. Open the `lumina-stage-db` Postgres instance.
+3. Create a new database credential if Render supports multiple credentials for the instance.
+4. Copy the new Internal Database URL.
+5. Open the `lumina-stage-api` Web Service.
+6. Go to Environment.
+7. Replace `DATABASE_URL` with the new Internal Database URL.
+8. Save and redeploy.
+9. Wait until the deploy is live.
+10. Verify the API.
+
+Verification:
+
+```text
+https://api.lumina-stage.com/health
+https://api.lumina-stage.com/api/v1/artists
+```
+
+If both URLs respond successfully, revoke or delete the old database credential in Render.
+
+If Render only allows password rotation instead of multiple credentials:
+
+1. Rotate/regenerate the password in the Postgres instance.
+2. Immediately update `DATABASE_URL` on the Web Service.
+3. Redeploy.
+4. Verify the API.
+
+Do not paste the new database URL into GitHub, Notion, chat, screenshots, or local documents. Store it only in Render environment variables and a trusted password manager if needed.
+
+Rollback rule:
+
+- If the new deploy fails because of database authentication, restore the previous `DATABASE_URL` only inside Render Environment and redeploy.
+- Do not commit either old or new database URLs to the repository.
