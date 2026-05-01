@@ -78,17 +78,47 @@ async function authLogin(email, password) {
     body: { email, password },
     throwOnError: true
   });
-  if (data?.accessToken) setAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
+  console.log("[Lumina] login 응답:", data);
+  // 응답: { user, tokens: { accessToken, refreshToken } } 또는 호환 별칭 (top-level)
+  const token = data?.accessToken || data?.tokens?.accessToken || data?.access_token;
+  const refresh = data?.refreshToken || data?.tokens?.refreshToken;
+  const user = data?.user;
+  if (token) setAuth({ accessToken: token, refreshToken: refresh, user });
   return data;
 }
 async function authRegister(email, password, displayName) {
-  const data = await apiFetch("/api/v1/auth/register", {
-    method: "POST",
-    body: { email, password, displayName },
-    throwOnError: true
-  });
-  if (data?.accessToken) setAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
-  return data;
+  // 백엔드가 받는 키 이름이 미상이라 가장 흔한 형식부터 순차 시도
+  const variants = [
+    { email, password, displayName },         // 우리 표준
+    { email, password, name: displayName },   // 일반적 표준
+    { email, password, nickname: displayName }, // 한국 사이트 흔한 표준
+    { email, password }                        // displayName 없이
+  ];
+
+  let lastErr = null;
+  for (const body of variants) {
+    try {
+      console.log("[Lumina] register 시도 body:", body);
+      const data = await apiFetch("/api/v1/auth/register", {
+        method: "POST",
+        body,
+        throwOnError: true
+      });
+      console.log("[Lumina] register 성공 응답:", data);
+      // 응답 구조: { user, tokens } 또는 호환 별칭
+      const token = data?.accessToken || data?.tokens?.accessToken || data?.access_token;
+      const refresh = data?.refreshToken || data?.tokens?.refreshToken;
+      const user = data?.user;
+      if (token) setAuth({ accessToken: token, refreshToken: refresh, user });
+      return data;
+    } catch (err) {
+      lastErr = err;
+      console.warn("[Lumina] register 실패:", err.status, err.body);
+      // 400 (validation)이면 다른 키로 재시도, 그 외는 즉시 종료
+      if (err.status !== 400) throw err;
+    }
+  }
+  throw lastErr || new Error("회원가입 실패");
 }
 async function authLogout() {
   try { await apiFetch("/api/v1/auth/logout", { method: "POST", auth: true }); } catch {}
@@ -99,9 +129,9 @@ async function authLogout() {
 /* ── 백엔드 응답에서 토큰 추출 (키 이름 자동 인식) ── */
 function applyAuthResponse(data, providerName = "백엔드") {
   console.log(`[Lumina] ${providerName} 응답 받음:`, data);
-  // 백엔드가 다양한 키로 응답할 수 있어 모두 시도
-  const accessToken = data?.accessToken || data?.access_token || data?.token;
-  const refreshToken = data?.refreshToken || data?.refresh_token;
+  // 명세: { user, tokens: { accessToken, refreshToken } } + top-level 호환 별칭
+  const accessToken = data?.accessToken || data?.tokens?.accessToken || data?.access_token || data?.token;
+  const refreshToken = data?.refreshToken || data?.tokens?.refreshToken || data?.refresh_token;
   const user = data?.user || data?.profile || data?.account || data?.member;
 
   if (!accessToken) {
@@ -208,12 +238,32 @@ async function handleAuthSubmit(form, mode) {
     updateAuthUI();
     form.reset();
   } catch (err) {
-    errorEl.textContent = err.message || (mode === "login" ? "로그인에 실패했습니다." : "가입에 실패했습니다.");
+    // 백엔드 validation details 친절히 보여주기
+    let msg = "";
+    const details = err.body?.error?.details;
+    if (Array.isArray(details) && details.length > 0) {
+      msg = details.map(d => translateValidationError(d.field, d.messages?.[0] || "")).join("\n");
+    } else {
+      msg = err.message || (mode === "login" ? "로그인에 실패했습니다." : "가입에 실패했습니다.");
+    }
+    errorEl.textContent = msg;
     errorEl.hidden = false;
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = originalText;
   }
+}
+
+/* 영문 검증 메시지 → 한국어 친절 메시지 변환 */
+function translateValidationError(field, message) {
+  const fieldKo = { email: "이메일", password: "비밀번호", displayName: "닉네임", name: "닉네임", nickname: "닉네임" }[field] || field;
+  if (/must be an email/i.test(message))                  return `${fieldKo}: 올바른 이메일 형식이 아닙니다.`;
+  if (/longer than or equal to (\d+)/i.test(message))     return `${fieldKo}: ${RegExp.$1}자 이상이어야 합니다.`;
+  if (/shorter than or equal to (\d+)/i.test(message))    return `${fieldKo}: ${RegExp.$1}자 이하여야 합니다.`;
+  if (/should not be empty/i.test(message))               return `${fieldKo}을(를) 입력해주세요.`;
+  if (/must be a string/i.test(message))                  return `${fieldKo} 형식이 잘못되었습니다.`;
+  if (/already.*exist|duplicate/i.test(message))          return `${fieldKo}: 이미 사용 중입니다.`;
+  return `${fieldKo}: ${message}`;
 }
 
 function openAuthModal(tab = "login") {
