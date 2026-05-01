@@ -8,26 +8,38 @@ import { ConfigService } from '@nestjs/config';
 import { SocialProvider, VerifiedSocialProfile } from './auth.types';
 
 type JsonObject = Record<string, unknown>;
+type SocialLoginCredential = {
+  token?: string;
+  code?: string;
+  redirectUri?: string;
+};
 
 @Injectable()
 export class SocialAuthService {
   constructor(private readonly configService: ConfigService) {}
 
-  verifyProfile(provider: SocialProvider, token: string) {
-    if (!token.trim()) {
+  async verifyProfile(provider: SocialProvider, credential: SocialLoginCredential) {
+    const token = credential.token?.trim();
+    const code = credential.code?.trim();
+    const redirectUri = credential.redirectUri?.trim();
+
+    if (!token && !code) {
       throw new BadRequestException('Social token is required');
     }
 
     if (provider === 'google') {
-      return this.verifyGoogle(token);
+      const googleToken = token ?? (await this.exchangeGoogleCode(code!, redirectUri));
+      return this.verifyGoogle(googleToken);
     }
 
     if (provider === 'kakao') {
-      return this.verifyKakao(token);
+      const kakaoToken = token ?? (await this.exchangeKakaoCode(code!, redirectUri));
+      return this.verifyKakao(kakaoToken);
     }
 
     if (provider === 'naver') {
-      return this.verifyNaver(token);
+      const naverToken = token ?? (await this.exchangeNaverCode(code!, redirectUri));
+      return this.verifyNaver(naverToken);
     }
 
     throw new BadRequestException('Unsupported social provider');
@@ -125,6 +137,61 @@ export class SocialAuthService {
     };
   }
 
+  private async exchangeGoogleCode(code: string, redirectUri?: string) {
+    const clientId = this.configService.get<string>('GOOGLE_OAUTH_CLIENT_ID');
+    const clientSecret = this.configService.get<string>('GOOGLE_OAUTH_CLIENT_SECRET');
+
+    if (!clientId || !clientSecret) {
+      throw new ServiceUnavailableException('Google authorization code login is not configured');
+    }
+
+    const payload = await this.fetchFormJson<JsonObject>('https://oauth2.googleapis.com/token', {
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: this.requireRedirectUri(redirectUri),
+    });
+
+    return this.string(payload.id_token) ?? this.string(payload.access_token) ?? '';
+  }
+
+  private async exchangeKakaoCode(code: string, redirectUri?: string) {
+    const clientId = this.configService.get<string>('KAKAO_REST_API_KEY');
+
+    if (!clientId) {
+      throw new ServiceUnavailableException('Kakao login is not configured');
+    }
+
+    const payload = await this.fetchFormJson<JsonObject>('https://kauth.kakao.com/oauth/token', {
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      code,
+      redirect_uri: this.requireRedirectUri(redirectUri),
+    });
+
+    return this.string(payload.access_token) ?? '';
+  }
+
+  private async exchangeNaverCode(code: string, redirectUri?: string) {
+    const clientId = this.configService.get<string>('NAVER_CLIENT_ID');
+    const clientSecret = this.configService.get<string>('NAVER_CLIENT_SECRET');
+
+    if (!clientId || !clientSecret) {
+      throw new ServiceUnavailableException('Naver authorization code login is not configured');
+    }
+
+    const payload = await this.fetchFormJson<JsonObject>('https://nid.naver.com/oauth2.0/token', {
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: this.requireRedirectUri(redirectUri),
+    });
+
+    return this.string(payload.access_token) ?? '';
+  }
+
   private async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     const response = await fetch(url, init);
 
@@ -133,6 +200,24 @@ export class SocialAuthService {
     }
 
     return (await response.json()) as T;
+  }
+
+  private async fetchFormJson<T>(url: string, body: Record<string, string>): Promise<T> {
+    return this.fetchJson<T>(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams(body),
+    });
+  }
+
+  private requireRedirectUri(redirectUri?: string) {
+    if (!redirectUri) {
+      throw new BadRequestException('redirectUri is required for authorization code login');
+    }
+
+    return redirectUri;
   }
 
   private object(value: unknown) {

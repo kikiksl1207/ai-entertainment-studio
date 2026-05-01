@@ -144,7 +144,11 @@ export class AuthService {
   async socialLogin(input: SocialLoginDto, sessionContext?: SessionContext) {
     const profile = await this.socialAuthService.verifyProfile(
       input.provider,
-      input.token ?? input.accessToken ?? '',
+      {
+        token: input.token ?? input.accessToken,
+        code: input.code,
+        redirectUri: input.redirectUri,
+      },
     );
     const providerUserId = profile.providerUserId;
     const verifiedEmail = profile.emailVerified

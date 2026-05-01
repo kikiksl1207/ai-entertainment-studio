@@ -132,7 +132,7 @@ export class SocialLoginDto {
   @IsIn(['google', 'kakao', 'naver'])
   provider!: 'google' | 'kakao' | 'naver';
 
-  @ValidateIf((input: SocialLoginDto) => !input.accessToken)
+  @ValidateIf((input: SocialLoginDto) => !input.accessToken && !input.code)
   @Transform(normalizeString)
   @IsNotEmpty()
   @IsString()
@@ -140,13 +140,29 @@ export class SocialLoginDto {
   @MaxLength(8192)
   token?: string;
 
-  @ValidateIf((input: SocialLoginDto) => !input.token)
+  @ValidateIf((input: SocialLoginDto) => !input.token && !input.code)
   @Transform(normalizeString)
   @IsNotEmpty()
   @IsString()
   @MinLength(20)
   @MaxLength(8192)
   accessToken?: string;
+
+  @ValidateIf((input: SocialLoginDto) => !input.token && !input.accessToken)
+  @Transform(normalizeString)
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(2048)
+  code?: string;
+
+  @ValidateIf((input: SocialLoginDto) => Boolean(input.code))
+  @Transform(normalizeString)
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(2048)
+  redirectUri?: string;
 
   @IsOptional()
   @Transform(normalizeString)

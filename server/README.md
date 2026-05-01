@@ -112,8 +112,8 @@ Auth endpoints:
 - `DELETE /api/v1/me/sessions`
 - `DELETE /api/v1/me/sessions/:sessionId`
 
-Social login accepts `{ "provider": "google" | "kakao" | "naver", "token": "<provider-token>" }`. For current frontend compatibility, `accessToken` is also accepted as an alias for `token`.
-Google accepts either an identity token or an OAuth access token; Kakao and Naver expect access tokens. The server verifies the provider token before creating or linking a `user_auth_accounts` row, and only verified provider emails can be used to link an existing email account. Configure `GOOGLE_OAUTH_CLIENT_ID`, `KAKAO_REST_API_KEY`, and `NAVER_CLIENT_ID` in `.env`; if a provider is not configured, its login endpoint fails closed. Apple login is intentionally out of scope for the initial launch.
+Social login accepts `{ "provider": "google" | "kakao" | "naver", "token": "<provider-token>" }`. For current frontend compatibility, `accessToken` is also accepted as an alias for `token`, and `{ "code": "...", "redirectUri": "..." }` is accepted for authorization-code handoff flows.
+Google accepts either an identity token or an OAuth access token; Kakao and Naver expect access tokens. The server can exchange a Kakao authorization code with `KAKAO_REST_API_KEY`; Google and Naver authorization-code exchange additionally require `GOOGLE_OAUTH_CLIENT_SECRET` and `NAVER_CLIENT_SECRET`. The server verifies the provider token before creating or linking a `user_auth_accounts` row, and only verified provider emails can be used to link an existing email account. Configure `GOOGLE_OAUTH_CLIENT_ID`, `KAKAO_REST_API_KEY`, and `NAVER_CLIENT_ID` in `.env`; if a provider is not configured, its login endpoint fails closed. Apple login is intentionally out of scope for the initial launch.
 
 Auth responses include both the canonical nested token object and flat token aliases for older frontend code: `{ "user": {}, "tokens": { "accessToken": "...", "refreshToken": "...", "tokenType": "Bearer" }, "accessToken": "...", "refreshToken": "...", "tokenType": "Bearer" }`.
 
