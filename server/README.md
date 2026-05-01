@@ -94,6 +94,8 @@ User-scoped endpoints require an access token from `POST /api/v1/auth/login` or 
 
 New users receive a 300 Lumina signup bonus when their wallet is created. The grant is written to `wallet_ledger` with `ledgerType = signup_bonus`; balances are never stored directly on `users`.
 
+Email-password signup requires a password between 8 and 128 characters with at least one letter and one number.
+
 Auth endpoints:
 
 - `POST /api/v1/auth/register`

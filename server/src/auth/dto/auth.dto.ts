@@ -25,7 +25,7 @@ export class RegisterDto {
 
   @IsNotEmpty()
   @IsString()
-  @MinLength(10)
+  @MinLength(8)
   @MaxLength(128)
   @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, {
     message: 'password must include at least one letter and one number',
@@ -70,7 +70,7 @@ export class ChangePasswordDto {
 
   @IsNotEmpty()
   @IsString()
-  @MinLength(10)
+  @MinLength(8)
   @MaxLength(128)
   @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, {
     message: 'newPassword must include at least one letter and one number',
@@ -111,7 +111,7 @@ export class ConfirmPasswordResetDto {
 
   @IsNotEmpty()
   @IsString()
-  @MinLength(10)
+  @MinLength(8)
   @MaxLength(128)
   @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, {
     message: 'newPassword must include at least one letter and one number',

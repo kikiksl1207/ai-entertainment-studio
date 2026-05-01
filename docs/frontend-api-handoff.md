@@ -181,6 +181,7 @@ Use `Authorization: Bearer <accessToken>` for authenticated requests.
 
 Auth responses:
 
+- Email-password signup uses email only. Password policy: 8-128 characters, at least one letter and one number.
 - `POST /auth/register` and `POST /auth/login` return `{ user, tokens }`.
 - `tokens` contains `accessToken`, `refreshToken`, and `tokenType: "Bearer"`.
 - For compatibility with the current frontend, auth responses also include top-level `accessToken`, `refreshToken`, and `tokenType` aliases.
