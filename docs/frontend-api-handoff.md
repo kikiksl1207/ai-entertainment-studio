@@ -185,7 +185,7 @@ Auth responses:
 - `tokens` contains `accessToken`, `refreshToken`, and `tokenType: "Bearer"`.
 - For compatibility with the current frontend, auth responses also include top-level `accessToken`, `refreshToken`, and `tokenType` aliases.
 - `POST /auth/social/login` accepts `{ "provider": "google" | "kakao" | "naver", "token": "<provider-token>" }`; `accessToken` is also accepted as an alias for `token`.
-- Authorization-code handoff is also accepted as `{ "provider": "kakao", "code": "<code>", "redirectUri": "<same-redirect-uri>" }`. Google/Naver code handoff requires provider client secrets in Render, so frontend should prefer token handoff unless those secrets are intentionally configured.
+- Authorization-code handoff is also accepted as `{ "provider": "kakao", "code": "<code>", "redirectUri": "<same-redirect-uri>" }`. The `redirectUri` value must exactly match the URI registered in Kakao Developers and used when the code was issued. The backend may override it with `KAKAO_REDIRECT_URI` in Render to avoid `www`/non-`www` drift.
 - Google can send either a Google ID token or OAuth access token. Kakao and Naver should send access tokens when using the token handoff.
 - `GET /me` returns the current user, including `emailVerifiedAt` when the email has been verified.
 - `POST /auth/email-verifications` body: `{ "email": "user@example.com" }`.

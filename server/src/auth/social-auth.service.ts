@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -66,18 +67,26 @@ export class SocialAuthService {
       throw new UnauthorizedException('Invalid Google token');
     }
 
-    const email = typeof payload.email === 'string' ? payload.email.toLowerCase() : null;
+    const userInfo = !this.string(payload.email)
+      ? await this.fetchGoogleUserInfo(token)
+      : null;
+    const email =
+      this.string(payload.email)?.toLowerCase() ??
+      this.string(userInfo?.email)?.toLowerCase() ??
+      null;
     const emailVerified =
       payload.email_verified === 'true' ||
       payload.email_verified === true ||
-      payload.verified_email === true;
+      payload.verified_email === true ||
+      userInfo?.email_verified === true ||
+      userInfo?.email_verified === 'true';
 
     return {
       provider: 'google',
       providerUserId,
       email,
       emailVerified,
-      displayName: typeof payload.name === 'string' ? payload.name : null,
+      displayName: this.string(payload.name) ?? this.string(userInfo?.name) ?? null,
     };
   }
 
@@ -121,6 +130,10 @@ export class SocialAuthService {
       },
     });
 
+    if (payload.resultcode && payload.resultcode !== '00') {
+      throw new UnauthorizedException('Invalid Naver token');
+    }
+
     const response = this.object(payload.response);
     const providerUserId = this.string(response?.id);
 
@@ -150,7 +163,7 @@ export class SocialAuthService {
       client_id: clientId,
       client_secret: clientSecret,
       code,
-      redirect_uri: this.requireRedirectUri(redirectUri),
+      redirect_uri: this.getRedirectUri('GOOGLE_REDIRECT_URI', redirectUri),
     });
 
     return this.string(payload.id_token) ?? this.string(payload.access_token) ?? '';
@@ -158,6 +171,7 @@ export class SocialAuthService {
 
   private async exchangeKakaoCode(code: string, redirectUri?: string) {
     const clientId = this.configService.get<string>('KAKAO_REST_API_KEY');
+    const clientSecret = this.configService.get<string>('KAKAO_CLIENT_SECRET');
 
     if (!clientId) {
       throw new ServiceUnavailableException('Kakao login is not configured');
@@ -166,8 +180,9 @@ export class SocialAuthService {
     const payload = await this.fetchFormJson<JsonObject>('https://kauth.kakao.com/oauth/token', {
       grant_type: 'authorization_code',
       client_id: clientId,
+      ...(clientSecret ? { client_secret: clientSecret } : {}),
       code,
-      redirect_uri: this.requireRedirectUri(redirectUri),
+      redirect_uri: this.getRedirectUri('KAKAO_REDIRECT_URI', redirectUri),
     });
 
     return this.string(payload.access_token) ?? '';
@@ -186,20 +201,30 @@ export class SocialAuthService {
       client_id: clientId,
       client_secret: clientSecret,
       code,
-      redirect_uri: this.requireRedirectUri(redirectUri),
+      redirect_uri: this.getRedirectUri('NAVER_REDIRECT_URI', redirectUri),
     });
 
     return this.string(payload.access_token) ?? '';
   }
 
   private async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(url, init);
+    let response: Response;
+
+    try {
+      response = await fetch(url, init);
+    } catch {
+      throw new ServiceUnavailableException('Social provider request failed');
+    }
 
     if (!response.ok) {
       throw new UnauthorizedException('Social token verification failed');
     }
 
-    return (await response.json()) as T;
+    try {
+      return (await response.json()) as T;
+    } catch {
+      throw new UnauthorizedException('Social provider response was invalid');
+    }
   }
 
   private async fetchFormJson<T>(url: string, body: Record<string, string>): Promise<T> {
@@ -212,12 +237,34 @@ export class SocialAuthService {
     });
   }
 
-  private requireRedirectUri(redirectUri?: string) {
-    if (!redirectUri) {
+  private getRedirectUri(envKey: string, redirectUri?: string) {
+    const configuredRedirectUri = this.configService.get<string>(envKey)?.trim();
+    const resolvedRedirectUri = configuredRedirectUri || redirectUri;
+
+    if (!resolvedRedirectUri) {
       throw new BadRequestException('redirectUri is required for authorization code login');
     }
 
-    return redirectUri;
+    return resolvedRedirectUri;
+  }
+
+  private async fetchGoogleUserInfo(accessToken: string) {
+    try {
+      return await this.fetchJson<JsonObject>(
+        'https://www.googleapis.com/oauth2/v3/userinfo',
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+    } catch (error) {
+      if (error instanceof HttpException) {
+        return null;
+      }
+
+      throw error;
+    }
   }
 
   private object(value: unknown) {
