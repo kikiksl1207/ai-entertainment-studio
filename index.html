@@ -25,7 +25,10 @@
     <!-- ── Splash Screen ─────────────────────── -->
     <div class="splash-screen" id="splashScreen">
       <div class="splash-banner-wrap">
-        <img class="splash-banner-img" src="./assets/brand/lumina-stage-banner.png" alt="Lumina Stage" />
+        <picture>
+          <source media="(max-width: 768px)" srcset="./assets/brand/lumina-stage-banner-mobile.png" />
+          <img class="splash-banner-img" src="./assets/brand/lumina-stage-banner.png" alt="Lumina Stage" />
+        </picture>
         <div class="splash-overlay-text">
           <p class="splash-label">Artist Label</p>
           <strong class="splash-title">LUMINA STAGE</strong>
@@ -298,6 +301,16 @@
         height: 100%;
         object-fit: cover;
         object-position: center;
+      }
+      /* 모바일: 모바일 전용 이미지 없을 때까지 임시 처리 — 가운데 강조 */
+      @media (max-width: 768px) {
+        .splash-banner-wrap {
+          background: linear-gradient(180deg, #0a0716 0%, #1a0a36 100%);
+        }
+        .splash-banner-img {
+          object-fit: contain;
+          object-position: center;
+        }
       }
       .splash-overlay-text {
         position: absolute;

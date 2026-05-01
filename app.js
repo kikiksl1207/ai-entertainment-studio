@@ -280,8 +280,146 @@ async function handleSocialLogin(provider) {
     }
     return;
   }
-  // Kakao/Naver/Apple — 추후 통합
+  if (provider === "kakao") {
+    return handleKakaoLogin();
+  }
+  if (provider === "naver") {
+    return handleNaverLogin();
+  }
+  if (provider === "apple") {
+    return handleAppleLogin();
+  }
   alert(`${provider} 로그인은 곧 추가됩니다!`);
+}
+
+/* ── 카카오 로그인 (SDK 골격) ─────────────────
+   사용자가 Kakao Developers에서 JavaScript 키 받아서
+   KAKAO_JS_KEY 변수에 등록하면 동작
+   ─────────────────────────────────────────── */
+const KAKAO_JS_KEY = ""; // TODO: 사용자가 Kakao Developers에서 받은 JS 키 입력
+let _kakaoSdkPromise = null;
+
+function loadKakaoSDK() {
+  if (window.Kakao?.isInitialized?.()) return Promise.resolve();
+  if (_kakaoSdkPromise) return _kakaoSdkPromise;
+  _kakaoSdkPromise = new Promise((resolve, reject) => {
+    if (document.getElementById("kakaoSdk")) {
+      const wait = setInterval(() => {
+        if (window.Kakao) { clearInterval(wait); initKakaoSDK(); resolve(); }
+      }, 100);
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = "kakaoSdk";
+    script.src = "https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js";
+    script.async = true;
+    script.onload = () => { initKakaoSDK(); resolve(); };
+    script.onerror = () => reject(new Error("Kakao SDK 로드 실패"));
+    document.head.appendChild(script);
+  });
+  return _kakaoSdkPromise;
+}
+function initKakaoSDK() {
+  if (!window.Kakao) return;
+  if (!KAKAO_JS_KEY) {
+    console.warn("[Lumina] KAKAO_JS_KEY 미설정 — app.js에서 등록 필요");
+    return;
+  }
+  if (!Kakao.isInitialized()) Kakao.init(KAKAO_JS_KEY);
+}
+
+async function handleKakaoLogin() {
+  if (!KAKAO_JS_KEY) {
+    alert("카카오 로그인 준비 중입니다.\n(Kakao JavaScript Key 등록 필요)");
+    return;
+  }
+  try {
+    await loadKakaoSDK();
+    Kakao.Auth.login({
+      scope: "profile_nickname,account_email",
+      success: async (authResp) => {
+        try {
+          const data = await apiFetch("/api/v1/auth/social/login", {
+            method: "POST",
+            body: { provider: "kakao", accessToken: authResp.access_token },
+            throwOnError: true
+          });
+          if (data?.accessToken) {
+            setAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
+            closeAuthModal();
+            updateAuthUI();
+          }
+        } catch (err) {
+          alert("카카오 로그인 실패: " + (err.message || "서버 오류"));
+        }
+      },
+      fail: (err) => {
+        if (err.error !== "popup_closed_by_user") {
+          alert("카카오 로그인 취소됨: " + (err.error_description || err.error));
+        }
+      }
+    });
+  } catch (err) {
+    alert("카카오 로그인 준비 실패: " + (err.message || "SDK 로드 실패"));
+  }
+}
+
+/* ── 네이버 로그인 (SDK 골격) ─────────────────
+   네이버 OAuth는 redirect 방식 표준
+   사용자가 Naver Developers에서 Client ID 받아 등록 + 콜백 URL 처리 필요
+   ─────────────────────────────────────────── */
+const NAVER_CLIENT_ID = ""; // TODO: 사용자가 Naver Developers에서 받은 Client ID 입력
+
+async function handleNaverLogin() {
+  if (!NAVER_CLIENT_ID) {
+    alert("네이버 로그인 준비 중입니다.\n(Naver Client ID 등록 + 콜백 URL 설정 필요)");
+    return;
+  }
+  // 네이버는 redirect flow 표준 — popup으로 처리
+  const state = Math.random().toString(36).substring(2, 15);
+  sessionStorage.setItem("naver_oauth_state", state);
+  const redirectUri = encodeURIComponent(window.location.origin + "/auth/naver/callback.html");
+  const url = `https://nid.naver.com/oauth2.0/authorize?response_type=token&client_id=${NAVER_CLIENT_ID}&redirect_uri=${redirectUri}&state=${state}`;
+
+  const popup = window.open(url, "naverLogin", "width=500,height=600");
+  if (!popup) {
+    alert("팝업이 차단되었습니다. 팝업을 허용해주세요.");
+    return;
+  }
+  // popup이 callback URL에서 postMessage로 토큰 보냄 (callback.html 별도 구현 필요)
+  const handler = (event) => {
+    if (event.origin !== window.location.origin) return;
+    if (event.data?.type !== "naver_login") return;
+    window.removeEventListener("message", handler);
+    if (event.data.error) {
+      alert("네이버 로그인 실패: " + event.data.error);
+      return;
+    }
+    naverBackendLogin(event.data.accessToken);
+  };
+  window.addEventListener("message", handler);
+}
+
+async function naverBackendLogin(accessToken) {
+  try {
+    const data = await apiFetch("/api/v1/auth/social/login", {
+      method: "POST",
+      body: { provider: "naver", accessToken },
+      throwOnError: true
+    });
+    if (data?.accessToken) {
+      setAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
+      closeAuthModal();
+      updateAuthUI();
+    }
+  } catch (err) {
+    alert("네이버 로그인 실패: " + (err.message || "서버 오류"));
+  }
+}
+
+/* ── 애플 로그인 (placeholder) ──────────────── */
+async function handleAppleLogin() {
+  alert("애플 로그인은 Apple Developer 설정 후 추가됩니다.\n(현재 한국에서는 카카오/네이버가 더 일반적)");
 }
 
 /* ── Google OAuth 통합 ─────────────────────────
@@ -363,7 +501,120 @@ async function handleGoogleTokenResponse(tokenResponse) {
   }
 }
 
-/* ── 헤더 UI 동기화 + 버튼 이벤트 ───────────── */
+/* ── 좋아요/부스트 상태 ─────────────────────────
+   현재 캠페인 + 캐릭터별 좋아요 카운트 + 사용자 좋아요 이력
+   ─────────────────────────────────────────── */
+let _currentCampaign = null;
+let _rankings = []; // [{ slug, likes }]
+let _userLikedSlugs = new Set(); // 이번 세션에 좋아요 누른 슬러그
+
+async function loadBoostState() {
+  const campaign = await apiFetch("/api/v1/boost-campaigns/current");
+  if (!campaign?.id) {
+    console.info("[Lumina] 진행 중인 부스트 캠페인 없음");
+    return;
+  }
+  _currentCampaign = campaign;
+  console.info(`[Lumina] 현재 캠페인: ${campaign.name || campaign.id}`);
+
+  const rankingsData = await apiFetch(`/api/v1/boost-campaigns/${campaign.id}/rankings`);
+  if (rankingsData) {
+    const list = Array.isArray(rankingsData) ? rankingsData : (rankingsData.rankings || rankingsData.items || []);
+    _rankings = list.map(r => ({
+      slug: r.artistSlug || r.slug || r.artist?.slug || "",
+      likes: r.totalLikes ?? r.likes ?? r.count ?? r.score ?? 0
+    })).filter(r => r.slug);
+  }
+}
+
+function getLikesCount(slug) {
+  const rank = _rankings.find(r => r.slug === slug);
+  return rank?.likes || 0;
+}
+
+function formatLikeCount(n) {
+  if (n >= 10000) return (n / 10000).toFixed(1).replace(".0", "") + "만";
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(".0", "") + "천";
+  return String(n);
+}
+
+function likeButtonHTML(slug) {
+  const count = getLikesCount(slug);
+  const liked = _userLikedSlugs.has(slug) ? " is-liked" : "";
+  return `
+    <button class="like-btn${liked}" data-like-slug="${slug}" type="button" aria-label="좋아요">
+      <svg class="like-heart" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z"/>
+      </svg>
+      <span class="like-count">${formatLikeCount(count)}</span>
+    </button>`;
+}
+
+async function handleLike(slug, btnEl) {
+  if (!_currentCampaign?.id) {
+    alert("현재 진행 중인 좋아요 캠페인이 없습니다.");
+    return;
+  }
+  if (!isLoggedIn()) {
+    openAuthModal("login");
+    return;
+  }
+  if (_userLikedSlugs.has(slug)) return; // 이미 누름
+
+  if (btnEl) btnEl.disabled = true;
+
+  try {
+    await apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/free-like`, {
+      method: "POST",
+      body: { artistSlug: slug },
+      auth: true,
+      throwOnError: true
+    });
+    // 성공: 클라이언트 상태 + UI 업데이트
+    _userLikedSlugs.add(slug);
+    const rank = _rankings.find(r => r.slug === slug);
+    if (rank) rank.likes += 1;
+    else _rankings.push({ slug, likes: 1 });
+    updateLikeButtons(slug);
+  } catch (err) {
+    console.error("[Lumina] 좋아요 실패:", err);
+    if (err.status === 429 || err.body?.code === "DAILY_LIMIT") {
+      alert("오늘 좋아요를 모두 보내셨어요!\n내일 다시 응원해주세요 💜");
+    } else if (err.status === 401) {
+      clearAuth();
+      updateAuthUI();
+      openAuthModal("login");
+    } else {
+      alert("좋아요 실패: " + (err.message || "잠시 후 다시 시도해주세요"));
+    }
+    if (btnEl) btnEl.disabled = false;
+  }
+}
+
+function updateLikeButtons(slug) {
+  document.querySelectorAll(`[data-like-slug="${slug}"]`).forEach(btn => {
+    const liked = _userLikedSlugs.has(slug);
+    btn.classList.toggle("is-liked", liked);
+    btn.disabled = liked;
+    const countEl = btn.querySelector(".like-count");
+    if (countEl) countEl.textContent = formatLikeCount(getLikesCount(slug));
+  });
+}
+
+function bindLikeButtons() {
+  // 이벤트 위임 (한 번만 등록)
+  if (document._likeBound) return;
+  document._likeBound = true;
+  document.addEventListener("click", e => {
+    const btn = e.target.closest(".like-btn");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    handleLike(btn.dataset.likeSlug, btn);
+  });
+}
+
+/* ── 헤더 UI 동기화 + 사용자 메뉴 드롭다운 ─── */
 function updateAuthUI() {
   const auth = getAuth();
   const loginBtn = document.querySelector(".auth-btn-login");
@@ -371,14 +622,19 @@ function updateAuthUI() {
   if (!loginBtn || !signupBtn) return;
   if (auth?.user) {
     loginBtn.textContent = auth.user.displayName || auth.user.email?.split("@")[0] || "내 계정";
+    loginBtn.dataset.action = "menu";
     signupBtn.textContent = "로그아웃";
     signupBtn.dataset.action = "logout";
   } else {
     loginBtn.textContent = "로그인";
+    loginBtn.dataset.action = "login";
     signupBtn.textContent = "회원가입";
     signupBtn.dataset.action = "signup";
   }
+  // 드롭다운 닫기 (UI 갱신 시)
+  closeUserMenu();
 }
+
 function bindAuthHeaderEvents() {
   const loginBtn = document.querySelector(".auth-btn-login");
   const signupBtn = document.querySelector(".auth-btn-signup");
@@ -386,7 +642,7 @@ function bindAuthHeaderEvents() {
   loginBtn.addEventListener("click", e => {
     e.preventDefault();
     if (isLoggedIn()) {
-      // TODO: 사용자 드롭다운 (다음 단계)
+      toggleUserMenu(loginBtn);
     } else {
       openAuthModal("login");
     }
@@ -399,6 +655,87 @@ function bindAuthHeaderEvents() {
       openAuthModal("register");
     }
   });
+  // 외부 클릭 시 드롭다운 닫기
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".user-menu") && !e.target.closest(".auth-btn-login")) {
+      closeUserMenu();
+    }
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") closeUserMenu();
+  });
+}
+
+function toggleUserMenu(anchorBtn) {
+  let menu = document.getElementById("userMenu");
+  if (menu?.classList.contains("is-open")) {
+    closeUserMenu();
+    return;
+  }
+  if (!menu) menu = createUserMenu();
+  const user = getAuth()?.user;
+  if (!user) return;
+  // 사용자 정보 채우기
+  menu.querySelector(".user-menu-name").textContent = user.displayName || user.email?.split("@")[0] || "내 계정";
+  menu.querySelector(".user-menu-email").textContent = user.email || "";
+  // 위치 (헤더 버튼 아래)
+  const rect = anchorBtn.getBoundingClientRect();
+  menu.style.top = (rect.bottom + 8) + "px";
+  menu.style.right = (window.innerWidth - rect.right) + "px";
+  menu.classList.add("is-open");
+}
+
+function closeUserMenu() {
+  const menu = document.getElementById("userMenu");
+  if (menu) menu.classList.remove("is-open");
+}
+
+function createUserMenu() {
+  const menu = document.createElement("div");
+  menu.id = "userMenu";
+  menu.className = "user-menu";
+  menu.innerHTML = `
+    <div class="user-menu-header">
+      <div class="user-menu-avatar">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
+      </div>
+      <div class="user-menu-info">
+        <strong class="user-menu-name"></strong>
+        <small class="user-menu-email"></small>
+      </div>
+    </div>
+    <div class="user-menu-divider"></div>
+    <button class="user-menu-item" type="button" data-action="profile">
+      <span>마이 프로필</span>
+      <small>준비 중</small>
+    </button>
+    <button class="user-menu-item" type="button" data-action="wallet">
+      <span>루미나 지갑</span>
+      <small>준비 중</small>
+    </button>
+    <button class="user-menu-item" type="button" data-action="orders">
+      <span>주문 내역</span>
+      <small>준비 중</small>
+    </button>
+    <div class="user-menu-divider"></div>
+    <button class="user-menu-item user-menu-logout" type="button" data-action="logout">
+      <span>로그아웃</span>
+    </button>`;
+  document.body.appendChild(menu);
+  // 메뉴 항목 클릭
+  menu.querySelectorAll(".user-menu-item").forEach(item => {
+    item.addEventListener("click", () => {
+      const action = item.dataset.action;
+      if (action === "logout") {
+        authLogout();
+      } else {
+        // 준비 중 메뉴
+        alert("이 기능은 곧 추가됩니다!");
+      }
+      closeUserMenu();
+    });
+  });
+  return menu;
 }
 
 /* ── 캐릭터 마스터 데이터 (로컬 fallback) ─────
@@ -858,6 +1195,7 @@ function renderMainArtists() {
         <img class="artist-media-image artist-media-image-${a.slug}"
           src="${a.images.thumb || a.images.cover}" alt="${a.publicName}"
           onerror="this.style.display='none'" />
+        ${likeButtonHTML(a.slug)}
         <div class="artist-media-copy">
           <span class="artist-role">${a.role}</span>
           <strong>${a.name}</strong>
@@ -1426,19 +1764,56 @@ async function init() {
   bindAuthHeaderEvents();
   updateAuthUI();
 
+  // API 아티스트 — 안전망 추가: 응답이 형식 안 맞으면 로컬 데이터 유지
   const apiArtists = await apiFetch("/api/v1/artists");
-  if (apiArtists && Array.isArray(apiArtists)) {
-    _artists = apiArtists.map(adaptArtist);
-    console.info(`[Lumina] API 아티스트 ${_artists.length}명 로드됨`);
+  if (apiArtists && Array.isArray(apiArtists) && apiArtists.length > 0) {
+    try {
+      const adapted = apiArtists.map(adaptArtist);
+      // 핵심 필드 검증 — 메인 캐릭터가 4명 이상 있어야 사용
+      const valid = adapted.filter(a => a?.slug && a?.tier && a?.status && a?.images?.thumb);
+      const mainCount = valid.filter(a => (a.tier === "main" || a.tier === "premium") && a.status === "public").length;
+      if (mainCount >= 4) {
+        _artists = adapted;
+        console.info(`[Lumina] API 아티스트 ${_artists.length}명 로드됨 (메인 ${mainCount}명)`);
+      } else {
+        console.warn(`[Lumina] API 응답 불완전 (메인 캐릭터 ${mainCount}명) — 로컬 데이터 유지`);
+      }
+    } catch (err) {
+      console.error("[Lumina] adaptArtist 에러 — 로컬 데이터 유지:", err);
+    }
   } else {
-    console.info("[Lumina] 로컬 fallback 사용 중 (API_BASE 미설정 또는 응답 없음)");
+    console.info("[Lumina] 로컬 데이터 사용 중 (API 응답 없음)");
   }
 
+  // API 숏폼 — 같은 안전망
   const apiShortforms = await apiFetch("/api/v1/shortforms");
-  if (apiShortforms && Array.isArray(apiShortforms)) {
-    _shortforms = apiShortforms.map(adaptShortform);
-    console.info(`[Lumina] API 숏폼 ${_shortforms.length}건 로드됨`);
+  if (apiShortforms && Array.isArray(apiShortforms) && apiShortforms.length > 0) {
+    try {
+      const adapted = apiShortforms.map(adaptShortform);
+      // 핵심 필드 검증 — title과 artist가 있어야
+      const valid = adapted.filter(s => s?.title && s?.artist);
+      if (valid.length === adapted.length && valid.length > 0) {
+        _shortforms = adapted;
+        console.info(`[Lumina] API 숏폼 ${_shortforms.length}건 로드됨`);
+      } else {
+        console.warn(`[Lumina] API 숏폼 응답 불완전 (${valid.length}/${adapted.length} 유효) — 로컬 데이터 유지`);
+      }
+    } catch (err) {
+      console.error("[Lumina] adaptShortform 에러 — 로컬 데이터 유지:", err);
+    }
   }
+
+  // 부스트 상태는 백그라운드 로드 — 렌더링 안 막음 (캠페인 미등록 / 백엔드 늦음 대응)
+  loadBoostState().then(() => {
+    // 데이터 도착하면 좋아요 버튼들 갱신
+    document.querySelectorAll(".like-btn[data-like-slug]").forEach(btn => {
+      const slug = btn.dataset.likeSlug;
+      const countEl = btn.querySelector(".like-count");
+      if (countEl) countEl.textContent = formatLikeCount(getLikesCount(slug));
+    });
+  }).catch(err => {
+    console.warn("[Lumina] 부스트 상태 로드 실패 (정상 진행):", err);
+  });
 
   renderMainArtists();
   renderDebutLine();
@@ -1450,6 +1825,7 @@ async function init() {
   bindCharacterFilters();
   renderCharacterDetail();
   bindCardNavigation();
+  bindLikeButtons();
   initScrollReveal();
 }
 
