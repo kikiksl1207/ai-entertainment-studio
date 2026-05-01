@@ -25,6 +25,8 @@ Selected candidates:
 - `selected/16_backstage-in-ear-01.png`
 - `selected/17_rehearsal-room-01.png`
 - `selected/18_backstage-full-body-01.png`
+- `selected/19_backstage-headset-01.png`
+- `selected/20_rehearsal-headset-silver-01.png`
 
 Hold candidates:
 
@@ -34,6 +36,6 @@ Hold candidates:
 
 Next suggested work:
 
-- Generate two more candidates for positions 19 and 20.
+- Review the updated contact sheet with candidates 06-20.
 - Keep the cold, sharp Yoon Serin look: no smile, sharp eyes, violet metallic stage styling, in-ear or headset variations.
-- After all candidates are ready, create a contact sheet and ask the user before replacing anything in `reference-final`.
+- After the user chooses the final set, replace `reference-final` only after explicit approval.
