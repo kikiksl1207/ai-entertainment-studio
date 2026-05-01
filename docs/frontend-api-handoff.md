@@ -162,12 +162,34 @@ assets[]
 ```http
 POST /auth/register
 POST /auth/login
+GET /auth/social/providers
+POST /auth/social/login
 POST /auth/refresh
 POST /auth/logout
+POST /auth/email-verifications
+POST /auth/email-verifications/confirm
+POST /auth/password-resets
+POST /auth/password-resets/confirm
 GET /me
+PATCH /me/password
+GET /me/sessions
+DELETE /me/sessions
+DELETE /me/sessions/:sessionId
 ```
 
 Use `Authorization: Bearer <accessToken>` for authenticated requests.
+
+Auth responses:
+
+- `POST /auth/register` and `POST /auth/login` return `{ user, tokens }`.
+- `tokens` contains `accessToken`, `refreshToken`, and `tokenType: "Bearer"`.
+- `GET /me` returns the current user, including `emailVerifiedAt` when the email has been verified.
+- `POST /auth/email-verifications` body: `{ "email": "user@example.com" }`.
+- `POST /auth/email-verifications/confirm` body: `{ "token": "<email-token>" }`.
+- `POST /auth/password-resets` body: `{ "email": "user@example.com" }`.
+- `POST /auth/password-resets/confirm` body: `{ "token": "<reset-token>", "newPassword": "<new-password>" }`.
+
+Email delivery is not connected yet. The two request endpoints currently return `delivery.status = "not_configured"` and never reveal whether the email exists. Once a mail provider is added, the frontend contract can stay the same.
 
 ## Commerce/Public Products
 

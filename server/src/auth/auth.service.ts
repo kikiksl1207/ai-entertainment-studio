@@ -6,15 +6,19 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload, SocialProviderConfig } from './auth.types';
 import {
   ChangePasswordDto,
+  ConfirmEmailVerificationDto,
+  ConfirmPasswordResetDto,
   LoginDto,
   RegisterDto,
+  RequestEmailVerificationDto,
+  RequestPasswordResetDto,
   SocialLoginDto,
 } from './dto/auth.dto';
 import { SocialAuthService } from './social-auth.service';
@@ -23,6 +27,10 @@ const PASSWORD_HASH_ROUNDS = 12;
 const LUMINA_CURRENCY_CODE = 'LUMINA';
 const SIGNUP_BONUS_LUMINA = 300;
 const REFERRAL_REWARD_LUMINA = 500;
+const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+const EMAIL_VERIFICATION_PURPOSE = 'email_verification';
+const PASSWORD_RESET_PURPOSE = 'password_reset';
 
 type SessionContext = {
   userAgent?: string | null;
@@ -357,6 +365,7 @@ export class AuthService {
       select: {
         id: true,
         email: true,
+        emailVerifiedAt: true,
         phoneNumber: true,
         status: true,
         createdAt: true,
@@ -373,6 +382,143 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async requestEmailVerification(input: RequestEmailVerificationDto) {
+    const email = input.email.trim().toLowerCase();
+    const user = await this.prisma.user.findFirst({
+      where: {
+        email,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        emailVerifiedAt: true,
+      },
+    });
+
+    if (user && !user.emailVerifiedAt) {
+      await this.createUserActionToken(
+        user.id,
+        EMAIL_VERIFICATION_PURPOSE,
+        EMAIL_VERIFICATION_TOKEN_TTL_MS,
+      );
+    }
+
+    return {
+      ok: true,
+      delivery: {
+        status: 'not_configured',
+        channel: 'email',
+      },
+    };
+  }
+
+  async confirmEmailVerification(input: ConfirmEmailVerificationDto) {
+    const token = await this.consumeUserActionToken(
+      input.token,
+      EMAIL_VERIFICATION_PURPOSE,
+    );
+
+    await this.prisma.user.update({
+      where: { id: token.userId },
+      data: {
+        emailVerifiedAt: token.user.emailVerifiedAt ?? new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    return { ok: true };
+  }
+
+  async requestPasswordReset(input: RequestPasswordResetDto) {
+    const email = input.email.trim().toLowerCase();
+    const authAccount = await this.prisma.userAuthAccount.findUnique({
+      where: {
+        provider_providerUserId: {
+          provider: 'email',
+          providerUserId: email,
+        },
+      },
+      select: {
+        userId: true,
+        passwordHash: true,
+        user: {
+          select: {
+            status: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
+
+    if (
+      authAccount?.passwordHash &&
+      authAccount.user.status === 'active' &&
+      !authAccount.user.deletedAt
+    ) {
+      await this.createUserActionToken(
+        authAccount.userId,
+        PASSWORD_RESET_PURPOSE,
+        PASSWORD_RESET_TOKEN_TTL_MS,
+      );
+    }
+
+    return {
+      ok: true,
+      delivery: {
+        status: 'not_configured',
+        channel: 'email',
+      },
+    };
+  }
+
+  async confirmPasswordReset(input: ConfirmPasswordResetDto) {
+    const token = await this.consumeUserActionToken(input.token, PASSWORD_RESET_PURPOSE);
+    this.assertUserCanLogin(token.user);
+
+    const passwordHash = await bcrypt.hash(input.newPassword, PASSWORD_HASH_ROUNDS);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const authAccount = await tx.userAuthAccount.findFirst({
+        where: {
+          userId: token.userId,
+          provider: 'email',
+        },
+        select: {
+          id: true,
+          passwordHash: true,
+        },
+      });
+
+      if (!authAccount?.passwordHash) {
+        throw new BadRequestException('Email password is not configured for this account');
+      }
+
+      await tx.userAuthAccount.update({
+        where: { id: authAccount.id },
+        data: {
+          passwordHash,
+          lastLoginAt: null,
+        },
+      });
+
+      return tx.userRefreshToken.updateMany({
+        where: {
+          userId: token.userId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      });
+    });
+
+    return {
+      ok: true,
+      revokedCount: result.count,
+    };
   }
 
   async changePassword(userId: string, input: ChangePasswordDto) {
@@ -558,6 +704,75 @@ export class AuthService {
 
   private hashToken(token: string) {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private createOpaqueToken() {
+    return randomBytes(32).toString('base64url');
+  }
+
+  private async createUserActionToken(
+    userId: string,
+    purpose: string,
+    ttlMs: number,
+  ) {
+    const rawToken = this.createOpaqueToken();
+    const now = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userActionToken.updateMany({
+        where: {
+          userId,
+          purpose,
+          consumedAt: null,
+        },
+        data: {
+          consumedAt: now,
+        },
+      });
+
+      await tx.userActionToken.create({
+        data: {
+          userId,
+          purpose,
+          tokenHash: this.hashToken(rawToken),
+          expiresAt: new Date(now.getTime() + ttlMs),
+        },
+      });
+    });
+
+    return rawToken;
+  }
+
+  private async consumeUserActionToken(rawToken: string, purpose: string) {
+    const token = await this.prisma.userActionToken.findFirst({
+      where: {
+        tokenHash: this.hashToken(rawToken),
+        purpose,
+        consumedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            status: true,
+            deletedAt: true,
+            emailVerifiedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!token) {
+      throw new BadRequestException('Token is invalid or expired');
+    }
+
+    await this.prisma.userActionToken.update({
+      where: { id: token.id },
+      data: { consumedAt: new Date() },
+    });
+
+    return token;
   }
 
   private async createWalletWithSignupBonus(

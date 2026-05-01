@@ -40,6 +40,10 @@ Public API traffic is rate limited in-memory by the Nest throttler. The default 
 - `POST /api/v1/auth/social/login`: 10 requests/minute
 - `POST /api/v1/auth/refresh`: 30 requests/minute
 - `POST /api/v1/auth/logout`: 30 requests/minute
+- `POST /api/v1/auth/email-verifications`: 5 requests/minute
+- `POST /api/v1/auth/email-verifications/confirm`: 10 requests/minute
+- `POST /api/v1/auth/password-resets`: 5 requests/minute
+- `POST /api/v1/auth/password-resets/confirm`: 5 requests/minute
 
 Render should run behind trusted proxy mode so rate limiting uses the original client IP instead of the proxy address.
 
@@ -98,6 +102,10 @@ Auth endpoints:
 - `POST /api/v1/auth/social/login`
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
+- `POST /api/v1/auth/email-verifications`
+- `POST /api/v1/auth/email-verifications/confirm`
+- `POST /api/v1/auth/password-resets`
+- `POST /api/v1/auth/password-resets/confirm`
 - `GET /api/v1/me`
 - `PATCH /api/v1/me/password`
 - `GET /api/v1/me/sessions`
@@ -114,6 +122,8 @@ Refresh tokens are stored as SHA-256 hashes in `user_refresh_tokens`. `POST /api
 `GET /api/v1/me/sessions` lists active refresh-token sessions for the current user without exposing token hashes. The response includes minimal session metadata such as `userAgent`, `ipAddress`, `createdAt`, `lastUsedAt`, and `expiresAt`. `DELETE /api/v1/me/sessions/:sessionId` revokes a selected session. `DELETE /api/v1/me/sessions` revokes all active sessions for the current user, including the current device, so clients must clear local access and refresh tokens immediately after calling it.
 
 `PATCH /api/v1/me/password` changes the password for email-password accounts after verifying the current password. It revokes all active refresh-token sessions on success, so clients must clear local access and refresh tokens and send the user back to login. Social-only accounts without an email password cannot use this endpoint until a password setup flow is added.
+
+Email verification and password reset are currently backend skeleton flows. Request endpoints always return `{ "ok": true, "delivery": { "status": "not_configured", "channel": "email" } }` so clients do not learn whether an account exists. Confirmation endpoints accept `{ "token": "..." }`; password reset confirmation also accepts `newPassword`. Tokens are stored only as SHA-256 hashes in `user_action_tokens`, expire after 24 hours for email verification and 1 hour for password reset, and are single-use. A real email adapter must send the raw token later; do not log, commit, or paste those tokens into Notion or chat.
 
 - `GET /api/v1/wallet`
 - `GET /api/v1/wallet/ledger?take=50`

@@ -77,6 +77,47 @@ export class ChangePasswordDto {
   newPassword!: string;
 }
 
+export class RequestEmailVerificationDto {
+  @Transform(normalizeEmail)
+  @IsEmail()
+  @MaxLength(254)
+  email!: string;
+}
+
+export class ConfirmEmailVerificationDto {
+  @Transform(normalizeString)
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(32)
+  @MaxLength(256)
+  token!: string;
+}
+
+export class RequestPasswordResetDto {
+  @Transform(normalizeEmail)
+  @IsEmail()
+  @MaxLength(254)
+  email!: string;
+}
+
+export class ConfirmPasswordResetDto {
+  @Transform(normalizeString)
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(32)
+  @MaxLength(256)
+  token!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(10)
+  @MaxLength(128)
+  @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, {
+    message: 'newPassword must include at least one letter and one number',
+  })
+  newPassword!: string;
+}
+
 export class RefreshDto {
   @Transform(normalizeString)
   @IsNotEmpty()

@@ -90,12 +90,30 @@ GET /api/v1/unlock-campaigns
 ```http
 POST /api/v1/auth/register
 POST /api/v1/auth/login
+GET /api/v1/auth/social/providers
+POST /api/v1/auth/social/login
 POST /api/v1/auth/refresh
 POST /api/v1/auth/logout
+POST /api/v1/auth/email-verifications
+POST /api/v1/auth/email-verifications/confirm
+POST /api/v1/auth/password-resets
+POST /api/v1/auth/password-resets/confirm
 GET /api/v1/me
+PATCH /api/v1/me/password
+GET /api/v1/me/sessions
+DELETE /api/v1/me/sessions
+DELETE /api/v1/me/sessions/:sessionId
 PATCH /api/v1/me/profile
 PATCH /api/v1/me/settings
 ```
+
+이메일 인증/비밀번호 재설정:
+
+- `user_action_tokens`에 원문 토큰 대신 SHA-256 해시만 저장한다.
+- 이메일 인증 토큰 만료는 24시간, 비밀번호 재설정 토큰 만료는 1시간이다.
+- 요청 API는 계정 존재 여부를 노출하지 않기 위해 항상 `ok: true` 형태로 응답한다.
+- 현재는 메일 발송 adapter가 없는 skeleton 상태이며 `delivery.status = "not_configured"`를 반환한다.
+- 실제 메일 provider 연결 전까지 raw token을 로그, Git, Notion, 채팅에 남기지 않는다.
 
 ### Wallet / Lumina
 

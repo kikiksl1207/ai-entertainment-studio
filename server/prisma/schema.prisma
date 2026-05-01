@@ -11,6 +11,7 @@ model User {
   id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   status            String                   @default("active")
   email             String?                  @unique
+  emailVerifiedAt   DateTime?                @map("email_verified_at") @db.Timestamptz(6)
   phoneNumber       String?                  @unique @map("phone_number")
   createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
@@ -34,9 +35,24 @@ model User {
   attendanceRewards DailyAttendanceReward[]
   sentUserGifts     UserGiftTransfer[]       @relation("UserGiftSender")
   receivedUserGifts UserGiftTransfer[]       @relation("UserGiftRecipient")
+  actionTokens      UserActionToken[]
 
   @@index([status], map: "idx_users_status")
   @@map("users")
+}
+
+model UserActionToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  purpose    String
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, purpose, consumedAt, expiresAt], map: "idx_user_action_tokens_user_purpose")
+  @@map("user_action_tokens")
 }
 
 model UserAuthAccount {

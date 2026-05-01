@@ -14,9 +14,13 @@ import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from './decorators/current-user.decorator';
 import {
   ChangePasswordDto,
+  ConfirmEmailVerificationDto,
+  ConfirmPasswordResetDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
+  RequestEmailVerificationDto,
+  RequestPasswordResetDto,
   SocialLoginDto,
 } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -66,6 +70,30 @@ export class AuthController {
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   logout(@Body() body: RefreshDto) {
     return this.authService.logout(body.refreshToken);
+  }
+
+  @Post('email-verifications')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  requestEmailVerification(@Body() body: RequestEmailVerificationDto) {
+    return this.authService.requestEmailVerification(body);
+  }
+
+  @Post('email-verifications/confirm')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  confirmEmailVerification(@Body() body: ConfirmEmailVerificationDto) {
+    return this.authService.confirmEmailVerification(body);
+  }
+
+  @Post('password-resets')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  requestPasswordReset(@Body() body: RequestPasswordResetDto) {
+    return this.authService.requestPasswordReset(body);
+  }
+
+  @Post('password-resets/confirm')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  confirmPasswordReset(@Body() body: ConfirmPasswordResetDto) {
+    return this.authService.confirmPasswordReset(body);
   }
 }
 
