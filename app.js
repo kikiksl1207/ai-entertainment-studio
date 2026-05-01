@@ -86,39 +86,23 @@ async function authLogin(email, password) {
   if (token) setAuth({ accessToken: token, refreshToken: refresh, user });
   return data;
 }
-async function authRegister(email, password, displayName) {
-  // 백엔드가 받는 키 이름이 미상이라 가장 흔한 형식부터 순차 시도
-  const variants = [
-    { email, password, displayName },         // 우리 표준
-    { email, password, name: displayName },   // 일반적 표준
-    { email, password, nickname: displayName }, // 한국 사이트 흔한 표준
-    { email, password }                        // displayName 없이
-  ];
-
-  let lastErr = null;
-  for (const body of variants) {
-    try {
-      console.log("[Lumina] register 시도 body:", body);
-      const data = await apiFetch("/api/v1/auth/register", {
-        method: "POST",
-        body,
-        throwOnError: true
-      });
-      console.log("[Lumina] register 성공 응답:", data);
-      // 응답 구조: { user, tokens } 또는 호환 별칭
-      const token = data?.accessToken || data?.tokens?.accessToken || data?.access_token;
-      const refresh = data?.refreshToken || data?.tokens?.refreshToken;
-      const user = data?.user;
-      if (token) setAuth({ accessToken: token, refreshToken: refresh, user });
-      return data;
-    } catch (err) {
-      lastErr = err;
-      console.warn("[Lumina] register 실패:", err.status, err.body);
-      // 400 (validation)이면 다른 키로 재시도, 그 외는 즉시 종료
-      if (err.status !== 400) throw err;
-    }
-  }
-  throw lastErr || new Error("회원가입 실패");
+async function authRegister(email, password, displayName, referralCode) {
+  const body = { email, password, displayName };
+  if (referralCode) body.referralCode = referralCode;
+  console.log("[Lumina] register 시도:", { ...body, password: "***" });
+  const data = await apiFetch("/api/v1/auth/register", {
+    method: "POST",
+    body,
+    throwOnError: true
+  });
+  // 응답 구조: { user, tokens } 또는 호환 별칭
+  const token = data?.accessToken || data?.tokens?.accessToken || data?.access_token;
+  const refresh = data?.refreshToken || data?.tokens?.refreshToken;
+  const user = data?.user;
+  if (token) setAuth({ accessToken: token, refreshToken: refresh, user });
+  // 가입 성공 시 저장된 추천인 코드 제거
+  try { localStorage.removeItem("lumina_ref"); } catch {}
+  return data;
 }
 async function authLogout() {
   try { await apiFetch("/api/v1/auth/logout", { method: "POST", auth: true }); } catch {}
@@ -179,6 +163,8 @@ function createAuthModal() {
           <input type="text" name="displayName" required autocomplete="nickname" placeholder="팬덤에서 쓸 이름" /></label>
         <label class="auth-modal-field"><span>비밀번호 (8자 이상)</span>
           <input type="password" name="password" required minlength="8" autocomplete="new-password" /></label>
+        <label class="auth-modal-field"><span>추천인 코드 <small style="color:rgba(255,255,255,0.4);font-weight:400;">(선택)</small></span>
+          <input type="text" name="referralCode" autocomplete="off" placeholder="예: ABC12345" maxlength="20" /></label>
         <button type="submit" class="auth-modal-submit">가입하기</button>
       </form>
 
@@ -232,7 +218,12 @@ async function handleAuthSubmit(form, mode) {
     if (mode === "login") {
       await authLogin(form.email.value.trim(), form.password.value);
     } else {
-      await authRegister(form.email.value.trim(), form.password.value, form.displayName.value.trim());
+      await authRegister(
+        form.email.value.trim(),
+        form.password.value,
+        form.displayName.value.trim(),
+        form.referralCode?.value.trim() || null
+      );
     }
     closeAuthModal();
     updateAuthUI();
@@ -273,10 +264,51 @@ function openAuthModal(tab = "login") {
   modal.classList.add("is-open");
   document.body.style.overflow = "hidden";
   setTimeout(() => modal.querySelector(`[data-form="${tab}"] input[name="email"]`)?.focus(), 120);
+  // 추천인 코드 자동 채움 (URL ?ref= 또는 저장된 값)
+  const refInput = modal.querySelector('input[name="referralCode"]');
+  if (refInput && !refInput.value) {
+    const savedRef = getStoredReferralCode();
+    if (savedRef) refInput.value = savedRef;
+  }
   // 소셜 로그인 버튼 자동 로드 (활성화된 provider만)
   renderSocialButtons();
   // Google SDK 미리 로드 (클릭 시 더 빠른 반응)
   loadGoogleSDK().catch(() => { /* 클릭 시 다시 시도 */ });
+}
+
+/* ── 추천인 코드 — URL ?ref= 감지 + localStorage 보관 ── */
+function captureReferralFromURL() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref") || params.get("referral") || params.get("invite");
+    if (!ref) return;
+    // 30일간 보관 (브라우저 닫아도 유지)
+    localStorage.setItem("lumina_ref", JSON.stringify({
+      code: ref,
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
+    }));
+    console.info("[Lumina] 추천인 코드 저장됨:", ref);
+    // URL 깔끔하게 정리 (?ref= 제거)
+    params.delete("ref");
+    params.delete("referral");
+    params.delete("invite");
+    const newQuery = params.toString();
+    history.replaceState({}, "", window.location.pathname + (newQuery ? "?" + newQuery : ""));
+  } catch (e) {
+    console.warn("[Lumina] 추천인 코드 저장 실패:", e);
+  }
+}
+function getStoredReferralCode() {
+  try {
+    const raw = localStorage.getItem("lumina_ref");
+    if (!raw) return null;
+    const stored = JSON.parse(raw);
+    if (Date.now() > stored.expiresAt) {
+      localStorage.removeItem("lumina_ref");
+      return null;
+    }
+    return stored.code;
+  } catch { return null; }
 }
 function closeAuthModal() {
   const modal = document.getElementById("authModal");
@@ -1878,6 +1910,9 @@ async function init() {
   createAuthModal();
   bindAuthHeaderEvents();
   updateAuthUI();
+
+  // URL ?ref= 추천인 코드 자동 캡처 (있으면 localStorage 30일 보관)
+  captureReferralFromURL();
 
   // 카카오 OAuth redirect 콜백 처리 (URL에 ?code=... 있으면)
   await handleKakaoCallback();
