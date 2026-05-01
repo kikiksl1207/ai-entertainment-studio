@@ -71,6 +71,19 @@ thumbnailImage.url
 assets[]
 ```
 
+Image usage:
+
+- `coverImage.url` is the primary large image.
+- `thumbnailImage.url` is the card/list image.
+- `assets[]` includes all public artist assets.
+- Detail galleries should use `assets.filter((asset) => asset.usageType === "gallery")`.
+- Gallery assets are seeded from current operation-pack folders where available:
+  - `assets/characters/yoon-serin/reference-final/*`
+  - `assets/characters/han-seoyul/reference/*`
+  - `assets/characters/park-doa/reference-final/*`
+- `reference`, `reference-final`, and `reference-rebuild` folders are not all automatically public. Only assets returned by the API should be shown in the frontend.
+- Image URLs may be relative repo/storage keys until object storage is configured. If the URL starts with `assets/`, resolve it from the frontend site origin.
+
 ### Artist Detail Profile Box
 
 The character detail profile box should no longer use hardcoded frontend-only values.

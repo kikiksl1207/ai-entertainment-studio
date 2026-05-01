@@ -1,4 +1,6 @@
 import { createHash } from 'crypto';
+import { existsSync, readdirSync } from 'fs';
+import { join } from 'path';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -265,6 +267,12 @@ const shortforms = [
   ['cha-dohyun-stage-swag', '스테이지 스웨그', 'cha-dohyun', '젠더리스 패션과 무대 장악력을 강조하는 퍼포먼스 쇼츠', 'cover'],
 ] as const;
 
+const galleryDirsBySlug = {
+  'yoon-serin': ['reference-final'],
+  'han-seoyul': ['reference'],
+  'park-doa': ['reference-final'],
+} as const;
+
 async function main() {
   const artistBySlug = new Map<string, { id: string; displayName: string }>();
   const assetByKey = new Map<string, { id: string }>();
@@ -368,6 +376,29 @@ async function main() {
           usageType,
           isPrimary: true,
           sortOrder: usageType === 'cover' ? 10 : 20,
+        },
+      });
+    }
+
+    for (const [index, storageKey] of getGalleryImageKeys(artist.slug).entries()) {
+      const asset = await upsertImageAsset(storageKey, `${artist.displayName} gallery ${index + 1}`);
+      assetByKey.set(storageKey, asset);
+
+      await prisma.artistAsset.upsert({
+        where: {
+          artistId_assetId_usageType: {
+            artistId: row.id,
+            assetId: asset.id,
+            usageType: 'gallery',
+          },
+        },
+        update: { isPrimary: false, sortOrder: 100 + index },
+        create: {
+          artistId: row.id,
+          assetId: asset.id,
+          usageType: 'gallery',
+          isPrimary: false,
+          sortOrder: 100 + index,
         },
       });
     }
@@ -649,6 +680,35 @@ async function upsertImageAsset(storageKey: string, title: string) {
       metadata: { title, seed: true },
     },
   });
+}
+
+function getGalleryImageKeys(slug: string) {
+  const dirs = galleryDirsBySlug[slug as keyof typeof galleryDirsBySlug] ?? [];
+  const keys: string[] = [];
+
+  for (const dir of dirs) {
+    const storageDir = `assets/characters/${slug}/${dir}`;
+    const localDir = resolveAssetDir(storageDir);
+
+    if (!localDir) {
+      continue;
+    }
+
+    const fileNames = readdirSync(localDir)
+      .filter((fileName) => /\.(png|jpe?g|webp)$/i.test(fileName))
+      .sort((a, b) => a.localeCompare(b, 'en'));
+
+    for (const fileName of fileNames) {
+      keys.push(`${storageDir}/${fileName}`);
+    }
+  }
+
+  return keys;
+}
+
+function resolveAssetDir(storageDir: string) {
+  const candidates = [join(process.cwd(), '..', storageDir), join(process.cwd(), storageDir)];
+  return candidates.find((candidate) => existsSync(candidate));
 }
 
 function skuSuffix(slug: string) {
