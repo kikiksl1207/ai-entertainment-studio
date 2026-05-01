@@ -2,6 +2,7 @@ import {
   BadRequestException,
   HttpException,
   Injectable,
+  Logger,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -17,6 +18,8 @@ type SocialLoginCredential = {
 
 @Injectable()
 export class SocialAuthService {
+  private readonly logger = new Logger(SocialAuthService.name);
+
   constructor(private readonly configService: ConfigService) {}
 
   async verifyProfile(provider: SocialProvider, credential: SocialLoginCredential) {
@@ -212,12 +215,27 @@ export class SocialAuthService {
 
     try {
       response = await fetch(url, init);
-    } catch {
+    } catch (error) {
+      this.logger.warn(
+        `Social provider request failed endpoint=${this.safeEndpoint(url)} message=${error instanceof Error ? error.message : String(error)}`,
+      );
       throw new ServiceUnavailableException('Social provider request failed');
     }
 
     if (!response.ok) {
-      throw new UnauthorizedException('Social token verification failed');
+      const providerBody = await this.safeReadResponseBody(response);
+      const providerError = this.extractProviderError(providerBody);
+      this.logger.warn(
+        `Social provider rejected request endpoint=${this.safeEndpoint(url)} status=${response.status} error=${providerError ?? 'unknown'}`,
+      );
+      throw new UnauthorizedException({
+        code: 'SOCIAL_TOKEN_VERIFICATION_FAILED',
+        message: 'Social token verification failed',
+        details: {
+          providerStatus: response.status,
+          providerError,
+        },
+      });
     }
 
     try {
@@ -275,5 +293,46 @@ export class SocialAuthService {
 
   private string(value: unknown) {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  }
+
+  private safeEndpoint(url: string) {
+    try {
+      const parsedUrl = new URL(url);
+      return `${parsedUrl.origin}${parsedUrl.pathname}`;
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  private async safeReadResponseBody(response: Response) {
+    try {
+      return await response.text();
+    } catch {
+      return null;
+    }
+  }
+
+  private extractProviderError(body: string | null) {
+    if (!body) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(body) as JsonObject;
+      const error =
+        this.string(parsed.error) ??
+        this.string(parsed.error_code) ??
+        this.string(parsed.resultcode) ??
+        this.string(parsed.code);
+      const description =
+        this.string(parsed.error_description) ??
+        this.string(parsed.error_message) ??
+        this.string(parsed.message) ??
+        this.string(parsed.msg);
+
+      return [error, description].filter(Boolean).join(': ').slice(0, 500) || null;
+    } catch {
+      return body.slice(0, 500);
+    }
   }
 }
