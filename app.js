@@ -205,6 +205,8 @@ function openAuthModal(tab = "login") {
   setTimeout(() => modal.querySelector(`[data-form="${tab}"] input[name="email"]`)?.focus(), 120);
   // 소셜 로그인 버튼 자동 로드 (활성화된 provider만)
   renderSocialButtons();
+  // Google SDK 미리 로드 (클릭 시 더 빠른 반응)
+  loadGoogleSDK().catch(() => { /* 클릭 시 다시 시도 */ });
 }
 function closeAuthModal() {
   const modal = document.getElementById("authModal");
@@ -267,9 +269,98 @@ async function renderSocialButtons() {
 }
 
 async function handleSocialLogin(provider) {
-  // TODO: 실제 OAuth 흐름은 다음 단계에서 통합
-  // (Google Identity Services SDK 또는 redirect flow)
-  alert(`${provider} 로그인은 곧 추가됩니다!\n\nClient ID와 OAuth 흐름을 사용자와 함께 설정한 뒤 바로 동작합니다.`);
+  if (provider === "google") {
+    try {
+      await loadGoogleSDK();
+      if (!initGoogleAuth()) throw new Error("Google SDK 초기화 실패");
+      _googleTokenClient.requestAccessToken();
+    } catch (err) {
+      console.error("[Lumina] Google 로그인 오류:", err);
+      alert("Google 로그인 준비 실패: " + (err.message || "알 수 없는 오류"));
+    }
+    return;
+  }
+  // Kakao/Naver/Apple — 추후 통합
+  alert(`${provider} 로그인은 곧 추가됩니다!`);
+}
+
+/* ── Google OAuth 통합 ─────────────────────────
+   GIS SDK + access_token popup 흐름
+   ─────────────────────────────────────────── */
+const GOOGLE_CLIENT_ID = "213795475154-votjkhv4cvgg49cvajast3clenhoj5db.apps.googleusercontent.com";
+let _googleSdkPromise = null;
+let _googleTokenClient = null;
+
+function loadGoogleSDK() {
+  if (window.google?.accounts?.oauth2) return Promise.resolve();
+  if (_googleSdkPromise) return _googleSdkPromise;
+
+  _googleSdkPromise = new Promise((resolve, reject) => {
+    const existing = document.getElementById("googleGsiSdk");
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Google SDK 로드 실패")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = "googleGsiSdk";
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Google SDK 로드 실패 (네트워크 또는 차단)"));
+    document.head.appendChild(script);
+  });
+  return _googleSdkPromise;
+}
+
+function initGoogleAuth() {
+  if (_googleTokenClient) return true;
+  if (!window.google?.accounts?.oauth2) return false;
+
+  _googleTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: "openid email profile",
+    callback: handleGoogleTokenResponse,
+    error_callback: (err) => {
+      console.error("[Lumina] Google OAuth 에러:", err);
+      // 사용자가 popup 닫음 등은 조용히 무시
+      if (err.type === "popup_closed" || err.type === "popup_failed_to_open") return;
+      alert("Google 로그인 취소됨: " + (err.message || err.type));
+    }
+  });
+  return true;
+}
+
+async function handleGoogleTokenResponse(tokenResponse) {
+  if (!tokenResponse?.access_token) {
+    console.error("[Lumina] Google access_token 누락");
+    return;
+  }
+  try {
+    const data = await apiFetch("/api/v1/auth/social/login", {
+      method: "POST",
+      body: {
+        provider: "google",
+        accessToken: tokenResponse.access_token
+      },
+      throwOnError: true
+    });
+    if (data?.accessToken) {
+      setAuth({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        user: data.user
+      });
+      closeAuthModal();
+      updateAuthUI();
+    } else {
+      throw new Error("백엔드에서 accessToken을 받지 못했습니다.");
+    }
+  } catch (err) {
+    console.error("[Lumina] Google 백엔드 로그인 실패:", err);
+    alert("Google 로그인 실패: " + (err.message || "서버 오류"));
+  }
 }
 
 /* ── 헤더 UI 동기화 + 버튼 이벤트 ───────────── */
