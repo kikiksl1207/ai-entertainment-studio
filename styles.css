@@ -2007,7 +2007,6 @@ p {
 }
 
 @media (max-width: 860px) {
-  .header-inner,
   .hero-grid,
   .page-hero-grid,
   .detail-layout,
@@ -2609,9 +2608,35 @@ p {
   .business-cards-row {
     grid-template-columns: 1fr;
   }
-  .header-auth {
-    display: none;
+  /* 📱 모바일 헤더: 브랜드(좌) + 로그인/회원가입(우) 한 줄 + 네비 둘째 줄 */
+  .header-inner {
+    display: grid !important;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "brand auth"
+      "nav nav";
+    gap: 10px 12px;
+    align-items: center;
+    min-height: auto;
+    padding: 14px 0;
   }
+  .brand { grid-area: brand; }
+  .main-nav { grid-area: nav; }
+  .header-auth {
+    grid-area: auth;
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    align-self: center;
+  }
+  .header-auth .auth-btn {
+    padding: 7px 12px;
+    font-size: 12px;
+    min-width: auto;
+  }
+  /* 모바일에서 로고 + 부제 컴팩트하게 */
+  .brand-copy strong { font-size: 15px; }
+  .brand-copy small { font-size: 11px; }
 }
 
 /* ── 섹션 구분선 ── */
@@ -3395,6 +3420,14 @@ p {
 /* ══════════════════════════════════════
    좋아요 버튼 (Like Button) — 캐릭터 카드용
 ══════════════════════════════════════ */
+/* 좋아요 버튼이 카드 안에 위치하도록 부모를 positioned로 보장 */
+.artist-media,
+.short-media,
+.roster-media,
+.feed-card-media,
+.debut-card-media {
+  position: relative;
+}
 .like-btn {
   position: absolute;
   top: 14px;

@@ -38,6 +38,16 @@
     }
     .detail-gallery-slider { width: 100% !important; overflow: hidden !important; border-radius: 16px !important; background: #16122a !important; }
     .gallery-track { display: flex !important; }
+    /* 모바일: 갤러리/프로필 세로 쌓기 */
+    @media (max-width: 768px) {
+      .detail-body-grid {
+        grid-template-columns: 1fr !important;
+        gap: 16px !important;
+      }
+      .detail-gallery-panel {
+        height: auto !important;
+      }
+    }
   </style>
 </head>
   <body>

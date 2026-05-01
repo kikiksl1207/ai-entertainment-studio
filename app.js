@@ -96,6 +96,26 @@ async function authLogout() {
   updateAuthUI();
 }
 
+/* ── 백엔드 응답에서 토큰 추출 (키 이름 자동 인식) ── */
+function applyAuthResponse(data, providerName = "백엔드") {
+  console.log(`[Lumina] ${providerName} 응답 받음:`, data);
+  // 백엔드가 다양한 키로 응답할 수 있어 모두 시도
+  const accessToken = data?.accessToken || data?.access_token || data?.token;
+  const refreshToken = data?.refreshToken || data?.refresh_token;
+  const user = data?.user || data?.profile || data?.account || data?.member;
+
+  if (!accessToken) {
+    console.error(`[Lumina] ${providerName} 응답에 토큰 없음:`, data);
+    alert(`${providerName} 로그인 실패\n\n백엔드 응답:\n${JSON.stringify(data, null, 2)}\n\n→ 백엔드 응답 형식 확인 필요`);
+    return false;
+  }
+  setAuth({ accessToken, refreshToken, user });
+  closeAuthModal();
+  updateAuthUI();
+  console.info(`[Lumina] ${providerName} 로그인 성공:`, user?.displayName || user?.email);
+  return true;
+}
+
 /* ── 인증 모달 (로그인/회원가입) ─────────────── */
 function createAuthModal() {
   if (document.getElementById("authModal")) return;
@@ -296,7 +316,7 @@ async function handleSocialLogin(provider) {
    사용자가 Kakao Developers에서 JavaScript 키 받아서
    KAKAO_JS_KEY 변수에 등록하면 동작
    ─────────────────────────────────────────── */
-const KAKAO_JS_KEY = ""; // TODO: 사용자가 Kakao Developers에서 받은 JS 키 입력
+const KAKAO_JS_KEY = "8192a29f27a47c29f7634cc530874e6a"; // Kakao Developers JavaScript 키
 let _kakaoSdkPromise = null;
 
 function loadKakaoSDK() {
@@ -335,85 +355,135 @@ async function handleKakaoLogin() {
   }
   try {
     await loadKakaoSDK();
-    Kakao.Auth.login({
-      scope: "profile_nickname,account_email",
-      success: async (authResp) => {
-        try {
-          const data = await apiFetch("/api/v1/auth/social/login", {
-            method: "POST",
-            body: { provider: "kakao", accessToken: authResp.access_token },
-            throwOnError: true
-          });
-          if (data?.accessToken) {
-            setAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
-            closeAuthModal();
-            updateAuthUI();
-          }
-        } catch (err) {
-          alert("카카오 로그인 실패: " + (err.message || "서버 오류"));
-        }
-      },
-      fail: (err) => {
-        if (err.error !== "popup_closed_by_user") {
-          alert("카카오 로그인 취소됨: " + (err.error_description || err.error));
-        }
-      }
+    console.info("[Lumina] Kakao SDK 로드 완료, isInitialized:", window.Kakao?.isInitialized?.());
+    if (!window.Kakao?.Auth) {
+      throw new Error("Kakao SDK가 정상 초기화되지 않았습니다.");
+    }
+    // Redirect URI는 카카오 등록과 정확히 일치해야 함 (trailing slash까지!)
+    const redirectUri = window.location.origin;
+    sessionStorage.setItem("oauth_provider", "kakao");
+    console.info("[Lumina] Kakao authorize 호출:", { redirectUri });
+    Kakao.Auth.authorize({
+      redirectUri,
+      scope: "profile_nickname",  // 비즈 앱 미전환 상태 — 이메일 scope 제외
+      throughTalk: false  // 카카오톡 앱 우회 — 데스크톱에서 intent:// 스킴 fail 방지
     });
+    // authorize는 페이지를 이동시킴. 1초 후에도 여기 있으면 redirect 실패 의심
+    setTimeout(() => {
+      console.warn("[Lumina] Kakao authorize 호출 후 1초 — 페이지 이동 안 함. redirect_uri 또는 도메인 등록 확인 필요");
+    }, 1000);
   } catch (err) {
+    console.error("[Lumina] 카카오 로그인 오류:", err);
     alert("카카오 로그인 준비 실패: " + (err.message || "SDK 로드 실패"));
   }
 }
 
-/* ── 네이버 로그인 (SDK 골격) ─────────────────
-   네이버 OAuth는 redirect 방식 표준
-   사용자가 Naver Developers에서 Client ID 받아 등록 + 콜백 URL 처리 필요
+/* ── 카카오 OAuth 콜백 처리 (redirect 후) ──
+   URL에 ?code=xxx 가 있으면 백엔드로 전달 → 우리 토큰 받음
+   ────────────────────────────────────── */
+async function handleKakaoCallback() {
+  // 카카오 콜백인지 확인
+  if (sessionStorage.getItem("oauth_provider") !== "kakao") return;
+
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  const error = params.get("error");
+
+  if (!code && !error) return;
+
+  sessionStorage.removeItem("oauth_provider");
+  history.replaceState({}, "", window.location.pathname);
+
+  if (error) {
+    console.warn("[Lumina] Kakao 로그인 취소/실패:", error);
+    return;
+  }
+
+  try {
+    console.log("[Lumina] Kakao code 받음, 백엔드 호출 중...");
+    // 백엔드에 code 전달 — 백엔드가 카카오와 토큰 교환 + 우리 토큰 발급
+    const data = await apiFetch("/api/v1/auth/social/login", {
+      method: "POST",
+      body: {
+        provider: "kakao",
+        code,
+        redirectUri: window.location.origin
+      },
+      throwOnError: true
+    });
+    applyAuthResponse(data, "Kakao");
+  } catch (err) {
+    console.error("[Lumina] Kakao 백엔드 로그인 실패:", err, err.body);
+    alert("Kakao 로그인 실패\n에러: " + (err.message || "서버 오류") + (err.body ? "\n응답: " + JSON.stringify(err.body) : ""));
+  }
+}
+
+/* ── 네이버 로그인 (redirect 방식) ─────────────
+   카카오와 동일한 패턴 — 페이지가 네이버로 이동 → 인증 → 다시 사이트로 ?code=...
+   사용자가 Naver Developers에서 Client ID 받아 등록 필요
    ─────────────────────────────────────────── */
-const NAVER_CLIENT_ID = ""; // TODO: 사용자가 Naver Developers에서 받은 Client ID 입력
+const NAVER_CLIENT_ID = "WEXZ2Cn3Ff8pIEdTkDfR"; // Naver Developers Client ID
 
 async function handleNaverLogin() {
   if (!NAVER_CLIENT_ID) {
-    alert("네이버 로그인 준비 중입니다.\n(Naver Client ID 등록 + 콜백 URL 설정 필요)");
+    alert("네이버 로그인 준비 중입니다.\n(Naver Client ID 등록 필요)");
     return;
   }
-  // 네이버는 redirect flow 표준 — popup으로 처리
+  // CSRF 방지용 state 토큰
   const state = Math.random().toString(36).substring(2, 15);
   sessionStorage.setItem("naver_oauth_state", state);
-  const redirectUri = encodeURIComponent(window.location.origin + "/auth/naver/callback.html");
-  const url = `https://nid.naver.com/oauth2.0/authorize?response_type=token&client_id=${NAVER_CLIENT_ID}&redirect_uri=${redirectUri}&state=${state}`;
+  sessionStorage.setItem("oauth_provider", "naver");
 
-  const popup = window.open(url, "naverLogin", "width=500,height=600");
-  if (!popup) {
-    alert("팝업이 차단되었습니다. 팝업을 허용해주세요.");
-    return;
-  }
-  // popup이 callback URL에서 postMessage로 토큰 보냄 (callback.html 별도 구현 필요)
-  const handler = (event) => {
-    if (event.origin !== window.location.origin) return;
-    if (event.data?.type !== "naver_login") return;
-    window.removeEventListener("message", handler);
-    if (event.data.error) {
-      alert("네이버 로그인 실패: " + event.data.error);
-      return;
-    }
-    naverBackendLogin(event.data.accessToken);
-  };
-  window.addEventListener("message", handler);
+  const redirectUri = encodeURIComponent(window.location.origin);
+  const url = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${NAVER_CLIENT_ID}&redirect_uri=${redirectUri}&state=${state}`;
+  console.info("[Lumina] Naver authorize 호출:", { redirectUri: window.location.origin });
+  window.location.href = url;
 }
 
-async function naverBackendLogin(accessToken) {
+/* ── 네이버 OAuth 콜백 처리 (redirect 후) ────── */
+async function handleNaverCallback() {
+  // 네이버 콜백인지 확인 (oauth_provider 마커)
+  if (sessionStorage.getItem("oauth_provider") !== "naver") return;
+
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  const state = params.get("state");
+  const error = params.get("error");
+
+  if (!code && !error) return;
+
+  // 마커 + URL 정리
+  const savedState = sessionStorage.getItem("naver_oauth_state");
+  sessionStorage.removeItem("naver_oauth_state");
+  sessionStorage.removeItem("oauth_provider");
+  history.replaceState({}, "", window.location.pathname);
+
+  if (error) {
+    console.warn("[Lumina] Naver 로그인 취소/실패:", error, params.get("error_description"));
+    return;
+  }
+  if (savedState && state !== savedState) {
+    console.error("[Lumina] Naver state 불일치 — CSRF 의심");
+    alert("네이버 로그인 보안 검증 실패");
+    return;
+  }
+
   try {
+    console.log("[Lumina] Naver code 받음, 백엔드 호출 중...");
     const data = await apiFetch("/api/v1/auth/social/login", {
       method: "POST",
-      body: { provider: "naver", accessToken },
+      body: {
+        provider: "naver",
+        code,
+        state,
+        redirectUri: window.location.origin
+      },
       throwOnError: true
     });
-    if (data?.accessToken) {
-      setAuth({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
-      closeAuthModal();
-      updateAuthUI();
-    }
+    applyAuthResponse(data, "Naver");
   } catch (err) {
-    alert("네이버 로그인 실패: " + (err.message || "서버 오류"));
+    console.error("[Lumina] Naver 백엔드 로그인 실패:", err, err.body);
+    alert("네이버 로그인 실패\n에러: " + (err.message || "서버 오류") + (err.body ? "\n응답: " + JSON.stringify(err.body) : ""));
   }
 }
 
@@ -471,6 +541,7 @@ function initGoogleAuth() {
 }
 
 async function handleGoogleTokenResponse(tokenResponse) {
+  console.log("[Lumina] Google access_token 받음, 백엔드 호출 중...");
   if (!tokenResponse?.access_token) {
     console.error("[Lumina] Google access_token 누락");
     return;
@@ -484,20 +555,10 @@ async function handleGoogleTokenResponse(tokenResponse) {
       },
       throwOnError: true
     });
-    if (data?.accessToken) {
-      setAuth({
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-        user: data.user
-      });
-      closeAuthModal();
-      updateAuthUI();
-    } else {
-      throw new Error("백엔드에서 accessToken을 받지 못했습니다.");
-    }
+    applyAuthResponse(data, "Google");
   } catch (err) {
-    console.error("[Lumina] Google 백엔드 로그인 실패:", err);
-    alert("Google 로그인 실패: " + (err.message || "서버 오류"));
+    console.error("[Lumina] Google 백엔드 로그인 실패:", err, err.body);
+    alert("Google 로그인 실패\n에러: " + (err.message || "서버 오류") + (err.body ? "\n응답: " + JSON.stringify(err.body) : ""));
   }
 }
 
@@ -1763,6 +1824,11 @@ async function init() {
   createAuthModal();
   bindAuthHeaderEvents();
   updateAuthUI();
+
+  // 카카오 OAuth redirect 콜백 처리 (URL에 ?code=... 있으면)
+  await handleKakaoCallback();
+  // 네이버 OAuth redirect 콜백 처리 (URL에 ?code=... 있으면)
+  await handleNaverCallback();
 
   // API 아티스트 — 안전망 추가: 응답이 형식 안 맞으면 로컬 데이터 유지
   const apiArtists = await apiFetch("/api/v1/artists");
