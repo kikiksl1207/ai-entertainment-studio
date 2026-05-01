@@ -1,10 +1,22 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { createValidationException } from './common/validation-exception.factory';
+
+type RequestLike = {
+  headers: Record<string, string | string[] | undefined>;
+  header: (name: string) => string | undefined;
+};
+
+type ResponseLike = {
+  setHeader: (name: string, value: string) => void;
+};
+
+type NextFunction = () => void;
 
 const defaultCorsOrigins = [
   'https://lumina-stage.com',
@@ -16,6 +28,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const configService = app.get(ConfigService);
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  app.use(requestIdMiddleware);
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -59,3 +72,16 @@ function parseCorsOrigins(value?: string) {
 }
 
 void bootstrap();
+
+function requestIdMiddleware(
+  request: RequestLike,
+  response: ResponseLike,
+  next: NextFunction,
+) {
+  const incomingRequestId = request.header('x-request-id');
+  const requestId = incomingRequestId?.trim() || randomUUID();
+
+  request.headers['x-request-id'] = requestId;
+  response.setHeader('x-request-id', requestId);
+  next();
+}

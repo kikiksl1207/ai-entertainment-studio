@@ -15,6 +15,7 @@ type ErrorResponseBody = {
 
 type RequestLike = {
   url?: string;
+  headers?: Record<string, string | string[] | undefined>;
 };
 
 type ResponseLike = {
@@ -45,6 +46,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         statusCode,
         details: body.details,
         path: request.url,
+        requestId: this.getRequestId(request),
         timestamp: new Date().toISOString(),
       },
     });
@@ -88,5 +90,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
       Object.entries(HttpStatus).find(([, value]) => value === statusCode)?.[0] ??
       'UNKNOWN_ERROR'
     );
+  }
+
+  private getRequestId(request: RequestLike) {
+    const requestId = request.headers?.['x-request-id'];
+
+    return Array.isArray(requestId) ? requestId[0] : requestId;
   }
 }

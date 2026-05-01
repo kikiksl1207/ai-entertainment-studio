@@ -45,6 +45,8 @@ Render should run behind trusted proxy mode so rate limiting uses the original c
 
 The server also applies Helmet security headers. `Cross-Origin-Resource-Policy` is set to `cross-origin` so public API and asset URL responses can still be consumed by the Vercel/frontend domains.
 
+Every response includes an `x-request-id` header. Clients may send their own `x-request-id`; otherwise the server generates one. Error responses also include `error.requestId` so frontend bug reports, Render logs, and future observability tools can be correlated.
+
 4. Create a local PostgreSQL database named `lumina_stage`.
 
 5. Apply the initial migration.
