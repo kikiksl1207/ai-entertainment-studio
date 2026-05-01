@@ -392,11 +392,10 @@ export class AuthService {
       },
       select: {
         id: true,
-        emailVerifiedAt: true,
       },
     });
 
-    if (user && !user.emailVerifiedAt) {
+    if (user) {
       await this.createUserActionToken(
         user.id,
         EMAIL_VERIFICATION_PURPOSE,
@@ -422,7 +421,6 @@ export class AuthService {
     await this.prisma.user.update({
       where: { id: token.userId },
       data: {
-        emailVerifiedAt: token.user.emailVerifiedAt ?? new Date(),
         updatedAt: new Date(),
       },
     });
@@ -768,7 +766,6 @@ export class AuthService {
             id: true,
             status: true,
             deletedAt: true,
-            emailVerifiedAt: true,
           },
         },
       },

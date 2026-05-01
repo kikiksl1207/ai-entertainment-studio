@@ -188,7 +188,7 @@ Auth responses:
 - `POST /auth/social/login` accepts `{ "provider": "google" | "kakao" | "naver", "token": "<provider-token>" }`; `accessToken` is also accepted as an alias for `token`.
 - Authorization-code handoff is also accepted as `{ "provider": "kakao", "code": "<code>", "redirectUri": "<same-redirect-uri>" }`. The `redirectUri` value must exactly match the URI registered in Kakao Developers and used when the code was issued. The backend may override it with `KAKAO_REDIRECT_URI` in Render to avoid `www`/non-`www` drift.
 - Google can send either a Google ID token or OAuth access token. Kakao and Naver should send access tokens when using the token handoff.
-- `GET /me` returns the current user. `emailVerifiedAt` is reserved for the email verification flow and may be omitted until the production DB migration is confirmed.
+- `GET /me` returns the current user. `emailVerifiedAt` is intentionally omitted for now; email verification remains a backend skeleton until the production DB rollout is explicitly confirmed.
 - `POST /auth/email-verifications` body: `{ "email": "user@example.com" }`.
 - `POST /auth/email-verifications/confirm` body: `{ "token": "<email-token>" }`.
 - `POST /auth/password-resets` body: `{ "email": "user@example.com" }`.
