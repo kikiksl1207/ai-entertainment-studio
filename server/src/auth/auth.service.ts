@@ -264,11 +264,6 @@ export class AuthService {
           displayName: 'Naver',
           enabled: this.hasConfig('NAVER_CLIENT_ID'),
         },
-        {
-          provider: 'apple',
-          displayName: 'Apple',
-          enabled: this.hasConfig('APPLE_CLIENT_ID'),
-        },
       ],
     };
   }

@@ -128,8 +128,8 @@ export class RefreshDto {
 }
 
 export class SocialLoginDto {
-  @IsIn(['google', 'kakao', 'naver', 'apple'])
-  provider!: 'google' | 'kakao' | 'naver' | 'apple';
+  @IsIn(['google', 'kakao', 'naver'])
+  provider!: 'google' | 'kakao' | 'naver';
 
   @Transform(normalizeString)
   @IsNotEmpty()

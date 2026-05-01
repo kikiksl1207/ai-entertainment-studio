@@ -5,11 +5,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createPublicKey, verify } from 'crypto';
 import { SocialProvider, VerifiedSocialProfile } from './auth.types';
 
 type JsonObject = Record<string, unknown>;
-type AppleJwk = JsonObject & { kid?: string; alg?: string };
 
 @Injectable()
 export class SocialAuthService {
@@ -32,7 +30,7 @@ export class SocialAuthService {
       return this.verifyNaver(token);
     }
 
-    return this.verifyApple(token);
+    throw new BadRequestException('Unsupported social provider');
   }
 
   private async verifyGoogle(idToken: string): Promise<VerifiedSocialProfile> {
@@ -119,63 +117,6 @@ export class SocialAuthService {
     };
   }
 
-  private async verifyApple(identityToken: string): Promise<VerifiedSocialProfile> {
-    const clientId = this.configService.get<string>('APPLE_CLIENT_ID');
-
-    if (!clientId) {
-      throw new ServiceUnavailableException('Apple login is not configured');
-    }
-
-    const [header, payload, signature] = identityToken.split('.');
-
-    if (!header || !payload || !signature) {
-      throw new UnauthorizedException('Invalid Apple token');
-    }
-
-    const decodedHeader = this.decodeJwtPart<JsonObject>(header);
-    const decodedPayload = this.decodeJwtPart<JsonObject>(payload);
-    const kid = this.string(decodedHeader.kid);
-
-    if (!kid || decodedPayload.aud !== clientId || decodedPayload.iss !== 'https://appleid.apple.com') {
-      throw new UnauthorizedException('Invalid Apple token');
-    }
-
-    const keys = await this.fetchJson<{ keys?: AppleJwk[] }>(
-      'https://appleid.apple.com/auth/keys',
-    );
-    const jwk = keys.keys?.find((key) => key.kid === kid);
-
-    if (!jwk) {
-      throw new UnauthorizedException('Apple signing key not found');
-    }
-
-    const signatureValid = verify(
-      'RSA-SHA256',
-      Buffer.from(`${header}.${payload}`),
-      createPublicKey({ key: jwk, format: 'jwk' }),
-      this.base64UrlToBuffer(signature),
-    );
-
-    if (!signatureValid || !this.isJwtTimestampValid(decodedPayload)) {
-      throw new UnauthorizedException('Invalid Apple token');
-    }
-
-    const providerUserId = this.string(decodedPayload.sub);
-
-    if (!providerUserId) {
-      throw new UnauthorizedException('Invalid Apple token');
-    }
-
-    return {
-      provider: 'apple',
-      providerUserId,
-      email: this.string(decodedPayload.email)?.toLowerCase() ?? null,
-      emailVerified:
-        decodedPayload.email_verified === true || decodedPayload.email_verified === 'true',
-      displayName: null,
-    };
-  }
-
   private async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     const response = await fetch(url, init);
 
@@ -184,26 +125,6 @@ export class SocialAuthService {
     }
 
     return (await response.json()) as T;
-  }
-
-  private decodeJwtPart<T>(value: string): T {
-    try {
-      return JSON.parse(this.base64UrlToBuffer(value).toString('utf8')) as T;
-    } catch {
-      throw new UnauthorizedException('Invalid social token');
-    }
-  }
-
-  private base64UrlToBuffer(value: string) {
-    return Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
-  }
-
-  private isJwtTimestampValid(payload: JsonObject) {
-    const now = Math.floor(Date.now() / 1000);
-    const exp = Number(payload.exp);
-    const iat = Number(payload.iat);
-
-    return Number.isFinite(exp) && exp > now && (!Number.isFinite(iat) || iat <= now + 300);
   }
 
   private object(value: unknown) {

@@ -112,8 +112,8 @@ Auth endpoints:
 - `DELETE /api/v1/me/sessions`
 - `DELETE /api/v1/me/sessions/:sessionId`
 
-Social login accepts `{ "provider": "google" | "kakao" | "naver" | "apple", "token": "<provider-token>" }`.
-Google and Apple expect identity tokens; Kakao and Naver expect access tokens. The server verifies the provider token before creating or linking a `user_auth_accounts` row, and only verified provider emails can be used to link an existing email account. Configure `GOOGLE_OAUTH_CLIENT_ID`, `KAKAO_REST_API_KEY`, `NAVER_CLIENT_ID`, and `APPLE_CLIENT_ID` in `.env`; if a provider is not configured, its login endpoint fails closed.
+Social login accepts `{ "provider": "google" | "kakao" | "naver", "token": "<provider-token>" }`.
+Google expects an identity token; Kakao and Naver expect access tokens. The server verifies the provider token before creating or linking a `user_auth_accounts` row, and only verified provider emails can be used to link an existing email account. Configure `GOOGLE_OAUTH_CLIENT_ID`, `KAKAO_REST_API_KEY`, and `NAVER_CLIENT_ID` in `.env`; if a provider is not configured, its login endpoint fails closed. Apple login is intentionally out of scope for the initial launch.
 
 `GET /api/v1/auth/social/providers` returns the supported provider list with `enabled` flags based on server environment variables. Frontend clients should use this endpoint to decide which social login buttons are active.
 
