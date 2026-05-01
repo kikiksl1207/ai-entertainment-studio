@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { createHash, createHmac, randomUUID } from 'crypto';
 import { AuthUser } from '../auth/auth.types';
+import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
 
 type AdminPayload = Record<string, unknown>;
@@ -1742,13 +1743,7 @@ export class AdminService {
   }
 
   private buildPublicAssetUrl(storageKey: string) {
-    const baseUrl = this.configService.get<string>('OBJECT_STORAGE_PUBLIC_BASE_URL');
-
-    if (baseUrl) {
-      return `${baseUrl.replace(/\/+$/, '')}/${storageKey}`;
-    }
-
-    return null;
+    return buildPublicAssetUrl(this.configService, storageKey, null);
   }
 
   private buildS3CompatiblePresignedPutUrl(

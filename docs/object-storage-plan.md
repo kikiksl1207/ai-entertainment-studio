@@ -110,6 +110,7 @@ The bucket name can stay as `oneshot-ai-storage-01`. The prefix keeps Lumina Sta
 - Default video max: 500 MB.
 - The API creates metadata first; later we should add an upload confirmation endpoint that checks object existence before publishing.
 - Public APIs must only expose uploaded/ready assets and must not expose internal `metadata`, `storageKey`, or `storageProvider`.
+- Public APIs use `OBJECT_STORAGE_PUBLIC_BASE_URL` to return full public URLs when object storage/CDN is configured. In local/repo mode, they return storage keys for existing bundled assets.
 - Archived assets must not be linked to content and must not appear in public APIs.
 
 ## Next implementation step

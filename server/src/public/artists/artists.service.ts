@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { buildPublicAssetUrl } from '../../common/asset-url';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const publicArtistInclude = {
@@ -108,15 +109,7 @@ export class ArtistsService {
   }
 
   private assetUrl(storageKey: string) {
-    const baseUrl =
-      this.configService.get<string>('ASSET_PUBLIC_BASE_URL') ??
-      this.configService.get<string>('OBJECT_STORAGE_PUBLIC_BASE_URL');
-
-    if (!baseUrl) {
-      return storageKey;
-    }
-
-    return `${baseUrl.replace(/\/+$/, '')}/${storageKey}`;
+    return buildPublicAssetUrl(this.configService, storageKey);
   }
 
   private isPublicReadyAsset(metadata: unknown) {

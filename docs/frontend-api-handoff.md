@@ -184,7 +184,7 @@ GET /artists/:artistId/gift-products
 
 - Do not hardcode local-only URLs in production frontend.
 - Use the base URL as a single config value.
-- Public image URLs currently return repo/storage keys until a real object storage public base URL is configured.
+- Public image URLs return repo/storage keys until `OBJECT_STORAGE_PUBLIC_BASE_URL` is configured. After object storage is configured, the API returns full public asset URLs.
 - Backend already has seed data in Render Postgres.
 - Initial public lineup is 6 characters, not 4.
 - Detail profile facts live under `profile.publicMetadata.profileFacts`.
@@ -194,4 +194,4 @@ GET /artists/:artistId/gift-products
 ## Human TODO
 
 - Rotate Render Postgres credential because the old database URL was exposed in chat.
-- Later configure real object storage, then set `ASSET_PUBLIC_BASE_URL`.
+- Later configure real object storage, then set `OBJECT_STORAGE_PUBLIC_BASE_URL`.
