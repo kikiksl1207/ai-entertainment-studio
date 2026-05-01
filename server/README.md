@@ -33,6 +33,16 @@ JWT_REFRESH_SECRET="<different-at-least-32-random-characters>"
 
 Never commit real secrets, API keys, database passwords, JWT secrets, or PG webhook secrets.
 
+Public API traffic is rate limited in-memory by the Nest throttler. The default policy is 120 requests per minute per client IP, with stricter limits on auth mutation endpoints:
+
+- `POST /api/v1/auth/register`: 5 requests/minute
+- `POST /api/v1/auth/login`: 10 requests/minute
+- `POST /api/v1/auth/social/login`: 10 requests/minute
+- `POST /api/v1/auth/refresh`: 30 requests/minute
+- `POST /api/v1/auth/logout`: 30 requests/minute
+
+Render should run behind trusted proxy mode so rate limiting uses the original client IP instead of the proxy address.
+
 4. Create a local PostgreSQL database named `lumina_stage`.
 
 5. Apply the initial migration.
