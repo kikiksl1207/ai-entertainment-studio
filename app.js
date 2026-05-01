@@ -316,7 +316,7 @@ async function handleSocialLogin(provider) {
    사용자가 Kakao Developers에서 JavaScript 키 받아서
    KAKAO_JS_KEY 변수에 등록하면 동작
    ─────────────────────────────────────────── */
-const KAKAO_JS_KEY = "8192a29f27a47c29f7634cc530874e6a"; // Kakao Developers JavaScript 키
+const KAKAO_JS_KEY = "7445cbd55651240559e79f5fbc81983d"; // Kakao Developers JavaScript 키
 let _kakaoSdkPromise = null;
 
 function loadKakaoSDK() {
