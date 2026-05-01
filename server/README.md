@@ -43,6 +43,8 @@ Public API traffic is rate limited in-memory by the Nest throttler. The default 
 
 Render should run behind trusted proxy mode so rate limiting uses the original client IP instead of the proxy address.
 
+The server also applies Helmet security headers. `Cross-Origin-Resource-Policy` is set to `cross-origin` so public API and asset URL responses can still be consumed by the Vercel/frontend domains.
+
 4. Create a local PostgreSQL database named `lumina_stage`.
 
 5. Apply the initial migration.

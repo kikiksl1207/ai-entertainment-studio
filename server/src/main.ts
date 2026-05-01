@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { createValidationException } from './common/validation-exception.factory';
@@ -15,6 +16,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const configService = app.get(ConfigService);
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
 
   app.setGlobalPrefix('api/v1', {
     exclude: [
