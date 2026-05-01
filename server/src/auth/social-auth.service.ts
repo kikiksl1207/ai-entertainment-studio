@@ -28,6 +28,10 @@ export class SocialAuthService {
       return this.verifyKakao(token);
     }
 
+    if (provider === 'naver') {
+      return this.verifyNaver(token);
+    }
+
     return this.verifyApple(token);
   }
 
@@ -85,6 +89,33 @@ export class SocialAuthService {
       email,
       emailVerified: kakaoAccount?.is_email_verified === true,
       displayName: this.string(profile?.nickname),
+    };
+  }
+
+  private async verifyNaver(accessToken: string): Promise<VerifiedSocialProfile> {
+    if (!this.configService.get<string>('NAVER_CLIENT_ID')) {
+      throw new ServiceUnavailableException('Naver login is not configured');
+    }
+
+    const payload = await this.fetchJson<JsonObject>('https://openapi.naver.com/v1/nid/me', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const response = this.object(payload.response);
+    const providerUserId = this.string(response?.id);
+
+    if (!providerUserId) {
+      throw new UnauthorizedException('Invalid Naver token');
+    }
+
+    return {
+      provider: 'naver',
+      providerUserId,
+      email: this.string(response?.email)?.toLowerCase() ?? null,
+      emailVerified: Boolean(this.string(response?.email)),
+      displayName: this.string(response?.nickname) ?? this.string(response?.name),
     };
   }
 

@@ -14,7 +14,7 @@ export type JwtPayload = {
   tokenId?: string;
 };
 
-export type SocialProvider = 'google' | 'kakao' | 'apple';
+export type SocialProvider = 'google' | 'kakao' | 'naver' | 'apple';
 
 export type VerifiedSocialProfile = {
   provider: SocialProvider;
