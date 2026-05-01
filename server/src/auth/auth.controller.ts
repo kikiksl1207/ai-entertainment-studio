@@ -28,6 +28,11 @@ export class AuthController {
     return this.authService.socialLogin(body);
   }
 
+  @Get('social/providers')
+  getSocialProviders() {
+    return this.authService.getSocialProviders();
+  }
+
   @Post('refresh')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   refresh(@Body() body: RefreshDto) {

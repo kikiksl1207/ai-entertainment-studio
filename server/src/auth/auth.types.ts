@@ -16,6 +16,12 @@ export type JwtPayload = {
 
 export type SocialProvider = 'google' | 'kakao' | 'naver' | 'apple';
 
+export type SocialProviderConfig = {
+  provider: SocialProvider;
+  displayName: string;
+  enabled: boolean;
+};
+
 export type VerifiedSocialProfile = {
   provider: SocialProvider;
   providerUserId: string;

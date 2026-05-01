@@ -10,7 +10,7 @@ import { createHash, randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { JwtPayload } from './auth.types';
+import { JwtPayload, SocialProviderConfig } from './auth.types';
 import { LoginDto, RegisterDto, SocialLoginDto } from './dto/auth.dto';
 import { SocialAuthService } from './social-auth.service';
 
@@ -220,6 +220,33 @@ export class AuthService {
     return {
       user: await this.getMe(user.id),
       tokens: await this.issueTokens(user.id, user.email),
+    };
+  }
+
+  getSocialProviders(): { providers: SocialProviderConfig[] } {
+    return {
+      providers: [
+        {
+          provider: 'kakao',
+          displayName: 'Kakao',
+          enabled: this.hasConfig('KAKAO_REST_API_KEY'),
+        },
+        {
+          provider: 'google',
+          displayName: 'Google',
+          enabled: this.hasConfig('GOOGLE_OAUTH_CLIENT_ID'),
+        },
+        {
+          provider: 'naver',
+          displayName: 'Naver',
+          enabled: this.hasConfig('NAVER_CLIENT_ID'),
+        },
+        {
+          provider: 'apple',
+          displayName: 'Apple',
+          enabled: this.hasConfig('APPLE_CLIENT_ID'),
+        },
+      ],
     };
   }
 
@@ -563,5 +590,9 @@ export class AuthService {
     if (user.status !== 'active' || user.deletedAt) {
       throw new UnauthorizedException('User is not active');
     }
+  }
+
+  private hasConfig(key: string) {
+    return Boolean(this.configService.get<string>(key)?.trim());
   }
 }
