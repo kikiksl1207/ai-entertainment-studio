@@ -364,7 +364,6 @@ export class AuthService {
       select: {
         id: true,
         email: true,
-        emailVerifiedAt: true,
         phoneNumber: true,
         status: true,
         createdAt: true,
