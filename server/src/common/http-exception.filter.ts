@@ -4,6 +4,7 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 
 type ErrorResponseBody = {
@@ -26,10 +27,13 @@ type ResponseLike = {
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const context = host.switchToHttp();
     const response = context.getResponse<ResponseLike>();
     const request = context.getRequest<RequestLike>();
+    const requestId = this.getRequestId(request);
     const statusCode =
       exception instanceof HttpException
         ? exception.getStatus()
@@ -37,6 +41,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const body = this.getBody(exception);
     const message = this.getMessage(body, statusCode);
     const code = this.getCode(body, statusCode);
+
+    if (!(exception instanceof HttpException)) {
+      this.logger.error(
+        `Unhandled exception requestId=${requestId ?? 'unknown'} path=${request.url ?? 'unknown'} message=${this.getUnhandledMessage(exception)}`,
+        exception instanceof Error ? exception.stack : undefined,
+      );
+    }
 
     response.status(statusCode).json({
       success: false,
@@ -46,7 +57,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         statusCode,
         details: body.details,
         path: request.url,
-        requestId: this.getRequestId(request),
+        requestId,
         timestamp: new Date().toISOString(),
       },
     });
@@ -96,5 +107,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const requestId = request.headers?.['x-request-id'];
 
     return Array.isArray(requestId) ? requestId[0] : requestId;
+  }
+
+  private getUnhandledMessage(exception: unknown) {
+    if (exception instanceof Error) {
+      return exception.message;
+    }
+
+    return String(exception);
   }
 }
