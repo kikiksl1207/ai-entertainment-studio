@@ -78,6 +78,12 @@ export class MeController {
     return this.authService.listActiveSessions(user.id);
   }
 
+  @Delete('sessions')
+  @UseGuards(JwtAuthGuard)
+  revokeAllSessions(@CurrentUser() user: AuthUser) {
+    return this.authService.revokeAllSessions(user.id);
+  }
+
   @Delete('sessions/:sessionId')
   @UseGuards(JwtAuthGuard)
   revokeSession(

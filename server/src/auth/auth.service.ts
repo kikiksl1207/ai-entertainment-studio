@@ -411,6 +411,23 @@ export class AuthService {
     };
   }
 
+  async revokeAllSessions(userId: string) {
+    const result = await this.prisma.userRefreshToken.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+
+    return {
+      ok: true,
+      revokedCount: result.count,
+    };
+  }
+
   private async issueTokens(
     userId: string,
     email?: string | null,
