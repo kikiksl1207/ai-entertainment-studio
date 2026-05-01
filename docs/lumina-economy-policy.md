@@ -33,7 +33,7 @@ Old seed products `LUMINA_100`, `LUMINA_550`, and `LUMINA_1200` should be archiv
 Signup bonus is granted at wallet creation time and must create both:
 
 - `wallet_accounts.cached_balance = 300`
-- `wallet_ledger` credit entry with `ledgerType = signup_bonus`
+- `wallet_ledger` credit entry with `ledgerType = event_grant` and a `signup_bonus:*` idempotency key
 
 Referral and daily attendance rewards must be implemented with dedicated anti-abuse records before launch. Required future controls:
 

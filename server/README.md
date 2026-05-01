@@ -92,7 +92,7 @@ The server listens on `http://localhost:3001` by default.
 
 User-scoped endpoints require an access token from `POST /api/v1/auth/login` or `POST /api/v1/auth/register`.
 
-New users receive a 300 Lumina signup bonus when their wallet is created. The grant is written to `wallet_ledger` with `ledgerType = signup_bonus`; balances are never stored directly on `users`.
+New users receive a 300 Lumina signup bonus when their wallet is created. The grant is written to `wallet_ledger` with `ledgerType = event_grant` and a `signup_bonus:*` idempotency key for compatibility with the production ledger constraint; balances are never stored directly on `users`.
 
 Email-password signup requires a password between 8 and 128 characters with at least one letter and one number.
 
