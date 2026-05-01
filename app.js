@@ -10,7 +10,7 @@
    로컬 개발: 'http://localhost:3000'
    빈 문자열 = 로컬 데이터 fallback 자동 사용
    ─────────────────────────────────────────── */
-const API_BASE = ""; // TODO: 백엔드 배포 URL로 교체
+const API_BASE = "https://api.lumina-stage.com/api/v1";
 
 async function apiFetch(path) {
   if (!API_BASE) return null;
@@ -32,10 +32,10 @@ async function apiFetch(path) {
 const characters = [
   {
     name: "윤세린", publicName: "윤세린", slug: "yoon-serin",
-    type: "아이돌", tier: "main", status: "public",
+    gender: "female", type: "아이돌", tier: "main", status: "public",
     role: "대표 비주얼",
-    artistDescription: "첫 화면을 책임지는 대표 아티스트. 강한 시선과 무대 장악력으로 팬을 끌어들이는 센터형 아이돌.",
-    summary: "냉미녀 퍼포먼스형 메인 비주얼",
+    artistDescription: "Lumina Stage의 첫 무대를 맡게 됐어요. 차갑게 등장해서, 뜨겁게 각인될게요.",
+    summary: "차갑게, 그러나 또렷하게.",
     fandom: "강한 비주얼 입덕형",
     business: "뷰티, 향수, 패션 필름",
     tags: ["시크", "퍼포먼스", "뷰티"],
@@ -43,15 +43,32 @@ const characters = [
     images: { cover: "./assets/characters/yoon-serin/cover.png", thumb: "./assets/characters/yoon-serin/thumb.png" },
     intro: "서울 강남에서 태어난 윤세린은 열 살 때 우연히 참가한 뮤직비디오 오디션을 계기로 아역모델로 데뷔했다. 또래보다 훨씬 강한 눈빛과 타고난 무대 감각으로 현장에서 빠르게 이름을 알렸고, 중학교 2학년 재학 중 스타에이 엔터테인먼트 연습생으로 선발되며 본격적인 아티스트의 길을 걷기 시작했다. 2년간의 혹독한 훈련을 거치며 퍼포먼스와 비주얼 양면에서 정제된 무기를 갖추게 됐고, 이후 Lumina Stage 1기 메인 대표로 데뷔했다.",
     concept: "강한 시선, 정제된 퍼포먼스, 그리고 일상과 무대 사이의 극적인 온도 차. 윤세린은 차갑게 등장해서 뜨겁게 각인된다.",
-    profile: { 생년월일: "2001년 3월 14일 (만 25세)", 출신지: "서울 강남구", 신체: "169cm", 혈액형: "A형", 포지션: "메인 비주얼 / 퍼포먼스", 데뷔: "2024년 Lumina Stage 1기", 팬포인트: "강한 시선과 무대 장악력", 광고축: "뷰티 · 향수 · 패션 필름", MBTI: "INTJ", 취미: "영화 감상, 향수 수집, 새벽 드라이브" },
+    profile: {
+      생년월일: "2001년 3월 14일 (만 25세)",
+      출신지: "서울 강남구",
+      신체: "169cm",
+      혈액형: "A형",
+      포지션: "메인 비주얼 / 퍼포먼스 센터",
+      데뷔: "2024년 Lumina Stage 1기",
+      캐릭터타입: "시크 퍼포먼스형",
+      팬덤명: "Serinist",
+      팬포인트: "차가운 시선, 절제된 표정, 무대 위 집중력",
+      시그니처: "커스텀 인이어 · 와인 퍼플 마이크 · 슬림 이어커프",
+      광고축: "뷰티 · 향수 · 패션 필름",
+      대표컬러: "Deep Plum / Black Purple",
+      MBTI: "INTJ",
+      취미: "영화 감상, 향수 수집, 새벽 드라이브",
+      좋아하는선물: "블랙 로즈, 니치 향수, 무대 조명"
+    },
     shorts: [{ title: "메인 비주얼 티저", metric: "조회 12.4만" }, { title: "콘셉트 퍼포먼스", metric: "조회 11.8만" }, { title: "뷰티 무드 컷", metric: "저장 4.2천" }]
   },
   {
     name: "한서율", publicName: "한서율", slug: "han-seoyul",
+    gender: "female",
     type: "아이돌", tier: "main", status: "public",
     role: "센터 확장",
-    artistDescription: "밝고 안정적인 센터 무드로 팬층을 넓히는 확장 축. 대중형 아이돌 라인의 핵심.",
-    summary: "센터형 대중성과 하이틴 무드",
+    artistDescription: "센터에 서서 모두를 빛나게 만들고 싶어요. 혼자 빛나는 무대는 없으니까요.",
+    summary: "센터에서 다 같이, 더 빛나게.",
     fandom: "대중형 확장형",
     business: "패션, 음료, 라이프스타일",
     tags: ["센터", "하이틴", "대중성"],
@@ -64,10 +81,11 @@ const characters = [
   },
   {
     name: "박도아", publicName: "박도아", slug: "park-doa",
+    gender: "female",
     type: "스트리머", tier: "main", status: "public",
     role: "팬 소통형",
-    artistDescription: "친근함과 생활감으로 댓글 반응을 끌어오는 캐릭터. 팬 전환과 커뮤니티 분위기를 담당.",
-    summary: "친근함과 생활감이 강한 커뮤니티형 스타",
+    artistDescription: "옆집 언니처럼 편하게 다가갈게요. 솔직하게, 자주 만나러 와요~",
+    summary: "솔직하고 편하게, 옆집 언니처럼.",
     fandom: "댓글·호감 전환형",
     business: "푸드, 라이프, 커머스",
     tags: ["친근함", "리액션", "생활형"],
@@ -80,10 +98,11 @@ const characters = [
   },
   {
     name: "최서진", publicName: "최서진", slug: "choi-seojin",
+    gender: "female",
     type: "배우", tier: "premium", status: "public",
     role: "프리미엄 간판",
-    artistDescription: "광고, 화보, 브랜드 무드에 강한 프리미엄 라인. 사이트 전체의 고급감을 끌어올리는 간판.",
-    summary: "럭셔리·에디토리얼에 강한 프리미엄 메인",
+    artistDescription: "조용하지만 분명한 무게감으로 화면을 채울게요. 한 컷, 하나의 화보로.",
+    summary: "한 컷의 무게감, 한 장의 화보.",
     fandom: "프리미엄 선망형",
     business: "주얼리, 럭셔리 뷰티, 에디토리얼",
     tags: ["럭셔리", "에디토리얼", "프리미엄"],
@@ -95,7 +114,8 @@ const characters = [
     shorts: [{ title: "에디토리얼 컷 무드", metric: "조회 6.2만" }, { title: "럭셔리 화보 티저", metric: "저장 2.1천" }, { title: "브랜드 무드 필름", metric: "완주율 68%" }]
   },
   {
-    name: "오해린", publicName: "오해린", slug: "oh-haerin",
+    name: "오혜린", publicName: "오혜린", slug: "oh-hyerin",
+    gender: "female",
     type: "아이돌", tier: "sub", status: "debut",
     role: "감성 보컬",
     artistDescription: "청아한 보컬과 감정 몰입형 콘텐츠로 데뷔를 준비 중인 서브 아이돌.",
@@ -103,7 +123,7 @@ const characters = [
     fandom: "감성 몰입형", business: "음향, 감성 캠페인, 뷰티",
     tags: ["보컬", "감성", "청아함"],
     colorAccent: "#a8d8f0",
-    images: { cover: "./assets/characters/oh-haerin/cover.jpg", thumb: "./assets/characters/oh-haerin/thumb.jpg" },
+    images: { cover: "./assets/characters/oh-hyerin/cover.jpg", thumb: "./assets/characters/oh-hyerin/thumb.jpg" },
     intro: "청아한 보컬 감성을 중심으로 데뷔를 준비 중인 라인입니다.",
     concept: "감정 몰입형 숏폼과 무드형 콘텐츠에 적합한 예비 아이돌.",
     profile: { 포지션: "서브 아이돌 / 보컬", 팬포인트: "청아함과 감성선", 운영상태: "데뷔 예정", 광고축: "감성 캠페인 · 뷰티" },
@@ -111,72 +131,172 @@ const characters = [
   },
   {
     name: "민채온", publicName: "민채온", slug: "min-chaeon",
-    type: "아이돌", tier: "sub", status: "debut",
-    role: "무대형",
-    artistDescription: "성숙한 매력과 러블리함을 함께 가진 데뷔 예정 무대형 아이돌.",
-    summary: "성숙한 섹시 러블리 포지션",
-    fandom: "직관적 매력 소비형", business: "패션, 뷰티, 퍼포먼스형 광고",
-    tags: ["성숙함", "러블리", "무대형"],
+    gender: "female",
+    type: "아이돌", tier: "candidate", status: "secret",
+    role: "피트니스 아이돌",
+    artistDescription: "큐티한 얼굴과 건강한 글래머 체형의 반전. 후원 전환율이 높은 피트니스형 아이돌.",
+    summary: "큐티 피트니스 반전 매력 아이돌",
+    fandom: "직관적 매력 소비형", business: "피트니스, 스포츠 뷰티, 라이프스타일",
+    tags: ["피트니스", "러블리", "반전매력"],
     colorAccent: "#f0b0c0",
     images: { cover: "./assets/characters/min-chaeon/cover.jpg", thumb: "./assets/characters/min-chaeon/thumb.jpg" },
-    intro: "성숙한 매력과 러블리함을 함께 가진 데뷔 예정 라인입니다.",
-    concept: "무대형 퍼포먼스와 스타일링 확장이 가능한 보조 아이돌 포지션.",
-    profile: { 포지션: "서브 아이돌 / 무대형", 팬포인트: "성숙함과 무대감", 운영상태: "데뷔 예정", 광고축: "패션 · 뷰티" },
-    shorts: [{ title: "데뷔 예정 퍼포먼스", metric: "준비 중" }]
+    intro: "큐티한 얼굴과 건강한 체형의 반전 매력으로 주목받는 피트니스형 아이돌입니다.",
+    concept: "귀여운 줄 알았는데 무대에 서면 완전히 다른 사람이 된다.",
+    profile: { 포지션: "피트니스 아이돌", 팬포인트: "귀여움과 건강미 반전", 광고축: "피트니스 · 스포츠 뷰티" },
+    shorts: [{ title: "피트니스 티저", metric: "공개 예정" }]
+  },
+  {
+    name: "차도현", publicName: "차도현", slug: "cha-dohyun",
+    gender: "male",
+    type: "아티스트", tier: "sub", status: "public",
+    role: "젠더리스 패션",
+    artistDescription: "첫 무대를 앞두고 있어요. 패션은 갑옷, 무대는 전쟁터 — 어떤 옷을 입어도 결국 저답게.",
+    summary: "곧 무대 위에서 만나요. 결국 저답게.",
+    fandom: "아티스트 팬덤형",
+    business: "하이패션, 매거진 화보, 스트릿 럭셔리",
+    tags: ["하이패션", "젠더리스", "아티스트"],
+    colorAccent: "#9090d0",
+    images: { cover: "./assets/characters/cha-dohyun/cover.jpg", thumb: "./assets/characters/cha-dohyun/thumb.jpg" },
+    intro: "슬림한 실루엣과 날카로운 눈매, 체인과 진주 레이어링이 트레이드마크. 하이패션과 K-pop 아티스트성을 동시에 구현하는 Lumina Stage 첫 번째 남성 아티스트다. 성별을 초월한 스타일링과 무대 퍼포먼스로 장르의 경계를 무너뜨린다.",
+    concept: "패션은 갑옷이고 무대는 전쟁터다. 차도현은 어떤 옷을 입어도 결국 자기 자신이다.",
+    profile: { 포지션: "젠더리스 패션 아티스트", 팬포인트: "하이패션과 아티스트성", 광고축: "하이패션 · 매거진 · 스트릿 럭셔리", MBTI: "INFP", 취미: "빈티지 패션 수집, 드로잉, 전시 탐방" },
+    shorts: [{ title: "하이패션 화보 티저", metric: "공개 중" }, { title: "스트릿 룩북", metric: "조회 8.1만" }]
+  },
+  {
+    name: "강시아", publicName: "강시아", slug: "kang-sia",
+    gender: "female",
+    type: "모델", tier: "candidate", status: "secret",
+    role: "도시형 라이프스타일",
+    artistDescription: "에포트리스 시크 무드의 도시형 모델. 향수·데님·카페 감성에 특화.",
+    summary: "에포트리스 시크 도시형 모델",
+    fandom: "라이프스타일 선망형", business: "향수, 데님, 도시 라이프스타일",
+    tags: ["시크", "내추럴", "라이프스타일"],
+    colorAccent: "#808080",
+    images: { cover: "./assets/characters/kang-sia/cover.jpg", thumb: "./assets/characters/kang-sia/thumb.jpg" },
+    intro: "공개 예정 라인입니다.", concept: "아무것도 하지 않는 것처럼 보이는데 가장 멋있다.",
+    profile: { 포지션: "도시형 모델", 팬포인트: "비공개", 광고축: "향수 · 데님 · 라이프스타일" },
+    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+  },
+  {
+    name: "이지원", publicName: "이지원", slug: "lee-jiwon",
+    gender: "female",
+    type: "배우", tier: "candidate", status: "secret",
+    role: "쿨한 톱스타",
+    artistDescription: "긴 흑발과 쿨한 아우라의 톱스타형 배우. 자동차·테크·액션 광고에 특화.",
+    summary: "쿨한 톱스타 배우 포지션",
+    fandom: "선망형", business: "자동차, 테크, 액션 화보",
+    tags: ["톱스타", "쿨함", "액션"],
+    colorAccent: "#808080",
+    images: { cover: "./assets/characters/lee-jiwon/cover.jpg", thumb: "./assets/characters/lee-jiwon/thumb.jpg" },
+    intro: "공개 예정 라인입니다.", concept: "바람에 흔들리지 않는다. 원래 그런 사람이라서.",
+    profile: { 포지션: "쿨 톱스타 배우", 팬포인트: "비공개", 광고축: "자동차 · 테크 · 액션" },
+    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+  },
+  {
+    name: "하윤아", publicName: "하윤아", slug: "ha-yuna",
+    gender: "female",
+    type: "모델", tier: "candidate", status: "secret",
+    role: "SNS 스트릿 뷰티",
+    artistDescription: "고양이상 눈매와 비비드 컬러의 SNS 스트릿 뷰티. 숏폼 트렌드 특화.",
+    summary: "SNS 스트릿 쿨뷰티 트렌드세터",
+    fandom: "트렌드 팔로워형", business: "스트릿 패션, 색조 뷰티, Y2K",
+    tags: ["스트릿", "뷰티", "트렌드"],
+    colorAccent: "#808080",
+    images: { cover: "./assets/characters/ha-yuna/cover.jpg", thumb: "./assets/characters/ha-yuna/thumb.jpg" },
+    intro: "공개 예정 라인입니다.", concept: "트렌드를 따라가는 게 아니라 트렌드를 만든다.",
+    profile: { 포지션: "스트릿 뷰티 모델", 팬포인트: "비공개", 광고축: "스트릿 패션 · 색조 뷰티" },
+    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+  },
+  {
+    name: "백리아", publicName: "백리아", slug: "baek-ria",
+    gender: "female",
+    type: "아이돌", tier: "candidate", status: "secret",
+    role: "청량 직캠 보컬",
+    artistDescription: "맑은 얼굴과 청량 컬러의 직캠형 아이돌. 보컬 커버와 여름 무대 콘텐츠 특화.",
+    summary: "청량 보컬 직캠 아이돌",
+    fandom: "직캠 바이럴형", business: "청량 무대, 여름 음료, 직캠 숏폼",
+    tags: ["청량", "보컬", "직캠"],
+    colorAccent: "#808080",
+    images: { cover: "./assets/characters/baek-ria/cover.jpg", thumb: "./assets/characters/baek-ria/thumb.jpg" },
+    intro: "공개 예정 라인입니다.", concept: "무대에서 가장 밝게 빛나는 사람.",
+    profile: { 포지션: "청량 직캠 보컬", 팬포인트: "비공개", 광고축: "청량 무대 · 여름 콘텐츠" },
+    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+  },
+  {
+    name: "오유나", publicName: "오유나", slug: "oh-yuna",
+    gender: "female",
+    type: "아이돌", tier: "candidate", status: "secret",
+    role: "여름 페스티벌 디바",
+    artistDescription: "워터 페스티벌과 솔로 무대의 디바. 시즌 이벤트와 여름 광고 특화.",
+    summary: "여름 페스티벌 솔로 디바",
+    fandom: "시즌 이벤트형", business: "워터 스포츠, 여름 음료, 솔로 무대",
+    tags: ["페스티벌", "디바", "여름"],
+    colorAccent: "#808080",
+    images: { cover: "./assets/characters/oh-yuna/cover.jpg", thumb: "./assets/characters/oh-yuna/thumb.jpg" },
+    intro: "공개 예정 라인입니다.", concept: "여름이 오면 가장 먼저 생각나는 사람.",
+    profile: { 포지션: "여름 페스티벌 디바", 팬포인트: "비공개", 광고축: "워터 스포츠 · 여름 음료" },
+    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+  },
+  {
+    name: "권태준", publicName: "권태준", slug: "kwon-taejun",
+    gender: "male",
+    type: "배우", tier: "candidate", status: "secret",
+    role: "누아르 배우",
+    artistDescription: "넓은 어깨와 깊은 눈빛의 누아르 배우. 저음 챗과 감정 연기 콘텐츠 특화.",
+    summary: "묵직한 누아르 배우 포지션",
+    fandom: "감성 몰입형", business: "수트, 시계, 향수, 누아르",
+    tags: ["누아르", "배우", "감성"],
+    colorAccent: "#808080",
+    images: { cover: "./assets/characters/kwon-taejun/cover.jpg", thumb: "./assets/characters/kwon-taejun/thumb.jpg" },
+    intro: "공개 예정 라인입니다.", concept: "말이 없어도 존재감이 공간을 채운다.",
+    profile: { 포지션: "누아르 배우", 팬포인트: "비공개", 광고축: "수트 · 시계 · 향수" },
+    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+  },
+  {
+    name: "서하민", publicName: "서하민", slug: "seo-hamin",
+    gender: "male",
+    type: "MC", tier: "candidate", status: "secret",
+    role: "커뮤니티 MC",
+    artistDescription: "안경과 큐카드의 유쾌한 이벤트 진행자. 플랫폼 이벤트와 커뮤니티 리텐션 특화.",
+    summary: "유쾌한 이벤트 MC 포지션",
+    fandom: "커뮤니티 참여형", business: "예능 숏폼, 팬 이벤트, 고민 상담",
+    tags: ["MC", "예능", "커뮤니티"],
+    colorAccent: "#808080",
+    images: { cover: "./assets/characters/seo-hamin/cover.jpg", thumb: "./assets/characters/seo-hamin/thumb.jpg" },
+    intro: "공개 예정 라인입니다.", concept: "분위기를 만드는 사람이 따로 있다.",
+    profile: { 포지션: "이벤트 MC", 팬포인트: "비공개", 광고축: "예능 · 팬 이벤트" },
+    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+  },
+  {
+    name: "류태오", publicName: "류태오", slug: "ryu-taeo",
+    gender: "male",
+    type: "스포츠", tier: "candidate", status: "secret",
+    role: "스포츠 챌린지",
+    artistDescription: "밝은 미소와 애슬레틱 체형의 스포츠 챌린지 캐릭터. 글로벌 응원 캠페인 특화.",
+    summary: "스포츠 챌린지 응원 캐릭터",
+    fandom: "응원 캠페인형", business: "스포츠, 에너지 드링크, 챌린지",
+    tags: ["스포츠", "챌린지", "응원"],
+    colorAccent: "#808080",
+    images: { cover: "./assets/characters/ryu-taeo/cover.jpg", thumb: "./assets/characters/ryu-taeo/thumb.jpg" },
+    intro: "공개 예정 라인입니다.", concept: "포기하지 않는 에너지가 전염된다.",
+    profile: { 포지션: "스포츠 챌린지", 팬포인트: "비공개", 광고축: "스포츠 · 에너지 드링크" },
+    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
   },
   {
     name: "서유안", publicName: "서유안", slug: "seo-yuan",
-    type: "모델", tier: "sub", status: "debut",
+    gender: "female",
+    type: "모델", tier: "sub", status: "public",
     role: "내추럴 모델",
-    artistDescription: "자연스러운 고급감을 표현하는 뷰티·리빙 브랜드 특화 모델 라인.",
-    summary: "내추럴 럭셔리 톤의 뷰티 모델",
+    artistDescription: "데뷔를 앞두고 있어요. 꾸민 듯 안 꾸민 듯, 가장 편안한 저로 인사드릴게요.",
+    summary: "곧 화면에서 만나요. 자연스럽게, 편안하게.",
     fandom: "호감·선망형", business: "스킨케어, 리빙, 뷰티",
     tags: ["내추럴", "우아함", "뷰티"],
     colorAccent: "#b8f0d0",
     images: { cover: "./assets/characters/seo-yuan/cover.jpg", thumb: "./assets/characters/seo-yuan/thumb.jpg" },
-    intro: "자연스러운 고급감을 보여주는 데뷔 예정 모델 라인입니다.",
-    concept: "뷰티와 리빙 브랜드에 맞는 잔잔하고 우아한 무드.",
-    profile: { 포지션: "서브 모델", 팬포인트: "호감형 우아함", 운영상태: "데뷔 예정", 광고축: "스킨케어 · 리빙" },
-    shorts: [{ title: "데뷔 예정 뷰티", metric: "준비 중" }]
-  },
-  {
-    name: "강시아", publicName: "시크릿 트레이니 01", slug: "kang-sia",
-    type: "모델", tier: "sub", status: "secret",
-    role: "시크릿", artistDescription: "공개 전 시크릿 라인.",
-    summary: "도시적이고 세련된 패션 라인",
-    fandom: "공개 전", business: "비공개",
-    tags: ["시크릿", "모델", "공개예정"],
-    colorAccent: "#808080",
-    images: { cover: "./assets/characters/kang-sia/cover.jpg", thumb: "./assets/characters/kang-sia/thumb.jpg" },
-    intro: "공개 전 시크릿 라인입니다.", concept: "티저와 실루엣만 먼저 공개되는 시크릿 포지션.",
-    profile: { 포지션: "시크릿 모델", 팬포인트: "비공개", 운영상태: "시크릿", 광고축: "비공개" },
-    shorts: [{ title: "시크릿 티저", metric: "비공개" }]
-  },
-  {
-    name: "이지원", publicName: "시크릿 트레이니 02", slug: "lee-jiwon",
-    type: "배우", tier: "experiment", status: "secret",
-    role: "시크릿", artistDescription: "공개 전 시크릿 배우 라인.",
-    summary: "고급스럽고 대중적인 톱스타 포지션",
-    fandom: "공개 전", business: "비공개",
-    tags: ["시크릿", "배우", "공개예정"],
-    colorAccent: "#808080",
-    images: { cover: "./assets/characters/lee-jiwon/cover.jpg", thumb: "./assets/characters/lee-jiwon/thumb.jpg" },
-    intro: "배우 라인의 시크릿 포지션입니다.", concept: "고급감 있는 티저 운영 전용 시크릿 배우 포지션.",
-    profile: { 포지션: "시크릿 배우", 팬포인트: "비공개", 운영상태: "시크릿", 광고축: "비공개" },
-    shorts: [{ title: "시크릿 티저", metric: "비공개" }]
-  },
-  {
-    name: "하윤아", publicName: "시크릿 트레이니 03", slug: "ha-yuna",
-    type: "배우", tier: "experiment", status: "secret",
-    role: "시크릿", artistDescription: "스타일 라인의 실험형 시크릿 캐릭터.",
-    summary: "도회적이고 스타일리시한 올라운더",
-    fandom: "공개 전", business: "비공개",
-    tags: ["시크릿", "스타일", "공개예정"],
-    colorAccent: "#808080",
-    images: { cover: "./assets/characters/ha-yuna/cover.jpg", thumb: "./assets/characters/ha-yuna/thumb.jpg" },
-    intro: "스타일 라인의 실험형 시크릿 캐릭터입니다.", concept: "차후 반응을 보고 공개 여부를 정하는 스타일형 후보.",
-    profile: { 포지션: "시크릿 스타일형", 팬포인트: "비공개", 운영상태: "시크릿", 광고축: "비공개" },
-    shorts: [{ title: "시크릿 티저", metric: "비공개" }]
+    intro: "투명한 피부와 단아한 롱헤어, 미니멀한 화이트 룩이 트레이드마크. 스킨케어와 홈리빙 광고에서 신뢰감 있는 무드를 만들어낸다.",
+    concept: "꾸민 듯 안 꾸민 듯, 그 자체로 완성된 사람.",
+    profile: { 포지션: "내추럴 럭셔리 모델", 팬포인트: "호감형 우아함", 광고축: "스킨케어 · 홈리빙 · 뷰티" },
+    shorts: [{ title: "스킨케어 무드컷", metric: "공개 중" }]
   }
 ];
 
@@ -261,28 +381,29 @@ characters.forEach((artist) => {
 
 /* ── 상태 메타 ──────────────────────────────── */
 const statusMeta = {
-  public: { label: "공개 활동 중", summaryLabel: "공개 중", className: "is-public" },
-  debut:  { label: "데뷔 예정",    summaryLabel: "곧 공개",  className: "is-debut"  },
-  secret: { label: "시크릿",       summaryLabel: "시크릿",   className: "is-secret" }
+  public:    { label: "공개 활동 중",  summaryLabel: "공개 중",   className: "is-public"    },
+  debut:     { label: "데뷔 예정",     summaryLabel: "곧 공개",   className: "is-debut"     },
+  secret:    { label: "Coming Soon",   summaryLabel: "공개 예정", className: "is-secret"    },
+  candidate: { label: "Coming Soon",   summaryLabel: "공개 예정", className: "is-secret"    }
 };
 
 /* ── 숏폼 데이터 (로컬 fallback) ────────────── */
 const shortformsLocal = [
-  { title: "메인 비주얼 티저",   artist: "윤세린", metric: "조회 12.4만", tone: "첫 유입용 메인 비주얼 포맷, 강한 시선과 퍼포먼스 무드 중심", image: "./assets/characters/yoon-serin/thumb.png" },
-  { title: "콘셉트 퍼포먼스",    artist: "윤세린", metric: "조회 11.8만", tone: "무대 장악력과 퍼포먼스 센터 이미지를 강화하는 핵심 포맷",    image: "./assets/characters/yoon-serin/cover.png" },
-  { title: "센터 무드 스냅",     artist: "한서율", metric: "조회 9.7만",  tone: "정면 비주얼과 대중성 확장을 담당하는 센터형 포맷",            image: "./assets/characters/han-seoyul/thumb.png" },
-  { title: "하이틴 센터 포맷",   artist: "한서율", metric: "조회 10.1만", tone: "밝고 반짝이는 센터 무드로 팬 확장을 노리는 포맷",             image: "./assets/characters/han-seoyul/cover.png" },
-  { title: "친근 리액션 포맷",   artist: "박도아", metric: "조회 15.3만", tone: "생활형 리액션과 댓글 반응을 팬 전환으로 연결하는 포맷",        image: "./assets/characters/park-doa/thumb.png"   },
-  { title: "먹방 리액션 티저",   artist: "박도아", metric: "저장 3.7천",  tone: "친근한 먹방 크리에이터 무드로 호감과 참여를 끌어오는 포맷",   image: "./assets/characters/park-doa/cover.png"   },
-  { title: "에디토리얼 컷 무드", artist: "최서진", metric: "조회 6.2만",  tone: "브랜드 제안과 화보형 무드를 보여주는 프리미엄 포맷",          image: "./assets/characters/choi-seojin/thumb.png"},
-  { title: "브랜드 무드 필름",   artist: "최서진", metric: "완주율 68%",  tone: "광고·화보 적합도를 직접 보여주는 프리미엄 쇼케이스 포맷",    image: "./assets/characters/choi-seojin/cover.png"}
+  { title: "메인 비주얼 티저",   artist: "윤세린", metric: "조회 12.4만", tone: "데뷔 전 첫 컷, 차갑게 가볼게요.",                  image: "./assets/characters/yoon-serin/thumb.png" },
+  { title: "콘셉트 퍼포먼스",    artist: "윤세린", metric: "조회 11.8만", tone: "이번 콘셉트, 끝까지 봐주세요.",                  image: "./assets/characters/yoon-serin/cover.png" },
+  { title: "센터 무드 스냅",     artist: "한서율", metric: "조회 9.7만",  tone: "오늘도 무대 가요! 응원해주세요🎀",              image: "./assets/characters/han-seoyul/thumb.png" },
+  { title: "하이틴 센터 포맷",   artist: "한서율", metric: "조회 10.1만", tone: "이 무대, 다 같이 즐겨봐요!",                     image: "./assets/characters/han-seoyul/cover.png" },
+  { title: "친근 리액션 포맷",   artist: "박도아", metric: "조회 15.3만", tone: "오늘도 평범한 일상! 같이 봐줄래?",              image: "./assets/characters/park-doa/thumb.png"   },
+  { title: "먹방 리액션 티저",   artist: "박도아", metric: "저장 3.7천",  tone: "이거 진짜 맛있어요... 다음 영상 기대해요😋",     image: "./assets/characters/park-doa/cover.png"   },
+  { title: "에디토리얼 컷 무드", artist: "최서진", metric: "조회 6.2만",  tone: "이번 화보에서 가장 좋아하는 컷이에요.",         image: "./assets/characters/choi-seojin/thumb.png"},
+  { title: "브랜드 무드 필름",   artist: "최서진", metric: "완주율 68%",  tone: "조용히 보내드리는 한 컷.",                       image: "./assets/characters/choi-seojin/cover.png"}
 ];
 
 /* ── 비즈니스 패키지 ─────────────────────────── */
 const businessPackages = [
-  { name: "숏폼 캠페인", target: "뷰티 / 패션 / 커머스", summary: "메인 캐릭터를 활용한 숏폼 광고 세트와 SNS 노출 패키지", deliverables: ["숏폼 3종", "썸네일 3종", "브랜드 컷 1세트"] },
-  { name: "프리미엄 에디토리얼", target: "주얼리 / 럭셔리 / 에디토리얼", summary: "프리미엄 라인 중심의 화보형 콘텐츠와 브랜드 무드 연출", deliverables: ["에디토리얼 컷", "브랜드 티저", "룩북형 이미지"] },
-  { name: "캐릭터 브랜딩", target: "브랜드 콜라보 / IP 협업", summary: "캐릭터 설정, 세계관, 반복 노출 구조를 함께 설계하는 브랜딩형 패키지", deliverables: ["캐릭터 협업안", "콘텐츠 콘셉트", "운영 제안"] }
+  { name: "숏폼 캠페인", target: "뷰티 / 패션 / 커머스", summary: "메인 아티스트 중심의 숏폼 광고와 SNS 노출용 콘텐츠 협업입니다.", deliverables: ["숏폼 3종", "썸네일 3종", "브랜드 컷 1세트"] },
+  { name: "프리미엄 에디토리얼", target: "주얼리 / 럭셔리 / 에디토리얼", summary: "프리미엄 라인 중심의 화보형 콘텐츠와 브랜드 무드 연출입니다.", deliverables: ["에디토리얼 컷", "브랜드 티저", "룩북형 이미지"] },
+  { name: "캐릭터 브랜딩", target: "브랜드 콜라보 / IP 협업", summary: "캐릭터 설정과 세계관, 반복 노출 구조까지 함께 설계하는 장기 협업입니다.", deliverables: ["캐릭터 협업안", "콘텐츠 콘셉트", "운영 제안"] }
 ];
 
 /* ── 런타임 상태 ─────────────────────────────── */
@@ -381,24 +502,32 @@ function renderDebutLine() {
   const root = document.getElementById("debutLineGrid");
   if (!root) return;
 
-  const list = _artists.filter(a => a.status === "debut");
+  const list = _artists.filter(a => a.tier === "sub" && a.status === "public");
   if (!list.length) { root.closest("section")?.setAttribute("hidden", ""); return; }
 
-  root.innerHTML = list.map(a => `
+  root.innerHTML = list.map(a => {
+    const isMale = a.gender === "male";
+    // 무대 스포트라이트 배경: 여성=보라, 남성=남색
+    const silhouetteClass = isMale ? "silhouette-male" : "silhouette-female";
+
+    return `
     <article class="debut-card clickable-card" data-href="./character-detail.html?slug=${a.slug}"
       style="--char-accent: ${a.colorAccent || "#9f8bc7"}">
-      <div class="debut-card-media">
-        <img src="${a.images.thumb || a.images.cover}" alt="${a.publicName}"
-          onerror="this.style.display='none'" />
-        <span class="debut-card-badge">데뷔 예정</span>
+      <div class="debut-card-media ${silhouetteClass}">
+        <div class="debut-silhouette">
+          <span>COMING<br>SOON</span>
+          <small>곧 무대에 오릅니다</small>
+        </div>
+        <div class="debut-gender-badge">${isMale ? "♂" : "♀"}</div>
       </div>
       <div class="debut-card-body">
         <span class="debut-card-type eyebrow">${a.type}</span>
         <strong>${a.publicName}</strong>
         <p>${a.summary}</p>
+        <a class="text-link" href="./character-detail.html?slug=${a.slug}">프로필 보기</a>
       </div>
-    </article>
-  `).join("");
+    </article>`;
+  }).join("");
 }
 
 /* ── 렌더링: 숏폼 그리드 ─────────────────────── */
@@ -410,12 +539,16 @@ function renderShortforms() {
     const img = item.image || a?.images.thumb || a?.images.cover || "";
     return `
       <article class="short-card clickable-card" data-href="./character-detail.html?slug=${a?.slug || ""}">
-        <div class="short-card-head"><span class="eyebrow">${item.artist}</span><strong>${item.title}</strong></div>
-        <div class="short-media"${mediaStyle(img)}><span class="short-media-metric">${item.metric}</span></div>
+        <div class="short-card-head">
+          <span class="eyebrow">${item.artist}</span>
+          <strong>${item.title}</strong>
+        </div>
+        <div class="short-media"${mediaStyle(img)}>
+          <span class="short-media-metric">${item.metric}</span>
+        </div>
         <div class="short-body">
-          <div class="short-meta"><span>${item.metric}</span><span>${item.artist}</span></div>
           <p>${item.tone}</p>
-          <a class="text-link" href="./character-detail.html?slug=${a?.slug || ""}">캐릭터 상세</a>
+          <a class="text-link" href="./character-detail.html?slug=${a?.slug || ""}">캐릭터 보기</a>
         </div>
       </article>`;
   }).join("");
@@ -430,10 +563,15 @@ function renderShortformHub() {
     const img = item.image || a?.images.thumb || a?.images.cover || "";
     return `
       <article class="feed-card clickable-card" data-href="./character-detail.html?slug=${a?.slug || ""}">
-        <div class="feed-card-head"><span class="eyebrow">${item.artist}</span><strong>${item.title}</strong></div>
-        <div class="feed-card-media"${mediaStyle(img)}><span class="feed-card-chip">${a?.type || ""}</span></div>
+        <div class="feed-card-head">
+          <span class="eyebrow">${item.artist}</span>
+          <strong>${item.title}</strong>
+        </div>
+        <div class="feed-card-media"${mediaStyle(img)}>
+          <span class="feed-card-chip">${a?.type || ""}</span>
+          <span class="feed-card-metric">${item.metric}</span>
+        </div>
         <div class="feed-card-body">
-          <div class="short-meta"><span>${item.metric}</span><span>${item.artist}</span></div>
           <p>${item.tone}</p>
           <a class="text-link" href="./character-detail.html?slug=${a?.slug || ""}">캐릭터 보기</a>
         </div>
@@ -606,16 +744,37 @@ function renderCharacterDetail() {
           { caption: "Cover", src: artist.images.cover },
           { caption: "Thumbnail", src: artist.images.thumb }
         ];
+
+    // detail-body-grid 인라인 스타일 직접 적용 (CSS 충돌 완전 차단)
+    const bodyGrid = gallery.closest(".detail-body-grid");
+    if (bodyGrid) {
+      Object.assign(bodyGrid.style, {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "24px",
+        alignItems: "stretch",
+        marginBottom: "40px"
+      });
+    }
+
     gallery.innerHTML = artist.status === "secret" ? "" : `
-      <div><p class="eyebrow">Reference pack</p><h3>운영 이미지 갤러리</h3></div>
-      <div class="detail-gallery-grid">
-        ${galleryItems.map((item) => `
-          <article class="detail-gallery-card">
-            <img class="detail-gallery-image" src="${item.src}" alt="${artist.publicName} ${item.caption}" loading="lazy" />
-            <div class="detail-gallery-caption">${item.caption}</div>
-          </article>
-        `).join("")}
+      <div id="galleryHeader" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);">포토 갤러리</span>
+          <strong style="font-size:17px;font-weight:700;color:var(--ink);">공식 이미지</strong>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button id="galleryPrev" aria-label="이전" style="background:var(--panel);border:1px solid var(--line);color:var(--ink);width:36px;height:36px;border-radius:50%;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">‹</button>
+          <span id="galleryCounter" style="font-size:12px;color:var(--muted);min-width:64px;text-align:center;"></span>
+          <button id="galleryNext" aria-label="다음" style="background:var(--panel);border:1px solid var(--line);color:var(--ink);width:36px;height:36px;border-radius:50%;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">›</button>
+        </div>
+      </div>
+      <div id="gallerySlider" style="width:100%;flex:1;min-height:0;overflow:hidden;border-radius:14px;background:#16122a;">
+        <div id="galleryTrack" style="display:flex;height:100%;"></div>
       </div>`;
+
+    initGallerySlider(galleryItems, artist.publicName);
+    initLightbox(galleryItems, artist.publicName);
   }
 
   const profile = document.getElementById("detailProfile");
@@ -703,6 +862,189 @@ function bindCardNavigation() {
 }
 
 /* ── 초기화: API 우선, fallback 로컬 ─────────── */
+/* ── 갤러리 슬라이더 (scroll-snap 방식, JS 계산 없음) ── */
+function initGallerySlider(items, artistName) {
+  const sliderEl = document.getElementById("gallerySlider");
+  const track    = document.getElementById("galleryTrack");
+  const counter  = document.getElementById("galleryCounter");
+  const btnPrev  = document.getElementById("galleryPrev");
+  const btnNext  = document.getElementById("galleryNext");
+  if (!track || !sliderEl) return;
+
+  const perPage    = 4;
+  const totalPages = Math.ceil(items.length / perPage);
+
+  // 슬라이더: scroll-snap 방식 + flex item으로 패널 안에서 남은 공간 채움
+  sliderEl.style.cssText = [
+    "overflow-x:scroll",
+    "scroll-snap-type:x mandatory",
+    "scroll-behavior:smooth",
+    "-webkit-overflow-scrolling:touch",
+    "border-radius:14px",
+    "background:#16122a",
+    "width:100%",
+    "flex:1",
+    "min-height:0",
+    // 스크롤바 숨기기
+    "scrollbar-width:none",
+    "-ms-overflow-style:none"
+  ].join(";");
+
+  // 페이지 생성 (track도 height 100%로 채움)
+  track.style.cssText = "display:flex;width:100%;height:100%;";
+
+  const pages = [];
+  for (let i = 0; i < items.length; i += perPage) pages.push(items.slice(i, i + perPage));
+
+  pages.forEach((pageItems, pageIdx) => {
+    const page = document.createElement("div");
+    page.style.cssText = "min-width:100%;width:100%;height:100%;flex-shrink:0;scroll-snap-align:start;";
+
+    // 2x2 그리드 — height:100%로 패널 높이를 채움 (프로필과 자동 동기화)
+    const grid = document.createElement("div");
+    grid.style.cssText = "display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;width:100%;height:100%;";
+
+    pageItems.forEach((item, localIdx) => {
+      const globalIdx = pageIdx * perPage + localIdx;
+      const cell = document.createElement("div");
+      cell.className = "gallery-slide";
+      cell.setAttribute("data-lightbox", String(globalIdx));
+      cell.style.cssText = "overflow:hidden;border-radius:10px;background:#1a1728;position:relative;cursor:pointer;";
+
+      const img = document.createElement("img");
+      img.src     = item.src;
+      img.alt     = item.caption || "";
+      img.loading = "lazy";
+      img.style.cssText = "width:100%;height:100%;object-fit:cover;object-position:center top;display:block;transition:transform 260ms ease;";
+      img.onerror = () => { cell.style.display = "none"; };
+      img.addEventListener("mouseover",  () => { img.style.transform = "scale(1.05)"; });
+      img.addEventListener("mouseout",   () => { img.style.transform = "scale(1)";    });
+
+      const zoom = document.createElement("span");
+      zoom.textContent = "⊕";
+      zoom.style.cssText = "position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;pointer-events:none;opacity:0;transition:opacity 180ms;";
+      cell.addEventListener("mouseenter", () => { zoom.style.opacity = "1"; });
+      cell.addEventListener("mouseleave", () => { zoom.style.opacity = "0"; });
+
+      cell.appendChild(img);
+      cell.appendChild(zoom);
+      grid.appendChild(cell);
+    });
+
+    page.appendChild(grid);
+    track.appendChild(page);
+  });
+
+  // 카운터/버튼 업데이트
+  function updateUI() {
+    const idx  = Math.round(sliderEl.scrollLeft / sliderEl.offsetWidth);
+    const page = Math.max(0, Math.min(idx, totalPages - 1));
+    const s    = page * perPage + 1;
+    const e    = Math.min((page + 1) * perPage, items.length);
+    if (counter) counter.textContent = s + "\u2013" + e + " / " + items.length;
+    if (btnPrev) btnPrev.disabled = page === 0;
+    if (btnNext) btnNext.disabled = page >= totalPages - 1;
+  }
+
+  sliderEl.addEventListener("scroll", updateUI, { passive: true });
+  updateUI();
+
+  if (btnPrev) btnPrev.addEventListener("click", () => {
+    sliderEl.scrollBy({ left: -sliderEl.offsetWidth, behavior: "smooth" });
+  });
+  if (btnNext) btnNext.addEventListener("click", () => {
+    sliderEl.scrollBy({ left: sliderEl.offsetWidth, behavior: "smooth" });
+  });
+
+  // 터치 스와이프 (scroll-snap이 이미 처리하지만 보험용)
+  let sx = 0;
+  sliderEl.addEventListener("touchstart", e => { sx = e.touches[0].clientX; }, { passive: true });
+}
+
+/* ── Encar식 라이트박스 ───────────────────────── */
+function initLightbox(items, artistName) {
+  // 기존 라이트박스 제거
+  document.querySelectorAll(".encar-lightbox").forEach(el => el.remove());
+
+  let currentIdx = 0;
+
+  const lb = document.createElement("div");
+  lb.className = "encar-lightbox";
+  lb.innerHTML = `
+    <button class="encar-close" aria-label="닫기">✕</button>
+    <div class="encar-main">
+      <button class="encar-prev" aria-label="이전">‹</button>
+      <img class="encar-main-img" src="" alt="" />
+      <div class="encar-caption"></div>
+      <div class="encar-counter"></div>
+      <button class="encar-next" aria-label="다음">›</button>
+    </div>
+    <div class="encar-thumbs">
+      ${items.map((item, idx) => `
+        <img class="encar-thumb" src="${item.src}" alt="${item.caption}" data-idx="${idx}" />
+      `).join("")}
+    </div>`;
+  document.body.appendChild(lb);
+
+  const mainImg  = lb.querySelector(".encar-main-img");
+  const caption  = lb.querySelector(".encar-caption");
+  const counter  = lb.querySelector(".encar-counter");
+  const thumbs   = [...lb.querySelectorAll(".encar-thumb")];
+  const thumbsEl = lb.querySelector(".encar-thumbs");
+  const btnPrev  = lb.querySelector(".encar-prev");
+  const btnNext  = lb.querySelector(".encar-next");
+
+  function show(idx) {
+    currentIdx = Math.max(0, Math.min(idx, items.length - 1));
+    const item = items[currentIdx];
+    mainImg.src = item.src;
+    mainImg.alt = `${artistName} ${item.caption}`;
+    caption.textContent = item.caption;
+    counter.textContent = `${currentIdx + 1} / ${items.length}`;
+    btnPrev.disabled = currentIdx === 0;
+    btnNext.disabled = currentIdx === items.length - 1;
+    // 썸네일 활성화 + 스크롤
+    thumbs.forEach((t, i) => t.classList.toggle("is-active", i === currentIdx));
+    const activThumb = thumbs[currentIdx];
+    if (activThumb) {
+      activThumb.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    lb.classList.add("is-open");
+    document.body.style.overflow = "hidden";
+  }
+
+  function close() {
+    lb.classList.remove("is-open");
+    document.body.style.overflow = "";
+  }
+
+  // 갤러리 슬라이드 클릭
+  document.addEventListener("click", e => {
+    const slide = e.target.closest(".gallery-slide[data-lightbox]");
+    if (slide) show(+slide.dataset.lightbox);
+  });
+
+  // 썸네일 클릭
+  thumbs.forEach(t => t.addEventListener("click", () => show(+t.dataset.idx)));
+
+  lb.querySelector(".encar-close").addEventListener("click", close);
+  btnPrev.addEventListener("click", () => show(currentIdx - 1));
+  btnNext.addEventListener("click", () => show(currentIdx + 1));
+
+  // 배경 클릭으로 닫기
+  lb.querySelector(".encar-main").addEventListener("click", e => {
+    if (e.target === lb.querySelector(".encar-main")) close();
+  });
+
+  // 키보드
+  document.addEventListener("keydown", e => {
+    if (!lb.classList.contains("is-open")) return;
+    if (e.key === "Escape")      close();
+    if (e.key === "ArrowLeft")   show(currentIdx - 1);
+    if (e.key === "ArrowRight")  show(currentIdx + 1);
+  });
+}
+
 async function init() {
   const apiArtists = await apiFetch("/api/v1/artists");
   if (apiArtists && Array.isArray(apiArtists)) {
@@ -728,6 +1070,35 @@ async function init() {
   bindCharacterFilters();
   renderCharacterDetail();
   bindCardNavigation();
+  initScrollReveal();
+}
+
+/* ── Scroll Reveal — 섹션이 시야에 들어올 때 부드럽게 등장 ─────── */
+function initScrollReveal() {
+  // 섹션 헤딩은 통째로 fade-up
+  const headings = document.querySelectorAll(".section-heading, .page-hero-copy, .page-hero-panel, .premium-copy, .premium-panel, .business-copy-row, .coming-grid > *, .hero-copy, .hero-visual");
+  headings.forEach(el => el.classList.add("reveal-on-scroll"));
+
+  // 카드 그리드는 자식들이 stagger로 순차 등장
+  const grids = document.querySelectorAll(".artist-grid, .debut-line-grid, .shortform-grid, .feed-grid, .roster-grid, .package-grid");
+  grids.forEach(el => el.classList.add("reveal-on-scroll", "reveal-stagger"));
+
+  // IntersectionObserver 미지원 브라우저는 즉시 표시
+  if (!("IntersectionObserver" in window)) {
+    document.querySelectorAll(".reveal-on-scroll").forEach(el => el.classList.add("is-visible"));
+    return;
+  }
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("is-visible");
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12, rootMargin: "0px 0px -60px 0px" });
+
+  document.querySelectorAll(".reveal-on-scroll").forEach(el => observer.observe(el));
 }
 
 init();

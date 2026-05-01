@@ -13,14 +13,33 @@
     <meta property="og:title" content="캐릭터 프로필 — Lumina Stage" />
     <meta property="og:description" content="Lumina Stage AI 엔터 아티스트의 공식 프로필, 숏폼 하이라이트, 팬 활동을 확인하세요." />
     <meta property="og:image" content="./assets/characters/yoon-serin/thumb.png" />
-    <meta property="og:url" content="https://ai-entertainment-studio.vercel.app/character-detail.html" />
+    <meta property="og:url" content="https://www.lumina-stage.com/character-detail.html" />
     <meta property="og:site_name" content="Lumina Stage" />
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="캐릭터 프로필 — Lumina Stage" />
     <meta name="twitter:description" content="Lumina Stage AI 엔터 아티스트의 공식 프로필, 숏폼 하이라이트, 팬 활동을 확인하세요." />
     <meta name="twitter:image" content="./assets/characters/yoon-serin/thumb.png" />
-  </head>
+  <style>
+    /* CSS 충돌 방지 — 갤러리/프로필 레이아웃 직접 고정 */
+    .detail-body-grid {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+      gap: 24px !important;
+      align-items: stretch !important;
+      margin-bottom: 40px !important;
+    }
+    /* 갤러리 패널: flex column으로 슬라이더가 남은 공간을 채우도록 */
+    .detail-gallery-panel {
+      width: 100% !important;
+      height: 100% !important;
+      display: flex !important;
+      flex-direction: column !important;
+    }
+    .detail-gallery-slider { width: 100% !important; overflow: hidden !important; border-radius: 16px !important; background: #16122a !important; }
+    .gallery-track { display: flex !important; }
+  </style>
+</head>
   <body>
     <header class="site-header">
       <div class="shell header-inner">
@@ -28,7 +47,7 @@
           <img class="brand-logo" src="./assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
           <span class="brand-copy">
             <strong>Lumina Stage</strong>
-            <small>버추얼 아티스트 레이블</small>
+            <small>아티스트 레이블</small>
           </span>
         </a>
 
@@ -100,9 +119,9 @@
       <div class="shell footer-inner">
         <div>
           <strong>Lumina Stage</strong>
-          <p>엔터테인먼트 프로토타입용 공식 아티스트 프로필 페이지입니다.</p>
+          <p>Lumina Stage 공식 아티스트 프로필입니다.</p>
         </div>
-        <p><a href="./characters.html">캐릭터 목록으로 돌아가기</a></p>
+        <p><a href="./characters.html">아티스트 목록</a></p>
       </div>
     </footer>
 
