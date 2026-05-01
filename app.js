@@ -435,22 +435,23 @@ async function handleNaverLogin() {
   sessionStorage.setItem("oauth_provider", "naver");
 
   const redirectUri = encodeURIComponent(window.location.origin);
-  const url = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${NAVER_CLIENT_ID}&redirect_uri=${redirectUri}&state=${state}`;
+  // 🔑 Implicit flow (response_type=token) — 백엔드 명세 권장 (token handoff 우선)
+  const url = `https://nid.naver.com/oauth2.0/authorize?response_type=token&client_id=${NAVER_CLIENT_ID}&redirect_uri=${redirectUri}&state=${state}`;
   console.info("[Lumina] Naver authorize 호출:", { redirectUri: window.location.origin });
   window.location.href = url;
 }
 
-/* ── 네이버 OAuth 콜백 처리 (redirect 후) ────── */
+/* ── 네이버 OAuth 콜백 처리 (implicit flow → URL hash) ── */
 async function handleNaverCallback() {
-  // 네이버 콜백인지 확인 (oauth_provider 마커)
   if (sessionStorage.getItem("oauth_provider") !== "naver") return;
 
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get("code");
+  // implicit flow는 hash로 옴 (#access_token=...&state=...&token_type=bearer)
+  const hash = window.location.hash.substring(1);
+  if (!hash) return;
+  const params = new URLSearchParams(hash);
+  const accessToken = params.get("access_token");
   const state = params.get("state");
   const error = params.get("error");
-
-  if (!code && !error) return;
 
   // 마커 + URL 정리
   const savedState = sessionStorage.getItem("naver_oauth_state");
@@ -467,16 +468,19 @@ async function handleNaverCallback() {
     alert("네이버 로그인 보안 검증 실패");
     return;
   }
+  if (!accessToken) {
+    console.warn("[Lumina] Naver hash에서 access_token 못 찾음");
+    return;
+  }
 
   try {
-    console.log("[Lumina] Naver code 받음, 백엔드 호출 중...");
+    console.log("[Lumina] Naver access_token 받음, 백엔드 호출 중...");
+    // 백엔드 명세: token handoff — { provider, token }
     const data = await apiFetch("/api/v1/auth/social/login", {
       method: "POST",
       body: {
         provider: "naver",
-        code,
-        state,
-        redirectUri: window.location.origin
+        token: accessToken
       },
       throwOnError: true
     });
@@ -551,7 +555,7 @@ async function handleGoogleTokenResponse(tokenResponse) {
       method: "POST",
       body: {
         provider: "google",
-        accessToken: tokenResponse.access_token
+        token: tokenResponse.access_token
       },
       throwOnError: true
     });
