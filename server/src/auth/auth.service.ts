@@ -11,7 +11,12 @@ import * as bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload, SocialProviderConfig } from './auth.types';
-import { LoginDto, RegisterDto, SocialLoginDto } from './dto/auth.dto';
+import {
+  ChangePasswordDto,
+  LoginDto,
+  RegisterDto,
+  SocialLoginDto,
+} from './dto/auth.dto';
 import { SocialAuthService } from './social-auth.service';
 
 const PASSWORD_HASH_ROUNDS = 12;
@@ -368,6 +373,68 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async changePassword(userId: string, input: ChangePasswordDto) {
+    if (input.currentPassword === input.newPassword) {
+      throw new BadRequestException('New password must be different');
+    }
+
+    const authAccount = await this.prisma.userAuthAccount.findFirst({
+      where: {
+        userId,
+        provider: 'email',
+      },
+      select: {
+        id: true,
+        passwordHash: true,
+        user: {
+          select: {
+            status: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!authAccount?.passwordHash) {
+      throw new BadRequestException('Email password is not configured for this account');
+    }
+
+    this.assertUserCanLogin(authAccount.user);
+
+    const currentPasswordMatches = await bcrypt.compare(
+      input.currentPassword,
+      authAccount.passwordHash,
+    );
+
+    if (!currentPasswordMatches) {
+      throw new UnauthorizedException('Current password is invalid');
+    }
+
+    const passwordHash = await bcrypt.hash(input.newPassword, PASSWORD_HASH_ROUNDS);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.userAuthAccount.update({
+        where: { id: authAccount.id },
+        data: { passwordHash },
+      });
+
+      return tx.userRefreshToken.updateMany({
+        where: {
+          userId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      });
+    });
+
+    return {
+      ok: true,
+      revokedCount: result.count,
+    };
   }
 
   async listActiveSessions(userId: string) {

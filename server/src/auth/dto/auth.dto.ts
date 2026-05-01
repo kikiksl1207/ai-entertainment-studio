@@ -61,6 +61,22 @@ export class LoginDto {
   password!: string;
 }
 
+export class ChangePasswordDto {
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(128)
+  currentPassword!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(10)
+  @MaxLength(128)
+  @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, {
+    message: 'newPassword must include at least one letter and one number',
+  })
+  newPassword!: string;
+}
+
 export class RefreshDto {
   @Transform(normalizeString)
   @IsNotEmpty()

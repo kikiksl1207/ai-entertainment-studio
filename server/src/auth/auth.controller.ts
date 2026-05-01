@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   ParseUUIDPipe,
   Post,
   Req,
@@ -11,7 +12,13 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from './decorators/current-user.decorator';
-import { LoginDto, RefreshDto, RegisterDto, SocialLoginDto } from './dto/auth.dto';
+import {
+  ChangePasswordDto,
+  LoginDto,
+  RefreshDto,
+  RegisterDto,
+  SocialLoginDto,
+} from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthUser } from './auth.types';
 import { AuthService } from './auth.service';
@@ -70,6 +77,13 @@ export class MeController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthUser) {
     return this.authService.getMe(user.id);
+  }
+
+  @Patch('password')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  changePassword(@CurrentUser() user: AuthUser, @Body() body: ChangePasswordDto) {
+    return this.authService.changePassword(user.id, body);
   }
 
   @Get('sessions')

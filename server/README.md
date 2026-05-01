@@ -99,6 +99,7 @@ Auth endpoints:
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/me`
+- `PATCH /api/v1/me/password`
 - `GET /api/v1/me/sessions`
 - `DELETE /api/v1/me/sessions`
 - `DELETE /api/v1/me/sessions/:sessionId`
@@ -111,6 +112,8 @@ Google and Apple expect identity tokens; Kakao and Naver expect access tokens. T
 Refresh tokens are stored as SHA-256 hashes in `user_refresh_tokens`. `POST /api/v1/auth/refresh` rotates the refresh token and revokes the previous one; `POST /api/v1/auth/logout` accepts `{ "refreshToken": "..." }` and revokes that token server-side. Access tokens remain short-lived and are not individually revoked.
 
 `GET /api/v1/me/sessions` lists active refresh-token sessions for the current user without exposing token hashes. The response includes minimal session metadata such as `userAgent`, `ipAddress`, `createdAt`, `lastUsedAt`, and `expiresAt`. `DELETE /api/v1/me/sessions/:sessionId` revokes a selected session. `DELETE /api/v1/me/sessions` revokes all active sessions for the current user, including the current device, so clients must clear local access and refresh tokens immediately after calling it.
+
+`PATCH /api/v1/me/password` changes the password for email-password accounts after verifying the current password. It revokes all active refresh-token sessions on success, so clients must clear local access and refresh tokens and send the user back to login. Social-only accounts without an email password cannot use this endpoint until a password setup flow is added.
 
 - `GET /api/v1/wallet`
 - `GET /api/v1/wallet/ledger?take=50`
