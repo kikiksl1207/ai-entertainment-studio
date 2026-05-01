@@ -96,10 +96,10 @@ export class AuthService {
       return createdUser;
     });
 
-    return {
-      user: await this.getMe(user.id),
-      tokens: await this.issueTokens(user.id, email, undefined, sessionContext),
-    };
+    return this.authResponse(
+      await this.getMe(user.id),
+      await this.issueTokens(user.id, email, undefined, sessionContext),
+    );
   }
 
   async login(input: LoginDto, sessionContext?: SessionContext) {
@@ -135,16 +135,16 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
-    return {
-      user: await this.getMe(authAccount.userId),
-      tokens: await this.issueTokens(authAccount.userId, email, undefined, sessionContext),
-    };
+    return this.authResponse(
+      await this.getMe(authAccount.userId),
+      await this.issueTokens(authAccount.userId, email, undefined, sessionContext),
+    );
   }
 
   async socialLogin(input: SocialLoginDto, sessionContext?: SessionContext) {
     const profile = await this.socialAuthService.verifyProfile(
       input.provider,
-      input.token,
+      input.token ?? input.accessToken ?? '',
     );
     const providerUserId = profile.providerUserId;
     const verifiedEmail = profile.emailVerified
@@ -174,15 +174,15 @@ export class AuthService {
         data: { lastLoginAt: new Date() },
       });
 
-      return {
-        user: await this.getMe(authAccount.userId),
-        tokens: await this.issueTokens(
+      return this.authResponse(
+        await this.getMe(authAccount.userId),
+        await this.issueTokens(
           authAccount.userId,
           authAccount.user.email,
           undefined,
           sessionContext,
         ),
-      };
+      );
     }
 
     const user = await this.prisma.$transaction(async (tx) => {
@@ -240,10 +240,10 @@ export class AuthService {
       return createdUser;
     });
 
-    return {
-      user: await this.getMe(user.id),
-      tokens: await this.issueTokens(user.id, user.email, undefined, sessionContext),
-    };
+    return this.authResponse(
+      await this.getMe(user.id),
+      await this.issueTokens(user.id, user.email, undefined, sessionContext),
+    );
   }
 
   getSocialProviders(): { providers: SocialProviderConfig[] } {
@@ -321,10 +321,10 @@ export class AuthService {
       },
     });
 
-    return {
-      user: await this.getMe(user.id),
-      tokens: await this.issueTokens(user.id, user.email, storedToken.id, sessionContext),
-    };
+    return this.authResponse(
+      await this.getMe(user.id),
+      await this.issueTokens(user.id, user.email, storedToken.id, sessionContext),
+    );
   }
 
   async logout(refreshToken: string) {
@@ -695,6 +695,19 @@ export class AuthService {
 
   private getJwtExpiresIn(key: string, fallback: string) {
     return (this.configService.get<string>(key) ?? fallback) as '15m';
+  }
+
+  private authResponse(
+    user: Awaited<ReturnType<AuthService['getMe']>>,
+    tokens: Awaited<ReturnType<AuthService['issueTokens']>>,
+  ) {
+    return {
+      user,
+      tokens,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      tokenType: tokens.tokenType,
+    };
   }
 
   private hashToken(token: string) {

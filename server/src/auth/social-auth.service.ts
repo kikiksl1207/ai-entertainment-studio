@@ -33,28 +33,36 @@ export class SocialAuthService {
     throw new BadRequestException('Unsupported social provider');
   }
 
-  private async verifyGoogle(idToken: string): Promise<VerifiedSocialProfile> {
+  private async verifyGoogle(token: string): Promise<VerifiedSocialProfile> {
     const clientId = this.configService.get<string>('GOOGLE_OAUTH_CLIENT_ID');
 
     if (!clientId) {
       throw new ServiceUnavailableException('Google login is not configured');
     }
 
-    const params = new URLSearchParams({ id_token: idToken });
+    const isJwt = token.split('.').length === 3;
+    const params = new URLSearchParams(isJwt ? { id_token: token } : { access_token: token });
     const payload = await this.fetchJson<JsonObject>(
       `https://oauth2.googleapis.com/tokeninfo?${params.toString()}`,
     );
 
-    if (payload.aud !== clientId || typeof payload.sub !== 'string') {
+    const audience = this.string(payload.aud) ?? this.string(payload.audience);
+    const issuedTo = this.string(payload.issued_to);
+    const providerUserId = this.string(payload.sub) ?? this.string(payload.user_id);
+
+    if ((audience ?? issuedTo) !== clientId || !providerUserId) {
       throw new UnauthorizedException('Invalid Google token');
     }
 
     const email = typeof payload.email === 'string' ? payload.email.toLowerCase() : null;
-    const emailVerified = payload.email_verified === 'true' || payload.email_verified === true;
+    const emailVerified =
+      payload.email_verified === 'true' ||
+      payload.email_verified === true ||
+      payload.verified_email === true;
 
     return {
       provider: 'google',
-      providerUserId: payload.sub,
+      providerUserId,
       email,
       emailVerified,
       displayName: typeof payload.name === 'string' ? payload.name : null,

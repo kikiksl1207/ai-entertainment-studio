@@ -8,6 +8,7 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 const normalizeString = ({ value }: { value: unknown }) =>
@@ -131,12 +132,21 @@ export class SocialLoginDto {
   @IsIn(['google', 'kakao', 'naver'])
   provider!: 'google' | 'kakao' | 'naver';
 
+  @ValidateIf((input: SocialLoginDto) => !input.accessToken)
   @Transform(normalizeString)
   @IsNotEmpty()
   @IsString()
   @MinLength(20)
   @MaxLength(8192)
-  token!: string;
+  token?: string;
+
+  @ValidateIf((input: SocialLoginDto) => !input.token)
+  @Transform(normalizeString)
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(20)
+  @MaxLength(8192)
+  accessToken?: string;
 
   @IsOptional()
   @Transform(normalizeString)
