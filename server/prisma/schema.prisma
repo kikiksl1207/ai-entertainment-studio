@@ -85,6 +85,9 @@ model UserRefreshToken {
   expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
   revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
   replacedBy String?   @map("replaced_by") @db.Uuid
+  userAgent  String?   @map("user_agent")
+  ipAddress  String?   @map("ip_address")
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(6)
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   user       User      @relation(fields: [userId], references: [id])
 

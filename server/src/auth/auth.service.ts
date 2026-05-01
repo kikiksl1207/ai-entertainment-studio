@@ -19,6 +19,11 @@ const LUMINA_CURRENCY_CODE = 'LUMINA';
 const SIGNUP_BONUS_LUMINA = 300;
 const REFERRAL_REWARD_LUMINA = 500;
 
+type SessionContext = {
+  userAgent?: string | null;
+  ipAddress?: string | null;
+};
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -28,7 +33,7 @@ export class AuthService {
     private readonly socialAuthService: SocialAuthService,
   ) {}
 
-  async register(input: RegisterDto) {
+  async register(input: RegisterDto, sessionContext?: SessionContext) {
     const email = input.email.trim().toLowerCase();
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
@@ -80,11 +85,11 @@ export class AuthService {
 
     return {
       user: await this.getMe(user.id),
-      tokens: await this.issueTokens(user.id, email),
+      tokens: await this.issueTokens(user.id, email, undefined, sessionContext),
     };
   }
 
-  async login(input: LoginDto) {
+  async login(input: LoginDto, sessionContext?: SessionContext) {
     const email = input.email.trim().toLowerCase();
     const authAccount = await this.prisma.userAuthAccount.findUnique({
       where: {
@@ -119,11 +124,11 @@ export class AuthService {
 
     return {
       user: await this.getMe(authAccount.userId),
-      tokens: await this.issueTokens(authAccount.userId, email),
+      tokens: await this.issueTokens(authAccount.userId, email, undefined, sessionContext),
     };
   }
 
-  async socialLogin(input: SocialLoginDto) {
+  async socialLogin(input: SocialLoginDto, sessionContext?: SessionContext) {
     const profile = await this.socialAuthService.verifyProfile(
       input.provider,
       input.token,
@@ -158,7 +163,12 @@ export class AuthService {
 
       return {
         user: await this.getMe(authAccount.userId),
-        tokens: await this.issueTokens(authAccount.userId, authAccount.user.email),
+        tokens: await this.issueTokens(
+          authAccount.userId,
+          authAccount.user.email,
+          undefined,
+          sessionContext,
+        ),
       };
     }
 
@@ -219,7 +229,7 @@ export class AuthService {
 
     return {
       user: await this.getMe(user.id),
-      tokens: await this.issueTokens(user.id, user.email),
+      tokens: await this.issueTokens(user.id, user.email, undefined, sessionContext),
     };
   }
 
@@ -250,7 +260,7 @@ export class AuthService {
     };
   }
 
-  async refresh(refreshToken: string) {
+  async refresh(refreshToken: string, sessionContext?: SessionContext) {
     let payload: JwtPayload;
 
     try {
@@ -297,12 +307,15 @@ export class AuthService {
 
     await this.prisma.userRefreshToken.update({
       where: { id: storedToken.id },
-      data: { revokedAt: new Date() },
+      data: {
+        revokedAt: new Date(),
+        lastUsedAt: new Date(),
+      },
     });
 
     return {
       user: await this.getMe(user.id),
-      tokens: await this.issueTokens(user.id, user.email, storedToken.id),
+      tokens: await this.issueTokens(user.id, user.email, storedToken.id, sessionContext),
     };
   }
 
@@ -370,6 +383,9 @@ export class AuthService {
         id: true,
         createdAt: true,
         expiresAt: true,
+        userAgent: true,
+        ipAddress: true,
+        lastUsedAt: true,
         replacedBy: true,
       },
     });
@@ -399,6 +415,7 @@ export class AuthService {
     userId: string,
     email?: string | null,
     replacedTokenId?: string,
+    sessionContext?: SessionContext,
   ) {
     const refreshTokenId = randomUUID();
     const refreshExpiresIn = this.getJwtExpiresIn('JWT_REFRESH_EXPIRES_IN', '30d');
@@ -431,6 +448,9 @@ export class AuthService {
         userId,
         tokenHash: this.hashToken(refreshToken),
         expiresAt: new Date(Date.now() + this.durationToMs(refreshExpiresIn)),
+        userAgent: this.truncateNullable(sessionContext?.userAgent, 512),
+        ipAddress: this.truncateNullable(sessionContext?.ipAddress, 64),
+        lastUsedAt: new Date(),
       },
     });
 
@@ -632,5 +652,15 @@ export class AuthService {
 
   private hasConfig(key: string) {
     return Boolean(this.configService.get<string>(key)?.trim());
+  }
+
+  private truncateNullable(value: string | null | undefined, maxLength: number) {
+    const normalized = value?.trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    return normalized.slice(0, maxLength);
   }
 }
