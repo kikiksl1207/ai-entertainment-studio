@@ -99,6 +99,8 @@ Auth endpoints:
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/me`
+- `GET /api/v1/me/sessions`
+- `DELETE /api/v1/me/sessions/:sessionId`
 
 Social login accepts `{ "provider": "google" | "kakao" | "naver" | "apple", "token": "<provider-token>" }`.
 Google and Apple expect identity tokens; Kakao and Naver expect access tokens. The server verifies the provider token before creating or linking a `user_auth_accounts` row, and only verified provider emails can be used to link an existing email account. Configure `GOOGLE_OAUTH_CLIENT_ID`, `KAKAO_REST_API_KEY`, `NAVER_CLIENT_ID`, and `APPLE_CLIENT_ID` in `.env`; if a provider is not configured, its login endpoint fails closed.
@@ -106,6 +108,8 @@ Google and Apple expect identity tokens; Kakao and Naver expect access tokens. T
 `GET /api/v1/auth/social/providers` returns the supported provider list with `enabled` flags based on server environment variables. Frontend clients should use this endpoint to decide which social login buttons are active.
 
 Refresh tokens are stored as SHA-256 hashes in `user_refresh_tokens`. `POST /api/v1/auth/refresh` rotates the refresh token and revokes the previous one; `POST /api/v1/auth/logout` accepts `{ "refreshToken": "..." }` and revokes that token server-side. Access tokens remain short-lived and are not individually revoked.
+
+`GET /api/v1/me/sessions` lists active refresh-token sessions for the current user without exposing token hashes. `DELETE /api/v1/me/sessions/:sessionId` revokes a selected session. Device metadata can be added later without changing the basic session-management contract.
 
 - `GET /api/v1/wallet`
 - `GET /api/v1/wallet/ledger?take=50`

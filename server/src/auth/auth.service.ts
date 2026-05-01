@@ -357,6 +357,44 @@ export class AuthService {
     return user;
   }
 
+  async listActiveSessions(userId: string) {
+    const now = new Date();
+    const sessions = await this.prisma.userRefreshToken.findMany({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: { gt: now },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        createdAt: true,
+        expiresAt: true,
+        replacedBy: true,
+      },
+    });
+
+    return { sessions };
+  }
+
+  async revokeSession(userId: string, sessionId: string) {
+    const result = await this.prisma.userRefreshToken.updateMany({
+      where: {
+        id: sessionId,
+        userId,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+
+    return {
+      ok: true,
+      revokedCount: result.count,
+    };
+  }
+
   private async issueTokens(
     userId: string,
     email?: string | null,
