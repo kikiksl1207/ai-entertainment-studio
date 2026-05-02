@@ -1894,7 +1894,9 @@ function mediaStyle(path) {
 function normalizeAssetUrl(url) {
   if (!url) return "";
   if (/^https?:\/\//i.test(url)) return url;
-  return `/${String(url).replace(/^\/+/, "")}`;
+  // "./assets/..." / "/assets/..." / "assets/..." 모두 → "/assets/..." 통일
+  // (#030 5번 케이스 — 페이지 경로에 따라 ./ 상대경로 꼬임 방지)
+  return `/${String(url).replace(/^(\.\/+|\/+)/, "")}`;
 }
 
 function adaptArtist(api) {
@@ -1923,8 +1925,9 @@ function adaptArtist(api) {
     business:    api.business      || local.business,
     images: {
       // #030: coverImage/thumbnailImage는 asset object → .url 추출. 정답 필드명은 thumbnailImage.
-      cover: normalizeAssetUrl(apiCover?.url || api.coverImage?.url || api.coverImageUrl || api.cover_image) || local.images?.cover,
-      thumb: normalizeAssetUrl(apiThumb?.url || api.thumbnailImage?.url || api.thumbImage?.url || api.thumbImage || api.thumb_image) || local.images?.thumb
+      // local fallback도 normalize 안에 포함 → "./assets/..." 도 절대 경로로 통일
+      cover: normalizeAssetUrl(apiCover?.url || api.coverImage?.url || api.coverImageUrl || api.cover_image || local.images?.cover),
+      thumb: normalizeAssetUrl(apiThumb?.url || api.thumbnailImage?.url || api.thumbImage?.url || api.thumbImage || api.thumb_image || local.images?.thumb)
     },
     gallery:           apiGallery.length > 0 ? apiGallery : (local.gallery || []),
     profile:           api.profile || local.profile || {},
@@ -3119,6 +3122,14 @@ async function init() {
       if (mainCount >= 4) {
         _artists = adapted;
         console.info(`[Lumina] API 아티스트 ${_artists.length}명 로드됨 (메인 ${mainCount}명)`);
+        // #030 디버그: 활동 중 캐릭터의 cover/thumb URL 출력 → 사진 안 뜰 때 콘솔만 보면 원인 파악 가능
+        try {
+          console.table(
+            _artists
+              .filter(a => a.status === "public")
+              .map(a => ({ slug: a.slug, cover: a.images?.cover, thumb: a.images?.thumb }))
+          );
+        } catch (_) { /* console.table 미지원 환경 무시 */ }
       } else {
         console.warn(`[Lumina] API 응답 불완전 (메인 캐릭터 ${mainCount}명) — 로컬 데이터 유지`);
       }
