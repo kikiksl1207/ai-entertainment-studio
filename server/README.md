@@ -79,6 +79,8 @@ Current fixed gallery seed sources:
 - `han-seoyul`: `assets/characters/han-seoyul/reference-final-01.png` through `reference-final-20.png` (20)
 - `park-doa`: `assets/characters/park-doa/reference-final/*` (18)
 - `seo-yuan`: `assets/characters/seo-yuan/reference-final-01.png` through `reference-final-20.png` (20)
+- `choi-seojin`: `assets/characters/choi-seojin/reference-final-01.png` through `reference-final-20.png` (20)
+- `cha-dohyun`: `assets/characters/cha-dohyun/reference-final-01.png` through `reference-final-20.png` (20)
 
 Current seed image packs include gallery assets for `yoon-serin`, `han-seoyul`, `park-doa`, `seo-yuan`, `choi-seojin`, and `cha-dohyun`. The seed skips missing image files so public APIs do not emit broken asset URLs.
 
@@ -96,6 +98,8 @@ The server listens on `http://localhost:3001` by default.
 - `GET /api/v1/artists/:slug`
 - `GET /api/v1/shortforms`
 - `GET /api/v1/lumina-products`
+
+Public artist responses only expose public-ready artists that have both `coverImage` and `thumbnailImage`, so draft or legacy rows without operation-pack images do not appear on the frontend.
 
 ## Wallet API Skeleton
 

@@ -317,28 +317,34 @@ const galleryDirsBySlug = {
   'cha-dohyun': ['.'],
 } as const;
 
+const publicSeedArtistSlugs = new Set(Object.keys(galleryDirsBySlug));
+
 async function main() {
   const artistBySlug = new Map<string, { id: string; displayName: string }>();
   const assetByKey = new Map<string, { id: string }>();
 
   for (const artist of artists) {
+    const status = isPublicSeedArtist(artist.slug) ? 'active' : 'draft';
     const row = await prisma.artist.upsert({
       where: { slug: artist.slug },
       update: {
         displayName: artist.displayName,
-        status: 'active',
+        status,
         sortOrder: artist.sortOrder,
         updatedAt: new Date(),
       },
       create: {
         slug: artist.slug,
         displayName: artist.displayName,
-        status: 'active',
+        status,
         sortOrder: artist.sortOrder,
         launchedAt,
       },
     });
-    artistBySlug.set(artist.slug, row);
+
+    if (status === 'active') {
+      artistBySlug.set(artist.slug, row);
+    }
 
     await prisma.artistPublicProfile.upsert({
       where: { artistId: row.id },
@@ -555,7 +561,7 @@ async function seedCommerce() {
     ['GIFT_STAGE_UNLOCK', '스테이지 의상 해금', 'progressive', 1000, 1000, 10000],
   ] as const;
 
-  for (const artist of artists) {
+  for (const artist of publicSeedArtists()) {
     const artistRow = await prisma.artist.findUniqueOrThrow({ where: { slug: artist.slug } });
     for (const [sku, name, giftKind, priceLumina, progressAmount, targetAmount] of gifts) {
       await prisma.giftProduct.upsert({
@@ -653,7 +659,7 @@ async function seedBoosts() {
 }
 
 async function seedPremiumAndChat() {
-  for (const artist of artists) {
+  for (const artist of publicSeedArtists()) {
     const artistRow = await prisma.artist.findUniqueOrThrow({ where: { slug: artist.slug } });
 
     await prisma.premiumVideoProduct.upsert({
@@ -772,6 +778,14 @@ function resolveAssetDir(storageDir: string) {
 
 function skuSuffix(slug: string) {
   return slug.toUpperCase().replaceAll('-', '_');
+}
+
+function isPublicSeedArtist(slug: string) {
+  return publicSeedArtistSlugs.has(slug);
+}
+
+function publicSeedArtists() {
+  return artists.filter((artist) => isPublicSeedArtist(artist.slug));
 }
 
 function stablePersonaId(slug: string) {

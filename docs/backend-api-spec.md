@@ -38,6 +38,7 @@ Frontend-friendly response fields:
 - `coverImage.url`, `thumbnailImage.url`
 - `assets[].url`, `assets[].usageType`
 - Public responses only expose uploaded/ready assets.
+- Public artist responses only expose artist rows that have both a cover image and thumbnail image.
 - Public responses do not expose internal asset `metadata`, `storageKey`, or `storageProvider`.
 
 용도:

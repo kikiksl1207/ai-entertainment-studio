@@ -76,6 +76,7 @@ Image usage:
 - `coverImage.url` is the primary large image.
 - `thumbnailImage.url` is the card/list image.
 - `assets[]` includes all public artist assets.
+- `GET /artists` and `GET /artists/:slug` only expose public-ready artists that have both `coverImage` and `thumbnailImage`.
 - Detail galleries should use `assets.filter((asset) => asset.usageType === "gallery")`.
 - Gallery assets are seeded from current operation-pack folders where available:
   - `assets/characters/yoon-serin/reference-final/*`
@@ -659,7 +660,7 @@ create body accepts `{ "email": "operator@example.com", "role": "owner",
 - Use the base URL as a single config value.
 - Public image URLs return repo/storage keys until `OBJECT_STORAGE_PUBLIC_BASE_URL` is configured. After object storage is configured, the API returns full public asset URLs.
 - Backend already has seed data in Render Postgres.
-- Initial seed lineup is 7 characters after the Seo Yuan asset pack connection: `yoon-serin`, `han-seoyul`, `park-doa`, `choi-seojin`, `oh-hyerin`, `cha-dohyun`, `seo-yuan`.
+- Initial public seed lineup is 6 characters: `yoon-serin`, `han-seoyul`, `park-doa`, `choi-seojin`, `cha-dohyun`, `seo-yuan`.
 - Public gallery assets are seed-driven. After Render runs `npm run render:start:seed`, the current fixed gallery counts should be:
   - `yoon-serin`: 20 gallery images from `reference-final/`
   - `han-seoyul`: 20 gallery images from root `reference-final-01.png` through `reference-final-20.png`

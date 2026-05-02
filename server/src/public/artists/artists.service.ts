@@ -33,7 +33,9 @@ export class ArtistsService {
       orderBy: [{ sortOrder: 'asc' }, { displayName: 'asc' }],
     });
 
-    return artists.map((artist) => this.toPublicArtist(artist));
+    return artists
+      .map((artist) => this.toPublicArtist(artist))
+      .filter((artist) => this.isPublicReadyArtist(artist));
   }
 
   async findBySlug(slug: string) {
@@ -48,7 +50,12 @@ export class ArtistsService {
       },
     });
 
-    return artist ? this.toPublicArtist(artist, { includeContentProfile: true }) : null;
+    if (!artist) {
+      return null;
+    }
+
+    const publicArtist = this.toPublicArtist(artist, { includeContentProfile: true });
+    return this.isPublicReadyArtist(publicArtist) ? publicArtist : null;
   }
 
   private toPublicArtist(
@@ -110,6 +117,10 @@ export class ArtistsService {
 
   private assetUrl(storageKey: string) {
     return buildPublicAssetUrl(this.configService, storageKey);
+  }
+
+  private isPublicReadyArtist(artist: { coverImage: unknown; thumbnailImage: unknown }) {
+    return Boolean(artist.coverImage && artist.thumbnailImage);
   }
 
   private isPublicReadyAsset(metadata: unknown) {
