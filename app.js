@@ -433,7 +433,7 @@ function initKakaoSDK() {
 
 async function handleKakaoLogin() {
   if (!KAKAO_JS_KEY) {
-    alert("카카오 로그인 준비 중입니다.\n(Kakao JavaScript Key 등록 필요)");
+    alert("카카오 로그인은 곧 열릴 예정입니다.\n지금은 이메일로 먼저 입장해주세요.");
     return;
   }
   try {
@@ -509,7 +509,7 @@ const NAVER_CLIENT_ID = "WEXZ2Cn3Ff8pIEdTkDfR"; // Naver Developers Client ID
 
 async function handleNaverLogin() {
   if (!NAVER_CLIENT_ID) {
-    alert("네이버 로그인 준비 중입니다.\n(Naver Client ID 등록 필요)");
+    alert("네이버 로그인은 곧 열릴 예정입니다.\n지금은 이메일로 먼저 입장해주세요.");
     return;
   }
   // CSRF 방지용 state 토큰
@@ -752,7 +752,7 @@ function updateWalletUI() {
         small.textContent = text;
         small.classList.add("user-menu-balance");
       } else {
-        small.textContent = "준비 중";
+        small.textContent = "곧 공개";
         small.classList.remove("user-menu-balance");
       }
     }
@@ -1032,15 +1032,15 @@ function createUserMenu() {
     <div class="user-menu-divider"></div>
     <button class="user-menu-item" type="button" data-action="profile">
       <span>마이 프로필</span>
-      <small>준비 중</small>
+      <small>곧 공개</small>
     </button>
     <button class="user-menu-item" type="button" data-action="wallet">
       <span>루미나 지갑</span>
-      <small>준비 중</small>
+      <small>곧 공개</small>
     </button>
     <button class="user-menu-item" type="button" data-action="orders">
       <span>주문 내역</span>
-      <small>준비 중</small>
+      <small>곧 공개</small>
     </button>
     <div class="user-menu-divider"></div>
     <button class="user-menu-item user-menu-logout" type="button" data-action="logout">
@@ -1055,7 +1055,7 @@ function createUserMenu() {
         authLogout();
       } else {
         // 준비 중 메뉴
-        alert("이 기능은 곧 추가됩니다!");
+        alert("곧 더 가까운 팬 경험으로 열릴 예정입니다.");
       }
       closeUserMenu();
     });
@@ -1071,8 +1071,8 @@ const characters = [
     name: "윤세린", publicName: "윤세린", slug: "yoon-serin",
     gender: "female", type: "아이돌", tier: "main", status: "public",
     role: "대표 비주얼",
-    artistDescription: "Lumina Stage의 첫 무대를 맡게 됐어요. 차갑게 등장해서, 뜨겁게 각인될게요.",
-    summary: "차갑게, 그러나 또렷하게.",
+    artistDescription: "첫 조명이 켜지는 순간까지 흔들리지 않을게요. 차갑게 등장해서, 오래 남겠습니다.",
+    summary: "차갑게 등장해, 오래 남는 뮤즈.",
     fandom: "강한 비주얼 입덕형",
     business: "뷰티, 향수, 패션 필름",
     tags: ["시크", "퍼포먼스", "뷰티"],
@@ -1104,8 +1104,8 @@ const characters = [
     gender: "female",
     type: "아이돌", tier: "main", status: "public",
     role: "센터 확장",
-    artistDescription: "센터에 서서 모두를 빛나게 만들고 싶어요. 혼자 빛나는 무대는 없으니까요.",
-    summary: "센터에서 다 같이, 더 빛나게.",
+    artistDescription: "센터에 서면 혼자 빛나는 게 아니라 모두의 표정이 같이 살아나요. 오늘도 같이 무대에 올라요.",
+    summary: "센터에서 모두를 더 빛나게.",
     fandom: "대중형 확장형",
     business: "패션, 음료, 라이프스타일",
     tags: ["센터", "하이틴", "대중성"],
@@ -1121,8 +1121,8 @@ const characters = [
     gender: "female",
     type: "스트리머", tier: "main", status: "public",
     role: "팬 소통형",
-    artistDescription: "옆집 언니처럼 편하게 다가갈게요. 솔직하게, 자주 만나러 와요~",
-    summary: "솔직하고 편하게, 옆집 언니처럼.",
+    artistDescription: "화려하게 꾸미지 않아도 괜찮아요. 오늘 있었던 얘기부터 맛있는 한 입까지, 편하게 나눌게요.",
+    summary: "솔직하고 편하게, 자주 보고 싶은 사람.",
     fandom: "댓글·호감 전환형",
     business: "푸드, 라이프, 커머스",
     tags: ["친근함", "리액션", "생활형"],
@@ -1138,8 +1138,8 @@ const characters = [
     gender: "female",
     type: "배우", tier: "premium", status: "public",
     role: "프리미엄 간판",
-    artistDescription: "조용하지만 분명한 무게감으로 화면을 채울게요. 한 컷, 하나의 화보로.",
-    summary: "한 컷의 무게감, 한 장의 화보.",
+    artistDescription: "많이 말하지 않아도 장면은 남습니다. 한 컷의 온도로 오래 기억되겠습니다.",
+    summary: "조용한 무게감, 한 장의 화보.",
     fandom: "프리미엄 선망형",
     business: "주얼리, 럭셔리 뷰티, 에디토리얼",
     tags: ["럭셔리", "에디토리얼", "프리미엄"],
@@ -1155,40 +1155,40 @@ const characters = [
     gender: "female",
     type: "아이돌", tier: "sub", status: "debut",
     role: "감성 보컬",
-    artistDescription: "청아한 보컬과 감정 몰입형 콘텐츠로 데뷔를 준비 중인 서브 아이돌.",
-    summary: "감성 보컬 중심의 청아한 라인",
+    artistDescription: "말보다 먼저 닿는 목소리가 있다고 믿어요. 제 첫 곡이 당신의 하루 끝에 머물렀으면 해요.",
+    summary: "청아한 목소리로 마음에 머무는 보컬.",
     fandom: "감성 몰입형", business: "음향, 감성 캠페인, 뷰티",
     tags: ["보컬", "감성", "청아함"],
     colorAccent: "#a8d8f0",
     images: { cover: "./assets/characters/oh-hyerin/cover.jpg", thumb: "./assets/characters/oh-hyerin/thumb.jpg" },
-    intro: "청아한 보컬 감성을 중심으로 데뷔를 준비 중인 라인입니다.",
-    concept: "감정 몰입형 숏폼과 무드형 콘텐츠에 적합한 예비 아이돌.",
+    intro: "오혜린은 청아한 보컬과 섬세한 감정선으로 먼저 기억되는 아이돌 라인이다. 큰 제스처보다 작은 떨림, 높은 음보다 오래 남는 숨결로 팬의 마음에 닿는다.",
+    concept: "감정이 가장 조용한 순간에 선명해진다. 오혜린은 한 곡의 여운처럼 남는 아티스트다.",
     profile: { 포지션: "서브 아이돌 / 보컬", 팬포인트: "청아함과 감성선", 운영상태: "데뷔 예정", 광고축: "감성 캠페인 · 뷰티" },
-    shorts: [{ title: "데뷔 예정 무드", metric: "준비 중" }]
+    shorts: [{ title: "첫 보컬 무드", metric: "공개 대기" }]
   },
   {
     name: "민채온", publicName: "민채온", slug: "min-chaeon",
     gender: "female",
     type: "아이돌", tier: "candidate", status: "secret",
     role: "피트니스 아이돌",
-    artistDescription: "큐티한 얼굴과 건강한 글래머 체형의 반전. 후원 전환율이 높은 피트니스형 아이돌.",
-    summary: "큐티 피트니스 반전 매력 아이돌",
+    artistDescription: "웃을 땐 말랑하지만 무대에 서면 에너지가 달라져요. 귀여움 뒤의 탄탄한 반전을 보여줄게요.",
+    summary: "러블리한 얼굴, 건강한 반전 에너지.",
     fandom: "직관적 매력 소비형", business: "피트니스, 스포츠 뷰티, 라이프스타일",
     tags: ["피트니스", "러블리", "반전매력"],
     colorAccent: "#f0b0c0",
     images: { cover: "./assets/characters/min-chaeon/cover.jpg", thumb: "./assets/characters/min-chaeon/thumb.jpg" },
-    intro: "큐티한 얼굴과 건강한 체형의 반전 매력으로 주목받는 피트니스형 아이돌입니다.",
+    intro: "민채온은 러블리한 첫인상과 탄탄한 에너지가 공존하는 피트니스형 아이돌이다. 가벼운 미소로 다가오지만, 무대 위에서는 리듬과 체력으로 시선을 붙잡는다.",
     concept: "귀여운 줄 알았는데 무대에 서면 완전히 다른 사람이 된다.",
     profile: { 포지션: "피트니스 아이돌", 팬포인트: "귀여움과 건강미 반전", 광고축: "피트니스 · 스포츠 뷰티" },
-    shorts: [{ title: "피트니스 티저", metric: "공개 예정" }]
+    shorts: [{ title: "피트니스 스냅", metric: "공개 대기" }]
   },
   {
     name: "차도현", publicName: "차도현", slug: "cha-dohyun",
     gender: "male",
     type: "아티스트", tier: "sub", status: "public",
     role: "젠더리스 패션",
-    artistDescription: "첫 무대를 앞두고 있어요. 패션은 갑옷, 무대는 전쟁터 — 어떤 옷을 입어도 결국 저답게.",
-    summary: "곧 무대 위에서 만나요. 결국 저답게.",
+    artistDescription: "패션은 갑옷이고 무대는 제 언어예요. 어떤 옷을 입어도 결국 가장 저답게 서겠습니다.",
+    summary: "하이패션으로 무대를 장악하는 젠더리스 아티스트.",
     fandom: "아티스트 팬덤형",
     business: "하이패션, 매거진 화보, 스트릿 럭셔리",
     tags: ["하이패션", "젠더리스", "아티스트"],
@@ -1204,128 +1204,128 @@ const characters = [
     gender: "female",
     type: "모델", tier: "candidate", status: "secret",
     role: "도시형 라이프스타일",
-    artistDescription: "에포트리스 시크 무드의 도시형 모델. 향수·데님·카페 감성에 특화.",
-    summary: "에포트리스 시크 도시형 모델",
+    artistDescription: "애써 꾸미지 않아도 시선이 머무는 사람이 있어요. 도시의 오후처럼 담담하고 세련되게 남겠습니다.",
+    summary: "도시의 오후를 닮은 에포트리스 시크.",
     fandom: "라이프스타일 선망형", business: "향수, 데님, 도시 라이프스타일",
     tags: ["시크", "내추럴", "라이프스타일"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/kang-sia/cover.jpg", thumb: "./assets/characters/kang-sia/thumb.jpg" },
-    intro: "공개 예정 라인입니다.", concept: "아무것도 하지 않는 것처럼 보이는데 가장 멋있다.",
+    intro: "강시아는 향수, 데님, 카페의 온도가 어울리는 도시형 모델이다. 과한 포즈 대신 자연스러운 시선과 걷는 리듬으로 라이프스타일의 선망을 만든다.", concept: "아무것도 하지 않는 것처럼 보이는데 가장 멋있다.",
     profile: { 포지션: "도시형 모델", 팬포인트: "비공개", 광고축: "향수 · 데님 · 라이프스타일" },
-    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+    shorts: [{ title: "시티 무드 스냅", metric: "비공개 라인" }]
   },
   {
     name: "이지원", publicName: "이지원", slug: "lee-jiwon",
     gender: "female",
     type: "배우", tier: "candidate", status: "secret",
     role: "쿨한 톱스타",
-    artistDescription: "긴 흑발과 쿨한 아우라의 톱스타형 배우. 자동차·테크·액션 광고에 특화.",
-    summary: "쿨한 톱스타 배우 포지션",
+    artistDescription: "흔들리지 않는 시선으로 장면을 밀고 나가요. 말보다 먼저 분위기가 도착하는 배우입니다.",
+    summary: "쿨한 아우라로 장면을 장악하는 배우.",
     fandom: "선망형", business: "자동차, 테크, 액션 화보",
     tags: ["톱스타", "쿨함", "액션"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/lee-jiwon/cover.jpg", thumb: "./assets/characters/lee-jiwon/thumb.jpg" },
-    intro: "공개 예정 라인입니다.", concept: "바람에 흔들리지 않는다. 원래 그런 사람이라서.",
+    intro: "이지원은 긴 흑발과 차가운 아우라로 액션, 테크, 자동차 캠페인에 어울리는 배우형 아티스트다. 감정을 크게 드러내지 않아도 장면의 긴장을 끝까지 붙잡는다.", concept: "바람에 흔들리지 않는다. 원래 그런 사람이라서.",
     profile: { 포지션: "쿨 톱스타 배우", 팬포인트: "비공개", 광고축: "자동차 · 테크 · 액션" },
-    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+    shorts: [{ title: "액션 무드 컷", metric: "비공개 라인" }]
   },
   {
     name: "하윤아", publicName: "하윤아", slug: "ha-yuna",
     gender: "female",
     type: "모델", tier: "candidate", status: "secret",
     role: "SNS 스트릿 뷰티",
-    artistDescription: "고양이상 눈매와 비비드 컬러의 SNS 스트릿 뷰티. 숏폼 트렌드 특화.",
-    summary: "SNS 스트릿 쿨뷰티 트렌드세터",
+    artistDescription: "오늘의 색은 제가 정할게요. 스트릿의 속도와 비비드한 자신감으로 피드를 물들입니다.",
+    summary: "비비드한 컬러로 피드를 바꾸는 스트릿 뷰티.",
     fandom: "트렌드 팔로워형", business: "스트릿 패션, 색조 뷰티, Y2K",
     tags: ["스트릿", "뷰티", "트렌드"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/ha-yuna/cover.jpg", thumb: "./assets/characters/ha-yuna/thumb.jpg" },
-    intro: "공개 예정 라인입니다.", concept: "트렌드를 따라가는 게 아니라 트렌드를 만든다.",
+    intro: "하윤아는 고양이상 눈매와 비비드한 컬러 감각을 가진 스트릿 뷰티 모델이다. 빠르게 지나가는 숏폼 피드 안에서도 한 번 더 보게 만드는 트렌드 감도를 지녔다.", concept: "트렌드를 따라가는 게 아니라 트렌드를 만든다.",
     profile: { 포지션: "스트릿 뷰티 모델", 팬포인트: "비공개", 광고축: "스트릿 패션 · 색조 뷰티" },
-    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+    shorts: [{ title: "컬러 트렌드 컷", metric: "비공개 라인" }]
   },
   {
     name: "백리아", publicName: "백리아", slug: "baek-ria",
     gender: "female",
     type: "아이돌", tier: "candidate", status: "secret",
     role: "청량 직캠 보컬",
-    artistDescription: "맑은 얼굴과 청량 컬러의 직캠형 아이돌. 보컬 커버와 여름 무대 콘텐츠 특화.",
-    summary: "청량 보컬 직캠 아이돌",
+    artistDescription: "여름처럼 맑게 웃고, 직캠처럼 오래 남을게요. 첫 소절부터 시원하게 닿고 싶어요.",
+    summary: "여름빛 보컬과 직캠 감성의 청량 아이돌.",
     fandom: "직캠 바이럴형", business: "청량 무대, 여름 음료, 직캠 숏폼",
     tags: ["청량", "보컬", "직캠"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/baek-ria/cover.jpg", thumb: "./assets/characters/baek-ria/thumb.jpg" },
-    intro: "공개 예정 라인입니다.", concept: "무대에서 가장 밝게 빛나는 사람.",
+    intro: "백리아는 맑은 얼굴, 청량한 색감, 보컬 커버에 강한 직캠형 아이돌이다. 여름 음료 광고처럼 시원한 첫인상과 다시 보고 싶은 무대 표정이 강점이다.", concept: "무대에서 가장 밝게 빛나는 사람.",
     profile: { 포지션: "청량 직캠 보컬", 팬포인트: "비공개", 광고축: "청량 무대 · 여름 콘텐츠" },
-    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+    shorts: [{ title: "청량 직캠 컷", metric: "비공개 라인" }]
   },
   {
     name: "오유나", publicName: "오유나", slug: "oh-yuna",
     gender: "female",
     type: "아이돌", tier: "candidate", status: "secret",
     role: "여름 페스티벌 디바",
-    artistDescription: "워터 페스티벌과 솔로 무대의 디바. 시즌 이벤트와 여름 광고 특화.",
-    summary: "여름 페스티벌 솔로 디바",
+    artistDescription: "무대 위의 계절을 바꿀 수 있다면, 저는 늘 여름을 선택할래요. 뜨겁고 선명하게 기억될게요.",
+    summary: "여름 페스티벌을 닮은 솔로 디바.",
     fandom: "시즌 이벤트형", business: "워터 스포츠, 여름 음료, 솔로 무대",
     tags: ["페스티벌", "디바", "여름"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/oh-yuna/cover.jpg", thumb: "./assets/characters/oh-yuna/thumb.jpg" },
-    intro: "공개 예정 라인입니다.", concept: "여름이 오면 가장 먼저 생각나는 사람.",
+    intro: "오유나는 워터 페스티벌, 솔로 퍼포먼스, 시즌 광고에 강한 여름 디바 라인이다. 강한 조명과 물빛 무대에서 에너지를 크게 터뜨리는 아티스트로 설계되어 있다.", concept: "여름이 오면 가장 먼저 생각나는 사람.",
     profile: { 포지션: "여름 페스티벌 디바", 팬포인트: "비공개", 광고축: "워터 스포츠 · 여름 음료" },
-    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+    shorts: [{ title: "페스티벌 티저", metric: "비공개 라인" }]
   },
   {
     name: "권태준", publicName: "권태준", slug: "kwon-taejun",
     gender: "male",
     type: "배우", tier: "candidate", status: "secret",
     role: "누아르 배우",
-    artistDescription: "넓은 어깨와 깊은 눈빛의 누아르 배우. 저음 챗과 감정 연기 콘텐츠 특화.",
-    summary: "묵직한 누아르 배우 포지션",
+    artistDescription: "낮은 목소리와 긴 침묵 사이에 감정이 있습니다. 천천히, 그러나 분명하게 남겠습니다.",
+    summary: "깊은 눈빛으로 서사를 남기는 누아르 배우.",
     fandom: "감성 몰입형", business: "수트, 시계, 향수, 누아르",
     tags: ["누아르", "배우", "감성"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/kwon-taejun/cover.jpg", thumb: "./assets/characters/kwon-taejun/thumb.jpg" },
-    intro: "공개 예정 라인입니다.", concept: "말이 없어도 존재감이 공간을 채운다.",
+    intro: "권태준은 깊은 눈빛과 낮은 톤으로 누아르, 수트, 향수 캠페인에 어울리는 배우형 아티스트다. 대사가 많지 않아도 감정의 무게를 장면에 남긴다.", concept: "말이 없어도 존재감이 공간을 채운다.",
     profile: { 포지션: "누아르 배우", 팬포인트: "비공개", 광고축: "수트 · 시계 · 향수" },
-    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+    shorts: [{ title: "누아르 티저", metric: "비공개 라인" }]
   },
   {
     name: "서하민", publicName: "서하민", slug: "seo-hamin",
     gender: "male",
     type: "MC", tier: "candidate", status: "secret",
     role: "커뮤니티 MC",
-    artistDescription: "안경과 큐카드의 유쾌한 이벤트 진행자. 플랫폼 이벤트와 커뮤니티 리텐션 특화.",
-    summary: "유쾌한 이벤트 MC 포지션",
+    artistDescription: "어색한 공기도 제가 먼저 풀어볼게요. 팬과 아티스트 사이를 가장 즐겁게 잇는 진행자가 되겠습니다.",
+    summary: "팬덤의 분위기를 여는 유쾌한 MC.",
     fandom: "커뮤니티 참여형", business: "예능 숏폼, 팬 이벤트, 고민 상담",
     tags: ["MC", "예능", "커뮤니티"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/seo-hamin/cover.jpg", thumb: "./assets/characters/seo-hamin/thumb.jpg" },
-    intro: "공개 예정 라인입니다.", concept: "분위기를 만드는 사람이 따로 있다.",
+    intro: "서하민은 안경과 큐카드가 잘 어울리는 커뮤니티 MC형 아티스트다. 이벤트, 고민 상담, 팬 참여형 콘텐츠에서 자연스럽게 분위기를 만들고 사람들을 연결한다.", concept: "분위기를 만드는 사람이 따로 있다.",
     profile: { 포지션: "이벤트 MC", 팬포인트: "비공개", 광고축: "예능 · 팬 이벤트" },
-    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+    shorts: [{ title: "팬 이벤트 오프닝", metric: "비공개 라인" }]
   },
   {
     name: "류태오", publicName: "류태오", slug: "ryu-taeo",
     gender: "male",
     type: "스포츠", tier: "candidate", status: "secret",
     role: "스포츠 챌린지",
-    artistDescription: "밝은 미소와 애슬레틱 체형의 스포츠 챌린지 캐릭터. 글로벌 응원 캠페인 특화.",
-    summary: "스포츠 챌린지 응원 캐릭터",
+    artistDescription: "끝까지 가는 힘을 믿어요. 밝게 웃고, 크게 뛰고, 응원의 박자를 무대까지 가져가겠습니다.",
+    summary: "끝까지 뛰는 스포츠 챌린지 아티스트.",
     fandom: "응원 캠페인형", business: "스포츠, 에너지 드링크, 챌린지",
     tags: ["스포츠", "챌린지", "응원"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/ryu-taeo/cover.jpg", thumb: "./assets/characters/ryu-taeo/thumb.jpg" },
-    intro: "공개 예정 라인입니다.", concept: "포기하지 않는 에너지가 전염된다.",
+    intro: "류태오는 밝은 미소와 애슬레틱한 움직임을 가진 스포츠 챌린지형 아티스트다. 글로벌 응원 캠페인, 에너지 드링크, 팀 챌린지 콘텐츠에서 활약할 수 있는 라인이다.", concept: "포기하지 않는 에너지가 전염된다.",
     profile: { 포지션: "스포츠 챌린지", 팬포인트: "비공개", 광고축: "스포츠 · 에너지 드링크" },
-    shorts: [{ title: "Coming Soon", metric: "공개 예정" }]
+    shorts: [{ title: "응원 챌린지 컷", metric: "비공개 라인" }]
   },
   {
     name: "서유안", publicName: "서유안", slug: "seo-yuan",
     gender: "female",
     type: "모델", tier: "sub", status: "public",
     role: "내추럴 모델",
-    artistDescription: "데뷔를 앞두고 있어요. 꾸민 듯 안 꾸민 듯, 가장 편안한 저로 인사드릴게요.",
-    summary: "곧 화면에서 만나요. 자연스럽게, 편안하게.",
+    artistDescription: "꾸미지 않은 듯 가장 오래 머무는 분위기가 있어요. 편안하지만 선명하게 인사드릴게요.",
+    summary: "자연스럽게 스며드는 내추럴 럭셔리.",
     fandom: "호감·선망형", business: "스킨케어, 리빙, 뷰티",
     tags: ["내추럴", "우아함", "뷰티"],
     colorAccent: "#b8f0d0",
@@ -1425,84 +1425,84 @@ characters.forEach((artist) => {
    ══════════════════════════════════════════════ */
 const characterMessages = {
   "yoon-serin": {
-    tributeMessage: "감사합니다. 마이크 앞에 서니 가장 먼저 떠오른 건 응원해주신 분들 한 분 한 분이에요. 이 자리, 가볍게 받지 않을게요. 다음 무대로 보답할게요.",
-    tributeMessageZero: "스포트라이트가 켜지기 전, 가장 조용한 시간이에요. 첫 응원이 이 무대를 시작해줘요.",
-    voteAppeal: "오늘 무대 위에 서요. 한 번의 좋아요, 잊지 않을게요."
+    tributeMessage: "이 조명 아래 서니 응원 하나하나의 무게가 느껴져요. 저를 이달의 1위로 불러주신 마음, 가볍게 받지 않겠습니다. 다음 무대에서 더 깊게 각인될게요.",
+    tributeMessageZero: "아직 조명은 켜지기 전이에요. 첫 응원이 들어오는 순간, 제 무대의 온도가 달라질 거예요.",
+    voteAppeal: "차갑게 시작해 오래 남겠습니다. 오늘의 한 표를 제 무대에 맡겨주세요."
   },
   "han-seoyul": {
-    tributeMessage: "이 자리에 혼자 올라온 게 아니에요. 응원해주신 모든 분들과 같이 받는 상이에요. 다음 무대도 다 같이 가요!",
-    tributeMessageZero: "센터에 서기 전, 옆자리부터 채워주실 첫 응원을 기다리고 있어요.",
-    voteAppeal: "오늘도 같이 가요! 좋아요 한 번이 큰 힘이 돼요 🎀"
+    tributeMessage: "센터에 서는 순간 가장 먼저 팬분들 얼굴이 떠올랐어요. 이 상은 혼자 받은 게 아니라 우리 무대가 같이 받은 거예요. 다음에도 함께 빛나요.",
+    tributeMessageZero: "센터의 자리는 혼자 채울 수 없어요. 첫 응원이 들어오면, 그때부터 우리 무대가 시작돼요.",
+    voteAppeal: "오늘도 같이 올라가요. 한 표만 더해지면 무대가 훨씬 밝아져요."
   },
   "park-doa": {
-    tributeMessage: "헐... 이 자리에서 진짜 1등 소감 말하는 날이 오네요. 댓글 다 챙겨봤어요, 정말요! 다음에도 자주 만나요~",
-    tributeMessageZero: "조명 켜지면 활짝 웃을 준비하고 있어요. 첫 응원, 가볍게 한 번씩 부탁해요!",
-    voteAppeal: "오늘 일상도 같이 봐줄래요? 좋아요 한 번씩~"
+    tributeMessage: "와, 저 진짜 여기까지 온 거 맞죠? 댓글도 응원도 다 봤어요. 편하게 웃으면서 시작했는데 이렇게 큰 자리까지 데려와줘서 정말 고마워요.",
+    tributeMessageZero: "처음은 늘 조금 떨리지만, 웃을 준비는 끝났어요. 첫 응원 하나면 바로 말 걸 수 있을 것 같아요.",
+    voteAppeal: "오늘도 편하게 들러줘요. 좋아요 한 번이면 제가 더 신나게 웃을 수 있어요."
   },
   "choi-seojin": {
-    tributeMessage: "조용히 보내드린 한 컷이 닿았다면, 그게 이 상의 의미입니다. 다음에는 더 깊은 한 컷으로 인사드릴게요.",
-    tributeMessageZero: "아직 첫 컷의 셔터가 눌리기 전이에요. 첫 응원으로 카메라를 돌려주세요.",
-    voteAppeal: "한 컷, 한 마음. 응원해주시면 다음 컷에 담아 보내드릴게요."
+    tributeMessage: "많은 말을 준비하진 않았습니다. 다만 제 한 컷을 오래 바라봐주신 마음은 분명히 기억하겠습니다. 이 상의 품격에 어울리는 다음 장면으로 답하겠습니다.",
+    tributeMessageZero: "셔터가 눌리기 전의 정적이 가장 선명할 때가 있어요. 첫 응원이 들어오면 그 장면은 시작됩니다.",
+    voteAppeal: "조용하지만 오래 남는 장면으로 보답하겠습니다. 오늘의 한 표를 제 이름에 남겨주세요."
   },
   "oh-hyerin": {
-    tributeMessage: "한 곡으로 마음이 닿았다는 게, 이 자리에서 받는 가장 큰 영광이에요. 다음 곡으로 갚을게요.",
-    tributeMessageZero: "첫 곡을 부를 무대를 기다리고 있어요. 첫 응원이 그 마이크를 켜줘요.",
-    voteAppeal: "오늘도 한 곡 같이해요. 응원, 곡으로 갚을게요."
+    tributeMessage: "제 목소리가 누군가의 하루에 닿았다는 것만으로도 충분했는데, 이렇게 큰 이름으로 불러주셔서 감사합니다. 다음 곡은 이 마음을 담아 부를게요.",
+    tributeMessageZero: "마이크 앞에서 첫 숨을 고르고 있어요. 첫 응원이 들어오면, 그 순간부터 노래가 시작돼요.",
+    voteAppeal: "조용히 오래 남는 목소리로 답할게요. 오늘의 한 표를 제 첫 곡에 더해주세요."
   },
   "cha-dohyun": {
-    tributeMessage: "곧 무대에서 만나려고 했는데, 응원이 먼저 와주셨네요. 받은 만큼 무대로 갚겠습니다. 결국 저답게.",
-    tributeMessageZero: "갑옷을 챙겨 입고 무대 뒤에 서 있어요. 첫 응원이 등장 신호예요.",
-    voteAppeal: "곧 무대로 인사드릴게요. 그 전에, 한 번의 응원만요."
+    tributeMessage: "무대에 오르기 전부터 이렇게 불러주실 줄은 몰랐습니다. 제게 패션은 갑옷이고, 응원은 전진 신호예요. 받은 만큼 더 저답게 장악하겠습니다.",
+    tributeMessageZero: "무대 뒤에서 마지막 체인을 정리하고 있어요. 첫 응원이 들어오면, 그게 제 등장 신호입니다.",
+    voteAppeal: "어떤 옷을 입어도 결국 저답게 서겠습니다. 오늘의 한 표로 제 등장을 열어주세요."
   },
   "seo-yuan": {
-    tributeMessage: "편안하게 다가가려 했는데, 이렇게 큰 응원으로 돌아왔네요. 다음에는 더 자연스러운 화면으로 인사드릴게요.",
-    tributeMessageZero: "조용히 카메라를 켜고 있어요. 첫 응원이 첫 화면을 만들어줘요.",
-    voteAppeal: "편안하게 만나요. 좋아요 한 번이 다음 화면을 만들어요."
+    tributeMessage: "편안한 모습으로 다가가고 싶었는데, 이렇게 따뜻한 응원으로 돌아와서 오래 기억에 남을 것 같아요. 다음 장면도 자연스럽게, 진심으로 보여드릴게요.",
+    tributeMessageZero: "카메라는 켜졌고, 아직 첫 빛만 기다리고 있어요. 첫 응원이 들어오면 가장 자연스러운 제가 시작됩니다.",
+    voteAppeal: "편안하게 스며드는 장면으로 남을게요. 오늘의 한 표를 제 다음 컷에 보내주세요."
   },
   "min-chaeon": {
-    tributeMessage: "운동하면서 알았어요 — 응원이 진짜 힘이에요. 데뷔하면 더 건강하게 보답할게요!",
-    tributeMessageZero: "큐티한 척하지만 실은 힘이 좋아요. 첫 응원, 가볍게 한 번!",
-    voteAppeal: "오늘 한 번의 응원이 데뷔 무대로 이어져요 💪"
+    tributeMessage: "운동할 때도 무대에 설 때도 끝까지 버티게 하는 건 결국 응원이더라고요. 귀엽게 웃고 있지만, 받은 마음만큼 단단하게 올라가겠습니다.",
+    tributeMessageZero: "가볍게 웃고 있지만 에너지는 이미 충전됐어요. 첫 응원이 들어오면 바로 뛰어오를게요.",
+    voteAppeal: "러블리하게 시작해서 탄탄하게 보여드릴게요. 오늘의 한 표로 에너지를 더해주세요."
   },
   "kang-sia": {
-    tributeMessage: "도시 한 컷에 머물던 제가 무대로 나갈 수 있게 해주셨어요. 감사해요.",
-    tributeMessageZero: "도시의 무드가 무대로 옮겨질 수 있을까요. 첫 응원이 그 답이에요.",
-    voteAppeal: "도시 한 컷, 같이 만들어주세요."
+    tributeMessage: "도시의 한 장면처럼 조용히 지나가고 싶었는데, 이렇게 멈춰 봐주셔서 감사합니다. 애쓰지 않아도 오래 남는 사람이 되어볼게요.",
+    tributeMessageZero: "아직 거리는 조용하고, 쇼윈도에는 빛만 남아 있어요. 첫 응원이 들어오면 그 장면이 제 무대가 됩니다.",
+    voteAppeal: "과하지 않게, 하지만 선명하게 남겠습니다. 오늘의 한 표로 제 도시를 밝혀주세요."
   },
   "lee-jiwon": {
-    tributeMessage: "조용히 준비하던 시간이 있었어요. 응원해주신 한 분 한 분, 잊지 않을게요.",
-    tributeMessageZero: "톱스타의 자리는 멀게 보이지만, 첫 응원에서 시작한다고 들었어요.",
-    voteAppeal: "다음 작품에서 만나요. 그 전에 한 번의 응원만요."
+    tributeMessage: "말보다 장면으로 증명하고 싶었습니다. 제 이름을 이 자리까지 올려주신 응원, 다음 작품의 첫 눈빛으로 갚겠습니다.",
+    tributeMessageZero: "카메라는 아직 돌지 않았지만, 시선은 이미 정해졌어요. 첫 응원이 들어오면 제 첫 장면이 시작됩니다.",
+    voteAppeal: "흔들리지 않는 장면으로 남겠습니다. 오늘의 한 표를 제 첫 컷에 남겨주세요."
   },
   "ha-yuna": {
-    tributeMessage: "트렌드는 빠르게 바뀌는데 응원은 변하지 않네요. 그게 진짜 힘이에요!",
-    tributeMessageZero: "오늘의 트렌드가 뭐냐고요? 첫 응원이요. 같이 만들어요!",
-    voteAppeal: "오늘 트렌드는 응원이에요. 좋아요 한 번 ✨"
+    tributeMessage: "트렌드는 매일 바뀌지만, 오늘 제 이름을 올려준 응원은 오래 남을 것 같아요. 다음 피드도 제가 먼저 색칠해볼게요.",
+    tributeMessageZero: "아직 피드는 비어 있지만 오늘의 컬러는 정해졌어요. 첫 응원이 들어오면 바로 업로드할게요.",
+    voteAppeal: "오늘의 컬러는 응원이에요. 한 표로 제 피드를 먼저 밝혀주세요."
   },
   "baek-ria": {
-    tributeMessage: "청량한 무대 한 번 보여드리려 했는데 응원이 먼저 와주셨어요. 곧 직캠으로 만나요.",
-    tributeMessageZero: "여름 무대 직캠 준비 중이에요. 첫 응원이 첫 컷을 켜줘요.",
-    voteAppeal: "여름 무대 직캠 곧 시작! 좋아요로 응원해주세요 🌊"
+    tributeMessage: "제 무대가 누군가에게 여름처럼 기억된다면 그걸로 충분하다고 생각했어요. 그런데 이렇게 큰 응원을 받아서, 다음 직캠은 더 밝게 웃어볼게요.",
+    tributeMessageZero: "무대 위 첫 바람을 기다리고 있어요. 첫 응원이 들어오면 가장 청량한 컷부터 열릴 거예요.",
+    voteAppeal: "시원하게 웃고 오래 남겠습니다. 오늘의 한 표를 제 여름 무대에 보내주세요."
   },
   "oh-yuna": {
-    tributeMessage: "페스티벌 무대를 꿈꿨는데 응원이 먼저 만들어주셨네요. 이 무대, 끝까지 갈게요.",
-    tributeMessageZero: "여름 페스티벌, 솔로 무대로 서고 싶어요. 첫 응원, 같이해주실래요?",
-    voteAppeal: "여름이 오면 솔로 무대로 만나요. 응원 부탁드려요!"
+    tributeMessage: "페스티벌의 함성 같은 응원을 받으니 정말 무대 한가운데 선 기분이에요. 이 열기, 끝까지 가져가겠습니다.",
+    tributeMessageZero: "아직 물빛 조명만 흔들리고 있어요. 첫 응원이 들어오면 여름의 첫 무대가 열립니다.",
+    voteAppeal: "뜨겁고 선명하게 기억될게요. 오늘의 한 표로 제 여름을 시작해주세요."
   },
   "kwon-taejun": {
-    tributeMessage: "말이 적은 편이라 잘 표현 못 했는데, 응원해주셔서 감사합니다.",
-    tributeMessageZero: "조용히 준비하고 있어요. 한 번의 응원만 있으면 됩니다.",
-    voteAppeal: "한 마디 적게, 응원 한 번 부탁드립니다."
+    tributeMessage: "긴 말은 잘 못합니다. 다만 제 이름을 이 자리에 올려주신 응원은 오래 기억하겠습니다. 다음 장면에서 더 깊게 답하겠습니다.",
+    tributeMessageZero: "조용히 기다리고 있습니다. 첫 응원이 들어오면, 그 침묵도 장면이 됩니다.",
+    voteAppeal: "말은 짧게 하겠습니다. 오늘의 한 표, 깊게 기억하겠습니다."
   },
   "seo-hamin": {
-    tributeMessage: "유쾌하게 다가가려 했는데, 더 유쾌한 응원으로 돌아왔네요!",
-    tributeMessageZero: "오늘 분위기 책임지고 싶어요. 첫 응원, 가볍게 한 번씩!",
-    voteAppeal: "오늘도 즐거운 하루! 응원 한 번씩 챙겨주세요~"
+    tributeMessage: "오늘 분위기 정말 좋네요. 이 자리에 제 이름이 불린 건 팬분들이 같이 웃어주셨기 때문이에요. 다음 무대도 제가 책임지고 열어볼게요.",
+    tributeMessageZero: "아직 큐카드는 비어 있지만 오프닝 멘트는 준비됐어요. 첫 응원이 들어오면 바로 시작하겠습니다.",
+    voteAppeal: "분위기 제가 열어볼게요. 오늘의 한 표로 첫 멘트를 주세요."
   },
   "ryu-taeo": {
-    tributeMessage: "응원이라는 게 이렇게 큰 힘인 줄 몰랐어요. 받은 응원, 더 큰 응원으로 돌려드릴게요!",
-    tributeMessageZero: "스포츠 응원의 짜릿함을 무대에 옮기고 싶어요. 첫 응원, 같이 외쳐요!",
-    voteAppeal: "응원은 끝까지! 한 번씩 같이 외쳐요!"
+    tributeMessage: "끝까지 뛰면 닿는 곳이 있다고 믿었어요. 오늘 그 믿음을 팬분들이 증명해주셨습니다. 받은 응원보다 더 크게 뛰겠습니다.",
+    tributeMessageZero: "출발선에 서 있습니다. 첫 응원이 들어오면 바로 달릴 준비가 됐어요.",
+    voteAppeal: "끝까지 뛰겠습니다. 오늘의 한 표로 출발 신호를 주세요."
   }
 };
 
@@ -1534,29 +1534,29 @@ function isPublicLineup(artist) {
 
 /* ── 상태 메타 ──────────────────────────────── */
 const statusMeta = {
-  public:    { label: "공개 활동 중",  summaryLabel: "공개 중",   className: "is-public"    },
+  public:    { label: "공식 활동 중",  summaryLabel: "활동 중",   className: "is-public"    },
   debut:     { label: "데뷔 예정",     summaryLabel: "곧 공개",   className: "is-debut"     },
-  secret:    { label: "Coming Soon",   summaryLabel: "공개 예정", className: "is-secret"    },
-  candidate: { label: "Coming Soon",   summaryLabel: "공개 예정", className: "is-secret"    }
+  secret:    { label: "비공개 라인",   summaryLabel: "비공개", className: "is-secret"    },
+  candidate: { label: "비공개 라인",   summaryLabel: "비공개", className: "is-secret"    }
 };
 
 /* ── 숏폼 데이터 (로컬 fallback) ────────────── */
 const shortformsLocal = [
-  { title: "메인 비주얼 티저",   artist: "윤세린", metric: "조회 12.4만", tone: "데뷔 전 첫 컷, 차갑게 가볼게요.",                  image: "./assets/characters/yoon-serin/thumb.png" },
-  { title: "콘셉트 퍼포먼스",    artist: "윤세린", metric: "조회 11.8만", tone: "이번 콘셉트, 끝까지 봐주세요.",                  image: "./assets/characters/yoon-serin/cover.png" },
-  { title: "센터 무드 스냅",     artist: "한서율", metric: "조회 9.7만",  tone: "오늘도 무대 가요! 응원해주세요🎀",              image: "./assets/characters/han-seoyul/thumb.png" },
-  { title: "하이틴 센터 포맷",   artist: "한서율", metric: "조회 10.1만", tone: "이 무대, 다 같이 즐겨봐요!",                     image: "./assets/characters/han-seoyul/cover.png" },
-  { title: "친근 리액션 포맷",   artist: "박도아", metric: "조회 15.3만", tone: "오늘도 평범한 일상! 같이 봐줄래?",              image: "./assets/characters/park-doa/thumb.png"   },
-  { title: "먹방 리액션 티저",   artist: "박도아", metric: "저장 3.7천",  tone: "이거 진짜 맛있어요... 다음 영상 기대해요😋",     image: "./assets/characters/park-doa/cover.png"   },
-  { title: "에디토리얼 컷 무드", artist: "최서진", metric: "조회 6.2만",  tone: "이번 화보에서 가장 좋아하는 컷이에요.",         image: "./assets/characters/choi-seojin/thumb.png"},
-  { title: "브랜드 무드 필름",   artist: "최서진", metric: "완주율 68%",  tone: "조용히 보내드리는 한 컷.",                       image: "./assets/characters/choi-seojin/cover.png"}
+  { title: "메인 비주얼 티저",   artist: "윤세린", metric: "조회 12.4만", tone: "첫 조명 아래, 가장 차가운 시선으로 시작합니다.", image: "./assets/characters/yoon-serin/thumb.png" },
+  { title: "콘셉트 퍼포먼스",    artist: "윤세린", metric: "조회 11.8만", tone: "절제된 움직임 끝에 남는 건 선명한 잔상입니다.", image: "./assets/characters/yoon-serin/cover.png" },
+  { title: "센터 무드 스냅",     artist: "한서율", metric: "조회 9.7만",  tone: "센터의 빛은 혼자보다 함께일 때 더 환해져요.", image: "./assets/characters/han-seoyul/thumb.png" },
+  { title: "하이틴 센터 포맷",   artist: "한서율", metric: "조회 10.1만", tone: "밝은 리듬으로 시작해서 다 같이 웃는 장면까지.", image: "./assets/characters/han-seoyul/cover.png" },
+  { title: "친근 리액션 포맷",   artist: "박도아", metric: "조회 15.3만", tone: "오늘도 편하게 들어와요. 제일 솔직한 표정부터 보여드릴게요.", image: "./assets/characters/park-doa/thumb.png" },
+  { title: "먹방 리액션 티저",   artist: "박도아", metric: "저장 3.7천",  tone: "맛있는 순간은 혼자 보기 아깝잖아요. 같이 웃어요.", image: "./assets/characters/park-doa/cover.png" },
+  { title: "에디토리얼 컷 무드", artist: "최서진", metric: "조회 6.2만",  tone: "말을 줄이고 시선을 남기는 컷.", image: "./assets/characters/choi-seojin/thumb.png"},
+  { title: "브랜드 무드 필름",   artist: "최서진", metric: "완주율 68%",  tone: "한 컷의 침묵이 브랜드의 온도를 정합니다.", image: "./assets/characters/choi-seojin/cover.png"}
 ];
 
 /* ── 비즈니스 패키지 ─────────────────────────── */
 const businessPackages = [
-  { name: "숏폼 캠페인", target: "뷰티 / 패션 / 커머스", summary: "메인 아티스트 중심의 숏폼 광고와 SNS 노출용 콘텐츠 협업입니다.", deliverables: ["숏폼 3종", "썸네일 3종", "브랜드 컷 1세트"] },
-  { name: "프리미엄 에디토리얼", target: "주얼리 / 럭셔리 / 에디토리얼", summary: "프리미엄 라인 중심의 화보형 콘텐츠와 브랜드 무드 연출입니다.", deliverables: ["에디토리얼 컷", "브랜드 티저", "룩북형 이미지"] },
-  { name: "캐릭터 브랜딩", target: "브랜드 콜라보 / IP 협업", summary: "캐릭터 설정과 세계관, 반복 노출 구조까지 함께 설계하는 장기 협업입니다.", deliverables: ["캐릭터 협업안", "콘텐츠 콘셉트", "운영 제안"] }
+  { name: "숏폼 캠페인", target: "뷰티 / 패션 / 커머스", summary: "아티스트의 말투와 무드를 살린 짧은 영상형 캠페인입니다. 팬이 저장하고 다시 보는 장면을 중심으로 설계합니다.", deliverables: ["숏폼 콘셉트 3종", "썸네일 방향 3종", "브랜드 컷 1세트"] },
+  { name: "프리미엄 에디토리얼", target: "주얼리 / 럭셔리 / 에디토리얼", summary: "최서진, 윤세린, 차도현처럼 고유한 무드가 강한 아티스트를 중심으로 화보형 장면을 구성합니다.", deliverables: ["에디토리얼 컷", "브랜드 티저", "룩북형 이미지"] },
+  { name: "캐릭터 브랜딩", target: "브랜드 콜라보 / IP 협업", summary: "캐릭터의 설정, 팬덤 반응, 반복 노출 포인트를 함께 설계하는 장기형 IP 협업입니다.", deliverables: ["캐릭터 협업안", "콘텐츠 콘셉트", "팬덤 운영 제안"] }
 ];
 
 /* ── 런타임 상태 ─────────────────────────────── */
@@ -1654,7 +1654,7 @@ function renderMainArtists() {
       <div class="artist-body">
         <p>${a.artistDescription}</p>
         <div class="tag-list">${a.tags.map(t => `<span>${t}</span>`).join("")}</div>
-        <a class="text-link" href="./character-detail.html?slug=${a.slug}">상세 보기</a>
+        <a class="text-link" href="./character-detail.html?slug=${a.slug}">무드 보기</a>
       </div>
     </article>
   `).join("");
@@ -1693,7 +1693,7 @@ function renderHeroFeature() {
       <p class="hero-feature-summary">${top.summary || ""}</p>
       <p>${top.artistDescription || top.intro || ""}</p>
       <ul class="hero-feature-tags">${tagsHTML}</ul>
-      <a class="text-link hero-feature-link" href="./character-detail.html?slug=${top.slug}">${top.publicName} 프로필 보기</a>
+      <a class="text-link hero-feature-link" href="./character-detail.html?slug=${top.slug}">${top.publicName} 무드 보기</a>
     </div>
   `;
 }
@@ -1741,7 +1741,7 @@ function updateHeroQuotaDisplay() {
     const limit = _freeLikeQuota.dailyLimit;
     heroQuotaEl.textContent = `오늘 ${remaining}/${limit} 남음`;
   } else {
-    heroQuotaEl.textContent = "1인당 일일 한도";
+    heroQuotaEl.textContent = "오늘의 한 표";
   }
 }
 
@@ -1827,7 +1827,7 @@ function renderMainPickTab() {
   }
 
   if (!leaderArtist) {
-    leaderRoot.innerHTML = `<div class="vote-empty">아직 집계 중이에요. 곧 첫 1위가 발표됩니다.</div>`;
+    leaderRoot.innerHTML = `<div class="vote-empty">아직 첫 응원이 도착하기 전이에요. 이달의 주인공은 팬의 첫 선택에서 시작됩니다.</div>`;
     rankingsRoot.innerHTML = "";
     return;
   }
@@ -1845,13 +1845,13 @@ function renderMainPickTab() {
         <div class="vote-leader-crown">👑</div>
       </div>
       <div class="vote-leader-body">
-        <span class="vote-leader-label">이달의 1위 · ${formatLikeCount(leaderLikes)} 응원</span>
+        <span class="vote-leader-label">이달의 주인공 · ${formatLikeCount(leaderLikes)} 응원</span>
         <strong>${leaderArtist.publicName}</strong>
         <blockquote class="vote-leader-tribute">
           <p>${tribute}</p>
           <cite>— ${leaderArtist.publicName}</cite>
         </blockquote>
-        <a class="text-link" href="./character-detail.html?slug=${leaderArtist.slug}">${leaderArtist.publicName} 프로필 보기</a>
+        <a class="text-link" href="./character-detail.html?slug=${leaderArtist.slug}">${leaderArtist.publicName} 무드 보기</a>
       </div>
     </article>
   `;
@@ -1887,7 +1887,7 @@ function renderMainPickTab() {
     };
 
     rankingsRoot.innerHTML = `
-      <h3 class="vote-section-subtitle">전체 순위</h3>
+      <h3 class="vote-section-subtitle">응원 순위</h3>
       <ol class="vote-ranking-rows">
         ${initiallyVisible.map(renderRow).join("")}
         ${hidden.length > 0 ? `
@@ -1935,7 +1935,7 @@ function renderDebutRaceTab() {
     .sort((a, b) => b.likes - a.likes);
 
   if (list.length === 0) {
-    root.innerHTML = `<div class="vote-empty">아직 활동 중인 아티스트가 없어요.</div>`;
+    root.innerHTML = `<div class="vote-empty">아직 무대에 오른 아티스트가 없어요. 첫 라인업이 열리면 이곳에서 응원할 수 있습니다.</div>`;
     return;
   }
 
@@ -1963,8 +1963,9 @@ function renderDebutRaceTab() {
           ${likeButtonHTML(a.slug, "like-btn-large like-btn-vote")}
         </div>
         <div class="vote-debut-body">
-          <strong>${a.publicName}</strong>
-          <p class="vote-debut-appeal">"${appeal}"</p>
+            <strong>${a.publicName}</strong>
+            <small>${a.summary || ""}</small>
+            <p class="vote-debut-appeal">"${appeal}"</p>
         </div>
       </article>
     `;
@@ -1995,7 +1996,7 @@ function renderHallOfFameTab() {
           <div class="vote-year-info">
             <span class="vote-year-label">${year} 연간 챔피언</span>
             <strong>${championArtist.publicName}</strong>
-            <p>1년 누적 응원 ${formatLikeCount(championScore)}점으로 ${year}년 명예의 전당에 영원히 기록됩니다.</p>
+            <p>1년 누적 응원 ${formatLikeCount(championScore)}점으로 ${year}년 가장 빛난 이름이 되었습니다.</p>
           </div>
           <div class="vote-year-media">
             <img src="${championArtist.images.cover || championArtist.images.thumb}" alt="${championArtist.publicName}" />
@@ -2012,7 +2013,7 @@ function renderHallOfFameTab() {
   // Monthly Picks (해당 연도 월간 1위들)
   const picks = _popularVote.monthlyPicks || [];
   if (picks.length === 0) {
-    monthlyRoot.innerHTML = `<div class="vote-empty">${year}년 첫 월간 1위는 이번 달 말에 등록됩니다.</div>`;
+    monthlyRoot.innerHTML = `<div class="vote-empty">${year}년 첫 월간 1위는 팬들의 응원이 모이는 순간 이곳에 기록됩니다.</div>`;
     return;
   }
 
@@ -2050,8 +2051,8 @@ function renderHallOfFameWaiting(year) {
   return `
     <div class="vote-year-waiting">
       <div class="vote-year-trophy" aria-hidden="true">🏆</div>
-      <h3>${year} 연간 챔피언 자리</h3>
-      <p>이 자리는 ${year}년 12월 31일까지 가장 많이 응원받은 아티스트가 차지합니다. 매일의 응원이 1년의 영광이 됩니다.</p>
+      <h3>${year} 연간 챔피언</h3>
+      <p>이 자리는 올해 가장 오래 사랑받은 아티스트에게 열립니다. 매일의 응원이 1년의 영광으로 이어집니다.</p>
     </div>
   `;
 }
@@ -2123,8 +2124,8 @@ function renderDebutLine() {
       style="--char-accent: ${a.colorAccent || "#9f8bc7"}">
       <div class="debut-card-media ${silhouetteClass}">
         <div class="debut-silhouette">
-          <span>COMING<br>SOON</span>
-          <small>곧 무대에 오릅니다</small>
+          <span>NEW<br>STAGE</span>
+          <small>새 무대가 열렸습니다</small>
         </div>
         <div class="debut-gender-badge">${isMale ? "♂" : "♀"}</div>
       </div>
@@ -2132,7 +2133,7 @@ function renderDebutLine() {
         <span class="debut-card-type eyebrow">${a.type}</span>
         <strong>${a.publicName}</strong>
         <p>${a.summary}</p>
-        <a class="text-link" href="./character-detail.html?slug=${a.slug}">프로필 보기</a>
+        <a class="text-link" href="./character-detail.html?slug=${a.slug}">무드 보기</a>
       </div>
     </article>`;
   }).join("");
@@ -2205,7 +2206,7 @@ function renderRoster() {
           <span class="status-badge status-badge-${a.status}">${statusMeta[a.status].label}</span>
         </div>
         <p>${a.summary}</p>
-        <a class="text-link ${a.status === "secret" ? "is-dimmed" : ""}" href="./character-detail.html?slug=${a.slug}">프로필 보기</a>
+        <a class="text-link ${a.status === "secret" ? "is-dimmed" : ""}" href="./character-detail.html?slug=${a.slug}">무드 보기</a>
       </div>
     </article>`).join("");
 }
@@ -2261,10 +2262,10 @@ function renderCharacterCatalog(filter = "all", tagFilter = "") {
         <p class="catalog-summary">${a.summary}</p>
         <dl class="catalog-details">
           <div><dt>팬 포인트</dt><dd>${a.fandom}</dd></div>
-          <div><dt>광고 적합</dt><dd>${a.business}</dd></div>
+          <div><dt>브랜드 무드</dt><dd>${a.business}</dd></div>
         </dl>
         <div class="tag-list">${a.tags.map(t => `<span>${t}</span>`).join("")}</div>
-        <a class="text-link ${a.status === "secret" ? "is-dimmed" : ""}" href="./character-detail.html?slug=${a.slug}">상세 페이지</a>
+        <a class="text-link ${a.status === "secret" ? "is-dimmed" : ""}" href="./character-detail.html?slug=${a.slug}">무드 보기</a>
       </div>
     </article>`).join("");
 
@@ -2416,20 +2417,20 @@ function renderCharacterDetail() {
   const cta = document.getElementById("detailCta");
   if (cta) {
     cta.innerHTML = artist.status === "secret"
-      ? `<div class="detail-cta-card is-secret"><strong>공개 전 시크릿 라인입니다</strong><p>숏폼 반응 전략에 따라 공개 순서를 조정합니다.</p></div>`
+      ? `<div class="detail-cta-card is-secret"><strong>아직 베일 속에 있는 아티스트입니다</strong><p>첫 공개 순간에 가장 잘 어울리는 장면으로 찾아올게요.</p></div>`
       : `<div class="detail-cta-card">
            <div class="detail-cta-info">
-             <strong>${artist.publicName}을 응원하세요</strong>
-             <p>후원은 캐릭터 외형 업그레이드, 신규 콘텐츠 해금, 팬 전용 이벤트로 이어집니다.</p>
+             <strong>${artist.publicName}의 다음 무대를 응원하세요</strong>
+             <p>오늘의 응원은 순위와 콘텐츠 반응에 반영되어 다음 장면을 여는 힘이 됩니다.</p>
            </div>
            <div class="detail-cta-actions">
              <button class="cta-btn cta-btn-support" disabled>
                <span class="cta-btn-icon">💜</span>
-               <span class="cta-btn-label"><strong>후원하기</strong><small>준비 중</small></span>
+               <span class="cta-btn-label"><strong>후원하기</strong><small>곧 공개</small></span>
              </button>
              <button class="cta-btn cta-btn-chat" disabled>
                <span class="cta-btn-icon">💬</span>
-               <span class="cta-btn-label"><strong>캐릭터챗</strong><small>준비 중</small></span>
+               <span class="cta-btn-label"><strong>캐릭터챗</strong><small>곧 공개</small></span>
              </button>
            </div>
          </div>`;

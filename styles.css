@@ -3938,9 +3938,8 @@ p {
 .vote-rank-info small {
   font-size: 13px;
   color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .vote-rank-likes {
   font-size: 14px;
@@ -4060,6 +4059,14 @@ p {
   font-size: 20px;
   font-weight: 800;
   color: var(--ink);
+}
+.vote-debut-body small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
 }
 .vote-debut-body p {
   color: var(--muted);
