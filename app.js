@@ -2347,6 +2347,13 @@ function normalizeAssetUrl(url) {
   return `/${String(url).replace(/^(\.\/+|\/+)/, "")}`;
 }
 
+function pickArtistProfile(apiProfile, localProfile) {
+  const apiKeys = apiProfile && typeof apiProfile === "object" ? Object.keys(apiProfile) : [];
+  const localKeys = localProfile && typeof localProfile === "object" ? Object.keys(localProfile) : [];
+  if (apiKeys.length >= localKeys.length) return apiProfile || localProfile || {};
+  return localProfile || apiProfile || {};
+}
+
 function adaptArtist(api) {
   const local = characters.find(c => c.slug === api.slug) || {};
   // 운영 API의 assets[]에서 usageType별로 우선 사용, 없으면 로컬 fallback.
@@ -2379,7 +2386,7 @@ function adaptArtist(api) {
     },
     gallery:           apiGallery.length > 0 ? apiGallery : (local.gallery || []),
     assets:            api.assets || [],   // #031: 원본 assets[] 보존 (상세 페이지에서 필터링용)
-    profile:           api.profile || local.profile || {},
+    profile:           pickArtistProfile(api.profile, local.profile),
     shorts:            api.shorts  || local.shorts  || [],
     // 프론트 전용 필드: 항상 로컬 유지
     role:              local.role,
@@ -3641,7 +3648,11 @@ async function init() {
       const valid = adapted.filter(a => a?.slug && a?.tier && a?.status && a?.images?.thumb);
       const mainCount = valid.filter(a => (a.tier === "main" || a.tier === "premium") && a.status === "public").length;
       if (mainCount >= 4) {
-        _artists = adapted;
+        const bySlug = new Map(adapted.map(a => [a.slug, a]));
+        _artists = characters.map(local => bySlug.get(local.slug) || local);
+        adapted.forEach(apiArtist => {
+          if (!characters.some(local => local.slug === apiArtist.slug)) _artists.push(apiArtist);
+        });
         console.info(`[Lumina] API 아티스트 ${_artists.length}명 로드됨 (메인 ${mainCount}명)`);
       } else {
         console.warn(`[Lumina] API 응답 불완전 (메인 캐릭터 ${mainCount}명) — 로컬 데이터 유지`);
