@@ -30,6 +30,11 @@ export const DEBUT_PARTICIPATION_TYPES = [
   'co_creator',
 ] as const;
 
+export const DEBUT_APPLICATION_CHANNELS = [
+  'phone_consultation',
+  'online_review',
+] as const;
+
 const normalizeString = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
@@ -37,6 +42,10 @@ const normalizeEmail = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
 
 export class CreateDebutApplicationDto {
+  @IsOptional()
+  @IsIn(DEBUT_APPLICATION_CHANNELS)
+  applicationChannel?: (typeof DEBUT_APPLICATION_CHANNELS)[number];
+
   @Transform(normalizeString)
   @IsString()
   @MinLength(2)
@@ -60,6 +69,16 @@ export class CreateDebutApplicationDto {
   @IsString()
   @MaxLength(40)
   contactPhone?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MaxLength(120)
+  preferredContactTime?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  consultationConsent?: boolean;
 
   @IsBoolean()
   isAdult!: boolean;

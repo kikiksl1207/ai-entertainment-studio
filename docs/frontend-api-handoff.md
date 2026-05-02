@@ -448,6 +448,20 @@ Response highlights:
     "isAdultRequired": true,
     "minorApplicationStatus": "not_open"
   },
+  "applicationChannels": [
+    {
+      "value": "phone_consultation",
+      "label": "Phone consultation",
+      "uploadEnabled": false,
+      "recommended": true
+    },
+    {
+      "value": "online_review",
+      "label": "Online review",
+      "uploadEnabled": false,
+      "status": "planned"
+    }
+  ],
   "participationTypes": [
     {
       "value": "appearance_only",
@@ -463,7 +477,12 @@ Response highlights:
   ],
   "fieldPolicy": {
     "intro": { "minLength": 20, "maxLength": 4000 },
+    "preferredContactTime": { "maxLength": 120, "required": false },
     "shareTierRequested": { "min": 0, "max": 70, "required": false }
+  },
+  "materialSubmissionPolicy": {
+    "currentMvpMode": "no_file_upload",
+    "onlineReview": "Image or portfolio upload can be opened later through a separate secure upload flow."
   }
 }
 ```
@@ -472,10 +491,12 @@ Body:
 
 ```json
 {
+  "applicationChannel": "phone_consultation",
   "applicantName": "Applicant legal/name for review",
   "displayName": "Optional public stage/name idea",
   "contactEmail": "user@example.com",
   "contactPhone": "010-0000-0000",
+  "preferredContactTime": "Weekdays after 7 PM",
   "isAdult": true,
   "participationType": "appearance_only",
   "shareTierRequested": 30,
@@ -484,9 +505,17 @@ Body:
   "consentAppearance": true,
   "consentVoice": false,
   "consentRevenuePolicy": true,
-  "consentPrivacy": true
+  "consentPrivacy": true,
+  "consultationConsent": true
 }
 ```
+
+MVP application channel policy:
+
+- Recommended default: `applicationChannel: "phone_consultation"`.
+- `phone_consultation` is the low-friction MVP path. It requires `contactPhone` and `consultationConsent: true`; the operator confirms details by phone after submission.
+- `online_review` is reserved for a later richer path. The current backend does not accept file uploads through the debut form.
+- The backend stores `applicationChannel`, `preferredContactTime`, `consultationConsent`, and `materialSubmissionMode: "no_file_upload_mvp"` in application metadata.
 
 Allowed `participationType` values:
 
@@ -542,12 +571,13 @@ Frontend first form sections:
 - debut type selection: `appearance_only`, `voice_or_song`, `performance`, `co_creator`
 - applicant story/concept
 - contact email and optional phone
+- preferred contact time for phone consultation
 - requested revenue share, 0-70, with "final share is reviewed separately" notice
 - required consent checkboxes
 - optional voice/song/performance consent when relevant
 - optional marketing/public promotion consent, not required for application review
 
-Do not collect ID card images, resident registration numbers, bank accounts, final contract files, API keys, or secrets in this form.
+Do not collect ID card images, resident registration numbers, bank accounts, final contract files, API keys, secrets, or raw file uploads in the MVP phone-consultation form.
 
 ### Free Like Quota
 

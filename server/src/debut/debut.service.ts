@@ -31,6 +31,24 @@ export class DebutService {
         isAdultRequired: true,
         minorApplicationStatus: 'not_open',
       },
+      applicationChannels: [
+        {
+          value: 'phone_consultation',
+          label: 'Phone consultation',
+          description:
+            'Low-friction MVP application. Collect basic contact, story, and preferred call time; the operator confirms details by phone.',
+          uploadEnabled: false,
+          recommended: true,
+        },
+        {
+          value: 'online_review',
+          label: 'Online review',
+          description:
+            'Future review mode for applicants who want to submit images or portfolio materials online.',
+          uploadEnabled: false,
+          status: 'planned',
+        },
+      ],
       participationTypes: [
         {
           value: 'appearance_only',
@@ -99,9 +117,18 @@ export class DebutService {
         intro: { minLength: 20, maxLength: 4000 },
         applicantName: { minLength: 2, maxLength: 80 },
         displayName: { minLength: 2, maxLength: 80, required: false },
+        preferredContactTime: { maxLength: 120, required: false },
         shareTierRequested: { min: 0, max: 70, required: false },
         metadata:
           'Use only non-sensitive structured details. Do not include IDs, bank accounts, contracts, secrets, or raw identity documents.',
+      },
+      materialSubmissionPolicy: {
+        currentMvpMode: 'no_file_upload',
+        phoneConsultation:
+          'Do not ask for files. The operator confirms details by phone after application submission.',
+        onlineReview:
+          'Image or portfolio upload can be opened later through a separate secure upload flow.',
+        allowedLater: ['self_photos', 'portfolio_images', 'voice_sample', 'song_demo'],
       },
       restrictedCollection: [
         'resident_registration_number',
@@ -119,6 +146,8 @@ export class DebutService {
     }
 
     this.assertRequiredConsents(input);
+    this.assertApplicationChannel(input);
+    const metadata = this.applicationMetadata(input);
 
     const application = await this.prisma.debutApplication.create({
       data: {
@@ -136,7 +165,7 @@ export class DebutService {
         consentVoice: input.consentVoice,
         consentRevenuePolicy: true,
         consentPrivacy: true,
-        metadata: this.toJson(input.metadata ?? {}),
+        metadata,
       },
       include: this.applicationInclude(),
     });
@@ -269,6 +298,17 @@ export class DebutService {
     }
   }
 
+  private assertApplicationChannel(input: CreateDebutApplicationDto) {
+    const channel = input.applicationChannel ?? 'phone_consultation';
+    if (channel === 'phone_consultation' && !input.contactPhone) {
+      throw new BadRequestException('contactPhone is required for phone_consultation');
+    }
+
+    if (channel === 'phone_consultation' && input.consultationConsent !== true) {
+      throw new BadRequestException('consultationConsent must be true for phone_consultation');
+    }
+  }
+
   private applicationInclude() {
     return {
       user: {
@@ -329,6 +369,16 @@ export class DebutService {
     }
 
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  }
+
+  private applicationMetadata(input: CreateDebutApplicationDto) {
+    return this.toJson({
+      ...(input.metadata ?? {}),
+      applicationChannel: input.applicationChannel ?? 'phone_consultation',
+      preferredContactTime: input.preferredContactTime ?? null,
+      consultationConsent: input.consultationConsent ?? null,
+      materialSubmissionMode: 'no_file_upload_mvp',
+    });
   }
 
   private mergeMetadata(current: Prisma.JsonValue, patch: Record<string, unknown>) {

@@ -522,12 +522,15 @@ PATCH /admin/api/v1/debut/applications/:applicationId
 Current validation and workflow:
 
 - `GET /api/v1/debut/policy` is public and returns form option/policy hints, including participation types, status labels, consent keys, field limits, and restricted collection types.
+- MVP default channel is `phone_consultation`, which requires `contactPhone` and `consultationConsent: true`. The operator confirms details by phone after submission.
+- `online_review` is reserved for a later richer flow. The current backend records the requested channel in metadata but does not accept debut form file uploads.
 - MVP applications require `isAdult: true`.
 - Required consent fields are `consentAppearance`, `consentRevenuePolicy`, and `consentPrivacy`.
 - `participationType` is one of `appearance_only`, `voice_or_song`, `performance`, or `co_creator`.
 - `shareTierRequested` and `shareTierApproved` are integers from 0 to 70.
 - Applicant withdrawal is available before final decision for `submitted`, `reviewing`, or `needs_more_info` applications.
 - Admin status updates accept `submitted`, `reviewing`, `needs_more_info`, `approved`, `rejected`, and `withdrawn`; `under_review` is accepted as a compatibility alias for `reviewing`.
+- `applicationChannel`, `preferredContactTime`, `consultationConsent`, and `materialSubmissionMode` are stored in `debut_applications.metadata` for now. Promote them to columns only after operations data proves the shape.
 
 Free-like quota endpoint:
 

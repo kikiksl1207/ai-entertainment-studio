@@ -43,9 +43,11 @@ after identity, rights, risk, and contribution review.
 ### Required Initial Form Fields
 
 - `applicantName`: review name. It may be legal name or review name, depending on the final identity process.
+- `applicationChannel`: `phone_consultation` for MVP default, or `online_review` for a later richer application path.
 - `displayName`: optional public stage/name idea.
 - `contactEmail`: contact email.
-- `contactPhone`: optional phone number.
+- `contactPhone`: required for `phone_consultation`.
+- `preferredContactTime`: optional preferred call time.
 - `isAdult`: must be true for MVP. Minor applications are not accepted until a guardian flow exists.
 - `participationType`: one of `appearance_only`, `voice_or_song`, `performance`, `co_creator`.
 - `shareTierRequested`: applicant requested share percentage, integer 0-70.
@@ -55,7 +57,13 @@ after identity, rights, risk, and contribution review.
 - `consentVoice`: true only when voice/song/performance material is submitted.
 - `consentRevenuePolicy`: required true.
 - `consentPrivacy`: required true.
+- `consultationConsent`: required true for `phone_consultation`.
 - `metadata`: structured extension object for non-sensitive detail.
+
+### MVP Application Channels
+
+- `phone_consultation`: default MVP path. It collects basic contact data, self-introduction/concept, participation type, requested share, and preferred call time. No file upload is requested. A human operator follows up by phone.
+- `online_review`: planned richer path for applicants who want to submit images or portfolio materials online. It remains no-file-upload in the current MVP backend until a separate secure upload flow is approved.
 
 ### Recommended Metadata Fields
 
@@ -64,6 +72,8 @@ Keep these inside `metadata` until the DB is expanded:
 ```json
 {
   "stageConcept": "Desired artist mood and positioning",
+  "applicationChannel": "phone_consultation",
+  "preferredContactTime": "Weekdays after 7 PM",
   "preferredGenres": ["dance", "rnb"],
   "providedMaterials": ["photos", "voice_sample", "song_demo"],
   "prohibitedUses": ["adult content", "political messaging"],
@@ -77,8 +87,8 @@ Keep these inside `metadata` until the DB is expanded:
 ```
 
 Do not collect resident registration numbers, raw ID images, bank account details,
-or final contract files in Notion, chat, or Git. Those require a later secure upload
-and contract process.
+final contract files, or public-form file uploads in Notion, chat, or Git. Those require a later secure upload
+and contract process. For the MVP phone-consultation path, collect text only and confirm details by phone.
 
 ## 4. Consent Checklist
 
@@ -224,7 +234,7 @@ Current limitations:
 Policy endpoint:
 
 - `GET /api/v1/debut/policy` returns non-personal static policy hints for the frontend form.
-- It includes participation types, draft share ranges, status labels, consent keys, field limits, and data collection restrictions.
+- It includes application channels, participation types, draft share ranges, status labels, consent keys, field limits, material submission policy, and data collection restrictions.
 - `policyVersion` is currently `2026-05-02.mvp-draft` and is a product/version hint, not a final legal contract version.
 
 ## 10. Backend Follow-Up
@@ -249,6 +259,7 @@ Recommended first screen:
 - Debut type selection.
 - Applicant story and desired stage identity.
 - Contact information.
+- Preferred call time for phone consultation.
 - Contribution/material type checklist.
 - Requested share tier with explanation that final share is reviewed.
 - Required consent checkboxes.
@@ -261,6 +272,7 @@ Do not ask for:
 - Bank account.
 - Resident registration number.
 - Raw contract upload.
+- File upload in the MVP phone-consultation path.
 - Secrets or API keys.
 
 ## 12. Open Decisions For Human
