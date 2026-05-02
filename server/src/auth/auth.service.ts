@@ -21,13 +21,16 @@ import {
   RequestEmailVerificationDto,
   RequestPasswordResetDto,
   SocialLoginDto,
+  UpdateProfileDto,
 } from './dto/auth.dto';
 import { SocialAuthService } from './social-auth.service';
+import { buildPublicAssetUrl } from '../common/asset-url';
 
 const PASSWORD_HASH_ROUNDS = 12;
 const LUMINA_CURRENCY_CODE = 'LUMINA';
 const SIGNUP_BONUS_LUMINA = 300;
 const REFERRAL_REWARD_LUMINA = 500;
+const NICKNAME_CHANGE_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
 const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const EMAIL_VERIFICATION_PURPOSE = 'email_verification';
@@ -368,6 +371,12 @@ export class AuthService {
         phoneNumber: true,
         status: true,
         createdAt: true,
+        authAccounts: {
+          select: {
+            provider: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
         profile: true,
         settings: true,
         walletAccounts: {
@@ -380,7 +389,207 @@ export class AuthService {
       throw new BadRequestException('Active user not found');
     }
 
-    return user;
+    return this.formatMe(user);
+  }
+
+  async getMyPageSummary(userId: string) {
+    await this.assertActiveUser(userId);
+
+    const [
+      user,
+      wallet,
+      recentLedger,
+      recentPaymentOrders,
+      boostEventCounts,
+      premiumUnlocks,
+      debutApplications,
+      followingArtists,
+      feedCounts,
+    ] = await Promise.all([
+      this.getMe(userId),
+      this.prisma.walletAccount.upsert({
+        where: {
+          userId_currencyCode: {
+            userId,
+            currencyCode: LUMINA_CURRENCY_CODE,
+          },
+        },
+        update: {},
+        create: {
+          userId,
+          currencyCode: LUMINA_CURRENCY_CODE,
+        },
+      }),
+      this.prisma.walletLedger.findMany({
+        where: {
+          walletAccount: {
+            userId,
+            currencyCode: LUMINA_CURRENCY_CODE,
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      this.prisma.paymentOrder.findMany({
+        where: { userId },
+        include: {
+          luminaProduct: true,
+          transactions: true,
+          refunds: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      this.prisma.artistBoostEvent.groupBy({
+        by: ['boostType'],
+        where: { userId },
+        _count: { _all: true },
+      }),
+      this.prisma.userPremiumVideoUnlock.findMany({
+        where: { userId },
+        include: {
+          premiumVideoProduct: {
+            select: {
+              id: true,
+              sku: true,
+              title: true,
+              artist: {
+                select: {
+                  id: true,
+                  slug: true,
+                  displayName: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { unlockedAt: 'desc' },
+        take: 10,
+      }),
+      this.prisma.debutApplication.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+      this.prisma.artistFollow.findMany({
+        where: {
+          userId,
+          status: 'active',
+          deletedAt: null,
+        },
+        include: {
+          artist: {
+            select: {
+              id: true,
+              slug: true,
+              displayName: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 12,
+      }),
+      Promise.all([
+        this.prisma.communityPost.count({ where: { authorUserId: userId } }),
+        this.prisma.communityReply.count({ where: { authorUserId: userId } }),
+        this.prisma.communityReaction.count({ where: { userId } }),
+      ]),
+    ]);
+
+    const latestDebutApplication = debutApplications[0] ?? null;
+
+    return {
+      user,
+      wallet: {
+        ...wallet,
+        stella: this.toStellaDisplay(wallet.cachedBalance),
+      },
+      recentLedger,
+      recentPaymentOrders,
+      activity: {
+        boostEventCounts: Object.fromEntries(
+          boostEventCounts.map((row) => [row.boostType, row._count._all]),
+        ),
+        premiumUnlocks,
+        followingArtists,
+        feedCounts: {
+          posts: feedCounts[0],
+          replies: feedCounts[1],
+          reactions: feedCounts[2],
+        },
+      },
+      debut: {
+        latestApplication: latestDebutApplication,
+        applications: debutApplications,
+        ctaState: latestDebutApplication ? 'status' : 'apply',
+      },
+      policy: {
+        nicknameChangeIntervalDays: 30,
+        avatarUploadMode: 'asset_upload_flow',
+        stellaDisplayThresholdLumina: 10000,
+      },
+    };
+  }
+
+  async updateProfile(userId: string, input: UpdateProfileDto) {
+    await this.assertActiveUser(userId);
+
+    if (
+      input.displayName === undefined &&
+      input.bio === undefined &&
+      input.avatarAssetId === undefined
+    ) {
+      throw new BadRequestException('At least one profile field is required');
+    }
+
+    const profile = await this.prisma.userProfile.findUnique({
+      where: { userId },
+    });
+    const now = new Date();
+    const nextChangeAt = this.nextNicknameChangeAt(profile?.nicknameChangedAt ?? null);
+
+    if (input.displayName !== undefined && profile?.displayName !== input.displayName) {
+      if (profile?.nicknameChangedAt && nextChangeAt > now) {
+        throw new BadRequestException('Nickname can be changed once every 30 days');
+      }
+    }
+
+    if (input.avatarAssetId) {
+      const asset = await this.prisma.asset.findFirst({
+        where: {
+          id: input.avatarAssetId,
+          assetType: 'image',
+        },
+        select: { id: true },
+      });
+
+      if (!asset) {
+        throw new BadRequestException('Avatar asset not found');
+      }
+    }
+
+    await this.prisma.userProfile.upsert({
+      where: { userId },
+      update: this.clean({
+        displayName: input.displayName,
+        bio: input.bio,
+        avatarAssetId: input.avatarAssetId,
+        nicknameChangedAt:
+          input.displayName !== undefined && profile?.displayName !== input.displayName
+            ? now
+            : undefined,
+        updatedAt: now,
+      }),
+      create: {
+        userId,
+        displayName: input.displayName ?? 'Lumina Fan',
+        bio: input.bio,
+        avatarAssetId: input.avatarAssetId,
+        nicknameChangedAt: input.displayName !== undefined ? now : undefined,
+      },
+    });
+
+    return this.getMe(userId);
   }
 
   async requestEmailVerification(input: RequestEmailVerificationDto) {
@@ -753,6 +962,91 @@ export class AuthService {
       ok: true,
       revokedCount: result.count,
     };
+  }
+
+  private async formatMe(user: {
+    id: string;
+    email: string | null;
+    phoneNumber: string | null;
+    status: string;
+    createdAt: Date;
+    authAccounts: { provider: string }[];
+    profile: {
+      displayName: string;
+      avatarAssetId: string | null;
+      bio: string | null;
+      nicknameChangedAt: Date | null;
+      createdAt: Date;
+      updatedAt: Date;
+    } | null;
+    settings: unknown;
+    walletAccounts: unknown[];
+  }) {
+    const avatarAsset = user.profile?.avatarAssetId
+      ? await this.prisma.asset.findUnique({
+          where: { id: user.profile.avatarAssetId },
+          select: {
+            id: true,
+            storageKey: true,
+            mimeType: true,
+            width: true,
+            height: true,
+          },
+        })
+      : null;
+    const nicknameLastChangedAt = user.profile?.nicknameChangedAt ?? null;
+    const nicknameNextChangeAt = this.nextNicknameChangeAt(nicknameLastChangedAt);
+    const primaryProvider = user.authAccounts[0]?.provider ?? null;
+
+    return {
+      id: user.id,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      status: user.status,
+      provider: primaryProvider,
+      providers: user.authAccounts.map((account) => account.provider),
+      createdAt: user.createdAt,
+      displayName: user.profile?.displayName ?? user.email?.split('@')[0] ?? 'Lumina Fan',
+      avatarUrl: avatarAsset
+        ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
+        : null,
+      avatarAsset: avatarAsset
+        ? {
+            ...avatarAsset,
+            url: buildPublicAssetUrl(this.configService, avatarAsset.storageKey),
+          }
+        : null,
+      bio: user.profile?.bio ?? null,
+      nicknameLastChangedAt,
+      nicknameNextChangeAt,
+      canChangeNickname: nicknameNextChangeAt <= new Date(),
+      profile: user.profile,
+      settings: user.settings,
+      walletAccounts: user.walletAccounts,
+    };
+  }
+
+  private nextNicknameChangeAt(changedAt: Date | null) {
+    return changedAt
+      ? new Date(changedAt.getTime() + NICKNAME_CHANGE_INTERVAL_MS)
+      : new Date(0);
+  }
+
+  private toStellaDisplay(luminaAmount: { toString: () => string }) {
+    const lumina = Number(luminaAmount.toString());
+    const stella = lumina >= 10000 ? Math.floor(lumina / 10000) : 0;
+
+    return {
+      amount: stella,
+      enabled: stella > 0,
+      rate: '10000L = 1 Stella display unit',
+    };
+  }
+
+  private clean<T extends Record<string, unknown>>(input: T) {
+    return Object.fromEntries(
+      Object.entries(input).filter(([, value]) => value !== undefined),
+    ) as T;
   }
 
   private async issueTokens(

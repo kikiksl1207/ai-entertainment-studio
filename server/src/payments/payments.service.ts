@@ -108,6 +108,21 @@ export class PaymentsService {
     return order;
   }
 
+  listOrders(userId: string, takeQuery?: string) {
+    const take = this.parseTake(takeQuery);
+
+    return this.prisma.paymentOrder.findMany({
+      where: { userId },
+      include: {
+        luminaProduct: true,
+        transactions: true,
+        refunds: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
+  }
+
   async handleWebhook(
     provider: string,
     headers: Record<string, string | string[] | undefined>,
@@ -278,5 +293,19 @@ export class PaymentsService {
 
   private createOrderNo() {
     return `LUMINA-${Date.now()}-${randomUUID().slice(0, 8)}`;
+  }
+
+  private parseTake(value?: string) {
+    if (!value) {
+      return 20;
+    }
+
+    const parsed = Number(value);
+
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
+      throw new BadRequestException('take must be an integer between 1 and 100');
+    }
+
+    return parsed;
   }
 }

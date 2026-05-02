@@ -80,6 +80,7 @@ model UserProfile {
   displayName   String   @map("display_name")
   avatarAssetId String?  @map("avatar_asset_id") @db.Uuid
   bio           String?
+  nicknameChangedAt DateTime? @map("nickname_changed_at") @db.Timestamptz(6)
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
   user          User     @relation(fields: [userId], references: [id])

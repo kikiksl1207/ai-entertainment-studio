@@ -184,6 +184,8 @@ POST /auth/email-verifications/confirm
 POST /auth/password-resets
 POST /auth/password-resets/confirm
 GET /me
+GET /me/summary
+PATCH /me/profile
 PATCH /me/password
 DELETE /me
 GET /me/sessions
@@ -202,7 +204,10 @@ Auth responses:
 - `POST /auth/social/login` accepts `{ "provider": "google" | "kakao" | "naver", "token": "<provider-token>" }`; `accessToken` is also accepted as an alias for `token`.
 - Authorization-code handoff is also accepted as `{ "provider": "kakao", "code": "<code>", "redirectUri": "<same-redirect-uri>" }`. The `redirectUri` value must exactly match the URI registered in Kakao Developers and used when the code was issued. The backend may override it with `KAKAO_REDIRECT_URI` in Render to avoid `www`/non-`www` drift.
 - Google can send either a Google ID token or OAuth access token. Kakao and Naver should send access tokens when using the token handoff.
-- `GET /me` returns the current user. `emailVerifiedAt` is intentionally omitted for now; email verification remains a backend skeleton until the production DB rollout is explicitly confirmed.
+- `GET /me` returns the current user plus profile convenience fields: `displayName`, `avatarUrl`, `provider`, `providers`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`. `emailVerifiedAt` is intentionally omitted for now; email verification remains a backend skeleton until the production DB rollout is explicitly confirmed.
+- `PATCH /me/profile` body: `{ "displayName": "닉네임", "bio": "optional", "avatarAssetId": "<asset uuid>" }`. `displayName` can be changed once every 30 days. The server returns the updated `GET /me` shape. If the nickname cooldown is active, expect `400 Nickname can be changed once every 30 days`.
+- Avatar upload policy for 1차: reuse the asset upload flow and then pass the confirmed image asset id as `avatarAssetId`. A dedicated user-facing avatar upload intent can be split out later if needed.
+- `GET /me/summary` is the recommended My Page bootstrap endpoint. It returns `{ user, wallet, recentLedger, recentPaymentOrders, activity, debut, policy }` so the frontend does not need to call every history endpoint on first render.
 - `POST /auth/email-verifications` body: `{ "email": "user@example.com" }`.
 - `POST /auth/email-verifications/confirm` body: `{ "token": "<email-token>" }`.
 - `POST /auth/password-resets` body: `{ "email": "user@example.com" }`.
@@ -271,6 +276,9 @@ Reward behavior:
 
 ```http
 GET /lumina-products
+GET /payments/orders?take=20
+POST /payments/orders
+GET /payments/orders/:orderId
 GET /boost-campaigns/current
 GET /boost-products
 GET /premium-videos

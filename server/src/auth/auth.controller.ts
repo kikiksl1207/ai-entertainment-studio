@@ -23,6 +23,7 @@ import {
   RequestEmailVerificationDto,
   RequestPasswordResetDto,
   SocialLoginDto,
+  UpdateProfileDto,
 } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthUser } from './auth.types';
@@ -106,6 +107,19 @@ export class MeController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthUser) {
     return this.authService.getMe(user.id);
+  }
+
+  @Get('summary')
+  @UseGuards(JwtAuthGuard)
+  summary(@CurrentUser() user: AuthUser) {
+    return this.authService.getMyPageSummary(user.id);
+  }
+
+  @Patch('profile')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  updateProfile(@CurrentUser() user: AuthUser, @Body() body: UpdateProfileDto) {
+    return this.authService.updateProfile(user.id, body);
   }
 
   @Patch('password')

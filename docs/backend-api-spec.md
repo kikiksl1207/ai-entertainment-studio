@@ -99,14 +99,22 @@ POST /api/v1/auth/email-verifications/confirm
 POST /api/v1/auth/password-resets
 POST /api/v1/auth/password-resets/confirm
 GET /api/v1/me
+GET /api/v1/me/summary
+PATCH /api/v1/me/profile
 PATCH /api/v1/me/password
 DELETE /api/v1/me
 GET /api/v1/me/sessions
 DELETE /api/v1/me/sessions
 DELETE /api/v1/me/sessions/:sessionId
-PATCH /api/v1/me/profile
 PATCH /api/v1/me/settings
 ```
+
+My Page contract:
+
+- `GET /api/v1/me` returns `id`, `email`, `status`, `provider`, `providers`, `createdAt`, `displayName`, `avatarUrl`, `bio`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, `canChangeNickname`, `profile`, `settings`, and `walletAccounts`.
+- `PATCH /api/v1/me/profile` accepts `displayName`, `bio`, and `avatarAssetId`. `displayName` is server-limited to one change every 30 days through `user_profiles.nickname_changed_at`.
+- Avatar policy for the first version is asset-based: create/confirm an image asset through the existing upload flow, then set `avatarAssetId`.
+- `GET /api/v1/me/summary` is a My Page bootstrap endpoint. It returns `user`, `wallet`, `recentLedger`, `recentPaymentOrders`, `activity.boostEventCounts`, `activity.premiumUnlocks`, `activity.followingArtists`, `activity.feedCounts`, `debut.latestApplication`, `debut.applications`, and policy hints.
 
 이메일/비밀번호 가입 정책:
 
@@ -137,6 +145,7 @@ GET /api/v1/wallet
 GET /api/v1/wallet/ledger
 GET /api/v1/lumina-products
 POST /api/v1/payments/orders
+GET /api/v1/payments/orders
 GET /api/v1/payments/orders/:orderId
 POST /api/v1/payments/webhooks/:provider
 ```

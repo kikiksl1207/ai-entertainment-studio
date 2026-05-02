@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -30,6 +30,12 @@ export class PaymentsController {
       provider: body?.provider,
       idempotencyKey: body?.idempotencyKey ?? idempotencyKeyHeader,
     });
+  }
+
+  @Get('orders')
+  @UseGuards(JwtAuthGuard)
+  listOrders(@CurrentUser() user: AuthUser, @Query('take') take?: string) {
+    return this.paymentsService.listOrders(user.id, take);
   }
 
   @Get('orders/:orderId')

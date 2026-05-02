@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  IsUUID,
   IsEmail,
   IsIn,
   IsNotEmpty,
@@ -89,6 +90,26 @@ export class DeleteAccountDto {
   @IsString()
   @MaxLength(500)
   reason?: string;
+}
+
+export class UpdateProfileDto {
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(50)
+  displayName?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MaxLength(500)
+  bio?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsUUID('4')
+  avatarAssetId?: string;
 }
 
 export class RequestEmailVerificationDto {

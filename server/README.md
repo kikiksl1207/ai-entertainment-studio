@@ -119,6 +119,8 @@ Auth endpoints:
 - `POST /api/v1/auth/password-resets`
 - `POST /api/v1/auth/password-resets/confirm`
 - `GET /api/v1/me`
+- `GET /api/v1/me/summary`
+- `PATCH /api/v1/me/profile`
 - `PATCH /api/v1/me/password`
 - `DELETE /api/v1/me`
 - `GET /api/v1/me/sessions`
@@ -133,6 +135,8 @@ Auth responses include both the canonical nested token object and flat token ali
 `GET /api/v1/auth/social/providers` returns the supported provider list with `enabled` flags based on server environment variables. Frontend clients should use this endpoint to decide which social login buttons are active.
 
 Refresh tokens are stored as SHA-256 hashes in `user_refresh_tokens`. `POST /api/v1/auth/refresh` rotates the refresh token and revokes the previous one; `POST /api/v1/auth/logout` accepts `{ "refreshToken": "..." }` and revokes that token server-side. Access tokens remain short-lived and are not individually revoked.
+
+`GET /api/v1/me` returns profile convenience fields for My Page, including `displayName`, `avatarUrl`, `provider`, `providers`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`. `PATCH /api/v1/me/profile` accepts `displayName`, `bio`, and `avatarAssetId`; display names can be changed once every 30 days. `GET /api/v1/me/summary` returns the My Page bootstrap payload with user, wallet, recent ledger, payment orders, activity counts, unlocks, follows, and debut status.
 
 `GET /api/v1/me/sessions` lists active refresh-token sessions for the current user without exposing token hashes. The response includes minimal session metadata such as `userAgent`, `ipAddress`, `createdAt`, `lastUsedAt`, and `expiresAt`. `DELETE /api/v1/me/sessions/:sessionId` revokes a selected session. `DELETE /api/v1/me/sessions` revokes all active sessions for the current user, including the current device, so clients must clear local access and refresh tokens immediately after calling it.
 
@@ -235,6 +239,7 @@ Premium video unlocks and paid chat feature orders debit `wallet_accounts.cached
 Payment endpoints:
 
 - `POST /api/v1/payments/orders`
+- `GET /api/v1/payments/orders?take=20`
 - `GET /api/v1/payments/orders/:orderId`
 - `POST /api/v1/payments/webhooks/:provider`
 
