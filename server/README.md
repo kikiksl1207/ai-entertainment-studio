@@ -286,6 +286,9 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `POST /admin/api/v1/users/:userId/delete`
 - `POST /admin/api/v1/artists`
 - `PATCH /admin/api/v1/artists/:artistId`
+- `GET /admin/api/v1/artists/:artistId/operators`
+- `POST /admin/api/v1/artists/:artistId/operators`
+- `PATCH /admin/api/v1/artist-operators/:operatorId`
 - `POST /admin/api/v1/artists/:artistId/assets`
 - `DELETE /admin/api/v1/artists/:artistId/assets/:artistAssetId`
 - `POST /admin/api/v1/shortforms`
@@ -323,6 +326,12 @@ User moderation endpoints are super-admin-only in the initial policy. `POST /adm
 Community moderation endpoints require `community:read` or `community:write`
 unless the admin role has `*`. Post hide/restore writes moderation metadata and
 audit events; it does not hard-delete feed content.
+
+Artist operator endpoints require `artists:write`. Operators are the bridge
+between normal user accounts and artist-account posting in Lumina Feed. Creating
+an operator with `email` or `userId` grants or reactivates that user's access to
+post for the artist; setting status to `inactive` or `revoked` blocks future
+artist posts and records `revokedAt`.
 
 Asset archive/restore is metadata-based. Archive does not delete object storage files; it marks `metadata.lifecycle.status` as `archived`, blocks future linking, and removes the asset from public artist/shortform responses.
 

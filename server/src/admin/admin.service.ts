@@ -787,6 +787,106 @@ export class AdminService {
     return result;
   }
 
+  async getArtistOperators(artistId: string) {
+    await this.ensureArtist(artistId);
+
+    return this.prisma.artistOperator.findMany({
+      where: { artistId },
+      orderBy: { createdAt: 'desc' },
+      include: this.artistOperatorInclude(),
+    });
+  }
+
+  async createArtistOperator(user: AuthUser, artistId: string, input: AdminPayload) {
+    await this.ensureArtist(artistId);
+    const targetUser = await this.findAdminTargetUser(input);
+    const permissions = this.optionalStringArray(input, 'permissions') ?? [
+      'feed:post',
+      'feed:reply',
+    ];
+
+    const operator = await this.prisma.artistOperator.upsert({
+      where: {
+        userId_artistId: {
+          userId: targetUser.id,
+          artistId,
+        },
+      },
+      create: {
+        userId: targetUser.id,
+        artistId,
+        role: this.string(input, 'role', 'owner'),
+        status: this.artistOperatorStatus(input, 'status', 'active'),
+        permissions,
+      },
+      update: {
+        role: this.optionalString(input, 'role'),
+        status: this.artistOperatorStatus(input, 'status', 'active'),
+        permissions,
+        revokedAt: null,
+        updatedAt: new Date(),
+      },
+      include: this.artistOperatorInclude(),
+    });
+
+    await this.recordAudit(
+      user,
+      'artist_operator.upsert',
+      'artist_operator',
+      operator.id,
+      null,
+      operator,
+      { artistId, targetUserId: targetUser.id },
+    );
+
+    return operator;
+  }
+
+  async updateArtistOperator(user: AuthUser, operatorId: string, input: AdminPayload) {
+    const before = await this.prisma.artistOperator.findUnique({
+      where: { id: operatorId },
+      include: this.artistOperatorInclude(),
+    });
+
+    if (!before) {
+      throw new NotFoundException('Artist operator not found');
+    }
+
+    const status =
+      input.status === undefined ? undefined : this.artistOperatorStatus(input, 'status');
+    const permissions = this.optionalStringArray(input, 'permissions');
+    const revokedAt =
+      status === 'revoked' || status === 'inactive'
+        ? new Date()
+        : status === 'active'
+          ? null
+          : undefined;
+
+    const operator = await this.prisma.artistOperator.update({
+      where: { id: operatorId },
+      data: this.clean({
+        role: this.optionalString(input, 'role'),
+        status,
+        permissions,
+        revokedAt,
+        updatedAt: new Date(),
+      }),
+      include: this.artistOperatorInclude(),
+    });
+
+    await this.recordAudit(
+      user,
+      'artist_operator.update',
+      'artist_operator',
+      operator.id,
+      before,
+      operator,
+      { note: this.optionalString(input, 'note') },
+    );
+
+    return operator;
+  }
+
   async linkArtistAsset(user: AuthUser, artistId: string, input: AdminPayload) {
     await this.ensureArtist(artistId);
     const asset = await this.ensureAssetLinkable(this.string(input, 'assetId'));
@@ -1642,6 +1742,32 @@ export class AdminService {
     } satisfies Prisma.UserSelect;
   }
 
+  private artistOperatorInclude() {
+    return {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          status: true,
+          profile: {
+            select: {
+              displayName: true,
+              avatarAssetId: true,
+            },
+          },
+        },
+      },
+      artist: {
+        select: {
+          id: true,
+          slug: true,
+          displayName: true,
+          status: true,
+        },
+      },
+    } satisfies Prisma.ArtistOperatorInclude;
+  }
+
   private communityPostInclude() {
     return {
       author: {
@@ -2045,6 +2171,16 @@ export class AdminService {
     return status;
   }
 
+  private artistOperatorStatus(input: AdminPayload, key: string, fallback?: string) {
+    const status = this.string(input, key, fallback);
+
+    if (!['active', 'inactive', 'revoked'].includes(status)) {
+      throw new BadRequestException(`${key} must be active, inactive, or revoked`);
+    }
+
+    return status;
+  }
+
   private refundStatus(input: AdminPayload, key: string, fallback?: string) {
     const status = this.string(input, key, fallback);
 
@@ -2420,6 +2556,23 @@ export class AdminService {
   private optionalString(input: AdminPayload, key: string) {
     const value = input[key];
     return typeof value === 'string' ? value.trim() : undefined;
+  }
+
+  private optionalStringArray(input: AdminPayload, key: string) {
+    const value = input[key];
+
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (
+      !Array.isArray(value) ||
+      value.some((item) => typeof item !== 'string' || !item.trim())
+    ) {
+      throw new BadRequestException(`${key} must be an array of non-empty strings`);
+    }
+
+    return value.map((item) => item.trim());
   }
 
   private isUuid(value: string) {

@@ -602,6 +602,19 @@ POST /admin/api/v1/community/posts/:postId/restore
 These require admin auth plus `community:read` or `community:write` permission.
 They are for a later admin/operations screen, not public user UI.
 
+Admin artist operator draft:
+
+```http
+GET /admin/api/v1/artists/:artistId/operators
+POST /admin/api/v1/artists/:artistId/operators
+PATCH /admin/api/v1/artist-operators/:operatorId
+```
+
+These require admin auth plus `artists:write`. Artist feed posting only works
+when the current user has an active `artist_operators` row for that artist. The
+create body accepts `{ "email": "operator@example.com", "role": "owner",
+"permissions": ["feed:post", "feed:reply"] }` or `userId` instead of `email`.
+
 ## Notes For Claude
 
 - Do not hardcode local-only URLs in production frontend.

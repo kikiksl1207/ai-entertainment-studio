@@ -275,6 +275,45 @@ Restore post:
 Post hide/restore writes moderation metadata on `community_posts.metadata` and
 creates `audit_events` rows. It does not hard-delete content.
 
+## Admin Artist Operator APIs
+
+Artist posts require an active `artist_operators` row. These admin endpoints let
+operations grant or revoke that access.
+
+```http
+GET /admin/api/v1/artists/:artistId/operators
+POST /admin/api/v1/artists/:artistId/operators
+PATCH /admin/api/v1/artist-operators/:operatorId
+```
+
+They require admin auth plus `artists:write` permission.
+
+Create/upsert operator:
+
+```json
+{
+  "email": "operator@example.com",
+  "role": "owner",
+  "status": "active",
+  "permissions": ["feed:post", "feed:reply"]
+}
+```
+
+The backend also accepts `userId` instead of `email`. If the user already has an
+operator row for the artist, the API reactivates and updates it.
+
+Update/revoke operator:
+
+```json
+{
+  "status": "revoked",
+  "note": "No longer operating this artist"
+}
+```
+
+Allowed `status`: `active`, `inactive`, `revoked`. `inactive` and `revoked` set
+`revokedAt`; `active` clears it. All mutations create audit events.
+
 ### Follows
 
 ```http

@@ -204,6 +204,32 @@ export class AdminController {
     return this.adminService.updateArtist(user, artistId, body);
   }
 
+  @Get('artists/:artistId/operators')
+  @RequireAdminPermissions('artists:write')
+  getArtistOperators(@Param('artistId') artistId: string) {
+    return this.adminService.getArtistOperators(artistId);
+  }
+
+  @Post('artists/:artistId/operators')
+  @RequireAdminPermissions('artists:write')
+  createArtistOperator(
+    @CurrentUser() user: AuthUser,
+    @Param('artistId') artistId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.createArtistOperator(user, artistId, body);
+  }
+
+  @Patch('artist-operators/:operatorId')
+  @RequireAdminPermissions('artists:write')
+  updateArtistOperator(
+    @CurrentUser() user: AuthUser,
+    @Param('operatorId') operatorId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.updateArtistOperator(user, operatorId, body);
+  }
+
   @Post('artists/:artistId/assets')
   @RequireAdminPermissions('artists:write', 'assets:write')
   linkArtistAsset(
