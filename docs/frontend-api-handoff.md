@@ -219,7 +219,7 @@ Auth responses:
 - `GET /me` returns the current user plus profile convenience fields: `displayName`, `avatarUrl`, `avatarAsset`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`. `emailVerifiedAt` is intentionally omitted for now; email verification remains a backend skeleton until the production DB rollout is explicitly confirmed.
 - `PATCH /me/profile` body: `{ "displayName": "닉네임", "bio": "optional", "avatarAssetId": "<asset uuid>" }`. `displayName` can be changed once every 30 days. The server returns the updated `GET /me` shape. If the nickname cooldown is active, expect `400 Nickname can be changed once every 30 days`.
 - Avatar upload policy for 1차: reuse the asset upload flow and then pass the confirmed image asset id as `avatarAssetId`. A dedicated user-facing avatar upload intent can be split out later if needed.
-- `GET /me/summary` is the recommended My Page bootstrap endpoint. It returns `{ user, wallet, recentLedger, recentPaymentOrders, activity, recentActivities, debut, policy }` so the frontend does not need to call every history endpoint on first render. `activity` now includes `followingArtists`, `followingUsers`, `followers`, `followCounts`, and `feedCounts`.
+- `GET /me/summary` is the recommended My Page bootstrap endpoint. It returns `{ user, wallet, recentLedger, recentPaymentOrders, activity, recentActivities, debut, policy }` so the frontend does not need to call every history endpoint on first render. `activity` now includes `followingArtists`, `followingUsers`, `followers`, `followCounts`, and `feedCounts`. `activity.followingArtists[]` uses the same My Page card shape as `GET /me/following-artists`.
 - `GET /me/settings` returns `{ settings, policy }`.
 - `PATCH /me/settings` accepts any subset of `{ "locale": "ko-KR", "timezone": "Asia/Seoul", "marketingOptIn": false, "pushOptIn": false, "activityNotifications": true, "feedNotifications": true, "emailNotifications": false }`. Send at least one field. The response is the same `{ settings, policy }` shape.
 - User image upload flow for avatars/feed: `POST /me/assets/upload-intents` then upload the file with the returned `upload.method/url/requiredHeaders`, then `POST /me/assets/:assetId/confirm-upload`. The confirmed `asset.id` can be passed to `PATCH /me/profile.avatarAssetId` or `POST /lumina-feed/posts.assetIds`.
@@ -939,7 +939,7 @@ DELETE /artists/:artistId/follow
 POST /users/:userId/follow
 DELETE /users/:userId/follow
 GET /me/following
-GET /me/following-artists
+GET /me/following-artists?take=20&cursor=<followId>
 GET /me/following-users
 GET /me/followers
 GET /users/:userId/profile
@@ -950,7 +950,39 @@ Authorization: Bearer <accessToken>
 ```
 
 `artistId` can be a UUID or slug.
-`userId` must be a user UUID and cannot be the current user's own id. `GET /me/following` returns `{ artists, users }`; the split endpoints return only that list. User follow rows return `{ id, status, followedAt, updatedAt, user: { id, displayName, avatarUrl } }`.
+`userId` must be a user UUID and cannot be the current user's own id. `GET /me/following` returns `{ artists, users }`.
+
+`GET /me/following-artists?take=20&cursor=<followId>` returns a My Page card-friendly wrapper:
+
+```json
+{
+  "items": [
+    {
+      "id": "<artist uuid>",
+      "followId": "<follow row uuid>",
+      "slug": "yoon-serin",
+      "displayName": "윤세린",
+      "name": "윤세린",
+      "thumbnailUrl": "https://...",
+      "thumbUrl": "https://...",
+      "status": "active",
+      "type": "시크 퍼포먼스형",
+      "followedAt": "2026-05-03T00:00:00.000Z",
+      "latestFeedAt": "2026-05-03T00:00:00.000Z",
+      "isFollowing": true
+    }
+  ],
+  "artists": [],
+  "count": 1,
+  "total": 1,
+  "nextCursor": null,
+  "policy": {
+    "hiddenArtistRule": "Only active public artists are returned; draft, archived, deleted, or suspended artists are hidden from My Page follow cards."
+  }
+}
+```
+
+Use `items` as the canonical list. `artists` is provided as a compatibility alias with the same array. If there are no followed active artists, both arrays are empty. User follow rows return `{ id, status, followedAt, updatedAt, user: { id, displayName, avatarUrl } }`.
 
 `GET /users/:userId/profile` is public and returns `{ user, stats, recentPosts }` for active users only. It does not expose email. `user` includes `id`, `displayName`, `avatarUrl`, `bio`, and `createdAt`; `stats` includes `followers`, `followingUsers`, `followingArtists`, `posts`, and `replies`. `recentPosts` contains up to 5 public posts by that user.
 

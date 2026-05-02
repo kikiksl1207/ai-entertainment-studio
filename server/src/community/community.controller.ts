@@ -166,8 +166,8 @@ export class CommunityController {
 
   @Get('me/following-artists')
   @UseGuards(JwtAuthGuard)
-  getMyFollowingArtists(@CurrentUser() user: AuthUser) {
-    return this.communityService.getMyFollowingArtists(user.id);
+  getMyFollowingArtists(@CurrentUser() user: AuthUser, @Query() query: CommunityQuery) {
+    return this.communityService.getMyFollowingArtists(user.id, query);
   }
 
   @Get('me/following-users')

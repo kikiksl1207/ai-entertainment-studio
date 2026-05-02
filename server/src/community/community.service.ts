@@ -823,19 +823,50 @@ export class CommunityService {
       this.getMyFollowingUsers(userId),
     ]);
 
-    return { artists, users };
+    return { artists: artists.items, users };
   }
 
-  getMyFollowingArtists(userId: string) {
-    return this.prisma.artistFollow.findMany({
-      where: {
-        userId,
-        status: 'active',
-        deletedAt: null,
+  async getMyFollowingArtists(userId: string, query: CommunityQuery = {}) {
+    await this.assertActiveUser(userId);
+    const take = this.take(query.take);
+    const cursor = this.optionalString(query.cursor);
+
+    if (cursor && !UUID_PATTERN.test(cursor)) {
+      throw new BadRequestException('cursor must be a follow UUID');
+    }
+
+    const where = {
+      userId,
+      status: 'active',
+      deletedAt: null,
+      artist: { status: 'active' },
+    } satisfies Prisma.ArtistFollowWhereInput;
+
+    const [follows, total] = await Promise.all([
+      this.prisma.artistFollow.findMany({
+        where,
+        include: this.followInclude(),
+        orderBy: { createdAt: 'desc' },
+        take,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.artistFollow.count({ where }),
+    ]);
+    const items = await Promise.all(
+      follows.map((follow) => this.toArtistFollowView(follow)),
+    );
+
+    return {
+      items,
+      artists: items,
+      count: items.length,
+      total,
+      nextCursor: follows.length === take ? follows[follows.length - 1]?.id ?? null : null,
+      policy: {
+        hiddenArtistRule:
+          'Only active public artists are returned; draft, archived, deleted, or suspended artists are hidden from My Page follow cards.',
       },
-      include: this.followInclude(),
-      orderBy: { createdAt: 'desc' },
-    });
+    };
   }
 
   async getMyFollowingUsers(userId: string) {
@@ -958,10 +989,26 @@ export class CommunityService {
   private followInclude() {
     return {
       artist: {
-        select: {
-          id: true,
-          slug: true,
-          displayName: true,
+        include: {
+          publicProfile: true,
+          artistAssets: {
+            where: {
+              usageType: { in: ['thumb', 'cover'] },
+              asset: {
+                visibility: 'public',
+              },
+            },
+            include: {
+              asset: {
+                select: {
+                  id: true,
+                  storageKey: true,
+                  metadata: true,
+                },
+              },
+            },
+            orderBy: [{ usageType: 'desc' }, { isPrimary: 'desc' }, { sortOrder: 'asc' }],
+          },
         },
       },
     } satisfies Prisma.ArtistFollowInclude;
@@ -1025,6 +1072,50 @@ export class CommunityService {
     return {
       ...hiddenPost,
       post: hiddenPost.post ? await this.toPostView(hiddenPost.post) : null,
+    };
+  }
+
+  private async toArtistFollowView(follow: any) {
+    const artist = follow.artist;
+    const visibleAssets = (artist.artistAssets ?? []).filter((artistAsset: any) =>
+      this.isPublicReadyAsset(artistAsset.asset.metadata),
+    );
+    const thumb =
+      visibleAssets.find((artistAsset: any) => artistAsset.usageType === 'thumb') ??
+      visibleAssets.find((artistAsset: any) => artistAsset.usageType === 'cover') ??
+      null;
+    const latestFeed = await this.prisma.communityPost.findFirst({
+      where: {
+        artistId: artist.id,
+        status: 'published',
+        visibility: 'public',
+        deletedAt: null,
+      },
+      select: { publishedAt: true },
+      orderBy: { publishedAt: 'desc' },
+    });
+    const metadata = this.metadataObject(artist.publicProfile?.publicMetadata);
+    const profileFacts = this.metadataObject(metadata.profileFacts);
+    const characterType =
+      this.stringFromUnknown(profileFacts.characterType) ??
+      this.stringFromUnknown(profileFacts.position) ??
+      null;
+
+    return {
+      id: artist.id,
+      followId: follow.id,
+      slug: artist.slug,
+      displayName: artist.displayName,
+      name: artist.displayName,
+      thumbnailUrl: thumb
+        ? buildPublicAssetUrl(this.configService, thumb.asset.storageKey)
+        : null,
+      thumbUrl: thumb ? buildPublicAssetUrl(this.configService, thumb.asset.storageKey) : null,
+      status: artist.status,
+      type: characterType,
+      followedAt: follow.createdAt,
+      latestFeedAt: latestFeed?.publishedAt ?? null,
+      isFollowing: true,
     };
   }
 
@@ -1448,6 +1539,22 @@ export class CommunityService {
     }
 
     return typeof uploadIntent.status === 'string' ? uploadIntent.status : 'ready';
+  }
+
+  private isPublicReadyAsset(metadataValue: unknown) {
+    const metadata = this.metadataObject(metadataValue);
+    const uploadIntent = this.metadataObject(metadata.uploadIntent);
+    const lifecycle = this.metadataObject(metadata.lifecycle);
+
+    if (lifecycle.status === 'archived') {
+      return false;
+    }
+
+    return !uploadIntent.status || uploadIntent.status === 'uploaded';
+  }
+
+  private stringFromUnknown(value: unknown) {
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 
   private isUniqueConstraint(error: unknown) {

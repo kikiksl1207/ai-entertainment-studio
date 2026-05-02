@@ -483,13 +483,34 @@ export class AuthService {
           userId,
           status: 'active',
           deletedAt: null,
+          artist: { status: 'active' },
         },
         include: {
           artist: {
-            select: {
-              id: true,
-              slug: true,
-              displayName: true,
+            include: {
+              publicProfile: true,
+              artistAssets: {
+                where: {
+                  usageType: { in: ['thumb', 'cover'] },
+                  asset: {
+                    visibility: 'public',
+                  },
+                },
+                include: {
+                  asset: {
+                    select: {
+                      id: true,
+                      storageKey: true,
+                      metadata: true,
+                    },
+                  },
+                },
+                orderBy: [
+                  { usageType: 'desc' },
+                  { isPrimary: 'desc' },
+                  { sortOrder: 'asc' },
+                ],
+              },
             },
           },
         },
@@ -554,7 +575,9 @@ export class AuthService {
           boostEventCounts.map((row) => [row.boostType, row._count._all]),
         ),
         premiumUnlocks,
-        followingArtists,
+        followingArtists: await Promise.all(
+          followingArtists.map((follow) => this.toArtistFollowView(follow)),
+        ),
         followingUsers: await Promise.all(
           followingUsers.map((follow) => this.toUserFollowView(follow, 'following')),
         ),
@@ -1465,6 +1488,51 @@ export class AuthService {
     };
   }
 
+  private async toArtistFollowView(follow: any) {
+    const artist = follow.artist;
+    const visibleAssets = (artist.artistAssets ?? []).filter((artistAsset: any) =>
+      this.isPublicReadyAsset(artistAsset.asset.metadata),
+    );
+    const thumb =
+      visibleAssets.find((artistAsset: any) => artistAsset.usageType === 'thumb') ??
+      visibleAssets.find((artistAsset: any) => artistAsset.usageType === 'cover') ??
+      null;
+    const latestFeed = await this.prisma.communityPost.findFirst({
+      where: {
+        artistId: artist.id,
+        status: 'published',
+        visibility: 'public',
+        deletedAt: null,
+      },
+      select: { publishedAt: true },
+      orderBy: { publishedAt: 'desc' },
+    });
+    const metadata = this.recordOrEmpty(artist.publicProfile?.publicMetadata);
+    const profileFacts = this.recordOrEmpty(metadata.profileFacts);
+    const type =
+      this.stringFromUnknown(profileFacts.characterType) ??
+      this.stringFromUnknown(profileFacts.position) ??
+      null;
+    const thumbnailUrl = thumb
+      ? buildPublicAssetUrl(this.configService, thumb.asset.storageKey)
+      : null;
+
+    return {
+      id: artist.id,
+      followId: follow.id,
+      slug: artist.slug,
+      displayName: artist.displayName,
+      name: artist.displayName,
+      thumbnailUrl,
+      thumbUrl: thumbnailUrl,
+      status: artist.status,
+      type,
+      followedAt: follow.createdAt,
+      latestFeedAt: latestFeed?.publishedAt ?? null,
+      isFollowing: true,
+    };
+  }
+
   private assetStatus(metadata: unknown) {
     if (!this.isRecord(metadata)) {
       return 'ready';
@@ -1477,6 +1545,26 @@ export class AuthService {
     }
 
     return typeof uploadIntent.status === 'string' ? uploadIntent.status : 'ready';
+  }
+
+  private isPublicReadyAsset(metadata: unknown) {
+    const record = this.recordOrEmpty(metadata);
+    const uploadIntent = this.recordOrEmpty(record.uploadIntent);
+    const lifecycle = this.recordOrEmpty(record.lifecycle);
+
+    if (lifecycle.status === 'archived') {
+      return false;
+    }
+
+    return !uploadIntent.status || uploadIntent.status === 'uploaded';
+  }
+
+  private recordOrEmpty(value: unknown) {
+    return this.isRecord(value) ? value : {};
+  }
+
+  private stringFromUnknown(value: unknown) {
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 
   private parseTake(value: string | undefined, fallback: number) {

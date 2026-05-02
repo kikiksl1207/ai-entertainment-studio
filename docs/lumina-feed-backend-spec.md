@@ -409,7 +409,7 @@ POST /users/:userId/follow
 DELETE /users/:userId/follow
 GET /users/:userId/profile
 GET /me/following
-GET /me/following-artists
+GET /me/following-artists?take=20&cursor=<followId>
 GET /me/following-users
 GET /me/followers
 Authorization: Bearer <accessToken>
@@ -417,6 +417,22 @@ Authorization: Bearer <accessToken>
 
 `artistId` can be a UUID or an artist slug for frontend convenience. Normal
 users can also be followed by UUID.
+
+`GET /me/following-artists` is the My Page artist-follow card endpoint. It
+returns `{ items, artists, count, total, nextCursor, policy }`. `items[]` and
+`artists[]` contain the same card-ready artist rows:
+
+- `id`, `followId`, `slug`, `displayName`, `name`
+- `thumbnailUrl`, `thumbUrl`
+- `status`
+- `type` from `profileFacts.characterType` or `profileFacts.position`
+- `followedAt`
+- `latestFeedAt`
+- `isFollowing: true`
+
+Only active public artists are returned. Draft, archived, deleted, or suspended
+artists are hidden from My Page follow cards; the active follow row is preserved
+server-side for audit/history and possible future restore policy.
 
 `GET /users/:userId/profile` is a public profile summary for active normal
 users. It returns `{ user, stats, recentPosts }`, hides email, and only includes
