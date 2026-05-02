@@ -16,6 +16,11 @@ import { DebutService } from './debut.service';
 export class DebutController {
   constructor(private readonly debutService: DebutService) {}
 
+  @Get('debut/policy')
+  getPolicy() {
+    return this.debutService.getPolicy();
+  }
+
   @Post('debut/applications')
   @UseGuards(JwtAuthGuard)
   createApplication(@CurrentUser() user: AuthUser, @Body() body: CreateDebutApplicationDto) {

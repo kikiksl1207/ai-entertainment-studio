@@ -198,6 +198,7 @@ References:
 Implemented:
 
 ```http
+GET /api/v1/debut/policy
 POST /api/v1/debut/applications
 GET /api/v1/me/debut-applications
 GET /api/v1/me/debut-applications/latest
@@ -220,15 +221,20 @@ Current limitations:
 - No structured review checklist table.
 - No public launch conversion from approved application to artist.
 
+Policy endpoint:
+
+- `GET /api/v1/debut/policy` returns non-personal static policy hints for the frontend form.
+- It includes participation types, draft share ranges, status labels, consent keys, field limits, and data collection restrictions.
+- `policyVersion` is currently `2026-05-02.mvp-draft` and is a product/version hint, not a final legal contract version.
+
 ## 10. Backend Follow-Up
 
 Recommended next implementation tasks:
 
-1. Add a public policy version endpoint for frontend checkbox versioning.
-2. Add `termsVersion`, `privacyVersion`, `revenuePolicyVersion`, and `appearanceConsentVersion`.
-3. Add admin structured review fields or a separate `debut_application_reviews` table.
-4. Add secure upload intent flow for applicant materials, reusing the asset/upload architecture.
-5. Add contract/settlement tables only after final legal and payment policy decisions.
+1. Add dedicated `termsVersion`, `privacyVersion`, `revenuePolicyVersion`, and `appearanceConsentVersion` columns.
+2. Add admin structured review fields or a separate `debut_application_reviews` table.
+3. Add secure upload intent flow for applicant materials, reusing the asset/upload architecture.
+4. Add contract/settlement tables only after final legal and payment policy decisions.
 
 Applicant withdrawal:
 

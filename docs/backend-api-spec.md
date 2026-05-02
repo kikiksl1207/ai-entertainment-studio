@@ -508,6 +508,7 @@ POST /admin/api/v1/popular-vote/monthly-picks/finalize
 Debut application endpoints:
 
 ```http
+GET /api/v1/debut/policy
 POST /api/v1/debut/applications
 GET /api/v1/me/debut-applications
 GET /api/v1/me/debut-applications/latest
@@ -520,6 +521,7 @@ PATCH /admin/api/v1/debut/applications/:applicationId
 
 Current validation and workflow:
 
+- `GET /api/v1/debut/policy` is public and returns form option/policy hints, including participation types, status labels, consent keys, field limits, and restricted collection types.
 - MVP applications require `isAdult: true`.
 - Required consent fields are `consentAppearance`, `consentRevenuePolicy`, and `consentPrivacy`.
 - `participationType` is one of `appearance_only`, `voice_or_song`, `performance`, or `co_creator`.

@@ -22,6 +22,97 @@ const APPLICATION_STATUSES = new Set([
 export class DebutService {
   constructor(private readonly prisma: PrismaService) {}
 
+  getPolicy() {
+    return {
+      product: 'ai_debut',
+      policyVersion: '2026-05-02.mvp-draft',
+      minApplicantAgePolicy: {
+        adultOnly: true,
+        isAdultRequired: true,
+        minorApplicationStatus: 'not_open',
+      },
+      participationTypes: [
+        {
+          value: 'appearance_only',
+          label: 'Appearance only',
+          labelKo: '외모/이미지 제공',
+          description:
+            'Applicant provides appearance, reference images, or visual identity direction.',
+          draftShareRange: { min: 20, max: 30 },
+        },
+        {
+          value: 'voice_or_song',
+          label: 'Voice or song',
+          labelKo: '외모 + 목소리/노래',
+          description:
+            'Applicant provides appearance plus voice sample, vocal recording, or song material.',
+          draftShareRange: { min: 30, max: 45 },
+        },
+        {
+          value: 'performance',
+          label: 'Performance',
+          labelKo: '외모 + 퍼포먼스',
+          description:
+            'Applicant provides singing, dance, acting, choreography, or performance material.',
+          draftShareRange: { min: 45, max: 60 },
+        },
+        {
+          value: 'co_creator',
+          label: 'Co-creator',
+          labelKo: '공동 창작/운영 참여',
+          description:
+            'Applicant contributes ongoing planning, concept writing, content ideas, or fan communication.',
+          draftShareRange: { min: 0, max: 70 },
+        },
+      ],
+      statuses: [
+        { value: 'submitted', labelKo: '접수 완료', userVisible: true },
+        { value: 'reviewing', labelKo: '검토 중', userVisible: true },
+        { value: 'needs_more_info', labelKo: '추가 정보 필요', userVisible: true },
+        { value: 'approved', labelKo: '승인', userVisible: true },
+        { value: 'rejected', labelKo: '반려', userVisible: true },
+        { value: 'withdrawn', labelKo: '철회', userVisible: true },
+      ],
+      consentKeys: [
+        {
+          key: 'consentAppearance',
+          required: true,
+          labelKo: '본인 자료 또는 사용 권한이 있는 자료만 제출합니다.',
+        },
+        {
+          key: 'consentRevenuePolicy',
+          required: true,
+          labelKo: '수익배분은 심사와 계약 단계에서 최종 확정됨을 확인합니다.',
+        },
+        {
+          key: 'consentPrivacy',
+          required: true,
+          labelKo: '신청 검토를 위한 개인정보 처리에 동의합니다.',
+        },
+        {
+          key: 'consentVoice',
+          required: false,
+          labelKo: '목소리/노래/퍼포먼스 자료를 제출하는 경우 검토 사용에 동의합니다.',
+        },
+      ],
+      fieldPolicy: {
+        intro: { minLength: 20, maxLength: 4000 },
+        applicantName: { minLength: 2, maxLength: 80 },
+        displayName: { minLength: 2, maxLength: 80, required: false },
+        shareTierRequested: { min: 0, max: 70, required: false },
+        metadata:
+          'Use only non-sensitive structured details. Do not include IDs, bank accounts, contracts, secrets, or raw identity documents.',
+      },
+      restrictedCollection: [
+        'resident_registration_number',
+        'id_card_image',
+        'bank_account',
+        'final_contract_file',
+        'api_key_or_secret',
+      ],
+    };
+  }
+
   async createApplication(userId: string, input: CreateDebutApplicationDto) {
     if (!input.isAdult) {
       throw new BadRequestException('isAdult must be true for MVP debut applications');

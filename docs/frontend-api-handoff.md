@@ -423,6 +423,7 @@ Use this for the `Main Pick / 이달의 1위` tab. `leader` is the first ranking
 `데뷔하기` form submission requires login.
 
 ```http
+GET /debut/policy
 POST /debut/applications
 GET /me/debut-applications
 GET /me/debut-applications/latest
@@ -432,6 +433,40 @@ POST /me/debut-applications/:applicationId/withdraw
 Detailed product/policy draft:
 
 - `docs/ai-debut-policy-and-application-spec.md`
+
+Use `GET /debut/policy` to bootstrap static form options and guardrail hints.
+It is public and does not include personal data.
+
+Response highlights:
+
+```json
+{
+  "product": "ai_debut",
+  "policyVersion": "2026-05-02.mvp-draft",
+  "minApplicantAgePolicy": {
+    "adultOnly": true,
+    "isAdultRequired": true,
+    "minorApplicationStatus": "not_open"
+  },
+  "participationTypes": [
+    {
+      "value": "appearance_only",
+      "labelKo": "외모/이미지 제공",
+      "draftShareRange": { "min": 20, "max": 30 }
+    }
+  ],
+  "statuses": [
+    { "value": "submitted", "labelKo": "접수 완료", "userVisible": true }
+  ],
+  "consentKeys": [
+    { "key": "consentAppearance", "required": true }
+  ],
+  "fieldPolicy": {
+    "intro": { "minLength": 20, "maxLength": 4000 },
+    "shareTierRequested": { "min": 0, "max": 70, "required": false }
+  }
+}
+```
 
 Body:
 
