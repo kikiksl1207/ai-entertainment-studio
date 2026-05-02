@@ -35,6 +35,11 @@ Added in migration `0011_lumina_feed_community`:
 - `community_reports`
 - `artist_follows`
 
+Added in migration `0015_community_hide_blocks`:
+
+- `community_hidden_posts`
+- `user_blocks`
+
 ## Public/Frontend APIs
 
 ### Feed
@@ -44,6 +49,7 @@ GET /lumina-feed?mode=all&take=20
 GET /lumina-feed?mode=artists&take=20
 GET /lumina-feed?mode=fans&take=20
 GET /lumina-feed?artistSlug=yoon-serin
+GET /me/lumina-feed?mode=all&take=20
 GET /lumina-feed/samples?mode=all&take=20
 GET /artists/:slug/posts
 ```
@@ -55,6 +61,10 @@ GET /artists/:slug/posts
 - `fans`
 
 Sample `mode` also accepts `debut` for debut applicant style posts.
+
+`GET /me/lumina-feed` requires user auth and keeps the public feed shape. It
+filters out posts hidden by the current user and posts authored by users in an
+active block relationship.
 
 Response is an array of posts:
 
@@ -215,6 +225,23 @@ Allowed reasons:
 - `spam`
 - `other`
 
+### User Hide/Block
+
+```http
+POST /lumina-feed/posts/:postId/hide
+DELETE /lumina-feed/posts/:postId/hide
+GET /me/hidden-posts?take=20
+POST /users/:userId/block
+DELETE /users/:userId/block
+GET /me/blocked-users?take=20
+Authorization: Bearer <accessToken>
+```
+
+Post hide is idempotent and uses soft delete/reactivation on
+`community_hidden_posts`. Blocking rejects self-block, optionally accepts
+`{ "reason": "..." }`, soft-deletes active follows in both directions, and uses
+soft delete/reactivation on `user_blocks`.
+
 ## Admin Moderation APIs
 
 These endpoints are for the future admin/operations screen. They require admin
@@ -319,11 +346,17 @@ Allowed `status`: `active`, `inactive`, `revoked`. `inactive` and `revoked` set
 ```http
 POST /artists/:artistId/follow
 DELETE /artists/:artistId/follow
+POST /users/:userId/follow
+DELETE /users/:userId/follow
 GET /me/following
+GET /me/following-artists
+GET /me/following-users
+GET /me/followers
 Authorization: Bearer <accessToken>
 ```
 
-`artistId` can be a UUID or an artist slug for frontend convenience.
+`artistId` can be a UUID or an artist slug for frontend convenience. Normal
+users can also be followed by UUID.
 
 ## Frontend Notes
 
@@ -340,6 +373,6 @@ Not implemented yet:
 
 - Admin endpoints for granting/revoking artist operator access.
 - Admin moderation queue for reports.
-- Post hide/delete endpoints.
+- Admin post hide/delete endpoints.
 - AI-assisted post generation.
 - Attachment upload for feed images/videos.

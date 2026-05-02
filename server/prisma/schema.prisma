@@ -8,42 +8,45 @@ datasource db {
 }
 
 model User {
-  id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  status            String                   @default("active")
-  email             String?                  @unique
-  phoneNumber       String?                  @unique @map("phone_number")
-  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
-  deletedAt         DateTime?                @map("deleted_at") @db.Timestamptz(6)
-  authAccounts      UserAuthAccount[]
-  profile           UserProfile?
-  settings          UserSettings?
-  refreshTokens     UserRefreshToken[]
-  walletAccounts    WalletAccount[]
-  videoUnlocks      UserPremiumVideoUnlock[]
-  chatSessions      ChatSession[]
-  chatFeatureOrders ChatFeatureOrder[]
-  entitlements      UserEntitlement[]
-  paymentOrders     PaymentOrder[]
-  auditEvents       AuditEvent[]
-  adminAccess       AdminUser?               @relation("AdminAccess")
-  createdAdminUsers AdminUser[]              @relation("AdminCreatedBy")
-  referralCode      UserReferralCode?
-  sentReferrals     ReferralReward[]         @relation("ReferralReferrer")
-  receivedReferral  ReferralReward?          @relation("ReferralReferred")
-  attendanceRewards DailyAttendanceReward[]
-  sentUserGifts     UserGiftTransfer[]       @relation("UserGiftSender")
-  receivedUserGifts UserGiftTransfer[]       @relation("UserGiftRecipient")
-  actionTokens      UserActionToken[]
-  debutApplications DebutApplication[]
-  artistOperators   ArtistOperator[]
-  communityPosts    CommunityPost[]         @relation("CommunityPostAuthor")
-  communityReplies  CommunityReply[]        @relation("CommunityReplyAuthor")
-  communityReactions CommunityReaction[]
-  communityReports  CommunityReport[]       @relation("CommunityReportReporter")
-  artistFollows     ArtistFollow[]
-  followingUsers    UserFollow[]            @relation("UserFollowFollower")
-  followers         UserFollow[]            @relation("UserFollowFollowing")
+  id                   String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  status               String                   @default("active")
+  email                String?                  @unique
+  phoneNumber          String?                  @unique @map("phone_number")
+  createdAt            DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime?                @map("deleted_at") @db.Timestamptz(6)
+  authAccounts         UserAuthAccount[]
+  profile              UserProfile?
+  settings             UserSettings?
+  refreshTokens        UserRefreshToken[]
+  walletAccounts       WalletAccount[]
+  videoUnlocks         UserPremiumVideoUnlock[]
+  chatSessions         ChatSession[]
+  chatFeatureOrders    ChatFeatureOrder[]
+  entitlements         UserEntitlement[]
+  paymentOrders        PaymentOrder[]
+  auditEvents          AuditEvent[]
+  adminAccess          AdminUser?               @relation("AdminAccess")
+  createdAdminUsers    AdminUser[]              @relation("AdminCreatedBy")
+  referralCode         UserReferralCode?
+  sentReferrals        ReferralReward[]         @relation("ReferralReferrer")
+  receivedReferral     ReferralReward?          @relation("ReferralReferred")
+  attendanceRewards    DailyAttendanceReward[]
+  sentUserGifts        UserGiftTransfer[]       @relation("UserGiftSender")
+  receivedUserGifts    UserGiftTransfer[]       @relation("UserGiftRecipient")
+  actionTokens         UserActionToken[]
+  debutApplications    DebutApplication[]
+  artistOperators      ArtistOperator[]
+  communityPosts       CommunityPost[]          @relation("CommunityPostAuthor")
+  communityReplies     CommunityReply[]         @relation("CommunityReplyAuthor")
+  communityReactions   CommunityReaction[]
+  communityReports     CommunityReport[]        @relation("CommunityReportReporter")
+  hiddenCommunityPosts CommunityHiddenPost[]
+  artistFollows        ArtistFollow[]
+  followingUsers       UserFollow[]             @relation("UserFollowFollower")
+  followers            UserFollow[]             @relation("UserFollowFollowing")
+  blockedUsers         UserBlock[]              @relation("UserBlockBlocker")
+  blockedByUsers       UserBlock[]              @relation("UserBlockBlocked")
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -78,14 +81,14 @@ model UserAuthAccount {
 }
 
 model UserProfile {
-  userId        String   @id @map("user_id") @db.Uuid
-  displayName   String   @map("display_name")
-  avatarAssetId String?  @map("avatar_asset_id") @db.Uuid
-  bio           String?
+  userId            String    @id @map("user_id") @db.Uuid
+  displayName       String    @map("display_name")
+  avatarAssetId     String?   @map("avatar_asset_id") @db.Uuid
+  bio               String?
   nicknameChangedAt DateTime? @map("nickname_changed_at") @db.Timestamptz(6)
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
-  user          User     @relation(fields: [userId], references: [id])
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user              User      @relation(fields: [userId], references: [id])
 
   @@map("user_profiles")
 }
@@ -400,18 +403,18 @@ model DailyAttendanceReward {
 }
 
 model UserGiftTransfer {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  senderUserId       String   @map("sender_user_id") @db.Uuid
-  recipientUserId    String   @map("recipient_user_id") @db.Uuid
-  amountLumina       Decimal  @map("amount_lumina") @db.Decimal(18, 2)
-  senderLedgerId     String?  @map("sender_ledger_id") @db.Uuid
-  recipientLedgerId  String?  @map("recipient_ledger_id") @db.Uuid
-  message            String?
-  status             String   @default("completed")
-  idempotencyKey     String?  @unique @map("idempotency_key")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  sender             User     @relation("UserGiftSender", fields: [senderUserId], references: [id])
-  recipient          User     @relation("UserGiftRecipient", fields: [recipientUserId], references: [id])
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  senderUserId      String   @map("sender_user_id") @db.Uuid
+  recipientUserId   String   @map("recipient_user_id") @db.Uuid
+  amountLumina      Decimal  @map("amount_lumina") @db.Decimal(18, 2)
+  senderLedgerId    String?  @map("sender_ledger_id") @db.Uuid
+  recipientLedgerId String?  @map("recipient_ledger_id") @db.Uuid
+  message           String?
+  status            String   @default("completed")
+  idempotencyKey    String?  @unique @map("idempotency_key")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  sender            User     @relation("UserGiftSender", fields: [senderUserId], references: [id])
+  recipient         User     @relation("UserGiftRecipient", fields: [recipientUserId], references: [id])
 
   @@index([senderUserId, createdAt], map: "idx_user_gift_transfers_sender_created")
   @@index([recipientUserId, createdAt], map: "idx_user_gift_transfers_recipient_created")
@@ -702,26 +705,27 @@ model DebutApplication {
 }
 
 model CommunityPost {
-  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  authorUserId   String              @map("author_user_id") @db.Uuid
-  artistId       String?             @map("artist_id") @db.Uuid
-  postType       String              @default("user_post") @map("post_type")
-  status         String              @default("published")
-  visibility     String              @default("public")
-  body           String
-  likeCount      Int                 @default(0) @map("like_count")
-  replyCount     Int                 @default(0) @map("reply_count")
-  reportCount    Int                 @default(0) @map("report_count")
-  metadata       Json                @default("{}")
-  publishedAt    DateTime            @default(now()) @map("published_at") @db.Timestamptz(6)
-  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
-  deletedAt      DateTime?           @map("deleted_at") @db.Timestamptz(6)
-  author         User                @relation("CommunityPostAuthor", fields: [authorUserId], references: [id])
-  artist         Artist?             @relation(fields: [artistId], references: [id])
-  replies        CommunityReply[]
-  reactions      CommunityReaction[]
-  reports        CommunityReport[]
+  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authorUserId  String                @map("author_user_id") @db.Uuid
+  artistId      String?               @map("artist_id") @db.Uuid
+  postType      String                @default("user_post") @map("post_type")
+  status        String                @default("published")
+  visibility    String                @default("public")
+  body          String
+  likeCount     Int                   @default(0) @map("like_count")
+  replyCount    Int                   @default(0) @map("reply_count")
+  reportCount   Int                   @default(0) @map("report_count")
+  metadata      Json                  @default("{}")
+  publishedAt   DateTime              @default(now()) @map("published_at") @db.Timestamptz(6)
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime              @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?             @map("deleted_at") @db.Timestamptz(6)
+  author        User                  @relation("CommunityPostAuthor", fields: [authorUserId], references: [id])
+  artist        Artist?               @relation(fields: [artistId], references: [id])
+  replies       CommunityReply[]
+  reactions     CommunityReaction[]
+  reports       CommunityReport[]
+  hiddenByUsers CommunityHiddenPost[]
 
   @@index([status, visibility, publishedAt], map: "idx_community_posts_public_feed")
   @@index([artistId, status, publishedAt], map: "idx_community_posts_artist_feed")
@@ -779,6 +783,23 @@ model CommunityReport {
   @@map("community_reports")
 }
 
+model CommunityHiddenPost {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  postId    String        @map("post_id") @db.Uuid
+  status    String        @default("active")
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  user      User          @relation(fields: [userId], references: [id])
+  post      CommunityPost @relation(fields: [postId], references: [id])
+
+  @@unique([userId, postId])
+  @@index([userId, status, createdAt], map: "idx_community_hidden_posts_user_status")
+  @@index([postId, status], map: "idx_community_hidden_posts_post_status")
+  @@map("community_hidden_posts")
+}
+
 model ArtistFollow {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String    @map("user_id") @db.Uuid
@@ -811,6 +832,24 @@ model UserFollow {
   @@index([followingUserId, status], map: "idx_user_follows_following_status")
   @@index([followerUserId, status], map: "idx_user_follows_follower_status")
   @@map("user_follows")
+}
+
+model UserBlock {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  blockerUserId String    @map("blocker_user_id") @db.Uuid
+  blockedUserId String    @map("blocked_user_id") @db.Uuid
+  status        String    @default("active")
+  reason        String?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+  blocker       User      @relation("UserBlockBlocker", fields: [blockerUserId], references: [id])
+  blocked       User      @relation("UserBlockBlocked", fields: [blockedUserId], references: [id])
+
+  @@unique([blockerUserId, blockedUserId])
+  @@index([blockerUserId, status], map: "idx_user_blocks_blocker_status")
+  @@index([blockedUserId, status], map: "idx_user_blocks_blocked_status")
+  @@map("user_blocks")
 }
 
 model PremiumVideoProduct {

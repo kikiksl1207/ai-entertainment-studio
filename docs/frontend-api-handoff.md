@@ -516,9 +516,12 @@ GET /lumina-feed?mode=all&take=20
 GET /lumina-feed?mode=artists&take=20
 GET /lumina-feed?mode=fans&take=20
 GET /lumina-feed?artistSlug=choi-seojin
+GET /me/lumina-feed?mode=all&take=20
 GET /lumina-feed/samples?mode=all&take=20
 GET /artists/:slug/posts
 ```
+
+`GET /me/lumina-feed` uses the same query and post shape as the public feed, but requires `Authorization: Bearer <accessToken>`. It excludes posts hidden by the current user and posts from users who are in an active block relationship with the current user.
 
 Sample posts:
 
@@ -594,8 +597,13 @@ Reactions/reports:
 POST /lumina-feed/posts/:postId/like
 DELETE /lumina-feed/posts/:postId/like
 POST /lumina-feed/posts/:postId/report
+POST /lumina-feed/posts/:postId/hide
+DELETE /lumina-feed/posts/:postId/hide
+GET /me/hidden-posts?take=20
 Authorization: Bearer <accessToken>
 ```
+
+`POST /lumina-feed/posts/:postId/hide` is idempotent and returns `{ hiddenPost }`. `DELETE /lumina-feed/posts/:postId/hide` soft-deletes the hidden row and returns `{ ok: true }`. `GET /me/hidden-posts` returns the active hidden rows with each included `post`.
 
 Follows:
 
@@ -608,11 +616,16 @@ GET /me/following
 GET /me/following-artists
 GET /me/following-users
 GET /me/followers
+POST /users/:userId/block
+DELETE /users/:userId/block
+GET /me/blocked-users?take=20
 Authorization: Bearer <accessToken>
 ```
 
 `artistId` can be a UUID or slug.
 `userId` must be a user UUID and cannot be the current user's own id. `GET /me/following` returns `{ artists, users }`; the split endpoints return only that list. User follow rows return `{ id, status, followedAt, updatedAt, user: { id, displayName, avatarUrl } }`.
+
+Blocking is idempotent. `POST /users/:userId/block` optionally accepts `{ "reason": "spam" }`, unfollows both directions if an active follow exists, and returns `{ block: { id, status, reason, blockedAt, updatedAt, user: { id, displayName, avatarUrl } } }`. `GET /me/blocked-users` returns the same block row shape as a list.
 
 Admin/community moderation draft:
 

@@ -560,3 +560,21 @@ Authorization: Bearer <accessToken>
 - `GET /api/v1/me/following` returns `{ artists, users }`.
 - User follow rows return `{ id, status, followedAt, updatedAt, user: { id, displayName, avatarUrl } }`.
 - `user_follows` uses soft delete/reactivation with unique `(follower_user_id, following_user_id)`.
+
+Personalized feed safety endpoints:
+
+```http
+GET /api/v1/me/lumina-feed?mode=all&take=20
+POST /api/v1/lumina-feed/posts/:postId/hide
+DELETE /api/v1/lumina-feed/posts/:postId/hide
+GET /api/v1/me/hidden-posts?take=20
+POST /api/v1/users/:userId/block
+DELETE /api/v1/users/:userId/block
+GET /api/v1/me/blocked-users?take=20
+Authorization: Bearer <accessToken>
+```
+
+- `GET /api/v1/me/lumina-feed` matches the public feed query/response shape, but filters out active `community_hidden_posts` for the current user and posts authored by users in an active block relationship.
+- Hidden posts use soft delete/reactivation with unique `(user_id, post_id)`.
+- `POST /api/v1/users/:userId/block` accepts optional `{ "reason": "..." }`, rejects self-block, soft-deletes active follows in both directions, and returns `{ block }`.
+- `user_blocks` uses soft delete/reactivation with unique `(blocker_user_id, blocked_user_id)`.

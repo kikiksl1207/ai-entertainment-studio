@@ -26,6 +26,12 @@ export class CommunityController {
     return this.communityService.getFeed(query);
   }
 
+  @Get('me/lumina-feed')
+  @UseGuards(JwtAuthGuard)
+  getMyFeed(@CurrentUser() user: AuthUser, @Query() query: CommunityQuery) {
+    return this.communityService.getPersonalizedFeed(user.id, query);
+  }
+
   @Get('lumina-feed/samples')
   getSamplePosts(@Query() query: CommunityQuery) {
     return this.communityService.getSamplePosts(query);
@@ -83,6 +89,18 @@ export class CommunityController {
     return this.communityService.reportPost(user.id, postId, body);
   }
 
+  @Post('lumina-feed/posts/:postId/hide')
+  @UseGuards(JwtAuthGuard)
+  hidePost(@CurrentUser() user: AuthUser, @Param('postId') postId: string) {
+    return this.communityService.hidePost(user.id, postId);
+  }
+
+  @Delete('lumina-feed/posts/:postId/hide')
+  @UseGuards(JwtAuthGuard)
+  unhidePost(@CurrentUser() user: AuthUser, @Param('postId') postId: string) {
+    return this.communityService.unhidePost(user.id, postId);
+  }
+
   @Post('artists/:artistId/follow')
   @UseGuards(JwtAuthGuard)
   followArtist(@CurrentUser() user: AuthUser, @Param('artistId') artistId: string) {
@@ -107,6 +125,22 @@ export class CommunityController {
     return this.communityService.unfollowUser(user.id, userId);
   }
 
+  @Post('users/:userId/block')
+  @UseGuards(JwtAuthGuard)
+  blockUser(
+    @CurrentUser() user: AuthUser,
+    @Param('userId') userId: string,
+    @Body() body: CommunityBody,
+  ) {
+    return this.communityService.blockUser(user.id, userId, body);
+  }
+
+  @Delete('users/:userId/block')
+  @UseGuards(JwtAuthGuard)
+  unblockUser(@CurrentUser() user: AuthUser, @Param('userId') userId: string) {
+    return this.communityService.unblockUser(user.id, userId);
+  }
+
   @Get('me/following')
   @UseGuards(JwtAuthGuard)
   getMyFollowing(@CurrentUser() user: AuthUser) {
@@ -129,5 +163,17 @@ export class CommunityController {
   @UseGuards(JwtAuthGuard)
   getMyFollowers(@CurrentUser() user: AuthUser) {
     return this.communityService.getMyFollowers(user.id);
+  }
+
+  @Get('me/hidden-posts')
+  @UseGuards(JwtAuthGuard)
+  getMyHiddenPosts(@CurrentUser() user: AuthUser, @Query() query: CommunityQuery) {
+    return this.communityService.getMyHiddenPosts(user.id, query);
+  }
+
+  @Get('me/blocked-users')
+  @UseGuards(JwtAuthGuard)
+  getMyBlockedUsers(@CurrentUser() user: AuthUser, @Query() query: CommunityQuery) {
+    return this.communityService.getMyBlockedUsers(user.id, query);
   }
 }

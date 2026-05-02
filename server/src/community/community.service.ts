@@ -58,6 +58,42 @@ export class CommunityService {
     });
   }
 
+  async getPersonalizedFeed(userId: string, query: CommunityQuery) {
+    await this.assertActiveUser(userId);
+    const take = this.take(query.take);
+    const cursor = this.optionalString(query.cursor);
+    const mode = this.optionalString(query.mode) ?? 'all';
+    const artistSlug = this.optionalString(query.artistSlug);
+    const blockedUserIds = await this.getBlockedRelationshipUserIds(userId);
+
+    if (!['all', 'artists', 'fans'].includes(mode)) {
+      throw new BadRequestException('mode must be all, artists, or fans');
+    }
+
+    return this.prisma.communityPost.findMany({
+      where: this.clean({
+        status: 'published',
+        visibility: 'public',
+        deletedAt: null,
+        artist: artistSlug ? { slug: artistSlug, status: 'active' } : undefined,
+        artistId: mode === 'artists' ? { not: null } : undefined,
+        postType: mode === 'fans' ? 'user_post' : undefined,
+        authorUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
+        hiddenByUsers: {
+          none: {
+            userId,
+            status: 'active',
+            deletedAt: null,
+          },
+        },
+      }),
+      take,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      include: this.postInclude(),
+      orderBy: { publishedAt: 'desc' },
+    });
+  }
+
   getSamplePosts(query: CommunityQuery) {
     const take = this.take(query.take);
     const mode = this.optionalString(query.mode) ?? 'all';
@@ -267,6 +303,53 @@ export class CommunityService {
     });
   }
 
+  async hidePost(userId: string, postId: string) {
+    await this.assertActiveUser(userId);
+    await this.findVisiblePost(postId);
+
+    const hiddenPost = await this.prisma.communityHiddenPost.upsert({
+      where: {
+        userId_postId: {
+          userId,
+          postId,
+        },
+      },
+      create: {
+        userId,
+        postId,
+      },
+      update: {
+        status: 'active',
+        deletedAt: null,
+        updatedAt: new Date(),
+      },
+      include: this.hiddenPostInclude(),
+    });
+
+    return { hiddenPost };
+  }
+
+  async unhidePost(userId: string, postId: string) {
+    if (!UUID_PATTERN.test(postId)) {
+      throw new BadRequestException('postId must be a UUID');
+    }
+
+    await this.prisma.communityHiddenPost.updateMany({
+      where: {
+        userId,
+        postId,
+        status: 'active',
+      },
+      data: {
+        status: 'deleted',
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    return { ok: true };
+  }
+
   async followArtist(userId: string, artistId: string) {
     const artist = await this.resolveActiveArtist(artistId);
 
@@ -362,6 +445,83 @@ export class CommunityService {
     return { ok: true };
   }
 
+  async blockUser(blockerUserId: string, blockedUserId: string, input: CommunityBody = {}) {
+    if (!UUID_PATTERN.test(blockedUserId)) {
+      throw new BadRequestException('userId must be a UUID');
+    }
+
+    if (blockerUserId === blockedUserId) {
+      throw new BadRequestException('Cannot block yourself');
+    }
+
+    const reason = this.optionalText(input, 'reason', 200);
+    await this.assertActiveUser(blockerUserId);
+    await this.assertActiveUser(blockedUserId);
+
+    const block = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.userBlock.upsert({
+        where: {
+          blockerUserId_blockedUserId: {
+            blockerUserId,
+            blockedUserId,
+          },
+        },
+        create: {
+          blockerUserId,
+          blockedUserId,
+          reason,
+        },
+        update: {
+          status: 'active',
+          reason,
+          deletedAt: null,
+          updatedAt: new Date(),
+        },
+        include: this.userBlockInclude(),
+      });
+
+      await tx.userFollow.updateMany({
+        where: {
+          OR: [
+            { followerUserId: blockerUserId, followingUserId: blockedUserId },
+            { followerUserId: blockedUserId, followingUserId: blockerUserId },
+          ],
+          status: 'active',
+        },
+        data: {
+          status: 'deleted',
+          deletedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      return created;
+    });
+
+    return { block: await this.toUserBlockView(block) };
+  }
+
+  async unblockUser(blockerUserId: string, blockedUserId: string) {
+    if (!UUID_PATTERN.test(blockedUserId)) {
+      throw new BadRequestException('userId must be a UUID');
+    }
+
+    await this.prisma.userBlock.updateMany({
+      where: {
+        blockerUserId,
+        blockedUserId,
+        status: 'active',
+      },
+      data: {
+        status: 'deleted',
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    return { ok: true };
+  }
+
   async getMyFollowing(userId: string) {
     const [artists, users] = await Promise.all([
       this.getMyFollowingArtists(userId),
@@ -411,6 +571,34 @@ export class CommunityService {
     });
 
     return Promise.all(follows.map((follow) => this.toUserFollowView(follow, 'follower')));
+  }
+
+  getMyHiddenPosts(userId: string, query: CommunityQuery) {
+    return this.prisma.communityHiddenPost.findMany({
+      where: {
+        userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      take: this.take(query.take),
+      include: this.hiddenPostInclude(),
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getMyBlockedUsers(userId: string, query: CommunityQuery) {
+    const blocks = await this.prisma.userBlock.findMany({
+      where: {
+        blockerUserId: userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      take: this.take(query.take),
+      include: this.userBlockInclude(),
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return Promise.all(blocks.map((block) => this.toUserBlockView(block)));
   }
 
   private postInclude() {
@@ -485,6 +673,32 @@ export class CommunityService {
     } satisfies Prisma.UserFollowInclude;
   }
 
+  private hiddenPostInclude() {
+    return {
+      post: {
+        include: this.postInclude(),
+      },
+    } satisfies Prisma.CommunityHiddenPostInclude;
+  }
+
+  private userBlockInclude() {
+    return {
+      blocked: {
+        select: {
+          id: true,
+          email: true,
+          status: true,
+          profile: {
+            select: {
+              displayName: true,
+              avatarAssetId: true,
+            },
+          },
+        },
+      },
+    } satisfies Prisma.UserBlockInclude;
+  }
+
   private async assertActiveUser(userId: string) {
     const user = await this.prisma.user.findFirst({
       where: {
@@ -522,6 +736,56 @@ export class CommunityService {
           : null,
       },
     };
+  }
+
+  private async toUserBlockView(block: any) {
+    return {
+      id: block.id,
+      status: block.status,
+      reason: block.reason ?? null,
+      blockedAt: block.createdAt,
+      updatedAt: block.updatedAt,
+      user: await this.toCompactUserView(block.blocked),
+    };
+  }
+
+  private async toCompactUserView(user: any) {
+    const avatarAsset = user.profile?.avatarAssetId
+      ? await this.prisma.asset.findUnique({
+          where: { id: user.profile.avatarAssetId },
+          select: { id: true, storageKey: true },
+        })
+      : null;
+
+    return {
+      id: user.id,
+      displayName: user.profile?.displayName ?? user.email?.split('@')[0] ?? 'Lumina User',
+      avatarUrl: avatarAsset
+        ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
+        : null,
+    };
+  }
+
+  private async getBlockedRelationshipUserIds(userId: string) {
+    const rows = await this.prisma.userBlock.findMany({
+      where: {
+        status: 'active',
+        deletedAt: null,
+        OR: [{ blockerUserId: userId }, { blockedUserId: userId }],
+      },
+      select: {
+        blockerUserId: true,
+        blockedUserId: true,
+      },
+    });
+
+    return [
+      ...new Set(
+        rows.map((row) =>
+          row.blockerUserId === userId ? row.blockedUserId : row.blockerUserId,
+        ),
+      ),
+    ];
   }
 
   private async findVisiblePost(postId: string) {

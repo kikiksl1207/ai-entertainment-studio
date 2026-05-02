@@ -213,8 +213,16 @@ Lumina Feed follow endpoints:
 - `GET /api/v1/me/following-artists`
 - `GET /api/v1/me/following-users`
 - `GET /api/v1/me/followers`
+- `GET /api/v1/me/lumina-feed`
+- `POST /api/v1/lumina-feed/posts/:postId/hide`
+- `DELETE /api/v1/lumina-feed/posts/:postId/hide`
+- `GET /api/v1/me/hidden-posts`
+- `POST /api/v1/users/:userId/block`
+- `DELETE /api/v1/users/:userId/block`
+- `GET /api/v1/me/blocked-users`
 
 Normal users are follow targets as well as artists. `GET /api/v1/me/following` returns `{ artists, users }`; the split endpoints are available for screens that only need one list.
+`GET /api/v1/me/lumina-feed` keeps the public feed shape but excludes posts hidden by the current user and posts from active block relationships. Blocking a user also soft-deletes active follows in both directions.
 
 ## Debut Application APIs
 
