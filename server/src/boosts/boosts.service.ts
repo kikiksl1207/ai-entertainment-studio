@@ -3,6 +3,8 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_CURRENCY = 'LUMINA';
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class BoostsService {
@@ -32,11 +34,15 @@ export class BoostsService {
     userId: string,
     input: {
       campaignId: string;
-      artistId: string;
+      artistId?: string;
+      artistSlug?: string;
       idempotencyKey?: string;
     },
   ) {
-    const campaign = await this.getActiveCampaign(input.campaignId);
+    const [campaign, artist] = await Promise.all([
+      this.getActiveCampaign(input.campaignId),
+      this.resolveActiveArtist(input.artistId, input.artistSlug),
+    ]);
 
     return this.prisma.$transaction(async (tx) => {
       if (input.idempotencyKey) {
@@ -68,7 +74,7 @@ export class BoostsService {
         data: {
           campaignId: campaign.id,
           userId,
-          artistId: input.artistId,
+          artistId: artist.id,
           boostType: 'free_like',
           rawAmount: new Decimal(1),
           weightedScore: campaign.freeLikeWeight,
@@ -283,6 +289,39 @@ export class BoostsService {
     }
 
     return campaign;
+  }
+
+  private async resolveActiveArtist(artistId?: string, artistSlug?: string) {
+    const normalizedArtistId = artistId?.trim();
+    const normalizedArtistSlug = artistSlug?.trim();
+
+    if (!normalizedArtistId && !normalizedArtistSlug) {
+      throw new BadRequestException('artistId or artistSlug is required');
+    }
+
+    const artist = await this.prisma.artist.findFirst({
+      where: {
+        status: 'active',
+        OR: [
+          normalizedArtistId && UUID_PATTERN.test(normalizedArtistId)
+            ? { id: normalizedArtistId }
+            : undefined,
+          normalizedArtistSlug ? { slug: normalizedArtistSlug } : undefined,
+          normalizedArtistId ? { slug: normalizedArtistId } : undefined,
+        ].filter(Boolean) as Array<{ id: string } | { slug: string }>,
+      },
+      select: {
+        id: true,
+        slug: true,
+        displayName: true,
+      },
+    });
+
+    if (!artist) {
+      throw new BadRequestException('Active artist not found');
+    }
+
+    return artist;
   }
 
   private startOfToday() {

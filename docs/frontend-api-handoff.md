@@ -278,6 +278,30 @@ GET /chat-feature-products
 GET /artists/:artistId/gift-products
 ```
 
+### Boost Campaign / Free Like
+
+```http
+GET /boost-campaigns/current
+GET /boost-campaigns/:campaignId/rankings
+POST /boost-campaigns/:campaignId/free-like
+```
+
+`POST /boost-campaigns/:campaignId/free-like` requires `Authorization: Bearer <accessToken>`.
+
+Recommended body:
+
+```json
+{ "artistId": "<artist UUID>" }
+```
+
+Compatibility body:
+
+```json
+{ "artistSlug": "yoon-serin" }
+```
+
+The backend also accepts a slug-like `artistId` for current frontend compatibility. After a successful like, refresh rankings with `GET /boost-campaigns/:campaignId/rankings`. Daily free-like limit failures currently return `400 Daily free like limit exceeded`.
+
 ## Notes For Claude
 
 - Do not hardcode local-only URLs in production frontend.

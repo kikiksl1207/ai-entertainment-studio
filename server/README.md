@@ -173,6 +173,8 @@ Boost endpoints:
 - `POST /api/v1/boost-orders`
 - `GET /api/v1/me/boost-events`
 
+`POST /api/v1/boost-campaigns/:campaignId/free-like` accepts `{ "artistId": "<artist uuid>" }`. For frontend compatibility it also accepts `{ "artistSlug": "yoon-serin" }` or a slug-like `artistId`; the backend resolves the active artist before writing `artist_boost_events`. Daily free-like limit failures currently return `400 Daily free like limit exceeded`.
+
 Gift orders and paid boost orders debit `wallet_accounts.cached_balance` and create `wallet_ledger` entries inside the same transaction. Free likes and paid boost events are stored in `artist_boost_events`; rankings read the latest snapshot when present and otherwise aggregate live events.
 
 All user-scoped gift and boost mutation APIs use `Authorization: Bearer <access-token>`. API secrets and payment provider secrets must stay in environment variables only.

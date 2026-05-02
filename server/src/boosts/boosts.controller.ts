@@ -15,6 +15,7 @@ import { BoostsService } from './boosts.service';
 
 type FreeLikeBody = {
   artistId?: string;
+  artistSlug?: string;
   idempotencyKey?: string;
 };
 
@@ -49,7 +50,8 @@ export class BoostsController {
   ) {
     return this.boostsService.createFreeLike(user.id, {
       campaignId,
-      artistId: this.requireField(body?.artistId, 'artistId'),
+      artistId: body?.artistId,
+      artistSlug: body?.artistSlug,
       idempotencyKey: body?.idempotencyKey ?? idempotencyKeyHeader,
     });
   }
