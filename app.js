@@ -2902,10 +2902,8 @@ function initGallerySlider(items, artistName) {
     "border-radius:14px",
     "background:#16122a",
     "width:100%",
-    "flex:0 0 auto",
-    "height:min(560px, calc(100vh - 210px))",
-    "max-height:560px",
-    "min-height:420px",
+    "flex:1",
+    "min-height:0",
     // 스크롤바 숨기기
     "scrollbar-width:none",
     "-ms-overflow-style:none"
@@ -2937,7 +2935,12 @@ function initGallerySlider(items, artistName) {
       img.alt     = item.caption || "";
       img.loading = "eager";
       img.style.cssText = "width:100%;height:100%;object-fit:cover;object-position:center top;display:block;transition:transform 260ms ease;";
-      img.onerror = () => { cell.style.display = "none"; };
+      img.onerror = () => {
+        if (!img.dataset.retried) {
+          img.dataset.retried = "1";
+          img.src = item.src + (item.src.includes("?") ? "&" : "?") + "retry=1";
+        }
+      };
       img.addEventListener("mouseover",  () => { img.style.transform = "scale(1.05)"; });
       img.addEventListener("mouseout",   () => { img.style.transform = "scale(1)";    });
 
