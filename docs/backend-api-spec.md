@@ -454,3 +454,37 @@ POST /admin/api/v1/unlock-campaigns/:unlockCampaignId/rewards
 7. Premium video unlock
 8. Chat session and paid chat feature order
 9. Admin APIs
+## 2026-05-02 Popular Vote / Debut Addendum
+
+The `인기투표실` frontend decision is split into three tabs:
+
+- `Main Pick`: current month first-place view.
+- `Debut Race`: ongoing vote room, backed by boost campaign rankings for now.
+- `Hall of Fame`: yearly champion and monthly pick archive.
+
+Public endpoints:
+
+```http
+GET /api/v1/popular-vote/main-pick
+GET /api/v1/popular-vote/hall-of-fame/monthly-picks?year=2026
+GET /api/v1/popular-vote/hall-of-fame/year-champion?year=2026
+```
+
+Admin operation endpoint:
+
+```http
+POST /admin/api/v1/popular-vote/monthly-picks/finalize
+```
+
+`monthly_pick_winners` stores the finalized monthly winner. Year Champion currently follows option A from Notion: annual weighted score sum.
+
+Debut application endpoints:
+
+```http
+POST /api/v1/debut/applications
+GET /api/v1/me/debut-applications
+GET /admin/api/v1/debut/applications?status=submitted&take=50
+PATCH /admin/api/v1/debut/applications/:applicationId
+```
+
+`debut_applications` stores an operations-review application only. Sensitive identity documents and final contracts must use a later secure upload/contract process, not chat, Notion, or Git.

@@ -35,6 +35,7 @@ model User {
   sentUserGifts     UserGiftTransfer[]       @relation("UserGiftSender")
   receivedUserGifts UserGiftTransfer[]       @relation("UserGiftRecipient")
   actionTokens      UserActionToken[]
+  debutApplications DebutApplication[]
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -161,6 +162,7 @@ model Artist {
   equippedItems     ArtistEquippedItem[]
   boostEvents       ArtistBoostEvent[]
   rankingScores     ArtistRankingSnapshot[]
+  monthlyPickWins   MonthlyPickWinner[]
   premiumVideos     PremiumVideoProduct[]
   chatPersonas      ChatPersona[]
   chatSessions      ChatSession[]
@@ -552,6 +554,7 @@ model BoostCampaign {
   updatedAt          DateTime                @default(now()) @map("updated_at") @db.Timestamptz(6)
   events             ArtistBoostEvent[]
   snapshots          ArtistRankingSnapshot[]
+  monthlyPickWinners MonthlyPickWinner[]
 
   @@index([status, startsAt, endsAt], map: "idx_boost_campaigns_status_dates")
   @@map("boost_campaigns")
@@ -611,6 +614,57 @@ model ArtistRankingSnapshot {
   @@unique([campaignId, snapshotAt, artistId])
   @@index([campaignId, snapshotAt, rankNo], map: "idx_ranking_snapshots_campaign_rank")
   @@map("artist_ranking_snapshots")
+}
+
+model MonthlyPickWinner {
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId         String        @map("campaign_id") @db.Uuid
+  artistId           String        @map("artist_id") @db.Uuid
+  year               Int
+  month              Int
+  rankNo             Int           @default(1) @map("rank_no")
+  totalFreeLikes     Decimal       @default(0) @map("total_free_likes") @db.Decimal(18, 2)
+  totalLuminaBoosts  Decimal       @default(0) @map("total_lumina_boosts") @db.Decimal(18, 2)
+  totalWeightedScore Decimal       @default(0) @map("total_weighted_score") @db.Decimal(18, 4)
+  decidedAt          DateTime      @default(now()) @map("decided_at") @db.Timestamptz(6)
+  metadata           Json          @default("{}")
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  campaign           BoostCampaign @relation(fields: [campaignId], references: [id])
+  artist             Artist        @relation(fields: [artistId], references: [id])
+
+  @@unique([year, month])
+  @@index([artistId, year], map: "idx_monthly_pick_winners_artist_year")
+  @@map("monthly_pick_winners")
+}
+
+model DebutApplication {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String   @map("user_id") @db.Uuid
+  status               String   @default("submitted")
+  applicantName        String   @map("applicant_name")
+  displayName          String?  @map("display_name")
+  contactEmail         String   @map("contact_email")
+  contactPhone         String?  @map("contact_phone")
+  isAdult              Boolean  @map("is_adult")
+  participationType    String   @map("participation_type")
+  shareTierRequested   Int?     @map("share_tier_requested")
+  shareTierApproved    Int?     @map("share_tier_approved")
+  intro                String
+  portfolioUrl         String?  @map("portfolio_url")
+  consentAppearance    Boolean  @default(false) @map("consent_appearance")
+  consentVoice         Boolean  @default(false) @map("consent_voice")
+  consentRevenuePolicy Boolean  @default(false) @map("consent_revenue_policy")
+  consentPrivacy       Boolean  @default(false) @map("consent_privacy")
+  reviewNote           String?  @map("review_note")
+  metadata             Json     @default("{}")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user                 User     @relation(fields: [userId], references: [id])
+
+  @@index([status, createdAt], map: "idx_debut_applications_status_created")
+  @@index([userId, createdAt], map: "idx_debut_applications_user_created")
+  @@map("debut_applications")
 }
 
 model PremiumVideoProduct {

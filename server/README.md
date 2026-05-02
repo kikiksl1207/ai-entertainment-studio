@@ -169,6 +169,9 @@ Boost endpoints:
 - `GET /api/v1/boost-campaigns/current`
 - `GET /api/v1/boost-campaigns/:campaignId/rankings`
 - `POST /api/v1/boost-campaigns/:campaignId/free-like`
+- `GET /api/v1/popular-vote/main-pick`
+- `GET /api/v1/popular-vote/hall-of-fame/monthly-picks?year=2026`
+- `GET /api/v1/popular-vote/hall-of-fame/year-champion?year=2026`
 - `GET /api/v1/boost-products`
 - `POST /api/v1/boost-orders`
 - `GET /api/v1/me/boost-events`
@@ -177,7 +180,23 @@ Boost endpoints:
 
 Gift orders and paid boost orders debit `wallet_accounts.cached_balance` and create `wallet_ledger` entries inside the same transaction. Free likes and paid boost events are stored in `artist_boost_events`; rankings read the latest snapshot when present and otherwise aggregate live events.
 
+Popular vote room APIs map to the 3-tab frontend decision: Main Pick uses the current boost campaign and rankings, Hall of Fame reads finalized `monthly_pick_winners`, and Year Champion uses the draft rule `annual_weighted_score_sum`. Monthly winners are finalized manually through `POST /admin/api/v1/popular-vote/monthly-picks/finalize`; this can later move to a scheduled job after monthly operations are stable.
+
 All user-scoped gift and boost mutation APIs use `Authorization: Bearer <access-token>`. API secrets and payment provider secrets must stay in environment variables only.
+
+## Debut Application APIs
+
+User endpoints:
+
+- `POST /api/v1/debut/applications`
+- `GET /api/v1/me/debut-applications`
+
+Admin endpoints:
+
+- `GET /admin/api/v1/debut/applications?status=submitted&take=50`
+- `PATCH /admin/api/v1/debut/applications/:applicationId`
+
+`POST /api/v1/debut/applications` requires login and stores an operations-review application, not a final contract. Supported `participationType` values are `appearance_only`, `voice_or_song`, `performance`, and `co_creator`; requested/approved revenue share percentages are capped at 70. Required consent flags are `consentAppearance`, `consentRevenuePolicy`, and `consentPrivacy`. Real identity documents, signed contracts, API keys, and other sensitive files must not be committed or pasted into chat/Notion.
 
 ## Premium Video And Chat MVP APIs
 
@@ -270,6 +289,9 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `POST /admin/api/v1/boost-campaigns`
 - `PATCH /admin/api/v1/boost-campaigns/:campaignId`
 - `POST /admin/api/v1/boost-campaigns/:campaignId/snapshot`
+- `POST /admin/api/v1/popular-vote/monthly-picks/finalize`
+- `GET /admin/api/v1/debut/applications?status=submitted&take=50`
+- `PATCH /admin/api/v1/debut/applications/:applicationId`
 - `POST /admin/api/v1/premium-video-products`
 - `PATCH /admin/api/v1/premium-video-products/:productId`
 - `POST /admin/api/v1/premium-video-products/:productId/assets`

@@ -302,6 +302,70 @@ Compatibility body:
 
 The backend also accepts a slug-like `artistId` for current frontend compatibility. After a successful like, refresh rankings with `GET /boost-campaigns/:campaignId/rankings`. Daily free-like limit failures currently return `400 Daily free like limit exceeded`.
 
+### Popular Vote Room
+
+For the new `인기투표실` page:
+
+```http
+GET /popular-vote/main-pick
+GET /popular-vote/hall-of-fame/monthly-picks?year=2026
+GET /popular-vote/hall-of-fame/year-champion?year=2026
+```
+
+`GET /popular-vote/main-pick` returns:
+
+```json
+{
+  "campaign": {},
+  "leader": {},
+  "rankings": []
+}
+```
+
+Use this for the `Main Pick / 이달의 1위` tab. `leader` is the first ranking row, or `null` when there is no active campaign or no votes yet.
+
+`GET /popular-vote/hall-of-fame/monthly-picks` returns monthly winner records from `monthly_pick_winners`. The backend finalizes these through admin operation after a month closes.
+
+`GET /popular-vote/hall-of-fame/year-champion` uses the current draft rule: annual total weighted score sum. The response shape is `{ year, champion, rankings, rule: "annual_weighted_score_sum" }`.
+
+### Debut Applications
+
+`데뷔하기` form submission requires login.
+
+```http
+POST /debut/applications
+GET /me/debut-applications
+```
+
+Body:
+
+```json
+{
+  "applicantName": "Applicant legal/name for review",
+  "displayName": "Optional public stage/name idea",
+  "contactEmail": "user@example.com",
+  "contactPhone": "010-0000-0000",
+  "isAdult": true,
+  "participationType": "appearance_only",
+  "shareTierRequested": 30,
+  "intro": "Short motivation and concept note",
+  "portfolioUrl": "https://example.com/portfolio",
+  "consentAppearance": true,
+  "consentVoice": false,
+  "consentRevenuePolicy": true,
+  "consentPrivacy": true
+}
+```
+
+Allowed `participationType` values:
+
+- `appearance_only`: appearance/image rights only, draft share range 20-30%.
+- `voice_or_song`: appearance plus voice or song, draft share range 30-45%.
+- `performance`: appearance plus singing/dance/acting performance, draft share range 45-60%.
+- `co_creator`: ongoing planning/content/fandom participation, up to 70%.
+
+Required consents: `consentAppearance`, `consentRevenuePolicy`, `consentPrivacy`. Keep real IDs, contracts, and sensitive files outside Notion/Git/chat until the final secure upload/contract process is defined.
+
 ## Notes For Claude
 
 - Do not hardcode local-only URLs in production frontend.
