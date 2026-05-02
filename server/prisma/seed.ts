@@ -313,6 +313,7 @@ const galleryDirsBySlug = {
   'han-seoyul': ['.'],
   'park-doa': ['reference-final'],
   'seo-yuan': ['.'],
+  'choi-seojin': ['.'],
   'cha-dohyun': ['.'],
 } as const;
 
