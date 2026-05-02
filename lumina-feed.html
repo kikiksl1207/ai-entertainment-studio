@@ -66,6 +66,58 @@
             </div>
           </header>
 
+          <!-- ── 작성창 (#056) — 로그인 시만 JS가 hidden 풀어줌
+               이미지 최대 4장 첨부, 차모 #054/#055 API 활용
+               비로그인 시: 로그인 유도 카드로 대체 -->
+          <section class="feed-compose" id="feedCompose" hidden aria-label="피드 작성">
+            <div class="feed-compose-row">
+              <div class="feed-compose-avatar" id="feedComposeAvatar">
+                <span class="feed-compose-avatar-fallback">?</span>
+              </div>
+              <div class="feed-compose-body">
+                <textarea
+                  id="feedComposeText"
+                  class="feed-compose-text"
+                  rows="2"
+                  maxlength="2000"
+                  placeholder="지금 떠오른 응원을 남겨보세요."
+                  aria-label="피드 내용"></textarea>
+                <div class="feed-compose-thumbs" id="feedComposeThumbs" hidden></div>
+                <div class="feed-compose-actions">
+                  <label class="feed-compose-attach-btn" title="이미지 첨부 (최대 4장)">
+                    <input
+                      type="file"
+                      id="feedComposeFile"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      multiple
+                      hidden />
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                      <path d="M5 4h14v16H5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                      <circle cx="9" cy="10" r="1.6" fill="currentColor"/>
+                      <path d="M5 17l5-5 4 4 3-3 2 2v5H5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                    </svg>
+                    <span>이미지</span>
+                  </label>
+                  <span class="feed-compose-counter" id="feedComposeCounter">0 / 2000</span>
+                  <button
+                    class="feed-compose-submit"
+                    type="button"
+                    id="feedComposeSubmit"
+                    disabled>
+                    게시하기
+                  </button>
+                </div>
+                <p class="feed-compose-message" id="feedComposeMessage" hidden></p>
+              </div>
+            </div>
+          </section>
+
+          <!-- 비로그인 시 안내 카드 -->
+          <section class="feed-compose-guest" id="feedComposeGuest" hidden>
+            <p>로그인하면 응원과 후기를 직접 남길 수 있어요.</p>
+            <a class="feed-compose-guest-cta" href="#" data-action="login">로그인하기</a>
+          </section>
+
           <div class="feed-list" id="luminaFeedList" aria-live="polite"></div>
         </div>
       </section>

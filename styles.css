@@ -4297,6 +4297,33 @@ p {
   background: rgba(255, 20, 147, 0.1);
 }
 
+/* #047: 한도 초과 옵션 비활성 표시 */
+.paid-like-option.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: rgba(159, 139, 199, 0.12);
+}
+.paid-like-option.is-disabled:hover {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+/* #047: 일일 잔여 한도 안내 */
+.paid-like-quota-notice {
+  margin: 12px 0 6px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 20, 147, 0.08);
+  border: 1px solid rgba(255, 20, 147, 0.2);
+  color: rgba(255, 200, 225, 0.95);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.paid-like-quota-notice strong {
+  color: #ff7eb9;
+  font-weight: 800;
+}
+
 .paid-like-option strong {
   display: block;
   color: var(--ink);
@@ -5262,6 +5289,284 @@ p {
 }
 .feed-delete-btn:hover:not(:disabled) {
   color: #ffb3c2;
+}
+
+/* ══════════════════════════════════════════════
+   #056 — 루미나 피드 작성창 + 이미지 그리드 (2026-05-03)
+   ══════════════════════════════════════════════ */
+
+.feed-compose {
+  margin: 8px 0 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(159, 139, 199, 0.07), rgba(159, 139, 199, 0.025));
+  border: 1px solid rgba(159, 139, 199, 0.2);
+}
+.feed-compose-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 12px;
+  align-items: flex-start;
+}
+.feed-compose-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #ff1493, #9f8bc7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.feed-compose-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.feed-compose-avatar-fallback {
+  color: #fff;
+  font-weight: 800;
+  font-size: 16px;
+}
+.feed-compose-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.feed-compose-text {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  background: transparent;
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.feed-compose-text:focus {
+  border-color: rgba(255, 20, 147, 0.4);
+  background: rgba(0, 0, 0, 0.18);
+}
+.feed-compose-text::placeholder {
+  color: rgba(220, 210, 240, 0.4);
+}
+
+/* 첨부 이미지 썸네일 (작성창 내부) */
+.feed-compose-thumbs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.feed-compose-thumb {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(159, 139, 199, 0.25);
+}
+.feed-compose-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.feed-compose-thumb-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.feed-compose-thumb-remove:hover {
+  background: rgba(255, 20, 147, 0.85);
+}
+
+.feed-compose-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.feed-compose-attach-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid rgba(255, 20, 147, 0.35);
+  color: #ff7eb9;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.feed-compose-attach-btn:hover {
+  background: rgba(255, 20, 147, 0.08);
+  color: #ff1493;
+  border-color: rgba(255, 20, 147, 0.55);
+}
+.feed-compose-counter {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: -0.01em;
+}
+.feed-compose-submit {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: none;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #fff;
+  background: linear-gradient(135deg, #ff1493 0%, #9f8bc7 100%);
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.feed-compose-submit:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+.feed-compose-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.feed-compose-message {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+}
+.feed-compose-message[data-kind="warn"] {
+  background: rgba(255, 180, 80, 0.1);
+  border: 1px solid rgba(255, 180, 80, 0.28);
+  color: #ffc97a;
+}
+.feed-compose-message[data-kind="success"] {
+  background: rgba(159, 139, 199, 0.12);
+  border: 1px solid rgba(159, 139, 199, 0.3);
+  color: #c8a6ff;
+}
+.feed-compose-message[data-kind="info"] {
+  background: rgba(159, 139, 199, 0.08);
+  color: var(--muted);
+}
+
+/* 비로그인 시 안내 */
+.feed-compose-guest {
+  margin: 8px 0 16px;
+  padding: 16px 18px;
+  text-align: center;
+  border-radius: 14px;
+  background: rgba(159, 139, 199, 0.06);
+  border: 1px dashed rgba(159, 139, 199, 0.28);
+}
+.feed-compose-guest p {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.feed-compose-guest-cta {
+  display: inline-block;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ff1493 0%, #9f8bc7 100%);
+  color: #fff !important;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* 카드 안 이미지 그리드 (post.assets[]) */
+.feed-post-assets {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 12px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.feed-post-assets-1 {
+  grid-template-columns: 1fr;
+}
+.feed-post-assets-2 {
+  grid-template-columns: 1fr 1fr;
+}
+.feed-post-assets-3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.feed-post-assets-3 .feed-post-asset-item:first-child {
+  grid-row: 1 / span 2;
+}
+.feed-post-assets-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.feed-post-asset-item {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: #16122a;
+  aspect-ratio: 1 / 1;
+}
+.feed-post-assets-1 .feed-post-asset-item {
+  aspect-ratio: 4 / 3;
+  max-height: 480px;
+}
+.feed-post-asset-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.25s;
+}
+.feed-post-asset-item:hover img {
+  transform: scale(1.02);
+}
+
+@media (max-width: 640px) {
+  .feed-compose {
+    padding: 12px 12px;
+  }
+  .feed-compose-row {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .feed-compose-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  .feed-compose-thumb {
+    width: 60px;
+    height: 60px;
+  }
+  .feed-compose-counter {
+    font-size: 11px;
+  }
+  .feed-compose-submit {
+    padding: 7px 14px;
+    font-size: 12.5px;
+  }
 }
 
 .debut-card-image {

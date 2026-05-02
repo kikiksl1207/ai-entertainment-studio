@@ -875,16 +875,31 @@ async function handleLike(slug, btnEl) {
 }
 
 const PAID_LIKE_BUNDLES = [
+  { quantity: 1, lumina: 10, krw: 100, label: "1개 · 10L (100원)" },
   { quantity: 5, lumina: 50, krw: 500, label: "5개 · 50L (500원)" },
   { quantity: 10, lumina: 90, krw: 900, label: "10개 · 90L (900원)", recommended: true },
-  { quantity: 30, lumina: 250, krw: 2500, label: "30개 · 250L (2,500원)" }
+  { quantity: 20, lumina: 200, krw: 2000, label: "20개 · 200L (2,000원)" }
 ];
+// MVP 정책 (#047): 유료 좋아요 하루 최대 20개. 30개 옵션은 MVP 미사용.
 
 function getPaidLikeBalance() {
   return _wallet?.balance ?? _wallet?.lumina?.balance ?? _wallet?.cachedBalance ?? 0;
 }
 
-function openPaidLikeModal(slug) {
+/* 유료 좋아요 잔여 한도 조회 (#047 — 차모 백엔드 35e62ec).
+   응답: { dailyLimit: 20, usedToday: 0, remaining: 20, resetsAt, unitPriceLumina: 10 } */
+async function loadPaidLikeQuota() {
+  if (!isLoggedIn()) return null;
+  try {
+    const data = await apiFetch("/api/v1/me/paid-like-quota");
+    return data || null;
+  } catch (err) {
+    console.warn("[Lumina] /me/paid-like-quota 실패:", err);
+    return null;
+  }
+}
+
+async function openPaidLikeModal(slug) {
   if (!_currentCampaign?.id) {
     alert("현재 진행 중인 좋아요 캠페인이 없습니다.");
     return;
@@ -895,6 +910,19 @@ function openPaidLikeModal(slug) {
   }
   const artist = getCharacterBySlug(slug) || _artists.find(a => a.slug === slug);
   const balance = getPaidLikeBalance();
+
+  // #047: 일일 잔여 한도 조회 (실패해도 모달 열 수 있게 fallback)
+  const quota = await loadPaidLikeQuota();
+  const dailyLimit = quota?.dailyLimit ?? 20;
+  const remaining = quota?.remaining ?? dailyLimit;
+
+  // 잔여 0이면 모달 안 띄우고 안내
+  if (remaining <= 0) {
+    alert(`오늘 보낼 수 있는 추가 응원을 모두 사용했어요. (하루 최대 ${dailyLimit}개)\n내일 다시 응원할 수 있어요.`);
+    return;
+  }
+
+  // remaining 초과 옵션은 비활성화 표시
   const overlay = document.createElement("div");
   overlay.className = "paid-like-modal-overlay is-open";
   overlay.innerHTML = `
@@ -909,16 +937,23 @@ function openPaidLikeModal(slug) {
         <span>현재 보유 루미나</span>
         <strong>${formatMypageNumber ? formatMypageNumber(balance) : Number(balance || 0).toLocaleString("ko-KR")}L</strong>
       </div>
+      <div class="paid-like-quota-notice">
+        오늘 보낼 수 있는 추가 응원 <strong>${remaining}개</strong> · 하루 최대 ${dailyLimit}개
+      </div>
       <div class="paid-like-options">
-        ${PAID_LIKE_BUNDLES.map((bundle, index) => `
-          <label class="paid-like-option${index === 1 ? " is-selected" : ""}">
-            <input type="radio" name="paidLikeBundle" value="${bundle.quantity}" ${index === 1 ? "checked" : ""} />
+        ${PAID_LIKE_BUNDLES.map((bundle) => {
+          const overLimit = bundle.quantity > remaining;
+          // 기본 선택은 remaining 이내에서 가장 큰 번들 (또는 1개)
+          const isSelected = !overLimit && bundle.quantity === Math.min(remaining, bundle.recommended ? bundle.quantity : 1) && bundle.recommended;
+          return `
+          <label class="paid-like-option${overLimit ? " is-disabled" : ""}${isSelected ? " is-selected" : ""}">
+            <input type="radio" name="paidLikeBundle" value="${bundle.quantity}" ${isSelected ? "checked" : ""} ${overLimit ? "disabled" : ""} />
             <span>
               <strong>${bundle.label}</strong>
-              <small>${bundle.recommended ? "추천 번들" : "추가 응원 번들"}</small>
+              <small>${overLimit ? `오늘 잔여 한도 초과` : (bundle.recommended ? "추천 번들" : "추가 응원 번들")}</small>
             </span>
           </label>
-        `).join("")}
+        `;}).join("")}
       </div>
       <p class="paid-like-message" data-paid-like-message hidden></p>
       <div class="paid-like-actions">
@@ -927,6 +962,18 @@ function openPaidLikeModal(slug) {
       </div>
     </div>
   `;
+
+  // 기본 선택 — 위 로직으로 추천 번들이 한도 초과면 가장 큰 가능한 번들로
+  const ensureSelection = () => {
+    const checked = overlay.querySelector("[name='paidLikeBundle']:checked");
+    if (checked) return;
+    // 첫 번째 not-disabled 라디오 선택
+    const firstOk = overlay.querySelector("[name='paidLikeBundle']:not([disabled])");
+    if (firstOk) {
+      firstOk.checked = true;
+      firstOk.closest(".paid-like-option")?.classList.add("is-selected");
+    }
+  };
 
   const close = () => {
     overlay.remove();
@@ -942,7 +989,7 @@ function openPaidLikeModal(slug) {
   overlay.addEventListener("click", event => {
     if (event.target === overlay || event.target.closest(".paid-like-close") || event.target.closest("[data-paid-like-cancel]")) close();
     const option = event.target.closest(".paid-like-option");
-    if (option) {
+    if (option && !option.classList.contains("is-disabled")) {
       overlay.querySelectorAll(".paid-like-option").forEach(item => item.classList.toggle("is-selected", item === option));
     }
   });
@@ -953,6 +1000,10 @@ function openPaidLikeModal(slug) {
     const currentBalance = getPaidLikeBalance();
     if (currentBalance < selectedBundle.lumina) {
       setMessage(`루미나가 부족해요. 좋아요 ${selectedBundle.quantity}개를 전달하려면 ${selectedBundle.lumina}L이 필요해요.`);
+      return;
+    }
+    if (selectedBundle.quantity > remaining) {
+      setMessage(`오늘 보낼 수 있는 추가 응원: ${remaining}개. 더 작은 번들을 선택해주세요.`);
       return;
     }
 
@@ -976,12 +1027,21 @@ function openPaidLikeModal(slug) {
       if (_wallet?.loaded) _wallet.balance = Math.max(0, Number(_wallet.balance || 0) - selectedBundle.lumina);
       updateLikeButtons(slug);
       loadWallet?.();
+      // #047: 좋아요 후 free quota + paid quota 둘 다 재조회 (랭킹은 그 안에서)
       loadFreeLikeQuota().then(updateHeroQuotaDisplay);
+      loadPaidLikeQuota();
       alert(`좋아요 ${selectedBundle.quantity}개가 전달되었어요.`);
       close();
     } catch (err) {
       const msg = err.body?.message || err.message || "";
-      setMessage(msg || "응원을 전달하지 못했어요. 잠시 후 다시 시도해주세요.");
+      // #047: 한도 초과 응답 사용자 문구로 변환
+      if (/Daily paid like limit exceeded/i.test(msg)) {
+        setMessage(`오늘 보낼 수 있는 추가 응원을 모두 사용했어요. 하루 최대 ${dailyLimit}개까지 응원할 수 있어요.`);
+      } else if (/insufficient.*balance/i.test(msg)) {
+        setMessage("루미나 잔액이 부족해요. 충전 후 다시 시도해주세요.");
+      } else {
+        setMessage(msg || "응원을 전달하지 못했어요. 잠시 후 다시 시도해주세요.");
+      }
       button.disabled = false;
       button.textContent = "응원하기";
     }
@@ -989,6 +1049,7 @@ function openPaidLikeModal(slug) {
 
   document.body.appendChild(overlay);
   document.body.style.overflow = "hidden";
+  ensureSelection();
 }
 
 function updateLikeButtons(slug) {
@@ -1048,6 +1109,10 @@ function updateAuthUI() {
   }
   // 드롭다운 닫기 (UI 갱신 시)
   closeUserMenu();
+  // #056: 피드 페이지에서 로그인 상태 변화 시 작성창 동기화
+  if (typeof initFeedCompose === "function" && document.getElementById("feedCompose")) {
+    initFeedCompose();
+  }
 }
 
 function ensureWalletBadgeInHeader(loginBtn) {
@@ -2124,6 +2189,7 @@ function renderLuminaFeed() {
         </header>
         <p class="feed-post-body">${feedEscapeHtml(post.body)}</p>
         <button class="feed-post-expand-btn" type="button" aria-expanded="false">더 보기</button>
+        ${renderFeedPostAssets(post.assets)}
         <footer class="feed-post-actions">
           <button class="feed-action-btn" type="button" disabled aria-label="좋아요">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
@@ -2217,6 +2283,291 @@ function bindLuminaFeedExpand() {
     btn.textContent = isExpanded ? "접기" : "더 보기";
     btn.setAttribute("aria-expanded", isExpanded ? "true" : "false");
   });
+}
+
+/* ══════════════════════════════════════════════
+   #056 — 루미나 피드 이미지 첨부 / 작성창
+   - 차모 #054 (community_post_assets) + #055 (사용자 upload-intent) 연동
+   - 흐름: upload-intents → 파일 PUT → confirm-upload → assetIds로 작성
+   - MVP 정책: 이미지 최대 4장
+   ══════════════════════════════════════════════ */
+
+const FEED_COMPOSE_MAX_IMAGES = 4;
+const FEED_COMPOSE_MAX_BODY = 2000;
+const FEED_ALLOWED_IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+// 작성창 상태 — 첨부 이미지 (assetId 확정된 것만 추적)
+let _feedComposeAssets = []; // [{ assetId, previewUrl, fileName, mimeType }]
+let _feedComposeUploading = false;
+
+/* 카드의 이미지 그리드 렌더 (post.assets[].asset.url 기반) */
+function renderFeedPostAssets(assets) {
+  if (!Array.isArray(assets) || assets.length === 0) return "";
+  const items = assets
+    .filter(a => a?.asset?.url)
+    .slice(0, FEED_COMPOSE_MAX_IMAGES);
+  if (items.length === 0) return "";
+  const gridClass = `feed-post-assets feed-post-assets-${items.length}`;
+  return `
+    <div class="${gridClass}">
+      ${items.map(a => {
+        const src = feedEscapeHtml(a.asset.thumbnailUrl || a.asset.url);
+        const full = feedEscapeHtml(a.asset.url);
+        return `<a class="feed-post-asset-item" href="${full}" target="_blank" rel="noopener noreferrer" data-feed-asset>
+          <img src="${src}" alt="" loading="lazy" />
+        </a>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+/* 작성창 전체 초기화 — 페이지 진입 시 1회 + 로그인 상태 변화 시 호출 */
+function initFeedCompose() {
+  const composeRoot = document.getElementById("feedCompose");
+  const guestRoot = document.getElementById("feedComposeGuest");
+  if (!composeRoot && !guestRoot) return; // 피드 페이지가 아님
+
+  const loggedIn = isLoggedIn();
+  if (composeRoot) composeRoot.hidden = !loggedIn;
+  if (guestRoot) guestRoot.hidden = loggedIn;
+
+  if (loggedIn) {
+    syncFeedComposeAvatar();
+    bindFeedComposeOnce();
+  } else {
+    // 비로그인 카드의 로그인 CTA
+    if (guestRoot && !guestRoot._bound) {
+      guestRoot._bound = true;
+      guestRoot.querySelector('[data-action="login"]')?.addEventListener("click", e => {
+        e.preventDefault();
+        openAuthModal?.("login");
+      });
+    }
+  }
+}
+
+function syncFeedComposeAvatar() {
+  const avatarRoot = document.getElementById("feedComposeAvatar");
+  if (!avatarRoot) return;
+  const auth = getAuth?.();
+  const user = auth?.user || {};
+  const name = user.displayName || user.email?.split("@")[0] || "?";
+  const initial = name.charAt(0);
+  const avatarUrl = user.avatarUrl || user.avatarAsset?.url || "";
+  if (avatarUrl) {
+    avatarRoot.innerHTML = `<img src="${feedEscapeHtml(avatarUrl)}" alt="${feedEscapeHtml(name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="feed-compose-avatar-fallback" style="display:none;">${feedEscapeHtml(initial)}</span>`;
+  } else {
+    avatarRoot.innerHTML = `<span class="feed-compose-avatar-fallback">${feedEscapeHtml(initial)}</span>`;
+  }
+}
+
+function bindFeedComposeOnce() {
+  const composeRoot = document.getElementById("feedCompose");
+  if (!composeRoot || composeRoot._bound) return;
+  composeRoot._bound = true;
+
+  const textarea = document.getElementById("feedComposeText");
+  const counter = document.getElementById("feedComposeCounter");
+  const submitBtn = document.getElementById("feedComposeSubmit");
+  const fileInput = document.getElementById("feedComposeFile");
+
+  // 글자수 + 제출 가능 여부
+  const updateState = () => {
+    const len = textarea.value.length;
+    if (counter) counter.textContent = `${len} / ${FEED_COMPOSE_MAX_BODY}`;
+    const hasContent = textarea.value.trim().length > 0 || _feedComposeAssets.length > 0;
+    if (submitBtn) submitBtn.disabled = !hasContent || _feedComposeUploading;
+  };
+
+  textarea?.addEventListener("input", updateState);
+
+  // 파일 선택 → 업로드
+  fileInput?.addEventListener("change", async e => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = ""; // 같은 파일 다시 선택 가능하게
+    if (files.length === 0) return;
+
+    const remaining = FEED_COMPOSE_MAX_IMAGES - _feedComposeAssets.length;
+    if (remaining <= 0) {
+      setFeedComposeMessage(`이미지는 최대 ${FEED_COMPOSE_MAX_IMAGES}장까지 첨부할 수 있어요.`, "warn");
+      return;
+    }
+    const accepted = files.slice(0, remaining);
+    if (files.length > accepted.length) {
+      setFeedComposeMessage(`이미지는 최대 ${FEED_COMPOSE_MAX_IMAGES}장까지 첨부할 수 있어요. ${accepted.length}장만 추가했어요.`, "warn");
+    }
+
+    for (const file of accepted) {
+      if (!FEED_ALLOWED_IMAGE_MIMES.includes(file.type)) {
+        setFeedComposeMessage("JPG, PNG, WEBP, GIF 파일만 첨부할 수 있어요.", "warn");
+        continue;
+      }
+      await uploadFeedComposeImage(file);
+    }
+    updateState();
+  });
+
+  // 제출
+  submitBtn?.addEventListener("click", async () => {
+    if (submitBtn.disabled) return;
+    const body = (textarea?.value || "").trim();
+    if (!body && _feedComposeAssets.length === 0) {
+      setFeedComposeMessage("내용 또는 이미지를 추가해주세요.", "warn");
+      return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = "게시 중";
+    try {
+      const payload = { body };
+      if (_feedComposeAssets.length > 0) {
+        payload.assetIds = _feedComposeAssets.map(a => a.assetId);
+      }
+      await apiFetch("/api/v1/lumina-feed/posts", {
+        method: "POST",
+        auth: true,
+        throwOnError: true,
+        body: payload
+      });
+      // 성공 → 작성창 초기화 + 피드 새로고침
+      textarea.value = "";
+      _feedComposeAssets = [];
+      renderFeedComposeThumbs();
+      setFeedComposeMessage("피드에 올라갔어요.", "success");
+      updateState();
+      // 피드 다시 로드
+      await loadLuminaFeedData(_luminaFeedFilter || "all");
+      renderLuminaFeed();
+    } catch (err) {
+      const msg = err?.body?.message || err?.message || "";
+      let userMsg = "게시하지 못했어요. 잠시 후 다시 시도해주세요.";
+      if (/Policy violation|forbidden|too long|too short/i.test(msg)) {
+        userMsg = "정책에 맞지 않는 내용이 포함되어 있어요. 표현을 수정해 주세요.";
+      } else if (err?.status === 401) {
+        userMsg = "로그인이 만료됐어요. 다시 로그인해주세요.";
+      }
+      setFeedComposeMessage(userMsg, "warn");
+    } finally {
+      submitBtn.textContent = "게시하기";
+      updateState();
+    }
+  });
+
+  // 썸네일 영역 — 제거 버튼 위임
+  const thumbs = document.getElementById("feedComposeThumbs");
+  thumbs?.addEventListener("click", e => {
+    const removeBtn = e.target.closest("[data-feed-thumb-remove]");
+    if (!removeBtn) return;
+    const idx = Number(removeBtn.dataset.feedThumbRemove);
+    if (Number.isInteger(idx) && idx >= 0 && idx < _feedComposeAssets.length) {
+      _feedComposeAssets.splice(idx, 1);
+      renderFeedComposeThumbs();
+      updateState();
+    }
+  });
+
+  updateState();
+}
+
+function setFeedComposeMessage(text, kind) {
+  const el = document.getElementById("feedComposeMessage");
+  if (!el) return;
+  if (!text) { el.hidden = true; el.textContent = ""; return; }
+  el.hidden = false;
+  el.textContent = text;
+  el.dataset.kind = kind || "info";
+  // success는 잠시 후 자동 숨김
+  if (kind === "success") {
+    setTimeout(() => {
+      if (el.dataset.kind === "success") { el.hidden = true; el.textContent = ""; }
+    }, 2400);
+  }
+}
+
+function renderFeedComposeThumbs() {
+  const thumbs = document.getElementById("feedComposeThumbs");
+  if (!thumbs) return;
+  if (_feedComposeAssets.length === 0) {
+    thumbs.hidden = true;
+    thumbs.innerHTML = "";
+    return;
+  }
+  thumbs.hidden = false;
+  thumbs.innerHTML = _feedComposeAssets.map((asset, idx) => `
+    <div class="feed-compose-thumb">
+      <img src="${feedEscapeHtml(asset.previewUrl)}" alt="" />
+      <button type="button" class="feed-compose-thumb-remove" data-feed-thumb-remove="${idx}" aria-label="이미지 삭제">×</button>
+    </div>
+  `).join("");
+}
+
+/* 단일 이미지 업로드 — intent → PUT → confirm */
+async function uploadFeedComposeImage(file) {
+  _feedComposeUploading = true;
+  setFeedComposeMessage(`${file.name} 업로드 중…`, "info");
+  try {
+    // 1. intent 생성
+    const intent = await apiFetch("/api/v1/me/assets/upload-intents", {
+      method: "POST",
+      auth: true,
+      throwOnError: true,
+      body: {
+        fileName: file.name,
+        mimeType: file.type,
+        fileSizeBytes: file.size
+      }
+    });
+    if (!intent?.asset?.id || !intent?.upload) {
+      throw new Error("Invalid upload intent response");
+    }
+    const assetId = intent.asset.id;
+    const upload = intent.upload;
+
+    // 2. 파일 업로드 (S3/R2 direct upload)
+    if (upload.mode === "direct_upload_ready" && upload.url) {
+      const headers = upload.requiredHeaders || {};
+      const putRes = await fetch(upload.url, {
+        method: upload.method || "PUT",
+        headers,
+        body: file
+      });
+      if (!putRes.ok) {
+        throw new Error(`Upload failed (${putRes.status})`);
+      }
+    }
+    // local mode (metadata_only)는 PUT 없이 confirm으로 바로 진행
+
+    // 3. confirm
+    const confirmed = await apiFetch(`/api/v1/me/assets/${encodeURIComponent(assetId)}/confirm-upload`, {
+      method: "POST",
+      auth: true,
+      throwOnError: true,
+      body: {}
+    });
+    const finalAsset = confirmed?.asset || confirmed;
+    const previewUrl = finalAsset?.thumbnailUrl || finalAsset?.url || URL.createObjectURL(file);
+
+    _feedComposeAssets.push({
+      assetId,
+      previewUrl,
+      fileName: file.name,
+      mimeType: file.type
+    });
+    renderFeedComposeThumbs();
+    setFeedComposeMessage("", "info"); // 메시지 클리어
+  } catch (err) {
+    const msg = err?.body?.message || err?.message || "";
+    let userMsg = "이미지를 업로드하지 못했어요.";
+    if (/too large|payload/i.test(msg)) {
+      userMsg = "파일이 너무 커요. 더 작은 이미지를 선택해주세요.";
+    } else if (/unsupported|mime/i.test(msg)) {
+      userMsg = "지원하지 않는 파일 형식이에요. JPG, PNG, WEBP, GIF로 다시 올려주세요.";
+    } else if (err?.status === 401) {
+      userMsg = "로그인이 만료됐어요. 다시 로그인해주세요.";
+    }
+    setFeedComposeMessage(userMsg, "warn");
+  } finally {
+    _feedComposeUploading = false;
+  }
 }
 
 /* ── 상태 메타 ──────────────────────────────── */
@@ -3717,6 +4068,8 @@ async function init() {
     bindLuminaFeedTabs();
     bindLuminaFeedExpand();
     bindLuminaFeedDelete();
+    // #056: 피드 작성창 (로그인 시 노출, 이미지 4장 첨부 + 업로드 흐름)
+    initFeedCompose();
   }
 }
 
