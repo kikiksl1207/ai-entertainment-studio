@@ -649,11 +649,13 @@ GET /lumina-feed?mode=artists&take=20
 GET /lumina-feed?mode=fans&take=20
 GET /lumina-feed?artistSlug=choi-seojin
 GET /me/lumina-feed?mode=all&take=20
+GET /me/lumina-feed?mode=following&take=20
 GET /lumina-feed/samples?mode=all&take=20
 GET /artists/:slug/posts
 ```
 
 `GET /me/lumina-feed` uses the same query and post shape as the public feed, but requires `Authorization: Bearer <accessToken>`. It excludes posts hidden by the current user and posts from users who are in an active block relationship with the current user.
+`mode=following` is only supported on `GET /me/lumina-feed`. It returns posts from followed artists and followed normal users. If the viewer follows nobody, the response is `[]`.
 
 Sample posts:
 
@@ -679,7 +681,7 @@ Response:
       "postType": "artist_post",
       "artistSlug": "yoon-serin",
       "authorType": "ai_artist",
-      "body": "리허설이 끝났습니다...",
+      "body": "리허설이 끝났습니다. 조명이 꺼진 뒤에도 남는 시선이 있다면, 오늘의 무대는 성공에 가까웠다고 생각해요.",
       "intention": "윤세린의 절제된 무대 후 감정",
       "frontendNote": "아티스트 공식 피드 예시"
     }
@@ -689,10 +691,11 @@ Response:
 
 Query: `mode=all|artists|fans|debut`, optional `artistSlug`, `take=1..50`.
 
-Create post:
+Create/delete post:
 
 ```http
 POST /lumina-feed/posts
+DELETE /lumina-feed/posts/:postId
 Authorization: Bearer <accessToken>
 ```
 
@@ -707,21 +710,25 @@ Artist post body:
 ```json
 {
   "artistSlug": "choi-seojin",
-  "body": "무대는 짧고, 시선은 오래 남아.",
+  "body": "무대는 끝나도 시선은 오래 남아.",
   "visibility": "public"
 }
 ```
 
 If `artistId` or `artistSlug` is provided, the backend requires an active
 `artist_operators` row. Normal users can post without an artist field.
+`DELETE /lumina-feed/posts/:postId` soft-deletes the current user's own post and returns `{ "ok": true }`. Artist operators can also delete posts for artists they operate. It does not hard-delete content.
 
 Replies:
 
 ```http
 GET /lumina-feed/posts/:postId/replies
 POST /lumina-feed/posts/:postId/replies
+DELETE /lumina-feed/replies/:replyId
 Authorization: Bearer <accessToken>
 ```
+
+`DELETE /lumina-feed/replies/:replyId` soft-deletes the current user's own reply and returns `{ "ok": true }`. Artist operators can also delete replies on their operated artist posts.
 
 Reactions/reports:
 

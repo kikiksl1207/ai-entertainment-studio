@@ -275,8 +275,8 @@ export const LUMINA_FEED_SAMPLE_POSTS: LuminaFeedSamplePost[] = [
     postType: 'fan_post',
     artistSlug: null,
     authorType: 'fan',
-    body: '여기 피드는 그냥 소식창이 아니라 무대가 만들어지는 과정을 보는 느낌이면 좋겠다. 그래서 더 자주 들어올 듯.',
-    intention: '루미나 피드의 전체 방향성 정리',
-    frontendNote: '일반 팬 글 또는 안내형 seed 글',
+    body: '여기 피드는 그냥 소식창이 아니라 무대가 만들어지는 과정을 보는 느낌이면 좋겠다. 그래서 더 자주 들어오게 될 듯.',
+    intention: '루미나 피드의 장기 체류 이유',
+    frontendNote: '일반 팬 포스트 예시',
   },
 ];

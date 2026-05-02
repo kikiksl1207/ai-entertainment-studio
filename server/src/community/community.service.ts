@@ -66,8 +66,21 @@ export class CommunityService {
     const artistSlug = this.optionalString(query.artistSlug);
     const blockedUserIds = await this.getBlockedRelationshipUserIds(userId);
 
-    if (!['all', 'artists', 'fans'].includes(mode)) {
-      throw new BadRequestException('mode must be all, artists, or fans');
+    if (!['all', 'artists', 'fans', 'following'].includes(mode)) {
+      throw new BadRequestException('mode must be all, artists, fans, or following');
+    }
+
+    const followingArtistIds =
+      mode === 'following' ? await this.getFollowingArtistIds(userId) : [];
+    const followingUserIds =
+      mode === 'following' ? await this.getFollowingUserIds(userId) : [];
+
+    if (
+      mode === 'following' &&
+      followingArtistIds.length === 0 &&
+      followingUserIds.length === 0
+    ) {
+      return [];
     }
 
     return this.prisma.communityPost.findMany({
@@ -78,6 +91,17 @@ export class CommunityService {
         artist: artistSlug ? { slug: artistSlug, status: 'active' } : undefined,
         artistId: mode === 'artists' ? { not: null } : undefined,
         postType: mode === 'fans' ? 'user_post' : undefined,
+        OR:
+          mode === 'following'
+            ? [
+                ...(followingArtistIds.length
+                  ? [{ artistId: { in: followingArtistIds } }]
+                  : []),
+                ...(followingUserIds.length
+                  ? [{ authorUserId: { in: followingUserIds } }]
+                  : []),
+              ]
+            : undefined,
         authorUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
         hiddenByUsers: {
           none: {
@@ -154,6 +178,7 @@ export class CommunityService {
   }
 
   async createPost(userId: string, input: CommunityBody) {
+    await this.assertActiveUser(userId);
     const body = this.text(input, 'body', 1, 500);
     const artistId = await this.resolveOptionalArtistId(input);
     const visibility = this.visibility(input.visibility);
@@ -177,6 +202,50 @@ export class CommunityService {
     return { post };
   }
 
+  async deletePost(userId: string, postId: string) {
+    await this.assertActiveUser(userId);
+
+    if (!UUID_PATTERN.test(postId)) {
+      throw new BadRequestException('postId must be a UUID');
+    }
+
+    const post = await this.prisma.communityPost.findFirst({
+      where: {
+        id: postId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        authorUserId: true,
+        artistId: true,
+        status: true,
+      },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    if (post.authorUserId !== userId) {
+      if (!post.artistId) {
+        throw new ForbiddenException('Post author access is required');
+      }
+
+      await this.assertArtistOperator(userId, post.artistId);
+    }
+
+    await this.prisma.communityPost.update({
+      where: { id: post.id },
+      data: {
+        status: 'deleted',
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    return { ok: true };
+  }
+
   async getReplies(postId: string, query: CommunityQuery) {
     await this.findVisiblePost(postId);
 
@@ -193,6 +262,7 @@ export class CommunityService {
   }
 
   async createReply(userId: string, postId: string, input: CommunityBody) {
+    await this.assertActiveUser(userId);
     await this.findVisiblePost(postId);
     const body = this.text(input, 'body', 1, 300);
 
@@ -213,6 +283,64 @@ export class CommunityService {
       });
 
       return { reply };
+    });
+  }
+
+  async deleteReply(userId: string, replyId: string) {
+    await this.assertActiveUser(userId);
+
+    if (!UUID_PATTERN.test(replyId)) {
+      throw new BadRequestException('replyId must be a UUID');
+    }
+
+    const reply = await this.prisma.communityReply.findFirst({
+      where: {
+        id: replyId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        postId: true,
+        authorUserId: true,
+        post: {
+          select: {
+            artistId: true,
+          },
+        },
+      },
+    });
+
+    if (!reply) {
+      throw new NotFoundException('Reply not found');
+    }
+
+    if (reply.authorUserId !== userId) {
+      if (!reply.post.artistId) {
+        throw new ForbiddenException('Reply author access is required');
+      }
+
+      await this.assertArtistOperator(userId, reply.post.artistId);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.communityReply.update({
+        where: { id: reply.id },
+        data: {
+          status: 'deleted',
+          deletedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      await tx.communityPost.update({
+        where: { id: reply.postId },
+        data: {
+          replyCount: { decrement: 1 },
+          updatedAt: new Date(),
+        },
+      });
+
+      return { ok: true };
     });
   }
 
@@ -786,6 +914,36 @@ export class CommunityService {
         ),
       ),
     ];
+  }
+
+  private async getFollowingArtistIds(userId: string) {
+    const rows = await this.prisma.artistFollow.findMany({
+      where: {
+        userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: {
+        artistId: true,
+      },
+    });
+
+    return rows.map((row) => row.artistId);
+  }
+
+  private async getFollowingUserIds(userId: string) {
+    const rows = await this.prisma.userFollow.findMany({
+      where: {
+        followerUserId: userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: {
+        followingUserId: true,
+      },
+    });
+
+    return rows.map((row) => row.followingUserId);
   }
 
   private async findVisiblePost(postId: string) {

@@ -48,6 +48,12 @@ export class CommunityController {
     return this.communityService.createPost(user.id, body);
   }
 
+  @Delete('lumina-feed/posts/:postId')
+  @UseGuards(JwtAuthGuard)
+  deletePost(@CurrentUser() user: AuthUser, @Param('postId') postId: string) {
+    return this.communityService.deletePost(user.id, postId);
+  }
+
   @Get('lumina-feed/posts/:postId/replies')
   getReplies(@Param('postId') postId: string, @Query() query: CommunityQuery) {
     return this.communityService.getReplies(postId, query);
@@ -61,6 +67,12 @@ export class CommunityController {
     @Body() body: CommunityBody,
   ) {
     return this.communityService.createReply(user.id, postId, body);
+  }
+
+  @Delete('lumina-feed/replies/:replyId')
+  @UseGuards(JwtAuthGuard)
+  deleteReply(@CurrentUser() user: AuthUser, @Param('replyId') replyId: string) {
+    return this.communityService.deleteReply(user.id, replyId);
   }
 
   @Post('lumina-feed/posts/:postId/like')
