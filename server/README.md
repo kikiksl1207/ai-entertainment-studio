@@ -153,6 +153,8 @@ Refresh tokens are stored as SHA-256 hashes in `user_refresh_tokens`. `POST /api
 
 Email verification and password reset are currently backend skeleton flows. Request endpoints always return `{ "ok": true, "delivery": { "status": "not_configured", "channel": "email" } }` so clients do not learn whether an account exists. Confirmation endpoints accept `{ "token": "..." }`; password reset confirmation also accepts `newPassword`. Tokens are stored only as SHA-256 hashes in `user_action_tokens`, expire after 24 hours for email verification and 1 hour for password reset, and are single-use. A real email adapter must send the raw token later; do not log, commit, or paste those tokens into Notion or chat.
 
+For local/staging QA before a mail provider is connected, set `ACTION_TOKEN_DEBUG_ENABLED="true"` with `NODE_ENV` not equal to `production`. When the target active account exists, the request endpoints include `debug.actionToken` and `debug.expiresAt` so testers can call the confirm endpoint. Keep this disabled on Render production and never share debug tokens in chat, Git, or Notion.
+
 - `GET /api/v1/wallet`
 - `GET /api/v1/wallet/ledger?take=50`
 - `POST /api/v1/wallet/test-grant`

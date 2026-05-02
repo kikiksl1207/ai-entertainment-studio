@@ -138,6 +138,11 @@ My Page contract:
 
 Account deletion / moderation policy:
 
+Local/staging QA note:
+
+- `ACTION_TOKEN_DEBUG_ENABLED=true` exposes `debug.actionToken` and `debug.expiresAt` on email verification/password reset request responses only when `NODE_ENV !== production`.
+- Production must keep this disabled. The debug field is omitted when the target active account is not found and must not be used by production UI logic.
+
 - `DELETE /api/v1/me` soft-deletes the current account. Email-password accounts must send `currentPassword`; social-only accounts may omit it.
 - Account deletion sets `users.status = deleted`, sets `deleted_at`, revokes all refresh-token sessions, consumes outstanding user action tokens, deactivates the user's referral code, and writes a `user.self_delete` audit event.
 - Wallet ledgers, payment orders, gift records, and audit history are retained.

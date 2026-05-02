@@ -228,6 +228,22 @@ My Page scope notes for 2026-05-02:
 
 Email delivery is not connected yet. The two request endpoints currently return `delivery.status = "not_configured"` and never reveal whether the email exists. Once a mail provider is added, the frontend contract can stay the same.
 
+For local/staging QA only, the backend can expose the generated action token when `ACTION_TOKEN_DEBUG_ENABLED=true` and `NODE_ENV` is not `production`. Production must keep this disabled. If enabled and the email belongs to an active account, request responses include:
+
+```json
+{
+  "ok": true,
+  "delivery": { "status": "not_configured", "channel": "email" },
+  "debug": {
+    "actionToken": "<confirm-token>",
+    "expiresAt": "2026-05-02T12:00:00.000Z",
+    "warning": "Debug only. Never enable in production or share tokens publicly."
+  }
+}
+```
+
+If the email does not exist, the response still returns `ok: true` and omits `debug`, so production clients must not rely on this field.
+
 Account deletion:
 
 ```http

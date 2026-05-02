@@ -843,6 +843,7 @@ export class AuthService {
 
   async requestEmailVerification(input: RequestEmailVerificationDto) {
     const email = input.email.trim().toLowerCase();
+    let debugToken: { token: string; expiresAt: Date } | null = null;
     const user = await this.prisma.user.findFirst({
       where: {
         email,
@@ -855,7 +856,7 @@ export class AuthService {
     });
 
     if (user) {
-      await this.createUserActionToken(
+      debugToken = await this.createUserActionToken(
         user.id,
         EMAIL_VERIFICATION_PURPOSE,
         EMAIL_VERIFICATION_TOKEN_TTL_MS,
@@ -868,6 +869,7 @@ export class AuthService {
         status: 'not_configured',
         channel: 'email',
       },
+      debug: this.actionTokenDebugPayload(debugToken),
     };
   }
 
@@ -889,6 +891,7 @@ export class AuthService {
 
   async requestPasswordReset(input: RequestPasswordResetDto) {
     const email = input.email.trim().toLowerCase();
+    let debugToken: { token: string; expiresAt: Date } | null = null;
     const authAccount = await this.prisma.userAuthAccount.findUnique({
       where: {
         provider_providerUserId: {
@@ -913,7 +916,7 @@ export class AuthService {
       authAccount.user.status === 'active' &&
       !authAccount.user.deletedAt
     ) {
-      await this.createUserActionToken(
+      debugToken = await this.createUserActionToken(
         authAccount.userId,
         PASSWORD_RESET_PURPOSE,
         PASSWORD_RESET_TOKEN_TTL_MS,
@@ -926,6 +929,7 @@ export class AuthService {
         status: 'not_configured',
         channel: 'email',
       },
+      debug: this.actionTokenDebugPayload(debugToken),
     };
   }
 
@@ -1521,6 +1525,7 @@ export class AuthService {
   ) {
     const rawToken = this.createOpaqueToken();
     const now = new Date();
+    const expiresAt = new Date(now.getTime() + ttlMs);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.userActionToken.updateMany({
@@ -1539,12 +1544,31 @@ export class AuthService {
           userId,
           purpose,
           tokenHash: this.hashToken(rawToken),
-          expiresAt: new Date(now.getTime() + ttlMs),
+          expiresAt,
         },
       });
     });
 
-    return rawToken;
+    return { token: rawToken, expiresAt };
+  }
+
+  private actionTokenDebugPayload(token: { token: string; expiresAt: Date } | null) {
+    if (!token || !this.shouldExposeActionTokensForDebug()) {
+      return undefined;
+    }
+
+    return {
+      actionToken: token.token,
+      expiresAt: token.expiresAt,
+      warning: 'Debug only. Never enable in production or share tokens publicly.',
+    };
+  }
+
+  private shouldExposeActionTokensForDebug() {
+    return (
+      this.configService.get<string>('ACTION_TOKEN_DEBUG_ENABLED') === 'true' &&
+      this.configService.get<string>('NODE_ENV') !== 'production'
+    );
   }
 
   private async consumeUserActionToken(rawToken: string, purpose: string) {
