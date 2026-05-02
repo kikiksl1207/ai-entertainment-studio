@@ -40,6 +40,7 @@ Frontend-friendly response fields:
 - Public responses only expose uploaded/ready assets.
 - Public artist responses only expose artist rows that have both a cover image and thumbnail image.
 - Public responses do not expose internal asset `metadata`, `storageKey`, or `storageProvider`.
+- The seed archives stale local seed assets that are no longer present in the current operation pack, so old gallery files stop appearing after seed deploy.
 
 용도:
 

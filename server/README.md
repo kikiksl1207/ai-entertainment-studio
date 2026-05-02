@@ -82,7 +82,7 @@ Current fixed gallery seed sources:
 - `choi-seojin`: `assets/characters/choi-seojin/reference-final-01.png` through `reference-final-20.png` (20)
 - `cha-dohyun`: `assets/characters/cha-dohyun/reference-final-01.png` through `reference-final-20.png` (20)
 
-Current seed image packs include gallery assets for `yoon-serin`, `han-seoyul`, `park-doa`, `seo-yuan`, `choi-seojin`, and `cha-dohyun`. The seed skips missing image files so public APIs do not emit broken asset URLs.
+Current seed image packs include gallery assets for `yoon-serin`, `han-seoyul`, `park-doa`, `seo-yuan`, `choi-seojin`, and `cha-dohyun`. The seed skips missing image files so public APIs do not emit broken asset URLs. When an old local seed asset is no longer present in the current operation pack, the seed marks it archived through `metadata.lifecycle.status = archived` so public artist responses stop returning stale images.
 
 8. Start the API server.
 

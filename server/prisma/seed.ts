@@ -406,12 +406,15 @@ async function main() {
       },
     });
 
+    const expectedStorageKeys = new Set<string>();
+
     for (const usageType of ['cover', 'thumb'] as const) {
       const storageKey = `assets/characters/${artist.slug}/${usageType}.png`;
       if (!assetStorageKeyExists(storageKey)) {
         continue;
       }
 
+      expectedStorageKeys.add(storageKey);
       const asset = await upsertImageAsset(storageKey, `${artist.displayName} ${usageType}`);
       assetByKey.set(storageKey, asset);
 
@@ -435,6 +438,7 @@ async function main() {
     }
 
     for (const [index, storageKey] of getGalleryImageKeys(artist.slug).entries()) {
+      expectedStorageKeys.add(storageKey);
       const asset = await upsertImageAsset(storageKey, `${artist.displayName} gallery ${index + 1}`);
       assetByKey.set(storageKey, asset);
 
@@ -456,6 +460,8 @@ async function main() {
         },
       });
     }
+
+    await archiveStaleSeedArtistAssets(row.id, artist.slug, expectedStorageKeys);
   }
 
   for (const [slug, title, artistSlug, description, assetRole] of shortforms) {
@@ -771,9 +777,54 @@ function assetStorageKeyExists(storageKey: string) {
   return Boolean(resolveAssetDir(storageKey));
 }
 
+async function archiveStaleSeedArtistAssets(
+  artistId: string,
+  slug: string,
+  expectedStorageKeys: Set<string>,
+) {
+  const links = await prisma.artistAsset.findMany({
+    where: {
+      artistId,
+      asset: {
+        storageProvider: 'local',
+        storageKey: { startsWith: `assets/characters/${slug}/` },
+      },
+    },
+    include: { asset: true },
+  });
+
+  for (const link of links) {
+    if (expectedStorageKeys.has(link.asset.storageKey)) {
+      continue;
+    }
+
+    await prisma.asset.update({
+      where: { id: link.assetId },
+      data: {
+        metadata: {
+          ...toRecord(link.asset.metadata),
+          seed: true,
+          lifecycle: {
+            status: 'archived',
+            reason: 'seed_asset_not_in_current_operation_pack',
+            archivedAt: new Date().toISOString(),
+          },
+        },
+        updatedAt: new Date(),
+      },
+    });
+  }
+}
+
 function resolveAssetDir(storageDir: string) {
   const candidates = [join(process.cwd(), '..', storageDir), join(process.cwd(), storageDir)];
   return candidates.find((candidate) => existsSync(candidate));
+}
+
+function toRecord(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function skuSuffix(slug: string) {
