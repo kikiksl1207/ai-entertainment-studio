@@ -37,7 +37,7 @@ export class CommunityService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  getFeed(query: CommunityQuery) {
+  async getFeed(query: CommunityQuery) {
     const take = this.take(query.take);
     const cursor = this.optionalString(query.cursor);
     const mode = this.optionalString(query.mode) ?? 'all';
@@ -47,7 +47,7 @@ export class CommunityService {
       throw new BadRequestException('mode must be all, artists, or fans');
     }
 
-    return this.prisma.communityPost.findMany({
+    const posts = await this.prisma.communityPost.findMany({
       where: this.clean({
         status: 'published',
         visibility: 'public',
@@ -61,6 +61,8 @@ export class CommunityService {
       include: this.postInclude(),
       orderBy: { publishedAt: 'desc' },
     });
+
+    return Promise.all(posts.map((post) => this.toPostView(post)));
   }
 
   async getPersonalizedFeed(userId: string, query: CommunityQuery) {
@@ -88,7 +90,7 @@ export class CommunityService {
       return [];
     }
 
-    return this.prisma.communityPost.findMany({
+    const posts = await this.prisma.communityPost.findMany({
       where: this.clean({
         status: 'published',
         visibility: 'public',
@@ -121,6 +123,8 @@ export class CommunityService {
       include: this.postInclude(),
       orderBy: { publishedAt: 'desc' },
     });
+
+    return Promise.all(posts.map((post) => this.toPostView(post)));
   }
 
   getSamplePosts(query: CommunityQuery) {
@@ -169,7 +173,7 @@ export class CommunityService {
       throw new NotFoundException('Artist not found');
     }
 
-    return this.prisma.communityPost.findMany({
+    const posts = await this.prisma.communityPost.findMany({
       where: {
         artistId: artist.id,
         status: 'published',
@@ -180,6 +184,8 @@ export class CommunityService {
       include: this.postInclude(),
       orderBy: { publishedAt: 'desc' },
     });
+
+    return Promise.all(posts.map((post) => this.toPostView(post)));
   }
 
   async createPost(userId: string, input: CommunityBody) {
@@ -187,6 +193,7 @@ export class CommunityService {
     const body = this.text(input, 'body', 1, 500);
     const artistId = await this.resolveOptionalArtistId(input);
     const visibility = this.visibility(input.visibility);
+    const assetIds = await this.resolvePostAssetIds(input);
 
     if (artistId) {
       await this.assertArtistOperator(userId, artistId);
@@ -200,11 +207,20 @@ export class CommunityService {
         visibility,
         body,
         metadata: this.toJson(this.object(input, 'metadata') ?? {}),
+        assets: assetIds.length
+          ? {
+              create: assetIds.map((assetId, index) => ({
+                assetId,
+                role: 'attachment',
+                sortOrder: index,
+              })),
+            }
+          : undefined,
       },
       include: this.postInclude(),
     });
 
-    return { post };
+    return { post: await this.toPostView(post) };
   }
 
   async deletePost(userId: string, postId: string) {
@@ -399,14 +415,21 @@ export class CommunityService {
         targetId: visiblePost.id,
       });
 
-      return result;
+      return {
+        ...result,
+        post: await this.toPostView(result.post),
+      };
     } catch (error) {
       if (this.isUniqueConstraint(error)) {
         const post = await this.prisma.communityPost.findUnique({
           where: { id: postId },
           include: this.postInclude(),
         });
-        return { post, idempotentReplay: true, idempotencyKey: idempotencyKey ?? null };
+        return {
+          post: post ? await this.toPostView(post) : null,
+          idempotentReplay: true,
+          idempotencyKey: idempotencyKey ?? null,
+        };
       }
 
       throw error;
@@ -484,7 +507,7 @@ export class CommunityService {
       include: this.hiddenPostInclude(),
     });
 
-    return { hiddenPost };
+    return { hiddenPost: await this.toHiddenPostView(hiddenPost) };
   }
 
   async unhidePost(userId: string, postId: string) {
@@ -790,7 +813,7 @@ export class CommunityService {
         posts,
         replies,
       },
-      recentPosts,
+      recentPosts: await Promise.all(recentPosts.map((post) => this.toPostView(post))),
     };
   }
 
@@ -845,8 +868,8 @@ export class CommunityService {
     return Promise.all(follows.map((follow) => this.toUserFollowView(follow, 'follower')));
   }
 
-  getMyHiddenPosts(userId: string, query: CommunityQuery) {
-    return this.prisma.communityHiddenPost.findMany({
+  async getMyHiddenPosts(userId: string, query: CommunityQuery) {
+    const hiddenPosts = await this.prisma.communityHiddenPost.findMany({
       where: {
         userId,
         status: 'active',
@@ -856,6 +879,8 @@ export class CommunityService {
       include: this.hiddenPostInclude(),
       orderBy: { createdAt: 'desc' },
     });
+
+    return Promise.all(hiddenPosts.map((hiddenPost) => this.toHiddenPostView(hiddenPost)));
   }
 
   async getMyBlockedUsers(userId: string, query: CommunityQuery) {
@@ -893,6 +918,23 @@ export class CommunityService {
           slug: true,
           displayName: true,
         },
+      },
+      assets: {
+        include: {
+          asset: {
+            select: {
+              id: true,
+              assetType: true,
+              mimeType: true,
+              width: true,
+              height: true,
+              storageKey: true,
+              metadata: true,
+              createdAt: true,
+            },
+          },
+        },
+        orderBy: { sortOrder: 'asc' },
       },
     } satisfies Prisma.CommunityPostInclude;
   }
@@ -951,6 +993,39 @@ export class CommunityService {
         include: this.postInclude(),
       },
     } satisfies Prisma.CommunityHiddenPostInclude;
+  }
+
+  private async toPostView(post: any) {
+    return {
+      ...post,
+      assets: (post.assets ?? []).map((link: any) => {
+        const url = buildPublicAssetUrl(this.configService, link.asset.storageKey);
+
+        return {
+          id: link.id,
+          role: link.role,
+          sortOrder: link.sortOrder,
+          asset: {
+            id: link.asset.id,
+            assetType: link.asset.assetType,
+            mimeType: link.asset.mimeType,
+            width: link.asset.width,
+            height: link.asset.height,
+            url,
+            thumbnailUrl: url,
+            status: this.assetStatus(link.asset.metadata),
+            createdAt: link.asset.createdAt,
+          },
+        };
+      }),
+    };
+  }
+
+  private async toHiddenPostView(hiddenPost: any) {
+    return {
+      ...hiddenPost,
+      post: hiddenPost.post ? await this.toPostView(hiddenPost.post) : null,
+    };
   }
 
   private userBlockInclude() {
@@ -1168,6 +1243,86 @@ export class CommunityService {
     return artist.id;
   }
 
+  private async resolvePostAssetIds(input: CommunityBody) {
+    const value = input.assetIds;
+
+    if (value === undefined || value === null) {
+      return [];
+    }
+
+    if (!Array.isArray(value)) {
+      throw new BadRequestException('assetIds must be an array');
+    }
+
+    if (value.length > 4) {
+      throw new BadRequestException('A feed post can attach up to 4 images');
+    }
+
+    const assetIds = value.map((entry) => {
+      if (typeof entry !== 'string' || !entry.trim()) {
+        throw new BadRequestException('assetIds must contain UUID strings');
+      }
+
+      const assetId = entry.trim();
+
+      if (!UUID_PATTERN.test(assetId)) {
+        throw new BadRequestException('assetIds must contain UUID strings');
+      }
+
+      return assetId;
+    });
+
+    const uniqueAssetIds = Array.from(new Set(assetIds));
+
+    if (uniqueAssetIds.length !== assetIds.length) {
+      throw new BadRequestException('assetIds must not contain duplicates');
+    }
+
+    if (!uniqueAssetIds.length) {
+      return [];
+    }
+
+    const assets = await this.prisma.asset.findMany({
+      where: {
+        id: { in: uniqueAssetIds },
+        visibility: 'public',
+      },
+      select: {
+        id: true,
+        assetType: true,
+        mimeType: true,
+        metadata: true,
+      },
+    });
+    const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
+
+    for (const assetId of uniqueAssetIds) {
+      const asset = assetsById.get(assetId);
+
+      if (!asset) {
+        throw new BadRequestException('All feed assets must be public images');
+      }
+
+      if (asset.assetType !== 'image' && !asset.mimeType.startsWith('image/')) {
+        throw new BadRequestException('All feed assets must be public images');
+      }
+
+      const metadata = this.metadataObject(asset.metadata);
+      const uploadIntent = this.metadataObject(metadata.uploadIntent);
+      const lifecycle = this.metadataObject(metadata.lifecycle);
+
+      if (uploadIntent.status && uploadIntent.status !== 'uploaded') {
+        throw new BadRequestException('Asset upload must be confirmed before linking');
+      }
+
+      if (lifecycle.status === 'archived') {
+        throw new BadRequestException('Archived assets cannot be linked');
+      }
+    }
+
+    return uniqueAssetIds;
+  }
+
   private async resolveActiveArtist(artistIdOrSlug: string) {
     const artist = await this.prisma.artist.findFirst({
       where: {
@@ -1275,6 +1430,24 @@ export class CommunityService {
     return value && typeof value === 'object' && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : undefined;
+  }
+
+  private metadataObject(value: unknown) {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  }
+
+  private assetStatus(metadataValue: unknown) {
+    const metadata = this.metadataObject(metadataValue);
+    const uploadIntent = this.metadataObject(metadata.uploadIntent);
+    const lifecycle = this.metadataObject(metadata.lifecycle);
+
+    if (lifecycle.status === 'archived') {
+      return 'archived';
+    }
+
+    return typeof uploadIntent.status === 'string' ? uploadIntent.status : 'ready';
   }
 
   private isUniqueConstraint(error: unknown) {

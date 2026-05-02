@@ -44,6 +44,10 @@ Added in migration `0016_user_notifications`:
 
 - `user_notifications`
 
+Added in migration `0017_community_post_assets`:
+
+- `community_post_assets`
+
 ## Public/Frontend APIs
 
 ### Feed
@@ -181,6 +185,13 @@ Body rules:
 - `body`: 1-500 characters.
 - `visibility`: `public` or `followers`, default `public`.
 - MVP only exposes `public` feed. `followers` is reserved for later UI/policy work.
+- `assetIds`: optional array of 0-4 unique public image asset UUIDs. Assets must
+  already be uploaded/confirmed and cannot be archived, private, pending, or
+  non-image.
+
+Linked images appear on post responses as `assets[]` with public `url` and
+`thumbnailUrl`. Internal `storageKey`, provider data, and raw asset metadata are
+not exposed on the feed response.
 
 ### Replies
 

@@ -267,6 +267,7 @@ model Asset {
   artistAssets       ArtistAsset[]
   shortformAssets    ShortformAsset[]
   premiumVideoAssets PremiumVideoAsset[]
+  communityPostAssets CommunityPostAsset[]
 
   @@unique([storageProvider, storageKey])
   @@index([assetType, visibility], map: "idx_assets_type_visibility")
@@ -729,11 +730,28 @@ model CommunityPost {
   reactions     CommunityReaction[]
   reports       CommunityReport[]
   hiddenByUsers CommunityHiddenPost[]
+  assets        CommunityPostAsset[]
 
   @@index([status, visibility, publishedAt], map: "idx_community_posts_public_feed")
   @@index([artistId, status, publishedAt], map: "idx_community_posts_artist_feed")
   @@index([authorUserId, publishedAt], map: "idx_community_posts_author_feed")
   @@map("community_posts")
+}
+
+model CommunityPostAsset {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId    String        @map("post_id") @db.Uuid
+  assetId   String        @map("asset_id") @db.Uuid
+  role      String        @default("attachment")
+  sortOrder Int           @default(0) @map("sort_order")
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  post      CommunityPost @relation(fields: [postId], references: [id])
+  asset     Asset         @relation(fields: [assetId], references: [id])
+
+  @@unique([postId, assetId, role])
+  @@index([postId, sortOrder], map: "idx_community_post_assets_post_sort")
+  @@index([assetId], map: "idx_community_post_assets_asset")
+  @@map("community_post_assets")
 }
 
 model CommunityReply {

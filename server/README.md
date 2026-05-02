@@ -240,6 +240,7 @@ Normal users are follow targets as well as artists. `GET /api/v1/me/following` r
 `GET /api/v1/users/:userId/profile` is public and returns an active user's display profile, follow/feed counts, and up to 5 recent public posts without exposing email.
 `GET /api/v1/me/lumina-feed` keeps the public feed shape but excludes posts hidden by the current user and posts from active block relationships. Blocking a user also soft-deletes active follows in both directions.
 Feed actions now create notification-center rows: `feed.reply`, `feed.like`, and `user.follow`. Self-actions do not create notifications. `feedNotifications=false` suppresses `feed.*`; `activityNotifications=false` suppresses `user.follow`.
+Feed posts can link up to 4 existing public image assets through `assetIds` on `POST /api/v1/lumina-feed/posts`. Assets must be uploaded/confirmed and not archived; post responses expose linked image URLs through `assets[]`.
 
 ## Debut Application APIs
 

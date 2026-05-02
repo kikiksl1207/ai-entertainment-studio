@@ -785,6 +785,40 @@ Artist post body:
 
 If `artistId` or `artistSlug` is provided, the backend requires an active
 `artist_operators` row. Normal users can post without an artist field.
+`assetIds` is optional on `POST /lumina-feed/posts` and accepts 0-4 unique public image asset UUIDs:
+
+```json
+{
+  "body": "feed text",
+  "assetIds": ["asset-uuid-1", "asset-uuid-2"]
+}
+```
+
+Assets must already be uploaded/confirmed through the existing asset flow. Pending, archived, private, non-image, duplicate, or unknown assets return `400`.
+Post responses include `assets` when images are linked:
+
+```json
+{
+  "assets": [
+    {
+      "id": "post-asset-link-uuid",
+      "role": "attachment",
+      "sortOrder": 0,
+      "asset": {
+        "id": "asset-uuid",
+        "assetType": "image",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "url": "https://...",
+        "thumbnailUrl": "https://...",
+        "status": "ready",
+        "createdAt": "2026-05-02T00:00:00.000Z"
+      }
+    }
+  ]
+}
+```
 `DELETE /lumina-feed/posts/:postId` soft-deletes the current user's own post and returns `{ "ok": true }`. Artist operators can also delete posts for artists they operate. It does not hard-delete content.
 
 Replies:
