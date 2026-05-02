@@ -191,6 +191,8 @@ GET /me/activity-ledger?type=all&take=50
 PATCH /me/profile
 GET /me/settings
 PATCH /me/settings
+POST /me/assets/upload-intents
+POST /me/assets/:assetId/confirm-upload
 GET /me/notifications?status=all&take=20
 GET /me/notifications/unread-count
 PATCH /me/notifications/:notificationId/read
@@ -220,6 +222,7 @@ Auth responses:
 - `GET /me/summary` is the recommended My Page bootstrap endpoint. It returns `{ user, wallet, recentLedger, recentPaymentOrders, activity, recentActivities, debut, policy }` so the frontend does not need to call every history endpoint on first render. `activity` now includes `followingArtists`, `followingUsers`, `followers`, `followCounts`, and `feedCounts`.
 - `GET /me/settings` returns `{ settings, policy }`.
 - `PATCH /me/settings` accepts any subset of `{ "locale": "ko-KR", "timezone": "Asia/Seoul", "marketingOptIn": false, "pushOptIn": false, "activityNotifications": true, "feedNotifications": true, "emailNotifications": false }`. Send at least one field. The response is the same `{ settings, policy }` shape.
+- User image upload flow for avatars/feed: `POST /me/assets/upload-intents` then upload the file with the returned `upload.method/url/requiredHeaders`, then `POST /me/assets/:assetId/confirm-upload`. The confirmed `asset.id` can be passed to `PATCH /me/profile.avatarAssetId` or `POST /lumina-feed/posts.assetIds`.
 - `GET /me/notifications?status=all&take=20` returns `{ notifications, unreadCount, nextCursor }`. `status` can be `all`, `unread`, or `read`; `type` can optionally filter a single notification type; `cursor` accepts the previous `nextCursor`.
 - Notification item shape: `{ id, type, title, body, targetType, targetId, metadata, readAt, createdAt, actor, artist }`. `actor` is `{ id, displayName, avatarUrl } | null`; `artist` is `{ id, slug, displayName } | null`.
 - `GET /me/notifications/unread-count` returns `{ unreadCount }`.
@@ -795,6 +798,28 @@ If `artistId` or `artistSlug` is provided, the backend requires an active
 ```
 
 Assets must already be uploaded/confirmed through the existing asset flow. Pending, archived, private, non-image, duplicate, or unknown assets return `400`.
+For normal logged-in users, use this image upload flow before creating a feed post:
+
+```http
+POST /me/assets/upload-intents
+POST /me/assets/:assetId/confirm-upload
+Authorization: Bearer <accessToken>
+```
+
+Upload intent body:
+
+```json
+{
+  "fileName": "feed-image.png",
+  "mimeType": "image/png",
+  "fileSizeBytes": 123456,
+  "width": 1024,
+  "height": 1024
+}
+```
+
+Allowed user image MIME types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`.
+The upload response includes `{ asset, upload }`; send the file with `upload.method`, `upload.url`, and `upload.requiredHeaders`, then confirm. On `local` storage, `upload.mode` is `metadata_only`; on `s3`/`r2`, it is `direct_upload_ready`.
 Post responses include `assets` when images are linked:
 
 ```json

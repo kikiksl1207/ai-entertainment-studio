@@ -107,6 +107,8 @@ PATCH /api/v1/me/profile
 GET /api/v1/me/settings
 PATCH /api/v1/me/password
 PATCH /api/v1/me/password/setup
+POST /api/v1/me/assets/upload-intents
+POST /api/v1/me/assets/:assetId/confirm-upload
 GET /api/v1/me/notifications
 GET /api/v1/me/notifications/unread-count
 PATCH /api/v1/me/notifications/:notificationId/read
@@ -128,6 +130,7 @@ My Page contract:
 - `GET /api/v1/me/settings` returns `{ settings, policy }`.
 - `PATCH /api/v1/me/settings` accepts any subset of `locale`, `timezone`, `marketingOptIn`, `pushOptIn`, `activityNotifications`, `feedNotifications`, and `emailNotifications`. Empty bodies return `400`.
 - `GET /api/v1/me/notifications?status=all&take=20` returns `{ notifications, unreadCount, nextCursor }`. Feed replies, feed likes, and user follows create notification-center rows; read state is managed with the two PATCH endpoints.
+- `POST /api/v1/me/assets/upload-intents` creates image-only upload intents for logged-in users. Confirmed assets can be used as avatar images or feed post `assetIds`.
 - `POST /api/v1/lumina-feed/posts` accepts optional `assetIds` with up to 4 existing public image asset UUIDs. The response exposes linked images through post `assets[]` with public URLs.
 
 이메일/비밀번호 가입 정책:

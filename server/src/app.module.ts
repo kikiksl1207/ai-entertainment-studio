@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminModule } from './admin/admin.module';
+import { UserAssetsModule } from './assets/user-assets.module';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
@@ -37,6 +38,7 @@ import { WalletModule } from './wallet/wallet.module';
       },
     ]),
     PrismaModule,
+    UserAssetsModule,
     AuthModule,
     AdminModule,
     ArtistsModule,

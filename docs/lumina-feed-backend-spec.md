@@ -193,6 +193,19 @@ Linked images appear on post responses as `assets[]` with public `url` and
 `thumbnailUrl`. Internal `storageKey`, provider data, and raw asset metadata are
 not exposed on the feed response.
 
+Normal user image upload flow:
+
+```http
+POST /me/assets/upload-intents
+POST /me/assets/:assetId/confirm-upload
+Authorization: Bearer <accessToken>
+```
+
+`POST /me/assets/upload-intents` accepts `fileName`, `mimeType`,
+`fileSizeBytes`, optional `width`, optional `height`, and optional `checksum`.
+It is image-only for MVP: `image/jpeg`, `image/png`, `image/webp`, and
+`image/gif`. After confirm, use the returned `asset.id` in feed `assetIds`.
+
 ### Replies
 
 ```http
