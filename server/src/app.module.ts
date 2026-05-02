@@ -11,6 +11,7 @@ import { DebutModule } from './debut/debut.module';
 import { GiftsModule } from './gifts/gifts.module';
 import { HealthController } from './health.controller';
 import { LuminaProductsModule } from './lumina-products/lumina-products.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PopularVoteModule } from './popular-vote/popular-vote.module';
 import { PremiumVideosModule } from './premium-videos/premium-videos.module';
@@ -49,6 +50,7 @@ import { WalletModule } from './wallet/wallet.module';
     PremiumVideosModule,
     ChatModule,
     CommunityModule,
+    NotificationsModule,
     PaymentsModule,
     RewardsModule,
     UserGiftsModule,

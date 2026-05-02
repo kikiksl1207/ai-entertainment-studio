@@ -191,6 +191,10 @@ GET /me/activity-ledger?type=all&take=50
 PATCH /me/profile
 GET /me/settings
 PATCH /me/settings
+GET /me/notifications?status=all&take=20
+GET /me/notifications/unread-count
+PATCH /me/notifications/:notificationId/read
+PATCH /me/notifications/read-all
 PATCH /me/password
 PATCH /me/password/setup
 DELETE /me
@@ -216,6 +220,11 @@ Auth responses:
 - `GET /me/summary` is the recommended My Page bootstrap endpoint. It returns `{ user, wallet, recentLedger, recentPaymentOrders, activity, recentActivities, debut, policy }` so the frontend does not need to call every history endpoint on first render. `activity` now includes `followingArtists`, `followingUsers`, `followers`, `followCounts`, and `feedCounts`.
 - `GET /me/settings` returns `{ settings, policy }`.
 - `PATCH /me/settings` accepts any subset of `{ "locale": "ko-KR", "timezone": "Asia/Seoul", "marketingOptIn": false, "pushOptIn": false, "activityNotifications": true, "feedNotifications": true, "emailNotifications": false }`. Send at least one field. The response is the same `{ settings, policy }` shape.
+- `GET /me/notifications?status=all&take=20` returns `{ notifications, unreadCount, nextCursor }`. `status` can be `all`, `unread`, or `read`; `type` can optionally filter a single notification type; `cursor` accepts the previous `nextCursor`.
+- Notification item shape: `{ id, type, title, body, targetType, targetId, metadata, readAt, createdAt, actor, artist }`. `actor` is `{ id, displayName, avatarUrl } | null`; `artist` is `{ id, slug, displayName } | null`.
+- `GET /me/notifications/unread-count` returns `{ unreadCount }`.
+- `PATCH /me/notifications/:notificationId/read` marks one notification read and returns `{ notification }`.
+- `PATCH /me/notifications/read-all` marks all unread notifications read and returns `{ ok: true, updatedCount }`.
 - `PATCH /me/password/setup` is for logged-in social-only users with an email. Body: `{ "newPassword": "abc12345" }`. It creates the email-password auth account and returns `{ "ok": true, "user": <GET /me shape> }`. If `hasPassword` is already true, use `PATCH /me/password` instead.
 - `GET /me/activity-ledger?type=all&take=50` returns a unified recent activity list for My Page. `type` can be `all`, `charge`, `boost`, `unlock`, `gift`, or `free_like`. Each item has `id`, `type`, `title`, `description`, `amountLumina`, `status`, `createdAt`, `relatedArtist`, and `relatedContent`.
 
@@ -827,6 +836,14 @@ Authorization: Bearer <accessToken>
 `GET /users/:userId/profile` is public and returns `{ user, stats, recentPosts }` for active users only. It does not expose email. `user` includes `id`, `displayName`, `avatarUrl`, `bio`, and `createdAt`; `stats` includes `followers`, `followingUsers`, `followingArtists`, `posts`, and `replies`. `recentPosts` contains up to 5 public posts by that user.
 
 Blocking is idempotent. `POST /users/:userId/block` optionally accepts `{ "reason": "spam" }`, unfollows both directions if an active follow exists, and returns `{ block: { id, status, reason, blockedAt, updatedAt, user: { id, displayName, avatarUrl } } }`. `GET /me/blocked-users` returns the same block row shape as a list.
+
+Feed notification triggers:
+
+- `feed.reply`: created when another user replies to the user's post.
+- `feed.like`: created when another user likes the user's post for the first time.
+- `user.follow`: created when another user follows or re-follows the user.
+- Self-actions do not create notifications.
+- `PATCH /me/settings` controls delivery: `feedNotifications=false` suppresses `feed.*`; `activityNotifications=false` suppresses `user.follow`.
 
 Admin/community moderation:
 

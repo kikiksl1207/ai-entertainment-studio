@@ -128,6 +128,10 @@ Auth endpoints:
 - `PATCH /api/v1/me/profile`
 - `GET /api/v1/me/settings`
 - `PATCH /api/v1/me/settings`
+- `GET /api/v1/me/notifications?status=all&take=20`
+- `GET /api/v1/me/notifications/unread-count`
+- `PATCH /api/v1/me/notifications/:notificationId/read`
+- `PATCH /api/v1/me/notifications/read-all`
 - `PATCH /api/v1/me/password`
 - `PATCH /api/v1/me/password/setup`
 - `DELETE /api/v1/me`
@@ -144,7 +148,7 @@ Auth responses include both the canonical nested token object and flat token ali
 
 Refresh tokens are stored as SHA-256 hashes in `user_refresh_tokens`. `POST /api/v1/auth/refresh` rotates the refresh token and revokes the previous one; `POST /api/v1/auth/logout` accepts `{ "refreshToken": "..." }` and revokes that token server-side. Access tokens remain short-lived and are not individually revoked.
 
-`GET /api/v1/me` returns profile convenience fields for My Page, including `displayName`, `avatarUrl`, `avatarAsset`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`. `PATCH /api/v1/me/profile` accepts `displayName`, `bio`, and `avatarAssetId`; display names can be changed once every 30 days. `GET /api/v1/me/settings` and `PATCH /api/v1/me/settings` manage locale, timezone, marketing, push, activity, feed, and email notification flags. `GET /api/v1/me/summary` returns the My Page bootstrap payload with user, wallet, recent ledger, payment orders, activity counts, unlocks, artist follows, user follows, followers, feed counts, recent activities, and debut status. `GET /api/v1/me/activity-ledger` supports `type=all|charge|boost|unlock|gift|free_like`.
+`GET /api/v1/me` returns profile convenience fields for My Page, including `displayName`, `avatarUrl`, `avatarAsset`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`. `PATCH /api/v1/me/profile` accepts `displayName`, `bio`, and `avatarAssetId`; display names can be changed once every 30 days. `GET /api/v1/me/settings` and `PATCH /api/v1/me/settings` manage locale, timezone, marketing, push, activity, feed, and email notification flags. `GET /api/v1/me/notifications` returns the notification center list with unread count and cursor pagination; `GET /api/v1/me/notifications/unread-count`, `PATCH /api/v1/me/notifications/:notificationId/read`, and `PATCH /api/v1/me/notifications/read-all` support badge and read-state UI. `GET /api/v1/me/summary` returns the My Page bootstrap payload with user, wallet, recent ledger, payment orders, activity counts, unlocks, artist follows, user follows, followers, feed counts, recent activities, and debut status. `GET /api/v1/me/activity-ledger` supports `type=all|charge|boost|unlock|gift|free_like`.
 
 `GET /api/v1/me/sessions` lists active refresh-token sessions for the current user without exposing token hashes. The response includes minimal session metadata such as `userAgent`, `ipAddress`, `createdAt`, `lastUsedAt`, and `expiresAt`. `DELETE /api/v1/me/sessions/:sessionId` revokes a selected session. `DELETE /api/v1/me/sessions` revokes all active sessions for the current user, including the current device, so clients must clear local access and refresh tokens immediately after calling it.
 
@@ -235,6 +239,7 @@ Lumina Feed follow endpoints:
 Normal users are follow targets as well as artists. `GET /api/v1/me/following` returns `{ artists, users }`; the split endpoints are available for screens that only need one list.
 `GET /api/v1/users/:userId/profile` is public and returns an active user's display profile, follow/feed counts, and up to 5 recent public posts without exposing email.
 `GET /api/v1/me/lumina-feed` keeps the public feed shape but excludes posts hidden by the current user and posts from active block relationships. Blocking a user also soft-deletes active follows in both directions.
+Feed actions now create notification-center rows: `feed.reply`, `feed.like`, and `user.follow`. Self-actions do not create notifications. `feedNotifications=false` suppresses `feed.*`; `activityNotifications=false` suppresses `user.follow`.
 
 ## Debut Application APIs
 

@@ -40,6 +40,10 @@ Added in migration `0015_community_hide_blocks`:
 - `community_hidden_posts`
 - `user_blocks`
 
+Added in migration `0016_user_notifications`:
+
+- `user_notifications`
+
 ## Public/Frontend APIs
 
 ### Feed
@@ -210,6 +214,26 @@ Authorization: Bearer <accessToken>
 
 Like is idempotent. If the same user already liked the post, the backend returns
 `idempotentReplay: true`.
+
+### Notifications
+
+```http
+GET /me/notifications?status=all&take=20
+GET /me/notifications/unread-count
+PATCH /me/notifications/:notificationId/read
+PATCH /me/notifications/read-all
+Authorization: Bearer <accessToken>
+```
+
+Current event triggers:
+
+- `feed.reply`: another user replies to the user's post.
+- `feed.like`: another user likes the user's post for the first time.
+- `user.follow`: another user follows or re-follows the user.
+
+Self-actions are ignored. User settings control delivery:
+`feedNotifications=false` suppresses `feed.*`, and
+`activityNotifications=false` suppresses `user.follow`.
 
 ### Reports
 

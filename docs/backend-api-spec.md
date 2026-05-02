@@ -107,6 +107,10 @@ PATCH /api/v1/me/profile
 GET /api/v1/me/settings
 PATCH /api/v1/me/password
 PATCH /api/v1/me/password/setup
+GET /api/v1/me/notifications
+GET /api/v1/me/notifications/unread-count
+PATCH /api/v1/me/notifications/:notificationId/read
+PATCH /api/v1/me/notifications/read-all
 DELETE /api/v1/me
 GET /api/v1/me/sessions
 DELETE /api/v1/me/sessions
@@ -123,6 +127,7 @@ My Page contract:
 - `GET /api/v1/me/activity-ledger?type=all&take=50` returns a unified My Page activity list. `type` can be `all`, `charge`, `boost`, `unlock`, `gift`, or `free_like`.
 - `GET /api/v1/me/settings` returns `{ settings, policy }`.
 - `PATCH /api/v1/me/settings` accepts any subset of `locale`, `timezone`, `marketingOptIn`, `pushOptIn`, `activityNotifications`, `feedNotifications`, and `emailNotifications`. Empty bodies return `400`.
+- `GET /api/v1/me/notifications?status=all&take=20` returns `{ notifications, unreadCount, nextCursor }`. Feed replies, feed likes, and user follows create notification-center rows; read state is managed with the two PATCH endpoints.
 
 이메일/비밀번호 가입 정책:
 

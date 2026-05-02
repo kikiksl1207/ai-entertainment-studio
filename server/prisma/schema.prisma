@@ -47,6 +47,8 @@ model User {
   followers            UserFollow[]             @relation("UserFollowFollowing")
   blockedUsers         UserBlock[]              @relation("UserBlockBlocker")
   blockedByUsers       UserBlock[]              @relation("UserBlockBlocked")
+  notifications        UserNotification[]       @relation("UserNotificationRecipient")
+  notificationActions  UserNotification[]       @relation("UserNotificationActor")
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -185,6 +187,7 @@ model Artist {
   artistOperators   ArtistOperator[]
   communityPosts    CommunityPost[]
   followers         ArtistFollow[]
+  notifications     UserNotification[]
 
   @@index([status, sortOrder], map: "idx_artists_status_sort")
   @@map("artists")
@@ -850,6 +853,28 @@ model UserBlock {
   @@index([blockerUserId, status], map: "idx_user_blocks_blocker_status")
   @@index([blockedUserId, status], map: "idx_user_blocks_blocked_status")
   @@map("user_blocks")
+}
+
+model UserNotification {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  type        String
+  title       String
+  body        String?
+  actorUserId String?   @map("actor_user_id") @db.Uuid
+  artistId    String?   @map("artist_id") @db.Uuid
+  targetType  String?   @map("target_type")
+  targetId    String?   @map("target_id") @db.Uuid
+  metadata    Json      @default("{}")
+  readAt      DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user        User      @relation("UserNotificationRecipient", fields: [userId], references: [id])
+  actorUser   User?     @relation("UserNotificationActor", fields: [actorUserId], references: [id])
+  artist      Artist?   @relation(fields: [artistId], references: [id])
+
+  @@index([userId, readAt, createdAt], map: "idx_user_notifications_user_read_created")
+  @@index([userId, type, createdAt], map: "idx_user_notifications_user_type_created")
+  @@map("user_notifications")
 }
 
 model PremiumVideoProduct {

@@ -2,11 +2,13 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { buildPublicAssetUrl } from '../common/asset-url';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { LUMINA_FEED_SAMPLE_POSTS } from './lumina-feed-samples';
 
@@ -27,9 +29,12 @@ const UUID_PATTERN =
 
 @Injectable()
 export class CommunityService {
+  private readonly logger = new Logger(CommunityService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   getFeed(query: CommunityQuery) {
@@ -263,10 +268,10 @@ export class CommunityService {
 
   async createReply(userId: string, postId: string, input: CommunityBody) {
     await this.assertActiveUser(userId);
-    await this.findVisiblePost(postId);
+    const post = await this.findVisiblePost(postId);
     const body = this.text(input, 'body', 1, 300);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const reply = await tx.communityReply.create({
         data: {
           postId,
@@ -284,6 +289,19 @@ export class CommunityService {
 
       return { reply };
     });
+
+      await this.createNotificationSafely({
+        userId: post.authorUserId,
+        type: 'feed.reply',
+        title: 'New reply on your feed post',
+      body: this.truncate(body, 120),
+      actorUserId: userId,
+      artistId: post.artistId,
+      targetType: 'community_post',
+      targetId: post.id,
+    });
+
+    return result;
   }
 
   async deleteReply(userId: string, replyId: string) {
@@ -345,10 +363,10 @@ export class CommunityService {
   }
 
   async likePost(userId: string, postId: string, idempotencyKey?: string) {
-    await this.findVisiblePost(postId);
+    const visiblePost = await this.findVisiblePost(postId);
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         const reaction = await tx.communityReaction.create({
           data: {
             postId,
@@ -370,6 +388,18 @@ export class CommunityService {
           idempotencyKey: idempotencyKey ?? null,
         };
       });
+
+      await this.createNotificationSafely({
+        userId: visiblePost.authorUserId,
+        type: 'feed.like',
+        title: 'New like on your feed post',
+        actorUserId: userId,
+        artistId: visiblePost.artistId,
+        targetType: 'community_post',
+        targetId: visiblePost.id,
+      });
+
+      return result;
     } catch (error) {
       if (this.isUniqueConstraint(error)) {
         const post = await this.prisma.communityPost.findUnique({
@@ -532,7 +562,21 @@ export class CommunityService {
     await this.assertActiveUser(followerUserId);
     await this.assertActiveUser(followingUserId);
 
-    return this.prisma.userFollow.upsert({
+    const existing = await this.prisma.userFollow.findUnique({
+      where: {
+        followerUserId_followingUserId: {
+          followerUserId,
+          followingUserId,
+        },
+      },
+      select: {
+        status: true,
+        deletedAt: true,
+      },
+    });
+    const shouldNotify = !existing || existing.status !== 'active' || existing.deletedAt;
+
+    const follow = await this.prisma.userFollow.upsert({
       where: {
         followerUserId_followingUserId: {
           followerUserId,
@@ -550,6 +594,19 @@ export class CommunityService {
       },
       include: this.userFollowInclude('following'),
     });
+
+    if (shouldNotify) {
+      await this.createNotificationSafely({
+        userId: followingUserId,
+        type: 'user.follow',
+        title: 'New follower',
+        actorUserId: followerUserId,
+        targetType: 'user',
+        targetId: followerUserId,
+      });
+    }
+
+    return follow;
   }
 
   async unfollowUser(followerUserId: string, followingUserId: string) {
@@ -1044,7 +1101,11 @@ export class CommunityService {
         status: 'published',
         deletedAt: null,
       },
-      select: { id: true },
+      select: {
+        id: true,
+        authorUserId: true,
+        artistId: true,
+      },
     });
 
     if (!post) {
@@ -1052,6 +1113,32 @@ export class CommunityService {
     }
 
     return post;
+  }
+
+  private async createNotificationSafely(input: {
+    userId: string;
+    type: string;
+    title: string;
+    body?: string | null;
+    actorUserId?: string | null;
+    artistId?: string | null;
+    targetType?: string | null;
+    targetId?: string | null;
+    metadata?: Record<string, unknown>;
+  }) {
+    try {
+      await this.notificationsService.createNotification(input);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create notification ${input.type} for user ${input.userId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  private truncate(value: string, maxLength: number) {
+    return value.length > maxLength ? `${value.slice(0, maxLength - 1)}...` : value;
   }
 
   private async resolveOptionalArtistId(input: CommunityBody) {
