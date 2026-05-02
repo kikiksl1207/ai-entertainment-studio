@@ -1186,7 +1186,7 @@ const characters = [
     fandom: "감성 몰입형", business: "음향, 감성 캠페인, 뷰티",
     tags: ["보컬", "감성", "청아함"],
     colorAccent: "#a8d8f0",
-    images: { cover: "./assets/characters/oh-hyerin/cover.jpg", thumb: "./assets/characters/oh-hyerin/thumb.jpg" },
+    images: { cover: "./assets/characters/oh-hyerin/cover.png", thumb: "./assets/characters/oh-hyerin/thumb.png" },
     intro: "오혜린은 청아한 보컬과 섬세한 감정선으로 먼저 기억되는 아이돌 라인이다. 큰 제스처보다 작은 떨림, 높은 음보다 오래 남는 숨결로 팬의 마음에 닿는다.",
     concept: "큰 소리보다 오래 남는 목소리가 되고 싶어요. 누군가의 하루 끝에 조용히 머무는 노래로, 제 진심을 천천히 전하겠습니다.",
     profile: { 포지션: "서브 아이돌 / 보컬", 팬포인트: "청아함과 감성선", 운영상태: "데뷔 예정", 광고축: "감성 캠페인 · 뷰티" },
@@ -1202,7 +1202,7 @@ const characters = [
     fandom: "직관적 매력 소비형", business: "피트니스, 스포츠 뷰티, 라이프스타일",
     tags: ["피트니스", "러블리", "반전매력"],
     colorAccent: "#f0b0c0",
-    images: { cover: "./assets/characters/min-chaeon/cover.jpg", thumb: "./assets/characters/min-chaeon/thumb.jpg" },
+    images: { cover: "./assets/characters/min-chaeon/cover.png", thumb: "./assets/characters/min-chaeon/thumb.png" },
     intro: "민채온은 러블리한 첫인상과 탄탄한 에너지가 공존하는 피트니스형 아이돌이다. 가벼운 미소로 다가오지만, 무대 위에서는 리듬과 체력으로 시선을 붙잡는다.",
     concept: "귀엽게 웃는 모습 뒤에 숨겨둔 힘을 무대에서 보여드릴게요. 가볍게 시작해도 끝까지 단단하게 버티는 에너지로 제 이름을 증명하겠습니다.",
     profile: { 포지션: "피트니스 아이돌", 팬포인트: "귀여움과 건강미 반전", 광고축: "피트니스 · 스포츠 뷰티" },
@@ -1235,7 +1235,7 @@ const characters = [
     fandom: "라이프스타일 선망형", business: "향수, 데님, 도시 라이프스타일",
     tags: ["시크", "내추럴", "라이프스타일"],
     colorAccent: "#808080",
-    images: { cover: "./assets/characters/kang-sia/cover.jpg", thumb: "./assets/characters/kang-sia/thumb.jpg" },
+    images: { cover: "./assets/characters/kang-sia/cover.png", thumb: "./assets/characters/kang-sia/thumb.png" },
     intro: "강시아는 향수, 데님, 카페의 온도가 어울리는 도시형 모델이다. 과한 포즈 대신 자연스러운 시선과 걷는 리듬으로 라이프스타일의 선망을 만든다.", concept: "애써 꾸미지 않아도 시선이 머무는 사람이 되고 싶어요. 도시의 오후처럼 담담하지만 오래 남는 분위기로 제 장면을 만들겠습니다.",
     profile: { 포지션: "도시형 모델", 팬포인트: "비공개", 광고축: "향수 · 데님 · 라이프스타일" },
     shorts: [{ title: "시티 무드 스냅", metric: "비공개 라인" }]
@@ -1250,7 +1250,7 @@ const characters = [
     fandom: "선망형", business: "자동차, 테크, 액션 화보",
     tags: ["톱스타", "쿨함", "액션"],
     colorAccent: "#808080",
-    images: { cover: "./assets/characters/lee-jiwon/cover.jpg", thumb: "./assets/characters/lee-jiwon/thumb.jpg" },
+    images: { cover: "./assets/characters/lee-jiwon/cover.png", thumb: "./assets/characters/lee-jiwon/thumb.png" },
     intro: "이지원은 긴 흑발과 차가운 아우라로 액션, 테크, 자동차 캠페인에 어울리는 배우형 아티스트다. 감정을 크게 드러내지 않아도 장면의 긴장을 끝까지 붙잡는다.", concept: "쉽게 흔들리지 않는 눈빛으로 장면을 끝까지 밀고 가겠습니다. 말보다 분위기로 먼저 도착하는 배우가 되겠습니다.",
     profile: { 포지션: "쿨 톱스타 배우", 팬포인트: "비공개", 광고축: "자동차 · 테크 · 액션" },
     shorts: [{ title: "액션 무드 컷", metric: "비공개 라인" }]
@@ -1265,7 +1265,7 @@ const characters = [
     fandom: "트렌드 팔로워형", business: "스트릿 패션, 색조 뷰티, Y2K",
     tags: ["스트릿", "뷰티", "트렌드"],
     colorAccent: "#808080",
-    images: { cover: "./assets/characters/ha-yuna/cover.jpg", thumb: "./assets/characters/ha-yuna/thumb.jpg" },
+    images: { cover: "./assets/characters/ha-yuna/cover.png", thumb: "./assets/characters/ha-yuna/thumb.png" },
     intro: "하윤아는 고양이상 눈매와 비비드한 컬러 감각을 가진 스트릿 뷰티 모델이다. 빠르게 지나가는 숏폼 피드 안에서도 한 번 더 보게 만드는 트렌드 감도를 지녔다.", concept: "오늘의 색과 흐름은 제가 먼저 정해볼게요. 빠르게 지나가는 피드 안에서도 다시 멈춰 보게 만드는 존재가 되겠습니다.",
     profile: { 포지션: "스트릿 뷰티 모델", 팬포인트: "비공개", 광고축: "스트릿 패션 · 색조 뷰티" },
     shorts: [{ title: "컬러 트렌드 컷", metric: "비공개 라인" }]
@@ -1280,7 +1280,7 @@ const characters = [
     fandom: "직캠 바이럴형", business: "청량 무대, 여름 음료, 직캠 숏폼",
     tags: ["청량", "보컬", "직캠"],
     colorAccent: "#808080",
-    images: { cover: "./assets/characters/baek-ria/cover.jpg", thumb: "./assets/characters/baek-ria/thumb.jpg" },
+    images: { cover: "./assets/characters/baek-ria/cover.png", thumb: "./assets/characters/baek-ria/thumb.png" },
     intro: "백리아는 맑은 얼굴, 청량한 색감, 보컬 커버에 강한 직캠형 아이돌이다. 여름 음료 광고처럼 시원한 첫인상과 다시 보고 싶은 무대 표정이 강점이다.", concept: "여름처럼 맑고 직캠처럼 오래 남고 싶어요. 첫 소절부터 시원하게 닿는 무대로 팬들의 하루를 환하게 만들겠습니다.",
     profile: { 포지션: "청량 직캠 보컬", 팬포인트: "비공개", 광고축: "청량 무대 · 여름 콘텐츠" },
     shorts: [{ title: "청량 직캠 컷", metric: "비공개 라인" }]
@@ -1295,7 +1295,7 @@ const characters = [
     fandom: "시즌 이벤트형", business: "워터 스포츠, 여름 음료, 솔로 무대",
     tags: ["페스티벌", "디바", "여름"],
     colorAccent: "#808080",
-    images: { cover: "./assets/characters/oh-yuna/cover.jpg", thumb: "./assets/characters/oh-yuna/thumb.jpg" },
+    images: { cover: "./assets/characters/oh-yuna/cover.png", thumb: "./assets/characters/oh-yuna/thumb.png" },
     intro: "오유나는 워터 페스티벌, 솔로 퍼포먼스, 시즌 광고에 강한 여름 디바 라인이다. 강한 조명과 물빛 무대에서 에너지를 크게 터뜨리는 아티스트로 설계되어 있다.", concept: "무대 위의 계절을 바꿀 수 있다면 저는 늘 여름을 선택할래요. 뜨겁고 선명한 에너지로 가장 먼저 떠오르는 이름이 되겠습니다.",
     profile: { 포지션: "여름 페스티벌 디바", 팬포인트: "비공개", 광고축: "워터 스포츠 · 여름 음료" },
     shorts: [{ title: "페스티벌 티저", metric: "비공개 라인" }]
@@ -1310,7 +1310,7 @@ const characters = [
     fandom: "감성 몰입형", business: "수트, 시계, 향수, 누아르",
     tags: ["누아르", "배우", "감성"],
     colorAccent: "#808080",
-    images: { cover: "./assets/characters/kwon-taejun/cover.jpg", thumb: "./assets/characters/kwon-taejun/thumb.jpg" },
+    images: { cover: "./assets/characters/kwon-taejun/cover.png", thumb: "./assets/characters/kwon-taejun/thumb.png" },
     intro: "권태준은 깊은 눈빛과 낮은 톤으로 누아르, 수트, 향수 캠페인에 어울리는 배우형 아티스트다. 대사가 많지 않아도 감정의 무게를 장면에 남긴다.", concept: "많이 말하지 않아도 감정은 남길 수 있다고 믿습니다. 낮은 목소리와 긴 침묵 사이에 제 서사를 깊게 새기겠습니다.",
     profile: { 포지션: "누아르 배우", 팬포인트: "비공개", 광고축: "수트 · 시계 · 향수" },
     shorts: [{ title: "누아르 티저", metric: "비공개 라인" }]
@@ -1325,7 +1325,7 @@ const characters = [
     fandom: "커뮤니티 참여형", business: "예능 숏폼, 팬 이벤트, 고민 상담",
     tags: ["MC", "예능", "커뮤니티"],
     colorAccent: "#808080",
-    images: { cover: "./assets/characters/seo-hamin/cover.jpg", thumb: "./assets/characters/seo-hamin/thumb.jpg" },
+    images: { cover: "./assets/characters/seo-hamin/cover.png", thumb: "./assets/characters/seo-hamin/thumb.png" },
     intro: "서하민은 안경과 큐카드가 잘 어울리는 커뮤니티 MC형 아티스트다. 이벤트, 고민 상담, 팬 참여형 콘텐츠에서 자연스럽게 분위기를 만들고 사람들을 연결한다.", concept: "어색한 공기도 제가 먼저 열어볼게요. 팬과 아티스트가 편하게 웃고 참여할 수 있는 순간을 만드는 진행자가 되겠습니다.",
     profile: { 포지션: "이벤트 MC", 팬포인트: "비공개", 광고축: "예능 · 팬 이벤트" },
     shorts: [{ title: "팬 이벤트 오프닝", metric: "비공개 라인" }]
@@ -1340,7 +1340,7 @@ const characters = [
     fandom: "응원 캠페인형", business: "스포츠, 에너지 드링크, 챌린지",
     tags: ["스포츠", "챌린지", "응원"],
     colorAccent: "#808080",
-    images: { cover: "./assets/characters/ryu-taeo/cover.jpg", thumb: "./assets/characters/ryu-taeo/thumb.jpg" },
+    images: { cover: "./assets/characters/ryu-taeo/cover.png", thumb: "./assets/characters/ryu-taeo/thumb.png" },
     intro: "류태오는 밝은 미소와 애슬레틱한 움직임을 가진 스포츠 챌린지형 아티스트다. 글로벌 응원 캠페인, 에너지 드링크, 팀 챌린지 콘텐츠에서 활약할 수 있는 라인이다.", concept: "끝까지 뛰면 닿는 곳이 있다고 믿어요. 밝게 웃고 더 크게 움직이며, 응원의 에너지를 무대 끝까지 가져가겠습니다.",
     profile: { 포지션: "스포츠 챌린지", 팬포인트: "비공개", 광고축: "스포츠 · 에너지 드링크" },
     shorts: [{ title: "응원 챌린지 컷", metric: "비공개 라인" }]
@@ -1930,6 +1930,7 @@ function adaptArtist(api) {
       thumb: normalizeAssetUrl(apiThumb?.url || api.thumbnailImage?.url || api.thumbImage?.url || api.thumbImage || api.thumb_image || local.images?.thumb)
     },
     gallery:           apiGallery.length > 0 ? apiGallery : (local.gallery || []),
+    assets:            api.assets || [],   // #031: 원본 assets[] 보존 (상세 페이지에서 필터링용)
     profile:           api.profile || local.profile || {},
     shorts:            api.shorts  || local.shorts  || [],
     // 프론트 전용 필드: 항상 로컬 유지
@@ -2615,6 +2616,43 @@ function bindCharacterFilters() {
 }
 
 /* ── 렌더링: 캐릭터 상세 ─────────────────────── */
+/* ── 캐릭터 상세 페이지 갤러리 비동기 갱신 (#031) ──
+   목록 API `/api/v1/artists`에 assets[]이 빠져있을 가능성 대비.
+   상세 페이지 진입 시 개별 `/api/v1/artists/{slug}` 호출 → 정확한 gallery로 갱신.
+   에밀리 권장 패턴: artist.assets.filter(usageType=gallery).map(url) */
+async function fetchAndUpdateDetailGallery(slug, artistName) {
+  if (!slug) return;
+  try {
+    const full = await apiFetch(`/api/v1/artists/${encodeURIComponent(slug)}`);
+    if (!full || !Array.isArray(full.assets) || full.assets.length === 0) return;
+
+    const galleryItems = full.assets
+      .filter(a => a.usageType === "gallery")
+      .map(a => ({ caption: a.caption || "Gallery", src: normalizeAssetUrl(a.url) }));
+
+    if (galleryItems.length === 0) return;
+
+    // _artists 캐시 갱신 (다음 진입 시 빠르게)
+    const cached = _artists.find(a => a.slug === slug);
+    if (cached) {
+      cached.assets = full.assets;
+      cached.gallery = galleryItems.map(g => [g.caption, g.src]);
+      // cover/thumb도 최신 운영 데이터로 갱신
+      const fullCover = full.assets.find(a => a.usageType === "cover");
+      const fullThumb = full.assets.find(a => a.usageType === "thumb");
+      if (fullCover?.url) cached.images.cover = normalizeAssetUrl(fullCover.url);
+      if (fullThumb?.url) cached.images.thumb = normalizeAssetUrl(fullThumb.url);
+    }
+
+    // 슬라이더/라이트박스 새 데이터로 다시 그리기
+    initGallerySlider(galleryItems, artistName);
+    initLightbox(galleryItems, artistName);
+    console.info(`[Lumina] 상세 갤러리 갱신: ${slug} (${galleryItems.length}장)`);
+  } catch (err) {
+    console.warn(`[Lumina] 개별 아티스트 fetch 실패 (${slug}) — 기존 갤러리 유지:`, err);
+  }
+}
+
 function renderCharacterDetail() {
   const hero = document.getElementById("detailHero");
   if (!hero) return;
@@ -2718,6 +2756,10 @@ function renderCharacterDetail() {
 
     initGallerySlider(galleryItems, artist.publicName);
     initLightbox(galleryItems, artist.publicName);
+
+    // #031: 운영 API에서 정확한 gallery 가져와서 갱신 (에밀리 코드 패턴 적용)
+    // /api/v1/artists 목록 응답에 assets가 빠져있는 경우 대비 → 개별 API 호출
+    fetchAndUpdateDetailGallery(artist.slug, artist.publicName);
   }
 
   const profile = document.getElementById("detailProfile");
