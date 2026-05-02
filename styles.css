@@ -69,7 +69,21 @@ button {
   z-index: 20;
   backdrop-filter: blur(20px);
   background: rgba(13, 13, 26, 0.92);
-  border-bottom: 1px solid var(--line);
+  /* border-bottom → ::after 핫핑크-보라 그라데이션 라인으로 교체 (데뷔하기 톤 통일) */
+}
+.site-header::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 20, 147, 0.5) 28%,
+    rgba(159, 139, 199, 0.5) 72%,
+    transparent 100%);
+  pointer-events: none;
 }
 
 .header-inner {
@@ -104,7 +118,13 @@ button {
   display: block;
   font-size: 16px;
   font-weight: 800;
-  color: var(--ink);
+  /* 데뷔하기 톤 통일 — 핫핑크 → 라벤더 그라데이션 텍스트 */
+  background: linear-gradient(135deg, #ff1493 0%, #c8a6ff 100%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+          color: transparent;
+  letter-spacing: -0.01em;
 }
 
 .brand-copy small {
@@ -2522,25 +2542,28 @@ p {
 }
 
 .auth-btn-login {
-  color: var(--muted);
-  border: 1px solid var(--line);
+  /* 비로그인: "로그인" / 로그인: 닉네임 — 핫핑크 outline */
+  color: rgba(255, 130, 200, 0.85);
+  border: 1px solid rgba(255, 20, 147, 0.4);
   background: transparent;
 }
 
 .auth-btn-login:hover {
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255,255,255,0.2);
+  color: #ff7eb9;
+  background: rgba(255, 20, 147, 0.08);
+  border-color: rgba(255, 20, 147, 0.6);
 }
 
 .auth-btn-signup {
+  /* 비로그인: "회원가입" / 로그인: "로그아웃" — 핫핑크-라벤더 그라데이션
+     데뷔하기 CTA 톤이지만 box-shadow 글로우 없이 톤만 통일 (CTA 차별성 보호) */
   color: #fff;
-  background: var(--accent-dark);
+  background: linear-gradient(135deg, rgba(255, 20, 147, 0.85) 0%, rgba(159, 139, 199, 0.92) 100%);
   border: 1px solid transparent;
 }
 
 .auth-btn-signup:hover {
-  opacity: 0.85;
+  opacity: 0.88;
 }
 
 /* ── 비즈니스 섹션 재구성 ── */
@@ -4317,4 +4340,845 @@ p {
 }
 .vote-ranking-hidden[hidden] {
   display: none !important;
+}
+
+/* ══════════════════════════════════════════════
+   푸터 링크 그룹 (비즈니스 푸터 이동 — 2026-05-02)
+   기존 푸터 우측 단순 <p>를 .footer-links div로 통일
+   비즈니스가 메인 메뉴에서 푸터로 내려가면서 신설
+   ══════════════════════════════════════════════ */
+.footer-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+.footer-links a {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: color 0.15s;
+}
+.footer-links a:hover {
+  color: var(--accent-dark);
+}
+@media (max-width: 860px) {
+  .footer-links {
+    align-items: flex-start;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   모바일 nav 가로 스크롤 폴리싱 (메뉴 6개 대응 — 2026-05-02)
+   - 스크롤바 숨김 → 시각 깔끔
+   - 우측 mask-image fade → 잘리는 부분 자연스럽게 + 스크롤 힌트
+   - JS activateCurrentNavItem이 현재 페이지 항목 자동 scrollIntoView
+   다음 세션 (#017)에서 768px 이하 하단 탭바로 업그레이드 예정
+   ══════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .main-nav {
+    scrollbar-width: none;                /* Firefox */
+    -ms-overflow-style: none;             /* IE/Edge legacy */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+            mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  }
+  .main-nav::-webkit-scrollbar {
+    display: none;                        /* Webkit (Chrome/Safari) */
+  }
+}
+
+/* ══════════════════════════════════════════════
+   #017 모바일 하단 탭바 + 데뷔하기 강조 CTA (2026-05-02)
+   - 768px 이하: 상단 nav 숨김, 하단 탭바 5개 + 헤더 우측 데뷔하기 CTA
+   - 769px 이상: 탭바/CTA 숨김, 상단 nav 6개 그대로 (변경 없음)
+   - iOS safe-area-inset, body padding 자동 보정
+   - Weverse / Bubble / Instagram 모바일 패턴 (2025 트렌드 조사 기반)
+   ══════════════════════════════════════════════ */
+
+/* 데스크톱: 모바일 전용 요소 숨김 (변경 없음) */
+.debut-cta-mobile { display: none; }
+.mobile-tabbar { display: none; }
+
+/* ── 모바일 768px 이하 ── */
+@media (max-width: 768px) {
+  /* 상단 nav 숨김 — 메뉴는 하단 탭바 + 데뷔하기 CTA로 분산 */
+  .main-nav {
+    display: none;
+  }
+
+  /* 헤더 우측 데뷔하기 CTA — 핫핑크 그라데이션 강조 */
+  .debut-cta-mobile {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: #fff !important;
+    background: linear-gradient(135deg, #ff1493 0%, #9f8bc7 100%);
+    box-shadow: 0 4px 14px rgba(255, 20, 147, 0.35);
+    transition: transform 0.15s, box-shadow 0.15s;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .debut-cta-mobile:hover,
+  .debut-cta-mobile:active {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(255, 20, 147, 0.5);
+  }
+
+  /* 하단 탭바 — fixed bottom, blur 배경, 5개 탭, 핫핑크-보라 그라데이션 액센트 (데뷔하기 톤 통일) */
+  .mobile-tabbar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: rgba(11, 8, 23, 0.92);
+    -webkit-backdrop-filter: blur(14px);
+            backdrop-filter: blur(14px);
+    border-top: none;
+    padding: 8px 4px calc(8px + env(safe-area-inset-bottom)) 4px;
+  }
+  /* 탭바 상단 그라데이션 라인 — 헤더 ::after와 톤 통일 */
+  .mobile-tabbar::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(255, 20, 147, 0.55) 28%,
+      rgba(159, 139, 199, 0.55) 72%,
+      transparent 100%);
+    pointer-events: none;
+  }
+  .mobile-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 4px;
+    color: rgba(255, 130, 200, 0.62);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-align: center;
+    transition: color 0.15s;
+  }
+  .mobile-tab svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+  .mobile-tab:hover,
+  .mobile-tab:active {
+    color: rgba(255, 160, 215, 0.95);
+  }
+  .mobile-tab.is-active {
+    color: #ff1493;
+  }
+  .mobile-tab.is-active svg {
+    filter: drop-shadow(0 0 8px rgba(255, 20, 147, 0.7));
+  }
+  .mobile-tab.is-active svg path,
+  .mobile-tab.is-active svg circle,
+  .mobile-tab.is-active svg rect {
+    stroke-width: 2;
+  }
+
+  /* body 하단 padding — 탭바에 콘텐츠가 가려지지 않게 자동 보정
+     (탭바 약 56px + safe-area) */
+  body {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ══════════════════════════════════════════════
+   #018 데뷔 유형 카드 그리드 (debut.html — 2026-05-02)
+   에밀리 카피 5가지 유형 안내
+   ══════════════════════════════════════════════ */
+.debut-types-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  margin-top: 28px;
+}
+.debut-type-card {
+  position: relative;
+  padding: 28px 24px 24px;
+  background: linear-gradient(180deg, rgba(159, 139, 199, 0.08), rgba(159, 139, 199, 0.02));
+  border: 1px solid rgba(159, 139, 199, 0.22);
+  border-radius: 16px;
+  transition: border-color 0.2s, transform 0.2s, background 0.2s;
+}
+.debut-type-card:hover {
+  border-color: rgba(255, 20, 147, 0.4);
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, rgba(255, 20, 147, 0.06), rgba(159, 139, 199, 0.04));
+}
+.debut-type-num {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #ff1493;
+  margin-bottom: 10px;
+  font-family: Georgia, serif;
+}
+.debut-type-card h3 {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0 0 10px 0;
+  letter-spacing: -0.01em;
+}
+.debut-type-card p {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--muted);
+  margin: 0;
+}
+@media (max-width: 640px) {
+  .debut-types-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .debut-type-card {
+    padding: 22px 20px 20px;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   루미나 피드 (lumina-feed.html — #019 적용 — 2026-05-02)
+   - 모바일/데스크톱 동일한 세로 카드 리스트 (X/인스타 톤)
+   - 데스크톱에서도 좁은 max-width로 모바일 무드 유지
+   - 차모 #014 API 본구축 시 데이터만 교체, 레이아웃 유지
+   ══════════════════════════════════════════════ */
+
+.feed-section {
+  padding-top: 32px;
+  padding-bottom: 56px;
+}
+
+.feed-shell {
+  max-width: 620px;
+  margin: 0 auto;
+  width: min(100% - 32px, 620px);
+}
+
+.feed-page-head {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.feed-page-eyebrow {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #ff1493;
+  margin: 0;
+  font-family: Georgia, serif;
+}
+
+/* 필터 탭 — Monthly Pick 탭과 톤 통일하되 더 컴팩트 */
+.feed-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(159, 139, 199, 0.06);
+  border: 1px solid rgba(159, 139, 199, 0.14);
+  border-radius: 999px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.feed-tabs::-webkit-scrollbar {
+  display: none;
+}
+.feed-tab {
+  flex: 1;
+  min-width: fit-content;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  color: rgba(220, 210, 240, 0.65);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.feed-tab:hover {
+  color: rgba(255, 200, 225, 0.95);
+}
+.feed-tab.is-active {
+  background: linear-gradient(135deg, rgba(255, 20, 147, 0.18), rgba(159, 139, 199, 0.16));
+  color: #fff;
+}
+
+/* 피드 카드 리스트 */
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.feed-empty {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  background: rgba(159, 139, 199, 0.04);
+  border: 1px dashed rgba(159, 139, 199, 0.22);
+  border-radius: 14px;
+}
+
+/* 개별 포스트 카드 */
+.feed-post {
+  padding: 18px 20px 14px;
+  background: linear-gradient(180deg, rgba(159, 139, 199, 0.07), rgba(159, 139, 199, 0.025));
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  border-radius: 14px;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+}
+.feed-post.clickable-card {
+  cursor: pointer;
+}
+.feed-post.clickable-card:hover {
+  border-color: rgba(255, 20, 147, 0.4);
+  background: linear-gradient(180deg, rgba(255, 20, 147, 0.05), rgba(159, 139, 199, 0.04));
+  transform: translateY(-1px);
+}
+
+.feed-post-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 10px;
+}
+
+.feed-post-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #ff1493, #9f8bc7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.feed-post-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.feed-post-avatar-fallback {
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.feed-post-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.feed-post-author {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.feed-post-type {
+  display: inline-flex;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  width: fit-content;
+}
+.feed-post-type-artist {
+  background: rgba(255, 20, 147, 0.16);
+  color: #ff7eb9;
+  border: 1px solid rgba(255, 20, 147, 0.25);
+}
+.feed-post-type-fan {
+  background: rgba(159, 139, 199, 0.18);
+  color: #c5b3e8;
+  border: 1px solid rgba(159, 139, 199, 0.28);
+}
+.feed-post-type-debut_artist {
+  background: rgba(255, 180, 80, 0.14);
+  color: #ffc97a;
+  border: 1px solid rgba(255, 180, 80, 0.28);
+}
+
+.feed-post-body {
+  font-size: 15px;
+  line-height: 1.62;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0 0 12px 0;
+  /* X 패턴 — 가변 길이지만 최대 6줄 한도, 넘으면 line-clamp + 더보기 (#022/사용자 요청) */
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.feed-post.is-expanded .feed-post-body {
+  -webkit-line-clamp: unset;
+  display: block;
+  overflow: visible;
+}
+
+/* 더보기/접기 버튼 — 본문이 잘린 카드(.has-overflow)에서만 노출.
+   .has-overflow는 renderLuminaFeed가 scrollHeight 비교로 동적 부여. */
+.feed-post-expand-btn {
+  display: none;
+  background: transparent;
+  border: none;
+  color: #ff7eb9;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 0 6px;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  margin: -4px 0 8px;
+  transition: color 0.15s;
+}
+.feed-post.has-overflow .feed-post-expand-btn {
+  display: inline-block;
+}
+.feed-post-expand-btn:hover {
+  color: #ff1493;
+}
+
+.feed-post-actions {
+  display: flex;
+  gap: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(159, 139, 199, 0.12);
+}
+.feed-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  background: transparent;
+  border: none;
+  color: rgba(220, 210, 240, 0.45);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: not-allowed;
+  font-family: inherit;
+}
+.feed-action-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* 모바일 미세 조정 */
+@media (max-width: 640px) {
+  .feed-section {
+    padding-top: 20px;
+    padding-bottom: 40px;
+  }
+  .feed-shell {
+    width: min(100% - 20px, 620px);
+  }
+  .feed-page-head {
+    margin-bottom: 14px;
+  }
+  .feed-tab {
+    font-size: 12.5px;
+    padding: 7px 12px;
+  }
+  .feed-post {
+    padding: 16px 16px 12px;
+    border-radius: 12px;
+  }
+  .feed-post-body {
+    font-size: 14.5px;
+  }
+}
+
+/* My Page */
+.page-mypage {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 20, 147, 0.12), transparent 28%),
+    radial-gradient(circle at 88% 8%, rgba(200, 166, 255, 0.12), transparent 30%),
+    var(--bg);
+}
+
+.mypage-hero {
+  padding: 56px 0 26px;
+}
+
+.mypage-hero-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 28px;
+  align-items: end;
+}
+
+.mypage-hero-copy h1 {
+  margin: 8px 0 12px;
+  font-size: clamp(38px, 7vw, 72px);
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+}
+
+.mypage-hero-copy p,
+.mypage-login-inner p {
+  max-width: 620px;
+  margin: 0;
+  color: rgba(240, 238, 248, 0.7);
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.mypage-hero-panel,
+.mypage-login-inner,
+.mypage-panel,
+.mypage-side {
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  background: linear-gradient(180deg, rgba(159, 139, 199, 0.08), rgba(159, 139, 199, 0.025));
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22);
+}
+
+.mypage-hero-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 116px;
+  padding: 20px;
+  border-radius: 16px;
+}
+
+.mypage-avatar {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff1493 0%, #9f8bc7 100%);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 8px 24px rgba(255, 20, 147, 0.28);
+}
+
+.mypage-hero-panel span,
+.mypage-balance-card span,
+.mypage-field span {
+  display: block;
+  color: rgba(255, 180, 215, 0.85);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.mypage-hero-panel strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.mypage-hero-panel small {
+  display: block;
+  margin-top: 4px;
+  color: rgba(240, 238, 248, 0.58);
+  overflow-wrap: anywhere;
+}
+
+.mypage-login-panel {
+  padding: 20px 0 64px;
+}
+
+.mypage-login-inner {
+  max-width: 720px;
+  padding: 28px;
+  border-radius: 16px;
+}
+
+.mypage-login-inner h2 {
+  margin: 8px 0 10px;
+  font-size: clamp(26px, 4vw, 40px);
+  line-height: 1.12;
+}
+
+.mypage-section {
+  padding: 18px 0 80px;
+}
+
+.mypage-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.mypage-side {
+  position: sticky;
+  top: 96px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 14px;
+}
+
+.mypage-side-link {
+  padding: 12px 14px;
+  border-radius: 10px;
+  color: rgba(240, 238, 248, 0.68);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.mypage-side-link:hover,
+.mypage-side-link.is-active {
+  color: #fff;
+  background: rgba(255, 20, 147, 0.16);
+}
+
+.mypage-content {
+  display: grid;
+  gap: 18px;
+}
+
+.mypage-panel {
+  padding: 24px;
+  border-radius: 16px;
+  scroll-margin-top: 96px;
+}
+
+.mypage-panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.mypage-panel-head h2 {
+  margin: 6px 0 0;
+  font-size: clamp(24px, 4vw, 34px);
+  line-height: 1.12;
+}
+
+.mypage-field-grid,
+.mypage-wallet-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.mypage-field {
+  display: grid;
+  gap: 7px;
+}
+
+.mypage-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid rgba(159, 139, 199, 0.24);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.mypage-field input:focus {
+  outline: none;
+  border-color: rgba(255, 20, 147, 0.7);
+  box-shadow: 0 0 0 3px rgba(255, 20, 147, 0.12);
+}
+
+.mypage-field input[readonly] {
+  color: rgba(240, 238, 248, 0.62);
+}
+
+.mypage-field small,
+.mypage-balance-card small,
+.mypage-status-card p,
+.mypage-empty p {
+  color: rgba(240, 238, 248, 0.58);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.mypage-action-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.mypage-icon-button,
+.mypage-filter-row button,
+.mypage-settings-list button {
+  border: 1px solid rgba(255, 20, 147, 0.32);
+  background: rgba(255, 20, 147, 0.08);
+  color: #ffb4d7;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mypage-balance-card {
+  min-height: 150px;
+  padding: 20px;
+  border: 1px solid rgba(255, 20, 147, 0.2);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 20, 147, 0.13), rgba(159, 139, 199, 0.045));
+}
+
+.mypage-balance-card.is-soft {
+  border-color: rgba(200, 166, 255, 0.2);
+  background: linear-gradient(180deg, rgba(200, 166, 255, 0.1), rgba(159, 139, 199, 0.035));
+}
+
+.mypage-balance-card strong {
+  display: block;
+  margin: 12px 0 6px;
+  color: #ff1493;
+  font-size: clamp(34px, 6vw, 52px);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mypage-status-card,
+.mypage-empty {
+  padding: 18px;
+  border: 1px solid rgba(159, 139, 199, 0.16);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.mypage-status-badge {
+  display: inline-flex;
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 201, 122, 0.12);
+  color: #ffc97a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mypage-status-card strong,
+.mypage-empty strong {
+  display: block;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.mypage-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.mypage-filter-row button.is-active {
+  background: linear-gradient(135deg, #ff1493 0%, #9f8bc7 100%);
+  color: #fff;
+}
+
+.mypage-settings-list {
+  display: grid;
+  gap: 10px;
+}
+
+.mypage-settings-list label,
+.mypage-settings-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(159, 139, 199, 0.16);
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .mypage-hero-inner,
+  .mypage-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .mypage-side {
+    position: static;
+    display: flex;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .mypage-hero {
+    padding: 34px 0 18px;
+  }
+
+  .mypage-section {
+    padding-top: 8px;
+    padding-bottom: 56px;
+  }
+
+  .mypage-panel,
+  .mypage-login-inner {
+    padding: 18px;
+    border-radius: 14px;
+  }
+
+  .mypage-panel-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mypage-field-grid,
+  .mypage-wallet-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mypage-action-row .button-primary,
+  .mypage-action-row .button-secondary,
+  .mypage-panel-head .button-primary,
+  .mypage-icon-button {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
 }

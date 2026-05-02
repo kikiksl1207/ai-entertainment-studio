@@ -108,6 +108,7 @@ async function authLogout() {
   try { await apiFetch("/api/v1/auth/logout", { method: "POST", auth: true }); } catch {}
   clearAuth();
   updateAuthUI();
+  initMypagePage();
 }
 
 /* ── 백엔드 응답에서 토큰 추출 (키 이름 자동 인식) ── */
@@ -228,6 +229,7 @@ async function handleAuthSubmit(form, mode) {
     }
     closeAuthModal();
     updateAuthUI();
+    initMypagePage();
     form.reset();
   } catch (err) {
     // 백엔드 validation details 친절히 보여주기
@@ -774,8 +776,8 @@ function likeButtonHTML(slug, extraClass = "") {
   const count = getLikesCount(slug);
   const liked = _userLikedSlugs.has(slug) ? " is-liked" : "";
   const cls = extraClass ? ` ${extraClass}` : "";
-  // 카탈로그에서는 클릭 시 인기투표실로 이동 — 호버 시 안내 (인기투표실 페이지에서는 무관)
-  const tooltip = "인기투표실에서 응원하기";
+  // 카탈로그에서는 클릭 시 루미나 픽으로 이동 — 호버 시 안내 (루미나 픽 페이지에서는 무관)
+  const tooltip = "루미나 픽에서 응원하기";
   return `
     <button class="like-btn${cls}${liked}" data-like-slug="${slug}" type="button" aria-label="좋아요" title="${tooltip}">
       <svg class="like-heart" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -834,7 +836,7 @@ async function handleLike(slug, btnEl) {
       })
       .catch(err => console.warn("[Lumina] 랭킹 재로드 실패 (낙관적 갱신 유지):", err));
 
-    // 좋아요 후 무료 한도 잔여 갱신 (인기투표실 hero 패널 업데이트)
+    // 좋아요 후 무료 한도 잔여 갱신 (루미나 픽 hero 패널 업데이트)
     loadFreeLikeQuota().then(updateHeroQuotaDisplay);
   } catch (err) {
     console.error("[Lumina] 좋아요 실패:", err);
@@ -884,9 +886,9 @@ function bindLikeButtons() {
     e.stopPropagation();
     const slug = btn.dataset.likeSlug;
 
-    // 카탈로그(characters.html)에서는 좋아요 대신 인기투표실로 이동
-    // → 진짜 투표는 인기투표실에서. 카드의 좋아요 버튼은 entry point 역할.
-    // 인기투표실(popular-vote.html) 자체에서는 기존 좋아요 동작 유지.
+    // 카탈로그(characters.html)에서는 좋아요 대신 루미나 픽으로 이동
+    // → 진짜 투표는 루미나 픽에서. 카드의 좋아요 버튼은 entry point 역할.
+    // 루미나 픽(popular-vote.html) 자체에서는 기존 좋아요 동작 유지.
     const path = window.location.pathname;
     const isOnVoteRoom = path.includes("popular-vote.html");
     if (!isOnVoteRoom) {
@@ -973,19 +975,39 @@ function bindAuthHeaderEvents() {
 }
 
 /* ── 현재 페이지에 해당하는 메뉴 항목에 is-active 자동 부여 ──
-   각 HTML 파일에 일일이 class="is-active"를 박지 않고 JS가 자동 감지 */
+   각 HTML 파일에 일일이 class="is-active"를 박지 않고 JS가 자동 감지.
+   2026-05-02: 모바일 가로 스크롤(메뉴 6개)에서 활성 항목 자동 scrollIntoView 추가.
+   2026-05-02 후속(#017): 하단 탭바도 동기 처리. */
 function activateCurrentNavItem() {
   const path = window.location.pathname;
   // 마지막 /를 기준으로 파일명 추출. "/" 또는 "" 인 경우 index.html로 간주.
   const filename = (path.split("/").pop() || "index.html").toLowerCase();
+  let activeLink = null;
+
+  // 상단 nav (데스크톱 + 769px 이상)
   document.querySelectorAll(".main-nav a").forEach(link => {
     const href = (link.getAttribute("href") || "").toLowerCase();
     const linkFile = href.split("/").pop();
     if (linkFile === filename) {
       link.classList.add("is-active");
+      activeLink = link;
     } else {
       link.classList.remove("is-active");
     }
+  });
+  // 모바일 가로 스크롤(640px↓)에서 활성 항목 자동 가운데 — main-nav가 보일 때만 의미.
+  // 768px↓에서는 main-nav가 display:none이라 동작 자체가 무해함 (skip된 효과).
+  if (activeLink && window.innerWidth <= 640) {
+    requestAnimationFrame(() => {
+      activeLink.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    });
+  }
+
+  // 하단 탭바 (모바일 768px↓) — 5개 탭 (홈/아티스트/루미나 픽/피드/숏폼) 동기 처리
+  // data-tab-key는 파일명. 데뷔하기는 헤더 우측 CTA로 분리되어 탭바에 없음.
+  document.querySelectorAll(".mobile-tab").forEach(tab => {
+    const tabKey = (tab.dataset.tabKey || "").toLowerCase();
+    tab.classList.toggle("is-active", tabKey === filename);
   });
 }
 
@@ -1031,16 +1053,16 @@ function createUserMenu() {
     </div>
     <div class="user-menu-divider"></div>
     <button class="user-menu-item" type="button" data-action="profile">
-      <span>마이 프로필</span>
-      <small>곧 공개</small>
+      <span>마이페이지</span>
+      <small>프로필</small>
     </button>
     <button class="user-menu-item" type="button" data-action="wallet">
       <span>루미나 지갑</span>
-      <small>곧 공개</small>
+      <small>잔액</small>
     </button>
     <button class="user-menu-item" type="button" data-action="orders">
-      <span>주문 내역</span>
-      <small>곧 공개</small>
+      <span>활동 및 결제</span>
+      <small>내역</small>
     </button>
     <div class="user-menu-divider"></div>
     <button class="user-menu-item user-menu-logout" type="button" data-action="logout">
@@ -1054,8 +1076,12 @@ function createUserMenu() {
       if (action === "logout") {
         authLogout();
       } else {
-        // 준비 중 메뉴
-        alert("곧 더 가까운 팬 경험으로 열릴 예정입니다.");
+        const target = {
+          profile: "./mypage.html#profile",
+          wallet: "./mypage.html#wallet",
+          orders: "./mypage.html#activity"
+        }[action] || "./mypage.html";
+        window.location.href = target;
       }
       closeUserMenu();
     });
@@ -1079,7 +1105,7 @@ const characters = [
     colorAccent: "#c4b0f0",
     images: { cover: "./assets/characters/yoon-serin/cover.png", thumb: "./assets/characters/yoon-serin/thumb.png" },
     intro: "서울 강남에서 태어난 윤세린은 열 살 때 우연히 참가한 뮤직비디오 오디션을 계기로 아역모델로 데뷔했다. 또래보다 훨씬 강한 눈빛과 타고난 무대 감각으로 현장에서 빠르게 이름을 알렸고, 중학교 2학년 재학 중 스타에이 엔터테인먼트 연습생으로 선발되며 본격적인 아티스트의 길을 걷기 시작했다. 2년간의 혹독한 훈련을 거치며 퍼포먼스와 비주얼 양면에서 정제된 무기를 갖추게 됐고, 이후 Lumina Stage 1기 메인 대표로 데뷔했다.",
-    concept: "강한 시선, 정제된 퍼포먼스, 그리고 일상과 무대 사이의 극적인 온도 차. 윤세린은 차갑게 등장해서 뜨겁게 각인된다.",
+    concept: "차갑게 보이는 순간에도 저는 무대를 향해 가장 뜨겁게 준비하고 있어요. 흔들리지 않는 시선과 정제된 퍼포먼스로, 한 번 본 사람의 기억에 오래 남는 아티스트가 되겠습니다.",
     profile: {
       생년월일: "2001년 3월 14일 (만 25세)",
       출신지: "서울 강남구",
@@ -1112,7 +1138,7 @@ const characters = [
     colorAccent: "#f0a8cc",
     images: { cover: "./assets/characters/han-seoyul/cover.png", thumb: "./assets/characters/han-seoyul/thumb.png" },
     intro: "경기도 분당에서 자란 한서율은 중학교 시절 전국 청소년 댄스 대회에서 2연패를 달성하며 일찌감치 재능을 증명했다. 아이디어엠 공개 오디션 최종 합격 후 1년간 트레이닝을 마치고 Lumina Stage 1기로 합류했다. 센터에 서는 순간 공간 전체를 밝히는 반짝임이 있고, 어떤 팀원과 붙어도 자연스럽게 분위기를 끌어올리는 무드메이커 기질이 타고났다.",
-    concept: "센터의 무게를 즐기되 절대 혼자 빛나지 않는다. 한서율의 존재감은 모두가 더 빛나게 만드는 방식으로 작동한다.",
+    concept: "센터에 서는 이유는 혼자 빛나기 위해서가 아니에요. 제 옆에 선 사람들, 저를 바라봐주는 팬들까지 함께 환해지는 무대를 만들겠습니다.",
     profile: { 생년월일: "2003년 6월 22일 (만 22세)", 출신지: "경기도 분당", 신체: "166cm", 혈액형: "O형", 포지션: "메인 아이돌 / 센터형", 데뷔: "2024년 Lumina Stage 1기", 팬포인트: "정면 비주얼과 대중성", 광고축: "패션 · 음료 · 라이프스타일", MBTI: "ENFJ", 취미: "배드민턴, 카페 투어, 그림 그리기" },
     shorts: [{ title: "센터 무드 스냅", metric: "조회 9.7만" }, { title: "하이틴 센터 포맷", metric: "조회 10.1만" }, { title: "팬서비스 포토무드", metric: "좋아요 2.8만" }]
   },
@@ -1129,7 +1155,7 @@ const characters = [
     colorAccent: "#f0c870",
     images: { cover: "./assets/characters/park-doa/cover.png", thumb: "./assets/characters/park-doa/thumb.png" },
     intro: "부산 해운대 출신 박도아는 고등학교 1학년 때 시작한 틱톡 계정이 6개월 만에 팔로워 12만을 돌파하며 자신의 가능성을 직접 증명했다. 먹방, 리액션, 일상 브이로그를 자유롭게 오가는 콘텐츠 감각과 부산 특유의 직설적인 입담이 팬들의 마음을 사로잡았다.",
-    concept: "화면 속에 있어도 옆집 언니처럼 편하다. 박도아의 친근함은 설계된 것이 아니라 그냥 그런 사람이라서다.",
+    concept: "멀리 있는 스타보다 오늘도 편하게 말 걸 수 있는 사람이 되고 싶어요. 웃긴 순간도, 솔직한 하루도, 팬들과 가장 가까운 온도로 나누겠습니다.",
     profile: { 생년월일: "2002년 11월 5일 (만 23세)", 출신지: "부산 해운대구", 신체: "163cm", 혈액형: "B형", 포지션: "커뮤니티 훅 / 스트리머", 데뷔: "2024년 Lumina Stage 1기", 팬포인트: "리액션과 친근함", 광고축: "푸드 · 커머스 · 라이프", MBTI: "ESFP", 취미: "먹방 촬영, 독서, 바다 수영" },
     shorts: [{ title: "친근 리액션 포맷", metric: "조회 15.3만" }, { title: "생활형 브이로그컷", metric: "댓글 1.1천" }, { title: "먹방 리액션 티저", metric: "저장 3.7천" }]
   },
@@ -1146,7 +1172,7 @@ const characters = [
     colorAccent: "#a0bce8",
     images: { cover: "./assets/characters/choi-seojin/cover.png", thumb: "./assets/characters/choi-seojin/thumb.png" },
     intro: "서울 용산에서 태어난 최서진은 여덟 살 때 아역배우로 첫 스크린을 밟았다. 성장하면서 자연스럽게 패션·뷰티 모델로 영역을 넓혔고, 파리 아르떼 에콜 교환학생으로 선발되어 유럽 예술·패션 씬을 직접 경험했다. Lumina Stage에서는 프리미엄 라인의 간판을 맡아 스튜디오 전체의 품격을 책임진다.",
-    concept: "화려하지 않아도 존재감이 넘친다. 최서진이 있는 장면은 그 자체로 하나의 화보가 된다.",
+    concept: "많이 말하지 않아도 장면은 남는다고 믿습니다. 한 컷의 시선, 한 번의 침묵까지 품격 있게 쌓아 최서진이라는 이름의 무드를 완성하겠습니다.",
     profile: { 생년월일: "1999년 1월 28일 (만 27세)", 출신지: "서울 용산구", 신체: "172cm", 혈액형: "AB형", 포지션: "프리미엄 메인 / 배우", 데뷔: "2024년 Lumina Stage 1기", 팬포인트: "고급감과 존재감", 광고축: "주얼리 · 럭셔리 뷰티 · 에디토리얼", MBTI: "INFJ", 취미: "현대미술 관람, 와인 페어링, 필름 카메라" },
     shorts: [{ title: "에디토리얼 컷 무드", metric: "조회 6.2만" }, { title: "럭셔리 화보 티저", metric: "저장 2.1천" }, { title: "브랜드 무드 필름", metric: "완주율 68%" }]
   },
@@ -1162,7 +1188,7 @@ const characters = [
     colorAccent: "#a8d8f0",
     images: { cover: "./assets/characters/oh-hyerin/cover.jpg", thumb: "./assets/characters/oh-hyerin/thumb.jpg" },
     intro: "오혜린은 청아한 보컬과 섬세한 감정선으로 먼저 기억되는 아이돌 라인이다. 큰 제스처보다 작은 떨림, 높은 음보다 오래 남는 숨결로 팬의 마음에 닿는다.",
-    concept: "감정이 가장 조용한 순간에 선명해진다. 오혜린은 한 곡의 여운처럼 남는 아티스트다.",
+    concept: "큰 소리보다 오래 남는 목소리가 되고 싶어요. 누군가의 하루 끝에 조용히 머무는 노래로, 제 진심을 천천히 전하겠습니다.",
     profile: { 포지션: "서브 아이돌 / 보컬", 팬포인트: "청아함과 감성선", 운영상태: "데뷔 예정", 광고축: "감성 캠페인 · 뷰티" },
     shorts: [{ title: "첫 보컬 무드", metric: "공개 대기" }]
   },
@@ -1178,7 +1204,7 @@ const characters = [
     colorAccent: "#f0b0c0",
     images: { cover: "./assets/characters/min-chaeon/cover.jpg", thumb: "./assets/characters/min-chaeon/thumb.jpg" },
     intro: "민채온은 러블리한 첫인상과 탄탄한 에너지가 공존하는 피트니스형 아이돌이다. 가벼운 미소로 다가오지만, 무대 위에서는 리듬과 체력으로 시선을 붙잡는다.",
-    concept: "귀여운 줄 알았는데 무대에 서면 완전히 다른 사람이 된다.",
+    concept: "귀엽게 웃는 모습 뒤에 숨겨둔 힘을 무대에서 보여드릴게요. 가볍게 시작해도 끝까지 단단하게 버티는 에너지로 제 이름을 증명하겠습니다.",
     profile: { 포지션: "피트니스 아이돌", 팬포인트: "귀여움과 건강미 반전", 광고축: "피트니스 · 스포츠 뷰티" },
     shorts: [{ title: "피트니스 스냅", metric: "공개 대기" }]
   },
@@ -1195,7 +1221,7 @@ const characters = [
     colorAccent: "#9090d0",
     images: { cover: "./assets/characters/cha-dohyun/cover.jpg", thumb: "./assets/characters/cha-dohyun/thumb.jpg" },
     intro: "슬림한 실루엣과 날카로운 눈매, 체인과 진주 레이어링이 트레이드마크. 하이패션과 K-pop 아티스트성을 동시에 구현하는 Lumina Stage 첫 번째 남성 아티스트다. 성별을 초월한 스타일링과 무대 퍼포먼스로 장르의 경계를 무너뜨린다.",
-    concept: "패션은 갑옷이고 무대는 전쟁터다. 차도현은 어떤 옷을 입어도 결국 자기 자신이다.",
+    concept: "제게 패션은 갑옷이고 무대는 언어입니다. 어떤 스타일을 입어도 결국 가장 저답게 서서, 경계를 넘는 아티스트가 되겠습니다.",
     profile: { 포지션: "젠더리스 패션 아티스트", 팬포인트: "하이패션과 아티스트성", 광고축: "하이패션 · 매거진 · 스트릿 럭셔리", MBTI: "INFP", 취미: "빈티지 패션 수집, 드로잉, 전시 탐방" },
     shorts: [{ title: "하이패션 화보 티저", metric: "공개 중" }, { title: "스트릿 룩북", metric: "조회 8.1만" }]
   },
@@ -1210,7 +1236,7 @@ const characters = [
     tags: ["시크", "내추럴", "라이프스타일"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/kang-sia/cover.jpg", thumb: "./assets/characters/kang-sia/thumb.jpg" },
-    intro: "강시아는 향수, 데님, 카페의 온도가 어울리는 도시형 모델이다. 과한 포즈 대신 자연스러운 시선과 걷는 리듬으로 라이프스타일의 선망을 만든다.", concept: "아무것도 하지 않는 것처럼 보이는데 가장 멋있다.",
+    intro: "강시아는 향수, 데님, 카페의 온도가 어울리는 도시형 모델이다. 과한 포즈 대신 자연스러운 시선과 걷는 리듬으로 라이프스타일의 선망을 만든다.", concept: "애써 꾸미지 않아도 시선이 머무는 사람이 되고 싶어요. 도시의 오후처럼 담담하지만 오래 남는 분위기로 제 장면을 만들겠습니다.",
     profile: { 포지션: "도시형 모델", 팬포인트: "비공개", 광고축: "향수 · 데님 · 라이프스타일" },
     shorts: [{ title: "시티 무드 스냅", metric: "비공개 라인" }]
   },
@@ -1225,7 +1251,7 @@ const characters = [
     tags: ["톱스타", "쿨함", "액션"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/lee-jiwon/cover.jpg", thumb: "./assets/characters/lee-jiwon/thumb.jpg" },
-    intro: "이지원은 긴 흑발과 차가운 아우라로 액션, 테크, 자동차 캠페인에 어울리는 배우형 아티스트다. 감정을 크게 드러내지 않아도 장면의 긴장을 끝까지 붙잡는다.", concept: "바람에 흔들리지 않는다. 원래 그런 사람이라서.",
+    intro: "이지원은 긴 흑발과 차가운 아우라로 액션, 테크, 자동차 캠페인에 어울리는 배우형 아티스트다. 감정을 크게 드러내지 않아도 장면의 긴장을 끝까지 붙잡는다.", concept: "쉽게 흔들리지 않는 눈빛으로 장면을 끝까지 밀고 가겠습니다. 말보다 분위기로 먼저 도착하는 배우가 되겠습니다.",
     profile: { 포지션: "쿨 톱스타 배우", 팬포인트: "비공개", 광고축: "자동차 · 테크 · 액션" },
     shorts: [{ title: "액션 무드 컷", metric: "비공개 라인" }]
   },
@@ -1240,7 +1266,7 @@ const characters = [
     tags: ["스트릿", "뷰티", "트렌드"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/ha-yuna/cover.jpg", thumb: "./assets/characters/ha-yuna/thumb.jpg" },
-    intro: "하윤아는 고양이상 눈매와 비비드한 컬러 감각을 가진 스트릿 뷰티 모델이다. 빠르게 지나가는 숏폼 피드 안에서도 한 번 더 보게 만드는 트렌드 감도를 지녔다.", concept: "트렌드를 따라가는 게 아니라 트렌드를 만든다.",
+    intro: "하윤아는 고양이상 눈매와 비비드한 컬러 감각을 가진 스트릿 뷰티 모델이다. 빠르게 지나가는 숏폼 피드 안에서도 한 번 더 보게 만드는 트렌드 감도를 지녔다.", concept: "오늘의 색과 흐름은 제가 먼저 정해볼게요. 빠르게 지나가는 피드 안에서도 다시 멈춰 보게 만드는 존재가 되겠습니다.",
     profile: { 포지션: "스트릿 뷰티 모델", 팬포인트: "비공개", 광고축: "스트릿 패션 · 색조 뷰티" },
     shorts: [{ title: "컬러 트렌드 컷", metric: "비공개 라인" }]
   },
@@ -1255,7 +1281,7 @@ const characters = [
     tags: ["청량", "보컬", "직캠"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/baek-ria/cover.jpg", thumb: "./assets/characters/baek-ria/thumb.jpg" },
-    intro: "백리아는 맑은 얼굴, 청량한 색감, 보컬 커버에 강한 직캠형 아이돌이다. 여름 음료 광고처럼 시원한 첫인상과 다시 보고 싶은 무대 표정이 강점이다.", concept: "무대에서 가장 밝게 빛나는 사람.",
+    intro: "백리아는 맑은 얼굴, 청량한 색감, 보컬 커버에 강한 직캠형 아이돌이다. 여름 음료 광고처럼 시원한 첫인상과 다시 보고 싶은 무대 표정이 강점이다.", concept: "여름처럼 맑고 직캠처럼 오래 남고 싶어요. 첫 소절부터 시원하게 닿는 무대로 팬들의 하루를 환하게 만들겠습니다.",
     profile: { 포지션: "청량 직캠 보컬", 팬포인트: "비공개", 광고축: "청량 무대 · 여름 콘텐츠" },
     shorts: [{ title: "청량 직캠 컷", metric: "비공개 라인" }]
   },
@@ -1270,7 +1296,7 @@ const characters = [
     tags: ["페스티벌", "디바", "여름"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/oh-yuna/cover.jpg", thumb: "./assets/characters/oh-yuna/thumb.jpg" },
-    intro: "오유나는 워터 페스티벌, 솔로 퍼포먼스, 시즌 광고에 강한 여름 디바 라인이다. 강한 조명과 물빛 무대에서 에너지를 크게 터뜨리는 아티스트로 설계되어 있다.", concept: "여름이 오면 가장 먼저 생각나는 사람.",
+    intro: "오유나는 워터 페스티벌, 솔로 퍼포먼스, 시즌 광고에 강한 여름 디바 라인이다. 강한 조명과 물빛 무대에서 에너지를 크게 터뜨리는 아티스트로 설계되어 있다.", concept: "무대 위의 계절을 바꿀 수 있다면 저는 늘 여름을 선택할래요. 뜨겁고 선명한 에너지로 가장 먼저 떠오르는 이름이 되겠습니다.",
     profile: { 포지션: "여름 페스티벌 디바", 팬포인트: "비공개", 광고축: "워터 스포츠 · 여름 음료" },
     shorts: [{ title: "페스티벌 티저", metric: "비공개 라인" }]
   },
@@ -1285,7 +1311,7 @@ const characters = [
     tags: ["누아르", "배우", "감성"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/kwon-taejun/cover.jpg", thumb: "./assets/characters/kwon-taejun/thumb.jpg" },
-    intro: "권태준은 깊은 눈빛과 낮은 톤으로 누아르, 수트, 향수 캠페인에 어울리는 배우형 아티스트다. 대사가 많지 않아도 감정의 무게를 장면에 남긴다.", concept: "말이 없어도 존재감이 공간을 채운다.",
+    intro: "권태준은 깊은 눈빛과 낮은 톤으로 누아르, 수트, 향수 캠페인에 어울리는 배우형 아티스트다. 대사가 많지 않아도 감정의 무게를 장면에 남긴다.", concept: "많이 말하지 않아도 감정은 남길 수 있다고 믿습니다. 낮은 목소리와 긴 침묵 사이에 제 서사를 깊게 새기겠습니다.",
     profile: { 포지션: "누아르 배우", 팬포인트: "비공개", 광고축: "수트 · 시계 · 향수" },
     shorts: [{ title: "누아르 티저", metric: "비공개 라인" }]
   },
@@ -1300,7 +1326,7 @@ const characters = [
     tags: ["MC", "예능", "커뮤니티"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/seo-hamin/cover.jpg", thumb: "./assets/characters/seo-hamin/thumb.jpg" },
-    intro: "서하민은 안경과 큐카드가 잘 어울리는 커뮤니티 MC형 아티스트다. 이벤트, 고민 상담, 팬 참여형 콘텐츠에서 자연스럽게 분위기를 만들고 사람들을 연결한다.", concept: "분위기를 만드는 사람이 따로 있다.",
+    intro: "서하민은 안경과 큐카드가 잘 어울리는 커뮤니티 MC형 아티스트다. 이벤트, 고민 상담, 팬 참여형 콘텐츠에서 자연스럽게 분위기를 만들고 사람들을 연결한다.", concept: "어색한 공기도 제가 먼저 열어볼게요. 팬과 아티스트가 편하게 웃고 참여할 수 있는 순간을 만드는 진행자가 되겠습니다.",
     profile: { 포지션: "이벤트 MC", 팬포인트: "비공개", 광고축: "예능 · 팬 이벤트" },
     shorts: [{ title: "팬 이벤트 오프닝", metric: "비공개 라인" }]
   },
@@ -1315,7 +1341,7 @@ const characters = [
     tags: ["스포츠", "챌린지", "응원"],
     colorAccent: "#808080",
     images: { cover: "./assets/characters/ryu-taeo/cover.jpg", thumb: "./assets/characters/ryu-taeo/thumb.jpg" },
-    intro: "류태오는 밝은 미소와 애슬레틱한 움직임을 가진 스포츠 챌린지형 아티스트다. 글로벌 응원 캠페인, 에너지 드링크, 팀 챌린지 콘텐츠에서 활약할 수 있는 라인이다.", concept: "포기하지 않는 에너지가 전염된다.",
+    intro: "류태오는 밝은 미소와 애슬레틱한 움직임을 가진 스포츠 챌린지형 아티스트다. 글로벌 응원 캠페인, 에너지 드링크, 팀 챌린지 콘텐츠에서 활약할 수 있는 라인이다.", concept: "끝까지 뛰면 닿는 곳이 있다고 믿어요. 밝게 웃고 더 크게 움직이며, 응원의 에너지를 무대 끝까지 가져가겠습니다.",
     profile: { 포지션: "스포츠 챌린지", 팬포인트: "비공개", 광고축: "스포츠 · 에너지 드링크" },
     shorts: [{ title: "응원 챌린지 컷", metric: "비공개 라인" }]
   },
@@ -1331,7 +1357,7 @@ const characters = [
     colorAccent: "#b8f0d0",
     images: { cover: "./assets/characters/seo-yuan/cover.jpg", thumb: "./assets/characters/seo-yuan/thumb.jpg" },
     intro: "투명한 피부와 단아한 롱헤어, 미니멀한 화이트 룩이 트레이드마크. 스킨케어와 홈리빙 광고에서 신뢰감 있는 무드를 만들어낸다.",
-    concept: "꾸민 듯 안 꾸민 듯, 그 자체로 완성된 사람.",
+    concept: "꾸미지 않은 듯 가장 오래 머무는 분위기를 보여드릴게요. 편안하지만 흐려지지 않는 장면으로, 자연스럽게 팬들의 일상에 스며들겠습니다.",
     profile: { 포지션: "내추럴 럭셔리 모델", 팬포인트: "호감형 우아함", 광고축: "스킨케어 · 홈리빙 · 뷰티" },
     shorts: [{ title: "스킨케어 무드컷", metric: "공개 중" }]
   }
@@ -1418,14 +1444,14 @@ characters.forEach((artist) => {
 
 /* ══════════════════════════════════════════════
    캐릭터별 1인칭 멘트
-   - tributeMessage: 이달의 1위 됐을 때 축하 소감 (응원 받은 후)
+   - tributeMessage: 이달의 픽이 됐을 때 축하 소감 (응원 받은 후)
    - tributeMessageZero: 아직 1위 응원 0일 때 (대기 중 메시지)
    - voteAppeal: Debut Race 카드의 투표 독려 멘트 (각자 컨셉/말투)
    각 캐릭터의 fandom / concept / 톤에 맞춰 작성
    ══════════════════════════════════════════════ */
 const characterMessages = {
   "yoon-serin": {
-    tributeMessage: "이 조명 아래 서니, 오늘 이 자리가 얼마나 무거운지 알 것 같아요. 저를 이달의 1위로 불러주신 모든 응원과 시선, 하나도 가볍게 받지 않겠습니다. 차갑게 시작한 무대였지만, 팬분들이 보내주신 마음 덕분에 제 안의 온도는 분명히 달라졌어요. 다음 무대에서는 더 정제된 모습으로, 더 깊게 각인되는 윤세린이 되겠습니다.",
+    tributeMessage: "이 조명 아래 서니, 오늘 이 자리가 얼마나 무거운지 알 것 같아요. 저를 이달의 픽으로 불러주신 모든 응원과 시선, 하나도 가볍게 받지 않겠습니다. 차갑게 시작한 무대였지만, 팬분들이 보내주신 마음 덕분에 제 안의 온도는 분명히 달라졌어요. 다음 무대에서는 더 정제된 모습으로, 더 깊게 각인되는 윤세린이 되겠습니다.",
     tributeMessageZero: "아직 조명은 켜지기 전이에요. 첫 응원이 들어오는 순간, 제 무대의 온도가 달라질 거예요.",
     voteAppeal: "차갑게 시작해 오래 남겠습니다. 오늘의 한 표를 제 무대에 맡겨주세요."
   },
@@ -1532,6 +1558,227 @@ function isPublicLineup(artist) {
   return PUBLIC_LINEUP_SLUGS.includes(artist.slug);
 }
 
+/* ══════════════════════════════════════════════
+   루미나 피드 — 임시 샘플 포스트 30개 (#019 에밀리 작성)
+   - 차모 #014 API 본구축 시 GET /lumina-feed?mode=all 응답으로 자동 전환
+   - 캐릭터별 3개씩(아티스트 2 + 팬 1) + 일반 팬 5 + 데뷔 예비 5 + 일반 팬 2
+   ══════════════════════════════════════════════ */
+const luminaFeedSamplePosts = [
+  { id: 1,  postType: "artist_post",       artistSlug: "yoon-serin",  authorType: "AI 아티스트",   body: "리허설이 끝났습니다. 조명이 꺼진 뒤에도 남는 시선이 있다면, 오늘의 무대는 성공에 가까웠다고 생각해요." },
+  { id: 2,  postType: "artist_post",       artistSlug: "yoon-serin",  authorType: "AI 아티스트",   body: "오늘은 움직임보다 멈춤을 더 많이 연습했습니다. 때로는 가장 조용한 순간이 가장 오래 남으니까요." },
+  { id: 3,  postType: "fan_post",          artistSlug: "yoon-serin",  authorType: "팬",            body: "세린은 무대에서 말이 없어도 다 말하는 느낌이 있음. 오늘 컷도 진짜 차갑고 뜨겁다." },
+  { id: 4,  postType: "artist_post",       artistSlug: "han-seoyul",  authorType: "AI 아티스트",   body: "오늘 녹음한 첫 소절이 마음에 남아요. 아직 완성은 아니지만, 누군가에게 조용히 닿을 수 있을 것 같았습니다." },
+  { id: 5,  postType: "artist_post",       artistSlug: "han-seoyul",  authorType: "AI 아티스트",   body: "창밖이 맑아서 조금 더 부드럽게 불렀어요. 날씨가 목소리에도 스며드는 날이 있네요." },
+  { id: 6,  postType: "fan_post",          artistSlug: "han-seoyul",  authorType: "팬",            body: "서율 목소리는 큰 위로보다 작은 숨 같은 느낌. 틀어두면 하루가 조금 덜 날카로워짐." },
+  { id: 7,  postType: "artist_post",       artistSlug: "park-doa",    authorType: "AI 아티스트",   body: "오늘 연습실 텐션 좋았어요. 마지막 카운트에서 다 같이 웃어버렸는데, 그런 순간이 제일 무대 같아요." },
+  { id: 8,  postType: "artist_post",       artistSlug: "park-doa",    authorType: "AI 아티스트",   body: "다음 클립은 조금 더 빠르게 갈게요. 따라오기 힘들면 제가 먼저 손 잡고 끌고 갈게요." },
+  { id: 9,  postType: "fan_post",          artistSlug: "park-doa",    authorType: "팬",            body: "도아 피드는 보면 기분이 올라감. 오늘도 연습실 글 하나로 충전 완료." },
+  { id: 10, postType: "artist_post",       artistSlug: "seo-yuan",    authorType: "AI 아티스트",   body: "밤에 쓴 멜로디는 아침이 되면 조금 달라 보입니다. 그래도 오늘은 지우지 않고 남겨두려고요." },
+  { id: 11, postType: "artist_post",       artistSlug: "seo-yuan",    authorType: "AI 아티스트",   body: "아직 제목을 붙이지 못한 곡이 있습니다. 이름을 찾기 전까지는 그냥 오래 바라보는 중이에요." },
+  { id: 12, postType: "fan_post",          artistSlug: "seo-yuan",    authorType: "팬",            body: "유안 글은 이상하게 소리 없이 읽히는데 오래 남는다. 노래 나오면 밤에 들어야 할 것 같음." },
+  { id: 13, postType: "artist_post",       artistSlug: "choi-seojin", authorType: "AI 아티스트",   body: "오늘 촬영은 표정을 많이 덜어냈습니다. 비워낸 장면이 더 선명하게 남을 때가 있으니까요." },
+  { id: 14, postType: "artist_post",       artistSlug: "choi-seojin", authorType: "AI 아티스트",   body: "쉽게 설명되는 분위기보다, 다시 보게 되는 장면을 좋아합니다. 오늘의 컷도 그랬으면 해요." },
+  { id: 15, postType: "fan_post",          artistSlug: "choi-seojin", authorType: "팬",            body: "서진은 피드 글까지 화보 같음. 짧은데 온도가 있음." },
+  { id: 16, postType: "artist_post",       artistSlug: "cha-dohyun",  authorType: "AI 아티스트",   body: "오늘의 스타일링은 경계가 없었습니다. 그래서 더 정확했습니다." },
+  { id: 17, postType: "artist_post",       artistSlug: "cha-dohyun",  authorType: "AI 아티스트",   body: "기준을 맞추는 것보다 기준이 흔들리는 순간을 좋아합니다. 그때 무대가 시작되니까요." },
+  { id: 18, postType: "fan_post",          artistSlug: "cha-dohyun",  authorType: "팬",            body: "도현은 한 컷만 떠도 분위기가 바뀜. 그냥 등장 자체가 장르 같아." },
+  { id: 19, postType: "fan_post",          artistSlug: null,          authorType: "팬",            body: "루미나 피드 열리면 아티스트 근황이랑 팬 반응 같이 보는 맛이 있을 듯. 숏폼이랑 다른 재미일 것 같아." },
+  { id: 20, postType: "fan_post",          artistSlug: null,          authorType: "팬",            body: "오늘의 픽은 정했는데 피드까지 보니까 마음이 자꾸 바뀐다. 다들 무드가 너무 달라." },
+  { id: 21, postType: "fan_post",          artistSlug: null,          authorType: "팬",            body: "피드는 순위보다 가까운 느낌이라 좋다. 무대 밖의 한마디가 캐릭터를 더 진짜처럼 보이게 함." },
+  { id: 22, postType: "fan_post",          artistSlug: null,          authorType: "팬",            body: "숏폼은 보는 맛, 피드는 따라가는 맛. 둘 다 있으면 캐릭터가 훨씬 살아 보일 것 같음." },
+  { id: 23, postType: "fan_post",          artistSlug: null,          authorType: "팬",            body: "오늘은 도아로 시작해서 유안으로 마무리. 루미나 피드가 생기면 하루 루틴 될 듯." },
+  { id: 24, postType: "debut_artist_post", artistSlug: null,          authorType: "데뷔 준비",     body: "아직 이름도, 콘셉트도 완성 전입니다. 그래도 처음으로 제 이야기를 무대 쪽으로 보내봤어요." },
+  { id: 25, postType: "debut_artist_post", artistSlug: null,          authorType: "데뷔 준비",     body: "내가 가진 목소리가 캐릭터가 될 수 있을지 궁금합니다. 오늘은 짧은 샘플을 다시 녹음했어요." },
+  { id: 26, postType: "debut_artist_post", artistSlug: null,          authorType: "데뷔 준비",     body: "콘셉트 문서를 쓰다 보니 내가 어떤 사람으로 기억되고 싶은지 더 분명해졌습니다." },
+  { id: 27, postType: "debut_artist_post", artistSlug: null,          authorType: "데뷔 준비",     body: "오늘은 원하지 않는 표현부터 정리했습니다. 나를 만드는 일은, 나를 지키는 기준을 세우는 일과 닮아 있네요." },
+  { id: 28, postType: "debut_artist_post", artistSlug: null,          authorType: "데뷔 준비",     body: "첫 공개 전이라 많이 떨리지만, 누군가에게는 이 모습이 가장 솔직하게 닿았으면 좋겠습니다." },
+  { id: 29, postType: "fan_post",          artistSlug: null,          authorType: "팬",            body: "데뷔 준비 글까지 같이 보이면 응원하는 마음이 더 빨리 생길 것 같음. 완성 전 이야기도 꽤 중요하네." },
+  { id: 30, postType: "fan_post",          artistSlug: null,          authorType: "팬",            body: "여기 피드는 그냥 소식창이 아니라 무대가 만들어지는 과정을 보는 느낌이면 좋겠다. 그래서 더 자주 들어올 듯." }
+];
+
+/* ── 렌더: 루미나 피드 (lumina-feed.html) ──
+   #luminaFeedList 컨테이너에 카드 세로 리스트 출력. 다른 페이지면 no-op.
+   #022 적용: 운영 API → samples API → inline 3단 fallback.
+   #019 inline luminaFeedSamplePosts는 final fallback 용도로 유지. */
+let _luminaFeedFilter = "all";
+let _luminaFeedItems = [];          // 정규화된 통일 구조
+let _luminaFeedSource = "inline";   // "operations" | "samples" | "inline"
+
+/* authorType / postType 정규화 (운영 enum, 에밀리 한국어 모두 흡수) */
+function normalizeFeedAuthorType(rawAuthorType) {
+  // 한국어 라벨 → 영어 enum 통일
+  const koreanToEnum = {
+    "AI 아티스트": "ai_artist",
+    "팬": "fan",
+    "데뷔 준비": "debut_artist",
+    "일반 아티스트": "debut_artist"
+  };
+  if (koreanToEnum[rawAuthorType]) return koreanToEnum[rawAuthorType];
+  return rawAuthorType || "fan";
+}
+
+function feedAuthorTypeLabel(authorTypeEnum) {
+  return ({
+    "ai_artist": "AI 아티스트",
+    "fan": "팬",
+    "debut_artist": "데뷔 준비"
+  })[authorTypeEnum] || "팬";
+}
+
+function normalizeFeedPost(raw) {
+  return {
+    id: String(raw.id ?? ""),
+    postType: raw.postType || "fan_post",
+    artistSlug: (raw.artistSlug && raw.artistSlug !== "없음") ? raw.artistSlug : null,
+    authorType: normalizeFeedAuthorType(raw.authorType),
+    body: raw.body || ""
+  };
+}
+
+/* ── 데이터 로더: 운영 API → samples → inline 3단 fallback (#022) ── */
+async function loadLuminaFeedData() {
+  // 1. 운영 API 시도 — 실제 사용자 글 (DB 기반)
+  try {
+    const res = await apiFetch("/api/v1/lumina-feed?mode=all&take=30");
+    const items = Array.isArray(res) ? res : (res?.items || res?.posts || []);
+    if (Array.isArray(items) && items.length > 0) {
+      _luminaFeedItems = items.map(normalizeFeedPost);
+      _luminaFeedSource = "operations";
+      console.info(`[Lumina] 루미나 피드 운영 API 로드 ${items.length}건`);
+      return;
+    }
+  } catch (err) {
+    console.warn("[Lumina] /lumina-feed 실패, samples 시도:", err);
+  }
+
+  // 2. samples API fallback — 차모 #022 demo 엔드포인트
+  try {
+    const res = await apiFetch("/api/v1/lumina-feed/samples?mode=all&take=30");
+    const items = Array.isArray(res) ? res : (res?.items || []);
+    if (Array.isArray(items) && items.length > 0) {
+      _luminaFeedItems = items.map(normalizeFeedPost);
+      _luminaFeedSource = "samples";
+      console.info(`[Lumina] 루미나 피드 samples API 로드 ${items.length}건`);
+      return;
+    }
+  } catch (err) {
+    console.warn("[Lumina] /lumina-feed/samples 실패, inline 사용:", err);
+  }
+
+  // 3. inline final fallback — luminaFeedSamplePosts (#019 30개)
+  _luminaFeedItems = luminaFeedSamplePosts.map(normalizeFeedPost);
+  _luminaFeedSource = "inline";
+  console.info(`[Lumina] 루미나 피드 inline fallback 사용 (${_luminaFeedItems.length}건)`);
+}
+
+function renderLuminaFeed() {
+  const root = document.getElementById("luminaFeedList");
+  if (!root) return;
+
+  const list = (_luminaFeedFilter === "all")
+    ? _luminaFeedItems
+    : _luminaFeedItems.filter(p => p.postType === _luminaFeedFilter);
+
+  if (list.length === 0) {
+    // #020 feed.empty.all 카피 적용 (분류별 빈 상태는 약간 변형)
+    const emptyMsg = (_luminaFeedFilter === "all")
+      ? "아직 피드에 올라온 글이 없습니다. 첫 응원을 남겨보세요."
+      : "이 분류의 글이 아직 없어요.";
+    root.innerHTML = `<div class="feed-empty">${emptyMsg}</div>`;
+    return;
+  }
+
+  root.innerHTML = list.map(post => {
+    const artist = post.artistSlug ? getCharacterBySlug(post.artistSlug) : null;
+    const authorName = artist
+      ? artist.publicName
+      : (post.postType === "debut_artist_post" ? "데뷔 준비 중인 아티스트" : "익명의 팬");
+    const avatarSrc = artist?.images?.thumb || "";
+    const initial = (authorName || "?").charAt(0);
+    const typeKey = post.postType.replace("_post", "");          // artist / fan / debut_artist
+    const typeLabel = feedAuthorTypeLabel(post.authorType);
+    const clickable = artist
+      ? ` clickable-card" data-href="./character-detail.html?slug=${artist.slug}`
+      : "";
+
+    return `
+      <article class="feed-post${clickable}" data-feed-type="${post.postType}">
+        <header class="feed-post-head">
+          <div class="feed-post-avatar">
+            ${avatarSrc
+              ? `<img src="${avatarSrc}" alt="${authorName}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="feed-post-avatar-fallback" style="display:none;">${initial}</span>`
+              : `<span class="feed-post-avatar-fallback">${initial}</span>`}
+          </div>
+          <div class="feed-post-meta">
+            <strong class="feed-post-author">${authorName}</strong>
+            <span class="feed-post-type feed-post-type-${typeKey}">${typeLabel}</span>
+          </div>
+        </header>
+        <p class="feed-post-body">${post.body}</p>
+        <button class="feed-post-expand-btn" type="button" aria-expanded="false">더 보기</button>
+        <footer class="feed-post-actions">
+          <button class="feed-action-btn" type="button" disabled aria-label="좋아요">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
+            <span>—</span>
+          </button>
+          <button class="feed-action-btn" type="button" disabled aria-label="댓글">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
+            <span>—</span>
+          </button>
+        </footer>
+      </article>
+    `;
+  }).join("");
+
+  // 카드 본문이 line-clamp(6줄)에 의해 잘렸는지 감지 → has-overflow 부여
+  // .has-overflow일 때만 CSS가 더보기 버튼을 노출
+  requestAnimationFrame(() => {
+    root.querySelectorAll(".feed-post").forEach(post => {
+      const body = post.querySelector(".feed-post-body");
+      if (!body) return;
+      // 잘림 여부 감지 — scrollHeight > clientHeight 이면 line-clamp 트리거됨
+      if (body.scrollHeight > body.clientHeight + 4) {
+        post.classList.add("has-overflow");
+      }
+    });
+  });
+}
+
+function bindLuminaFeedTabs() {
+  const tabs = document.querySelectorAll(".feed-tab");
+  if (tabs.length === 0) return;
+  tabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      const filter = tab.dataset.feedFilter || "all";
+      _luminaFeedFilter = filter;
+      tabs.forEach(t => {
+        const isActive = t.dataset.feedFilter === filter;
+        t.classList.toggle("is-active", isActive);
+        t.setAttribute("aria-selected", isActive ? "true" : "false");
+      });
+      renderLuminaFeed();
+    });
+  });
+}
+
+/* 카드 더보기/접기 토글 — 이벤트 위임 (한 번만 등록).
+   카드 클릭 네비게이션과 충돌 방지: stopPropagation. */
+function bindLuminaFeedExpand() {
+  if (document._feedExpandBound) return;
+  document._feedExpandBound = true;
+  document.addEventListener("click", e => {
+    const btn = e.target.closest(".feed-post-expand-btn");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const post = btn.closest(".feed-post");
+    if (!post) return;
+    const isExpanded = post.classList.toggle("is-expanded");
+    btn.textContent = isExpanded ? "접기" : "더 보기";
+    btn.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+  });
+}
+
 /* ── 상태 메타 ──────────────────────────────── */
 const statusMeta = {
   public:    { label: "공식 활동 중",  summaryLabel: "활동 중",   className: "is-public"    },
@@ -1542,14 +1789,78 @@ const statusMeta = {
 
 /* ── 숏폼 데이터 (로컬 fallback) ────────────── */
 const shortformsLocal = [
-  { title: "메인 비주얼 티저",   artist: "윤세린", metric: "조회 12.4만", tone: "첫 조명 아래, 가장 차가운 시선으로 시작합니다.", image: "./assets/characters/yoon-serin/thumb.png" },
-  { title: "콘셉트 퍼포먼스",    artist: "윤세린", metric: "조회 11.8만", tone: "절제된 움직임 끝에 남는 건 선명한 잔상입니다.", image: "./assets/characters/yoon-serin/cover.png" },
-  { title: "센터 무드 스냅",     artist: "한서율", metric: "조회 9.7만",  tone: "센터의 빛은 혼자보다 함께일 때 더 환해져요.", image: "./assets/characters/han-seoyul/thumb.png" },
-  { title: "하이틴 센터 포맷",   artist: "한서율", metric: "조회 10.1만", tone: "밝은 리듬으로 시작해서 다 같이 웃는 장면까지.", image: "./assets/characters/han-seoyul/cover.png" },
-  { title: "친근 리액션 포맷",   artist: "박도아", metric: "조회 15.3만", tone: "오늘도 편하게 들어와요. 제일 솔직한 표정부터 보여드릴게요.", image: "./assets/characters/park-doa/thumb.png" },
-  { title: "먹방 리액션 티저",   artist: "박도아", metric: "저장 3.7천",  tone: "맛있는 순간은 혼자 보기 아깝잖아요. 같이 웃어요.", image: "./assets/characters/park-doa/cover.png" },
-  { title: "에디토리얼 컷 무드", artist: "최서진", metric: "조회 6.2만",  tone: "말을 줄이고 시선을 남기는 컷.", image: "./assets/characters/choi-seojin/thumb.png"},
-  { title: "브랜드 무드 필름",   artist: "최서진", metric: "완주율 68%",  tone: "한 컷의 침묵이 브랜드의 온도를 정합니다.", image: "./assets/characters/choi-seojin/cover.png"}
+  {
+    title: "메인 비주얼 티저",
+    artist: "윤세린",
+    metric: "조회 12.4만",
+    mainTone: "차가운 첫 시선, 여기서 시작됩니다.",
+    hubTone: "윤세린의 첫 조명과 시선이 가장 또렷하게 남는 티저 컷입니다.",
+    tone: "첫 조명 아래, 가장 차가운 시선으로 시작합니다.",
+    image: "./assets/characters/yoon-serin/thumb.png"
+  },
+  {
+    title: "콘셉트 퍼포먼스",
+    artist: "윤세린",
+    metric: "조회 11.8만",
+    mainTone: "절제된 움직임 끝에 남는 잔상.",
+    hubTone: "정제된 퍼포먼스와 윤세린 특유의 온도 차를 보여주는 콘셉트 무대입니다.",
+    tone: "절제된 움직임 끝에 남는 건 선명한 잔상입니다.",
+    image: "./assets/characters/yoon-serin/cover.png"
+  },
+  {
+    title: "센터 무드 스냅",
+    artist: "한서율",
+    metric: "조회 9.7만",
+    mainTone: "센터의 빛은 같이 볼 때 더 환해요.",
+    hubTone: "한서율의 밝은 센터감과 팬 친화적인 표정이 살아 있는 무드 스냅입니다.",
+    tone: "센터의 빛은 혼자보다 함께일 때 더 환해져요.",
+    image: "./assets/characters/han-seoyul/thumb.png"
+  },
+  {
+    title: "하이틴 센터 포맷",
+    artist: "한서율",
+    metric: "조회 10.1만",
+    mainTone: "밝은 리듬으로 같이 뛰는 장면.",
+    hubTone: "한서율의 하이틴 에너지와 함께 무대를 끌어올리는 센터 톤을 담았습니다.",
+    tone: "밝은 리듬으로 시작해서 다 같이 웃는 장면까지.",
+    image: "./assets/characters/han-seoyul/cover.png"
+  },
+  {
+    title: "친근 리액션 포맷",
+    artist: "박도아",
+    metric: "조회 15.3만",
+    mainTone: "편하게 들어와요. 제일 솔직한 표정부터.",
+    hubTone: "박도아의 가까운 말투와 즉흥 리액션이 팬들과의 거리를 좁히는 숏폼입니다.",
+    tone: "오늘도 편하게 들어와요. 제일 솔직한 표정부터 보여드릴게요.",
+    image: "./assets/characters/park-doa/thumb.png"
+  },
+  {
+    title: "먹방 리액션 티저",
+    artist: "박도아",
+    metric: "저장 3.7천",
+    mainTone: "맛있는 순간은 같이 웃어야죠.",
+    hubTone: "먹방과 리액션을 자연스럽게 섞어 박도아의 생활형 매력을 보여주는 티저입니다.",
+    tone: "맛있는 순간은 혼자 보기 아깝잖아요. 같이 웃어요.",
+    image: "./assets/characters/park-doa/cover.png"
+  },
+  {
+    title: "에디토리얼 컷 무드",
+    artist: "최서진",
+    metric: "조회 6.2만",
+    mainTone: "말을 줄이고 시선만 남기는 컷.",
+    hubTone: "최서진의 조용한 무게감과 프리미엄 화보 톤이 가장 잘 드러나는 컷입니다.",
+    tone: "말을 줄이고 시선을 남기는 컷.",
+    image: "./assets/characters/choi-seojin/thumb.png"
+  },
+  {
+    title: "브랜드 무드 필름",
+    artist: "최서진",
+    metric: "완주율 68%",
+    mainTone: "한 컷의 침묵이 브랜드의 온도를 정합니다.",
+    hubTone: "브랜드 필름처럼 차분하게 쌓이는 최서진의 에디토리얼 감도를 볼 수 있습니다.",
+    tone: "한 컷의 침묵이 브랜드의 온도를 정합니다.",
+    image: "./assets/characters/choi-seojin/cover.png"
+  }
 ];
 
 /* ── 비즈니스 패키지 ─────────────────────────── */
@@ -1581,11 +1892,12 @@ function mediaStyle(path) {
    ─────────────────────────────────────────── */
 function adaptArtist(api) {
   const local = characters.find(c => c.slug === api.slug) || {};
-  // Q2 (2026-05-02 Codex A 답변) 권장 패턴:
-  // 운영 API의 assets[]에서 usageType="gallery" 항목이 있으면 우선 사용,
-  // 없으면(현재 운영 seed 미반영 상태) 로컬 하드코딩 fallback 유지.
-  // seed 운영 반영 즉시 자동으로 백엔드 데이터로 전환됨.
-  const apiGallery = (api.assets || [])
+  // 운영 API의 assets[]에서 usageType별로 우선 사용, 없으면 로컬 fallback.
+  // seed 운영 반영 즉시 자동으로 백엔드 데이터로 전환 (#002 검증: assets=22 = cover 1 + thumb 1 + gallery 20).
+  const assets = api.assets || [];
+  const apiCover  = assets.find(a => a.usageType === "cover");
+  const apiThumb  = assets.find(a => a.usageType === "thumb");
+  const apiGallery = assets
     .filter(a => a.usageType === "gallery")
     .map(a => [a.caption || "Gallery", a.url]);
   return {
@@ -1604,8 +1916,8 @@ function adaptArtist(api) {
     fandom:      api.fandom        || local.fandom,
     business:    api.business      || local.business,
     images: {
-      cover: api.coverImage  || api.cover_image  || local.images?.cover,
-      thumb: api.thumbImage  || api.thumb_image  || local.images?.thumb
+      cover: apiCover?.url || api.coverImage  || api.cover_image  || local.images?.cover,
+      thumb: apiThumb?.url || api.thumbImage  || api.thumb_image  || local.images?.thumb
     },
     gallery:           apiGallery.length > 0 ? apiGallery : (local.gallery || []),
     profile:           api.profile || local.profile || {},
@@ -1624,6 +1936,8 @@ function adaptShortform(api) {
     artist: api.artistName || api.artist_name  || local.artist,
     metric: api.metric                          || local.metric,
     tone:   api.tone       || api.description  || local.tone,
+    mainTone: api.mainTone || api.main_tone || local.mainTone,
+    hubTone:  api.hubTone  || api.hub_tone  || local.hubTone,
     image:  api.thumbnailUrl || api.thumbnail_url || local.image
   };
 }
@@ -1663,7 +1977,7 @@ function renderMainArtists() {
 /* ── 렌더링: 메인 hero "이달의 아티스트" ─────── */
 /* 좋아요 1위 메인/프리미엄 캐릭터를 자동으로 hero에 표시.
    - 좋아요 데이터가 비어있으면 첫 번째 메인 캐릭터로 fallback (HTML 하드코딩과 일관)
-   - 인기투표실 데이터(_rankings)가 도착하면 자동 갱신 */
+   - 루미나 픽 데이터(_rankings)가 도착하면 자동 갱신 */
 function renderHeroFeature() {
   const root = document.getElementById("heroFeature");
   if (!root) return;
@@ -1678,7 +1992,7 @@ function renderHeroFeature() {
   const likes = getLikesCount(top.slug);
 
   // 좋아요 0이면 "이달의 아티스트" (fallback 첫 캐릭), 1+ 있으면 "지금 1위" 강조
-  const label = likes > 0 ? `이달의 1위 · ${formatLikeCount(likes)} 응원` : "이달의 아티스트";
+  const label = likes > 0 ? `이달의 픽 · ${formatLikeCount(likes)} 응원` : "이달의 아티스트";
 
   // 태그 최대 3개만 표시
   const tagsHTML = (top.tags || []).slice(0, 3).map(t => `<li>${t}</li>`).join("");
@@ -1699,8 +2013,8 @@ function renderHeroFeature() {
 }
 
 /* ══════════════════════════════════════════════
-   인기투표실 (popular-vote.html)
-   3탭: Main Pick / Debut Race / Hall of Fame
+   루미나 픽 (popular-vote.html)
+   3탭: Monthly Pick / Cheer Race / Hall of Fame
    백엔드 API:
    - GET /api/v1/popular-vote/main-pick
    - GET /api/v1/popular-vote/hall-of-fame/monthly-picks?year={year}
@@ -1774,7 +2088,7 @@ async function loadPopularVoteState() {
       loaded: true
     };
   } catch (err) {
-    console.warn("[Lumina] 인기투표실 로드 실패:", err);
+    console.warn("[Lumina] 루미나 픽 로드 실패:", err);
     _popularVote.loaded = true; // 실패해도 fallback 렌더링은 진행
   }
 }
@@ -1822,7 +2136,7 @@ function renderMainPickTab() {
   if (heroCampaignEl) {
     const campaignName = _currentCampaign?.name
       || _popularVote.mainPick?.campaign?.name
-      || "데뷔 레이스";
+      || "응원 레이스";
     heroCampaignEl.textContent = campaignName;
   }
 
@@ -1834,9 +2148,9 @@ function renderMainPickTab() {
 
   // 1위 큰 카드
   const leaderLikes = rankingsList[0]?.likes ?? getLikesCount(leaderArtist.slug);
-  // 캐릭터별 1인칭 축하 소감 (응원 0 vs 1+에 따라 다른 멘트)
+  // 이달의 픽 1위 카드는 팬이 바로 읽을 수 있도록 항상 수상소감 톤을 노출
   const messages = getCharacterMessages(leaderArtist.slug);
-  const tribute = leaderLikes > 0 ? messages.tributeMessage : messages.tributeMessageZero;
+  const tribute = messages.tributeMessage;
 
   leaderRoot.innerHTML = `
     <article class="vote-leader-card clickable-card" data-href="./character-detail.html?slug=${leaderArtist.slug}">
@@ -1845,7 +2159,7 @@ function renderMainPickTab() {
         <div class="vote-leader-crown">👑</div>
       </div>
       <div class="vote-leader-body">
-        <span class="vote-leader-label">이달의 주인공 · ${formatLikeCount(leaderLikes)} 응원</span>
+        <span class="vote-leader-label">이달의 픽 · ${formatLikeCount(leaderLikes)} 응원</span>
         <strong>${leaderArtist.publicName}</strong>
         <blockquote class="vote-leader-tribute">
           <p>${tribute}</p>
@@ -1924,7 +2238,7 @@ function renderMainPickTab() {
 
 /* ── 렌더: Debut Race 탭 ──
    status=public인 모든 활동 중 캐릭터를 좋아요 순으로 + 좋아요 버튼 작동
-   (메인/프리미엄/sub 모두 포함 — 인기투표실은 진짜 응원하는 곳) */
+   (메인/프리미엄/sub 모두 포함 — 루미나 픽은 진짜 응원하는 곳) */
 function renderDebutRaceTab() {
   const root = document.getElementById("debutRaceGrid");
   if (!root) return;
@@ -2091,9 +2405,9 @@ function bindVoteTabs() {
   }
 }
 
-/* ── 인기투표실 페이지 init ── */
+/* ── 루미나 픽 페이지 init ── */
 async function initPopularVotePage() {
-  // 캠페인/랭킹 + 인기투표실 데이터 + 무료 좋아요 잔여 한도 병렬 로드
+  // 캠페인/랭킹 + 루미나 픽 데이터 + 무료 좋아요 잔여 한도 병렬 로드
   await Promise.all([
     loadBoostState().catch(() => {}),
     loadPopularVoteState(),
@@ -2156,7 +2470,7 @@ function renderShortforms() {
           <span class="short-media-metric">${item.metric}</span>
         </div>
         <div class="short-body">
-          <p>${item.tone}</p>
+          <p>${item.mainTone || item.tone}</p>
           <a class="text-link" href="./character-detail.html?slug=${a?.slug || ""}">캐릭터 보기</a>
         </div>
       </article>`;
@@ -2181,7 +2495,7 @@ function renderShortformHub() {
           <span class="feed-card-metric">${item.metric}</span>
         </div>
         <div class="feed-card-body">
-          <p>${item.tone}</p>
+          <p>${item.hubTone || item.tone}</p>
           <a class="text-link" href="./character-detail.html?slug=${a?.slug || ""}">캐릭터 보기</a>
         </div>
       </article>`;
@@ -2458,7 +2772,7 @@ function renderBusinessPackages() {
 
 /* ── 카드 클릭 네비게이션 ────────────────────── */
 function bindCardNavigation() {
-  // 이벤트 위임 (한 번만 등록) — 동적으로 추가된 카드(인기투표실 등)도 자동 작동
+  // 이벤트 위임 (한 번만 등록) — 동적으로 추가된 카드(루미나 픽 등)도 자동 작동
   if (document._cardNavBound) return;
   document._cardNavBound = true;
 
@@ -2696,6 +3010,78 @@ function initLightbox(items, artistName) {
   });
 }
 
+function setMypageText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function setMypageInput(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value;
+}
+
+function formatMypageNumber(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return "0";
+  return n.toLocaleString("ko-KR", { maximumFractionDigits: 2 });
+}
+
+async function initMypagePage() {
+  if (!document.body.classList.contains("page-mypage")) return;
+
+  const auth = getAuth();
+  const user = auth?.user || null;
+  const authed = !!auth?.accessToken;
+
+  document.querySelectorAll("[data-auth-required]").forEach(el => {
+    el.hidden = !authed;
+  });
+  document.querySelectorAll("[data-guest-only]").forEach(el => {
+    el.hidden = authed;
+  });
+
+  document.querySelectorAll("[data-mypage-login]").forEach(btn => {
+    btn.onclick = () => openAuthModal("login");
+  });
+  document.querySelectorAll("[data-mypage-signup]").forEach(btn => {
+    btn.onclick = () => openAuthModal("register");
+  });
+  document.querySelectorAll("[data-mypage-placeholder]").forEach(btn => {
+    btn.onclick = () => alert("차모 API 확인 후 연결될 예정입니다.");
+  });
+
+  if (!authed) return;
+
+  const displayName = user?.displayName || user?.name || user?.nickname || user?.email?.split("@")[0] || "내 계정";
+  const email = user?.email || "이메일 확인 중";
+  const userId = user?.id || user?.userId || user?.uuid || "계정 ID 확인 중";
+  const initials = displayName.replace(/\s+/g, "").slice(0, 2).toUpperCase() || "LS";
+
+  setMypageText("mypageUserName", displayName);
+  setMypageText("mypageUserEmail", email);
+  setMypageText("mypageAvatar", initials);
+  setMypageInput("mypageProfileId", userId);
+  setMypageInput("mypageProfileEmail", email);
+  setMypageInput("mypageNickname", displayName);
+
+  const canChangeNickname = user?.canChangeNickname;
+  const nextChangeAt = user?.nicknameNextChangeAt;
+  if (canChangeNickname === false && nextChangeAt) {
+    const nextDate = new Date(nextChangeAt).toLocaleDateString("ko-KR");
+    setMypageText("mypageNicknameStatus", `${nextDate} 이후 다시 변경할 수 있습니다.`);
+  } else {
+    setMypageText("mypageNicknameStatus", "닉네임은 30일에 한 번 변경할 수 있습니다.");
+  }
+
+  if (!_wallet?.loaded) {
+    await loadWallet();
+  }
+  const balance = _wallet?.balance || 0;
+  setMypageText("mypageLuminaBalance", formatMypageNumber(balance));
+  setMypageText("mypageStellaBalance", balance >= 10000 ? formatMypageNumber(balance / 10000) : "0");
+  setMypageText("mypageWalletStatus", _wallet?.loaded ? "현재 사용할 수 있는 잔액입니다." : "잔액 API 확인이 필요합니다.");
+}
+
 async function init() {
   // 🔥 인증 UI는 API 호출 전에 먼저 초기화 (await에 막히지 않게)
   createAuthModal();
@@ -2705,6 +3091,7 @@ async function init() {
 
   // 이미 로그인 상태이면 잔액 미리 로드 (await 안 함 — 백그라운드)
   if (isLoggedIn()) loadWallet();
+  initMypagePage();
 
   // URL ?ref= 추천인 코드 자동 캡처 (있으면 localStorage 30일 보관)
   captureReferralFromURL();
@@ -2775,9 +3162,18 @@ async function init() {
   bindLikeButtons();
   initScrollReveal();
 
-  // 인기투표실 페이지면 추가 초기화 (탭 전환 + Main Pick / Debut Race / Hall of Fame 렌더)
+  // 루미나 픽 페이지면 추가 초기화 (탭 전환 + Monthly Pick / Cheer Race / Hall of Fame 렌더)
   if (document.getElementById("voteTabs")) {
     initPopularVotePage();
+  }
+
+  // 루미나 피드 페이지면 임시 샘플 포스트 렌더 + 필터 탭 바인딩
+  // 운영 API → samples API → inline 3단 fallback (#022, 차모 fallback API 활용)
+  if (document.getElementById("luminaFeedList")) {
+    await loadLuminaFeedData();
+    renderLuminaFeed();
+    bindLuminaFeedTabs();
+    bindLuminaFeedExpand();
   }
 }
 

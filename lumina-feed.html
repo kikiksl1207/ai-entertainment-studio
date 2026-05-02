@@ -3,25 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>비즈니스 — Lumina Stage</title>
+    <title>루미나 피드 — Lumina Stage</title>
     <link rel="stylesheet" href="./styles.css" />
-    <!-- SEO -->
-    <meta name="description" content="브랜드 협업, 숏폼 캠페인, 에디토리얼 화보, 캐릭터 IP 협업까지. Lumina Stage 아티스트와 함께하는 공식 제휴 문의." />
+    <!-- SEO (TODO: 에밀리 #016 답변 후 카피 교체 — feed.placeholder.description) -->
+    <meta name="description" content="아티스트와 팬이 같은 공간에서 만나는 X형 소통 무대. Lumina Stage 루미나 피드가 곧 오픈됩니다." />
     <meta name="robots" content="index, follow" />
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="비즈니스 — Lumina Stage" />
-    <meta property="og:description" content="브랜드 협업, 숏폼 캠페인, 에디토리얼 화보, 캐릭터 IP 협업까지. Lumina Stage 아티스트와 함께하는 공식 제휴 문의." />
-    <meta property="og:image" content="./assets/characters/choi-seojin/thumb.png" />
-    <meta property="og:url" content="https://www.lumina-stage.com/business.html" />
+    <meta property="og:title" content="루미나 피드 — Lumina Stage" />
+    <meta property="og:description" content="아티스트와 팬이 같은 공간에서 만나는 X형 소통 무대." />
+    <meta property="og:image" content="./assets/characters/yoon-serin/cover.png" />
+    <meta property="og:url" content="https://www.lumina-stage.com/lumina-feed.html" />
     <meta property="og:site_name" content="Lumina Stage" />
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="비즈니스 — Lumina Stage" />
-    <meta name="twitter:description" content="브랜드 협업, 숏폼 캠페인, 에디토리얼 화보, 캐릭터 IP 협업까지. Lumina Stage 아티스트와 함께하는 공식 제휴 문의." />
-    <meta name="twitter:image" content="./assets/characters/choi-seojin/thumb.png" />
+    <meta name="twitter:title" content="루미나 피드 — Lumina Stage" />
+    <meta name="twitter:description" content="아티스트와 팬이 같은 공간에서 만나는 X형 소통 무대." />
+    <meta name="twitter:image" content="./assets/characters/yoon-serin/cover.png" />
   </head>
-  <body class="page-business">
+  <body>
     <header class="site-header">
       <div class="shell header-inner">
         <a class="brand" href="./index.html">
@@ -49,44 +49,23 @@
     </header>
 
     <main>
-      <section class="page-hero">
-        <div class="shell page-hero-grid">
-          <div class="page-hero-copy">
-            <p class="eyebrow">비즈니스</p>
-            <h1>브랜드의 다음 장면을 Lumina Stage와 함께</h1>
-            <p>
-              숏폼 캠페인, 에디토리얼 화보, 캐릭터 IP 협업까지.
-              브랜드가 원하는 무드에 맞춰 아티스트와 장면을 설계합니다.
-            </p>
-          </div>
-          <aside class="page-hero-panel">
-            <div>
-              <span>대표 협업</span>
-              <strong>숏폼 / 에디토리얼 / 브랜딩</strong>
+      <!-- ── 루미나 피드 ──
+           #019 에밀리 임시 샘플 포스트 30개 주입 (app.js의 luminaFeedSamplePosts).
+           차모 #014 API 본구축 시 GET /lumina-feed?mode=all 응답으로 자동 전환.
+           작성/신고/차단 등 인터랙션은 #020 카피 + 차모 API 후 본구축. -->
+      <section class="content-section feed-section">
+        <div class="shell feed-shell">
+          <header class="feed-page-head">
+            <p class="feed-page-eyebrow">Lumina Feed</p>
+            <div class="feed-tabs" role="tablist" aria-label="피드 필터">
+              <button class="feed-tab is-active" data-feed-filter="all" role="tab" aria-selected="true">전체</button>
+              <button class="feed-tab" data-feed-filter="artist_post" role="tab" aria-selected="false">아티스트</button>
+              <button class="feed-tab" data-feed-filter="fan_post" role="tab" aria-selected="false">팬</button>
+              <button class="feed-tab" data-feed-filter="debut_artist_post" role="tab" aria-selected="false">데뷔 준비</button>
             </div>
-            <div>
-              <span>추천 아티스트</span>
-              <strong>윤세린 · 최서진 · 한서율</strong>
-            </div>
-            <div>
-              <span>협업 영역</span>
-              <strong>캠페인 · 제휴 · IP 협업</strong>
-            </div>
-          </aside>
-        </div>
-      </section>
+          </header>
 
-      <section class="content-section">
-        <div class="shell">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">협업 안내</p>
-              <h2>제휴/섭외 문의 안내</h2>
-              <p>브랜드의 톤에 맞는 아티스트와 콘텐츠 형태를 선택해보세요.</p>
-            </div>
-          </div>
-
-          <div class="package-grid" id="businessPackageGrid"></div>
+          <div class="feed-list" id="luminaFeedList" aria-live="polite"></div>
         </div>
       </section>
     </main>
@@ -95,7 +74,7 @@
       <div class="shell footer-inner">
         <div>
           <strong>Lumina Stage</strong>
-          <p>캠페인, 화보형 작업, 캐릭터 IP 협업을 위한 공식 비즈니스 페이지입니다.</p>
+          <p>아티스트와 팬이 같은 무대에서 만나는 공간입니다.</p>
         </div>
         <div class="footer-links">
           <a href="./characters.html">아티스트 라인업</a>
