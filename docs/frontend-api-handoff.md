@@ -566,6 +566,29 @@ Success:
 
 Admin statuses are `submitted`, `reviewing`, `needs_more_info`, `approved`, `rejected`, and `withdrawn`. The backend also accepts `under_review` as a compatibility alias and stores it as `reviewing`.
 
+Admin/operations endpoints for phone consultation queue:
+
+```http
+GET /admin/api/v1/debut/applications?status=submitted&applicationChannel=phone_consultation&consultationStatus=pending&take=50
+GET /admin/api/v1/debut/applications/:applicationId
+PATCH /admin/api/v1/debut/applications/:applicationId
+```
+
+Admin PATCH can update review and consultation metadata together:
+
+```json
+{
+  "status": "reviewing",
+  "consultationStatus": "scheduled",
+  "consultationScheduledAt": "2026-05-03T10:00:00.000Z",
+  "consultationNote": "Requested evening call. First contact scheduled.",
+  "reviewNote": "Phone consultation queue"
+}
+```
+
+Allowed `consultationStatus`: `pending`, `scheduled`, `contacted`, `no_answer`, `completed`.
+The consultation fields are stored in `application.metadata` until operations volume proves which fields deserve real DB columns.
+
 Frontend first form sections:
 
 - debut type selection: `appearance_only`, `voice_or_song`, `performance`, `co_creator`

@@ -514,6 +514,7 @@ GET /api/v1/me/debut-applications
 GET /api/v1/me/debut-applications/latest
 POST /api/v1/me/debut-applications/:applicationId/withdraw
 GET /admin/api/v1/debut/applications?status=submitted&take=50
+GET /admin/api/v1/debut/applications/:applicationId
 PATCH /admin/api/v1/debut/applications/:applicationId
 ```
 
@@ -531,6 +532,9 @@ Current validation and workflow:
 - Applicant withdrawal is available before final decision for `submitted`, `reviewing`, or `needs_more_info` applications.
 - Admin status updates accept `submitted`, `reviewing`, `needs_more_info`, `approved`, `rejected`, and `withdrawn`; `under_review` is accepted as a compatibility alias for `reviewing`.
 - `applicationChannel`, `preferredContactTime`, `consultationConsent`, and `materialSubmissionMode` are stored in `debut_applications.metadata` for now. Promote them to columns only after operations data proves the shape.
+- Admin list supports `applicationChannel` and `consultationStatus` query filters using metadata JSON path filters.
+- Admin PATCH accepts `consultationStatus`, `consultationScheduledAt`, and `consultationNote`. These are stored in metadata with `consultationUpdatedByUserId` and `consultationUpdatedAt`.
+- Allowed consultation statuses: `pending`, `scheduled`, `contacted`, `no_answer`, `completed`.
 
 Free-like quota endpoint:
 

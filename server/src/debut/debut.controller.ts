@@ -60,6 +60,12 @@ export class DebutAdminController {
     return this.debutService.getApplications(query);
   }
 
+  @Get('applications/:applicationId')
+  @RequireAdminPermissions('*')
+  getApplication(@Param('applicationId') applicationId: string) {
+    return this.debutService.getApplication(applicationId);
+  }
+
   @Patch('applications/:applicationId')
   @RequireAdminPermissions('*')
   updateApplication(

@@ -241,13 +241,31 @@ export class DebutService {
   getApplications(query: DebutApplicationListQueryDto) {
     const take = query.take ?? 50;
     const status = query.status ? this.status(query.status) : undefined;
+    const where = this.debutApplicationWhere({
+      status,
+      applicationChannel: query.applicationChannel,
+      consultationStatus: query.consultationStatus,
+    });
 
     return this.prisma.debutApplication.findMany({
-      where: this.clean({ status }),
+      where,
       take,
       include: this.applicationInclude(),
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async getApplication(applicationId: string) {
+    const application = await this.prisma.debutApplication.findUnique({
+      where: { id: applicationId },
+      include: this.applicationInclude(),
+    });
+
+    if (!application) {
+      throw new NotFoundException('Debut application not found');
+    }
+
+    return application;
   }
 
   async updateApplication(
@@ -267,10 +285,13 @@ export class DebutService {
     if (
       input.status === undefined &&
       input.shareTierApproved === undefined &&
-      input.reviewNote === undefined
+      input.reviewNote === undefined &&
+      input.consultationStatus === undefined &&
+      input.consultationScheduledAt === undefined &&
+      input.consultationNote === undefined
     ) {
       throw new BadRequestException(
-        'At least one of status, shareTierApproved, or reviewNote is required',
+        'At least one admin update field is required',
       );
     }
 
@@ -281,6 +302,7 @@ export class DebutService {
         shareTierApproved: input.shareTierApproved,
         reviewNote: input.reviewNote,
         updatedAt: new Date(),
+        metadata: this.mergeConsultationMetadata(before.metadata, input, user),
       }),
       include: this.applicationInclude(),
     });
@@ -377,7 +399,68 @@ export class DebutService {
       applicationChannel: input.applicationChannel ?? 'phone_consultation',
       preferredContactTime: input.preferredContactTime ?? null,
       consultationConsent: input.consultationConsent ?? null,
+      consultationStatus: 'pending',
       materialSubmissionMode: 'no_file_upload_mvp',
+    });
+  }
+
+  private debutApplicationWhere(input: {
+    status?: string;
+    applicationChannel?: string;
+    consultationStatus?: string;
+  }) {
+    const filters: Prisma.DebutApplicationWhereInput[] = [];
+
+    if (input.status) {
+      filters.push({ status: input.status });
+    }
+
+    if (input.applicationChannel) {
+      filters.push({
+        metadata: {
+          path: ['applicationChannel'],
+          equals: input.applicationChannel,
+        },
+      });
+    }
+
+    if (input.consultationStatus) {
+      filters.push({
+        metadata: {
+          path: ['consultationStatus'],
+          equals: input.consultationStatus,
+        },
+      });
+    }
+
+    return filters.length ? { AND: filters } : {};
+  }
+
+  private mergeConsultationMetadata(
+    current: Prisma.JsonValue,
+    input: AdminUpdateDebutApplicationDto,
+    user: AuthUser,
+  ) {
+    if (
+      input.consultationStatus === undefined &&
+      input.consultationScheduledAt === undefined &&
+      input.consultationNote === undefined
+    ) {
+      return undefined;
+    }
+
+    return this.mergeMetadata(current, {
+      ...(input.consultationStatus === undefined
+        ? {}
+        : { consultationStatus: input.consultationStatus }),
+      ...(input.consultationScheduledAt === undefined
+        ? {}
+        : { consultationScheduledAt: input.consultationScheduledAt }),
+      ...(input.consultationNote === undefined
+        ? {}
+        : { consultationNote: input.consultationNote }),
+      consultationUpdatedByUserId: user.id,
+      consultationUpdatedAt: new Date().toISOString(),
     });
   }
 

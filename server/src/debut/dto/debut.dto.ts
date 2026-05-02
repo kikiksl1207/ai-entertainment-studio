@@ -4,6 +4,7 @@ import {
   IsEmail,
   IsIn,
   IsInt,
+  IsISO8601,
   IsObject,
   IsOptional,
   IsString,
@@ -33,6 +34,14 @@ export const DEBUT_PARTICIPATION_TYPES = [
 export const DEBUT_APPLICATION_CHANNELS = [
   'phone_consultation',
   'online_review',
+] as const;
+
+export const DEBUT_CONSULTATION_STATUSES = [
+  'pending',
+  'scheduled',
+  'contacted',
+  'no_answer',
+  'completed',
 ] as const;
 
 const normalizeString = ({ value }: { value: unknown }) =>
@@ -137,12 +146,35 @@ export class AdminUpdateDebutApplicationDto {
   @IsString()
   @MaxLength(2000)
   reviewNote?: string;
+
+  @IsOptional()
+  @IsIn(DEBUT_CONSULTATION_STATUSES)
+  consultationStatus?: (typeof DEBUT_CONSULTATION_STATUSES)[number];
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsISO8601()
+  consultationScheduledAt?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MaxLength(2000)
+  consultationNote?: string;
 }
 
 export class DebutApplicationListQueryDto {
   @IsOptional()
   @IsIn(DEBUT_APPLICATION_STATUSES)
   status?: (typeof DEBUT_APPLICATION_STATUSES)[number];
+
+  @IsOptional()
+  @IsIn(DEBUT_APPLICATION_CHANNELS)
+  applicationChannel?: (typeof DEBUT_APPLICATION_CHANNELS)[number];
+
+  @IsOptional()
+  @IsIn(DEBUT_CONSULTATION_STATUSES)
+  consultationStatus?: (typeof DEBUT_CONSULTATION_STATUSES)[number];
 
   @IsOptional()
   @Transform(({ value }: { value: unknown }) => Number(value))

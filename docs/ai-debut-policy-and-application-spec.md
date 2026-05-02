@@ -214,6 +214,7 @@ GET /api/v1/me/debut-applications
 GET /api/v1/me/debut-applications/latest
 POST /api/v1/me/debut-applications/:applicationId/withdraw
 GET /admin/api/v1/debut/applications?status=submitted&take=50
+GET /admin/api/v1/debut/applications/:applicationId
 PATCH /admin/api/v1/debut/applications/:applicationId
 ```
 
@@ -236,6 +237,13 @@ Policy endpoint:
 - `GET /api/v1/debut/policy` returns non-personal static policy hints for the frontend form.
 - It includes application channels, participation types, draft share ranges, status labels, consent keys, field limits, material submission policy, and data collection restrictions.
 - `policyVersion` is currently `2026-05-02.mvp-draft` and is a product/version hint, not a final legal contract version.
+
+Phone-consultation operations:
+
+- Admin list can filter `applicationChannel=phone_consultation` and `consultationStatus=pending|scheduled|contacted|no_answer|completed`.
+- Admin detail is available at `GET /admin/api/v1/debut/applications/:applicationId`.
+- Admin PATCH can store `consultationStatus`, `consultationScheduledAt`, and `consultationNote` in metadata.
+- These fields stay in metadata during MVP so operations can learn the real workflow before schema hardening.
 
 ## 10. Backend Follow-Up
 
