@@ -488,3 +488,26 @@ PATCH /admin/api/v1/debut/applications/:applicationId
 ```
 
 `debut_applications` stores an operations-review application only. Sensitive identity documents and final contracts must use a later secure upload/contract process, not chat, Notion, or Git.
+
+Free-like quota endpoint:
+
+```http
+GET /api/v1/me/free-like-quota
+Authorization: Bearer <accessToken>
+```
+
+Response:
+
+```json
+{
+  "campaign": {
+    "id": "campaign-uuid",
+    "slug": "mvp-launch-main-pick",
+    "name": "MVP 런칭 메인픽"
+  },
+  "dailyLimit": 1,
+  "usedToday": 0,
+  "remaining": 1,
+  "resetsAt": "2026-05-03T00:00:00.000Z"
+}
+```

@@ -382,6 +382,33 @@ Frontend MVP form sections:
 
 Do not collect ID card images, resident registration numbers, bank accounts, final contract files, API keys, or secrets in this form.
 
+### Free Like Quota
+
+Use this endpoint for a logged-in user's daily free-like remaining count.
+
+```http
+GET /me/free-like-quota
+Authorization: Bearer <accessToken>
+```
+
+Response:
+
+```json
+{
+  "campaign": {
+    "id": "campaign-uuid",
+    "slug": "mvp-launch-main-pick",
+    "name": "MVP 런칭 메인픽"
+  },
+  "dailyLimit": 1,
+  "usedToday": 0,
+  "remaining": 1,
+  "resetsAt": "2026-05-03T00:00:00.000Z"
+}
+```
+
+If there is no active campaign, `campaign` is `null` and quota fields are `0`.
+
 ## Notes For Claude
 
 - Do not hardcode local-only URLs in production frontend.

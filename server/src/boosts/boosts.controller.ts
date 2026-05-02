@@ -82,6 +82,12 @@ export class BoostsController {
     return this.boostsService.getMyBoostEvents(user.id);
   }
 
+  @Get('me/free-like-quota')
+  @UseGuards(JwtAuthGuard)
+  getMyFreeLikeQuota(@CurrentUser() user: AuthUser) {
+    return this.boostsService.getMyFreeLikeQuota(user.id);
+  }
+
   private requireField(value: string | undefined, fieldName: string) {
     if (!value) {
       throw new BadRequestException(`${fieldName} is required`);

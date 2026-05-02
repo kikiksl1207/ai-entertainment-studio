@@ -273,6 +273,43 @@ export class BoostsService {
     });
   }
 
+  async getMyFreeLikeQuota(userId: string) {
+    const campaign = await this.getCurrentCampaign();
+    const { start, resetAt } = this.todayWindow();
+
+    if (!campaign) {
+      return {
+        campaign: null,
+        dailyLimit: 0,
+        usedToday: 0,
+        remaining: 0,
+        resetsAt: resetAt.toISOString(),
+      };
+    }
+
+    const usedToday = await this.prisma.artistBoostEvent.count({
+      where: {
+        campaignId: campaign.id,
+        userId,
+        boostType: 'free_like',
+        createdAt: { gte: start },
+      },
+    });
+    const dailyLimit = campaign.dailyFreeLikeLimit ?? 0;
+
+    return {
+      campaign: {
+        id: campaign.id,
+        slug: campaign.slug,
+        name: campaign.name,
+      },
+      dailyLimit,
+      usedToday,
+      remaining: Math.max(dailyLimit - usedToday, 0),
+      resetsAt: resetAt.toISOString(),
+    };
+  }
+
   private async getActiveCampaign(campaignId: string) {
     const now = new Date();
     const campaign = await this.prisma.boostCampaign.findFirst({
@@ -325,7 +362,15 @@ export class BoostsService {
   }
 
   private startOfToday() {
+    return this.todayWindow().start;
+  }
+
+  private todayWindow() {
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const resetAt = new Date(start);
+    resetAt.setDate(resetAt.getDate() + 1);
+
+    return { start, resetAt };
   }
 }
