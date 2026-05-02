@@ -3,6 +3,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_CURRENCY = 'LUMINA';
+const PAID_LIKE_PRODUCT_SKU = 'BOOST_BASIC_VOTE';
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -83,6 +84,148 @@ export class BoostsService {
       });
 
       return { event, idempotentReplay: false };
+    });
+  }
+
+  async createPaidLike(
+    userId: string,
+    input: {
+      campaignId: string;
+      artistId?: string;
+      artistSlug?: string;
+      quantity?: number | string;
+      idempotencyKey?: string;
+    },
+  ) {
+    const quantity = this.parsePaidLikeQuantity(input.quantity);
+    const [campaign, artist, boostProduct] = await Promise.all([
+      this.getActiveCampaign(input.campaignId),
+      this.resolveActiveArtist(input.artistId, input.artistSlug),
+      this.prisma.boostProduct.findFirst({
+        where: { sku: PAID_LIKE_PRODUCT_SKU, status: 'active' },
+      }),
+    ]);
+
+    if (!boostProduct) {
+      throw new NotFoundException('Paid like product not found');
+    }
+
+    const quantityDecimal = new Decimal(quantity);
+    const totalPriceLumina = boostProduct.priceLumina.mul(quantityDecimal);
+    const totalBoostAmount = boostProduct.boostAmount.mul(quantityDecimal);
+
+    return this.prisma.$transaction(async (tx) => {
+      if (input.idempotencyKey) {
+        const existingEvent = await tx.artistBoostEvent.findUnique({
+          where: { idempotencyKey: input.idempotencyKey },
+          include: { walletLedger: true },
+        });
+
+        if (existingEvent) {
+          const wallet = existingEvent.walletLedgerId
+            ? await tx.walletAccount.findFirst({
+                where: {
+                  userId,
+                  currencyCode: DEFAULT_CURRENCY,
+                },
+              })
+            : null;
+
+          return {
+            event: existingEvent,
+            idempotentReplay: true,
+            paidLike: {
+              quantity,
+              unitPriceLumina: boostProduct.priceLumina,
+              totalPriceLumina,
+              unitBoostAmount: boostProduct.boostAmount,
+              totalBoostAmount,
+            },
+            wallet,
+          };
+        }
+      }
+
+      const wallet = await tx.walletAccount.findUnique({
+        where: {
+          userId_currencyCode: {
+            userId,
+            currencyCode: DEFAULT_CURRENCY,
+          },
+        },
+      });
+
+      if (!wallet || wallet.status !== 'active') {
+        throw new BadRequestException('Active wallet not found');
+      }
+
+      const updatedWalletResult = await tx.walletAccount.updateMany({
+        where: {
+          id: wallet.id,
+          cachedBalance: { gte: totalPriceLumina },
+        },
+        data: {
+          cachedBalance: { decrement: totalPriceLumina },
+        },
+      });
+
+      if (updatedWalletResult.count !== 1) {
+        throw new BadRequestException('Insufficient Lumina balance');
+      }
+
+      const ledger = await tx.walletLedger.create({
+        data: {
+          walletAccountId: wallet.id,
+          direction: 'debit',
+          amount: totalPriceLumina,
+          ledgerType: 'boost_spend',
+          referenceType: 'boost_product',
+          referenceId: boostProduct.id,
+          idempotencyKey: input.idempotencyKey
+            ? `wallet:${input.idempotencyKey}`
+            : undefined,
+          memo: `Paid like x${quantity}: ${artist.displayName}`,
+        },
+      });
+
+      const event = await tx.artistBoostEvent.create({
+        data: {
+          campaignId: campaign.id,
+          userId,
+          artistId: artist.id,
+          boostType: 'lumina_boost',
+          boostProductId: boostProduct.id,
+          walletLedgerId: ledger.id,
+          rawAmount: totalBoostAmount,
+          weightedScore: totalBoostAmount.mul(campaign.luminaBoostWeight),
+          idempotencyKey: input.idempotencyKey,
+          metadata: {
+            source: 'paid_like',
+            quantity,
+            artistSlug: artist.slug,
+            unitPriceLumina: boostProduct.priceLumina.toString(),
+            totalPriceLumina: totalPriceLumina.toString(),
+          },
+        },
+        include: { walletLedger: true },
+      });
+
+      const updatedWallet = await tx.walletAccount.findUnique({
+        where: { id: wallet.id },
+      });
+
+      return {
+        event,
+        idempotentReplay: false,
+        paidLike: {
+          quantity,
+          unitPriceLumina: boostProduct.priceLumina,
+          totalPriceLumina,
+          unitBoostAmount: boostProduct.boostAmount,
+          totalBoostAmount,
+        },
+        wallet: updatedWallet,
+      };
     });
   }
 
@@ -372,5 +515,15 @@ export class BoostsService {
     resetAt.setDate(resetAt.getDate() + 1);
 
     return { start, resetAt };
+  }
+
+  private parsePaidLikeQuantity(value: number | string | undefined) {
+    const quantity = typeof value === 'string' ? Number(value) : (value ?? 1);
+
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
+      throw new BadRequestException('quantity must be an integer between 1 and 100');
+    }
+
+    return quantity;
   }
 }

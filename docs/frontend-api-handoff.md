@@ -284,6 +284,7 @@ GET /artists/:artistId/gift-products
 GET /boost-campaigns/current
 GET /boost-campaigns/:campaignId/rankings
 POST /boost-campaigns/:campaignId/free-like
+POST /boost-campaigns/:campaignId/paid-like
 ```
 
 `POST /boost-campaigns/:campaignId/free-like` requires `Authorization: Bearer <accessToken>`.
@@ -301,6 +302,73 @@ Compatibility body:
 ```
 
 The backend also accepts a slug-like `artistId` for current frontend compatibility. After a successful like, refresh rankings with `GET /boost-campaigns/:campaignId/rankings`. Daily free-like limit failures currently return `400 Daily free like limit exceeded`.
+
+`POST /boost-campaigns/:campaignId/paid-like` requires `Authorization: Bearer <accessToken>`.
+
+Policy:
+
+- Free like: 1 per day, no Lumina spend.
+- Paid like: 1 like unit = 10L. The backend uses the active `BOOST_BASIC_VOTE`
+  boost product internally, debits the wallet, writes `wallet_ledger`, and
+  creates a `lumina_boost` ranking event in one DB transaction.
+- `quantity` defaults to `1` and must be an integer between `1` and `100`.
+- Send `Idempotency-Key` header or `idempotencyKey` in the body to avoid
+  double spending on retries.
+
+Recommended body:
+
+```json
+{
+  "artistSlug": "yoon-serin",
+  "quantity": 1
+}
+```
+
+Compatibility body:
+
+```json
+{
+  "artistId": "<artist UUID or artist slug>",
+  "quantity": 5,
+  "idempotencyKey": "paid-like-unique-client-key"
+}
+```
+
+Success response:
+
+```json
+{
+  "event": {
+    "id": "event-uuid",
+    "campaignId": "campaign-uuid",
+    "artistId": "artist-uuid",
+    "boostType": "lumina_boost",
+    "rawAmount": "10",
+    "weightedScore": "10",
+    "metadata": {
+      "source": "paid_like",
+      "quantity": 1,
+      "artistSlug": "yoon-serin",
+      "unitPriceLumina": "10",
+      "totalPriceLumina": "10"
+    }
+  },
+  "idempotentReplay": false,
+  "paidLike": {
+    "quantity": 1,
+    "unitPriceLumina": "10",
+    "totalPriceLumina": "10",
+    "unitBoostAmount": "10",
+    "totalBoostAmount": "10"
+  },
+  "wallet": {
+    "cachedBalance": "290"
+  }
+}
+```
+
+After a successful paid like, refresh rankings with
+`GET /boost-campaigns/:campaignId/rankings`.
 
 ### Lumina Pick
 

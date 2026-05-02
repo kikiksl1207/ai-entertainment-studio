@@ -176,6 +176,7 @@ GET /api/v1/artists/:artistId/equipped-items
 
 ```http
 POST /api/v1/boost-campaigns/:campaignId/free-like
+POST /api/v1/boost-campaigns/:campaignId/paid-like
 GET /api/v1/boost-products
 POST /api/v1/boost-orders
 GET /api/v1/me/boost-events
@@ -199,6 +200,16 @@ GET /api/v1/me/boost-events
 - 유료: 루미나 부스트 또는 스테이지 부스트
 - 랭킹 결과: 메인픽
 - 보상: 회사 차원의 특별 해금
+
+Paid like API:
+
+- `POST /api/v1/boost-campaigns/:campaignId/paid-like`
+- Auth required.
+- Body: `{ "artistSlug": "yoon-serin", "quantity": 1 }`
+- Policy: 1 paid like unit costs 10L through the active `BOOST_BASIC_VOTE` product.
+- The transaction debits the Lumina wallet, writes `wallet_ledger`, and creates a `lumina_boost` event with `metadata.source = "paid_like"`.
+- `quantity` defaults to 1 and accepts 1-100.
+- Supports `Idempotency-Key` header or body `idempotencyKey`.
 
 ### Premium Videos
 

@@ -178,6 +178,7 @@ Boost endpoints:
 - `GET /api/v1/boost-campaigns/current`
 - `GET /api/v1/boost-campaigns/:campaignId/rankings`
 - `POST /api/v1/boost-campaigns/:campaignId/free-like`
+- `POST /api/v1/boost-campaigns/:campaignId/paid-like`
 - `GET /api/v1/popular-vote/main-pick`
 - `GET /api/v1/popular-vote/hall-of-fame/monthly-picks?year=2026`
 - `GET /api/v1/popular-vote/hall-of-fame/year-champion?year=2026`
@@ -186,6 +187,8 @@ Boost endpoints:
 - `GET /api/v1/me/boost-events`
 
 `POST /api/v1/boost-campaigns/:campaignId/free-like` accepts `{ "artistId": "<artist uuid>" }`. For frontend compatibility it also accepts `{ "artistSlug": "yoon-serin" }` or a slug-like `artistId`; the backend resolves the active artist before writing `artist_boost_events`. Daily free-like limit failures currently return `400 Daily free like limit exceeded`.
+
+`POST /api/v1/boost-campaigns/:campaignId/paid-like` accepts `{ "artistSlug": "yoon-serin", "quantity": 1 }`. One paid like unit costs 10L through `BOOST_BASIC_VOTE`; the backend debits the wallet, writes `wallet_ledger`, and creates a `lumina_boost` event in one transaction. `quantity` defaults to 1 and accepts 1-100.
 
 Gift orders and paid boost orders debit `wallet_accounts.cached_balance` and create `wallet_ledger` entries inside the same transaction. Free likes and paid boost events are stored in `artist_boost_events`; rankings read the latest snapshot when present and otherwise aggregate live events.
 

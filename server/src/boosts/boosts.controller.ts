@@ -19,6 +19,13 @@ type FreeLikeBody = {
   idempotencyKey?: string;
 };
 
+type PaidLikeBody = {
+  artistId?: string;
+  artistSlug?: string;
+  quantity?: number | string;
+  idempotencyKey?: string;
+};
+
 type BoostOrderBody = {
   campaignId?: string;
   artistId?: string;
@@ -52,6 +59,23 @@ export class BoostsController {
       campaignId,
       artistId: body?.artistId,
       artistSlug: body?.artistSlug,
+      idempotencyKey: body?.idempotencyKey ?? idempotencyKeyHeader,
+    });
+  }
+
+  @Post('boost-campaigns/:campaignId/paid-like')
+  @UseGuards(JwtAuthGuard)
+  createPaidLike(
+    @Param('campaignId') campaignId: string,
+    @CurrentUser() user: AuthUser,
+    @Headers('idempotency-key') idempotencyKeyHeader: string | undefined,
+    @Body() body: PaidLikeBody,
+  ) {
+    return this.boostsService.createPaidLike(user.id, {
+      campaignId,
+      artistId: body?.artistId,
+      artistSlug: body?.artistSlug,
+      quantity: body?.quantity,
       idempotencyKey: body?.idempotencyKey ?? idempotencyKeyHeader,
     });
   }
