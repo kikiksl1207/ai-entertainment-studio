@@ -1888,18 +1888,24 @@ function mediaStyle(path) {
 
 /* ── API 어댑터 ─────────────────────────────────
    백엔드 응답 → 프론트 구조로 변환
-   실제 API 필드명 확정 후 Codex와 맞춤
+   #030 차모 답변 반영: coverImage/thumbnailImage는 object (url 안에 있음),
+   asset url은 상대 경로 → leading slash 보장 (프론트 도메인 기준)
    ─────────────────────────────────────────── */
+function normalizeAssetUrl(url) {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  return `/${String(url).replace(/^\/+/, "")}`;
+}
+
 function adaptArtist(api) {
   const local = characters.find(c => c.slug === api.slug) || {};
   // 운영 API의 assets[]에서 usageType별로 우선 사용, 없으면 로컬 fallback.
-  // seed 운영 반영 즉시 자동으로 백엔드 데이터로 전환 (#002 검증: assets=22 = cover 1 + thumb 1 + gallery 20).
   const assets = api.assets || [];
   const apiCover  = assets.find(a => a.usageType === "cover");
   const apiThumb  = assets.find(a => a.usageType === "thumb");
   const apiGallery = assets
     .filter(a => a.usageType === "gallery")
-    .map(a => [a.caption || "Gallery", a.url]);
+    .map(a => [a.caption || "Gallery", normalizeAssetUrl(a.url)]);
   return {
     ...local,
     id:          api.id            || api._id           || local.id,
@@ -1916,8 +1922,9 @@ function adaptArtist(api) {
     fandom:      api.fandom        || local.fandom,
     business:    api.business      || local.business,
     images: {
-      cover: apiCover?.url || api.coverImage  || api.cover_image  || local.images?.cover,
-      thumb: apiThumb?.url || api.thumbImage  || api.thumb_image  || local.images?.thumb
+      // #030: coverImage/thumbnailImage는 asset object → .url 추출. 정답 필드명은 thumbnailImage.
+      cover: normalizeAssetUrl(apiCover?.url || api.coverImage?.url || api.coverImageUrl || api.cover_image) || local.images?.cover,
+      thumb: normalizeAssetUrl(apiThumb?.url || api.thumbnailImage?.url || api.thumbImage?.url || api.thumbImage || api.thumb_image) || local.images?.thumb
     },
     gallery:           apiGallery.length > 0 ? apiGallery : (local.gallery || []),
     profile:           api.profile || local.profile || {},
