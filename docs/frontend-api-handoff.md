@@ -332,7 +332,11 @@ Policy:
 - Paid like: 1 like unit = 10L. The backend uses the active `BOOST_BASIC_VOTE`
   boost product internally, debits the wallet, writes `wallet_ledger`, and
   creates a `lumina_boost` ranking event in one DB transaction.
-- `quantity` defaults to `1` and must be an integer between `1` and `100`.
+- Paid like daily limit: 20 units per user per service day. This is the MVP
+  launch policy chosen to balance revenue testing and ranking fairness.
+- `quantity` defaults to `1` and must be an integer between `1` and `20`.
+- If the user exceeds the daily paid-like limit, expect `400 Daily paid like
+  limit exceeded`.
 - Send `Idempotency-Key` header or `idempotencyKey` in the body to avoid
   double spending on retries.
 
@@ -380,7 +384,11 @@ Success response:
     "unitPriceLumina": "10",
     "totalPriceLumina": "10",
     "unitBoostAmount": "10",
-    "totalBoostAmount": "10"
+    "totalBoostAmount": "10",
+    "dailyLimit": 20,
+    "usedToday": 1,
+    "remainingToday": 19,
+    "resetsAt": "2026-05-03T00:00:00.000Z"
   },
   "wallet": {
     "cachedBalance": "290"
@@ -628,6 +636,39 @@ Response:
 ```
 
 If there is no active campaign, `campaign` is `null` and quota fields are `0`.
+
+### Paid Like Quota
+
+Use this endpoint before showing a paid-like purchase modal.
+
+```http
+GET /me/paid-like-quota
+Authorization: Bearer <accessToken>
+```
+
+Response:
+
+```json
+{
+  "campaign": {
+    "id": "campaign-uuid",
+    "slug": "mvp-launch-main-pick",
+    "name": "루미나 픽 메인 캠페인"
+  },
+  "dailyLimit": 20,
+  "usedToday": 0,
+  "remaining": 20,
+  "resetsAt": "2026-05-03T00:00:00.000Z",
+  "unitPriceLumina": "10"
+}
+```
+
+Frontend policy:
+
+- Show paid-like options as `1`, `5`, `10`, or `20` units within the remaining
+  daily quota.
+- Do not show a `30` unit option for MVP launch.
+- Suggested copy: `추가 응원은 하루 최대 20개까지 보낼 수 있어요.`
 
 ### Lumina Feed
 

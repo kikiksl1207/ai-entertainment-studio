@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const PAID_LIKE_PRODUCT_SKU = 'BOOST_BASIC_VOTE';
+const PAID_LIKE_DAILY_LIMIT = 20;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -113,6 +114,7 @@ export class BoostsService {
     const quantityDecimal = new Decimal(quantity);
     const totalPriceLumina = boostProduct.priceLumina.mul(quantityDecimal);
     const totalBoostAmount = boostProduct.boostAmount.mul(quantityDecimal);
+    const { start, resetAt } = this.todayWindow();
 
     return this.prisma.$transaction(async (tx) => {
       if (input.idempotencyKey) {
@@ -144,6 +146,27 @@ export class BoostsService {
             wallet,
           };
         }
+      }
+
+      const paidLikeEventsToday = await tx.artistBoostEvent.findMany({
+        where: {
+          campaignId: campaign.id,
+          userId,
+          boostType: 'lumina_boost',
+          createdAt: { gte: start },
+          metadata: {
+            path: ['source'],
+            equals: 'paid_like',
+          },
+        },
+        select: {
+          metadata: true,
+        },
+      });
+      const usedToday = this.sumPaidLikeQuantities(paidLikeEventsToday);
+
+      if (usedToday + quantity > PAID_LIKE_DAILY_LIMIT) {
+        throw new BadRequestException('Daily paid like limit exceeded');
       }
 
       const wallet = await tx.walletAccount.findUnique({
@@ -205,6 +228,10 @@ export class BoostsService {
             artistSlug: artist.slug,
             unitPriceLumina: boostProduct.priceLumina.toString(),
             totalPriceLumina: totalPriceLumina.toString(),
+            dailyLimit: PAID_LIKE_DAILY_LIMIT,
+            usedTodayBefore: usedToday,
+            usedTodayAfter: usedToday + quantity,
+            resetsAt: resetAt.toISOString(),
           },
         },
         include: { walletLedger: true },
@@ -223,6 +250,10 @@ export class BoostsService {
           totalPriceLumina,
           unitBoostAmount: boostProduct.boostAmount,
           totalBoostAmount,
+          dailyLimit: PAID_LIKE_DAILY_LIMIT,
+          usedToday: usedToday + quantity,
+          remainingToday: Math.max(PAID_LIKE_DAILY_LIMIT - usedToday - quantity, 0),
+          resetsAt: resetAt.toISOString(),
         },
         wallet: updatedWallet,
       };
@@ -517,13 +548,90 @@ export class BoostsService {
     return { start, resetAt };
   }
 
+  async getMyPaidLikeQuota(userId: string) {
+    const campaign = await this.getCurrentCampaign();
+    const { start, resetAt } = this.todayWindow();
+
+    if (!campaign) {
+      return {
+        campaign: null,
+        dailyLimit: PAID_LIKE_DAILY_LIMIT,
+        usedToday: 0,
+        remaining: 0,
+        resetsAt: resetAt.toISOString(),
+        unitPriceLumina: null,
+      };
+    }
+
+    const [paidLikeEventsToday, boostProduct] = await Promise.all([
+      this.prisma.artistBoostEvent.findMany({
+        where: {
+          campaignId: campaign.id,
+          userId,
+          boostType: 'lumina_boost',
+          createdAt: { gte: start },
+          metadata: {
+            path: ['source'],
+            equals: 'paid_like',
+          },
+        },
+        select: {
+          metadata: true,
+        },
+      }),
+      this.prisma.boostProduct.findFirst({
+        where: { sku: PAID_LIKE_PRODUCT_SKU, status: 'active' },
+        select: {
+          priceLumina: true,
+        },
+      }),
+    ]);
+    const usedToday = this.sumPaidLikeQuantities(paidLikeEventsToday);
+
+    return {
+      campaign: {
+        id: campaign.id,
+        slug: campaign.slug,
+        name: campaign.name,
+      },
+      dailyLimit: PAID_LIKE_DAILY_LIMIT,
+      usedToday,
+      remaining: Math.max(PAID_LIKE_DAILY_LIMIT - usedToday, 0),
+      resetsAt: resetAt.toISOString(),
+      unitPriceLumina: boostProduct?.priceLumina ?? null,
+    };
+  }
+
   private parsePaidLikeQuantity(value: number | string | undefined) {
     const quantity = typeof value === 'string' ? Number(value) : (value ?? 1);
 
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
-      throw new BadRequestException('quantity must be an integer between 1 and 100');
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > PAID_LIKE_DAILY_LIMIT) {
+      throw new BadRequestException(
+        `quantity must be an integer between 1 and ${PAID_LIKE_DAILY_LIMIT}`,
+      );
     }
 
     return quantity;
+  }
+
+  private sumPaidLikeQuantities(
+    events: Array<{
+      metadata: unknown;
+    }>,
+  ) {
+    return events.reduce((total, event) => {
+      const metadata =
+        event.metadata && typeof event.metadata === 'object' && !Array.isArray(event.metadata)
+          ? (event.metadata as Record<string, unknown>)
+          : {};
+      const quantity =
+        typeof metadata.quantity === 'number'
+          ? metadata.quantity
+          : typeof metadata.quantity === 'string'
+            ? Number(metadata.quantity)
+            : 1;
+
+      return total + (Number.isFinite(quantity) && quantity > 0 ? quantity : 1);
+    }, 0);
   }
 }

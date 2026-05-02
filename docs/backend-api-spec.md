@@ -224,8 +224,12 @@ Paid like API:
 - Body: `{ "artistSlug": "yoon-serin", "quantity": 1 }`
 - Policy: 1 paid like unit costs 10L through the active `BOOST_BASIC_VOTE` product.
 - The transaction debits the Lumina wallet, writes `wallet_ledger`, and creates a `lumina_boost` event with `metadata.source = "paid_like"`.
-- `quantity` defaults to 1 and accepts 1-100.
+- Daily paid-like limit is 20 units per user per service day.
+- `quantity` defaults to 1 and accepts 1-20.
+- Limit failures return `400 Daily paid like limit exceeded`.
 - Supports `Idempotency-Key` header or body `idempotencyKey`.
+- `GET /api/v1/me/paid-like-quota` returns the active campaign, daily limit,
+  used count, remaining count, reset time, and unit price.
 
 ### Premium Videos
 
