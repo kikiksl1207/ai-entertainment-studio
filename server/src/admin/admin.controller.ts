@@ -371,6 +371,12 @@ export class AdminController {
     return this.adminService.getCommunityPosts(query);
   }
 
+  @Get('community/summary')
+  @RequireAdminPermissions('community:read')
+  getCommunityModerationSummary(@Query() query: AuditQuery) {
+    return this.adminService.getCommunityModerationSummary(query);
+  }
+
   @Patch('community/reports/:reportId')
   @RequireAdminPermissions('community:write')
   updateCommunityReport(

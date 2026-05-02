@@ -385,10 +385,35 @@ public non-deleted posts in `recentPosts`.
 
 ## Admin/Operations Follow-Up
 
-Not implemented yet:
+Implemented admin endpoints:
 
-- Admin endpoints for granting/revoking artist operator access.
-- Admin moderation queue for reports.
-- Admin post hide/delete endpoints.
+```http
+GET /admin/api/v1/community/summary?take=10
+GET /admin/api/v1/community/reports?status=submitted&take=50
+GET /admin/api/v1/community/posts?status=published&minReports=1&sort=reports&take=50
+PATCH /admin/api/v1/community/reports/:reportId
+POST /admin/api/v1/community/posts/:postId/hide
+POST /admin/api/v1/community/posts/:postId/restore
+```
+
+`PATCH /community/reports/:reportId` supports moderation actions:
+
+```json
+{
+  "status": "resolved",
+  "action": "hide_post",
+  "resolveMatchingReports": true,
+  "reason": "policy_violation",
+  "note": "Hidden after review"
+}
+```
+
+`action` can be `none`, `hide_post`, or `restore_post`. `resolveMatchingReports`
+closes other open reports on the same post. If an action is provided and `status`
+is omitted, the selected report defaults to `resolved`. Every mutation writes an
+audit event.
+
+Still not implemented:
+
 - AI-assisted post generation.
 - Attachment upload for feed images/videos.

@@ -1549,6 +1549,7 @@ export class AdminService {
     const postType = this.optionalString(query, 'postType');
     const artistSlug = this.optionalString(query, 'artistSlug');
     const authorUserId = this.optionalString(query, 'authorUserId');
+    const minReports = this.optionalNumber(query, 'minReports');
 
     return this.prisma.communityPost.findMany({
       where: this.clean({
@@ -1556,11 +1557,75 @@ export class AdminService {
         postType,
         authorUserId,
         artist: artistSlug ? { slug: artistSlug } : undefined,
+        reportCount:
+          minReports === undefined
+            ? undefined
+            : {
+                gte: minReports,
+              },
       }),
       take,
-      orderBy: { createdAt: 'desc' },
+      orderBy:
+        this.optionalString(query, 'sort') === 'reports'
+          ? [{ reportCount: 'desc' }, { createdAt: 'desc' }]
+          : { createdAt: 'desc' },
       include: this.communityPostInclude(),
     });
+  }
+
+  async getCommunityModerationSummary(query: AuditQuery) {
+    const highRiskTake = Math.max(1, Math.min(this.number(query, 'take', 10), 50));
+    const [
+      reportsByStatus,
+      reportsByReason,
+      postsByStatus,
+      postsByType,
+      highRiskPosts,
+    ] = await Promise.all([
+      this.prisma.communityReport.groupBy({
+        by: ['status'],
+        _count: { _all: true },
+      }),
+      this.prisma.communityReport.groupBy({
+        by: ['reason'],
+        _count: { _all: true },
+        where: {
+          status: { in: ['submitted', 'reviewing'] },
+        },
+      }),
+      this.prisma.communityPost.groupBy({
+        by: ['status'],
+        _count: { _all: true },
+      }),
+      this.prisma.communityPost.groupBy({
+        by: ['postType'],
+        _count: { _all: true },
+        where: {
+          status: { in: ['published', 'hidden'] },
+        },
+      }),
+      this.prisma.communityPost.findMany({
+        where: {
+          reportCount: { gt: 0 },
+          status: { in: ['published', 'hidden'] },
+        },
+        take: highRiskTake,
+        orderBy: [{ reportCount: 'desc' }, { createdAt: 'desc' }],
+        include: this.communityPostInclude(),
+      }),
+    ]);
+
+    return {
+      reports: {
+        byStatus: this.countRowsToObject(reportsByStatus, 'status'),
+        byReason: this.countRowsToObject(reportsByReason, 'reason'),
+      },
+      posts: {
+        byStatus: this.countRowsToObject(postsByStatus, 'status'),
+        byType: this.countRowsToObject(postsByType, 'postType'),
+        highRisk: highRiskPosts,
+      },
+    };
   }
 
   async updateCommunityReport(user: AuthUser, reportId: string, input: AdminPayload) {
@@ -1573,17 +1638,66 @@ export class AdminService {
       throw new NotFoundException('Community report not found');
     }
 
+    const action = this.communityReportAction(input);
     const status =
-      input.status === undefined ? undefined : this.communityReportStatus(input, 'status');
-    const report = await this.prisma.communityReport.update({
-      where: { id: reportId },
-      data: this.clean({
-        status,
-        detail: this.optionalString(input, 'detail'),
-        metadata: this.optionalJson(input, 'metadata'),
-        updatedAt: new Date(),
-      }),
-      include: this.communityReportInclude(),
+      input.status === undefined
+        ? action === 'none'
+          ? undefined
+          : 'resolved'
+        : this.communityReportStatus(input, 'status');
+    const now = new Date();
+    const report = await this.prisma.$transaction(async (tx) => {
+      const updatedReport = await tx.communityReport.update({
+        where: { id: reportId },
+        data: this.clean({
+          status,
+          detail: this.optionalString(input, 'detail'),
+          metadata: this.optionalJson(input, 'metadata'),
+          updatedAt: now,
+        }),
+        include: this.communityReportInclude(),
+      });
+
+      if (action === 'hide_post' || action === 'restore_post') {
+        const postMetadata = this.metadataObject(before.post.metadata);
+        const moderation = this.metadataObject(postMetadata.moderation);
+        await tx.communityPost.update({
+          where: { id: before.postId },
+          data: {
+            status: action === 'hide_post' ? 'hidden' : 'published',
+            deletedAt: action === 'restore_post' ? null : undefined,
+            updatedAt: now,
+            metadata: this.toJson({
+              ...postMetadata,
+              moderation: {
+                ...moderation,
+                status: action === 'hide_post' ? 'hidden' : 'restored',
+                reason: this.optionalString(input, 'reason') ?? null,
+                note: this.optionalString(input, 'note') ?? null,
+                reportId,
+                actionByUserId: user.id,
+                actionAt: now.toISOString(),
+              },
+            }),
+          },
+        });
+      }
+
+      if (this.boolean(input, 'resolveMatchingReports', false)) {
+        await tx.communityReport.updateMany({
+          where: {
+            postId: before.postId,
+            id: { not: reportId },
+            status: { in: ['submitted', 'reviewing'] },
+          },
+          data: {
+            status: status === 'dismissed' ? 'dismissed' : 'resolved',
+            updatedAt: now,
+          },
+        });
+      }
+
+      return updatedReport;
     });
 
     await this.recordAudit(
@@ -1593,7 +1707,11 @@ export class AdminService {
       report.id,
       before,
       report,
-      { note: this.optionalString(input, 'note') },
+      {
+        note: this.optionalString(input, 'note'),
+        action,
+        resolveMatchingReports: this.boolean(input, 'resolveMatchingReports', false),
+      },
     );
 
     return report;
@@ -2203,6 +2321,25 @@ export class AdminService {
     }
 
     return status;
+  }
+
+  private communityReportAction(input: AdminPayload) {
+    const action = this.optionalString(input, 'action') ?? 'none';
+
+    if (!['none', 'hide_post', 'restore_post'].includes(action)) {
+      throw new BadRequestException('action must be none, hide_post, or restore_post');
+    }
+
+    return action;
+  }
+
+  private countRowsToObject<T extends Record<string, unknown>>(rows: T[], key: keyof T) {
+    return Object.fromEntries(
+      rows.map((row) => [
+        String(row[key]),
+        this.metadataObject(row._count)._all ?? 0,
+      ]),
+    );
   }
 
   private visibility(input: AdminPayload, key: string, fallback: string) {

@@ -828,18 +828,43 @@ Authorization: Bearer <accessToken>
 
 Blocking is idempotent. `POST /users/:userId/block` optionally accepts `{ "reason": "spam" }`, unfollows both directions if an active follow exists, and returns `{ block: { id, status, reason, blockedAt, updatedAt, user: { id, displayName, avatarUrl } } }`. `GET /me/blocked-users` returns the same block row shape as a list.
 
-Admin/community moderation draft:
+Admin/community moderation:
 
 ```http
+GET /admin/api/v1/community/summary?take=10
 GET /admin/api/v1/community/reports?status=submitted&take=50
-GET /admin/api/v1/community/posts?status=published&take=50
+GET /admin/api/v1/community/posts?status=published&minReports=1&sort=reports&take=50
 PATCH /admin/api/v1/community/reports/:reportId
 POST /admin/api/v1/community/posts/:postId/hide
 POST /admin/api/v1/community/posts/:postId/restore
 ```
 
 These require admin auth plus `community:read` or `community:write` permission.
-They are for a later admin/operations screen, not public user UI.
+They are for admin/operations screens, not public user UI.
+
+`GET /admin/api/v1/community/summary` returns grouped report/post counts and
+`posts.highRisk` with the most-reported published/hidden posts.
+
+`GET /admin/api/v1/community/posts` supports `status`, `postType`, `artistSlug`,
+`authorUserId`, `minReports`, `sort=reports`, and `take`.
+
+`PATCH /admin/api/v1/community/reports/:reportId` accepts:
+
+```json
+{
+  "status": "resolved",
+  "action": "hide_post",
+  "resolveMatchingReports": true,
+  "reason": "policy_violation",
+  "note": "Hidden after review"
+}
+```
+
+`action` can be `none`, `hide_post`, or `restore_post`. `resolveMatchingReports:
+true` closes other submitted/reviewing reports on the same post as `resolved` or
+`dismissed`, according to the selected report status. All mutations write audit
+events. If `action` is `hide_post` or `restore_post` and `status` is omitted, the
+selected report defaults to `resolved`.
 
 Admin artist operator draft:
 

@@ -345,8 +345,9 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `POST /admin/api/v1/boost-campaigns`
 - `PATCH /admin/api/v1/boost-campaigns/:campaignId`
 - `POST /admin/api/v1/boost-campaigns/:campaignId/snapshot`
+- `GET /admin/api/v1/community/summary?take=10`
 - `GET /admin/api/v1/community/reports?status=submitted&take=50`
-- `GET /admin/api/v1/community/posts?status=published&take=50`
+- `GET /admin/api/v1/community/posts?status=published&minReports=1&sort=reports&take=50`
 - `PATCH /admin/api/v1/community/reports/:reportId`
 - `POST /admin/api/v1/community/posts/:postId/hide`
 - `POST /admin/api/v1/community/posts/:postId/restore`
@@ -365,8 +366,12 @@ Admin create/update/snapshot mutations write `audit_events` rows with actor, act
 User moderation endpoints are super-admin-only in the initial policy. `POST /admin/api/v1/users/:userId/suspend` sets `users.status = suspended` and revokes all active refresh-token sessions. `POST /admin/api/v1/users/:userId/delete` soft-deletes the account with `users.status = deleted`, sets `deleted_at`, revokes sessions, consumes outstanding user action tokens, and deactivates referral codes. `POST /admin/api/v1/users/:userId/restore` returns the account to `active` and clears `deleted_at`; it does not restore old refresh tokens. Admins cannot suspend or delete their own account through these endpoints.
 
 Community moderation endpoints require `community:read` or `community:write`
-unless the admin role has `*`. Post hide/restore writes moderation metadata and
-audit events; it does not hard-delete feed content.
+unless the admin role has `*`. `GET /admin/api/v1/community/summary` returns
+grouped report/post counts and high-risk posts sorted by report count.
+`PATCH /admin/api/v1/community/reports/:reportId` can also take
+`action=hide_post|restore_post` and `resolveMatchingReports=true` to process a
+report and its post in one operation. Post hide/restore writes moderation
+metadata and audit events; it does not hard-delete feed content.
 
 Artist operator endpoints require `artists:write`. Operators are the bridge
 between normal user accounts and artist-account posting in Lumina Feed. Creating
