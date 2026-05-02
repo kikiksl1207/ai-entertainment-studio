@@ -425,6 +425,8 @@ Use this for the `Main Pick / 이달의 1위` tab. `leader` is the first ranking
 ```http
 POST /debut/applications
 GET /me/debut-applications
+GET /me/debut-applications/latest
+POST /me/debut-applications/:applicationId/withdraw
 ```
 
 Detailed product/policy draft:
@@ -459,6 +461,46 @@ Allowed `participationType` values:
 - `co_creator`: ongoing planning/content/fandom participation, up to 70%.
 
 Required consents: `consentAppearance`, `consentRevenuePolicy`, `consentPrivacy`. Keep real IDs, contracts, and sensitive files outside Notion/Git/chat until the final secure upload/contract process is defined.
+
+Validation notes:
+
+- `isAdult` must be `true` for MVP. Minor applicant flow is not open yet.
+- `intro` must be 20-4000 characters.
+- `shareTierRequested` is optional but must be an integer from 0 to 70 when sent.
+- `metadata` may hold non-sensitive structured details such as `stageConcept`, `preferredGenres`, `providedMaterials`, `prohibitedUses`, `socialLinks`, and `expectedRole`.
+- Do not send resident registration numbers, ID images, bank accounts, final contracts, API keys, or secrets.
+
+`GET /me/debut-applications/latest` returns:
+
+```json
+{
+  "application": null,
+  "ctaState": "apply"
+}
+```
+
+If an application exists, `application` is the latest submitted record and `ctaState` is `"status"`.
+
+Applicants may withdraw only applications in `submitted`, `reviewing`, or `needs_more_info`:
+
+```http
+POST /me/debut-applications/:applicationId/withdraw
+```
+
+Success:
+
+```json
+{
+  "application": {
+    "id": "application-uuid",
+    "status": "withdrawn"
+  },
+  "ok": true,
+  "alreadyWithdrawn": false
+}
+```
+
+Admin statuses are `submitted`, `reviewing`, `needs_more_info`, `approved`, `rejected`, and `withdrawn`. The backend also accepts `under_review` as a compatibility alias and stores it as `reviewing`.
 
 Frontend first form sections:
 

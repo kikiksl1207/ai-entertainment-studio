@@ -2,51 +2,50 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { AuthUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
-
-type DebutPayload = Record<string, unknown>;
-type DebutQuery = Record<string, string | undefined>;
+import {
+  AdminUpdateDebutApplicationDto,
+  CreateDebutApplicationDto,
+  DebutApplicationListQueryDto,
+} from './dto/debut.dto';
 
 const APPLICATION_STATUSES = new Set([
   'submitted',
   'reviewing',
+  'under_review',
   'needs_more_info',
   'approved',
   'rejected',
   'withdrawn',
 ]);
 
-const PARTICIPATION_TYPES = new Set([
-  'appearance_only',
-  'voice_or_song',
-  'performance',
-  'co_creator',
-]);
-
 @Injectable()
 export class DebutService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createApplication(userId: string, input: DebutPayload) {
+  async createApplication(userId: string, input: CreateDebutApplicationDto) {
+    if (!input.isAdult) {
+      throw new BadRequestException('isAdult must be true for MVP debut applications');
+    }
+
     this.assertRequiredConsents(input);
-    const shareTierRequested = this.optionalShareTier(input, 'shareTierRequested');
 
     const application = await this.prisma.debutApplication.create({
       data: {
         userId,
-        applicantName: this.string(input, 'applicantName'),
-        displayName: this.optionalString(input, 'displayName'),
-        contactEmail: this.email(input, 'contactEmail'),
-        contactPhone: this.optionalString(input, 'contactPhone'),
-        isAdult: this.boolean(input, 'isAdult'),
-        participationType: this.participationType(input, 'participationType'),
-        shareTierRequested,
-        intro: this.string(input, 'intro'),
-        portfolioUrl: this.optionalString(input, 'portfolioUrl'),
+        applicantName: input.applicantName,
+        displayName: input.displayName,
+        contactEmail: input.contactEmail,
+        contactPhone: input.contactPhone,
+        isAdult: input.isAdult,
+        participationType: input.participationType,
+        shareTierRequested: input.shareTierRequested,
+        intro: input.intro,
+        portfolioUrl: input.portfolioUrl,
         consentAppearance: true,
-        consentVoice: this.boolean(input, 'consentVoice'),
+        consentVoice: input.consentVoice,
         consentRevenuePolicy: true,
         consentPrivacy: true,
-        metadata: this.toJson(this.object(input, 'metadata') ?? {}),
+        metadata: this.toJson(input.metadata ?? {}),
       },
       include: this.applicationInclude(),
     });
@@ -64,8 +63,63 @@ export class DebutService {
     });
   }
 
-  getApplications(query: DebutQuery) {
-    const take = Math.max(1, Math.min(this.optionalNumber(query.take) ?? 50, 100));
+  async getMyLatestApplication(userId: string) {
+    const application = await this.prisma.debutApplication.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      application,
+      ctaState: application ? 'status' : 'apply',
+    };
+  }
+
+  async withdrawMyApplication(userId: string, applicationId: string) {
+    const application = await this.prisma.debutApplication.findFirst({
+      where: { id: applicationId, userId },
+    });
+
+    if (!application) {
+      throw new NotFoundException('Debut application not found');
+    }
+
+    if (application.status === 'withdrawn') {
+      return { application, ok: true, alreadyWithdrawn: true };
+    }
+
+    if (!['submitted', 'reviewing', 'needs_more_info'].includes(application.status)) {
+      throw new BadRequestException(
+        'Only submitted, reviewing, or needs_more_info applications can be withdrawn',
+      );
+    }
+
+    const withdrawn = await this.prisma.debutApplication.update({
+      where: { id: application.id },
+      data: {
+        status: 'withdrawn',
+        updatedAt: new Date(),
+        metadata: this.mergeMetadata(application.metadata, {
+          withdrawnBy: 'applicant',
+          withdrawnAt: new Date().toISOString(),
+        }),
+      },
+    });
+
+    await this.recordAudit(
+      { id: userId, email: null },
+      withdrawn.id,
+      application,
+      withdrawn,
+      'user',
+      'debut_application.withdraw',
+    );
+
+    return { application: withdrawn, ok: true, alreadyWithdrawn: false };
+  }
+
+  getApplications(query: DebutApplicationListQueryDto) {
+    const take = query.take ?? 50;
     const status = query.status ? this.status(query.status) : undefined;
 
     return this.prisma.debutApplication.findMany({
@@ -76,7 +130,11 @@ export class DebutService {
     });
   }
 
-  async updateApplication(user: AuthUser, applicationId: string, input: DebutPayload) {
+  async updateApplication(
+    user: AuthUser,
+    applicationId: string,
+    input: AdminUpdateDebutApplicationDto,
+  ) {
     const before = await this.prisma.debutApplication.findUnique({
       where: { id: applicationId },
       include: this.applicationInclude(),
@@ -86,12 +144,22 @@ export class DebutService {
       throw new NotFoundException('Debut application not found');
     }
 
+    if (
+      input.status === undefined &&
+      input.shareTierApproved === undefined &&
+      input.reviewNote === undefined
+    ) {
+      throw new BadRequestException(
+        'At least one of status, shareTierApproved, or reviewNote is required',
+      );
+    }
+
     const application = await this.prisma.debutApplication.update({
       where: { id: applicationId },
       data: this.clean({
-        status: input.status === undefined ? undefined : this.status(String(input.status)),
-        shareTierApproved: this.optionalShareTier(input, 'shareTierApproved'),
-        reviewNote: this.optionalString(input, 'reviewNote'),
+        status: input.status === undefined ? undefined : this.status(input.status),
+        shareTierApproved: input.shareTierApproved,
+        reviewNote: input.reviewNote,
         updatedAt: new Date(),
       }),
       include: this.applicationInclude(),
@@ -101,10 +169,10 @@ export class DebutService {
     return application;
   }
 
-  private assertRequiredConsents(input: DebutPayload) {
+  private assertRequiredConsents(input: CreateDebutApplicationDto) {
     const required = ['consentAppearance', 'consentRevenuePolicy', 'consentPrivacy'];
     for (const key of required) {
-      if (input[key] !== true) {
+      if (input[key as keyof CreateDebutApplicationDto] !== true) {
         throw new BadRequestException(`${key} must be true`);
       }
     }
@@ -126,7 +194,7 @@ export class DebutService {
   }
 
   private status(value: string) {
-    const normalized = value.trim();
+    const normalized = value.trim() === 'under_review' ? 'reviewing' : value.trim();
     if (!APPLICATION_STATUSES.has(normalized)) {
       throw new BadRequestException(
         'status must be submitted, reviewing, needs_more_info, approved, rejected, or withdrawn',
@@ -134,99 +202,6 @@ export class DebutService {
     }
 
     return normalized;
-  }
-
-  private participationType(input: DebutPayload, key: string) {
-    const value = this.string(input, key);
-    if (!PARTICIPATION_TYPES.has(value)) {
-      throw new BadRequestException(
-        'participationType must be appearance_only, voice_or_song, performance, or co_creator',
-      );
-    }
-
-    return value;
-  }
-
-  private optionalShareTier(input: DebutPayload, key: string) {
-    if (input[key] === undefined || input[key] === null || input[key] === '') {
-      return undefined;
-    }
-
-    const value = this.number(input, key);
-    if (!Number.isInteger(value) || value < 0 || value > 70) {
-      throw new BadRequestException(`${key} must be an integer between 0 and 70`);
-    }
-
-    return value;
-  }
-
-  private string(input: DebutPayload, key: string) {
-    const value = input[key];
-    if (typeof value !== 'string' || !value.trim()) {
-      throw new BadRequestException(`${key} must be a non-empty string`);
-    }
-
-    return value.trim();
-  }
-
-  private optionalString(input: DebutPayload, key: string) {
-    const value = input[key];
-    if (value === undefined || value === null) {
-      return undefined;
-    }
-
-    if (typeof value !== 'string') {
-      throw new BadRequestException(`${key} must be a string`);
-    }
-
-    return value.trim() || undefined;
-  }
-
-  private email(input: DebutPayload, key: string) {
-    const value = this.string(input, key).toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-      throw new BadRequestException(`${key} must be a valid email`);
-    }
-
-    return value;
-  }
-
-  private boolean(input: DebutPayload, key: string) {
-    const value = input[key];
-    if (typeof value !== 'boolean') {
-      throw new BadRequestException(`${key} must be a boolean`);
-    }
-
-    return value;
-  }
-
-  private number(input: DebutPayload, key: string) {
-    const parsed = Number(input[key]);
-    if (!Number.isFinite(parsed)) {
-      throw new BadRequestException(`${key} must be a number`);
-    }
-
-    return parsed;
-  }
-
-  private optionalNumber(value: string | undefined) {
-    if (!value) {
-      return undefined;
-    }
-
-    const parsed = Number(value);
-    if (!Number.isInteger(parsed)) {
-      throw new BadRequestException('take must be an integer');
-    }
-
-    return parsed;
-  }
-
-  private object(input: DebutPayload, key: string) {
-    const value = input[key];
-    return value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : undefined;
   }
 
   private clean<T extends Record<string, unknown>>(input: T) {
@@ -240,12 +215,14 @@ export class DebutService {
     targetId: string,
     beforeData: unknown,
     afterData: unknown,
+    actorType = 'admin',
+    action = 'debut_application.update',
   ) {
     return this.prisma.auditEvent.create({
       data: {
         actorUserId: user.id,
-        actorType: 'admin',
-        action: 'debut_application.update',
+        actorType,
+        action,
         targetType: 'debut_application',
         targetId,
         beforeData: this.toJson(beforeData),
@@ -261,5 +238,17 @@ export class DebutService {
     }
 
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  }
+
+  private mergeMetadata(current: Prisma.JsonValue, patch: Record<string, unknown>) {
+    const base =
+      current && typeof current === 'object' && !Array.isArray(current)
+        ? (current as Record<string, unknown>)
+        : {};
+
+    return this.toJson({
+      ...base,
+      ...patch,
+    });
   }
 }

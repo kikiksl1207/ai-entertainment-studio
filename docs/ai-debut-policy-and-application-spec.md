@@ -200,6 +200,8 @@ Implemented:
 ```http
 POST /api/v1/debut/applications
 GET /api/v1/me/debut-applications
+GET /api/v1/me/debut-applications/latest
+POST /api/v1/me/debut-applications/:applicationId/withdraw
 GET /admin/api/v1/debut/applications?status=submitted&take=50
 PATCH /admin/api/v1/debut/applications/:applicationId
 ```
@@ -215,7 +217,6 @@ Current limitations:
 - No secure upload process for identity/contract files.
 - No contract version table.
 - No settlement table.
-- No applicant withdrawal endpoint yet.
 - No structured review checklist table.
 - No public launch conversion from approved application to artist.
 
@@ -226,9 +227,14 @@ Recommended next implementation tasks:
 1. Add a public policy version endpoint for frontend checkbox versioning.
 2. Add `termsVersion`, `privacyVersion`, `revenuePolicyVersion`, and `appearanceConsentVersion`.
 3. Add admin structured review fields or a separate `debut_application_reviews` table.
-4. Add applicant withdrawal endpoint.
-5. Add secure upload intent flow for applicant materials, reusing the asset/upload architecture.
-6. Add contract/settlement tables only after final legal and payment policy decisions.
+4. Add secure upload intent flow for applicant materials, reusing the asset/upload architecture.
+5. Add contract/settlement tables only after final legal and payment policy decisions.
+
+Applicant withdrawal:
+
+- Applicants can withdraw their own applications while status is `submitted`, `reviewing`, or `needs_more_info`.
+- Withdrawal changes status to `withdrawn` and records `withdrawnBy` / `withdrawnAt` in metadata.
+- Final statuses such as `approved` and `rejected` need operator/legal handling rather than self-service withdrawal.
 
 ## 11. Frontend Form Sections
 

@@ -5,10 +5,12 @@ import { RequireAdminPermissions } from '../auth/decorators/admin-permissions.de
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { AdminPermissionGuard } from '../auth/guards/admin-permission.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import {
+  AdminUpdateDebutApplicationDto,
+  CreateDebutApplicationDto,
+  DebutApplicationListQueryDto,
+} from './dto/debut.dto';
 import { DebutService } from './debut.service';
-
-type DebutPayload = Record<string, unknown>;
-type DebutQuery = Record<string, string | undefined>;
 
 @Controller()
 export class DebutController {
@@ -16,7 +18,7 @@ export class DebutController {
 
   @Post('debut/applications')
   @UseGuards(JwtAuthGuard)
-  createApplication(@CurrentUser() user: AuthUser, @Body() body: DebutPayload) {
+  createApplication(@CurrentUser() user: AuthUser, @Body() body: CreateDebutApplicationDto) {
     return this.debutService.createApplication(user.id, body);
   }
 
@@ -24,6 +26,21 @@ export class DebutController {
   @UseGuards(JwtAuthGuard)
   getMyApplications(@CurrentUser() user: AuthUser) {
     return this.debutService.getMyApplications(user.id);
+  }
+
+  @Get('me/debut-applications/latest')
+  @UseGuards(JwtAuthGuard)
+  getMyLatestApplication(@CurrentUser() user: AuthUser) {
+    return this.debutService.getMyLatestApplication(user.id);
+  }
+
+  @Post('me/debut-applications/:applicationId/withdraw')
+  @UseGuards(JwtAuthGuard)
+  withdrawMyApplication(
+    @CurrentUser() user: AuthUser,
+    @Param('applicationId') applicationId: string,
+  ) {
+    return this.debutService.withdrawMyApplication(user.id, applicationId);
   }
 }
 
@@ -34,7 +51,7 @@ export class DebutAdminController {
 
   @Get('applications')
   @RequireAdminPermissions('*')
-  getApplications(@Query() query: DebutQuery) {
+  getApplications(@Query() query: DebutApplicationListQueryDto) {
     return this.debutService.getApplications(query);
   }
 
@@ -43,7 +60,7 @@ export class DebutAdminController {
   updateApplication(
     @CurrentUser() user: AuthUser,
     @Param('applicationId') applicationId: string,
-    @Body() body: DebutPayload,
+    @Body() body: AdminUpdateDebutApplicationDto,
   ) {
     return this.debutService.updateApplication(user, applicationId, body);
   }

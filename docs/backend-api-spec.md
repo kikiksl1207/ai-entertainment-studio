@@ -510,11 +510,22 @@ Debut application endpoints:
 ```http
 POST /api/v1/debut/applications
 GET /api/v1/me/debut-applications
+GET /api/v1/me/debut-applications/latest
+POST /api/v1/me/debut-applications/:applicationId/withdraw
 GET /admin/api/v1/debut/applications?status=submitted&take=50
 PATCH /admin/api/v1/debut/applications/:applicationId
 ```
 
 `debut_applications` stores an operations-review application only. Sensitive identity documents and final contracts must use a later secure upload/contract process, not chat, Notion, or Git.
+
+Current validation and workflow:
+
+- MVP applications require `isAdult: true`.
+- Required consent fields are `consentAppearance`, `consentRevenuePolicy`, and `consentPrivacy`.
+- `participationType` is one of `appearance_only`, `voice_or_song`, `performance`, or `co_creator`.
+- `shareTierRequested` and `shareTierApproved` are integers from 0 to 70.
+- Applicant withdrawal is available before final decision for `submitted`, `reviewing`, or `needs_more_info` applications.
+- Admin status updates accept `submitted`, `reviewing`, `needs_more_info`, `approved`, `rejected`, and `withdrawn`; `under_review` is accepted as a compatibility alias for `reviewing`.
 
 Free-like quota endpoint:
 
