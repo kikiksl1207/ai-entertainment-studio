@@ -1907,7 +1907,7 @@ function adaptArtist(api) {
   const apiThumb  = assets.find(a => a.usageType === "thumb");
   const apiGallery = assets
     .filter(a => a.usageType === "gallery")
-    .map(a => [a.caption || "Gallery", normalizeAssetUrl(a.url)]);
+    .map(a => ({ caption: a.caption || "Gallery", src: normalizeAssetUrl(a.url) }));
   return {
     ...local,
     id:          api.id            || api._id           || local.id,
@@ -2636,7 +2636,7 @@ async function fetchAndUpdateDetailGallery(slug, artistName) {
     const cached = _artists.find(a => a.slug === slug);
     if (cached) {
       cached.assets = full.assets;
-      cached.gallery = galleryItems.map(g => [g.caption, g.src]);
+      cached.gallery = galleryItems;
       // cover/thumb도 최신 운영 데이터로 갱신
       const fullCover = full.assets.find(a => a.usageType === "cover");
       const fullThumb = full.assets.find(a => a.usageType === "thumb");
@@ -2720,7 +2720,9 @@ function renderCharacterDetail() {
   const gallery = document.getElementById("detailGallery");
   if (gallery) {
     const galleryItems = artist.gallery?.length
-      ? artist.gallery
+      ? artist.gallery.map(item => Array.isArray(item)
+        ? { caption: item[0] || "Gallery", src: item[1] }
+        : item)
       : [
           { caption: "Cover", src: artist.images.cover },
           { caption: "Thumbnail", src: artist.images.thumb }
