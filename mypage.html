@@ -73,9 +73,11 @@
           <aside class="mypage-side">
             <a href="#profile" class="mypage-side-link is-active">프로필</a>
             <a href="#wallet" class="mypage-side-link">루미나 지갑</a>
+            <a href="#charge" class="mypage-side-link">충전소</a>
             <a href="#debut" class="mypage-side-link">데뷔하기</a>
             <a href="#activity" class="mypage-side-link">활동 및 결제</a>
             <a href="#following" class="mypage-side-link">팔로우</a>
+            <a href="#security" class="mypage-side-link">비밀번호</a>
             <a href="#settings" class="mypage-side-link">설정</a>
           </aside>
 
@@ -86,14 +88,25 @@
                   <span class="eyebrow">PROFILE</span>
                   <h2>프로필</h2>
                 </div>
-                <button class="mypage-icon-button" type="button" id="mypageAvatarButton">아이콘 업로드</button>
+                <button class="mypage-icon-button" type="button" id="mypageAvatarButton">프로필 이미지 변경</button>
+                <input id="mypageAvatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+              </div>
+
+              <div class="mypage-profile-preview">
+                <div class="mypage-profile-image" id="mypageProfilePreview">
+                  <span id="mypageProfilePreviewInitial">LS</span>
+                </div>
+                <div>
+                  <strong>프로필 이미지</strong>
+                  <p id="mypageAvatarStatus">선택한 이미지는 저장 전에도 이곳에서 먼저 확인할 수 있습니다.</p>
+                </div>
               </div>
 
               <div class="mypage-field-grid">
                 <label class="mypage-field">
-                  <span>아이디</span>
+                  <span>소셜 아이디</span>
                   <input id="mypageProfileId" type="text" value="-" readonly />
-                  <small>계정 고유값은 변경할 수 없습니다.</small>
+                  <small>소셜 가입 계정은 제공사에서 받은 아이디를 표시합니다.</small>
                 </label>
                 <label class="mypage-field">
                   <span>이메일</span>
@@ -106,15 +119,14 @@
                   <small id="mypageNicknameStatus">닉네임은 30일에 한 번 변경할 수 있습니다.</small>
                 </label>
                 <label class="mypage-field">
-                  <span>비밀번호</span>
+                  <span>계정 방식</span>
                   <input id="mypagePasswordState" type="text" value="-" readonly />
-                  <small>소셜 로그인 계정은 별도 정책 확인 후 표시됩니다.</small>
+                  <small>비밀번호 관리는 아래 비밀번호 탭에서 진행합니다.</small>
                 </label>
               </div>
 
               <div class="mypage-action-row">
                 <button class="button-primary" type="button" id="mypageSaveProfile">프로필 저장</button>
-                <button class="button-secondary" type="button" id="mypageChangePassword">비밀번호 변경</button>
               </div>
             </section>
 
@@ -124,7 +136,6 @@
                   <span class="eyebrow">WALLET</span>
                   <h2>루미나 지갑</h2>
                 </div>
-                <button class="button-primary" type="button" id="mypageChargeButton">충전하기</button>
               </div>
 
               <div class="mypage-wallet-grid">
@@ -140,6 +151,24 @@
                 </article>
               </div>
               <div class="mypage-empty" id="mypageProductSummary" style="margin-top:14px;">
+                <strong>최근 지갑 내역을 불러오는 중입니다.</strong>
+                <p>충전, 응원, 해금, 환불 내역이 있으면 이곳에 표시됩니다.</p>
+              </div>
+            </section>
+
+            <section class="mypage-panel" id="charge">
+              <div class="mypage-panel-head">
+                <div>
+                  <span class="eyebrow">CHARGE</span>
+                  <h2>충전소</h2>
+                </div>
+                <button class="button-primary" type="button" id="mypageChargeButton">충전 상품 보기</button>
+              </div>
+              <div class="mypage-empty">
+                <strong>루미나 충전은 별도 충전소에서 진행합니다.</strong>
+                <p>마이페이지 지갑은 잔액과 사용 내역 확인용으로 두고, 실제 결제 흐름은 충전소 화면으로 분리합니다.</p>
+              </div>
+              <div class="mypage-empty" id="mypageChargeSummary" style="margin-top:14px;">
                 <strong>충전 상품을 불러오는 중입니다.</strong>
                 <p>사용 가능한 루미나 상품이 있으면 이곳에 표시됩니다.</p>
               </div>
@@ -168,11 +197,12 @@
                 </div>
               </div>
               <div class="mypage-filter-row" aria-label="내역 필터">
-                <button type="button" class="is-active">전체</button>
-                <button type="button">충전</button>
-                <button type="button">응원</button>
-                <button type="button">해금</button>
-                <button type="button">환불</button>
+                <button type="button" class="is-active" data-activity-filter="all">전체</button>
+                <button type="button" data-activity-filter="charge">충전</button>
+                <button type="button" data-activity-filter="boost">응원/좋아요</button>
+                <button type="button" data-activity-filter="unlock">해금</button>
+                <button type="button" data-activity-filter="refund">환불</button>
+                <button type="button" data-activity-filter="gift">선물</button>
               </div>
               <div class="mypage-empty" id="mypageActivitySummary">
                 <strong>아직 기록된 활동이 없습니다.</strong>
@@ -187,9 +217,23 @@
                   <h2>팔로우한 아티스트</h2>
                 </div>
               </div>
-              <div class="mypage-empty" id="mypageFollowingSummary">
+              <div class="mypage-following-grid" id="mypageFollowingSummary">
                 <strong>팔로우한 아티스트가 없습니다.</strong>
                 <p>루미나 피드가 열리면 좋아하는 아티스트의 소식을 더 가까이 모아볼 수 있습니다.</p>
+              </div>
+            </section>
+
+            <section class="mypage-panel" id="security">
+              <div class="mypage-panel-head">
+                <div>
+                  <span class="eyebrow">PASSWORD</span>
+                  <h2>비밀번호</h2>
+                </div>
+                <button class="button-secondary" type="button" id="mypageChangePassword">비밀번호 변경</button>
+              </div>
+              <div class="mypage-empty" id="mypagePasswordGuide">
+                <strong>비밀번호 관리는 별도 화면으로 분리했습니다.</strong>
+                <p>이메일 계정은 비밀번호를 변경할 수 있고, 소셜 전용 계정은 별도 비밀번호 설정 정책을 따릅니다.</p>
               </div>
             </section>
 
@@ -201,6 +245,20 @@
                 </div>
               </div>
               <div class="mypage-settings-list">
+                <label>
+                  <span>표시 언어</span>
+                  <select id="mypageLocale">
+                    <option value="ko-KR">한국어</option>
+                    <option value="en-US">English</option>
+                  </select>
+                </label>
+                <label>
+                  <span>시간대</span>
+                  <select id="mypageTimezone">
+                    <option value="Asia/Seoul">Asia/Seoul</option>
+                    <option value="UTC">UTC</option>
+                  </select>
+                </label>
                 <label>
                   <span>활동 알림</span>
                   <input id="mypageActivityNotifications" type="checkbox" checked />
@@ -218,7 +276,6 @@
                   <input id="mypageEmailNotifications" type="checkbox" />
                 </label>
                 <button type="button" id="mypageSaveSettings">설정 저장</button>
-                <button type="button" id="mypageHiddenBlockedButton">숨김/차단 목록</button>
                 <button type="button" id="mypageDeleteAccountButton">회원 탈퇴</button>
               </div>
             </section>
@@ -226,6 +283,38 @@
         </div>
       </section>
     </main>
+
+    <div class="mypage-dialog" id="mypagePasswordDialog" hidden>
+      <div class="mypage-dialog-card" role="dialog" aria-modal="true" aria-labelledby="mypagePasswordTitle">
+        <div class="mypage-dialog-head">
+          <div>
+            <span class="eyebrow">PASSWORD</span>
+            <h2 id="mypagePasswordTitle">비밀번호 변경</h2>
+          </div>
+          <button type="button" class="mypage-dialog-close" data-dialog-close aria-label="닫기">×</button>
+        </div>
+        <div class="mypage-field-grid">
+          <label class="mypage-field">
+            <span>현재 비밀번호</span>
+            <input id="mypageCurrentPassword" type="password" autocomplete="current-password" />
+          </label>
+          <label class="mypage-field">
+            <span>새 비밀번호</span>
+            <input id="mypageNewPassword" type="password" autocomplete="new-password" />
+            <small>8~128자, 영문과 숫자를 함께 사용해주세요.</small>
+          </label>
+          <label class="mypage-field">
+            <span>새 비밀번호 확인</span>
+            <input id="mypageConfirmPassword" type="password" autocomplete="new-password" />
+          </label>
+        </div>
+        <p class="mypage-dialog-message" id="mypagePasswordMessage" hidden></p>
+        <div class="mypage-action-row">
+          <button class="button-primary" type="button" id="mypageSubmitPassword">비밀번호 변경</button>
+          <button class="button-secondary" type="button" data-dialog-close>취소</button>
+        </div>
+      </div>
+    </div>
 
     <footer class="site-footer">
       <div class="shell footer-inner">
@@ -235,6 +324,10 @@
         </div>
         <div class="footer-links">
           <a href="./characters.html">아티스트 라인업</a>
+          <a href="./terms.html">이용약관</a>
+          <a href="./privacy.html">개인정보처리방침</a>
+          <a href="./refund-policy.html">환불 정책</a>
+
           <a href="./business.html" title="브랜드 협업, IP 제휴, 제작 문의를 Lumina Stage 비즈니스 채널로 연결합니다.">Business Inquiry</a>
         </div>
       </div>
@@ -243,6 +336,7 @@
     <script src="./app.js"></script>
     <script>
       (function () {
+        return;
         function setText(id, value) {
           const el = document.getElementById(id);
           if (el && value !== undefined && value !== null && value !== "") el.textContent = value;
@@ -260,12 +354,13 @@
 
         function debutLabel(status) {
           return {
-            submitted: "제출 완료",
+            submitted: "접수 완료",
             reviewing: "검토 중",
-            needs_more_info: "추가 정보 필요",
+            under_review: "검토 중",
+            needs_more_info: "추가 자료 필요",
             approved: "승인",
-            rejected: "반려",
-            withdrawn: "철회"
+            rejected: "미승인",
+            withdrawn: "철회 완료"
           }[status] || "신청 전";
         }
 
@@ -327,6 +422,7 @@
     <script>
       (function () {
         let mypageSummary = null;
+        let mypageActivities = [];
 
         function $(id) { return document.getElementById(id); }
         function list(value) { return Array.isArray(value) ? value : []; }
@@ -372,15 +468,172 @@
           }
           el.innerHTML = items.map(renderItem).join("");
         }
+        function escapeHtml(value) {
+          return String(value ?? "").replace(/[&<>"']/g, char => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            "\"": "&quot;",
+            "'": "&#39;"
+          }[char]));
+        }
+        function getSocialAccountId(user) {
+          const social = user.socialAccount || user.socialProfile || user.oauthAccount || user.providerAccount || {};
+          const provider = user.provider || social.provider || user.socialProvider || "";
+          const id = social.providerUserId || social.providerId || social.socialId || user.providerUserId || user.socialId || user.externalId;
+          if (id) return provider ? provider + ":" + id : id;
+          return user.email ? user.email.split("@")[0] : "-";
+        }
+        function getAvatarUrl(user) {
+          return user.avatarUrl || user.avatarImageUrl || user.profileImageUrl || user.avatarAsset?.url || user.profileImage?.url || "";
+        }
+        function setProfilePreview(user, displayName, previewUrl) {
+          const preview = $("mypageProfilePreview");
+          const initial = $("mypageProfilePreviewInitial");
+          const avatar = $("mypageAvatar");
+          const name = displayName || user?.displayName || user?.email || "LS";
+          const initials = name.replace(/\s+/g, "").slice(0, 2).toUpperCase() || "LS";
+          const src = previewUrl || getAvatarUrl(user || {});
+          if (avatar) avatar.textContent = initials;
+          if (initial) initial.textContent = initials;
+          if (!preview) return;
+          preview.style.backgroundImage = src ? "url('" + src.replace(/'/g, "%27") + "')" : "";
+          preview.classList.toggle("has-image", !!src);
+        }
+        function renderFollowingArtist(item) {
+          const slug = item.slug || item.artistSlug || item.artist?.slug || "";
+          const name = item.displayName || item.name || item.artist?.displayName || item.artist?.name || slug || "아티스트";
+          const thumb = item.thumbnailUrl || item.thumbUrl || item.artist?.thumbnailUrl || item.artist?.images?.thumb || item.artist?.thumb || "";
+          const meta = item.followedAt ? shortDate(item.followedAt) + "부터 팔로우" : "팔로우 중";
+          return "<a class=\"mypage-following-card\" href=\"./character-detail.html?slug=" + encodeURIComponent(slug) + "\">" +
+            "<span class=\"mypage-following-thumb\"" + (thumb ? " style=\"background-image:url('" + escapeHtml(thumb) + "')\"" : "") + ">" +
+            (!thumb ? escapeHtml(name.slice(0, 1)) : "") + "</span><span><strong>" + escapeHtml(name) + "</strong><p>" + escapeHtml(meta) + "</p></span></a>";
+        }
+        function activityLabel(type) {
+          return {
+            charge: "루미나 충전",
+            boost: "유료 좋아요",
+            unlock: "프리미엄 해금",
+            refund: "환불",
+            gift: "선물",
+            freeLike: "무료 좋아요"
+          }[type] || "활동";
+        }
+        function paymentStatusLabel(status) {
+          return {
+            pending: "결제 대기",
+            paid: "결제 완료",
+            failed: "결제 실패",
+            cancelled: "결제 취소",
+            refunded: "환불 완료"
+          }[status] || status || "";
+        }
+        function normalizeActivityItems(summary) {
+          const activities = list(summary.recentActivities).map(item => ({
+            type: item.type || "activity",
+            title: item.title || activityLabel(item.type),
+            description: item.description || shortDate(item.createdAt) || "최근 활동",
+            amountLumina: item.amountLumina,
+            createdAt: item.createdAt
+          }));
+          const orders = list(summary.recentPaymentOrders).map(item => ({
+            type: "charge",
+            title: item.productName || item.name || "루미나 충전",
+            description: paymentStatusLabel(item.status) || shortDate(item.createdAt) || "결제 내역",
+            amountLumina: item.amountLumina || item.luminaAmount,
+            createdAt: item.createdAt
+          }));
+          const ledger = list(summary.recentLedger).map(item => ({
+            type: item.kind === "debit" ? "boost" : "charge",
+            title: item.reason || activityLabel(item.type),
+            description: shortDate(item.createdAt) || "지갑 내역",
+            amountLumina: item.amount || item.amountLumina,
+            createdAt: item.createdAt
+          }));
+          return [...activities, ...orders, ...ledger].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        }
+        function renderActivities(filter = "all") {
+          const selected = filter === "all" ? mypageActivities : mypageActivities.filter(item => item.type === filter);
+          renderList(
+            "mypageActivitySummary",
+            selected.slice(0, 8),
+            filter === "all" ? "아직 기록된 활동이 없습니다." : "해당 조건의 활동이 없습니다.",
+            "루미나 픽에서 응원을 보내거나 콘텐츠를 해금하면 이곳에 정리됩니다.",
+            item => "<div class=\"mypage-list-row\"><strong>" +
+              escapeHtml(item.title || activityLabel(item.type)) + "</strong><p>" +
+              escapeHtml(item.description || "최근 활동") +
+              (item.amountLumina ? " · " + fmt(item.amountLumina) + "L" : "") +
+              "</p></div>"
+          );
+        }
         function debutLabel(status) {
           return {
-            submitted: "제출 완료",
+            submitted: "접수 완료",
             reviewing: "검토 중",
-            needs_more_info: "추가 정보 필요",
+            under_review: "검토 중",
+            needs_more_info: "추가 자료 필요",
             approved: "승인",
-            rejected: "반려",
-            withdrawn: "철회"
+            rejected: "미승인",
+            withdrawn: "철회 완료"
           }[status] || "신청 전";
+        }
+
+        function debutDescription(status) {
+          return {
+            submitted: "신청이 접수되었어요. 운영팀이 제출 내용을 확인한 뒤 다음 안내를 보내드릴게요.",
+            reviewing: "검토가 진행 중이에요. 콘셉트, 권리 동의, 제출 자료를 함께 확인하고 있어요.",
+            under_review: "검토가 진행 중이에요. 콘셉트, 권리 동의, 제출 자료를 함께 확인하고 있어요.",
+            needs_more_info: "추가 확인이 필요해요. 요청된 자료를 보완하면 심사가 다시 이어집니다.",
+            approved: "데뷔 준비 단계로 넘어갈 수 있어요. 계약과 제작 안내를 확인해주세요.",
+            rejected: "이번 신청은 승인되지 않았어요. 보완 후 다시 신청할 수 있어요.",
+            withdrawn: "신청이 철회되었어요. 언제든 준비가 되면 새로 신청할 수 있어요."
+          }[status] || "나의 가능성을 아티스트로 만들 준비가 되었다면 지금 시작해보세요.";
+        }
+
+        function consultationStatusLabel(status) {
+          return {
+            pending: "상담 대기",
+            scheduled: "상담 예약",
+            contacted: "연락 완료",
+            no_answer: "부재중",
+            completed: "상담 완료"
+          }[status] || "";
+        }
+
+        function applicationChannelLabel(channel) {
+          return {
+            phone_consultation: "유선 상담 신청",
+            online_review: "온라인 심사"
+          }[channel] || "";
+        }
+
+        function pickApplicationMeta(application, key) {
+          return application?.[key] ?? application?.metadata?.[key] ?? application?.consultation?.[key];
+        }
+
+        function applyDebutApplication(latest) {
+          if (!latest) {
+            setText("mypageDebutStatus", debutLabel("apply"));
+            setText("mypageDebutTitle", "아직 데뷔 신청 전이에요.");
+            setText("mypageDebutDescription", debutDescription("apply"));
+            return;
+          }
+
+          const status = latest.status || "submitted";
+          const displayName = latest.displayName || latest.stageName || latest.applicantName || "데뷔 신청";
+          const channel = applicationChannelLabel(pickApplicationMeta(latest, "applicationChannel"));
+          const consultation = consultationStatusLabel(pickApplicationMeta(latest, "consultationStatus"));
+          const preferredTime = pickApplicationMeta(latest, "preferredContactTime");
+          const description = [
+            debutDescription(status),
+            channel ? "신청 방식: " + channel + "." : "",
+            consultation ? "상담 상태: " + consultation + "." : "",
+            preferredTime ? "희망 연락 시간: " + preferredTime + "." : ""
+          ].filter(Boolean).join(" ");
+
+          setText("mypageDebutStatus", consultation || debutLabel(status));
+          setText("mypageDebutTitle", displayName + " 상태");
+          setText("mypageDebutDescription", description);
         }
 
         function applySummary(summary) {
@@ -393,11 +646,14 @@
 
           setText("mypageUserName", displayName);
           setText("mypageUserEmail", user.email || "이메일 정보 없음");
-          setText("mypageAvatar", displayName.replace(/\s+/g, "").slice(0, 2).toUpperCase());
-          setValue("mypageProfileId", user.id || "-");
+          setProfilePreview(user, displayName);
+          setValue("mypageProfileId", getSocialAccountId(user));
           setValue("mypageProfileEmail", user.email || "-");
           setValue("mypageNickname", user.displayName || "");
           setValue("mypagePasswordState", user.isSocialOnly ? "소셜 전용 계정" : (user.hasPassword ? "비밀번호 설정됨" : "비밀번호 미설정"));
+          setText("mypagePasswordGuide", user.isSocialOnly
+            ? "소셜 전용 계정입니다. 비밀번호 최초 설정이 필요하면 별도 설정 API 연결 후 진행합니다."
+            : "이메일 계정입니다. 비밀번호 변경은 이 탭의 버튼으로 진행합니다.");
 
           if (user.canChangeNickname === false && user.nicknameNextChangeAt) {
             setText("mypageNicknameStatus", shortDate(user.nicknameNextChangeAt) + " 이후 다시 변경할 수 있습니다.");
@@ -408,40 +664,43 @@
           setText("mypageLuminaBalance", fmt(wallet.lumina?.balance ?? wallet.cachedBalance));
           setText("mypageStellaBalance", fmt(wallet.stella?.displayAmount ?? 0));
           setText("mypageWalletStatus", wallet.lumina ? "현재 사용할 수 있는 잔액입니다." : "잔액 정보를 확인하지 못했습니다.");
-
-          if (latest) {
-            setText("mypageDebutStatus", debutLabel(latest.status));
-            setText("mypageDebutTitle", (latest.displayName || latest.stageName || "데뷔 신청") + " 상태");
-            setText("mypageDebutDescription", "현재 상태는 " + debutLabel(latest.status) + "입니다. 심사 진행에 따라 최신 상태가 갱신됩니다.");
-          }
-
           renderList(
-            "mypageActivitySummary",
-            list(summary.recentActivities).slice(0, 5),
-            "아직 기록된 활동이 없습니다.",
-            "루미나 픽에서 응원을 보내거나 콘텐츠를 해금하면 이곳에 정리됩니다.",
-            item => "<div style=\"padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);\"><strong>" +
-              (item.title || item.type || "활동") + "</strong><p>" +
-              (item.description || shortDate(item.createdAt) || "최근 활동") +
-              (item.amountLumina ? " · " + fmt(item.amountLumina) + "L" : "") +
+            "mypageProductSummary",
+            list(summary.recentLedger).slice(0, 4),
+            "최근 지갑 내역이 없습니다.",
+            "충전, 응원, 해금, 환불 내역이 생기면 이곳에서 확인할 수 있습니다.",
+            item => "<div class=\"mypage-list-row\"><strong>" +
+              escapeHtml(item.reason || item.type || "지갑 내역") + "</strong><p>" +
+              escapeHtml(shortDate(item.createdAt) || "최근 내역") +
+              (item.amount || item.amountLumina ? " · " + fmt(item.amount || item.amountLumina) + "L" : "") +
               "</p></div>"
           );
+
+          applyDebutApplication(latest);
+
+          mypageActivities = normalizeActivityItems(summary);
+          renderActivities(document.querySelector(".mypage-filter-row .is-active")?.dataset.activityFilter || "all");
 
           renderList(
             "mypageFollowingSummary",
             list(activity.followingArtists).slice(0, 6),
             "팔로우한 아티스트가 없습니다.",
             "루미나 피드가 열리면 좋아하는 아티스트의 소식을 더 가까이 모아볼 수 있습니다.",
-            item => "<div style=\"padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);\"><strong>" +
-              (item.displayName || item.name || item.slug || "아티스트") + "</strong><p>" +
-              (item.followedAt ? shortDate(item.followedAt) + "부터 팔로우" : "팔로우 중") +
-              "</p></div>"
+            renderFollowingArtist
           );
         }
 
         async function loadMypageSummary() {
           if (typeof apiFetch !== "function" || typeof isLoggedIn !== "function" || !isLoggedIn()) return;
-          const summary = await apiFetch("/api/v1/me/summary", { auth: true }).catch(() => null);
+          const [summary, latestResponse] = await Promise.all([
+            apiFetch("/api/v1/me/summary", { auth: true }).catch(() => null),
+            apiFetch("/api/v1/me/debut-applications/latest", { auth: true }).catch(() => null)
+          ]);
+          const latestApplication = latestResponse?.latestApplication || latestResponse?.application || latestResponse;
+          if (summary && latestApplication && typeof latestApplication === "object" && Object.keys(latestApplication).length) {
+            summary.debut = summary.debut || {};
+            summary.debut.latestApplication = latestApplication;
+          }
           if (summary) applySummary(summary);
         }
 
@@ -450,12 +709,12 @@
           const data = await apiFetch("/api/v1/lumina-products").catch(() => null);
           const products = list(data?.items || data?.products || data).slice(0, 3);
           renderList(
-            "mypageProductSummary",
+            "mypageChargeSummary",
             products,
             "표시할 충전 상품이 없습니다.",
             "상품이 준비되면 충전 버튼과 함께 표시됩니다.",
-            item => "<div style=\"padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);\"><strong>" +
-              (item.name || item.title || "루미나 상품") + "</strong><p>" +
+            item => "<div class=\"mypage-list-row\"><strong>" +
+              escapeHtml(item.name || item.title || "루미나 상품") + "</strong><p>" +
               fmt(item.amountLumina || item.luminaAmount || item.amount || 0) + "L" +
               (item.priceKrw || item.price ? " · " + fmt(item.priceKrw || item.price) + "원" : "") +
               "</p></div>"
@@ -467,6 +726,8 @@
           const data = await apiFetch("/api/v1/me/settings", { auth: true }).catch(() => null);
           const settings = data?.settings || data || {};
           const values = {
+            mypageLocale: settings.locale,
+            mypageTimezone: settings.timezone,
             mypageActivityNotifications: settings.activityNotifications,
             mypageMarketingNotifications: settings.marketingOptIn ?? settings.marketingNotifications,
             mypageFeedNotifications: settings.feedNotifications,
@@ -474,7 +735,9 @@
           };
           Object.entries(values).forEach(([id, value]) => {
             const el = $(id);
-            if (el && value !== undefined && value !== null) el.checked = !!value;
+            if (!el || value === undefined || value === null) return;
+            if (el.type === "checkbox") el.checked = !!value;
+            else el.value = value;
           });
         }
 
@@ -501,11 +764,44 @@
 
         async function changeMypagePassword() {
           if (mypageSummary?.user?.isSocialOnly) return alert("소셜 전용 계정은 비밀번호 변경이 아직 지원되지 않습니다.");
-          const currentPassword = prompt("현재 비밀번호를 입력해 주세요.");
-          if (!currentPassword) return;
-          const newPassword = prompt("새 비밀번호를 입력해 주세요. 영문과 숫자를 포함해 8자 이상을 권장합니다.");
-          if (!newPassword) return;
-          const button = $("mypageChangePassword");
+          openPasswordDialog();
+        }
+
+        function openPasswordDialog() {
+          const dialog = $("mypagePasswordDialog");
+          if (!dialog) return;
+          ["mypageCurrentPassword", "mypageNewPassword", "mypageConfirmPassword"].forEach(id => setValue(id, ""));
+          const message = $("mypagePasswordMessage");
+          if (message) {
+            message.hidden = true;
+            message.textContent = "";
+          }
+          dialog.hidden = false;
+          document.body.style.overflow = "hidden";
+          $("mypageCurrentPassword")?.focus();
+        }
+
+        function closePasswordDialog() {
+          const dialog = $("mypagePasswordDialog");
+          if (!dialog) return;
+          dialog.hidden = true;
+          document.body.style.overflow = "";
+        }
+
+        async function submitMypagePassword() {
+          const currentPassword = $("mypageCurrentPassword")?.value || "";
+          const newPassword = $("mypageNewPassword")?.value || "";
+          const confirmPassword = $("mypageConfirmPassword")?.value || "";
+          const message = $("mypagePasswordMessage");
+          const setMessage = text => {
+            if (!message) return alert(text);
+            message.hidden = false;
+            message.textContent = text;
+          };
+          if (!currentPassword || !newPassword || !confirmPassword) return setMessage("필수 항목을 입력해주세요.");
+          if (newPassword !== confirmPassword) return setMessage("새 비밀번호가 서로 일치하지 않아요.");
+          if (newPassword.length < 8) return setMessage("새 비밀번호는 8자 이상으로 입력해주세요.");
+          const button = $("mypageSubmitPassword");
           busy(button, true, "변경 중");
           try {
             await apiFetch("/api/v1/me/password", {
@@ -514,9 +810,10 @@
               throwOnError: true,
               body: { currentPassword, newPassword }
             });
-            alert("비밀번호가 변경되었습니다.");
+            alert("비밀번호가 변경되었어요. 보안을 위해 다시 로그인해주세요.");
+            closePasswordDialog();
           } catch (err) {
-            alert(err.message || "비밀번호 변경에 실패했습니다.");
+            setMessage(err.message || "비밀번호 변경에 실패했습니다.");
           } finally {
             busy(button, false);
           }
@@ -531,6 +828,8 @@
               auth: true,
               throwOnError: true,
               body: {
+                locale: $("mypageLocale")?.value || "ko-KR",
+                timezone: $("mypageTimezone")?.value || "Asia/Seoul",
                 activityNotifications: !!$("mypageActivityNotifications")?.checked,
                 marketingOptIn: !!$("mypageMarketingNotifications")?.checked,
                 feedNotifications: !!$("mypageFeedNotifications")?.checked,
@@ -548,11 +847,34 @@
         function bindMypageActions() {
           $("mypageSaveProfile")?.addEventListener("click", saveMypageProfile);
           $("mypageChangePassword")?.addEventListener("click", changeMypagePassword);
+          $("mypageSubmitPassword")?.addEventListener("click", submitMypagePassword);
+          document.querySelectorAll("[data-dialog-close]").forEach(btn => btn.addEventListener("click", closePasswordDialog));
+          $("mypagePasswordDialog")?.addEventListener("click", event => {
+            if (event.target === $("mypagePasswordDialog")) closePasswordDialog();
+          });
+          document.querySelectorAll("[data-activity-filter]").forEach(btn => {
+            btn.addEventListener("click", () => {
+              document.querySelectorAll("[data-activity-filter]").forEach(item => item.classList.toggle("is-active", item === btn));
+              renderActivities(btn.dataset.activityFilter || "all");
+            });
+          });
           $("mypageSaveSettings")?.addEventListener("click", saveMypageSettings);
           $("mypageChargeButton")?.addEventListener("click", () => alert("충전 상품 선택 모달은 결제 UI 연결 단계에서 열립니다. 현재는 상품 목록을 먼저 확인해 주세요."));
-          $("mypageAvatarButton")?.addEventListener("click", () => alert("아이콘 업로드는 기존 asset upload flow 연결 단계에서 처리됩니다."));
-          $("mypageHiddenBlockedButton")?.addEventListener("click", () => alert("숨김 글과 차단 목록 API는 준비되어 있으며, 목록 화면은 피드 설정 UI에서 연결 예정입니다."));
-          $("mypageDeleteAccountButton")?.addEventListener("click", () => alert("회원 탈퇴는 보유 루미나와 결제 내역 안내 화면을 붙인 뒤 활성화합니다."));
+          $("mypageAvatarButton")?.addEventListener("click", () => $("mypageAvatarInput")?.click());
+          $("mypageAvatarInput")?.addEventListener("change", event => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) return alert("JPG, PNG, WEBP 파일을 사용할 수 있어요.");
+            if (file.size > 5 * 1024 * 1024) return alert("프로필 이미지는 5MB 이하 파일로 업로드해주세요.");
+            const previewUrl = URL.createObjectURL(file);
+            setProfilePreview(mypageSummary?.user || {}, $("mypageNickname")?.value?.trim() || mypageSummary?.user?.displayName, previewUrl);
+            setText("mypageAvatarStatus", file.name + " 파일을 선택했어요. 저장 API 연결 후 바로 반영됩니다.");
+          });
+          $("mypageDeleteAccountButton")?.addEventListener("click", () => {
+            const balance = $("mypageLuminaBalance")?.textContent || "0";
+            const confirmed = confirm(`회원 탈퇴를 진행할까요?\n보유 중인 ${balance}L은 탈퇴와 함께 소멸돼요.`);
+            if (confirmed) alert("회원 탈퇴 API 연결 전입니다. 비밀번호 확인 화면이 붙으면 활성화할 수 있어요.");
+          });
         }
 
         async function initMypageEnhancements() {

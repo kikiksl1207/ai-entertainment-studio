@@ -5848,6 +5848,51 @@ p {
   gap: 14px;
 }
 
+.mypage-profile-preview {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid rgba(255, 20, 147, 0.18);
+  border-radius: 14px;
+  background: rgba(10, 8, 18, 0.28);
+}
+
+.mypage-profile-image {
+  display: grid;
+  place-items: center;
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  background:
+    linear-gradient(135deg, rgba(255, 20, 147, 0.72), rgba(159, 139, 199, 0.88));
+  background-size: cover;
+  background-position: center;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 900;
+  box-shadow: 0 16px 34px rgba(255, 20, 147, 0.18);
+}
+
+.mypage-profile-image.has-image span {
+  display: none;
+}
+
+.mypage-profile-preview strong {
+  display: block;
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.mypage-profile-preview p {
+  margin: 6px 0 0;
+  color: rgba(240, 238, 248, 0.62);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .mypage-field {
   display: grid;
   gap: 7px;
@@ -5966,6 +6011,60 @@ p {
 .mypage-list-row:last-child {
   padding-bottom: 0;
   border-bottom: 0;
+}
+
+.mypage-following-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mypage-following-grid > strong,
+.mypage-following-grid > p {
+  grid-column: 1 / -1;
+}
+
+.mypage-following-card {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  padding: 10px;
+  border: 1px solid rgba(159, 139, 199, 0.16);
+  border-radius: 12px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.mypage-following-card:hover {
+  border-color: rgba(255, 20, 147, 0.38);
+  transform: translateY(-1px);
+}
+
+.mypage-following-thumb {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background:
+    linear-gradient(135deg, rgba(255, 20, 147, 0.5), rgba(159, 139, 199, 0.6));
+  background-size: cover;
+  background-position: center;
+  color: #fff;
+  font-weight: 900;
+}
+
+.mypage-following-card strong {
+  display: block;
+  color: var(--ink);
+}
+
+.mypage-following-card p {
+  margin: 4px 0 0;
+  color: rgba(240, 238, 248, 0.56);
+  font-size: 13px;
 }
 
 .mypage-filter-row {
@@ -6107,8 +6206,14 @@ p {
   }
 
   .mypage-field-grid,
-  .mypage-wallet-grid {
+  .mypage-wallet-grid,
+  .mypage-following-grid {
     grid-template-columns: 1fr;
+  }
+
+  .mypage-profile-preview {
+    grid-template-columns: 1fr;
+    justify-items: start;
   }
 
   .mypage-action-row .button-primary,

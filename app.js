@@ -3915,6 +3915,27 @@ function formatMypageNumber(value) {
   return n.toLocaleString("ko-KR", { maximumFractionDigits: 2 });
 }
 
+function getMypageAccountDisplayId(user = {}) {
+  const social = user.socialAccount || user.socialProfile || user.oauthAccount || user.providerAccount || {};
+  const provider = user.provider || user.socialProvider || social.provider || "";
+  const socialId = user.providerUserId || user.socialId || user.externalId || social.providerUserId || social.providerId || social.socialId;
+  if (socialId) return provider ? `${provider}:${socialId}` : socialId;
+  return user.email ? user.email.split("@")[0] : (user.id || user.userId || user.uuid || "계정 ID 확인 중");
+}
+
+function updateMypageProfilePreview(user = {}, displayName = "") {
+  const name = displayName || user.displayName || user.name || user.nickname || user.email || "LS";
+  const initials = name.replace(/\s+/g, "").slice(0, 2).toUpperCase() || "LS";
+  const avatarUrl = user.avatarUrl || user.avatarImageUrl || user.profileImageUrl || user.avatarAsset?.url || user.profileImage?.url || "";
+  setMypageText("mypageAvatar", initials);
+  setMypageText("mypageProfilePreviewInitial", initials);
+  const preview = document.getElementById("mypageProfilePreview");
+  if (preview) {
+    preview.style.backgroundImage = avatarUrl ? `url('${String(avatarUrl).replace(/'/g, "%27")}')` : "";
+    preview.classList.toggle("has-image", !!avatarUrl);
+  }
+}
+
 async function initMypagePage() {
   if (!document.body.classList.contains("page-mypage")) return;
 
@@ -3943,13 +3964,11 @@ async function initMypagePage() {
 
   const displayName = user?.displayName || user?.name || user?.nickname || user?.email?.split("@")[0] || "내 계정";
   const email = user?.email || "이메일 확인 중";
-  const userId = user?.id || user?.userId || user?.uuid || "계정 ID 확인 중";
-  const initials = displayName.replace(/\s+/g, "").slice(0, 2).toUpperCase() || "LS";
 
   setMypageText("mypageUserName", displayName);
   setMypageText("mypageUserEmail", email);
-  setMypageText("mypageAvatar", initials);
-  setMypageInput("mypageProfileId", userId);
+  updateMypageProfilePreview(user, displayName);
+  setMypageInput("mypageProfileId", getMypageAccountDisplayId(user));
   setMypageInput("mypageProfileEmail", email);
   setMypageInput("mypageNickname", displayName);
 
