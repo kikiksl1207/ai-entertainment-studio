@@ -80,6 +80,17 @@ export class ChangePasswordDto {
   newPassword!: string;
 }
 
+export class SetPasswordDto {
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, {
+    message: 'newPassword must include at least one letter and one number',
+  })
+  newPassword!: string;
+}
+
 export class DeleteAccountDto {
   @IsOptional()
   @IsString()

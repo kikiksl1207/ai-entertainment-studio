@@ -20,6 +20,7 @@ import {
   RegisterDto,
   RequestEmailVerificationDto,
   RequestPasswordResetDto,
+  SetPasswordDto,
   SocialLoginDto,
   UpdateProfileDto,
   UpdateSettingsDto,
@@ -977,6 +978,68 @@ export class AuthService {
     return {
       ok: true,
       revokedCount: result.count,
+    };
+  }
+
+  async setPassword(userId: string, input: SetPasswordDto) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        authAccounts: {
+          where: { provider: 'email' },
+          select: {
+            id: true,
+            passwordHash: true,
+          },
+          take: 1,
+        },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Active user not found');
+    }
+
+    if (!user.email) {
+      throw new BadRequestException('Verified email is required to set a password');
+    }
+
+    const authAccount = user.authAccounts[0] ?? null;
+
+    if (authAccount?.passwordHash) {
+      throw new ConflictException('Email password is already configured');
+    }
+
+    const passwordHash = await bcrypt.hash(input.newPassword, PASSWORD_HASH_ROUNDS);
+
+    await this.prisma.userAuthAccount.upsert({
+      where: {
+        provider_providerUserId: {
+          provider: 'email',
+          providerUserId: user.email,
+        },
+      },
+      create: {
+        userId: user.id,
+        provider: 'email',
+        providerUserId: user.email,
+        passwordHash,
+      },
+      update: {
+        passwordHash,
+        lastLoginAt: null,
+      },
+    });
+
+    return {
+      ok: true,
+      user: await this.getMe(user.id),
     };
   }
 

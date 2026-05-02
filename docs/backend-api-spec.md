@@ -106,6 +106,7 @@ GET /api/v1/me/activity-ledger
 PATCH /api/v1/me/profile
 GET /api/v1/me/settings
 PATCH /api/v1/me/password
+PATCH /api/v1/me/password/setup
 DELETE /api/v1/me
 GET /api/v1/me/sessions
 DELETE /api/v1/me/sessions
@@ -135,6 +136,10 @@ My Page contract:
 - 요청 API는 계정 존재 여부를 노출하지 않기 위해 항상 `ok: true` 형태로 응답한다.
 - 현재는 메일 발송 adapter가 없는 skeleton 상태이며 `delivery.status = "not_configured"`를 반환한다.
 - 실제 메일 provider 연결 전까지 raw token을 로그, Git, Notion, 채팅에 남기지 않는다.
+
+Password setup note:
+
+- `PATCH /api/v1/me/password/setup` lets a logged-in social-only account with an email add its first email password. Existing email-password accounts must use `PATCH /api/v1/me/password`.
 
 Account deletion / moderation policy:
 

@@ -23,6 +23,7 @@ import {
   RegisterDto,
   RequestEmailVerificationDto,
   RequestPasswordResetDto,
+  SetPasswordDto,
   SocialLoginDto,
   UpdateProfileDto,
   UpdateSettingsDto,
@@ -152,6 +153,13 @@ export class MeController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   changePassword(@CurrentUser() user: AuthUser, @Body() body: ChangePasswordDto) {
     return this.authService.changePassword(user.id, body);
+  }
+
+  @Patch('password/setup')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  setPassword(@CurrentUser() user: AuthUser, @Body() body: SetPasswordDto) {
+    return this.authService.setPassword(user.id, body);
   }
 
   @Delete()

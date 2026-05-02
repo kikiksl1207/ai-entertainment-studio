@@ -129,6 +129,7 @@ Auth endpoints:
 - `GET /api/v1/me/settings`
 - `PATCH /api/v1/me/settings`
 - `PATCH /api/v1/me/password`
+- `PATCH /api/v1/me/password/setup`
 - `DELETE /api/v1/me`
 - `GET /api/v1/me/sessions`
 - `DELETE /api/v1/me/sessions`
@@ -148,6 +149,8 @@ Refresh tokens are stored as SHA-256 hashes in `user_refresh_tokens`. `POST /api
 `GET /api/v1/me/sessions` lists active refresh-token sessions for the current user without exposing token hashes. The response includes minimal session metadata such as `userAgent`, `ipAddress`, `createdAt`, `lastUsedAt`, and `expiresAt`. `DELETE /api/v1/me/sessions/:sessionId` revokes a selected session. `DELETE /api/v1/me/sessions` revokes all active sessions for the current user, including the current device, so clients must clear local access and refresh tokens immediately after calling it.
 
 `PATCH /api/v1/me/password` changes the password for email-password accounts after verifying the current password. It revokes all active refresh-token sessions on success, so clients must clear local access and refresh tokens and send the user back to login. Social-only accounts without an email password cannot use this endpoint until a password setup flow is added.
+
+`PATCH /api/v1/me/password/setup` lets a logged-in social-only user with an email create their first email password. It accepts `{ "newPassword": "abc12345" }`, uses the same 8-128 character letter+number password rule, and returns `{ "ok": true, "user": <GET /me shape> }`. If the user already has an email password, it returns `409 Email password is already configured`; use `PATCH /api/v1/me/password` for later changes.
 
 `DELETE /api/v1/me` soft-deletes the current user account by setting `users.status = deleted` and `users.deleted_at = now()`. It revokes all active refresh-token sessions, consumes outstanding user action tokens, deactivates the user's referral code, and writes a `user.self_delete` audit event. Email-password accounts must include `{ "currentPassword": "..." }`; social-only accounts may omit it. Clients must clear local tokens immediately after success. Existing wallet ledgers, payment orders, gifts, and audit trails are retained for accounting and abuse-response history.
 

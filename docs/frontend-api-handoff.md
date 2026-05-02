@@ -192,6 +192,7 @@ PATCH /me/profile
 GET /me/settings
 PATCH /me/settings
 PATCH /me/password
+PATCH /me/password/setup
 DELETE /me
 GET /me/sessions
 DELETE /me/sessions
@@ -215,6 +216,7 @@ Auth responses:
 - `GET /me/summary` is the recommended My Page bootstrap endpoint. It returns `{ user, wallet, recentLedger, recentPaymentOrders, activity, recentActivities, debut, policy }` so the frontend does not need to call every history endpoint on first render. `activity` now includes `followingArtists`, `followingUsers`, `followers`, `followCounts`, and `feedCounts`.
 - `GET /me/settings` returns `{ settings, policy }`.
 - `PATCH /me/settings` accepts any subset of `{ "locale": "ko-KR", "timezone": "Asia/Seoul", "marketingOptIn": false, "pushOptIn": false, "activityNotifications": true, "feedNotifications": true, "emailNotifications": false }`. Send at least one field. The response is the same `{ settings, policy }` shape.
+- `PATCH /me/password/setup` is for logged-in social-only users with an email. Body: `{ "newPassword": "abc12345" }`. It creates the email-password auth account and returns `{ "ok": true, "user": <GET /me shape> }`. If `hasPassword` is already true, use `PATCH /me/password` instead.
 - `GET /me/activity-ledger?type=all&take=50` returns a unified recent activity list for My Page. `type` can be `all`, `charge`, `boost`, `unlock`, `gift`, or `free_like`. Each item has `id`, `type`, `title`, `description`, `amountLumina`, `status`, `createdAt`, `relatedArtist`, and `relatedContent`.
 
 My Page scope notes for 2026-05-02:
