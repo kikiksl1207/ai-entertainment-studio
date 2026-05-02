@@ -95,9 +95,39 @@ export class CommunityController {
     return this.communityService.unfollowArtist(user.id, artistId);
   }
 
+  @Post('users/:userId/follow')
+  @UseGuards(JwtAuthGuard)
+  followUser(@CurrentUser() user: AuthUser, @Param('userId') userId: string) {
+    return this.communityService.followUser(user.id, userId);
+  }
+
+  @Delete('users/:userId/follow')
+  @UseGuards(JwtAuthGuard)
+  unfollowUser(@CurrentUser() user: AuthUser, @Param('userId') userId: string) {
+    return this.communityService.unfollowUser(user.id, userId);
+  }
+
   @Get('me/following')
   @UseGuards(JwtAuthGuard)
   getMyFollowing(@CurrentUser() user: AuthUser) {
     return this.communityService.getMyFollowing(user.id);
+  }
+
+  @Get('me/following-artists')
+  @UseGuards(JwtAuthGuard)
+  getMyFollowingArtists(@CurrentUser() user: AuthUser) {
+    return this.communityService.getMyFollowingArtists(user.id);
+  }
+
+  @Get('me/following-users')
+  @UseGuards(JwtAuthGuard)
+  getMyFollowingUsers(@CurrentUser() user: AuthUser) {
+    return this.communityService.getMyFollowingUsers(user.id);
+  }
+
+  @Get('me/followers')
+  @UseGuards(JwtAuthGuard)
+  getMyFollowers(@CurrentUser() user: AuthUser) {
+    return this.communityService.getMyFollowers(user.id);
   }
 }

@@ -120,6 +120,7 @@ Auth endpoints:
 - `POST /api/v1/auth/password-resets/confirm`
 - `GET /api/v1/me`
 - `GET /api/v1/me/summary`
+- `GET /api/v1/me/activity-ledger?type=all&take=50`
 - `PATCH /api/v1/me/profile`
 - `PATCH /api/v1/me/password`
 - `DELETE /api/v1/me`
@@ -136,7 +137,7 @@ Auth responses include both the canonical nested token object and flat token ali
 
 Refresh tokens are stored as SHA-256 hashes in `user_refresh_tokens`. `POST /api/v1/auth/refresh` rotates the refresh token and revokes the previous one; `POST /api/v1/auth/logout` accepts `{ "refreshToken": "..." }` and revokes that token server-side. Access tokens remain short-lived and are not individually revoked.
 
-`GET /api/v1/me` returns profile convenience fields for My Page, including `displayName`, `avatarUrl`, `provider`, `providers`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`. `PATCH /api/v1/me/profile` accepts `displayName`, `bio`, and `avatarAssetId`; display names can be changed once every 30 days. `GET /api/v1/me/summary` returns the My Page bootstrap payload with user, wallet, recent ledger, payment orders, activity counts, unlocks, follows, and debut status.
+`GET /api/v1/me` returns profile convenience fields for My Page, including `displayName`, `avatarUrl`, `avatarAsset`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`. `PATCH /api/v1/me/profile` accepts `displayName`, `bio`, and `avatarAssetId`; display names can be changed once every 30 days. `GET /api/v1/me/summary` returns the My Page bootstrap payload with user, wallet, recent ledger, payment orders, activity counts, unlocks, artist follows, user follows, followers, feed counts, recent activities, and debut status. `GET /api/v1/me/activity-ledger` supports `type=all|charge|boost|unlock|gift|free_like`.
 
 `GET /api/v1/me/sessions` lists active refresh-token sessions for the current user without exposing token hashes. The response includes minimal session metadata such as `userAgent`, `ipAddress`, `createdAt`, `lastUsedAt`, and `expiresAt`. `DELETE /api/v1/me/sessions/:sessionId` revokes a selected session. `DELETE /api/v1/me/sessions` revokes all active sessions for the current user, including the current device, so clients must clear local access and refresh tokens immediately after calling it.
 
@@ -199,6 +200,19 @@ Gift orders and paid boost orders debit `wallet_accounts.cached_balance` and cre
 Popular vote room APIs map to the 3-tab frontend decision: Main Pick uses the current boost campaign and rankings, Hall of Fame reads finalized `monthly_pick_winners`, and Year Champion uses the draft rule `annual_weighted_score_sum`. Monthly winners are finalized manually through `POST /admin/api/v1/popular-vote/monthly-picks/finalize`; this can later move to a scheduled job after monthly operations are stable.
 
 All user-scoped gift and boost mutation APIs use `Authorization: Bearer <access-token>`. API secrets and payment provider secrets must stay in environment variables only.
+
+Lumina Feed follow endpoints:
+
+- `POST /api/v1/artists/:artistId/follow`
+- `DELETE /api/v1/artists/:artistId/follow`
+- `POST /api/v1/users/:userId/follow`
+- `DELETE /api/v1/users/:userId/follow`
+- `GET /api/v1/me/following`
+- `GET /api/v1/me/following-artists`
+- `GET /api/v1/me/following-users`
+- `GET /api/v1/me/followers`
+
+Normal users are follow targets as well as artists. `GET /api/v1/me/following` returns `{ artists, users }`; the split endpoints are available for screens that only need one list.
 
 ## Debut Application APIs
 

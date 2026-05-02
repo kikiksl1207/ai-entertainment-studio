@@ -42,6 +42,8 @@ model User {
   communityReactions CommunityReaction[]
   communityReports  CommunityReport[]       @relation("CommunityReportReporter")
   artistFollows     ArtistFollow[]
+  followingUsers    UserFollow[]            @relation("UserFollowFollower")
+  followers         UserFollow[]            @relation("UserFollowFollowing")
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -789,6 +791,23 @@ model ArtistFollow {
   @@index([artistId, status], map: "idx_artist_follows_artist_status")
   @@index([userId, status], map: "idx_artist_follows_user_status")
   @@map("artist_follows")
+}
+
+model UserFollow {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  followerUserId  String    @map("follower_user_id") @db.Uuid
+  followingUserId String    @map("following_user_id") @db.Uuid
+  status          String    @default("active")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  follower        User      @relation("UserFollowFollower", fields: [followerUserId], references: [id])
+  following       User      @relation("UserFollowFollowing", fields: [followingUserId], references: [id])
+
+  @@unique([followerUserId, followingUserId])
+  @@index([followingUserId, status], map: "idx_user_follows_following_status")
+  @@index([followerUserId, status], map: "idx_user_follows_follower_status")
+  @@map("user_follows")
 }
 
 model PremiumVideoProduct {

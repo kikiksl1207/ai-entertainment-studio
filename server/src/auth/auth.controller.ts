@@ -7,6 +7,7 @@ import {
   Patch,
   ParseUUIDPipe,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -113,6 +114,16 @@ export class MeController {
   @UseGuards(JwtAuthGuard)
   summary(@CurrentUser() user: AuthUser) {
     return this.authService.getMyPageSummary(user.id);
+  }
+
+  @Get('activity-ledger')
+  @UseGuards(JwtAuthGuard)
+  activityLedger(
+    @CurrentUser() user: AuthUser,
+    @Query('type') type?: string,
+    @Query('take') take?: string,
+  ) {
+    return this.authService.getMyActivityLedger(user.id, { type, take });
   }
 
   @Patch('profile')

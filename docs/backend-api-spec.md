@@ -100,6 +100,7 @@ POST /api/v1/auth/password-resets
 POST /api/v1/auth/password-resets/confirm
 GET /api/v1/me
 GET /api/v1/me/summary
+GET /api/v1/me/activity-ledger
 PATCH /api/v1/me/profile
 PATCH /api/v1/me/password
 DELETE /api/v1/me
@@ -111,10 +112,11 @@ PATCH /api/v1/me/settings
 
 My Page contract:
 
-- `GET /api/v1/me` returns `id`, `email`, `status`, `provider`, `providers`, `createdAt`, `displayName`, `avatarUrl`, `bio`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, `canChangeNickname`, `profile`, `settings`, and `walletAccounts`.
+- `GET /api/v1/me` returns `id`, `email`, `status`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `createdAt`, `displayName`, `avatarUrl`, `avatarAsset`, `bio`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, `canChangeNickname`, `profile`, `settings`, and `walletAccounts`.
 - `PATCH /api/v1/me/profile` accepts `displayName`, `bio`, and `avatarAssetId`. `displayName` is server-limited to one change every 30 days through `user_profiles.nickname_changed_at`.
 - Avatar policy for the first version is asset-based: create/confirm an image asset through the existing upload flow, then set `avatarAssetId`.
-- `GET /api/v1/me/summary` is a My Page bootstrap endpoint. It returns `user`, `wallet`, `recentLedger`, `recentPaymentOrders`, `activity.boostEventCounts`, `activity.premiumUnlocks`, `activity.followingArtists`, `activity.feedCounts`, `debut.latestApplication`, `debut.applications`, and policy hints.
+- `GET /api/v1/me/summary` is a My Page bootstrap endpoint. It returns `user`, `wallet`, `recentLedger`, `recentPaymentOrders`, `activity.boostEventCounts`, `activity.premiumUnlocks`, `activity.followingArtists`, `activity.followingUsers`, `activity.followers`, `activity.followCounts`, `activity.feedCounts`, `recentActivities`, `debut.latestApplication`, `debut.applications`, and policy hints.
+- `GET /api/v1/me/activity-ledger?type=all&take=50` returns a unified My Page activity list. `type` can be `all`, `charge`, `boost`, `unlock`, `gift`, or `free_like`.
 
 이메일/비밀번호 가입 정책:
 
@@ -531,3 +533,27 @@ Response:
   "resetsAt": "2026-05-03T00:00:00.000Z"
 }
 ```
+
+## 2026-05-02 Lumina Feed / Follow Addendum
+
+Lumina Feed supports artist posts, AI artist posts, and normal user posts. Normal users are first-class follow targets so creator/fan acquisition is not limited to artist accounts.
+
+Follow endpoints:
+
+```http
+POST /api/v1/artists/:artistId/follow
+DELETE /api/v1/artists/:artistId/follow
+POST /api/v1/users/:userId/follow
+DELETE /api/v1/users/:userId/follow
+GET /api/v1/me/following
+GET /api/v1/me/following-artists
+GET /api/v1/me/following-users
+GET /api/v1/me/followers
+Authorization: Bearer <accessToken>
+```
+
+- `artistId` can be an artist UUID or slug.
+- `userId` must be a user UUID and cannot equal the current user id.
+- `GET /api/v1/me/following` returns `{ artists, users }`.
+- User follow rows return `{ id, status, followedAt, updatedAt, user: { id, displayName, avatarUrl } }`.
+- `user_follows` uses soft delete/reactivation with unique `(follower_user_id, following_user_id)`.

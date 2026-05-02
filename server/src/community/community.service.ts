@@ -4,7 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
 import { LUMINA_FEED_SAMPLE_POSTS } from './lumina-feed-samples';
 
@@ -25,7 +27,10 @@ const UUID_PATTERN =
 
 @Injectable()
 export class CommunityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   getFeed(query: CommunityQuery) {
     const take = this.take(query.take);
@@ -304,15 +309,108 @@ export class CommunityService {
     return { ok: true };
   }
 
-  getMyFollowing(userId: string) {
+  async followUser(followerUserId: string, followingUserId: string) {
+    if (!UUID_PATTERN.test(followingUserId)) {
+      throw new BadRequestException('userId must be a UUID');
+    }
+
+    if (followerUserId === followingUserId) {
+      throw new BadRequestException('Cannot follow yourself');
+    }
+
+    await this.assertActiveUser(followerUserId);
+    await this.assertActiveUser(followingUserId);
+
+    return this.prisma.userFollow.upsert({
+      where: {
+        followerUserId_followingUserId: {
+          followerUserId,
+          followingUserId,
+        },
+      },
+      create: {
+        followerUserId,
+        followingUserId,
+      },
+      update: {
+        status: 'active',
+        deletedAt: null,
+        updatedAt: new Date(),
+      },
+      include: this.userFollowInclude('following'),
+    });
+  }
+
+  async unfollowUser(followerUserId: string, followingUserId: string) {
+    if (!UUID_PATTERN.test(followingUserId)) {
+      throw new BadRequestException('userId must be a UUID');
+    }
+
+    await this.prisma.userFollow.updateMany({
+      where: {
+        followerUserId,
+        followingUserId,
+        status: 'active',
+      },
+      data: {
+        status: 'deleted',
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    return { ok: true };
+  }
+
+  async getMyFollowing(userId: string) {
+    const [artists, users] = await Promise.all([
+      this.getMyFollowingArtists(userId),
+      this.getMyFollowingUsers(userId),
+    ]);
+
+    return { artists, users };
+  }
+
+  getMyFollowingArtists(userId: string) {
     return this.prisma.artistFollow.findMany({
       where: {
         userId,
         status: 'active',
+        deletedAt: null,
       },
       include: this.followInclude(),
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async getMyFollowingUsers(userId: string) {
+    const follows = await this.prisma.userFollow.findMany({
+      where: {
+        followerUserId: userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      include: this.userFollowInclude('following'),
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return Promise.all(
+      follows.map((follow) => this.toUserFollowView(follow, 'following')),
+    );
+  }
+
+  async getMyFollowers(userId: string) {
+    const follows = await this.prisma.userFollow.findMany({
+      where: {
+        followingUserId: userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      include: this.userFollowInclude('follower'),
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return Promise.all(follows.map((follow) => this.toUserFollowView(follow, 'follower')));
   }
 
   private postInclude() {
@@ -365,6 +463,65 @@ export class CommunityService {
         },
       },
     } satisfies Prisma.ArtistFollowInclude;
+  }
+
+  private userFollowInclude(direction: 'follower' | 'following') {
+    const userSelect = {
+      id: true,
+      email: true,
+      status: true,
+      profile: {
+        select: {
+          displayName: true,
+          avatarAssetId: true,
+        },
+      },
+    };
+
+    return {
+      [direction]: {
+        select: userSelect,
+      },
+    } satisfies Prisma.UserFollowInclude;
+  }
+
+  private async assertActiveUser(userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+  }
+
+  private async toUserFollowView(follow: any, direction: 'follower' | 'following') {
+    const user = follow[direction];
+    const avatarAsset = user.profile?.avatarAssetId
+      ? await this.prisma.asset.findUnique({
+          where: { id: user.profile.avatarAssetId },
+          select: { id: true, storageKey: true },
+        })
+      : null;
+
+    return {
+      id: follow.id,
+      status: follow.status,
+      followedAt: follow.createdAt,
+      updatedAt: follow.updatedAt,
+      user: {
+        id: user.id,
+        displayName: user.profile?.displayName ?? user.email?.split('@')[0] ?? 'Lumina User',
+        avatarUrl: avatarAsset
+          ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
+          : null,
+      },
+    };
   }
 
   private async findVisiblePost(postId: string) {

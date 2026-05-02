@@ -374,6 +374,7 @@ export class AuthService {
         authAccounts: {
           select: {
             provider: true,
+            passwordHash: true,
           },
           orderBy: { createdAt: 'asc' },
         },
@@ -404,7 +405,11 @@ export class AuthService {
       premiumUnlocks,
       debutApplications,
       followingArtists,
+      followingUsers,
+      followers,
+      followCounts,
       feedCounts,
+      recentActivities,
     ] = await Promise.all([
       this.getMe(userId),
       this.prisma.walletAccount.upsert({
@@ -489,11 +494,43 @@ export class AuthService {
         orderBy: { createdAt: 'desc' },
         take: 12,
       }),
+      this.prisma.userFollow.findMany({
+        where: {
+          followerUserId: userId,
+          status: 'active',
+          deletedAt: null,
+        },
+        include: this.userFollowUserInclude('following'),
+        orderBy: { createdAt: 'desc' },
+        take: 12,
+      }),
+      this.prisma.userFollow.findMany({
+        where: {
+          followingUserId: userId,
+          status: 'active',
+          deletedAt: null,
+        },
+        include: this.userFollowUserInclude('follower'),
+        orderBy: { createdAt: 'desc' },
+        take: 12,
+      }),
+      Promise.all([
+        this.prisma.artistFollow.count({
+          where: { userId, status: 'active', deletedAt: null },
+        }),
+        this.prisma.userFollow.count({
+          where: { followerUserId: userId, status: 'active', deletedAt: null },
+        }),
+        this.prisma.userFollow.count({
+          where: { followingUserId: userId, status: 'active', deletedAt: null },
+        }),
+      ]),
       Promise.all([
         this.prisma.communityPost.count({ where: { authorUserId: userId } }),
         this.prisma.communityReply.count({ where: { authorUserId: userId } }),
         this.prisma.communityReaction.count({ where: { userId } }),
       ]),
+      this.getMyActivityLedger(userId, { take: '12' }),
     ]);
 
     const latestDebutApplication = debutApplications[0] ?? null;
@@ -502,6 +539,10 @@ export class AuthService {
       user,
       wallet: {
         ...wallet,
+        lumina: {
+          balance: wallet.cachedBalance,
+          currencyCode: wallet.currencyCode,
+        },
         stella: this.toStellaDisplay(wallet.cachedBalance),
       },
       recentLedger,
@@ -512,12 +553,24 @@ export class AuthService {
         ),
         premiumUnlocks,
         followingArtists,
+        followingUsers: await Promise.all(
+          followingUsers.map((follow) => this.toUserFollowView(follow, 'following')),
+        ),
+        followers: await Promise.all(
+          followers.map((follow) => this.toUserFollowView(follow, 'follower')),
+        ),
+        followCounts: {
+          followingArtists: followCounts[0],
+          followingUsers: followCounts[1],
+          followers: followCounts[2],
+        },
         feedCounts: {
           posts: feedCounts[0],
           replies: feedCounts[1],
           reactions: feedCounts[2],
         },
       },
+      recentActivities: recentActivities.items,
       debut: {
         latestApplication: latestDebutApplication,
         applications: debutApplications,
@@ -525,10 +578,143 @@ export class AuthService {
       },
       policy: {
         nicknameChangeIntervalDays: 30,
+        displayName: {
+          minLength: 2,
+          maxLength: 50,
+          unique: false,
+          firstChangeHasCooldown: true,
+        },
+        passwordRule: {
+          minLength: 8,
+          maxLength: 128,
+          requiresLetter: true,
+          requiresNumber: true,
+        },
         avatarUploadMode: 'asset_upload_flow',
         stellaDisplayThresholdLumina: 10000,
       },
     };
+  }
+
+  async getMyActivityLedger(
+    userId: string,
+    query: { type?: string; take?: string } = {},
+  ) {
+    await this.assertActiveUser(userId);
+    const take = this.parseTake(query.take, 50);
+    const type = query.type?.trim();
+    const allowedTypes = new Set(['charge', 'boost', 'unlock', 'gift', 'free_like']);
+
+    if (type && type !== 'all' && !allowedTypes.has(type)) {
+      throw new BadRequestException('type must be all, charge, boost, unlock, gift, or free_like');
+    }
+
+    const [ledgerEntries, paymentOrders, boostEvents, premiumUnlocks] = await Promise.all([
+      this.prisma.walletLedger.findMany({
+        where: {
+          walletAccount: {
+            userId,
+            currencyCode: LUMINA_CURRENCY_CODE,
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+      }),
+      this.prisma.paymentOrder.findMany({
+        where: { userId },
+        include: { luminaProduct: true, refunds: true },
+        orderBy: { createdAt: 'desc' },
+        take,
+      }),
+      this.prisma.artistBoostEvent.findMany({
+        where: { userId },
+        include: {
+          artist: {
+            select: { id: true, slug: true, displayName: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+      }),
+      this.prisma.userPremiumVideoUnlock.findMany({
+        where: { userId },
+        include: {
+          premiumVideoProduct: {
+            select: {
+              id: true,
+              sku: true,
+              title: true,
+              artist: {
+                select: { id: true, slug: true, displayName: true },
+              },
+            },
+          },
+        },
+        orderBy: { unlockedAt: 'desc' },
+        take,
+      }),
+    ]);
+
+    const items = [
+      ...paymentOrders.map((order) => ({
+        id: `payment:${order.id}`,
+        type: 'charge',
+        title: order.luminaProduct.name,
+        description: `${order.status} payment order`,
+        amountLumina: order.luminaProduct.luminaAmount.plus(order.luminaProduct.bonusAmount),
+        status: order.status,
+        createdAt: order.createdAt,
+        relatedArtist: null,
+        relatedContent: { type: 'payment_order', id: order.id, orderNo: order.orderNo },
+      })),
+      ...boostEvents.map((event) => ({
+        id: `boost:${event.id}`,
+        type: event.boostType === 'free_like' ? 'free_like' : 'boost',
+        title: event.boostType === 'free_like' ? 'Free like' : 'Paid boost',
+        description: event.artist.displayName,
+        amountLumina: event.rawAmount,
+        status: 'completed',
+        createdAt: event.createdAt,
+        relatedArtist: event.artist,
+        relatedContent: { type: 'boost_event', id: event.id },
+      })),
+      ...premiumUnlocks.map((unlock) => ({
+        id: `unlock:${unlock.id}`,
+        type: 'unlock',
+        title: unlock.premiumVideoProduct.title,
+        description: 'Premium content unlock',
+        amountLumina: null,
+        status: unlock.expiresAt && unlock.expiresAt <= new Date() ? 'expired' : 'active',
+        createdAt: unlock.unlockedAt,
+        relatedArtist: unlock.premiumVideoProduct.artist,
+        relatedContent: {
+          type: 'premium_video',
+          id: unlock.premiumVideoProduct.id,
+          sku: unlock.premiumVideoProduct.sku,
+        },
+      })),
+      ...ledgerEntries
+        .filter((entry) => ['user_gift_send', 'user_gift_receive'].includes(entry.ledgerType))
+        .map((entry) => ({
+          id: `ledger:${entry.id}`,
+          type: 'gift',
+          title: entry.direction === 'credit' ? 'Lumina gift received' : 'Lumina gift sent',
+          description: entry.memo,
+          amountLumina: entry.amount,
+          status: 'completed',
+          createdAt: entry.createdAt,
+          relatedArtist: null,
+          relatedContent: {
+            type: entry.referenceType,
+            id: entry.referenceId,
+          },
+        })),
+    ]
+      .filter((item) => !type || type === 'all' || item.type === type)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .slice(0, take);
+
+    return { items, total: items.length };
   }
 
   async updateProfile(userId: string, input: UpdateProfileDto) {
@@ -970,7 +1156,7 @@ export class AuthService {
     phoneNumber: string | null;
     status: string;
     createdAt: Date;
-    authAccounts: { provider: string }[];
+    authAccounts: { provider: string; passwordHash: string | null }[];
     profile: {
       displayName: string;
       avatarAssetId: string | null;
@@ -991,6 +1177,7 @@ export class AuthService {
             mimeType: true,
             width: true,
             height: true,
+            metadata: true,
           },
         })
       : null;
@@ -1005,6 +1192,8 @@ export class AuthService {
       status: user.status,
       provider: primaryProvider,
       providers: user.authAccounts.map((account) => account.provider),
+      hasPassword: user.authAccounts.some((account) => Boolean(account.passwordHash)),
+      isSocialOnly: !user.authAccounts.some((account) => Boolean(account.passwordHash)),
       createdAt: user.createdAt,
       displayName: user.profile?.displayName ?? user.email?.split('@')[0] ?? 'Lumina Fan',
       avatarUrl: avatarAsset
@@ -1014,6 +1203,8 @@ export class AuthService {
         ? {
             ...avatarAsset,
             url: buildPublicAssetUrl(this.configService, avatarAsset.storageKey),
+            thumbnailUrl: buildPublicAssetUrl(this.configService, avatarAsset.storageKey),
+            status: this.assetStatus(avatarAsset.metadata),
           }
         : null,
       bio: user.profile?.bio ?? null,
@@ -1038,9 +1229,83 @@ export class AuthService {
 
     return {
       amount: stella,
+      displayAmount: stella,
       enabled: stella > 0,
       rate: '10000L = 1 Stella display unit',
+      displayRule: 'Show Stella only when balance is at least 10000L',
     };
+  }
+
+  private userFollowUserInclude(direction: 'follower' | 'following') {
+    const userSelect = {
+      id: true,
+      email: true,
+      status: true,
+      profile: {
+        select: {
+          displayName: true,
+          avatarAssetId: true,
+        },
+      },
+    };
+
+    return {
+      [direction]: {
+        select: userSelect,
+      },
+    } satisfies Prisma.UserFollowInclude;
+  }
+
+  private async toUserFollowView(follow: any, direction: 'follower' | 'following') {
+    const user = follow[direction];
+    const avatarAsset = user.profile?.avatarAssetId
+      ? await this.prisma.asset.findUnique({
+          where: { id: user.profile.avatarAssetId },
+          select: { id: true, storageKey: true },
+        })
+      : null;
+
+    return {
+      id: follow.id,
+      status: follow.status,
+      followedAt: follow.createdAt,
+      updatedAt: follow.updatedAt,
+      user: {
+        id: user.id,
+        displayName: user.profile?.displayName ?? user.email?.split('@')[0] ?? 'Lumina User',
+        avatarUrl: avatarAsset
+          ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
+          : null,
+      },
+    };
+  }
+
+  private assetStatus(metadata: unknown) {
+    if (!this.isRecord(metadata)) {
+      return 'ready';
+    }
+
+    const uploadIntent = metadata.uploadIntent;
+
+    if (!this.isRecord(uploadIntent)) {
+      return 'ready';
+    }
+
+    return typeof uploadIntent.status === 'string' ? uploadIntent.status : 'ready';
+  }
+
+  private parseTake(value: string | undefined, fallback: number) {
+    const parsed = value ? Number(value) : fallback;
+
+    if (!Number.isInteger(parsed)) {
+      throw new BadRequestException('take must be an integer');
+    }
+
+    return Math.max(1, Math.min(parsed, 100));
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
   }
 
   private clean<T extends Record<string, unknown>>(input: T) {
