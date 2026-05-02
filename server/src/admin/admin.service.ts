@@ -1423,6 +1423,157 @@ export class AdminService {
     return product;
   }
 
+  getCommunityReports(query: AuditQuery) {
+    const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
+    const status = this.optionalString(query, 'status');
+    const reason = this.optionalString(query, 'reason');
+    const postId = this.optionalString(query, 'postId');
+    const reporterUserId = this.optionalString(query, 'reporterUserId');
+
+    return this.prisma.communityReport.findMany({
+      where: this.clean({
+        status,
+        reason,
+        postId,
+        reporterUserId,
+      }),
+      take,
+      orderBy: { createdAt: 'desc' },
+      include: this.communityReportInclude(),
+    });
+  }
+
+  getCommunityPosts(query: AuditQuery) {
+    const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
+    const status = this.optionalString(query, 'status');
+    const postType = this.optionalString(query, 'postType');
+    const artistSlug = this.optionalString(query, 'artistSlug');
+    const authorUserId = this.optionalString(query, 'authorUserId');
+
+    return this.prisma.communityPost.findMany({
+      where: this.clean({
+        status,
+        postType,
+        authorUserId,
+        artist: artistSlug ? { slug: artistSlug } : undefined,
+      }),
+      take,
+      orderBy: { createdAt: 'desc' },
+      include: this.communityPostInclude(),
+    });
+  }
+
+  async updateCommunityReport(user: AuthUser, reportId: string, input: AdminPayload) {
+    const before = await this.prisma.communityReport.findUnique({
+      where: { id: reportId },
+      include: this.communityReportInclude(),
+    });
+
+    if (!before) {
+      throw new NotFoundException('Community report not found');
+    }
+
+    const status =
+      input.status === undefined ? undefined : this.communityReportStatus(input, 'status');
+    const report = await this.prisma.communityReport.update({
+      where: { id: reportId },
+      data: this.clean({
+        status,
+        detail: this.optionalString(input, 'detail'),
+        metadata: this.optionalJson(input, 'metadata'),
+        updatedAt: new Date(),
+      }),
+      include: this.communityReportInclude(),
+    });
+
+    await this.recordAudit(
+      user,
+      'community_report.update',
+      'community_report',
+      report.id,
+      before,
+      report,
+      { note: this.optionalString(input, 'note') },
+    );
+
+    return report;
+  }
+
+  async hideCommunityPost(user: AuthUser, postId: string, input: AdminPayload) {
+    const before = await this.findCommunityPostForAdmin(postId);
+    const metadata = this.metadataObject(before.metadata);
+    const moderation = this.metadataObject(metadata.moderation);
+    const hiddenAt = new Date().toISOString();
+    const post = await this.prisma.communityPost.update({
+      where: { id: postId },
+      data: {
+        status: 'hidden',
+        updatedAt: new Date(),
+        metadata: this.toJson({
+          ...metadata,
+          moderation: {
+            ...moderation,
+            status: 'hidden',
+            reason: this.optionalString(input, 'reason') ?? null,
+            note: this.optionalString(input, 'note') ?? null,
+            hiddenByUserId: user.id,
+            hiddenAt,
+          },
+        }),
+      },
+      include: this.communityPostInclude(),
+    });
+
+    await this.recordAudit(
+      user,
+      'community_post.hide',
+      'community_post',
+      post.id,
+      before,
+      post,
+    );
+
+    return { ok: true, post };
+  }
+
+  async restoreCommunityPost(user: AuthUser, postId: string, input: AdminPayload) {
+    const before = await this.findCommunityPostForAdmin(postId);
+    const metadata = this.metadataObject(before.metadata);
+    const moderation = this.metadataObject(metadata.moderation);
+    const restoredAt = new Date().toISOString();
+    const post = await this.prisma.communityPost.update({
+      where: { id: postId },
+      data: {
+        status: 'published',
+        deletedAt: null,
+        updatedAt: new Date(),
+        metadata: this.toJson({
+          ...metadata,
+          moderation: {
+            ...moderation,
+            status: 'restored',
+            reason: this.optionalString(input, 'reason') ?? null,
+            note: this.optionalString(input, 'note') ?? null,
+            restoredByUserId: user.id,
+            restoredAt,
+          },
+        }),
+      },
+      include: this.communityPostInclude(),
+    });
+
+    await this.recordAudit(
+      user,
+      'community_post.restore',
+      'community_post',
+      post.id,
+      before,
+      post,
+    );
+
+    return { ok: true, post };
+  }
+
   private recordAudit(
     user: AuthUser,
     action: string,
@@ -1489,6 +1640,69 @@ export class AdminService {
         },
       },
     } satisfies Prisma.UserSelect;
+  }
+
+  private communityPostInclude() {
+    return {
+      author: {
+        select: {
+          id: true,
+          email: true,
+          status: true,
+          profile: {
+            select: {
+              displayName: true,
+              avatarAssetId: true,
+            },
+          },
+        },
+      },
+      artist: {
+        select: {
+          id: true,
+          slug: true,
+          displayName: true,
+          status: true,
+        },
+      },
+    } satisfies Prisma.CommunityPostInclude;
+  }
+
+  private communityReportInclude() {
+    return {
+      reporter: {
+        select: {
+          id: true,
+          email: true,
+          status: true,
+          profile: {
+            select: {
+              displayName: true,
+            },
+          },
+        },
+      },
+      post: {
+        include: this.communityPostInclude(),
+      },
+    } satisfies Prisma.CommunityReportInclude;
+  }
+
+  private async findCommunityPostForAdmin(postId: string) {
+    if (!this.isUuid(postId)) {
+      throw new BadRequestException('postId must be a UUID');
+    }
+
+    const post = await this.prisma.communityPost.findUnique({
+      where: { id: postId },
+      include: this.communityPostInclude(),
+    });
+
+    if (!post) {
+      throw new NotFoundException('Community post not found');
+    }
+
+    return post;
   }
 
   private async findUserForModeration(userId: string) {
@@ -1837,6 +2051,18 @@ export class AdminService {
     if (!['requested', 'processing', 'succeeded', 'failed', 'cancelled'].includes(status)) {
       throw new BadRequestException(
         `${key} must be requested, processing, succeeded, failed, or cancelled`,
+      );
+    }
+
+    return status;
+  }
+
+  private communityReportStatus(input: AdminPayload, key: string, fallback?: string) {
+    const status = this.string(input, key, fallback);
+
+    if (!['submitted', 'reviewing', 'resolved', 'dismissed'].includes(status)) {
+      throw new BadRequestException(
+        `${key} must be submitted, reviewing, resolved, or dismissed`,
       );
     }
 

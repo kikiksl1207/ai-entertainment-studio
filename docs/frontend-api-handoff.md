@@ -589,6 +589,19 @@ Authorization: Bearer <accessToken>
 
 `artistId` can be a UUID or slug.
 
+Admin/community moderation draft:
+
+```http
+GET /admin/api/v1/community/reports?status=submitted&take=50
+GET /admin/api/v1/community/posts?status=published&take=50
+PATCH /admin/api/v1/community/reports/:reportId
+POST /admin/api/v1/community/posts/:postId/hide
+POST /admin/api/v1/community/posts/:postId/restore
+```
+
+These require admin auth plus `community:read` or `community:write` permission.
+They are for a later admin/operations screen, not public user UI.
+
 ## Notes For Claude
 
 - Do not hardcode local-only URLs in production frontend.

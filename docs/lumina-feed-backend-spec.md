@@ -215,6 +215,66 @@ Allowed reasons:
 - `spam`
 - `other`
 
+## Admin Moderation APIs
+
+These endpoints are for the future admin/operations screen. They require admin
+auth and the new `community:read` / `community:write` permissions. Super admins
+with `*` also pass.
+
+```http
+GET /admin/api/v1/community/reports?status=submitted&take=50
+GET /admin/api/v1/community/posts?status=published&take=50
+PATCH /admin/api/v1/community/reports/:reportId
+POST /admin/api/v1/community/posts/:postId/hide
+POST /admin/api/v1/community/posts/:postId/restore
+```
+
+Report query filters:
+
+- `status`: `submitted`, `reviewing`, `resolved`, `dismissed`
+- `reason`: `sexual_content`, `harassment`, `hate`, `impersonation`, `spam`, `other`
+- `postId`
+- `reporterUserId`
+- `take`: 1-100, default 50
+
+Post query filters:
+
+- `status`: usually `published` or `hidden`
+- `postType`: `user_post`, `artist_post`, etc.
+- `artistSlug`
+- `authorUserId`
+- `take`: 1-100, default 50
+
+Update report:
+
+```json
+{
+  "status": "reviewing",
+  "note": "Initial review started"
+}
+```
+
+Hide post:
+
+```json
+{
+  "reason": "sexual_content",
+  "note": "Adult-style content is excluded from Korean MVP"
+}
+```
+
+Restore post:
+
+```json
+{
+  "reason": "false_positive",
+  "note": "Restored after review"
+}
+```
+
+Post hide/restore writes moderation metadata on `community_posts.metadata` and
+creates `audit_events` rows. It does not hard-delete content.
+
 ### Follows
 
 ```http

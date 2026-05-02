@@ -333,6 +333,48 @@ export class AdminController {
     return this.adminService.snapshotBoostCampaign(user, campaignId);
   }
 
+  @Get('community/reports')
+  @RequireAdminPermissions('community:read')
+  getCommunityReports(@Query() query: AuditQuery) {
+    return this.adminService.getCommunityReports(query);
+  }
+
+  @Get('community/posts')
+  @RequireAdminPermissions('community:read')
+  getCommunityPosts(@Query() query: AuditQuery) {
+    return this.adminService.getCommunityPosts(query);
+  }
+
+  @Patch('community/reports/:reportId')
+  @RequireAdminPermissions('community:write')
+  updateCommunityReport(
+    @CurrentUser() user: AuthUser,
+    @Param('reportId') reportId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.updateCommunityReport(user, reportId, body);
+  }
+
+  @Post('community/posts/:postId/hide')
+  @RequireAdminPermissions('community:write')
+  hideCommunityPost(
+    @CurrentUser() user: AuthUser,
+    @Param('postId') postId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.hideCommunityPost(user, postId, body);
+  }
+
+  @Post('community/posts/:postId/restore')
+  @RequireAdminPermissions('community:write')
+  restoreCommunityPost(
+    @CurrentUser() user: AuthUser,
+    @Param('postId') postId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.restoreCommunityPost(user, postId, body);
+  }
+
   @Post('premium-video-products')
   @RequireAdminPermissions('premium_videos:write')
   createPremiumVideoProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {
