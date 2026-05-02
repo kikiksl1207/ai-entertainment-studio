@@ -118,7 +118,7 @@
                   <li>퍼포먼스</li>
                   <li>뷰티</li>
                 </ul>
-                <a class="text-link hero-feature-link" href="./character-detail.html?slug=yoon-serin">윤세린 프로필 보기</a>
+              <a class="text-link hero-feature-link" href="./character-detail.html?slug=yoon-serin">윤세린 프로필 보기</a>
               </div>
             </article>
           </div>
@@ -143,17 +143,21 @@
         </div>
       </section>
 
-      <!-- 추가 공개 라인 -->
+      <!-- 비공개 아티스트 라인 -->
       <section id="debut-line" class="content-section section-soft">
         <div class="shell">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">New Spotlight</p>
-              <h2>새로운 조명을 받은 아티스트</h2>
-              <p>차도현과 서유안이 각자의 방식으로 무대에 합류했습니다. 다음 장면은 팬의 응원으로 더 선명해집니다.</p>
+              <p class="eyebrow">Hidden Lineup</p>
+              <h2>등록된 비공개 아티스트</h2>
+              <p>아티스트 목록에서 비공개로 등록된 라인업이 자동으로 표시됩니다. 공개 전 준비 중인 이름들을 먼저 확인해보세요.</p>
             </div>
           </div>
-          <div class="debut-line-grid" id="debutLineGrid"></div>
+          <div class="debut-line-carousel" aria-label="비공개 아티스트 슬라이드">
+            <button class="debut-line-nav" id="debutLinePrev" type="button" aria-label="이전 비공개 아티스트">‹</button>
+            <div class="debut-line-grid" id="debutLineGrid"></div>
+            <button class="debut-line-nav" id="debutLineNext" type="button" aria-label="다음 비공개 아티스트">›</button>
+          </div>
         </div>
       </section>
 
@@ -264,6 +268,10 @@
         </div>
         <div class="footer-links">
           <a href="./characters.html">아티스트 라인업</a>
+          <a href="./terms.html">이용약관</a>
+          <a href="./privacy.html">개인정보처리방침</a>
+          <a href="./refund-policy.html">환불 정책</a>
+
           <a href="./business.html" title="브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.">Business Inquiry</a>
         </div>
       </div>

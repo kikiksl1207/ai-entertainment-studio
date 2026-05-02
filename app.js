@@ -167,6 +167,13 @@ function createAuthModal() {
           <input type="password" name="password" required minlength="8" autocomplete="new-password" /></label>
         <label class="auth-modal-field"><span>추천인 코드 <small style="color:rgba(255,255,255,0.4);font-weight:400;">(선택)</small></span>
           <input type="text" name="referralCode" autocomplete="off" placeholder="예: ABC12345" maxlength="20" /></label>
+        <label class="auth-modal-consent">
+          <input type="checkbox" name="termsConsent" required />
+          <span>
+            <a href="./terms.html" target="_blank" rel="noopener">이용약관</a>과
+            <a href="./privacy.html" target="_blank" rel="noopener">개인정보처리방침</a>에 동의합니다.
+          </span>
+        </label>
         <button type="submit" class="auth-modal-submit">가입하기</button>
       </form>
 
@@ -220,6 +227,9 @@ async function handleAuthSubmit(form, mode) {
     if (mode === "login") {
       await authLogin(form.email.value.trim(), form.password.value);
     } else {
+      if (!form.termsConsent?.checked) {
+        throw new Error("이용약관과 개인정보처리방침에 동의해주세요.");
+      }
       await authRegister(
         form.email.value.trim(),
         form.password.value,
@@ -848,8 +858,7 @@ async function handleLike(slug, btnEl) {
     const msg = err.body?.message || err.message || "";
     const isDailyLimit = err.status === 400 && /daily free like limit/i.test(msg);
     if (isDailyLimit) {
-      // 한도 초과 — 추가 구매 정책 안내 (구매 API 출시 전까지 정보만)
-      alert("오늘 무료 좋아요를 모두 보내셨어요! 💜\n\n추가 응원은 곧 오픈되는 유료 좋아요로 가능해요.\n100원(10 루미나)당 좋아요 1개\n\n무료 좋아요는 내일 자정에 다시 충전돼요!");
+      openPaidLikeModal(slug);
     } else if (err.status === 401) {
       clearAuth();
       updateAuthUI();
@@ -863,6 +872,123 @@ async function handleLike(slug, btnEl) {
     }
     if (btnEl) btnEl.disabled = false;
   }
+}
+
+const PAID_LIKE_BUNDLES = [
+  { quantity: 5, lumina: 50, krw: 500, label: "5개 · 50L (500원)" },
+  { quantity: 10, lumina: 90, krw: 900, label: "10개 · 90L (900원)", recommended: true },
+  { quantity: 30, lumina: 250, krw: 2500, label: "30개 · 250L (2,500원)" }
+];
+
+function getPaidLikeBalance() {
+  return _wallet?.balance ?? _wallet?.lumina?.balance ?? _wallet?.cachedBalance ?? 0;
+}
+
+function openPaidLikeModal(slug) {
+  if (!_currentCampaign?.id) {
+    alert("현재 진행 중인 좋아요 캠페인이 없습니다.");
+    return;
+  }
+  if (!isLoggedIn()) {
+    openAuthModal("login");
+    return;
+  }
+  const artist = getCharacterBySlug(slug) || _artists.find(a => a.slug === slug);
+  const balance = getPaidLikeBalance();
+  const overlay = document.createElement("div");
+  overlay.className = "paid-like-modal-overlay is-open";
+  overlay.innerHTML = `
+    <div class="paid-like-modal" role="dialog" aria-modal="true" aria-labelledby="paidLikeModalTitle">
+      <button class="paid-like-close" type="button" aria-label="닫기">×</button>
+      <div class="paid-like-head">
+        <span class="eyebrow">Paid Cheer</span>
+        <h2 id="paidLikeModalTitle">좋아요 추가 응원</h2>
+        <p>${artist?.publicName || "아티스트"}에게 루미나로 좋아요를 더 전달해요.</p>
+      </div>
+      <div class="paid-like-balance">
+        <span>현재 보유 루미나</span>
+        <strong>${formatMypageNumber ? formatMypageNumber(balance) : Number(balance || 0).toLocaleString("ko-KR")}L</strong>
+      </div>
+      <div class="paid-like-options">
+        ${PAID_LIKE_BUNDLES.map((bundle, index) => `
+          <label class="paid-like-option${index === 1 ? " is-selected" : ""}">
+            <input type="radio" name="paidLikeBundle" value="${bundle.quantity}" ${index === 1 ? "checked" : ""} />
+            <span>
+              <strong>${bundle.label}</strong>
+              <small>${bundle.recommended ? "추천 번들" : "추가 응원 번들"}</small>
+            </span>
+          </label>
+        `).join("")}
+      </div>
+      <p class="paid-like-message" data-paid-like-message hidden></p>
+      <div class="paid-like-actions">
+        <button class="button-primary" type="button" data-paid-like-confirm>응원하기</button>
+        <button class="button-secondary" type="button" data-paid-like-cancel>취소</button>
+      </div>
+    </div>
+  `;
+
+  const close = () => {
+    overlay.remove();
+    document.body.style.overflow = "";
+  };
+  const setMessage = text => {
+    const el = overlay.querySelector("[data-paid-like-message]");
+    if (!el) return;
+    el.hidden = false;
+    el.textContent = text;
+  };
+
+  overlay.addEventListener("click", event => {
+    if (event.target === overlay || event.target.closest(".paid-like-close") || event.target.closest("[data-paid-like-cancel]")) close();
+    const option = event.target.closest(".paid-like-option");
+    if (option) {
+      overlay.querySelectorAll(".paid-like-option").forEach(item => item.classList.toggle("is-selected", item === option));
+    }
+  });
+
+  overlay.querySelector("[data-paid-like-confirm]")?.addEventListener("click", async () => {
+    const selectedQuantity = Number(overlay.querySelector("[name='paidLikeBundle']:checked")?.value || 1);
+    const selectedBundle = PAID_LIKE_BUNDLES.find(bundle => bundle.quantity === selectedQuantity) || PAID_LIKE_BUNDLES[0];
+    const currentBalance = getPaidLikeBalance();
+    if (currentBalance < selectedBundle.lumina) {
+      setMessage(`루미나가 부족해요. 좋아요 ${selectedBundle.quantity}개를 전달하려면 ${selectedBundle.lumina}L이 필요해요.`);
+      return;
+    }
+
+    const button = overlay.querySelector("[data-paid-like-confirm]");
+    button.disabled = true;
+    button.textContent = "전달 중";
+    try {
+      await apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/paid-like`, {
+        method: "POST",
+        auth: true,
+        throwOnError: true,
+        body: {
+          artistId: artist?.id || slug,
+          artistSlug: slug,
+          quantity: selectedBundle.quantity
+        }
+      });
+      const rank = _rankings.find(r => r.slug === slug);
+      if (rank) rank.likes += selectedBundle.quantity;
+      else _rankings.push({ slug, likes: selectedBundle.quantity });
+      if (_wallet?.loaded) _wallet.balance = Math.max(0, Number(_wallet.balance || 0) - selectedBundle.lumina);
+      updateLikeButtons(slug);
+      loadWallet?.();
+      loadFreeLikeQuota().then(updateHeroQuotaDisplay);
+      alert(`좋아요 ${selectedBundle.quantity}개가 전달되었어요.`);
+      close();
+    } catch (err) {
+      const msg = err.body?.message || err.message || "";
+      setMessage(msg || "응원을 전달하지 못했어요. 잠시 후 다시 시도해주세요.");
+      button.disabled = false;
+      button.textContent = "응원하기";
+    }
+  });
+
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
 }
 
 function updateLikeButtons(slug) {
@@ -1139,7 +1265,23 @@ const characters = [
     images: { cover: "./assets/characters/han-seoyul/cover.png", thumb: "./assets/characters/han-seoyul/thumb.png" },
     intro: "경기도 분당에서 자란 한서율은 중학교 시절 전국 청소년 댄스 대회에서 2연패를 달성하며 일찌감치 재능을 증명했다. 아이디어엠 공개 오디션 최종 합격 후 1년간 트레이닝을 마치고 Lumina Stage 1기로 합류했다. 센터에 서는 순간 공간 전체를 밝히는 반짝임이 있고, 어떤 팀원과 붙어도 자연스럽게 분위기를 끌어올리는 무드메이커 기질이 타고났다.",
     concept: "센터에 서는 이유는 혼자 빛나기 위해서가 아니에요. 제 옆에 선 사람들, 저를 바라봐주는 팬들까지 함께 환해지는 무대를 만들겠습니다.",
-    profile: { 생년월일: "2003년 6월 22일 (만 22세)", 출신지: "경기도 분당", 신체: "166cm", 혈액형: "O형", 포지션: "메인 아이돌 / 센터형", 데뷔: "2024년 Lumina Stage 1기", 팬포인트: "정면 비주얼과 대중성", 광고축: "패션 · 음료 · 라이프스타일", MBTI: "ENFJ", 취미: "배드민턴, 카페 투어, 그림 그리기" },
+    profile: {
+      생년월일: "2003년 6월 22일 (만 22세)",
+      출신지: "경기도 성남시 분당구",
+      신체: "166cm",
+      혈액형: "O형",
+      포지션: "메인 아이돌 / 럭셔리 러블리 센터",
+      데뷔: "2024년 Lumina Stage 1기",
+      캐릭터타입: "화사한 센터형 아이돌",
+      팬덤명: "Yulight",
+      팬포인트: "밝은 정면 비주얼, 무대 위 균형감, 팬서비스 감각",
+      시그니처: "샴페인 핑크 리본 마이크 · 글리터 헤어핀 · 센터 포즈",
+      광고축: "뷰티 · 음료 · 라이프스타일 · 팬미팅 콘텐츠",
+      대표컬러: "Champagne Pink / Soft Gold",
+      MBTI: "ENFJ",
+      취미: "배드민턴, 카페 투어, 그림 그리기",
+      좋아하는선물: "핑크 튤립, 손편지, 리본 액세서리, 달콤한 디저트"
+    },
     shorts: [{ title: "센터 무드 스냅", metric: "조회 9.7만" }, { title: "하이틴 센터 포맷", metric: "조회 10.1만" }, { title: "팬서비스 포토무드", metric: "좋아요 2.8만" }]
   },
   {
@@ -1156,7 +1298,23 @@ const characters = [
     images: { cover: "./assets/characters/park-doa/cover.png", thumb: "./assets/characters/park-doa/thumb.png" },
     intro: "부산 해운대 출신 박도아는 고등학교 1학년 때 시작한 틱톡 계정이 6개월 만에 팔로워 12만을 돌파하며 자신의 가능성을 직접 증명했다. 먹방, 리액션, 일상 브이로그를 자유롭게 오가는 콘텐츠 감각과 부산 특유의 직설적인 입담이 팬들의 마음을 사로잡았다.",
     concept: "멀리 있는 스타보다 오늘도 편하게 말 걸 수 있는 사람이 되고 싶어요. 웃긴 순간도, 솔직한 하루도, 팬들과 가장 가까운 온도로 나누겠습니다.",
-    profile: { 생년월일: "2002년 11월 5일 (만 23세)", 출신지: "부산 해운대구", 신체: "163cm", 혈액형: "B형", 포지션: "커뮤니티 훅 / 스트리머", 데뷔: "2024년 Lumina Stage 1기", 팬포인트: "리액션과 친근함", 광고축: "푸드 · 커머스 · 라이프", MBTI: "ESFP", 취미: "먹방 촬영, 독서, 바다 수영" },
+    profile: {
+      생년월일: "2002년 11월 5일 (만 23세)",
+      출신지: "부산 해운대구",
+      신체: "163cm",
+      혈액형: "B형",
+      포지션: "커뮤니티 훅 / 리액션 스트리머",
+      데뷔: "2024년 Lumina Stage 1기",
+      캐릭터타입: "생활형 소통 스트리머",
+      팬덤명: "Doable",
+      팬포인트: "즉흥 리액션, 솔직한 말투, 가까운 친구 같은 친근함",
+      시그니처: "코랄 후디 · 미니 먹방 테이블 · 반달 눈웃음",
+      광고축: "푸드 · 커머스 · 라이프 · 댓글형 숏폼",
+      대표컬러: "Warm Coral / Cream Orange",
+      MBTI: "ESFP",
+      취미: "먹방 촬영, 독서, 바다 수영",
+      좋아하는선물: "지역 간식, 귀여운 머그컵, 코랄빛 소품, 편한 담요"
+    },
     shorts: [{ title: "친근 리액션 포맷", metric: "조회 15.3만" }, { title: "생활형 브이로그컷", metric: "댓글 1.1천" }, { title: "먹방 리액션 티저", metric: "저장 3.7천" }]
   },
   {
@@ -1173,7 +1331,23 @@ const characters = [
     images: { cover: "./assets/characters/choi-seojin/cover.png", thumb: "./assets/characters/choi-seojin/thumb.png" },
     intro: "서울 용산에서 태어난 최서진은 여덟 살 때 아역배우로 첫 스크린을 밟았다. 성장하면서 자연스럽게 패션·뷰티 모델로 영역을 넓혔고, 파리 아르떼 에콜 교환학생으로 선발되어 유럽 예술·패션 씬을 직접 경험했다. Lumina Stage에서는 프리미엄 라인의 간판을 맡아 스튜디오 전체의 품격을 책임진다.",
     concept: "많이 말하지 않아도 장면은 남는다고 믿습니다. 한 컷의 시선, 한 번의 침묵까지 품격 있게 쌓아 최서진이라는 이름의 무드를 완성하겠습니다.",
-    profile: { 생년월일: "1999년 1월 28일 (만 27세)", 출신지: "서울 용산구", 신체: "172cm", 혈액형: "AB형", 포지션: "프리미엄 메인 / 배우", 데뷔: "2024년 Lumina Stage 1기", 팬포인트: "고급감과 존재감", 광고축: "주얼리 · 럭셔리 뷰티 · 에디토리얼", MBTI: "INFJ", 취미: "현대미술 관람, 와인 페어링, 필름 카메라" },
+    profile: {
+      생년월일: "1999년 1월 28일 (만 27세)",
+      출신지: "서울 용산구",
+      신체: "172cm",
+      혈액형: "AB형",
+      포지션: "프리미엄 메인 / 배우",
+      데뷔: "2024년 Lumina Stage 1기",
+      캐릭터타입: "럭셔리 에디토리얼 배우형",
+      팬덤명: "Seojin Atelier",
+      팬포인트: "절제된 표정, 성숙한 분위기, 한 컷으로 남는 존재감",
+      시그니처: "블랙 드레스 · 골드 드롭 이어링 · 필름 카메라",
+      광고축: "주얼리 · 시계 · 럭셔리 뷰티 · 에디토리얼",
+      대표컬러: "Black Gold / Champagne Beige",
+      MBTI: "INFJ",
+      취미: "현대미술 관람, 와인 페어링, 필름 카메라",
+      좋아하는선물: "니치 향수, 블랙 다이어리, 골드 북마크, 전시 티켓"
+    },
     shorts: [{ title: "에디토리얼 컷 무드", metric: "조회 6.2만" }, { title: "럭셔리 화보 티저", metric: "저장 2.1천" }, { title: "브랜드 무드 필름", metric: "완주율 68%" }]
   },
   {
@@ -1189,7 +1363,23 @@ const characters = [
     images: { cover: "./assets/characters/oh-hyerin/cover.png", thumb: "./assets/characters/oh-hyerin/thumb.png" },
     intro: "오혜린은 청아한 보컬과 섬세한 감정선으로 먼저 기억되는 아이돌 라인이다. 큰 제스처보다 작은 떨림, 높은 음보다 오래 남는 숨결로 팬의 마음에 닿는다.",
     concept: "큰 소리보다 오래 남는 목소리가 되고 싶어요. 누군가의 하루 끝에 조용히 머무는 노래로, 제 진심을 천천히 전하겠습니다.",
-    profile: { 포지션: "서브 아이돌 / 보컬", 팬포인트: "청아함과 감성선", 운영상태: "데뷔 예정", 광고축: "감성 캠페인 · 뷰티" },
+    profile: {
+      생년월일: "2004년 2월 19일 (만 22세)",
+      출신지: "대전 유성구",
+      신체: "164cm",
+      혈액형: "A형",
+      포지션: "서브 아이돌 / 감성 보컬",
+      데뷔: "2026년 Lumina Stage 공개 예정",
+      캐릭터타입: "새벽 감성 보컬형",
+      팬덤명: "Hyerin Note",
+      팬포인트: "청아한 음색, 조용한 위로, 섬세한 감정선",
+      시그니처: "페일 라벤더 마이크 · 작은 다이어리 · 이어커프",
+      광고축: "발라드 · 음원 커버 · 팬레터 · 감성 뷰티",
+      대표컬러: "Pale Lavender / Moon White",
+      MBTI: "INFP",
+      취미: "새벽 산책, 손글씨 노트, 어쿠스틱 플레이리스트 만들기",
+      좋아하는선물: "라벤더 향초, 편지지, 작은 오르골, 따뜻한 차"
+    },
     shorts: [{ title: "첫 보컬 무드", metric: "공개 대기" }]
   },
   {
@@ -1205,7 +1395,23 @@ const characters = [
     images: { cover: "./assets/characters/min-chaeon/cover.png", thumb: "./assets/characters/min-chaeon/thumb.png" },
     intro: "민채온은 러블리한 첫인상과 탄탄한 에너지가 공존하는 피트니스형 아이돌이다. 가벼운 미소로 다가오지만, 무대 위에서는 리듬과 체력으로 시선을 붙잡는다.",
     concept: "귀엽게 웃는 모습 뒤에 숨겨둔 힘을 무대에서 보여드릴게요. 가볍게 시작해도 끝까지 단단하게 버티는 에너지로 제 이름을 증명하겠습니다.",
-    profile: { 포지션: "피트니스 아이돌", 팬포인트: "귀여움과 건강미 반전", 광고축: "피트니스 · 스포츠 뷰티" },
+    profile: {
+      생년월일: "2003년 9월 8일 (만 22세)",
+      출신지: "경기도 고양시",
+      신체: "165cm",
+      혈액형: "O형",
+      포지션: "피트니스 아이돌",
+      데뷔: "Lumina Stage 확장 후보",
+      캐릭터타입: "러블리 피트니스 반전형",
+      팬덤명: "Chaeon Fit",
+      팬포인트: "귀여운 첫인상, 탄탄한 에너지, 무대 위 반전 집중력",
+      시그니처: "파스텔 트레이닝 밴드 · 하트 물병 · 포니테일 리본",
+      광고축: "피트니스 · 스포츠 뷰티 · 밝은 라이프스타일",
+      대표컬러: "Peach Pink / Active Mint",
+      MBTI: "ESFJ",
+      취미: "필라테스, 스무디 레시피 만들기, 운동복 코디",
+      좋아하는선물: "스포츠 타월, 복숭아 향 바디미스트, 리본 헤어밴드, 단백질 쿠키"
+    },
     shorts: [{ title: "피트니스 스냅", metric: "공개 대기" }]
   },
   {
@@ -1222,7 +1428,23 @@ const characters = [
     images: { cover: "./assets/characters/cha-dohyun/cover.png", thumb: "./assets/characters/cha-dohyun/thumb.png" },
     intro: "슬림한 실루엣과 날카로운 눈매, 체인과 진주 레이어링이 트레이드마크. 하이패션과 K-pop 아티스트성을 동시에 구현하는 Lumina Stage 첫 번째 남성 아티스트다. 성별을 초월한 스타일링과 무대 퍼포먼스로 장르의 경계를 무너뜨린다.",
     concept: "제게 패션은 갑옷이고 무대는 언어입니다. 어떤 스타일을 입어도 결국 가장 저답게 서서, 경계를 넘는 아티스트가 되겠습니다.",
-    profile: { 포지션: "젠더리스 패션 아티스트", 팬포인트: "하이패션과 아티스트성", 광고축: "하이패션 · 매거진 · 스트릿 럭셔리", MBTI: "INFP", 취미: "빈티지 패션 수집, 드로잉, 전시 탐방" },
+    profile: {
+      생년월일: "2000년 10월 2일 (만 25세)",
+      출신지: "서울 성수동",
+      신체: "181cm",
+      혈액형: "A형",
+      포지션: "젠더리스 패션 아티스트",
+      데뷔: "2026년 Lumina Stage 초기 공개",
+      캐릭터타입: "하이패션 퍼포머형",
+      팬덤명: "Dohyverse",
+      팬포인트: "날카로운 눈매, 경계를 넘는 스타일링, 조용한 자기 확신",
+      시그니처: "체인 초커 · 진주 레이어링 · 블랙 레더 장갑",
+      광고축: "하이패션 · 매거진 화보 · 스트릿 럭셔리",
+      대표컬러: "Midnight Violet / Silver Black",
+      MBTI: "INFP",
+      취미: "빈티지 패션 수집, 드로잉, 전시 탐방",
+      좋아하는선물: "실버 링, 흑백 필름, 아트북, 빈티지 브로치"
+    },
     shorts: [{ title: "하이패션 화보 티저", metric: "공개 중" }, { title: "스트릿 룩북", metric: "조회 8.1만" }]
   },
   {
@@ -1237,7 +1459,23 @@ const characters = [
     colorAccent: "#808080",
     images: { cover: "./assets/characters/kang-sia/cover.png", thumb: "./assets/characters/kang-sia/thumb.png" },
     intro: "강시아는 향수, 데님, 카페의 온도가 어울리는 도시형 모델이다. 과한 포즈 대신 자연스러운 시선과 걷는 리듬으로 라이프스타일의 선망을 만든다.", concept: "애써 꾸미지 않아도 시선이 머무는 사람이 되고 싶어요. 도시의 오후처럼 담담하지만 오래 남는 분위기로 제 장면을 만들겠습니다.",
-    profile: { 포지션: "도시형 모델", 팬포인트: "비공개", 광고축: "향수 · 데님 · 라이프스타일" },
+    profile: {
+      생년월일: "2001년 9월 17일 (만 24세)",
+      출신지: "서울 마포구 연남동",
+      신체: "170cm",
+      혈액형: "A형",
+      포지션: "도시형 라이프스타일 모델",
+      데뷔: "Lumina Stage 확장 후보",
+      캐릭터타입: "에포트리스 시크 모델형",
+      팬덤명: "Sia Hours",
+      팬포인트: "자연스러운 시선, 담담한 세련미, 보조개가 남기는 여운",
+      시그니처: "화이트 셔츠 · 빈티지 데님 · 무광 실버 이어링",
+      광고축: "향수 · 데님 · 도시 라이프스타일 · 카페 화보",
+      대표컬러: "Ivory Denim / City Gray",
+      MBTI: "ISFP",
+      취미: "동네 카페 기록, 필름 사진, 빈티지 숍 산책",
+      좋아하는선물: "무향 핸드크림, 필름롤, 데님 키링, 작은 화병"
+    },
     shorts: [{ title: "시티 무드 스냅", metric: "비공개 라인" }]
   },
   {
@@ -1252,7 +1490,23 @@ const characters = [
     colorAccent: "#808080",
     images: { cover: "./assets/characters/lee-jiwon/cover.png", thumb: "./assets/characters/lee-jiwon/thumb.png" },
     intro: "이지원은 긴 흑발과 차가운 아우라로 액션, 테크, 자동차 캠페인에 어울리는 배우형 아티스트다. 감정을 크게 드러내지 않아도 장면의 긴장을 끝까지 붙잡는다.", concept: "쉽게 흔들리지 않는 눈빛으로 장면을 끝까지 밀고 가겠습니다. 말보다 분위기로 먼저 도착하는 배우가 되겠습니다.",
-    profile: { 포지션: "쿨 톱스타 배우", 팬포인트: "비공개", 광고축: "자동차 · 테크 · 액션" },
+    profile: {
+      생년월일: "1998년 8월 17일 (만 27세)",
+      출신지: "서울 송파구",
+      신체: "171cm",
+      혈액형: "B형",
+      포지션: "쿨 톱스타 배우",
+      데뷔: "Lumina Stage 확장 후보",
+      캐릭터타입: "액션 톱스타 배우형",
+      팬덤명: "Jiwon Drive",
+      팬포인트: "흔들리지 않는 눈빛, 차가운 아우라, 장면을 밀고 가는 힘",
+      시그니처: "화이트 티셔츠 · 블랙 선글라스 · 실버 카 키링",
+      광고축: "자동차 · 테크 · 액션 화보 · 프리미엄 캐주얼",
+      대표컬러: "Cool White / Asphalt Black",
+      MBTI: "ISTP",
+      취미: "야간 드라이브, 액션 영화 분석, 러닝",
+      좋아하는선물: "메탈 키링, 블랙 캡, 무선 이어폰 케이스, 시네마 티켓"
+    },
     shorts: [{ title: "액션 무드 컷", metric: "비공개 라인" }]
   },
   {
@@ -1267,7 +1521,23 @@ const characters = [
     colorAccent: "#808080",
     images: { cover: "./assets/characters/ha-yuna/cover.png", thumb: "./assets/characters/ha-yuna/thumb.png" },
     intro: "하윤아는 고양이상 눈매와 비비드한 컬러 감각을 가진 스트릿 뷰티 모델이다. 빠르게 지나가는 숏폼 피드 안에서도 한 번 더 보게 만드는 트렌드 감도를 지녔다.", concept: "오늘의 색과 흐름은 제가 먼저 정해볼게요. 빠르게 지나가는 피드 안에서도 다시 멈춰 보게 만드는 존재가 되겠습니다.",
-    profile: { 포지션: "스트릿 뷰티 모델", 팬포인트: "비공개", 광고축: "스트릿 패션 · 색조 뷰티" },
+    profile: {
+      생년월일: "2004년 4월 3일 (만 22세)",
+      출신지: "서울 홍대입구",
+      신체: "168cm",
+      혈액형: "AB형",
+      포지션: "SNS 스트릿 뷰티 모델",
+      데뷔: "Lumina Stage 확장 후보",
+      캐릭터타입: "비비드 스트릿 트렌드형",
+      팬덤명: "Yunatic",
+      팬포인트: "고양이상 눈매, 빠른 트렌드 감각, 비비드한 자신감",
+      시그니처: "슬릭백 헤어 · 네온 네일 · 미니 크로스백",
+      광고축: "스트릿 패션 · 색조 뷰티 · Y2K · SNS 챌린지",
+      대표컬러: "Neon Pink / Electric Blue",
+      MBTI: "ENTP",
+      취미: "네일 컬러 믹스, 거리 사진 찍기, 신상 립 테스트",
+      좋아하는선물: "컬러 립틴트, 키치한 스티커, 네온 헤어핀, 미니 파우치"
+    },
     shorts: [{ title: "컬러 트렌드 컷", metric: "비공개 라인" }]
   },
   {
@@ -1282,7 +1552,23 @@ const characters = [
     colorAccent: "#808080",
     images: { cover: "./assets/characters/baek-ria/cover.png", thumb: "./assets/characters/baek-ria/thumb.png" },
     intro: "백리아는 맑은 얼굴, 청량한 색감, 보컬 커버에 강한 직캠형 아이돌이다. 여름 음료 광고처럼 시원한 첫인상과 다시 보고 싶은 무대 표정이 강점이다.", concept: "여름처럼 맑고 직캠처럼 오래 남고 싶어요. 첫 소절부터 시원하게 닿는 무대로 팬들의 하루를 환하게 만들겠습니다.",
-    profile: { 포지션: "청량 직캠 보컬", 팬포인트: "비공개", 광고축: "청량 무대 · 여름 콘텐츠" },
+    profile: {
+      생년월일: "2005년 7월 12일 (만 20세)",
+      출신지: "강원도 강릉시",
+      신체: "165cm",
+      혈액형: "O형",
+      포지션: "청량 직캠 보컬",
+      데뷔: "Lumina Stage 신규 후보",
+      캐릭터타입: "여름빛 직캠 보컬형",
+      팬덤명: "Ria Wave",
+      팬포인트: "맑은 첫인상, 시원한 보컬, 다시 보게 되는 직캠 표정",
+      시그니처: "스카이블루 마이크 · 투명 비즈 팔찌 · 흰 스니커즈",
+      광고축: "청량 무대 · 보컬 커버 · 여름 음료 · 직캠 숏폼",
+      대표컬러: "Sky Blue / Clear White",
+      MBTI: "ENFP",
+      취미: "보컬 커버 녹음, 바닷가 산책, 폴라로이드 모으기",
+      좋아하는선물: "파란 리본, 투명 파우치, 조개 모양 액세서리, 청량한 향 바디미스트"
+    },
     shorts: [{ title: "청량 직캠 컷", metric: "비공개 라인" }]
   },
   {
@@ -1297,7 +1583,23 @@ const characters = [
     colorAccent: "#808080",
     images: { cover: "./assets/characters/oh-yuna/cover.png", thumb: "./assets/characters/oh-yuna/thumb.png" },
     intro: "오유나는 워터 페스티벌, 솔로 퍼포먼스, 시즌 광고에 강한 여름 디바 라인이다. 강한 조명과 물빛 무대에서 에너지를 크게 터뜨리는 아티스트로 설계되어 있다.", concept: "무대 위의 계절을 바꿀 수 있다면 저는 늘 여름을 선택할래요. 뜨겁고 선명한 에너지로 가장 먼저 떠오르는 이름이 되겠습니다.",
-    profile: { 포지션: "여름 페스티벌 디바", 팬포인트: "비공개", 광고축: "워터 스포츠 · 여름 음료" },
+    profile: {
+      생년월일: "2000년 8월 2일 (만 25세)",
+      출신지: "제주 서귀포시",
+      신체: "169cm",
+      혈액형: "B형",
+      포지션: "여름 페스티벌 디바",
+      데뷔: "Lumina Stage 신규 후보",
+      캐릭터타입: "솔로 디바 페스티벌형",
+      팬덤명: "Yuna Splash",
+      팬포인트: "뜨거운 에너지, 당당한 표정, 시즌을 바꾸는 무대 장악력",
+      시그니처: "아쿠아 고글 · 핫핑크 마이크 · 웻헤어 스타일",
+      광고축: "워터 페스티벌 · 여름 음료 · 워터 스포츠 · 솔로 무대",
+      대표컬러: "Aqua Blue / Hot Pink",
+      MBTI: "ESTP",
+      취미: "수영, 페스티벌 플레이리스트 만들기, 선글라스 수집",
+      좋아하는선물: "아쿠아 향수, 선글라스, 방수 파우치, 핫핑크 타월"
+    },
     shorts: [{ title: "페스티벌 티저", metric: "비공개 라인" }]
   },
   {
@@ -1312,7 +1614,23 @@ const characters = [
     colorAccent: "#808080",
     images: { cover: "./assets/characters/kwon-taejun/cover.png", thumb: "./assets/characters/kwon-taejun/thumb.png" },
     intro: "권태준은 깊은 눈빛과 낮은 톤으로 누아르, 수트, 향수 캠페인에 어울리는 배우형 아티스트다. 대사가 많지 않아도 감정의 무게를 장면에 남긴다.", concept: "많이 말하지 않아도 감정은 남길 수 있다고 믿습니다. 낮은 목소리와 긴 침묵 사이에 제 서사를 깊게 새기겠습니다.",
-    profile: { 포지션: "누아르 배우", 팬포인트: "비공개", 광고축: "수트 · 시계 · 향수" },
+    profile: {
+      생년월일: "1997년 11월 23일 (만 28세)",
+      출신지: "서울 종로구",
+      신체: "184cm",
+      혈액형: "A형",
+      포지션: "누아르 배우 / 저음 챗",
+      데뷔: "Lumina Stage 신규 후보",
+      캐릭터타입: "저음 누아르 배우형",
+      팬덤명: "Taejun Noir",
+      팬포인트: "깊은 눈빛, 낮은 목소리, 긴 침묵에 남는 감정선",
+      시그니처: "다크 수트 · 메탈 시계 · 검은 우산",
+      광고축: "수트 · 시계 · 향수 · 누아르 숏폼",
+      대표컬러: "Noir Black / Deep Burgundy",
+      MBTI: "ISTJ",
+      취미: "흑백 영화 보기, 시계 관리, 밤 산책",
+      좋아하는선물: "가죽 북커버, 클래식 시계 스트랩, 다크 로즈, 우드 향수"
+    },
     shorts: [{ title: "누아르 티저", metric: "비공개 라인" }]
   },
   {
@@ -1327,7 +1645,23 @@ const characters = [
     colorAccent: "#808080",
     images: { cover: "./assets/characters/seo-hamin/cover.png", thumb: "./assets/characters/seo-hamin/thumb.png" },
     intro: "서하민은 안경과 큐카드가 잘 어울리는 커뮤니티 MC형 아티스트다. 이벤트, 고민 상담, 팬 참여형 콘텐츠에서 자연스럽게 분위기를 만들고 사람들을 연결한다.", concept: "어색한 공기도 제가 먼저 열어볼게요. 팬과 아티스트가 편하게 웃고 참여할 수 있는 순간을 만드는 진행자가 되겠습니다.",
-    profile: { 포지션: "이벤트 MC", 팬포인트: "비공개", 광고축: "예능 · 팬 이벤트" },
+    profile: {
+      생년월일: "2001년 4월 9일 (만 25세)",
+      출신지: "대구 수성구",
+      신체: "178cm",
+      혈액형: "O형",
+      포지션: "커뮤니티 MC / 이벤트 진행",
+      데뷔: "Lumina Stage 신규 후보",
+      캐릭터타입: "팬덤 분위기 메이커형",
+      팬덤명: "Hamin Crew",
+      팬포인트: "어색함을 푸는 진행력, 밝은 리액션, 팬과 아티스트를 잇는 센스",
+      시그니처: "라운드 안경 · 큐카드 · 캐주얼 수트",
+      광고축: "예능 숏폼 · 팬 이벤트 · 고민 상담 · 플랫폼 공지",
+      대표컬러: "Lime Green / Warm Navy",
+      MBTI: "ENFJ",
+      취미: "보드게임, 진행 대본 정리, 라디오 듣기",
+      좋아하는선물: "귀여운 펜, 큐카드 홀더, 커피 쿠폰, 응원 메시지 카드"
+    },
     shorts: [{ title: "팬 이벤트 오프닝", metric: "비공개 라인" }]
   },
   {
@@ -1342,7 +1676,23 @@ const characters = [
     colorAccent: "#808080",
     images: { cover: "./assets/characters/ryu-taeo/cover.png", thumb: "./assets/characters/ryu-taeo/thumb.png" },
     intro: "류태오는 밝은 미소와 애슬레틱한 움직임을 가진 스포츠 챌린지형 아티스트다. 글로벌 응원 캠페인, 에너지 드링크, 팀 챌린지 콘텐츠에서 활약할 수 있는 라인이다.", concept: "끝까지 뛰면 닿는 곳이 있다고 믿어요. 밝게 웃고 더 크게 움직이며, 응원의 에너지를 무대 끝까지 가져가겠습니다.",
-    profile: { 포지션: "스포츠 챌린지", 팬포인트: "비공개", 광고축: "스포츠 · 에너지 드링크" },
+    profile: {
+      생년월일: "2000년 6월 3일 (만 25세)",
+      출신지: "인천 송도",
+      신체: "183cm",
+      혈액형: "O형",
+      포지션: "스포츠 챌린지 아티스트",
+      데뷔: "Lumina Stage 신규 후보",
+      캐릭터타입: "에너지 응원 캠페인형",
+      팬덤명: "Taeo Run",
+      팬포인트: "밝은 미소, 끝까지 뛰는 힘, 응원을 크게 되돌려주는 에너지",
+      시그니처: "스포츠 저지 · 에너지 보틀 · 화이트 헤드밴드",
+      광고축: "스포츠 · 운동 챌린지 · 에너지 드링크 · 글로벌 응원 캠페인",
+      대표컬러: "Energy Red / Fresh White",
+      MBTI: "ESFP",
+      취미: "축구, 러닝 기록 체크, 팀 응원 영상 보기",
+      좋아하는선물: "스포츠 양말, 팀 컬러 팔찌, 보틀 스티커, 에너지바"
+    },
     shorts: [{ title: "응원 챌린지 컷", metric: "비공개 라인" }]
   },
   {
@@ -1358,7 +1708,23 @@ const characters = [
     images: { cover: "./assets/characters/seo-yuan/cover.png", thumb: "./assets/characters/seo-yuan/thumb.png" },
     intro: "투명한 피부와 단아한 롱헤어, 미니멀한 화이트 룩이 트레이드마크. 스킨케어와 홈리빙 광고에서 신뢰감 있는 무드를 만들어낸다.",
     concept: "꾸미지 않은 듯 가장 오래 머무는 분위기를 보여드릴게요. 편안하지만 흐려지지 않는 장면으로, 자연스럽게 팬들의 일상에 스며들겠습니다.",
-    profile: { 포지션: "내추럴 럭셔리 모델", 팬포인트: "호감형 우아함", 광고축: "스킨케어 · 홈리빙 · 뷰티" },
+    profile: {
+      생년월일: "2002년 4월 21일 (만 24세)",
+      출신지: "경기도 과천시",
+      신체: "167cm",
+      혈액형: "A형",
+      포지션: "내추럴 럭셔리 모델",
+      데뷔: "2026년 Lumina Stage 공개",
+      캐릭터타입: "스킨케어 신뢰 모델형",
+      팬덤명: "Yuan Room",
+      팬포인트: "투명한 분위기, 편안한 신뢰감, 오래 머무는 자연스러움",
+      시그니처: "아이보리 니트 · 투명 립밤 · 미니멀 실버 링",
+      광고축: "스킨케어 · 향수 · 홈리빙 · 올드머니 룩",
+      대표컬러: "Ivory White / Soft Sage",
+      MBTI: "ISFJ",
+      취미: "홈카페, 리빙 소품 정리, 식물 돌보기",
+      좋아하는선물: "무화과 향 캔들, 세라믹 컵, 미니 화분, 부드러운 니트 소품"
+    },
     shorts: [{ title: "스킨케어 무드컷", metric: "공개 중" }]
   }
 ];
@@ -1603,8 +1969,19 @@ const luminaFeedSamplePosts = [
 let _luminaFeedFilter = "all";
 let _luminaFeedItems = [];          // 정규화된 통일 구조
 let _luminaFeedSource = "inline";   // "operations" | "samples" | "inline"
+let _luminaFeedScope = "all";       // "all" | "following"
 
 /* authorType / postType 정규화 (운영 enum, 에밀리 한국어 모두 흡수) */
+function feedEscapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#039;"
+  })[ch]);
+}
+
 function normalizeFeedAuthorType(rawAuthorType) {
   // 한국어 라벨 → 영어 enum 통일
   const koreanToEnum = {
@@ -1626,17 +2003,44 @@ function feedAuthorTypeLabel(authorTypeEnum) {
 }
 
 function normalizeFeedPost(raw) {
+  const authUserId = getAuth()?.user?.id || getAuth()?.user?.userId || null;
+  const authorUserId = raw.authorUserId || raw.userId || raw.createdByUserId || raw.author?.id || raw.user?.id || null;
   return {
     id: String(raw.id ?? ""),
     postType: raw.postType || "fan_post",
     artistSlug: (raw.artistSlug && raw.artistSlug !== "없음") ? raw.artistSlug : null,
     authorType: normalizeFeedAuthorType(raw.authorType),
-    body: raw.body || ""
+    authorName: raw.authorName || raw.author?.displayName || raw.user?.displayName || raw.user?.nickname || "",
+    avatarUrl: raw.avatarUrl || raw.author?.avatarUrl || raw.user?.avatarUrl || "",
+    body: raw.body || raw.content || "",
+    canDelete: Boolean(raw.canDelete || raw.isMine || (authUserId && authorUserId && String(authUserId) === String(authorUserId)))
   };
 }
 
 /* ── 데이터 로더: 운영 API → samples → inline 3단 fallback (#022) ── */
-async function loadLuminaFeedData() {
+async function loadLuminaFeedData(scope = "all") {
+  _luminaFeedScope = scope;
+  if (scope === "following") {
+    if (typeof isLoggedIn === "function" && !isLoggedIn()) {
+      _luminaFeedItems = [];
+      _luminaFeedSource = "following_guest";
+      return;
+    }
+    try {
+      const res = await apiFetch("/api/v1/me/lumina-feed?mode=following&take=20", { auth: true });
+      const items = Array.isArray(res) ? res : (res?.items || res?.posts || []);
+      _luminaFeedItems = Array.isArray(items) ? items.map(normalizeFeedPost) : [];
+      _luminaFeedSource = "following";
+      console.info(`[Lumina] 팔로잉 피드 로드 ${_luminaFeedItems.length}건`);
+      return;
+    } catch (err) {
+      console.warn("[Lumina] /me/lumina-feed 실패:", err);
+      _luminaFeedItems = [];
+      _luminaFeedSource = "following_error";
+      return;
+    }
+  }
+
   // 1. 운영 API 시도 — 실제 사용자 글 (DB 기반)
   try {
     const res = await apiFetch("/api/v1/lumina-feed?mode=all&take=30");
@@ -1675,15 +2079,16 @@ function renderLuminaFeed() {
   const root = document.getElementById("luminaFeedList");
   if (!root) return;
 
-  const list = (_luminaFeedFilter === "all")
+  const list = (_luminaFeedFilter === "all" || _luminaFeedFilter === "following")
     ? _luminaFeedItems
     : _luminaFeedItems.filter(p => p.postType === _luminaFeedFilter);
 
   if (list.length === 0) {
-    // #020 feed.empty.all 카피 적용 (분류별 빈 상태는 약간 변형)
-    const emptyMsg = (_luminaFeedFilter === "all")
-      ? "아직 피드에 올라온 글이 없습니다. 첫 응원을 남겨보세요."
-      : "이 분류의 글이 아직 없어요.";
+    const emptyMsg = _luminaFeedSource === "following_guest"
+      ? "로그인하면 팔로우한 아티스트와 팬들의 글을 모아볼 수 있어요."
+      : (_luminaFeedFilter === "all" || _luminaFeedFilter === "following")
+        ? "아직 피드에 올라온 글이 없습니다. 첫 응원을 남겨보세요."
+        : "이 분류의 글이 아직 없어요.";
     root.innerHTML = `<div class="feed-empty">${emptyMsg}</div>`;
     return;
   }
@@ -1692,13 +2097,16 @@ function renderLuminaFeed() {
     const artist = post.artistSlug ? getCharacterBySlug(post.artistSlug) : null;
     const authorName = artist
       ? artist.publicName
-      : (post.postType === "debut_artist_post" ? "데뷔 준비 중인 아티스트" : "익명의 팬");
-    const avatarSrc = artist?.images?.thumb || "";
+      : (post.authorName || (post.postType === "debut_artist_post" ? "데뷔 준비 중인 아티스트" : "익명의 팬"));
+    const avatarSrc = artist?.images?.thumb || post.avatarUrl || "";
     const initial = (authorName || "?").charAt(0);
     const typeKey = post.postType.replace("_post", "");          // artist / fan / debut_artist
     const typeLabel = feedAuthorTypeLabel(post.authorType);
     const clickable = artist
       ? ` clickable-card" data-href="./character-detail.html?slug=${artist.slug}`
+      : "";
+    const deleteButton = post.canDelete && post.id
+      ? `<button class="feed-action-btn feed-delete-btn" type="button" data-feed-delete="${feedEscapeHtml(post.id)}" aria-label="게시글 삭제">삭제</button>`
       : "";
 
     return `
@@ -1706,15 +2114,15 @@ function renderLuminaFeed() {
         <header class="feed-post-head">
           <div class="feed-post-avatar">
             ${avatarSrc
-              ? `<img src="${avatarSrc}" alt="${authorName}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="feed-post-avatar-fallback" style="display:none;">${initial}</span>`
-              : `<span class="feed-post-avatar-fallback">${initial}</span>`}
+              ? `<img src="${feedEscapeHtml(avatarSrc)}" alt="${feedEscapeHtml(authorName)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="feed-post-avatar-fallback" style="display:none;">${feedEscapeHtml(initial)}</span>`
+              : `<span class="feed-post-avatar-fallback">${feedEscapeHtml(initial)}</span>`}
           </div>
           <div class="feed-post-meta">
-            <strong class="feed-post-author">${authorName}</strong>
+            <strong class="feed-post-author">${feedEscapeHtml(authorName)}</strong>
             <span class="feed-post-type feed-post-type-${typeKey}">${typeLabel}</span>
           </div>
         </header>
-        <p class="feed-post-body">${post.body}</p>
+        <p class="feed-post-body">${feedEscapeHtml(post.body)}</p>
         <button class="feed-post-expand-btn" type="button" aria-expanded="false">더 보기</button>
         <footer class="feed-post-actions">
           <button class="feed-action-btn" type="button" disabled aria-label="좋아요">
@@ -1725,6 +2133,7 @@ function renderLuminaFeed() {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
             <span>—</span>
           </button>
+          ${deleteButton}
         </footer>
       </article>
     `;
@@ -1748,7 +2157,7 @@ function bindLuminaFeedTabs() {
   const tabs = document.querySelectorAll(".feed-tab");
   if (tabs.length === 0) return;
   tabs.forEach(tab => {
-    tab.addEventListener("click", () => {
+    tab.addEventListener("click", async () => {
       const filter = tab.dataset.feedFilter || "all";
       _luminaFeedFilter = filter;
       tabs.forEach(t => {
@@ -1756,8 +2165,39 @@ function bindLuminaFeedTabs() {
         t.classList.toggle("is-active", isActive);
         t.setAttribute("aria-selected", isActive ? "true" : "false");
       });
+      if (filter === "all" || filter === "following") {
+        await loadLuminaFeedData(filter);
+      }
       renderLuminaFeed();
     });
+  });
+}
+
+function bindLuminaFeedDelete() {
+  if (document._feedDeleteBound) return;
+  document._feedDeleteBound = true;
+  document.addEventListener("click", async e => {
+    const btn = e.target.closest("[data-feed-delete]");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const postId = btn.dataset.feedDelete;
+    if (!postId || !confirm("이 피드 글을 삭제할까요?")) return;
+    btn.disabled = true;
+    btn.textContent = "삭제 중";
+    try {
+      await apiFetch(`/api/v1/lumina-feed/posts/${encodeURIComponent(postId)}`, {
+        method: "DELETE",
+        auth: true,
+        throwOnError: true
+      });
+      _luminaFeedItems = _luminaFeedItems.filter(post => post.id !== postId);
+      renderLuminaFeed();
+    } catch (err) {
+      alert(err.message || "게시글을 삭제하지 못했어요. 잠시 후 다시 시도해주세요.");
+      btn.disabled = false;
+      btn.textContent = "삭제";
+    }
   });
 }
 
@@ -1886,6 +2326,14 @@ function mediaStyle(path) {
   return `style="background-image: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(22,18,32,0.16)), url('${path}')"`;
 }
 
+function isHiddenLineupArtist(artist) {
+  return ["secret", "candidate", "private", "hidden", "unlisted"].includes(artist?.status);
+}
+
+function artistToneCopy(artist) {
+  return artist?.concept || artist?.artistDescription || artist?.summary || "";
+}
+
 /* ── API 어댑터 ─────────────────────────────────
    백엔드 응답 → 프론트 구조로 변환
    #030 차모 답변 반영: coverImage/thumbnailImage는 object (url 안에 있음),
@@ -1977,7 +2425,7 @@ function renderMainArtists() {
         </div>
       </div>
       <div class="artist-body">
-        <p>${a.artistDescription}</p>
+        <p>${artistToneCopy(a)}</p>
         <div class="tag-list">${a.tags.map(t => `<span>${t}</span>`).join("")}</div>
         <a class="text-link" href="./character-detail.html?slug=${a.slug}">무드 보기</a>
       </div>
@@ -2016,7 +2464,7 @@ function renderHeroFeature() {
       <span class="hero-feature-label">${label}</span>
       <strong>${top.publicName}</strong>
       <p class="hero-feature-summary">${top.summary || ""}</p>
-      <p>${top.artistDescription || top.intro || ""}</p>
+      <p>${artistToneCopy(top) || top.intro || ""}</p>
       <ul class="hero-feature-tags">${tagsHTML}</ul>
       <a class="text-link hero-feature-link" href="./character-detail.html?slug=${top.slug}">${top.publicName} 무드 보기</a>
     </div>
@@ -2431,37 +2879,58 @@ async function initPopularVotePage() {
   bindVoteTabs();
 }
 
-/* ── 렌더링: 데뷔 예정 라인 (6캐릭 서브) ─────── */
+/* ── 렌더링: 비공개 아티스트 라인 ─────────────── */
 function renderDebutLine() {
   const root = document.getElementById("debutLineGrid");
   if (!root) return;
 
-  const list = _artists.filter(a => a.tier === "sub" && a.status === "public");
+  const list = _artists.filter(isHiddenLineupArtist);
   if (!list.length) { root.closest("section")?.setAttribute("hidden", ""); return; }
 
   root.innerHTML = list.map(a => {
     const isMale = a.gender === "male";
-    // 무대 스포트라이트 배경: 여성=보라, 남성=남색
     const silhouetteClass = isMale ? "silhouette-male" : "silhouette-female";
+    const silhouetteLabel = isMale ? "HIDDEN<br>STAGE" : "NEW<br>STAGE";
+    const silhouetteText = isMale ? "남성 아티스트 공개 준비 중" : "여성 아티스트 공개 준비 중";
 
     return `
     <article class="debut-card clickable-card" data-href="./character-detail.html?slug=${a.slug}"
       style="--char-accent: ${a.colorAccent || "#9f8bc7"}">
       <div class="debut-card-media ${silhouetteClass}">
         <div class="debut-silhouette">
-          <span>NEW<br>STAGE</span>
-          <small>새 무대가 열렸습니다</small>
+          <span>${silhouetteLabel}</span>
+          <small>${silhouetteText}</small>
         </div>
         <div class="debut-gender-badge">${isMale ? "♂" : "♀"}</div>
       </div>
       <div class="debut-card-body">
         <span class="debut-card-type eyebrow">${a.type}</span>
         <strong>${a.publicName}</strong>
-        <p>${a.summary}</p>
+        <p>${artistToneCopy(a)}</p>
         <a class="text-link" href="./character-detail.html?slug=${a.slug}">무드 보기</a>
       </div>
     </article>`;
   }).join("");
+
+  bindDebutLineCarousel();
+}
+
+function bindDebutLineCarousel() {
+  const root = document.getElementById("debutLineGrid");
+  const prev = document.getElementById("debutLinePrev");
+  const next = document.getElementById("debutLineNext");
+  if (!root || !prev || !next || root.dataset.carouselBound === "true") return;
+  root.dataset.carouselBound = "true";
+
+  const scrollByCard = direction => {
+    const card = root.querySelector(".debut-card");
+    const gap = parseFloat(getComputedStyle(root).columnGap || "16") || 16;
+    const width = card ? card.getBoundingClientRect().width + gap : root.clientWidth;
+    root.scrollBy({ left: direction * width, behavior: "smooth" });
+  };
+
+  prev.addEventListener("click", () => scrollByCard(-1));
+  next.addEventListener("click", () => scrollByCard(1));
 }
 
 /* ── 렌더링: 숏폼 그리드 ─────────────────────── */
@@ -2530,7 +2999,7 @@ function renderRoster() {
           <span class="eyebrow">${a.type}</span>
           <span class="status-badge status-badge-${a.status}">${statusMeta[a.status].label}</span>
         </div>
-        <p>${a.summary}</p>
+        <p>${artistToneCopy(a)}</p>
         <a class="text-link ${a.status === "secret" ? "is-dimmed" : ""}" href="./character-detail.html?slug=${a.slug}">무드 보기</a>
       </div>
     </article>`).join("");
@@ -2584,7 +3053,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "") {
           <span>${statusMeta[a.status].label}</span>
           <span>${tierLabel[a.tier] || a.tier}</span>
         </div>
-        <p class="catalog-summary">${a.summary}</p>
+        <p class="catalog-summary">${artistToneCopy(a)}</p>
         <dl class="catalog-details">
           <div><dt>팬 포인트</dt><dd>${a.fandom}</dd></div>
           <div><dt>브랜드 무드</dt><dd>${a.business}</dd></div>
@@ -3174,14 +3643,6 @@ async function init() {
       if (mainCount >= 4) {
         _artists = adapted;
         console.info(`[Lumina] API 아티스트 ${_artists.length}명 로드됨 (메인 ${mainCount}명)`);
-        // #030 디버그: 활동 중 캐릭터의 cover/thumb URL 출력 → 사진 안 뜰 때 콘솔만 보면 원인 파악 가능
-        try {
-          console.table(
-            _artists
-              .filter(a => a.status === "public")
-              .map(a => ({ slug: a.slug, cover: a.images?.cover, thumb: a.images?.thumb }))
-          );
-        } catch (_) { /* console.table 미지원 환경 무시 */ }
       } else {
         console.warn(`[Lumina] API 응답 불완전 (메인 캐릭터 ${mainCount}명) — 로컬 데이터 유지`);
       }
@@ -3244,6 +3705,7 @@ async function init() {
     renderLuminaFeed();
     bindLuminaFeedTabs();
     bindLuminaFeedExpand();
+    bindLuminaFeedDelete();
   }
 }
 
