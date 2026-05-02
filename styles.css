@@ -3177,6 +3177,78 @@ p {
 .encar-prev:hover, .encar-next:hover { background: rgba(255,255,255,0.18); }
 .encar-prev:disabled, .encar-next:disabled { opacity: 0.25; cursor: default; }
 
+/* ── 라이트박스 모바일 (768px ↓) ──
+   - 세로 배치 (메인 사진 위, 썸네일 아래)
+   - 메인 사진 풀 너비/높이로 확대
+   - 썸네일은 하단 가로 스크롤
+   - iOS safe-area 처리
+*/
+@media (max-width: 768px) {
+  .encar-lightbox.is-open {
+    flex-direction: column;
+  }
+  .encar-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 56px 8px 12px;
+    width: 100%;
+  }
+  .encar-main-img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+  }
+  .encar-caption {
+    margin-top: 10px;
+    font-size: 11px;
+  }
+  .encar-counter {
+    bottom: 10px;
+    font-size: 12px;
+  }
+  .encar-thumbs {
+    width: 100%;
+    height: auto;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: row;
+    grid-template-columns: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom)) 12px;
+    gap: 8px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.4);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .encar-thumbs::-webkit-scrollbar { display: none; }
+  .encar-thumb {
+    width: 56px;
+    height: 74px;
+    aspect-ratio: 3/4;
+    flex-shrink: 0;
+    border-radius: 6px;
+    border-width: 2px;
+  }
+  .encar-prev, .encar-next {
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+  }
+  .encar-prev { left: 8px; }
+  .encar-next { right: 8px; }
+  .encar-close {
+    top: 14px;
+    right: 14px;
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+}
+
 /* ══════════════════════════════════════
    Splash Screen
 ══════════════════════════════════════ */
