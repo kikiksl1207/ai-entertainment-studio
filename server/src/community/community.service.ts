@@ -650,6 +650,93 @@ export class CommunityService {
     return { ok: true };
   }
 
+  async getPublicUserProfile(userId: string) {
+    if (!UUID_PATTERN.test(userId)) {
+      throw new BadRequestException('userId must be a UUID');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        createdAt: true,
+        profile: {
+          select: {
+            displayName: true,
+            avatarAssetId: true,
+            bio: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const [
+      followers,
+      followingUsers,
+      followingArtists,
+      posts,
+      replies,
+      recentPosts,
+    ] = await Promise.all([
+      this.prisma.userFollow.count({
+        where: { followingUserId: userId, status: 'active', deletedAt: null },
+      }),
+      this.prisma.userFollow.count({
+        where: { followerUserId: userId, status: 'active', deletedAt: null },
+      }),
+      this.prisma.artistFollow.count({
+        where: { userId, status: 'active', deletedAt: null },
+      }),
+      this.prisma.communityPost.count({
+        where: {
+          authorUserId: userId,
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
+        },
+      }),
+      this.prisma.communityReply.count({
+        where: { authorUserId: userId, status: 'published', deletedAt: null },
+      }),
+      this.prisma.communityPost.findMany({
+        where: {
+          authorUserId: userId,
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
+        },
+        take: 5,
+        include: this.postInclude(),
+        orderBy: { publishedAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      user: {
+        ...(await this.toCompactUserView(user)),
+        bio: user.profile?.bio ?? null,
+        createdAt: user.createdAt,
+      },
+      stats: {
+        followers,
+        followingUsers,
+        followingArtists,
+        posts,
+        replies,
+      },
+      recentPosts,
+    };
+  }
+
   async getMyFollowing(userId: string) {
     const [artists, users] = await Promise.all([
       this.getMyFollowingArtists(userId),

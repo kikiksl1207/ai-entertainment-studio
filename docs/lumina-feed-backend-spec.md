@@ -359,6 +359,7 @@ POST /artists/:artistId/follow
 DELETE /artists/:artistId/follow
 POST /users/:userId/follow
 DELETE /users/:userId/follow
+GET /users/:userId/profile
 GET /me/following
 GET /me/following-artists
 GET /me/following-users
@@ -368,6 +369,10 @@ Authorization: Bearer <accessToken>
 
 `artistId` can be a UUID or an artist slug for frontend convenience. Normal
 users can also be followed by UUID.
+
+`GET /users/:userId/profile` is a public profile summary for active normal
+users. It returns `{ user, stats, recentPosts }`, hides email, and only includes
+public non-deleted posts in `recentPosts`.
 
 ## Frontend Notes
 

@@ -814,6 +814,7 @@ GET /me/following
 GET /me/following-artists
 GET /me/following-users
 GET /me/followers
+GET /users/:userId/profile
 POST /users/:userId/block
 DELETE /users/:userId/block
 GET /me/blocked-users?take=20
@@ -822,6 +823,8 @@ Authorization: Bearer <accessToken>
 
 `artistId` can be a UUID or slug.
 `userId` must be a user UUID and cannot be the current user's own id. `GET /me/following` returns `{ artists, users }`; the split endpoints return only that list. User follow rows return `{ id, status, followedAt, updatedAt, user: { id, displayName, avatarUrl } }`.
+
+`GET /users/:userId/profile` is public and returns `{ user, stats, recentPosts }` for active users only. It does not expose email. `user` includes `id`, `displayName`, `avatarUrl`, `bio`, and `createdAt`; `stats` includes `followers`, `followingUsers`, `followingArtists`, `posts`, and `replies`. `recentPosts` contains up to 5 public posts by that user.
 
 Blocking is idempotent. `POST /users/:userId/block` optionally accepts `{ "reason": "spam" }`, unfollows both directions if an active follow exists, and returns `{ block: { id, status, reason, blockedAt, updatedAt, user: { id, displayName, avatarUrl } } }`. `GET /me/blocked-users` returns the same block row shape as a list.
 
