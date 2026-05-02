@@ -85,6 +85,20 @@ const artists = [
     primaryColor: '#111827',
     secondaryColor: '#a855f7',
   },
+  {
+    slug: 'seo-yuan',
+    displayName: 'Seo Yuan',
+    sortOrder: 70,
+    tagline: 'Natural luxury beauty and lifestyle muse',
+    summary:
+      'A graceful premium model character for skincare, fragrance, and calm lifestyle content.',
+    keywords: ['natural luxury', 'beauty', 'lifestyle'],
+    story:
+      'Seo Yuan is a clean, elegant Lumina Stage artist built around transparent beauty, fragrance, and premium lifestyle imagery.',
+    visualKeywords: ['soft oval face', 'dewy skin', 'minimal ivory styling'],
+    primaryColor: '#f8fafc',
+    secondaryColor: '#94a3b8',
+  },
 ] as const;
 
 const profileFactsBySlug = {
@@ -250,6 +264,33 @@ const profileFactsBySlug = {
     publicOneLiner:
       '젠더리스 하이패션과 반항적인 무대 태도로 Lumina Stage의 남성 라인업을 여는 아티스트.',
   },
+  'seo-yuan': {
+    birthDate: '2000-02-18',
+    displayBirthDate: '2000-02-18',
+    hometown: 'Seoul',
+    height: '168cm',
+    bloodType: 'A',
+    mbti: 'ISFJ',
+    debut: 'Lumina Stage candidate',
+    position: 'Natural luxury beauty and lifestyle muse',
+    characterType: 'premium model',
+    fandomNameCandidate: 'Yuandear',
+    fandomNameStatus: 'candidate',
+    fanPoint: 'calm smile, clean beauty, graceful lifestyle mood',
+    speechKeywords: ['calm', 'warm', 'polished'],
+    hobbies: ['fragrance notes', 'home styling', 'skincare routine'],
+    favoriteGifts: ['ivory flowers', 'fragrance card', 'silk ribbon'],
+    signatureItems: ['silk blouse', 'oatmeal cardigan', 'minimal pearl earrings'],
+    representativeContent: ['skincare portrait', 'fragrance mood film', 'premium lifestyle cut'],
+    adCategory: 'skincare, fragrance, lifestyle',
+    premiumPoint: 'clean beauty close-up and calm luxury lifestyle film',
+    unlockItem: 'ivory silk campaign styling',
+    boostPoint: 'premium natural beauty line candidate',
+    representativeColors: ['Pure White', 'Oatmeal Beige', 'Pale Sky Blue'],
+    relationshipPosition: 'natural luxury candidate line',
+    publicOneLiner:
+      'A calm natural-luxury muse for skincare, fragrance, and premium lifestyle content.',
+  },
 } as const;
 
 const shortforms = [
@@ -269,8 +310,9 @@ const shortforms = [
 
 const galleryDirsBySlug = {
   'yoon-serin': ['reference-final'],
-  'han-seoyul': ['reference'],
+  'han-seoyul': ['.'],
   'park-doa': ['reference-final'],
+  'seo-yuan': ['.'],
 } as const;
 
 async function main() {
@@ -358,6 +400,10 @@ async function main() {
 
     for (const usageType of ['cover', 'thumb'] as const) {
       const storageKey = `assets/characters/${artist.slug}/${usageType}.png`;
+      if (!assetStorageKeyExists(storageKey)) {
+        continue;
+      }
+
       const asset = await upsertImageAsset(storageKey, `${artist.displayName} ${usageType}`);
       assetByKey.set(storageKey, asset);
 
@@ -409,7 +455,9 @@ async function main() {
     if (!artist) continue;
 
     const storageKey = `assets/characters/${artistSlug}/${assetRole}.png`;
-    const asset = assetByKey.get(storageKey) ?? (await upsertImageAsset(storageKey, title));
+    const asset =
+      assetByKey.get(storageKey) ??
+      (assetStorageKeyExists(storageKey) ? await upsertImageAsset(storageKey, title) : null);
     const shortform = await prisma.shortform.upsert({
       where: { slug },
       update: {
@@ -429,6 +477,10 @@ async function main() {
         publishedAt: launchedAt,
       },
     });
+
+    if (!asset) {
+      continue;
+    }
 
     await prisma.shortformAsset.upsert({
       where: {
@@ -687,7 +739,7 @@ function getGalleryImageKeys(slug: string) {
   const keys: string[] = [];
 
   for (const dir of dirs) {
-    const storageDir = `assets/characters/${slug}/${dir}`;
+    const storageDir = dir === '.' ? `assets/characters/${slug}` : `assets/characters/${slug}/${dir}`;
     const localDir = resolveAssetDir(storageDir);
 
     if (!localDir) {
@@ -696,6 +748,7 @@ function getGalleryImageKeys(slug: string) {
 
     const fileNames = readdirSync(localDir)
       .filter((fileName) => /\.(png|jpe?g|webp)$/i.test(fileName))
+      .filter((fileName) => dir !== '.' || /^reference-final-\d+\.(png|jpe?g|webp)$/i.test(fileName))
       .sort((a, b) => a.localeCompare(b, 'en'));
 
     for (const fileName of fileNames) {
@@ -704,6 +757,10 @@ function getGalleryImageKeys(slug: string) {
   }
 
   return keys;
+}
+
+function assetStorageKeyExists(storageKey: string) {
+  return Boolean(resolveAssetDir(storageKey));
 }
 
 function resolveAssetDir(storageDir: string) {

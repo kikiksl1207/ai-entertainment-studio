@@ -372,7 +372,14 @@ Required consents: `consentAppearance`, `consentRevenuePolicy`, `consentPrivacy`
 - Use the base URL as a single config value.
 - Public image URLs return repo/storage keys until `OBJECT_STORAGE_PUBLIC_BASE_URL` is configured. After object storage is configured, the API returns full public asset URLs.
 - Backend already has seed data in Render Postgres.
-- Initial public lineup is 6 characters, not 4.
+- Initial seed lineup is 7 characters after the Seo Yuan asset pack connection: `yoon-serin`, `han-seoyul`, `park-doa`, `choi-seojin`, `oh-hyerin`, `cha-dohyun`, `seo-yuan`.
+- Public gallery assets are seed-driven. After Render runs `npm run render:start:seed`, the current fixed gallery counts should be:
+  - `yoon-serin`: 20 gallery images from `reference-final/`
+  - `han-seoyul`: 20 gallery images from root `reference-final-01.png` through `reference-final-20.png`
+  - `park-doa`: 18 gallery images from `reference-final/`
+  - `seo-yuan`: 20 gallery images from root `reference-final-01.png` through `reference-final-20.png`
+  - `choi-seojin`: no gallery yet; only `cover.png` and `thumb.png`
+  - `cha-dohyun`: no committed asset folder currently; seed skips missing image files instead of publishing broken URLs
 - Detail profile facts live under `profile.publicMetadata.profileFacts`.
 - If an API returns `401`, the access token is missing or expired.
 - If Render is slow on first load, retry once after the service wakes up.

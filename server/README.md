@@ -73,6 +73,15 @@ npm run prisma:seed
 
 The seed script inserts the first public artists, local image asset references, shortforms, Lumina products, gift products, the launch boost campaign, premium video products, and chat feature products. The script is idempotent and can be rerun after changing seed values.
 
+Current fixed gallery seed sources:
+
+- `yoon-serin`: `assets/characters/yoon-serin/reference-final/*` (20)
+- `han-seoyul`: `assets/characters/han-seoyul/reference-final-01.png` through `reference-final-20.png` (20)
+- `park-doa`: `assets/characters/park-doa/reference-final/*` (18)
+- `seo-yuan`: `assets/characters/seo-yuan/reference-final-01.png` through `reference-final-20.png` (20)
+
+`choi-seojin` has only `cover.png` and `thumb.png` until its final image pack lands. `cha-dohyun` is present in seed content, but no `assets/characters/cha-dohyun/` image folder is committed yet; the seed skips missing image files so public APIs do not emit broken asset URLs.
+
 8. Start the API server.
 
 ```bash
