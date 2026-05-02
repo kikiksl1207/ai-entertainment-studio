@@ -337,6 +337,10 @@ POST /debut/applications
 GET /me/debut-applications
 ```
 
+Detailed product/policy draft:
+
+- `docs/ai-debut-policy-and-application-spec.md`
+
 Body:
 
 ```json
@@ -365,6 +369,18 @@ Allowed `participationType` values:
 - `co_creator`: ongoing planning/content/fandom participation, up to 70%.
 
 Required consents: `consentAppearance`, `consentRevenuePolicy`, `consentPrivacy`. Keep real IDs, contracts, and sensitive files outside Notion/Git/chat until the final secure upload/contract process is defined.
+
+Frontend MVP form sections:
+
+- debut type selection: `appearance_only`, `voice_or_song`, `performance`, `co_creator`
+- applicant story/concept
+- contact email and optional phone
+- requested revenue share, 0-70, with "final share is reviewed separately" notice
+- required consent checkboxes
+- optional voice/song/performance consent when relevant
+- optional marketing/public promotion consent, not required for application review
+
+Do not collect ID card images, resident registration numbers, bank accounts, final contract files, API keys, or secrets in this form.
 
 ## Notes For Claude
 
