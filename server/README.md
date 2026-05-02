@@ -122,6 +122,8 @@ Auth endpoints:
 - `GET /api/v1/me/summary`
 - `GET /api/v1/me/activity-ledger?type=all&take=50`
 - `PATCH /api/v1/me/profile`
+- `GET /api/v1/me/settings`
+- `PATCH /api/v1/me/settings`
 - `PATCH /api/v1/me/password`
 - `DELETE /api/v1/me`
 - `GET /api/v1/me/sessions`
@@ -137,7 +139,7 @@ Auth responses include both the canonical nested token object and flat token ali
 
 Refresh tokens are stored as SHA-256 hashes in `user_refresh_tokens`. `POST /api/v1/auth/refresh` rotates the refresh token and revokes the previous one; `POST /api/v1/auth/logout` accepts `{ "refreshToken": "..." }` and revokes that token server-side. Access tokens remain short-lived and are not individually revoked.
 
-`GET /api/v1/me` returns profile convenience fields for My Page, including `displayName`, `avatarUrl`, `avatarAsset`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`. `PATCH /api/v1/me/profile` accepts `displayName`, `bio`, and `avatarAssetId`; display names can be changed once every 30 days. `GET /api/v1/me/summary` returns the My Page bootstrap payload with user, wallet, recent ledger, payment orders, activity counts, unlocks, artist follows, user follows, followers, feed counts, recent activities, and debut status. `GET /api/v1/me/activity-ledger` supports `type=all|charge|boost|unlock|gift|free_like`.
+`GET /api/v1/me` returns profile convenience fields for My Page, including `displayName`, `avatarUrl`, `avatarAsset`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`. `PATCH /api/v1/me/profile` accepts `displayName`, `bio`, and `avatarAssetId`; display names can be changed once every 30 days. `GET /api/v1/me/settings` and `PATCH /api/v1/me/settings` manage locale, timezone, marketing, push, activity, feed, and email notification flags. `GET /api/v1/me/summary` returns the My Page bootstrap payload with user, wallet, recent ledger, payment orders, activity counts, unlocks, artist follows, user follows, followers, feed counts, recent activities, and debut status. `GET /api/v1/me/activity-ledger` supports `type=all|charge|boost|unlock|gift|free_like`.
 
 `GET /api/v1/me/sessions` lists active refresh-token sessions for the current user without exposing token hashes. The response includes minimal session metadata such as `userAgent`, `ipAddress`, `createdAt`, `lastUsedAt`, and `expiresAt`. `DELETE /api/v1/me/sessions/:sessionId` revokes a selected session. `DELETE /api/v1/me/sessions` revokes all active sessions for the current user, including the current device, so clients must clear local access and refresh tokens immediately after calling it.
 

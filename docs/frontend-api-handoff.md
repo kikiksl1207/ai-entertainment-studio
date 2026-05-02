@@ -187,6 +187,8 @@ GET /me
 GET /me/summary
 GET /me/activity-ledger?type=all&take=50
 PATCH /me/profile
+GET /me/settings
+PATCH /me/settings
 PATCH /me/password
 DELETE /me
 GET /me/sessions
@@ -209,12 +211,14 @@ Auth responses:
 - `PATCH /me/profile` body: `{ "displayName": "닉네임", "bio": "optional", "avatarAssetId": "<asset uuid>" }`. `displayName` can be changed once every 30 days. The server returns the updated `GET /me` shape. If the nickname cooldown is active, expect `400 Nickname can be changed once every 30 days`.
 - Avatar upload policy for 1차: reuse the asset upload flow and then pass the confirmed image asset id as `avatarAssetId`. A dedicated user-facing avatar upload intent can be split out later if needed.
 - `GET /me/summary` is the recommended My Page bootstrap endpoint. It returns `{ user, wallet, recentLedger, recentPaymentOrders, activity, recentActivities, debut, policy }` so the frontend does not need to call every history endpoint on first render. `activity` now includes `followingArtists`, `followingUsers`, `followers`, `followCounts`, and `feedCounts`.
+- `GET /me/settings` returns `{ settings, policy }`.
+- `PATCH /me/settings` accepts any subset of `{ "locale": "ko-KR", "timezone": "Asia/Seoul", "marketingOptIn": false, "pushOptIn": false, "activityNotifications": true, "feedNotifications": true, "emailNotifications": false }`. Send at least one field. The response is the same `{ settings, policy }` shape.
 - `GET /me/activity-ledger?type=all&take=50` returns a unified recent activity list for My Page. `type` can be `all`, `charge`, `boost`, `unlock`, `gift`, or `free_like`. Each item has `id`, `type`, `title`, `description`, `amountLumina`, `status`, `createdAt`, `relatedArtist`, and `relatedContent`.
 
 My Page scope notes for 2026-05-02:
 
-- Covered now: profile fields, avatar asset display data, nickname cooldown, password/social-only flags, wallet Lumina/Stella display hints, payment order history, unified activity ledger, premium unlocks, boost/free-like activity, following artists, following users, followers, feed counts, debut application card data, and account deletion/session safety signals.
-- Later split if needed: dedicated avatar upload intent for normal users, thumbnail resizing, social-only password setup, notification settings, blocked users, hidden feed posts, and refund/reversal display details.
+- Covered now: profile fields, avatar asset display data, nickname cooldown, password/social-only flags, wallet Lumina/Stella display hints, payment order history, unified activity ledger, premium unlocks, boost/free-like activity, following artists, following users, followers, feed counts, debut application card data, notification/settings API, and account deletion/session safety signals.
+- Later split if needed: dedicated avatar upload intent for normal users, thumbnail resizing, social-only password setup, blocked users, hidden feed posts, and refund/reversal display details.
 - `POST /auth/email-verifications` body: `{ "email": "user@example.com" }`.
 - `POST /auth/email-verifications/confirm` body: `{ "token": "<email-token>" }`.
 - `POST /auth/password-resets` body: `{ "email": "user@example.com" }`.

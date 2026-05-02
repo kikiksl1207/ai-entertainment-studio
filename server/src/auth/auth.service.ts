@@ -22,6 +22,7 @@ import {
   RequestPasswordResetDto,
   SocialLoginDto,
   UpdateProfileDto,
+  UpdateSettingsDto,
 } from './dto/auth.dto';
 import { SocialAuthService } from './social-auth.service';
 import { buildPublicAssetUrl } from '../common/asset-url';
@@ -778,6 +779,68 @@ export class AuthService {
     return this.getMe(userId);
   }
 
+  async getSettings(userId: string) {
+    await this.assertActiveUser(userId);
+
+    const settings = await this.prisma.userSettings.upsert({
+      where: { userId },
+      update: {},
+      create: { userId },
+    });
+
+    return {
+      settings: this.formatSettings(settings),
+      policy: this.settingsPolicy(),
+    };
+  }
+
+  async updateSettings(userId: string, input: UpdateSettingsDto) {
+    await this.assertActiveUser(userId);
+
+    if (
+      input.locale === undefined &&
+      input.timezone === undefined &&
+      input.marketingOptIn === undefined &&
+      input.pushOptIn === undefined &&
+      input.activityNotifications === undefined &&
+      input.feedNotifications === undefined &&
+      input.emailNotifications === undefined
+    ) {
+      throw new BadRequestException('At least one settings field is required');
+    }
+
+    const settings = await this.prisma.userSettings.upsert({
+      where: { userId },
+      create: {
+        userId,
+        ...this.clean({
+          locale: input.locale,
+          timezone: input.timezone,
+          marketingOptIn: input.marketingOptIn,
+          pushOptIn: input.pushOptIn,
+          activityNotifications: input.activityNotifications,
+          feedNotifications: input.feedNotifications,
+          emailNotifications: input.emailNotifications,
+        }),
+      },
+      update: this.clean({
+        locale: input.locale,
+        timezone: input.timezone,
+        marketingOptIn: input.marketingOptIn,
+        pushOptIn: input.pushOptIn,
+        activityNotifications: input.activityNotifications,
+        feedNotifications: input.feedNotifications,
+        emailNotifications: input.emailNotifications,
+        updatedAt: new Date(),
+      }),
+    });
+
+    return {
+      settings: this.formatSettings(settings),
+      policy: this.settingsPolicy(),
+    };
+  }
+
   async requestEmailVerification(input: RequestEmailVerificationDto) {
     const email = input.email.trim().toLowerCase();
     const user = await this.prisma.user.findFirst({
@@ -1165,7 +1228,18 @@ export class AuthService {
       createdAt: Date;
       updatedAt: Date;
     } | null;
-    settings: unknown;
+    settings: {
+      userId: string;
+      locale: string;
+      timezone: string;
+      marketingOptIn: boolean;
+      pushOptIn: boolean;
+      activityNotifications: boolean;
+      feedNotifications: boolean;
+      emailNotifications: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+    } | null;
     walletAccounts: unknown[];
   }) {
     const avatarAsset = user.profile?.avatarAssetId
@@ -1212,7 +1286,7 @@ export class AuthService {
       nicknameNextChangeAt,
       canChangeNickname: nicknameNextChangeAt <= new Date(),
       profile: user.profile,
-      settings: user.settings,
+      settings: user.settings ? this.formatSettings(user.settings) : null,
       walletAccounts: user.walletAccounts,
     };
   }
@@ -1233,6 +1307,50 @@ export class AuthService {
       enabled: stella > 0,
       rate: '10000L = 1 Stella display unit',
       displayRule: 'Show Stella only when balance is at least 10000L',
+    };
+  }
+
+  private formatSettings(settings: {
+    userId: string;
+    locale: string;
+    timezone: string;
+    marketingOptIn: boolean;
+    pushOptIn: boolean;
+    activityNotifications: boolean;
+    feedNotifications: boolean;
+    emailNotifications: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
+    return {
+      locale: settings.locale,
+      timezone: settings.timezone,
+      marketingOptIn: settings.marketingOptIn,
+      pushOptIn: settings.pushOptIn,
+      activityNotifications: settings.activityNotifications,
+      feedNotifications: settings.feedNotifications,
+      emailNotifications: settings.emailNotifications,
+      createdAt: settings.createdAt,
+      updatedAt: settings.updatedAt,
+    };
+  }
+
+  private settingsPolicy() {
+    return {
+      locale: {
+        default: 'ko-KR',
+        supported: ['ko-KR', 'en-US'],
+      },
+      timezone: {
+        default: 'Asia/Seoul',
+      },
+      notifications: {
+        activityNotifications: 'likes, replies, follows, and profile activity',
+        feedNotifications: 'Lumina Feed updates from followed artists and users',
+        emailNotifications: 'account and service emails where email delivery is configured',
+        marketingOptIn: 'promotion and event messages',
+        pushOptIn: 'push delivery permission flag',
+      },
     };
   }
 

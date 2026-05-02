@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsUUID,
   IsEmail,
   IsIn,
@@ -110,6 +111,40 @@ export class UpdateProfileDto {
   @Transform(normalizeString)
   @IsUUID('4')
   avatarAssetId?: string;
+}
+
+export class UpdateSettingsDto {
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MaxLength(20)
+  locale?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MaxLength(64)
+  timezone?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  marketingOptIn?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  pushOptIn?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  activityNotifications?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  feedNotifications?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  emailNotifications?: boolean;
 }
 
 export class RequestEmailVerificationDto {

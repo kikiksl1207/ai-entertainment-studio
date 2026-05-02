@@ -25,6 +25,7 @@ import {
   RequestPasswordResetDto,
   SocialLoginDto,
   UpdateProfileDto,
+  UpdateSettingsDto,
 } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthUser } from './auth.types';
@@ -131,6 +132,19 @@ export class MeController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   updateProfile(@CurrentUser() user: AuthUser, @Body() body: UpdateProfileDto) {
     return this.authService.updateProfile(user.id, body);
+  }
+
+  @Get('settings')
+  @UseGuards(JwtAuthGuard)
+  settings(@CurrentUser() user: AuthUser) {
+    return this.authService.getSettings(user.id);
+  }
+
+  @Patch('settings')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  updateSettings(@CurrentUser() user: AuthUser, @Body() body: UpdateSettingsDto) {
+    return this.authService.updateSettings(user.id, body);
   }
 
   @Patch('password')

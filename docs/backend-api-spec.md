@@ -102,6 +102,7 @@ GET /api/v1/me
 GET /api/v1/me/summary
 GET /api/v1/me/activity-ledger
 PATCH /api/v1/me/profile
+GET /api/v1/me/settings
 PATCH /api/v1/me/password
 DELETE /api/v1/me
 GET /api/v1/me/sessions
@@ -117,6 +118,8 @@ My Page contract:
 - Avatar policy for the first version is asset-based: create/confirm an image asset through the existing upload flow, then set `avatarAssetId`.
 - `GET /api/v1/me/summary` is a My Page bootstrap endpoint. It returns `user`, `wallet`, `recentLedger`, `recentPaymentOrders`, `activity.boostEventCounts`, `activity.premiumUnlocks`, `activity.followingArtists`, `activity.followingUsers`, `activity.followers`, `activity.followCounts`, `activity.feedCounts`, `recentActivities`, `debut.latestApplication`, `debut.applications`, and policy hints.
 - `GET /api/v1/me/activity-ledger?type=all&take=50` returns a unified My Page activity list. `type` can be `all`, `charge`, `boost`, `unlock`, `gift`, or `free_like`.
+- `GET /api/v1/me/settings` returns `{ settings, policy }`.
+- `PATCH /api/v1/me/settings` accepts any subset of `locale`, `timezone`, `marketingOptIn`, `pushOptIn`, `activityNotifications`, `feedNotifications`, and `emailNotifications`. Empty bodies return `400`.
 
 이메일/비밀번호 가입 정책:
 
