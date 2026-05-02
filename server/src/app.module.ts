@@ -12,6 +12,7 @@ import { DebutModule } from './debut/debut.module';
 import { GiftsModule } from './gifts/gifts.module';
 import { HealthController } from './health.controller';
 import { LuminaProductsModule } from './lumina-products/lumina-products.module';
+import { LuminaStationModule } from './lumina-station/lumina-station.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PopularVoteModule } from './popular-vote/popular-vote.module';
@@ -45,6 +46,7 @@ import { WalletModule } from './wallet/wallet.module';
     ShortformsModule,
     WalletModule,
     LuminaProductsModule,
+    LuminaStationModule,
     GiftsModule,
     BoostsModule,
     PopularVoteModule,

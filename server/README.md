@@ -167,6 +167,7 @@ For local/staging QA before a mail provider is connected, set `ACTION_TOKEN_DEBU
 - `GET /api/v1/wallet`
 - `GET /api/v1/wallet/ledger?take=50`
 - `POST /api/v1/wallet/test-grant`
+- `GET /api/v1/lumina-station?take=5`
 - `GET /api/v1/rewards/referral-code`
 - `GET /api/v1/rewards/referrals`
 - `POST /api/v1/rewards/daily-attendance`
@@ -184,6 +185,8 @@ curl -X POST http://localhost:3001/api/v1/wallet/test-grant \
   -H "Idempotency-Key: local-test-001" \
   -d "{\"amount\":100,\"memo\":\"local seed grant\"}"
 ```
+
+`GET /api/v1/lumina-station?take=5` is the preferred Lumina charge screen bootstrap endpoint. It returns the current wallet, active Lumina products, recent payment orders, payment provider status hints, and display policy. The endpoint does not create an order or grant Lumina; clients still use `POST /api/v1/payments/orders` with an `Idempotency-Key` to start a charge order. Real Lumina credit happens only after a paid provider transaction/webhook.
 
 ## Gift And Boost MVP APIs
 

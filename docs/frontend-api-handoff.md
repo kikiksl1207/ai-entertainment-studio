@@ -318,6 +318,7 @@ Reward behavior:
 ## Commerce/Public Products
 
 ```http
+GET /lumina-station?take=5
 GET /lumina-products
 GET /payments/orders?take=20
 POST /payments/orders
@@ -328,6 +329,65 @@ GET /premium-videos
 GET /chat-feature-products
 GET /artists/:artistId/gift-products
 ```
+
+### Lumina Station
+
+`GET /lumina-station?take=5` requires `Authorization: Bearer <accessToken>` and is the recommended bootstrap endpoint for the Lumina charge screen. It returns the user's wallet, active charge products, recent orders, payment status hints, and display policy in one call.
+
+Response shape:
+
+```json
+{
+  "wallet": {
+    "id": "<wallet uuid>",
+    "currencyCode": "LUMINA",
+    "cachedBalance": "300"
+  },
+  "products": [
+    {
+      "id": "<product uuid>",
+      "sku": "LUMINA_1000",
+      "name": "루미나 1,000",
+      "luminaAmount": "1000",
+      "bonusAmount": "0",
+      "totalLumina": "1000",
+      "priceAmount": "10000",
+      "priceCurrency": "KRW",
+      "unitPriceKrw": "10",
+      "bonusRate": "0",
+      "discountAmount": "0",
+      "isBestValue": false
+    }
+  ],
+  "recentOrders": [],
+  "payment": {
+    "provider": "mock",
+    "status": "pg_pending",
+    "createOrderEndpoint": "/api/v1/payments/orders",
+    "orderHistoryEndpoint": "/api/v1/payments/orders"
+  },
+  "policy": {
+    "currencyCode": "LUMINA",
+    "displayName": "Lumina",
+    "unitPriceKrw": "10",
+    "signupBonusLumina": 300,
+    "referralBonusLumina": 500,
+    "paidLikeUnitPriceLumina": 10,
+    "paidLikeDailyLimit": 20
+  }
+}
+```
+
+Charge flow:
+
+1. Load `GET /lumina-station` when opening the charge screen.
+2. User selects one `products[].id`.
+3. Create an order with `POST /payments/orders` body `{ "luminaProductId": "<product id>" }` and an `Idempotency-Key`.
+4. Use `checkout` from the order response when a real PG adapter is connected.
+5. Do not credit Lumina on the frontend. Lumina is credited only after the backend receives a paid provider transaction/webhook.
+6. Refresh `GET /lumina-station` or `GET /wallet` after payment completion.
+
+Current MVP note: PG approval/provider is still pending, so `payment.status = "pg_pending"` is expected. The frontend can show the charge station UI and product cards now, but real payment completion depends on future PG adapter setup.
 
 ### Boost Campaign / Free Like
 

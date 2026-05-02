@@ -169,6 +169,7 @@ Local/staging QA note:
 ```http
 GET /api/v1/wallet
 GET /api/v1/wallet/ledger
+GET /api/v1/lumina-station
 GET /api/v1/lumina-products
 POST /api/v1/payments/orders
 GET /api/v1/payments/orders
@@ -187,6 +188,15 @@ POST /api/v1/payments/webhooks/:provider
 - 결제 성공 웹훅은 주문 row의 상태를 조건부로 `paid` 전환한 요청만 루미나 지급까지 진행한다.
 - 이미 `paid`인 주문에 대한 웹훅 재전송이나 중복 이벤트는 idempotent replay로 처리하고 추가 지급하지 않는다.
 - Payment and refund state transitions are documented in `docs/payment-refund-state-policy.md`.
+
+Lumina Station:
+
+- `GET /api/v1/lumina-station?take=5` is an authenticated charge-screen bootstrap endpoint.
+- It returns the user's Lumina wallet, active `lumina_products`, recent `payment_orders`, payment provider status, and client display policy.
+- It does not create a payment order and does not grant Lumina.
+- The frontend still creates charge orders with `POST /api/v1/payments/orders`.
+- `payment.status = "pg_pending"` means the UI may show products but real checkout is pending PG provider approval/integration.
+- `products[]` includes frontend convenience fields: `totalLumina`, `unitPriceKrw`, `bonusRate`, `discountAmount`, and `isBestValue`.
 
 ### Gifts
 
