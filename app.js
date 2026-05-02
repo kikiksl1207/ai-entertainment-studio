@@ -2933,7 +2933,7 @@ function initGallerySlider(items, artistName) {
       const img = document.createElement("img");
       img.src     = item.src;
       img.alt     = item.caption || "";
-      img.loading = "lazy";
+      img.loading = "eager";
       img.style.cssText = "width:100%;height:100%;object-fit:cover;object-position:center top;display:block;transition:transform 260ms ease;";
       img.onerror = () => { cell.style.display = "none"; };
       img.addEventListener("mouseover",  () => { img.style.transform = "scale(1.05)"; });
