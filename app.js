@@ -2902,8 +2902,10 @@ function initGallerySlider(items, artistName) {
     "border-radius:14px",
     "background:#16122a",
     "width:100%",
-    "flex:1",
-    "min-height:0",
+    "flex:0 0 auto",
+    "height:min(560px, calc(100vh - 210px))",
+    "max-height:560px",
+    "min-height:420px",
     // 스크롤바 숨기기
     "scrollbar-width:none",
     "-ms-overflow-style:none"
