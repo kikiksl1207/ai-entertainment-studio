@@ -2890,6 +2890,9 @@ function initGallerySlider(items, artistName) {
   const btnNext  = document.getElementById("galleryNext");
   if (!track || !sliderEl) return;
 
+  track.innerHTML = "";
+  sliderEl.scrollLeft = 0;
+
   const perPage    = 4;
   const totalPages = Math.ceil(items.length / perPage);
 
