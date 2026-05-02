@@ -5,6 +5,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
 import { BoostsModule } from './boosts/boosts.module';
 import { ChatModule } from './chat/chat.module';
+import { CommunityModule } from './community/community.module';
 import { validateEnv } from './config/env.validation';
 import { DebutModule } from './debut/debut.module';
 import { GiftsModule } from './gifts/gifts.module';
@@ -47,6 +48,7 @@ import { WalletModule } from './wallet/wallet.module';
     DebutModule,
     PremiumVideosModule,
     ChatModule,
+    CommunityModule,
     PaymentsModule,
     RewardsModule,
     UserGiftsModule,

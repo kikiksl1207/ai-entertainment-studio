@@ -302,9 +302,10 @@ Compatibility body:
 
 The backend also accepts a slug-like `artistId` for current frontend compatibility. After a successful like, refresh rankings with `GET /boost-campaigns/:campaignId/rankings`. Daily free-like limit failures currently return `400 Daily free like limit exceeded`.
 
-### Popular Vote Room
+### Lumina Pick
 
-For the new `인기투표실` page:
+`루미나 픽` is the renamed popular vote surface. It owns voting, rankings,
+monthly main pick, and hall of fame.
 
 ```http
 GET /popular-vote/main-pick
@@ -370,7 +371,7 @@ Allowed `participationType` values:
 
 Required consents: `consentAppearance`, `consentRevenuePolicy`, `consentPrivacy`. Keep real IDs, contracts, and sensitive files outside Notion/Git/chat until the final secure upload/contract process is defined.
 
-Frontend MVP form sections:
+Frontend first form sections:
 
 - debut type selection: `appearance_only`, `voice_or_song`, `performance`, `co_creator`
 - applicant story/concept
@@ -398,7 +399,7 @@ Response:
   "campaign": {
     "id": "campaign-uuid",
     "slug": "mvp-launch-main-pick",
-    "name": "MVP 런칭 메인픽"
+    "name": "루미나 픽 메인 캠페인"
   },
   "dailyLimit": 1,
   "usedToday": 0,
@@ -408,6 +409,82 @@ Response:
 ```
 
 If there is no active campaign, `campaign` is `null` and quota fields are `0`.
+
+### Lumina Feed
+
+`루미나 피드` is the X-style fan/artist timeline. It is separate from Shortform:
+
+- `루미나 픽`: vote/ranking/main pick/hall of fame.
+- `루미나 피드`: text-first artist, AI artist, and fan timeline.
+- `숏폼`: video/performance/challenge/teaser/clips.
+
+Backend draft spec:
+
+- `docs/lumina-feed-backend-spec.md`
+
+Public feed:
+
+```http
+GET /lumina-feed?mode=all&take=20
+GET /lumina-feed?mode=artists&take=20
+GET /lumina-feed?mode=fans&take=20
+GET /lumina-feed?artistSlug=choi-seojin
+GET /artists/:slug/posts
+```
+
+Create post:
+
+```http
+POST /lumina-feed/posts
+Authorization: Bearer <accessToken>
+```
+
+Fan post body:
+
+```json
+{ "body": "오늘 최서진 무드 너무 좋다." }
+```
+
+Artist post body:
+
+```json
+{
+  "artistSlug": "choi-seojin",
+  "body": "무대는 짧고, 시선은 오래 남아.",
+  "visibility": "public"
+}
+```
+
+If `artistId` or `artistSlug` is provided, the backend requires an active
+`artist_operators` row. Normal users can post without an artist field.
+
+Replies:
+
+```http
+GET /lumina-feed/posts/:postId/replies
+POST /lumina-feed/posts/:postId/replies
+Authorization: Bearer <accessToken>
+```
+
+Reactions/reports:
+
+```http
+POST /lumina-feed/posts/:postId/like
+DELETE /lumina-feed/posts/:postId/like
+POST /lumina-feed/posts/:postId/report
+Authorization: Bearer <accessToken>
+```
+
+Follows:
+
+```http
+POST /artists/:artistId/follow
+DELETE /artists/:artistId/follow
+GET /me/following
+Authorization: Bearer <accessToken>
+```
+
+`artistId` can be a UUID or slug.
 
 ## Notes For Claude
 
@@ -421,8 +498,8 @@ If there is no active campaign, `campaign` is `null` and quota fields are `0`.
   - `han-seoyul`: 20 gallery images from root `reference-final-01.png` through `reference-final-20.png`
   - `park-doa`: 18 gallery images from `reference-final/`
   - `seo-yuan`: 20 gallery images from root `reference-final-01.png` through `reference-final-20.png`
-  - `choi-seojin`: no gallery yet; only `cover.png` and `thumb.png`
-  - `cha-dohyun`: no committed asset folder currently; seed skips missing image files instead of publishing broken URLs
+  - `choi-seojin`: 20 gallery images from root `reference-final-01.png` through `reference-final-20.png`
+  - `cha-dohyun`: 20 gallery images from root `reference-final-01.png` through `reference-final-20.png`
 - Detail profile facts live under `profile.publicMetadata.profileFacts`.
 - If an API returns `401`, the access token is missing or expired.
 - If Render is slow on first load, retry once after the service wakes up.

@@ -36,6 +36,12 @@ model User {
   receivedUserGifts UserGiftTransfer[]       @relation("UserGiftRecipient")
   actionTokens      UserActionToken[]
   debutApplications DebutApplication[]
+  artistOperators   ArtistOperator[]
+  communityPosts    CommunityPost[]         @relation("CommunityPostAuthor")
+  communityReplies  CommunityReply[]        @relation("CommunityReplyAuthor")
+  communityReactions CommunityReaction[]
+  communityReports  CommunityReport[]       @relation("CommunityReportReporter")
+  artistFollows     ArtistFollow[]
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -167,9 +173,31 @@ model Artist {
   chatPersonas      ChatPersona[]
   chatSessions      ChatSession[]
   chatFeatureOrders ChatFeatureOrder[]
+  artistOperators   ArtistOperator[]
+  communityPosts    CommunityPost[]
+  followers         ArtistFollow[]
 
   @@index([status, sortOrder], map: "idx_artists_status_sort")
   @@map("artists")
+}
+
+model ArtistOperator {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  artistId    String    @map("artist_id") @db.Uuid
+  role        String    @default("owner")
+  status      String    @default("active")
+  permissions String[]  @default([])
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+  user        User      @relation(fields: [userId], references: [id])
+  artist      Artist    @relation(fields: [artistId], references: [id])
+
+  @@unique([userId, artistId])
+  @@index([artistId, status], map: "idx_artist_operators_artist_status")
+  @@index([userId, status], map: "idx_artist_operators_user_status")
+  @@map("artist_operators")
 }
 
 model ArtistPublicProfile {
@@ -665,6 +693,101 @@ model DebutApplication {
   @@index([status, createdAt], map: "idx_debut_applications_status_created")
   @@index([userId, createdAt], map: "idx_debut_applications_user_created")
   @@map("debut_applications")
+}
+
+model CommunityPost {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authorUserId   String              @map("author_user_id") @db.Uuid
+  artistId       String?             @map("artist_id") @db.Uuid
+  postType       String              @default("user_post") @map("post_type")
+  status         String              @default("published")
+  visibility     String              @default("public")
+  body           String
+  likeCount      Int                 @default(0) @map("like_count")
+  replyCount     Int                 @default(0) @map("reply_count")
+  reportCount    Int                 @default(0) @map("report_count")
+  metadata       Json                @default("{}")
+  publishedAt    DateTime            @default(now()) @map("published_at") @db.Timestamptz(6)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  author         User                @relation("CommunityPostAuthor", fields: [authorUserId], references: [id])
+  artist         Artist?             @relation(fields: [artistId], references: [id])
+  replies        CommunityReply[]
+  reactions      CommunityReaction[]
+  reports        CommunityReport[]
+
+  @@index([status, visibility, publishedAt], map: "idx_community_posts_public_feed")
+  @@index([artistId, status, publishedAt], map: "idx_community_posts_artist_feed")
+  @@index([authorUserId, publishedAt], map: "idx_community_posts_author_feed")
+  @@map("community_posts")
+}
+
+model CommunityReply {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId       String        @map("post_id") @db.Uuid
+  authorUserId String        @map("author_user_id") @db.Uuid
+  status       String        @default("published")
+  body         String
+  metadata     Json          @default("{}")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  post         CommunityPost @relation(fields: [postId], references: [id])
+  author       User          @relation("CommunityReplyAuthor", fields: [authorUserId], references: [id])
+
+  @@index([postId, createdAt], map: "idx_community_replies_post_created")
+  @@index([authorUserId, createdAt], map: "idx_community_replies_author_created")
+  @@map("community_replies")
+}
+
+model CommunityReaction {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId       String        @map("post_id") @db.Uuid
+  userId       String        @map("user_id") @db.Uuid
+  reactionType String        @default("like") @map("reaction_type")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  post         CommunityPost @relation(fields: [postId], references: [id])
+  user         User          @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId, reactionType])
+  @@index([userId, createdAt], map: "idx_community_reactions_user_created")
+  @@map("community_reactions")
+}
+
+model CommunityReport {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  postId         String        @map("post_id") @db.Uuid
+  reporterUserId String        @map("reporter_user_id") @db.Uuid
+  reason         String
+  detail         String?
+  status         String        @default("submitted")
+  metadata       Json          @default("{}")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  post           CommunityPost @relation(fields: [postId], references: [id])
+  reporter       User          @relation("CommunityReportReporter", fields: [reporterUserId], references: [id])
+
+  @@index([postId, status], map: "idx_community_reports_post_status")
+  @@index([reporterUserId, createdAt], map: "idx_community_reports_reporter_created")
+  @@map("community_reports")
+}
+
+model ArtistFollow {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  artistId  String    @map("artist_id") @db.Uuid
+  status    String    @default("active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  user      User      @relation(fields: [userId], references: [id])
+  artist    Artist    @relation(fields: [artistId], references: [id])
+
+  @@unique([userId, artistId])
+  @@index([artistId, status], map: "idx_artist_follows_artist_status")
+  @@index([userId, status], map: "idx_artist_follows_user_status")
+  @@map("artist_follows")
 }
 
 model PremiumVideoProduct {

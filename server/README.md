@@ -65,7 +65,7 @@ npm run prisma:deploy
 npm run prisma:generate
 ```
 
-7. Seed MVP content and products.
+7. Seed starter content and products.
 
 ```bash
 npm run prisma:seed
@@ -80,7 +80,7 @@ Current fixed gallery seed sources:
 - `park-doa`: `assets/characters/park-doa/reference-final/*` (18)
 - `seo-yuan`: `assets/characters/seo-yuan/reference-final-01.png` through `reference-final-20.png` (20)
 
-`choi-seojin` has only `cover.png` and `thumb.png` until its final image pack lands. `cha-dohyun` is present in seed content, but no `assets/characters/cha-dohyun/` image folder is committed yet; the seed skips missing image files so public APIs do not emit broken asset URLs.
+Current seed image packs include gallery assets for `yoon-serin`, `han-seoyul`, `park-doa`, `seo-yuan`, `choi-seojin`, and `cha-dohyun`. The seed skips missing image files so public APIs do not emit broken asset URLs.
 
 8. Start the API server.
 
