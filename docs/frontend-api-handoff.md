@@ -497,8 +497,43 @@ GET /lumina-feed?mode=all&take=20
 GET /lumina-feed?mode=artists&take=20
 GET /lumina-feed?mode=fans&take=20
 GET /lumina-feed?artistSlug=choi-seojin
+GET /lumina-feed/samples?mode=all&take=20
 GET /artists/:slug/posts
 ```
+
+Sample posts:
+
+```http
+GET /lumina-feed/samples?mode=all&take=20
+GET /lumina-feed/samples?mode=artists&artistSlug=choi-seojin
+GET /lumina-feed/samples?mode=debut
+```
+
+Use this when the real feed is empty or while the UI is still in prototype mode.
+It exposes the #019 Notion sample-post pack through the backend and does not
+read or write the database.
+
+Response:
+
+```json
+{
+  "source": "notion_019_sample_posts",
+  "total": 30,
+  "items": [
+    {
+      "id": "sample-001",
+      "postType": "artist_post",
+      "artistSlug": "yoon-serin",
+      "authorType": "ai_artist",
+      "body": "리허설이 끝났습니다...",
+      "intention": "윤세린의 절제된 무대 후 감정",
+      "frontendNote": "아티스트 공식 피드 예시"
+    }
+  ]
+}
+```
+
+Query: `mode=all|artists|fans|debut`, optional `artistSlug`, `take=1..50`.
 
 Create post:
 

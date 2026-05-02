@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { LUMINA_FEED_SAMPLE_POSTS } from './lumina-feed-samples';
 
 type CommunityQuery = Record<string, string | undefined>;
 type CommunityBody = Record<string, unknown>;
@@ -50,6 +51,42 @@ export class CommunityService {
       include: this.postInclude(),
       orderBy: { publishedAt: 'desc' },
     });
+  }
+
+  getSamplePosts(query: CommunityQuery) {
+    const take = this.take(query.take);
+    const mode = this.optionalString(query.mode) ?? 'all';
+    const artistSlug = this.optionalString(query.artistSlug);
+
+    if (!['all', 'artists', 'fans', 'debut'].includes(mode)) {
+      throw new BadRequestException('mode must be all, artists, fans, or debut');
+    }
+
+    const posts = LUMINA_FEED_SAMPLE_POSTS.filter((post) => {
+      if (artistSlug && post.artistSlug !== artistSlug) {
+        return false;
+      }
+
+      if (mode === 'artists') {
+        return post.postType === 'artist_post';
+      }
+
+      if (mode === 'fans') {
+        return post.postType === 'fan_post';
+      }
+
+      if (mode === 'debut') {
+        return post.postType === 'debut_artist_post';
+      }
+
+      return true;
+    });
+
+    return {
+      source: 'notion_019_sample_posts',
+      total: posts.length,
+      items: posts.slice(0, take),
+    };
   }
 
   async getArtistPosts(slug: string, query: CommunityQuery) {

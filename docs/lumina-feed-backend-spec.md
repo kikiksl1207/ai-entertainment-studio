@@ -44,6 +44,7 @@ GET /lumina-feed?mode=all&take=20
 GET /lumina-feed?mode=artists&take=20
 GET /lumina-feed?mode=fans&take=20
 GET /lumina-feed?artistSlug=yoon-serin
+GET /lumina-feed/samples?mode=all&take=20
 GET /artists/:slug/posts
 ```
 
@@ -52,6 +53,8 @@ GET /artists/:slug/posts
 - `all`
 - `artists`
 - `fans`
+
+Sample `mode` also accepts `debut` for debut applicant style posts.
 
 Response is an array of posts:
 
@@ -87,6 +90,44 @@ Response is an array of posts:
 ```
 
 ### Create Post
+
+### Sample Posts
+
+```http
+GET /lumina-feed/samples?mode=all&take=20
+GET /lumina-feed/samples?mode=artists&artistSlug=choi-seojin
+GET /lumina-feed/samples?mode=debut
+```
+
+This endpoint exposes the 30 sample posts created in Notion task #019. It does
+not read or write the database. Use it only as a frontend empty-state, fallback,
+or prototype source while the real feed has little content.
+
+Response:
+
+```json
+{
+  "source": "notion_019_sample_posts",
+  "total": 30,
+  "items": [
+    {
+      "id": "sample-001",
+      "postType": "artist_post",
+      "artistSlug": "yoon-serin",
+      "authorType": "ai_artist",
+      "body": "리허설이 끝났습니다...",
+      "intention": "윤세린의 절제된 무대 후 감정",
+      "frontendNote": "아티스트 공식 피드 예시"
+    }
+  ]
+}
+```
+
+Query:
+
+- `mode`: `all`, `artists`, `fans`, or `debut`. Default `all`.
+- `artistSlug`: optional artist filter.
+- `take`: 1-50. Default 20.
 
 ```http
 POST /lumina-feed/posts

@@ -26,6 +26,11 @@ export class CommunityController {
     return this.communityService.getFeed(query);
   }
 
+  @Get('lumina-feed/samples')
+  getSamplePosts(@Query() query: CommunityQuery) {
+    return this.communityService.getSamplePosts(query);
+  }
+
   @Get('artists/:slug/posts')
   getArtistPosts(@Param('slug') slug: string, @Query() query: CommunityQuery) {
     return this.communityService.getArtistPosts(slug, query);
