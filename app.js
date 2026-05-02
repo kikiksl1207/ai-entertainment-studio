@@ -126,6 +126,7 @@ function applyAuthResponse(data, providerName = "백엔드") {
   setAuth({ accessToken, refreshToken, user });
   closeAuthModal();
   updateAuthUI();
+  loadWallet(); // 로그인/회원가입 직후 잔액 로드
   console.info(`[Lumina] ${providerName} 로그인 성공:`, user?.displayName || user?.email);
   return true;
 }
@@ -674,6 +675,90 @@ async function loadBoostState() {
   }
 }
 
+/* ── 지갑 / 루미나 잔액 ───────────────────────
+   GET /api/v1/wallet — cachedBalance 사용
+   백엔드 명세: 가입 직후 300 L, 추천인 코드 유효 시 +500 L
+   ─────────────────────────────────────────── */
+let _wallet = null; // { balance: number, currencyCode: "LUMINA", loaded: bool }
+
+async function loadWallet() {
+  if (!isLoggedIn()) {
+    _wallet = null;
+    updateWalletUI();
+    return;
+  }
+  try {
+    const data = await apiFetch("/api/v1/wallet", { auth: true, throwOnError: true });
+    _wallet = {
+      balance: parseFloat(data.cachedBalance ?? "0"),
+      currencyCode: data.currencyCode || "LUMINA",
+      loaded: true
+    };
+  } catch (err) {
+    console.warn("[Lumina] 지갑 조회 실패:", err);
+    _wallet = { balance: 0, currencyCode: "LUMINA", loaded: false };
+  }
+  updateWalletUI();
+}
+
+function formatLuminaAmount(n) {
+  // 정수면 정수로, 소수점 있으면 소수점 둘째 자리 (백엔드는 "300.00" 같은 문자열로 옴)
+  if (!isFinite(n)) return "0";
+  if (Number.isInteger(n)) return n.toLocaleString("ko-KR");
+  return n.toLocaleString("ko-KR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function updateWalletUI() {
+  // 1. 헤더 잔액 뱃지 (헤더 닉네임 좌측)
+  const headerBadge = document.getElementById("walletBadge");
+  if (headerBadge) {
+    if (_wallet?.loaded) {
+      headerBadge.innerHTML = `
+        <svg class="wallet-coin" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <!-- 5각 별 (Lumina Stage 스텔라 시스템 로고) -->
+          <path d="M12 2 L14.5 9 L22 9 L16 14 L18 21 L12 17 L6 21 L8 14 L2 9 L9.5 9 Z"
+                fill="currentColor" opacity="0.18"/>
+          <path d="M12 2 L14.5 9 L22 9 L16 14 L18 21 L12 17 L6 21 L8 14 L2 9 L9.5 9 Z"
+                fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          <!-- S (Stella) -->
+          <text x="12" y="15.5" text-anchor="middle" font-size="9" font-weight="900"
+                fill="currentColor" font-family="Georgia, serif">S</text>
+        </svg>
+        <span class="wallet-sep">/</span>
+        <span>${formatLuminaAmount(_wallet.balance)} L</span>`;
+      headerBadge.style.display = "";
+    } else {
+      headerBadge.style.display = "none";
+    }
+  }
+  // 2. 사용자 메뉴 드롭다운의 "루미나 지갑" 항목
+  // 1만 미만: "300 L"만 / 1만 이상: "25,500 L · ★ 2.55 스텔라" 보조 표시
+  const walletItem = document.querySelector('.user-menu-item[data-action="wallet"]');
+  if (walletItem) {
+    const small = walletItem.querySelector("small");
+    if (small) {
+      if (_wallet?.loaded) {
+        const balance = _wallet.balance;
+        let text = `${formatLuminaAmount(balance)} L`;
+        if (balance >= 10000) {
+          // 1 스텔라 = 10,000 루미나 (노션 정책)
+          const stellar = balance / 10000;
+          // 정수면 정수로, 소수점 있으면 둘째 자리까지
+          const stellarStr = Number.isInteger(stellar)
+            ? stellar.toString()
+            : stellar.toFixed(2).replace(/\.?0+$/, "");
+          text += ` · ★ ${stellarStr} 스텔라`;
+        }
+        small.textContent = text;
+        small.classList.add("user-menu-balance");
+      } else {
+        small.textContent = "준비 중";
+        small.classList.remove("user-menu-balance");
+      }
+    }
+  }
+}
+
 function getLikesCount(slug) {
   const rank = _rankings.find(r => r.slug === slug);
   return rank?.likes || 0;
@@ -685,11 +770,14 @@ function formatLikeCount(n) {
   return String(n);
 }
 
-function likeButtonHTML(slug) {
+function likeButtonHTML(slug, extraClass = "") {
   const count = getLikesCount(slug);
   const liked = _userLikedSlugs.has(slug) ? " is-liked" : "";
+  const cls = extraClass ? ` ${extraClass}` : "";
+  // 카탈로그에서는 클릭 시 인기투표실로 이동 — 호버 시 안내 (인기투표실 페이지에서는 무관)
+  const tooltip = "인기투표실에서 응원하기";
   return `
-    <button class="like-btn${liked}" data-like-slug="${slug}" type="button" aria-label="좋아요">
+    <button class="like-btn${cls}${liked}" data-like-slug="${slug}" type="button" aria-label="좋아요" title="${tooltip}">
       <svg class="like-heart" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z"/>
       </svg>
@@ -711,28 +799,65 @@ async function handleLike(slug, btnEl) {
   if (btnEl) btnEl.disabled = true;
 
   try {
+    // 백엔드는 artistId를 요구함 (명세 페이지에 정확한 형식 명시 안 됨).
+    // _artists에서 slug로 찾아 id가 있으면 그걸 사용, 없으면 slug fallback.
+    // artistSlug도 함께 보내서 백엔드가 어느 필드를 받든 동작하도록 안전망 둠.
+    const artist = _artists.find(a => a.slug === slug);
+    const artistIdValue = artist?.id || slug;
+
     await apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/free-like`, {
       method: "POST",
-      body: { artistSlug: slug },
+      body: { artistId: artistIdValue, artistSlug: slug },
       auth: true,
       throwOnError: true
     });
-    // 성공: 클라이언트 상태 + UI 업데이트
+    // 성공: 클라이언트 상태 즉시 업데이트 (낙관적 갱신)
     _userLikedSlugs.add(slug);
     const rank = _rankings.find(r => r.slug === slug);
     if (rank) rank.likes += 1;
     else _rankings.push({ slug, likes: 1 });
     updateLikeButtons(slug);
+    // Q1 답변 권장: 좋아요 성공 후 rankings 재호출로 정확한 순위/점수 갱신
+    // (실패해도 낙관적 갱신은 유지 — 사용자 경험 영향 없음)
+    apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/rankings`)
+      .then(rankingsData => {
+        if (rankingsData) {
+          const list = Array.isArray(rankingsData) ? rankingsData : (rankingsData?.rankings || rankingsData?.items || []);
+          if (Array.isArray(list) && list.length > 0) {
+            _rankings = list.map(r => ({
+              slug: r.artistSlug || r.slug || r.artist?.slug || "",
+              likes: r.totalFreeLikes ?? r.totalWeightedScore ?? r.totalLikes ?? r.likes ?? r.score ?? 0
+            })).filter(r => r.slug);
+            updateLikeButtons(slug);
+          }
+        }
+      })
+      .catch(err => console.warn("[Lumina] 랭킹 재로드 실패 (낙관적 갱신 유지):", err));
+
+    // 좋아요 후 무료 한도 잔여 갱신 (인기투표실 hero 패널 업데이트)
+    loadFreeLikeQuota().then(updateHeroQuotaDisplay);
   } catch (err) {
     console.error("[Lumina] 좋아요 실패:", err);
-    if (err.status === 429 || err.body?.code === "DAILY_LIMIT") {
-      alert("오늘 좋아요를 모두 보내셨어요!\n내일 다시 응원해주세요 💜");
+    // Q1 답변 기준 에러 코드 분기:
+    // - 일일 한도: 400 + message="Daily free like limit exceeded"
+    // - active artist 없음: 400 + message="Active artist not found"
+    // - active campaign 없음: 404 + message="Active boost campaign not found"
+    // - 인증 실패: 401
+    const msg = err.body?.message || err.message || "";
+    const isDailyLimit = err.status === 400 && /daily free like limit/i.test(msg);
+    if (isDailyLimit) {
+      // 한도 초과 — 추가 구매 정책 안내 (구매 API 출시 전까지 정보만)
+      alert("오늘 무료 좋아요를 모두 보내셨어요! 💜\n\n추가 응원은 곧 오픈되는 유료 좋아요로 가능해요.\n100원(10 루미나)당 좋아요 1개\n\n무료 좋아요는 내일 자정에 다시 충전돼요!");
     } else if (err.status === 401) {
       clearAuth();
       updateAuthUI();
       openAuthModal("login");
+    } else if (err.status === 404 && /active boost campaign not found/i.test(msg)) {
+      alert("진행 중인 좋아요 캠페인이 없어요.\n잠시 후 다시 시도해주세요.");
+    } else if (err.status === 400 && /active artist not found/i.test(msg)) {
+      alert("아티스트 정보를 찾을 수 없어요.\n페이지를 새로고침 후 다시 시도해주세요.");
     } else {
-      alert("좋아요 실패: " + (err.message || "잠시 후 다시 시도해주세요"));
+      alert("좋아요 실패: " + (msg || "잠시 후 다시 시도해주세요"));
     }
     if (btnEl) btnEl.disabled = false;
   }
@@ -757,7 +882,18 @@ function bindLikeButtons() {
     if (!btn) return;
     e.preventDefault();
     e.stopPropagation();
-    handleLike(btn.dataset.likeSlug, btn);
+    const slug = btn.dataset.likeSlug;
+
+    // 카탈로그(characters.html)에서는 좋아요 대신 인기투표실로 이동
+    // → 진짜 투표는 인기투표실에서. 카드의 좋아요 버튼은 entry point 역할.
+    // 인기투표실(popular-vote.html) 자체에서는 기존 좋아요 동작 유지.
+    const path = window.location.pathname;
+    const isOnVoteRoom = path.includes("popular-vote.html");
+    if (!isOnVoteRoom) {
+      window.location.href = `./popular-vote.html?artist=${encodeURIComponent(slug)}&tab=debut-race`;
+      return;
+    }
+    handleLike(slug, btn);
   });
 }
 
@@ -772,14 +908,37 @@ function updateAuthUI() {
     loginBtn.dataset.action = "menu";
     signupBtn.textContent = "로그아웃";
     signupBtn.dataset.action = "logout";
+    // 잔액 뱃지 영역 추가 (없으면 생성, 있으면 그대로)
+    ensureWalletBadgeInHeader(loginBtn);
   } else {
     loginBtn.textContent = "로그인";
     loginBtn.dataset.action = "login";
     signupBtn.textContent = "회원가입";
     signupBtn.dataset.action = "signup";
+    // 비로그인 시 뱃지 제거
+    document.getElementById("walletBadge")?.remove();
   }
   // 드롭다운 닫기 (UI 갱신 시)
   closeUserMenu();
+}
+
+function ensureWalletBadgeInHeader(loginBtn) {
+  if (document.getElementById("walletBadge")) return;
+  const headerAuth = loginBtn.closest(".header-auth");
+  if (!headerAuth) return;
+  const badge = document.createElement("button");
+  badge.id = "walletBadge";
+  badge.className = "wallet-badge";
+  badge.type = "button";
+  badge.title = "루미나 잔액";
+  badge.style.display = "none"; // 데이터 로드되면 보임
+  // 로그인 버튼(닉네임) 바로 앞에 삽입 → "잔액 | 닉네임 | 로그아웃"
+  headerAuth.insertBefore(badge, loginBtn);
+  // 클릭 시 사용자 메뉴 열기 (잔액 자세히 = 메뉴 안 지갑 항목)
+  badge.addEventListener("click", e => {
+    e.preventDefault();
+    toggleUserMenu(loginBtn);
+  });
 }
 
 function bindAuthHeaderEvents() {
@@ -813,6 +972,23 @@ function bindAuthHeaderEvents() {
   });
 }
 
+/* ── 현재 페이지에 해당하는 메뉴 항목에 is-active 자동 부여 ──
+   각 HTML 파일에 일일이 class="is-active"를 박지 않고 JS가 자동 감지 */
+function activateCurrentNavItem() {
+  const path = window.location.pathname;
+  // 마지막 /를 기준으로 파일명 추출. "/" 또는 "" 인 경우 index.html로 간주.
+  const filename = (path.split("/").pop() || "index.html").toLowerCase();
+  document.querySelectorAll(".main-nav a").forEach(link => {
+    const href = (link.getAttribute("href") || "").toLowerCase();
+    const linkFile = href.split("/").pop();
+    if (linkFile === filename) {
+      link.classList.add("is-active");
+    } else {
+      link.classList.remove("is-active");
+    }
+  });
+}
+
 function toggleUserMenu(anchorBtn) {
   let menu = document.getElementById("userMenu");
   if (menu?.classList.contains("is-open")) {
@@ -825,6 +1001,8 @@ function toggleUserMenu(anchorBtn) {
   // 사용자 정보 채우기
   menu.querySelector(".user-menu-name").textContent = user.displayName || user.email?.split("@")[0] || "내 계정";
   menu.querySelector(".user-menu-email").textContent = user.email || "";
+  // 잔액 새로고침 (열 때마다 — 다른 탭 활동/시간 차이 반영)
+  loadWallet();
   // 위치 (헤더 버튼 아래)
   const rect = anchorBtn.getBoundingClientRect();
   menu.style.top = (rect.bottom + 8) + "px";
@@ -1238,6 +1416,122 @@ characters.forEach((artist) => {
   artist.gallery = front.gallery.map(([caption, src]) => ({ caption, src }));
 });
 
+/* ══════════════════════════════════════════════
+   캐릭터별 1인칭 멘트
+   - tributeMessage: 이달의 1위 됐을 때 축하 소감 (응원 받은 후)
+   - tributeMessageZero: 아직 1위 응원 0일 때 (대기 중 메시지)
+   - voteAppeal: Debut Race 카드의 투표 독려 멘트 (각자 컨셉/말투)
+   각 캐릭터의 fandom / concept / 톤에 맞춰 작성
+   ══════════════════════════════════════════════ */
+const characterMessages = {
+  "yoon-serin": {
+    tributeMessage: "감사합니다. 마이크 앞에 서니 가장 먼저 떠오른 건 응원해주신 분들 한 분 한 분이에요. 이 자리, 가볍게 받지 않을게요. 다음 무대로 보답할게요.",
+    tributeMessageZero: "스포트라이트가 켜지기 전, 가장 조용한 시간이에요. 첫 응원이 이 무대를 시작해줘요.",
+    voteAppeal: "오늘 무대 위에 서요. 한 번의 좋아요, 잊지 않을게요."
+  },
+  "han-seoyul": {
+    tributeMessage: "이 자리에 혼자 올라온 게 아니에요. 응원해주신 모든 분들과 같이 받는 상이에요. 다음 무대도 다 같이 가요!",
+    tributeMessageZero: "센터에 서기 전, 옆자리부터 채워주실 첫 응원을 기다리고 있어요.",
+    voteAppeal: "오늘도 같이 가요! 좋아요 한 번이 큰 힘이 돼요 🎀"
+  },
+  "park-doa": {
+    tributeMessage: "헐... 이 자리에서 진짜 1등 소감 말하는 날이 오네요. 댓글 다 챙겨봤어요, 정말요! 다음에도 자주 만나요~",
+    tributeMessageZero: "조명 켜지면 활짝 웃을 준비하고 있어요. 첫 응원, 가볍게 한 번씩 부탁해요!",
+    voteAppeal: "오늘 일상도 같이 봐줄래요? 좋아요 한 번씩~"
+  },
+  "choi-seojin": {
+    tributeMessage: "조용히 보내드린 한 컷이 닿았다면, 그게 이 상의 의미입니다. 다음에는 더 깊은 한 컷으로 인사드릴게요.",
+    tributeMessageZero: "아직 첫 컷의 셔터가 눌리기 전이에요. 첫 응원으로 카메라를 돌려주세요.",
+    voteAppeal: "한 컷, 한 마음. 응원해주시면 다음 컷에 담아 보내드릴게요."
+  },
+  "oh-hyerin": {
+    tributeMessage: "한 곡으로 마음이 닿았다는 게, 이 자리에서 받는 가장 큰 영광이에요. 다음 곡으로 갚을게요.",
+    tributeMessageZero: "첫 곡을 부를 무대를 기다리고 있어요. 첫 응원이 그 마이크를 켜줘요.",
+    voteAppeal: "오늘도 한 곡 같이해요. 응원, 곡으로 갚을게요."
+  },
+  "cha-dohyun": {
+    tributeMessage: "곧 무대에서 만나려고 했는데, 응원이 먼저 와주셨네요. 받은 만큼 무대로 갚겠습니다. 결국 저답게.",
+    tributeMessageZero: "갑옷을 챙겨 입고 무대 뒤에 서 있어요. 첫 응원이 등장 신호예요.",
+    voteAppeal: "곧 무대로 인사드릴게요. 그 전에, 한 번의 응원만요."
+  },
+  "seo-yuan": {
+    tributeMessage: "편안하게 다가가려 했는데, 이렇게 큰 응원으로 돌아왔네요. 다음에는 더 자연스러운 화면으로 인사드릴게요.",
+    tributeMessageZero: "조용히 카메라를 켜고 있어요. 첫 응원이 첫 화면을 만들어줘요.",
+    voteAppeal: "편안하게 만나요. 좋아요 한 번이 다음 화면을 만들어요."
+  },
+  "min-chaeon": {
+    tributeMessage: "운동하면서 알았어요 — 응원이 진짜 힘이에요. 데뷔하면 더 건강하게 보답할게요!",
+    tributeMessageZero: "큐티한 척하지만 실은 힘이 좋아요. 첫 응원, 가볍게 한 번!",
+    voteAppeal: "오늘 한 번의 응원이 데뷔 무대로 이어져요 💪"
+  },
+  "kang-sia": {
+    tributeMessage: "도시 한 컷에 머물던 제가 무대로 나갈 수 있게 해주셨어요. 감사해요.",
+    tributeMessageZero: "도시의 무드가 무대로 옮겨질 수 있을까요. 첫 응원이 그 답이에요.",
+    voteAppeal: "도시 한 컷, 같이 만들어주세요."
+  },
+  "lee-jiwon": {
+    tributeMessage: "조용히 준비하던 시간이 있었어요. 응원해주신 한 분 한 분, 잊지 않을게요.",
+    tributeMessageZero: "톱스타의 자리는 멀게 보이지만, 첫 응원에서 시작한다고 들었어요.",
+    voteAppeal: "다음 작품에서 만나요. 그 전에 한 번의 응원만요."
+  },
+  "ha-yuna": {
+    tributeMessage: "트렌드는 빠르게 바뀌는데 응원은 변하지 않네요. 그게 진짜 힘이에요!",
+    tributeMessageZero: "오늘의 트렌드가 뭐냐고요? 첫 응원이요. 같이 만들어요!",
+    voteAppeal: "오늘 트렌드는 응원이에요. 좋아요 한 번 ✨"
+  },
+  "baek-ria": {
+    tributeMessage: "청량한 무대 한 번 보여드리려 했는데 응원이 먼저 와주셨어요. 곧 직캠으로 만나요.",
+    tributeMessageZero: "여름 무대 직캠 준비 중이에요. 첫 응원이 첫 컷을 켜줘요.",
+    voteAppeal: "여름 무대 직캠 곧 시작! 좋아요로 응원해주세요 🌊"
+  },
+  "oh-yuna": {
+    tributeMessage: "페스티벌 무대를 꿈꿨는데 응원이 먼저 만들어주셨네요. 이 무대, 끝까지 갈게요.",
+    tributeMessageZero: "여름 페스티벌, 솔로 무대로 서고 싶어요. 첫 응원, 같이해주실래요?",
+    voteAppeal: "여름이 오면 솔로 무대로 만나요. 응원 부탁드려요!"
+  },
+  "kwon-taejun": {
+    tributeMessage: "말이 적은 편이라 잘 표현 못 했는데, 응원해주셔서 감사합니다.",
+    tributeMessageZero: "조용히 준비하고 있어요. 한 번의 응원만 있으면 됩니다.",
+    voteAppeal: "한 마디 적게, 응원 한 번 부탁드립니다."
+  },
+  "seo-hamin": {
+    tributeMessage: "유쾌하게 다가가려 했는데, 더 유쾌한 응원으로 돌아왔네요!",
+    tributeMessageZero: "오늘 분위기 책임지고 싶어요. 첫 응원, 가볍게 한 번씩!",
+    voteAppeal: "오늘도 즐거운 하루! 응원 한 번씩 챙겨주세요~"
+  },
+  "ryu-taeo": {
+    tributeMessage: "응원이라는 게 이렇게 큰 힘인 줄 몰랐어요. 받은 응원, 더 큰 응원으로 돌려드릴게요!",
+    tributeMessageZero: "스포츠 응원의 짜릿함을 무대에 옮기고 싶어요. 첫 응원, 같이 외쳐요!",
+    voteAppeal: "응원은 끝까지! 한 번씩 같이 외쳐요!"
+  }
+};
+
+function getCharacterMessages(slug) {
+  return characterMessages[slug] || {
+    tributeMessage: "응원해주신 모든 분께 감사합니다. 더 좋은 무대로 보답할게요.",
+    tributeMessageZero: "첫 응원을 기다리고 있어요. 함께 시작해주세요.",
+    voteAppeal: "응원 한 번 부탁드려요!"
+  };
+}
+
+/* ── 초기 공개 라인업 (사용자/운영자 결정 기반) ──
+   초기 공개 6명: 윤세린, 한서율, 박도아, 최서진, 차도현, 서유안
+   - 운영팩 갤러리 seed에 연결되어 있는 6명 (운영 API에서 확인됨)
+   - tier 필드와 별개로 운영진이 결정한 공식 라인업
+   - 백엔드 main-pick API 응답이 우선, 비어있으면 이 리스트로 fallback */
+const PUBLIC_LINEUP_SLUGS = [
+  "yoon-serin",
+  "han-seoyul",
+  "park-doa",
+  "choi-seojin",
+  "cha-dohyun",
+  "seo-yuan"
+];
+
+function isPublicLineup(artist) {
+  return PUBLIC_LINEUP_SLUGS.includes(artist.slug);
+}
+
 /* ── 상태 메타 ──────────────────────────────── */
 const statusMeta = {
   public:    { label: "공개 활동 중",  summaryLabel: "공개 중",   className: "is-public"    },
@@ -1287,8 +1581,16 @@ function mediaStyle(path) {
    ─────────────────────────────────────────── */
 function adaptArtist(api) {
   const local = characters.find(c => c.slug === api.slug) || {};
+  // Q2 (2026-05-02 Codex A 답변) 권장 패턴:
+  // 운영 API의 assets[]에서 usageType="gallery" 항목이 있으면 우선 사용,
+  // 없으면(현재 운영 seed 미반영 상태) 로컬 하드코딩 fallback 유지.
+  // seed 운영 반영 즉시 자동으로 백엔드 데이터로 전환됨.
+  const apiGallery = (api.assets || [])
+    .filter(a => a.usageType === "gallery")
+    .map(a => [a.caption || "Gallery", a.url]);
   return {
     ...local,
+    id:          api.id            || api._id           || local.id,
     name:        api.name          || local.name,
     publicName:  api.publicName    || api.public_name    || local.publicName,
     slug:        api.slug,
@@ -1305,7 +1607,7 @@ function adaptArtist(api) {
       cover: api.coverImage  || api.cover_image  || local.images?.cover,
       thumb: api.thumbImage  || api.thumb_image  || local.images?.thumb
     },
-    gallery:           local.gallery || [],
+    gallery:           apiGallery.length > 0 ? apiGallery : (local.gallery || []),
     profile:           api.profile || local.profile || {},
     shorts:            api.shorts  || local.shorts  || [],
     // 프론트 전용 필드: 항상 로컬 유지
@@ -1331,9 +1633,11 @@ function renderMainArtists() {
   const root = document.getElementById("mainArtistGrid");
   if (!root) return;
 
-  const list = _artists.filter(a =>
-    (a.tier === "main" || a.tier === "premium") && a.status === "public"
-  );
+  const list = _artists.filter(isPublicLineup);
+
+  // 좋아요 많은 순으로 정렬 (랭킹 데이터가 도착하면 자동 반영)
+  // _rankings가 비어있으면 sort 결과 0 → 원래 순서 유지 (fallback)
+  list.sort((a, b) => getLikesCount(b.slug) - getLikesCount(a.slug));
 
   root.innerHTML = list.map(a => `
     <article class="artist-card clickable-card" data-href="./character-detail.html?slug=${a.slug}"
@@ -1342,7 +1646,6 @@ function renderMainArtists() {
         <img class="artist-media-image artist-media-image-${a.slug}"
           src="${a.images.thumb || a.images.cover}" alt="${a.publicName}"
           onerror="this.style.display='none'" />
-        ${likeButtonHTML(a.slug)}
         <div class="artist-media-copy">
           <span class="artist-role">${a.role}</span>
           <strong>${a.name}</strong>
@@ -1355,6 +1658,451 @@ function renderMainArtists() {
       </div>
     </article>
   `).join("");
+}
+
+/* ── 렌더링: 메인 hero "이달의 아티스트" ─────── */
+/* 좋아요 1위 메인/프리미엄 캐릭터를 자동으로 hero에 표시.
+   - 좋아요 데이터가 비어있으면 첫 번째 메인 캐릭터로 fallback (HTML 하드코딩과 일관)
+   - 인기투표실 데이터(_rankings)가 도착하면 자동 갱신 */
+function renderHeroFeature() {
+  const root = document.getElementById("heroFeature");
+  if (!root) return;
+
+  // 메인 라인업 6명 (status는 무시 — 운영진 결정한 공식 라인업)
+  const candidates = _artists.filter(isPublicLineup);
+  if (!candidates.length) return; // 후보 없으면 HTML fallback 유지
+
+  // 좋아요 많은 순으로 정렬, 동률이면 원래 등록 순서
+  const sorted = [...candidates].sort((a, b) => getLikesCount(b.slug) - getLikesCount(a.slug));
+  const top = sorted[0];
+  const likes = getLikesCount(top.slug);
+
+  // 좋아요 0이면 "이달의 아티스트" (fallback 첫 캐릭), 1+ 있으면 "지금 1위" 강조
+  const label = likes > 0 ? `이달의 1위 · ${formatLikeCount(likes)} 응원` : "이달의 아티스트";
+
+  // 태그 최대 3개만 표시
+  const tagsHTML = (top.tags || []).slice(0, 3).map(t => `<li>${t}</li>`).join("");
+
+  root.innerHTML = `
+    <div class="hero-feature-media">
+      <img src="${top.images.thumb || top.images.cover}" alt="${top.publicName} 프로필" />
+    </div>
+    <div class="hero-feature-body">
+      <span class="hero-feature-label">${label}</span>
+      <strong>${top.publicName}</strong>
+      <p class="hero-feature-summary">${top.summary || ""}</p>
+      <p>${top.artistDescription || top.intro || ""}</p>
+      <ul class="hero-feature-tags">${tagsHTML}</ul>
+      <a class="text-link hero-feature-link" href="./character-detail.html?slug=${top.slug}">${top.publicName} 프로필 보기</a>
+    </div>
+  `;
+}
+
+/* ══════════════════════════════════════════════
+   인기투표실 (popular-vote.html)
+   3탭: Main Pick / Debut Race / Hall of Fame
+   백엔드 API:
+   - GET /api/v1/popular-vote/main-pick
+   - GET /api/v1/popular-vote/hall-of-fame/monthly-picks?year={year}
+   - GET /api/v1/popular-vote/hall-of-fame/year-champion?year={year}
+   - Debut Race는 기존 boost-campaigns 흐름 (free-like)
+   ══════════════════════════════════════════════ */
+
+let _popularVote = {
+  mainPick: null,         // { campaign, leader, rankings }
+  monthlyPicks: [],       // 월간 1위 배열 (해당 연도)
+  yearChampion: null,     // { year, champion, rankings, rule }
+  loaded: false
+};
+
+/* ── 무료 좋아요 잔여 한도 ──
+   2026-05-02 차모 신규 추가 API: GET /api/v1/me/free-like-quota
+   응답: { campaign, dailyLimit, usedToday, remaining, resetsAt } */
+let _freeLikeQuota = null;
+
+async function loadFreeLikeQuota() {
+  if (!isLoggedIn()) {
+    _freeLikeQuota = null;
+    return;
+  }
+  try {
+    _freeLikeQuota = await apiFetch("/api/v1/me/free-like-quota", { auth: true, throwOnError: true });
+  } catch (err) {
+    console.warn("[Lumina] 무료 좋아요 한도 조회 실패:", err);
+    _freeLikeQuota = null;
+  }
+}
+
+function updateHeroQuotaDisplay() {
+  const heroQuotaEl = document.getElementById("heroQuotaLabel");
+  if (!heroQuotaEl) return;
+  if (_freeLikeQuota && typeof _freeLikeQuota.dailyLimit === "number") {
+    const remaining = _freeLikeQuota.remaining ?? 0;
+    const limit = _freeLikeQuota.dailyLimit;
+    heroQuotaEl.textContent = `오늘 ${remaining}/${limit} 남음`;
+  } else {
+    heroQuotaEl.textContent = "1인당 일일 한도";
+  }
+}
+
+async function loadPopularVoteState() {
+  const year = new Date().getFullYear();
+  try {
+    const [mainPick, monthlyPicks, yearChampion] = await Promise.all([
+      apiFetch("/api/v1/popular-vote/main-pick").catch(err => {
+        console.warn("[Lumina] main-pick 로드 실패:", err);
+        return null;
+      }),
+      apiFetch(`/api/v1/popular-vote/hall-of-fame/monthly-picks?year=${year}`).catch(err => {
+        console.warn("[Lumina] monthly-picks 로드 실패:", err);
+        return null;
+      }),
+      apiFetch(`/api/v1/popular-vote/hall-of-fame/year-champion?year=${year}`).catch(err => {
+        console.warn("[Lumina] year-champion 로드 실패:", err);
+        return null;
+      })
+    ]);
+    // 응답 형식이 배열일 수도 있고 { items: [] } 일 수도 — 양쪽 다 처리
+    const monthlyArr = Array.isArray(monthlyPicks)
+      ? monthlyPicks
+      : (monthlyPicks?.items || monthlyPicks?.picks || []);
+    _popularVote = {
+      mainPick,
+      monthlyPicks: monthlyArr,
+      // year-champion 응답: { year, champion, rankings, rule } — 객체 통째로 저장
+      yearChampion: yearChampion,
+      loaded: true
+    };
+  } catch (err) {
+    console.warn("[Lumina] 인기투표실 로드 실패:", err);
+    _popularVote.loaded = true; // 실패해도 fallback 렌더링은 진행
+  }
+}
+
+/* ── 렌더: Main Pick 탭 ──
+   백엔드 응답이 비어있으면 _artists 메인 + _rankings로 fallback */
+function renderMainPickTab() {
+  const leaderRoot = document.getElementById("mainPickLeader");
+  const rankingsRoot = document.getElementById("mainPickRankings");
+  if (!leaderRoot || !rankingsRoot) return;
+
+  // 데이터 소스 결정: API 우선, 없으면 로컬 fallback
+  const apiLeader = _popularVote.mainPick?.leader;
+  const apiRankings = _popularVote.mainPick?.rankings;
+
+  let leaderArtist = null;
+  let rankingsList = [];
+
+  if (apiLeader && Array.isArray(apiRankings) && apiRankings.length > 0) {
+    // API 데이터 사용 — 차모 답변(2026-05-02 Q4) 기준 row 구조:
+    // { rankNo, artist, totalFreeLikes, totalLuminaBoosts, totalWeightedScore }
+    leaderArtist = getCharacterBySlug(apiLeader.artist?.slug || apiLeader.slug || apiLeader.artistSlug);
+    rankingsList = apiRankings.map(r => ({
+      artist: getCharacterBySlug(r.artist?.slug || r.slug || r.artistSlug),
+      likes: r.totalFreeLikes ?? r.totalWeightedScore ?? r.totalLikes ?? r.likes ?? r.score ?? 0
+    })).filter(r => r.artist);
+  } else {
+    // Fallback: 초기 공개 6명 라인업을 좋아요 순으로
+    const mainList = _artists
+      .filter(isPublicLineup)
+      .map(a => ({ artist: a, likes: getLikesCount(a.slug) }))
+      .sort((a, b) => b.likes - a.likes);
+    if (mainList.length > 0) {
+      leaderArtist = mainList[0].artist;
+      rankingsList = mainList;
+    }
+  }
+
+  // 헤더 패널 leader 이름 갱신
+  const heroLeaderEl = document.getElementById("heroLeaderName");
+  if (heroLeaderEl && leaderArtist) heroLeaderEl.textContent = leaderArtist.publicName;
+
+  // 헤더 패널 캠페인 이름 자동 갱신 (백엔드 boost 캠페인 데이터 있으면 사용)
+  const heroCampaignEl = document.getElementById("heroCampaignLabel");
+  if (heroCampaignEl) {
+    const campaignName = _currentCampaign?.name
+      || _popularVote.mainPick?.campaign?.name
+      || "데뷔 레이스";
+    heroCampaignEl.textContent = campaignName;
+  }
+
+  if (!leaderArtist) {
+    leaderRoot.innerHTML = `<div class="vote-empty">아직 집계 중이에요. 곧 첫 1위가 발표됩니다.</div>`;
+    rankingsRoot.innerHTML = "";
+    return;
+  }
+
+  // 1위 큰 카드
+  const leaderLikes = rankingsList[0]?.likes ?? getLikesCount(leaderArtist.slug);
+  // 캐릭터별 1인칭 축하 소감 (응원 0 vs 1+에 따라 다른 멘트)
+  const messages = getCharacterMessages(leaderArtist.slug);
+  const tribute = leaderLikes > 0 ? messages.tributeMessage : messages.tributeMessageZero;
+
+  leaderRoot.innerHTML = `
+    <article class="vote-leader-card clickable-card" data-href="./character-detail.html?slug=${leaderArtist.slug}">
+      <div class="vote-leader-media">
+        <img src="${leaderArtist.images.cover || leaderArtist.images.thumb}" alt="${leaderArtist.publicName}" />
+        <div class="vote-leader-crown">👑</div>
+      </div>
+      <div class="vote-leader-body">
+        <span class="vote-leader-label">이달의 1위 · ${formatLikeCount(leaderLikes)} 응원</span>
+        <strong>${leaderArtist.publicName}</strong>
+        <blockquote class="vote-leader-tribute">
+          <p>${tribute}</p>
+          <cite>— ${leaderArtist.publicName}</cite>
+        </blockquote>
+        <a class="text-link" href="./character-detail.html?slug=${leaderArtist.slug}">${leaderArtist.publicName} 프로필 보기</a>
+      </div>
+    </article>
+  `;
+
+  // 2~N위 리스트 (1위 제외)
+  const rest = rankingsList.slice(1);
+  if (rest.length === 0) {
+    rankingsRoot.innerHTML = "";
+  } else {
+    // 5위(=list 4번째)까지만 기본 표시, 나머지는 더보기 토글
+    const VISIBLE_LIMIT = 4; // 2위~5위 = 4명
+    const initiallyVisible = rest.slice(0, VISIBLE_LIMIT);
+    const hidden = rest.slice(VISIBLE_LIMIT);
+
+    const renderRow = (r, idx) => {
+      const rankNum = idx + 2; // list 첫 항목이 2위
+      // 1~3위는 금은동 메달, 4위 이후는 숫자만
+      const medal = rankNum === 2 ? "🥈" : rankNum === 3 ? "🥉" : "";
+      return `
+        <li class="vote-ranking-row clickable-card" data-href="./character-detail.html?slug=${r.artist.slug}">
+          <span class="vote-rank-label">
+            ${medal ? `<span class="vote-rank-medal">${medal}</span>` : ""}
+            <span class="vote-rank-num">${rankNum}위</span>
+          </span>
+          <img class="vote-rank-thumb" src="${r.artist.images.thumb || r.artist.images.cover}" alt="${r.artist.publicName}" />
+          <div class="vote-rank-info">
+            <strong>${r.artist.publicName}</strong>
+            <small>${r.artist.summary || ""}</small>
+          </div>
+          <span class="vote-rank-likes">${formatLikeCount(r.likes)}</span>
+        </li>
+      `;
+    };
+
+    rankingsRoot.innerHTML = `
+      <h3 class="vote-section-subtitle">전체 순위</h3>
+      <ol class="vote-ranking-rows">
+        ${initiallyVisible.map(renderRow).join("")}
+        ${hidden.length > 0 ? `
+          <div class="vote-ranking-hidden" hidden>
+            ${hidden.map((r, i) => renderRow(r, i + VISIBLE_LIMIT)).join("")}
+          </div>
+        ` : ""}
+      </ol>
+      ${hidden.length > 0 ? `
+        <button class="vote-rankings-more" type="button" data-action="toggle-rankings">
+          <span class="vote-more-text">${hidden.length}명 더보기 ↓</span>
+        </button>
+      ` : ""}
+    `;
+
+    // 더보기 토글
+    const moreBtn = rankingsRoot.querySelector(".vote-rankings-more");
+    if (moreBtn) {
+      moreBtn.addEventListener("click", () => {
+        const hiddenBlock = rankingsRoot.querySelector(".vote-ranking-hidden");
+        if (!hiddenBlock) return;
+        const isOpen = !hiddenBlock.hasAttribute("hidden");
+        if (isOpen) {
+          hiddenBlock.setAttribute("hidden", "");
+          moreBtn.querySelector(".vote-more-text").textContent = `${hidden.length}명 더보기 ↓`;
+        } else {
+          hiddenBlock.removeAttribute("hidden");
+          moreBtn.querySelector(".vote-more-text").textContent = "접기 ↑";
+        }
+      });
+    }
+  }
+}
+
+/* ── 렌더: Debut Race 탭 ──
+   status=public인 모든 활동 중 캐릭터를 좋아요 순으로 + 좋아요 버튼 작동
+   (메인/프리미엄/sub 모두 포함 — 인기투표실은 진짜 응원하는 곳) */
+function renderDebutRaceTab() {
+  const root = document.getElementById("debutRaceGrid");
+  if (!root) return;
+
+  const list = _artists
+    .filter(a => a.status === "public")
+    .map(a => ({ artist: a, likes: getLikesCount(a.slug) }))
+    .sort((a, b) => b.likes - a.likes);
+
+  if (list.length === 0) {
+    root.innerHTML = `<div class="vote-empty">아직 활동 중인 아티스트가 없어요.</div>`;
+    return;
+  }
+
+  // URL ?artist=slug로 강조 대상 결정
+  const highlightSlug = new URLSearchParams(window.location.search).get("artist");
+
+  root.innerHTML = list.map((r, i) => {
+    const a = r.artist;
+    const isHighlighted = a.slug === highlightSlug;
+    const rankNum = i + 1;
+    // 1~3위 금은동 메달
+    const medal = rankNum === 1 ? "🥇" : rankNum === 2 ? "🥈" : rankNum === 3 ? "🥉" : "";
+    // 캐릭터별 1인칭 투표 독려 멘트
+    const appeal = getCharacterMessages(a.slug).voteAppeal;
+    return `
+      <article class="vote-debut-card clickable-card${isHighlighted ? " is-highlighted" : ""}"
+        data-href="./character-detail.html?slug=${a.slug}"
+        style="--char-accent: ${a.colorAccent || "#9f8bc7"}">
+        <div class="vote-debut-rank-badge${medal ? " has-medal" : ""}">
+          ${medal ? `<span class="vote-debut-medal">${medal}</span>` : ""}
+          <span class="vote-debut-rank-num">${rankNum}위</span>
+        </div>
+        <div class="vote-debut-media">
+          <img src="${a.images.thumb || a.images.cover}" alt="${a.publicName}" onerror="this.style.display='none'" />
+          ${likeButtonHTML(a.slug, "like-btn-large like-btn-vote")}
+        </div>
+        <div class="vote-debut-body">
+          <strong>${a.publicName}</strong>
+          <p class="vote-debut-appeal">"${appeal}"</p>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+/* ── 렌더: Hall of Fame 탭 ──
+   Year Champion 큰 배너 + Monthly Picks 그리드 */
+function renderHallOfFameTab() {
+  const championRoot = document.getElementById("yearChampion");
+  const monthlyRoot = document.getElementById("monthlyPicksGrid");
+  if (!championRoot || !monthlyRoot) return;
+
+  const year = new Date().getFullYear();
+
+  // Year Champion (1년 누적 1위 — 연말에만 결정)
+  // 차모 답변(2026-05-02 Q4) 기준 응답: { year, champion, rankings, rule }
+  // champion은 row 구조: { rankNo, artist, totalFreeLikes, totalLuminaBoosts, totalWeightedScore } 또는 null
+  const championWrapper = _popularVote.yearChampion;
+  const champion = championWrapper?.champion || null;
+  if (champion) {
+    const championArtist = getCharacterBySlug(champion.artist?.slug || champion.slug || champion.artistSlug);
+    if (championArtist) {
+      const championScore = champion.totalWeightedScore ?? champion.totalFreeLikes ?? champion.totalScore ?? champion.score ?? 0;
+      championRoot.innerHTML = `
+        <article class="vote-year-champion-card clickable-card" data-href="./character-detail.html?slug=${championArtist.slug}">
+          <div class="vote-year-trophy">🏆</div>
+          <div class="vote-year-info">
+            <span class="vote-year-label">${year} 연간 챔피언</span>
+            <strong>${championArtist.publicName}</strong>
+            <p>1년 누적 응원 ${formatLikeCount(championScore)}점으로 ${year}년 명예의 전당에 영원히 기록됩니다.</p>
+          </div>
+          <div class="vote-year-media">
+            <img src="${championArtist.images.cover || championArtist.images.thumb}" alt="${championArtist.publicName}" />
+          </div>
+        </article>
+      `;
+    } else {
+      championRoot.innerHTML = renderHallOfFameWaiting(year);
+    }
+  } else {
+    championRoot.innerHTML = renderHallOfFameWaiting(year);
+  }
+
+  // Monthly Picks (해당 연도 월간 1위들)
+  const picks = _popularVote.monthlyPicks || [];
+  if (picks.length === 0) {
+    monthlyRoot.innerHTML = `<div class="vote-empty">${year}년 첫 월간 1위는 이번 달 말에 등록됩니다.</div>`;
+    return;
+  }
+
+  // 월 내림차순 정렬 (최근 월 먼저)
+  // 차모 답변 기준: MonthlyPickWinner row에 campaign, artist include
+  const sorted = [...picks].sort((a, b) => (b.month || 0) - (a.month || 0));
+  monthlyRoot.innerHTML = sorted.map(pick => {
+    const artist = getCharacterBySlug(pick.artist?.slug || pick.slug || pick.artistSlug);
+    const monthLabel = `${year}.${String(pick.month || "?").padStart(2, "0")}`;
+    const score = pick.totalWeightedScore ?? pick.totalFreeLikes ?? pick.totalScore ?? pick.score ?? 0;
+    if (!artist) {
+      return `
+        <div class="vote-monthly-card vote-monthly-card-unknown">
+          <span class="vote-monthly-month">${monthLabel}</span>
+          <strong>알 수 없는 아티스트</strong>
+        </div>
+      `;
+    }
+    return `
+      <article class="vote-monthly-card clickable-card" data-href="./character-detail.html?slug=${artist.slug}">
+        <div class="vote-monthly-media">
+          <img src="${artist.images.thumb || artist.images.cover}" alt="${artist.publicName}" />
+        </div>
+        <div class="vote-monthly-info">
+          <span class="vote-monthly-month">${monthLabel}</span>
+          <strong>${artist.publicName}</strong>
+          <small>${formatLikeCount(score)} 응원</small>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderHallOfFameWaiting(year) {
+  return `
+    <div class="vote-year-waiting">
+      <div class="vote-year-trophy" aria-hidden="true">🏆</div>
+      <h3>${year} 연간 챔피언 자리</h3>
+      <p>이 자리는 ${year}년 12월 31일까지 가장 많이 응원받은 아티스트가 차지합니다. 매일의 응원이 1년의 영광이 됩니다.</p>
+    </div>
+  `;
+}
+
+/* ── 탭 전환 ── */
+function bindVoteTabs() {
+  const root = document.getElementById("voteTabs");
+  if (!root) return;
+  const buttons = [...root.querySelectorAll(".vote-tab-btn")];
+  const panels = {
+    "main-pick":   document.getElementById("tabMainPick"),
+    "debut-race":  document.getElementById("tabDebutRace"),
+    "hall-of-fame": document.getElementById("tabHallOfFame")
+  };
+  function activate(tabKey) {
+    buttons.forEach(b => {
+      const isActive = b.dataset.tab === tabKey;
+      b.classList.toggle("is-active", isActive);
+      b.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+    Object.entries(panels).forEach(([k, panel]) => {
+      if (!panel) return;
+      const isActive = k === tabKey;
+      panel.classList.toggle("is-active", isActive);
+      if (isActive) panel.removeAttribute("hidden");
+      else          panel.setAttribute("hidden", "");
+    });
+  }
+  buttons.forEach(b => {
+    b.addEventListener("click", () => activate(b.dataset.tab));
+  });
+  // URL ?tab=...로 초기 탭 결정
+  const initialTab = new URLSearchParams(window.location.search).get("tab");
+  if (initialTab && panels[initialTab]) {
+    activate(initialTab);
+  }
+}
+
+/* ── 인기투표실 페이지 init ── */
+async function initPopularVotePage() {
+  // 캠페인/랭킹 + 인기투표실 데이터 + 무료 좋아요 잔여 한도 병렬 로드
+  await Promise.all([
+    loadBoostState().catch(() => {}),
+    loadPopularVoteState(),
+    loadFreeLikeQuota()
+  ]);
+  renderMainPickTab();
+  renderDebutRaceTab();
+  renderHallOfFameTab();
+  updateHeroQuotaDisplay();
+  bindVoteTabs();
 }
 
 /* ── 렌더링: 데뷔 예정 라인 (6캐릭 서브) ─────── */
@@ -1488,12 +2236,22 @@ function renderCharacterCatalog(filter = "all", tagFilter = "") {
   let list = filter === "all" ? _artists : _artists.filter(a => a.type === filter || a.tier === filter);
   if (tagFilter) list = list.filter(a => a.tags.includes(tagFilter));
 
+  // 정렬: 상태 그룹(public > candidate > secret) 순서 유지하면서 그룹 안에서 좋아요 많은 순
+  // 좋아요 데이터가 비어있으면 같은 그룹 안에서는 원래 순서 유지 (stable sort)
+  const statusOrder = { public: 0, candidate: 1, secret: 2 };
+  list = [...list].sort((a, b) => {
+    const so = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
+    if (so !== 0) return so;
+    return getLikesCount(b.slug) - getLikesCount(a.slug);
+  });
+
   root.innerHTML = list.map(a => `
     <article class="catalog-card ${statusMeta[a.status].className} clickable-card"
       data-href="./character-detail.html?slug=${a.slug}"
       data-secret="${a.status === "secret"}"
       style="--char-accent: ${a.colorAccent || "#9f8bc7"}">
       ${renderCatalogMedia(a)}
+      ${a.status === "public" ? likeButtonHTML(a.slug, "like-btn-large like-btn-catalog") : ""}
       <div class="catalog-body">
         <h3 class="catalog-name">${a.publicName}</h3>
         <div class="catalog-meta">
@@ -1699,26 +2457,58 @@ function renderBusinessPackages() {
 
 /* ── 카드 클릭 네비게이션 ────────────────────── */
 function bindCardNavigation() {
-  const cards = [...document.querySelectorAll(".clickable-card")];
-  cards.forEach(card => {
-    card.tabIndex = 0;
-    card.setAttribute("role", "link");
-    const go = () => {
-      const href = card.dataset.href;
-      if (!href) return;
-      if (card.dataset.secret === "true") {
-        const ov = document.createElement("div");
-        ov.className = "secret-transition";
-        ov.innerHTML = `<div class="secret-transition-panel"><span>시크릿 접근</span><strong>비공개 프로필에 접근 중입니다</strong></div>`;
-        document.body.appendChild(ov);
-        setTimeout(() => window.location.href = href, 540);
-        return;
-      }
-      window.location.href = href;
-    };
-    card.addEventListener("click", e => { if (e.target.closest("a, button")) return; go(); });
-    card.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  // 이벤트 위임 (한 번만 등록) — 동적으로 추가된 카드(인기투표실 등)도 자동 작동
+  if (document._cardNavBound) return;
+  document._cardNavBound = true;
+
+  // 클릭 이동
+  document.addEventListener("click", e => {
+    // 좋아요 버튼이나 일반 a/button 클릭은 카드 이동에서 제외
+    if (e.target.closest("a, button")) return;
+    const card = e.target.closest(".clickable-card");
+    if (!card) return;
+    const href = card.dataset.href;
+    if (!href) return;
+
+    if (card.dataset.secret === "true") {
+      const ov = document.createElement("div");
+      ov.className = "secret-transition";
+      ov.innerHTML = `<div class="secret-transition-panel"><span>시크릿 접근</span><strong>비공개 프로필에 접근 중입니다</strong></div>`;
+      document.body.appendChild(ov);
+      setTimeout(() => window.location.href = href, 540);
+      return;
+    }
+    window.location.href = href;
   });
+
+  // 키보드 접근성 — Enter/Space
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const card = document.activeElement?.closest(".clickable-card");
+    if (!card) return;
+    const href = card.dataset.href;
+    if (!href) return;
+    e.preventDefault();
+    window.location.href = href;
+  });
+
+  // 초기 로드된 카드들에 tabIndex/role 부여 (포커스 가능하게)
+  // MutationObserver로 새 카드 추가될 때도 자동 처리
+  const setA11y = (root) => {
+    root.querySelectorAll(".clickable-card").forEach(card => {
+      if (!card.hasAttribute("tabindex")) card.tabIndex = 0;
+      if (!card.hasAttribute("role")) card.setAttribute("role", "link");
+    });
+  };
+  setA11y(document);
+  const observer = new MutationObserver(mutations => {
+    mutations.forEach(m => {
+      m.addedNodes.forEach(node => {
+        if (node.nodeType === 1) setA11y(node);
+      });
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
 }
 
 /* ── 초기화: API 우선, fallback 로컬 ─────────── */
@@ -1910,6 +2700,10 @@ async function init() {
   createAuthModal();
   bindAuthHeaderEvents();
   updateAuthUI();
+  activateCurrentNavItem(); // 현재 페이지 메뉴 자동 강조 (밑줄 표시)
+
+  // 이미 로그인 상태이면 잔액 미리 로드 (await 안 함 — 백그라운드)
+  if (isLoggedIn()) loadWallet();
 
   // URL ?ref= 추천인 코드 자동 캡처 (있으면 localStorage 30일 보관)
   captureReferralFromURL();
@@ -1958,19 +2752,16 @@ async function init() {
     }
   }
 
-  // 부스트 상태는 백그라운드 로드 — 렌더링 안 막음 (캠페인 미등록 / 백엔드 늦음 대응)
-  loadBoostState().then(() => {
-    // 데이터 도착하면 좋아요 버튼들 갱신
-    document.querySelectorAll(".like-btn[data-like-slug]").forEach(btn => {
-      const slug = btn.dataset.likeSlug;
-      const countEl = btn.querySelector(".like-count");
-      if (countEl) countEl.textContent = formatLikeCount(getLikesCount(slug));
-    });
-  }).catch(err => {
+  // 부스트 캠페인 + 랭킹 데이터 먼저 로드 (메인 카드를 좋아요 순으로 정렬하기 위해)
+  // 실패해도 fallback으로 진행 — 메인 카드는 기본 순서로, 디테일은 좋아요 카운트 0으로 표시
+  try {
+    await loadBoostState();
+  } catch (err) {
     console.warn("[Lumina] 부스트 상태 로드 실패 (정상 진행):", err);
-  });
+  }
 
   renderMainArtists();
+  renderHeroFeature();
   renderDebutLine();
   renderShortforms();
   renderShortformHub();
@@ -1982,6 +2773,11 @@ async function init() {
   bindCardNavigation();
   bindLikeButtons();
   initScrollReveal();
+
+  // 인기투표실 페이지면 추가 초기화 (탭 전환 + Main Pick / Debut Race / Hall of Fame 렌더)
+  if (document.getElementById("voteTabs")) {
+    initPopularVotePage();
+  }
 }
 
 /* ── Scroll Reveal — 섹션이 시야에 들어올 때 부드럽게 등장 ─────── */
