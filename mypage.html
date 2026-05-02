@@ -859,7 +859,7 @@
             });
           });
           $("mypageSaveSettings")?.addEventListener("click", saveMypageSettings);
-          $("mypageChargeButton")?.addEventListener("click", () => alert("충전 상품 선택 모달은 결제 UI 연결 단계에서 열립니다. 현재는 상품 목록을 먼저 확인해 주세요."));
+          $("mypageChargeButton")?.addEventListener("click", () => { window.location.href = "./charge.html"; });
           $("mypageAvatarButton")?.addEventListener("click", () => $("mypageAvatarInput")?.click());
           $("mypageAvatarInput")?.addEventListener("change", event => {
             const file = event.target.files?.[0];
