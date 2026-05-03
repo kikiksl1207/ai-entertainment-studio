@@ -104,6 +104,8 @@ The server listens on `http://localhost:3001` by default.
 
 Public artist responses only expose public-ready artists that have both `coverImage` and `thumbnailImage`, so draft or legacy rows without operation-pack images do not appear on the frontend.
 
+Public artist and roadmap responses include `category` and `displayCategory` for frontend filters. These are user-facing labels, not internal tiers. The current category taxonomy is `아티스트`, `모델`, `배우`, `엔터테이너`, and `스포츠`. Use `전체`, then those five labels for the character filter UI; do not expose main/premium/sub/candidate as category filters.
+
 ## Wallet API Skeleton
 
 User-scoped endpoints require an access token from `POST /api/v1/auth/login` or `POST /api/v1/auth/register`.

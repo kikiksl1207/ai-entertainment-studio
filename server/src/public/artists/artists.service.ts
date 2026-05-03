@@ -19,6 +19,28 @@ const publicArtistInclude = {
   },
 };
 
+const artistCategoryTaxonomy = {
+  labels: ['아티스트', '모델', '배우', '엔터테이너', '스포츠'],
+  bySlug: {
+    'yoon-serin': '아티스트',
+    'han-seoyul': '아티스트',
+    'oh-hyerin': '아티스트',
+    'min-chaeon': '아티스트',
+    'baek-ria': '아티스트',
+    'oh-yuna': '아티스트',
+    'cha-dohyun': '아티스트',
+    'kang-sia': '모델',
+    'ha-yuna': '모델',
+    'seo-yuan': '모델',
+    'choi-seojin': '배우',
+    'lee-jiwon': '배우',
+    'kwon-taejun': '배우',
+    'park-doa': '엔터테이너',
+    'seo-hamin': '엔터테이너',
+    'ryu-taeo': '스포츠',
+  },
+} as const;
+
 @Injectable()
 export class ArtistsService {
   constructor(
@@ -49,6 +71,7 @@ export class ArtistsService {
       items: artists.map((artist) => this.toRoadmapArtist(artist)),
       policy: {
         visibility: 'planned_candidate_only',
+        categories: artistCategoryTaxonomy.labels,
         publicLaunchRule:
           'Roadmap artists are not returned by GET /api/v1/artists until status becomes active and cover/thumb assets are ready.',
       },
@@ -113,11 +136,18 @@ export class ArtistsService {
       }));
     const coverImage = assets.find((asset) => asset.usageType === 'cover') ?? null;
     const thumbnailImage = assets.find((asset) => asset.usageType === 'thumb') ?? coverImage;
+    const publicMetadata = this.recordOrEmpty(
+      (artist.publicProfile as { publicMetadata?: unknown } | null | undefined)?.publicMetadata,
+    );
+    const profileFacts = this.recordOrEmpty(publicMetadata.profileFacts);
+    const displayCategory = this.displayCategoryForArtist(artist.slug, profileFacts);
 
     return {
       id: artist.id,
       slug: artist.slug,
       displayName: artist.displayName,
+      category: displayCategory,
+      displayCategory,
       status: artist.status,
       sortOrder: artist.sortOrder,
       launchedAt: artist.launchedAt,
@@ -167,6 +197,8 @@ export class ArtistsService {
       id: artist.id,
       slug: artist.slug,
       displayName: artist.displayName,
+      category: this.displayCategoryForArtist(artist.slug, profileFacts),
+      displayCategory: this.displayCategoryForArtist(artist.slug, profileFacts),
       status: artist.status,
       sortOrder: artist.sortOrder,
       gender: this.stringFromUnknown(profileFacts.gender),
@@ -249,5 +281,14 @@ export class ArtistsService {
     }
 
     return null;
+  }
+
+  private displayCategoryForArtist(slug: string, profileFacts: Record<string, unknown>) {
+    return (
+      this.stringFromUnknown(profileFacts.displayCategory) ??
+      this.stringFromUnknown(profileFacts.category) ??
+      artistCategoryTaxonomy.bySlug[slug as keyof typeof artistCategoryTaxonomy.bySlug] ??
+      '아티스트'
+    );
   }
 }

@@ -36,6 +36,7 @@ GET /api/v1/artists/:artistSlug/assets
 Frontend-friendly response fields:
 
 - `slug`, `displayName`, `profile`, `visual`
+- `category`, `displayCategory`
 - `coverImage.url`, `thumbnailImage.url`
 - `assets[].url`, `assets[].usageType`
 - Public responses only expose uploaded/ready assets.
@@ -45,6 +46,9 @@ Frontend-friendly response fields:
 - `GET /api/v1/artists/roadmap` returns planned/candidate launch-prep artists only. It does not make them public in the main artist list.
 - Planned roadmap items expose launch-prep fields such as `gender`, `launchPhase`, `operationRole`, `publicTagline`, `fandomCandidate`, `thumbnailUrl`, `coverUrl`, `galleryCount`, `imageBaselineNote`, and lightweight `metadata`.
 - Current planned seed records include `seo-yuan`, `ha-yuna`, and `kwon-taejun`. `ha-yuna` and `kwon-taejun` stay hidden from `GET /artists` until image QA is complete and their status is changed to `active`.
+- User-facing character type taxonomy is fixed to five labels: `아티스트`, `모델`, `배우`, `엔터테이너`, `스포츠`.
+- `category` and `displayCategory` are the same frontend filter label. Internal tiers such as main/premium/sub/candidate should not be used as public category filters.
+- Full 16-slot taxonomy: `아티스트` = yoon-serin, han-seoyul, oh-hyerin, min-chaeon, baek-ria, oh-yuna, cha-dohyun; `모델` = kang-sia, ha-yuna, seo-yuan; `배우` = choi-seojin, lee-jiwon, kwon-taejun; `엔터테이너` = park-doa, seo-hamin; `스포츠` = ryu-taeo.
 
 용도:
 

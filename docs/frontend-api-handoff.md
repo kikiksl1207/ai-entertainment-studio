@@ -62,6 +62,8 @@ Frontend fields to use:
 ```txt
 slug
 displayName
+category
+displayCategory
 profile.tagline
 profile.summary
 profile.personalityKeywords
@@ -79,6 +81,8 @@ Image usage:
 - `assets[]` includes all public artist assets.
 - `GET /artists` and `GET /artists/:slug` only expose public-ready artists that have both `coverImage` and `thumbnailImage`.
 - `GET /artists/roadmap` exposes planned/candidate artists only. These are preparation records and are not returned by the public artist list until they become `active`.
+- `category` and `displayCategory` are the same user-facing type label. Use this for `characters.html` category filters.
+- Do not use `main`, `premium`, `sub`, or `candidate` as user-facing category filters. Those are internal tier/status concepts.
 - Detail galleries should use `assets.filter((asset) => asset.usageType === "gallery")`.
 - Gallery assets are seeded from current operation-pack folders where available:
   - `assets/characters/yoon-serin/reference-final/*`
@@ -126,6 +130,40 @@ Current planned seed slugs:
 seo-yuan
 ha-yuna
 kwon-taejun
+```
+
+Character category taxonomy:
+
+```txt
+Filter buttons:
+전체
+아티스트
+모델
+배우
+엔터테이너
+스포츠
+```
+
+```txt
+아티스트: yoon-serin, han-seoyul, oh-hyerin, min-chaeon, baek-ria, oh-yuna, cha-dohyun
+모델: kang-sia, ha-yuna, seo-yuan
+배우: choi-seojin, lee-jiwon, kwon-taejun
+엔터테이너: park-doa, seo-hamin
+스포츠: ryu-taeo
+```
+
+Current seeded artist category values:
+
+```txt
+yoon-serin -> 아티스트
+han-seoyul -> 아티스트
+park-doa -> 엔터테이너
+choi-seojin -> 배우
+oh-hyerin -> 아티스트
+cha-dohyun -> 아티스트
+seo-yuan -> 모델
+ha-yuna -> 모델
+kwon-taejun -> 배우
 ```
 
 ### Artist Detail Profile Box
