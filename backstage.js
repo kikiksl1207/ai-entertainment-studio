@@ -32,6 +32,7 @@ const confirmRunButton = document.getElementById("confirmRunButton");
 
 let selectedDetail = null;
 const sectionState = {
+  admins: { rows: [], auditRows: [] },
   users: { cursor: null, hasMore: false, rows: [] },
   settlement: { cursor: null, hasMore: false, rows: [] },
   logs: { cursor: null, hasMore: false, rows: [] }
@@ -202,6 +203,7 @@ const tableMeta = {
 };
 
 const sectionLoaders = {
+  admins: loadAdminsSection,
   users: loadUsersSection,
   creators: loadCreatorsSection,
   moderation: loadModerationSection,
@@ -701,6 +703,100 @@ function formatDate(value) {
 function krw(value) {
   const number = Number(value || 0);
   return Number.isFinite(number) ? `${number.toLocaleString("ko-KR")}원` : String(value || "-");
+}
+
+function localizeAdminRole(roleName) {
+  const roleMap = {
+    super_admin: "최상 관리자",
+    settlement_admin: "회계 관리자",
+    finance_admin: "회계 관리자",
+    partnership_admin: "영업/섭외 관리자",
+    partner_admin: "영업/섭외 관리자",
+    cs_admin: "CS 관리자",
+    support_admin: "CS 관리자",
+    ai_artist_admin: "AI 아티스트 관리자",
+    artist_admin: "AI 아티스트 관리자",
+    content_admin: "AI 아티스트 관리자"
+  };
+  return roleMap[roleName] || roleName || "-";
+}
+
+function localizeAdminStatus(status) {
+  const statusMap = {
+    active: "승인",
+    suspended: "정지",
+    revoked: "철회"
+  };
+  return statusMap[status] || status || "-";
+}
+
+function summarizePermissions(permissions) {
+  const values = Array.isArray(permissions) ? permissions : [];
+  if (values.includes("*")) return "전체 권한";
+  const joined = values.join(" ");
+  if (/payments|refunds|settlement|payout/.test(joined)) return "결제/환불/정산";
+  if (/debut|creator|contact|partner/.test(joined)) return "데뷔 신청/연락처";
+  if (/users|community|reports|sanction|audit/.test(joined)) return "유저/신고/제재";
+  if (/artists|assets|shortforms|premium|chat/.test(joined)) return "AI 콘텐츠/슬롯/공식 글";
+  return values.length ? `${values.length}개 권한` : "권한 확인 필요";
+}
+
+function formatAuditAction(action) {
+  const actionMap = {
+    "admin_user.create": "운영자 추가",
+    "admin_user.update": "역할 변경",
+    "payment_refund.create": "환불 접수",
+    "payment_refund.update": "환불 상태 변경",
+    "asset.upload_intent.create": "업로드 요청",
+    "asset.upload.confirm": "업로드 확인",
+    "artist.create": "AI 아티스트 추가",
+    "artist.update": "AI 아티스트 수정"
+  };
+  return actionMap[action] || action || "-";
+}
+
+async function loadAdminsSection() {
+  sectionState.admins = { rows: [], auditRows: [] };
+  renderLoadingRow("adminRows");
+  renderLoadingRow("adminRequestRows");
+
+  try {
+    const [adminUsers, adminEvents] = await Promise.all([
+      backstageFetch(adminApiPath("/admin-users"), { auth: true }),
+      backstageFetch(adminApiPath("/audit-events?take=10&targetType=admin_user"), { auth: true }).catch(() => [])
+    ]);
+    const rows = normalizePage(adminUsers).items.map((adminUser) => {
+      const roleName = adminUser.role?.name || adminUser.roleName || adminUser.adminRole;
+      const status = localizeAdminStatus(adminUser.status);
+      return [
+        adminUser.user?.email || adminUser.email || adminUser.userId?.slice?.(0, 8) || "-",
+        localizeAdminRole(roleName),
+        status,
+        formatDate(adminUser.lastLoginAt || adminUser.user?.lastLoginAt || adminUser.updatedAt || adminUser.createdAt),
+        summarizePermissions(adminUser.role?.permissions || adminUser.permissions),
+        status === "승인" ? "권한 보기" : "복구 확인"
+      ];
+    });
+    const auditRows = normalizePage(adminEvents).items.map((event) => [
+      event.id?.slice?.(0, 8) || "-",
+      formatAuditAction(event.action),
+      event.targetType || "admin_user",
+      "완료",
+      event.actorUser?.email || event.actorUserId?.slice?.(0, 8) || "system",
+      "상세"
+    ]);
+
+    sectionState.admins.rows = rows;
+    sectionState.admins.auditRows = auditRows;
+    if (rows.length) renderRows("adminRows", rows, 2);
+    else renderLoadingRow("adminRows", "등록된 운영자가 없습니다.");
+    if (auditRows.length) renderRows("adminRequestRows", auditRows, 3);
+    else renderLoadingRow("adminRequestRows", "최근 운영자 권한 이력이 없습니다.");
+  } catch {
+    renderBackstageTables();
+    renderFallbackNote("adminRows");
+    renderFallbackNote("adminRequestRows");
+  }
 }
 
 async function loadUsersSection() {
