@@ -38,6 +38,36 @@ npm run render:start
 
 The seed script is designed to be idempotent for MVP content, so re-running it should update known seed records instead of creating duplicate artists.
 
+### Selective artist seed
+
+Use this when only newly finalized character images or artist profile records need to be refreshed.
+
+1. Add a temporary Render environment variable:
+
+```text
+SEED_ARTIST_SLUGS=kwon-taejun
+```
+
+For multiple artists, use comma-separated slugs:
+
+```text
+SEED_ARTIST_SLUGS=kwon-taejun,choi-seojin
+```
+
+2. Temporarily change the start command to:
+
+```bash
+npm run render:start:seed
+```
+
+3. After the deploy becomes live and the public API is confirmed, remove `SEED_ARTIST_SLUGS` and change the start command back to:
+
+```bash
+npm run render:start
+```
+
+Do not keep selective seed variables on permanently. They are an operations tool for one-time production refreshes.
+
 ## Verification URLs
 
 Production domains:
@@ -75,6 +105,8 @@ Expected initial public artist slugs:
 - `choi-seojin`
 - `oh-hyerin`
 - `cha-dohyun`
+- `seo-yuan`
+- `kwon-taejun`
 
 ## Notes
 

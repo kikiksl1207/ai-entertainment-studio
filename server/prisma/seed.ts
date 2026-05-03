@@ -442,12 +442,18 @@ const galleryDirsBySlug = {
 
 const publicSeedArtistSlugs = new Set(Object.keys(galleryDirsBySlug));
 const plannedSeedArtistSlugs = new Set(['ha-yuna']);
+const requestedSeedArtistSlugs = parseSeedArtistSlugs(process.env.SEED_ARTIST_SLUGS);
 
 async function main() {
   const artistBySlug = new Map<string, { id: string; displayName: string }>();
   const assetByKey = new Map<string, { id: string }>();
+  const artistsToSeed = seedArtists();
 
-  for (const artist of artists) {
+  if (requestedSeedArtistSlugs) {
+    console.log(`Running selective artist seed for: ${[...requestedSeedArtistSlugs].join(', ')}`);
+  }
+
+  for (const artist of artistsToSeed) {
     const status = seedArtistStatus(artist.slug);
     const row = await prisma.artist.upsert({
       where: { slug: artist.slug },
@@ -1038,7 +1044,40 @@ function seedArtistStatus(slug: string) {
 }
 
 function publicSeedArtists() {
-  return artists.filter((artist) => isPublicSeedArtist(artist.slug));
+  return seedArtists().filter((artist) => isPublicSeedArtist(artist.slug));
+}
+
+function seedArtists() {
+  if (!requestedSeedArtistSlugs) {
+    return [...artists];
+  }
+
+  return artists.filter((artist) => requestedSeedArtistSlugs.has(artist.slug));
+}
+
+function parseSeedArtistSlugs(value?: string) {
+  if (!value) {
+    return null;
+  }
+
+  const slugs = new Set(
+    value
+      .split(',')
+      .map((slug) => slug.trim())
+      .filter(Boolean),
+  );
+
+  if (slugs.size === 0) {
+    return null;
+  }
+
+  const validSlugs = new Set<string>(artists.map((artist) => artist.slug));
+  const invalidSlugs = [...slugs].filter((slug) => !validSlugs.has(slug));
+  if (invalidSlugs.length > 0) {
+    throw new Error(`Invalid SEED_ARTIST_SLUGS: ${invalidSlugs.join(', ')}`);
+  }
+
+  return slugs;
 }
 
 function stablePersonaId(slug: string) {
