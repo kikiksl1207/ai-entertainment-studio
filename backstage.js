@@ -57,6 +57,9 @@ const statusClassMap = {
   "지급대기": "is-hold",
   "지급완료": "is-paid",
   "완료": "is-paid",
+  "공개": "is-approved",
+  "정상": "is-approved",
+  "보완필요": "is-hold",
   "누락": "is-hold",
   "필요": "is-hold",
   "준비중": "is-review"
@@ -206,6 +209,7 @@ const sectionLoaders = {
   admins: loadAdminsSection,
   users: loadUsersSection,
   creators: loadCreatorsSection,
+  "ai-content": loadAiContentSection,
   moderation: loadModerationSection,
   settlement: loadSettlementSection,
   logs: loadAuditSection
@@ -374,12 +378,18 @@ function renderRows(targetId, rows, statusIndex) {
   const meta = tableMeta[targetId] || { type: "상세", labels: [] };
   target.innerHTML = rows.map((row) => {
     const cells = row.map((cell, index) => {
-      const content = index === statusIndex ? statusBadge(cell) : cell;
+      const label = meta.labels?.[index] || "";
+      const isSettlementAmount = label === "정산금";
+      const content = index === statusIndex
+        ? statusBadge(cell)
+        : isSettlementAmount
+          ? `<strong class="settlement-amount">${cell}</strong>`
+          : cell;
       if (index === row.length - 1) {
         const payload = encodeURIComponent(JSON.stringify({ tableId: targetId, type: meta.type, labels: meta.labels, row }));
         return `<td><button class="row-action" type="button" data-detail="${payload}">${content}</button></td>`;
       }
-      return `<td>${content}</td>`;
+      return `<td${isSettlementAmount ? ' class="settlement-cell"' : ""}>${content}</td>`;
     }).join("");
     return `<tr data-table-id="${targetId}">${cells}</tr>`;
   }).join("");
@@ -578,7 +588,7 @@ function openConfirmModal(action) {
   confirmTitle.textContent = action === "memo" ? "운영 메모 저장 확인" : action === "hold" ? "보류 처리 확인" : "위험 액션 확인";
   confirmMessage.textContent = preview.warning;
   confirmPayload.textContent = JSON.stringify(preview, null, 2);
-  confirmRunButton.textContent = "API 연결 전 구조 확인";
+  confirmRunButton.textContent = "실행 API 연결 대기";
   confirmRunButton.disabled = true;
   confirmModal.classList.remove("is-hidden");
 }
@@ -755,6 +765,55 @@ function formatAuditAction(action) {
   return actionMap[action] || action || "-";
 }
 
+function localizeWorkflowStatus(status) {
+  const statusMap = {
+    pending: "접수",
+    submitted: "접수",
+    review: "검수중",
+    reviewing: "검수중",
+    approved: "승인",
+    rejected: "보류",
+    active: "공개",
+    published: "공개",
+    draft: "준비중",
+    archived: "보류",
+    healthy: "정상",
+    needs_action: "보완필요",
+    missing: "누락"
+  };
+  return statusMap[status] || status || "-";
+}
+
+function countLabel(count, unit = "개") {
+  const number = Number(count || 0);
+  return number > 0 ? `${number.toLocaleString("ko-KR")}${unit}` : "필요";
+}
+
+function slotStatus(slot, primaryOnly = false) {
+  if (!slot) return "필요";
+  if (primaryOnly) return slot.primaryAssetId || slot.primaryUrl ? "완료" : "필요";
+  return countLabel(slot.count, "장");
+}
+
+function profileStatus(profiles = {}, key) {
+  return profiles[key] ? "완료" : "누락";
+}
+
+function missingSummary(missing = []) {
+  if (!Array.isArray(missing) || missing.length === 0) return "슬롯 정상";
+  const labelMap = {
+    public_profile: "공개 프로필",
+    visual_profile: "비주얼 프로필",
+    content_profile: "콘텐츠 프로필",
+    cover_asset: "커버",
+    thumbnail_asset: "썸네일",
+    gallery_assets: "갤러리",
+    shortforms: "숏폼",
+    chat_persona: "채팅"
+  };
+  return missing.slice(0, 3).map((item) => labelMap[item] || item).join(", ");
+}
+
 async function loadAdminsSection() {
   sectionState.admins = { rows: [], auditRows: [] };
   renderLoadingRow("adminRows");
@@ -845,22 +904,71 @@ async function loadUsersPage(append = true) {
 
 async function loadCreatorsSection() {
   renderLoadingRow("creatorRows");
+  renderLoadingRow("aiCreatorRows");
   try {
-    const applications = await backstageFetch(adminApiPath("/debut/applications?take=10"), { auth: true });
-    const rows = (Array.isArray(applications) ? applications : applications?.items || []).map((item) => [
-      `${item.applicantName || "-"} / ${item.displayName || "-"}`,
-      item.loginProvider || item.provider || item.applicationChannel || "-",
+    const data = await backstageFetch(adminApiPath("/backstage/operations/creators?take=20"), { auth: true });
+    const applicationsPage = normalizePage(data?.applications || data);
+    const rows = applicationsPage.items.map((item) => [
+      `${item.realName || item.applicantName || "-"} / ${item.stageName || item.displayName || "-"}`,
+      item.loginType || item.loginProvider || item.provider || item.applicationChannel || "-",
       formatDate(item.lastLoginAt || item.updatedAt || item.createdAt),
-      "권한 필요",
-      "권한 필요",
-      item.status || "-",
-      item.status === "approved" ? "권한 보기" : "신청 보기"
+      item.contactAccessAllowed ? item.contactEmail || item.contactPhone || "-" : item.contactMasked || "권한 제한",
+      item.payoutAccessAllowed ? item.payoutAccount || "-" : item.payoutAccountMasked || "권한 제한",
+      item.inactive30Days ? "장기미접속" : localizeWorkflowStatus(item.status),
+      item.needsFollowUp ? "확인 요청" : item.status === "approved" ? "권한 보기" : "신청 보기"
+    ]);
+    const aiRows = (data?.aiArtists || []).map((artist) => [
+      artist.displayName || artist.name || artist.slug || "-",
+      artist.category || artist.type || artist.publicProfile?.characterType || "-",
+      artist.createdBy?.email || artist.createdByName || artist.operatorName || "-",
+      artist.missing?.includes("public_profile") || artist.missing?.includes("visual_profile") || artist.missing?.includes("content_profile") ? "누락" : "완료",
+      artist.missing?.includes("cover_asset") || artist.missing?.includes("thumbnail_asset") || artist.missing?.includes("gallery_assets") ? missingSummary(artist.missing) : "완료",
+      localizeWorkflowStatus(artist.status),
+      "콘텐츠 관리"
     ]);
     if (rows.length) renderRows("creatorRows", rows, 5);
     else renderLoadingRow("creatorRows", "표시할 신청 내역이 없습니다.");
+    if (aiRows.length) renderRows("aiCreatorRows", aiRows, 5);
+    else renderLoadingRow("aiCreatorRows", "표시할 AI 아티스트가 없습니다.");
   } catch {
-    renderBackstageTables();
+    renderRows("creatorRows", backstageRows.creators, 5);
+    renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
     renderFallbackNote("creatorRows");
+    renderFallbackNote("aiCreatorRows");
+  }
+}
+
+async function loadAiContentSection() {
+  renderLoadingRow("aiAssetRows");
+  renderLoadingRow("aiPostRows");
+  try {
+    const page = normalizePage(await backstageFetch(adminApiPath("/backstage/operations/ai-content-health?take=20"), { auth: true }));
+    const assetRows = page.items.map((artist) => [
+      artist.displayName || artist.name || artist.slug || "-",
+      slotStatus(artist.slots?.cover, true),
+      slotStatus(artist.slots?.thumbnail, true),
+      slotStatus(artist.slots?.gallery),
+      countLabel(artist.counts?.shortforms || artist.shortformsCount, "개"),
+      artist.missing?.length ? missingSummary(artist.missing) : "운영자 슬롯 선택 우선",
+      artist.missing?.length ? "업로드" : "상세"
+    ]);
+    const postRows = page.items.map((artist) => [
+      artist.displayName || artist.name || artist.slug || "-",
+      profileStatus(artist.profiles, "contentProfile"),
+      profileStatus(artist.profiles, "publicProfile"),
+      artist.missing?.includes("chat_persona") ? "필요" : "준비중",
+      artist.counts?.premiumVideos ? countLabel(artist.counts.premiumVideos, "개") : "준비중",
+      "작성"
+    ]);
+    if (assetRows.length) renderRows("aiAssetRows", assetRows, -1);
+    else renderLoadingRow("aiAssetRows", "표시할 AI 에셋 상태가 없습니다.");
+    if (postRows.length) renderRows("aiPostRows", postRows, -1);
+    else renderLoadingRow("aiPostRows", "표시할 AI 콘텐츠 상태가 없습니다.");
+  } catch {
+    renderRows("aiAssetRows", backstageRows.aiAssets, -1);
+    renderRows("aiPostRows", backstageRows.aiPosts, -1);
+    renderFallbackNote("aiAssetRows");
+    renderFallbackNote("aiPostRows");
   }
 }
 
@@ -897,9 +1005,11 @@ async function loadSettlementPage(append = true) {
     const page = normalizePage(await backstageFetch(adminApiPath(`/payment-orders?${query}`), { auth: true }));
     const rows = page.items.map((order) => [
       order.user?.email || order.userId?.slice?.(0, 8) || "-",
-      order.orderNo || order.id?.slice?.(0, 8) || "-",
-      krw(order.amount),
+      "-",
+      "-",
+      order.orderNo ? `${order.orderNo} / ${krw(order.amount)}` : krw(order.amount),
       krw(order.refundedAmount || 0),
+      krw(Math.max(0, Number(order.amount || 0) - Number(order.refundedAmount || 0))),
       order.status || "-",
       order.status === "paid" ? "환불 검토" : "확인"
     ]);
@@ -907,7 +1017,7 @@ async function loadSettlementPage(append = true) {
     state.cursor = page.nextCursor;
     state.hasMore = page.hasMore;
     setLoadMore("settlement", page.hasMore);
-    if (state.rows.length) renderRows("settlementRows", state.rows, 4);
+    if (state.rows.length) renderRows("settlementRows", state.rows, 6);
     else renderLoadingRow("settlementRows", "표시할 결제/정산 항목이 없습니다.");
   } catch {
     renderBackstageTables();

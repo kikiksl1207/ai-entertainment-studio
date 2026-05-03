@@ -105,6 +105,8 @@ table { width: 100%; border-collapse: collapse; min-width: 680px; }
 th, td { height: 46px; padding: 0 14px; border-top: 1px solid var(--line); text-align: left; font-size: 13px; vertical-align: middle; }
 th { background: var(--panel-soft); color: var(--muted); font-size: 12px; font-weight: 900; }
 td { color: var(--text); }
+.settlement-cell { background: #fff7f7; }
+.settlement-amount { color: var(--danger); font-weight: 950; }
 .status-badge { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 900; }
 .status-badge.is-pending { background: #fff7ed; color: #c2410c; }
 .status-badge.is-review { background: #eff6ff; color: #1d4ed8; }
