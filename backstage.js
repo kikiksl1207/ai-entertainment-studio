@@ -67,8 +67,8 @@ const backstageRows = {
     ["ops@lumina-stage.com", "operator", "접수", "-", "콘텐츠/정산", "초대 확인"]
   ],
   adminRequests: [
-    ["ADMIN-001", "운영자 추가", "Backstage 접근", "확인중", "권한 부여 방식 확인", "처리"],
-    ["ADMIN-002", "역할 변경", "정산 보기", "보류", "2인 확인 필요", "보류"]
+    ["AUD-001", "운영자 추가", "Backstage 접근", "완료", "super_admin 직접 처리", "상세"],
+    ["AUD-002", "역할 변경", "정산 보기", "준비중", "2인 승인은 MVP 이후", "상세"]
   ],
   overviewQueue: [
     ["DQ-1042", "데뷔 신청", "신규 크리에이터", "접수", "보기"],
@@ -124,9 +124,9 @@ const backstageRows = {
     ["서하민", "엔터테이너", "클라우드", "누락", "필요", "비공개", "업로드 요청"]
   ],
   aiAssets: [
-    ["하윤아", "완료", "완료", "24장", "필요", "이미지는 갤러리, 영상은 숏폼으로 분류", "업로드"],
-    ["권태준", "완료", "완료", "20장", "필요", "파일 타입과 업로드 위치를 분리 저장", "업로드"],
-    ["서하민", "필요", "필요", "필요", "필요", "에셋 종류 선택 후 등록", "업로드"]
+    ["하윤아", "완료", "완료", "24장", "필요", "슬롯 선택: cover/thumb/gallery/shortform", "업로드"],
+    ["권태준", "완료", "완료", "20장", "필요", "영상은 숏폼 후보, 이미지는 갤러리 후보", "업로드"],
+    ["서하민", "필요", "필요", "필요", "필요", "자동분류보다 운영자 슬롯 지정 우선", "업로드"]
   ],
   aiPosts: [
     ["윤세린", "작성 가능", "핵심 프로필 완료", "준비중", "준비중", "작성"],
@@ -180,7 +180,7 @@ const alertTitleMap = {
 
 const tableMeta = {
   adminRows: { type: "운영자 관리", labels: ["계정", "역할", "상태", "최근 접속", "권한", "권장 액션"] },
-  adminRequestRows: { type: "운영자 요청", labels: ["요청", "대상", "권한", "상태", "메모", "권장 액션"] },
+  adminRequestRows: { type: "운영자 권한 이력", labels: ["이력", "대상", "권한", "상태", "메모", "권장 액션"] },
   overviewQueueRows: { type: "대시보드", labels: ["ID", "유형", "대상", "상태", "권장 액션"] },
   riskRows: { type: "위험 항목", labels: ["ID", "분류", "사유", "위험도", "권장 액션"] },
   userRows: { type: "유저 관리", labels: ["유저", "이메일", "가입일", "로그인유형", "루미나", "최근 접속", "권장 액션"] },
@@ -427,12 +427,12 @@ function openQuickAction(button) {
 
   const actionMap = {
     "운영자 추가": ["운영자 계정 초대", "초대 이메일, 역할, 권한 범위를 입력하는 폼이 열릴 자리입니다.", "POST /admin/api/v1/admin-users/invitations"],
-    "요청 보기": ["권한 요청 상세", "권한 변경 요청의 요청자, 대상자, 권한 범위, 승인 이력을 보여줍니다.", "GET /admin/api/v1/admin-users/permission-requests"],
+    "이력 보기": ["권한 변경 이력", "MVP에서는 super_admin 직접 변경과 audit log 중심으로 관리합니다. 2인 승인/요청함은 운영자가 늘어난 뒤 추가합니다.", "GET /admin/api/v1/audit-events?action=admin"],
     "전체 보기": ["목록 전체 보기", "현재 표의 필터를 초기화하고 전체 더미 데이터를 다시 보여줍니다.", "GET list endpoint with cursor"],
     "위험만 보기": ["위험 항목 필터", "신고, 정지, 높은 위험도 항목만 남겨서 봅니다.", "GET list endpoint with risk filter"],
     "데뷔 신청 보기": ["데뷔 신청 목록", "신청서에 기재한 활동명, 소개, 연락 가능 시간, 자료 링크, 권리 확인 내용을 모두 보여줄 자리입니다.", "GET /admin/api/v1/debut/applications"],
     "AI 아티스트 추가": ["AI 아티스트 추가", "캐릭터 기본 정보, 만든 관리자, 공개 상태, 초기 프로필/에셋 체크리스트를 등록합니다.", "POST /admin/api/v1/artists"],
-    "업로드 추가": ["AI 에셋 업로드", "아티스트 선택 후 cover, thumb, gallery, shortform 타입으로 파일을 등록합니다.", "POST /admin/api/v1/artists/:artistId/assets/upload-intents"],
+    "업로드 추가": ["AI 에셋 업로드", "아티스트와 슬롯을 먼저 선택합니다. cover/thumb은 자동 판단하지 않고 운영자가 지정합니다.", "POST /admin/api/v1/artists/:artistId/assets/upload-intents"],
     "글 작성": ["AI 아티스트 글 작성", "아티스트를 선택하고 피드/프로필/공지/프리미엄 글 유형을 골라 작성합니다.", "POST /admin/api/v1/artists/:artistId/content"],
     "대상 설정": ["집중 관리 대상 설정", "신규 7일 모니터링, 신고 누적, 장기 미접속 등 관리 사유를 붙입니다.", "POST /admin/api/v1/creator-content/watchlist"],
     "패턴 보기": ["이상 패턴 확인", "연락처 유도, 반복 홍보, 공격 표현 등 탐지 신호를 확인합니다.", "GET /admin/api/v1/creator-content/anomalies"],
