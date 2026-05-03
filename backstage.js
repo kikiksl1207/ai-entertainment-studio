@@ -12,6 +12,8 @@ const operatorEmail = document.getElementById("backstageOperatorEmail");
 const logoutButton = document.getElementById("backstageLogoutButton");
 const refreshButton = document.getElementById("backstageRefreshButton");
 const todayLabel = document.getElementById("backstageToday");
+const metricGrid = document.getElementById("backstageMetricGrid");
+const alertStrip = document.getElementById("backstageAlertStrip");
 
 const statusClassMap = {
   "접수": "is-pending",
@@ -62,6 +64,19 @@ const backstageRows = {
     ["09:40", "operator", "신청 보류", "권태준", "이미지팩 최종 확인 전"],
     ["09:12", "system", "로그인 성공", "Backstage", "관리자 세션 확인"]
   ]
+};
+
+const kpiLabelMap = {
+  today_users: "오늘 가입자",
+  today_payment_orders: "충전 주문",
+  moderation_queue: "신고/검수 대기",
+  debut_queue: "데뷔 신청"
+};
+
+const alertTitleMap = {
+  moderation_queue: "콘텐츠 검수 대기",
+  debut_queue: "데뷔 신청 검토",
+  payment_pending: "결제 확인 대기"
 };
 
 function getBackstageAuth() {
@@ -152,6 +167,82 @@ function renderBackstageTables() {
   renderRows("logRows", backstageRows.logs, -1);
 }
 
+function formatCount(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number.toLocaleString("ko-KR") : String(value || 0);
+}
+
+function renderSummaryKpis(kpis = []) {
+  if (!metricGrid || !Array.isArray(kpis) || kpis.length === 0) return;
+  metricGrid.innerHTML = kpis.map((item) => {
+    const label = kpiLabelMap[item.key] || item.label || "운영 지표";
+    const helper = item.key === "today_users"
+      ? "오늘 신규 가입"
+      : item.key === "today_payment_orders"
+        ? "오늘 생성된 주문"
+        : item.key === "moderation_queue"
+          ? "submitted/reviewing 합산"
+          : item.key === "debut_queue"
+            ? "submitted/reviewing 합산"
+            : item.tone || "운영 확인";
+    return `<article><span>${label}</span><strong>${formatCount(item.value)}</strong><small>${helper}</small></article>`;
+  }).join("");
+}
+
+function renderSummaryAlerts(alerts = []) {
+  if (!alertStrip || !Array.isArray(alerts) || alerts.length === 0) return;
+  const openAlerts = alerts.filter((item) => Number(item.count || 0) > 0);
+  if (openAlerts.length === 0) {
+    alertStrip.innerHTML = "<strong>우선 확인</strong><span>현재 즉시 처리해야 할 주요 대기 건은 없습니다.</span>";
+    return;
+  }
+  const text = openAlerts
+    .map((item) => `${alertTitleMap[item.key] || item.title || "운영 항목"} ${formatCount(item.count)}건`)
+    .join(", ");
+  alertStrip.innerHTML = `<strong>우선 확인</strong><span>${text}이 있습니다.</span>`;
+}
+
+function renderBackstageSummary(summary) {
+  if (!summary) return;
+  renderSummaryKpis(summary.kpis);
+  renderSummaryAlerts(summary.alerts);
+
+  const debutRows = (summary.tables?.recentDebutApplications || []).map((item) => [
+    item.id?.slice?.(0, 8) || "-",
+    "데뷔 신청",
+    item.displayName || item.applicantName || item.contactEmail || "-",
+    item.status || "접수",
+    "보기"
+  ]);
+  const riskRows = (summary.tables?.highRiskPosts || []).map((item) => [
+    item.id?.slice?.(0, 8) || "-",
+    item.postType || "피드",
+    `신고 ${formatCount(item.reportCount)}건`,
+    item.status === "hidden" ? "숨김" : "검수중",
+    item.status === "hidden" ? "복구" : "숨김"
+  ]);
+  const logRows = (summary.tables?.recentAuditEvents || []).map((item) => [
+    new Date(item.createdAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+    item.actorUser?.email || "system",
+    item.action || "-",
+    item.targetType || "-",
+    item.reason || item.metadata?.reason || "-"
+  ]);
+
+  if (debutRows.length) renderRows("overviewQueueRows", debutRows, 3);
+  if (riskRows.length) renderRows("riskRows", riskRows, 3);
+  if (logRows.length) renderRows("logRows", logRows, -1);
+}
+
+async function loadBackstageSummary() {
+  try {
+    const summary = await backstageFetch("/admin/api/v1/backstage/summary", { auth: true });
+    renderBackstageSummary(summary);
+  } catch (error) {
+    console.warn("Backstage summary fallback:", error);
+  }
+}
+
 function updateTodayLabel() {
   const formatter = new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
   todayLabel.textContent = formatter.format(new Date());
@@ -169,6 +260,7 @@ function showDashboard() {
   dashboardView.classList.remove("is-hidden");
   renderBackstageTables();
   updateTodayLabel();
+  loadBackstageSummary();
 }
 
 async function handleLogin(event) {
@@ -226,6 +318,7 @@ logoutButton.addEventListener("click", () => {
 refreshButton.addEventListener("click", () => {
   renderBackstageTables();
   updateTodayLabel();
+  loadBackstageSummary();
 });
 
 bootstrapBackstage();
