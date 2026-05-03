@@ -73,6 +73,8 @@ npm run prisma:seed
 
 The seed script inserts the first public artists, local image asset references, shortforms, Lumina products, gift products, the launch boost campaign, premium video products, and chat feature products. The script is idempotent and can be rerun after changing seed values.
 
+The seed also keeps launch-prep artists as `planned` until image QA and frontend QA are complete. Planned artists are available through `GET /api/v1/artists/roadmap`, but they do not appear in `GET /api/v1/artists` until their status becomes `active` and both cover/thumb assets are ready. Current planned seed records include `seo-yuan`, `ha-yuna`, and `kwon-taejun`.
+
 Current fixed gallery seed sources:
 
 - `yoon-serin`: `assets/characters/yoon-serin/reference-final/*` (20)
@@ -95,6 +97,7 @@ The server listens on `http://localhost:3001` by default.
 ## Public API Skeleton
 
 - `GET /api/v1/artists`
+- `GET /api/v1/artists/roadmap`
 - `GET /api/v1/artists/:slug`
 - `GET /api/v1/shortforms`
 - `GET /api/v1/lumina-products`

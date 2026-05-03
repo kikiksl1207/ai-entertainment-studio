@@ -28,6 +28,7 @@ NestJS를 추천하는 이유는 도메인 분리가 명확하고, 결제/지갑
 
 ```http
 GET /api/v1/artists
+GET /api/v1/artists/roadmap
 GET /api/v1/artists/:artistSlug
 GET /api/v1/artists/:artistSlug/assets
 ```
@@ -41,6 +42,9 @@ Frontend-friendly response fields:
 - Public artist responses only expose artist rows that have both a cover image and thumbnail image.
 - Public responses do not expose internal asset `metadata`, `storageKey`, or `storageProvider`.
 - The seed archives stale local seed assets that are no longer present in the current operation pack, so old gallery files stop appearing after seed deploy.
+- `GET /api/v1/artists/roadmap` returns planned/candidate launch-prep artists only. It does not make them public in the main artist list.
+- Planned roadmap items expose launch-prep fields such as `gender`, `launchPhase`, `operationRole`, `publicTagline`, `fandomCandidate`, `thumbnailUrl`, `coverUrl`, `galleryCount`, `imageBaselineNote`, and lightweight `metadata`.
+- Current planned seed records include `seo-yuan`, `ha-yuna`, and `kwon-taejun`. `ha-yuna` and `kwon-taejun` stay hidden from `GET /artists` until image QA is complete and their status is changed to `active`.
 
 용도:
 

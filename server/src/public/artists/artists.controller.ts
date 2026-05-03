@@ -10,6 +10,11 @@ export class ArtistsController {
     return this.artistsService.findAll();
   }
 
+  @Get('roadmap')
+  findRoadmap() {
+    return this.artistsService.findRoadmap();
+  }
+
   @Get(':slug')
   async findBySlug(@Param('slug') slug: string) {
     const artist = await this.artistsService.findBySlug(slug);

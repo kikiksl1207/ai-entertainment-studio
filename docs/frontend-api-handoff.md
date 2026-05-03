@@ -42,6 +42,7 @@ Expected:
 
 ```http
 GET /artists
+GET /artists/roadmap
 GET /artists/:slug
 ```
 
@@ -77,6 +78,7 @@ Image usage:
 - `thumbnailImage.url` is the card/list image.
 - `assets[]` includes all public artist assets.
 - `GET /artists` and `GET /artists/:slug` only expose public-ready artists that have both `coverImage` and `thumbnailImage`.
+- `GET /artists/roadmap` exposes planned/candidate artists only. These are preparation records and are not returned by the public artist list until they become `active`.
 - Detail galleries should use `assets.filter((asset) => asset.usageType === "gallery")`.
 - Gallery assets are seeded from current operation-pack folders where available:
   - `assets/characters/yoon-serin/reference-final/*`
@@ -85,6 +87,46 @@ Image usage:
 - `reference`, `reference-final`, and `reference-rebuild` folders are not all automatically public. Only assets returned by the API should be shown in the frontend.
 - Image URLs may be relative repo/storage keys until object storage is configured. If the URL starts with `assets/`, resolve it from the frontend site origin.
 - After a seed deploy, stale local seed assets that are no longer in the current operation pack are archived and removed from public artist API responses.
+
+Roadmap response for launch-prep cards:
+
+```http
+GET /api/v1/artists/roadmap
+```
+
+```json
+{
+  "items": [
+    {
+      "slug": "ha-yuna",
+      "displayName": "Ha Yuna",
+      "status": "planned",
+      "launchPhase": "planned",
+      "operationRole": "shortform_growth_candidate",
+      "publicTagline": "Vivid street beauty candidate built for quick reactions and bold color.",
+      "fandomCandidate": "HAVIBE",
+      "gender": "female",
+      "thumbnailUrl": null,
+      "thumbUrl": null,
+      "coverUrl": null,
+      "galleryCount": 0,
+      "imageBaselineNote": "Keep cat-like eyes, vivid makeup, street styling, and strong color separation from Han Seoyul."
+    }
+  ],
+  "policy": {
+    "visibility": "planned_candidate_only",
+    "publicLaunchRule": "Roadmap artists are not returned by GET /api/v1/artists until status becomes active and cover/thumb assets are ready."
+  }
+}
+```
+
+Current planned seed slugs:
+
+```txt
+seo-yuan
+ha-yuna
+kwon-taejun
+```
 
 ### Artist Detail Profile Box
 

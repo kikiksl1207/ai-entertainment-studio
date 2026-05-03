@@ -99,6 +99,34 @@ const artists = [
     primaryColor: '#f8fafc',
     secondaryColor: '#94a3b8',
   },
+  {
+    slug: 'ha-yuna',
+    displayName: 'Ha Yuna',
+    sortOrder: 80,
+    tagline: 'Vivid street beauty and shortform trend candidate',
+    summary:
+      'A high-reaction SNS beauty character built for vivid color, trend pickup, and Lumina Pick growth.',
+    keywords: ['street beauty', 'shortform', 'trend pickup'],
+    story:
+      'Ha Yuna is a planned Lumina Stage artist candidate focused on bold styling, vivid reactions, and fast-moving shortform moments.',
+    visualKeywords: ['cat-like eyes', 'vivid color makeup', 'street fashion'],
+    primaryColor: '#ec4899',
+    secondaryColor: '#14b8a6',
+  },
+  {
+    slug: 'kwon-taejun',
+    displayName: 'Kwon Taejun',
+    sortOrder: 90,
+    tagline: 'Noir actor mood and low-voice emotional chat candidate',
+    summary:
+      'A quiet actor-type male character candidate for suit styling, low-voice clips, and emotional fan chat.',
+    keywords: ['noir actor', 'low voice', 'emotional chat'],
+    story:
+      'Kwon Taejun is a planned Lumina Stage artist candidate built around night rain, tailored suits, and restrained emotional scenes.',
+    visualKeywords: ['dark suit', 'low-key lighting', 'rainy night mood'],
+    primaryColor: '#111827',
+    secondaryColor: '#9ca3af',
+  },
 ] as const;
 
 const profileFactsBySlug = {
@@ -291,6 +319,82 @@ const profileFactsBySlug = {
     publicOneLiner:
       'A calm natural-luxury muse for skincare, fragrance, and premium lifestyle content.',
   },
+  'ha-yuna': {
+    birthDate: null,
+    displayBirthDate: 'planned',
+    hometown: 'Seoul',
+    height: 'TBD',
+    bloodType: 'TBD',
+    mbti: 'ENTP',
+    debut: 'Lumina Stage planned candidate',
+    position: 'Street SNS beauty and shortform reaction candidate',
+    characterType: 'vivid shortform trend artist',
+    gender: 'female',
+    launchPhase: 'planned',
+    operationRole: 'shortform_growth_candidate',
+    monetizationLane: 'Lumina Pick, beauty gifts, shortform reaction unlocks',
+    contentLane: 'shortform, Lumina Feed, monthly pick voting',
+    publicTagline: 'Vivid street beauty candidate built for quick reactions and bold color.',
+    fandomNameCandidate: 'HAVIBE',
+    fandomNameStatus: 'candidate',
+    fanPoint: 'vivid color, cat-like eye mood, fast feed reaction',
+    speechKeywords: ['confident', 'quick', 'playful', 'trend-aware'],
+    hobbies: ['street snaps', 'color makeup notes', 'trend clipping'],
+    favoriteGifts: ['neon light stick', 'color lip tint', 'mini camera'],
+    signatureItems: ['vivid lip color', 'crop jacket', 'silver hair pin'],
+    representativeContent: ['color reaction clip', 'street beauty reel', 'Lumina Pick teaser'],
+    representativeContents: ['color reaction clip', 'street beauty reel', 'Lumina Pick teaser'],
+    adCategory: 'street beauty, color cosmetics, shortform fashion',
+    adCategories: ['street beauty', 'color cosmetics', 'shortform fashion'],
+    premiumPoint: 'high-reaction color close-up and trend pickup shortform cuts',
+    unlockItem: 'vivid neon styling pack',
+    boostPoint: 'shortform-first candidate for Lumina Pick engagement',
+    representativeColors: ['Hot Pink', 'Aqua Mint', 'Neon Lime'],
+    relationshipPosition: 'planned female shortform growth line',
+    talkTone: ['bold', 'fast', 'slightly teasing', 'SNS-native'],
+    imageBaselineNote:
+      'Keep cat-like eyes, vivid makeup, street styling, and strong color separation from Han Seoyul.',
+    publicOneLiner:
+      'A vivid street beauty candidate for fast shortform reactions and Lumina Pick growth.',
+  },
+  'kwon-taejun': {
+    birthDate: null,
+    displayBirthDate: 'planned',
+    hometown: 'Seoul',
+    height: 'TBD',
+    bloodType: 'TBD',
+    mbti: 'INTJ',
+    debut: 'Lumina Stage planned candidate',
+    position: 'Noir actor and low-voice emotional chat candidate',
+    characterType: 'quiet actor-type male artist',
+    gender: 'male',
+    launchPhase: 'planned',
+    operationRole: 'male_actor_chat_candidate',
+    monetizationLane: 'premium chat, audio-style replies, suit gifts',
+    contentLane: 'Lumina Feed, shortform monologue, emotional fan chat',
+    publicTagline: 'Quiet actor mood candidate with a low voice and deep gaze.',
+    fandomNameCandidate: 'Taejun Room',
+    fandomNameStatus: 'candidate',
+    fanPoint: 'low voice, deep gaze, calm emotional distance',
+    speechKeywords: ['low', 'slow', 'restrained', 'sincere'],
+    hobbies: ['night walks', 'watch collecting', 'film notes'],
+    favoriteGifts: ['black umbrella', 'silver watch', 'deep wood perfume'],
+    signatureItems: ['dark suit', 'silver case watch', 'black tie', 'long umbrella'],
+    representativeContent: ['low-voice reply clip', 'rainy night monologue', 'gift unlock scene'],
+    representativeContents: ['low-voice reply clip', 'rainy night monologue', 'gift unlock scene'],
+    adCategory: 'premium fragrance, suit, watch, leather goods',
+    adCategories: ['premium fragrance', 'suit and watch', 'emotional audio chat'],
+    premiumPoint: 'low-voice emotional replies and restrained noir mood scenes',
+    unlockItem: 'rainy night suit mood film',
+    boostPoint: 'male actor candidate for premium emotional fan chat',
+    representativeColors: ['Obsidian Black', 'Rain Gray', 'Deep Wood'],
+    relationshipPosition: 'planned male actor and chat line',
+    talkTone: ['slow', 'low-key', 'protective', 'emotionally restrained'],
+    imageBaselineNote:
+      'Avoid crime or violence. Keep noir through rain, night, suits, lounge mood, and emotional monologue only.',
+    publicOneLiner:
+      'A quiet noir actor candidate for low-voice clips, deep gaze, and emotional fan chat.',
+  },
 } as const;
 
 const shortforms = [
@@ -318,13 +422,14 @@ const galleryDirsBySlug = {
 } as const;
 
 const publicSeedArtistSlugs = new Set(Object.keys(galleryDirsBySlug));
+const plannedSeedArtistSlugs = new Set(['seo-yuan', 'ha-yuna', 'kwon-taejun']);
 
 async function main() {
   const artistBySlug = new Map<string, { id: string; displayName: string }>();
   const assetByKey = new Map<string, { id: string }>();
 
   for (const artist of artists) {
-    const status = isPublicSeedArtist(artist.slug) ? 'active' : 'draft';
+    const status = seedArtistStatus(artist.slug);
     const row = await prisma.artist.upsert({
       where: { slug: artist.slug },
       update: {
@@ -833,6 +938,18 @@ function skuSuffix(slug: string) {
 
 function isPublicSeedArtist(slug: string) {
   return publicSeedArtistSlugs.has(slug);
+}
+
+function seedArtistStatus(slug: string) {
+  if (isPublicSeedArtist(slug)) {
+    return 'active';
+  }
+
+  if (plannedSeedArtistSlugs.has(slug)) {
+    return 'planned';
+  }
+
+  return 'draft';
 }
 
 function publicSeedArtists() {
