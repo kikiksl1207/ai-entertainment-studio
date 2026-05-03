@@ -1504,7 +1504,8 @@ export class AuthService {
       hasPassword: user.authAccounts.some((account) => Boolean(account.passwordHash)),
       isSocialOnly: !user.authAccounts.some((account) => Boolean(account.passwordHash)),
       createdAt: user.createdAt,
-      displayName: user.profile?.displayName ?? user.email?.split('@')[0] ?? 'Lumina Fan',
+      displayName:
+        user.profile?.displayName ?? user.profile?.publicHandle ?? 'Lumina Fan',
       publicHandle: user.profile?.publicHandle ?? null,
       avatarUrl: avatarAsset
         ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
@@ -1680,6 +1681,7 @@ export class AuthService {
       profile: {
         select: {
           displayName: true,
+          publicHandle: true,
           avatarAssetId: true,
         },
       },
@@ -1708,7 +1710,9 @@ export class AuthService {
       updatedAt: follow.updatedAt,
       user: {
         id: user.id,
-        displayName: user.profile?.displayName ?? user.email?.split('@')[0] ?? 'Lumina User',
+        displayName:
+          user.profile?.displayName ?? user.profile?.publicHandle ?? 'Lumina User',
+        publicHandle: user.profile?.publicHandle ?? null,
         avatarUrl: avatarAsset
           ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
           : null,

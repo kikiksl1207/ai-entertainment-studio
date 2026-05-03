@@ -1216,7 +1216,8 @@ export class CommunityService {
       updatedAt: follow.updatedAt,
       user: {
         id: user.id,
-        displayName: user.profile?.displayName ?? user.email?.split('@')[0] ?? 'Lumina User',
+        displayName:
+          user.profile?.displayName ?? user.profile?.publicHandle ?? 'Lumina User',
         publicHandle: user.profile?.publicHandle ?? null,
         avatarUrl: avatarAsset
           ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
@@ -1246,7 +1247,8 @@ export class CommunityService {
 
     return {
       id: user.id,
-      displayName: user.profile?.displayName ?? user.email?.split('@')[0] ?? 'Lumina User',
+      displayName:
+        user.profile?.displayName ?? user.profile?.publicHandle ?? 'Lumina User',
       publicHandle: user.profile?.publicHandle ?? null,
       avatarUrl: avatarAsset
         ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)

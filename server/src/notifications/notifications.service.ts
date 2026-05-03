@@ -221,7 +221,7 @@ export class NotificationsService {
             id: notification.actorUser.id,
             displayName:
               notification.actorUser.profile?.displayName ??
-              notification.actorUser.email?.split('@')[0] ??
+              notification.actorUser.profile?.publicHandle ??
               'Lumina User',
             publicHandle: notification.actorUser.profile?.publicHandle ?? null,
             avatarUrl: avatarAsset
