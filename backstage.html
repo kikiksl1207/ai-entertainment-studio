@@ -179,27 +179,29 @@
           </section>
         </div>
 
-        <aside class="detail-panel" id="backstageDetailPanel" aria-live="polite" aria-label="상세 처리 패널">
-          <header>
-            <div>
-              <span class="section-kicker" id="detailType">Detail</span>
-              <h2 id="detailTitle">항목을 선택하세요</h2>
+        <aside class="detail-panel is-hidden" id="backstageDetailPanel" aria-live="polite" aria-label="상세 수정 팝업" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+          <div class="detail-card">
+            <header>
+              <div>
+                <span class="section-kicker" id="detailType">Detail</span>
+                <h2 id="detailTitle">항목을 선택하세요</h2>
+              </div>
+              <button class="text-action" type="button" id="detailCloseButton">닫기</button>
+            </header>
+            <dl class="detail-list" id="detailList">
+              <div><dt>상태</dt><dd>테이블의 행을 선택하면 상세 정보와 처리 버튼이 표시됩니다.</dd></div>
+            </dl>
+            <label class="memo-field">
+              <span>운영 메모</span>
+              <textarea id="detailMemo" rows="5" placeholder="처리 사유와 확인 내용을 짧게 남겨주세요."></textarea>
+            </label>
+            <div class="detail-actions">
+              <button class="secondary-action" type="button" data-detail-action="memo">메모 저장</button>
+              <button class="secondary-action" type="button" data-detail-action="hold">보류</button>
+              <button class="danger-action" type="button" data-detail-action="danger">위험 액션</button>
             </div>
-            <button class="text-action" type="button" id="detailCloseButton">닫기</button>
-          </header>
-          <dl class="detail-list" id="detailList">
-            <div><dt>상태</dt><dd>테이블의 행을 선택하면 상세 정보와 처리 버튼이 표시됩니다.</dd></div>
-          </dl>
-          <label class="memo-field">
-            <span>운영 메모</span>
-            <textarea id="detailMemo" rows="5" placeholder="처리 사유와 확인 내용을 짧게 남겨주세요."></textarea>
-          </label>
-          <div class="detail-actions">
-            <button class="secondary-action" type="button" data-detail-action="memo">메모 저장</button>
-            <button class="secondary-action" type="button" data-detail-action="hold">보류</button>
-            <button class="danger-action" type="button" data-detail-action="danger">위험 액션</button>
+            <p class="detail-help">상세 확인과 수정 메모는 팝업에서 처리합니다. 실제 실행 API는 reason/note 확인 후 별도 연결합니다.</p>
           </div>
-          <p class="detail-help">실제 처리 API 연결 전까지 버튼은 화면 구조 확인용입니다. 위험 액션은 추후 확인 모달을 거칩니다.</p>
         </aside>
       </section>
 

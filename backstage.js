@@ -425,6 +425,7 @@ function renderFallbackNote(targetId, label = "API 응답을 불러오지 못해
 function renderDetailPanel(detail) {
   if (!detailPanel || !detail) return;
   selectedDetail = detail;
+  detailPanel.classList.remove("is-hidden");
   detailType.textContent = detail.type || "Detail";
   detailTitle.textContent = detail.row?.[2] || detail.row?.[0] || "상세 정보";
   detailList.innerHTML = detail.row.map((value, index) => {
@@ -1171,11 +1172,8 @@ document.addEventListener("keydown", (event) => {
 
 detailCloseButton.addEventListener("click", () => {
   document.querySelectorAll("tr.is-selected").forEach((row) => row.classList.remove("is-selected"));
-  renderDetailPanel({
-    type: "Detail",
-    labels: ["상태"],
-    row: ["테이블의 행을 선택하면 상세 정보와 처리 버튼이 표시됩니다."]
-  });
+  detailPanel.classList.add("is-hidden");
+  selectedDetail = null;
 });
 
 document.querySelectorAll("[data-detail-action]").forEach((button) => {
@@ -1185,6 +1183,13 @@ document.querySelectorAll("[data-detail-action]").forEach((button) => {
 confirmCancelButton.addEventListener("click", closeConfirmModal);
 confirmModal.addEventListener("click", (event) => {
   if (event.target === confirmModal) closeConfirmModal();
+});
+
+detailPanel.addEventListener("click", (event) => {
+  if (event.target !== detailPanel) return;
+  document.querySelectorAll("tr.is-selected").forEach((row) => row.classList.remove("is-selected"));
+  detailPanel.classList.add("is-hidden");
+  selectedDetail = null;
 });
 
 document.querySelectorAll("[data-load-more]").forEach((button) => {
