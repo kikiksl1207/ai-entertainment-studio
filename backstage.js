@@ -96,6 +96,14 @@ const tableMeta = {
   logRows: { type: "운영 로그", labels: ["시간", "관리자", "액션", "대상", "메모"] }
 };
 
+const sectionLoaders = {
+  users: loadUsersSection,
+  creators: loadCreatorsSection,
+  moderation: loadModerationSection,
+  settlement: loadSettlementSection,
+  logs: loadAuditSection
+};
+
 function getBackstageAuth() {
   try {
     const raw = localStorage.getItem(BACKSTAGE_AUTH_KEY);
@@ -183,6 +191,17 @@ function renderRows(targetId, rows, statusIndex) {
     }).join("");
     return `<tr data-table-id="${targetId}">${cells}</tr>`;
   }).join("");
+}
+
+function renderLoadingRow(targetId, label = "데이터를 불러오는 중입니다.") {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  const colSpan = tableMeta[targetId]?.labels?.length || 5;
+  target.innerHTML = `<tr><td colspan="${colSpan}">${label}</td></tr>`;
+}
+
+function renderFallbackNote(targetId, label = "API 응답을 불러오지 못해 샘플 데이터를 유지합니다.") {
+  console.warn(`Backstage ${targetId}: ${label}`);
 }
 
 function renderDetailPanel(detail) {
@@ -293,6 +312,125 @@ async function loadBackstageSummary() {
   }
 }
 
+function formatDate(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
+}
+
+function krw(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? `${number.toLocaleString("ko-KR")}원` : String(value || "-");
+}
+
+async function loadUsersSection() {
+  renderLoadingRow("userRows");
+  try {
+    const users = await backstageFetch(adminApiPath("/users?take=20"), { auth: true });
+    const rows = (Array.isArray(users) ? users : users?.items || []).map((user) => [
+      user.displayName || user.nickname || user.id?.slice?.(0, 8) || "-",
+      user.email || "-",
+      user.status || "-",
+      formatCount(user.wallet?.balanceLumina || user.walletBalanceLumina || 0) + "L",
+      formatDate(user.lastLoginAt || user.updatedAt || user.createdAt),
+      user.status === "suspended" ? "복구 요청" : "상세"
+    ]);
+    if (rows.length) renderRows("userRows", rows, 2);
+    else renderLoadingRow("userRows", "표시할 유저가 없습니다.");
+  } catch {
+    renderBackstageTables();
+    renderFallbackNote("userRows");
+  }
+}
+
+async function loadCreatorsSection() {
+  renderLoadingRow("creatorRows");
+  try {
+    const applications = await backstageFetch(adminApiPath("/debut/applications?take=20"), { auth: true });
+    const rows = (Array.isArray(applications) ? applications : applications?.items || []).map((item) => [
+      item.displayName || item.applicantName || item.contactEmail || item.id?.slice?.(0, 8) || "-",
+      item.participationType || item.applicationType || "-",
+      item.status || "-",
+      item.monitoringStatus || "확인 필요",
+      formatDate(item.createdAt),
+      item.status === "approved" ? "권한 보기" : "보기"
+    ]);
+    if (rows.length) renderRows("creatorRows", rows, 2);
+    else renderLoadingRow("creatorRows", "표시할 신청 내역이 없습니다.");
+  } catch {
+    renderBackstageTables();
+    renderFallbackNote("creatorRows");
+  }
+}
+
+async function loadModerationSection() {
+  renderLoadingRow("moderationRows");
+  try {
+    const posts = await backstageFetch(adminApiPath("/community/posts?status=published&minReports=1&sort=reports&take=20"), { auth: true });
+    const rows = (Array.isArray(posts) ? posts : posts?.items || posts?.posts || []).map((post) => [
+      post.id?.slice?.(0, 8) || "-",
+      post.authorUser?.email || post.artist?.name || post.artist?.displayName || "-",
+      `신고 ${formatCount(post.reportCount)}건`,
+      post.status || "-",
+      post.status === "hidden" ? "복구" : "숨김"
+    ]);
+    if (rows.length) renderRows("moderationRows", rows, 3);
+    else renderLoadingRow("moderationRows", "검수 대기 콘텐츠가 없습니다.");
+  } catch {
+    renderBackstageTables();
+    renderFallbackNote("moderationRows");
+  }
+}
+
+async function loadSettlementSection() {
+  renderLoadingRow("settlementRows");
+  try {
+    const orders = await backstageFetch(adminApiPath("/payment-orders?take=20"), { auth: true });
+    const rows = (Array.isArray(orders) ? orders : orders?.items || []).map((order) => [
+      order.user?.email || order.userId?.slice?.(0, 8) || "-",
+      order.orderNo || order.id?.slice?.(0, 8) || "-",
+      krw(order.amount),
+      krw(order.refundedAmount || 0),
+      order.status || "-",
+      order.status === "paid" ? "환불 검토" : "확인"
+    ]);
+    if (rows.length) renderRows("settlementRows", rows, 4);
+    else renderLoadingRow("settlementRows", "표시할 결제/정산 항목이 없습니다.");
+  } catch {
+    renderBackstageTables();
+    renderFallbackNote("settlementRows");
+  }
+}
+
+async function loadAuditSection() {
+  renderLoadingRow("logRows");
+  try {
+    const logs = await backstageFetch(adminApiPath("/audit-events?take=20"), { auth: true });
+    const rows = (Array.isArray(logs) ? logs : logs?.items || []).map((item) => [
+      new Date(item.createdAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }),
+      item.actorUser?.email || item.actorUserId?.slice?.(0, 8) || "system",
+      item.action || "-",
+      item.targetType || "-",
+      item.reason || item.metadata?.reason || item.targetId?.slice?.(0, 8) || "-"
+    ]);
+    if (rows.length) renderRows("logRows", rows, -1);
+    else renderLoadingRow("logRows", "표시할 운영 로그가 없습니다.");
+  } catch {
+    renderBackstageTables();
+    renderFallbackNote("logRows");
+  }
+}
+
+function loadSection(sectionId) {
+  if (sectionId === "overview") {
+    renderBackstageTables();
+    loadBackstageSummary();
+    return;
+  }
+  sectionLoaders[sectionId]?.();
+}
+
 function updateTodayLabel() {
   const formatter = new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
   todayLabel.textContent = formatter.format(new Date());
@@ -355,6 +493,7 @@ document.querySelectorAll(".sidebar-nav a").forEach((link) => {
   link.addEventListener("click", () => {
     document.querySelectorAll(".sidebar-nav a").forEach((item) => item.classList.remove("is-active"));
     link.classList.add("is-active");
+    loadSection(link.getAttribute("href")?.replace("#", ""));
   });
 });
 
