@@ -113,7 +113,7 @@ User-scoped endpoints require an access token from `POST /api/v1/auth/login` or 
 New users receive a 300 Lumina signup bonus when their wallet is created. The grant is written to `wallet_ledger` with `ledgerType = event_grant` and a `signup_bonus:*` idempotency key for compatibility with the production ledger constraint; balances are never stored directly on `users`.
 
 Email-password signup requires a password between 8 and 128 characters with at least one letter and one number.
-Email and social signup auto-assign a temporary display name like `루미나팬-1A2B3C` when `displayName` is omitted, so public UI never needs to derive a name from the email prefix.
+Email and social signup auto-assign a temporary display name like `민트별빛4827` when `displayName` is omitted, so public UI never needs to derive a name from the email prefix. The generator uses color + object + four digits and retries when an existing profile already has the same generated name.
 Signup and social signup may include optional `referralCode` (6-24 uppercase letters, numbers, `_`, or `-`). Blank referral inputs should be omitted from the request body. A valid referral code grants 500 Lumina to the referrer and 500 Lumina to the new user in addition to the 300 Lumina signup bonus.
 
 Auth endpoints:

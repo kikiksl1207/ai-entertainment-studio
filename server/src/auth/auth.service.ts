@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { createHash, randomBytes, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomInt, randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -50,6 +50,30 @@ const ARTIST_CATEGORY_FILTER_LABELS = [
   '전체',
   ...ARTIST_CATEGORY_LABELS,
 ] as const;
+const TEMP_DISPLAY_NAME_COLORS = [
+  '민트',
+  '코랄',
+  '하늘',
+  '라벤더',
+  '루비',
+  '실버',
+  '골드',
+  '피치',
+  '네온',
+  '바이올렛',
+] as const;
+const TEMP_DISPLAY_NAME_OBJECTS = [
+  '별빛',
+  '달빛',
+  '리듬',
+  '무대',
+  '오로라',
+  '멜로디',
+  '픽셀',
+  '스파크',
+  '하트',
+  '스포트',
+] as const;
 
 type SessionContext = {
   userAgent?: string | null;
@@ -78,7 +102,7 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(input.password, PASSWORD_HASH_ROUNDS);
     const displayName =
-      input.displayName?.trim() || this.generateTemporaryDisplayName();
+      input.displayName?.trim() || (await this.generateTemporaryDisplayName());
 
     const user = await this.prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
@@ -175,7 +199,7 @@ export class AuthService {
       ? (profile.email?.trim().toLowerCase() ?? null)
       : null;
     const displayName =
-      input.displayName?.trim() || this.generateTemporaryDisplayName();
+      input.displayName?.trim() || (await this.generateTemporaryDisplayName());
 
     const authAccount = await this.prisma.userAuthAccount.findUnique({
       where: {
@@ -618,7 +642,7 @@ export class AuthService {
           minLength: 2,
           maxLength: 50,
           unique: false,
-          defaultFormat: '루미나팬-XXXXXX',
+          defaultFormat: '색상+사물+4자리숫자',
           autoAssignedOnSignup: true,
           firstChangeHasCooldown: true,
         },
@@ -910,7 +934,7 @@ export class AuthService {
           passwordMinLength: 8,
           passwordMaxLength: 128,
           passwordRule: 'At least one letter and one number',
-          defaultDisplayNameFormat: '루미나팬-XXXXXX',
+          defaultDisplayNameFormat: '색상+사물+4자리숫자',
         },
         social: this.getSocialProviders(),
       },
@@ -1491,8 +1515,29 @@ export class AuthService {
       : new Date(0);
   }
 
-  private generateTemporaryDisplayName() {
-    return `루미나팬-${randomBytes(3).toString('hex').toUpperCase()}`;
+  private async generateTemporaryDisplayName() {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const color =
+        TEMP_DISPLAY_NAME_COLORS[
+          randomInt(0, TEMP_DISPLAY_NAME_COLORS.length)
+        ];
+      const object =
+        TEMP_DISPLAY_NAME_OBJECTS[
+          randomInt(0, TEMP_DISPLAY_NAME_OBJECTS.length)
+        ];
+      const digits = randomInt(1000, 10000);
+      const candidate = `${color}${object}${digits}`;
+      const existingProfile = await this.prisma.userProfile.findFirst({
+        where: { displayName: candidate },
+        select: { userId: true },
+      });
+
+      if (!existingProfile) {
+        return candidate;
+      }
+    }
+
+    return `루미나팬${randomBytes(4).toString('hex').toUpperCase()}`;
   }
 
   private toStellaDisplay(luminaAmount: { toString: () => string }) {
