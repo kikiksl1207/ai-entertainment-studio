@@ -8,6 +8,7 @@ const loginForm = document.getElementById("backstageLoginForm");
 const emailInput = document.getElementById("backstageEmail");
 const passwordInput = document.getElementById("backstagePassword");
 const loginButton = document.getElementById("backstageLoginButton");
+const googleButton = document.getElementById("backstageGoogleButton");
 const loginStatus = document.getElementById("backstageLoginStatus");
 const operatorEmail = document.getElementById("backstageOperatorEmail");
 const logoutButton = document.getElementById("backstageLogoutButton");
@@ -30,6 +31,9 @@ const confirmCancelButton = document.getElementById("confirmCancelButton");
 const confirmRunButton = document.getElementById("confirmRunButton");
 
 let selectedDetail = null;
+const GOOGLE_CLIENT_ID = "213795475154-votjkhv4cvgg49cvajast3clenhoj5db.apps.googleusercontent.com";
+let googleSdkPromise = null;
+let googleTokenClient = null;
 
 const statusClassMap = {
   "접수": "is-pending",
@@ -135,6 +139,7 @@ function setStatus(message, type = "info") {
 
 function setLoading(isLoading) {
   loginButton.disabled = isLoading;
+  googleButton.disabled = isLoading;
   loginButton.textContent = isLoading ? "권한 확인 중..." : "백스테이지 입장";
 }
 
@@ -166,6 +171,90 @@ function extractAuthPayload(data) {
     refreshToken: data?.refreshToken || data?.tokens?.refreshToken || data?.refresh_token,
     user: data?.user || null
   };
+}
+
+function loadGoogleSDK() {
+  if (window.google?.accounts?.oauth2) return Promise.resolve();
+  if (googleSdkPromise) return googleSdkPromise;
+
+  googleSdkPromise = new Promise((resolve, reject) => {
+    const existing = document.getElementById("googleGsiSdk");
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Google SDK 로드 실패")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = "googleGsiSdk";
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Google SDK 로드 실패"));
+    document.head.appendChild(script);
+  });
+  return googleSdkPromise;
+}
+
+function initGoogleAuth() {
+  if (googleTokenClient) return true;
+  if (!window.google?.accounts?.oauth2) return false;
+
+  googleTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: "openid email profile",
+    callback: handleGoogleTokenResponse,
+    error_callback: (error) => {
+      if (error?.type === "popup_closed" || error?.type === "popup_failed_to_open") return;
+      setStatus("Google 로그인 창을 열지 못했어요. 잠시 후 다시 시도해 주세요.", "error");
+    }
+  });
+  return true;
+}
+
+async function handleGoogleTokenResponse(tokenResponse) {
+  if (!tokenResponse?.access_token) {
+    setStatus("Google access token을 받지 못했어요.", "error");
+    setLoading(false);
+    return;
+  }
+
+  try {
+    const data = await backstageFetch(publicApiPath("/auth/social/login"), {
+      method: "POST",
+      body: {
+        provider: "google",
+        token: tokenResponse.access_token
+      }
+    });
+    const auth = extractAuthPayload(data);
+    if (!auth.accessToken) throw new Error("Google 로그인 응답에서 토큰을 찾지 못했어요.");
+    setBackstageAuth(auth);
+    await verifyAdminAccess();
+    setStatus("Google 운영자 권한이 확인됐어요.", "success");
+    showDashboard();
+  } catch (error) {
+    setBackstageAuth(null);
+    const message = error.status === 403
+      ? "Google 계정은 로그인됐지만 관리자 권한이 아직 없어요."
+      : "Google 운영자 로그인에 실패했어요. 권한 부여 상태를 확인해 주세요.";
+    setStatus(message, "error");
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function handleGoogleLogin() {
+  setLoading(true);
+  setStatus("Google 로그인 창을 준비하고 있어요.");
+  try {
+    await loadGoogleSDK();
+    if (!initGoogleAuth()) throw new Error("Google SDK 초기화 실패");
+    googleTokenClient.requestAccessToken();
+  } catch {
+    setLoading(false);
+    setStatus("Google 로그인 준비에 실패했어요. 브라우저 팝업 차단 여부를 확인해 주세요.", "error");
+  }
 }
 
 function publicApiPath(path) {
@@ -597,6 +686,7 @@ confirmModal.addEventListener("click", (event) => {
 });
 
 loginForm.addEventListener("submit", handleLogin);
+googleButton.addEventListener("click", handleGoogleLogin);
 logoutButton.addEventListener("click", () => {
   setBackstageAuth(null);
   passwordInput.value = "";
