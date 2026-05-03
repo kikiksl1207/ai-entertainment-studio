@@ -499,18 +499,77 @@ function applyOverviewFilter(button) {
 }
 
 function updateDetailActions(detail) {
+  const memoButton = document.querySelector('[data-detail-action="memo"]');
   const dangerButton = document.querySelector('[data-detail-action="danger"]');
   const holdButton = document.querySelector('[data-detail-action="hold"]');
-  if (!dangerButton || !holdButton) return;
+  if (!memoButton || !dangerButton || !holdButton) return;
 
   const tableId = detail.tableId;
   const status = detail.row?.[detail.labels?.findIndex((label) => label === "상태")] || "";
   const actionLabel = detail.row?.[detail.row.length - 1] || "위험 액션";
+  const setButton = (button, { label, show = true, disabled = false }) => {
+    button.textContent = label;
+    button.classList.toggle("is-hidden", !show);
+    button.disabled = disabled;
+  };
 
-  holdButton.textContent = tableId === "creatorRows" ? "보류/보완 요청" : "보류";
-  holdButton.disabled = tableId === "logRows";
-  dangerButton.textContent = actionLabel === "복구" || status === "숨김" || status === "정지" ? "복구 실행" : actionLabel;
-  dangerButton.disabled = tableId === "logRows" || tableId === "settlementRows" && !["환불 검토", "확인"].includes(actionLabel);
+  setButton(memoButton, { label: "메모 저장", show: true, disabled: false });
+  setButton(holdButton, { label: "보류", show: false, disabled: true });
+  setButton(dangerButton, { label: "실행 API 연결 대기", show: false, disabled: true });
+
+  if (["logRows", "aiSettlementRows", "adminRequestRows"].includes(tableId)) {
+    setButton(memoButton, { label: "확인 메모", show: true });
+    return;
+  }
+
+  if (tableId === "creatorRows") {
+    setButton(holdButton, { label: "보류/보완 요청", show: true });
+    setButton(dangerButton, { label: "신청 상세 보기", show: true, disabled: true });
+    return;
+  }
+
+  if (tableId === "aiCreatorRows") {
+    setButton(holdButton, { label: "프로필 수정", show: true, disabled: true });
+    setButton(dangerButton, { label: "공개 상태 변경", show: true, disabled: true });
+    return;
+  }
+
+  if (tableId === "aiAssetRows") {
+    setButton(holdButton, { label: "슬롯 수정", show: true, disabled: true });
+    setButton(dangerButton, { label: "에셋 업로드", show: true, disabled: true });
+    return;
+  }
+
+  if (tableId === "aiPostRows") {
+    setButton(holdButton, { label: "문구 수정", show: true, disabled: true });
+    setButton(dangerButton, { label: "글 작성", show: true, disabled: true });
+    return;
+  }
+
+  if (tableId === "adminRows") {
+    setButton(holdButton, { label: "권한 변경", show: true, disabled: true });
+    setButton(dangerButton, { label: status === "승인" ? "비활성화" : "복구 확인", show: true, disabled: true });
+    return;
+  }
+
+  if (tableId === "userRows") {
+    setButton(holdButton, { label: "상태 확인", show: true });
+    setButton(dangerButton, { label: actionLabel.includes("복구") ? "복구 요청" : actionLabel.includes("세션") ? "세션 종료" : "정지 검토", show: true, disabled: true });
+    return;
+  }
+
+  if (tableId === "settlementRows") {
+    setButton(dangerButton, { label: ["환불 검토", "확인"].includes(actionLabel) ? actionLabel : "정산 상세", show: true, disabled: true });
+    return;
+  }
+
+  if (["userRiskRows", "moderationRows", "contentAnomalyRows", "reportCancelRows", "riskRows"].includes(tableId)) {
+    setButton(holdButton, { label: "보류/재확인", show: true });
+    setButton(dangerButton, { label: actionLabel === "복구" || status === "숨김" || status === "정지" ? "복구 실행" : "숨김/제재 검토", show: true, disabled: true });
+    return;
+  }
+
+  setButton(holdButton, { label: "보류", show: true });
 }
 
 function selectDetailButton(button) {
