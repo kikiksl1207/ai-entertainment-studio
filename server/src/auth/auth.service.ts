@@ -77,7 +77,8 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(input.password, PASSWORD_HASH_ROUNDS);
-    const displayName = input.displayName?.trim() || email.split('@')[0];
+    const displayName =
+      input.displayName?.trim() || this.generateTemporaryDisplayName();
 
     const user = await this.prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
@@ -174,10 +175,7 @@ export class AuthService {
       ? (profile.email?.trim().toLowerCase() ?? null)
       : null;
     const displayName =
-      input.displayName?.trim() ||
-      profile.displayName?.trim() ||
-      verifiedEmail?.split('@')[0] ||
-      `${profile.provider}_${providerUserId.slice(0, 8)}`;
+      input.displayName?.trim() || this.generateTemporaryDisplayName();
 
     const authAccount = await this.prisma.userAuthAccount.findUnique({
       where: {
@@ -620,6 +618,8 @@ export class AuthService {
           minLength: 2,
           maxLength: 50,
           unique: false,
+          defaultFormat: '루미나팬-XXXXXX',
+          autoAssignedOnSignup: true,
           firstChangeHasCooldown: true,
         },
         passwordRule: {
@@ -910,6 +910,7 @@ export class AuthService {
           passwordMinLength: 8,
           passwordMaxLength: 128,
           passwordRule: 'At least one letter and one number',
+          defaultDisplayNameFormat: '루미나팬-XXXXXX',
         },
         social: this.getSocialProviders(),
       },
@@ -1488,6 +1489,10 @@ export class AuthService {
     return changedAt
       ? new Date(changedAt.getTime() + NICKNAME_CHANGE_INTERVAL_MS)
       : new Date(0);
+  }
+
+  private generateTemporaryDisplayName() {
+    return `루미나팬-${randomBytes(3).toString('hex').toUpperCase()}`;
   }
 
   private toStellaDisplay(luminaAmount: { toString: () => string }) {
