@@ -1,4 +1,5 @@
-﻿const BACKSTAGE_API_BASE = window.LUMINA_API_BASE || "https://api.lumina-stage.com";
+﻿const BACKSTAGE_API_BASE = (window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
+const BACKSTAGE_BASE_HAS_API_PREFIX = /\/api\/v1$/.test(BACKSTAGE_API_BASE);
 const BACKSTAGE_AUTH_KEY = "lumina_backstage_auth";
 
 const loginView = document.getElementById("backstageLoginView");
@@ -134,8 +135,15 @@ function extractAuthPayload(data) {
   };
 }
 
+function publicApiPath(path) {
+  return BACKSTAGE_BASE_HAS_API_PREFIX ? path : `/api/v1${path}`;
+}
+
+function adminApiPath(path) {
+  return BACKSTAGE_BASE_HAS_API_PREFIX ? `/admin/api/v1${path}` : `/api/v1/admin/api/v1${path}`;
+}
 async function verifyAdminAccess() {
-  await backstageFetch("/admin/api/v1/audit-events?take=1", { auth: true });
+  await backstageFetch(adminApiPath("/audit-events?take=1"), { auth: true });
 }
 
 function statusBadge(value) {
@@ -236,7 +244,7 @@ function renderBackstageSummary(summary) {
 
 async function loadBackstageSummary() {
   try {
-    const summary = await backstageFetch("/admin/api/v1/backstage/summary", { auth: true });
+    const summary = await backstageFetch(adminApiPath("/backstage/summary"), { auth: true });
     renderBackstageSummary(summary);
   } catch (error) {
     console.warn("Backstage summary fallback:", error);
@@ -268,7 +276,7 @@ async function handleLogin(event) {
   setLoading(true);
   setStatus("운영자 권한을 확인하고 있어요.");
   try {
-    const data = await backstageFetch("/api/v1/auth/login", { method: "POST", body: { email: emailInput.value.trim(), password: passwordInput.value } });
+    const data = await backstageFetch(publicApiPath("/auth/login"), { method: "POST", body: { email: emailInput.value.trim(), password: passwordInput.value } });
     const auth = extractAuthPayload(data);
     if (!auth.accessToken) throw new Error("로그인 응답에서 토큰을 찾지 못했어요.");
     setBackstageAuth(auth);
@@ -322,3 +330,5 @@ refreshButton.addEventListener("click", () => {
 });
 
 bootstrapBackstage();
+
+
