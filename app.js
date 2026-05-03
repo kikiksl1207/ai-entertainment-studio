@@ -12,7 +12,7 @@
    ─────────────────────────────────────────── */
 const API_BASE = "https://api.lumina-stage.com";
 
-async function apiFetch(path, options = {}) {
+async function apiFetch(path, options = {}, _retryDepth = 0) {
   if (!API_BASE) return null;
   const { method = "GET", body, auth = false, throwOnError = false, headers: extraHeaders = {} } = options;
 
@@ -37,6 +37,17 @@ async function apiFetch(path, options = {}) {
     });
     clearTimeout(timer);
 
+    // #088 — auth 요청이 401이고 첫 시도면 refresh + 원래 요청 1회 재시도
+    // refresh endpoint 자체는 retry 대상에서 제외 (무한 루프 방지)
+    if (res.status === 401 && auth && _retryDepth === 0 && path !== "/api/v1/auth/refresh") {
+      const refreshed = await refreshAuthOnce();
+      if (refreshed) {
+        // 새 토큰으로 동일 method/body/extraHeaders 보존하여 재시도
+        return apiFetch(path, options, 1);
+      }
+      // refresh 실패 → 아래 일반 401 처리로 떨어짐 (사용자 안내는 refreshAuthOnce 안에서 이미 처리)
+    }
+
     if (!res.ok) {
       if (throwOnError) {
         const errBody = await res.json().catch(() => ({}));
@@ -53,6 +64,94 @@ async function apiFetch(path, options = {}) {
   } catch (e) {
     if (throwOnError) throw e;
     return null;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   #088 — apiFetch 401 → refresh → retry 흐름 (2026-05-03)
+   - 차모 백엔드 계약: POST /api/v1/auth/refresh, body { refreshToken }
+     Authorization 헤더 미사용, 응답은 login과 같은 shape (accessToken/refreshToken 둘 다 회전)
+     refresh 자체 401/403은 만료/폐기 → clearAuth + 로그인 안내
+   - 단일 in-flight (mutex) — 동시 401 wave가 refresh를 중복 호출하지 않도록
+   ══════════════════════════════════════════════ */
+let _refreshInFlight = null;
+
+async function refreshAuthOnce() {
+  if (_refreshInFlight) return _refreshInFlight;
+
+  const auth = getAuth();
+  const refreshToken = auth?.refreshToken;
+  if (!refreshToken) {
+    notifyAuthExpired();
+    return null;
+  }
+
+  _refreshInFlight = (async () => {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(API_BASE + "/api/v1/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }, // #088 — Authorization 헤더 사용 안 함
+        body: JSON.stringify({ refreshToken }),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+
+      if (!res.ok) {
+        console.warn("[#088 refresh] 실패 status=", res.status);
+        clearAuth();
+        notifyAuthExpired();
+        return null;
+      }
+      const data = await res.json().catch(() => null);
+      // #078 차모 계약: tokens.accessToken/tokens.refreshToken + top-level alias
+      const newAccess = data?.accessToken || data?.tokens?.accessToken || data?.access_token;
+      const newRefresh = data?.refreshToken || data?.tokens?.refreshToken || data?.refresh_token;
+      const user = data?.user || auth.user;
+      if (!newAccess) {
+        console.warn("[#088 refresh] 응답에 accessToken 없음", data);
+        clearAuth();
+        notifyAuthExpired();
+        return null;
+      }
+      setAuth({
+        accessToken: newAccess,
+        refreshToken: newRefresh || refreshToken, // rotation 미적용 시 기존값 유지
+        user
+      });
+      console.info("[#088 refresh] OK");
+      return { accessToken: newAccess, refreshToken: newRefresh, user };
+    } catch (err) {
+      console.warn("[#088 refresh] 예외:", err);
+      clearAuth();
+      notifyAuthExpired();
+      return null;
+    } finally {
+      // 다음 wave를 위해 microtask 뒤 락 해제 — 동일 wave는 같은 promise 결과 공유
+      setTimeout(() => { _refreshInFlight = null; }, 0);
+    }
+  })();
+
+  return _refreshInFlight;
+}
+
+function notifyAuthExpired() {
+  // 디바운스 — 동시 다발 401 직후 모달 여러 번 안 띄우게
+  if (typeof window === "undefined") return;
+  if (window.__authExpiredNotified) return;
+  window.__authExpiredNotified = true;
+  setTimeout(() => { window.__authExpiredNotified = false; }, 3000);
+
+  // 헤더 UI 동기화 (로그인 버튼 복귀)
+  if (typeof updateAuthUI === "function") {
+    try { updateAuthUI(); } catch {}
+  }
+  // 다른 영역에서 듣고 처리할 수 있도록 이벤트 발사
+  try { window.dispatchEvent(new CustomEvent("lumina:auth-expired")); } catch {}
+  // 로그인 모달 자동 오픈 (있으면)
+  if (typeof openAuthModal === "function") {
+    try { openAuthModal("login"); } catch {}
   }
 }
 
@@ -331,8 +430,9 @@ function createAuthModal() {
         <div class="auth-modal-error" data-error hidden></div>
         <label class="auth-modal-field"><span>이메일</span>
           <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
-        <label class="auth-modal-field"><span>닉네임</span>
-          <input type="text" name="displayName" required autocomplete="nickname" placeholder="팬덤에서 쓸 이름" /></label>
+        <label class="auth-modal-field"><span>닉네임 <small style="color:rgba(255,255,255,0.4);font-weight:400;">(선택)</small></span>
+          <input type="text" name="displayName" autocomplete="nickname" placeholder="비워두면 임시 이름이 자동 부여돼요" />
+          <small style="color:rgba(255,255,255,0.45);font-size:11.5px;margin-top:4px;display:block;">이메일이나 실명은 공개 닉네임으로 사용하지 않아요. 마이페이지에서 언제든 바꿀 수 있어요.</small></label>
         <label class="auth-modal-field"><span>비밀번호 (8자 이상)</span>
           <input type="password" name="password" required minlength="8" autocomplete="new-password" /></label>
         <label class="auth-modal-field"><span>추천인 코드 <small style="color:rgba(255,255,255,0.4);font-weight:400;">(선택)</small></span>
@@ -406,6 +506,14 @@ async function handleAuthSubmit(form, mode) {
         form.displayName.value.trim(),
         form.referralCode?.value.trim() || null
       );
+      // #074 — 임시 표시명 안내 (회원가입 성공 직후, displayName 비워둔 경우 자동 생성됨)
+      setTimeout(() => {
+        try {
+          const u = getAuth()?.user;
+          const name = u?.displayName || u?.publicHandle || "";
+          alert(`Lumina Stage에 오신 걸 환영해요.\n\n처음 시작하는 이름은 안전한 임시 표시명으로 준비해두었어요${name ? ` (${name})` : ""}. 마이페이지에서 원하는 닉네임으로 바꿀 수 있습니다.`);
+        } catch {}
+      }, 200);
     }
     closeAuthModal();
     updateAuthUI();
@@ -1420,6 +1528,8 @@ function toggleUserMenu(anchorBtn) {
   // 사용자 정보 채우기
   menu.querySelector(".user-menu-name").textContent = user.displayName || user.email?.split("@")[0] || "내 계정";
   menu.querySelector(".user-menu-email").textContent = user.email || "";
+  // #058 — 헤더 드롭다운 아바타 동기화 (avatarUrl 있으면 이미지, 없으면 SVG placeholder)
+  if (typeof syncUserMenuAvatar === "function") syncUserMenuAvatar();
   // 잔액 새로고침 (열 때마다 — 다른 탭 활동/시간 차이 반영)
   loadWallet();
   // 위치 (헤더 버튼 아래)
@@ -2359,10 +2469,10 @@ function renderLuminaFeed() {
 
   if (list.length === 0) {
     const emptyMsg = _luminaFeedSource === "following_guest"
-      ? "로그인하면 팔로우한 아티스트와 팬들의 글을 모아볼 수 있어요."
+      ? "로그인하면 응원과 후기를 직접 남길 수 있어요. 팔로우한 아티스트의 소식도 이곳에 모입니다."
       : (_luminaFeedFilter === "all" || _luminaFeedFilter === "following")
-        ? "아직 피드에 올라온 글이 없습니다. 첫 응원을 남겨보세요."
-        : "이 분류의 글이 아직 없어요.";
+        ? "아직 올라온 피드가 없어요. 첫 응원 글을 남기거나 팔로우한 아티스트의 소식을 기다려 주세요."
+        : "이 분류의 글이 아직 없어요. 다른 탭도 둘러봐 주세요.";
     root.innerHTML = `<div class="feed-empty">${emptyMsg}</div>`;
     return;
   }
@@ -2399,6 +2509,7 @@ function renderLuminaFeed() {
         <p class="feed-post-body">${feedEscapeHtml(post.body)}</p>
         <button class="feed-post-expand-btn" type="button" aria-expanded="false">더 보기</button>
         ${renderFeedPostAssets(post.assets)}
+        ${renderFeedLinkPreview(post.linkPreview)}
         <footer class="feed-post-actions">
           <button class="feed-action-btn" type="button" disabled aria-label="좋아요">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
@@ -2530,6 +2641,31 @@ function renderFeedPostAssets(assets) {
   `;
 }
 
+/* #089 — 외부 링크 미리보기 카드 (백엔드 #084 contract: post.linkPreview)
+   metadata_only 정책상 title/description/imageUrl은 null일 수 있음 → hostname/siteName 중심 fallback */
+function renderFeedLinkPreview(linkPreview) {
+  if (!linkPreview || typeof linkPreview !== "object") return "";
+  const url = linkPreview.canonicalUrl || linkPreview.url || "";
+  if (!url) return "";
+  const host = linkPreview.hostname || (() => {
+    try { return new URL(url).hostname; } catch { return ""; }
+  })();
+  const siteName = linkPreview.siteName || host || "외부 링크";
+  const title = linkPreview.title || siteName;
+  const desc = linkPreview.description || "";
+  const img = linkPreview.imageUrl || "";
+  return `
+    <a class="feed-link-preview" href="${feedEscapeHtml(url)}" target="_blank" rel="noopener noreferrer">
+      ${img ? `<div class="feed-link-preview-thumb"><img src="${feedEscapeHtml(img)}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'" /></div>` : ""}
+      <div class="feed-link-preview-body">
+        <strong class="feed-link-preview-title">${feedEscapeHtml(title)}</strong>
+        ${desc ? `<p class="feed-link-preview-desc">${feedEscapeHtml(desc)}</p>` : ""}
+        <span class="feed-link-preview-host">🔗 ${feedEscapeHtml(host || siteName)}</span>
+      </div>
+    </a>
+  `;
+}
+
 /* 작성창 전체 초기화 — 페이지 진입 시 1회 + 로그인 상태 변화 시 호출 */
 function initFeedCompose() {
   const composeRoot = document.getElementById("feedCompose");
@@ -2630,6 +2766,11 @@ function bindFeedComposeOnce() {
       const payload = { body };
       if (_feedComposeAssets.length > 0) {
         payload.assetIds = _feedComposeAssets.map(a => a.assetId);
+      }
+      // #089 — 본문에서 첫 https URL 자동 감지 → externalUrl로 함께 전송 (백엔드가 metadata 저장)
+      const urlMatch = body.match(/\bhttps:\/\/[^\s)\]]+/i);
+      if (urlMatch) {
+        payload.externalUrl = urlMatch[0];
       }
       await apiFetch("/api/v1/lumina-feed/posts", {
         method: "POST",
@@ -3107,75 +3248,75 @@ const statusMeta = {
 */
 const shortformsLocal = [
   {
-    title: "메인 비주얼 티저",
+    title: "딥 플럼 스테이지",
     artist: "윤세린",
     metric: "조회 12.4만",
-    mainTone: "차가운 첫 시선, 여기서 시작됩니다.",
-    hubTone: "윤세린의 첫 조명과 시선이 가장 또렷하게 남는 티저 컷입니다.",
-    tone: "첫 조명 아래, 가장 차가운 시선으로 시작합니다.",
+    mainTone: "차갑게 각인",
+    hubTone: "차가운 시선으로 무대를 잠그는 티저",
+    tone: "조명은 뜨거워도 표정은 쉽게 흔들리지 않아요. 제 무대는 한 번 보고 지나가는 장면이 아니라, 끝난 뒤에도 온도가 남는 순간이어야 하니까요.",
     image: "./assets/characters/yoon-serin/cover.png"
   },
   {
-    title: "센터 무드 스냅",
+    title: "하이틴 센터 로그",
     artist: "한서율",
     metric: "조회 9.7만",
-    mainTone: "센터의 빛은 같이 볼 때 더 환해요.",
-    hubTone: "한서율의 밝은 센터감과 팬 친화적인 표정이 살아 있는 무드 스냅입니다.",
-    tone: "센터의 빛은 혼자보다 함께일 때 더 환해져요.",
+    mainTone: "오늘도 밝게",
+    hubTone: "햇살 같은 에너지로 무대를 여는 컷",
+    tone: "오늘도 제일 먼저 웃고, 제일 오래 손 흔들게요. 무대가 낯설지 않게, 제가 먼저 반짝이면서 기다리고 있을게요.",
     image: "./assets/characters/han-seoyul/cover.png"
   },
   {
-    title: "친근 리액션 포맷",
+    title: "도아의 리액션 캠",
     artist: "박도아",
     metric: "조회 15.3만",
-    mainTone: "편하게 들어와요. 제일 솔직한 표정부터.",
-    hubTone: "박도아의 가까운 말투와 즉흥 리액션이 팬들과의 거리를 좁히는 숏폼입니다.",
-    tone: "오늘도 편하게 들어와요. 제일 솔직한 표정부터 보여드릴게요.",
+    mainTone: "같이 웃자",
+    hubTone: "일상과 먹방 리액션이 편하게 번지는 순간",
+    tone: "맛있는 거 보면 표정부터 먼저 나와요. 꾸미려고 한 건 아닌데, 같이 웃어주면 그게 제일 좋은 장면이 되더라구요.",
     image: "./assets/characters/park-doa/cover.png"
   },
   {
-    title: "에디토리얼 컷 무드",
+    title: "블랙 드레스 필름",
     artist: "최서진",
     metric: "조회 6.2만",
-    mainTone: "말을 줄이고 시선만 남기는 컷.",
-    hubTone: "최서진의 조용한 무게감과 프리미엄 화보 톤이 가장 잘 드러나는 컷입니다.",
-    tone: "말을 줄이고 시선을 남기는 컷.",
+    mainTone: "고요한 시선",
+    hubTone: "고급스러운 정적과 시선이 남는 화보 컷",
+    tone: "많은 말보다 오래 남는 한 컷을 믿어요. 시선이 머무는 동안, 제가 가진 고요한 결을 천천히 보여드릴게요.",
     image: "./assets/characters/choi-seojin/cover.png"
   },
   {
-    title: "젠더리스 무대 컷",
+    title: "젠더리스 런웨이",
     artist: "차도현",
     metric: "조회 8.5만",
-    mainTone: "패션은 갑옷, 무대는 언어.",
-    hubTone: "차도현의 하이패션 무드와 젠더리스 무대 톤이 한 컷에 담긴 영상입니다.",
-    tone: "어떤 옷을 입어도 결국 가장 저답게 서겠습니다.",
+    mainTone: "경계를 넘어",
+    hubTone: "하이패션 무드로 무대를 장악하는 컷",
+    tone: "제게 패션은 갑옷이고, 무대는 선언이에요. 어떤 이름으로도 다 설명되지 않는 방식으로, 오늘도 제 기준을 세워보겠습니다.",
     image: "./assets/characters/cha-dohyun/cover.png"
   },
   {
-    title: "감성 라이브 무드",
+    title: "새벽 라이브 노트",
     artist: "서유안",
     metric: "조회 7.1만",
-    mainTone: "꾸미지 않은 분위기로 오래 머물기.",
-    hubTone: "서유안의 자연스러운 톤과 음악적 깊이가 잔잔하게 흘러가는 라이브 컷입니다.",
-    tone: "꾸미지 않은 듯 가장 오래 머무는 분위기로 인사드릴게요.",
+    mainTone: "잔잔히 오래",
+    hubTone: "자연스러운 숨결과 음악적 깊이가 흐르는 컷",
+    tone: "크게 말하지 않아도 닿는 마음이 있다고 생각해요. 오늘 남긴 작은 멜로디가 누군가의 밤에 조용히 머물렀으면 좋겠습니다.",
     image: "./assets/characters/seo-yuan/cover.png"
   },
   {
-    title: "스트릿 컬러 픽업",
+    title: "비비드 픽업 컷",
     artist: "하윤아",
     metric: "조회 11.2만",
-    mainTone: "오늘의 색은 제가 정할게요.",
-    hubTone: "하윤아의 비비드한 컬러 감각과 스트릿 트렌드 무드를 빠르게 보여주는 픽업 컷입니다.",
-    tone: "스트릿의 속도와 비비드한 자신감으로 피드를 물들입니다.",
+    mainTone: "색을 먼저",
+    hubTone: "스트릿 뷰티와 트렌드 감도가 튀는 픽업 컷",
+    tone: "오늘의 색은 제가 먼저 정해볼게요. 빠르게 지나가는 피드 안에서도 한 번쯤 멈추게 만드는 감각, 그걸 제 방식으로 보여드릴게요.",
     image: "./assets/characters/ha-yuna/cover.png"
   },
   {
-    title: "누아르 무드 컷",
+    title: "누아르 클로즈업",
     artist: "권태준",
     metric: "조회 5.9만",
-    mainTone: "낮은 목소리와 긴 침묵 사이.",
-    hubTone: "권태준의 누아르 감성과 깊은 눈빛이 천천히 쌓이는 무드 컷입니다.",
-    tone: "천천히, 그러나 분명하게 남겠습니다.",
+    mainTone: "낮게 남는 눈빛",
+    hubTone: "깊은 눈빛과 낮은 톤이 쌓이는 무드 컷",
+    tone: "많은 대사는 필요 없을 때가 있습니다. 긴 침묵과 낮은 목소리 사이에, 제가 남기고 싶은 감정이 더 선명해지니까요.",
     image: "./assets/characters/kwon-taejun/cover.png"
   }
 ];
@@ -3603,7 +3744,7 @@ function renderDebutRaceTab() {
     .sort((a, b) => b.likes - a.likes);
 
   if (list.length === 0) {
-    root.innerHTML = `<div class="vote-empty">아직 무대에 오른 아티스트가 없어요. 첫 라인업이 열리면 이곳에서 응원할 수 있습니다.</div>`;
+    root.innerHTML = `<div class="vote-empty">아직 진행 중인 픽이 없어요. 다음 라운드가 열리면 이곳에서 바로 응원할 수 있습니다.</div>`;
     return;
   }
 
@@ -3948,6 +4089,15 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
     return getLikesCount(b.slug) - getLikesCount(a.slug);
   });
 
+  // #080 — 빈상태: 필터 결과가 0이면 안내 카드
+  if (list.length === 0) {
+    root.innerHTML = `<div class="catalog-empty" style="grid-column:1/-1;padding:48px 24px;text-align:center;color:rgba(240,238,248,0.62);background:rgba(10,8,18,0.32);border:1px dashed rgba(255,20,147,0.18);border-radius:14px;">
+      <strong style="display:block;font-size:15px;color:var(--ink);margin-bottom:6px;">아직 이 카테고리에 공개된 아티스트가 없어요</strong>
+      준비 중인 라인업은 곧 순차적으로 공개됩니다.
+    </div>`;
+    return;
+  }
+
   root.innerHTML = list.map(a => `
     <article class="catalog-card ${statusMeta[a.status].className} clickable-card"
       data-href="./character-detail.html?slug=${a.slug}"
@@ -4062,7 +4212,23 @@ function renderCharacterDetail() {
   if (!hero) return;
 
   const slug   = new URLSearchParams(window.location.search).get("slug");
-  const artist = getCharacterBySlug(slug) || _artists[0];
+  const artist = slug ? getCharacterBySlug(slug) : null;
+
+  // #080 후속 — slug 누락 또는 일치 없음 → 빈상태 안내 (이전: _artists[0] fallback이라 다른 캐릭터가 보였음)
+  if (!artist) {
+    hero.className = "detail-hero-card";
+    hero.innerHTML = `<div class="detail-hero-secret"><strong>아티스트 정보를 찾을 수 없어요</strong><p style="margin-top:8px;color:rgba(240,238,248,0.62);font-size:14px;">URL을 다시 확인하거나 아티스트 목록에서 다시 들어와 주세요.</p><a class="text-link" href="./characters.html" style="margin-top:12px;display:inline-block;">아티스트 목록으로 돌아가기 →</a></div>`;
+    const intro = document.getElementById("detailIntro");
+    if (intro) intro.innerHTML = "";
+    const meta = document.getElementById("detailMeta");
+    if (meta) meta.innerHTML = "";
+    const gallery = document.getElementById("detailGallery");
+    if (gallery) gallery.innerHTML = "";
+    const shorts = document.getElementById("detailShorts");
+    if (shorts) shorts.innerHTML = "";
+    document.title = "아티스트를 찾을 수 없어요 — Lumina Stage";
+    return;
+  }
   const status = statusMeta[artist.status];
 
   document.title = `${artist.publicName} — Lumina Stage`;
@@ -4118,7 +4284,11 @@ function renderCharacterDetail() {
     meta.innerHTML = `
       <span class="status-badge status-badge-${artist.status}">${status.label}</span>
       <span class="detail-type-tag">${artist.type}</span>
-      <span class="detail-tier-tag">${tierLabel[artist.tier] || artist.tier}</span>`;
+      <span class="detail-tier-tag">${tierLabel[artist.tier] || artist.tier}</span>
+      <button class="detail-share-btn" type="button" data-share-character="${artist.slug}" aria-label="이 아티스트 공유하기">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>
+        공유하기
+      </button>`;
   }
 
   const gallery = document.getElementById("detailGallery");
@@ -4425,6 +4595,123 @@ function initLightbox(items, artistName) {
   const btnPrev  = lb.querySelector(".encar-prev");
   const btnNext  = lb.querySelector(".encar-next");
 
+  // ══════════════════════════════════════════════
+  // 라이트박스 줌/pan (마우스 휠 + 더블클릭 + 핀치 줌 + 드래그)
+  // 1x ~ 4x, 더블클릭 1↔2.5 토글, 마우스 휠 / 핀치, 줌 상태에서 드래그 pan
+  // ══════════════════════════════════════════════
+  let zoomScale = 1;
+  let panX = 0, panY = 0;
+  let isPanning = false;
+  let panStartX = 0, panStartY = 0;
+  let pinchStartDist = 0;
+  let pinchStartScale = 1;
+  const ZOOM_MIN = 1;
+  const ZOOM_MAX = 4;
+
+  function applyTransform(animate = false) {
+    mainImg.style.transition = animate ? "transform 220ms cubic-bezier(.2,.7,.3,1)" : "none";
+    mainImg.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomScale})`;
+    mainImg.style.cursor = zoomScale > 1 ? (isPanning ? "grabbing" : "grab") : "zoom-in";
+  }
+  function resetZoom(animate = false) {
+    zoomScale = 1;
+    panX = 0;
+    panY = 0;
+    isPanning = false;
+    applyTransform(animate);
+  }
+
+  // 더블클릭 토글 (포인터 위치 기준 줌)
+  mainImg.addEventListener("dblclick", e => {
+    e.preventDefault();
+    if (zoomScale > 1) {
+      resetZoom(true);
+    } else {
+      const rect = mainImg.getBoundingClientRect();
+      const cx = e.clientX - rect.left - rect.width / 2;
+      const cy = e.clientY - rect.top - rect.height / 2;
+      zoomScale = 2.5;
+      panX = -cx * (zoomScale - 1);
+      panY = -cy * (zoomScale - 1);
+      applyTransform(true);
+    }
+  });
+
+  // 마우스 휠 줌 (포인터 위치 기준)
+  mainImg.addEventListener("wheel", e => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.25 : -0.25;
+    const newScale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoomScale + delta));
+    if (newScale === zoomScale) return;
+    const rect = mainImg.getBoundingClientRect();
+    const cx = e.clientX - rect.left - rect.width / 2;
+    const cy = e.clientY - rect.top - rect.height / 2;
+    const ratio = newScale / zoomScale;
+    panX = cx + (panX - cx) * ratio;
+    panY = cy + (panY - cy) * ratio;
+    zoomScale = newScale;
+    if (zoomScale === 1) { panX = 0; panY = 0; }
+    applyTransform(true);
+  }, { passive: false });
+
+  // 마우스 pan (줌 상태에서)
+  mainImg.addEventListener("mousedown", e => {
+    if (zoomScale <= 1) return;
+    e.preventDefault();
+    isPanning = true;
+    panStartX = e.clientX - panX;
+    panStartY = e.clientY - panY;
+    applyTransform(false);
+  });
+  window.addEventListener("mousemove", e => {
+    if (!isPanning) return;
+    panX = e.clientX - panStartX;
+    panY = e.clientY - panStartY;
+    applyTransform(false);
+  });
+  window.addEventListener("mouseup", () => {
+    if (isPanning) { isPanning = false; applyTransform(true); }
+  });
+
+  // 모바일 — 핀치 줌(2터치) + pan(1터치, 줌 상태)
+  mainImg.addEventListener("touchstart", e => {
+    if (e.touches.length === 2) {
+      pinchStartDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pinchStartScale = zoomScale;
+    } else if (e.touches.length === 1 && zoomScale > 1) {
+      isPanning = true;
+      panStartX = e.touches[0].clientX - panX;
+      panStartY = e.touches[0].clientY - panY;
+    }
+  }, { passive: true });
+  mainImg.addEventListener("touchmove", e => {
+    if (e.touches.length === 2 && pinchStartDist > 0) {
+      e.preventDefault();
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      zoomScale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, pinchStartScale * (dist / pinchStartDist)));
+      if (zoomScale === 1) { panX = 0; panY = 0; }
+      applyTransform(false);
+    } else if (isPanning && e.touches.length === 1) {
+      e.preventDefault();
+      panX = e.touches[0].clientX - panStartX;
+      panY = e.touches[0].clientY - panStartY;
+      applyTransform(false);
+    }
+  }, { passive: false });
+  mainImg.addEventListener("touchend", e => {
+    if (e.touches.length === 0) {
+      isPanning = false;
+      pinchStartDist = 0;
+      applyTransform(true);
+    }
+  });
+
   function show(idx) {
     currentIdx = Math.max(0, Math.min(idx, items.length - 1));
     const item = items[currentIdx];
@@ -4440,6 +4727,8 @@ function initLightbox(items, artistName) {
     if (activThumb) {
       activThumb.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
+    // 이미지 바뀔 때마다 줌 리셋
+    resetZoom(false);
     lb.classList.add("is-open");
     document.body.style.overflow = "hidden";
   }
@@ -4447,6 +4736,7 @@ function initLightbox(items, artistName) {
   function close() {
     lb.classList.remove("is-open");
     document.body.style.overflow = "";
+    resetZoom(false);
   }
 
   // 갤러리 슬라이드 클릭
@@ -4513,6 +4803,248 @@ function updateMypageProfilePreview(user = {}, displayName = "") {
   }
 }
 
+/* ══════════════════════════════════════════════
+   #058 — 마이페이지 프로필 이미지 업로드/미리보기 (2026-05-03)
+   - 흐름: 파일 선택 → 즉시 blob 미리보기 (is-pending)
+           → upload-intent → PUT/metadata_only → confirm-upload (is-loading)
+           → PATCH /me/profile { avatarAssetId } → setAuth 갱신
+           → 헤더 드롭다운 / 피드 작성 아바타 동기화 (is-success)
+   - 실패 시: 이전 이미지 원복 + 오류 문구 (is-error)
+   ══════════════════════════════════════════════ */
+const MYPAGE_AVATAR_ALLOWED = ["image/jpeg", "image/png", "image/webp"];
+const MYPAGE_AVATAR_MAX_BYTES = 8 * 1024 * 1024; // 8MB — 2026 SNS 표준 (Instagram/FB/LinkedIn/Discord/Threads 동일)
+
+function setMypageAvatarStatus(message, kind = "info") {
+  const el = document.getElementById("mypageAvatarStatus");
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove("is-info", "is-loading", "is-success", "is-error");
+  el.classList.add(`is-${kind}`);
+}
+
+function setMypageAvatarPreviewState(state) {
+  // state: "idle" | "pending" | "loading" | "success" | "error"
+  const preview = document.getElementById("mypageProfilePreview");
+  if (!preview) return;
+  preview.classList.remove("is-pending", "is-loading", "is-success", "is-error");
+  if (state && state !== "idle") preview.classList.add(`is-${state}`);
+}
+
+function showMypageAvatarBlobPreview(blobUrl) {
+  const preview = document.getElementById("mypageProfilePreview");
+  if (!preview) return;
+  preview.style.backgroundImage = `url('${String(blobUrl).replace(/'/g, "%27")}')`;
+  preview.classList.add("has-image");
+}
+
+function bindMypageAvatarUpload() {
+  const btn = document.getElementById("mypageAvatarButton");
+  const input = document.getElementById("mypageAvatarInput");
+  if (!btn || !input) return;
+  if (btn._bound) return; // idempotent
+  btn._bound = true;
+
+  btn.addEventListener("click", () => {
+    if (!isLoggedIn()) {
+      openAuthModal?.("login");
+      return;
+    }
+    input.click();
+  });
+
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    // 같은 파일 재선택 가능하도록 즉시 비움
+    input.value = "";
+    if (!file) return;
+    await handleMypageAvatarSelect(file);
+  });
+}
+
+async function handleMypageAvatarSelect(file) {
+  // 1) 클라이언트 검증
+  if (!MYPAGE_AVATAR_ALLOWED.includes(file.type)) {
+    setMypageAvatarPreviewState("error");
+    setMypageAvatarStatus("지원하지 않는 형식이에요. JPG, PNG, WEBP 파일을 선택해 주세요.", "error");
+    return;
+  }
+  if (file.size > MYPAGE_AVATAR_MAX_BYTES) {
+    setMypageAvatarPreviewState("error");
+    setMypageAvatarStatus("이미지는 8MB 이하 파일로 선택해 주세요.", "error");
+    return;
+  }
+
+  // 2) 즉시 blob 미리보기 (저장 전 임을 시각적으로 구분)
+  const blobUrl = URL.createObjectURL(file);
+  showMypageAvatarBlobPreview(blobUrl);
+  setMypageAvatarPreviewState("pending");
+  setMypageAvatarStatus(`${file.name} 미리보기 중. 저장을 진행합니다…`, "info");
+
+  // 3) 업로드 흐름
+  try {
+    setMypageAvatarPreviewState("loading");
+    setMypageAvatarStatus("이미지를 업로드하고 있어요…", "loading");
+    await uploadMypageAvatar(file);
+    setMypageAvatarPreviewState("success");
+    setMypageAvatarStatus("프로필 이미지가 저장됐어요.", "success");
+    // 1.6초 후 success 표시 해제 (idle로 복귀, 저장된 이미지는 그대로 유지)
+    setTimeout(() => {
+      setMypageAvatarPreviewState("idle");
+      setMypageAvatarStatus("선택한 이미지는 저장 전에도 이곳에서 먼저 확인할 수 있습니다.", "info");
+    }, 1600);
+  } catch (err) {
+    // 디버깅 — 콘솔에 상세 (사용자가 콘솔에서 어느 단계 실패했는지 확인 가능)
+    console.error("[#058 avatar upload] 실패:", err, "status=", err?.status, "body=", err?.body, "stage=", err?._stage);
+
+    // 실패 시 이전 이미지로 원복
+    const auth = getAuth();
+    updateMypageProfilePreview(auth?.user || {}, auth?.user?.displayName || "");
+    setMypageAvatarPreviewState("error");
+
+    // status별 사용자 카피 분기
+    let msg;
+    if (err?.status === 401) {
+      msg = "로그인이 만료됐어요. 다시 로그인해 주세요.";
+    } else if (err?.status === 413) {
+      msg = "이미지 용량이 너무 커요. 8MB 이하 파일로 다시 시도해 주세요.";
+    } else if (err?.status === 415) {
+      msg = "지원하지 않는 형식이에요. JPG, PNG, WEBP 파일을 선택해 주세요.";
+    } else if (err?.status === 409) {
+      msg = "같은 이미지로 이미 처리 중이에요. 잠시 후 다시 시도해 주세요.";
+    } else if (err?.status === 429) {
+      msg = "요청이 너무 잦아요. 잠시 후 다시 시도해 주세요.";
+    } else if (err?.message?.includes("Failed to fetch") || err?.name === "AbortError") {
+      msg = "네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
+    } else {
+      msg = "이미지 저장에 실패했어요. 잠시 후 다시 시도해 주세요. (상세는 개발자 콘솔 확인)";
+    }
+    setMypageAvatarStatus(msg, "error");
+  } finally {
+    // blob URL 메모리 해제 (background-image는 이미 적용됐고, 성공 시 user.avatarUrl로 덮어씌워짐)
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+  }
+}
+
+async function uploadMypageAvatar(file) {
+  // 1. upload-intent
+  let intent;
+  try {
+    intent = await apiFetch("/api/v1/me/assets/upload-intents", {
+      method: "POST",
+      auth: true,
+      throwOnError: true,
+      body: {
+        fileName: file.name,
+        mimeType: file.type,
+        fileSizeBytes: file.size
+      }
+    });
+  } catch (err) {
+    err._stage = "upload-intents";
+    throw err;
+  }
+  if (!intent?.asset?.id || !intent?.upload) {
+    const err = new Error("Invalid upload intent response");
+    err._stage = "upload-intents";
+    err.body = intent;
+    throw err;
+  }
+  const assetId = intent.asset.id;
+  const upload = intent.upload;
+  console.info("[#058 avatar upload] intent OK", { assetId, mode: upload.mode });
+
+  // 2. 직접 업로드 (S3/R2 direct upload mode)
+  if (upload.mode === "direct_upload_ready" && upload.url) {
+    const headers = upload.requiredHeaders || {};
+    let putRes;
+    try {
+      putRes = await fetch(upload.url, {
+        method: upload.method || "PUT",
+        headers,
+        body: file
+      });
+    } catch (err) {
+      err._stage = "direct-upload";
+      throw err;
+    }
+    if (!putRes.ok) {
+      const err = new Error(`Upload failed (${putRes.status})`);
+      err.status = putRes.status;
+      err._stage = "direct-upload";
+      throw err;
+    }
+    console.info("[#058 avatar upload] direct upload OK");
+  }
+  // metadata_only mode는 PUT 없이 confirm으로 진행
+
+  // 3. confirm-upload
+  let confirmed;
+  try {
+    confirmed = await apiFetch(`/api/v1/me/assets/${encodeURIComponent(assetId)}/confirm-upload`, {
+      method: "POST",
+      auth: true,
+      throwOnError: true,
+      body: {}
+    });
+  } catch (err) {
+    err._stage = "confirm-upload";
+    throw err;
+  }
+  const finalAsset = confirmed?.asset || confirmed;
+  const finalAssetId = finalAsset?.id || assetId;
+  console.info("[#058 avatar upload] confirm OK", { finalAssetId, url: finalAsset?.url });
+
+  // 4. PATCH /me/profile { avatarAssetId } — 프로필에 연결
+  let patched;
+  try {
+    patched = await apiFetch("/api/v1/me/profile", {
+      method: "PATCH",
+      auth: true,
+      throwOnError: true,
+      body: { avatarAssetId: finalAssetId }
+    });
+  } catch (err) {
+    err._stage = "patch-profile";
+    throw err;
+  }
+  // 응답에서 user 객체 받기 (백엔드에 따라 patched.user 또는 patched 자체)
+  const updatedUser = patched?.user || patched;
+  console.info("[#058 avatar upload] PATCH profile OK", updatedUser);
+
+  // 5. setAuth 갱신 — 다른 페이지/리로드 시에도 반영되도록
+  const auth = getAuth();
+  if (auth) {
+    const merged = {
+      ...auth.user,
+      ...updatedUser,
+      // 신뢰 가능한 새 url 우선순위 (백엔드 필드명 다양성 대비)
+      avatarUrl: updatedUser?.avatarUrl || updatedUser?.avatarAsset?.url || finalAsset?.url || auth.user?.avatarUrl,
+      avatarAsset: updatedUser?.avatarAsset || finalAsset || auth.user?.avatarAsset
+    };
+    setAuth({ ...auth, user: merged });
+
+    // 6. UI 동기화 — 마이페이지 / 헤더 드롭다운 / 피드 작성
+    updateMypageProfilePreview(merged, merged.displayName || "");
+    syncUserMenuAvatar();
+    if (typeof syncFeedComposeAvatar === "function") syncFeedComposeAvatar();
+  }
+  return updatedUser;
+}
+
+/* 헤더 드롭다운(.user-menu-avatar) 안에 프로필 이미지 또는 기본 SVG placeholder 토글 */
+function syncUserMenuAvatar() {
+  const slot = document.querySelector("#userMenu .user-menu-avatar");
+  if (!slot) return; // 메뉴가 아직 안 만들어졌으면 다음 toggleUserMenu에서 채워짐
+  const user = getAuth()?.user || {};
+  const avatarUrl = user.avatarUrl || user.avatarAsset?.url || "";
+  if (avatarUrl) {
+    const safe = String(avatarUrl).replace(/"/g, "&quot;");
+    slot.innerHTML = `<img src="${safe}" alt="" style="width:100%;height:100%;border-radius:inherit;object-fit:cover;" onerror="this.outerHTML='<svg viewBox=&quot;0 0 24 24&quot; width=&quot;24&quot; height=&quot;24&quot; fill=&quot;currentColor&quot;><path d=&quot;M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z&quot;/></svg>'">`;
+  } else {
+    slot.innerHTML = `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>`;
+  }
+}
+
 async function initMypagePage() {
   if (!document.body.classList.contains("page-mypage")) return;
 
@@ -4537,6 +5069,9 @@ async function initMypagePage() {
     btn.onclick = () => alert("차모 API 확인 후 연결될 예정입니다.");
   });
 
+  // #058 — 프로필 이미지 업로드 핸들러 바인드 (로그인 여부 무관, 클릭 시 분기)
+  bindMypageAvatarUpload();
+
   if (!authed) return;
 
   const displayName = user?.displayName || user?.name || user?.nickname || user?.email?.split("@")[0] || "내 계정";
@@ -4555,7 +5090,7 @@ async function initMypagePage() {
     const nextDate = new Date(nextChangeAt).toLocaleDateString("ko-KR");
     setMypageText("mypageNicknameStatus", `${nextDate} 이후 다시 변경할 수 있습니다.`);
   } else {
-    setMypageText("mypageNicknameStatus", "닉네임은 30일에 한 번 변경할 수 있습니다.");
+    setMypageText("mypageNicknameStatus", "닉네임은 변경 후 30일 동안 다시 바꿀 수 없습니다.");
   }
 
   if (!_wallet?.loaded) {
@@ -4567,6 +5102,73 @@ async function initMypagePage() {
   setMypageText("mypageWalletStatus", _wallet?.loaded ? "현재 사용할 수 있는 잔액입니다." : "잔액 API 확인이 필요합니다.");
 }
 
+/* ══════════════════════════════════════════════
+   #083 — 콘텐츠 보호 UX (이미지 우클릭/드래그 방지) + 공유 버튼
+   - 보안 보장 X. 백엔드 권한(#082)이 진짜 방어선.
+   - 콘텐츠 영역 이미지에만 적용 (UI 아이콘/SVG 제외)
+   ══════════════════════════════════════════════ */
+function bindContentProtection() {
+  if (typeof window === "undefined" || window.__contentProtectionBound) return;
+  window.__contentProtectionBound = true;
+
+  // 이미지 우클릭 방지 — 콘텐츠 영역 이미지에만 (selector로 한정)
+  // selector는 실제 마크업 기준 (id selector + class selector 모두 포함)
+  const protectedSelector = [
+    ".catalog-media img", ".artist-media img", ".short-media img",
+    ".detail-hero-card img", ".detail-short-media img",
+    ".feed-post-asset-item img", ".feed-link-preview-thumb img",
+    ".gallery-slide img",        // 포토 갤러리 슬라이드 (cell 안 img)
+    "#galleryTrack img",         // 갤러리 트랙(id) 안 모든 img
+    "#gallerySlider img",        // 갤러리 슬라이더(id) 안 모든 img
+    ".encar-main-img",           // 라이트박스 메인 이미지
+    ".encar-thumb",              // 라이트박스 하단 썸네일
+    ".mypage-profile-image img"
+  ].join(", ");
+  document.addEventListener("contextmenu", e => {
+    if (e.target.matches?.(protectedSelector)) e.preventDefault();
+  }, { passive: false });
+  // 드래그 시작 방지 (CSS user-drag와 함께 이중 보강)
+  document.addEventListener("dragstart", e => {
+    if (e.target.matches?.(protectedSelector)) e.preventDefault();
+  }, { passive: false });
+}
+
+function bindShareButtons() {
+  if (typeof window === "undefined" || window.__shareButtonsBound) return;
+  window.__shareButtonsBound = true;
+
+  // 공유 버튼 클릭 위임 (캐릭터 상세 + 추후 다른 페이지 확장)
+  document.addEventListener("click", async e => {
+    const btn = e.target.closest("[data-share-character]");
+    if (!btn) return;
+    e.preventDefault();
+    const slug = btn.dataset.shareCharacter;
+    const url = `${window.location.origin}/character-detail.html?slug=${encodeURIComponent(slug)}`;
+    const artist = getCharacterBySlug?.(slug);
+    const title = artist ? `${artist.publicName} — Lumina Stage` : "Lumina Stage 아티스트";
+    const text = artist?.summary || "Lumina Stage에서 확인해 보세요.";
+    // Web Share API 우선 (모바일), 실패 시 클립보드 복사 fallback
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text, url });
+        return;
+      }
+    } catch {} // 사용자가 공유창 닫은 경우 등은 무시
+    try {
+      await navigator.clipboard.writeText(url);
+      const original = btn.innerHTML;
+      btn.classList.add("is-copied");
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>링크 복사됨`;
+      setTimeout(() => {
+        btn.classList.remove("is-copied");
+        btn.innerHTML = original;
+      }, 2000);
+    } catch {
+      alert(`링크를 복사하지 못했어요. 직접 복사해 주세요:\n${url}`);
+    }
+  });
+}
+
 async function init() {
   // #064 i18n — UI 깜빡임 최소화 위해 가장 먼저 실행 (비로그인 시 즉시, 로그인 시 서버 동기화 포함)
   await initI18n();
@@ -4576,6 +5178,10 @@ async function init() {
   bindAuthHeaderEvents();
   updateAuthUI();
   activateCurrentNavItem(); // 현재 페이지 메뉴 자동 강조 (밑줄 표시)
+
+  // #083 — 글로벌 이미지 보호 + 공유 버튼 핸들러 (1회만 바인드)
+  bindContentProtection();
+  bindShareButtons();
 
   // 이미 로그인 상태이면 잔액 미리 로드 (await 안 함 — 백그라운드)
   if (isLoggedIn()) loadWallet();

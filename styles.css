@@ -3202,6 +3202,18 @@ p {
 .encar-main-img {
   max-width: 100%; max-height: 80vh; object-fit: contain;
   border-radius: 12px; box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+  /* 줌/pan — 더블클릭, 휠, 핀치 줌 동작 */
+  transform-origin: center center;
+  cursor: zoom-in;
+  touch-action: none; /* 페이지 스크롤 막고 자체 핀치/팬 처리 */
+  will-change: transform;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+.encar-main {
+  /* 줌 시 이미지가 컨테이너 밖으로 나가도 잘리지 않도록 */
+  overflow: hidden;
 }
 .encar-caption {
   margin-top: 14px; font-size: 12px; letter-spacing: 0.07em;
@@ -5684,6 +5696,120 @@ p {
   transform: scale(1.02);
 }
 
+/* #089 — 외부 링크 미리보기 카드 (피드 본문 아래) */
+.feed-link-preview {
+  display: flex;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 10px;
+  border: 1px solid rgba(255, 20, 147, 0.18);
+  border-radius: 12px;
+  background: rgba(10, 8, 18, 0.45);
+  text-decoration: none;
+  transition: border-color 180ms, background 180ms;
+}
+.feed-link-preview:hover {
+  border-color: rgba(255, 20, 147, 0.45);
+  background: rgba(20, 12, 32, 0.7);
+}
+.feed-link-preview-thumb {
+  flex-shrink: 0;
+  width: 88px;
+  height: 88px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #16122a;
+}
+.feed-link-preview-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.feed-link-preview-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+.feed-link-preview-title {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.feed-link-preview-desc {
+  margin: 0;
+  color: rgba(240, 238, 248, 0.62);
+  font-size: 12.5px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.feed-link-preview-host {
+  color: rgba(255, 130, 200, 0.85);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+
+/* #083 — 글로벌 이미지 보호 UX (보안 X, 무단 저장 일차 방어)
+   캐릭터 이미지/갤러리/숏폼/피드 이미지/프로필 이미지 등 모든 콘텐츠 영역 이미지에 적용
+   주의: 보안 보장이 아닌 UX 방어선. 백엔드 권한(#082)이 진짜 방어선. */
+.catalog-media img,
+.artist-media img,
+.short-media img,
+.detail-hero-card img,
+.detail-short-media img,
+.feed-post-asset-item img,
+.feed-link-preview-thumb img,
+.gallery-slide img,
+#galleryTrack img,
+#gallerySlider img,
+.encar-main-img,
+.encar-thumb,
+.mypage-profile-image img {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: auto; /* 클릭은 허용, 드래그만 막음 */
+}
+/* 캐릭터 상세 공유 버튼 — 헤더 우상단 또는 hero 우하단 */
+.detail-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 20, 147, 0.10);
+  border: 1px solid rgba(255, 20, 147, 0.35);
+  color: rgba(255, 130, 200, 0.92);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 180ms, border-color 180ms;
+}
+.detail-share-btn:hover {
+  background: rgba(255, 20, 147, 0.18);
+  border-color: rgba(255, 20, 147, 0.55);
+}
+.detail-share-btn.is-copied {
+  background: rgba(120, 230, 160, 0.18);
+  border-color: rgba(120, 230, 160, 0.55);
+  color: #7be4a3;
+}
+
 @media (max-width: 640px) {
   .feed-compose {
     padding: 12px 12px;
@@ -6080,6 +6206,67 @@ p {
   display: none;
 }
 
+/* #058 — 프로필 이미지 업로드 상태 (저장 전 / 업로드 중 / 완료 / 실패) */
+.mypage-profile-image {
+  position: relative;
+  transition: outline-color 180ms, box-shadow 180ms;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+.mypage-profile-image.is-pending {
+  /* 저장 전 — 새로 선택한 이미지임을 노란 톤으로 시각 구분 */
+  outline-color: rgba(255, 200, 80, 0.85);
+  box-shadow: 0 0 0 4px rgba(255, 200, 80, 0.18), 0 16px 34px rgba(255, 20, 147, 0.18);
+}
+.mypage-profile-image.is-loading {
+  /* 업로드 중 — dim + 스피너 */
+  outline-color: rgba(255, 20, 147, 0.55);
+  box-shadow: 0 0 0 4px rgba(255, 20, 147, 0.18), 0 16px 34px rgba(255, 20, 147, 0.22);
+}
+.mypage-profile-image.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(10, 8, 18, 0.42);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+.mypage-profile-image.is-loading::before {
+  content: "";
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  animation: mypage-avatar-spin 700ms linear infinite;
+  z-index: 1;
+}
+@keyframes mypage-avatar-spin {
+  to { transform: rotate(360deg); }
+}
+.mypage-profile-image.is-success {
+  outline-color: rgba(120, 230, 160, 0.9);
+  box-shadow: 0 0 0 4px rgba(120, 230, 160, 0.22), 0 16px 34px rgba(255, 20, 147, 0.18);
+}
+.mypage-profile-image.is-error {
+  outline-color: rgba(255, 90, 110, 0.9);
+  box-shadow: 0 0 0 4px rgba(255, 90, 110, 0.22), 0 16px 34px rgba(255, 20, 147, 0.18);
+}
+
+/* 상태 텍스트(#mypageAvatarStatus) 색상 */
+#mypageAvatarStatus.is-info,
+#mypageAvatarStatus.is-loading {
+  color: rgba(240, 238, 248, 0.62);
+}
+#mypageAvatarStatus.is-success {
+  color: #7be4a3;
+}
+#mypageAvatarStatus.is-error {
+  color: #ff6f7d;
+}
+
 .mypage-profile-preview strong {
   display: block;
   color: var(--ink);
@@ -6091,6 +6278,20 @@ p {
   color: rgba(240, 238, 248, 0.62);
   font-size: 13px;
   line-height: 1.55;
+}
+
+/* #058 — 업로드 규칙 hint (status 텍스트 아래 작은 안내문) */
+.mypage-avatar-hint {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 20, 147, 0.10);
+  border: 1px solid rgba(255, 20, 147, 0.22);
+  color: rgba(255, 130, 200, 0.85);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .mypage-field {

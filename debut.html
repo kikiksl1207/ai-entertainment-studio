@@ -196,11 +196,11 @@
                   <small>이름, 연락처, 관심 유형만 남기고 담당자와 통화로 확인해요.</small>
                 </span>
               </label>
-              <label class="debut-choice is-disabled">
-                <input type="radio" name="applicationChannel" value="online_review" disabled />
+              <label class="debut-choice">
+                <input type="radio" name="applicationChannel" value="online_review" />
                 <span>
                   <strong>온라인 심사</strong>
-                  <small>이미지/포트폴리오 제출이 필요한 확장 모드예요. MVP에서는 상담 후 별도 안내됩니다.</small>
+                  <small>자기소개 영상 또는 포트폴리오 URL을 함께 제출하면 운영팀이 검토합니다.</small>
                 </span>
               </label>
             </fieldset>
@@ -249,7 +249,7 @@
                 <span>제작 경험 / 포트폴리오</span>
                 <textarea name="creatorExperienceNote" rows="3" maxlength="600" placeholder="사용 가능한 제작 도구(SD/ComfyUI/Flux/LoRA 등), 작업 영역, 포트폴리오 URL을 적어주세요."></textarea>
               </label>
-              <label>
+              <label data-hide-for-type="partnership_other">
                 <span>관심 데뷔 유형</span>
                 <select name="participationType" required>
                   <option value="">참여 방식을 선택해주세요</option>
@@ -265,25 +265,28 @@
                 <span>희망 상담 시간</span>
                 <input name="preferredContactTime" type="text" placeholder="예: 평일 오후 2시 이후" />
               </label>
-              <label>
-                <span>희망 수익 배분</span>
-                <select name="shareTierRequested">
-                  <option value="30">30% · 기본 상담</option>
-                  <option value="40">40% · 콘셉트 참여</option>
-                  <option value="60">60% · 음성/창작 참여</option>
-                  <option value="70">70% · 공동 제작 협의</option>
-                </select>
-                <small>최종 비율은 계약 단계에서 협의 후 확정돼요.</small>
+              <!-- 온라인 심사 선택 시만 노출 — 영상/포트폴리오 URL -->
+              <label class="debut-field-conditional debut-field-full" data-show-for-channel="online_review">
+                <span>자기소개 영상 / 포트폴리오 URL</span>
+                <input name="portfolioUrl" type="url" maxlength="500" placeholder="https:// (YouTube, Vimeo, Drive, 본인 사이트 등)" />
+                <small>온라인 심사를 선택한 경우 자기소개 영상 또는 포트폴리오가 담긴 URL을 함께 보내주세요. 영상 파일 직접 업로드는 준비 중이에요.</small>
               </label>
             </div>
 
-            <label class="debut-textarea-field">
+            <!-- 기타 제휴 문의 — applicationType=partnership_other 일 때만 노출 -->
+            <label class="debut-textarea-field debut-field-conditional" data-show-for-type="partnership_other">
+              <span>제휴 문의 내용</span>
+              <textarea name="partnershipInquiry" rows="6" maxlength="1500" placeholder="브랜드, 콘텐츠, 사업 제휴 제안을 자유롭게 적어주세요. 회사·담당자·협업 형태·일정 등을 함께 적으면 좋아요."></textarea>
+              <small>유선 상담으로 안내드립니다. 다른 데뷔 관련 항목은 작성하지 않으셔도 돼요.</small>
+            </label>
+
+            <label class="debut-textarea-field" data-hide-for-type="partnership_other">
               <span>자기소개 / 콘셉트 소개</span>
               <textarea name="conceptSummary" rows="6" minlength="20" maxlength="1000" placeholder="어떤 아티스트로 데뷔하고 싶은지 3문장 이상으로 적어주세요." required></textarea>
               <small>분위기, 음악 방향, 성격, 팬에게 남기고 싶은 인상을 함께 적으면 좋아요.</small>
             </label>
 
-            <label class="debut-textarea-field">
+            <label class="debut-textarea-field" data-hide-for-type="partnership_other">
               <span>원하지 않는 표현</span>
               <textarea name="restrictedExpressions" rows="3" maxlength="600" placeholder="예: 과도한 노출, 특정 말투, 정치적 표현 등"></textarea>
               <small>제작 과정에서 피해야 할 이미지, 말투, 콘셉트가 있다면 구체적으로 적어주세요.</small>
@@ -291,10 +294,10 @@
 
             <div class="debut-consent-list">
               <label><input type="checkbox" name="isAdult" required /> 만 19세 이상이며, 신청 자격을 확인했습니다.</label>
-              <label><input type="checkbox" name="consentAppearance" required /> 제출 자료가 본인 것이거나 제출 권한이 있음을 확인합니다.</label>
-              <label><input type="checkbox" name="consentRightsRelationship" required /> 소속사·매니지먼트·전속계약 등 권리 관계가 있는 경우 사실대로 기재합니다.</label>
-              <label><input type="checkbox" name="consentNoGuarantee" required /> 접수만으로 데뷔·제작·수익 정산이 확정되지 않음을 이해합니다.</label>
-              <label><input type="checkbox" name="consentRevenuePolicy" required /> 수익 배분, 금지 표현, 허위 제출 시 심사 중단 기준을 확인했습니다.</label>
+              <label data-hide-for-type="partnership_other"><input type="checkbox" name="consentAppearance" required /> 제출 자료가 본인 것이거나 제출 권한이 있음을 확인합니다.</label>
+              <label data-hide-for-type="partnership_other"><input type="checkbox" name="consentRightsRelationship" required /> 소속사·매니지먼트·전속계약 등 권리 관계가 있는 경우 사실대로 기재합니다.</label>
+              <label data-hide-for-type="partnership_other"><input type="checkbox" name="consentNoGuarantee" required /> 접수만으로 데뷔·제작·수익 정산이 확정되지 않음을 이해합니다.</label>
+              <label data-hide-for-type="partnership_other"><input type="checkbox" name="consentRevenuePolicy" required /> 수익 배분, 금지 표현, 허위 제출 시 심사 중단 기준을 확인했습니다.</label>
               <label><input type="checkbox" name="consentPrivacy" required /> 상담 진행을 위한 개인정보 수집 및 이용에 동의합니다.</label>
               <label><input type="checkbox" name="consultationConsent" required /> 담당자의 유선 상담 연락에 동의합니다.</label>
               <p class="debut-consent-warning">
@@ -389,20 +392,60 @@
           submit.textContent = isBusy ? "접수 중" : "상담 신청하기";
         }
 
-        // #062: applicationType 변경 시 — helper 갱신 + 조건부 필드 토글
+        // #062 + #089: applicationType 변경 시 — helper 갱신 + 조건부 필드 토글 + 채널 제약
         function syncApplicationTypeUI() {
           const value = applicationTypeSelect?.value || "personal_unaffiliated";
           if (applicationTypeHelper) {
             applicationTypeHelper.textContent = applicationTypeHelperMap[value] || applicationTypeHelperMap.personal_unaffiliated;
           }
-          // 조건부 필드 노출 — represented_artist, ai_creator_partner 유형일 때만
+          // (a) data-show-for: applicationType 정확히 일치 시만 노출 (소속사/AI크리에이터/기타제휴 전용 영역)
           form.querySelectorAll("[data-show-for]").forEach(el => {
-            const showFor = el.dataset.showFor;
-            const matches = showFor === value;
-            el.hidden = !matches;
-            // 숨겨진 필드의 input은 disabled로 만들어서 폼 검증 통과
-            const inputs = el.querySelectorAll("input, textarea, select");
-            inputs.forEach(input => { input.disabled = !matches; });
+            const matches = el.dataset.showFor === value;
+            toggleConditional(el, matches);
+          });
+          // (b) data-show-for-type: 동일 — alias (가독성용)
+          form.querySelectorAll("[data-show-for-type]").forEach(el => {
+            const matches = el.dataset.showForType === value;
+            toggleConditional(el, matches);
+          });
+          // (c) data-hide-for-type: 해당 타입일 때 숨김 (partnership_other에서 일반 데뷔 필드 숨김)
+          form.querySelectorAll("[data-hide-for-type]").forEach(el => {
+            const hide = el.dataset.hideForType === value;
+            toggleConditional(el, !hide);
+          });
+          // (d) #089 — partnership_other이면 신청 방식을 phone_consultation으로 강제 + 온라인 라디오 잠금
+          const isPartnershipOther = value === "partnership_other";
+          const onlineRadio = form.querySelector("input[name='applicationChannel'][value='online_review']");
+          const phoneRadio = form.querySelector("input[name='applicationChannel'][value='phone_consultation']");
+          if (onlineRadio && phoneRadio) {
+            if (isPartnershipOther) {
+              phoneRadio.checked = true;
+              onlineRadio.checked = false;
+              onlineRadio.disabled = true;
+              onlineRadio.closest(".debut-choice")?.classList.add("is-disabled");
+            } else {
+              onlineRadio.disabled = false;
+              onlineRadio.closest(".debut-choice")?.classList.remove("is-disabled");
+            }
+            // 채널 라디오 변경 효과 동기화
+            form.querySelectorAll(".debut-choice").forEach(label => {
+              label.classList.toggle("is-selected", label.querySelector("input")?.checked);
+            });
+          }
+          // (e) 채널 변경에 따른 portfolioUrl 토글도 재실행 (타입 변경이 채널 강제를 유발하므로)
+          syncApplicationChannelUI();
+        }
+        // 공통 토글 헬퍼 — hidden + 내부 input/textarea/select disabled 처리해서 form.checkValidity 통과
+        function toggleConditional(el, show) {
+          el.hidden = !show;
+          el.querySelectorAll("input, textarea, select").forEach(input => { input.disabled = !show; });
+        }
+        // #089 — applicationChannel 기준 토글 (online_review 시 portfolioUrl 노출)
+        function syncApplicationChannelUI() {
+          const channel = form.querySelector("input[name='applicationChannel']:checked")?.value || "phone_consultation";
+          form.querySelectorAll("[data-show-for-channel]").forEach(el => {
+            const matches = el.dataset.showForChannel === channel;
+            toggleConditional(el, matches);
           });
         }
         applicationTypeSelect?.addEventListener("change", syncApplicationTypeUI);
@@ -435,6 +478,7 @@
             form.querySelectorAll(".debut-choice").forEach(label => {
               label.classList.toggle("is-selected", label.querySelector("input")?.checked);
             });
+            syncApplicationChannelUI();
           });
         });
 
@@ -452,8 +496,50 @@
           }
 
           const data = Object.fromEntries(new FormData(form).entries());
-          const payload = {
+          // #081 보강 — 체크박스는 실제 화면 입력값을 boolean으로 (이전: 코드 하드코딩 true였음, 미성년자도 통과되던 버그)
+          const checked = name => !!form.querySelector(`input[name="${name}"]`)?.checked;
+
+          // #089 — partnership_other 분기: 제휴 문의 단순폼
+          const isPartnership = data.applicationType === "partnership_other";
+
+          if (isPartnership) {
+            const inquiry = (data.partnershipInquiry || "").trim();
+            if (inquiry.length < 10) {
+              setMessage("제휴 문의 내용을 10자 이상 적어주세요.", "warn");
+              form.querySelector("[name='partnershipInquiry']")?.focus();
+              return;
+            }
+          } else {
+            // #081 보강 — intro 20자 미만 추가 가드 (서버 validation 전에 친절하게)
+            const intro = (data.conceptSummary || "").trim();
+            if (intro.length < 20) {
+              setMessage("자기소개는 20자 이상으로 적어주세요. 분위기·음악 방향·성격 등을 함께 적으면 좋아요.", "warn");
+              form.querySelector("[name='conceptSummary']")?.focus();
+              return;
+            }
+          }
+
+          const payload = isPartnership ? {
+            // #089 — 기타 제휴: 유선상담 강제 + 데뷔 관련 필드 제외, 문의 내용만 전송
             applicationChannel: "phone_consultation",
+            applicationType: "partnership_other",
+            applicantName: data.applicantName,
+            displayName: data.displayName || data.applicantName,
+            contactEmail: data.contactEmail,
+            contactPhone: data.contactPhone,
+            preferredContactTime: data.preferredContactTime,
+            // partnership 본문은 intro 자리에 함께 담아 백엔드 호환 유지 + metadata에도 사본
+            intro: (data.partnershipInquiry || "").trim(),
+            isAdult: checked("isAdult"),
+            consentPrivacy: checked("consentPrivacy"),
+            consultationConsent: checked("consultationConsent"),
+            metadata: {
+              partnershipInquiry: (data.partnershipInquiry || "").trim(),
+              materialSubmissionMode: "no_file_upload_mvp"
+            }
+          } : {
+            // 일반 데뷔/엔터/AI크리에이터 — 화면 선택값(phone_consultation 또는 online_review) 그대로
+            applicationChannel: data.applicationChannel || "phone_consultation",
             applicationType: data.applicationType || "personal_unaffiliated", // #063 차모 백엔드
             applicantName: data.applicantName,
             displayName: data.displayName || data.applicantName,
@@ -461,25 +547,32 @@
             contactPhone: data.contactPhone,
             preferredContactTime: data.preferredContactTime,
             participationType: data.participationType,
-            shareTierRequested: Number(data.shareTierRequested || 30),
-            intro: data.conceptSummary,
-            isAdult: true,
-            consentAppearance: true,
+            // #089 — shareTierRequested 입력 제거: 유선 상담에서 협의. 페이로드에서도 제외.
+            intro: (data.conceptSummary || "").trim(),
+            // #089 — portfolioUrl: online_review 선택 시 입력 가능
+            ...(data.portfolioUrl ? { portfolioUrl: data.portfolioUrl } : {}),
+            // #081 보강 — 체크박스 값을 화면에서 직접 읽어 페이로드 구성
+            isAdult: checked("isAdult"),
+            consentAppearance: checked("consentAppearance"),
             consentVoice: data.participationType === "appearance_voice",
-            consentRevenuePolicy: true,
-            consentPrivacy: true,
-            consultationConsent: true,
+            consentRightsRelationship: checked("consentRightsRelationship"),
+            consentNoGuarantee: checked("consentNoGuarantee"),
+            consentRevenuePolicy: checked("consentRevenuePolicy"),
+            consentPrivacy: checked("consentPrivacy"),
+            consultationConsent: checked("consultationConsent"),
             metadata: {
               restrictedExpressions: data.restrictedExpressions,
               materialSubmissionMode: "no_file_upload_mvp"
             }
           };
-          // #062 조건부 필드 — applicationType에 따라 추가 필드 전송
-          if (data.applicationType === "represented_artist") {
-            if (data.affiliatedOrgName) payload.affiliatedOrgName = data.affiliatedOrgName;
-            if (data.rightsRelationshipNote) payload.rightsRelationshipNote = data.rightsRelationshipNote;
-          } else if (data.applicationType === "ai_creator_partner") {
-            if (data.creatorExperienceNote) payload.creatorExperienceNote = data.creatorExperienceNote;
+          // #062 조건부 필드 — applicationType에 따라 추가 필드 전송 (partnership 분기에서는 적용 안 됨)
+          if (!isPartnership) {
+            if (data.applicationType === "represented_artist") {
+              if (data.affiliatedOrgName) payload.affiliatedOrgName = data.affiliatedOrgName;
+              if (data.rightsRelationshipNote) payload.rightsRelationshipNote = data.rightsRelationshipNote;
+            } else if (data.applicationType === "ai_creator_partner") {
+              if (data.creatorExperienceNote) payload.creatorExperienceNote = data.creatorExperienceNote;
+            }
           }
 
           setBusy(true);
@@ -495,7 +588,27 @@
             form.reset();
             form.querySelector(".debut-choice")?.classList.add("is-selected");
           } catch (err) {
-            setMessage(err.message || "신청을 접수하지 못했어요. 잠시 후 다시 시도해주세요.", "warn");
+            // #081 보강 — 응답 status별 사용자 카피 분기
+            let msg = "신청을 접수하지 못했어요. 잠시 후 다시 시도해주세요.";
+            if (err?.status === 401) {
+              msg = "로그인이 만료됐어요. 다시 로그인한 뒤 신청해 주세요.";
+            } else if (err?.status === 409) {
+              msg = "이미 처리 중인 신청이 있어요. 마이페이지에서 신청 상태를 먼저 확인해 주세요.";
+            } else if (err?.status === 429) {
+              msg = "요청이 잦아요. 잠시 후 다시 시도해 주세요.";
+            } else if (err?.status === 400) {
+              // 서버 validation — 가능하면 서버 메시지를 그대로 (한국어 응답일 때 유용)
+              const serverMsg = err?.body?.message || err?.message;
+              msg = serverMsg && /[\uac00-\ud7af]/.test(serverMsg)
+                ? serverMsg
+                : "입력 내용을 다시 확인해주세요. 필수 항목과 동의 항목을 점검한 뒤 제출해 주세요.";
+            } else if (err?.message?.includes("Failed to fetch") || err?.name === "AbortError") {
+              msg = "네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
+            } else if (err?.message) {
+              msg = err.message;
+            }
+            console.warn("[#081 debut submit] 실패:", err, "status=", err?.status, "body=", err?.body);
+            setMessage(msg, "warn");
           } finally {
             setBusy(false);
           }

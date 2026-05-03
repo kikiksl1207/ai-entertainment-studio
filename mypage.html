@@ -103,6 +103,7 @@
                 <div>
                   <strong>프로필 이미지</strong>
                   <p id="mypageAvatarStatus">선택한 이미지는 저장 전에도 이곳에서 먼저 확인할 수 있습니다.</p>
+                  <small class="mypage-avatar-hint">JPG · PNG · WEBP &nbsp;|&nbsp; 8MB 이하</small>
                 </div>
               </div>
 
@@ -120,7 +121,7 @@
                 <label class="mypage-field">
                   <span>닉네임</span>
                   <input id="mypageNickname" type="text" value="-" maxlength="50" />
-                  <small id="mypageNicknameStatus">닉네임은 30일에 한 번 변경할 수 있습니다.</small>
+                  <small id="mypageNicknameStatus">닉네임은 변경 후 30일 동안 다시 바꿀 수 없습니다.</small>
                 </label>
                 <label class="mypage-field">
                   <span>계정 방식</span>
@@ -205,7 +206,7 @@
                 <button type="button" data-activity-filter="gift">선물</button>
               </div>
               <div class="mypage-empty" id="mypageActivitySummary">
-                <strong>아직 기록된 활동이 없습니다.</strong>
+                <strong>아직 활동 내역이 없어요. 아티스트를 팔로우하거나 피드에 참여하면 이곳에 기록됩니다.</strong>
                 <p>루미나 픽에서 응원을 보내거나 콘텐츠를 해금하면 이곳에 정리됩니다.</p>
               </div>
             </section>
@@ -218,8 +219,8 @@
                 </div>
               </div>
               <div class="mypage-following-grid" id="mypageFollowingSummary">
-                <strong>팔로우한 아티스트가 없습니다.</strong>
-                <p>루미나 피드가 열리면 좋아하는 아티스트의 소식을 더 가까이 모아볼 수 있습니다.</p>
+                <strong>아직 팔로우한 아티스트가 없어요.</strong>
+                <p>마음에 드는 아티스트를 팔로우하면 새 소식을 이곳에 모아볼 수 있어요.</p>
               </div>
             </section>
 
@@ -559,7 +560,7 @@
           renderList(
             "mypageActivitySummary",
             selected.slice(0, 8),
-            filter === "all" ? "아직 기록된 활동이 없습니다." : "해당 조건의 활동이 없습니다.",
+            filter === "all" ? "아직 활동 내역이 없어요. 아티스트를 팔로우하거나 피드에 참여하면 이곳에 기록됩니다." : "이 조건에 해당하는 활동이 없어요. 다른 탭도 둘러봐 주세요.",
             "루미나 픽에서 응원을 보내거나 콘텐츠를 해금하면 이곳에 정리됩니다.",
             item => "<div class=\"mypage-list-row\"><strong>" +
               escapeHtml(item.title || activityLabel(item.type)) + "</strong><p>" +
@@ -660,7 +661,7 @@
           if (user.canChangeNickname === false && user.nicknameNextChangeAt) {
             setText("mypageNicknameStatus", shortDate(user.nicknameNextChangeAt) + " 이후 다시 변경할 수 있습니다.");
           } else {
-            setText("mypageNicknameStatus", "닉네임은 30일에 한 번 변경할 수 있습니다.");
+            setText("mypageNicknameStatus", "닉네임은 변경 후 30일 동안 다시 바꿀 수 없습니다.");
           }
 
           setText("mypageLuminaBalance", fmt(wallet.lumina?.balance ?? wallet.cachedBalance));
@@ -690,8 +691,8 @@
           renderList(
             "mypageFollowingSummary",
             followingFromSummary.slice(0, 6),
-            "팔로우한 아티스트가 없습니다.",
-            "루미나 피드가 열리면 좋아하는 아티스트의 소식을 더 가까이 모아볼 수 있습니다.",
+            "아직 팔로우한 아티스트가 없어요.",
+            "마음에 드는 아티스트를 팔로우하면 새 소식을 이곳에 모아볼 수 있어요.",
             renderFollowingArtist
           );
           // 7명 이상이거나 total이 더 큰 경우 → 전체 목록 가져와서 갱신
@@ -714,8 +715,8 @@
             renderList(
               "mypageFollowingSummary",
               items.slice(0, 20),
-              "팔로우한 아티스트가 없습니다.",
-              "루미나 피드가 열리면 좋아하는 아티스트의 소식을 더 가까이 모아볼 수 있습니다.",
+              "아직 팔로우한 아티스트가 없어요.",
+              "마음에 드는 아티스트를 팔로우하면 새 소식을 이곳에 모아볼 수 있어요.",
               renderFollowingArtist
             );
           } catch (err) {
@@ -778,7 +779,11 @@
         async function saveMypageProfile() {
           const button = $("mypageSaveProfile");
           const displayName = $("mypageNickname")?.value?.trim();
+          // 클라이언트 검증 (#074 카피 적용)
           if (!displayName) return alert("닉네임을 입력해 주세요.");
+          if (displayName.length < 2 || displayName.length > 20) {
+            return alert("닉네임은 2자 이상 20자 이하로 입력해 주세요.");
+          }
           busy(button, true, "저장 중");
           try {
             await apiFetch("/api/v1/me/profile", {
@@ -790,7 +795,28 @@
             await loadMypageSummary();
             alert("프로필이 저장되었습니다.");
           } catch (err) {
-            alert(err.message || "프로필 저장에 실패했습니다.");
+            // 백엔드 응답 status별 사용자 카피 (#074 + 차모 닉네임 중복 unique 처리)
+            let msg = "프로필 저장에 실패했습니다.";
+            if (err?.status === 409) {
+              // 닉네임 중복 — 차모가 백엔드에서 unique 막아둠
+              msg = "이미 사용 중인 닉네임입니다. 다른 이름을 입력해 주세요.";
+            } else if (err?.status === 400) {
+              // 검증 실패 — 사용 불가 단어/특수문자 등
+              const serverMsg = err?.body?.message || err?.message;
+              if (serverMsg && /금지|사용할 수 없|허용/.test(serverMsg)) {
+                msg = "사용할 수 없는 단어가 포함되어 있어요.";
+              } else {
+                msg = "닉네임은 한글·영문·숫자 중심으로 입력해 주세요. 특수문자는 일부만 사용할 수 있어요.";
+              }
+            } else if (err?.status === 429) {
+              // 변경 제한 (30일)
+              msg = "최근에 닉네임을 변경했어요. 다음 변경 가능일에 다시 시도해 주세요.";
+            } else if (err?.status === 401) {
+              msg = "로그인이 만료됐어요. 다시 로그인해 주세요.";
+            } else if (err?.message) {
+              msg = err.message;
+            }
+            alert(msg);
           } finally {
             busy(button, false);
           }
@@ -899,16 +925,8 @@
           });
           $("mypageSaveSettings")?.addEventListener("click", saveMypageSettings);
           $("mypageChargeButton")?.addEventListener("click", () => { window.location.href = "./charge.html"; });
-          $("mypageAvatarButton")?.addEventListener("click", () => $("mypageAvatarInput")?.click());
-          $("mypageAvatarInput")?.addEventListener("change", event => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) return alert("JPG, PNG, WEBP 파일을 사용할 수 있어요.");
-            if (file.size > 5 * 1024 * 1024) return alert("프로필 이미지는 5MB 이하 파일로 업로드해주세요.");
-            const previewUrl = URL.createObjectURL(file);
-            setProfilePreview(mypageSummary?.user || {}, $("mypageNickname")?.value?.trim() || mypageSummary?.user?.displayName, previewUrl);
-            setText("mypageAvatarStatus", file.name + " 파일을 선택했어요. 저장 API 연결 후 바로 반영됩니다.");
-          });
+          // ※ 아바타 업로드 핸들러는 app.js의 bindMypageAvatarUpload()가 단일 담당.
+          //   (#058 — 2026-05-03: 이중 바인드 충돌 해소를 위해 inline 핸들러 제거)
           $("mypageDeleteAccountButton")?.addEventListener("click", () => {
             const balance = $("mypageLuminaBalance")?.textContent || "0";
             const confirmed = confirm(`회원 탈퇴를 진행할까요?\n보유 중인 ${balance}L은 탈퇴와 함께 소멸돼요.`);
