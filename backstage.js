@@ -158,9 +158,9 @@ const backstageRows = {
     ["creator_park", "6,300원", "1,000원", "2,000원", "0원", "9,300원", "지급완료", "영수증"]
   ],
   aiSettlement: [
-    ["윤세린", "에밀리", "64,000원", "18,000원", "46,000원", "AI 원가 12,000원", "검토", "성과 보기"],
-    ["최서진", "클라우드", "38,000원", "22,000원", "32,000원", "이미지팩 9,000원", "검토", "성과 보기"],
-    ["권태준", "이미지탭", "0원", "0원", "신규 공개 반응", "초기 등록", "확인중", "성과 보기"]
+    ["윤세린", "에밀리", "64,000원", "18,000원", "46,000원", "128,000원", "12,000원", "116,000원", "성과 보기"],
+    ["최서진", "클라우드", "38,000원", "22,000원", "32,000원", "92,000원", "9,000원", "83,000원", "성과 보기"],
+    ["권태준", "이미지탭", "0원", "0원", "신규 공개 반응", "0원", "0원", "0원", "성과 보기"]
   ],
   logs: [
     ["10:12", "operator", "콘텐츠 숨김", "피드 #882", "외부 연락 유도"],
@@ -197,7 +197,7 @@ const tableMeta = {
   contentAnomalyRows: { type: "이상 패턴", labels: ["콘텐츠", "작성자", "탐지 신호", "위험도", "권장 액션"] },
   reportCancelRows: { type: "취소/철회 신고", labels: ["신고", "대상", "신고자", "상태", "사유", "권장 액션"] },
   settlementRows: { type: "유저 크리에이터 정산", labels: ["대상", "프리미엄챗", "유료 좋아요", "기타 매출", "차감", "정산금", "상태", "권장 액션"] },
-  aiSettlementRows: { type: "AI 아티스트 성과", labels: ["아티스트", "제작자", "프리미엄챗", "유료 좋아요", "기타 성과", "차감/원가", "내부 보너스", "권장 액션"] },
+  aiSettlementRows: { type: "AI 아티스트 성과", labels: ["아티스트", "제작자", "프리미엄챗", "유료 좋아요", "기타 성과", "총액", "차감", "정산금", "권장 액션"] },
   logRows: { type: "운영 로그", labels: ["시간", "관리자", "액션", "대상", "메모"] }
 };
 
@@ -442,7 +442,7 @@ function openQuickAction(button) {
     "패턴 보기": ["이상 패턴 확인", "연락처 유도, 반복 홍보, 공격 표현 등 탐지 신호를 확인합니다.", "GET /admin/api/v1/creator-content/anomalies"],
     "신고 이력": ["취소/철회 신고 이력", "접수, 취소, 철회, 중복 신고를 따로 보관하고 확인합니다.", "GET /admin/api/v1/community/reports?status=cancelled,withdrawn"],
     "정산 보기": ["정산 상세", "프리미엄챗, 유료 좋아요, 기타 매출, 차감, 정산금을 항목별로 봅니다.", "GET /admin/api/v1/settlements"],
-    "성과 보기": ["AI 아티스트 성과", "제작자, 매출 항목, 원가, 내부 보너스 산정 기준을 봅니다.", "GET /admin/api/v1/ai-artists/performance"]
+    "성과 보기": ["AI 아티스트 성과", "캐릭터별 총액, 차감, 정산금, 제작자, 내부 보너스 산정 기준을 봅니다.", "GET /admin/api/v1/ai-artists/performance"]
   };
   const [title, description, apiHint] = actionMap[label] || [label, `${cardTitle} 기능의 더미 연결입니다.`, "API 연결 대기"];
 
@@ -600,7 +600,7 @@ function renderBackstageTables() {
   renderRows("contentAnomalyRows", backstageRows.contentAnomalies, 3);
   renderRows("reportCancelRows", backstageRows.reportCancels, 3);
   renderRows("settlementRows", backstageRows.settlement, 6);
-  renderRows("aiSettlementRows", backstageRows.aiSettlement, 6);
+  renderRows("aiSettlementRows", backstageRows.aiSettlement, -1);
   renderRows("logRows", backstageRows.logs, -1);
 }
 
