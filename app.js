@@ -1789,7 +1789,7 @@ const characters = [
     intro: "하윤아는 고양이상 눈매와 비비드한 컬러 감각을 가진 스트릿 뷰티 모델이다. 빠르게 지나가는 숏폼 피드 안에서도 한 번 더 보게 만드는 트렌드 감도를 지녔다.", concept: "오늘의 색과 흐름은 제가 먼저 정해볼게요. 빠르게 지나가는 피드 안에서도 다시 멈춰 보게 만드는 존재가 되겠습니다.",
     profile: {
       생년월일: "2004년 4월 3일 (만 22세)",
-      출신지: "서울 홍대입구",
+      출신지: "서울 홍대",
       신체: "168cm",
       혈액형: "AB형",
       포지션: "SNS 스트릿 뷰티 모델",
@@ -2058,6 +2058,12 @@ const characterFrontAssets = {
       ["Mukbang bite", "./assets/characters/park-doa/reference-final/11_mukbang-bite-01.png"],
       ["Surprised bite", "./assets/characters/park-doa/reference-final/12_mukbang-surprised-bite-01.png"]
     ]
+  },
+  "ha-yuna": {
+    gallery: Array.from({ length: 24 }, (_, index) => {
+      const number = String(index + 1).padStart(2, "0");
+      return [`Reference ${number}`, `./assets/characters/ha-yuna/reference-final-${number}.png`];
+    })
   }
 };
 
