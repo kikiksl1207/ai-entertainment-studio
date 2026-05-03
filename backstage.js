@@ -761,10 +761,12 @@ async function loadAdminsSection() {
   renderLoadingRow("adminRequestRows");
 
   try {
-    const [adminUsers, adminEvents] = await Promise.all([
+    const [adminUsers, adminRoles, adminEvents] = await Promise.all([
       backstageFetch(adminApiPath("/admin-users"), { auth: true }),
+      backstageFetch(adminApiPath("/admin-roles"), { auth: true }).catch(() => []),
       backstageFetch(adminApiPath("/audit-events?take=10&targetType=admin_user"), { auth: true }).catch(() => [])
     ]);
+    const roles = normalizePage(adminRoles).items;
     const rows = normalizePage(adminUsers).items.map((adminUser) => {
       const roleName = adminUser.role?.name || adminUser.roleName || adminUser.adminRole;
       const status = localizeAdminStatus(adminUser.status);
@@ -772,7 +774,7 @@ async function loadAdminsSection() {
         adminUser.user?.email || adminUser.email || adminUser.userId?.slice?.(0, 8) || "-",
         localizeAdminRole(roleName),
         status,
-        formatDate(adminUser.lastLoginAt || adminUser.user?.lastLoginAt || adminUser.updatedAt || adminUser.createdAt),
+        formatDate(adminUser.lastAccessAt || adminUser.lastLoginAt || adminUser.user?.lastLoginAt || adminUser.updatedAt || adminUser.createdAt),
         summarizePermissions(adminUser.role?.permissions || adminUser.permissions),
         status === "승인" ? "권한 보기" : "복구 확인"
       ];
@@ -785,12 +787,20 @@ async function loadAdminsSection() {
       event.actorUser?.email || event.actorUserId?.slice?.(0, 8) || "system",
       "상세"
     ]);
+    const roleRows = roles.map((role, index) => [
+      `ROLE-${String(index + 1).padStart(2, "0")}`,
+      "권한 기준",
+      localizeAdminRole(role.name),
+      "완료",
+      summarizePermissions(role.permissions),
+      "상세"
+    ]);
 
     sectionState.admins.rows = rows;
-    sectionState.admins.auditRows = auditRows;
+    sectionState.admins.auditRows = auditRows.length ? auditRows : roleRows;
     if (rows.length) renderRows("adminRows", rows, 2);
     else renderLoadingRow("adminRows", "등록된 운영자가 없습니다.");
-    if (auditRows.length) renderRows("adminRequestRows", auditRows, 3);
+    if (sectionState.admins.auditRows.length) renderRows("adminRequestRows", sectionState.admins.auditRows, 3);
     else renderLoadingRow("adminRequestRows", "최근 운영자 권한 이력이 없습니다.");
   } catch {
     renderBackstageTables();
