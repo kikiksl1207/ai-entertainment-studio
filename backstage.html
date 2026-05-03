@@ -155,13 +155,26 @@
             <textarea id="detailMemo" rows="5" placeholder="처리 사유와 확인 내용을 짧게 남겨주세요."></textarea>
           </label>
           <div class="detail-actions">
-            <button class="secondary-action" type="button">메모 저장</button>
-            <button class="secondary-action" type="button">보류</button>
-            <button class="danger-action" type="button">위험 액션</button>
+            <button class="secondary-action" type="button" data-detail-action="memo">메모 저장</button>
+            <button class="secondary-action" type="button" data-detail-action="hold">보류</button>
+            <button class="danger-action" type="button" data-detail-action="danger">위험 액션</button>
           </div>
           <p class="detail-help">실제 처리 API 연결 전까지 버튼은 화면 구조 확인용입니다. 위험 액션은 추후 확인 모달을 거칩니다.</p>
         </aside>
       </section>
+
+      <div class="confirm-modal is-hidden" id="backstageConfirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+        <div class="confirm-card">
+          <span class="section-kicker" id="confirmType">Confirm</span>
+          <h2 id="confirmTitle">운영 액션 확인</h2>
+          <p id="confirmMessage">이 작업은 운영 로그에 남습니다. 처리 사유를 확인한 뒤 실행하세요.</p>
+          <pre id="confirmPayload"></pre>
+          <div class="confirm-actions">
+            <button class="secondary-action" type="button" id="confirmCancelButton">취소</button>
+            <button class="danger-action" type="button" id="confirmRunButton">확인 후 실행</button>
+          </div>
+        </div>
+      </div>
     </main>
 
     <script src="./backstage.js"></script>

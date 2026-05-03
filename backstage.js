@@ -21,6 +21,15 @@ const detailTitle = document.getElementById("detailTitle");
 const detailList = document.getElementById("detailList");
 const detailMemo = document.getElementById("detailMemo");
 const detailCloseButton = document.getElementById("detailCloseButton");
+const confirmModal = document.getElementById("backstageConfirmModal");
+const confirmType = document.getElementById("confirmType");
+const confirmTitle = document.getElementById("confirmTitle");
+const confirmMessage = document.getElementById("confirmMessage");
+const confirmPayload = document.getElementById("confirmPayload");
+const confirmCancelButton = document.getElementById("confirmCancelButton");
+const confirmRunButton = document.getElementById("confirmRunButton");
+
+let selectedDetail = null;
 
 const statusClassMap = {
   "접수": "is-pending",
@@ -206,6 +215,7 @@ function renderFallbackNote(targetId, label = "API 응답을 불러오지 못해
 
 function renderDetailPanel(detail) {
   if (!detailPanel || !detail) return;
+  selectedDetail = detail;
   detailType.textContent = detail.type || "Detail";
   detailTitle.textContent = detail.row?.[2] || detail.row?.[0] || "상세 정보";
   detailList.innerHTML = detail.row.map((value, index) => {
@@ -213,6 +223,22 @@ function renderDetailPanel(detail) {
     return `<div><dt>${label}</dt><dd>${value}</dd></div>`;
   }).join("");
   detailMemo.value = "";
+  updateDetailActions(detail);
+}
+
+function updateDetailActions(detail) {
+  const dangerButton = document.querySelector('[data-detail-action="danger"]');
+  const holdButton = document.querySelector('[data-detail-action="hold"]');
+  if (!dangerButton || !holdButton) return;
+
+  const tableId = detail.tableId;
+  const status = detail.row?.[detail.labels?.findIndex((label) => label === "상태")] || "";
+  const actionLabel = detail.row?.[detail.row.length - 1] || "위험 액션";
+
+  holdButton.textContent = tableId === "creatorRows" ? "보류/보완 요청" : "보류";
+  holdButton.disabled = tableId === "logRows";
+  dangerButton.textContent = actionLabel === "복구" || status === "숨김" || status === "정지" ? "복구 실행" : actionLabel;
+  dangerButton.disabled = tableId === "logRows" || tableId === "settlementRows" && !["환불 검토", "확인"].includes(actionLabel);
 }
 
 function selectDetailButton(button) {
@@ -224,6 +250,56 @@ function selectDetailButton(button) {
   } catch {
     renderDetailPanel({ type: "Detail", labels: ["상태"], row: ["상세 정보를 불러오지 못했습니다."] });
   }
+}
+
+function buildActionPreview(action) {
+  const detail = selectedDetail;
+  if (!detail) return null;
+  const memo = detailMemo.value.trim();
+  const row = detail.row || [];
+  const target = row[0] || "-";
+  const currentAction = row[row.length - 1] || action;
+
+  const base = {
+    menu: detail.type,
+    target,
+    requestedAction: action === "danger" ? currentAction : action,
+    note: memo || "운영 메모 미입력"
+  };
+
+  if (detail.tableId === "userRows") {
+    base.apiHint = currentAction.includes("복구") ? "POST /admin/api/v1/users/:userId/restore" : "POST /admin/api/v1/users/:userId/suspend";
+    base.warning = "정지/삭제 계열 액션은 세션 revoke와 audit log 기록 대상입니다.";
+  } else if (detail.tableId === "creatorRows") {
+    base.apiHint = "PATCH /admin/api/v1/debut/applications/:applicationId";
+    base.warning = "7일 모니터링 전용 API는 아직 준비중입니다. 데뷔 신청 상태 변경 중심으로 처리합니다.";
+  } else if (detail.tableId === "moderationRows" || detail.tableId === "riskRows") {
+    base.apiHint = currentAction.includes("복구") ? "POST /admin/api/v1/community/posts/:postId/restore" : "POST /admin/api/v1/community/posts/:postId/hide";
+    base.warning = "숨김/복구는 audit log 기록 대상입니다. 사유 입력 후 실행해야 합니다.";
+  } else if (detail.tableId === "settlementRows") {
+    base.apiHint = "POST /admin/api/v1/payment-orders/:orderId/refunds 또는 PATCH /admin/api/v1/refund-transactions/:refundId";
+    base.warning = "크리에이터 정산 지급 API는 아직 준비중입니다. 현재는 결제/환불 운영만 연결 대상입니다.";
+  } else {
+    base.apiHint = "읽기 전용 또는 준비중";
+    base.warning = "이 항목은 현재 실행 API 연결 대상이 아닙니다.";
+  }
+  return base;
+}
+
+function openConfirmModal(action) {
+  const preview = buildActionPreview(action);
+  if (!preview || !confirmModal) return;
+  confirmType.textContent = preview.menu || "Confirm";
+  confirmTitle.textContent = action === "memo" ? "운영 메모 저장 확인" : action === "hold" ? "보류 처리 확인" : "위험 액션 확인";
+  confirmMessage.textContent = preview.warning;
+  confirmPayload.textContent = JSON.stringify(preview, null, 2);
+  confirmRunButton.textContent = "API 연결 전 구조 확인";
+  confirmRunButton.disabled = true;
+  confirmModal.classList.remove("is-hidden");
+}
+
+function closeConfirmModal() {
+  confirmModal?.classList.add("is-hidden");
 }
 
 function renderBackstageTables() {
@@ -509,6 +585,15 @@ detailCloseButton.addEventListener("click", () => {
     labels: ["상태"],
     row: ["테이블의 행을 선택하면 상세 정보와 처리 버튼이 표시됩니다."]
   });
+});
+
+document.querySelectorAll("[data-detail-action]").forEach((button) => {
+  button.addEventListener("click", () => openConfirmModal(button.dataset.detailAction));
+});
+
+confirmCancelButton.addEventListener("click", closeConfirmModal);
+confirmModal.addEventListener("click", (event) => {
+  if (event.target === confirmModal) closeConfirmModal();
 });
 
 loginForm.addEventListener("submit", handleLogin);
