@@ -748,6 +748,7 @@ export class CommunityService {
         profile: {
           select: {
             displayName: true,
+            publicHandle: true,
             avatarAssetId: true,
             bio: true,
           },
@@ -938,6 +939,7 @@ export class CommunityService {
           profile: {
             select: {
               displayName: true,
+              publicHandle: true,
               avatarAssetId: true,
             },
           },
@@ -978,6 +980,7 @@ export class CommunityService {
           profile: {
             select: {
               displayName: true,
+              publicHandle: true,
               avatarAssetId: true,
             },
           },
@@ -1022,6 +1025,7 @@ export class CommunityService {
       profile: {
         select: {
           displayName: true,
+          publicHandle: true,
           avatarAssetId: true,
         },
       },
@@ -1129,6 +1133,7 @@ export class CommunityService {
           profile: {
             select: {
               displayName: true,
+              publicHandle: true,
               avatarAssetId: true,
             },
           },
@@ -1169,6 +1174,7 @@ export class CommunityService {
       user: {
         id: user.id,
         displayName: user.profile?.displayName ?? user.email?.split('@')[0] ?? 'Lumina User',
+        publicHandle: user.profile?.publicHandle ?? null,
         avatarUrl: avatarAsset
           ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
           : null,
@@ -1198,6 +1204,7 @@ export class CommunityService {
     return {
       id: user.id,
       displayName: user.profile?.displayName ?? user.email?.split('@')[0] ?? 'Lumina User',
+      publicHandle: user.profile?.publicHandle ?? null,
       avatarUrl: avatarAsset
         ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
         : null,

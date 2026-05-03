@@ -223,6 +223,7 @@ export class NotificationsService {
               notification.actorUser.profile?.displayName ??
               notification.actorUser.email?.split('@')[0] ??
               'Lumina User',
+            publicHandle: notification.actorUser.profile?.publicHandle ?? null,
             avatarUrl: avatarAsset
               ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
               : null,
@@ -247,6 +248,7 @@ export class NotificationsService {
           profile: {
             select: {
               displayName: true,
+              publicHandle: true,
               avatarAssetId: true,
             },
           },

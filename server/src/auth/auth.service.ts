@@ -101,8 +101,8 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(input.password, PASSWORD_HASH_ROUNDS);
-    const displayName =
-      input.displayName?.trim() || (await this.generateTemporaryDisplayName());
+    const temporaryIdentity = await this.generateTemporaryProfileIdentity();
+    const displayName = input.displayName?.trim() || temporaryIdentity.displayName;
 
     const user = await this.prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
@@ -125,6 +125,7 @@ export class AuthService {
         data: {
           userId: createdUser.id,
           displayName,
+          publicHandle: temporaryIdentity.publicHandle,
         },
       });
 
@@ -198,8 +199,8 @@ export class AuthService {
     const verifiedEmail = profile.emailVerified
       ? (profile.email?.trim().toLowerCase() ?? null)
       : null;
-    const displayName =
-      input.displayName?.trim() || (await this.generateTemporaryDisplayName());
+    const temporaryIdentity = await this.generateTemporaryProfileIdentity();
+    const displayName = input.displayName?.trim() || temporaryIdentity.displayName;
 
     const authAccount = await this.prisma.userAuthAccount.findUnique({
       where: {
@@ -270,6 +271,7 @@ export class AuthService {
         data: {
           userId: createdUser.id,
           displayName,
+          publicHandle: temporaryIdentity.publicHandle,
         },
       });
 
@@ -646,6 +648,12 @@ export class AuthService {
           autoAssignedOnSignup: true,
           firstChangeHasCooldown: true,
         },
+        publicHandle: {
+          unique: true,
+          autoAssignedOnSignup: true,
+          defaultFormat: '색상+사물+4자리숫자',
+          editable: false,
+        },
         passwordRule: {
           minLength: 8,
           maxLength: 128,
@@ -816,6 +824,10 @@ export class AuthService {
       }
     }
 
+    const fallbackIdentity = profile
+      ? null
+      : await this.generateTemporaryProfileIdentity();
+
     await this.prisma.userProfile.upsert({
       where: { userId },
       update: this.clean({
@@ -830,7 +842,10 @@ export class AuthService {
       }),
       create: {
         userId,
-        displayName: input.displayName ?? 'Lumina Fan',
+        displayName: input.displayName ?? fallbackIdentity?.displayName ?? 'Lumina Fan',
+        publicHandle:
+          fallbackIdentity?.publicHandle ??
+          (await this.generateTemporaryProfileIdentity()).publicHandle,
         bio: input.bio,
         avatarAssetId: input.avatarAssetId,
         nicknameChangedAt: input.displayName !== undefined ? now : undefined,
@@ -935,6 +950,7 @@ export class AuthService {
           passwordMaxLength: 128,
           passwordRule: 'At least one letter and one number',
           defaultDisplayNameFormat: '색상+사물+4자리숫자',
+          defaultPublicHandleFormat: '색상+사물+4자리숫자',
         },
         social: this.getSocialProviders(),
       },
@@ -1440,6 +1456,7 @@ export class AuthService {
     authAccounts: { provider: string; passwordHash: string | null }[];
     profile: {
       displayName: string;
+      publicHandle: string;
       avatarAssetId: string | null;
       bio: string | null;
       nicknameChangedAt: Date | null;
@@ -1488,6 +1505,7 @@ export class AuthService {
       isSocialOnly: !user.authAccounts.some((account) => Boolean(account.passwordHash)),
       createdAt: user.createdAt,
       displayName: user.profile?.displayName ?? user.email?.split('@')[0] ?? 'Lumina Fan',
+      publicHandle: user.profile?.publicHandle ?? null,
       avatarUrl: avatarAsset
         ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
         : null,
@@ -1515,7 +1533,7 @@ export class AuthService {
       : new Date(0);
   }
 
-  private async generateTemporaryDisplayName() {
+  private async generateTemporaryProfileIdentity() {
     for (let attempt = 0; attempt < 30; attempt += 1) {
       const color =
         TEMP_DISPLAY_NAME_COLORS[
@@ -1528,16 +1546,24 @@ export class AuthService {
       const digits = randomInt(1000, 10000);
       const candidate = `${color}${object}${digits}`;
       const existingProfile = await this.prisma.userProfile.findFirst({
-        where: { displayName: candidate },
+        where: { publicHandle: candidate },
         select: { userId: true },
       });
 
       if (!existingProfile) {
-        return candidate;
+        return {
+          displayName: candidate,
+          publicHandle: candidate,
+        };
       }
     }
 
-    return `루미나팬${randomBytes(4).toString('hex').toUpperCase()}`;
+    const fallback = `lumina-${randomBytes(8).toString('hex')}`;
+
+    return {
+      displayName: fallback,
+      publicHandle: fallback,
+    };
   }
 
   private toStellaDisplay(luminaAmount: { toString: () => string }) {

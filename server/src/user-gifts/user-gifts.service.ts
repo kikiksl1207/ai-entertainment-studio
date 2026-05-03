@@ -173,7 +173,13 @@ export class UserGiftsService {
         recipient: {
           select: {
             id: true,
-            profile: { select: { displayName: true, avatarAssetId: true } },
+            profile: {
+              select: {
+                displayName: true,
+                publicHandle: true,
+                avatarAssetId: true,
+              },
+            },
           },
         },
       },
@@ -189,7 +195,13 @@ export class UserGiftsService {
         sender: {
           select: {
             id: true,
-            profile: { select: { displayName: true, avatarAssetId: true } },
+            profile: {
+              select: {
+                displayName: true,
+                publicHandle: true,
+                avatarAssetId: true,
+              },
+            },
           },
         },
       },

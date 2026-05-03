@@ -134,7 +134,7 @@ My Page contract:
 
 - `GET /api/v1/app/bootstrap` is public and returns non-secret first-load configuration: localization policy, social provider status, Lumina currency constants, feature flags, lightweight product policies, artist category filter labels, and important endpoint hints.
 - `GET /api/v1/app/bootstrap` includes `policy.artistCategories` with `filterLabels`, `categoryLabels`, `fallbackCategory`, `sourceField`, and response field hints so the frontend can render category filters without hardcoding the taxonomy.
-- `GET /api/v1/me` returns `id`, `email`, `status`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `createdAt`, `displayName`, `avatarUrl`, `avatarAsset`, `bio`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, `canChangeNickname`, `profile`, `settings`, and `walletAccounts`. Email and social signup auto-assign a temporary display name like `민트별빛4827` when the request does not include `displayName`; the server checks existing profile names and retries generation to avoid duplicate auto-assigned names.
+- `GET /api/v1/me` returns `id`, `email`, `status`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `createdAt`, `displayName`, `publicHandle`, `avatarUrl`, `avatarAsset`, `bio`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, `canChangeNickname`, `profile`, `settings`, and `walletAccounts`. Email and social signup auto-assign a temporary display name and unique public handle like `민트별빛4827` when the request does not include `displayName`; the server checks existing profile handles and retries generation to avoid duplicate auto-assigned handles.
 - `PATCH /api/v1/me/profile` accepts `displayName`, `bio`, and `avatarAssetId`. `displayName` is server-limited to one change every 30 days through `user_profiles.nickname_changed_at`.
 - Avatar policy for the first version is asset-based: create/confirm an image asset through the existing upload flow, then set `avatarAssetId`.
 - `GET /api/v1/me/summary` is a My Page bootstrap endpoint. It returns `user`, `wallet`, `recentLedger`, `recentPaymentOrders`, `activity.boostEventCounts`, `activity.premiumUnlocks`, `activity.followingArtists`, `activity.followingUsers`, `activity.followers`, `activity.followCounts`, `activity.feedCounts`, `recentActivities`, `debut.latestApplication`, `debut.applications`, and policy hints.
@@ -631,7 +631,7 @@ Authorization: Bearer <accessToken>
 - `artistId` can be an artist UUID or slug.
 - `userId` must be a user UUID and cannot equal the current user id.
 - `GET /api/v1/me/following` returns `{ artists, users }`.
-- User follow rows return `{ id, status, followedAt, updatedAt, user: { id, displayName, avatarUrl } }`.
+- User follow rows return `{ id, status, followedAt, updatedAt, user: { id, displayName, publicHandle, avatarUrl } }`.
 - `user_follows` uses soft delete/reactivation with unique `(follower_user_id, following_user_id)`.
 
 Personalized feed safety endpoints:

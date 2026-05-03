@@ -85,6 +85,7 @@ model UserAuthAccount {
 model UserProfile {
   userId            String    @id @map("user_id") @db.Uuid
   displayName       String    @map("display_name")
+  publicHandle      String    @unique @map("public_handle")
   avatarAssetId     String?   @map("avatar_asset_id") @db.Uuid
   bio               String?
   nicknameChangedAt DateTime? @map("nickname_changed_at") @db.Timestamptz(6)

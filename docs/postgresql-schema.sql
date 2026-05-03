@@ -24,6 +24,7 @@ CREATE TABLE user_auth_accounts (
 CREATE TABLE user_profiles (
   user_id uuid PRIMARY KEY REFERENCES users(id),
   display_name text NOT NULL,
+  public_handle text NOT NULL UNIQUE,
   avatar_asset_id uuid,
   bio text,
   created_at timestamptz NOT NULL DEFAULT now(),
