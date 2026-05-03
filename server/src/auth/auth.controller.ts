@@ -191,6 +191,16 @@ export class MeController {
   }
 }
 
+@Controller('localization')
+export class LocalizationController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Get('policy')
+  policy(@Req() req: RequestLike) {
+    return this.authService.getLocalizationPolicy(req.header('accept-language'));
+  }
+}
+
 function getSessionContext(request: RequestLike) {
   return {
     userAgent: request.header('user-agent') ?? null,

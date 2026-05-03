@@ -191,6 +191,7 @@ GET /me/activity-ledger?type=all&take=50
 PATCH /me/profile
 GET /me/settings
 PATCH /me/settings
+GET /localization/policy
 POST /me/assets/upload-intents
 POST /me/assets/:assetId/confirm-upload
 GET /me/notifications?status=all&take=20
@@ -221,7 +222,8 @@ Auth responses:
 - Avatar upload policy for 1차: reuse the asset upload flow and then pass the confirmed image asset id as `avatarAssetId`. A dedicated user-facing avatar upload intent can be split out later if needed.
 - `GET /me/summary` is the recommended My Page bootstrap endpoint. It returns `{ user, wallet, recentLedger, recentPaymentOrders, activity, recentActivities, debut, policy }` so the frontend does not need to call every history endpoint on first render. `activity` now includes `followingArtists`, `followingUsers`, `followers`, `followCounts`, and `feedCounts`. `activity.followingArtists[]` uses the same My Page card shape as `GET /me/following-artists`.
 - `GET /me/settings` returns `{ settings, policy }`.
-- `PATCH /me/settings` accepts any subset of `{ "locale": "ko-KR", "timezone": "Asia/Seoul", "marketingOptIn": false, "pushOptIn": false, "activityNotifications": true, "feedNotifications": true, "emailNotifications": false }`. Send at least one field. The response is the same `{ settings, policy }` shape.
+- `PATCH /me/settings` accepts any subset of `{ "locale": "ko-KR", "timezone": "Asia/Seoul", "marketingOptIn": false, "pushOptIn": false, "activityNotifications": true, "feedNotifications": true, "emailNotifications": false }`. Send at least one field. Supported `locale` values are `ko-KR`, `ja-JP`, `en-US`, and `zh-CN`; unsupported values return validation `400`. The response is the same `{ settings, policy }` shape.
+- `GET /localization/policy` is public. It reads the request `Accept-Language` header and returns `{ defaultLocale, supportedLocales, detectedLocale, source, fallbackRule, storageEndpoints }`. Use it for anonymous first-load language detection. For logged-in users, prefer `GET /me/settings.settings.locale` first.
 - User image upload flow for avatars/feed: `POST /me/assets/upload-intents` then upload the file with the returned `upload.method/url/requiredHeaders`, then `POST /me/assets/:assetId/confirm-upload`. The confirmed `asset.id` can be passed to `PATCH /me/profile.avatarAssetId` or `POST /lumina-feed/posts.assetIds`.
 - `GET /me/notifications?status=all&take=20` returns `{ notifications, unreadCount, nextCursor }`. `status` can be `all`, `unread`, or `read`; `type` can optionally filter a single notification type; `cursor` accepts the previous `nextCursor`.
 - Notification item shape: `{ id, type, title, body, targetType, targetId, metadata, readAt, createdAt, actor, artist }`. `actor` is `{ id, displayName, avatarUrl } | null`; `artist` is `{ id, slug, displayName } | null`.

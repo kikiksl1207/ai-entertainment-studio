@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { AuthController, MeController } from './auth.controller';
+import { AuthController, LocalizationController, MeController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AdminPermissionGuard } from './guards/admin-permission.guard';
 import { AdminAuthGuard } from './guards/admin-auth.guard';
@@ -10,7 +10,7 @@ import { SocialAuthService } from './social-auth.service';
 @Global()
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [AuthController, MeController],
+  controllers: [AuthController, MeController, LocalizationController],
   providers: [
     AuthService,
     SocialAuthService,

@@ -19,6 +19,8 @@ const normalizeString = ({ value }: { value: unknown }) =>
 const normalizeEmail = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
 
+export const SUPPORTED_LOCALES = ['ko-KR', 'ja-JP', 'en-US', 'zh-CN'] as const;
+
 export class RegisterDto {
   @Transform(normalizeEmail)
   @IsEmail()
@@ -127,9 +129,8 @@ export class UpdateProfileDto {
 export class UpdateSettingsDto {
   @IsOptional()
   @Transform(normalizeString)
-  @IsString()
-  @MaxLength(20)
-  locale?: string;
+  @IsIn(SUPPORTED_LOCALES)
+  locale?: (typeof SUPPORTED_LOCALES)[number];
 
   @IsOptional()
   @Transform(normalizeString)

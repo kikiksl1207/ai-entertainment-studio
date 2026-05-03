@@ -24,6 +24,7 @@ import {
   SocialLoginDto,
   UpdateProfileDto,
   UpdateSettingsDto,
+  SUPPORTED_LOCALES,
 } from './dto/auth.dto';
 import { SocialAuthService } from './social-auth.service';
 import { buildPublicAssetUrl } from '../common/asset-url';
@@ -865,6 +866,26 @@ export class AuthService {
     };
   }
 
+  getLocalizationPolicy(acceptLanguage?: string | string[]) {
+    const header = Array.isArray(acceptLanguage)
+      ? acceptLanguage.join(',')
+      : acceptLanguage;
+    const detectedLocale = this.detectSupportedLocale(header);
+
+    return {
+      defaultLocale: 'ko-KR',
+      supportedLocales: SUPPORTED_LOCALES,
+      detectedLocale,
+      source: detectedLocale === 'ko-KR' && !header ? 'default' : 'accept-language',
+      fallbackRule:
+        'Use signed-in user settings.locale first, then localStorage, then detectedLocale, then ko-KR.',
+      storageEndpoints: {
+        get: 'GET /api/v1/me/settings',
+        patch: 'PATCH /api/v1/me/settings',
+      },
+    };
+  }
+
   async requestEmailVerification(input: RequestEmailVerificationDto) {
     const email = input.email.trim().toLowerCase();
     let debugToken: { token: string; expiresAt: Date } | null = null;
@@ -1429,7 +1450,9 @@ export class AuthService {
     return {
       locale: {
         default: 'ko-KR',
-        supported: ['ko-KR', 'en-US'],
+        supported: SUPPORTED_LOCALES,
+        fallback:
+          'Use signed-in user settings.locale first, then localStorage, then browser language, then ko-KR.',
       },
       timezone: {
         default: 'Asia/Seoul',
@@ -1442,6 +1465,53 @@ export class AuthService {
         pushOptIn: 'push delivery permission flag',
       },
     };
+  }
+
+  private detectSupportedLocale(acceptLanguage?: string) {
+    if (!acceptLanguage) {
+      return 'ko-KR';
+    }
+
+    const candidates = acceptLanguage
+      .split(',')
+      .map((item) => item.trim().split(';')[0])
+      .filter(Boolean);
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeLocale(candidate);
+      if (SUPPORTED_LOCALES.includes(normalized as (typeof SUPPORTED_LOCALES)[number])) {
+        return normalized;
+      }
+    }
+
+    return 'ko-KR';
+  }
+
+  private normalizeLocale(value: string) {
+    const [language, region] = value.replace('_', '-').split('-');
+    const normalizedLanguage = language.toLowerCase();
+    const normalizedRegion = region?.toUpperCase();
+    const base = normalizedRegion
+      ? `${normalizedLanguage}-${normalizedRegion}`
+      : normalizedLanguage;
+
+    if (base === 'ko') {
+      return 'ko-KR';
+    }
+
+    if (base === 'ja') {
+      return 'ja-JP';
+    }
+
+    if (base === 'en') {
+      return 'en-US';
+    }
+
+    if (base === 'zh' || base === 'zh-CN' || base === 'zh-HANS') {
+      return 'zh-CN';
+    }
+
+    return base;
   }
 
   private userFollowUserInclude(direction: 'follower' | 'following') {
