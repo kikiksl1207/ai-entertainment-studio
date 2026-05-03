@@ -118,6 +118,12 @@ export class MeController {
     return this.authService.getMyPageSummary(user.id);
   }
 
+  @Get('trust')
+  @UseGuards(JwtAuthGuard)
+  trust(@CurrentUser() user: AuthUser) {
+    return this.authService.getMyTrust(user.id);
+  }
+
   @Get('activity-ledger')
   @UseGuards(JwtAuthGuard)
   activityLedger(

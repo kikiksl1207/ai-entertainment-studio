@@ -71,6 +71,20 @@ export class ChatController {
     return this.chatService.getFeatureProducts();
   }
 
+  @Post('chat-feature-orders/preview')
+  previewFeatureOrder(
+    @CurrentUser() user: AuthUser,
+    @Body() body: CreateFeatureOrderBody,
+  ) {
+    return this.chatService.previewFeatureOrder(user.id, {
+      chatSessionId: this.requireField(body?.chatSessionId, 'chatSessionId'),
+      chatFeatureProductId: this.requireField(
+        body?.chatFeatureProductId,
+        'chatFeatureProductId',
+      ),
+    });
+  }
+
   @Post('chat-feature-orders')
   createFeatureOrder(
     @CurrentUser() user: AuthUser,

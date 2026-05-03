@@ -128,6 +128,71 @@ export class ChatService {
     });
   }
 
+  async previewFeatureOrder(
+    userId: string,
+    input: {
+      chatSessionId: string;
+      chatFeatureProductId: string;
+    },
+  ) {
+    const [session, product, wallet] = await Promise.all([
+      this.getOwnedSession(userId, input.chatSessionId),
+      this.prisma.chatFeatureProduct.findFirst({
+        where: { id: input.chatFeatureProductId, status: 'active' },
+      }),
+      this.prisma.walletAccount.findUnique({
+        where: {
+          userId_currencyCode: { userId, currencyCode: DEFAULT_CURRENCY },
+        },
+      }),
+    ]);
+
+    if (!product) {
+      throw new NotFoundException('Chat feature product not found');
+    }
+
+    if (!wallet || wallet.status !== 'active') {
+      throw new BadRequestException('Active wallet not found');
+    }
+
+    const metadata = this.recordOrEmpty(product.metadata);
+    const afterBalanceLumina = wallet.cachedBalance.minus(product.priceLumina);
+    const sufficientBalance = wallet.cachedBalance.comparedTo(product.priceLumina) >= 0;
+
+    return {
+      session: {
+        id: session.id,
+        artistId: session.artistId,
+        chatPersonaId: session.chatPersonaId,
+      },
+      product: {
+        id: product.id,
+        sku: product.sku,
+        name: product.name,
+        displayName: this.stringFromUnknown(metadata.displayNameKo) ?? product.name,
+        featureType: product.featureType,
+        priceLumina: product.priceLumina,
+        status: product.status,
+        modelTier: this.stringFromUnknown(metadata.modelTier) ?? 'mini',
+      },
+      wallet: {
+        id: wallet.id,
+        currencyCode: wallet.currencyCode,
+        balanceLumina: wallet.cachedBalance,
+        afterBalanceLumina,
+        sufficientBalance,
+      },
+      policy: {
+        idempotencyRequired: true,
+        settlementEligible: metadata.settlementEligible !== false,
+        refundOnGenerationFailure: true,
+        mvpLocked: metadata.mvpLocked === true,
+        requiresIdentityVerification: false,
+        generationStatus: 'not_started',
+      },
+    };
+  }
+
   async createFeatureOrder(
     userId: string,
     input: {
@@ -224,5 +289,15 @@ export class ChatService {
     }
 
     return session;
+  }
+
+  private recordOrEmpty(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  }
+
+  private stringFromUnknown(value: unknown) {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
   }
 }

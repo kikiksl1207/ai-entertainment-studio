@@ -433,6 +433,111 @@ export class AuthService {
     return this.formatMe(user);
   }
 
+  async getMyTrust(userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        phoneNumber: true,
+        status: true,
+        adminAccess: {
+          select: {
+            status: true,
+            role: {
+              select: {
+                name: true,
+                permissions: true,
+              },
+            },
+          },
+        },
+        artistOperators: {
+          where: { status: 'active' },
+          select: {
+            id: true,
+            artistId: true,
+            role: true,
+            permissions: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Active user not found');
+    }
+
+    const identityVerified = Boolean(user.phoneNumber);
+    const hasActiveAdminAccess = user.adminAccess?.status === 'active';
+    const artistOperators = user.artistOperators;
+    const hasArtistOperatorAccess = artistOperators.length > 0;
+    const level = hasActiveAdminAccess
+      ? 'admin'
+      : hasArtistOperatorAccess
+        ? 'artist_operator'
+        : identityVerified
+          ? 'verified'
+          : 'basic';
+
+    const requiredActions = identityVerified
+      ? []
+      : [
+          {
+            code: 'identity_verification_required',
+            title: 'Identity verification required',
+            appliesTo: [
+              'referral_reward',
+              'paid_support',
+              'fan_letter',
+              'creator_settlement',
+            ],
+          },
+        ];
+
+    return {
+      userId: user.id,
+      status: user.status,
+      trust: {
+        level,
+        identityVerified,
+        identityVerificationProvider: identityVerified ? 'phone_number_mvp' : null,
+        referralEligible: identityVerified,
+        paidSupportEligible: identityVerified,
+        creatorSettlementEligible: identityVerified && hasArtistOperatorAccess,
+        adminEligible: hasActiveAdminAccess,
+      },
+      accountLimit: {
+        maxAccountsPerIdentity: 3,
+        currentAccountsForIdentity: identityVerified ? 1 : null,
+        basis: identityVerified ? 'phone_number_mvp' : 'unverified',
+        enforcement: 'advisory_mvp',
+      },
+      roles: {
+        admin: hasActiveAdminAccess
+          ? {
+              roleName: user.adminAccess?.role.name ?? null,
+              permissions: user.adminAccess?.role.permissions ?? [],
+            }
+          : null,
+        artistOperators,
+      },
+      requiredActions,
+      policy: {
+        freeLikeAllowedForUnverifiedUsers: true,
+        paidSupportRequiresIdentityVerification: true,
+        referralRewardRequiresIdentityVerification: true,
+        creatorSettlementRequiresIdentityVerification: true,
+        guestBrowsingAllowed: true,
+      },
+    };
+  }
+
   async getMyPageSummary(userId: string) {
     await this.assertActiveUser(userId);
 

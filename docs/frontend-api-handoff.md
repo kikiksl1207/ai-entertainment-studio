@@ -274,6 +274,7 @@ POST /auth/password-resets
 POST /auth/password-resets/confirm
 GET /me
 GET /me/summary
+GET /me/trust
 GET /me/activity-ledger?type=all&take=50
 PATCH /me/profile
 GET /me/settings
@@ -315,6 +316,7 @@ Auth responses:
 - `PATCH /me/profile` body: `{ "displayName": "닉네임", "bio": "optional", "avatarAssetId": "<asset uuid>" }`. New accounts receive an auto-assigned temporary `displayName`; users can change it from My Page. `displayName` can be changed once every 30 days after a user change. The server returns the updated `GET /me` shape. If the nickname cooldown is active, expect `400 Nickname can be changed once every 30 days`.
 - Avatar upload policy for 1차: reuse the asset upload flow and then pass the confirmed image asset id as `avatarAssetId`. A dedicated user-facing avatar upload intent can be split out later if needed.
 - `GET /me/summary` is the recommended My Page bootstrap endpoint. It returns `{ user, wallet, recentLedger, recentPaymentOrders, activity, recentActivities, debut, policy }` so the frontend does not need to call every history endpoint on first render. `activity` now includes `followingArtists`, `followingUsers`, `followers`, `followCounts`, and `feedCounts`. `activity.followingArtists[]` uses the same My Page card shape as `GET /me/following-artists`.
+- `GET /me/trust` returns the current user's trust/role gate state for abuse-sensitive actions. Use this to decide whether to show "identity verification required" messaging before referral rewards, paid support, fan letters, and future creator settlement surfaces. MVP identity verification is advisory and based on phone-number presence until a real identity provider is connected.
 - `GET /me/settings` returns `{ settings, policy }`.
 - `PATCH /me/settings` accepts any subset of `{ "locale": "ko-KR", "timezone": "Asia/Seoul", "marketingOptIn": false, "pushOptIn": false, "activityNotifications": true, "feedNotifications": true, "emailNotifications": false }`. Send at least one field. Supported `locale` values are `ko-KR`, `ja-JP`, `en-US`, and `zh-CN`; unsupported values return validation `400`. The response is the same `{ settings, policy }` shape.
 - `GET /localization/policy` is public. It reads the request `Accept-Language` header and returns `{ defaultLocale, supportedLocales, detectedLocale, source, fallbackRule, storageEndpoints }`. Use it for anonymous first-load language detection. For logged-in users, prefer `GET /me/settings.settings.locale` first.
@@ -451,6 +453,17 @@ These endpoints are not implemented yet. The product requirement is that
 creators should see an estimated payout such as `현재까지 약 207,000원 정산 예정`
 and admins should be able to review/confirm/mark payouts as paid.
 
+Implemented MVP support endpoints:
+
+```http
+GET /me/trust
+GET /chat-feature-products
+POST /chat-feature-orders/preview
+POST /chat-feature-orders
+POST /moderation/preview
+Authorization: Bearer <accessToken>
+```
+
 Important frontend rule for later:
 
 - Do not show raw gross Lumina usage as payout.
@@ -473,6 +486,102 @@ Draft price policy:
 - Paid vote / Lumina boost: 10L.
 - Image / voice replies are reserved as draft products until model-cost and
   safety validation are complete.
+
+Chat feature order preview:
+
+```http
+POST /chat-feature-orders/preview
+Authorization: Bearer <accessToken>
+```
+
+Request:
+
+```json
+{
+  "chatSessionId": "<chat session uuid>",
+  "chatFeatureProductId": "<chat feature product uuid>"
+}
+```
+
+Response:
+
+```json
+{
+  "session": {
+    "id": "<chat session uuid>",
+    "artistId": "<artist uuid>",
+    "chatPersonaId": null
+  },
+  "product": {
+    "id": "<product uuid>",
+    "sku": "CHAT_DEEP_REPLY",
+    "name": "Deep reply",
+    "displayName": "딥리플",
+    "featureType": "deep_reply",
+    "priceLumina": "2",
+    "status": "active",
+    "modelTier": "mini"
+  },
+  "wallet": {
+    "id": "<wallet uuid>",
+    "currencyCode": "LUMINA",
+    "balanceLumina": "300",
+    "afterBalanceLumina": "298",
+    "sufficientBalance": true
+  },
+  "policy": {
+    "idempotencyRequired": true,
+    "settlementEligible": true,
+    "refundOnGenerationFailure": true,
+    "mvpLocked": true,
+    "requiresIdentityVerification": false,
+    "generationStatus": "not_started"
+  }
+}
+```
+
+Use preview before `POST /chat-feature-orders` so the frontend can show balance,
+product price, and settlement hints before the wallet debit. `POST
+/chat-feature-orders` still performs the real wallet debit and must use an
+`Idempotency-Key` header or `idempotencyKey` body value.
+
+Text moderation preview:
+
+```http
+POST /moderation/preview
+Authorization: Bearer <accessToken>
+```
+
+Request:
+
+```json
+{
+  "surface": "character_chat",
+  "body": "message to check"
+}
+```
+
+Response:
+
+```json
+{
+  "decision": "allow",
+  "riskLevel": "low",
+  "matchedTypes": [],
+  "userMessage": null,
+  "surface": "character_chat",
+  "policy": {
+    "mode": "keyword_preview_mvp",
+    "hardBlockTypes": ["email", "phone_number", "external_payment", "external_contact"],
+    "reviewTypes": ["offline_meeting", "adult_boundary", "settlement_risk"],
+    "note": "Preview only. Persisted moderation queues can be added with a later schema migration."
+  }
+}
+```
+
+For MVP this is a preflight helper, not a persisted moderation queue. Feed,
+fan-letter, creator DM-like flows, and character-chat inputs can call it before
+submit to show block/review messaging consistently.
 
 Response shape:
 
