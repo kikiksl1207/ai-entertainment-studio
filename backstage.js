@@ -15,6 +15,12 @@ const refreshButton = document.getElementById("backstageRefreshButton");
 const todayLabel = document.getElementById("backstageToday");
 const metricGrid = document.getElementById("backstageMetricGrid");
 const alertStrip = document.getElementById("backstageAlertStrip");
+const detailPanel = document.getElementById("backstageDetailPanel");
+const detailType = document.getElementById("detailType");
+const detailTitle = document.getElementById("detailTitle");
+const detailList = document.getElementById("detailList");
+const detailMemo = document.getElementById("detailMemo");
+const detailCloseButton = document.getElementById("detailCloseButton");
 
 const statusClassMap = {
   "접수": "is-pending",
@@ -78,6 +84,16 @@ const alertTitleMap = {
   moderation_queue: "콘텐츠 검수 대기",
   debut_queue: "데뷔 신청 검토",
   payment_pending: "결제 확인 대기"
+};
+
+const tableMeta = {
+  overviewQueueRows: { type: "대시보드", labels: ["ID", "유형", "대상", "상태", "권장 액션"] },
+  riskRows: { type: "위험 항목", labels: ["ID", "분류", "사유", "위험도", "권장 액션"] },
+  userRows: { type: "유저 관리", labels: ["유저", "이메일", "상태", "루미나", "최근 접속", "권장 액션"] },
+  creatorRows: { type: "크리에이터", labels: ["신청자", "유형", "상태", "모니터링", "접수일", "권장 액션"] },
+  moderationRows: { type: "콘텐츠 검수", labels: ["콘텐츠", "작성자", "탐지 유형", "상태", "권장 액션"] },
+  settlementRows: { type: "정산 관리", labels: ["대상", "정산 이벤트", "예정액", "보류금", "상태", "권장 액션"] },
+  logRows: { type: "운영 로그", labels: ["시간", "관리자", "액션", "대상", "메모"] }
 };
 
 function getBackstageAuth() {
@@ -155,14 +171,40 @@ function statusBadge(value) {
 function renderRows(targetId, rows, statusIndex) {
   const target = document.getElementById(targetId);
   if (!target) return;
+  const meta = tableMeta[targetId] || { type: "상세", labels: [] };
   target.innerHTML = rows.map((row) => {
     const cells = row.map((cell, index) => {
       const content = index === statusIndex ? statusBadge(cell) : cell;
-      if (index === row.length - 1) return `<td><button class="row-action" type="button">${content}</button></td>`;
+      if (index === row.length - 1) {
+        const payload = encodeURIComponent(JSON.stringify({ tableId: targetId, type: meta.type, labels: meta.labels, row }));
+        return `<td><button class="row-action" type="button" data-detail="${payload}">${content}</button></td>`;
+      }
       return `<td>${content}</td>`;
     }).join("");
-    return `<tr>${cells}</tr>`;
+    return `<tr data-table-id="${targetId}">${cells}</tr>`;
   }).join("");
+}
+
+function renderDetailPanel(detail) {
+  if (!detailPanel || !detail) return;
+  detailType.textContent = detail.type || "Detail";
+  detailTitle.textContent = detail.row?.[2] || detail.row?.[0] || "상세 정보";
+  detailList.innerHTML = detail.row.map((value, index) => {
+    const label = detail.labels?.[index] || `항목 ${index + 1}`;
+    return `<div><dt>${label}</dt><dd>${value}</dd></div>`;
+  }).join("");
+  detailMemo.value = "";
+}
+
+function selectDetailButton(button) {
+  if (!button?.dataset?.detail) return;
+  document.querySelectorAll("tr.is-selected").forEach((row) => row.classList.remove("is-selected"));
+  button.closest("tr")?.classList.add("is-selected");
+  try {
+    renderDetailPanel(JSON.parse(decodeURIComponent(button.dataset.detail)));
+  } catch {
+    renderDetailPanel({ type: "Detail", labels: ["상태"], row: ["상세 정보를 불러오지 못했습니다."] });
+  }
 }
 
 function renderBackstageTables() {
@@ -313,6 +355,20 @@ document.querySelectorAll(".sidebar-nav a").forEach((link) => {
   link.addEventListener("click", () => {
     document.querySelectorAll(".sidebar-nav a").forEach((item) => item.classList.remove("is-active"));
     link.classList.add("is-active");
+  });
+});
+
+document.addEventListener("click", (event) => {
+  const detailButton = event.target.closest("[data-detail]");
+  if (detailButton) selectDetailButton(detailButton);
+});
+
+detailCloseButton.addEventListener("click", () => {
+  document.querySelectorAll("tr.is-selected").forEach((row) => row.classList.remove("is-selected"));
+  renderDetailPanel({
+    type: "Detail",
+    labels: ["상태"],
+    row: ["테이블의 행을 선택하면 상세 정보와 처리 버튼이 표시됩니다."]
   });
 });
 
