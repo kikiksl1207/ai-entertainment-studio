@@ -20,7 +20,7 @@ const publicArtistInclude = {
 };
 
 const artistCategoryTaxonomy = {
-  labels: ['아티스트', '모델', '배우', '엔터테이너', '스포츠'],
+  labels: ['아티스트', '모델', '배우', '엔터테이너', '스포츠', '기타'],
   bySlug: {
     'yoon-serin': '아티스트',
     'han-seoyul': '아티스트',
@@ -288,7 +288,7 @@ export class ArtistsService {
       this.stringFromUnknown(profileFacts.displayCategory) ??
       this.stringFromUnknown(profileFacts.category) ??
       artistCategoryTaxonomy.bySlug[slug as keyof typeof artistCategoryTaxonomy.bySlug] ??
-      '아티스트'
+      '기타'
     );
   }
 }

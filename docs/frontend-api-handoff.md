@@ -142,6 +142,7 @@ Filter buttons:
 배우
 엔터테이너
 스포츠
+기타
 ```
 
 ```txt
@@ -150,7 +151,12 @@ Filter buttons:
 배우: choi-seojin, lee-jiwon, kwon-taejun
 엔터테이너: park-doa, seo-hamin
 스포츠: ryu-taeo
+기타: temporary fallback for uncategorized or category-test characters
 ```
+
+If a character has no explicit mapping and no `profile.publicMetadata.profileFacts.displayCategory`,
+the backend returns `category/displayCategory = "기타"`. Use this as an operational holding bucket
+until a new stable category is approved.
 
 Current seeded artist category values:
 
