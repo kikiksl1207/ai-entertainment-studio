@@ -63,12 +63,16 @@ const statusClassMap = {
 
 const backstageRows = {
   admins: [
-    ["a01057662701@gmail.com", "super_admin", "승인", "오늘", "전체", "권한 보기"],
-    ["ops@lumina-stage.com", "operator", "접수", "-", "콘텐츠/정산", "초대 확인"]
+    ["a01057662701@gmail.com", "최상 관리자", "승인", "오늘", "전체 권한", "권한 보기"],
+    ["settlement@lumina-stage.com", "회계 관리자", "준비중", "-", "결제/환불/정산", "초대 확인"],
+    ["partner@lumina-stage.com", "영업/섭외 관리자", "준비중", "-", "데뷔 신청/연락처", "초대 확인"],
+    ["cs@lumina-stage.com", "CS 관리자", "준비중", "-", "유저/신고/제재", "초대 확인"],
+    ["artistops@lumina-stage.com", "AI 아티스트 관리자", "준비중", "-", "AI 콘텐츠/슬롯/공식 글", "초대 확인"]
   ],
   adminRequests: [
-    ["AUD-001", "운영자 추가", "Backstage 접근", "완료", "super_admin 직접 처리", "상세"],
-    ["AUD-002", "역할 변경", "정산 보기", "준비중", "2인 승인은 MVP 이후", "상세"]
+    ["AUD-001", "운영자 추가", "최상 관리자", "완료", "super_admin 직접 처리", "상세"],
+    ["AUD-002", "역할 변경", "회계 관리자", "준비중", "정산계좌 열람 권한", "상세"],
+    ["AUD-003", "역할 변경", "AI 아티스트 관리자", "준비중", "AI 콘텐츠 업로드/공식 글 권한", "상세"]
   ],
   overviewQueue: [
     ["DQ-1042", "데뷔 신청", "신규 크리에이터", "접수", "보기"],
@@ -426,7 +430,7 @@ function openQuickAction(button) {
   const cardTitle = button.closest(".table-card")?.querySelector("h3")?.textContent?.trim() || sectionTitle;
 
   const actionMap = {
-    "운영자 추가": ["운영자 계정 초대", "초대 이메일, 역할, 권한 범위를 입력하는 폼이 열릴 자리입니다.", "POST /admin/api/v1/admin-users/invitations"],
+    "운영자 추가": ["운영자 계정 초대", "역할은 최상 관리자, 회계 관리자, 영업/섭외 관리자, CS 관리자, AI 아티스트 관리자 중 하나로 선택합니다.", "POST /admin/api/v1/admin-users/invitations"],
     "이력 보기": ["권한 변경 이력", "MVP에서는 super_admin 직접 변경과 audit log 중심으로 관리합니다. 2인 승인/요청함은 운영자가 늘어난 뒤 추가합니다.", "GET /admin/api/v1/audit-events?action=admin"],
     "전체 보기": ["목록 전체 보기", "현재 표의 필터를 초기화하고 전체 더미 데이터를 다시 보여줍니다.", "GET list endpoint with cursor"],
     "위험만 보기": ["위험 항목 필터", "신고, 정지, 높은 위험도 항목만 남겨서 봅니다.", "GET list endpoint with risk filter"],
@@ -533,7 +537,7 @@ function buildActionPreview(action) {
       : "정지/삭제 계열 액션은 세션 revoke와 audit log 기록 대상입니다.";
   } else if (detail.tableId === "adminRows" || detail.tableId === "adminRequestRows") {
     base.apiHint = "POST/PATCH /admin/api/v1/admin-users 또는 admin roles";
-    base.warning = "운영자 권한 변경은 2인 확인과 audit log 기록이 필요한 높은 위험 액션입니다.";
+    base.warning = "최상 관리자만 운영자 권한을 변경합니다. 회계는 정산계좌, 영업/섭외는 연락처, AI 아티스트 관리자는 AI 콘텐츠만 열람합니다.";
   } else if (detail.tableId === "creatorRows") {
     base.apiHint = "GET /admin/api/v1/creators 및 GET /admin/api/v1/debut/applications/:applicationId";
     base.warning = "연락처는 섭외/최상 관리자만, 정산계좌는 회계/최상 관리자만 볼 수 있어야 합니다.";
