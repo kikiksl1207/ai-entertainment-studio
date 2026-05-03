@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
@@ -23,8 +23,8 @@
           <p class="eyebrow">Operator Access</p>
           <h1 id="backstageLoginTitle">운영자 로그인</h1>
           <p class="login-copy">
-            콘텐츠, 아티스트, 결제와 운영 로그를 관리하는 내부 공간입니다.
-            허가된 계정만 접속할 수 있습니다.
+            백스테이지는 Lumina Stage 운영자 전용 콘솔입니다.
+            유저, 크리에이터, 콘텐츠 검수, 정산, 운영 로그를 안전하게 관리합니다.
           </p>
 
           <form class="login-form" id="backstageLoginForm">
@@ -44,117 +44,99 @@
         <aside class="login-guard">
           <strong>접근 기준</strong>
           <ul>
-            <li>관리자 권한 계정만 입장</li>
-            <li>모든 수정 작업은 운영 로그에 기록</li>
-            <li>공개 사이트와 분리된 운영 공간</li>
+            <li>관리자 권한이 있는 계정만 접속할 수 있습니다.</li>
+            <li>운영 액션은 감사 로그에 기록되어야 합니다.</li>
+            <li>관리자 계정과 비밀번호는 프론트에서 만들지 않습니다.</li>
           </ul>
         </aside>
       </section>
 
       <section class="backstage-dashboard is-hidden" id="backstageDashboardView" aria-labelledby="backstageDashboardTitle">
-        <header class="backstage-topbar">
-          <div class="login-brand is-compact">
+        <aside class="backstage-sidebar" aria-label="백스테이지 메뉴">
+          <div class="sidebar-brand">
             <img src="./assets/brand/lumina-stage-logo.png" alt="" onerror="this.style.display='none'" />
             <div>
               <span>Backstage</span>
               <strong>Lumina Stage</strong>
             </div>
           </div>
-          <div class="operator-summary">
-            <span id="backstageOperatorEmail">운영자</span>
-            <button class="ghost-action" type="button" id="backstageLogoutButton">로그아웃</button>
-          </div>
-        </header>
 
-        <div class="dashboard-layout">
-          <nav class="backstage-sidebar" aria-label="백스테이지 메뉴">
-            <a class="is-active" href="#overview">Overview</a>
-            <a href="#content">콘텐츠</a>
-            <a href="#artists">아티스트</a>
-            <a href="#moderation">모니터링</a>
-            <a href="#commerce">결제/정산</a>
-            <a href="#system">권한/로그</a>
+          <nav class="sidebar-nav">
+            <a class="is-active" href="#overview">대시보드 <b>8</b></a>
+            <a href="#users">유저 관리 <b>3</b></a>
+            <a href="#creators">크리에이터 <b>2</b></a>
+            <a href="#moderation">콘텐츠 검수 <b>5</b></a>
+            <a href="#settlement">정산 관리 <b>4</b></a>
+            <a href="#logs">운영 로그</a>
           </nav>
 
-          <div class="dashboard-main">
-            <section class="dashboard-hero" id="overview">
-              <p class="eyebrow">Today</p>
-              <h1 id="backstageDashboardTitle">운영 상황판</h1>
-              <p>
-                오늘 처리해야 할 콘텐츠, 모니터링, 결제 이슈를 한 화면에서 확인합니다.
-                실제 데이터 연결 전까지는 운영 구조를 먼저 잡는 MVP 화면입니다.
-              </p>
-            </section>
-
-            <section class="metric-grid" aria-label="핵심 지표">
-              <article>
-                <span>검토 대기</span>
-                <strong>0</strong>
-                <small>신규 아티스트 / 위험 콘텐츠</small>
-              </article>
-              <article>
-                <span>공개 콘텐츠</span>
-                <strong>0</strong>
-                <small>아티스트 / 숏폼 / 피드</small>
-              </article>
-              <article>
-                <span>결제 확인</span>
-                <strong>0</strong>
-                <small>주문 / 환불 / 정산</small>
-              </article>
-              <article>
-                <span>운영 로그</span>
-                <strong>Ready</strong>
-                <small>Audit trail enabled</small>
-              </article>
-            </section>
-
-            <section class="operations-grid">
-              <article class="operation-card" id="content">
-                <span class="card-label">Content</span>
-                <h2>공식 콘텐츠 관리</h2>
-                <p>AI 아티스트, 메인 문구, 인기투표, 숏폼, 비즈니스 카피를 관리합니다.</p>
-                <div class="pill-row">
-                  <span>AI 아티스트</span>
-                  <span>숏폼</span>
-                  <span>메인픽</span>
-                </div>
-              </article>
-
-              <article class="operation-card" id="artists">
-                <span class="card-label">Creator</span>
-                <h2>아티스트 계정 관리</h2>
-                <p>실제 아티스트의 프로필, 피드, 공지, 이미지 상태를 확인합니다.</p>
-                <div class="pill-row">
-                  <span>7일 모니터링</span>
-                  <span>프로필</span>
-                  <span>피드</span>
-                </div>
-              </article>
-
-              <article class="operation-card" id="moderation">
-                <span class="card-label">Safety</span>
-                <h2>모니터링 센터</h2>
-                <p>금지 패턴, 신고 누적, 숨김/차단 콘텐츠와 계정 제한 상태를 봅니다.</p>
-                <div class="pill-row">
-                  <span>위험 콘텐츠</span>
-                  <span>신고</span>
-                  <span>차단 정책</span>
-                </div>
-              </article>
-
-              <article class="operation-card" id="commerce">
-                <span class="card-label">Commerce</span>
-                <h2>루미나 운영</h2>
-                <p>충전 상품, 유료 응원, 팬레터, 환불과 정산 상태를 추적합니다.</p>
-                <div class="pill-row">
-                  <span>루미나</span>
-                  <span>환불</span>
-                  <span>정산</span>
-                </div>
-              </article>
-            </section>
+          <div class="sidebar-operator">
+            <span>접속 계정</span>
+            <strong id="backstageOperatorEmail">운영자</strong>
+            <button class="ghost-action" type="button" id="backstageLogoutButton">로그아웃</button>
           </div>
+        </aside>
+
+        <div class="dashboard-main">
+          <header class="dashboard-header">
+            <div>
+              <p class="eyebrow">Operations</p>
+              <h1 id="backstageDashboardTitle">오늘의 운영 현황</h1>
+              <p>처리 대기 건을 확인하고 승인, 보류, 숨김, 정산 완료 같은 운영 액션을 기록합니다.</p>
+            </div>
+            <div class="header-actions">
+              <span id="backstageToday">기준일</span>
+              <button class="secondary-action" type="button" id="backstageRefreshButton">새로고침</button>
+            </div>
+          </header>
+
+          <section class="metric-grid" aria-label="운영 요약">
+            <article><span>오늘 가입자</span><strong>24</strong><small>전일 대비 +6</small></article>
+            <article><span>충전 주문</span><strong>12</strong><small>결제 확인 3건 대기</small></article>
+            <article><span>신고/검수 대기</span><strong>5</strong><small>위험 콘텐츠 1건 포함</small></article>
+            <article><span>데뷔 신청</span><strong>2</strong><small>신규 검토 필요</small></article>
+          </section>
+
+          <section class="alert-strip" aria-label="운영 알림">
+            <strong>우선 확인</strong>
+            <span>신규 크리에이터 7일 모니터링 2건, 신고 누적 콘텐츠 1건, 정산 지급 대기 4건이 있습니다.</span>
+          </section>
+
+          <section class="section-block" id="overview">
+            <div class="section-title">
+              <div><span class="section-kicker">Dashboard</span><h2>오늘 처리할 업무</h2></div>
+              <div class="filter-row"><button class="filter-chip is-active" type="button">전체</button><button class="filter-chip" type="button">대기</button><button class="filter-chip" type="button">위험</button></div>
+            </div>
+            <div class="table-grid">
+              <article class="table-card"><header><h3>신청/신고/주문</h3><button class="text-action" type="button">전체 보기</button></header><div class="table-wrap"><table><thead><tr><th>ID</th><th>유형</th><th>대상</th><th>상태</th><th>액션</th></tr></thead><tbody id="overviewQueueRows"></tbody></table></div></article>
+              <article class="table-card"><header><h3>미처리 위험 항목</h3><button class="text-action" type="button">위험만 보기</button></header><div class="table-wrap"><table><thead><tr><th>ID</th><th>분류</th><th>사유</th><th>위험도</th><th>액션</th></tr></thead><tbody id="riskRows"></tbody></table></div></article>
+            </div>
+          </section>
+
+          <section class="section-block" id="users">
+            <div class="section-title"><div><span class="section-kicker">Users</span><h2>유저 관리</h2></div><div class="search-box"><input type="search" placeholder="이메일, 닉네임, 소셜 ID 검색" aria-label="유저 검색" /><button class="secondary-action" type="button">검색</button></div></div>
+            <article class="table-card"><div class="table-wrap"><table><thead><tr><th>유저</th><th>이메일</th><th>상태</th><th>루미나</th><th>최근 접속</th><th>액션</th></tr></thead><tbody id="userRows"></tbody></table></div></article>
+          </section>
+
+          <section class="section-block" id="creators">
+            <div class="section-title"><div><span class="section-kicker">Creators</span><h2>크리에이터/아티스트 관리</h2></div><p>데뷔 신청, 권한 부여, artist_operators 연결, 신규 7일 모니터링을 확인합니다.</p></div>
+            <article class="table-card"><div class="table-wrap"><table><thead><tr><th>신청자</th><th>유형</th><th>상태</th><th>모니터링</th><th>접수일</th><th>액션</th></tr></thead><tbody id="creatorRows"></tbody></table></div></article>
+          </section>
+
+          <section class="section-block" id="moderation">
+            <div class="section-title"><div><span class="section-kicker">Moderation</span><h2>콘텐츠 검수</h2></div><p>차단보다 수정 유도를 우선하되, 연락처/외부 결제/개인정보는 강차단합니다.</p></div>
+            <article class="table-card"><div class="table-wrap"><table><thead><tr><th>콘텐츠</th><th>작성자</th><th>탐지 유형</th><th>상태</th><th>처리</th></tr></thead><tbody id="moderationRows"></tbody></table></div></article>
+          </section>
+
+          <section class="section-block" id="settlement">
+            <div class="section-title"><div><span class="section-kicker">Settlement</span><h2>정산 관리</h2></div><p>정산 예정액, PG 수수료, AI 원가, 보류금을 분리해서 확인합니다.</p></div>
+            <article class="table-card"><div class="table-wrap"><table><thead><tr><th>대상</th><th>정산 이벤트</th><th>예정액</th><th>보류금</th><th>상태</th><th>액션</th></tr></thead><tbody id="settlementRows"></tbody></table></div></article>
+          </section>
+
+          <section class="section-block" id="logs">
+            <div class="section-title"><div><span class="section-kicker">Audit Log</span><h2>운영 로그</h2></div><p>누가, 언제, 어떤 대상에게 어떤 관리자 액션을 했는지 기록합니다.</p></div>
+            <article class="table-card"><div class="table-wrap"><table><thead><tr><th>시간</th><th>관리자</th><th>액션</th><th>대상</th><th>메모</th></tr></thead><tbody id="logRows"></tbody></table></div></article>
+          </section>
         </div>
       </section>
     </main>
