@@ -625,12 +625,14 @@ GET /api/v1/me/following
 GET /api/v1/me/following-artists
 GET /api/v1/me/following-users
 GET /api/v1/me/followers
+GET /api/v1/users/handle/:publicHandle/profile
 Authorization: Bearer <accessToken>
 ```
 
 - `artistId` can be an artist UUID or slug.
 - `userId` must be a user UUID and cannot equal the current user id.
 - `GET /api/v1/me/following` returns `{ artists, users }`.
+- `GET /api/v1/users/handle/:publicHandle/profile` is public and returns the same shape as `GET /api/v1/users/:userId/profile`, resolving by the unique `user_profiles.public_handle`.
 - User follow rows return `{ id, status, followedAt, updatedAt, user: { id, displayName, publicHandle, avatarUrl } }`.
 - `user_follows` uses soft delete/reactivation with unique `(follower_user_id, following_user_id)`.
 

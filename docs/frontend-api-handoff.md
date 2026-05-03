@@ -1096,6 +1096,7 @@ GET /me/following-artists?take=20&cursor=<followId>
 GET /me/following-users
 GET /me/followers
 GET /users/:userId/profile
+GET /users/handle/:publicHandle/profile
 POST /users/:userId/block
 DELETE /users/:userId/block
 GET /me/blocked-users?take=20
@@ -1138,6 +1139,8 @@ Authorization: Bearer <accessToken>
 Use `items` as the canonical list. `artists` is provided as a compatibility alias with the same array. If there are no followed active artists, both arrays are empty. User follow rows return `{ id, status, followedAt, updatedAt, user: { id, displayName, publicHandle, avatarUrl } }`.
 
 `GET /users/:userId/profile` is public and returns `{ user, stats, recentPosts }` for active users only. It does not expose email. `user` includes `id`, `displayName`, `publicHandle`, `avatarUrl`, `bio`, and `createdAt`; `stats` includes `followers`, `followingUsers`, `followingArtists`, `posts`, and `replies`. `recentPosts` contains up to 5 public posts by that user.
+
+`GET /users/handle/:publicHandle/profile` returns the same shape as `GET /users/:userId/profile`, but resolves the user by stable unique `publicHandle`. Prefer this endpoint for shareable profile links; keep the UUID endpoint for internal compatibility.
 
 Blocking is idempotent. `POST /users/:userId/block` optionally accepts `{ "reason": "spam" }`, unfollows both directions if an active follow exists, and returns `{ block: { id, status, reason, blockedAt, updatedAt, user: { id, displayName, avatarUrl } } }`. `GET /me/blocked-users` returns the same block row shape as a list.
 

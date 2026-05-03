@@ -158,6 +158,11 @@ export class CommunityController {
     return this.communityService.getPublicUserProfile(userId);
   }
 
+  @Get('users/handle/:publicHandle/profile')
+  getUserProfileByHandle(@Param('publicHandle') publicHandle: string) {
+    return this.communityService.getPublicUserProfileByHandle(publicHandle);
+  }
+
   @Get('me/following')
   @UseGuards(JwtAuthGuard)
   getMyFollowing(@CurrentUser() user: AuthUser) {

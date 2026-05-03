@@ -735,9 +735,28 @@ export class CommunityService {
       throw new BadRequestException('userId must be a UUID');
     }
 
+    return this.getPublicUserProfileByWhere({ id: userId });
+  }
+
+  async getPublicUserProfileByHandle(publicHandle: string) {
+    const normalizedHandle = publicHandle.trim();
+
+    if (!normalizedHandle || normalizedHandle.length > 80) {
+      throw new BadRequestException('publicHandle is invalid');
+    }
+
+    return this.getPublicUserProfileByWhere({
+      profile: { is: { publicHandle: normalizedHandle } },
+    });
+  }
+
+  private async getPublicUserProfileByWhere(where: {
+    id?: string;
+    profile?: { is: { publicHandle: string } };
+  }) {
     const user = await this.prisma.user.findFirst({
       where: {
-        id: userId,
+        ...where,
         status: 'active',
         deletedAt: null,
       },
@@ -769,28 +788,28 @@ export class CommunityService {
       recentPosts,
     ] = await Promise.all([
       this.prisma.userFollow.count({
-        where: { followingUserId: userId, status: 'active', deletedAt: null },
+        where: { followingUserId: user.id, status: 'active', deletedAt: null },
       }),
       this.prisma.userFollow.count({
-        where: { followerUserId: userId, status: 'active', deletedAt: null },
+        where: { followerUserId: user.id, status: 'active', deletedAt: null },
       }),
       this.prisma.artistFollow.count({
-        where: { userId, status: 'active', deletedAt: null },
+        where: { userId: user.id, status: 'active', deletedAt: null },
       }),
       this.prisma.communityPost.count({
         where: {
-          authorUserId: userId,
+          authorUserId: user.id,
           status: 'published',
           visibility: 'public',
           deletedAt: null,
         },
       }),
       this.prisma.communityReply.count({
-        where: { authorUserId: userId, status: 'published', deletedAt: null },
+        where: { authorUserId: user.id, status: 'published', deletedAt: null },
       }),
       this.prisma.communityPost.findMany({
         where: {
-          authorUserId: userId,
+          authorUserId: user.id,
           status: 'published',
           visibility: 'public',
           deletedAt: null,
