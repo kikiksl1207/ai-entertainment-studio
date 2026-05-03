@@ -30,6 +30,18 @@ export class AdminController {
     return this.adminService.getBackstageSummary();
   }
 
+  @Get('backstage/operations/creators')
+  @RequireAdminPermissions('*')
+  getBackstageCreatorOperations(@CurrentUser() user: AuthUser, @Query() query: AuditQuery) {
+    return this.adminService.getBackstageCreatorOperations(user, query);
+  }
+
+  @Get('backstage/operations/ai-content-health')
+  @RequireAdminPermissions('artists:read')
+  getBackstageAiContentHealth(@Query() query: AuditQuery) {
+    return this.adminService.getBackstageAiContentHealth(query);
+  }
+
   @Get('admin-roles')
   @RequireAdminPermissions('*')
   getAdminRoles() {

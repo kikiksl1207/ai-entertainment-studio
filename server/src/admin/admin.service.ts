@@ -238,6 +238,348 @@ export class AdminService {
     };
   }
 
+  async getBackstageCreatorOperations(user: AuthUser, query: AuditQuery) {
+    const pagination = this.adminPagination(query, 20);
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
+    const status = this.optionalString(query, 'status');
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const canViewContact = this.canViewCreatorContact(user);
+    const canViewPayout = this.canViewPayoutInfo(user);
+    const applicationWhere: Prisma.DebutApplicationWhereInput = this.clean({
+      status,
+      OR: search
+        ? [
+            { applicantName: { contains: search, mode: 'insensitive' } },
+            { displayName: { contains: search, mode: 'insensitive' } },
+            { contactEmail: { contains: search, mode: 'insensitive' } },
+            { user: { email: { contains: search, mode: 'insensitive' } } },
+          ]
+        : undefined,
+    });
+
+    const [
+      applications,
+      applicationsByStatus,
+      activeArtistOperators,
+      aiArtists,
+      aiArtistTotal,
+      newApplicationCount,
+    ] = await Promise.all([
+      this.prisma.debutApplication.findMany({
+        where: applicationWhere,
+        take: pagination.takeForQuery,
+        ...pagination.cursorArgs,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              status: true,
+              createdAt: true,
+              profile: {
+                select: {
+                  displayName: true,
+                  publicHandle: true,
+                },
+              },
+              authAccounts: {
+                select: {
+                  provider: true,
+                  lastLoginAt: true,
+                  createdAt: true,
+                },
+              },
+              artistOperators: {
+                where: { status: 'active' },
+                select: {
+                  id: true,
+                  role: true,
+                  status: true,
+                  artist: {
+                    select: { id: true, slug: true, displayName: true, status: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.debutApplication.groupBy({
+        by: ['status'],
+        _count: { _all: true },
+      }),
+      this.prisma.artistOperator.findMany({
+        where: { status: 'active' },
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: this.artistOperatorInclude(),
+      }),
+      this.prisma.artist.findMany({
+        where: {
+          OR: search
+            ? [
+                { displayName: { contains: search, mode: 'insensitive' } },
+                { slug: { contains: search, mode: 'insensitive' } },
+              ]
+            : undefined,
+        },
+        take: 10,
+        orderBy: [{ status: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
+        include: {
+          publicProfile: true,
+          visualProfile: true,
+          contentProfile: true,
+          _count: {
+            select: {
+              artistAssets: true,
+              shortforms: true,
+              premiumVideos: true,
+              chatPersonas: true,
+              followers: true,
+              communityPosts: true,
+            },
+          },
+        },
+      }),
+      this.prisma.artist.count(),
+      this.prisma.debutApplication.count({
+        where: { status: { in: ['submitted', 'reviewing'] } },
+      }),
+    ]);
+
+    const applicationPage = this.paginated(applications, pagination.take);
+
+    return {
+      generatedAt: new Date(),
+      summary: {
+        newApplications: newApplicationCount,
+        applicationsByStatus: this.countRowsToObject(applicationsByStatus, 'status'),
+        activeArtistOperators: activeArtistOperators.length,
+        aiArtists: aiArtistTotal,
+      },
+      applications: {
+        ...applicationPage,
+        items: applicationPage.items.map((application) => {
+          const latestLoginAt = this.latestLoginAt(application.user.authAccounts);
+          const metadata = this.metadataObject(application.metadata);
+          return {
+            id: application.id,
+            userId: application.userId,
+            status: application.status,
+            realName: application.applicantName,
+            stageName: application.displayName,
+            applicantName: application.applicantName,
+            displayName: application.displayName,
+            participationType: application.participationType,
+            shareTierRequested: application.shareTierRequested,
+            shareTierApproved: application.shareTierApproved,
+            applicationChannel: metadata.applicationChannel ?? null,
+            applicationType: metadata.applicationType ?? null,
+            rightsReviewRequired: metadata.rightsReviewRequired ?? false,
+            partnerReviewRequired: metadata.partnerReviewRequired ?? false,
+            contactEmail: canViewContact
+              ? application.contactEmail
+              : this.maskEmail(application.contactEmail),
+            contactPhone: canViewContact
+              ? application.contactPhone
+              : this.maskPhone(application.contactPhone),
+            contactMasked: !canViewContact,
+            contactAccessAllowed: canViewContact,
+            payoutAccountMasked: true,
+            payoutAccessAllowed: canViewPayout,
+            loginType: this.primaryLoginType(application.user.authAccounts),
+            lastSeenAt: latestLoginAt,
+            inactive30Days: latestLoginAt ? latestLoginAt < thirtyDaysAgo : true,
+            needsFollowUp: ['submitted', 'reviewing', 'needs_more_info'].includes(
+              application.status,
+            ),
+            isNew: application.status === 'submitted',
+            createdAt: application.createdAt,
+            updatedAt: application.updatedAt,
+            user: {
+              id: application.user.id,
+              email: application.user.email,
+              status: application.user.status,
+              profile: application.user.profile,
+              artists: application.user.artistOperators.map((operator) => operator.artist),
+            },
+          };
+        }),
+      },
+      activeCreators: activeArtistOperators.map((operator) => ({
+        operatorId: operator.id,
+        userId: operator.userId,
+        artistId: operator.artistId,
+        role: operator.role,
+        status: operator.status,
+        permissions: operator.permissions,
+        createdAt: operator.createdAt,
+        updatedAt: operator.updatedAt,
+        user: {
+          id: operator.user.id,
+          email: canViewContact ? operator.user.email : this.maskEmail(operator.user.email),
+          status: operator.user.status,
+          profile: operator.user.profile,
+        },
+        artist: operator.artist,
+      })),
+      aiArtists: aiArtists.map((artist) => ({
+        id: artist.id,
+        slug: artist.slug,
+        displayName: artist.displayName,
+        status: artist.status,
+        sortOrder: artist.sortOrder,
+        launchedAt: artist.launchedAt,
+        counts: artist._count,
+        missing: this.aiArtistMissingSections(artist),
+        updatedAt: artist.updatedAt,
+      })),
+      permissions: {
+        contactAccessAllowed: canViewContact,
+        payoutAccessAllowed: canViewPayout,
+        contactMasked: !canViewContact,
+        payoutMasked: !canViewPayout,
+      },
+      policy: {
+        route: '/backstage/creators',
+        contactRoles: ['super_admin', 'sales_admin'],
+        payoutRoles: ['super_admin', 'accounting_admin'],
+        rawContactDefault: false,
+        payoutModelStatus: 'not_implemented',
+      },
+    };
+  }
+
+  async getBackstageAiContentHealth(query: AuditQuery) {
+    const pagination = this.adminPagination(query, 20);
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
+    const status = this.optionalString(query, 'status');
+    const where: Prisma.ArtistWhereInput = this.clean({
+      status,
+      OR: search
+        ? [
+            { displayName: { contains: search, mode: 'insensitive' } },
+            { slug: { contains: search, mode: 'insensitive' } },
+          ]
+        : undefined,
+    });
+
+    const artists = await this.prisma.artist.findMany({
+      where,
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
+      orderBy: [{ status: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
+      include: {
+        publicProfile: true,
+        visualProfile: true,
+        contentProfile: true,
+        artistAssets: {
+          orderBy: [{ usageType: 'asc' }, { sortOrder: 'asc' }],
+          include: {
+            asset: {
+              select: {
+                id: true,
+                assetType: true,
+                visibility: true,
+                storageProvider: true,
+                storageKey: true,
+                mimeType: true,
+                width: true,
+                height: true,
+                durationSeconds: true,
+                metadata: true,
+                createdAt: true,
+                updatedAt: true,
+              },
+            },
+          },
+        },
+        shortforms: {
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            status: true,
+            publishedAt: true,
+            updatedAt: true,
+          },
+          orderBy: { updatedAt: 'desc' },
+          take: 5,
+        },
+        premiumVideos: {
+          select: {
+            id: true,
+            sku: true,
+            title: true,
+            status: true,
+            publishedAt: true,
+            updatedAt: true,
+            _count: { select: { assets: true, unlocks: true } },
+          },
+          orderBy: { updatedAt: 'desc' },
+          take: 5,
+        },
+        chatPersonas: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            updatedAt: true,
+          },
+          orderBy: { updatedAt: 'desc' },
+          take: 5,
+        },
+        giftProducts: {
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            giftKind: true,
+            status: true,
+            updatedAt: true,
+          },
+          orderBy: { updatedAt: 'desc' },
+          take: 5,
+        },
+        _count: {
+          select: {
+            artistAssets: true,
+            shortforms: true,
+            premiumVideos: true,
+            chatPersonas: true,
+            followers: true,
+            communityPosts: true,
+            giftProducts: true,
+          },
+        },
+      },
+    });
+    const page = this.paginated(artists, pagination.take);
+    const items = page.items.map((artist) => this.presentAiContentHealth(artist));
+    const statusCounts = items.reduce<Record<string, number>>((acc, item) => {
+      acc[item.healthStatus] = (acc[item.healthStatus] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    return {
+      generatedAt: new Date(),
+      ...page,
+      items,
+      summary: {
+        totalInPage: items.length,
+        byHealthStatus: statusCounts,
+        needsAction: items.filter((item) => item.healthStatus !== 'ok').length,
+      },
+      policy: {
+        route: '/backstage/ai-content',
+        slotSelectionFirst: true,
+        autoClassificationStatus: 'deferred',
+        requiredSlots: ['cover', 'thumbnail', 'gallery'],
+      },
+    };
+  }
+
   async createAdminUser(user: AuthUser, input: AdminPayload) {
     this.assertSuperAdmin(user);
 
@@ -2104,6 +2446,230 @@ export class AdminService {
     );
 
     return { ok: true, post };
+  }
+
+  private presentAiContentHealth(artist: Record<string, unknown>) {
+    const assetLinks = Array.isArray(artist.artistAssets) ? artist.artistAssets : [];
+    const publicProfile = this.metadataObject(artist.publicProfile);
+    const visualProfile = this.metadataObject(artist.visualProfile);
+    const contentProfile = this.metadataObject(artist.contentProfile);
+    const shortforms = Array.isArray(artist.shortforms) ? artist.shortforms : [];
+    const premiumVideos = Array.isArray(artist.premiumVideos) ? artist.premiumVideos : [];
+    const chatPersonas = Array.isArray(artist.chatPersonas) ? artist.chatPersonas : [];
+    const giftProducts = Array.isArray(artist.giftProducts) ? artist.giftProducts : [];
+    const counts = this.metadataObject(artist._count);
+    const slots = {
+      cover: this.assetSlotSummary(assetLinks, ['cover', 'hero', 'banner']),
+      thumbnail: this.assetSlotSummary(assetLinks, [
+        'thumbnail',
+        'thumb',
+        'avatar',
+        'profile',
+        'card',
+      ]),
+      gallery: this.assetSlotSummary(assetLinks, ['gallery', 'photo', 'image', 'detail']),
+    };
+    const missing = this.aiArtistMissingSections(artist);
+    const healthStatus =
+      missing.length === 0 ? 'ok' : missing.length <= 2 ? 'needs_review' : 'needs_action';
+
+    return {
+      id: artist.id,
+      slug: artist.slug,
+      displayName: artist.displayName,
+      status: artist.status,
+      sortOrder: artist.sortOrder,
+      launchedAt: artist.launchedAt,
+      updatedAt: artist.updatedAt,
+      healthStatus,
+      missing,
+      profiles: {
+        publicReady: Boolean(publicProfile.tagline || publicProfile.summary),
+        visualReady: Boolean(
+          visualProfile.styleNotes ||
+            (Array.isArray(visualProfile.visualKeywords) &&
+              visualProfile.visualKeywords.length > 0),
+        ),
+        contentReady: Boolean(contentProfile.contentTone || contentProfile.operatingNotes),
+      },
+      slots,
+      counts: {
+        assets: counts.artistAssets ?? 0,
+        shortforms: counts.shortforms ?? 0,
+        premiumVideos: counts.premiumVideos ?? 0,
+        chatPersonas: counts.chatPersonas ?? 0,
+        giftProducts: counts.giftProducts ?? 0,
+        followers: counts.followers ?? 0,
+        communityPosts: counts.communityPosts ?? 0,
+      },
+      recent: {
+        shortforms,
+        premiumVideos,
+        chatPersonas,
+        giftProducts,
+      },
+      nextActions: missing.map((key) => this.aiContentNextAction(key)),
+    };
+  }
+
+  private aiArtistMissingSections(artist: Record<string, unknown>) {
+    const assetLinks = Array.isArray(artist.artistAssets) ? artist.artistAssets : [];
+    const publicProfile = this.metadataObject(artist.publicProfile);
+    const visualProfile = this.metadataObject(artist.visualProfile);
+    const contentProfile = this.metadataObject(artist.contentProfile);
+    const counts = this.metadataObject(artist._count);
+    const missing: string[] = [];
+
+    if (!publicProfile.tagline && !publicProfile.summary) {
+      missing.push('public_profile');
+    }
+
+    if (
+      !visualProfile.styleNotes &&
+      (!Array.isArray(visualProfile.visualKeywords) ||
+        visualProfile.visualKeywords.length === 0)
+    ) {
+      missing.push('visual_profile');
+    }
+
+    if (!contentProfile.contentTone && !contentProfile.operatingNotes) {
+      missing.push('content_profile');
+    }
+
+    if (!this.assetSlotSummary(assetLinks, ['cover', 'hero', 'banner']).count) {
+      missing.push('cover_asset');
+    }
+
+    if (
+      !this.assetSlotSummary(assetLinks, [
+        'thumbnail',
+        'thumb',
+        'avatar',
+        'profile',
+        'card',
+      ]).count
+    ) {
+      missing.push('thumbnail_asset');
+    }
+
+    if (!this.assetSlotSummary(assetLinks, ['gallery', 'photo', 'image', 'detail']).count) {
+      missing.push('gallery_assets');
+    }
+
+    if (!counts.shortforms) {
+      missing.push('shortforms');
+    }
+
+    if (!counts.chatPersonas) {
+      missing.push('chat_persona');
+    }
+
+    return missing;
+  }
+
+  private assetSlotSummary(assetLinks: unknown[], usageTypes: string[]) {
+    const normalized = new Set(usageTypes.map((item) => item.toLowerCase()));
+    const links = assetLinks.filter((link) => {
+      const usageType =
+        this.metadataObject(link).usageType?.toString().toLowerCase() ?? '';
+      return normalized.has(usageType);
+    });
+    const primary =
+      links.find((link) => this.metadataObject(link).isPrimary === true) ?? links[0] ?? null;
+    const primaryAsset = primary ? this.metadataObject(this.metadataObject(primary).asset) : null;
+    const storageKey =
+      typeof primaryAsset?.storageKey === 'string' ? primaryAsset.storageKey : null;
+
+    return {
+      count: links.length,
+      primaryAssetId: primaryAsset?.id ?? null,
+      primaryUrl: storageKey ? this.buildPublicAssetUrl(storageKey) : null,
+    };
+  }
+
+  private aiContentNextAction(key: string) {
+    const labels: Record<string, string> = {
+      public_profile: '아티스트 공개 소개/태그라인을 보강합니다.',
+      visual_profile: '비주얼 키워드 또는 스타일 노트를 보강합니다.',
+      content_profile: '콘텐츠 톤앤매너 또는 운영 노트를 보강합니다.',
+      cover_asset: '커버/히어로 슬롯 이미지를 연결합니다.',
+      thumbnail_asset: '썸네일/프로필 슬롯 이미지를 연결합니다.',
+      gallery_assets: '갤러리 슬롯 이미지를 1장 이상 연결합니다.',
+      shortforms: '공개 또는 준비 중 숏폼을 1개 이상 등록합니다.',
+      chat_persona: '캐릭터챗용 persona 초안을 준비합니다.',
+    };
+
+    return {
+      key,
+      label: labels[key] ?? '운영자가 상태를 확인합니다.',
+    };
+  }
+
+  private primaryLoginType(authAccounts: { provider: string; lastLoginAt?: Date | null }[]) {
+    const latest = [...authAccounts].sort((left, right) => {
+      const leftAt = left.lastLoginAt?.getTime() ?? 0;
+      const rightAt = right.lastLoginAt?.getTime() ?? 0;
+      return rightAt - leftAt;
+    })[0];
+
+    return latest?.provider ?? null;
+  }
+
+  private latestLoginAt(authAccounts: { lastLoginAt?: Date | null }[]) {
+    return authAccounts.reduce<Date | null>((latest, account) => {
+      if (!account.lastLoginAt) {
+        return latest;
+      }
+
+      return !latest || account.lastLoginAt > latest ? account.lastLoginAt : latest;
+    }, null);
+  }
+
+  private canViewCreatorContact(user: AuthUser) {
+    return this.hasAdminRole(user, [
+      'super_admin',
+      'sales_admin',
+      'business_admin',
+      'partnership_admin',
+    ]);
+  }
+
+  private canViewPayoutInfo(user: AuthUser) {
+    return this.hasAdminRole(user, ['super_admin', 'accounting_admin', 'commerce_admin']);
+  }
+
+  private hasAdminRole(user: AuthUser, roles: string[]) {
+    if (user.adminPermissions?.includes('*')) {
+      return true;
+    }
+
+    return Boolean(user.adminRole && roles.includes(user.adminRole));
+  }
+
+  private maskEmail(email?: string | null) {
+    if (!email) {
+      return null;
+    }
+
+    const [name, domain] = email.split('@');
+    if (!domain) {
+      return '***';
+    }
+
+    return `${name.slice(0, 2)}***@${domain}`;
+  }
+
+  private maskPhone(phone?: string | null) {
+    if (!phone) {
+      return null;
+    }
+
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 7) {
+      return '***';
+    }
+
+    return `${digits.slice(0, 3)}-****-${digits.slice(-4)}`;
   }
 
   private recordAudit(

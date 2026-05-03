@@ -1393,6 +1393,8 @@ Admin/community moderation:
 
 ```http
 GET /admin/api/v1/backstage/summary
+GET /admin/api/v1/backstage/operations/creators?query=&status=&take=20&cursor=<nextCursor>
+GET /admin/api/v1/backstage/operations/ai-content-health?query=&status=&take=20&cursor=<nextCursor>
 GET /admin/api/v1/community/summary?take=10
 GET /admin/api/v1/community/reports?status=submitted&query=abuse&take=50&cursor=<nextCursor>
 GET /admin/api/v1/community/posts?status=published&minReports=1&sort=reports&query=keyword&take=50&cursor=<nextCursor>
@@ -1420,6 +1422,45 @@ Backstage dashboard bootstrap endpoint. It returns:
 Use this endpoint for the first Backstage screen: left sidebar + KPI cards +
 alert bar + two table panels. It is desktop-first and intentionally operational,
 not a marketing-style page.
+
+`GET /admin/api/v1/backstage/operations/creators` is the first creator
+operations bootstrap endpoint for Backstage. It returns:
+
+- `summary`: open application count, application status counts, active artist
+  operator count, AI artist count.
+- `applications`: paginated debut application envelope. `items[]` include
+  `realName`, `stageName`, `participationType`, `shareTierRequested`,
+  `applicationChannel`, `applicationType`, `contactEmail`, `contactPhone`,
+  `contactMasked`, `contactAccessAllowed`, `payoutAccountMasked`,
+  `payoutAccessAllowed`, `loginType`, `lastSeenAt`, `inactive30Days`,
+  `needsFollowUp`, `isNew`, and lightweight `user`.
+- `activeCreators`: recent active artist operator rows with masked user email
+  unless the admin role can view contact data.
+- `aiArtists`: lightweight AI artist rows with counts and `missing[]`.
+- `permissions`: current admin's contact/payout visibility flags.
+- `policy`: UI hints for masking and future payout model state.
+
+Contact raw values are only for `super_admin`-class access and sales-style
+roles. Payout values remain masked until the settlement/payout model lands.
+
+`GET /admin/api/v1/backstage/operations/ai-content-health` is for the AI
+content/admin tab. It returns the same page envelope plus `summary` and
+`policy`. Each `items[]` row includes:
+
+- `id`, `slug`, `displayName`, `status`, `sortOrder`, `launchedAt`, `updatedAt`.
+- `healthStatus`: `ok`, `needs_review`, or `needs_action`.
+- `missing[]`: `public_profile`, `visual_profile`, `content_profile`,
+  `cover_asset`, `thumbnail_asset`, `gallery_assets`, `shortforms`,
+  `chat_persona`.
+- `profiles`: public/visual/content readiness booleans.
+- `slots.cover`, `slots.thumbnail`, `slots.gallery`: count, primary asset id,
+  and primary public URL when available.
+- `counts`: assets, shortforms, premium videos, chat personas, gift products,
+  followers, community posts.
+- `recent`: latest shortforms, premium videos, chat personas, gift products.
+- `nextActions[]`: operator-facing action labels for missing items.
+
+MVP policy is slot selection first. Automatic content classification is deferred.
 
 `GET /admin/api/v1/community/summary` returns grouped report/post counts and
 `posts.highRisk` with the most-reported published/hidden posts.
@@ -1455,6 +1496,9 @@ response's `nextCursor`.
 
 Search support:
 
+- `backstage/operations/creators.query`: applicant name, stage name, contact
+  email, user email.
+- `backstage/operations/ai-content-health.query`: artist display name or slug.
 - `users.query`: email, phone number, profile display name, public handle.
 - `payment-orders.query`: order number, provider, user email.
 - `refund-transactions.query`: provider refund id, reason, payment order number,
