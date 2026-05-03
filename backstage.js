@@ -49,6 +49,10 @@ const statusClassMap = {
   "보류": "is-hold",
   "숨김": "is-blocked",
   "정지": "is-blocked",
+  "주의": "is-hold",
+  "장기미접속": "is-hold",
+  "권한제한": "is-hold",
+  "철회": "is-hold",
   "지급대기": "is-hold",
   "지급완료": "is-paid",
   "완료": "is-paid",
@@ -78,29 +82,51 @@ const backstageRows = {
     ["RK-208", "정산 보류", "본인인증 필요", "중간", "보류"]
   ],
   users: [
-    ["a01057662701", "a01057662701@gmail.com", "active", "300L", "오늘", "상세"],
-    ["serinist_01", "user01@example.com", "active", "1,240L", "어제", "세션 종료"],
-    ["watch_user", "watch@example.com", "suspended", "0L", "3일 전", "복구 요청"]
+    ["a01057662701", "a01057662701@gmail.com", "2026-05-03", "Google", "300L", "오늘", "상세"],
+    ["serinist_01", "user01@example.com", "2026-05-02", "Email", "1,240L", "어제", "세션 종료"],
+    ["watch_user", "watch@example.com", "2026-05-01", "Google", "0L", "3일 전", "복구 요청"],
+    ["lumi_fan_04", "fan04@example.com", "2026-04-30", "Kakao", "820L", "오늘", "상세"],
+    ["stagepick_05", "pick05@example.com", "2026-04-29", "Google", "150L", "2일 전", "상세"],
+    ["yuna_viewer", "viewer@example.com", "2026-04-28", "Email", "90L", "5일 전", "상세"],
+    ["vote_love", "vote@example.com", "2026-04-27", "Naver", "430L", "오늘", "상세"],
+    ["photo_user", "photo@example.com", "2026-04-26", "Google", "12L", "6일 전", "상세"],
+    ["chat_fan_09", "chat09@example.com", "2026-04-25", "Kakao", "2,100L", "어제", "상세"],
+    ["quiet_user", "quiet@example.com", "2026-04-24", "Email", "0L", "8일 전", "상세"]
   ],
   userRisks: [
     ["watch_user", "외부 결제 유도", "3회", "정지", "세션 종료", "상세"],
-    ["fast_like_22", "비정상 좋아요 패턴", "2회", "확인중", "알림 발송", "상세"]
+    ["fast_like_22", "비정상 좋아요 패턴", "2회", "확인중", "알림 발송", "상세"],
+    ["spam_reply", "반복 댓글", "5회", "주의", "댓글 제한", "상세"],
+    ["charge_abuse", "결제 취소 반복", "2회", "확인중", "결제 확인", "상세"],
+    ["dm_linker", "외부 링크 유도", "1회", "주의", "수정 안내", "상세"],
+    ["refund_watch", "환불 악용 의심", "2회", "확인중", "정산 보류", "상세"],
+    ["report_noise", "허위 신고 반복", "4회", "주의", "신고 제한", "상세"],
+    ["fan_badword", "공격 표현", "3회", "정지", "숨김 처리", "상세"],
+    ["bot_like", "자동화 의심", "6회", "정지", "세션 종료", "상세"],
+    ["policy_watch", "정책 경고 누적", "2회", "주의", "재안내", "상세"]
   ],
   creators: [
-    ["하윤아", "모델", "접수", "7일 모니터링", "2026-05-03", "승인"],
-    ["권태준", "배우", "보류", "자료 보완", "2026-05-03", "보류"],
-    ["차도현", "아티스트", "승인", "normal", "2026-05-02", "권한 보기"]
+    ["김민서 / Min Stage", "Google", "오늘", "영업/최상만", "회계/최상만", "승인", "상세"],
+    ["박하린 / Harin", "Kakao", "어제", "영업/최상만", "회계/최상만", "접수", "신청 보기"],
+    ["이도윤 / Doyun", "Email", "35일 전", "영업/최상만", "회계/최상만", "장기미접속", "확인 요청"],
+    ["정세아 / Sea", "Google", "12일 전", "영업/최상만", "회계/최상만", "프로필 누락", "알림 발송"],
+    ["최유진 / Yujin", "Naver", "오늘", "영업/최상만", "회계/최상만", "승인", "상세"],
+    ["한지호 / Jiho", "Kakao", "41일 전", "영업/최상만", "회계/최상만", "장기미접속", "확인 요청"],
+    ["문리아 / Ria", "Google", "4일 전", "영업/최상만", "회계/최상만", "커버 누락", "알림 발송"],
+    ["오서준 / Seojun", "Email", "18일 전", "영업/최상만", "회계/최상만", "승인", "상세"],
+    ["배나윤 / Nayun", "Kakao", "29일 전", "영업/최상만", "회계/최상만", "확인중", "상세"],
+    ["신유라 / Yura", "Google", "62일 전", "영업/최상만", "회계/최상만", "장기미접속", "확인 요청"]
   ],
   aiCreators: [
-    ["윤세린", "아티스트", "완료", "완료", "공개", "콘텐츠 관리"],
-    ["하윤아", "모델", "완료", "포토 24장", "공개", "콘텐츠 관리"],
-    ["권태준", "배우", "완료", "포토 20장", "공개", "콘텐츠 관리"],
-    ["서하민", "엔터테이너", "누락", "필요", "비공개", "업로드 요청"]
+    ["윤세린", "아티스트", "에밀리", "완료", "완료", "공개", "콘텐츠 관리"],
+    ["하윤아", "모델", "이미지탭", "완료", "포토 24장", "공개", "콘텐츠 관리"],
+    ["권태준", "배우", "이미지탭", "완료", "포토 20장", "공개", "콘텐츠 관리"],
+    ["서하민", "엔터테이너", "클라우드", "누락", "필요", "비공개", "업로드 요청"]
   ],
   aiAssets: [
-    ["하윤아", "완료", "완료", "24장", "필요", "업로드"],
-    ["권태준", "완료", "완료", "20장", "필요", "업로드"],
-    ["서하민", "필요", "필요", "필요", "필요", "업로드"]
+    ["하윤아", "완료", "완료", "24장", "필요", "이미지는 갤러리, 영상은 숏폼으로 분류", "업로드"],
+    ["권태준", "완료", "완료", "20장", "필요", "파일 타입과 업로드 위치를 분리 저장", "업로드"],
+    ["서하민", "필요", "필요", "필요", "필요", "에셋 종류 선택 후 등록", "업로드"]
   ],
   aiPosts: [
     ["윤세린", "작성 가능", "핵심 프로필 완료", "준비중", "준비중", "작성"],
@@ -108,19 +134,29 @@ const backstageRows = {
     ["권태준", "작성 필요", "핵심 프로필 확인", "준비중", "준비중", "작성"]
   ],
   moderation: [
-    ["피드 #882", "artist_yuna", "외부 연락 패턴", "확인중", "숨김"],
-    ["댓글 #1204", "user_102", "공격적 표현", "보류", "수정 요청"],
-    ["공지 #77", "creator_09", "정상", "승인", "복구"]
+    ["피드 #882", "creator_yuna", "신규 7일 집중 관리", "확인중", "상세"],
+    ["댓글 #1204", "creator_min", "최근 신고 누적", "보류", "수정 요청"],
+    ["공지 #77", "creator_09", "정상화 확인", "승인", "해제"]
+  ],
+  contentAnomalies: [
+    ["피드 #912", "creator_doyun", "외부 연락처 패턴", "높음", "숨김"],
+    ["피드 #909", "creator_ria", "반복 홍보 문구", "중간", "수정 요청"],
+    ["댓글 #1304", "creator_min", "공격 표현", "중간", "확인"]
+  ],
+  reportCancels: [
+    ["RP-774", "피드 #882", "user_102", "철회", "오신고", "보관"],
+    ["RP-771", "댓글 #1204", "serinist_01", "취소", "작성자 수정 완료", "보관"],
+    ["RP-768", "피드 #870", "watch_user", "철회", "중복 신고", "보관"]
   ],
   settlement: [
-    ["creator_cha", "유료 응원 42건", "28,400원", "3,000원", "지급대기", "지급 완료"],
-    ["creator_yoon", "팬레터 8건", "16,000원", "2,000원", "지급대기", "지급 완료"],
-    ["creator_park", "프리미엄 챗 11건", "9,300원", "0원", "지급완료", "영수증"]
+    ["creator_cha", "18,000원", "4,200원", "6,200원", "수수료 3,000원", "25,400원", "지급대기", "지급 완료"],
+    ["creator_yoon", "9,000원", "2,100원", "4,900원", "수수료 2,000원", "14,000원", "지급대기", "지급 완료"],
+    ["creator_park", "6,300원", "1,000원", "2,000원", "0원", "9,300원", "지급완료", "영수증"]
   ],
   aiSettlement: [
-    ["윤세린", "유료 응원/픽", "128,000원", "AI 원가 확인", "준비중", "성과 보기"],
-    ["최서진", "포토 조회/픽", "92,000원", "이미지팩 원가", "준비중", "성과 보기"],
-    ["권태준", "신규 공개 반응", "0원", "초기 등록", "확인중", "성과 보기"]
+    ["윤세린", "에밀리", "64,000원", "18,000원", "46,000원", "AI 원가 12,000원", "검토", "성과 보기"],
+    ["최서진", "클라우드", "38,000원", "22,000원", "32,000원", "이미지팩 9,000원", "검토", "성과 보기"],
+    ["권태준", "이미지탭", "0원", "0원", "신규 공개 반응", "초기 등록", "확인중", "성과 보기"]
   ],
   logs: [
     ["10:12", "operator", "콘텐츠 숨김", "피드 #882", "외부 연락 유도"],
@@ -147,15 +183,17 @@ const tableMeta = {
   adminRequestRows: { type: "운영자 요청", labels: ["요청", "대상", "권한", "상태", "메모", "권장 액션"] },
   overviewQueueRows: { type: "대시보드", labels: ["ID", "유형", "대상", "상태", "권장 액션"] },
   riskRows: { type: "위험 항목", labels: ["ID", "분류", "사유", "위험도", "권장 액션"] },
-  userRows: { type: "유저 관리", labels: ["유저", "이메일", "상태", "루미나", "최근 접속", "권장 액션"] },
+  userRows: { type: "유저 관리", labels: ["유저", "이메일", "가입일", "로그인유형", "루미나", "최근 접속", "권장 액션"] },
   userRiskRows: { type: "신고/제재 유저", labels: ["유저", "사유", "누적", "상태", "최근 조치", "권장 액션"] },
-  creatorRows: { type: "크리에이터", labels: ["신청자", "유형", "상태", "모니터링", "접수일", "권장 액션"] },
-  aiCreatorRows: { type: "AI 아티스트", labels: ["아티스트", "분류", "프로필", "이미지", "상태", "권장 액션"] },
-  aiAssetRows: { type: "AI 아티스트 에셋", labels: ["아티스트", "커버", "썸네일", "포토갤러리", "숏폼", "권장 액션"] },
+  creatorRows: { type: "유저 크리에이터", labels: ["본명/활동명", "로그인유형", "마지막 접속", "연락처", "정산계좌", "상태", "권장 액션"] },
+  aiCreatorRows: { type: "AI 아티스트", labels: ["아티스트", "분류", "만든 관리자", "프로필", "이미지", "상태", "권장 액션"] },
+  aiAssetRows: { type: "AI 아티스트 에셋", labels: ["아티스트", "커버", "썸네일", "포토갤러리", "숏폼", "업로드 규칙", "권장 액션"] },
   aiPostRows: { type: "AI 아티스트 콘텐츠", labels: ["아티스트", "피드 글", "프로필 문구", "채팅", "프리미엄", "권장 액션"] },
-  moderationRows: { type: "콘텐츠 확인", labels: ["콘텐츠", "작성자", "탐지 유형", "상태", "권장 액션"] },
-  settlementRows: { type: "정산 관리", labels: ["대상", "정산 이벤트", "예정액", "보류금", "상태", "권장 액션"] },
-  aiSettlementRows: { type: "AI 아티스트 성과", labels: ["아티스트", "성과 기준", "매출", "원가", "상태", "권장 액션"] },
+  moderationRows: { type: "크리에이터 콘텐츠", labels: ["콘텐츠", "작성자", "관리 사유", "상태", "권장 액션"] },
+  contentAnomalyRows: { type: "이상 패턴", labels: ["콘텐츠", "작성자", "탐지 신호", "위험도", "권장 액션"] },
+  reportCancelRows: { type: "취소/철회 신고", labels: ["신고", "대상", "신고자", "상태", "사유", "권장 액션"] },
+  settlementRows: { type: "유저 크리에이터 정산", labels: ["대상", "프리미엄챗", "유료 좋아요", "기타 매출", "차감", "정산금", "상태", "권장 액션"] },
+  aiSettlementRows: { type: "AI 아티스트 성과", labels: ["아티스트", "제작자", "프리미엄챗", "유료 좋아요", "기타 성과", "차감/원가", "내부 보너스", "권장 액션"] },
   logRows: { type: "운영 로그", labels: ["시간", "관리자", "액션", "대상", "메모"] }
 };
 
@@ -435,8 +473,8 @@ function buildActionPreview(action) {
     base.apiHint = "POST/PATCH /admin/api/v1/admin-users 또는 admin roles";
     base.warning = "운영자 권한 변경은 2인 확인과 audit log 기록이 필요한 높은 위험 액션입니다.";
   } else if (detail.tableId === "creatorRows") {
-    base.apiHint = "PATCH /admin/api/v1/debut/applications/:applicationId";
-    base.warning = "7일 모니터링 전용 API는 아직 준비중입니다. 데뷔 신청 상태 변경 중심으로 처리합니다.";
+    base.apiHint = "GET /admin/api/v1/creators 및 GET /admin/api/v1/debut/applications/:applicationId";
+    base.warning = "연락처는 섭외/최상 관리자만, 정산계좌는 회계/최상 관리자만 볼 수 있어야 합니다.";
   } else if (detail.tableId === "aiCreatorRows") {
     base.apiHint = "PATCH /admin/api/v1/artists/:artistId 및 artist profile/assets";
     base.warning = "AI 아티스트 공개 상태, 프로필, 에셋 누락 상태를 함께 갱신해야 합니다.";
@@ -449,9 +487,9 @@ function buildActionPreview(action) {
   } else if (detail.tableId === "userRiskRows") {
     base.apiHint = "GET /admin/api/v1/community/reports 및 POST /admin/api/v1/users/:userId/suspend";
     base.warning = "유저 제재는 사유와 누적 신고 맥락을 남기고 실행해야 합니다.";
-  } else if (detail.tableId === "moderationRows" || detail.tableId === "riskRows") {
+  } else if (detail.tableId === "moderationRows" || detail.tableId === "contentAnomalyRows" || detail.tableId === "reportCancelRows" || detail.tableId === "riskRows") {
     base.apiHint = currentAction.includes("복구") ? "POST /admin/api/v1/community/posts/:postId/restore" : "POST /admin/api/v1/community/posts/:postId/hide";
-    base.warning = "숨김/복구는 audit log 기록 대상입니다. 사유 입력 후 실행해야 합니다.";
+    base.warning = "집중 관리 대상, 이상 패턴, 취소/철회 신고만 접근하고 모든 글 일괄 열람은 피해야 합니다.";
   } else if (detail.tableId === "settlementRows") {
     base.apiHint = "POST /admin/api/v1/payment-orders/:orderId/refunds 또는 PATCH /admin/api/v1/refund-transactions/:refundId";
     base.warning = "크리에이터 정산 지급 API는 아직 준비중입니다. 현재는 결제/환불 운영만 연결 대상입니다.";
@@ -486,15 +524,17 @@ function renderBackstageTables() {
   renderRows("adminRequestRows", backstageRows.adminRequests, 3);
   renderRows("overviewQueueRows", backstageRows.overviewQueue, 3);
   renderRows("riskRows", backstageRows.risk, 3);
-  renderRows("userRows", backstageRows.users, 2);
+  renderRows("userRows", backstageRows.users, -1);
   renderRows("userRiskRows", backstageRows.userRisks, 3);
-  renderRows("creatorRows", backstageRows.creators, 2);
-  renderRows("aiCreatorRows", backstageRows.aiCreators, 4);
+  renderRows("creatorRows", backstageRows.creators, 5);
+  renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
   renderRows("aiAssetRows", backstageRows.aiAssets, -1);
   renderRows("aiPostRows", backstageRows.aiPosts, -1);
   renderRows("moderationRows", backstageRows.moderation, 3);
-  renderRows("settlementRows", backstageRows.settlement, 4);
-  renderRows("aiSettlementRows", backstageRows.aiSettlement, 4);
+  renderRows("contentAnomalyRows", backstageRows.contentAnomalies, 3);
+  renderRows("reportCancelRows", backstageRows.reportCancels, 3);
+  renderRows("settlementRows", backstageRows.settlement, 6);
+  renderRows("aiSettlementRows", backstageRows.aiSettlement, 6);
   renderRows("logRows", backstageRows.logs, -1);
 }
 
@@ -605,14 +645,15 @@ async function loadUsersSection() {
 
 async function loadUsersPage(append = true) {
   const state = sectionState.users;
-  const query = new URLSearchParams({ take: "20" });
+  const query = new URLSearchParams({ take: "10" });
   if (append && state.cursor) query.set("cursor", state.cursor);
   try {
     const page = normalizePage(await backstageFetch(adminApiPath(`/users?${query}`), { auth: true }));
     const rows = page.items.map((user) => [
       user.displayName || user.nickname || user.id?.slice?.(0, 8) || "-",
       user.email || "-",
-      user.status || "-",
+      formatDate(user.createdAt),
+      user.socialProvider || user.loginProvider || user.provider || "Email",
       formatCount(user.wallet?.balanceLumina || user.walletBalanceLumina || 0) + "L",
       formatDate(user.lastLoginAt || user.updatedAt || user.createdAt),
       user.status === "suspended" ? "복구 요청" : "세션 종료"
@@ -633,16 +674,17 @@ async function loadUsersPage(append = true) {
 async function loadCreatorsSection() {
   renderLoadingRow("creatorRows");
   try {
-    const applications = await backstageFetch(adminApiPath("/debut/applications?take=20"), { auth: true });
+    const applications = await backstageFetch(adminApiPath("/debut/applications?take=10"), { auth: true });
     const rows = (Array.isArray(applications) ? applications : applications?.items || []).map((item) => [
-      item.displayName || item.applicantName || item.contactEmail || item.id?.slice?.(0, 8) || "-",
-      item.participationType || item.applicationType || "-",
+      `${item.applicantName || "-"} / ${item.displayName || "-"}`,
+      item.loginProvider || item.provider || item.applicationChannel || "-",
+      formatDate(item.lastLoginAt || item.updatedAt || item.createdAt),
+      "권한 필요",
+      "권한 필요",
       item.status || "-",
-      item.monitoringStatus || "확인 필요",
-      formatDate(item.createdAt),
-      item.status === "approved" ? "권한 보기" : "보기"
+      item.status === "approved" ? "권한 보기" : "신청 보기"
     ]);
-    if (rows.length) renderRows("creatorRows", rows, 2);
+    if (rows.length) renderRows("creatorRows", rows, 5);
     else renderLoadingRow("creatorRows", "표시할 신청 내역이 없습니다.");
   } catch {
     renderBackstageTables();
