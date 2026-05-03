@@ -50,10 +50,22 @@ const statusClassMap = {
   "숨김": "is-blocked",
   "정지": "is-blocked",
   "지급대기": "is-hold",
-  "지급완료": "is-paid"
+  "지급완료": "is-paid",
+  "완료": "is-paid",
+  "누락": "is-hold",
+  "필요": "is-hold",
+  "준비중": "is-review"
 };
 
 const backstageRows = {
+  admins: [
+    ["a01057662701@gmail.com", "super_admin", "승인", "오늘", "전체", "권한 보기"],
+    ["ops@lumina-stage.com", "operator", "접수", "-", "콘텐츠/정산", "초대 확인"]
+  ],
+  adminRequests: [
+    ["ADMIN-001", "운영자 추가", "Backstage 접근", "확인중", "권한 부여 방식 확인", "처리"],
+    ["ADMIN-002", "역할 변경", "정산 보기", "보류", "2인 확인 필요", "보류"]
+  ],
   overviewQueue: [
     ["DQ-1042", "데뷔 신청", "신규 크리에이터", "접수", "보기"],
     ["MD-3381", "콘텐츠 신고", "피드 댓글", "확인중", "숨김"],
@@ -70,10 +82,30 @@ const backstageRows = {
     ["serinist_01", "user01@example.com", "active", "1,240L", "어제", "세션 종료"],
     ["watch_user", "watch@example.com", "suspended", "0L", "3일 전", "복구 요청"]
   ],
+  userRisks: [
+    ["watch_user", "외부 결제 유도", "3회", "정지", "세션 종료", "상세"],
+    ["fast_like_22", "비정상 좋아요 패턴", "2회", "확인중", "알림 발송", "상세"]
+  ],
   creators: [
     ["하윤아", "모델", "접수", "7일 모니터링", "2026-05-03", "승인"],
     ["권태준", "배우", "보류", "자료 보완", "2026-05-03", "보류"],
     ["차도현", "아티스트", "승인", "normal", "2026-05-02", "권한 보기"]
+  ],
+  aiCreators: [
+    ["윤세린", "아티스트", "완료", "완료", "공개", "콘텐츠 관리"],
+    ["하윤아", "모델", "완료", "포토 24장", "공개", "콘텐츠 관리"],
+    ["권태준", "배우", "완료", "포토 20장", "공개", "콘텐츠 관리"],
+    ["서하민", "엔터테이너", "누락", "필요", "비공개", "업로드 요청"]
+  ],
+  aiAssets: [
+    ["하윤아", "완료", "완료", "24장", "필요", "업로드"],
+    ["권태준", "완료", "완료", "20장", "필요", "업로드"],
+    ["서하민", "필요", "필요", "필요", "필요", "업로드"]
+  ],
+  aiPosts: [
+    ["윤세린", "작성 가능", "핵심 프로필 완료", "준비중", "준비중", "작성"],
+    ["최서진", "작성 필요", "핵심 프로필 완료", "준비중", "준비중", "작성"],
+    ["권태준", "작성 필요", "핵심 프로필 확인", "준비중", "준비중", "작성"]
   ],
   moderation: [
     ["피드 #882", "artist_yuna", "외부 연락 패턴", "확인중", "숨김"],
@@ -84,6 +116,11 @@ const backstageRows = {
     ["creator_cha", "유료 응원 42건", "28,400원", "3,000원", "지급대기", "지급 완료"],
     ["creator_yoon", "팬레터 8건", "16,000원", "2,000원", "지급대기", "지급 완료"],
     ["creator_park", "프리미엄 챗 11건", "9,300원", "0원", "지급완료", "영수증"]
+  ],
+  aiSettlement: [
+    ["윤세린", "유료 응원/픽", "128,000원", "AI 원가 확인", "준비중", "성과 보기"],
+    ["최서진", "포토 조회/픽", "92,000원", "이미지팩 원가", "준비중", "성과 보기"],
+    ["권태준", "신규 공개 반응", "0원", "초기 등록", "확인중", "성과 보기"]
   ],
   logs: [
     ["10:12", "operator", "콘텐츠 숨김", "피드 #882", "외부 연락 유도"],
@@ -106,12 +143,19 @@ const alertTitleMap = {
 };
 
 const tableMeta = {
+  adminRows: { type: "운영자 관리", labels: ["계정", "역할", "상태", "최근 접속", "권한", "권장 액션"] },
+  adminRequestRows: { type: "운영자 요청", labels: ["요청", "대상", "권한", "상태", "메모", "권장 액션"] },
   overviewQueueRows: { type: "대시보드", labels: ["ID", "유형", "대상", "상태", "권장 액션"] },
   riskRows: { type: "위험 항목", labels: ["ID", "분류", "사유", "위험도", "권장 액션"] },
   userRows: { type: "유저 관리", labels: ["유저", "이메일", "상태", "루미나", "최근 접속", "권장 액션"] },
+  userRiskRows: { type: "신고/제재 유저", labels: ["유저", "사유", "누적", "상태", "최근 조치", "권장 액션"] },
   creatorRows: { type: "크리에이터", labels: ["신청자", "유형", "상태", "모니터링", "접수일", "권장 액션"] },
+  aiCreatorRows: { type: "AI 아티스트", labels: ["아티스트", "분류", "프로필", "이미지", "상태", "권장 액션"] },
+  aiAssetRows: { type: "AI 아티스트 에셋", labels: ["아티스트", "커버", "썸네일", "포토갤러리", "숏폼", "권장 액션"] },
+  aiPostRows: { type: "AI 아티스트 콘텐츠", labels: ["아티스트", "피드 글", "프로필 문구", "채팅", "프리미엄", "권장 액션"] },
   moderationRows: { type: "콘텐츠 확인", labels: ["콘텐츠", "작성자", "탐지 유형", "상태", "권장 액션"] },
   settlementRows: { type: "정산 관리", labels: ["대상", "정산 이벤트", "예정액", "보류금", "상태", "권장 액션"] },
+  aiSettlementRows: { type: "AI 아티스트 성과", labels: ["아티스트", "성과 기준", "매출", "원가", "상태", "권장 액션"] },
   logRows: { type: "운영 로그", labels: ["시간", "관리자", "액션", "대상", "메모"] }
 };
 
@@ -387,15 +431,33 @@ function buildActionPreview(action) {
     base.warning = currentAction.includes("세션")
       ? "계정 상태는 유지하고 활성 refresh session만 revoke합니다. audit log 기록 대상입니다."
       : "정지/삭제 계열 액션은 세션 revoke와 audit log 기록 대상입니다.";
+  } else if (detail.tableId === "adminRows" || detail.tableId === "adminRequestRows") {
+    base.apiHint = "POST/PATCH /admin/api/v1/admin-users 또는 admin roles";
+    base.warning = "운영자 권한 변경은 2인 확인과 audit log 기록이 필요한 높은 위험 액션입니다.";
   } else if (detail.tableId === "creatorRows") {
     base.apiHint = "PATCH /admin/api/v1/debut/applications/:applicationId";
     base.warning = "7일 모니터링 전용 API는 아직 준비중입니다. 데뷔 신청 상태 변경 중심으로 처리합니다.";
+  } else if (detail.tableId === "aiCreatorRows") {
+    base.apiHint = "PATCH /admin/api/v1/artists/:artistId 및 artist profile/assets";
+    base.warning = "AI 아티스트 공개 상태, 프로필, 에셋 누락 상태를 함께 갱신해야 합니다.";
+  } else if (detail.tableId === "aiAssetRows") {
+    base.apiHint = "POST /admin/api/v1/artists/:artistId/assets/upload-intents";
+    base.warning = "커버, 썸네일, 포토갤러리, 숏폼 업로드 구분과 노출 위치를 함께 저장해야 합니다.";
+  } else if (detail.tableId === "aiPostRows") {
+    base.apiHint = "POST/PATCH /admin/api/v1/artists/:artistId/content";
+    base.warning = "AI 아티스트 공식 글과 프리미엄/채팅 설정은 유저 콘텐츠 확인과 분리해서 처리합니다.";
+  } else if (detail.tableId === "userRiskRows") {
+    base.apiHint = "GET /admin/api/v1/community/reports 및 POST /admin/api/v1/users/:userId/suspend";
+    base.warning = "유저 제재는 사유와 누적 신고 맥락을 남기고 실행해야 합니다.";
   } else if (detail.tableId === "moderationRows" || detail.tableId === "riskRows") {
     base.apiHint = currentAction.includes("복구") ? "POST /admin/api/v1/community/posts/:postId/restore" : "POST /admin/api/v1/community/posts/:postId/hide";
     base.warning = "숨김/복구는 audit log 기록 대상입니다. 사유 입력 후 실행해야 합니다.";
   } else if (detail.tableId === "settlementRows") {
     base.apiHint = "POST /admin/api/v1/payment-orders/:orderId/refunds 또는 PATCH /admin/api/v1/refund-transactions/:refundId";
     base.warning = "크리에이터 정산 지급 API는 아직 준비중입니다. 현재는 결제/환불 운영만 연결 대상입니다.";
+  } else if (detail.tableId === "aiSettlementRows") {
+    base.apiHint = "GET /admin/api/v1/ai-artists/performance 및 internal bonus rules";
+    base.warning = "AI 아티스트 성과는 내부 운영 보너스 기준으로, 유저 크리에이터 정산과 분리해야 합니다.";
   } else {
     base.apiHint = "읽기 전용 또는 준비중";
     base.warning = "이 항목은 현재 실행 API 연결 대상이 아닙니다.";
@@ -420,17 +482,25 @@ function closeConfirmModal() {
 }
 
 function renderBackstageTables() {
+  renderRows("adminRows", backstageRows.admins, 2);
+  renderRows("adminRequestRows", backstageRows.adminRequests, 3);
   renderRows("overviewQueueRows", backstageRows.overviewQueue, 3);
   renderRows("riskRows", backstageRows.risk, 3);
   renderRows("userRows", backstageRows.users, 2);
+  renderRows("userRiskRows", backstageRows.userRisks, 3);
   renderRows("creatorRows", backstageRows.creators, 2);
+  renderRows("aiCreatorRows", backstageRows.aiCreators, 4);
+  renderRows("aiAssetRows", backstageRows.aiAssets, -1);
+  renderRows("aiPostRows", backstageRows.aiPosts, -1);
   renderRows("moderationRows", backstageRows.moderation, 3);
   renderRows("settlementRows", backstageRows.settlement, 4);
+  renderRows("aiSettlementRows", backstageRows.aiSettlement, 4);
   renderRows("logRows", backstageRows.logs, -1);
 }
 
 function setActiveSection(sectionId = "overview") {
   const targetId = document.getElementById(sectionId) ? sectionId : "overview";
+  document.querySelector(".dashboard-main")?.setAttribute("data-active-section", targetId);
   document.querySelectorAll(".section-block").forEach((section) => {
     section.classList.toggle("is-active", section.id === targetId);
   });

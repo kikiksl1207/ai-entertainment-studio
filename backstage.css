@@ -72,6 +72,7 @@ button { cursor: pointer; }
 .sidebar-operator span { display: block; color: #9ca3af; font-size: 12px; }
 .sidebar-operator strong { display: block; overflow: hidden; margin-top: 5px; color: #fff; font-size: 13px; text-overflow: ellipsis; }
 .dashboard-main { min-width: 0; padding: 30px 32px 60px; }
+.dashboard-main:not([data-active-section="overview"]) .overview-only { display: none !important; }
 .dashboard-header, .section-title, .table-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .dashboard-header h1 { margin: 13px 0 8px; color: var(--text); font-size: 34px; letter-spacing: 0; }
 .dashboard-header p, .section-title p { margin: 0; color: var(--muted); line-height: 1.6; }
@@ -135,5 +136,5 @@ tr.is-selected td { background: #faf5ff; }
 .confirm-card p { margin: 0; color: var(--muted); line-height: 1.6; }
 .confirm-card pre { overflow-x: auto; min-height: 92px; margin: 16px 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); color: var(--text); white-space: pre-wrap; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
-@media (max-width: 1100px) { .backstage-dashboard { grid-template-columns: 1fr; } .backstage-sidebar { position: static; height: auto; } .detail-panel { position: static; height: auto; border-left: 0; border-top: 1px solid var(--line); } .sidebar-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); } .sidebar-operator { margin-top: 18px; } .metric-grid, .table-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .backstage-dashboard { grid-template-columns: 1fr; } .backstage-sidebar { position: static; height: auto; } .detail-panel { position: static; height: auto; border-left: 0; border-top: 1px solid var(--line); } .sidebar-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sidebar-operator { margin-top: 18px; } .metric-grid, .table-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .backstage-login { grid-template-columns: 1fr; width: min(100% - 28px, 1160px); } .login-brand, .login-panel, .login-guard { grid-column: 1; } .dashboard-main { padding: 24px 16px 48px; } .dashboard-header, .section-title, .table-card header, .alert-strip { flex-direction: column; } .metric-grid, .table-grid, .sidebar-nav, .detail-actions { grid-template-columns: 1fr; } .search-box { width: 100%; align-items: stretch; flex-direction: column; } }

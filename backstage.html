@@ -69,8 +69,10 @@
 
           <nav class="sidebar-nav">
             <a class="is-active" href="#overview">대시보드 <b>8</b></a>
+            <a href="#admins">운영자 관리 <b>1</b></a>
             <a href="#users">유저 관리 <b>3</b></a>
-            <a href="#creators">크리에이터 <b>2</b></a>
+            <a href="#creators">크리에이터 관리 <b>5</b></a>
+            <a href="#ai-content">AI 콘텐츠 <b>9</b></a>
             <a href="#moderation">콘텐츠 확인 <b>5</b></a>
             <a href="#settlement">정산 관리 <b>4</b></a>
             <a href="#logs">운영 로그</a>
@@ -84,7 +86,7 @@
         </aside>
 
         <div class="dashboard-main">
-          <header class="dashboard-header">
+          <header class="dashboard-header overview-only">
             <div>
               <p class="eyebrow">Operations</p>
               <h1 id="backstageDashboardTitle">오늘의 운영 현황</h1>
@@ -96,14 +98,14 @@
             </div>
           </header>
 
-          <section class="metric-grid" id="backstageMetricGrid" aria-label="운영 요약">
+          <section class="metric-grid overview-only" id="backstageMetricGrid" aria-label="운영 요약">
             <article><span>오늘 가입자</span><strong>24</strong><small>전일 대비 +6</small></article>
             <article><span>충전 주문</span><strong>12</strong><small>결제 확인 3건</small></article>
             <article><span>신고/확인 필요</span><strong>5</strong><small>위험 콘텐츠 1건 포함</small></article>
             <article><span>데뷔 신청</span><strong>2</strong><small>신규 검토 필요</small></article>
           </section>
 
-          <section class="alert-strip" id="backstageAlertStrip" aria-label="운영 알림">
+          <section class="alert-strip overview-only" id="backstageAlertStrip" aria-label="운영 알림">
             <strong>우선 확인</strong>
             <span>신규 크리에이터 7일 모니터링 2건, 신고 누적 콘텐츠 1건, 정산 지급 확인 4건이 있습니다.</span>
           </section>
@@ -119,15 +121,37 @@
             </div>
           </section>
 
+          <section class="section-block" id="admins">
+            <div class="section-title"><div><span class="section-kicker">Operators</span><h2>운영자 관리</h2></div><p>백스테이지 접근 계정, 권한, 최근 접속, 권한 변경 이력을 확인합니다.</p></div>
+            <div class="table-grid">
+              <article class="table-card"><header><h3>운영자 계정</h3><button class="text-action" type="button">운영자 추가</button></header><div class="table-wrap"><table><thead><tr><th>계정</th><th>역할</th><th>상태</th><th>최근 접속</th><th>권한</th><th>액션</th></tr></thead><tbody id="adminRows"></tbody></table></div></article>
+              <article class="table-card"><header><h3>권한 추가 요청</h3><button class="text-action" type="button">요청 보기</button></header><div class="table-wrap"><table><thead><tr><th>요청</th><th>대상</th><th>권한</th><th>상태</th><th>메모</th><th>액션</th></tr></thead><tbody id="adminRequestRows"></tbody></table></div></article>
+            </div>
+          </section>
+
           <section class="section-block" id="users">
             <div class="section-title"><div><span class="section-kicker">Users</span><h2>유저 관리</h2></div><div class="search-box"><input type="search" placeholder="이메일, 닉네임, 소셜 ID 검색" aria-label="유저 검색" /><button class="secondary-action" type="button">검색</button></div></div>
-            <article class="table-card"><div class="table-wrap"><table><thead><tr><th>유저</th><th>이메일</th><th>상태</th><th>루미나</th><th>최근 접속</th><th>액션</th></tr></thead><tbody id="userRows"></tbody></table></div></article>
+            <div class="table-grid">
+              <article class="table-card"><header><h3>가입 유저</h3><button class="text-action" type="button">전체 보기</button></header><div class="table-wrap"><table><thead><tr><th>유저</th><th>이메일</th><th>상태</th><th>루미나</th><th>최근 접속</th><th>액션</th></tr></thead><tbody id="userRows"></tbody></table></div></article>
+              <article class="table-card"><header><h3>신고/제재 유저</h3><button class="text-action" type="button">위험만 보기</button></header><div class="table-wrap"><table><thead><tr><th>유저</th><th>사유</th><th>누적</th><th>상태</th><th>최근 조치</th><th>액션</th></tr></thead><tbody id="userRiskRows"></tbody></table></div></article>
+            </div>
             <button class="load-more-action is-hidden" type="button" data-load-more="users">유저 더 보기</button>
           </section>
 
           <section class="section-block" id="creators">
-            <div class="section-title"><div><span class="section-kicker">Creators</span><h2>크리에이터/아티스트 관리</h2></div><p>데뷔 신청, 권한 부여, artist_operators 연결, 신규 7일 모니터링을 확인합니다.</p></div>
-            <article class="table-card"><div class="table-wrap"><table><thead><tr><th>신청자</th><th>유형</th><th>상태</th><th>모니터링</th><th>접수일</th><th>액션</th></tr></thead><tbody id="creatorRows"></tbody></table></div></article>
+            <div class="section-title"><div><span class="section-kicker">Creators</span><h2>크리에이터 관리</h2></div><p>유저 크리에이터와 AI 아티스트를 함께 보되, 프로필/커버/갤러리 누락 상태를 분리해서 확인합니다.</p></div>
+            <div class="table-grid">
+              <article class="table-card"><header><h3>유저 크리에이터</h3><button class="text-action" type="button">데뷔 신청 보기</button></header><div class="table-wrap"><table><thead><tr><th>신청자</th><th>유형</th><th>상태</th><th>모니터링</th><th>접수일</th><th>액션</th></tr></thead><tbody id="creatorRows"></tbody></table></div></article>
+              <article class="table-card"><header><h3>AI 아티스트</h3><button class="text-action" type="button">AI 아티스트 추가</button></header><div class="table-wrap"><table><thead><tr><th>아티스트</th><th>분류</th><th>프로필</th><th>이미지</th><th>상태</th><th>액션</th></tr></thead><tbody id="aiCreatorRows"></tbody></table></div></article>
+            </div>
+          </section>
+
+          <section class="section-block" id="ai-content">
+            <div class="section-title"><div><span class="section-kicker">AI Contents</span><h2>AI 아티스트 콘텐츠</h2></div><p>공식 AI 아티스트의 글, 커버, 썸네일, 포토갤러리, 숏폼, 프리미엄 기능을 관리합니다.</p></div>
+            <div class="table-grid">
+              <article class="table-card"><header><h3>이미지/영상 업로드</h3><button class="text-action" type="button">업로드 추가</button></header><div class="table-wrap"><table><thead><tr><th>아티스트</th><th>커버</th><th>썸네일</th><th>포토갤러리</th><th>숏폼</th><th>액션</th></tr></thead><tbody id="aiAssetRows"></tbody></table></div></article>
+              <article class="table-card"><header><h3>글/채팅/프리미엄</h3><button class="text-action" type="button">글 작성</button></header><div class="table-wrap"><table><thead><tr><th>아티스트</th><th>피드 글</th><th>프로필 문구</th><th>채팅</th><th>프리미엄</th><th>액션</th></tr></thead><tbody id="aiPostRows"></tbody></table></div></article>
+            </div>
           </section>
 
           <section class="section-block" id="moderation">
@@ -136,8 +160,11 @@
           </section>
 
           <section class="section-block" id="settlement">
-            <div class="section-title"><div><span class="section-kicker">Settlement</span><h2>정산 관리</h2></div><p>정산 예정액, PG 수수료, AI 원가, 보류금을 분리해서 확인합니다.</p></div>
-            <article class="table-card"><div class="table-wrap"><table><thead><tr><th>대상</th><th>정산 이벤트</th><th>예정액</th><th>보류금</th><th>상태</th><th>액션</th></tr></thead><tbody id="settlementRows"></tbody></table></div></article>
+            <div class="section-title"><div><span class="section-kicker">Settlement</span><h2>정산 관리</h2></div><p>유저 크리에이터 정산과 AI 아티스트 내부 성과 보너스를 분리해서 확인합니다.</p></div>
+            <div class="table-grid">
+              <article class="table-card"><header><h3>유저 크리에이터 정산</h3><button class="text-action" type="button">정산 보기</button></header><div class="table-wrap"><table><thead><tr><th>대상</th><th>정산 이벤트</th><th>예정액</th><th>보류금</th><th>상태</th><th>액션</th></tr></thead><tbody id="settlementRows"></tbody></table></div></article>
+              <article class="table-card"><header><h3>AI 아티스트 성과</h3><button class="text-action" type="button">성과 보기</button></header><div class="table-wrap"><table><thead><tr><th>아티스트</th><th>성과 기준</th><th>매출</th><th>원가</th><th>상태</th><th>액션</th></tr></thead><tbody id="aiSettlementRows"></tbody></table></div></article>
+            </div>
             <button class="load-more-action is-hidden" type="button" data-load-more="settlement">결제/환불 더 보기</button>
           </section>
 
