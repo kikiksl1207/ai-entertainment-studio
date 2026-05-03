@@ -24,6 +24,12 @@ type AuditQuery = Record<string, string | undefined>;
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  @Get('backstage/summary')
+  @RequireAdminPermissions('*')
+  getBackstageSummary() {
+    return this.adminService.getBackstageSummary();
+  }
+
   @Get('admin-roles')
   @RequireAdminPermissions('*')
   getAdminRoles() {

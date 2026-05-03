@@ -52,6 +52,192 @@ export class AdminService {
     });
   }
 
+  async getBackstageSummary() {
+    const { start, end } = this.todayRange();
+    const [
+      todayUsers,
+      activeUsers,
+      suspendedUsers,
+      todayPaymentOrders,
+      pendingPaymentOrders,
+      paidPaymentOrdersToday,
+      submittedDebutApplications,
+      recentDebutApplications,
+      submittedReports,
+      reviewingReports,
+      hiddenPosts,
+      highRiskPosts,
+      recentAuditEvents,
+    ] = await Promise.all([
+      this.prisma.user.count({
+        where: {
+          createdAt: { gte: start, lt: end },
+          deletedAt: null,
+        },
+      }),
+      this.prisma.user.count({
+        where: { status: 'active', deletedAt: null },
+      }),
+      this.prisma.user.count({
+        where: { status: 'suspended', deletedAt: null },
+      }),
+      this.prisma.paymentOrder.count({
+        where: { createdAt: { gte: start, lt: end } },
+      }),
+      this.prisma.paymentOrder.count({
+        where: { status: { in: ['pending', 'pg_pending'] } },
+      }),
+      this.prisma.paymentOrder.aggregate({
+        where: {
+          status: 'paid',
+          createdAt: { gte: start, lt: end },
+        },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+      this.prisma.debutApplication.count({
+        where: { status: { in: ['submitted', 'reviewing'] } },
+      }),
+      this.prisma.debutApplication.findMany({
+        where: { status: { in: ['submitted', 'reviewing'] } },
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          status: true,
+          applicantName: true,
+          displayName: true,
+          contactEmail: true,
+          participationType: true,
+          shareTierRequested: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.communityReport.count({
+        where: { status: 'submitted' },
+      }),
+      this.prisma.communityReport.count({
+        where: { status: 'reviewing' },
+      }),
+      this.prisma.communityPost.count({
+        where: { status: 'hidden' },
+      }),
+      this.prisma.communityPost.findMany({
+        where: {
+          reportCount: { gt: 0 },
+          status: { in: ['published', 'hidden'] },
+        },
+        take: 5,
+        orderBy: [{ reportCount: 'desc' }, { createdAt: 'desc' }],
+        include: this.communityPostInclude(),
+      }),
+      this.prisma.auditEvent.findMany({
+        take: 8,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          actorUser: {
+            select: { id: true, email: true, status: true },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      generatedAt: new Date(),
+      range: {
+        label: 'today',
+        timezone: 'Asia/Seoul',
+        start,
+        end,
+      },
+      kpis: [
+        {
+          key: 'today_users',
+          label: 'Today signups',
+          value: todayUsers,
+          tone: 'info',
+          href: '/backstage/users',
+        },
+        {
+          key: 'today_payment_orders',
+          label: 'Today charge orders',
+          value: todayPaymentOrders,
+          tone: 'commerce',
+          href: '/backstage/payments',
+        },
+        {
+          key: 'moderation_queue',
+          label: 'Reports pending',
+          value: submittedReports + reviewingReports,
+          tone: submittedReports + reviewingReports > 0 ? 'warning' : 'ok',
+          href: '/backstage/community',
+        },
+        {
+          key: 'debut_queue',
+          label: 'Debut applications',
+          value: submittedDebutApplications,
+          tone: submittedDebutApplications > 0 ? 'warning' : 'ok',
+          href: '/backstage/debut',
+        },
+      ],
+      users: {
+        today: todayUsers,
+        active: activeUsers,
+        suspended: suspendedUsers,
+      },
+      payments: {
+        todayOrders: todayPaymentOrders,
+        pendingOrders: pendingPaymentOrders,
+        todayPaidOrders: paidPaymentOrdersToday._count._all,
+        todayPaidAmount: paidPaymentOrdersToday._sum.amount ?? new Decimal(0),
+      },
+      queues: {
+        debutApplications: submittedDebutApplications,
+        communityReports: {
+          submitted: submittedReports,
+          reviewing: reviewingReports,
+          totalOpen: submittedReports + reviewingReports,
+        },
+        hiddenPosts,
+      },
+      alerts: [
+        {
+          key: 'moderation_queue',
+          severity: submittedReports + reviewingReports > 0 ? 'warning' : 'info',
+          title: 'Community moderation queue',
+          count: submittedReports + reviewingReports,
+          href: '/backstage/community',
+        },
+        {
+          key: 'debut_queue',
+          severity: submittedDebutApplications > 0 ? 'warning' : 'info',
+          title: 'Debut applications awaiting review',
+          count: submittedDebutApplications,
+          href: '/backstage/debut',
+        },
+        {
+          key: 'payment_pending',
+          severity: pendingPaymentOrders > 0 ? 'watch' : 'info',
+          title: 'Payment orders not completed',
+          count: pendingPaymentOrders,
+          href: '/backstage/payments',
+        },
+      ],
+      tables: {
+        recentDebutApplications,
+        highRiskPosts,
+        recentAuditEvents,
+      },
+      policy: {
+        pageName: 'Backstage',
+        recommendedLayout: 'sidebar-kpi-table',
+        desktopFirst: true,
+        preferredUrl: '/backstage',
+        creatorStudioUrl: '/creator-studio',
+      },
+    };
+  }
+
   async createAdminUser(user: AuthUser, input: AdminPayload) {
     this.assertSuperAdmin(user);
 
@@ -2331,6 +2517,22 @@ export class AdminService {
     }
 
     return action;
+  }
+
+  private todayRange() {
+    const seoulOffsetMs = 9 * 60 * 60 * 1000;
+    const nowInSeoul = new Date(Date.now() + seoulOffsetMs);
+    const startUtcMs =
+      Date.UTC(
+        nowInSeoul.getUTCFullYear(),
+        nowInSeoul.getUTCMonth(),
+        nowInSeoul.getUTCDate(),
+      ) - seoulOffsetMs;
+
+    return {
+      start: new Date(startUtcMs),
+      end: new Date(startUtcMs + 24 * 60 * 60 * 1000),
+    };
   }
 
   private countRowsToObject<T extends Record<string, unknown>>(rows: T[], key: keyof T) {

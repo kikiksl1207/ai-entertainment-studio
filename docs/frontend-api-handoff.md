@@ -1377,6 +1377,7 @@ Feed notification triggers:
 Admin/community moderation:
 
 ```http
+GET /admin/api/v1/backstage/summary
 GET /admin/api/v1/community/summary?take=10
 GET /admin/api/v1/community/reports?status=submitted&take=50
 GET /admin/api/v1/community/posts?status=published&minReports=1&sort=reports&take=50
@@ -1387,6 +1388,23 @@ POST /admin/api/v1/community/posts/:postId/restore
 
 These require admin auth plus `community:read` or `community:write` permission.
 They are for admin/operations screens, not public user UI.
+
+`GET /admin/api/v1/backstage/summary` requires admin auth. It is the recommended
+Backstage dashboard bootstrap endpoint. It returns:
+
+- `kpis[]`: today signups, today charge orders, open reports, debut applications.
+- `alerts[]`: moderation, debut, and payment queues.
+- `users`: active/suspended/today counts.
+- `payments`: today order count, pending orders, paid count, paid amount.
+- `queues`: debut, community report, and hidden post counts.
+- `tables.recentDebutApplications`: up to 5 open debut applications.
+- `tables.highRiskPosts`: up to 5 reported posts.
+- `tables.recentAuditEvents`: up to 8 recent admin audit rows.
+- `policy`: Backstage layout hints.
+
+Use this endpoint for the first Backstage screen: left sidebar + KPI cards +
+alert bar + two table panels. It is desktop-first and intentionally operational,
+not a marketing-style page.
 
 `GET /admin/api/v1/community/summary` returns grouped report/post counts and
 `posts.highRisk` with the most-reported published/hidden posts.
