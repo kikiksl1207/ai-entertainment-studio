@@ -17,22 +17,21 @@
           <img class="brand-logo" src="./assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
           <span class="brand-copy">
             <strong>Lumina Stage</strong>
-            <small>아티스트 레이블</small>
+            <small data-i18n="brand.tagline">아티스트 레이블</small>
           </span>
         </a>
 
         <nav class="main-nav" aria-label="메인 메뉴">
-          <a href="./index.html">홈</a>
-          <a href="./characters.html">아티스트</a>
-          <a href="./popular-vote.html">루미나 픽</a>
-          <a href="./lumina-feed.html">루미나 피드</a>
-          <a href="./shortform.html">숏폼</a>
-          <a href="./debut.html">데뷔하기</a>
+          <a href="./index.html" data-i18n="nav.home">홈</a>
+          <a href="./characters.html" data-i18n="nav.artists">아티스트</a>
+          <a href="./popular-vote.html" data-i18n="nav.luminaPick">루미나 픽</a>
+          <a href="./lumina-feed.html" data-i18n="nav.luminaFeed">루미나 피드</a>
+          <a href="./shortform.html" data-i18n="nav.shortform">숏폼</a>
         </nav>
-        <a class="debut-cta-mobile" href="./debut.html">데뷔하기</a>
+        <a class="debut-cta-mobile" href="./debut.html" data-i18n="cta.debut">데뷔하기</a>
         <div class="header-auth">
-          <a class="auth-btn auth-btn-login" href="#">로그인</a>
-          <a class="auth-btn auth-btn-signup" href="#">회원가입</a>
+          <a class="auth-btn auth-btn-login" href="#" data-i18n="auth.login">로그인</a>
+          <a class="auth-btn auth-btn-signup" href="#" data-i18n="auth.signup">회원가입</a>
         </div>
       </div>
     </header>
@@ -70,19 +69,24 @@
 
       <section class="mypage-section" data-auth-required>
         <div class="shell mypage-layout">
-          <aside class="mypage-side">
-            <a href="#profile" class="mypage-side-link is-active">프로필</a>
-            <a href="#wallet" class="mypage-side-link">루미나 지갑</a>
-            <a href="#charge" class="mypage-side-link">충전소</a>
-            <a href="#debut" class="mypage-side-link">데뷔하기</a>
-            <a href="#activity" class="mypage-side-link">활동 및 결제</a>
-            <a href="#following" class="mypage-side-link">팔로우</a>
-            <a href="#security" class="mypage-side-link">비밀번호</a>
-            <a href="#settings" class="mypage-side-link">설정</a>
-          </aside>
+          <!-- ── X 패턴: 가로 탭바 (사이드 nav 대체) — 6탭 + 톱니바퀴 설정 (우측) ── -->
+          <nav class="mypage-tabs" role="tablist" aria-label="마이페이지 탭">
+            <button class="mypage-tab is-active" type="button" data-mypage-tab="profile" role="tab" aria-selected="true">프로필</button>
+            <button class="mypage-tab" type="button" data-mypage-tab="wallet" role="tab" aria-selected="false">지갑</button>
+            <button class="mypage-tab" type="button" data-mypage-tab="activity" role="tab" aria-selected="false">활동</button>
+            <button class="mypage-tab" type="button" data-mypage-tab="following" role="tab" aria-selected="false">팔로우</button>
+            <button class="mypage-tab" type="button" data-mypage-tab="debut" role="tab" aria-selected="false">데뷔</button>
+            <button class="mypage-tab" type="button" data-mypage-tab="security" role="tab" aria-selected="false">비밀번호</button>
+            <button class="mypage-tab mypage-tab-settings" type="button" data-mypage-tab="settings" role="tab" aria-selected="false" aria-label="설정" title="설정">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </nav>
 
           <div class="mypage-content">
-            <section class="mypage-panel" id="profile">
+            <section class="mypage-panel" data-mypage-panel="profile" id="profile">
               <div class="mypage-panel-head">
                 <div>
                   <span class="eyebrow">PROFILE</span>
@@ -130,7 +134,7 @@
               </div>
             </section>
 
-            <section class="mypage-panel" id="wallet">
+            <section class="mypage-panel" data-mypage-panel="wallet" id="wallet">
               <div class="mypage-panel-head">
                 <div>
                   <span class="eyebrow">WALLET</span>
@@ -156,25 +160,21 @@
               </div>
             </section>
 
-            <section class="mypage-panel" id="charge">
+            <section class="mypage-panel" data-mypage-panel="wallet" id="charge">
               <div class="mypage-panel-head">
                 <div>
                   <span class="eyebrow">CHARGE</span>
-                  <h2>충전소</h2>
+                  <h2>루미나 충전</h2>
                 </div>
-                <button class="button-primary" type="button" id="mypageChargeButton">충전 상품 보기</button>
+                <button class="button-primary" type="button" id="mypageChargeButton">충전소 가기</button>
               </div>
               <div class="mypage-empty">
                 <strong>루미나 충전은 별도 충전소에서 진행합니다.</strong>
-                <p>마이페이지 지갑은 잔액과 사용 내역 확인용으로 두고, 실제 결제 흐름은 충전소 화면으로 분리합니다.</p>
-              </div>
-              <div class="mypage-empty" id="mypageChargeSummary" style="margin-top:14px;">
-                <strong>충전 상품을 불러오는 중입니다.</strong>
-                <p>사용 가능한 루미나 상품이 있으면 이곳에 표시됩니다.</p>
+                <p>충전 상품 선택과 결제 흐름은 충전소 화면에서 안내드립니다.</p>
               </div>
             </section>
 
-            <section class="mypage-panel" id="debut">
+            <section class="mypage-panel" data-mypage-panel="debut" id="debut">
               <div class="mypage-panel-head">
                 <div>
                   <span class="eyebrow">DEBUT</span>
@@ -189,7 +189,7 @@
               </div>
             </section>
 
-            <section class="mypage-panel" id="activity">
+            <section class="mypage-panel" data-mypage-panel="activity" id="activity">
               <div class="mypage-panel-head">
                 <div>
                   <span class="eyebrow">HISTORY</span>
@@ -210,7 +210,7 @@
               </div>
             </section>
 
-            <section class="mypage-panel" id="following">
+            <section class="mypage-panel" data-mypage-panel="following" id="following">
               <div class="mypage-panel-head">
                 <div>
                   <span class="eyebrow">FOLLOWING</span>
@@ -223,7 +223,7 @@
               </div>
             </section>
 
-            <section class="mypage-panel" id="security">
+            <section class="mypage-panel" data-mypage-panel="security" id="security">
               <div class="mypage-panel-head">
                 <div>
                   <span class="eyebrow">PASSWORD</span>
@@ -237,7 +237,7 @@
               </div>
             </section>
 
-            <section class="mypage-panel" id="settings">
+            <section class="mypage-panel" data-mypage-panel="settings" id="settings">
               <div class="mypage-panel-head">
                 <div>
                   <span class="eyebrow">SETTINGS</span>
@@ -249,7 +249,9 @@
                   <span>표시 언어</span>
                   <select id="mypageLocale">
                     <option value="ko-KR">한국어</option>
+                    <option value="ja-JP">日本語</option>
                     <option value="en-US">English</option>
+                    <option value="zh-CN">中文</option>
                   </select>
                 </label>
                 <label>
@@ -323,10 +325,10 @@
           <p>내 계정과 응원 기록을 정리하는 Lumina Stage 마이페이지입니다.</p>
         </div>
         <div class="footer-links">
-          <a href="./characters.html">아티스트 라인업</a>
-          <a href="./terms.html">이용약관</a>
-          <a href="./privacy.html">개인정보처리방침</a>
-          <a href="./refund-policy.html">환불 정책</a>
+          <a href="./characters.html" data-i18n="footer.artistRoster">아티스트 라인업</a>
+          <a href="./terms.html" data-i18n="footer.terms">이용약관</a>
+          <a href="./privacy.html" data-i18n="footer.privacy">개인정보처리방침</a>
+          <a href="./refund-policy.html" data-i18n="footer.refund">환불 정책</a>
 
           <a href="./business.html" title="브랜드 협업, IP 제휴, 제작 문의를 Lumina Stage 비즈니스 채널로 연결합니다.">Business Inquiry</a>
         </div>
@@ -681,13 +683,45 @@
           mypageActivities = normalizeActivityItems(summary);
           renderActivities(document.querySelector(".mypage-filter-row .is-active")?.dataset.activityFilter || "all");
 
+          // #061: 우선 summary.activity.followingArtists로 6개 표시.
+          // 더 많은 목록이 필요하면 GET /me/following-artists 별도 호출 (cursor 기반).
+          // 응답 wrapper: { items, artists, count, total, nextCursor, policy } — items가 canonical.
+          const followingFromSummary = list(activity.followingArtists);
           renderList(
             "mypageFollowingSummary",
-            list(activity.followingArtists).slice(0, 6),
+            followingFromSummary.slice(0, 6),
             "팔로우한 아티스트가 없습니다.",
             "루미나 피드가 열리면 좋아하는 아티스트의 소식을 더 가까이 모아볼 수 있습니다.",
             renderFollowingArtist
           );
+          // 7명 이상이거나 total이 더 큰 경우 → 전체 목록 가져와서 갱신
+          const followingTotal = activity.followingArtistsCount ?? activity.followingCount ?? followingFromSummary.length;
+          if (followingTotal > 6) {
+            loadFullFollowingArtists().catch(() => {/* summary fallback 유지 */});
+          }
+        }
+
+        // #061: 팔로우 아티스트 전체 목록 별도 호출 (cursor 페이지네이션)
+        async function loadFullFollowingArtists() {
+          if (typeof apiFetch !== "function" || typeof isLoggedIn !== "function" || !isLoggedIn()) return;
+          try {
+            const res = await apiFetch("/api/v1/me/following-artists?take=20", { auth: true });
+            // canonical은 items, artists는 호환 alias
+            const items = Array.isArray(res?.items) ? res.items
+              : Array.isArray(res?.artists) ? res.artists
+              : [];
+            if (items.length === 0) return;
+            renderList(
+              "mypageFollowingSummary",
+              items.slice(0, 20),
+              "팔로우한 아티스트가 없습니다.",
+              "루미나 피드가 열리면 좋아하는 아티스트의 소식을 더 가까이 모아볼 수 있습니다.",
+              renderFollowingArtist
+            );
+          } catch (err) {
+            // 네트워크 실패면 summary fallback 유지 — 추가 알림은 띄우지 않음
+            console.warn("[Mypage] /me/following-artists 실패, summary fallback 유지:", err);
+          }
         }
 
         async function loadMypageSummary() {
@@ -822,13 +856,14 @@
         async function saveMypageSettings() {
           const button = $("mypageSaveSettings");
           busy(button, true, "저장 중");
+          const newLocale = $("mypageLocale")?.value || "ko-KR";
           try {
             await apiFetch("/api/v1/me/settings", {
               method: "PATCH",
               auth: true,
               throwOnError: true,
               body: {
-                locale: $("mypageLocale")?.value || "ko-KR",
+                locale: newLocale,
                 timezone: $("mypageTimezone")?.value || "Asia/Seoul",
                 activityNotifications: !!$("mypageActivityNotifications")?.checked,
                 marketingOptIn: !!$("mypageMarketingNotifications")?.checked,
@@ -836,6 +871,10 @@
                 emailNotifications: !!$("mypageEmailNotifications")?.checked
               }
             });
+            // #064: locale 변경 즉시 UI 적용 (setLocale은 PATCH 다시 호출 안 하고 로컬 적용 + localStorage만)
+            if (window.luminaI18n && newLocale !== window.luminaI18n.getLocale()) {
+              window.luminaI18n.setLocale(newLocale);
+            }
             alert("설정이 저장되었습니다.");
           } catch (err) {
             alert(err.message || "설정 저장에 실패했습니다.");
@@ -879,7 +918,42 @@
 
         async function initMypageEnhancements() {
           bindMypageActions();
-          await Promise.all([loadMypageSummary(), loadMypageProducts(), loadMypageSettings()]);
+          // #057 충전소 분리 후 충전 상품 미리보기는 충전소 화면이 담당하므로 마이페이지에선 호출하지 않음
+          await Promise.all([loadMypageSummary(), loadMypageSettings()]);
+          initMypageTabs();
+        }
+
+        // X 패턴 가로 탭바 — 6개 탭, 클릭 시 해당 패널만 표시
+        // data-mypage-panel과 data-mypage-tab 매칭으로 동작
+        function initMypageTabs() {
+          const tabs = document.querySelectorAll(".mypage-tab");
+          const panels = document.querySelectorAll("[data-mypage-panel]");
+          if (tabs.length === 0 || panels.length === 0) return;
+
+          function showTab(tabKey) {
+            // 탭 활성 상태 갱신
+            tabs.forEach(t => {
+              const isActive = t.dataset.mypageTab === tabKey;
+              t.classList.toggle("is-active", isActive);
+              t.setAttribute("aria-selected", isActive ? "true" : "false");
+            });
+            // 패널 노출 상태 갱신 (해당 탭 패널만 보이게)
+            panels.forEach(p => {
+              const matches = p.dataset.mypagePanel === tabKey;
+              p.hidden = !matches;
+            });
+            // URL hash 동기화 (새로고침/뒤로가기 보존)
+            try { history.replaceState(null, "", "#" + tabKey); } catch (_) {}
+          }
+
+          tabs.forEach(tab => {
+            tab.addEventListener("click", () => showTab(tab.dataset.mypageTab));
+          });
+
+          // 초기 활성 탭 — URL hash 우선, 없으면 profile
+          const initialTab = (location.hash || "").replace(/^#/, "");
+          const validTabs = Array.from(tabs).map(t => t.dataset.mypageTab);
+          showTab(validTabs.includes(initialTab) ? initialTab : "profile");
         }
 
         if (document.readyState === "loading") {
@@ -892,23 +966,23 @@
     <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
       <a href="./index.html" class="mobile-tab" data-tab-key="index.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        <span>홈</span>
+        <span data-i18n="tab.home">홈</span>
       </a>
       <a href="./characters.html" class="mobile-tab" data-tab-key="characters.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4.5 20c.6-3.6 3.7-6 7.5-6s6.9 2.4 7.5 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-        <span>아티스트</span>
+        <span data-i18n="tab.artists">아티스트</span>
       </a>
       <a href="./popular-vote.html" class="mobile-tab" data-tab-key="popular-vote.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.5 5.5 6 .6-4.5 4.1 1.3 5.9L12 16.2 6.7 19.1l1.3-5.9L3.5 9.1l6-.6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        <span>루미나 픽</span>
+        <span data-i18n="tab.pick">루미나 픽</span>
       </a>
       <a href="./lumina-feed.html" class="mobile-tab" data-tab-key="lumina-feed.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        <span>피드</span>
+        <span data-i18n="tab.feed">피드</span>
       </a>
       <a href="./shortform.html" class="mobile-tab" data-tab-key="shortform.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v6l5-3z" fill="currentColor"/></svg>
-        <span>숏폼</span>
+        <span data-i18n="tab.shortform">숏폼</span>
       </a>
     </nav>
   </body>

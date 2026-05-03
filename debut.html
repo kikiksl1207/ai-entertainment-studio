@@ -28,22 +28,21 @@
           <img class="brand-logo" src="./assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
           <span class="brand-copy">
             <strong>Lumina Stage</strong>
-            <small>아티스트 레이블</small>
+            <small data-i18n="brand.tagline">아티스트 레이블</small>
           </span>
         </a>
 
         <nav class="main-nav" aria-label="메인 메뉴">
-          <a href="./index.html">홈</a>
-          <a href="./characters.html">아티스트</a>
-          <a href="./popular-vote.html">루미나 픽</a>
-          <a href="./lumina-feed.html">루미나 피드</a>
-          <a href="./shortform.html">숏폼</a>
-          <a href="./debut.html">데뷔하기</a>
+          <a href="./index.html" data-i18n="nav.home">홈</a>
+          <a href="./characters.html" data-i18n="nav.artists">아티스트</a>
+          <a href="./popular-vote.html" data-i18n="nav.luminaPick">루미나 픽</a>
+          <a href="./lumina-feed.html" data-i18n="nav.luminaFeed">루미나 피드</a>
+          <a href="./shortform.html" data-i18n="nav.shortform">숏폼</a>
         </nav>
-        <a class="debut-cta-mobile" href="./debut.html">데뷔하기</a>
+        <a class="debut-cta-mobile" href="./debut.html" data-i18n="cta.debut">데뷔하기</a>
         <div class="header-auth">
-          <a class="auth-btn auth-btn-login" href="#">로그인</a>
-          <a class="auth-btn auth-btn-signup" href="#">회원가입</a>
+          <a class="auth-btn auth-btn-login" href="#" data-i18n="auth.login">로그인</a>
+          <a class="auth-btn auth-btn-signup" href="#" data-i18n="auth.signup">회원가입</a>
         </div>
       </div>
     </header>
@@ -81,6 +80,46 @@
               <strong>심사 후 제작·운영·수익쉐어 협의</strong>
             </div>
           </aside>
+        </div>
+      </section>
+
+      <!-- ── #062 신청자 유형 3카드 (#062 에밀리 카피 + #063 차모 백엔드 applicationType) ──
+           카드 클릭 시 통합 폼으로 스크롤 + applicationType 자동 설정 -->
+      <section class="content-section">
+        <div class="shell">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Who Can Apply</p>
+              <h2>당신은 어떤 형태로 함께하나요?</h2>
+              <p>
+                개인 지원자, 소속 아티스트, AI 제작자까지.
+                Lumina Stage는 세 갈래의 입구를 모두 열어두고, 운영팀이 권리 관계와 제작 가능성을 함께 확인합니다.
+              </p>
+            </div>
+          </div>
+          <div class="debut-applicant-grid">
+            <article class="debut-applicant-card" data-applicant-type="personal_unaffiliated">
+              <span class="debut-applicant-tag">개인 / 무소속 지원자</span>
+              <h3>AI 아티스트 데뷔 신청</h3>
+              <p>본인의 외모, 목소리, 노래, 퍼포먼스, 콘셉트를 바탕으로 AI 아티스트 데뷔 가능성을 검토합니다. 소속사나 전속계약이 없는 개인 지원자에게 적합합니다.</p>
+              <small>제출 자료는 심사·시안 검토 목적으로만 사용되며, 공개 데뷔 전 별도 동의·계약 절차가 필요합니다.</small>
+              <button class="debut-applicant-cta" type="button" data-applicant-cta="personal_unaffiliated">데뷔 신청하기 →</button>
+            </article>
+            <article class="debut-applicant-card" data-applicant-type="represented_artist">
+              <span class="debut-applicant-tag">소속사 / 연습생 / 매니지먼트</span>
+              <h3>엔터·소속 아티스트 문의</h3>
+              <p>소속 또는 계약 관계가 있는 아티스트의 AI 팬덤 캐릭터, 캠페인, 데뷔형 콘텐츠 운영 가능성을 검토합니다. 권리 확인이 필요한 경우 운영팀이 별도로 연락드립니다.</p>
+              <small>소속사·매니지먼트·전속계약 등 기존 권리 관계를 우회하는 신청은 진행할 수 없습니다.</small>
+              <button class="debut-applicant-cta" type="button" data-applicant-cta="represented_artist">공식 문의하기 →</button>
+            </article>
+            <article class="debut-applicant-card" data-applicant-type="ai_creator_partner">
+              <span class="debut-applicant-tag">이미지 / 숏폼 / 영상 제작자</span>
+              <h3>AI 크리에이터 파트너 지원</h3>
+              <p>SD, ComfyUI, Flux, LoRA, 이미지팩, 숏폼 제작 경험이 있다면 Lumina Stage의 제작 파트너로 함께할 수 있습니다. 포트폴리오와 작업 가능 영역을 기준으로 검토합니다.</p>
+              <small>공개 반영되는 결과물은 Lumina Stage 운영팀의 콘셉트·품질·권리 검수를 거칩니다.</small>
+              <button class="debut-applicant-cta" type="button" data-applicant-cta="ai_creator_partner">파트너 지원하기 →</button>
+            </article>
+          </div>
         </div>
       </section>
 
@@ -128,32 +167,150 @@
         </div>
       </section>
 
-      <!-- ── 신청 폼 placeholder ──
-           실제 폼은 에밀리 #016 카피 + 차모 #008 정책 받은 후 본 구축.
-           현재는 "곧 오픈" 안내만.
-           TODO: 에밀리 #016 답변 후
-           - debut.types.heading / .subtitle (5가지 유형 안내)
-           - debut.form.step1~4.title (단계 헤딩)
-           - debut.field.* (필드 라벨/placeholder/helper)
-           - debut.consent.* (동의 체크박스 6개)
-           - debut.terms.summary / .fullLink
-           - debut.submit.button / .success / .error
-      -->
       <section class="content-section section-soft">
-        <div class="shell coming-grid">
-          <div>
-            <p class="eyebrow">Coming Soon</p>
-            <h2>신청 폼 오픈 준비 중</h2>
+        <div class="shell debut-apply-grid">
+          <div class="debut-apply-copy">
+            <p class="eyebrow">Apply</p>
+            <h2>먼저 상담 신청으로 시작하세요.</h2>
             <p>
-              제출 자료는 AI 아티스트 제작 가능성 검토를 위해 사용됩니다.
-              선정 이후 제작, 운영, 수익쉐어, 철회 범위는 별도 계약을 통해 확정됩니다.
-              타인의 자료나 권리가 불명확한 콘텐츠는 제출할 수 없습니다.
+              MVP 단계에서는 파일이나 민감 자료를 받지 않습니다.
+              이름, 연락처, 관심 유형, 간단한 자기소개만 남기면 담당자가 유선으로 확인합니다.
+              온라인 심사는 이후 별도 안내로 열립니다.
             </p>
+            <ul class="debut-apply-notes">
+              <li>신분증, 주민번호, 계좌, 계약서 업로드는 지금 받지 않습니다.</li>
+              <li>AI 데뷔 신청은 만 19세 이상만 진행할 수 있어요.</li>
+              <li>제출 후 마이페이지에서 신청 상태를 확인할 수 있습니다.</li>
+            </ul>
           </div>
-          <div class="coming-panel">
-            <strong>준비 중인 신청 폼</strong>
-            <p>기본 정보 / 데뷔 방식 선택 / 자료와 콘셉트 제출 / 권리 확인 및 동의</p>
-          </div>
+
+          <form class="debut-apply-form" id="debutApplyForm" novalidate>
+            <div class="debut-step-badge">1 / 4 단계 · 기본 정보</div>
+
+            <fieldset>
+              <legend>신청 방식</legend>
+              <label class="debut-choice is-selected">
+                <input type="radio" name="applicationChannel" value="phone_consultation" checked />
+                <span>
+                  <strong>유선 상담 신청</strong>
+                  <small>이름, 연락처, 관심 유형만 남기고 담당자와 통화로 확인해요.</small>
+                </span>
+              </label>
+              <label class="debut-choice is-disabled">
+                <input type="radio" name="applicationChannel" value="online_review" disabled />
+                <span>
+                  <strong>온라인 심사</strong>
+                  <small>이미지/포트폴리오 제출이 필요한 확장 모드예요. MVP에서는 상담 후 별도 안내됩니다.</small>
+                </span>
+              </label>
+            </fieldset>
+
+            <div class="debut-form-grid">
+              <label class="debut-field-full">
+                <span>신청 유형 <em class="debut-required">*</em></span>
+                <select name="applicationType" id="debutApplicationType" required>
+                  <option value="personal_unaffiliated">개인/무소속 데뷔 신청</option>
+                  <option value="represented_artist">소속 아티스트/연습생/엔터 관계자 문의</option>
+                  <option value="ai_creator_partner">AI 제작자/크리에이터 파트너 지원</option>
+                  <option value="partnership_other">기타 제휴 문의</option>
+                </select>
+                <small id="debutApplicationTypeHelper">접수 목적에 가장 가까운 유형을 선택해주세요. 선택한 유형에 따라 운영팀의 검토 기준이 달라질 수 있어요.</small>
+              </label>
+              <label>
+                <span>활동명</span>
+                <input name="displayName" type="text" maxlength="80" placeholder="예: 루미나 세린" />
+                <small>아직 정하지 않았다면 임시 이름을 적어도 괜찮아요.</small>
+              </label>
+              <label>
+                <span>신청자 이름</span>
+                <input name="applicantName" type="text" maxlength="80" placeholder="이름을 입력해주세요" required />
+              </label>
+              <label>
+                <span>이메일</span>
+                <input name="contactEmail" type="email" placeholder="example@lumina-stage.com" required />
+              </label>
+              <label>
+                <span>휴대폰 번호</span>
+                <input name="contactPhone" type="tel" placeholder="010-0000-0000" required />
+                <small>빠른 확인이 필요한 경우에만 연락드려요.</small>
+              </label>
+              <!-- 소속/엔터 유형일 때만 노출되는 필드 -->
+              <label class="debut-field-conditional" data-show-for="represented_artist">
+                <span>소속사/매니지먼트명</span>
+                <input name="affiliatedOrgName" type="text" maxlength="120" placeholder="예: 루미나 엔터테인먼트" />
+                <small>소속/계약 관계 확인을 위해 운영팀이 별도로 연락드릴 수 있어요.</small>
+              </label>
+              <label class="debut-field-conditional" data-show-for="represented_artist">
+                <span>권리 관계 안내</span>
+                <textarea name="rightsRelationshipNote" rows="3" maxlength="600" placeholder="전속계약, 연습생 계약, 기존 활동 권리 관계를 사실대로 적어주세요."></textarea>
+              </label>
+              <!-- AI 제작자 유형일 때만 노출되는 필드 -->
+              <label class="debut-field-conditional" data-show-for="ai_creator_partner">
+                <span>제작 경험 / 포트폴리오</span>
+                <textarea name="creatorExperienceNote" rows="3" maxlength="600" placeholder="사용 가능한 제작 도구(SD/ComfyUI/Flux/LoRA 등), 작업 영역, 포트폴리오 URL을 적어주세요."></textarea>
+              </label>
+              <label>
+                <span>관심 데뷔 유형</span>
+                <select name="participationType" required>
+                  <option value="">참여 방식을 선택해주세요</option>
+                  <option value="appearance_only">외모 제공형</option>
+                  <option value="appearance_concept">외모 + 콘셉트 제공형</option>
+                  <option value="appearance_voice">외모 + 노래/음성 제공형</option>
+                  <option value="creator">창작자 직접 기획형</option>
+                  <option value="co_create">공동 제작형</option>
+                </select>
+                <small id="debutTypeHelper">제공할 수 있는 자료와 참여 깊이에 맞춰 선택해주세요.</small>
+              </label>
+              <label>
+                <span>희망 상담 시간</span>
+                <input name="preferredContactTime" type="text" placeholder="예: 평일 오후 2시 이후" />
+              </label>
+              <label>
+                <span>희망 수익 배분</span>
+                <select name="shareTierRequested">
+                  <option value="30">30% · 기본 상담</option>
+                  <option value="40">40% · 콘셉트 참여</option>
+                  <option value="60">60% · 음성/창작 참여</option>
+                  <option value="70">70% · 공동 제작 협의</option>
+                </select>
+                <small>최종 비율은 계약 단계에서 협의 후 확정돼요.</small>
+              </label>
+            </div>
+
+            <label class="debut-textarea-field">
+              <span>자기소개 / 콘셉트 소개</span>
+              <textarea name="conceptSummary" rows="6" minlength="20" maxlength="1000" placeholder="어떤 아티스트로 데뷔하고 싶은지 3문장 이상으로 적어주세요." required></textarea>
+              <small>분위기, 음악 방향, 성격, 팬에게 남기고 싶은 인상을 함께 적으면 좋아요.</small>
+            </label>
+
+            <label class="debut-textarea-field">
+              <span>원하지 않는 표현</span>
+              <textarea name="restrictedExpressions" rows="3" maxlength="600" placeholder="예: 과도한 노출, 특정 말투, 정치적 표현 등"></textarea>
+              <small>제작 과정에서 피해야 할 이미지, 말투, 콘셉트가 있다면 구체적으로 적어주세요.</small>
+            </label>
+
+            <div class="debut-consent-list">
+              <label><input type="checkbox" name="isAdult" required /> 만 19세 이상이며, 신청 자격을 확인했습니다.</label>
+              <label><input type="checkbox" name="consentAppearance" required /> 제출 자료가 본인 것이거나 제출 권한이 있음을 확인합니다.</label>
+              <label><input type="checkbox" name="consentRightsRelationship" required /> 소속사·매니지먼트·전속계약 등 권리 관계가 있는 경우 사실대로 기재합니다.</label>
+              <label><input type="checkbox" name="consentNoGuarantee" required /> 접수만으로 데뷔·제작·수익 정산이 확정되지 않음을 이해합니다.</label>
+              <label><input type="checkbox" name="consentRevenuePolicy" required /> 수익 배분, 금지 표현, 허위 제출 시 심사 중단 기준을 확인했습니다.</label>
+              <label><input type="checkbox" name="consentPrivacy" required /> 상담 진행을 위한 개인정보 수집 및 이용에 동의합니다.</label>
+              <label><input type="checkbox" name="consultationConsent" required /> 담당자의 유선 상담 연락에 동의합니다.</label>
+              <p class="debut-consent-warning">
+                타인 사진, 타인 음성, 무단 촬영물, 계약상 사용할 수 없는 자료는 제출할 수 없습니다.
+              </p>
+              <p>
+                자세한 기준은 <a class="text-link" href="./debut-terms.html">AI 데뷔 신청 약관</a>에서 확인할 수 있어요.
+              </p>
+            </div>
+
+            <div class="debut-form-message" id="debutApplyMessage" hidden></div>
+            <div class="debut-form-actions">
+              <button class="button button-primary" type="submit" id="debutApplySubmit">상담 신청하기</button>
+              <a class="button button-secondary" href="./mypage.html#debut">마이페이지에서 상태 보기</a>
+            </div>
+          </form>
         </div>
       </section>
 
@@ -182,34 +339,190 @@
           <p>AI 아티스트 데뷔를 위한 공식 신청 페이지입니다.</p>
         </div>
         <div class="footer-links">
-          <a href="./characters.html">아티스트 라인업</a>
-          <a href="./business.html" title="브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.">Business Inquiry</a>
+          <a href="./characters.html" data-i18n="footer.artistRoster">아티스트 라인업</a>
+          <a href="./terms.html" data-i18n="footer.terms">이용약관</a>
+          <a href="./privacy.html" data-i18n="footer.privacy">개인정보처리방침</a>
+          <a href="./refund-policy.html" data-i18n="footer.refund">환불 정책</a>
+
+          <a href="./business.html" data-i18n="footer.businessInquiry" data-i18n-attr="title:footer.businessInquiry.helper" title="브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.">Business Inquiry</a>
         </div>
       </div>
     </footer>
 
     <script src="./app.js"></script>
+    <script>
+      (function () {
+        const form = document.getElementById("debutApplyForm");
+        if (!form) return;
+
+        const helperMap = {
+          appearance_only: "외모 제공형은 본인의 사진 자료가 필요해요. 상담 단계에서는 자료 보유 여부만 확인합니다.",
+          appearance_concept: "사진과 아티스트 설정 문서를 함께 제안하는 유형이에요.",
+          appearance_voice: "사진과 음성 샘플을 함께 반영하는 유형이에요. 상담 후 제출 방식을 안내합니다.",
+          creator: "캐릭터 설정, 음악 방향, 가사, 세계관 문서를 중심으로 심사해요.",
+          co_create: "운영팀과 제작 범위, 일정, 역할을 협의한 뒤 진행돼요."
+        };
+        // #062: applicationType helper 메시지
+        const applicationTypeHelperMap = {
+          personal_unaffiliated: "본인 기반 AI 아티스트 데뷔를 신청합니다.",
+          represented_artist: "기존 권리 관계 확인이 필요한 공식 문의입니다. 운영팀이 별도로 연락드릴 수 있어요.",
+          ai_creator_partner: "이미지·영상 제작 파트너 검토를 요청합니다.",
+          partnership_other: "브랜드, 콘텐츠, 사업 제휴를 제안합니다."
+        };
+        const typeSelect = form.querySelector("[name='participationType']");
+        const typeHelper = document.getElementById("debutTypeHelper");
+        const applicationTypeSelect = form.querySelector("[name='applicationType']");
+        const applicationTypeHelper = document.getElementById("debutApplicationTypeHelper");
+        const message = document.getElementById("debutApplyMessage");
+        const submit = document.getElementById("debutApplySubmit");
+
+        function setMessage(text, kind) {
+          if (!message) return;
+          message.hidden = false;
+          message.textContent = text;
+          message.dataset.kind = kind || "info";
+        }
+
+        function setBusy(isBusy) {
+          if (!submit) return;
+          submit.disabled = isBusy;
+          submit.textContent = isBusy ? "접수 중" : "상담 신청하기";
+        }
+
+        // #062: applicationType 변경 시 — helper 갱신 + 조건부 필드 토글
+        function syncApplicationTypeUI() {
+          const value = applicationTypeSelect?.value || "personal_unaffiliated";
+          if (applicationTypeHelper) {
+            applicationTypeHelper.textContent = applicationTypeHelperMap[value] || applicationTypeHelperMap.personal_unaffiliated;
+          }
+          // 조건부 필드 노출 — represented_artist, ai_creator_partner 유형일 때만
+          form.querySelectorAll("[data-show-for]").forEach(el => {
+            const showFor = el.dataset.showFor;
+            const matches = showFor === value;
+            el.hidden = !matches;
+            // 숨겨진 필드의 input은 disabled로 만들어서 폼 검증 통과
+            const inputs = el.querySelectorAll("input, textarea, select");
+            inputs.forEach(input => { input.disabled = !matches; });
+          });
+        }
+        applicationTypeSelect?.addEventListener("change", syncApplicationTypeUI);
+        syncApplicationTypeUI(); // 초기 동기화
+
+        // #062: 3카드 CTA 클릭 → applicationType 설정 + 폼으로 스크롤
+        document.querySelectorAll("[data-applicant-cta]").forEach(btn => {
+          btn.addEventListener("click", e => {
+            e.preventDefault();
+            const type = btn.dataset.applicantCta;
+            if (applicationTypeSelect && type) {
+              applicationTypeSelect.value = type;
+              syncApplicationTypeUI();
+            }
+            // 폼으로 부드럽게 스크롤
+            form.scrollIntoView({ behavior: "smooth", block: "start" });
+            // 첫 번째 입력 필드에 포커스 (applicationType 다음 필드)
+            setTimeout(() => {
+              form.querySelector("[name='applicantName']")?.focus();
+            }, 600);
+          });
+        });
+
+        typeSelect?.addEventListener("change", () => {
+          if (typeHelper) typeHelper.textContent = helperMap[typeSelect.value] || "제공할 수 있는 자료와 참여 깊이에 맞춰 선택해주세요.";
+        });
+
+        form.querySelectorAll("[name='applicationChannel']").forEach(input => {
+          input.addEventListener("change", () => {
+            form.querySelectorAll(".debut-choice").forEach(label => {
+              label.classList.toggle("is-selected", label.querySelector("input")?.checked);
+            });
+          });
+        });
+
+        form.addEventListener("submit", async event => {
+          event.preventDefault();
+          if (typeof isLoggedIn === "function" && !isLoggedIn()) {
+            setMessage("신청을 저장하려면 먼저 로그인해주세요.", "warn");
+            if (typeof openAuthModal === "function") openAuthModal("login");
+            return;
+          }
+          if (!form.checkValidity()) {
+            form.reportValidity();
+            setMessage("필수 항목을 입력하고 동의 항목을 확인해주세요.", "warn");
+            return;
+          }
+
+          const data = Object.fromEntries(new FormData(form).entries());
+          const payload = {
+            applicationChannel: "phone_consultation",
+            applicationType: data.applicationType || "personal_unaffiliated", // #063 차모 백엔드
+            applicantName: data.applicantName,
+            displayName: data.displayName || data.applicantName,
+            contactEmail: data.contactEmail,
+            contactPhone: data.contactPhone,
+            preferredContactTime: data.preferredContactTime,
+            participationType: data.participationType,
+            shareTierRequested: Number(data.shareTierRequested || 30),
+            intro: data.conceptSummary,
+            isAdult: true,
+            consentAppearance: true,
+            consentVoice: data.participationType === "appearance_voice",
+            consentRevenuePolicy: true,
+            consentPrivacy: true,
+            consultationConsent: true,
+            metadata: {
+              restrictedExpressions: data.restrictedExpressions,
+              materialSubmissionMode: "no_file_upload_mvp"
+            }
+          };
+          // #062 조건부 필드 — applicationType에 따라 추가 필드 전송
+          if (data.applicationType === "represented_artist") {
+            if (data.affiliatedOrgName) payload.affiliatedOrgName = data.affiliatedOrgName;
+            if (data.rightsRelationshipNote) payload.rightsRelationshipNote = data.rightsRelationshipNote;
+          } else if (data.applicationType === "ai_creator_partner") {
+            if (data.creatorExperienceNote) payload.creatorExperienceNote = data.creatorExperienceNote;
+          }
+
+          setBusy(true);
+          try {
+            if (typeof apiFetch !== "function") throw new Error("API 연결을 확인할 수 없어요.");
+            await apiFetch("/api/v1/debut/applications", {
+              method: "POST",
+              auth: true,
+              throwOnError: true,
+              body: payload
+            });
+            setMessage("신청이 접수되었어요. 운영팀이 자료와 동의 항목을 검토한 뒤 다음 단계를 안내합니다.", "success");
+            form.reset();
+            form.querySelector(".debut-choice")?.classList.add("is-selected");
+          } catch (err) {
+            setMessage(err.message || "신청을 접수하지 못했어요. 잠시 후 다시 시도해주세요.", "warn");
+          } finally {
+            setBusy(false);
+          }
+        });
+      })();
+    </script>
     <!-- ── 모바일 하단 탭바 (768px 이하 노출, #017 — 2026-05-02) ── -->
     <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
       <a href="./index.html" class="mobile-tab" data-tab-key="index.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        <span>홈</span>
+        <span data-i18n="tab.home">홈</span>
       </a>
       <a href="./characters.html" class="mobile-tab" data-tab-key="characters.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4.5 20c.6-3.6 3.7-6 7.5-6s6.9 2.4 7.5 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-        <span>아티스트</span>
+        <span data-i18n="tab.artists">아티스트</span>
       </a>
       <a href="./popular-vote.html" class="mobile-tab" data-tab-key="popular-vote.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.5 5.5 6 .6-4.5 4.1 1.3 5.9L12 16.2 6.7 19.1l1.3-5.9L3.5 9.1l6-.6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        <span>루미나 픽</span>
+        <span data-i18n="tab.pick">루미나 픽</span>
       </a>
       <a href="./lumina-feed.html" class="mobile-tab" data-tab-key="lumina-feed.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        <span>피드</span>
+        <span data-i18n="tab.feed">피드</span>
       </a>
       <a href="./shortform.html" class="mobile-tab" data-tab-key="shortform.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v6l5-3z" fill="currentColor"/></svg>
-        <span>숏폼</span>
+        <span data-i18n="tab.shortform">숏폼</span>
       </a>
     </nav>
   </body>

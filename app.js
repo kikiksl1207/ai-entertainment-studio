@@ -75,6 +75,173 @@ function clearAuth() { setAuth(null); }
 function isLoggedIn() { return !!(getAuth()?.accessToken); }
 function getAccessToken() { return getAuth()?.accessToken || null; }
 
+/* ══════════════════════════════════════════════
+   #064 — i18n 1차 골격 (4개 언어, 2026-05-03)
+   - 지원 locale: ko-KR / ja-JP / en-US / zh-CN
+   - fallback 순서: localStorage → settings.locale → navigator → ko-KR
+   - 로그인 사용자 변경 → PATCH /me/settings 자동 저장
+   - 비로그인 → localStorage만
+   - 사전: 에밀리 #064 핵심 키 + nav/footer/auth 추가
+   ══════════════════════════════════════════════ */
+const I18N_LOCALES = ["ko-KR", "ja-JP", "en-US", "zh-CN"];
+const I18N_FALLBACK = "ko-KR";
+const I18N_STORAGE_KEY = "lumina_locale";
+
+// 사전 — 에밀리 #064 톤/용어집 + 클라우드 추가 nav/footer/auth
+const I18N_DICT = {
+  // ── 공통 nav ──
+  "nav.home": { "ko-KR": "홈", "ja-JP": "ホーム", "en-US": "Home", "zh-CN": "首页" },
+  "nav.artists": { "ko-KR": "아티스트", "ja-JP": "アーティスト", "en-US": "Artists", "zh-CN": "艺人" },
+  "nav.luminaPick": { "ko-KR": "루미나 픽", "ja-JP": "ルミナピック", "en-US": "Lumina Pick", "zh-CN": "Lumina Pick" },
+  "nav.luminaFeed": { "ko-KR": "루미나 피드", "ja-JP": "ルミナフィード", "en-US": "Lumina Feed", "zh-CN": "Lumina Feed" },
+  "nav.shortform": { "ko-KR": "숏폼", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频" },
+  "nav.debut": { "ko-KR": "데뷔하기", "ja-JP": "デビュー申請", "en-US": "Debut", "zh-CN": "出道申请" },
+  "nav.mypage": { "ko-KR": "마이페이지", "ja-JP": "マイページ", "en-US": "My Page", "zh-CN": "我的主页" },
+  // ── 헤더 auth ──
+  "auth.login": { "ko-KR": "로그인", "ja-JP": "ログイン", "en-US": "Log in", "zh-CN": "登录" },
+  "auth.signup": { "ko-KR": "회원가입", "ja-JP": "新規登録", "en-US": "Sign up", "zh-CN": "注册" },
+  "auth.logout": { "ko-KR": "로그아웃", "ja-JP": "ログアウト", "en-US": "Log out", "zh-CN": "退出登录" },
+  "auth.loginRequired": {
+    "ko-KR": "로그인 후 이용할 수 있어요.",
+    "ja-JP": "ログイン後にご利用いただけます。",
+    "en-US": "Please log in to continue.",
+    "zh-CN": "请登录后继续使用。"
+  },
+  // ── 모바일 하단 탭바 ──
+  "tab.home": { "ko-KR": "홈", "ja-JP": "ホーム", "en-US": "Home", "zh-CN": "首页" },
+  "tab.artists": { "ko-KR": "아티스트", "ja-JP": "アーティスト", "en-US": "Artists", "zh-CN": "艺人" },
+  "tab.pick": { "ko-KR": "루미나 픽", "ja-JP": "ルミナピック", "en-US": "Lumina Pick", "zh-CN": "Lumina Pick" },
+  "tab.feed": { "ko-KR": "피드", "ja-JP": "フィード", "en-US": "Feed", "zh-CN": "动态" },
+  "tab.shortform": { "ko-KR": "숏폼", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频" },
+  // ── 푸터 ──
+  "footer.artistRoster": { "ko-KR": "아티스트 라인업", "ja-JP": "アーティスト一覧", "en-US": "Artist Roster", "zh-CN": "艺人阵容" },
+  "footer.terms": { "ko-KR": "이용약관", "ja-JP": "利用規約", "en-US": "Terms of Service", "zh-CN": "服务条款" },
+  "footer.privacy": { "ko-KR": "개인정보처리방침", "ja-JP": "プライバシーポリシー", "en-US": "Privacy Policy", "zh-CN": "隐私政策" },
+  "footer.refund": { "ko-KR": "환불 정책", "ja-JP": "返金ポリシー", "en-US": "Refund Policy", "zh-CN": "退款政策" },
+  "footer.businessInquiry": { "ko-KR": "Business Inquiry", "ja-JP": "Business Inquiry", "en-US": "Business Inquiry", "zh-CN": "商务合作" },
+  "footer.businessInquiry.helper": {
+    "ko-KR": "브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.",
+    "ja-JP": "ブランドコラボ、IP提携、制作のお問い合わせはLumina Stageのビジネス窓口へ。",
+    "en-US": "Brand partnerships, IP collaborations, and production inquiries connect to Lumina Stage business.",
+    "zh-CN": "品牌合作、IP联动及制作咨询，请通过Lumina Stage商务渠道。"
+  },
+  // ── 브랜드 ──
+  "brand.tagline": { "ko-KR": "아티스트 레이블", "ja-JP": "アーティストレーベル", "en-US": "Artist Label", "zh-CN": "艺人厂牌" },
+  // ── 데뷔하기 강조 CTA (모바일) ──
+  "cta.debut": { "ko-KR": "데뷔하기", "ja-JP": "デビュー申請", "en-US": "Debut", "zh-CN": "出道申请" }
+};
+
+let _currentLocale = I18N_FALLBACK;
+
+/** 사전에 정의된 키를 현재 locale로 변환. 키가 없으면 키 자체 반환. */
+function t(key, locale) {
+  const useLocale = locale || _currentLocale;
+  const entry = I18N_DICT[key];
+  if (!entry) return key;
+  return entry[useLocale] || entry[I18N_FALLBACK] || key;
+}
+
+/** locale 자동 감지: localStorage > navigator.language > ko-KR */
+function detectLocale() {
+  // localStorage 우선 (사용자가 직접 변경한 적 있는 경우)
+  try {
+    const stored = localStorage.getItem(I18N_STORAGE_KEY);
+    if (stored && I18N_LOCALES.includes(stored)) return stored;
+  } catch (_) { /* localStorage 막힌 환경 무시 */ }
+
+  // navigator.language(s) — 정확 매칭 → prefix 매칭
+  const langs = [];
+  if (typeof navigator !== "undefined") {
+    if (navigator.language) langs.push(navigator.language);
+    if (Array.isArray(navigator.languages)) langs.push(...navigator.languages);
+  }
+  for (const l of langs) {
+    if (I18N_LOCALES.includes(l)) return l;
+    const prefix = (l || "").split("-")[0];
+    const match = I18N_LOCALES.find(x => x.startsWith(prefix + "-"));
+    if (match) return match;
+  }
+  return I18N_FALLBACK;
+}
+
+/** DOM 안 [data-i18n] 요소를 t()로 갱신.
+   - data-i18n="key" → textContent 교체
+   - data-i18n-attr="placeholder:key,title:key" → 속성 교체 */
+function applyI18n(root) {
+  const scope = root || document;
+  scope.querySelectorAll("[data-i18n]").forEach(el => {
+    const key = el.dataset.i18n;
+    if (!key) return;
+    const value = t(key);
+    // 자식이 있는 요소는 첫 텍스트 노드만 교체 (아이콘 + 라벨 구조 보호)
+    if (el.children.length > 0) {
+      let textNode = Array.from(el.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+      if (textNode) textNode.textContent = value;
+      else el.appendChild(document.createTextNode(value));
+    } else {
+      el.textContent = value;
+    }
+  });
+  scope.querySelectorAll("[data-i18n-attr]").forEach(el => {
+    const pairs = (el.dataset.i18nAttr || "").split(",");
+    pairs.forEach(pair => {
+      const [attr, key] = pair.split(":").map(s => (s || "").trim());
+      if (attr && key) el.setAttribute(attr, t(key));
+    });
+  });
+}
+
+/** locale 변경 — UI 즉시 갱신 + localStorage 저장 + 로그인 시 서버 동기화 */
+async function setLocale(locale) {
+  if (!I18N_LOCALES.includes(locale)) return;
+  _currentLocale = locale;
+  if (typeof document !== "undefined") document.documentElement.lang = locale;
+  try { localStorage.setItem(I18N_STORAGE_KEY, locale); } catch (_) {}
+  applyI18n();
+  // 로그인 사용자만 서버 저장 (실패해도 로컬 적용 유지)
+  if (isLoggedIn()) {
+    try {
+      await apiFetch("/api/v1/me/settings", {
+        method: "PATCH",
+        auth: true,
+        body: { locale }
+      });
+    } catch (err) {
+      console.warn("[Lumina] PATCH /me/settings locale 저장 실패:", err);
+    }
+  }
+}
+
+/** init — 페이지 로드 시 호출. 서버 settings 우선, 그다음 detectLocale. */
+async function initI18n() {
+  let resolved = detectLocale();
+  // 로그인 사용자: 서버 settings.locale을 최우선으로 사용
+  if (isLoggedIn()) {
+    try {
+      const res = await apiFetch("/api/v1/me/settings", { auth: true });
+      const serverLocale = res?.settings?.locale || res?.locale;
+      if (serverLocale && I18N_LOCALES.includes(serverLocale)) {
+        resolved = serverLocale;
+        try { localStorage.setItem(I18N_STORAGE_KEY, serverLocale); } catch (_) {}
+      }
+    } catch (_) { /* 실패해도 로컬 detect 결과 사용 */ }
+  }
+  _currentLocale = resolved;
+  if (typeof document !== "undefined") document.documentElement.lang = resolved;
+  applyI18n();
+}
+
+// 외부 노출 — 마이페이지 언어 select 등에서 사용
+if (typeof window !== "undefined") {
+  window.luminaI18n = {
+    t,
+    setLocale,
+    getLocale: () => _currentLocale,
+    apply: applyI18n,
+    LOCALES: I18N_LOCALES
+  };
+}
+
 async function authLogin(email, password) {
   const data = await apiFetch("/api/v1/auth/login", {
     method: "POST",
@@ -704,14 +871,17 @@ async function loadWallet() {
   }
   try {
     const data = await apiFetch("/api/v1/wallet", { auth: true, throwOnError: true });
+    // 응답 필드 fallback 체인 강화 — 백엔드 응답 키가 cachedBalance / balance / lumina.balance 중 어느 것이든 처리
+    const rawBalance = data?.cachedBalance ?? data?.balance ?? data?.lumina?.balance ?? data?.wallet?.cachedBalance ?? "0";
     _wallet = {
-      balance: parseFloat(data.cachedBalance ?? "0"),
-      currencyCode: data.currencyCode || "LUMINA",
+      balance: parseFloat(rawBalance) || 0,
+      currencyCode: data?.currencyCode || "LUMINA",
       loaded: true
     };
   } catch (err) {
-    console.warn("[Lumina] 지갑 조회 실패:", err);
-    _wallet = { balance: 0, currencyCode: "LUMINA", loaded: false };
+    console.warn("[Lumina] 지갑 조회 실패 — 잔액 0으로 표시:", err);
+    // 사용자 의도: "곧 공개" 보다 "0 L" 표시가 더 명확. loaded: true로 두고 0 표시.
+    _wallet = { balance: 0, currencyCode: "LUMINA", loaded: true };
   }
   updateWalletUI();
 }
@@ -746,32 +916,7 @@ function updateWalletUI() {
       headerBadge.style.display = "none";
     }
   }
-  // 2. 사용자 메뉴 드롭다운의 "루미나 지갑" 항목
-  // 1만 미만: "300 L"만 / 1만 이상: "25,500 L · ★ 2.55 스텔라" 보조 표시
-  const walletItem = document.querySelector('.user-menu-item[data-action="wallet"]');
-  if (walletItem) {
-    const small = walletItem.querySelector("small");
-    if (small) {
-      if (_wallet?.loaded) {
-        const balance = _wallet.balance;
-        let text = `${formatLuminaAmount(balance)} L`;
-        if (balance >= 10000) {
-          // 1 스텔라 = 10,000 루미나 (노션 정책)
-          const stellar = balance / 10000;
-          // 정수면 정수로, 소수점 있으면 둘째 자리까지
-          const stellarStr = Number.isInteger(stellar)
-            ? stellar.toString()
-            : stellar.toFixed(2).replace(/\.?0+$/, "");
-          text += ` · ★ ${stellarStr} 스텔라`;
-        }
-        small.textContent = text;
-        small.classList.add("user-menu-balance");
-      } else {
-        small.textContent = "곧 공개";
-        small.classList.remove("user-menu-balance");
-      }
-    }
-  }
+  // 헤더 뱃지에만 잔액 표시 (드롭다운에서는 중복 제거 — 사용자 결정 2026-05-03)
 }
 
 function getLikesCount(slug) {
@@ -1123,23 +1268,77 @@ function updateAuthUI() {
 }
 
 function ensureWalletBadgeInHeader(loginBtn) {
-  if (document.getElementById("walletBadge")) return;
+  // 사용자 결정 2026-05-03 (모바일 헤더 재배치):
+  //   데스크톱(>768px): 기존 그대로 ".header-auth" 안 닉네임 앞 → "잔액 | 닉네임 | 로그아웃" 한 줄
+  //   모바일(≤768px): ".header-inner"의 ".debut-cta-mobile" 형제로 이동 →
+  //                    1줄 [로고][닉네임][로그아웃] / 2줄 [데뷔하기][잔액]
+  // grid 배치는 styles.css 모바일 미디어쿼리에서 grid-area=wallet으로 처리.
+  const headerInner = loginBtn.closest(".header-inner");
   const headerAuth = loginBtn.closest(".header-auth");
-  if (!headerAuth) return;
-  const badge = document.createElement("button");
-  badge.id = "walletBadge";
-  badge.className = "wallet-badge";
-  badge.type = "button";
-  badge.title = "루미나 잔액";
-  badge.style.display = "none"; // 데이터 로드되면 보임
-  // 로그인 버튼(닉네임) 바로 앞에 삽입 → "잔액 | 닉네임 | 로그아웃"
-  headerAuth.insertBefore(badge, loginBtn);
-  // 클릭 시 사용자 메뉴 열기 (잔액 자세히 = 메뉴 안 지갑 항목)
-  badge.addEventListener("click", e => {
-    e.preventDefault();
-    toggleUserMenu(loginBtn);
-  });
+  if (!headerInner || !headerAuth) return;
+
+  let badge = document.getElementById("walletBadge");
+  if (!badge) {
+    badge = document.createElement("button");
+    badge.id = "walletBadge";
+    badge.className = "wallet-badge";
+    badge.type = "button";
+    badge.title = "루미나 잔액";
+    badge.style.display = "none"; // 데이터 로드되면 보임
+    badge.addEventListener("click", e => {
+      e.preventDefault();
+      toggleUserMenu(loginBtn);
+    });
+  }
+
+  placeWalletBadgeForViewport(badge, headerInner, headerAuth, loginBtn);
 }
+
+function placeWalletBadgeForViewport(badge, headerInner, headerAuth, loginBtn) {
+  if (!badge) return;
+  const isMobile = (typeof window.matchMedia === "function")
+    ? window.matchMedia("(max-width: 768px)").matches
+    : window.innerWidth <= 768;
+
+  if (isMobile) {
+    // 모바일: .header-inner 직접 자식, 데뷔하기 다음 형제 (없으면 끝에 append)
+    const debutCta = headerInner.querySelector(".debut-cta-mobile");
+    const target = debutCta || null;
+    if (target) {
+      if (badge.previousElementSibling !== target || badge.parentElement !== headerInner) {
+        target.insertAdjacentElement("afterend", badge);
+      }
+    } else if (badge.parentElement !== headerInner) {
+      headerInner.appendChild(badge);
+    }
+  } else {
+    // 데스크톱: 기존 동작 그대로 — .header-auth 안 닉네임 앞
+    if (badge.parentElement !== headerAuth || badge.nextElementSibling !== loginBtn) {
+      headerAuth.insertBefore(badge, loginBtn);
+    }
+  }
+}
+
+// 화면 크기 변경(회전/리사이즈) 시 walletBadge 위치 재정렬
+(function setupWalletBadgeViewportSync() {
+  if (typeof window === "undefined" || window.__walletBadgeResizeBound) return;
+  window.__walletBadgeResizeBound = true;
+  let rafId = null;
+  window.addEventListener("resize", () => {
+    if (rafId) return;
+    rafId = window.requestAnimationFrame(() => {
+      rafId = null;
+      const badge = document.getElementById("walletBadge");
+      if (!badge) return;
+      const loginBtn = document.querySelector(".auth-btn-login");
+      if (!loginBtn) return;
+      const headerInner = loginBtn.closest(".header-inner");
+      const headerAuth = loginBtn.closest(".header-auth");
+      if (!headerInner || !headerAuth) return;
+      placeWalletBadgeForViewport(badge, headerInner, headerAuth, loginBtn);
+    });
+  });
+})();
 
 function bindAuthHeaderEvents() {
   const loginBtn = document.querySelector(".auth-btn-login");
@@ -1254,13 +1453,9 @@ function createUserMenu() {
       <span>마이페이지</span>
       <small>프로필</small>
     </button>
-    <button class="user-menu-item" type="button" data-action="wallet">
-      <span>루미나 지갑</span>
-      <small>잔액</small>
-    </button>
-    <button class="user-menu-item" type="button" data-action="orders">
-      <span>활동 및 결제</span>
-      <small>내역</small>
+    <button class="user-menu-item user-menu-item-charge" type="button" data-action="charge">
+      <span>충전하기</span>
+      <small>루미나 충전소</small>
     </button>
     <div class="user-menu-divider"></div>
     <button class="user-menu-item user-menu-logout" type="button" data-action="logout">
@@ -1276,8 +1471,7 @@ function createUserMenu() {
       } else {
         const target = {
           profile: "./mypage.html#profile",
-          wallet: "./mypage.html#wallet",
-          orders: "./mypage.html#activity"
+          charge: "./charge.html"
         }[action] || "./mypage.html";
         window.location.href = target;
       }
@@ -1293,7 +1487,7 @@ function createUserMenu() {
 const characters = [
   {
     name: "윤세린", publicName: "윤세린", slug: "yoon-serin",
-    gender: "female", type: "아이돌", tier: "main", status: "public",
+    gender: "female", type: "아티스트", tier: "main", status: "public",
     role: "대표 비주얼",
     artistDescription: "첫 조명이 켜지는 순간까지 흔들리지 않을게요. 차갑게 등장해서, 오래 남겠습니다.",
     summary: "차갑게 등장해, 오래 남는 뮤즈.",
@@ -1326,7 +1520,7 @@ const characters = [
   {
     name: "한서율", publicName: "한서율", slug: "han-seoyul",
     gender: "female",
-    type: "아이돌", tier: "main", status: "public",
+    type: "아티스트", tier: "main", status: "public",
     role: "센터 확장",
     artistDescription: "센터에 서면 혼자 빛나는 게 아니라 모두의 표정이 같이 살아나요. 오늘도 같이 무대에 올라요.",
     summary: "센터에서 모두를 더 빛나게.",
@@ -1359,7 +1553,7 @@ const characters = [
   {
     name: "박도아", publicName: "박도아", slug: "park-doa",
     gender: "female",
-    type: "스트리머", tier: "main", status: "public",
+    type: "엔터테이너", tier: "main", status: "public",
     role: "팬 소통형",
     artistDescription: "화려하게 꾸미지 않아도 괜찮아요. 오늘 있었던 얘기부터 맛있는 한 입까지, 편하게 나눌게요.",
     summary: "솔직하고 편하게, 자주 보고 싶은 사람.",
@@ -1425,7 +1619,7 @@ const characters = [
   {
     name: "오혜린", publicName: "오혜린", slug: "oh-hyerin",
     gender: "female",
-    type: "아이돌", tier: "sub", status: "debut",
+    type: "아티스트", tier: "sub", status: "debut",
     role: "감성 보컬",
     artistDescription: "말보다 먼저 닿는 목소리가 있다고 믿어요. 제 첫 곡이 당신의 하루 끝에 머물렀으면 해요.",
     summary: "청아한 목소리로 마음에 머무는 보컬.",
@@ -1457,7 +1651,7 @@ const characters = [
   {
     name: "민채온", publicName: "민채온", slug: "min-chaeon",
     gender: "female",
-    type: "아이돌", tier: "candidate", status: "secret",
+    type: "아티스트", tier: "candidate", status: "secret",
     role: "피트니스 아이돌",
     artistDescription: "웃을 땐 말랑하지만 무대에 서면 에너지가 달라져요. 귀여움 뒤의 탄탄한 반전을 보여줄게요.",
     summary: "러블리한 얼굴, 건강한 반전 에너지.",
@@ -1584,7 +1778,7 @@ const characters = [
   {
     name: "하윤아", publicName: "하윤아", slug: "ha-yuna",
     gender: "female",
-    type: "모델", tier: "candidate", status: "secret",
+    type: "모델", tier: "main", status: "public",
     role: "SNS 스트릿 뷰티",
     artistDescription: "오늘의 색은 제가 정할게요. 스트릿의 속도와 비비드한 자신감으로 피드를 물들입니다.",
     summary: "비비드한 컬러로 피드를 바꾸는 스트릿 뷰티.",
@@ -1615,7 +1809,7 @@ const characters = [
   {
     name: "백리아", publicName: "백리아", slug: "baek-ria",
     gender: "female",
-    type: "아이돌", tier: "candidate", status: "secret",
+    type: "아티스트", tier: "candidate", status: "secret",
     role: "청량 직캠 보컬",
     artistDescription: "여름처럼 맑게 웃고, 직캠처럼 오래 남을게요. 첫 소절부터 시원하게 닿고 싶어요.",
     summary: "여름빛 보컬과 직캠 감성의 청량 아이돌.",
@@ -1646,7 +1840,7 @@ const characters = [
   {
     name: "오유나", publicName: "오유나", slug: "oh-yuna",
     gender: "female",
-    type: "아이돌", tier: "candidate", status: "secret",
+    type: "아티스트", tier: "candidate", status: "secret",
     role: "여름 페스티벌 디바",
     artistDescription: "무대 위의 계절을 바꿀 수 있다면, 저는 늘 여름을 선택할래요. 뜨겁고 선명하게 기억될게요.",
     summary: "여름 페스티벌을 닮은 솔로 디바.",
@@ -1677,7 +1871,7 @@ const characters = [
   {
     name: "권태준", publicName: "권태준", slug: "kwon-taejun",
     gender: "male",
-    type: "배우", tier: "candidate", status: "secret",
+    type: "배우", tier: "main", status: "public",
     role: "누아르 배우",
     artistDescription: "낮은 목소리와 긴 침묵 사이에 감정이 있습니다. 천천히, 그러나 분명하게 남겠습니다.",
     summary: "깊은 눈빛으로 서사를 남기는 누아르 배우.",
@@ -1708,7 +1902,7 @@ const characters = [
   {
     name: "서하민", publicName: "서하민", slug: "seo-hamin",
     gender: "male",
-    type: "MC", tier: "candidate", status: "secret",
+    type: "엔터테이너", tier: "candidate", status: "secret",
     role: "커뮤니티 MC",
     artistDescription: "어색한 공기도 제가 먼저 풀어볼게요. 팬과 아티스트 사이를 가장 즐겁게 잇는 진행자가 되겠습니다.",
     summary: "팬덤의 분위기를 여는 유쾌한 MC.",
@@ -1989,7 +2183,9 @@ const PUBLIC_LINEUP_SLUGS = [
   "park-doa",
   "choi-seojin",
   "cha-dohyun",
-  "seo-yuan"
+  "seo-yuan",
+  "ha-yuna",      // 2026-05-03 추가 (#065 에밀리 갤러리, 운영 반영 후 자동 노출)
+  "kwon-taejun"   // 2026-05-03 추가 (#065 에밀리 갤러리, 운영 반영 후 자동 노출)
 ];
 
 function isPublicLineup(artist) {
@@ -2639,7 +2835,7 @@ function renderChargePage() {
 
   const data = _chargeStationData;
   if (!data) {
-    if (productGrid) productGrid.innerHTML = `<div class="charge-error">충전 정보를 불러오지 못했어요. 잠시 후 다시 시도해주세요.</div>`;
+    if (productGrid) productGrid.innerHTML = `<div class="charge-error">충전 정보를 불러오지 못했어요. 연결 상태를 확인한 뒤 다시 시도해 주세요.</div>`;
     if (ordersList) ordersList.innerHTML = `<div class="charge-empty">불러오지 못했어요.</div>`;
     return;
   }
@@ -2675,7 +2871,7 @@ function renderChargePage() {
   const products = Array.isArray(data.products) ? data.products : [];
   if (productGrid) {
     if (products.length === 0) {
-      productGrid.innerHTML = `<div class="charge-empty">아직 등록된 충전 상품이 없어요.</div>`;
+      productGrid.innerHTML = `<div class="charge-empty">지금 선택할 수 있는 충전 상품이 없어요.</div>`;
     } else {
       productGrid.innerHTML = products.map(p => renderChargeProductCard(p, isPgPending)).join("");
     }
@@ -2704,14 +2900,16 @@ function renderChargeProductCard(p, isPgPending) {
 
   return `
     <article class="charge-product-card${isBest ? ' is-best' : ''}" data-product-id="${feedEscapeHtml(productId)}">
-      ${isBest ? `<span class="charge-best-badge">베스트</span>` : ""}
+      ${isBest ? `<span class="charge-best-badge" title="가장 많이 선택되는 충전팩">BEST</span>` : ""}
       <header class="charge-product-head">
         <h3 class="charge-product-name">${name}</h3>
         ${bonusRate > 0 ? `<span class="charge-bonus-rate">+${bonusRate}% 보너스</span>` : ""}
       </header>
       <div class="charge-product-amount">
         <span class="charge-amount-main">${formatLuminaAmount(totalLumina)}<small>L</small></span>
-        ${bonusAmount > 0 ? `<span class="charge-amount-detail">${formatLuminaAmount(luminaAmount)}L + 보너스 ${formatLuminaAmount(bonusAmount)}L</span>` : ""}
+        ${bonusAmount > 0
+          ? `<span class="charge-amount-detail">기본 ${formatLuminaAmount(luminaAmount)}L + 보너스 ${formatLuminaAmount(bonusAmount)}L</span>`
+          : ""}
       </div>
       <div class="charge-product-price">
         <strong>${formatCurrencyKRW(priceAmount)}</strong>
@@ -2722,7 +2920,7 @@ function renderChargeProductCard(p, isPgPending) {
         type="button"
         data-charge-buy="${feedEscapeHtml(productId)}"
         ${isPgPending ? 'disabled' : ''}>
-        ${isPgPending ? '결제 준비 중' : '충전하기'}
+        ${isPgPending ? '결제 준비 중' : `${formatLuminaAmount(totalLumina)}L 충전하기`}
       </button>
     </article>
   `;
@@ -2773,12 +2971,12 @@ async function handleChargeBuy(productId) {
   // 보안: 같은 주문이 중복 생성되지 않도록 클라이언트 UUID 생성
   const idempotencyKey = generateIdempotencyKey();
 
-  // 결제 버튼 로딩 상태
+  // 결제 버튼 로딩 상태 (#059: "결제 요청 중")
   const btn = document.querySelector(`[data-charge-buy="${productId}"]`);
   const originalText = btn?.textContent || "충전하기";
   if (btn) {
     btn.disabled = true;
-    btn.textContent = "주문 생성 중";
+    btn.textContent = "결제 요청 중";
   }
 
   try {
@@ -2801,24 +2999,27 @@ async function handleChargeBuy(productId) {
     }
 
     if (status === "pg_pending" || status === "pending") {
-      alert("결제 시스템이 준비 중이에요. 곧 안내드릴게요.");
+      alert("결제 기능은 현재 준비 중입니다. 상품 정보와 예상 지급 루미나만 먼저 확인할 수 있어요.");
       // 충전소 데이터 재조회 (잔액은 변동 없지만 상태 갱신)
       await loadChargeStationData();
       renderChargePage();
     } else {
-      alert("주문이 생성됐어요. 결제 안내를 확인해주세요.");
+      alert("결제창에서 최종 금액과 상품명을 확인한 뒤 결제를 진행해 주세요.");
       await loadChargeStationData();
       renderChargePage();
     }
   } catch (err) {
     const msg = err?.body?.message || err?.message || "";
     const status = err?.status;
-    let userMsg = "주문을 생성하지 못했어요. 잠시 후 다시 시도해주세요.";
-    if (status === 401) userMsg = "로그인이 만료됐어요. 다시 로그인해주세요.";
-    else if (status === 404) userMsg = "이 상품을 찾을 수 없어요. 페이지를 새로고침해주세요.";
-    else if (status === 409) userMsg = "이미 처리 중인 주문이 있어요. 잠시 후 다시 시도해주세요.";
-    else if (status === 429) userMsg = "요청이 잠시 많아요. 잠시 후 다시 시도해주세요.";
-    else if (/insufficient|inactive/i.test(msg)) userMsg = "현재 충전이 어려운 상태예요. 고객센터로 문의해주세요.";
+    // #059 오류/안내 문구 적용
+    let userMsg = "결제 요청을 만들지 못했어요. 잠시 후 다시 시도해 주세요.";
+    if (status === 401) userMsg = "루미나 충전은 로그인 후 이용할 수 있어요.";
+    else if (status === 404) userMsg = "지금 선택할 수 있는 충전 상품이 없어요. 페이지를 새로고침해 주세요.";
+    else if (status === 409) userMsg = "이미 결제 요청을 처리 중이에요. 잠시 후 다시 시도해 주세요.";
+    else if (status === 429) userMsg = "요청이 잠시 많아요. 잠시 후 다시 시도해 주세요.";
+    else if (/insufficient|inactive/i.test(msg)) userMsg = "현재 충전이 어려운 상태예요. 고객센터로 문의해 주세요.";
+    else if (/cancelled|cancel/i.test(msg)) userMsg = "결제가 취소됐어요. 루미나는 충전되지 않았습니다.";
+    else if (/failed|fail/i.test(msg)) userMsg = "결제가 완료되지 않았어요. 결제 수단 또는 한도를 확인해 주세요.";
     alert(userMsg);
   } finally {
     _chargeOrdering = false;
@@ -2893,6 +3094,11 @@ const statusMeta = {
 };
 
 /* ── 숏폼 데이터 (로컬 fallback) ────────────── */
+/* 숏폼 — 8명 각 1개씩, 모든 이미지는 cover.png 사용 (#사용자 결정 2026-05-03)
+   - 아티스트 카드 영역(메인페이지 hero, characters.html)은 thumb.png 사용
+   - 숏폼 영역은 cover.png 사용으로 시각 분리
+   - mainTone/hubTone/tone은 #066 에밀리 카피 답변 후 정식 교체 예정 (현재는 임시)
+*/
 const shortformsLocal = [
   {
     title: "메인 비주얼 티저",
@@ -2901,15 +3107,6 @@ const shortformsLocal = [
     mainTone: "차가운 첫 시선, 여기서 시작됩니다.",
     hubTone: "윤세린의 첫 조명과 시선이 가장 또렷하게 남는 티저 컷입니다.",
     tone: "첫 조명 아래, 가장 차가운 시선으로 시작합니다.",
-    image: "./assets/characters/yoon-serin/thumb.png"
-  },
-  {
-    title: "콘셉트 퍼포먼스",
-    artist: "윤세린",
-    metric: "조회 11.8만",
-    mainTone: "절제된 움직임 끝에 남는 잔상.",
-    hubTone: "정제된 퍼포먼스와 윤세린 특유의 온도 차를 보여주는 콘셉트 무대입니다.",
-    tone: "절제된 움직임 끝에 남는 건 선명한 잔상입니다.",
     image: "./assets/characters/yoon-serin/cover.png"
   },
   {
@@ -2919,15 +3116,6 @@ const shortformsLocal = [
     mainTone: "센터의 빛은 같이 볼 때 더 환해요.",
     hubTone: "한서율의 밝은 센터감과 팬 친화적인 표정이 살아 있는 무드 스냅입니다.",
     tone: "센터의 빛은 혼자보다 함께일 때 더 환해져요.",
-    image: "./assets/characters/han-seoyul/thumb.png"
-  },
-  {
-    title: "하이틴 센터 포맷",
-    artist: "한서율",
-    metric: "조회 10.1만",
-    mainTone: "밝은 리듬으로 같이 뛰는 장면.",
-    hubTone: "한서율의 하이틴 에너지와 함께 무대를 끌어올리는 센터 톤을 담았습니다.",
-    tone: "밝은 리듬으로 시작해서 다 같이 웃는 장면까지.",
     image: "./assets/characters/han-seoyul/cover.png"
   },
   {
@@ -2937,15 +3125,6 @@ const shortformsLocal = [
     mainTone: "편하게 들어와요. 제일 솔직한 표정부터.",
     hubTone: "박도아의 가까운 말투와 즉흥 리액션이 팬들과의 거리를 좁히는 숏폼입니다.",
     tone: "오늘도 편하게 들어와요. 제일 솔직한 표정부터 보여드릴게요.",
-    image: "./assets/characters/park-doa/thumb.png"
-  },
-  {
-    title: "먹방 리액션 티저",
-    artist: "박도아",
-    metric: "저장 3.7천",
-    mainTone: "맛있는 순간은 같이 웃어야죠.",
-    hubTone: "먹방과 리액션을 자연스럽게 섞어 박도아의 생활형 매력을 보여주는 티저입니다.",
-    tone: "맛있는 순간은 혼자 보기 아깝잖아요. 같이 웃어요.",
     image: "./assets/characters/park-doa/cover.png"
   },
   {
@@ -2955,16 +3134,43 @@ const shortformsLocal = [
     mainTone: "말을 줄이고 시선만 남기는 컷.",
     hubTone: "최서진의 조용한 무게감과 프리미엄 화보 톤이 가장 잘 드러나는 컷입니다.",
     tone: "말을 줄이고 시선을 남기는 컷.",
-    image: "./assets/characters/choi-seojin/thumb.png"
+    image: "./assets/characters/choi-seojin/cover.png"
   },
   {
-    title: "브랜드 무드 필름",
-    artist: "최서진",
-    metric: "완주율 68%",
-    mainTone: "한 컷의 침묵이 브랜드의 온도를 정합니다.",
-    hubTone: "브랜드 필름처럼 차분하게 쌓이는 최서진의 에디토리얼 감도를 볼 수 있습니다.",
-    tone: "한 컷의 침묵이 브랜드의 온도를 정합니다.",
-    image: "./assets/characters/choi-seojin/cover.png"
+    title: "젠더리스 무대 컷",
+    artist: "차도현",
+    metric: "조회 8.5만",
+    mainTone: "패션은 갑옷, 무대는 언어.",
+    hubTone: "차도현의 하이패션 무드와 젠더리스 무대 톤이 한 컷에 담긴 영상입니다.",
+    tone: "어떤 옷을 입어도 결국 가장 저답게 서겠습니다.",
+    image: "./assets/characters/cha-dohyun/cover.png"
+  },
+  {
+    title: "감성 라이브 무드",
+    artist: "서유안",
+    metric: "조회 7.1만",
+    mainTone: "꾸미지 않은 분위기로 오래 머물기.",
+    hubTone: "서유안의 자연스러운 톤과 음악적 깊이가 잔잔하게 흘러가는 라이브 컷입니다.",
+    tone: "꾸미지 않은 듯 가장 오래 머무는 분위기로 인사드릴게요.",
+    image: "./assets/characters/seo-yuan/cover.png"
+  },
+  {
+    title: "스트릿 컬러 픽업",
+    artist: "하윤아",
+    metric: "조회 11.2만",
+    mainTone: "오늘의 색은 제가 정할게요.",
+    hubTone: "하윤아의 비비드한 컬러 감각과 스트릿 트렌드 무드를 빠르게 보여주는 픽업 컷입니다.",
+    tone: "스트릿의 속도와 비비드한 자신감으로 피드를 물들입니다.",
+    image: "./assets/characters/ha-yuna/cover.png"
+  },
+  {
+    title: "누아르 무드 컷",
+    artist: "권태준",
+    metric: "조회 5.9만",
+    mainTone: "낮은 목소리와 긴 침묵 사이.",
+    hubTone: "권태준의 누아르 감성과 깊은 눈빛이 천천히 쌓이는 무드 컷입니다.",
+    tone: "천천히, 그러나 분명하게 남겠습니다.",
+    image: "./assets/characters/kwon-taejun/cover.png"
   }
 ];
 
@@ -3006,6 +3212,17 @@ function artistToneCopy(artist) {
    ─────────────────────────────────────────── */
 function normalizeAssetUrl(url) {
   if (!url) return "";
+
+  // 운영 도메인이 아닌 곳 (localhost, Vercel preview, 다른 호스팅)에서는
+  // 운영 절대 URL을 상대 경로로 변환 → 깃 레포 내 동일 경로 파일 사용
+  // 운영 lumina-stage.com 배포 시에는 그대로 절대 URL 사용
+  const isOnLuminaDomain = typeof window !== "undefined" && window.location &&
+    /(?:^|\.)lumina-stage\.com$/i.test(window.location.hostname);
+  if (!isOnLuminaDomain && /^https?:\/\/[^/]*lumina-stage\.com\//i.test(url)) {
+    const m = String(url).match(/^https?:\/\/[^/]+(\/.+)$/);
+    if (m) return m[1]; // path만 추출 → "/assets/..." 등
+  }
+
   if (/^https?:\/\//i.test(url)) return url;
   // "./assets/..." / "/assets/..." / "assets/..." 모두 → "/assets/..." 통일
   // (#030 5번 케이스 — 페이지 경로에 따라 ./ 상대경로 꼬임 방지)
@@ -3694,14 +3911,27 @@ function renderCatalogMedia(a) {
   </div>`;
 }
 
-function renderCharacterCatalog(filter = "all", tagFilter = "") {
+function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "all") {
   const root = document.getElementById("characterCatalog");
   if (!root) return;
 
   const tierLabel = { main: "메인", premium: "프리미엄", sub: "서브", experiment: "실험" };
+  // 5개 메인 type — 여기에 안 잡히면 "기타" 필터에서 자동 노출 (향후 새 type 추가 시점 판단용)
+  const KNOWN_TYPES = ["아티스트", "모델", "배우", "엔터테이너", "스포츠"];
 
-  let list = filter === "all" ? _artists : _artists.filter(a => a.type === filter || a.tier === filter);
+  let list;
+  if (filter === "all") {
+    list = _artists;
+  } else if (filter === "기타") {
+    list = _artists.filter(a => !KNOWN_TYPES.includes(a.type));
+  } else {
+    list = _artists.filter(a => a.type === filter || a.tier === filter);
+  }
   if (tagFilter) list = list.filter(a => a.tags.includes(tagFilter));
+  // status 필터 (사용자 클릭 시) — type 필터와 독립적으로 AND 적용
+  if (statusFilter && statusFilter !== "all") {
+    list = list.filter(a => a.status === statusFilter);
+  }
 
   // 정렬: 상태 그룹(public > candidate > secret) 순서 유지하면서 그룹 안에서 좋아요 많은 순
   // 좋아요 데이터가 비어있으면 같은 그룹 안에서는 원래 순서 유지 (stable sort)
@@ -3736,24 +3966,51 @@ function renderCharacterCatalog(filter = "all", tagFilter = "") {
     </article>`).join("");
 
   const note = document.getElementById("activeFilterNote");
-  if (note) note.innerHTML = tagFilter
-    ? `<span>현재 태그 필터: <strong>${tagFilter}</strong></span><a href="./characters.html" class="text-link">필터 해제</a>`
-    : "";
+  if (note) {
+    const parts = [];
+    if (tagFilter) parts.push(`태그: <strong>${tagFilter}</strong>`);
+    if (filter && filter !== "all") parts.push(`분류: <strong>${filter}</strong>`);
+    if (statusFilter && statusFilter !== "all") {
+      const statusLabelMap = { public: "공개 활동 중", candidate: "데뷔 예정", secret: "비공개 라인" };
+      parts.push(`상태: <strong>${statusLabelMap[statusFilter] || statusFilter}</strong>`);
+    }
+    if (parts.length === 0) {
+      note.innerHTML = "";
+    } else {
+      note.innerHTML = `<span>현재 필터: ${parts.join(" / ")}</span>` +
+        (tagFilter ? `<a href="./characters.html" class="text-link">필터 해제</a>` : "");
+    }
+  }
 }
 
 function bindCharacterFilters() {
   const filterRoot = document.getElementById("characterFilters");
-  if (!filterRoot) return;
-  const btns = [...filterRoot.querySelectorAll("[data-filter]")];
+  const statusRoot = document.getElementById("characterStatusFilters");
+  if (!filterRoot && !statusRoot) return;
+
+  const typeBtns = filterRoot ? [...filterRoot.querySelectorAll("[data-filter]")] : [];
+  const statusBtns = statusRoot ? [...statusRoot.querySelectorAll("[data-status-filter]")] : [];
   const activeTag = new URLSearchParams(window.location.search).get("tag") || "";
-  btns.forEach(btn => {
+
+  // 현재 활성 상태 — 두 필터바 모두 추적
+  const getCurrentType = () => filterRoot?.querySelector(".is-active")?.dataset.filter || "all";
+  const getCurrentStatus = () => statusRoot?.querySelector(".is-active")?.dataset.statusFilter || "all";
+
+  typeBtns.forEach(btn => {
     btn.addEventListener("click", () => {
-      btns.forEach(b => b.classList.remove("is-active"));
+      typeBtns.forEach(b => b.classList.remove("is-active"));
       btn.classList.add("is-active");
-      renderCharacterCatalog(btn.dataset.filter, activeTag);
+      renderCharacterCatalog(btn.dataset.filter, activeTag, getCurrentStatus());
     });
   });
-  if (activeTag) renderCharacterCatalog("all", activeTag);
+  statusBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      statusBtns.forEach(b => b.classList.remove("is-active"));
+      btn.classList.add("is-active");
+      renderCharacterCatalog(getCurrentType(), activeTag, btn.dataset.statusFilter);
+    });
+  });
+  if (activeTag) renderCharacterCatalog("all", activeTag, getCurrentStatus());
 }
 
 /* ── 렌더링: 캐릭터 상세 ─────────────────────── */
@@ -4305,6 +4562,9 @@ async function initMypagePage() {
 }
 
 async function init() {
+  // #064 i18n — UI 깜빡임 최소화 위해 가장 먼저 실행 (비로그인 시 즉시, 로그인 시 서버 동기화 포함)
+  await initI18n();
+
   // 🔥 인증 UI는 API 호출 전에 먼저 초기화 (await에 막히지 않게)
   createAuthModal();
   bindAuthHeaderEvents();

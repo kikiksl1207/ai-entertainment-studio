@@ -1120,6 +1120,72 @@ p {
   background: #1a1722;
 }
 
+/* 전체 상태 — 핫핑크 그라데이션 점 (사용자 요청 — status 필터 클릭 가능, 2026-05-03) */
+.legend-all {
+  background: linear-gradient(135deg, #ff1493 0%, #c8a6ff 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* status 필터 바 — type 필터와 동일 톤, 약간 작게 (보조 필터) */
+.status-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.status-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.status-filter-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ink);
+}
+
+.status-filter-chip.is-active {
+  background: linear-gradient(135deg, #ff1493 0%, #c8a6ff 100%);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(255, 20, 147, 0.25);
+}
+
+.status-filter-chip .legend-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+}
+
+/* 활성 칩 안의 점은 흰 그라데이션으로 보이도록 */
+.status-filter-chip.is-active .legend-dot {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 640px) {
+  .status-filter-bar {
+    gap: 6px;
+  }
+  .status-filter-chip {
+    min-height: 34px;
+    padding: 0 12px;
+    font-size: 12.5px;
+  }
+}
+
 .filter-chip {
   min-height: 42px;
   padding: 0 16px;
@@ -3748,10 +3814,21 @@ p {
 }
 /* 잔액이 있을 때 (loaded) — 강조 색상 */
 .user-menu-item small.user-menu-balance {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
   color: #ff1493; /* 정통 핫핑크 (헤더 뱃지와 통일) */
   letter-spacing: 0.02em;
+}
+/* 보유 잔액 항목 — 잔액(small)이 메인이라 살짝 키움 */
+.user-menu-item-balance span {
+  font-weight: 700;
+}
+/* 충전하기 항목 — 핫핑크 hover 강조 */
+.user-menu-item-charge:hover span {
+  color: #ff7eb9;
+}
+.user-menu-item-charge:hover small {
+  color: rgba(255, 130, 200, 0.9);
 }
 .user-menu-logout {
   color: rgba(255, 130, 150, 0.9);
@@ -4196,9 +4273,7 @@ p {
 }
 
 /* like-btn-vote: 인기투표실 안 좋아요 버튼은 같은 사이즈 + 진짜 작동 */
-.like-btn.like-btn-vote {
-  /* like-btn-large 그대로 사용. 추가 modifier는 클래스 식별용 */
-}
+/* (.like-btn.like-btn-vote는 .like-btn-large 그대로 사용 — 추가 스타일 없음, modifier는 JS 클래스 식별용) */
 
 .paid-like-modal-overlay {
   position: fixed;
@@ -4663,7 +4738,27 @@ p {
    ══════════════════════════════════════════════ */
 
 /* 데스크톱: 모바일 전용 요소 숨김 (변경 없음) */
-.debut-cta-mobile { display: none; }
+/* 데뷔하기 강조 CTA — 데스크톱/모바일 모두 표시 (사용자 결정 2026-05-03)
+   main-nav에서 제거하고 헤더 우측 그룹(잔액/닉네임/로그아웃)과 함께 배치 */
+.debut-cta-mobile {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #fff !important;
+  background: linear-gradient(135deg, #ff1493 0%, #9f8bc7 100%);
+  box-shadow: 0 4px 14px rgba(255, 20, 147, 0.35);
+  transition: transform 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.debut-cta-mobile:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(255, 20, 147, 0.5);
+}
 .mobile-tabbar { display: none; }
 
 /* ── 모바일 768px 이하 ── */
@@ -4673,28 +4768,71 @@ p {
     display: none;
   }
 
-  /* 헤더 우측 데뷔하기 CTA — 핫핑크 그라데이션 강조 */
-  .debut-cta-mobile {
-    display: inline-flex;
+  /* 데뷔하기 CTA — 모바일에서도 데스크톱과 동일 사이즈 유지 (#사용자 결정 — 줄어들지 않게) */
+  /* (.debut-cta-mobile 자체 스타일은 미디어쿼리 밖에서 정의됨) */
+
+  /* 모바일 헤더 재배치 (사용자 결정 2026-05-03):
+     1줄: [로고] [닉네임/로그인] [로그아웃/회원가입]
+     2줄: [데뷔하기 (절반 폭, 가운데까지)] [잔액(로그인 시만, 우측)]
+     - grid-template-columns: 1fr 1fr → 좌/우 균등분할
+     - 데뷔하기는 좌측 1열을 stretch로 가득 채워 화면 가운데까지 닿음 (비로그인/로그인 동일)
+     - 비로그인 시 잔액 없음 → 우측 1열 비어있고 데뷔하기 절반 폭 그대로 유지 */
+  .header-inner {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "brand auth"
+      "debut wallet";
+    gap: 10px 8px;
     align-items: center;
-    padding: 8px 14px;
-    border-radius: 999px;
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: -0.01em;
-    color: #fff !important;
-    background: linear-gradient(135deg, #ff1493 0%, #9f8bc7 100%);
-    box-shadow: 0 4px 14px rgba(255, 20, 147, 0.35);
-    transition: transform 0.15s, box-shadow 0.15s;
-    flex-shrink: 0;
-    white-space: nowrap;
   }
-  .debut-cta-mobile:hover,
-  .debut-cta-mobile:active {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(255, 20, 147, 0.5);
+  /* brand는 좌측 절반에서 너무 좁아 텍스트가 깨지지 않도록 안전장치 */
+  .brand {
+    min-width: 0;
+  }
+  .header-auth {
+    grid-area: auth;
+    justify-self: end;   /* 1fr column 안에서 우측 정렬 */
+    gap: 4px;
+  }
+  .debut-cta-mobile {
+    grid-area: debut;
+    justify-self: stretch;     /* 1fr 1열 만큼 가득 채움 → 절반 폭 */
+    width: 100%;               /* 안전장치 (inline-flex라 stretch만으론 부족할 수 있음) */
+    justify-content: center;   /* 라벨 가운데 정렬 */
+  }
+  /* walletBadge는 JS가 모바일에서 .header-inner 직접 자식으로 이동시킴 (placeWalletBadgeForViewport) */
+  #walletBadge {
+    grid-area: wallet;
+    justify-self: end;
   }
 
+  /* 닉네임 박스 — 풀 텍스트 표시. 너무 길면 ellipsis */
+  .auth-btn-login {
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  /* 회원가입/로그아웃 버튼 컴팩트 */
+  .auth-btn-signup {
+    padding: 7px 12px;
+    font-size: 12px;
+    min-height: auto;
+  }
+
+  /* 헤더 잔액 뱃지 모바일에서 컴팩트 */
+  .wallet-badge {
+    padding: 5px 9px;
+    font-size: 11.5px;
+    gap: 4px;
+  }
+  .wallet-badge .wallet-coin {
+    width: 13px;
+    height: 13px;
+  }
   /* 하단 탭바 — fixed bottom, blur 배경, 5개 탭, 핫핑크-보라 그라데이션 액센트 (데뷔하기 톤 통일) */
   .mobile-tabbar {
     display: flex;
@@ -5228,11 +5366,13 @@ p {
   /* X 패턴 — 가변 길이지만 최대 6줄 한도, 넘으면 line-clamp + 더보기 (#022/사용자 요청) */
   display: -webkit-box;
   -webkit-line-clamp: 6;
+  line-clamp: 6;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 .feed-post.is-expanded .feed-post-body {
   -webkit-line-clamp: unset;
+  line-clamp: unset;
   display: block;
   overflow: visible;
 }
@@ -5788,32 +5928,86 @@ p {
 
 .mypage-layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
   align-items: start;
 }
 
-.mypage-side {
+/* X 패턴 가로 탭바 — 사이드 nav 대체 (2026-05-03 사용자 결정) */
+.mypage-tabs {
   position: sticky;
-  top: 96px;
-  display: grid;
-  gap: 4px;
-  padding: 10px;
-  border-radius: 14px;
+  top: 72px;
+  z-index: 10;
+  display: flex;
+  gap: 0;
+  padding: 0;
+  background: rgba(11, 8, 23, 0.92);
+  -webkit-backdrop-filter: blur(14px);
+          backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(159, 139, 199, 0.18);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.mypage-tabs::-webkit-scrollbar { display: none; }
 
-.mypage-side-link {
-  padding: 12px 14px;
-  border-radius: 10px;
-  color: rgba(240, 238, 248, 0.68);
-  font-size: 14px;
+.mypage-tab {
+  position: relative;
+  flex-shrink: 0;
+  padding: 14px 20px 13px;
+  background: transparent;
+  border: none;
+  color: rgba(240, 238, 248, 0.62);
+  font-size: 14.5px;
   font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.mypage-tab:hover {
+  color: rgba(255, 200, 225, 0.95);
+}
+.mypage-tab.is-active {
+  color: #ff1493;
+}
+.mypage-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, #ff1493 0%, #c8a6ff 100%);
+  border-radius: 2px 2px 0 0;
 }
 
-.mypage-side-link:hover,
-.mypage-side-link.is-active {
-  color: #fff;
-  background: rgba(255, 20, 147, 0.16);
+/* X 패턴: 톱니바퀴 설정 탭 — 우측 끝, 아이콘 only, 시각 분리 */
+.mypage-tab-settings {
+  margin-left: auto;
+  padding: 12px 16px 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid rgba(159, 139, 199, 0.14);
+}
+.mypage-tab-settings svg {
+  display: block;
+  transition: transform 0.3s;
+}
+.mypage-tab-settings:hover svg {
+  transform: rotate(45deg);
+}
+.mypage-tab-settings.is-active::after {
+  left: 12px;
+  right: 12px;
+}
+
+/* 기존 사이드 nav 스타일 — 더 이상 사용하지 않으나 다른 페이지 영향 방지 위해 유지하지 않고 hidden */
+.mypage-side {
+  display: none !important;
 }
 
 .mypage-content {
@@ -5846,6 +6040,12 @@ p {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+/* 모달(다이얼로그) 안에서는 field-grid를 1열로 — 비번 변경 같은 폼이 자연스럽게 세로 배치되도록 (#사용자 피드백) */
+.mypage-dialog-card .mypage-field-grid {
+  grid-template-columns: 1fr;
+  gap: 16px;
 }
 
 .mypage-profile-preview {
@@ -6177,10 +6377,22 @@ p {
   }
 
   .mypage-side {
-    position: static;
-    display: flex;
-    overflow-x: auto;
-    white-space: nowrap;
+    display: none !important;
+  }
+
+  /* 모바일 — 가로 탭바 미세 조정 */
+  .mypage-tabs {
+    top: 56px;
+    margin: 0 -10px 4px;
+    padding: 0 10px;
+  }
+  .mypage-tab {
+    padding: 12px 14px;
+    font-size: 13.5px;
+  }
+  .mypage-tab.is-active::after {
+    left: 12px;
+    right: 12px;
   }
 }
 
@@ -6483,5 +6695,130 @@ p {
   }
   .charge-order-row {
     padding: 12px 14px;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   #062 — debut.html 신청자 유형 3카드 (2026-05-03)
+   에밀리 카피 풀세트 + 차모 #063 백엔드 applicationType 4종
+   ══════════════════════════════════════════════ */
+
+.debut-applicant-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.debut-applicant-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 28px 24px 24px;
+  background: linear-gradient(180deg, rgba(159, 139, 199, 0.07), rgba(159, 139, 199, 0.025));
+  border: 1px solid rgba(159, 139, 199, 0.22);
+  border-radius: 16px;
+  transition: border-color 0.2s, transform 0.2s, background 0.2s;
+}
+.debut-applicant-card:hover {
+  border-color: rgba(255, 20, 147, 0.4);
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, rgba(255, 20, 147, 0.06), rgba(159, 139, 199, 0.04));
+}
+.debut-applicant-tag {
+  display: inline-block;
+  width: fit-content;
+  padding: 4px 12px;
+  background: rgba(255, 20, 147, 0.12);
+  border: 1px solid rgba(255, 20, 147, 0.25);
+  border-radius: 999px;
+  color: #ff7eb9;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.debut-applicant-card h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.debut-applicant-card p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.debut-applicant-card small {
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: rgba(255, 201, 122, 0.85);
+  background: rgba(255, 201, 122, 0.06);
+  border-left: 3px solid rgba(255, 201, 122, 0.4);
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+.debut-applicant-cta {
+  margin-top: auto;
+  padding: 11px 18px;
+  border-radius: 10px;
+  border: none;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #fff;
+  background: linear-gradient(135deg, #ff1493 0%, #9f8bc7 100%);
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+.debut-applicant-cta:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(255, 20, 147, 0.35);
+}
+
+/* 폼 첫 항목 (applicationType select)이 풀너비 차지 */
+.debut-form-grid .debut-field-full {
+  grid-column: 1 / -1;
+}
+/* applicationType 필수 별표 */
+.debut-required {
+  color: #ff7eb9;
+  font-style: normal;
+  font-weight: 700;
+  margin-left: 2px;
+}
+/* 조건부 필드 — applicationType에 따라 동적 노출 (JS가 hidden 토글) */
+.debut-field-conditional[hidden] {
+  display: none;
+}
+.debut-field-conditional {
+  grid-column: 1 / -1;
+}
+
+/* 권리 관계 경고 문구 (체크박스 영역) */
+.debut-consent-warning {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  background: rgba(255, 180, 80, 0.08);
+  border: 1px solid rgba(255, 180, 80, 0.28);
+  border-radius: 8px;
+  color: #ffc97a;
+  font-size: 12.5px;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 640px) {
+  .debut-applicant-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .debut-applicant-card {
+    padding: 22px 20px 20px;
   }
 }
