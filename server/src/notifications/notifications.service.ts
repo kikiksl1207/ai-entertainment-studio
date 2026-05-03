@@ -18,9 +18,38 @@ type CreateNotificationInput = {
   metadata?: Record<string, unknown>;
 };
 
+type NotificationTemplate = {
+  messageKey: string;
+  titleKey: string;
+  bodyKey?: string;
+  defaultTitle: string;
+  defaultBody?: string | null;
+};
+
 const NOTIFICATION_STATUSES = new Set(['all', 'read', 'unread']);
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
+  'feed.reply': {
+    messageKey: 'notification.feed.reply',
+    titleKey: 'notification.feed.reply.title',
+    bodyKey: 'notification.feed.reply.body',
+    defaultTitle: 'New reply on your feed post',
+    defaultBody: 'Someone replied to your feed post.',
+  },
+  'feed.like': {
+    messageKey: 'notification.feed.like',
+    titleKey: 'notification.feed.like.title',
+    defaultTitle: 'New like on your feed post',
+    defaultBody: 'Someone liked your feed post.',
+  },
+  'user.follow': {
+    messageKey: 'notification.user.follow',
+    titleKey: 'notification.user.follow.title',
+    defaultTitle: 'New follower',
+    defaultBody: 'Someone started following you.',
+  },
+};
 
 @Injectable()
 export class NotificationsService {
@@ -124,6 +153,8 @@ export class NotificationsService {
       return null;
     }
 
+    const template = this.notificationTemplate(input.type);
+
     return this.prisma.userNotification.create({
       data: {
         userId: input.userId,
@@ -134,7 +165,14 @@ export class NotificationsService {
         artistId: input.artistId ?? null,
         targetType: input.targetType ?? null,
         targetId: input.targetId ?? null,
-        metadata: this.toJson(input.metadata ?? {}),
+        metadata: this.toJson({
+          messageKey: template.messageKey,
+          titleKey: template.titleKey,
+          bodyKey: template.bodyKey ?? null,
+          defaultTitle: template.defaultTitle,
+          defaultBody: template.defaultBody ?? null,
+          ...(input.metadata ?? {}),
+        }),
       },
     });
   }
@@ -172,6 +210,7 @@ export class NotificationsService {
       type: notification.type,
       title: notification.title,
       body: notification.body,
+      i18n: this.notificationI18n(notification),
       targetType: notification.targetType,
       targetId: notification.targetId,
       metadata: notification.metadata,
@@ -239,6 +278,58 @@ export class NotificationsService {
 
   private toJson(value: Record<string, unknown>) {
     return value as Prisma.InputJsonObject;
+  }
+
+  private notificationTemplate(type: string) {
+    return (
+      NOTIFICATION_TEMPLATES[type] ?? {
+        messageKey: `notification.${type}`,
+        titleKey: `notification.${type}.title`,
+        defaultTitle: 'New notification',
+        defaultBody: null,
+      }
+    );
+  }
+
+  private notificationI18n(notification: {
+    type: string;
+    title: string;
+    body: string | null;
+    metadata: Prisma.JsonValue;
+    actorUserId?: string | null;
+    artistId?: string | null;
+    targetType?: string | null;
+    targetId?: string | null;
+  }) {
+    const template = this.notificationTemplate(notification.type);
+    const metadata =
+      notification.metadata &&
+      typeof notification.metadata === 'object' &&
+      !Array.isArray(notification.metadata)
+        ? (notification.metadata as Record<string, unknown>)
+        : {};
+
+    return {
+      messageKey:
+        typeof metadata.messageKey === 'string'
+          ? metadata.messageKey
+          : template.messageKey,
+      titleKey:
+        typeof metadata.titleKey === 'string' ? metadata.titleKey : template.titleKey,
+      bodyKey:
+        typeof metadata.bodyKey === 'string'
+          ? metadata.bodyKey
+          : template.bodyKey ?? null,
+      defaultTitle: notification.title,
+      defaultBody: notification.body,
+      params: {
+        type: notification.type,
+        actorUserId: notification.actorUserId ?? null,
+        artistId: notification.artistId ?? null,
+        targetType: notification.targetType ?? null,
+        targetId: notification.targetId ?? null,
+      },
+    };
   }
 
   private clean<T extends Record<string, unknown>>(value: T) {

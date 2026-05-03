@@ -226,7 +226,8 @@ Auth responses:
 - `GET /localization/policy` is public. It reads the request `Accept-Language` header and returns `{ defaultLocale, supportedLocales, detectedLocale, source, fallbackRule, storageEndpoints }`. Use it for anonymous first-load language detection. For logged-in users, prefer `GET /me/settings.settings.locale` first.
 - User image upload flow for avatars/feed: `POST /me/assets/upload-intents` then upload the file with the returned `upload.method/url/requiredHeaders`, then `POST /me/assets/:assetId/confirm-upload`. The confirmed `asset.id` can be passed to `PATCH /me/profile.avatarAssetId` or `POST /lumina-feed/posts.assetIds`.
 - `GET /me/notifications?status=all&take=20` returns `{ notifications, unreadCount, nextCursor }`. `status` can be `all`, `unread`, or `read`; `type` can optionally filter a single notification type; `cursor` accepts the previous `nextCursor`.
-- Notification item shape: `{ id, type, title, body, targetType, targetId, metadata, readAt, createdAt, actor, artist }`. `actor` is `{ id, displayName, avatarUrl } | null`; `artist` is `{ id, slug, displayName } | null`.
+- Notification item shape: `{ id, type, title, body, i18n, targetType, targetId, metadata, readAt, createdAt, actor, artist }`. `actor` is `{ id, displayName, avatarUrl } | null`; `artist` is `{ id, slug, displayName } | null`.
+- Notification `i18n` is for frontend translation dictionaries and returns `{ messageKey, titleKey, bodyKey, defaultTitle, defaultBody, params }`. Current keys include `notification.feed.reply.title`, `notification.feed.like.title`, and `notification.user.follow.title`. Use `title`/`body` as fallback display text if a locale key is missing.
 - `GET /me/notifications/unread-count` returns `{ unreadCount }`.
 - `PATCH /me/notifications/:notificationId/read` marks one notification read and returns `{ notification }`.
 - `PATCH /me/notifications/read-all` marks all unread notifications read and returns `{ ok: true, updatedCount }`.
@@ -1058,6 +1059,7 @@ Feed notification triggers:
 - `user.follow`: created when another user follows or re-follows the user.
 - Self-actions do not create notifications.
 - `PATCH /me/settings` controls delivery: `feedNotifications=false` suppresses `feed.*`; `activityNotifications=false` suppresses `user.follow`.
+- Notification rows now include translation metadata and response `i18n` keys so the frontend can render locale-specific titles without changing stored DB text.
 
 Admin/community moderation:
 
