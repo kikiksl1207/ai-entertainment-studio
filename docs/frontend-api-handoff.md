@@ -55,6 +55,8 @@ park-doa
 choi-seojin
 oh-hyerin
 cha-dohyun
+seo-yuan
+kwon-taejun
 ```
 
 Frontend fields to use:
@@ -88,6 +90,7 @@ Image usage:
   - `assets/characters/yoon-serin/reference-final/*`
   - `assets/characters/han-seoyul/reference/*`
   - `assets/characters/park-doa/reference-final/*`
+  - `assets/characters/kwon-taejun/reference-final-01.png` through `reference-final-20.png`
 - `reference`, `reference-final`, and `reference-rebuild` folders are not all automatically public. Only assets returned by the API should be shown in the frontend.
 - Image URLs may be relative repo/storage keys until object storage is configured. If the URL starts with `assets/`, resolve it from the frontend site origin.
 - After a seed deploy, stale local seed assets that are no longer in the current operation pack are archived and removed from public artist API responses.
@@ -127,9 +130,7 @@ GET /api/v1/artists/roadmap
 Current planned seed slugs:
 
 ```txt
-seo-yuan
 ha-yuna
-kwon-taejun
 ```
 
 Character category taxonomy:

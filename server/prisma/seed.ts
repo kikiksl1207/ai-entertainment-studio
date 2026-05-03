@@ -437,10 +437,11 @@ const galleryDirsBySlug = {
   'seo-yuan': ['.'],
   'choi-seojin': ['.'],
   'cha-dohyun': ['.'],
+  'kwon-taejun': ['.'],
 } as const;
 
 const publicSeedArtistSlugs = new Set(Object.keys(galleryDirsBySlug));
-const plannedSeedArtistSlugs = new Set(['seo-yuan', 'ha-yuna', 'kwon-taejun']);
+const plannedSeedArtistSlugs = new Set(['ha-yuna']);
 
 async function main() {
   const artistBySlug = new Map<string, { id: string; displayName: string }>();
