@@ -31,6 +31,11 @@ const confirmCancelButton = document.getElementById("confirmCancelButton");
 const confirmRunButton = document.getElementById("confirmRunButton");
 
 let selectedDetail = null;
+const sectionState = {
+  users: { cursor: null, hasMore: false, rows: [] },
+  settlement: { cursor: null, hasMore: false, rows: [] },
+  logs: { cursor: null, hasMore: false, rows: [] }
+};
 const GOOGLE_CLIENT_ID = "213795475154-votjkhv4cvgg49cvajast3clenhoj5db.apps.googleusercontent.com";
 let googleSdkPromise = null;
 let googleTokenClient = null;
@@ -291,6 +296,22 @@ function renderRows(targetId, rows, statusIndex) {
   }).join("");
 }
 
+function normalizePage(data) {
+  if (Array.isArray(data)) return { items: data, hasMore: false, nextCursor: null };
+  return {
+    items: data?.items || [],
+    hasMore: Boolean(data?.hasMore),
+    nextCursor: data?.nextCursor || null
+  };
+}
+
+function setLoadMore(sectionId, hasMore) {
+  const button = document.querySelector(`[data-load-more="${sectionId}"]`);
+  if (!button) return;
+  button.classList.toggle("is-hidden", !hasMore);
+  button.disabled = false;
+}
+
 function renderLoadingRow(targetId, label = "데이터를 불러오는 중입니다.") {
   const target = document.getElementById(targetId);
   if (!target) return;
@@ -357,8 +378,14 @@ function buildActionPreview(action) {
   };
 
   if (detail.tableId === "userRows") {
-    base.apiHint = currentAction.includes("복구") ? "POST /admin/api/v1/users/:userId/restore" : "POST /admin/api/v1/users/:userId/suspend";
-    base.warning = "정지/삭제 계열 액션은 세션 revoke와 audit log 기록 대상입니다.";
+    base.apiHint = currentAction.includes("복구")
+      ? "POST /admin/api/v1/users/:userId/restore"
+      : currentAction.includes("세션")
+        ? "POST /admin/api/v1/users/:userId/revoke-sessions"
+        : "POST /admin/api/v1/users/:userId/suspend";
+    base.warning = currentAction.includes("세션")
+      ? "계정 상태는 유지하고 활성 refresh session만 revoke합니다. audit log 기록 대상입니다."
+      : "정지/삭제 계열 액션은 세션 revoke와 audit log 기록 대상입니다.";
   } else if (detail.tableId === "creatorRows") {
     base.apiHint = "PATCH /admin/api/v1/debut/applications/:applicationId";
     base.warning = "7일 모니터링 전용 API는 아직 준비중입니다. 데뷔 신청 상태 변경 중심으로 처리합니다.";
@@ -490,21 +517,34 @@ function krw(value) {
 }
 
 async function loadUsersSection() {
+  sectionState.users = { cursor: null, hasMore: false, rows: [] };
   renderLoadingRow("userRows");
+  await loadUsersPage(false);
+}
+
+async function loadUsersPage(append = true) {
+  const state = sectionState.users;
+  const query = new URLSearchParams({ take: "20" });
+  if (append && state.cursor) query.set("cursor", state.cursor);
   try {
-    const users = await backstageFetch(adminApiPath("/users?take=20"), { auth: true });
-    const rows = (Array.isArray(users) ? users : users?.items || []).map((user) => [
+    const page = normalizePage(await backstageFetch(adminApiPath(`/users?${query}`), { auth: true }));
+    const rows = page.items.map((user) => [
       user.displayName || user.nickname || user.id?.slice?.(0, 8) || "-",
       user.email || "-",
       user.status || "-",
       formatCount(user.wallet?.balanceLumina || user.walletBalanceLumina || 0) + "L",
       formatDate(user.lastLoginAt || user.updatedAt || user.createdAt),
-      user.status === "suspended" ? "복구 요청" : "상세"
+      user.status === "suspended" ? "복구 요청" : "세션 종료"
     ]);
-    if (rows.length) renderRows("userRows", rows, 2);
+    state.rows = append ? state.rows.concat(rows) : rows;
+    state.cursor = page.nextCursor;
+    state.hasMore = page.hasMore;
+    setLoadMore("users", page.hasMore);
+    if (state.rows.length) renderRows("userRows", state.rows, 2);
     else renderLoadingRow("userRows", "표시할 유저가 없습니다.");
   } catch {
     renderBackstageTables();
+    setLoadMore("users", false);
     renderFallbackNote("userRows");
   }
 }
@@ -549,10 +589,18 @@ async function loadModerationSection() {
 }
 
 async function loadSettlementSection() {
+  sectionState.settlement = { cursor: null, hasMore: false, rows: [] };
   renderLoadingRow("settlementRows");
+  await loadSettlementPage(false);
+}
+
+async function loadSettlementPage(append = true) {
+  const state = sectionState.settlement;
+  const query = new URLSearchParams({ take: "20" });
+  if (append && state.cursor) query.set("cursor", state.cursor);
   try {
-    const orders = await backstageFetch(adminApiPath("/payment-orders?take=20"), { auth: true });
-    const rows = (Array.isArray(orders) ? orders : orders?.items || []).map((order) => [
+    const page = normalizePage(await backstageFetch(adminApiPath(`/payment-orders?${query}`), { auth: true }));
+    const rows = page.items.map((order) => [
       order.user?.email || order.userId?.slice?.(0, 8) || "-",
       order.orderNo || order.id?.slice?.(0, 8) || "-",
       krw(order.amount),
@@ -560,29 +608,47 @@ async function loadSettlementSection() {
       order.status || "-",
       order.status === "paid" ? "환불 검토" : "확인"
     ]);
-    if (rows.length) renderRows("settlementRows", rows, 4);
+    state.rows = append ? state.rows.concat(rows) : rows;
+    state.cursor = page.nextCursor;
+    state.hasMore = page.hasMore;
+    setLoadMore("settlement", page.hasMore);
+    if (state.rows.length) renderRows("settlementRows", state.rows, 4);
     else renderLoadingRow("settlementRows", "표시할 결제/정산 항목이 없습니다.");
   } catch {
     renderBackstageTables();
+    setLoadMore("settlement", false);
     renderFallbackNote("settlementRows");
   }
 }
 
 async function loadAuditSection() {
+  sectionState.logs = { cursor: null, hasMore: false, rows: [] };
   renderLoadingRow("logRows");
+  await loadAuditPage(false);
+}
+
+async function loadAuditPage(append = true) {
+  const state = sectionState.logs;
+  const query = new URLSearchParams({ take: "20" });
+  if (append && state.cursor) query.set("cursor", state.cursor);
   try {
-    const logs = await backstageFetch(adminApiPath("/audit-events?take=20"), { auth: true });
-    const rows = (Array.isArray(logs) ? logs : logs?.items || []).map((item) => [
+    const page = normalizePage(await backstageFetch(adminApiPath(`/audit-events?${query}`), { auth: true }));
+    const rows = page.items.map((item) => [
       new Date(item.createdAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }),
       item.actorUser?.email || item.actorUserId?.slice?.(0, 8) || "system",
       item.action || "-",
       item.targetType || "-",
       item.reason || item.metadata?.reason || item.targetId?.slice?.(0, 8) || "-"
     ]);
-    if (rows.length) renderRows("logRows", rows, -1);
+    state.rows = append ? state.rows.concat(rows) : rows;
+    state.cursor = page.nextCursor;
+    state.hasMore = page.hasMore;
+    setLoadMore("logs", page.hasMore);
+    if (state.rows.length) renderRows("logRows", state.rows, -1);
     else renderLoadingRow("logRows", "표시할 운영 로그가 없습니다.");
   } catch {
     renderBackstageTables();
+    setLoadMore("logs", false);
     renderFallbackNote("logRows");
   }
 }
@@ -683,6 +749,16 @@ document.querySelectorAll("[data-detail-action]").forEach((button) => {
 confirmCancelButton.addEventListener("click", closeConfirmModal);
 confirmModal.addEventListener("click", (event) => {
   if (event.target === confirmModal) closeConfirmModal();
+});
+
+document.querySelectorAll("[data-load-more]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const sectionId = button.dataset.loadMore;
+    button.disabled = true;
+    if (sectionId === "users") await loadUsersPage(true);
+    if (sectionId === "settlement") await loadSettlementPage(true);
+    if (sectionId === "logs") await loadAuditPage(true);
+  });
 });
 
 loginForm.addEventListener("submit", handleLogin);
