@@ -90,6 +90,7 @@ GET /api/v1/unlock-campaigns
 ### Auth / Me
 
 ```http
+GET /api/v1/app/bootstrap
 POST /api/v1/auth/register
 POST /api/v1/auth/login
 GET /api/v1/auth/social/providers
@@ -122,6 +123,7 @@ PATCH /api/v1/me/settings
 
 My Page contract:
 
+- `GET /api/v1/app/bootstrap` is public and returns non-secret first-load configuration: localization policy, social provider status, Lumina currency constants, feature flags, lightweight product policies, and important endpoint hints.
 - `GET /api/v1/me` returns `id`, `email`, `status`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `createdAt`, `displayName`, `avatarUrl`, `avatarAsset`, `bio`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, `canChangeNickname`, `profile`, `settings`, and `walletAccounts`.
 - `PATCH /api/v1/me/profile` accepts `displayName`, `bio`, and `avatarAssetId`. `displayName` is server-limited to one change every 30 days through `user_profiles.nickname_changed_at`.
 - Avatar policy for the first version is asset-based: create/confirm an image asset through the existing upload flow, then set `avatarAssetId`.

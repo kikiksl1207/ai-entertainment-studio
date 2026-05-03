@@ -886,6 +886,65 @@ export class AuthService {
     };
   }
 
+  getPublicBootstrap(acceptLanguage?: string | string[]) {
+    return {
+      service: 'lumina-stage',
+      version: '2026-05-03.mvp',
+      generatedAt: new Date().toISOString(),
+      localization: this.getLocalizationPolicy(acceptLanguage),
+      auth: {
+        emailPassword: {
+          enabled: true,
+          passwordMinLength: 8,
+          passwordMaxLength: 128,
+          passwordRule: 'At least one letter and one number',
+        },
+        social: this.getSocialProviders(),
+      },
+      currency: {
+        lumina: {
+          code: 'L',
+          unitPriceKrw: 10,
+          signupBonusLumina: 300,
+          referralBonusLumina: 500,
+        },
+      },
+      features: {
+        luminaPick: true,
+        luminaFeed: true,
+        luminaStation: true,
+        debutApplications: true,
+        notifications: true,
+        userProfiles: true,
+        payments: {
+          enabled: false,
+          status: 'pg_pending',
+          note: 'Payment order APIs exist, but the production PG provider is not enabled yet.',
+        },
+        storageUploads: {
+          enabled: true,
+          note: 'Upload intent APIs exist. End-to-end object storage verification depends on production storage credentials.',
+        },
+      },
+      policy: {
+        paidLikeUnitPriceLumina: 10,
+        paidLikeDailyLimit: 20,
+        feedPostMaxImageCount: 4,
+        artistVisibility:
+          'Only active public artists are returned in user-facing artist lists.',
+      },
+      endpoints: {
+        localizationPolicy: 'GET /api/v1/localization/policy',
+        meSettings: 'GET /api/v1/me/settings',
+        updateMeSettings: 'PATCH /api/v1/me/settings',
+        socialProviders: 'GET /api/v1/auth/social/providers',
+        luminaStation: 'GET /api/v1/lumina-station',
+        notifications: 'GET /api/v1/me/notifications',
+        debutPolicy: 'GET /api/v1/debut/policy',
+      },
+    };
+  }
+
   async requestEmailVerification(input: RequestEmailVerificationDto) {
     const email = input.email.trim().toLowerCase();
     let debugToken: { token: string; expiresAt: Date } | null = null;

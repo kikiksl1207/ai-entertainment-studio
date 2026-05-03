@@ -201,6 +201,16 @@ export class LocalizationController {
   }
 }
 
+@Controller('app')
+export class AppBootstrapController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Get('bootstrap')
+  bootstrap(@Req() req: RequestLike) {
+    return this.authService.getPublicBootstrap(req.header('accept-language'));
+  }
+}
+
 function getSessionContext(request: RequestLike) {
   return {
     userAgent: request.header('user-agent') ?? null,

@@ -175,6 +175,7 @@ assets[]
 ## Auth
 
 ```http
+GET /app/bootstrap
 POST /auth/register
 POST /auth/login
 GET /auth/social/providers
@@ -210,6 +211,7 @@ Use `Authorization: Bearer <accessToken>` for authenticated requests.
 
 Auth responses:
 
+- `GET /app/bootstrap` is public and can be used as a first-load configuration endpoint. It returns localization policy, social provider status, Lumina currency constants, feature flags, lightweight product policies, and important endpoint hints. It does not include secrets or user-specific data.
 - Email-password signup uses email only. Password policy: 8-128 characters, at least one letter and one number.
 - `POST /auth/register` and `POST /auth/login` return `{ user, tokens }`.
 - `tokens` contains `accessToken`, `refreshToken`, and `tokenType: "Bearer"`.
