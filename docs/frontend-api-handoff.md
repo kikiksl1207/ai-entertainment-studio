@@ -1395,6 +1395,8 @@ Admin/community moderation:
 GET /admin/api/v1/backstage/summary
 GET /admin/api/v1/backstage/operations/creators?query=&status=&take=20&cursor=<nextCursor>
 GET /admin/api/v1/backstage/operations/ai-content-health?query=&status=&take=20&cursor=<nextCursor>
+GET /admin/api/v1/backstage/operations/users-overview?query=&email=&status=&take=20&cursor=<nextCursor>
+GET /admin/api/v1/backstage/operations/settlement-preview?period=2026-05&query=&status=&take=20&cursor=<nextCursor>
 GET /admin/api/v1/community/summary?take=10
 GET /admin/api/v1/community/reports?status=submitted&query=abuse&take=50&cursor=<nextCursor>
 GET /admin/api/v1/community/posts?status=published&minReports=1&sort=reports&query=keyword&take=50&cursor=<nextCursor>
@@ -1462,6 +1464,61 @@ content/admin tab. It returns the same page envelope plus `summary` and
 
 MVP policy is slot selection first. Automatic content classification is deferred.
 
+`GET /admin/api/v1/backstage/operations/users-overview` is a Backstage user
+operations list. It is richer than `GET /admin/api/v1/users` and is better for
+the admin table. It returns the normal page envelope plus `summary` and
+`policy`. Each `items[]` row includes:
+
+- identity: `id`, `userId`, `email`, `phoneNumber`, `status`, `displayName`,
+  `publicHandle`, `createdAt`, `updatedAt`, `deletedAt`.
+- auth/session: `loginType`, `loginTypes[]`, `lastSeenAt`,
+  `activeSessionCount`.
+- wallet/payment: `walletBalanceLumina`, `walletStatus`, `paymentCount`,
+  `paidOrderCount`, `paidAmountKrw`, `lastPaymentOrder`.
+- moderation: `authoredPostCount`, `reportSubmittedCount`, `reportCount`,
+  `openReportCount`, `latestReportReason`, `latestReportAt`, `sanctionCount`,
+  `recentAction`.
+- social: `followingArtistCount`, `followingUserCount`, `followerCount`.
+
+Use this for the Backstage user-management table when the UI needs reporting,
+wallet, session, and recent action signals in one call. Dangerous actions still
+use the existing user mutation endpoints.
+
+`GET /admin/api/v1/backstage/operations/settlement-preview` is an estimated
+settlement preview for Backstage. It does not finalize payout and must be
+displayed as a preview/estimate. Supported query:
+
+- `period`: `YYYY-MM`, defaults to the current UTC month.
+- `query`: artist display name or slug.
+- `status`: artist status.
+- `take`, `cursor`: normal pagination.
+- optional policy overrides for finance testing:
+  `unitPriceKrw`, `vatRateBps`, `pgFeeRateBps`, `pgFeeVatRateBps`,
+  `aiCostRateBps`, `directCostRateBps`, `settlementRateBps`,
+  `platformMinimumMarginBps`.
+
+Each `items[]` row includes:
+
+- `artist`: id, slug, display name, status.
+- `creators`: masked operator emails and profile names.
+- `eventCount`, `grossLumina`, `productBreakdown`.
+- `financials`: gross revenue, VAT, PG fee, PG fee VAT, AI/direct cost,
+  net revenue, settlement rate, creator share, platform share, risk reserve.
+- `status`: `estimated` or `no_revenue`.
+- `holdReason`: currently null.
+
+Included eligible sources for preview:
+
+- completed chat feature orders.
+- completed gift orders.
+- paid Lumina boost / paid-like events.
+- premium video unlocks.
+
+Free likes are intentionally excluded. The response `notice` must be shown in
+admin UI or represented with a clear "estimated only" badge. Final payout still
+requires normalized creator revenue events, refund/chargeback checks, tax/accounting
+review, and admin confirmation.
+
 `GET /admin/api/v1/community/summary` returns grouped report/post counts and
 `posts.highRisk` with the most-reported published/hidden posts.
 
@@ -1499,6 +1556,9 @@ Search support:
 - `backstage/operations/creators.query`: applicant name, stage name, contact
   email, user email.
 - `backstage/operations/ai-content-health.query`: artist display name or slug.
+- `backstage/operations/users-overview.query`: email, phone, display name,
+  public handle.
+- `backstage/operations/settlement-preview.query`: artist display name or slug.
 - `users.query`: email, phone number, profile display name, public handle.
 - `payment-orders.query`: order number, provider, user email.
 - `refund-transactions.query`: provider refund id, reason, payment order number,

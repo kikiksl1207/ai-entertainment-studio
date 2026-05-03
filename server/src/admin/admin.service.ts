@@ -580,6 +580,448 @@ export class AdminService {
     };
   }
 
+  async getBackstageUsersOverview(query: AuditQuery) {
+    const pagination = this.adminPagination(query, 20);
+    const email = this.optionalString(query, 'email');
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
+    const status = this.optionalString(query, 'status');
+    const where: Prisma.UserWhereInput = this.clean({
+      status,
+      email: email
+        ? {
+            contains: email,
+            mode: 'insensitive',
+          }
+        : undefined,
+      OR: search
+        ? [
+            { email: { contains: search, mode: 'insensitive' } },
+            { phoneNumber: { contains: search, mode: 'insensitive' } },
+            {
+              profile: {
+                is: {
+                  displayName: { contains: search, mode: 'insensitive' },
+                },
+              },
+            },
+            {
+              profile: {
+                is: {
+                  publicHandle: { contains: search, mode: 'insensitive' },
+                },
+              },
+            },
+          ]
+        : undefined,
+    });
+
+    const users = await this.prisma.user.findMany({
+      where,
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        phoneNumber: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
+        profile: {
+          select: {
+            displayName: true,
+            publicHandle: true,
+          },
+        },
+        authAccounts: {
+          select: {
+            provider: true,
+            lastLoginAt: true,
+            createdAt: true,
+          },
+        },
+        walletAccounts: {
+          select: {
+            currencyCode: true,
+            status: true,
+            cachedBalance: true,
+          },
+        },
+        _count: {
+          select: {
+            refreshTokens: {
+              where: {
+                revokedAt: null,
+                expiresAt: { gt: new Date() },
+              },
+            },
+            paymentOrders: true,
+            communityPosts: true,
+            communityReports: true,
+            artistFollows: true,
+            followingUsers: true,
+            followers: true,
+          },
+        },
+      },
+    });
+    const page = this.paginated(users, pagination.take);
+    const userIds = page.items.map((user) => user.id);
+    const [reportsAgainstPosts, userAuditEvents, recentPayments] = await Promise.all([
+      userIds.length
+        ? this.prisma.communityReport.findMany({
+            where: {
+              post: {
+                authorUserId: { in: userIds },
+              },
+            },
+            select: {
+              id: true,
+              status: true,
+              reason: true,
+              createdAt: true,
+              post: {
+                select: {
+                  authorUserId: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+          })
+        : [],
+      userIds.length
+        ? this.prisma.auditEvent.findMany({
+            where: {
+              targetType: 'user',
+              targetId: { in: userIds },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: Math.max(20, userIds.length * 5),
+            include: {
+              actorUser: {
+                select: { id: true, email: true },
+              },
+            },
+          })
+        : [],
+      userIds.length
+        ? this.prisma.paymentOrder.findMany({
+            where: {
+              userId: { in: userIds },
+            },
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              userId: true,
+              orderNo: true,
+              provider: true,
+              status: true,
+              amount: true,
+              currency: true,
+              createdAt: true,
+            },
+            take: Math.max(20, userIds.length * 3),
+          })
+        : [],
+    ]);
+    const reportStats = this.userReportStats(reportsAgainstPosts);
+    const auditStats = this.userAuditStats(userAuditEvents);
+    const paymentStats = this.userPaymentStats(recentPayments);
+    const items = page.items.map((user) => {
+      const wallet = user.walletAccounts.find((account) => account.currencyCode === 'LUMINA');
+      const latestLoginAt = this.latestLoginAt(user.authAccounts);
+      const reports = reportStats.get(user.id) ?? {
+        total: 0,
+        open: 0,
+        latestReason: null,
+        latestAt: null,
+      };
+      const audit = auditStats.get(user.id) ?? {
+        sanctionCount: 0,
+        recentAction: null,
+      };
+      const payments = paymentStats.get(user.id) ?? {
+        paidCount: 0,
+        paidAmountKrw: new Decimal(0),
+        lastOrder: null,
+      };
+
+      return {
+        id: user.id,
+        userId: user.id,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        status: user.status,
+        displayName: user.profile?.displayName ?? null,
+        publicHandle: user.profile?.publicHandle ?? null,
+        loginType: this.primaryLoginType(user.authAccounts),
+        loginTypes: user.authAccounts.map((account) => account.provider),
+        walletBalanceLumina: wallet?.cachedBalance ?? new Decimal(0),
+        walletStatus: wallet?.status ?? null,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        deletedAt: user.deletedAt,
+        lastSeenAt: latestLoginAt,
+        activeSessionCount: user._count.refreshTokens,
+        paymentCount: user._count.paymentOrders,
+        paidOrderCount: payments.paidCount,
+        paidAmountKrw: payments.paidAmountKrw,
+        lastPaymentOrder: payments.lastOrder,
+        authoredPostCount: user._count.communityPosts,
+        reportSubmittedCount: user._count.communityReports,
+        reportCount: reports.total,
+        openReportCount: reports.open,
+        latestReportReason: reports.latestReason,
+        latestReportAt: reports.latestAt,
+        sanctionCount: audit.sanctionCount,
+        recentAction: audit.recentAction,
+        followingArtistCount: user._count.artistFollows,
+        followingUserCount: user._count.followingUsers,
+        followerCount: user._count.followers,
+      };
+    });
+
+    return {
+      generatedAt: new Date(),
+      ...page,
+      items,
+      summary: {
+        suspendedInPage: items.filter((item) => item.status === 'suspended').length,
+        deletedInPage: items.filter((item) => item.deletedAt).length,
+        openReportsInPage: items.reduce((sum, item) => sum + item.openReportCount, 0),
+        activeSessionsInPage: items.reduce((sum, item) => sum + item.activeSessionCount, 0),
+      },
+      policy: {
+        route: '/backstage/users',
+        dangerActions: ['suspend', 'restore', 'delete', 'revoke_sessions'],
+        reasonRequiredByUi: true,
+        settlementFieldsIncluded: false,
+      },
+    };
+  }
+
+  async getBackstageSettlementPreview(query: AuditQuery) {
+    const pagination = this.adminPagination(query, 20);
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
+    const status = this.optionalString(query, 'status');
+    const period = this.settlementPeriod(query);
+    const policy = this.settlementPolicy(query);
+    const where: Prisma.ArtistWhereInput = this.clean({
+      status,
+      OR: search
+        ? [
+            { displayName: { contains: search, mode: 'insensitive' } },
+            { slug: { contains: search, mode: 'insensitive' } },
+          ]
+        : undefined,
+    });
+    const artists = await this.prisma.artist.findMany({
+      where,
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
+      orderBy: [{ status: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        slug: true,
+        displayName: true,
+        status: true,
+        artistOperators: {
+          where: { status: 'active' },
+          select: {
+            role: true,
+            user: {
+              select: {
+                id: true,
+                email: true,
+                profile: {
+                  select: {
+                    displayName: true,
+                    publicHandle: true,
+                  },
+                },
+              },
+            },
+          },
+          take: 3,
+        },
+      },
+    });
+    const page = this.paginated(artists, pagination.take);
+    const artistIds = page.items.map((artist) => artist.id);
+    const [chatOrders, giftOrders, boostEvents, premiumUnlocks] = await Promise.all([
+      artistIds.length
+        ? this.prisma.chatFeatureOrder.findMany({
+            where: {
+              artistId: { in: artistIds },
+              status: 'completed',
+              createdAt: { gte: period.start, lt: period.end },
+            },
+            include: {
+              chatFeatureProduct: {
+                select: { id: true, sku: true, name: true, priceLumina: true },
+              },
+            },
+          })
+        : [],
+      artistIds.length
+        ? this.prisma.giftOrder.findMany({
+            where: {
+              artistId: { in: artistIds },
+              status: 'completed',
+              createdAt: { gte: period.start, lt: period.end },
+            },
+            include: {
+              giftProduct: {
+                select: { id: true, sku: true, name: true, priceLumina: true },
+              },
+            },
+          })
+        : [],
+      artistIds.length
+        ? this.prisma.artistBoostEvent.findMany({
+            where: {
+              artistId: { in: artistIds },
+              boostType: 'lumina_boost',
+              createdAt: { gte: period.start, lt: period.end },
+            },
+            include: {
+              boostProduct: {
+                select: { id: true, sku: true, name: true, priceLumina: true },
+              },
+            },
+          })
+        : [],
+      artistIds.length
+        ? this.prisma.userPremiumVideoUnlock.findMany({
+            where: {
+              unlockedAt: { gte: period.start, lt: period.end },
+              premiumVideoProduct: {
+                artistId: { in: artistIds },
+              },
+            },
+            include: {
+              premiumVideoProduct: {
+                select: {
+                  id: true,
+                  artistId: true,
+                  sku: true,
+                  title: true,
+                  priceLumina: true,
+                },
+              },
+            },
+          })
+        : [],
+    ]);
+    const revenueByArtist = new Map<string, ReturnType<typeof this.emptyRevenueBucket>>();
+
+    for (const artistId of artistIds) {
+      revenueByArtist.set(artistId, this.emptyRevenueBucket());
+    }
+
+    for (const order of chatOrders) {
+      this.addRevenueEvent(
+        revenueByArtist,
+        order.artistId,
+        'chat',
+        order.chatFeatureProduct.priceLumina,
+        policy.unitPriceKrw,
+      );
+    }
+
+    for (const order of giftOrders) {
+      this.addRevenueEvent(
+        revenueByArtist,
+        order.artistId,
+        'gift',
+        order.totalLumina,
+        policy.unitPriceKrw,
+      );
+    }
+
+    for (const event of boostEvents) {
+      this.addRevenueEvent(
+        revenueByArtist,
+        event.artistId,
+        'paid_like',
+        event.rawAmount,
+        policy.unitPriceKrw,
+      );
+    }
+
+    for (const unlock of premiumUnlocks) {
+      const artistId = unlock.premiumVideoProduct.artistId;
+      if (artistId) {
+        this.addRevenueEvent(
+          revenueByArtist,
+          artistId,
+          'premium_video',
+          unlock.premiumVideoProduct.priceLumina,
+          policy.unitPriceKrw,
+        );
+      }
+    }
+
+    const items = page.items.map((artist) => {
+      const bucket = revenueByArtist.get(artist.id) ?? this.emptyRevenueBucket();
+      const financials = this.settlementFinancials(bucket.totalLumina, policy);
+      return {
+        artist: {
+          id: artist.id,
+          slug: artist.slug,
+          displayName: artist.displayName,
+          status: artist.status,
+        },
+        creators: artist.artistOperators.map((operator) => ({
+          role: operator.role,
+          userId: operator.user.id,
+          email: this.maskEmail(operator.user.email),
+          displayName: operator.user.profile?.displayName ?? null,
+          publicHandle: operator.user.profile?.publicHandle ?? null,
+        })),
+        period: period.label,
+        eventCount: bucket.eventCount,
+        grossLumina: bucket.totalLumina,
+        productBreakdown: bucket.breakdown,
+        financials,
+        status: bucket.eventCount > 0 ? 'estimated' : 'no_revenue',
+        holdReason: null,
+      };
+    });
+    const totals = items.reduce(
+      (acc, item) => ({
+        eventCount: acc.eventCount + item.eventCount,
+        grossLumina: acc.grossLumina.plus(item.grossLumina),
+        grossRevenueKrw: acc.grossRevenueKrw.plus(item.financials.grossRevenueKrw),
+        netRevenueKrw: acc.netRevenueKrw.plus(item.financials.netRevenueKrw),
+        creatorShareKrw: acc.creatorShareKrw.plus(item.financials.creatorShareKrw),
+        platformShareKrw: acc.platformShareKrw.plus(item.financials.platformShareKrw),
+        riskReserveKrw: acc.riskReserveKrw.plus(item.financials.riskReserveKrw),
+      }),
+      {
+        eventCount: 0,
+        grossLumina: new Decimal(0),
+        grossRevenueKrw: new Decimal(0),
+        netRevenueKrw: new Decimal(0),
+        creatorShareKrw: new Decimal(0),
+        platformShareKrw: new Decimal(0),
+        riskReserveKrw: new Decimal(0),
+      },
+    );
+
+    return {
+      generatedAt: new Date(),
+      period,
+      policy,
+      ...page,
+      items,
+      totals,
+      notice:
+        'Estimated only. Final payout requires normalized creator revenue events, refund/chargeback checks, policy review, tax/accounting confirmation, and admin confirmation.',
+    };
+  }
+
   async createAdminUser(user: AuthUser, input: AdminPayload) {
     this.assertSuperAdmin(user);
 
@@ -2602,6 +3044,265 @@ export class AdminService {
     return {
       key,
       label: labels[key] ?? '운영자가 상태를 확인합니다.',
+    };
+  }
+
+  private userReportStats(
+    reports: {
+      status: string;
+      reason: string;
+      createdAt: Date;
+      post: { authorUserId: string };
+    }[],
+  ) {
+    const stats = new Map<
+      string,
+      { total: number; open: number; latestReason: string | null; latestAt: Date | null }
+    >();
+
+    for (const report of reports) {
+      const userId = report.post.authorUserId;
+      const current = stats.get(userId) ?? {
+        total: 0,
+        open: 0,
+        latestReason: null,
+        latestAt: null,
+      };
+      current.total += 1;
+      if (['submitted', 'reviewing'].includes(report.status)) {
+        current.open += 1;
+      }
+      if (!current.latestAt || report.createdAt > current.latestAt) {
+        current.latestReason = report.reason;
+        current.latestAt = report.createdAt;
+      }
+      stats.set(userId, current);
+    }
+
+    return stats;
+  }
+
+  private userAuditStats(
+    events: {
+      action: string;
+      targetId: string | null;
+      createdAt: Date;
+      actorUser?: { id: string; email: string | null } | null;
+    }[],
+  ) {
+    const sanctionActions = new Set(['user.suspend', 'user.delete']);
+    const stats = new Map<
+      string,
+      {
+        sanctionCount: number;
+        recentAction: {
+          action: string;
+          createdAt: Date;
+          actorUser?: { id: string; email: string | null } | null;
+        } | null;
+      }
+    >();
+
+    for (const event of events) {
+      if (!event.targetId) {
+        continue;
+      }
+
+      const current = stats.get(event.targetId) ?? {
+        sanctionCount: 0,
+        recentAction: null,
+      };
+      if (sanctionActions.has(event.action)) {
+        current.sanctionCount += 1;
+      }
+      if (!current.recentAction || event.createdAt > current.recentAction.createdAt) {
+        current.recentAction = {
+          action: event.action,
+          createdAt: event.createdAt,
+          actorUser: event.actorUser,
+        };
+      }
+      stats.set(event.targetId, current);
+    }
+
+    return stats;
+  }
+
+  private userPaymentStats(
+    orders: {
+      userId: string;
+      orderNo: string;
+      provider: string;
+      status: string;
+      amount: Decimal;
+      currency: string;
+      createdAt: Date;
+    }[],
+  ) {
+    const stats = new Map<
+      string,
+      {
+        paidCount: number;
+        paidAmountKrw: Decimal;
+        lastOrder: {
+          orderNo: string;
+          provider: string;
+          status: string;
+          amount: Decimal;
+          currency: string;
+          createdAt: Date;
+        } | null;
+      }
+    >();
+
+    for (const order of orders) {
+      const current = stats.get(order.userId) ?? {
+        paidCount: 0,
+        paidAmountKrw: new Decimal(0),
+        lastOrder: null,
+      };
+      if (order.status === 'paid') {
+        current.paidCount += 1;
+        current.paidAmountKrw = current.paidAmountKrw.plus(order.amount);
+      }
+      if (!current.lastOrder || order.createdAt > current.lastOrder.createdAt) {
+        current.lastOrder = {
+          orderNo: order.orderNo,
+          provider: order.provider,
+          status: order.status,
+          amount: order.amount,
+          currency: order.currency,
+          createdAt: order.createdAt,
+        };
+      }
+      stats.set(order.userId, current);
+    }
+
+    return stats;
+  }
+
+  private settlementPeriod(query: AuditQuery) {
+    const period = this.optionalString(query, 'period');
+    const now = new Date();
+    const label =
+      period && /^\d{4}-\d{2}$/.test(period)
+        ? period
+        : `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const [yearValue, monthValue] = label.split('-').map((part) => Number(part));
+
+    if (
+      !Number.isInteger(yearValue) ||
+      !Number.isInteger(monthValue) ||
+      monthValue < 1 ||
+      monthValue > 12
+    ) {
+      throw new BadRequestException('period must be YYYY-MM');
+    }
+
+    const start = new Date(Date.UTC(yearValue, monthValue - 1, 1));
+    const end = new Date(Date.UTC(yearValue, monthValue, 1));
+
+    return {
+      label,
+      timezone: 'UTC',
+      start,
+      end,
+    };
+  }
+
+  private settlementPolicy(query: AuditQuery) {
+    return {
+      unitPriceKrw: this.decimal(query, 'unitPriceKrw', 10),
+      vatRateBps: this.number(query, 'vatRateBps', 1000),
+      pgFeeRateBps: this.number(query, 'pgFeeRateBps', 250),
+      pgFeeVatRateBps: this.number(query, 'pgFeeVatRateBps', 1000),
+      aiCostRateBps: this.number(query, 'aiCostRateBps', 0),
+      directCostRateBps: this.number(query, 'directCostRateBps', 0),
+      settlementRateBps: this.number(query, 'settlementRateBps', 8000),
+      platformMinimumMarginBps: this.number(query, 'platformMinimumMarginBps', 1000),
+      status: 'preview_only',
+    };
+  }
+
+  private emptyRevenueBucket() {
+    return {
+      eventCount: 0,
+      totalLumina: new Decimal(0),
+      breakdown: {
+        chat: this.emptyProductBreakdown('chat'),
+        gift: this.emptyProductBreakdown('gift'),
+        paid_like: this.emptyProductBreakdown('paid_like'),
+        premium_video: this.emptyProductBreakdown('premium_video'),
+      },
+    };
+  }
+
+  private emptyProductBreakdown(type: string) {
+    return {
+      type,
+      eventCount: 0,
+      grossLumina: new Decimal(0),
+      grossRevenueKrw: new Decimal(0),
+    };
+  }
+
+  private addRevenueEvent(
+    revenueByArtist: Map<string, ReturnType<typeof this.emptyRevenueBucket>>,
+    artistId: string,
+    type: keyof ReturnType<typeof this.emptyRevenueBucket>['breakdown'],
+    lumina: Decimal,
+    unitPriceKrw: Decimal,
+  ) {
+    const bucket = revenueByArtist.get(artistId) ?? this.emptyRevenueBucket();
+    const amount = new Decimal(lumina);
+    bucket.eventCount += 1;
+    bucket.totalLumina = bucket.totalLumina.plus(amount);
+    bucket.breakdown[type].eventCount += 1;
+    bucket.breakdown[type].grossLumina =
+      bucket.breakdown[type].grossLumina.plus(amount);
+    bucket.breakdown[type].grossRevenueKrw =
+      bucket.breakdown[type].grossLumina.mul(unitPriceKrw);
+    revenueByArtist.set(artistId, bucket);
+  }
+
+  private settlementFinancials(
+    totalLumina: Decimal,
+    policy: ReturnType<typeof this.settlementPolicy>,
+  ) {
+    const grossRevenueKrw = totalLumina.mul(policy.unitPriceKrw);
+    const vatKrw = grossRevenueKrw.mul(policy.vatRateBps).div(10_000 + policy.vatRateBps);
+    const vatExcludedRevenueKrw = grossRevenueKrw.minus(vatKrw);
+    const pgFeeKrw = grossRevenueKrw.mul(policy.pgFeeRateBps).div(10_000);
+    const pgFeeVatKrw = pgFeeKrw.mul(policy.pgFeeVatRateBps).div(10_000);
+    const aiCostKrw = grossRevenueKrw.mul(policy.aiCostRateBps).div(10_000);
+    const directCostKrw = grossRevenueKrw.mul(policy.directCostRateBps).div(10_000);
+    const netRevenueKrw = Decimal.max(
+      0,
+      vatExcludedRevenueKrw.minus(pgFeeKrw).minus(pgFeeVatKrw).minus(aiCostKrw).minus(directCostKrw),
+    );
+    const creatorShareKrw = netRevenueKrw.mul(policy.settlementRateBps).div(10_000);
+    const platformShareKrw = netRevenueKrw
+      .mul(policy.platformMinimumMarginBps)
+      .div(10_000);
+    const riskReserveKrw = Decimal.max(
+      0,
+      netRevenueKrw.minus(creatorShareKrw).minus(platformShareKrw),
+    );
+
+    return {
+      grossRevenueKrw,
+      vatKrw,
+      vatExcludedRevenueKrw,
+      pgFeeKrw,
+      pgFeeVatKrw,
+      aiCostKrw,
+      directCostKrw,
+      refundAdjustmentKrw: new Decimal(0),
+      netRevenueKrw,
+      settlementRateBps: policy.settlementRateBps,
+      creatorShareKrw,
+      platformShareKrw,
+      riskReserveKrw,
     };
   }
 
