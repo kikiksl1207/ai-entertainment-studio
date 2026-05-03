@@ -28,6 +28,7 @@ import {
 } from './dto/auth.dto';
 import { SocialAuthService } from './social-auth.service';
 import { buildPublicAssetUrl } from '../common/asset-url';
+import { USER_IMAGE_UPLOAD_MAX_BYTES } from '../assets/user-assets.service';
 
 const PASSWORD_HASH_ROUNDS = 12;
 const LUMINA_CURRENCY_CODE = 'LUMINA';
@@ -983,6 +984,13 @@ export class AuthService {
         paidLikeUnitPriceLumina: 10,
         paidLikeDailyLimit: 20,
         feedPostMaxImageCount: 4,
+        userImageUpload: {
+          maxBytes: this.publicUserImageUploadMaxBytes(),
+          maxMegabytes: Math.floor(this.publicUserImageUploadMaxBytes() / (1024 * 1024)),
+          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+          purposes: ['avatar', 'feed_image'],
+          videoUpload: 'not_allowed_in_feed_mvp',
+        },
         artistCategories: {
           filterLabels: ARTIST_CATEGORY_FILTER_LABELS,
           categoryLabels: ARTIST_CATEGORY_LABELS,
@@ -1878,6 +1886,14 @@ export class AuthService {
 
   private getJwtExpiresIn(key: string, fallback: string) {
     return (this.configService.get<string>(key) ?? fallback) as '15m';
+  }
+
+  private publicUserImageUploadMaxBytes() {
+    const configured = Number(this.configService.get<string>('MAX_IMAGE_UPLOAD_BYTES'));
+
+    return Number.isInteger(configured) && configured > 0
+      ? configured
+      : USER_IMAGE_UPLOAD_MAX_BYTES;
   }
 
   private authResponse(

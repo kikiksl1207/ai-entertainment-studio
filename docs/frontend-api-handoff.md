@@ -299,10 +299,14 @@ Auth responses:
 
 - `GET /app/bootstrap` is public and can be used as a first-load configuration endpoint. It returns localization policy, social provider status, Lumina currency constants, feature flags, lightweight product policies, artist category filter labels, and important endpoint hints. It does not include secrets or user-specific data.
 - `GET /app/bootstrap` returns `policy.artistCategories.filterLabels = ["전체", "아티스트", "모델", "배우", "엔터테이너", "스포츠", "기타"]`. Build category filter UI from this list when possible, and read each artist card's `category/displayCategory` for the selected value.
+- `GET /app/bootstrap` returns `policy.userImageUpload.maxBytes = 8388608` by default. Use this as the frontend source of truth for avatar/feed image file-size validation when possible.
 - Email-password signup uses email only. Password policy: 8-128 characters, at least one letter and one number. If `displayName` is omitted, the backend assigns a temporary display name such as `민트별빛4827`; do not derive a public name from the email prefix on the frontend.
 - `POST /auth/register` and `POST /auth/login` return `{ user, tokens }`.
 - `tokens` contains `accessToken`, `refreshToken`, and `tokenType: "Bearer"`.
 - For compatibility with the current frontend, auth responses also include top-level `accessToken`, `refreshToken`, and `tokenType` aliases.
+- Access token TTL is controlled by `JWT_ACCESS_EXPIRES_IN`; the repo default is `15m`. MVP frontend should implement `401 -> POST /auth/refresh -> retry original request once` instead of assuming the access token is long-lived.
+- Refresh endpoint: `POST /auth/refresh` with body `{ "refreshToken": "<refreshToken>" }`. Do not send an Authorization header for refresh. Success returns the same auth response shape with rotated `accessToken` and `refreshToken`; persist both. Invalid/expired/revoked refresh tokens return `401`, and the frontend should clear auth state and show a login-required message.
+- Refresh token TTL is controlled by `JWT_REFRESH_EXPIRES_IN`; the repo default is `30d`. Refresh tokens are stored server-side as hashes and rotated on every refresh. `POST /auth/logout`, password change, account deletion, session revoke, and admin suspend/delete revoke server-side refresh sessions.
 - `POST /auth/social/login` accepts `{ "provider": "google" | "kakao" | "naver", "token": "<provider-token>" }`; `accessToken` is also accepted as an alias for `token`.
 - Authorization-code handoff is also accepted as `{ "provider": "kakao", "code": "<code>", "redirectUri": "<same-redirect-uri>" }`. The `redirectUri` value must exactly match the URI registered in Kakao Developers and used when the code was issued. The backend may override it with `KAKAO_REDIRECT_URI` in Render to avoid `www`/non-`www` drift.
 - Google can send either a Google ID token or OAuth access token. Kakao and Naver should send access tokens when using the token handoff.
@@ -1032,6 +1036,7 @@ Upload intent body:
 ```
 
 Allowed user image MIME types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`.
+Default user image max size is `8MB` (`8388608` bytes). If `fileSizeBytes` exceeds the backend limit, expect `413 PAYLOAD_TOO_LARGE` with a user-facing Korean message and `error.details.maxBytes`.
 The upload response includes `{ asset, upload }`; send the file with `upload.method`, `upload.url`, and `upload.requiredHeaders`, then confirm. On `local` storage, `upload.mode` is `metadata_only`; on `s3`/`r2`, it is `direct_upload_ready`.
 Post responses include `assets` when images are linked:
 

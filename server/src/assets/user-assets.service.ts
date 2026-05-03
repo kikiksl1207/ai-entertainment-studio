@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  PayloadTooLargeException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
@@ -14,6 +15,7 @@ type UserAssetBody = Record<string, unknown>;
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export const USER_IMAGE_UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
 
 @Injectable()
 export class UserAssetsService {
@@ -90,6 +92,10 @@ export class UserAssetsService {
 
     if (uploadIntent.createdByUserId !== userId) {
       throw new ForbiddenException('Asset owner access is required');
+    }
+
+    if (input.fileSizeBytes !== undefined) {
+      this.imageFileSizeBytes(input);
     }
 
     await this.assertObjectUploaded(asset.storageProvider, asset.storageKey);
@@ -171,17 +177,31 @@ export class UserAssetsService {
 
   private imageFileSizeBytes(input: UserAssetBody) {
     const size = this.number(input, 'fileSizeBytes');
-    const maxSize = this.numberFromEnv('MAX_IMAGE_UPLOAD_BYTES', 20_971_520);
+    const maxSize = this.numberFromEnv(
+      'MAX_IMAGE_UPLOAD_BYTES',
+      USER_IMAGE_UPLOAD_MAX_BYTES,
+    );
 
     if (!Number.isInteger(size) || size < 1) {
       throw new BadRequestException('fileSizeBytes must be a positive integer');
     }
 
     if (size > maxSize) {
-      throw new BadRequestException(`fileSizeBytes must be less than or equal to ${maxSize}`);
+      throw new PayloadTooLargeException({
+        code: 'PAYLOAD_TOO_LARGE',
+        message: `이미지는 ${this.formatMegabytes(maxSize)}MB 이하 파일로 선택해 주세요.`,
+        details: {
+          field: 'fileSizeBytes',
+          maxBytes: maxSize,
+        },
+      });
     }
 
     return BigInt(size);
+  }
+
+  private formatMegabytes(bytes: number) {
+    return Math.floor(bytes / (1024 * 1024));
   }
 
   private safeFileName(fileName: string) {
