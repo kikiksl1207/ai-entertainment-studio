@@ -297,7 +297,8 @@ Use `Authorization: Bearer <accessToken>` for authenticated requests.
 
 Auth responses:
 
-- `GET /app/bootstrap` is public and can be used as a first-load configuration endpoint. It returns localization policy, social provider status, Lumina currency constants, feature flags, lightweight product policies, and important endpoint hints. It does not include secrets or user-specific data.
+- `GET /app/bootstrap` is public and can be used as a first-load configuration endpoint. It returns localization policy, social provider status, Lumina currency constants, feature flags, lightweight product policies, artist category filter labels, and important endpoint hints. It does not include secrets or user-specific data.
+- `GET /app/bootstrap` returns `policy.artistCategories.filterLabels = ["전체", "아티스트", "모델", "배우", "엔터테이너", "스포츠", "기타"]`. Build category filter UI from this list when possible, and read each artist card's `category/displayCategory` for the selected value.
 - Email-password signup uses email only. Password policy: 8-128 characters, at least one letter and one number.
 - `POST /auth/register` and `POST /auth/login` return `{ user, tokens }`.
 - `tokens` contains `accessToken`, `refreshToken`, and `tokenType: "Bearer"`.

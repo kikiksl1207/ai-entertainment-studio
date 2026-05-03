@@ -38,6 +38,18 @@ const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const EMAIL_VERIFICATION_PURPOSE = 'email_verification';
 const PASSWORD_RESET_PURPOSE = 'password_reset';
+const ARTIST_CATEGORY_LABELS = [
+  '아티스트',
+  '모델',
+  '배우',
+  '엔터테이너',
+  '스포츠',
+  '기타',
+] as const;
+const ARTIST_CATEGORY_FILTER_LABELS = [
+  '전체',
+  ...ARTIST_CATEGORY_LABELS,
+] as const;
 
 type SessionContext = {
   userAgent?: string | null;
@@ -930,10 +942,21 @@ export class AuthService {
         paidLikeUnitPriceLumina: 10,
         paidLikeDailyLimit: 20,
         feedPostMaxImageCount: 4,
+        artistCategories: {
+          filterLabels: ARTIST_CATEGORY_FILTER_LABELS,
+          categoryLabels: ARTIST_CATEGORY_LABELS,
+          fallbackCategory: '기타',
+          sourceField: 'displayCategory',
+          responseFields: ['category', 'displayCategory'],
+          rule: 'Use category/displayCategory from artist responses. Unknown or unapproved concepts fall back to 기타 until operations approves a new category.',
+        },
         artistVisibility:
           'Only active public artists are returned in user-facing artist lists.',
       },
       endpoints: {
+        appBootstrap: 'GET /api/v1/app/bootstrap',
+        artists: 'GET /api/v1/artists',
+        artistRoadmap: 'GET /api/v1/artists/roadmap',
         localizationPolicy: 'GET /api/v1/localization/policy',
         meSettings: 'GET /api/v1/me/settings',
         updateMeSettings: 'PATCH /api/v1/me/settings',
