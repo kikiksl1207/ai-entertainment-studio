@@ -88,7 +88,8 @@ button { cursor: pointer; }
 .metric-grid strong { display: block; margin: 10px 0 8px; color: var(--text); font-size: 32px; letter-spacing: 0; }
 .alert-strip { display: flex; gap: 12px; margin-top: 14px; padding: 14px 16px; border-left: 4px solid var(--amber); }
 .alert-strip span { color: var(--muted); }
-.section-block { margin-top: 28px; scroll-margin-top: 28px; }
+.section-block { display: none; margin-top: 28px; scroll-margin-top: 28px; }
+.section-block.is-active { display: block; }
 .section-title { margin-bottom: 12px; }
 .section-title h2, .table-card h3 { margin: 8px 0 0; color: var(--text); letter-spacing: 0; }
 .section-title h2 { font-size: 22px; }

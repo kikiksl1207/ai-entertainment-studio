@@ -44,6 +44,7 @@ const statusClassMap = {
   "접수": "is-pending",
   "대기": "is-pending",
   "검수중": "is-review",
+  "확인중": "is-review",
   "승인": "is-approved",
   "보류": "is-hold",
   "숨김": "is-blocked",
@@ -55,13 +56,13 @@ const statusClassMap = {
 const backstageRows = {
   overviewQueue: [
     ["DQ-1042", "데뷔 신청", "신규 크리에이터", "접수", "보기"],
-    ["MD-3381", "콘텐츠 신고", "피드 댓글", "검수중", "숨김"],
+    ["MD-3381", "콘텐츠 신고", "피드 댓글", "확인중", "숨김"],
     ["PY-2204", "충전 주문", "루미나 5,500L", "대기", "확인"],
     ["ST-0911", "정산", "팬레터 매출", "지급대기", "지급 완료"]
   ],
   risk: [
     ["RK-221", "외부 연락", "오픈채팅 유도 의심", "높음", "차단"],
-    ["RK-219", "신고 누적", "댓글 신고 3회", "중간", "검수"],
+    ["RK-219", "신고 누적", "댓글 신고 3회", "중간", "확인"],
     ["RK-208", "정산 보류", "본인인증 필요", "중간", "보류"]
   ],
   users: [
@@ -75,7 +76,7 @@ const backstageRows = {
     ["차도현", "아티스트", "승인", "normal", "2026-05-02", "권한 보기"]
   ],
   moderation: [
-    ["피드 #882", "artist_yuna", "외부 연락 패턴", "검수중", "숨김"],
+    ["피드 #882", "artist_yuna", "외부 연락 패턴", "확인중", "숨김"],
     ["댓글 #1204", "user_102", "공격적 표현", "보류", "수정 요청"],
     ["공지 #77", "creator_09", "정상", "승인", "복구"]
   ],
@@ -94,12 +95,12 @@ const backstageRows = {
 const kpiLabelMap = {
   today_users: "오늘 가입자",
   today_payment_orders: "충전 주문",
-  moderation_queue: "신고/검수 대기",
+  moderation_queue: "신고/확인 필요",
   debut_queue: "데뷔 신청"
 };
 
 const alertTitleMap = {
-  moderation_queue: "콘텐츠 검수 대기",
+  moderation_queue: "콘텐츠 확인 필요",
   debut_queue: "데뷔 신청 검토",
   payment_pending: "결제 확인 대기"
 };
@@ -109,7 +110,7 @@ const tableMeta = {
   riskRows: { type: "위험 항목", labels: ["ID", "분류", "사유", "위험도", "권장 액션"] },
   userRows: { type: "유저 관리", labels: ["유저", "이메일", "상태", "루미나", "최근 접속", "권장 액션"] },
   creatorRows: { type: "크리에이터", labels: ["신청자", "유형", "상태", "모니터링", "접수일", "권장 액션"] },
-  moderationRows: { type: "콘텐츠 검수", labels: ["콘텐츠", "작성자", "탐지 유형", "상태", "권장 액션"] },
+  moderationRows: { type: "콘텐츠 확인", labels: ["콘텐츠", "작성자", "탐지 유형", "상태", "권장 액션"] },
   settlementRows: { type: "정산 관리", labels: ["대상", "정산 이벤트", "예정액", "보류금", "상태", "권장 액션"] },
   logRows: { type: "운영 로그", labels: ["시간", "관리자", "액션", "대상", "메모"] }
 };
@@ -428,6 +429,16 @@ function renderBackstageTables() {
   renderRows("logRows", backstageRows.logs, -1);
 }
 
+function setActiveSection(sectionId = "overview") {
+  const targetId = document.getElementById(sectionId) ? sectionId : "overview";
+  document.querySelectorAll(".section-block").forEach((section) => {
+    section.classList.toggle("is-active", section.id === targetId);
+  });
+  document.querySelectorAll(".sidebar-nav a").forEach((link) => {
+    link.classList.toggle("is-active", link.getAttribute("href") === `#${targetId}`);
+  });
+}
+
 function formatCount(value) {
   const number = Number(value || 0);
   return Number.isFinite(number) ? number.toLocaleString("ko-KR") : String(value || 0);
@@ -442,9 +453,9 @@ function renderSummaryKpis(kpis = []) {
       : item.key === "today_payment_orders"
         ? "오늘 생성된 주문"
         : item.key === "moderation_queue"
-          ? "submitted/reviewing 합산"
+          ? "확인 필요 항목"
           : item.key === "debut_queue"
-            ? "submitted/reviewing 합산"
+            ? "접수/확인 필요 항목"
             : item.tone || "운영 확인";
     return `<article><span>${label}</span><strong>${formatCount(item.value)}</strong><small>${helper}</small></article>`;
   }).join("");
@@ -454,7 +465,7 @@ function renderSummaryAlerts(alerts = []) {
   if (!alertStrip || !Array.isArray(alerts) || alerts.length === 0) return;
   const openAlerts = alerts.filter((item) => Number(item.count || 0) > 0);
   if (openAlerts.length === 0) {
-    alertStrip.innerHTML = "<strong>우선 확인</strong><span>현재 즉시 처리해야 할 주요 대기 건은 없습니다.</span>";
+    alertStrip.innerHTML = "<strong>우선 확인</strong><span>현재 즉시 처리해야 할 주요 확인 항목은 없습니다.</span>";
     return;
   }
   const text = openAlerts
@@ -479,7 +490,7 @@ function renderBackstageSummary(summary) {
     item.id?.slice?.(0, 8) || "-",
     item.postType || "피드",
     `신고 ${formatCount(item.reportCount)}건`,
-    item.status === "hidden" ? "숨김" : "검수중",
+    item.status === "hidden" ? "숨김" : "확인중",
     item.status === "hidden" ? "복구" : "숨김"
   ]);
   const logRows = (summary.tables?.recentAuditEvents || []).map((item) => [
@@ -581,7 +592,7 @@ async function loadModerationSection() {
       post.status === "hidden" ? "복구" : "숨김"
     ]);
     if (rows.length) renderRows("moderationRows", rows, 3);
-    else renderLoadingRow("moderationRows", "검수 대기 콘텐츠가 없습니다.");
+    else renderLoadingRow("moderationRows", "확인 필요한 콘텐츠가 없습니다.");
   } catch {
     renderBackstageTables();
     renderFallbackNote("moderationRows");
@@ -677,6 +688,7 @@ function showDashboard() {
   operatorEmail.textContent = auth?.user?.email || emailInput.value || "운영자";
   loginView.classList.add("is-hidden");
   dashboardView.classList.remove("is-hidden");
+  setActiveSection("overview");
   renderBackstageTables();
   updateTodayLabel();
   loadBackstageSummary();
@@ -721,10 +733,11 @@ async function bootstrapBackstage() {
 }
 
 document.querySelectorAll(".sidebar-nav a").forEach((link) => {
-  link.addEventListener("click", () => {
-    document.querySelectorAll(".sidebar-nav a").forEach((item) => item.classList.remove("is-active"));
-    link.classList.add("is-active");
-    loadSection(link.getAttribute("href")?.replace("#", ""));
+  link.addEventListener("click", (event) => {
+    event.preventDefault();
+    const sectionId = link.getAttribute("href")?.replace("#", "") || "overview";
+    setActiveSection(sectionId);
+    loadSection(sectionId);
   });
 });
 
