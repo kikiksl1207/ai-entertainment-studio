@@ -1097,6 +1097,10 @@ GET /me/following-users
 GET /me/followers
 GET /users/:userId/profile
 GET /users/handle/:publicHandle/profile
+POST /users/handle/:publicHandle/follow
+DELETE /users/handle/:publicHandle/follow
+POST /users/handle/:publicHandle/block
+DELETE /users/handle/:publicHandle/block
 POST /users/:userId/block
 DELETE /users/:userId/block
 GET /me/blocked-users?take=20
@@ -1141,6 +1145,17 @@ Use `items` as the canonical list. `artists` is provided as a compatibility alia
 `GET /users/:userId/profile` is public and returns `{ user, stats, recentPosts }` for active users only. It does not expose email. `user` includes `id`, `displayName`, `publicHandle`, `avatarUrl`, `bio`, and `createdAt`; `stats` includes `followers`, `followingUsers`, `followingArtists`, `posts`, and `replies`. `recentPosts` contains up to 5 public posts by that user.
 
 `GET /users/handle/:publicHandle/profile` returns the same shape as `GET /users/:userId/profile`, but resolves the user by stable unique `publicHandle`. Prefer this endpoint for shareable profile links; keep the UUID endpoint for internal compatibility.
+
+Handle-based follow/block endpoints are also available for shareable profile screens:
+
+```http
+POST /users/handle/:publicHandle/follow
+DELETE /users/handle/:publicHandle/follow
+POST /users/handle/:publicHandle/block
+DELETE /users/handle/:publicHandle/block
+```
+
+They behave the same as the UUID endpoints, resolving the active user by `publicHandle` first. Use them when the screen URL is already based on `publicHandle`.
 
 Blocking is idempotent. `POST /users/:userId/block` optionally accepts `{ "reason": "spam" }`, unfollows both directions if an active follow exists, and returns `{ block: { id, status, reason, blockedAt, updatedAt, user: { id, displayName, avatarUrl } } }`. `GET /me/blocked-users` returns the same block row shape as a list.
 

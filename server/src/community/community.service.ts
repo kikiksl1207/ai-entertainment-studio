@@ -632,6 +632,12 @@ export class CommunityService {
     return follow;
   }
 
+  async followUserByHandle(followerUserId: string, publicHandle: string) {
+    const followingUserId = await this.resolveActiveUserIdByHandle(publicHandle);
+
+    return this.followUser(followerUserId, followingUserId);
+  }
+
   async unfollowUser(followerUserId: string, followingUserId: string) {
     if (!UUID_PATTERN.test(followingUserId)) {
       throw new BadRequestException('userId must be a UUID');
@@ -651,6 +657,12 @@ export class CommunityService {
     });
 
     return { ok: true };
+  }
+
+  async unfollowUserByHandle(followerUserId: string, publicHandle: string) {
+    const followingUserId = await this.resolveActiveUserIdByHandle(publicHandle);
+
+    return this.unfollowUser(followerUserId, followingUserId);
   }
 
   async blockUser(blockerUserId: string, blockedUserId: string, input: CommunityBody = {}) {
@@ -709,6 +721,16 @@ export class CommunityService {
     return { block: await this.toUserBlockView(block) };
   }
 
+  async blockUserByHandle(
+    blockerUserId: string,
+    publicHandle: string,
+    input: CommunityBody = {},
+  ) {
+    const blockedUserId = await this.resolveActiveUserIdByHandle(publicHandle);
+
+    return this.blockUser(blockerUserId, blockedUserId, input);
+  }
+
   async unblockUser(blockerUserId: string, blockedUserId: string) {
     if (!UUID_PATTERN.test(blockedUserId)) {
       throw new BadRequestException('userId must be a UUID');
@@ -730,6 +752,12 @@ export class CommunityService {
     return { ok: true };
   }
 
+  async unblockUserByHandle(blockerUserId: string, publicHandle: string) {
+    const blockedUserId = await this.resolveActiveUserIdByHandle(publicHandle);
+
+    return this.unblockUser(blockerUserId, blockedUserId);
+  }
+
   async getPublicUserProfile(userId: string) {
     if (!UUID_PATTERN.test(userId)) {
       throw new BadRequestException('userId must be a UUID');
@@ -739,11 +767,7 @@ export class CommunityService {
   }
 
   async getPublicUserProfileByHandle(publicHandle: string) {
-    const normalizedHandle = publicHandle.trim();
-
-    if (!normalizedHandle || normalizedHandle.length > 80) {
-      throw new BadRequestException('publicHandle is invalid');
-    }
+    const normalizedHandle = this.normalizePublicHandle(publicHandle);
 
     return this.getPublicUserProfileByWhere({
       profile: { is: { publicHandle: normalizedHandle } },
@@ -1228,6 +1252,34 @@ export class CommunityService {
         ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
         : null,
     };
+  }
+
+  private async resolveActiveUserIdByHandle(publicHandle: string) {
+    const normalizedHandle = this.normalizePublicHandle(publicHandle);
+    const user = await this.prisma.user.findFirst({
+      where: {
+        status: 'active',
+        deletedAt: null,
+        profile: { is: { publicHandle: normalizedHandle } },
+      },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user.id;
+  }
+
+  private normalizePublicHandle(publicHandle: string) {
+    const normalizedHandle = publicHandle.trim();
+
+    if (!normalizedHandle || normalizedHandle.length > 80) {
+      throw new BadRequestException('publicHandle is invalid');
+    }
+
+    return normalizedHandle;
   }
 
   private async getBlockedRelationshipUserIds(userId: string) {

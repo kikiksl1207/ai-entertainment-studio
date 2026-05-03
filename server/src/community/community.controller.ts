@@ -131,10 +131,28 @@ export class CommunityController {
     return this.communityService.followUser(user.id, userId);
   }
 
+  @Post('users/handle/:publicHandle/follow')
+  @UseGuards(JwtAuthGuard)
+  followUserByHandle(
+    @CurrentUser() user: AuthUser,
+    @Param('publicHandle') publicHandle: string,
+  ) {
+    return this.communityService.followUserByHandle(user.id, publicHandle);
+  }
+
   @Delete('users/:userId/follow')
   @UseGuards(JwtAuthGuard)
   unfollowUser(@CurrentUser() user: AuthUser, @Param('userId') userId: string) {
     return this.communityService.unfollowUser(user.id, userId);
+  }
+
+  @Delete('users/handle/:publicHandle/follow')
+  @UseGuards(JwtAuthGuard)
+  unfollowUserByHandle(
+    @CurrentUser() user: AuthUser,
+    @Param('publicHandle') publicHandle: string,
+  ) {
+    return this.communityService.unfollowUserByHandle(user.id, publicHandle);
   }
 
   @Post('users/:userId/block')
@@ -147,10 +165,29 @@ export class CommunityController {
     return this.communityService.blockUser(user.id, userId, body);
   }
 
+  @Post('users/handle/:publicHandle/block')
+  @UseGuards(JwtAuthGuard)
+  blockUserByHandle(
+    @CurrentUser() user: AuthUser,
+    @Param('publicHandle') publicHandle: string,
+    @Body() body: CommunityBody,
+  ) {
+    return this.communityService.blockUserByHandle(user.id, publicHandle, body);
+  }
+
   @Delete('users/:userId/block')
   @UseGuards(JwtAuthGuard)
   unblockUser(@CurrentUser() user: AuthUser, @Param('userId') userId: string) {
     return this.communityService.unblockUser(user.id, userId);
+  }
+
+  @Delete('users/handle/:publicHandle/block')
+  @UseGuards(JwtAuthGuard)
+  unblockUserByHandle(
+    @CurrentUser() user: AuthUser,
+    @Param('publicHandle') publicHandle: string,
+  ) {
+    return this.communityService.unblockUserByHandle(user.id, publicHandle);
   }
 
   @Get('users/:userId/profile')
