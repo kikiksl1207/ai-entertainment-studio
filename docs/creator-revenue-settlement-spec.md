@@ -17,6 +17,12 @@ for:
 - paid votes / Lumina boosts
 - future image or voice replies
 
+Related implementation plans:
+
+- `docs/character-chat-backend-plan.md`
+- `docs/trust-identity-abuse-policy.md`
+- `docs/artist-roles-moderation-plan.md`
+
 Original Lumina-owned AI characters are platform-owned revenue. External creators,
 AI debut artists, and strategic partners use the settlement flow below.
 
@@ -193,6 +199,9 @@ metadata
 - `image_reply`
 - `voice_reply`
 
+Free likes are intentionally absent from this list. They are fan-temperature and
+ranking signals only; they should not create creator revenue events.
+
 ### 3. Creator Settlement Period
 
 Monthly summary per creator / artist.
@@ -341,12 +350,14 @@ Admin actions:
 ## MVP Implementation Order
 
 1. Document policy and pricing.
-2. Add wallet paid/bonus spend attribution.
-3. Add `creator_revenue_events`.
-4. Record events from paid votes and chat feature orders.
-5. Add creator current-estimate API.
-6. Add admin settlement review API.
-7. Add monthly settlement finalize/paid workflow.
-8. Add CSV export and tax/accounting handoff.
+2. Align seed products for character-chat paid modes and fan letters.
+3. Add identity/trust gates for settlement-generating promotional spend.
+4. Add wallet paid/bonus spend attribution for internal marketing-cost reporting.
+5. Add `creator_revenue_events`.
+6. Record events from paid votes and chat feature orders.
+7. Add creator current-estimate API.
+8. Add admin settlement review API.
+9. Add monthly settlement finalize/paid workflow.
+10. Add CSV export and tax/accounting handoff.
 
 Do not promise exact payout until steps 2-6 are complete.

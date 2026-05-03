@@ -848,6 +848,72 @@ async function seedPremiumAndChat() {
       create: { sku, name, featureType, priceLumina, status: 'active', metadata: { seed: true } },
     });
   }
+
+  const characterChatProducts = [
+    ['CHAT_DEEP_REPLY', 'Deep Reply', 'deep_reply', 2, '딥리플', 'mini', false],
+    ['CHAT_STORY_REPLY', 'Story Reply', 'story_reply', 5, '스토리 리플', 'mini', false],
+    ['CHAT_PREMIUM_REPLY', 'Premium Reply', 'premium_reply', 10, '프리미엄 리플', 'premium', false],
+    ['CHAT_FANLETTER_30', 'Fan Letter 30', 'fan_letter', 30, '스페셜 팬레터 30', 'async_special', false],
+    ['CHAT_FANLETTER_50', 'Fan Letter 50', 'fan_letter', 50, '스페셜 팬레터 50', 'async_special', false],
+    ['CHAT_FANLETTER_100', 'Fan Letter 100', 'fan_letter', 100, '스페셜 팬레터 100', 'async_special', false],
+    ['CHAT_IMAGE_REPLY', 'Image Reply', 'image_reply', 20, '이미지 답장', 'image_later', true],
+    ['CHAT_VOICE_REPLY', 'Voice Reply', 'voice_reply', 20, '음성 답장', 'voice_later', true],
+  ] as const;
+
+  for (const [
+    sku,
+    name,
+    featureType,
+    priceLumina,
+    displayNameKo,
+    modelTier,
+    mvpLocked,
+  ] of characterChatProducts) {
+    await prisma.chatFeatureProduct.upsert({
+      where: { sku },
+      update: {
+        name,
+        featureType,
+        priceLumina,
+        status: mvpLocked ? 'draft' : 'active',
+        metadata: {
+          seed: true,
+          displayNameKo,
+          modelTier,
+          mvpLocked,
+          settlementEligible: true,
+        },
+        updatedAt: new Date(),
+      },
+      create: {
+        sku,
+        name,
+        featureType,
+        priceLumina,
+        status: mvpLocked ? 'draft' : 'active',
+        metadata: {
+          seed: true,
+          displayNameKo,
+          modelTier,
+          mvpLocked,
+          settlementEligible: true,
+        },
+      },
+    });
+  }
+
+  await prisma.chatFeatureProduct.updateMany({
+    where: { sku: 'CHAT_SPECIAL_REPLY' },
+    data: {
+      status: 'archived',
+      metadata: {
+        seed: true,
+        archivedBySeed: true,
+        replacedBy: ['CHAT_FANLETTER_30', 'CHAT_FANLETTER_50', 'CHAT_FANLETTER_100'],
+      },
+      updatedAt: new Date(),
+    },
+  });
 }
 
 async function upsertImageAsset(storageKey: string, title: string) {

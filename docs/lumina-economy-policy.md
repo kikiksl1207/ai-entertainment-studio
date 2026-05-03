@@ -78,9 +78,31 @@ Progressive unlocks should affect character outfits, items, images, or premium c
 ## Votes And Boosts
 
 - Free likes can exist as daily participation.
+- Free likes are not settlement eligible. They are ranking/fan-temperature
+  signals only.
 - Paid basic vote: 10 Lumina.
 - Paid votes and boosts must create wallet ledger debits and artist boost events in the same transaction.
 - Rankings must be derived from boost events or snapshots, never from mutable counters alone.
+- Paid likes are settlement candidates only after creator-settlement events are
+  implemented and marked eligible.
+
+## Character Chat Paid Modes
+
+Seeded paid modes:
+
+| SKU | Mode | Lumina | Settlement |
+| --- | --- | ---: | --- |
+| `CHAT_DEEP_REPLY` | Deep reply | 2 | eligible |
+| `CHAT_STORY_REPLY` | Story reply | 5 | eligible |
+| `CHAT_PREMIUM_REPLY` | Premium reply | 10 | eligible |
+| `CHAT_FANLETTER_30` | Fan letter | 30 | eligible |
+| `CHAT_FANLETTER_50` | Fan letter | 50 | eligible |
+| `CHAT_FANLETTER_100` | Fan letter | 100 | eligible |
+
+Basic chat remains free and settlement excluded. Image and voice replies remain
+draft until model cost and safety validation are complete.
+
+Related plan: `docs/character-chat-backend-plan.md`.
 
 ## User-To-User Gifts
 

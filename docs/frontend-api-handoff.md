@@ -436,6 +436,8 @@ GET /artists/:artistId/gift-products
 Backend policy draft:
 
 - `docs/creator-revenue-settlement-spec.md`
+- `docs/character-chat-backend-plan.md`
+- `docs/trust-identity-abuse-policy.md`
 
 Planned creator-facing settlement surfaces:
 
@@ -463,11 +465,14 @@ Important frontend rule for later:
 Draft price policy:
 
 - Basic character chat: free, settlement excluded.
-- Deep reply: 2L.
-- Story reply: 5L.
-- Premium story: 10L.
-- Fan letter: 30L / 50L / 100L.
+- Deep reply: 2L, seeded as `CHAT_DEEP_REPLY`.
+- Story reply: 5L, seeded as `CHAT_STORY_REPLY`.
+- Premium story: 10L, seeded as `CHAT_PREMIUM_REPLY`.
+- Fan letter: 30L / 50L / 100L, seeded as `CHAT_FANLETTER_30`,
+  `CHAT_FANLETTER_50`, and `CHAT_FANLETTER_100`.
 - Paid vote / Lumina boost: 10L.
+- Image / voice replies are reserved as draft products until model-cost and
+  safety validation are complete.
 
 Response shape:
 
@@ -553,10 +558,13 @@ The backend also accepts a slug-like `artistId` for current frontend compatibili
 
 Policy:
 
-- Free like: 1 per day, no Lumina spend.
+- Free like: 1 per day, no Lumina spend. It is a ranking/fan-temperature signal
+  only and is not settlement eligible.
 - Paid like: 1 like unit = 10L. The backend uses the active `BOOST_BASIC_VOTE`
   boost product internally, debits the wallet, writes `wallet_ledger`, and
-  creates a `lumina_boost` ranking event in one DB transaction.
+  creates a `lumina_boost` ranking event in one DB transaction. Paid likes are
+  settlement candidates when the future creator-settlement event marks them
+  eligible.
 - Paid like daily limit: 20 units per user per service day. This is the MVP
   launch policy chosen to balance revenue testing and ranking fairness.
 - `quantity` defaults to `1` and must be an integer between `1` and `20`.
@@ -564,6 +572,10 @@ Policy:
   limit exceeded`.
 - Send `Idempotency-Key` header or `idempotencyKey` in the body to avoid
   double spending on retries.
+- Future identity/trust rule: signup remains open, but paid support, referral
+  rewards, fan letters, bonus-Lumina settlement spend, and creator settlement
+  actions may return `IDENTITY_VERIFICATION_REQUIRED`. See
+  `docs/trust-identity-abuse-policy.md`.
 
 Recommended body:
 
