@@ -431,6 +431,44 @@ GET /artists/:artistId/gift-products
 
 `GET /lumina-station?take=5` requires `Authorization: Bearer <accessToken>` and is the recommended bootstrap endpoint for the Lumina charge screen. It returns the user's wallet, active charge products, recent orders, payment status hints, and display policy in one call.
 
+### Creator Revenue / Settlement
+
+Backend policy draft:
+
+- `docs/creator-revenue-settlement-spec.md`
+
+Planned creator-facing settlement surfaces:
+
+```http
+GET /me/creator/settlements/current
+GET /me/creator/settlements?take=20
+GET /me/creator/revenue-events?period=2026-05&take=50
+```
+
+These endpoints are not implemented yet. The product requirement is that
+creators should see an estimated payout such as `현재까지 약 207,000원 정산 예정`
+and admins should be able to review/confirm/mark payouts as paid.
+
+Important frontend rule for later:
+
+- Do not show raw gross Lumina usage as payout.
+- Show estimated payout only after the backend returns a settlement estimate.
+- Do not split creator-facing payout by paid/free Lumina. Promotional Lumina
+  spent on paid creator products is treated as Lumina Stage marketing cost.
+- Paid votes, fan letters, and paid chat modes are settlement candidates when
+  the backend marks them settlement eligible.
+- Final payout may change after PG fees, VAT, AI cost, refunds, holds, and admin
+  confirmation.
+
+Draft price policy:
+
+- Basic character chat: free, settlement excluded.
+- Deep reply: 2L.
+- Story reply: 5L.
+- Premium story: 10L.
+- Fan letter: 30L / 50L / 100L.
+- Paid vote / Lumina boost: 10L.
+
 Response shape:
 
 ```json
