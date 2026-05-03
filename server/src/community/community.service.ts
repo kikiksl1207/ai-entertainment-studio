@@ -26,6 +26,8 @@ const REPORT_REASONS = new Set([
 ]);
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const FEED_POST_MAX_IMAGES = 4;
+const FEED_EXTERNAL_URL_MAX_LENGTH = 2048;
 
 @Injectable()
 export class CommunityService {
@@ -194,6 +196,7 @@ export class CommunityService {
     const artistId = await this.resolveOptionalArtistId(input);
     const visibility = this.visibility(input.visibility);
     const assetIds = await this.resolvePostAssetIds(input);
+    const metadata = this.buildPostMetadata(input);
 
     if (artistId) {
       await this.assertArtistOperator(userId, artistId);
@@ -206,7 +209,7 @@ export class CommunityService {
         postType: artistId ? 'artist_post' : 'user_post',
         visibility,
         body,
-        metadata: this.toJson(this.object(input, 'metadata') ?? {}),
+        metadata: this.toJson(metadata),
         assets: assetIds.length
           ? {
               create: assetIds.map((assetId, index) => ({
@@ -221,6 +224,18 @@ export class CommunityService {
     });
 
     return { post: await this.toPostView(post) };
+  }
+
+  async createLinkPreview(userId: string, input: CommunityBody) {
+    await this.assertActiveUser(userId);
+
+    const url = this.text(input, 'url', 1, FEED_EXTERNAL_URL_MAX_LENGTH);
+    const preview = this.buildLinkPreview(url);
+
+    return {
+      preview,
+      policy: this.feedExternalLinkPolicy(),
+    };
   }
 
   async deletePost(userId: string, postId: string) {
@@ -1090,8 +1105,13 @@ export class CommunityService {
   }
 
   private async toPostView(post: any) {
+    const metadata = this.metadataObject(post.metadata);
+
     return {
       ...post,
+      linkPreview: metadata.linkPreview
+        ? this.metadataObject(metadata.linkPreview)
+        : null,
       assets: (post.assets ?? []).map((link: any) => {
         const url = buildPublicAssetUrl(this.configService, link.asset.storageKey);
 
@@ -1425,8 +1445,10 @@ export class CommunityService {
       throw new BadRequestException('assetIds must be an array');
     }
 
-    if (value.length > 4) {
-      throw new BadRequestException('A feed post can attach up to 4 images');
+    if (value.length > FEED_POST_MAX_IMAGES) {
+      throw new BadRequestException(
+        `A feed post can attach up to ${FEED_POST_MAX_IMAGES} images`,
+      );
     }
 
     const assetIds = value.map((entry) => {
@@ -1474,8 +1496,10 @@ export class CommunityService {
         throw new BadRequestException('All feed assets must be public images');
       }
 
-      if (asset.assetType !== 'image' && !asset.mimeType.startsWith('image/')) {
-        throw new BadRequestException('All feed assets must be public images');
+      if (asset.assetType !== 'image' || !asset.mimeType.startsWith('image/')) {
+        throw new BadRequestException(
+          'Lumina Feed supports image attachments only. Use Shortform for videos.',
+        );
       }
 
       const metadata = this.metadataObject(asset.metadata);
@@ -1492,6 +1516,122 @@ export class CommunityService {
     }
 
     return uniqueAssetIds;
+  }
+
+  private buildPostMetadata(input: CommunityBody) {
+    const metadata = { ...(this.object(input, 'metadata') ?? {}) };
+    delete metadata.linkPreview;
+    delete metadata.externalUrl;
+    delete metadata.feedPolicy;
+
+    const externalUrl = this.optionalString(input.externalUrl);
+
+    if (!externalUrl) {
+      return metadata;
+    }
+
+    const linkPreview = this.buildLinkPreview(externalUrl);
+
+    return {
+      ...metadata,
+      externalUrl: linkPreview.canonicalUrl,
+      linkPreview,
+      feedPolicy: {
+        externalLink: 'metadata_only',
+        remoteFetch: 'disabled_for_mvp',
+        videoUpload: 'not_allowed_in_feed_mvp',
+      },
+    };
+  }
+
+  private buildLinkPreview(rawUrl: string) {
+    const trimmed = rawUrl.trim();
+
+    if (trimmed.length > FEED_EXTERNAL_URL_MAX_LENGTH) {
+      throw new BadRequestException(
+        `url must be ${FEED_EXTERNAL_URL_MAX_LENGTH} characters or fewer`,
+      );
+    }
+
+    let parsed: URL;
+
+    try {
+      parsed = new URL(trimmed);
+    } catch {
+      throw new BadRequestException('url must be a valid HTTPS URL');
+    }
+
+    if (parsed.protocol !== 'https:') {
+      throw new BadRequestException('url must use https');
+    }
+
+    if (parsed.username || parsed.password) {
+      throw new BadRequestException('url must not include credentials');
+    }
+
+    if (this.isBlockedExternalHostname(parsed.hostname)) {
+      throw new BadRequestException('url hostname is not allowed');
+    }
+
+    parsed.hash = '';
+    const canonicalUrl = parsed.toString();
+    const hostname = parsed.hostname.toLowerCase();
+    const siteName = hostname.replace(/^www\./, '');
+
+    return {
+      source: 'metadata_only',
+      url: canonicalUrl,
+      canonicalUrl,
+      hostname,
+      siteName,
+      title: null,
+      description: null,
+      imageUrl: null,
+      fetchStatus: 'not_fetched_mvp',
+      remoteFetch: 'disabled_for_mvp',
+    };
+  }
+
+  private feedExternalLinkPolicy() {
+    return {
+      externalLinks: 'enabled',
+      acceptedUrlSchemes: ['https'],
+      maxUrlLength: FEED_EXTERNAL_URL_MAX_LENGTH,
+      storedFields: ['canonicalUrl', 'hostname', 'siteName'],
+      bodyCopy: 'not_allowed',
+      remoteFetch: 'disabled_for_mvp',
+      videoUpload: 'not_allowed_in_feed_mvp',
+    };
+  }
+
+  private isBlockedExternalHostname(hostname: string) {
+    const normalized = hostname.toLowerCase();
+
+    if (
+      normalized === 'localhost' ||
+      normalized.endsWith('.localhost') ||
+      normalized.endsWith('.local') ||
+      normalized === '::1' ||
+      normalized === '0.0.0.0'
+    ) {
+      return true;
+    }
+
+    if (/^(127|10)\./.test(normalized)) {
+      return true;
+    }
+
+    if (/^192\.168\./.test(normalized)) {
+      return true;
+    }
+
+    const private172 = normalized.match(/^172\.(\d{1,2})\./);
+    if (private172) {
+      const secondOctet = Number(private172[1]);
+      return secondOctet >= 16 && secondOctet <= 31;
+    }
+
+    return /^(fc|fd|fe80):/i.test(normalized);
   }
 
   private async resolveActiveArtist(artistIdOrSlug: string) {
@@ -1588,7 +1728,7 @@ export class CommunityService {
     return value;
   }
 
-  private optionalString(queryValue: string | undefined) {
+  private optionalString(queryValue: unknown) {
     return this.optionalStringValue(queryValue);
   }
 

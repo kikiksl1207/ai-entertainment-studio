@@ -984,6 +984,19 @@ export class AuthService {
         paidLikeUnitPriceLumina: 10,
         paidLikeDailyLimit: 20,
         feedPostMaxImageCount: 4,
+        luminaFeed: {
+          maxImagesPerPost: 4,
+          allowedAttachmentTypes: ['image'],
+          allowedImageMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+          externalLinks: {
+            enabled: true,
+            acceptedUrlSchemes: ['https'],
+            maxUrlLength: 2048,
+            remoteFetch: 'disabled_for_mvp',
+            storedFields: ['canonicalUrl', 'hostname', 'siteName'],
+          },
+          videoUpload: 'not_allowed_in_feed_mvp',
+        },
         userImageUpload: {
           maxBytes: this.publicUserImageUploadMaxBytes(),
           maxMegabytes: Math.floor(this.publicUserImageUploadMaxBytes() / (1024 * 1024)),

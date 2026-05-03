@@ -48,6 +48,12 @@ export class CommunityController {
     return this.communityService.createPost(user.id, body);
   }
 
+  @Post('lumina-feed/link-preview')
+  @UseGuards(JwtAuthGuard)
+  createLinkPreview(@CurrentUser() user: AuthUser, @Body() body: CommunityBody) {
+    return this.communityService.createLinkPreview(user.id, body);
+  }
+
   @Delete('lumina-feed/posts/:postId')
   @UseGuards(JwtAuthGuard)
   deletePost(@CurrentUser() user: AuthUser, @Param('postId') postId: string) {

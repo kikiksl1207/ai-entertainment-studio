@@ -300,6 +300,7 @@ Auth responses:
 - `GET /app/bootstrap` is public and can be used as a first-load configuration endpoint. It returns localization policy, social provider status, Lumina currency constants, feature flags, lightweight product policies, artist category filter labels, and important endpoint hints. It does not include secrets or user-specific data.
 - `GET /app/bootstrap` returns `policy.artistCategories.filterLabels = ["전체", "아티스트", "모델", "배우", "엔터테이너", "스포츠", "기타"]`. Build category filter UI from this list when possible, and read each artist card's `category/displayCategory` for the selected value.
 - `GET /app/bootstrap` returns `policy.userImageUpload.maxBytes = 8388608` by default. Use this as the frontend source of truth for avatar/feed image file-size validation when possible.
+- `GET /app/bootstrap` returns `policy.luminaFeed`: image attachments are capped at 4, feed video upload is not allowed in MVP, and external links are HTTPS metadata-only cards with remote fetching disabled.
 - Email-password signup uses email only. Password policy: 8-128 characters, at least one letter and one number. If `displayName` is omitted, the backend assigns a temporary display name such as `민트별빛4827`; do not derive a public name from the email prefix on the frontend.
 - `POST /auth/register` and `POST /auth/login` return `{ user, tokens }`.
 - `tokens` contains `accessToken`, `refreshToken`, and `tokenType: "Bearer"`.
@@ -1015,6 +1016,47 @@ If `artistId` or `artistSlug` is provided, the backend requires an active
 ```
 
 Assets must already be uploaded/confirmed through the existing asset flow. Pending, archived, private, non-image, duplicate, or unknown assets return `400`.
+Feed video upload is not open in MVP. Route video/performance/challenge content to Shortform, not Lumina Feed.
+
+External URL posts use lightweight metadata only:
+
+```http
+POST /lumina-feed/link-preview
+Authorization: Bearer <accessToken>
+```
+
+```json
+{ "url": "https://example.com/interview" }
+```
+
+The backend validates HTTPS URLs, strips fragments, blocks local/private hostnames, and returns a domain-only preview. It does not crawl remote pages or copy article/media content in MVP:
+
+```json
+{
+  "preview": {
+    "source": "metadata_only",
+    "canonicalUrl": "https://example.com/interview",
+    "hostname": "example.com",
+    "siteName": "example.com",
+    "title": null,
+    "description": null,
+    "imageUrl": null,
+    "fetchStatus": "not_fetched_mvp",
+    "remoteFetch": "disabled_for_mvp"
+  }
+}
+```
+
+To create a post with a link, send the same URL as `externalUrl`:
+
+```json
+{
+  "body": "feed text",
+  "externalUrl": "https://example.com/interview"
+}
+```
+
+Post responses include top-level `linkPreview` when an external URL is attached. Frontend should render it as a simple domain/link card for now.
 For normal logged-in users, use this image upload flow before creating a feed post:
 
 ```http

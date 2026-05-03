@@ -1,6 +1,6 @@
 # Lumina Feed Backend Spec
 
-Updated: 2026-05-02
+Updated: 2026-05-03
 
 ## Product Split
 
@@ -188,10 +188,76 @@ Body rules:
 - `assetIds`: optional array of 0-4 unique public image asset UUIDs. Assets must
   already be uploaded/confirmed and cannot be archived, private, pending, or
   non-image.
+- `externalUrl`: optional HTTPS URL, max 2048 characters. The backend stores a
+  lightweight metadata-only `linkPreview` on `community_posts.metadata` and does
+  not fetch, copy, or store the remote article/body/media for MVP.
+
+External link example:
+
+```json
+{
+  "body": "This interview fits today's Lumina Feed mood.",
+  "externalUrl": "https://example.com/interview"
+}
+```
+
+Optional link-preview helper:
+
+```http
+POST /lumina-feed/link-preview
+Authorization: Bearer <accessToken>
+```
+
+Request:
+
+```json
+{
+  "url": "https://example.com/interview"
+}
+```
+
+Response:
+
+```json
+{
+  "preview": {
+    "source": "metadata_only",
+    "url": "https://example.com/interview",
+    "canonicalUrl": "https://example.com/interview",
+    "hostname": "example.com",
+    "siteName": "example.com",
+    "title": null,
+    "description": null,
+    "imageUrl": null,
+    "fetchStatus": "not_fetched_mvp",
+    "remoteFetch": "disabled_for_mvp"
+  },
+  "policy": {
+    "externalLinks": "enabled",
+    "acceptedUrlSchemes": ["https"],
+    "maxUrlLength": 2048,
+    "storedFields": ["canonicalUrl", "hostname", "siteName"],
+    "bodyCopy": "not_allowed",
+    "remoteFetch": "disabled_for_mvp",
+    "videoUpload": "not_allowed_in_feed_mvp"
+  }
+}
+```
+
+This endpoint intentionally does not crawl remote pages yet. Server-side
+OpenGraph fetching should only be added later with SSRF protection, DNS/IP
+blocking, content-type and byte limits, and short timeouts.
 
 Linked images appear on post responses as `assets[]` with public `url` and
 `thumbnailUrl`. Internal `storageKey`, provider data, and raw asset metadata are
 not exposed on the feed response.
+
+Feed MVP media policy:
+
+- Post images: up to 4 attached image assets.
+- Feed video upload: not allowed. Use Shortform for video/clips.
+- External URL: store only canonical URL/domain metadata, not copied article
+  text or downloaded media.
 
 Normal user image upload flow:
 
