@@ -97,6 +97,7 @@ button { cursor: pointer; }
 .table-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .table-grid.is-stacked { grid-template-columns: 1fr; }
 .table-card { overflow: hidden; }
+.table-card.is-filtered-hidden, tr.is-filtered-hidden { display: none; }
 .table-card.is-tall .table-wrap { min-height: 506px; }
 .table-card header { padding: 16px 16px 10px; }
 .table-wrap { width: 100%; overflow-x: auto; }

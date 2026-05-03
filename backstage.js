@@ -419,6 +419,68 @@ function renderDetailPanel(detail) {
   updateDetailActions(detail);
 }
 
+function openQuickAction(button) {
+  const label = button.textContent.trim();
+  const section = button.closest(".section-block");
+  const sectionTitle = section?.querySelector(".section-title h2")?.textContent?.trim() || "백스테이지";
+  const cardTitle = button.closest(".table-card")?.querySelector("h3")?.textContent?.trim() || sectionTitle;
+
+  const actionMap = {
+    "운영자 추가": ["운영자 계정 초대", "초대 이메일, 역할, 권한 범위를 입력하는 폼이 열릴 자리입니다.", "POST /admin/api/v1/admin-users/invitations"],
+    "요청 보기": ["권한 요청 상세", "권한 변경 요청의 요청자, 대상자, 권한 범위, 승인 이력을 보여줍니다.", "GET /admin/api/v1/admin-users/permission-requests"],
+    "전체 보기": ["목록 전체 보기", "현재 표의 필터를 초기화하고 전체 더미 데이터를 다시 보여줍니다.", "GET list endpoint with cursor"],
+    "위험만 보기": ["위험 항목 필터", "신고, 정지, 높은 위험도 항목만 남겨서 봅니다.", "GET list endpoint with risk filter"],
+    "데뷔 신청 보기": ["데뷔 신청 목록", "신청서에 기재한 활동명, 소개, 연락 가능 시간, 자료 링크, 권리 확인 내용을 모두 보여줄 자리입니다.", "GET /admin/api/v1/debut/applications"],
+    "AI 아티스트 추가": ["AI 아티스트 추가", "캐릭터 기본 정보, 만든 관리자, 공개 상태, 초기 프로필/에셋 체크리스트를 등록합니다.", "POST /admin/api/v1/artists"],
+    "업로드 추가": ["AI 에셋 업로드", "아티스트 선택 후 cover, thumb, gallery, shortform 타입으로 파일을 등록합니다.", "POST /admin/api/v1/artists/:artistId/assets/upload-intents"],
+    "글 작성": ["AI 아티스트 글 작성", "아티스트를 선택하고 피드/프로필/공지/프리미엄 글 유형을 골라 작성합니다.", "POST /admin/api/v1/artists/:artistId/content"],
+    "대상 설정": ["집중 관리 대상 설정", "신규 7일 모니터링, 신고 누적, 장기 미접속 등 관리 사유를 붙입니다.", "POST /admin/api/v1/creator-content/watchlist"],
+    "패턴 보기": ["이상 패턴 확인", "연락처 유도, 반복 홍보, 공격 표현 등 탐지 신호를 확인합니다.", "GET /admin/api/v1/creator-content/anomalies"],
+    "신고 이력": ["취소/철회 신고 이력", "접수, 취소, 철회, 중복 신고를 따로 보관하고 확인합니다.", "GET /admin/api/v1/community/reports?status=cancelled,withdrawn"],
+    "정산 보기": ["정산 상세", "프리미엄챗, 유료 좋아요, 기타 매출, 차감, 정산금을 항목별로 봅니다.", "GET /admin/api/v1/settlements"],
+    "성과 보기": ["AI 아티스트 성과", "제작자, 매출 항목, 원가, 내부 보너스 산정 기준을 봅니다.", "GET /admin/api/v1/ai-artists/performance"]
+  };
+  const [title, description, apiHint] = actionMap[label] || [label, `${cardTitle} 기능의 더미 연결입니다.`, "API 연결 대기"];
+
+  renderDetailPanel({
+    tableId: "quickAction",
+    type: sectionTitle,
+    labels: ["기능", "위치", "상태", "연결 예정", "메모"],
+    row: [title, cardTitle, "더미 동작", apiHint, description]
+  });
+}
+
+function applyTableSearch(section, term) {
+  const keyword = term.trim().toLowerCase();
+  section.querySelectorAll("tbody tr").forEach((row) => {
+    row.classList.toggle("is-filtered-hidden", Boolean(keyword) && !row.textContent.toLowerCase().includes(keyword));
+  });
+  renderDetailPanel({
+    tableId: "quickAction",
+    type: "검색",
+    labels: ["검색어", "대상", "상태"],
+    row: [term || "전체", section.querySelector(".section-title h2")?.textContent?.trim() || "현재 탭", keyword ? "필터 적용" : "필터 초기화"]
+  });
+}
+
+function applyOverviewFilter(button) {
+  const label = button.textContent.trim();
+  button.closest(".filter-row")?.querySelectorAll(".filter-chip").forEach((chip) => chip.classList.remove("is-active"));
+  button.classList.add("is-active");
+  const overview = document.getElementById("overview");
+  const cards = overview?.querySelectorAll(".table-card") || [];
+  cards.forEach((card, index) => {
+    const hide = label === "확인" && index === 1 || label === "위험" && index === 0;
+    card.classList.toggle("is-filtered-hidden", hide);
+  });
+  renderDetailPanel({
+    tableId: "quickAction",
+    type: "대시보드 필터",
+    labels: ["필터", "표시 상태", "메모"],
+    row: [label, label === "전체" ? "업무/위험 모두 표시" : `${label} 항목만 표시`, "더미 데이터 기준으로 카드 표시를 전환했습니다."]
+  });
+}
+
 function updateDetailActions(detail) {
   const dangerButton = document.querySelector('[data-detail-action="danger"]');
   const holdButton = document.querySelector('[data-detail-action="hold"]');
@@ -662,7 +724,7 @@ async function loadUsersPage(append = true) {
     state.cursor = page.nextCursor;
     state.hasMore = page.hasMore;
     setLoadMore("users", page.hasMore);
-    if (state.rows.length) renderRows("userRows", state.rows, 2);
+    if (state.rows.length) renderRows("userRows", state.rows, -1);
     else renderLoadingRow("userRows", "표시할 유저가 없습니다.");
   } catch {
     renderBackstageTables();
@@ -855,7 +917,36 @@ document.querySelectorAll(".sidebar-nav a").forEach((link) => {
 
 document.addEventListener("click", (event) => {
   const detailButton = event.target.closest("[data-detail]");
-  if (detailButton) selectDetailButton(detailButton);
+  if (detailButton) {
+    selectDetailButton(detailButton);
+    return;
+  }
+
+  const quickButton = event.target.closest(".text-action");
+  if (quickButton && quickButton.id !== "detailCloseButton") {
+    openQuickAction(quickButton);
+    return;
+  }
+
+  const searchButton = event.target.closest(".search-box .secondary-action");
+  if (searchButton) {
+    const section = searchButton.closest(".section-block");
+    const input = searchButton.closest(".search-box")?.querySelector("input");
+    if (section && input) applyTableSearch(section, input.value);
+    return;
+  }
+
+  const filterButton = event.target.closest(".filter-chip");
+  if (filterButton) applyOverviewFilter(filterButton);
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  const input = event.target.closest(".search-box input");
+  if (!input) return;
+  event.preventDefault();
+  const section = input.closest(".section-block");
+  if (section) applyTableSearch(section, input.value);
 });
 
 detailCloseButton.addEventListener("click", () => {
