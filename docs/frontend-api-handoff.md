@@ -540,12 +540,39 @@ Response highlights:
 ```json
 {
   "product": "ai_debut",
-  "policyVersion": "2026-05-02.mvp-draft",
+  "policyVersion": "2026-05-03.applicant-types",
   "minApplicantAgePolicy": {
     "adultOnly": true,
     "isAdultRequired": true,
     "minorApplicationStatus": "not_open"
   },
+  "applicantTypes": [
+    {
+      "value": "personal_unaffiliated",
+      "label": "Personal / unaffiliated applicant",
+      "rightsReviewRequired": false,
+      "partnerReviewRequired": false,
+      "recommended": true
+    },
+    {
+      "value": "represented_artist",
+      "label": "Represented artist / trainee / entertainment contact",
+      "rightsReviewRequired": true,
+      "partnerReviewRequired": false
+    },
+    {
+      "value": "ai_creator_partner",
+      "label": "AI creator partner",
+      "rightsReviewRequired": false,
+      "partnerReviewRequired": true
+    },
+    {
+      "value": "partnership_other",
+      "label": "Other partnership inquiry",
+      "rightsReviewRequired": false,
+      "partnerReviewRequired": true
+    }
+  ],
   "applicationChannels": [
     {
       "value": "phone_consultation",
@@ -575,6 +602,15 @@ Response highlights:
   ],
   "fieldPolicy": {
     "intro": { "minLength": 20, "maxLength": 4000 },
+    "applicationType": {
+      "default": "personal_unaffiliated",
+      "values": [
+        "personal_unaffiliated",
+        "represented_artist",
+        "ai_creator_partner",
+        "partnership_other"
+      ]
+    },
     "preferredContactTime": { "maxLength": 120, "required": false },
     "shareTierRequested": { "min": 0, "max": 70, "required": false }
   },
@@ -590,6 +626,7 @@ Body:
 ```json
 {
   "applicationChannel": "phone_consultation",
+  "applicationType": "personal_unaffiliated",
   "applicantName": "Applicant legal/name for review",
   "displayName": "Optional public stage/name idea",
   "contactEmail": "user@example.com",
@@ -600,6 +637,9 @@ Body:
   "shareTierRequested": 30,
   "intro": "Short motivation and concept note",
   "portfolioUrl": "https://example.com/portfolio",
+  "affiliatedOrgName": null,
+  "rightsRelationshipNote": null,
+  "creatorExperienceNote": null,
   "consentAppearance": true,
   "consentVoice": false,
   "consentRevenuePolicy": true,
@@ -614,6 +654,21 @@ MVP application channel policy:
 - `phone_consultation` is the low-friction MVP path. It requires `contactPhone` and `consultationConsent: true`; the operator confirms details by phone after submission.
 - `online_review` is reserved for a later richer path. The current backend does not accept file uploads through the debut form.
 - The backend stores `applicationChannel`, `preferredContactTime`, `consultationConsent`, and `materialSubmissionMode: "no_file_upload_mvp"` in application metadata.
+
+Allowed `applicationType` values:
+
+- `personal_unaffiliated`: default path for individual or unaffiliated applicants.
+- `represented_artist`: affiliated artist, trainee, agency, management, or entertainment-company inquiry. The backend stores `rightsReviewRequired: true` and `rightsReviewStatus: "pending"` in metadata.
+- `ai_creator_partner`: AI image/video/shortform production partner inquiry. The backend stores `partnerReviewRequired: true` and `partnerReviewStatus: "pending"` in metadata.
+- `partnership_other`: other partnership inquiry. The backend stores `partnerReviewRequired: true` and `partnerReviewStatus: "pending"` in metadata.
+
+Optional application-type fields:
+
+- `affiliatedOrgName`: agency/company/team name when relevant, max 120 chars.
+- `rightsRelationshipNote`: short non-sensitive rights/contract relationship memo, max 1000 chars.
+- `creatorExperienceNote`: AI creator tool/work experience memo, max 1000 chars.
+
+Do not imply that Lumina Stage can bypass an existing contract. If `applicationType` is `represented_artist`, show a rights-confirmation notice before submission.
 
 Allowed `participationType` values:
 
@@ -667,7 +722,7 @@ Admin statuses are `submitted`, `reviewing`, `needs_more_info`, `approved`, `rej
 Admin/operations endpoints for phone consultation queue:
 
 ```http
-GET /admin/api/v1/debut/applications?status=submitted&applicationChannel=phone_consultation&consultationStatus=pending&take=50
+GET /admin/api/v1/debut/applications?status=submitted&applicationChannel=phone_consultation&applicationType=represented_artist&rightsReviewRequired=true&consultationStatus=pending&take=50
 GET /admin/api/v1/debut/applications/:applicationId
 PATCH /admin/api/v1/debut/applications/:applicationId
 ```
@@ -680,15 +735,21 @@ Admin PATCH can update review and consultation metadata together:
   "consultationStatus": "scheduled",
   "consultationScheduledAt": "2026-05-03T10:00:00.000Z",
   "consultationNote": "Requested evening call. First contact scheduled.",
+  "rightsReviewStatus": "reviewing",
+  "rightsReviewNote": "Agency relationship should be confirmed before production review.",
+  "partnerReviewStatus": "not_applicable",
   "reviewNote": "Phone consultation queue"
 }
 ```
 
 Allowed `consultationStatus`: `pending`, `scheduled`, `contacted`, `no_answer`, `completed`.
-The consultation fields are stored in `application.metadata` until operations volume proves which fields deserve real DB columns.
+Allowed `rightsReviewStatus`: `not_required`, `pending`, `reviewing`, `cleared`, `blocked`.
+Allowed `partnerReviewStatus`: `not_applicable`, `pending`, `reviewing`, `accepted`, `declined`.
+The consultation, applicant-type, rights-review, and partner-review fields are stored in `application.metadata` until operations volume proves which fields deserve real DB columns.
 
 Frontend first form sections:
 
+- application type selection: `personal_unaffiliated`, `represented_artist`, `ai_creator_partner`, `partnership_other`
 - debut type selection: `appearance_only`, `voice_or_song`, `performance`, `co_creator`
 - applicant story/concept
 - contact email and optional phone

@@ -260,7 +260,7 @@ Admin endpoints:
 - `GET /admin/api/v1/debut/applications?status=submitted&take=50`
 - `PATCH /admin/api/v1/debut/applications/:applicationId`
 
-`POST /api/v1/debut/applications` requires login and stores an operations-review application, not a final contract. Supported `participationType` values are `appearance_only`, `voice_or_song`, `performance`, and `co_creator`; requested/approved revenue share percentages are capped at 70. Required consent flags are `consentAppearance`, `consentRevenuePolicy`, and `consentPrivacy`. Real identity documents, signed contracts, API keys, and other sensitive files must not be committed or pasted into chat/Notion.
+`POST /api/v1/debut/applications` requires login and stores an operations-review application, not a final contract. Supported `applicationType` values are `personal_unaffiliated`, `represented_artist`, `ai_creator_partner`, and `partnership_other`; the default is `personal_unaffiliated`. `represented_artist` is flagged in metadata with `rightsReviewRequired: true`, while `ai_creator_partner` and `partnership_other` are flagged with `partnerReviewRequired: true`. Supported `participationType` values are `appearance_only`, `voice_or_song`, `performance`, and `co_creator`; requested/approved revenue share percentages are capped at 70. Required consent flags are `consentAppearance`, `consentRevenuePolicy`, and `consentPrivacy`. Real identity documents, signed contracts, API keys, and other sensitive files must not be committed or pasted into chat/Notion. Admin list filters now include `applicationType`, `rightsReviewRequired`, and `partnerReviewRequired`; admin PATCH can update rights and partner review statuses in metadata.
 
 ## Premium Video And Chat MVP APIs
 

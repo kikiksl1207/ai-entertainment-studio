@@ -18,6 +18,8 @@ const APPLICATION_STATUSES = new Set([
   'withdrawn',
 ]);
 
+const DEFAULT_APPLICATION_TYPE = 'personal_unaffiliated';
+
 @Injectable()
 export class DebutService {
   constructor(private readonly prisma: PrismaService) {}
@@ -25,12 +27,47 @@ export class DebutService {
   getPolicy() {
     return {
       product: 'ai_debut',
-      policyVersion: '2026-05-02.mvp-draft',
+      policyVersion: '2026-05-03.applicant-types',
       minApplicantAgePolicy: {
         adultOnly: true,
         isAdultRequired: true,
         minorApplicationStatus: 'not_open',
       },
+      applicantTypes: [
+        {
+          value: 'personal_unaffiliated',
+          label: 'Personal / unaffiliated applicant',
+          description:
+            'Default low-friction path for individuals who are not under an agency or exclusive contract.',
+          rightsReviewRequired: false,
+          partnerReviewRequired: false,
+          recommended: true,
+        },
+        {
+          value: 'represented_artist',
+          label: 'Represented artist / trainee / entertainment contact',
+          description:
+            'Use this when an applicant may have an agency, management, trainee, or other rights relationship. Operators must review rights before moving forward.',
+          rightsReviewRequired: true,
+          partnerReviewRequired: false,
+        },
+        {
+          value: 'ai_creator_partner',
+          label: 'AI creator partner',
+          description:
+            'Use this for image, video, SD, ComfyUI, Flux, LoRA, or shortform creators who want to support production as partners.',
+          rightsReviewRequired: false,
+          partnerReviewRequired: true,
+        },
+        {
+          value: 'partnership_other',
+          label: 'Other partnership inquiry',
+          description:
+            'Use this for inquiries that do not fit the main debut or AI creator partner paths.',
+          rightsReviewRequired: false,
+          partnerReviewRequired: true,
+        },
+      ],
       applicationChannels: [
         {
           value: 'phone_consultation',
@@ -118,6 +155,18 @@ export class DebutService {
         applicantName: { minLength: 2, maxLength: 80 },
         displayName: { minLength: 2, maxLength: 80, required: false },
         preferredContactTime: { maxLength: 120, required: false },
+        applicationType: {
+          default: DEFAULT_APPLICATION_TYPE,
+          values: [
+            'personal_unaffiliated',
+            'represented_artist',
+            'ai_creator_partner',
+            'partnership_other',
+          ],
+        },
+        affiliatedOrgName: { maxLength: 120, required: false },
+        rightsRelationshipNote: { maxLength: 1000, required: false },
+        creatorExperienceNote: { maxLength: 1000, required: false },
         shareTierRequested: { min: 0, max: 70, required: false },
         metadata:
           'Use only non-sensitive structured details. Do not include IDs, bank accounts, contracts, secrets, or raw identity documents.',
@@ -244,6 +293,9 @@ export class DebutService {
     const where = this.debutApplicationWhere({
       status,
       applicationChannel: query.applicationChannel,
+      applicationType: query.applicationType,
+      rightsReviewRequired: query.rightsReviewRequired,
+      partnerReviewRequired: query.partnerReviewRequired,
       consultationStatus: query.consultationStatus,
     });
 
@@ -288,7 +340,11 @@ export class DebutService {
       input.reviewNote === undefined &&
       input.consultationStatus === undefined &&
       input.consultationScheduledAt === undefined &&
-      input.consultationNote === undefined
+      input.consultationNote === undefined &&
+      input.rightsReviewStatus === undefined &&
+      input.rightsReviewNote === undefined &&
+      input.partnerReviewStatus === undefined &&
+      input.partnerReviewNote === undefined
     ) {
       throw new BadRequestException(
         'At least one admin update field is required',
@@ -302,7 +358,7 @@ export class DebutService {
         shareTierApproved: input.shareTierApproved,
         reviewNote: input.reviewNote,
         updatedAt: new Date(),
-        metadata: this.mergeConsultationMetadata(before.metadata, input, user),
+        metadata: this.mergeAdminReviewMetadata(before.metadata, input, user),
       }),
       include: this.applicationInclude(),
     });
@@ -394,9 +450,23 @@ export class DebutService {
   }
 
   private applicationMetadata(input: CreateDebutApplicationDto) {
+    const applicationType = input.applicationType ?? DEFAULT_APPLICATION_TYPE;
+    const rightsReviewRequired = applicationType === 'represented_artist';
+    const partnerReviewRequired =
+      applicationType === 'ai_creator_partner' || applicationType === 'partnership_other';
+
     return this.toJson({
       ...(input.metadata ?? {}),
       applicationChannel: input.applicationChannel ?? 'phone_consultation',
+      applicationType,
+      applicantSegment: applicationType,
+      affiliatedOrgName: input.affiliatedOrgName ?? null,
+      rightsRelationshipNote: input.rightsRelationshipNote ?? null,
+      creatorExperienceNote: input.creatorExperienceNote ?? null,
+      rightsReviewRequired,
+      rightsReviewStatus: rightsReviewRequired ? 'pending' : 'not_required',
+      partnerReviewRequired,
+      partnerReviewStatus: partnerReviewRequired ? 'pending' : 'not_applicable',
       preferredContactTime: input.preferredContactTime ?? null,
       consultationConsent: input.consultationConsent ?? null,
       consultationStatus: 'pending',
@@ -407,6 +477,9 @@ export class DebutService {
   private debutApplicationWhere(input: {
     status?: string;
     applicationChannel?: string;
+    applicationType?: string;
+    rightsReviewRequired?: boolean;
+    partnerReviewRequired?: boolean;
     consultationStatus?: string;
   }) {
     const filters: Prisma.DebutApplicationWhereInput[] = [];
@@ -424,6 +497,33 @@ export class DebutService {
       });
     }
 
+    if (input.applicationType) {
+      filters.push({
+        metadata: {
+          path: ['applicationType'],
+          equals: input.applicationType,
+        },
+      });
+    }
+
+    if (input.rightsReviewRequired !== undefined) {
+      filters.push({
+        metadata: {
+          path: ['rightsReviewRequired'],
+          equals: input.rightsReviewRequired,
+        },
+      });
+    }
+
+    if (input.partnerReviewRequired !== undefined) {
+      filters.push({
+        metadata: {
+          path: ['partnerReviewRequired'],
+          equals: input.partnerReviewRequired,
+        },
+      });
+    }
+
     if (input.consultationStatus) {
       filters.push({
         metadata: {
@@ -436,7 +536,7 @@ export class DebutService {
     return filters.length ? { AND: filters } : {};
   }
 
-  private mergeConsultationMetadata(
+  private mergeAdminReviewMetadata(
     current: Prisma.JsonValue,
     input: AdminUpdateDebutApplicationDto,
     user: AuthUser,
@@ -444,7 +544,11 @@ export class DebutService {
     if (
       input.consultationStatus === undefined &&
       input.consultationScheduledAt === undefined &&
-      input.consultationNote === undefined
+      input.consultationNote === undefined &&
+      input.rightsReviewStatus === undefined &&
+      input.rightsReviewNote === undefined &&
+      input.partnerReviewStatus === undefined &&
+      input.partnerReviewNote === undefined
     ) {
       return undefined;
     }
@@ -459,8 +563,22 @@ export class DebutService {
       ...(input.consultationNote === undefined
         ? {}
         : { consultationNote: input.consultationNote }),
+      ...(input.rightsReviewStatus === undefined
+        ? {}
+        : { rightsReviewStatus: input.rightsReviewStatus }),
+      ...(input.rightsReviewNote === undefined
+        ? {}
+        : { rightsReviewNote: input.rightsReviewNote }),
+      ...(input.partnerReviewStatus === undefined
+        ? {}
+        : { partnerReviewStatus: input.partnerReviewStatus }),
+      ...(input.partnerReviewNote === undefined
+        ? {}
+        : { partnerReviewNote: input.partnerReviewNote }),
       consultationUpdatedByUserId: user.id,
       consultationUpdatedAt: new Date().toISOString(),
+      adminReviewUpdatedByUserId: user.id,
+      adminReviewUpdatedAt: new Date().toISOString(),
     });
   }
 
