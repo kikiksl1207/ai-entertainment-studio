@@ -8,6 +8,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -273,4 +274,15 @@ export class DebutApplicationListQueryDto {
   @Min(1)
   @Max(100)
   take?: number;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsUUID()
+  cursor?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MaxLength(120)
+  query?: string;
 }

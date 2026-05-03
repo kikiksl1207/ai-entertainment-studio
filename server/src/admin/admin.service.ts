@@ -335,29 +335,40 @@ export class AdminService {
   }
 
   getAuditEvents(query: AuditQuery) {
-    const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
+    const pagination = this.adminPagination(query);
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
     const where: Prisma.AuditEventWhereInput = this.clean({
       actorUserId: this.optionalString(query, 'actorUserId'),
       action: this.optionalString(query, 'action'),
       targetType: this.optionalString(query, 'targetType'),
       targetId: this.optionalString(query, 'targetId'),
+      OR: search
+        ? [
+            { action: { contains: search, mode: 'insensitive' } },
+            { targetType: { contains: search, mode: 'insensitive' } },
+          ]
+        : undefined,
     });
 
-    return this.prisma.auditEvent.findMany({
+    return this.prisma.auditEvent
+      .findMany({
       where,
-      take,
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
       orderBy: { createdAt: 'desc' },
       include: {
         actorUser: {
           select: { id: true, email: true, status: true },
         },
       },
-    });
+      })
+      .then((rows) => this.paginated(rows, pagination.take));
   }
 
   getUsers(query: AuditQuery) {
-    const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
+    const pagination = this.adminPagination(query);
     const email = this.optionalString(query, 'email');
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
     const status = this.optionalString(query, 'status');
     const where: Prisma.UserWhereInput = this.clean({
       status,
@@ -367,14 +378,37 @@ export class AdminService {
             mode: 'insensitive',
           }
         : undefined,
+      OR: search
+        ? [
+            { email: { contains: search, mode: 'insensitive' } },
+            { phoneNumber: { contains: search, mode: 'insensitive' } },
+            {
+              profile: {
+                is: {
+                  displayName: { contains: search, mode: 'insensitive' },
+                },
+              },
+            },
+            {
+              profile: {
+                is: {
+                  publicHandle: { contains: search, mode: 'insensitive' },
+                },
+              },
+            },
+          ]
+        : undefined,
     });
 
-    return this.prisma.user.findMany({
+    return this.prisma.user
+      .findMany({
       where,
-      take,
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
       orderBy: { createdAt: 'desc' },
       select: this.userModerationSelect(),
-    });
+      })
+      .then((rows) => this.paginated(rows, pagination.take));
   }
 
   async getUser(userId: string) {
@@ -514,9 +548,47 @@ export class AdminService {
     };
   }
 
+  async revokeUserSessions(user: AuthUser, userId: string, input: AdminPayload) {
+    this.assertNotSelf(user, userId);
+
+    const before = await this.findUserForModeration(userId);
+    const now = new Date();
+    const revokedSessions = await this.prisma.userRefreshToken.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: { gt: now },
+      },
+      data: {
+        revokedAt: now,
+      },
+    });
+    const after = await this.findUserForModeration(userId);
+
+    await this.recordAudit(
+      user,
+      'user.sessions.revoke',
+      'user',
+      userId,
+      before,
+      after,
+      {
+        reason: this.optionalString(input, 'reason'),
+        revokedSessionCount: revokedSessions.count,
+      },
+    );
+
+    return {
+      ok: true,
+      user: after,
+      revokedSessionCount: revokedSessions.count,
+    };
+  }
+
   getPaymentOrders(query: AuditQuery) {
-    const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
+    const pagination = this.adminPagination(query);
     const orderNo = this.optionalString(query, 'orderNo');
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
     const where: Prisma.PaymentOrderWhereInput = this.clean({
       userId: this.optionalString(query, 'userId'),
       provider: this.optionalString(query, 'provider'),
@@ -527,14 +599,24 @@ export class AdminService {
             mode: 'insensitive',
           }
         : undefined,
+      OR: search
+        ? [
+            { orderNo: { contains: search, mode: 'insensitive' } },
+            { provider: { contains: search, mode: 'insensitive' } },
+            { user: { email: { contains: search, mode: 'insensitive' } } },
+          ]
+        : undefined,
     });
 
-    return this.prisma.paymentOrder.findMany({
+    return this.prisma.paymentOrder
+      .findMany({
       where,
-      take,
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
       orderBy: { createdAt: 'desc' },
       include: this.paymentOrderInclude(),
-    });
+      })
+      .then((rows) => this.paginated(rows, pagination.take));
   }
 
   async getPaymentOrder(orderId: string) {
@@ -608,19 +690,39 @@ export class AdminService {
   }
 
   getRefundTransactions(query: AuditQuery) {
-    const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
+    const pagination = this.adminPagination(query);
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
     const where: Prisma.RefundTransactionWhereInput = this.clean({
       paymentOrderId: this.optionalString(query, 'paymentOrderId'),
       providerRefundId: this.optionalString(query, 'providerRefundId'),
       status: this.optionalString(query, 'status'),
+      OR: search
+        ? [
+            { providerRefundId: { contains: search, mode: 'insensitive' } },
+            { reason: { contains: search, mode: 'insensitive' } },
+            {
+              paymentOrder: {
+                orderNo: { contains: search, mode: 'insensitive' },
+              },
+            },
+            {
+              paymentOrder: {
+                user: { email: { contains: search, mode: 'insensitive' } },
+              },
+            },
+          ]
+        : undefined,
     });
 
-    return this.prisma.refundTransaction.findMany({
+    return this.prisma.refundTransaction
+      .findMany({
       where,
-      take,
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
       orderBy: { createdAt: 'desc' },
       include: this.refundTransactionInclude(),
-    });
+      })
+      .then((rows) => this.paginated(rows, pagination.take));
   }
 
   async updateRefundTransaction(user: AuthUser, refundId: string, input: AdminPayload) {
@@ -1710,53 +1812,79 @@ export class AdminService {
   }
 
   getCommunityReports(query: AuditQuery) {
-    const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
+    const pagination = this.adminPagination(query);
     const status = this.optionalString(query, 'status');
     const reason = this.optionalString(query, 'reason');
     const postId = this.optionalString(query, 'postId');
     const reporterUserId = this.optionalString(query, 'reporterUserId');
-
-    return this.prisma.communityReport.findMany({
-      where: this.clean({
-        status,
-        reason,
-        postId,
-        reporterUserId,
-      }),
-      take,
-      orderBy: { createdAt: 'desc' },
-      include: this.communityReportInclude(),
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
+    const where: Prisma.CommunityReportWhereInput = this.clean({
+      status,
+      reason,
+      postId,
+      reporterUserId,
+      OR: search
+        ? [
+            { reason: { contains: search, mode: 'insensitive' } },
+            { detail: { contains: search, mode: 'insensitive' } },
+            { post: { body: { contains: search, mode: 'insensitive' } } },
+            { reporter: { email: { contains: search, mode: 'insensitive' } } },
+          ]
+        : undefined,
     });
+
+    return this.prisma.communityReport
+      .findMany({
+        where,
+        take: pagination.takeForQuery,
+        ...pagination.cursorArgs,
+        orderBy: { createdAt: 'desc' },
+        include: this.communityReportInclude(),
+      })
+      .then((rows) => this.paginated(rows, pagination.take));
   }
 
   getCommunityPosts(query: AuditQuery) {
-    const take = Math.max(1, Math.min(this.number(query, 'take', 50), 100));
+    const pagination = this.adminPagination(query);
     const status = this.optionalString(query, 'status');
     const postType = this.optionalString(query, 'postType');
     const artistSlug = this.optionalString(query, 'artistSlug');
     const authorUserId = this.optionalString(query, 'authorUserId');
     const minReports = this.optionalNumber(query, 'minReports');
-
-    return this.prisma.communityPost.findMany({
-      where: this.clean({
-        status,
-        postType,
-        authorUserId,
-        artist: artistSlug ? { slug: artistSlug } : undefined,
-        reportCount:
-          minReports === undefined
-            ? undefined
-            : {
-                gte: minReports,
-              },
-      }),
-      take,
-      orderBy:
-        this.optionalString(query, 'sort') === 'reports'
-          ? [{ reportCount: 'desc' }, { createdAt: 'desc' }]
-          : { createdAt: 'desc' },
-      include: this.communityPostInclude(),
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
+    const where: Prisma.CommunityPostWhereInput = this.clean({
+      status,
+      postType,
+      authorUserId,
+      artist: artistSlug ? { slug: artistSlug } : undefined,
+      reportCount:
+        minReports === undefined
+          ? undefined
+          : {
+              gte: minReports,
+            },
+      OR: search
+        ? [
+            { body: { contains: search, mode: 'insensitive' } },
+            { author: { email: { contains: search, mode: 'insensitive' } } },
+            { artist: { displayName: { contains: search, mode: 'insensitive' } } },
+            { artist: { slug: { contains: search, mode: 'insensitive' } } },
+          ]
+        : undefined,
     });
+
+    return this.prisma.communityPost
+      .findMany({
+        where,
+        take: pagination.takeForQuery,
+        ...pagination.cursorArgs,
+        orderBy:
+          this.optionalString(query, 'sort') === 'reports'
+            ? [{ reportCount: 'desc' }, { createdAt: 'desc' }]
+            : { createdAt: 'desc' },
+        include: this.communityPostInclude(),
+      })
+      .then((rows) => this.paginated(rows, pagination.take));
   }
 
   async getCommunityModerationSummary(query: AuditQuery) {
@@ -2013,6 +2141,7 @@ export class AdminService {
       profile: {
         select: {
           displayName: true,
+          publicHandle: true,
         },
       },
       authAccounts: {
@@ -2961,6 +3090,41 @@ export class AdminService {
 
   private optionalNumber(input: AdminPayload, key: string) {
     return input[key] === undefined ? undefined : this.number(input, key);
+  }
+
+  private adminPagination(input: AdminPayload, fallback = 50) {
+    const take = Math.max(1, Math.min(this.number(input, 'take', fallback), 100));
+    const cursor = this.optionalString(input, 'cursor');
+
+    if (cursor && !this.isUuid(cursor)) {
+      throw new BadRequestException('cursor must be a UUID');
+    }
+
+    const cursorArgs: Record<string, unknown> = cursor
+      ? {
+          cursor: { id: cursor },
+          skip: 1,
+        }
+      : {};
+
+    return {
+      take,
+      takeForQuery: take + 1,
+      cursorArgs,
+    };
+  }
+
+  private paginated<T extends { id: string }>(rows: T[], take: number) {
+    const hasMore = rows.length > take;
+    const items = hasMore ? rows.slice(0, take) : rows;
+    const lastItem = items.at(-1);
+
+    return {
+      items,
+      count: items.length,
+      hasMore,
+      nextCursor: hasMore && lastItem ? lastItem.id : null,
+    };
   }
 
   private decimal(input: AdminPayload, key: string, fallback?: number) {

@@ -106,6 +106,16 @@ export class AdminController {
     return this.adminService.deleteUser(user, userId, body);
   }
 
+  @Post('users/:userId/revoke-sessions')
+  @RequireAdminPermissions('*')
+  revokeUserSessions(
+    @CurrentUser() user: AuthUser,
+    @Param('userId') userId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.revokeUserSessions(user, userId, body);
+  }
+
   @Get('payment-orders')
   @RequireAdminPermissions('payments:read')
   getPaymentOrders(@Query() query: AuditQuery) {

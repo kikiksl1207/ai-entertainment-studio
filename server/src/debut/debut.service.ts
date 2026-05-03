@@ -297,14 +297,23 @@ export class DebutService {
       rightsReviewRequired: query.rightsReviewRequired,
       partnerReviewRequired: query.partnerReviewRequired,
       consultationStatus: query.consultationStatus,
+      query: query.query,
     });
 
-    return this.prisma.debutApplication.findMany({
+    return this.prisma.debutApplication
+      .findMany({
       where,
-      take,
+      take: take + 1,
+      ...(query.cursor
+        ? {
+            cursor: { id: query.cursor },
+            skip: 1,
+          }
+        : {}),
       include: this.applicationInclude(),
       orderBy: { createdAt: 'desc' },
-    });
+      })
+      .then((rows) => this.paginated(rows, take));
   }
 
   async getApplication(applicationId: string) {
@@ -481,6 +490,7 @@ export class DebutService {
     rightsReviewRequired?: boolean;
     partnerReviewRequired?: boolean;
     consultationStatus?: string;
+    query?: string;
   }) {
     const filters: Prisma.DebutApplicationWhereInput[] = [];
 
@@ -533,7 +543,33 @@ export class DebutService {
       });
     }
 
+    if (input.query) {
+      filters.push({
+        OR: [
+          { applicantName: { contains: input.query, mode: 'insensitive' } },
+          { displayName: { contains: input.query, mode: 'insensitive' } },
+          { contactEmail: { contains: input.query, mode: 'insensitive' } },
+          { contactPhone: { contains: input.query, mode: 'insensitive' } },
+          { intro: { contains: input.query, mode: 'insensitive' } },
+          { user: { email: { contains: input.query, mode: 'insensitive' } } },
+        ],
+      });
+    }
+
     return filters.length ? { AND: filters } : {};
+  }
+
+  private paginated<T extends { id: string }>(rows: T[], take: number) {
+    const hasMore = rows.length > take;
+    const items = hasMore ? rows.slice(0, take) : rows;
+    const lastItem = items.at(-1);
+
+    return {
+      items,
+      count: items.length,
+      hasMore,
+      nextCursor: hasMore && lastItem ? lastItem.id : null,
+    };
   }
 
   private mergeAdminReviewMetadata(

@@ -979,10 +979,24 @@ Admin statuses are `submitted`, `reviewing`, `needs_more_info`, `approved`, `rej
 Admin/operations endpoints for phone consultation queue:
 
 ```http
-GET /admin/api/v1/debut/applications?status=submitted&applicationChannel=phone_consultation&applicationType=represented_artist&rightsReviewRequired=true&consultationStatus=pending&take=50
+GET /admin/api/v1/debut/applications?status=submitted&applicationChannel=phone_consultation&applicationType=represented_artist&rightsReviewRequired=true&consultationStatus=pending&query=seo&take=50&cursor=<nextCursor>
 GET /admin/api/v1/debut/applications/:applicationId
 PATCH /admin/api/v1/debut/applications/:applicationId
 ```
+
+List response:
+
+```json
+{
+  "items": [],
+  "count": 0,
+  "hasMore": false,
+  "nextCursor": null
+}
+```
+
+Use `nextCursor` as the next request's `cursor`. `query` searches applicant
+name, display name, contact email/phone, intro, and linked user email.
 
 Admin PATCH can update review and consultation metadata together:
 
@@ -1380,8 +1394,8 @@ Admin/community moderation:
 ```http
 GET /admin/api/v1/backstage/summary
 GET /admin/api/v1/community/summary?take=10
-GET /admin/api/v1/community/reports?status=submitted&take=50
-GET /admin/api/v1/community/posts?status=published&minReports=1&sort=reports&take=50
+GET /admin/api/v1/community/reports?status=submitted&query=abuse&take=50&cursor=<nextCursor>
+GET /admin/api/v1/community/posts?status=published&minReports=1&sort=reports&query=keyword&take=50&cursor=<nextCursor>
 PATCH /admin/api/v1/community/reports/:reportId
 POST /admin/api/v1/community/posts/:postId/hide
 POST /admin/api/v1/community/posts/:postId/restore
@@ -1411,7 +1425,48 @@ not a marketing-style page.
 `posts.highRisk` with the most-reported published/hidden posts.
 
 `GET /admin/api/v1/community/posts` supports `status`, `postType`, `artistSlug`,
-`authorUserId`, `minReports`, `sort=reports`, and `take`.
+`authorUserId`, `minReports`, `sort=reports`, `query`, `take`, and `cursor`.
+
+Backstage admin list pagination/search:
+
+```http
+GET /admin/api/v1/users?query=&email=&status=&take=20&cursor=<nextCursor>
+POST /admin/api/v1/users/:userId/revoke-sessions
+GET /admin/api/v1/payment-orders?query=&status=&provider=&userId=&orderNo=&take=20&cursor=<nextCursor>
+GET /admin/api/v1/refund-transactions?query=&status=&paymentOrderId=&providerRefundId=&take=20&cursor=<nextCursor>
+GET /admin/api/v1/audit-events?query=&actorUserId=&action=&targetType=&targetId=&take=20&cursor=<nextCursor>
+```
+
+These list endpoints now return the same page envelope:
+
+```json
+{
+  "items": [],
+  "count": 0,
+  "hasMore": false,
+  "nextCursor": null
+}
+```
+
+The frontend should render `items` first. Older fallback code can still tolerate
+legacy array responses, but new Backstage code should expect the envelope.
+`take` is clamped to 1-100. `cursor` must be a UUID and should be the previous
+response's `nextCursor`.
+
+Search support:
+
+- `users.query`: email, phone number, profile display name, public handle.
+- `payment-orders.query`: order number, provider, user email.
+- `refund-transactions.query`: provider refund id, reason, payment order number,
+  user email.
+- `audit-events.query`: action and target type.
+- `community/reports.query`: reason, detail, reported post body, reporter email.
+- `community/posts.query`: post body, author email, artist name, artist slug.
+
+`POST /admin/api/v1/users/:userId/revoke-sessions` revokes only active refresh
+sessions without changing the user's account status. Body can include
+`{ "reason": "operator note" }`. It writes a `user.sessions.revoke` audit event.
+Admin suspend/delete still revoke active refresh sessions automatically.
 
 `PATCH /admin/api/v1/community/reports/:reportId` accepts:
 
