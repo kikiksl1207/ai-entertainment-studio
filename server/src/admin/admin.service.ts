@@ -918,7 +918,7 @@ export class AdminService {
     });
     const page = this.paginated(artists, pagination.take);
     const artistIds = page.items.map((artist) => artist.id);
-    const [chatOrders, giftOrders, boostEvents, premiumUnlocks] = await Promise.all([
+    const [chatOrders, giftOrders, boostEvents, premiumUnlocks, fanLetters] = await Promise.all([
       artistIds.length
         ? this.prisma.chatFeatureOrder.findMany({
             where: {
@@ -982,6 +982,20 @@ export class AdminService {
             },
           })
         : [],
+      artistIds.length
+        ? this.prisma.fanLetter.findMany({
+            where: {
+              artistId: { in: artistIds },
+              status: { in: ['submitted', 'seen', 'replied', 'archived'] },
+              amountLumina: { gt: 0 },
+              createdAt: { gte: period.start, lt: period.end },
+            },
+            select: {
+              artistId: true,
+              amountLumina: true,
+            },
+          })
+        : [],
     ]);
     const revenueByArtist = new Map<string, ReturnType<typeof this.emptyRevenueBucket>>();
 
@@ -1030,6 +1044,16 @@ export class AdminService {
           policy.unitPriceKrw,
         );
       }
+    }
+
+    for (const letter of fanLetters) {
+      this.addRevenueEvent(
+        revenueByArtist,
+        letter.artistId,
+        'fan_letter',
+        letter.amountLumina,
+        policy.unitPriceKrw,
+      );
     }
 
     const creatorUserIds = [
@@ -1208,7 +1232,7 @@ export class AdminService {
         ),
       ),
     ];
-    const [chatOrders, giftOrders, boostEvents, premiumUnlocks, pendingApplicationCounts] =
+    const [chatOrders, giftOrders, boostEvents, premiumUnlocks, fanLetters, pendingApplicationCounts] =
       await Promise.all([
         artistIds.length
           ? this.prisma.chatFeatureOrder.findMany({
@@ -1273,6 +1297,20 @@ export class AdminService {
               },
             })
           : [],
+        artistIds.length
+          ? this.prisma.fanLetter.findMany({
+              where: {
+                artistId: { in: artistIds },
+                status: { in: ['submitted', 'seen', 'replied', 'archived'] },
+                amountLumina: { gt: 0 },
+                createdAt: { gte: period.start, lt: period.end },
+              },
+              select: {
+                artistId: true,
+                amountLumina: true,
+              },
+            })
+          : [],
         partnerIds.length
           ? this.prisma.debutApplication.groupBy({
               by: ['userId'],
@@ -1331,6 +1369,16 @@ export class AdminService {
           policy.unitPriceKrw,
         );
       }
+    }
+
+    for (const letter of fanLetters) {
+      this.addRevenueEvent(
+        revenueByArtist,
+        letter.artistId,
+        'fan_letter',
+        letter.amountLumina,
+        policy.unitPriceKrw,
+      );
     }
 
     const pendingApplicationsByPartner = new Map(
@@ -3908,6 +3956,7 @@ export class AdminService {
         gift: this.emptyProductBreakdown('gift'),
         paid_like: this.emptyProductBreakdown('paid_like'),
         premium_video: this.emptyProductBreakdown('premium_video'),
+        fan_letter: this.emptyProductBreakdown('fan_letter'),
       },
     };
   }

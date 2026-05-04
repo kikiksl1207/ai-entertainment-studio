@@ -682,7 +682,7 @@ Create body:
 ```
 
 - Create deducts 30L from the sender wallet and writes `wallet_ledger.ledger_type = fan_letter_spend`.
-- `fan_letters` are settlement candidates, but final settlement must still apply VAT, PG fees, refund/chargeback risk, and creator contract terms.
+- `fan_letters` are included in Backstage settlement preview as `productBreakdown.fan_letter`, but final settlement must still apply VAT, PG fees, refund/chargeback risk, and creator contract terms.
 - Artist operators can read received letters for artists they operate through `GET /me/fan-letters/received`.
 - Operator status update accepts `submitted`, `seen`, `replied`, or `archived`. `replied` requires `replyBody` and notifies the sender.
 - `moderationStatus` starts as `pending`; adult/direct DM behavior is not open in this MVP.

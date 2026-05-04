@@ -1840,6 +1840,7 @@ Included eligible sources for preview:
 - completed gift orders.
 - paid Lumina boost / paid-like events.
 - premium video unlocks.
+- paid fan letters (`fan_letter`, MVP default 30L each).
 
 Free likes are intentionally excluded. The response `notice` must be shown in
 admin UI or represented with a clear "estimated only" badge. Final payout still
@@ -1880,6 +1881,8 @@ Each `items[]` row includes:
 The response includes `policyNotes` with `payoutUnit: "partner_user"` and
 `detailUnit: "artist"`. Initial candidate slots are 10 and future paid slot
 expansion is planned in 5-slot units. UI must show this as preview-only.
+The same eligible source list as artist settlement preview is used, including
+paid fan letters under `artists[].productBreakdown.fan_letter`.
 
 Manual settlement status update:
 
