@@ -132,7 +132,7 @@
           <section class="section-block" id="users">
             <div class="section-title"><div><span class="section-kicker">Users</span><h2>유저 관리</h2></div><div class="search-box"><input type="search" placeholder="이메일, 닉네임, 소셜 ID 검색" aria-label="유저 검색" /><button class="secondary-action" type="button">검색</button></div></div>
             <div class="table-grid is-stacked">
-              <article class="table-card is-tall"><header><h3>가입 유저</h3><button class="text-action" type="button">전체 보기</button></header><div class="table-wrap"><table><thead><tr><th>유저</th><th>이메일</th><th>가입일</th><th>로그인유형</th><th>루미나</th><th>최근 접속</th><th>액션</th></tr></thead><tbody id="userRows"></tbody></table></div></article>
+              <article class="table-card is-tall"><header><h3>가입 유저</h3><button class="text-action" type="button">전체 보기</button></header><div class="table-wrap"><table><thead><tr><th>유저</th><th>이메일</th><th>로그인</th><th>루미나</th><th>결제</th><th>신고</th><th>제재</th><th>팔로우</th><th>최근 접속</th><th>상태</th><th>액션</th></tr></thead><tbody id="userRows"></tbody></table></div></article>
               <article class="table-card"><header><h3>신고/제재 유저</h3><button class="text-action" type="button">위험만 보기</button></header><div class="table-wrap"><table><thead><tr><th>유저</th><th>사유</th><th>누적</th><th>상태</th><th>최근 조치</th><th>액션</th></tr></thead><tbody id="userRiskRows"></tbody></table></div></article>
             </div>
             <button class="load-more-action is-hidden" type="button" data-load-more="users">유저 더 보기</button>
@@ -164,12 +164,12 @@
           </section>
 
           <section class="section-block" id="settlement">
-            <div class="section-title"><div><span class="section-kicker">Settlement</span><h2>정산 관리</h2></div><p>프리미엄챗, 유료 좋아요, 기타 매출, 차감액, 최종 정산금을 분리해서 확인합니다.</p></div>
+            <div class="section-title"><div><span class="section-kicker">Settlement</span><h2>정산 관리</h2></div><p id="settlementNotice">정산 데이터는 예상치/확정 전입니다. 실제 지급 확정 전 환불, 차지백, 세무, 운영 확인이 필요합니다.</p></div>
             <div class="table-grid is-stacked">
-              <article class="table-card"><header><h3>유저 크리에이터 정산</h3><button class="text-action" type="button">정산 보기</button></header><div class="table-wrap"><table><thead><tr><th>대상</th><th>프리미엄챗</th><th>유료 좋아요</th><th>기타 매출</th><th>차감</th><th>정산금</th><th>상태</th><th>액션</th></tr></thead><tbody id="settlementRows"></tbody></table></div></article>
+              <article class="table-card"><header><h3>유저 크리에이터 정산</h3><button class="text-action" type="button">정산 보기</button></header><div class="table-wrap"><table><thead><tr><th>아티스트</th><th>제작자</th><th>이벤트</th><th>루미나</th><th>총매출</th><th>차감</th><th>정산금</th><th>상태</th><th>액션</th></tr></thead><tbody id="settlementRows"></tbody></table></div></article>
               <article class="table-card"><header><h3>AI 아티스트 성과</h3><button class="text-action" type="button">성과 보기</button></header><div class="table-wrap"><table><thead><tr><th>아티스트</th><th>제작자</th><th>프리미엄챗</th><th>유료 좋아요</th><th>기타 성과</th><th>총액</th><th>차감</th><th>정산금</th><th>액션</th></tr></thead><tbody id="aiSettlementRows"></tbody></table></div></article>
             </div>
-            <button class="load-more-action is-hidden" type="button" data-load-more="settlement">결제/환불 더 보기</button>
+            <button class="load-more-action is-hidden" type="button" data-load-more="settlement">정산 예상치 더 보기</button>
           </section>
 
           <section class="section-block" id="logs">

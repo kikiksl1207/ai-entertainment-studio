@@ -56,6 +56,9 @@ const statusClassMap = {
   "철회": "is-hold",
   "지급대기": "is-hold",
   "지급완료": "is-paid",
+  "예상치": "is-hold",
+  "확정전": "is-hold",
+  "매출없음": "is-review",
   "완료": "is-paid",
   "공개": "is-approved",
   "정상": "is-approved",
@@ -90,16 +93,16 @@ const backstageRows = {
     ["RK-208", "정산 보류", "본인인증 필요", "중간", "보류"]
   ],
   users: [
-    ["a01057662701", "a01057662701@gmail.com", "2026-05-03", "Google", "300L", "오늘", "상세"],
-    ["serinist_01", "user01@example.com", "2026-05-02", "Email", "1,240L", "어제", "세션 종료"],
-    ["watch_user", "watch@example.com", "2026-05-01", "Google", "0L", "3일 전", "복구 요청"],
-    ["lumi_fan_04", "fan04@example.com", "2026-04-30", "Kakao", "820L", "오늘", "상세"],
-    ["stagepick_05", "pick05@example.com", "2026-04-29", "Google", "150L", "2일 전", "상세"],
-    ["yuna_viewer", "viewer@example.com", "2026-04-28", "Email", "90L", "5일 전", "상세"],
-    ["vote_love", "vote@example.com", "2026-04-27", "Naver", "430L", "오늘", "상세"],
-    ["photo_user", "photo@example.com", "2026-04-26", "Google", "12L", "6일 전", "상세"],
-    ["chat_fan_09", "chat09@example.com", "2026-04-25", "Kakao", "2,100L", "어제", "상세"],
-    ["quiet_user", "quiet@example.com", "2026-04-24", "Email", "0L", "8일 전", "상세"]
+    ["a01057662701", "a01057662701@gmail.com", "Google", "300L", "0원", "0 / 0", "0", "2 / 0", "오늘", "공개", "상세"],
+    ["serinist_01", "user01@example.com", "Email", "1,240L", "38,000원", "0 / 1", "0", "6 / 1", "어제", "공개", "세션 종료"],
+    ["watch_user", "watch@example.com", "Google", "0L", "0원", "2 / 3", "1", "0 / 0", "3일 전", "정지", "복구 요청"],
+    ["lumi_fan_04", "fan04@example.com", "Kakao", "820L", "12,000원", "0 / 0", "0", "4 / 0", "오늘", "공개", "상세"],
+    ["stagepick_05", "pick05@example.com", "Google", "150L", "5,500원", "0 / 0", "0", "3 / 0", "2일 전", "공개", "상세"],
+    ["yuna_viewer", "viewer@example.com", "Email", "90L", "0원", "0 / 0", "0", "1 / 0", "5일 전", "공개", "상세"],
+    ["vote_love", "vote@example.com", "Naver", "430L", "9,900원", "0 / 0", "0", "5 / 1", "오늘", "공개", "상세"],
+    ["photo_user", "photo@example.com", "Google", "12L", "0원", "0 / 0", "0", "2 / 0", "6일 전", "공개", "상세"],
+    ["chat_fan_09", "chat09@example.com", "Kakao", "2,100L", "66,000원", "0 / 0", "0", "7 / 2", "어제", "공개", "상세"],
+    ["quiet_user", "quiet@example.com", "Email", "0L", "0원", "0 / 0", "0", "0 / 0", "8일 전", "공개", "상세"]
   ],
   userRisks: [
     ["watch_user", "외부 결제 유도", "3회", "정지", "세션 종료", "상세"],
@@ -157,9 +160,9 @@ const backstageRows = {
     ["RP-768", "피드 #870", "watch_user", "철회", "중복 신고", "보관"]
   ],
   settlement: [
-    ["creator_cha", "18,000원", "4,200원", "6,200원", "수수료 3,000원", "25,400원", "지급대기", "지급 완료"],
-    ["creator_yoon", "9,000원", "2,100원", "4,900원", "수수료 2,000원", "14,000원", "지급대기", "지급 완료"],
-    ["creator_park", "6,300원", "1,000원", "2,000원", "0원", "9,300원", "지급완료", "영수증"]
+    ["creator_cha", "cha_creator", "18", "2,840L", "28,400원", "6,000원", "17,920원", "예상치", "확정 전"],
+    ["creator_yoon", "yoon_creator", "9", "1,600L", "16,000원", "3,100원", "10,320원", "예상치", "확정 전"],
+    ["creator_park", "park_creator", "0", "0L", "0원", "0원", "0원", "매출없음", "확정 전"]
   ],
   aiSettlement: [
     ["윤세린", "에밀리", "64,000원", "18,000원", "46,000원", "128,000원", "12,000원", "116,000원", "성과 보기"],
@@ -191,7 +194,7 @@ const tableMeta = {
   adminRequestRows: { type: "운영자 권한 이력", labels: ["이력", "대상", "권한", "상태", "메모", "권장 액션"] },
   overviewQueueRows: { type: "대시보드", labels: ["ID", "유형", "대상", "상태", "권장 액션"] },
   riskRows: { type: "위험 항목", labels: ["ID", "분류", "사유", "위험도", "권장 액션"] },
-  userRows: { type: "유저 관리", labels: ["유저", "이메일", "가입일", "로그인유형", "루미나", "최근 접속", "권장 액션"] },
+  userRows: { type: "유저 관리", labels: ["유저", "이메일", "로그인", "루미나", "결제", "신고", "제재", "팔로우", "최근 접속", "상태", "권장 액션"] },
   userRiskRows: { type: "신고/제재 유저", labels: ["유저", "사유", "누적", "상태", "최근 조치", "권장 액션"] },
   creatorRows: { type: "유저 크리에이터", labels: ["본명/활동명", "로그인유형", "마지막 접속", "연락처", "정산계좌", "상태", "권장 액션"] },
   aiCreatorRows: { type: "AI 아티스트", labels: ["아티스트", "분류", "만든 관리자", "프로필", "이미지", "상태", "권장 액션"] },
@@ -200,7 +203,7 @@ const tableMeta = {
   moderationRows: { type: "크리에이터 콘텐츠", labels: ["콘텐츠", "작성자", "관리 사유", "상태", "권장 액션"] },
   contentAnomalyRows: { type: "이상 패턴", labels: ["콘텐츠", "작성자", "탐지 신호", "위험도", "권장 액션"] },
   reportCancelRows: { type: "취소/철회 신고", labels: ["신고", "대상", "신고자", "상태", "사유", "권장 액션"] },
-  settlementRows: { type: "유저 크리에이터 정산", labels: ["대상", "프리미엄챗", "유료 좋아요", "기타 매출", "차감", "정산금", "상태", "권장 액션"] },
+  settlementRows: { type: "유저 크리에이터 정산", labels: ["아티스트", "제작자", "이벤트", "루미나", "총매출", "차감", "정산금", "상태", "권장 액션"] },
   aiSettlementRows: { type: "AI 아티스트 성과", labels: ["아티스트", "제작자", "프리미엄챗", "유료 좋아요", "기타 성과", "총액", "차감", "정산금", "권장 액션"] },
   logRows: { type: "운영 로그", labels: ["시간", "관리자", "액션", "대상", "메모"] }
 };
@@ -402,6 +405,65 @@ function normalizePage(data) {
     hasMore: Boolean(data?.hasMore),
     nextCursor: data?.nextCursor || null
   };
+}
+
+function readSectionSearch(sectionId) {
+  const input = document.querySelector(`#${sectionId} .search-box input`);
+  return input?.value?.trim?.() || "";
+}
+
+function currentSettlementPeriod() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function financialValue(financials, keys) {
+  for (const key of keys) {
+    const value = Number(financials?.[key]);
+    if (Number.isFinite(value)) return value;
+  }
+  return 0;
+}
+
+function settlementDeductions(financials = {}) {
+  const explicit = [
+    financialValue(financials, ["vatKrw", "vatAmountKrw", "salesVatKrw"]),
+    financialValue(financials, ["pgFeeKrw", "paymentGatewayFeeKrw"]),
+    financialValue(financials, ["pgFeeVatKrw", "paymentGatewayFeeVatKrw"]),
+    financialValue(financials, ["aiCostKrw", "aiOperationCostKrw"]),
+    financialValue(financials, ["directCostKrw", "operationCostKrw"]),
+    financialValue(financials, ["riskReserveKrw"])
+  ].reduce((sum, value) => sum + value, 0);
+  if (explicit > 0) return explicit;
+
+  const gross = financialValue(financials, ["grossRevenueKrw"]);
+  const net = financialValue(financials, ["netRevenueKrw"]);
+  return Math.max(0, gross - net);
+}
+
+function creatorNames(creators = []) {
+  if (!Array.isArray(creators) || !creators.length) return "-";
+  return creators.map((creator) => (
+    creator.displayName ||
+    creator.profileName ||
+    creator.name ||
+    creator.maskedEmail ||
+    creator.emailMasked ||
+    creator.email ||
+    creator.id?.slice?.(0, 8) ||
+    "-"
+  )).join(", ");
+}
+
+function localizeSettlementStatus(status) {
+  const statusMap = {
+    estimated: "예상치",
+    no_revenue: "매출없음",
+    confirmed: "완료",
+    paid: "지급완료",
+    hold: "보류"
+  };
+  return statusMap[status] || localizeWorkflowStatus(status);
 }
 
 function setLoadMore(sectionId, hasMore) {
@@ -629,8 +691,8 @@ function buildActionPreview(action) {
     base.apiHint = currentAction.includes("복구") ? "POST /admin/api/v1/community/posts/:postId/restore" : "POST /admin/api/v1/community/posts/:postId/hide";
     base.warning = "집중 관리 대상, 이상 패턴, 취소/철회 신고만 접근하고 모든 글 일괄 열람은 피해야 합니다.";
   } else if (detail.tableId === "settlementRows") {
-    base.apiHint = "POST /admin/api/v1/payment-orders/:orderId/refunds 또는 PATCH /admin/api/v1/refund-transactions/:refundId";
-    base.warning = "크리에이터 정산 지급 API는 아직 준비중입니다. 현재는 결제/환불 운영만 연결 대상입니다.";
+    base.apiHint = "GET /admin/api/v1/backstage/operations/settlement-preview";
+    base.warning = "이 정산값은 예상치/확정 전입니다. 확정/지급 mutation API가 없어 현재는 상세 확인과 운영 메모만 가능합니다.";
   } else if (detail.tableId === "aiSettlementRows") {
     base.apiHint = "GET /admin/api/v1/ai-artists/performance 및 internal bonus rules";
     base.warning = "AI 아티스트 성과는 내부 운영 보너스 기준으로, 유저 크리에이터 정산과 분리해야 합니다.";
@@ -662,7 +724,7 @@ function renderBackstageTables() {
   renderRows("adminRequestRows", backstageRows.adminRequests, 3);
   renderRows("overviewQueueRows", backstageRows.overviewQueue, 3);
   renderRows("riskRows", backstageRows.risk, 3);
-  renderRows("userRows", backstageRows.users, -1);
+  renderRows("userRows", backstageRows.users, 9);
   renderRows("userRiskRows", backstageRows.userRisks, 3);
   renderRows("creatorRows", backstageRows.creators, 5);
   renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
@@ -671,7 +733,7 @@ function renderBackstageTables() {
   renderRows("moderationRows", backstageRows.moderation, 3);
   renderRows("contentAnomalyRows", backstageRows.contentAnomalies, 3);
   renderRows("reportCancelRows", backstageRows.reportCancels, 3);
-  renderRows("settlementRows", backstageRows.settlement, 6);
+  renderRows("settlementRows", backstageRows.settlement, 7);
   renderRows("aiSettlementRows", backstageRows.aiSettlement, -1);
   renderRows("logRows", backstageRows.logs, -1);
 }
@@ -929,36 +991,57 @@ async function loadAdminsSection() {
 }
 
 async function loadUsersSection() {
-  sectionState.users = { cursor: null, hasMore: false, rows: [] };
+  sectionState.users = { cursor: null, hasMore: false, rows: [], riskRows: [] };
   renderLoadingRow("userRows");
+  renderLoadingRow("userRiskRows");
   await loadUsersPage(false);
 }
 
 async function loadUsersPage(append = true) {
   const state = sectionState.users;
-  const query = new URLSearchParams({ take: "10" });
+  const search = readSectionSearch("users");
+  const query = new URLSearchParams({ take: "20" });
+  if (search) query.set(search.includes("@") ? "email" : "query", search);
   if (append && state.cursor) query.set("cursor", state.cursor);
   try {
-    const page = normalizePage(await backstageFetch(adminApiPath(`/users?${query}`), { auth: true }));
+    const page = normalizePage(await backstageFetch(adminApiPath(`/backstage/operations/users-overview?${query}`), { auth: true }));
     const rows = page.items.map((user) => [
-      user.displayName || user.nickname || user.id?.slice?.(0, 8) || "-",
+      user.displayName || user.publicHandle || user.nickname || user.userId?.slice?.(0, 8) || user.id?.slice?.(0, 8) || "-",
       user.email || "-",
-      formatDate(user.createdAt),
-      user.socialProvider || user.loginProvider || user.provider || "Email",
-      formatCount(user.wallet?.balanceLumina || user.walletBalanceLumina || 0) + "L",
-      formatDate(user.lastLoginAt || user.updatedAt || user.createdAt),
+      user.loginType || user.loginTypes?.join(", ") || user.socialProvider || user.loginProvider || user.provider || "Email",
+      `${formatCount(user.walletBalanceLumina || user.wallet?.balanceLumina || 0)}L`,
+      krw(user.paidAmountKrw || 0),
+      `${formatCount(user.openReportCount || 0)} / ${formatCount(user.reportCount || 0)}`,
+      formatCount(user.sanctionCount || 0),
+      `${formatCount(user.followingArtistCount || 0)} / ${formatCount(user.followerCount || 0)}`,
+      formatDate(user.lastSeenAt || user.lastLoginAt || user.updatedAt || user.createdAt),
+      localizeWorkflowStatus(user.status),
       user.status === "suspended" ? "복구 요청" : "세션 종료"
     ]);
+    const riskRows = page.items
+      .filter((user) => Number(user.openReportCount || 0) > 0 || Number(user.reportCount || 0) > 0 || Number(user.sanctionCount || 0) > 0 || user.recentAction)
+      .map((user) => [
+        user.displayName || user.publicHandle || user.email || user.userId?.slice?.(0, 8) || "-",
+        user.latestReportReason || user.recentAction || "운영 확인",
+        `${formatCount(user.openReportCount || 0)} / ${formatCount(user.reportCount || 0)}`,
+        localizeWorkflowStatus(user.status),
+        user.recentAction || (Number(user.sanctionCount || 0) > 0 ? `제재 ${formatCount(user.sanctionCount)}회` : "확인 필요"),
+        Number(user.openReportCount || 0) > 0 ? "신고 보기" : "상세"
+      ]);
     state.rows = append ? state.rows.concat(rows) : rows;
+    state.riskRows = append ? (state.riskRows || []).concat(riskRows) : riskRows;
     state.cursor = page.nextCursor;
     state.hasMore = page.hasMore;
     setLoadMore("users", page.hasMore);
-    if (state.rows.length) renderRows("userRows", state.rows, -1);
+    if (state.rows.length) renderRows("userRows", state.rows, 9);
     else renderLoadingRow("userRows", "표시할 유저가 없습니다.");
+    if (state.riskRows?.length) renderRows("userRiskRows", state.riskRows, 3);
+    else renderLoadingRow("userRiskRows", "신고/제재 유저가 없습니다.");
   } catch {
     renderBackstageTables();
     setLoadMore("users", false);
     renderFallbackNote("userRows");
+    renderFallbackNote("userRiskRows");
   }
 }
 
@@ -1059,26 +1142,35 @@ async function loadSettlementSection() {
 
 async function loadSettlementPage(append = true) {
   const state = sectionState.settlement;
-  const query = new URLSearchParams({ take: "20" });
+  const query = new URLSearchParams({ period: currentSettlementPeriod(), take: "20" });
   if (append && state.cursor) query.set("cursor", state.cursor);
   try {
-    const page = normalizePage(await backstageFetch(adminApiPath(`/payment-orders?${query}`), { auth: true }));
-    const rows = page.items.map((order) => [
-      order.user?.email || order.userId?.slice?.(0, 8) || "-",
-      "-",
-      "-",
-      order.orderNo ? `${order.orderNo} / ${krw(order.amount)}` : krw(order.amount),
-      krw(order.refundedAmount || 0),
-      krw(Math.max(0, Number(order.amount || 0) - Number(order.refundedAmount || 0))),
-      order.status || "-",
-      order.status === "paid" ? "환불 검토" : "확인"
-    ]);
+    const data = await backstageFetch(adminApiPath(`/backstage/operations/settlement-preview?${query}`), { auth: true });
+    const page = normalizePage(data);
+    const notice = document.getElementById("settlementNotice");
+    if (notice) {
+      notice.textContent = data?.notice || "정산 데이터는 예상치/확정 전입니다. 실제 지급 확정 전 환불, 차지백, 세무, 운영 확인이 필요합니다.";
+    }
+    const rows = page.items.map((item) => {
+      const financials = item.financials || {};
+      return [
+        item.artist?.displayName || item.artist?.name || item.artist?.slug || "-",
+        creatorNames(item.creators),
+        formatCount(item.eventCount || 0),
+        `${formatCount(item.grossLumina || 0)}L`,
+        krw(financials.grossRevenueKrw || 0),
+        krw(settlementDeductions(financials)),
+        krw(financials.creatorShareKrw || 0),
+        localizeSettlementStatus(item.status),
+        "확정 전"
+      ];
+    });
     state.rows = append ? state.rows.concat(rows) : rows;
     state.cursor = page.nextCursor;
     state.hasMore = page.hasMore;
     setLoadMore("settlement", page.hasMore);
-    if (state.rows.length) renderRows("settlementRows", state.rows, 6);
-    else renderLoadingRow("settlementRows", "표시할 결제/정산 항목이 없습니다.");
+    if (state.rows.length) renderRows("settlementRows", state.rows, 7);
+    else renderLoadingRow("settlementRows", "표시할 정산 예상치가 없습니다.");
   } catch {
     renderBackstageTables();
     setLoadMore("settlement", false);
@@ -1212,6 +1304,10 @@ document.addEventListener("click", (event) => {
   if (searchButton) {
     const section = searchButton.closest(".section-block");
     const input = searchButton.closest(".search-box")?.querySelector("input");
+    if (section?.id === "users") {
+      loadUsersSection();
+      return;
+    }
     if (section && input) applyTableSearch(section, input.value);
     return;
   }
@@ -1226,6 +1322,10 @@ document.addEventListener("keydown", (event) => {
   if (!input) return;
   event.preventDefault();
   const section = input.closest(".section-block");
+  if (section?.id === "users") {
+    loadUsersSection();
+    return;
+  }
   if (section) applyTableSearch(section, input.value);
 });
 
