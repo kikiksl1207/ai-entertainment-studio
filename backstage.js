@@ -634,6 +634,48 @@ function settlementRowFromItem(item = {}, studio = false) {
   ];
 }
 
+function settlementKeyFromItem(item = {}, studio = false) {
+  return firstValue(
+    item.settlementId,
+    item.partnerSettlementId,
+    item.payoutId,
+    item.id,
+    item.settlementKey,
+    studio
+      ? `studio:${firstValue(item.partner?.id, item.partnerUserId, item.creator?.id, item.creatorUserId, item.partner?.email, "unknown")}:${firstValue(item.period, currentSettlementPeriod())}`
+      : `creator:${firstValue(item.artist?.id, item.artistId, item.artist?.slug, "unknown")}:${firstValue(item.creatorUserId, item.creators?.[0]?.id, "unknown")}:${firstValue(item.period, currentSettlementPeriod())}`
+  );
+}
+
+function settlementMetaFromItem(item = {}, studio = false) {
+  const financials = item.financials || item.totals || {};
+  const math = settlementMath(financials, item);
+  return {
+    settlementKey: settlementKeyFromItem(item, studio),
+    settlementType: studio ? "studio_operator" : "user_creator",
+    period: firstValue(item.period, currentSettlementPeriod()),
+    artistId: firstValue(item.artist?.id, item.artistId),
+    artistName: firstValue(item.artist?.displayName, item.artist?.name, item.artist?.slug),
+    creatorUserId: firstValue(item.creatorUserId, item.creators?.[0]?.id),
+    partnerUserId: firstValue(item.partner?.id, item.partnerUserId, item.creator?.id),
+    grossRevenueKrw: math.gross,
+    deductionsKrw: math.deductions,
+    settlementKrw: math.settlement,
+    identityVerification: item.identityVerification || item.verification || item.kyc || {},
+    payoutAccount: item.payoutAccount || item.bankAccount || {},
+    payoutException: item.payoutException || item.exceptionApproval || {},
+    payoutEligibility: item.payoutEligibility || item.eligibility || {}
+  };
+}
+
+function settlementEntryFromItem(item = {}, studio = false) {
+  return {
+    row: settlementRowFromItem(item, studio),
+    children: settlementChildrenFromItem(item),
+    meta: settlementMetaFromItem(item, studio)
+  };
+}
+
 function localizeCreatorImageType(type) {
   const typeMap = {
     profile_image: "프로필 이미지",
@@ -740,11 +782,22 @@ function localizeSettlementStatus(status) {
   const statusMap = {
     estimated: "예상치",
     no_revenue: "매출없음",
+    ready: "지급대기",
     confirmed: "완료",
     paid: "지급완료",
-    hold: "보류"
+    hold: "보류",
+    recheck: "재확인",
+    cancelled: "취소"
   };
   return statusMap[status] || localizeWorkflowStatus(status);
+}
+
+function localizePayoutCheck(value, fallback = "확인 필요") {
+  const text = String(value ?? "").toLowerCase();
+  if (["verified", "approved", "matched", "ready", "true", "yes"].includes(text)) return "확인 완료";
+  if (["pending", "reviewing", "needs_review"].includes(text)) return "확인중";
+  if (["rejected", "blocked", "mismatch", "false", "no"].includes(text)) return "불일치/차단";
+  return value ? String(value) : fallback;
 }
 
 function setLoadMore(sectionId, hasMore) {
@@ -1157,6 +1210,48 @@ function renderDetailForm(detail) {
       </div>
       <p class="detail-form-note">수정요청은 기본 액션에서 제외합니다. 숨김 시 작성자에게 수정 안내만 보내고, 확인 처리한 항목은 이상패턴 목록에서 제거합니다.</p>
     `;
+  } else if (tableId === "settlementRows" || tableId === "studioSettlementRows") {
+    const isStudio = tableId === "studioSettlementRows";
+    const settlementKey = firstValue(detail?.meta?.settlementKey, `${isStudio ? "studio" : "creator"}:${row[0] || "unknown"}:${currentSettlementPeriod()}`);
+    const amountKrw = Number(detail?.meta?.settlementKrw || String(row[6] || "").replace(/[^\d]/g, "") || 0);
+    const identity = detail?.meta?.identityVerification || {};
+    const account = detail?.meta?.payoutAccount || {};
+    const exception = detail?.meta?.payoutException || {};
+    const eligibility = detail?.meta?.payoutEligibility || {};
+    const blockingReasons = Array.isArray(eligibility.blockingReasons) ? eligibility.blockingReasons.join(", ") : "";
+    html = `
+      <h3>${isStudio ? "스튜디오 운영자 정산 처리" : "유저 크리에이터 정산 처리"}</h3>
+      <div class="detail-form-grid">
+        ${detailInput("정산 키", "settlementKey", settlementKey, "text", true)}
+        ${detailInput("정산 기간", "period", detail?.meta?.period || currentSettlementPeriod())}
+        ${detailInput(isStudio ? "스튜디오 운영자" : "아티스트", "settlementTarget", row[0] || "")}
+        ${detailInput(isStudio ? "캐릭터 수" : "제작자", "settlementOwner", row[1] || "")}
+        ${detailInput("총매출", "grossRevenueLabel", row[4] || "0원")}
+        ${detailInput("차감", "deductionsLabel", row[5] || "0원")}
+        ${detailInput("정산금", "amountKrw", amountKrw, "number")}
+        ${detailSelect("처리 상태", "settlementStatus", [
+          { value: "ready", label: "정산대기" },
+          { value: "paid", label: "정산완료" },
+          { value: "hold", label: "정산보류" },
+          { value: "recheck", label: "재확인" },
+          { value: "cancelled", label: "취소" }
+        ], "ready")}
+        ${detailInput("입금일", "paidAt", "", "date")}
+        ${detailInput("입금/전표 메모", "payoutReference", "", "text", true)}
+        ${detailInput("본인인증", "identityStatus", localizePayoutCheck(identity.status || identity.verified), "text")}
+        ${detailInput("본인인증 이름", "verifiedNameMasked", firstValue(identity.verifiedNameMasked, identity.nameMasked, "-"), "text")}
+        ${detailInput("계좌 상태", "payoutAccountStatus", localizePayoutCheck(account.status || account.holderMatchesIdentity), "text")}
+        ${detailInput("예금주", "accountHolderMasked", firstValue(account.accountHolderMasked, account.holderMasked, "-"), "text")}
+        ${detailInput("타인 명의 예외", "payoutExceptionStatus", localizePayoutCheck(exception.status, "없음"), "text")}
+        ${detailInput("지급 가능 여부", "canMarkPaid", eligibility.canMarkPaid === false ? "불가" : "확인 필요", "text")}
+        ${detailSelect("회계 수동 확인", "eligibilityOverrideConfirmed", [
+          { value: "yes", label: "본인인증/계좌/예외 사유를 확인했습니다" },
+          { value: "no", label: "아직 확인하지 않았습니다" }
+        ], "yes", true)}
+        ${detailTextarea("차단/재확인 사유", "blockingReasons", blockingReasons || "본인인증, 예금주 일치, 타인 명의 예외 승인 여부를 확인합니다.")}
+      </div>
+      <p class="detail-form-note">첫 정산 전에 한 번만 입력해 주세요. 정산금 지급과 세무 신고 처리를 위해 세무 서류용 주소가 필요합니다. 주소는 암호화되어 안전하게 보관되며, 정산과 세무 처리에만 사용됩니다.</p>
+    `;
   }
 
   if (!html) return;
@@ -1354,16 +1449,19 @@ function getActionProfile(detail, action = "memo") {
     };
   }
 
-  if (tableId === "settlementRows") {
+  if (tableId === "settlementRows" || tableId === "studioSettlementRows") {
     return {
       ...profile,
-      group: "정산 preview 확인",
-      targetType: "settlementPreview",
-      endpoint: "GET /admin/api/v1/backstage/operations/settlement-preview",
-      method: "GET",
-      warning: "이 정산값은 예상치/확정 전입니다. 확정/지급 mutation API가 없어 현재는 상세 확인과 운영 메모만 가능합니다.",
-      dangerLabel: "정산 상세",
-      showDanger: true
+      group: "정산 수동 처리",
+      targetType: tableId === "studioSettlementRows" ? "studioSettlement" : "creatorSettlement",
+      endpoint: "POST /admin/api/v1/backstage/settlements/:settlementKey/status",
+      method: "POST",
+      warning: "자동 송금이 아니라 회계 담당자가 실제 입금/보류/재확인 결과를 기록하는 액션입니다. 차모 #131 정산 상태 API 기준으로 저장합니다.",
+      holdLabel: "정산 보류",
+      dangerLabel: "정산 상태 저장",
+      showHold: true,
+      showDanger: true,
+      dangerDisabled: false
     };
   }
 
@@ -1661,6 +1759,28 @@ function buildActionRequest(detail, action) {
       method: "POST",
       path: adminApiPath(`/community/posts/${postId}/restore`),
       body: { reason, note, action: "restore_request" }
+    };
+  }
+
+  if (tableId === "settlementRows" || tableId === "studioSettlementRows") {
+    const settlementKey = firstValue(meta.settlementKey, form.settlementKey);
+    if (!settlementKey) return null;
+    const status = action === "hold" ? "hold" : form.settlementStatus || "ready";
+    return {
+      method: "POST",
+      path: adminApiPath(`/backstage/settlements/${encodeURIComponent(settlementKey)}/status`),
+      body: {
+        status,
+        reason,
+        note,
+        paidAt: form.paidAt || undefined,
+        paymentMethod: status === "paid" ? "bank_transfer" : undefined,
+        payoutReference: firstValue(form.payoutReference, note),
+        amountKrw: Number(form.amountKrw || meta.settlementKrw || 0),
+        eligibilityOverrideConfirmed: status === "paid" ? form.eligibilityOverrideConfirmed === "yes" : undefined,
+        period: form.period || meta.period || currentSettlementPeriod(),
+        settlementType: meta.settlementType || (tableId === "studioSettlementRows" ? "studio_operator" : "user_creator")
+      }
     };
   }
 
@@ -2411,19 +2531,15 @@ async function loadSettlementPage(append = true) {
       notice.textContent = data?.notice || "정산 데이터는 예상치/확정 전입니다. 실제 지급 확정 전 환불, 차지백, 세무, 운영 확인이 필요합니다.";
     }
     const partnerPage = partnerData ? normalizePage(partnerData) : { items: [] };
-    const partnerRows = partnerPage.items.map((item) => ({
-      row: settlementRowFromItem(item, true),
-      children: settlementChildrenFromItem(item)
-    }));
+    const partnerRows = partnerPage.items.map((item) => settlementEntryFromItem(item, true));
     const studioRows = [];
     const rows = [];
     page.items.forEach((item) => {
-      const children = settlementChildrenFromItem(item);
       if (isStudioSettlementItem(item)) {
-        studioRows.push({ row: settlementRowFromItem(item, true), children });
+        studioRows.push(settlementEntryFromItem(item, true));
         return;
       }
-      rows.push(settlementRowFromItem(item, false));
+      rows.push(settlementEntryFromItem(item, false));
     });
     const visibleStudioRows = append ? (state.studioRows || []).concat(studioRows) : partnerRows.concat(studioRows);
     state.rows = append ? state.rows.concat(rows) : rows;
