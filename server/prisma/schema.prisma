@@ -26,6 +26,7 @@ model User {
   videoUnlocks         UserPremiumVideoUnlock[]
   chatSessions         ChatSession[]
   chatFeatureOrders    ChatFeatureOrder[]
+  fanLetters           FanLetter[]              @relation("FanLetterSender")
   entitlements         UserEntitlement[]
   paymentOrders        PaymentOrder[]
   auditEvents          AuditEvent[]
@@ -238,6 +239,7 @@ model Artist {
   chatPersonas      ChatPersona[]
   chatSessions      ChatSession[]
   chatFeatureOrders ChatFeatureOrder[]
+  fanLetters        FanLetter[]
   artistOperators   ArtistOperator[]
   communityPosts    CommunityPost[]
   followers         ArtistFollow[]
@@ -432,6 +434,7 @@ model WalletLedger {
   artistBoostEvents   ArtistBoostEvent[]
   premiumVideoUnlocks UserPremiumVideoUnlock[]
   chatFeatureOrders   ChatFeatureOrder[]
+  fanLetters          FanLetter[]
 
   @@index([walletAccountId, createdAt], map: "idx_wallet_ledger_account_created")
   @@index([referenceType, referenceId], map: "idx_wallet_ledger_reference")
@@ -1158,6 +1161,33 @@ model ChatMessage {
 
   @@index([chatSessionId, createdAt], map: "idx_chat_messages_session_created")
   @@map("chat_messages")
+}
+
+model FanLetter {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  senderUserId   String        @map("sender_user_id") @db.Uuid
+  artistId       String        @map("artist_id") @db.Uuid
+  walletLedgerId String?       @map("wallet_ledger_id") @db.Uuid
+  status         String        @default("submitted")
+  moderationStatus String     @default("pending") @map("moderation_status")
+  amountLumina   Decimal       @default(30) @map("amount_lumina") @db.Decimal(18, 2)
+  title          String?
+  body           String
+  replyBody      String?       @map("reply_body")
+  repliedAt      DateTime?     @map("replied_at") @db.Timestamptz(6)
+  repliedByUserId String?      @map("replied_by_user_id") @db.Uuid
+  idempotencyKey String?       @unique @map("idempotency_key")
+  metadata       Json          @default("{}")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  sender         User          @relation("FanLetterSender", fields: [senderUserId], references: [id])
+  artist         Artist        @relation(fields: [artistId], references: [id])
+  walletLedger   WalletLedger? @relation(fields: [walletLedgerId], references: [id])
+
+  @@index([senderUserId, createdAt], map: "idx_fan_letters_sender_created")
+  @@index([artistId, status, createdAt], map: "idx_fan_letters_artist_status_created")
+  @@index([moderationStatus, createdAt], map: "idx_fan_letters_moderation_created")
+  @@map("fan_letters")
 }
 
 model UserEntitlement {

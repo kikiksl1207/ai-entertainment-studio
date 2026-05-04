@@ -484,8 +484,8 @@ Draft price policy:
 - Deep reply: 2L, seeded as `CHAT_DEEP_REPLY`.
 - Story reply: 5L, seeded as `CHAT_STORY_REPLY`.
 - Premium story: 10L, seeded as `CHAT_PREMIUM_REPLY`.
-- Fan letter: 30L / 50L / 100L, seeded as `CHAT_FANLETTER_30`,
-  `CHAT_FANLETTER_50`, and `CHAT_FANLETTER_100`.
+- Fan letter MVP: 30L through the dedicated fan-letter API. Larger 50L/100L
+  tiers remain later product-policy candidates, not current frontend contract.
 - Paid vote / Lumina boost: 10L.
 - Image / voice replies are reserved as draft products until model-cost and
   safety validation are complete.
@@ -547,6 +547,38 @@ Use preview before `POST /chat-feature-orders` so the frontend can show balance,
 product price, and settlement hints before the wallet debit. `POST
 /chat-feature-orders` still performs the real wallet debit and must use an
 `Idempotency-Key` header or `idempotencyKey` body value.
+
+Fan letter MVP:
+
+```http
+GET /fan-letters/policy
+POST /fan-letters/preview
+POST /fan-letters
+GET /me/fan-letters/sent
+GET /me/fan-letters/received
+PATCH /me/fan-letters/received/:fanLetterId/status
+Authorization: Bearer <accessToken>
+```
+
+Create body:
+
+```json
+{
+  "artistId": "artist-uuid-or-slug",
+  "title": "optional title",
+  "body": "10-1000 character fan letter",
+  "idempotencyKey": "client-generated-key"
+}
+```
+
+- Current fan-letter price is 30L, equivalent to 300 KRW at 1L = 10 KRW.
+- `POST /fan-letters/preview` returns artist, product, wallet balance, and policy.
+- `POST /fan-letters` deducts 30L and returns `{ fanLetter, idempotentReplay }`.
+- Artist operators use `GET /me/fan-letters/received` in Creator Studio.
+- Operator status update supports `submitted`, `seen`, `replied`, and `archived`.
+  When setting `replied`, send `replyBody`.
+- This is not full direct DM or character chat. Treat it as paid fan-letter inbox
+  with optional operator reply.
 
 Text moderation preview:
 

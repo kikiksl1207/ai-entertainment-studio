@@ -11,6 +11,7 @@ import { validateEnv } from './config/env.validation';
 import { CreatorImageRequestsModule } from './creator-image-requests/creator-image-requests.module';
 import { CreatorStudioModule } from './creator-studio/creator-studio.module';
 import { DebutModule } from './debut/debut.module';
+import { FanLettersModule } from './fan-letters/fan-letters.module';
 import { GiftsModule } from './gifts/gifts.module';
 import { HealthController } from './health.controller';
 import { LuminaProductsModule } from './lumina-products/lumina-products.module';
@@ -54,6 +55,7 @@ import { WalletModule } from './wallet/wallet.module';
     BoostsModule,
     PopularVoteModule,
     DebutModule,
+    FanLettersModule,
     PremiumVideosModule,
     ChatModule,
     CommunityModule,

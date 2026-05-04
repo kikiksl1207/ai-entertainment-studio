@@ -654,6 +654,39 @@ Response:
 }
 ```
 
+Fan letter endpoints:
+
+```http
+GET /api/v1/fan-letters/policy
+POST /api/v1/fan-letters/preview
+POST /api/v1/fan-letters
+GET /api/v1/me/fan-letters/sent?take=30
+GET /api/v1/me/fan-letters/received?artistId=<artistId>&status=submitted
+PATCH /api/v1/me/fan-letters/received/:fanLetterId/status
+Authorization: Bearer <accessToken>
+```
+
+MVP fan letters are the low-cost paid communication layer before full character chat.
+The default fan-letter product is `FAN_LETTER_BASIC_30L`, priced at `30L`
+(300 KRW equivalent at the current 1L = 10 KRW policy).
+
+Create body:
+
+```json
+{
+  "artistId": "artist-uuid-or-slug",
+  "title": "optional title",
+  "body": "10-1000 character fan letter",
+  "idempotencyKey": "client-generated-key"
+}
+```
+
+- Create deducts 30L from the sender wallet and writes `wallet_ledger.ledger_type = fan_letter_spend`.
+- `fan_letters` are settlement candidates, but final settlement must still apply VAT, PG fees, refund/chargeback risk, and creator contract terms.
+- Artist operators can read received letters for artists they operate through `GET /me/fan-letters/received`.
+- Operator status update accepts `submitted`, `seen`, `replied`, or `archived`. `replied` requires `replyBody` and notifies the sender.
+- `moderationStatus` starts as `pending`; adult/direct DM behavior is not open in this MVP.
+
 ## 2026-05-02 Lumina Feed / Follow Addendum
 
 Lumina Feed supports artist posts, AI artist posts, and normal user posts. Normal users are first-class follow targets so creator/fan acquisition is not limited to artist accounts.

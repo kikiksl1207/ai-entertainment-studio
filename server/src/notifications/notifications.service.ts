@@ -49,6 +49,20 @@ const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     defaultTitle: 'New follower',
     defaultBody: 'Someone started following you.',
   },
+  'fan_letter.received': {
+    messageKey: 'notification.fan_letter.received',
+    titleKey: 'notification.fan_letter.received.title',
+    bodyKey: 'notification.fan_letter.received.body',
+    defaultTitle: 'New fan letter',
+    defaultBody: 'A fan sent a new letter.',
+  },
+  'fan_letter.reply': {
+    messageKey: 'notification.fan_letter.reply',
+    titleKey: 'notification.fan_letter.reply.title',
+    bodyKey: 'notification.fan_letter.reply.body',
+    defaultTitle: 'Fan letter reply arrived',
+    defaultBody: 'Your fan letter received a reply.',
+  },
 };
 
 @Injectable()
