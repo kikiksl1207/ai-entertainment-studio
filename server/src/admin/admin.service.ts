@@ -1491,6 +1491,76 @@ export class AdminService {
     };
   }
 
+  async getBackstageSettlements(query: AuditQuery) {
+    const pagination = this.adminPagination(query, 20);
+    const period = this.optionalString(query, 'period');
+    const status = this.optionalString(query, 'status');
+    const type = this.optionalString(query, 'type');
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
+
+    if (period && !/^\d{4}-\d{2}$/.test(period)) {
+      throw new BadRequestException('period must be YYYY-MM');
+    }
+
+    if (status && !SETTLEMENT_STATUSES.has(status)) {
+      throw new BadRequestException(
+        'status must be estimated, ready, hold, paid, recheck, or cancelled',
+      );
+    }
+
+    if (type && !SETTLEMENT_TYPES.has(type)) {
+      throw new BadRequestException('type must be artist or partner');
+    }
+
+    const where: Prisma.SettlementRecordWhereInput = this.clean({
+      period,
+      status,
+      settlementType: type,
+      OR: search
+        ? [
+            { settlementKey: { contains: search, mode: 'insensitive' } },
+            { reason: { contains: search, mode: 'insensitive' } },
+            { note: { contains: search, mode: 'insensitive' } },
+            { payoutReference: { contains: search, mode: 'insensitive' } },
+          ]
+        : undefined,
+    });
+    const records = await this.prisma.settlementRecord.findMany({
+      where,
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+    const page = this.paginated(records, pagination.take);
+    const items = page.items.map((record) => this.settlementRecordSummary(record));
+    const statusCounts = await this.prisma.settlementRecord.groupBy({
+      by: ['status'],
+      where: this.clean({
+        period,
+        settlementType: type,
+      }),
+      _count: { _all: true },
+    });
+
+    return {
+      generatedAt: new Date(),
+      ...page,
+      items,
+      summary: {
+        period: period ?? null,
+        type: type ?? null,
+        statusCounts: Object.fromEntries(
+          statusCounts.map((entry) => [entry.status, entry._count._all]),
+        ),
+      },
+      policy: {
+        manualOnly: true,
+        moneyTransfer: false,
+        settlementKeyFormat: ['artist:<artistId>:YYYY-MM', 'partner:<partnerUserId>:YYYY-MM'],
+      },
+    };
+  }
+
   async createAdminUser(user: AuthUser, input: AdminPayload) {
     this.assertSuperAdmin(user);
 

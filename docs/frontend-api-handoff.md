@@ -1813,6 +1813,46 @@ expansion is planned in 5-slot units. UI must show this as preview-only.
 Manual settlement status update:
 
 ```http
+GET /admin/api/v1/backstage/settlements?period=2026-05&type=partner&status=paid&query=&take=20&cursor=<nextCursor>
+```
+
+Returns manually saved settlement status records. Use this for Backstage
+accounting history, "recent settlement actions", and QA after pressing
+ready/hold/paid/recheck/cancelled buttons.
+
+Supported query:
+
+- `period`: optional `YYYY-MM`.
+- `type`: optional `artist` or `partner`.
+- `status`: optional `estimated`, `ready`, `hold`, `paid`, `recheck`, `cancelled`.
+- `query`: searches `settlementKey`, `reason`, `note`, and `payoutReference`.
+- `take`, `cursor`: normal pagination.
+
+Response shape:
+
+```json
+{
+  "items": [
+    {
+      "settlementKey": "partner:<partnerUserId>:2026-05",
+      "settlementType": "partner",
+      "period": "2026-05",
+      "status": "paid",
+      "amountKrw": "50000",
+      "reason": "manual bank transfer completed",
+      "updatedByUserId": "admin-user-id",
+      "updatedAt": "2026-05-04T09:00:00.000Z"
+    }
+  ],
+  "summary": {
+    "statusCounts": {
+      "paid": 1
+    }
+  }
+}
+```
+
+```http
 POST /admin/api/v1/backstage/settlements/:settlementKey/status
 ```
 

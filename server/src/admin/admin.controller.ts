@@ -70,6 +70,12 @@ export class AdminController {
     return this.adminService.updateBackstageSettlementStatus(user, settlementKey, body);
   }
 
+  @Get('backstage/settlements')
+  @RequireAdminPermissions('payments:read')
+  getBackstageSettlements(@Query() query: AuditQuery) {
+    return this.adminService.getBackstageSettlements(query);
+  }
+
   @Get('admin-roles')
   @RequireAdminPermissions('*')
   getAdminRoles() {
