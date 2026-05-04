@@ -459,6 +459,7 @@ function renderRows(targetId, rows, statusIndex) {
   target.innerHTML = rows.map((entry, rowIndex) => {
     const row = Array.isArray(entry) ? entry : entry.row || [];
     const children = Array.isArray(entry) ? [] : entry.children || [];
+    const rowMeta = Array.isArray(entry) ? {} : entry.meta || {};
     const cells = row.map((cell, index) => {
       const label = meta.labels?.[index] || "";
       const isSettlementAmount = label === "정산금";
@@ -471,7 +472,7 @@ function renderRows(targetId, rows, statusIndex) {
           ? `<strong class="settlement-amount">${cell}</strong>`
           : cell;
       if (index === row.length - 1) {
-        const payload = encodeURIComponent(JSON.stringify({ tableId: targetId, type: meta.type, labels: meta.labels, row }));
+        const payload = encodeURIComponent(JSON.stringify({ tableId: targetId, type: meta.type, labels: meta.labels, row, meta: rowMeta }));
         return `<td><button class="row-action" type="button" data-detail="${payload}">${content}</button></td>`;
       }
       return `<td${isSettlementAmount ? ' class="settlement-cell"' : ""}>${childToggle}${content}</td>`;
@@ -786,7 +787,7 @@ function openQuickAction(button) {
   const cardTitle = button.closest(".table-card")?.querySelector("h3")?.textContent?.trim() || sectionTitle;
 
   const actionMap = {
-    "운영자 추가": ["운영자 계정 초대", "역할은 최상 관리자, 회계 관리자, 영업/섭외 관리자, CS 관리자, AI 아티스트 관리자 중 하나로 선택합니다.", "POST /admin/api/v1/admin-users/invitations"],
+    "운영자 추가": ["운영자 계정 초대", "역할은 최상 관리자, 회계 관리자, 영업/섭외 관리자, CS 관리자, AI 아티스트 관리자 중 하나로 선택합니다.", "POST /admin/api/v1/admin-users"],
     "이력 보기": ["권한 변경 이력", "MVP에서는 super_admin 직접 변경과 audit log 중심으로 관리합니다. 2인 승인/요청함은 운영자가 늘어난 뒤 추가합니다.", "GET /admin/api/v1/audit-events?action=admin"],
     "전체 보기": ["목록 전체 보기", "현재 표의 필터를 초기화하고 전체 더미 데이터를 다시 보여줍니다.", "GET list endpoint with cursor"],
     "위험만 보기": ["위험 항목 필터", "신고, 정지, 높은 위험도 항목만 남겨서 봅니다.", "GET list endpoint with risk filter"],
@@ -939,24 +940,25 @@ function renderDetailForm(detail) {
   const tableId = detail?.tableId;
   let html = "";
 
-  if (quickTitle === "AI 아티스트 추가") {
+  if (quickTitle === "AI 아티스트 추가" || tableId === "aiCreatorRows") {
     html = `
       <h3>AI 아티스트 기본 정보</h3>
       <div class="detail-form-grid">
-        ${detailInput("아티스트명", "displayName", "")}
-        ${detailInput("Slug", "slug", "")}
+        ${detailInput("아티스트명", "displayName", tableId === "aiCreatorRows" ? row[0] || "" : "")}
+        ${detailInput("Slug", "slug", detail?.meta?.slug || "")}
+        ${tableId === "aiCreatorRows" ? detailInput("Artist ID", "artistId", detail?.meta?.artistId || "") : ""}
         ${detailSelect("카테고리", "category", [
           { value: "artist", label: "아티스트" },
           { value: "model", label: "모델" },
           { value: "actor", label: "배우" },
           { value: "entertainer", label: "엔터테이너" },
           { value: "sports", label: "스포츠" }
-        ], "artist")}
+        ], detail?.meta?.category || "artist")}
         ${detailSelect("공개 상태", "status", [
           { value: "draft", label: "비공개/작성중" },
           { value: "debut_pending", label: "데뷔 예정" },
           { value: "public", label: "공개" }
-        ], "draft")}
+        ], detail?.meta?.status || "draft")}
         ${detailInput("만든 관리자", "createdBy", getBackstageAuth()?.user?.email || getBackstageAuth()?.user?.displayName || "현재 로그인 운영자")}
         ${detailInput("대표 컬러", "brandColor", "")}
         ${detailInput("생년월일", "birthDate", "", "date")}
@@ -999,13 +1001,15 @@ function renderDetailForm(detail) {
         ])}
         ${detailTextarea("인수인계/권한 변경 메모", "handoffNote", "담당자 퇴사, 권한 변경 사유, 인수인계 범위를 남깁니다.")}
       </div>
-      <p class="detail-form-note">운영자 권한은 드롭다운이 아니라 토글로 관리합니다. 실제 초대/권한 저장 API는 차모 #124에서 확인 중입니다.</p>
+      <p class="detail-form-note">운영자 권한은 드롭다운이 아니라 토글로 관리합니다. 저장 시 선택된 첫 권한이 실제 운영자 역할로 반영됩니다.</p>
     `;
   } else if (quickTitle === "AI 에셋 업로드" || tableId === "aiAssetRows") {
     html = `
       <h3>이미지/영상 슬롯 지정</h3>
       <div class="detail-form-grid">
         ${detailInput("아티스트", "artist", tableId === "aiAssetRows" ? row[0] || "" : "")}
+        ${detailInput("Artist ID", "artistId", detail?.meta?.artistId || "")}
+        ${detailInput("기존 Asset ID", "assetId", detail?.meta?.assetId || "", "text", true)}
         ${detailSelect("슬롯", "slot", [
           { value: "cover", label: "커버" },
           { value: "thumbnail", label: "썸네일" },
@@ -1165,6 +1169,7 @@ function renderDetailForm(detail) {
 function getActionProfile(detail, action = "memo") {
   const tableId = detail?.tableId || "quickAction";
   const row = detail?.row || [];
+  const quickTitle = row[0] || "";
   const labels = detail?.labels || [];
   const status = row[labels.findIndex((label) => label === "상태")] || "";
   const rowAction = row[row.length - 1] || "";
@@ -1185,6 +1190,70 @@ function getActionProfile(detail, action = "memo") {
     dangerDisabled: true
   };
 
+  if (quickTitle === "운영자 계정 초대") {
+    return {
+      ...profile,
+      group: "운영자 권한 관리",
+      targetType: "adminUser",
+      endpoint: "POST /admin/api/v1/admin-users",
+      method: "POST",
+      warning: "운영자 추가는 기존 가입 유저 이메일 또는 userId 기준으로 권한을 부여합니다. 역할 토글 중 첫 번째 선택 권한으로 저장합니다.",
+      holdLabel: "초대 보류",
+      dangerLabel: "운영자 추가",
+      showHold: true,
+      showDanger: true,
+      dangerDisabled: false
+    };
+  }
+
+  if (tableId === "adminRows") {
+    return {
+      ...profile,
+      group: "운영자 권한 관리",
+      targetType: "adminUser",
+      endpoint: "PATCH /admin/api/v1/admin-users/:adminUserId",
+      method: "PATCH",
+      warning: "권한 변경은 운영 로그에 남습니다. 담당자 퇴사/인수인계 사유를 메모로 남긴 뒤 저장하세요.",
+      holdLabel: "권한 변경 보류",
+      dangerLabel: "권한 저장",
+      showHold: true,
+      showDanger: true,
+      dangerDisabled: false
+    };
+  }
+
+  if (quickTitle === "AI 아티스트 추가") {
+    return {
+      ...profile,
+      group: "AI 아티스트 운영 액션",
+      targetType: "aiArtist",
+      endpoint: "POST /admin/api/v1/artists",
+      method: "POST",
+      warning: "핵심 프로필 필드를 개별 값으로 저장합니다. 공개 상태와 만든 관리자를 확인한 뒤 생성하세요.",
+      holdLabel: "생성 보류",
+      dangerLabel: "AI 아티스트 생성",
+      showHold: true,
+      showDanger: true,
+      dangerDisabled: false
+    };
+  }
+
+  if (quickTitle === "AI 에셋 업로드") {
+    return {
+      ...profile,
+      group: "AI 아티스트 운영 액션",
+      targetType: "aiArtistAsset",
+      endpoint: "POST /admin/api/v1/assets/upload-intents + POST /admin/api/v1/artists/:artistId/assets",
+      method: "POST",
+      warning: "파일을 업로드 intent로 등록한 뒤 artist asset 슬롯에 연결합니다. cover/thumb/gallery/shortform 슬롯을 반드시 확인하세요.",
+      holdLabel: "업로드 보류",
+      dangerLabel: "에셋 업로드/연결",
+      showHold: true,
+      showDanger: true,
+      dangerDisabled: false
+    };
+  }
+
   if (tableId === "userRows" || tableId === "userRiskRows") {
     const wantsRestore = rowAction.includes("복구");
     const wantsDelete = rowAction.includes("삭제") || rowAction.includes("탈퇴");
@@ -1202,7 +1271,8 @@ function getActionProfile(detail, action = "memo") {
       holdLabel: tableId === "userRiskRows" ? "보류/재확인 메모" : "상태 확인 메모",
       dangerLabel: wantsRestore ? "복구 요청" : wantsDelete ? "삭제 후보" : "일시정지",
       showHold: true,
-      showDanger: true
+      showDanger: true,
+      dangerDisabled: false
     };
   }
 
@@ -1246,7 +1316,7 @@ function getActionProfile(detail, action = "memo") {
       group: "크리에이터 콘텐츠 조치",
       targetType: isReport || isGenericReport ? "report" : "creatorContent",
       endpoint: isGenericReport
-        ? "PATCH /admin/api/v1/moderation/reports/:reportId"
+        ? "PATCH /admin/api/v1/community/reports/:reportId"
         : isReport
         ? "POST /admin/api/v1/community/reports/:reportId/archive"
         : restore
@@ -1257,7 +1327,8 @@ function getActionProfile(detail, action = "memo") {
       holdLabel: "보류/재확인 메모",
       dangerLabel: isGenericReport ? "신고 상태 변경" : isReport ? "신고 보관" : restore ? "복구 실행" : "숨김/제재 검토",
       showHold: true,
-      showDanger: true
+      showDanger: true,
+      dangerDisabled: false
     };
   }
 
@@ -1278,7 +1349,8 @@ function getActionProfile(detail, action = "memo") {
       holdLabel: isAsset ? "슬롯 수정 메모" : isPost ? "문구 수정 메모" : "프로필 수정 메모",
       dangerLabel: isAsset ? "에셋 업로드" : isPost ? "글 작성" : "공개 상태 변경",
       showHold: true,
-      showDanger: true
+      showDanger: true,
+      dangerDisabled: isPost
     };
   }
 
@@ -1346,7 +1418,258 @@ function collectDetailFormData() {
   return data;
 }
 
-function resolveExecutableEndpoint(endpoint = "") {
+function firstValue(...values) {
+  return values.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+}
+
+function firstRoleName(roles = []) {
+  const values = Array.isArray(roles) ? roles : [roles].filter(Boolean);
+  return values[0] || "content_admin";
+}
+
+function normalizeArtistStatus(status) {
+  const statusMap = {
+    public: "active",
+    active: "active",
+    draft: "draft",
+    debut_pending: "planned",
+    planned: "planned",
+    archived: "archived"
+  };
+  return statusMap[status] || status || "draft";
+}
+
+function normalizeSlotUsage(slot) {
+  const slotMap = {
+    thumbnail: "thumb",
+    shortform: "shortform",
+    gallery: "gallery",
+    cover: "cover"
+  };
+  return slotMap[slot] || slot || "cover";
+}
+
+function buildArtistProfilePayload(form = {}) {
+  return {
+    birthDate: form.birthDate,
+    hometown: form.hometown,
+    height: form.height,
+    bloodType: form.bloodType,
+    position: form.position,
+    debut: form.debut,
+    characterType: form.characterType,
+    fandomName: form.fandomName,
+    fanPoint: form.fanPoint,
+    signature: form.signature,
+    adAxis: form.adAxis,
+    representativeColor: form.brandColor,
+    mbti: form.mbti,
+    hobby: form.hobby,
+    favoriteGift: form.favoriteGift
+  };
+}
+
+function buildActionRequest(detail, action) {
+  const tableId = detail?.tableId || "quickAction";
+  const row = detail?.row || [];
+  const meta = detail?.meta || {};
+  const form = collectDetailFormData() || {};
+  const note = detailMemo.value.trim();
+  const reason = firstValue(form.reason, form.reviewMemo, form.adminNote, form.detail, note, "백스테이지 운영 처리");
+  const quickTitle = row[0] || "";
+
+  if (quickTitle === "운영자 계정 초대") {
+    return {
+      method: "POST",
+      path: adminApiPath("/admin-users"),
+      body: {
+        email: form.email,
+        userId: form.userId,
+        roleName: firstRoleName(form.roles),
+        status: form.status === "invited" ? "active" : form.status || "active",
+        note: reason
+      }
+    };
+  }
+
+  if (tableId === "adminRows") {
+    if (!meta.adminUserId) return null;
+    return {
+      method: "PATCH",
+      path: adminApiPath(`/admin-users/${meta.adminUserId}`),
+      body: {
+        roleName: firstRoleName(form.roles),
+        status: form.status === "disabled" ? "suspended" : form.status || "active",
+        note: reason
+      }
+    };
+  }
+
+  if (tableId === "userRows" || tableId === "userRiskRows") {
+    const userId = firstValue(meta.userId, form.userId);
+    if (!userId) return null;
+    const selectedAction = form.action || "";
+    const wantsRestore = row[row.length - 1]?.includes?.("복구") || selectedAction === "restore";
+    const wantsDelete = selectedAction === "delete_candidate" || row[row.length - 1]?.includes?.("삭제");
+    const suspendDays = selectedAction.includes("30") ? 30 : selectedAction.includes("14") ? 14 : 7;
+    return {
+      method: "POST",
+      path: adminApiPath(`/users/${userId}/${wantsRestore ? "restore" : wantsDelete ? "delete" : "suspend"}`),
+      body: {
+        reason,
+        note,
+        durationDays: wantsRestore || wantsDelete ? undefined : suspendDays,
+        deleteCandidate: wantsDelete || undefined
+      }
+    };
+  }
+
+  if (quickTitle === "AI 아티스트 추가") {
+    return {
+      method: "POST",
+      path: adminApiPath("/artists"),
+      body: {
+        displayName: form.displayName,
+        slug: form.slug,
+        status: normalizeArtistStatus(form.status),
+        sortOrder: Number(form.sortOrder || 0),
+        publicProfile: buildArtistProfilePayload(form),
+        visualProfile: {
+          representativeColor: form.brandColor,
+          coverSlot: form.coverImage?.[0],
+          thumbSlot: form.thumbImage?.[0]
+        },
+        contentProfile: {
+          createdBy: form.createdBy,
+          category: form.category,
+          operatingNote: reason
+        }
+      }
+    };
+  }
+
+  if (tableId === "aiCreatorRows") {
+    const artistId = firstValue(meta.artistId, form.artistId);
+    if (!artistId) return null;
+    return {
+      method: "PATCH",
+      path: adminApiPath(`/artists/${artistId}`),
+      body: {
+        displayName: firstValue(form.displayName, row[0]),
+        status: normalizeArtistStatus(form.status || meta.status),
+        publicProfile: buildArtistProfilePayload(form),
+        visualProfile: {
+          representativeColor: form.brandColor
+        },
+        contentProfile: {
+          category: form.category,
+          operatingNote: reason
+        }
+      }
+    };
+  }
+
+  if (tableId === "aiAssetRows" || quickTitle === "AI 에셋 업로드") {
+    const fileInput = detailForm?.querySelector('input[name="assetFile"]');
+    const file = fileInput?.files?.[0] || null;
+    const artistId = firstValue(meta.artistId, form.artistId);
+    const assetId = firstValue(form.assetId, meta.assetId);
+    if (form.assetAction === "archive" && assetId) {
+      return {
+        method: "POST",
+        path: adminApiPath(`/assets/${assetId}/archive`),
+        body: { reason, note, force: true }
+      };
+    }
+    if (!artistId) return null;
+    if (assetId) {
+      return {
+        method: "POST",
+        path: adminApiPath(`/artists/${artistId}/assets`),
+        body: {
+          assetId,
+          usageType: normalizeSlotUsage(form.slot),
+          isPrimary: form.isPrimary !== "no",
+          sortOrder: Number(form.sortOrder || 0),
+          note: reason
+        }
+      };
+    }
+    if (file) {
+      return {
+        method: "UPLOAD_ASSET",
+        path: adminApiPath("/assets/upload-intents"),
+        file,
+        artistId,
+        body: {
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+          fileSizeBytes: file.size,
+          visibility: "public",
+          metadata: { slot: normalizeSlotUsage(form.slot), note: reason }
+        },
+        linkBody: {
+          usageType: normalizeSlotUsage(form.slot),
+          isPrimary: form.isPrimary !== "no",
+          sortOrder: Number(form.sortOrder || 0)
+        }
+      };
+    }
+    return null;
+  }
+
+  if (["moderationRows", "contentAnomalyRows"].includes(tableId)) {
+    const postId = firstValue(meta.postId, form.postId, form.contentId);
+    if (!postId) return null;
+    const shouldRestore = form.action === "restore" || row[row.length - 1] === "복구";
+    return {
+      method: "POST",
+      path: adminApiPath(`/community/posts/${postId}/${shouldRestore ? "restore" : "hide"}`),
+      body: { reason, note, action: form.action || (shouldRestore ? "restore" : "hide") }
+    };
+  }
+
+  if (tableId === "moderationReportRows") {
+    const reportId = firstValue(meta.reportId, form.reportId);
+    if (!reportId) return null;
+    const actionMap = {
+      resolved: "none",
+      dismissed: "none",
+      archived: "none",
+      reviewing: "none",
+      hide: "hide_post",
+      restore: "restore_post"
+    };
+    return {
+      method: "PATCH",
+      path: adminApiPath(`/community/reports/${reportId}`),
+      body: {
+        status: form.status === "archived" ? "resolved" : form.status || "resolved",
+        action: actionMap[form.action] || "none",
+        reason,
+        note,
+        detail: firstValue(form.detail, note, reason),
+        resolveMatchingReports: false
+      }
+    };
+  }
+
+  if (tableId === "reportCancelRows") {
+    const postId = firstValue(meta.postId, form.targetId, form.contentId);
+    if (!postId) return null;
+    return {
+      method: "POST",
+      path: adminApiPath(`/community/posts/${postId}/restore`),
+      body: { reason, note, action: "restore_request" }
+    };
+  }
+
+  return null;
+}
+
+function resolveExecutableEndpoint(endpoint = "", detail = null, action = "memo") {
+  const mutation = action === "danger" ? buildActionRequest(detail, action) : null;
+  if (mutation) return mutation;
   const match = String(endpoint).trim().match(/^(GET|POST|PATCH|DELETE)\s+(\/admin\/api\/v1\/\S+)$/);
   if (!match) return null;
   const [, method, fullPath] = match;
@@ -1364,6 +1687,46 @@ function summarizeApiResult(data) {
   return "응답 본문 없이 성공했어요.";
 }
 
+async function runAssetUploadRequest(request) {
+  const intent = await backstageFetch(request.path, {
+    method: "POST",
+    auth: true,
+    body: request.body
+  });
+  const assetId = intent?.asset?.id || intent?.id;
+  const upload = intent?.upload || {};
+  if (!assetId) return intent;
+
+  if (request.file && upload.url && upload.mode !== "metadata_only") {
+    const response = await fetch(upload.url, {
+      method: upload.method || "PUT",
+      headers: upload.requiredHeaders || { "content-type": request.file.type || "application/octet-stream" },
+      body: request.file
+    });
+    if (!response.ok) throw new Error(`파일 업로드 실패 (${response.status})`);
+    await backstageFetch(adminApiPath(`/assets/${assetId}/confirm-upload`), {
+      method: "POST",
+      auth: true,
+      body: { objectETag: response.headers.get("etag") || undefined }
+    });
+  }
+
+  const link = await backstageFetch(adminApiPath(`/artists/${request.artistId}/assets`), {
+    method: "POST",
+    auth: true,
+    body: {
+      ...request.linkBody,
+      assetId
+    }
+  });
+  return { intent, link };
+}
+
+async function reloadCurrentSectionAfterAction() {
+  const sectionId = getCurrentSection();
+  await loadSection(sectionId);
+}
+
 function buildActionPreview(action) {
   const detail = selectedDetail;
   if (!detail) return null;
@@ -1373,7 +1736,8 @@ function buildActionPreview(action) {
   const currentAction = row[row.length - 1] || action;
   const profile = getActionProfile(detail, action);
   const isLocalOnly = action === "memo" || action === "hold";
-  const apiRequest = resolveExecutableEndpoint(profile.endpoint);
+  const apiRequest = resolveExecutableEndpoint(profile.endpoint, detail, action);
+  const isMutation = apiRequest && apiRequest.method !== "GET";
 
   const base = {
     menu: detail.type,
@@ -1383,7 +1747,7 @@ function buildActionPreview(action) {
     requestedAction: action === "danger" ? currentAction : action,
     method: profile.method,
     apiHint: profile.endpoint,
-    status: isLocalOnly ? "프론트 임시 처리 가능" : apiRequest ? "조회 API 실행 가능" : "차모 API 확정 대기",
+    status: isLocalOnly ? "프론트 임시 처리 가능" : apiRequest ? (isMutation ? "실행 API 연결 완료" : "조회 API 실행 가능") : "대상 ID 또는 필수값 확인 필요",
     bodyPreview: {
       targetType: profile.targetType,
       target,
@@ -1396,7 +1760,7 @@ function buildActionPreview(action) {
     warning: isLocalOnly
       ? "현재는 프론트에서 운영 메모 흐름만 확인합니다. 실제 저장 API가 확정되면 같은 payload로 연결합니다."
       : apiRequest
-        ? "조회성 API라 바로 실행할 수 있어요. 변경/제재/지급 같은 위험 액션은 별도 확정 전까지 잠가둡니다."
+        ? (isMutation ? profile.warning : "조회성 API라 바로 실행할 수 있어요. 변경/제재/지급 같은 위험 액션은 별도 확정 전까지 잠가둡니다.")
       : profile.warning,
     canRunLocally: isLocalOnly,
     canRunApi: Boolean(apiRequest),
@@ -1410,10 +1774,11 @@ function openConfirmModal(action) {
   if (!preview || !confirmModal) return;
   pendingActionPreview = preview;
   confirmType.textContent = preview.menu || "Confirm";
-  confirmTitle.textContent = action === "memo" ? "운영 메모 저장 확인" : action === "hold" ? "보류/재확인 확인" : preview.canRunApi ? "조회 API 실행 확인" : "실행 API 연결 대기";
+  const isMutation = preview.apiRequest && preview.apiRequest.method !== "GET";
+  confirmTitle.textContent = action === "memo" ? "운영 메모 저장 확인" : action === "hold" ? "보류/재확인 확인" : preview.canRunApi ? (isMutation ? "실행 API 처리 확인" : "조회 API 실행 확인") : "실행 정보 확인 필요";
   confirmMessage.textContent = preview.warning;
   confirmPayload.textContent = JSON.stringify(preview, null, 2);
-  confirmRunButton.textContent = preview.canRunLocally ? "프론트 메모 처리" : preview.canRunApi ? "조회 실행" : "차모 API 확정 대기";
+  confirmRunButton.textContent = preview.canRunLocally ? "프론트 메모 처리" : preview.canRunApi ? (isMutation ? "실행하기" : "조회 실행") : "필수값 확인 필요";
   confirmRunButton.disabled = !(preview.canRunLocally || preview.canRunApi);
   confirmModal.classList.remove("is-hidden");
 }
@@ -1428,21 +1793,27 @@ async function runPreparedAction() {
   const help = document.querySelector(".detail-help");
   if (pendingActionPreview.canRunApi) {
     confirmRunButton.disabled = true;
-    confirmRunButton.textContent = "조회 중...";
+    const request = pendingActionPreview.apiRequest;
+    const isMutation = request.method !== "GET";
+    confirmRunButton.textContent = isMutation ? "처리 중..." : "조회 중...";
     try {
-      const data = await backstageFetch(pendingActionPreview.apiRequest.path, {
-        method: pendingActionPreview.apiRequest.method,
-        auth: true
-      });
+      const data = request.method === "UPLOAD_ASSET"
+        ? await runAssetUploadRequest(request)
+        : await backstageFetch(request.path, {
+          method: request.method,
+          auth: true,
+          body: request.method === "GET" ? undefined : request.body
+        });
       const summary = summarizeApiResult(data);
-      confirmMessage.textContent = `조회 완료: ${summary}`;
+      confirmMessage.textContent = `${isMutation ? "처리" : "조회"} 완료: ${summary}`;
       confirmPayload.textContent = JSON.stringify({ ...pendingActionPreview, resultSummary: summary, result: data }, null, 2);
-      confirmRunButton.textContent = "조회 완료";
-      if (help) help.textContent = `${pendingActionPreview.actionGroup} 조회 API를 실행했어요. 화면 반영이 필요한 목록은 새로고침으로 다시 불러올 수 있습니다.`;
+      confirmRunButton.textContent = isMutation ? "처리 완료" : "조회 완료";
+      if (help) help.textContent = `${pendingActionPreview.actionGroup} ${isMutation ? "실행" : "조회"} API를 실행했어요. 화면 반영이 필요한 목록은 새로고침으로 다시 불러올 수 있습니다.`;
+      await reloadCurrentSectionAfterAction();
     } catch (error) {
-      confirmMessage.textContent = error.message || "조회 API 실행에 실패했어요.";
+      confirmMessage.textContent = error.message || "API 실행에 실패했어요.";
       confirmPayload.textContent = JSON.stringify({ ...pendingActionPreview, errorStatus: error.status, errorBody: error.body }, null, 2);
-      confirmRunButton.textContent = "다시 조회";
+      confirmRunButton.textContent = isMutation ? "다시 실행" : "다시 조회";
       confirmRunButton.disabled = false;
     }
     return;
@@ -1476,7 +1847,8 @@ function renderBackstageTables() {
 }
 
 function setActiveSection(sectionId = "overview") {
-  const targetId = document.getElementById(sectionId) ? sectionId : "overview";
+  const allowedSection = canAccessBackstageSection(sectionId) ? sectionId : "overview";
+  const targetId = document.getElementById(allowedSection) ? allowedSection : "overview";
   saveActiveSection(targetId);
   document.querySelector(".dashboard-main")?.setAttribute("data-active-section", targetId);
   document.querySelectorAll(".section-block").forEach((section) => {
@@ -1484,6 +1856,73 @@ function setActiveSection(sectionId = "overview") {
   });
   document.querySelectorAll(".sidebar-nav a").forEach((link) => {
     link.classList.toggle("is-active", link.getAttribute("href") === `#${targetId}`);
+  });
+}
+
+function currentAdminRoleName() {
+  const user = getBackstageAuth()?.user || {};
+  return user.adminUser?.role?.name || user.adminRole?.name || user.roleName || user.adminRoleName || user.role || null;
+}
+
+function currentAdminPermissions() {
+  const user = getBackstageAuth()?.user || {};
+  const permissions = user.adminUser?.role?.permissions || user.adminRole?.permissions || user.permissions || [];
+  return Array.isArray(permissions) ? permissions : [];
+}
+
+function syncCurrentAdminContext(adminUsers = []) {
+  const auth = getBackstageAuth();
+  const email = auth?.user?.email;
+  if (!auth || !email) return;
+  const current = adminUsers.find((adminUser) => (adminUser.user?.email || adminUser.email) === email);
+  if (!current) return;
+  setBackstageAuth({
+    ...auth,
+    user: {
+      ...auth.user,
+      adminUser: current,
+      roleName: current.role?.name || current.roleName || current.adminRole
+    }
+  });
+  applyPermissionVisibility();
+}
+
+function canAccessBackstageSection(sectionId) {
+  if (sectionId === "overview" || sectionId === "logs") return true;
+  const role = currentAdminRoleName();
+  const permissions = currentAdminPermissions();
+  if (!role && permissions.length === 0) return true;
+  if (role === "super_admin" || permissions.includes("*")) return true;
+  const areaMap = {
+    admins: ["super_admin"],
+    users: ["cs_admin", "support_admin"],
+    creators: ["partner_admin", "partnership_admin", "artist_ops_admin", "ai_artist_admin", "content_admin"],
+    "ai-content": ["artist_ops_admin", "ai_artist_admin", "content_admin"],
+    moderation: ["cs_admin", "support_admin", "content_admin"],
+    settlement: ["commerce_admin", "settlement_admin", "finance_admin"]
+  };
+  const permissionMap = {
+    users: ["users:read", "users:write", "community:read"],
+    creators: ["debut:read", "creator:read", "artists:read"],
+    "ai-content": ["artists:read", "assets:read", "shortforms:read"],
+    moderation: ["community:read", "community:write", "reports:read"],
+    settlement: ["payments:read", "settlement:read", "payout:read"]
+  };
+  return (areaMap[sectionId] || []).includes(role) || (permissionMap[sectionId] || []).some((permission) => permissions.includes(permission));
+}
+
+function applyPermissionVisibility() {
+  document.querySelectorAll(".sidebar-nav a").forEach((link) => {
+    const sectionId = link.getAttribute("href")?.replace("#", "") || "overview";
+    link.classList.toggle("is-hidden", !canAccessBackstageSection(sectionId));
+  });
+  document.querySelectorAll(".section-block").forEach((section) => {
+    section.classList.toggle("is-permission-hidden", !canAccessBackstageSection(section.id));
+    section.classList.toggle("is-hidden", !canAccessBackstageSection(section.id));
+  });
+  const canManageAdmins = canAccessBackstageSection("admins");
+  document.querySelectorAll('#admins .text-action, #adminRows .row-action').forEach((button) => {
+    button.disabled = !canManageAdmins;
   });
 }
 
@@ -1686,17 +2125,27 @@ async function loadAdminsSection() {
       backstageFetch(adminApiPath("/audit-events?take=10&targetType=admin_user"), { auth: true }).catch(() => [])
     ]);
     const roles = normalizePage(adminRoles).items;
-    const rows = normalizePage(adminUsers).items.map((adminUser) => {
+    const adminItems = normalizePage(adminUsers).items;
+    syncCurrentAdminContext(adminItems);
+    const rows = adminItems.map((adminUser) => {
       const roleName = adminUser.role?.name || adminUser.roleName || adminUser.adminRole;
       const status = localizeAdminStatus(adminUser.status);
-      return [
-        adminUser.user?.email || adminUser.email || adminUser.userId?.slice?.(0, 8) || "-",
-        localizeAdminRole(roleName),
-        status,
-        formatDate(adminUser.lastAccessAt || adminUser.lastLoginAt || adminUser.user?.lastLoginAt || adminUser.updatedAt || adminUser.createdAt),
-        summarizePermissions(adminUser.role?.permissions || adminUser.permissions),
-        status === "승인" ? "권한 보기" : "복구 확인"
-      ];
+      return {
+        row: [
+          adminUser.user?.email || adminUser.email || adminUser.userId?.slice?.(0, 8) || "-",
+          localizeAdminRole(roleName),
+          status,
+          formatDate(adminUser.lastAccessAt || adminUser.lastLoginAt || adminUser.user?.lastLoginAt || adminUser.updatedAt || adminUser.createdAt),
+          summarizePermissions(adminUser.role?.permissions || adminUser.permissions),
+          status === "승인" ? "권한 보기" : "복구 확인"
+        ],
+        meta: {
+          adminUserId: adminUser.id,
+          userId: adminUser.userId,
+          roleName,
+          permissions: adminUser.role?.permissions || adminUser.permissions || []
+        }
+      };
     });
     const auditRows = normalizePage(adminEvents).items.map((event) => [
       event.id?.slice?.(0, 8) || "-",
@@ -1743,29 +2192,35 @@ async function loadUsersPage(append = true) {
   if (append && state.cursor) query.set("cursor", state.cursor);
   try {
     const page = normalizePage(await backstageFetch(adminApiPath(`/backstage/operations/users-overview?${query}`), { auth: true }));
-    const rows = page.items.map((user) => [
-      user.displayName || user.publicHandle || user.nickname || user.userId?.slice?.(0, 8) || user.id?.slice?.(0, 8) || "-",
-      user.email || "-",
-      user.loginType || user.loginTypes?.join(", ") || user.socialProvider || user.loginProvider || user.provider || "Email",
-      `${formatCount(user.walletBalanceLumina || user.wallet?.balanceLumina || 0)}L`,
-      krw(user.paidAmountKrw || 0),
-      `${formatCount(user.openReportCount || 0)} / ${formatCount(user.reportCount || 0)}`,
-      formatCount(user.sanctionCount || 0),
-      `${formatCount(user.followingArtistCount || 0)} / ${formatCount(user.followerCount || 0)}`,
-      formatDate(user.lastSeenAt || user.lastLoginAt || user.updatedAt || user.createdAt),
-      localizeWorkflowStatus(user.status),
-      user.status === "suspended" ? "복구 요청" : "7일 정지"
-    ]);
+    const rows = page.items.map((user) => ({
+      row: [
+        user.displayName || user.publicHandle || user.nickname || user.userId?.slice?.(0, 8) || user.id?.slice?.(0, 8) || "-",
+        user.email || "-",
+        user.loginType || user.loginTypes?.join(", ") || user.socialProvider || user.loginProvider || user.provider || "Email",
+        `${formatCount(user.walletBalanceLumina || user.wallet?.balanceLumina || 0)}L`,
+        krw(user.paidAmountKrw || 0),
+        `${formatCount(user.openReportCount || 0)} / ${formatCount(user.reportCount || 0)}`,
+        formatCount(user.sanctionCount || 0),
+        `${formatCount(user.followingArtistCount || 0)} / ${formatCount(user.followerCount || 0)}`,
+        formatDate(user.lastSeenAt || user.lastLoginAt || user.updatedAt || user.createdAt),
+        localizeWorkflowStatus(user.status),
+        user.status === "suspended" ? "복구 요청" : "7일 정지"
+      ],
+      meta: { userId: user.userId || user.id, status: user.status }
+    }));
     const riskRows = page.items
       .filter((user) => Number(user.openReportCount || 0) > 0 || Number(user.reportCount || 0) > 0 || Number(user.sanctionCount || 0) > 0 || user.recentAction)
-      .map((user) => [
-        user.displayName || user.publicHandle || user.email || user.userId?.slice?.(0, 8) || "-",
-        user.latestReportReason || user.recentAction || "운영 확인",
-        `${formatCount(user.openReportCount || 0)} / ${formatCount(user.reportCount || 0)}`,
-        localizeWorkflowStatus(user.status),
-        user.recentAction || (Number(user.sanctionCount || 0) > 0 ? `제재 ${formatCount(user.sanctionCount)}회` : "확인 필요"),
-        Number(user.openReportCount || 0) > 0 ? "신고 보기" : "상세"
-      ]);
+      .map((user) => ({
+        row: [
+          user.displayName || user.publicHandle || user.email || user.userId?.slice?.(0, 8) || "-",
+          user.latestReportReason || user.recentAction || "운영 확인",
+          `${formatCount(user.openReportCount || 0)} / ${formatCount(user.reportCount || 0)}`,
+          localizeWorkflowStatus(user.status),
+          user.recentAction || (Number(user.sanctionCount || 0) > 0 ? `제재 ${formatCount(user.sanctionCount)}회` : "확인 필요"),
+          Number(user.openReportCount || 0) > 0 ? "신고 보기" : "상세"
+        ],
+        meta: { userId: user.userId || user.id, status: user.status }
+      }));
     state.rows = append ? state.rows.concat(rows) : rows;
     state.riskRows = append ? (state.riskRows || []).concat(riskRows) : riskRows;
     state.cursor = page.nextCursor;
@@ -1802,15 +2257,23 @@ async function loadCreatorsSection() {
       item.inactive30Days ? "장기미접속" : localizeWorkflowStatus(item.status),
       item.needsFollowUp ? "확인 요청" : item.status === "approved" ? "권한 보기" : "신청 보기"
     ]);
-    const aiRows = (data?.aiArtists || []).map((artist) => [
-      artist.displayName || artist.name || artist.slug || "-",
-      artist.category || artist.type || artist.publicProfile?.characterType || "-",
-      artist.createdBy?.email || artist.createdByName || artist.operatorName || "-",
-      artist.missing?.includes("public_profile") || artist.missing?.includes("visual_profile") || artist.missing?.includes("content_profile") ? "누락" : "완료",
-      artist.missing?.includes("cover_asset") || artist.missing?.includes("thumbnail_asset") || artist.missing?.includes("gallery_assets") ? missingSummary(artist.missing) : "완료",
-      localizeWorkflowStatus(artist.status),
-      "콘텐츠 관리"
-    ]);
+    const aiRows = (data?.aiArtists || []).map((artist) => ({
+      row: [
+        artist.displayName || artist.name || artist.slug || "-",
+        artist.category || artist.type || artist.publicProfile?.characterType || "-",
+        artist.createdBy?.email || artist.createdByName || artist.operatorName || "-",
+        artist.missing?.includes("public_profile") || artist.missing?.includes("visual_profile") || artist.missing?.includes("content_profile") ? "누락" : "완료",
+        artist.missing?.includes("cover_asset") || artist.missing?.includes("thumbnail_asset") || artist.missing?.includes("gallery_assets") ? missingSummary(artist.missing) : "완료",
+        localizeWorkflowStatus(artist.status),
+        "콘텐츠 관리"
+      ],
+      meta: {
+        artistId: artist.id,
+        slug: artist.slug,
+        status: artist.status,
+        category: artist.category || artist.type
+      }
+    }));
     const imageRequestRows = normalizePage(imageRequestsPage).items.map((request) => [
       localizeCreatorImageType(request.requestType),
       request.artist?.displayName || request.artist?.slug || request.artistId?.slice?.(0, 8) || "-",
@@ -1843,23 +2306,35 @@ async function loadAiContentSection() {
   renderLoadingRow("aiPostRows");
   try {
     const page = normalizePage(await backstageFetch(adminApiPath("/backstage/operations/ai-content-health?take=20"), { auth: true }));
-    const assetRows = page.items.map((artist) => [
-      artist.displayName || artist.name || artist.slug || "-",
-      slotStatus(artist.slots?.cover, true),
-      slotStatus(artist.slots?.thumbnail, true),
-      slotStatus(artist.slots?.gallery),
-      countLabel(artist.counts?.shortforms || artist.shortformsCount, "개"),
-      artist.missing?.length ? missingSummary(artist.missing) : "운영자 슬롯 선택 우선",
-      artist.missing?.length ? "업로드" : "상세"
-    ]);
-    const postRows = page.items.map((artist) => [
-      artist.displayName || artist.name || artist.slug || "-",
-      profileStatus(artist.profiles, "contentProfile"),
-      profileStatus(artist.profiles, "publicProfile"),
-      artist.missing?.includes("chat_persona") ? "필요" : "준비중",
-      artist.counts?.premiumVideos ? countLabel(artist.counts.premiumVideos, "개") : "준비중",
-      "작성"
-    ]);
+    const assetRows = page.items.map((artist) => ({
+      row: [
+        artist.displayName || artist.name || artist.slug || "-",
+        slotStatus(artist.slots?.cover, true),
+        slotStatus(artist.slots?.thumbnail, true),
+        slotStatus(artist.slots?.gallery),
+        countLabel(artist.counts?.shortforms || artist.shortformsCount, "개"),
+        artist.missing?.length ? missingSummary(artist.missing) : "운영자 슬롯 선택 우선",
+        artist.missing?.length ? "업로드" : "상세"
+      ],
+      meta: {
+        artistId: artist.id,
+        slug: artist.slug,
+        status: artist.status,
+        coverAssetId: artist.slots?.cover?.assetId,
+        thumbAssetId: artist.slots?.thumbnail?.assetId
+      }
+    }));
+    const postRows = page.items.map((artist) => ({
+      row: [
+        artist.displayName || artist.name || artist.slug || "-",
+        profileStatus(artist.profiles, "contentProfile"),
+        profileStatus(artist.profiles, "publicProfile"),
+        artist.missing?.includes("chat_persona") ? "필요" : "준비중",
+        artist.counts?.premiumVideos ? countLabel(artist.counts.premiumVideos, "개") : "준비중",
+        "작성"
+      ],
+      meta: { artistId: artist.id, slug: artist.slug, status: artist.status }
+    }));
     if (assetRows.length) renderRows("aiAssetRows", assetRows, -1);
     else renderLoadingRow("aiAssetRows", "표시할 AI 에셋 상태가 없습니다.");
     if (postRows.length) renderRows("aiPostRows", postRows, -1);
@@ -1880,22 +2355,28 @@ async function loadModerationSection() {
       backstageFetch(adminApiPath("/community/posts?status=published&minReports=1&sort=reports&take=20"), { auth: true }).catch(() => null),
       backstageFetch(adminApiPath("/moderation/reports?take=20"), { auth: true }).catch(() => null)
     ]);
-    const rows = (Array.isArray(posts) ? posts : posts?.items || posts?.posts || []).map((post) => [
-      post.id?.slice?.(0, 8) || "-",
-      post.authorUser?.email || post.artist?.name || post.artist?.displayName || "-",
-      `신고 ${formatCount(post.reportCount)}건`,
-      post.status || "-",
-      post.status === "hidden" ? "복구" : "숨김"
-    ]);
-    const reportRows = normalizePage(reportsPage).items.map((report) => [
-      report.id?.slice?.(0, 8) || "-",
-      `${localizeReportTarget(report.targetType)} / ${report.targetId?.slice?.(0, 8) || "-"}`,
-      reportReporter(report),
-      localizeReportReason(report.reason),
-      localizeReportStatus(report.status),
-      report.detail || report.metadata?.adminNote || "-",
-      report.status === "resolved" || report.status === "archived" ? "상세" : "검토"
-    ]);
+    const rows = (Array.isArray(posts) ? posts : posts?.items || posts?.posts || []).map((post) => ({
+      row: [
+        post.id?.slice?.(0, 8) || "-",
+        post.authorUser?.email || post.artist?.name || post.artist?.displayName || "-",
+        `신고 ${formatCount(post.reportCount)}건`,
+        post.status || "-",
+        post.status === "hidden" ? "복구" : "숨김"
+      ],
+      meta: { postId: post.id, authorUserId: post.authorUserId, status: post.status }
+    }));
+    const reportRows = normalizePage(reportsPage).items.map((report) => ({
+      row: [
+        report.id?.slice?.(0, 8) || "-",
+        `${localizeReportTarget(report.targetType)} / ${report.targetId?.slice?.(0, 8) || "-"}`,
+        reportReporter(report),
+        localizeReportReason(report.reason),
+        localizeReportStatus(report.status),
+        report.detail || report.metadata?.adminNote || "-",
+        report.status === "resolved" || report.status === "archived" ? "상세" : "검토"
+      ],
+      meta: { reportId: report.id, postId: report.postId, targetId: report.targetId, status: report.status }
+    }));
     if (rows.length) renderRows("moderationRows", rows, 3);
     else renderLoadingRow("moderationRows", "확인 필요한 콘텐츠가 없습니다.");
     if (reportRows.length) renderRows("moderationReportRows", reportRows, 4);
@@ -1995,6 +2476,12 @@ async function loadAuditPage(append = true) {
 }
 
 function loadSection(sectionId) {
+  if (!canAccessBackstageSection(sectionId)) {
+    setActiveSection("overview");
+    renderBackstageTables();
+    loadBackstageSummary();
+    return;
+  }
   if (sectionId === "overview") {
     renderBackstageTables();
     loadBackstageSummary();
@@ -2019,6 +2506,7 @@ function showDashboard() {
   operatorEmail.textContent = auth?.user?.email || emailInput.value || "운영자";
   loginView.classList.add("is-hidden");
   dashboardView.classList.remove("is-hidden");
+  applyPermissionVisibility();
   setActiveSection(sectionId);
   renderBackstageTables();
   updateTodayLabel();
