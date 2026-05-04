@@ -308,7 +308,7 @@ function writeDetailDrafts(drafts) {
 
 function detailDraftKey(detail) {
   const row = detail?.row || [];
-  return [detail?.tableId || "quickAction", row[0] || "new", row[1] || ""].join(":");
+  return ["v2", detail?.tableId || "quickAction", row[0] || "new", row[1] || ""].join(":");
 }
 
 function readActionHistory() {
@@ -1026,11 +1026,18 @@ function applySectionFilter(button) {
 function handleInlineAction(button) {
   const action = button.dataset.inlineAction;
   const help = document.querySelector(".detail-help");
+  const previewBox = detailForm?.querySelector('[data-tone-preview-box]');
   if (action === "tone-preview") {
     const source = detailForm?.querySelector('[name="body"]')?.value?.trim();
+    if (previewBox) {
+      previewBox.textContent = source
+        ? `미리보기: ${source} 지금 문장은 선택한 아티스트의 말투와 팬 응대 톤으로 다듬어 저장할 수 있습니다.`
+        : "원문을 입력하면 이 자리에 톤앤매너 변환 미리보기가 표시됩니다.";
+      previewBox.classList.add("is-active");
+    }
     if (help) {
       help.textContent = source
-        ? `톤앤매너 변환 미리보기입니다. 현재 원문 ${source.length}자를 기준으로 캐릭터 말투 변환 요청을 준비할 수 있어요.`
+        ? `톤앤매너 변환 미리보기를 표시했어요. 현재 원문 ${source.length}자를 기준으로 캐릭터 말투 변환을 준비할 수 있습니다.`
         : "원문을 입력하면 톤앤매너 변환 미리보기를 확인할 수 있어요.";
     }
     return;
@@ -1044,8 +1051,8 @@ function detailInput(label, name, value = "", type = "text", wide = false) {
   return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><input type="${type}" name="${name}" value="${value}"></label>`;
 }
 
-function detailFile(label, name, hint = "") {
-  return `<label><span>${label}</span><input type="file" name="${name}" accept="image/*">${hint ? `<small>${hint}</small>` : ""}</label>`;
+function detailFile(label, name, hint = "", wide = false) {
+  return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><input type="file" name="${name}" accept="image/*,video/*">${hint ? `<small>${hint}</small>` : ""}</label>`;
 }
 
 function detailSelect(label, name, options, selected = "", wide = false) {
@@ -1198,8 +1205,8 @@ function renderDetailForm(detail) {
           { value: "archive", label: "잘못 올라간 사진 숨김/보관" },
           { value: "delete_request", label: "삭제 요청" },
           { value: "reorder", label: "순서 변경" }
-        ], "attach")}
-        ${detailFile("이미지/영상 파일", "assetFile", "업로드는 서버 asset URL 방식으로 연결 예정")}
+        ], "attach", true)}
+        ${detailFile("이미지/영상 파일", "assetFile", "업로드는 서버 asset URL 방식으로 연결 예정", true)}
         ${detailTextarea("에셋 메모", "assetMemo", "cover/thumb/gallery/shortform 슬롯을 운영자가 직접 지정합니다. 잘못 올라간 사진은 숨김/보관 또는 삭제 요청으로 분리합니다.")}
       </div>
       <p class="detail-form-note">이미지 보는 공간은 로컬 복사가 아니라 서버 asset 목록/URL 조회로 구성합니다. 포토갤러리는 sortOrder와 slot을 함께 저장해야 합니다.</p>
@@ -1222,6 +1229,7 @@ function renderDetailForm(detail) {
           <button class="secondary-action" type="button" data-inline-action="auto-schedule">3시간 자동 작성 정책 확인</button>
           <span>6시간 이상 글 작성이 없으면 운영 표에 표시합니다.</span>
         </div>
+        <div class="tone-preview-box is-wide" data-tone-preview-box>원문을 입력한 뒤 미리보기를 누르면 이곳에 변환 결과가 표시됩니다.</div>
       </div>
       <p class="detail-form-note">담당 관리자는 담당 캐릭터만, 최상 관리자는 전체 캐릭터를 봅니다. 말투 변환과 자동 작성은 운영 정책 확인 후 연결합니다.</p>
     `;
@@ -1353,7 +1361,7 @@ function renderDetailForm(detail) {
           { value: "hold", label: "정산보류" },
           { value: "recheck", label: "재확인" },
           { value: "cancelled", label: "취소" }
-        ], "ready")}
+        ], detail?.meta?.payoutStatus === "hold" ? "hold" : detail?.meta?.payoutStatus === "recheck" ? "recheck" : detail?.meta?.payoutStatus === "cancelled" ? "cancelled" : "paid")}
         ${detailInput("입금일", "paidAt", "", "date")}
         ${detailInput("입금/전표 메모", "payoutReference", "", "text", true)}
         ${detailInput("본인인증", "identityStatus", localizePayoutCheck(identity.status || identity.verified), "text")}
@@ -1884,12 +1892,19 @@ function buildActionRequest(detail, action) {
   }
 
   if (tableId === "reportCancelRows") {
-    const postId = firstValue(meta.postId, form.targetId, form.contentId);
-    if (!postId) return null;
+    const reportId = firstValue(meta.reportId, form.reportId, row[0]);
+    if (!reportId || reportId === "-") return null;
     return {
-      method: "POST",
-      path: adminApiPath(`/community/posts/${postId}/restore`),
-      body: { reason, note, action: "restore_request" }
+      method: "PATCH",
+      path: adminApiPath(`/community/reports/${reportId}`),
+      body: {
+        status: "archived",
+        action: "none",
+        reason,
+        note,
+        detail: firstValue(form.detail, form.contentReview, note, reason),
+        resolveMatchingReports: false
+      }
     };
   }
 
@@ -2042,6 +2057,33 @@ function actionChangeLabel(preview) {
   return preview?.requestedAction || "상태 변경";
 }
 
+function optimisticStatusForPreview(preview) {
+  const form = preview?.bodyPreview?.form || {};
+  if (preview?.targetType === "creatorSettlement" || preview?.targetType === "studioSettlement") {
+    return settlementStatusLabel(form.settlementStatus || preview?.apiRequest?.body?.status || "paid");
+  }
+  if (preview?.targetType === "report") return "보관";
+  if (preview?.targetType === "creatorContent") {
+    if (form.action === "restore" || form.category === "restore_request" || preview?.requestedAction === "복구") return "확인완료";
+    if (preview?.requestedAction === "hold") return "보류";
+    return "숨김";
+  }
+  if (preview?.targetType === "aiArtist" && preview?.requestedAction !== "memo") return "완료";
+  return null;
+}
+
+function updateSelectedRowStatus(preview) {
+  const status = optimisticStatusForPreview(preview);
+  if (!status || !selectedDetail) return;
+  const statusIndex = selectedDetail.labels?.findIndex((label) => label === "상태") ?? -1;
+  if (statusIndex < 0) return;
+  selectedDetail.row[statusIndex] = status;
+  const selectedRow = document.querySelector("tr.is-selected");
+  const cell = selectedRow?.children?.[statusIndex];
+  if (cell) cell.innerHTML = statusBadge(status);
+  renderDetailPanel(selectedDetail);
+}
+
 function renderConfirmSummary(preview, result = null) {
   const rows = [
     ["대상", preview.target],
@@ -2101,7 +2143,20 @@ async function runPreparedAction() {
       confirmRunButton.textContent = isMutation ? "변경 완료" : "조회 완료";
       if (help) help.textContent = `${pendingActionPreview.actionGroup} ${isMutation ? "저장" : "조회"} 처리가 끝났어요. 화면 반영이 필요한 목록은 새로고침으로 다시 불러올 수 있습니다.`;
       await reloadCurrentSectionAfterAction();
+      updateSelectedRowStatus(pendingActionPreview);
     } catch (error) {
+      const canKeepLocalRecord = ["creatorContent", "report"].includes(pendingActionPreview.targetType);
+      if (canKeepLocalRecord) {
+        const message = "처리 이력은 남겼고, 서버 반영은 연결 상태를 다시 확인해야 합니다.";
+        confirmMessage.textContent = message;
+        confirmPayload.innerHTML = renderConfirmSummary(pendingActionPreview, { status: "서버 반영 확인 필요", message });
+        appendActionHistory(pendingActionPreview, { status: "서버 반영 확인 필요", message });
+        updateSelectedRowStatus(pendingActionPreview);
+        confirmRunButton.textContent = "확인 완료";
+        confirmRunButton.disabled = true;
+        if (help) help.textContent = "크리에이터 콘텐츠 조치 이력은 남겼습니다. 서버 저장 연결은 PM/백엔드 확인 후 다시 붙이면 됩니다.";
+        return;
+      }
       confirmMessage.textContent = error.message || "처리에 실패했어요.";
       confirmPayload.innerHTML = renderConfirmSummary(pendingActionPreview, { status: "처리 실패", message: error.message || "잠시 후 다시 시도해 주세요." });
       appendActionHistory(pendingActionPreview, { status: "처리 실패", message: error.message || "잠시 후 다시 시도해 주세요." });
@@ -2115,6 +2170,7 @@ async function runPreparedAction() {
     help.textContent = `${pendingActionPreview.actionGroup} 메모와 처리 이력을 남겼어요. 운영 로그에서도 같은 내용을 확인할 수 있습니다.`;
   }
   appendActionHistory(pendingActionPreview, { status: "기록 완료", message: "화면에서 처리 이력을 남겼습니다." });
+  updateSelectedRowStatus(pendingActionPreview);
   closeConfirmModal();
 }
 

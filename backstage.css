@@ -151,6 +151,8 @@ td { color: var(--text); }
 .detail-form .is-wide { grid-column: 1 / -1; }
 .detail-form small { color: var(--muted); font-size: 11px; }
 .detail-form-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.tone-preview-box { min-height: 72px; padding: 12px; border: 1px dashed var(--line-strong); border-radius: 8px; background: #fff; color: var(--muted); font-size: 13px; line-height: 1.65; }
+.tone-preview-box.is-active { border-style: solid; border-color: #c084fc; background: #faf5ff; color: var(--text); font-weight: 800; }
 .detail-history { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .detail-history-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .detail-history-title h3 { margin: 0; font-size: 15px; letter-spacing: 0; }
