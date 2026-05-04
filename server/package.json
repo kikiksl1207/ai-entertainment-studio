@@ -13,8 +13,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "prisma:seed:fast": "node -r ts-node/register/transpile-only prisma/seed.ts",
     "render:start": "npm run prisma:deploy && npm run start:prod",
-    "render:start:seed": "npm run prisma:deploy && npm run prisma:seed && npm run start:prod",
+    "render:start:seed": "npm run prisma:deploy && npm run prisma:seed:fast && npm run start:prod",
     "verify:object-storage": "node scripts/verify-object-storage-upload.mjs",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "jest"
