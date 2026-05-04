@@ -1,7 +1,6 @@
 import { createHash, createHmac, randomUUID } from 'crypto';
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
   PayloadTooLargeException,
@@ -12,10 +11,13 @@ import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
 
 type UserAssetBody = Record<string, unknown>;
+type UserAssetQuery = Record<string, string | undefined>;
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const USER_IMAGE_UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
+const USER_ASSET_UPLOAD_STATUSES = new Set(['all', 'pending_upload', 'uploaded', 'ready']);
+const USER_ASSET_LIFECYCLE_STATUSES = new Set(['active', 'archived']);
 
 @Injectable()
 export class UserAssetsService {
@@ -23,6 +25,89 @@ export class UserAssetsService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
   ) {}
+
+  async listAssets(userId: string, query: UserAssetQuery) {
+    const take = this.take(query.take, 30, 100);
+    const cursor = this.optionalQueryString(query.cursor);
+    const uploadStatus = this.userAssetUploadStatus(query.uploadStatus ?? query.status);
+    const lifecycleStatus = this.userAssetLifecycleStatus(query.lifecycleStatus);
+    const assetType = this.optionalQueryString(query.assetType) ?? 'image';
+
+    if (assetType !== 'image') {
+      throw new BadRequestException('assetType must be image for user assets');
+    }
+
+    const filters: Prisma.AssetWhereInput[] = [
+      this.userAssetOwnerWhere(userId),
+      { assetType: 'image' },
+    ];
+
+    if (uploadStatus && uploadStatus !== 'all' && uploadStatus !== 'ready') {
+      filters.push({
+        metadata: {
+          path: ['uploadIntent', 'status'],
+          equals: uploadStatus,
+        },
+      });
+    }
+
+    if (lifecycleStatus === 'archived') {
+      filters.push({
+        metadata: {
+          path: ['lifecycle', 'status'],
+          equals: 'archived',
+        },
+      });
+    } else {
+      filters.push({
+        OR: [
+          {
+            metadata: {
+              path: ['lifecycle', 'status'],
+              equals: Prisma.JsonNull,
+            },
+          },
+          {
+            NOT: {
+              metadata: {
+                path: ['lifecycle', 'status'],
+                equals: 'archived',
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    const rows = await this.prisma.asset.findMany({
+      where: { AND: filters },
+      take: take + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const hasMore = rows.length > take;
+    const items = hasMore ? rows.slice(0, take) : rows;
+    const lastItem = items.at(-1);
+
+    return {
+      items: items.map((asset) => this.presentAsset(asset)),
+      count: items.length,
+      hasMore,
+      nextCursor: hasMore && lastItem ? lastItem.id : null,
+      policy: this.userAssetPolicy(),
+    };
+  }
+
+  async getAsset(userId: string, assetId: string) {
+    const asset = await this.findUserAsset(userId, assetId);
+
+    return {
+      asset: this.presentAsset(asset),
+      usage: await this.assetUsage(asset.id, userId),
+      policy: this.userAssetPolicy(),
+    };
+  }
 
   async createUploadIntent(userId: string, input: UserAssetBody) {
     const mimeType = this.allowedImageMimeType(this.string(input, 'mimeType'));
@@ -75,24 +160,9 @@ export class UserAssetsService {
   }
 
   async confirmUpload(userId: string, assetId: string, input: UserAssetBody) {
-    if (!UUID_PATTERN.test(assetId)) {
-      throw new BadRequestException('assetId must be a UUID');
-    }
-
-    const asset = await this.prisma.asset.findUnique({
-      where: { id: assetId },
-    });
-
-    if (!asset) {
-      throw new NotFoundException('Asset not found');
-    }
-
+    const asset = await this.findUserAsset(userId, assetId);
     const metadata = this.metadataObject(asset.metadata);
     const uploadIntent = this.metadataObject(metadata.uploadIntent);
-
-    if (uploadIntent.createdByUserId !== userId) {
-      throw new ForbiddenException('Asset owner access is required');
-    }
 
     if (input.fileSizeBytes !== undefined) {
       this.imageFileSizeBytes(input);
@@ -128,6 +198,75 @@ export class UserAssetsService {
     };
   }
 
+  async archiveAsset(userId: string, assetId: string, input: UserAssetBody) {
+    const asset = await this.findUserAsset(userId, assetId);
+    const usage = await this.assetUsage(asset.id, userId);
+    const force = this.optionalBoolean(input, 'force') ?? false;
+
+    if (!force && usage.blockingReasons.length > 0) {
+      throw new BadRequestException({
+        code: 'ASSET_IN_USE',
+        message: 'Asset is still in use',
+        details: {
+          blockingReasons: usage.blockingReasons,
+          usage,
+        },
+      });
+    }
+
+    const metadata = this.metadataObject(asset.metadata);
+    const archivedAt = new Date().toISOString();
+    const archivedAsset = await this.prisma.asset.update({
+      where: { id: asset.id },
+      data: {
+        metadata: this.toJson({
+          ...metadata,
+          lifecycle: {
+            ...this.metadataObject(metadata.lifecycle),
+            status: 'archived',
+            archivedByUserId: userId,
+            archivedAt,
+            archiveReason: this.optionalString(input, 'reason') ?? null,
+            forced: force,
+          },
+        }),
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      asset: this.presentAsset(archivedAsset),
+      usage,
+      message: 'Asset archived',
+    };
+  }
+
+  async restoreAsset(userId: string, assetId: string) {
+    const asset = await this.findUserAsset(userId, assetId);
+    const metadata = this.metadataObject(asset.metadata);
+    const restoredAt = new Date().toISOString();
+    const restoredAsset = await this.prisma.asset.update({
+      where: { id: asset.id },
+      data: {
+        metadata: this.toJson({
+          ...metadata,
+          lifecycle: {
+            ...this.metadataObject(metadata.lifecycle),
+            status: 'active',
+            restoredByUserId: userId,
+            restoredAt,
+          },
+        }),
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      asset: this.presentAsset(restoredAsset),
+      message: 'Asset restored',
+    };
+  }
+
   private presentAsset(asset: {
     id: string;
     assetType: string;
@@ -160,6 +299,12 @@ export class UserAssetsService {
         typeof uploadIntent.status === 'string' ? uploadIntent.status : 'ready',
       lifecycleStatus:
         typeof lifecycle.status === 'string' ? lifecycle.status : 'active',
+      owner: {
+        userId:
+          typeof uploadIntent.createdByUserId === 'string'
+            ? uploadIntent.createdByUserId
+            : null,
+      },
       createdAt: asset.createdAt,
       updatedAt: asset.updatedAt,
     };
@@ -502,6 +647,24 @@ export class UserAssetsService {
     return input[key] === undefined ? undefined : this.number(input, key);
   }
 
+  private optionalBoolean(input: UserAssetBody, key: string) {
+    const value = input[key];
+
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (value === true || value === 'true') {
+      return true;
+    }
+
+    if (value === false || value === 'false') {
+      return false;
+    }
+
+    throw new BadRequestException(`${key} must be a boolean`);
+  }
+
   private metadataObject(value: unknown) {
     return value && typeof value === 'object' && !Array.isArray(value)
       ? (value as UserAssetBody)
@@ -514,5 +677,154 @@ export class UserAssetsService {
     }
 
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  }
+
+  private async findUserAsset(userId: string, assetId: string) {
+    if (!UUID_PATTERN.test(assetId)) {
+      throw new BadRequestException('assetId must be a UUID');
+    }
+
+    const asset = await this.prisma.asset.findFirst({
+      where: {
+        id: assetId,
+        ...this.userAssetOwnerWhere(userId),
+      },
+    });
+
+    if (!asset) {
+      throw new NotFoundException('Asset not found');
+    }
+
+    return asset;
+  }
+
+  private userAssetOwnerWhere(userId: string): Prisma.AssetWhereInput {
+    return {
+      metadata: {
+        path: ['uploadIntent', 'createdByUserId'],
+        equals: userId,
+      },
+    };
+  }
+
+  private async assetUsage(assetId: string, userId: string) {
+    const [avatarProfile, feedLinks, creatorReferenceRequests, creatorResultRequests] =
+      await Promise.all([
+        this.prisma.userProfile.findFirst({
+          where: { userId, avatarAssetId: assetId },
+          select: { userId: true },
+        }),
+        this.prisma.communityPostAsset.findMany({
+          where: {
+            assetId,
+            post: {
+              authorUserId: userId,
+              status: 'published',
+              deletedAt: null,
+            },
+          },
+          select: { postId: true },
+          take: 20,
+        }),
+        this.prisma.creatorImageRequest.findMany({
+          where: { requesterUserId: userId },
+          select: { id: true, referenceAssetIds: true },
+          take: 100,
+        }),
+        this.prisma.creatorImageRequest.findMany({
+          where: { requesterUserId: userId },
+          select: { id: true, resultAssetIds: true },
+          take: 100,
+        }),
+      ]);
+    const referenceRequestIds = creatorReferenceRequests
+      .filter((request) => this.jsonArrayContains(request.referenceAssetIds, assetId))
+      .slice(0, 20)
+      .map((request) => request.id);
+    const resultRequestIds = creatorResultRequests
+      .filter((request) => this.jsonArrayContains(request.resultAssetIds, assetId))
+      .slice(0, 20)
+      .map((request) => request.id);
+
+    const blockingReasons = [
+      ...(avatarProfile ? ['avatar'] : []),
+      ...(feedLinks.length ? ['published_feed_post'] : []),
+      ...(referenceRequestIds.length ? ['creator_image_reference'] : []),
+      ...(resultRequestIds.length ? ['creator_image_result'] : []),
+    ];
+
+    return {
+      avatar: Boolean(avatarProfile),
+      feedPostIds: feedLinks.map((link) => link.postId),
+      creatorImageReferenceRequestIds: referenceRequestIds,
+      creatorImageResultRequestIds: resultRequestIds,
+      blockingReasons,
+    };
+  }
+
+  private jsonArrayContains(value: Prisma.JsonValue, expected: string) {
+    return Array.isArray(value) && value.includes(expected);
+  }
+
+  private userAssetUploadStatus(value?: string) {
+    const normalized = this.optionalQueryString(value);
+
+    if (!normalized) {
+      return undefined;
+    }
+
+    if (!USER_ASSET_UPLOAD_STATUSES.has(normalized)) {
+      throw new BadRequestException(
+        'status must be all, pending_upload, uploaded, or ready',
+      );
+    }
+
+    return normalized;
+  }
+
+  private userAssetLifecycleStatus(value?: string) {
+    const normalized = this.optionalQueryString(value) ?? 'active';
+
+    if (!USER_ASSET_LIFECYCLE_STATUSES.has(normalized)) {
+      throw new BadRequestException('lifecycleStatus must be active or archived');
+    }
+
+    return normalized;
+  }
+
+  private take(raw: string | undefined, fallback: number, max: number) {
+    const parsed = raw ? Number(raw) : fallback;
+
+    if (!Number.isInteger(parsed)) {
+      throw new BadRequestException('take must be an integer');
+    }
+
+    return Math.max(1, Math.min(parsed, max));
+  }
+
+  private optionalQueryString(value: unknown) {
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  }
+
+  private userAssetPolicy() {
+    return {
+      assetTypes: ['image'],
+      uploadStatuses: ['pending_upload', 'uploaded', 'ready'],
+      lifecycleStatuses: ['active', 'archived'],
+      maxImageUploadBytes: this.numberFromEnv(
+        'MAX_IMAGE_UPLOAD_BYTES',
+        USER_IMAGE_UPLOAD_MAX_BYTES,
+      ),
+      archive: {
+        blocksWhenUsedAs: [
+          'avatar',
+          'published_feed_post',
+          'creator_image_reference',
+          'creator_image_result',
+        ],
+        forceSupported: true,
+        deletesObjectStorageFile: false,
+      },
+    };
   }
 }

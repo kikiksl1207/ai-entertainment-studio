@@ -1484,8 +1484,12 @@ Post responses include top-level `linkPreview` when an external URL is attached.
 For normal logged-in users, use this image upload flow before creating a feed post:
 
 ```http
+GET /me/assets?status=uploaded&take=30
+GET /me/assets/:assetId
 POST /me/assets/upload-intents
 POST /me/assets/:assetId/confirm-upload
+POST /me/assets/:assetId/archive
+POST /me/assets/:assetId/restore
 Authorization: Bearer <accessToken>
 ```
 
@@ -1504,6 +1508,14 @@ Upload intent body:
 Allowed user image MIME types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`.
 Default user image max size is `8MB` (`8388608` bytes). If `fileSizeBytes` exceeds the backend limit, expect `413 PAYLOAD_TOO_LARGE` with a user-facing Korean message and `error.details.maxBytes`.
 The upload response includes `{ asset, upload }`; send the file with `upload.method`, `upload.url`, and `upload.requiredHeaders`, then confirm. On `local` storage, `upload.mode` is `metadata_only`; on `s3`/`r2`, it is `direct_upload_ready`.
+Asset library endpoints:
+
+- `GET /me/assets` lists the signed-in user's uploaded image assets. Query: `status=all|pending_upload|uploaded|ready`, `lifecycleStatus=active|archived`, `take`, `cursor`.
+- `GET /me/assets/:assetId` returns `{ asset, usage, policy }`.
+- `POST /me/assets/:assetId/archive` marks a user asset archived in metadata. It does not delete the object storage file. If the asset is used as an avatar, published feed image, or creator-image request reference/result, the backend returns `400 ASSET_IN_USE` unless body includes `{ "force": true }`.
+- `POST /me/assets/:assetId/restore` returns an archived user asset to active.
+- Use confirmed `asset.id` values from this library when building avatar, feed, or creator-image request pickers.
+
 Post responses include `assets` when images are linked:
 
 ```json

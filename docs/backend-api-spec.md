@@ -117,8 +117,12 @@ PATCH /api/v1/me/profile
 GET /api/v1/me/settings
 PATCH /api/v1/me/password
 PATCH /api/v1/me/password/setup
+GET /api/v1/me/assets
+GET /api/v1/me/assets/:assetId
 POST /api/v1/me/assets/upload-intents
 POST /api/v1/me/assets/:assetId/confirm-upload
+POST /api/v1/me/assets/:assetId/archive
+POST /api/v1/me/assets/:assetId/restore
 GET /api/v1/me/notifications
 GET /api/v1/me/notifications/unread-count
 PATCH /api/v1/me/notifications/:notificationId/read
@@ -144,6 +148,10 @@ My Page contract:
 - `GET /api/v1/localization/policy` is public and returns localization defaults, supported locales, and the locale detected from `Accept-Language`. Clients should prefer signed-in `settings.locale`, then local storage, then the detected locale, then `ko-KR`.
 - `GET /api/v1/me/notifications?status=all&take=20` returns `{ notifications, unreadCount, nextCursor }`. Notification items include `i18n: { messageKey, titleKey, bodyKey, defaultTitle, defaultBody, params }` so clients can map server-created events to locale dictionaries while keeping stored title/body as fallback text. Feed replies, feed likes, and user follows create notification-center rows; read state is managed with the two PATCH endpoints.
 - `POST /api/v1/me/assets/upload-intents` creates image-only upload intents for logged-in users. Confirmed assets can be used as avatar images or feed post `assetIds`.
+- `GET /api/v1/me/assets` is the signed-in user's image asset library. Query supports `status=all|pending_upload|uploaded|ready`, `lifecycleStatus=active|archived`, `take`, and `cursor`. It returns `{ items, count, hasMore, nextCursor, policy }`.
+- `GET /api/v1/me/assets/:assetId` returns one owned asset plus usage hints. Ownership is checked through `asset.metadata.uploadIntent.createdByUserId`.
+- `POST /api/v1/me/assets/:assetId/archive` marks the owned asset as archived in metadata without deleting object storage. It blocks active avatar, published feed, and creator-image request usage unless `{ "force": true }` is explicitly sent.
+- `POST /api/v1/me/assets/:assetId/restore` returns an owned archived asset to active.
 - `POST /api/v1/lumina-feed/posts` accepts optional `assetIds` with up to 4 existing public image asset UUIDs. The response exposes linked images through post `assets[]` with public URLs.
 - `PATCH /api/v1/lumina-feed/posts/:postId` edits the current user's own post body. MVP edit scope is body-only; image replacement/removal is not supported yet.
 - Signed-in `GET /api/v1/me/lumina-feed` post rows include `viewer` and `permissions` hints (`hasLiked`, `isAuthor`, `canEdit`, `canDelete`) for frontend action rendering.
