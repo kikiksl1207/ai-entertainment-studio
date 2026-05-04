@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsUUID,
@@ -10,6 +10,7 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  ValidateNested,
   ValidateIf,
 } from 'class-validator';
 
@@ -40,7 +41,7 @@ export class RegisterDto {
   @Transform(normalizeString)
   @IsString()
   @MinLength(2)
-  @MaxLength(50)
+  @MaxLength(20)
   displayName?: string;
 
   @IsOptional()
@@ -111,7 +112,7 @@ export class UpdateProfileDto {
   @Transform(normalizeString)
   @IsString()
   @MinLength(2)
-  @MaxLength(50)
+  @MaxLength(20)
   displayName?: string;
 
   @IsOptional()
@@ -124,6 +125,28 @@ export class UpdateProfileDto {
   @Transform(normalizeString)
   @IsUUID('4')
   avatarAssetId?: string;
+}
+
+export class UpdateSettingsNotificationsDto {
+  @IsOptional()
+  @IsBoolean()
+  activityNotifications?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  feedNotifications?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  emailNotifications?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  marketingOptIn?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  pushOptIn?: boolean;
 }
 
 export class UpdateSettingsDto {
@@ -157,6 +180,11 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsBoolean()
   emailNotifications?: boolean;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateSettingsNotificationsDto)
+  notifications?: UpdateSettingsNotificationsDto;
 }
 
 export class RequestEmailVerificationDto {
@@ -249,7 +277,7 @@ export class SocialLoginDto {
   @Transform(normalizeString)
   @IsString()
   @MinLength(2)
-  @MaxLength(50)
+  @MaxLength(20)
   displayName?: string;
 
   @IsOptional()

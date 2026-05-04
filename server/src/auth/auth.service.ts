@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -912,7 +914,10 @@ export class AuthService {
 
     if (input.displayName !== undefined && profile?.displayName !== input.displayName) {
       if (profile?.nicknameChangedAt && nextChangeAt > now) {
-        throw new BadRequestException('Nickname can be changed once every 30 days');
+        throw new HttpException(
+          'Nickname can be changed once every 30 days',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
       }
     }
 
@@ -986,7 +991,29 @@ export class AuthService {
       input.pushOptIn === undefined &&
       input.activityNotifications === undefined &&
       input.feedNotifications === undefined &&
-      input.emailNotifications === undefined
+      input.emailNotifications === undefined &&
+      input.notifications === undefined
+    ) {
+      throw new BadRequestException('At least one settings field is required');
+    }
+
+    const notifications = input.notifications;
+    const marketingOptIn = input.marketingOptIn ?? notifications?.marketingOptIn;
+    const pushOptIn = input.pushOptIn ?? notifications?.pushOptIn;
+    const activityNotifications =
+      input.activityNotifications ?? notifications?.activityNotifications;
+    const feedNotifications = input.feedNotifications ?? notifications?.feedNotifications;
+    const emailNotifications =
+      input.emailNotifications ?? notifications?.emailNotifications;
+
+    if (
+      input.locale === undefined &&
+      input.timezone === undefined &&
+      marketingOptIn === undefined &&
+      pushOptIn === undefined &&
+      activityNotifications === undefined &&
+      feedNotifications === undefined &&
+      emailNotifications === undefined
     ) {
       throw new BadRequestException('At least one settings field is required');
     }
@@ -998,21 +1025,21 @@ export class AuthService {
         ...this.clean({
           locale: input.locale,
           timezone: input.timezone,
-          marketingOptIn: input.marketingOptIn,
-          pushOptIn: input.pushOptIn,
-          activityNotifications: input.activityNotifications,
-          feedNotifications: input.feedNotifications,
-          emailNotifications: input.emailNotifications,
+          marketingOptIn,
+          pushOptIn,
+          activityNotifications,
+          feedNotifications,
+          emailNotifications,
         }),
       },
       update: this.clean({
         locale: input.locale,
         timezone: input.timezone,
-        marketingOptIn: input.marketingOptIn,
-        pushOptIn: input.pushOptIn,
-        activityNotifications: input.activityNotifications,
-        feedNotifications: input.feedNotifications,
-        emailNotifications: input.emailNotifications,
+        marketingOptIn,
+        pushOptIn,
+        activityNotifications,
+        feedNotifications,
+        emailNotifications,
         updatedAt: new Date(),
       }),
     });
