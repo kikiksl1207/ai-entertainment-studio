@@ -183,16 +183,18 @@ const backstageRows = {
     ["RP-768", "피드 #870", "watch_user", "철회", "중복 신고", "보관"]
   ],
   settlement: [
+    ["creator_cha", "cha_creator", "18", "2,840L", "28,400원", "6,000원", "17,920원", "예상치", "확정 전"],
+    ["creator_yoon", "yoon_creator", "9", "1,600L", "16,000원", "3,100원", "10,320원", "예상치", "확정 전"],
+    ["creator_park", "park_creator", "0", "0L", "0원", "0원", "0원", "매출없음", "확정 전"]
+  ],
+  studioSettlement: [
     {
-      row: ["studio_lumi", "스튜디오 운영자", "31", "5,000L", "100,000원", "50,000원", "50,000원", "예상치", "캐릭터별 보기"],
+      row: ["studio_lumi", "스튜디오 운영자", "2명", "5,000L", "100,000원", "50,000원", "50,000원", "예상치", "캐릭터별 보기"],
       children: [
         ["A캐릭터", "18", "2,000L", "40,000원", "20,000원", "20,000원"],
         ["B캐릭터", "13", "3,000L", "60,000원", "30,000원", "30,000원"]
       ]
-    },
-    ["creator_cha", "cha_creator", "18", "2,840L", "28,400원", "6,000원", "17,920원", "예상치", "확정 전"],
-    ["creator_yoon", "yoon_creator", "9", "1,600L", "16,000원", "3,100원", "10,320원", "예상치", "확정 전"],
-    ["creator_park", "park_creator", "0", "0L", "0원", "0원", "0원", "매출없음", "확정 전"]
+    }
   ],
   aiSettlement: [
     ["윤세린", "에밀리", "64,000원", "18,000원", "46,000원", "128,000원", "12,000원", "116,000원", "성과 보기"],
@@ -235,6 +237,7 @@ const tableMeta = {
   moderationReportRows: { type: "범용 신고 큐", labels: ["신고", "대상", "신고자", "사유", "상태", "메모", "권장 액션"] },
   contentAnomalyRows: { type: "이상 패턴", labels: ["콘텐츠", "작성자", "탐지 신호", "위험도", "권장 액션"] },
   reportCancelRows: { type: "취소/철회 신고", labels: ["신고", "대상", "신고자", "상태", "사유", "권장 액션"] },
+  studioSettlementRows: { type: "스튜디오 운영자 정산", labels: ["운영자", "정산 유형", "캐릭터", "루미나", "총매출", "차감", "정산금", "상태", "권장 액션"] },
   settlementRows: { type: "유저 크리에이터 정산", labels: ["아티스트", "제작자", "이벤트", "루미나", "총매출", "차감", "정산금", "상태", "권장 액션"] },
   aiSettlementRows: { type: "AI 아티스트 성과", labels: ["아티스트", "제작자", "프리미엄챗", "유료 좋아요", "기타 성과", "총액", "차감", "정산금", "권장 액션"] },
   logRows: { type: "운영 로그", labels: ["시간", "관리자", "액션", "대상", "메모"] }
@@ -459,7 +462,7 @@ function renderRows(targetId, rows, statusIndex) {
     const cells = row.map((cell, index) => {
       const label = meta.labels?.[index] || "";
       const isSettlementAmount = label === "정산금";
-      const childToggle = children.length && targetId === "settlementRows" && index === 0
+      const childToggle = children.length && (targetId === "settlementRows" || targetId === "studioSettlementRows") && index === 0
         ? `<button class="row-toggle" type="button" data-settlement-toggle="${targetId}-${rowIndex}" aria-expanded="false">펼침</button>`
         : "";
       const content = index === statusIndex
@@ -573,6 +576,36 @@ function settlementChildrenFromItem(item = {}) {
       krw(financialValue(financials, ["creatorShareKrw", "settlementKrw"]) || child.settlementKrw || 0)
     ];
   });
+}
+
+function isStudioSettlementItem(item = {}) {
+  const typeText = [
+    item.type,
+    item.creatorType,
+    item.accountType,
+    item.settlementType,
+    item.creator?.type,
+    item.creator?.creatorType
+  ].filter(Boolean).join(" ").toLowerCase();
+  return /studio|partner_studio|studio_operator|스튜디오/.test(typeText) || settlementChildrenFromItem(item).length > 0;
+}
+
+function settlementRowFromItem(item = {}, studio = false) {
+  const financials = item.financials || {};
+  const actorName = studio
+    ? item.creator?.displayName || item.creator?.name || creatorNames(item.creators) || item.operator?.displayName || "-"
+    : item.artist?.displayName || item.artist?.name || item.artist?.slug || "-";
+  return [
+    actorName,
+    studio ? "스튜디오 운영자" : creatorNames(item.creators),
+    studio ? `${settlementChildrenFromItem(item).length || item.artistCount || 0}명` : formatCount(item.eventCount || 0),
+    `${formatCount(item.grossLumina || 0)}L`,
+    krw(financials.grossRevenueKrw || 0),
+    krw(settlementDeductions(financials)),
+    krw(financials.creatorShareKrw || financials.settlementKrw || 0),
+    localizeSettlementStatus(item.status),
+    studio ? "캐릭터별 보기" : "확정 전"
+  ];
 }
 
 function localizeCreatorImageType(type) {
@@ -796,12 +829,6 @@ function applySectionFilter(button) {
   section.querySelectorAll("tbody tr").forEach((row) => {
     if (row.classList.contains("settlement-child-row")) return;
     row.classList.toggle("is-filtered-hidden", Boolean(keyword) && !row.textContent.toLowerCase().includes(keyword));
-  });
-  renderDetailPanel({
-    tableId: "quickAction",
-    type: `${section.querySelector("h2")?.textContent || "섹션"} 필터`,
-    labels: ["필터", "표시 상태", "메모"],
-    row: [term, term === "전체" ? "전체 표시" : `${term} 포함 행만 표시`, "API 응답 전에도 운영자가 빠르게 훑을 수 있도록 프론트에서만 필터링합니다."]
   });
 }
 
@@ -1417,6 +1444,7 @@ function renderBackstageTables() {
   renderRows("moderationReportRows", backstageRows.moderationReports, 4);
   renderRows("contentAnomalyRows", backstageRows.contentAnomalies, 3);
   renderRows("reportCancelRows", backstageRows.reportCancels, 3);
+  renderRows("studioSettlementRows", backstageRows.studioSettlement, 7);
   renderRows("settlementRows", backstageRows.settlement, 7);
   renderRows("aiSettlementRows", backstageRows.aiSettlement, -1);
   renderRows("logRows", backstageRows.logs, -1);
@@ -1855,7 +1883,8 @@ async function loadModerationSection() {
 }
 
 async function loadSettlementSection() {
-  sectionState.settlement = { cursor: null, hasMore: false, rows: [] };
+  sectionState.settlement = { cursor: null, hasMore: false, rows: [], studioRows: [] };
+  renderLoadingRow("studioSettlementRows");
   renderLoadingRow("settlementRows");
   await loadSettlementPage(false);
 }
@@ -1871,31 +1900,30 @@ async function loadSettlementPage(append = true) {
     if (notice) {
       notice.textContent = data?.notice || "정산 데이터는 예상치/확정 전입니다. 실제 지급 확정 전 환불, 차지백, 세무, 운영 확인이 필요합니다.";
     }
-    const rows = page.items.map((item) => {
-      const financials = item.financials || {};
-      const row = [
-        item.artist?.displayName || item.artist?.name || item.artist?.slug || "-",
-        creatorNames(item.creators),
-        formatCount(item.eventCount || 0),
-        `${formatCount(item.grossLumina || 0)}L`,
-        krw(financials.grossRevenueKrw || 0),
-        krw(settlementDeductions(financials)),
-        krw(financials.creatorShareKrw || 0),
-        localizeSettlementStatus(item.status),
-        "확정 전"
-      ];
+    const studioRows = [];
+    const rows = [];
+    page.items.forEach((item) => {
       const children = settlementChildrenFromItem(item);
-      return children.length ? { row, children } : row;
+      if (isStudioSettlementItem(item)) {
+        studioRows.push({ row: settlementRowFromItem(item, true), children });
+        return;
+      }
+      rows.push(settlementRowFromItem(item, false));
     });
+    const visibleStudioRows = append ? (state.studioRows || []).concat(studioRows) : studioRows;
     state.rows = append ? state.rows.concat(rows) : rows;
+    state.studioRows = visibleStudioRows;
     state.cursor = page.nextCursor;
     state.hasMore = page.hasMore;
     setLoadMore("settlement", page.hasMore);
+    if (visibleStudioRows.length) renderRows("studioSettlementRows", visibleStudioRows, 7);
+    else renderRows("studioSettlementRows", backstageRows.studioSettlement, 7);
     if (state.rows.length) renderRows("settlementRows", state.rows, 7);
     else renderLoadingRow("settlementRows", "표시할 정산 예상치가 없습니다.");
   } catch {
     renderBackstageTables();
     setLoadMore("settlement", false);
+    renderFallbackNote("studioSettlementRows");
     renderFallbackNote("settlementRows");
   }
 }
