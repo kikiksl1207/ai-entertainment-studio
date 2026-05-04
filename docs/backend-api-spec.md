@@ -603,6 +603,7 @@ Creator image request endpoints:
 
 ```http
 GET /api/v1/me/creator-studio
+GET /api/v1/me/creator-studio/settlement-preview?period=2026-05
 PATCH /api/v1/me/creator-studio/artists/:artistId/profile
 POST /api/v1/creator-image-requests
 GET /api/v1/me/creator-image-requests?artistId=<artistId>&status=submitted&requestType=profile_image&take=30&cursor=<nextCursor>
@@ -617,6 +618,8 @@ PATCH /admin/api/v1/creator-image-requests/:requestId
 Current workflow:
 
 - `GET /api/v1/me/creator-studio` is the authenticated creator-studio bootstrap endpoint. It returns active artist operator rows, operated artist profile/assets, image request counters by artist/status, recent image requests, and frontend endpoint hints.
+- `GET /api/v1/me/creator-studio/settlement-preview` is the creator-facing earnings estimate for active operated artists only. Query `period=YYYY-MM` is optional and defaults to the current UTC month.
+- Creator Studio settlement preview includes completed chat orders, completed gift orders, paid-like boost events, premium video unlocks, and non-refunded paid fan letters. It excludes free likes and is preview-only, not a final payout record.
 - `PATCH /api/v1/me/creator-studio/artists/:artistId/profile` is the limited creator-facing profile save endpoint. It requires active operator access and updates only `artist_public_profiles`, `artist_visual_profiles`, and `artist_content_profiles`.
 - Creator-facing profile updates do not change artist `displayName`, `slug`, `status`, revenue share, ownership, launch state, or asset links. Those remain admin/operations responsibilities.
 - Creator profile updates write `audit_events` with `actorType = "creator"` and action `creator_studio.artist_profile.update`.

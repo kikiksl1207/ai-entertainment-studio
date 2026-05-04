@@ -5,6 +5,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
 } from 'class-validator';
 
@@ -130,4 +131,11 @@ export class UpdateCreatorStudioArtistProfileDto {
   @IsOptional()
   @IsObject()
   contentProfile?: CreatorStudioContentProfileDto;
+}
+
+export class CreatorStudioSettlementPreviewQueryDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}$/)
+  period?: string;
 }

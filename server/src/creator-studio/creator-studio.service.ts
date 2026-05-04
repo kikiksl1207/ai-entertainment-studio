@@ -1,10 +1,14 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { AuthUser } from '../auth/auth.types';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
-import { UpdateCreatorStudioArtistProfileDto } from './dto/creator-studio.dto';
+import {
+  CreatorStudioSettlementPreviewQueryDto,
+  UpdateCreatorStudioArtistProfileDto,
+} from './dto/creator-studio.dto';
 
 const OPEN_IMAGE_REQUEST_STATUSES = [
   'submitted',
@@ -14,6 +18,7 @@ const OPEN_IMAGE_REQUEST_STATUSES = [
 ];
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+type CreatorRevenueType = 'chat' | 'gift' | 'paid_like' | 'premium_video' | 'fan_letter';
 
 @Injectable()
 export class CreatorStudioService {
@@ -101,6 +106,226 @@ export class CreatorStudioService {
           confirmUpload: '/api/v1/me/assets/:assetId/confirm-upload',
         },
       },
+    };
+  }
+
+  async getSettlementPreview(
+    userId: string,
+    query: CreatorStudioSettlementPreviewQueryDto,
+  ) {
+    const period = this.settlementPeriod(query.period);
+    const policy = this.creatorSettlementPolicy();
+    const operators = await this.prisma.artistOperator.findMany({
+      where: {
+        userId,
+        status: 'active',
+        revokedAt: null,
+      },
+      select: {
+        id: true,
+        role: true,
+        permissions: true,
+        artistId: true,
+        artist: {
+          select: {
+            id: true,
+            slug: true,
+            displayName: true,
+            status: true,
+            sortOrder: true,
+          },
+        },
+      },
+      orderBy: [{ artist: { sortOrder: 'asc' } }, { createdAt: 'desc' }],
+    });
+    const artistIds = operators.map((operator) => operator.artistId);
+    const revenueByArtist = new Map<string, ReturnType<typeof this.emptyRevenueBucket>>();
+
+    for (const artistId of artistIds) {
+      revenueByArtist.set(artistId, this.emptyRevenueBucket());
+    }
+
+    const [chatOrders, giftOrders, boostEvents, premiumUnlocks, fanLetters] =
+      await Promise.all([
+        artistIds.length
+          ? this.prisma.chatFeatureOrder.findMany({
+              where: {
+                artistId: { in: artistIds },
+                status: 'completed',
+                createdAt: { gte: period.start, lt: period.end },
+              },
+              include: {
+                chatFeatureProduct: {
+                  select: { priceLumina: true },
+                },
+              },
+            })
+          : [],
+        artistIds.length
+          ? this.prisma.giftOrder.findMany({
+              where: {
+                artistId: { in: artistIds },
+                status: 'completed',
+                createdAt: { gte: period.start, lt: period.end },
+              },
+              select: {
+                artistId: true,
+                totalLumina: true,
+              },
+            })
+          : [],
+        artistIds.length
+          ? this.prisma.artistBoostEvent.findMany({
+              where: {
+                artistId: { in: artistIds },
+                boostType: 'lumina_boost',
+                createdAt: { gte: period.start, lt: period.end },
+              },
+              select: {
+                artistId: true,
+                rawAmount: true,
+              },
+            })
+          : [],
+        artistIds.length
+          ? this.prisma.userPremiumVideoUnlock.findMany({
+              where: {
+                unlockedAt: { gte: period.start, lt: period.end },
+                premiumVideoProduct: {
+                  artistId: { in: artistIds },
+                },
+              },
+              include: {
+                premiumVideoProduct: {
+                  select: {
+                    artistId: true,
+                    priceLumina: true,
+                  },
+                },
+              },
+            })
+          : [],
+        artistIds.length
+          ? this.prisma.fanLetter.findMany({
+              where: {
+                artistId: { in: artistIds },
+                status: { in: ['submitted', 'seen', 'replied', 'archived'] },
+                amountLumina: { gt: 0 },
+                createdAt: { gte: period.start, lt: period.end },
+              },
+              select: {
+                artistId: true,
+                amountLumina: true,
+              },
+            })
+          : [],
+      ]);
+
+    for (const order of chatOrders) {
+      this.addRevenueEvent(
+        revenueByArtist,
+        order.artistId,
+        'chat',
+        order.chatFeatureProduct.priceLumina,
+        policy.unitPriceKrw,
+      );
+    }
+
+    for (const order of giftOrders) {
+      this.addRevenueEvent(
+        revenueByArtist,
+        order.artistId,
+        'gift',
+        order.totalLumina,
+        policy.unitPriceKrw,
+      );
+    }
+
+    for (const event of boostEvents) {
+      this.addRevenueEvent(
+        revenueByArtist,
+        event.artistId,
+        'paid_like',
+        event.rawAmount,
+        policy.unitPriceKrw,
+      );
+    }
+
+    for (const unlock of premiumUnlocks) {
+      const artistId = unlock.premiumVideoProduct.artistId;
+      if (artistId) {
+        this.addRevenueEvent(
+          revenueByArtist,
+          artistId,
+          'premium_video',
+          unlock.premiumVideoProduct.priceLumina,
+          policy.unitPriceKrw,
+        );
+      }
+    }
+
+    for (const letter of fanLetters) {
+      this.addRevenueEvent(
+        revenueByArtist,
+        letter.artistId,
+        'fan_letter',
+        letter.amountLumina,
+        policy.unitPriceKrw,
+      );
+    }
+
+    const items = operators.map((operator) => {
+      const bucket = revenueByArtist.get(operator.artistId) ?? this.emptyRevenueBucket();
+      const financials = this.settlementFinancials(bucket.totalLumina, policy);
+
+      return {
+        artist: operator.artist,
+        operator: {
+          id: operator.id,
+          role: operator.role,
+          permissions: operator.permissions,
+        },
+        eventCount: bucket.eventCount,
+        grossLumina: bucket.totalLumina,
+        productBreakdown: bucket.breakdown,
+        financials,
+        status: bucket.eventCount > 0 ? 'estimated' : 'no_revenue',
+      };
+    });
+    const totals = items.reduce(
+      (acc, item) => ({
+        eventCount: acc.eventCount + item.eventCount,
+        grossLumina: acc.grossLumina.plus(item.grossLumina),
+        grossRevenueKrw: acc.grossRevenueKrw.plus(item.financials.grossRevenueKrw),
+        netRevenueKrw: acc.netRevenueKrw.plus(item.financials.netRevenueKrw),
+        creatorShareKrw: acc.creatorShareKrw.plus(item.financials.creatorShareKrw),
+        platformShareKrw: acc.platformShareKrw.plus(item.financials.platformShareKrw),
+        riskReserveKrw: acc.riskReserveKrw.plus(item.financials.riskReserveKrw),
+      }),
+      {
+        eventCount: 0,
+        grossLumina: new Decimal(0),
+        grossRevenueKrw: new Decimal(0),
+        netRevenueKrw: new Decimal(0),
+        creatorShareKrw: new Decimal(0),
+        platformShareKrw: new Decimal(0),
+        riskReserveKrw: new Decimal(0),
+      },
+    );
+
+    return {
+      period,
+      policy,
+      items,
+      totals,
+      policyNotes: {
+        payoutUnit: 'operator_user',
+        previewOnly: true,
+        includedSources: ['chat', 'gift', 'paid_like', 'premium_video', 'fan_letter'],
+        excludedSources: ['free_like', 'refunded_fan_letter'],
+      },
+      notice:
+        'Estimated only. Final payout requires admin confirmation, refund/chargeback checks, tax/accounting review, and active creator settlement compliance.',
     };
   }
 
@@ -423,6 +648,119 @@ export class CreatorStudioService {
 
   private assetUrl(storageKey: string) {
     return buildPublicAssetUrl(this.configService, storageKey, storageKey);
+  }
+
+  private settlementPeriod(period?: string) {
+    const now = new Date();
+    const label =
+      period ??
+      `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const [year, month] = label.split('-').map(Number);
+
+    if (!year || !month || month < 1 || month > 12) {
+      throw new BadRequestException('period must be YYYY-MM');
+    }
+
+    const start = new Date(Date.UTC(year, month - 1, 1));
+    const end = new Date(Date.UTC(year, month, 1));
+
+    return { label, start, end };
+  }
+
+  private creatorSettlementPolicy() {
+    return {
+      unitPriceKrw: new Decimal(10),
+      vatRateBps: 1000,
+      pgFeeRateBps: 250,
+      pgFeeVatRateBps: 1000,
+      aiCostRateBps: 0,
+      directCostRateBps: 0,
+      settlementRateBps: 8000,
+      platformMinimumMarginBps: 1000,
+      status: 'preview_only',
+    };
+  }
+
+  private emptyRevenueBucket() {
+    return {
+      eventCount: 0,
+      totalLumina: new Decimal(0),
+      breakdown: {
+        chat: this.emptyProductBreakdown('chat'),
+        gift: this.emptyProductBreakdown('gift'),
+        paid_like: this.emptyProductBreakdown('paid_like'),
+        premium_video: this.emptyProductBreakdown('premium_video'),
+        fan_letter: this.emptyProductBreakdown('fan_letter'),
+      },
+    };
+  }
+
+  private emptyProductBreakdown(type: CreatorRevenueType) {
+    return {
+      type,
+      eventCount: 0,
+      grossLumina: new Decimal(0),
+      grossRevenueKrw: new Decimal(0),
+    };
+  }
+
+  private addRevenueEvent(
+    revenueByArtist: Map<string, ReturnType<typeof this.emptyRevenueBucket>>,
+    artistId: string,
+    type: CreatorRevenueType,
+    lumina: Decimal,
+    unitPriceKrw: Decimal,
+  ) {
+    const bucket = revenueByArtist.get(artistId) ?? this.emptyRevenueBucket();
+    const amount = new Decimal(lumina);
+    bucket.eventCount += 1;
+    bucket.totalLumina = bucket.totalLumina.plus(amount);
+    bucket.breakdown[type].eventCount += 1;
+    bucket.breakdown[type].grossLumina =
+      bucket.breakdown[type].grossLumina.plus(amount);
+    bucket.breakdown[type].grossRevenueKrw =
+      bucket.breakdown[type].grossLumina.mul(unitPriceKrw);
+    revenueByArtist.set(artistId, bucket);
+  }
+
+  private settlementFinancials(
+    totalLumina: Decimal,
+    policy: ReturnType<typeof this.creatorSettlementPolicy>,
+  ) {
+    const grossRevenueKrw = totalLumina.mul(policy.unitPriceKrw);
+    const vatKrw = grossRevenueKrw.mul(policy.vatRateBps).div(10_000 + policy.vatRateBps);
+    const vatExcludedRevenueKrw = grossRevenueKrw.minus(vatKrw);
+    const pgFeeKrw = grossRevenueKrw.mul(policy.pgFeeRateBps).div(10_000);
+    const pgFeeVatKrw = pgFeeKrw.mul(policy.pgFeeVatRateBps).div(10_000);
+    const aiCostKrw = grossRevenueKrw.mul(policy.aiCostRateBps).div(10_000);
+    const directCostKrw = grossRevenueKrw.mul(policy.directCostRateBps).div(10_000);
+    const netRevenueKrw = Decimal.max(
+      0,
+      vatExcludedRevenueKrw.minus(pgFeeKrw).minus(pgFeeVatKrw).minus(aiCostKrw).minus(directCostKrw),
+    );
+    const creatorShareKrw = netRevenueKrw.mul(policy.settlementRateBps).div(10_000);
+    const platformShareKrw = netRevenueKrw
+      .mul(policy.platformMinimumMarginBps)
+      .div(10_000);
+    const riskReserveKrw = Decimal.max(
+      0,
+      netRevenueKrw.minus(creatorShareKrw).minus(platformShareKrw),
+    );
+
+    return {
+      grossRevenueKrw,
+      vatKrw,
+      vatExcludedRevenueKrw,
+      pgFeeKrw,
+      pgFeeVatKrw,
+      aiCostKrw,
+      directCostKrw,
+      netRevenueKrw,
+      settlementRateBps: policy.settlementRateBps,
+      creatorShareKrw,
+      platformShareKrw,
+      riskReserveKrw,
+    };
   }
 
   private async assertArtistOperator(userId: string, artistId: string) {

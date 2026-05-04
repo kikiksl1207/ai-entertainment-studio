@@ -1091,11 +1091,117 @@ Creator Studio bootstrap:
 
 ```http
 GET /me/creator-studio
+GET /me/creator-studio/settlement-preview?period=2026-05
 PATCH /me/creator-studio/artists/:artistId/profile
 Authorization: Bearer <accessToken>
 ```
 
 Use this as the first call for the creator-studio screen. It returns active artist operator access, public/content/visual profile snapshots, cover/thumb/assets, creator image request counters, and recent image requests.
+
+Creator Studio settlement preview:
+
+```http
+GET /me/creator-studio/settlement-preview?period=2026-05
+Authorization: Bearer <accessToken>
+```
+
+This is the creator-facing earnings estimate. It only returns artists where the
+signed-in user has an active `artist_operators` row. It is preview-only and must
+not be shown as final payable money.
+
+Included revenue sources:
+
+- `chat`: completed chat feature orders.
+- `gift`: completed gift orders.
+- `paid_like`: paid Lumina boost / paid-like events.
+- `premium_video`: premium video unlocks.
+- `fan_letter`: paid fan letters.
+
+Excluded sources:
+
+- free likes.
+- refunded fan letters.
+- anything outside the selected `period`.
+
+Response shape:
+
+```json
+{
+  "period": {
+    "label": "2026-05",
+    "start": "2026-05-01T00:00:00.000Z",
+    "end": "2026-06-01T00:00:00.000Z"
+  },
+  "policy": {
+    "unitPriceKrw": "10",
+    "vatRateBps": 1000,
+    "pgFeeRateBps": 250,
+    "pgFeeVatRateBps": 1000,
+    "aiCostRateBps": 0,
+    "directCostRateBps": 0,
+    "settlementRateBps": 8000,
+    "platformMinimumMarginBps": 1000,
+    "status": "preview_only"
+  },
+  "items": [
+    {
+      "artist": {
+        "id": "artist-uuid",
+        "slug": "creator-slug",
+        "displayName": "Creator Name",
+        "status": "active",
+        "sortOrder": 100
+      },
+      "operator": {
+        "id": "operator-uuid",
+        "role": "owner",
+        "permissions": []
+      },
+      "eventCount": 3,
+      "grossLumina": "90",
+      "productBreakdown": {
+        "chat": { "type": "chat", "eventCount": 0, "grossLumina": "0", "grossRevenueKrw": "0" },
+        "gift": { "type": "gift", "eventCount": 0, "grossLumina": "0", "grossRevenueKrw": "0" },
+        "paid_like": { "type": "paid_like", "eventCount": 0, "grossLumina": "0", "grossRevenueKrw": "0" },
+        "premium_video": { "type": "premium_video", "eventCount": 0, "grossLumina": "0", "grossRevenueKrw": "0" },
+        "fan_letter": { "type": "fan_letter", "eventCount": 3, "grossLumina": "90", "grossRevenueKrw": "900" }
+      },
+      "financials": {
+        "grossRevenueKrw": "900",
+        "vatKrw": "81.81818181818181818182",
+        "pgFeeKrw": "22.5",
+        "pgFeeVatKrw": "2.25",
+        "netRevenueKrw": "793.43181818181818181818",
+        "settlementRateBps": 8000,
+        "creatorShareKrw": "634.74545454545454545454",
+        "platformShareKrw": "79.34318181818181818182",
+        "riskReserveKrw": "79.34318181818181818182"
+      },
+      "status": "estimated"
+    }
+  ],
+  "totals": {
+    "eventCount": 3,
+    "grossLumina": "90",
+    "grossRevenueKrw": "900",
+    "netRevenueKrw": "793.43181818181818181818",
+    "creatorShareKrw": "634.74545454545454545454",
+    "platformShareKrw": "79.34318181818181818182",
+    "riskReserveKrw": "79.34318181818181818182"
+  },
+  "policyNotes": {
+    "payoutUnit": "operator_user",
+    "previewOnly": true,
+    "includedSources": ["chat", "gift", "paid_like", "premium_video", "fan_letter"],
+    "excludedSources": ["free_like", "refunded_fan_letter"]
+  },
+  "notice": "Estimated only..."
+}
+```
+
+Frontend display rule: show this as "정산 예상" or "예상 수익" only. Do not label
+it as confirmed payout. For zero revenue, show `status: "no_revenue"` rows as
+0원 with an empty-state hint.
 
 Response shape:
 
