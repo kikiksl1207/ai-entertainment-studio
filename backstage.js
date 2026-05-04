@@ -949,14 +949,16 @@ function detailTextarea(label, name, value = "", wide = true) {
   return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><textarea name="${name}">${value}</textarea></label>`;
 }
 
-function detailToggleGroup(label, name, options = []) {
+function detailToggleGroup(label, name, options = [], exclusive = false) {
   const items = options.map((option) => {
     const value = typeof option === "string" ? option : option.value;
     const text = typeof option === "string" ? option : option.label;
     const checked = typeof option === "object" && option.checked ? " checked" : "";
-    return `<label class="toggle-item"><input type="checkbox" name="${name}" value="${value}"${checked}><span>${text}</span></label>`;
+    const type = exclusive ? "radio" : "checkbox";
+    return `<label class="toggle-item"><input type="${type}" name="${name}" value="${value}"${checked}><span>${text}</span></label>`;
   }).join("");
-  return `<fieldset class="toggle-group is-wide"><legend>${label}</legend><div>${items}</div></fieldset>`;
+  const help = exclusive ? `<small>${label}은 한 번에 하나만 선택할 수 있습니다.</small>` : "";
+  return `<fieldset class="toggle-group is-wide${exclusive ? " is-exclusive" : ""}"><legend>${label}</legend><div>${items}</div>${help}</fieldset>`;
 }
 
 function restoreDetailDraft(key) {
@@ -966,6 +968,10 @@ function restoreDetailDraft(key) {
     if (!field.name || draft[field.name] === undefined) return;
     if (field.type === "checkbox") {
       field.checked = Array.isArray(draft[field.name]) ? draft[field.name].includes(field.value) : Boolean(draft[field.name]);
+      return;
+    }
+    if (field.type === "radio") {
+      field.checked = draft[field.name] === field.value;
       return;
     }
     if (field.type === "file") return;
@@ -1050,11 +1056,11 @@ function renderDetailForm(detail) {
           { value: "commerce_admin", label: "회계 관리자", checked: row.join(" ").includes("회계") || row.join(" ").includes("정산") },
           { value: "partner_admin", label: "영업/섭외 관리자", checked: row.join(" ").includes("영업") || row.join(" ").includes("섭외") },
           { value: "cs_admin", label: "CS 관리자", checked: row.join(" ").includes("CS") || row.join(" ").includes("신고") },
-          { value: "artist_ops_admin", label: "AI 아티스트 관리자", checked: row.join(" ").includes("AI") }
-        ])}
+          { value: "artist_ops_admin", label: "AI 아티스트 관리자", checked: row.join(" ").includes("AI") || !["최상", "회계", "정산", "영업", "섭외", "CS", "신고"].some((keyword) => row.join(" ").includes(keyword)) }
+        ], true)}
         ${detailTextarea("인수인계/권한 변경 메모", "handoffNote", "담당자 퇴사, 권한 변경 사유, 인수인계 범위를 남깁니다.")}
       </div>
-      <p class="detail-form-note">운영자 권한은 드롭다운이 아니라 토글로 관리합니다. 저장 시 선택된 첫 권한이 실제 운영자 역할로 반영됩니다.</p>
+      <p class="detail-form-note">운영자 역할은 다중 권한이 아니라 단일 역할로 관리합니다. 저장 시 선택된 역할 하나만 실제 운영자 역할로 반영됩니다.</p>
     `;
   } else if (quickTitle === "AI 에셋 업로드" || tableId === "aiAssetRows") {
     html = `
@@ -1292,7 +1298,7 @@ function getActionProfile(detail, action = "memo") {
       targetType: "adminUser",
       endpoint: "POST /admin/api/v1/admin-users",
       method: "POST",
-      warning: "운영자 추가는 기존 가입 유저 이메일 또는 userId 기준으로 권한을 부여합니다. 역할 토글 중 첫 번째 선택 권한으로 저장합니다.",
+      warning: "운영자 추가는 기존 가입 유저 이메일 또는 userId 기준으로 권한을 부여합니다. 역할은 하나만 선택해서 저장합니다.",
       holdLabel: "초대 보류",
       dangerLabel: "운영자 추가",
       showHold: true,
@@ -1505,6 +1511,10 @@ function collectDetailFormData() {
     if (field.type === "checkbox") {
       if (!Array.isArray(data[field.name])) data[field.name] = [];
       if (field.checked) data[field.name].push(field.value);
+      return;
+    }
+    if (field.type === "radio") {
+      if (field.checked) data[field.name] = field.value;
       return;
     }
     if (field.type === "file") {
