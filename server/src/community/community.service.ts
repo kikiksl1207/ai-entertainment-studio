@@ -1178,19 +1178,49 @@ export class CommunityService {
 
   private async toPostView(post: any, viewerUserId?: string | null) {
     const metadata = this.metadataObject(post.metadata);
-    const viewerReaction = viewerUserId
-      ? await this.prisma.communityReaction.findUnique({
-          where: {
-            postId_userId_reactionType: {
-              postId: post.id,
-              userId: viewerUserId,
-              reactionType: 'like',
-            },
-          },
-          select: { id: true },
-        })
-      : null;
     const isAuthor = Boolean(viewerUserId && post.authorUserId === viewerUserId);
+    const [viewerReaction, artistFollow, authorFollow] = viewerUserId
+      ? await Promise.all([
+          this.prisma.communityReaction.findUnique({
+            where: {
+              postId_userId_reactionType: {
+                postId: post.id,
+                userId: viewerUserId,
+                reactionType: 'like',
+              },
+            },
+            select: { id: true },
+          }),
+          post.artistId
+            ? this.prisma.artistFollow.findUnique({
+                where: {
+                  userId_artistId: {
+                    userId: viewerUserId,
+                    artistId: post.artistId,
+                  },
+                },
+                select: { status: true, deletedAt: true },
+              })
+            : Promise.resolve(null),
+          !isAuthor
+            ? this.prisma.userFollow.findUnique({
+                where: {
+                  followerUserId_followingUserId: {
+                    followerUserId: viewerUserId,
+                    followingUserId: post.authorUserId,
+                  },
+                },
+                select: { status: true, deletedAt: true },
+              })
+            : Promise.resolve(null),
+        ])
+      : [null, null, null];
+    const isFollowingArtist = Boolean(
+      artistFollow?.status === 'active' && !artistFollow.deletedAt,
+    );
+    const isFollowingAuthor = Boolean(
+      authorFollow?.status === 'active' && !authorFollow.deletedAt,
+    );
 
     return {
       ...post,
@@ -1221,6 +1251,12 @@ export class CommunityService {
         userId: viewerUserId ?? null,
         hasLiked: Boolean(viewerReaction),
         isAuthor,
+        isFollowingArtist,
+        isFollowingAuthor,
+        canFollowArtist: Boolean(viewerUserId && post.artistId && !isFollowingArtist),
+        canUnfollowArtist: Boolean(viewerUserId && post.artistId && isFollowingArtist),
+        canFollowAuthor: Boolean(viewerUserId && !isAuthor && !isFollowingAuthor),
+        canUnfollowAuthor: Boolean(viewerUserId && !isAuthor && isFollowingAuthor),
         canEdit: isAuthor,
         canDelete: isAuthor,
       },

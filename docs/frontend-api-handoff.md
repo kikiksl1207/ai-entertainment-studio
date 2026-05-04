@@ -1709,7 +1709,7 @@ Post responses include `assets` when images are linked:
 ```
 `DELETE /lumina-feed/posts/:postId` soft-deletes the current user's own post and returns `{ "ok": true }`. Artist operators can also delete posts for artists they operate. It does not hard-delete content.
 `PATCH /lumina-feed/posts/:postId` edits the post body for the current user's own post and returns `{ post, policy }`. MVP edit scope is body-only; image replacement/removal is not supported yet. Body must be 1-500 characters.
-Signed-in feed responses from `GET /me/lumina-feed` include `post.viewer` and `post.permissions` hints: `hasLiked`, `isAuthor`, `canEdit`, `canDelete`, and `editScope`. Use these to decide whether to show edit/delete actions. Public `GET /lumina-feed` cannot include viewer-specific state.
+Signed-in feed responses from `GET /me/lumina-feed` include `post.viewer` and `post.permissions` hints: `hasLiked`, `isAuthor`, `isFollowingArtist`, `isFollowingAuthor`, `canFollowArtist`, `canUnfollowArtist`, `canFollowAuthor`, `canUnfollowAuthor`, `canEdit`, `canDelete`, and `editScope`. Use these to decide whether to show like, follow, edit, and delete actions. Public `GET /lumina-feed` cannot include viewer-specific state.
 
 Replies:
 
