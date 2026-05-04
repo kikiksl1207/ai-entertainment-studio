@@ -739,6 +739,34 @@ model DebutApplication {
   @@map("debut_applications")
 }
 
+model SettlementRecord {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  settlementKey   String   @unique @map("settlement_key")
+  settlementType  String   @map("settlement_type")
+  period          String
+  status          String   @default("estimated")
+  artistId        String?  @map("artist_id") @db.Uuid
+  partnerUserId   String?  @map("partner_user_id") @db.Uuid
+  creatorUserId   String?  @map("creator_user_id") @db.Uuid
+  amountKrw       Decimal? @map("amount_krw") @db.Decimal(14, 2)
+  reason          String?
+  note            String?
+  paidAt          DateTime? @map("paid_at") @db.Timestamptz(6)
+  paymentMethod   String?  @map("payment_method")
+  payoutReference String?  @map("payout_reference")
+  metadata        Json     @default("{}")
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([settlementType, period], map: "idx_settlement_records_type_period")
+  @@index([status, period], map: "idx_settlement_records_status_period")
+  @@index([partnerUserId, period], map: "idx_settlement_records_partner_period")
+  @@index([artistId, period], map: "idx_settlement_records_artist_period")
+  @@map("settlement_records")
+}
+
 model CommunityPost {
   id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   authorUserId  String                @map("author_user_id") @db.Uuid

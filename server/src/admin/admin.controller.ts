@@ -60,6 +60,16 @@ export class AdminController {
     return this.adminService.getBackstagePartnerSettlementPreview(query);
   }
 
+  @Post('backstage/settlements/:settlementKey/status')
+  @RequireAdminPermissions('*')
+  updateBackstageSettlementStatus(
+    @CurrentUser() user: AuthUser,
+    @Param('settlementKey') settlementKey: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.updateBackstageSettlementStatus(user, settlementKey, body);
+  }
+
   @Get('admin-roles')
   @RequireAdminPermissions('*')
   getAdminRoles() {

@@ -1760,8 +1760,11 @@ Each `items[]` row includes:
 - `eventCount`, `grossLumina`, `productBreakdown`.
 - `financials`: gross revenue, VAT, PG fee, PG fee VAT, AI/direct cost,
   net revenue, settlement rate, creator share, platform share, risk reserve.
-- `status`: `estimated` or `no_revenue`.
-- `holdReason`: currently null.
+- `settlementKey`: `artist:<artistId>:YYYY-MM`.
+- `status`: `estimated`, `no_revenue`, or the latest manual settlement status.
+- `holdReason`: latest manual status reason when present.
+- `manualSettlement`: null or the saved manual accounting status record.
+- `payoutEligibility`: preview eligibility hints for the Backstage UI.
 
 Included eligible sources for preview:
 
@@ -1798,11 +1801,66 @@ Each `items[]` row includes:
   product breakdown, financials, preview status, and hold reason.
 - `totals`: partner-level total event count, Lumina, gross/net revenue,
   creator share, platform share, and risk reserve.
+- `settlementKey`: `partner:<partnerUserId>:YYYY-MM`.
 - `payoutStatus`, `payoutHoldReason`, `lastSettlementAt`.
+- `manualSettlement`: null or the saved manual accounting status record.
+- `payoutEligibility`: preview eligibility hints for the Backstage UI.
 
 The response includes `policyNotes` with `payoutUnit: "partner_user"` and
 `detailUnit: "artist"`. Initial candidate slots are 10 and future paid slot
 expansion is planned in 5-slot units. UI must show this as preview-only.
+
+Manual settlement status update:
+
+```http
+POST /admin/api/v1/backstage/settlements/:settlementKey/status
+```
+
+Use the `settlementKey` returned by `settlement-preview` or
+`partner-settlement-preview`. This endpoint does not transfer money. It records
+that an accounting/admin operator manually marked the settlement state after
+external review or bank transfer.
+
+Body:
+
+```json
+{
+  "status": "paid",
+  "reason": "2026-05 manual bank transfer completed",
+  "note": "Accounting memo",
+  "paidAt": "2026-05-04T09:00:00.000Z",
+  "paymentMethod": "bank_transfer",
+  "payoutReference": "external transfer memo",
+  "amountKrw": 50000,
+  "eligibilityOverrideConfirmed": true
+}
+```
+
+Allowed `status`: `ready`, `hold`, `paid`, `recheck`, `cancelled`.
+`reason` is required. `amountKrw` is required when status is `paid`.
+Until identity verification and payout-account models are connected,
+`paid` also requires `eligibilityOverrideConfirmed: true`; the UI should show
+this as a manual accounting confirmation, not as automated eligibility.
+
+Success response:
+
+```json
+{
+  "ok": true,
+  "record": {
+    "settlementKey": "partner:<partnerUserId>:2026-05",
+    "status": "paid",
+    "amountKrw": "50000",
+    "reason": "2026-05 manual bank transfer completed",
+    "updatedAt": "2026-05-04T09:00:00.000Z"
+  },
+  "policy": {
+    "manualOnly": true,
+    "moneyTransfer": false,
+    "requiresExternalAccountingAction": true
+  }
+}
+```
 
 `GET /admin/api/v1/community/summary` returns grouped report/post counts and
 `posts.highRisk` with the most-reported published/hidden posts.

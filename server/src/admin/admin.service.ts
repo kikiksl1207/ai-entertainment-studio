@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { Prisma, SettlementRecord } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { createHash, createHmac, randomUUID } from 'crypto';
 import { AuthUser } from '../auth/auth.types';
@@ -15,6 +15,17 @@ import { PrismaService } from '../prisma/prisma.service';
 
 type AdminPayload = Record<string, unknown>;
 type AuditQuery = Record<string, string | undefined>;
+
+const SETTLEMENT_STATUSES = new Set([
+  'estimated',
+  'ready',
+  'hold',
+  'paid',
+  'recheck',
+  'cancelled',
+]);
+
+const SETTLEMENT_TYPES = new Set(['artist', 'partner']);
 
 @Injectable()
 export class AdminService {
@@ -963,10 +974,18 @@ export class AdminService {
       }
     }
 
+    const settlementRecords = await this.settlementRecordsForKeys(
+      artistIds.map((artistId) => this.settlementKey('artist', artistId, period.label)),
+    );
     const items = page.items.map((artist) => {
       const bucket = revenueByArtist.get(artist.id) ?? this.emptyRevenueBucket();
       const financials = this.settlementFinancials(bucket.totalLumina, policy);
+      const settlementKey = this.settlementKey('artist', artist.id, period.label);
+      const manualSettlement = this.settlementRecordSummary(
+        settlementRecords.get(settlementKey),
+      );
       return {
+        settlementKey,
         artist: {
           id: artist.id,
           slug: artist.slug,
@@ -985,8 +1004,13 @@ export class AdminService {
         grossLumina: bucket.totalLumina,
         productBreakdown: bucket.breakdown,
         financials,
-        status: bucket.eventCount > 0 ? 'estimated' : 'no_revenue',
-        holdReason: null,
+        status: manualSettlement?.status ?? (bucket.eventCount > 0 ? 'estimated' : 'no_revenue'),
+        holdReason: manualSettlement?.reason ?? null,
+        manualSettlement,
+        payoutEligibility: this.payoutEligibility({
+          eventCount: bucket.eventCount,
+          manualSettlement,
+        }),
       };
     });
     const totals = items.reduce(
@@ -1235,6 +1259,9 @@ export class AdminService {
     const pendingApplicationsByPartner = new Map(
       pendingApplicationCounts.map((entry) => [entry.userId, entry._count._all]),
     );
+    const partnerSettlementRecords = await this.settlementRecordsForKeys(
+      page.items.map((partner) => this.settlementKey('partner', partner.id, period.label)),
+    );
     const items = page.items.map((partner) => {
       const artists = partner.artistOperators.map((operator) => {
         const bucket =
@@ -1279,8 +1306,13 @@ export class AdminService {
       const approvedArtistCount = artists.filter(
         (item) => item.artist.status === 'active',
       ).length;
+      const settlementKey = this.settlementKey('partner', partner.id, period.label);
+      const manualSettlement = this.settlementRecordSummary(
+        partnerSettlementRecords.get(settlementKey),
+      );
 
       return {
+        settlementKey,
         partner: {
           userId: partner.id,
           email: this.maskEmail(partner.email),
@@ -1296,9 +1328,15 @@ export class AdminService {
           pendingApplicationsByPartner.get(partner.id) ?? 0,
         artists,
         totals,
-        payoutStatus: totals.eventCount > 0 ? 'estimated' : 'no_revenue',
-        payoutHoldReason: null,
-        lastSettlementAt: null,
+        payoutStatus:
+          manualSettlement?.status ?? (totals.eventCount > 0 ? 'estimated' : 'no_revenue'),
+        payoutHoldReason: manualSettlement?.reason ?? null,
+        lastSettlementAt: manualSettlement?.updatedAt ?? null,
+        manualSettlement,
+        payoutEligibility: this.payoutEligibility({
+          eventCount: totals.eventCount,
+          manualSettlement,
+        }),
       };
     });
     const totals = items.reduce(
@@ -1348,6 +1386,108 @@ export class AdminService {
       },
       notice:
         'Estimated only. Partner payout groups multiple artist details by operator account. Final payout requires refund/chargeback checks, tax/accounting confirmation, payout account verification, and admin confirmation.',
+    };
+  }
+
+  async updateBackstageSettlementStatus(
+    user: AuthUser,
+    settlementKey: string,
+    input: AdminPayload,
+  ) {
+    this.assertSettlementOperator(user);
+
+    const parsedKey = this.parseSettlementKey(settlementKey);
+    const status = this.settlementStatus(input, 'status');
+    const reason = this.string(input, 'reason');
+    const note = this.optionalString(input, 'note') ?? null;
+    const paidAt = input.paidAt === undefined ? null : this.date(input, 'paidAt');
+    const paymentMethod = this.optionalString(input, 'paymentMethod') ?? null;
+    const payoutReference = this.optionalString(input, 'payoutReference') ?? null;
+    const amountKrw = this.optionalDecimal(input, 'amountKrw');
+    const eligibilityOverrideConfirmed = this.boolean(
+      input,
+      'eligibilityOverrideConfirmed',
+      false,
+    );
+
+    if (status === 'paid' && amountKrw === undefined) {
+      throw new BadRequestException('amountKrw is required when status is paid');
+    }
+
+    if (status === 'paid' && !eligibilityOverrideConfirmed) {
+      throw new BadRequestException(
+        'eligibilityOverrideConfirmed must be true until identity and payout account verification models are connected',
+      );
+    }
+
+    const before = await this.prisma.settlementRecord.findUnique({
+      where: { settlementKey },
+    });
+
+    if (before?.status === 'paid' && status === 'paid') {
+      throw new BadRequestException('Settlement is already marked paid');
+    }
+
+    const metadata = this.toJson({
+      ...(before ? this.metadataObject(before.metadata) : {}),
+      eligibilityOverrideConfirmed,
+      eligibilityPolicy:
+        'manual_v1_requires_accounting_confirmation_until_identity_payout_models_are_connected',
+      lastChangedBy: user.id,
+      lastChangedAt: new Date().toISOString(),
+    });
+    const data = {
+      settlementType: parsedKey.type,
+      period: parsedKey.period,
+      artistId: parsedKey.type === 'artist' ? parsedKey.id : null,
+      partnerUserId: parsedKey.type === 'partner' ? parsedKey.id : null,
+      status,
+      amountKrw,
+      reason,
+      note,
+      paidAt: status === 'paid' ? paidAt ?? new Date() : paidAt,
+      paymentMethod,
+      payoutReference,
+      metadata,
+      updatedByUserId: user.id,
+      updatedAt: new Date(),
+    };
+    const record = await this.prisma.settlementRecord.upsert({
+      where: { settlementKey },
+      create: {
+        settlementKey,
+        ...data,
+        createdByUserId: user.id,
+      },
+      update: data,
+    });
+
+    await this.prisma.auditEvent.create({
+      data: {
+        actorUserId: user.id,
+        actorType: 'admin',
+        action: 'settlement.status.update',
+        targetType: 'settlement_record',
+        targetId: record.id,
+        beforeData: this.toJson(before),
+        afterData: this.toJson(record),
+        metadata: this.toJson({
+          settlementKey,
+          settlementType: parsedKey.type,
+          period: parsedKey.period,
+          status,
+        }),
+      },
+    });
+
+    return {
+      ok: true,
+      record: this.settlementRecordSummary(record),
+      policy: {
+        manualOnly: true,
+        moneyTransfer: false,
+        requiresExternalAccountingAction: true,
+      },
     };
   }
 
@@ -3633,6 +3773,118 @@ export class AdminService {
       platformShareKrw,
       riskReserveKrw,
     };
+  }
+
+  private settlementKey(type: 'artist' | 'partner', id: string, period: string) {
+    return `${type}:${id}:${period}`;
+  }
+
+  private parseSettlementKey(settlementKey: string) {
+    const [type, id, period] = settlementKey.split(':');
+
+    if (!SETTLEMENT_TYPES.has(type) || !id || !this.isUuid(id) || !/^\d{4}-\d{2}$/.test(period)) {
+      throw new BadRequestException(
+        'settlementKey must be artist:<artistId>:YYYY-MM or partner:<partnerUserId>:YYYY-MM',
+      );
+    }
+
+    return {
+      type: type as 'artist' | 'partner',
+      id,
+      period,
+    };
+  }
+
+  private settlementStatus(input: AdminPayload, key: string) {
+    const status = this.string(input, key);
+
+    if (!SETTLEMENT_STATUSES.has(status) || status === 'estimated') {
+      throw new BadRequestException('status must be ready, hold, paid, recheck, or cancelled');
+    }
+
+    return status;
+  }
+
+  private async settlementRecordsForKeys(keys: string[]) {
+    if (!keys.length) {
+      return new Map<string, SettlementRecord>();
+    }
+
+    const records = await this.prisma.settlementRecord.findMany({
+      where: { settlementKey: { in: keys } },
+    });
+
+    return new Map(records.map((record) => [record.settlementKey, record]));
+  }
+
+  private settlementRecordSummary(record?: SettlementRecord | null) {
+    if (!record) {
+      return null;
+    }
+
+    return {
+      id: record.id,
+      settlementKey: record.settlementKey,
+      settlementType: record.settlementType,
+      period: record.period,
+      status: record.status,
+      amountKrw: record.amountKrw,
+      reason: record.reason,
+      note: record.note,
+      paidAt: record.paidAt,
+      paymentMethod: record.paymentMethod,
+      payoutReference: record.payoutReference,
+      updatedByUserId: record.updatedByUserId,
+      updatedAt: record.updatedAt,
+      createdAt: record.createdAt,
+    };
+  }
+
+  private payoutEligibility(input: {
+    eventCount: number;
+    manualSettlement: { status: string } | null;
+  }) {
+    const blockingReasons: string[] = [];
+
+    if (input.eventCount < 1) {
+      blockingReasons.push('no_revenue_events');
+    }
+
+    if (input.manualSettlement?.status === 'paid') {
+      blockingReasons.push('already_paid');
+    }
+
+    return {
+      canMarkPaid: blockingReasons.length === 0,
+      blockingReasons,
+      identityVerification: {
+        status: 'not_connected',
+        note: 'Identity verification model is not connected to settlement records yet.',
+      },
+      payoutAccount: {
+        status: 'not_connected',
+        note: 'Payout account model is not connected to settlement records yet.',
+      },
+      payoutException: {
+        status: 'not_connected',
+      },
+    };
+  }
+
+  private assertSettlementOperator(user: AuthUser) {
+    if (
+      user.adminPermissions?.includes('*') ||
+      this.hasAdminRole(user, [
+        'super_admin',
+        'accounting_admin',
+        'commerce_admin',
+        'settlement_admin',
+      ])
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException('Settlement operation permission required');
   }
 
   private primaryLoginType(authAccounts: { provider: string; lastLoginAt?: Date | null }[]) {
