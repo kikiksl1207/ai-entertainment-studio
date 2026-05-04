@@ -141,6 +141,12 @@
           <section class="section-block" id="creators">
             <div class="section-title"><div><span class="section-kicker">Creators</span><h2>크리에이터 관리</h2></div><div class="search-box"><input type="search" placeholder="이름, 카테고리, 담당 관리자 검색" aria-label="크리에이터 검색" /><button class="secondary-action" type="button">검색</button></div></div>
             <p class="section-note">유저 크리에이터와 AI 아티스트를 분리해서 보고, 30일 이상 미접속/프로필 누락/정산 정보 권한 제한을 확인합니다.</p>
+            <div class="filter-row section-filter-row" aria-label="크리에이터 빠른 필터">
+              <button class="filter-chip is-active" type="button" data-section-filter="전체">전체</button>
+              <button class="filter-chip" type="button" data-section-filter="장기미접속">30일 이상 미접속</button>
+              <button class="filter-chip" type="button" data-section-filter="누락">프로필/이미지 누락</button>
+              <button class="filter-chip" type="button" data-section-filter="AI">AI 아티스트</button>
+            </div>
             <div class="table-grid is-stacked">
               <article class="table-card is-tall"><header><h3>유저 크리에이터</h3><button class="text-action" type="button">데뷔 신청 보기</button></header><div class="table-wrap"><table><thead><tr><th>본명/활동명</th><th>로그인유형</th><th>마지막 접속</th><th>연락처</th><th>정산계좌</th><th>상태</th><th>액션</th></tr></thead><tbody id="creatorRows"></tbody></table></div></article>
               <article class="table-card"><header><h3>이미지 제작 요청</h3><button class="text-action" type="button">요청 보기</button></header><div class="table-wrap"><table><thead><tr><th>요청</th><th>아티스트</th><th>요청자</th><th>차감</th><th>재조정</th><th>상태</th><th>검수</th><th>결과</th><th>액션</th></tr></thead><tbody id="creatorImageRequestRows"></tbody></table></div></article>
@@ -151,6 +157,12 @@
           <section class="section-block" id="ai-content">
             <div class="section-title"><div><span class="section-kicker">AI Contents</span><h2>AI 아티스트 콘텐츠</h2></div><div class="search-box"><input type="search" placeholder="아티스트, 담당 관리자, 누락 슬롯 검색" aria-label="AI 콘텐츠 검색" /><button class="secondary-action" type="button">검색</button></div></div>
             <p class="section-note">공식 AI 아티스트의 글, 커버, 썸네일, 포토갤러리, 숏폼, 프리미엄 기능을 캐릭터별로 관리합니다. 담당 관리자는 담당 캐릭터만, 최상 관리자는 전체를 봅니다.</p>
+            <div class="filter-row section-filter-row" aria-label="AI 콘텐츠 빠른 필터">
+              <button class="filter-chip is-active" type="button" data-section-filter="전체">전체</button>
+              <button class="filter-chip" type="button" data-section-filter="필요">업로드 필요</button>
+              <button class="filter-chip" type="button" data-section-filter="작성 필요">피드 작성 필요</button>
+              <button class="filter-chip" type="button" data-section-filter="준비중">채팅/프리미엄 준비중</button>
+            </div>
             <div class="table-grid is-stacked">
               <article class="table-card"><header><h3>이미지/영상 업로드</h3><button class="text-action" type="button">업로드 추가</button></header><div class="table-wrap"><table><thead><tr><th>아티스트</th><th>커버</th><th>썸네일</th><th>포토갤러리</th><th>숏폼</th><th>업로드 규칙</th><th>액션</th></tr></thead><tbody id="aiAssetRows"></tbody></table></div></article>
               <article class="table-card"><header><h3>글/채팅/프리미엄</h3><button class="text-action" type="button">글 작성</button></header><div class="table-wrap"><table><thead><tr><th>아티스트</th><th>피드 글</th><th>프로필 문구</th><th>채팅</th><th>프리미엄</th><th>액션</th></tr></thead><tbody id="aiPostRows"></tbody></table></div></article>

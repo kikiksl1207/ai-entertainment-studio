@@ -785,6 +785,43 @@ function applyOverviewFilter(button) {
   });
 }
 
+function applySectionFilter(button) {
+  const section = button.closest(".section-block");
+  if (!section) return;
+  const term = button.dataset.sectionFilter || button.textContent.trim();
+  section.querySelectorAll(".section-filter-row .filter-chip").forEach((chip) => {
+    chip.classList.toggle("is-active", chip === button);
+  });
+  const keyword = term === "전체" ? "" : term.toLowerCase();
+  section.querySelectorAll("tbody tr").forEach((row) => {
+    if (row.classList.contains("settlement-child-row")) return;
+    row.classList.toggle("is-filtered-hidden", Boolean(keyword) && !row.textContent.toLowerCase().includes(keyword));
+  });
+  renderDetailPanel({
+    tableId: "quickAction",
+    type: `${section.querySelector("h2")?.textContent || "섹션"} 필터`,
+    labels: ["필터", "표시 상태", "메모"],
+    row: [term, term === "전체" ? "전체 표시" : `${term} 포함 행만 표시`, "API 응답 전에도 운영자가 빠르게 훑을 수 있도록 프론트에서만 필터링합니다."]
+  });
+}
+
+function handleInlineAction(button) {
+  const action = button.dataset.inlineAction;
+  const help = document.querySelector(".detail-help");
+  if (action === "tone-preview") {
+    const source = detailForm?.querySelector('[name="body"]')?.value?.trim();
+    if (help) {
+      help.textContent = source
+        ? `톤앤매너 변환 미리보기는 API 연결 전입니다. 현재 원문 ${source.length}자를 기준으로 캐릭터 말투 변환 요청 payload를 만들 수 있어요.`
+        : "원문을 입력하면 톤앤매너 변환 미리보기 payload를 확인할 수 있어요.";
+    }
+    return;
+  }
+  if (action === "auto-schedule" && help) {
+    help.textContent = "자동 작성은 3시간 간격, 하루 최대 4회, 6시간 이상 미작성 경고 기준으로 차모 API 확정 후 연결합니다.";
+  }
+}
+
 function detailInput(label, name, value = "", type = "text", wide = false) {
   return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><input type="${type}" name="${name}" value="${value}"></label>`;
 }
@@ -1980,6 +2017,12 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const inlineButton = event.target.closest("[data-inline-action]");
+  if (inlineButton) {
+    handleInlineAction(inlineButton);
+    return;
+  }
+
   const quickButton = event.target.closest(".text-action");
   if (quickButton && quickButton.id !== "detailCloseButton") {
     openQuickAction(quickButton);
@@ -1999,7 +2042,10 @@ document.addEventListener("click", (event) => {
   }
 
   const filterButton = event.target.closest(".filter-chip");
-  if (filterButton) applyOverviewFilter(filterButton);
+  if (filterButton) {
+    if (filterButton.dataset.sectionFilter) applySectionFilter(filterButton);
+    else applyOverviewFilter(filterButton);
+  }
 
   const settlementToggle = event.target.closest("[data-settlement-toggle]");
   if (settlementToggle) {
