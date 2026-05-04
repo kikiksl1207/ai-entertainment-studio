@@ -166,7 +166,12 @@ tr.is-selected td { background: #faf5ff; }
 .confirm-card { width: min(520px, 100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column; padding: 24px; border-radius: 8px; background: #fff; box-shadow: 0 28px 80px rgba(15,23,42,0.25); }
 .confirm-card h2 { margin: 12px 0 8px; font-size: 24px; letter-spacing: 0; }
 .confirm-card p { margin: 0; color: var(--muted); line-height: 1.6; }
-.confirm-card pre { overflow: auto; min-height: 92px; max-height: 42vh; margin: 16px 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); color: var(--text); white-space: pre-wrap; }
+.confirm-summary { overflow: auto; max-height: 42vh; margin: 16px 0; }
+.confirm-summary-list { display: grid; gap: 8px; }
+.confirm-summary-list div { display: grid; grid-template-columns: 96px 1fr; min-height: 42px; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); }
+.confirm-summary-list strong, .confirm-summary-list span { padding: 11px 12px; font-size: 13px; line-height: 1.45; }
+.confirm-summary-list strong { color: var(--muted); }
+.confirm-summary-list span { background: #fff; color: var(--text); word-break: keep-all; }
 .confirm-actions { flex-shrink: 0; display: flex; justify-content: flex-end; gap: 8px; }
 @media (max-width: 1100px) { .backstage-dashboard { grid-template-columns: 1fr; } .backstage-sidebar { position: static; height: auto; } .sidebar-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sidebar-operator { margin-top: 18px; } .metric-grid, .table-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .backstage-login { grid-template-columns: 1fr; width: min(100% - 28px, 1160px); } .login-brand, .login-panel, .login-guard { grid-column: 1; } .dashboard-main { padding: 24px 16px 48px; } .dashboard-header, .section-title, .table-card header, .alert-strip { flex-direction: column; } .metric-grid, .table-grid, .sidebar-nav, .detail-actions, .detail-form-grid, .toggle-group > div { grid-template-columns: 1fr; } .search-box { width: 100%; align-items: stretch; flex-direction: column; } }

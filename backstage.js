@@ -249,7 +249,7 @@ const sectionLoaders = {
   creators: loadCreatorsSection,
   "ai-content": loadAiContentSection,
   moderation: loadModerationSection,
-  settlement: loadSettlementSection,
+  payouts: loadSettlementSection,
   logs: loadAuditSection
 };
 
@@ -814,7 +814,7 @@ function renderLoadingRow(targetId, label = "데이터를 불러오는 중입니
   target.innerHTML = `<tr><td colspan="${colSpan}">${label}</td></tr>`;
 }
 
-function renderFallbackNote(targetId, label = "API 응답을 불러오지 못해 샘플 데이터를 유지합니다.") {
+function renderFallbackNote(targetId, label = "현재 데이터를 불러오지 못해 샘플 데이터를 유지합니다.") {
   console.warn(`Backstage ${targetId}: ${label}`);
 }
 
@@ -840,23 +840,23 @@ function openQuickAction(button) {
   const cardTitle = button.closest(".table-card")?.querySelector("h3")?.textContent?.trim() || sectionTitle;
 
   const actionMap = {
-    "운영자 추가": ["운영자 계정 초대", "역할은 최상 관리자, 회계 관리자, 영업/섭외 관리자, CS 관리자, AI 아티스트 관리자 중 하나로 선택합니다.", "POST /admin/api/v1/admin-users"],
-    "이력 보기": ["권한 변경 이력", "MVP에서는 super_admin 직접 변경과 audit log 중심으로 관리합니다. 2인 승인/요청함은 운영자가 늘어난 뒤 추가합니다.", "GET /admin/api/v1/audit-events?action=admin"],
-    "전체 보기": ["목록 전체 보기", "현재 표의 필터를 초기화하고 전체 더미 데이터를 다시 보여줍니다.", "GET list endpoint with cursor"],
-    "위험만 보기": ["위험 항목 필터", "신고, 정지, 높은 위험도 항목만 남겨서 봅니다.", "GET list endpoint with risk filter"],
-    "데뷔 신청 보기": ["데뷔 신청 목록", "신청서에 기재한 활동명, 소개, 연락 가능 시간, 자료 링크, 권리 확인 내용을 모두 보여줄 자리입니다.", "GET /admin/api/v1/debut/applications"],
-    "요청 보기": ["이미지 제작 요청", "유저 아티스트가 요청한 프로필/피드/숏폼 썸네일 제작 큐를 봅니다. 1차 정책은 100L, 재조정 3회, 최종 1장 기준입니다.", "GET /admin/api/v1/creator-image-requests"],
-    "AI 아티스트 추가": ["AI 아티스트 추가", "캐릭터 기본 정보, 만든 관리자, 공개 상태, 초기 프로필/에셋 체크리스트를 등록합니다.", "POST /admin/api/v1/artists"],
-    "업로드 추가": ["AI 에셋 업로드", "아티스트와 슬롯을 먼저 선택합니다. cover/thumb은 자동 판단하지 않고 운영자가 지정합니다.", "POST /admin/api/v1/artists/:artistId/assets/upload-intents"],
-    "글 작성": ["AI 아티스트 글 작성", "아티스트를 선택하고 피드/프로필/공지/프리미엄 글 유형을 골라 작성합니다.", "POST /admin/api/v1/artists/:artistId/content"],
-    "대상 설정": ["집중 관리 대상 설정", "신규 7일 모니터링, 신고 누적, 장기 미접속 등 관리 사유를 붙입니다.", "POST /admin/api/v1/creator-content/watchlist"],
-    "신고 큐 보기": ["범용 신고 큐", "유저, 댓글, 피드 글, 아티스트 신고를 한 표에서 확인합니다.", "GET /admin/api/v1/moderation/reports"],
-    "패턴 보기": ["이상 패턴 확인", "연락처 유도, 반복 홍보, 공격 표현 등 탐지 신호를 확인합니다.", "GET /admin/api/v1/creator-content/anomalies"],
-    "신고 이력": ["취소/철회 신고 이력", "접수, 취소, 철회, 중복 신고를 따로 보관하고 확인합니다.", "GET /admin/api/v1/community/reports?status=cancelled,withdrawn"],
-    "정산 보기": ["정산 상세", "프리미엄챗, 유료 좋아요, 기타 매출, 차감, 정산금을 항목별로 봅니다.", "GET /admin/api/v1/settlements"],
-    "성과 보기": ["AI 아티스트 성과", "캐릭터별 총액, 차감, 정산금, 제작자, 내부 보너스 산정 기준을 봅니다.", "GET /admin/api/v1/ai-artists/performance"]
+    "운영자 추가": ["운영자 계정 초대", "역할은 최상 관리자, 회계 관리자, 영업/섭외 관리자, CS 관리자, AI 아티스트 관리자 중 하나로 선택합니다.", "저장 준비"],
+    "이력 보기": ["권한 변경 이력", "MVP에서는 super_admin 직접 변경과 운영 로그 중심으로 관리합니다. 2인 승인/요청함은 운영자가 늘어난 뒤 추가합니다.", "조회 준비"],
+    "전체 보기": ["목록 전체 보기", "현재 표의 필터를 초기화하고 전체 데이터를 다시 보여줍니다.", "조회 준비"],
+    "위험만 보기": ["위험 항목 필터", "신고, 정지, 높은 위험도 항목만 남겨서 봅니다.", "조회 준비"],
+    "데뷔 신청 보기": ["데뷔 신청 목록", "신청서에 기재한 활동명, 소개, 연락 가능 시간, 자료 링크, 권리 확인 내용을 모두 보여줄 자리입니다.", "조회 준비"],
+    "요청 보기": ["이미지 제작 요청", "유저 아티스트가 요청한 프로필/피드/숏폼 썸네일 제작 큐를 봅니다. 1차 정책은 100L, 재조정 3회, 최종 1장 기준입니다.", "조회 준비"],
+    "AI 아티스트 추가": ["AI 아티스트 추가", "캐릭터 기본 정보, 만든 관리자, 공개 상태, 초기 프로필/에셋 체크리스트를 등록합니다.", "저장 준비"],
+    "업로드 추가": ["AI 에셋 업로드", "아티스트와 슬롯을 먼저 선택합니다. cover/thumb은 자동 판단하지 않고 운영자가 지정합니다.", "업로드 준비"],
+    "글 작성": ["AI 아티스트 글 작성", "아티스트를 선택하고 피드/프로필/공지/프리미엄 글 유형을 골라 작성합니다.", "저장 준비"],
+    "대상 설정": ["집중 관리 대상 설정", "신규 7일 모니터링, 신고 누적, 장기 미접속 등 관리 사유를 붙입니다.", "저장 준비"],
+    "신고 큐 보기": ["범용 신고 큐", "유저, 댓글, 피드 글, 아티스트 신고를 한 표에서 확인합니다.", "조회 준비"],
+    "패턴 보기": ["이상 패턴 확인", "연락처 유도, 반복 홍보, 공격 표현 등 탐지 신호를 확인합니다.", "조회 준비"],
+    "신고 이력": ["취소/철회 신고 이력", "접수, 취소, 철회, 중복 신고를 따로 보관하고 확인합니다.", "조회 준비"],
+    "정산 보기": ["정산 상세", "프리미엄챗, 유료 좋아요, 기타 매출, 차감, 정산금을 항목별로 봅니다.", "조회 준비"],
+    "성과 보기": ["AI 아티스트 성과", "캐릭터별 총액, 차감, 정산금, 제작자, 내부 보너스 산정 기준을 봅니다.", "조회 준비"]
   };
-  const [title, description, apiHint] = actionMap[label] || [label, `${cardTitle} 기능의 더미 연결입니다.`, "API 연결 대기"];
+  const [title, description, apiHint] = actionMap[label] || [label, `${cardTitle} 기능의 화면 동작을 확인합니다.`, "연결 준비"];
 
   renderDetailPanel({
     tableId: "quickAction",
@@ -918,13 +918,13 @@ function handleInlineAction(button) {
     const source = detailForm?.querySelector('[name="body"]')?.value?.trim();
     if (help) {
       help.textContent = source
-        ? `톤앤매너 변환 미리보기는 API 연결 전입니다. 현재 원문 ${source.length}자를 기준으로 캐릭터 말투 변환 요청 payload를 만들 수 있어요.`
-        : "원문을 입력하면 톤앤매너 변환 미리보기 payload를 확인할 수 있어요.";
+        ? `톤앤매너 변환 미리보기입니다. 현재 원문 ${source.length}자를 기준으로 캐릭터 말투 변환 요청을 준비할 수 있어요.`
+        : "원문을 입력하면 톤앤매너 변환 미리보기를 확인할 수 있어요.";
     }
     return;
   }
   if (action === "auto-schedule" && help) {
-    help.textContent = "자동 작성은 3시간 간격, 하루 최대 4회, 6시간 이상 미작성 경고 기준으로 차모 API 확정 후 연결합니다.";
+    help.textContent = "자동 작성은 3시간 간격, 하루 최대 4회, 6시간 이상 미작성 경고 기준으로 연결합니다.";
   }
 }
 
@@ -1105,7 +1105,7 @@ function renderDetailForm(detail) {
           <span>6시간 이상 글 작성이 없으면 운영 표에 표시합니다.</span>
         </div>
       </div>
-      <p class="detail-form-note">담당 관리자는 담당 캐릭터만, 최상 관리자는 전체 캐릭터를 봅니다. AI 변환/자동 작성 API는 차모 #124 확인 후 연결합니다.</p>
+      <p class="detail-form-note">담당 관리자는 담당 캐릭터만, 최상 관리자는 전체 캐릭터를 봅니다. 말투 변환과 자동 작성은 운영 정책 확인 후 연결합니다.</p>
     `;
   } else if (tableId === "userRows" || tableId === "userRiskRows") {
     html = `
@@ -1276,10 +1276,10 @@ function getActionProfile(detail, action = "memo") {
     actionName,
     endpoint: "읽기 전용 또는 준비중",
     method: "GET",
-    warning: "이 항목은 현재 실행 API 연결 대상이 아닙니다.",
+    warning: "이 항목은 현재 바로 처리할 수 없는 항목입니다. 운영 메모만 남겨주세요.",
     memoLabel: "메모 저장",
     holdLabel: "보류",
-    dangerLabel: "실행 API 연결 대기",
+    dangerLabel: "처리 대기",
     showHold: false,
     showDanger: false,
     dangerDisabled: true
@@ -1456,7 +1456,7 @@ function getActionProfile(detail, action = "memo") {
       targetType: tableId === "studioSettlementRows" ? "studioSettlement" : "creatorSettlement",
       endpoint: "POST /admin/api/v1/backstage/settlements/:settlementKey/status",
       method: "POST",
-      warning: "자동 송금이 아니라 회계 담당자가 실제 입금/보류/재확인 결과를 기록하는 액션입니다. 차모 #131 정산 상태 API 기준으로 저장합니다.",
+      warning: "자동 송금이 아니라 회계 담당자가 실제 입금/보류/재확인 결과를 기록하는 처리입니다. 대상과 메모를 확인한 뒤 저장합니다.",
       holdLabel: "정산 보류",
       dangerLabel: "정산 상태 저장",
       showHold: true,
@@ -1518,6 +1518,15 @@ function collectDetailFormData() {
 
 function firstValue(...values) {
   return values.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+}
+
+function escapeHtml(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function firstRoleName(roles = []) {
@@ -1867,7 +1876,7 @@ function buildActionPreview(action) {
     requestedAction: action === "danger" ? currentAction : action,
     method: profile.method,
     apiHint: profile.endpoint,
-    status: isLocalOnly ? "프론트 임시 처리 가능" : apiRequest ? (isMutation ? "실행 API 연결 완료" : "조회 API 실행 가능") : "대상 ID 또는 필수값 확인 필요",
+    status: isLocalOnly ? "화면에서 임시 확인" : apiRequest ? (isMutation ? "저장 가능" : "조회 가능") : "대상 ID 또는 필수값 확인 필요",
     bodyPreview: {
       targetType: profile.targetType,
       target,
@@ -1878,9 +1887,9 @@ function buildActionPreview(action) {
     },
     note: memo || "운영 메모 미입력",
     warning: isLocalOnly
-      ? "현재는 프론트에서 운영 메모 흐름만 확인합니다. 실제 저장 API가 확정되면 같은 payload로 연결합니다."
+      ? "현재는 화면에서 운영 메모 흐름만 확인합니다. 저장 기능이 확정되면 같은 내용으로 연결합니다."
       : apiRequest
-        ? (isMutation ? profile.warning : "조회성 API라 바로 실행할 수 있어요. 변경/제재/지급 같은 위험 액션은 별도 확정 전까지 잠가둡니다.")
+        ? (isMutation ? profile.warning : "조회만 하는 항목입니다. 변경/제재/지급 같은 위험 처리는 별도 확정 전까지 잠가둡니다.")
       : profile.warning,
     canRunLocally: isLocalOnly,
     canRunApi: Boolean(apiRequest),
@@ -1889,16 +1898,53 @@ function buildActionPreview(action) {
   return base;
 }
 
+function settlementStatusLabel(status) {
+  const labels = {
+    ready: "정산대기",
+    paid: "정산완료",
+    hold: "정산보류",
+    recheck: "재확인",
+    cancelled: "취소"
+  };
+  return labels[status] || status || "변경 예정";
+}
+
+function actionChangeLabel(preview) {
+  const form = preview?.bodyPreview?.form || {};
+  if (preview?.targetType === "creatorSettlement" || preview?.targetType === "studioSettlement") {
+    return settlementStatusLabel(form.settlementStatus || preview?.apiRequest?.body?.status);
+  }
+  if (preview?.requestedAction === "memo") return "운영 메모 저장";
+  if (preview?.requestedAction === "hold") return "보류/재확인";
+  return preview?.requestedAction || "상태 변경";
+}
+
+function renderConfirmSummary(preview, result = null) {
+  const rows = [
+    ["대상", preview.target],
+    ["변경 내용", actionChangeLabel(preview)],
+    ["처리 메모", preview.note],
+    ["처리 방식", preview.canRunApi ? "서버에 저장" : "프론트 임시 확인"]
+  ];
+  if (result?.status) rows.unshift(["상태", result.status]);
+  if (result?.message) rows.push(["결과", result.message]);
+  return `
+    <div class="confirm-summary-list">
+      ${rows.map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value || "-")}</span></div>`).join("")}
+    </div>
+  `;
+}
+
 function openConfirmModal(action) {
   const preview = buildActionPreview(action);
   if (!preview || !confirmModal) return;
   pendingActionPreview = preview;
   confirmType.textContent = preview.menu || "Confirm";
   const isMutation = preview.apiRequest && preview.apiRequest.method !== "GET";
-  confirmTitle.textContent = action === "memo" ? "운영 메모 저장 확인" : action === "hold" ? "보류/재확인 확인" : preview.canRunApi ? (isMutation ? "실행 API 처리 확인" : "조회 API 실행 확인") : "실행 정보 확인 필요";
+  confirmTitle.textContent = action === "memo" ? "운영 메모를 저장할까요?" : action === "hold" ? "보류로 변경할까요?" : preview.canRunApi ? (isMutation ? "상태를 변경할까요?" : "상세 정보를 조회할까요?") : "필수 정보를 확인해 주세요";
   confirmMessage.textContent = preview.warning;
-  confirmPayload.textContent = JSON.stringify(preview, null, 2);
-  confirmRunButton.textContent = preview.canRunLocally ? "프론트 메모 처리" : preview.canRunApi ? (isMutation ? "실행하기" : "조회 실행") : "필수값 확인 필요";
+  confirmPayload.innerHTML = renderConfirmSummary(preview);
+  confirmRunButton.textContent = preview.canRunLocally ? "확인" : preview.canRunApi ? (isMutation ? "변경하기" : "조회하기") : "필수값 확인 필요";
   confirmRunButton.disabled = !(preview.canRunLocally || preview.canRunApi);
   confirmModal.classList.remove("is-hidden");
 }
@@ -1924,22 +1970,24 @@ async function runPreparedAction() {
           auth: true,
           body: request.method === "GET" ? undefined : request.body
         });
-      const summary = summarizeApiResult(data);
-      confirmMessage.textContent = `${isMutation ? "처리" : "조회"} 완료: ${summary}`;
-      confirmPayload.textContent = JSON.stringify({ ...pendingActionPreview, resultSummary: summary, result: data }, null, 2);
-      confirmRunButton.textContent = isMutation ? "처리 완료" : "조회 완료";
-      if (help) help.textContent = `${pendingActionPreview.actionGroup} ${isMutation ? "실행" : "조회"} API를 실행했어요. 화면 반영이 필요한 목록은 새로고침으로 다시 불러올 수 있습니다.`;
+      const summary = isMutation ? "서버 저장이 완료됐습니다." : summarizeApiResult(data);
+      confirmMessage.textContent = isMutation ? "변경이 완료됐습니다." : "조회가 완료됐습니다.";
+      confirmPayload.innerHTML = renderConfirmSummary(pendingActionPreview, { status: isMutation ? "변경 완료" : "조회 완료", message: summary });
+      console.debug("Backstage action result", { preview: pendingActionPreview, result: data });
+      confirmRunButton.textContent = isMutation ? "변경 완료" : "조회 완료";
+      if (help) help.textContent = `${pendingActionPreview.actionGroup} ${isMutation ? "저장" : "조회"} 처리가 끝났어요. 화면 반영이 필요한 목록은 새로고침으로 다시 불러올 수 있습니다.`;
       await reloadCurrentSectionAfterAction();
     } catch (error) {
-      confirmMessage.textContent = error.message || "API 실행에 실패했어요.";
-      confirmPayload.textContent = JSON.stringify({ ...pendingActionPreview, errorStatus: error.status, errorBody: error.body }, null, 2);
-      confirmRunButton.textContent = isMutation ? "다시 실행" : "다시 조회";
+      confirmMessage.textContent = error.message || "처리에 실패했어요.";
+      confirmPayload.innerHTML = renderConfirmSummary(pendingActionPreview, { status: "처리 실패", message: error.message || "잠시 후 다시 시도해 주세요." });
+      console.debug("Backstage action error", { preview: pendingActionPreview, errorStatus: error.status, errorBody: error.body });
+      confirmRunButton.textContent = isMutation ? "다시 변경" : "다시 조회";
       confirmRunButton.disabled = false;
     }
     return;
   }
   if (help) {
-    help.textContent = `${pendingActionPreview.actionGroup} 메모 흐름을 프론트에서 확인했어요. 실제 저장은 차모 API 확정 후 연결합니다.`;
+    help.textContent = `${pendingActionPreview.actionGroup} 메모 흐름을 화면에서 확인했어요. 저장 기능이 확정되면 같은 내용으로 연결합니다.`;
   }
   closeConfirmModal();
 }
@@ -2019,14 +2067,16 @@ function canAccessBackstageSection(sectionId) {
     creators: ["partner_admin", "partnership_admin", "artist_ops_admin", "ai_artist_admin", "content_admin"],
     "ai-content": ["artist_ops_admin", "ai_artist_admin", "content_admin"],
     moderation: ["cs_admin", "support_admin", "content_admin"],
-    settlement: ["commerce_admin", "settlement_admin", "finance_admin"]
+    settlement: ["commerce_admin", "settlement_admin", "finance_admin"],
+    payouts: ["commerce_admin", "settlement_admin", "finance_admin"]
   };
   const permissionMap = {
     users: ["users:read", "users:write", "community:read"],
     creators: ["debut:read", "creator:read", "artists:read"],
     "ai-content": ["artists:read", "assets:read", "shortforms:read"],
     moderation: ["community:read", "community:write", "reports:read"],
-    settlement: ["payments:read", "settlement:read", "payout:read"]
+    settlement: ["payments:read", "settlement:read", "payout:read"],
+    payouts: ["payments:read", "settlement:read", "payout:read", "payout:write"]
   };
   return (areaMap[sectionId] || []).includes(role) || (permissionMap[sectionId] || []).some((permission) => permissions.includes(permission));
 }
