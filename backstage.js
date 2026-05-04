@@ -31,6 +31,7 @@ const confirmCancelButton = document.getElementById("confirmCancelButton");
 const confirmRunButton = document.getElementById("confirmRunButton");
 
 let selectedDetail = null;
+let pendingActionPreview = null;
 const sectionState = {
   admins: { rows: [], auditRows: [] },
   users: { cursor: null, hasMore: false, rows: [] },
@@ -560,78 +561,139 @@ function applyOverviewFilter(button) {
   });
 }
 
+function getActionProfile(detail, action = "memo") {
+  const tableId = detail?.tableId || "quickAction";
+  const row = detail?.row || [];
+  const labels = detail?.labels || [];
+  const status = row[labels.findIndex((label) => label === "상태")] || "";
+  const rowAction = row[row.length - 1] || "";
+  const actionName = action === "danger" ? rowAction || "실행" : action === "hold" ? "보류/확인" : "메모 저장";
+
+  const profile = {
+    group: "백스테이지 운영",
+    targetType: "backstage",
+    actionName,
+    endpoint: "읽기 전용 또는 준비중",
+    method: "GET",
+    warning: "이 항목은 현재 실행 API 연결 대상이 아닙니다.",
+    memoLabel: "메모 저장",
+    holdLabel: "보류",
+    dangerLabel: "실행 API 연결 대기",
+    showHold: false,
+    showDanger: false,
+    dangerDisabled: true
+  };
+
+  if (tableId === "userRows" || tableId === "userRiskRows") {
+    const wantsRestore = rowAction.includes("복구") || status === "정지";
+    const wantsSession = rowAction.includes("세션");
+    return {
+      ...profile,
+      group: "유저 운영 액션",
+      targetType: "user",
+      endpoint: wantsRestore
+        ? "POST /admin/api/v1/users/:userId/restore"
+        : wantsSession
+          ? "POST /admin/api/v1/users/:userId/revoke-sessions"
+          : "POST /admin/api/v1/users/:userId/suspend",
+      method: "POST",
+      warning: "세션 종료, 정지, 복구는 운영 로그와 사유가 반드시 필요합니다. 차모 API 확정 전 실제 실행은 잠가둡니다.",
+      holdLabel: tableId === "userRiskRows" ? "보류/재확인 메모" : "상태 확인 메모",
+      dangerLabel: wantsRestore ? "복구 요청" : wantsSession ? "세션 종료" : "정지 검토",
+      showHold: true,
+      showDanger: true
+    };
+  }
+
+  if (tableId === "creatorRows") {
+    return {
+      ...profile,
+      group: "데뷔 신청 운영",
+      targetType: "debutApplication",
+      endpoint: action === "danger" ? "GET /admin/api/v1/debut/applications/:applicationId" : "PATCH /admin/api/v1/debut/applications/:applicationId/status",
+      method: action === "danger" ? "GET" : "PATCH",
+      warning: "데뷔 신청 상세, 보완 요청, 승인/반려는 신청서 권리 확인과 연락처 권한을 함께 봐야 합니다.",
+      holdLabel: "보완 요청 메모",
+      dangerLabel: "신청 상세 보기",
+      showHold: true,
+      showDanger: true
+    };
+  }
+
+  if (["moderationRows", "contentAnomalyRows", "reportCancelRows", "riskRows"].includes(tableId)) {
+    const isReport = tableId === "reportCancelRows";
+    const restore = rowAction.includes("복구") || status === "숨김";
+    return {
+      ...profile,
+      group: "크리에이터 콘텐츠 조치",
+      targetType: isReport ? "report" : "creatorContent",
+      endpoint: isReport
+        ? "POST /admin/api/v1/community/reports/:reportId/archive"
+        : restore
+          ? "POST /admin/api/v1/community/posts/:postId/restore"
+          : "POST /admin/api/v1/community/posts/:postId/hide",
+      method: "POST",
+      warning: "콘텐츠 숨김/복구/신고 보관은 사유와 대상 ID가 확정된 뒤 실행합니다. 전체 글 열람이 아니라 집중 관리 대상만 다룹니다.",
+      holdLabel: "보류/재확인 메모",
+      dangerLabel: isReport ? "신고 보관" : restore ? "복구 실행" : "숨김/제재 검토",
+      showHold: true,
+      showDanger: true
+    };
+  }
+
+  if (["aiCreatorRows", "aiAssetRows", "aiPostRows"].includes(tableId)) {
+    const isAsset = tableId === "aiAssetRows";
+    const isPost = tableId === "aiPostRows";
+    return {
+      ...profile,
+      group: "AI 아티스트 운영 액션",
+      targetType: "aiArtist",
+      endpoint: isAsset
+        ? "POST /admin/api/v1/artists/:artistId/assets/upload-intents"
+        : isPost
+          ? "POST/PATCH /admin/api/v1/artists/:artistId/content"
+          : "PATCH /admin/api/v1/artists/:artistId",
+      method: isPost || isAsset ? "POST" : "PATCH",
+      warning: "AI 아티스트 프로필, 공식 글, 에셋 슬롯은 캐릭터 기준이 깨지지 않게 운영자 지정값으로 저장해야 합니다.",
+      holdLabel: isAsset ? "슬롯 수정 메모" : isPost ? "문구 수정 메모" : "프로필 수정 메모",
+      dangerLabel: isAsset ? "에셋 업로드" : isPost ? "글 작성" : "공개 상태 변경",
+      showHold: true,
+      showDanger: true
+    };
+  }
+
+  if (tableId === "settlementRows") {
+    return {
+      ...profile,
+      group: "정산 preview 확인",
+      targetType: "settlementPreview",
+      endpoint: "GET /admin/api/v1/backstage/operations/settlement-preview",
+      method: "GET",
+      warning: "이 정산값은 예상치/확정 전입니다. 확정/지급 mutation API가 없어 현재는 상세 확인과 운영 메모만 가능합니다.",
+      dangerLabel: "정산 상세",
+      showDanger: true
+    };
+  }
+
+  return profile;
+}
+
 function updateDetailActions(detail) {
   const memoButton = document.querySelector('[data-detail-action="memo"]');
   const dangerButton = document.querySelector('[data-detail-action="danger"]');
   const holdButton = document.querySelector('[data-detail-action="hold"]');
   if (!memoButton || !dangerButton || !holdButton) return;
 
-  const tableId = detail.tableId;
-  const status = detail.row?.[detail.labels?.findIndex((label) => label === "상태")] || "";
-  const actionLabel = detail.row?.[detail.row.length - 1] || "위험 액션";
+  const profile = getActionProfile(detail);
   const setButton = (button, { label, show = true, disabled = false }) => {
     button.textContent = label;
     button.classList.toggle("is-hidden", !show);
     button.disabled = disabled;
   };
 
-  setButton(memoButton, { label: "메모 저장", show: true, disabled: false });
-  setButton(holdButton, { label: "보류", show: false, disabled: true });
-  setButton(dangerButton, { label: "실행 API 연결 대기", show: false, disabled: true });
-
-  if (["logRows", "aiSettlementRows", "adminRequestRows"].includes(tableId)) {
-    setButton(memoButton, { label: "확인 메모", show: true });
-    return;
-  }
-
-  if (tableId === "creatorRows") {
-    setButton(holdButton, { label: "보류/보완 요청", show: true });
-    setButton(dangerButton, { label: "신청 상세 보기", show: true, disabled: true });
-    return;
-  }
-
-  if (tableId === "aiCreatorRows") {
-    setButton(holdButton, { label: "프로필 수정", show: true, disabled: true });
-    setButton(dangerButton, { label: "공개 상태 변경", show: true, disabled: true });
-    return;
-  }
-
-  if (tableId === "aiAssetRows") {
-    setButton(holdButton, { label: "슬롯 수정", show: true, disabled: true });
-    setButton(dangerButton, { label: "에셋 업로드", show: true, disabled: true });
-    return;
-  }
-
-  if (tableId === "aiPostRows") {
-    setButton(holdButton, { label: "문구 수정", show: true, disabled: true });
-    setButton(dangerButton, { label: "글 작성", show: true, disabled: true });
-    return;
-  }
-
-  if (tableId === "adminRows") {
-    setButton(holdButton, { label: "권한 변경", show: true, disabled: true });
-    setButton(dangerButton, { label: status === "승인" ? "비활성화" : "복구 확인", show: true, disabled: true });
-    return;
-  }
-
-  if (tableId === "userRows") {
-    setButton(holdButton, { label: "상태 확인", show: true });
-    setButton(dangerButton, { label: actionLabel.includes("복구") ? "복구 요청" : actionLabel.includes("세션") ? "세션 종료" : "정지 검토", show: true, disabled: true });
-    return;
-  }
-
-  if (tableId === "settlementRows") {
-    setButton(dangerButton, { label: ["환불 검토", "확인"].includes(actionLabel) ? actionLabel : "정산 상세", show: true, disabled: true });
-    return;
-  }
-
-  if (["userRiskRows", "moderationRows", "contentAnomalyRows", "reportCancelRows", "riskRows"].includes(tableId)) {
-    setButton(holdButton, { label: "보류/재확인", show: true });
-    setButton(dangerButton, { label: actionLabel === "복구" || status === "숨김" || status === "정지" ? "복구 실행" : "숨김/제재 검토", show: true, disabled: true });
-    return;
-  }
-
-  setButton(holdButton, { label: "보류", show: true });
+  setButton(memoButton, { label: profile.memoLabel, show: true, disabled: false });
+  setButton(holdButton, { label: profile.holdLabel, show: profile.showHold, disabled: false });
+  setButton(dangerButton, { label: profile.dangerLabel, show: profile.showDanger, disabled: profile.dangerDisabled });
 }
 
 function selectDetailButton(button) {
@@ -652,71 +714,59 @@ function buildActionPreview(action) {
   const row = detail.row || [];
   const target = row[0] || "-";
   const currentAction = row[row.length - 1] || action;
+  const profile = getActionProfile(detail, action);
+  const isLocalOnly = action === "memo" || action === "hold";
 
   const base = {
     menu: detail.type,
+    actionGroup: profile.group,
+    targetType: profile.targetType,
     target,
     requestedAction: action === "danger" ? currentAction : action,
-    note: memo || "운영 메모 미입력"
+    method: profile.method,
+    apiHint: profile.endpoint,
+    status: isLocalOnly ? "프론트 임시 처리 가능" : "차모 API 확정 대기",
+    bodyPreview: {
+      targetType: profile.targetType,
+      target,
+      action: action === "danger" ? currentAction : action,
+      reason: memo || "운영 메모 미입력",
+      note: memo || "운영 메모 미입력"
+    },
+    note: memo || "운영 메모 미입력",
+    warning: isLocalOnly
+      ? "현재는 프론트에서 운영 메모 흐름만 확인합니다. 실제 저장 API가 확정되면 같은 payload로 연결합니다."
+      : profile.warning,
+    canRunLocally: isLocalOnly
   };
-
-  if (detail.tableId === "userRows") {
-    base.apiHint = currentAction.includes("복구")
-      ? "POST /admin/api/v1/users/:userId/restore"
-      : currentAction.includes("세션")
-        ? "POST /admin/api/v1/users/:userId/revoke-sessions"
-        : "POST /admin/api/v1/users/:userId/suspend";
-    base.warning = currentAction.includes("세션")
-      ? "계정 상태는 유지하고 활성 refresh session만 revoke합니다. audit log 기록 대상입니다."
-      : "정지/삭제 계열 액션은 세션 revoke와 audit log 기록 대상입니다.";
-  } else if (detail.tableId === "adminRows" || detail.tableId === "adminRequestRows") {
-    base.apiHint = "POST/PATCH /admin/api/v1/admin-users 또는 admin roles";
-    base.warning = "최상 관리자만 운영자 권한을 변경합니다. 회계는 정산계좌, 영업/섭외는 연락처, AI 아티스트 관리자는 AI 콘텐츠만 열람합니다.";
-  } else if (detail.tableId === "creatorRows") {
-    base.apiHint = "GET /admin/api/v1/creators 및 GET /admin/api/v1/debut/applications/:applicationId";
-    base.warning = "연락처는 섭외/최상 관리자만, 정산계좌는 회계/최상 관리자만 볼 수 있어야 합니다.";
-  } else if (detail.tableId === "aiCreatorRows") {
-    base.apiHint = "PATCH /admin/api/v1/artists/:artistId 및 artist profile/assets";
-    base.warning = "AI 아티스트 공개 상태, 프로필, 에셋 누락 상태를 함께 갱신해야 합니다.";
-  } else if (detail.tableId === "aiAssetRows") {
-    base.apiHint = "POST /admin/api/v1/artists/:artistId/assets/upload-intents";
-    base.warning = "커버, 썸네일, 포토갤러리, 숏폼 업로드 구분과 노출 위치를 함께 저장해야 합니다.";
-  } else if (detail.tableId === "aiPostRows") {
-    base.apiHint = "POST/PATCH /admin/api/v1/artists/:artistId/content";
-    base.warning = "AI 아티스트 공식 글과 프리미엄/채팅 설정은 유저 콘텐츠 확인과 분리해서 처리합니다.";
-  } else if (detail.tableId === "userRiskRows") {
-    base.apiHint = "GET /admin/api/v1/community/reports 및 POST /admin/api/v1/users/:userId/suspend";
-    base.warning = "유저 제재는 사유와 누적 신고 맥락을 남기고 실행해야 합니다.";
-  } else if (detail.tableId === "moderationRows" || detail.tableId === "contentAnomalyRows" || detail.tableId === "reportCancelRows" || detail.tableId === "riskRows") {
-    base.apiHint = currentAction.includes("복구") ? "POST /admin/api/v1/community/posts/:postId/restore" : "POST /admin/api/v1/community/posts/:postId/hide";
-    base.warning = "집중 관리 대상, 이상 패턴, 취소/철회 신고만 접근하고 모든 글 일괄 열람은 피해야 합니다.";
-  } else if (detail.tableId === "settlementRows") {
-    base.apiHint = "GET /admin/api/v1/backstage/operations/settlement-preview";
-    base.warning = "이 정산값은 예상치/확정 전입니다. 확정/지급 mutation API가 없어 현재는 상세 확인과 운영 메모만 가능합니다.";
-  } else if (detail.tableId === "aiSettlementRows") {
-    base.apiHint = "GET /admin/api/v1/ai-artists/performance 및 internal bonus rules";
-    base.warning = "AI 아티스트 성과는 내부 운영 보너스 기준으로, 유저 크리에이터 정산과 분리해야 합니다.";
-  } else {
-    base.apiHint = "읽기 전용 또는 준비중";
-    base.warning = "이 항목은 현재 실행 API 연결 대상이 아닙니다.";
-  }
   return base;
 }
 
 function openConfirmModal(action) {
   const preview = buildActionPreview(action);
   if (!preview || !confirmModal) return;
+  pendingActionPreview = preview;
   confirmType.textContent = preview.menu || "Confirm";
-  confirmTitle.textContent = action === "memo" ? "운영 메모 저장 확인" : action === "hold" ? "보류 처리 확인" : "위험 액션 확인";
+  confirmTitle.textContent = action === "memo" ? "운영 메모 저장 확인" : action === "hold" ? "보류/재확인 확인" : "실행 API 연결 대기";
   confirmMessage.textContent = preview.warning;
   confirmPayload.textContent = JSON.stringify(preview, null, 2);
-  confirmRunButton.textContent = "실행 API 연결 대기";
-  confirmRunButton.disabled = true;
+  confirmRunButton.textContent = preview.canRunLocally ? "프론트 메모 처리" : "차모 API 확정 대기";
+  confirmRunButton.disabled = !preview.canRunLocally;
   confirmModal.classList.remove("is-hidden");
 }
 
 function closeConfirmModal() {
+  pendingActionPreview = null;
   confirmModal?.classList.add("is-hidden");
+}
+
+function runPreparedAction() {
+  if (!pendingActionPreview?.canRunLocally) return;
+  const help = document.querySelector(".detail-help");
+  if (help) {
+    help.textContent = `${pendingActionPreview.actionGroup} 메모 흐름을 프론트에서 확인했어요. 실제 저장은 차모 API 확정 후 연결합니다.`;
+  }
+  closeConfirmModal();
 }
 
 function renderBackstageTables() {
@@ -1340,6 +1390,7 @@ document.querySelectorAll("[data-detail-action]").forEach((button) => {
 });
 
 confirmCancelButton.addEventListener("click", closeConfirmModal);
+confirmRunButton.addEventListener("click", runPreparedAction);
 confirmModal.addEventListener("click", (event) => {
   if (event.target === confirmModal) closeConfirmModal();
 });
