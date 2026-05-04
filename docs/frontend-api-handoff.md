@@ -1404,11 +1404,30 @@ Reactions/reports:
 POST /lumina-feed/posts/:postId/like
 DELETE /lumina-feed/posts/:postId/like
 POST /lumina-feed/posts/:postId/report
+POST /moderation/reports
 POST /lumina-feed/posts/:postId/hide
 DELETE /lumina-feed/posts/:postId/hide
 GET /me/hidden-posts?take=20
 Authorization: Bearer <accessToken>
 ```
+
+`POST /lumina-feed/posts/:postId/report` remains the legacy feed-post report endpoint. New UI can use the broader `POST /moderation/reports` endpoint for feed posts, replies, users, and artists:
+
+```json
+{
+  "targetType": "user",
+  "targetId": "target-uuid",
+  "reason": "spam",
+  "detail": "Optional reporter note, max 500 chars",
+  "metadata": {
+    "surface": "user_profile"
+  }
+}
+```
+
+Allowed `targetType`: `feed_post`, `community_post`, `reply`, `community_reply`, `user`, `artist`.
+Allowed `reason`: `sexual_content`, `harassment`, `hate`, `impersonation`, `spam`, `external_contact`, `external_payment`, `rights_violation`, `other`.
+Successful report response: `{ "report": {}, "message": "Report submitted" }`.
 
 `POST /lumina-feed/posts/:postId/hide` is idempotent and returns `{ hiddenPost }`. `DELETE /lumina-feed/posts/:postId/hide` soft-deletes the hidden row and returns `{ ok: true }`. `GET /me/hidden-posts` returns the active hidden rows with each included `post`.
 

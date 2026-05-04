@@ -690,3 +690,21 @@ Authorization: Bearer <accessToken>
 - Hidden posts use soft delete/reactivation with unique `(user_id, post_id)`.
 - `POST /api/v1/users/:userId/block` accepts optional `{ "reason": "..." }`, rejects self-block, soft-deletes active follows in both directions, and returns `{ block }`.
 - `user_blocks` uses soft delete/reactivation with unique `(blocker_user_id, blocked_user_id)`.
+
+Generic moderation report endpoints:
+
+```http
+POST /api/v1/moderation/reports
+GET /admin/api/v1/moderation/reports?targetType=user&status=submitted&reason=spam&query=&take=50&cursor=<nextCursor>
+GET /admin/api/v1/moderation/reports/:reportId
+PATCH /admin/api/v1/moderation/reports/:reportId
+```
+
+- `POST /api/v1/moderation/reports` requires login and stores a `moderation_reports` row.
+- It supports `targetType`: `feed_post`, `community_post`, `reply`, `community_reply`, `user`, `artist`.
+- It validates that the target row exists before accepting a report.
+- It supports `reason`: `sexual_content`, `harassment`, `hate`, `impersonation`, `spam`, `external_contact`, `external_payment`, `rights_violation`, `other`.
+- `detail` is optional and limited to 500 characters.
+- Feed-post reports increment `community_posts.report_count`.
+- Admin list/detail require `community:read`; admin update requires `community:write`.
+- Admin update accepts `status`, `detail`, and `metadata`. Allowed statuses are `submitted`, `reviewing`, `resolved`, `dismissed`, and `archived`.

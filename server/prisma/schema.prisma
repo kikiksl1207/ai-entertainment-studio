@@ -50,6 +50,7 @@ model User {
   notifications        UserNotification[]       @relation("UserNotificationRecipient")
   notificationActions  UserNotification[]       @relation("UserNotificationActor")
   creatorImageRequests CreatorImageRequest[]    @relation("CreatorImageRequestRequester")
+  moderationReports    ModerationReport[]       @relation("ModerationReportReporter")
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -831,6 +832,25 @@ model CommunityReport {
   @@index([postId, status], map: "idx_community_reports_post_status")
   @@index([reporterUserId, createdAt], map: "idx_community_reports_reporter_created")
   @@map("community_reports")
+}
+
+model ModerationReport {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporterUserId String   @map("reporter_user_id") @db.Uuid
+  targetType     String   @map("target_type")
+  targetId       String   @map("target_id") @db.Uuid
+  reason         String
+  detail         String?
+  status         String   @default("submitted")
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  reporter       User     @relation("ModerationReportReporter", fields: [reporterUserId], references: [id])
+
+  @@index([targetType, targetId, status], map: "idx_moderation_reports_target_status")
+  @@index([reporterUserId, createdAt], map: "idx_moderation_reports_reporter_created")
+  @@index([status, createdAt], map: "idx_moderation_reports_status_created")
+  @@map("moderation_reports")
 }
 
 model CommunityHiddenPost {
