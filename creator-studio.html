@@ -170,6 +170,67 @@
         line-height: 1.65;
       }
       .notice strong { color: var(--cyan); }
+      .notice.is-warn { border-color: rgba(251,191,36,0.28); background: rgba(251,191,36,0.08); color: #fff7d6; }
+      .notice.is-warn strong { color: var(--warn); }
+      .account-mode {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .mode-card {
+        display: grid;
+        gap: 10px;
+        min-height: 160px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255,255,255,0.04);
+      }
+      .mode-card strong { font-size: 18px; }
+      .mode-card p, .requirement-list p { margin: 0; color: var(--muted); line-height: 1.6; }
+      .mode-card.is-active { border-color: rgba(255,79,195,0.55); background: rgba(255,79,195,0.1); }
+      .requirement-list { display: grid; gap: 10px; margin-top: 16px; }
+      .requirement-item {
+        display: grid;
+        grid-template-columns: 120px 1fr auto;
+        gap: 12px;
+        align-items: center;
+        min-height: 58px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255,255,255,0.04);
+      }
+      .studio-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        display: grid;
+        place-items: center;
+        padding: 22px;
+        background: rgba(0,0,0,0.58);
+      }
+      .studio-modal.is-hidden { display: none; }
+      .modal-card {
+        width: min(560px, 100%);
+        max-height: calc(100vh - 44px);
+        overflow: auto;
+        padding: 22px;
+        border: 1px solid var(--line-strong);
+        border-radius: 8px;
+        background: #151322;
+        box-shadow: var(--shadow);
+      }
+      .modal-card header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+      .modal-card h2 { margin: 4px 0 0; font-size: 24px; }
+      .modal-card p { color: var(--muted); line-height: 1.65; }
+      .modal-summary { display: grid; gap: 8px; margin: 16px 0; }
+      .modal-summary div { display: grid; grid-template-columns: 116px 1fr; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; }
+      .modal-summary strong, .modal-summary span { padding: 11px 12px; font-size: 13px; line-height: 1.45; }
+      .modal-summary strong { color: var(--muted); background: rgba(255,255,255,0.04); }
+      .modal-summary span { color: var(--text); }
+      .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
       .studio-toast {
         position: fixed;
         left: 50%;
@@ -200,7 +261,7 @@
       @media (max-width: 680px) {
         .studio-main { padding: 22px 14px 42px; }
         .studio-topbar, .panel-header, .table-card header { flex-direction: column; }
-        .studio-nav, .metric-grid, .media-grid, .form-grid { grid-template-columns: 1fr; }
+        .studio-nav, .metric-grid, .media-grid, .form-grid, .account-mode, .requirement-item { grid-template-columns: 1fr; }
         .artist-card { grid-template-columns: 70px 1fr; }
         .artist-card .secondary-action { grid-column: 1 / -1; }
       }
@@ -261,7 +322,7 @@
               </div>
               <div class="artist-list">
                 <div class="notice"><strong>정산 주소 입력 필요</strong><span>첫 정산 전 세무 서류용 주소를 한 번만 입력해야 합니다. 주소는 정산/세무 처리에만 사용됩니다.</span></div>
-                <div class="notice"><strong>하민 피드 미작성 8시간</strong><span>6시간 이상 피드가 없으면 운영 상태에 표시됩니다. 자동 작성은 추후 API 연결 후 사용합니다.</span></div>
+                <div class="notice"><strong>박도아 피드 미작성 8시간</strong><span>6시간 이상 피드가 없으면 운영 상태에 표시됩니다. 예약 글이나 직접 작성 글로 공백을 줄여주세요.</span></div>
                 <div class="notice"><strong>이미지 생성 1건 검수 대기</strong><span>생성 결과는 바로 공개되지 않고 캐릭터별 에셋 슬롯에 연결해야 합니다.</span></div>
               </div>
             </article>
@@ -271,6 +332,18 @@
               </div>
               <p>일반 크리에이터는 1개 아티스트를 무료로 시작합니다. 여러 캐릭터를 운영하는 스튜디오 운영자는 캐릭터별 피드와 숏폼을 직접 관리하며, 30일 이상 활동이 없으면 휴식기 전환 대상이 됩니다.</p>
               <p>이미지 생성은 유저 아티스트 전용 기능으로 시작하고, 1회 100L를 차감합니다. 재조정은 3회까지 운영 메모에 남깁니다.</p>
+              <div class="account-mode">
+                <article class="mode-card">
+                  <span class="badge is-good">개인 크리에이터</span>
+                  <strong>1개 아티스트 무료 시작</strong>
+                  <p>첫 아티스트는 Lumina Stage가 제작을 지원합니다. 추가 아티스트는 등록권 구매 후 신청합니다.</p>
+                </article>
+                <article class="mode-card is-active">
+                  <span class="badge is-warn">스튜디오 운영자</span>
+                  <strong>여러 캐릭터 직접 운영</strong>
+                  <p>캐릭터별 피드, 숏폼, 이미지 관리를 직접 맡고 정산은 계정 단위로 합산해 확인합니다.</p>
+                </article>
+              </div>
             </article>
           </div>
         </section>
@@ -293,8 +366,8 @@
                 <button class="secondary-action" type="button" data-action="toast">관리</button>
               </article>
               <article class="artist-card">
-                <img class="artist-thumb" src="./assets/characters/seo-yuan/thumb.png" alt="서하민" onerror="this.src='./assets/brand/lumina-stage-logo.png'" />
-                <div><h3>서하민</h3><p>분위기를 부드럽게 정리하는 진행형 엔터테이너.</p><div class="badge-row"><span class="badge is-warn">휴식기 후보</span><span class="badge is-danger">피드 8시간 공백</span></div></div>
+                <img class="artist-thumb" src="./assets/characters/park-doa/thumb.png" alt="박도아" onerror="this.src='./assets/brand/lumina-stage-logo.png'" />
+                <div><h3>박도아</h3><p>친근한 리액션과 생활감 있는 장면으로 팬과 가까워지는 엔터테이너.</p><div class="badge-row"><span class="badge is-warn">휴식기 후보</span><span class="badge is-danger">피드 8시간 공백</span></div></div>
                 <button class="secondary-action" type="button" data-action="toast">관리</button>
               </article>
             </div>
@@ -308,9 +381,10 @@
               <button class="secondary-action" type="button" data-action="tone">톤앤매너 미리보기</button>
             </div>
             <div class="form-grid">
-              <label><span>작성 아티스트</span><select><option>윤세린</option><option>하윤아</option><option>서하민</option></select></label>
+              <label><span>작성 아티스트</span><select><option>윤세린</option><option>하윤아</option><option>박도아</option></select></label>
               <label><span>공개 방식</span><select><option>즉시 공개</option><option>예약 공개</option><option>임시저장</option></select></label>
               <label class="is-wide"><span>본문</span><textarea id="feedBody">오늘 무대 전 조용히 호흡을 가다듬고 있어요. 팬들에게 보여줄 장면을 정확히 준비해볼게요.</textarea></label>
+              <label class="is-wide"><span>운영 메모</span><input placeholder="예약 사유, 수정 방향, 팬 반응 확인 포인트를 남겨주세요." /></label>
             </div>
             <div class="composer-tools">
               <button class="primary-action" type="button" data-action="toast">피드 저장</button>
@@ -354,12 +428,12 @@
               <span class="badge is-warn">1회 100L · 재조정 3회</span>
             </div>
             <div class="form-grid">
-              <label><span>대상 아티스트</span><select><option>윤세린</option><option>하윤아</option><option>서하민</option></select></label>
+              <label><span>대상 아티스트</span><select><option>윤세린</option><option>하윤아</option><option>박도아</option></select></label>
               <label><span>사용 목적</span><select><option>프로필 이미지</option><option>피드 이미지</option><option>숏폼 썸네일</option><option>콘셉트 레퍼런스</option></select></label>
               <label class="is-wide"><span>요청 내용</span><textarea>캐릭터 얼굴 기준을 유지하고, 기존 톤앤매너를 깨지 않는 공식 이미지 후보를 만들어 주세요.</textarea></label>
               <label class="is-wide"><span>레퍼런스 파일</span><input type="file" accept="image/*" /></label>
             </div>
-            <p>생성 결과는 바로 공개되지 않습니다. 운영자가 결과를 확인한 뒤 cover, thumb, gallery, shortform 슬롯 중 하나로 연결합니다.</p>
+            <p>생성 결과는 바로 공개되지 않습니다. 결과 확인 후 프로필 메인샷, 전신샷, 갤러리, 숏폼 썸네일 중 하나로 연결합니다.</p>
             <button class="primary-action" type="button" data-action="toast">100L 차감 후 요청</button>
           </article>
         </section>
@@ -381,6 +455,11 @@
                 </tbody>
               </table>
             </div>
+            <div class="requirement-list" style="margin: 18px;">
+              <div class="requirement-item"><strong>본인인증</strong><p>정산 신청 전 본인인증이 필요합니다.</p><span class="badge is-warn">확인 필요</span></div>
+              <div class="requirement-item"><strong>정산 계좌</strong><p>본인인증 이름과 예금주가 일치해야 합니다.</p><span class="badge is-warn">등록 전</span></div>
+              <div class="requirement-item"><strong>세무 주소</strong><p>첫 정산 전 한 번만 입력합니다. 정산과 세무 처리에만 사용됩니다.</p><span class="badge">입력 대기</span></div>
+            </div>
           </article>
         </section>
 
@@ -393,6 +472,7 @@
               <label><span>본인인증</span><input value="확인 필요" readonly /></label>
               <label><span>정산 계좌</span><input value="등록 전" readonly /></label>
               <label class="is-wide"><span>세무 서류용 주소</span><input placeholder="첫 정산 신청 시 입력" /></label>
+              <label class="is-wide"><span>스튜디오 운영 메모</span><textarea>여러 캐릭터를 운영하는 계정입니다. 캐릭터별 피드와 숏폼 활동이 30일 이상 멈추지 않도록 운영합니다.</textarea></label>
             </div>
             <p>연락처, 계좌, 주소 같은 민감 정보는 권한 있는 담당자와 회계 처리에만 사용됩니다.</p>
             <button class="primary-action" type="button" data-action="toast">설정 저장</button>
@@ -400,11 +480,36 @@
         </section>
       </main>
     </div>
+    <div class="studio-modal is-hidden" id="studioModal" role="dialog" aria-modal="true" aria-labelledby="studioModalTitle">
+      <div class="modal-card">
+        <header>
+          <div>
+            <span class="eyebrow" id="studioModalType">확인</span>
+            <h2 id="studioModalTitle">처리할까요?</h2>
+          </div>
+          <button class="secondary-action" type="button" id="studioModalClose">닫기</button>
+        </header>
+        <p id="studioModalMessage">화면 흐름을 확인합니다.</p>
+        <div class="modal-summary" id="studioModalSummary"></div>
+        <div class="modal-actions">
+          <button class="secondary-action" type="button" id="studioModalCancel">취소</button>
+          <button class="primary-action" type="button" id="studioModalConfirm">확인</button>
+        </div>
+      </div>
+    </div>
     <div class="studio-toast" id="studioToast" role="status" aria-live="polite"></div>
     <script>
       const navButtons = Array.from(document.querySelectorAll("[data-section]"));
       const sections = Array.from(document.querySelectorAll(".studio-section"));
       const toast = document.getElementById("studioToast");
+      const modal = document.getElementById("studioModal");
+      const modalTitle = document.getElementById("studioModalTitle");
+      const modalType = document.getElementById("studioModalType");
+      const modalMessage = document.getElementById("studioModalMessage");
+      const modalSummary = document.getElementById("studioModalSummary");
+      const modalClose = document.getElementById("studioModalClose");
+      const modalCancel = document.getElementById("studioModalCancel");
+      const modalConfirm = document.getElementById("studioModalConfirm");
       let toastTimer = null;
 
       function showToast(message) {
@@ -420,6 +525,19 @@
         history.replaceState(null, "", `#${id}`);
       }
 
+      function openStudioModal(title, message, rows = [], confirmText = "확인") {
+        modalTitle.textContent = title;
+        modalType.textContent = "Creator Studio";
+        modalMessage.textContent = message;
+        modalConfirm.textContent = confirmText;
+        modalSummary.innerHTML = rows.map(([label, value]) => `<div><strong>${label}</strong><span>${value}</span></div>`).join("");
+        modal.classList.remove("is-hidden");
+      }
+
+      function closeStudioModal() {
+        modal.classList.add("is-hidden");
+      }
+
       navButtons.forEach((button) => {
         button.addEventListener("click", () => activateSection(button.dataset.section));
       });
@@ -429,7 +547,27 @@
       });
 
       document.querySelectorAll("[data-action='toast']").forEach((button) => {
-        button.addEventListener("click", () => showToast("임시 동작 확인 완료. 실제 저장 API 연결 전 화면 흐름입니다."));
+        button.addEventListener("click", () => {
+          const label = button.textContent.trim();
+          if (label.includes("정산 신청")) {
+            openStudioModal("정산 신청 전 확인", "정산 신청은 본인인증, 계좌, 세무 주소가 준비된 뒤 진행됩니다.", [
+              ["예정 정산금", "128,400원"],
+              ["본인인증", "확인 필요"],
+              ["정산 계좌", "등록 전"],
+              ["세무 주소", "입력 대기"]
+            ], "확인했어요");
+            return;
+          }
+          if (label.includes("100L")) {
+            openStudioModal("이미지 생성 요청", "요청 시 100L가 차감되고, 결과는 바로 공개되지 않습니다.", [
+              ["차감", "100L"],
+              ["재조정", "최대 3회"],
+              ["공개 방식", "결과 확인 후 슬롯 연결"]
+            ], "요청 확인");
+            return;
+          }
+          showToast("화면 흐름을 확인했어요. 저장 기능은 준비된 항목부터 연결됩니다.");
+        });
       });
 
       document.querySelectorAll("[data-action='tone']").forEach((button) => {
@@ -440,6 +578,15 @@
           }
           showToast("윤세린 톤앤매너 예시로 변환했어요.");
         });
+      });
+
+      [modalClose, modalCancel].forEach((button) => button.addEventListener("click", closeStudioModal));
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) closeStudioModal();
+      });
+      modalConfirm.addEventListener("click", () => {
+        closeStudioModal();
+        showToast("확인 완료. 입력 내용은 화면에 유지됩니다.");
       });
 
       const initial = location.hash.replace("#", "");
