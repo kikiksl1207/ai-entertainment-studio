@@ -1087,6 +1087,24 @@ function collectDetailFormData() {
   return data;
 }
 
+function resolveExecutableEndpoint(endpoint = "") {
+  const match = String(endpoint).trim().match(/^(GET|POST|PATCH|DELETE)\s+(\/admin\/api\/v1\/\S+)$/);
+  if (!match) return null;
+  const [, method, fullPath] = match;
+  if (method !== "GET" || fullPath.includes(":")) return null;
+  return {
+    method,
+    path: adminApiPath(fullPath.replace(/^\/admin\/api\/v1/, "") || "/")
+  };
+}
+
+function summarizeApiResult(data) {
+  if (Array.isArray(data)) return `배열 ${data.length}건을 받았어요.`;
+  if (data?.items) return `목록 ${data.items.length}건을 받았어요.${data.hasMore ? " 다음 페이지가 있어요." : ""}`;
+  if (data && typeof data === "object") return `응답 키: ${Object.keys(data).slice(0, 8).join(", ") || "없음"}`;
+  return "응답 본문 없이 성공했어요.";
+}
+
 function buildActionPreview(action) {
   const detail = selectedDetail;
   if (!detail) return null;
@@ -1096,6 +1114,7 @@ function buildActionPreview(action) {
   const currentAction = row[row.length - 1] || action;
   const profile = getActionProfile(detail, action);
   const isLocalOnly = action === "memo" || action === "hold";
+  const apiRequest = resolveExecutableEndpoint(profile.endpoint);
 
   const base = {
     menu: detail.type,
@@ -1105,7 +1124,7 @@ function buildActionPreview(action) {
     requestedAction: action === "danger" ? currentAction : action,
     method: profile.method,
     apiHint: profile.endpoint,
-    status: isLocalOnly ? "프론트 임시 처리 가능" : "차모 API 확정 대기",
+    status: isLocalOnly ? "프론트 임시 처리 가능" : apiRequest ? "조회 API 실행 가능" : "차모 API 확정 대기",
     bodyPreview: {
       targetType: profile.targetType,
       target,
@@ -1117,8 +1136,12 @@ function buildActionPreview(action) {
     note: memo || "운영 메모 미입력",
     warning: isLocalOnly
       ? "현재는 프론트에서 운영 메모 흐름만 확인합니다. 실제 저장 API가 확정되면 같은 payload로 연결합니다."
+      : apiRequest
+        ? "조회성 API라 바로 실행할 수 있어요. 변경/제재/지급 같은 위험 액션은 별도 확정 전까지 잠가둡니다."
       : profile.warning,
-    canRunLocally: isLocalOnly
+    canRunLocally: isLocalOnly,
+    canRunApi: Boolean(apiRequest),
+    apiRequest
   };
   return base;
 }
@@ -1128,11 +1151,11 @@ function openConfirmModal(action) {
   if (!preview || !confirmModal) return;
   pendingActionPreview = preview;
   confirmType.textContent = preview.menu || "Confirm";
-  confirmTitle.textContent = action === "memo" ? "운영 메모 저장 확인" : action === "hold" ? "보류/재확인 확인" : "실행 API 연결 대기";
+  confirmTitle.textContent = action === "memo" ? "운영 메모 저장 확인" : action === "hold" ? "보류/재확인 확인" : preview.canRunApi ? "조회 API 실행 확인" : "실행 API 연결 대기";
   confirmMessage.textContent = preview.warning;
   confirmPayload.textContent = JSON.stringify(preview, null, 2);
-  confirmRunButton.textContent = preview.canRunLocally ? "프론트 메모 처리" : "차모 API 확정 대기";
-  confirmRunButton.disabled = !preview.canRunLocally;
+  confirmRunButton.textContent = preview.canRunLocally ? "프론트 메모 처리" : preview.canRunApi ? "조회 실행" : "차모 API 확정 대기";
+  confirmRunButton.disabled = !(preview.canRunLocally || preview.canRunApi);
   confirmModal.classList.remove("is-hidden");
 }
 
@@ -1141,9 +1164,30 @@ function closeConfirmModal() {
   confirmModal?.classList.add("is-hidden");
 }
 
-function runPreparedAction() {
-  if (!pendingActionPreview?.canRunLocally) return;
+async function runPreparedAction() {
+  if (!pendingActionPreview?.canRunLocally && !pendingActionPreview?.canRunApi) return;
   const help = document.querySelector(".detail-help");
+  if (pendingActionPreview.canRunApi) {
+    confirmRunButton.disabled = true;
+    confirmRunButton.textContent = "조회 중...";
+    try {
+      const data = await backstageFetch(pendingActionPreview.apiRequest.path, {
+        method: pendingActionPreview.apiRequest.method,
+        auth: true
+      });
+      const summary = summarizeApiResult(data);
+      confirmMessage.textContent = `조회 완료: ${summary}`;
+      confirmPayload.textContent = JSON.stringify({ ...pendingActionPreview, resultSummary: summary, result: data }, null, 2);
+      confirmRunButton.textContent = "조회 완료";
+      if (help) help.textContent = `${pendingActionPreview.actionGroup} 조회 API를 실행했어요. 화면 반영이 필요한 목록은 새로고침으로 다시 불러올 수 있습니다.`;
+    } catch (error) {
+      confirmMessage.textContent = error.message || "조회 API 실행에 실패했어요.";
+      confirmPayload.textContent = JSON.stringify({ ...pendingActionPreview, errorStatus: error.status, errorBody: error.body }, null, 2);
+      confirmRunButton.textContent = "다시 조회";
+      confirmRunButton.disabled = false;
+    }
+    return;
+  }
   if (help) {
     help.textContent = `${pendingActionPreview.actionGroup} 메모 흐름을 프론트에서 확인했어요. 실제 저장은 차모 API 확정 후 연결합니다.`;
   }
