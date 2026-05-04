@@ -1032,6 +1032,113 @@ Frontend first form sections:
 
 Do not collect ID card images, resident registration numbers, bank accounts, final contract files, API keys, secrets, or raw file uploads in the MVP phone-consultation form.
 
+### Creator Image Requests
+
+1차 오픈 필수 범위입니다. 승인된 유저 아티스트가 활동용 이미지를 요청하고, 운영자가 Backstage에서 상태를 관리합니다. 자동 이미지 생성은 나중에 붙일 수 있지만, 요청/검수/결과 전달 흐름은 1차에 열어야 합니다.
+
+User artist endpoints:
+
+```http
+POST /creator-image-requests
+GET /me/creator-image-requests?artistId=<artistId>&status=submitted&requestType=profile_image&take=30&cursor=<nextCursor>
+GET /creator-image-requests/:requestId
+```
+
+Admin endpoints:
+
+```http
+GET /admin/api/v1/creator-image-requests?status=submitted&requestType=content_image&query=keyword&take=50&cursor=<nextCursor>
+GET /admin/api/v1/creator-image-requests/:requestId
+PATCH /admin/api/v1/creator-image-requests/:requestId
+```
+
+Rules:
+
+- All user endpoints require login.
+- `POST /creator-image-requests` requires the current user to be an active operator of the target `artistId`.
+- `referenceAssetIds` should come from the existing user image upload flow: `POST /me/assets/upload-intents` then `POST /me/assets/:assetId/confirm-upload`.
+- Do not ask for resident registration numbers, contracts, API keys, or raw identity documents in this flow.
+- Admin list/detail require `assets:read`; admin update requires `assets:write`.
+
+Create body:
+
+```json
+{
+  "artistId": "artist-uuid",
+  "requestType": "profile_image",
+  "title": "May profile refresh",
+  "brief": "Need a clean profile image for the creator studio card.",
+  "prompt": "Optional generation prompt or visual direction",
+  "referenceAssetIds": ["asset-uuid-1"],
+  "metadata": {
+    "usage": "creator_profile",
+    "preferredMood": "bright"
+  }
+}
+```
+
+Allowed `requestType`: `profile_image`, `content_image`, `feed_image`, `shortform_thumbnail`, `concept_reference`.
+
+Request response shape:
+
+```json
+{
+  "request": {
+    "id": "request-uuid",
+    "artistId": "artist-uuid",
+    "requesterUserId": "user-uuid",
+    "requestType": "profile_image",
+    "title": "May profile refresh",
+    "brief": "Need a clean profile image for the creator studio card.",
+    "prompt": "Optional generation prompt or visual direction",
+    "referenceAssetIds": ["asset-uuid-1"],
+    "resultAssetIds": [],
+    "status": "submitted",
+    "moderationStatus": "pending",
+    "adminNote": null,
+    "rejectionReason": null,
+    "metadata": {},
+    "artist": {
+      "id": "artist-uuid",
+      "slug": "creator-slug",
+      "displayName": "Creator Name",
+      "status": "active"
+    },
+    "requester": {
+      "id": "user-uuid",
+      "email": "user@example.com",
+      "profile": {
+        "displayName": "User nickname",
+        "publicHandle": "mint-star-1234",
+        "avatarAssetId": null
+      }
+    },
+    "createdAt": "2026-05-04T00:00:00.000Z",
+    "updatedAt": "2026-05-04T00:00:00.000Z"
+  }
+}
+```
+
+List response uses the standard cursor envelope: `{ "items": [], "count": 0, "hasMore": false, "nextCursor": null }`.
+
+Admin PATCH body:
+
+```json
+{
+  "status": "delivered",
+  "moderationStatus": "cleared",
+  "resultAssetIds": ["asset-uuid-2"],
+  "adminNote": "Delivered first profile candidate.",
+  "rejectionReason": null,
+  "metadata": {
+    "operatorMemo": "Use for creator studio profile preview"
+  }
+}
+```
+
+Allowed `status`: `submitted`, `reviewing`, `generating`, `needs_more_info`, `delivered`, `approved`, `rejected`, `archived`.
+Allowed `moderationStatus`: `pending`, `cleared`, `blocked`, `needs_review`.
+
 ### Free Like Quota
 
 Use this endpoint for a logged-in user's daily free-like remaining count.

@@ -49,6 +49,7 @@ model User {
   blockedByUsers       UserBlock[]              @relation("UserBlockBlocked")
   notifications        UserNotification[]       @relation("UserNotificationRecipient")
   notificationActions  UserNotification[]       @relation("UserNotificationActor")
+  creatorImageRequests CreatorImageRequest[]    @relation("CreatorImageRequestRequester")
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -189,6 +190,7 @@ model Artist {
   communityPosts    CommunityPost[]
   followers         ArtistFollow[]
   notifications     UserNotification[]
+  creatorImageRequests CreatorImageRequest[]
 
   @@index([status, sortOrder], map: "idx_artists_status_sort")
   @@map("artists")
@@ -211,6 +213,32 @@ model ArtistOperator {
   @@index([artistId, status], map: "idx_artist_operators_artist_status")
   @@index([userId, status], map: "idx_artist_operators_user_status")
   @@map("artist_operators")
+}
+
+model CreatorImageRequest {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requesterUserId   String   @map("requester_user_id") @db.Uuid
+  artistId          String   @map("artist_id") @db.Uuid
+  requestType       String   @map("request_type")
+  title             String?
+  brief             String
+  prompt            String?
+  referenceAssetIds Json     @default("[]") @map("reference_asset_ids")
+  resultAssetIds    Json     @default("[]") @map("result_asset_ids")
+  status            String   @default("submitted")
+  moderationStatus  String   @default("pending") @map("moderation_status")
+  adminNote         String?  @map("admin_note")
+  rejectionReason   String?  @map("rejection_reason")
+  metadata          Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  requester         User     @relation("CreatorImageRequestRequester", fields: [requesterUserId], references: [id])
+  artist            Artist   @relation(fields: [artistId], references: [id])
+
+  @@index([requesterUserId, createdAt], map: "idx_creator_image_requests_requester_created")
+  @@index([artistId, status, createdAt], map: "idx_creator_image_requests_artist_status")
+  @@index([status, createdAt], map: "idx_creator_image_requests_status_created")
+  @@map("creator_image_requests")
 }
 
 model ArtistPublicProfile {

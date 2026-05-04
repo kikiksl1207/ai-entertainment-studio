@@ -587,6 +587,32 @@ Current validation and workflow:
 - Allowed rights review statuses: `not_required`, `pending`, `reviewing`, `cleared`, `blocked`.
 - Allowed partner review statuses: `not_applicable`, `pending`, `reviewing`, `accepted`, `declined`.
 
+Creator image request endpoints:
+
+```http
+POST /api/v1/creator-image-requests
+GET /api/v1/me/creator-image-requests?artistId=<artistId>&status=submitted&requestType=profile_image&take=30&cursor=<nextCursor>
+GET /api/v1/creator-image-requests/:requestId
+GET /admin/api/v1/creator-image-requests?status=submitted&requestType=content_image&query=keyword&take=50&cursor=<nextCursor>
+GET /admin/api/v1/creator-image-requests/:requestId
+PATCH /admin/api/v1/creator-image-requests/:requestId
+```
+
+`creator_image_requests` stores the 1차 오픈 user-artist image production queue. It is for approved creator/artist operators who need profile images, content images, feed images, shortform thumbnails, or concept references.
+
+Current workflow:
+
+- `POST /api/v1/creator-image-requests` requires an active `artist_operators` row for the current user and target `artistId`.
+- `referenceAssetIds` can contain up to 8 confirmed image asset UUIDs from the existing user asset upload flow.
+- User list/detail responses include requests created by the user and requests for artists the user actively operates.
+- Admin list/detail require `assets:read`; admin update requires `assets:write`.
+- Admin updates can set `status`, `moderationStatus`, `adminNote`, `rejectionReason`, `resultAssetIds`, and metadata.
+- Allowed `requestType`: `profile_image`, `content_image`, `feed_image`, `shortform_thumbnail`, `concept_reference`.
+- Allowed `status`: `submitted`, `reviewing`, `generating`, `needs_more_info`, `delivered`, `approved`, `rejected`, `archived`.
+- Allowed `moderationStatus`: `pending`, `cleared`, `blocked`, `needs_review`.
+- Final generated images are attached as existing `assets` through `resultAssetIds`; linking to public artist/profile/feed surfaces remains a separate product decision.
+- The request flow must not store resident registration numbers, contracts, API keys, raw identity documents, or secrets.
+
 Free-like quota endpoint:
 
 ```http
