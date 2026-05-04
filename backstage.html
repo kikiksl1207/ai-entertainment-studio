@@ -216,6 +216,15 @@
               <div><dt>상태</dt><dd>테이블의 행을 선택하면 상세 정보와 처리 버튼이 표시됩니다.</dd></div>
             </dl>
             <div class="detail-form is-hidden" id="detailForm"></div>
+            <section class="detail-history" aria-labelledby="detailHistoryTitle">
+              <div class="detail-history-title">
+                <h3 id="detailHistoryTitle">처리 이력</h3>
+                <span>처리자 · 시간 · 결과</span>
+              </div>
+              <div class="detail-history-list" id="detailHistoryList">
+                <p class="detail-history-empty">아직 처리 이력이 없습니다.</p>
+              </div>
+            </section>
             <label class="memo-field">
               <span>운영 메모</span>
               <textarea id="detailMemo" rows="5" placeholder="처리 사유와 확인 내용을 짧게 남겨주세요."></textarea>

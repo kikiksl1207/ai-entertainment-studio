@@ -3,6 +3,7 @@ const BACKSTAGE_BASE_HAS_API_PREFIX = /\/api\/v1$/.test(BACKSTAGE_API_BASE);
 const BACKSTAGE_AUTH_KEY = "lumina_backstage_auth";
 const BACKSTAGE_SECTION_KEY = "lumina_backstage_active_section";
 const BACKSTAGE_DRAFT_KEY = "lumina_backstage_detail_drafts";
+const BACKSTAGE_HISTORY_KEY = "lumina_backstage_action_history";
 
 const loginView = document.getElementById("backstageLoginView");
 const dashboardView = document.getElementById("backstageDashboardView");
@@ -23,6 +24,7 @@ const detailType = document.getElementById("detailType");
 const detailTitle = document.getElementById("detailTitle");
 const detailList = document.getElementById("detailList");
 const detailForm = document.getElementById("detailForm");
+const detailHistoryList = document.getElementById("detailHistoryList");
 const detailMemo = document.getElementById("detailMemo");
 const detailCloseButton = document.getElementById("detailCloseButton");
 const confirmModal = document.getElementById("backstageConfirmModal");
@@ -307,6 +309,59 @@ function writeDetailDrafts(drafts) {
 function detailDraftKey(detail) {
   const row = detail?.row || [];
   return [detail?.tableId || "quickAction", row[0] || "new", row[1] || ""].join(":");
+}
+
+function readActionHistory() {
+  try {
+    const rows = JSON.parse(localStorage.getItem(BACKSTAGE_HISTORY_KEY) || "[]");
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeActionHistory(rows) {
+  try {
+    localStorage.setItem(BACKSTAGE_HISTORY_KEY, JSON.stringify(rows.slice(0, 240)));
+  } catch {
+    // Local history helps operators verify recent actions; backend audit remains the source of truth.
+  }
+}
+
+function currentOperatorLabel() {
+  const auth = getBackstageAuth();
+  return auth?.user?.email || auth?.user?.username || operatorEmail?.textContent || "운영자";
+}
+
+function detailHistoryKey(detail) {
+  const row = detail?.row || [];
+  const meta = detail?.meta || {};
+  return [
+    detail?.tableId || "quickAction",
+    meta.adminUserId,
+    meta.userId,
+    meta.artistId,
+    meta.postId,
+    meta.reportId,
+    meta.settlementKey,
+    row[0],
+    row[1]
+  ].filter(Boolean).join(":");
+}
+
+function localHistoryRows(limit = 20) {
+  return readActionHistory().slice(0, limit).map((item) => [
+    formatHistoryTime(item.createdAt),
+    item.actor || "운영자",
+    item.actionLabel || item.status || "-",
+    item.target || "-",
+    item.note || item.message || "-"
+  ]);
+}
+
+function mergeLogRows(rows = []) {
+  const localRows = localHistoryRows(20);
+  return localRows.concat(rows || []).slice(0, 40);
 }
 
 function setStatus(message, type = "info") {
@@ -818,6 +873,62 @@ function renderFallbackNote(targetId, label = "현재 데이터를 불러오지 
   console.warn(`Backstage ${targetId}: ${label}`);
 }
 
+function formatHistoryTime(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function renderDetailHistory(detail) {
+  if (!detailHistoryList) return;
+  const key = detailHistoryKey(detail);
+  const rows = readActionHistory().filter((item) => item.detailKey === key).slice(0, 8);
+  if (!rows.length) {
+    detailHistoryList.innerHTML = `<p class="detail-history-empty">아직 처리 이력이 없습니다. 메모 저장, 보류, 상태 변경을 실행하면 이곳에 처리자와 시간이 남습니다.</p>`;
+    return;
+  }
+  detailHistoryList.innerHTML = rows.map((item) => `
+    <article class="detail-history-item">
+      <time>${escapeHtml(formatHistoryTime(item.createdAt))}</time>
+      <div class="detail-history-body">
+        <strong>${escapeHtml(item.actionLabel || item.status || "처리")}</strong>
+        <span>${escapeHtml(item.actor || "운영자")} · ${escapeHtml(item.status || "기록 완료")}</span>
+        <span>${escapeHtml(item.note || item.message || "운영 메모 없음")}</span>
+      </div>
+    </article>
+  `).join("");
+}
+
+function appendActionHistory(preview, result = {}) {
+  if (!preview) return null;
+  const entry = {
+    id: `BH-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    detailKey: preview.detailKey || detailHistoryKey(selectedDetail),
+    createdAt: new Date().toISOString(),
+    actor: currentOperatorLabel(),
+    menu: preview.menu || "백스테이지",
+    targetType: preview.targetType || "-",
+    target: preview.target || "-",
+    actionLabel: actionChangeLabel(preview),
+    status: result.status || "기록 완료",
+    note: preview.note || "운영 메모 미입력",
+    message: result.message || ""
+  };
+  const rows = [entry].concat(readActionHistory());
+  writeActionHistory(rows);
+  if (selectedDetail) renderDetailHistory(selectedDetail);
+  if (document.getElementById("logRows")) {
+    const sourceRows = sectionState.logs.rows?.length ? sectionState.logs.rows : backstageRows.logs;
+    renderRows("logRows", mergeLogRows(sourceRows), -1);
+  }
+  return entry;
+}
+
 function renderDetailPanel(detail) {
   if (!detailPanel || !detail) return;
   selectedDetail = detail;
@@ -829,6 +940,7 @@ function renderDetailPanel(detail) {
     return `<div><dt>${label}</dt><dd>${value}</dd></div>`;
   }).join("");
   renderDetailForm(detail);
+  renderDetailHistory(detail);
   detailMemo.value = "";
   updateDetailActions(detail);
 }
@@ -1883,10 +1995,11 @@ function buildActionPreview(action) {
     actionGroup: profile.group,
     targetType: profile.targetType,
     target,
+    detailKey: detailHistoryKey(detail),
     requestedAction: action === "danger" ? currentAction : action,
     method: profile.method,
     apiHint: profile.endpoint,
-    status: isLocalOnly ? "화면에서 임시 확인" : apiRequest ? (isMutation ? "저장 가능" : "조회 가능") : "대상 ID 또는 필수값 확인 필요",
+    status: isLocalOnly ? "처리 이력 기록" : apiRequest ? (isMutation ? "저장 가능" : "조회 가능") : "대상 ID 또는 필수값 확인 필요",
     bodyPreview: {
       targetType: profile.targetType,
       target,
@@ -1897,7 +2010,7 @@ function buildActionPreview(action) {
     },
     note: memo || "운영 메모 미입력",
     warning: isLocalOnly
-      ? "현재는 화면에서 운영 메모 흐름만 확인합니다. 저장 기능이 확정되면 같은 내용으로 연결합니다."
+      ? "현재 화면에 운영 메모와 처리 이력을 남깁니다. 처리 사유를 확인한 뒤 진행하세요."
       : apiRequest
         ? (isMutation ? profile.warning : "조회만 하는 항목입니다. 변경/제재/지급 같은 위험 처리는 별도 확정 전까지 잠가둡니다.")
       : profile.warning,
@@ -1934,7 +2047,7 @@ function renderConfirmSummary(preview, result = null) {
     ["대상", preview.target],
     ["변경 내용", actionChangeLabel(preview)],
     ["처리 메모", preview.note],
-    ["처리 방식", preview.canRunApi ? "서버에 저장" : "프론트 임시 확인"]
+    ["처리 방식", preview.canRunApi ? "서버에 저장" : "처리 이력 기록"]
   ];
   if (result?.status) rows.unshift(["상태", result.status]);
   if (result?.message) rows.push(["결과", result.message]);
@@ -1983,6 +2096,7 @@ async function runPreparedAction() {
       const summary = isMutation ? "서버 저장이 완료됐습니다." : summarizeApiResult(data);
       confirmMessage.textContent = isMutation ? "변경이 완료됐습니다." : "조회가 완료됐습니다.";
       confirmPayload.innerHTML = renderConfirmSummary(pendingActionPreview, { status: isMutation ? "변경 완료" : "조회 완료", message: summary });
+      appendActionHistory(pendingActionPreview, { status: isMutation ? "변경 완료" : "조회 완료", message: summary });
       console.debug("Backstage action result", { preview: pendingActionPreview, result: data });
       confirmRunButton.textContent = isMutation ? "변경 완료" : "조회 완료";
       if (help) help.textContent = `${pendingActionPreview.actionGroup} ${isMutation ? "저장" : "조회"} 처리가 끝났어요. 화면 반영이 필요한 목록은 새로고침으로 다시 불러올 수 있습니다.`;
@@ -1990,6 +2104,7 @@ async function runPreparedAction() {
     } catch (error) {
       confirmMessage.textContent = error.message || "처리에 실패했어요.";
       confirmPayload.innerHTML = renderConfirmSummary(pendingActionPreview, { status: "처리 실패", message: error.message || "잠시 후 다시 시도해 주세요." });
+      appendActionHistory(pendingActionPreview, { status: "처리 실패", message: error.message || "잠시 후 다시 시도해 주세요." });
       console.debug("Backstage action error", { preview: pendingActionPreview, errorStatus: error.status, errorBody: error.body });
       confirmRunButton.textContent = isMutation ? "다시 변경" : "다시 조회";
       confirmRunButton.disabled = false;
@@ -1997,8 +2112,9 @@ async function runPreparedAction() {
     return;
   }
   if (help) {
-    help.textContent = `${pendingActionPreview.actionGroup} 메모 흐름을 화면에서 확인했어요. 저장 기능이 확정되면 같은 내용으로 연결합니다.`;
+    help.textContent = `${pendingActionPreview.actionGroup} 메모와 처리 이력을 남겼어요. 운영 로그에서도 같은 내용을 확인할 수 있습니다.`;
   }
+  appendActionHistory(pendingActionPreview, { status: "기록 완료", message: "화면에서 처리 이력을 남겼습니다." });
   closeConfirmModal();
 }
 
@@ -2021,7 +2137,7 @@ function renderBackstageTables() {
   renderRows("studioSettlementRows", backstageRows.studioSettlement, 7);
   renderRows("settlementRows", backstageRows.settlement, 7);
   renderRows("aiSettlementRows", backstageRows.aiSettlement, -1);
-  renderRows("logRows", backstageRows.logs, -1);
+  renderRows("logRows", mergeLogRows(backstageRows.logs), -1);
 }
 
 function setActiveSection(sectionId = "overview") {
@@ -2170,7 +2286,7 @@ function renderBackstageSummary(summary) {
 
   if (debutRows.length) renderRows("overviewQueueRows", debutRows, 3);
   if (riskRows.length) renderRows("riskRows", riskRows, 3);
-  if (logRows.length) renderRows("logRows", logRows, -1);
+  if (logRows.length) renderRows("logRows", mergeLogRows(logRows), -1);
 }
 
 async function loadBackstageSummary() {
@@ -2642,7 +2758,8 @@ async function loadAuditPage(append = true) {
     state.cursor = page.nextCursor;
     state.hasMore = page.hasMore;
     setLoadMore("logs", page.hasMore);
-    if (state.rows.length) renderRows("logRows", state.rows, -1);
+    const mergedRows = mergeLogRows(state.rows);
+    if (mergedRows.length) renderRows("logRows", mergedRows, -1);
     else renderLoadingRow("logRows", "표시할 운영 로그가 없습니다.");
   } catch {
     renderBackstageTables();
