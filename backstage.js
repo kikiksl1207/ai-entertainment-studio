@@ -49,10 +49,12 @@ const statusClassMap = {
   "접수": "is-pending",
   "대기": "is-pending",
   "검수중": "is-review",
+  "검토중": "is-review",
   "확인중": "is-review",
   "제작중": "is-review",
   "승인": "is-approved",
   "통과": "is-approved",
+  "조치완료": "is-approved",
   "전달완료": "is-approved",
   "보류": "is-hold",
   "재검토": "is-hold",
@@ -165,6 +167,11 @@ const backstageRows = {
     ["댓글 #1204", "creator_min", "최근 신고 누적", "보류", "수정 요청"],
     ["공지 #77", "creator_09", "정상화 확인", "승인", "해제"]
   ],
+  moderationReports: [
+    ["MR-001", "유저", "serinist_01", "외부 연락 유도", "접수", "오픈채팅 패턴", "검토"],
+    ["MR-002", "댓글", "watch_user", "괴롭힘/공격 표현", "검토중", "반복 표현", "조치"],
+    ["MR-003", "아티스트", "fan_04", "권리 침해", "보관", "중복 신고", "상세"]
+  ],
   contentAnomalies: [
     ["피드 #912", "creator_doyun", "외부 연락처 패턴", "높음", "숨김"],
     ["피드 #909", "creator_ria", "반복 홍보 문구", "중간", "수정 요청"],
@@ -218,6 +225,7 @@ const tableMeta = {
   aiAssetRows: { type: "AI 아티스트 에셋", labels: ["아티스트", "커버", "썸네일", "포토갤러리", "숏폼", "업로드 규칙", "권장 액션"] },
   aiPostRows: { type: "AI 아티스트 콘텐츠", labels: ["아티스트", "피드 글", "프로필 문구", "채팅", "프리미엄", "권장 액션"] },
   moderationRows: { type: "크리에이터 콘텐츠", labels: ["콘텐츠", "작성자", "관리 사유", "상태", "권장 액션"] },
+  moderationReportRows: { type: "범용 신고 큐", labels: ["신고", "대상", "신고자", "사유", "상태", "메모", "권장 액션"] },
   contentAnomalyRows: { type: "이상 패턴", labels: ["콘텐츠", "작성자", "탐지 신호", "위험도", "권장 액션"] },
   reportCancelRows: { type: "취소/철회 신고", labels: ["신고", "대상", "신고자", "상태", "사유", "권장 액션"] },
   settlementRows: { type: "유저 크리에이터 정산", labels: ["아티스트", "제작자", "이벤트", "루미나", "총매출", "차감", "정산금", "상태", "권장 액션"] },
@@ -549,6 +557,52 @@ function localizeModerationStatus(status) {
   return statusMap[status] || localizeWorkflowStatus(status);
 }
 
+function localizeReportStatus(status) {
+  const statusMap = {
+    submitted: "접수",
+    reviewing: "검토중",
+    resolved: "조치완료",
+    dismissed: "반려",
+    archived: "보관"
+  };
+  return statusMap[status] || localizeWorkflowStatus(status);
+}
+
+function localizeReportReason(reason) {
+  const reasonMap = {
+    sexual_content: "선정적 콘텐츠",
+    harassment: "괴롭힘/공격 표현",
+    hate: "혐오 표현",
+    impersonation: "사칭",
+    spam: "스팸/반복 홍보",
+    external_contact: "외부 연락 유도",
+    external_payment: "외부 결제 유도",
+    rights_violation: "권리 침해",
+    other: "기타"
+  };
+  return reasonMap[reason] || reason || "-";
+}
+
+function localizeReportTarget(targetType) {
+  const targetMap = {
+    feed_post: "피드 글",
+    community_post: "피드 글",
+    reply: "댓글",
+    community_reply: "댓글",
+    user: "유저",
+    artist: "아티스트"
+  };
+  return targetMap[targetType] || targetType || "-";
+}
+
+function reportReporter(report = {}) {
+  return report.reporter?.profile?.displayName ||
+    report.reporter?.profile?.publicHandle ||
+    report.reporter?.email ||
+    report.reporterUserId?.slice?.(0, 8) ||
+    "-";
+}
+
 function creatorImageCostLabel(request = {}) {
   const metadata = request.metadata || {};
   const lumina = metadata.costLumina || metadata.priceLumina || metadata.luminaCost || 100;
@@ -631,6 +685,7 @@ function openQuickAction(button) {
     "업로드 추가": ["AI 에셋 업로드", "아티스트와 슬롯을 먼저 선택합니다. cover/thumb은 자동 판단하지 않고 운영자가 지정합니다.", "POST /admin/api/v1/artists/:artistId/assets/upload-intents"],
     "글 작성": ["AI 아티스트 글 작성", "아티스트를 선택하고 피드/프로필/공지/프리미엄 글 유형을 골라 작성합니다.", "POST /admin/api/v1/artists/:artistId/content"],
     "대상 설정": ["집중 관리 대상 설정", "신규 7일 모니터링, 신고 누적, 장기 미접속 등 관리 사유를 붙입니다.", "POST /admin/api/v1/creator-content/watchlist"],
+    "신고 큐 보기": ["범용 신고 큐", "유저, 댓글, 피드 글, 아티스트 신고를 한 표에서 확인합니다.", "GET /admin/api/v1/moderation/reports"],
     "패턴 보기": ["이상 패턴 확인", "연락처 유도, 반복 홍보, 공격 표현 등 탐지 신호를 확인합니다.", "GET /admin/api/v1/creator-content/anomalies"],
     "신고 이력": ["취소/철회 신고 이력", "접수, 취소, 철회, 중복 신고를 따로 보관하고 확인합니다.", "GET /admin/api/v1/community/reports?status=cancelled,withdrawn"],
     "정산 보기": ["정산 상세", "프리미엄챗, 유료 좋아요, 기타 매출, 차감, 정산금을 항목별로 봅니다.", "GET /admin/api/v1/settlements"],
@@ -829,6 +884,25 @@ function renderDetailForm(detail) {
       </div>
       <p class="detail-form-note">생성 결과는 resultAssetIds로 붙이고, 공개 프로필/피드/숏폼 반영은 별도 운영 결정으로 분리합니다.</p>
     `;
+  } else if (quickTitle === "범용 신고 큐" || tableId === "moderationReportRows") {
+    html = `
+      <h3>범용 신고 처리</h3>
+      <div class="detail-form-grid">
+        ${detailInput("신고 ID", "reportId", tableId === "moderationReportRows" ? row[0] || "" : "")}
+        ${detailInput("대상", "targetType", tableId === "moderationReportRows" ? row[1] || "" : "")}
+        ${detailInput("신고자", "reporter", tableId === "moderationReportRows" ? row[2] || "" : "")}
+        ${detailInput("사유", "reason", tableId === "moderationReportRows" ? row[3] || "" : "")}
+        ${detailSelect("처리 상태", "status", [
+          { value: "reviewing", label: "검토중" },
+          { value: "resolved", label: "조치완료" },
+          { value: "dismissed", label: "반려" },
+          { value: "archived", label: "보관" }
+        ], "reviewing")}
+        ${detailInput("대상 ID", "targetId", "", "text")}
+        ${detailTextarea("처리 메모", "detail", "신고 내용, 확인 근거, 조치 여부를 500자 이내로 남깁니다.")}
+      </div>
+      <p class="detail-form-note">범용 신고는 피드 글뿐 아니라 댓글, 유저, 아티스트까지 포함합니다. 전체 글 열람 대신 신고 대상과 사유 중심으로 확인합니다.</p>
+    `;
   }
 
   if (!html) return;
@@ -913,22 +987,25 @@ function getActionProfile(detail, action = "memo") {
     };
   }
 
-  if (["moderationRows", "contentAnomalyRows", "reportCancelRows", "riskRows"].includes(tableId)) {
+  if (["moderationRows", "moderationReportRows", "contentAnomalyRows", "reportCancelRows", "riskRows"].includes(tableId)) {
     const isReport = tableId === "reportCancelRows";
+    const isGenericReport = tableId === "moderationReportRows";
     const restore = rowAction.includes("복구") || status === "숨김";
     return {
       ...profile,
       group: "크리에이터 콘텐츠 조치",
-      targetType: isReport ? "report" : "creatorContent",
-      endpoint: isReport
+      targetType: isReport || isGenericReport ? "report" : "creatorContent",
+      endpoint: isGenericReport
+        ? "PATCH /admin/api/v1/moderation/reports/:reportId"
+        : isReport
         ? "POST /admin/api/v1/community/reports/:reportId/archive"
         : restore
           ? "POST /admin/api/v1/community/posts/:postId/restore"
           : "POST /admin/api/v1/community/posts/:postId/hide",
-      method: "POST",
+      method: isGenericReport ? "PATCH" : "POST",
       warning: "콘텐츠 숨김/복구/신고 보관은 사유와 대상 ID가 확정된 뒤 실행합니다. 전체 글 열람이 아니라 집중 관리 대상만 다룹니다.",
       holdLabel: "보류/재확인 메모",
-      dangerLabel: isReport ? "신고 보관" : restore ? "복구 실행" : "숨김/제재 검토",
+      dangerLabel: isGenericReport ? "신고 상태 변경" : isReport ? "신고 보관" : restore ? "복구 실행" : "숨김/제재 검토",
       showHold: true,
       showDanger: true
     };
@@ -1086,6 +1163,7 @@ function renderBackstageTables() {
   renderRows("aiAssetRows", backstageRows.aiAssets, -1);
   renderRows("aiPostRows", backstageRows.aiPosts, -1);
   renderRows("moderationRows", backstageRows.moderation, 3);
+  renderRows("moderationReportRows", backstageRows.moderationReports, 4);
   renderRows("contentAnomalyRows", backstageRows.contentAnomalies, 3);
   renderRows("reportCancelRows", backstageRows.reportCancels, 3);
   renderRows("settlementRows", backstageRows.settlement, 7);
@@ -1492,8 +1570,12 @@ async function loadAiContentSection() {
 
 async function loadModerationSection() {
   renderLoadingRow("moderationRows");
+  renderLoadingRow("moderationReportRows");
   try {
-    const posts = await backstageFetch(adminApiPath("/community/posts?status=published&minReports=1&sort=reports&take=20"), { auth: true });
+    const [posts, reportsPage] = await Promise.all([
+      backstageFetch(adminApiPath("/community/posts?status=published&minReports=1&sort=reports&take=20"), { auth: true }).catch(() => null),
+      backstageFetch(adminApiPath("/moderation/reports?take=20"), { auth: true }).catch(() => null)
+    ]);
     const rows = (Array.isArray(posts) ? posts : posts?.items || posts?.posts || []).map((post) => [
       post.id?.slice?.(0, 8) || "-",
       post.authorUser?.email || post.artist?.name || post.artist?.displayName || "-",
@@ -1501,11 +1583,23 @@ async function loadModerationSection() {
       post.status || "-",
       post.status === "hidden" ? "복구" : "숨김"
     ]);
+    const reportRows = normalizePage(reportsPage).items.map((report) => [
+      report.id?.slice?.(0, 8) || "-",
+      `${localizeReportTarget(report.targetType)} / ${report.targetId?.slice?.(0, 8) || "-"}`,
+      reportReporter(report),
+      localizeReportReason(report.reason),
+      localizeReportStatus(report.status),
+      report.detail || report.metadata?.adminNote || "-",
+      report.status === "resolved" || report.status === "archived" ? "상세" : "검토"
+    ]);
     if (rows.length) renderRows("moderationRows", rows, 3);
     else renderLoadingRow("moderationRows", "확인 필요한 콘텐츠가 없습니다.");
+    if (reportRows.length) renderRows("moderationReportRows", reportRows, 4);
+    else renderLoadingRow("moderationReportRows", "접수된 범용 신고가 없습니다.");
   } catch {
     renderBackstageTables();
     renderFallbackNote("moderationRows");
+    renderFallbackNote("moderationReportRows");
   }
 }
 
