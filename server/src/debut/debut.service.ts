@@ -132,22 +132,27 @@ export class DebutService {
         {
           key: 'consentAppearance',
           required: true,
-          labelKo: '본인 자료 또는 사용 권한이 있는 자료만 제출합니다.',
+          labelKo: '\uBCF8\uC778 \uC790\uB8CC \uB610\uB294 \uC0AC\uC6A9 \uAD8C\uD55C\uC774 \uC788\uB294 \uC790\uB8CC\uB9CC \uC81C\uCD9C\uD569\uB2C8\uB2E4.',
         },
         {
           key: 'consentRevenuePolicy',
           required: true,
-          labelKo: '수익배분은 심사와 계약 단계에서 최종 확정됨을 확인합니다.',
+          labelKo: '\uC218\uC775\uBC30\uBD84\uC740 \uC2EC\uC0AC\uC640 \uACC4\uC57D \uB2E8\uACC4\uC5D0\uC11C \uCD5C\uC885 \uD655\uC815\uB428\uC744 \uD655\uC778\uD569\uB2C8\uB2E4.',
         },
         {
           key: 'consentPrivacy',
           required: true,
-          labelKo: '신청 검토를 위한 개인정보 처리에 동의합니다.',
+          labelKo: '\uC2E0\uCCAD \uAC80\uD1A0\uB97C \uC704\uD55C \uAC1C\uC778\uC815\uBCF4 \uCC98\uB9AC\uC5D0 \uB3D9\uC758\uD569\uB2C8\uB2E4.',
         },
         {
           key: 'consentVoice',
           required: false,
-          labelKo: '목소리/노래/퍼포먼스 자료를 제출하는 경우 검토 사용에 동의합니다.',
+          labelKo: '\uBAA9\uC18C\uB9AC/\uB178\uB798/\uD37C\uD3EC\uBA3C\uC2A4 \uC790\uB8CC \uC81C\uCD9C \uC2DC \uAC80\uD1A0\uC640 \uC0AC\uC6A9\uC5D0 \uB3D9\uC758\uD569\uB2C8\uB2E4.',
+        },
+        {
+          key: 'consentMarketing',
+          required: false,
+          labelKo: '\uB9C8\uCF00\uD305 \uC815\uBCF4 \uC218\uC2E0\uC5D0 \uC120\uD0DD \uB3D9\uC758\uD569\uB2C8\uB2E4.',
         },
       ],
       fieldPolicy: {
@@ -214,6 +219,7 @@ export class DebutService {
         consentVoice: input.consentVoice,
         consentRevenuePolicy: true,
         consentPrivacy: true,
+        consentMarketing: this.optionalConsentMarketing(input),
         metadata,
       },
       include: this.applicationInclude(),
@@ -478,9 +484,19 @@ export class DebutService {
       partnerReviewStatus: partnerReviewRequired ? 'pending' : 'not_applicable',
       preferredContactTime: input.preferredContactTime ?? null,
       consultationConsent: input.consultationConsent ?? null,
+      consentMarketing: this.optionalConsentMarketing(input),
       consultationStatus: 'pending',
       materialSubmissionMode: 'no_file_upload_mvp',
     });
+  }
+
+  private optionalConsentMarketing(input: CreateDebutApplicationDto) {
+    if (input.consentMarketing !== undefined) {
+      return input.consentMarketing;
+    }
+
+    const metadataConsent = input.metadata?.consentMarketing;
+    return typeof metadataConsent === 'boolean' ? metadataConsent : false;
   }
 
   private debutApplicationWhere(input: {

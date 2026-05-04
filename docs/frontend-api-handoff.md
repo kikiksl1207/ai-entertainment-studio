@@ -901,6 +901,7 @@ Body:
   "consentVoice": false,
   "consentRevenuePolicy": true,
   "consentPrivacy": true,
+  "consentMarketing": false,
   "consultationConsent": true
 }
 ```
@@ -934,7 +935,9 @@ Allowed `participationType` values:
 - `performance`: appearance plus singing/dance/acting performance, draft share range 45-60%.
 - `co_creator`: ongoing planning/content/fandom participation, up to 70%.
 
-Required consents: `consentAppearance`, `consentRevenuePolicy`, `consentPrivacy`. Keep real IDs, contracts, and sensitive files outside Notion/Git/chat until the final secure upload/contract process is defined.
+Required consents: `consentAppearance`, `consentRevenuePolicy`, `consentPrivacy`. Optional consents: `consentVoice`, `consentMarketing`.
+
+`consentMarketing` is a top-level optional boolean. Prefer sending it at the top level with the other consent fields. For temporary compatibility, the backend also accepts `metadata.consentMarketing`, but the top-level field is the confirmed frontend contract. Keep real IDs, contracts, and sensitive files outside Notion/Git/chat until the final secure upload/contract process is defined.
 
 Validation notes:
 

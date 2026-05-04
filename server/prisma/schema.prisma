@@ -727,6 +727,7 @@ model DebutApplication {
   consentVoice         Boolean  @default(false) @map("consent_voice")
   consentRevenuePolicy Boolean  @default(false) @map("consent_revenue_policy")
   consentPrivacy       Boolean  @default(false) @map("consent_privacy")
+  consentMarketing     Boolean  @default(false) @map("consent_marketing")
   reviewNote           String?  @map("review_note")
   metadata             Json     @default("{}")
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

@@ -57,6 +57,7 @@ after identity, rights, risk, and contribution review.
 - `consentVoice`: true only when voice/song/performance material is submitted.
 - `consentRevenuePolicy`: required true.
 - `consentPrivacy`: required true.
+- `consentMarketing`: optional marketing-receive consent. Store separately from required consents.
 - `consultationConsent`: required true for `phone_consultation`.
 - `metadata`: structured extension object for non-sensitive detail.
 

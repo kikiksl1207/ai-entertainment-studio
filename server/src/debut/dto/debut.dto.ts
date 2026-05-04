@@ -184,6 +184,10 @@ export class CreateDebutApplicationDto {
   consentPrivacy!: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  consentMarketing?: boolean;
+
+  @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>;
 }
