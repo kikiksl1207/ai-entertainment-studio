@@ -532,6 +532,11 @@ function financialValue(financials, keys) {
   return 0;
 }
 
+function won(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? Math.max(0, Math.round(number)) : 0;
+}
+
 function settlementDeductions(financials = {}) {
   const explicit = [
     financialValue(financials, ["vatKrw", "vatAmountKrw", "salesVatKrw"]),
@@ -546,6 +551,19 @@ function settlementDeductions(financials = {}) {
   const gross = financialValue(financials, ["grossRevenueKrw"]);
   const net = financialValue(financials, ["netRevenueKrw"]);
   return Math.max(0, gross - net);
+}
+
+function settlementMath(financials = {}, fallback = {}) {
+  const gross = won(financialValue(financials, ["grossRevenueKrw"]) || fallback.grossRevenueKrw || 0);
+  const deductions = won(settlementDeductions(financials) || fallback.deductionsKrw || 0);
+  const calculated = won(Math.max(0, gross - deductions));
+  const explicit = won(financialValue(financials, ["creatorShareKrw", "settlementKrw"]) || fallback.settlementKrw || 0);
+  const useExplicit = explicit > 0 && Math.abs(explicit - calculated) <= 1;
+  return {
+    gross,
+    deductions,
+    settlement: useExplicit ? explicit : calculated
+  };
 }
 
 function creatorNames(creators = []) {
@@ -567,13 +585,14 @@ function settlementChildrenFromItem(item = {}) {
   if (!Array.isArray(source)) return [];
   return source.map((child) => {
     const financials = child.financials || {};
+    const math = settlementMath(financials, child);
     return [
       child.artist?.displayName || child.artist?.name || child.displayName || child.name || child.slug || "-",
       formatCount(child.eventCount || 0),
       `${formatCount(child.grossLumina || 0)}L`,
-      krw(financialValue(financials, ["grossRevenueKrw"]) || child.grossRevenueKrw || 0),
-      krw(settlementDeductions(financials) || child.deductionsKrw || 0),
-      krw(financialValue(financials, ["creatorShareKrw", "settlementKrw"]) || child.settlementKrw || 0)
+      krw(math.gross),
+      krw(math.deductions),
+      krw(math.settlement)
     ];
   });
 }
@@ -592,6 +611,7 @@ function isStudioSettlementItem(item = {}) {
 
 function settlementRowFromItem(item = {}, studio = false) {
   const financials = item.financials || {};
+  const math = settlementMath(financials, item);
   const actorName = studio
     ? item.creator?.displayName || item.creator?.name || creatorNames(item.creators) || item.operator?.displayName || "-"
     : item.artist?.displayName || item.artist?.name || item.artist?.slug || "-";
@@ -600,9 +620,9 @@ function settlementRowFromItem(item = {}, studio = false) {
     studio ? "스튜디오 운영자" : creatorNames(item.creators),
     studio ? `${settlementChildrenFromItem(item).length || item.artistCount || 0}명` : formatCount(item.eventCount || 0),
     `${formatCount(item.grossLumina || 0)}L`,
-    krw(financials.grossRevenueKrw || 0),
-    krw(settlementDeductions(financials)),
-    krw(financials.creatorShareKrw || financials.settlementKrw || 0),
+    krw(math.gross),
+    krw(math.deductions),
+    krw(math.settlement),
     localizeSettlementStatus(item.status),
     studio ? "캐릭터별 보기" : "확정 전"
   ];
@@ -1546,7 +1566,7 @@ function formatDate(value) {
 }
 
 function krw(value) {
-  const number = Number(value || 0);
+  const number = won(value);
   return Number.isFinite(number) ? `${number.toLocaleString("ko-KR")}원` : String(value || "-");
 }
 
