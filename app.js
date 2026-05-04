@@ -2412,6 +2412,7 @@ function normalizeFeedPost(raw) {
     authorName: raw.authorName || raw.author?.displayName || raw.user?.displayName || raw.user?.nickname || "",
     avatarUrl: raw.avatarUrl || raw.author?.avatarUrl || raw.user?.avatarUrl || "",
     body: raw.body || raw.content || "",
+    canEdit: Boolean(raw.canEdit || raw.canUpdate || raw.isMine || (authUserId && authorUserId && String(authUserId) === String(authorUserId))),
     canDelete: Boolean(raw.canDelete || raw.isMine || (authUserId && authorUserId && String(authUserId) === String(authorUserId)))
   };
 }
@@ -2504,6 +2505,9 @@ function renderLuminaFeed() {
     const clickable = artist
       ? ` clickable-card" data-href="./character-detail.html?slug=${artist.slug}`
       : "";
+    const editButton = post.canEdit && post.id
+      ? `<button class="feed-action-btn feed-edit-btn" type="button" data-feed-edit="${feedEscapeHtml(post.id)}" aria-label="게시글 수정">수정하기</button>`
+      : "";
     const deleteButton = post.canDelete && post.id
       ? `<button class="feed-action-btn feed-delete-btn" type="button" data-feed-delete="${feedEscapeHtml(post.id)}" aria-label="게시글 삭제">삭제</button>`
       : "";
@@ -2534,6 +2538,7 @@ function renderLuminaFeed() {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
             <span>—</span>
           </button>
+          ${editButton}
           ${deleteButton}
         </footer>
       </article>
@@ -2571,6 +2576,47 @@ function bindLuminaFeedTabs() {
       }
       renderLuminaFeed();
     });
+  });
+}
+
+function bindLuminaFeedEdit() {
+  if (document._feedEditBound) return;
+  document._feedEditBound = true;
+  document.addEventListener("click", async e => {
+    const btn = e.target.closest("[data-feed-edit]");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const postId = btn.dataset.feedEdit;
+    const post = _luminaFeedItems.find(item => String(item.id) === String(postId));
+    if (!post) return;
+    const nextBody = prompt("피드 내용을 수정해주세요.", post.body || "");
+    if (nextBody === null) return;
+    const body = nextBody.trim();
+    if (body.length === 0) {
+      alert("피드 내용은 비워둘 수 없어요.");
+      return;
+    }
+    if (body.length > FEED_COMPOSE_MAX_BODY) {
+      alert(`피드 내용은 최대 ${FEED_COMPOSE_MAX_BODY}자까지 작성할 수 있어요.`);
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = "수정 중";
+    try {
+      await apiFetch(`/api/v1/lumina-feed/posts/${encodeURIComponent(postId)}`, {
+        method: "PATCH",
+        auth: true,
+        throwOnError: true,
+        body: JSON.stringify({ body })
+      });
+      post.body = body;
+      renderLuminaFeed();
+    } catch (err) {
+      alert(err.message || "피드 글을 수정하지 못했어요. 잠시 후 다시 시도해주세요.");
+      btn.disabled = false;
+      btn.textContent = "수정하기";
+    }
   });
 }
 
@@ -5431,6 +5477,7 @@ async function init() {
     renderLuminaFeed();
     bindLuminaFeedTabs();
     bindLuminaFeedExpand();
+    bindLuminaFeedEdit();
     bindLuminaFeedDelete();
     // #056: 피드 작성창 (로그인 시 노출, 이미지 4장 첨부 + 업로드 흐름)
     initFeedCompose();

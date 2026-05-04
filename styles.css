@@ -5439,6 +5439,20 @@ p {
   margin-left: auto;
   color: rgba(255, 150, 170, 0.82);
 }
+.feed-edit-btn,
+.feed-delete-btn {
+  cursor: pointer;
+}
+.feed-edit-btn {
+  margin-left: auto;
+  color: rgba(220, 210, 240, 0.78);
+}
+.feed-edit-btn + .feed-delete-btn {
+  margin-left: 0;
+}
+.feed-edit-btn:hover:not(:disabled) {
+  color: #ffffff;
+}
 .feed-delete-btn:hover:not(:disabled) {
   color: #ffb3c2;
 }
