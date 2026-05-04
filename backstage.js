@@ -555,14 +555,19 @@ function settlementDeductions(financials = {}) {
 
 function settlementMath(financials = {}, fallback = {}) {
   const gross = won(financialValue(financials, ["grossRevenueKrw"]) || fallback.grossRevenueKrw || 0);
-  const deductions = won(settlementDeductions(financials) || fallback.deductionsKrw || 0);
-  const calculated = won(Math.max(0, gross - deductions));
   const explicit = won(financialValue(financials, ["creatorShareKrw", "settlementKrw"]) || fallback.settlementKrw || 0);
-  const useExplicit = explicit > 0 && Math.abs(explicit - calculated) <= 1;
+  if (explicit > 0) {
+    return {
+      gross,
+      deductions: won(Math.max(0, gross - explicit)),
+      settlement: explicit
+    };
+  }
+  const deductions = won(settlementDeductions(financials) || fallback.deductionsKrw || 0);
   return {
     gross,
     deductions,
-    settlement: useExplicit ? explicit : calculated
+    settlement: won(Math.max(0, gross - deductions))
   };
 }
 
@@ -581,7 +586,7 @@ function creatorNames(creators = []) {
 }
 
 function settlementChildrenFromItem(item = {}) {
-  const source = item.artistSettlements || item.artistBreakdown || item.children || item.items || [];
+  const source = item.artists || item.artistSettlements || item.artistBreakdown || item.children || item.items || [];
   if (!Array.isArray(source)) return [];
   return source.map((child) => {
     const financials = child.financials || {};
@@ -610,20 +615,20 @@ function isStudioSettlementItem(item = {}) {
 }
 
 function settlementRowFromItem(item = {}, studio = false) {
-  const financials = item.financials || {};
+  const financials = item.financials || item.totals || {};
   const math = settlementMath(financials, item);
   const actorName = studio
-    ? item.creator?.displayName || item.creator?.name || creatorNames(item.creators) || item.operator?.displayName || "-"
+    ? item.partner?.displayName || item.partner?.publicHandle || item.partner?.email || item.creator?.displayName || item.creator?.name || creatorNames(item.creators) || item.operator?.displayName || "-"
     : item.artist?.displayName || item.artist?.name || item.artist?.slug || "-";
   return [
     actorName,
     studio ? "스튜디오 운영자" : creatorNames(item.creators),
-    studio ? `${settlementChildrenFromItem(item).length || item.artistCount || 0}명` : formatCount(item.eventCount || 0),
-    `${formatCount(item.grossLumina || 0)}L`,
+    studio ? `${settlementChildrenFromItem(item).length || item.operatedArtistCount || item.artistCount || 0}명` : formatCount(item.eventCount || 0),
+    `${formatCount(item.grossLumina || item.totals?.grossLumina || 0)}L`,
     krw(math.gross),
     krw(math.deductions),
     krw(math.settlement),
-    localizeSettlementStatus(item.status),
+    localizeSettlementStatus(item.payoutStatus || item.status),
     studio ? "캐릭터별 보기" : "확정 전"
   ];
 }
@@ -1914,12 +1919,21 @@ async function loadSettlementPage(append = true) {
   const query = new URLSearchParams({ period: currentSettlementPeriod(), take: "20" });
   if (append && state.cursor) query.set("cursor", state.cursor);
   try {
-    const data = await backstageFetch(adminApiPath(`/backstage/operations/settlement-preview?${query}`), { auth: true });
+    const partnerQuery = new URLSearchParams({ period: currentSettlementPeriod(), take: "20", settlementRateBps: "5000" });
+    const [data, partnerData] = await Promise.all([
+      backstageFetch(adminApiPath(`/backstage/operations/settlement-preview?${query}`), { auth: true }),
+      append ? Promise.resolve(null) : backstageFetch(adminApiPath(`/backstage/operations/partner-settlement-preview?${partnerQuery}`), { auth: true }).catch(() => null)
+    ]);
     const page = normalizePage(data);
     const notice = document.getElementById("settlementNotice");
     if (notice) {
       notice.textContent = data?.notice || "정산 데이터는 예상치/확정 전입니다. 실제 지급 확정 전 환불, 차지백, 세무, 운영 확인이 필요합니다.";
     }
+    const partnerPage = partnerData ? normalizePage(partnerData) : { items: [] };
+    const partnerRows = partnerPage.items.map((item) => ({
+      row: settlementRowFromItem(item, true),
+      children: settlementChildrenFromItem(item)
+    }));
     const studioRows = [];
     const rows = [];
     page.items.forEach((item) => {
@@ -1930,7 +1944,7 @@ async function loadSettlementPage(append = true) {
       }
       rows.push(settlementRowFromItem(item, false));
     });
-    const visibleStudioRows = append ? (state.studioRows || []).concat(studioRows) : studioRows;
+    const visibleStudioRows = append ? (state.studioRows || []).concat(studioRows) : partnerRows.concat(studioRows);
     state.rows = append ? state.rows.concat(rows) : rows;
     state.studioRows = visibleStudioRows;
     state.cursor = page.nextCursor;
