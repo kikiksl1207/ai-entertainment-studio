@@ -183,6 +183,13 @@ const backstageRows = {
     ["RP-768", "피드 #870", "watch_user", "철회", "중복 신고", "보관"]
   ],
   settlement: [
+    {
+      row: ["studio_lumi", "스튜디오 운영자", "31", "5,000L", "100,000원", "50,000원", "50,000원", "예상치", "캐릭터별 보기"],
+      children: [
+        ["A캐릭터", "18", "2,000L", "40,000원", "20,000원", "20,000원"],
+        ["B캐릭터", "13", "3,000L", "60,000원", "30,000원", "30,000원"]
+      ]
+    },
     ["creator_cha", "cha_creator", "18", "2,840L", "28,400원", "6,000원", "17,920원", "예상치", "확정 전"],
     ["creator_yoon", "yoon_creator", "9", "1,600L", "16,000원", "3,100원", "10,320원", "예상치", "확정 전"],
     ["creator_park", "park_creator", "0", "0L", "0원", "0원", "0원", "매출없음", "확정 전"]
@@ -446,10 +453,15 @@ function renderRows(targetId, rows, statusIndex) {
   const target = document.getElementById(targetId);
   if (!target) return;
   const meta = tableMeta[targetId] || { type: "상세", labels: [] };
-  target.innerHTML = rows.map((row) => {
+  target.innerHTML = rows.map((entry, rowIndex) => {
+    const row = Array.isArray(entry) ? entry : entry.row || [];
+    const children = Array.isArray(entry) ? [] : entry.children || [];
     const cells = row.map((cell, index) => {
       const label = meta.labels?.[index] || "";
       const isSettlementAmount = label === "정산금";
+      const childToggle = children.length && targetId === "settlementRows" && index === 0
+        ? `<button class="row-toggle" type="button" data-settlement-toggle="${targetId}-${rowIndex}" aria-expanded="false">펼침</button>`
+        : "";
       const content = index === statusIndex
         ? statusBadge(cell)
         : isSettlementAmount
@@ -459,10 +471,35 @@ function renderRows(targetId, rows, statusIndex) {
         const payload = encodeURIComponent(JSON.stringify({ tableId: targetId, type: meta.type, labels: meta.labels, row }));
         return `<td><button class="row-action" type="button" data-detail="${payload}">${content}</button></td>`;
       }
-      return `<td${isSettlementAmount ? ' class="settlement-cell"' : ""}>${content}</td>`;
+      return `<td${isSettlementAmount ? ' class="settlement-cell"' : ""}>${childToggle}${content}</td>`;
     }).join("");
-    return `<tr data-table-id="${targetId}">${cells}</tr>`;
+    const childRows = children.length
+      ? `<tr class="settlement-child-row is-hidden" data-settlement-child="${targetId}-${rowIndex}"><td colspan="${row.length}">${renderSettlementChildren(children)}</td></tr>`
+      : "";
+    return `<tr data-table-id="${targetId}">${cells}</tr>${childRows}`;
   }).join("");
+}
+
+function renderSettlementChildren(children = []) {
+  const rows = children.map((child) => `
+    <tr>
+      <td>${child[0] || "-"}</td>
+      <td>${child[1] || "0"}</td>
+      <td>${child[2] || "0L"}</td>
+      <td>${child[3] || "0원"}</td>
+      <td>${child[4] || "0원"}</td>
+      <td class="settlement-cell"><strong class="settlement-amount">${child[5] || "0원"}</strong></td>
+    </tr>
+  `).join("");
+  return `
+    <div class="settlement-breakdown">
+      <strong>캐릭터별 정산 내역</strong>
+      <table>
+        <thead><tr><th>캐릭터</th><th>이벤트</th><th>루미나</th><th>총매출</th><th>차감</th><th>정산금</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
 }
 
 function normalizePage(data) {
@@ -520,6 +557,22 @@ function creatorNames(creators = []) {
     creator.id?.slice?.(0, 8) ||
     "-"
   )).join(", ");
+}
+
+function settlementChildrenFromItem(item = {}) {
+  const source = item.artistSettlements || item.artistBreakdown || item.children || item.items || [];
+  if (!Array.isArray(source)) return [];
+  return source.map((child) => {
+    const financials = child.financials || {};
+    return [
+      child.artist?.displayName || child.artist?.name || child.displayName || child.name || child.slug || "-",
+      formatCount(child.eventCount || 0),
+      `${formatCount(child.grossLumina || 0)}L`,
+      krw(financialValue(financials, ["grossRevenueKrw"]) || child.grossRevenueKrw || 0),
+      krw(settlementDeductions(financials) || child.deductionsKrw || 0),
+      krw(financialValue(financials, ["creatorShareKrw", "settlementKrw"]) || child.settlementKrw || 0)
+    ];
+  });
 }
 
 function localizeCreatorImageType(type) {
@@ -1783,7 +1836,7 @@ async function loadSettlementPage(append = true) {
     }
     const rows = page.items.map((item) => {
       const financials = item.financials || {};
-      return [
+      const row = [
         item.artist?.displayName || item.artist?.name || item.artist?.slug || "-",
         creatorNames(item.creators),
         formatCount(item.eventCount || 0),
@@ -1794,6 +1847,8 @@ async function loadSettlementPage(append = true) {
         localizeSettlementStatus(item.status),
         "확정 전"
       ];
+      const children = settlementChildrenFromItem(item);
+      return children.length ? { row, children } : row;
     });
     state.rows = append ? state.rows.concat(rows) : rows;
     state.cursor = page.nextCursor;
@@ -1945,6 +2000,16 @@ document.addEventListener("click", (event) => {
 
   const filterButton = event.target.closest(".filter-chip");
   if (filterButton) applyOverviewFilter(filterButton);
+
+  const settlementToggle = event.target.closest("[data-settlement-toggle]");
+  if (settlementToggle) {
+    const key = settlementToggle.dataset.settlementToggle;
+    const childRow = document.querySelector(`[data-settlement-child="${key}"]`);
+    const willOpen = childRow?.classList.contains("is-hidden");
+    childRow?.classList.toggle("is-hidden", !willOpen);
+    settlementToggle.textContent = willOpen ? "접기" : "펼침";
+    settlementToggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
+  }
 });
 
 document.addEventListener("keydown", (event) => {
