@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Creator Studio | Lumina Stage</title>
+    <meta name="description" content="Lumina Stage 크리에이터가 아티스트, 피드, 에셋, 정산 예정금을 관리하는 전용 스튜디오입니다." />
+    <link rel="icon" href="./assets/brand/lumina-stage-logo.png" />
+    <style>
+      :root {
+        --bg: #090812;
+        --panel: #151322;
+        --panel-2: #1f1b32;
+        --panel-3: #25193f;
+        --line: rgba(255,255,255,0.12);
+        --line-strong: rgba(255,255,255,0.2);
+        --text: #f8f4ff;
+        --muted: #b8aecf;
+        --hot: #ff4fc3;
+        --violet: #9b7cf7;
+        --cyan: #5eead4;
+        --warn: #fbbf24;
+        --danger: #fb7185;
+        --good: #34d399;
+        --shadow: 0 28px 80px rgba(0,0,0,0.34);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at 15% 8%, rgba(155,124,247,0.28), transparent 34%), var(--bg);
+        color: var(--text);
+        font-family: Inter, Pretendard, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        letter-spacing: 0;
+      }
+      button, input, select, textarea { font: inherit; }
+      button { cursor: pointer; }
+      a { color: inherit; text-decoration: none; }
+      .studio-shell { min-height: 100vh; display: grid; grid-template-columns: 280px 1fr; }
+      .studio-sidebar {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+        padding: 24px 18px;
+        border-right: 1px solid var(--line);
+        background: rgba(9,8,18,0.88);
+        backdrop-filter: blur(18px);
+      }
+      .brand { display: flex; align-items: center; gap: 12px; min-height: 48px; }
+      .brand img { width: 42px; height: 42px; border-radius: 8px; object-fit: cover; }
+      .brand span { display: grid; gap: 2px; }
+      .brand strong { color: var(--hot); font-size: 15px; }
+      .brand small { color: var(--muted); font-weight: 800; }
+      .studio-nav { display: grid; gap: 8px; }
+      .studio-nav button {
+        width: 100%;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 14px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--muted);
+        font-weight: 900;
+        text-align: left;
+      }
+      .studio-nav button.is-active { border-color: rgba(255,79,195,0.35); background: rgba(255,79,195,0.13); color: var(--text); }
+      .studio-nav b { min-width: 24px; height: 24px; display: grid; place-items: center; border-radius: 999px; background: rgba(255,255,255,0.08); color: var(--muted); font-size: 12px; }
+      .studio-account {
+        margin-top: auto;
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255,255,255,0.04);
+      }
+      .studio-account small { color: var(--muted); font-weight: 900; }
+      .studio-account strong { word-break: break-all; }
+      .studio-account button, .top-actions button, .primary-action, .secondary-action, .danger-action {
+        min-height: 38px;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        padding: 0 16px;
+        background: rgba(255,255,255,0.06);
+        color: var(--text);
+        font-weight: 950;
+      }
+      .primary-action { border-color: rgba(255,79,195,0.6); background: linear-gradient(135deg, #ff4fc3, #9b7cf7); }
+      .danger-action { border-color: rgba(251,113,133,0.5); color: #fecdd3; }
+      .studio-main { min-width: 0; padding: 28px clamp(18px, 3vw, 44px) 64px; }
+      .studio-topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 30px; }
+      .studio-topbar h1 { margin: 6px 0 8px; font-size: clamp(34px, 5vw, 66px); line-height: 1.02; }
+      .studio-topbar p { margin: 0; color: var(--muted); line-height: 1.7; }
+      .eyebrow { display: inline-flex; min-height: 28px; align-items: center; padding: 0 12px; border-radius: 999px; background: rgba(155,124,247,0.17); color: #d8c9ff; font-size: 12px; font-weight: 950; text-transform: uppercase; }
+      .top-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+      .studio-section { display: none; }
+      .studio-section.is-active { display: grid; gap: 22px; }
+      .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+      .metric-card, .panel, .table-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(21,19,34,0.9);
+        box-shadow: var(--shadow);
+      }
+      .metric-card { min-height: 118px; display: grid; align-content: space-between; padding: 18px; }
+      .metric-card span, .panel-kicker, th, label span { color: var(--muted); font-size: 12px; font-weight: 950; }
+      .metric-card strong { font-size: 28px; }
+      .metric-card small { color: var(--muted); }
+      .panel { padding: 20px; }
+      .panel-header, .table-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+      .panel h2, .table-card h2, .table-card h3 { margin: 6px 0 0; font-size: 22px; }
+      .panel p { color: var(--muted); line-height: 1.7; }
+      .two-col { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr); gap: 18px; }
+      .artist-list { display: grid; gap: 12px; }
+      .artist-card { display: grid; grid-template-columns: 82px 1fr auto; gap: 14px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,0.04); }
+      .artist-thumb { width: 82px; aspect-ratio: 3 / 4; border-radius: 8px; object-fit: cover; background: linear-gradient(160deg, #40325c, #130d20); }
+      .artist-card h3 { margin: 0 0 6px; font-size: 18px; }
+      .artist-card p { margin: 0; color: var(--muted); line-height: 1.5; }
+      .badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+      .badge { display: inline-flex; min-height: 24px; align-items: center; padding: 0 9px; border-radius: 999px; background: rgba(155,124,247,0.18); color: #dfd4ff; font-size: 12px; font-weight: 900; }
+      .badge.is-warn { background: rgba(251,191,36,0.15); color: #fde68a; }
+      .badge.is-good { background: rgba(52,211,153,0.14); color: #a7f3d0; }
+      .badge.is-danger { background: rgba(251,113,133,0.16); color: #fecdd3; }
+      .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+      label { display: grid; gap: 7px; }
+      label.is-wide { grid-column: 1 / -1; }
+      input, select, textarea {
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid var(--line-strong);
+        border-radius: 8px;
+        background: rgba(255,255,255,0.055);
+        color: var(--text);
+        padding: 10px 12px;
+        outline: none;
+      }
+      select option { color: #111827; }
+      textarea { min-height: 132px; resize: vertical; line-height: 1.6; }
+      input:focus, select:focus, textarea:focus { border-color: var(--hot); box-shadow: 0 0 0 3px rgba(255,79,195,0.14); }
+      .table-card { overflow: hidden; }
+      .table-card header { padding: 18px 18px 14px; }
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; min-width: 760px; border-collapse: collapse; }
+      th, td { height: 50px; padding: 0 16px; border-top: 1px solid var(--line); text-align: left; white-space: nowrap; }
+      td { color: var(--text); }
+      .money { color: var(--danger); font-weight: 950; }
+      .feed-composer { display: grid; gap: 12px; }
+      .composer-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+      .media-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+      .media-tile { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,0.04); }
+      .media-tile img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block; }
+      .media-tile footer { display: flex; justify-content: space-between; gap: 8px; padding: 10px; color: var(--muted); font-size: 12px; font-weight: 900; }
+      .notice {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px;
+        border: 1px solid rgba(94,234,212,0.26);
+        border-radius: 8px;
+        background: rgba(94,234,212,0.08);
+        color: #d5fff8;
+        line-height: 1.65;
+      }
+      .notice strong { color: var(--cyan); }
+      .studio-toast {
+        position: fixed;
+        left: 50%;
+        bottom: 28px;
+        z-index: 50;
+        transform: translateX(-50%) translateY(18px);
+        opacity: 0;
+        pointer-events: none;
+        min-width: min(420px, calc(100% - 32px));
+        padding: 13px 16px;
+        border: 1px solid rgba(255,255,255,0.18);
+        border-radius: 999px;
+        background: rgba(20,17,32,0.96);
+        color: var(--text);
+        text-align: center;
+        box-shadow: var(--shadow);
+        transition: opacity 0.2s ease, transform 0.2s ease;
+      }
+      .studio-toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+      @media (max-width: 1120px) {
+        .studio-shell { grid-template-columns: 1fr; }
+        .studio-sidebar { position: static; height: auto; }
+        .studio-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .studio-account { margin-top: 0; }
+        .metric-grid, .media-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .two-col { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 680px) {
+        .studio-main { padding: 22px 14px 42px; }
+        .studio-topbar, .panel-header, .table-card header { flex-direction: column; }
+        .studio-nav, .metric-grid, .media-grid, .form-grid { grid-template-columns: 1fr; }
+        .artist-card { grid-template-columns: 70px 1fr; }
+        .artist-card .secondary-action { grid-column: 1 / -1; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="studio-shell">
+      <aside class="studio-sidebar">
+        <a class="brand" href="./index.html">
+          <img src="./assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
+          <span>
+            <strong>Lumina Stage</strong>
+            <small>Creator Studio</small>
+          </span>
+        </a>
+        <nav class="studio-nav" aria-label="크리에이터 스튜디오">
+          <button class="is-active" type="button" data-section="dashboard">홈 <b>4</b></button>
+          <button type="button" data-section="artists">아티스트 <b>3</b></button>
+          <button type="button" data-section="feed">피드 작성 <b>6</b></button>
+          <button type="button" data-section="media">이미지/숏폼 <b>24</b></button>
+          <button type="button" data-section="image-lab">이미지 생성 <b>100L</b></button>
+          <button type="button" data-section="settlement">정산 <b>₩</b></button>
+          <button type="button" data-section="settings">설정 <b>!</b></button>
+        </nav>
+        <div class="studio-account">
+          <small>접속 계정</small>
+          <strong>creator@lumina-stage.test</strong>
+          <span class="badge is-good">스튜디오 운영자</span>
+          <button type="button" data-action="toast">로그아웃</button>
+        </div>
+      </aside>
+
+      <main class="studio-main">
+        <header class="studio-topbar">
+          <div>
+            <span class="eyebrow">My Creator Stage</span>
+            <h1>내 아티스트 운영실</h1>
+            <p>피드, 이미지, 숏폼, 정산 예정금까지 한 곳에서 관리합니다. 여러 캐릭터를 운영하는 계정은 캐릭터별 상태를 함께 확인합니다.</p>
+          </div>
+          <div class="top-actions">
+            <button type="button" data-action="toast">새 피드</button>
+            <button class="primary-action" type="button" data-section-jump="image-lab">이미지 생성</button>
+          </div>
+        </header>
+
+        <section class="studio-section is-active" id="dashboard">
+          <div class="metric-grid">
+            <article class="metric-card"><span>운영 아티스트</span><strong>3명</strong><small>활동 2 · 휴식기 후보 1</small></article>
+            <article class="metric-card"><span>오늘 반응</span><strong>1,284</strong><small>피드 812 · 숏폼 472</small></article>
+            <article class="metric-card"><span>정산 예정</span><strong class="money">128,400원</strong><small>세무/계좌 확인 전 예상치</small></article>
+            <article class="metric-card"><span>루미나</span><strong>420L</strong><small>이미지 생성 4회 가능</small></article>
+          </div>
+          <div class="two-col">
+            <article class="panel">
+              <div class="panel-header">
+                <div><span class="panel-kicker">ATTENTION</span><h2>오늘 확인할 일</h2></div>
+                <button class="secondary-action" type="button" data-action="toast">전체 확인</button>
+              </div>
+              <div class="artist-list">
+                <div class="notice"><strong>정산 주소 입력 필요</strong><span>첫 정산 전 세무 서류용 주소를 한 번만 입력해야 합니다. 주소는 정산/세무 처리에만 사용됩니다.</span></div>
+                <div class="notice"><strong>하민 피드 미작성 8시간</strong><span>6시간 이상 피드가 없으면 운영 상태에 표시됩니다. 자동 작성은 추후 API 연결 후 사용합니다.</span></div>
+                <div class="notice"><strong>이미지 생성 1건 검수 대기</strong><span>생성 결과는 바로 공개되지 않고 캐릭터별 에셋 슬롯에 연결해야 합니다.</span></div>
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-header">
+                <div><span class="panel-kicker">STUDIO RULE</span><h2>운영 기준</h2></div>
+              </div>
+              <p>일반 크리에이터는 1개 아티스트를 무료로 시작합니다. 여러 캐릭터를 운영하는 스튜디오 운영자는 캐릭터별 피드와 숏폼을 직접 관리하며, 30일 이상 활동이 없으면 휴식기 전환 대상이 됩니다.</p>
+              <p>이미지 생성은 유저 아티스트 전용 기능으로 시작하고, 1회 100L를 차감합니다. 재조정은 3회까지 운영 메모에 남깁니다.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="studio-section" id="artists">
+          <article class="panel">
+            <div class="panel-header">
+              <div><span class="panel-kicker">ARTISTS</span><h2>내 아티스트</h2></div>
+              <button class="primary-action" type="button" data-action="toast">추가 등록 신청</button>
+            </div>
+            <div class="artist-list">
+              <article class="artist-card">
+                <img class="artist-thumb" src="./assets/characters/yoon-serin/thumb.png" alt="윤세린" onerror="this.src='./assets/brand/lumina-stage-logo.png'" />
+                <div><h3>윤세린</h3><p>차갑게 등장하고 뜨겁게 각인되는 퍼포먼스형 아티스트.</p><div class="badge-row"><span class="badge is-good">공개</span><span class="badge">피드 정상</span><span class="badge">정산 가능</span></div></div>
+                <button class="secondary-action" type="button" data-action="toast">관리</button>
+              </article>
+              <article class="artist-card">
+                <img class="artist-thumb" src="./assets/characters/ha-yuna/thumb.png" alt="하윤아" onerror="this.src='./assets/brand/lumina-stage-logo.png'" />
+                <div><h3>하윤아</h3><p>빠른 트렌드 감각과 거리감 있는 자신감이 강점인 모델형 캐릭터.</p><div class="badge-row"><span class="badge is-good">공개</span><span class="badge is-warn">숏폼 필요</span><span class="badge">이미지 24장</span></div></div>
+                <button class="secondary-action" type="button" data-action="toast">관리</button>
+              </article>
+              <article class="artist-card">
+                <img class="artist-thumb" src="./assets/characters/seo-yuan/thumb.png" alt="서하민" onerror="this.src='./assets/brand/lumina-stage-logo.png'" />
+                <div><h3>서하민</h3><p>분위기를 부드럽게 정리하는 진행형 엔터테이너.</p><div class="badge-row"><span class="badge is-warn">휴식기 후보</span><span class="badge is-danger">피드 8시간 공백</span></div></div>
+                <button class="secondary-action" type="button" data-action="toast">관리</button>
+              </article>
+            </div>
+          </article>
+        </section>
+
+        <section class="studio-section" id="feed">
+          <article class="panel feed-composer">
+            <div class="panel-header">
+              <div><span class="panel-kicker">FEED</span><h2>피드 작성</h2></div>
+              <button class="secondary-action" type="button" data-action="tone">톤앤매너 미리보기</button>
+            </div>
+            <div class="form-grid">
+              <label><span>작성 아티스트</span><select><option>윤세린</option><option>하윤아</option><option>서하민</option></select></label>
+              <label><span>공개 방식</span><select><option>즉시 공개</option><option>예약 공개</option><option>임시저장</option></select></label>
+              <label class="is-wide"><span>본문</span><textarea id="feedBody">오늘 무대 전 조용히 호흡을 가다듬고 있어요. 팬들에게 보여줄 장면을 정확히 준비해볼게요.</textarea></label>
+            </div>
+            <div class="composer-tools">
+              <button class="primary-action" type="button" data-action="toast">피드 저장</button>
+              <button class="secondary-action" type="button" data-action="tone">AI 톤 변환</button>
+              <button class="secondary-action" type="button" data-action="toast">예약 설정</button>
+            </div>
+          </article>
+          <article class="table-card">
+            <header><h3>최근 피드</h3><button class="secondary-action" type="button" data-action="toast">더 보기</button></header>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>아티스트</th><th>상태</th><th>반응</th><th>작성 시각</th><th>액션</th></tr></thead>
+                <tbody>
+                  <tr><td>윤세린</td><td><span class="badge is-good">공개</span></td><td>좋아요 184 · 댓글 32</td><td>오늘 13:20</td><td><button class="secondary-action" type="button" data-action="toast">보기</button></td></tr>
+                  <tr><td>하윤아</td><td><span class="badge">예약</span></td><td>-</td><td>오늘 21:00</td><td><button class="secondary-action" type="button" data-action="toast">수정</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="studio-section" id="media">
+          <article class="panel">
+            <div class="panel-header">
+              <div><span class="panel-kicker">ASSETS</span><h2>이미지/숏폼 관리</h2></div>
+              <button class="primary-action" type="button" data-action="toast">업로드</button>
+            </div>
+            <div class="media-grid">
+              <article class="media-tile"><img src="./assets/characters/yoon-serin/cover.png" alt="cover" onerror="this.src='./assets/brand/lumina-stage-logo.png'" /><footer><span>cover</span><span>공개</span></footer></article>
+              <article class="media-tile"><img src="./assets/characters/yoon-serin/thumb.png" alt="gallery" onerror="this.src='./assets/brand/lumina-stage-logo.png'" /><footer><span>gallery</span><span>1</span></footer></article>
+              <article class="media-tile"><img src="./assets/characters/ha-yuna/cover.png" alt="cover" onerror="this.src='./assets/brand/lumina-stage-logo.png'" /><footer><span>shortform</span><span>후보</span></footer></article>
+              <article class="media-tile"><img src="./assets/characters/kwon-taejun/cover.png" alt="cover" onerror="this.src='./assets/brand/lumina-stage-logo.png'" /><footer><span>gallery</span><span>검수</span></footer></article>
+            </div>
+          </article>
+        </section>
+
+        <section class="studio-section" id="image-lab">
+          <article class="panel">
+            <div class="panel-header">
+              <div><span class="panel-kicker">IMAGE LAB</span><h2>이미지 생성 요청</h2></div>
+              <span class="badge is-warn">1회 100L · 재조정 3회</span>
+            </div>
+            <div class="form-grid">
+              <label><span>대상 아티스트</span><select><option>윤세린</option><option>하윤아</option><option>서하민</option></select></label>
+              <label><span>사용 목적</span><select><option>프로필 이미지</option><option>피드 이미지</option><option>숏폼 썸네일</option><option>콘셉트 레퍼런스</option></select></label>
+              <label class="is-wide"><span>요청 내용</span><textarea>캐릭터 얼굴 기준을 유지하고, 기존 톤앤매너를 깨지 않는 공식 이미지 후보를 만들어 주세요.</textarea></label>
+              <label class="is-wide"><span>레퍼런스 파일</span><input type="file" accept="image/*" /></label>
+            </div>
+            <p>생성 결과는 바로 공개되지 않습니다. 운영자가 결과를 확인한 뒤 cover, thumb, gallery, shortform 슬롯 중 하나로 연결합니다.</p>
+            <button class="primary-action" type="button" data-action="toast">100L 차감 후 요청</button>
+          </article>
+        </section>
+
+        <section class="studio-section" id="settlement">
+          <article class="table-card">
+            <header>
+              <div><span class="panel-kicker">SETTLEMENT</span><h2>정산 예정금</h2></div>
+              <button class="primary-action" type="button" data-action="toast">정산 신청</button>
+            </header>
+            <div class="notice" style="margin: 18px;"><strong>첫 정산 전 안내</strong><span>정산금 지급과 세무 신고 처리를 위해 세무 서류용 주소가 필요합니다. 주소는 암호화되어 안전하게 보관되며, 정산과 세무 처리에만 사용됩니다.</span></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>구분</th><th>캐릭터</th><th>총매출</th><th>차감</th><th>정산금</th><th>상태</th></tr></thead>
+                <tbody>
+                  <tr><td>스튜디오 운영자</td><td>3명 합산</td><td>256,800원</td><td>128,400원</td><td class="money">128,400원</td><td><span class="badge is-warn">예상치</span></td></tr>
+                  <tr><td>캐릭터별</td><td>윤세린</td><td>144,000원</td><td>72,000원</td><td class="money">72,000원</td><td><span class="badge">정산대기</span></td></tr>
+                  <tr><td>캐릭터별</td><td>하윤아</td><td>78,000원</td><td>39,000원</td><td class="money">39,000원</td><td><span class="badge">정산대기</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="studio-section" id="settings">
+          <article class="panel">
+            <div class="panel-header"><div><span class="panel-kicker">SETTINGS</span><h2>스튜디오 설정</h2></div></div>
+            <div class="form-grid">
+              <label><span>활동명</span><input value="Studio Lumi" /></label>
+              <label><span>계정 유형</span><select><option>스튜디오 운영자</option><option>개인 크리에이터</option></select></label>
+              <label><span>본인인증</span><input value="확인 필요" readonly /></label>
+              <label><span>정산 계좌</span><input value="등록 전" readonly /></label>
+              <label class="is-wide"><span>세무 서류용 주소</span><input placeholder="첫 정산 신청 시 입력" /></label>
+            </div>
+            <p>연락처, 계좌, 주소 같은 민감 정보는 권한 있는 담당자와 회계 처리에만 사용됩니다.</p>
+            <button class="primary-action" type="button" data-action="toast">설정 저장</button>
+          </article>
+        </section>
+      </main>
+    </div>
+    <div class="studio-toast" id="studioToast" role="status" aria-live="polite"></div>
+    <script>
+      const navButtons = Array.from(document.querySelectorAll("[data-section]"));
+      const sections = Array.from(document.querySelectorAll(".studio-section"));
+      const toast = document.getElementById("studioToast");
+      let toastTimer = null;
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add("is-visible");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 2200);
+      }
+
+      function activateSection(id) {
+        navButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.section === id));
+        sections.forEach((section) => section.classList.toggle("is-active", section.id === id));
+        history.replaceState(null, "", `#${id}`);
+      }
+
+      navButtons.forEach((button) => {
+        button.addEventListener("click", () => activateSection(button.dataset.section));
+      });
+
+      document.querySelectorAll("[data-section-jump]").forEach((button) => {
+        button.addEventListener("click", () => activateSection(button.dataset.sectionJump));
+      });
+
+      document.querySelectorAll("[data-action='toast']").forEach((button) => {
+        button.addEventListener("click", () => showToast("임시 동작 확인 완료. 실제 저장 API 연결 전 화면 흐름입니다."));
+      });
+
+      document.querySelectorAll("[data-action='tone']").forEach((button) => {
+        button.addEventListener("click", () => {
+          const body = document.getElementById("feedBody");
+          if (body) {
+            body.value = "오늘은 조용히 준비한 만큼 정확하게 보여드릴게요. 무대 위의 한 장면이 오래 남도록, 끝까지 흐트러지지 않겠습니다.";
+          }
+          showToast("윤세린 톤앤매너 예시로 변환했어요.");
+        });
+      });
+
+      const initial = location.hash.replace("#", "");
+      if (initial && document.getElementById(initial)) activateSection(initial);
+    </script>
+  </body>
+</html>
