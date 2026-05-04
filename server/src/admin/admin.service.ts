@@ -15,6 +15,64 @@ import { PrismaService } from '../prisma/prisma.service';
 
 type AdminPayload = Record<string, unknown>;
 type AuditQuery = Record<string, string | undefined>;
+type SettlementComplianceUser = {
+  id: string;
+  phoneNumber: string | null;
+  identityVerification: {
+    status: string;
+    provider: string | null;
+    verifiedNameMasked: string | null;
+    verifiedAt: Date | null;
+    expiresAt: Date | null;
+  } | null;
+  payoutAccount: {
+    status: string;
+    bankName: string | null;
+    accountHolderMasked: string | null;
+    accountLast4: string | null;
+    holderMatchesIdentity: boolean;
+    updatedAt: Date;
+  } | null;
+  payoutException: {
+    status: string;
+    reason: string | null;
+    documentAttached: boolean;
+    approvedByUserId: string | null;
+    approvedAt: Date | null;
+    updatedAt: Date;
+  } | null;
+};
+type SettlementComplianceSummary = {
+  identityVerification: {
+    status: string;
+    provider: string | null;
+    verifiedNameMasked: string | null;
+    verifiedAt: Date | null;
+    expiresAt: Date | null;
+  };
+  payoutAccount: {
+    status: string;
+    bankName: string | null;
+    accountHolderMasked: string | null;
+    accountLast4: string | null;
+    holderMatchesIdentity: boolean;
+    updatedAt: Date | null;
+  };
+  payoutException: {
+    status: string;
+    reason: string | null;
+    documentAttached: boolean;
+    approvedByUserId: string | null;
+    approvedAt: Date | null;
+    updatedAt: Date | null;
+  };
+  eligibility: {
+    identityVerified: boolean;
+    payoutReady: boolean;
+    payoutExceptionApproved: boolean;
+    canReceiveSettlement: boolean;
+  };
+};
 
 const SETTLEMENT_STATUSES = new Set([
   'estimated',
@@ -974,9 +1032,19 @@ export class AdminService {
       }
     }
 
-    const settlementRecords = await this.settlementRecordsForKeys(
-      artistIds.map((artistId) => this.settlementKey('artist', artistId, period.label)),
-    );
+    const creatorUserIds = [
+      ...new Set(
+        page.items.flatMap((artist) =>
+          artist.artistOperators.map((operator) => operator.user.id),
+        ),
+      ),
+    ];
+    const [settlementRecords, settlementCompliance] = await Promise.all([
+      this.settlementRecordsForKeys(
+        artistIds.map((artistId) => this.settlementKey('artist', artistId, period.label)),
+      ),
+      this.settlementComplianceForUsers(creatorUserIds),
+    ]);
     const items = page.items.map((artist) => {
       const bucket = revenueByArtist.get(artist.id) ?? this.emptyRevenueBucket();
       const financials = this.settlementFinancials(bucket.totalLumina, policy);
@@ -984,6 +1052,11 @@ export class AdminService {
       const manualSettlement = this.settlementRecordSummary(
         settlementRecords.get(settlementKey),
       );
+      const creatorSettlementCompliance = artist.artistOperators.map((operator) => ({
+        userId: operator.user.id,
+        role: operator.role,
+        ...this.settlementComplianceSummary(settlementCompliance.get(operator.user.id)),
+      }));
       return {
         settlementKey,
         artist: {
@@ -998,6 +1071,9 @@ export class AdminService {
           email: this.maskEmail(operator.user.email),
           displayName: operator.user.profile?.displayName ?? null,
           publicHandle: operator.user.profile?.publicHandle ?? null,
+          settlementCompliance: this.settlementComplianceSummary(
+            settlementCompliance.get(operator.user.id),
+          ),
         })),
         period: period.label,
         eventCount: bucket.eventCount,
@@ -1010,6 +1086,7 @@ export class AdminService {
         payoutEligibility: this.payoutEligibility({
           eventCount: bucket.eventCount,
           manualSettlement,
+          settlementCompliance: creatorSettlementCompliance,
         }),
       };
     });
@@ -1259,9 +1336,12 @@ export class AdminService {
     const pendingApplicationsByPartner = new Map(
       pendingApplicationCounts.map((entry) => [entry.userId, entry._count._all]),
     );
-    const partnerSettlementRecords = await this.settlementRecordsForKeys(
-      page.items.map((partner) => this.settlementKey('partner', partner.id, period.label)),
-    );
+    const [partnerSettlementRecords, settlementCompliance] = await Promise.all([
+      this.settlementRecordsForKeys(
+        page.items.map((partner) => this.settlementKey('partner', partner.id, period.label)),
+      ),
+      this.settlementComplianceForUsers(partnerIds),
+    ]);
     const items = page.items.map((partner) => {
       const artists = partner.artistOperators.map((operator) => {
         const bucket =
@@ -1310,6 +1390,9 @@ export class AdminService {
       const manualSettlement = this.settlementRecordSummary(
         partnerSettlementRecords.get(settlementKey),
       );
+      const partnerSettlementCompliance = this.settlementComplianceSummary(
+        settlementCompliance.get(partner.id),
+      );
 
       return {
         settlementKey,
@@ -1321,6 +1404,7 @@ export class AdminService {
           status: partner.status,
           createdAt: partner.createdAt,
         },
+        settlementCompliance: partnerSettlementCompliance,
         period: period.label,
         operatedArtistCount: artists.length,
         approvedArtistCount,
@@ -1336,6 +1420,7 @@ export class AdminService {
         payoutEligibility: this.payoutEligibility({
           eventCount: totals.eventCount,
           manualSettlement,
+          settlementCompliance: [partnerSettlementCompliance],
         }),
       };
     });
@@ -3961,11 +4046,80 @@ export class AdminService {
     };
   }
 
+  private async settlementComplianceForUsers(
+    userIds: string[],
+  ): Promise<Map<string, SettlementComplianceUser>> {
+    if (!userIds.length) {
+      return new Map<string, SettlementComplianceUser>();
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: {
+        id: true,
+        phoneNumber: true,
+        identityVerification: true,
+        payoutAccount: true,
+        payoutException: true,
+      },
+    });
+
+    return new Map(users.map((user) => [user.id, user]));
+  }
+
+  private settlementComplianceSummary(
+    record: SettlementComplianceUser | undefined,
+  ): SettlementComplianceSummary {
+    const identityStatus =
+      record?.identityVerification?.status ?? (record?.phoneNumber ? 'verified' : 'unverified');
+    const identityProvider =
+      record?.identityVerification?.provider ?? (record?.phoneNumber ? 'phone_number_mvp' : null);
+    const payoutAccountStatus = record?.payoutAccount?.status ?? 'missing';
+    const payoutExceptionStatus = record?.payoutException?.status ?? 'none';
+    const identityVerified = identityStatus === 'verified';
+    const payoutReady = payoutAccountStatus === 'registered';
+    const payoutExceptionApproved = payoutExceptionStatus === 'approved';
+
+    return {
+      identityVerification: {
+        status: identityStatus,
+        provider: identityProvider,
+        verifiedNameMasked: record?.identityVerification?.verifiedNameMasked ?? null,
+        verifiedAt: record?.identityVerification?.verifiedAt ?? null,
+        expiresAt: record?.identityVerification?.expiresAt ?? null,
+      },
+      payoutAccount: {
+        status: payoutAccountStatus,
+        bankName: record?.payoutAccount?.bankName ?? null,
+        accountHolderMasked: record?.payoutAccount?.accountHolderMasked ?? null,
+        accountLast4: record?.payoutAccount?.accountLast4 ?? null,
+        holderMatchesIdentity: record?.payoutAccount?.holderMatchesIdentity ?? false,
+        updatedAt: record?.payoutAccount?.updatedAt ?? null,
+      },
+      payoutException: {
+        status: payoutExceptionStatus,
+        reason: record?.payoutException?.reason ?? null,
+        documentAttached: record?.payoutException?.documentAttached ?? false,
+        approvedByUserId: record?.payoutException?.approvedByUserId ?? null,
+        approvedAt: record?.payoutException?.approvedAt ?? null,
+        updatedAt: record?.payoutException?.updatedAt ?? null,
+      },
+      eligibility: {
+        identityVerified,
+        payoutReady,
+        payoutExceptionApproved,
+        canReceiveSettlement: identityVerified && (payoutReady || payoutExceptionApproved),
+      },
+    };
+  }
+
   private payoutEligibility(input: {
     eventCount: number;
     manualSettlement: { status: string } | null;
+    settlementCompliance?: SettlementComplianceSummary[];
   }) {
     const blockingReasons: string[] = [];
+    const compliance = input.settlementCompliance ?? [];
 
     if (input.eventCount < 1) {
       blockingReasons.push('no_revenue_events');
@@ -3975,19 +4129,43 @@ export class AdminService {
       blockingReasons.push('already_paid');
     }
 
+    if (compliance.length > 0 && !compliance.some((item) => item.eligibility.canReceiveSettlement)) {
+      blockingReasons.push('no_verified_payout_profile');
+    }
+
     return {
       canMarkPaid: blockingReasons.length === 0,
       blockingReasons,
       identityVerification: {
-        status: 'not_connected',
-        note: 'Identity verification model is not connected to settlement records yet.',
+        status: compliance.length
+          ? compliance.every((item) => item.eligibility.identityVerified)
+            ? 'verified'
+            : compliance.some((item) => item.eligibility.identityVerified)
+              ? 'partial'
+              : 'unverified'
+          : 'not_connected',
+        note: compliance.length
+          ? 'Uses user identity verification records with phone-number MVP fallback.'
+          : 'No creator or partner user is attached to this settlement row.',
       },
       payoutAccount: {
-        status: 'not_connected',
-        note: 'Payout account model is not connected to settlement records yet.',
+        status: compliance.length
+          ? compliance.some((item) => item.eligibility.payoutReady)
+            ? 'registered'
+            : 'missing'
+          : 'not_connected',
+        note: compliance.length
+          ? 'Only masked payout account fields are exposed.'
+          : 'No creator or partner user is attached to this settlement row.',
       },
       payoutException: {
-        status: 'not_connected',
+        status: compliance.some((item) => item.eligibility.payoutExceptionApproved)
+          ? 'approved'
+          : compliance.some((item) => item.payoutException.status === 'pending')
+            ? 'pending'
+            : compliance.length
+              ? 'none'
+              : 'not_connected',
       },
     };
   }

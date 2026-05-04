@@ -317,7 +317,9 @@ Auth responses:
 - `PATCH /me/profile` body: `{ "displayName": "닉네임", "bio": "optional", "avatarAssetId": "<asset uuid>" }`. New accounts receive an auto-assigned temporary `displayName`; users can change it from My Page. `displayName` is 2-20 characters and can be changed once every 30 days after a user change. The server returns the updated `GET /me` shape. If the nickname cooldown is active, expect `429 Nickname can be changed once every 30 days`.
 - Avatar upload policy for 1차: reuse the asset upload flow and then pass the confirmed image asset id as `avatarAssetId`. A dedicated user-facing avatar upload intent can be split out later if needed.
 - `GET /me/summary` is the recommended My Page bootstrap endpoint. It returns `{ user, wallet, recentLedger, recentPaymentOrders, activity, recentActivities, debut, policy }` so the frontend does not need to call every history endpoint on first render. `activity` now includes `followingArtists`, `followingUsers`, `followers`, `followCounts`, and `feedCounts`. `activity.followingArtists[]` uses the same My Page card shape as `GET /me/following-artists`.
-- `GET /me/trust` returns the current user's trust/role gate state for abuse-sensitive actions. Use this to decide whether to show "identity verification required" messaging before referral rewards, paid support, fan letters, and future creator settlement surfaces. MVP identity verification is advisory and based on phone-number presence until a real identity provider is connected.
+- `GET /me/trust` returns the current user's trust/role gate state for abuse-sensitive actions. Use this to decide whether to show "identity verification required" messaging before referral rewards, paid support, fan letters, and future creator settlement surfaces. MVP identity verification is advisory and based on phone-number presence until a real identity provider is connected. The response now also includes `settlement.identityVerification`, `settlement.payoutAccount`, and `settlement.payoutException`.
+- `GET /me/settlement-profile` returns the signed-in creator/artist operator's settlement readiness profile. Use this in Creator Studio before exposing settlement expectation cards. It returns `{ settlementProfile, policy }` with masked identity and payout fields only.
+- `PATCH /me/settlement-profile` stores payout readiness fields without storing full account numbers. Body may include `{ "bankName": "은행명", "accountHolderName": "예금주", "accountLast4": "1234", "holderMatchesIdentity": true, "payoutExceptionReason": "optional" }`. The backend stores only `bankName`, masked account holder name, and `accountLast4`. Full bank account numbers, resident numbers, and document files must not be sent to this endpoint.
 - `GET /me/settings` returns `{ settings, policy }`.
 - `PATCH /me/settings` accepts either flat fields or the My Page nested notification shape. Flat body: `{ "locale": "ko-KR", "timezone": "Asia/Seoul", "marketingOptIn": false, "pushOptIn": false, "activityNotifications": true, "feedNotifications": true, "emailNotifications": false }`. Nested body: `{ "locale": "ko-KR", "timezone": "Asia/Seoul", "notifications": { "activityNotifications": true, "marketingOptIn": false, "feedNotifications": true, "emailNotifications": false } }`. Send at least one effective field. Supported `locale` values are `ko-KR`, `ja-JP`, `en-US`, and `zh-CN`; unsupported values return validation `400`. The response is the same `{ settings, policy }` shape.
 - `GET /localization/policy` is public. It reads the request `Accept-Language` header and returns `{ defaultLocale, supportedLocales, detectedLocale, source, fallbackRule, storageEndpoints }`. Use it for anonymous first-load language detection. For logged-in users, prefer `GET /me/settings.settings.locale` first.
@@ -1756,7 +1758,8 @@ displayed as a preview/estimate. Supported query:
 Each `items[]` row includes:
 
 - `artist`: id, slug, display name, status.
-- `creators`: masked operator emails and profile names.
+- `creators`: masked operator emails, profile names, and masked
+  `settlementCompliance` hints.
 - `eventCount`, `grossLumina`, `productBreakdown`.
 - `financials`: gross revenue, VAT, PG fee, PG fee VAT, AI/direct cost,
   net revenue, settlement rate, creator share, platform share, risk reserve.
@@ -1764,7 +1767,9 @@ Each `items[]` row includes:
 - `status`: `estimated`, `no_revenue`, or the latest manual settlement status.
 - `holdReason`: latest manual status reason when present.
 - `manualSettlement`: null or the saved manual accounting status record.
-- `payoutEligibility`: preview eligibility hints for the Backstage UI.
+- `payoutEligibility`: preview eligibility hints for the Backstage UI. It now
+  blocks "mark paid" when revenue exists but no attached creator has a verified
+  identity plus registered payout account or approved payout exception.
 
 Included eligible sources for preview:
 
@@ -1795,6 +1800,8 @@ Supported query:
 Each `items[]` row includes:
 
 - `partner`: masked email, display name, public handle, user status, created date.
+- `settlementCompliance`: masked identity, payout account, payout exception,
+  and eligibility hints for the partner account.
 - `operatedArtistCount`, `approvedArtistCount`,
   `pendingArtistApplicationCount`.
 - `artists[]`: artist identity, operator role, event count, gross Lumina,
@@ -1804,7 +1811,8 @@ Each `items[]` row includes:
 - `settlementKey`: `partner:<partnerUserId>:YYYY-MM`.
 - `payoutStatus`, `payoutHoldReason`, `lastSettlementAt`.
 - `manualSettlement`: null or the saved manual accounting status record.
-- `payoutEligibility`: preview eligibility hints for the Backstage UI.
+- `payoutEligibility`: preview eligibility hints for the Backstage UI. It uses
+  the partner account's masked settlement compliance fields.
 
 The response includes `policyNotes` with `payoutUnit: "partner_user"` and
 `detailUnit: "artist"`. Initial candidate slots are 10 and future paid slot

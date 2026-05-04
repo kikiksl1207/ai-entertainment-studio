@@ -228,6 +228,38 @@ export class ConfirmPasswordResetDto {
   newPassword!: string;
 }
 
+export class UpdateSettlementProfileDto {
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MaxLength(40)
+  bankName?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MaxLength(80)
+  accountHolderName?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @Matches(/^\d{2,4}$/, {
+    message: 'accountLast4 must contain 2 to 4 digits',
+  })
+  accountLast4?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  holderMatchesIdentity?: boolean;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MaxLength(500)
+  payoutExceptionReason?: string;
+}
+
 export class RefreshDto {
   @Transform(normalizeString)
   @IsNotEmpty()

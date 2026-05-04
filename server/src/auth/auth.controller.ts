@@ -26,6 +26,7 @@ import {
   SetPasswordDto,
   SocialLoginDto,
   UpdateProfileDto,
+  UpdateSettlementProfileDto,
   UpdateSettingsDto,
 } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -122,6 +123,22 @@ export class MeController {
   @UseGuards(JwtAuthGuard)
   trust(@CurrentUser() user: AuthUser) {
     return this.authService.getMyTrust(user.id);
+  }
+
+  @Get('settlement-profile')
+  @UseGuards(JwtAuthGuard)
+  settlementProfile(@CurrentUser() user: AuthUser) {
+    return this.authService.getMySettlementProfile(user.id);
+  }
+
+  @Patch('settlement-profile')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  updateSettlementProfile(
+    @CurrentUser() user: AuthUser,
+    @Body() body: UpdateSettlementProfileDto,
+  ) {
+    return this.authService.updateMySettlementProfile(user.id, body);
   }
 
   @Get('activity-ledger')

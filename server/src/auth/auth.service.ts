@@ -25,6 +25,7 @@ import {
   SetPasswordDto,
   SocialLoginDto,
   UpdateProfileDto,
+  UpdateSettlementProfileDto,
   UpdateSettingsDto,
   SUPPORTED_LOCALES,
 } from './dto/auth.dto';
@@ -468,6 +469,9 @@ export class AuthService {
             status: true,
           },
         },
+        identityVerification: true,
+        payoutAccount: true,
+        payoutException: true,
       },
     });
 
@@ -475,7 +479,10 @@ export class AuthService {
       throw new BadRequestException('Active user not found');
     }
 
-    const identityVerified = Boolean(user.phoneNumber);
+    const identityVerified =
+      user.identityVerification?.status === 'verified' || Boolean(user.phoneNumber);
+    const payoutAccountReady = user.payoutAccount?.status === 'registered';
+    const payoutExceptionApproved = user.payoutException?.status === 'approved';
     const hasActiveAdminAccess = user.adminAccess?.status === 'active';
     const artistOperators = user.artistOperators;
     const hasArtistOperatorAccess = artistOperators.length > 0;
@@ -511,8 +518,21 @@ export class AuthService {
         identityVerificationProvider: identityVerified ? 'phone_number_mvp' : null,
         referralEligible: identityVerified,
         paidSupportEligible: identityVerified,
-        creatorSettlementEligible: identityVerified && hasArtistOperatorAccess,
+        creatorSettlementEligible:
+          identityVerified &&
+          hasArtistOperatorAccess &&
+          (payoutAccountReady || payoutExceptionApproved),
         adminEligible: hasActiveAdminAccess,
+      },
+      settlement: {
+        identityVerification: this.identityVerificationSummary(
+          user.identityVerification,
+          user.phoneNumber,
+        ),
+        payoutAccount: this.payoutAccountSummary(user.payoutAccount),
+        payoutException: this.payoutExceptionSummary(user.payoutException),
+        payoutAccountReady,
+        payoutExceptionApproved,
       },
       accountLimit: {
         maxAccountsPerIdentity: 3,
@@ -535,9 +555,114 @@ export class AuthService {
         paidSupportRequiresIdentityVerification: true,
         referralRewardRequiresIdentityVerification: true,
         creatorSettlementRequiresIdentityVerification: true,
+        creatorSettlementRequiresPayoutAccount: true,
         guestBrowsingAllowed: true,
       },
     };
+  }
+
+  async getMySettlementProfile(userId: string) {
+    const user = await this.findActiveSettlementUser(userId);
+
+    return {
+      settlementProfile: this.settlementProfileView(user),
+      policy: this.settlementProfilePolicy(),
+    };
+  }
+
+  async updateMySettlementProfile(userId: string, input: UpdateSettlementProfileDto) {
+    await this.assertActiveUser(userId);
+    const now = new Date();
+    const hasPayoutInput =
+      input.bankName !== undefined ||
+      input.accountHolderName !== undefined ||
+      input.accountLast4 !== undefined ||
+      input.holderMatchesIdentity !== undefined;
+    const hasExceptionInput = input.payoutExceptionReason !== undefined;
+
+    if (!hasPayoutInput && !hasExceptionInput) {
+      throw new BadRequestException('At least one settlement profile field is required');
+    }
+
+    if (hasPayoutInput) {
+      const existingPayoutAccount = await this.prisma.userPayoutAccount.findUnique({
+        where: { userId },
+      });
+      const bankName =
+        input.bankName !== undefined
+          ? input.bankName.trim() || null
+          : existingPayoutAccount?.bankName ?? null;
+      const accountHolderMasked =
+        input.accountHolderName !== undefined
+          ? this.maskPersonalName(input.accountHolderName)
+          : existingPayoutAccount?.accountHolderMasked ?? null;
+      const accountLast4 =
+        input.accountLast4 !== undefined
+          ? input.accountLast4.trim() || null
+          : existingPayoutAccount?.accountLast4 ?? null;
+      const holderMatchesIdentity =
+        input.holderMatchesIdentity ?? existingPayoutAccount?.holderMatchesIdentity ?? false;
+      const status =
+        bankName && accountHolderMasked && accountLast4 ? 'registered' : 'needs_review';
+
+      await this.prisma.userPayoutAccount.upsert({
+        where: { userId },
+        update: {
+          status,
+          bankName,
+          accountHolderMasked,
+          accountLast4,
+          holderMatchesIdentity,
+          metadata: {
+            source: 'user_self_reported_mvp',
+            rawAccountNumberStored: false,
+          },
+          updatedAt: now,
+        },
+        create: {
+          userId,
+          status,
+          bankName,
+          accountHolderMasked,
+          accountLast4,
+          holderMatchesIdentity,
+          metadata: {
+            source: 'user_self_reported_mvp',
+            rawAccountNumberStored: false,
+          },
+        },
+      });
+    }
+
+    if (hasExceptionInput) {
+      const reason = input.payoutExceptionReason?.trim();
+
+      await this.prisma.userPayoutException.upsert({
+        where: { userId },
+        update: {
+          status: reason ? 'pending' : 'none',
+          reason: reason || null,
+          documentAttached: false,
+          metadata: {
+            source: 'user_self_reported_mvp',
+            reviewedByAdmin: false,
+          },
+          updatedAt: now,
+        },
+        create: {
+          userId,
+          status: reason ? 'pending' : 'none',
+          reason: reason || null,
+          documentAttached: false,
+          metadata: {
+            source: 'user_self_reported_mvp',
+            reviewedByAdmin: false,
+          },
+        },
+      });
+    }
+
+    return this.getMySettlementProfile(userId);
   }
 
   async getMyPageSummary(userId: string) {
@@ -1777,6 +1902,212 @@ export class AuthService {
         pushOptIn: 'push delivery permission flag',
       },
     };
+  }
+
+  private async findActiveSettlementUser(userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        phoneNumber: true,
+        status: true,
+        identityVerification: true,
+        payoutAccount: true,
+        payoutException: true,
+        artistOperators: {
+          where: { status: 'active' },
+          select: {
+            id: true,
+            artistId: true,
+            role: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Active user not found');
+    }
+
+    return user;
+  }
+
+  private settlementProfileView(user: Awaited<ReturnType<AuthService['findActiveSettlementUser']>>) {
+    const identityVerification = this.identityVerificationSummary(
+      user.identityVerification,
+      user.phoneNumber,
+    );
+    const payoutAccount = this.payoutAccountSummary(user.payoutAccount);
+    const payoutException = this.payoutExceptionSummary(user.payoutException);
+    const identityVerified = identityVerification.status === 'verified';
+    const payoutReady = payoutAccount.status === 'registered';
+    const payoutExceptionApproved = payoutException.status === 'approved';
+    const requiredActions = [
+      !identityVerified ? 'identity_verification_required' : null,
+      !payoutReady && !payoutExceptionApproved ? 'payout_account_required' : null,
+    ].filter(Boolean);
+
+    return {
+      userId: user.id,
+      status: user.status,
+      identityVerification,
+      payoutAccount,
+      payoutException,
+      artistOperatorAccess: user.artistOperators.map((operator) => ({
+        id: operator.id,
+        artistId: operator.artistId,
+        role: operator.role,
+        status: operator.status,
+      })),
+      eligibility: {
+        identityVerified,
+        payoutReady,
+        payoutExceptionApproved,
+        creatorSettlementEligible:
+          identityVerified &&
+          user.artistOperators.length > 0 &&
+          (payoutReady || payoutExceptionApproved),
+        requiredActions,
+      },
+    };
+  }
+
+  private settlementProfilePolicy() {
+    return {
+      rawAccountNumberStored: false,
+      payoutAccountInput:
+        'Store bankName, masked account holder name, and accountLast4 only. Do not store full account numbers before a verified payout provider is connected.',
+      identityVerification:
+        'MVP uses phone-number fallback when present. Real identity provider connection is a later compliance step.',
+      payoutException:
+        'Use only when the creator cannot use the normal self-owned payout account route. Admin review is required before payout.',
+    };
+  }
+
+  private identityVerificationSummary(
+    record:
+      | {
+          status: string;
+          provider: string | null;
+          verifiedNameMasked: string | null;
+          verifiedAt: Date | null;
+          expiresAt: Date | null;
+        }
+      | null,
+    phoneNumber?: string | null,
+  ) {
+    if (record) {
+      return {
+        status: record.status,
+        provider: record.provider,
+        verifiedNameMasked: record.verifiedNameMasked,
+        verifiedAt: record.verifiedAt,
+        expiresAt: record.expiresAt,
+      };
+    }
+
+    if (phoneNumber) {
+      return {
+        status: 'verified',
+        provider: 'phone_number_mvp',
+        verifiedNameMasked: null,
+        verifiedAt: null,
+        expiresAt: null,
+      };
+    }
+
+    return {
+      status: 'unverified',
+      provider: null,
+      verifiedNameMasked: null,
+      verifiedAt: null,
+      expiresAt: null,
+    };
+  }
+
+  private payoutAccountSummary(
+    record:
+      | {
+          status: string;
+          bankName: string | null;
+          accountHolderMasked: string | null;
+          accountLast4: string | null;
+          holderMatchesIdentity: boolean;
+          updatedAt: Date;
+        }
+      | null,
+  ) {
+    if (!record) {
+      return {
+        status: 'missing',
+        bankName: null,
+        accountHolderMasked: null,
+        accountLast4: null,
+        holderMatchesIdentity: false,
+        updatedAt: null,
+      };
+    }
+
+    return {
+      status: record.status,
+      bankName: record.bankName,
+      accountHolderMasked: record.accountHolderMasked,
+      accountLast4: record.accountLast4,
+      holderMatchesIdentity: record.holderMatchesIdentity,
+      updatedAt: record.updatedAt,
+    };
+  }
+
+  private payoutExceptionSummary(
+    record:
+      | {
+          status: string;
+          reason: string | null;
+          documentAttached: boolean;
+          approvedByUserId: string | null;
+          approvedAt: Date | null;
+          updatedAt: Date;
+        }
+      | null,
+  ) {
+    if (!record) {
+      return {
+        status: 'none',
+        reason: null,
+        documentAttached: false,
+        approvedByUserId: null,
+        approvedAt: null,
+        updatedAt: null,
+      };
+    }
+
+    return {
+      status: record.status,
+      reason: record.reason,
+      documentAttached: record.documentAttached,
+      approvedByUserId: record.approvedByUserId,
+      approvedAt: record.approvedAt,
+      updatedAt: record.updatedAt,
+    };
+  }
+
+  private maskPersonalName(value: string) {
+    const normalized = value.trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    if (normalized.length <= 2) {
+      return `${normalized[0]}*`;
+    }
+
+    return `${normalized[0]}${'*'.repeat(normalized.length - 2)}${normalized.at(-1)}`;
   }
 
   private detectSupportedLocale(acceptLanguage?: string) {
