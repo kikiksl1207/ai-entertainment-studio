@@ -293,6 +293,28 @@ Reply body is 1-300 characters.
 `DELETE /lumina-feed/replies/:replyId` soft-deletes the current user's own reply
 and returns `{ "ok": true }`. Artist operators can also delete replies on their
 operated artist posts.
+Create reply responses include `reply.viewer.canDelete` for the signed-in
+author. Public reply lists remain readable without auth and do not include
+viewer-specific state.
+
+### Edits
+
+```http
+PATCH /lumina-feed/posts/:postId
+Authorization: Bearer <accessToken>
+```
+
+Body:
+
+```json
+{
+  "body": "Updated feed text"
+}
+```
+
+MVP edit scope is body-only. Image replacement/removal is not supported yet.
+Signed-in feed responses from `GET /me/lumina-feed` include `viewer` and
+`permissions` hints so the frontend can show edit/delete only to the author.
 
 ### Likes
 
@@ -304,6 +326,8 @@ Authorization: Bearer <accessToken>
 
 Like is idempotent. If the same user already liked the post, the backend returns
 `idempotentReplay: true`.
+Like/unlike responses return an updated `post`. Use `post.viewer.hasLiked` and
+`post.likeCount` for immediate UI updates.
 
 ### Notifications
 

@@ -126,7 +126,7 @@ export class CommunityService {
       orderBy: { publishedAt: 'desc' },
     });
 
-    return Promise.all(posts.map((post) => this.toPostView(post)));
+    return Promise.all(posts.map((post) => this.toPostView(post, userId)));
   }
 
   getSamplePosts(query: CommunityQuery) {
@@ -282,10 +282,71 @@ export class CommunityService {
     return { ok: true };
   }
 
+  async updatePost(userId: string, postId: string, input: CommunityBody) {
+    await this.assertActiveUser(userId);
+
+    if (!UUID_PATTERN.test(postId)) {
+      throw new BadRequestException('postId must be a UUID');
+    }
+
+    const post = await this.prisma.communityPost.findFirst({
+      where: {
+        id: postId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        authorUserId: true,
+        artistId: true,
+        status: true,
+      },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    if (post.status !== 'published') {
+      throw new BadRequestException('Only published posts can be edited');
+    }
+
+    if (post.authorUserId !== userId) {
+      if (!post.artistId) {
+        throw new ForbiddenException('Post author access is required');
+      }
+
+      await this.assertArtistOperator(userId, post.artistId);
+    }
+
+    const body = this.text(input, 'body', 1, 500);
+    const updatedPost = await this.prisma.communityPost.update({
+      where: { id: post.id },
+      data: {
+        body,
+        metadata: this.toJson({
+          ...this.object(input, 'metadata'),
+          editedAt: new Date().toISOString(),
+          editedByUserId: userId,
+          editScope: 'body_only_mvp',
+        }),
+        updatedAt: new Date(),
+      },
+      include: this.postInclude(),
+    });
+
+    return {
+      post: await this.toPostView(updatedPost, userId),
+      policy: {
+        editScope: 'body_only_mvp',
+        assetEditing: 'not_supported_yet',
+      },
+    };
+  }
+
   async getReplies(postId: string, query: CommunityQuery) {
     await this.findVisiblePost(postId);
 
-    return this.prisma.communityReply.findMany({
+    const replies = await this.prisma.communityReply.findMany({
       where: {
         postId,
         status: 'published',
@@ -295,6 +356,8 @@ export class CommunityService {
       include: this.replyInclude(),
       orderBy: { createdAt: 'asc' },
     });
+
+    return replies.map((reply) => this.toReplyView(reply));
   }
 
   async createReply(userId: string, postId: string, input: CommunityBody) {
@@ -318,8 +381,8 @@ export class CommunityService {
         data: { replyCount: { increment: 1 }, updatedAt: new Date() },
       });
 
-      return { reply };
-    });
+        return { reply: this.toReplyView(reply, userId) };
+      });
 
       await this.createNotificationSafely({
         userId: post.authorUserId,
@@ -432,7 +495,7 @@ export class CommunityService {
 
       return {
         ...result,
-        post: await this.toPostView(result.post),
+        post: await this.toPostView(result.post, userId),
       };
     } catch (error) {
       if (this.isUniqueConstraint(error)) {
@@ -441,7 +504,7 @@ export class CommunityService {
           include: this.postInclude(),
         });
         return {
-          post: post ? await this.toPostView(post) : null,
+          post: post ? await this.toPostView(post, userId) : null,
           idempotentReplay: true,
           idempotencyKey: idempotencyKey ?? null,
         };
@@ -470,7 +533,16 @@ export class CommunityService {
         });
       }
 
-      return { ok: true, removed: deleted.count > 0 };
+      const post = await tx.communityPost.findUnique({
+        where: { id: postId },
+        include: this.postInclude(),
+      });
+
+      return {
+        ok: true,
+        removed: deleted.count > 0,
+        post: post ? await this.toPostView(post, userId) : null,
+      };
     });
   }
 
@@ -1104,8 +1176,21 @@ export class CommunityService {
     } satisfies Prisma.CommunityHiddenPostInclude;
   }
 
-  private async toPostView(post: any) {
+  private async toPostView(post: any, viewerUserId?: string | null) {
     const metadata = this.metadataObject(post.metadata);
+    const viewerReaction = viewerUserId
+      ? await this.prisma.communityReaction.findUnique({
+          where: {
+            postId_userId_reactionType: {
+              postId: post.id,
+              userId: viewerUserId,
+              reactionType: 'like',
+            },
+          },
+          select: { id: true },
+        })
+      : null;
+    const isAuthor = Boolean(viewerUserId && post.authorUserId === viewerUserId);
 
     return {
       ...post,
@@ -1132,6 +1217,34 @@ export class CommunityService {
           },
         };
       }),
+      viewer: {
+        userId: viewerUserId ?? null,
+        hasLiked: Boolean(viewerReaction),
+        isAuthor,
+        canEdit: isAuthor,
+        canDelete: isAuthor,
+      },
+      permissions: {
+        canEdit: isAuthor,
+        canDelete: isAuthor,
+        editScope: 'body_only_mvp',
+      },
+    };
+  }
+
+  private toReplyView(reply: any, viewerUserId?: string | null) {
+    const isAuthor = Boolean(viewerUserId && reply.authorUserId === viewerUserId);
+
+    return {
+      ...reply,
+      viewer: {
+        userId: viewerUserId ?? null,
+        isAuthor,
+        canDelete: isAuthor,
+      },
+      permissions: {
+        canDelete: isAuthor,
+      },
     };
   }
 

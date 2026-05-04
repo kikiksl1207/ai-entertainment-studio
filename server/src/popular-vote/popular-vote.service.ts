@@ -176,6 +176,7 @@ export class PopularVoteService {
       {
         artist: { id: string; slug: string; displayName: string };
         totalFreeLikes: Decimal;
+        totalPaidLikes: Decimal;
         totalLuminaBoosts: Decimal;
         totalWeightedScore: Decimal;
       }
@@ -185,6 +186,7 @@ export class PopularVoteService {
       const row = rows.get(event.artistId) ?? {
         artist: event.artist,
         totalFreeLikes: new Decimal(0),
+        totalPaidLikes: new Decimal(0),
         totalLuminaBoosts: new Decimal(0),
         totalWeightedScore: new Decimal(0),
       };
@@ -194,6 +196,7 @@ export class PopularVoteService {
       }
 
       if (event.boostType === 'lumina_boost') {
+        row.totalPaidLikes = row.totalPaidLikes.plus(event.rawAmount);
         row.totalLuminaBoosts = row.totalLuminaBoosts.plus(event.rawAmount);
       }
 

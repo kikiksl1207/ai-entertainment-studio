@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -58,6 +59,16 @@ export class CommunityController {
   @UseGuards(JwtAuthGuard)
   deletePost(@CurrentUser() user: AuthUser, @Param('postId') postId: string) {
     return this.communityService.deletePost(user.id, postId);
+  }
+
+  @Patch('lumina-feed/posts/:postId')
+  @UseGuards(JwtAuthGuard)
+  updatePost(
+    @CurrentUser() user: AuthUser,
+    @Param('postId') postId: string,
+    @Body() body: CommunityBody,
+  ) {
+    return this.communityService.updatePost(user.id, postId, body);
   }
 
   @Get('lumina-feed/posts/:postId/replies')

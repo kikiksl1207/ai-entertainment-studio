@@ -748,6 +748,12 @@ Success response:
 After a successful paid like, refresh rankings with
 `GET /boost-campaigns/:campaignId/rankings`.
 
+Ranking rows from `GET /popular-vote/main-pick` and
+`GET /popular-vote/hall-of-fame/year-champion` now include
+`totalPaidLikes`. Use this field for paid-like unit display. Do not derive paid
+like count by dividing `totalLuminaBoosts`, because paid-like pricing/discounts
+can change separately from the displayed vote-unit count.
+
 ### Lumina Pick
 
 `루미나 픽` is the renamed popular vote surface. It owns voting, rankings,
@@ -1515,6 +1521,8 @@ Post responses include `assets` when images are linked:
 }
 ```
 `DELETE /lumina-feed/posts/:postId` soft-deletes the current user's own post and returns `{ "ok": true }`. Artist operators can also delete posts for artists they operate. It does not hard-delete content.
+`PATCH /lumina-feed/posts/:postId` edits the post body for the current user's own post and returns `{ post, policy }`. MVP edit scope is body-only; image replacement/removal is not supported yet. Body must be 1-500 characters.
+Signed-in feed responses from `GET /me/lumina-feed` include `post.viewer` and `post.permissions` hints: `hasLiked`, `isAuthor`, `canEdit`, `canDelete`, and `editScope`. Use these to decide whether to show edit/delete actions. Public `GET /lumina-feed` cannot include viewer-specific state.
 
 Replies:
 
@@ -1526,6 +1534,7 @@ Authorization: Bearer <accessToken>
 ```
 
 `DELETE /lumina-feed/replies/:replyId` soft-deletes the current user's own reply and returns `{ "ok": true }`. Artist operators can also delete replies on their operated artist posts.
+Reply create responses include `reply.viewer.canDelete` for the signed-in author. Public reply lists are still readable without auth and do not include viewer-specific delete state.
 
 Reactions/reports:
 
@@ -1539,6 +1548,8 @@ DELETE /lumina-feed/posts/:postId/hide
 GET /me/hidden-posts?take=20
 Authorization: Bearer <accessToken>
 ```
+
+`POST /lumina-feed/posts/:postId/like` returns `{ reaction, post, idempotentReplay, idempotencyKey }`. `DELETE /lumina-feed/posts/:postId/like` returns `{ ok, removed, post }`. Use the returned `post.viewer.hasLiked` and `post.likeCount` for immediate UI updates.
 
 `POST /lumina-feed/posts/:postId/report` remains the legacy feed-post report endpoint. New UI can use the broader `POST /moderation/reports` endpoint for feed posts, replies, users, and artists:
 
