@@ -107,7 +107,7 @@ const backstageRows = {
   ],
   users: [
     ["a01057662701", "a01057662701@gmail.com", "Google", "300L", "0원", "0 / 0", "0", "2 / 0", "오늘", "공개", "상세"],
-    ["serinist_01", "user01@example.com", "Email", "1,240L", "38,000원", "0 / 1", "0", "6 / 1", "어제", "공개", "세션 종료"],
+    ["serinist_01", "user01@example.com", "Email", "1,240L", "38,000원", "0 / 1", "0", "6 / 1", "어제", "공개", "7일 정지"],
     ["watch_user", "watch@example.com", "Google", "0L", "0원", "2 / 3", "1", "0 / 0", "3일 전", "정지", "복구 요청"],
     ["lumi_fan_04", "fan04@example.com", "Kakao", "820L", "12,000원", "0 / 0", "0", "4 / 0", "오늘", "공개", "상세"],
     ["stagepick_05", "pick05@example.com", "Google", "150L", "5,500원", "0 / 0", "0", "3 / 0", "2일 전", "공개", "상세"],
@@ -118,7 +118,7 @@ const backstageRows = {
     ["quiet_user", "quiet@example.com", "Email", "0L", "0원", "0 / 0", "0", "0 / 0", "8일 전", "공개", "상세"]
   ],
   userRisks: [
-    ["watch_user", "외부 결제 유도", "3회", "정지", "세션 종료", "상세"],
+    ["watch_user", "외부 결제 유도", "3회", "정지", "30일 정지", "상세"],
     ["fast_like_22", "비정상 좋아요 패턴", "2회", "확인중", "알림 발송", "상세"],
     ["spam_reply", "반복 댓글", "5회", "주의", "댓글 제한", "상세"],
     ["charge_abuse", "결제 취소 반복", "2회", "확인중", "결제 확인", "상세"],
@@ -126,7 +126,7 @@ const backstageRows = {
     ["refund_watch", "환불 악용 의심", "2회", "확인중", "정산 보류", "상세"],
     ["report_noise", "허위 신고 반복", "4회", "주의", "신고 제한", "상세"],
     ["fan_badword", "공격 표현", "3회", "정지", "숨김 처리", "상세"],
-    ["bot_like", "자동화 의심", "6회", "정지", "세션 종료", "상세"],
+    ["bot_like", "자동화 의심", "6회", "정지", "삭제 후보", "상세"],
     ["policy_watch", "정책 경고 누적", "2회", "주의", "재안내", "상세"]
   ],
   creators: [
@@ -736,6 +736,10 @@ function detailInput(label, name, value = "", type = "text", wide = false) {
   return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><input type="${type}" name="${name}" value="${value}"></label>`;
 }
 
+function detailFile(label, name, hint = "") {
+  return `<label><span>${label}</span><input type="file" name="${name}" accept="image/*">${hint ? `<small>${hint}</small>` : ""}</label>`;
+}
+
 function detailSelect(label, name, options, selected = "", wide = false) {
   const items = options.map((option) => {
     const value = typeof option === "string" ? option : option.value;
@@ -749,11 +753,26 @@ function detailTextarea(label, name, value = "", wide = true) {
   return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><textarea name="${name}">${value}</textarea></label>`;
 }
 
+function detailToggleGroup(label, name, options = []) {
+  const items = options.map((option) => {
+    const value = typeof option === "string" ? option : option.value;
+    const text = typeof option === "string" ? option : option.label;
+    const checked = typeof option === "object" && option.checked ? " checked" : "";
+    return `<label class="toggle-item"><input type="checkbox" name="${name}" value="${value}"${checked}><span>${text}</span></label>`;
+  }).join("");
+  return `<fieldset class="toggle-group is-wide"><legend>${label}</legend><div>${items}</div></fieldset>`;
+}
+
 function restoreDetailDraft(key) {
   const draft = readDetailDrafts()[key];
   if (!draft || !detailForm) return;
   detailForm.querySelectorAll("input, select, textarea").forEach((field) => {
     if (!field.name || draft[field.name] === undefined) return;
+    if (field.type === "checkbox") {
+      field.checked = Array.isArray(draft[field.name]) ? draft[field.name].includes(field.value) : Boolean(draft[field.name]);
+      return;
+    }
+    if (field.type === "file") return;
     field.value = draft[field.name];
   });
 }
@@ -796,11 +815,49 @@ function renderDetailForm(detail) {
           { value: "debut_pending", label: "데뷔 예정" },
           { value: "public", label: "공개" }
         ], "draft")}
-        ${detailInput("만든 관리자", "createdBy", "에밀리")}
+        ${detailInput("만든 관리자", "createdBy", getBackstageAuth()?.user?.email || getBackstageAuth()?.user?.displayName || "현재 로그인 운영자")}
         ${detailInput("대표 컬러", "brandColor", "")}
-        ${detailTextarea("핵심 프로필 메모", "profileMemo", "생년월일, 출신지, 신체, 포지션, 캐릭터타입, 팬덤명, 팬포인트, MBTI, 좋아하는 선물까지 확인합니다.")}
+        ${detailInput("생년월일", "birthDate", "", "date")}
+        ${detailInput("출신지", "hometown", "")}
+        ${detailInput("신체", "height", "", "text")}
+        ${detailInput("혈액형", "bloodType", "")}
+        ${detailInput("포지션", "position", "")}
+        ${detailInput("데뷔", "debut", "Lumina Stage 신규 후보")}
+        ${detailInput("캐릭터타입", "characterType", "")}
+        ${detailInput("팬덤명", "fandomName", "")}
+        ${detailInput("팬포인트", "fanPoint", "", "text", true)}
+        ${detailInput("시그니처", "signature", "", "text", true)}
+        ${detailInput("광고축", "adAxis", "", "text", true)}
+        ${detailInput("MBTI", "mbti", "")}
+        ${detailInput("취미", "hobby", "")}
+        ${detailInput("좋아하는 선물", "favoriteGift", "", "text", true)}
+        ${detailFile("전신샷 업로드", "coverImage", "사이트 커버/전신샷 슬롯")}
+        ${detailFile("프로필 메인샷 업로드", "thumbImage", "아티스트 카드/썸네일 슬롯")}
       </div>
-      <p class="detail-form-note">실제 저장 API 확정 전 임시 폼입니다. 차모가 artist profile 필수 필드를 확정하면 이 구조로 연결합니다.</p>
+      <p class="detail-form-note">핵심 프로필은 사이트 반영을 쉽게 하기 위해 개별 필드로 저장합니다. 만든 관리자는 로그인 계정 기준으로 자동 연결합니다.</p>
+    `;
+  } else if (quickTitle === "운영자 계정 초대" || tableId === "adminRows" || tableId === "adminRequestRows") {
+    html = `
+      <h3>운영자 계정/권한</h3>
+      <div class="detail-form-grid">
+        ${detailInput("이메일", "email", tableId === "adminRows" ? row[0] || "" : "", "email")}
+        ${detailInput("이름/표시명", "displayName", "")}
+        ${detailSelect("상태", "status", [
+          { value: "invited", label: "초대중" },
+          { value: "active", label: "승인" },
+          { value: "disabled", label: "비활성" }
+        ], tableId === "adminRows" && row[2] === "승인" ? "active" : "invited")}
+        ${detailInput("최근 접속", "lastSeenAt", tableId === "adminRows" ? row[3] || "-" : "-", "text")}
+        ${detailToggleGroup("권한", "roles", [
+          { value: "super_admin", label: "최상 관리자", checked: row.join(" ").includes("최상") },
+          { value: "commerce_admin", label: "회계 관리자", checked: row.join(" ").includes("회계") || row.join(" ").includes("정산") },
+          { value: "partner_admin", label: "영업/섭외 관리자", checked: row.join(" ").includes("영업") || row.join(" ").includes("섭외") },
+          { value: "cs_admin", label: "CS 관리자", checked: row.join(" ").includes("CS") || row.join(" ").includes("신고") },
+          { value: "artist_ops_admin", label: "AI 아티스트 관리자", checked: row.join(" ").includes("AI") }
+        ])}
+        ${detailTextarea("인수인계/권한 변경 메모", "handoffNote", "담당자 퇴사, 권한 변경 사유, 인수인계 범위를 남깁니다.")}
+      </div>
+      <p class="detail-form-note">운영자 권한은 드롭다운이 아니라 토글로 관리합니다. 실제 초대/권한 저장 API는 차모 #124에서 확인 중입니다.</p>
     `;
   } else if (quickTitle === "AI 에셋 업로드" || tableId === "aiAssetRows") {
     html = `
@@ -819,9 +876,16 @@ function renderDetailForm(detail) {
           { value: "yes", label: "대표로 사용" },
           { value: "no", label: "후보로 보관" }
         ], "yes")}
-        ${detailTextarea("에셋 메모", "assetMemo", "cover/thumb/gallery/shortform 슬롯을 운영자가 직접 지정합니다. 자동 분류로 뒤집히지 않게 확인합니다.")}
+        ${detailSelect("이미지 조치", "assetAction", [
+          { value: "attach", label: "슬롯에 연결" },
+          { value: "archive", label: "잘못 올라간 사진 숨김/보관" },
+          { value: "delete_request", label: "삭제 요청" },
+          { value: "reorder", label: "순서 변경" }
+        ], "attach")}
+        ${detailFile("이미지/영상 파일", "assetFile", "업로드는 서버 asset URL 방식으로 연결 예정")}
+        ${detailTextarea("에셋 메모", "assetMemo", "cover/thumb/gallery/shortform 슬롯을 운영자가 직접 지정합니다. 잘못 올라간 사진은 숨김/보관 또는 삭제 요청으로 분리합니다.")}
       </div>
-      <p class="detail-form-note">포토갤러리는 순서가 비면 화면에서 빈 칸이 생길 수 있으므로 sortOrder와 slot을 반드시 함께 저장해야 합니다.</p>
+      <p class="detail-form-note">이미지 보는 공간은 로컬 복사가 아니라 서버 asset 목록/URL 조회로 구성합니다. 포토갤러리는 sortOrder와 slot을 함께 저장해야 합니다.</p>
     `;
   } else if (quickTitle === "AI 아티스트 글 작성" || tableId === "aiPostRows") {
     html = `
@@ -834,10 +898,33 @@ function renderDetailForm(detail) {
           { value: "notice", label: "공지" },
           { value: "premium", label: "프리미엄" }
         ], "feed")}
-        ${detailInput("제목", "title", "", "text", true)}
-        ${detailTextarea("본문", "body", "캐릭터 톤앤매너에 맞춰 작성합니다. 유저 크리에이터 글과 AI 공식 글은 작성 주체를 분리합니다.")}
+        ${detailInput("피드 제목(선택)", "title", "", "text", true)}
+        ${detailTextarea("원문", "body", "피드는 제목 없이 본문 중심으로 작성할 수 있습니다. 캐릭터 톤앤매너에 맞춰 다듬습니다.")}
+        <div class="inline-actions is-wide">
+          <button class="secondary-action" type="button" data-inline-action="tone-preview">톤앤매너 변환 미리보기</button>
+          <button class="secondary-action" type="button" data-inline-action="auto-schedule">3시간 자동 작성 정책 확인</button>
+          <span>6시간 이상 글 작성이 없으면 운영 표에 표시합니다.</span>
+        </div>
       </div>
-      <p class="detail-form-note">AI 아티스트 공식 글은 운영자가 작성하지만 사이트에는 해당 캐릭터의 공식 콘텐츠로 노출됩니다.</p>
+      <p class="detail-form-note">담당 관리자는 담당 캐릭터만, 최상 관리자는 전체 캐릭터를 봅니다. AI 변환/자동 작성 API는 차모 #124 확인 후 연결합니다.</p>
+    `;
+  } else if (tableId === "userRows" || tableId === "userRiskRows") {
+    html = `
+      <h3>유저 제재/상태 확인</h3>
+      <div class="detail-form-grid">
+        ${detailInput("유저", "user", row[0] || "")}
+        ${detailInput("이메일", "email", tableId === "userRows" ? row[1] || "" : "")}
+        ${detailSelect("조치", "action", [
+          { value: "none", label: "확인만" },
+          { value: "suspend_7", label: "7일 일시정지" },
+          { value: "suspend_14", label: "14일 일시정지" },
+          { value: "suspend_30", label: "30일 일시정지" },
+          { value: "delete_candidate", label: "삭제 후보 등록" }
+        ], row.join(" ").includes("정지") ? "suspend_7" : "none")}
+        ${detailInput("30일 정지 누적", "thirtyDayStrikeCount", "", "number")}
+        ${detailTextarea("처리 사유", "reason", "세션 종료는 기본 액션에서 제외합니다. 30일 정지 2회 누적 시 삭제 후보로 올립니다.")}
+      </div>
+      <p class="detail-form-note">실수 위험이 큰 세션 종료 대신 기간형 일시정지를 기본 제재로 둡니다.</p>
     `;
   } else if (quickTitle === "데뷔 신청 목록" || tableId === "creatorRows") {
     html = `
@@ -903,6 +990,27 @@ function renderDetailForm(detail) {
       </div>
       <p class="detail-form-note">범용 신고는 피드 글뿐 아니라 댓글, 유저, 아티스트까지 포함합니다. 전체 글 열람 대신 신고 대상과 사유 중심으로 확인합니다.</p>
     `;
+  } else if (tableId === "moderationRows" || tableId === "contentAnomalyRows" || tableId === "reportCancelRows") {
+    html = `
+      <h3>크리에이터 콘텐츠 조치</h3>
+      <div class="detail-form-grid">
+        ${detailInput("콘텐츠", "contentId", row[0] || "")}
+        ${detailInput("작성자", "creator", row[1] || "")}
+        ${detailSelect("조치", "action", [
+          { value: "confirm_clear", label: "확인 후 목록에서 제외" },
+          { value: "hide", label: "숨김 처리" },
+          { value: "delete", label: "삭제 처리" },
+          { value: "restore", label: "수정 내용 확인 후 재게재" }
+        ], "confirm_clear")}
+        ${detailSelect("관리 기준", "watchRule", [
+          { value: "new_creator_7d", label: "신규 7일 집중관리" },
+          { value: "anomaly", label: "이상패턴" },
+          { value: "restore_request", label: "숨김 해제/재게재 요청" }
+        ], tableId === "reportCancelRows" ? "restore_request" : "new_creator_7d")}
+        ${detailTextarea("원문/수정내용 비교", "contentReview", "사용자가 삭제했는지, 숨김 해제 요청인지, 수정 후 재게재 요청인지 구분해서 확인합니다.")}
+      </div>
+      <p class="detail-form-note">수정요청은 기본 액션에서 제외합니다. 숨김 시 작성자에게 수정 안내만 보내고, 확인 처리한 항목은 이상패턴 목록에서 제거합니다.</p>
+    `;
   }
 
   if (!html) return;
@@ -936,21 +1044,21 @@ function getActionProfile(detail, action = "memo") {
   };
 
   if (tableId === "userRows" || tableId === "userRiskRows") {
-    const wantsRestore = rowAction.includes("복구") || status === "정지";
-    const wantsSession = rowAction.includes("세션");
+    const wantsRestore = rowAction.includes("복구");
+    const wantsDelete = rowAction.includes("삭제") || rowAction.includes("탈퇴");
     return {
       ...profile,
       group: "유저 운영 액션",
       targetType: "user",
       endpoint: wantsRestore
         ? "POST /admin/api/v1/users/:userId/restore"
-        : wantsSession
-          ? "POST /admin/api/v1/users/:userId/revoke-sessions"
+        : wantsDelete
+          ? "POST /admin/api/v1/users/:userId/delete"
           : "POST /admin/api/v1/users/:userId/suspend",
       method: "POST",
-      warning: "세션 종료, 정지, 복구는 운영 로그와 사유가 반드시 필요합니다. 차모 API 확정 전 실제 실행은 잠가둡니다.",
+      warning: "세션 종료는 기본 액션에서 제외합니다. 7/14/30일 정지와 삭제 후보 등록은 운영 로그와 사유가 반드시 필요합니다.",
       holdLabel: tableId === "userRiskRows" ? "보류/재확인 메모" : "상태 확인 메모",
-      dangerLabel: wantsRestore ? "복구 요청" : wantsSession ? "세션 종료" : "정지 검토",
+      dangerLabel: wantsRestore ? "복구 요청" : wantsDelete ? "삭제 후보" : "일시정지",
       showHold: true,
       showDanger: true
     };
@@ -1082,6 +1190,15 @@ function collectDetailFormData() {
   const data = {};
   detailForm.querySelectorAll("input, select, textarea").forEach((field) => {
     if (!field.name) return;
+    if (field.type === "checkbox") {
+      if (!Array.isArray(data[field.name])) data[field.name] = [];
+      if (field.checked) data[field.name].push(field.value);
+      return;
+    }
+    if (field.type === "file") {
+      data[field.name] = Array.from(field.files || []).map((file) => file.name);
+      return;
+    }
     data[field.name] = field.value;
   });
   return data;
@@ -1494,7 +1611,7 @@ async function loadUsersPage(append = true) {
       `${formatCount(user.followingArtistCount || 0)} / ${formatCount(user.followerCount || 0)}`,
       formatDate(user.lastSeenAt || user.lastLoginAt || user.updatedAt || user.createdAt),
       localizeWorkflowStatus(user.status),
-      user.status === "suspended" ? "복구 요청" : "세션 종료"
+      user.status === "suspended" ? "복구 요청" : "7일 정지"
     ]);
     const riskRows = page.items
       .filter((user) => Number(user.openReportCount || 0) > 0 || Number(user.reportCount || 0) > 0 || Number(user.sanctionCount || 0) > 0 || user.recentAction)
