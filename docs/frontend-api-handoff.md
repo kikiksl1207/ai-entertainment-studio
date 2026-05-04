@@ -947,6 +947,14 @@ Required consents: `consentAppearance`, `consentRevenuePolicy`, `consentPrivacy`
 
 `consentMarketing` is a top-level optional boolean. Prefer sending it at the top level with the other consent fields. For temporary compatibility, the backend also accepts `metadata.consentMarketing`, but the top-level field is the confirmed frontend contract. Keep real IDs, contracts, and sensitive files outside Notion/Git/chat until the final secure upload/contract process is defined.
 
+Transitional frontend compatibility:
+
+- Canonical field names remain `contactEmail`, `contactPhone`, and `intro`.
+- The backend also accepts temporary aliases `applicantEmail`, `applicantPhone`, and `selfIntroduction` so existing static-page wiring does not fail with 400 while the UI is being aligned.
+- If `participationType` is omitted, the backend defaults to `appearance_only`.
+- If `consentVoice` is omitted, the backend defaults to `false`.
+- The frontend should still migrate to the canonical names above; aliases are only a compatibility guard.
+
 Validation notes:
 
 - `isAdult` must be `true` for MVP. Minor applicant flow is not open yet.

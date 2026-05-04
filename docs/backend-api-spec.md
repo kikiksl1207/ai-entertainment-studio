@@ -578,7 +578,9 @@ Current validation and workflow:
 - `applicationType` is optional and defaults to `personal_unaffiliated`. Allowed values are `personal_unaffiliated`, `represented_artist`, `ai_creator_partner`, and `partnership_other`.
 - `represented_artist` applications automatically store `rightsReviewRequired: true` and `rightsReviewStatus: "pending"` in metadata. This is for affiliated artists, trainees, agencies, management, or entertainment-company inquiries.
 - `ai_creator_partner` and `partnership_other` applications automatically store `partnerReviewRequired: true` and `partnerReviewStatus: "pending"` in metadata.
-- `participationType` is one of `appearance_only`, `voice_or_song`, `performance`, or `co_creator`.
+- `participationType` is one of `appearance_only`, `voice_or_song`, `performance`, or `co_creator`. If omitted, the backend defaults to `appearance_only`.
+- The canonical submit fields are `contactEmail`, `contactPhone`, and `intro`. For temporary frontend compatibility, the backend also accepts aliases `applicantEmail`, `applicantPhone`, and `selfIntroduction`.
+- `consentVoice` is optional and defaults to `false`.
 - `shareTierRequested` and `shareTierApproved` are integers from 0 to 70.
 - Applicant withdrawal is available before final decision for `submitted`, `reviewing`, or `needs_more_info` applications.
 - Admin status updates accept `submitted`, `reviewing`, `needs_more_info`, `approved`, `rejected`, and `withdrawn`; `under_review` is accepted as a compatibility alias for `reviewing`.

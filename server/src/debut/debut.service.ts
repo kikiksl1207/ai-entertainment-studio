@@ -19,6 +19,14 @@ const APPLICATION_STATUSES = new Set([
 ]);
 
 const DEFAULT_APPLICATION_TYPE = 'personal_unaffiliated';
+const DEFAULT_PARTICIPATION_TYPE = 'appearance_only';
+
+type NormalizedCreateDebutApplicationInput = CreateDebutApplicationDto & {
+  contactEmail: string;
+  intro: string;
+  participationType: NonNullable<CreateDebutApplicationDto['participationType']>;
+  consentVoice: boolean;
+};
 
 @Injectable()
 export class DebutService {
@@ -195,31 +203,33 @@ export class DebutService {
   }
 
   async createApplication(userId: string, input: CreateDebutApplicationDto) {
-    if (!input.isAdult) {
+    const normalized = this.normalizeCreateApplication(input);
+
+    if (!normalized.isAdult) {
       throw new BadRequestException('isAdult must be true for MVP debut applications');
     }
 
-    this.assertRequiredConsents(input);
-    this.assertApplicationChannel(input);
-    const metadata = this.applicationMetadata(input);
+    this.assertRequiredConsents(normalized);
+    this.assertApplicationChannel(normalized);
+    const metadata = this.applicationMetadata(normalized);
 
     const application = await this.prisma.debutApplication.create({
       data: {
         userId,
-        applicantName: input.applicantName,
-        displayName: input.displayName,
-        contactEmail: input.contactEmail,
-        contactPhone: input.contactPhone,
-        isAdult: input.isAdult,
-        participationType: input.participationType,
-        shareTierRequested: input.shareTierRequested,
-        intro: input.intro,
-        portfolioUrl: input.portfolioUrl,
+        applicantName: normalized.applicantName,
+        displayName: normalized.displayName,
+        contactEmail: normalized.contactEmail,
+        contactPhone: normalized.contactPhone,
+        isAdult: normalized.isAdult,
+        participationType: normalized.participationType,
+        shareTierRequested: normalized.shareTierRequested,
+        intro: normalized.intro,
+        portfolioUrl: normalized.portfolioUrl,
         consentAppearance: true,
-        consentVoice: input.consentVoice,
+        consentVoice: normalized.consentVoice,
         consentRevenuePolicy: true,
         consentPrivacy: true,
-        consentMarketing: this.optionalConsentMarketing(input),
+        consentMarketing: this.optionalConsentMarketing(normalized),
         metadata,
       },
       include: this.applicationInclude(),
@@ -228,6 +238,31 @@ export class DebutService {
     return {
       application,
       message: 'Debut application submitted',
+    };
+  }
+
+  private normalizeCreateApplication(
+    input: CreateDebutApplicationDto,
+  ): NormalizedCreateDebutApplicationInput {
+    const contactEmail = input.contactEmail ?? input.applicantEmail;
+    if (!contactEmail) {
+      throw new BadRequestException('contactEmail is required');
+    }
+
+    const intro = input.intro ?? input.selfIntroduction;
+    if (!intro) {
+      throw new BadRequestException('intro is required');
+    }
+
+    const contactPhone = input.contactPhone ?? input.applicantPhone;
+
+    return {
+      ...input,
+      contactEmail,
+      contactPhone,
+      intro,
+      participationType: input.participationType ?? DEFAULT_PARTICIPATION_TYPE,
+      consentVoice: input.consentVoice ?? false,
     };
   }
 

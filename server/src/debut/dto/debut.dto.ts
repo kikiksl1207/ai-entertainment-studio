@@ -126,16 +126,29 @@ export class CreateDebutApplicationDto {
   @MaxLength(80)
   displayName?: string;
 
+  @IsOptional()
   @Transform(normalizeEmail)
   @IsEmail()
   @MaxLength(254)
-  contactEmail!: string;
+  contactEmail?: string;
+
+  @IsOptional()
+  @Transform(normalizeEmail)
+  @IsEmail()
+  @MaxLength(254)
+  applicantEmail?: string;
 
   @IsOptional()
   @Transform(normalizeString)
   @IsString()
   @MaxLength(40)
   contactPhone?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MaxLength(40)
+  applicantPhone?: string;
 
   @IsOptional()
   @Transform(normalizeString)
@@ -150,8 +163,9 @@ export class CreateDebutApplicationDto {
   @IsBoolean()
   isAdult!: boolean;
 
+  @IsOptional()
   @IsIn(DEBUT_PARTICIPATION_TYPES)
-  participationType!: (typeof DEBUT_PARTICIPATION_TYPES)[number];
+  participationType?: (typeof DEBUT_PARTICIPATION_TYPES)[number];
 
   @IsOptional()
   @IsInt()
@@ -159,11 +173,19 @@ export class CreateDebutApplicationDto {
   @Max(70)
   shareTierRequested?: number;
 
+  @IsOptional()
   @Transform(normalizeString)
   @IsString()
   @MinLength(20)
   @MaxLength(4000)
-  intro!: string;
+  intro?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MinLength(20)
+  @MaxLength(4000)
+  selfIntroduction?: string;
 
   @IsOptional()
   @Transform(normalizeString)
@@ -174,8 +196,17 @@ export class CreateDebutApplicationDto {
   @IsBoolean()
   consentAppearance!: boolean;
 
+  @IsOptional()
   @IsBoolean()
-  consentVoice!: boolean;
+  consentVoice?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  consentRightsRelationship?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  consentNoGuarantee?: boolean;
 
   @IsBoolean()
   consentRevenuePolicy!: boolean;
