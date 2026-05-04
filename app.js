@@ -2106,6 +2106,12 @@ const characters = [
 ];
 
 const characterFrontAssets = {
+  "cha-dohyun": {
+    gallery: generatedReferenceGallery("cha-dohyun", 20)
+  },
+  "choi-seojin": {
+    gallery: generatedReferenceGallery("choi-seojin", 20)
+  },
   "yoon-serin": {
     gallery: [
       ["Full body", "./assets/characters/yoon-serin/reference-final/01_full-body-reference-01.png"],
@@ -2131,27 +2137,7 @@ const characterFrontAssets = {
     ]
   },
   "han-seoyul": {
-    gallery: [
-      ["Angle profile", "./assets/characters/han-seoyul/reference/angle-profile-01.png"],
-      ["Backstage emotion", "./assets/characters/han-seoyul/reference/backstage-emotion-closeup-01.png"],
-      ["Backstage in-ear", "./assets/characters/han-seoyul/reference/backstage-in-ear-01.png"],
-      ["Cover mid", "./assets/characters/han-seoyul/reference/cover-mid-01.png"],
-      ["Mirror rehearsal", "./assets/characters/han-seoyul/reference/dance-rehearsal-mirror-01.png"],
-      ["Fan service", "./assets/characters/han-seoyul/reference/fanservice-selfie-01.png"],
-      ["Focused rehearsal", "./assets/characters/han-seoyul/reference/focused-rehearsal-notes-01.png"],
-      ["Full body angle", "./assets/characters/han-seoyul/reference/full-body-angle-walk-01.png"],
-      ["Full body 01", "./assets/characters/han-seoyul/reference/full-body-reference-01.png"],
-      ["Full body 02", "./assets/characters/han-seoyul/reference/full-body-reference-02.png"],
-      ["Performance mic 01", "./assets/characters/han-seoyul/reference/performance-mic-01.png"],
-      ["Performance mic 02", "./assets/characters/han-seoyul/reference/performance-mic-02.png"],
-      ["Performance mic 03", "./assets/characters/han-seoyul/reference/performance-mic-03.png"],
-      ["Pout expression", "./assets/characters/han-seoyul/reference/pout-expression-01.png"],
-      ["Recording booth", "./assets/characters/han-seoyul/reference/recording-booth-headphone-01.png"],
-      ["Vocal practice", "./assets/characters/han-seoyul/reference/rehearsal-vocal-practice-01.png"],
-      ["Stage motion", "./assets/characters/han-seoyul/reference/stage-motion-hair-01.png"],
-      ["Thumb close-up 01", "./assets/characters/han-seoyul/reference/thumb-closeup-01.png"],
-      ["Thumb close-up 02", "./assets/characters/han-seoyul/reference/thumb-closeup-02.png"]
-    ]
+    gallery: generatedReferenceGallery("han-seoyul", 20)
   },
   "park-doa": {
     gallery: [
@@ -2166,8 +2152,17 @@ const characterFrontAssets = {
       ["Selfie reaction", "./assets/characters/park-doa/reference-final/09_streamer-selfie-reaction-01.png"],
       ["Drink selfie", "./assets/characters/park-doa/reference-final/10_streamer-drink-selfie-01.png"],
       ["Mukbang bite", "./assets/characters/park-doa/reference-final/11_mukbang-bite-01.png"],
-      ["Surprised bite", "./assets/characters/park-doa/reference-final/12_mukbang-surprised-bite-01.png"]
+      ["Surprised bite", "./assets/characters/park-doa/reference-final/12_mukbang-surprised-bite-01.png"],
+      ["Dessert cake stream", "./assets/characters/park-doa/reference-final/13_dessert-cake-stream-01.png"],
+      ["Hotpot noodle live", "./assets/characters/park-doa/reference-final/14_hotpot-noodle-live-01.png"],
+      ["Sofa plush vlog", "./assets/characters/park-doa/reference-final/15_sofa-plush-vlog-01.png"],
+      ["Late night editing", "./assets/characters/park-doa/reference-final/16_late-night-editing-01.png"],
+      ["Fan gift unboxing", "./assets/characters/park-doa/reference-final/17_fan-gift-unboxing-01.png"],
+      ["Morning breakfast vlog", "./assets/characters/park-doa/reference-final/18_morning-breakfast-vlog-01.png"]
     ]
+  },
+  "seo-yuan": {
+    gallery: generatedReferenceGallery("seo-yuan", 20)
   },
   "ha-yuna": {
     gallery: Array.from({ length: 24 }, (_, index) => {
@@ -2183,7 +2178,15 @@ const characterFrontAssets = {
   }
 };
 
-const localGalleryLockedSlugs = new Set(["ha-yuna", "kwon-taejun"]);
+function generatedReferenceGallery(slug, count, exclude = []) {
+  const excluded = new Set(exclude);
+  return Array.from({ length: count }, (_, index) => {
+    const number = String(index + 1).padStart(2, "0");
+    return [`Reference ${number}`, `./assets/characters/${slug}/reference-final-${number}.png`];
+  }).filter(([, src]) => !excluded.has(src.split("/").pop()));
+}
+
+const localGalleryLockedSlugs = new Set(Object.keys(characterFrontAssets));
 
 function shouldKeepLocalGallery(slug) {
   return localGalleryLockedSlugs.has(slug);
