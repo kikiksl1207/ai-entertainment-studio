@@ -591,6 +591,7 @@ Creator image request endpoints:
 
 ```http
 GET /api/v1/me/creator-studio
+PATCH /api/v1/me/creator-studio/artists/:artistId/profile
 POST /api/v1/creator-image-requests
 GET /api/v1/me/creator-image-requests?artistId=<artistId>&status=submitted&requestType=profile_image&take=30&cursor=<nextCursor>
 GET /api/v1/creator-image-requests/:requestId
@@ -604,6 +605,9 @@ PATCH /admin/api/v1/creator-image-requests/:requestId
 Current workflow:
 
 - `GET /api/v1/me/creator-studio` is the authenticated creator-studio bootstrap endpoint. It returns active artist operator rows, operated artist profile/assets, image request counters by artist/status, recent image requests, and frontend endpoint hints.
+- `PATCH /api/v1/me/creator-studio/artists/:artistId/profile` is the limited creator-facing profile save endpoint. It requires active operator access and updates only `artist_public_profiles`, `artist_visual_profiles`, and `artist_content_profiles`.
+- Creator-facing profile updates do not change artist `displayName`, `slug`, `status`, revenue share, ownership, launch state, or asset links. Those remain admin/operations responsibilities.
+- Creator profile updates write `audit_events` with `actorType = "creator"` and action `creator_studio.artist_profile.update`.
 - `POST /api/v1/creator-image-requests` requires an active `artist_operators` row for the current user and target `artistId`.
 - `referenceAssetIds` can contain up to 8 confirmed image asset UUIDs from the existing user asset upload flow.
 - User list/detail responses include requests created by the user and requests for artists the user actively operates.

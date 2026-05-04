@@ -1040,6 +1040,7 @@ Creator Studio bootstrap:
 
 ```http
 GET /me/creator-studio
+PATCH /me/creator-studio/artists/:artistId/profile
 Authorization: Bearer <accessToken>
 ```
 
@@ -1100,6 +1101,62 @@ Response shape:
       "confirmUpload": "/api/v1/me/assets/:assetId/confirm-upload"
     }
   }
+}
+```
+
+Creator Studio profile update:
+
+```http
+PATCH /me/creator-studio/artists/:artistId/profile
+Authorization: Bearer <accessToken>
+```
+
+This endpoint is intentionally limited. It requires active artist-operator access and lets a creator update profile/tone fields only. It does not change `displayName`, `slug`, `status`, revenue terms, ownership, public launch state, or assets.
+
+Body can include one or more sections:
+
+```json
+{
+  "publicProfile": {
+    "tagline": "Short public tagline",
+    "summary": "Public creator profile summary",
+    "personalityKeywords": ["bright", "calm"],
+    "publicStory": "Longer public story",
+    "publicMetadata": {
+      "creatorNote": "non-sensitive metadata only"
+    }
+  },
+  "visualProfile": {
+    "visualKeywords": ["clean", "studio"],
+    "styleNotes": "Visual direction notes",
+    "primaryColor": "#ffffff",
+    "secondaryColor": "#111111"
+  },
+  "contentProfile": {
+    "contentTone": "Warm, direct, fan-friendly",
+    "allowedTopics": ["daily update", "behind the scenes"],
+    "blockedTopics": ["private contact", "external payment"],
+    "operatingNotes": "Internal operating tone memo"
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "artist": {
+    "id": "artist-uuid",
+    "slug": "creator-slug",
+    "displayName": "Creator Name",
+    "publicProfile": {},
+    "visualProfile": {},
+    "contentProfile": {},
+    "coverImage": null,
+    "thumbnailImage": null,
+    "assets": []
+  },
+  "message": "Creator studio artist profile updated"
 }
 ```
 

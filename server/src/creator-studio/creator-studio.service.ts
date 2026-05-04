@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import { AuthUser } from '../auth/auth.types';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpdateCreatorStudioArtistProfileDto } from './dto/creator-studio.dto';
 
 const OPEN_IMAGE_REQUEST_STATUSES = [
   'submitted',
@@ -10,6 +12,8 @@ const OPEN_IMAGE_REQUEST_STATUSES = [
   'generating',
   'needs_more_info',
 ];
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class CreatorStudioService {
@@ -97,6 +101,164 @@ export class CreatorStudioService {
           confirmUpload: '/api/v1/me/assets/:assetId/confirm-upload',
         },
       },
+    };
+  }
+
+  async updateArtistProfile(
+    user: AuthUser,
+    artistId: string,
+    input: UpdateCreatorStudioArtistProfileDto,
+  ) {
+    this.assertUuid(artistId, 'artistId');
+    await this.assertArtistOperator(user.id, artistId);
+
+    if (
+      input.publicProfile === undefined &&
+      input.visualProfile === undefined &&
+      input.contentProfile === undefined
+    ) {
+      throw new BadRequestException('At least one profile section is required');
+    }
+
+    const before = await this.prisma.artist.findUnique({
+      where: { id: artistId },
+      include: {
+        publicProfile: true,
+        visualProfile: true,
+        contentProfile: true,
+        artistAssets: {
+          where: { asset: { visibility: 'public' } },
+          include: { asset: true },
+          orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+        },
+      },
+    });
+
+    if (!before) {
+      throw new NotFoundException('Artist not found');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (input.publicProfile !== undefined) {
+        const publicMetadata =
+          input.publicProfile.publicMetadata === undefined
+            ? undefined
+            : this.mergeMetadata(before.publicProfile?.publicMetadata, {
+                ...input.publicProfile.publicMetadata,
+                creatorStudioUpdatedByUserId: user.id,
+                creatorStudioUpdatedAt: new Date().toISOString(),
+              });
+
+        await tx.artistPublicProfile.upsert({
+          where: { artistId },
+          create: {
+            artistId,
+            tagline: input.publicProfile.tagline,
+            summary: input.publicProfile.summary,
+            personalityKeywords: input.publicProfile.personalityKeywords ?? [],
+            publicStory: input.publicProfile.publicStory,
+            publicMetadata: publicMetadata ?? Prisma.JsonNull,
+          },
+          update: this.clean({
+            tagline: input.publicProfile.tagline,
+            summary: input.publicProfile.summary,
+            personalityKeywords: input.publicProfile.personalityKeywords,
+            publicStory: input.publicProfile.publicStory,
+            publicMetadata,
+            updatedAt: new Date(),
+          }),
+        });
+      }
+
+      if (input.visualProfile !== undefined) {
+        await tx.artistVisualProfile.upsert({
+          where: { artistId },
+          create: {
+            artistId,
+            visualKeywords: input.visualProfile.visualKeywords ?? [],
+            styleNotes: input.visualProfile.styleNotes,
+            primaryColor: input.visualProfile.primaryColor,
+            secondaryColor: input.visualProfile.secondaryColor,
+          },
+          update: this.clean({
+            visualKeywords: input.visualProfile.visualKeywords,
+            styleNotes: input.visualProfile.styleNotes,
+            primaryColor: input.visualProfile.primaryColor,
+            secondaryColor: input.visualProfile.secondaryColor,
+            updatedAt: new Date(),
+          }),
+        });
+      }
+
+      if (input.contentProfile !== undefined) {
+        await tx.artistContentProfile.upsert({
+          where: { artistId },
+          create: {
+            artistId,
+            contentTone: input.contentProfile.contentTone,
+            allowedTopics: input.contentProfile.allowedTopics ?? [],
+            blockedTopics: input.contentProfile.blockedTopics ?? [],
+            operatingNotes: input.contentProfile.operatingNotes,
+          },
+          update: this.clean({
+            contentTone: input.contentProfile.contentTone,
+            allowedTopics: input.contentProfile.allowedTopics,
+            blockedTopics: input.contentProfile.blockedTopics,
+            operatingNotes: input.contentProfile.operatingNotes,
+            updatedAt: new Date(),
+          }),
+        });
+      }
+
+      await tx.artist.update({
+        where: { id: artistId },
+        data: { updatedAt: new Date() },
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: user.id,
+          actorType: 'creator',
+          action: 'creator_studio.artist_profile.update',
+          targetType: 'artist',
+          targetId: artistId,
+          beforeData: this.toJson({
+            publicProfile: before.publicProfile,
+            visualProfile: before.visualProfile,
+            contentProfile: before.contentProfile,
+          }),
+          afterData: this.toJson(input),
+          metadata: Prisma.JsonNull,
+        },
+      });
+    });
+
+    const updated = await this.prisma.artistOperator.findFirstOrThrow({
+      where: {
+        userId: user.id,
+        artistId,
+        status: 'active',
+        revokedAt: null,
+      },
+      include: {
+        artist: {
+          include: {
+            publicProfile: true,
+            visualProfile: true,
+            contentProfile: true,
+            artistAssets: {
+              where: { asset: { visibility: 'public' } },
+              include: { asset: true },
+              orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      artist: this.presentOperator(updated).artist,
+      message: 'Creator studio artist profile updated',
     };
   }
 
@@ -261,5 +423,50 @@ export class CreatorStudioService {
 
   private assetUrl(storageKey: string) {
     return buildPublicAssetUrl(this.configService, storageKey, storageKey);
+  }
+
+  private async assertArtistOperator(userId: string, artistId: string) {
+    const operator = await this.prisma.artistOperator.findFirst({
+      where: {
+        userId,
+        artistId,
+        status: 'active',
+        revokedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!operator) {
+      throw new ForbiddenException('Artist operator access is required');
+    }
+  }
+
+  private assertUuid(value: string, field: string) {
+    if (!UUID_PATTERN.test(value)) {
+      throw new BadRequestException(`${field} must be a UUID`);
+    }
+  }
+
+  private mergeMetadata(current: Prisma.JsonValue | undefined, patch: Record<string, unknown>) {
+    const base =
+      current && typeof current === 'object' && !Array.isArray(current)
+        ? (current as Record<string, unknown>)
+        : {};
+
+    return this.toJson({ ...base, ...patch });
+  }
+
+  private clean<T extends Record<string, unknown>>(input: T) {
+    return Object.fromEntries(
+      Object.entries(input).filter(([, value]) => value !== undefined),
+    ) as T;
+  }
+
+  private toJson(value: unknown) {
+    if (value === null || value === undefined) {
+      return Prisma.JsonNull;
+    }
+
+    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
   }
 }
