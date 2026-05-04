@@ -5185,6 +5185,144 @@ function bindShareButtons() {
   });
 }
 
+function initCreatorStudioPage() {
+  const root = document.querySelector(".page-creator-studio .studio-shell");
+  if (!root || window.__creatorStudioBound) return;
+  window.__creatorStudioBound = true;
+
+  const navButtons = Array.from(root.querySelectorAll("[data-section]"));
+  const sections = Array.from(root.querySelectorAll(".studio-section"));
+  const toast = document.getElementById("studioToast");
+  const modal = document.getElementById("studioModal");
+  const modalTitle = document.getElementById("studioModalTitle");
+  const modalType = document.getElementById("studioModalType");
+  const modalMessage = document.getElementById("studioModalMessage");
+  const modalSummary = document.getElementById("studioModalSummary");
+  const modalClose = document.getElementById("studioModalClose");
+  const modalCancel = document.getElementById("studioModalCancel");
+  const modalConfirm = document.getElementById("studioModalConfirm");
+  let toastTimer = null;
+
+  const showStudioToast = message => {
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add("is-visible");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 2200);
+  };
+
+  const activateSection = id => {
+    if (!id || !sections.some(section => section.id === id)) return;
+    navButtons.forEach(button => button.classList.toggle("is-active", button.dataset.section === id));
+    sections.forEach(section => section.classList.toggle("is-active", section.id === id));
+    history.replaceState(null, "", `#${id}`);
+    root.querySelector(".studio-main")?.scrollTo?.({ top: 0, behavior: "smooth" });
+  };
+
+  const setModalRows = rows => {
+    if (!modalSummary) return;
+    modalSummary.replaceChildren();
+    rows.forEach(([label, value]) => {
+      const row = document.createElement("div");
+      const key = document.createElement("strong");
+      const val = document.createElement("span");
+      key.textContent = label;
+      val.textContent = value;
+      row.append(key, val);
+      modalSummary.append(row);
+    });
+  };
+
+  const openStudioModal = ({ title, type = "Studio Stage", message, rows = [], confirmText = "확인" }) => {
+    if (!modal) return;
+    if (modalTitle) modalTitle.textContent = title;
+    if (modalType) modalType.textContent = type;
+    if (modalMessage) modalMessage.textContent = message;
+    if (modalConfirm) modalConfirm.textContent = confirmText;
+    setModalRows(rows);
+    modal.classList.remove("is-hidden");
+  };
+
+  const closeStudioModal = () => modal?.classList.add("is-hidden");
+
+  const openSettlementModal = () => {
+    openStudioModal({
+      title: "정산 신청 전 확인",
+      message: "본인인증, 정산계좌, 세무 주소가 준비된 뒤 정산 신청을 진행할 수 있습니다.",
+      rows: [
+        ["예정 정산금", "128,400원"],
+        ["본인인증", "확인 필요"],
+        ["정산계좌", "등록 대기"],
+        ["세무 주소", "첫 정산 시 1회 입력"]
+      ],
+      confirmText: "확인했습니다"
+    });
+  };
+
+  const openImageRequestModal = () => {
+    openStudioModal({
+      title: "이미지 생성 요청",
+      message: "요청 시 100L가 차감되고, 결과는 검토 후 커버, 썸네일, 갤러리, 숏폼 슬롯 중 하나로 연결합니다.",
+      rows: [
+        ["차감 루미나", "100L"],
+        ["재조정", "최대 3회"],
+        ["공개 방식", "결과 확인 후 운영자가 슬롯 지정"]
+      ],
+      confirmText: "요청하기"
+    });
+  };
+
+  navButtons.forEach(button => {
+    button.addEventListener("click", () => activateSection(button.dataset.section));
+  });
+
+  root.querySelectorAll("[data-section-jump]").forEach(button => {
+    button.addEventListener("click", () => activateSection(button.dataset.sectionJump));
+  });
+
+  root.querySelectorAll("[data-action='toast']").forEach(button => {
+    button.addEventListener("click", () => {
+      const label = button.textContent.trim();
+      if (label.includes("정산 신청")) {
+        openSettlementModal();
+        return;
+      }
+      if (label.includes("100L")) {
+        openImageRequestModal();
+        return;
+      }
+      if (label.includes("새 피드")) {
+        activateSection("feed");
+        showStudioToast("피드 작성 화면으로 이동했습니다.");
+        return;
+      }
+      showStudioToast("입력 내용은 화면에 임시 저장됩니다. 실제 저장은 연결된 기능부터 순차 적용됩니다.");
+    });
+  });
+
+  root.querySelectorAll("[data-action='tone']").forEach(button => {
+    button.addEventListener("click", () => {
+      const body = document.getElementById("feedBody");
+      if (body) {
+        body.value = "오늘은 조용히 준비한 만큼 정확하게 보여드릴게요. 무대 위의 한 장면이 오래 남도록, 작은 디테일까지 놓치지 않겠습니다.";
+      }
+      showStudioToast("선택한 아티스트 톤앤매너 예시로 변환했습니다.");
+    });
+  });
+
+  [modalClose, modalCancel].forEach(button => button?.addEventListener("click", closeStudioModal));
+  modal?.addEventListener("click", event => {
+    if (event.target === modal) closeStudioModal();
+  });
+  modalConfirm?.addEventListener("click", () => {
+    closeStudioModal();
+    showStudioToast("확인되었습니다. 화면 상태에 반영했습니다.");
+  });
+
+  const initial = location.hash.replace("#", "");
+  if (initial) activateSection(initial);
+}
+
 async function init() {
   // #064 i18n — UI 깜빡임 최소화 위해 가장 먼저 실행 (비로그인 시 즉시, 로그인 시 서버 동기화 포함)
   await initI18n();
@@ -5202,6 +5340,11 @@ async function init() {
   // 이미 로그인 상태이면 잔액 미리 로드 (await 안 함 — 백그라운드)
   if (isLoggedIn()) loadWallet();
   initMypagePage();
+  initCreatorStudioPage();
+
+  if (document.body.classList.contains("page-creator-studio")) {
+    return;
+  }
 
   // URL ?ref= 추천인 코드 자동 캡처 (있으면 localStorage 30일 보관)
   captureReferralFromURL();

@@ -7023,3 +7023,57 @@ p {
     padding: 22px 20px 20px;
   }
 }
+
+/* Creator Studio shared polish */
+.page-creator-studio .studio-nav b {
+  color: #ff5aa8;
+  background: rgba(255, 79, 195, 0.14);
+}
+
+.page-creator-studio .studio-nav button.is-active b {
+  color: #fff;
+  background: rgba(255, 79, 195, 0.42);
+}
+
+.page-creator-studio .studio-topbar .top-actions {
+  align-self: flex-start;
+}
+
+.page-creator-studio .composer-tools .primary-action,
+.page-creator-studio .composer-tools .secondary-action,
+.page-creator-studio .modal-actions .primary-action,
+.page-creator-studio .modal-actions .secondary-action {
+  min-width: 128px;
+  justify-content: center;
+  text-align: center;
+}
+
+.page-creator-studio .modal-summary div {
+  min-height: 44px;
+}
+
+.page-creator-studio .modal-summary span {
+  word-break: keep-all;
+}
+
+.page-creator-studio .studio-toast {
+  font-weight: 900;
+}
+
+@media (max-width: 680px) {
+  .page-creator-studio .studio-nav b {
+    min-width: 30px;
+  }
+
+  .page-creator-studio .top-actions,
+  .page-creator-studio .composer-tools,
+  .page-creator-studio .modal-actions {
+    width: 100%;
+  }
+
+  .page-creator-studio .top-actions button,
+  .page-creator-studio .composer-tools button,
+  .page-creator-studio .modal-actions button {
+    flex: 1 1 100%;
+  }
+}
