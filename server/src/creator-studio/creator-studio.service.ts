@@ -18,6 +18,7 @@ const OPEN_IMAGE_REQUEST_STATUSES = [
 ];
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CREATOR_STUDIO_INITIAL_SLOT_LIMIT = 10;
 type CreatorRevenueType = 'chat' | 'gift' | 'paid_like' | 'premium_video' | 'fan_letter';
 
 @Injectable()
@@ -78,8 +79,36 @@ export class CreatorStudioService {
       : [[], []];
 
     const imageRequestSummary = this.imageRequestSummary(imageRequestCounts);
+    const activeArtistCount = operators.filter(
+      (operator) => operator.artist.status === 'active',
+    ).length;
+    const needsAttentionCount = imageRequestSummary.total.open;
+    const hasAccess = artistIds.length > 0;
+    let accessType: 'personal_creator' | 'studio_operator' | null = null;
+    if (hasAccess) {
+      accessType = artistIds.length > 1 ? 'studio_operator' : 'personal_creator';
+    }
 
     return {
+      access: {
+        enabled: hasAccess,
+        type: accessType,
+        status: hasAccess ? 'approved' : 'none',
+        entryUrl: '/creator-studio.html',
+      },
+      summary: {
+        ownedArtistCount: artistIds.length,
+        activeArtistCount,
+        needsAttentionCount,
+        openImageRequestCount: imageRequestSummary.total.open,
+        deliveredImageRequestCount: imageRequestSummary.total.delivered,
+        slotLimit: CREATOR_STUDIO_INITIAL_SLOT_LIMIT,
+        usedSlots: artistIds.length,
+        remainingSlots: Math.max(
+          0,
+          CREATOR_STUDIO_INITIAL_SLOT_LIMIT - artistIds.length,
+        ),
+      },
       artists: operators.map((operator) =>
         this.presentOperator(operator, imageRequestSummary.byArtist[operator.artistId]),
       ),
@@ -92,6 +121,17 @@ export class CreatorStudioService {
         emptyState:
           'No active artist operator access is connected to this account yet.',
         canCreateImageRequests: artistIds.length > 0,
+        slotPolicy: {
+          initialSlotLimit: CREATOR_STUDIO_INITIAL_SLOT_LIMIT,
+          usedSlots: artistIds.length,
+          remainingSlots: Math.max(
+            0,
+            CREATOR_STUDIO_INITIAL_SLOT_LIMIT - artistIds.length,
+          ),
+          canRequestAdditionalArtist: false,
+          additionalArtistRequestMode: 'debut_application_or_admin_review',
+          paidSlotExpansionStatus: 'planned_not_open',
+        },
         imageRequestTypes: [
           'profile_image',
           'content_image',
@@ -102,6 +142,7 @@ export class CreatorStudioService {
         endpoints: {
           createImageRequest: '/api/v1/creator-image-requests',
           imageRequests: '/api/v1/me/creator-image-requests',
+          settlementPreview: '/api/v1/me/creator-studio/settlement-preview',
           uploadIntent: '/api/v1/me/assets/upload-intents',
           confirmUpload: '/api/v1/me/assets/:assetId/confirm-upload',
         },

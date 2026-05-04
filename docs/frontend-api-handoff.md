@@ -1098,6 +1098,10 @@ Authorization: Bearer <accessToken>
 
 Use this as the first call for the creator-studio screen. It returns active artist operator access, public/content/visual profile snapshots, cover/thumb/assets, creator image request counters, and recent image requests.
 
+Account dropdown rule: call this endpoint after login when the UI needs to decide
+whether to show `스튜디오 스테이지`. Show that menu item when
+`access.enabled === true`. Do not infer creator access from email or admin role.
+
 Creator Studio settlement preview:
 
 ```http
@@ -1207,6 +1211,22 @@ Response shape:
 
 ```json
 {
+  "access": {
+    "enabled": true,
+    "type": "personal_creator",
+    "status": "approved",
+    "entryUrl": "/creator-studio.html"
+  },
+  "summary": {
+    "ownedArtistCount": 1,
+    "activeArtistCount": 1,
+    "needsAttentionCount": 0,
+    "openImageRequestCount": 0,
+    "deliveredImageRequestCount": 0,
+    "slotLimit": 10,
+    "usedSlots": 1,
+    "remainingSlots": 9
+  },
   "artists": [
     {
       "operator": {
@@ -1250,10 +1270,19 @@ Response shape:
   "policy": {
     "mode": "creator_studio_bootstrap_v1",
     "canCreateImageRequests": true,
+    "slotPolicy": {
+      "initialSlotLimit": 10,
+      "usedSlots": 1,
+      "remainingSlots": 9,
+      "canRequestAdditionalArtist": false,
+      "additionalArtistRequestMode": "debut_application_or_admin_review",
+      "paidSlotExpansionStatus": "planned_not_open"
+    },
     "imageRequestTypes": ["profile_image", "content_image"],
     "endpoints": {
       "createImageRequest": "/api/v1/creator-image-requests",
       "imageRequests": "/api/v1/me/creator-image-requests",
+      "settlementPreview": "/api/v1/me/creator-studio/settlement-preview",
       "uploadIntent": "/api/v1/me/assets/upload-intents",
       "confirmUpload": "/api/v1/me/assets/:assetId/confirm-upload"
     }
