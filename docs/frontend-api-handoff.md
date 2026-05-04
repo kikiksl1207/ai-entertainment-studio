@@ -1852,6 +1852,42 @@ Response shape:
 }
 ```
 
+Manual settlement detail:
+
+```http
+GET /admin/api/v1/backstage/settlements/:settlementKey
+```
+
+Use this when the operator opens a settlement-history/detail modal. It returns
+the saved record, non-sensitive metadata, and up to 20 recent audit events for
+that settlement record.
+
+```json
+{
+  "record": {
+    "settlementKey": "partner:<partnerUserId>:2026-05",
+    "status": "paid",
+    "amountKrw": "50000",
+    "reason": "manual bank transfer completed"
+  },
+  "metadata": {
+    "eligibilityOverrideConfirmed": true
+  },
+  "auditEvents": [
+    {
+      "action": "settlement.status.update",
+      "actorUserId": "admin-user-id",
+      "createdAt": "2026-05-04T09:00:00.000Z"
+    }
+  ],
+  "policy": {
+    "manualOnly": true,
+    "moneyTransfer": false,
+    "auditEventLimit": 20
+  }
+}
+```
+
 ```http
 POST /admin/api/v1/backstage/settlements/:settlementKey/status
 ```

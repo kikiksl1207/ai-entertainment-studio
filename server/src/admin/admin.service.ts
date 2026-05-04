@@ -1561,6 +1561,57 @@ export class AdminService {
     };
   }
 
+  async getBackstageSettlement(settlementKey: string) {
+    this.parseSettlementKey(settlementKey);
+
+    const record = await this.prisma.settlementRecord.findUnique({
+      where: { settlementKey },
+    });
+
+    if (!record) {
+      throw new NotFoundException('Settlement record not found');
+    }
+
+    const auditEvents = await this.prisma.auditEvent.findMany({
+      where: {
+        targetType: 'settlement_record',
+        targetId: record.id,
+      },
+      take: 20,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        actorUserId: true,
+        actorType: true,
+        action: true,
+        beforeData: true,
+        afterData: true,
+        metadata: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      record: this.settlementRecordSummary(record),
+      metadata: this.metadataObject(record.metadata),
+      auditEvents: auditEvents.map((event) => ({
+        id: event.id,
+        actorUserId: event.actorUserId,
+        actorType: event.actorType,
+        action: event.action,
+        beforeData: event.beforeData,
+        afterData: event.afterData,
+        metadata: event.metadata,
+        createdAt: event.createdAt,
+      })),
+      policy: {
+        manualOnly: true,
+        moneyTransfer: false,
+        auditEventLimit: 20,
+      },
+    };
+  }
+
   async createAdminUser(user: AuthUser, input: AdminPayload) {
     this.assertSuperAdmin(user);
 

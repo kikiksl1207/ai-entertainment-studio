@@ -76,6 +76,12 @@ export class AdminController {
     return this.adminService.getBackstageSettlements(query);
   }
 
+  @Get('backstage/settlements/:settlementKey')
+  @RequireAdminPermissions('payments:read')
+  getBackstageSettlement(@Param('settlementKey') settlementKey: string) {
+    return this.adminService.getBackstageSettlement(settlementKey);
+  }
+
   @Get('admin-roles')
   @RequireAdminPermissions('*')
   getAdminRoles() {
