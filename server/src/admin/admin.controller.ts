@@ -54,6 +54,12 @@ export class AdminController {
     return this.adminService.getBackstageSettlementPreview(query);
   }
 
+  @Get('backstage/operations/partner-settlement-preview')
+  @RequireAdminPermissions('payments:read')
+  getBackstagePartnerSettlementPreview(@Query() query: AuditQuery) {
+    return this.adminService.getBackstagePartnerSettlementPreview(query);
+  }
+
   @Get('admin-roles')
   @RequireAdminPermissions('*')
   getAdminRoles() {

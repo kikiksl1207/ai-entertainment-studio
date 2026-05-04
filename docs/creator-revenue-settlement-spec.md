@@ -132,6 +132,34 @@ creator payout at 80%: about 195-207 KRW
 Strategic creator terms should be time-limited, e.g. 3-6 months, and renegotiated
 after launch data is available.
 
+## Multi-Artist Creator Partner Slots
+
+AI creator partners can operate more than one AI artist. The first application
+can request up to 10 character candidate slots. These are review slots, not
+public launch guarantees. Approved characters are managed in Creator Studio,
+not normal My Page.
+
+After real operations and settlement quality are proven, additional candidate
+slots can be sold/opened in 5-slot units. Additional slot purchase only grants
+review capacity; launch still requires operations approval.
+
+Backstage settlement must support two views:
+
+- artist-level detail: revenue, cost, payout preview, and hold reason per artist.
+- partner-level payout: sum of multiple artist previews by creator/operator
+  account.
+
+Current preview endpoint for the partner-level view:
+
+```http
+GET /admin/api/v1/backstage/operations/partner-settlement-preview?period=2026-05&query=&status=&artistStatus=&take=20&cursor=<nextCursor>
+```
+
+This endpoint is preview-only. It groups multiple `artist_operators` rows by
+partner user and returns partner totals plus `artists[]` detail. Final payout
+still requires verified payout account, tax/accounting checks, refunds and
+chargebacks review, and admin confirmation.
+
 ## Required Backend Structure
 
 ### 1. Promotional Cost Attribution

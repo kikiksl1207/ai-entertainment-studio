@@ -1649,6 +1649,7 @@ GET /admin/api/v1/backstage/operations/creators?query=&status=&take=20&cursor=<n
 GET /admin/api/v1/backstage/operations/ai-content-health?query=&status=&take=20&cursor=<nextCursor>
 GET /admin/api/v1/backstage/operations/users-overview?query=&email=&status=&take=20&cursor=<nextCursor>
 GET /admin/api/v1/backstage/operations/settlement-preview?period=2026-05&query=&status=&take=20&cursor=<nextCursor>
+GET /admin/api/v1/backstage/operations/partner-settlement-preview?period=2026-05&query=&status=&artistStatus=&take=20&cursor=<nextCursor>
 GET /admin/api/v1/community/summary?take=10
 GET /admin/api/v1/community/reports?status=submitted&query=abuse&take=50&cursor=<nextCursor>
 GET /admin/api/v1/community/posts?status=published&minReports=1&sort=reports&query=keyword&take=50&cursor=<nextCursor>
@@ -1771,6 +1772,35 @@ admin UI or represented with a clear "estimated only" badge. Final payout still
 requires normalized creator revenue events, refund/chargeback checks, tax/accounting
 review, and admin confirmation.
 
+`GET /admin/api/v1/backstage/operations/partner-settlement-preview` is the
+partner-account view of the same estimated settlement model. Use it when one
+creator/operator account manages multiple AI artists. It groups artist-level
+revenue details under the partner account and does not finalize payout.
+
+Supported query:
+
+- `period`: `YYYY-MM`, defaults to the current UTC month.
+- `query`: partner email, display name, public handle, artist display name, or slug.
+- `status`: partner user status.
+- `artistStatus`: optional artist status filter.
+- `take`, `cursor`: normal pagination.
+- the same optional policy overrides as `settlement-preview`.
+
+Each `items[]` row includes:
+
+- `partner`: masked email, display name, public handle, user status, created date.
+- `operatedArtistCount`, `approvedArtistCount`,
+  `pendingArtistApplicationCount`.
+- `artists[]`: artist identity, operator role, event count, gross Lumina,
+  product breakdown, financials, preview status, and hold reason.
+- `totals`: partner-level total event count, Lumina, gross/net revenue,
+  creator share, platform share, and risk reserve.
+- `payoutStatus`, `payoutHoldReason`, `lastSettlementAt`.
+
+The response includes `policyNotes` with `payoutUnit: "partner_user"` and
+`detailUnit: "artist"`. Initial candidate slots are 10 and future paid slot
+expansion is planned in 5-slot units. UI must show this as preview-only.
+
 `GET /admin/api/v1/community/summary` returns grouped report/post counts and
 `posts.highRisk` with the most-reported published/hidden posts.
 
@@ -1811,6 +1841,8 @@ Search support:
 - `backstage/operations/users-overview.query`: email, phone, display name,
   public handle.
 - `backstage/operations/settlement-preview.query`: artist display name or slug.
+- `backstage/operations/partner-settlement-preview.query`: partner email,
+  display name, public handle, artist display name, or artist slug.
 - `users.query`: email, phone number, profile display name, public handle.
 - `payment-orders.query`: order number, provider, user email.
 - `refund-transactions.query`: provider refund id, reason, payment order number,

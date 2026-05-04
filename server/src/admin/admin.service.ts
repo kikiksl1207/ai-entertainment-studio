@@ -1022,6 +1022,335 @@ export class AdminService {
     };
   }
 
+  async getBackstagePartnerSettlementPreview(query: AuditQuery) {
+    const pagination = this.adminPagination(query, 20);
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
+    const status = this.optionalString(query, 'status');
+    const artistStatus = this.optionalString(query, 'artistStatus');
+    const period = this.settlementPeriod(query);
+    const policy = this.settlementPolicy(query);
+    const where: Prisma.UserWhereInput = this.clean({
+      status,
+      artistOperators: {
+        some: {
+          status: 'active',
+          artist: this.clean({
+            status: artistStatus,
+          }),
+        },
+      },
+      OR: search
+        ? [
+            { email: { contains: search, mode: 'insensitive' } },
+            { profile: { displayName: { contains: search, mode: 'insensitive' } } },
+            { profile: { publicHandle: { contains: search, mode: 'insensitive' } } },
+            {
+              artistOperators: {
+                some: {
+                  artist: {
+                    OR: [
+                      { displayName: { contains: search, mode: 'insensitive' } },
+                      { slug: { contains: search, mode: 'insensitive' } },
+                    ],
+                  },
+                },
+              },
+            },
+          ]
+        : undefined,
+    });
+    const partners = await this.prisma.user.findMany({
+      where,
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        createdAt: true,
+        profile: {
+          select: {
+            displayName: true,
+            publicHandle: true,
+          },
+        },
+        artistOperators: {
+          where: {
+            status: 'active',
+            artist: this.clean({
+              status: artistStatus,
+            }),
+          },
+          select: {
+            role: true,
+            artist: {
+              select: {
+                id: true,
+                slug: true,
+                displayName: true,
+                status: true,
+                sortOrder: true,
+              },
+            },
+          },
+          orderBy: [{ artist: { sortOrder: 'asc' } }, { createdAt: 'asc' }],
+        },
+      },
+    });
+    const page = this.paginated(partners, pagination.take);
+    const partnerIds = page.items.map((partner) => partner.id);
+    const artistIds = [
+      ...new Set(
+        page.items.flatMap((partner) =>
+          partner.artistOperators.map((operator) => operator.artist.id),
+        ),
+      ),
+    ];
+    const [chatOrders, giftOrders, boostEvents, premiumUnlocks, pendingApplicationCounts] =
+      await Promise.all([
+        artistIds.length
+          ? this.prisma.chatFeatureOrder.findMany({
+              where: {
+                artistId: { in: artistIds },
+                status: 'completed',
+                createdAt: { gte: period.start, lt: period.end },
+              },
+              include: {
+                chatFeatureProduct: {
+                  select: { id: true, sku: true, name: true, priceLumina: true },
+                },
+              },
+            })
+          : [],
+        artistIds.length
+          ? this.prisma.giftOrder.findMany({
+              where: {
+                artistId: { in: artistIds },
+                status: 'completed',
+                createdAt: { gte: period.start, lt: period.end },
+              },
+              include: {
+                giftProduct: {
+                  select: { id: true, sku: true, name: true, priceLumina: true },
+                },
+              },
+            })
+          : [],
+        artistIds.length
+          ? this.prisma.artistBoostEvent.findMany({
+              where: {
+                artistId: { in: artistIds },
+                boostType: 'lumina_boost',
+                createdAt: { gte: period.start, lt: period.end },
+              },
+              include: {
+                boostProduct: {
+                  select: { id: true, sku: true, name: true, priceLumina: true },
+                },
+              },
+            })
+          : [],
+        artistIds.length
+          ? this.prisma.userPremiumVideoUnlock.findMany({
+              where: {
+                unlockedAt: { gte: period.start, lt: period.end },
+                premiumVideoProduct: {
+                  artistId: { in: artistIds },
+                },
+              },
+              include: {
+                premiumVideoProduct: {
+                  select: {
+                    id: true,
+                    artistId: true,
+                    sku: true,
+                    title: true,
+                    priceLumina: true,
+                  },
+                },
+              },
+            })
+          : [],
+        partnerIds.length
+          ? this.prisma.debutApplication.groupBy({
+              by: ['userId'],
+              where: {
+                userId: { in: partnerIds },
+                status: { in: ['submitted', 'reviewing', 'under_review', 'needs_more_info'] },
+              },
+              _count: { _all: true },
+            })
+          : [],
+      ]);
+    const revenueByArtist = new Map<string, ReturnType<typeof this.emptyRevenueBucket>>();
+
+    for (const artistId of artistIds) {
+      revenueByArtist.set(artistId, this.emptyRevenueBucket());
+    }
+
+    for (const order of chatOrders) {
+      this.addRevenueEvent(
+        revenueByArtist,
+        order.artistId,
+        'chat',
+        order.chatFeatureProduct.priceLumina,
+        policy.unitPriceKrw,
+      );
+    }
+
+    for (const order of giftOrders) {
+      this.addRevenueEvent(
+        revenueByArtist,
+        order.artistId,
+        'gift',
+        order.totalLumina,
+        policy.unitPriceKrw,
+      );
+    }
+
+    for (const event of boostEvents) {
+      this.addRevenueEvent(
+        revenueByArtist,
+        event.artistId,
+        'paid_like',
+        event.rawAmount,
+        policy.unitPriceKrw,
+      );
+    }
+
+    for (const unlock of premiumUnlocks) {
+      const artistId = unlock.premiumVideoProduct.artistId;
+      if (artistId) {
+        this.addRevenueEvent(
+          revenueByArtist,
+          artistId,
+          'premium_video',
+          unlock.premiumVideoProduct.priceLumina,
+          policy.unitPriceKrw,
+        );
+      }
+    }
+
+    const pendingApplicationsByPartner = new Map(
+      pendingApplicationCounts.map((entry) => [entry.userId, entry._count._all]),
+    );
+    const items = page.items.map((partner) => {
+      const artists = partner.artistOperators.map((operator) => {
+        const bucket =
+          revenueByArtist.get(operator.artist.id) ?? this.emptyRevenueBucket();
+        const financials = this.settlementFinancials(bucket.totalLumina, policy);
+        return {
+          artist: {
+            id: operator.artist.id,
+            slug: operator.artist.slug,
+            displayName: operator.artist.displayName,
+            status: operator.artist.status,
+          },
+          role: operator.role,
+          eventCount: bucket.eventCount,
+          grossLumina: bucket.totalLumina,
+          productBreakdown: bucket.breakdown,
+          financials,
+          status: bucket.eventCount > 0 ? 'estimated' : 'no_revenue',
+          holdReason: null,
+        };
+      });
+      const totals = artists.reduce(
+        (acc, item) => ({
+          eventCount: acc.eventCount + item.eventCount,
+          grossLumina: acc.grossLumina.plus(item.grossLumina),
+          grossRevenueKrw: acc.grossRevenueKrw.plus(item.financials.grossRevenueKrw),
+          netRevenueKrw: acc.netRevenueKrw.plus(item.financials.netRevenueKrw),
+          creatorShareKrw: acc.creatorShareKrw.plus(item.financials.creatorShareKrw),
+          platformShareKrw: acc.platformShareKrw.plus(item.financials.platformShareKrw),
+          riskReserveKrw: acc.riskReserveKrw.plus(item.financials.riskReserveKrw),
+        }),
+        {
+          eventCount: 0,
+          grossLumina: new Decimal(0),
+          grossRevenueKrw: new Decimal(0),
+          netRevenueKrw: new Decimal(0),
+          creatorShareKrw: new Decimal(0),
+          platformShareKrw: new Decimal(0),
+          riskReserveKrw: new Decimal(0),
+        },
+      );
+      const approvedArtistCount = artists.filter(
+        (item) => item.artist.status === 'active',
+      ).length;
+
+      return {
+        partner: {
+          userId: partner.id,
+          email: this.maskEmail(partner.email),
+          displayName: partner.profile?.displayName ?? null,
+          publicHandle: partner.profile?.publicHandle ?? null,
+          status: partner.status,
+          createdAt: partner.createdAt,
+        },
+        period: period.label,
+        operatedArtistCount: artists.length,
+        approvedArtistCount,
+        pendingArtistApplicationCount:
+          pendingApplicationsByPartner.get(partner.id) ?? 0,
+        artists,
+        totals,
+        payoutStatus: totals.eventCount > 0 ? 'estimated' : 'no_revenue',
+        payoutHoldReason: null,
+        lastSettlementAt: null,
+      };
+    });
+    const totals = items.reduce(
+      (acc, item) => ({
+        partnerCount: acc.partnerCount + 1,
+        operatedArtistCount: acc.operatedArtistCount + item.operatedArtistCount,
+        approvedArtistCount: acc.approvedArtistCount + item.approvedArtistCount,
+        pendingArtistApplicationCount:
+          acc.pendingArtistApplicationCount + item.pendingArtistApplicationCount,
+        eventCount: acc.eventCount + item.totals.eventCount,
+        grossLumina: acc.grossLumina.plus(item.totals.grossLumina),
+        grossRevenueKrw: acc.grossRevenueKrw.plus(item.totals.grossRevenueKrw),
+        netRevenueKrw: acc.netRevenueKrw.plus(item.totals.netRevenueKrw),
+        creatorShareKrw: acc.creatorShareKrw.plus(item.totals.creatorShareKrw),
+        platformShareKrw: acc.platformShareKrw.plus(item.totals.platformShareKrw),
+        riskReserveKrw: acc.riskReserveKrw.plus(item.totals.riskReserveKrw),
+      }),
+      {
+        partnerCount: 0,
+        operatedArtistCount: 0,
+        approvedArtistCount: 0,
+        pendingArtistApplicationCount: 0,
+        eventCount: 0,
+        grossLumina: new Decimal(0),
+        grossRevenueKrw: new Decimal(0),
+        netRevenueKrw: new Decimal(0),
+        creatorShareKrw: new Decimal(0),
+        platformShareKrw: new Decimal(0),
+        riskReserveKrw: new Decimal(0),
+      },
+    );
+
+    return {
+      generatedAt: new Date(),
+      period,
+      policy,
+      ...page,
+      items,
+      totals,
+      policyNotes: {
+        route: '/backstage/settlements/partners',
+        payoutUnit: 'partner_user',
+        detailUnit: 'artist',
+        previewOnly: true,
+        initialCandidateSlotLimit: 10,
+        additionalSlotUnit: 5,
+      },
+      notice:
+        'Estimated only. Partner payout groups multiple artist details by operator account. Final payout requires refund/chargeback checks, tax/accounting confirmation, payout account verification, and admin confirmation.',
+    };
+  }
+
   async createAdminUser(user: AuthUser, input: AdminPayload) {
     this.assertSuperAdmin(user);
 

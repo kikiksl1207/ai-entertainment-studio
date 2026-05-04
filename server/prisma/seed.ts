@@ -437,11 +437,12 @@ const galleryDirsBySlug = {
   'seo-yuan': ['.'],
   'choi-seojin': ['.'],
   'cha-dohyun': ['.'],
+  'ha-yuna': ['.'],
   'kwon-taejun': ['.'],
 } as const;
 
 const publicSeedArtistSlugs = new Set(Object.keys(galleryDirsBySlug));
-const plannedSeedArtistSlugs = new Set(['ha-yuna']);
+const plannedSeedArtistSlugs = new Set<string>();
 const requestedSeedArtistSlugs = parseSeedArtistSlugs(process.env.SEED_ARTIST_SLUGS);
 
 async function main() {

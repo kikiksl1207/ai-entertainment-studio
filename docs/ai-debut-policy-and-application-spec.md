@@ -86,6 +86,30 @@ Keep these inside `metadata` until the DB is expanded:
 }
 ```
 
+AI creator partner extension:
+
+```json
+{
+  "applicationType": "ai_creator_partner",
+  "plannedCharacterCount": 10,
+  "creatorTools": ["ComfyUI", "Flux", "Photoshop"],
+  "productionExperience": "Character image pack production and shortform editing",
+  "sampleUrls": ["https://..."],
+  "rightsOwnershipConfirmed": true
+}
+```
+
+MVP slot policy:
+
+- AI creator partners can submit up to 10 character candidates on the first
+  application.
+- These are review candidate slots, not guaranteed public launch slots.
+- Approved characters are managed later in Creator Studio, not normal My Page.
+- After real operations and settlement quality are proven, additional review
+  slots can be sold/opened in 5-slot units.
+- Additional slots also require review; purchase or approval to submit does not
+  guarantee public launch.
+
 Do not collect resident registration numbers, raw ID images, bank account details,
 final contract files, or public-form file uploads in Notion, chat, or Git. Those require a later secure upload
 and contract process. For the MVP phone-consultation path, collect text only and confirm details by phone.
