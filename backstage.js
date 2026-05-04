@@ -20,6 +20,7 @@ const detailPanel = document.getElementById("backstageDetailPanel");
 const detailType = document.getElementById("detailType");
 const detailTitle = document.getElementById("detailTitle");
 const detailList = document.getElementById("detailList");
+const detailForm = document.getElementById("detailForm");
 const detailMemo = document.getElementById("detailMemo");
 const detailCloseButton = document.getElementById("detailCloseButton");
 const confirmModal = document.getElementById("backstageConfirmModal");
@@ -495,6 +496,7 @@ function renderDetailPanel(detail) {
     const label = detail.labels?.[index] || `항목 ${index + 1}`;
     return `<div><dt>${label}</dt><dd>${value}</dd></div>`;
   }).join("");
+  renderDetailForm(detail);
   detailMemo.value = "";
   updateDetailActions(detail);
 }
@@ -559,6 +561,118 @@ function applyOverviewFilter(button) {
     labels: ["필터", "표시 상태", "메모"],
     row: [label, label === "전체" ? "업무/위험 모두 표시" : `${label} 항목만 표시`, "더미 데이터 기준으로 카드 표시를 전환했습니다."]
   });
+}
+
+function detailInput(label, name, value = "", type = "text", wide = false) {
+  return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><input type="${type}" name="${name}" value="${value}"></label>`;
+}
+
+function detailSelect(label, name, options, selected = "", wide = false) {
+  const items = options.map((option) => {
+    const value = typeof option === "string" ? option : option.value;
+    const text = typeof option === "string" ? option : option.label;
+    return `<option value="${value}"${value === selected ? " selected" : ""}>${text}</option>`;
+  }).join("");
+  return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><select name="${name}">${items}</select></label>`;
+}
+
+function detailTextarea(label, name, value = "", wide = true) {
+  return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><textarea name="${name}">${value}</textarea></label>`;
+}
+
+function renderDetailForm(detail) {
+  if (!detailForm) return;
+  detailForm.classList.add("is-hidden");
+  detailForm.innerHTML = "";
+
+  const row = detail?.row || [];
+  const quickTitle = row[0] || "";
+  const tableId = detail?.tableId;
+  let html = "";
+
+  if (quickTitle === "AI 아티스트 추가") {
+    html = `
+      <h3>AI 아티스트 기본 정보</h3>
+      <div class="detail-form-grid">
+        ${detailInput("아티스트명", "displayName", "")}
+        ${detailInput("Slug", "slug", "")}
+        ${detailSelect("카테고리", "category", [
+          { value: "artist", label: "아티스트" },
+          { value: "model", label: "모델" },
+          { value: "actor", label: "배우" },
+          { value: "entertainer", label: "엔터테이너" },
+          { value: "sports", label: "스포츠" }
+        ], "artist")}
+        ${detailSelect("공개 상태", "status", [
+          { value: "draft", label: "비공개/작성중" },
+          { value: "debut_pending", label: "데뷔 예정" },
+          { value: "public", label: "공개" }
+        ], "draft")}
+        ${detailInput("만든 관리자", "createdBy", "에밀리")}
+        ${detailInput("대표 컬러", "brandColor", "")}
+        ${detailTextarea("핵심 프로필 메모", "profileMemo", "생년월일, 출신지, 신체, 포지션, 캐릭터타입, 팬덤명, 팬포인트, MBTI, 좋아하는 선물까지 확인합니다.")}
+      </div>
+      <p class="detail-form-note">실제 저장 API 확정 전 임시 폼입니다. 차모가 artist profile 필수 필드를 확정하면 이 구조로 연결합니다.</p>
+    `;
+  } else if (quickTitle === "AI 에셋 업로드" || tableId === "aiAssetRows") {
+    html = `
+      <h3>이미지/영상 슬롯 지정</h3>
+      <div class="detail-form-grid">
+        ${detailInput("아티스트", "artist", tableId === "aiAssetRows" ? row[0] || "" : "")}
+        ${detailSelect("슬롯", "slot", [
+          { value: "cover", label: "커버" },
+          { value: "thumbnail", label: "썸네일" },
+          { value: "gallery", label: "포토갤러리" },
+          { value: "shortform", label: "숏폼" }
+        ], "cover")}
+        ${detailInput("파일/외부 URL", "assetUrl", "", "url", true)}
+        ${detailInput("정렬 순서", "sortOrder", "", "number")}
+        ${detailSelect("대표 사용", "isPrimary", [
+          { value: "yes", label: "대표로 사용" },
+          { value: "no", label: "후보로 보관" }
+        ], "yes")}
+        ${detailTextarea("에셋 메모", "assetMemo", "cover/thumb/gallery/shortform 슬롯을 운영자가 직접 지정합니다. 자동 분류로 뒤집히지 않게 확인합니다.")}
+      </div>
+      <p class="detail-form-note">포토갤러리는 순서가 비면 화면에서 빈 칸이 생길 수 있으므로 sortOrder와 slot을 반드시 함께 저장해야 합니다.</p>
+    `;
+  } else if (quickTitle === "AI 아티스트 글 작성" || tableId === "aiPostRows") {
+    html = `
+      <h3>AI 아티스트 공식 글</h3>
+      <div class="detail-form-grid">
+        ${detailInput("아티스트", "artist", tableId === "aiPostRows" ? row[0] || "" : "")}
+        ${detailSelect("글 유형", "contentType", [
+          { value: "feed", label: "피드" },
+          { value: "profile_copy", label: "프로필 문구" },
+          { value: "notice", label: "공지" },
+          { value: "premium", label: "프리미엄" }
+        ], "feed")}
+        ${detailInput("제목", "title", "", "text", true)}
+        ${detailTextarea("본문", "body", "캐릭터 톤앤매너에 맞춰 작성합니다. 유저 크리에이터 글과 AI 공식 글은 작성 주체를 분리합니다.")}
+      </div>
+      <p class="detail-form-note">AI 아티스트 공식 글은 운영자가 작성하지만 사이트에는 해당 캐릭터의 공식 콘텐츠로 노출됩니다.</p>
+    `;
+  } else if (quickTitle === "데뷔 신청 목록" || tableId === "creatorRows") {
+    html = `
+      <h3>데뷔 신청 확인</h3>
+      <div class="detail-form-grid">
+        ${detailInput("신청자/활동명", "applicant", tableId === "creatorRows" ? row[0] || "" : "")}
+        ${detailSelect("처리 상태", "applicationStatus", [
+          { value: "reviewing", label: "확인중" },
+          { value: "needs_revision", label: "보완요청" },
+          { value: "approved", label: "승인" },
+          { value: "rejected", label: "반려" }
+        ], "reviewing")}
+        ${detailInput("연락 가능 시간", "contactWindow", "", "text")}
+        ${detailInput("자료 링크", "portfolioUrl", "", "url")}
+        ${detailTextarea("보완/확인 메모", "reviewMemo", "활동명, 소개, 연락 가능 시간, 자료 링크, 권리 확인 내용을 확인합니다.")}
+      </div>
+      <p class="detail-form-note">연락처와 정산계좌는 권한별 마스킹 상태를 유지해야 합니다.</p>
+    `;
+  }
+
+  if (!html) return;
+  detailForm.innerHTML = html;
+  detailForm.classList.remove("is-hidden");
 }
 
 function getActionProfile(detail, action = "memo") {
@@ -707,6 +821,16 @@ function selectDetailButton(button) {
   }
 }
 
+function collectDetailFormData() {
+  if (!detailForm || detailForm.classList.contains("is-hidden")) return null;
+  const data = {};
+  detailForm.querySelectorAll("input, select, textarea").forEach((field) => {
+    if (!field.name) return;
+    data[field.name] = field.value;
+  });
+  return data;
+}
+
 function buildActionPreview(action) {
   const detail = selectedDetail;
   if (!detail) return null;
@@ -730,6 +854,7 @@ function buildActionPreview(action) {
       targetType: profile.targetType,
       target,
       action: action === "danger" ? currentAction : action,
+      form: collectDetailFormData(),
       reason: memo || "운영 메모 미입력",
       note: memo || "운영 메모 미입력"
     },
