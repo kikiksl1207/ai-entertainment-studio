@@ -50,10 +50,17 @@ const statusClassMap = {
   "대기": "is-pending",
   "검수중": "is-review",
   "확인중": "is-review",
+  "제작중": "is-review",
   "승인": "is-approved",
+  "통과": "is-approved",
+  "전달완료": "is-approved",
   "보류": "is-hold",
+  "재검토": "is-hold",
+  "보관": "is-hold",
   "숨김": "is-blocked",
   "정지": "is-blocked",
+  "차단": "is-blocked",
+  "반려": "is-blocked",
   "주의": "is-hold",
   "장기미접속": "is-hold",
   "권한제한": "is-hold",
@@ -132,6 +139,11 @@ const backstageRows = {
     ["배나윤 / Nayun", "Kakao", "29일 전", "영업/최상만", "회계/최상만", "확인중", "상세"],
     ["신유라 / Yura", "Google", "62일 전", "영업/최상만", "회계/최상만", "장기미접속", "확인 요청"]
   ],
+  creatorImageRequests: [
+    ["프로필 이미지", "Min Stage", "김민서", "100L", "0/3회", "접수", "대기", "0장", "상세"],
+    ["피드 이미지", "Harin", "박하린", "100L", "1/3회", "제작중", "확인중", "2장", "결과 반영"],
+    ["숏폼 썸네일", "Doyun", "이도윤", "100L", "3/3회", "보완필요", "재검토", "1장", "보류"]
+  ],
   aiCreators: [
     ["윤세린", "아티스트", "에밀리", "완료", "완료", "공개", "콘텐츠 관리"],
     ["하윤아", "모델", "이미지탭", "완료", "포토 24장", "공개", "콘텐츠 관리"],
@@ -201,6 +213,7 @@ const tableMeta = {
   userRows: { type: "유저 관리", labels: ["유저", "이메일", "로그인", "루미나", "결제", "신고", "제재", "팔로우", "최근 접속", "상태", "권장 액션"] },
   userRiskRows: { type: "신고/제재 유저", labels: ["유저", "사유", "누적", "상태", "최근 조치", "권장 액션"] },
   creatorRows: { type: "유저 크리에이터", labels: ["본명/활동명", "로그인유형", "마지막 접속", "연락처", "정산계좌", "상태", "권장 액션"] },
+  creatorImageRequestRows: { type: "이미지 제작 요청", labels: ["요청", "아티스트", "요청자", "차감", "재조정", "상태", "검수", "결과", "권장 액션"] },
   aiCreatorRows: { type: "AI 아티스트", labels: ["아티스트", "분류", "만든 관리자", "프로필", "이미지", "상태", "권장 액션"] },
   aiAssetRows: { type: "AI 아티스트 에셋", labels: ["아티스트", "커버", "썸네일", "포토갤러리", "숏폼", "업로드 규칙", "권장 액션"] },
   aiPostRows: { type: "AI 아티스트 콘텐츠", labels: ["아티스트", "피드 글", "프로필 문구", "채팅", "프리미엄", "권장 액션"] },
@@ -501,6 +514,62 @@ function creatorNames(creators = []) {
   )).join(", ");
 }
 
+function localizeCreatorImageType(type) {
+  const typeMap = {
+    profile_image: "프로필 이미지",
+    content_image: "콘텐츠 이미지",
+    feed_image: "피드 이미지",
+    shortform_thumbnail: "숏폼 썸네일",
+    concept_reference: "콘셉트 레퍼런스"
+  };
+  return typeMap[type] || type || "-";
+}
+
+function localizeCreatorImageStatus(status) {
+  const statusMap = {
+    submitted: "접수",
+    reviewing: "확인중",
+    generating: "제작중",
+    needs_more_info: "보완필요",
+    delivered: "전달완료",
+    approved: "승인",
+    rejected: "반려",
+    archived: "보관"
+  };
+  return statusMap[status] || localizeWorkflowStatus(status);
+}
+
+function localizeModerationStatus(status) {
+  const statusMap = {
+    pending: "대기",
+    cleared: "통과",
+    blocked: "차단",
+    needs_review: "재검토"
+  };
+  return statusMap[status] || localizeWorkflowStatus(status);
+}
+
+function creatorImageCostLabel(request = {}) {
+  const metadata = request.metadata || {};
+  const lumina = metadata.costLumina || metadata.priceLumina || metadata.luminaCost || 100;
+  return `${formatCount(lumina)}L`;
+}
+
+function creatorImageRevisionLabel(request = {}) {
+  const metadata = request.metadata || {};
+  const used = metadata.revisionsUsed ?? metadata.revisionUsed ?? metadata.revisionCount ?? 0;
+  const limit = metadata.revisionLimit ?? metadata.maxRevisions ?? 3;
+  return `${formatCount(used)}/${formatCount(limit)}회`;
+}
+
+function creatorImageRequester(request = {}) {
+  return request.requester?.profile?.displayName ||
+    request.requester?.profile?.publicHandle ||
+    request.requester?.email ||
+    request.requesterUserId?.slice?.(0, 8) ||
+    "-";
+}
+
 function localizeSettlementStatus(status) {
   const statusMap = {
     estimated: "예상치",
@@ -557,6 +626,7 @@ function openQuickAction(button) {
     "전체 보기": ["목록 전체 보기", "현재 표의 필터를 초기화하고 전체 더미 데이터를 다시 보여줍니다.", "GET list endpoint with cursor"],
     "위험만 보기": ["위험 항목 필터", "신고, 정지, 높은 위험도 항목만 남겨서 봅니다.", "GET list endpoint with risk filter"],
     "데뷔 신청 보기": ["데뷔 신청 목록", "신청서에 기재한 활동명, 소개, 연락 가능 시간, 자료 링크, 권리 확인 내용을 모두 보여줄 자리입니다.", "GET /admin/api/v1/debut/applications"],
+    "요청 보기": ["이미지 제작 요청", "유저 아티스트가 요청한 프로필/피드/숏폼 썸네일 제작 큐를 봅니다. 1차 정책은 100L, 재조정 3회, 최종 1장 기준입니다.", "GET /admin/api/v1/creator-image-requests"],
     "AI 아티스트 추가": ["AI 아티스트 추가", "캐릭터 기본 정보, 만든 관리자, 공개 상태, 초기 프로필/에셋 체크리스트를 등록합니다.", "POST /admin/api/v1/artists"],
     "업로드 추가": ["AI 에셋 업로드", "아티스트와 슬롯을 먼저 선택합니다. cover/thumb은 자동 판단하지 않고 운영자가 지정합니다.", "POST /admin/api/v1/artists/:artistId/assets/upload-intents"],
     "글 작성": ["AI 아티스트 글 작성", "아티스트를 선택하고 피드/프로필/공지/프리미엄 글 유형을 골라 작성합니다.", "POST /admin/api/v1/artists/:artistId/content"],
@@ -731,6 +801,34 @@ function renderDetailForm(detail) {
       </div>
       <p class="detail-form-note">연락처와 정산계좌는 권한별 마스킹 상태를 유지해야 합니다.</p>
     `;
+  } else if (quickTitle === "이미지 제작 요청" || tableId === "creatorImageRequestRows") {
+    html = `
+      <h3>유저 아티스트 이미지 제작</h3>
+      <div class="detail-form-grid">
+        ${detailInput("요청 유형", "requestType", tableId === "creatorImageRequestRows" ? row[0] || "" : "프로필 이미지")}
+        ${detailInput("아티스트", "artist", tableId === "creatorImageRequestRows" ? row[1] || "" : "")}
+        ${detailInput("요청자", "requester", tableId === "creatorImageRequestRows" ? row[2] || "" : "")}
+        ${detailInput("차감", "costLumina", tableId === "creatorImageRequestRows" ? row[3] || "100L" : "100L")}
+        ${detailInput("재조정", "revisionState", tableId === "creatorImageRequestRows" ? row[4] || "0/3회" : "0/3회")}
+        ${detailSelect("처리 상태", "status", [
+          { value: "reviewing", label: "확인중" },
+          { value: "generating", label: "제작중" },
+          { value: "needs_more_info", label: "보완필요" },
+          { value: "delivered", label: "전달완료" },
+          { value: "approved", label: "승인" },
+          { value: "rejected", label: "반려" }
+        ], "reviewing")}
+        ${detailSelect("검수 상태", "moderationStatus", [
+          { value: "pending", label: "대기" },
+          { value: "cleared", label: "통과" },
+          { value: "needs_review", label: "재검토" },
+          { value: "blocked", label: "차단" }
+        ], "pending")}
+        ${detailInput("결과 assetId", "resultAssetIds", "", "text", true)}
+        ${detailTextarea("운영 메모", "adminNote", "100L 차감, 재조정 3회, 최종 이미지 1장 기준입니다. 주민번호/계약서/신분증/외부 연락처는 저장하지 않습니다.")}
+      </div>
+      <p class="detail-form-note">생성 결과는 resultAssetIds로 붙이고, 공개 프로필/피드/숏폼 반영은 별도 운영 결정으로 분리합니다.</p>
+    `;
   }
 
   if (!html) return;
@@ -794,6 +892,22 @@ function getActionProfile(detail, action = "memo") {
       warning: "데뷔 신청 상세, 보완 요청, 승인/반려는 신청서 권리 확인과 연락처 권한을 함께 봐야 합니다.",
       holdLabel: "보완 요청 메모",
       dangerLabel: "신청 상세 보기",
+      showHold: true,
+      showDanger: true
+    };
+  }
+
+  if (tableId === "creatorImageRequestRows") {
+    const isRejected = status === "반려" || rowAction.includes("반려");
+    return {
+      ...profile,
+      group: "유저 아티스트 이미지 제작",
+      targetType: "creatorImageRequest",
+      endpoint: action === "danger" ? "PATCH /admin/api/v1/creator-image-requests/:requestId" : "GET /admin/api/v1/creator-image-requests/:requestId",
+      method: action === "danger" ? "PATCH" : "GET",
+      warning: "이미지 제작 요청은 100L 차감, 재조정 3회, 최종 이미지 1장 기준입니다. 결과 에셋 공개 반영은 별도 결정으로 분리합니다.",
+      holdLabel: "보완/보류 메모",
+      dangerLabel: isRejected ? "반려 처리" : "상태/결과 반영",
       showHold: true,
       showDanger: true
     };
@@ -967,6 +1081,7 @@ function renderBackstageTables() {
   renderRows("userRows", backstageRows.users, 9);
   renderRows("userRiskRows", backstageRows.userRisks, 3);
   renderRows("creatorRows", backstageRows.creators, 5);
+  renderRows("creatorImageRequestRows", backstageRows.creatorImageRequests, 5);
   renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
   renderRows("aiAssetRows", backstageRows.aiAssets, -1);
   renderRows("aiPostRows", backstageRows.aiPosts, -1);
@@ -1288,9 +1403,13 @@ async function loadUsersPage(append = true) {
 
 async function loadCreatorsSection() {
   renderLoadingRow("creatorRows");
+  renderLoadingRow("creatorImageRequestRows");
   renderLoadingRow("aiCreatorRows");
   try {
-    const data = await backstageFetch(adminApiPath("/backstage/operations/creators?take=20"), { auth: true });
+    const [data, imageRequestsPage] = await Promise.all([
+      backstageFetch(adminApiPath("/backstage/operations/creators?take=20"), { auth: true }),
+      backstageFetch(adminApiPath("/creator-image-requests?take=20"), { auth: true }).catch(() => null)
+    ]);
     const applicationsPage = normalizePage(data?.applications || data);
     const rows = applicationsPage.items.map((item) => [
       `${item.realName || item.applicantName || "-"} / ${item.stageName || item.displayName || "-"}`,
@@ -1310,14 +1429,29 @@ async function loadCreatorsSection() {
       localizeWorkflowStatus(artist.status),
       "콘텐츠 관리"
     ]);
+    const imageRequestRows = normalizePage(imageRequestsPage).items.map((request) => [
+      localizeCreatorImageType(request.requestType),
+      request.artist?.displayName || request.artist?.slug || request.artistId?.slice?.(0, 8) || "-",
+      creatorImageRequester(request),
+      creatorImageCostLabel(request),
+      creatorImageRevisionLabel(request),
+      localizeCreatorImageStatus(request.status),
+      localizeModerationStatus(request.moderationStatus),
+      countLabel(request.resultAssetIds?.length || 0, "장"),
+      request.status === "delivered" || request.status === "approved" ? "결과 반영" : request.status === "rejected" ? "반려 확인" : "상세"
+    ]);
     if (rows.length) renderRows("creatorRows", rows, 5);
     else renderLoadingRow("creatorRows", "표시할 신청 내역이 없습니다.");
+    if (imageRequestRows.length) renderRows("creatorImageRequestRows", imageRequestRows, 5);
+    else renderLoadingRow("creatorImageRequestRows", "표시할 이미지 제작 요청이 없습니다.");
     if (aiRows.length) renderRows("aiCreatorRows", aiRows, 5);
     else renderLoadingRow("aiCreatorRows", "표시할 AI 아티스트가 없습니다.");
   } catch {
     renderRows("creatorRows", backstageRows.creators, 5);
+    renderRows("creatorImageRequestRows", backstageRows.creatorImageRequests, 5);
     renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
     renderFallbackNote("creatorRows");
+    renderFallbackNote("creatorImageRequestRows");
     renderFallbackNote("aiCreatorRows");
   }
 }
