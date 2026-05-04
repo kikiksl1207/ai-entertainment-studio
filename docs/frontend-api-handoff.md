@@ -1555,6 +1555,8 @@ Successful report response: `{ "report": {}, "message": "Report submitted" }`.
 
 `POST /lumina-feed/posts/:postId/hide` is idempotent and returns `{ hiddenPost }`. `DELETE /lumina-feed/posts/:postId/hide` soft-deletes the hidden row and returns `{ ok: true }`. `GET /me/hidden-posts` returns the active hidden rows with each included `post`.
 
+Feed image-only posts are allowed. When `assetIds` contains at least one confirmed public image asset, `POST /lumina-feed/posts` may send `body: ""`. Text-only posts still require a non-empty `body`.
+
 Follows:
 
 ```http

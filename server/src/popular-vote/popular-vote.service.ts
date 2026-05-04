@@ -153,20 +153,6 @@ export class PopularVoteService {
   }
 
   private async buildRankings(campaignId: string) {
-    const snapshotAt = await this.prisma.artistRankingSnapshot.findFirst({
-      where: { campaignId },
-      orderBy: { snapshotAt: 'desc' },
-      select: { snapshotAt: true },
-    });
-
-    if (snapshotAt) {
-      return this.prisma.artistRankingSnapshot.findMany({
-        where: { campaignId, snapshotAt: snapshotAt.snapshotAt },
-        include: { artist: this.artistSelect() },
-        orderBy: { rankNo: 'asc' },
-      });
-    }
-
     return this.buildRankingsFromEvents({ campaignId });
   }
 

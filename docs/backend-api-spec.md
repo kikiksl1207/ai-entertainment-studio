@@ -691,6 +691,7 @@ Authorization: Bearer <accessToken>
 
 - `GET /api/v1/me/lumina-feed` matches the public feed query/response shape, but filters out active `community_hidden_posts` for the current user and posts authored by users in an active block relationship.
 - `mode=following` on `GET /api/v1/me/lumina-feed` returns posts from active followed artists and followed normal users. If the viewer follows nobody, it returns `[]`.
+- `POST /api/v1/lumina-feed/posts` allows image-only posts. If `assetIds` contains at least one confirmed public image asset, `body` may be an empty string. Text-only posts still require non-empty `body`.
 - `DELETE /api/v1/lumina-feed/posts/:postId` soft-deletes the current user's own post. Artist operators can delete posts for artists they operate.
 - `DELETE /api/v1/lumina-feed/replies/:replyId` soft-deletes the current user's own reply. Artist operators can delete replies on operated artist posts.
 - Hidden posts use soft delete/reactivation with unique `(user_id, post_id)`.

@@ -192,10 +192,10 @@ export class CommunityService {
 
   async createPost(userId: string, input: CommunityBody) {
     await this.assertActiveUser(userId);
-    const body = this.text(input, 'body', 1, 500);
+    const assetIds = await this.resolvePostAssetIds(input);
+    const body = this.feedPostBody(input, assetIds.length > 0);
     const artistId = await this.resolveOptionalArtistId(input);
     const visibility = this.visibility(input.visibility);
-    const assetIds = await this.resolvePostAssetIds(input);
     const metadata = this.buildPostMetadata(input);
 
     if (artistId) {
@@ -1709,6 +1709,24 @@ export class CommunityService {
 
     if (value.length > max) {
       throw new BadRequestException(`${key} must be shorter than or equal to ${max} characters`);
+    }
+
+    return value;
+  }
+
+  private feedPostBody(input: CommunityBody, hasAssets: boolean) {
+    const value = this.optionalStringValue(input.body);
+
+    if (!value) {
+      if (hasAssets) {
+        return '';
+      }
+
+      throw new BadRequestException('body must be a non-empty string');
+    }
+
+    if (value.length > 500) {
+      throw new BadRequestException('body must be shorter than or equal to 500 characters');
     }
 
     return value;

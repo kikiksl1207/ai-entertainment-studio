@@ -354,28 +354,6 @@ export class BoostsService {
   }
 
   async getRankings(campaignId: string) {
-    const snapshotAt = await this.prisma.artistRankingSnapshot.findFirst({
-      where: { campaignId },
-      orderBy: { snapshotAt: 'desc' },
-      select: { snapshotAt: true },
-    });
-
-    if (snapshotAt) {
-      return this.prisma.artistRankingSnapshot.findMany({
-        where: { campaignId, snapshotAt: snapshotAt.snapshotAt },
-        include: {
-          artist: {
-            select: {
-              id: true,
-              slug: true,
-              displayName: true,
-            },
-          },
-        },
-        orderBy: { rankNo: 'asc' },
-      });
-    }
-
     const events = await this.prisma.artistBoostEvent.findMany({
       where: { campaignId },
       include: {
