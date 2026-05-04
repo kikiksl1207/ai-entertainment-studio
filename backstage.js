@@ -1,6 +1,8 @@
 ﻿const BACKSTAGE_API_BASE = (window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
 const BACKSTAGE_BASE_HAS_API_PREFIX = /\/api\/v1$/.test(BACKSTAGE_API_BASE);
 const BACKSTAGE_AUTH_KEY = "lumina_backstage_auth";
+const BACKSTAGE_SECTION_KEY = "lumina_backstage_active_section";
+const BACKSTAGE_DRAFT_KEY = "lumina_backstage_detail_drafts";
 
 const loginView = document.getElementById("backstageLoginView");
 const dashboardView = document.getElementById("backstageDashboardView");
@@ -232,6 +234,48 @@ function getBackstageAuth() {
 function setBackstageAuth(auth) {
   if (!auth) localStorage.removeItem(BACKSTAGE_AUTH_KEY);
   else localStorage.setItem(BACKSTAGE_AUTH_KEY, JSON.stringify(auth));
+}
+
+function getSavedSection() {
+  try {
+    const sectionId = localStorage.getItem(BACKSTAGE_SECTION_KEY) || "overview";
+    return document.getElementById(sectionId) ? sectionId : "overview";
+  } catch {
+    return "overview";
+  }
+}
+
+function getCurrentSection() {
+  return document.querySelector(".dashboard-main")?.getAttribute("data-active-section") || getSavedSection();
+}
+
+function saveActiveSection(sectionId) {
+  try {
+    localStorage.setItem(BACKSTAGE_SECTION_KEY, sectionId);
+  } catch {
+    // Ignore storage failures; navigation still works without persistence.
+  }
+}
+
+function readDetailDrafts() {
+  try {
+    return JSON.parse(localStorage.getItem(BACKSTAGE_DRAFT_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeDetailDrafts(drafts) {
+  try {
+    localStorage.setItem(BACKSTAGE_DRAFT_KEY, JSON.stringify(drafts));
+  } catch {
+    // Draft persistence is a convenience feature; ignore storage failures.
+  }
+}
+
+function detailDraftKey(detail) {
+  const row = detail?.row || [];
+  return [detail?.tableId || "quickAction", row[0] || "new", row[1] || ""].join(":");
 }
 
 function setStatus(message, type = "info") {
@@ -580,10 +624,29 @@ function detailTextarea(label, name, value = "", wide = true) {
   return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><textarea name="${name}">${value}</textarea></label>`;
 }
 
+function restoreDetailDraft(key) {
+  const draft = readDetailDrafts()[key];
+  if (!draft || !detailForm) return;
+  detailForm.querySelectorAll("input, select, textarea").forEach((field) => {
+    if (!field.name || draft[field.name] === undefined) return;
+    field.value = draft[field.name];
+  });
+}
+
+function saveDetailDraft() {
+  if (!detailForm || detailForm.classList.contains("is-hidden")) return;
+  const key = detailForm.dataset.draftKey;
+  if (!key) return;
+  const drafts = readDetailDrafts();
+  drafts[key] = collectDetailFormData() || {};
+  writeDetailDrafts(drafts);
+}
+
 function renderDetailForm(detail) {
   if (!detailForm) return;
   detailForm.classList.add("is-hidden");
   detailForm.innerHTML = "";
+  detailForm.dataset.draftKey = "";
 
   const row = detail?.row || [];
   const quickTitle = row[0] || "";
@@ -672,6 +735,8 @@ function renderDetailForm(detail) {
 
   if (!html) return;
   detailForm.innerHTML = html;
+  detailForm.dataset.draftKey = detailDraftKey(detail);
+  restoreDetailDraft(detailForm.dataset.draftKey);
   detailForm.classList.remove("is-hidden");
 }
 
@@ -915,6 +980,7 @@ function renderBackstageTables() {
 
 function setActiveSection(sectionId = "overview") {
   const targetId = document.getElementById(sectionId) ? sectionId : "overview";
+  saveActiveSection(targetId);
   document.querySelector(".dashboard-main")?.setAttribute("data-active-section", targetId);
   document.querySelectorAll(".section-block").forEach((section) => {
     section.classList.toggle("is-active", section.id === targetId);
@@ -1406,13 +1472,14 @@ function showLogin() {
 
 function showDashboard() {
   const auth = getBackstageAuth();
+  const sectionId = getSavedSection();
   operatorEmail.textContent = auth?.user?.email || emailInput.value || "운영자";
   loginView.classList.add("is-hidden");
   dashboardView.classList.remove("is-hidden");
-  setActiveSection("overview");
+  setActiveSection(sectionId);
   renderBackstageTables();
   updateTodayLabel();
-  loadBackstageSummary();
+  loadSection(sectionId);
 }
 
 async function handleLogin(event) {
@@ -1527,6 +1594,9 @@ detailPanel.addEventListener("click", (event) => {
   selectedDetail = null;
 });
 
+detailForm?.addEventListener("input", saveDetailDraft);
+detailForm?.addEventListener("change", saveDetailDraft);
+
 document.querySelectorAll("[data-load-more]").forEach((button) => {
   button.addEventListener("click", async () => {
     const sectionId = button.dataset.loadMore;
@@ -1546,9 +1616,10 @@ logoutButton.addEventListener("click", () => {
   showLogin();
 });
 refreshButton.addEventListener("click", () => {
+  const sectionId = getCurrentSection();
   renderBackstageTables();
   updateTodayLabel();
-  loadBackstageSummary();
+  loadSection(sectionId);
 });
 
 bootstrapBackstage();
