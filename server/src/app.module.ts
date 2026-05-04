@@ -9,6 +9,7 @@ import { ChatModule } from './chat/chat.module';
 import { CommunityModule } from './community/community.module';
 import { validateEnv } from './config/env.validation';
 import { CreatorImageRequestsModule } from './creator-image-requests/creator-image-requests.module';
+import { CreatorStudioModule } from './creator-studio/creator-studio.module';
 import { DebutModule } from './debut/debut.module';
 import { GiftsModule } from './gifts/gifts.module';
 import { HealthController } from './health.controller';
@@ -57,6 +58,7 @@ import { WalletModule } from './wallet/wallet.module';
     ChatModule,
     CommunityModule,
     CreatorImageRequestsModule,
+    CreatorStudioModule,
     ModerationModule,
     NotificationsModule,
     PaymentsModule,

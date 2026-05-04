@@ -590,6 +590,7 @@ Current validation and workflow:
 Creator image request endpoints:
 
 ```http
+GET /api/v1/me/creator-studio
 POST /api/v1/creator-image-requests
 GET /api/v1/me/creator-image-requests?artistId=<artistId>&status=submitted&requestType=profile_image&take=30&cursor=<nextCursor>
 GET /api/v1/creator-image-requests/:requestId
@@ -602,6 +603,7 @@ PATCH /admin/api/v1/creator-image-requests/:requestId
 
 Current workflow:
 
+- `GET /api/v1/me/creator-studio` is the authenticated creator-studio bootstrap endpoint. It returns active artist operator rows, operated artist profile/assets, image request counters by artist/status, recent image requests, and frontend endpoint hints.
 - `POST /api/v1/creator-image-requests` requires an active `artist_operators` row for the current user and target `artistId`.
 - `referenceAssetIds` can contain up to 8 confirmed image asset UUIDs from the existing user asset upload flow.
 - User list/detail responses include requests created by the user and requests for artists the user actively operates.

@@ -1036,6 +1036,73 @@ Do not collect ID card images, resident registration numbers, bank accounts, fin
 
 1차 오픈 필수 범위입니다. 승인된 유저 아티스트가 활동용 이미지를 요청하고, 운영자가 Backstage에서 상태를 관리합니다. 자동 이미지 생성은 나중에 붙일 수 있지만, 요청/검수/결과 전달 흐름은 1차에 열어야 합니다.
 
+Creator Studio bootstrap:
+
+```http
+GET /me/creator-studio
+Authorization: Bearer <accessToken>
+```
+
+Use this as the first call for the creator-studio screen. It returns active artist operator access, public/content/visual profile snapshots, cover/thumb/assets, creator image request counters, and recent image requests.
+
+Response shape:
+
+```json
+{
+  "artists": [
+    {
+      "operator": {
+        "id": "operator-uuid",
+        "role": "owner",
+        "permissions": [],
+        "status": "active",
+        "createdAt": "2026-05-04T00:00:00.000Z"
+      },
+      "artist": {
+        "id": "artist-uuid",
+        "slug": "creator-slug",
+        "displayName": "Creator Name",
+        "status": "active",
+        "publicProfile": {},
+        "visualProfile": {},
+        "contentProfile": {},
+        "coverImage": null,
+        "thumbnailImage": null,
+        "assets": []
+      },
+      "imageRequests": {
+        "total": 0,
+        "open": 0,
+        "delivered": 0,
+        "rejected": 0,
+        "byStatus": {}
+      }
+    }
+  ],
+  "imageRequests": {
+    "summary": {
+      "total": 0,
+      "open": 0,
+      "delivered": 0,
+      "rejected": 0,
+      "byStatus": {}
+    },
+    "recent": []
+  },
+  "policy": {
+    "mode": "creator_studio_bootstrap_v1",
+    "canCreateImageRequests": true,
+    "imageRequestTypes": ["profile_image", "content_image"],
+    "endpoints": {
+      "createImageRequest": "/api/v1/creator-image-requests",
+      "imageRequests": "/api/v1/me/creator-image-requests",
+      "uploadIntent": "/api/v1/me/assets/upload-intents",
+      "confirmUpload": "/api/v1/me/assets/:assetId/confirm-upload"
+    }
+  }
+}
+```
+
 User artist endpoints:
 
 ```http
