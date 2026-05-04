@@ -312,7 +312,7 @@
           <div class="metric-grid">
             <article class="metric-card"><span>운영 아티스트</span><strong>3명</strong><small>활동 2 · 휴식기 후보 1</small></article>
             <article class="metric-card"><span>오늘 반응</span><strong>1,284</strong><small>피드 812 · 숏폼 472</small></article>
-            <article class="metric-card"><span>정산 예정</span><strong class="money">128,400원</strong><small>세무/계좌 확인 전 예상치</small></article>
+            <article class="metric-card"><span>예상 정산액</span><strong class="money">205,440원</strong><small>환불·세무 검토 전 예상치</small></article>
             <article class="metric-card"><span>루미나</span><strong>420L</strong><small>이미지 생성 4회 가능</small></article>
           </div>
           <div class="two-col">
@@ -442,17 +442,29 @@
         <section class="studio-section" id="settlement">
           <article class="table-card">
             <header>
-              <div><span class="panel-kicker">SETTLEMENT</span><h2>정산 예정금</h2></div>
+              <div><span class="panel-kicker">SETTLEMENT</span><h2>예상 정산액</h2></div>
               <button class="primary-action" type="button" data-action="toast">정산 신청</button>
             </header>
-            <div class="notice" style="margin: 18px;"><strong>첫 정산 전 안내</strong><span>정산금 지급과 세무 신고 처리를 위해 세무 서류용 주소가 필요합니다. 주소는 암호화되어 안전하게 보관되며, 정산과 세무 처리에만 사용됩니다.</span></div>
+            <div class="notice" style="margin: 18px;"><strong>예상 금액 안내</strong><span>아래 금액은 확정 정산금이 아닙니다. 실제 지급액은 환불, 결제 취소, 세무·회계 검토 후 달라질 수 있습니다.</span></div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>구분</th><th>캐릭터</th><th>총매출</th><th>차감</th><th>정산금</th><th>상태</th></tr></thead>
+                <thead><tr><th>구분</th><th>캐릭터</th><th>총매출</th><th>차감/보류</th><th>예상 정산액</th><th>상태</th></tr></thead>
                 <tbody>
-                  <tr><td>스튜디오 운영자</td><td>3명 합산</td><td>256,800원</td><td>128,400원</td><td class="money">128,400원</td><td><span class="badge is-warn">예상치</span></td></tr>
-                  <tr><td>캐릭터별</td><td>윤세린</td><td>144,000원</td><td>72,000원</td><td class="money">72,000원</td><td><span class="badge">정산대기</span></td></tr>
-                  <tr><td>캐릭터별</td><td>하윤아</td><td>78,000원</td><td>39,000원</td><td class="money">39,000원</td><td><span class="badge">정산대기</span></td></tr>
+                  <tr><td>스튜디오 운영자</td><td>3명 합산</td><td>256,800원</td><td>51,360원</td><td class="money">205,440원</td><td><span class="badge is-warn">예상치</span></td></tr>
+                  <tr><td>캐릭터별</td><td>윤세린</td><td>144,000원</td><td>28,800원</td><td class="money">115,200원</td><td><span class="badge">예상</span></td></tr>
+                  <tr><td>캐릭터별</td><td>하윤아</td><td>78,000원</td><td>15,600원</td><td class="money">62,400원</td><td><span class="badge">예상</span></td></tr>
+                  <tr><td>캐릭터별</td><td>박도아</td><td>34,800원</td><td>6,960원</td><td class="money">27,840원</td><td><span class="badge">예상</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="table-wrap" style="margin: 18px;">
+              <table>
+                <thead><tr><th>수익원</th><th>건수</th><th>루미나</th><th>매출</th><th>표시 기준</th></tr></thead>
+                <tbody>
+                  <tr><td>팬레터</td><td>38</td><td>3,800L</td><td>38,000원</td><td>완료된 유료 팬레터만 포함</td></tr>
+                  <tr><td>프리미엄 영상</td><td>96</td><td>9,600L</td><td>96,000원</td><td>해금 완료 건만 포함</td></tr>
+                  <tr><td>유료 좋아요</td><td>420</td><td>4,200L</td><td>42,000원</td><td>무료 좋아요 제외</td></tr>
+                  <tr><td>채팅·선물</td><td>108</td><td>8,080L</td><td>80,800원</td><td>결제 완료 건만 포함</td></tr>
                 </tbody>
               </table>
             </div>
@@ -461,6 +473,7 @@
               <div class="requirement-item"><strong>정산 계좌</strong><p>본인인증 이름과 예금주가 일치해야 합니다.</p><span class="badge is-warn">등록 전</span></div>
               <div class="requirement-item"><strong>세무 주소</strong><p>첫 정산 전 한 번만 입력합니다. 정산과 세무 처리에만 사용됩니다.</p><span class="badge">입력 대기</span></div>
             </div>
+            <div class="notice" style="margin: 18px;"><strong>첫 정산 전 안내</strong><span>정산금 지급과 세무 신고 처리를 위해 세무 서류용 주소가 필요합니다. 주소는 암호화되어 안전하게 보관되며, 정산과 세무 처리에만 사용됩니다.</span></div>
           </article>
         </section>
 
