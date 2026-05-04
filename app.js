@@ -2174,12 +2174,6 @@ const characterFrontAssets = {
       const number = String(index + 1).padStart(2, "0");
       return [`Reference ${number}`, `./assets/characters/ha-yuna/reference-final-${number}.png`];
     })
-  },
-  "kwon-taejun": {
-    gallery: Array.from({ length: 20 }, (_, index) => {
-      const number = String(index + 1).padStart(2, "0");
-      return [`Reference ${number}`, `./assets/characters/kwon-taejun/reference-final-${number}.png`];
-    })
   }
 };
 
