@@ -2173,9 +2173,21 @@ const characterFrontAssets = {
     gallery: Array.from({ length: 24 }, (_, index) => {
       const number = String(index + 1).padStart(2, "0");
       return [`Reference ${number}`, `./assets/characters/ha-yuna/reference-final-${number}.png`];
+    }).filter(([, src]) => !src.includes("reference-final-14.png"))
+  },
+  "kwon-taejun": {
+    gallery: Array.from({ length: 20 }, (_, index) => {
+      const number = String(index + 1).padStart(2, "0");
+      return [`Reference ${number}`, `./assets/characters/kwon-taejun/reference-final-${number}.png`];
     })
   }
 };
+
+const localGalleryLockedSlugs = new Set(["ha-yuna", "kwon-taejun"]);
+
+function shouldKeepLocalGallery(slug) {
+  return localGalleryLockedSlugs.has(slug);
+}
 
 characters.forEach((artist) => {
   const front = characterFrontAssets[artist.slug];
@@ -3413,7 +3425,7 @@ function adaptArtist(api) {
       cover: normalizeAssetUrl(apiCover?.url || api.coverImage?.url || api.coverImageUrl || api.cover_image || local.images?.cover),
       thumb: normalizeAssetUrl(apiThumb?.url || api.thumbnailImage?.url || api.thumbImage?.url || api.thumbImage || api.thumb_image || local.images?.thumb)
     },
-    gallery:           apiGallery.length > 0 ? apiGallery : (local.gallery || []),
+    gallery:           shouldKeepLocalGallery(api.slug) ? (local.gallery || []) : (apiGallery.length > 0 ? apiGallery : (local.gallery || [])),
     assets:            api.assets || [],   // #031: 원본 assets[] 보존 (상세 페이지에서 필터링용)
     profile:           pickArtistProfile(api.profile, local.profile),
     shorts:            api.shorts  || local.shorts  || [],
@@ -4176,6 +4188,7 @@ function bindCharacterFilters() {
    에밀리 권장 패턴: artist.assets.filter(usageType=gallery).map(url) */
 async function fetchAndUpdateDetailGallery(slug, artistName) {
   if (!slug) return;
+  if (shouldKeepLocalGallery(slug)) return;
   try {
     const full = await apiFetch(`/api/v1/artists/${encodeURIComponent(slug)}`);
     if (!full || !Array.isArray(full.assets) || full.assets.length === 0) return;
