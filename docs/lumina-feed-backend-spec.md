@@ -60,6 +60,7 @@ GET /lumina-feed?artistSlug=yoon-serin
 GET /lumina-feed/search?q=keyword&type=text&language=ko&take=20
 GET /lumina-feed/search?q=%23hashtag&type=hashtag&language=all&take=20
 GET /lumina-feed/trending-searches?language=all&type=all&window=1h&take=10
+GET /lumina-feed/hashtags?language=all&window=24h&take=20
 GET /me/lumina-feed?mode=all&take=20
 GET /me/lumina-feed?mode=following&take=20
 GET /me/lumina-feed/likes?take=20&cursor=<reactionId>
@@ -96,6 +97,11 @@ creates a deduped `feed_search_events` row for live trend aggregation.
 and type. Use `language=all` for global trends, or `ko`, `ja`, `en`, `zh`, and
 `unknown` for per-language trends. `window=15m|1h|6h|24h|7d` and
 `type=all|text|hashtag` are supported.
+
+`GET /lumina-feed/hashtags` parses hashtags from recent public posts and returns
+ranked hashtag chips. It is useful before search volume is high enough to make
+`trending-searches` feel alive. It samples up to the latest 500 public posts in
+the selected window.
 
 Response is an array of posts:
 

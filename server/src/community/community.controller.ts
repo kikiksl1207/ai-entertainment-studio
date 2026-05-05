@@ -64,6 +64,11 @@ export class CommunityController {
     return this.communityService.getTrendingSearches(query);
   }
 
+  @Get('lumina-feed/hashtags')
+  getTrendingHashtags(@Query() query: CommunityQuery) {
+    return this.communityService.getTrendingHashtags(query);
+  }
+
   @Get('lumina-feed/samples')
   getSamplePosts(@Query() query: CommunityQuery) {
     return this.communityService.getSamplePosts(query);

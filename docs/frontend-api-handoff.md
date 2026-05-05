@@ -1644,6 +1644,7 @@ GET /lumina-feed/search?q=최서진&type=text&language=ko&take=20
 GET /lumina-feed/search?q=%23seojin&type=hashtag&language=all&take=20
 GET /lumina-feed/trending-searches?language=all&type=all&window=1h&take=10
 GET /lumina-feed/trending-searches?language=ko&type=hashtag&window=24h&take=10
+GET /lumina-feed/hashtags?language=all&window=24h&take=20
 GET /me/lumina-feed?mode=all&take=20
 GET /me/lumina-feed?mode=following&take=20
 GET /lumina-feed/samples?mode=all&take=20
@@ -1670,6 +1671,13 @@ Trending searches:
 - `window=15m|1h|6h|24h|7d`; default is `1h`.
 - Response items: `{ rank, keyword, normalizedKeyword, type, language, searchCount, lastSearchedAt }`.
 - Recommended 1차 UI: show `language=all` first, then the user's current language tab. Early traffic can make per-language rankings look empty, especially hashtags.
+
+Trending hashtags from posts:
+
+- `GET /lumina-feed/hashtags?language=all&window=24h&take=20` parses hashtags from recent public feed posts. It works even before enough users have searched.
+- Response items: `{ rank, keyword, normalizedKeyword, type: "hashtag", language, postCount, latestPublishedAt, searchUrl }`.
+- Use this for hashtag chips below the search box or in the right rail. On click, call `GET /lumina-feed/search` with `type=hashtag` and the returned `keyword`.
+- This endpoint samples up to the latest 500 public posts in the selected window. It is a lightweight MVP discovery endpoint, not a permanent analytics warehouse.
 
 Sample posts:
 

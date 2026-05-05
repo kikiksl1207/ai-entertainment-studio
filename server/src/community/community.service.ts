@@ -314,6 +314,111 @@ export class CommunityService {
     };
   }
 
+  async getTrendingHashtags(query: CommunityQuery) {
+    const take = this.take(query.take);
+    const language = this.trendingLanguage(query.language ?? query.locale);
+    const window = this.trendingWindow(query.window ?? '24h');
+    const since = new Date(Date.now() - window.ms);
+    const posts = await this.prisma.communityPost.findMany({
+      where: {
+        status: 'published',
+        visibility: 'public',
+        deletedAt: null,
+        publishedAt: { gte: since },
+        body: { contains: '#' },
+      },
+      take: 500,
+      select: {
+        id: true,
+        body: true,
+        publishedAt: true,
+      },
+      orderBy: { publishedAt: 'desc' },
+    });
+    const buckets = new Map<
+      string,
+      {
+        keyword: string;
+        normalizedKeyword: string;
+        language: string;
+        postIds: Set<string>;
+        latestPublishedAt: Date;
+      }
+    >();
+
+    for (const post of posts) {
+      for (const hashtag of this.extractHashtags(post.body)) {
+        const detectedLanguage = this.detectSearchLanguage(hashtag) ?? 'unknown';
+
+        if (language !== 'all' && detectedLanguage !== language) {
+          continue;
+        }
+
+        const normalizedKeyword = this.normalizeSearchKeyword(hashtag, 'hashtag');
+        const bucketKey = this.trendingKey(normalizedKeyword, 'hashtag', detectedLanguage);
+        const existing = buckets.get(bucketKey);
+
+        if (existing) {
+          existing.postIds.add(post.id);
+          if (post.publishedAt > existing.latestPublishedAt) {
+            existing.latestPublishedAt = post.publishedAt;
+            existing.keyword = `#${hashtag}`;
+          }
+          continue;
+        }
+
+        buckets.set(bucketKey, {
+          keyword: `#${hashtag}`,
+          normalizedKeyword,
+          language: detectedLanguage,
+          postIds: new Set([post.id]),
+          latestPublishedAt: post.publishedAt,
+        });
+      }
+    }
+
+    const items = [...buckets.values()]
+      .sort((left, right) => {
+        const countDiff = right.postIds.size - left.postIds.size;
+
+        if (countDiff !== 0) {
+          return countDiff;
+        }
+
+        return right.latestPublishedAt.getTime() - left.latestPublishedAt.getTime();
+      })
+      .slice(0, take)
+      .map((item, index) => ({
+        rank: index + 1,
+        keyword: item.keyword,
+        normalizedKeyword: item.normalizedKeyword,
+        type: 'hashtag',
+        language: item.language,
+        postCount: item.postIds.size,
+        latestPublishedAt: item.latestPublishedAt,
+        searchUrl: `/api/v1/lumina-feed/search?q=${encodeURIComponent(
+          item.keyword,
+        )}&type=hashtag&language=${item.language}`,
+      }));
+
+    return {
+      generatedAt: new Date(),
+      language,
+      window: {
+        key: window.key,
+        since,
+        minutes: Math.round(window.ms / 60_000),
+      },
+      sampledPostCount: posts.length,
+      items,
+      policy: {
+        ...this.feedSearchPolicy(),
+        source: 'recent_public_feed_posts',
+        maxSampledPosts: 500,
+      },
+    };
+  }
+
   getSamplePosts(query: CommunityQuery) {
     const take = this.take(query.take);
     const mode = this.optionalString(query.mode) ?? 'all';
@@ -2209,6 +2314,14 @@ export class CommunityService {
     }
 
     return null;
+  }
+
+  private extractHashtags(body: string) {
+    const matches = body.matchAll(/#([\p{L}\p{N}_][\p{L}\p{N}_-]{0,49})/gu);
+
+    return [...matches]
+      .map((match) => match[1]?.trim())
+      .filter((value): value is string => Boolean(value));
   }
 
   private feedSearchWhere(
