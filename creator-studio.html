@@ -264,6 +264,16 @@
       .modal-summary strong, .modal-summary span { padding: 11px 12px; font-size: 13px; line-height: 1.45; }
       .modal-summary strong { color: var(--muted); background: rgba(255,255,255,0.04); }
       .modal-summary span { color: var(--text); }
+      .modal-summary label { display: grid; gap: 7px; }
+      .modal-summary label span { padding: 0; color: var(--muted); font-size: 12px; font-weight: 950; }
+      .modal-summary .modal-form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        border: 0;
+      }
+      .modal-summary .modal-form-grid label { display: grid; }
+      .modal-summary .modal-form-grid label.is-wide { grid-column: 1 / -1; }
       .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
       .studio-toast {
         position: fixed;
@@ -586,8 +596,8 @@
             <header>
               <div><span class="panel-kicker">SETTLEMENT</span><h2>예상 정산액</h2></div>
               <div class="top-actions">
-                <button class="primary-action" type="button" data-action="toast">정산 신청</button>
-                <button class="secondary-action" type="button" disabled aria-disabled="true" style="opacity:.5; cursor:not-allowed;">정산금으로 충전</button>
+                <button class="primary-action" type="button" data-action="settlement-request">정산 신청</button>
+                <button class="secondary-action" type="button" data-action="settlement-conversion">정산금으로 충전</button>
               </div>
             </header>
             <div class="notice" style="margin: 18px;"><strong>예상 금액 안내</strong><span>아래 금액은 확정 정산금이 아닙니다. 실제 지급액은 환불, 결제 취소, 세무·회계 검토 후 달라질 수 있습니다.</span></div>
@@ -697,6 +707,9 @@
         const body = document.getElementById("studioGateBody");
         const actions = document.getElementById("studioGateActions");
         let studioArtists = [];
+        let settlementPreview = null;
+        let studioModalConfirmHandler = null;
+        let studioToastTimer = null;
 
         function readAuth() {
           try {
@@ -747,6 +760,54 @@
 
         function formatKrw(value) {
           return formatNumber(Math.round(Number(value || 0))) + "원";
+        }
+
+        function showToast(message) {
+          const el = document.getElementById("studioToast");
+          if (!el) return;
+          el.textContent = message;
+          el.classList.add("is-visible");
+          clearTimeout(studioToastTimer);
+          studioToastTimer = setTimeout(() => el.classList.remove("is-visible"), 2200);
+        }
+
+        function setActiveSection(sectionId) {
+          if (!sectionId) return;
+          document.querySelectorAll(".studio-nav button").forEach(button => {
+            const active = button.dataset.section === sectionId;
+            button.classList.toggle("is-active", active);
+            button.setAttribute("aria-current", active ? "page" : "false");
+          });
+          document.querySelectorAll(".studio-section").forEach(section => {
+            section.classList.toggle("is-active", section.id === sectionId);
+          });
+          document.querySelector(".studio-main")?.scrollTo?.({ top: 0, behavior: "smooth" });
+        }
+
+        function closeStudioModal() {
+          const modal = document.getElementById("studioModal");
+          if (modal) modal.classList.add("is-hidden");
+          studioModalConfirmHandler = null;
+        }
+
+        function openStudioModal({ type = "확인", title = "확인", message = "", summaryHtml = "", confirmText = "확인", cancelText = "취소", onConfirm = null } = {}) {
+          const modal = document.getElementById("studioModal");
+          if (!modal) return;
+          text("studioModalType", type);
+          text("studioModalTitle", title);
+          text("studioModalMessage", message);
+          const summary = document.getElementById("studioModalSummary");
+          if (summary) summary.innerHTML = summaryHtml;
+          const confirm = document.getElementById("studioModalConfirm");
+          const cancel = document.getElementById("studioModalCancel");
+          if (confirm) confirm.textContent = confirmText;
+          if (cancel) cancel.textContent = cancelText;
+          studioModalConfirmHandler = onConfirm;
+          modal.classList.remove("is-hidden");
+        }
+
+        function modalRow(label, value) {
+          return "<div><strong>" + escapeHtml(label) + "</strong><span>" + escapeHtml(value) + "</span></div>";
         }
 
         function currentPeriod() {
@@ -960,6 +1021,7 @@
         }
 
         function renderSettlement(data) {
+          settlementPreview = data || null;
           const total = Number(data?.totals?.creatorShareKrw || 0);
           if (total) text("studioMetricSettlement", formatKrw(total));
           renderSettlementProfile(data?.settlementProfile || data?.payoutProfile || data?.profile);
@@ -1018,6 +1080,144 @@
           return Object.values(bucket).filter(item => item.eventCount || item.grossLumina || item.grossRevenueKrw);
         }
 
+        function settlementOptions() {
+          const period = settlementPreview?.period?.label || currentPeriod();
+          return (settlementPreview?.items || []).map(item => {
+            const artist = item.artist || {};
+            const id = artist.id || item.targetArtistId || "";
+            const key = item.settlementKey || (id ? "artist:" + id + ":" + period : "");
+            const available = Math.floor(Number(item?.financials?.creatorShareKrw || 0));
+            return {
+              key,
+              name: artist.displayName || artist.slug || "아티스트",
+              available
+            };
+          }).filter(item => item.key && item.available >= 1000);
+        }
+
+        function openSettlementRequestModal() {
+          const total = Number(settlementPreview?.totals?.creatorShareKrw || 0);
+          openStudioModal({
+            type: "SETTLEMENT",
+            title: "정산 신청 전 확인",
+            message: "표시 금액은 예상 정산액입니다. 최종 지급은 환불, 결제 취소, 세무·회계 검토 후 확정됩니다.",
+            summaryHtml: [
+              modalRow("이번 달 예상", formatKrw(total)),
+              modalRow("본인인증", document.getElementById("studioSettlementIdentity")?.textContent || "확인 필요"),
+              modalRow("정산 계좌", document.getElementById("studioSettlementAccount")?.textContent || "등록 전"),
+              modalRow("세무 주소", document.getElementById("studioSettlementTaxAddress")?.textContent || "입력 대기")
+            ].join(""),
+            confirmText: "정산 탭 확인",
+            onConfirm: () => {
+              closeStudioModal();
+              setActiveSection("settlement");
+              showToast("정산 프로필을 먼저 확인해주세요.");
+            }
+          });
+        }
+
+        function openSettlementConversionModal() {
+          const options = settlementOptions();
+          const minAmount = 1000;
+          if (!options.length) {
+            showToast("충전 요청 가능한 예상 정산액이 아직 없습니다.");
+            return;
+          }
+          const first = options[0];
+          const maxAmount = Math.max(0, Math.floor(first.available / 1000) * 1000);
+          openStudioModal({
+            type: "CHARGE REQUEST",
+            title: "정산금으로 충전",
+            message: "정산금으로 충전은 요청만 접수됩니다. 관리자/회계 승인 후 루미나가 지급되며, 즉시 지갑에 반영되지 않습니다.",
+            summaryHtml:
+              '<div class="modal-form-grid">' +
+                '<label class="is-wide"><span>대상 정산</span><select id="studioConversionSettlement">' +
+                  options.map(item => '<option value="' + escapeHtml(item.key) + '" data-available="' + escapeHtml(item.available) + '">' + escapeHtml(item.name + " · 가능 " + formatKrw(item.available)) + '</option>').join("") +
+                '</select></label>' +
+                '<label><span>요청 금액</span><input id="studioConversionAmount" type="number" min="' + minAmount + '" step="1000" max="' + maxAmount + '" value="' + Math.max(minAmount, maxAmount) + '" /></label>' +
+                '<label><span>예상 루미나</span><input id="studioConversionLumina" value="' + formatNumber(Math.floor(Math.max(minAmount, maxAmount) / 10)) + 'L" readonly /></label>' +
+                '<label class="is-wide"><span>메모</span><input id="studioConversionNote" maxlength="120" placeholder="선택 입력" /></label>' +
+              '</div>',
+            confirmText: "충전 요청",
+            onConfirm: submitSettlementConversion
+          });
+          const select = document.getElementById("studioConversionSettlement");
+          const amount = document.getElementById("studioConversionAmount");
+          const lumina = document.getElementById("studioConversionLumina");
+          function syncLimit() {
+            const available = Number(select?.selectedOptions?.[0]?.dataset.available || 0);
+            const max = Math.max(0, Math.floor(available / 1000) * 1000);
+            if (amount) {
+              amount.max = String(max);
+              amount.value = String(Math.max(minAmount, Math.min(Number(amount.value || max), max)));
+            }
+            if (lumina) lumina.value = formatNumber(Math.floor(Number(amount?.value || 0) / 10)) + "L";
+          }
+          select?.addEventListener("change", syncLimit);
+          amount?.addEventListener("input", () => {
+            if (lumina) lumina.value = formatNumber(Math.floor(Number(amount.value || 0) / 10)) + "L";
+          });
+        }
+
+        async function submitSettlementConversion() {
+          const token = readAuth()?.accessToken;
+          const settlementKey = document.getElementById("studioConversionSettlement")?.value || "";
+          const amountKrw = Number(document.getElementById("studioConversionAmount")?.value || 0);
+          const note = document.getElementById("studioConversionNote")?.value.trim() || "";
+          if (!token || !settlementKey || amountKrw < 1000) {
+            showToast("충전 요청 금액은 1,000원 이상이어야 합니다.");
+            return;
+          }
+          try {
+            const res = await fetch(apiBase + "/api/v1/me/creator-studio/settlement-conversions", {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer " + token,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                settlementKey,
+                amountKrw: String(amountKrw),
+                note,
+                idempotencyKey: "studio-" + Date.now() + "-" + Math.random().toString(16).slice(2)
+              })
+            });
+            if (!res.ok) {
+              let msg = "충전 요청에 실패했습니다.";
+              try {
+                const error = await res.json();
+                if (error?.remainingKrw !== undefined) msg = "요청 가능 금액을 초과했습니다. 남은 예상 금액: " + formatKrw(error.remainingKrw);
+                else if (error?.message) msg = error.message;
+              } catch (_) {}
+              throw new Error(msg);
+            }
+            closeStudioModal();
+            showToast("정산금으로 충전 요청이 접수되었습니다.");
+          } catch (err) {
+            showToast(err?.message || "충전 요청에 실패했습니다.");
+          }
+        }
+
+        function openTonePreview() {
+          const body = document.getElementById("feedBody")?.value.trim() || "";
+          const item = selectedProfileItem();
+          const tone = item?.artist?.contentProfile?.contentTone || document.getElementById("studioProfileTone")?.value || "팬에게 공개 가능한 차분한 톤";
+          const preview = body
+            ? body + "\n\n" + "오늘의 감정은 크게 흔들리지 않게, 그래도 팬들에게 닿을 만큼은 선명하게 남겨둘게요."
+            : "본문을 입력하면 선택한 아티스트의 톤앤매너 기준으로 미리보기합니다.";
+          openStudioModal({
+            type: "TONE PREVIEW",
+            title: "톤앤매너 미리보기",
+            message: "실제 AI 변환 API 연결 전, 현재 저장된 톤 기준을 확인하는 미리보기입니다.",
+            summaryHtml: [
+              modalRow("아티스트", artistName(item)),
+              modalRow("톤 기준", tone),
+              modalRow("미리보기", preview)
+            ].join(""),
+            confirmText: "확인"
+          });
+        }
+
         document.getElementById("studioProfileArtistSelect")?.addEventListener("change", () => {
           fillProfileEditor(selectedProfileItem());
         });
@@ -1025,6 +1225,25 @@
           fillProfileEditor(selectedProfileItem());
         });
         document.getElementById("studioProfileSaveButton")?.addEventListener("click", saveProfileEditor);
+        document.querySelectorAll(".studio-nav button[data-section]").forEach(button => {
+          button.addEventListener("click", () => {
+            if (button.disabled) return;
+            setActiveSection(button.dataset.section);
+          });
+        });
+        ["studioModalClose", "studioModalCancel"].forEach(id => {
+          document.getElementById(id)?.addEventListener("click", closeStudioModal);
+        });
+        document.getElementById("studioModalConfirm")?.addEventListener("click", () => {
+          if (typeof studioModalConfirmHandler === "function") {
+            studioModalConfirmHandler();
+          } else {
+            closeStudioModal();
+          }
+        });
+        document.addEventListener("keydown", event => {
+          if (event.key === "Escape") closeStudioModal();
+        });
         document.addEventListener("click", event => {
           const button = event.target.closest("[data-profile-artist]");
           if (!button) return;
@@ -1032,6 +1251,20 @@
           if (select) select.value = button.getAttribute("data-profile-artist");
           fillProfileEditor(selectedProfileItem());
           document.getElementById("studioProfileArtistSelect")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+        document.addEventListener("click", event => {
+          const actionButton = event.target.closest("[data-action]");
+          if (!actionButton) return;
+          const action = actionButton.dataset.action;
+          if (action === "tone") {
+            openTonePreview();
+          } else if (action === "settlement-request") {
+            openSettlementRequestModal();
+          } else if (action === "settlement-conversion") {
+            openSettlementConversionModal();
+          } else if (action === "toast") {
+            showToast(actionButton.textContent.trim() + " 기능은 다음 연결 단계에서 활성화합니다.");
+          }
         });
 
         async function verify() {
