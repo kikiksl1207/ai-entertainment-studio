@@ -42,6 +42,7 @@ let selectedDetail = null;
 let pendingActionPreview = null;
 const sectionState = {
   admins: { rows: [], auditRows: [] },
+  creators: { rows: [], artistOptions: [], accessRows: [] },
   users: { cursor: null, hasMore: false, rows: [] },
   settlement: { cursor: null, hasMore: false, rows: [] },
   logs: { cursor: null, hasMore: false, rows: [] }
@@ -135,16 +136,10 @@ const backstageRows = {
     ["policy_watch", "정책 경고 누적", "2회", "주의", "재안내", "상세"]
   ],
   creators: [
-    ["김민서 / Min Stage", "Google", "오늘", "영업/최상만", "회계/최상만", "승인", "상세"],
-    ["박하린 / Harin", "Kakao", "어제", "영업/최상만", "회계/최상만", "접수", "신청 보기"],
-    ["이도윤 / Doyun", "Email", "35일 전", "영업/최상만", "회계/최상만", "장기미접속", "확인 요청"],
-    ["정세아 / Sea", "Google", "12일 전", "영업/최상만", "회계/최상만", "프로필 누락", "알림 발송"],
-    ["최유진 / Yujin", "Naver", "오늘", "영업/최상만", "회계/최상만", "승인", "상세"],
-    ["한지호 / Jiho", "Kakao", "41일 전", "영업/최상만", "회계/최상만", "장기미접속", "확인 요청"],
-    ["문리아 / Ria", "Google", "4일 전", "영업/최상만", "회계/최상만", "커버 누락", "알림 발송"],
-    ["오서준 / Seojun", "Email", "18일 전", "영업/최상만", "회계/최상만", "승인", "상세"],
-    ["배나윤 / Nayun", "Kakao", "29일 전", "영업/최상만", "회계/최상만", "확인중", "상세"],
-    ["신유라 / Yura", "Google", "62일 전", "영업/최상만", "회계/최상만", "장기미접속", "확인 요청"]
+    ["김민서", "Min Stage", "Google", "min@example.com", "min-contact@example.com", "Min Stage", "입장 가능", "승인", "상세"],
+    ["박하린", "Harin", "Kakao", "harin@example.com", "harin-contact@example.com", "미연결", "권한 없음", "접수", "신청 보기"],
+    ["이도윤", "Doyun", "Email", "doyun@example.com", "doyun-contact@example.com", "미연결", "권한 없음", "장기미접속", "확인 요청"],
+    ["정세아", "Sea", "Google", "sea@example.com", "sea-contact@example.com", "미연결", "권한 없음", "프로필 누락", "알림 발송"]
   ],
   creatorImageRequests: [
     ["프로필 이미지", "Min Stage", "김민서", "100L", "0/3회", "접수", "대기", "0장", "상세"],
@@ -233,7 +228,7 @@ const tableMeta = {
   riskRows: { type: "위험 항목", labels: ["ID", "분류", "사유", "위험도", "권장 액션"] },
   userRows: { type: "유저 관리", labels: ["유저", "이메일", "로그인", "루미나", "결제", "신고", "제재", "팔로우", "최근 접속", "상태", "권장 액션"] },
   userRiskRows: { type: "신고/제재 유저", labels: ["유저", "사유", "누적", "상태", "최근 조치", "권장 액션"] },
-  creatorRows: { type: "유저 크리에이터", labels: ["본명/활동명", "로그인유형", "마지막 접속", "연락처", "정산계좌", "상태", "권장 액션"] },
+  creatorRows: { type: "유저 크리에이터", labels: ["본명", "활동명", "로그인", "로그인 계정", "연락 이메일", "연결 아티스트", "스튜디오 권한", "상태", "권장 액션"] },
   creatorImageRequestRows: { type: "이미지 제작 요청", labels: ["요청", "아티스트", "요청자", "차감", "재조정", "상태", "검수", "결과", "권장 액션"] },
   aiCreatorRows: { type: "AI 아티스트", labels: ["아티스트", "분류", "만든 관리자", "프로필", "이미지", "상태", "권장 액션"] },
   aiAssetRows: { type: "AI 아티스트 에셋", labels: ["아티스트", "커버", "썸네일", "포토갤러리", "숏폼", "업로드 규칙", "권장 액션"] },
@@ -1068,6 +1063,23 @@ function detailSelect(label, name, options, selected = "", wide = false) {
   return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><select name="${name}">${items}</select></label>`;
 }
 
+function creatorArtistSelectOptions(selected = "") {
+  const options = sectionState.creators?.artistOptions || [];
+  const items = [{ value: "", label: "아티스트를 선택하세요" }].concat(options.map((artist) => ({
+    value: artist.id || artist.slug,
+    label: `${artist.displayName || artist.name || artist.slug || "이름 없음"}${artist.slug ? ` · ${artist.slug}` : ""}${artist.status ? ` · ${localizeWorkflowStatus(artist.status)}` : ""}`
+  })));
+  if (selected && !items.some((item) => item.value === selected)) {
+    items.push({ value: selected, label: `현재 연결값 · ${selected}` });
+  }
+  return items;
+}
+
+function selectedCreatorArtist(value = "") {
+  const options = sectionState.creators?.artistOptions || [];
+  return options.find((artist) => artist.id === value || artist.slug === value) || null;
+}
+
 function detailTextarea(label, name, value = "", wide = true) {
   return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><textarea name="${name}">${value}</textarea></label>`;
 }
@@ -1257,7 +1269,7 @@ function renderDetailForm(detail) {
       <p class="detail-form-note">실수 위험이 큰 세션 종료 대신 기간형 일시정지를 기본 제재로 둡니다.</p>
     `;
   } else if (quickTitle === "데뷔 신청 목록" || tableId === "creatorRows") {
-    const autoArtistSlug = buildCreatorAutoSlug(meta);
+    const selectedArtistValue = firstValue(meta.artistId, meta.artistSlug);
     html = `
       <h3>데뷔 신청 확인</h3>
       <div class="detail-form-grid">
@@ -1271,12 +1283,12 @@ function renderDetailForm(detail) {
         ], meta.status || "reviewing")}
         ${detailInput("신청 ID", "applicationId", meta.applicationId || "", "text", true)}
         ${detailInput("로그인 이메일", "email", meta.email || "", "email")}
-        ${detailInput("자동 생성 아티스트 주소명", "artistSlug", autoArtistSlug, "text", false, "승인 시 자동 생성")}
+        ${detailSelect("연결 아티스트", "artistId", creatorArtistSelectOptions(selectedArtistValue), selectedArtistValue, true)}
         ${detailInput("연락 가능 시간", "contactWindow", meta.preferredContactTime || "", "text")}
         ${detailInput("자료 링크", "portfolioUrl", meta.portfolioUrl || "", "url")}
         ${detailTextarea("보완/확인 메모", "reviewMemo", "활동명, 소개, 연락 가능 시간, 자료 링크, 권리 확인 내용을 확인합니다.")}
       </div>
-      <p class="detail-form-note">아티스트 주소명은 신청 정보로 자동 생성됩니다. 운영자가 외워서 입력하지 않아도 됩니다.</p>
+      <p class="detail-form-note">slug는 운영자가 입력하지 않습니다. 아티스트 이름을 선택하면 artistId로 Creator Studio 권한을 연결합니다.</p>
     `;
   } else if (quickTitle === "이미지 제작 요청" || tableId === "creatorImageRequestRows") {
     html = `
@@ -1825,38 +1837,22 @@ function buildActionRequest(detail, action) {
       }
     };
     const email = firstValue(form.email, meta.email);
-    const artistSlug = normalizeArtistSlugValue(form.artistSlug, meta.artistSlug) || buildCreatorAutoSlug({
-      ...meta,
-      email,
-      realName: form.realName,
-      stageName: form.stageName,
-      applicationId
-    });
-    const displayName = firstValue(form.stageName, form.realName, row[0], artistSlug);
-    const hasLinkedArtist = Boolean(meta.artistId || meta.artistExists || meta.existingArtistSlug);
+    const selectedArtistValue = firstValue(form.artistId, meta.artistId, meta.artistSlug);
+    const artist = selectedCreatorArtist(selectedArtistValue);
+    const artistId = firstValue(artist?.id, meta.artistId);
+    const artistSlug = normalizeArtistSlugValue(artist?.slug, meta.artistSlug);
     if (status !== "approved") return updateApplication;
-    if (!email || !artistSlug) return null;
+    if (!email || (!artistId && !artistSlug)) return null;
     return {
       method: "BATCH",
       steps: [
-        hasLinkedArtist ? null : {
-          method: "POST",
-          path: adminApiPath("/artists"),
-          body: {
-            displayName,
-            slug: artistSlug,
-            status: "draft",
-            debut: "Lumina Stage 신규 후보",
-            characterType: "유저 크리에이터 후보",
-            sourceApplicationId: applicationId
-          }
-        },
         {
           method: "POST",
           path: adminApiPath("/backstage/operations/creator-access"),
           body: {
             email,
-            artistSlug,
+            artistId,
+            artistSlug: artistId ? undefined : artistSlug,
             role: "owner",
             status: "active",
             permissions: [
@@ -2139,7 +2135,7 @@ function buildActionPreview(action) {
     action !== "memo" &&
     action !== "hold" &&
     (form.applicationStatus || detail?.meta?.status) === "approved" &&
-    !firstValue(form.email, detail?.meta?.email);
+    (!firstValue(form.email, detail?.meta?.email) || !firstValue(form.artistId, detail?.meta?.artistId, detail?.meta?.artistSlug));
 
   const base = {
     menu: detail.type,
@@ -2161,7 +2157,7 @@ function buildActionPreview(action) {
     },
     note: memo || "운영 메모 미입력",
     warning: creatorApprovalNeedsArtist
-      ? "승인하려면 로그인 이메일이 필요합니다. 아티스트 주소명은 신청 정보로 자동 생성됩니다."
+      ? "승인하려면 로그인 이메일과 연결 아티스트 선택이 필요합니다. 운영자는 slug를 입력하지 않고 아티스트 이름만 선택하면 됩니다."
       : isLocalOnly
       ? "현재 화면에 운영 메모와 처리 이력을 남깁니다. 처리 사유를 확인한 뒤 진행하세요."
       : apiRequest
@@ -2325,7 +2321,7 @@ function renderBackstageTables() {
   renderRows("riskRows", backstageRows.risk, 3);
   renderRows("userRows", backstageRows.users, 9);
   renderRows("userRiskRows", backstageRows.userRisks, 3);
-  renderRows("creatorRows", backstageRows.creators, 5);
+  renderRows("creatorRows", backstageRows.creators, 7);
   renderRows("creatorImageRequestRows", backstageRows.creatorImageRequests, 5);
   renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
   renderRows("aiAssetRows", backstageRows.aiAssets, -1);
@@ -2813,6 +2809,7 @@ async function loadUsersPage(append = true) {
 }
 
 async function loadCreatorsSection() {
+  sectionState.creators = { rows: [], artistOptions: [], accessRows: [] };
   renderLoadingRow("creatorRows");
   renderLoadingRow("creatorImageRequestRows");
   renderLoadingRow("aiCreatorRows");
@@ -2822,16 +2819,30 @@ async function loadCreatorsSection() {
       backstageFetch(adminApiPath("/creator-image-requests?take=20"), { auth: true }).catch(() => null)
     ]);
     const applicationsPage = normalizePage(data?.applications || data);
+    const activeCreators = data?.activeCreators || [];
+    const artistOptions = data?.aiArtists || [];
+    sectionState.creators.artistOptions = artistOptions;
+    sectionState.creators.accessRows = activeCreators;
+    const accessByUserId = new Map(activeCreators.map((operator) => [operator.userId, operator]));
+    const accessByEmail = new Map(activeCreators.map((operator) => [operator.user?.email, operator]).filter(([email]) => Boolean(email)));
     const rows = applicationsPage.items.map((item) => ({
-      row: [
-        `${item.realName || item.applicantName || "-"} / ${item.stageName || item.displayName || "-"}`,
-        item.loginType || item.loginProvider || item.provider || item.applicationChannel || "-",
-        formatDate(item.lastLoginAt || item.updatedAt || item.createdAt),
-        item.contactAccessAllowed ? item.contactEmail || item.contactPhone || "-" : item.contactMasked || "권한 제한",
-        item.payoutAccessAllowed ? item.payoutAccount || "-" : item.payoutAccountMasked || "권한 제한",
-        item.inactive30Days ? "장기미접속" : localizeWorkflowStatus(item.status),
-        item.needsFollowUp ? "확인 요청" : item.status === "approved" ? "권한 보기" : "신청 보기"
-      ],
+      row: (() => {
+        const access = accessByUserId.get(item.userId) || accessByEmail.get(item.user?.email);
+        const linkedArtist = access?.artist || item.user?.artists?.[0] || item.artist;
+        const contactEmail = item.contactAccessAllowed ? item.contactEmail || "-" : item.contactEmail || item.contactMasked || "권한 제한";
+        const loginEmail = item.user?.email || item.email || "-";
+        return [
+          item.realName || item.applicantName || "-",
+          item.stageName || item.displayName || "-",
+          item.loginType || item.loginProvider || item.provider || item.applicationChannel || "-",
+          loginEmail,
+          contactEmail,
+          linkedArtist?.displayName || linkedArtist?.name || linkedArtist?.slug || "미연결",
+          access?.status === "active" && !access?.revokedAt ? "입장 가능" : "권한 없음",
+          item.inactive30Days ? "장기미접속" : localizeWorkflowStatus(item.status),
+          access?.status === "active" ? "권한 확인" : item.needsFollowUp ? "확인 요청" : "신청 보기"
+        ];
+      })(),
       meta: {
         ...creatorNameParts(item),
         applicationId: item.id || item.applicationId,
@@ -2840,9 +2851,10 @@ async function loadCreatorsSection() {
         preferredContactTime: item.preferredContactTime || item.metadata?.preferredContactTime,
         portfolioUrl: item.portfolioUrl,
         artistSlug: normalizeArtistSlugValue(item.artist?.slug, item.artistSlug, item.metadata?.artistSlug, item.metadata?.artist?.slug),
-        artistId: item.artist?.id || item.artistId || item.metadata?.artistId,
-        artistExists: Boolean(item.artist?.id || item.artistId || item.artist?.slug || item.artistSlug),
-        existingArtistSlug: normalizeArtistSlugValue(item.artist?.slug, item.artistSlug),
+        artistId: item.artist?.id || item.artistId || item.metadata?.artistId || accessByUserId.get(item.userId)?.artistId || accessByEmail.get(item.user?.email)?.artistId,
+        artistExists: Boolean(item.artist?.id || item.artistId || item.artist?.slug || item.artistSlug || accessByUserId.get(item.userId) || accessByEmail.get(item.user?.email)),
+        existingArtistSlug: normalizeArtistSlugValue(item.artist?.slug, item.artistSlug, accessByUserId.get(item.userId)?.artist?.slug, accessByEmail.get(item.user?.email)?.artist?.slug),
+        studioAccessStatus: accessByUserId.get(item.userId)?.status || accessByEmail.get(item.user?.email)?.status || "none",
         applicationType: item.applicationType || item.metadata?.applicationType,
         applicationChannel: item.applicationChannel || item.metadata?.applicationChannel
       }
@@ -2875,14 +2887,14 @@ async function loadCreatorsSection() {
       countLabel(request.resultAssetIds?.length || 0, "장"),
       request.status === "delivered" || request.status === "approved" ? "결과 반영" : request.status === "rejected" ? "반려 확인" : "상세"
     ]);
-    if (rows.length) renderRows("creatorRows", rows, 5);
+    if (rows.length) renderRows("creatorRows", rows, 7);
     else renderLoadingRow("creatorRows", "표시할 신청 내역이 없습니다.");
     if (imageRequestRows.length) renderRows("creatorImageRequestRows", imageRequestRows, 5);
     else renderLoadingRow("creatorImageRequestRows", "표시할 이미지 제작 요청이 없습니다.");
     if (aiRows.length) renderRows("aiCreatorRows", aiRows, 5);
     else renderLoadingRow("aiCreatorRows", "표시할 AI 아티스트가 없습니다.");
   } catch {
-    renderRows("creatorRows", backstageRows.creators, 5);
+    renderRows("creatorRows", backstageRows.creators, 7);
     renderRows("creatorImageRequestRows", backstageRows.creatorImageRequests, 5);
     renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
     renderFallbackNote("creatorRows");
