@@ -3961,6 +3961,255 @@ export class AdminService {
     };
   }
 
+  async getBackstageLaunchReadiness() {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const [
+      activeArtists,
+      activeArtistsWithCover,
+      activeArtistsWithThumb,
+      publishedShortforms,
+      activeUsers,
+      activeLuminaProducts,
+      paidPaymentOrders,
+      activeGiftProducts,
+      activeChatFeatureProducts,
+      activePremiumVideoProducts,
+      feedPosts,
+      feedPostsLast7d,
+      openReports,
+      debutApplications,
+      activeArtistOperators,
+      openCreatorImageRequests,
+      fanLetters,
+      s3Assets,
+      uploadedUserAssets,
+      recentAuditEvents,
+    ] = await Promise.all([
+      this.prisma.artist.count({ where: { status: 'active' } }),
+      this.prisma.artist.count({
+        where: {
+          status: 'active',
+          artistAssets: { some: { usageType: { in: ['cover', 'hero', 'banner'] } } },
+        },
+      }),
+      this.prisma.artist.count({
+        where: {
+          status: 'active',
+          artistAssets: { some: { usageType: { in: ['thumb', 'thumbnail', 'profile', 'card'] } } },
+        },
+      }),
+      this.prisma.shortform.count({ where: { status: 'published' } }),
+      this.prisma.user.count({ where: { status: 'active', deletedAt: null } }),
+      this.prisma.luminaProduct.count({ where: { status: 'active' } }),
+      this.prisma.paymentOrder.count({ where: { status: 'paid' } }),
+      this.prisma.giftProduct.count({ where: { status: 'active' } }),
+      this.prisma.chatFeatureProduct.count({ where: { status: 'active' } }),
+      this.prisma.premiumVideoProduct.count({ where: { status: 'published' } }),
+      this.prisma.communityPost.count({
+        where: { status: 'published', visibility: 'public', deletedAt: null },
+      }),
+      this.prisma.communityPost.count({
+        where: {
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
+          publishedAt: { gte: sevenDaysAgo },
+        },
+      }),
+      this.prisma.communityReport.count({
+        where: { status: { in: ['submitted', 'reviewing'] } },
+      }),
+      this.prisma.debutApplication.count(),
+      this.prisma.artistOperator.count({ where: { status: 'active' } }),
+      this.prisma.creatorImageRequest.count({
+        where: { status: { in: ['submitted', 'reviewing', 'in_progress'] } },
+      }),
+      this.prisma.fanLetter.count(),
+      this.prisma.asset.count({
+        where: { storageProvider: { in: ['s3', 'r2'] }, visibility: 'public' },
+      }),
+      this.prisma.asset.count({
+        where: {
+          visibility: 'public',
+          metadata: {
+            path: ['uploadIntent', 'status'],
+            equals: 'uploaded',
+          },
+        },
+      }),
+      this.prisma.auditEvent.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+    ]);
+
+    const categories = [
+      this.launchReadinessCategory({
+        key: 'public_content',
+        label: 'Public characters/content',
+        score: Math.min(100, activeArtists * 10 + publishedShortforms * 4),
+        targetScore: 80,
+        metrics: {
+          activeArtists,
+          activeArtistsWithCover,
+          activeArtistsWithThumb,
+          publishedShortforms,
+        },
+        blockers: [
+          ...(activeArtists < 8 ? ['active_artist_count_below_8'] : []),
+          ...(activeArtistsWithCover < activeArtists ? ['some_active_artists_missing_cover'] : []),
+          ...(activeArtistsWithThumb < activeArtists ? ['some_active_artists_missing_thumb'] : []),
+        ],
+        nextActions: [
+          'Keep active character count at 8+ for launch breadth.',
+          'Check every active artist has cover/thumb/gallery assets before launch.',
+        ],
+      }),
+      this.launchReadinessCategory({
+        key: 'lumina_commerce',
+        label: 'Lumina commerce/BM',
+        score: Math.min(
+          100,
+          activeLuminaProducts * 20 +
+            activeGiftProducts * 8 +
+            activeChatFeatureProducts * 8 +
+            activePremiumVideoProducts * 8 +
+            (paidPaymentOrders > 0 ? 20 : 0),
+        ),
+        targetScore: 80,
+        metrics: {
+          activeLuminaProducts,
+          paidPaymentOrders,
+          activeGiftProducts,
+          activeChatFeatureProducts,
+          activePremiumVideoProducts,
+        },
+        blockers: [
+          ...(activeLuminaProducts < 3 ? ['charge_products_below_3'] : []),
+          ...(paidPaymentOrders < 1 ? ['no_paid_payment_order_verified_yet'] : []),
+        ],
+        nextActions: [
+          'Run one paid/PG verification before opening paid traffic.',
+          'Keep unavailable products visible only as disabled placeholders.',
+        ],
+      }),
+      this.launchReadinessCategory({
+        key: 'social_feed',
+        label: 'Lumina Feed/SNS flow',
+        score: Math.min(100, feedPosts * 8 + feedPostsLast7d * 6 + activeUsers),
+        targetScore: 80,
+        metrics: {
+          activeUsers,
+          feedPosts,
+          feedPostsLast7d,
+          openReports,
+        },
+        blockers: [
+          ...(feedPosts < 10 ? ['feed_seed_posts_below_10'] : []),
+          ...(openReports > 0 ? ['open_moderation_reports'] : []),
+        ],
+        nextActions: [
+          'Verify feed create/edit/like/reply/report flows from a normal user account.',
+          'Keep user profile route and follow buttons tested together.',
+        ],
+      }),
+      this.launchReadinessCategory({
+        key: 'creator_studio',
+        label: 'Creator/debut/studio',
+        score: Math.min(
+          100,
+          debutApplications * 12 + activeArtistOperators * 18 + fanLetters * 8,
+        ),
+        targetScore: 80,
+        metrics: {
+          debutApplications,
+          activeArtistOperators,
+          openCreatorImageRequests,
+          fanLetters,
+        },
+        blockers: [
+          ...(debutApplications < 1 ? ['no_debut_application_tested'] : []),
+          ...(activeArtistOperators < 1 ? ['no_active_artist_operator'] : []),
+        ],
+        nextActions: [
+          'Test debut application from public form to Backstage review.',
+          'Keep Creator Studio image request disabled until policy/UI is final.',
+        ],
+      }),
+      this.launchReadinessCategory({
+        key: 'ops_safety',
+        label: 'Backstage/ops/safety',
+        score: Math.min(100, recentAuditEvents * 5 + (openReports === 0 ? 35 : 10) + 35),
+        targetScore: 80,
+        metrics: {
+          openReports,
+          recentAuditEvents,
+          s3Assets,
+          uploadedUserAssets,
+        },
+        blockers: [
+          ...(openReports > 0 ? ['moderation_queue_not_empty'] : []),
+          ...(s3Assets < 1 && uploadedUserAssets < 1 ? ['object_storage_upload_not_verified'] : []),
+        ],
+        nextActions: [
+          'Run one S3/direct-upload browser verification.',
+          'Review Backstage audit trail after each admin status action.',
+        ],
+      }),
+    ];
+    const overallScore = Math.round(
+      categories.reduce((sum, category) => sum + category.score, 0) / categories.length,
+    );
+
+    return {
+      generatedAt: new Date(),
+      target: {
+        label: '1차 오픈 최소 조건',
+        minimumCategoryScore: 80,
+        minimumOverallScore: 80,
+      },
+      overall: {
+        score: overallScore,
+        status: overallScore >= 80 ? 'ready_candidate' : 'needs_work',
+        belowTargetCategories: categories
+          .filter((category) => category.score < category.targetScore)
+          .map((category) => category.key),
+      },
+      categories,
+      policy: {
+        scoring: 'operational_signal_not_final_business_judgment',
+        frontendUse: 'Backstage readiness dashboard or PM checklist',
+        requiredHumanReview:
+          'User still makes final launch judgment for policy, copy, payment, SNS, and legal readiness.',
+      },
+    };
+  }
+
+  private launchReadinessCategory(input: {
+    key: string;
+    label: string;
+    score: number;
+    targetScore: number;
+    metrics: Record<string, number>;
+    blockers: string[];
+    nextActions: string[];
+  }) {
+    const score = Math.max(0, Math.min(100, Math.round(input.score)));
+
+    return {
+      key: input.key,
+      label: input.label,
+      score,
+      targetScore: input.targetScore,
+      status:
+        score >= input.targetScore && input.blockers.length === 0
+          ? 'ready_candidate'
+          : score >= input.targetScore
+            ? 'score_ready_with_blockers'
+            : 'needs_work',
+      metrics: input.metrics,
+      blockers: input.blockers,
+      nextActions: input.nextActions,
+    };
+  }
+
   private emptyProductBreakdown(type: string) {
     return {
       type,

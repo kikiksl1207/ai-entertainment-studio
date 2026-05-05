@@ -30,6 +30,12 @@ export class AdminController {
     return this.adminService.getBackstageSummary();
   }
 
+  @Get('backstage/launch-readiness')
+  @RequireAdminPermissions('*')
+  getBackstageLaunchReadiness() {
+    return this.adminService.getBackstageLaunchReadiness();
+  }
+
   @Get('backstage/operations/creators')
   @RequireAdminPermissions('*')
   getBackstageCreatorOperations(@CurrentUser() user: AuthUser, @Query() query: AuditQuery) {

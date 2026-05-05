@@ -694,6 +694,51 @@ Create body:
 - Operator status update accepts `submitted`, `seen`, `replied`, or `archived`. `replied` requires `replyBody` and notifies the sender.
 - `moderationStatus` starts as `pending`; adult/direct DM behavior is not open in this MVP.
 
+## 2026-05-05 Backstage Launch Readiness
+
+```http
+GET /admin/api/v1/backstage/launch-readiness
+Authorization: Bearer <admin accessToken>
+```
+
+This is an operations signal for the "1차 오픈 최소 80%" discussion. It does
+not replace the user's final launch decision. It groups backend/database signals
+into categories:
+
+- `public_content`
+- `lumina_commerce`
+- `social_feed`
+- `creator_studio`
+- `ops_safety`
+
+Response shape:
+
+```json
+{
+  "target": {
+    "minimumCategoryScore": 80,
+    "minimumOverallScore": 80
+  },
+  "overall": {
+    "score": 82,
+    "status": "ready_candidate",
+    "belowTargetCategories": []
+  },
+  "categories": [
+    {
+      "key": "social_feed",
+      "label": "Lumina Feed/SNS flow",
+      "score": 80,
+      "targetScore": 80,
+      "status": "ready_candidate",
+      "metrics": {},
+      "blockers": [],
+      "nextActions": []
+    }
+  ]
+}
+```
+
 ## 2026-05-02 Lumina Feed / Follow Addendum
 
 Lumina Feed supports artist posts, AI artist posts, and normal user posts. Normal users are first-class follow targets so creator/fan acquisition is not limited to artist accounts.
