@@ -104,6 +104,26 @@
       .top-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
       .studio-section { display: none; }
       .studio-section.is-active { display: grid; gap: 22px; }
+      .studio-access-gate {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 28px;
+      }
+      .studio-gate-card {
+        width: min(520px, 100%);
+        display: grid;
+        gap: 18px;
+        padding: 28px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(21,19,34,0.94);
+        box-shadow: var(--shadow);
+      }
+      .studio-gate-card h1 { margin: 0; font-size: 30px; }
+      .studio-gate-card p { margin: 0; color: var(--muted); line-height: 1.7; }
+      .studio-gate-card nav { display: flex; flex-wrap: wrap; gap: 10px; }
+      .studio-gate-card[hidden] { display: none; }
       .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
       .metric-card, .panel, .table-card {
         border: 1px solid var(--line);
@@ -282,7 +302,18 @@
     </style>
   </head>
   <body class="page-creator-studio">
-    <div class="studio-shell">
+    <div class="studio-access-gate" id="studioAccessGate">
+      <section class="studio-gate-card" id="studioGateCard">
+        <span class="eyebrow" id="studioGateKicker">Checking</span>
+        <h1 id="studioGateTitle">스튜디오 권한을 확인하고 있습니다.</h1>
+        <p id="studioGateBody">승인된 크리에이터 계정인지 확인한 뒤 스튜디오를 열어드릴게요.</p>
+        <nav id="studioGateActions" hidden>
+          <a class="secondary-action" href="./index.html">홈으로</a>
+          <a class="primary-action" href="./debut.html">데뷔 신청</a>
+        </nav>
+      </section>
+    </div>
+    <div class="studio-shell" id="studioShell" hidden>
       <aside class="studio-sidebar">
         <a class="brand" href="./index.html">
           <img src="./assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
@@ -575,6 +606,71 @@
       </div>
     </div>
     <div class="studio-toast" id="studioToast" role="status" aria-live="polite"></div>
+    <script>
+      (function guardCreatorStudioAccess() {
+        const apiBase = "https://api.lumina-stage.com";
+        const authKey = "lumina_auth";
+        const shell = document.getElementById("studioShell");
+        const gate = document.getElementById("studioAccessGate");
+        const kicker = document.getElementById("studioGateKicker");
+        const title = document.getElementById("studioGateTitle");
+        const body = document.getElementById("studioGateBody");
+        const actions = document.getElementById("studioGateActions");
+
+        function readAuth() {
+          try {
+            const raw = localStorage.getItem(authKey);
+            return raw ? JSON.parse(raw) : null;
+          } catch (_) {
+            return null;
+          }
+        }
+
+        function deny(message) {
+          if (shell) shell.hidden = true;
+          if (gate) gate.hidden = false;
+          if (kicker) kicker.textContent = "Access Required";
+          if (title) title.textContent = "스튜디오 접근 권한이 필요합니다.";
+          if (body) body.textContent = message || "승인된 크리에이터 계정만 스튜디오 스테이지에 들어올 수 있습니다.";
+          if (actions) actions.hidden = false;
+        }
+
+        function allow(data) {
+          if (gate) gate.hidden = true;
+          if (shell) shell.hidden = false;
+          const email = data?.access?.accountEmail || readAuth()?.user?.email;
+          const account = document.querySelector(".studio-account strong");
+          if (email && account) account.textContent = email;
+        }
+
+        async function verify() {
+          const token = readAuth()?.accessToken;
+          if (!token) {
+            deny("로그인 후 승인된 크리에이터 계정으로만 접근할 수 있습니다.");
+            return;
+          }
+          try {
+            const res = await fetch(apiBase + "/api/v1/me/creator-studio", {
+              headers: { Authorization: "Bearer " + token }
+            });
+            if (!res.ok) {
+              deny("현재 계정에는 스튜디오 접근 권한이 없습니다.");
+              return;
+            }
+            const data = await res.json();
+            if (data?.access?.enabled === true) {
+              allow(data);
+              return;
+            }
+            deny("승인된 크리에이터 계정만 스튜디오 스테이지에 들어올 수 있습니다.");
+          } catch (_) {
+            deny("스튜디오 권한을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");
+          }
+        }
+
+        verify();
+      })();
+    </script>
     <script src="./app.js"></script>
   </body>
 </html>
