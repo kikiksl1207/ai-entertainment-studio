@@ -60,6 +60,31 @@ export class AdminController {
     return this.adminService.getBackstageFeedSearchAnalytics(query);
   }
 
+  @Get('backstage/operations/feed-search-blocked-terms')
+  @RequireAdminPermissions('*')
+  getBackstageFeedSearchBlockedTerms(@Query() query: AuditQuery) {
+    return this.adminService.getBackstageFeedSearchBlockedTerms(query);
+  }
+
+  @Post('backstage/operations/feed-search-blocked-terms')
+  @RequireAdminPermissions('*')
+  createBackstageFeedSearchBlockedTerm(
+    @CurrentUser() user: AuthUser,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.createBackstageFeedSearchBlockedTerm(user, body);
+  }
+
+  @Patch('backstage/operations/feed-search-blocked-terms/:termId')
+  @RequireAdminPermissions('*')
+  updateBackstageFeedSearchBlockedTerm(
+    @CurrentUser() user: AuthUser,
+    @Param('termId') termId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.updateBackstageFeedSearchBlockedTerm(user, termId, body);
+  }
+
   @Get('backstage/operations/settlement-preview')
   @RequireAdminPermissions('payments:read')
   getBackstageSettlementPreview(@Query() query: AuditQuery) {

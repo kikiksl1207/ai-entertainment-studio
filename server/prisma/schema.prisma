@@ -45,6 +45,7 @@ model User {
   communityReplies     CommunityReply[]         @relation("CommunityReplyAuthor")
   communityReactions   CommunityReaction[]
   feedSearchEvents     FeedSearchEvent[]
+  feedSearchBlockedTerms FeedSearchBlockedTerm[]
   communityReports     CommunityReport[]        @relation("CommunityReportReporter")
   hiddenCommunityPosts CommunityHiddenPost[]
   artistFollows        ArtistFollow[]
@@ -1001,6 +1002,26 @@ model FeedSearchEvent {
   @@index([userId, createdAt], map: "idx_feed_search_events_user_created")
   @@index([visitorHash, createdAt], map: "idx_feed_search_events_visitor_created")
   @@map("feed_search_events")
+}
+
+model FeedSearchBlockedTerm {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  keyword           String
+  normalizedKeyword String   @map("normalized_keyword")
+  searchType        String   @default("all") @map("search_type")
+  language          String   @default("all")
+  status            String   @default("active")
+  reason            String?
+  createdByUserId   String?  @map("created_by_user_id") @db.Uuid
+  updatedByUserId   String?  @map("updated_by_user_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  createdByUser     User?    @relation(fields: [createdByUserId], references: [id])
+
+  @@unique([normalizedKeyword, searchType, language], map: "uq_feed_search_blocked_terms_scope")
+  @@index([status, language, searchType], map: "idx_feed_search_blocked_terms_status_scope")
+  @@index([normalizedKeyword], map: "idx_feed_search_blocked_terms_keyword")
+  @@map("feed_search_blocked_terms")
 }
 
 model ArtistFollow {

@@ -15,6 +15,11 @@ import { LUMINA_FEED_SAMPLE_POSTS } from './lumina-feed-samples';
 
 type CommunityQuery = Record<string, string | undefined>;
 type CommunityBody = Record<string, unknown>;
+type FeedSearchBlockedTermScope = {
+  normalizedKeyword: string;
+  searchType: string;
+  language: string;
+};
 
 const POST_VISIBILITIES = new Set(['public', 'followers']);
 const REPORT_REASONS = new Set([
@@ -255,11 +260,14 @@ export class CommunityService {
       : null;
     const language = this.trendingLanguage(query.language ?? query.locale);
     const since = new Date(Date.now() - this.trendingWindow(query.window ?? '24h').ms);
-    const [recentQueries, hashtags, artists, users] = await Promise.all([
-      this.searchQuerySuggestions(normalizedKeyword, language, since, take),
-      this.hashtagSuggestions(normalizedKeyword, language, since, take),
+    const [blockedTerms, artists, users] = await Promise.all([
+      this.getActiveFeedSearchBlockedTerms(language),
       this.artistSearchSuggestions(normalizedKeyword, take),
       this.userSearchSuggestions(normalizedKeyword, take),
+    ]);
+    const [recentQueries, hashtags] = await Promise.all([
+      this.searchQuerySuggestions(normalizedKeyword, language, since, take, blockedTerms),
+      this.hashtagSuggestions(normalizedKeyword, language, since, take, blockedTerms),
     ]);
 
     return {
@@ -286,6 +294,7 @@ export class CommunityService {
         qOptional: true,
         sectionTakeLimit: 10,
         defaultWindow: '24h',
+        blockedTermFiltering: true,
       },
     };
   }
@@ -296,6 +305,7 @@ export class CommunityService {
     const searchType = this.optionalSearchType(query.type);
     const window = this.trendingWindow(query.window);
     const since = new Date(Date.now() - window.ms);
+    const blockedTerms = await this.getActiveFeedSearchBlockedTerms(language);
     const where: Prisma.FeedSearchEventWhereInput = this.clean({
       createdAt: { gte: since },
       language: language === 'all' ? undefined : language,
@@ -307,12 +317,23 @@ export class CommunityService {
       _count: { _all: true },
       _max: { createdAt: true },
       orderBy: [{ _count: { normalizedKeyword: 'desc' } }, { _max: { createdAt: 'desc' } }],
-      take,
+      take: Math.min(take * 3, 100),
     });
-    const latestEvents = grouped.length
+    const visibleGrouped = grouped
+      .filter(
+        (item) =>
+          !this.isFeedSearchBlocked(
+            blockedTerms,
+            item.normalizedKeyword,
+            item.searchType,
+            item.language,
+          ),
+      )
+      .slice(0, take);
+    const latestEvents = visibleGrouped.length
       ? await this.prisma.feedSearchEvent.findMany({
           where: {
-            OR: grouped.map((item) => ({
+            OR: visibleGrouped.map((item) => ({
               normalizedKeyword: item.normalizedKeyword,
               searchType: item.searchType,
               language: item.language,
@@ -338,7 +359,7 @@ export class CommunityService {
         since,
         minutes: Math.round(window.ms / 60_000),
       },
-      items: grouped.map((item, index) => {
+      items: visibleGrouped.map((item, index) => {
         const latestEvent = latestEventMap.get(
           this.trendingKey(item.normalizedKeyword, item.searchType, item.language),
         );
@@ -362,22 +383,25 @@ export class CommunityService {
     const language = this.trendingLanguage(query.language ?? query.locale);
     const window = this.trendingWindow(query.window ?? '24h');
     const since = new Date(Date.now() - window.ms);
-    const posts = await this.prisma.communityPost.findMany({
-      where: {
-        status: 'published',
-        visibility: 'public',
-        deletedAt: null,
-        publishedAt: { gte: since },
-        body: { contains: '#' },
-      },
-      take: 500,
-      select: {
-        id: true,
-        body: true,
-        publishedAt: true,
-      },
-      orderBy: { publishedAt: 'desc' },
-    });
+    const [posts, blockedTerms] = await Promise.all([
+      this.prisma.communityPost.findMany({
+        where: {
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
+          publishedAt: { gte: since },
+          body: { contains: '#' },
+        },
+        take: 500,
+        select: {
+          id: true,
+          body: true,
+          publishedAt: true,
+        },
+        orderBy: { publishedAt: 'desc' },
+      }),
+      this.getActiveFeedSearchBlockedTerms(language),
+    ]);
     const buckets = new Map<
       string,
       {
@@ -398,6 +422,17 @@ export class CommunityService {
         }
 
         const normalizedKeyword = this.normalizeSearchKeyword(hashtag, 'hashtag');
+        if (
+          this.isFeedSearchBlocked(
+            blockedTerms,
+            normalizedKeyword,
+            'hashtag',
+            detectedLanguage,
+          )
+        ) {
+          continue;
+        }
+
         const bucketKey = this.trendingKey(normalizedKeyword, 'hashtag', detectedLanguage);
         const existing = buckets.get(bucketKey);
 
@@ -458,6 +493,7 @@ export class CommunityService {
         ...this.feedSearchPolicy(),
         source: 'recent_public_feed_posts',
         maxSampledPosts: 500,
+        blockedTermFiltering: true,
       },
     };
   }
@@ -2233,6 +2269,7 @@ export class CommunityService {
     language: string,
     since: Date,
     take: number,
+    blockedTerms: FeedSearchBlockedTermScope[],
   ) {
     const where: Prisma.FeedSearchEventWhereInput = this.clean({
       createdAt: { gte: since },
@@ -2247,12 +2284,23 @@ export class CommunityService {
       _count: { _all: true },
       _max: { createdAt: true },
       orderBy: [{ _count: { normalizedKeyword: 'desc' } }, { _max: { createdAt: 'desc' } }],
-      take,
+      take: Math.min(take * 3, 100),
     });
-    const latestEvents = grouped.length
+    const visibleGrouped = grouped
+      .filter(
+        (item) =>
+          !this.isFeedSearchBlocked(
+            blockedTerms,
+            item.normalizedKeyword,
+            item.searchType,
+            item.language,
+          ),
+      )
+      .slice(0, take);
+    const latestEvents = visibleGrouped.length
       ? await this.prisma.feedSearchEvent.findMany({
           where: {
-            OR: grouped.map((item) => ({
+            OR: visibleGrouped.map((item) => ({
               normalizedKeyword: item.normalizedKeyword,
               searchType: item.searchType,
               language: item.language,
@@ -2269,7 +2317,7 @@ export class CommunityService {
       ]),
     );
 
-    return grouped.map((item) => {
+    return visibleGrouped.map((item) => {
       const latestEvent = latestEventMap.get(
         this.trendingKey(item.normalizedKeyword, item.searchType, item.language),
       );
@@ -2295,6 +2343,7 @@ export class CommunityService {
     language: string,
     since: Date,
     take: number,
+    blockedTerms: FeedSearchBlockedTermScope[],
   ) {
     const posts = await this.prisma.communityPost.findMany({
       where: {
@@ -2331,6 +2380,17 @@ export class CommunityService {
         if (
           normalizedKeyword &&
           !normalizedHashtag.includes(normalizedKeyword.replace(/^#/, ''))
+        ) {
+          continue;
+        }
+
+        if (
+          this.isFeedSearchBlocked(
+            blockedTerms,
+            normalizedHashtag,
+            'hashtag',
+            detectedLanguage,
+          )
         ) {
           continue;
         }
@@ -2726,12 +2786,41 @@ export class CommunityService {
       defaultTrendingWindow: '1h',
       trendingWindows: ['15m', '1h', '6h', '24h', '7d'],
       dedupeWindowMinutes: 10,
+      blockedTermFiltering: true,
       hashtags: {
         useHashPrefixInQuery: true,
         languageCanBeUnknown: true,
         allLanguageRankingRecommendedForEarlyTraffic: true,
       },
     };
+  }
+
+  private async getActiveFeedSearchBlockedTerms(language: string) {
+    return this.prisma.feedSearchBlockedTerm.findMany({
+      where: {
+        status: 'active',
+        language: language === 'all' ? undefined : { in: ['all', language] },
+      },
+      select: {
+        normalizedKeyword: true,
+        searchType: true,
+        language: true,
+      },
+    });
+  }
+
+  private isFeedSearchBlocked(
+    blockedTerms: FeedSearchBlockedTermScope[],
+    normalizedKeyword: string,
+    searchType: string,
+    language: string,
+  ) {
+    return blockedTerms.some(
+      (term) =>
+        term.normalizedKeyword === normalizedKeyword &&
+        (term.searchType === 'all' || term.searchType === searchType) &&
+        (term.language === 'all' || term.language === language),
+    );
   }
 
   private async findVisiblePost(postId: string) {

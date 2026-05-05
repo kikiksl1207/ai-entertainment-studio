@@ -48,6 +48,10 @@ Added in migration `0017_community_post_assets`:
 
 - `community_post_assets`
 
+Added in migration `0032_feed_search_blocked_terms`:
+
+- `feed_search_blocked_terms`
+
 ## Public/Frontend APIs
 
 ### Feed
@@ -97,16 +101,19 @@ creates a deduped `feed_search_events` row for live trend aggregation.
 `GET /lumina-feed/search-suggestions` returns search-box suggestions grouped by
 `recentQueries`, `hashtags`, `artists`, and `users`. `q` is optional; without it
 the endpoint still returns recent query and hashtag discovery chips.
+Active Backstage search block terms are excluded from `recentQueries` and
+`hashtags`.
 
 `GET /lumina-feed/trending-searches` groups search events by keyword, language,
 and type. Use `language=all` for global trends, or `ko`, `ja`, `en`, `zh`, and
 `unknown` for per-language trends. `window=15m|1h|6h|24h|7d` and
-`type=all|text|hashtag` are supported.
+`type=all|text|hashtag` are supported. Active Backstage search block terms are
+not returned.
 
 `GET /lumina-feed/hashtags` parses hashtags from recent public posts and returns
 ranked hashtag chips. It is useful before search volume is high enough to make
 `trending-searches` feel alive. It samples up to the latest 500 public posts in
-the selected window.
+the selected window. Active Backstage search block terms are not returned.
 
 Response is an array of posts:
 
@@ -613,7 +620,33 @@ GET /admin/api/v1/community/posts?status=published&minReports=1&sort=reports&tak
 PATCH /admin/api/v1/community/reports/:reportId
 POST /admin/api/v1/community/posts/:postId/hide
 POST /admin/api/v1/community/posts/:postId/restore
+GET /admin/api/v1/backstage/operations/feed-search-analytics?language=all&type=all&window=1h&take=20
+GET /admin/api/v1/backstage/operations/feed-search-blocked-terms?status=active&language=all&type=all&take=20
+POST /admin/api/v1/backstage/operations/feed-search-blocked-terms
+PATCH /admin/api/v1/backstage/operations/feed-search-blocked-terms/:termId
 ```
+
+Search block create body:
+
+```json
+{
+  "keyword": "#blocked",
+  "type": "hashtag",
+  "language": "all",
+  "status": "active",
+  "reason": "Hide from public discovery"
+}
+```
+
+Search block scope:
+
+- `type`: `all`, `text`, `hashtag`
+- `language`: `all`, `ko`, `ja`, `en`, `zh`, `unknown`
+- `status`: `active`, `inactive`, `archived`
+
+Active rows are applied to public `trending-searches`, `hashtags`, and
+`search-suggestions`. Direct search still works so operators can investigate
+content; the block only removes the term from public discovery surfaces.
 
 `PATCH /community/reports/:reportId` supports moderation actions:
 

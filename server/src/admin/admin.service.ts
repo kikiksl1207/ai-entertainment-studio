@@ -110,6 +110,7 @@ const SETTLEMENT_CONVERSION_MUTATION_STATUSES = new Set([
 const DEFAULT_CURRENCY = 'LUMINA';
 const FEED_SEARCH_LANGUAGES = new Set(['all', 'ko', 'ja', 'en', 'zh', 'unknown']);
 const FEED_SEARCH_TYPES = new Set(['all', 'text', 'hashtag']);
+const FEED_SEARCH_BLOCKED_TERM_STATUSES = new Set(['active', 'inactive', 'archived']);
 const FEED_SEARCH_WINDOWS: Record<string, number> = {
   '15m': 15 * 60 * 1000,
   '1h': 60 * 60 * 1000,
@@ -1030,6 +1031,219 @@ export class AdminService {
         privacy: 'visitor hashes are not exposed',
       },
     };
+  }
+
+  async getBackstageFeedSearchBlockedTerms(query: AuditQuery) {
+    const pagination = this.adminPagination(query, 20);
+    const language = this.feedSearchLanguage(query.language ?? query.locale);
+    const searchType = this.feedSearchType(query.type);
+    const status = this.optionalString(query, 'status') ?? 'active';
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
+
+    if (status !== 'all' && !FEED_SEARCH_BLOCKED_TERM_STATUSES.has(status)) {
+      throw new BadRequestException('status must be all, active, inactive, or archived');
+    }
+
+    const where: Prisma.FeedSearchBlockedTermWhereInput = this.clean({
+      status: status === 'all' ? undefined : status,
+      language: language === 'all' ? undefined : language,
+      searchType: searchType === 'all' ? undefined : searchType,
+      OR: search
+        ? [
+            { keyword: { contains: search, mode: 'insensitive' } },
+            {
+              normalizedKeyword: {
+                contains: this.normalizeFeedSearchBlockedKeyword(search, searchType),
+                mode: 'insensitive',
+              },
+            },
+          ]
+        : undefined,
+    });
+    const [rows, total, statusCounts] = await Promise.all([
+      this.prisma.feedSearchBlockedTerm.findMany({
+        where,
+        take: pagination.takeForQuery,
+        ...pagination.cursorArgs,
+        orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
+        include: {
+          createdByUser: {
+            select: {
+              id: true,
+              email: true,
+              status: true,
+            },
+          },
+        },
+      }),
+      this.prisma.feedSearchBlockedTerm.count({ where }),
+      this.prisma.feedSearchBlockedTerm.groupBy({
+        by: ['status'],
+        _count: { _all: true },
+      }),
+    ]);
+    const page = this.paginated(rows, pagination.take);
+
+    return {
+      generatedAt: new Date(),
+      ...page,
+      total,
+      items: page.items.map((item) => ({
+        id: item.id,
+        keyword: item.keyword,
+        normalizedKeyword: item.normalizedKeyword,
+        type: item.searchType,
+        language: item.language,
+        status: item.status,
+        reason: item.reason,
+        createdByUserId: item.createdByUserId,
+        updatedByUserId: item.updatedByUserId,
+        createdByUser: item.createdByUser,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      })),
+      summary: {
+        byStatus: this.countRowsToObject(statusCounts, 'status'),
+      },
+      filters: {
+        language,
+        type: searchType,
+        status,
+        query: search ?? null,
+      },
+      policy: this.feedSearchBlockedTermsPolicy(),
+    };
+  }
+
+  async createBackstageFeedSearchBlockedTerm(user: AuthUser, body: AdminPayload) {
+    const keyword = this.feedSearchBlockedKeyword(body.keyword);
+    const searchType = this.feedSearchType(body.type ?? body.searchType);
+    const language = this.feedSearchLanguage(body.language ?? body.locale);
+    const status = this.feedSearchBlockedTermStatus(body.status ?? 'active');
+    const normalizedKeyword = this.normalizeFeedSearchBlockedKeyword(keyword, searchType);
+    const reason = body.reason === null ? null : this.optionalString(body, 'reason') ?? null;
+
+    try {
+      const created = await this.prisma.feedSearchBlockedTerm.create({
+        data: {
+          keyword,
+          normalizedKeyword,
+          searchType,
+          language,
+          status,
+          reason,
+          createdByUserId: user.id,
+          updatedByUserId: user.id,
+        },
+      });
+
+      await this.recordAudit(
+        user,
+        'feed_search_blocked_term.create',
+        'feed_search_blocked_term',
+        created.id,
+        null,
+        created,
+        { keyword, normalizedKeyword, searchType, language, status },
+      );
+
+      return {
+        ok: true,
+        item: created,
+        policy: this.feedSearchBlockedTermsPolicy(),
+      };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException(
+          'Blocked search term already exists for this type and language',
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  async updateBackstageFeedSearchBlockedTerm(
+    user: AuthUser,
+    termId: string,
+    body: AdminPayload,
+  ) {
+    if (!this.isUuid(termId)) {
+      throw new BadRequestException('termId must be a UUID');
+    }
+
+    const before = await this.prisma.feedSearchBlockedTerm.findUnique({
+      where: { id: termId },
+    });
+
+    if (!before) {
+      throw new NotFoundException('Blocked search term not found');
+    }
+
+    const keyword =
+      body.keyword === undefined ? before.keyword : this.feedSearchBlockedKeyword(body.keyword);
+    const searchType =
+      body.type === undefined && body.searchType === undefined
+        ? before.searchType
+        : this.feedSearchType(body.type ?? body.searchType);
+    const language =
+      body.language === undefined && body.locale === undefined
+        ? before.language
+        : this.feedSearchLanguage(body.language ?? body.locale);
+    const normalizedKeyword = this.normalizeFeedSearchBlockedKeyword(keyword, searchType);
+    const data: Prisma.FeedSearchBlockedTermUpdateInput = this.clean({
+      keyword: body.keyword === undefined ? undefined : keyword,
+      normalizedKeyword:
+        body.keyword === undefined && body.type === undefined && body.searchType === undefined
+          ? undefined
+          : normalizedKeyword,
+      searchType:
+        body.type === undefined && body.searchType === undefined ? undefined : searchType,
+      language: body.language === undefined && body.locale === undefined ? undefined : language,
+      status:
+        body.status === undefined
+          ? undefined
+          : this.feedSearchBlockedTermStatus(body.status),
+      reason:
+        body.reason === undefined
+          ? undefined
+          : body.reason === null
+            ? null
+            : this.optionalString(body, 'reason') ?? null,
+      updatedByUserId: user.id,
+      updatedAt: new Date(),
+    });
+
+    try {
+      const updated = await this.prisma.feedSearchBlockedTerm.update({
+        where: { id: termId },
+        data,
+      });
+
+      await this.recordAudit(
+        user,
+        'feed_search_blocked_term.update',
+        'feed_search_blocked_term',
+        updated.id,
+        before,
+        updated,
+        { status: updated.status, searchType: updated.searchType, language: updated.language },
+      );
+
+      return {
+        ok: true,
+        item: updated,
+        policy: this.feedSearchBlockedTermsPolicy(),
+      };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException(
+          'Blocked search term already exists for this type and language',
+        );
+      }
+
+      throw error;
+    }
   }
 
   async getBackstageSettlementPreview(query: AuditQuery) {
@@ -4794,6 +5008,59 @@ export class AdminService {
     }
 
     return searchType;
+  }
+
+  private feedSearchBlockedTermStatus(value: unknown) {
+    const status = this.string({ value }, 'value');
+
+    if (!FEED_SEARCH_BLOCKED_TERM_STATUSES.has(status)) {
+      throw new BadRequestException('status must be active, inactive, or archived');
+    }
+
+    return status;
+  }
+
+  private feedSearchBlockedKeyword(value: unknown) {
+    if (typeof value !== 'string' || !value.trim()) {
+      throw new BadRequestException('keyword must be a non-empty string');
+    }
+
+    const keyword = value.trim().replace(/\s+/g, ' ');
+
+    if (keyword.length > 80) {
+      throw new BadRequestException('keyword must be shorter than or equal to 80 characters');
+    }
+
+    return keyword;
+  }
+
+  private normalizeFeedSearchBlockedKeyword(keyword: string, searchType: string) {
+    const normalized = keyword
+      .trim()
+      .replace(/\s+/g, ' ')
+      .replace(/^#+/, searchType === 'text' ? '#' : '')
+      .toLocaleLowerCase();
+
+    if (!normalized) {
+      throw new BadRequestException('keyword must be a non-empty string');
+    }
+
+    return normalized.slice(0, 80);
+  }
+
+  private feedSearchBlockedTermsPolicy() {
+    return {
+      publicDiscoveryOnly: true,
+      directSearchStillAllowed: true,
+      appliedTo: ['trending-searches', 'hashtags', 'search-suggestions'],
+      supportedLanguages: ['all', 'ko', 'ja', 'en', 'zh', 'unknown'],
+      supportedTypes: ['all', 'text', 'hashtag'],
+      statuses: ['active', 'inactive', 'archived'],
+      auditEvents: [
+        'feed_search_blocked_term.create',
+        'feed_search_blocked_term.update',
+      ],
+    };
   }
 
   private feedSearchWindow(value: unknown) {
