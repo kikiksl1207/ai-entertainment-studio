@@ -296,8 +296,12 @@
         .studio-main { padding: 22px 14px 42px; }
         .studio-topbar, .panel-header, .table-card header { flex-direction: column; }
         .studio-nav, .metric-grid, .media-grid, .form-grid, .account-mode, .studio-mini-grid, .studio-check-item, .requirement-item { grid-template-columns: 1fr; }
+        .studio-shell, .studio-main, .studio-section, .panel, .table-card, .artist-list, .artist-card, .table-wrap { min-width: 0; max-width: 100%; }
+        .table-wrap { width: 100%; }
         .artist-card { grid-template-columns: 70px 1fr; }
-        .artist-card .secondary-action { grid-column: 1 / -1; }
+        .artist-card > div { min-width: 0; }
+        .artist-card h3, .artist-card p { overflow-wrap: anywhere; }
+        .artist-card .secondary-action { grid-column: 1 / -1; justify-self: start; width: auto; }
       }
     </style>
   </head>
@@ -354,10 +358,10 @@
 
         <section class="studio-section is-active" id="dashboard">
           <div class="metric-grid">
-            <article class="metric-card"><span>운영 아티스트</span><strong>3명</strong><small>활동 2 · 휴식기 후보 1</small></article>
+            <article class="metric-card"><span>운영 아티스트</span><strong id="studioMetricArtists">3명</strong><small id="studioMetricArtistsSub">활동 2 · 휴식기 후보 1</small></article>
             <article class="metric-card"><span>오늘 반응</span><strong>1,284</strong><small>피드 812 · 숏폼 472</small></article>
-            <article class="metric-card"><span>예상 정산액</span><strong class="money">205,440원</strong><small>환불·세무 검토 전 예상치</small></article>
-            <article class="metric-card"><span>루미나</span><strong>420L</strong><small>요청형 기능 준비 중</small></article>
+            <article class="metric-card"><span>예상 정산액</span><strong class="money" id="studioMetricSettlement">205,440원</strong><small>환불·세무 검토 전 예상치</small></article>
+            <article class="metric-card"><span>루미나</span><strong id="studioMetricLumina">420L</strong><small>요청형 기능 준비 중</small></article>
           </div>
           <div class="two-col">
             <article class="panel">
@@ -367,7 +371,7 @@
               </div>
               <div class="artist-list">
                 <div class="notice"><strong>정산 주소 입력 필요</strong><span>첫 정산 전 세무 서류용 주소를 한 번만 입력해야 합니다. 주소는 정산/세무 처리에만 사용됩니다.</span></div>
-                <div class="notice"><strong>박도아 피드 미작성 8시간</strong><span>6시간 이상 피드가 없으면 운영 상태에 표시됩니다. 예약 글이나 직접 작성 글로 공백을 줄여주세요.</span></div>
+                <div class="notice"><strong id="studioAttentionTitle">박도아 피드 미작성 8시간</strong><span id="studioAttentionBody">6시간 이상 피드가 없으면 운영 상태에 표시됩니다. 예약 글이나 직접 작성 글로 공백을 줄여주세요.</span></div>
                 <div class="notice" style="opacity:.55;"><strong>이미지 요청 기능 준비 중</strong><span>오픈 전까지 이미지 요청은 비활성 상태로 유지합니다.</span></div>
               </div>
             </article>
@@ -378,8 +382,8 @@
               <p>일반 크리에이터는 1개 아티스트를 무료로 시작합니다. 여러 캐릭터를 운영하는 스튜디오 운영자는 캐릭터별 피드와 숏폼을 직접 관리하며, 30일 이상 활동이 없으면 휴식기 전환 대상이 됩니다.</p>
               <p>이미지 요청 기능은 유저 아티스트 전용 운영 도구로 준비합니다. 비용과 재조정 기준은 오픈 전에 별도 안내합니다.</p>
               <div class="slot-meter">
-                <div class="slot-meter-head"><span>운영 슬롯</span><strong>3 / 10 사용</strong></div>
-                <div class="slot-bar" aria-label="운영 슬롯 10개 중 3개 사용"><span></span></div>
+                <div class="slot-meter-head"><span>운영 슬롯</span><strong id="studioSlotText">3 / 10 사용</strong></div>
+                <div class="slot-bar" id="studioSlotBar" aria-label="운영 슬롯 10개 중 3개 사용"><span></span></div>
               </div>
               <div class="account-mode">
                 <article class="mode-card">
@@ -414,7 +418,7 @@
               <div><span class="panel-kicker">ARTISTS</span><h2>내 아티스트</h2></div>
               <button class="primary-action" type="button" data-action="toast">추가 등록 신청</button>
             </div>
-            <div class="artist-list">
+            <div class="artist-list" id="studioArtistCards">
               <article class="artist-card">
                 <img class="artist-thumb" src="./assets/characters/yoon-serin/thumb.png" alt="윤세린" onerror="this.src='./assets/brand/lumina-stage-logo.png'" />
                 <div><h3>윤세린</h3><p>차갑게 등장하고 뜨겁게 각인되는 퍼포먼스형 아티스트.</p><div class="badge-row"><span class="badge is-good">공개</span><span class="badge">피드 정상</span><span class="badge">정산 가능</span></div></div>
@@ -434,7 +438,7 @@
             <div class="table-wrap" style="margin-top: 18px;">
               <table>
                 <thead><tr><th>아티스트</th><th>공개 상태</th><th>최근 활동</th><th>필요 조치</th><th>슬롯</th></tr></thead>
-                <tbody>
+                <tbody id="studioArtistRows">
                   <tr><td>윤세린</td><td><span class="badge is-good">공개</span></td><td>피드 오늘 13:20</td><td>프리미엄 영상 후보 검토</td><td>1 / 10</td></tr>
                   <tr><td>하윤아</td><td><span class="badge is-good">공개</span></td><td>숏폼 예약 대기</td><td>숏폼 썸네일 선택</td><td>2 / 10</td></tr>
                   <tr><td>박도아</td><td><span class="badge is-warn">휴식기 후보</span></td><td>피드 8시간 공백</td><td>오늘 피드 1건 작성</td><td>3 / 10</td></tr>
@@ -467,7 +471,7 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>아티스트</th><th>상태</th><th>반응</th><th>작성 시각</th><th>액션</th></tr></thead>
-                <tbody>
+                <tbody id="studioSettlementRows">
                   <tr><td>윤세린</td><td><span class="badge is-good">공개</span></td><td>좋아요 184 · 댓글 32</td><td>오늘 13:20</td><td><button class="secondary-action" type="button" data-action="toast">보기</button></td></tr>
                   <tr><td>하윤아</td><td><span class="badge">예약</span></td><td>-</td><td>오늘 21:00</td><td><button class="secondary-action" type="button" data-action="toast">수정</button></td></tr>
                 </tbody>
@@ -514,7 +518,7 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>요청</th><th>아티스트</th><th>사용 목적</th><th>처리 방식</th><th>상태</th><th>메모</th></tr></thead>
-                <tbody>
+                <tbody id="studioRevenueRows">
                   <tr><td>IMG-024</td><td>하윤아</td><td>숏폼 썸네일</td><td>운영 검토</td><td><span class="badge is-warn">검수 대기</span></td><td>레드/블루 조명 후보</td></tr>
                   <tr><td>IMG-023</td><td>윤세린</td><td>피드 이미지</td><td>운영 검토</td><td><span class="badge is-good">전달 완료</span></td><td>공식 피드 슬롯 연결</td></tr>
                   <tr><td>IMG-022</td><td>박도아</td><td>콘셉트 레퍼런스</td><td>운영 검토</td><td><span class="badge">재조정 1회</span></td><td>표정 톤 재요청</td></tr>
@@ -641,6 +645,166 @@
           const email = data?.access?.accountEmail || readAuth()?.user?.email;
           const account = document.querySelector(".studio-account strong");
           if (email && account) account.textContent = email;
+          hydrateStudio(data);
+          loadSettlementPreview();
+        }
+
+        function text(id, value) {
+          const el = document.getElementById(id);
+          if (el && value !== undefined && value !== null) el.textContent = value;
+        }
+
+        function escapeHtml(value) {
+          return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        }
+
+        function formatNumber(value) {
+          const number = Number(value || 0);
+          return Number.isFinite(number) ? number.toLocaleString("ko-KR") : "0";
+        }
+
+        function formatKrw(value) {
+          return formatNumber(Math.round(Number(value || 0))) + "원";
+        }
+
+        function currentPeriod() {
+          const now = new Date();
+          return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+        }
+
+        function artistImage(artist) {
+          return artist?.thumbnailImage?.url || artist?.thumbnailUrl || artist?.coverImage?.url || artist?.coverUrl || "./assets/brand/lumina-stage-logo.png";
+        }
+
+        function artistName(item) {
+          return item?.artist?.displayName || item?.artist?.name || item?.displayName || "이름 미정";
+        }
+
+        function artistStatusLabel(status) {
+          return {
+            active: "공개",
+            draft: "작성중",
+            private: "비공개",
+            paused: "휴식기",
+            inactive: "비활성"
+          }[status] || status || "확인 중";
+        }
+
+        function hydrateStudio(data) {
+          const artists = Array.isArray(data?.artists) ? data.artists : [];
+          const summary = data?.summary || {};
+          const slotPolicy = data?.policy?.slotPolicy || {};
+          const usedSlots = Number(summary.usedSlots ?? slotPolicy.usedSlots ?? artists.length ?? 0);
+          const slotLimit = Number(summary.slotLimit ?? slotPolicy.initialSlotLimit ?? 10);
+          const activeCount = Number(summary.activeArtistCount ?? artists.filter(item => item?.artist?.status === "active").length);
+          const needsAttention = Number(summary.needsAttentionCount ?? summary.openImageRequestCount ?? 0);
+
+          text("studioMetricArtists", formatNumber(summary.ownedArtistCount ?? artists.length) + "명");
+          text("studioMetricArtistsSub", "활동 " + formatNumber(activeCount) + " · 확인 필요 " + formatNumber(needsAttention));
+          text("studioSlotText", formatNumber(usedSlots) + " / " + formatNumber(slotLimit) + " 사용");
+          const slotBar = document.querySelector("#studioSlotBar span");
+          if (slotBar && slotLimit > 0) slotBar.style.width = Math.min(100, Math.max(0, usedSlots / slotLimit * 100)) + "%";
+
+          if (needsAttention > 0) {
+            text("studioAttentionTitle", "확인 필요한 운영 항목 " + formatNumber(needsAttention) + "건");
+            text("studioAttentionBody", "프로필, 피드, 정산 정보 중 보완이 필요한 항목을 먼저 확인해주세요.");
+          } else {
+            text("studioAttentionTitle", "오늘의 필수 확인 항목 없음");
+            text("studioAttentionBody", "새 피드 예약과 정산 정보만 가볍게 확인하면 됩니다.");
+          }
+
+          renderArtists(artists, usedSlots, slotLimit);
+        }
+
+        function renderArtists(artists, usedSlots, slotLimit) {
+          const cardRoot = document.getElementById("studioArtistCards");
+          const rowRoot = document.getElementById("studioArtistRows");
+          if (!artists.length) return;
+
+          if (cardRoot) {
+            cardRoot.innerHTML = artists.map(item => {
+              const artist = item.artist || item;
+              const status = artistStatusLabel(artist.status);
+              const summary = artist.publicProfile?.tagline || artist.publicProfile?.summary || "프로필을 보완해 주세요.";
+              const badgeClass = artist.status === "active" ? "is-good" : artist.status === "paused" ? "is-warn" : "";
+              return '<article class="artist-card">' +
+                '<img class="artist-thumb" src="' + escapeHtml(artistImage(artist)) + '" alt="' + escapeHtml(artistName(item)) + '" />' +
+                '<div><h3>' + escapeHtml(artistName(item)) + '</h3><p>' + escapeHtml(summary) + '</p><div class="badge-row"><span class="badge ' + badgeClass + '">' + escapeHtml(status) + '</span><span class="badge">슬롯 ' + formatNumber(item?.artist?.sortOrder || 1) + '</span></div></div>' +
+                '<button class="secondary-action" type="button" data-action="toast">관리</button>' +
+              '</article>';
+            }).join("");
+          }
+
+          if (rowRoot) {
+            rowRoot.innerHTML = artists.map((item, index) => {
+              const artist = item.artist || item;
+              const status = artistStatusLabel(artist.status);
+              const recent = item?.imageRequests?.open ? "이미지 요청 " + formatNumber(item.imageRequests.open) + "건" : "최근 상태 확인";
+              const action = artist.status === "active" ? "운영 유지" : "프로필 보완";
+              return "<tr><td>" + escapeHtml(artistName(item)) + "</td><td><span class=\"badge\">" + escapeHtml(status) + "</span></td><td>" + escapeHtml(recent) + "</td><td>" + escapeHtml(action) + "</td><td>" + formatNumber(index + 1) + " / " + formatNumber(slotLimit || usedSlots || artists.length) + "</td></tr>";
+            }).join("");
+          }
+        }
+
+        async function loadSettlementPreview() {
+          const token = readAuth()?.accessToken;
+          if (!token) return;
+          try {
+            const res = await fetch(apiBase + "/api/v1/me/creator-studio/settlement-preview?period=" + currentPeriod(), {
+              headers: { Authorization: "Bearer " + token }
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            renderSettlement(data);
+          } catch (_) {
+            // Preview is optional; keep the static fallback when unavailable.
+          }
+        }
+
+        function renderSettlement(data) {
+          const total = Number(data?.totals?.creatorShareKrw || 0);
+          if (total) text("studioMetricSettlement", formatKrw(total));
+          const rows = document.getElementById("studioSettlementRows");
+          if (rows && Array.isArray(data?.items) && data.items.length) {
+            rows.innerHTML = [
+              "<tr><td>전체 합산</td><td>" + formatNumber(data.items.length) + "명 합산</td><td>" + formatKrw(data.totals?.grossRevenueKrw) + "</td><td>" + formatKrw(data.totals?.riskReserveKrw) + "</td><td class=\"money\">" + formatKrw(data.totals?.creatorShareKrw) + "</td><td><span class=\"badge is-warn\">예상치</span></td></tr>",
+              ...data.items.map(item => {
+                const name = item?.artist?.displayName || item?.artist?.slug || "아티스트";
+                return "<tr><td>캐릭터별</td><td>" + escapeHtml(name) + "</td><td>" + formatKrw(item?.financials?.grossRevenueKrw) + "</td><td>" + formatKrw(item?.financials?.riskReserveKrw) + "</td><td class=\"money\">" + formatKrw(item?.financials?.creatorShareKrw) + "</td><td><span class=\"badge\">예상</span></td></tr>";
+              })
+            ].join("");
+          }
+
+          const revenueRows = document.getElementById("studioRevenueRows");
+          const breakdown = aggregateBreakdown(data?.items || []);
+          if (revenueRows && breakdown.length) {
+            revenueRows.innerHTML = breakdown.map(item => "<tr><td>" + escapeHtml(item.label) + "</td><td>" + formatNumber(item.eventCount) + "</td><td>" + formatNumber(item.grossLumina) + "L</td><td>" + formatKrw(item.grossRevenueKrw) + "</td><td>완료 건만 포함</td></tr>").join("");
+          }
+        }
+
+        function aggregateBreakdown(items) {
+          const labels = {
+            chat: "채팅",
+            gift: "선물",
+            paid_like: "유료 좋아요",
+            premium_video: "프리미엄 영상",
+            fan_letter: "팬레터"
+          };
+          const bucket = {};
+          items.forEach(item => {
+            Object.entries(item?.productBreakdown || {}).forEach(([key, value]) => {
+              bucket[key] ||= { label: labels[key] || key, eventCount: 0, grossLumina: 0, grossRevenueKrw: 0 };
+              bucket[key].eventCount += Number(value?.eventCount || 0);
+              bucket[key].grossLumina += Number(value?.grossLumina || 0);
+              bucket[key].grossRevenueKrw += Number(value?.grossRevenueKrw || 0);
+            });
+          });
+          return Object.values(bucket).filter(item => item.eventCount || item.grossLumina || item.grossRevenueKrw);
         }
 
         async function verify() {
