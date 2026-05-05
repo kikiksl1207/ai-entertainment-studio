@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, SettlementRecord } from '@prisma/client';
+import { Prisma, SettlementLuminaConversionRequest, SettlementRecord } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { createHash, createHmac, randomUUID } from 'crypto';
 import { AuthUser } from '../auth/auth.types';
@@ -73,6 +73,16 @@ type SettlementComplianceSummary = {
     canReceiveSettlement: boolean;
   };
 };
+type SettlementConversionRequester = {
+  id: string;
+  email: string | null;
+  status: string;
+  profile: {
+    displayName: string | null;
+    publicHandle: string | null;
+    avatarAssetId: string | null;
+  } | null;
+};
 
 const SETTLEMENT_STATUSES = new Set([
   'estimated',
@@ -84,6 +94,20 @@ const SETTLEMENT_STATUSES = new Set([
 ]);
 
 const SETTLEMENT_TYPES = new Set(['artist', 'partner']);
+const SETTLEMENT_CONVERSION_STATUSES = new Set([
+  'requested',
+  'approved',
+  'rejected',
+  'credited',
+  'cancelled',
+]);
+const SETTLEMENT_CONVERSION_MUTATION_STATUSES = new Set([
+  'approved',
+  'rejected',
+  'credited',
+  'cancelled',
+]);
+const DEFAULT_CURRENCY = 'LUMINA';
 
 @Injectable()
 export class AdminService {
@@ -1519,6 +1543,166 @@ export class AdminService {
       },
       notice:
         'Estimated only. Partner payout groups multiple artist details by operator account. Final payout requires refund/chargeback checks, tax/accounting confirmation, payout account verification, and admin confirmation.',
+    };
+  }
+
+  async getBackstageSettlementConversions(query: AuditQuery) {
+    const pagination = this.adminPagination(query, 20);
+    const status = this.optionalString(query, 'status');
+    const period = this.optionalString(query, 'period');
+    const type = this.optionalString(query, 'type');
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
+
+    if (status && !SETTLEMENT_CONVERSION_STATUSES.has(status)) {
+      throw new BadRequestException(
+        'status must be requested, approved, rejected, credited, or cancelled',
+      );
+    }
+
+    if (period && !/^\d{4}-\d{2}$/.test(period)) {
+      throw new BadRequestException('period must be YYYY-MM');
+    }
+
+    if (type && !SETTLEMENT_TYPES.has(type)) {
+      throw new BadRequestException('type must be artist or partner');
+    }
+
+    const where: Prisma.SettlementLuminaConversionRequestWhereInput = this.clean({
+      status,
+      period,
+      settlementType: type,
+      OR: search
+        ? [
+            { settlementKey: { contains: search, mode: 'insensitive' } },
+            { note: { contains: search, mode: 'insensitive' } },
+            { adminNote: { contains: search, mode: 'insensitive' } },
+          ]
+        : undefined,
+    });
+    const rows = await this.prisma.settlementLuminaConversionRequest.findMany({
+      where,
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+    const page = this.paginated(rows, pagination.take);
+    const requesterIds = [...new Set(page.items.map((item) => item.requesterUserId))];
+    const requesterMap = await this.settlementConversionRequesterMap(requesterIds);
+    const items = page.items.map((row) =>
+      this.presentSettlementConversionForAdmin(row, requesterMap.get(row.requesterUserId)),
+    );
+    const [statusCounts, amountTotals] = await Promise.all([
+      this.prisma.settlementLuminaConversionRequest.groupBy({
+        by: ['status'],
+        where: this.clean({
+          period,
+          settlementType: type,
+        }),
+        _count: { _all: true },
+      }),
+      this.prisma.settlementLuminaConversionRequest.aggregate({
+        where: this.clean({
+          status,
+          period,
+          settlementType: type,
+        }),
+        _sum: {
+          amountKrw: true,
+          requestedLumina: true,
+        },
+      }),
+    ]);
+
+    return {
+      generatedAt: new Date(),
+      ...page,
+      items,
+      summary: {
+        period: period ?? null,
+        type: type ?? null,
+        status: status ?? null,
+        statusCounts: Object.fromEntries(
+          statusCounts.map((entry) => [entry.status, entry._count._all]),
+        ),
+        totalAmountKrw: amountTotals._sum.amountKrw ?? new Decimal(0),
+        totalRequestedLumina: amountTotals._sum.requestedLumina ?? new Decimal(0),
+      },
+      policy: this.settlementConversionAdminPolicy(),
+    };
+  }
+
+  async updateBackstageSettlementConversionStatus(
+    user: AuthUser,
+    conversionId: string,
+    input: AdminPayload,
+  ) {
+    this.assertSettlementOperator(user);
+
+    if (!this.isUuid(conversionId)) {
+      throw new BadRequestException('conversionId must be a UUID');
+    }
+
+    const status = this.settlementConversionMutationStatus(input, 'status');
+    const adminNote = this.optionalString(input, 'adminNote') ?? null;
+
+    const before = await this.prisma.settlementLuminaConversionRequest.findUnique({
+      where: { id: conversionId },
+    });
+
+    if (!before) {
+      throw new NotFoundException('Settlement Lumina conversion request not found');
+    }
+
+    if (before.status === 'credited' && status !== 'credited') {
+      throw new BadRequestException('Credited conversion cannot be changed');
+    }
+
+    if (['rejected', 'cancelled'].includes(before.status)) {
+      throw new BadRequestException(`Conversion is already terminal: ${before.status}`);
+    }
+
+    if (status === 'credited') {
+      return this.creditSettlementConversion(user, before, adminNote);
+    }
+
+    if (before.status === status) {
+      throw new BadRequestException(`Conversion is already ${status}`);
+    }
+
+    const updated = await this.prisma.settlementLuminaConversionRequest.update({
+      where: { id: before.id },
+      data: {
+        status,
+        adminNote,
+        processedByUserId: user.id,
+        processedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    await this.prisma.auditEvent.create({
+      data: {
+        actorUserId: user.id,
+        actorType: 'admin',
+        action: 'settlement_lumina_conversion.status.update',
+        targetType: 'settlement_lumina_conversion_request',
+        targetId: updated.id,
+        beforeData: this.toJson(before),
+        afterData: this.toJson(updated),
+        metadata: this.toJson({
+          settlementKey: updated.settlementKey,
+          settlementType: updated.settlementType,
+          period: updated.period,
+          status,
+          walletCredited: false,
+        }),
+      },
+    });
+
+    return {
+      ok: true,
+      conversion: this.presentSettlementConversionForAdmin(updated),
+      policy: this.settlementConversionAdminPolicy(),
     };
   }
 
@@ -4238,6 +4422,151 @@ export class AdminService {
     revenueByArtist.set(artistId, bucket);
   }
 
+  private async creditSettlementConversion(
+    user: AuthUser,
+    before: SettlementLuminaConversionRequest,
+    adminNote: string | null,
+  ) {
+    if (!['requested', 'approved', 'credited'].includes(before.status)) {
+      throw new BadRequestException(
+        'Only requested or approved conversions can be credited',
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      if (before.walletLedgerId) {
+        const existingLedger = await tx.walletLedger.findUnique({
+          where: { id: before.walletLedgerId },
+        });
+        const replayed = await tx.settlementLuminaConversionRequest.update({
+          where: { id: before.id },
+          data: {
+            status: 'credited',
+            adminNote,
+            processedByUserId: user.id,
+            processedAt: before.processedAt ?? new Date(),
+            updatedAt: new Date(),
+          },
+        });
+
+        return {
+          conversion: replayed,
+          ledger: existingLedger,
+          idempotentReplay: true,
+        };
+      }
+
+      const idempotencyKey = `settlement-lumina-conversion:${before.id}`;
+      const existingLedger = await tx.walletLedger.findUnique({
+        where: { idempotencyKey },
+      });
+
+      if (existingLedger) {
+        const replayed = await tx.settlementLuminaConversionRequest.update({
+          where: { id: before.id },
+          data: {
+            status: 'credited',
+            adminNote,
+            walletLedgerId: existingLedger.id,
+            processedByUserId: user.id,
+            processedAt: before.processedAt ?? new Date(),
+            updatedAt: new Date(),
+          },
+        });
+
+        return {
+          conversion: replayed,
+          ledger: existingLedger,
+          idempotentReplay: true,
+        };
+      }
+
+      const wallet = await tx.walletAccount.upsert({
+        where: {
+          userId_currencyCode: {
+            userId: before.requesterUserId,
+            currencyCode: DEFAULT_CURRENCY,
+          },
+        },
+        update: {},
+        create: {
+          userId: before.requesterUserId,
+          currencyCode: DEFAULT_CURRENCY,
+        },
+      });
+
+      const ledger = await tx.walletLedger.create({
+        data: {
+          walletAccountId: wallet.id,
+          direction: 'credit',
+          amount: before.requestedLumina,
+          ledgerType: 'settlement_lumina_conversion',
+          referenceType: 'settlement_lumina_conversion_request',
+          referenceId: before.id,
+          idempotencyKey,
+          memo: `Settlement money charged as Lumina: ${before.settlementKey}`,
+        },
+      });
+
+      await tx.walletAccount.update({
+        where: { id: wallet.id },
+        data: {
+          cachedBalance: {
+            increment: before.requestedLumina,
+          },
+          updatedAt: new Date(),
+        },
+      });
+
+      const credited = await tx.settlementLuminaConversionRequest.update({
+        where: { id: before.id },
+        data: {
+          status: 'credited',
+          adminNote,
+          walletLedgerId: ledger.id,
+          processedByUserId: user.id,
+          processedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      return {
+        conversion: credited,
+        ledger,
+        idempotentReplay: false,
+      };
+    });
+
+    await this.prisma.auditEvent.create({
+      data: {
+        actorUserId: user.id,
+        actorType: 'admin',
+        action: 'settlement_lumina_conversion.status.update',
+        targetType: 'settlement_lumina_conversion_request',
+        targetId: result.conversion.id,
+        beforeData: this.toJson(before),
+        afterData: this.toJson(result.conversion),
+        metadata: this.toJson({
+          settlementKey: result.conversion.settlementKey,
+          settlementType: result.conversion.settlementType,
+          period: result.conversion.period,
+          status: result.conversion.status,
+          walletCredited: true,
+          walletLedgerId: result.conversion.walletLedgerId,
+          idempotentReplay: result.idempotentReplay,
+        }),
+      },
+    });
+
+    return {
+      ok: true,
+      conversion: this.presentSettlementConversionForAdmin(result.conversion),
+      walletLedger: result.ledger,
+      idempotentReplay: result.idempotentReplay,
+      policy: this.settlementConversionAdminPolicy(),
+    };
+  }
+
   private settlementFinancials(
     totalLumina: Decimal,
     policy: ReturnType<typeof this.settlementPolicy>,
@@ -4307,6 +4636,99 @@ export class AdminService {
     }
 
     return status;
+  }
+
+  private settlementConversionMutationStatus(input: AdminPayload, key: string) {
+    const status = this.string(input, key);
+
+    if (!SETTLEMENT_CONVERSION_MUTATION_STATUSES.has(status)) {
+      throw new BadRequestException(
+        'status must be approved, rejected, credited, or cancelled',
+      );
+    }
+
+    return status;
+  }
+
+  private settlementConversionAdminPolicy() {
+    return {
+      requestOnly: true,
+      unitPriceKrw: 10,
+      minAmountKrw: 1000,
+      statusFlow: {
+        requested: ['approved', 'rejected', 'credited', 'cancelled'],
+        approved: ['credited', 'rejected', 'cancelled'],
+        rejected: [],
+        credited: [],
+        cancelled: [],
+      },
+      walletCredit: {
+        status: 'credited',
+        ledgerType: 'settlement_lumina_conversion',
+        referenceType: 'settlement_lumina_conversion_request',
+        idempotencyKeyPrefix: 'settlement-lumina-conversion',
+      },
+    };
+  }
+
+  private async settlementConversionRequesterMap(userIds: string[]) {
+    if (!userIds.length) {
+      return new Map<string, SettlementConversionRequester>();
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        profile: {
+          select: {
+            displayName: true,
+            publicHandle: true,
+            avatarAssetId: true,
+          },
+        },
+      },
+    });
+
+    return new Map(users.map((targetUser) => [targetUser.id, targetUser]));
+  }
+
+  private presentSettlementConversionForAdmin(
+    row: SettlementLuminaConversionRequest,
+    requester?: SettlementConversionRequester,
+  ) {
+    return {
+      id: row.id,
+      requesterUserId: row.requesterUserId,
+      requester: requester
+        ? {
+            id: requester.id,
+            email: requester.email,
+            status: requester.status,
+            displayName: requester.profile?.displayName ?? null,
+            publicHandle: requester.profile?.publicHandle ?? null,
+            avatarAssetId: requester.profile?.avatarAssetId ?? null,
+          }
+        : null,
+      settlementKey: row.settlementKey,
+      settlementType: row.settlementType,
+      period: row.period,
+      targetArtistId: row.targetArtistId,
+      amountKrw: row.amountKrw,
+      requestedLumina: row.requestedLumina,
+      status: row.status,
+      note: row.note,
+      adminNote: row.adminNote,
+      walletLedgerId: row.walletLedgerId,
+      processedByUserId: row.processedByUserId,
+      processedAt: row.processedAt,
+      idempotencyKey: row.idempotencyKey,
+      metadata: this.metadataObject(row.metadata),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
   }
 
   private async settlementRecordsForKeys(keys: string[]) {

@@ -2297,6 +2297,73 @@ expansion is planned in 5-slot units. UI must show this as preview-only.
 The same eligible source list as artist settlement preview is used, including
 paid fan letters under `artists[].productBreakdown.fan_letter`.
 
+Settlement money charge admin processing:
+
+```http
+GET /admin/api/v1/backstage/settlement-conversions?period=2026-05&type=artist&status=requested&query=&take=20&cursor=<nextCursor>
+POST /admin/api/v1/backstage/settlement-conversions/:conversionId/status
+```
+
+Use this in Backstage for creator requests created by
+`POST /me/creator-studio/settlement-conversions`.
+
+List response:
+
+```json
+{
+  "items": [
+    {
+      "id": "conversion-request-id",
+      "requesterUserId": "user-id",
+      "requester": {
+        "id": "user-id",
+        "email": "creator@example.com",
+        "status": "active",
+        "displayName": "Creator",
+        "publicHandle": "creator",
+        "avatarAssetId": null
+      },
+      "settlementKey": "artist:<artistId>:2026-05",
+      "settlementType": "artist",
+      "period": "2026-05",
+      "amountKrw": "1000",
+      "requestedLumina": "100",
+      "status": "requested",
+      "note": "creator memo",
+      "adminNote": null,
+      "walletLedgerId": null,
+      "processedByUserId": null,
+      "processedAt": null,
+      "createdAt": "2026-05-05T00:00:00.000Z",
+      "updatedAt": "2026-05-05T00:00:00.000Z"
+    }
+  ],
+  "summary": {
+    "period": "2026-05",
+    "type": "artist",
+    "statusCounts": { "requested": 1 },
+    "totalAmountKrw": "1000",
+    "totalRequestedLumina": "100"
+  }
+}
+```
+
+Status update body:
+
+```json
+{
+  "status": "credited",
+  "adminNote": "Accounting approved; wallet credited"
+}
+```
+
+Allowed status updates: `approved`, `rejected`, `credited`, `cancelled`.
+`credited` is the only status that creates a Lumina wallet credit. The backend
+creates `wallet_ledger.ledgerType = settlement_lumina_conversion`, increments
+the user's wallet balance, stores `walletLedgerId`, and writes an audit event.
+`approved` only means accounting/operator approval; it does not move Lumina.
+`rejected`, `cancelled`, and `credited` are terminal states in the current API.
+
 Manual settlement status update:
 
 ```http

@@ -66,6 +66,26 @@ export class AdminController {
     return this.adminService.getBackstagePartnerSettlementPreview(query);
   }
 
+  @Get('backstage/settlement-conversions')
+  @RequireAdminPermissions('payments:read')
+  getBackstageSettlementConversions(@Query() query: AuditQuery) {
+    return this.adminService.getBackstageSettlementConversions(query);
+  }
+
+  @Post('backstage/settlement-conversions/:conversionId/status')
+  @RequireAdminPermissions('*')
+  updateBackstageSettlementConversionStatus(
+    @CurrentUser() user: AuthUser,
+    @Param('conversionId') conversionId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.updateBackstageSettlementConversionStatus(
+      user,
+      conversionId,
+      body,
+    );
+  }
+
   @Post('backstage/settlements/:settlementKey/status')
   @RequireAdminPermissions('*')
   updateBackstageSettlementStatus(
