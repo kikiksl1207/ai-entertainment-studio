@@ -284,6 +284,15 @@
         transition: opacity 0.2s ease, transform 0.2s ease;
       }
       .studio-toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+      .studio-form-state {
+        margin: 10px 0 0;
+        min-height: 22px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 900;
+      }
+      .studio-form-state.is-good { color: var(--good); }
+      .studio-form-state.is-danger { color: var(--danger); }
       @media (max-width: 1120px) {
         .studio-shell { grid-template-columns: 1fr; }
         .studio-sidebar { position: static; height: auto; }
@@ -446,6 +455,27 @@
               </table>
             </div>
           </article>
+          <article class="panel">
+            <div class="panel-header">
+              <div><span class="panel-kicker">PROFILE</span><h2>아티스트 프로필 편집</h2></div>
+              <span class="badge">즉시 저장</span>
+            </div>
+            <div class="form-grid">
+              <label><span>대상 아티스트</span><select id="studioProfileArtistSelect"></select></label>
+              <label><span>대표 컬러</span><input id="studioProfilePrimaryColor" placeholder="Deep Plum / Neon Pink" /></label>
+              <label class="is-wide"><span>한 줄 소개</span><input id="studioProfileTagline" maxlength="120" placeholder="팬에게 가장 먼저 보이는 짧은 문장" /></label>
+              <label class="is-wide"><span>공개 소개</span><textarea id="studioProfileSummary" maxlength="1000" placeholder="아티스트 페이지에 노출될 소개를 적어주세요."></textarea></label>
+              <label><span>성격 키워드</span><input id="studioProfilePersonality" placeholder="시크, 절제, 집중력" /></label>
+              <label><span>비주얼 키워드</span><input id="studioProfileVisual" placeholder="블랙, 실버, 무대 조명" /></label>
+              <label class="is-wide"><span>톤앤매너 기준</span><textarea id="studioProfileTone" maxlength="2000" placeholder="피드와 팬 응답에서 지켜야 할 말투, 금지 분위기, 팬과의 거리감을 적어주세요."></textarea></label>
+              <label class="is-wide"><span>운영 메모</span><textarea id="studioProfileNotes" maxlength="3000" placeholder="관리자와 운영팀이 참고할 내부 메모입니다."></textarea></label>
+            </div>
+            <p id="studioProfileSaveState" class="studio-form-state">아티스트를 선택하면 현재 프로필을 불러옵니다.</p>
+            <div class="composer-tools">
+              <button class="primary-action" type="button" id="studioProfileSaveButton">프로필 저장</button>
+              <button class="secondary-action" type="button" id="studioProfileResetButton">현재 값 다시 불러오기</button>
+            </div>
+          </article>
         </section>
 
         <section class="studio-section" id="feed">
@@ -471,7 +501,7 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>아티스트</th><th>상태</th><th>반응</th><th>작성 시각</th><th>액션</th></tr></thead>
-                <tbody id="studioSettlementRows">
+                <tbody id="studioRecentFeedRows">
                   <tr><td>윤세린</td><td><span class="badge is-good">공개</span></td><td>좋아요 184 · 댓글 32</td><td>오늘 13:20</td><td><button class="secondary-action" type="button" data-action="toast">보기</button></td></tr>
                   <tr><td>하윤아</td><td><span class="badge">예약</span></td><td>-</td><td>오늘 21:00</td><td><button class="secondary-action" type="button" data-action="toast">수정</button></td></tr>
                 </tbody>
@@ -518,7 +548,7 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>요청</th><th>아티스트</th><th>사용 목적</th><th>처리 방식</th><th>상태</th><th>메모</th></tr></thead>
-                <tbody id="studioRevenueRows">
+                <tbody id="studioImageRequestRows">
                   <tr><td>IMG-024</td><td>하윤아</td><td>숏폼 썸네일</td><td>운영 검토</td><td><span class="badge is-warn">검수 대기</span></td><td>레드/블루 조명 후보</td></tr>
                   <tr><td>IMG-023</td><td>윤세린</td><td>피드 이미지</td><td>운영 검토</td><td><span class="badge is-good">전달 완료</span></td><td>공식 피드 슬롯 연결</td></tr>
                   <tr><td>IMG-022</td><td>박도아</td><td>콘셉트 레퍼런스</td><td>운영 검토</td><td><span class="badge">재조정 1회</span></td><td>표정 톤 재요청</td></tr>
@@ -542,7 +572,7 @@
             <div class="table-wrap">
               <table>
                 <thead><tr><th>구분</th><th>캐릭터</th><th>총매출</th><th>차감/보류</th><th>예상 정산액</th><th>상태</th></tr></thead>
-                <tbody>
+                <tbody id="studioSettlementRows">
                   <tr><td>스튜디오 운영자</td><td>3명 합산</td><td>256,800원</td><td>51,360원</td><td class="money">205,440원</td><td><span class="badge is-warn">예상치</span></td></tr>
                   <tr><td>캐릭터별</td><td>윤세린</td><td>144,000원</td><td>28,800원</td><td class="money">115,200원</td><td><span class="badge">예상</span></td></tr>
                   <tr><td>캐릭터별</td><td>하윤아</td><td>78,000원</td><td>15,600원</td><td class="money">62,400원</td><td><span class="badge">예상</span></td></tr>
@@ -553,7 +583,7 @@
             <div class="table-wrap" style="margin: 18px;">
               <table>
                 <thead><tr><th>수익원</th><th>건수</th><th>루미나</th><th>매출</th><th>표시 기준</th></tr></thead>
-                <tbody>
+                <tbody id="studioRevenueRows">
                   <tr><td>팬레터</td><td>38</td><td>3,800L</td><td>38,000원</td><td>완료된 유료 팬레터만 포함</td></tr>
                   <tr><td>프리미엄 영상</td><td>96</td><td>9,600L</td><td>96,000원</td><td>해금 완료 건만 포함</td></tr>
                   <tr><td>유료 좋아요</td><td>420</td><td>4,200L</td><td>42,000원</td><td>무료 좋아요 제외</td></tr>
@@ -620,6 +650,7 @@
         const title = document.getElementById("studioGateTitle");
         const body = document.getElementById("studioGateBody");
         const actions = document.getElementById("studioGateActions");
+        let studioArtists = [];
 
         function readAuth() {
           try {
@@ -685,6 +716,10 @@
           return item?.artist?.displayName || item?.artist?.name || item?.displayName || "이름 미정";
         }
 
+        function artistId(item) {
+          return item?.artist?.id || item?.artistId || item?.id || "";
+        }
+
         function artistStatusLabel(status) {
           return {
             active: "공개",
@@ -697,6 +732,7 @@
 
         function hydrateStudio(data) {
           const artists = Array.isArray(data?.artists) ? data.artists : [];
+          studioArtists = artists;
           const summary = data?.summary || {};
           const slotPolicy = data?.policy?.slotPolicy || {};
           const usedSlots = Number(summary.usedSlots ?? slotPolicy.usedSlots ?? artists.length ?? 0);
@@ -719,6 +755,7 @@
           }
 
           renderArtists(artists, usedSlots, slotLimit);
+          populateProfileEditor(artists);
         }
 
         function renderArtists(artists, usedSlots, slotLimit) {
@@ -735,7 +772,7 @@
               return '<article class="artist-card">' +
                 '<img class="artist-thumb" src="' + escapeHtml(artistImage(artist)) + '" alt="' + escapeHtml(artistName(item)) + '" />' +
                 '<div><h3>' + escapeHtml(artistName(item)) + '</h3><p>' + escapeHtml(summary) + '</p><div class="badge-row"><span class="badge ' + badgeClass + '">' + escapeHtml(status) + '</span><span class="badge">슬롯 ' + formatNumber(item?.artist?.sortOrder || 1) + '</span></div></div>' +
-                '<button class="secondary-action" type="button" data-action="toast">관리</button>' +
+                '<button class="secondary-action" type="button" data-profile-artist="' + escapeHtml(artistId(item)) + '">관리</button>' +
               '</article>';
             }).join("");
           }
@@ -748,6 +785,106 @@
               const action = artist.status === "active" ? "운영 유지" : "프로필 보완";
               return "<tr><td>" + escapeHtml(artistName(item)) + "</td><td><span class=\"badge\">" + escapeHtml(status) + "</span></td><td>" + escapeHtml(recent) + "</td><td>" + escapeHtml(action) + "</td><td>" + formatNumber(index + 1) + " / " + formatNumber(slotLimit || usedSlots || artists.length) + "</td></tr>";
             }).join("");
+          }
+        }
+
+        function splitKeywords(value) {
+          return String(value || "")
+            .split(",")
+            .map(item => item.trim())
+            .filter(Boolean);
+        }
+
+        function joinKeywords(value) {
+          return Array.isArray(value) ? value.join(", ") : "";
+        }
+
+        function setProfileState(message, tone) {
+          const el = document.getElementById("studioProfileSaveState");
+          if (!el) return;
+          el.textContent = message;
+          el.classList.toggle("is-good", tone === "good");
+          el.classList.toggle("is-danger", tone === "danger");
+        }
+
+        function selectedProfileItem() {
+          const select = document.getElementById("studioProfileArtistSelect");
+          const selectedId = select?.value || artistId(studioArtists[0]);
+          return studioArtists.find(item => artistId(item) === selectedId) || studioArtists[0] || null;
+        }
+
+        function populateProfileEditor(artists) {
+          const select = document.getElementById("studioProfileArtistSelect");
+          if (!select || !artists.length) return;
+          select.innerHTML = artists.map(item => '<option value="' + escapeHtml(artistId(item)) + '">' + escapeHtml(artistName(item)) + '</option>').join("");
+          fillProfileEditor(artists[0]);
+        }
+
+        function fillProfileEditor(item) {
+          if (!item) {
+            setProfileState("등록된 아티스트가 없습니다.", "danger");
+            return;
+          }
+          const artist = item.artist || item;
+          const publicProfile = artist.publicProfile || {};
+          const visualProfile = artist.visualProfile || {};
+          const contentProfile = artist.contentProfile || {};
+          const fields = {
+            studioProfileTagline: publicProfile.tagline || "",
+            studioProfileSummary: publicProfile.summary || "",
+            studioProfilePersonality: joinKeywords(publicProfile.personalityKeywords),
+            studioProfilePrimaryColor: visualProfile.primaryColor || "",
+            studioProfileVisual: joinKeywords(visualProfile.visualKeywords),
+            studioProfileTone: contentProfile.contentTone || "",
+            studioProfileNotes: contentProfile.operatingNotes || ""
+          };
+          Object.entries(fields).forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = value;
+          });
+          setProfileState(artistName(item) + " 프로필을 불러왔습니다.", "good");
+        }
+
+        function profilePayload() {
+          return {
+            publicProfile: {
+              tagline: document.getElementById("studioProfileTagline")?.value.trim() || "",
+              summary: document.getElementById("studioProfileSummary")?.value.trim() || "",
+              personalityKeywords: splitKeywords(document.getElementById("studioProfilePersonality")?.value)
+            },
+            visualProfile: {
+              primaryColor: document.getElementById("studioProfilePrimaryColor")?.value.trim() || "",
+              visualKeywords: splitKeywords(document.getElementById("studioProfileVisual")?.value)
+            },
+            contentProfile: {
+              contentTone: document.getElementById("studioProfileTone")?.value.trim() || "",
+              operatingNotes: document.getElementById("studioProfileNotes")?.value.trim() || ""
+            }
+          };
+        }
+
+        async function saveProfileEditor() {
+          const token = readAuth()?.accessToken;
+          const item = selectedProfileItem();
+          const id = artistId(item);
+          if (!token || !id) {
+            setProfileState("저장할 아티스트나 로그인 정보가 없습니다.", "danger");
+            return;
+          }
+          setProfileState("프로필을 저장하는 중입니다.", "");
+          try {
+            const res = await fetch(apiBase + "/api/v1/me/creator-studio/artists/" + encodeURIComponent(id) + "/profile", {
+              method: "PATCH",
+              headers: {
+                Authorization: "Bearer " + token,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify(profilePayload())
+            });
+            if (!res.ok) throw new Error("save failed");
+            setProfileState("프로필이 저장되었습니다.", "good");
+          } catch (_) {
+            setProfileState("프로필 저장에 실패했습니다. 잠시 후 다시 시도해주세요.", "danger");
           }
         }
 
@@ -806,6 +943,22 @@
           });
           return Object.values(bucket).filter(item => item.eventCount || item.grossLumina || item.grossRevenueKrw);
         }
+
+        document.getElementById("studioProfileArtistSelect")?.addEventListener("change", () => {
+          fillProfileEditor(selectedProfileItem());
+        });
+        document.getElementById("studioProfileResetButton")?.addEventListener("click", () => {
+          fillProfileEditor(selectedProfileItem());
+        });
+        document.getElementById("studioProfileSaveButton")?.addEventListener("click", saveProfileEditor);
+        document.addEventListener("click", event => {
+          const button = event.target.closest("[data-profile-artist]");
+          if (!button) return;
+          const select = document.getElementById("studioProfileArtistSelect");
+          if (select) select.value = button.getAttribute("data-profile-artist");
+          fillProfileEditor(selectedProfileItem());
+          document.getElementById("studioProfileArtistSelect")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
 
         async function verify() {
           const token = readAuth()?.accessToken;
