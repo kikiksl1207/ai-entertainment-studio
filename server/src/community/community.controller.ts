@@ -266,14 +266,14 @@ export class CommunityController {
 
   @Get('me/following-users')
   @UseGuards(JwtAuthGuard)
-  getMyFollowingUsers(@CurrentUser() user: AuthUser) {
-    return this.communityService.getMyFollowingUsers(user.id);
+  getMyFollowingUsers(@CurrentUser() user: AuthUser, @Query() query: CommunityQuery) {
+    return this.communityService.getMyFollowingUsers(user.id, query);
   }
 
   @Get('me/followers')
   @UseGuards(JwtAuthGuard)
-  getMyFollowers(@CurrentUser() user: AuthUser) {
-    return this.communityService.getMyFollowers(user.id);
+  getMyFollowers(@CurrentUser() user: AuthUser, @Query() query: CommunityQuery) {
+    return this.communityService.getMyFollowers(user.id, query);
   }
 
   @Get('me/hidden-posts')

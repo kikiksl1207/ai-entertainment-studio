@@ -1800,8 +1800,8 @@ POST /users/:userId/follow
 DELETE /users/:userId/follow
 GET /me/following
 GET /me/following-artists?take=20&cursor=<followId>
-GET /me/following-users
-GET /me/followers
+GET /me/following-users?take=20&cursor=<followId>
+GET /me/followers?take=20&cursor=<followId>
 GET /users/:userId/profile
 GET /users/handle/:publicHandle/profile
 POST /users/handle/:publicHandle/follow
@@ -1900,6 +1900,34 @@ User follow/unfollow responses use the same shape with `user`, `stats`, and
 ```
 
 Use `items` as the canonical list. `artists` is provided as a compatibility alias with the same array. If there are no followed active artists, both arrays are empty. User follow rows return `{ id, status, followedAt, updatedAt, user: { id, displayName, publicHandle, avatarUrl } }`.
+
+`GET /me/following-users` and `GET /me/followers` now use the same wrapper shape as `GET /me/following-artists`:
+
+```json
+{
+  "items": [
+    {
+      "id": "<follow row uuid>",
+      "status": "active",
+      "followedAt": "2026-05-05T00:00:00.000Z",
+      "updatedAt": "2026-05-05T00:00:00.000Z",
+      "user": {
+        "id": "user-uuid",
+        "displayName": "Lumina User",
+        "publicHandle": "blue-chair-1234",
+        "avatarUrl": "https://..."
+      }
+    }
+  ],
+  "users": [],
+  "count": 1,
+  "total": 1,
+  "nextCursor": null
+}
+```
+
+Use `items` as canonical. `users` is a compatibility alias with the same array.
+Cursor is the follow row `id`, not the target user id.
 
 `GET /users/:userId/profile` is public and returns `{ user, stats, recentPosts }` for active users only. It does not expose email. `user` includes `id`, `displayName`, `publicHandle`, `avatarUrl`, `bio`, and `createdAt`; `stats` includes `followers`, `followingUsers`, `followingArtists`, `posts`, and `replies`. `recentPosts` contains up to 5 public posts by that user.
 

@@ -1148,7 +1148,22 @@ export class CommunityService {
       this.getMyFollowingUsers(userId),
     ]);
 
-    return { artists: artists.items, users };
+    return {
+      artists: artists.items,
+      users: users.items,
+      summaries: {
+        artists: {
+          count: artists.count,
+          total: artists.total,
+          nextCursor: artists.nextCursor,
+        },
+        users: {
+          count: users.count,
+          total: users.total,
+          nextCursor: users.nextCursor,
+        },
+      },
+    };
   }
 
   async getMyFollowingArtists(userId: string, query: CommunityQuery = {}) {
@@ -1194,34 +1209,74 @@ export class CommunityService {
     };
   }
 
-  async getMyFollowingUsers(userId: string) {
-    const follows = await this.prisma.userFollow.findMany({
-      where: {
-        followerUserId: userId,
+  async getMyFollowingUsers(userId: string, query: CommunityQuery = {}) {
+    const take = this.take(query.take);
+    const cursor = this.optionalString(query.cursor);
+
+    if (cursor && !UUID_PATTERN.test(cursor)) {
+      throw new BadRequestException('cursor must be a follow UUID');
+    }
+
+    const where = {
+      followerUserId: userId,
+      status: 'active',
+      deletedAt: null,
+      following: {
         status: 'active',
         deletedAt: null,
       },
-      include: this.userFollowInclude('following'),
-      orderBy: { createdAt: 'desc' },
-    });
+    } satisfies Prisma.UserFollowWhereInput;
 
-    return Promise.all(
+    const [follows, total] = await Promise.all([
+      this.prisma.userFollow.findMany({
+        where,
+        include: this.userFollowInclude('following'),
+        orderBy: { createdAt: 'desc' },
+        take,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.userFollow.count({ where }),
+    ]);
+    const items = await Promise.all(
       follows.map((follow) => this.toUserFollowView(follow, 'following')),
     );
+
+    return this.userFollowListResponse(items, follows, total, take);
   }
 
-  async getMyFollowers(userId: string) {
-    const follows = await this.prisma.userFollow.findMany({
-      where: {
-        followingUserId: userId,
+  async getMyFollowers(userId: string, query: CommunityQuery = {}) {
+    const take = this.take(query.take);
+    const cursor = this.optionalString(query.cursor);
+
+    if (cursor && !UUID_PATTERN.test(cursor)) {
+      throw new BadRequestException('cursor must be a follow UUID');
+    }
+
+    const where = {
+      followingUserId: userId,
+      status: 'active',
+      deletedAt: null,
+      follower: {
         status: 'active',
         deletedAt: null,
       },
-      include: this.userFollowInclude('follower'),
-      orderBy: { createdAt: 'desc' },
-    });
+    } satisfies Prisma.UserFollowWhereInput;
 
-    return Promise.all(follows.map((follow) => this.toUserFollowView(follow, 'follower')));
+    const [follows, total] = await Promise.all([
+      this.prisma.userFollow.findMany({
+        where,
+        include: this.userFollowInclude('follower'),
+        orderBy: { createdAt: 'desc' },
+        take,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.userFollow.count({ where }),
+    ]);
+    const items = await Promise.all(
+      follows.map((follow) => this.toUserFollowView(follow, 'follower')),
+    );
+
+    return this.userFollowListResponse(items, follows, total, take);
   }
 
   async getMyHiddenPosts(userId: string, query: CommunityQuery) {
@@ -1619,6 +1674,25 @@ export class CommunityService {
         avatarUrl: avatarAsset
           ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
           : null,
+      },
+    };
+  }
+
+  private userFollowListResponse(
+    items: Array<Awaited<ReturnType<CommunityService['toUserFollowView']>>>,
+    follows: Array<{ id: string }>,
+    total: number,
+    take: number,
+  ) {
+    return {
+      items,
+      users: items,
+      count: items.length,
+      total,
+      nextCursor: follows.length === take ? follows[follows.length - 1]?.id ?? null : null,
+      policy: {
+        hiddenUserRule:
+          'Only active non-deleted users are returned; suspended, deleted, or inactive users are hidden from follow cards.',
       },
     };
   }
