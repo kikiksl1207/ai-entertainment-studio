@@ -1273,12 +1273,19 @@
             deny("로그인 후 승인된 크리에이터 계정으로만 접근할 수 있습니다.");
             return;
           }
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 12000);
           try {
             const res = await fetch(apiBase + "/api/v1/me/creator-studio", {
-              headers: { Authorization: "Bearer " + token }
+              headers: { Authorization: "Bearer " + token },
+              signal: controller.signal
             });
             if (!res.ok) {
-              deny("현재 계정에는 스튜디오 접근 권한이 없습니다.");
+              deny(res.status === 401
+                ? "로그인 세션이 만료됐습니다. 다시 로그인한 뒤 확인해 주세요."
+                : res.status === 403
+                  ? "현재 로그인 계정에는 아직 Creator Studio 권한이 없습니다."
+                  : "스튜디오 권한 확인에 실패했습니다. 상태 코드: " + res.status);
               return;
             }
             const data = await res.json();
@@ -1287,8 +1294,12 @@
               return;
             }
             deny("승인된 크리에이터 계정만 스튜디오 스테이지에 들어올 수 있습니다.");
-          } catch (_) {
-            deny("스튜디오 권한을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");
+          } catch (error) {
+            deny(error?.name === "AbortError"
+              ? "스튜디오 권한 확인 요청이 12초 안에 끝나지 않았습니다. 배포 또는 API 연결 상태를 확인해 주세요."
+              : "스튜디오 권한을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");
+          } finally {
+            clearTimeout(timeoutId);
           }
         }
 
