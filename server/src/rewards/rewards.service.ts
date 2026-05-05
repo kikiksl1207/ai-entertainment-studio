@@ -4,7 +4,8 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_CURRENCY = 'LUMINA';
-const DAILY_ATTENDANCE_REWARD_LUMINA = new Decimal(100);
+const DAILY_ATTENDANCE_REWARD_SCHEDULE = [10, 10, 20, 20, 20, 20, 50] as const;
+const DAILY_ATTENDANCE_POLICY_STARTED_AT = '2026-05-05';
 
 @Injectable()
 export class RewardsService {
@@ -41,6 +42,13 @@ export class RewardsService {
     await this.ensureActiveUser(userId);
     const serviceDate = this.getKoreanServiceDate();
     const idempotencyKey = `daily_attendance:${userId}:${this.formatServiceDate(serviceDate)}`;
+    const priorConsecutiveDays = await this.countPriorConsecutiveAttendanceDays(
+      userId,
+      serviceDate,
+    );
+    const streakDay = priorConsecutiveDays + 1;
+    const cycleDay = ((streakDay - 1) % DAILY_ATTENDANCE_REWARD_SCHEDULE.length) + 1;
+    const rewardAmount = new Decimal(DAILY_ATTENDANCE_REWARD_SCHEDULE[cycleDay - 1]);
 
     return this.prisma.$transaction(async (tx) => {
       const existingReward = await tx.dailyAttendanceReward.findUnique({
@@ -56,6 +64,7 @@ export class RewardsService {
         return {
           reward: existingReward,
           idempotentReplay: true,
+          policy: this.getDailyAttendancePolicy(),
         };
       }
 
@@ -76,12 +85,12 @@ export class RewardsService {
         data: {
           walletAccountId: wallet.id,
           direction: 'credit',
-          amount: DAILY_ATTENDANCE_REWARD_LUMINA,
+          amount: rewardAmount,
           ledgerType: 'daily_attendance',
           referenceType: 'user',
           referenceId: userId,
           idempotencyKey,
-          memo: 'Daily attendance reward',
+          memo: `Daily attendance reward day ${cycleDay}`,
         },
       });
 
@@ -89,7 +98,7 @@ export class RewardsService {
         where: { id: wallet.id },
         data: {
           cachedBalance: {
-            increment: DAILY_ATTENDANCE_REWARD_LUMINA,
+            increment: rewardAmount,
           },
         },
       });
@@ -98,7 +107,7 @@ export class RewardsService {
         data: {
           userId,
           serviceDate,
-          rewardLumina: DAILY_ATTENDANCE_REWARD_LUMINA,
+          rewardLumina: rewardAmount,
           walletLedgerId: ledger.id,
           idempotencyKey,
         },
@@ -108,8 +117,43 @@ export class RewardsService {
         reward,
         ledger,
         idempotentReplay: false,
+        streak: {
+          day: streakDay,
+          cycleDay,
+          cycleLength: DAILY_ATTENDANCE_REWARD_SCHEDULE.length,
+        },
+        policy: this.getDailyAttendancePolicy(),
       };
     });
+  }
+
+  getDailyAttendancePolicy() {
+    const schedule = DAILY_ATTENDANCE_REWARD_SCHEDULE.map((amount, index) => ({
+      day: index + 1,
+      rewardLumina: amount,
+      rewardKrwEquivalent: amount * 10,
+    }));
+
+    return {
+      currencyCode: DEFAULT_CURRENCY,
+      unitPriceKrw: 10,
+      startedAt: DAILY_ATTENDANCE_POLICY_STARTED_AT,
+      resetTimezone: 'Asia/Seoul',
+      schedule,
+      cycleLength: schedule.length,
+      cycleTotalLumina: schedule.reduce((sum, item) => sum + item.rewardLumina, 0),
+      cycleTotalKrwEquivalent: schedule.reduce(
+        (sum, item) => sum + item.rewardKrwEquivalent,
+        0,
+      ),
+      antiAbuse: {
+        oneClaimPerServiceDate: true,
+        serviceDateTimezone: 'Asia/Seoul',
+        promoLedgerReason: 'daily_attendance',
+      },
+      note:
+        'Attendance rewards are small promo rewards for activation, not creator settlement revenue.',
+    };
   }
 
   getDailyAttendanceHistory(userId: string) {
@@ -151,6 +195,30 @@ export class RewardsService {
     throw new BadRequestException('Failed to generate referral code');
   }
 
+  private async countPriorConsecutiveAttendanceDays(userId: string, serviceDate: Date) {
+    const rewards = await this.prisma.dailyAttendanceReward.findMany({
+      where: {
+        userId,
+        serviceDate: { lt: serviceDate },
+      },
+      orderBy: { serviceDate: 'desc' },
+      take: 30,
+    });
+    let cursor = this.addServiceDays(serviceDate, -1);
+    let count = 0;
+
+    for (const reward of rewards) {
+      if (this.formatServiceDate(reward.serviceDate) !== this.formatServiceDate(cursor)) {
+        break;
+      }
+
+      count += 1;
+      cursor = this.addServiceDays(cursor, -1);
+    }
+
+    return count;
+  }
+
   private getKoreanServiceDate() {
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Seoul',
@@ -167,5 +235,11 @@ export class RewardsService {
 
   private formatServiceDate(value: Date) {
     return value.toISOString().slice(0, 10);
+  }
+
+  private addServiceDays(value: Date, days: number) {
+    const next = new Date(value);
+    next.setUTCDate(next.getUTCDate() + days);
+    return next;
   }
 }

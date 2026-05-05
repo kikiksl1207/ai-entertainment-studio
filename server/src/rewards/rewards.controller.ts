@@ -24,6 +24,11 @@ export class RewardsController {
     return this.rewardsService.claimDailyAttendance(user.id);
   }
 
+  @Get('daily-attendance/policy')
+  getDailyAttendancePolicy() {
+    return this.rewardsService.getDailyAttendancePolicy();
+  }
+
   @Get('daily-attendance')
   getDailyAttendanceHistory(@CurrentUser() user: AuthUser) {
     return this.rewardsService.getDailyAttendanceHistory(user.id);

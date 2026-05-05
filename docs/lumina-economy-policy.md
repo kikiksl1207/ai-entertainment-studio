@@ -28,7 +28,14 @@ Old seed products `LUMINA_100`, `LUMINA_550`, and `LUMINA_1200` should be archiv
 - Signup bonus: 300 Lumina
 - Referral reward for existing user: 500 Lumina
 - Referral signup bonus for invited new user: 500 Lumina
-- Daily attendance reward: 100 Lumina
+- Daily attendance reward: 7-day promo cycle, total 150 Lumina
+  - Day 1: 10 Lumina
+  - Day 2: 10 Lumina
+  - Day 3: 20 Lumina
+  - Day 4: 20 Lumina
+  - Day 5: 20 Lumina
+  - Day 6: 20 Lumina
+  - Day 7: 50 Lumina
 
 Signup bonus is granted at wallet creation time and must create both:
 
@@ -54,7 +61,13 @@ Implemented reward APIs:
 - `GET /api/v1/rewards/referral-code`
 - `GET /api/v1/rewards/referrals`
 - `POST /api/v1/rewards/daily-attendance`
+- `GET /api/v1/rewards/daily-attendance/policy`
 - `GET /api/v1/rewards/daily-attendance`
+
+Daily attendance is a small promo activation reward, not creator-settlement
+eligible revenue. The 7-day cycle repeats while the user keeps a consecutive
+attendance streak. The server resets service dates on the Korea service day and
+stores every grant with `ledgerType = daily_attendance`.
 
 Email and social signup accept optional `referralCode`. If the code is valid, active, and owned by another active user, both users receive referral Lumina through wallet ledger credits.
 
