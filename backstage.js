@@ -1268,6 +1268,8 @@ function renderDetailForm(detail) {
           { value: "rejected", label: "반려" }
         ], meta.status || "reviewing")}
         ${detailInput("신청 ID", "applicationId", meta.applicationId || "", "text", true)}
+        ${detailInput("로그인 이메일", "email", meta.email || "", "email")}
+        ${detailInput("스튜디오 아티스트 Slug", "artistSlug", meta.artistSlug || "", "text")}
         ${detailInput("연락 가능 시간", "contactWindow", meta.preferredContactTime || "", "text")}
         ${detailInput("자료 링크", "portfolioUrl", meta.portfolioUrl || "", "url")}
         ${detailTextarea("보완/확인 메모", "reviewMemo", "활동명, 소개, 연락 가능 시간, 자료 링크, 권리 확인 내용을 확인합니다.")}
@@ -1772,7 +1774,7 @@ function buildActionRequest(detail, action) {
     const applicationId = firstValue(meta.applicationId, form.applicationId);
     if (!applicationId) return null;
     const status = action === "hold" ? "needs_more_info" : form.applicationStatus || meta.status || "reviewing";
-    return {
+    const updateApplication = {
       method: "PATCH",
       path: adminApiPath(`/debut/applications/${applicationId}`),
       body: {
@@ -1783,6 +1785,33 @@ function buildActionRequest(detail, action) {
         rightsReviewNote: reason,
         partnerReviewNote: reason
       }
+    };
+    const email = firstValue(form.email, meta.email);
+    const artistSlug = firstValue(form.artistSlug, meta.artistSlug);
+    if (status !== "approved" || !email || !artistSlug) return updateApplication;
+    return {
+      method: "BATCH",
+      steps: [
+        updateApplication,
+        {
+          method: "POST",
+          path: adminApiPath("/backstage/operations/creator-access"),
+          body: {
+            email,
+            artistSlug,
+            role: "owner",
+            status: "active",
+            permissions: [
+              "feed:post",
+              "feed:reply",
+              "image:request",
+              "profile:update",
+              "settlement:read"
+            ],
+            note: reason
+          }
+        }
+      ]
     };
   }
 
@@ -2013,6 +2042,22 @@ async function runAssetUploadRequest(request) {
   return { intent, link };
 }
 
+async function runBackstageRequest(request) {
+  if (request.method === "UPLOAD_ASSET") return runAssetUploadRequest(request);
+  if (request.method === "BATCH") {
+    const results = [];
+    for (const step of request.steps || []) {
+      results.push(await runBackstageRequest(step));
+    }
+    return { ok: true, results };
+  }
+  return backstageFetch(request.path, {
+    method: request.method,
+    auth: true,
+    body: request.method === "GET" ? undefined : request.body
+  });
+}
+
 async function reloadCurrentSectionAfterAction() {
   const sectionId = getCurrentSection();
   await loadSection(sectionId);
@@ -2165,13 +2210,7 @@ async function runPreparedAction() {
     const isMutation = request.method !== "GET";
     confirmRunButton.textContent = isMutation ? "처리 중..." : "조회 중...";
     try {
-      const data = request.method === "UPLOAD_ASSET"
-        ? await runAssetUploadRequest(request)
-        : await backstageFetch(request.path, {
-          method: request.method,
-          auth: true,
-          body: request.method === "GET" ? undefined : request.body
-        });
+      const data = await runBackstageRequest(request);
       const summary = isMutation ? "서버 저장이 완료됐습니다." : summarizeApiResult(data);
       confirmMessage.textContent = isMutation ? "변경이 완료됐습니다." : "조회가 완료됐습니다.";
       confirmPayload.innerHTML = renderConfirmSummary(pendingActionPreview, { status: isMutation ? "변경 완료" : "조회 완료", message: summary });
@@ -2728,8 +2767,10 @@ async function loadCreatorsSection() {
       meta: {
         applicationId: item.id || item.applicationId,
         status: item.status,
+        email: item.user?.email || item.contactEmail || item.email,
         preferredContactTime: item.preferredContactTime || item.metadata?.preferredContactTime,
         portfolioUrl: item.portfolioUrl,
+        artistSlug: item.artist?.slug || item.artistSlug || item.metadata?.artistSlug || item.metadata?.slug,
         applicationType: item.applicationType || item.metadata?.applicationType,
         applicationChannel: item.applicationChannel || item.metadata?.applicationChannel
       }
