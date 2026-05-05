@@ -483,9 +483,14 @@
               <label><span>대표 컬러</span><input id="studioProfilePrimaryColor" placeholder="Deep Plum / Neon Pink" /></label>
               <label class="is-wide"><span>한 줄 소개</span><input id="studioProfileTagline" maxlength="120" placeholder="팬에게 가장 먼저 보이는 짧은 문장" /></label>
               <label class="is-wide"><span>공개 소개</span><textarea id="studioProfileSummary" maxlength="1000" placeholder="아티스트 페이지에 노출될 소개를 적어주세요."></textarea></label>
+              <label class="is-wide"><span>공개 스토리</span><textarea id="studioProfileStory" maxlength="4000" placeholder="세계관, 데뷔 서사, 팬에게 공개해도 되는 장기 소개를 적어주세요."></textarea></label>
               <label><span>성격 키워드</span><input id="studioProfilePersonality" placeholder="시크, 절제, 집중력" /></label>
               <label><span>비주얼 키워드</span><input id="studioProfileVisual" placeholder="블랙, 실버, 무대 조명" /></label>
+              <label><span>보조 컬러</span><input id="studioProfileSecondaryColor" placeholder="Silver / Wine Purple" /></label>
+              <label class="is-wide"><span>스타일 노트</span><textarea id="studioProfileStyleNotes" maxlength="2000" placeholder="의상, 조명, 촬영 구도, 피해야 할 비주얼 방향을 적어주세요."></textarea></label>
               <label class="is-wide"><span>톤앤매너 기준</span><textarea id="studioProfileTone" maxlength="2000" placeholder="피드와 팬 응답에서 지켜야 할 말투, 금지 분위기, 팬과의 거리감을 적어주세요."></textarea></label>
+              <label><span>허용 주제</span><input id="studioProfileAllowedTopics" placeholder="무대, 연습, 팬 감사, 일상" /></label>
+              <label><span>제한 주제</span><input id="studioProfileBlockedTopics" placeholder="정치, 선정적 표현, 외부 연락 유도" /></label>
               <label class="is-wide"><span>운영 메모</span><textarea id="studioProfileNotes" maxlength="3000" placeholder="관리자와 운영팀이 참고할 내부 메모입니다."></textarea></label>
             </div>
             <p id="studioProfileSaveState" class="studio-form-state">아티스트를 선택하면 현재 프로필을 불러옵니다.</p>
@@ -873,10 +878,15 @@
           const fields = {
             studioProfileTagline: publicProfile.tagline || "",
             studioProfileSummary: publicProfile.summary || "",
+            studioProfileStory: publicProfile.publicStory || "",
             studioProfilePersonality: joinKeywords(publicProfile.personalityKeywords),
             studioProfilePrimaryColor: visualProfile.primaryColor || "",
+            studioProfileSecondaryColor: visualProfile.secondaryColor || "",
             studioProfileVisual: joinKeywords(visualProfile.visualKeywords),
+            studioProfileStyleNotes: visualProfile.styleNotes || "",
             studioProfileTone: contentProfile.contentTone || "",
+            studioProfileAllowedTopics: joinKeywords(contentProfile.allowedTopics),
+            studioProfileBlockedTopics: joinKeywords(contentProfile.blockedTopics),
             studioProfileNotes: contentProfile.operatingNotes || ""
           };
           Object.entries(fields).forEach(([id, value]) => {
@@ -891,14 +901,19 @@
             publicProfile: {
               tagline: document.getElementById("studioProfileTagline")?.value.trim() || "",
               summary: document.getElementById("studioProfileSummary")?.value.trim() || "",
-              personalityKeywords: splitKeywords(document.getElementById("studioProfilePersonality")?.value)
+              personalityKeywords: splitKeywords(document.getElementById("studioProfilePersonality")?.value),
+              publicStory: document.getElementById("studioProfileStory")?.value.trim() || ""
             },
             visualProfile: {
               primaryColor: document.getElementById("studioProfilePrimaryColor")?.value.trim() || "",
-              visualKeywords: splitKeywords(document.getElementById("studioProfileVisual")?.value)
+              secondaryColor: document.getElementById("studioProfileSecondaryColor")?.value.trim() || "",
+              visualKeywords: splitKeywords(document.getElementById("studioProfileVisual")?.value),
+              styleNotes: document.getElementById("studioProfileStyleNotes")?.value.trim() || ""
             },
             contentProfile: {
               contentTone: document.getElementById("studioProfileTone")?.value.trim() || "",
+              allowedTopics: splitKeywords(document.getElementById("studioProfileAllowedTopics")?.value),
+              blockedTopics: splitKeywords(document.getElementById("studioProfileBlockedTopics")?.value),
               operatingNotes: document.getElementById("studioProfileNotes")?.value.trim() || ""
             }
           };
