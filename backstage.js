@@ -1257,6 +1257,7 @@ function renderDetailForm(detail) {
       <p class="detail-form-note">실수 위험이 큰 세션 종료 대신 기간형 일시정지를 기본 제재로 둡니다.</p>
     `;
   } else if (quickTitle === "데뷔 신청 목록" || tableId === "creatorRows") {
+    const autoArtistSlug = buildCreatorAutoSlug(meta);
     html = `
       <h3>데뷔 신청 확인</h3>
       <div class="detail-form-grid">
@@ -1270,12 +1271,12 @@ function renderDetailForm(detail) {
         ], meta.status || "reviewing")}
         ${detailInput("신청 ID", "applicationId", meta.applicationId || "", "text", true)}
         ${detailInput("로그인 이메일", "email", meta.email || "", "email")}
-        ${detailInput("연결 아티스트 Slug", "artistSlug", meta.artistSlug || "", "text", false, "예: kokong-ddadassa")}
+        ${detailInput("자동 생성 아티스트 주소명", "artistSlug", autoArtistSlug, "text", false, "승인 시 자동 생성")}
         ${detailInput("연락 가능 시간", "contactWindow", meta.preferredContactTime || "", "text")}
         ${detailInput("자료 링크", "portfolioUrl", meta.portfolioUrl || "", "url")}
         ${detailTextarea("보완/확인 메모", "reviewMemo", "활동명, 소개, 연락 가능 시간, 자료 링크, 권리 확인 내용을 확인합니다.")}
       </div>
-      <p class="detail-form-note">본명과 활동명을 확인한 뒤, 생성된 아티스트의 Slug를 연결합니다. 이메일은 Slug로 사용할 수 없습니다.</p>
+      <p class="detail-form-note">아티스트 주소명은 신청 정보로 자동 생성됩니다. 운영자가 외워서 입력하지 않아도 됩니다.</p>
     `;
   } else if (quickTitle === "이미지 제작 요청" || tableId === "creatorImageRequestRows") {
     html = `
@@ -1669,6 +1670,24 @@ function normalizeArtistSlugValue(...values) {
   return slug;
 }
 
+function slugSafePart(value = "") {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
+}
+
+function buildCreatorAutoSlug(meta = {}) {
+  const existing = normalizeArtistSlugValue(meta.artistSlug);
+  if (existing) return existing;
+  const emailLocal = String(meta.email || "").split("@")[0];
+  const base = slugSafePart(meta.stageName) || slugSafePart(meta.realName) || slugSafePart(emailLocal) || "creator";
+  const suffix = slugSafePart(String(meta.applicationId || "").slice(0, 8));
+  return [base, suffix].filter(Boolean).join("-") || "creator-stage";
+}
+
 function creatorNameParts(item = {}, rowValue = "") {
   const combined = String(rowValue || "");
   const [rowRealName = "", rowStageName = ""] = combined.split("/").map((part) => part.trim());
@@ -1806,12 +1825,32 @@ function buildActionRequest(detail, action) {
       }
     };
     const email = firstValue(form.email, meta.email);
-    const artistSlug = normalizeArtistSlugValue(form.artistSlug, meta.artistSlug);
+    const artistSlug = normalizeArtistSlugValue(form.artistSlug, meta.artistSlug) || buildCreatorAutoSlug({
+      ...meta,
+      email,
+      realName: form.realName,
+      stageName: form.stageName,
+      applicationId
+    });
+    const displayName = firstValue(form.stageName, form.realName, row[0], artistSlug);
+    const hasLinkedArtist = Boolean(meta.artistId || meta.artistExists || meta.existingArtistSlug);
     if (status !== "approved") return updateApplication;
     if (!email || !artistSlug) return null;
     return {
       method: "BATCH",
       steps: [
+        hasLinkedArtist ? null : {
+          method: "POST",
+          path: adminApiPath("/artists"),
+          body: {
+            displayName,
+            slug: artistSlug,
+            status: "draft",
+            debut: "Lumina Stage 신규 후보",
+            characterType: "유저 크리에이터 후보",
+            sourceApplicationId: applicationId
+          }
+        },
         {
           method: "POST",
           path: adminApiPath("/backstage/operations/creator-access"),
@@ -1831,7 +1870,7 @@ function buildActionRequest(detail, action) {
           }
         },
         updateApplication
-      ]
+      ].filter(Boolean)
     };
   }
 
@@ -2100,7 +2139,7 @@ function buildActionPreview(action) {
     action !== "memo" &&
     action !== "hold" &&
     (form.applicationStatus || detail?.meta?.status) === "approved" &&
-    (!firstValue(form.email, detail?.meta?.email) || !normalizeArtistSlugValue(form.artistSlug, detail?.meta?.artistSlug));
+    !firstValue(form.email, detail?.meta?.email);
 
   const base = {
     menu: detail.type,
@@ -2122,7 +2161,7 @@ function buildActionPreview(action) {
     },
     note: memo || "운영 메모 미입력",
     warning: creatorApprovalNeedsArtist
-      ? "승인하려면 로그인 이메일과 연결 아티스트 Slug가 필요합니다. Slug에는 이메일이 아니라 생성된 아티스트의 영문 주소명을 넣어주세요."
+      ? "승인하려면 로그인 이메일이 필요합니다. 아티스트 주소명은 신청 정보로 자동 생성됩니다."
       : isLocalOnly
       ? "현재 화면에 운영 메모와 처리 이력을 남깁니다. 처리 사유를 확인한 뒤 진행하세요."
       : apiRequest
@@ -2801,6 +2840,9 @@ async function loadCreatorsSection() {
         preferredContactTime: item.preferredContactTime || item.metadata?.preferredContactTime,
         portfolioUrl: item.portfolioUrl,
         artistSlug: normalizeArtistSlugValue(item.artist?.slug, item.artistSlug, item.metadata?.artistSlug, item.metadata?.artist?.slug),
+        artistId: item.artist?.id || item.artistId || item.metadata?.artistId,
+        artistExists: Boolean(item.artist?.id || item.artistId || item.artist?.slug || item.artistSlug),
+        existingArtistSlug: normalizeArtistSlugValue(item.artist?.slug, item.artistSlug),
         applicationType: item.applicationType || item.metadata?.applicationType,
         applicationChannel: item.applicationChannel || item.metadata?.applicationChannel
       }
