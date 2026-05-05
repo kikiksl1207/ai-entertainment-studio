@@ -125,6 +125,11 @@ export class UpdateProfileDto {
   @Transform(normalizeString)
   @IsUUID('4')
   avatarAssetId?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsUUID('4')
+  coverAssetId?: string | null;
 }
 
 export class UpdateSettingsNotificationsDto {

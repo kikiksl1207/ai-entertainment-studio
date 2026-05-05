@@ -708,10 +708,20 @@ export class UserAssetsService {
   }
 
   private async assetUsage(assetId: string, userId: string) {
-    const [avatarProfile, feedLinks, creatorReferenceRequests, creatorResultRequests] =
+    const [
+      avatarProfile,
+      coverProfile,
+      feedLinks,
+      creatorReferenceRequests,
+      creatorResultRequests,
+    ] =
       await Promise.all([
         this.prisma.userProfile.findFirst({
           where: { userId, avatarAssetId: assetId },
+          select: { userId: true },
+        }),
+        this.prisma.userProfile.findFirst({
+          where: { userId, coverAssetId: assetId },
           select: { userId: true },
         }),
         this.prisma.communityPostAsset.findMany({
@@ -748,6 +758,7 @@ export class UserAssetsService {
 
     const blockingReasons = [
       ...(avatarProfile ? ['avatar'] : []),
+      ...(coverProfile ? ['profile_cover'] : []),
       ...(feedLinks.length ? ['published_feed_post'] : []),
       ...(referenceRequestIds.length ? ['creator_image_reference'] : []),
       ...(resultRequestIds.length ? ['creator_image_result'] : []),
@@ -755,6 +766,7 @@ export class UserAssetsService {
 
     return {
       avatar: Boolean(avatarProfile),
+      profileCover: Boolean(coverProfile),
       feedPostIds: feedLinks.map((link) => link.postId),
       creatorImageReferenceRequestIds: referenceRequestIds,
       creatorImageResultRequestIds: resultRequestIds,
@@ -818,6 +830,7 @@ export class UserAssetsService {
       archive: {
         blocksWhenUsedAs: [
           'avatar',
+          'profile_cover',
           'published_feed_post',
           'creator_image_reference',
           'creator_image_result',

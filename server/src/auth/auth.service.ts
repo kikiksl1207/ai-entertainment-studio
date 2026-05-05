@@ -1026,7 +1026,8 @@ export class AuthService {
     if (
       input.displayName === undefined &&
       input.bio === undefined &&
-      input.avatarAssetId === undefined
+      input.avatarAssetId === undefined &&
+      input.coverAssetId === undefined
     ) {
       throw new BadRequestException('At least one profile field is required');
     }
@@ -1046,19 +1047,8 @@ export class AuthService {
       }
     }
 
-    if (input.avatarAssetId) {
-      const asset = await this.prisma.asset.findFirst({
-        where: {
-          id: input.avatarAssetId,
-          assetType: 'image',
-        },
-        select: { id: true },
-      });
-
-      if (!asset) {
-        throw new BadRequestException('Avatar asset not found');
-      }
-    }
+    await this.assertProfileImageAsset(userId, input.avatarAssetId, 'Avatar asset not found');
+    await this.assertProfileImageAsset(userId, input.coverAssetId, 'Cover asset not found');
 
     const fallbackIdentity = profile
       ? null
@@ -1070,6 +1060,7 @@ export class AuthService {
         displayName: input.displayName,
         bio: input.bio,
         avatarAssetId: input.avatarAssetId,
+        coverAssetId: input.coverAssetId,
         nicknameChangedAt:
           input.displayName !== undefined && profile?.displayName !== input.displayName
             ? now
@@ -1084,6 +1075,7 @@ export class AuthService {
           (await this.generateTemporaryProfileIdentity()).publicHandle,
         bio: input.bio,
         avatarAssetId: input.avatarAssetId,
+        coverAssetId: input.coverAssetId,
         nicknameChangedAt: input.displayName !== undefined ? now : undefined,
       },
     });
@@ -1736,6 +1728,7 @@ export class AuthService {
       displayName: string;
       publicHandle: string;
       avatarAssetId: string | null;
+      coverAssetId: string | null;
       bio: string | null;
       nicknameChangedAt: Date | null;
       createdAt: Date;
@@ -1758,6 +1751,19 @@ export class AuthService {
     const avatarAsset = user.profile?.avatarAssetId
       ? await this.prisma.asset.findUnique({
           where: { id: user.profile.avatarAssetId },
+          select: {
+            id: true,
+            storageKey: true,
+            mimeType: true,
+            width: true,
+            height: true,
+            metadata: true,
+          },
+        })
+      : null;
+    const coverAsset = user.profile?.coverAssetId
+      ? await this.prisma.asset.findUnique({
+          where: { id: user.profile.coverAssetId },
           select: {
             id: true,
             storageKey: true,
@@ -1794,6 +1800,17 @@ export class AuthService {
             url: buildPublicAssetUrl(this.configService, avatarAsset.storageKey),
             thumbnailUrl: buildPublicAssetUrl(this.configService, avatarAsset.storageKey),
             status: this.assetStatus(avatarAsset.metadata),
+          }
+        : null,
+      coverImageUrl: coverAsset
+        ? buildPublicAssetUrl(this.configService, coverAsset.storageKey)
+        : null,
+      coverAsset: coverAsset
+        ? {
+            ...coverAsset,
+            url: buildPublicAssetUrl(this.configService, coverAsset.storageKey),
+            thumbnailUrl: buildPublicAssetUrl(this.configService, coverAsset.storageKey),
+            status: this.assetStatus(coverAsset.metadata),
           }
         : null,
       bio: user.profile?.bio ?? null,
@@ -2663,6 +2680,38 @@ export class AuthService {
 
     if (!user) {
       throw new UnauthorizedException('User is not active');
+    }
+  }
+
+  private async assertProfileImageAsset(
+    userId: string,
+    assetId: string | null | undefined,
+    notFoundMessage: string,
+  ) {
+    if (!assetId) {
+      return;
+    }
+
+    const asset = await this.prisma.asset.findFirst({
+      where: {
+        id: assetId,
+        assetType: 'image',
+        metadata: {
+          path: ['uploadIntent', 'createdByUserId'],
+          equals: userId,
+        },
+      },
+      select: { id: true, metadata: true },
+    });
+
+    if (!asset) {
+      throw new BadRequestException(notFoundMessage);
+    }
+
+    const status = this.assetStatus(asset.metadata);
+
+    if (status !== 'ready' && status !== 'uploaded') {
+      throw new BadRequestException('Profile image asset upload must be confirmed');
     }
   }
 

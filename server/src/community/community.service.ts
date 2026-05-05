@@ -998,6 +998,7 @@ export class CommunityService {
             displayName: true,
             publicHandle: true,
             avatarAssetId: true,
+            coverAssetId: true,
             bio: true,
           },
         },
@@ -1106,6 +1107,7 @@ export class CommunityService {
             displayName: true,
             publicHandle: true,
             avatarAssetId: true,
+            coverAssetId: true,
           },
         },
       },
@@ -1381,6 +1383,7 @@ export class CommunityService {
               displayName: true,
               publicHandle: true,
               avatarAssetId: true,
+              coverAssetId: true,
             },
           },
         },
@@ -1422,6 +1425,7 @@ export class CommunityService {
               displayName: true,
               publicHandle: true,
               avatarAssetId: true,
+              coverAssetId: true,
             },
           },
         },
@@ -1467,6 +1471,7 @@ export class CommunityService {
           displayName: true,
           publicHandle: true,
           avatarAssetId: true,
+          coverAssetId: true,
         },
       },
     };
@@ -1691,6 +1696,7 @@ export class CommunityService {
               displayName: true,
               publicHandle: true,
               avatarAssetId: true,
+              coverAssetId: true,
             },
           },
         },
@@ -1797,6 +1803,7 @@ export class CommunityService {
             displayName: true,
             publicHandle: true,
             avatarAssetId: true,
+            coverAssetId: true,
           },
         },
       },
@@ -1848,6 +1855,12 @@ export class CommunityService {
           select: { id: true, storageKey: true },
         })
       : null;
+    const coverAsset = user.profile?.coverAssetId
+      ? await this.prisma.asset.findUnique({
+          where: { id: user.profile.coverAssetId },
+          select: { id: true, storageKey: true },
+        })
+      : null;
 
     return {
       id: user.id,
@@ -1856,6 +1869,9 @@ export class CommunityService {
       publicHandle: user.profile?.publicHandle ?? null,
       avatarUrl: avatarAsset
         ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
+        : null,
+      coverImageUrl: coverAsset
+        ? buildPublicAssetUrl(this.configService, coverAsset.storageKey)
         : null,
     };
   }
