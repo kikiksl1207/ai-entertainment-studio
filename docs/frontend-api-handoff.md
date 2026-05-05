@@ -2183,6 +2183,9 @@ GET /admin/api/v1/backstage/summary
 GET /admin/api/v1/backstage/operations/creators?query=&status=&take=20&cursor=<nextCursor>
 GET /admin/api/v1/backstage/operations/ai-content-health?query=&status=&take=20&cursor=<nextCursor>
 GET /admin/api/v1/backstage/operations/users-overview?query=&email=&status=&take=20&cursor=<nextCursor>
+GET /admin/api/v1/backstage/operations/creator-access?query=&email=&artistSlug=&status=&take=20&cursor=<nextCursor>
+POST /admin/api/v1/backstage/operations/creator-access
+PATCH /admin/api/v1/backstage/operations/creator-access/:operatorId
 GET /admin/api/v1/backstage/operations/settlement-preview?period=2026-05&query=&status=&take=20&cursor=<nextCursor>
 GET /admin/api/v1/backstage/operations/partner-settlement-preview?period=2026-05&query=&status=&artistStatus=&take=20&cursor=<nextCursor>
 GET /admin/api/v1/community/summary?take=10
@@ -2271,6 +2274,35 @@ the admin table. It returns the normal page envelope plus `summary` and
 Use this for the Backstage user-management table when the UI needs reporting,
 wallet, session, and recent action signals in one call. Dangerous actions still
 use the existing user mutation endpoints.
+
+`GET /admin/api/v1/backstage/operations/creator-access` is the Backstage shortcut
+for Creator Studio access. Use it instead of the low-level
+`/artists/:artistId/operators` routes when an operator only knows a creator email
+and artist slug.
+
+Grant / restore body:
+
+```json
+{
+  "email": "creator@example.com",
+  "artistSlug": "choi-seojin",
+  "role": "owner",
+  "status": "active",
+  "permissions": [
+    "feed:post",
+    "feed:reply",
+    "image:request",
+    "profile:update",
+    "settlement:read"
+  ],
+  "note": "Backstage grant"
+}
+```
+
+Response item includes `operatorId`, `user`, `artist`, `permissions`,
+`canEnterCreatorStudio`, and `creatorStudioUrl`. A creator can enter
+`/creator-studio.html` only when `canEnterCreatorStudio === true`; the user-facing
+check remains `GET /api/v1/me/creator-studio` and `access.enabled === true`.
 
 `GET /admin/api/v1/backstage/operations/settlement-preview` is an estimated
 settlement preview for Backstage. It does not finalize payout and must be
@@ -2585,6 +2617,8 @@ Search support:
 - `backstage/operations/ai-content-health.query`: artist display name or slug.
 - `backstage/operations/users-overview.query`: email, phone, display name,
   public handle.
+- `backstage/operations/creator-access.query`: creator email/display name/public
+  handle, artist display name/slug, or operator role.
 - `backstage/operations/settlement-preview.query`: artist display name or slug.
 - `backstage/operations/partner-settlement-preview.query`: partner email,
   display name, public handle, artist display name, or artist slug.

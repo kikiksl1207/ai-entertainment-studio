@@ -1246,6 +1246,179 @@ export class AdminService {
     }
   }
 
+  async getBackstageCreatorAccess(query: AuditQuery) {
+    const pagination = this.adminPagination(query, 20);
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
+    const status = this.optionalString(query, 'status');
+    const artistId = this.optionalString(query, 'artistId');
+    const artistSlug = this.optionalString(query, 'artistSlug') ?? this.optionalString(query, 'slug');
+    const userId = this.optionalString(query, 'userId');
+    const email = this.optionalString(query, 'email')?.toLowerCase();
+
+    if (artistId && !this.isUuid(artistId)) {
+      throw new BadRequestException('artistId must be a UUID');
+    }
+
+    if (userId && !this.isUuid(userId)) {
+      throw new BadRequestException('userId must be a UUID');
+    }
+
+    const where: Prisma.ArtistOperatorWhereInput = this.clean({
+      status,
+      artistId,
+      userId,
+      artist: artistSlug ? { slug: artistSlug } : undefined,
+      user: email ? { email } : undefined,
+      OR: search
+        ? [
+            { user: { email: { contains: search, mode: 'insensitive' } } },
+            { user: { profile: { displayName: { contains: search, mode: 'insensitive' } } } },
+            { user: { profile: { publicHandle: { contains: search, mode: 'insensitive' } } } },
+            { artist: { slug: { contains: search, mode: 'insensitive' } } },
+            { artist: { displayName: { contains: search, mode: 'insensitive' } } },
+            { role: { contains: search, mode: 'insensitive' } },
+          ]
+        : undefined,
+    });
+
+    const rows = await this.prisma.artistOperator.findMany({
+      where,
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
+      orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }, { createdAt: 'desc' }],
+      include: this.artistOperatorInclude(),
+    });
+    const page = this.paginated(rows, pagination.take);
+
+    return {
+      generatedAt: new Date(),
+      ...page,
+      items: page.items.map((operator) => this.creatorAccessItem(operator)),
+      policy: this.creatorAccessPolicy(),
+    };
+  }
+
+  async grantBackstageCreatorAccess(user: AuthUser, input: AdminPayload) {
+    const targetUser = await this.findAdminTargetUser(input);
+    const artist = await this.findCreatorAccessArtist(input);
+    const role = this.string(input, 'role', 'owner');
+    const status = this.artistOperatorStatus(input, 'status', 'active');
+    const permissions = this.optionalStringArray(input, 'permissions') ?? [
+      'feed:post',
+      'feed:reply',
+      'image:request',
+      'profile:update',
+      'settlement:read',
+    ];
+
+    const before = await this.prisma.artistOperator.findUnique({
+      where: {
+        userId_artistId: {
+          userId: targetUser.id,
+          artistId: artist.id,
+        },
+      },
+      include: this.artistOperatorInclude(),
+    });
+    const operator = await this.prisma.artistOperator.upsert({
+      where: {
+        userId_artistId: {
+          userId: targetUser.id,
+          artistId: artist.id,
+        },
+      },
+      create: {
+        userId: targetUser.id,
+        artistId: artist.id,
+        role,
+        status,
+        permissions,
+        revokedAt: status === 'active' ? null : new Date(),
+      },
+      update: {
+        role,
+        status,
+        permissions,
+        revokedAt: status === 'active' ? null : new Date(),
+        updatedAt: new Date(),
+      },
+      include: this.artistOperatorInclude(),
+    });
+
+    await this.recordAudit(
+      user,
+      before ? 'backstage.creator_access.restore' : 'backstage.creator_access.grant',
+      'artist_operator',
+      operator.id,
+      before,
+      operator,
+      {
+        targetUserId: targetUser.id,
+        artistId: artist.id,
+        artistSlug: artist.slug,
+        note: this.optionalString(input, 'note') ?? null,
+      },
+    );
+
+    return {
+      ok: true,
+      item: this.creatorAccessItem(operator),
+      policy: this.creatorAccessPolicy(),
+    };
+  }
+
+  async updateBackstageCreatorAccess(
+    user: AuthUser,
+    operatorId: string,
+    input: AdminPayload,
+  ) {
+    if (!this.isUuid(operatorId)) {
+      throw new BadRequestException('operatorId must be a UUID');
+    }
+
+    const before = await this.prisma.artistOperator.findUnique({
+      where: { id: operatorId },
+      include: this.artistOperatorInclude(),
+    });
+
+    if (!before) {
+      throw new NotFoundException('Creator access not found');
+    }
+
+    const status =
+      input.status === undefined ? undefined : this.artistOperatorStatus(input, 'status');
+    const data: Prisma.ArtistOperatorUpdateInput = this.clean({
+      role: this.optionalString(input, 'role'),
+      status,
+      permissions: this.optionalStringArray(input, 'permissions'),
+      revokedAt:
+        status === undefined ? undefined : status === 'active' ? null : new Date(),
+      updatedAt: new Date(),
+    });
+
+    const operator = await this.prisma.artistOperator.update({
+      where: { id: operatorId },
+      data,
+      include: this.artistOperatorInclude(),
+    });
+
+    await this.recordAudit(
+      user,
+      'backstage.creator_access.update',
+      'artist_operator',
+      operator.id,
+      before,
+      operator,
+      { note: this.optionalString(input, 'note') ?? null },
+    );
+
+    return {
+      ok: true,
+      item: this.creatorAccessItem(operator),
+      policy: this.creatorAccessPolicy(),
+    };
+  }
+
   async getBackstageSettlementPreview(query: AuditQuery) {
     const pagination = this.adminPagination(query, 20);
     const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
@@ -5485,6 +5658,91 @@ export class AdminService {
         },
       },
     } satisfies Prisma.UserSelect;
+  }
+
+  private async findCreatorAccessArtist(input: AdminPayload) {
+    const artistId = this.optionalString(input, 'artistId');
+    const artistSlug =
+      this.optionalString(input, 'artistSlug') ?? this.optionalString(input, 'slug');
+
+    if (!artistId && !artistSlug) {
+      throw new BadRequestException('artistId or artistSlug is required');
+    }
+
+    if (artistId && !this.isUuid(artistId)) {
+      throw new BadRequestException('artistId must be a UUID');
+    }
+
+    const artist = artistId
+      ? await this.prisma.artist.findUnique({ where: { id: artistId } })
+      : await this.prisma.artist.findUnique({ where: { slug: artistSlug } });
+
+    if (!artist) {
+      throw new NotFoundException('Artist not found');
+    }
+
+    return artist;
+  }
+
+  private creatorAccessItem(
+    operator: {
+      id: string;
+      userId: string;
+      artistId: string;
+      role: string;
+      status: string;
+      permissions: string[];
+      createdAt: Date;
+      updatedAt: Date;
+      revokedAt: Date | null;
+      user: unknown;
+      artist: unknown;
+    },
+  ) {
+    return {
+      operatorId: operator.id,
+      userId: operator.userId,
+      artistId: operator.artistId,
+      role: operator.role,
+      status: operator.status,
+      permissions: operator.permissions,
+      canEnterCreatorStudio: operator.status === 'active' && operator.revokedAt === null,
+      creatorStudioUrl: '/creator-studio.html',
+      createdAt: operator.createdAt,
+      updatedAt: operator.updatedAt,
+      revokedAt: operator.revokedAt,
+      user: operator.user,
+      artist: operator.artist,
+    };
+  }
+
+  private creatorAccessPolicy() {
+    return {
+      purpose: 'Grant or restore Creator Studio access by user email and artist slug.',
+      accessRule:
+        'Creator Studio opens only when artist_operators has an active row for the logged-in user and revokedAt is null.',
+      recommendedGrantBody: {
+        email: 'creator@example.com',
+        artistSlug: 'choi-seojin',
+        role: 'owner',
+        status: 'active',
+        permissions: [
+          'feed:post',
+          'feed:reply',
+          'image:request',
+          'profile:update',
+          'settlement:read',
+        ],
+      },
+      frontendChecks: {
+        userEndpoint: 'GET /api/v1/me/creator-studio',
+        enabledPath: 'access.enabled',
+        backstageListEndpoint: 'GET /admin/api/v1/backstage/operations/creator-access',
+        backstageGrantEndpoint: 'POST /admin/api/v1/backstage/operations/creator-access',
+        backstageUpdateEndpoint:
+          'PATCH /admin/api/v1/backstage/operations/creator-access/:operatorId',
+      },
+    };
   }
 
   private artistOperatorInclude() {

@@ -85,6 +85,31 @@ export class AdminController {
     return this.adminService.updateBackstageFeedSearchBlockedTerm(user, termId, body);
   }
 
+  @Get('backstage/operations/creator-access')
+  @RequireAdminPermissions('*')
+  getBackstageCreatorAccess(@Query() query: AuditQuery) {
+    return this.adminService.getBackstageCreatorAccess(query);
+  }
+
+  @Post('backstage/operations/creator-access')
+  @RequireAdminPermissions('*')
+  grantBackstageCreatorAccess(
+    @CurrentUser() user: AuthUser,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.grantBackstageCreatorAccess(user, body);
+  }
+
+  @Patch('backstage/operations/creator-access/:operatorId')
+  @RequireAdminPermissions('*')
+  updateBackstageCreatorAccess(
+    @CurrentUser() user: AuthUser,
+    @Param('operatorId') operatorId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.updateBackstageCreatorAccess(user, operatorId, body);
+  }
+
   @Get('backstage/operations/settlement-preview')
   @RequireAdminPermissions('payments:read')
   getBackstageSettlementPreview(@Query() query: AuditQuery) {
