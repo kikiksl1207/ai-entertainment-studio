@@ -191,6 +191,19 @@
       .mode-card strong { font-size: 18px; }
       .mode-card p, .requirement-list p { margin: 0; color: var(--muted); line-height: 1.6; }
       .mode-card.is-active { border-color: rgba(255,79,195,0.55); background: rgba(255,79,195,0.1); }
+      .slot-meter { display: grid; gap: 10px; margin-top: 16px; }
+      .slot-meter-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; font-weight: 900; }
+      .slot-bar { overflow: hidden; height: 12px; border-radius: 999px; background: rgba(255,255,255,0.08); border: 1px solid var(--line); }
+      .slot-bar span { display: block; height: 100%; width: 30%; border-radius: inherit; background: linear-gradient(90deg, var(--hot), var(--violet)); }
+      .studio-mini-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+      .studio-mini-card { min-height: 102px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,0.04); display: grid; align-content: space-between; gap: 10px; }
+      .studio-mini-card span { color: var(--muted); font-size: 12px; font-weight: 950; }
+      .studio-mini-card strong { font-size: 20px; }
+      .studio-checklist { display: grid; gap: 10px; margin-top: 16px; }
+      .studio-check-item { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,0.04); }
+      .studio-check-item b { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 999px; background: rgba(155,124,247,0.18); color: #dfd4ff; }
+      .studio-check-item strong { display: block; margin-bottom: 3px; }
+      .studio-check-item p { margin: 0; color: var(--muted); line-height: 1.5; }
       .requirement-list { display: grid; gap: 10px; margin-top: 16px; }
       .requirement-item {
         display: grid;
@@ -262,7 +275,7 @@
       @media (max-width: 680px) {
         .studio-main { padding: 22px 14px 42px; }
         .studio-topbar, .panel-header, .table-card header { flex-direction: column; }
-        .studio-nav, .metric-grid, .media-grid, .form-grid, .account-mode, .requirement-item { grid-template-columns: 1fr; }
+        .studio-nav, .metric-grid, .media-grid, .form-grid, .account-mode, .studio-mini-grid, .studio-check-item, .requirement-item { grid-template-columns: 1fr; }
         .artist-card { grid-template-columns: 70px 1fr; }
         .artist-card .secondary-action { grid-column: 1 / -1; }
       }
@@ -333,6 +346,10 @@
               </div>
               <p>일반 크리에이터는 1개 아티스트를 무료로 시작합니다. 여러 캐릭터를 운영하는 스튜디오 운영자는 캐릭터별 피드와 숏폼을 직접 관리하며, 30일 이상 활동이 없으면 휴식기 전환 대상이 됩니다.</p>
               <p>이미지 생성은 유저 아티스트 전용 기능으로 시작하고, 1회 100L를 차감합니다. 재조정은 3회까지 운영 메모에 남깁니다.</p>
+              <div class="slot-meter">
+                <div class="slot-meter-head"><span>운영 슬롯</span><strong>3 / 10 사용</strong></div>
+                <div class="slot-bar" aria-label="운영 슬롯 10개 중 3개 사용"><span></span></div>
+              </div>
               <div class="account-mode">
                 <article class="mode-card">
                   <span class="badge is-good">개인 크리에이터</span>
@@ -347,6 +364,17 @@
               </div>
             </article>
           </div>
+          <article class="panel">
+            <div class="panel-header">
+              <div><span class="panel-kicker">WEEKLY FLOW</span><h2>이번 주 운영 흐름</h2></div>
+              <button class="secondary-action" type="button" data-action="toast">운영 메모 보기</button>
+            </div>
+            <div class="studio-mini-grid">
+              <div class="studio-mini-card"><span>예약 피드</span><strong>6건</strong><small>오늘 2건 · 내일 4건</small></div>
+              <div class="studio-mini-card"><span>업로드 대기</span><strong>3건</strong><small>커버 1 · 갤러리 2</small></div>
+              <div class="studio-mini-card"><span>정산 보완</span><strong>2건</strong><small>본인인증 · 세무 주소</small></div>
+            </div>
+          </article>
         </section>
 
         <section class="studio-section" id="artists">
@@ -371,6 +399,16 @@
                 <div><h3>박도아</h3><p>친근한 리액션과 생활감 있는 장면으로 팬과 가까워지는 엔터테이너.</p><div class="badge-row"><span class="badge is-warn">휴식기 후보</span><span class="badge is-danger">피드 8시간 공백</span></div></div>
                 <button class="secondary-action" type="button" data-action="toast">관리</button>
               </article>
+            </div>
+            <div class="table-wrap" style="margin-top: 18px;">
+              <table>
+                <thead><tr><th>아티스트</th><th>공개 상태</th><th>최근 활동</th><th>필요 조치</th><th>슬롯</th></tr></thead>
+                <tbody>
+                  <tr><td>윤세린</td><td><span class="badge is-good">공개</span></td><td>피드 오늘 13:20</td><td>프리미엄 영상 후보 검토</td><td>1 / 10</td></tr>
+                  <tr><td>하윤아</td><td><span class="badge is-good">공개</span></td><td>숏폼 예약 대기</td><td>숏폼 썸네일 선택</td><td>2 / 10</td></tr>
+                  <tr><td>박도아</td><td><span class="badge is-warn">휴식기 후보</span></td><td>피드 8시간 공백</td><td>오늘 피드 1건 작성</td><td>3 / 10</td></tr>
+                </tbody>
+              </table>
             </div>
           </article>
         </section>
@@ -437,6 +475,22 @@
             <p>생성 결과는 바로 공개되지 않습니다. 결과 확인 후 프로필 메인샷, 전신샷, 갤러리, 숏폼 썸네일 중 하나로 연결합니다.</p>
             <button class="primary-action" type="button" data-action="toast">100L 차감 후 요청</button>
           </article>
+          <article class="table-card">
+            <header>
+              <div><span class="panel-kicker">REQUESTS</span><h3>이미지 생성 요청 이력</h3></div>
+              <button class="secondary-action" type="button" data-action="toast">전체 보기</button>
+            </header>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>요청</th><th>아티스트</th><th>사용 목적</th><th>차감</th><th>상태</th><th>메모</th></tr></thead>
+                <tbody>
+                  <tr><td>IMG-024</td><td>하윤아</td><td>숏폼 썸네일</td><td>100L</td><td><span class="badge is-warn">검수 대기</span></td><td>레드/블루 조명 후보</td></tr>
+                  <tr><td>IMG-023</td><td>윤세린</td><td>피드 이미지</td><td>100L</td><td><span class="badge is-good">전달 완료</span></td><td>공식 피드 슬롯 연결</td></tr>
+                  <tr><td>IMG-022</td><td>박도아</td><td>콘셉트 레퍼런스</td><td>100L</td><td><span class="badge">재조정 1회</span></td><td>표정 톤 재요청</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
         </section>
 
         <section class="studio-section" id="settlement">
@@ -489,6 +543,11 @@
               <label class="is-wide"><span>스튜디오 운영 메모</span><textarea>여러 캐릭터를 운영하는 계정입니다. 캐릭터별 피드와 숏폼 활동이 30일 이상 멈추지 않도록 운영합니다.</textarea></label>
             </div>
             <p>연락처, 계좌, 주소 같은 민감 정보는 권한 있는 담당자와 회계 처리에만 사용됩니다.</p>
+            <div class="studio-checklist">
+              <div class="studio-check-item"><b>1</b><div><strong>스튜디오 진입 권한</strong><p>승인된 크리에이터 계정만 계정 메뉴에서 스튜디오 스테이지가 보입니다.</p></div><span class="badge is-good">승인</span></div>
+              <div class="studio-check-item"><b>2</b><div><strong>정산 프로필</strong><p>본인인증, 정산 계좌, 세무 주소가 준비되어야 정산 신청이 가능합니다.</p></div><span class="badge is-warn">보완 필요</span></div>
+              <div class="studio-check-item"><b>3</b><div><strong>추가 캐릭터</strong><p>추가 등록은 결제 오픈 전까지 데뷔 신청 또는 운영팀 검토 흐름으로 안내합니다.</p></div><span class="badge">검토형</span></div>
+            </div>
             <button class="primary-action" type="button" data-action="toast">설정 저장</button>
           </article>
         </section>
