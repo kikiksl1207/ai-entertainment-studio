@@ -108,6 +108,10 @@ export class AuthService {
     const temporaryIdentity = await this.generateTemporaryProfileIdentity();
     const displayName = input.displayName?.trim() || temporaryIdentity.displayName;
 
+    if (input.displayName) {
+      await this.assertDisplayNameAvailable(displayName);
+    }
+
     const user = await this.prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
         data: {
@@ -875,8 +879,8 @@ export class AuthService {
         nicknameChangeIntervalDays: 30,
         displayName: {
           minLength: 2,
-          maxLength: 50,
-          unique: false,
+          maxLength: 20,
+          unique: true,
           defaultFormat: '색상+사물+4자리숫자',
           autoAssignedOnSignup: true,
           firstChangeHasCooldown: true,
@@ -1045,6 +1049,8 @@ export class AuthService {
           HttpStatus.TOO_MANY_REQUESTS,
         );
       }
+
+      await this.assertDisplayNameAvailable(input.displayName, userId);
     }
 
     await this.assertProfileImageAsset(userId, input.avatarAssetId, 'Avatar asset not found');
@@ -1081,6 +1087,39 @@ export class AuthService {
     });
 
     return this.getMe(userId);
+  }
+
+  async checkDisplayNameAvailability(displayName: string, currentUserId?: string) {
+    const normalized = displayName.trim();
+    const policy = {
+      minLength: 2,
+      maxLength: 20,
+      unique: true,
+      currentUserIsAvailable: Boolean(currentUserId),
+    };
+
+    const existingProfile = await this.prisma.userProfile.findFirst({
+      where: {
+        displayName: { equals: normalized, mode: 'insensitive' },
+      },
+      select: {
+        userId: true,
+        displayName: true,
+      },
+    });
+
+    const isCurrentUser = Boolean(
+      currentUserId && existingProfile?.userId === currentUserId,
+    );
+    const available = !existingProfile || isCurrentUser;
+
+    return {
+      displayName: normalized,
+      available,
+      reason: available ? null : 'already_taken',
+      isCurrentUser,
+      policy,
+    };
   }
 
   async getSettings(userId: string) {
@@ -1827,6 +1866,18 @@ export class AuthService {
     return changedAt
       ? new Date(changedAt.getTime() + NICKNAME_CHANGE_INTERVAL_MS)
       : new Date(0);
+  }
+
+  private async assertDisplayNameAvailable(displayName: string, currentUserId?: string) {
+    const availability = await this.checkDisplayNameAvailability(displayName, currentUserId);
+
+    if (!availability.available) {
+      throw new ConflictException({
+        code: 'DISPLAY_NAME_ALREADY_TAKEN',
+        message: 'Display name is already taken',
+        displayName: availability.displayName,
+      });
+    }
   }
 
   private async generateTemporaryProfileIdentity() {

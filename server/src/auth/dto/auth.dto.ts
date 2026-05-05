@@ -132,6 +132,14 @@ export class UpdateProfileDto {
   coverAssetId?: string | null;
 }
 
+export class DisplayNameAvailabilityQueryDto {
+  @Transform(normalizeString)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(20)
+  displayName!: string;
+}
+
 export class UpdateSettingsNotificationsDto {
   @IsOptional()
   @IsBoolean()

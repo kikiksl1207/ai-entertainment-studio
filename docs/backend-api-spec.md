@@ -104,6 +104,7 @@ GET /api/v1/unlock-campaigns
 GET /api/v1/app/bootstrap
 POST /api/v1/auth/register
 POST /api/v1/auth/login
+GET /api/v1/auth/display-name-availability?displayName=<name>
 GET /api/v1/auth/social/providers
 POST /api/v1/auth/social/login
 POST /api/v1/auth/refresh
@@ -116,6 +117,7 @@ GET /api/v1/me
 GET /api/v1/me/summary
 GET /api/v1/me/activity-ledger
 PATCH /api/v1/me/profile
+GET /api/v1/me/profile/display-name-availability?displayName=<name>
 GET /api/v1/me/settings
 PATCH /api/v1/me/password
 PATCH /api/v1/me/password/setup
@@ -141,7 +143,9 @@ My Page contract:
 - `GET /api/v1/app/bootstrap` is public and returns non-secret first-load configuration: localization policy, social provider status, Lumina currency constants, feature flags, lightweight product policies, artist category filter labels, and important endpoint hints.
 - `GET /api/v1/app/bootstrap` includes `policy.artistCategories` with `filterLabels`, `categoryLabels`, `fallbackCategory`, `sourceField`, and response field hints so the frontend can render category filters without hardcoding the taxonomy.
 - `GET /api/v1/me` returns `id`, `email`, `status`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `createdAt`, `displayName`, `publicHandle`, `avatarUrl`, `avatarAsset`, `coverImageUrl`, `coverAsset`, `bio`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, `canChangeNickname`, `profile`, `settings`, and `walletAccounts`. Email and social signup auto-assign a temporary display name and unique public handle like `민트별빛4827` when the request does not include `displayName`; the server checks existing profile handles and retries generation to avoid duplicate auto-assigned handles.
-- `PATCH /api/v1/me/profile` accepts `displayName`, `bio`, `avatarAssetId`, and `coverAssetId`. `displayName` is 2-20 characters and is server-limited to one change every 30 days through `user_profiles.nickname_changed_at`; active cooldown returns `429`. Send `{ "coverAssetId": null }` to reset the public profile cover to the frontend default.
+- `GET /api/v1/auth/display-name-availability?displayName=<name>` is public and checks nickname availability before signup.
+- `GET /api/v1/me/profile/display-name-availability?displayName=<name>` is authenticated and checks nickname availability for My Page; the current user's own nickname returns `available: true` and `isCurrentUser: true`.
+- `PATCH /api/v1/me/profile` accepts `displayName`, `bio`, `avatarAssetId`, and `coverAssetId`. `displayName` is 2-20 characters, must be unique, and is server-limited to one change every 30 days through `user_profiles.nickname_changed_at`; active cooldown returns `429`, duplicate nickname returns `409 DISPLAY_NAME_ALREADY_TAKEN`. Send `{ "coverAssetId": null }` to reset the public profile cover to the frontend default.
 - Avatar/cover policy for the first version is asset-based: create/confirm an image asset through the existing upload flow, then set `avatarAssetId` or `coverAssetId`.
 - `GET /api/v1/me/summary` is a My Page bootstrap endpoint. It returns `user`, `wallet`, `recentLedger`, `recentPaymentOrders`, `activity.boostEventCounts`, `activity.premiumUnlocks`, `activity.followingArtists`, `activity.followingUsers`, `activity.followers`, `activity.followCounts`, `activity.feedCounts`, `recentActivities`, `debut.latestApplication`, `debut.applications`, and policy hints.
 - `GET /api/v1/me/activity-ledger?type=all&take=50` returns a unified My Page activity list. `type` can be `all`, `charge`, `boost`, `unlock`, `gift`, or `free_like`.

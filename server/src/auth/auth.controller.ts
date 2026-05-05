@@ -18,6 +18,7 @@ import {
   ConfirmEmailVerificationDto,
   ConfirmPasswordResetDto,
   DeleteAccountDto,
+  DisplayNameAvailabilityQueryDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
@@ -64,6 +65,12 @@ export class AuthController {
   @Get('social/providers')
   getSocialProviders() {
     return this.authService.getSocialProviders();
+  }
+
+  @Get('display-name-availability')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  displayNameAvailability(@Query() query: DisplayNameAvailabilityQueryDto) {
+    return this.authService.checkDisplayNameAvailability(query.displayName);
   }
 
   @Post('refresh')
@@ -156,6 +163,16 @@ export class MeController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   updateProfile(@CurrentUser() user: AuthUser, @Body() body: UpdateProfileDto) {
     return this.authService.updateProfile(user.id, body);
+  }
+
+  @Get('profile/display-name-availability')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  myDisplayNameAvailability(
+    @CurrentUser() user: AuthUser,
+    @Query() query: DisplayNameAvailabilityQueryDto,
+  ) {
+    return this.authService.checkDisplayNameAvailability(query.displayName, user.id);
   }
 
   @Get('settings')
