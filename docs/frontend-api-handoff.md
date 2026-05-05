@@ -2179,6 +2179,7 @@ Feed notification triggers:
 Admin/community moderation:
 
 ```http
+GET /admin/api/v1/me
 GET /admin/api/v1/backstage/summary
 GET /admin/api/v1/backstage/operations/creators?query=&status=&take=20&cursor=<nextCursor>
 GET /admin/api/v1/backstage/operations/ai-content-health?query=&status=&take=20&cursor=<nextCursor>
@@ -2198,6 +2199,23 @@ POST /admin/api/v1/community/posts/:postId/restore
 
 These require admin auth plus `community:read` or `community:write` permission.
 They are for admin/operations screens, not public user UI.
+
+`GET /admin/api/v1/me` is the Backstage admin-session check. Call it after
+Backstage login to display the current admin role/permissions and to debug
+"permission denied" cases without guessing from the UI.
+
+Current seeded admin roles:
+
+- `super_admin`: all permissions.
+- `accounting_admin`: payment read, refund write, settlement write, audit read.
+- `sales_admin`: creator/debut application read, user read, audit read.
+- `cs_admin`: user read, community write, audit read.
+- `ai_artist_admin`: artist/assets/shortform/creator-access write, audit read.
+- `content_admin`: artist/assets/shortform write, creator read, audit read.
+- `commerce_admin`: commerce write, payment read, settlement write, audit read.
+
+Permission rule: `*:write` for the same resource grants read routes too. For
+example, `creators:write` can call `creators:read` routes.
 
 `GET /admin/api/v1/backstage/summary` requires admin auth. It is the recommended
 Backstage dashboard bootstrap endpoint. It returns:

@@ -24,6 +24,11 @@ type AuditQuery = Record<string, string | undefined>;
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  @Get('me')
+  getAdminMe(@CurrentUser() user: AuthUser) {
+    return this.adminService.getAdminMe(user);
+  }
+
   @Get('backstage/summary')
   @RequireAdminPermissions('*')
   getBackstageSummary() {
@@ -37,7 +42,7 @@ export class AdminController {
   }
 
   @Get('backstage/operations/creators')
-  @RequireAdminPermissions('*')
+  @RequireAdminPermissions('creators:read')
   getBackstageCreatorOperations(@CurrentUser() user: AuthUser, @Query() query: AuditQuery) {
     return this.adminService.getBackstageCreatorOperations(user, query);
   }
@@ -49,7 +54,7 @@ export class AdminController {
   }
 
   @Get('backstage/operations/users-overview')
-  @RequireAdminPermissions('*')
+  @RequireAdminPermissions('users:read')
   getBackstageUsersOverview(@Query() query: AuditQuery) {
     return this.adminService.getBackstageUsersOverview(query);
   }
@@ -86,13 +91,13 @@ export class AdminController {
   }
 
   @Get('backstage/operations/creator-access')
-  @RequireAdminPermissions('*')
+  @RequireAdminPermissions('creators:read')
   getBackstageCreatorAccess(@Query() query: AuditQuery) {
     return this.adminService.getBackstageCreatorAccess(query);
   }
 
   @Post('backstage/operations/creator-access')
-  @RequireAdminPermissions('*')
+  @RequireAdminPermissions('creators:write')
   grantBackstageCreatorAccess(
     @CurrentUser() user: AuthUser,
     @Body() body: AdminPayload,
@@ -101,7 +106,7 @@ export class AdminController {
   }
 
   @Patch('backstage/operations/creator-access/:operatorId')
-  @RequireAdminPermissions('*')
+  @RequireAdminPermissions('creators:write')
   updateBackstageCreatorAccess(
     @CurrentUser() user: AuthUser,
     @Param('operatorId') operatorId: string,
@@ -129,7 +134,7 @@ export class AdminController {
   }
 
   @Post('backstage/settlement-conversions/:conversionId/status')
-  @RequireAdminPermissions('*')
+  @RequireAdminPermissions('settlements:write')
   updateBackstageSettlementConversionStatus(
     @CurrentUser() user: AuthUser,
     @Param('conversionId') conversionId: string,
@@ -143,7 +148,7 @@ export class AdminController {
   }
 
   @Post('backstage/settlements/:settlementKey/status')
-  @RequireAdminPermissions('*')
+  @RequireAdminPermissions('settlements:write')
   updateBackstageSettlementStatus(
     @CurrentUser() user: AuthUser,
     @Param('settlementKey') settlementKey: string,

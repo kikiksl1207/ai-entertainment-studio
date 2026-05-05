@@ -132,6 +132,60 @@ export class AdminService {
     });
   }
 
+  async getAdminMe(user: AuthUser) {
+    const adminUser = await this.prisma.adminUser.findUnique({
+      where: { userId: user.id },
+      include: {
+        role: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email ?? adminUser?.user.email ?? null,
+      },
+      admin: adminUser
+        ? {
+            id: adminUser.id,
+            status: adminUser.status,
+            role: adminUser.role.name,
+            permissions: adminUser.role.permissions,
+            lastAccessAt: adminUser.lastAccessAt,
+            source: 'admin_users',
+          }
+        : {
+            id: null,
+            status: 'active',
+            role: user.adminRole ?? null,
+            permissions: user.adminPermissions ?? [],
+            lastAccessAt: null,
+            source: 'bootstrap_admin_emails',
+          },
+      policy: {
+        permissionRule:
+          'A permission ending in :write also grants the matching :read route. * grants every admin route.',
+        roleNames: [
+          'super_admin',
+          'accounting_admin',
+          'sales_admin',
+          'cs_admin',
+          'ai_artist_admin',
+          'content_admin',
+          'commerce_admin',
+        ],
+      },
+    };
+  }
+
   getAdminUsers() {
     return this.prisma.adminUser.findMany({
       orderBy: { createdAt: 'desc' },
