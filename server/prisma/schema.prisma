@@ -822,6 +822,33 @@ model SettlementRecord {
   @@map("settlement_records")
 }
 
+model SettlementLuminaConversionRequest {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requesterUserId    String    @map("requester_user_id") @db.Uuid
+  settlementKey      String    @map("settlement_key")
+  settlementType     String    @map("settlement_type")
+  period             String
+  targetArtistId     String?   @map("target_artist_id") @db.Uuid
+  amountKrw          Decimal   @map("amount_krw") @db.Decimal(14, 2)
+  requestedLumina    Decimal   @map("requested_lumina") @db.Decimal(18, 2)
+  status             String    @default("requested")
+  note               String?
+  adminNote          String?   @map("admin_note")
+  walletLedgerId     String?   @map("wallet_ledger_id") @db.Uuid
+  processedByUserId  String?   @map("processed_by_user_id") @db.Uuid
+  processedAt        DateTime? @map("processed_at") @db.Timestamptz(6)
+  idempotencyKey     String?   @map("idempotency_key")
+  metadata           Json      @default("{}")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([requesterUserId, createdAt], map: "idx_settlement_lumina_conversions_requester")
+  @@index([settlementKey, status], map: "idx_settlement_lumina_conversions_key_status")
+  @@index([status, createdAt], map: "idx_settlement_lumina_conversions_status")
+  @@unique([requesterUserId, idempotencyKey], map: "uq_settlement_lumina_conversions_idempotency")
+  @@map("settlement_lumina_conversion_requests")
+}
+
 model CommunityPost {
   id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   authorUserId  String                @map("author_user_id") @db.Uuid

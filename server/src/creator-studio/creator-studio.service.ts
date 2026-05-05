@@ -6,6 +6,8 @@ import { AuthUser } from '../auth/auth.types';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  CreateCreatorStudioSettlementConversionDto,
+  CreatorStudioSettlementConversionQueryDto,
   CreatorStudioSettlementPreviewQueryDto,
   UpdateCreatorStudioArtistProfileDto,
 } from './dto/creator-studio.dto';
@@ -143,6 +145,7 @@ export class CreatorStudioService {
           createImageRequest: '/api/v1/creator-image-requests',
           imageRequests: '/api/v1/me/creator-image-requests',
           settlementPreview: '/api/v1/me/creator-studio/settlement-preview',
+          settlementConversions: '/api/v1/me/creator-studio/settlement-conversions',
           uploadIntent: '/api/v1/me/assets/upload-intents',
           confirmUpload: '/api/v1/me/assets/:assetId/confirm-upload',
         },
@@ -367,6 +370,118 @@ export class CreatorStudioService {
       },
       notice:
         'Estimated only. Final payout requires admin confirmation, refund/chargeback checks, tax/accounting review, and active creator settlement compliance.',
+    };
+  }
+
+  async getSettlementConversions(
+    userId: string,
+    query: CreatorStudioSettlementConversionQueryDto,
+  ) {
+    await this.assertCreatorStudioAccess(userId);
+    const rows = await this.prisma.settlementLuminaConversionRequest.findMany({
+      where: this.clean({
+        requesterUserId: userId,
+        period: query.period,
+        status: query.status,
+      }),
+      take: 50,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      items: rows.map((row) => this.presentSettlementConversion(row)),
+      count: rows.length,
+      policy: this.settlementConversionPolicy(),
+    };
+  }
+
+  async createSettlementConversion(
+    userId: string,
+    input: CreateCreatorStudioSettlementConversionDto,
+  ) {
+    const parsedKey = this.parseSettlementKey(input.settlementKey);
+    await this.assertSettlementConversionAccess(userId, parsedKey);
+
+    if (input.idempotencyKey) {
+      const existing = await this.prisma.settlementLuminaConversionRequest.findFirst({
+        where: {
+          requesterUserId: userId,
+          idempotencyKey: input.idempotencyKey,
+        },
+      });
+
+      if (existing) {
+        return {
+          conversion: this.presentSettlementConversion(existing),
+          idempotentReplay: true,
+          policy: this.settlementConversionPolicy(),
+        };
+      }
+    }
+
+    const amountKrw = new Decimal(input.amountKrw);
+    const policy = this.settlementConversionPolicy();
+
+    if (amountKrw.comparedTo(policy.minAmountKrw) < 0) {
+      throw new BadRequestException(
+        `amountKrw must be greater than or equal to ${policy.minAmountKrw.toString()}`,
+      );
+    }
+
+    const preview = await this.getSettlementPreview(userId, { period: parsedKey.period });
+    const estimatedAvailableKrw =
+      parsedKey.type === 'artist'
+        ? preview.items.find((item) => item.artist.id === parsedKey.id)?.financials
+            .creatorShareKrw ?? new Decimal(0)
+        : preview.totals.creatorShareKrw;
+    const reservedKrw = await this.reservedSettlementConversionAmount(
+      userId,
+      input.settlementKey,
+    );
+    const remainingKrw = Decimal.max(0, estimatedAvailableKrw.minus(reservedKrw));
+
+    if (amountKrw.comparedTo(remainingKrw) > 0) {
+      throw new BadRequestException({
+        code: 'SETTLEMENT_CONVERSION_AMOUNT_EXCEEDS_PREVIEW',
+        message: 'Requested amount exceeds the current settlement preview balance',
+        details: {
+          estimatedAvailableKrw: estimatedAvailableKrw.toString(),
+          reservedKrw: reservedKrw.toString(),
+          remainingKrw: remainingKrw.toString(),
+        },
+      });
+    }
+
+    const requestedLumina = amountKrw.div(policy.unitPriceKrw);
+    const row = await this.prisma.settlementLuminaConversionRequest.create({
+      data: {
+        requesterUserId: userId,
+        settlementKey: input.settlementKey,
+        settlementType: parsedKey.type,
+        period: parsedKey.period,
+        targetArtistId: parsedKey.type === 'artist' ? parsedKey.id : null,
+        amountKrw,
+        requestedLumina,
+        note: input.note ?? null,
+        idempotencyKey: input.idempotencyKey ?? null,
+        metadata: this.toJson({
+          source: 'creator_studio',
+          previewOnly: true,
+          unitPriceKrw: policy.unitPriceKrw.toString(),
+          estimatedAvailableKrw: estimatedAvailableKrw.toString(),
+          reservedKrw: reservedKrw.toString(),
+          remainingKrwBeforeRequest: remainingKrw.toString(),
+          walletCredit: 'admin_approval_required',
+        }),
+      },
+    });
+
+    return {
+      conversion: this.presentSettlementConversion(row),
+      idempotentReplay: false,
+      policy,
+      notice:
+        'Request received only. Lumina is credited after admin/accounting approval; no wallet balance changed yet.',
     };
   }
 
@@ -722,6 +837,19 @@ export class CreatorStudioService {
     };
   }
 
+  private settlementConversionPolicy() {
+    return {
+      status: 'request_only',
+      unitPriceKrw: new Decimal(10),
+      minAmountKrw: new Decimal(1000),
+      statuses: ['requested', 'approved', 'rejected', 'credited', 'cancelled'],
+      walletCreditTiming: 'admin_approval_required',
+      settlementDeductionTiming: 'credited_status_only',
+      userFacingName: '정산금으로 충전',
+      forbiddenTerms: ['환전'],
+    };
+  }
+
   private emptyRevenueBucket() {
     return {
       eventCount: 0,
@@ -818,6 +946,114 @@ export class CreatorStudioService {
     if (!operator) {
       throw new ForbiddenException('Artist operator access is required');
     }
+  }
+
+  private parseSettlementKey(settlementKey: string) {
+    const [type, id, period] = settlementKey.split(':');
+
+    if (
+      !['artist', 'partner'].includes(type) ||
+      !id ||
+      !UUID_PATTERN.test(id) ||
+      !/^\d{4}-\d{2}$/.test(period)
+    ) {
+      throw new BadRequestException(
+        'settlementKey must be artist:<artistId>:YYYY-MM or partner:<userId>:YYYY-MM',
+      );
+    }
+
+    return {
+      type: type as 'artist' | 'partner',
+      id,
+      period,
+    };
+  }
+
+  private async assertSettlementConversionAccess(
+    userId: string,
+    parsedKey: ReturnType<typeof this.parseSettlementKey>,
+  ) {
+    if (parsedKey.type === 'partner') {
+      if (parsedKey.id !== userId) {
+        throw new ForbiddenException('Creator settlement conversion access is required');
+      }
+
+      await this.assertCreatorStudioAccess(userId);
+      return;
+    }
+
+    await this.assertArtistOperator(userId, parsedKey.id);
+  }
+
+  private async assertCreatorStudioAccess(userId: string) {
+    const operator = await this.prisma.artistOperator.findFirst({
+      where: {
+        userId,
+        status: 'active',
+        revokedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!operator) {
+      throw new ForbiddenException('Creator Studio access is required');
+    }
+  }
+
+  private async reservedSettlementConversionAmount(
+    userId: string,
+    settlementKey: string,
+  ) {
+    const aggregate = await this.prisma.settlementLuminaConversionRequest.aggregate({
+      where: {
+        requesterUserId: userId,
+        settlementKey,
+        status: { in: ['requested', 'approved', 'credited'] },
+      },
+      _sum: { amountKrw: true },
+    });
+
+    return aggregate._sum.amountKrw ?? new Decimal(0);
+  }
+
+  private presentSettlementConversion(row: {
+    id: string;
+    requesterUserId: string;
+    settlementKey: string;
+    settlementType: string;
+    period: string;
+    targetArtistId: string | null;
+    amountKrw: Decimal;
+    requestedLumina: Decimal;
+    status: string;
+    note: string | null;
+    adminNote: string | null;
+    walletLedgerId: string | null;
+    processedByUserId: string | null;
+    processedAt: Date | null;
+    idempotencyKey: string | null;
+    metadata: Prisma.JsonValue;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
+    return {
+      id: row.id,
+      settlementKey: row.settlementKey,
+      settlementType: row.settlementType,
+      period: row.period,
+      targetArtistId: row.targetArtistId,
+      amountKrw: row.amountKrw,
+      requestedLumina: row.requestedLumina,
+      status: row.status,
+      note: row.note,
+      adminNote: row.adminNote,
+      walletLedgerId: row.walletLedgerId,
+      processedByUserId: row.processedByUserId,
+      processedAt: row.processedAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      metadata: this.recordOrEmpty(row.metadata),
+    };
   }
 
   private assertUuid(value: string, field: string) {

@@ -139,3 +139,39 @@ export class CreatorStudioSettlementPreviewQueryDto {
   @Matches(/^\d{4}-\d{2}$/)
   period?: string;
 }
+
+export class CreatorStudioSettlementConversionQueryDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}$/)
+  period?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^(requested|approved|rejected|credited|cancelled)$/)
+  status?: string;
+}
+
+export class CreateCreatorStudioSettlementConversionDto {
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @Matches(/^(artist|partner):[0-9a-fA-F-]{36}:\d{4}-\d{2}$/)
+  settlementKey!: string;
+
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @Matches(/^\d+(\.\d{1,2})?$/)
+  amountKrw!: string;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(300)
+  note?: string | null;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(120)
+  idempotencyKey?: string | null;
+}

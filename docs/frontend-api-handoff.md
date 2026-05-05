@@ -1234,6 +1234,83 @@ Response shape:
 }
 ```
 
+Creator Studio settlement money charge request:
+
+```http
+GET /me/creator-studio/settlement-conversions?period=2026-05&status=requested
+POST /me/creator-studio/settlement-conversions
+Authorization: Bearer <accessToken>
+```
+
+Use this for the creator-facing "정산금으로 충전" action. Do not call it "환전" in
+the UI. This is request-only: creating a request does not immediately increase
+the user's wallet balance. Admin/accounting approval is required before Lumina
+is credited.
+
+Request body:
+
+```json
+{
+  "settlementKey": "artist:<artistId>:2026-05",
+  "amountKrw": "1000",
+  "note": "optional memo",
+  "idempotencyKey": "optional-client-generated-key"
+}
+```
+
+`settlementKey` must come from the settlement preview surface. For a single
+artist card use `artist:<artistId>:YYYY-MM`. For the partner-account aggregate
+view use `partner:<partnerUserId>:YYYY-MM`. Minimum `amountKrw` is 1000. Lumina
+is calculated as `amountKrw / 10` because the current service policy is 1L = 10
+KRW. Existing requests in `requested`, `approved`, or `credited` status reserve
+that amount and reduce the remaining requestable estimate.
+
+Create response:
+
+```json
+{
+  "conversion": {
+    "id": "conversion-request-id",
+    "settlementKey": "artist:<artistId>:2026-05",
+    "settlementType": "artist",
+    "period": "2026-05",
+    "targetArtistId": "artist-id-or-null",
+    "amountKrw": "1000",
+    "requestedLumina": "100",
+    "status": "requested",
+    "note": "optional memo",
+    "adminNote": null,
+    "walletLedgerId": null,
+    "processedByUserId": null,
+    "processedAt": null,
+    "createdAt": "2026-05-05T00:00:00.000Z",
+    "updatedAt": "2026-05-05T00:00:00.000Z",
+    "metadata": {
+      "source": "creator_studio",
+      "previewOnly": true,
+      "walletCredit": "admin_approval_required"
+    }
+  },
+  "idempotentReplay": false,
+  "policy": {
+    "status": "request_only",
+    "unitPriceKrw": "10",
+    "minAmountKrw": "1000",
+    "statuses": ["requested", "approved", "rejected", "credited", "cancelled"],
+    "walletCreditTiming": "admin_approval_required",
+    "settlementDeductionTiming": "credited_status_only",
+    "userFacingName": "정산금으로 충전",
+    "forbiddenTerms": ["환전"]
+  },
+  "notice": "Request received only. Lumina is credited after admin/accounting approval; no wallet balance changed yet."
+}
+```
+
+If `amountKrw` exceeds the current estimated creator share minus reserved
+conversion requests, the backend returns `400` with
+`SETTLEMENT_CONVERSION_AMOUNT_EXCEEDS_PREVIEW` and includes
+`estimatedAvailableKrw`, `reservedKrw`, and `remainingKrw`.
+
 Frontend display rule: show this as "정산 예상" or "예상 수익" only. Do not label
 it as confirmed payout. For zero revenue, show `status: "no_revenue"` rows as
 0원 with an empty-state hint.
@@ -1314,6 +1391,7 @@ Response shape:
       "createImageRequest": "/api/v1/creator-image-requests",
       "imageRequests": "/api/v1/me/creator-image-requests",
       "settlementPreview": "/api/v1/me/creator-studio/settlement-preview",
+      "settlementConversions": "/api/v1/me/creator-studio/settlement-conversions",
       "uploadIntent": "/api/v1/me/assets/upload-intents",
       "confirmUpload": "/api/v1/me/assets/:assetId/confirm-upload"
     }

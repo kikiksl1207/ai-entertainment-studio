@@ -606,6 +606,8 @@ Creator image request endpoints:
 ```http
 GET /api/v1/me/creator-studio
 GET /api/v1/me/creator-studio/settlement-preview?period=2026-05
+GET /api/v1/me/creator-studio/settlement-conversions?period=2026-05&status=requested
+POST /api/v1/me/creator-studio/settlement-conversions
 PATCH /api/v1/me/creator-studio/artists/:artistId/profile
 POST /api/v1/creator-image-requests
 GET /api/v1/me/creator-image-requests?artistId=<artistId>&status=submitted&requestType=profile_image&take=30&cursor=<nextCursor>
@@ -624,6 +626,9 @@ Current workflow:
 - Initial creator studio slot policy is preview-only: `slotLimit = 10`, used/remaining slots are derived from active operator artist count, and paid slot expansion is `planned_not_open`.
 - `GET /api/v1/me/creator-studio/settlement-preview` is the creator-facing earnings estimate for active operated artists only. Query `period=YYYY-MM` is optional and defaults to the current UTC month.
 - Creator Studio settlement preview includes completed chat orders, completed gift orders, paid-like boost events, premium video unlocks, and non-refunded paid fan letters. It excludes free likes and is preview-only, not a final payout record.
+- `GET /api/v1/me/creator-studio/settlement-conversions` lists creator requests to convert estimated settlement money into Lumina. Query `period=YYYY-MM` and `status=requested|approved|rejected|credited|cancelled` are optional.
+- `POST /api/v1/me/creator-studio/settlement-conversions` creates a request-only "settlement money charge" record. It does not move wallet balance. Body: `{ "settlementKey": "artist:<artistId>:YYYY-MM" | "partner:<userId>:YYYY-MM", "amountKrw": "1000", "note": "optional", "idempotencyKey": "optional" }`. Minimum amount is 1000 KRW; 1L is calculated as 10 KRW.
+- Settlement conversion requests reserve against the current settlement preview balance for the same `settlementKey`; existing `requested`, `approved`, and `credited` conversion requests reduce the available request amount.
 - `PATCH /api/v1/me/creator-studio/artists/:artistId/profile` is the limited creator-facing profile save endpoint. It requires active operator access and updates only `artist_public_profiles`, `artist_visual_profiles`, and `artist_content_profiles`.
 - Creator-facing profile updates do not change artist `displayName`, `slug`, `status`, revenue share, ownership, launch state, or asset links. Those remain admin/operations responsibilities.
 - Creator profile updates write `audit_events` with `actorType = "creator"` and action `creator_studio.artist_profile.update`.
