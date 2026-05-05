@@ -46,6 +46,37 @@ GET /artists/roadmap
 GET /artists/:slug
 ```
 
+`GET /artists/:slug` is public, but it also accepts an optional
+`Authorization: Bearer <accessToken>` header. If the user is signed in, the
+detail response includes viewer follow state so the character detail page can
+render the follow button without an extra lookup:
+
+```json
+{
+  "id": "artist-uuid",
+  "slug": "yoon-serin",
+  "displayName": "Yoon Serin",
+  "stats": {
+    "followerCount": 123
+  },
+  "viewer": {
+    "isAuthenticated": true,
+    "isFollowing": false,
+    "canFollow": true,
+    "canUnfollow": false
+  },
+  "policy": {
+    "followTarget": "artist_id",
+    "followEndpoint": "POST /api/v1/artists/:artistId/follow",
+    "unfollowEndpoint": "DELETE /api/v1/artists/:artistId/follow"
+  }
+}
+```
+
+For anonymous users, `viewer.isAuthenticated` is `false` and follow buttons
+should route to login. For signed-in users, call the follow endpoints with the
+artist `id`, not the slug.
+
 Initial public slugs:
 
 ```txt

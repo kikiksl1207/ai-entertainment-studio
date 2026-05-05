@@ -78,7 +78,7 @@ export class ArtistsService {
     };
   }
 
-  async findBySlug(slug: string) {
+  async findBySlug(slug: string, viewerUserId?: string) {
     const artist = await this.prisma.artist.findFirst({
       where: {
         slug,
@@ -95,7 +95,59 @@ export class ArtistsService {
     }
 
     const publicArtist = this.toPublicArtist(artist, { includeContentProfile: true });
-    return this.isPublicReadyArtist(publicArtist) ? publicArtist : null;
+    if (!this.isPublicReadyArtist(publicArtist)) {
+      return null;
+    }
+
+    return this.withViewerFollowState(publicArtist, viewerUserId);
+  }
+
+  private async withViewerFollowState(
+    artist: ReturnType<ArtistsService['toPublicArtist']>,
+    viewerUserId?: string,
+  ) {
+    const [followerCount, viewerFollow] = await Promise.all([
+      this.prisma.artistFollow.count({
+        where: {
+          artistId: artist.id,
+          status: 'active',
+          deletedAt: null,
+        },
+      }),
+      viewerUserId
+        ? this.prisma.artistFollow.findUnique({
+            where: {
+              userId_artistId: {
+                userId: viewerUserId,
+                artistId: artist.id,
+              },
+            },
+            select: {
+              status: true,
+              deletedAt: true,
+            },
+          })
+        : Promise.resolve(null),
+    ]);
+    const isFollowing = Boolean(viewerFollow?.status === 'active' && !viewerFollow.deletedAt);
+
+    return {
+      ...artist,
+      stats: {
+        followerCount,
+      },
+      viewer: {
+        isAuthenticated: Boolean(viewerUserId),
+        isFollowing,
+        canFollow: Boolean(viewerUserId && !isFollowing),
+        canUnfollow: Boolean(viewerUserId && isFollowing),
+      },
+      policy: {
+        followTarget: 'artist_id',
+        followEndpoint: 'POST /api/v1/artists/:artistId/follow',
+        unfollowEndpoint: 'DELETE /api/v1/artists/:artistId/follow',
+      },
+    };
   }
 
   private toPublicArtist(

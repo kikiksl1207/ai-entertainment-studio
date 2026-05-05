@@ -10,6 +10,7 @@ import { AuthService } from './auth.service';
 import { AdminPermissionGuard } from './guards/admin-permission.guard';
 import { AdminAuthGuard } from './guards/admin-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
 import { SocialAuthService } from './social-auth.service';
 
 @Global()
@@ -25,9 +26,17 @@ import { SocialAuthService } from './social-auth.service';
     AuthService,
     SocialAuthService,
     JwtAuthGuard,
+    OptionalJwtAuthGuard,
     AdminAuthGuard,
     AdminPermissionGuard,
   ],
-  exports: [JwtModule, AuthService, JwtAuthGuard, AdminAuthGuard, AdminPermissionGuard],
+  exports: [
+    JwtModule,
+    AuthService,
+    JwtAuthGuard,
+    OptionalJwtAuthGuard,
+    AdminAuthGuard,
+    AdminPermissionGuard,
+  ],
 })
 export class AuthModule {}

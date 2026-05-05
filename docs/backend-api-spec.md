@@ -50,6 +50,8 @@ Frontend-friendly response fields:
 - `category` and `displayCategory` are the same frontend filter label. Internal tiers such as main/premium/sub/candidate should not be used as public category filters.
 - Full 16-slot taxonomy: `아티스트` = yoon-serin, han-seoyul, oh-hyerin, min-chaeon, baek-ria, oh-yuna, cha-dohyun; `모델` = kang-sia, ha-yuna, seo-yuan; `배우` = choi-seojin, lee-jiwon, kwon-taejun; `엔터테이너` = park-doa, seo-hamin; `스포츠` = ryu-taeo; `기타` = temporary fallback for uncategorized or category-test characters.
 - If a character has no explicit slug mapping and no `profile.publicMetadata.profileFacts.displayCategory`, the backend returns `기타` so operations can hold ambiguous concepts before approving a new category.
+- `GET /api/v1/artists/:artistSlug` accepts an optional bearer access token. When present and valid, the detail response includes `stats.followerCount` and `viewer` follow-button hints (`isAuthenticated`, `isFollowing`, `canFollow`, `canUnfollow`). Anonymous detail responses keep working and return `viewer.isAuthenticated = false`.
+- Artist follow/unfollow endpoints still use the artist UUID: `POST /api/v1/artists/:artistId/follow` and `DELETE /api/v1/artists/:artistId/follow`.
 
 용도:
 
