@@ -343,6 +343,7 @@ function detailHistoryKey(detail) {
     detail?.tableId || "quickAction",
     meta.adminUserId,
     meta.userId,
+    meta.applicationId,
     meta.artistId,
     meta.postId,
     meta.reportId,
@@ -1117,6 +1118,7 @@ function renderDetailForm(detail) {
   detailForm.dataset.draftKey = "";
 
   const row = detail?.row || [];
+  const meta = detail?.meta || {};
   const quickTitle = row[0] || "";
   const tableId = detail?.tableId;
   let html = "";
@@ -1261,12 +1263,13 @@ function renderDetailForm(detail) {
         ${detailInput("신청자/활동명", "applicant", tableId === "creatorRows" ? row[0] || "" : "")}
         ${detailSelect("처리 상태", "applicationStatus", [
           { value: "reviewing", label: "확인중" },
-          { value: "needs_revision", label: "보완요청" },
+          { value: "needs_more_info", label: "보완요청" },
           { value: "approved", label: "승인" },
           { value: "rejected", label: "반려" }
-        ], "reviewing")}
-        ${detailInput("연락 가능 시간", "contactWindow", "", "text")}
-        ${detailInput("자료 링크", "portfolioUrl", "", "url")}
+        ], meta.status || "reviewing")}
+        ${detailInput("신청 ID", "applicationId", meta.applicationId || "", "text", true)}
+        ${detailInput("연락 가능 시간", "contactWindow", meta.preferredContactTime || "", "text")}
+        ${detailInput("자료 링크", "portfolioUrl", meta.portfolioUrl || "", "url")}
         ${detailTextarea("보완/확인 메모", "reviewMemo", "활동명, 소개, 연락 가능 시간, 자료 링크, 권리 확인 내용을 확인합니다.")}
       </div>
       <p class="detail-form-note">연락처와 정산계좌는 권한별 마스킹 상태를 유지해야 합니다.</p>
@@ -1505,13 +1508,14 @@ function getActionProfile(detail, action = "memo") {
       ...profile,
       group: "데뷔 신청 운영",
       targetType: "debutApplication",
-      endpoint: action === "danger" ? "GET /admin/api/v1/debut/applications/:applicationId" : "PATCH /admin/api/v1/debut/applications/:applicationId/status",
-      method: action === "danger" ? "GET" : "PATCH",
+      endpoint: "PATCH /admin/api/v1/debut/applications/:applicationId",
+      method: "PATCH",
       warning: "데뷔 신청 상세, 보완 요청, 승인/반려는 신청서 권리 확인과 연락처 권한을 함께 봐야 합니다.",
       holdLabel: "보완 요청 메모",
-      dangerLabel: "신청 상세 보기",
+      dangerLabel: "상태 저장",
       showHold: true,
-      showDanger: true
+      showDanger: true,
+      dangerDisabled: false
     };
   }
 
@@ -1764,6 +1768,24 @@ function buildActionRequest(detail, action) {
     };
   }
 
+  if (tableId === "creatorRows") {
+    const applicationId = firstValue(meta.applicationId, form.applicationId);
+    if (!applicationId) return null;
+    const status = action === "hold" ? "needs_more_info" : form.applicationStatus || meta.status || "reviewing";
+    return {
+      method: "PATCH",
+      path: adminApiPath(`/debut/applications/${applicationId}`),
+      body: {
+        status,
+        reviewNote: reason,
+        consultationStatus: status === "approved" ? "scheduled" : undefined,
+        consultationNote: firstValue(form.contactWindow, note, reason),
+        rightsReviewNote: reason,
+        partnerReviewNote: reason
+      }
+    };
+  }
+
   if (quickTitle === "AI 아티스트 추가") {
     return {
       method: "POST",
@@ -1937,7 +1959,7 @@ function buildActionRequest(detail, action) {
 }
 
 function resolveExecutableEndpoint(endpoint = "", detail = null, action = "memo") {
-  const mutation = action === "danger" ? buildActionRequest(detail, action) : null;
+  const mutation = action !== "memo" ? buildActionRequest(detail, action) : null;
   if (mutation) return mutation;
   const match = String(endpoint).trim().match(/^(GET|POST|PATCH|DELETE)\s+(\/admin\/api\/v1\/\S+)$/);
   if (!match) return null;
@@ -2004,7 +2026,7 @@ function buildActionPreview(action) {
   const target = row[0] || "-";
   const currentAction = row[row.length - 1] || action;
   const profile = getActionProfile(detail, action);
-  const isLocalOnly = action === "memo" || action === "hold";
+  const isLocalOnly = action === "memo" || (action === "hold" && detail?.tableId !== "creatorRows");
   const apiRequest = resolveExecutableEndpoint(profile.endpoint, detail, action);
   const isMutation = apiRequest && apiRequest.method !== "GET";
 
@@ -2056,7 +2078,10 @@ function actionChangeLabel(preview) {
     return settlementStatusLabel(form.settlementStatus || preview?.apiRequest?.body?.status);
   }
   if (preview?.requestedAction === "memo") return "운영 메모 저장";
-  if (preview?.requestedAction === "hold") return "보류/재확인";
+  if (preview?.requestedAction === "hold") {
+    if (preview?.targetType === "debutApplication") return "보완요청";
+    return "보류/재확인";
+  }
   return preview?.requestedAction || "상태 변경";
 }
 
@@ -2064,6 +2089,15 @@ function optimisticStatusForPreview(preview) {
   const form = preview?.bodyPreview?.form || {};
   if (preview?.targetType === "creatorSettlement" || preview?.targetType === "studioSettlement") {
     return settlementStatusLabel(form.settlementStatus || preview?.apiRequest?.body?.status || "paid");
+  }
+  if (preview?.targetType === "debutApplication") {
+    const labels = {
+      reviewing: "확인중",
+      needs_more_info: "보완요청",
+      approved: "승인",
+      rejected: "반려"
+    };
+    return labels[preview?.apiRequest?.body?.status || form.applicationStatus] || "확인중";
   }
   if (preview?.targetType === "report") return "보관";
   if (preview?.targetType === "creatorContent") {
@@ -2681,15 +2715,25 @@ async function loadCreatorsSection() {
       backstageFetch(adminApiPath("/creator-image-requests?take=20"), { auth: true }).catch(() => null)
     ]);
     const applicationsPage = normalizePage(data?.applications || data);
-    const rows = applicationsPage.items.map((item) => [
-      `${item.realName || item.applicantName || "-"} / ${item.stageName || item.displayName || "-"}`,
-      item.loginType || item.loginProvider || item.provider || item.applicationChannel || "-",
-      formatDate(item.lastLoginAt || item.updatedAt || item.createdAt),
-      item.contactAccessAllowed ? item.contactEmail || item.contactPhone || "-" : item.contactMasked || "권한 제한",
-      item.payoutAccessAllowed ? item.payoutAccount || "-" : item.payoutAccountMasked || "권한 제한",
-      item.inactive30Days ? "장기미접속" : localizeWorkflowStatus(item.status),
-      item.needsFollowUp ? "확인 요청" : item.status === "approved" ? "권한 보기" : "신청 보기"
-    ]);
+    const rows = applicationsPage.items.map((item) => ({
+      row: [
+        `${item.realName || item.applicantName || "-"} / ${item.stageName || item.displayName || "-"}`,
+        item.loginType || item.loginProvider || item.provider || item.applicationChannel || "-",
+        formatDate(item.lastLoginAt || item.updatedAt || item.createdAt),
+        item.contactAccessAllowed ? item.contactEmail || item.contactPhone || "-" : item.contactMasked || "권한 제한",
+        item.payoutAccessAllowed ? item.payoutAccount || "-" : item.payoutAccountMasked || "권한 제한",
+        item.inactive30Days ? "장기미접속" : localizeWorkflowStatus(item.status),
+        item.needsFollowUp ? "확인 요청" : item.status === "approved" ? "권한 보기" : "신청 보기"
+      ],
+      meta: {
+        applicationId: item.id || item.applicationId,
+        status: item.status,
+        preferredContactTime: item.preferredContactTime || item.metadata?.preferredContactTime,
+        portfolioUrl: item.portfolioUrl,
+        applicationType: item.applicationType || item.metadata?.applicationType,
+        applicationChannel: item.applicationChannel || item.metadata?.applicationChannel
+      }
+    }));
     const aiRows = (data?.aiArtists || []).map((artist) => ({
       row: [
         artist.displayName || artist.name || artist.slug || "-",
