@@ -1532,6 +1532,14 @@ function toggleUserMenu(anchorBtn) {
   if (typeof syncUserMenuAvatar === "function") syncUserMenuAvatar();
   // 잔액 새로고침 (열 때마다 — 다른 탭 활동/시간 차이 반영)
   loadWallet();
+  // 본인 user-profile.html 진입 항목 — user.id 또는 publicHandle 있으면 노출
+  const publicProfileBtn = menu.querySelector(".user-menu-item-public-profile");
+  if (publicProfileBtn) {
+    const hasTarget = !!(user.id || user.publicHandle);
+    publicProfileBtn.hidden = !hasTarget;
+  }
+  // #144 — 스튜디오 스테이지 메뉴 토글 (차모 spec: GET /api/v1/me/creator-studio access.enabled)
+  refreshStudioMenuVisibility(menu);
   // 위치 (헤더 버튼 아래)
   const rect = anchorBtn.getBoundingClientRect();
   menu.style.top = (rect.bottom + 8) + "px";
@@ -1542,6 +1550,56 @@ function toggleUserMenu(anchorBtn) {
 function closeUserMenu() {
   const menu = document.getElementById("userMenu");
   if (menu) menu.classList.remove("is-open");
+}
+
+/* #144 — 크리에이터 스튜디오 access 캐시 (차모 spec)
+   - GET /api/v1/me/creator-studio
+   - access.enabled === true 면 드롭다운에 노출, summary로 보조 텍스트 갱신
+   - 응답 캐시 5분 (드롭다운 열 때마다 호출 안 함)
+   - 401/403/404는 일반 유저 가정 — 메뉴 hidden 유지 */
+let _creatorStudioAccess = null;
+let _creatorStudioFetchedAt = 0;
+async function refreshStudioMenuVisibility(menu) {
+  const studioBtn = menu.querySelector(".user-menu-item-studio");
+  if (!studioBtn) return;
+
+  // 캐시 5분
+  const now = Date.now();
+  if (_creatorStudioAccess && (now - _creatorStudioFetchedAt) < 5 * 60 * 1000) {
+    applyStudioVisibility(studioBtn, _creatorStudioAccess);
+    return;
+  }
+
+  try {
+    const res = await apiFetch("/api/v1/me/creator-studio", { auth: true });
+    _creatorStudioAccess = {
+      enabled: !!res?.access?.enabled,
+      type: res?.access?.type || "",
+      status: res?.access?.status || "",
+      entryUrl: res?.access?.entryUrl || "./creator-studio.html",
+      needsAttention: Number(res?.summary?.needsAttentionCount) || 0,
+      ownedArtists: Number(res?.summary?.ownedArtistCount) || 0
+    };
+    _creatorStudioFetchedAt = now;
+    applyStudioVisibility(studioBtn, _creatorStudioAccess);
+  } catch (err) {
+    // 권한 없음/미준비 — hidden 유지
+    studioBtn.hidden = true;
+  }
+}
+function applyStudioVisibility(btn, access) {
+  btn.hidden = !access?.enabled;
+  if (!access?.enabled) return;
+  const summary = btn.querySelector("[data-studio-summary]");
+  if (summary) {
+    if (access.needsAttention > 0) {
+      summary.textContent = `확인할 항목 ${access.needsAttention}건`;
+    } else if (access.ownedArtists > 0) {
+      summary.textContent = `운영 캐릭터 ${access.ownedArtists}명`;
+    } else {
+      summary.textContent = "크리에이터 운영";
+    }
+  }
 }
 
 function createUserMenu() {
@@ -1559,6 +1617,10 @@ function createUserMenu() {
       </div>
     </div>
     <div class="user-menu-divider"></div>
+    <button class="user-menu-item user-menu-item-public-profile" type="button" data-action="public-profile" hidden>
+      <span>내 프로필</span>
+      <small>다른 사람에게 보이는 화면</small>
+    </button>
     <button class="user-menu-item" type="button" data-action="profile">
       <span>마이페이지</span>
       <small>프로필</small>
@@ -1566,6 +1628,11 @@ function createUserMenu() {
     <button class="user-menu-item user-menu-item-charge" type="button" data-action="charge">
       <span>충전하기</span>
       <small>루미나 충전소</small>
+    </button>
+    <!-- #144 스튜디오 스테이지 — access.enabled 시에만 노출, JS에서 동적 토글 -->
+    <button class="user-menu-item user-menu-item-studio" type="button" data-action="studio" hidden>
+      <span>스튜디오 스테이지</span>
+      <small data-studio-summary>크리에이터 운영</small>
     </button>
     <div class="user-menu-divider"></div>
     <button class="user-menu-item user-menu-logout" type="button" data-action="logout">
@@ -1578,6 +1645,17 @@ function createUserMenu() {
       const action = item.dataset.action;
       if (action === "logout") {
         authLogout();
+      } else if (action === "studio") {
+        // #144 차모 spec: access.entryUrl 우선
+        window.location.href = _creatorStudioAccess?.entryUrl || "./creator-studio.html";
+      } else if (action === "public-profile") {
+        // 본인 user-profile.html — publicHandle 우선, 없으면 user.id
+        const me = (typeof getAuth === "function") ? getAuth()?.user : null;
+        if (!me?.id && !me?.publicHandle) return;
+        const target = me.publicHandle
+          ? `./user-profile.html?handle=${encodeURIComponent(me.publicHandle)}`
+          : `./user-profile.html?id=${encodeURIComponent(String(me.id))}`;
+        window.location.href = target;
       } else {
         const target = {
           profile: "./mypage.html#profile",
@@ -2404,16 +2482,44 @@ function feedAuthorTypeLabel(authorTypeEnum) {
 function normalizeFeedPost(raw) {
   const authUserId = getAuth()?.user?.id || getAuth()?.user?.userId || null;
   const authorUserId = raw.authorUserId || raw.userId || raw.createdByUserId || raw.author?.id || raw.user?.id || null;
+  const isMine = Boolean(raw.isMine || (authUserId && authorUserId && String(authUserId) === String(authorUserId)));
+  // #137 — 차모 spec: viewer / permissions / likeCount / replyCount / assets / linkPreview
+  const viewer = raw.viewer || {};
+  const permissions = raw.permissions || {};
   return {
     id: String(raw.id ?? ""),
     postType: raw.postType || "fan_post",
     artistSlug: (raw.artistSlug && raw.artistSlug !== "없음") ? raw.artistSlug : null,
+    artistId: raw.artistId || raw.artist?.id || null, // #145 follow endpoint용
+    authorUserId, // #145 작성자 follow endpoint용
+    authorPublicHandle: raw.authorPublicHandle || raw.author?.publicHandle || raw.author?.profile?.publicHandle || null, // #152 작성자 프로필 라우팅용
     authorType: normalizeFeedAuthorType(raw.authorType),
     authorName: raw.authorName || raw.author?.displayName || raw.user?.displayName || raw.user?.nickname || "",
     avatarUrl: raw.avatarUrl || raw.author?.avatarUrl || raw.user?.avatarUrl || "",
     body: raw.body || raw.content || "",
-    canEdit: Boolean(raw.canEdit || raw.canUpdate || raw.isMine || (authUserId && authorUserId && String(authUserId) === String(authorUserId))),
-    canDelete: Boolean(raw.canDelete || raw.isMine || (authUserId && authorUserId && String(authUserId) === String(authorUserId)))
+    assets: Array.isArray(raw.assets) ? raw.assets : [],
+    linkPreview: raw.linkPreview || null,
+    likeCount: Number(raw.likeCount) || 0,
+    replyCount: Number(raw.replyCount) || 0,
+    viewer: {
+      hasLiked: Boolean(viewer.hasLiked),
+      isAuthor: Boolean(viewer.isAuthor || isMine),
+      canEdit: Boolean(viewer.canEdit ?? permissions.canEdit ?? isMine),
+      canDelete: Boolean(viewer.canDelete ?? permissions.canDelete ?? raw.canDelete ?? isMine),
+      // #145 — 차모 spec: 팔로우 버튼 판단용 viewer 힌트
+      isFollowingArtist: Boolean(viewer.isFollowingArtist),
+      isFollowingAuthor: Boolean(viewer.isFollowingAuthor),
+      canFollowArtist: Boolean(viewer.canFollowArtist),
+      canUnfollowArtist: Boolean(viewer.canUnfollowArtist),
+      canFollowAuthor: Boolean(viewer.canFollowAuthor),
+      canUnfollowAuthor: Boolean(viewer.canUnfollowAuthor)
+    },
+    permissions: {
+      canEdit: Boolean(permissions.canEdit ?? viewer.canEdit ?? isMine),
+      canDelete: Boolean(permissions.canDelete ?? viewer.canDelete ?? raw.canDelete ?? isMine),
+      editScope: permissions.editScope || "body_only_mvp"
+    },
+    canDelete: Boolean(viewer.canDelete ?? permissions.canDelete ?? raw.canDelete ?? isMine)
   };
 }
 
@@ -2441,7 +2547,25 @@ async function loadLuminaFeedData(scope = "all") {
     }
   }
 
-  // 1. 운영 API 시도 — 실제 사용자 글 (DB 기반)
+  // #137 후속 — 로그인 상태면 /me/lumina-feed?mode=all로 viewer 정보 받기
+  // (공개 endpoint /lumina-feed는 작성자명·canEdit 등이 안 내려와 본인 글도 익명+수정버튼 미노출 됨)
+  const isAuth = typeof isLoggedIn === "function" && isLoggedIn();
+  if (isAuth) {
+    try {
+      const res = await apiFetch("/api/v1/me/lumina-feed?mode=all&take=30", { auth: true });
+      const items = Array.isArray(res) ? res : (res?.items || res?.posts || []);
+      if (Array.isArray(items) && items.length > 0) {
+        _luminaFeedItems = items.map(normalizeFeedPost);
+        _luminaFeedSource = "me_all";
+        console.info(`[Lumina] 루미나 피드 (로그인) 운영 API 로드 ${items.length}건`);
+        return;
+      }
+    } catch (err) {
+      console.warn("[Lumina] /me/lumina-feed?mode=all 실패, 공개 endpoint 시도:", err);
+    }
+  }
+
+  // 1. 운영 API 시도 — 실제 사용자 글 (DB 기반, 비로그인용 공개 endpoint)
   try {
     const res = await apiFetch("/api/v1/lumina-feed?mode=all&take=30");
     const items = Array.isArray(res) ? res : (res?.items || res?.posts || []);
@@ -2495,26 +2619,54 @@ function renderLuminaFeed() {
 
   root.innerHTML = list.map(post => {
     const artist = post.artistSlug ? getCharacterBySlug(post.artistSlug) : null;
+    // 본인 글이면 작성자명/아바타를 본인 정보로 강제 (백엔드가 익명/마스킹으로 내려도 본인엔 본인 닉네임)
+    const me = (typeof getAuth === "function") ? getAuth()?.user : null;
+    const isMineByViewer = !!post.viewer?.isAuthor;
     const authorName = artist
       ? artist.publicName
-      : (post.authorName || (post.postType === "debut_artist_post" ? "데뷔 준비 중인 아티스트" : "익명의 팬"));
-    const avatarSrc = artist?.images?.thumb || post.avatarUrl || "";
+      : (isMineByViewer && me
+          ? (me.displayName || me.email?.split("@")[0] || "내 계정")
+          : (post.authorName || (post.postType === "debut_artist_post" ? "데뷔 준비 중인 아티스트" : "익명의 팬")));
+    const avatarSrc = artist?.images?.thumb
+      || (isMineByViewer && me?.avatarUrl ? me.avatarUrl : post.avatarUrl || "");
     const initial = (authorName || "?").charAt(0);
     const typeKey = post.postType.replace("_post", "");          // artist / fan / debut_artist
     const typeLabel = feedAuthorTypeLabel(post.authorType);
     const clickable = artist
       ? ` clickable-card" data-href="./character-detail.html?slug=${artist.slug}`
       : "";
-    const editButton = post.canEdit && post.id
-      ? `<button class="feed-action-btn feed-edit-btn" type="button" data-feed-edit="${feedEscapeHtml(post.id)}" aria-label="게시글 수정">수정하기</button>`
-      : "";
-    const deleteButton = post.canDelete && post.id
+    const deleteButton = post.viewer?.canDelete && post.id
       ? `<button class="feed-action-btn feed-delete-btn" type="button" data-feed-delete="${feedEscapeHtml(post.id)}" aria-label="게시글 삭제">삭제</button>`
       : "";
+    // #137 Phase B — 본인 글이면 수정 버튼 노출 (텍스트 본문만 수정, 차모 spec)
+    const editButton = post.viewer?.canEdit && post.id
+      ? `<button class="feed-action-btn feed-edit-btn" type="button" data-feed-edit="${feedEscapeHtml(post.id)}" aria-label="게시글 수정">수정</button>`
+      : "";
+    const followButton = "";
+
+    // #152 — 작성자 영역 클릭 시 라우팅
+    // 아티스트 글: 카드 전체 clickable로 이미 character-detail.html 이동 처리됨
+    // 본인 글: viewer.isAuthor + me.id로 본인 user-profile 라우팅 (백엔드가 authorPublicHandle 안 내려도 동작)
+    // 다른 사람 글: authorPublicHandle 또는 authorUserId가 있을 때만 라우팅 (없으면 클릭 비활성화)
+    let authorLink = "";
+    if (!artist) {
+      if (isMineByViewer && me?.id) {
+        const target = me.publicHandle
+          ? `./user-profile.html?handle=${encodeURIComponent(me.publicHandle)}`
+          : `./user-profile.html?id=${encodeURIComponent(String(me.id))}`;
+        authorLink = ` data-user-profile-link="${feedEscapeHtml(target)}" style="cursor:pointer;"`;
+      } else if (post.authorPublicHandle || post.authorUserId) {
+        const target = post.authorPublicHandle
+          ? `./user-profile.html?handle=${encodeURIComponent(post.authorPublicHandle)}`
+          : `./user-profile.html?id=${encodeURIComponent(String(post.authorUserId))}`;
+        authorLink = ` data-user-profile-link="${feedEscapeHtml(target)}" style="cursor:pointer;"`;
+      }
+      // 위 둘 다 안 맞으면 authorLink는 "" → 작성자 영역 클릭 비활성화 (헛클릭 방지)
+    }
 
     return `
       <article class="feed-post${clickable}" data-feed-type="${post.postType}">
-        <header class="feed-post-head">
+        <header class="feed-post-head"${authorLink}>
           <div class="feed-post-avatar">
             ${avatarSrc
               ? `<img src="${feedEscapeHtml(avatarSrc)}" alt="${feedEscapeHtml(authorName)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="feed-post-avatar-fallback" style="display:none;">${feedEscapeHtml(initial)}</span>`
@@ -2524,19 +2676,23 @@ function renderLuminaFeed() {
             <strong class="feed-post-author">${feedEscapeHtml(authorName)}</strong>
             <span class="feed-post-type feed-post-type-${typeKey}">${typeLabel}</span>
           </div>
+          ${followButton}
         </header>
         <p class="feed-post-body">${feedEscapeHtml(post.body)}</p>
         <button class="feed-post-expand-btn" type="button" aria-expanded="false">더 보기</button>
         ${renderFeedPostAssets(post.assets)}
         ${renderFeedLinkPreview(post.linkPreview)}
         <footer class="feed-post-actions">
-          <button class="feed-action-btn" type="button" disabled aria-label="좋아요">
+          <button class="feed-action-btn feed-like-btn${post.viewer?.hasLiked ? " is-liked" : ""}" type="button"
+                  data-feed-like="${feedEscapeHtml(post.id || "")}"
+                  aria-pressed="${post.viewer?.hasLiked ? "true" : "false"}"
+                  aria-label="${post.viewer?.hasLiked ? "좋아요 취소하기" : "좋아요 누르기"}">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
-            <span>—</span>
+            <span data-feed-like-count>${Number(post.likeCount) || 0}</span>
           </button>
           <button class="feed-action-btn" type="button" disabled aria-label="댓글">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
-            <span>—</span>
+            <span>${Number(post.replyCount) || 0}</span>
           </button>
           ${editButton}
           ${deleteButton}
@@ -2579,43 +2735,191 @@ function bindLuminaFeedTabs() {
   });
 }
 
+/* #137 Phase B — 피드 글 수정 (텍스트 본문만, 차모 spec)
+   - PATCH /api/v1/lumina-feed/posts/:postId  body { body }
+   - 응답 { post, policy } — post로 카드 즉시 갱신
+   - 이미지 교체는 1차 미지원 (assetEditing: not_supported_yet)
+   - 모달 동적 생성 — 한 번에 하나만 열림 보장 */
+let _feedEditModalEl = null;
+function openFeedEditModal(post) {
+  closeFeedEditModal();
+  const modal = document.createElement("div");
+  modal.className = "feed-edit-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-label", "피드 글 수정");
+  modal.innerHTML = `
+    <div class="feed-edit-modal-backdrop" data-feed-edit-cancel></div>
+    <div class="feed-edit-modal-panel">
+      <header class="feed-edit-modal-head">
+        <h3>피드 글 수정</h3>
+        <button class="feed-edit-modal-close" type="button" data-feed-edit-cancel aria-label="닫기">×</button>
+      </header>
+      <p class="feed-edit-modal-notice">지금은 글 내용만 수정할 수 있어요. 이미지 교체는 다음 업데이트에서 지원할 예정입니다.</p>
+      <textarea class="feed-edit-modal-textarea" rows="6" maxlength="2000" placeholder="내용을 입력해주세요."></textarea>
+      <p class="feed-edit-modal-error" hidden></p>
+      <footer class="feed-edit-modal-actions">
+        <button class="feed-edit-modal-cancel" type="button" data-feed-edit-cancel>취소</button>
+        <button class="feed-edit-modal-save" type="button" data-feed-edit-save>저장</button>
+      </footer>
+    </div>
+  `;
+  const textarea = modal.querySelector("textarea");
+  textarea.value = post.body || "";
+  modal.querySelector("[data-feed-edit-save]").dataset.postId = post.id;
+  document.body.appendChild(modal);
+  _feedEditModalEl = modal;
+  // ESC로 닫기
+  const escHandler = e => { if (e.key === "Escape") closeFeedEditModal(); };
+  modal._escHandler = escHandler;
+  document.addEventListener("keydown", escHandler);
+  // 자동 포커스 + 커서 끝으로
+  setTimeout(() => {
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  }, 0);
+}
+function closeFeedEditModal() {
+  if (_feedEditModalEl) {
+    if (_feedEditModalEl._escHandler) {
+      document.removeEventListener("keydown", _feedEditModalEl._escHandler);
+    }
+    _feedEditModalEl.remove();
+    _feedEditModalEl = null;
+  }
+}
 function bindLuminaFeedEdit() {
   if (document._feedEditBound) return;
   document._feedEditBound = true;
-  document.addEventListener("click", async e => {
+
+  // 1. 카드 footer "수정" 버튼 → 모달 오픈
+  document.addEventListener("click", e => {
     const btn = e.target.closest("[data-feed-edit]");
     if (!btn) return;
     e.preventDefault();
     e.stopPropagation();
     const postId = btn.dataset.feedEdit;
-    const post = _luminaFeedItems.find(item => String(item.id) === String(postId));
-    if (!post) return;
-    const nextBody = prompt("피드 내용을 수정해주세요.", post.body || "");
-    if (nextBody === null) return;
-    const body = nextBody.trim();
-    if (body.length === 0) {
-      alert("피드 내용은 비워둘 수 없어요.");
+    if (!postId) return;
+    const post = _luminaFeedItems.find(p => p.id === postId);
+    if (!post) {
+      alert("수정할 글을 찾지 못했어요.");
       return;
     }
-    if (body.length > FEED_COMPOSE_MAX_BODY) {
-      alert(`피드 내용은 최대 ${FEED_COMPOSE_MAX_BODY}자까지 작성할 수 있어요.`);
+    openFeedEditModal(post);
+  });
+
+  // 2. 모달 내부 이벤트 위임 — 취소/저장
+  document.addEventListener("click", async e => {
+    if (e.target.closest("[data-feed-edit-cancel]")) {
+      closeFeedEditModal();
       return;
     }
-    btn.disabled = true;
-    btn.textContent = "수정 중";
+    const saveBtn = e.target.closest("[data-feed-edit-save]");
+    if (!saveBtn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const postId = saveBtn.dataset.postId;
+    if (!postId || !_feedEditModalEl) return;
+    const textarea = _feedEditModalEl.querySelector("textarea");
+    const errorEl = _feedEditModalEl.querySelector(".feed-edit-modal-error");
+    const newBody = (textarea.value || "").trim();
+    if (!newBody) {
+      errorEl.textContent = "내용을 입력해주세요.";
+      errorEl.hidden = false;
+      textarea.focus();
+      return;
+    }
+    errorEl.hidden = true;
+    saveBtn.disabled = true;
+    saveBtn.textContent = "저장 중…";
     try {
-      await apiFetch(`/api/v1/lumina-feed/posts/${encodeURIComponent(postId)}`, {
+      const res = await apiFetch(`/api/v1/lumina-feed/posts/${encodeURIComponent(postId)}`, {
         method: "PATCH",
         auth: true,
         throwOnError: true,
-        body: JSON.stringify({ body })
+        body: { body: newBody }
       });
-      post.body = body;
+      const updatedPost = res?.post || res?.data?.post || null;
+      if (updatedPost) {
+        const idx = _luminaFeedItems.findIndex(p => p.id === postId);
+        if (idx >= 0) {
+          _luminaFeedItems[idx] = normalizeFeedPost({ ..._luminaFeedItems[idx], ...updatedPost });
+        }
+      } else {
+        // 응답에 post 없으면 로컬 body만 갱신 (보수적)
+        const idx = _luminaFeedItems.findIndex(p => p.id === postId);
+        if (idx >= 0) _luminaFeedItems[idx].body = newBody;
+      }
+      closeFeedEditModal();
       renderLuminaFeed();
+      // 가벼운 토스트 (별도 토스트 시스템이 없으면 alert로 fallback)
+      if (typeof showLuminaToast === "function") {
+        showLuminaToast("피드 글이 수정됐어요.", { kind: "success" });
+      }
     } catch (err) {
-      alert(err.message || "피드 글을 수정하지 못했어요. 잠시 후 다시 시도해주세요.");
-      btn.disabled = false;
-      btn.textContent = "수정하기";
+      console.warn("[#137 edit] 실패", { status: err?.status, body: err?.body });
+      errorEl.textContent = err?.message || "글 수정에 실패했어요. 잠시 후 다시 시도해주세요.";
+      errorEl.hidden = false;
+      saveBtn.disabled = false;
+      saveBtn.textContent = "저장";
+    }
+  });
+}
+
+/* #145 — 피드 카드 팔로우 토글 (차모 spec)
+   - 아티스트: POST/DELETE /api/v1/artists/:artistId/follow
+   - 유저: POST/DELETE /api/v1/users/:userId/follow
+   - 응답에 followerCount 미포함이라 낙관적 토글만 (재조회는 다음 페이지 진입 시) */
+function bindLuminaFeedFollow() {
+  if (document._feedFollowBound) return;
+  document._feedFollowBound = true;
+  document.addEventListener("click", async e => {
+    const btn = e.target.closest("[data-feed-follow-artist], [data-feed-follow-user]");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (btn.dataset.busy === "1") return;
+    if (typeof getAccessToken === "function" && !getAccessToken()) {
+      alert("로그인하면 팔로우할 수 있어요.");
+      return;
+    }
+    const isArtist = !!btn.dataset.feedFollowArtist;
+    const id = isArtist ? btn.dataset.feedFollowArtist : btn.dataset.feedFollowUser;
+    if (!id) return;
+    const wasFollowing = btn.dataset.following === "1";
+    const endpoint = isArtist
+      ? `/api/v1/artists/${encodeURIComponent(id)}/follow`
+      : `/api/v1/users/${encodeURIComponent(id)}/follow`;
+    btn.dataset.busy = "1";
+    // 낙관적 토글
+    btn.classList.toggle("is-following", !wasFollowing);
+    btn.dataset.following = wasFollowing ? "0" : "1";
+    btn.textContent = wasFollowing ? "팔로우" : "팔로잉";
+    try {
+      await apiFetch(endpoint, {
+        method: wasFollowing ? "DELETE" : "POST",
+        auth: true,
+        throwOnError: true
+      });
+      // 같은 작성자/아티스트의 모든 카드 동기화
+      document.querySelectorAll(
+        isArtist
+          ? `[data-feed-follow-artist="${id}"]`
+          : `[data-feed-follow-user="${id}"]`
+      ).forEach(b => {
+        b.classList.toggle("is-following", !wasFollowing);
+        b.dataset.following = wasFollowing ? "0" : "1";
+        b.textContent = wasFollowing ? "팔로우" : "팔로잉";
+      });
+    } catch (err) {
+      // 롤백
+      btn.classList.toggle("is-following", wasFollowing);
+      btn.dataset.following = wasFollowing ? "1" : "0";
+      btn.textContent = wasFollowing ? "팔로잉" : "팔로우";
+      console.warn("[#145 follow] 실패", { status: err?.status, body: err?.body });
+      alert(err?.message || "팔로우 처리에 실패했어요.");
+    } finally {
+      btn.dataset.busy = "0";
     }
   });
 }
@@ -2623,6 +2927,16 @@ function bindLuminaFeedEdit() {
 function bindLuminaFeedDelete() {
   if (document._feedDeleteBound) return;
   document._feedDeleteBound = true;
+  // #152 — 같은 위치에서 작성자 영역 클릭 라우팅도 같이 등록
+  document.addEventListener("click", e => {
+    const link = e.target.closest("[data-user-profile-link]");
+    if (!link) return;
+    // 안에 있는 버튼들(좋아요·수정·삭제·팔로우 등) 클릭은 무시
+    if (e.target.closest("button, a")) return;
+    e.preventDefault();
+    const target = link.dataset.userProfileLink;
+    if (target) window.location.href = target;
+  });
   document.addEventListener("click", async e => {
     const btn = e.target.closest("[data-feed-delete]");
     if (!btn) return;
@@ -2644,6 +2958,201 @@ function bindLuminaFeedDelete() {
       alert(err.message || "게시글을 삭제하지 못했어요. 잠시 후 다시 시도해주세요.");
       btn.disabled = false;
       btn.textContent = "삭제";
+    }
+  });
+}
+
+/* #137 Phase A — 피드 좋아요 토글 (무료, 1인 1좋아요)
+   - 차모 spec: POST/DELETE /api/v1/lumina-feed/posts/:postId/like
+   - 응답에서 post.likeCount, post.viewer.hasLiked를 받아 UI 갱신
+   - 비로그인 시 로그인 유도, 다중 클릭은 in-flight 가드로 차단 */
+function bindLuminaFeedLike() {
+  if (document._feedLikeBound) return;
+  document._feedLikeBound = true;
+  document.addEventListener("click", async e => {
+    const btn = e.target.closest("[data-feed-like]");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const postId = btn.dataset.feedLike;
+    if (!postId) return;
+    if (btn.dataset.busy === "1") return; // 다중 클릭 가드
+    // 비로그인 — 로그인 유도
+    if (typeof getAccessToken === "function" && !getAccessToken()) {
+      alert("로그인하면 좋아요를 보낼 수 있어요.");
+      return;
+    }
+    const wasLiked = btn.classList.contains("is-liked");
+    btn.dataset.busy = "1";
+    // 낙관적 UI: 즉시 토글 (실패 시 롤백)
+    btn.classList.toggle("is-liked", !wasLiked);
+    btn.setAttribute("aria-pressed", String(!wasLiked));
+    try {
+      const res = await apiFetch(`/api/v1/lumina-feed/posts/${encodeURIComponent(postId)}/like`, {
+        method: wasLiked ? "DELETE" : "POST",
+        auth: true,
+        throwOnError: true
+      });
+      // 서버 응답 우선 — post.likeCount, post.viewer.hasLiked
+      const post = res?.post || res?.data?.post || null;
+      if (post) {
+        // 로컬 캐시 갱신
+        const idx = _luminaFeedItems.findIndex(p => p.id === postId);
+        if (idx >= 0) {
+          _luminaFeedItems[idx] = { ..._luminaFeedItems[idx], ...post };
+        }
+        // 카드 내 카운트만 업데이트 (전체 재렌더 안 함 — 사용자 스크롤 위치 보존)
+        const liked = !!post.viewer?.hasLiked;
+        btn.classList.toggle("is-liked", liked);
+        btn.setAttribute("aria-pressed", String(liked));
+        btn.setAttribute("aria-label", liked ? "좋아요 취소하기" : "좋아요 누르기"); // #147 B-1 에밀리 카피
+        const countEl = btn.querySelector("[data-feed-like-count]");
+        if (countEl) {
+          const n = Number(post.likeCount) || 0;
+          countEl.textContent = String(n); // #147 B-3 — 0도 보여줌
+        }
+      }
+    } catch (err) {
+      // 실패 시 낙관적 토글 롤백
+      btn.classList.toggle("is-liked", wasLiked);
+      btn.setAttribute("aria-pressed", String(wasLiked));
+      console.warn("[#137 like] 실패", { status: err?.status, body: err?.body });
+      alert(err?.message || "좋아요 처리에 실패했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      btn.dataset.busy = "0";
+    }
+  });
+}
+
+/* 라이트박스 — 피드 이미지 클릭 시 큰 이미지 오버레이 + 우클릭 차단 + 확대 토글
+   - 이미지 클릭 → 검은 배경 + 가운데 큰 이미지 (화면에 맞춤)
+   - 이미지 한 번 더 클릭 → 원본 크기로 확대 (드래그 가능)
+   - 다시 클릭 → fit-screen으로 복귀
+   - ESC / 빈 영역 클릭 / × 버튼 → 닫기
+   - 우클릭 모두 차단 (썸네일 + 라이트박스)
+   - 모바일 핀치 줌은 브라우저 기본 동작 (touch-action: pinch-zoom)
+   - 같은 게시글에 여러 장이면 ←/→ 키 + 좌우 버튼으로 슬라이드 */
+let _lightboxEl = null;
+let _lightboxKeyHandler = null;
+let _lightboxState = { sources: [], index: 0, zoomed: false };
+function openLightbox(sources, startIndex) {
+  if (!Array.isArray(sources) || sources.length === 0) return;
+  _lightboxState = { sources, index: Math.max(0, Math.min(startIndex || 0, sources.length - 1)), zoomed: false };
+
+  if (!_lightboxEl) {
+    _lightboxEl = document.createElement("div");
+    _lightboxEl.className = "lightbox-overlay";
+    _lightboxEl.setAttribute("role", "dialog");
+    _lightboxEl.setAttribute("aria-modal", "true");
+    _lightboxEl.innerHTML = `
+      <button class="lightbox-close" type="button" aria-label="닫기">×</button>
+      <button class="lightbox-prev" type="button" aria-label="이전 이미지">‹</button>
+      <button class="lightbox-next" type="button" aria-label="다음 이미지">›</button>
+      <div class="lightbox-stage" data-lightbox-stage>
+        <img class="lightbox-img" alt="" draggable="false" oncontextmenu="return false;" />
+      </div>
+      <div class="lightbox-counter" data-lightbox-counter></div>
+    `;
+    document.body.appendChild(_lightboxEl);
+
+    // 닫기
+    _lightboxEl.querySelector(".lightbox-close").addEventListener("click", closeLightbox);
+    _lightboxEl.addEventListener("click", e => {
+      // 빈 영역(stage 외부)을 클릭하면 닫기
+      if (e.target === _lightboxEl) closeLightbox();
+    });
+    // 이전/다음
+    _lightboxEl.querySelector(".lightbox-prev").addEventListener("click", e => { e.stopPropagation(); navigateLightbox(-1); });
+    _lightboxEl.querySelector(".lightbox-next").addEventListener("click", e => { e.stopPropagation(); navigateLightbox(1); });
+    // 이미지 클릭으로 확대 토글
+    _lightboxEl.querySelector(".lightbox-img").addEventListener("click", e => {
+      e.stopPropagation();
+      _lightboxState.zoomed = !_lightboxState.zoomed;
+      _lightboxEl.classList.toggle("is-zoomed", _lightboxState.zoomed);
+    });
+    // 우클릭 차단 (오버레이 전체)
+    _lightboxEl.addEventListener("contextmenu", e => e.preventDefault());
+  }
+
+  applyLightbox();
+  _lightboxEl.classList.add("is-open");
+  document.body.style.overflow = "hidden";
+
+  // ESC + 좌우 키
+  _lightboxKeyHandler = e => {
+    if (e.key === "Escape") closeLightbox();
+    else if (e.key === "ArrowLeft") navigateLightbox(-1);
+    else if (e.key === "ArrowRight") navigateLightbox(1);
+  };
+  document.addEventListener("keydown", _lightboxKeyHandler);
+}
+function navigateLightbox(delta) {
+  if (!_lightboxState.sources.length) return;
+  const next = (_lightboxState.index + delta + _lightboxState.sources.length) % _lightboxState.sources.length;
+  _lightboxState.index = next;
+  _lightboxState.zoomed = false;
+  applyLightbox();
+}
+function applyLightbox() {
+  if (!_lightboxEl) return;
+  const img = _lightboxEl.querySelector(".lightbox-img");
+  const counter = _lightboxEl.querySelector("[data-lightbox-counter]");
+  const prev = _lightboxEl.querySelector(".lightbox-prev");
+  const next = _lightboxEl.querySelector(".lightbox-next");
+  if (img) img.src = _lightboxState.sources[_lightboxState.index] || "";
+  _lightboxEl.classList.toggle("is-zoomed", _lightboxState.zoomed);
+  // 카운터 (1/3 형식)
+  if (counter) {
+    if (_lightboxState.sources.length > 1) {
+      counter.textContent = `${_lightboxState.index + 1} / ${_lightboxState.sources.length}`;
+      counter.style.display = "";
+    } else {
+      counter.style.display = "none";
+    }
+  }
+  // 단일 이미지면 좌우 버튼 숨김
+  const showNav = _lightboxState.sources.length > 1;
+  if (prev) prev.style.display = showNav ? "" : "none";
+  if (next) next.style.display = showNav ? "" : "none";
+}
+function closeLightbox() {
+  if (!_lightboxEl) return;
+  _lightboxEl.classList.remove("is-open");
+  _lightboxEl.classList.remove("is-zoomed");
+  document.body.style.overflow = "";
+  if (_lightboxKeyHandler) {
+    document.removeEventListener("keydown", _lightboxKeyHandler);
+    _lightboxKeyHandler = null;
+  }
+}
+
+/* 피드 이미지 썸네일 클릭 → 라이트박스 열기 + 우클릭 차단 (이벤트 위임) */
+function bindFeedAssetLightbox() {
+  if (document._feedLightboxBound) return;
+  document._feedLightboxBound = true;
+  // 클릭 → 라이트박스
+  document.addEventListener("click", e => {
+    const a = e.target.closest("[data-feed-asset]");
+    if (!a) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const group = a.closest("[data-feed-asset-group]");
+    const sources = group?.dataset?.feedAssetGroup
+      ? group.dataset.feedAssetGroup.split("|").filter(Boolean)
+      : [a.dataset.assetUrl].filter(Boolean);
+    const index = Number(a.dataset.assetIndex) || 0;
+    openLightbox(sources, index);
+  });
+  // 우클릭 차단 — 피드 이미지 영역 + 썸네일·아바타·미리보기까지
+  document.addEventListener("contextmenu", e => {
+    if (e.target.closest(".feed-post-asset-item, .feed-post-asset-item img, .feed-link-preview-thumb img, .feed-post-avatar img, .lightbox-img, .lightbox-overlay")) {
+      e.preventDefault();
+    }
+  });
+  // 드래그 차단 (이미지 끌어서 저장 방지)
+  document.addEventListener("dragstart", e => {
+    if (e.target.closest(".feed-post-asset-item img, .lightbox-img")) {
+      e.preventDefault();
     }
   });
 }
@@ -2689,13 +3198,20 @@ function renderFeedPostAssets(assets) {
     .slice(0, FEED_COMPOSE_MAX_IMAGES);
   if (items.length === 0) return "";
   const gridClass = `feed-post-assets feed-post-assets-${items.length}`;
+  const isMulti = items.length > 1;
+  // 라이트박스용 src 묶음을 부모에 데이터로 (다음/이전 슬라이드 가능)
+  const sources = items.map(a => a.asset.url).join("|");
   return `
-    <div class="${gridClass}">
-      ${items.map(a => {
+    <div class="${gridClass}${isMulti ? ' has-multi' : ''}" data-feed-asset-group="${feedEscapeHtml(sources)}">
+      ${items.map((a, idx) => {
         const src = feedEscapeHtml(a.asset.thumbnailUrl || a.asset.url);
         const full = feedEscapeHtml(a.asset.url);
-        return `<a class="feed-post-asset-item" href="${full}" target="_blank" rel="noopener noreferrer" data-feed-asset>
-          <img src="${src}" alt="" loading="lazy" />
+        const badge = (idx === 0 && isMulti)
+          ? `<span class="feed-asset-multi-badge" aria-label="${items.length}장의 이미지"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 5h12v10H4zM18 7h2v10H8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>${items.length}</span>`
+          : "";
+        return `<a class="feed-post-asset-item" href="${full}" target="_blank" rel="noopener noreferrer" data-feed-asset data-asset-index="${idx}" data-asset-url="${full}">
+          ${badge}
+          <img src="${src}" alt="" loading="lazy" oncontextmenu="return false;" draggable="false" />
         </a>`;
       }).join("")}
     </div>
@@ -4269,6 +4785,1145 @@ async function fetchAndUpdateDetailGallery(slug, artistName) {
   }
 }
 
+/* #150 — 아티스트 상세 viewer/stats 조회 + 팔로우 버튼 갱신 (차모 #149 spec)
+   - GET /api/v1/artists/:slug (Authorization 있으면 viewer 힌트 같이 옴)
+   - 비로그인이면 followerCount만 갱신, 팔로우 버튼은 hidden 유지
+   - 로그인이면 viewer.canFollow/canUnfollow에 따라 토글 */
+let _detailArtistData = null;
+async function fetchArtistDetailViewer(slug) {
+  if (!slug) return;
+  try {
+    const isAuth = typeof isLoggedIn === "function" && isLoggedIn();
+    const res = await apiFetch(`/api/v1/artists/${encodeURIComponent(slug)}`, {
+      auth: isAuth // 로그인 상태면 토큰 첨부 → viewer 힌트 받음
+    });
+    if (!res?.id) return;
+    _detailArtistData = res;
+    applyArtistDetailViewer(res);
+  } catch (err) {
+    console.warn("[#150 artist detail viewer] 조회 실패:", err?.status, err?.message);
+  }
+}
+function applyArtistDetailViewer(data) {
+  const followerEl = document.querySelector("[data-detail-follower-count]");
+  if (followerEl && typeof data?.stats?.followerCount === "number") {
+    followerEl.textContent = `팔로워 ${data.stats.followerCount.toLocaleString("ko-KR")}`;
+  }
+  const btn = document.querySelector("[data-detail-follow]");
+  if (!btn) return;
+  const v = data?.viewer || {};
+  if (v.isAuthenticated && (v.canFollow || v.canUnfollow)) {
+    btn.hidden = false;
+    btn.dataset.artistId = data.id || "";
+    if (v.isFollowing || v.canUnfollow) {
+      btn.classList.add("is-following");
+      const label = btn.querySelector("[data-detail-follow-label]");
+      if (label) label.textContent = "팔로잉";
+      btn.dataset.following = "1";
+    } else {
+      btn.classList.remove("is-following");
+      const label = btn.querySelector("[data-detail-follow-label]");
+      if (label) label.textContent = "팔로우";
+      btn.dataset.following = "0";
+    }
+  } else {
+    // 비로그인 — 버튼은 hidden 유지 (팔로워 수만 보여줌)
+    btn.hidden = true;
+  }
+}
+
+function bindArtistDetailFollow() {
+  if (document._detailFollowBound) return;
+  document._detailFollowBound = true;
+  document.addEventListener("click", async e => {
+    const btn = e.target.closest("[data-detail-follow]");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (btn.dataset.busy === "1") return;
+    if (typeof getAccessToken === "function" && !getAccessToken()) {
+      alert("로그인하면 팔로우할 수 있어요.");
+      return;
+    }
+    const artistId = btn.dataset.artistId;
+    if (!artistId) {
+      alert("아티스트 정보를 불러오지 못했어요. 새로고침 후 다시 시도해주세요.");
+      return;
+    }
+    const wasFollowing = btn.dataset.following === "1";
+    btn.dataset.busy = "1";
+    // 낙관적 토글
+    btn.classList.toggle("is-following", !wasFollowing);
+    btn.dataset.following = wasFollowing ? "0" : "1";
+    const label = btn.querySelector("[data-detail-follow-label]");
+    if (label) label.textContent = wasFollowing ? "팔로우" : "팔로잉";
+    // 팔로워 수 즉시 +1/-1
+    const countEl = btn.querySelector("[data-detail-follower-count]");
+    if (countEl) {
+      const m = countEl.textContent.match(/[\d,]+/);
+      if (m) {
+        const cur = parseInt(m[0].replace(/,/g, ""), 10) || 0;
+        const next = wasFollowing ? Math.max(0, cur - 1) : cur + 1;
+        countEl.textContent = `팔로워 ${next.toLocaleString("ko-KR")}`;
+      }
+    }
+    try {
+      const res = await apiFetch(`/api/v1/artists/${encodeURIComponent(artistId)}/follow`, {
+        method: wasFollowing ? "DELETE" : "POST",
+        auth: true,
+        throwOnError: true
+      });
+      // #153 — 응답에 stats/viewer 포함됨. 정확한 값으로 최종 동기화
+      if (res?.stats?.followerCount !== undefined && countEl) {
+        countEl.textContent = `팔로워 ${Number(res.stats.followerCount).toLocaleString("ko-KR")}`;
+      }
+      if (res?.viewer) {
+        const isFollowing = res.viewer.isFollowing || res.viewer.canUnfollow;
+        btn.classList.toggle("is-following", !!isFollowing);
+        btn.dataset.following = isFollowing ? "1" : "0";
+        if (label) label.textContent = isFollowing ? "팔로잉" : "팔로우";
+      }
+    } catch (err) {
+      // 롤백
+      btn.classList.toggle("is-following", wasFollowing);
+      btn.dataset.following = wasFollowing ? "1" : "0";
+      if (label) label.textContent = wasFollowing ? "팔로잉" : "팔로우";
+      console.warn("[#150 detail follow] 실패", { status: err?.status, body: err?.body });
+      alert(err?.message || "팔로우 처리에 실패했어요.");
+      // 팔로워 수 원복
+      if (countEl) {
+        const m = countEl.textContent.match(/[\d,]+/);
+        if (m) {
+          const cur = parseInt(m[0].replace(/,/g, ""), 10) || 0;
+          const next = wasFollowing ? cur + 1 : Math.max(0, cur - 1);
+          countEl.textContent = `팔로워 ${next.toLocaleString("ko-KR")}`;
+        }
+      }
+    } finally {
+      btn.dataset.busy = "0";
+    }
+  });
+}
+
+/* #152 — 일반 유저 공개 프로필 페이지 (차모 spec `3fa2600 Add public user profile viewer APIs`)
+   - URL: ./user-profile.html?handle={publicHandle} 또는 ?id={userId}
+   - GET /api/v1/users/handle/:publicHandle/profile  (Authorization 선택)
+   - GET /api/v1/users/handle/:publicHandle/lumina-feed?take=20&cursor=<postId>
+   - 본인이면 viewer.isSelf === true → "프로필 편집" 버튼 → 마이페이지로 이동
+   - 팔로우는 #148 endpoint 사용 (POST/DELETE /api/v1/users/:userId/follow), #153 응답으로 stats/viewer 갱신 */
+let _userProfileData = null;
+let _userProfilePostsCursor = null;
+async function initUserProfilePage() {
+  // 진입 시 모든 빈 상태/에러 카드 강제 hidden — HTML hidden 속성이 CSS·i18n에 덮이지 않도록 명시 처리
+  ["userProfileEmpty", "userProfileBlocked", "userProfilePostsEmpty", "userProfilePostsSection", "userProfileLoadMore"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.hidden = true;
+      el.style.display = "none";
+    }
+  });
+
+  const params = new URLSearchParams(window.location.search);
+  const handle = params.get("handle");
+  const userId = params.get("id");
+  if (!handle && !userId) {
+    showUserProfileNotFound();
+    return;
+  }
+
+  const isAuth = typeof isLoggedIn === "function" && isLoggedIn();
+  const profileEndpoint = handle
+    ? `/api/v1/users/handle/${encodeURIComponent(handle)}/profile`
+    : `/api/v1/users/${encodeURIComponent(userId)}/profile`;
+  const feedEndpoint = handle
+    ? `/api/v1/users/handle/${encodeURIComponent(handle)}/lumina-feed?take=20`
+    : `/api/v1/users/${encodeURIComponent(userId)}/lumina-feed?take=20`;
+
+  // 1. 프로필 조회
+  try {
+    const res = await apiFetch(profileEndpoint, { auth: isAuth });
+    if (!res?.user) {
+      showUserProfileNotFound();
+      return;
+    }
+    _userProfileData = res;
+    renderUserProfileCard(res);
+    bindUserProfileFollow();
+  } catch (err) {
+    if (err?.status === 403) {
+      // 차단된 계정
+      showUserProfileBlocked();
+    } else {
+      console.warn("[#152 user-profile] 프로필 조회 실패:", err?.status, err?.message);
+      showUserProfileNotFound();
+    }
+    return;
+  }
+
+  // 2. 글 목록 조회 (별도 try — 프로필은 보였는데 글 조회만 실패해도 프로필은 유지)
+  await loadUserProfilePosts(feedEndpoint, isAuth, /*append*/ false);
+
+  // 3. "이전 글 더 보기" 바인딩
+  const loadMoreBtn = document.getElementById("userProfileLoadMore");
+  if (loadMoreBtn) {
+    loadMoreBtn.addEventListener("click", async () => {
+      if (!_userProfilePostsCursor) return;
+      loadMoreBtn.disabled = true;
+      const sep = feedEndpoint.includes("?") ? "&" : "?";
+      const nextUrl = `${feedEndpoint}${sep}cursor=${encodeURIComponent(_userProfilePostsCursor)}`;
+      await loadUserProfilePosts(nextUrl, isAuth, /*append*/ true);
+      loadMoreBtn.disabled = false;
+    });
+  }
+
+  // 페이지 인터랙션 — 본인 글 수정/좋아요/삭제 핸들러는 피드 페이지와 공유
+  bindLuminaFeedExpand();
+  bindLuminaFeedDelete();
+  bindLuminaFeedEdit();
+  bindLuminaFeedLike();
+  bindFeedAssetLightbox(); // 피드 이미지 라이트박스 + 우클릭 차단
+
+  // X 패턴 3탭 (게시물 / 사진 / 숏폼) — client-side 필터
+  bindUserProfileTabs();
+  bindProfileEditModal();
+}
+
+let _userProfileActiveTab = "posts";
+/* 프로필 편집 모달 — 본인 프로필일 때만 작동
+   - "프로필 편집" 버튼 클릭 → 모달 열기
+   - 아바타 변경: 기존 uploadMypageAvatar() 재사용 (PATCH /me/profile { avatarAssetId })
+   - cover banner 변경: 차모 #156 spec 받기 전엔 "곧 공개돼요" 안내
+   - 자기소개 변경: PATCH /me/profile { bio } (차모 spec 미확인 → 실패 시 안내)
+   - ESC, X, 배경 클릭으로 닫기 */
+function bindProfileEditModal() {
+  if (document._profileEditModalBound) return;
+  document._profileEditModalBound = true;
+
+  const modal = document.getElementById("profileEditModal");
+  if (!modal) return;
+
+  // 1) 열기 — "프로필 편집" 버튼 (data-open-edit-modal)
+  document.addEventListener("click", e => {
+    const trigger = e.target.closest("[data-open-edit-modal]");
+    if (trigger) {
+      e.preventDefault();
+      openProfileEditModal();
+    }
+    // 닫기 (배경/×버튼)
+    if (e.target.closest("[data-profile-edit-close]")) {
+      e.preventDefault();
+      closeProfileEditModal();
+    }
+  });
+
+  // 2) ESC 닫기
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && modal.classList.contains("is-open")) {
+      closeProfileEditModal();
+    }
+  });
+
+  // 3) 자기소개 입력 카운터
+  const bioInput = document.getElementById("profileEditBio");
+  const bioCounter = document.getElementById("profileEditBioCounter");
+  if (bioInput && bioCounter) {
+    bioInput.addEventListener("input", () => {
+      bioCounter.textContent = bioInput.value.length;
+    });
+  }
+
+  // 4) 아바타 변경 버튼 → 파일 선택 → 업로드
+  const avatarChangeBtn = document.getElementById("profileEditAvatarChange");
+  const avatarInput = document.getElementById("profileEditAvatarInput");
+  if (avatarChangeBtn && avatarInput) {
+    avatarChangeBtn.addEventListener("click", () => avatarInput.click());
+    avatarInput.addEventListener("change", async () => {
+      const file = avatarInput.files?.[0];
+      avatarInput.value = "";
+      if (!file) return;
+      await handleProfileEditAvatarUpload(file);
+    });
+  }
+
+  // 5) cover 변경 버튼 → 파일 선택 → 업로드 (#156 차모 spec)
+  const coverChangeBtn = document.getElementById("profileEditCoverChange");
+  const coverInput = document.getElementById("profileEditCoverInput");
+  if (coverChangeBtn && coverInput) {
+    coverChangeBtn.addEventListener("click", () => coverInput.click());
+    coverInput.addEventListener("change", async () => {
+      const file = coverInput.files?.[0];
+      coverInput.value = "";
+      if (!file) return;
+      await handleProfileEditCoverUpload(file);
+    });
+  }
+
+  // 6) 저장 버튼 — 자기소개만 저장 (아바타는 즉시 업로드)
+  const saveBtn = document.getElementById("profileEditSaveBtn");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async () => await saveProfileEdit());
+  }
+}
+
+function openProfileEditModal() {
+  const modal = document.getElementById("profileEditModal");
+  if (!modal) return;
+  // 본인 프로필 필수 검증
+  const me = (typeof getAuth === "function") ? getAuth()?.user : null;
+  if (!me) {
+    if (typeof openAuthModal === "function") openAuthModal("login");
+    return;
+  }
+  // 현재 user 정보로 초기값 채우기
+  const profileUser = _userProfileData?.user || me;
+  // 자기소개
+  const bioInput = document.getElementById("profileEditBio");
+  const bioCounter = document.getElementById("profileEditBioCounter");
+  if (bioInput) {
+    bioInput.value = (profileUser.bio || "").trim();
+    if (bioCounter) bioCounter.textContent = bioInput.value.length;
+  }
+  // 아바타
+  syncProfileEditAvatarPreview(profileUser);
+  // cover
+  syncProfileEditCoverPreview(profileUser);
+  // 상태 초기화
+  setProfileEditStatus("", "info");
+
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
+  // animation frame
+  requestAnimationFrame(() => modal.classList.add("is-open"));
+  document.body.style.overflow = "hidden";
+}
+
+function closeProfileEditModal() {
+  const modal = document.getElementById("profileEditModal");
+  if (!modal) return;
+  modal.classList.remove("is-open");
+  document.body.style.overflow = "";
+  setTimeout(() => {
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+  }, 200);
+}
+
+function syncProfileEditAvatarPreview(user) {
+  const preview = document.getElementById("profileEditAvatarPreview");
+  const fallback = document.getElementById("profileEditAvatarFallback");
+  if (!preview) return;
+  const url = user?.avatarUrl || "";
+  if (url) {
+    preview.style.backgroundImage = `url('${String(url).replace(/'/g, "%27")}')`;
+    preview.classList.add("has-image");
+    if (fallback) fallback.style.display = "none";
+  } else {
+    preview.style.backgroundImage = "";
+    preview.classList.remove("has-image");
+    if (fallback) {
+      fallback.textContent = (user?.displayName || "?").charAt(0);
+      fallback.style.display = "";
+    }
+  }
+}
+
+function syncProfileEditCoverPreview(user) {
+  const preview = document.getElementById("profileEditCoverPreview");
+  if (!preview) return;
+  const url = user?.coverImageUrl || ""; // #156 차모 spec 받으면 활성화
+  if (url) {
+    preview.style.backgroundImage = `url('${String(url).replace(/'/g, "%27")}')`;
+    preview.classList.add("has-image");
+  } else {
+    preview.style.backgroundImage = "";
+    preview.classList.remove("has-image");
+  }
+}
+
+/* #156 차모 spec — cover banner 업로드 (avatar와 동일 flow + usageType: profile_cover)
+   1. POST /me/assets/upload-intents { usageType: "profile_cover" }
+   2. PUT upload.url (S3)
+   3. POST /me/assets/:assetId/confirm-upload
+   4. PATCH /me/profile { coverAssetId } */
+async function handleProfileEditCoverUpload(file) {
+  const ALLOWED = ["image/png", "image/jpeg", "image/webp"];
+  const MAX = 8 * 1024 * 1024;
+  if (!ALLOWED.includes(file.type)) {
+    setProfileEditStatus("지원하지 않는 형식이에요. JPG, PNG, WEBP 파일을 선택해 주세요.", "error");
+    return;
+  }
+  if (file.size > MAX) {
+    setProfileEditStatus("이미지는 8MB 이하 파일로 선택해 주세요.", "error");
+    return;
+  }
+
+  // blob 미리보기 (모달 cover + user-profile 헤더 cover 둘 다)
+  const blobUrl = URL.createObjectURL(file);
+  const modalCover = document.getElementById("profileEditCoverPreview");
+  const headerCover = document.getElementById("userProfileCover");
+  if (modalCover) {
+    modalCover.style.backgroundImage = `url('${blobUrl}')`;
+    modalCover.classList.add("has-image");
+  }
+  setProfileEditStatus("표지 이미지를 업로드하고 있어요…", "info");
+
+  try {
+    // 1) upload intent (usageType: profile_cover) — 차모 spec + 기존 호환 필드 둘 다
+    const intent = await apiFetch("/api/v1/me/assets/upload-intents", {
+      method: "POST",
+      auth: true,
+      throwOnError: true,
+      body: {
+        fileName: file.name,
+        contentType: file.type,
+        fileSize: file.size,
+        mimeType: file.type,           // 기존 endpoint 호환
+        fileSizeBytes: file.size,      // 기존 endpoint 호환
+        usageType: "profile_cover"
+      }
+    });
+    if (!intent?.asset?.id || !intent?.upload) throw new Error("Invalid upload intent");
+    const assetId = intent.asset.id;
+    const upload = intent.upload;
+
+    // 2) 직접 업로드 (S3 PUT)
+    if (upload.mode === "direct_upload_ready" && upload.url) {
+      const putRes = await fetch(upload.url, {
+        method: upload.method || "PUT",
+        headers: upload.requiredHeaders || {},
+        body: file
+      });
+      if (!putRes.ok) {
+        const err = new Error(`Upload failed (${putRes.status})`);
+        err.status = putRes.status;
+        throw err;
+      }
+    }
+
+    // 3) confirm-upload
+    const confirmed = await apiFetch(`/api/v1/me/assets/${encodeURIComponent(assetId)}/confirm-upload`, {
+      method: "POST", auth: true, throwOnError: true, body: {}
+    });
+    const finalAsset = confirmed?.asset || confirmed;
+    const finalAssetId = finalAsset?.id || assetId;
+
+    // 4) PATCH /me/profile { coverAssetId }
+    const patched = await apiFetch("/api/v1/me/profile", {
+      method: "PATCH", auth: true, throwOnError: true,
+      body: { coverAssetId: finalAssetId }
+    });
+    const updatedUser = patched?.user || patched;
+    const newCoverUrl = updatedUser?.coverImageUrl || updatedUser?.coverAsset?.url || finalAsset?.url || "";
+
+    // 5) UI 갱신: 모달 + 헤더 + setAuth + _userProfileData
+    if (modalCover) {
+      if (newCoverUrl) {
+        modalCover.style.backgroundImage = `url('${String(newCoverUrl).replace(/'/g, "%27")}')`;
+        modalCover.classList.add("has-image");
+      }
+    }
+    if (headerCover) {
+      if (newCoverUrl) {
+        headerCover.style.backgroundImage = `url('${String(newCoverUrl).replace(/'/g, "%27")}')`;
+        headerCover.classList.add("has-image");
+      }
+    }
+    if (_userProfileData?.user) {
+      _userProfileData.user.coverImageUrl = newCoverUrl;
+    }
+    const auth = getAuth();
+    if (auth) {
+      setAuth({
+        ...auth,
+        user: {
+          ...auth.user,
+          coverImageUrl: newCoverUrl,
+          coverAsset: updatedUser?.coverAsset || finalAsset
+        }
+      });
+    }
+    setProfileEditStatus("표지 이미지가 저장됐어요.", "success");
+  } catch (err) {
+    console.error("[#156 cover upload] 실패:", err, "status=", err?.status, "body=", err?.body);
+    let msg = "표지 저장에 실패했어요. 잠시 후 다시 시도해 주세요.";
+    if (err?.status === 401) msg = "로그인이 만료됐어요. 다시 로그인해 주세요.";
+    else if (err?.status === 413) msg = "이미지 용량이 너무 커요. 8MB 이하 파일로 다시 시도해 주세요.";
+    else if (err?.status === 415) msg = "지원하지 않는 형식이에요. JPG, PNG, WEBP 파일을 선택해 주세요.";
+    setProfileEditStatus(msg, "error");
+    // 실패 시 원래 cover로 복구
+    syncProfileEditCoverPreview(_userProfileData?.user || getAuth()?.user || {});
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+  }
+}
+
+async function handleProfileEditAvatarUpload(file) {
+  // 클라이언트 검증
+  const ALLOWED = ["image/png", "image/jpeg", "image/webp"];
+  const MAX = 8 * 1024 * 1024;
+  if (!ALLOWED.includes(file.type)) {
+    setProfileEditStatus("지원하지 않는 형식이에요. JPG, PNG, WEBP 파일을 선택해 주세요.", "error");
+    return;
+  }
+  if (file.size > MAX) {
+    setProfileEditStatus("이미지는 8MB 이하 파일로 선택해 주세요.", "error");
+    return;
+  }
+
+  // blob 미리보기 (모달 + 페이지 헤더 둘 다)
+  const blobUrl = URL.createObjectURL(file);
+  const preview = document.getElementById("profileEditAvatarPreview");
+  const fallback = document.getElementById("profileEditAvatarFallback");
+  const headerAvatar = document.getElementById("userProfileAvatar");
+  const headerFallback = document.getElementById("userProfileAvatarFallback");
+  if (preview) {
+    preview.style.backgroundImage = `url('${blobUrl}')`;
+    preview.classList.add("has-image");
+    if (fallback) fallback.style.display = "none";
+  }
+  setProfileEditStatus("프로필 사진을 업로드하고 있어요…", "info");
+
+  try {
+    // 1) upload intent — avatar용 (차모 spec 필드명 + 기존 필드명 둘 다 보내기 — 백엔드 호환성)
+    const intent = await apiFetch("/api/v1/me/assets/upload-intents", {
+      method: "POST",
+      auth: true,
+      throwOnError: true,
+      body: {
+        fileName: file.name,
+        contentType: file.type,
+        fileSize: file.size,
+        mimeType: file.type,           // 기존 avatar endpoint 호환
+        fileSizeBytes: file.size,      // 기존 avatar endpoint 호환
+        usageType: "profile_avatar"
+      }
+    });
+    if (!intent?.asset?.id || !intent?.upload) throw new Error("Invalid upload intent");
+    const assetId = intent.asset.id;
+    const upload = intent.upload;
+
+    // 2) S3 PUT
+    if (upload.mode === "direct_upload_ready" && upload.url) {
+      const putRes = await fetch(upload.url, {
+        method: upload.method || "PUT",
+        headers: upload.requiredHeaders || {},
+        body: file
+      });
+      if (!putRes.ok) {
+        const err = new Error(`Upload failed (${putRes.status})`);
+        err.status = putRes.status;
+        throw err;
+      }
+    }
+
+    // 3) confirm
+    const confirmed = await apiFetch(`/api/v1/me/assets/${encodeURIComponent(assetId)}/confirm-upload`, {
+      method: "POST", auth: true, throwOnError: true, body: {}
+    });
+    const finalAsset = confirmed?.asset || confirmed;
+    const finalAssetId = finalAsset?.id || assetId;
+
+    // 4) PATCH /me/profile { avatarAssetId }
+    const patched = await apiFetch("/api/v1/me/profile", {
+      method: "PATCH", auth: true, throwOnError: true,
+      body: { avatarAssetId: finalAssetId }
+    });
+    const updatedUser = patched?.user || patched;
+    const newAvatarUrl = updatedUser?.avatarUrl || updatedUser?.avatarAsset?.url || finalAsset?.url || "";
+
+    // 5) UI 갱신: 모달 + 페이지 헤더 + setAuth + _userProfileData
+    if (preview && newAvatarUrl) {
+      preview.style.backgroundImage = `url('${String(newAvatarUrl).replace(/'/g, "%27")}')`;
+      preview.classList.add("has-image");
+      if (fallback) fallback.style.display = "none";
+    }
+    if (headerAvatar && newAvatarUrl) {
+      headerAvatar.style.backgroundImage = `url('${String(newAvatarUrl).replace(/'/g, "%27")}')`;
+      headerAvatar.classList.add("has-image");
+      if (headerFallback) headerFallback.style.display = "none";
+    }
+    if (_userProfileData?.user) {
+      _userProfileData.user.avatarUrl = newAvatarUrl;
+    }
+    const auth = getAuth();
+    if (auth) {
+      setAuth({
+        ...auth,
+        user: {
+          ...auth.user,
+          avatarUrl: newAvatarUrl,
+          avatarAsset: updatedUser?.avatarAsset || finalAsset
+        }
+      });
+    }
+    // 헤더 드롭다운 아바타도 갱신 (있으면)
+    if (typeof syncUserMenuAvatar === "function") syncUserMenuAvatar();
+    setProfileEditStatus("프로필 사진이 저장됐어요.", "success");
+  } catch (err) {
+    console.error("[profile-edit avatar] 실패:", err, "status=", err?.status, "body=", err?.body);
+    let msg = "이미지 저장에 실패했어요. 잠시 후 다시 시도해 주세요.";
+    if (err?.status === 401) msg = "로그인이 만료됐어요. 다시 로그인해 주세요.";
+    else if (err?.status === 413) msg = "이미지 용량이 너무 커요. 8MB 이하 파일로 다시 시도해 주세요.";
+    else if (err?.status === 415) msg = "지원하지 않는 형식이에요. JPG, PNG, WEBP 파일을 선택해 주세요.";
+    setProfileEditStatus(msg, "error");
+    syncProfileEditAvatarPreview(_userProfileData?.user || getAuth()?.user || {});
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+  }
+}
+
+async function saveProfileEdit() {
+  const saveBtn = document.getElementById("profileEditSaveBtn");
+  const bioInput = document.getElementById("profileEditBio");
+  if (!bioInput) return;
+  const newBio = bioInput.value.trim();
+  const currentBio = (_userProfileData?.user?.bio || "").trim();
+  // 변경 없으면 그냥 닫기
+  if (newBio === currentBio) {
+    closeProfileEditModal();
+    return;
+  }
+  if (saveBtn) saveBtn.disabled = true;
+  setProfileEditStatus("저장 중…", "info");
+  try {
+    const patched = await apiFetch("/api/v1/me/profile", {
+      method: "PATCH",
+      auth: true,
+      throwOnError: true,
+      body: { bio: newBio }
+    });
+    const updatedUser = patched?.user || patched;
+    // user-profile 데이터 갱신
+    if (_userProfileData?.user) {
+      _userProfileData.user.bio = updatedUser?.bio ?? newBio;
+    }
+    // 헤더 자기소개 즉시 갱신
+    const bioEl = document.getElementById("userProfileBio");
+    if (bioEl) {
+      const finalBio = (updatedUser?.bio ?? newBio).trim();
+      if (finalBio) {
+        bioEl.textContent = finalBio;
+        bioEl.classList.remove("is-empty");
+      } else {
+        bioEl.textContent = "아직 소개가 없어요.";
+        bioEl.classList.add("is-empty");
+      }
+      bioEl.hidden = false;
+      bioEl.style.display = "";
+    }
+    // setAuth 갱신
+    const auth = getAuth();
+    if (auth) setAuth({ ...auth, user: { ...auth.user, bio: updatedUser?.bio ?? newBio } });
+    setProfileEditStatus("자기소개를 저장했어요.", "success");
+    setTimeout(() => closeProfileEditModal(), 700);
+  } catch (err) {
+    console.error("[profile-edit bio] 실패:", err);
+    let msg = "저장에 실패했어요. 잠시 후 다시 시도해 주세요.";
+    if (err?.status === 401) msg = "로그인이 만료됐어요. 다시 로그인해 주세요.";
+    else if (err?.status === 422 || err?.status === 400) msg = "입력한 내용을 확인해 주세요.";
+    setProfileEditStatus(msg, "error");
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+function setProfileEditStatus(text, kind) {
+  const el = document.getElementById("profileEditStatus");
+  if (!el) return;
+  if (!text) {
+    el.hidden = true;
+    el.textContent = "";
+    return;
+  }
+  el.textContent = text;
+  el.dataset.kind = kind || "info";
+  el.hidden = false;
+}
+
+/* #155 차모 spec — 본인 좋아요한 글 목록
+   GET /api/v1/me/lumina-feed/likes?take=20&cursor=<reactionId>
+   응답: { items: [{ like, post }], nextCursor, ... }
+   items[].post를 normalizeFeedPost로 변환해서 기존 카드 렌더러에 넣음 */
+async function loadUserProfileLikes() {
+  const list = document.getElementById("userProfilePostList");
+  const emptyEl = document.getElementById("userProfilePostsEmpty");
+  if (!list) return;
+
+  // 로딩 안내
+  list.innerHTML = `<div class="user-profile-loading" style="padding:32px 16px;text-align:center;color:rgba(220,210,240,0.55);font-size:14px;">좋아요한 글을 불러오고 있어요…</div>`;
+  if (emptyEl) { emptyEl.hidden = true; emptyEl.style.display = "none"; }
+
+  try {
+    const res = await apiFetch("/api/v1/me/lumina-feed/likes?take=20", {
+      auth: true,
+      throwOnError: true
+    });
+    console.info("[#155 likes] response:", res);
+    // 응답 fallback: items[].post 또는 posts[] (차모 답변에 둘 다 언급)
+    let postsRaw = [];
+    if (Array.isArray(res?.items) && res.items.length) {
+      postsRaw = res.items.map(it => it?.post || it).filter(Boolean);
+    } else if (Array.isArray(res?.posts) && res.posts.length) {
+      postsRaw = res.posts;
+    } else if (Array.isArray(res) && res.length) {
+      postsRaw = res;
+    }
+    const posts = postsRaw.map(p => (typeof normalizeFeedPost === "function" ? normalizeFeedPost(p) : p));
+
+    if (posts.length === 0) {
+      list.innerHTML = "";
+      if (emptyEl) {
+        emptyEl.hidden = false;
+        emptyEl.style.display = "";
+        emptyEl.innerHTML = `<strong>아직 좋아요한 글이 없어요.</strong><p>마음에 든 글에 좋아요를 누르면 이곳에 모아져요.</p>`;
+      }
+      return;
+    }
+
+    list.innerHTML = renderUserProfilePostListHtml(posts);
+  } catch (err) {
+    console.error("[#155 likes] 실패:", err);
+    list.innerHTML = "";
+    if (emptyEl) {
+      emptyEl.hidden = false;
+      emptyEl.style.display = "";
+      let msg = "좋아요한 글을 불러오지 못했어요.";
+      if (err?.status === 401) msg = "로그인이 만료됐어요. 다시 로그인해 주세요.";
+      emptyEl.innerHTML = `<strong>${feedEscapeHtml(msg)}</strong><p>잠시 후 다시 시도해 주세요.</p>`;
+    }
+  }
+}
+
+function bindUserProfileTabs() {
+  const tabs = document.querySelectorAll("[data-user-profile-tab]");
+  if (!tabs.length) return;
+  tabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      const key = tab.dataset.userProfileTab;
+      if (!key || _userProfileActiveTab === key) return;
+      _userProfileActiveTab = key;
+      tabs.forEach(t => {
+        const active = t === tab;
+        t.classList.toggle("is-active", active);
+        t.setAttribute("aria-selected", active ? "true" : "false");
+      });
+      applyUserProfileTabFilter();
+    });
+  });
+}
+
+function applyUserProfileTabFilter() {
+  const list = document.getElementById("userProfilePostList");
+  const emptyEl = document.getElementById("userProfilePostsEmpty");
+  const loadMoreBtn = document.getElementById("userProfileLoadMore");
+  if (!list) return;
+
+  const all = Array.isArray(_luminaFeedItems) ? _luminaFeedItems : [];
+
+  // ── 사진 탭 → 그리드 갤러리 (X / IG 미디어 탭 스타일)
+  if (_userProfileActiveTab === "media") {
+    // 모든 글의 자산에서 이미지만 펼쳐서 정사각형 썸네일 그리드로
+    const images = [];
+    all.forEach(p => {
+      if (!Array.isArray(p.assets)) return;
+      p.assets.forEach(a => {
+        const url = a?.asset?.url || a?.url || a?.publicUrl || "";
+        const thumb = a?.asset?.thumbnailUrl || a?.thumbnailUrl || url;
+        const type = (a?.asset?.mimeType || a?.type || a?.mimeType || "").toString().toLowerCase();
+        const isImage = /^image\//.test(type) || /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(url);
+        if (url && isImage) images.push({ url, thumb });
+      });
+    });
+    if (images.length === 0) {
+      list.innerHTML = "";
+      if (emptyEl) {
+        emptyEl.hidden = false;
+        emptyEl.style.display = "";
+        emptyEl.innerHTML = `<strong>아직 사진이 없어요.</strong><p>이미지가 포함된 글이 이곳에 모아져요.</p>`;
+      }
+    } else {
+      if (emptyEl) { emptyEl.hidden = true; emptyEl.style.display = "none"; }
+      const sources = images.map(i => i.url).join("|");
+      list.innerHTML = `<div class="user-profile-media-grid" data-feed-asset-group="${feedEscapeHtml(sources)}">
+        ${images.map((img, idx) => `
+          <a class="user-profile-media-item feed-post-asset-item" href="${feedEscapeHtml(img.url)}" target="_blank" rel="noopener noreferrer" data-feed-asset data-asset-index="${idx}" data-asset-url="${feedEscapeHtml(img.url)}">
+            <img src="${feedEscapeHtml(img.thumb)}" alt="" loading="lazy" oncontextmenu="return false;" draggable="false" />
+          </a>
+        `).join("")}
+      </div>`;
+    }
+    if (loadMoreBtn) { loadMoreBtn.hidden = true; loadMoreBtn.style.display = "none"; }
+    return;
+  }
+
+  // ── 숏폼 탭 placeholder
+  if (_userProfileActiveTab === "shortform") {
+    list.innerHTML = "";
+    if (emptyEl) {
+      emptyEl.hidden = false;
+      emptyEl.style.display = "";
+      emptyEl.innerHTML = `<strong>숏폼은 곧 공개돼요.</strong><p>준비되는 대로 이곳에 모아볼 수 있게 할게요.</p>`;
+    }
+    if (loadMoreBtn) { loadMoreBtn.hidden = true; loadMoreBtn.style.display = "none"; }
+    return;
+  }
+
+  // ── 좋아요 탭: 본인만 노출, #155 차모 endpoint
+  // GET /api/v1/me/lumina-feed/likes?take=20&cursor=<reactionId>
+  // 응답: { items: [{ like, post }], nextCursor, ... }
+  if (_userProfileActiveTab === "likes") {
+    if (loadMoreBtn) { loadMoreBtn.hidden = true; loadMoreBtn.style.display = "none"; }
+    loadUserProfileLikes(); // 비동기로 endpoint 호출 + 렌더
+    return;
+  }
+
+  // ── 게시물 탭 (기본)
+  const filtered = all;
+  if (filtered.length === 0) {
+    list.innerHTML = "";
+    if (emptyEl) {
+      emptyEl.hidden = false;
+      emptyEl.style.display = "";
+      emptyEl.innerHTML = `<strong>아직 공개한 글이 없어요.</strong><p>피드에 글을 남기면 이곳에 모아볼 수 있습니다.</p>`;
+    }
+  } else {
+    if (emptyEl) { emptyEl.hidden = true; emptyEl.style.display = "none"; }
+    list.innerHTML = renderUserProfilePostListHtml(filtered);
+  }
+
+  // 더 보기 버튼은 게시물 탭에서만 노출
+  if (loadMoreBtn) {
+    const showLoadMore = _userProfileActiveTab === "posts" && !!_userProfilePostsCursor;
+    loadMoreBtn.hidden = !showLoadMore;
+    loadMoreBtn.style.display = showLoadMore ? "" : "none";
+  }
+}
+
+function renderUserProfileCard(data) {
+  const card = document.getElementById("userProfileCard");
+  if (!card) return;
+  card.hidden = false;
+  card.style.display = "";
+
+  // 빈 상태 카드들 강제 숨김 (i18n/CSS 무관)
+  ["userProfileEmpty", "userProfileBlocked"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.hidden = true; el.style.display = "none"; }
+  });
+
+  const user = data.user || {};
+  const stats = data.stats || {};
+  const viewer = data.viewer || {};
+
+  // 페이지 타이틀
+  document.title = `${user.displayName || "프로필"} — Lumina Stage`;
+
+  // Cover banner — coverImageUrl 있으면 이미지로 덮음, 없으면 CSS 기본 그라디언트
+  const coverEl = document.getElementById("userProfileCover");
+  if (coverEl) {
+    if (user.coverImageUrl) {
+      coverEl.style.backgroundImage = `url('${String(user.coverImageUrl).replace(/'/g, "%27")}')`;
+      coverEl.classList.add("has-image");
+    } else {
+      coverEl.style.backgroundImage = "";
+      coverEl.classList.remove("has-image");
+    }
+  }
+
+  // 아바타
+  const avatarEl = document.getElementById("userProfileAvatar");
+  const avatarFallback = document.getElementById("userProfileAvatarFallback");
+  if (avatarEl) {
+    if (user.avatarUrl) {
+      avatarEl.style.backgroundImage = `url('${user.avatarUrl}')`;
+      avatarEl.classList.add("has-image");
+      if (avatarFallback) avatarFallback.style.display = "none";
+    } else if (avatarFallback) {
+      avatarFallback.textContent = (user.displayName || "?").charAt(0);
+      avatarFallback.style.display = "";
+    }
+  }
+
+  // 이름·핸들
+  const nameEl = document.getElementById("userProfileName");
+  if (nameEl) nameEl.textContent = user.displayName || "Lumina User";
+  const handleEl = document.getElementById("userProfileHandle");
+  if (handleEl) {
+    // 자동 생성된 핸들(user-xxxxxxxxxxxx 패턴)은 사용자에게 의미 없는 식별자라 숨김
+    // 사용자가 직접 설정한 publicHandle만 노출 (영문/숫자 짧은 핸들)
+    const handle = (user.publicHandle || "").trim();
+    const isAutoGenerated = /^user-[a-f0-9]{16,}$/i.test(handle) || handle.length > 24;
+    if (handle && !isAutoGenerated) {
+      handleEl.textContent = `@${handle}`;
+      handleEl.hidden = false;
+      handleEl.style.display = "";
+    } else {
+      handleEl.textContent = "";
+      handleEl.hidden = true;
+      handleEl.style.display = "none";
+    }
+  }
+
+  // 자기소개 (#154 에밀리 카피: 비어있으면 "아직 소개가 없어요." 표시)
+  const bioEl = document.getElementById("userProfileBio");
+  const bioToggleEl = document.getElementById("userProfileBioToggle");
+  if (bioEl) {
+    const bio = (user.bio || "").trim();
+    if (bio) {
+      bioEl.textContent = bio;
+      bioEl.classList.remove("is-empty");
+      bioEl.classList.remove("is-expanded");
+    } else {
+      bioEl.textContent = "아직 소개가 없어요.";
+      bioEl.classList.add("is-empty");
+      bioEl.classList.remove("is-expanded");
+    }
+    bioEl.hidden = false;
+    bioEl.style.display = "";
+
+    // 더보기 토글 — 3줄 넘으면 노출
+    if (bioToggleEl) {
+      bioToggleEl.textContent = "더 보기";
+      // 다음 프레임에 측정 (line-clamp 적용 후)
+      requestAnimationFrame(() => {
+        const isClipped = !bioEl.classList.contains("is-empty") && (bioEl.scrollHeight > bioEl.clientHeight + 1);
+        if (isClipped) {
+          bioToggleEl.classList.add("is-visible");
+          if (!bioToggleEl._bound) {
+            bioToggleEl._bound = true;
+            bioToggleEl.addEventListener("click", () => {
+              const expanded = bioEl.classList.toggle("is-expanded");
+              bioToggleEl.textContent = expanded ? "접기" : "더 보기";
+            });
+          }
+        } else {
+          bioToggleEl.classList.remove("is-visible");
+        }
+      });
+    }
+  }
+
+  // 통계
+  setUserProfileStat("userProfileFollowerCount", stats.followerCount ?? stats.followers ?? 0);
+  setUserProfileStat("userProfileFollowingCount", (stats.followingCount ?? stats.followingUsers ?? 0));
+  setUserProfileStat("userProfilePostCount", stats.postCount ?? stats.posts ?? 0);
+
+  // 액션 (본인 vs 남) — 본인이면 편집만, 남이면 팔로우만. 둘 다 보이는 일 절대 금지.
+  const followBtn = document.getElementById("userProfileFollowBtn");
+  const editBtn = document.getElementById("userProfileEditBtn");
+  // 본인 판단: viewer.isSelf 또는 viewer.canEditProfile 또는 (로그인 사용자 id == 프로필 user id) 중 하나라도 true면 본인
+  const myUserId = (typeof getAuth === "function") ? (getAuth()?.user?.id || getAuth()?.user?.userId) : null;
+  const isSelf = !!(viewer.isSelf || viewer.canEditProfile || (myUserId && user.id && String(myUserId) === String(user.id)));
+  if (isSelf) {
+    if (editBtn)   { editBtn.hidden = false;  editBtn.style.display = ""; }
+    if (followBtn) { followBtn.hidden = true; followBtn.style.display = "none"; }
+    // 본인 프로필이면 "좋아요" 탭 노출 (다른 사람에겐 안 보임)
+    const likesTab = document.querySelector(".user-profile-tab-likes");
+    if (likesTab) { likesTab.hidden = false; likesTab.style.display = ""; }
+  } else {
+    if (editBtn)   { editBtn.hidden = true;   editBtn.style.display = "none"; }
+    if (followBtn) {
+      followBtn.hidden = false;
+      followBtn.style.display = "";
+      followBtn.dataset.userId = user.id || "";
+      applyUserProfileFollowState(viewer);
+    }
+    // 좋아요 탭 강제 숨김 (다른 사람 프로필)
+    const likesTab = document.querySelector(".user-profile-tab-likes");
+    if (likesTab) { likesTab.hidden = true; likesTab.style.display = "none"; }
+  }
+}
+
+function setUserProfileStat(elId, value) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const n = Number(value) || 0;
+  el.textContent = n.toLocaleString("ko-KR");
+}
+
+function applyUserProfileFollowState(viewer) {
+  const btn = document.getElementById("userProfileFollowBtn");
+  if (!btn) return;
+  const label = btn.querySelector("[data-detail-follow-label]");
+  if (viewer?.isFollowing || viewer?.canUnfollow) {
+    btn.classList.add("is-following");
+    btn.dataset.following = "1";
+    if (label) label.textContent = "팔로잉";
+  } else {
+    btn.classList.remove("is-following");
+    btn.dataset.following = "0";
+    if (label) label.textContent = "팔로우";
+  }
+}
+
+function bindUserProfileFollow() {
+  const btn = document.getElementById("userProfileFollowBtn");
+  if (!btn || btn._bound) return;
+  btn._bound = true;
+  btn.addEventListener("click", async e => {
+    e.preventDefault();
+    if (btn.dataset.busy === "1") return;
+    if (typeof getAccessToken === "function" && !getAccessToken()) {
+      alert("로그인 후 팔로우할 수 있어요.");
+      return;
+    }
+    const userId = btn.dataset.userId;
+    if (!userId) return;
+    const wasFollowing = btn.dataset.following === "1";
+    btn.dataset.busy = "1";
+    // 낙관적 토글
+    btn.classList.toggle("is-following", !wasFollowing);
+    btn.dataset.following = wasFollowing ? "0" : "1";
+    const label = btn.querySelector("[data-detail-follow-label]");
+    if (label) label.textContent = wasFollowing ? "팔로우" : "팔로잉";
+    try {
+      const res = await apiFetch(`/api/v1/users/${encodeURIComponent(userId)}/follow`, {
+        method: wasFollowing ? "DELETE" : "POST",
+        auth: true,
+        throwOnError: true
+      });
+      // #153 — 응답에 stats/viewer 포함됨. 정확한 값으로 재반영
+      if (res?.viewer) applyUserProfileFollowState(res.viewer);
+      if (res?.stats) {
+        const followerCount = res.stats.followerCount ?? res.stats.followers ?? null;
+        if (followerCount !== null) setUserProfileStat("userProfileFollowerCount", followerCount);
+      }
+    } catch (err) {
+      // 롤백
+      btn.classList.toggle("is-following", wasFollowing);
+      btn.dataset.following = wasFollowing ? "1" : "0";
+      if (label) label.textContent = wasFollowing ? "팔로잉" : "팔로우";
+      console.warn("[#152 user follow] 실패", { status: err?.status, body: err?.body });
+      alert(err?.message || "팔로우 처리에 실패했어요.");
+    } finally {
+      btn.dataset.busy = "0";
+    }
+  });
+}
+
+async function loadUserProfilePosts(endpoint, isAuth, append) {
+  const list = document.getElementById("userProfilePostList");
+  const section = document.getElementById("userProfilePostsSection");
+  const emptyEl = document.getElementById("userProfilePostsEmpty");
+  const loadMoreBtn = document.getElementById("userProfileLoadMore");
+  if (!list || !section) return;
+  section.hidden = false;
+  section.style.display = "";
+  try {
+    const res = await apiFetch(endpoint, { auth: isAuth });
+    const items = Array.isArray(res?.items) ? res.items : [];
+    const normalized = items.map(normalizeFeedPost);
+
+    if (!append) {
+      _luminaFeedItems = normalized; // 피드 페이지 함수와 공유 — 좋아요/수정/삭제 핸들러가 _luminaFeedItems 사용
+    } else {
+      _luminaFeedItems = (_luminaFeedItems || []).concat(normalized);
+    }
+
+    // 카드 렌더 + 빈 상태 명시 토글 (display까지 같이)
+    if (!append && normalized.length === 0) {
+      list.innerHTML = "";
+      if (emptyEl) { emptyEl.hidden = false; emptyEl.style.display = ""; }
+    } else if (emptyEl) {
+      emptyEl.hidden = true;
+      emptyEl.style.display = "none";
+    }
+    if (normalized.length > 0) {
+      const html = renderUserProfilePostListHtml(normalized);
+      if (append) {
+        list.insertAdjacentHTML("beforeend", html);
+      } else {
+        list.innerHTML = html;
+      }
+    }
+
+    // 다음 페이지 cursor
+    _userProfilePostsCursor = res?.nextCursor || null;
+    if (loadMoreBtn) {
+      const show = !!_userProfilePostsCursor;
+      loadMoreBtn.hidden = !show;
+      loadMoreBtn.style.display = show ? "" : "none";
+    }
+  } catch (err) {
+    console.warn("[#152 user-profile posts] 조회 실패:", err?.status, err?.message);
+    if (!append && list) {
+      list.innerHTML = `<p class="user-profile-posts-empty" style="display:block;">글 목록을 불러오지 못했어요.</p>`;
+    }
+    if (emptyEl) emptyEl.hidden = true;
+  }
+}
+
+/* user-profile.html 전용 글 카드 렌더 (피드 페이지의 카드 디자인과 일관성) */
+function renderUserProfilePostListHtml(posts) {
+  // 모든 글의 작성자 = 프로필 사용자 (이 페이지는 한 사용자의 글 목록이라 작성자가 명확함)
+  // 백엔드 응답이 작성자명을 마스킹/익명("Lumina User")으로 내릴 수 있어 프로필 헤더 정보로 덮어씀
+  const profileUser = _userProfileData?.user || {};
+  const displayName = profileUser.displayName || "Lumina User";
+  const avatarUrl = profileUser.avatarUrl || "";
+  return posts.map(post => {
+    const initial = (displayName || "?").charAt(0);
+    const avatarSrc = avatarUrl;
+    const deleteButton = post.viewer?.canDelete && post.id
+      ? `<button class="feed-action-btn feed-delete-btn" type="button" data-feed-delete="${feedEscapeHtml(post.id)}" aria-label="게시글 삭제">삭제</button>`
+      : "";
+    const editButton = post.viewer?.canEdit && post.id
+      ? `<button class="feed-action-btn feed-edit-btn" type="button" data-feed-edit="${feedEscapeHtml(post.id)}" aria-label="게시글 수정">수정</button>`
+      : "";
+    return `
+      <article class="feed-post" data-feed-type="${post.postType}">
+        <header class="feed-post-head">
+          <div class="feed-post-avatar">
+            ${avatarSrc
+              ? `<img src="${feedEscapeHtml(avatarSrc)}" alt="${feedEscapeHtml(displayName)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="feed-post-avatar-fallback" style="display:none;">${feedEscapeHtml(initial)}</span>`
+              : `<span class="feed-post-avatar-fallback">${feedEscapeHtml(initial)}</span>`}
+          </div>
+          <div class="feed-post-meta">
+            <strong class="feed-post-author">${feedEscapeHtml(displayName)}</strong>
+          </div>
+        </header>
+        <p class="feed-post-body">${feedEscapeHtml(post.body)}</p>
+        ${renderFeedPostAssets(post.assets)}
+        ${renderFeedLinkPreview(post.linkPreview)}
+        <footer class="feed-post-actions">
+          <button class="feed-action-btn feed-like-btn${post.viewer?.hasLiked ? " is-liked" : ""}" type="button"
+                  data-feed-like="${feedEscapeHtml(post.id || "")}"
+                  aria-pressed="${post.viewer?.hasLiked ? "true" : "false"}"
+                  aria-label="${post.viewer?.hasLiked ? "좋아요 취소하기" : "좋아요 누르기"}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
+            <span data-feed-like-count>${Number(post.likeCount) || 0}</span>
+          </button>
+          <button class="feed-action-btn" type="button" disabled aria-label="댓글">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
+            <span>${Number(post.replyCount) > 0 ? Number(post.replyCount) : "0"}</span>
+          </button>
+          ${editButton}
+          ${deleteButton}
+        </footer>
+      </article>
+    `;
+  }).join("");
+}
+
+function showUserProfileNotFound() {
+  const empty = document.getElementById("userProfileEmpty");
+  if (empty) { empty.hidden = false; empty.style.display = ""; }
+  // 다른 카드들은 강제 숨김
+  ["userProfileCard", "userProfileBlocked", "userProfilePostsSection"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.hidden = true; el.style.display = "none"; }
+  });
+  document.title = "프로필을 찾을 수 없어요 — Lumina Stage";
+}
+function showUserProfileBlocked() {
+  const blocked = document.getElementById("userProfileBlocked");
+  if (blocked) { blocked.hidden = false; blocked.style.display = ""; }
+  ["userProfileCard", "userProfileEmpty", "userProfilePostsSection"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.hidden = true; el.style.display = "none"; }
+  });
+  document.title = "이 프로필을 볼 수 없어요 — Lumina Stage";
+}
+
 function renderCharacterDetail() {
   const hero = document.getElementById("detailHero");
   if (!hero) return;
@@ -4420,6 +6075,18 @@ function renderCharacterDetail() {
 
   const cta = document.getElementById("detailCta");
   if (cta) {
+    // #150 — 차모 spec: viewer.canFollow / canUnfollow / isFollowing / stats.followerCount
+    // 초기 렌더는 캐릭터 시드 데이터로 일단 표시, fetchArtistDetailViewer()가 비동기로 갱신
+    const followerCount = artist._stats?.followerCount;
+    const followerText = typeof followerCount === "number"
+      ? `<small data-detail-follower-count>팔로워 ${followerCount.toLocaleString("ko-KR")}</small>`
+      : `<small data-detail-follower-count></small>`;
+    const followBtn = artist.status === "secret"
+      ? ""
+      : `<button class="cta-btn cta-btn-follow" type="button" data-detail-follow="${feedEscapeHtml(artist.slug)}" hidden>
+           <span class="cta-btn-icon">+</span>
+           <span class="cta-btn-label"><strong data-detail-follow-label>팔로우</strong>${followerText}</span>
+         </button>`;
     cta.innerHTML = artist.status === "secret"
       ? `<div class="detail-cta-card is-secret"><strong>아직 베일 속에 있는 아티스트입니다</strong><p>첫 공개 순간에 가장 잘 어울리는 장면으로 찾아올게요.</p></div>`
       : `<div class="detail-cta-card">
@@ -4428,6 +6095,7 @@ function renderCharacterDetail() {
              <p>오늘의 응원은 순위와 콘텐츠 반응에 반영되어 다음 장면을 여는 힘이 됩니다.</p>
            </div>
            <div class="detail-cta-actions">
+             ${followBtn}
              <button class="cta-btn cta-btn-support" disabled>
                <span class="cta-btn-icon">💜</span>
                <span class="cta-btn-label"><strong>후원하기</strong><small>곧 공개</small></span>
@@ -4438,6 +6106,10 @@ function renderCharacterDetail() {
              </button>
            </div>
          </div>`;
+    // 비동기로 viewer/stats 받아 팔로우 버튼·팔로워 수 갱신
+    if (artist.status !== "secret") {
+      fetchArtistDetailViewer(artist.slug);
+    }
   }
 
   const tagNav = document.getElementById("detailTagNavigation");
@@ -5146,6 +6818,20 @@ async function initMypagePage() {
   setMypageInput("mypageProfileEmail", email);
   setMypageInput("mypageNickname", displayName);
 
+  // 공개 프로필(user-profile.html) 진입 링크 — publicHandle 우선, 없으면 user.id
+  const publicProfileLink = document.getElementById("mypagePublicProfileLink");
+  if (publicProfileLink) {
+    if (user?.publicHandle) {
+      publicProfileLink.href = `./user-profile.html?handle=${encodeURIComponent(user.publicHandle)}`;
+      publicProfileLink.hidden = false;
+    } else if (user?.id) {
+      publicProfileLink.href = `./user-profile.html?id=${encodeURIComponent(String(user.id))}`;
+      publicProfileLink.hidden = false;
+    } else {
+      publicProfileLink.hidden = true;
+    }
+  }
+
   const canChangeNickname = user?.canChangeNickname;
   const nextChangeAt = user?.nicknameNextChangeAt;
   if (canChangeNickname === false && nextChangeAt) {
@@ -5162,6 +6848,111 @@ async function initMypagePage() {
   setMypageText("mypageLuminaBalance", formatMypageNumber(balance));
   setMypageText("mypageStellaBalance", balance >= 10000 ? formatMypageNumber(balance / 10000) : "0");
   setMypageText("mypageWalletStatus", _wallet?.loaded ? "현재 사용할 수 있는 잔액입니다." : "잔액 API 확인이 필요합니다.");
+
+  // #140 정산 프로필 — 차모 spec: GET/PATCH /api/v1/me/settlement-profile
+  initMypageSettlementProfile();
+}
+
+/* #140 — 정산 프로필 (마이페이지 지갑 탭, 차모 spec 그대로)
+   - GET /api/v1/me/settlement-profile  → 기존 값 채우기
+   - PATCH /api/v1/me/settlement-profile  → 저장
+   - 서버 저장: bankName / accountHolderName(마스킹) / accountLast4 / holderMatchesIdentity / payoutExceptionReason
+   - 본인인증 / 자동 송금은 별개 흐름 (#115 평가표 본인인증 게이트 30%) */
+async function initMypageSettlementProfile() {
+  const form = document.getElementById("mypageSettlementForm");
+  if (!form) return;
+
+  const bankInput = document.getElementById("settlementBankName");
+  const holderInput = document.getElementById("settlementHolder");
+  const last4Input = document.getElementById("settlementLast4");
+  const matchCheck = document.getElementById("settlementHolderMatch");
+  const exceptionWrap = document.getElementById("settlementExceptionWrap");
+  const exceptionInput = document.getElementById("settlementException");
+  const errorEl = document.getElementById("settlementError");
+  const savedEl = document.getElementById("settlementSaved");
+  const saveBtn = document.getElementById("settlementSaveBtn");
+
+  // 본인 명의 체크 시 예외 사유 영역 토글
+  const updateExceptionVisibility = () => {
+    if (!exceptionWrap) return;
+    exceptionWrap.hidden = !!matchCheck?.checked;
+  };
+  matchCheck?.addEventListener("change", updateExceptionVisibility);
+
+  // 1. 기존 정산 프로필 GET
+  try {
+    const res = await apiFetch("/api/v1/me/settlement-profile", { auth: true });
+    const profile = res?.profile || res?.data || res || {};
+    if (bankInput) bankInput.value = profile.bankName || "";
+    if (holderInput) holderInput.value = profile.accountHolderName || "";
+    if (last4Input) last4Input.value = profile.accountLast4 || "";
+    if (matchCheck) matchCheck.checked = !!profile.holderMatchesIdentity;
+    if (exceptionInput) exceptionInput.value = profile.payoutExceptionReason || "";
+    updateExceptionVisibility();
+    if (savedEl && (profile.bankName || profile.accountLast4)) {
+      savedEl.textContent = "최근 저장된 정보를 불러왔어요.";
+      savedEl.hidden = false;
+    }
+  } catch (err) {
+    // 신규 사용자 — 404/empty는 정상
+    console.info("[#140 settlement-profile] 기존 정보 없음 또는 미연결:", err?.status);
+    updateExceptionVisibility();
+  }
+
+  // 2. 저장
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    if (errorEl) errorEl.hidden = true;
+    if (savedEl) savedEl.hidden = true;
+
+    const bankName = (bankInput?.value || "").trim();
+    const accountHolderName = (holderInput?.value || "").trim();
+    const accountLast4 = (last4Input?.value || "").trim();
+    const holderMatchesIdentity = !!matchCheck?.checked;
+    const payoutExceptionReason = (exceptionInput?.value || "").trim();
+
+    // 클라이언트 검증
+    if (!bankName) return showSettlementError("은행명을 입력해주세요.");
+    if (!accountHolderName) return showSettlementError("예금주를 입력해주세요.");
+    if (!/^[0-9]{4}$/.test(accountLast4)) return showSettlementError("계좌 끝 4자리는 숫자 4자리여야 해요.");
+
+    const payload = { bankName, accountHolderName, accountLast4, holderMatchesIdentity };
+    if (!holderMatchesIdentity && payoutExceptionReason) {
+      payload.payoutExceptionReason = payoutExceptionReason;
+    }
+
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = "저장 중…";
+    }
+    try {
+      await apiFetch("/api/v1/me/settlement-profile", {
+        method: "PATCH",
+        auth: true,
+        throwOnError: true,
+        body: payload
+      });
+      if (savedEl) {
+        savedEl.textContent = "정산 정보를 저장했어요.";
+        savedEl.hidden = false;
+      }
+    } catch (err) {
+      console.warn("[#140 settlement-profile PATCH] 실패", { status: err?.status, body: err?.body });
+      showSettlementError(err?.message || "저장에 실패했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "저장";
+      }
+    }
+  });
+
+  function showSettlementError(msg) {
+    if (errorEl) {
+      errorEl.textContent = msg;
+      errorEl.hidden = false;
+    }
+  }
 }
 
 /* ══════════════════════════════════════════════
@@ -5296,7 +7087,7 @@ function initCreatorStudioPage() {
       title: "정산 신청 전 확인",
       message: "본인인증, 정산계좌, 세무 주소가 준비된 뒤 정산 신청을 진행할 수 있습니다.",
       rows: [
-        ["예상 정산액", "205,440원"],
+        ["예정 정산금", "128,400원"],
         ["본인인증", "확인 필요"],
         ["정산계좌", "등록 대기"],
         ["세무 주소", "첫 정산 시 1회 입력"]
@@ -5461,6 +7252,7 @@ async function init() {
   renderCharacterCatalog();
   bindCharacterFilters();
   renderCharacterDetail();
+  bindArtistDetailFollow(); // #150 — 아티스트 상세 팔로우 버튼
   bindCardNavigation();
   bindLikeButtons();
   initScrollReveal();
@@ -5477,8 +7269,11 @@ async function init() {
     renderLuminaFeed();
     bindLuminaFeedTabs();
     bindLuminaFeedExpand();
-    bindLuminaFeedEdit();
     bindLuminaFeedDelete();
+    bindLuminaFeedEdit(); // #137 Phase B — 피드 글 수정 모달
+    bindLuminaFeedLike(); // #137 Phase A — 피드 좋아요 토글
+    bindLuminaFeedFollow(); // #145 — 피드 카드 팔로우/언팔로우
+    bindFeedAssetLightbox(); // 피드 이미지 라이트박스 + 우클릭 차단
     // #056: 피드 작성창 (로그인 시 노출, 이미지 4장 첨부 + 업로드 흐름)
     initFeedCompose();
   }
@@ -5486,6 +7281,11 @@ async function init() {
   // #057: 충전소 페이지 (charge.html)
   if (document.getElementById("chargePageContent") || document.getElementById("chargeLoginGate")) {
     await initChargePage();
+  }
+
+  // #152 — 일반 유저 공개 프로필 페이지 (user-profile.html)
+  if (document.getElementById("userProfileCard")) {
+    await initUserProfilePage();
   }
 }
 
