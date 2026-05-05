@@ -6,6 +6,19 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_CURRENCY = 'LUMINA';
 const DAILY_ATTENDANCE_REWARD_SCHEDULE = [10, 10, 20, 20, 20, 20, 50] as const;
 const DAILY_ATTENDANCE_POLICY_STARTED_AT = '2026-05-05';
+const LUMINA_UNIT_PRICE_KRW = 10;
+const FREE_PROMO_REWARD_CAP_LUMINA = 3000;
+const PAID_BONUS_CAP_RATE = 0.2;
+const PROMO_REWARD_LEDGER_TYPES = [
+  'signup_bonus',
+  'referral_reward',
+  'daily_attendance',
+  'identity_verification_bonus',
+  'birthday_bonus',
+  'achievement_reward',
+  'quest_reward',
+  'profile_completion_reward',
+] as const;
 
 @Injectable()
 export class RewardsService {
@@ -164,6 +177,240 @@ export class RewardsService {
     });
   }
 
+  getActivationPolicy() {
+    const dailyAttendance = this.getDailyAttendancePolicy();
+
+    return {
+      currencyCode: DEFAULT_CURRENCY,
+      unitPriceKrw: LUMINA_UNIT_PRICE_KRW,
+      launchCaps: {
+        freePromoRewardCapLumina: FREE_PROMO_REWARD_CAP_LUMINA,
+        freePromoRewardCapKrwEquivalent:
+          FREE_PROMO_REWARD_CAP_LUMINA * LUMINA_UNIT_PRICE_KRW,
+        paidBonusCapRate: PAID_BONUS_CAP_RATE,
+        paidBonusCapPercent: PAID_BONUS_CAP_RATE * 100,
+        refundPolicy: 'Promotional bonuses are excluded from cash refunds.',
+      },
+      dailyAttendance,
+      rewardGroups: [
+        {
+          key: 'onboarding',
+          title: 'Onboarding rewards',
+          capScope: 'free_promo',
+          quests: [
+            {
+              code: 'signup_bonus',
+              title: 'Sign up',
+              rewardLumina: 300,
+              status: 'live',
+              grantMode: 'automatic_on_signup',
+            },
+            {
+              code: 'identity_verification_bonus',
+              title: 'Verify identity',
+              rewardLumina: 100,
+              status: 'planned',
+              grantMode: 'after_real_identity_provider',
+            },
+            {
+              code: 'birthday_verified_annual',
+              title: 'Verified birthday reward',
+              rewardLumina: 1000,
+              status: 'planned',
+              grantMode: 'annual_after_verified_birthdate',
+            },
+          ],
+        },
+        {
+          key: 'daily_retention',
+          title: 'Daily attendance',
+          capScope: 'free_promo',
+          quests: dailyAttendance.schedule.map((item) => ({
+            code: `attendance_day_${item.day}`,
+            title: `Attendance day ${item.day}`,
+            rewardLumina: item.rewardLumina,
+            status: 'live',
+            grantMode: 'claim_daily_attendance',
+          })),
+        },
+        {
+          key: 'social_activation',
+          title: 'Feed and follow activation',
+          capScope: 'free_promo',
+          quests: [
+            {
+              code: 'first_feed_post',
+              title: 'Write first Lumina Feed post',
+              rewardLumina: 20,
+              status: 'planned',
+              grantMode: 'future_idempotent_claim',
+            },
+            {
+              code: 'first_feed_like',
+              title: 'Like first Lumina Feed post',
+              rewardLumina: 10,
+              status: 'planned',
+              grantMode: 'future_idempotent_claim',
+            },
+            {
+              code: 'first_follow',
+              title: 'Follow first artist or user',
+              rewardLumina: 10,
+              status: 'planned',
+              grantMode: 'future_idempotent_claim',
+            },
+            {
+              code: 'first_reply',
+              title: 'Write first feed reply',
+              rewardLumina: 20,
+              status: 'planned',
+              grantMode: 'future_idempotent_claim',
+            },
+          ],
+        },
+        {
+          key: 'paid_activation',
+          title: 'Paid Lumina activation',
+          capScope: 'paid_bonus',
+          quests: [
+            {
+              code: 'first_charge_bonus',
+              title: 'First Lumina charge bonus',
+              bonusRate: 0.1,
+              status: 'planned',
+              grantMode: 'payment_fulfillment_bonus',
+            },
+            {
+              code: 'paid_loyalty_bonus_pool',
+              title: 'Paid loyalty bonus pool',
+              maxBonusRateIncludingFirstCharge: PAID_BONUS_CAP_RATE,
+              status: 'planned',
+              grantMode: 'payment_or_campaign_bonus',
+            },
+          ],
+        },
+      ],
+      antiAbuse: {
+        signupOpen: true,
+        identityVerificationGate:
+          'Signup remains open. Referral, creator settlement, and high-value bonuses require identity verification.',
+        maxAccountsPerVerifiedIdentity: 3,
+        freeLikeSettlementEligible: false,
+        creatorSettlementExcludesFreePromoSignalAbuse: true,
+        ledgerIdempotencyRequired: true,
+      },
+      note:
+        'This endpoint is a product policy contract. Only live grantMode entries currently grant Lumina.',
+    };
+  }
+
+  async getActivationProgress(userId: string) {
+    await this.ensureActiveUser(userId);
+    const [user, promoLedger, paidOrders, counts, attendanceRewards] =
+      await Promise.all([
+        this.prisma.user.findUniqueOrThrow({
+          where: { id: userId },
+          include: {
+            profile: true,
+            identityVerification: true,
+            walletAccounts: true,
+          },
+        }),
+        this.prisma.walletLedger.aggregate({
+          where: {
+            direction: 'credit',
+            ledgerType: { in: [...PROMO_REWARD_LEDGER_TYPES] },
+            walletAccount: {
+              userId,
+              currencyCode: DEFAULT_CURRENCY,
+            },
+          },
+          _sum: { amount: true },
+        }),
+        this.prisma.paymentOrder.findMany({
+          where: { userId, status: 'paid' },
+          include: { luminaProduct: true, refunds: true },
+          orderBy: { createdAt: 'asc' },
+        }),
+        this.activationCounts(userId),
+        this.prisma.dailyAttendanceReward.findMany({
+          where: { userId },
+          orderBy: { serviceDate: 'desc' },
+          take: 7,
+        }),
+      ]);
+    const promoEarnedLumina = new Decimal(promoLedger._sum.amount ?? 0);
+    const paidBaseLumina = paidOrders.reduce(
+      (sum, order) => sum.plus(order.luminaProduct.luminaAmount),
+      new Decimal(0),
+    );
+    const paidBonusLumina = paidOrders.reduce(
+      (sum, order) => sum.plus(order.luminaProduct.bonusAmount),
+      new Decimal(0),
+    );
+    const paidBonusCapLumina = paidBaseLumina.mul(PAID_BONUS_CAP_RATE);
+    const identityVerified =
+      user.identityVerification?.status === 'verified' || Boolean(user.phoneNumber);
+
+    return {
+      userId,
+      generatedAt: new Date(),
+      caps: {
+        freePromo: {
+          capLumina: FREE_PROMO_REWARD_CAP_LUMINA.toString(),
+          earnedLumina: promoEarnedLumina.toString(),
+          remainingLumina: Decimal.max(
+            0,
+            new Decimal(FREE_PROMO_REWARD_CAP_LUMINA).minus(promoEarnedLumina),
+          ).toString(),
+          usedRate: promoEarnedLumina
+            .div(FREE_PROMO_REWARD_CAP_LUMINA)
+            .mul(100)
+            .toDecimalPlaces(2)
+            .toString(),
+        },
+        paidBonus: {
+          capRate: PAID_BONUS_CAP_RATE,
+          basePaidLumina: paidBaseLumina.toString(),
+          grantedBonusLumina: paidBonusLumina.toString(),
+          capLumina: paidBonusCapLumina.toString(),
+          remainingBonusLumina: Decimal.max(
+            0,
+            paidBonusCapLumina.minus(paidBonusLumina),
+          ).toString(),
+        },
+      },
+      progress: {
+        identityVerified,
+        hasProfileBio: Boolean(user.profile?.bio),
+        hasAvatar: Boolean(user.profile?.avatarAssetId),
+        hasCover: Boolean(user.profile?.coverAssetId),
+        counts,
+        attendance: {
+          recent: attendanceRewards,
+          claimedToday: attendanceRewards.some(
+            (reward) =>
+              this.formatServiceDate(reward.serviceDate) ===
+              this.formatServiceDate(this.getKoreanServiceDate()),
+          ),
+        },
+        firstCharge: {
+          completed: paidOrders.length > 0,
+          firstPaidAt: paidOrders[0]?.updatedAt ?? null,
+        },
+      },
+      milestoneStatus: this.activationMilestoneStatus({
+        identityVerified,
+        hasProfileBio: Boolean(user.profile?.bio),
+        hasAvatar: Boolean(user.profile?.avatarAssetId),
+        hasCover: Boolean(user.profile?.coverAssetId),
+        counts,
+        paidOrdersCount: paidOrders.length,
+      }),
+      policy: this.getActivationPolicy(),
+    };
+  }
+
   private async ensureActiveUser(userId: string) {
     const user = await this.prisma.user.findFirst({
       where: {
@@ -241,5 +488,104 @@ export class RewardsService {
     const next = new Date(value);
     next.setUTCDate(next.getUTCDate() + days);
     return next;
+  }
+
+  private async activationCounts(userId: string) {
+    const [
+      feedPosts,
+      feedLikes,
+      feedReplies,
+      artistFollows,
+      userFollows,
+      fanLetters,
+      paidLikes,
+    ] = await Promise.all([
+      this.prisma.communityPost.count({
+        where: { authorUserId: userId, deletedAt: null },
+      }),
+      this.prisma.communityReaction.count({
+        where: { userId, reactionType: 'like' },
+      }),
+      this.prisma.communityReply.count({
+        where: { authorUserId: userId, deletedAt: null },
+      }),
+      this.prisma.artistFollow.count({
+        where: { userId, status: 'active', deletedAt: null },
+      }),
+      this.prisma.userFollow.count({
+        where: { followerUserId: userId, status: 'active', deletedAt: null },
+      }),
+      this.prisma.fanLetter.count({
+        where: { senderUserId: userId },
+      }),
+      this.prisma.artistBoostEvent.count({
+        where: { userId, boostType: 'lumina_boost' },
+      }),
+    ]);
+
+    return {
+      feedPosts,
+      feedLikes,
+      feedReplies,
+      artistFollows,
+      userFollows,
+      followsTotal: artistFollows + userFollows,
+      fanLetters,
+      paidLikes,
+    };
+  }
+
+  private activationMilestoneStatus(input: {
+    identityVerified: boolean;
+    hasProfileBio: boolean;
+    hasAvatar: boolean;
+    hasCover: boolean;
+    counts: Awaited<ReturnType<RewardsService['activationCounts']>>;
+    paidOrdersCount: number;
+  }) {
+    return [
+      {
+        code: 'identity_verification_bonus',
+        completed: input.identityVerified,
+        claimStatus: 'planned_not_claimable',
+        rewardLumina: 100,
+      },
+      {
+        code: 'profile_basic_setup',
+        completed: input.hasProfileBio || input.hasAvatar || input.hasCover,
+        claimStatus: 'planned_not_claimable',
+        rewardLumina: 30,
+      },
+      {
+        code: 'first_feed_post',
+        completed: input.counts.feedPosts > 0,
+        claimStatus: 'planned_not_claimable',
+        rewardLumina: 20,
+      },
+      {
+        code: 'first_feed_like',
+        completed: input.counts.feedLikes > 0,
+        claimStatus: 'planned_not_claimable',
+        rewardLumina: 10,
+      },
+      {
+        code: 'first_follow',
+        completed: input.counts.followsTotal > 0,
+        claimStatus: 'planned_not_claimable',
+        rewardLumina: 10,
+      },
+      {
+        code: 'first_reply',
+        completed: input.counts.feedReplies > 0,
+        claimStatus: 'planned_not_claimable',
+        rewardLumina: 20,
+      },
+      {
+        code: 'first_charge_bonus',
+        completed: input.paidOrdersCount > 0,
+        claimStatus: 'planned_payment_policy',
+        bonusRate: 0.1,
+      },
+    ];
   }
 }

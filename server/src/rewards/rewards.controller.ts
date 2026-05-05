@@ -33,4 +33,14 @@ export class RewardsController {
   getDailyAttendanceHistory(@CurrentUser() user: AuthUser) {
     return this.rewardsService.getDailyAttendanceHistory(user.id);
   }
+
+  @Get('activation-policy')
+  getActivationPolicy() {
+    return this.rewardsService.getActivationPolicy();
+  }
+
+  @Get('activation-progress')
+  getActivationProgress(@CurrentUser() user: AuthUser) {
+    return this.rewardsService.getActivationProgress(user.id);
+  }
 }

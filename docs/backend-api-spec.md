@@ -204,6 +204,8 @@ POST /api/v1/payments/orders
 GET /api/v1/payments/orders
 GET /api/v1/payments/orders/:orderId
 POST /api/v1/payments/webhooks/:provider
+GET /api/v1/rewards/activation-policy
+GET /api/v1/rewards/activation-progress
 ```
 
 중요:
@@ -226,6 +228,8 @@ Lumina Station:
 - The frontend still creates charge orders with `POST /api/v1/payments/orders`.
 - `payment.status = "pg_pending"` means the UI may show products but real checkout is pending PG provider approval/integration.
 - `products[]` includes frontend convenience fields: `totalLumina`, `unitPriceKrw`, `bonusRate`, `discountAmount`, and `isBestValue`.
+- `GET /api/v1/rewards/activation-policy` returns the current launch reward policy contract: free promo reward cap 3000L, paid bonus cap 20%, daily attendance schedule, planned identity/birthday/profile/social milestones, and anti-abuse notes.
+- `GET /api/v1/rewards/activation-progress` returns the signed-in user's cap usage, paid-bonus usage, attendance state, first-charge state, and milestone progress. Planned milestones are display-only until a future grant endpoint is opened.
 
 ### Gifts
 
