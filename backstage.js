@@ -1274,7 +1274,7 @@ function renderDetailForm(detail) {
         ${detailInput("자료 링크", "portfolioUrl", meta.portfolioUrl || "", "url")}
         ${detailTextarea("보완/확인 메모", "reviewMemo", "활동명, 소개, 연락 가능 시간, 자료 링크, 권리 확인 내용을 확인합니다.")}
       </div>
-      <p class="detail-form-note">연락처와 정산계좌는 권한별 마스킹 상태를 유지해야 합니다.</p>
+      <p class="detail-form-note">스튜디오 접근권은 실제 등록된 아티스트 Slug가 있어야 열립니다. 이메일은 Slug로 사용할 수 없습니다.</p>
     `;
   } else if (quickTitle === "이미지 제작 요청" || tableId === "creatorImageRequestRows") {
     html = `
@@ -1659,6 +1659,15 @@ function firstValue(...values) {
   return values.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
 }
 
+function normalizeArtistSlugValue(...values) {
+  const value = firstValue(...values);
+  if (!value) return "";
+  const slug = String(value).trim();
+  if (slug.includes("@")) return "";
+  if (!/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/i.test(slug)) return "";
+  return slug;
+}
+
 function escapeHtml(value = "") {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -1787,8 +1796,9 @@ function buildActionRequest(detail, action) {
       }
     };
     const email = firstValue(form.email, meta.email);
-    const artistSlug = firstValue(form.artistSlug, meta.artistSlug);
-    if (status !== "approved" || !email || !artistSlug) return updateApplication;
+    const artistSlug = normalizeArtistSlugValue(form.artistSlug, meta.artistSlug);
+    if (status !== "approved") return updateApplication;
+    if (!email || !artistSlug) return null;
     return {
       method: "BATCH",
       steps: [
@@ -2770,7 +2780,7 @@ async function loadCreatorsSection() {
         email: item.user?.email || item.contactEmail || item.email,
         preferredContactTime: item.preferredContactTime || item.metadata?.preferredContactTime,
         portfolioUrl: item.portfolioUrl,
-        artistSlug: item.artist?.slug || item.artistSlug || item.metadata?.artistSlug || item.metadata?.slug,
+        artistSlug: normalizeArtistSlugValue(item.artist?.slug, item.artistSlug, item.metadata?.artistSlug, item.metadata?.artist?.slug),
         applicationType: item.applicationType || item.metadata?.applicationType,
         applicationChannel: item.applicationChannel || item.metadata?.applicationChannel
       }
