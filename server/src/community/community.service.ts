@@ -621,7 +621,7 @@ export class CommunityService {
   async followArtist(userId: string, artistId: string) {
     const artist = await this.resolveActiveArtist(artistId);
 
-    return this.prisma.artistFollow.upsert({
+    const follow = await this.prisma.artistFollow.upsert({
       where: {
         userId_artistId: {
           userId,
@@ -639,6 +639,8 @@ export class CommunityService {
       },
       include: this.followInclude(),
     });
+
+    return this.toArtistFollowActionView(follow, true);
   }
 
   async unfollowArtist(userId: string, artistId: string) {
@@ -657,7 +659,21 @@ export class CommunityService {
       },
     });
 
-    return { ok: true };
+    return {
+      ok: true,
+      artist: {
+        id: artist.id,
+        slug: artist.slug,
+        displayName: artist.displayName,
+      },
+      stats: await this.artistFollowStats(artist.id),
+      viewer: {
+        isAuthenticated: true,
+        isFollowing: false,
+        canFollow: true,
+        canUnfollow: false,
+      },
+    };
   }
 
   async followUser(followerUserId: string, followingUserId: string) {
@@ -716,7 +732,7 @@ export class CommunityService {
       });
     }
 
-    return follow;
+    return this.toUserFollowActionView(follow, followerUserId, followingUserId, true);
   }
 
   async followUserByHandle(followerUserId: string, publicHandle: string) {
@@ -743,7 +759,17 @@ export class CommunityService {
       },
     });
 
-    return { ok: true };
+    return {
+      ok: true,
+      user: await this.publicUserSummary(followingUserId),
+      stats: await this.userFollowStats(followingUserId),
+      viewer: {
+        isAuthenticated: true,
+        isFollowing: false,
+        canFollow: true,
+        canUnfollow: false,
+      },
+    };
   }
 
   async unfollowUserByHandle(followerUserId: string, publicHandle: string) {
@@ -1335,6 +1361,40 @@ export class CommunityService {
     };
   }
 
+  private async toArtistFollowActionView(follow: any, isFollowing: boolean) {
+    const artist = await this.toArtistFollowView(follow);
+
+    return {
+      ...follow,
+      follow,
+      artist,
+      stats: await this.artistFollowStats(artist.id),
+      viewer: {
+        isAuthenticated: true,
+        isFollowing,
+        canFollow: !isFollowing,
+        canUnfollow: isFollowing,
+      },
+      policy: {
+        followTarget: 'artist_id',
+        followEndpoint: 'POST /api/v1/artists/:artistId/follow',
+        unfollowEndpoint: 'DELETE /api/v1/artists/:artistId/follow',
+      },
+    };
+  }
+
+  private async artistFollowStats(artistId: string) {
+    const followerCount = await this.prisma.artistFollow.count({
+      where: {
+        artistId,
+        status: 'active',
+        deletedAt: null,
+      },
+    });
+
+    return { followerCount };
+  }
+
   private userBlockInclude() {
     return {
       blocked: {
@@ -1393,6 +1453,78 @@ export class CommunityService {
           : null,
       },
     };
+  }
+
+  private async toUserFollowActionView(
+    follow: any,
+    followerUserId: string,
+    followingUserId: string,
+    isFollowing: boolean,
+  ) {
+    return {
+      ...follow,
+      follow,
+      user: await this.publicUserSummary(followingUserId),
+      stats: await this.userFollowStats(followingUserId),
+      viewer: {
+        isAuthenticated: true,
+        isFollowing,
+        canFollow: followerUserId !== followingUserId && !isFollowing,
+        canUnfollow: followerUserId !== followingUserId && isFollowing,
+      },
+      policy: {
+        followTarget: 'user_id',
+        followEndpoint: 'POST /api/v1/users/:userId/follow',
+        unfollowEndpoint: 'DELETE /api/v1/users/:userId/follow',
+      },
+    };
+  }
+
+  private async publicUserSummary(userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        profile: {
+          select: {
+            displayName: true,
+            publicHandle: true,
+            avatarAssetId: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.toCompactUserView(user);
+  }
+
+  private async userFollowStats(userId: string) {
+    const [followerCount, followingCount] = await Promise.all([
+      this.prisma.userFollow.count({
+        where: {
+          followingUserId: userId,
+          status: 'active',
+          deletedAt: null,
+        },
+      }),
+      this.prisma.userFollow.count({
+        where: {
+          followerUserId: userId,
+          status: 'active',
+          deletedAt: null,
+        },
+      }),
+    ]);
+
+    return { followerCount, followingCount };
   }
 
   private async toUserBlockView(block: any) {

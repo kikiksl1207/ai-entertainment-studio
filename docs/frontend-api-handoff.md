@@ -1817,6 +1817,58 @@ Authorization: Bearer <accessToken>
 `artistId` can be a UUID or slug.
 `userId` must be a user UUID and cannot be the current user's own id. `GET /me/following` returns `{ artists, users }`.
 
+Follow/unfollow action responses now include UI refresh hints. After a button
+click, frontend can update the button and counts from the response without
+waiting for a full page reload.
+
+Artist follow response:
+
+```json
+{
+  "follow": {},
+  "artist": {
+    "id": "artist-uuid",
+    "slug": "yoon-serin",
+    "displayName": "Yoon Serin",
+    "thumbnailUrl": "https://..."
+  },
+  "stats": {
+    "followerCount": 124
+  },
+  "viewer": {
+    "isAuthenticated": true,
+    "isFollowing": true,
+    "canFollow": false,
+    "canUnfollow": true
+  }
+}
+```
+
+Artist unfollow response:
+
+```json
+{
+  "ok": true,
+  "artist": {
+    "id": "artist-uuid",
+    "slug": "yoon-serin",
+    "displayName": "Yoon Serin"
+  },
+  "stats": {
+    "followerCount": 123
+  },
+  "viewer": {
+    "isAuthenticated": true,
+    "isFollowing": false,
+    "canFollow": true,
+    "canUnfollow": false
+  }
+}
+```
+
+User follow/unfollow responses use the same shape with `user`, `stats`, and
+`viewer`. User stats include `followerCount` and `followingCount`.
+
 `GET /me/following-artists?take=20&cursor=<followId>` returns a My Page card-friendly wrapper:
 
 ```json

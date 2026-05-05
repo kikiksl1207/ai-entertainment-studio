@@ -723,6 +723,7 @@ Authorization: Bearer <accessToken>
 - `GET /api/v1/users/handle/:publicHandle/profile` is public and returns the same shape as `GET /api/v1/users/:userId/profile`, resolving by the unique `user_profiles.public_handle`.
 - Handle-based follow/block endpoints resolve active users by `publicHandle` and then reuse the UUID follow/block policy, including self-action checks, idempotent unfollow/unblock, and block-triggered mutual unfollow.
 - User follow rows return `{ id, status, followedAt, updatedAt, user: { id, displayName, publicHandle, avatarUrl } }`.
+- Follow/unfollow action responses include UI refresh hints. Artist actions return `artist`, `stats.followerCount`, and `viewer.isFollowing/canFollow/canUnfollow`. User actions return `user`, `stats.followerCount/followingCount`, and the same viewer flags.
 - `user_follows` uses soft delete/reactivation with unique `(follower_user_id, following_user_id)`.
 
 Personalized feed safety endpoints:
