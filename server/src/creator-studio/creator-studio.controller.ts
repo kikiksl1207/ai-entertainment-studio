@@ -17,7 +17,7 @@ export class CreatorStudioController {
 
   @Get()
   getStudio(@CurrentUser() user: AuthUser) {
-    return this.creatorStudioService.getStudio(user.id);
+    return this.creatorStudioService.getStudio(user);
   }
 
   @Get('settlement-preview')

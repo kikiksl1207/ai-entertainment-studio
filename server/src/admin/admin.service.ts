@@ -1352,6 +1352,145 @@ export class AdminService {
     };
   }
 
+  async getBackstageCreatorAccessDiagnostics(query: AuditQuery) {
+    const userId = this.optionalString(query, 'userId');
+    const email = this.optionalString(query, 'email')?.toLowerCase();
+
+    if (!userId && !email) {
+      throw new BadRequestException('userId or email is required');
+    }
+
+    if (userId && !this.isUuid(userId)) {
+      throw new BadRequestException('userId must be a UUID');
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: this.clean({
+        id: userId,
+        email,
+      }),
+      take: 10,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        deletedAt: true,
+        createdAt: true,
+        profile: {
+          select: {
+            displayName: true,
+            publicHandle: true,
+          },
+        },
+        authAccounts: {
+          select: {
+            provider: true,
+            providerUserId: true,
+            lastLoginAt: true,
+            createdAt: true,
+          },
+          orderBy: [{ lastLoginAt: 'desc' }, { createdAt: 'desc' }],
+        },
+        artistOperators: {
+          orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+          include: {
+            artist: {
+              select: {
+                id: true,
+                slug: true,
+                displayName: true,
+                status: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    const exactMatchCount = users.length;
+    const activeUsers = users.filter(
+      (user) => user.status === 'active' && user.deletedAt === null,
+    );
+    const activeOperators = users.flatMap((user) =>
+      user.artistOperators.filter(
+        (operator) => operator.status === 'active' && operator.revokedAt === null,
+      ),
+    );
+    const latestAuthAccount = users
+      .flatMap((user) =>
+        user.authAccounts.map((account) => ({
+          userId: user.id,
+          email: user.email,
+          ...account,
+        })),
+      )
+      .sort((left, right) => {
+        const leftAt = left.lastLoginAt?.getTime() ?? left.createdAt.getTime();
+        const rightAt = right.lastLoginAt?.getTime() ?? right.createdAt.getTime();
+        return rightAt - leftAt;
+      })[0] ?? null;
+    const accessEnabled = activeUsers.length > 0 && activeOperators.length > 0;
+
+    return {
+      generatedAt: new Date(),
+      query: {
+        userId: userId ?? null,
+        email: email ?? null,
+      },
+      result: {
+        accessEnabled,
+        reason: this.creatorAccessDiagnosticReason({
+          exactMatchCount,
+          activeUsersCount: activeUsers.length,
+          activeOperatorsCount: activeOperators.length,
+          totalOperatorsCount: users.reduce(
+            (sum, user) => sum + user.artistOperators.length,
+            0,
+          ),
+        }),
+        exactMatchCount,
+        activeUsersCount: activeUsers.length,
+        activeOperatorsCount: activeOperators.length,
+        latestAuthAccount,
+      },
+      users: users.map((user) => ({
+        id: user.id,
+        email: user.email,
+        status: user.status,
+        deletedAt: user.deletedAt,
+        createdAt: user.createdAt,
+        profile: user.profile,
+        authAccounts: user.authAccounts.map((account) => ({
+          ...account,
+          providerUserId: this.maskProviderUserId(account.providerUserId),
+        })),
+        artistOperators: user.artistOperators.map((operator) => ({
+          operatorId: operator.id,
+          artistId: operator.artistId,
+          role: operator.role,
+          status: operator.status,
+          revokedAt: operator.revokedAt,
+          canEnterCreatorStudio:
+            operator.status === 'active' && operator.revokedAt === null,
+          permissions: operator.permissions,
+          artist: operator.artist,
+          createdAt: operator.createdAt,
+          updatedAt: operator.updatedAt,
+        })),
+      })),
+      expectedUserEndpoint: '/api/v1/me/creator-studio',
+      expectedUserEndpointRule:
+        'The signed-in access token must belong to the same userId that has an active artist operator row.',
+      nextActions: this.creatorAccessDiagnosticNextActions({
+        accessEnabled,
+        exactMatchCount,
+        activeUsersCount: activeUsers.length,
+        activeOperatorsCount: activeOperators.length,
+        totalOperatorsCount: users.reduce((sum, user) => sum + user.artistOperators.length, 0),
+      }),
+    };
+  }
+
   async grantBackstageCreatorAccess(user: AuthUser, input: AdminPayload) {
     const targetUser = await this.findAdminTargetUser(input);
     const artist = await this.findCreatorAccessArtist(input);
@@ -5797,6 +5936,81 @@ export class AdminService {
           'PATCH /admin/api/v1/backstage/operations/creator-access/:operatorId',
       },
     };
+  }
+
+  private creatorAccessDiagnosticReason(input: {
+    exactMatchCount: number;
+    activeUsersCount: number;
+    activeOperatorsCount: number;
+    totalOperatorsCount: number;
+  }) {
+    if (input.exactMatchCount === 0) {
+      return 'user_not_found_or_email_mismatch';
+    }
+
+    if (input.activeUsersCount === 0) {
+      return 'user_not_active_or_deleted';
+    }
+
+    if (input.totalOperatorsCount === 0) {
+      return 'no_artist_operator_rows';
+    }
+
+    if (input.activeOperatorsCount === 0) {
+      return 'artist_operator_exists_but_not_active';
+    }
+
+    return 'creator_studio_access_ready';
+  }
+
+  private creatorAccessDiagnosticNextActions(input: {
+    accessEnabled: boolean;
+    exactMatchCount: number;
+    activeUsersCount: number;
+    activeOperatorsCount: number;
+    totalOperatorsCount: number;
+  }) {
+    if (input.accessEnabled) {
+      return [
+        'Ask the user to sign out and sign in again, then refresh /creator-studio.html.',
+        'If the page still blocks access, verify that the frontend sends Authorization: Bearer <accessToken> to GET /api/v1/me/creator-studio.',
+      ];
+    }
+
+    if (input.exactMatchCount === 0) {
+      return [
+        'Confirm the exact login email shown in My Page or auth response.',
+        'If the user used social login, check whether the provider returned a different email.',
+      ];
+    }
+
+    if (input.activeUsersCount === 0) {
+      return ['Restore or reactivate the user before granting Creator Studio access.'];
+    }
+
+    if (input.totalOperatorsCount === 0) {
+      return [
+        'Grant Creator Studio access with POST /admin/api/v1/backstage/operations/creator-access.',
+        'Use the user email and selected artistId from the Backstage UI.',
+      ];
+    }
+
+    if (input.activeOperatorsCount === 0) {
+      return [
+        'Patch the existing creator access row to status active.',
+        'Ensure revokedAt becomes null when status is active.',
+      ];
+    }
+
+    return ['Re-run diagnostics after the next grant/update action.'];
+  }
+
+  private maskProviderUserId(value: string) {
+    if (value.length <= 8) {
+      return '***';
+    }
+
+    return `${value.slice(0, 4)}***${value.slice(-4)}`;
   }
 
   private artistOperatorInclude() {

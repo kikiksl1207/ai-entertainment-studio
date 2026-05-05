@@ -30,7 +30,8 @@ export class CreatorStudioService {
     private readonly configService: ConfigService,
   ) {}
 
-  async getStudio(userId: string) {
+  async getStudio(user: AuthUser) {
+    const userId = user.id;
     const operators = await this.prisma.artistOperator.findMany({
       where: {
         userId,
@@ -96,7 +97,12 @@ export class CreatorStudioService {
         enabled: hasAccess,
         type: accessType,
         status: hasAccess ? 'approved' : 'none',
+        reason: hasAccess ? 'active_artist_operator_found' : 'no_active_artist_operator',
         entryUrl: '/creator-studio.html',
+      },
+      viewer: {
+        userId,
+        email: user.email ?? null,
       },
       summary: {
         ownedArtistCount: artistIds.length,

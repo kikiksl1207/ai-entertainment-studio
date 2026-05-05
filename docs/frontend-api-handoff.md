@@ -2186,6 +2186,7 @@ GET /admin/api/v1/backstage/operations/creators?query=&status=&take=20&cursor=<n
 GET /admin/api/v1/backstage/operations/ai-content-health?query=&status=&take=20&cursor=<nextCursor>
 GET /admin/api/v1/backstage/operations/users-overview?query=&email=&status=&take=20&cursor=<nextCursor>
 GET /admin/api/v1/backstage/operations/creator-access?query=&email=&artistSlug=&status=&take=20&cursor=<nextCursor>
+GET /admin/api/v1/backstage/operations/creator-access/diagnostics?email=<user-email>
 POST /admin/api/v1/backstage/operations/creator-access
 PATCH /admin/api/v1/backstage/operations/creator-access/:operatorId
 GET /admin/api/v1/backstage/operations/settlement-preview?period=2026-05&query=&status=&take=20&cursor=<nextCursor>
@@ -2322,6 +2323,25 @@ Response item includes `operatorId`, `user`, `artist`, `permissions`,
 `canEnterCreatorStudio`, and `creatorStudioUrl`. A creator can enter
 `/creator-studio.html` only when `canEnterCreatorStudio === true`; the user-facing
 check remains `GET /api/v1/me/creator-studio` and `access.enabled === true`.
+
+If Creator Studio still blocks after granting access, call:
+
+```http
+GET /admin/api/v1/backstage/operations/creator-access/diagnostics?email=<user-email>
+```
+
+The diagnostics response explains why access is blocked:
+
+- `user_not_found_or_email_mismatch`: the email does not match a real account.
+- `user_not_active_or_deleted`: the account cannot enter until restored.
+- `no_artist_operator_rows`: grant access first.
+- `artist_operator_exists_but_not_active`: patch the operator row to active.
+- `creator_studio_access_ready`: backend access is ready; if the page still
+  blocks, the frontend is likely calling `GET /api/v1/me/creator-studio` without
+  the signed-in user's Bearer token or the user needs to sign out/in.
+
+`GET /api/v1/me/creator-studio` also returns `viewer.userId`, `viewer.email`,
+and `access.reason` to help compare the signed-in user with the diagnostics row.
 
 `GET /admin/api/v1/backstage/operations/settlement-preview` is an estimated
 settlement preview for Backstage. It does not finalize payout and must be
