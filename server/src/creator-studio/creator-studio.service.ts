@@ -56,6 +56,23 @@ export class CreatorStudioService {
     });
 
     const artistIds = operators.map((operator) => operator.artistId);
+    const approvedApplication = artistIds.length
+      ? null
+      : await this.prisma.debutApplication.findFirst({
+          where: {
+            userId,
+            status: 'approved',
+          },
+          orderBy: { updatedAt: 'desc' },
+          select: {
+            id: true,
+            applicantName: true,
+            displayName: true,
+            contactEmail: true,
+            participationType: true,
+            updatedAt: true,
+          },
+        });
     const [imageRequestCounts, recentImageRequests] = artistIds.length
       ? await Promise.all([
           this.prisma.creatorImageRequest.groupBy({
@@ -86,11 +103,22 @@ export class CreatorStudioService {
       (operator) => operator.artist.status === 'active',
     ).length;
     const needsAttentionCount = imageRequestSummary.total.open;
-    const hasAccess = artistIds.length > 0;
+    const hasAccess = artistIds.length > 0 || approvedApplication !== null;
     let accessType: 'personal_creator' | 'studio_operator' | null = null;
     if (hasAccess) {
       accessType = artistIds.length > 1 ? 'studio_operator' : 'personal_creator';
     }
+    const pendingApprovedApplication = approvedApplication
+      ? {
+          id: approvedApplication.id,
+          applicantName: approvedApplication.applicantName,
+          displayName: approvedApplication.displayName,
+          contactEmail: approvedApplication.contactEmail,
+          participationType: approvedApplication.participationType,
+          updatedAt: approvedApplication.updatedAt,
+          needsArtistOperatorLink: true,
+        }
+      : null;
 
     return {
       access: {
@@ -99,6 +127,8 @@ export class CreatorStudioService {
         status: hasAccess ? 'approved' : 'none',
         reason: hasAccess ? 'active_artist_operator_found' : 'no_active_artist_operator',
         entryUrl: '/creator-studio.html',
+        source: artistIds.length > 0 ? 'artist_operator' : 'approved_debut_application',
+        approvedApplication: pendingApprovedApplication,
       },
       viewer: {
         userId,
@@ -125,9 +155,14 @@ export class CreatorStudioService {
         recent: recentImageRequests.map((request) => this.presentImageRequest(request)),
       },
       policy: {
-        mode: 'creator_studio_bootstrap_v1',
+        mode:
+          artistIds.length > 0
+            ? 'creator_studio_bootstrap_v1'
+            : 'approved_application_pending_artist_operator',
         emptyState:
-          'No active artist operator access is connected to this account yet.',
+          artistIds.length > 0
+            ? 'No active artist operator access is connected to this account yet.'
+            : 'Approved debut application exists, but no artist operator is linked yet.',
         canCreateImageRequests: artistIds.length > 0,
         slotPolicy: {
           initialSlotLimit: CREATOR_STUDIO_INITIAL_SLOT_LIMIT,
