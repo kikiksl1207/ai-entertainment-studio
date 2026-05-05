@@ -44,6 +44,7 @@ model User {
   communityPosts       CommunityPost[]          @relation("CommunityPostAuthor")
   communityReplies     CommunityReply[]         @relation("CommunityReplyAuthor")
   communityReactions   CommunityReaction[]
+  feedSearchEvents     FeedSearchEvent[]
   communityReports     CommunityReport[]        @relation("CommunityReportReporter")
   hiddenCommunityPosts CommunityHiddenPost[]
   artistFollows        ArtistFollow[]
@@ -979,6 +980,27 @@ model CommunityHiddenPost {
   @@index([userId, status, createdAt], map: "idx_community_hidden_posts_user_status")
   @@index([postId, status], map: "idx_community_hidden_posts_post_status")
   @@map("community_hidden_posts")
+}
+
+model FeedSearchEvent {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String?  @map("user_id") @db.Uuid
+  visitorHash       String?  @map("visitor_hash")
+  keyword           String
+  normalizedKeyword String   @map("normalized_keyword")
+  searchType        String   @default("text") @map("search_type")
+  language          String   @default("unknown")
+  source            String   @default("lumina_feed") @map("source")
+  resultCount       Int      @default(0) @map("result_count")
+  metadata          Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user              User?    @relation(fields: [userId], references: [id])
+
+  @@index([language, searchType, createdAt], map: "idx_feed_search_events_lang_type_created")
+  @@index([normalizedKeyword, createdAt], map: "idx_feed_search_events_keyword_created")
+  @@index([userId, createdAt], map: "idx_feed_search_events_user_created")
+  @@index([visitorHash, createdAt], map: "idx_feed_search_events_visitor_created")
+  @@map("feed_search_events")
 }
 
 model ArtistFollow {

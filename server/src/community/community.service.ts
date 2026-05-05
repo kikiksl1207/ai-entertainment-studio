@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import { createHash } from 'crypto';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,6 +29,10 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FEED_POST_MAX_IMAGES = 4;
 const FEED_EXTERNAL_URL_MAX_LENGTH = 2048;
+const SEARCH_LANGUAGES = new Set(['ko', 'ja', 'en', 'zh', 'unknown']);
+const TRENDING_LANGUAGE_FILTERS = new Set(['all', 'ko', 'ja', 'en', 'zh', 'unknown']);
+const SEARCH_TYPES = new Set(['text', 'hashtag']);
+const SEARCH_EVENT_DEDUPE_WINDOW_MS = 10 * 60 * 1000;
 
 @Injectable()
 export class CommunityService {
@@ -187,6 +192,125 @@ export class CommunityService {
         privateToViewer: true,
         publicProfileExposure: false,
       },
+    };
+  }
+
+  async searchFeed(
+    query: CommunityQuery,
+    context: { userId?: string; visitorHash?: string | null } = {},
+  ) {
+    const take = this.take(query.take);
+    const cursor = this.optionalString(query.cursor);
+    const search = this.searchQuery(query.q ?? query.query ?? query.keyword);
+    const searchType = this.searchType(query.type, search);
+    const language = this.searchLanguage(query.language ?? query.locale, search);
+    const normalizedKeyword = this.normalizeSearchKeyword(search, searchType);
+    const where = this.feedSearchWhere(normalizedKeyword, searchType);
+    const posts = await this.prisma.communityPost.findMany({
+      where,
+      take,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      include: this.postInclude(),
+      orderBy: { publishedAt: 'desc' },
+    });
+    const items = await Promise.all(posts.map((post) => this.toPostView(post, context.userId)));
+
+    await this.recordFeedSearchEvent({
+      keyword: search,
+      normalizedKeyword,
+      searchType,
+      language,
+      resultCount: items.length,
+      userId: context.userId,
+      visitorHash: context.visitorHash,
+      metadata: {
+        source: 'lumina_feed_search',
+        q: search,
+        requestedLanguage: query.language ?? query.locale ?? null,
+        detectedLanguage: this.detectSearchLanguage(search),
+      },
+    });
+
+    return {
+      items,
+      posts: items,
+      count: items.length,
+      nextCursor: posts.length === take ? posts[posts.length - 1]?.id ?? null : null,
+      query: {
+        keyword: search,
+        normalizedKeyword,
+        type: searchType,
+        language,
+        cursor: cursor ?? null,
+      },
+      policy: this.feedSearchPolicy(),
+    };
+  }
+
+  async getTrendingSearches(query: CommunityQuery) {
+    const take = this.take(query.take);
+    const language = this.trendingLanguage(query.language ?? query.locale);
+    const searchType = this.optionalSearchType(query.type);
+    const window = this.trendingWindow(query.window);
+    const since = new Date(Date.now() - window.ms);
+    const where: Prisma.FeedSearchEventWhereInput = this.clean({
+      createdAt: { gte: since },
+      language: language === 'all' ? undefined : language,
+      searchType,
+    });
+    const grouped = await this.prisma.feedSearchEvent.groupBy({
+      by: ['normalizedKeyword', 'searchType', 'language'],
+      where,
+      _count: { _all: true },
+      _max: { createdAt: true },
+      orderBy: [{ _count: { normalizedKeyword: 'desc' } }, { _max: { createdAt: 'desc' } }],
+      take,
+    });
+    const latestEvents = grouped.length
+      ? await this.prisma.feedSearchEvent.findMany({
+          where: {
+            OR: grouped.map((item) => ({
+              normalizedKeyword: item.normalizedKeyword,
+              searchType: item.searchType,
+              language: item.language,
+            })),
+          },
+          orderBy: { createdAt: 'desc' },
+          distinct: ['normalizedKeyword', 'searchType', 'language'],
+        })
+      : [];
+    const latestEventMap = new Map(
+      latestEvents.map((event) => [
+        this.trendingKey(event.normalizedKeyword, event.searchType, event.language),
+        event,
+      ]),
+    );
+
+    return {
+      generatedAt: new Date(),
+      language,
+      type: searchType ?? 'all',
+      window: {
+        key: window.key,
+        since,
+        minutes: Math.round(window.ms / 60_000),
+      },
+      items: grouped.map((item, index) => {
+        const latestEvent = latestEventMap.get(
+          this.trendingKey(item.normalizedKeyword, item.searchType, item.language),
+        );
+
+        return {
+          rank: index + 1,
+          keyword: latestEvent?.keyword ?? item.normalizedKeyword,
+          normalizedKeyword: item.normalizedKeyword,
+          type: item.searchType,
+          language: item.language,
+          searchCount: item._count._all,
+          lastSearchedAt: item._max.createdAt,
+        };
+      }),
+      policy: this.feedSearchPolicy(),
     };
   }
 
@@ -1954,6 +2078,281 @@ export class CommunityService {
     });
 
     return rows.map((row) => row.followingUserId);
+  }
+
+  private searchQuery(value: unknown) {
+    const text = this.optionalStringValue(value);
+
+    if (!text) {
+      throw new BadRequestException('q must be a non-empty search keyword');
+    }
+
+    if (text.length > 80) {
+      throw new BadRequestException('q must be shorter than or equal to 80 characters');
+    }
+
+    return text;
+  }
+
+  private searchType(value: unknown, keyword: string) {
+    const explicit = this.optionalStringValue(value);
+
+    if (explicit) {
+      if (!SEARCH_TYPES.has(explicit)) {
+        throw new BadRequestException('type must be text or hashtag');
+      }
+
+      return explicit;
+    }
+
+    return keyword.trim().startsWith('#') ? 'hashtag' : 'text';
+  }
+
+  private optionalSearchType(value: unknown) {
+    const explicit = this.optionalStringValue(value);
+
+    if (!explicit || explicit === 'all') {
+      return undefined;
+    }
+
+    if (!SEARCH_TYPES.has(explicit)) {
+      throw new BadRequestException('type must be all, text, or hashtag');
+    }
+
+    return explicit;
+  }
+
+  private normalizeSearchKeyword(keyword: string, searchType: string) {
+    const normalized = keyword
+      .trim()
+      .replace(/\s+/g, ' ')
+      .replace(/^#+/, searchType === 'hashtag' ? '' : '#')
+      .toLocaleLowerCase();
+
+    if (!normalized) {
+      throw new BadRequestException('q must be a non-empty search keyword');
+    }
+
+    return normalized.slice(0, 80);
+  }
+
+  private searchLanguage(value: unknown, keyword: string) {
+    const mapped = this.mapLocaleToSearchLanguage(this.optionalStringValue(value));
+
+    if (mapped && mapped !== 'all') {
+      return mapped;
+    }
+
+    const detected = this.detectSearchLanguage(keyword);
+    return detected ?? 'unknown';
+  }
+
+  private trendingLanguage(value: unknown) {
+    const mapped = this.mapLocaleToSearchLanguage(this.optionalStringValue(value)) ?? 'all';
+
+    if (!TRENDING_LANGUAGE_FILTERS.has(mapped)) {
+      throw new BadRequestException('language must be all, ko, ja, en, zh, or unknown');
+    }
+
+    return mapped;
+  }
+
+  private mapLocaleToSearchLanguage(value?: string) {
+    if (!value) {
+      return undefined;
+    }
+
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === 'all') {
+      return 'all';
+    }
+
+    if (normalized.startsWith('ko')) {
+      return 'ko';
+    }
+
+    if (normalized.startsWith('ja') || normalized.startsWith('jp')) {
+      return 'ja';
+    }
+
+    if (normalized.startsWith('en')) {
+      return 'en';
+    }
+
+    if (normalized.startsWith('zh') || normalized.startsWith('cn')) {
+      return 'zh';
+    }
+
+    if (SEARCH_LANGUAGES.has(normalized)) {
+      return normalized;
+    }
+
+    throw new BadRequestException('language must be ko, ja, en, zh, unknown, or all');
+  }
+
+  private detectSearchLanguage(keyword: string) {
+    if (/[가-힣]/.test(keyword)) {
+      return 'ko';
+    }
+
+    if (/[\u3040-\u30ff]/.test(keyword)) {
+      return 'ja';
+    }
+
+    if (/[\u4e00-\u9fff]/.test(keyword)) {
+      return 'zh';
+    }
+
+    if (/[a-z]/i.test(keyword)) {
+      return 'en';
+    }
+
+    return null;
+  }
+
+  private feedSearchWhere(
+    normalizedKeyword: string,
+    searchType: string,
+  ): Prisma.CommunityPostWhereInput {
+    const publicWhere = {
+      status: 'published',
+      visibility: 'public',
+      deletedAt: null,
+    };
+
+    if (searchType === 'hashtag') {
+      return {
+        ...publicWhere,
+        body: { contains: `#${normalizedKeyword}`, mode: 'insensitive' },
+      };
+    }
+
+    return {
+      ...publicWhere,
+      OR: [
+        { body: { contains: normalizedKeyword, mode: 'insensitive' } },
+        { artist: { displayName: { contains: normalizedKeyword, mode: 'insensitive' } } },
+        { artist: { slug: { contains: normalizedKeyword, mode: 'insensitive' } } },
+        {
+          author: {
+            profile: {
+              is: {
+                displayName: { contains: normalizedKeyword, mode: 'insensitive' },
+              },
+            },
+          },
+        },
+        {
+          author: {
+            profile: {
+              is: {
+                publicHandle: { contains: normalizedKeyword, mode: 'insensitive' },
+              },
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  private async recordFeedSearchEvent(input: {
+    keyword: string;
+    normalizedKeyword: string;
+    searchType: string;
+    language: string;
+    resultCount: number;
+    userId?: string;
+    visitorHash?: string | null;
+    metadata: Record<string, unknown>;
+  }) {
+    try {
+      const visitorHash = input.visitorHash
+        ? this.hashVisitor(input.visitorHash)
+        : null;
+      const dedupeSince = new Date(Date.now() - SEARCH_EVENT_DEDUPE_WINDOW_MS);
+      const duplicateMatchers = [
+        ...(input.userId ? [{ userId: input.userId }] : []),
+        ...(visitorHash ? [{ visitorHash }] : []),
+      ];
+      const recentDuplicate = duplicateMatchers.length
+        ? await this.prisma.feedSearchEvent.findFirst({
+            where: {
+              normalizedKeyword: input.normalizedKeyword,
+              searchType: input.searchType,
+              language: input.language,
+              createdAt: { gte: dedupeSince },
+              OR: duplicateMatchers,
+            },
+            select: { id: true },
+          })
+        : null;
+
+      if (recentDuplicate) {
+        return;
+      }
+
+      await this.prisma.feedSearchEvent.create({
+        data: {
+          userId: input.userId ?? null,
+          visitorHash,
+          keyword: input.keyword,
+          normalizedKeyword: input.normalizedKeyword,
+          searchType: input.searchType,
+          language: input.language,
+          resultCount: input.resultCount,
+          metadata: this.toJson(input.metadata),
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to record feed search event: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  private hashVisitor(value: string) {
+    return createHash('sha256').update(value).digest('hex');
+  }
+
+  private trendingWindow(value: unknown) {
+    const key = this.optionalStringValue(value) ?? '1h';
+    const windows: Record<string, number> = {
+      '15m': 15 * 60 * 1000,
+      '1h': 60 * 60 * 1000,
+      '6h': 6 * 60 * 60 * 1000,
+      '24h': 24 * 60 * 60 * 1000,
+      '7d': 7 * 24 * 60 * 60 * 1000,
+    };
+    const ms = windows[key];
+
+    if (!ms) {
+      throw new BadRequestException('window must be 15m, 1h, 6h, 24h, or 7d');
+    }
+
+    return { key, ms };
+  }
+
+  private trendingKey(keyword: string, searchType: string, language: string) {
+    return `${language}:${searchType}:${keyword}`;
+  }
+
+  private feedSearchPolicy() {
+    return {
+      supportedLanguages: ['ko', 'ja', 'en', 'zh'],
+      trendingLanguageModes: ['all', 'ko', 'ja', 'en', 'zh', 'unknown'],
+      searchTypes: ['text', 'hashtag'],
+      defaultTrendingWindow: '1h',
+      trendingWindows: ['15m', '1h', '6h', '24h', '7d'],
+      dedupeWindowMinutes: 10,
+      hashtags: {
+        useHashPrefixInQuery: true,
+        languageCanBeUnknown: true,
+        allLanguageRankingRecommendedForEarlyTraffic: true,
+      },
+    };
   }
 
   private async findVisiblePost(postId: string) {

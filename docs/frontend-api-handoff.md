@@ -1640,6 +1640,10 @@ GET /lumina-feed?mode=all&take=20
 GET /lumina-feed?mode=artists&take=20
 GET /lumina-feed?mode=fans&take=20
 GET /lumina-feed?artistSlug=choi-seojin
+GET /lumina-feed/search?q=최서진&type=text&language=ko&take=20
+GET /lumina-feed/search?q=%23seojin&type=hashtag&language=all&take=20
+GET /lumina-feed/trending-searches?language=all&type=all&window=1h&take=10
+GET /lumina-feed/trending-searches?language=ko&type=hashtag&window=24h&take=10
 GET /me/lumina-feed?mode=all&take=20
 GET /me/lumina-feed?mode=following&take=20
 GET /lumina-feed/samples?mode=all&take=20
@@ -1648,6 +1652,24 @@ GET /artists/:slug/posts
 
 `GET /me/lumina-feed` uses the same query and post shape as the public feed, but requires `Authorization: Bearer <accessToken>`. It excludes posts hidden by the current user and posts from users who are in an active block relationship with the current user.
 `mode=following` is only supported on `GET /me/lumina-feed`. It returns posts from followed artists and followed normal users. If the viewer follows nobody, the response is `[]`.
+
+Feed search:
+
+- `GET /lumina-feed/search` searches public published posts. It returns `{ items, posts, count, nextCursor, query, policy }`, where each item uses the normal feed post shape.
+- Query `q` is required. `type` can be `text` or `hashtag`; if omitted, `q` starting with `#` is treated as `hashtag`.
+- For `type=hashtag`, send the visible hashtag form in `q`, for example `q=#seojin` or `q=#최서진`. The backend normalizes and searches post bodies for the hashtag.
+- `language` accepts `ko`, `ja`, `en`, `zh`, `unknown`, `all`, or locale-like values such as `ko-KR`, `ja-JP`, `en-US`, `zh-CN`. Search events are stored as `ko|ja|en|zh|unknown`; `all` means auto-detect for event storage.
+- Optional bearer auth is supported. If the viewer is signed in, returned posts include viewer hints such as `viewer.hasLiked`.
+- Each search records a lightweight `feed_search_events` row for trending search aggregation. Same user/session + same keyword/type/language is deduped for 10 minutes.
+
+Trending searches:
+
+- `GET /lumina-feed/trending-searches` returns current popular feed search terms from recorded search events.
+- `language=all` returns all languages combined. `language=ko|ja|en|zh|unknown` returns that language only.
+- `type=all|text|hashtag`; default is all.
+- `window=15m|1h|6h|24h|7d`; default is `1h`.
+- Response items: `{ rank, keyword, normalizedKeyword, type, language, searchCount, lastSearchedAt }`.
+- Recommended 1차 UI: show `language=all` first, then the user's current language tab. Early traffic can make per-language rankings look empty, especially hashtags.
 
 Sample posts:
 

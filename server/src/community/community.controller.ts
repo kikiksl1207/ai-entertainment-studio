@@ -19,7 +19,12 @@ import { CommunityService } from './community.service';
 
 type CommunityQuery = Record<string, string | undefined>;
 type CommunityBody = Record<string, unknown>;
-type RequestWithOptionalAuth = { user?: AuthUser };
+type RequestWithOptionalAuth = {
+  user?: AuthUser;
+  headers: Record<string, string | string[] | undefined>;
+  ip?: string;
+  socket?: { remoteAddress?: string };
+};
 
 @Controller()
 export class CommunityController {
@@ -40,6 +45,23 @@ export class CommunityController {
   @UseGuards(JwtAuthGuard)
   getMyLikedPosts(@CurrentUser() user: AuthUser, @Query() query: CommunityQuery) {
     return this.communityService.getMyLikedPosts(user.id, query);
+  }
+
+  @Get('lumina-feed/search')
+  @UseGuards(OptionalJwtAuthGuard)
+  searchFeed(
+    @Query() query: CommunityQuery,
+    @Req() request: RequestWithOptionalAuth,
+  ) {
+    return this.communityService.searchFeed(query, {
+      userId: request.user?.id,
+      visitorHash: this.visitorHashInput(request),
+    });
+  }
+
+  @Get('lumina-feed/trending-searches')
+  getTrendingSearches(@Query() query: CommunityQuery) {
+    return this.communityService.getTrendingSearches(query);
   }
 
   @Get('lumina-feed/samples')
@@ -292,5 +314,21 @@ export class CommunityController {
   @UseGuards(JwtAuthGuard)
   getMyBlockedUsers(@CurrentUser() user: AuthUser, @Query() query: CommunityQuery) {
     return this.communityService.getMyBlockedUsers(user.id, query);
+  }
+
+  private visitorHashInput(request: RequestWithOptionalAuth) {
+    const forwardedFor = request.headers['x-forwarded-for'];
+    const firstForwardedFor = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : forwardedFor;
+    const ip =
+      firstForwardedFor?.split(',')[0]?.trim() ??
+      request.ip ??
+      request.socket?.remoteAddress ??
+      'unknown';
+    const userAgent = request.headers['user-agent'];
+    const firstUserAgent = Array.isArray(userAgent) ? userAgent[0] : userAgent;
+
+    return `${ip}|${firstUserAgent ?? 'unknown'}`;
   }
 }

@@ -795,6 +795,9 @@ Personalized feed safety endpoints:
 ```http
 GET /api/v1/me/lumina-feed?mode=all&take=20
 GET /api/v1/me/lumina-feed?mode=following&take=20
+GET /api/v1/lumina-feed/search?q=최서진&type=text&language=ko&take=20
+GET /api/v1/lumina-feed/search?q=%23seojin&type=hashtag&language=all&take=20
+GET /api/v1/lumina-feed/trending-searches?language=all&type=all&window=1h&take=10
 DELETE /api/v1/lumina-feed/posts/:postId
 DELETE /api/v1/lumina-feed/replies/:replyId
 POST /api/v1/lumina-feed/posts/:postId/hide
@@ -809,6 +812,8 @@ Authorization: Bearer <accessToken>
 - `GET /api/v1/me/lumina-feed` matches the public feed query/response shape, but filters out active `community_hidden_posts` for the current user and posts authored by users in an active block relationship.
 - `mode=following` on `GET /api/v1/me/lumina-feed` returns posts from active followed artists and followed normal users. If the viewer follows nobody, it returns `[]`.
 - Signed-in post rows include follow button hints in `viewer`: `isFollowingArtist`, `isFollowingAuthor`, `canFollowArtist`, `canUnfollowArtist`, `canFollowAuthor`, and `canUnfollowAuthor`. Public `GET /api/v1/lumina-feed` remains viewer-agnostic.
+- `GET /api/v1/lumina-feed/search` searches public published feed posts by text or hashtag and records deduped `feed_search_events` for trending aggregation. Optional bearer auth adds viewer hints to post rows.
+- `GET /api/v1/lumina-feed/trending-searches` returns grouped popular search terms. `language=all|ko|ja|en|zh|unknown`, `type=all|text|hashtag`, and `window=15m|1h|6h|24h|7d` are supported. Use `language=all` plus viewer locale language for the 1차 UI because early per-language search volume can be sparse.
 - `POST /api/v1/lumina-feed/posts` allows image-only posts. If `assetIds` contains at least one confirmed public image asset, `body` may be an empty string. Text-only posts still require non-empty `body`.
 - `DELETE /api/v1/lumina-feed/posts/:postId` soft-deletes the current user's own post. Artist operators can delete posts for artists they operate.
 - `DELETE /api/v1/lumina-feed/replies/:replyId` soft-deletes the current user's own reply. Artist operators can delete replies on operated artist posts.

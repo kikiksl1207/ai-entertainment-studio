@@ -57,6 +57,9 @@ GET /lumina-feed?mode=all&take=20
 GET /lumina-feed?mode=artists&take=20
 GET /lumina-feed?mode=fans&take=20
 GET /lumina-feed?artistSlug=yoon-serin
+GET /lumina-feed/search?q=keyword&type=text&language=ko&take=20
+GET /lumina-feed/search?q=%23hashtag&type=hashtag&language=all&take=20
+GET /lumina-feed/trending-searches?language=all&type=all&window=1h&take=10
 GET /me/lumina-feed?mode=all&take=20
 GET /me/lumina-feed?mode=following&take=20
 GET /me/lumina-feed/likes?take=20&cursor=<reactionId>
@@ -82,6 +85,17 @@ followed normal users. If the viewer follows nobody, it returns `[]`.
 user's liked public feed posts. It is private to the viewer and must not be used
 for another user's public profile. Results are sorted by liked time descending.
 Cursor pagination uses the like reaction row `id`, not the post id.
+
+`GET /lumina-feed/search` searches public published posts and returns the normal
+post shape in `{ items, posts }`. Query `q` is required. `type=text|hashtag` is
+optional; `#`-prefixed queries default to `hashtag`. Search accepts
+`language=ko|ja|en|zh|unknown|all` and locale aliases like `ko-KR`. Each search
+creates a deduped `feed_search_events` row for live trend aggregation.
+
+`GET /lumina-feed/trending-searches` groups search events by keyword, language,
+and type. Use `language=all` for global trends, or `ko`, `ja`, `en`, `zh`, and
+`unknown` for per-language trends. `window=15m|1h|6h|24h|7d` and
+`type=all|text|hashtag` are supported.
 
 Response is an array of posts:
 
