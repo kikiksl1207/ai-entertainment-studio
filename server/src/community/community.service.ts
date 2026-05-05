@@ -871,26 +871,57 @@ export class CommunityService {
     return this.unblockUser(blockerUserId, blockedUserId);
   }
 
-  async getPublicUserProfile(userId: string) {
+  async getPublicUserProfile(userId: string, viewerUserId?: string) {
     if (!UUID_PATTERN.test(userId)) {
       throw new BadRequestException('userId must be a UUID');
     }
 
-    return this.getPublicUserProfileByWhere({ id: userId });
+    return this.getPublicUserProfileByWhere({ id: userId }, viewerUserId);
   }
 
-  async getPublicUserProfileByHandle(publicHandle: string) {
+  async getPublicUserProfileByHandle(publicHandle: string, viewerUserId?: string) {
     const normalizedHandle = this.normalizePublicHandle(publicHandle);
 
-    return this.getPublicUserProfileByWhere({
-      profile: { is: { publicHandle: normalizedHandle } },
-    });
+    return this.getPublicUserProfileByWhere(
+      {
+        profile: { is: { publicHandle: normalizedHandle } },
+      },
+      viewerUserId,
+    );
+  }
+
+  async getPublicUserPosts(
+    userId: string,
+    query: CommunityQuery,
+    viewerUserId?: string,
+  ) {
+    if (!UUID_PATTERN.test(userId)) {
+      throw new BadRequestException('userId must be a UUID');
+    }
+
+    return this.getPublicUserPostsByWhere({ id: userId }, query, viewerUserId);
+  }
+
+  async getPublicUserPostsByHandle(
+    publicHandle: string,
+    query: CommunityQuery,
+    viewerUserId?: string,
+  ) {
+    const normalizedHandle = this.normalizePublicHandle(publicHandle);
+
+    return this.getPublicUserPostsByWhere(
+      {
+        profile: { is: { publicHandle: normalizedHandle } },
+      },
+      query,
+      viewerUserId,
+    );
   }
 
   private async getPublicUserProfileByWhere(where: {
     id?: string;
     profile?: { is: { publicHandle: string } };
-  }) {
+  }, viewerUserId?: string) {
     const user = await this.prisma.user.findFirst({
       where: {
         ...where,
@@ -915,6 +946,8 @@ export class CommunityService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    await this.assertProfileVisibleToViewer(user.id, viewerUserId);
 
     const [
       followers,
@@ -956,6 +989,7 @@ export class CommunityService {
         orderBy: { publishedAt: 'desc' },
       }),
     ]);
+    const viewer = await this.userProfileViewerState(user.id, viewerUserId);
 
     return {
       user: {
@@ -964,14 +998,148 @@ export class CommunityService {
         createdAt: user.createdAt,
       },
       stats: {
+        followerCount: followers,
+        followingCount: followingUsers,
+        followingArtistCount: followingArtists,
+        postCount: posts,
+        replyCount: replies,
         followers,
         followingUsers,
         followingArtists,
         posts,
         replies,
       },
-      recentPosts: await Promise.all(recentPosts.map((post) => this.toPostView(post))),
+      viewer,
+      policy: {
+        visibility: 'public_active_users_only',
+        profileRouteKey: 'publicHandle',
+        postsEndpoint: 'GET /api/v1/users/handle/:publicHandle/lumina-feed',
+        followEndpoint: 'POST /api/v1/users/:userId/follow',
+        unfollowEndpoint: 'DELETE /api/v1/users/:userId/follow',
+        editProfileEndpoint: 'PATCH /api/v1/me/profile',
+      },
+      recentPosts: await Promise.all(
+        recentPosts.map((post) => this.toPostView(post, viewerUserId)),
+      ),
     };
+  }
+
+  private async getPublicUserPostsByWhere(
+    where: {
+      id?: string;
+      profile?: { is: { publicHandle: string } };
+    },
+    query: CommunityQuery,
+    viewerUserId?: string,
+  ) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        ...where,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        profile: {
+          select: {
+            displayName: true,
+            publicHandle: true,
+            avatarAssetId: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.assertProfileVisibleToViewer(user.id, viewerUserId);
+
+    const take = this.take(query.take);
+    const cursor = this.optionalString(query.cursor);
+
+    if (cursor && !UUID_PATTERN.test(cursor)) {
+      throw new BadRequestException('cursor must be a post UUID');
+    }
+
+    const posts = await this.prisma.communityPost.findMany({
+      where: {
+        authorUserId: user.id,
+        status: 'published',
+        visibility: 'public',
+        deletedAt: null,
+      },
+      include: this.postInclude(),
+      orderBy: { publishedAt: 'desc' },
+      take,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    return {
+      user: await this.toCompactUserView(user),
+      items: await Promise.all(posts.map((post) => this.toPostView(post, viewerUserId))),
+      count: posts.length,
+      nextCursor: posts.length === take ? posts[posts.length - 1]?.id ?? null : null,
+      viewer: await this.userProfileViewerState(user.id, viewerUserId),
+      policy: {
+        visibility: 'public_posts_only',
+        pagination: 'cursor_by_post_id',
+      },
+    };
+  }
+
+  private async userProfileViewerState(targetUserId: string, viewerUserId?: string) {
+    const isAuthenticated = Boolean(viewerUserId);
+    const isSelf = Boolean(viewerUserId && viewerUserId === targetUserId);
+    const follow = viewerUserId
+      ? await this.prisma.userFollow.findUnique({
+          where: {
+            followerUserId_followingUserId: {
+              followerUserId: viewerUserId,
+              followingUserId: targetUserId,
+            },
+          },
+          select: {
+            status: true,
+            deletedAt: true,
+          },
+        })
+      : null;
+    const isFollowing = Boolean(follow?.status === 'active' && !follow.deletedAt);
+
+    return {
+      isAuthenticated,
+      isSelf,
+      isFollowing,
+      canFollow: Boolean(viewerUserId && !isSelf && !isFollowing),
+      canUnfollow: Boolean(viewerUserId && !isSelf && isFollowing),
+      canEditProfile: isSelf,
+    };
+  }
+
+  private async assertProfileVisibleToViewer(targetUserId: string, viewerUserId?: string) {
+    if (!viewerUserId || viewerUserId === targetUserId) {
+      return;
+    }
+
+    const block = await this.prisma.userBlock.findFirst({
+      where: {
+        status: 'active',
+        deletedAt: null,
+        OR: [
+          { blockerUserId: viewerUserId, blockedUserId: targetUserId },
+          { blockerUserId: targetUserId, blockedUserId: viewerUserId },
+        ],
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (block) {
+      throw new ForbiddenException('User profile is not available');
+    }
   }
 
   async getMyFollowing(userId: string) {

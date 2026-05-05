@@ -8,15 +8,18 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { CommunityService } from './community.service';
 
 type CommunityQuery = Record<string, string | undefined>;
 type CommunityBody = Record<string, unknown>;
+type RequestWithOptionalAuth = { user?: AuthUser };
 
 @Controller()
 export class CommunityController {
@@ -208,13 +211,45 @@ export class CommunityController {
   }
 
   @Get('users/:userId/profile')
-  getUserProfile(@Param('userId') userId: string) {
-    return this.communityService.getPublicUserProfile(userId);
+  @UseGuards(OptionalJwtAuthGuard)
+  getUserProfile(@Param('userId') userId: string, @Req() request: RequestWithOptionalAuth) {
+    return this.communityService.getPublicUserProfile(userId, request.user?.id);
   }
 
   @Get('users/handle/:publicHandle/profile')
-  getUserProfileByHandle(@Param('publicHandle') publicHandle: string) {
-    return this.communityService.getPublicUserProfileByHandle(publicHandle);
+  @UseGuards(OptionalJwtAuthGuard)
+  getUserProfileByHandle(
+    @Param('publicHandle') publicHandle: string,
+    @Req() request: RequestWithOptionalAuth,
+  ) {
+    return this.communityService.getPublicUserProfileByHandle(
+      publicHandle,
+      request.user?.id,
+    );
+  }
+
+  @Get('users/:userId/lumina-feed')
+  @UseGuards(OptionalJwtAuthGuard)
+  getUserPosts(
+    @Param('userId') userId: string,
+    @Query() query: CommunityQuery,
+    @Req() request: RequestWithOptionalAuth,
+  ) {
+    return this.communityService.getPublicUserPosts(userId, query, request.user?.id);
+  }
+
+  @Get('users/handle/:publicHandle/lumina-feed')
+  @UseGuards(OptionalJwtAuthGuard)
+  getUserPostsByHandle(
+    @Param('publicHandle') publicHandle: string,
+    @Query() query: CommunityQuery,
+    @Req() request: RequestWithOptionalAuth,
+  ) {
+    return this.communityService.getPublicUserPostsByHandle(
+      publicHandle,
+      query,
+      request.user?.id,
+    );
   }
 
   @Get('me/following')

@@ -1905,6 +1905,91 @@ Use `items` as the canonical list. `artists` is provided as a compatibility alia
 
 `GET /users/handle/:publicHandle/profile` returns the same shape as `GET /users/:userId/profile`, but resolves the user by stable unique `publicHandle`. Prefer this endpoint for shareable profile links; keep the UUID endpoint for internal compatibility.
 
+User profile pages should use the handle route when possible:
+
+```http
+GET /users/handle/:publicHandle/profile
+GET /users/handle/:publicHandle/lumina-feed?take=20&cursor=<postId>
+Authorization: Bearer <accessToken>  // optional
+```
+
+UUID routes are also available:
+
+```http
+GET /users/:userId/profile
+GET /users/:userId/lumina-feed?take=20&cursor=<postId>
+Authorization: Bearer <accessToken>  // optional
+```
+
+Profile response additions:
+
+```json
+{
+  "user": {
+    "id": "user-uuid",
+    "displayName": "Lumina User",
+    "publicHandle": "blue-chair-1234",
+    "avatarUrl": "https://...",
+    "bio": "hello",
+    "createdAt": "2026-05-05T00:00:00.000Z"
+  },
+  "stats": {
+    "followerCount": 10,
+    "followingCount": 5,
+    "followingArtistCount": 2,
+    "postCount": 12,
+    "replyCount": 3,
+    "followers": 10,
+    "followingUsers": 5,
+    "followingArtists": 2,
+    "posts": 12,
+    "replies": 3
+  },
+  "viewer": {
+    "isAuthenticated": true,
+    "isSelf": false,
+    "isFollowing": false,
+    "canFollow": true,
+    "canUnfollow": false,
+    "canEditProfile": false
+  },
+  "recentPosts": []
+}
+```
+
+`/lumina-feed` user post list response:
+
+```json
+{
+  "user": {
+    "id": "user-uuid",
+    "displayName": "Lumina User",
+    "publicHandle": "blue-chair-1234",
+    "avatarUrl": "https://..."
+  },
+  "items": [],
+  "count": 0,
+  "nextCursor": null,
+  "viewer": {
+    "isAuthenticated": true,
+    "isSelf": false,
+    "isFollowing": true,
+    "canFollow": false,
+    "canUnfollow": true
+  }
+}
+```
+
+Rules:
+
+- Public profile and public user posts are readable without login.
+- If logged in, pass Authorization so `viewer` can show self/follow state.
+- Use `viewer.isSelf` to show "profile edit" linking to My Page.
+- Public profile pages must never show email or private account data.
+- Block relationship with the viewer returns `403 User profile is not available`.
+- User post list returns public, published, non-deleted posts only.
+- Cursor pagination uses the post `id` from the last item as `cursor`.
+
 Handle-based follow/block endpoints are also available for shareable profile screens:
 
 ```http

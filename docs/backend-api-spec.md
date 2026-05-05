@@ -721,6 +721,8 @@ Authorization: Bearer <accessToken>
 - `userId` must be a user UUID and cannot equal the current user id.
 - `GET /api/v1/me/following` returns `{ artists, users }`.
 - `GET /api/v1/users/handle/:publicHandle/profile` is public and returns the same shape as `GET /api/v1/users/:userId/profile`, resolving by the unique `user_profiles.public_handle`.
+- Public user profile routes accept optional bearer auth. When present and valid, responses include `viewer.isSelf`, `viewer.isFollowing`, `viewer.canFollow`, `viewer.canUnfollow`, and `viewer.canEditProfile`.
+- User profile post lists are available at `GET /api/v1/users/:userId/lumina-feed` and `GET /api/v1/users/handle/:publicHandle/lumina-feed`. They return public, published, non-deleted posts only, with cursor pagination by post id.
 - Handle-based follow/block endpoints resolve active users by `publicHandle` and then reuse the UUID follow/block policy, including self-action checks, idempotent unfollow/unblock, and block-triggered mutual unfollow.
 - User follow rows return `{ id, status, followedAt, updatedAt, user: { id, displayName, publicHandle, avatarUrl } }`.
 - Follow/unfollow action responses include UI refresh hints. Artist actions return `artist`, `stats.followerCount`, and `viewer.isFollowing/canFollow/canUnfollow`. User actions return `user`, `stats.followerCount/followingCount`, and the same viewer flags.
