@@ -1051,8 +1051,8 @@ function handleInlineAction(button) {
   }
 }
 
-function detailInput(label, name, value = "", type = "text", wide = false) {
-  return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><input type="${type}" name="${name}" value="${value}"></label>`;
+function detailInput(label, name, value = "", type = "text", wide = false, placeholder = "") {
+  return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><input type="${type}" name="${name}" value="${value}" placeholder="${placeholder}"></label>`;
 }
 
 function detailFile(label, name, hint = "", wide = false) {
@@ -1260,7 +1260,8 @@ function renderDetailForm(detail) {
     html = `
       <h3>데뷔 신청 확인</h3>
       <div class="detail-form-grid">
-        ${detailInput("신청자/활동명", "applicant", tableId === "creatorRows" ? row[0] || "" : "")}
+        ${detailInput("본명", "realName", meta.realName || "", "text", false, "신청자 본명")}
+        ${detailInput("활동명", "stageName", meta.stageName || "", "text", false, "활동명 또는 캐릭터명")}
         ${detailSelect("처리 상태", "applicationStatus", [
           { value: "reviewing", label: "확인중" },
           { value: "needs_more_info", label: "보완요청" },
@@ -1269,12 +1270,12 @@ function renderDetailForm(detail) {
         ], meta.status || "reviewing")}
         ${detailInput("신청 ID", "applicationId", meta.applicationId || "", "text", true)}
         ${detailInput("로그인 이메일", "email", meta.email || "", "email")}
-        ${detailInput("스튜디오 아티스트 Slug", "artistSlug", meta.artistSlug || "", "text")}
+        ${detailInput("연결 아티스트 Slug", "artistSlug", meta.artistSlug || "", "text", false, "예: kokong-ddadassa")}
         ${detailInput("연락 가능 시간", "contactWindow", meta.preferredContactTime || "", "text")}
         ${detailInput("자료 링크", "portfolioUrl", meta.portfolioUrl || "", "url")}
         ${detailTextarea("보완/확인 메모", "reviewMemo", "활동명, 소개, 연락 가능 시간, 자료 링크, 권리 확인 내용을 확인합니다.")}
       </div>
-      <p class="detail-form-note">스튜디오 접근권은 실제 등록된 아티스트 Slug가 있어야 열립니다. 이메일은 Slug로 사용할 수 없습니다.</p>
+      <p class="detail-form-note">본명과 활동명을 확인한 뒤, 생성된 아티스트의 Slug를 연결합니다. 이메일은 Slug로 사용할 수 없습니다.</p>
     `;
   } else if (quickTitle === "이미지 제작 요청" || tableId === "creatorImageRequestRows") {
     html = `
@@ -1668,6 +1669,15 @@ function normalizeArtistSlugValue(...values) {
   return slug;
 }
 
+function creatorNameParts(item = {}, rowValue = "") {
+  const combined = String(rowValue || "");
+  const [rowRealName = "", rowStageName = ""] = combined.split("/").map((part) => part.trim());
+  return {
+    realName: firstValue(item.realName, item.applicantName, item.metadata?.realName, rowRealName),
+    stageName: firstValue(item.stageName, item.displayName, item.metadata?.stageName, rowStageName)
+  };
+}
+
 function escapeHtml(value = "") {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -1802,7 +1812,6 @@ function buildActionRequest(detail, action) {
     return {
       method: "BATCH",
       steps: [
-        updateApplication,
         {
           method: "POST",
           path: adminApiPath("/backstage/operations/creator-access"),
@@ -1820,7 +1829,8 @@ function buildActionRequest(detail, action) {
             ],
             note: reason
           }
-        }
+        },
+        updateApplication
       ]
     };
   }
@@ -2082,8 +2092,15 @@ function buildActionPreview(action) {
   const currentAction = row[row.length - 1] || action;
   const profile = getActionProfile(detail, action);
   const isLocalOnly = action === "memo" || (action === "hold" && detail?.tableId !== "creatorRows");
+  const form = collectDetailFormData();
   const apiRequest = resolveExecutableEndpoint(profile.endpoint, detail, action);
   const isMutation = apiRequest && apiRequest.method !== "GET";
+  const creatorApprovalNeedsArtist =
+    detail?.tableId === "creatorRows" &&
+    action !== "memo" &&
+    action !== "hold" &&
+    (form.applicationStatus || detail?.meta?.status) === "approved" &&
+    (!firstValue(form.email, detail?.meta?.email) || !normalizeArtistSlugValue(form.artistSlug, detail?.meta?.artistSlug));
 
   const base = {
     menu: detail.type,
@@ -2099,19 +2116,21 @@ function buildActionPreview(action) {
       targetType: profile.targetType,
       target,
       action: action === "danger" ? currentAction : action,
-      form: collectDetailFormData(),
+      form,
       reason: memo || "운영 메모 미입력",
       note: memo || "운영 메모 미입력"
     },
     note: memo || "운영 메모 미입력",
-    warning: isLocalOnly
+    warning: creatorApprovalNeedsArtist
+      ? "승인하려면 로그인 이메일과 연결 아티스트 Slug가 필요합니다. Slug에는 이메일이 아니라 생성된 아티스트의 영문 주소명을 넣어주세요."
+      : isLocalOnly
       ? "현재 화면에 운영 메모와 처리 이력을 남깁니다. 처리 사유를 확인한 뒤 진행하세요."
       : apiRequest
         ? (isMutation ? profile.warning : "조회만 하는 항목입니다. 변경/제재/지급 같은 위험 처리는 별도 확정 전까지 잠가둡니다.")
       : profile.warning,
-    canRunLocally: isLocalOnly,
-    canRunApi: Boolean(apiRequest),
-    apiRequest
+    canRunLocally: creatorApprovalNeedsArtist ? false : isLocalOnly,
+    canRunApi: creatorApprovalNeedsArtist ? false : Boolean(apiRequest),
+    apiRequest: creatorApprovalNeedsArtist ? null : apiRequest
   };
   return base;
 }
@@ -2775,6 +2794,7 @@ async function loadCreatorsSection() {
         item.needsFollowUp ? "확인 요청" : item.status === "approved" ? "권한 보기" : "신청 보기"
       ],
       meta: {
+        ...creatorNameParts(item),
         applicationId: item.id || item.applicationId,
         status: item.status,
         email: item.user?.email || item.contactEmail || item.email,
