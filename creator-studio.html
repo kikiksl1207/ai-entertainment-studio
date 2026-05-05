@@ -296,7 +296,7 @@
           <button type="button" data-section="artists">아티스트 <b>3</b></button>
           <button type="button" data-section="feed">피드 작성 <b>6</b></button>
           <button type="button" data-section="media">이미지/숏폼 <b>24</b></button>
-          <button type="button" data-section="image-lab">이미지 요청 <b>준비</b></button>
+          <button type="button" data-section="image-lab" disabled aria-disabled="true" style="opacity:.45; cursor:not-allowed;">이미지 요청 <b>준비</b></button>
           <button type="button" data-section="settlement">정산 <b>₩</b></button>
           <button type="button" data-section="settings">설정 <b>!</b></button>
         </nav>
@@ -317,7 +317,7 @@
           </div>
           <div class="top-actions">
             <button type="button" data-action="toast">새 피드</button>
-            <button class="primary-action" type="button" data-section-jump="image-lab">이미지 요청</button>
+            <button class="primary-action" type="button" disabled aria-disabled="true" style="opacity:.45; cursor:not-allowed;">이미지 요청</button>
           </div>
         </header>
 
@@ -337,7 +337,7 @@
               <div class="artist-list">
                 <div class="notice"><strong>정산 주소 입력 필요</strong><span>첫 정산 전 세무 서류용 주소를 한 번만 입력해야 합니다. 주소는 정산/세무 처리에만 사용됩니다.</span></div>
                 <div class="notice"><strong>박도아 피드 미작성 8시간</strong><span>6시간 이상 피드가 없으면 운영 상태에 표시됩니다. 예약 글이나 직접 작성 글로 공백을 줄여주세요.</span></div>
-                <div class="notice"><strong>이미지 요청 1건 검수 대기</strong><span>결과물은 바로 공개되지 않고 캐릭터별 에셋 슬롯에 연결해야 합니다.</span></div>
+                <div class="notice" style="opacity:.55;"><strong>이미지 요청 기능 준비 중</strong><span>오픈 전까지 이미지 요청은 비활성 상태로 유지합니다.</span></div>
               </div>
             </article>
             <article class="panel">
@@ -460,25 +460,25 @@
           </article>
         </section>
 
-        <section class="studio-section" id="image-lab">
+        <section class="studio-section" id="image-lab" aria-disabled="true" style="opacity:.48;">
           <article class="panel">
             <div class="panel-header">
               <div><span class="panel-kicker">IMAGE LAB</span><h2>이미지 요청</h2></div>
               <span class="badge is-warn">준비 중</span>
             </div>
             <div class="form-grid">
-              <label><span>대상 아티스트</span><select><option>윤세린</option><option>하윤아</option><option>박도아</option></select></label>
-              <label><span>사용 목적</span><select><option>프로필 이미지</option><option>피드 이미지</option><option>숏폼 썸네일</option><option>콘셉트 레퍼런스</option></select></label>
-              <label class="is-wide"><span>요청 내용</span><textarea>캐릭터 얼굴 기준을 유지하고, 기존 톤앤매너를 깨지 않는 공식 이미지 후보를 만들어 주세요.</textarea></label>
-              <label class="is-wide"><span>레퍼런스 파일</span><input type="file" accept="image/*" /></label>
+              <label><span>대상 아티스트</span><select disabled><option>윤세린</option><option>하윤아</option><option>박도아</option></select></label>
+              <label><span>사용 목적</span><select disabled><option>프로필 이미지</option><option>피드 이미지</option><option>숏폼 썸네일</option><option>콘셉트 레퍼런스</option></select></label>
+              <label class="is-wide"><span>요청 내용</span><textarea disabled>이미지 요청 기능은 준비 중입니다.</textarea></label>
+              <label class="is-wide"><span>레퍼런스 파일</span><input type="file" accept="image/*" disabled /></label>
             </div>
-            <p>결과물은 바로 공개되지 않습니다. 결과 확인 후 프로필 메인샷, 전신샷, 갤러리, 숏폼 썸네일 중 하나로 연결합니다.</p>
-            <button class="primary-action" type="button" data-action="toast">요청 초안 저장</button>
+            <p>이 기능은 오픈 전까지 비활성화되어 있습니다.</p>
+            <button class="primary-action" type="button" disabled aria-disabled="true" style="cursor:not-allowed;">요청 초안 저장</button>
           </article>
           <article class="table-card">
             <header>
               <div><span class="panel-kicker">REQUESTS</span><h3>이미지 요청 이력</h3></div>
-              <button class="secondary-action" type="button" data-action="toast">전체 보기</button>
+              <button class="secondary-action" type="button" disabled aria-disabled="true" style="cursor:not-allowed;">전체 보기</button>
             </header>
             <div class="table-wrap">
               <table>
