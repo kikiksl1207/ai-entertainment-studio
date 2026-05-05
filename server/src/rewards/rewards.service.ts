@@ -19,6 +19,34 @@ const PROMO_REWARD_LEDGER_TYPES = [
   'quest_reward',
   'profile_completion_reward',
 ] as const;
+const CLAIMABLE_ACTIVATION_QUESTS = {
+  profile_basic_setup: {
+    rewardLumina: 30,
+    ledgerType: 'profile_completion_reward',
+    memo: 'Profile basic setup reward',
+  },
+  first_feed_post: {
+    rewardLumina: 20,
+    ledgerType: 'quest_reward',
+    memo: 'First Lumina Feed post reward',
+  },
+  first_feed_like: {
+    rewardLumina: 10,
+    ledgerType: 'quest_reward',
+    memo: 'First Lumina Feed like reward',
+  },
+  first_follow: {
+    rewardLumina: 10,
+    ledgerType: 'quest_reward',
+    memo: 'First follow reward',
+  },
+  first_reply: {
+    rewardLumina: 20,
+    ledgerType: 'quest_reward',
+    memo: 'First feed reply reward',
+  },
+} as const;
+type ClaimableActivationQuestCode = keyof typeof CLAIMABLE_ACTIVATION_QUESTS;
 
 @Injectable()
 export class RewardsService {
@@ -411,6 +439,123 @@ export class RewardsService {
     };
   }
 
+  async claimActivationQuest(userId: string, code: string) {
+    await this.ensureActiveUser(userId);
+    const questCode = this.claimableQuestCode(code);
+    const quest = CLAIMABLE_ACTIVATION_QUESTS[questCode];
+    const idempotencyKey = `activation_quest:${userId}:${questCode}`;
+
+    const [existingLedger, progress] = await Promise.all([
+      this.prisma.walletLedger.findUnique({
+        where: { idempotencyKey },
+      }),
+      this.getActivationProgress(userId),
+    ]);
+
+    if (existingLedger) {
+      return {
+        quest: this.activationQuestStatusFromProgress(questCode, progress),
+        ledger: existingLedger,
+        idempotentReplay: true,
+        walletCredited: false,
+        caps: progress.caps,
+        policy: this.activationQuestClaimPolicy(),
+      };
+    }
+
+    const questStatus = this.activationQuestStatusFromProgress(questCode, progress);
+
+    if (!questStatus.completed) {
+      throw new BadRequestException({
+        code: 'ACTIVATION_QUEST_NOT_COMPLETED',
+        message: 'Activation quest condition is not completed yet',
+        details: {
+          quest: questStatus,
+        },
+      });
+    }
+
+    const rewardAmount = new Decimal(quest.rewardLumina);
+    const remainingPromoLumina = new Decimal(progress.caps.freePromo.remainingLumina);
+
+    if (remainingPromoLumina.lessThan(rewardAmount)) {
+      throw new BadRequestException({
+        code: 'FREE_PROMO_REWARD_CAP_EXCEEDED',
+        message: 'Free promotional reward cap would be exceeded',
+        details: {
+          capLumina: progress.caps.freePromo.capLumina,
+          earnedLumina: progress.caps.freePromo.earnedLumina,
+          remainingLumina: progress.caps.freePromo.remainingLumina,
+          requestedLumina: rewardAmount.toString(),
+        },
+      });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.walletAccount.findUnique({
+        where: {
+          userId_currencyCode: {
+            userId,
+            currencyCode: DEFAULT_CURRENCY,
+          },
+        },
+      });
+
+      if (!wallet || wallet.status !== 'active') {
+        throw new BadRequestException('Active wallet not found');
+      }
+
+      const ledger = await tx.walletLedger.create({
+        data: {
+          walletAccountId: wallet.id,
+          direction: 'credit',
+          amount: rewardAmount,
+          ledgerType: quest.ledgerType,
+          referenceType: 'user',
+          referenceId: userId,
+          idempotencyKey,
+          memo: quest.memo,
+        },
+      });
+
+      const updatedWallet = await tx.walletAccount.update({
+        where: { id: wallet.id },
+        data: {
+          cachedBalance: {
+            increment: rewardAmount,
+          },
+        },
+      });
+
+      return {
+        quest: {
+          ...questStatus,
+          claimStatus: 'claimed',
+        },
+        ledger,
+        wallet: {
+          id: updatedWallet.id,
+          currencyCode: updatedWallet.currencyCode,
+          cachedBalance: updatedWallet.cachedBalance,
+          status: updatedWallet.status,
+        },
+        idempotentReplay: false,
+        walletCredited: true,
+        caps: {
+          ...progress.caps,
+          freePromo: {
+            ...progress.caps.freePromo,
+            earnedLumina: new Decimal(progress.caps.freePromo.earnedLumina)
+              .plus(rewardAmount)
+              .toString(),
+            remainingLumina: remainingPromoLumina.minus(rewardAmount).toString(),
+          },
+        },
+        policy: this.activationQuestClaimPolicy(),
+      };
+    });
+  }
+
   private async ensureActiveUser(userId: string) {
     const user = await this.prisma.user.findFirst({
       where: {
@@ -553,31 +698,31 @@ export class RewardsService {
       {
         code: 'profile_basic_setup',
         completed: input.hasProfileBio || input.hasAvatar || input.hasCover,
-        claimStatus: 'planned_not_claimable',
+        claimStatus: 'claimable_when_completed',
         rewardLumina: 30,
       },
       {
         code: 'first_feed_post',
         completed: input.counts.feedPosts > 0,
-        claimStatus: 'planned_not_claimable',
+        claimStatus: 'claimable_when_completed',
         rewardLumina: 20,
       },
       {
         code: 'first_feed_like',
         completed: input.counts.feedLikes > 0,
-        claimStatus: 'planned_not_claimable',
+        claimStatus: 'claimable_when_completed',
         rewardLumina: 10,
       },
       {
         code: 'first_follow',
         completed: input.counts.followsTotal > 0,
-        claimStatus: 'planned_not_claimable',
+        claimStatus: 'claimable_when_completed',
         rewardLumina: 10,
       },
       {
         code: 'first_reply',
         completed: input.counts.feedReplies > 0,
-        claimStatus: 'planned_not_claimable',
+        claimStatus: 'claimable_when_completed',
         rewardLumina: 20,
       },
       {
@@ -587,5 +732,51 @@ export class RewardsService {
         bonusRate: 0.1,
       },
     ];
+  }
+
+  private claimableQuestCode(code: string): ClaimableActivationQuestCode {
+    if (Object.prototype.hasOwnProperty.call(CLAIMABLE_ACTIVATION_QUESTS, code)) {
+      return code as ClaimableActivationQuestCode;
+    }
+
+    throw new BadRequestException({
+      code: 'ACTIVATION_QUEST_NOT_CLAIMABLE',
+      message: 'Activation quest is not claimable',
+      details: {
+        claimableCodes: Object.keys(CLAIMABLE_ACTIVATION_QUESTS),
+      },
+    });
+  }
+
+  private activationQuestStatusFromProgress(
+    code: ClaimableActivationQuestCode,
+    progress: Awaited<ReturnType<RewardsService['getActivationProgress']>>,
+  ) {
+    const milestone = progress.milestoneStatus.find((item) => item.code === code);
+
+    if (!milestone) {
+      throw new BadRequestException('Activation quest status not found');
+    }
+
+    return {
+      ...milestone,
+      claimEndpoint: `/api/v1/rewards/activation-quests/${code}/claim`,
+    };
+  }
+
+  private activationQuestClaimPolicy() {
+    return {
+      claimableCodes: Object.keys(CLAIMABLE_ACTIVATION_QUESTS),
+      oneTimePerUser: true,
+      idempotencyKeyPattern: 'activation_quest:<userId>:<code>',
+      capScope: 'free_promo',
+      freePromoRewardCapLumina: FREE_PROMO_REWARD_CAP_LUMINA,
+      refundPolicy: 'Promotional quest rewards are excluded from cash refunds.',
+      excludedCodes: {
+        identity_verification_bonus: 'planned_after_real_identity_provider',
+        birthday_verified_annual: 'planned_after_verified_birthdate',
+        first_charge_bonus: 'payment_fulfillment_policy',
+      },
+    };
   }
 }

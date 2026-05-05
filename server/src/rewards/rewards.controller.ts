@@ -1,4 +1,4 @@
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -42,5 +42,10 @@ export class RewardsController {
   @Get('activation-progress')
   getActivationProgress(@CurrentUser() user: AuthUser) {
     return this.rewardsService.getActivationProgress(user.id);
+  }
+
+  @Post('activation-quests/:code/claim')
+  claimActivationQuest(@CurrentUser() user: AuthUser, @Param('code') code: string) {
+    return this.rewardsService.claimActivationQuest(user.id, code);
   }
 }
