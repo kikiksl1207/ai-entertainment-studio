@@ -36,6 +36,12 @@ export class CommunityController {
     return this.communityService.getPersonalizedFeed(user.id, query);
   }
 
+  @Get('me/lumina-feed/likes')
+  @UseGuards(JwtAuthGuard)
+  getMyLikedPosts(@CurrentUser() user: AuthUser, @Query() query: CommunityQuery) {
+    return this.communityService.getMyLikedPosts(user.id, query);
+  }
+
   @Get('lumina-feed/samples')
   getSamplePosts(@Query() query: CommunityQuery) {
     return this.communityService.getSamplePosts(query);

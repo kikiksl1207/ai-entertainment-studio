@@ -129,6 +129,67 @@ export class CommunityService {
     return Promise.all(posts.map((post) => this.toPostView(post, userId)));
   }
 
+  async getMyLikedPosts(userId: string, query: CommunityQuery) {
+    await this.assertActiveUser(userId);
+    const take = this.take(query.take);
+    const cursor = this.optionalString(query.cursor);
+    const blockedUserIds = await this.getBlockedRelationshipUserIds(userId);
+
+    if (cursor && !UUID_PATTERN.test(cursor)) {
+      throw new BadRequestException('cursor must be a like reaction UUID');
+    }
+
+    const reactions = await this.prisma.communityReaction.findMany({
+      where: {
+        userId,
+        reactionType: 'like',
+        post: {
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
+          authorUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
+          hiddenByUsers: {
+            none: {
+              userId,
+              status: 'active',
+              deletedAt: null,
+            },
+          },
+        },
+      },
+      take,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      include: {
+        post: {
+          include: this.postInclude(),
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const items = await Promise.all(
+      reactions.map(async (reaction) => ({
+        ...(await this.toPostView(reaction.post, userId)),
+        viewerLike: {
+          id: reaction.id,
+          likedAt: reaction.createdAt,
+        },
+      })),
+    );
+
+    return {
+      items,
+      posts: items,
+      count: items.length,
+      nextCursor: reactions.length === take ? reactions[reactions.length - 1].id : null,
+      cursorType: 'community_reaction_id',
+      visibility: 'viewer_only',
+      policy: {
+        privateToViewer: true,
+        publicProfileExposure: false,
+      },
+    };
+  }
+
   getSamplePosts(query: CommunityQuery) {
     const take = this.take(query.take);
     const mode = this.optionalString(query.mode) ?? 'all';

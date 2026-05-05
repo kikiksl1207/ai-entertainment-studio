@@ -59,6 +59,7 @@ GET /lumina-feed?mode=fans&take=20
 GET /lumina-feed?artistSlug=yoon-serin
 GET /me/lumina-feed?mode=all&take=20
 GET /me/lumina-feed?mode=following&take=20
+GET /me/lumina-feed/likes?take=20&cursor=<reactionId>
 GET /lumina-feed/samples?mode=all&take=20
 GET /artists/:slug/posts
 ```
@@ -76,6 +77,11 @@ filters out posts hidden by the current user and posts authored by users in an
 active block relationship.
 It also accepts `mode=following`, which returns posts from followed artists and
 followed normal users. If the viewer follows nobody, it returns `[]`.
+
+`GET /me/lumina-feed/likes` requires user auth and returns only the current
+user's liked public feed posts. It is private to the viewer and must not be used
+for another user's public profile. Results are sorted by liked time descending.
+Cursor pagination uses the like reaction row `id`, not the post id.
 
 Response is an array of posts:
 
@@ -109,6 +115,40 @@ Response is an array of posts:
   }
 ]
 ```
+
+Liked-post response:
+
+```json
+{
+  "items": [
+    {
+      "id": "post-uuid",
+      "body": "liked post body",
+      "viewer": {
+        "hasLiked": true,
+        "isAuthor": false
+      },
+      "viewerLike": {
+        "id": "reaction-uuid",
+        "likedAt": "2026-05-05T00:00:00.000Z"
+      }
+    }
+  ],
+  "posts": [],
+  "count": 1,
+  "nextCursor": null,
+  "cursorType": "community_reaction_id",
+  "visibility": "viewer_only",
+  "policy": {
+    "privateToViewer": true,
+    "publicProfileExposure": false
+  }
+}
+```
+
+Use `items` as canonical. `posts` is a compatibility alias with the same array.
+The endpoint filters out deleted/non-public posts, hidden posts, and posts by
+users in an active block relationship with the viewer.
 
 ### Sample Posts
 
