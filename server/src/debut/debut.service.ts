@@ -26,6 +26,7 @@ type NormalizedCreateDebutApplicationInput = CreateDebutApplicationDto & {
   intro: string;
   participationType: NonNullable<CreateDebutApplicationDto['participationType']>;
   consentVoice: boolean;
+  applicationType: NonNullable<CreateDebutApplicationDto['applicationType']>;
 };
 
 @Injectable()
@@ -165,6 +166,7 @@ export class DebutService {
       ],
       fieldPolicy: {
         intro: { minLength: 20, maxLength: 4000 },
+        partnershipOtherIntro: { minLength: 10, maxLength: 4000 },
         applicantName: { minLength: 2, maxLength: 80 },
         displayName: { minLength: 2, maxLength: 80, required: false },
         preferredContactTime: { maxLength: 120, required: false },
@@ -211,6 +213,7 @@ export class DebutService {
 
     this.assertRequiredConsents(normalized);
     this.assertApplicationChannel(normalized);
+    this.assertIntroPolicy(normalized);
     const metadata = this.applicationMetadata(normalized);
 
     const application = await this.prisma.debutApplication.create({
@@ -225,9 +228,9 @@ export class DebutService {
         shareTierRequested: normalized.shareTierRequested,
         intro: normalized.intro,
         portfolioUrl: normalized.portfolioUrl,
-        consentAppearance: true,
+        consentAppearance: normalized.consentAppearance === true,
         consentVoice: normalized.consentVoice,
-        consentRevenuePolicy: true,
+        consentRevenuePolicy: normalized.consentRevenuePolicy === true,
         consentPrivacy: true,
         consentMarketing: this.optionalConsentMarketing(normalized),
         metadata,
@@ -261,6 +264,7 @@ export class DebutService {
       contactEmail,
       contactPhone,
       intro,
+      applicationType: input.applicationType ?? DEFAULT_APPLICATION_TYPE,
       participationType: input.participationType ?? DEFAULT_PARTICIPATION_TYPE,
       consentVoice: input.consentVoice ?? false,
     };
@@ -418,7 +422,12 @@ export class DebutService {
   }
 
   private assertRequiredConsents(input: CreateDebutApplicationDto) {
-    const required = ['consentAppearance', 'consentRevenuePolicy', 'consentPrivacy'];
+    const applicationType = input.applicationType ?? DEFAULT_APPLICATION_TYPE;
+    const required =
+      applicationType === 'partnership_other'
+        ? ['consentPrivacy']
+        : ['consentAppearance', 'consentRevenuePolicy', 'consentPrivacy'];
+
     for (const key of required) {
       if (input[key as keyof CreateDebutApplicationDto] !== true) {
         throw new BadRequestException(`${key} must be true`);
@@ -434,6 +443,16 @@ export class DebutService {
 
     if (channel === 'phone_consultation' && input.consultationConsent !== true) {
       throw new BadRequestException('consultationConsent must be true for phone_consultation');
+    }
+  }
+
+  private assertIntroPolicy(input: CreateDebutApplicationDto) {
+    const intro = input.intro ?? input.selfIntroduction ?? '';
+    const minLength =
+      (input.applicationType ?? DEFAULT_APPLICATION_TYPE) === 'partnership_other' ? 10 : 20;
+
+    if (intro.trim().length < minLength) {
+      throw new BadRequestException(`intro must be at least ${minLength} characters`);
     }
   }
 

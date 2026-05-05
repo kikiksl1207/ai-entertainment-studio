@@ -176,14 +176,14 @@ export class CreateDebutApplicationDto {
   @IsOptional()
   @Transform(normalizeString)
   @IsString()
-  @MinLength(20)
+  @MinLength(10)
   @MaxLength(4000)
   intro?: string;
 
   @IsOptional()
   @Transform(normalizeString)
   @IsString()
-  @MinLength(20)
+  @MinLength(10)
   @MaxLength(4000)
   selfIntroduction?: string;
 
@@ -193,8 +193,9 @@ export class CreateDebutApplicationDto {
   @MaxLength(1000)
   portfolioUrl?: string;
 
+  @IsOptional()
   @IsBoolean()
-  consentAppearance!: boolean;
+  consentAppearance?: boolean;
 
   @IsOptional()
   @IsBoolean()
@@ -208,8 +209,9 @@ export class CreateDebutApplicationDto {
   @IsBoolean()
   consentNoGuarantee?: boolean;
 
+  @IsOptional()
   @IsBoolean()
-  consentRevenuePolicy!: boolean;
+  consentRevenuePolicy?: boolean;
 
   @IsBoolean()
   consentPrivacy!: boolean;

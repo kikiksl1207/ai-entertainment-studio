@@ -130,6 +130,8 @@ Current status:
 - In `r2` or `s3` mode, confirmation sends a signed `HEAD` request to verify that the object exists before updating metadata.
 - The endpoint writes an `asset.upload.confirm` audit event.
 - Public artist and shortform APIs filter out `pending_upload` assets and return only frontend-safe asset fields.
+- Presigned `PUT` URLs sign `content-type;host`. Upload clients must send the
+  exact `content-type` value returned in `upload.requiredHeaders`.
 
 ## Archive / restore policy
 

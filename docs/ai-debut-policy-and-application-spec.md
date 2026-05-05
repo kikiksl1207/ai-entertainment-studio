@@ -2,7 +2,7 @@
 
 Status: Draft for product, backend, and operations planning.
 Owner: Chamo / Codex A.
-Last updated: 2026-05-02.
+Last updated: 2026-05-05.
 
 This document is not a final legal contract. Before public launch, the consent copy,
 privacy policy, revenue share terms, and creator agreement must be reviewed by a
@@ -60,6 +60,14 @@ after identity, rights, risk, and contribution review.
 - `consentMarketing`: optional marketing-receive consent. Store separately from required consents.
 - `consultationConsent`: required true for `phone_consultation`.
 - `metadata`: structured extension object for non-sensitive detail.
+
+For `applicationType=partnership_other`, the MVP treats the form as a low-friction
+consultation inquiry, not a personal AI debut consent. Required consents are
+reduced to `consentPrivacy=true` plus `consultationConsent=true` for
+`phone_consultation`; `consentAppearance` and `consentRevenuePolicy` are optional
+and default to false when omitted. The minimum `intro` length is 10 characters
+for this inquiry path, while normal debut applications keep the 20 character
+minimum.
 
 ### MVP Application Channels
 

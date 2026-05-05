@@ -116,7 +116,12 @@ export class UserAssetsService {
     const storageProvider = this.configService.get<string>('OBJECT_STORAGE_PROVIDER') ?? 'local';
     const storageKey = this.buildStorageKey(fileName);
     const expiresInSeconds = this.numberFromEnv('OBJECT_UPLOAD_INTENT_TTL_SECONDS', 900);
-    const uploadUrl = this.buildUploadUrl(storageProvider, storageKey, expiresInSeconds);
+    const uploadUrl = this.buildUploadUrl(
+      storageProvider,
+      storageKey,
+      expiresInSeconds,
+      mimeType,
+    );
     const publicUrl = buildPublicAssetUrl(this.configService, storageKey, null);
 
     const asset = await this.prisma.asset.create({
@@ -375,9 +380,19 @@ export class UserAssetsService {
     return prefix ? `${prefix}/${path}` : path;
   }
 
-  private buildUploadUrl(storageProvider: string, storageKey: string, expiresInSeconds: number) {
+  private buildUploadUrl(
+    storageProvider: string,
+    storageKey: string,
+    expiresInSeconds: number,
+    mimeType: string,
+  ) {
     if (storageProvider === 'r2' || storageProvider === 's3') {
-      return this.buildS3CompatiblePresignedPutUrl(storageProvider, storageKey, expiresInSeconds);
+      return this.buildS3CompatiblePresignedPutUrl(
+        storageProvider,
+        storageKey,
+        expiresInSeconds,
+        mimeType,
+      );
     }
 
     if (storageProvider !== 'local') {
@@ -416,6 +431,7 @@ export class UserAssetsService {
     storageProvider: string,
     storageKey: string,
     expiresInSeconds: number,
+    mimeType: string,
   ) {
     const bucket = this.envString('OBJECT_STORAGE_BUCKET');
     const region = this.configService.get<string>('OBJECT_STORAGE_REGION') ?? 'auto';
@@ -428,7 +444,7 @@ export class UserAssetsService {
     const endpoint = this.buildObjectStorageEndpoint(storageProvider, bucket, region);
     const url = new URL(this.joinUrlPath(endpoint, storageKey));
     const credential = `${accessKeyId}/${scope}`;
-    const signedHeaders = 'host';
+    const signedHeaders = 'content-type;host';
     const query: Record<string, string> = {
       'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
       'X-Amz-Credential': credential,
@@ -441,7 +457,7 @@ export class UserAssetsService {
       'PUT',
       this.canonicalUri(url.pathname),
       canonicalQuery,
-      `host:${url.host}\n`,
+      `content-type:${mimeType}\nhost:${url.host}\n`,
       signedHeaders,
       'UNSIGNED-PAYLOAD',
     ].join('\n');
