@@ -720,6 +720,20 @@
           }
         }
 
+        function authEmail() {
+          const user = readAuth()?.user || {};
+          return user.email || user.displayName || user.id || "";
+        }
+
+        function setGateChecking() {
+          const email = authEmail();
+          if (kicker) kicker.textContent = "Checking";
+          if (title) title.textContent = "스튜디오 권한을 확인하고 있습니다.";
+          if (body) body.textContent = email
+            ? "현재 로그인 계정 " + email + " 기준으로 Creator Studio 권한을 확인하고 있습니다."
+            : "현재 브라우저에서 로그인 계정을 찾지 못했습니다.";
+        }
+
         function deny(message) {
           if (shell) shell.hidden = true;
           if (gate) gate.hidden = false;
@@ -728,6 +742,14 @@
           if (body) body.textContent = message || "승인된 크리에이터 계정만 스튜디오 스테이지에 들어올 수 있습니다.";
           if (actions) actions.hidden = false;
         }
+
+        window.addEventListener("error", function () {
+          deny("스튜디오 화면 스크립트 실행 중 오류가 발생했습니다. 새로고침 후에도 반복되면 배포 파일을 확인해야 합니다.");
+        });
+
+        window.addEventListener("unhandledrejection", function () {
+          deny("스튜디오 권한 확인 중 처리되지 않은 오류가 발생했습니다. 로그인 계정과 API 응답을 확인해 주세요.");
+        });
 
         function allow(data) {
           if (gate) gate.hidden = true;
@@ -1268,8 +1290,17 @@
         });
 
         async function verify() {
+          setGateChecking();
+          let completed = false;
+          const hardTimeoutId = setTimeout(() => {
+            if (!completed) {
+              deny("스튜디오 권한 확인이 오래 걸리고 있습니다. 현재 로그인 계정과 Backstage의 스튜디오 권한 계정이 같은지 확인해 주세요.");
+            }
+          }, 12000);
           const token = readAuth()?.accessToken;
           if (!token) {
+            completed = true;
+            clearTimeout(hardTimeoutId);
             deny("로그인 후 승인된 크리에이터 계정으로만 접근할 수 있습니다.");
             return;
           }
@@ -1290,16 +1321,24 @@
             }
             const data = await res.json();
             if (data?.access?.enabled === true) {
+              completed = true;
+              clearTimeout(hardTimeoutId);
               allow(data);
               return;
             }
+            completed = true;
+            clearTimeout(hardTimeoutId);
             deny("승인된 크리에이터 계정만 스튜디오 스테이지에 들어올 수 있습니다.");
           } catch (error) {
+            completed = true;
+            clearTimeout(hardTimeoutId);
             deny(error?.name === "AbortError"
               ? "스튜디오 권한 확인 요청이 12초 안에 끝나지 않았습니다. 배포 또는 API 연결 상태를 확인해 주세요."
               : "스튜디오 권한을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");
           } finally {
+            completed = true;
             clearTimeout(timeoutId);
+            clearTimeout(hardTimeoutId);
           }
         }
 
