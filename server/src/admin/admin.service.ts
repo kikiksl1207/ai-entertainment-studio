@@ -108,6 +108,15 @@ const SETTLEMENT_CONVERSION_MUTATION_STATUSES = new Set([
   'cancelled',
 ]);
 const DEFAULT_CURRENCY = 'LUMINA';
+const FEED_SEARCH_LANGUAGES = new Set(['all', 'ko', 'ja', 'en', 'zh', 'unknown']);
+const FEED_SEARCH_TYPES = new Set(['all', 'text', 'hashtag']);
+const FEED_SEARCH_WINDOWS: Record<string, number> = {
+  '15m': 15 * 60 * 1000,
+  '1h': 60 * 60 * 1000,
+  '6h': 6 * 60 * 60 * 1000,
+  '24h': 24 * 60 * 60 * 1000,
+  '7d': 7 * 24 * 60 * 60 * 1000,
+};
 
 @Injectable()
 export class AdminService {
@@ -890,6 +899,135 @@ export class AdminService {
         dangerActions: ['suspend', 'restore', 'delete', 'revoke_sessions'],
         reasonRequiredByUi: true,
         settlementFieldsIncluded: false,
+      },
+    };
+  }
+
+  async getBackstageFeedSearchAnalytics(query: AuditQuery) {
+    const take = Math.max(1, Math.min(this.number(query, 'take', 20), 50));
+    const language = this.feedSearchLanguage(query.language ?? query.locale);
+    const searchType = this.feedSearchType(query.type);
+    const window = this.feedSearchWindow(query.window);
+    const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
+    const since = new Date(Date.now() - window.ms);
+    const where: Prisma.FeedSearchEventWhereInput = this.clean({
+      createdAt: { gte: since },
+      language: language === 'all' ? undefined : language,
+      searchType: searchType === 'all' ? undefined : searchType,
+      normalizedKeyword: search
+        ? { contains: search.trim().toLocaleLowerCase(), mode: 'insensitive' }
+        : undefined,
+    });
+    const [grouped, recentEvents, totalEvents, zeroResultCount] = await Promise.all([
+      this.prisma.feedSearchEvent.groupBy({
+        by: ['normalizedKeyword', 'searchType', 'language'],
+        where,
+        _count: { _all: true },
+        _sum: { resultCount: true },
+        _max: { createdAt: true },
+        orderBy: [{ _count: { normalizedKeyword: 'desc' } }, { _max: { createdAt: 'desc' } }],
+        take,
+      }),
+      this.prisma.feedSearchEvent.findMany({
+        where,
+        take,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          keyword: true,
+          normalizedKeyword: true,
+          searchType: true,
+          language: true,
+          resultCount: true,
+          userId: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.feedSearchEvent.count({ where }),
+      this.prisma.feedSearchEvent.count({
+        where: {
+          ...where,
+          resultCount: 0,
+        },
+      }),
+    ]);
+    const latestEvents = grouped.length
+      ? await this.prisma.feedSearchEvent.findMany({
+          where: {
+            OR: grouped.map((item) => ({
+              normalizedKeyword: item.normalizedKeyword,
+              searchType: item.searchType,
+              language: item.language,
+            })),
+          },
+          orderBy: { createdAt: 'desc' },
+          distinct: ['normalizedKeyword', 'searchType', 'language'],
+          select: {
+            keyword: true,
+            normalizedKeyword: true,
+            searchType: true,
+            language: true,
+          },
+        })
+      : [];
+    const latestMap = new Map(
+      latestEvents.map((event) => [
+        this.feedSearchAnalyticsKey(
+          event.normalizedKeyword,
+          event.searchType,
+          event.language,
+        ),
+        event.keyword,
+      ]),
+    );
+
+    return {
+      generatedAt: new Date(),
+      filters: {
+        language,
+        type: searchType,
+        query: search ?? null,
+        window: {
+          key: window.key,
+          since,
+          minutes: Math.round(window.ms / 60_000),
+        },
+      },
+      summary: {
+        totalEvents,
+        zeroResultCount,
+        zeroResultRate: totalEvents > 0 ? zeroResultCount / totalEvents : 0,
+        groupedCount: grouped.length,
+      },
+      items: grouped.map((item, index) => ({
+        rank: index + 1,
+        keyword:
+          latestMap.get(
+            this.feedSearchAnalyticsKey(
+              item.normalizedKeyword,
+              item.searchType,
+              item.language,
+            ),
+          ) ?? item.normalizedKeyword,
+        normalizedKeyword: item.normalizedKeyword,
+        type: item.searchType,
+        language: item.language,
+        searchCount: item._count._all,
+        totalResultCount: item._sum.resultCount ?? 0,
+        averageResultCount:
+          item._count._all > 0
+            ? Number(item._sum.resultCount ?? 0) / item._count._all
+            : 0,
+        lastSearchedAt: item._max.createdAt,
+      })),
+      recentEvents,
+      policy: {
+        source: 'feed_search_events',
+        realtimeApproximation: true,
+        supportedLanguages: ['all', 'ko', 'ja', 'en', 'zh', 'unknown'],
+        supportedTypes: ['all', 'text', 'hashtag'],
+        supportedWindows: Object.keys(FEED_SEARCH_WINDOWS),
+        privacy: 'visitor hashes are not exposed',
       },
     };
   }
@@ -4636,6 +4774,41 @@ export class AdminService {
     }
 
     return status;
+  }
+
+  private feedSearchLanguage(value: unknown) {
+    const language = this.optionalString({ value }, 'value') ?? 'all';
+
+    if (!FEED_SEARCH_LANGUAGES.has(language)) {
+      throw new BadRequestException('language must be all, ko, ja, en, zh, or unknown');
+    }
+
+    return language;
+  }
+
+  private feedSearchType(value: unknown) {
+    const searchType = this.optionalString({ value }, 'value') ?? 'all';
+
+    if (!FEED_SEARCH_TYPES.has(searchType)) {
+      throw new BadRequestException('type must be all, text, or hashtag');
+    }
+
+    return searchType;
+  }
+
+  private feedSearchWindow(value: unknown) {
+    const key = this.optionalString({ value }, 'value') ?? '1h';
+    const ms = FEED_SEARCH_WINDOWS[key];
+
+    if (!ms) {
+      throw new BadRequestException('window must be 15m, 1h, 6h, 24h, or 7d');
+    }
+
+    return { key, ms };
+  }
+
+  private feedSearchAnalyticsKey(keyword: string, searchType: string, language: string) {
+    return `${language}:${searchType}:${keyword}`;
   }
 
   private settlementConversionMutationStatus(input: AdminPayload, key: string) {

@@ -1691,6 +1691,18 @@ Trending hashtags from posts:
 - Use this for hashtag chips below the search box or in the right rail. On click, call `GET /lumina-feed/search` with `type=hashtag` and the returned `keyword`.
 - This endpoint samples up to the latest 500 public posts in the selected window. It is a lightweight MVP discovery endpoint, not a permanent analytics warehouse.
 
+Backstage feed search analytics:
+
+```http
+GET /admin/api/v1/backstage/operations/feed-search-analytics?language=all&type=all&window=1h&take=20
+```
+
+- Backstage-only endpoint for search/trending operations monitoring.
+- Query: `language=all|ko|ja|en|zh|unknown`, `type=all|text|hashtag`, `window=15m|1h|6h|24h|7d`, optional `query`, `take=1..50`.
+- Response includes `summary.totalEvents`, `summary.zeroResultCount`, `summary.zeroResultRate`, grouped `items[]`, and `recentEvents[]`.
+- `items[]`: `{ rank, keyword, normalizedKeyword, type, language, searchCount, totalResultCount, averageResultCount, lastSearchedAt }`.
+- `recentEvents[]` hides visitor hashes and only exposes userId when signed-in search created the event.
+
 Sample posts:
 
 ```http

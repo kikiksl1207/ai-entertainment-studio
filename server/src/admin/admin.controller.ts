@@ -54,6 +54,12 @@ export class AdminController {
     return this.adminService.getBackstageUsersOverview(query);
   }
 
+  @Get('backstage/operations/feed-search-analytics')
+  @RequireAdminPermissions('*')
+  getBackstageFeedSearchAnalytics(@Query() query: AuditQuery) {
+    return this.adminService.getBackstageFeedSearchAnalytics(query);
+  }
+
   @Get('backstage/operations/settlement-preview')
   @RequireAdminPermissions('payments:read')
   getBackstageSettlementPreview(@Query() query: AuditQuery) {
