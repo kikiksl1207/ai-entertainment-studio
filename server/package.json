@@ -5,7 +5,7 @@
   "description": "Lumina Stage NestJS backend API",
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build",
+    "build": "prisma generate && nest build",
     "start": "nest start",
     "start:prod": "node dist/main.js",
     "start:dev": "nest start --watch",
