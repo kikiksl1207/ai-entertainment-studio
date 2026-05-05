@@ -19,6 +19,9 @@ const refreshButton = document.getElementById("backstageRefreshButton");
 const todayLabel = document.getElementById("backstageToday");
 const metricGrid = document.getElementById("backstageMetricGrid");
 const alertStrip = document.getElementById("backstageAlertStrip");
+const launchReadinessScore = document.getElementById("launchReadinessScore");
+const launchReadinessAlert = document.getElementById("launchReadinessAlert");
+const launchReadinessGrid = document.getElementById("launchReadinessGrid");
 const detailPanel = document.getElementById("backstageDetailPanel");
 const detailType = document.getElementById("detailType");
 const detailTitle = document.getElementById("detailTitle");
@@ -2345,6 +2348,84 @@ function renderBackstageSummary(summary) {
   if (logRows.length) renderRows("logRows", mergeLogRows(logRows), -1);
 }
 
+function normalizeReadinessCategories(readiness) {
+  const source = readiness?.categories || readiness?.categoryScores || [];
+  const fallbackLabels = {
+    public_content: "공개 캐릭터/콘텐츠",
+    commerce_bm: "루미나 충전/BM",
+    feed_social: "루미나 피드/SNS 흐름",
+    debut_creator_studio: "데뷔하기/크리에이터 스튜디오",
+    backstage_safety: "백스테이지/운영/안전"
+  };
+  const list = Array.isArray(source)
+    ? source
+    : Object.entries(source).map(([key, value]) => ({ key, ...(value || {}) }));
+  return list.map((item) => {
+    const key = item.key || item.id || item.category;
+    return {
+      key,
+      label: item.label || item.title || item.name || fallbackLabels[key] || key || "카테고리",
+      score: Number(item.score ?? item.value ?? 0),
+      status: item.status || item.signal || "확인 필요",
+      blockers: Array.isArray(item.blockers) ? item.blockers : item.blocker ? [item.blocker] : [],
+      nextActions: Array.isArray(item.nextActions) ? item.nextActions : item.nextAction ? [item.nextAction] : [],
+      metrics: item.metrics || {}
+    };
+  });
+}
+
+function renderLaunchReadiness(readiness) {
+  if (!launchReadinessScore || !launchReadinessAlert || !launchReadinessGrid) return;
+  const overall = readiness?.overall || {};
+  const categories = normalizeReadinessCategories(readiness);
+  const score = Number(overall.score ?? readiness?.score ?? 0);
+  const belowTargets = overall.belowTargetCategories || categories.filter((item) => item.score < 80).map((item) => item.label);
+  launchReadinessScore.textContent = Number.isFinite(score) && score > 0 ? `${Math.round(score)}점` : "확인 중";
+  launchReadinessAlert.classList.toggle("is-clear", belowTargets.length === 0);
+  launchReadinessAlert.textContent = belowTargets.length
+    ? `80점 미만 확인 필요: ${belowTargets.join(", ")}. 최종 판정 전 운영자가 우선 점검할 항목입니다.`
+    : "80점 미만 카테고리는 없습니다. 단, 실제 오픈 판단은 운영/결제/콘텐츠 QA 확인 후 진행합니다.";
+
+  if (!categories.length) return;
+  launchReadinessGrid.innerHTML = categories.map((item) => {
+    const blockers = item.blockers.length ? item.blockers.slice(0, 2).join(" / ") : "즉시 차단 이슈 없음";
+    const nextActions = item.nextActions.length ? item.nextActions.slice(0, 2).join(" / ") : "일일 QA 유지";
+    const metricText = Object.entries(item.metrics || {}).slice(0, 2).map(([key, value]) => `${key}: ${formatCount(value)}`).join(" / ") || "지표 확인 중";
+    return `<article class="readiness-card${item.score < 80 ? " is-low" : ""}">
+      <strong>${escapeHtml(item.label)}</strong>
+      <p>${formatCount(item.score)}점 · ${escapeHtml(item.status)}</p>
+      <dl>
+        <div><dt>Blockers</dt><dd>${escapeHtml(blockers)}</dd></div>
+        <div><dt>Next</dt><dd>${escapeHtml(nextActions)}</dd></div>
+        <div><dt>Metrics</dt><dd>${escapeHtml(metricText)}</dd></div>
+      </dl>
+    </article>`;
+  }).join("");
+}
+
+function renderLaunchReadinessFallback() {
+  renderLaunchReadiness({
+    overall: { score: 0, belowTargetCategories: ["API 응답 확인 필요"] },
+    categories: [
+      { key: "public_content", label: "공개 캐릭터/콘텐츠", score: 0, status: "API 확인 필요", blockers: ["준비도 API 응답 확인"], nextActions: ["공개 캐릭터/콘텐츠 QA"] },
+      { key: "commerce_bm", label: "루미나 충전/BM", score: 0, status: "API 확인 필요", blockers: ["결제/충전 QA 확인"], nextActions: ["충전 주문 테스트"] },
+      { key: "feed_social", label: "루미나 피드/SNS 흐름", score: 0, status: "API 확인 필요", blockers: ["피드 인터랙션 QA 확인"], nextActions: ["수정/좋아요/댓글 테스트"] },
+      { key: "debut_creator_studio", label: "데뷔하기/크리에이터 스튜디오", score: 0, status: "API 확인 필요", blockers: ["데뷔 신청/스튜디오 진입 확인"], nextActions: ["신청 400 재테스트"] },
+      { key: "backstage_safety", label: "백스테이지/운영/안전", score: 0, status: "API 확인 필요", blockers: ["권한/로그 확인"], nextActions: ["운영 로그 확인"] }
+    ]
+  });
+}
+
+async function loadLaunchReadiness() {
+  try {
+    const readiness = await backstageFetch(adminApiPath("/backstage/launch-readiness"), { auth: true });
+    renderLaunchReadiness(readiness);
+  } catch (error) {
+    console.warn("Launch readiness fallback:", error);
+    renderLaunchReadinessFallback();
+  }
+}
+
 async function loadBackstageSummary() {
   try {
     const summary = await backstageFetch(adminApiPath("/backstage/summary"), { auth: true });
@@ -2829,11 +2910,13 @@ function loadSection(sectionId) {
     setActiveSection("overview");
     renderBackstageTables();
     loadBackstageSummary();
+    loadLaunchReadiness();
     return;
   }
   if (sectionId === "overview") {
     renderBackstageTables();
     loadBackstageSummary();
+    loadLaunchReadiness();
     return;
   }
   sectionLoaders[sectionId]?.();

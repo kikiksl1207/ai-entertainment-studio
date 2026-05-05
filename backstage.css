@@ -90,6 +90,24 @@ button { cursor: pointer; }
 .metric-grid strong { display: block; margin: 10px 0 8px; color: var(--text); font-size: 32px; letter-spacing: 0; }
 .alert-strip { display: flex; gap: 12px; margin-top: 14px; padding: 14px 16px; border-left: 4px solid var(--amber); }
 .alert-strip span { color: var(--muted); }
+.launch-readiness { margin-top: 14px; padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: var(--shadow); }
+.launch-readiness header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.launch-readiness h2 { margin: 8px 0 6px; color: var(--text); font-size: 22px; letter-spacing: 0; }
+.launch-readiness p { margin: 0; color: var(--muted); line-height: 1.6; }
+.readiness-score { min-width: 120px; display: grid; gap: 4px; justify-items: end; }
+.readiness-score span { color: var(--muted); font-size: 12px; font-weight: 900; }
+.readiness-score strong { color: var(--text); font-size: 34px; letter-spacing: 0; }
+.readiness-alert { margin: 14px 0; padding: 12px 14px; border: 1px solid #fde68a; border-radius: 8px; background: #fffbeb; color: #92400e; font-weight: 800; line-height: 1.6; }
+.readiness-alert.is-clear { border-color: #bbf7d0; background: #f0fdf4; color: #047857; }
+.readiness-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.readiness-card { min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.readiness-card.is-low { border-color: #fecaca; background: #fff7f7; }
+.readiness-card strong { display: block; color: var(--text); line-height: 1.35; overflow-wrap: anywhere; }
+.readiness-card p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.readiness-card dl { display: grid; gap: 7px; margin: 12px 0 0; }
+.readiness-card div { display: grid; gap: 3px; }
+.readiness-card dt { color: var(--muted); font-size: 11px; font-weight: 900; }
+.readiness-card dd { margin: 0; color: var(--text); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .section-block { display: none; margin-top: 28px; scroll-margin-top: 28px; }
 .section-block.is-active { display: block; }
 .section-title { margin-bottom: 12px; }
@@ -188,5 +206,5 @@ tr.is-selected td { background: #faf5ff; }
 .confirm-summary-list strong { color: var(--muted); }
 .confirm-summary-list span { background: #fff; color: var(--text); word-break: keep-all; }
 .confirm-actions { flex-shrink: 0; display: flex; justify-content: flex-end; gap: 8px; }
-@media (max-width: 1100px) { .backstage-dashboard { grid-template-columns: 1fr; } .backstage-sidebar { position: static; height: auto; } .sidebar-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sidebar-operator { margin-top: 18px; } .metric-grid, .table-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 760px) { .backstage-login { grid-template-columns: 1fr; width: min(100% - 28px, 1160px); } .login-brand, .login-panel, .login-guard { grid-column: 1; } .dashboard-main { padding: 24px 16px 48px; } .dashboard-header, .section-title, .table-card header, .alert-strip, .detail-history-title { flex-direction: column; } .metric-grid, .table-grid, .sidebar-nav, .detail-actions, .detail-form-grid, .toggle-group > div, .detail-history-item { grid-template-columns: 1fr; } .search-box { width: 100%; align-items: stretch; flex-direction: column; } }
+@media (max-width: 1100px) { .backstage-dashboard { grid-template-columns: 1fr; } .backstage-sidebar { position: static; height: auto; } .sidebar-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sidebar-operator { margin-top: 18px; } .metric-grid, .table-grid, .readiness-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .backstage-login { grid-template-columns: 1fr; width: min(100% - 28px, 1160px); } .login-brand, .login-panel, .login-guard { grid-column: 1; } .dashboard-main { padding: 24px 16px 48px; } .dashboard-header, .section-title, .table-card header, .alert-strip, .launch-readiness header, .detail-history-title { flex-direction: column; } .readiness-score { justify-items: start; } .metric-grid, .table-grid, .sidebar-nav, .readiness-grid, .detail-actions, .detail-form-grid, .toggle-group > div, .detail-history-item { grid-template-columns: 1fr; } .search-box { width: 100%; align-items: stretch; flex-direction: column; } }
