@@ -2447,6 +2447,7 @@ let _luminaFeedFilter = "all";
 let _luminaFeedItems = [];          // 정규화된 통일 구조
 let _luminaFeedSource = "inline";   // "operations" | "samples" | "inline"
 let _luminaFeedScope = "all";       // "all" | "following"
+let _luminaFeedQuery = "";
 
 /* authorType / postType 정규화 (운영 enum, 에밀리 한국어 모두 흡수) */
 function feedEscapeHtml(value) {
@@ -2479,6 +2480,14 @@ function feedAuthorTypeLabel(authorTypeEnum) {
   })[authorTypeEnum] || "팬";
 }
 
+function buildUserProfileUrl(user = {}) {
+  const handle = (user.publicHandle || user.authorPublicHandle || "").trim();
+  const id = user.id || user.userId || user.authorUserId || "";
+  if (handle) return `./user-profile.html?handle=${encodeURIComponent(handle)}`;
+  if (id) return `./user-profile.html?id=${encodeURIComponent(String(id))}`;
+  return "./mypage.html";
+}
+
 function normalizeFeedPost(raw) {
   const authUserId = getAuth()?.user?.id || getAuth()?.user?.userId || null;
   const authorUserId = raw.authorUserId || raw.userId || raw.createdByUserId || raw.author?.id || raw.user?.id || null;
@@ -2494,8 +2503,8 @@ function normalizeFeedPost(raw) {
     authorUserId, // #145 작성자 follow endpoint용
     authorPublicHandle: raw.authorPublicHandle || raw.author?.publicHandle || raw.author?.profile?.publicHandle || null, // #152 작성자 프로필 라우팅용
     authorType: normalizeFeedAuthorType(raw.authorType),
-    authorName: raw.authorName || raw.author?.displayName || raw.user?.displayName || raw.user?.nickname || "",
-    avatarUrl: raw.avatarUrl || raw.author?.avatarUrl || raw.user?.avatarUrl || "",
+    authorName: raw.authorName || raw.author?.displayName || raw.author?.nickname || raw.user?.displayName || raw.user?.nickname || raw.profile?.displayName || "",
+    avatarUrl: raw.avatarUrl || raw.author?.avatarUrl || raw.author?.profile?.avatarUrl || raw.user?.avatarUrl || raw.profile?.avatarUrl || "",
     body: raw.body || raw.content || "",
     assets: Array.isArray(raw.assets) ? raw.assets : [],
     linkPreview: raw.linkPreview || null,
@@ -2606,10 +2615,21 @@ function renderLuminaFeed() {
   const list = (_luminaFeedFilter === "all" || _luminaFeedFilter === "following")
     ? _luminaFeedItems
     : _luminaFeedItems.filter(p => p.postType === _luminaFeedFilter);
+  const query = (_luminaFeedQuery || "").trim().toLowerCase();
+  const visibleList = query
+    ? list.filter(p => [
+        p.authorName,
+        p.body,
+        p.artistSlug,
+        feedAuthorTypeLabel(p.authorType)
+      ].some(value => String(value || "").toLowerCase().includes(query)))
+    : list;
 
-  if (list.length === 0) {
+  if (visibleList.length === 0) {
     const emptyMsg = _luminaFeedSource === "following_guest"
       ? "로그인하면 응원과 후기를 직접 남길 수 있어요. 팔로우한 아티스트의 소식도 이곳에 모입니다."
+      : query
+        ? "검색 결과가 없어요. 다른 이름이나 문장으로 다시 찾아볼까요?"
       : (_luminaFeedFilter === "all" || _luminaFeedFilter === "following")
         ? "아직 올라온 피드가 없어요. 첫 응원 글을 남기거나 팔로우한 아티스트의 소식을 기다려 주세요."
         : "이 분류의 글이 아직 없어요. 다른 탭도 둘러봐 주세요.";
@@ -2617,7 +2637,7 @@ function renderLuminaFeed() {
     return;
   }
 
-  root.innerHTML = list.map(post => {
+  root.innerHTML = visibleList.map(post => {
     const artist = post.artistSlug ? getCharacterBySlug(post.artistSlug) : null;
     // 본인 글이면 작성자명/아바타를 본인 정보로 강제 (백엔드가 익명/마스킹으로 내려도 본인엔 본인 닉네임)
     const me = (typeof getAuth === "function") ? getAuth()?.user : null;
@@ -2690,7 +2710,7 @@ function renderLuminaFeed() {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
             <span data-feed-like-count>${Number(post.likeCount) || 0}</span>
           </button>
-          <button class="feed-action-btn" type="button" disabled aria-label="댓글">
+          <button class="feed-action-btn feed-comment-btn" type="button" data-feed-comment="${feedEscapeHtml(post.id || "")}" aria-label="댓글 보기">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
             <span>${Number(post.replyCount) || 0}</span>
           </button>
@@ -2732,6 +2752,46 @@ function bindLuminaFeedTabs() {
       }
       renderLuminaFeed();
     });
+  });
+}
+
+function initLuminaFeedSidebar() {
+  const panel = document.querySelector(".feed-side-panel");
+  if (!panel) return;
+  const me = (typeof getAuth === "function") ? getAuth()?.user : null;
+  const profileUrl = me ? buildUserProfileUrl(me) : "./mypage.html";
+  const profileLink = document.getElementById("feedSideProfileLink");
+  const nameEl = document.getElementById("feedSideName");
+  const avatarEl = document.getElementById("feedSideAvatar");
+  if (profileLink) profileLink.href = profileUrl;
+  if (nameEl) nameEl.textContent = me?.displayName || me?.email?.split("@")[0] || "내 프로필";
+  if (avatarEl) {
+    const initial = (me?.displayName || me?.email || "?").charAt(0);
+    if (me?.avatarUrl) {
+      avatarEl.style.backgroundImage = `url('${String(me.avatarUrl).replace(/'/g, "%27")}')`;
+      avatarEl.classList.add("has-image");
+      avatarEl.textContent = "";
+    } else {
+      avatarEl.style.backgroundImage = "";
+      avatarEl.classList.remove("has-image");
+      avatarEl.textContent = initial;
+    }
+  }
+  panel.querySelectorAll("[data-feed-side-link]").forEach(link => {
+    const key = link.dataset.feedSideLink || "profile";
+    link.href = key === "profile"
+      ? profileUrl
+      : `${profileUrl}${profileUrl.includes("?") ? "&" : "?"}tab=${encodeURIComponent(key)}`;
+  });
+}
+
+function bindLuminaFeedSearch() {
+  const input = document.getElementById("feedSearchInput");
+  if (!input || input._bound) return;
+  input._bound = true;
+  input.addEventListener("input", () => {
+    _luminaFeedQuery = input.value || "";
+    renderLuminaFeed();
   });
 }
 
@@ -3020,6 +3080,145 @@ function bindLuminaFeedLike() {
       alert(err?.message || "좋아요 처리에 실패했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       btn.dataset.busy = "0";
+    }
+  });
+}
+
+let _feedCommentModalEl = null;
+function openFeedCommentModal(post) {
+  closeFeedCommentModal();
+  const modal = document.createElement("div");
+  modal.className = "feed-comment-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-label", "댓글");
+  modal.innerHTML = `
+    <div class="feed-comment-modal-backdrop" data-feed-comment-close></div>
+    <div class="feed-comment-modal-panel">
+      <header class="feed-comment-modal-head">
+        <h3>댓글</h3>
+        <button class="feed-comment-modal-close" type="button" data-feed-comment-close aria-label="닫기">×</button>
+      </header>
+      <div class="feed-comment-post">
+        <strong>${feedEscapeHtml(post.authorName || "Lumina User")}</strong>
+        <p>${feedEscapeHtml(post.body || "")}</p>
+      </div>
+      <div class="feed-comment-list" data-feed-comment-list>
+        <p class="feed-comment-state">댓글을 불러오고 있어요…</p>
+      </div>
+      <form class="feed-comment-form" data-feed-comment-form>
+        <textarea rows="3" maxlength="600" placeholder="댓글을 남겨보세요." aria-label="댓글 입력"></textarea>
+        <div class="feed-comment-form-actions">
+          <p class="feed-comment-message" data-feed-comment-message hidden></p>
+          <button type="submit">등록</button>
+        </div>
+      </form>
+    </div>
+  `;
+  modal.querySelector("[data-feed-comment-form]").dataset.postId = post.id || "";
+  document.body.appendChild(modal);
+  document.body.style.overflow = "hidden";
+  _feedCommentModalEl = modal;
+  loadFeedComments(post.id);
+  setTimeout(() => modal.querySelector("textarea")?.focus(), 80);
+}
+
+function closeFeedCommentModal() {
+  if (!_feedCommentModalEl) return;
+  _feedCommentModalEl.remove();
+  _feedCommentModalEl = null;
+  document.body.style.overflow = "";
+}
+
+function renderFeedCommentItems(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return `<p class="feed-comment-state">아직 댓글이 없어요. 첫 댓글을 남겨볼까요?</p>`;
+  }
+  return items.map(item => {
+    const author = item.author || item.user || {};
+    const name = item.authorName || author.displayName || author.nickname || "Lumina User";
+    const body = item.body || item.content || "";
+    return `<article class="feed-comment-item"><strong>${feedEscapeHtml(name)}</strong><p>${feedEscapeHtml(body)}</p></article>`;
+  }).join("");
+}
+
+async function loadFeedComments(postId) {
+  const list = _feedCommentModalEl?.querySelector("[data-feed-comment-list]");
+  if (!list || !postId) return;
+  try {
+    const res = await apiFetch(`/api/v1/lumina-feed/posts/${encodeURIComponent(postId)}/replies?take=20`, {
+      auth: typeof isLoggedIn === "function" && isLoggedIn()
+    });
+    const items = Array.isArray(res) ? res : (res?.items || res?.replies || res?.comments || []);
+    list.innerHTML = renderFeedCommentItems(items);
+  } catch (err) {
+    console.warn("[Lumina feed comments] 조회 실패:", err?.status, err?.message);
+    list.innerHTML = `<p class="feed-comment-state">댓글 목록은 잠시 후 다시 불러와 주세요.</p>`;
+  }
+}
+
+function bindLuminaFeedComment() {
+  if (document._feedCommentBound) return;
+  document._feedCommentBound = true;
+  document.addEventListener("click", e => {
+    const btn = e.target.closest("[data-feed-comment]");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const postId = btn.dataset.feedComment;
+    const post = _luminaFeedItems.find(p => p.id === postId);
+    if (post) openFeedCommentModal(post);
+  });
+  document.addEventListener("click", e => {
+    if (e.target.closest("[data-feed-comment-close]")) {
+      e.preventDefault();
+      closeFeedCommentModal();
+    }
+  });
+  document.addEventListener("submit", async e => {
+    const form = e.target.closest("[data-feed-comment-form]");
+    if (!form) return;
+    e.preventDefault();
+    if (typeof getAccessToken === "function" && !getAccessToken()) {
+      if (typeof openAuthModal === "function") openAuthModal("login");
+      return;
+    }
+    const postId = form.dataset.postId;
+    const textarea = form.querySelector("textarea");
+    const message = form.querySelector("[data-feed-comment-message]");
+    const body = (textarea?.value || "").trim();
+    if (!postId || !body) {
+      if (message) {
+        message.textContent = "댓글 내용을 입력해 주세요.";
+        message.hidden = false;
+      }
+      return;
+    }
+    const submitBtn = form.querySelector("button[type='submit']");
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+      const res = await apiFetch(`/api/v1/lumina-feed/posts/${encodeURIComponent(postId)}/replies`, {
+        method: "POST",
+        auth: true,
+        throwOnError: true,
+        body: { body }
+      });
+      if (textarea) textarea.value = "";
+      const idx = _luminaFeedItems.findIndex(p => p.id === postId);
+      if (idx >= 0) {
+        const serverPost = res?.post || res?.data?.post || null;
+        _luminaFeedItems[idx].replyCount = Number(serverPost?.replyCount ?? _luminaFeedItems[idx].replyCount + 1) || 0;
+      }
+      await loadFeedComments(postId);
+      renderLuminaFeed();
+    } catch (err) {
+      console.warn("[Lumina feed comments] 등록 실패:", err?.status, err?.message);
+      if (message) {
+        message.textContent = err?.message || "댓글 등록에 실패했어요. 잠시 후 다시 시도해 주세요.";
+        message.hidden = false;
+      }
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
     }
   });
 }
@@ -4981,11 +5180,14 @@ async function initUserProfilePage() {
   bindLuminaFeedDelete();
   bindLuminaFeedEdit();
   bindLuminaFeedLike();
+  bindLuminaFeedComment();
   bindFeedAssetLightbox(); // 피드 이미지 라이트박스 + 우클릭 차단
 
   // X 패턴 3탭 (게시물 / 사진 / 숏폼) — client-side 필터
   bindUserProfileTabs();
   bindProfileEditModal();
+  const requestedTab = params.get("tab");
+  if (requestedTab) setUserProfileActiveTab(requestedTab);
 }
 
 let _userProfileActiveTab = "posts";
@@ -5480,7 +5682,8 @@ async function loadUserProfileLikes() {
       return;
     }
 
-    list.innerHTML = renderUserProfilePostListHtml(posts);
+    _luminaFeedItems = posts;
+    list.innerHTML = renderUserProfilePostListHtml(posts, { preservePostAuthor: true });
   } catch (err) {
     console.error("[#155 likes] 실패:", err);
     list.innerHTML = "";
@@ -5500,16 +5703,23 @@ function bindUserProfileTabs() {
   tabs.forEach(tab => {
     tab.addEventListener("click", () => {
       const key = tab.dataset.userProfileTab;
-      if (!key || _userProfileActiveTab === key) return;
-      _userProfileActiveTab = key;
-      tabs.forEach(t => {
-        const active = t === tab;
-        t.classList.toggle("is-active", active);
-        t.setAttribute("aria-selected", active ? "true" : "false");
-      });
-      applyUserProfileTabFilter();
+      setUserProfileActiveTab(key);
     });
   });
+}
+
+function setUserProfileActiveTab(key) {
+  const allowed = new Set(["posts", "media", "shortform", "likes"]);
+  if (!allowed.has(key) || _userProfileActiveTab === key) return;
+  const targetTab = document.querySelector(`[data-user-profile-tab="${key}"]`);
+  if (targetTab?.hidden || targetTab?.style?.display === "none") return;
+  _userProfileActiveTab = key;
+  document.querySelectorAll("[data-user-profile-tab]").forEach(t => {
+    const active = t.dataset.userProfileTab === key;
+    t.classList.toggle("is-active", active);
+    t.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  applyUserProfileTabFilter();
 }
 
 function applyUserProfileTabFilter() {
@@ -5854,13 +6064,25 @@ async function loadUserProfilePosts(endpoint, isAuth, append) {
 }
 
 /* user-profile.html 전용 글 카드 렌더 (피드 페이지의 카드 디자인과 일관성) */
-function renderUserProfilePostListHtml(posts) {
-  // 모든 글의 작성자 = 프로필 사용자 (이 페이지는 한 사용자의 글 목록이라 작성자가 명확함)
-  // 백엔드 응답이 작성자명을 마스킹/익명("Lumina User")으로 내릴 수 있어 프로필 헤더 정보로 덮어씀
+function renderUserProfilePostListHtml(posts, options = {}) {
+  // 기본 글 목록은 프로필 주인이 작성자라 헤더 정보로 보정.
+  // 좋아요 탭은 다른 사람 글을 모아보는 영역이라 원작성자 정보를 보존해야 함.
   const profileUser = _userProfileData?.user || {};
-  const displayName = profileUser.displayName || "Lumina User";
-  const avatarUrl = profileUser.avatarUrl || "";
   return posts.map(post => {
+    const preservePostAuthor = !!options.preservePostAuthor;
+    const displayName = preservePostAuthor
+      ? (post.authorName || "Lumina User")
+      : (profileUser.displayName || "Lumina User");
+    const avatarUrl = preservePostAuthor ? (post.avatarUrl || "") : (profileUser.avatarUrl || "");
+    const authorTarget = preservePostAuthor
+      ? buildUserProfileUrl({
+          publicHandle: post.authorPublicHandle,
+          id: post.authorUserId
+        })
+      : "";
+    const authorLinkAttr = preservePostAuthor && (post.authorPublicHandle || post.authorUserId)
+      ? ` data-user-profile-link="${feedEscapeHtml(authorTarget)}" style="cursor:pointer;"`
+      : "";
     const initial = (displayName || "?").charAt(0);
     const avatarSrc = avatarUrl;
     const deleteButton = post.viewer?.canDelete && post.id
@@ -5871,7 +6093,7 @@ function renderUserProfilePostListHtml(posts) {
       : "";
     return `
       <article class="feed-post" data-feed-type="${post.postType}">
-        <header class="feed-post-head">
+        <header class="feed-post-head"${authorLinkAttr}>
           <div class="feed-post-avatar">
             ${avatarSrc
               ? `<img src="${feedEscapeHtml(avatarSrc)}" alt="${feedEscapeHtml(displayName)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="feed-post-avatar-fallback" style="display:none;">${feedEscapeHtml(initial)}</span>`
@@ -5892,7 +6114,7 @@ function renderUserProfilePostListHtml(posts) {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
             <span data-feed-like-count>${Number(post.likeCount) || 0}</span>
           </button>
-          <button class="feed-action-btn" type="button" disabled aria-label="댓글">
+          <button class="feed-action-btn feed-comment-btn" type="button" data-feed-comment="${feedEscapeHtml(post.id || "")}" aria-label="댓글 보기">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
             <span>${Number(post.replyCount) > 0 ? Number(post.replyCount) : "0"}</span>
           </button>
@@ -7266,12 +7488,15 @@ async function init() {
   // 운영 API → samples API → inline 3단 fallback (#022, 차모 fallback API 활용)
   if (document.getElementById("luminaFeedList")) {
     await loadLuminaFeedData();
+    initLuminaFeedSidebar();
+    bindLuminaFeedSearch();
     renderLuminaFeed();
     bindLuminaFeedTabs();
     bindLuminaFeedExpand();
     bindLuminaFeedDelete();
     bindLuminaFeedEdit(); // #137 Phase B — 피드 글 수정 모달
     bindLuminaFeedLike(); // #137 Phase A — 피드 좋아요 토글
+    bindLuminaFeedComment();
     bindLuminaFeedFollow(); // #145 — 피드 카드 팔로우/언팔로우
     bindFeedAssetLightbox(); // 피드 이미지 라이트박스 + 우클릭 차단
     // #056: 피드 작성창 (로그인 시 노출, 이미지 4장 첨부 + 업로드 흐름)
