@@ -59,6 +59,11 @@ export class CommunityController {
     });
   }
 
+  @Get('lumina-feed/search-suggestions')
+  getSearchSuggestions(@Query() query: CommunityQuery) {
+    return this.communityService.getSearchSuggestions(query);
+  }
+
   @Get('lumina-feed/trending-searches')
   getTrendingSearches(@Query() query: CommunityQuery) {
     return this.communityService.getTrendingSearches(query);

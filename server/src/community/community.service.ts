@@ -247,6 +247,49 @@ export class CommunityService {
     };
   }
 
+  async getSearchSuggestions(query: CommunityQuery) {
+    const take = Math.min(this.take(query.take), 10);
+    const rawKeyword = this.optionalString(query.q ?? query.query ?? query.keyword);
+    const normalizedKeyword = rawKeyword
+      ? this.normalizeSearchKeyword(rawKeyword, rawKeyword.startsWith('#') ? 'hashtag' : 'text')
+      : null;
+    const language = this.trendingLanguage(query.language ?? query.locale);
+    const since = new Date(Date.now() - this.trendingWindow(query.window ?? '24h').ms);
+    const [recentQueries, hashtags, artists, users] = await Promise.all([
+      this.searchQuerySuggestions(normalizedKeyword, language, since, take),
+      this.hashtagSuggestions(normalizedKeyword, language, since, take),
+      this.artistSearchSuggestions(normalizedKeyword, take),
+      this.userSearchSuggestions(normalizedKeyword, take),
+    ]);
+
+    return {
+      generatedAt: new Date(),
+      query: {
+        keyword: rawKeyword ?? null,
+        normalizedKeyword,
+        language,
+      },
+      sections: {
+        recentQueries,
+        hashtags,
+        artists,
+        users,
+      },
+      items: [
+        ...recentQueries.map((item) => ({ ...item, section: 'recentQueries' })),
+        ...hashtags.map((item) => ({ ...item, section: 'hashtags' })),
+        ...artists.map((item) => ({ ...item, section: 'artists' })),
+        ...users.map((item) => ({ ...item, section: 'users' })),
+      ],
+      policy: {
+        ...this.feedSearchPolicy(),
+        qOptional: true,
+        sectionTakeLimit: 10,
+        defaultWindow: '24h',
+      },
+    };
+  }
+
   async getTrendingSearches(query: CommunityQuery) {
     const take = this.take(query.take);
     const language = this.trendingLanguage(query.language ?? query.locale);
@@ -2183,6 +2226,229 @@ export class CommunityService {
     });
 
     return rows.map((row) => row.followingUserId);
+  }
+
+  private async searchQuerySuggestions(
+    normalizedKeyword: string | null,
+    language: string,
+    since: Date,
+    take: number,
+  ) {
+    const where: Prisma.FeedSearchEventWhereInput = this.clean({
+      createdAt: { gte: since },
+      language: language === 'all' ? undefined : language,
+      normalizedKeyword: normalizedKeyword
+        ? { contains: normalizedKeyword, mode: 'insensitive' }
+        : undefined,
+    });
+    const grouped = await this.prisma.feedSearchEvent.groupBy({
+      by: ['normalizedKeyword', 'searchType', 'language'],
+      where,
+      _count: { _all: true },
+      _max: { createdAt: true },
+      orderBy: [{ _count: { normalizedKeyword: 'desc' } }, { _max: { createdAt: 'desc' } }],
+      take,
+    });
+    const latestEvents = grouped.length
+      ? await this.prisma.feedSearchEvent.findMany({
+          where: {
+            OR: grouped.map((item) => ({
+              normalizedKeyword: item.normalizedKeyword,
+              searchType: item.searchType,
+              language: item.language,
+            })),
+          },
+          orderBy: { createdAt: 'desc' },
+          distinct: ['normalizedKeyword', 'searchType', 'language'],
+        })
+      : [];
+    const latestEventMap = new Map(
+      latestEvents.map((event) => [
+        this.trendingKey(event.normalizedKeyword, event.searchType, event.language),
+        event,
+      ]),
+    );
+
+    return grouped.map((item) => {
+      const latestEvent = latestEventMap.get(
+        this.trendingKey(item.normalizedKeyword, item.searchType, item.language),
+      );
+      const keyword = latestEvent?.keyword ?? item.normalizedKeyword;
+
+      return {
+        type: 'query',
+        keyword,
+        normalizedKeyword: item.normalizedKeyword,
+        searchType: item.searchType,
+        language: item.language,
+        searchCount: item._count._all,
+        lastSearchedAt: item._max.createdAt,
+        searchUrl: `/api/v1/lumina-feed/search?q=${encodeURIComponent(
+          keyword,
+        )}&type=${item.searchType}&language=${item.language}`,
+      };
+    });
+  }
+
+  private async hashtagSuggestions(
+    normalizedKeyword: string | null,
+    language: string,
+    since: Date,
+    take: number,
+  ) {
+    const posts = await this.prisma.communityPost.findMany({
+      where: {
+        status: 'published',
+        visibility: 'public',
+        deletedAt: null,
+        publishedAt: { gte: since },
+        body: { contains: '#' },
+      },
+      take: 500,
+      select: { id: true, body: true, publishedAt: true },
+      orderBy: { publishedAt: 'desc' },
+    });
+    const buckets = new Map<
+      string,
+      {
+        keyword: string;
+        normalizedKeyword: string;
+        language: string;
+        postIds: Set<string>;
+        latestPublishedAt: Date;
+      }
+    >();
+
+    for (const post of posts) {
+      for (const hashtag of this.extractHashtags(post.body)) {
+        const detectedLanguage = this.detectSearchLanguage(hashtag) ?? 'unknown';
+        const normalizedHashtag = this.normalizeSearchKeyword(hashtag, 'hashtag');
+
+        if (language !== 'all' && detectedLanguage !== language) {
+          continue;
+        }
+
+        if (
+          normalizedKeyword &&
+          !normalizedHashtag.includes(normalizedKeyword.replace(/^#/, ''))
+        ) {
+          continue;
+        }
+
+        const bucketKey = this.trendingKey(normalizedHashtag, 'hashtag', detectedLanguage);
+        const existing = buckets.get(bucketKey);
+
+        if (existing) {
+          existing.postIds.add(post.id);
+          if (post.publishedAt > existing.latestPublishedAt) {
+            existing.latestPublishedAt = post.publishedAt;
+            existing.keyword = `#${hashtag}`;
+          }
+          continue;
+        }
+
+        buckets.set(bucketKey, {
+          keyword: `#${hashtag}`,
+          normalizedKeyword: normalizedHashtag,
+          language: detectedLanguage,
+          postIds: new Set([post.id]),
+          latestPublishedAt: post.publishedAt,
+        });
+      }
+    }
+
+    return [...buckets.values()]
+      .sort((left, right) => {
+        const countDiff = right.postIds.size - left.postIds.size;
+        return countDiff || right.latestPublishedAt.getTime() - left.latestPublishedAt.getTime();
+      })
+      .slice(0, take)
+      .map((item) => ({
+        type: 'hashtag',
+        keyword: item.keyword,
+        normalizedKeyword: item.normalizedKeyword,
+        language: item.language,
+        postCount: item.postIds.size,
+        latestPublishedAt: item.latestPublishedAt,
+        searchUrl: `/api/v1/lumina-feed/search?q=${encodeURIComponent(
+          item.keyword,
+        )}&type=hashtag&language=${item.language}`,
+      }));
+  }
+
+  private async artistSearchSuggestions(normalizedKeyword: string | null, take: number) {
+    if (!normalizedKeyword) {
+      return [];
+    }
+
+    const artists = await this.prisma.artist.findMany({
+      where: {
+        status: 'active',
+        OR: [
+          { displayName: { contains: normalizedKeyword, mode: 'insensitive' } },
+          { slug: { contains: normalizedKeyword, mode: 'insensitive' } },
+        ],
+      },
+      take,
+      select: {
+        id: true,
+        slug: true,
+        displayName: true,
+      },
+      orderBy: { displayName: 'asc' },
+    });
+
+    return artists.map((artist) => ({
+      type: 'artist',
+      id: artist.id,
+      keyword: artist.displayName,
+      slug: artist.slug,
+      displayName: artist.displayName,
+      searchUrl: `/api/v1/lumina-feed?artistSlug=${encodeURIComponent(artist.slug)}`,
+    }));
+  }
+
+  private async userSearchSuggestions(normalizedKeyword: string | null, take: number) {
+    if (!normalizedKeyword) {
+      return [];
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        status: 'active',
+        deletedAt: null,
+        profile: {
+          is: {
+            OR: [
+              { displayName: { contains: normalizedKeyword, mode: 'insensitive' } },
+              { publicHandle: { contains: normalizedKeyword, mode: 'insensitive' } },
+            ],
+          },
+        },
+      },
+      take,
+      select: {
+        id: true,
+        profile: {
+          select: {
+            displayName: true,
+            publicHandle: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return users.map((user) => ({
+      type: 'user',
+      id: user.id,
+      keyword: user.profile?.displayName ?? user.profile?.publicHandle ?? 'Lumina User',
+      displayName: user.profile?.displayName ?? null,
+      publicHandle: user.profile?.publicHandle ?? null,
+      profileUrl: user.profile?.publicHandle
+        ? `/api/v1/users/handle/${encodeURIComponent(user.profile.publicHandle)}/profile`
+        : `/api/v1/users/${user.id}/profile`,
+    }));
   }
 
   private searchQuery(value: unknown) {

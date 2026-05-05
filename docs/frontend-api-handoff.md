@@ -1642,6 +1642,7 @@ GET /lumina-feed?mode=fans&take=20
 GET /lumina-feed?artistSlug=choi-seojin
 GET /lumina-feed/search?q=최서진&type=text&language=ko&take=20
 GET /lumina-feed/search?q=%23seojin&type=hashtag&language=all&take=20
+GET /lumina-feed/search-suggestions?q=seo&language=all&window=24h&take=8
 GET /lumina-feed/trending-searches?language=all&type=all&window=1h&take=10
 GET /lumina-feed/trending-searches?language=ko&type=hashtag&window=24h&take=10
 GET /lumina-feed/hashtags?language=all&window=24h&take=20
@@ -1662,6 +1663,17 @@ Feed search:
 - `language` accepts `ko`, `ja`, `en`, `zh`, `unknown`, `all`, or locale-like values such as `ko-KR`, `ja-JP`, `en-US`, `zh-CN`. Search events are stored as `ko|ja|en|zh|unknown`; `all` means auto-detect for event storage.
 - Optional bearer auth is supported. If the viewer is signed in, returned posts include viewer hints such as `viewer.hasLiked`.
 - Each search records a lightweight `feed_search_events` row for trending search aggregation. Same user/session + same keyword/type/language is deduped for 10 minutes.
+
+Search suggestions:
+
+- `GET /lumina-feed/search-suggestions?q=seo&language=all&window=24h&take=8` returns grouped suggestions for the search box.
+- `q` is optional. Without `q`, `recentQueries` and `hashtags` can still return discovery chips; `artists` and `users` are empty.
+- Response shape: `{ sections: { recentQueries, hashtags, artists, users }, items, query, policy }`.
+- `recentQueries[]`: `{ type: "query", keyword, normalizedKeyword, searchType, language, searchCount, lastSearchedAt, searchUrl }`.
+- `hashtags[]`: `{ type: "hashtag", keyword, normalizedKeyword, language, postCount, latestPublishedAt, searchUrl }`.
+- `artists[]`: `{ type: "artist", id, keyword, slug, displayName, searchUrl }`.
+- `users[]`: `{ type: "user", id, keyword, displayName, publicHandle, profileUrl }`.
+- `items[]` is the flattened list with a `section` field. Use `sections` for grouped UI and `items` for a single dropdown.
 
 Trending searches:
 

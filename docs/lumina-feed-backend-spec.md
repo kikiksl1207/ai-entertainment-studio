@@ -59,6 +59,7 @@ GET /lumina-feed?mode=fans&take=20
 GET /lumina-feed?artistSlug=yoon-serin
 GET /lumina-feed/search?q=keyword&type=text&language=ko&take=20
 GET /lumina-feed/search?q=%23hashtag&type=hashtag&language=all&take=20
+GET /lumina-feed/search-suggestions?q=seo&language=all&window=24h&take=8
 GET /lumina-feed/trending-searches?language=all&type=all&window=1h&take=10
 GET /lumina-feed/hashtags?language=all&window=24h&take=20
 GET /me/lumina-feed?mode=all&take=20
@@ -92,6 +93,10 @@ post shape in `{ items, posts }`. Query `q` is required. `type=text|hashtag` is
 optional; `#`-prefixed queries default to `hashtag`. Search accepts
 `language=ko|ja|en|zh|unknown|all` and locale aliases like `ko-KR`. Each search
 creates a deduped `feed_search_events` row for live trend aggregation.
+
+`GET /lumina-feed/search-suggestions` returns search-box suggestions grouped by
+`recentQueries`, `hashtags`, `artists`, and `users`. `q` is optional; without it
+the endpoint still returns recent query and hashtag discovery chips.
 
 `GET /lumina-feed/trending-searches` groups search events by keyword, language,
 and type. Use `language=all` for global trends, or `ko`, `ja`, `en`, `zh`, and
