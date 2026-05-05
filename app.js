@@ -2448,6 +2448,13 @@ let _luminaFeedItems = [];          // 정규화된 통일 구조
 let _luminaFeedSource = "inline";   // "operations" | "samples" | "inline"
 let _luminaFeedScope = "all";       // "all" | "following"
 let _luminaFeedQuery = "";
+let _luminaFeedSearchTimer = null;
+let _luminaFeedSearchSeq = 0;
+
+function feedLocaleToLanguage(locale = _currentLocale) {
+  const prefix = String(locale || "").toLowerCase().split("-")[0];
+  return ({ ko: "ko", ja: "ja", en: "en", zh: "zh" })[prefix] || "all";
+}
 
 /* authorType / postType 정규화 (운영 enum, 에밀리 한국어 모두 흡수) */
 function feedEscapeHtml(value) {
@@ -2616,7 +2623,7 @@ function renderLuminaFeed() {
     ? _luminaFeedItems
     : _luminaFeedItems.filter(p => p.postType === _luminaFeedFilter);
   const query = (_luminaFeedQuery || "").trim().toLowerCase();
-  const visibleList = query
+  const visibleList = query && _luminaFeedSource !== "search"
     ? list.filter(p => [
         p.authorName,
         p.body,
@@ -2792,7 +2799,109 @@ function bindLuminaFeedSearch() {
   input.addEventListener("input", () => {
     _luminaFeedQuery = input.value || "";
     renderLuminaFeed();
+    clearTimeout(_luminaFeedSearchTimer);
+    _luminaFeedSearchTimer = setTimeout(() => executeLuminaFeedSearch(_luminaFeedQuery), 360);
   });
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      clearTimeout(_luminaFeedSearchTimer);
+      executeLuminaFeedSearch(input.value || "");
+    }
+  });
+}
+
+async function executeLuminaFeedSearch(query) {
+  const q = String(query || "").trim();
+  const seq = ++_luminaFeedSearchSeq;
+  if (!q) {
+    await loadLuminaFeedData(_luminaFeedScope);
+    if (seq === _luminaFeedSearchSeq) renderLuminaFeed();
+    return;
+  }
+  const type = q.startsWith("#") ? "hashtag" : "text";
+  const language = feedLocaleToLanguage();
+  try {
+    const res = await apiFetch(`/api/v1/lumina-feed/search?q=${encodeURIComponent(q)}&type=${encodeURIComponent(type)}&language=${encodeURIComponent(language)}&take=30`, {
+      auth: typeof isLoggedIn === "function" && isLoggedIn()
+    });
+    if (seq !== _luminaFeedSearchSeq) return;
+    const items = Array.isArray(res) ? res : (res?.items || res?.posts || []);
+    _luminaFeedItems = Array.isArray(items) ? items.map(normalizeFeedPost) : [];
+    _luminaFeedSource = "search";
+    renderLuminaFeed();
+  } catch (err) {
+    console.warn("[Lumina feed search] 실패, 로컬 필터 유지:", err?.status, err?.message);
+  }
+}
+
+function bindFeedDiscoveryClicks() {
+  if (document._feedDiscoveryBound) return;
+  document._feedDiscoveryBound = true;
+  document.addEventListener("click", e => {
+    const btn = e.target.closest("[data-feed-search-keyword]");
+    if (!btn) return;
+    e.preventDefault();
+    const keyword = btn.dataset.feedSearchKeyword || "";
+    const input = document.getElementById("feedSearchInput");
+    if (input) input.value = keyword;
+    _luminaFeedQuery = keyword;
+    executeLuminaFeedSearch(keyword);
+  });
+}
+
+function renderFeedTrendButtons(root, items, emptyText) {
+  if (!root) return;
+  if (!Array.isArray(items) || items.length === 0) {
+    root.innerHTML = `<p class="feed-trend-empty">${feedEscapeHtml(emptyText)}</p>`;
+    return;
+  }
+  root.innerHTML = items.map((item, idx) => {
+    const keyword = item.keyword || item.normalizedKeyword || "";
+    if (!keyword) return "";
+    const count = item.searchCount ?? item.postCount ?? "";
+    return `<button class="feed-trend-item" type="button" data-feed-search-keyword="${feedEscapeHtml(keyword)}">
+      <span class="feed-trend-rank">${Number(item.rank || idx + 1)}</span>
+      <span class="feed-trend-keyword">${feedEscapeHtml(keyword)}</span>
+      ${count !== "" ? `<small>${Number(count).toLocaleString("ko-KR")}</small>` : ""}
+    </button>`;
+  }).join("");
+}
+
+async function initLuminaFeedDiscovery() {
+  const trendRoot = document.getElementById("feedTrendList");
+  const hashtagRoot = document.getElementById("feedHashtagList");
+  if (!trendRoot && !hashtagRoot) return;
+  bindFeedDiscoveryClicks();
+  const language = feedLocaleToLanguage();
+  const localeLabel = document.getElementById("feedTrendLocaleLabel");
+  if (localeLabel) {
+    localeLabel.textContent = ({ ko: "한국어", ja: "日本語", en: "English", zh: "中文" })[language] || "전체";
+  }
+  try {
+    let res = await apiFetch(`/api/v1/lumina-feed/trending-searches?language=${encodeURIComponent(language)}&type=all&window=1h&take=10`);
+    let items = Array.isArray(res) ? res : (res?.items || res?.keywords || []);
+    if ((!items || items.length === 0) && language !== "all") {
+      res = await apiFetch("/api/v1/lumina-feed/trending-searches?language=all&type=all&window=1h&take=10");
+      items = Array.isArray(res) ? res : (res?.items || res?.keywords || []);
+    }
+    renderFeedTrendButtons(trendRoot, items, "아직 급상승 검색어가 없어요.");
+  } catch (err) {
+    console.warn("[Lumina feed trends] 실패:", err?.status, err?.message);
+    renderFeedTrendButtons(trendRoot, [], "급상승 검색어를 불러오지 못했어요.");
+  }
+  try {
+    let res = await apiFetch(`/api/v1/lumina-feed/hashtags?language=${encodeURIComponent(language)}&window=24h&take=12`);
+    let items = Array.isArray(res) ? res : (res?.items || res?.hashtags || []);
+    if ((!items || items.length === 0) && language !== "all") {
+      res = await apiFetch("/api/v1/lumina-feed/hashtags?language=all&window=24h&take=12");
+      items = Array.isArray(res) ? res : (res?.items || res?.hashtags || []);
+    }
+    renderFeedTrendButtons(hashtagRoot, items, "아직 발견된 해시태그가 없어요.");
+  } catch (err) {
+    console.warn("[Lumina feed hashtags] 실패:", err?.status, err?.message);
+    renderFeedTrendButtons(hashtagRoot, [], "해시태그를 불러오지 못했어요.");
+  }
 }
 
 /* #137 Phase B — 피드 글 수정 (텍스트 본문만, 차모 spec)
@@ -7490,6 +7599,7 @@ async function init() {
     await loadLuminaFeedData();
     initLuminaFeedSidebar();
     bindLuminaFeedSearch();
+    initLuminaFeedDiscovery();
     renderLuminaFeed();
     bindLuminaFeedTabs();
     bindLuminaFeedExpand();
