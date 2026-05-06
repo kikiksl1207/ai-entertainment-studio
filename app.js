@@ -1559,6 +1559,25 @@ function closeUserMenu() {
    - 401/403/404는 일반 유저 가정 — 메뉴 hidden 유지 */
 let _creatorStudioAccess = null;
 let _creatorStudioFetchedAt = 0;
+const CREATOR_STUDIO_HANDOFF_KEY = "lumina_creator_studio_handoff";
+
+function storeCreatorStudioHandoff(data) {
+  if (!data?.access?.enabled) return;
+  try {
+    sessionStorage.setItem(CREATOR_STUDIO_HANDOFF_KEY, JSON.stringify({
+      savedAt: Date.now(),
+      viewerEmail: data?.viewer?.email || getAuth()?.user?.email || "",
+      data
+    }));
+  } catch (_) {}
+}
+
+function studioEntryUrl(url = "./creator-studio.html") {
+  const base = url || "./creator-studio.html";
+  const glue = base.includes("?") ? "&" : "?";
+  return `${base}${glue}studio_v=${Date.now()}`;
+}
+
 async function refreshStudioMenuVisibility(menu) {
   const studioBtn = menu.querySelector(".user-menu-item-studio");
   if (!studioBtn) return;
@@ -1572,6 +1591,7 @@ async function refreshStudioMenuVisibility(menu) {
 
   try {
     const res = await apiFetch("/api/v1/me/creator-studio", { auth: true });
+    storeCreatorStudioHandoff(res);
     _creatorStudioAccess = {
       enabled: !!res?.access?.enabled,
       type: res?.access?.type || "",
@@ -1647,7 +1667,16 @@ function createUserMenu() {
         authLogout();
       } else if (action === "studio") {
         // #144 차모 spec: access.entryUrl 우선
-        window.location.href = _creatorStudioAccess?.entryUrl || "./creator-studio.html";
+        try {
+          if (_creatorStudioAccess?.enabled && !sessionStorage.getItem(CREATOR_STUDIO_HANDOFF_KEY)) {
+            sessionStorage.setItem(CREATOR_STUDIO_HANDOFF_KEY, JSON.stringify({
+              savedAt: Date.now(),
+              viewerEmail: getAuth()?.user?.email || "",
+              data: { access: _creatorStudioAccess, viewer: getAuth()?.user || null }
+            }));
+          }
+        } catch (_) {}
+        window.location.href = studioEntryUrl(_creatorStudioAccess?.entryUrl || "./creator-studio.html");
       } else if (action === "public-profile") {
         // 본인 user-profile.html — publicHandle 우선, 없으면 user.id
         const me = (typeof getAuth === "function") ? getAuth()?.user : null;

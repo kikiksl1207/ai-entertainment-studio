@@ -700,6 +700,7 @@
       (function guardCreatorStudioAccess() {
         const apiBase = "https://api.lumina-stage.com";
         const authKey = "lumina_auth";
+        const studioHandoffKey = "lumina_creator_studio_handoff";
         const shell = document.getElementById("studioShell");
         const gate = document.getElementById("studioAccessGate");
         const kicker = document.getElementById("studioGateKicker");
@@ -725,6 +726,21 @@
             if (auth) localStorage.setItem(authKey, JSON.stringify(auth));
             else localStorage.removeItem(authKey);
           } catch (_) {}
+        }
+
+        function readStudioHandoff() {
+          try {
+            const raw = sessionStorage.getItem(studioHandoffKey);
+            if (!raw) return null;
+            const handoff = JSON.parse(raw);
+            const recent = Date.now() - Number(handoff.savedAt || 0) < 5 * 60 * 1000;
+            const auth = readAuth();
+            const authEmail = auth?.user?.email || "";
+            const sameUser = !handoff.viewerEmail || !authEmail || handoff.viewerEmail === authEmail;
+            return recent && sameUser && handoff.data?.access?.enabled === true ? handoff.data : null;
+          } catch (_) {
+            return null;
+          }
         }
 
         async function refreshStudioAuthOnce() {
@@ -1361,6 +1377,12 @@
         });
 
         async function verify() {
+          const handoff = readStudioHandoff();
+          if (handoff) {
+            allow(handoff);
+            return;
+          }
+
           setGateChecking();
           let completed = false;
           const softTimeoutId = setTimeout(() => {
