@@ -720,6 +720,59 @@
           }
         }
 
+        function writeAuth(auth) {
+          try {
+            if (auth) localStorage.setItem(authKey, JSON.stringify(auth));
+            else localStorage.removeItem(authKey);
+          } catch (_) {}
+        }
+
+        async function refreshStudioAuthOnce() {
+          const auth = readAuth();
+          const refreshToken = auth?.refreshToken;
+          if (!refreshToken) return null;
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 12000);
+          try {
+            const res = await fetch(apiBase + "/api/v1/auth/refresh", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ refreshToken }),
+              signal: controller.signal
+            });
+            if (!res.ok) {
+              writeAuth(null);
+              return null;
+            }
+            const data = await res.json().catch(() => null);
+            const accessToken = data?.accessToken || data?.tokens?.accessToken || data?.access_token;
+            const nextRefreshToken = data?.refreshToken || data?.tokens?.refreshToken || data?.refresh_token || refreshToken;
+            if (!accessToken) {
+              writeAuth(null);
+              return null;
+            }
+            const nextAuth = {
+              accessToken,
+              refreshToken: nextRefreshToken,
+              user: data?.user || auth.user
+            };
+            writeAuth(nextAuth);
+            return nextAuth;
+          } catch (_) {
+            return null;
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        }
+
+        async function fetchStudioBootstrap(token, signal) {
+          return fetch(apiBase + "/api/v1/me/creator-studio", {
+            headers: { Authorization: "Bearer " + token },
+            signal
+          });
+        }
+
         function authEmail() {
           const user = readAuth()?.user || {};
           return user.email || user.displayName || user.id || "";
@@ -1307,10 +1360,13 @@
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 12000);
           try {
-            const res = await fetch(apiBase + "/api/v1/me/creator-studio", {
-              headers: { Authorization: "Bearer " + token },
-              signal: controller.signal
-            });
+            let res = await fetchStudioBootstrap(token, controller.signal);
+            if (res.status === 401) {
+              const refreshed = await refreshStudioAuthOnce();
+              if (refreshed?.accessToken) {
+                res = await fetchStudioBootstrap(refreshed.accessToken, controller.signal);
+              }
+            }
             if (!res.ok) {
               deny(res.status === 401
                 ? "로그인 세션이 만료됐습니다. 다시 로그인한 뒤 확인해 주세요."
