@@ -125,7 +125,11 @@ export class CreatorStudioService {
         enabled: hasAccess,
         type: accessType,
         status: hasAccess ? 'approved' : 'none',
-        reason: hasAccess ? 'active_artist_operator_found' : 'no_active_artist_operator',
+        reason: artistIds.length
+          ? 'active_artist_operator_found'
+          : approvedApplication
+            ? 'approved_debut_application_found'
+            : 'no_active_artist_operator',
         entryUrl: '/creator-studio.html',
         source: artistIds.length > 0 ? 'artist_operator' : 'approved_debut_application',
         approvedApplication: pendingApprovedApplication,

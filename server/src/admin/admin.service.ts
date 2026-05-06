@@ -1405,6 +1405,19 @@ export class AdminService {
             },
           },
         },
+        debutApplications: {
+          where: { status: 'approved' },
+          orderBy: { updatedAt: 'desc' },
+          take: 3,
+          select: {
+            id: true,
+            applicantName: true,
+            displayName: true,
+            contactEmail: true,
+            participationType: true,
+            updatedAt: true,
+          },
+        },
       },
     });
     const exactMatchCount = users.length;
@@ -1415,6 +1428,9 @@ export class AdminService {
       user.artistOperators.filter(
         (operator) => operator.status === 'active' && operator.revokedAt === null,
       ),
+    );
+    const activeApprovedApplications = activeUsers.flatMap(
+      (user) => user.debutApplications,
     );
     const latestAuthAccount = users
       .flatMap((user) =>
@@ -1429,7 +1445,9 @@ export class AdminService {
         const rightAt = right.lastLoginAt?.getTime() ?? right.createdAt.getTime();
         return rightAt - leftAt;
       })[0] ?? null;
-    const accessEnabled = activeUsers.length > 0 && activeOperators.length > 0;
+    const accessEnabled =
+      activeUsers.length > 0 &&
+      (activeOperators.length > 0 || activeApprovedApplications.length > 0);
 
     return {
       generatedAt: new Date(),
@@ -1443,6 +1461,7 @@ export class AdminService {
           exactMatchCount,
           activeUsersCount: activeUsers.length,
           activeOperatorsCount: activeOperators.length,
+          approvedApplicationsCount: activeApprovedApplications.length,
           totalOperatorsCount: users.reduce(
             (sum, user) => sum + user.artistOperators.length,
             0,
@@ -1451,6 +1470,7 @@ export class AdminService {
         exactMatchCount,
         activeUsersCount: activeUsers.length,
         activeOperatorsCount: activeOperators.length,
+        approvedApplicationsCount: activeApprovedApplications.length,
         latestAuthAccount,
       },
       users: users.map((user) => ({
@@ -1477,15 +1497,26 @@ export class AdminService {
           createdAt: operator.createdAt,
           updatedAt: operator.updatedAt,
         })),
+        approvedApplications: user.debutApplications.map((application) => ({
+          id: application.id,
+          applicantName: application.applicantName,
+          displayName: application.displayName,
+          contactEmail: application.contactEmail,
+          participationType: application.participationType,
+          updatedAt: application.updatedAt,
+          canEnterCreatorStudio: user.status === 'active' && user.deletedAt === null,
+          needsArtistOperatorLink: true,
+        })),
       })),
       expectedUserEndpoint: '/api/v1/me/creator-studio',
       expectedUserEndpointRule:
-        'The signed-in access token must belong to the same userId that has an active artist operator row.',
+        'The signed-in access token must belong to the same active userId that has either an active artist operator row or an approved debut application.',
       nextActions: this.creatorAccessDiagnosticNextActions({
         accessEnabled,
         exactMatchCount,
         activeUsersCount: activeUsers.length,
         activeOperatorsCount: activeOperators.length,
+        approvedApplicationsCount: activeApprovedApplications.length,
         totalOperatorsCount: users.reduce((sum, user) => sum + user.artistOperators.length, 0),
       }),
     };
@@ -5911,12 +5942,12 @@ export class AdminService {
 
   private creatorAccessPolicy() {
     return {
-      purpose: 'Grant or restore Creator Studio access by user email and artist slug.',
+      purpose: 'Grant or restore Creator Studio access by user email and selected artist.',
       accessRule:
-        'Creator Studio opens only when artist_operators has an active row for the logged-in user and revokedAt is null.',
+        'Creator Studio opens when the logged-in active user has an active artist_operators row with revokedAt null or an approved debut application pending artist-operator linkage.',
       recommendedGrantBody: {
         email: 'creator@example.com',
-        artistSlug: 'choi-seojin',
+        artistId: 'artist-uuid',
         role: 'owner',
         status: 'active',
         permissions: [
@@ -5942,6 +5973,7 @@ export class AdminService {
     exactMatchCount: number;
     activeUsersCount: number;
     activeOperatorsCount: number;
+    approvedApplicationsCount: number;
     totalOperatorsCount: number;
   }) {
     if (input.exactMatchCount === 0) {
@@ -5950,6 +5982,14 @@ export class AdminService {
 
     if (input.activeUsersCount === 0) {
       return 'user_not_active_or_deleted';
+    }
+
+    if (input.activeOperatorsCount > 0) {
+      return 'creator_studio_access_ready';
+    }
+
+    if (input.approvedApplicationsCount > 0) {
+      return 'approved_debut_application_access_ready';
     }
 
     if (input.totalOperatorsCount === 0) {
@@ -5968,6 +6008,7 @@ export class AdminService {
     exactMatchCount: number;
     activeUsersCount: number;
     activeOperatorsCount: number;
+    approvedApplicationsCount: number;
     totalOperatorsCount: number;
   }) {
     if (input.accessEnabled) {
@@ -5990,8 +6031,8 @@ export class AdminService {
 
     if (input.totalOperatorsCount === 0) {
       return [
-        'Grant Creator Studio access with POST /admin/api/v1/backstage/operations/creator-access.',
-        'Use the user email and selected artistId from the Backstage UI.',
+        'Grant Creator Studio access with POST /admin/api/v1/backstage/operations/creator-access, or approve the debut application if the user should enter before an artist operator row exists.',
+        'Use the user email and selected artistId from the Backstage UI when granting direct artist access.',
       ];
     }
 

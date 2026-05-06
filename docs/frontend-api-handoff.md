@@ -2298,14 +2298,14 @@ use the existing user mutation endpoints.
 `GET /admin/api/v1/backstage/operations/creator-access` is the Backstage shortcut
 for Creator Studio access. Use it instead of the low-level
 `/artists/:artistId/operators` routes when an operator only knows a creator email
-and artist slug.
+and selected artist.
 
 Grant / restore body:
 
 ```json
 {
   "email": "creator@example.com",
-  "artistSlug": "choi-seojin",
+  "artistId": "artist-uuid",
   "role": "owner",
   "status": "active",
   "permissions": [
@@ -2321,8 +2321,11 @@ Grant / restore body:
 
 Response item includes `operatorId`, `user`, `artist`, `permissions`,
 `canEnterCreatorStudio`, and `creatorStudioUrl`. A creator can enter
-`/creator-studio.html` only when `canEnterCreatorStudio === true`; the user-facing
-check remains `GET /api/v1/me/creator-studio` and `access.enabled === true`.
+`/creator-studio.html` when the user-facing check
+`GET /api/v1/me/creator-studio` returns `access.enabled === true`. Direct
+artist operation still needs `canEnterCreatorStudio === true`; approved debut
+applications can also unlock the studio while they are pending artist-operator
+linkage.
 
 If Creator Studio still blocks after granting access, call:
 
@@ -2336,12 +2339,16 @@ The diagnostics response explains why access is blocked:
 - `user_not_active_or_deleted`: the account cannot enter until restored.
 - `no_artist_operator_rows`: grant access first.
 - `artist_operator_exists_but_not_active`: patch the operator row to active.
+- `approved_debut_application_access_ready`: the user can enter Creator Studio
+  because an approved debut application exists, but artist-operator linkage is
+  still pending.
 - `creator_studio_access_ready`: backend access is ready; if the page still
   blocks, the frontend is likely calling `GET /api/v1/me/creator-studio` without
   the signed-in user's Bearer token or the user needs to sign out/in.
 
 `GET /api/v1/me/creator-studio` also returns `viewer.userId`, `viewer.email`,
-and `access.reason` to help compare the signed-in user with the diagnostics row.
+`access.reason`, `access.source`, and `access.approvedApplication` to help
+compare the signed-in user with the diagnostics row.
 
 `GET /admin/api/v1/backstage/operations/settlement-preview` is an estimated
 settlement preview for Backstage. It does not finalize payout and must be

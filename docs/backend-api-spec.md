@@ -630,6 +630,7 @@ PATCH /admin/api/v1/creator-image-requests/:requestId
 Current workflow:
 
 - `GET /api/v1/me/creator-studio` is the authenticated creator-studio bootstrap endpoint. It returns active artist operator rows, operated artist profile/assets, image request counters by artist/status, recent image requests, and frontend endpoint hints.
+- The bootstrap response includes `viewer.userId`, `viewer.email`, `access.reason`, `access.source`, and `access.approvedApplication` for access debugging. Access is enabled for an active artist operator row or an approved debut application pending artist-operator linkage.
 - The creator-studio bootstrap response now includes `access`, `summary`, and `policy.slotPolicy`. Frontend should show the account dropdown `스튜디오 스테이지` entry only when `access.enabled === true`.
 - Initial creator studio slot policy is preview-only: `slotLimit = 10`, used/remaining slots are derived from active operator artist count, and paid slot expansion is `planned_not_open`.
 - `GET /api/v1/me/creator-studio/settlement-preview` is the creator-facing earnings estimate for active operated artists only. Query `period=YYYY-MM` is optional and defaults to the current UTC month.
