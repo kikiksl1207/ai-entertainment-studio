@@ -11,6 +11,7 @@ const LUMINA_UNIT_PRICE_KRW = 10;
 const FREE_PROMO_REWARD_CAP_LUMINA = 3000;
 const PAID_BONUS_CAP_RATE = 0.2;
 const FIRST_CHARGE_BONUS_RATE = 0.1;
+const BIRTHDAY_REWARD_LUMINA = 1000;
 const PROMO_REWARD_LEDGER_TYPES = [
   'signup_bonus',
   'referral_reward',
@@ -269,9 +270,11 @@ export class RewardsService {
             {
               code: 'birthday_verified_annual',
               title: 'Verified birthday reward',
-              rewardLumina: 1000,
-              status: 'planned',
-              grantMode: 'annual_after_verified_birthdate',
+              rewardLumina: BIRTHDAY_REWARD_LUMINA,
+              status: 'ready_after_identity_birthdate_provider',
+              grantMode: 'annual_claim_on_birthday',
+              statusEndpoint: '/api/v1/rewards/birthday',
+              claimEndpoint: '/api/v1/rewards/birthday/claim',
             },
           ],
         },
@@ -478,6 +481,172 @@ export class RewardsService {
       }),
       policy: this.getActivationPolicy(),
     };
+  }
+
+  async getBirthdayRewardStatus(userId: string) {
+    await this.ensureActiveUser(userId);
+    const currentYear = this.getKoreanServiceDate().getUTCFullYear();
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: {
+        identityVerification: true,
+      },
+    });
+    const identity = user.identityVerification;
+    const identityVerified = identity?.status === 'verified';
+    const identitySubjectHash = identity?.identitySubjectHash ?? null;
+    const birthDate = identity?.birthDate ?? null;
+    const idempotencyKey = identitySubjectHash
+      ? this.birthdayRewardIdempotencyKey(identitySubjectHash, currentYear)
+      : null;
+    const existingLedger = idempotencyKey
+      ? await this.prisma.walletLedger.findUnique({ where: { idempotencyKey } })
+      : null;
+    const birthdayToday = birthDate ? this.isKoreanServiceBirthday(birthDate) : false;
+    const blockingReasons = [
+      !identityVerified ? 'identity_verification_required' : null,
+      !birthDate ? 'verified_birthdate_required' : null,
+      !identitySubjectHash ? 'identity_subject_hash_required' : null,
+      birthDate && !birthdayToday ? 'not_birthday_today' : null,
+      existingLedger ? 'already_claimed_this_year' : null,
+    ].filter(Boolean);
+
+    return {
+      generatedAt: new Date(),
+      reward: {
+        code: 'birthday_verified_annual',
+        rewardLumina: BIRTHDAY_REWARD_LUMINA,
+        ledgerType: 'birthday_bonus',
+        claimEndpoint: '/api/v1/rewards/birthday/claim',
+      },
+      eligibility: {
+        identityVerified,
+        hasVerifiedBirthDate: Boolean(birthDate),
+        hasIdentitySubjectHash: Boolean(identitySubjectHash),
+        birthdayToday,
+        currentYear,
+        claimable: blockingReasons.length === 0,
+        blockingReasons,
+      },
+      claimed: existingLedger
+        ? {
+            ledgerId: existingLedger.id,
+            claimedAt: existingLedger.createdAt,
+          }
+        : null,
+      policy: this.birthdayRewardPolicy(),
+    };
+  }
+
+  async claimBirthdayReward(userId: string) {
+    const status = await this.getBirthdayRewardStatus(userId);
+
+    if (!status.eligibility.claimable) {
+      throw new BadRequestException({
+        code: 'BIRTHDAY_REWARD_NOT_CLAIMABLE',
+        message: 'Birthday reward is not claimable',
+        details: status.eligibility,
+      });
+    }
+
+    const identity = await this.prisma.userIdentityVerification.findUniqueOrThrow({
+      where: { userId },
+    });
+    const identitySubjectHash = identity.identitySubjectHash;
+
+    if (!identitySubjectHash) {
+      throw new BadRequestException('Verified identity subject hash is required');
+    }
+
+    const currentYear = this.getKoreanServiceDate().getUTCFullYear();
+    const idempotencyKey = this.birthdayRewardIdempotencyKey(
+      identitySubjectHash,
+      currentYear,
+    );
+    const progress = await this.getActivationProgress(userId);
+    const rewardAmount = new Decimal(BIRTHDAY_REWARD_LUMINA);
+    const remainingPromoLumina = new Decimal(progress.caps.freePromo.remainingLumina);
+
+    if (remainingPromoLumina.lessThan(rewardAmount)) {
+      throw new BadRequestException({
+        code: 'FREE_PROMO_REWARD_CAP_EXCEEDED',
+        message: 'Free promotional reward cap would be exceeded',
+        details: {
+          capLumina: progress.caps.freePromo.capLumina,
+          earnedLumina: progress.caps.freePromo.earnedLumina,
+          remainingLumina: progress.caps.freePromo.remainingLumina,
+          requestedLumina: rewardAmount.toString(),
+          ledgerType: 'birthday_bonus',
+        },
+      });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const existingLedger = await tx.walletLedger.findUnique({
+        where: { idempotencyKey },
+      });
+
+      if (existingLedger) {
+        return {
+          ledger: existingLedger,
+          idempotentReplay: true,
+          walletCredited: false,
+          policy: this.birthdayRewardPolicy(),
+        };
+      }
+
+      const wallet = await tx.walletAccount.upsert({
+        where: {
+          userId_currencyCode: {
+            userId,
+            currencyCode: DEFAULT_CURRENCY,
+          },
+        },
+        update: {},
+        create: {
+          userId,
+          currencyCode: DEFAULT_CURRENCY,
+        },
+      });
+      const ledger = await tx.walletLedger.create({
+        data: {
+          walletAccountId: wallet.id,
+          direction: 'credit',
+          amount: rewardAmount,
+          ledgerType: 'birthday_bonus',
+          referenceType: 'user',
+          referenceId: userId,
+          idempotencyKey,
+          memo: `Verified birthday reward ${currentYear}`,
+        },
+      });
+      const updatedWallet = await tx.walletAccount.update({
+        where: { id: wallet.id },
+        data: {
+          cachedBalance: {
+            increment: rewardAmount,
+          },
+        },
+      });
+
+      return {
+        ledger,
+        wallet: {
+          id: updatedWallet.id,
+          currencyCode: updatedWallet.currencyCode,
+          cachedBalance: updatedWallet.cachedBalance,
+          status: updatedWallet.status,
+        },
+        reward: {
+          code: 'birthday_verified_annual',
+          rewardLumina: BIRTHDAY_REWARD_LUMINA,
+          year: currentYear,
+        },
+        idempotentReplay: false,
+        walletCredited: true,
+        policy: this.birthdayRewardPolicy(),
+      };
+    });
   }
 
   async claimActivationQuest(userId: string, code: string) {
@@ -819,6 +988,30 @@ export class RewardsService {
         first_charge_bonus: 'automatic_payment_fulfillment_bonus',
       },
     };
+  }
+
+  private birthdayRewardPolicy() {
+    return {
+      rewardLumina: BIRTHDAY_REWARD_LUMINA,
+      oneClaimPerVerifiedIdentityPerYear: true,
+      requiresVerifiedBirthDateFromProvider: true,
+      requiresIdentitySubjectHash: true,
+      serviceTimezone: 'Asia/Seoul',
+      idempotencyKeyPattern: 'birthday_bonus:<identitySubjectHash>:<year>',
+      capScope: 'free_promo',
+      freePromoRewardCapLumina: FREE_PROMO_REWARD_CAP_LUMINA,
+      refundPolicy: 'Birthday rewards are promotional rewards and excluded from cash refunds.',
+    };
+  }
+
+  private birthdayRewardIdempotencyKey(identitySubjectHash: string, year: number) {
+    return `birthday_bonus:${identitySubjectHash}:${year}`;
+  }
+
+  private isKoreanServiceBirthday(birthDate: Date) {
+    const today = this.formatServiceDate(this.getKoreanServiceDate()).slice(5);
+    const birthday = this.formatServiceDate(birthDate).slice(5);
+    return today === birthday;
   }
 
   private promoRewardLedgerWhere(userId: string): Prisma.WalletLedgerWhereInput {

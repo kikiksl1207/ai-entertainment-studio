@@ -81,6 +81,13 @@ eligible revenue. The 7-day cycle repeats while the user keeps a consecutive
 attendance streak. The server resets service dates on the Korea service day and
 stores every grant with `ledgerType = daily_attendance`.
 
+Verified birthday reward is available through `GET /api/v1/rewards/birthday`
+and `POST /api/v1/rewards/birthday/claim`. It grants 1,000 Lumina only when the
+identity provider has stored a verified `birthDate` and `identitySubjectHash`,
+the Korea service date matches the birthday, and the same verified identity has
+not claimed in the current year. The ledger uses `ledgerType = birthday_bonus`
+and `birthday_bonus:<identitySubjectHash>:<year>` idempotency.
+
 Email and social signup accept optional `referralCode`. If the code is valid, active, and owned by another active user, both users receive referral Lumina through wallet ledger credits.
 
 ## Gifts

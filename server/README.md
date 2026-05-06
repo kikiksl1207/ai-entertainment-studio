@@ -181,6 +181,8 @@ For local/staging QA before a mail provider is connected, set `ACTION_TOKEN_DEBU
 - `GET /api/v1/rewards/referrals`
 - `POST /api/v1/rewards/daily-attendance`
 - `GET /api/v1/rewards/daily-attendance`
+- `GET /api/v1/rewards/birthday`
+- `POST /api/v1/rewards/birthday/claim`
 - `POST /api/v1/user-gifts`
 - `GET /api/v1/user-gifts/sent`
 - `GET /api/v1/user-gifts/received`
@@ -452,6 +454,7 @@ npm.cmd run verify:object-storage
 See `../docs/lumina-economy-policy.md` for Lumina/Stella pricing, signup/referral/attendance rewards, gift participation minimums, and accounting rules.
 
 Reward endpoints grant Lumina through `wallet_ledger` only. `POST /api/v1/rewards/daily-attendance` grants the current 7-day promo schedule once per Korea service date (`10, 10, 20, 20, 20, 20, 50` Lumina) and is included in the 3,000 Lumina free promotional reward cap. Referral codes are created with `GET /api/v1/rewards/referral-code`; passing `referralCode` to email or social signup grants 500 Lumina to the referrer and 500 Lumina to the new user through `referral_reward` ledger entries.
+Birthday rewards are exposed through `GET /api/v1/rewards/birthday` and `POST /api/v1/rewards/birthday/claim`. The claim endpoint grants 1,000 Lumina only when verified identity data includes provider-sourced `birthDate` and `identitySubjectHash`, today is the user's birthday in the Korea service timezone, and the same identity has not claimed in the current year.
 
 User-to-user gift transfers move Lumina between two active wallets in one transaction. The sender receives a `user_gift_send` debit ledger, the recipient receives a `user_gift_receive` credit ledger, and `user_gift_transfers` stores the visible transfer record. Minimum transfer amount is 10 Lumina. Sender limits are 20 transfers per Korea service day, 100,000 Lumina per day, and 1,000,000 Lumina per month.
 

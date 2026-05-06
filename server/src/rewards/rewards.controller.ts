@@ -44,6 +44,16 @@ export class RewardsController {
     return this.rewardsService.getActivationProgress(user.id);
   }
 
+  @Get('birthday')
+  getBirthdayRewardStatus(@CurrentUser() user: AuthUser) {
+    return this.rewardsService.getBirthdayRewardStatus(user.id);
+  }
+
+  @Post('birthday/claim')
+  claimBirthdayReward(@CurrentUser() user: AuthUser) {
+    return this.rewardsService.claimBirthdayReward(user.id);
+  }
+
   @Post('activation-quests/:code/claim')
   claimActivationQuest(@CurrentUser() user: AuthUser, @Param('code') code: string) {
     return this.rewardsService.claimActivationQuest(user.id, code);

@@ -125,6 +125,8 @@ model UserIdentityVerification {
   userId             String    @id @map("user_id") @db.Uuid
   status             String    @default("unverified")
   provider           String?
+  identitySubjectHash String?  @map("identity_subject_hash")
+  birthDate          DateTime? @map("birth_date") @db.Date
   verifiedNameMasked String?   @map("verified_name_masked")
   verifiedAt         DateTime? @map("verified_at") @db.Timestamptz(6)
   expiresAt          DateTime? @map("expires_at") @db.Timestamptz(6)
@@ -134,6 +136,7 @@ model UserIdentityVerification {
   user               User      @relation(fields: [userId], references: [id])
 
   @@index([status], map: "idx_user_identity_verifications_status")
+  @@index([identitySubjectHash], map: "idx_user_identity_verifications_subject_hash")
   @@map("user_identity_verifications")
 }
 
