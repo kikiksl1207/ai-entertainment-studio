@@ -37,10 +37,16 @@ Old seed products `LUMINA_100`, `LUMINA_550`, and `LUMINA_1200` should be archiv
   - Day 6: 20 Lumina
   - Day 7: 50 Lumina
 
+Free promotional rewards are capped at 3,000 Lumina per user. The cap includes
+signup bonus, referral rewards, daily attendance, identity verification,
+birthday, achievement, quest, and profile-completion rewards. Paid Lumina
+purchase bonuses use a separate paid-bonus cap and do not share this free promo
+pool.
+
 Signup bonus is granted at wallet creation time and must create both:
 
 - `wallet_accounts.cached_balance = 300`
-- `wallet_ledger` credit entry with `ledgerType = event_grant` and a `signup_bonus:*` idempotency key
+- `wallet_ledger` credit entry with `ledgerType = signup_bonus` and a `signup_bonus:*` idempotency key
 
 Referral and daily attendance rewards must be implemented with dedicated anti-abuse records before launch. Required future controls:
 

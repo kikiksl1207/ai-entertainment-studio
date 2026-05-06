@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import type { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -109,6 +110,29 @@ export class RewardsService {
         };
       }
 
+      const promoLedger = await tx.walletLedger.aggregate({
+        where: this.promoRewardLedgerWhere(userId),
+        _sum: { amount: true },
+      });
+      const promoEarnedLumina = new Decimal(promoLedger._sum.amount ?? 0);
+      const remainingPromoLumina = new Decimal(FREE_PROMO_REWARD_CAP_LUMINA).minus(
+        promoEarnedLumina,
+      );
+
+      if (remainingPromoLumina.lessThan(rewardAmount)) {
+        throw new BadRequestException({
+          code: 'FREE_PROMO_REWARD_CAP_EXCEEDED',
+          message: 'Free promotional reward cap would be exceeded',
+          details: {
+            capLumina: FREE_PROMO_REWARD_CAP_LUMINA.toString(),
+            earnedLumina: promoEarnedLumina.toString(),
+            remainingLumina: Decimal.max(0, remainingPromoLumina).toString(),
+            requestedLumina: rewardAmount.toString(),
+            ledgerType: 'daily_attendance',
+          },
+        });
+      }
+
       const wallet = await tx.walletAccount.findUnique({
         where: {
           userId_currencyCode: {
@@ -191,6 +215,7 @@ export class RewardsService {
         oneClaimPerServiceDate: true,
         serviceDateTimezone: 'Asia/Seoul',
         promoLedgerReason: 'daily_attendance',
+        freePromoRewardCapLumina: FREE_PROMO_REWARD_CAP_LUMINA,
       },
       note:
         'Attendance rewards are small promo rewards for activation, not creator settlement revenue.',
@@ -270,29 +295,33 @@ export class RewardsService {
               code: 'first_feed_post',
               title: 'Write first Lumina Feed post',
               rewardLumina: 20,
-              status: 'planned',
-              grantMode: 'future_idempotent_claim',
+              status: 'live',
+              grantMode: 'idempotent_claim',
+              claimEndpoint: '/api/v1/rewards/activation-quests/first_feed_post/claim',
             },
             {
               code: 'first_feed_like',
               title: 'Like first Lumina Feed post',
               rewardLumina: 10,
-              status: 'planned',
-              grantMode: 'future_idempotent_claim',
+              status: 'live',
+              grantMode: 'idempotent_claim',
+              claimEndpoint: '/api/v1/rewards/activation-quests/first_feed_like/claim',
             },
             {
               code: 'first_follow',
               title: 'Follow first artist or user',
               rewardLumina: 10,
-              status: 'planned',
-              grantMode: 'future_idempotent_claim',
+              status: 'live',
+              grantMode: 'idempotent_claim',
+              claimEndpoint: '/api/v1/rewards/activation-quests/first_follow/claim',
             },
             {
               code: 'first_reply',
               title: 'Write first feed reply',
               rewardLumina: 20,
-              status: 'planned',
-              grantMode: 'future_idempotent_claim',
+              status: 'live',
+              grantMode: 'idempotent_claim',
+              claimEndpoint: '/api/v1/rewards/activation-quests/first_reply/claim',
             },
           ],
         },
@@ -345,14 +374,7 @@ export class RewardsService {
           },
         }),
         this.prisma.walletLedger.aggregate({
-          where: {
-            direction: 'credit',
-            ledgerType: { in: [...PROMO_REWARD_LEDGER_TYPES] },
-            walletAccount: {
-              userId,
-              currencyCode: DEFAULT_CURRENCY,
-            },
-          },
+          where: this.promoRewardLedgerWhere(userId),
           _sum: { amount: true },
         }),
         this.prisma.paymentOrder.findMany({
@@ -777,6 +799,29 @@ export class RewardsService {
         birthday_verified_annual: 'planned_after_verified_birthdate',
         first_charge_bonus: 'payment_fulfillment_policy',
       },
+    };
+  }
+
+  private promoRewardLedgerWhere(userId: string): Prisma.WalletLedgerWhereInput {
+    return {
+      direction: 'credit',
+      walletAccount: {
+        userId,
+        currencyCode: DEFAULT_CURRENCY,
+      },
+      OR: [
+        {
+          ledgerType: { in: [...PROMO_REWARD_LEDGER_TYPES] },
+        },
+        {
+          ledgerType: 'event_grant',
+          OR: [
+            { idempotencyKey: { startsWith: 'signup_bonus:' } },
+            { idempotencyKey: { startsWith: 'referral:referrer:' } },
+            { idempotencyKey: { startsWith: 'referral:referred:' } },
+          ],
+        },
+      ],
     };
   }
 }
