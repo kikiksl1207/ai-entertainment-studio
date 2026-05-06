@@ -766,6 +766,24 @@
           }
         }
 
+        function showGateActions() {
+          if (!actions) return;
+          actions.hidden = false;
+          const retry = actions.querySelector("[data-studio-retry]");
+          if (!retry) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "primary-action";
+            button.dataset.studioRetry = "true";
+            button.textContent = "다시 확인";
+            button.addEventListener("click", () => {
+              actions.hidden = true;
+              verify();
+            });
+            actions.prepend(button);
+          }
+        }
+
         async function fetchStudioBootstrap(token, signal) {
           return fetch(apiBase + "/api/v1/me/creator-studio", {
             headers: { Authorization: "Bearer " + token },
@@ -793,7 +811,7 @@
           if (kicker) kicker.textContent = "Access Required";
           if (title) title.textContent = "스튜디오 접근 권한이 필요합니다.";
           if (body) body.textContent = message || "승인된 크리에이터 계정만 스튜디오 스테이지에 들어올 수 있습니다.";
-          if (actions) actions.hidden = false;
+          showGateActions();
         }
 
         window.addEventListener("error", function () {
@@ -1345,11 +1363,18 @@
         async function verify() {
           setGateChecking();
           let completed = false;
+          const softTimeoutId = setTimeout(() => {
+            if (!completed && body) {
+              body.textContent = "권한 확인 응답을 기다리고 있습니다. 계속 멈춰 있으면 아래 다시 확인을 눌러 주세요.";
+              showGateActions();
+            }
+          }, 4000);
           const hardTimeoutId = setTimeout(() => {
             if (!completed) {
+              completed = true;
               deny("스튜디오 권한 확인이 오래 걸리고 있습니다. 현재 로그인 계정과 Backstage의 스튜디오 권한 계정이 같은지 확인해 주세요.");
             }
-          }, 12000);
+          }, 8000);
           const token = readAuth()?.accessToken;
           if (!token) {
             completed = true;
@@ -1393,6 +1418,7 @@
               : "스튜디오 권한을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");
           } finally {
             completed = true;
+            clearTimeout(softTimeoutId);
             clearTimeout(timeoutId);
             clearTimeout(hardTimeoutId);
           }
