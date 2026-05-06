@@ -2524,6 +2524,17 @@ function buildUserProfileUrl(user = {}) {
   return "./mypage.html";
 }
 
+function buildMiniProfileAuthorAttrs({ target, handle, userId } = {}) {
+  if (!target) return "";
+  const parts = [
+    `data-user-profile-link="${feedEscapeHtml(target)}"`,
+    `style="cursor:pointer;"`
+  ];
+  if (handle) parts.push(`data-user-profile-handle="${feedEscapeHtml(handle)}"`);
+  if (userId) parts.push(`data-user-profile-id="${feedEscapeHtml(String(userId))}"`);
+  return ` ${parts.join(" ")}`;
+}
+
 function normalizeFeedPost(raw) {
   const authUserId = getAuth()?.user?.id || getAuth()?.user?.userId || null;
   const authorUserId = raw.authorUserId || raw.userId || raw.createdByUserId || raw.author?.id || raw.user?.id || null;
@@ -2710,12 +2721,20 @@ function renderLuminaFeed() {
         const target = me.publicHandle
           ? `./user-profile.html?handle=${encodeURIComponent(me.publicHandle)}`
           : `./user-profile.html?id=${encodeURIComponent(String(me.id))}`;
-        authorLink = ` data-user-profile-link="${feedEscapeHtml(target)}" style="cursor:pointer;"`;
+        authorLink = buildMiniProfileAuthorAttrs({
+          target,
+          handle: me.publicHandle,
+          userId: me.id
+        });
       } else if (post.authorPublicHandle || post.authorUserId) {
         const target = post.authorPublicHandle
           ? `./user-profile.html?handle=${encodeURIComponent(post.authorPublicHandle)}`
           : `./user-profile.html?id=${encodeURIComponent(String(post.authorUserId))}`;
-        authorLink = ` data-user-profile-link="${feedEscapeHtml(target)}" style="cursor:pointer;"`;
+        authorLink = buildMiniProfileAuthorAttrs({
+          target,
+          handle: post.authorPublicHandle,
+          userId: post.authorUserId
+        });
       }
       // 위 둘 다 안 맞으면 authorLink는 "" → 작성자 영역 클릭 비활성화 (헛클릭 방지)
     }
@@ -3122,18 +3141,54 @@ function bindLuminaFeedFollow() {
   });
 }
 
+async function fetchUserProfileForMiniModal({ handle, userId } = {}) {
+  const isAuth = typeof isLoggedIn === "function" && isLoggedIn();
+  if (handle) {
+    return await apiFetch(`/api/v1/users/handle/${encodeURIComponent(handle)}/profile`, { auth: isAuth });
+  }
+  if (userId) {
+    return await apiFetch(`/api/v1/users/${encodeURIComponent(userId)}/profile`, { auth: isAuth });
+  }
+  return null;
+}
+
+async function openFeedAuthorMiniProfile(link) {
+  const handle = (link?.dataset?.userProfileHandle || "").trim();
+  const userId = (link?.dataset?.userProfileId || "").trim();
+  const fallbackUrl = link?.dataset?.userProfileLink || "";
+  if (!handle && !userId) {
+    if (fallbackUrl) window.location.href = fallbackUrl;
+    return;
+  }
+  link.dataset.profileBusy = "1";
+  try {
+    const data = await fetchUserProfileForMiniModal({ handle, userId });
+    if (data?.user && typeof openMiniProfileModal === "function") {
+      openMiniProfileModal(data);
+    } else if (fallbackUrl) {
+      window.location.href = fallbackUrl;
+    }
+  } catch (err) {
+    console.warn("[#179 mini profile] 조회 실패:", err?.status, err?.message);
+    if (fallbackUrl) window.location.href = fallbackUrl;
+  } finally {
+    link.dataset.profileBusy = "0";
+  }
+}
+
 function bindLuminaFeedDelete() {
   if (document._feedDeleteBound) return;
   document._feedDeleteBound = true;
-  // #152 — 같은 위치에서 작성자 영역 클릭 라우팅도 같이 등록
+  // #179 — 같은 위치에서 작성자 미니 프로필 모달도 같이 등록
   document.addEventListener("click", e => {
     const link = e.target.closest("[data-user-profile-link]");
     if (!link) return;
     // 안에 있는 버튼들(좋아요·수정·삭제·팔로우 등) 클릭은 무시
     if (e.target.closest("button, a")) return;
     e.preventDefault();
-    const target = link.dataset.userProfileLink;
-    if (target) window.location.href = target;
+    e.stopPropagation();
+    if (link.dataset.profileBusy === "1") return;
+    openFeedAuthorMiniProfile(link);
   });
   document.addEventListener("click", async e => {
     const btn = e.target.closest("[data-feed-delete]");
@@ -3548,7 +3603,7 @@ function renderFeedPostAssets(assets) {
           : "";
         return `<a class="feed-post-asset-item" href="${full}" target="_blank" rel="noopener noreferrer" data-feed-asset data-asset-index="${idx}" data-asset-url="${full}">
           ${badge}
-          <img src="${src}" alt="" loading="lazy" oncontextmenu="return false;" draggable="false" />
+          <img src="${src}" alt="" loading="lazy" oncontextmenu="return false;" draggable="false" onerror="this.parentElement.classList.add('is-broken');this.style.display='none';" />
         </a>`;
       }).join("")}
     </div>
@@ -5155,12 +5210,16 @@ function applyArtistDetailViewer(data) {
     if (v.isFollowing || v.canUnfollow) {
       btn.classList.add("is-following");
       const label = btn.querySelector("[data-detail-follow-label]");
-      if (label) label.textContent = "팔로잉";
+      if (label) label.textContent = "팔로잉 해제";
+      btn.setAttribute("aria-label", "팔로잉 해제");
+      btn.title = "팔로잉 해제";
       btn.dataset.following = "1";
     } else {
       btn.classList.remove("is-following");
       const label = btn.querySelector("[data-detail-follow-label]");
       if (label) label.textContent = "팔로우";
+      btn.setAttribute("aria-label", "팔로우");
+      btn.title = "팔로우";
       btn.dataset.following = "0";
     }
   } else {
@@ -5193,7 +5252,9 @@ function bindArtistDetailFollow() {
     btn.classList.toggle("is-following", !wasFollowing);
     btn.dataset.following = wasFollowing ? "0" : "1";
     const label = btn.querySelector("[data-detail-follow-label]");
-    if (label) label.textContent = wasFollowing ? "팔로우" : "팔로잉";
+    if (label) label.textContent = wasFollowing ? "팔로우" : "팔로잉 해제";
+    btn.setAttribute("aria-label", wasFollowing ? "팔로우" : "팔로잉 해제");
+    btn.title = wasFollowing ? "팔로우" : "팔로잉 해제";
     // 팔로워 수 즉시 +1/-1
     const countEl = btn.querySelector("[data-detail-follower-count]");
     if (countEl) {
@@ -5218,13 +5279,17 @@ function bindArtistDetailFollow() {
         const isFollowing = res.viewer.isFollowing || res.viewer.canUnfollow;
         btn.classList.toggle("is-following", !!isFollowing);
         btn.dataset.following = isFollowing ? "1" : "0";
-        if (label) label.textContent = isFollowing ? "팔로잉" : "팔로우";
+        if (label) label.textContent = isFollowing ? "팔로잉 해제" : "팔로우";
+        btn.setAttribute("aria-label", isFollowing ? "팔로잉 해제" : "팔로우");
+        btn.title = isFollowing ? "팔로잉 해제" : "팔로우";
       }
     } catch (err) {
       // 롤백
       btn.classList.toggle("is-following", wasFollowing);
       btn.dataset.following = wasFollowing ? "1" : "0";
-      if (label) label.textContent = wasFollowing ? "팔로잉" : "팔로우";
+      if (label) label.textContent = wasFollowing ? "팔로잉 해제" : "팔로우";
+      btn.setAttribute("aria-label", wasFollowing ? "팔로잉 해제" : "팔로우");
+      btn.title = wasFollowing ? "팔로잉 해제" : "팔로우";
       console.warn("[#150 detail follow] 실패", { status: err?.status, body: err?.body });
       alert(err?.message || "팔로우 처리에 실패했어요.");
       // 팔로워 수 원복
@@ -6219,7 +6284,11 @@ function renderUserProfilePostListHtml(posts, options = {}) {
         })
       : "";
     const authorLinkAttr = preservePostAuthor && (post.authorPublicHandle || post.authorUserId)
-      ? ` data-user-profile-link="${feedEscapeHtml(authorTarget)}" style="cursor:pointer;"`
+      ? buildMiniProfileAuthorAttrs({
+          target: authorTarget,
+          handle: post.authorPublicHandle,
+          userId: post.authorUserId
+        })
       : "";
     const initial = (displayName || "?").charAt(0);
     const avatarSrc = avatarUrl;
@@ -7680,5 +7749,185 @@ function initScrollReveal() {
 
   document.querySelectorAll(".reveal-on-scroll").forEach(el => observer.observe(el));
 }
+
+/* ════════════════════════════════════════════════════════════
+   미니 프로필 모달 (#152, 클라우드 시안 2026-05-06)
+   - 피드 작성자 클릭 시 에밀리가 fetchUserProfile() 후 openMiniProfileModal(data) 호출
+   - data 형식: { user: {...}, viewer: {...} } (차모 spec 3fa2600)
+   - 본인이면 팔로우 버튼 숨김 + "내 프로필 보기" 텍스트
+   - 상세 보기 → user-profile.html?handle=...
+   ════════════════════════════════════════════════════════════ */
+(function injectMiniProfileModal() {
+  if (document.getElementById("miniProfileModal")) return;
+  const tpl = `
+    <div class="mini-profile-modal" id="miniProfileModal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="miniProfileName">
+      <div class="mini-profile-backdrop" data-mini-profile-close></div>
+      <div class="mini-profile-card">
+        <div class="mini-profile-cover" id="miniProfileCover"></div>
+        <button class="mini-profile-close-btn" type="button" data-mini-profile-close aria-label="닫기">×</button>
+        <div class="mini-profile-avatar" id="miniProfileAvatar">
+          <span class="mini-profile-avatar-fallback" id="miniProfileAvatarFallback">?</span>
+        </div>
+        <div class="mini-profile-meta">
+          <h3 class="mini-profile-name" id="miniProfileName" data-i18n="miniProfile.loading">로딩 중…</h3>
+          <p class="mini-profile-handle" id="miniProfileHandle"></p>
+        </div>
+        <div class="mini-profile-actions">
+          <button class="mini-profile-follow-btn" id="miniProfileFollowBtn" type="button" data-mini-follow hidden>
+            <span data-mini-follow-label data-i18n="miniProfile.follow">팔로우</span>
+          </button>
+          <a class="mini-profile-detail-btn" id="miniProfileDetailBtn" href="#" data-i18n="miniProfile.detail">상세 프로필 보기 →</a>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML("beforeend", tpl);
+})();
+
+document.addEventListener("click", e => {
+  if (e.target.closest("[data-mini-profile-close]")) {
+    closeMiniProfileModal();
+  }
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    const modal = document.getElementById("miniProfileModal");
+    if (modal && !modal.hidden) closeMiniProfileModal();
+  }
+});
+
+function openMiniProfileModal(profileData) {
+  const modal = document.getElementById("miniProfileModal");
+  if (!modal) return;
+  const user = profileData?.user || {};
+  const viewer = profileData?.viewer || {};
+
+  // 이름·핸들
+  const nameEl = document.getElementById("miniProfileName");
+  const handleEl = document.getElementById("miniProfileHandle");
+  if (nameEl) nameEl.textContent = user.displayName || "이름 없음";
+  if (handleEl) handleEl.textContent = user.publicHandle ? `@${user.publicHandle}` : "";
+
+  // 아바타
+  const avatar = document.getElementById("miniProfileAvatar");
+  const fallback = document.getElementById("miniProfileAvatarFallback");
+  if (avatar) {
+    avatar.querySelectorAll("img").forEach(n => n.remove());
+    if (user.avatarUrl) {
+      const img = document.createElement("img");
+      img.src = user.avatarUrl;
+      img.alt = user.displayName || "";
+      img.onerror = () => { img.remove(); if (fallback) fallback.style.display = "flex"; };
+      avatar.insertBefore(img, fallback);
+      if (fallback) fallback.style.display = "none";
+    } else if (fallback) {
+      fallback.style.display = "flex";
+      fallback.textContent = (user.displayName || "?").charAt(0).toUpperCase();
+    }
+  }
+
+  // 커버
+  const cover = document.getElementById("miniProfileCover");
+  if (cover) {
+    if (user.coverImageUrl) {
+      cover.style.backgroundImage = `url('${String(user.coverImageUrl).replace(/'/g, "%27")}')`;
+    } else {
+      cover.style.backgroundImage = "";
+    }
+  }
+
+  // 팔로우 버튼 (본인이면 숨김)
+  const followBtn = document.getElementById("miniProfileFollowBtn");
+  if (followBtn) {
+    if (viewer.isSelf) {
+      followBtn.hidden = true;
+    } else if (viewer.canFollow || viewer.canUnfollow || viewer.isFollowing) {
+      followBtn.hidden = false;
+      followBtn.dataset.userId = user.id || "";
+      applyMiniProfileFollowState(viewer);
+    } else {
+      followBtn.hidden = true;
+    }
+  }
+
+  // 상세 보기 → user-profile.html
+  const detailBtn = document.getElementById("miniProfileDetailBtn");
+  if (detailBtn) {
+    if (user.publicHandle) {
+      detailBtn.href = `./user-profile.html?handle=${encodeURIComponent(user.publicHandle)}`;
+    } else if (user.id) {
+      detailBtn.href = `./user-profile.html?id=${encodeURIComponent(user.id)}`;
+    } else {
+      detailBtn.href = "#";
+    }
+    detailBtn.textContent = viewer.isSelf ? "내 프로필 보기 →" : "상세 프로필 보기 →";
+  }
+
+  // 모달 열기
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeMiniProfileModal() {
+  const modal = document.getElementById("miniProfileModal");
+  if (!modal) return;
+  modal.hidden = true;
+  modal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+function applyMiniProfileFollowState(viewer) {
+  const followBtn = document.getElementById("miniProfileFollowBtn");
+  if (!followBtn) return;
+  const followLabel = followBtn.querySelector("[data-mini-follow-label]");
+  const isFollowing = !!(viewer?.isFollowing || viewer?.canUnfollow);
+  followBtn.classList.toggle("is-following", isFollowing);
+  followBtn.dataset.following = isFollowing ? "1" : "0";
+  followBtn.setAttribute("aria-pressed", isFollowing ? "true" : "false");
+  followBtn.setAttribute("aria-label", isFollowing ? "팔로잉" : "팔로우");
+  followBtn.title = isFollowing ? "팔로잉" : "팔로우";
+  if (followLabel) followLabel.textContent = isFollowing ? "팔로잉" : "팔로우";
+}
+
+function bindMiniProfileFollow() {
+  if (document._miniProfileFollowBound) return;
+  document._miniProfileFollowBound = true;
+  document.addEventListener("click", async e => {
+    const btn = e.target.closest("[data-mini-follow]");
+    if (!btn || btn.hidden) return;
+    e.preventDefault();
+    if (btn.dataset.busy === "1") return;
+    if (typeof getAccessToken === "function" && !getAccessToken()) {
+      alert("로그인 후 팔로우할 수 있어요.");
+      return;
+    }
+    const userId = btn.dataset.userId;
+    if (!userId) return;
+    const wasFollowing = btn.dataset.following === "1";
+    btn.dataset.busy = "1";
+    applyMiniProfileFollowState({ isFollowing: !wasFollowing });
+    try {
+      const res = await apiFetch(`/api/v1/users/${encodeURIComponent(userId)}/follow`, {
+        method: wasFollowing ? "DELETE" : "POST",
+        auth: true,
+        throwOnError: true
+      });
+      if (res?.viewer) {
+        applyMiniProfileFollowState(res.viewer);
+      }
+    } catch (err) {
+      applyMiniProfileFollowState({ isFollowing: wasFollowing });
+      console.warn("[#179 mini profile follow] 실패", { status: err?.status, body: err?.body });
+      alert(err?.message || "팔로우 처리에 실패했어요.");
+    } finally {
+      btn.dataset.busy = "0";
+    }
+  });
+}
+
+window.openMiniProfileModal = openMiniProfileModal;
+window.closeMiniProfileModal = closeMiniProfileModal;
+bindMiniProfileFollow();
 
 init();

@@ -9393,3 +9393,213 @@ p {
 .user-profile-bio-toggle.is-visible {
   display: inline-block;
 }
+
+/* 피드 이미지 로드 실패 fallback — broken image 박스 대신 안내 표시 */
+.feed-post-asset-item.is-broken {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  max-height: 160px;
+  background: rgba(159, 139, 199, 0.06);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  pointer-events: none;
+  cursor: default;
+}
+.feed-post-asset-item.is-broken::before {
+  content: "이미지를 불러올 수 없어요";
+  color: rgba(220, 210, 240, 0.5);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.feed-post-asset-item.is-broken .feed-asset-multi-badge {
+  display: none;
+}
+
+/* ════════════════════════════════════════════════════════════
+   미니 프로필 모달 (#152, 클라우드 시안 2026-05-06)
+   - 피드 작성자 클릭 시 열림 / 본인 클릭 시 팔로우 hidden
+   - 모바일: 하단 시트 스타일
+   ════════════════════════════════════════════════════════════ */
+.mini-profile-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.mini-profile-modal:not([hidden]) { display: flex; }
+.mini-profile-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.mini-profile-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: #1a0f2e;
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: miniProfileFadeIn 0.22s ease-out;
+}
+@keyframes miniProfileFadeIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.mini-profile-cover {
+  height: 120px;
+  background: linear-gradient(135deg, #1a0a2a 0%, #3a0f4a 25%, #6a1a5a 55%, #c41e7a 100%);
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+.mini-profile-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 25% 35%, rgba(255, 100, 200, 0.35), transparent 55%),
+    radial-gradient(ellipse at 75% 65%, rgba(180, 100, 255, 0.25), transparent 60%);
+  pointer-events: none;
+}
+.mini-profile-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 0;
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.mini-profile-close-btn:hover {
+  background: rgba(0, 0, 0, 0.72);
+}
+.mini-profile-avatar {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  margin: -40px 0 0 20px;
+  border-radius: 50%;
+  border: 3px solid #1a0f2e;
+  background: linear-gradient(135deg, #ff1493, #9f8bc7);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.mini-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mini-profile-avatar-fallback {
+  font-size: 32px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+.mini-profile-meta {
+  padding: 12px 20px 0;
+}
+.mini-profile-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+  line-height: 1.3;
+}
+.mini-profile-handle {
+  margin: 2px 0 0;
+  font-size: 13.5px;
+  color: rgba(220, 210, 240, 0.55);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.mini-profile-actions {
+  display: flex;
+  gap: 12px;
+  padding: 16px 20px 20px;
+  align-items: center;
+}
+.mini-profile-follow-btn {
+  flex: 0 0 auto;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: linear-gradient(135deg, #ff1493, #ff7eb9);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  box-shadow: 0 2px 12px rgba(255, 20, 147, 0.25);
+  transition: transform 0.1s, box-shadow 0.15s, background 0.15s, border-color 0.15s, color 0.15s;
+  min-width: 88px;
+}
+.mini-profile-follow-btn:hover {
+  box-shadow: 0 3px 16px rgba(255, 20, 147, 0.4);
+}
+.mini-profile-follow-btn:active { transform: scale(0.97); }
+.mini-profile-follow-btn.is-following {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  box-shadow: none;
+}
+.mini-profile-follow-btn.is-following:hover {
+  border-color: rgba(255, 60, 80, 0.5);
+  background: rgba(255, 60, 80, 0.08);
+  color: #ff5a7a;
+}
+.mini-profile-detail-btn {
+  flex: 1;
+  text-align: right;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: rgba(220, 210, 240, 0.7);
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.mini-profile-detail-btn:hover {
+  color: #ff7eb9;
+}
+
+/* 모바일 — 하단 시트 스타일 */
+@media (max-width: 480px) {
+  .mini-profile-modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .mini-profile-card {
+    max-width: 100%;
+    border-radius: 18px 18px 0 0;
+    animation: miniProfileSlideUp 0.24s ease-out;
+  }
+  @keyframes miniProfileSlideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+}

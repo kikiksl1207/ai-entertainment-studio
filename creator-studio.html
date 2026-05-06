@@ -341,6 +341,132 @@
         .artist-card h3, .artist-card p { overflow-wrap: anywhere; }
         .artist-card .secondary-action { grid-column: 1 / -1; justify-self: start; width: auto; }
       }
+
+      /* ════════════════════════════════════════════════════════════
+         디자인 폴리시 (클라우드 적용 2026-05-06, #176)
+         A 글자 가독성 / B 모던 라디우스 / C Primary 버튼 / D 메트릭 카드
+         E 사이드 내비 strip / F 섹션 페이드인 / G 폼 focus / H Badge
+         ════════════════════════════════════════════════════════════ */
+
+      /* A. 글자 가독성 — font-weight 톤다운 (900~950 → 700~800) */
+      .studio-nav button { font-weight: 700; letter-spacing: -0.01em; }
+      .studio-nav button.is-active { font-weight: 800; }
+      .studio-nav b { font-weight: 700; }
+      .brand strong { font-weight: 800; letter-spacing: -0.01em; }
+      .brand small { font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; font-size: 10.5px; }
+      .panel-kicker, .eyebrow { font-weight: 700; letter-spacing: 0.18em; }
+      .metric-card span { font-weight: 600; letter-spacing: 0.02em; }
+      .metric-card strong { font-weight: 700; letter-spacing: -0.025em; }
+      .metric-card small { font-weight: 500; }
+      .studio-topbar h1 { font-weight: 800; letter-spacing: -0.035em; }
+      .studio-topbar p { font-weight: 500; }
+      .panel h2, .table-card h2, .table-card h3 { font-weight: 700; letter-spacing: -0.02em; }
+      .studio-mini-card strong { font-weight: 700; letter-spacing: -0.02em; }
+      .badge { font-weight: 700; letter-spacing: 0.02em; }
+      th { font-weight: 700; letter-spacing: 0.06em; }
+      label span { font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 11px; }
+
+      /* B. 모던 라디우스 — 8px → 14~16px (X/Threads/IG 톤) */
+      .studio-account, .metric-card, .panel, .table-card, .artist-card,
+      .mode-card, .studio-mini-card, .notice, .slot-bar, .media-tile {
+        border-radius: 14px;
+      }
+      .studio-gate-card { border-radius: 18px; }
+      .studio-nav button { border-radius: 10px; }
+      button.primary-action, button.secondary-action, button.danger-action,
+      a.primary-action, a.secondary-action {
+        border-radius: 999px;
+      }
+      input, select, textarea { border-radius: 10px; }
+
+      /* C. Primary 버튼 그라디언트 폴리시 (핫핑크 → 보라 3단계) */
+      .primary-action {
+        background: linear-gradient(135deg, #ff4fc3 0%, #c459f0 50%, #9b7cf7 100%);
+        border-color: rgba(255, 79, 195, 0.55);
+        box-shadow: 0 4px 20px rgba(255, 79, 195, 0.22);
+        transition: transform 0.12s ease, box-shadow 0.18s ease, background 0.18s ease;
+      }
+      .primary-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 26px rgba(255, 79, 195, 0.32);
+      }
+      .primary-action:active { transform: translateY(0) scale(0.98); }
+      .primary-action:focus-visible {
+        outline: 2px solid #fff;
+        outline-offset: 2px;
+      }
+      .secondary-action {
+        transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+      }
+      .secondary-action:hover {
+        border-color: rgba(255, 79, 195, 0.4);
+        background: rgba(255, 79, 195, 0.08);
+      }
+
+      /* D. 메트릭 카드 — 호버 인터랙션 + 여백 보강 */
+      .metric-card {
+        padding: 20px;
+        transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+      }
+      .metric-card:hover {
+        border-color: rgba(255, 79, 195, 0.32);
+        background: rgba(155, 124, 247, 0.06);
+        transform: translateY(-1px);
+      }
+      .metric-card span { margin-bottom: 4px; }
+      .metric-card strong { line-height: 1; margin-top: 6px; }
+      .metric-card small { margin-top: 8px; line-height: 1.5; }
+      .metric-grid { gap: 16px; }
+
+      /* E. 사이드 내비 — 활성 항목 좌측 그라디언트 strip */
+      .studio-nav button { position: relative; }
+      .studio-nav button.is-active::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 24px;
+        border-radius: 0 2px 2px 0;
+        background: linear-gradient(180deg, #ff4fc3, #9b7cf7);
+      }
+      .studio-nav button:hover {
+        background: rgba(155, 124, 247, 0.08);
+      }
+
+      /* F. 섹션 전환 페이드 인 */
+      .studio-section.is-active {
+        animation: studioFadeIn 0.32s ease-out;
+      }
+      @keyframes studioFadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* G. 폼 입력 — focus 시 핑크 글로우 */
+      input:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: rgba(255, 79, 195, 0.55);
+        background: rgba(255, 79, 195, 0.04);
+        box-shadow: 0 0 0 3px rgba(255, 79, 195, 0.12);
+      }
+      label { gap: 8px; }
+
+      /* H. Badge 톤 정리 — status별 시각 차별화 (good=초록, warn=주황, error=핑크) */
+      .badge { padding: 4px 10px; min-height: 22px; font-size: 11.5px; }
+      .badge.is-good {
+        background: rgba(94, 232, 168, 0.18);
+        color: #5ee8a8;
+      }
+      .badge.is-warn {
+        background: rgba(255, 187, 89, 0.18);
+        color: #ffbb59;
+      }
+      .badge.is-error {
+        background: rgba(255, 95, 130, 0.18);
+        color: #ff5f82;
+      }
     </style>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4"></script>
