@@ -71,6 +71,12 @@ export class AdminController {
     return this.adminService.getBackstageFeedSearchBlockedTerms(query);
   }
 
+  @Get('backstage/operations/object-storage/diagnostics')
+  @RequireAdminPermissions('*')
+  getBackstageObjectStorageDiagnostics() {
+    return this.adminService.getBackstageObjectStorageDiagnostics();
+  }
+
   @Post('backstage/operations/feed-search-blocked-terms')
   @RequireAdminPermissions('*')
   createBackstageFeedSearchBlockedTerm(

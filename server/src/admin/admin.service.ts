@@ -126,6 +126,135 @@ export class AdminService {
     private readonly configService: ConfigService,
   ) {}
 
+  async getBackstageObjectStorageDiagnostics() {
+    const storageProvider =
+      this.configService.get<string>('OBJECT_STORAGE_PROVIDER') ?? 'local';
+    const bucket = this.configService.get<string>('OBJECT_STORAGE_BUCKET');
+    const region = this.configService.get<string>('OBJECT_STORAGE_REGION') ?? null;
+    const endpoint = this.configService.get<string>('OBJECT_STORAGE_ENDPOINT');
+    const publicBaseUrl = this.configService.get<string>('OBJECT_STORAGE_PUBLIC_BASE_URL');
+    const accessKeyId = this.configService.get<string>('OBJECT_STORAGE_ACCESS_KEY_ID');
+    const secretAccessKey = this.configService.get<string>(
+      'OBJECT_STORAGE_SECRET_ACCESS_KEY',
+    );
+    const keyPrefix = this.normalizedObjectStorageKeyPrefix();
+    const uploadIntentTtlSeconds = this.positiveEnvNumber(
+      'OBJECT_UPLOAD_INTENT_TTL_SECONDS',
+      900,
+    );
+    const maxImageUploadBytes = this.positiveEnvNumber(
+      'MAX_IMAGE_UPLOAD_BYTES',
+      8 * 1024 * 1024,
+    );
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const userImageIntentWhere: Prisma.AssetWhereInput = {
+      assetType: 'image',
+      createdAt: { gte: since },
+      metadata: {
+        path: ['uploadIntent', 'scope'],
+        equals: 'user_image',
+      },
+    };
+
+    const [total, pendingUpload, uploaded] = await Promise.all([
+      this.prisma.asset.count({ where: userImageIntentWhere }),
+      this.prisma.asset.count({
+        where: {
+          AND: [
+            userImageIntentWhere,
+            {
+              metadata: {
+                path: ['uploadIntent', 'status'],
+                equals: 'pending_upload',
+              },
+            },
+          ],
+        },
+      }),
+      this.prisma.asset.count({
+        where: {
+          AND: [
+            userImageIntentWhere,
+            {
+              metadata: {
+                path: ['uploadIntent', 'status'],
+                equals: 'uploaded',
+              },
+            },
+          ],
+        },
+      }),
+    ]);
+
+    const requiredEnvChecks: Array<[string, string | undefined]> = [
+      ['OBJECT_STORAGE_BUCKET', bucket],
+      ['OBJECT_STORAGE_ACCESS_KEY_ID', accessKeyId],
+      ['OBJECT_STORAGE_SECRET_ACCESS_KEY', secretAccessKey],
+    ];
+    const missingRequiredEnv = requiredEnvChecks
+      .filter(([, value]) => !value)
+      .map(([key]) => key);
+    const missingDisplayEnv = publicBaseUrl ? [] : ['OBJECT_STORAGE_PUBLIC_BASE_URL'];
+    const missingR2Env =
+      storageProvider === 'r2' && !endpoint ? ['OBJECT_STORAGE_ENDPOINT'] : [];
+    const isDirectUploadProvider = storageProvider === 's3' || storageProvider === 'r2';
+    const readyForDirectUpload =
+      isDirectUploadProvider &&
+      missingRequiredEnv.length === 0 &&
+      missingR2Env.length === 0;
+
+    return {
+      generatedAt: new Date().toISOString(),
+      reason: this.objectStorageDiagnosticReason({
+        storageProvider,
+        readyForDirectUpload,
+        missingRequiredEnv,
+        missingDisplayEnv,
+        missingR2Env,
+      }),
+      environment: {
+        storageProvider,
+        directUploadMode: isDirectUploadProvider
+          ? 's3_compatible_presigned_put'
+          : 'metadata_only',
+        bucketConfigured: Boolean(bucket),
+        region,
+        endpointConfigured: Boolean(endpoint),
+        publicBaseUrlConfigured: Boolean(publicBaseUrl),
+        accessKeyConfigured: Boolean(accessKeyId),
+        secretKeyConfigured: Boolean(secretAccessKey),
+        keyPrefix: keyPrefix || null,
+        uploadIntentTtlSeconds,
+        maxImageUploadBytes,
+        expectedUploadSignedHeaders: isDirectUploadProvider
+          ? 'content-type;host'
+          : null,
+      },
+      recentUserImageUploads24h: {
+        total,
+        pendingUpload,
+        uploaded,
+        failedOrUnconfirmed: Math.max(total - uploaded, 0),
+      },
+      warnings: [...missingRequiredEnv, ...missingDisplayEnv, ...missingR2Env].map(
+        (key) => `${key} is not configured`,
+      ),
+      nextActions: this.objectStorageDiagnosticNextActions({
+        storageProvider,
+        readyForDirectUpload,
+        missingRequiredEnv,
+        missingDisplayEnv,
+        missingR2Env,
+      }),
+      policy: {
+        userUploadIntentEndpoint: 'POST /api/v1/me/assets/upload-intents',
+        confirmUploadEndpoint: 'POST /api/v1/me/assets/:assetId/confirm-upload',
+        requiredPutHeader: 'content-type',
+        secretsReturned: false,
+      },
+    };
+  }
+
   getAdminRoles() {
     return this.prisma.adminRole.findMany({
       orderBy: { name: 'asc' },
@@ -6082,6 +6211,120 @@ export class AdminService {
     }
 
     return ['Re-run diagnostics after the next grant/update action.'];
+  }
+
+  private objectStorageDiagnosticReason(input: {
+    storageProvider: string;
+    readyForDirectUpload: boolean;
+    missingRequiredEnv: string[];
+    missingDisplayEnv: string[];
+    missingR2Env: string[];
+  }) {
+    if (input.storageProvider === 'local') {
+      return 'local_metadata_only';
+    }
+
+    if (input.storageProvider !== 's3' && input.storageProvider !== 'r2') {
+      return 'unsupported_storage_provider';
+    }
+
+    if (input.missingR2Env.length > 0) {
+      return 'r2_endpoint_missing';
+    }
+
+    if (input.missingRequiredEnv.length > 0) {
+      return 'direct_upload_env_incomplete';
+    }
+
+    if (input.missingDisplayEnv.length > 0) {
+      return 'direct_upload_ready_public_url_missing';
+    }
+
+    if (input.readyForDirectUpload) {
+      return 'direct_upload_ready';
+    }
+
+    return 'object_storage_needs_review';
+  }
+
+  private objectStorageDiagnosticNextActions(input: {
+    storageProvider: string;
+    readyForDirectUpload: boolean;
+    missingRequiredEnv: string[];
+    missingDisplayEnv: string[];
+    missingR2Env: string[];
+  }) {
+    if (input.storageProvider === 'local') {
+      return [
+        'Set OBJECT_STORAGE_PROVIDER to s3 or r2 for real browser image uploads.',
+        'Use local only for metadata-only development flows.',
+      ];
+    }
+
+    if (input.storageProvider !== 's3' && input.storageProvider !== 'r2') {
+      return ['Set OBJECT_STORAGE_PROVIDER to local, s3, or r2.'];
+    }
+
+    if (input.missingR2Env.length > 0) {
+      return ['Set OBJECT_STORAGE_ENDPOINT for R2-compatible direct uploads.'];
+    }
+
+    if (input.missingRequiredEnv.length > 0) {
+      return [
+        'Complete the missing OBJECT_STORAGE_* environment variables in Render.',
+        'Redeploy the API after environment variables are changed.',
+      ];
+    }
+
+    if (input.missingDisplayEnv.length > 0) {
+      return [
+        'Direct upload can be signed, but image display may fail until OBJECT_STORAGE_PUBLIC_BASE_URL is configured.',
+      ];
+    }
+
+    if (input.readyForDirectUpload) {
+      return [
+        'If PUT still fails, compare the upload intent URL X-Amz-SignedHeaders with content-type;host.',
+        'If PUT succeeds but images do not render, check bucket/CDN public GET access and OBJECT_STORAGE_PUBLIC_BASE_URL.',
+      ];
+    }
+
+    return ['Re-run diagnostics after storage configuration changes.'];
+  }
+
+  private normalizedObjectStorageKeyPrefix() {
+    const value = this.configService.get<string>('OBJECT_STORAGE_KEY_PREFIX');
+
+    if (!value) {
+      return '';
+    }
+
+    return value
+      .trim()
+      .replace(/^\/+|\/+$/g, '')
+      .replace(/\/+/g, '/')
+      .split('/')
+      .map((part) =>
+        part
+          .normalize('NFKD')
+          .replace(/[^\w.\-]+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^[-.]+|[-.]+$/g, '')
+          .toLowerCase(),
+      )
+      .filter(Boolean)
+      .join('/');
+  }
+
+  private positiveEnvNumber(key: string, fallback: number) {
+    const value = this.configService.get<string>(key);
+
+    if (!value) {
+      return fallback;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   }
 
   private maskProviderUserId(value: string) {
