@@ -1294,6 +1294,7 @@ function renderDetailForm(detail) {
     html = `
       <h3>유저 아티스트 이미지 제작</h3>
       <div class="detail-form-grid">
+        ${detailInput("요청 ID", "requestId", meta.requestId || "", "text", true)}
         ${detailInput("요청 유형", "requestType", tableId === "creatorImageRequestRows" ? row[0] || "" : "프로필 이미지")}
         ${detailInput("아티스트", "artist", tableId === "creatorImageRequestRows" ? row[1] || "" : "")}
         ${detailInput("요청자", "requester", tableId === "creatorImageRequestRows" ? row[2] || "" : "")}
@@ -1306,14 +1307,14 @@ function renderDetailForm(detail) {
           { value: "delivered", label: "전달완료" },
           { value: "approved", label: "승인" },
           { value: "rejected", label: "반려" }
-        ], "reviewing")}
+        ], meta.status || "reviewing")}
         ${detailSelect("검수 상태", "moderationStatus", [
           { value: "pending", label: "대기" },
           { value: "cleared", label: "통과" },
           { value: "needs_review", label: "재검토" },
           { value: "blocked", label: "차단" }
-        ], "pending")}
-        ${detailInput("결과 assetId", "resultAssetIds", "", "text", true)}
+        ], meta.moderationStatus || "pending")}
+        ${detailInput("결과 assetId", "resultAssetIds", (meta.resultAssetIds || []).join(", "), "text", true)}
         ${detailTextarea("운영 메모", "adminNote", "100L 차감, 재조정 3회, 최종 이미지 1장 기준입니다. 주민번호/계약서/신분증/외부 연락처는 저장하지 않습니다.")}
       </div>
       <p class="detail-form-note">생성 결과는 resultAssetIds로 붙이고, 공개 프로필/피드/숏폼 반영은 별도 운영 결정으로 분리합니다.</p>
@@ -1910,6 +1911,30 @@ function buildActionRequest(detail, action) {
         contentProfile: {
           category: form.category,
           operatingNote: reason
+        }
+      }
+    };
+  }
+
+  if (tableId === "creatorImageRequestRows") {
+    const requestId = firstValue(meta.requestId, form.requestId);
+    if (!requestId) return null;
+    const resultAssetIds = String(form.resultAssetIds || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+    return {
+      method: "PATCH",
+      path: adminApiPath(`/creator-image-requests/${requestId}`),
+      body: {
+        status: form.status || meta.status || "reviewing",
+        moderationStatus: form.moderationStatus || meta.moderationStatus || "pending",
+        adminNote: reason,
+        rejectionReason: form.status === "rejected" ? reason : undefined,
+        resultAssetIds: resultAssetIds.length ? resultAssetIds : undefined,
+        metadata: {
+          backstageNote: note,
+          handledFrom: "backstage"
         }
       }
     };
@@ -2876,17 +2901,27 @@ async function loadCreatorsSection() {
         category: artist.category || artist.type
       }
     }));
-    const imageRequestRows = normalizePage(imageRequestsPage).items.map((request) => [
-      localizeCreatorImageType(request.requestType),
-      request.artist?.displayName || request.artist?.slug || request.artistId?.slice?.(0, 8) || "-",
-      creatorImageRequester(request),
-      creatorImageCostLabel(request),
-      creatorImageRevisionLabel(request),
-      localizeCreatorImageStatus(request.status),
-      localizeModerationStatus(request.moderationStatus),
-      countLabel(request.resultAssetIds?.length || 0, "장"),
-      request.status === "delivered" || request.status === "approved" ? "결과 반영" : request.status === "rejected" ? "반려 확인" : "상세"
-    ]);
+    const imageRequestRows = normalizePage(imageRequestsPage).items.map((request) => ({
+      row: [
+        localizeCreatorImageType(request.requestType),
+        request.artist?.displayName || request.artist?.slug || request.artistId?.slice?.(0, 8) || "-",
+        creatorImageRequester(request),
+        creatorImageCostLabel(request),
+        creatorImageRevisionLabel(request),
+        localizeCreatorImageStatus(request.status),
+        localizeModerationStatus(request.moderationStatus),
+        countLabel(request.resultAssetIds?.length || 0, "장"),
+        request.status === "delivered" || request.status === "approved" ? "결과 반영" : request.status === "rejected" ? "반려 확인" : "상세"
+      ],
+      meta: {
+        requestId: request.id,
+        artistId: request.artistId,
+        requesterUserId: request.requesterUserId,
+        status: request.status,
+        moderationStatus: request.moderationStatus,
+        resultAssetIds: request.resultAssetIds || []
+      }
+    }));
     if (rows.length) renderRows("creatorRows", rows, 7);
     else renderLoadingRow("creatorRows", "표시할 신청 내역이 없습니다.");
     if (imageRequestRows.length) renderRows("creatorImageRequestRows", imageRequestRows, 5);
@@ -2955,7 +2990,7 @@ async function loadModerationSection() {
   try {
     const [posts, reportsPage] = await Promise.all([
       backstageFetch(adminApiPath("/community/posts?status=published&minReports=1&sort=reports&take=20"), { auth: true }).catch(() => null),
-      backstageFetch(adminApiPath("/moderation/reports?take=20"), { auth: true }).catch(() => null)
+      backstageFetch(adminApiPath("/community/reports?take=20"), { auth: true }).catch(() => null)
     ]);
     const rows = (Array.isArray(posts) ? posts : posts?.items || posts?.posts || []).map((post) => ({
       row: [
