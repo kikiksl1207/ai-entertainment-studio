@@ -44,7 +44,7 @@ const sectionState = {
   admins: { rows: [], auditRows: [] },
   creators: { rows: [], artistOptions: [], accessRows: [] },
   users: { cursor: null, hasMore: false, rows: [] },
-  settlement: { cursor: null, hasMore: false, rows: [] },
+  settlement: { cursor: null, hasMore: false, rows: [], conversionRows: [] },
   logs: { cursor: null, hasMore: false, rows: [] }
 };
 const GOOGLE_CLIENT_ID = "213795475154-votjkhv4cvgg49cvajast3clenhoj5db.apps.googleusercontent.com";
@@ -75,6 +75,10 @@ const statusClassMap = {
   "철회": "is-hold",
   "지급대기": "is-hold",
   "지급완료": "is-paid",
+  "신청": "is-pending",
+  "신청중": "is-pending",
+  "반영완료": "is-paid",
+  "취소": "is-blocked",
   "예상치": "is-hold",
   "확정전": "is-hold",
   "매출없음": "is-review",
@@ -196,6 +200,10 @@ const backstageRows = {
       ]
     }
   ],
+  settlementConversions: [
+    ["김민서", "artist:min-stage:2026-05", "30,000원", "3,000L", "접수", "이번 달 수익 일부를 충전", "처리"],
+    ["studio_lumi", "partner:studio_lumi:2026-05", "50,000원", "5,000L", "승인", "운영자 정산금 충전", "지갑 반영"]
+  ],
   aiSettlement: [
     ["윤세린", "에밀리", "64,000원", "18,000원", "46,000원", "128,000원", "12,000원", "116,000원", "성과 보기"],
     ["최서진", "클라우드", "38,000원", "22,000원", "32,000원", "92,000원", "9,000원", "83,000원", "성과 보기"],
@@ -239,6 +247,7 @@ const tableMeta = {
   reportCancelRows: { type: "취소/철회 신고", labels: ["신고", "대상", "신고자", "상태", "사유", "권장 액션"] },
   studioSettlementRows: { type: "스튜디오 운영자 정산", labels: ["운영자", "정산 유형", "캐릭터", "루미나", "총매출", "차감", "정산금", "상태", "권장 액션"] },
   settlementRows: { type: "유저 크리에이터 정산", labels: ["아티스트", "제작자", "이벤트", "루미나", "총매출", "차감", "정산금", "상태", "권장 액션"] },
+  settlementConversionRows: { type: "정산금 충전 신청", labels: ["신청자", "정산 키", "신청 금액", "지급 루미나", "상태", "신청 메모", "권장 액션"] },
   aiSettlementRows: { type: "AI 아티스트 성과", labels: ["아티스트", "제작자", "프리미엄챗", "유료 좋아요", "기타 성과", "총액", "차감", "정산금", "권장 액션"] },
   logRows: { type: "운영 로그", labels: ["시간", "관리자", "액션", "대상", "메모"] }
 };
@@ -846,6 +855,52 @@ function localizeSettlementStatus(status) {
   return statusMap[status] || localizeWorkflowStatus(status);
 }
 
+function localizeSettlementConversionStatus(status) {
+  const statusMap = {
+    requested: "신청",
+    approved: "승인",
+    rejected: "반려",
+    credited: "반영완료",
+    cancelled: "취소"
+  };
+  return statusMap[status] || localizeWorkflowStatus(status);
+}
+
+function settlementConversionRequester(conversion = {}) {
+  const requester = conversion.requester || conversion.user || conversion.requesterUser || {};
+  return requester.displayName ||
+    requester.publicHandle ||
+    requester.email ||
+    conversion.requesterEmail ||
+    conversion.requesterUserId?.slice?.(0, 8) ||
+    "-";
+}
+
+function settlementConversionEntryFromItem(item = {}) {
+  const requester = settlementConversionRequester(item);
+  return {
+    row: [
+      requester,
+      item.settlementKey || "-",
+      krw(item.amountKrw || 0),
+      `${formatCount(item.requestedLumina || 0)}L`,
+      localizeSettlementConversionStatus(item.status),
+      item.note || item.adminNote || "-",
+      item.status === "credited" ? "상세" : "처리"
+    ],
+    meta: {
+      conversionId: item.id,
+      settlementKey: item.settlementKey,
+      amountKrw: item.amountKrw || 0,
+      requestedLumina: item.requestedLumina || 0,
+      status: item.status,
+      note: item.note,
+      adminNote: item.adminNote,
+      walletLedgerId: item.walletLedgerId
+    }
+  };
+}
+
 function localizePayoutCheck(value, fallback = "확인 필요") {
   const text = String(value ?? "").toLowerCase();
   if (["verified", "approved", "matched", "ready", "true", "yes"].includes(text)) return "확인 완료";
@@ -1359,6 +1414,27 @@ function renderDetailForm(detail) {
       </div>
       <p class="detail-form-note">수정요청은 기본 액션에서 제외합니다. 숨김 시 작성자에게 수정 안내만 보내고, 확인 처리한 항목은 이상패턴 목록에서 제거합니다.</p>
     `;
+  } else if (tableId === "settlementConversionRows") {
+    const amountKrw = Number(detail?.meta?.amountKrw || String(row[2] || "").replace(/[^\d]/g, "") || 0);
+    const requestedLumina = Number(detail?.meta?.requestedLumina || String(row[3] || "").replace(/[^\d]/g, "") || 0);
+    html = `
+      <h3>정산금 충전 신청 처리</h3>
+      <div class="detail-form-grid">
+        ${detailInput("신청 ID", "conversionId", detail?.meta?.conversionId || "", "text", true)}
+        ${detailInput("신청자", "requester", row[0] || "")}
+        ${detailInput("정산 키", "settlementKey", detail?.meta?.settlementKey || row[1] || "", "text", true)}
+        ${detailInput("신청 금액", "amountKrw", amountKrw, "number")}
+        ${detailInput("지급 루미나", "requestedLumina", requestedLumina, "number")}
+        ${detailSelect("처리 상태", "conversionStatus", [
+          { value: "approved", label: "승인" },
+          { value: "rejected", label: "반려" },
+          { value: "credited", label: "지갑 반영 완료" },
+          { value: "cancelled", label: "취소" }
+        ], detail?.meta?.status === "approved" ? "approved" : detail?.meta?.status === "credited" ? "credited" : detail?.meta?.status === "cancelled" ? "cancelled" : detail?.meta?.status === "rejected" ? "rejected" : "approved")}
+        ${detailTextarea("운영 메모", "adminNote", detail?.meta?.adminNote || detail?.meta?.note || "정산금 충전 신청 금액, 정산 키, 지갑 반영 여부를 확인합니다.")}
+      </div>
+      <p class="detail-form-note">approved는 운영 승인, credited는 실제 루미나 지갑 반영 완료입니다. credited 처리 시 유저 지갑 잔액이 증가하므로 반드시 금액을 확인하세요.</p>
+    `;
   } else if (tableId === "settlementRows" || tableId === "studioSettlementRows") {
     const isStudio = tableId === "studioSettlementRows";
     const settlementKey = firstValue(detail?.meta?.settlementKey, `${isStudio ? "studio" : "creator"}:${row[0] || "unknown"}:${currentSettlementPeriod()}`);
@@ -1609,6 +1685,22 @@ function getActionProfile(detail, action = "memo") {
       warning: "자동 송금이 아니라 회계 담당자가 실제 입금/보류/재확인 결과를 기록하는 처리입니다. 대상과 메모를 확인한 뒤 저장합니다.",
       holdLabel: "정산 보류",
       dangerLabel: "정산 상태 저장",
+      showHold: true,
+      showDanger: true,
+      dangerDisabled: false
+    };
+  }
+
+  if (tableId === "settlementConversionRows") {
+    return {
+      ...profile,
+      group: "정산금 충전 신청",
+      targetType: "settlementConversion",
+      endpoint: "POST /admin/api/v1/backstage/settlement-conversions/:conversionId/status",
+      method: "POST",
+      warning: "credited는 실제 유저 루미나 지갑에 반영되는 처리입니다. 신청 금액과 지급 루미나를 확인한 뒤 저장하세요.",
+      holdLabel: "보류 메모",
+      dangerLabel: "신청 상태 저장",
       showHold: true,
       showDanger: true,
       dangerDisabled: false
@@ -2064,6 +2156,19 @@ function buildActionRequest(detail, action) {
     };
   }
 
+  if (tableId === "settlementConversionRows") {
+    const conversionId = firstValue(meta.conversionId, form.conversionId);
+    if (!conversionId) return null;
+    return {
+      method: "POST",
+      path: adminApiPath(`/backstage/settlement-conversions/${conversionId}/status`),
+      body: {
+        status: form.conversionStatus || "approved",
+        adminNote: firstValue(form.adminNote, note, reason)
+      }
+    };
+  }
+
   return null;
 }
 
@@ -2206,10 +2311,24 @@ function settlementStatusLabel(status) {
   return labels[status] || status || "변경 예정";
 }
 
+function settlementConversionStatusLabel(status) {
+  const labels = {
+    requested: "신청",
+    approved: "승인",
+    rejected: "반려",
+    credited: "반영완료",
+    cancelled: "취소"
+  };
+  return labels[status] || status || "변경 예정";
+}
+
 function actionChangeLabel(preview) {
   const form = preview?.bodyPreview?.form || {};
   if (preview?.targetType === "creatorSettlement" || preview?.targetType === "studioSettlement") {
     return settlementStatusLabel(form.settlementStatus || preview?.apiRequest?.body?.status);
+  }
+  if (preview?.targetType === "settlementConversion") {
+    return settlementConversionStatusLabel(form.conversionStatus || preview?.apiRequest?.body?.status);
   }
   if (preview?.requestedAction === "memo") return "운영 메모 저장";
   if (preview?.requestedAction === "hold") {
@@ -2223,6 +2342,9 @@ function optimisticStatusForPreview(preview) {
   const form = preview?.bodyPreview?.form || {};
   if (preview?.targetType === "creatorSettlement" || preview?.targetType === "studioSettlement") {
     return settlementStatusLabel(form.settlementStatus || preview?.apiRequest?.body?.status || "paid");
+  }
+  if (preview?.targetType === "settlementConversion") {
+    return settlementConversionStatusLabel(form.conversionStatus || preview?.apiRequest?.body?.status || "approved");
   }
   if (preview?.targetType === "debutApplication") {
     const labels = {
@@ -2357,6 +2479,7 @@ function renderBackstageTables() {
   renderRows("reportCancelRows", backstageRows.reportCancels, 3);
   renderRows("studioSettlementRows", backstageRows.studioSettlement, 7);
   renderRows("settlementRows", backstageRows.settlement, 7);
+  renderRows("settlementConversionRows", backstageRows.settlementConversions, 4);
   renderRows("aiSettlementRows", backstageRows.aiSettlement, -1);
   renderRows("logRows", mergeLogRows(backstageRows.logs), -1);
 }
@@ -3026,10 +3149,34 @@ async function loadModerationSection() {
 }
 
 async function loadSettlementSection() {
-  sectionState.settlement = { cursor: null, hasMore: false, rows: [], studioRows: [] };
+  sectionState.settlement = { cursor: null, hasMore: false, rows: [], studioRows: [], conversionRows: [] };
+  renderLoadingRow("settlementConversionRows");
   renderLoadingRow("studioSettlementRows");
   renderLoadingRow("settlementRows");
-  await loadSettlementPage(false);
+  await Promise.all([
+    loadSettlementPage(false),
+    loadSettlementConversions()
+  ]);
+}
+
+async function loadSettlementConversions() {
+  try {
+    const query = new URLSearchParams({
+      period: currentSettlementPeriod(),
+      type: "artist",
+      status: "requested",
+      take: "20"
+    });
+    const data = await backstageFetch(adminApiPath(`/backstage/settlement-conversions?${query}`), { auth: true });
+    const page = normalizePage(data);
+    const rows = page.items.map(settlementConversionEntryFromItem);
+    sectionState.settlement.conversionRows = rows;
+    if (rows.length) renderRows("settlementConversionRows", rows, 4);
+    else renderLoadingRow("settlementConversionRows", "처리 대기 중인 정산금 충전 신청이 없습니다.");
+  } catch {
+    renderRows("settlementConversionRows", backstageRows.settlementConversions, 4);
+    renderFallbackNote("settlementConversionRows");
+  }
 }
 
 async function loadSettlementPage(append = true) {
