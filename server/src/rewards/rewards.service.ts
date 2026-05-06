@@ -10,6 +10,7 @@ const DAILY_ATTENDANCE_POLICY_STARTED_AT = '2026-05-05';
 const LUMINA_UNIT_PRICE_KRW = 10;
 const FREE_PROMO_REWARD_CAP_LUMINA = 3000;
 const PAID_BONUS_CAP_RATE = 0.2;
+const FIRST_CHARGE_BONUS_RATE = 0.1;
 const PROMO_REWARD_LEDGER_TYPES = [
   'signup_bonus',
   'referral_reward',
@@ -333,9 +334,10 @@ export class RewardsService {
             {
               code: 'first_charge_bonus',
               title: 'First Lumina charge bonus',
-              bonusRate: 0.1,
-              status: 'planned',
+              bonusRate: FIRST_CHARGE_BONUS_RATE,
+              status: 'live',
               grantMode: 'payment_fulfillment_bonus',
+              ledgerType: 'first_charge_bonus',
             },
             {
               code: 'paid_loyalty_bonus_pool',
@@ -394,10 +396,23 @@ export class RewardsService {
       (sum, order) => sum.plus(order.luminaProduct.luminaAmount),
       new Decimal(0),
     );
-    const paidBonusLumina = paidOrders.reduce(
+    const firstChargeBonusLedger = await this.prisma.walletLedger.aggregate({
+      where: {
+        direction: 'credit',
+        ledgerType: 'first_charge_bonus',
+        walletAccount: {
+          userId,
+          currencyCode: DEFAULT_CURRENCY,
+        },
+      },
+      _sum: { amount: true },
+    });
+    const paidProductBonusLumina = paidOrders.reduce(
       (sum, order) => sum.plus(order.luminaProduct.bonusAmount),
       new Decimal(0),
     );
+    const firstChargeBonusLumina = new Decimal(firstChargeBonusLedger._sum.amount ?? 0);
+    const paidBonusLumina = paidProductBonusLumina.plus(firstChargeBonusLumina);
     const paidBonusCapLumina = paidBaseLumina.mul(PAID_BONUS_CAP_RATE);
     const identityVerified =
       user.identityVerification?.status === 'verified' || Boolean(user.phoneNumber);
@@ -422,6 +437,8 @@ export class RewardsService {
         paidBonus: {
           capRate: PAID_BONUS_CAP_RATE,
           basePaidLumina: paidBaseLumina.toString(),
+          productBonusLumina: paidProductBonusLumina.toString(),
+          firstChargeBonusLumina: firstChargeBonusLumina.toString(),
           grantedBonusLumina: paidBonusLumina.toString(),
           capLumina: paidBonusCapLumina.toString(),
           remainingBonusLumina: Decimal.max(
@@ -447,6 +464,8 @@ export class RewardsService {
         firstCharge: {
           completed: paidOrders.length > 0,
           firstPaidAt: paidOrders[0]?.updatedAt ?? null,
+          bonusRate: FIRST_CHARGE_BONUS_RATE,
+          bonusGrantedLumina: firstChargeBonusLumina.toString(),
         },
       },
       milestoneStatus: this.activationMilestoneStatus({
@@ -750,8 +769,8 @@ export class RewardsService {
       {
         code: 'first_charge_bonus',
         completed: input.paidOrdersCount > 0,
-        claimStatus: 'planned_payment_policy',
-        bonusRate: 0.1,
+        claimStatus: 'automatic_on_first_paid_order',
+        bonusRate: FIRST_CHARGE_BONUS_RATE,
       },
     ];
   }
@@ -797,7 +816,7 @@ export class RewardsService {
       excludedCodes: {
         identity_verification_bonus: 'planned_after_real_identity_provider',
         birthday_verified_annual: 'planned_after_verified_birthdate',
-        first_charge_bonus: 'payment_fulfillment_policy',
+        first_charge_bonus: 'automatic_payment_fulfillment_bonus',
       },
     };
   }

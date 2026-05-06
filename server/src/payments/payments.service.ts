@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 
 const DEFAULT_CURRENCY = 'LUMINA';
+const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
 
 @Injectable()
 export class PaymentsService {
@@ -254,6 +255,24 @@ export class PaymentsService {
       const creditAmount = order.luminaProduct.luminaAmount.plus(
         order.luminaProduct.bonusAmount,
       );
+      const priorPaidOrderCount = await tx.paymentOrder.count({
+        where: {
+          userId: order.userId,
+          status: 'paid',
+          id: { not: order.id },
+        },
+      });
+      const firstChargeBonusIdempotencyKey = `first_charge_bonus:${order.userId}`;
+      const existingFirstChargeBonusLedger = await tx.walletLedger.findUnique({
+        where: { idempotencyKey: firstChargeBonusIdempotencyKey },
+      });
+      const firstChargeBonusAmount =
+        priorPaidOrderCount === 0 && !existingFirstChargeBonusLedger
+          ? order.luminaProduct.luminaAmount
+              .mul(FIRST_CHARGE_BONUS_RATE)
+              .toDecimalPlaces(2)
+          : new Decimal(0);
+      const totalCreditAmount = creditAmount.plus(firstChargeBonusAmount);
 
       const ledger = await tx.walletLedger.create({
         data: {
@@ -267,12 +286,26 @@ export class PaymentsService {
           memo: `Lumina purchase: ${order.luminaProduct.name}`,
         },
       });
+      const firstChargeBonusLedger = firstChargeBonusAmount.gt(0)
+        ? await tx.walletLedger.create({
+            data: {
+              walletAccountId: wallet.id,
+              direction: 'credit',
+              amount: firstChargeBonusAmount,
+              ledgerType: 'first_charge_bonus',
+              referenceType: 'payment_order',
+              referenceId: order.id,
+              idempotencyKey: firstChargeBonusIdempotencyKey,
+              memo: `First charge bonus: ${order.luminaProduct.name}`,
+            },
+          })
+        : null;
 
       await tx.walletAccount.update({
         where: { id: wallet.id },
         data: {
           cachedBalance: {
-            increment: creditAmount,
+            increment: totalCreditAmount,
           },
         },
       });
@@ -286,6 +319,12 @@ export class PaymentsService {
         order: updatedOrder,
         transaction,
         ledger,
+        firstChargeBonusLedger,
+        firstChargeBonus: {
+          applied: Boolean(firstChargeBonusLedger),
+          rate: FIRST_CHARGE_BONUS_RATE.toString(),
+          amount: firstChargeBonusAmount.toString(),
+        },
         idempotentReplay: false,
       };
     });

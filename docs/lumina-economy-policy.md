@@ -23,6 +23,12 @@ Initial seed products:
 
 Old seed products `LUMINA_100`, `LUMINA_550`, and `LUMINA_1200` should be archived by seed.
 
+First paid Lumina charge grants an automatic 10% first-charge bonus based on
+the product base Lumina amount. The bonus is stored as a separate
+`wallet_ledger` credit with `ledgerType = first_charge_bonus` and a
+`first_charge_bonus:<userId>` idempotency key. Product `bonusAmount` and the
+first-charge bonus both count toward the paid bonus cap, not the free promo cap.
+
 ## Starter Grants
 
 - Signup bonus: 300 Lumina

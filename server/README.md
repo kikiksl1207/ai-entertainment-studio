@@ -196,6 +196,7 @@ curl -X POST http://localhost:3001/api/v1/wallet/test-grant \
 ```
 
 `GET /api/v1/lumina-station?take=5` is the preferred Lumina charge screen bootstrap endpoint. It returns the current wallet, active Lumina products, recent payment orders, payment provider status hints, and display policy. The endpoint does not create an order or grant Lumina; clients still use `POST /api/v1/payments/orders` with an `Idempotency-Key` to start a charge order. Real Lumina credit happens only after a paid provider transaction/webhook.
+When the user has no prior paid order, Lumina Station marks `policy.firstChargeBonus.eligible = true` and each product includes `firstChargeBonusLumina` plus `firstChargeTotalLumina`. The first paid webhook grants this 10% bonus once with `wallet_ledger.ledgerType = first_charge_bonus`.
 
 ## Gift And Boost MVP APIs
 

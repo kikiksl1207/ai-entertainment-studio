@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const PRICE_UNIT_KRW = new Decimal(10);
+const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
 
 @Injectable()
 export class LuminaStationService {
@@ -12,7 +13,7 @@ export class LuminaStationService {
   async getStation(userId: string, takeQuery?: string) {
     const take = this.parseTake(takeQuery);
 
-    const [wallet, products, recentOrders] = await this.prisma.$transaction([
+    const [wallet, products, recentOrders, paidOrderCount] = await this.prisma.$transaction([
       this.prisma.walletAccount.upsert({
         where: {
           userId_currencyCode: {
@@ -40,12 +41,19 @@ export class LuminaStationService {
         orderBy: { createdAt: 'desc' },
         take,
       }),
+      this.prisma.paymentOrder.count({
+        where: { userId, status: 'paid' },
+      }),
     ]);
+    const firstChargeEligible = paidOrderCount === 0;
 
     return {
       wallet,
       products: products.map((product) => {
         const totalLumina = product.luminaAmount.plus(product.bonusAmount);
+        const firstChargeBonusLumina = firstChargeEligible
+          ? product.luminaAmount.mul(FIRST_CHARGE_BONUS_RATE).toDecimalPlaces(2)
+          : new Decimal(0);
         const expectedPrice = totalLumina.times(PRICE_UNIT_KRW);
         const discountAmount = Decimal.max(expectedPrice.minus(product.priceAmount), 0);
 
@@ -53,6 +61,8 @@ export class LuminaStationService {
           ...product,
           totalLumina,
           unitPriceKrw: product.priceAmount.div(totalLumina).toDecimalPlaces(2),
+          firstChargeBonusLumina,
+          firstChargeTotalLumina: totalLumina.plus(firstChargeBonusLumina),
           bonusRate:
             product.luminaAmount.gt(0) && product.bonusAmount.gt(0)
               ? product.bonusAmount.div(product.luminaAmount).times(100).toDecimalPlaces(2)
@@ -76,6 +86,13 @@ export class LuminaStationService {
         referralBonusLumina: 500,
         paidLikeUnitPriceLumina: 10,
         paidLikeDailyLimit: 20,
+        firstChargeBonus: {
+          eligible: firstChargeEligible,
+          rate: FIRST_CHARGE_BONUS_RATE.toString(),
+          percent: FIRST_CHARGE_BONUS_RATE.times(100).toString(),
+          ledgerType: 'first_charge_bonus',
+          oneTimePerUser: true,
+        },
         fulfillment:
           'Paid Lumina is credited only after the payment provider confirms a paid transaction.',
       },
