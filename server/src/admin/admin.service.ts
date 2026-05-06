@@ -1418,6 +1418,18 @@ export class AdminService {
             updatedAt: true,
           },
         },
+        adminAccess: {
+          select: {
+            id: true,
+            status: true,
+            role: {
+              select: {
+                name: true,
+                permissions: true,
+              },
+            },
+          },
+        },
       },
     });
     const exactMatchCount = users.length;
@@ -1431,6 +1443,9 @@ export class AdminService {
     );
     const activeApprovedApplications = activeUsers.flatMap(
       (user) => user.debutApplications,
+    );
+    const activeAdminUsers = activeUsers.filter(
+      (user) => user.adminAccess?.status === 'active',
     );
     const latestAuthAccount = users
       .flatMap((user) =>
@@ -1447,7 +1462,9 @@ export class AdminService {
       })[0] ?? null;
     const accessEnabled =
       activeUsers.length > 0 &&
-      (activeOperators.length > 0 || activeApprovedApplications.length > 0);
+      (activeOperators.length > 0 ||
+        activeApprovedApplications.length > 0 ||
+        activeAdminUsers.length > 0);
 
     return {
       generatedAt: new Date(),
@@ -1462,6 +1479,7 @@ export class AdminService {
           activeUsersCount: activeUsers.length,
           activeOperatorsCount: activeOperators.length,
           approvedApplicationsCount: activeApprovedApplications.length,
+          activeAdminUsersCount: activeAdminUsers.length,
           totalOperatorsCount: users.reduce(
             (sum, user) => sum + user.artistOperators.length,
             0,
@@ -1471,6 +1489,7 @@ export class AdminService {
         activeUsersCount: activeUsers.length,
         activeOperatorsCount: activeOperators.length,
         approvedApplicationsCount: activeApprovedApplications.length,
+        activeAdminUsersCount: activeAdminUsers.length,
         latestAuthAccount,
       },
       users: users.map((user) => ({
@@ -1507,16 +1526,29 @@ export class AdminService {
           canEnterCreatorStudio: user.status === 'active' && user.deletedAt === null,
           needsArtistOperatorLink: true,
         })),
+        adminAccess: user.adminAccess
+          ? {
+              id: user.adminAccess.id,
+              status: user.adminAccess.status,
+              roleName: user.adminAccess.role.name,
+              permissions: user.adminAccess.role.permissions,
+              canEnterCreatorStudio:
+                user.status === 'active' &&
+                user.deletedAt === null &&
+                user.adminAccess.status === 'active',
+            }
+          : null,
       })),
       expectedUserEndpoint: '/api/v1/me/creator-studio',
       expectedUserEndpointRule:
-        'The signed-in access token must belong to the same active userId that has either an active artist operator row or an approved debut application.',
+        'The signed-in access token must belong to the same active userId that has an active artist operator row, an approved debut application, or active admin access.',
       nextActions: this.creatorAccessDiagnosticNextActions({
         accessEnabled,
         exactMatchCount,
         activeUsersCount: activeUsers.length,
         activeOperatorsCount: activeOperators.length,
         approvedApplicationsCount: activeApprovedApplications.length,
+        activeAdminUsersCount: activeAdminUsers.length,
         totalOperatorsCount: users.reduce((sum, user) => sum + user.artistOperators.length, 0),
       }),
     };
@@ -5974,6 +6006,7 @@ export class AdminService {
     activeUsersCount: number;
     activeOperatorsCount: number;
     approvedApplicationsCount: number;
+    activeAdminUsersCount: number;
     totalOperatorsCount: number;
   }) {
     if (input.exactMatchCount === 0) {
@@ -5990,6 +6023,10 @@ export class AdminService {
 
     if (input.approvedApplicationsCount > 0) {
       return 'approved_debut_application_access_ready';
+    }
+
+    if (input.activeAdminUsersCount > 0) {
+      return 'active_admin_operator_access_ready';
     }
 
     if (input.totalOperatorsCount === 0) {
@@ -6009,6 +6046,7 @@ export class AdminService {
     activeUsersCount: number;
     activeOperatorsCount: number;
     approvedApplicationsCount: number;
+    activeAdminUsersCount: number;
     totalOperatorsCount: number;
   }) {
     if (input.accessEnabled) {

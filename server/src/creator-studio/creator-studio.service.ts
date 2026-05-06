@@ -73,6 +73,23 @@ export class CreatorStudioService {
             updatedAt: true,
           },
         });
+    const adminAccess =
+      artistIds.length || approvedApplication
+        ? null
+        : await this.prisma.adminUser.findUnique({
+            where: { userId },
+            select: {
+              id: true,
+              status: true,
+              role: {
+                select: {
+                  name: true,
+                  permissions: true,
+                },
+              },
+            },
+          });
+    const hasAdminAccess = adminAccess?.status === 'active';
     const [imageRequestCounts, recentImageRequests] = artistIds.length
       ? await Promise.all([
           this.prisma.creatorImageRequest.groupBy({
@@ -103,10 +120,16 @@ export class CreatorStudioService {
       (operator) => operator.artist.status === 'active',
     ).length;
     const needsAttentionCount = imageRequestSummary.total.open;
-    const hasAccess = artistIds.length > 0 || approvedApplication !== null;
-    let accessType: 'personal_creator' | 'studio_operator' | null = null;
+    const hasAccess =
+      artistIds.length > 0 || approvedApplication !== null || hasAdminAccess;
+    let accessType: 'personal_creator' | 'studio_operator' | 'admin_operator' | null =
+      null;
     if (hasAccess) {
-      accessType = artistIds.length > 1 ? 'studio_operator' : 'personal_creator';
+      accessType = hasAdminAccess
+        ? 'admin_operator'
+        : artistIds.length > 1
+          ? 'studio_operator'
+          : 'personal_creator';
     }
     const pendingApprovedApplication = approvedApplication
       ? {
@@ -129,10 +152,26 @@ export class CreatorStudioService {
           ? 'active_artist_operator_found'
           : approvedApplication
             ? 'approved_debut_application_found'
+            : hasAdminAccess
+              ? 'active_admin_operator_found'
             : 'no_active_artist_operator',
         entryUrl: '/creator-studio.html',
-        source: artistIds.length > 0 ? 'artist_operator' : 'approved_debut_application',
+        source:
+          artistIds.length > 0
+            ? 'artist_operator'
+            : approvedApplication
+              ? 'approved_debut_application'
+              : hasAdminAccess
+                ? 'admin_operator'
+                : 'none',
         approvedApplication: pendingApprovedApplication,
+        admin: hasAdminAccess
+          ? {
+              id: adminAccess.id,
+              roleName: adminAccess.role.name,
+              permissions: adminAccess.role.permissions,
+            }
+          : null,
       },
       viewer: {
         userId,
@@ -162,11 +201,19 @@ export class CreatorStudioService {
         mode:
           artistIds.length > 0
             ? 'creator_studio_bootstrap_v1'
-            : 'approved_application_pending_artist_operator',
+            : approvedApplication
+              ? 'approved_application_pending_artist_operator'
+              : hasAdminAccess
+                ? 'admin_operator_preview'
+                : 'creator_studio_no_access',
         emptyState:
           artistIds.length > 0
             ? 'No active artist operator access is connected to this account yet.'
-            : 'Approved debut application exists, but no artist operator is linked yet.',
+            : approvedApplication
+              ? 'Approved debut application exists, but no artist operator is linked yet.'
+              : hasAdminAccess
+                ? 'Admin access is active, but no artist operator is linked yet.'
+                : 'No Creator Studio access is connected to this account yet.',
         canCreateImageRequests: artistIds.length > 0,
         slotPolicy: {
           initialSlotLimit: CREATOR_STUDIO_INITIAL_SLOT_LIMIT,
