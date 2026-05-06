@@ -110,8 +110,8 @@ export class UserAssetsService {
   }
 
   async createUploadIntent(userId: string, input: UserAssetBody) {
-    const mimeType = this.allowedImageMimeType(this.string(input, 'mimeType'));
     const fileName = this.safeFileName(this.string(input, 'fileName'));
+    const mimeType = this.imageMimeType(input, fileName);
     const fileSizeBytes = this.imageFileSizeBytes(input);
     const storageProvider = this.configService.get<string>('OBJECT_STORAGE_PROVIDER') ?? 'local';
     const storageKey = this.buildStorageKey(fileName);
@@ -315,18 +315,50 @@ export class UserAssetsService {
     };
   }
 
-  private allowedImageMimeType(mimeType: string) {
+  private imageMimeType(input: UserAssetBody, fileName: string) {
+    const rawMimeType =
+      this.optionalString(input, 'mimeType') ??
+      this.optionalString(input, 'contentType') ??
+      this.inferImageMimeType(fileName);
+    return this.allowedImageMimeType(rawMimeType);
+  }
+
+  private inferImageMimeType(fileName: string) {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    const byExtension: Record<string, string> = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      webp: 'image/webp',
+      gif: 'image/gif',
+    };
+
+    return extension ? byExtension[extension] : undefined;
+  }
+
+  private allowedImageMimeType(mimeType?: string) {
+    if (mimeType === 'image/jpg') {
+      return 'image/jpeg';
+    }
+
     const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
-    if (!allowed.has(mimeType)) {
-      throw new BadRequestException('mimeType must be image/jpeg, image/png, image/webp, or image/gif');
+    if (!mimeType || !allowed.has(mimeType)) {
+      throw new BadRequestException(
+        'mimeType must be image/jpeg, image/png, image/webp, or image/gif',
+      );
     }
 
     return mimeType;
   }
 
   private imageFileSizeBytes(input: UserAssetBody) {
-    const size = this.number(input, 'fileSizeBytes');
+    const size =
+      input.fileSizeBytes !== undefined
+        ? this.number(input, 'fileSizeBytes')
+        : input.fileSize !== undefined
+          ? this.number(input, 'fileSize')
+          : this.number(input, 'size');
     const maxSize = this.numberFromEnv(
       'MAX_IMAGE_UPLOAD_BYTES',
       USER_IMAGE_UPLOAD_MAX_BYTES,
