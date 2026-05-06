@@ -167,6 +167,10 @@
                 <strong>최근 지갑 내역을 불러오는 중입니다.</strong>
                 <p>충전, 응원, 해금, 환불 내역이 있으면 이곳에 표시됩니다.</p>
               </div>
+              <div class="mypage-empty" id="mypageActivationRewards" style="margin-top:14px;">
+                <strong>활성화 보상을 확인하고 있습니다.</strong>
+                <p>프로필, 피드, 팔로우 같은 첫 행동 보상이 있으면 이곳에서 받을 수 있습니다.</p>
+              </div>
             </section>
 
             <section class="mypage-panel" data-mypage-panel="wallet" id="charge">
@@ -538,6 +542,88 @@
             cancelled: "결제 취소",
             refunded: "환불 완료"
           }[status] || status || "";
+        }
+        function rewardTitle(code) {
+          return {
+            profile_basic_setup: "프로필 기본 설정",
+            first_feed_post: "첫 피드 작성",
+            first_feed_like: "첫 좋아요",
+            first_follow: "첫 팔로우",
+            first_reply: "첫 댓글"
+          }[code] || code || "활성화 보상";
+        }
+        function rewardDescription(code) {
+          return {
+            profile_basic_setup: "닉네임과 프로필을 정리하면 받을 수 있어요.",
+            first_feed_post: "루미나 피드에 첫 글을 남기면 받을 수 있어요.",
+            first_feed_like: "마음에 드는 글에 첫 좋아요를 누르면 받을 수 있어요.",
+            first_follow: "좋아하는 아티스트를 처음 팔로우하면 받을 수 있어요.",
+            first_reply: "피드에 첫 댓글을 남기면 받을 수 있어요."
+          }[code] || "조건을 달성하면 받을 수 있는 1회성 보상입니다.";
+        }
+        function rewardStatusLabel(item) {
+          if (item.claimed || item.claimStatus === "claimed") return "수령 완료";
+          if (item.completed && item.claimStatus === "claimable_when_completed") return "받기 가능";
+          if (item.completed) return "달성 완료";
+          return "진행 중";
+        }
+        function normalizeRewardItems(data) {
+          return list(data?.milestoneStatus || data?.items || data?.quests || data)
+            .map(item => ({
+              code: item.code || item.questCode || item.key,
+              title: item.title || rewardTitle(item.code || item.questCode || item.key),
+              description: item.description || rewardDescription(item.code || item.questCode || item.key),
+              amountLumina: item.amountLumina || item.rewardLumina || item.lumina || 0,
+              completed: !!item.completed,
+              claimed: !!item.claimed,
+              claimStatus: item.claimStatus || item.status
+            }))
+            .filter(item => item.code);
+        }
+        function renderActivationRewards(items) {
+          const el = $("mypageActivationRewards");
+          if (!el) return;
+          if (!items.length) {
+            renderBox("mypageActivationRewards", "받을 수 있는 활성화 보상이 없습니다.", "보상 정책이 열리면 프로필, 피드, 팔로우 첫 행동 보상을 이곳에서 확인할 수 있습니다.");
+            return;
+          }
+          el.innerHTML = items.map(item => {
+            const claimable = item.completed && item.claimStatus === "claimable_when_completed";
+            const amount = item.amountLumina ? " · " + fmt(item.amountLumina) + "L" : "";
+            return "<div class=\"mypage-list-row\"><strong>" +
+              escapeHtml(item.title) +
+              "</strong><p>" +
+              escapeHtml(rewardStatusLabel(item) + amount + " · " + item.description) +
+              "</p>" +
+              (claimable ? "<button class=\"button-secondary\" type=\"button\" data-activation-claim=\"" + escapeHtml(item.code) + "\">보상 받기</button>" : "") +
+              "</div>";
+          }).join("");
+        }
+        async function loadActivationProgress() {
+          if (typeof apiFetch !== "function" || typeof isLoggedIn !== "function" || !isLoggedIn()) return;
+          const data = await apiFetch("/api/v1/rewards/activation-progress", { auth: true }).catch(() => null);
+          renderActivationRewards(normalizeRewardItems(data));
+        }
+        async function claimActivationReward(code, button) {
+          if (!code || typeof apiFetch !== "function") return;
+          busy(button, true, "받는 중");
+          try {
+            const result = await apiFetch("/api/v1/rewards/activation-quests/" + encodeURIComponent(code) + "/claim", {
+              method: "POST",
+              auth: true,
+              throwOnError: true
+            });
+            await Promise.all([loadMypageSummary(), loadActivationProgress()]);
+            alert(result?.idempotentReplay ? "이미 받은 보상입니다. 중복 지급 없이 상태만 확인했어요." : "보상이 지급되었습니다.");
+          } catch (err) {
+            const codeName = err?.body?.code || err?.code;
+            if (codeName === "ACTIVATION_QUEST_NOT_COMPLETED") alert("아직 조건을 달성하지 않았어요.");
+            else if (codeName === "ACTIVATION_QUEST_NOT_CLAIMABLE") alert("아직 받을 수 없는 보상입니다.");
+            else if (codeName === "FREE_PROMO_REWARD_CAP_EXCEEDED") alert("무료 보상 한도에 도달했어요.");
+            else alert(err?.message || "보상 지급에 실패했습니다.");
+          } finally {
+            busy(button, false);
+          }
         }
         function normalizeActivityItems(summary) {
           const activities = list(summary.recentActivities).map(item => ({
@@ -933,6 +1019,11 @@
           });
           $("mypageSaveSettings")?.addEventListener("click", saveMypageSettings);
           $("mypageChargeButton")?.addEventListener("click", () => { window.location.href = "./charge.html"; });
+          $("mypageActivationRewards")?.addEventListener("click", event => {
+            const button = event.target.closest("[data-activation-claim]");
+            if (!button) return;
+            claimActivationReward(button.dataset.activationClaim, button);
+          });
           // ※ 아바타 업로드 핸들러는 app.js의 bindMypageAvatarUpload()가 단일 담당.
           //   (#058 — 2026-05-03: 이중 바인드 충돌 해소를 위해 inline 핸들러 제거)
           $("mypageDeleteAccountButton")?.addEventListener("click", () => {
@@ -945,7 +1036,7 @@
         async function initMypageEnhancements() {
           bindMypageActions();
           // #057 충전소 분리 후 충전 상품 미리보기는 충전소 화면이 담당하므로 마이페이지에선 호출하지 않음
-          await Promise.all([loadMypageSummary(), loadMypageSettings()]);
+          await Promise.all([loadMypageSummary(), loadMypageSettings(), loadActivationProgress()]);
           initMypageTabs();
         }
 
