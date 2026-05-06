@@ -85,6 +85,7 @@ const statusClassMap = {
   "완료": "is-paid",
   "공개": "is-approved",
   "정상": "is-approved",
+  "공개 제외": "is-blocked",
   "보완필요": "is-hold",
   "누락": "is-hold",
   "필요": "is-hold",
@@ -186,6 +187,15 @@ const backstageRows = {
     ["RP-771", "댓글 #1204", "serinist_01", "취소", "작성자 수정 완료", "보관"],
     ["RP-768", "피드 #870", "watch_user", "철회", "중복 신고", "보관"]
   ],
+  feedSearches: [
+    ["1", "최서진", "일반 검색", "한국어", "42", "7.1건", "방금"],
+    ["2", "#데뷔", "해시태그", "한국어", "28", "4.3건", "10분 전"],
+    ["3", "Yuna", "일반 검색", "영어", "12", "2.0건", "1시간 전"]
+  ],
+  feedBlockedTerms: [
+    ["#blocked", "해시태그", "전체", "공개 제외", "운영 검토", "오늘", "상태 변경"],
+    ["external chat", "일반 검색", "영어", "비활성", "테스트", "어제", "상태 변경"]
+  ],
   settlement: [
     ["creator_cha", "cha_creator", "18", "2,840L", "28,400원", "6,000원", "17,920원", "예상치", "확정 전"],
     ["creator_yoon", "yoon_creator", "9", "1,600L", "16,000원", "3,100원", "10,320원", "예상치", "확정 전"],
@@ -245,6 +255,8 @@ const tableMeta = {
   moderationReportRows: { type: "범용 신고 큐", labels: ["신고", "대상", "신고자", "사유", "상태", "메모", "권장 액션"] },
   contentAnomalyRows: { type: "이상 패턴", labels: ["콘텐츠", "작성자", "탐지 신호", "위험도", "권장 액션"] },
   reportCancelRows: { type: "취소/철회 신고", labels: ["신고", "대상", "신고자", "상태", "사유", "권장 액션"] },
+  feedSearchRows: { type: "피드 검색어 분석", labels: ["순위", "키워드", "타입", "언어", "검색 수", "평균 결과", "최근 검색"] },
+  feedBlockedTermRows: { type: "검색어 숨김 관리", labels: ["키워드", "타입", "언어", "상태", "사유", "수정일", "권장 액션"] },
   studioSettlementRows: { type: "스튜디오 운영자 정산", labels: ["운영자", "정산 유형", "캐릭터", "루미나", "총매출", "차감", "정산금", "상태", "권장 액션"] },
   settlementRows: { type: "유저 크리에이터 정산", labels: ["아티스트", "제작자", "이벤트", "루미나", "총매출", "차감", "정산금", "상태", "권장 액션"] },
   settlementConversionRows: { type: "정산금 충전 신청", labels: ["신청자", "정산 키", "신청 금액", "지급 루미나", "상태", "신청 메모", "권장 액션"] },
@@ -901,6 +913,131 @@ function settlementConversionEntryFromItem(item = {}) {
   };
 }
 
+function localizeFeedSearchType(type) {
+  const typeMap = {
+    all: "전체",
+    text: "일반 검색",
+    hashtag: "해시태그"
+  };
+  return typeMap[type] || type || "-";
+}
+
+function localizeFeedSearchLanguage(language) {
+  const languageMap = {
+    all: "전체",
+    ko: "한국어",
+    ja: "일본어",
+    en: "영어",
+    zh: "중국어",
+    unknown: "미확인"
+  };
+  return languageMap[language] || language || "-";
+}
+
+function localizeFeedBlockedStatus(status) {
+  const statusMap = {
+    active: "공개 제외",
+    inactive: "비활성",
+    archived: "보관"
+  };
+  return statusMap[status] || localizeWorkflowStatus(status);
+}
+
+function feedSearchEntryFromItem(item = {}, index = 0) {
+  if (Array.isArray(item)) {
+    return {
+      row: item,
+      meta: {
+        keyword: item[1],
+        type: item[2],
+        language: item[3],
+        searchCount: Number(String(item[4] || "0").replace(/[^\d.]/g, "")) || 0,
+        averageResultCount: Number(String(item[5] || "0").replace(/[^\d.]/g, "")) || 0
+      }
+    };
+  }
+  const keyword = item.keyword || item.query || item.term || item.normalizedKeyword || "-";
+  const searchCount = item.searchCount ?? item.count ?? item.totalCount ?? item.events ?? 0;
+  const avgResults = item.averageResultCount ?? item.avgResultCount ?? item.avgResults ?? item.resultAverage ?? 0;
+  return {
+    row: [
+      String(item.rank || index + 1),
+      keyword,
+      localizeFeedSearchType(item.type || item.searchType || "text"),
+      localizeFeedSearchLanguage(item.language || "unknown"),
+      formatCount(searchCount),
+      `${Number(avgResults || 0).toFixed(1).replace(/\.0$/, "")}건`,
+      item.lastSearchedAt ? formatHistoryTime(item.lastSearchedAt) : item.lastSeenAt ? formatHistoryTime(item.lastSeenAt) : "-"
+    ],
+    meta: {
+      keyword,
+      normalizedKeyword: item.normalizedKeyword,
+      type: item.type || item.searchType || "text",
+      language: item.language || "unknown",
+      searchCount,
+      averageResultCount: avgResults,
+      zeroResultCount: item.zeroResultCount || 0,
+      zeroResultRate: item.zeroResultRate,
+      lastSearchedAt: item.lastSearchedAt || item.lastSeenAt
+    }
+  };
+}
+
+function feedSearchAnalyticsItems(data = {}) {
+  if (Array.isArray(data)) return data;
+  return data.items ||
+    data.keywords ||
+    data.topKeywords ||
+    data.terms ||
+    data.searches ||
+    [];
+}
+
+function renderFeedSearchSummary(data = {}, rows = []) {
+  const target = document.getElementById("feedSearchSummary");
+  if (!target) return;
+  if (!data || Array.isArray(data)) {
+    target.textContent = rows.length
+      ? `최근 1시간 기준 검색어 ${formatCount(rows.length)}개를 표시합니다.`
+      : "검색어 분석은 최근 1시간 기준으로 언어/타입별 검색 흐름과 공개 탐색 제외어를 확인합니다.";
+    return;
+  }
+  const summary = data.summary || data;
+  const total = summary.totalEvents ?? summary.totalSearches ?? summary.searchCount;
+  const zeroRate = summary.zeroResultRate;
+  const zeroCount = summary.zeroResultCount;
+  const zeroNumber = Number(zeroRate);
+  const zeroText = zeroRate !== undefined
+    ? `0건 비율 ${(zeroNumber <= 1 ? zeroNumber * 100 : zeroNumber).toFixed(1).replace(/\.0$/, "")}%`
+    : zeroCount !== undefined
+      ? `0건 검색 ${formatCount(zeroCount)}회`
+      : "0건 검색 추적 중";
+  target.textContent = `최근 1시간 검색 ${formatCount(total || rows.reduce((sum, item) => sum + Number(item.meta?.searchCount || 0), 0))}회 · ${zeroText} · Top ${formatCount(rows.length)}개를 표시합니다.`;
+}
+
+function feedBlockedTermEntryFromItem(item = {}) {
+  const status = item.status || "active";
+  return {
+    row: [
+      item.keyword || item.term || "-",
+      localizeFeedSearchType(item.type || "text"),
+      localizeFeedSearchLanguage(item.language || "all"),
+      localizeFeedBlockedStatus(status),
+      item.reason || item.adminNote || "-",
+      item.updatedAt ? formatHistoryTime(item.updatedAt) : item.createdAt ? formatHistoryTime(item.createdAt) : "-",
+      status === "active" ? "비활성" : "활성"
+    ],
+    meta: {
+      termId: item.id || item.termId,
+      keyword: item.keyword || item.term,
+      type: item.type || "text",
+      language: item.language || "all",
+      status,
+      reason: item.reason || item.adminNote
+    }
+  };
+}
+
 function localizePayoutCheck(value, fallback = "확인 필요") {
   const text = String(value ?? "").toLowerCase();
   if (["verified", "approved", "matched", "ready", "true", "yes"].includes(text)) return "확인 완료";
@@ -1019,6 +1156,8 @@ function openQuickAction(button) {
     "신고 큐 보기": ["범용 신고 큐", "유저, 댓글, 피드 글, 아티스트 신고를 한 표에서 확인합니다.", "조회 준비"],
     "패턴 보기": ["이상 패턴 확인", "연락처 유도, 반복 홍보, 공격 표현 등 탐지 신호를 확인합니다.", "조회 준비"],
     "신고 이력": ["취소/철회 신고 이력", "접수, 취소, 철회, 중복 신고를 따로 보관하고 확인합니다.", "조회 준비"],
+    "분석 보기": ["피드 검색어 분석", "실시간 피드 검색어, 해시태그 검색, 언어별 검색 흐름과 0건 검색어를 확인합니다.", "GET /admin/api/v1/backstage/operations/feed-search-analytics"],
+    "차단어 추가": ["검색어 숨김 추가", "공개 탐색, 급상승 검색어, 추천 검색어에서 제외할 검색어 또는 해시태그를 등록합니다.", "POST /admin/api/v1/backstage/operations/feed-search-blocked-terms"],
     "정산 보기": ["정산 상세", "프리미엄챗, 유료 좋아요, 기타 매출, 차감, 정산금을 항목별로 봅니다.", "조회 준비"],
     "성과 보기": ["AI 아티스트 성과", "캐릭터별 총액, 차감, 정산금, 제작자, 내부 보너스 산정 기준을 봅니다.", "조회 준비"]
   };
@@ -1393,6 +1532,50 @@ function renderDetailForm(detail) {
       </div>
       <p class="detail-form-note">범용 신고는 피드 글뿐 아니라 댓글, 유저, 아티스트까지 포함합니다. 전체 글 열람 대신 신고 대상과 사유 중심으로 확인합니다.</p>
     `;
+  } else if (quickTitle === "검색어 숨김 추가" || tableId === "feedBlockedTermRows") {
+    html = `
+      <h3>검색어 숨김 관리</h3>
+      <div class="detail-form-grid">
+        ${detailInput("Term ID", "termId", meta.termId || "", "text", true)}
+        ${detailInput("검색어/해시태그", "keyword", meta.keyword || row[0] || "", "text", true, "#데뷔 또는 외부연락")}
+        ${detailSelect("타입", "type", [
+          { value: "text", label: "일반 검색" },
+          { value: "hashtag", label: "해시태그" },
+          { value: "all", label: "전체" }
+        ], meta.type || "text")}
+        ${detailSelect("언어", "language", [
+          { value: "all", label: "전체" },
+          { value: "ko", label: "한국어" },
+          { value: "ja", label: "일본어" },
+          { value: "en", label: "영어" },
+          { value: "zh", label: "중국어" },
+          { value: "unknown", label: "미확인" }
+        ], meta.language || "all")}
+        ${detailSelect("상태", "status", [
+          { value: "active", label: "공개 탐색에서 제외" },
+          { value: "inactive", label: "비활성" },
+          { value: "archived", label: "보관" }
+        ], meta.status || "active", true)}
+        ${detailTextarea("운영 사유", "reason", meta.reason || "공개 탐색, 급상승 검색어, 추천 검색어에서 제외할 사유를 남깁니다.")}
+      </div>
+      <p class="detail-form-note">숨김 검색어는 직접 검색 자체를 막기보다 공개 탐색/추천/급상승 노출에서 제외하는 운영 기준입니다.</p>
+    `;
+  } else if (tableId === "feedSearchRows") {
+    html = `
+      <h3>피드 검색어 분석</h3>
+      <div class="detail-form-grid">
+        ${detailInput("키워드", "keyword", meta.keyword || row[1] || "", "text", true)}
+        ${detailInput("정규화 키워드", "normalizedKeyword", meta.normalizedKeyword || "")}
+        ${detailInput("타입", "type", localizeFeedSearchType(meta.type))}
+        ${detailInput("언어", "language", localizeFeedSearchLanguage(meta.language))}
+        ${detailInput("검색 수", "searchCount", formatCount(meta.searchCount || 0))}
+        ${detailInput("평균 결과", "averageResultCount", `${meta.averageResultCount || 0}건`)}
+        ${detailInput("0건 검색", "zeroResultCount", formatCount(meta.zeroResultCount || 0))}
+        ${detailInput("최근 검색", "lastSearchedAt", meta.lastSearchedAt ? formatHistoryTime(meta.lastSearchedAt) : "-")}
+        ${detailTextarea("운영 메모", "reviewMemo", "0건 검색이 많거나 우회 검색어가 반복되는지 확인합니다. 필요하면 검색어 숨김 관리에 등록합니다.")}
+      </div>
+      <p class="detail-form-note">검색어 분석은 조회용입니다. 실제 제외 처리는 검색어 숨김 관리에서 별도로 등록합니다.</p>
+    `;
   } else if (tableId === "moderationRows" || tableId === "contentAnomalyRows" || tableId === "reportCancelRows") {
     html = `
       <h3>크리에이터 콘텐츠 조치</h3>
@@ -1650,6 +1833,54 @@ function getActionProfile(detail, action = "memo") {
       showHold: true,
       showDanger: true,
       dangerDisabled: false
+    };
+  }
+
+  if (quickTitle === "검색어 숨김 추가") {
+    return {
+      ...profile,
+      group: "피드 검색 운영",
+      targetType: "feedBlockedTerm",
+      endpoint: "POST /admin/api/v1/backstage/operations/feed-search-blocked-terms",
+      method: "POST",
+      warning: "공개 탐색/추천/급상승 노출에서 제외할 검색어를 등록합니다. 직접 검색 차단이 아니라 노출 관리 정책입니다.",
+      holdLabel: "등록 보류",
+      dangerLabel: "차단어 추가",
+      showHold: true,
+      showDanger: true,
+      dangerDisabled: false
+    };
+  }
+
+  if (tableId === "feedBlockedTermRows") {
+    return {
+      ...profile,
+      group: "피드 검색 운영",
+      targetType: "feedBlockedTerm",
+      endpoint: "PATCH /admin/api/v1/backstage/operations/feed-search-blocked-terms/:termId",
+      method: "PATCH",
+      warning: "검색어 노출 상태를 변경합니다. active는 공개 탐색에서 제외, inactive는 비활성, archived는 보관입니다.",
+      holdLabel: "상태 보류",
+      dangerLabel: "상태 저장",
+      showHold: true,
+      showDanger: true,
+      dangerDisabled: false
+    };
+  }
+
+  if (tableId === "feedSearchRows" || quickTitle === "피드 검색어 분석") {
+    return {
+      ...profile,
+      group: "피드 검색 운영",
+      targetType: "feedSearchAnalytics",
+      endpoint: "GET /admin/api/v1/backstage/operations/feed-search-analytics?language=all&type=all&window=1h&take=20",
+      method: "GET",
+      warning: "조회용 분석 화면입니다. 숨김 처리는 검색어 숨김 관리에서 별도로 등록합니다.",
+      holdLabel: "메모 보류",
+      dangerLabel: "조회",
+      showHold: false,
+      showDanger: false,
+      dangerDisabled: true
     };
   }
 
@@ -2134,6 +2365,33 @@ function buildActionRequest(detail, action) {
     };
   }
 
+  if (quickTitle === "검색어 숨김 추가") {
+    return {
+      method: "POST",
+      path: adminApiPath("/backstage/operations/feed-search-blocked-terms"),
+      body: {
+        keyword: form.keyword,
+        type: form.type || "text",
+        language: form.language || "all",
+        status: form.status || "active",
+        reason
+      }
+    };
+  }
+
+  if (tableId === "feedBlockedTermRows") {
+    const termId = firstValue(meta.termId, form.termId);
+    if (!termId) return null;
+    return {
+      method: "PATCH",
+      path: adminApiPath(`/backstage/operations/feed-search-blocked-terms/${termId}`),
+      body: {
+        status: action === "hold" ? "inactive" : form.status || meta.status || "inactive",
+        reason
+      }
+    };
+  }
+
   if (tableId === "settlementRows" || tableId === "studioSettlementRows") {
     const settlementKey = firstValue(meta.settlementKey, form.settlementKey);
     if (!settlementKey) return null;
@@ -2330,6 +2588,9 @@ function actionChangeLabel(preview) {
   if (preview?.targetType === "settlementConversion") {
     return settlementConversionStatusLabel(form.conversionStatus || preview?.apiRequest?.body?.status);
   }
+  if (preview?.targetType === "feedBlockedTerm") {
+    return localizeFeedBlockedStatus(form.status || preview?.apiRequest?.body?.status);
+  }
   if (preview?.requestedAction === "memo") return "운영 메모 저장";
   if (preview?.requestedAction === "hold") {
     if (preview?.targetType === "debutApplication") return "보완요청";
@@ -2345,6 +2606,9 @@ function optimisticStatusForPreview(preview) {
   }
   if (preview?.targetType === "settlementConversion") {
     return settlementConversionStatusLabel(form.conversionStatus || preview?.apiRequest?.body?.status || "approved");
+  }
+  if (preview?.targetType === "feedBlockedTerm") {
+    return localizeFeedBlockedStatus(form.status || preview?.apiRequest?.body?.status || "active");
   }
   if (preview?.targetType === "debutApplication") {
     const labels = {
@@ -2477,6 +2741,8 @@ function renderBackstageTables() {
   renderRows("moderationReportRows", backstageRows.moderationReports, 4);
   renderRows("contentAnomalyRows", backstageRows.contentAnomalies, 3);
   renderRows("reportCancelRows", backstageRows.reportCancels, 3);
+  renderRows("feedSearchRows", backstageRows.feedSearches, -1);
+  renderRows("feedBlockedTermRows", backstageRows.feedBlockedTerms, 3);
   renderRows("studioSettlementRows", backstageRows.studioSettlement, 7);
   renderRows("settlementRows", backstageRows.settlement, 7);
   renderRows("settlementConversionRows", backstageRows.settlementConversions, 4);
@@ -3108,13 +3374,21 @@ async function loadAiContentSection() {
 }
 
 async function loadModerationSection() {
+  renderLoadingRow("feedSearchRows");
+  renderLoadingRow("feedBlockedTermRows");
   renderLoadingRow("moderationRows");
   renderLoadingRow("moderationReportRows");
   try {
-    const [posts, reportsPage] = await Promise.all([
+    const [posts, reportsPage, searchAnalytics, blockedTerms] = await Promise.all([
       backstageFetch(adminApiPath("/community/posts?status=published&minReports=1&sort=reports&take=20"), { auth: true }).catch(() => null),
-      backstageFetch(adminApiPath("/community/reports?take=20"), { auth: true }).catch(() => null)
+      backstageFetch(adminApiPath("/community/reports?take=20"), { auth: true }).catch(() => null),
+      backstageFetch(adminApiPath("/backstage/operations/feed-search-analytics?language=all&type=all&window=1h&take=20"), { auth: true }).catch(() => null),
+      backstageFetch(adminApiPath("/backstage/operations/feed-search-blocked-terms?status=active&language=all&type=all&take=20"), { auth: true }).catch(() => null)
     ]);
+    const searchRows = feedSearchAnalyticsItems(searchAnalytics)
+      .map(feedSearchEntryFromItem);
+    const blockedRows = normalizePage(blockedTerms).items
+      .map(feedBlockedTermEntryFromItem);
     const rows = (Array.isArray(posts) ? posts : posts?.items || posts?.posts || []).map((post) => ({
       row: [
         post.id?.slice?.(0, 8) || "-",
@@ -3141,8 +3415,16 @@ async function loadModerationSection() {
     else renderLoadingRow("moderationRows", "확인 필요한 콘텐츠가 없습니다.");
     if (reportRows.length) renderRows("moderationReportRows", reportRows, 4);
     else renderLoadingRow("moderationReportRows", "접수된 범용 신고가 없습니다.");
+    if (searchRows.length) renderRows("feedSearchRows", searchRows, -1);
+    else renderLoadingRow("feedSearchRows", "최근 피드 검색어 분석 데이터가 없습니다.");
+    renderFeedSearchSummary(searchAnalytics, searchRows);
+    if (blockedRows.length) renderRows("feedBlockedTermRows", blockedRows, 3);
+    else renderLoadingRow("feedBlockedTermRows", "공개 탐색에서 제외 중인 검색어가 없습니다.");
   } catch {
     renderBackstageTables();
+    renderFeedSearchSummary(null, backstageRows.feedSearches.map(feedSearchEntryFromItem));
+    renderFallbackNote("feedSearchRows");
+    renderFallbackNote("feedBlockedTermRows");
     renderFallbackNote("moderationRows");
     renderFallbackNote("moderationReportRows");
   }
