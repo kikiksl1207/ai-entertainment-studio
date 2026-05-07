@@ -1804,6 +1804,176 @@ export class AdminService {
     };
   }
 
+  async createBackstageQaCreatorSettlementRevenue(
+    user: AuthUser,
+    input: AdminPayload,
+  ) {
+    this.assertBackstageQaToolsEnabled();
+    const targetUser = await this.findQaCreatorSettlementUser(input);
+    const operator = await this.findQaCreatorSettlementOperator(
+      targetUser.id,
+      this.optionalString(input, 'artistId'),
+    );
+    const amountLumina = this.decimal(input, 'amountLumina', 2000);
+
+    if (amountLumina.lte(0) || amountLumina.gt(100_000)) {
+      throw new BadRequestException('amountLumina must be between 0 and 100000');
+    }
+
+    const idempotencyKey = `qa:creator-settlement-revenue:${randomUUID()}`;
+    const title =
+      this.optionalString(input, 'title') ?? 'QA creator settlement revenue';
+    const body =
+      this.optionalString(input, 'body') ??
+      'Temporary QA fan letter revenue for Creator Studio settlement conversion testing.';
+    const fanLetter = await this.prisma.fanLetter.create({
+      data: {
+        senderUserId: user.id,
+        artistId: operator.artistId,
+        status: 'submitted',
+        moderationStatus: 'approved',
+        amountLumina,
+        title,
+        body,
+        idempotencyKey,
+        metadata: this.toJson({
+          qaCreatorSettlementRevenue: true,
+          source: 'backstage_qa_tool',
+          purpose: 'creator_studio_settlement_conversion_test',
+          operatorUserId: targetUser.id,
+          artistId: operator.artistId,
+          createdByAdminUserId: user.id,
+          amountLumina: amountLumina.toString(),
+          cleanup: 'Use response.cleanup.path to delete this QA record.',
+          walletLedgerCreated: false,
+        }),
+      },
+      select: {
+        id: true,
+        artistId: true,
+        senderUserId: true,
+        amountLumina: true,
+        status: true,
+        moderationStatus: true,
+        title: true,
+        idempotencyKey: true,
+        metadata: true,
+        createdAt: true,
+      },
+    });
+
+    await this.recordAudit(
+      user,
+      'backstage.qa_creator_settlement_revenue.create',
+      'fan_letter',
+      fanLetter.id,
+      null,
+      fanLetter,
+      {
+        operatorUserId: targetUser.id,
+        artistId: operator.artistId,
+        amountLumina: amountLumina.toString(),
+      },
+    );
+
+    return {
+      ok: true,
+      qa: true,
+      fanLetter: {
+        id: fanLetter.id,
+        artistId: fanLetter.artistId,
+        amountLumina: fanLetter.amountLumina,
+        status: fanLetter.status,
+        moderationStatus: fanLetter.moderationStatus,
+        title: fanLetter.title,
+        createdAt: fanLetter.createdAt,
+      },
+      operator: {
+        operatorId: operator.id,
+        userId: targetUser.id,
+        email: this.maskEmail(targetUser.email),
+        role: operator.role,
+      },
+      artist: operator.artist,
+      settlementPreview: {
+        userEndpoint: '/api/v1/me/creator-studio/settlement-preview',
+        adminEndpoint: '/admin/api/v1/backstage/operations/settlement-preview',
+        note: 'Refresh Creator Studio settlement after deploy to see the temporary amount.',
+      },
+      cleanup: {
+        method: 'DELETE',
+        path: `/admin/api/v1/backstage/operations/qa/creator-settlement-revenue/${fanLetter.id}`,
+      },
+      safety: {
+        envGate: 'ENABLE_BACKSTAGE_QA_TOOLS=true',
+        walletLedgerCreated: false,
+        removeAfterQa: true,
+        note: 'This QA fan letter affects settlement previews until it is deleted.',
+      },
+    };
+  }
+
+  async deleteBackstageQaCreatorSettlementRevenue(
+    user: AuthUser,
+    fanLetterId: string,
+  ) {
+    this.assertBackstageQaToolsEnabled();
+
+    if (!this.isUuid(fanLetterId)) {
+      throw new BadRequestException('fanLetterId must be a UUID');
+    }
+
+    const before = await this.prisma.fanLetter.findUnique({
+      where: { id: fanLetterId },
+      select: {
+        id: true,
+        artistId: true,
+        senderUserId: true,
+        walletLedgerId: true,
+        amountLumina: true,
+        status: true,
+        moderationStatus: true,
+        title: true,
+        idempotencyKey: true,
+        metadata: true,
+        createdAt: true,
+      },
+    });
+
+    if (!before) {
+      throw new NotFoundException('QA settlement revenue fan letter not found');
+    }
+
+    const metadata = this.metadataObject(before.metadata);
+    if (
+      metadata.qaCreatorSettlementRevenue !== true ||
+      !before.idempotencyKey?.startsWith('qa:creator-settlement-revenue:')
+    ) {
+      throw new BadRequestException('Only QA settlement revenue fan letters can be deleted here');
+    }
+
+    await this.prisma.fanLetter.delete({ where: { id: fanLetterId } });
+    await this.recordAudit(
+      user,
+      'backstage.qa_creator_settlement_revenue.delete',
+      'fan_letter',
+      fanLetterId,
+      before,
+      null,
+      {
+        artistId: before.artistId,
+        amountLumina: before.amountLumina.toString(),
+      },
+    );
+
+    return {
+      ok: true,
+      deleted: true,
+      fanLetterId,
+      note: 'Refresh Creator Studio settlement preview after deletion.',
+    };
+  }
+
   async getBackstageSettlementPreview(query: AuditQuery) {
     const pagination = this.adminPagination(query, 20);
     const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
@@ -6043,6 +6213,73 @@ export class AdminService {
         },
       },
     } satisfies Prisma.UserSelect;
+  }
+
+  private assertBackstageQaToolsEnabled() {
+    if (this.configService.get<string>('ENABLE_BACKSTAGE_QA_TOOLS') === 'true') {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'Backstage QA tools are disabled. Set ENABLE_BACKSTAGE_QA_TOOLS=true temporarily.',
+    );
+  }
+
+  private async findQaCreatorSettlementUser(input: AdminPayload) {
+    const userId = this.optionalString(input, 'userId');
+    const email =
+      this.optionalString(input, 'operatorEmail') ??
+      this.optionalString(input, 'email');
+
+    if (!userId && !email) {
+      throw new BadRequestException('userId, operatorEmail, or email is required');
+    }
+
+    if (userId && !this.isUuid(userId)) {
+      throw new BadRequestException('userId must be a UUID');
+    }
+
+    const targetUser = userId
+      ? await this.prisma.user.findUnique({ where: { id: userId } })
+      : await this.prisma.user.findFirst({
+          where: {
+            email: { equals: email?.toLowerCase(), mode: 'insensitive' },
+          },
+        });
+
+    if (!targetUser || targetUser.status !== 'active' || targetUser.deletedAt) {
+      throw new NotFoundException('Active creator operator user not found');
+    }
+
+    return targetUser;
+  }
+
+  private async findQaCreatorSettlementOperator(userId: string, artistId?: string) {
+    if (artistId && !this.isUuid(artistId)) {
+      throw new BadRequestException('artistId must be a UUID');
+    }
+
+    const operators = await this.prisma.artistOperator.findMany({
+      where: {
+        userId,
+        ...(artistId ? { artistId } : {}),
+        status: 'active',
+        revokedAt: null,
+      },
+      include: this.artistOperatorInclude(),
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    const operator = operators[0];
+    if (!operator) {
+      throw new NotFoundException(
+        artistId
+          ? 'Active artist operator row not found for this user and artist'
+          : 'Active artist operator row not found for this user',
+      );
+    }
+
+    return operator;
   }
 
   private async findCreatorAccessArtist(input: AdminPayload) {

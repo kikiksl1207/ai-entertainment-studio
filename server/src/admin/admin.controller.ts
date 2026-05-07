@@ -77,6 +77,24 @@ export class AdminController {
     return this.adminService.getBackstageObjectStorageDiagnostics();
   }
 
+  @Post('backstage/operations/qa/creator-settlement-revenue')
+  @RequireAdminPermissions('*')
+  createBackstageQaCreatorSettlementRevenue(
+    @CurrentUser() user: AuthUser,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.createBackstageQaCreatorSettlementRevenue(user, body);
+  }
+
+  @Delete('backstage/operations/qa/creator-settlement-revenue/:fanLetterId')
+  @RequireAdminPermissions('*')
+  deleteBackstageQaCreatorSettlementRevenue(
+    @CurrentUser() user: AuthUser,
+    @Param('fanLetterId') fanLetterId: string,
+  ) {
+    return this.adminService.deleteBackstageQaCreatorSettlementRevenue(user, fanLetterId);
+  }
+
   @Post('backstage/operations/feed-search-blocked-terms')
   @RequireAdminPermissions('*')
   createBackstageFeedSearchBlockedTerm(
