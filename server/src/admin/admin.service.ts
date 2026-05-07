@@ -126,6 +126,7 @@ const WALLET_ADJUSTMENT_REASONS = new Set([
   'qa_test',
   'manual_correction',
 ]);
+const WALLET_ADJUSTMENT_PLACEHOLDER_NOTES = new Set(['백스테이지 운영 처리']);
 
 @Injectable()
 export class AdminService {
@@ -6297,6 +6298,10 @@ export class AdminService {
       throw new BadRequestException('note is required for wallet adjustments');
     }
 
+    if (WALLET_ADJUSTMENT_PLACEHOLDER_NOTES.has(note)) {
+      throw new BadRequestException('operator-entered note is required for wallet adjustments');
+    }
+
     return note;
   }
 
@@ -6460,9 +6465,45 @@ export class AdminService {
               currencyCode: DEFAULT_CURRENCY,
             },
           }));
-        const beforeBalance = existingWallet?.cachedBalance ?? new Decimal(0);
-        const afterBalance =
-          direction === 'credit' ? beforeBalance.plus(amount) : beforeBalance.minus(amount);
+        let beforeBalance: Decimal;
+        let afterBalance: Decimal;
+
+        if (direction === 'credit') {
+          const updatedWallet = await tx.walletAccount.update({
+            where: { id: wallet.id },
+            data: {
+              cachedBalance: { increment: amount },
+              updatedAt: now,
+            },
+            select: { cachedBalance: true },
+          });
+          afterBalance = updatedWallet.cachedBalance;
+          beforeBalance = afterBalance.minus(amount);
+        } else {
+          const updated = await tx.walletAccount.updateMany({
+            where: {
+              id: wallet.id,
+              status: 'active',
+              cachedBalance: { gte: amount },
+            },
+            data: {
+              cachedBalance: { decrement: amount },
+              updatedAt: now,
+            },
+          });
+
+          if (updated.count !== 1) {
+            throw new BadRequestException(`Insufficient Lumina balance for user ${target.id}`);
+          }
+
+          const updatedWallet = await tx.walletAccount.findUniqueOrThrow({
+            where: { id: wallet.id },
+            select: { cachedBalance: true },
+          });
+          afterBalance = updatedWallet.cachedBalance;
+          beforeBalance = afterBalance.plus(amount);
+        }
+
         const idempotencyKey = `admin-wallet-adjustment:${batchId}:${target.id}`;
         const ledger = await tx.walletLedger.create({
           data: {
@@ -6473,17 +6514,6 @@ export class AdminService {
             referenceType: 'admin_wallet_adjustment',
             idempotencyKey,
             memo: `[${reasonType}] ${note}`.slice(0, 500),
-          },
-        });
-
-        await tx.walletAccount.update({
-          where: { id: wallet.id },
-          data: {
-            cachedBalance:
-              direction === 'credit'
-                ? { increment: amount }
-                : { decrement: amount },
-            updatedAt: now,
           },
         });
 

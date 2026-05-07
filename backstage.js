@@ -2175,7 +2175,8 @@ function buildActionRequest(detail, action) {
   const meta = detail?.meta || {};
   const form = collectDetailFormData() || {};
   const note = detailMemo.value.trim();
-  const reason = firstValue(form.reason, form.reviewMemo, form.adminNote, form.detail, note, "백스테이지 운영 처리");
+  const reason = firstValue(form.reason, form.reviewMemo, form.adminNote, form.detail, form.note, note, "백스테이지 운영 처리");
+  const walletAdjustmentNote = firstValue(form.note, form.reason, form.reviewMemo, form.adminNote, form.detail, note);
   const quickTitle = row[0] || "";
 
   if (quickTitle === "운영자 계정 초대") {
@@ -2215,7 +2216,7 @@ function buildActionRequest(detail, action) {
         direction: form.direction || "credit",
         amountLumina: form.amountLumina || 100,
         reasonType: form.reasonType || "manual_correction",
-        note: reason
+        note: walletAdjustmentNote
       }
     };
   }
@@ -2229,7 +2230,7 @@ function buildActionRequest(detail, action) {
         direction: form.direction || "credit",
         amountLumina: form.amountLumina || 100,
         reasonType: form.reasonType || "manual_correction",
-        note: reason
+        note: walletAdjustmentNote
       }
     };
   }
@@ -2627,6 +2628,10 @@ function buildActionPreview(action) {
   const form = collectDetailFormData();
   const apiRequest = resolveExecutableEndpoint(profile.endpoint, detail, action);
   const isMutation = apiRequest && apiRequest.method !== "GET";
+  const walletAdjustmentNote = profile.targetType === "walletAdjustment"
+    ? firstValue(form.note, form.reason, form.reviewMemo, form.adminNote, form.detail, memo)
+    : null;
+  const walletAdjustmentMissingNote = profile.targetType === "walletAdjustment" && !walletAdjustmentNote;
   const creatorApprovalNeedsArtist =
     detail?.tableId === "creatorRows" &&
     action !== "memo" &&
@@ -2643,26 +2648,30 @@ function buildActionPreview(action) {
     requestedAction: action === "danger" ? currentAction : action,
     method: profile.method,
     apiHint: profile.endpoint,
-    status: isLocalOnly ? "처리 이력 기록" : apiRequest ? (isMutation ? "저장 가능" : "조회 가능") : "대상 ID 또는 필수값 확인 필요",
+    status: walletAdjustmentMissingNote
+      ? "처리 사유 입력 필요"
+      : isLocalOnly ? "처리 이력 기록" : apiRequest ? (isMutation ? "저장 가능" : "조회 가능") : "대상 ID 또는 필수값 확인 필요",
     bodyPreview: {
       targetType: profile.targetType,
       target,
       action: action === "danger" ? currentAction : action,
       form,
-      reason: memo || "운영 메모 미입력",
-      note: memo || "운영 메모 미입력"
+      reason: walletAdjustmentMissingNote ? "처리 사유 미입력" : memo || walletAdjustmentNote || "운영 메모 미입력",
+      note: walletAdjustmentMissingNote ? "처리 사유 미입력" : memo || walletAdjustmentNote || "운영 메모 미입력"
     },
-    note: memo || "운영 메모 미입력",
+    note: walletAdjustmentMissingNote ? "처리 사유 미입력" : memo || walletAdjustmentNote || "운영 메모 미입력",
     warning: creatorApprovalNeedsArtist
       ? "승인하려면 로그인 이메일과 연결 아티스트 선택이 필요합니다. 운영자는 slug를 입력하지 않고 아티스트 이름만 선택하면 됩니다."
+      : walletAdjustmentMissingNote
+      ? "루미나 조정은 운영자가 직접 입력한 처리 사유가 필요합니다."
       : isLocalOnly
       ? "현재 화면에 운영 메모와 처리 이력을 남깁니다. 처리 사유를 확인한 뒤 진행하세요."
       : apiRequest
         ? (isMutation ? profile.warning : "조회만 하는 항목입니다. 변경/제재/지급 같은 위험 처리는 별도 확정 전까지 잠가둡니다.")
       : profile.warning,
     canRunLocally: creatorApprovalNeedsArtist ? false : isLocalOnly,
-    canRunApi: creatorApprovalNeedsArtist ? false : Boolean(apiRequest),
-    apiRequest: creatorApprovalNeedsArtist ? null : apiRequest
+    canRunApi: creatorApprovalNeedsArtist || walletAdjustmentMissingNote ? false : Boolean(apiRequest),
+    apiRequest: creatorApprovalNeedsArtist || walletAdjustmentMissingNote ? null : apiRequest
   };
   return base;
 }
