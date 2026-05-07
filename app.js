@@ -3537,16 +3537,16 @@ function bindFeedAssetLightbox() {
   });
   // 우클릭 차단 — 피드 이미지 영역 + 썸네일·아바타·미리보기까지
   document.addEventListener("contextmenu", e => {
-    if (e.target.closest(".feed-post-asset-item, .feed-post-asset-item img, .feed-link-preview-thumb img, .feed-post-avatar img, .lightbox-img, .lightbox-overlay")) {
+    if (e.target.closest("[data-feed-asset], [data-feed-asset-group], .feed-post-assets, .feed-post-asset-item, .feed-link-preview-thumb img, .feed-post-avatar img, .lightbox-stage, .lightbox-img, .lightbox-overlay")) {
       e.preventDefault();
     }
-  });
+  }, { capture: true, passive: false });
   // 드래그 차단 (이미지 끌어서 저장 방지)
   document.addEventListener("dragstart", e => {
-    if (e.target.closest(".feed-post-asset-item img, .lightbox-img")) {
+    if (e.target.closest("[data-feed-asset], .feed-post-asset-item img, .lightbox-img")) {
       e.preventDefault();
     }
-  });
+  }, { capture: true, passive: false });
 }
 
 /* 카드 더보기/접기 토글 — 이벤트 위임 (한 번만 등록).
@@ -3582,28 +3582,41 @@ const FEED_ALLOWED_IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp", "imag
 let _feedComposeAssets = []; // [{ assetId, previewUrl, fileName, mimeType }]
 let _feedComposeUploading = false;
 
+function feedResolveAssetUrl(entry, type = "full") {
+  if (typeof entry === "string") return normalizeAssetUrl(entry);
+  const asset = entry?.asset && typeof entry.asset === "object" ? entry.asset : {};
+  const primary = type === "thumb"
+    ? asset.thumbnailUrl || asset.thumbUrl || entry?.thumbnailUrl || entry?.thumbUrl || asset.url || asset.publicUrl || entry?.url || entry?.publicUrl
+    : asset.url || asset.publicUrl || entry?.url || entry?.publicUrl || asset.thumbnailUrl || entry?.thumbnailUrl || asset.storageKey || entry?.storageKey;
+  return primary ? normalizeAssetUrl(primary) : "";
+}
+
 /* 카드의 이미지 그리드 렌더 (post.assets[].asset.url 기반) */
 function renderFeedPostAssets(assets) {
   if (!Array.isArray(assets) || assets.length === 0) return "";
   const items = assets
-    .filter(a => a?.asset?.url)
+    .map(a => ({
+      fullUrl: feedResolveAssetUrl(a, "full"),
+      thumbUrl: feedResolveAssetUrl(a, "thumb"),
+    }))
+    .filter(item => item.fullUrl)
     .slice(0, FEED_COMPOSE_MAX_IMAGES);
   if (items.length === 0) return "";
   const gridClass = `feed-post-assets feed-post-assets-${items.length}`;
   const isMulti = items.length > 1;
   // 라이트박스용 src 묶음을 부모에 데이터로 (다음/이전 슬라이드 가능)
-  const sources = items.map(a => a.asset.url).join("|");
+  const sources = items.map(item => item.fullUrl).join("|");
   return `
     <div class="${gridClass}${isMulti ? ' has-multi' : ''}" data-feed-asset-group="${feedEscapeHtml(sources)}">
       ${items.map((a, idx) => {
-        const src = feedEscapeHtml(a.asset.thumbnailUrl || a.asset.url);
-        const full = feedEscapeHtml(a.asset.url);
+        const src = feedEscapeHtml(a.thumbUrl || a.fullUrl);
+        const full = feedEscapeHtml(a.fullUrl);
         const badge = (idx === 0 && isMulti)
           ? `<span class="feed-asset-multi-badge" aria-label="${items.length}장의 이미지"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 5h12v10H4zM18 7h2v10H8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>${items.length}</span>`
           : "";
-        return `<a class="feed-post-asset-item" href="${full}" target="_blank" rel="noopener noreferrer" data-feed-asset data-asset-index="${idx}" data-asset-url="${full}">
+        return `<a class="feed-post-asset-item" href="${full}" rel="noopener noreferrer" data-feed-asset data-asset-index="${idx}" data-asset-url="${full}" oncontextmenu="return false;" draggable="false">
           ${badge}
-          <img src="${src}" alt="" loading="lazy" oncontextmenu="return false;" draggable="false" onerror="this.parentElement.classList.add('is-broken');this.style.display='none';" />
+          <img src="${src}" data-full-src="${full}" alt="" loading="lazy" oncontextmenu="return false;" draggable="false" onerror="if(!this.dataset.fullTried&&this.dataset.fullSrc&&this.src!==this.dataset.fullSrc){this.dataset.fullTried='1';this.src=this.dataset.fullSrc;}else{this.parentElement.classList.add('is-broken');this.style.display='none';}" />
         </a>`;
       }).join("")}
     </div>
@@ -7399,20 +7412,21 @@ function bindContentProtection() {
   const protectedSelector = [
     ".catalog-media img", ".artist-media img", ".short-media img",
     ".detail-hero-card img", ".detail-short-media img",
-    ".feed-post-asset-item img", ".feed-link-preview-thumb img",
+    "[data-feed-asset]", "[data-feed-asset-group]", ".feed-post-assets", ".feed-post-asset-item", ".feed-post-asset-item img", ".feed-link-preview-thumb img",
     ".gallery-slide img",        // 포토 갤러리 슬라이드 (cell 안 img)
     "#galleryTrack img",         // 갤러리 트랙(id) 안 모든 img
     "#gallerySlider img",        // 갤러리 슬라이더(id) 안 모든 img
     ".encar-main-img",           // 라이트박스 메인 이미지
     ".encar-thumb",              // 라이트박스 하단 썸네일
+    ".lightbox-overlay", ".lightbox-stage", ".lightbox-img",
     ".mypage-profile-image img"
   ].join(", ");
   document.addEventListener("contextmenu", e => {
-    if (e.target.matches?.(protectedSelector)) e.preventDefault();
+    if (e.target.closest?.(protectedSelector)) e.preventDefault();
   }, { passive: false });
   // 드래그 시작 방지 (CSS user-drag와 함께 이중 보강)
   document.addEventListener("dragstart", e => {
-    if (e.target.matches?.(protectedSelector)) e.preventDefault();
+    if (e.target.closest?.(protectedSelector)) e.preventDefault();
   }, { passive: false });
 }
 

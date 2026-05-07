@@ -467,6 +467,59 @@
         background: rgba(255, 95, 130, 0.18);
         color: #ff5f82;
       }
+      @media (max-width: 760px) {
+        body.page-creator-studio {
+          padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+        }
+        .studio-sidebar {
+          padding: 16px 14px 0;
+          border-right: 0;
+          background: transparent;
+          backdrop-filter: none;
+        }
+        .studio-main {
+          padding-bottom: calc(106px + env(safe-area-inset-bottom, 0px));
+        }
+        .studio-nav {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 70;
+          display: flex;
+          grid-template-columns: none;
+          gap: 6px;
+          margin: 0;
+          padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+          overflow-x: auto;
+          background: rgba(9, 8, 18, 0.96);
+          border-top: 1px solid var(--line);
+          box-shadow: 0 -16px 36px rgba(0, 0, 0, 0.34);
+          scrollbar-width: none;
+        }
+        .studio-nav::-webkit-scrollbar {
+          display: none;
+        }
+        .studio-nav button {
+          flex: 0 0 84px;
+          min-height: 54px;
+          justify-content: center;
+          flex-direction: column;
+          gap: 4px;
+          padding: 6px 8px;
+          font-size: 11px;
+          text-align: center;
+          white-space: nowrap;
+        }
+        .studio-nav button.is-active::before {
+          display: none;
+        }
+        .studio-nav b {
+          min-width: 22px;
+          height: 20px;
+          font-size: 10px;
+        }
+      }
     </style>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4"></script>
