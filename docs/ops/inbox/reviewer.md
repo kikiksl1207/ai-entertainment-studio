@@ -25,3 +25,26 @@ blocked_by:
 next_needed:
 - Builder B fix the R2 endpoint readiness classification, then Reviewer/Integrator should run browser QA with authorized Backstage and Creator Studio accounts.
 - Integrator should run final npm.cmd run lint and npm.cmd run build after merge/integration.
+
+---
+
+status: done
+task: RV-001 re-review - Builder B R2 endpoint diagnostics fix
+branch/commit: reviewer/rv-001-review / this re-review commit
+changed_files:
+- docs/ops/inbox/reviewer.md
+tests:
+- git fetch --all --prune
+- git diff --stat origin/main...origin/builder-b-frontend
+- git diff --check origin/main...origin/builder-b-frontend
+- targeted review of origin/builder-b-frontend:backstage.js objectStorageSignal
+result:
+- Re-reviewed origin/builder-b-frontend at b36cb25 after Builder B's P2 fix.
+- Previous P2 is resolved. objectStorageSignal now checks storageProvider === "r2" with environment.endpointConfigured === false, or endpoint-related reason text, before the ready branch.
+- The direct upload ready branch now requires endpointReady, so R2 can only show "direct upload ready" when endpointConfigured is true.
+- This satisfies the BS-001 requirement to distinguish R2 endpoint missing from direct upload ready.
+blocked_by:
+- none
+next_needed:
+- Integrator can proceed with merge verification and browser QA for authorized Backstage / Creator Studio accounts.
+- Run final npm.cmd run lint and npm.cmd run build after integration.
