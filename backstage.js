@@ -22,6 +22,12 @@ const alertStrip = document.getElementById("backstageAlertStrip");
 const launchReadinessScore = document.getElementById("launchReadinessScore");
 const launchReadinessAlert = document.getElementById("launchReadinessAlert");
 const launchReadinessGrid = document.getElementById("launchReadinessGrid");
+const objectStorageReason = document.getElementById("objectStorageReason");
+const objectStorageDiagnosticGrid = document.getElementById("objectStorageDiagnosticGrid");
+const objectStorageUploadStats = document.getElementById("objectStorageUploadStats");
+const objectStorageActions = document.getElementById("objectStorageActions");
+const objectStoragePolicy = document.getElementById("objectStoragePolicy");
+const objectStorageRefreshButton = document.getElementById("objectStorageRefreshButton");
 const detailPanel = document.getElementById("backstageDetailPanel");
 const detailType = document.getElementById("detailType");
 const detailTitle = document.getElementById("detailTitle");
@@ -2977,6 +2983,99 @@ async function loadLaunchReadiness() {
   }
 }
 
+function storageConfiguredLabel(value) {
+  return value ? "configured" : "missing";
+}
+
+function storageBooleanLabel(value) {
+  return value ? "enabled" : "disabled";
+}
+
+function objectStorageSignal(data = {}) {
+  const env = data.environment || {};
+  const storageProvider = String(env.storageProvider || "").toLowerCase();
+  const reason = String(data.reason || "").toLowerCase();
+  if ((storageProvider === "r2" && env.endpointConfigured === false) || reason.includes("endpoint")) {
+    return { label: "R2 endpoint missing", tone: "warning" };
+  }
+  const endpointReady = storageProvider !== "r2" || env.endpointConfigured === true;
+  if (env.directUploadMode && env.bucketConfigured && env.publicBaseUrlConfigured && env.accessKeyConfigured && env.secretKeyConfigured && endpointReady) {
+    return { label: "direct upload ready", tone: "ready" };
+  }
+  if (reason.includes("public") || env.publicBaseUrlConfigured === false) {
+    return { label: "public URL missing", tone: "warning" };
+  }
+  return { label: "direct upload env incomplete", tone: "warning" };
+}
+
+function renderObjectStorageDiagnostics(data = {}) {
+  if (!objectStorageReason || !objectStorageDiagnosticGrid || !objectStorageUploadStats || !objectStorageActions || !objectStoragePolicy) return;
+  const env = data.environment || {};
+  const uploads = data.recentUserImageUploads24h || {};
+  const signal = objectStorageSignal(data);
+  const reason = data.reason || signal.label;
+  objectStorageReason.classList.toggle("is-ready", signal.tone === "ready");
+  objectStorageReason.classList.toggle("is-warning", signal.tone !== "ready");
+  objectStorageReason.textContent = `${signal.label}: ${reason}`;
+
+  objectStorageDiagnosticGrid.innerHTML = [
+    ["Direct upload", storageBooleanLabel(env.directUploadMode), `provider: ${env.storageProvider || "-"}`],
+    ["Bucket", storageConfiguredLabel(env.bucketConfigured), "bucket name is never shown"],
+    ["Public URL", storageConfiguredLabel(env.publicBaseUrlConfigured), "public base URL setting"],
+    ["R2 credentials", `${storageConfiguredLabel(env.accessKeyConfigured)} / ${storageConfiguredLabel(env.secretKeyConfigured)}`, "configured flags only"]
+  ].map(([label, value, helper]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(helper)}</small></article>`).join("");
+
+  objectStorageUploadStats.innerHTML = [
+    ["Total", uploads.total],
+    ["Pending", uploads.pendingUpload],
+    ["Uploaded", uploads.uploaded],
+    ["Failed/Unconfirmed", uploads.failedOrUnconfirmed]
+  ].map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${formatCount(value)}</dd></div>`).join("");
+
+  const actions = []
+    .concat(Array.isArray(data.warnings) ? data.warnings : [])
+    .concat(Array.isArray(data.nextActions) ? data.nextActions : []);
+  objectStorageActions.innerHTML = actions.length
+    ? actions.slice(0, 6).map((item) => `<li>${escapeHtml(item)}</li>`).join("")
+    : "<li>추가 경고가 없습니다. 업로드 QA를 계속 진행하세요.</li>";
+  const secretsReturned = data.policy?.secretsReturned === false;
+  objectStoragePolicy.textContent = secretsReturned
+    ? "민감 값 반환 정책: 안전, 실제 값 없음"
+    : "민감 값 반환 정책: 응답 정책 확인 필요, 값은 화면에 표시하지 않음";
+}
+
+function renderObjectStorageDiagnosticsFallback() {
+  renderObjectStorageDiagnostics({
+    reason: "diagnostics endpoint unavailable",
+    environment: {
+      storageProvider: "-",
+      directUploadMode: false,
+      bucketConfigured: false,
+      publicBaseUrlConfigured: false,
+      accessKeyConfigured: false,
+      secretKeyConfigured: false
+    },
+    recentUserImageUploads24h: { total: 0, pendingUpload: 0, uploaded: 0, failedOrUnconfirmed: 0 },
+    warnings: ["진단 API 응답을 불러오지 못했습니다."],
+    nextActions: ["관리자 세션과 백엔드 배포 상태를 확인하세요."],
+    policy: { secretsReturned: false }
+  });
+}
+
+async function loadObjectStorageDiagnostics() {
+  if (!objectStorageRefreshButton) return;
+  objectStorageRefreshButton.disabled = true;
+  try {
+    const data = await backstageFetch(adminApiPath("/backstage/operations/object-storage/diagnostics"), { auth: true });
+    renderObjectStorageDiagnostics(data);
+  } catch (error) {
+    console.warn("Object storage diagnostics fallback:", error);
+    renderObjectStorageDiagnosticsFallback();
+  } finally {
+    objectStorageRefreshButton.disabled = false;
+  }
+}
+
 async function loadBackstageSummary() {
   try {
     const summary = await backstageFetch(adminApiPath("/backstage/summary"), { auth: true });
@@ -3550,6 +3649,7 @@ function loadSection(sectionId) {
     renderBackstageTables();
     loadBackstageSummary();
     loadLaunchReadiness();
+    loadObjectStorageDiagnostics();
     return;
   }
   sectionLoaders[sectionId]?.();
@@ -3736,6 +3836,7 @@ refreshButton.addEventListener("click", () => {
   updateTodayLabel();
   loadSection(sectionId);
 });
+objectStorageRefreshButton?.addEventListener("click", loadObjectStorageDiagnostics);
 
 bootstrapBackstage();
 

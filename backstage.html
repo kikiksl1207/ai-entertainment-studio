@@ -135,6 +135,42 @@
             </div>
           </section>
 
+          <section class="object-storage-diagnostics overview-only" id="objectStorageDiagnosticsSection" aria-label="Object storage diagnostics">
+            <header>
+              <div>
+                <span class="section-kicker">Storage Ops</span>
+                <h2>Object storage diagnostics</h2>
+                <p>업로드 장애 원인을 안전한 상태값으로만 확인합니다. 민감 설정값이나 raw env 값은 표시하지 않습니다.</p>
+              </div>
+              <button class="secondary-action" type="button" id="objectStorageRefreshButton">진단 새로고침</button>
+            </header>
+            <div class="storage-reason" id="objectStorageReason">진단 데이터를 불러오는 중입니다.</div>
+            <div class="storage-diagnostic-grid" id="objectStorageDiagnosticGrid">
+              <article><span>Direct upload</span><strong>확인 중</strong><small>signed upload mode</small></article>
+              <article><span>Bucket</span><strong>확인 중</strong><small>configured 여부</small></article>
+              <article><span>Public URL</span><strong>확인 중</strong><small>configured 여부</small></article>
+              <article><span>R2 keys</span><strong>확인 중</strong><small>configured 여부</small></article>
+            </div>
+            <div class="storage-diagnostic-body">
+              <div>
+                <h3>최근 24시간 업로드</h3>
+                <dl class="storage-upload-stats" id="objectStorageUploadStats">
+                  <div><dt>Total</dt><dd>확인 중</dd></div>
+                  <div><dt>Pending</dt><dd>확인 중</dd></div>
+                  <div><dt>Uploaded</dt><dd>확인 중</dd></div>
+                  <div><dt>Failed/Unconfirmed</dt><dd>확인 중</dd></div>
+                </dl>
+              </div>
+              <div>
+                <h3>Warnings / Next actions</h3>
+                <ul class="storage-actions" id="objectStorageActions">
+                  <li>진단 응답을 기다리고 있습니다.</li>
+                </ul>
+                <p class="storage-policy" id="objectStoragePolicy">민감 값 반환 정책: 확인 중</p>
+              </div>
+            </div>
+          </section>
+
           <section class="section-block is-active" id="overview">
             <div class="section-title">
               <div><span class="section-kicker">Dashboard</span><h2>오늘 확인할 업무</h2></div>
