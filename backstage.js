@@ -2799,7 +2799,11 @@ function openConfirmModal(action) {
     : action === "memo" ? "운영 메모를 저장할까요?" : action === "hold" ? "보류로 변경할까요?" : preview.canRunApi ? (isMutation ? "상태를 변경할까요?" : "상세 정보를 조회할까요?") : "필수 정보를 확인해 주세요";
   confirmMessage.textContent = preview.warning;
   confirmPayload.innerHTML = renderConfirmSummary(preview);
-  confirmRunButton.textContent = preview.canRunLocally ? "확인" : preview.canRunApi ? (isMutation ? "변경하기" : "조회하기") : "필수값 확인 필요";
+  confirmRunButton.textContent = preview.canRunLocally
+    ? "확인"
+    : preview.canRunApi
+      ? (preview.targetType === "walletAdjustment" ? "조정 실행" : isMutation ? "변경하기" : "조회하기")
+      : "필수값 확인 필요";
   confirmRunButton.disabled = !(preview.canRunLocally || preview.canRunApi);
   confirmModal.classList.remove("is-hidden");
 }
