@@ -24,3 +24,20 @@ blocked_by:
 - none
 next_needed:
 - Reviewer/Integrator browser QA with authorized Backstage and Creator Studio accounts against the deployed API.
+
+status: fixed
+task: Reviewer P2 - R2 endpoint diagnostics readiness signal
+branch/commit: main / bf1bf4a52416d44e2b83a221158636c97b2e582e
+changed_files:
+- backstage.js
+- docs/ops/inbox/builder-b.md
+tests:
+- node --check backstage.js
+- git diff --check
+result:
+- Updated objectStorageSignal so storageProvider r2 with environment.endpointConfigured false returns R2 endpoint missing / warning before any ready check.
+- Updated direct upload ready logic so R2 can only be ready when endpointConfigured is true.
+blocked_by:
+- none
+next_needed:
+- Reviewer re-check P2 on origin/builder-b-frontend.
