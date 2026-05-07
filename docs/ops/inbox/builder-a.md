@@ -25,7 +25,7 @@ next_needed:
 
 status: done
 task: BA-002 - 1st Fan Engagement Loop Backend Contract
-branch/commit: builder-a-backend/ba-002-fan-engagement-contract / pending
+branch/commit: builder-a-backend/ba-002-fan-engagement-contract / 1bec1c4224b2
 changed_files:
 - docs/ops/inbox/builder-a.md
 tests:
