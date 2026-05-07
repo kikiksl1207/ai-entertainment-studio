@@ -110,3 +110,31 @@ blocked_by:
 next_needed:
 - Builder A to confirm response shapes for mission, vote, proposal, achievement, public title, and Creator Studio task objects.
 - Integrator to decide whether first UI skeleton should be static placeholders or API-backed components after BA-002 lands.
+
+status: updated
+task: BB-002 - UI map visibility, mobile, and i18n follow-up
+branch/commit: main / pending
+changed_files:
+- docs/ops/inbox/builder-b.md
+tests:
+- git diff --check
+result:
+- Confirmed BB-002 task file and kept this as a documentation-only UI map.
+- Added explicit mobile and language/i18n considerations below for the same first-pass fan engagement loop.
+
+## BB-002 Mobile / i18n Notes
+
+- Mobile layout: each fan action should collapse to a single-column card or compact strip with one primary tap target. Avoid multi-button toolbars wider than the viewport. On `character-detail.html`, stack mission, vote, and one-line proposal vertically under the artist summary so users can act without horizontal scrolling.
+- Mobile tap behavior: mission completion and vote options should be 44px+ touch targets. Proposal submit should stay next to or below the one-line input depending on width, with disabled/loading state to prevent double submit.
+- Mobile feed behavior: `lumina-feed.html` fan proposal/reaction cards should reuse the existing feed card rhythm and not add a new dense dashboard block. AI reaction approval labels should be visible without opening a modal.
+- Mobile Creator Studio: `creator-studio.html` today tasks should use the existing table/card responsive pattern. If table columns overflow, prioritize `제안/초안`, `상태`, and one action button; move metadata into the detail modal.
+- Mobile Backstage: `backstage.html` fan engagement ops should be an operations card or table section that follows existing Backstage stacked mobile layout. Admin actions must not crowd the overview header.
+- Korean copy: keep all first-pass labels short and plain Korean, for example `오늘 참여`, `응원 완료`, `투표 완료`, `승인 대기`, `공개됨`. Avoid long explanatory text inside buttons.
+- Encoding risk: several existing static pages have had mojibake history, so new Korean strings should be edited and verified as UTF-8. Any inline script edits should be parsed after change and visually spot-checked for broken Korean.
+- i18n direction: if the surface already uses `data-i18n`, add keys instead of hard-coded strings. If the page is static-only for this pass, keep Korean literals grouped near the component renderer so later i18n extraction is simple.
+- Locale fallback: Builder A responses should return status keys (`requested`, `approved`, `published`, `held`) plus optional Korean labels. Frontend should prefer local label maps so English/status keys never leak into Korean UI.
+- Accessibility: one-tap mission and vote controls need `aria-pressed` or clear submitted state text. Public titles/badges should have text labels, not color-only meaning.
+blocked_by:
+- none for mapping; implementation still depends on Builder A response shapes.
+next_needed:
+- Push this branch and have Integrator/Builder A review endpoint names before UI skeleton work starts.
