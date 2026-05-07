@@ -22,6 +22,12 @@ const alertStrip = document.getElementById("backstageAlertStrip");
 const launchReadinessScore = document.getElementById("launchReadinessScore");
 const launchReadinessAlert = document.getElementById("launchReadinessAlert");
 const launchReadinessGrid = document.getElementById("launchReadinessGrid");
+const objectStorageReason = document.getElementById("objectStorageReason");
+const objectStorageDiagnosticGrid = document.getElementById("objectStorageDiagnosticGrid");
+const objectStorageUploadStats = document.getElementById("objectStorageUploadStats");
+const objectStorageActions = document.getElementById("objectStorageActions");
+const objectStoragePolicy = document.getElementById("objectStoragePolicy");
+const objectStorageRefreshButton = document.getElementById("objectStorageRefreshButton");
 const detailPanel = document.getElementById("backstageDetailPanel");
 const detailType = document.getElementById("detailType");
 const detailTitle = document.getElementById("detailTitle");
@@ -1148,6 +1154,8 @@ function openQuickAction(button) {
     "전체 보기": ["목록 전체 보기", "현재 표의 필터를 초기화하고 전체 데이터를 다시 보여줍니다.", "조회 준비"],
     "위험만 보기": ["위험 항목 필터", "신고, 정지, 높은 위험도 항목만 남겨서 봅니다.", "조회 준비"],
     "데뷔 신청 보기": ["데뷔 신청 목록", "신청서에 기재한 활동명, 소개, 연락 가능 시간, 자료 링크, 권리 확인 내용을 모두 보여줄 자리입니다.", "조회 준비"],
+    "단건 조정": ["루미나 단건 조정", "특정 유저 1명의 루미나를 이벤트 지급, 악용 회수, 고객지원 보정 사유로 추가하거나 차감합니다.", "POST /admin/api/v1/backstage/operations/wallet-adjustments"],
+    "대량 조정": ["루미나 대량 조정", "여러 유저에게 같은 루미나 금액을 한 번에 추가하거나 차감합니다. 최대 100명까지 처리합니다.", "POST /admin/api/v1/backstage/operations/wallet-adjustments/bulk"],
     "요청 보기": ["이미지 제작 요청", "유저 아티스트가 요청한 프로필/피드/숏폼 썸네일 제작 큐를 봅니다. 1차 정책은 100L, 재조정 3회, 최종 1장 기준입니다.", "조회 준비"],
     "AI 아티스트 추가": ["AI 아티스트 추가", "캐릭터 기본 정보, 만든 관리자, 공개 상태, 초기 프로필/에셋 체크리스트를 등록합니다.", "저장 준비"],
     "업로드 추가": ["AI 에셋 업로드", "아티스트와 슬롯을 먼저 선택합니다. cover/thumb은 자동 판단하지 않고 운영자가 지정합니다.", "업로드 준비"],
@@ -1329,7 +1337,52 @@ function renderDetailForm(detail) {
   const tableId = detail?.tableId;
   let html = "";
 
-  if (quickTitle === "AI 아티스트 추가" || tableId === "aiCreatorRows") {
+  if (quickTitle === "루미나 단건 조정") {
+    html = `
+      <h3>루미나 단건 수동 조정</h3>
+      <div class="detail-form-grid">
+        ${detailInput("유저 이메일", "email", "", "email", false, "user@example.com")}
+        ${detailInput("또는 User ID", "userId", "", "text", false, "UUID")}
+        ${detailSelect("조정 방향", "direction", [
+          { value: "credit", label: "추가" },
+          { value: "debit", label: "차감" }
+        ], "credit")}
+        ${detailInput("루미나 수량", "amountLumina", "100", "number")}
+        ${detailSelect("사유", "reasonType", [
+          { value: "event_grant", label: "이벤트 지급" },
+          { value: "abuse_reversal", label: "악용/오지급 회수" },
+          { value: "refund_correction", label: "환불/결제 보정" },
+          { value: "customer_support", label: "고객지원 보정" },
+          { value: "qa_test", label: "QA 테스트" },
+          { value: "manual_correction", label: "수동 보정" }
+        ], "event_grant", true)}
+        ${detailTextarea("처리 사유", "note", "예: 오픈 이벤트 지급 100L / 악용 확인으로 100L 회수")}
+      </div>
+      <p class="detail-form-note">확인 모달에서 대상과 수량을 다시 확인한 뒤 실행합니다. 처리 결과는 지갑 원장과 감사 로그에 남습니다.</p>
+    `;
+  } else if (quickTitle === "루미나 대량 조정") {
+    html = `
+      <h3>루미나 대량 수동 조정</h3>
+      <div class="detail-form-grid">
+        ${detailTextarea("대상 유저", "targetUsers", "user1@example.com\nuser2@example.com", true)}
+        ${detailSelect("조정 방향", "direction", [
+          { value: "credit", label: "추가" },
+          { value: "debit", label: "차감" }
+        ], "credit")}
+        ${detailInput("루미나 수량", "amountLumina", "100", "number")}
+        ${detailSelect("사유", "reasonType", [
+          { value: "event_grant", label: "이벤트 지급" },
+          { value: "abuse_reversal", label: "악용/오지급 회수" },
+          { value: "refund_correction", label: "환불/결제 보정" },
+          { value: "customer_support", label: "고객지원 보정" },
+          { value: "qa_test", label: "QA 테스트" },
+          { value: "manual_correction", label: "수동 보정" }
+        ], "event_grant", true)}
+        ${detailTextarea("처리 사유", "note", "예: 5월 출석 이벤트 참여자 일괄 지급 100L")}
+      </div>
+      <p class="detail-form-note">이메일 또는 User ID를 줄바꿈/쉼표로 입력합니다. 최대 100명까지 같은 금액으로 처리하며, 차감은 각 유저의 보유 잔액을 초과할 수 없습니다.</p>
+    `;
+  } else if (quickTitle === "AI 아티스트 추가" || tableId === "aiCreatorRows") {
     html = `
       <h3>AI 아티스트 기본 정보</h3>
       <div class="detail-form-grid">
@@ -1709,6 +1762,25 @@ function getActionProfile(detail, action = "memo") {
     };
   }
 
+  if (quickTitle === "루미나 단건 조정" || quickTitle === "루미나 대량 조정") {
+    const isBulk = quickTitle === "루미나 대량 조정";
+    return {
+      ...profile,
+      group: "루미나 지갑 수동 조정",
+      targetType: "walletAdjustment",
+      endpoint: isBulk
+        ? "POST /admin/api/v1/backstage/operations/wallet-adjustments/bulk"
+        : "POST /admin/api/v1/backstage/operations/wallet-adjustments",
+      method: "POST",
+      warning: "루미나 잔액이 실제 지갑에 반영됩니다. 대상, 방향, 수량, 처리 사유를 확인한 뒤 실행하세요. 차감은 보유 잔액을 초과할 수 없습니다.",
+      holdLabel: "조정 보류",
+      dangerLabel: isBulk ? "대량 조정 실행" : "단건 조정 실행",
+      showHold: true,
+      showDanger: true,
+      dangerDisabled: false
+    };
+  }
+
   if (tableId === "adminRows") {
     return {
       ...profile,
@@ -1997,6 +2069,14 @@ function firstValue(...values) {
   return values.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
 }
 
+function splitTargetUsers(value = "") {
+  return String(value || "")
+    .split(/[\n,;\t ]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((identifier) => identifier.includes("@") ? { email: identifier } : { userId: identifier });
+}
+
 function normalizeArtistSlugValue(...values) {
   const value = firstValue(...values);
   if (!value) return "";
@@ -2120,6 +2200,35 @@ function buildActionRequest(detail, action) {
       body: {
         roleName: firstRoleName(form.roles),
         status: form.status === "disabled" ? "suspended" : form.status || "active",
+        note: reason
+      }
+    };
+  }
+
+  if (quickTitle === "루미나 단건 조정") {
+    return {
+      method: "POST",
+      path: adminApiPath("/backstage/operations/wallet-adjustments"),
+      body: {
+        email: form.email || undefined,
+        userId: form.userId || undefined,
+        direction: form.direction || "credit",
+        amountLumina: form.amountLumina || 100,
+        reasonType: form.reasonType || "manual_correction",
+        note: reason
+      }
+    };
+  }
+
+  if (quickTitle === "루미나 대량 조정") {
+    return {
+      method: "POST",
+      path: adminApiPath("/backstage/operations/wallet-adjustments/bulk"),
+      body: {
+        targets: splitTargetUsers(form.targetUsers),
+        direction: form.direction || "credit",
+        amountLumina: form.amountLumina || 100,
+        reasonType: form.reasonType || "manual_correction",
         note: reason
       }
     };
@@ -2582,6 +2691,12 @@ function settlementConversionStatusLabel(status) {
 
 function actionChangeLabel(preview) {
   const form = preview?.bodyPreview?.form || {};
+  if (preview?.targetType === "walletAdjustment") {
+    const direction = form.direction === "debit" ? "차감" : "추가";
+    const amount = formatCount(form.amountLumina || preview?.apiRequest?.body?.amountLumina || 0);
+    const count = splitTargetUsers(form.targetUsers).length || (form.email || form.userId ? 1 : preview?.apiRequest?.body?.targets?.length || 0);
+    return `${amount}L ${direction}${count > 1 ? ` · ${formatCount(count)}명` : ""}`;
+  }
   if (preview?.targetType === "creatorSettlement" || preview?.targetType === "studioSettlement") {
     return settlementStatusLabel(form.settlementStatus || preview?.apiRequest?.body?.status);
   }
@@ -2648,6 +2763,13 @@ function renderConfirmSummary(preview, result = null) {
     ["처리 메모", preview.note],
     ["처리 방식", preview.canRunApi ? "서버에 저장" : "처리 이력 기록"]
   ];
+  if (preview?.targetType === "walletAdjustment") {
+    const form = preview?.bodyPreview?.form || {};
+    const targets = splitTargetUsers(form.targetUsers);
+    rows.splice(1, 0, ["조정 방향", form.direction === "debit" ? "차감" : "추가"]);
+    rows.splice(2, 0, ["루미나 수량", `${formatCount(form.amountLumina || 0)}L`]);
+    rows.splice(3, 0, ["대상 수", `${formatCount(targets.length || (form.email || form.userId ? 1 : 0))}명`]);
+  }
   if (result?.status) rows.unshift(["상태", result.status]);
   if (result?.message) rows.push(["결과", result.message]);
   return `
@@ -2663,7 +2785,9 @@ function openConfirmModal(action) {
   pendingActionPreview = preview;
   confirmType.textContent = preview.menu || "Confirm";
   const isMutation = preview.apiRequest && preview.apiRequest.method !== "GET";
-  confirmTitle.textContent = action === "memo" ? "운영 메모를 저장할까요?" : action === "hold" ? "보류로 변경할까요?" : preview.canRunApi ? (isMutation ? "상태를 변경할까요?" : "상세 정보를 조회할까요?") : "필수 정보를 확인해 주세요";
+  confirmTitle.textContent = preview.targetType === "walletAdjustment"
+    ? `${actionChangeLabel(preview)} 처리할까요?`
+    : action === "memo" ? "운영 메모를 저장할까요?" : action === "hold" ? "보류로 변경할까요?" : preview.canRunApi ? (isMutation ? "상태를 변경할까요?" : "상세 정보를 조회할까요?") : "필수 정보를 확인해 주세요";
   confirmMessage.textContent = preview.warning;
   confirmPayload.innerHTML = renderConfirmSummary(preview);
   confirmRunButton.textContent = preview.canRunLocally ? "확인" : preview.canRunApi ? (isMutation ? "변경하기" : "조회하기") : "필수값 확인 필요";
@@ -2974,6 +3098,99 @@ async function loadLaunchReadiness() {
   } catch (error) {
     console.warn("Launch readiness fallback:", error);
     renderLaunchReadinessFallback();
+  }
+}
+
+function storageConfiguredLabel(value) {
+  return value ? "configured" : "missing";
+}
+
+function storageBooleanLabel(value) {
+  return value ? "enabled" : "disabled";
+}
+
+function objectStorageSignal(data = {}) {
+  const env = data.environment || {};
+  const storageProvider = String(env.storageProvider || "").toLowerCase();
+  const reason = String(data.reason || "").toLowerCase();
+  if ((storageProvider === "r2" && env.endpointConfigured === false) || reason.includes("endpoint")) {
+    return { label: "R2 endpoint missing", tone: "warning" };
+  }
+  const endpointReady = storageProvider !== "r2" || env.endpointConfigured === true;
+  if (env.directUploadMode && env.bucketConfigured && env.publicBaseUrlConfigured && env.accessKeyConfigured && env.secretKeyConfigured && endpointReady) {
+    return { label: "direct upload ready", tone: "ready" };
+  }
+  if (reason.includes("public") || env.publicBaseUrlConfigured === false) {
+    return { label: "public URL missing", tone: "warning" };
+  }
+  return { label: "direct upload env incomplete", tone: "warning" };
+}
+
+function renderObjectStorageDiagnostics(data = {}) {
+  if (!objectStorageReason || !objectStorageDiagnosticGrid || !objectStorageUploadStats || !objectStorageActions || !objectStoragePolicy) return;
+  const env = data.environment || {};
+  const uploads = data.recentUserImageUploads24h || {};
+  const signal = objectStorageSignal(data);
+  const reason = data.reason || signal.label;
+  objectStorageReason.classList.toggle("is-ready", signal.tone === "ready");
+  objectStorageReason.classList.toggle("is-warning", signal.tone !== "ready");
+  objectStorageReason.textContent = `${signal.label}: ${reason}`;
+
+  objectStorageDiagnosticGrid.innerHTML = [
+    ["Direct upload", storageBooleanLabel(env.directUploadMode), `provider: ${env.storageProvider || "-"}`],
+    ["Bucket", storageConfiguredLabel(env.bucketConfigured), "bucket name is never shown"],
+    ["Public URL", storageConfiguredLabel(env.publicBaseUrlConfigured), "public base URL setting"],
+    ["R2 credentials", `${storageConfiguredLabel(env.accessKeyConfigured)} / ${storageConfiguredLabel(env.secretKeyConfigured)}`, "configured flags only"]
+  ].map(([label, value, helper]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(helper)}</small></article>`).join("");
+
+  objectStorageUploadStats.innerHTML = [
+    ["Total", uploads.total],
+    ["Pending", uploads.pendingUpload],
+    ["Uploaded", uploads.uploaded],
+    ["Failed/Unconfirmed", uploads.failedOrUnconfirmed]
+  ].map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${formatCount(value)}</dd></div>`).join("");
+
+  const actions = []
+    .concat(Array.isArray(data.warnings) ? data.warnings : [])
+    .concat(Array.isArray(data.nextActions) ? data.nextActions : []);
+  objectStorageActions.innerHTML = actions.length
+    ? actions.slice(0, 6).map((item) => `<li>${escapeHtml(item)}</li>`).join("")
+    : "<li>추가 경고가 없습니다. 업로드 QA를 계속 진행하세요.</li>";
+  const secretsReturned = data.policy?.secretsReturned === false;
+  objectStoragePolicy.textContent = secretsReturned
+    ? "민감 값 반환 정책: 안전, 실제 값 없음"
+    : "민감 값 반환 정책: 응답 정책 확인 필요, 값은 화면에 표시하지 않음";
+}
+
+function renderObjectStorageDiagnosticsFallback() {
+  renderObjectStorageDiagnostics({
+    reason: "diagnostics endpoint unavailable",
+    environment: {
+      storageProvider: "-",
+      directUploadMode: false,
+      bucketConfigured: false,
+      publicBaseUrlConfigured: false,
+      accessKeyConfigured: false,
+      secretKeyConfigured: false
+    },
+    recentUserImageUploads24h: { total: 0, pendingUpload: 0, uploaded: 0, failedOrUnconfirmed: 0 },
+    warnings: ["진단 API 응답을 불러오지 못했습니다."],
+    nextActions: ["관리자 세션과 백엔드 배포 상태를 확인하세요."],
+    policy: { secretsReturned: false }
+  });
+}
+
+async function loadObjectStorageDiagnostics() {
+  if (!objectStorageRefreshButton) return;
+  objectStorageRefreshButton.disabled = true;
+  try {
+    const data = await backstageFetch(adminApiPath("/backstage/operations/object-storage/diagnostics"), { auth: true });
+    renderObjectStorageDiagnostics(data);
+  } catch (error) {
+    console.warn("Object storage diagnostics fallback:", error);
+    renderObjectStorageDiagnosticsFallback();
+  } finally {
+    objectStorageRefreshButton.disabled = false;
   }
 }
 
@@ -3550,6 +3767,7 @@ function loadSection(sectionId) {
     renderBackstageTables();
     loadBackstageSummary();
     loadLaunchReadiness();
+    loadObjectStorageDiagnostics();
     return;
   }
   sectionLoaders[sectionId]?.();
@@ -3736,6 +3954,7 @@ refreshButton.addEventListener("click", () => {
   updateTodayLabel();
   loadSection(sectionId);
 });
+objectStorageRefreshButton?.addEventListener("click", loadObjectStorageDiagnostics);
 
 bootstrapBackstage();
 

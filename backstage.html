@@ -135,6 +135,42 @@
             </div>
           </section>
 
+          <section class="object-storage-diagnostics overview-only" id="objectStorageDiagnosticsSection" aria-label="Object storage diagnostics">
+            <header>
+              <div>
+                <span class="section-kicker">Storage Ops</span>
+                <h2>Object storage diagnostics</h2>
+                <p>업로드 장애 원인을 안전한 상태값으로만 확인합니다. 민감 설정값이나 raw env 값은 표시하지 않습니다.</p>
+              </div>
+              <button class="secondary-action" type="button" id="objectStorageRefreshButton">진단 새로고침</button>
+            </header>
+            <div class="storage-reason" id="objectStorageReason">진단 데이터를 불러오는 중입니다.</div>
+            <div class="storage-diagnostic-grid" id="objectStorageDiagnosticGrid">
+              <article><span>Direct upload</span><strong>확인 중</strong><small>signed upload mode</small></article>
+              <article><span>Bucket</span><strong>확인 중</strong><small>configured 여부</small></article>
+              <article><span>Public URL</span><strong>확인 중</strong><small>configured 여부</small></article>
+              <article><span>R2 keys</span><strong>확인 중</strong><small>configured 여부</small></article>
+            </div>
+            <div class="storage-diagnostic-body">
+              <div>
+                <h3>최근 24시간 업로드</h3>
+                <dl class="storage-upload-stats" id="objectStorageUploadStats">
+                  <div><dt>Total</dt><dd>확인 중</dd></div>
+                  <div><dt>Pending</dt><dd>확인 중</dd></div>
+                  <div><dt>Uploaded</dt><dd>확인 중</dd></div>
+                  <div><dt>Failed/Unconfirmed</dt><dd>확인 중</dd></div>
+                </dl>
+              </div>
+              <div>
+                <h3>Warnings / Next actions</h3>
+                <ul class="storage-actions" id="objectStorageActions">
+                  <li>진단 응답을 기다리고 있습니다.</li>
+                </ul>
+                <p class="storage-policy" id="objectStoragePolicy">민감 값 반환 정책: 확인 중</p>
+              </div>
+            </div>
+          </section>
+
           <section class="section-block is-active" id="overview">
             <div class="section-title">
               <div><span class="section-kicker">Dashboard</span><h2>오늘 확인할 업무</h2></div>
@@ -159,6 +195,7 @@
             <div class="table-grid is-stacked">
               <article class="table-card is-tall"><header><h3>가입 유저</h3><button class="text-action" type="button">전체 보기</button></header><div class="table-wrap"><table><thead><tr><th>유저</th><th>이메일</th><th>로그인</th><th>루미나</th><th>결제</th><th>신고</th><th>제재</th><th>팔로우</th><th>최근 접속</th><th>상태</th><th>액션</th></tr></thead><tbody id="userRows"></tbody></table></div></article>
               <article class="table-card"><header><h3>신고/제재 유저</h3><button class="text-action" type="button">위험만 보기</button></header><div class="table-wrap"><table><thead><tr><th>유저</th><th>사유</th><th>누적</th><th>상태</th><th>최근 조치</th><th>액션</th></tr></thead><tbody id="userRiskRows"></tbody></table></div></article>
+              <article class="table-card"><header><h3>루미나 수동 조정</h3><div class="card-actions"><button class="text-action" type="button">단건 조정</button><button class="text-action" type="button">대량 조정</button></div></header><p class="section-note">이벤트 지급, 악용 회수, 고객지원 보정은 지갑 원장과 감사 로그에 남긴 뒤 처리합니다. 차감은 보유 잔액을 초과할 수 없습니다.</p></article>
             </div>
             <button class="load-more-action is-hidden" type="button" data-load-more="users">유저 더 보기</button>
           </section>

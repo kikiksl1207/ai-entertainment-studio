@@ -5,17 +5,16 @@ Leader: Chamo
 
 ## Today Focus
 
-Backstage and Creator Studio should move forward without repeating the Creator Studio access blocker pattern. One worker may debug a blocker while others continue independent tasks.
+Move forward through team work, not one-person rushes. Wallet/cash-like features must be reviewed before we treat them as done. The next product direction is the 1st fan engagement loop from the 20-item PM review: one-tap missions, concept votes, fan one-line proposals, AI draft reactions, Creator Studio today tasks, and achievements/points/titles.
 
 ## Active Tasks
 
 | ID | Owner | Status | Task |
 | --- | --- | --- | --- |
-| BS-001 | Builder B | ready | Connect Backstage object storage diagnostics panel |
-| CS-001 | Builder B | ready | Connect Creator Studio settlement conversion request UI |
-| BA-001 | Builder A | ready | Verify Backstage/Creator Studio backend contracts and add missing backend notes only if needed |
-| RV-001 | Reviewer | waiting | Review Builder A/B diffs against acceptance criteria |
-| IN-001 | Integrator | waiting | Integrate finished Builder work and run final verification |
+| RV-002 | Reviewer | open | Review wallet adjustment controls already on main (`6e1c720`) before rollout confidence |
+| BA-002 | Builder A | open | Design backend contract for the 1st fan engagement loop |
+| BB-002 | Builder B | open | Map the 1st fan engagement loop to existing pages and minimal UI surfaces |
+| IN-002 | Integrator | waiting | Integrate BA/BB/RV outputs after branches are ready |
 
 ## Current Open Product Work From Notion
 
@@ -26,13 +25,14 @@ Backstage and Creator Studio should move forward without repeating the Creator S
 - #158 S3 upload real retest.
 - #164 Public profile cover change UI.
 - #165 Creator Studio settlement-to-Lumina request UI.
+- PM-20 Fan engagement expansion item review.
 
 ## Priority Today
 
-1. Creator Studio settlement conversion request UI (#165).
-2. Backstage object storage diagnostics visibility for upload blockers (#135/#158).
-3. Regression check that Creator Studio access gate still opens for authorized users.
-4. Reviewer/Integrator final lint/build.
+1. Review wallet adjustment safety before relying on it in production operations.
+2. Split the 20-item PM review into an implementable 1st fan engagement loop.
+3. Keep image upload/R2 diagnostics and Creator Studio access from regressing.
+4. Run lint/build on any branch that changes backend contracts.
 
 ## Do Not Do Today
 
@@ -40,3 +40,4 @@ Backstage and Creator Studio should move forward without repeating the Creator S
 - Do not start Lumina Red or adult-version work.
 - Do not read long Notion pages from Builder tabs.
 - Do not change secrets or create `.env` files on shared/borrowed computers.
+- Do not open cash-like wallet adjustment to non-super-admin roles.

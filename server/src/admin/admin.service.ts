@@ -118,6 +118,14 @@ const FEED_SEARCH_WINDOWS: Record<string, number> = {
   '24h': 24 * 60 * 60 * 1000,
   '7d': 7 * 24 * 60 * 60 * 1000,
 };
+const WALLET_ADJUSTMENT_REASONS = new Set([
+  'event_grant',
+  'abuse_reversal',
+  'refund_correction',
+  'customer_support',
+  'qa_test',
+  'manual_correction',
+]);
 
 @Injectable()
 export class AdminService {
@@ -1801,6 +1809,176 @@ export class AdminService {
       ok: true,
       item: this.creatorAccessItem(operator),
       policy: this.creatorAccessPolicy(),
+    };
+  }
+
+  async createBackstageQaCreatorSettlementRevenue(
+    user: AuthUser,
+    input: AdminPayload,
+  ) {
+    this.assertBackstageQaToolsEnabled();
+    const targetUser = await this.findQaCreatorSettlementUser(input);
+    const operator = await this.findQaCreatorSettlementOperator(
+      targetUser.id,
+      this.optionalString(input, 'artistId'),
+    );
+    const amountLumina = this.decimal(input, 'amountLumina', 2000);
+
+    if (amountLumina.lte(0) || amountLumina.gt(100_000)) {
+      throw new BadRequestException('amountLumina must be between 0 and 100000');
+    }
+
+    const idempotencyKey = `qa:creator-settlement-revenue:${randomUUID()}`;
+    const title =
+      this.optionalString(input, 'title') ?? 'QA creator settlement revenue';
+    const body =
+      this.optionalString(input, 'body') ??
+      'Temporary QA fan letter revenue for Creator Studio settlement conversion testing.';
+    const fanLetter = await this.prisma.fanLetter.create({
+      data: {
+        senderUserId: user.id,
+        artistId: operator.artistId,
+        status: 'submitted',
+        moderationStatus: 'approved',
+        amountLumina,
+        title,
+        body,
+        idempotencyKey,
+        metadata: this.toJson({
+          qaCreatorSettlementRevenue: true,
+          source: 'backstage_qa_tool',
+          purpose: 'creator_studio_settlement_conversion_test',
+          operatorUserId: targetUser.id,
+          artistId: operator.artistId,
+          createdByAdminUserId: user.id,
+          amountLumina: amountLumina.toString(),
+          cleanup: 'Use response.cleanup.path to delete this QA record.',
+          walletLedgerCreated: false,
+        }),
+      },
+      select: {
+        id: true,
+        artistId: true,
+        senderUserId: true,
+        amountLumina: true,
+        status: true,
+        moderationStatus: true,
+        title: true,
+        idempotencyKey: true,
+        metadata: true,
+        createdAt: true,
+      },
+    });
+
+    await this.recordAudit(
+      user,
+      'backstage.qa_creator_settlement_revenue.create',
+      'fan_letter',
+      fanLetter.id,
+      null,
+      fanLetter,
+      {
+        operatorUserId: targetUser.id,
+        artistId: operator.artistId,
+        amountLumina: amountLumina.toString(),
+      },
+    );
+
+    return {
+      ok: true,
+      qa: true,
+      fanLetter: {
+        id: fanLetter.id,
+        artistId: fanLetter.artistId,
+        amountLumina: fanLetter.amountLumina,
+        status: fanLetter.status,
+        moderationStatus: fanLetter.moderationStatus,
+        title: fanLetter.title,
+        createdAt: fanLetter.createdAt,
+      },
+      operator: {
+        operatorId: operator.id,
+        userId: targetUser.id,
+        email: this.maskEmail(targetUser.email),
+        role: operator.role,
+      },
+      artist: operator.artist,
+      settlementPreview: {
+        userEndpoint: '/api/v1/me/creator-studio/settlement-preview',
+        adminEndpoint: '/admin/api/v1/backstage/operations/settlement-preview',
+        note: 'Refresh Creator Studio settlement after deploy to see the temporary amount.',
+      },
+      cleanup: {
+        method: 'DELETE',
+        path: `/admin/api/v1/backstage/operations/qa/creator-settlement-revenue/${fanLetter.id}`,
+      },
+      safety: {
+        envGate: 'ENABLE_BACKSTAGE_QA_TOOLS=true',
+        walletLedgerCreated: false,
+        removeAfterQa: true,
+        note: 'This QA fan letter affects settlement previews until it is deleted.',
+      },
+    };
+  }
+
+  async deleteBackstageQaCreatorSettlementRevenue(
+    user: AuthUser,
+    fanLetterId: string,
+  ) {
+    this.assertBackstageQaToolsEnabled();
+
+    if (!this.isUuid(fanLetterId)) {
+      throw new BadRequestException('fanLetterId must be a UUID');
+    }
+
+    const before = await this.prisma.fanLetter.findUnique({
+      where: { id: fanLetterId },
+      select: {
+        id: true,
+        artistId: true,
+        senderUserId: true,
+        walletLedgerId: true,
+        amountLumina: true,
+        status: true,
+        moderationStatus: true,
+        title: true,
+        idempotencyKey: true,
+        metadata: true,
+        createdAt: true,
+      },
+    });
+
+    if (!before) {
+      throw new NotFoundException('QA settlement revenue fan letter not found');
+    }
+
+    const metadata = this.metadataObject(before.metadata);
+    if (
+      metadata.qaCreatorSettlementRevenue !== true ||
+      !before.idempotencyKey?.startsWith('qa:creator-settlement-revenue:')
+    ) {
+      throw new BadRequestException('Only QA settlement revenue fan letters can be deleted here');
+    }
+
+    await this.prisma.fanLetter.delete({ where: { id: fanLetterId } });
+    await this.recordAudit(
+      user,
+      'backstage.qa_creator_settlement_revenue.delete',
+      'fan_letter',
+      fanLetterId,
+      before,
+      null,
+      {
+        artistId: before.artistId,
+        amountLumina: before.amountLumina.toString(),
+      },
+    );
+
+    return {
+      ok: true,
+      deleted: true,
+      fanLetterId,
+      note: 'Refresh Creator Studio settlement preview after deletion.',
     };
   }
 
@@ -4007,6 +4185,34 @@ export class AdminService {
     return product;
   }
 
+  async createBackstageWalletAdjustment(user: AuthUser, input: AdminPayload) {
+    this.assertSuperAdmin(user);
+    const targets = await this.walletAdjustmentTargets(input, 1);
+
+    if (targets.length !== 1) {
+      throw new BadRequestException('Exactly one wallet adjustment target is required');
+    }
+
+    const result = await this.applyWalletAdjustments(user, input, targets);
+    return {
+      ok: true,
+      mode: 'single',
+      ...result,
+    };
+  }
+
+  async createBackstageBulkWalletAdjustment(user: AuthUser, input: AdminPayload) {
+    this.assertSuperAdmin(user);
+    const targets = await this.walletAdjustmentTargets(input, 100);
+    const result = await this.applyWalletAdjustments(user, input, targets);
+
+    return {
+      ok: true,
+      mode: 'bulk',
+      ...result,
+    };
+  }
+
   async createGiftProduct(user: AuthUser, input: AdminPayload) {
     const product = await this.prisma.giftProduct.create({
       data: {
@@ -6043,6 +6249,359 @@ export class AdminService {
         },
       },
     } satisfies Prisma.UserSelect;
+  }
+
+  private walletAdjustmentDirection(input: AdminPayload) {
+    const value = this.string(input, 'direction').toLowerCase();
+
+    if (['credit', 'add', 'grant', 'plus'].includes(value)) {
+      return 'credit';
+    }
+
+    if (['debit', 'remove', 'deduct', 'minus', 'revoke'].includes(value)) {
+      return 'debit';
+    }
+
+    throw new BadRequestException('direction must be credit or debit');
+  }
+
+  private walletAdjustmentReasonType(input: AdminPayload) {
+    const reasonType = this.string(input, 'reasonType', 'manual_correction');
+
+    if (!WALLET_ADJUSTMENT_REASONS.has(reasonType)) {
+      throw new BadRequestException(
+        `reasonType must be one of ${[...WALLET_ADJUSTMENT_REASONS].join(', ')}`,
+      );
+    }
+
+    return reasonType;
+  }
+
+  private walletAdjustmentAmount(input: AdminPayload) {
+    const amount = this.decimal(input, 'amountLumina');
+
+    if (amount.lte(0) || amount.gt(100_000)) {
+      throw new BadRequestException('amountLumina must be between 0 and 100000');
+    }
+
+    return amount;
+  }
+
+  private walletAdjustmentNote(input: AdminPayload) {
+    const note =
+      this.optionalString(input, 'note') ??
+      this.optionalString(input, 'reason') ??
+      this.optionalString(input, 'adminNote');
+
+    if (!note) {
+      throw new BadRequestException('note is required for wallet adjustments');
+    }
+
+    return note;
+  }
+
+  private walletAdjustmentTargetRefs(input: AdminPayload) {
+    const refs: { userId?: string; email?: string; label: string }[] = [];
+    const addRef = (value: unknown) => {
+      const text = String(value ?? '').trim();
+      if (!text) {
+        return;
+      }
+
+      if (this.isUuid(text)) {
+        refs.push({ userId: text, label: text });
+        return;
+      }
+
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
+        refs.push({ email: text.toLowerCase(), label: text });
+        return;
+      }
+
+      throw new BadRequestException(`Invalid wallet adjustment target: ${text}`);
+    };
+    const addTextList = (value?: string) => {
+      value
+        ?.split(/[\n,;\t ]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .forEach(addRef);
+    };
+
+    addRef(this.optionalString(input, 'userId'));
+    addRef(this.optionalString(input, 'email'));
+    addTextList(this.optionalString(input, 'userIds'));
+    addTextList(this.optionalString(input, 'emails'));
+    addTextList(this.optionalString(input, 'targetUsers'));
+    addTextList(this.optionalString(input, 'targetsText'));
+
+    const targets = input.targets;
+    if (Array.isArray(targets)) {
+      for (const target of targets) {
+        if (typeof target === 'string') {
+          addRef(target);
+          continue;
+        }
+
+        if (target && typeof target === 'object' && !Array.isArray(target)) {
+          const objectTarget = target as AdminPayload;
+          addRef(objectTarget.userId ?? objectTarget.email ?? objectTarget.identifier);
+        }
+      }
+    }
+
+    const seen = new Set<string>();
+    return refs.filter((ref) => {
+      const key = ref.userId ? `id:${ref.userId}` : `email:${ref.email}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
+  private async walletAdjustmentTargets(input: AdminPayload, maxTargets: number) {
+    const refs = this.walletAdjustmentTargetRefs(input);
+
+    if (!refs.length) {
+      throw new BadRequestException('At least one wallet adjustment target is required');
+    }
+
+    if (refs.length > maxTargets) {
+      throw new BadRequestException(`Wallet adjustment target limit is ${maxTargets}`);
+    }
+
+    const userIds = refs.map((ref) => ref.userId).filter(Boolean) as string[];
+    const emails = refs.map((ref) => ref.email).filter(Boolean) as string[];
+    const users = await this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          ...userIds.map((id) => ({ id })),
+          ...emails.map((email) => ({
+            email: { equals: email, mode: 'insensitive' as const },
+          })),
+        ],
+      },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        profile: {
+          select: {
+            displayName: true,
+            publicHandle: true,
+          },
+        },
+        walletAccounts: {
+          where: { currencyCode: DEFAULT_CURRENCY },
+          select: {
+            id: true,
+            status: true,
+            currencyCode: true,
+            cachedBalance: true,
+          },
+          take: 1,
+        },
+      },
+    });
+    const byUserId = new Map(users.map((user) => [user.id, user]));
+    const byEmail = new Map(
+      users
+        .filter((user) => user.email)
+        .map((user) => [user.email!.toLowerCase(), user]),
+    );
+    const resolved = refs.map((ref) =>
+      ref.userId ? byUserId.get(ref.userId) : byEmail.get(ref.email ?? ''),
+    );
+    const missing = refs.filter((_, index) => !resolved[index]).map((ref) => ref.label);
+
+    if (missing.length) {
+      throw new NotFoundException(`Wallet adjustment target not found: ${missing.join(', ')}`);
+    }
+
+    return resolved as NonNullable<(typeof resolved)[number]>[];
+  }
+
+  private async applyWalletAdjustments(
+    user: AuthUser,
+    input: AdminPayload,
+    targets: Awaited<ReturnType<AdminService['walletAdjustmentTargets']>>,
+  ) {
+    const direction = this.walletAdjustmentDirection(input);
+    const amount = this.walletAdjustmentAmount(input);
+    const reasonType = this.walletAdjustmentReasonType(input);
+    const note = this.walletAdjustmentNote(input);
+    const batchId = randomUUID();
+    const now = new Date();
+    const items = await this.prisma.$transaction(async (tx) => {
+      const results: AdminPayload[] = [];
+
+      for (const target of targets) {
+        const existingWallet = target.walletAccounts[0] ?? null;
+        if (existingWallet && existingWallet.status !== 'active') {
+          throw new BadRequestException(`Wallet is not active for user ${target.id}`);
+        }
+
+        if (direction === 'debit' && !existingWallet) {
+          throw new BadRequestException(`Active wallet not found for user ${target.id}`);
+        }
+
+        if (direction === 'debit' && existingWallet!.cachedBalance.lt(amount)) {
+          throw new BadRequestException(`Insufficient Lumina balance for user ${target.id}`);
+        }
+
+        const wallet =
+          existingWallet ??
+          (await tx.walletAccount.create({
+            data: {
+              userId: target.id,
+              currencyCode: DEFAULT_CURRENCY,
+            },
+          }));
+        const beforeBalance = existingWallet?.cachedBalance ?? new Decimal(0);
+        const afterBalance =
+          direction === 'credit' ? beforeBalance.plus(amount) : beforeBalance.minus(amount);
+        const idempotencyKey = `admin-wallet-adjustment:${batchId}:${target.id}`;
+        const ledger = await tx.walletLedger.create({
+          data: {
+            walletAccountId: wallet.id,
+            direction,
+            amount,
+            ledgerType: 'admin_wallet_adjustment',
+            referenceType: 'admin_wallet_adjustment',
+            idempotencyKey,
+            memo: `[${reasonType}] ${note}`.slice(0, 500),
+          },
+        });
+
+        await tx.walletAccount.update({
+          where: { id: wallet.id },
+          data: {
+            cachedBalance:
+              direction === 'credit'
+                ? { increment: amount }
+                : { decrement: amount },
+            updatedAt: now,
+          },
+        });
+
+        results.push({
+          userId: target.id,
+          email: this.maskEmail(target.email),
+          displayName: target.profile?.displayName ?? target.profile?.publicHandle ?? null,
+          walletAccountId: wallet.id,
+          walletLedgerId: ledger.id,
+          direction,
+          amountLumina: amount.toString(),
+          beforeBalance: beforeBalance.toString(),
+          afterBalance: afterBalance.toString(),
+        });
+      }
+
+      return results;
+    });
+
+    await this.recordAudit(
+      user,
+      targets.length > 1 ? 'wallet_adjustment.bulk' : 'wallet_adjustment.create',
+      'wallet_account',
+      targets.length === 1 ? (items[0]?.walletAccountId as string) : null,
+      null,
+      items,
+      {
+        batchId,
+        direction,
+        amountLumina: amount.toString(),
+        reasonType,
+        note,
+        targetCount: targets.length,
+      },
+    );
+
+    return {
+      batchId,
+      direction,
+      amountLumina: amount,
+      reasonType,
+      targetCount: targets.length,
+      items,
+      policy: {
+        requiresSuperAdmin: true,
+        ledgerType: 'admin_wallet_adjustment',
+        allowNegativeBalance: false,
+        maxTargetsPerBulk: 100,
+        maxAmountLuminaPerTarget: 100000,
+      },
+    };
+  }
+
+  private assertBackstageQaToolsEnabled() {
+    if (this.configService.get<string>('ENABLE_BACKSTAGE_QA_TOOLS') === 'true') {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'Backstage QA tools are disabled. Set ENABLE_BACKSTAGE_QA_TOOLS=true temporarily.',
+    );
+  }
+
+  private async findQaCreatorSettlementUser(input: AdminPayload) {
+    const userId = this.optionalString(input, 'userId');
+    const email =
+      this.optionalString(input, 'operatorEmail') ??
+      this.optionalString(input, 'email');
+
+    if (!userId && !email) {
+      throw new BadRequestException('userId, operatorEmail, or email is required');
+    }
+
+    if (userId && !this.isUuid(userId)) {
+      throw new BadRequestException('userId must be a UUID');
+    }
+
+    const targetUser = userId
+      ? await this.prisma.user.findUnique({ where: { id: userId } })
+      : await this.prisma.user.findFirst({
+          where: {
+            email: { equals: email?.toLowerCase(), mode: 'insensitive' },
+          },
+        });
+
+    if (!targetUser || targetUser.status !== 'active' || targetUser.deletedAt) {
+      throw new NotFoundException('Active creator operator user not found');
+    }
+
+    return targetUser;
+  }
+
+  private async findQaCreatorSettlementOperator(userId: string, artistId?: string) {
+    if (artistId && !this.isUuid(artistId)) {
+      throw new BadRequestException('artistId must be a UUID');
+    }
+
+    const operators = await this.prisma.artistOperator.findMany({
+      where: {
+        userId,
+        ...(artistId ? { artistId } : {}),
+        status: 'active',
+        revokedAt: null,
+      },
+      include: this.artistOperatorInclude(),
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    const operator = operators[0];
+    if (!operator) {
+      throw new NotFoundException(
+        artistId
+          ? 'Active artist operator row not found for this user and artist'
+          : 'Active artist operator row not found for this user',
+      );
+    }
+
+    return operator;
   }
 
   private async findCreatorAccessArtist(input: AdminPayload) {
