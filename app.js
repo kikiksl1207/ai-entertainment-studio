@@ -3111,7 +3111,7 @@ function bindLuminaFeedFollow() {
     // 낙관적 토글
     btn.classList.toggle("is-following", !wasFollowing);
     btn.dataset.following = wasFollowing ? "0" : "1";
-    btn.textContent = wasFollowing ? "팔로우" : "팔로잉";
+    btn.textContent = wasFollowing ? "팔로우" : "팔로잉 해제";
     try {
       await apiFetch(endpoint, {
         method: wasFollowing ? "DELETE" : "POST",
@@ -3126,13 +3126,13 @@ function bindLuminaFeedFollow() {
       ).forEach(b => {
         b.classList.toggle("is-following", !wasFollowing);
         b.dataset.following = wasFollowing ? "0" : "1";
-        b.textContent = wasFollowing ? "팔로우" : "팔로잉";
+        b.textContent = wasFollowing ? "팔로우" : "팔로잉 해제";
       });
     } catch (err) {
       // 롤백
       btn.classList.toggle("is-following", wasFollowing);
       btn.dataset.following = wasFollowing ? "1" : "0";
-      btn.textContent = wasFollowing ? "팔로잉" : "팔로우";
+      btn.textContent = wasFollowing ? "팔로잉 해제" : "팔로우";
       console.warn("[#145 follow] 실패", { status: err?.status, body: err?.body });
       alert(err?.message || "팔로우 처리에 실패했어요.");
     } finally {
@@ -3716,6 +3716,7 @@ function bindFeedComposeOnce() {
         setFeedComposeMessage("JPG, PNG, WEBP, GIF 파일만 첨부할 수 있어요.", "warn");
         continue;
       }
+      updateState();
       await uploadFeedComposeImage(file);
     }
     updateState();
@@ -6161,7 +6162,7 @@ function applyUserProfileFollowState(viewer) {
   if (viewer?.isFollowing || viewer?.canUnfollow) {
     btn.classList.add("is-following");
     btn.dataset.following = "1";
-    if (label) label.textContent = "팔로잉";
+    if (label) label.textContent = "팔로잉 해제";
   } else {
     btn.classList.remove("is-following");
     btn.dataset.following = "0";
@@ -6188,7 +6189,7 @@ function bindUserProfileFollow() {
     btn.classList.toggle("is-following", !wasFollowing);
     btn.dataset.following = wasFollowing ? "0" : "1";
     const label = btn.querySelector("[data-detail-follow-label]");
-    if (label) label.textContent = wasFollowing ? "팔로우" : "팔로잉";
+    if (label) label.textContent = wasFollowing ? "팔로우" : "팔로잉 해제";
     try {
       const res = await apiFetch(`/api/v1/users/${encodeURIComponent(userId)}/follow`, {
         method: wasFollowing ? "DELETE" : "POST",
@@ -6205,7 +6206,7 @@ function bindUserProfileFollow() {
       // 롤백
       btn.classList.toggle("is-following", wasFollowing);
       btn.dataset.following = wasFollowing ? "1" : "0";
-      if (label) label.textContent = wasFollowing ? "팔로잉" : "팔로우";
+      if (label) label.textContent = wasFollowing ? "팔로잉 해제" : "팔로우";
       console.warn("[#152 user follow] 실패", { status: err?.status, body: err?.body });
       alert(err?.message || "팔로우 처리에 실패했어요.");
     } finally {
@@ -7885,9 +7886,9 @@ function applyMiniProfileFollowState(viewer) {
   followBtn.classList.toggle("is-following", isFollowing);
   followBtn.dataset.following = isFollowing ? "1" : "0";
   followBtn.setAttribute("aria-pressed", isFollowing ? "true" : "false");
-  followBtn.setAttribute("aria-label", isFollowing ? "팔로잉" : "팔로우");
-  followBtn.title = isFollowing ? "팔로잉" : "팔로우";
-  if (followLabel) followLabel.textContent = isFollowing ? "팔로잉" : "팔로우";
+  followBtn.setAttribute("aria-label", isFollowing ? "팔로잉 해제" : "팔로우");
+  followBtn.title = isFollowing ? "팔로잉 해제" : "팔로우";
+  if (followLabel) followLabel.textContent = isFollowing ? "팔로잉 해제" : "팔로우";
 }
 
 function bindMiniProfileFollow() {
