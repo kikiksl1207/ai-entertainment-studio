@@ -736,7 +736,7 @@
               </div>
             </header>
             <div class="notice" style="margin: 18px;"><strong>예상 금액 안내</strong><span>아래 금액은 확정 정산금이 아닙니다. 실제 지급액은 환불, 결제 취소, 세무·회계 검토 후 달라질 수 있습니다.</span></div>
-            <div class="notice" style="margin: 18px;"><strong>정산금으로 충전 준비 중</strong><span>정산 확정 후 일부 금액을 루미나로 충전해 콘텐츠 운영에 사용할 수 있는 기능을 준비하고 있습니다. 오픈 전까지는 신청할 수 없습니다.</span></div>
+            <div class="notice" style="margin: 18px;"><strong>정산금으로 충전 신청</strong><span>신청은 관리자/회계 확인 대기 상태로 접수됩니다. 승인 전에는 지갑 잔액에 반영되지 않습니다.</span></div>
             <div class="settlement-profile-grid" aria-label="정산 프로필 상태">
               <article class="settlement-profile-card">
                 <span>본인인증</span>
@@ -780,6 +780,15 @@
                   <tr><td>채팅·선물</td><td>108</td><td>8,080L</td><td>80,800원</td><td>결제 완료 건만 포함</td></tr>
                 </tbody>
               </table>
+            </div>
+            <div class="table-wrap" style="margin: 18px;">
+              <table>
+                <thead><tr><th>신청 정산</th><th>신청 금액</th><th>예상 루미나</th><th>상태</th><th>메모</th></tr></thead>
+                <tbody id="studioSettlementConversionRows">
+                  <tr><td colspan="5">접수된 정산금 충전 신청을 불러오는 중입니다.</td></tr>
+                </tbody>
+              </table>
+              <p class="studio-form-state" id="studioSettlementConversionState">정산금 충전 신청은 승인 후에만 지갑에 반영됩니다.</p>
             </div>
             <div class="requirement-list" style="margin: 18px;">
               <div class="requirement-item"><strong>본인인증</strong><p>정산 신청 전 본인인증이 필요합니다.</p><span class="badge is-warn">확인 필요</span></div>
@@ -981,6 +990,7 @@
           if (email && account) account.textContent = email;
           hydrateStudio(data);
           loadSettlementPreview();
+          loadSettlementConversions();
         }
 
         function openStudioShellPending() {
@@ -1272,6 +1282,53 @@
           }
         }
 
+        async function loadSettlementConversions() {
+          const token = readAuth()?.accessToken;
+          const rows = document.getElementById("studioSettlementConversionRows");
+          if (!token || !rows) return;
+          rows.innerHTML = '<tr><td colspan="5">접수된 정산금 충전 신청을 불러오는 중입니다.</td></tr>';
+          try {
+            const params = new URLSearchParams({ period: currentPeriod(), status: "requested" });
+            const res = await fetch(apiBase + "/api/v1/me/creator-studio/settlement-conversions?" + params, {
+              headers: { Authorization: "Bearer " + token }
+            });
+            if (!res.ok) throw new Error("load failed");
+            const data = await res.json().catch(() => null);
+            const items = Array.isArray(data) ? data : data?.items || data?.requests || [];
+            renderSettlementConversions(items);
+          } catch (_) {
+            rows.innerHTML = '<tr><td colspan="5">신청 목록을 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</td></tr>';
+          }
+        }
+
+        function conversionStatusLabel(status) {
+          const labels = {
+            requested: "확인 대기",
+            approved: "승인됨",
+            credited: "반영 완료",
+            rejected: "반려",
+            canceled: "취소"
+          };
+          return labels[status] || "확인 대기";
+        }
+
+        function renderSettlementConversions(items = []) {
+          const rows = document.getElementById("studioSettlementConversionRows");
+          const state = document.getElementById("studioSettlementConversionState");
+          if (!rows) return;
+          if (!items.length) {
+            rows.innerHTML = '<tr><td colspan="5">아직 접수된 정산금 충전 신청이 없습니다.</td></tr>';
+            if (state) state.textContent = "정산금 충전 신청은 승인 후에만 지갑에 반영됩니다.";
+            return;
+          }
+          rows.innerHTML = items.map(item => {
+            const amount = Number(item.amountKrw || 0);
+            const lumina = Number(item.requestedLumina || Math.floor(amount / 10));
+            return "<tr><td>" + escapeHtml(item.settlementKey || "-") + "</td><td>" + formatKrw(amount) + "</td><td>" + formatNumber(lumina) + "L</td><td><span class=\"badge is-warn\">" + escapeHtml(conversionStatusLabel(item.status || "requested")) + "</span></td><td>" + escapeHtml(item.note || "-") + "</td></tr>";
+          }).join("");
+          if (state) state.textContent = "표시된 신청은 관리자/회계 확인 대기 흐름입니다. 승인 전 지갑 잔액은 늘어나지 않습니다.";
+        }
+
         function renderSettlement(data) {
           settlementPreview = data || null;
           const total = Number(data?.totals?.creatorShareKrw || 0);
@@ -1380,7 +1437,7 @@
           openStudioModal({
             type: "CHARGE REQUEST",
             title: "정산금으로 충전",
-            message: "정산금으로 충전은 요청만 접수됩니다. 관리자/회계 승인 후 루미나가 지급되며, 즉시 지갑에 반영되지 않습니다.",
+            message: "정산금으로 충전은 요청만 접수됩니다. 관리자/회계 확인 후 루미나가 지급되며, 즉시 지갑에 반영되지 않습니다. 1 Lumina = 10원 기준입니다.",
             summaryHtml:
               '<div class="modal-form-grid">' +
                 '<label class="is-wide"><span>대상 정산</span><select id="studioConversionSettlement">' +
@@ -1420,6 +1477,11 @@
             showToast("충전 요청 금액은 1,000원 이상이어야 합니다.");
             return;
           }
+          const confirm = document.getElementById("studioModalConfirm");
+          if (confirm) {
+            confirm.disabled = true;
+            confirm.textContent = "요청 중";
+          }
           try {
             const res = await fetch(apiBase + "/api/v1/me/creator-studio/settlement-conversions", {
               method: "POST",
@@ -1438,15 +1500,21 @@
               let msg = "충전 요청에 실패했습니다.";
               try {
                 const error = await res.json();
-                if (error?.remainingKrw !== undefined) msg = "요청 가능 금액을 초과했습니다. 남은 예상 금액: " + formatKrw(error.remainingKrw);
-                else if (error?.message) msg = error.message;
+                const remaining = error?.remainingKrw ?? error?.availableKrw ?? error?.maxAmountKrw ?? error?.details?.remainingKrw ?? error?.details?.availableKrw;
+                if (remaining !== undefined) msg = "요청 가능 금액을 초과했습니다. 남은 예상 금액: " + formatKrw(remaining);
               } catch (_) {}
               throw new Error(msg);
             }
             closeStudioModal();
-            showToast("정산금으로 충전 요청이 접수되었습니다.");
+            showToast("정산금으로 충전 요청이 접수되었습니다. 관리자/회계 확인 후 반영됩니다.");
+            loadSettlementConversions();
           } catch (err) {
             showToast(err?.message || "충전 요청에 실패했습니다.");
+          } finally {
+            if (confirm) {
+              confirm.disabled = false;
+              confirm.textContent = "충전 요청";
+            }
           }
         }
 
