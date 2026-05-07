@@ -22,6 +22,13 @@ Leader workspace: `C:\Users\하마다랩스\Documents\New project\workspace-core
 - If blocked, write a concise status to your inbox file and stop.
 - After finishing, write result, changed files, tests, and commit hash to your inbox file.
 
+## Always-On Product Checks
+
+- Mobile is part of the default acceptance criteria for any user-facing UI work. Check narrow mobile widths, normal desktop width, and make sure text/buttons do not overlap or overflow.
+- Localization is part of the default acceptance criteria. Korean copy must not be mojibake, English-only strings should not be added casually, and existing locale/i18n response fields must be preserved.
+- For backend/API work that touches user-facing text, include stable keys or safe fallback text so the frontend can translate later.
+- For review work, call out missing mobile checks or missing localization/i18n handling as findings, even when the feature works on desktop Korean only.
+
 ## Inbox Files
 
 - Builder A: `docs/ops/inbox/builder-a.md`

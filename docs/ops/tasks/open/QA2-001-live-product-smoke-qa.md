@@ -18,8 +18,11 @@ exact repro steps. Do not write code unless Leader explicitly reassigns.
   production balance changes unless the user/Leader explicitly approves.
 - Image upload path and object storage diagnostics.
 - Artist detail follow/unfollow button copy, including the known
-  `팔로잉해제` mojibake/copy issue.
+  `팔로잉해제` spacing/copy issue.
 - Feed author/profile click behavior and mini profile modal.
+- Mobile smoke checks for the same flows at narrow viewport width.
+- Localization/copy checks: no mojibake, no accidental English-only UI copy,
+  and language/locale settings should not regress where already supported.
 
 ## Report Format
 

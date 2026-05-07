@@ -38,6 +38,7 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 3. Team2 checks current product QA blockers while Team1 designs the next loop.
 4. Keep image upload/R2 diagnostics and Creator Studio access from regressing.
 5. Run lint/build on any branch that changes backend contracts.
+6. Treat mobile layout and localization/mojibake checks as always-on acceptance criteria.
 
 ## Do Not Do Today
 

@@ -23,6 +23,9 @@ engagement loop UI owned by Team1 BB-002.
 - Feed author/profile click mini-profile behavior if broken.
 - Image upload UI broken states if QA provides repro.
 - Backstage modal copy/layout issues if QA provides repro.
+- Mobile layout regressions in the touched pages.
+- Localization/copy regressions in the touched pages, especially mojibake or
+  hardcoded English-only labels where the existing UI already supports Korean.
 
 ## Do Not
 
