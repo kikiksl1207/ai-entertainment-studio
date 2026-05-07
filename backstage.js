@@ -2788,9 +2788,60 @@ function renderConfirmSummary(preview, result = null) {
   `;
 }
 
+function clearDetailValidationErrors() {
+  detailForm?.querySelectorAll(".is-invalid").forEach((field) => {
+    field.classList.remove("is-invalid");
+    field.removeAttribute("aria-invalid");
+  });
+  document.querySelector(".detail-help")?.classList.remove("is-error");
+}
+
+function showDetailValidationError(fieldName, message) {
+  const help = document.querySelector(".detail-help");
+  const field = fieldName ? detailForm?.querySelector(`[name="${fieldName}"]`) : null;
+  if (help) {
+    help.textContent = message;
+    help.classList.add("is-error");
+  }
+  if (field) {
+    field.classList.add("is-invalid");
+    field.setAttribute("aria-invalid", "true");
+    field.focus();
+    field.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+}
+
+function validateWalletAdjustmentPreview(preview) {
+  if (preview?.targetType !== "walletAdjustment") return null;
+  const form = preview?.bodyPreview?.form || {};
+  const targets = splitTargetUsers(form.targetUsers);
+  const hasSingleTarget = Boolean(firstValue(form.email, form.userId));
+  const targetField = form.targetUsers !== undefined ? "targetUsers" : "email";
+  if (!targets.length && !hasSingleTarget) {
+    return { field: targetField, message: "대상 유저 이메일 또는 User ID를 입력해 주세요." };
+  }
+  const amount = Number(form.amountLumina);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { field: "amountLumina", message: "루미나 수량은 1 이상으로 입력해 주세요." };
+  }
+  if (!firstValue(form.reasonType)) {
+    return { field: "reasonType", message: "조정 사유 유형을 선택해 주세요." };
+  }
+  if (!firstValue(form.note, form.reason, form.reviewMemo, form.adminNote, form.detail)) {
+    return { field: "note", message: "처리 사유를 입력해 주세요. 예: 오픈 이벤트 지급 100L" };
+  }
+  return null;
+}
+
 function openConfirmModal(action) {
   const preview = buildActionPreview(action);
   if (!preview || !confirmModal) return;
+  const validation = validateWalletAdjustmentPreview(preview);
+  if (validation) {
+    showDetailValidationError(validation.field, validation.message);
+    return;
+  }
+  clearDetailValidationErrors();
   pendingActionPreview = preview;
   confirmType.textContent = preview.menu || "Confirm";
   const isMutation = preview.apiRequest && preview.apiRequest.method !== "GET";
@@ -3940,8 +3991,14 @@ detailPanel.addEventListener("click", (event) => {
   selectedDetail = null;
 });
 
-detailForm?.addEventListener("input", saveDetailDraft);
-detailForm?.addEventListener("change", saveDetailDraft);
+detailForm?.addEventListener("input", () => {
+  clearDetailValidationErrors();
+  saveDetailDraft();
+});
+detailForm?.addEventListener("change", () => {
+  clearDetailValidationErrors();
+  saveDetailDraft();
+});
 
 document.querySelectorAll("[data-load-more]").forEach((button) => {
   button.addEventListener("click", async () => {
