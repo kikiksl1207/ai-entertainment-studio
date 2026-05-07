@@ -113,7 +113,7 @@ next_needed:
 
 status: updated
 task: BB-002 - UI map visibility, mobile, and i18n follow-up
-branch/commit: main / pending
+branch/commit: main / ace5811b329752f8bf7ff1b0ae16973e23ab500b
 changed_files:
 - docs/ops/inbox/builder-b.md
 tests:
