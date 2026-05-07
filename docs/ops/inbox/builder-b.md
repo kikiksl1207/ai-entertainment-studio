@@ -44,7 +44,7 @@ next_needed:
 
 status: mapped
 task: BB-002 - 1st Fan Engagement Loop UI Map
-branch/commit: main / pending
+branch/commit: main / e2a665642bd4011b4ed96e65ef34fe0145fde818
 changed_files:
 - docs/ops/inbox/builder-b.md
 tests:
