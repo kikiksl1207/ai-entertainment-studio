@@ -4,7 +4,7 @@ Use the standard completion note from `docs/ops/agents.md`.
 
 status: done
 task: BA-001 - Backstage / Creator Studio Backend Contract Check
-branch/commit: main / 2fe1980f4a97
+branch/commit: builder-a-backend/ba-001-contract-check / df6995b84147
 changed_files:
 - docs/ops/inbox/builder-a.md
 tests:
