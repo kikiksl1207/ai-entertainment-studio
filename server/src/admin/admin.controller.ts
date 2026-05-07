@@ -487,6 +487,24 @@ export class AdminController {
     return this.adminService.updateLuminaProduct(user, productId, body);
   }
 
+  @Post('backstage/operations/wallet-adjustments')
+  @RequireAdminPermissions('*')
+  createBackstageWalletAdjustment(
+    @CurrentUser() user: AuthUser,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.createBackstageWalletAdjustment(user, body);
+  }
+
+  @Post('backstage/operations/wallet-adjustments/bulk')
+  @RequireAdminPermissions('*')
+  createBackstageBulkWalletAdjustment(
+    @CurrentUser() user: AuthUser,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.createBackstageBulkWalletAdjustment(user, body);
+  }
+
   @Post('gift-products')
   @RequireAdminPermissions('products:write')
   createGiftProduct(@CurrentUser() user: AuthUser, @Body() body: AdminPayload) {

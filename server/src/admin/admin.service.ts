@@ -118,6 +118,14 @@ const FEED_SEARCH_WINDOWS: Record<string, number> = {
   '24h': 24 * 60 * 60 * 1000,
   '7d': 7 * 24 * 60 * 60 * 1000,
 };
+const WALLET_ADJUSTMENT_REASONS = new Set([
+  'event_grant',
+  'abuse_reversal',
+  'refund_correction',
+  'customer_support',
+  'qa_test',
+  'manual_correction',
+]);
 
 @Injectable()
 export class AdminService {
@@ -4177,6 +4185,34 @@ export class AdminService {
     return product;
   }
 
+  async createBackstageWalletAdjustment(user: AuthUser, input: AdminPayload) {
+    this.assertSuperAdmin(user);
+    const targets = await this.walletAdjustmentTargets(input, 1);
+
+    if (targets.length !== 1) {
+      throw new BadRequestException('Exactly one wallet adjustment target is required');
+    }
+
+    const result = await this.applyWalletAdjustments(user, input, targets);
+    return {
+      ok: true,
+      mode: 'single',
+      ...result,
+    };
+  }
+
+  async createBackstageBulkWalletAdjustment(user: AuthUser, input: AdminPayload) {
+    this.assertSuperAdmin(user);
+    const targets = await this.walletAdjustmentTargets(input, 100);
+    const result = await this.applyWalletAdjustments(user, input, targets);
+
+    return {
+      ok: true,
+      mode: 'bulk',
+      ...result,
+    };
+  }
+
   async createGiftProduct(user: AuthUser, input: AdminPayload) {
     const product = await this.prisma.giftProduct.create({
       data: {
@@ -6213,6 +6249,292 @@ export class AdminService {
         },
       },
     } satisfies Prisma.UserSelect;
+  }
+
+  private walletAdjustmentDirection(input: AdminPayload) {
+    const value = this.string(input, 'direction').toLowerCase();
+
+    if (['credit', 'add', 'grant', 'plus'].includes(value)) {
+      return 'credit';
+    }
+
+    if (['debit', 'remove', 'deduct', 'minus', 'revoke'].includes(value)) {
+      return 'debit';
+    }
+
+    throw new BadRequestException('direction must be credit or debit');
+  }
+
+  private walletAdjustmentReasonType(input: AdminPayload) {
+    const reasonType = this.string(input, 'reasonType', 'manual_correction');
+
+    if (!WALLET_ADJUSTMENT_REASONS.has(reasonType)) {
+      throw new BadRequestException(
+        `reasonType must be one of ${[...WALLET_ADJUSTMENT_REASONS].join(', ')}`,
+      );
+    }
+
+    return reasonType;
+  }
+
+  private walletAdjustmentAmount(input: AdminPayload) {
+    const amount = this.decimal(input, 'amountLumina');
+
+    if (amount.lte(0) || amount.gt(100_000)) {
+      throw new BadRequestException('amountLumina must be between 0 and 100000');
+    }
+
+    return amount;
+  }
+
+  private walletAdjustmentNote(input: AdminPayload) {
+    const note =
+      this.optionalString(input, 'note') ??
+      this.optionalString(input, 'reason') ??
+      this.optionalString(input, 'adminNote');
+
+    if (!note) {
+      throw new BadRequestException('note is required for wallet adjustments');
+    }
+
+    return note;
+  }
+
+  private walletAdjustmentTargetRefs(input: AdminPayload) {
+    const refs: { userId?: string; email?: string; label: string }[] = [];
+    const addRef = (value: unknown) => {
+      const text = String(value ?? '').trim();
+      if (!text) {
+        return;
+      }
+
+      if (this.isUuid(text)) {
+        refs.push({ userId: text, label: text });
+        return;
+      }
+
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
+        refs.push({ email: text.toLowerCase(), label: text });
+        return;
+      }
+
+      throw new BadRequestException(`Invalid wallet adjustment target: ${text}`);
+    };
+    const addTextList = (value?: string) => {
+      value
+        ?.split(/[\n,;\t ]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .forEach(addRef);
+    };
+
+    addRef(this.optionalString(input, 'userId'));
+    addRef(this.optionalString(input, 'email'));
+    addTextList(this.optionalString(input, 'userIds'));
+    addTextList(this.optionalString(input, 'emails'));
+    addTextList(this.optionalString(input, 'targetUsers'));
+    addTextList(this.optionalString(input, 'targetsText'));
+
+    const targets = input.targets;
+    if (Array.isArray(targets)) {
+      for (const target of targets) {
+        if (typeof target === 'string') {
+          addRef(target);
+          continue;
+        }
+
+        if (target && typeof target === 'object' && !Array.isArray(target)) {
+          const objectTarget = target as AdminPayload;
+          addRef(objectTarget.userId ?? objectTarget.email ?? objectTarget.identifier);
+        }
+      }
+    }
+
+    const seen = new Set<string>();
+    return refs.filter((ref) => {
+      const key = ref.userId ? `id:${ref.userId}` : `email:${ref.email}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
+  private async walletAdjustmentTargets(input: AdminPayload, maxTargets: number) {
+    const refs = this.walletAdjustmentTargetRefs(input);
+
+    if (!refs.length) {
+      throw new BadRequestException('At least one wallet adjustment target is required');
+    }
+
+    if (refs.length > maxTargets) {
+      throw new BadRequestException(`Wallet adjustment target limit is ${maxTargets}`);
+    }
+
+    const userIds = refs.map((ref) => ref.userId).filter(Boolean) as string[];
+    const emails = refs.map((ref) => ref.email).filter(Boolean) as string[];
+    const users = await this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          ...userIds.map((id) => ({ id })),
+          ...emails.map((email) => ({
+            email: { equals: email, mode: 'insensitive' as const },
+          })),
+        ],
+      },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        profile: {
+          select: {
+            displayName: true,
+            publicHandle: true,
+          },
+        },
+        walletAccounts: {
+          where: { currencyCode: DEFAULT_CURRENCY },
+          select: {
+            id: true,
+            status: true,
+            currencyCode: true,
+            cachedBalance: true,
+          },
+          take: 1,
+        },
+      },
+    });
+    const byUserId = new Map(users.map((user) => [user.id, user]));
+    const byEmail = new Map(
+      users
+        .filter((user) => user.email)
+        .map((user) => [user.email!.toLowerCase(), user]),
+    );
+    const resolved = refs.map((ref) =>
+      ref.userId ? byUserId.get(ref.userId) : byEmail.get(ref.email ?? ''),
+    );
+    const missing = refs.filter((_, index) => !resolved[index]).map((ref) => ref.label);
+
+    if (missing.length) {
+      throw new NotFoundException(`Wallet adjustment target not found: ${missing.join(', ')}`);
+    }
+
+    return resolved as NonNullable<(typeof resolved)[number]>[];
+  }
+
+  private async applyWalletAdjustments(
+    user: AuthUser,
+    input: AdminPayload,
+    targets: Awaited<ReturnType<AdminService['walletAdjustmentTargets']>>,
+  ) {
+    const direction = this.walletAdjustmentDirection(input);
+    const amount = this.walletAdjustmentAmount(input);
+    const reasonType = this.walletAdjustmentReasonType(input);
+    const note = this.walletAdjustmentNote(input);
+    const batchId = randomUUID();
+    const now = new Date();
+    const items = await this.prisma.$transaction(async (tx) => {
+      const results: AdminPayload[] = [];
+
+      for (const target of targets) {
+        const existingWallet = target.walletAccounts[0] ?? null;
+        if (existingWallet && existingWallet.status !== 'active') {
+          throw new BadRequestException(`Wallet is not active for user ${target.id}`);
+        }
+
+        if (direction === 'debit' && !existingWallet) {
+          throw new BadRequestException(`Active wallet not found for user ${target.id}`);
+        }
+
+        if (direction === 'debit' && existingWallet!.cachedBalance.lt(amount)) {
+          throw new BadRequestException(`Insufficient Lumina balance for user ${target.id}`);
+        }
+
+        const wallet =
+          existingWallet ??
+          (await tx.walletAccount.create({
+            data: {
+              userId: target.id,
+              currencyCode: DEFAULT_CURRENCY,
+            },
+          }));
+        const beforeBalance = existingWallet?.cachedBalance ?? new Decimal(0);
+        const afterBalance =
+          direction === 'credit' ? beforeBalance.plus(amount) : beforeBalance.minus(amount);
+        const idempotencyKey = `admin-wallet-adjustment:${batchId}:${target.id}`;
+        const ledger = await tx.walletLedger.create({
+          data: {
+            walletAccountId: wallet.id,
+            direction,
+            amount,
+            ledgerType: 'admin_wallet_adjustment',
+            referenceType: 'admin_wallet_adjustment',
+            idempotencyKey,
+            memo: `[${reasonType}] ${note}`.slice(0, 500),
+          },
+        });
+
+        await tx.walletAccount.update({
+          where: { id: wallet.id },
+          data: {
+            cachedBalance:
+              direction === 'credit'
+                ? { increment: amount }
+                : { decrement: amount },
+            updatedAt: now,
+          },
+        });
+
+        results.push({
+          userId: target.id,
+          email: this.maskEmail(target.email),
+          displayName: target.profile?.displayName ?? target.profile?.publicHandle ?? null,
+          walletAccountId: wallet.id,
+          walletLedgerId: ledger.id,
+          direction,
+          amountLumina: amount.toString(),
+          beforeBalance: beforeBalance.toString(),
+          afterBalance: afterBalance.toString(),
+        });
+      }
+
+      return results;
+    });
+
+    await this.recordAudit(
+      user,
+      targets.length > 1 ? 'wallet_adjustment.bulk' : 'wallet_adjustment.create',
+      'wallet_account',
+      targets.length === 1 ? (items[0]?.walletAccountId as string) : null,
+      null,
+      items,
+      {
+        batchId,
+        direction,
+        amountLumina: amount.toString(),
+        reasonType,
+        note,
+        targetCount: targets.length,
+      },
+    );
+
+    return {
+      batchId,
+      direction,
+      amountLumina: amount,
+      reasonType,
+      targetCount: targets.length,
+      items,
+      policy: {
+        requiresSuperAdmin: true,
+        ledgerType: 'admin_wallet_adjustment',
+        allowNegativeBalance: false,
+        maxTargetsPerBulk: 100,
+        maxAmountLuminaPerTarget: 100000,
+      },
+    };
   }
 
   private assertBackstageQaToolsEnabled() {
