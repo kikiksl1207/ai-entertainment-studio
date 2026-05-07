@@ -15,6 +15,10 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 | BA-002 | Builder A | open | Design backend contract for the 1st fan engagement loop |
 | BB-002 | Builder B | open | Map the 1st fan engagement loop to existing pages and minimal UI surfaces |
 | IN-002 | Integrator | waiting | Integrate BA/BB/RV outputs after branches are ready |
+| QA2-001 | Team2 QA | open | Smoke-test live product flows and report reproducible blockers |
+| BE2-001 | Team2 Backend | open | Investigate backend/API causes for QA blockers without touching fan loop design |
+| FE2-001 | Team2 Frontend | open | Fix small existing UI/copy bugs from QA without touching new fan loop design |
+| R2-001 | Team2 Reviewer | open | Review Team2 QA/bugfix outputs before integration |
 
 ## Current Open Product Work From Notion
 
@@ -31,8 +35,9 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 
 1. Review wallet adjustment safety before relying on it in production operations.
 2. Split the 20-item PM review into an implementable 1st fan engagement loop.
-3. Keep image upload/R2 diagnostics and Creator Studio access from regressing.
-4. Run lint/build on any branch that changes backend contracts.
+3. Team2 checks current product QA blockers while Team1 designs the next loop.
+4. Keep image upload/R2 diagnostics and Creator Studio access from regressing.
+5. Run lint/build on any branch that changes backend contracts.
 
 ## Do Not Do Today
 
