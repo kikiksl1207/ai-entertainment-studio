@@ -2993,15 +2993,17 @@ function storageBooleanLabel(value) {
 
 function objectStorageSignal(data = {}) {
   const env = data.environment || {};
+  const storageProvider = String(env.storageProvider || "").toLowerCase();
   const reason = String(data.reason || "").toLowerCase();
-  if (env.directUploadMode && env.bucketConfigured && env.publicBaseUrlConfigured && env.accessKeyConfigured && env.secretKeyConfigured) {
+  if ((storageProvider === "r2" && env.endpointConfigured === false) || reason.includes("endpoint")) {
+    return { label: "R2 endpoint missing", tone: "warning" };
+  }
+  const endpointReady = storageProvider !== "r2" || env.endpointConfigured === true;
+  if (env.directUploadMode && env.bucketConfigured && env.publicBaseUrlConfigured && env.accessKeyConfigured && env.secretKeyConfigured && endpointReady) {
     return { label: "direct upload ready", tone: "ready" };
   }
   if (reason.includes("public") || env.publicBaseUrlConfigured === false) {
     return { label: "public URL missing", tone: "warning" };
-  }
-  if (reason.includes("endpoint") || reason.includes("r2")) {
-    return { label: "R2 endpoint missing", tone: "warning" };
   }
   return { label: "direct upload env incomplete", tone: "warning" };
 }
