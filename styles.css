@@ -6146,6 +6146,19 @@ p {
   height: 100%;
   object-fit: cover;
 }
+.feed-compose-thumb.is-broken {
+  display: grid;
+  place-items: center;
+  background: rgba(159, 139, 199, 0.08);
+}
+.feed-compose-thumb.is-broken::before {
+  content: "미리보기 실패";
+  padding: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
 .feed-compose-thumb-remove {
   position: absolute;
   top: 4px;
@@ -6239,6 +6252,7 @@ p {
 }
 .feed-compose-message[data-kind="info"] {
   background: rgba(159, 139, 199, 0.08);
+  border: 1px solid rgba(159, 139, 199, 0.22);
   color: var(--muted);
 }
 
