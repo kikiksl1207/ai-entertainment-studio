@@ -1,0 +1,181 @@
+/* ==============================
+   비즈니스 페이지 라이트 테마
+   ============================== */
+
+.page-business {
+  --bg: #f8f7f4;
+  --bg-soft: #f2f0ed;
+  --panel: #ffffff;
+  --panel-strong: #ffffff;
+  --ink: #1a1a2e;
+  --muted: #6b6b8a;
+  --line: rgba(0, 0, 0, 0.08);
+  --accent: #6c46bb;
+  --accent-soft: rgba(108, 70, 187, 0.08);
+  --accent-dark: #4a2d8c;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  background: #f8f7f4;
+  color: #1a1a2e;
+}
+
+.page-business .site-header {
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.page-business .brand-mark {
+  background: linear-gradient(135deg, #6c46bb, #a07de8);
+  color: #ffffff;
+}
+
+.page-business .brand-copy strong {
+  color: #1a1a2e;
+}
+
+.page-business .brand-copy small {
+  color: #6b6b8a;
+}
+
+.page-business .main-nav a {
+  color: #3a3a5c;
+}
+
+.page-business .main-nav a:hover {
+  color: #6c46bb;
+}
+
+.page-business .page-hero {
+  background: linear-gradient(135deg, #1a0f3c 0%, #2d1a6e 50%, #1a2a4a 100%);
+  color: #ffffff;
+  padding: 80px 0;
+}
+
+.page-business .page-hero .eyebrow {
+  color: rgba(200, 175, 255, 0.85);
+}
+
+.page-business .page-hero h1 {
+  color: #ffffff;
+}
+
+.page-business .page-hero p {
+  color: rgba(220, 210, 255, 0.8);
+}
+
+.page-business .page-hero-panel {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 20px;
+  padding: 24px;
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.page-business .page-hero-panel > div {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 20px 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.page-business .page-hero-panel span {
+  color: rgba(200, 175, 255, 0.8);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.page-business .page-hero-panel strong {
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  display: block;
+}
+
+.page-business .content-section {
+  background: #f8f7f4;
+}
+
+.page-business .section-heading .eyebrow {
+  color: #6c46bb;
+}
+
+.page-business .section-heading h2 {
+  color: #1a1a2e;
+}
+
+.page-business .section-heading p {
+  color: #6b6b8a;
+}
+
+.page-business .package-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.page-business .package-card {
+  background: #ffffff;
+  border: 1px solid rgba(108, 70, 187, 0.12);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.page-business .package-card:hover {
+  box-shadow: 0 8px 32px rgba(108, 70, 187, 0.14);
+  transform: translateY(-2px);
+}
+
+.page-business .package-card strong {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin-bottom: 10px;
+}
+
+.page-business .package-card p {
+  color: #6b6b8a;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.page-business .package-card::before {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6c46bb, #a07de8);
+  margin-bottom: 20px;
+}
+
+.page-business .site-footer {
+  background: #1a1a2e;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.page-business .site-footer strong {
+  color: #ffffff;
+}
+
+.page-business .site-footer a {
+  color: rgba(180, 150, 255, 0.85);
+}
+
+.page-business .site-footer a:hover {
+  color: #ffffff;
+}
+/* 캐릭터 상세 해시태그 + SNS 버튼 */
