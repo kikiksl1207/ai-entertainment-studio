@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Post,
   Query,
@@ -41,8 +42,9 @@ export class UserAssetsController {
     @CurrentUser() user: AuthUser,
     @Param('assetId') assetId: string,
     @Body() body: UserAssetBody,
+    @Headers('x-request-id') requestId?: string,
   ) {
-    return this.userAssetsService.confirmUpload(user.id, assetId, body);
+    return this.userAssetsService.confirmUpload(user.id, assetId, body, requestId);
   }
 
   @Post(':assetId/archive')

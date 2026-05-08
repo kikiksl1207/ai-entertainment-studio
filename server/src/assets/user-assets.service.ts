@@ -22,6 +22,11 @@ type SourceImageDownload = {
   detectedMimeType: string | null;
   prefixHex: string;
 };
+type FeedImageDerivativeContext = {
+  assetId: string;
+  requestId?: string;
+  source?: Omit<SourceImageDownload, 'buffer'>;
+};
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -182,7 +187,12 @@ export class UserAssetsService {
     };
   }
 
-  async confirmUpload(userId: string, assetId: string, input: UserAssetBody) {
+  async confirmUpload(
+    userId: string,
+    assetId: string,
+    input: UserAssetBody,
+    requestId?: string,
+  ) {
     const asset = await this.findUserAsset(userId, assetId);
     const metadata = this.metadataObject(asset.metadata);
     const uploadIntent = this.metadataObject(metadata.uploadIntent);
@@ -204,7 +214,7 @@ export class UserAssetsService {
       throw this.feedImageTooLargeException(maxSize);
     }
 
-    const derivatives = await this.createFeedImageDerivatives(asset);
+    const derivatives = await this.createFeedImageDerivatives(asset, requestId);
 
     const confirmedAt = new Date().toISOString();
     const updatedAsset = await this.prisma.asset.update({
@@ -402,7 +412,8 @@ export class UserAssetsService {
     storageKey: string;
     mimeType: string;
     metadata: Prisma.JsonValue;
-  }) {
+  }, requestId?: string) {
+    const context: FeedImageDerivativeContext = { assetId: asset.id, requestId };
     const storageProvider = this.deliveryStorageProvider(asset.storageProvider);
 
     if (storageProvider !== 's3' && storageProvider !== 'r2') {
@@ -410,24 +421,25 @@ export class UserAssetsService {
     }
 
     const sourceStorageKey = await this.runDerivativeStage(
-      asset.id,
+      context,
       'resolve-source-key',
       () => this.resolveReadableObjectStorageKey(storageProvider, asset.storageKey),
     );
-    const source = await this.runDerivativeStage(asset.id, 'download-source', () =>
+    const source = await this.runDerivativeStage(context, 'download-source', () =>
       this.downloadObjectBuffer(storageProvider, sourceStorageKey),
     );
     const sourceBuffer = source.buffer;
-    const sourceMetadata = await this.runDerivativeStage(asset.id, 'read-source-metadata', () =>
-      sharp(sourceBuffer, { animated: false }).metadata(),
+    context.source = this.publicSourceImageDiagnostics(source);
+    const sourceMetadata = await this.runDerivativeStage(context, 'read-source-metadata', () =>
+      this.readSourceMetadata(sourceBuffer, context.source),
     );
-    const display = await this.runDerivativeStage(asset.id, 'build-display', () =>
+    const display = await this.runDerivativeStage(context, 'build-display', () =>
       this.buildImageDerivative(sourceBuffer, {
         maxEdge: FEED_IMAGE_DISPLAY_MAX_EDGE,
         quality: FEED_IMAGE_DISPLAY_QUALITY,
       }),
     );
-    const thumbnail = await this.runDerivativeStage(asset.id, 'build-thumbnail', () =>
+    const thumbnail = await this.runDerivativeStage(context, 'build-thumbnail', () =>
       this.buildImageDerivative(sourceBuffer, {
         maxEdge: FEED_IMAGE_THUMBNAIL_MAX_EDGE,
         quality: FEED_IMAGE_THUMBNAIL_QUALITY,
@@ -444,7 +456,7 @@ export class UserAssetsService {
       thumbnail.extension,
     );
 
-    await this.runDerivativeStage(asset.id, 'upload-derivatives', () =>
+    await this.runDerivativeStage(context, 'upload-derivatives', () =>
       Promise.all([
         this.uploadObjectBuffer(
           storageProvider,
@@ -500,7 +512,7 @@ export class UserAssetsService {
   }
 
   private async runDerivativeStage<T>(
-    assetId: string,
+    context: FeedImageDerivativeContext,
     stage: string,
     action: () => Promise<T>,
   ) {
@@ -509,10 +521,11 @@ export class UserAssetsService {
     } catch (error) {
       this.logger.warn({
         event: 'feed_image_derivative_failed',
-        assetId,
+        assetId: context.assetId,
+        requestId: context.requestId,
         stage,
         reason: this.safeErrorMessage(error),
-        diagnostics: this.safeErrorDetails(error),
+        diagnostics: this.safeErrorDetails(error) ?? context.source ?? null,
       });
 
       if (error instanceof BadRequestException) {
@@ -523,6 +536,26 @@ export class UserAssetsService {
         code: 'FEED_IMAGE_DERIVATIVE_FAILED',
         message: 'Could not process uploaded feed image',
         details: { stage },
+      });
+    }
+  }
+
+  private async readSourceMetadata(
+    sourceBuffer: Buffer,
+    sourceDiagnostics?: Omit<SourceImageDownload, 'buffer'>,
+  ) {
+    try {
+      return await sharp(sourceBuffer, { animated: false, failOn: 'none' }).metadata();
+    } catch (error) {
+      throw new BadRequestException({
+        code: 'FEED_IMAGE_SOURCE_METADATA_FAILED',
+        message: 'Uploaded image could not be read by the image processor',
+        details: {
+          stage: 'read-source-metadata',
+          source: sourceDiagnostics ?? null,
+          sharp: this.safeSharpDiagnostics(),
+          reason: error instanceof Error ? error.message : 'unknown error',
+        },
       });
     }
   }
@@ -620,6 +653,16 @@ export class UserAssetsService {
     return {
       buffer,
       ...diagnostics,
+    };
+  }
+
+  private publicSourceImageDiagnostics(source: SourceImageDownload) {
+    return {
+      contentType: source.contentType,
+      contentLength: source.contentLength,
+      bodyLength: source.bodyLength,
+      detectedMimeType: source.detectedMimeType,
+      prefixHex: source.prefixHex,
     };
   }
 
@@ -862,6 +905,18 @@ export class UserAssetsService {
     }
 
     return (response as { details?: unknown }).details ?? null;
+  }
+
+  private safeSharpDiagnostics() {
+    const versions = sharp.versions as Record<string, string | undefined>;
+
+    return {
+      sharp: versions.sharp ?? null,
+      vips: versions.vips ?? null,
+      png: versions.png ?? null,
+      webp: versions.webp ?? null,
+      jpeg: versions.jpeg ?? versions.mozjpeg ?? null,
+    };
   }
 
   private imageMimeType(input: UserAssetBody, fileName: string) {
