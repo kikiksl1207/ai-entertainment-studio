@@ -1899,11 +1899,7 @@ export class CommunityService {
     const configuredBaseUrl =
       this.configService.get<string>('API_PUBLIC_BASE_URL') ??
       this.configService.get<string>('BACKEND_PUBLIC_BASE_URL');
-    const baseUrl =
-      configuredBaseUrl ??
-      (this.configService.get<string>('NODE_ENV') === 'production'
-        ? 'https://api.lumina-stage.com'
-        : '');
+    const baseUrl = configuredBaseUrl ?? 'https://api.lumina-stage.com';
 
     return `${baseUrl.replace(/\/+$/, '')}/api/v1/assets/public/${assetId}`;
   }

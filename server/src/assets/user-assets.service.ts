@@ -288,9 +288,11 @@ export class UserAssetsService {
       throw new NotFoundException('Asset not found');
     }
 
-    if (asset.storageProvider === 's3' || asset.storageProvider === 'r2') {
+    const storageProvider = this.deliveryStorageProvider(asset.storageProvider);
+
+    if (storageProvider === 's3' || storageProvider === 'r2') {
       return this.buildS3CompatibleSignedReadUrl(
-        asset.storageProvider,
+        storageProvider,
         asset.storageKey,
         this.numberFromEnv('OBJECT_PUBLIC_READ_URL_TTL_SECONDS', 300),
       );
@@ -605,6 +607,19 @@ export class UserAssetsService {
       typeof lifecycle.status === 'string' ? lifecycle.status : 'active';
 
     return uploadStatus !== 'pending_upload' && lifecycleStatus !== 'archived';
+  }
+
+  private deliveryStorageProvider(assetStorageProvider: string) {
+    if (assetStorageProvider === 's3' || assetStorageProvider === 'r2') {
+      return assetStorageProvider;
+    }
+
+    const configuredProvider = this.configService.get<string>('OBJECT_STORAGE_PROVIDER');
+    if (configuredProvider === 's3' || configuredProvider === 'r2') {
+      return configuredProvider;
+    }
+
+    return assetStorageProvider;
   }
 
   private buildObjectStorageEndpoint(storageProvider: string, bucket: string, region: string) {

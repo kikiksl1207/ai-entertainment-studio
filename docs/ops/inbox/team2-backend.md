@@ -1,7 +1,7 @@
 # Team2 Backend Inbox
 
 status: done
-task: Storage/backend ops: feed image object URL 403
+task: Storage/backend ops: signed asset delivery recheck
 branch/commit: pending commit
 changed_files:
 - server/src/assets/user-assets.controller.ts
@@ -13,18 +13,18 @@ tests:
 - npm.cmd run lint
 - npm.cmd run build
 result:
-- Confirmed the remaining blocker is object delivery, not feed API shape. Feed API returns image asset records and URLs, but direct unauthenticated access to the current S3 object URL returns HTTP 403 `AccessDenied`.
-- Bucket public-read settings, object ACLs, Block Public Access, and CORS cannot be inspected from this workspace without provider console/credentials. No secrets, tokens, passwords, or env values were read or recorded.
-- Code cause: `CommunityService.toPostView()` previously returned `buildPublicAssetUrl(...)`, which assumes the configured public asset base is anonymously readable. With the current S3/public-origin policy returning 403, cards and lightbox fail even though the database asset and feed response are present.
-- Implemented backend fallback delivery for feed assets: feed asset `url` and `thumbnailUrl` now point to the API public asset endpoint instead of the raw S3 public object URL.
-- Added unauthenticated `GET /api/v1/assets/public/:assetId`. It validates that the asset is public, image type, not pending upload, and not archived, then returns a 302 redirect.
-- For `s3`/`r2` assets, the redirect target is a short-lived signed read URL generated server-side. This avoids opening bucket-wide public read while still allowing public feed images to render.
-- For non-S3/R2 assets, the endpoint falls back to the existing public asset URL builder.
-- No provider setting was changed. If ops prefers public-read/CDN delivery, the bucket/CDN policy can still be fixed instead; this patch provides a safer backend delivery path when public read must stay closed.
+- Rechecked the deployed signed delivery behavior reported by QA. Feed API was returning relative asset URLs (`/api/v1/assets/public/:assetId`), causing `lumina-feed.html` on the frontend origin to request the frontend host and receive 404.
+- Patched `CommunityService.publicFeedAssetUrl()` so feed asset `url` and `thumbnailUrl` fall back to absolute API origin `https://api.lumina-stage.com` when no API public base env is configured. This keeps browser image requests on the backend API origin.
+- Rechecked the API-origin 302 without recording the signed token. The deployed endpoint was redirecting to a raw S3 object URL without a signature, then S3 returned 403.
+- Root cause from code path: existing uploaded asset rows can have a non-`s3/r2` `storageProvider`, so `getPublicAssetDeliveryUrl()` fell back to `buildPublicAssetUrl()` instead of generating a signed read URL.
+- Patched `UserAssetsService.getPublicAssetDeliveryUrl()` to use the row provider when it is `s3/r2`, otherwise fall back to the currently configured object storage provider when that provider is `s3/r2`. This covers older user-image rows while keeping public-read closed.
+- The public asset endpoint still validates `visibility=public`, image type, not pending upload, and not archived before redirecting.
+- Signed URL/token/cookie/secret values were not recorded.
 blocked_by:
-- Live verification of `lumina-feed.html` card image and lightbox requires deploying this branch/server change.
+- Live verification of `lumina-feed.html` card image and lightbox requires deploying this follow-up backend change.
 - Direct provider-side checks for bucket policy, object ACL, Block Public Access, and CORS require AWS/S3 console or equivalent credentials.
 next_needed:
-- Deploy this backend change and verify a feed asset URL returned by the API resolves through `/api/v1/assets/public/:assetId` to HTTP 200.
+- Deploy this backend change and verify Feed API returns absolute `https://api.lumina-stage.com/api/v1/assets/public/:assetId` URLs.
+- Verify `/api/v1/assets/public/:assetId` returns 302 to a signed read target and following the redirect returns HTTP 200.
 - Team2 QA should recheck Lumina Feed card image and lightbox image after deploy.
 - Ops should still decide long-term delivery mode: public CDN/read policy for public assets, or keep signed read redirect/proxy as the official delivery path.
