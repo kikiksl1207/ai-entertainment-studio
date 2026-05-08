@@ -1,0 +1,329 @@
+(function initChargeModule() {
+/* ══════════════════════════════════════════════
+   #057 — 루미나 충전소 (charge.html)
+   - 차모 backend: GET /api/v1/lumina-station?take=5
+   - 결제 주문: POST /api/v1/payments/orders (Idempotency-Key 필수)
+   - 보안 원칙:
+     1) 클라이언트에서 임의로 잔액 변경 X — 항상 백엔드 재조회 결과만 신뢰
+     2) Idempotency-Key는 클라이언트 생성 UUID v4 (중복 결제 방지)
+     3) URL에 결제 정보(금액/상품ID 등) 노출 X
+     4) payment.status="pg_pending"이면 결제 버튼 비활성
+     5) 에러 응답 그대로 보여주지 않고 사용자 문구로 변환
+   ══════════════════════════════════════════════ */
+
+let _chargeStationData = null;
+let _chargeOrdering = false;
+
+/* Charge helper boundary: endpoint/status/payload decisions stay out of DOM binding. */
+const CHARGE_ENDPOINTS = Object.freeze({
+  station: "/api/v1/lumina-station?take=5",
+  paymentOrders: "/api/v1/payments/orders"
+});
+const CHARGE_PAYMENT_STATUS = Object.freeze({
+  pgPending: "pg_pending",
+  pending: "pending"
+});
+
+function normalizeChargeProducts(data) {
+  return Array.isArray(data?.products) ? data.products : [];
+}
+
+function canCreatePaymentOrder(stationData = _chargeStationData) {
+  return (stationData?.payment?.status || "") !== CHARGE_PAYMENT_STATUS.pgPending;
+}
+
+function formatLuminaProductPrice(value) {
+  return formatCurrencyKRW(value);
+}
+
+function buildPaymentOrderPayload(productId) {
+  return { luminaProductId: productId };
+}
+
+/* UUID v4 생성 — Idempotency-Key 용도. crypto.randomUUID 우선, fallback */
+function generateIdempotencyKey() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // RFC4122 v4 fallback
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+function formatCurrencyKRW(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return "0원";
+  return `${n.toLocaleString("ko-KR")}원`;
+}
+
+function formatLuminaAmount(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return "0";
+  return n.toLocaleString("ko-KR");
+}
+
+/* 충전소 데이터 로드 */
+async function loadChargeStationData() {
+  try {
+    const data = await apiFetch(CHARGE_ENDPOINTS.station, { auth: true });
+    _chargeStationData = data || null;
+    return _chargeStationData;
+  } catch (err) {
+    console.warn("[Lumina] /lumina-station 실패:", err);
+    return null;
+  }
+}
+
+function renderChargePage() {
+  const balanceEl = document.getElementById("chargeBalance");
+  const lastOrderEl = document.getElementById("chargeLastOrder");
+  const policyHintEl = document.getElementById("chargePolicyHint");
+  const productGrid = document.getElementById("chargeProductGrid");
+  const ordersList = document.getElementById("chargeOrdersList");
+  const pendingNotice = document.getElementById("chargePendingNotice");
+
+  const data = _chargeStationData;
+  if (!data) {
+    if (productGrid) productGrid.innerHTML = `<div class="charge-error">충전 정보를 불러오지 못했어요. 연결 상태를 확인한 뒤 다시 시도해 주세요.</div>`;
+    if (ordersList) ordersList.innerHTML = `<div class="charge-empty">불러오지 못했어요.</div>`;
+    return;
+  }
+
+  // 1. 잔액
+  const balance = data.wallet?.cachedBalance ?? data.wallet?.balance ?? 0;
+  if (balanceEl) balanceEl.textContent = formatLuminaAmount(balance);
+
+  // 2. 정책 힌트
+  if (policyHintEl) {
+    const unitL = data.policy?.paidLikeUnitPriceLumina ?? 10;
+    policyHintEl.textContent = `1개 = ${unitL}L`;
+  }
+
+  // 3. 결제 status — pg_pending이면 안내 카드 표시 + 결제 버튼 비활성
+  const paymentStatus = data.payment?.status || "";
+  const isPgPending = paymentStatus === CHARGE_PAYMENT_STATUS.pgPending;
+  if (pendingNotice) pendingNotice.hidden = !isPgPending;
+
+  // 4. 마지막 주문 표시
+  const recentOrders = Array.isArray(data.recentOrders) ? data.recentOrders : [];
+  if (lastOrderEl) {
+    if (recentOrders.length > 0) {
+      const last = recentOrders[0];
+      const date = last.paidAt || last.createdAt;
+      lastOrderEl.textContent = date ? formatRelativeDate(date) : "최근 충전 없음";
+    } else {
+      lastOrderEl.textContent = "충전 이력 없음";
+    }
+  }
+
+  // 5. 상품 그리드
+  const products = normalizeChargeProducts(data);
+  if (productGrid) {
+    if (products.length === 0) {
+      productGrid.innerHTML = `<div class="charge-empty">지금 선택할 수 있는 충전 상품이 없어요.</div>`;
+    } else {
+      productGrid.innerHTML = products.map(p => renderChargeProductCard(p, !canCreatePaymentOrder(data))).join("");
+    }
+  }
+
+  // 6. 최근 충전 내역
+  if (ordersList) {
+    if (recentOrders.length === 0) {
+      ordersList.innerHTML = `<div class="charge-empty">아직 충전 이력이 없어요. 첫 충전이 곧 시작됩니다.</div>`;
+    } else {
+      ordersList.innerHTML = recentOrders.map(renderChargeOrderRow).join("");
+    }
+  }
+}
+
+function renderChargeProductCard(p, isPgPending) {
+  const productId = p.id || "";
+  const name = feedEscapeHtml(p.name || "충전 상품");
+  const luminaAmount = Number(p.luminaAmount || 0);
+  const bonusAmount = Number(p.bonusAmount || 0);
+  const totalLumina = Number(p.totalLumina || luminaAmount + bonusAmount);
+  const priceAmount = Number(p.priceAmount || 0);
+  const bonusRate = Number(p.bonusRate || 0);
+  const isBest = !!p.isBestValue;
+  const discountAmount = Number(p.discountAmount || 0);
+
+  return `
+    <article class="charge-product-card${isBest ? ' is-best' : ''}" data-product-id="${feedEscapeHtml(productId)}">
+      ${isBest ? `<span class="charge-best-badge" title="가장 많이 선택되는 충전팩">BEST</span>` : ""}
+      <header class="charge-product-head">
+        <h3 class="charge-product-name">${name}</h3>
+        ${bonusRate > 0 ? `<span class="charge-bonus-rate">+${bonusRate}% 보너스</span>` : ""}
+      </header>
+      <div class="charge-product-amount">
+        <span class="charge-amount-main">${formatLuminaAmount(totalLumina)}<small>L</small></span>
+        ${bonusAmount > 0
+          ? `<span class="charge-amount-detail">기본 ${formatLuminaAmount(luminaAmount)}L + 보너스 ${formatLuminaAmount(bonusAmount)}L</span>`
+          : ""}
+      </div>
+      <div class="charge-product-price">
+        <strong>${formatLuminaProductPrice(priceAmount)}</strong>
+        ${discountAmount > 0 ? `<small class="charge-discount">${formatLuminaProductPrice(discountAmount)} 할인</small>` : ""}
+      </div>
+      <button
+        class="charge-buy-btn"
+        type="button"
+        data-charge-buy="${feedEscapeHtml(productId)}"
+        ${isPgPending ? 'disabled' : ''}>
+        ${isPgPending ? '결제 준비 중' : `${formatLuminaAmount(totalLumina)}L 충전하기`}
+      </button>
+    </article>
+  `;
+}
+
+function renderChargeOrderRow(order) {
+  const status = order.status || "pending";
+  const statusLabel = ({
+    pending: "결제 대기",
+    paid: "결제 완료",
+    failed: "결제 실패",
+    cancelled: "결제 취소",
+    refunded: "환불 완료"
+  })[status] || status;
+  const date = order.paidAt || order.createdAt || "";
+  const dateText = date ? new Date(date).toLocaleDateString("ko-KR") : "-";
+  const productName = feedEscapeHtml(order.productName || order.luminaProduct?.name || "충전");
+  const lumina = Number(order.luminaAmount || order.totalLumina || 0);
+  const price = Number(order.priceAmount || 0);
+
+  return `
+    <div class="charge-order-row" data-order-status="${status}">
+      <div class="charge-order-meta">
+        <strong>${productName}</strong>
+        <small>${dateText} · ${statusLabel}</small>
+      </div>
+      <div class="charge-order-amount">
+        <span class="charge-order-lumina">+${formatLuminaAmount(lumina)}L</span>
+        <small>${formatCurrencyKRW(price)}</small>
+      </div>
+    </div>
+  `;
+}
+
+/* 상품 카드 클릭 → 주문 생성 → PG 리다이렉트 (또는 안내) */
+async function handleChargeBuy(productId) {
+  if (_chargeOrdering) return;
+  if (!productId) {
+    alert("상품 정보를 확인할 수 없어요.");
+    return;
+  }
+  if (!isLoggedIn()) {
+    openAuthModal?.("login");
+    return;
+  }
+
+  _chargeOrdering = true;
+  // 보안: 같은 주문이 중복 생성되지 않도록 클라이언트 UUID 생성
+  const idempotencyKey = generateIdempotencyKey();
+
+  // 결제 버튼 로딩 상태 (#059: "결제 요청 중")
+  const btn = document.querySelector(`[data-charge-buy="${productId}"]`);
+  const originalText = btn?.textContent || "충전하기";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "결제 요청 중";
+  }
+
+  try {
+    const order = await apiFetch(CHARGE_ENDPOINTS.paymentOrders, {
+      method: "POST",
+      auth: true,
+      throwOnError: true,
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: buildPaymentOrderPayload(productId)
+    });
+
+    // 응답 확인 — PG 리다이렉트 URL이 있으면 이동, 아니면 안내
+    const redirectUrl = order?.payment?.redirectUrl || order?.checkoutUrl || order?.paymentUrl;
+    const status = order?.status || order?.payment?.status || "";
+
+    if (redirectUrl && /^https?:\/\//i.test(redirectUrl)) {
+      // PG 리다이렉트 — 보안: URL이 https인지 한 번 더 확인
+      window.location.href = redirectUrl;
+      return; // 페이지 떠나므로 후속 처리 불필요
+    }
+
+    if (status === CHARGE_PAYMENT_STATUS.pgPending || status === CHARGE_PAYMENT_STATUS.pending) {
+      alert("결제 기능은 현재 준비 중입니다. 상품 정보와 예상 지급 루미나만 먼저 확인할 수 있어요.");
+      // 충전소 데이터 재조회 (잔액은 변동 없지만 상태 갱신)
+      await loadChargeStationData();
+      renderChargePage();
+    } else {
+      alert("결제창에서 최종 금액과 상품명을 확인한 뒤 결제를 진행해 주세요.");
+      await loadChargeStationData();
+      renderChargePage();
+    }
+  } catch (err) {
+    const msg = err?.body?.message || err?.message || "";
+    const status = err?.status;
+    // #059 오류/안내 문구 적용
+    let userMsg = "결제 요청을 만들지 못했어요. 잠시 후 다시 시도해 주세요.";
+    if (status === 401) userMsg = "루미나 충전은 로그인 후 이용할 수 있어요.";
+    else if (status === 404) userMsg = "지금 선택할 수 있는 충전 상품이 없어요. 페이지를 새로고침해 주세요.";
+    else if (status === 409) userMsg = "이미 결제 요청을 처리 중이에요. 잠시 후 다시 시도해 주세요.";
+    else if (status === 429) userMsg = "요청이 잠시 많아요. 잠시 후 다시 시도해 주세요.";
+    else if (/insufficient|inactive/i.test(msg)) userMsg = "현재 충전이 어려운 상태예요. 고객센터로 문의해 주세요.";
+    else if (/cancelled|cancel/i.test(msg)) userMsg = "결제가 취소됐어요. 루미나는 충전되지 않았습니다.";
+    else if (/failed|fail/i.test(msg)) userMsg = "결제가 완료되지 않았어요. 결제 수단 또는 한도를 확인해 주세요.";
+    alert(userMsg);
+  } finally {
+    _chargeOrdering = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+}
+
+function bindChargePage() {
+  // 비로그인 게이트의 로그인 CTA
+  const gate = document.getElementById("chargeLoginGate");
+  if (gate && !gate._bound) {
+    gate._bound = true;
+    document.getElementById("chargeLoginBtn")?.addEventListener("click", e => {
+      e.preventDefault();
+      openAuthModal?.("login");
+    });
+  }
+  // 상품 카드 클릭 — 이벤트 위임
+  const grid = document.getElementById("chargeProductGrid");
+  if (grid && !grid._bound) {
+    grid._bound = true;
+    grid.addEventListener("click", e => {
+      const buyBtn = e.target.closest("[data-charge-buy]");
+      if (!buyBtn || buyBtn.disabled) return;
+      const productId = buyBtn.dataset.chargeBuy;
+      handleChargeBuy(productId);
+    });
+  }
+}
+
+async function initChargePage() {
+  const content = document.getElementById("chargePageContent");
+  const gate = document.getElementById("chargeLoginGate");
+  if (!content && !gate) return; // 충전소 페이지 아님
+
+  bindChargePage();
+
+  if (!isLoggedIn()) {
+    if (gate) gate.hidden = false;
+    if (content) content.hidden = true;
+    return;
+  }
+  if (gate) gate.hidden = true;
+  if (content) content.hidden = false;
+
+  await loadChargeStationData();
+  renderChargePage();
+}
+
+
+window.initChargePage = initChargePage;
+})();
