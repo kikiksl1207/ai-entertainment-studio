@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import sharp from 'sharp';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -15,7 +16,13 @@ type UserAssetQuery = Record<string, string | undefined>;
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-export const USER_IMAGE_UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
+const FEED_IMAGE_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
+export const USER_IMAGE_UPLOAD_MAX_BYTES = FEED_IMAGE_UPLOAD_MAX_BYTES;
+const FEED_IMAGE_DISPLAY_MAX_EDGE = 2048;
+const FEED_IMAGE_THUMBNAIL_MAX_EDGE = 768;
+const FEED_IMAGE_DISPLAY_QUALITY = 82;
+const FEED_IMAGE_THUMBNAIL_QUALITY = 78;
+const USER_ASSET_DERIVATIVE_VARIANTS = new Set(['original', 'display', 'thumbnail']);
 const USER_ASSET_UPLOAD_STATUSES = new Set(['all', 'pending_upload', 'uploaded', 'ready']);
 const USER_ASSET_LIFECYCLE_STATUSES = new Set(['active', 'archived']);
 
@@ -173,7 +180,20 @@ export class UserAssetsService {
       this.imageFileSizeBytes(input);
     }
 
-    await this.assertObjectUploaded(asset.storageProvider, asset.storageKey);
+    const uploadedObject = await this.assertObjectUploaded(
+      asset.storageProvider,
+      asset.storageKey,
+    );
+    const maxSize = this.numberFromEnv(
+      'MAX_IMAGE_UPLOAD_BYTES',
+      USER_IMAGE_UPLOAD_MAX_BYTES,
+    );
+
+    if (uploadedObject.fileSizeBytes && uploadedObject.fileSizeBytes > maxSize) {
+      throw this.feedImageTooLargeException(maxSize);
+    }
+
+    const derivatives = await this.createFeedImageDerivatives(asset);
 
     const confirmedAt = new Date().toISOString();
     const updatedAsset = await this.prisma.asset.update({
@@ -188,6 +208,7 @@ export class UserAssetsService {
             confirmedAt,
             objectETag: this.optionalString(input, 'objectETag'),
           },
+          derivatives,
         }),
         updatedAt: new Date(),
       },
@@ -199,6 +220,7 @@ export class UserAssetsService {
         status: 'uploaded',
         confirmedAt,
         publicUrl: buildPublicAssetUrl(this.configService, updatedAsset.storageKey, null),
+        derivatives: this.publicDerivativeSummary(updatedAsset.metadata),
       },
     };
   }
@@ -272,9 +294,13 @@ export class UserAssetsService {
     };
   }
 
-  async getPublicAssetDeliveryUrl(assetId: string) {
+  async getPublicAssetDeliveryUrl(assetId: string, variant = 'original') {
     if (!UUID_PATTERN.test(assetId)) {
       throw new BadRequestException('assetId must be a UUID');
+    }
+
+    if (!USER_ASSET_DERIVATIVE_VARIANTS.has(variant)) {
+      throw new BadRequestException('variant must be original, display, or thumbnail');
     }
 
     const asset = await this.prisma.asset.findFirst({
@@ -288,12 +314,16 @@ export class UserAssetsService {
       throw new NotFoundException('Asset not found');
     }
 
-    const storageProvider = this.deliveryStorageProvider(asset.storageProvider);
+    const derivative = this.assetDerivative(asset.metadata, variant);
+    const storageProvider = this.deliveryStorageProvider(
+      derivative?.storageProvider ?? asset.storageProvider,
+    );
+    const selectedStorageKey = derivative?.storageKey ?? asset.storageKey;
 
     if (storageProvider === 's3' || storageProvider === 'r2') {
       const storageKey = await this.resolveReadableObjectStorageKey(
         storageProvider,
-        asset.storageKey,
+        selectedStorageKey,
       );
 
       return this.buildS3CompatibleSignedReadUrl(
@@ -303,7 +333,7 @@ export class UserAssetsService {
       );
     }
 
-    return buildPublicAssetUrl(this.configService, asset.storageKey, asset.storageKey);
+    return buildPublicAssetUrl(this.configService, selectedStorageKey, selectedStorageKey);
   }
 
   private presentAsset(asset: {
@@ -332,8 +362,14 @@ export class UserAssetsService {
       fileSizeBytes: asset.fileSizeBytes?.toString() ?? null,
       width: asset.width,
       height: asset.height,
-      url: buildPublicAssetUrl(this.configService, asset.storageKey, null),
-      thumbnailUrl: buildPublicAssetUrl(this.configService, asset.storageKey, null),
+      url: this.publicAssetProxyUrl(asset.id, 'original'),
+      displayUrl: this.assetDerivative(asset.metadata, 'display')
+        ? this.publicAssetProxyUrl(asset.id, 'display')
+        : this.publicAssetProxyUrl(asset.id, 'original'),
+      thumbnailUrl: this.assetDerivative(asset.metadata, 'thumbnail')
+        ? this.publicAssetProxyUrl(asset.id, 'thumbnail')
+        : this.publicAssetProxyUrl(asset.id, 'original'),
+      derivatives: this.publicDerivativeSummary(asset.metadata),
       uploadStatus:
         typeof uploadIntent.status === 'string' ? uploadIntent.status : 'ready',
       lifecycleStatus:
@@ -347,6 +383,252 @@ export class UserAssetsService {
       createdAt: asset.createdAt,
       updatedAt: asset.updatedAt,
     };
+  }
+
+  private async createFeedImageDerivatives(asset: {
+    storageProvider: string;
+    storageKey: string;
+    mimeType: string;
+    metadata: Prisma.JsonValue;
+  }) {
+    const storageProvider = this.deliveryStorageProvider(asset.storageProvider);
+
+    if (storageProvider !== 's3' && storageProvider !== 'r2') {
+      return this.existingDerivatives(asset.metadata);
+    }
+
+    const sourceStorageKey = await this.resolveReadableObjectStorageKey(
+      storageProvider,
+      asset.storageKey,
+    );
+    const sourceBuffer = await this.downloadObjectBuffer(storageProvider, sourceStorageKey);
+    const sourceMetadata = await sharp(sourceBuffer, { animated: false }).metadata();
+    const display = await this.buildImageDerivative(sourceBuffer, {
+      maxEdge: FEED_IMAGE_DISPLAY_MAX_EDGE,
+      quality: FEED_IMAGE_DISPLAY_QUALITY,
+    });
+    const thumbnail = await this.buildImageDerivative(sourceBuffer, {
+      maxEdge: FEED_IMAGE_THUMBNAIL_MAX_EDGE,
+      quality: FEED_IMAGE_THUMBNAIL_QUALITY,
+    });
+    const displayStorageKey = this.derivativeStorageKey(sourceStorageKey, 'display');
+    const thumbnailStorageKey = this.derivativeStorageKey(sourceStorageKey, 'thumbnail');
+
+    await Promise.all([
+      this.uploadObjectBuffer(storageProvider, displayStorageKey, 'image/webp', display.buffer),
+      this.uploadObjectBuffer(
+        storageProvider,
+        thumbnailStorageKey,
+        'image/webp',
+        thumbnail.buffer,
+      ),
+    ]);
+
+    return {
+      original: {
+        storageProvider,
+        storageKey: sourceStorageKey,
+        mimeType: asset.mimeType,
+        width: sourceMetadata.width ?? null,
+        height: sourceMetadata.height ?? null,
+        preserved: true,
+      },
+      display: {
+        storageProvider,
+        storageKey: displayStorageKey,
+        mimeType: 'image/webp',
+        width: display.width,
+        height: display.height,
+        fileSizeBytes: display.buffer.length,
+        maxEdge: FEED_IMAGE_DISPLAY_MAX_EDGE,
+      },
+      thumbnail: {
+        storageProvider,
+        storageKey: thumbnailStorageKey,
+        mimeType: 'image/webp',
+        width: thumbnail.width,
+        height: thumbnail.height,
+        fileSizeBytes: thumbnail.buffer.length,
+        maxEdge: FEED_IMAGE_THUMBNAIL_MAX_EDGE,
+      },
+      policy: {
+        source: 'feed_image_upload_v1',
+        originalPreserved: true,
+        displayMaxEdge: FEED_IMAGE_DISPLAY_MAX_EDGE,
+        thumbnailMaxEdge: FEED_IMAGE_THUMBNAIL_MAX_EDGE,
+        outputFormat: 'webp',
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  private async buildImageDerivative(
+    sourceBuffer: Buffer,
+    options: { maxEdge: number; quality: number },
+  ) {
+    const buffer = await sharp(sourceBuffer, { animated: false })
+      .rotate()
+      .resize({
+        width: options.maxEdge,
+        height: options.maxEdge,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .webp({ quality: options.quality })
+      .toBuffer();
+    const metadata = await sharp(buffer).metadata();
+
+    return {
+      buffer,
+      width: metadata.width ?? null,
+      height: metadata.height ?? null,
+    };
+  }
+
+  private async downloadObjectBuffer(storageProvider: string, storageKey: string) {
+    const response = await fetch(
+      this.buildS3CompatibleSignedReadUrl(storageProvider, storageKey, 60),
+    );
+
+    if (!response.ok) {
+      throw new BadRequestException('Could not read uploaded image for processing');
+    }
+
+    return Buffer.from(await response.arrayBuffer());
+  }
+
+  private async uploadObjectBuffer(
+    storageProvider: string,
+    storageKey: string,
+    mimeType: string,
+    buffer: Buffer,
+  ) {
+    const uploadUrl = this.buildS3CompatiblePresignedPutUrl(
+      storageProvider,
+      storageKey,
+      this.numberFromEnv('OBJECT_UPLOAD_INTENT_TTL_SECONDS', 900),
+      mimeType,
+    );
+    const response = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'content-type': mimeType },
+      body: buffer as unknown as BodyInit,
+    });
+
+    if (!response.ok) {
+      throw new BadRequestException('Could not write processed image derivative');
+    }
+  }
+
+  private derivativeStorageKey(storageKey: string, variant: string) {
+    const normalizedKey = storageKey.replace(/^\/+/, '');
+    const slashIndex = normalizedKey.lastIndexOf('/');
+    const directory = slashIndex >= 0 ? normalizedKey.slice(0, slashIndex) : '';
+    const fileName = slashIndex >= 0 ? normalizedKey.slice(slashIndex + 1) : normalizedKey;
+    const baseName = fileName.replace(/\.[^.]+$/, '');
+    const derivativeFileName = `${baseName}.${variant}.webp`;
+
+    return directory
+      ? `${directory}/derivatives/${derivativeFileName}`
+      : `derivatives/${derivativeFileName}`;
+  }
+
+  private existingDerivatives(metadata: Prisma.JsonValue) {
+    const derivatives = this.metadataObject(this.metadataObject(metadata).derivatives);
+    return Object.keys(derivatives).length > 0 ? derivatives : {};
+  }
+
+  private assetDerivative(metadata: Prisma.JsonValue, variant: string) {
+    if (variant === 'original') {
+      return null;
+    }
+
+    const derivatives = this.metadataObject(this.metadataObject(metadata).derivatives);
+    const derivative = this.metadataObject(derivatives[variant]);
+    const storageKey =
+      typeof derivative.storageKey === 'string' ? derivative.storageKey : null;
+
+    if (!storageKey) {
+      return null;
+    }
+
+    return {
+      storageProvider:
+        typeof derivative.storageProvider === 'string'
+          ? derivative.storageProvider
+          : undefined,
+      storageKey,
+      mimeType:
+        typeof derivative.mimeType === 'string' ? derivative.mimeType : undefined,
+    };
+  }
+
+  private publicDerivativeSummary(metadata: Prisma.JsonValue) {
+    const derivatives = this.metadataObject(this.metadataObject(metadata).derivatives);
+
+    return {
+      original: this.publicDerivativeItem(derivatives.original),
+      display: this.publicDerivativeItem(derivatives.display),
+      thumbnail: this.publicDerivativeItem(derivatives.thumbnail),
+      policy: this.publicDerivativePolicy(derivatives.policy),
+      generatedAt:
+        typeof derivatives.generatedAt === 'string' ? derivatives.generatedAt : null,
+    };
+  }
+
+  private publicDerivativeItem(value: unknown) {
+    const item = this.metadataObject(value);
+    const width = this.numberOrNull(item.width);
+    const height = this.numberOrNull(item.height);
+    const fileSizeBytes = this.numberOrNull(item.fileSizeBytes);
+    const maxEdge = this.numberOrNull(item.maxEdge);
+    const mimeType = typeof item.mimeType === 'string' ? item.mimeType : null;
+
+    if (!mimeType && width === null && height === null && fileSizeBytes === null) {
+      return null;
+    }
+
+    return {
+      mimeType,
+      width,
+      height,
+      fileSizeBytes,
+      maxEdge,
+      preserved: typeof item.preserved === 'boolean' ? item.preserved : undefined,
+    };
+  }
+
+  private publicDerivativePolicy(value: unknown) {
+    const policy = this.metadataObject(value);
+
+    if (Object.keys(policy).length === 0) {
+      return null;
+    }
+
+    return {
+      source: typeof policy.source === 'string' ? policy.source : null,
+      originalPreserved:
+        typeof policy.originalPreserved === 'boolean'
+          ? policy.originalPreserved
+          : null,
+      displayMaxEdge: this.numberOrNull(policy.displayMaxEdge),
+      thumbnailMaxEdge: this.numberOrNull(policy.thumbnailMaxEdge),
+      outputFormat:
+        typeof policy.outputFormat === 'string' ? policy.outputFormat : null,
+    };
+  }
+
+  private publicAssetProxyUrl(assetId: string, variant: string) {
+    const configuredBaseUrl =
+      this.configService.get<string>('API_PUBLIC_BASE_URL') ??
+      this.configService.get<string>('BACKEND_PUBLIC_BASE_URL');
+    const baseUrl = configuredBaseUrl ?? 'https://api.lumina-stage.com';
+
+    return `${baseUrl.replace(/\/+$/, '')}/api/v1/assets/public/${assetId}/${variant}`;
+  }
+
+  private numberOrNull(value: unknown) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
   }
 
   private imageMimeType(input: UserAssetBody, fileName: string) {
@@ -403,21 +685,27 @@ export class UserAssetsService {
     }
 
     if (size > maxSize) {
-      throw new PayloadTooLargeException({
-        code: 'PAYLOAD_TOO_LARGE',
-        message: `이미지는 ${this.formatMegabytes(maxSize)}MB 이하 파일로 선택해 주세요.`,
-        details: {
-          field: 'fileSizeBytes',
-          maxBytes: maxSize,
-        },
-      });
+      throw this.feedImageTooLargeException(maxSize);
     }
+
 
     return BigInt(size);
   }
 
   private formatMegabytes(bytes: number) {
     return Math.floor(bytes / (1024 * 1024));
+  }
+
+  private feedImageTooLargeException(maxSize: number) {
+    return new PayloadTooLargeException({
+      code: 'PAYLOAD_TOO_LARGE',
+      message: `Feed images must be ${this.formatMegabytes(maxSize)}MB or smaller.`,
+      details: {
+        field: 'fileSizeBytes',
+        maxBytes: maxSize,
+        maxMegabytes: this.formatMegabytes(maxSize),
+      },
+    });
   }
 
   private safeFileName(fileName: string) {
@@ -470,7 +758,7 @@ export class UserAssetsService {
 
   private async assertObjectUploaded(storageProvider: string, storageKey: string) {
     if (storageProvider === 'local') {
-      return;
+      return {};
     }
 
     if (storageProvider === 'r2' || storageProvider === 's3') {
@@ -487,7 +775,14 @@ export class UserAssetsService {
         throw new BadRequestException('Could not verify uploaded object');
       }
 
-      return;
+      const contentLength = Number(response.headers.get('content-length'));
+
+      return {
+        fileSizeBytes:
+          Number.isFinite(contentLength) && contentLength > 0
+            ? contentLength
+            : undefined,
+      };
     }
 
     throw new BadRequestException('OBJECT_STORAGE_PROVIDER must be local, r2, or s3');
