@@ -1,6 +1,33 @@
 # Team2 Backend Inbox
 
 status: ready_for_deploy
+task: Team2 Backend / Feed Image Pipeline Confirm Upload 500
+branch/commit: pending commit
+changed_files:
+- server/src/assets/user-assets.service.ts
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd run lint
+- npm.cmd run build
+result:
+- Rechecked the confirm-upload derivative path after Render applied the 20MB upload policy.
+- Code root cause for the 500 class: derivative processing had unhandled failure paths around source metadata reads, Sharp transforms, and derivative uploads. Those could escape Nest's intended 4xx diagnostics as an internal error.
+- Patched derivative processing with stage-scoped safe handling for source-key resolution, source download, source metadata read, display build, thumbnail build, and derivative upload.
+- Added safe server logs for derivative failure stage, asset id, and sanitized reason only. Signed URLs, object URLs, tokens, cookies, passwords, and env values are not logged.
+- Source download failures now return `FEED_IMAGE_SOURCE_READ_FAILED` with provider/status diagnostics only.
+- Derivative upload failures now return `FEED_IMAGE_DERIVATIVE_UPLOAD_FAILED` with provider/status/mime diagnostics only.
+- Unexpected Sharp/processing failures now return `FEED_IMAGE_DERIVATIVE_FAILED` with the failed stage instead of leaking as a generic 500.
+- Display/thumbnail generation still prefers WebP, but now falls back to JPEG if WebP encoding fails in the runtime. This keeps the policy aligned with WebP/JPEG delivery and gives Render/libvips codec issues a recovery path.
+blocked_by:
+- Live PASS for 1MB and 14MB upload-intent -> S3 PUT -> confirm-upload requires deploying this patch.
+next_needed:
+- Deploy this commit and rerun the 1MB confirm-upload reproduction. Expected result is PASS, or a safe 4xx with a stage code if storage/runtime still blocks derivatives.
+- Rerun the 14MB image upload flow and confirm display/thumbnail derivative objects are created.
+- Recheck Feed card image, lightbox, display URL, and thumbnail URL after deploy.
+
+---
+
+status: ready_for_deploy
 task: Team2 Backend / Media Upload Policy: feed image derivatives and 20MB limit
 branch/commit: pending commit
 changed_files:
