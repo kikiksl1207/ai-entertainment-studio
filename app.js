@@ -5805,17 +5805,6 @@ function renderCharacterDetail() {
 }
 
 /* ── 렌더링: 비즈니스 패키지 ─────────────────── */
-function renderBusinessPackages() {
-  const root = document.getElementById("businessPackageGrid");
-  if (!root) return;
-  root.innerHTML = window.LuminaStaticData.businessPackages.map(item => `
-    <article class="package-card">
-      <span class="eyebrow">${item.target}</span>
-      <strong>${item.name}</strong>
-      <p>${item.summary}</p>
-      <ul class="package-list">${item.deliverables.map(d => `<li>${d}</li>`).join("")}</ul>
-    </article>`).join("");
-}
 
 /* ── 카드 클릭 네비게이션 ────────────────────── */
 function bindCardNavigation() {
@@ -6940,7 +6929,7 @@ async function init() {
   renderDebutLine();
   renderShortforms();
   renderShortformHub();
-  renderBusinessPackages();
+  if (typeof renderBusinessPackages === "function") renderBusinessPackages();
   renderRoster();
   renderCharacterCatalog();
   bindCharacterFilters();
