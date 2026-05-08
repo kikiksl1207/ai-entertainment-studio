@@ -1,6 +1,34 @@
 # Team2 Backend Inbox
 
 status: ready_for_deploy
+task: Team2 Backend / Feed Image Metadata Failure Still Repro
+branch/commit: pending commit
+changed_files:
+- server/src/assets/user-assets.controller.ts
+- server/src/assets/user-assets.service.ts
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd run lint
+- npm.cmd run build
+- local Node sharp metadata probe with 1x1 PNG buffer and `failOn: none`
+result:
+- Render logs for requestId `be5ee0d9-3215-49a9-b2f9-201941bde4b3` could not be fetched from this workspace: no Render CLI/log cache is available locally, and no token/env values were read.
+- The existing derivative logs did not include requestId, so Render-side filtering by requestId would not reliably correlate the source diagnostics with the failed confirm-upload request.
+- Patched confirm-upload to pass `x-request-id` into derivative logging.
+- Patched `read-source-metadata` failures to return/log `FEED_IMAGE_SOURCE_METADATA_FAILED` with safe source diagnostics and Sharp/libvips codec versions.
+- Safe source diagnostics include only content type, content length, downloaded body length, detected magic-byte MIME, and first 16 bytes as hex. No storage keys, object URLs, signed URLs, tokens, cookies, passwords, or env values are recorded.
+- If the downloaded buffer is a valid PNG by magic bytes but Render Sharp still fails metadata read, the next response/log will show `source.detectedMimeType=image/png`, PNG prefix hex, and Render Sharp/libvips/png versions for runtime diagnosis.
+- Local Node can load Sharp and read a 1x1 PNG buffer with `failOn: none`.
+blocked_by:
+- RequestId-specific Render log verification requires Render log access outside this workspace.
+next_needed:
+- Deploy this commit and rerun the same PNG confirm-upload flow with a client-provided `x-request-id`.
+- If it fails, inspect the safe error details/logs for `source.detectedMimeType`, `source.prefixHex`, body length, and `sharp` diagnostics.
+- If `source.detectedMimeType` is `image/png` and prefix starts with PNG magic bytes but metadata still fails, treat it as Render Sharp/libvips runtime or unsupported PNG variant; otherwise treat it as signed GET/body mismatch.
+
+---
+
+status: ready_for_deploy
 task: Team2 Backend / Feed Image Derivative Metadata Failure
 branch/commit: pending commit
 changed_files:
