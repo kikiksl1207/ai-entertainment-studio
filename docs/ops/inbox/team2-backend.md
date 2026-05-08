@@ -28,3 +28,26 @@ next_needed:
 - Verify `/api/v1/assets/public/:assetId` returns 302 to a signed read target and following the redirect returns HTTP 200.
 - Team2 QA should recheck Lumina Feed card image and lightbox image after deploy.
 - Ops should still decide long-term delivery mode: public CDN/read policy for public assets, or keep signed read redirect/proxy as the official delivery path.
+
+---
+
+status: done
+task: Storage/backend ops: signed read target 403 follow-up
+branch/commit: pending commit
+changed_files:
+- server/src/assets/user-assets.service.ts
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd run lint
+- npm.cmd run build
+result:
+- Rechecked the deployed signed redirect without recording signed query values. The API public asset endpoint returns 302, but the signed target returns 403 with an S3 `AccessDenied` response that mentions missing `s3:ListBucket`.
+- That S3 response can happen when the signed request is valid but the object key does not resolve and the IAM user is not allowed to reveal object absence via bucket listing.
+- Added public delivery key resolution for object storage assets. Before returning a signed GET redirect, the server now probes signed HEAD candidates for the stored key plus `OBJECT_STORAGE_KEY_PREFIX` added/removed variants, then signs the first readable key.
+- Kept public read closed and did not record signed URL/token/cookie/secret values.
+- Fixed signed read URL TTL handling to honor `OBJECT_PUBLIC_READ_URL_TTL_SECONDS` instead of a hardcoded 60 seconds.
+blocked_by:
+- Live verification requires deploying this backend change.
+next_needed:
+- Deploy this backend change and verify `/api/v1/assets/public/:assetId` 302 redirect target returns HTTP 200.
+- Team2 QA should recheck Lumina Feed card image, lightbox image, and fallback state after deploy.
