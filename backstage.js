@@ -1282,8 +1282,8 @@ function selectedCreatorArtist(value = "") {
   return options.find((artist) => artist.id === value || artist.slug === value) || null;
 }
 
-function detailTextarea(label, name, value = "", wide = true) {
-  return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><textarea name="${name}">${value}</textarea></label>`;
+function detailTextarea(label, name, value = "", wide = true, placeholder = "") {
+  return `<label class="${wide ? "is-wide" : ""}"><span>${label}</span><textarea name="${name}" placeholder="${placeholder}">${value}</textarea></label>`;
 }
 
 function detailToggleGroup(label, name, options = [], exclusive = false) {
@@ -1356,7 +1356,7 @@ function renderDetailForm(detail) {
           { value: "qa_test", label: "QA 테스트" },
           { value: "manual_correction", label: "수동 보정" }
         ], "event_grant", true)}
-        ${detailTextarea("처리 사유", "note", "예: 오픈 이벤트 지급 100L / 악용 확인으로 100L 회수")}
+        ${detailTextarea("처리 사유", "note", "", true, "예: 오픈 이벤트 지급 100L / 악용 확인으로 100L 회수")}
       </div>
       <p class="detail-form-note">확인 모달에서 대상과 수량을 다시 확인한 뒤 실행합니다. 처리 결과는 지갑 원장과 감사 로그에 남습니다.</p>
     `;
@@ -1364,7 +1364,7 @@ function renderDetailForm(detail) {
     html = `
       <h3>루미나 대량 수동 조정</h3>
       <div class="detail-form-grid">
-        ${detailTextarea("대상 유저", "targetUsers", "user1@example.com\nuser2@example.com", true)}
+        ${detailTextarea("대상 유저", "targetUsers", "", true, "user1@example.com\nuser2@example.com")}
         ${detailSelect("조정 방향", "direction", [
           { value: "credit", label: "추가" },
           { value: "debit", label: "차감" }
@@ -1378,7 +1378,7 @@ function renderDetailForm(detail) {
           { value: "qa_test", label: "QA 테스트" },
           { value: "manual_correction", label: "수동 보정" }
         ], "event_grant", true)}
-        ${detailTextarea("처리 사유", "note", "예: 5월 출석 이벤트 참여자 일괄 지급 100L")}
+        ${detailTextarea("처리 사유", "note", "", true, "예: 5월 출석 이벤트 참여자 일괄 지급 100L")}
       </div>
       <p class="detail-form-note">이메일 또는 User ID를 줄바꿈/쉼표로 입력합니다. 최대 100명까지 같은 금액으로 처리하며, 차감은 각 유저의 보유 잔액을 초과할 수 없습니다.</p>
     `;
