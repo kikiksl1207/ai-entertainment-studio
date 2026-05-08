@@ -1,6 +1,30 @@
 # Team2 Backend Inbox
 
 status: ready_for_deploy
+task: Team2 Backend / Preserve Metadata Diagnostic Error
+branch/commit: pending commit
+changed_files:
+- server/src/assets/user-assets.service.ts
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd run lint
+- npm.cmd run build
+result:
+- Rechecked the P0 confirm-upload failure after `/health` commit `4c2dee7de0086321b05dfd56b80b27cb58a68dc3`.
+- Confirmed code intent: `readSourceMetadata()` throws `FEED_IMAGE_SOURCE_METADATA_FAILED` with source diagnostics, Sharp/libvips diagnostics, and sanitized reason.
+- Root cause for losing that diagnostic: `runDerivativeStage()` only preserved `error instanceof BadRequestException`. In production/runtime module-boundary cases, that check can fail and wrap the original safe diagnostic as generic `FEED_IMAGE_DERIVATIVE_FAILED`.
+- Patched `runDerivativeStage()`, `safeErrorMessage()`, and `safeErrorDetails()` to preserve any `HttpException`, plus duck-typed objects with `getStatus()` and `getResponse()`.
+- Expected after deploy: read-source-metadata failures preserve response code `FEED_IMAGE_SOURCE_METADATA_FAILED` and include `details.source`, `details.sharp`, and sanitized `details.reason`.
+- No signed URL, object URL, token, cookie, password, or env values were recorded.
+blocked_by:
+- Live verification requires deployment and rerunning the same PNG confirm-upload flow.
+next_needed:
+- Deploy this commit and confirm the failing PNG now returns `FEED_IMAGE_SOURCE_METADATA_FAILED` if Sharp metadata read still fails.
+- Use the preserved diagnostics to decide between signed GET/body mismatch and Render Sharp/libvips runtime issue.
+
+---
+
+status: ready_for_deploy
 task: Team2 Backend / Feed Image Metadata Failure Still Repro
 branch/commit: pending commit
 changed_files:
