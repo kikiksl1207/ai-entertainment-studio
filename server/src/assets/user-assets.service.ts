@@ -14,6 +14,14 @@ import { PrismaService } from '../prisma/prisma.service';
 
 type UserAssetBody = Record<string, unknown>;
 type UserAssetQuery = Record<string, string | undefined>;
+type SourceImageDownload = {
+  buffer: Buffer;
+  contentType: string | null;
+  contentLength: number | null;
+  bodyLength: number;
+  detectedMimeType: string | null;
+  prefixHex: string;
+};
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -406,9 +414,10 @@ export class UserAssetsService {
       'resolve-source-key',
       () => this.resolveReadableObjectStorageKey(storageProvider, asset.storageKey),
     );
-    const sourceBuffer = await this.runDerivativeStage(asset.id, 'download-source', () =>
+    const source = await this.runDerivativeStage(asset.id, 'download-source', () =>
       this.downloadObjectBuffer(storageProvider, sourceStorageKey),
     );
+    const sourceBuffer = source.buffer;
     const sourceMetadata = await this.runDerivativeStage(asset.id, 'read-source-metadata', () =>
       sharp(sourceBuffer, { animated: false }).metadata(),
     );
@@ -503,6 +512,7 @@ export class UserAssetsService {
         assetId,
         stage,
         reason: this.safeErrorMessage(error),
+        diagnostics: this.safeErrorDetails(error),
       });
 
       if (error instanceof BadRequestException) {
@@ -550,7 +560,10 @@ export class UserAssetsService {
     };
   }
 
-  private async downloadObjectBuffer(storageProvider: string, storageKey: string) {
+  private async downloadObjectBuffer(
+    storageProvider: string,
+    storageKey: string,
+  ): Promise<SourceImageDownload> {
     let response: Response;
 
     try {
@@ -577,7 +590,37 @@ export class UserAssetsService {
       });
     }
 
-    return Buffer.from(await response.arrayBuffer());
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const diagnostics = this.sourceImageDiagnostics(response, buffer);
+
+    if (!diagnostics.detectedMimeType) {
+      throw new BadRequestException({
+        code: 'FEED_IMAGE_SOURCE_NOT_IMAGE',
+        message: 'Uploaded object is not a readable image',
+        details: {
+          stage: 'download-source',
+          storageProvider,
+          contentType: diagnostics.contentType,
+          contentLength: diagnostics.contentLength,
+          bodyLength: diagnostics.bodyLength,
+          prefixHex: diagnostics.prefixHex,
+        },
+      });
+    }
+
+    this.logger.log({
+      event: 'feed_image_source_downloaded',
+      storageProvider,
+      contentType: diagnostics.contentType,
+      contentLength: diagnostics.contentLength,
+      bodyLength: diagnostics.bodyLength,
+      detectedMimeType: diagnostics.detectedMimeType,
+    });
+
+    return {
+      buffer,
+      ...diagnostics,
+    };
   }
 
   private async uploadObjectBuffer(
@@ -633,6 +676,68 @@ export class UserAssetsService {
     return directory
       ? `${directory}/derivatives/${derivativeFileName}`
       : `derivatives/${derivativeFileName}`;
+  }
+
+  private sourceImageDiagnostics(response: Response, buffer: Buffer) {
+    return {
+      contentType: this.headerValue(response, 'content-type'),
+      contentLength: this.headerNumber(response, 'content-length'),
+      bodyLength: buffer.length,
+      detectedMimeType: this.detectImageMimeType(buffer),
+      prefixHex: buffer.subarray(0, 16).toString('hex'),
+    };
+  }
+
+  private detectImageMimeType(buffer: Buffer) {
+    if (
+      buffer.length >= 3 &&
+      buffer[0] === 0xff &&
+      buffer[1] === 0xd8 &&
+      buffer[2] === 0xff
+    ) {
+      return 'image/jpeg';
+    }
+
+    if (
+      buffer.length >= 8 &&
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47 &&
+      buffer[4] === 0x0d &&
+      buffer[5] === 0x0a &&
+      buffer[6] === 0x1a &&
+      buffer[7] === 0x0a
+    ) {
+      return 'image/png';
+    }
+
+    if (
+      buffer.length >= 12 &&
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+    ) {
+      return 'image/webp';
+    }
+
+    if (
+      buffer.length >= 6 &&
+      (buffer.subarray(0, 6).toString('ascii') === 'GIF87a' ||
+        buffer.subarray(0, 6).toString('ascii') === 'GIF89a')
+    ) {
+      return 'image/gif';
+    }
+
+    return null;
+  }
+
+  private headerValue(response: Response, name: string) {
+    return response.headers.get(name)?.split(';')[0].trim().toLowerCase() ?? null;
+  }
+
+  private headerNumber(response: Response, name: string) {
+    const value = Number(response.headers.get(name));
+    return Number.isFinite(value) && value >= 0 ? value : null;
   }
 
   private existingDerivatives(metadata: Prisma.JsonValue) {
@@ -744,6 +849,19 @@ export class UserAssetsService {
     }
 
     return error instanceof Error ? error.message : 'unknown error';
+  }
+
+  private safeErrorDetails(error: unknown) {
+    if (!(error instanceof BadRequestException)) {
+      return null;
+    }
+
+    const response = error.getResponse();
+    if (!response || typeof response !== 'object' || !('details' in response)) {
+      return null;
+    }
+
+    return (response as { details?: unknown }).details ?? null;
   }
 
   private imageMimeType(input: UserAssetBody, fileName: string) {

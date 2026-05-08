@@ -1,6 +1,32 @@
 # Team2 Backend Inbox
 
 status: ready_for_deploy
+task: Team2 Backend / Feed Image Derivative Metadata Failure
+branch/commit: pending commit
+changed_files:
+- server/src/assets/user-assets.service.ts
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd run lint
+- npm.cmd run build
+- local Node sharp metadata probe with a 1x1 PNG buffer
+result:
+- Follow-up deployment changed confirm-upload from 500 to safe 400, but QA still sees `FEED_IMAGE_DERIVATIVE_FAILED` at `read-source-metadata`.
+- Code-level likely cause is that the S3 signed GET can return HTTP 200 with a non-image body, empty body, or unexpected error/document body; the previous code only checked `response.ok` before passing bytes to Sharp.
+- Patched source download to record safe diagnostics only: response content type, content length, downloaded body length, detected image MIME from magic bytes, and first 16 bytes as hex.
+- Added magic-byte validation for JPEG, PNG, WebP, and GIF before Sharp metadata read. Non-image bytes now fail at `download-source` with `FEED_IMAGE_SOURCE_NOT_IMAGE` instead of surfacing later as a generic Sharp metadata failure.
+- Added a safe success log for source download diagnostics without storage keys, object URLs, signed URLs, tokens, cookies, passwords, or env values.
+- Local Node runtime can load Sharp and read a 1x1 PNG buffer successfully. Render runtime still needs deploy-time confirmation from the new diagnostics.
+blocked_by:
+- Live root cause confirmation requires deploying this patch and rerunning the 1MB PNG confirm-upload flow.
+next_needed:
+- Deploy this commit and rerun the 1MB PNG reproduction.
+- If confirm-upload still fails, use the safe response/log diagnostics to determine whether the body is XML/HTML/empty/non-image or whether Sharp fails despite valid PNG magic bytes.
+- After 1MB PASS, rerun the 14MB image upload-intent, S3 PUT, confirm-upload, display URL, thumbnail URL, Feed card, and lightbox checks.
+
+---
+
+status: ready_for_deploy
 task: Team2 Backend / Feed Image Pipeline Confirm Upload 500
 branch/commit: pending commit
 changed_files:
