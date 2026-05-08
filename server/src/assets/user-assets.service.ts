@@ -533,6 +533,19 @@ export class UserAssetsService {
         throw error;
       }
 
+      if (stage === 'read-source-metadata') {
+        throw new BadRequestException({
+          code: 'FEED_IMAGE_SOURCE_METADATA_FAILED',
+          message: 'Uploaded image could not be read by the image processor',
+          details: {
+            stage,
+            source: context.source ?? null,
+            sharp: this.safeSharpDiagnostics(),
+            reason: this.safeErrorMessage(error),
+          },
+        });
+      }
+
       throw new BadRequestException({
         code: 'FEED_IMAGE_DERIVATIVE_FAILED',
         message: 'Could not process uploaded feed image',
