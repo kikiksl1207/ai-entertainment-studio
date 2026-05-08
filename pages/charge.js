@@ -59,7 +59,19 @@ function formatCurrencyKRW(value) {
   return `${n.toLocaleString("ko-KR")}원`;
 }
 
-function formatLuminaAmount(value) {
+function formatRelativeDate(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "-";
+  const diff = Date.now() - d.getTime();
+  const day = 86400000;
+  if (diff < day) return "오늘";
+  if (diff < 2 * day) return "어제";
+  if (diff < 7 * day) return `${Math.floor(diff / day)}일 전`;
+  return d.toLocaleDateString("ko-KR");
+}
+
+function formatChargeLuminaAmount(value) {
   const n = Number(value || 0);
   if (!Number.isFinite(n)) return "0";
   return n.toLocaleString("ko-KR");
@@ -94,7 +106,7 @@ function renderChargePage() {
 
   // 1. 잔액
   const balance = data.wallet?.cachedBalance ?? data.wallet?.balance ?? 0;
-  if (balanceEl) balanceEl.textContent = formatLuminaAmount(balance);
+  if (balanceEl) balanceEl.textContent = formatChargeLuminaAmount(balance);
 
   // 2. 정책 힌트
   if (policyHintEl) {
@@ -158,9 +170,9 @@ function renderChargeProductCard(p, isPgPending) {
         ${bonusRate > 0 ? `<span class="charge-bonus-rate">+${bonusRate}% 보너스</span>` : ""}
       </header>
       <div class="charge-product-amount">
-        <span class="charge-amount-main">${formatLuminaAmount(totalLumina)}<small>L</small></span>
+        <span class="charge-amount-main">${formatChargeLuminaAmount(totalLumina)}<small>L</small></span>
         ${bonusAmount > 0
-          ? `<span class="charge-amount-detail">기본 ${formatLuminaAmount(luminaAmount)}L + 보너스 ${formatLuminaAmount(bonusAmount)}L</span>`
+          ? `<span class="charge-amount-detail">기본 ${formatChargeLuminaAmount(luminaAmount)}L + 보너스 ${formatChargeLuminaAmount(bonusAmount)}L</span>`
           : ""}
       </div>
       <div class="charge-product-price">
@@ -172,7 +184,7 @@ function renderChargeProductCard(p, isPgPending) {
         type="button"
         data-charge-buy="${feedEscapeHtml(productId)}"
         ${isPgPending ? 'disabled' : ''}>
-        ${isPgPending ? '결제 준비 중' : `${formatLuminaAmount(totalLumina)}L 충전하기`}
+        ${isPgPending ? '결제 준비 중' : `${formatChargeLuminaAmount(totalLumina)}L 충전하기`}
       </button>
     </article>
   `;
@@ -200,7 +212,7 @@ function renderChargeOrderRow(order) {
         <small>${dateText} · ${statusLabel}</small>
       </div>
       <div class="charge-order-amount">
-        <span class="charge-order-lumina">+${formatLuminaAmount(lumina)}L</span>
+        <span class="charge-order-lumina">+${formatChargeLuminaAmount(lumina)}L</span>
         <small>${formatCurrencyKRW(price)}</small>
       </div>
     </div>
