@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomUUID } from 'crypto';
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -528,7 +529,7 @@ export class UserAssetsService {
         diagnostics: this.safeErrorDetails(error) ?? context.source ?? null,
       });
 
-      if (error instanceof BadRequestException) {
+      if (this.isHttpExceptionLike(error)) {
         throw error;
       }
 
@@ -882,7 +883,7 @@ export class UserAssetsService {
   }
 
   private safeErrorMessage(error: unknown) {
-    if (error instanceof BadRequestException) {
+    if (this.isHttpExceptionLike(error)) {
       const response = error.getResponse();
       if (typeof response === 'object' && response && 'message' in response) {
         return String((response as { message?: unknown }).message);
@@ -895,7 +896,7 @@ export class UserAssetsService {
   }
 
   private safeErrorDetails(error: unknown) {
-    if (!(error instanceof BadRequestException)) {
+    if (!this.isHttpExceptionLike(error)) {
       return null;
     }
 
@@ -905,6 +906,19 @@ export class UserAssetsService {
     }
 
     return (response as { details?: unknown }).details ?? null;
+  }
+
+  private isHttpExceptionLike(error: unknown): error is HttpException {
+    if (error instanceof HttpException) {
+      return true;
+    }
+
+    return (
+      Boolean(error) &&
+      typeof error === 'object' &&
+      typeof (error as { getStatus?: unknown }).getStatus === 'function' &&
+      typeof (error as { getResponse?: unknown }).getResponse === 'function'
+    );
   }
 
   private safeSharpDiagnostics() {
