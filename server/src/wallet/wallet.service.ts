@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -6,7 +7,10 @@ const DEFAULT_CURRENCY = 'LUMINA';
 
 @Injectable()
 export class WalletService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   async getOrCreateWallet(userId: string) {
     await this.ensureActiveUser(userId);
@@ -45,6 +49,7 @@ export class WalletService {
       idempotencyKey?: string;
     },
   ) {
+    this.assertLocalTestGrantEnabled();
     const amount = this.parseAmount(input.amount);
     const wallet = await this.getOrCreateWallet(userId);
 
@@ -106,6 +111,16 @@ export class WalletService {
 
     if (!user) {
       throw new BadRequestException('Active user not found');
+    }
+  }
+
+  private assertLocalTestGrantEnabled() {
+    const nodeEnv = this.configService.get<string>('NODE_ENV');
+    const enabled =
+      this.configService.get<string>('ENABLE_LOCAL_WALLET_TEST_GRANT') === 'true';
+
+    if (nodeEnv === 'production' || !enabled) {
+      throw new ForbiddenException('Local test wallet grants are disabled');
     }
   }
 

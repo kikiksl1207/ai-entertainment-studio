@@ -2175,7 +2175,8 @@ function buildActionRequest(detail, action) {
   const meta = detail?.meta || {};
   const form = collectDetailFormData() || {};
   const note = detailMemo.value.trim();
-  const reason = firstValue(form.reason, form.reviewMemo, form.adminNote, form.detail, note, "백스테이지 운영 처리");
+  const reason = firstValue(form.reason, form.reviewMemo, form.adminNote, form.detail, form.note, note, "백스테이지 운영 처리");
+  const walletAdjustmentNote = firstValue(form.note, form.reason, form.reviewMemo, form.adminNote, form.detail, note);
   const quickTitle = row[0] || "";
 
   if (quickTitle === "운영자 계정 초대") {
@@ -2215,7 +2216,7 @@ function buildActionRequest(detail, action) {
         direction: form.direction || "credit",
         amountLumina: form.amountLumina || 100,
         reasonType: form.reasonType || "manual_correction",
-        note: reason
+        note: walletAdjustmentNote
       }
     };
   }
@@ -2229,7 +2230,7 @@ function buildActionRequest(detail, action) {
         direction: form.direction || "credit",
         amountLumina: form.amountLumina || 100,
         reasonType: form.reasonType || "manual_correction",
-        note: reason
+        note: walletAdjustmentNote
       }
     };
   }
@@ -2627,6 +2628,10 @@ function buildActionPreview(action) {
   const form = collectDetailFormData();
   const apiRequest = resolveExecutableEndpoint(profile.endpoint, detail, action);
   const isMutation = apiRequest && apiRequest.method !== "GET";
+  const walletAdjustmentNote = profile.targetType === "walletAdjustment"
+    ? firstValue(form.note, form.reason, form.reviewMemo, form.adminNote, form.detail, memo)
+    : null;
+  const walletAdjustmentMissingNote = profile.targetType === "walletAdjustment" && !walletAdjustmentNote;
   const creatorApprovalNeedsArtist =
     detail?.tableId === "creatorRows" &&
     action !== "memo" &&
@@ -2643,26 +2648,30 @@ function buildActionPreview(action) {
     requestedAction: action === "danger" ? currentAction : action,
     method: profile.method,
     apiHint: profile.endpoint,
-    status: isLocalOnly ? "처리 이력 기록" : apiRequest ? (isMutation ? "저장 가능" : "조회 가능") : "대상 ID 또는 필수값 확인 필요",
+    status: walletAdjustmentMissingNote
+      ? "처리 사유 입력 필요"
+      : isLocalOnly ? "처리 이력 기록" : apiRequest ? (isMutation ? "저장 가능" : "조회 가능") : "대상 ID 또는 필수값 확인 필요",
     bodyPreview: {
       targetType: profile.targetType,
       target,
       action: action === "danger" ? currentAction : action,
       form,
-      reason: memo || "운영 메모 미입력",
-      note: memo || "운영 메모 미입력"
+      reason: walletAdjustmentMissingNote ? "처리 사유 미입력" : memo || walletAdjustmentNote || "운영 메모 미입력",
+      note: walletAdjustmentMissingNote ? "처리 사유 미입력" : memo || walletAdjustmentNote || "운영 메모 미입력"
     },
-    note: memo || "운영 메모 미입력",
+    note: walletAdjustmentMissingNote ? "처리 사유 미입력" : memo || walletAdjustmentNote || "운영 메모 미입력",
     warning: creatorApprovalNeedsArtist
       ? "승인하려면 로그인 이메일과 연결 아티스트 선택이 필요합니다. 운영자는 slug를 입력하지 않고 아티스트 이름만 선택하면 됩니다."
+      : walletAdjustmentMissingNote
+      ? "루미나 조정은 운영자가 직접 입력한 처리 사유가 필요합니다."
       : isLocalOnly
       ? "현재 화면에 운영 메모와 처리 이력을 남깁니다. 처리 사유를 확인한 뒤 진행하세요."
       : apiRequest
         ? (isMutation ? profile.warning : "조회만 하는 항목입니다. 변경/제재/지급 같은 위험 처리는 별도 확정 전까지 잠가둡니다.")
       : profile.warning,
     canRunLocally: creatorApprovalNeedsArtist ? false : isLocalOnly,
-    canRunApi: creatorApprovalNeedsArtist ? false : Boolean(apiRequest),
-    apiRequest: creatorApprovalNeedsArtist ? null : apiRequest
+    canRunApi: creatorApprovalNeedsArtist || walletAdjustmentMissingNote ? false : Boolean(apiRequest),
+    apiRequest: creatorApprovalNeedsArtist || walletAdjustmentMissingNote ? null : apiRequest
   };
   return base;
 }
@@ -2779,9 +2788,60 @@ function renderConfirmSummary(preview, result = null) {
   `;
 }
 
+function clearDetailValidationErrors() {
+  detailForm?.querySelectorAll(".is-invalid").forEach((field) => {
+    field.classList.remove("is-invalid");
+    field.removeAttribute("aria-invalid");
+  });
+  document.querySelector(".detail-help")?.classList.remove("is-error");
+}
+
+function showDetailValidationError(fieldName, message) {
+  const help = document.querySelector(".detail-help");
+  const field = fieldName ? detailForm?.querySelector(`[name="${fieldName}"]`) : null;
+  if (help) {
+    help.textContent = message;
+    help.classList.add("is-error");
+  }
+  if (field) {
+    field.classList.add("is-invalid");
+    field.setAttribute("aria-invalid", "true");
+    field.focus();
+    field.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+}
+
+function validateWalletAdjustmentPreview(preview) {
+  if (preview?.targetType !== "walletAdjustment") return null;
+  const form = preview?.bodyPreview?.form || {};
+  const targets = splitTargetUsers(form.targetUsers);
+  const hasSingleTarget = Boolean(firstValue(form.email, form.userId));
+  const targetField = form.targetUsers !== undefined ? "targetUsers" : "email";
+  if (!targets.length && !hasSingleTarget) {
+    return { field: targetField, message: "대상 유저 이메일 또는 User ID를 입력해 주세요." };
+  }
+  const amount = Number(form.amountLumina);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { field: "amountLumina", message: "루미나 수량은 1 이상으로 입력해 주세요." };
+  }
+  if (!firstValue(form.reasonType)) {
+    return { field: "reasonType", message: "조정 사유 유형을 선택해 주세요." };
+  }
+  if (!firstValue(form.note, form.reason, form.reviewMemo, form.adminNote, form.detail)) {
+    return { field: "note", message: "처리 사유를 입력해 주세요. 예: 오픈 이벤트 지급 100L" };
+  }
+  return null;
+}
+
 function openConfirmModal(action) {
   const preview = buildActionPreview(action);
   if (!preview || !confirmModal) return;
+  const validation = validateWalletAdjustmentPreview(preview);
+  if (validation) {
+    showDetailValidationError(validation.field, validation.message);
+    return;
+  }
+  clearDetailValidationErrors();
   pendingActionPreview = preview;
   confirmType.textContent = preview.menu || "Confirm";
   const isMutation = preview.apiRequest && preview.apiRequest.method !== "GET";
@@ -2790,7 +2850,11 @@ function openConfirmModal(action) {
     : action === "memo" ? "운영 메모를 저장할까요?" : action === "hold" ? "보류로 변경할까요?" : preview.canRunApi ? (isMutation ? "상태를 변경할까요?" : "상세 정보를 조회할까요?") : "필수 정보를 확인해 주세요";
   confirmMessage.textContent = preview.warning;
   confirmPayload.innerHTML = renderConfirmSummary(preview);
-  confirmRunButton.textContent = preview.canRunLocally ? "확인" : preview.canRunApi ? (isMutation ? "변경하기" : "조회하기") : "필수값 확인 필요";
+  confirmRunButton.textContent = preview.canRunLocally
+    ? "확인"
+    : preview.canRunApi
+      ? (preview.targetType === "walletAdjustment" ? "조정 실행" : isMutation ? "변경하기" : "조회하기")
+      : "필수값 확인 필요";
   confirmRunButton.disabled = !(preview.canRunLocally || preview.canRunApi);
   confirmModal.classList.remove("is-hidden");
 }
@@ -3927,8 +3991,14 @@ detailPanel.addEventListener("click", (event) => {
   selectedDetail = null;
 });
 
-detailForm?.addEventListener("input", saveDetailDraft);
-detailForm?.addEventListener("change", saveDetailDraft);
+detailForm?.addEventListener("input", () => {
+  clearDetailValidationErrors();
+  saveDetailDraft();
+});
+detailForm?.addEventListener("change", () => {
+  clearDetailValidationErrors();
+  saveDetailDraft();
+});
 
 document.querySelectorAll("[data-load-more]").forEach((button) => {
   button.addEventListener("click", async () => {
