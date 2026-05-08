@@ -1,29 +1,6 @@
 # Team2 Backend Inbox
 
 status: ready_for_deploy
-task: Team2 Backend / Force Metadata Stage Diagnostic
-branch/commit: pending commit
-changed_files:
-- server/src/assets/user-assets.service.ts
-- docs/ops/inbox/team2-backend.md
-tests:
-- npm.cmd run lint
-- npm.cmd run build
-result:
-- Rechecked deploy `/health` commit `6c616e27638d7926ee1882716e7bf06ce9113ba8`.
-- Runtime still returned generic `FEED_IMAGE_DERIVATIVE_FAILED` for `read-source-metadata`, despite HttpException preservation and `readSourceMetadata()` throwing `FEED_IMAGE_SOURCE_METADATA_FAILED`.
-- Patched `runDerivativeStage()` fallback so `stage === "read-source-metadata"` always returns `FEED_IMAGE_SOURCE_METADATA_FAILED`.
-- Forced metadata-stage fallback details include `context.source`, `safeSharpDiagnostics()`, and `safeErrorMessage(error)`, regardless of HttpException preservation behavior.
-- No signed URL, object URL, token, cookie, password, or env values were recorded.
-blocked_by:
-- Live verification requires deployment and rerunning the same PNG confirm-upload flow.
-next_needed:
-- Deploy this commit and confirm metadata-stage failures now expose `FEED_IMAGE_SOURCE_METADATA_FAILED` with source/sharp/reason diagnostics.
-- Use those diagnostics to decide whether source bytes are valid PNG and whether the remaining blocker is Render Sharp/libvips runtime.
-
----
-
-status: ready_for_deploy
 task: Team2 Backend / Preserve Metadata Diagnostic Error
 branch/commit: pending commit
 changed_files:
