@@ -1,0 +1,616 @@
+/* ── 탭 네비게이션 ── */
+.vote-tabs-section {
+  padding-block: 24px 16px;
+}
+.vote-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow-x: auto;
+}
+.vote-tab-btn {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 16px;
+  background: transparent;
+  border: 0;
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 200ms, color 200ms;
+}
+.vote-tab-btn:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.04);
+}
+.vote-tab-btn.is-active {
+  background: linear-gradient(180deg, rgba(255, 20, 147, 0.18), rgba(159, 139, 199, 0.10));
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(255, 20, 147, 0.18);
+}
+.vote-tab-en {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.vote-tab-ko {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+/* 모바일: 탭 가로 스크롤 가능, 텍스트 줄임 */
+@media (max-width: 640px) {
+  .vote-tab-btn {
+    min-width: 110px;
+    padding: 10px 12px;
+  }
+  .vote-tab-en { font-size: 13px; }
+  .vote-tab-ko { font-size: 11px; }
+}
+
+/* ── 탭 컨텐츠 토글 ── */
+.vote-tab-content {
+  display: none;
+}
+.vote-tab-content.is-active {
+  display: block;
+}
+
+/* 빈 상태 안내 */
+.vote-empty {
+  padding: 60px 24px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed var(--line);
+  border-radius: 18px;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+
+.vote-section-subtitle {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 32px 0 16px;
+  letter-spacing: 0.02em;
+}
+
+/* ══════════════════════════════════════
+   Main Pick 탭 — 1위 큰 카드 + 순위 리스트
+   ══════════════════════════════════════ */
+.vote-leader-card-wrap {
+  margin-bottom: 24px;
+}
+.vote-leader-card {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 0;
+  border: 1px solid rgba(255, 20, 147, 0.30);
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255, 20, 147, 0.08), rgba(159, 139, 199, 0.06)), var(--panel);
+  box-shadow: 0 24px 60px rgba(255, 20, 147, 0.12), 0 8px 24px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms;
+}
+.vote-leader-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 32px 70px rgba(255, 20, 147, 0.18), 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+.vote-leader-media {
+  position: relative;
+  aspect-ratio: 3/4;
+  overflow: hidden;
+}
+.vote-leader-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+.vote-leader-crown {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+  font-size: 36px;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+}
+.vote-leader-body {
+  padding: 36px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  justify-content: center;
+}
+.vote-leader-label {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 20, 147, 0.20), rgba(255, 20, 147, 0.08));
+  border: 1px solid rgba(255, 20, 147, 0.45);
+  color: #ff1493;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  width: fit-content;
+}
+.vote-leader-body strong {
+  font-size: 36px;
+  font-weight: 900;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.vote-leader-body p {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+  .vote-leader-card {
+    grid-template-columns: 1fr;
+  }
+  .vote-leader-body {
+    padding: 24px 20px;
+  }
+  .vote-leader-body strong {
+    font-size: 28px;
+  }
+}
+
+/* ── 순위 리스트 (2위~) ── */
+.vote-rankings-list {
+  margin-top: 8px;
+}
+.vote-ranking-rows {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vote-ranking-row {
+  display: grid;
+  grid-template-columns: 70px 64px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 180ms, border-color 180ms, transform 180ms;
+}
+.vote-ranking-row:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 20, 147, 0.30);
+  transform: translateX(2px);
+}
+.vote-rank-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 800;
+}
+.vote-rank-medal {
+  font-size: 22px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+.vote-rank-num {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.02em;
+}
+.vote-rank-thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  object-position: center top;
+  border-radius: 12px;
+}
+.vote-rank-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.vote-rank-info strong {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.vote-rank-info small {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.vote-rank-likes {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ff1493;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 480px) {
+  .vote-ranking-row {
+    grid-template-columns: 56px 48px 1fr auto;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .vote-rank-thumb { width: 44px; height: 44px; }
+  .vote-rank-medal { font-size: 18px; }
+  .vote-rank-num { font-size: 14px; }
+}
+
+/* ══════════════════════════════════════
+   Debut Race 탭 — 후보 그리드 + 좋아요 작동
+   ══════════════════════════════════════ */
+.vote-debut-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+@media (max-width: 1080px) {
+  .vote-debut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .vote-debut-grid { grid-template-columns: 1fr; }
+}
+
+.vote-debut-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms, border-color 240ms;
+}
+.vote-debut-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 20, 147, 0.30);
+}
+.vote-debut-card.is-highlighted {
+  border-color: rgba(255, 20, 147, 0.65);
+  box-shadow: 0 18px 42px rgba(255, 20, 147, 0.25);
+  animation: voteHighlightPulse 2s ease-out;
+}
+@keyframes voteHighlightPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 20, 147, 0.55); }
+  60%  { box-shadow: 0 0 0 16px rgba(255, 20, 147, 0); }
+  100% { box-shadow: 0 18px 42px rgba(255, 20, 147, 0.25); }
+}
+.vote-debut-rank-badge {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+/* 1~3위(금은동)는 살짝 더 강조 */
+.vote-debut-rank-badge.has-medal {
+  padding: 5px 14px 5px 8px;
+  background: rgba(0, 0, 0, 0.72);
+  border-color: rgba(247, 215, 116, 0.45);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+.vote-debut-medal {
+  font-size: 18px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+}
+.vote-debut-rank-num {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+.vote-debut-media {
+  position: relative;
+  aspect-ratio: 3/4;
+  overflow: hidden;
+  background: linear-gradient(160deg, rgba(108, 70, 187, 0.18), rgba(80, 50, 140, 0.10));
+}
+.vote-debut-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+.vote-debut-body {
+  padding: 18px 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vote-debut-body strong {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.vote-debut-body small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+.vote-debut-body p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* like-btn-vote: 인기투표실 안 좋아요 버튼은 같은 사이즈 + 진짜 작동 */
+/* (.like-btn.like-btn-vote는 .like-btn-large 그대로 사용 — 추가 스타일 없음, modifier는 JS 클래스 식별용) */
+
+
+/* ══════════════════════════════════════
+   Hall of Fame 탭
+   ══════════════════════════════════════ */
+.vote-year-champion {
+  margin-bottom: 16px;
+}
+.vote-year-champion-card {
+  display: grid;
+  grid-template-columns: 80px 1fr 240px;
+  align-items: center;
+  gap: 24px;
+  padding: 28px 32px;
+  border: 1px solid rgba(247, 215, 116, 0.40);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(247, 215, 116, 0.10), rgba(255, 20, 147, 0.04)),
+    var(--panel);
+  box-shadow: 0 18px 50px rgba(247, 215, 116, 0.12), 0 6px 18px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: transform 240ms;
+}
+.vote-year-champion-card:hover {
+  transform: translateY(-3px);
+}
+.vote-year-trophy {
+  font-size: 60px;
+  text-align: center;
+  filter: drop-shadow(0 6px 18px rgba(247, 215, 116, 0.4));
+}
+.vote-year-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vote-year-label {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(247, 215, 116, 0.16);
+  border: 1px solid rgba(247, 215, 116, 0.50);
+  color: #f7d774;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  width: fit-content;
+}
+.vote-year-info strong {
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--ink);
+}
+.vote-year-info p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.vote-year-media {
+  width: 100%;
+  aspect-ratio: 1/1;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.vote-year-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+
+/* Year Champion 자리가 비어있을 때 (연도 진행 중) */
+.vote-year-waiting {
+  padding: 48px 32px;
+  text-align: center;
+  border: 1px dashed rgba(247, 215, 116, 0.40);
+  border-radius: 24px;
+  background: rgba(247, 215, 116, 0.04);
+}
+.vote-year-waiting .vote-year-trophy {
+  font-size: 56px;
+  margin-bottom: 12px;
+  opacity: 0.7;
+}
+.vote-year-waiting h3 {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+.vote-year-waiting p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 540px;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  .vote-year-champion-card {
+    grid-template-columns: 60px 1fr;
+    padding: 22px;
+  }
+  .vote-year-media {
+    grid-column: 1 / -1;
+  }
+  .vote-year-info strong { font-size: 24px; }
+}
+
+/* Monthly Picks 그리드 */
+.vote-monthly-picks-block {
+  margin-top: 8px;
+}
+.vote-monthly-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 1080px) { .vote-monthly-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 768px)  { .vote-monthly-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.vote-monthly-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 200ms, border-color 200ms;
+}
+.vote-monthly-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 20, 147, 0.30);
+}
+.vote-monthly-card-unknown {
+  cursor: default;
+  opacity: 0.55;
+}
+.vote-monthly-media {
+  aspect-ratio: 1/1;
+  overflow: hidden;
+}
+.vote-monthly-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+.vote-monthly-info {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vote-monthly-month {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.04em;
+}
+.vote-monthly-info strong {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.vote-monthly-info small {
+  font-size: 12px;
+  color: #ff1493;
+  font-weight: 700;
+}
+
+/* ── Main Pick 1위 카드 — 축하 소감 영역 ── */
+.vote-leader-tribute {
+  margin: 4px 0 0;
+  padding: 18px 20px;
+  border-left: 3px solid #ff1493;
+  background: rgba(255, 20, 147, 0.05);
+  border-radius: 0 12px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vote-leader-tribute p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.65;
+  font-style: italic;
+  letter-spacing: -0.005em;
+}
+.vote-leader-tribute cite {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  font-style: normal;
+  letter-spacing: 0.02em;
+}
+
+/* Debut Race 카드 - 캐릭터 1인칭 투표 독려 멘트 (인용구 스타일) */
+.vote-debut-appeal {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 2px solid rgba(255, 20, 147, 0.55);
+  background: rgba(255, 20, 147, 0.05);
+  border-radius: 0 10px 10px 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.55;
+  font-style: italic;
+  letter-spacing: -0.005em;
+}
+
+/* Main Pick 전체 순위 - 더보기 버튼 */
+.vote-rankings-more {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 20, 147, 0.35);
+  border-radius: 14px;
+  color: #ff1493;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 180ms, border-color 180ms;
+}
+.vote-rankings-more:hover {
+  background: rgba(255, 20, 147, 0.08);
+  border-color: rgba(255, 20, 147, 0.65);
+  border-style: solid;
+}
+.vote-ranking-hidden {
+  display: contents;
+}
+.vote-ranking-hidden[hidden] {
+  display: none !important;
+}
