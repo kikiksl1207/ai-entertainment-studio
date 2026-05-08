@@ -2,6 +2,7 @@ import { createHash, createHmac, randomUUID } from 'crypto';
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   PayloadTooLargeException,
 } from '@nestjs/common';
@@ -28,6 +29,8 @@ const USER_ASSET_LIFECYCLE_STATUSES = new Set(['active', 'archived']);
 
 @Injectable()
 export class UserAssetsService {
+  private readonly logger = new Logger(UserAssetsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
@@ -386,6 +389,7 @@ export class UserAssetsService {
   }
 
   private async createFeedImageDerivatives(asset: {
+    id: string;
     storageProvider: string;
     storageKey: string;
     mimeType: string;
@@ -397,32 +401,56 @@ export class UserAssetsService {
       return this.existingDerivatives(asset.metadata);
     }
 
-    const sourceStorageKey = await this.resolveReadableObjectStorageKey(
-      storageProvider,
-      asset.storageKey,
+    const sourceStorageKey = await this.runDerivativeStage(
+      asset.id,
+      'resolve-source-key',
+      () => this.resolveReadableObjectStorageKey(storageProvider, asset.storageKey),
     );
-    const sourceBuffer = await this.downloadObjectBuffer(storageProvider, sourceStorageKey);
-    const sourceMetadata = await sharp(sourceBuffer, { animated: false }).metadata();
-    const display = await this.buildImageDerivative(sourceBuffer, {
-      maxEdge: FEED_IMAGE_DISPLAY_MAX_EDGE,
-      quality: FEED_IMAGE_DISPLAY_QUALITY,
-    });
-    const thumbnail = await this.buildImageDerivative(sourceBuffer, {
-      maxEdge: FEED_IMAGE_THUMBNAIL_MAX_EDGE,
-      quality: FEED_IMAGE_THUMBNAIL_QUALITY,
-    });
-    const displayStorageKey = this.derivativeStorageKey(sourceStorageKey, 'display');
-    const thumbnailStorageKey = this.derivativeStorageKey(sourceStorageKey, 'thumbnail');
+    const sourceBuffer = await this.runDerivativeStage(asset.id, 'download-source', () =>
+      this.downloadObjectBuffer(storageProvider, sourceStorageKey),
+    );
+    const sourceMetadata = await this.runDerivativeStage(asset.id, 'read-source-metadata', () =>
+      sharp(sourceBuffer, { animated: false }).metadata(),
+    );
+    const display = await this.runDerivativeStage(asset.id, 'build-display', () =>
+      this.buildImageDerivative(sourceBuffer, {
+        maxEdge: FEED_IMAGE_DISPLAY_MAX_EDGE,
+        quality: FEED_IMAGE_DISPLAY_QUALITY,
+      }),
+    );
+    const thumbnail = await this.runDerivativeStage(asset.id, 'build-thumbnail', () =>
+      this.buildImageDerivative(sourceBuffer, {
+        maxEdge: FEED_IMAGE_THUMBNAIL_MAX_EDGE,
+        quality: FEED_IMAGE_THUMBNAIL_QUALITY,
+      }),
+    );
+    const displayStorageKey = this.derivativeStorageKey(
+      sourceStorageKey,
+      'display',
+      display.extension,
+    );
+    const thumbnailStorageKey = this.derivativeStorageKey(
+      sourceStorageKey,
+      'thumbnail',
+      thumbnail.extension,
+    );
 
-    await Promise.all([
-      this.uploadObjectBuffer(storageProvider, displayStorageKey, 'image/webp', display.buffer),
-      this.uploadObjectBuffer(
-        storageProvider,
-        thumbnailStorageKey,
-        'image/webp',
-        thumbnail.buffer,
-      ),
-    ]);
+    await this.runDerivativeStage(asset.id, 'upload-derivatives', () =>
+      Promise.all([
+        this.uploadObjectBuffer(
+          storageProvider,
+          displayStorageKey,
+          display.mimeType,
+          display.buffer,
+        ),
+        this.uploadObjectBuffer(
+          storageProvider,
+          thumbnailStorageKey,
+          thumbnail.mimeType,
+          thumbnail.buffer,
+        ),
+      ]),
+    );
 
     return {
       original: {
@@ -436,7 +464,7 @@ export class UserAssetsService {
       display: {
         storageProvider,
         storageKey: displayStorageKey,
-        mimeType: 'image/webp',
+        mimeType: display.mimeType,
         width: display.width,
         height: display.height,
         fileSizeBytes: display.buffer.length,
@@ -445,7 +473,7 @@ export class UserAssetsService {
       thumbnail: {
         storageProvider,
         storageKey: thumbnailStorageKey,
-        mimeType: 'image/webp',
+        mimeType: thumbnail.mimeType,
         width: thumbnail.width,
         height: thumbnail.height,
         fileSizeBytes: thumbnail.buffer.length,
@@ -456,42 +484,97 @@ export class UserAssetsService {
         originalPreserved: true,
         displayMaxEdge: FEED_IMAGE_DISPLAY_MAX_EDGE,
         thumbnailMaxEdge: FEED_IMAGE_THUMBNAIL_MAX_EDGE,
-        outputFormat: 'webp',
+        outputFormat: display.extension === 'webp' ? 'webp' : 'jpeg',
       },
       generatedAt: new Date().toISOString(),
     };
+  }
+
+  private async runDerivativeStage<T>(
+    assetId: string,
+    stage: string,
+    action: () => Promise<T>,
+  ) {
+    try {
+      return await action();
+    } catch (error) {
+      this.logger.warn({
+        event: 'feed_image_derivative_failed',
+        assetId,
+        stage,
+        reason: this.safeErrorMessage(error),
+      });
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException({
+        code: 'FEED_IMAGE_DERIVATIVE_FAILED',
+        message: 'Could not process uploaded feed image',
+        details: { stage },
+      });
+    }
   }
 
   private async buildImageDerivative(
     sourceBuffer: Buffer,
     options: { maxEdge: number; quality: number },
   ) {
-    const buffer = await sharp(sourceBuffer, { animated: false })
-      .rotate()
-      .resize({
-        width: options.maxEdge,
-        height: options.maxEdge,
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .webp({ quality: options.quality })
-      .toBuffer();
+    const pipeline = sharp(sourceBuffer, { animated: false }).rotate().resize({
+      width: options.maxEdge,
+      height: options.maxEdge,
+      fit: 'inside',
+      withoutEnlargement: true,
+    });
+    let buffer: Buffer;
+    let mimeType = 'image/webp';
+    let extension = 'webp';
+
+    try {
+      buffer = await pipeline.clone().webp({ quality: options.quality }).toBuffer();
+    } catch {
+      buffer = await pipeline.jpeg({ quality: options.quality, mozjpeg: true }).toBuffer();
+      mimeType = 'image/jpeg';
+      extension = 'jpg';
+    }
+
     const metadata = await sharp(buffer).metadata();
 
     return {
       buffer,
+      mimeType,
+      extension,
       width: metadata.width ?? null,
       height: metadata.height ?? null,
     };
   }
 
   private async downloadObjectBuffer(storageProvider: string, storageKey: string) {
-    const response = await fetch(
-      this.buildS3CompatibleSignedReadUrl(storageProvider, storageKey, 60),
-    );
+    let response: Response;
+
+    try {
+      response = await fetch(
+        this.buildS3CompatibleSignedReadUrl(storageProvider, storageKey, 60),
+      );
+    } catch {
+      throw new BadRequestException({
+        code: 'FEED_IMAGE_SOURCE_READ_FAILED',
+        message: 'Could not read uploaded image for processing',
+        details: { stage: 'download-source', storageProvider },
+      });
+    }
 
     if (!response.ok) {
-      throw new BadRequestException('Could not read uploaded image for processing');
+      throw new BadRequestException({
+        code: 'FEED_IMAGE_SOURCE_READ_FAILED',
+        message: 'Could not read uploaded image for processing',
+        details: {
+          stage: 'download-source',
+          storageProvider,
+          status: response.status,
+        },
+      });
     }
 
     return Buffer.from(await response.arrayBuffer());
@@ -509,24 +592,43 @@ export class UserAssetsService {
       this.numberFromEnv('OBJECT_UPLOAD_INTENT_TTL_SECONDS', 900),
       mimeType,
     );
-    const response = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: { 'content-type': mimeType },
-      body: buffer as unknown as BodyInit,
-    });
+    let response: Response;
+
+    try {
+      response = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': mimeType },
+        body: buffer as unknown as BodyInit,
+      });
+    } catch {
+      throw new BadRequestException({
+        code: 'FEED_IMAGE_DERIVATIVE_UPLOAD_FAILED',
+        message: 'Could not write processed image derivative',
+        details: { stage: 'upload-derivatives', storageProvider, mimeType },
+      });
+    }
 
     if (!response.ok) {
-      throw new BadRequestException('Could not write processed image derivative');
+      throw new BadRequestException({
+        code: 'FEED_IMAGE_DERIVATIVE_UPLOAD_FAILED',
+        message: 'Could not write processed image derivative',
+        details: {
+          stage: 'upload-derivatives',
+          storageProvider,
+          mimeType,
+          status: response.status,
+        },
+      });
     }
   }
 
-  private derivativeStorageKey(storageKey: string, variant: string) {
+  private derivativeStorageKey(storageKey: string, variant: string, extension: string) {
     const normalizedKey = storageKey.replace(/^\/+/, '');
     const slashIndex = normalizedKey.lastIndexOf('/');
     const directory = slashIndex >= 0 ? normalizedKey.slice(0, slashIndex) : '';
     const fileName = slashIndex >= 0 ? normalizedKey.slice(slashIndex + 1) : normalizedKey;
     const baseName = fileName.replace(/\.[^.]+$/, '');
-    const derivativeFileName = `${baseName}.${variant}.webp`;
+    const derivativeFileName = `${baseName}.${variant}.${extension}`;
 
     return directory
       ? `${directory}/derivatives/${derivativeFileName}`
@@ -629,6 +731,19 @@ export class UserAssetsService {
 
   private numberOrNull(value: unknown) {
     return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  private safeErrorMessage(error: unknown) {
+    if (error instanceof BadRequestException) {
+      const response = error.getResponse();
+      if (typeof response === 'object' && response && 'message' in response) {
+        return String((response as { message?: unknown }).message);
+      }
+
+      return error.message;
+    }
+
+    return error instanceof Error ? error.message : 'unknown error';
   }
 
   private imageMimeType(input: UserAssetBody, fileName: string) {
