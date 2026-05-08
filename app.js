@@ -7681,6 +7681,13 @@ function initCreatorStudioPage() {
   if (initial) activateSection(initial);
 }
 
+function markAppReady() {
+  document.documentElement.classList.remove("is-booting");
+  document.documentElement.classList.add("is-ready");
+  document.body.classList.remove("is-booting");
+  document.body.classList.add("is-ready");
+}
+
 async function init() {
   // #064 i18n — UI 깜빡임 최소화 위해 가장 먼저 실행 (비로그인 시 즉시, 로그인 시 서버 동기화 포함)
   await initI18n();
@@ -8022,4 +8029,6 @@ window.openMiniProfileModal = openMiniProfileModal;
 window.closeMiniProfileModal = closeMiniProfileModal;
 bindMiniProfileFollow();
 
-init();
+init().catch(err => {
+  console.error("[Lumina] init failed:", err);
+}).finally(markAppReady);

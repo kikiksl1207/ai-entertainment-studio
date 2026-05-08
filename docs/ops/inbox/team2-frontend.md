@@ -102,3 +102,34 @@ blocked_by:
 - Final PASS for small image, 14MB image, posting/card display, and lightbox display requires browser QA with real files/accounts.
 next_needed:
 - QA should retest: small image upload, 14MB image upload, 20MB+ rejection message, post/card image display, and lightbox image display.
+
+---
+
+status: done
+task: Team2 Frontend / Initial Render Flash Fix
+branch/commit: team2-frontend/feed-403-fallback @ HEAD (see final commit hash)
+changed_files:
+- app.js
+- styles.css
+- backstage.css
+- backstage.js
+- backstage.html
+- creator-studio.html
+- mypage.html
+- public HTML entry pages
+- docs/ops/inbox/team2-frontend.md
+tests:
+- `node --check app.js` passed
+- `node --check backstage.js` passed
+- inline HTML scripts parsed for index/feed/mypage/creator-studio/backstage
+- `git diff --check` passed; only CRLF conversion warnings were printed
+result:
+- Added a default `is-booting` body state on app entry pages and switched to `is-ready` after app/Backstage/Creator Studio bootstraps finish.
+- Blocked initial FOUC for header auth buttons, wallet badge, feed compose/guest compose, and auth/permission dependent sections before JS confirms state.
+- Added a small feed loading placeholder while the feed page is booting, without changing the mobile bottom tabbar layout.
+- Set My Page auth/guest panels hidden in initial HTML so both states cannot flash before auth resolution.
+- Added Backstage boot overlay and ready transition so saved-session checks do not briefly show the wrong login/dashboard surface.
+blocked_by:
+- Browser-level visual smoke was not run because no local browser automation dependency was available in this workspace.
+next_needed:
+- QA should verify first paint on feed, mypage, creator-studio, backstage, and mobile widths with both logged-in and logged-out states.
