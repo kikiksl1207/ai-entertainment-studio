@@ -291,9 +291,14 @@ export class UserAssetsService {
     const storageProvider = this.deliveryStorageProvider(asset.storageProvider);
 
     if (storageProvider === 's3' || storageProvider === 'r2') {
-      return this.buildS3CompatibleSignedReadUrl(
+      const storageKey = await this.resolveReadableObjectStorageKey(
         storageProvider,
         asset.storageKey,
+      );
+
+      return this.buildS3CompatibleSignedReadUrl(
+        storageProvider,
+        storageKey,
         this.numberFromEnv('OBJECT_PUBLIC_READ_URL_TTL_SECONDS', 300),
       );
     }
@@ -563,7 +568,7 @@ export class UserAssetsService {
       'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
       'X-Amz-Credential': credential,
       'X-Amz-Date': amzDate,
-      'X-Amz-Expires': '60',
+      'X-Amz-Expires': String(expiresInSeconds),
       'X-Amz-SignedHeaders': signedHeaders,
     };
     const canonicalQuery = this.canonicalQueryString(query);
@@ -620,6 +625,48 @@ export class UserAssetsService {
     }
 
     return assetStorageProvider;
+  }
+
+  private async resolveReadableObjectStorageKey(
+    storageProvider: string,
+    storageKey: string,
+  ) {
+    for (const candidate of this.objectStorageKeyCandidates(storageKey)) {
+      if (await this.canReadObjectStorageKey(storageProvider, candidate)) {
+        return candidate;
+      }
+    }
+
+    return storageKey;
+  }
+
+  private objectStorageKeyCandidates(storageKey: string) {
+    const prefix = this.storageKeyPrefix();
+    const normalizedKey = storageKey.replace(/^\/+/, '');
+    const candidates = [normalizedKey];
+
+    if (prefix && !normalizedKey.startsWith(`${prefix}/`)) {
+      candidates.push(`${prefix}/${normalizedKey}`);
+    }
+
+    if (prefix && normalizedKey.startsWith(`${prefix}/`)) {
+      candidates.push(normalizedKey.slice(prefix.length + 1));
+    }
+
+    return [...new Set(candidates)];
+  }
+
+  private async canReadObjectStorageKey(storageProvider: string, storageKey: string) {
+    try {
+      const response = await fetch(
+        this.buildS3CompatibleSignedHeadUrl(storageProvider, storageKey),
+        { method: 'HEAD' },
+      );
+
+      return response.ok;
+    } catch {
+      return false;
+    }
   }
 
   private buildObjectStorageEndpoint(storageProvider: string, bucket: string, region: string) {
