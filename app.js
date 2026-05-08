@@ -3442,6 +3442,7 @@ function openLightbox(sources, startIndex) {
       <button class="lightbox-next" type="button" aria-label="다음 이미지">›</button>
       <div class="lightbox-stage" data-lightbox-stage>
         <img class="lightbox-img" alt="" draggable="false" oncontextmenu="return false;" />
+        <div class="lightbox-error" data-lightbox-error hidden>이미지를 불러올 수 없어요</div>
       </div>
       <div class="lightbox-counter" data-lightbox-counter></div>
     `;
@@ -3461,6 +3462,10 @@ function openLightbox(sources, startIndex) {
       e.stopPropagation();
       _lightboxState.zoomed = !_lightboxState.zoomed;
       _lightboxEl.classList.toggle("is-zoomed", _lightboxState.zoomed);
+    });
+    _lightboxEl.querySelector(".lightbox-img").addEventListener("error", () => {
+      _lightboxEl.classList.add("is-broken");
+      _lightboxEl.querySelector("[data-lightbox-error]")?.removeAttribute("hidden");
     });
     // 우클릭 차단 (오버레이 전체)
     _lightboxEl.addEventListener("contextmenu", e => e.preventDefault());
@@ -3491,6 +3496,9 @@ function applyLightbox() {
   const counter = _lightboxEl.querySelector("[data-lightbox-counter]");
   const prev = _lightboxEl.querySelector(".lightbox-prev");
   const next = _lightboxEl.querySelector(".lightbox-next");
+  const error = _lightboxEl.querySelector("[data-lightbox-error]");
+  _lightboxEl.classList.remove("is-broken");
+  if (error) error.hidden = true;
   if (img) img.src = _lightboxState.sources[_lightboxState.index] || "";
   _lightboxEl.classList.toggle("is-zoomed", _lightboxState.zoomed);
   // 카운터 (1/3 형식)

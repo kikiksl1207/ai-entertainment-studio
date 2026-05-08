@@ -8202,6 +8202,25 @@ p {
   pointer-events: auto;
   transition: transform 0.2s ease, max-width 0.2s ease, max-height 0.2s ease;
 }
+.lightbox-error {
+  display: grid;
+  min-width: min(420px, calc(100vw - 48px));
+  min-height: 220px;
+  place-items: center;
+  padding: 24px;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.06);
+}
+.lightbox-error[hidden] {
+  display: none;
+}
+.lightbox-overlay.is-broken .lightbox-img {
+  display: none;
+}
 .lightbox-overlay.is-zoomed .lightbox-img {
   /* 확대 모드 — 원본 크기 (스크롤 가능) */
   max-width: none;
