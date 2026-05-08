@@ -77,3 +77,28 @@ blocked_by:
 - Original object storage URLs still return 403 in QA, so visual verification of real images remains limited until storage permissions are fixed.
 next_needed:
 - Re-test feed images after object storage 403 is fixed; verify both card thumbnails and lightbox originals load from authorized URLs.
+
+---
+
+status: done
+task: Team2 Frontend / Feed Upload UX
+branch/commit: team2-frontend/feed-403-fallback @ HEAD (see final commit hash)
+changed_files:
+- app.js
+- styles.css
+- docs/ops/inbox/team2-frontend.md
+tests:
+- `git pull --autostash origin main` completed; already up to date
+- `node --check app.js` passed
+- `git diff --check` passed; only pre-existing server file CRLF warnings were printed
+result:
+- Aligned client-side feed image policy with the backend 20MB limit and added visible `이미지 · 20MB 이하` guidance in the composer.
+- Added upload preflight validation for file type and file size before requesting upload intent.
+- Added clear upload failure copy for 20MB+ files, unsupported formats, direct S3/network upload failures, and expired login.
+- Added staged progress messages for upload preparation, S3/direct storage upload, confirm-upload, and upload completion.
+- Stabilized uploaded thumbnail preview by preferring future backend display/thumbnail/image URLs and falling back to a local blob preview if the returned preview URL fails.
+- Kept object storage behavior intact: no signed URL logging, no secret/env output, and no frontend workaround for storage permissions.
+blocked_by:
+- Final PASS for small image, 14MB image, posting/card display, and lightbox display requires browser QA with real files/accounts.
+next_needed:
+- QA should retest: small image upload, 14MB image upload, 20MB+ rejection message, post/card image display, and lightbox image display.

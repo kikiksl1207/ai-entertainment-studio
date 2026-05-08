@@ -3442,6 +3442,7 @@ function openLightbox(sources, startIndex) {
       <button class="lightbox-next" type="button" aria-label="다음 이미지">›</button>
       <div class="lightbox-stage" data-lightbox-stage>
         <img class="lightbox-img" alt="" draggable="false" oncontextmenu="return false;" />
+        <div class="lightbox-error" data-lightbox-error hidden>이미지를 불러올 수 없어요</div>
       </div>
       <div class="lightbox-counter" data-lightbox-counter></div>
     `;
@@ -3461,6 +3462,10 @@ function openLightbox(sources, startIndex) {
       e.stopPropagation();
       _lightboxState.zoomed = !_lightboxState.zoomed;
       _lightboxEl.classList.toggle("is-zoomed", _lightboxState.zoomed);
+    });
+    _lightboxEl.querySelector(".lightbox-img").addEventListener("error", () => {
+      _lightboxEl.classList.add("is-broken");
+      _lightboxEl.querySelector("[data-lightbox-error]")?.removeAttribute("hidden");
     });
     // 우클릭 차단 (오버레이 전체)
     _lightboxEl.addEventListener("contextmenu", e => e.preventDefault());
@@ -3491,6 +3496,9 @@ function applyLightbox() {
   const counter = _lightboxEl.querySelector("[data-lightbox-counter]");
   const prev = _lightboxEl.querySelector(".lightbox-prev");
   const next = _lightboxEl.querySelector(".lightbox-next");
+  const error = _lightboxEl.querySelector("[data-lightbox-error]");
+  _lightboxEl.classList.remove("is-broken");
+  if (error) error.hidden = true;
   if (img) img.src = _lightboxState.sources[_lightboxState.index] || "";
   _lightboxEl.classList.toggle("is-zoomed", _lightboxState.zoomed);
   // 카운터 (1/3 형식)
@@ -3576,7 +3584,10 @@ function bindLuminaFeedExpand() {
 
 const FEED_COMPOSE_MAX_IMAGES = 4;
 const FEED_COMPOSE_MAX_BODY = 2000;
+const FEED_COMPOSE_MAX_IMAGE_MB = 20;
+const FEED_COMPOSE_MAX_IMAGE_BYTES = FEED_COMPOSE_MAX_IMAGE_MB * 1024 * 1024;
 const FEED_ALLOWED_IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const FEED_ALLOWED_IMAGE_LABEL = "JPG, PNG, WEBP, GIF";
 
 // 작성창 상태 — 첨부 이미지 (assetId 확정된 것만 추적)
 let _feedComposeAssets = []; // [{ assetId, previewUrl, fileName, mimeType }]
@@ -3586,9 +3597,63 @@ function feedResolveAssetUrl(entry, type = "full") {
   if (typeof entry === "string") return normalizeAssetUrl(entry);
   const asset = entry?.asset && typeof entry.asset === "object" ? entry.asset : {};
   const primary = type === "thumb"
-    ? asset.thumbnailUrl || asset.thumbUrl || entry?.thumbnailUrl || entry?.thumbUrl || asset.url || asset.publicUrl || entry?.url || entry?.publicUrl
-    : asset.url || asset.publicUrl || entry?.url || entry?.publicUrl || asset.thumbnailUrl || entry?.thumbnailUrl || asset.storageKey || entry?.storageKey;
+    ? asset.displayUrl || asset.thumbnailUrl || asset.thumbUrl || asset.imageUrl || entry?.displayUrl || entry?.thumbnailUrl || entry?.thumbUrl || entry?.imageUrl || asset.url || asset.publicUrl || entry?.url || entry?.publicUrl
+    : asset.displayUrl || asset.url || asset.publicUrl || asset.imageUrl || entry?.displayUrl || entry?.url || entry?.publicUrl || entry?.imageUrl || asset.thumbnailUrl || entry?.thumbnailUrl || asset.storageKey || entry?.storageKey;
   return primary ? normalizeAssetUrl(primary) : "";
+}
+
+function formatFeedUploadSize(bytes = 0) {
+  const mb = Number(bytes || 0) / (1024 * 1024);
+  return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)}MB`;
+}
+
+function validateFeedComposeImage(file) {
+  if (!FEED_ALLOWED_IMAGE_MIMES.includes(file.type)) {
+    return `${FEED_ALLOWED_IMAGE_LABEL} 파일만 첨부할 수 있어요.`;
+  }
+  if (file.size > FEED_COMPOSE_MAX_IMAGE_BYTES) {
+    return `이미지가 너무 큽니다. ${FEED_COMPOSE_MAX_IMAGE_MB}MB 이하 이미지를 올려주세요.`;
+  }
+  return "";
+}
+
+function feedAssetDisplayUrl(asset = {}, fallback = "") {
+  const nested = asset.asset && typeof asset.asset === "object" ? asset.asset : {};
+  const url = asset.displayUrl
+    || asset.thumbnailUrl
+    || asset.thumbUrl
+    || asset.imageUrl
+    || asset.url
+    || asset.publicUrl
+    || nested.displayUrl
+    || nested.thumbnailUrl
+    || nested.thumbUrl
+    || nested.imageUrl
+    || nested.url
+    || nested.publicUrl
+    || fallback;
+  return url ? normalizeAssetUrl(url) : "";
+}
+
+function feedUploadErrorMessage(err) {
+  const msg = err?.body?.message || err?.message || "";
+  if (err?.status === 401) return "로그인이 만료됐어요. 다시 로그인해주세요.";
+  if (/too large|payload|entity too large|file size|20MB/i.test(msg)) {
+    return `이미지가 너무 큽니다. ${FEED_COMPOSE_MAX_IMAGE_MB}MB 이하 이미지를 올려주세요.`;
+  }
+  if (/unsupported|mime|file type|content-type/i.test(msg)) {
+    return `지원하지 않는 파일 형식이에요. ${FEED_ALLOWED_IMAGE_LABEL} 파일로 다시 올려주세요.`;
+  }
+  if (err?.stage === "direct-upload" || /upload failed|network|fetch|s3|r2|failed to fetch/i.test(msg)) {
+    return "네트워크 또는 이미지 저장소 업로드에 실패했어요. 연결을 확인한 뒤 다시 시도해주세요.";
+  }
+  return "이미지를 업로드하지 못했어요. 잠시 후 다시 시도해주세요.";
+}
+
+function releaseFeedComposeAssetPreview(asset) {
+  if (asset?.localPreviewUrl?.startsWith("blob:")) {
+    try { URL.revokeObjectURL(asset.localPreviewUrl); } catch {}
+  }
 }
 
 /* 카드의 이미지 그리드 렌더 (post.assets[].asset.url 기반) */
@@ -3697,6 +3762,13 @@ function bindFeedComposeOnce() {
   const counter = document.getElementById("feedComposeCounter");
   const submitBtn = document.getElementById("feedComposeSubmit");
   const fileInput = document.getElementById("feedComposeFile");
+  const attachBtn = composeRoot.querySelector(".feed-compose-attach-btn");
+  const attachLabel = attachBtn?.querySelector("span");
+  if (attachBtn) {
+    attachBtn.title = `이미지 첨부 (${FEED_ALLOWED_IMAGE_LABEL}, 장당 ${FEED_COMPOSE_MAX_IMAGE_MB}MB 이하)`;
+    attachBtn.setAttribute("aria-label", `이미지 첨부. ${FEED_ALLOWED_IMAGE_LABEL}, 장당 ${FEED_COMPOSE_MAX_IMAGE_MB}MB 이하`);
+  }
+  if (attachLabel) attachLabel.textContent = `이미지 · ${FEED_COMPOSE_MAX_IMAGE_MB}MB 이하`;
 
   // 글자수 + 제출 가능 여부
   const updateState = () => {
@@ -3725,12 +3797,13 @@ function bindFeedComposeOnce() {
     }
 
     for (const file of accepted) {
-      if (!FEED_ALLOWED_IMAGE_MIMES.includes(file.type)) {
-        setFeedComposeMessage("JPG, PNG, WEBP, GIF 파일만 첨부할 수 있어요.", "warn");
+      const validationMessage = validateFeedComposeImage(file);
+      if (validationMessage) {
+        setFeedComposeMessage(validationMessage, "warn");
         continue;
       }
       updateState();
-      await uploadFeedComposeImage(file);
+      await uploadFeedComposeImage(file, updateState);
     }
     updateState();
   });
@@ -3763,6 +3836,7 @@ function bindFeedComposeOnce() {
       });
       // 성공 → 작성창 초기화 + 피드 새로고침
       textarea.value = "";
+      _feedComposeAssets.forEach(releaseFeedComposeAssetPreview);
       _feedComposeAssets = [];
       renderFeedComposeThumbs();
       setFeedComposeMessage("피드에 올라갔어요.", "success");
@@ -3792,7 +3866,8 @@ function bindFeedComposeOnce() {
     if (!removeBtn) return;
     const idx = Number(removeBtn.dataset.feedThumbRemove);
     if (Number.isInteger(idx) && idx >= 0 && idx < _feedComposeAssets.length) {
-      _feedComposeAssets.splice(idx, 1);
+      const [removed] = _feedComposeAssets.splice(idx, 1);
+      releaseFeedComposeAssetPreview(removed);
       renderFeedComposeThumbs();
       updateState();
     }
@@ -3827,16 +3902,19 @@ function renderFeedComposeThumbs() {
   thumbs.hidden = false;
   thumbs.innerHTML = _feedComposeAssets.map((asset, idx) => `
     <div class="feed-compose-thumb">
-      <img src="${feedEscapeHtml(asset.previewUrl)}" alt="" />
+      <img src="${feedEscapeHtml(asset.previewUrl)}" data-local-src="${feedEscapeHtml(asset.localPreviewUrl || "")}" alt="" onerror="if(this.dataset.localSrc&&this.src!==this.dataset.localSrc){this.src=this.dataset.localSrc;}else{this.parentElement.classList.add('is-broken');this.style.display='none';}" />
       <button type="button" class="feed-compose-thumb-remove" data-feed-thumb-remove="${idx}" aria-label="이미지 삭제">×</button>
     </div>
   `).join("");
 }
 
 /* 단일 이미지 업로드 — intent → PUT → confirm */
-async function uploadFeedComposeImage(file) {
+async function uploadFeedComposeImage(file, onStateChange) {
   _feedComposeUploading = true;
-  setFeedComposeMessage(`${file.name} 업로드 중…`, "info");
+  onStateChange?.();
+  const localPreviewUrl = URL.createObjectURL(file);
+  const sizeLabel = formatFeedUploadSize(file.size);
+  setFeedComposeMessage(`${file.name} 업로드 준비 중… (${sizeLabel} / ${FEED_COMPOSE_MAX_IMAGE_MB}MB)`, "info");
   try {
     // 1. intent 생성
     const intent = await apiFetch("/api/v1/me/assets/upload-intents", {
@@ -3857,6 +3935,7 @@ async function uploadFeedComposeImage(file) {
 
     // 2. 파일 업로드 (S3/R2 direct upload)
     if (upload.mode === "direct_upload_ready" && upload.url) {
+      setFeedComposeMessage(`${file.name} 이미지 저장소에 업로드 중… (${sizeLabel} / ${FEED_COMPOSE_MAX_IMAGE_MB}MB)`, "info");
       const headers = upload.requiredHeaders || {};
       const putRes = await fetch(upload.url, {
         method: upload.method || "PUT",
@@ -3864,12 +3943,16 @@ async function uploadFeedComposeImage(file) {
         body: file
       });
       if (!putRes.ok) {
-        throw new Error(`Upload failed (${putRes.status})`);
+        const uploadError = new Error(`Upload failed (${putRes.status})`);
+        uploadError.stage = "direct-upload";
+        uploadError.status = putRes.status;
+        throw uploadError;
       }
     }
     // local mode (metadata_only)는 PUT 없이 confirm으로 바로 진행
 
     // 3. confirm
+    setFeedComposeMessage(`${file.name} 업로드 확인 중…`, "info");
     const confirmed = await apiFetch(`/api/v1/me/assets/${encodeURIComponent(assetId)}/confirm-upload`, {
       method: "POST",
       auth: true,
@@ -3877,29 +3960,23 @@ async function uploadFeedComposeImage(file) {
       body: {}
     });
     const finalAsset = confirmed?.asset || confirmed;
-    const previewUrl = finalAsset?.thumbnailUrl || finalAsset?.url || URL.createObjectURL(file);
+    const previewUrl = feedAssetDisplayUrl(finalAsset, localPreviewUrl);
 
     _feedComposeAssets.push({
       assetId,
       previewUrl,
+      localPreviewUrl,
       fileName: file.name,
       mimeType: file.type
     });
     renderFeedComposeThumbs();
-    setFeedComposeMessage("", "info"); // 메시지 클리어
+    setFeedComposeMessage(`${file.name} 업로드 완료`, "success");
   } catch (err) {
-    const msg = err?.body?.message || err?.message || "";
-    let userMsg = "이미지를 업로드하지 못했어요.";
-    if (/too large|payload/i.test(msg)) {
-      userMsg = "파일이 너무 커요. 더 작은 이미지를 선택해주세요.";
-    } else if (/unsupported|mime/i.test(msg)) {
-      userMsg = "지원하지 않는 파일 형식이에요. JPG, PNG, WEBP, GIF로 다시 올려주세요.";
-    } else if (err?.status === 401) {
-      userMsg = "로그인이 만료됐어요. 다시 로그인해주세요.";
-    }
-    setFeedComposeMessage(userMsg, "warn");
+    releaseFeedComposeAssetPreview({ localPreviewUrl });
+    setFeedComposeMessage(feedUploadErrorMessage(err), "warn");
   } finally {
     _feedComposeUploading = false;
+    onStateChange?.();
   }
 }
 

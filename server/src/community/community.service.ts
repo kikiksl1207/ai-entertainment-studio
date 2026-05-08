@@ -1851,7 +1851,16 @@ export class CommunityService {
         ? this.metadataObject(metadata.linkPreview)
         : null,
       assets: (post.assets ?? []).map((link: any) => {
-        const url = this.publicFeedAssetUrl(link.asset.id, link.asset.storageKey);
+        const displayUrl = this.publicFeedAssetUrl(
+          link.asset.id,
+          link.asset.storageKey,
+          'display',
+        );
+        const thumbnailUrl = this.publicFeedAssetUrl(
+          link.asset.id,
+          link.asset.storageKey,
+          'thumbnail',
+        );
 
         return {
           id: link.id,
@@ -1863,8 +1872,9 @@ export class CommunityService {
             mimeType: link.asset.mimeType,
             width: link.asset.width,
             height: link.asset.height,
-            url,
-            thumbnailUrl: url,
+            url: displayUrl,
+            displayUrl,
+            thumbnailUrl,
             status: this.assetStatus(link.asset.metadata),
             createdAt: link.asset.createdAt,
           },
@@ -1891,7 +1901,7 @@ export class CommunityService {
     };
   }
 
-  private publicFeedAssetUrl(assetId: string, storageKey: string) {
+  private publicFeedAssetUrl(assetId: string, storageKey: string, variant = 'display') {
     if (/^https?:\/\//i.test(storageKey)) {
       return storageKey;
     }
@@ -1901,7 +1911,7 @@ export class CommunityService {
       this.configService.get<string>('BACKEND_PUBLIC_BASE_URL');
     const baseUrl = configuredBaseUrl ?? 'https://api.lumina-stage.com';
 
-    return `${baseUrl.replace(/\/+$/, '')}/api/v1/assets/public/${assetId}`;
+    return `${baseUrl.replace(/\/+$/, '')}/api/v1/assets/public/${assetId}/${variant}`;
   }
 
   private toReplyView(reply: any, viewerUserId?: string | null) {

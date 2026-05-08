@@ -1,5 +1,44 @@
 # Team2 Backend Inbox
 
+status: ready_for_deploy
+task: Team2 Backend / Media Upload Policy: feed image derivatives and 20MB limit
+branch/commit: pending commit
+changed_files:
+- server/package.json
+- server/package-lock.json
+- server/src/assets/user-assets.controller.ts
+- server/src/assets/user-assets.service.ts
+- server/src/community/community.service.ts
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd run lint
+- npm.cmd run build
+policy:
+- Lumina Feed image upload is image-only and remains separate from Shortform/Video asset handling.
+- Accepted feed image MIME types remain `image/jpeg`, `image/png`, `image/webp`, and `image/gif`.
+- Feed image upload max is 20MB. Server default is 20MB and `MAX_IMAGE_UPLOAD_BYTES` can override it for deployment. Oversized uploads return `PAYLOAD_TOO_LARGE` with `fileSizeBytes`, `maxBytes`, and `maxMegabytes` details.
+- The server validates declared upload size at upload-intent time and validates actual uploaded object size from object-storage HEAD at confirm-upload time, so UI bypass with an oversized PUT is blocked before derivative processing.
+- Original feed image preservation is explicit policy metadata: `originalPreserved: true` for v1. Delivery should prefer processed display/thumbnail derivatives; original remains available as a separate variant.
+- Display derivative policy: WebP output, auto-rotate, no enlargement, long edge <= 2048px.
+- Thumbnail derivative policy: WebP output, auto-rotate, no enlargement, long edge <= 768px.
+- Video upload is out of feed image scope and should stay on a separate Shortform/Video asset pipeline. Lumina v1 recommendation is 512MB max for video, despite larger platform limits elsewhere.
+result:
+- Added `sharp` to the server so confirm-upload can generate feed image derivatives after the original object is present.
+- Confirm-upload now reads the uploaded source object from S3/R2-compatible storage, creates display and thumbnail WebP objects under a derivative key path, uploads those derivative objects, and records non-secret derivative metadata on the asset row.
+- Added public delivery variants: `/api/v1/assets/public/:assetId/original`, `/display`, and `/thumbnail`. Variant delivery still validates the asset is public, image type, not pending upload, and not archived before issuing a signed-read redirect.
+- Feed API assets now return `url` as the display variant and also include `displayUrl` and `thumbnailUrl`, using absolute API-origin delivery URLs instead of raw object-storage URLs.
+- Existing assets without derivative metadata fall back to original delivery, so old feed rows remain renderable while new uploads use optimized derivatives.
+- No secret/token/password/env values or full signed URLs were recorded.
+blocked_by:
+- Live acceptance still requires deploy plus QA upload of a ~14MB image and browser verification that feed card and lightbox load through the API-origin variant URLs.
+next_needed:
+- Set/confirm the deployment upload-size env setting for the 20MB policy without recording secret values.
+- Deploy this branch and verify upload-intent -> S3 PUT -> confirm-upload creates original, display, and thumbnail objects.
+- Verify `/api/v1/assets/public/:assetId/display` and `/thumbnail` return 302 to signed read targets that resolve HTTP 200.
+- Team2 QA should recheck `lumina-feed.html` card image and lightbox after deploy.
+
+---
+
 status: done
 task: Storage/backend ops: signed asset delivery recheck
 branch/commit: pending commit

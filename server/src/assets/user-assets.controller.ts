@@ -71,4 +71,15 @@ export class PublicAssetsController {
       url: await this.userAssetsService.getPublicAssetDeliveryUrl(assetId),
     };
   }
+
+  @Get('public/:assetId/:variant')
+  @Redirect(undefined, 302)
+  async redirectPublicAssetVariant(
+    @Param('assetId') assetId: string,
+    @Param('variant') variant: string,
+  ) {
+    return {
+      url: await this.userAssetsService.getPublicAssetDeliveryUrl(assetId, variant),
+    };
+  }
 }
