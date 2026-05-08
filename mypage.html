@@ -19,7 +19,7 @@
       gtag('config', 'G-1L7TCBQ0N4');
     </script>
   </head>
-  <body class="page-mypage">
+  <body class="page-mypage is-booting">
     <header class="site-header">
       <div class="shell header-inner">
         <a class="brand" href="./index.html">
@@ -53,7 +53,7 @@
             <h1>내 무대 뒤편</h1>
             <p>프로필과 응원 기록, 루미나 지갑, 데뷔 신청까지 한 곳에서 정리합니다.</p>
           </div>
-          <div class="mypage-hero-panel" data-auth-required>
+          <div class="mypage-hero-panel" data-auth-required hidden>
             <div class="mypage-avatar" id="mypageAvatar">LS</div>
             <div>
               <span>오늘의 계정</span>
@@ -64,7 +64,7 @@
         </div>
       </section>
 
-      <section class="mypage-login-panel" data-guest-only>
+      <section class="mypage-login-panel" data-guest-only hidden>
         <div class="shell mypage-login-inner">
           <span class="eyebrow">SIGN IN</span>
           <h2>로그인 후 내 무대를 확인할 수 있습니다.</h2>
@@ -76,7 +76,7 @@
         </div>
       </section>
 
-      <section class="mypage-section" data-auth-required>
+      <section class="mypage-section" data-auth-required hidden>
         <div class="shell mypage-layout">
           <!-- ── X 패턴: 가로 탭바 (사이드 nav 대체) — 6탭 + 톱니바퀴 설정 (우측) ── -->
           <nav class="mypage-tabs" role="tablist" aria-label="마이페이지 탭">

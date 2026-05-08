@@ -49,6 +49,20 @@ body {
   font-family: "SeoulNamsan", "Noto Sans KR", system-ui, sans-serif;
 }
 
+body.is-booting .auth-btn,
+body.is-booting #walletBadge {
+  visibility: hidden;
+}
+
+body.is-booting [data-auth-required],
+body.is-booting [data-guest-only],
+body.is-booting [data-role-required],
+body.is-booting [data-permission-required],
+body.is-booting #feedCompose,
+body.is-booting #feedComposeGuest {
+  display: none !important;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -5514,6 +5528,19 @@ p {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+body.is-booting .feed-list::before {
+  content: "피드를 불러오는 중입니다.";
+  display: grid;
+  min-height: 132px;
+  place-items: center;
+  padding: 24px;
+  color: rgba(240, 238, 248, 0.62);
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px dashed rgba(159, 139, 199, 0.22);
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(159, 139, 199, 0.05), rgba(255, 255, 255, 0.035), rgba(159, 139, 199, 0.05));
 }
 .feed-empty {
   padding: 48px 24px;

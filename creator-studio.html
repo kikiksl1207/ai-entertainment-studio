@@ -530,7 +530,7 @@
       gtag('config', 'G-1L7TCBQ0N4');
     </script>
   </head>
-  <body class="page-creator-studio">
+  <body class="page-creator-studio is-booting">
     <div class="studio-access-gate" id="studioAccessGate">
       <section class="studio-gate-card" id="studioGateCard">
         <span class="eyebrow" id="studioGateKicker">Checking</span>
@@ -1018,6 +1018,13 @@
             : "현재 브라우저에서 로그인 계정을 찾지 못했습니다.";
         }
 
+        function markStudioReady() {
+          document.documentElement.classList.remove("is-booting");
+          document.documentElement.classList.add("is-ready");
+          document.body.classList.remove("is-booting");
+          document.body.classList.add("is-ready");
+        }
+
         function deny(message) {
           if (shell) shell.hidden = true;
           if (gate) gate.hidden = false;
@@ -1025,6 +1032,7 @@
           if (title) title.textContent = "스튜디오 접근 권한이 필요합니다.";
           if (body) body.textContent = message || "승인된 크리에이터 계정만 스튜디오 스테이지에 들어올 수 있습니다.";
           showGateActions();
+          markStudioReady();
         }
 
         window.addEventListener("error", function () {
@@ -1041,6 +1049,7 @@
           const email = data?.access?.accountEmail || readAuth()?.user?.email;
           const account = document.querySelector(".studio-account strong");
           if (email && account) account.textContent = email;
+          markStudioReady();
           hydrateStudio(data);
           loadSettlementPreview();
           loadSettlementConversions();
@@ -1052,6 +1061,7 @@
           const email = readAuth()?.user?.email;
           const account = document.querySelector(".studio-account strong");
           if (email && account) account.textContent = email;
+          markStudioReady();
         }
 
         function text(id, value) {

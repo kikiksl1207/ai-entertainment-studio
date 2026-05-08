@@ -3860,6 +3860,13 @@ function showDashboard() {
   loadSection(sectionId);
 }
 
+function markBackstageReady() {
+  document.documentElement.classList.remove("is-booting");
+  document.documentElement.classList.add("is-ready");
+  document.body.classList.remove("is-booting");
+  document.body.classList.add("is-ready");
+}
+
 async function handleLogin(event) {
   event.preventDefault();
   setLoading(true);
@@ -4026,6 +4033,9 @@ refreshButton.addEventListener("click", () => {
 });
 objectStorageRefreshButton?.addEventListener("click", loadObjectStorageDiagnostics);
 
-bootstrapBackstage();
+bootstrapBackstage().catch((error) => {
+  console.error("[Backstage] bootstrap failed:", error);
+  showLogin();
+}).finally(markBackstageReady);
 
 
