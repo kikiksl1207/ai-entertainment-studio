@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Redirect,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -48,5 +57,18 @@ export class UserAssetsController {
   @Post(':assetId/restore')
   restoreAsset(@CurrentUser() user: AuthUser, @Param('assetId') assetId: string) {
     return this.userAssetsService.restoreAsset(user.id, assetId);
+  }
+}
+
+@Controller('assets')
+export class PublicAssetsController {
+  constructor(private readonly userAssetsService: UserAssetsService) {}
+
+  @Get('public/:assetId')
+  @Redirect(undefined, 302)
+  async redirectPublicAsset(@Param('assetId') assetId: string) {
+    return {
+      url: await this.userAssetsService.getPublicAssetDeliveryUrl(assetId),
+    };
   }
 }
