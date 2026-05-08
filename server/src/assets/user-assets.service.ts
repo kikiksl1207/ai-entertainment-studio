@@ -272,6 +272,33 @@ export class UserAssetsService {
     };
   }
 
+  async getPublicAssetDeliveryUrl(assetId: string) {
+    if (!UUID_PATTERN.test(assetId)) {
+      throw new BadRequestException('assetId must be a UUID');
+    }
+
+    const asset = await this.prisma.asset.findFirst({
+      where: {
+        id: assetId,
+        visibility: 'public',
+      },
+    });
+
+    if (!asset || !this.isPublicDeliverableAsset(asset)) {
+      throw new NotFoundException('Asset not found');
+    }
+
+    if (asset.storageProvider === 's3' || asset.storageProvider === 'r2') {
+      return this.buildS3CompatibleSignedReadUrl(
+        asset.storageProvider,
+        asset.storageKey,
+        this.numberFromEnv('OBJECT_PUBLIC_READ_URL_TTL_SECONDS', 300),
+      );
+    }
+
+    return buildPublicAssetUrl(this.configService, asset.storageKey, asset.storageKey);
+  }
+
   private presentAsset(asset: {
     id: string;
     assetType: string;
@@ -509,6 +536,15 @@ export class UserAssetsService {
   }
 
   private buildS3CompatibleSignedHeadUrl(storageProvider: string, storageKey: string) {
+    return this.buildS3CompatibleSignedReadUrl(storageProvider, storageKey, 60, 'HEAD');
+  }
+
+  private buildS3CompatibleSignedReadUrl(
+    storageProvider: string,
+    storageKey: string,
+    expiresInSeconds: number,
+    method: 'GET' | 'HEAD' = 'GET',
+  ) {
     const bucket = this.envString('OBJECT_STORAGE_BUCKET');
     const region = this.configService.get<string>('OBJECT_STORAGE_REGION') ?? 'auto';
     const accessKeyId = this.envString('OBJECT_STORAGE_ACCESS_KEY_ID');
@@ -530,7 +566,7 @@ export class UserAssetsService {
     };
     const canonicalQuery = this.canonicalQueryString(query);
     const canonicalRequest = [
-      'HEAD',
+      method,
       this.canonicalUri(url.pathname),
       canonicalQuery,
       `host:${url.host}\n`,
@@ -550,6 +586,25 @@ export class UserAssetsService {
 
     url.search = `${canonicalQuery}&X-Amz-Signature=${signature}`;
     return url.toString();
+  }
+
+  private isPublicDeliverableAsset(asset: {
+    assetType: string;
+    metadata: Prisma.JsonValue;
+  }) {
+    if (asset.assetType !== 'image') {
+      return false;
+    }
+
+    const metadata = this.metadataObject(asset.metadata);
+    const uploadIntent = this.metadataObject(metadata.uploadIntent);
+    const lifecycle = this.metadataObject(metadata.lifecycle);
+    const uploadStatus =
+      typeof uploadIntent.status === 'string' ? uploadIntent.status : 'ready';
+    const lifecycleStatus =
+      typeof lifecycle.status === 'string' ? lifecycle.status : 'active';
+
+    return uploadStatus !== 'pending_upload' && lifecycleStatus !== 'archived';
   }
 
   private buildObjectStorageEndpoint(storageProvider: string, bucket: string, region: string) {
