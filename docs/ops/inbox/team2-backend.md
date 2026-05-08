@@ -51,3 +51,30 @@ blocked_by:
 next_needed:
 - Deploy this backend change and verify `/api/v1/assets/public/:assetId` 302 redirect target returns HTTP 200.
 - Team2 QA should recheck Lumina Feed card image, lightbox image, and fallback state after deploy.
+
+---
+
+status: blocked
+task: Storage/backend ops: signed target 403 after 467f4dc
+branch/commit: main deploy `467f4dc`, live `/health` reported `37735de718f0e6605248fb7903f636d33ae6ae75`
+changed_files:
+- docs/ops/inbox/team2-backend.md
+tests:
+- not run; documentation/ops triage only
+result:
+- QA confirmed the public asset endpoint returns 302 and the signed target host/path points at the expected S3 bucket/key shape.
+- Signed target still returns 403 `AccessDenied`, with an S3 message that the IAM user is not authorized to perform `s3:ListBucket`.
+- This is not the same failure mode as a malformed signature. A bad SigV4 URL would normally produce a signature/authorization mismatch error. The current message is consistent with S3 being unable to reveal whether the object key exists because the principal lacks bucket listing permission.
+- Most likely current root cause: the DB `storageKey` and all server fallback key candidates do not match an existing object key in the bucket. Without `s3:ListBucket`, S3 returns 403 instead of a clear not-found signal for missing keys.
+- Secondary thing to confirm: the IAM principal used by the backend has `s3:GetObject` for the relevant object prefix. If object exists and `GetObject` is missing, signed reads will also fail, but the reported `ListBucket` action points first at key-existence/list diagnostics.
+- Existing feed asset rows may be pointing at objects that were never uploaded, were uploaded under a different key/prefix, or were deleted/moved after the DB row was marked uploaded.
+- Public read remains closed; no secret/token/password/env values or full signed URLs were recorded.
+blocked_by:
+- Bucket contents, object ACLs, IAM policy, Block Public Access, and CORS require S3/provider console or CLI access. They cannot be proven from the repo without credentials.
+next_needed:
+- In S3/provider console, check whether the exact object key for the failing feed asset exists in the bucket.
+- Compare the DB `assets.storageKey` value with the actual object key. If the object is under a prefix variant, update either object location or DB rows consistently.
+- Confirm the backend IAM principal has `s3:GetObject` on the user-image object prefix used by feed assets.
+- For diagnostics, grant narrowly scoped `s3:ListBucket` only on the bucket with a prefix condition for the feed/user-image prefix, so missing-key cases return clear diagnostics instead of ambiguous 403. This can be temporary or kept as an ops-only diagnostic permission.
+- If the object is missing, treat affected feed asset rows as broken uploads: re-upload the object, relink the feed asset to an existing object, or mark/archive the asset row so feed does not render a broken image.
+- CORS is still worth checking for browser rendering, but it is not the first blocker while direct signed URL access returns 403.
