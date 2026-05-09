@@ -13,6 +13,9 @@
 
 let _chargeStationData = null;
 let _chargeOrdering = false;
+let _chargePageInitialized = false;
+let _chargeStationInitLoadPromise = null;
+let _chargeStationInitLoadedFor = null;
 
 /* Charge helper boundary: endpoint/status/payload decisions stay out of DOM binding. */
 const CHARGE_ENDPOINTS = Object.freeze({
@@ -87,6 +90,26 @@ async function loadChargeStationData() {
     console.warn("[Lumina] /lumina-station 실패:", err);
     return null;
   }
+}
+
+function getChargeInitAuthKey() {
+  const auth = typeof getAuth === "function" ? getAuth() : null;
+  return auth?.user?.id || auth?.user?.userId || auth?.user?.email || auth?.accessToken || "authenticated";
+}
+
+async function loadChargeStationDataForInit(authKey) {
+  if (_chargeStationInitLoadedFor === authKey && _chargeStationData) return _chargeStationData;
+  if (_chargeStationInitLoadPromise) return _chargeStationInitLoadPromise;
+
+  _chargeStationInitLoadPromise = loadChargeStationData()
+    .then(data => {
+      if (data) _chargeStationInitLoadedFor = authKey;
+      return data;
+    })
+    .finally(() => {
+      _chargeStationInitLoadPromise = null;
+    });
+  return _chargeStationInitLoadPromise;
 }
 
 function renderChargePage() {
@@ -322,17 +345,21 @@ async function initChargePage() {
   const gate = document.getElementById("chargeLoginGate");
   if (!content && !gate) return; // 충전소 페이지 아님
 
-  bindChargePage();
+  if (!_chargePageInitialized) {
+    _chargePageInitialized = true;
+    bindChargePage();
+  }
 
   if (!isLoggedIn()) {
     if (gate) gate.hidden = false;
     if (content) content.hidden = true;
+    _chargeStationInitLoadedFor = null;
     return;
   }
   if (gate) gate.hidden = true;
   if (content) content.hidden = false;
 
-  await loadChargeStationData();
+  await loadChargeStationDataForInit(getChargeInitAuthKey());
   renderChargePage();
 }
 
