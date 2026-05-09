@@ -3889,18 +3889,6 @@ async function uploadFeedComposeImage(file, onStateChange) {
   }
 }
 
-/* 상대 시간 포맷 — 작은 헬퍼 (없으면 fallback) */
-function formatRelativeDate(iso) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "-";
-  const diff = Date.now() - d.getTime();
-  const day = 86400000;
-  if (diff < day) return "오늘";
-  if (diff < 2 * day) return "어제";
-  if (diff < 7 * day) return `${Math.floor(diff / day)}일 전`;
-  return d.toLocaleDateString("ko-KR");
-}
 
 /* ── 상태 메타 ──────────────────────────────── */
 const statusMeta = {
