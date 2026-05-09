@@ -1191,7 +1191,7 @@ async function openPaidLikeModal(slug) {
       </div>
       <div class="paid-like-balance">
         <span>현재 보유 루미나</span>
-        <strong>${formatMypageNumber ? formatMypageNumber(balance) : Number(balance || 0).toLocaleString("ko-KR")}L</strong>
+        <strong>${formatLuminaAmount(balance)}L</strong>
       </div>
       <div class="paid-like-quota-notice">
         오늘 보낼 수 있는 추가 응원 <strong>${remaining}개</strong> · 하루 최대 ${dailyLimit}개
