@@ -38,6 +38,57 @@ async function fetchAndUpdateDetailGallery(slug, artistName) {
   }
 }
 
+/* #150 — 아티스트 상세 viewer/stats 조회 + 팔로우 버튼 갱신 (차모 #149 spec)
+   - GET /api/v1/artists/:slug (Authorization 있으면 viewer 힌트 같이 옴)
+   - 비로그인이면 followerCount만 갱신, 팔로우 버튼은 hidden 유지
+   - 로그인이면 viewer.canFollow/canUnfollow에 따라 토글 */
+let _detailArtistData = null;
+async function fetchArtistDetailViewer(slug) {
+  if (!slug) return;
+  try {
+    const isAuth = typeof isLoggedIn === "function" && isLoggedIn();
+    const res = await apiFetch(`/api/v1/artists/${encodeURIComponent(slug)}`, {
+      auth: isAuth // 로그인 상태면 토큰 첨부 → viewer 힌트 받음
+    });
+    if (!res?.id) return;
+    _detailArtistData = res;
+    applyArtistDetailViewer(res);
+  } catch (err) {
+    console.warn("[#150 artist detail viewer] 조회 실패:", err?.status, err?.message);
+  }
+}
+function applyArtistDetailViewer(data) {
+  const followerEl = document.querySelector("[data-detail-follower-count]");
+  if (followerEl && typeof data?.stats?.followerCount === "number") {
+    followerEl.textContent = `팔로워 ${data.stats.followerCount.toLocaleString("ko-KR")}`;
+  }
+  const btn = document.querySelector("[data-detail-follow]");
+  if (!btn) return;
+  const v = data?.viewer || {};
+  if (v.isAuthenticated && (v.canFollow || v.canUnfollow)) {
+    btn.hidden = false;
+    btn.dataset.artistId = data.id || "";
+    if (v.isFollowing || v.canUnfollow) {
+      btn.classList.add("is-following");
+      const label = btn.querySelector("[data-detail-follow-label]");
+      if (label) label.textContent = "팔로잉 해제";
+      btn.setAttribute("aria-label", "팔로잉 해제");
+      btn.title = "팔로잉 해제";
+      btn.dataset.following = "1";
+    } else {
+      btn.classList.remove("is-following");
+      const label = btn.querySelector("[data-detail-follow-label]");
+      if (label) label.textContent = "팔로우";
+      btn.setAttribute("aria-label", "팔로우");
+      btn.title = "팔로우";
+      btn.dataset.following = "0";
+    }
+  } else {
+    // 비로그인 — 버튼은 hidden 유지 (팔로워 수만 보여줌)
+    btn.hidden = true;
+  }
+}
+
 function bindArtistDetailFollow() {
   if (document._detailFollowBound) return;
   document._detailFollowBound = true;
