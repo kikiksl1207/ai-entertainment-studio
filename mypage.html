@@ -1036,11 +1036,23 @@
           });
         }
 
+        let mypageInlineRefreshPromise = null;
+        async function refreshMypageInlineData() {
+          if (mypageInlineRefreshPromise) return mypageInlineRefreshPromise;
+          mypageInlineRefreshPromise = Promise.all([loadMypageSummary(), loadMypageSettings(), loadActivationProgress()])
+            .then(() => initMypageTabs())
+            .finally(() => {
+              mypageInlineRefreshPromise = null;
+            });
+          return mypageInlineRefreshPromise;
+        }
+
+        window.refreshMypageInlineData = refreshMypageInlineData;
+
         async function initMypageEnhancements() {
           bindMypageActions();
           // #057 충전소 분리 후 충전 상품 미리보기는 충전소 화면이 담당하므로 마이페이지에선 호출하지 않음
-          await Promise.all([loadMypageSummary(), loadMypageSettings(), loadActivationProgress()]);
-          initMypageTabs();
+          await refreshMypageInlineData();
         }
 
         // X 패턴 가로 탭바 — 6개 탭, 클릭 시 해당 패널만 표시

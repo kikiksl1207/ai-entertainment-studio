@@ -336,6 +336,13 @@ async function initMypagePage() {
 
   // #140 정산 프로필 — 차모 spec: GET/PATCH /api/v1/me/settlement-profile
   initMypageSettlementProfile();
+  if (typeof window.refreshMypageInlineData === "function") {
+    try {
+      await window.refreshMypageInlineData();
+    } catch (err) {
+      console.warn("[Lumina] mypage inline refresh failed:", err);
+    }
+  }
 }
 
 /* #140 — 정산 프로필 (마이페이지 지갑 탭, 차모 spec 그대로)

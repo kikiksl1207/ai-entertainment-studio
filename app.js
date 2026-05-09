@@ -396,6 +396,7 @@ function applyAuthResponse(data, providerName = "백엔드") {
   setAuth({ accessToken, refreshToken, user });
   closeAuthModal();
   updateAuthUI();
+  if (typeof initMypagePage === "function") initMypagePage();
   loadWallet(); // 로그인/회원가입 직후 잔액 로드
   console.info(`[Lumina] ${providerName} 로그인 성공:`, user?.displayName || user?.email);
   return true;
