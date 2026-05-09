@@ -621,8 +621,7 @@ p {
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.3);
 }
 
-.roster-card,
-.catalog-card {
+.roster-card {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.04)),
     linear-gradient(160deg, rgba(108, 70, 187, 0.08), transparent);
@@ -642,8 +641,7 @@ p {
 }
 
 .clickable-card:hover .artist-media,
-.clickable-card:hover .roster-media,
-.clickable-card:hover .catalog-media {
+.clickable-card:hover .roster-media {
   transform: translateY(-2px);
   filter: saturate(1.04);
 }
@@ -1228,168 +1226,6 @@ p {
   font-weight: 700;
 }
 
-.catalog-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.catalog-card {
-  position: relative; /* 좋아요 버튼(.like-btn-catalog)이 카드 우상단에 absolute로 위치 */
-  display: grid;
-  grid-template-columns: minmax(240px, 0.82fr) 1.18fr;
-  align-items: stretch;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 28px;
-  background: var(--panel);
-  box-shadow: var(--shadow);
-}
-
-.catalog-media {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: stretch;
-  color: white;
-  min-height: 100%;
-}
-
-.catalog-media-main {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(22, 18, 32, 0.16)),
-    linear-gradient(160deg, #ded3fb 0%, #7a63b1 100%);
-}
-
-.catalog-media-premium {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(17, 13, 20, 0.18)),
-    linear-gradient(160deg, #2a2438 0%, #7d618f 100%);
-}
-
-.catalog-media-sub {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(31, 24, 51, 0.08)),
-    linear-gradient(160deg, #efe8fb 0%, #b4a5d8 100%);
-}
-
-.catalog-media-experiment {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(46, 44, 26, 0.1)),
-    linear-gradient(160deg, #eef2db 0%, #c8d991 100%);
-  color: #27310f;
-}
-
-.catalog-media strong {
-  font-size: 32px;
-  text-shadow: 0 3px 18px rgba(0, 0, 0, 0.3);
-}
-
-.catalog-image {
-  width: 100%;
-  height: 100%;
-  min-height: 420px;
-  object-fit: cover;
-  object-position: center top;
-  display: block;
-  background: linear-gradient(180deg, rgba(18, 15, 29, 0.96), rgba(39, 31, 58, 0.88));
-}
-
-.catalog-image-yoon-serin {
-  object-position: center 8%;
-}
-
-.catalog-image-han-seoyul {
-  object-position: center top;
-}
-
-.catalog-image-park-doa {
-  object-position: center 20%;
-}
-
-.catalog-image-choi-seojin {
-  object-position: center top;
-}
-
-.catalog-overlay {
-  position: absolute;
-  inset: auto 18px 18px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-end;
-}
-
-.catalog-status-caption {
-  margin-top: 8px;
-  font-style: normal;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  opacity: 0.85;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
-}
-
-.catalog-body {
-  padding: 20px;
-  background: transparent;
-}
-
-.catalog-name {
-  margin: 0 0 14px;
-  color: var(--ink);
-  font-size: clamp(28px, 3vw, 38px);
-}
-
-.catalog-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.catalog-meta span {
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(180, 150, 255, 0.12);
-  color: var(--accent-dark);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.catalog-summary {
-  margin: 14px 0 0;
-  color: var(--ink);
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.5;
-}
-
-.catalog-details {
-  display: grid;
-  gap: 12px;
-  margin: 18px 0 0;
-}
-
-.catalog-details div {
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-.catalog-details dt {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
-.catalog-details dd {
-  margin: 8px 0 0;
-  color: var(--ink);
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.6;
-}
-
 .text-link {
   display: inline-flex;
   align-items: center;
@@ -1403,44 +1239,24 @@ p {
   color: rgba(255, 255, 255, 0.6);
 }
 
-.catalog-card.is-debut,
 .roster-card.is-debut {
   background: rgba(255, 255, 255, 0.05);
 }
 
-.catalog-card.is-secret,
 .roster-card.is-secret {
   background: rgba(21, 18, 31, 0.88);
   border-color: rgba(255, 255, 255, 0.08);
   box-shadow: 0 18px 48px rgba(11, 8, 19, 0.28);
 }
 
-.catalog-card.is-secret .catalog-body,
 .roster-card.is-secret .roster-body {
   color: rgba(255, 255, 255, 0.82);
 }
 
-.catalog-card.is-secret .catalog-summary,
-.catalog-card.is-secret .catalog-details dd,
-.catalog-card.is-secret .catalog-meta span,
 .roster-card.is-secret .roster-body p {
   color: rgba(255, 255, 255, 0.84);
 }
 
-.catalog-card.is-secret .catalog-meta span {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.catalog-card.is-secret .tag-list span {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.84);
-}
-
-.catalog-card.is-secret .catalog-details div {
-  border-top-color: rgba(255, 255, 255, 0.08);
-}
-
-.catalog-media-debut,
 .roster-media-debut {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(32, 24, 49, 0.05)),
@@ -1448,7 +1264,6 @@ p {
   color: #3a3151;
 }
 
-.catalog-media-secret,
 .roster-media-secret {
   position: relative;
   background:
@@ -1458,7 +1273,6 @@ p {
   color: #ffffff;
 }
 
-.catalog-media-secret::before,
 .roster-media-secret::before {
   content: "";
   position: absolute;
@@ -1474,7 +1288,6 @@ p {
   opacity: 0.46;
 }
 
-.catalog-media-secret::after,
 .roster-media-secret::after {
   content: "";
   position: absolute;
@@ -2115,10 +1928,6 @@ p {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .catalog-grid {
-    grid-template-columns: 1fr;
-  }
-
   .detail-layout,
   .detail-grid,
   .detail-short-grid,
@@ -2258,10 +2067,6 @@ p {
     grid-template-columns: 1fr;
   }
 
-  .catalog-card {
-    grid-template-columns: 1fr;
-  }
-
   .shell {
     width: min(100% - 20px, 1200px);
   }
@@ -2297,7 +2102,6 @@ p {
   .short-media,
   .roster-media,
   .premium-placeholder,
-  .catalog-media,
   .detail-hero-card,
   .detail-short-media {
     min-height: 0;
@@ -2711,10 +2515,6 @@ p {
 .artist-card:hover {
   border-color: rgba(var(--char-accent, 159, 139, 199), 0.28);
   box-shadow: 0 24px 56px rgba(0, 0, 0, 0.42), 0 0 0 1px color-mix(in srgb, var(--char-accent) 30%, transparent);
-}
-
-.catalog-card:hover {
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.38), 0 0 0 1px color-mix(in srgb, var(--char-accent) 24%, transparent);
 }
 
 /* ── 데뷔 예정 라인 그리드 (index.html) ────── */
@@ -5000,7 +4800,6 @@ p {
 /* #083 — 글로벌 이미지 보호 UX (보안 X, 무단 저장 일차 방어)
    캐릭터 이미지/갤러리/숏폼/피드 이미지/프로필 이미지 등 모든 콘텐츠 영역 이미지에 적용
    주의: 보안 보장이 아닌 UX 방어선. 백엔드 권한(#082)이 진짜 방어선. */
-.catalog-media img,
 .artist-media img,
 .short-media img,
 .detail-hero-card img,
@@ -5022,6 +4821,7 @@ p {
   user-select: none;
   pointer-events: auto; /* 클릭은 허용, 드래그만 막음 */
 }
+
 /* 캐릭터 상세 공유 버튼 — 헤더 우상단 또는 hero 우하단 */
 .detail-share-btn {
   display: inline-flex;
