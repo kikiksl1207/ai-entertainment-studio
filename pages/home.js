@@ -103,6 +103,19 @@
       const card = root.querySelector(".debut-card");
       const gap = parseFloat(getComputedStyle(root).columnGap || "16") || 16;
       const width = card ? card.getBoundingClientRect().width + gap : root.clientWidth;
+      const maxScrollLeft = Math.max(0, root.scrollWidth - root.clientWidth);
+      const edgeThreshold = 4;
+      const atStart = root.scrollLeft <= edgeThreshold;
+      const atEnd = root.scrollLeft >= maxScrollLeft - edgeThreshold;
+
+      if (direction < 0 && atStart) {
+        root.scrollTo({ left: maxScrollLeft, behavior: "smooth" });
+        return;
+      }
+      if (direction > 0 && atEnd) {
+        root.scrollTo({ left: 0, behavior: "smooth" });
+        return;
+      }
       root.scrollBy({ left: direction * width, behavior: "smooth" });
     };
 
