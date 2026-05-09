@@ -2585,75 +2585,10 @@ function adaptShortform(api) {
 }
 
 /* ── 렌더링: 메인 아티스트 (mainArtists 배열 제거됨) */
-function renderMainArtists() {
-  const root = document.getElementById("mainArtistGrid");
-  if (!root) return;
-
-  const list = _artists.filter(isPublicLineup);
-
-  // 좋아요 많은 순으로 정렬 (랭킹 데이터가 도착하면 자동 반영)
-  // _rankings가 비어있으면 sort 결과 0 → 원래 순서 유지 (fallback)
-  list.sort((a, b) => getLikesCount(b.slug) - getLikesCount(a.slug));
-
-  root.innerHTML = list.map(a => `
-    <article class="artist-card clickable-card" data-href="./character-detail.html?slug=${a.slug}"
-      style="--char-accent: ${a.colorAccent || "#9f8bc7"}">
-      <div class="artist-media artist-media-${a.slug}">
-        <img class="artist-media-image artist-media-image-${a.slug}"
-          src="${a.images.thumb || a.images.cover}" alt="${a.publicName}"
-          onerror="this.style.display='none'" />
-        <div class="artist-media-copy">
-          <span class="artist-role">${a.role}</span>
-          <strong>${a.name}</strong>
-        </div>
-      </div>
-      <div class="artist-body">
-        <p>${artistToneCopy(a)}</p>
-        <div class="tag-list">${a.tags.map(t => `<span>${t}</span>`).join("")}</div>
-        <a class="text-link" href="./character-detail.html?slug=${a.slug}">무드 보기</a>
-      </div>
-    </article>
-  `).join("");
-}
-
 /* ── 렌더링: 메인 hero "이달의 아티스트" ─────── */
 /* 좋아요 1위 메인/프리미엄 캐릭터를 자동으로 hero에 표시.
    - 좋아요 데이터가 비어있으면 첫 번째 메인 캐릭터로 fallback (HTML 하드코딩과 일관)
    - 루미나 픽 데이터(_rankings)가 도착하면 자동 갱신 */
-function renderHeroFeature() {
-  const root = document.getElementById("heroFeature");
-  if (!root) return;
-
-  // 메인 라인업 6명 (status는 무시 — 운영진 결정한 공식 라인업)
-  const candidates = _artists.filter(isPublicLineup);
-  if (!candidates.length) return; // 후보 없으면 HTML fallback 유지
-
-  // 좋아요 많은 순으로 정렬, 동률이면 원래 등록 순서
-  const sorted = [...candidates].sort((a, b) => getLikesCount(b.slug) - getLikesCount(a.slug));
-  const top = sorted[0];
-  const likes = getLikesCount(top.slug);
-
-  // 좋아요 0이면 "이달의 아티스트" (fallback 첫 캐릭), 1+ 있으면 "지금 1위" 강조
-  const label = likes > 0 ? `이달의 픽 · ${formatLikeCount(likes)} 응원` : "이달의 아티스트";
-
-  // 태그 최대 3개만 표시
-  const tagsHTML = (top.tags || []).slice(0, 3).map(t => `<li>${t}</li>`).join("");
-
-  root.innerHTML = `
-    <div class="hero-feature-media">
-      <img src="${top.images.thumb || top.images.cover}" alt="${top.publicName} 프로필" />
-    </div>
-    <div class="hero-feature-body">
-      <span class="hero-feature-label">${label}</span>
-      <strong>${top.publicName}</strong>
-      <p class="hero-feature-summary">${top.summary || ""}</p>
-      <p>${artistToneCopy(top) || top.intro || ""}</p>
-      <ul class="hero-feature-tags">${tagsHTML}</ul>
-      <a class="text-link hero-feature-link" href="./character-detail.html?slug=${top.slug}">${top.publicName} 무드 보기</a>
-    </div>
-  `;
-}
-
 /* ══════════════════════════════════════════════
    루미나 픽 (popular-vote.html)
    3탭: Monthly Pick / Cheer Race / Hall of Fame
@@ -2696,86 +2631,11 @@ function updateHeroQuotaDisplay() {
 
 
 /* ── 렌더링: 비공개 아티스트 라인 ─────────────── */
-function renderDebutLine() {
-  const root = document.getElementById("debutLineGrid");
-  if (!root) return;
-
-  const list = _artists.filter(isHiddenLineupArtist);
-  if (!list.length) { root.closest("section")?.setAttribute("hidden", ""); return; }
-
-  root.innerHTML = list.map(a => {
-    const isMale = a.gender === "male";
-    const silhouetteClass = isMale ? "silhouette-male" : "silhouette-female";
-    const silhouetteLabel = isMale ? "HIDDEN<br>STAGE" : "NEW<br>STAGE";
-    const silhouetteText = isMale ? "남성 아티스트 공개 준비 중" : "여성 아티스트 공개 준비 중";
-
-    return `
-    <article class="debut-card clickable-card" data-href="./character-detail.html?slug=${a.slug}"
-      style="--char-accent: ${a.colorAccent || "#9f8bc7"}">
-      <div class="debut-card-media ${silhouetteClass}">
-        <div class="debut-silhouette">
-          <span>${silhouetteLabel}</span>
-          <small>${silhouetteText}</small>
-        </div>
-        <div class="debut-gender-badge">${isMale ? "♂" : "♀"}</div>
-      </div>
-      <div class="debut-card-body">
-        <span class="debut-card-type eyebrow">${a.type}</span>
-        <strong>${a.publicName}</strong>
-        <p>${artistToneCopy(a)}</p>
-        <a class="text-link" href="./character-detail.html?slug=${a.slug}">무드 보기</a>
-      </div>
-    </article>`;
-  }).join("");
-
-  bindDebutLineCarousel();
-}
-
-function bindDebutLineCarousel() {
-  const root = document.getElementById("debutLineGrid");
-  const prev = document.getElementById("debutLinePrev");
-  const next = document.getElementById("debutLineNext");
-  if (!root || !prev || !next || root.dataset.carouselBound === "true") return;
-  root.dataset.carouselBound = "true";
-
-  const scrollByCard = direction => {
-    const card = root.querySelector(".debut-card");
-    const gap = parseFloat(getComputedStyle(root).columnGap || "16") || 16;
-    const width = card ? card.getBoundingClientRect().width + gap : root.clientWidth;
-    root.scrollBy({ left: direction * width, behavior: "smooth" });
-  };
-
-  prev.addEventListener("click", () => scrollByCard(-1));
-  next.addEventListener("click", () => scrollByCard(1));
-}
-
 /* ── 렌더링: 숏폼 그리드 ─────────────────────── */
 
 /* ── 렌더링: 숏폼 허브 ───────────────────────── */
 
 /* ── 렌더링: 로스터 ──────────────────────────── */
-function renderRoster() {
-  const root = document.getElementById("rosterGrid");
-  if (!root) return;
-  const featured = _artists.filter(a => ["yoon-serin","han-seoyul","park-doa","choi-seojin"].includes(a.slug));
-  root.innerHTML = featured.map(a => `
-    <article class="roster-card ${statusMeta[a.status].className} clickable-card"
-      data-href="./character-detail.html?slug=${a.slug}"
-      data-secret="${a.status === "secret"}">
-      <div class="roster-media roster-media-${a.status}"${mediaStyle(a.images.thumb || a.images.cover)}>
-        <strong>${a.publicName}</strong>
-      </div>
-      <div class="roster-body">
-        <div class="roster-meta">
-          <span class="eyebrow">${a.type}</span>
-          <span class="status-badge status-badge-${a.status}">${statusMeta[a.status].label}</span>
-        </div>
-        <p>${artistToneCopy(a)}</p>
-        <a class="text-link ${a.status === "secret" ? "is-dimmed" : ""}" href="./character-detail.html?slug=${a.slug}">무드 보기</a>
-      </div>
-    </article>`).join("");
-}
-
 /* #150 — 아티스트 상세 viewer/stats 조회 + 팔로우 버튼 갱신 (차모 #149 spec)
    - GET /api/v1/artists/:slug (Authorization 있으면 viewer 힌트 같이 옴)
    - 비로그인이면 followerCount만 갱신, 팔로우 버튼은 hidden 유지
@@ -3507,13 +3367,13 @@ async function init() {
     console.warn("[Lumina] 부스트 상태 로드 실패 (정상 진행):", err);
   }
 
-  renderMainArtists();
-  renderHeroFeature();
-  renderDebutLine();
+  if (typeof renderMainArtists === "function") renderMainArtists();
+  if (typeof renderHeroFeature === "function") renderHeroFeature();
+  if (typeof renderDebutLine === "function") renderDebutLine();
   if (typeof renderShortforms === "function") renderShortforms();
   if (typeof renderShortformHub === "function") renderShortformHub();
   if (typeof renderBusinessPackages === "function") renderBusinessPackages();
-  renderRoster();
+  if (typeof renderRoster === "function") renderRoster();
   if (typeof renderCharacterCatalog === "function") renderCharacterCatalog();
   if (typeof bindCharacterFilters === "function") bindCharacterFilters();
   if (typeof renderCharacterDetail === "function") renderCharacterDetail();
