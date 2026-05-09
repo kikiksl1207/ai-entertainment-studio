@@ -1,0 +1,1341 @@
+/* User profile page styles extracted from styles.css. Keep loaded after styles.css. */
+
+/* #152 — 일반 유저 공개 프로필 페이지 (user-profile.html) */
+.user-profile-section {
+  padding: 40px 0 80px;
+}
+.user-profile-shell {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.user-profile-card {
+  background: rgba(15, 11, 30, 0.7);
+  border: 1px solid rgba(159, 139, 199, 0.2);
+  border-radius: 18px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.user-profile-head {
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  gap: 16px;
+  align-items: center;
+}
+.user-profile-avatar {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff1493, #9f8bc7);
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.user-profile-avatar.has-image {
+  background: rgba(0, 0, 0, 0.2) center/cover no-repeat;
+}
+.user-profile-avatar-fallback {
+  color: #fff;
+  font-weight: 800;
+  font-size: 32px;
+  letter-spacing: 0;
+}
+.user-profile-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.user-profile-name {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.user-profile-handle {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(220, 210, 240, 0.62);
+  font-weight: 500;
+}
+.user-profile-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.user-profile-follow-btn,
+.user-profile-edit-btn {
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 20, 147, 0.55);
+  background: linear-gradient(135deg, #ff5fa2, #ff7eb9);
+  color: #fff;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  min-width: 100px;
+  transition: opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s;
+}
+.user-profile-follow-btn:hover,
+.user-profile-edit-btn:hover {
+  opacity: 0.92;
+}
+.user-profile-follow-btn.is-following {
+  background: transparent;
+  border-color: rgba(159, 139, 199, 0.32);
+  color: rgba(220, 210, 240, 0.85);
+}
+.user-profile-follow-btn.is-following:hover {
+  border-color: rgba(255, 100, 130, 0.48);
+  color: #ff7a99;
+}
+.user-profile-edit-btn {
+  background: transparent;
+  border-color: rgba(159, 139, 199, 0.32);
+  color: rgba(220, 210, 240, 0.85);
+}
+.user-profile-edit-btn:hover {
+  border-color: rgba(255, 20, 147, 0.55);
+  color: #ff7eb9;
+}
+.user-profile-bio {
+  margin: 0;
+  padding: 0;
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: rgba(240, 238, 248, 0.86);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.user-profile-bio.is-empty {
+  color: rgba(220, 210, 240, 0.42);
+  font-style: italic;
+}
+.user-profile-stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 28px;
+  border-top: 1px solid rgba(159, 139, 199, 0.16);
+  padding-top: 18px;
+}
+.user-profile-stats li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.user-profile-stats strong {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.user-profile-stats small {
+  font-size: 12px;
+  color: rgba(220, 210, 240, 0.62);
+  font-weight: 500;
+}
+
+.user-profile-empty,
+.user-profile-blocked {
+  background: rgba(15, 11, 30, 0.7);
+  border: 1px solid rgba(159, 139, 199, 0.2);
+  border-radius: 18px;
+  padding: 36px 28px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.user-profile-empty strong,
+.user-profile-blocked strong {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.user-profile-empty p,
+.user-profile-blocked p {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(220, 210, 240, 0.7);
+}
+.user-profile-empty .text-link {
+  margin-top: 6px;
+}
+
+.user-profile-posts-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.user-profile-posts-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: rgba(220, 210, 240, 0.78);
+}
+/* X 패턴 3탭 (게시물 / 사진 / 숏폼) */
+.user-profile-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(159, 139, 199, 0.18);
+  margin-bottom: 4px;
+}
+.user-profile-tab {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  padding: 12px 8px;
+  color: rgba(220, 210, 240, 0.55);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s;
+}
+.user-profile-tab:hover {
+  color: rgba(220, 210, 240, 0.85);
+  background: rgba(159, 139, 199, 0.06);
+}
+.user-profile-tab.is-active {
+  color: var(--ink, #fff);
+}
+.user-profile-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: -1px;
+  width: 56px;
+  max-width: 80%;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #ff1493, #ff7eb9);
+}
+.user-profile-posts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.user-profile-posts-empty {
+  margin: 0;
+  padding: 28px 16px;
+  text-align: center;
+  background: rgba(15, 11, 30, 0.5);
+  border: 1px dashed rgba(159, 139, 199, 0.2);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.user-profile-posts-empty strong {
+  color: rgba(220, 210, 240, 0.78);
+  font-size: 14px;
+  font-weight: 700;
+}
+.user-profile-posts-empty p {
+  margin: 0;
+  color: rgba(220, 210, 240, 0.55);
+  font-size: 13px;
+}
+.user-profile-load-more {
+  align-self: center;
+  margin-top: 4px;
+  padding: 10px 24px;
+  background: transparent;
+  border: 1px solid rgba(159, 139, 199, 0.32);
+  border-radius: 999px;
+  color: rgba(220, 210, 240, 0.85);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.user-profile-load-more:hover:not(:disabled) {
+  background: rgba(159, 139, 199, 0.12);
+  border-color: rgba(255, 20, 147, 0.4);
+}
+.user-profile-load-more:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 모바일 (390px 기준) */
+@media (max-width: 768px) {
+  .user-profile-section {
+    padding: 24px 0 60px;
+  }
+  .user-profile-shell {
+    gap: 20px;
+    padding: 0 16px;
+  }
+  .user-profile-card {
+    padding: 20px;
+    gap: 14px;
+  }
+  .user-profile-head {
+    grid-template-columns: 64px 1fr;
+    grid-template-areas:
+      "avatar meta"
+      "actions actions";
+    gap: 14px;
+  }
+  .user-profile-avatar {
+    grid-area: avatar;
+    width: 64px;
+    height: 64px;
+  }
+  .user-profile-avatar-fallback {
+    font-size: 24px;
+  }
+  .user-profile-meta {
+    grid-area: meta;
+  }
+  .user-profile-actions {
+    grid-area: actions;
+    width: 100%;
+  }
+  .user-profile-follow-btn,
+  .user-profile-edit-btn {
+    flex: 1;
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+  .user-profile-name {
+    font-size: 19px;
+  }
+  .user-profile-stats {
+    gap: 20px;
+    padding-top: 14px;
+  }
+  .user-profile-stats strong {
+    font-size: 16px;
+  }
+  .user-profile-stats small {
+    font-size: 11.5px;
+  }
+}
+
+/* ── user-profile 미디어 탭 그리드 갤러리 (X / IG 미디어 탭) ── */
+.user-profile-media-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+}
+.user-profile-media-item {
+  position: relative;
+  display: block;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 4px;
+  cursor: zoom-in;
+  background: rgba(15, 11, 30, 0.5);
+  transition: opacity 0.15s;
+}
+.user-profile-media-item:hover {
+  opacity: 0.92;
+}
+.user-profile-media-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+@media (max-width: 768px) {
+  .user-profile-media-grid {
+    gap: 2px;
+  }
+}
+
+/* ── 좋아요 탭 (본인 프로필만) — 분홍색 살짝 강조 ── */
+.user-profile-tab-likes {
+  position: relative;
+}
+.user-profile-tab-likes::before {
+  content: "♥";
+  font-size: 12px;
+  color: #ff5fa2;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+
+/* ── 디자인 다듬기 — user-profile 카드 spacing + 헤더 균형 ── */
+.user-profile-card {
+  padding: 24px;
+}
+@media (max-width: 768px) {
+  .user-profile-card {
+    padding: 18px;
+  }
+}
+/* 통계 — 숫자가 너무 크지 않게, 라벨과 균형 */
+.user-profile-stats {
+  gap: 32px;
+  padding-top: 16px;
+}
+.user-profile-stats strong {
+  font-size: 17px;
+}
+.user-profile-stats small {
+  font-size: 12.5px;
+}
+@media (max-width: 768px) {
+  .user-profile-stats {
+    gap: 24px;
+    padding-top: 14px;
+  }
+}
+
+/* ── 탭 디자인 폴리시 — 활성 탭 underline 짧고 깔끔 ── */
+.user-profile-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg, #0d0d1a);
+  background: rgba(13, 13, 26, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.user-profile-tab {
+  padding: 14px 8px;
+}
+.user-profile-tab.is-active::after {
+  width: 40px;
+  height: 3px;
+}
+
+/* ════════════════════════════════════════════════════════════
+   #152 user-profile.html — 2026 SNS 트렌드 디자인 갱신
+   X/Threads 패턴: cover banner + 아바타 오버랩 + 카드박스 제거
+   참고: 검색 트렌드 (oversized typography, sticky tabs, divider 인라인)
+   ════════════════════════════════════════════════════════════ */
+
+/* 기본 컨테이너 — 카드 박스 제거, 인라인 풀어줌 */
+.user-profile-section {
+  padding: 0 0 80px;
+}
+.user-profile-shell {
+  max-width: 600px;
+  margin: 0 auto;
+  display: block;
+  gap: 0;
+}
+.user-profile-card {
+  /* 카드 박스/패딩 제거 — 모던 SNS는 박스 안 가둠 */
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  display: block;
+  position: relative;
+  margin-bottom: 0;
+}
+
+/* Cover banner — X 패턴 (3:1 비율, 200px 높이) */
+.user-profile-cover {
+  width: 100%;
+  height: 200px;
+  background: linear-gradient(135deg, #2a1a3a 0%, #4a1a4a 30%, #6a2a5a 60%, #8a3a6a 100%);
+  position: relative;
+  overflow: hidden;
+}
+.user-profile-cover::after {
+  /* 노이즈 텍스처로 단조로움 깨기 (트렌드: handcrafted feel) */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 30%, rgba(255, 100, 180, 0.25), transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(140, 80, 220, 0.2), transparent 60%);
+  pointer-events: none;
+}
+
+/* 아바타 + 액션 — banner와 본문 사이에 layered (오버랩) */
+.user-profile-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0 18px;
+  margin-top: -56px; /* banner 위로 절반 정도 올라감 */
+  position: relative;
+  z-index: 2;
+}
+.user-profile-avatar {
+  /* 큰 사이즈 + banner와 오버랩 */
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  border: 4px solid var(--bg, #0d0d1a);
+  background: linear-gradient(135deg, #ff1493, #9f8bc7);
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.user-profile-avatar.has-image {
+  background-color: rgba(0, 0, 0, 0.2);
+  background-size: cover;
+  background-position: center;
+}
+.user-profile-avatar-fallback {
+  color: #fff;
+  font-weight: 800;
+  font-size: 44px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+/* 액션 버튼 — 우측 상단 (banner 아래 정렬) */
+.user-profile-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 70px; /* banner 아래로 살짝 내려옴 */
+  flex-shrink: 0;
+}
+.user-profile-follow-btn,
+.user-profile-edit-btn {
+  padding: 8px 18px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  min-width: 96px;
+  letter-spacing: -0.01em;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+}
+.user-profile-follow-btn {
+  background: #fff;
+  border: 1px solid #fff;
+  color: #0d0d1a;
+}
+.user-profile-follow-btn:hover {
+  background: rgba(255, 255, 255, 0.92);
+}
+.user-profile-follow-btn:active {
+  transform: scale(0.97);
+}
+.user-profile-follow-btn.is-following {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+.user-profile-follow-btn.is-following:hover {
+  background: rgba(255, 60, 80, 0.08);
+  border-color: rgba(255, 60, 80, 0.5);
+  color: #ff5a7a;
+}
+.user-profile-follow-btn.is-following:hover [data-detail-follow-label]::before {
+  content: "팔로잉 해제";
+  position: absolute;
+  background: inherit;
+  padding: inherit;
+}
+.user-profile-edit-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+.user-profile-edit-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+/* 이름·핸들·자기소개·통계 — 좌측 정렬 (X 패턴) */
+.user-profile-meta {
+  padding: 12px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.user-profile-name {
+  /* oversized typography (트렌드) */
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--ink, #fff);
+}
+.user-profile-handle {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(220, 210, 240, 0.55);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.user-profile-bio {
+  margin: 12px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: rgba(240, 238, 248, 0.92);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.user-profile-bio.is-empty {
+  color: rgba(220, 210, 240, 0.4);
+  font-style: italic;
+}
+
+/* 통계 — 가로 한 줄 (X 패턴, 카드 격자에서 인라인 텍스트로) */
+.user-profile-stats {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  border: 0;
+}
+.user-profile-stats li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.user-profile-stats strong {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink, #fff);
+  letter-spacing: -0.01em;
+}
+.user-profile-stats small {
+  font-size: 14px;
+  color: rgba(220, 210, 240, 0.55);
+  font-weight: 400;
+}
+.user-profile-stats li:hover small,
+.user-profile-stats li:hover strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* 빈 상태 (notFound / blocked) — divider 위 인라인 카드 */
+.user-profile-empty,
+.user-profile-blocked {
+  margin: 0 18px;
+  padding: 36px 20px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(159, 139, 199, 0.12);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.user-profile-empty strong,
+.user-profile-blocked strong {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--ink, #fff);
+  letter-spacing: -0.01em;
+}
+.user-profile-empty p,
+.user-profile-blocked p {
+  margin: 0;
+  font-size: 14.5px;
+  color: rgba(220, 210, 240, 0.7);
+  line-height: 1.5;
+}
+
+/* 탭 — sticky + divider (X 패턴) */
+.user-profile-posts-section {
+  display: block;
+  margin-top: 8px;
+  border-top: 1px solid rgba(159, 139, 199, 0.12);
+}
+.user-profile-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  background: rgba(13, 13, 26, 0.78);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid rgba(159, 139, 199, 0.12);
+  margin: 0;
+  padding: 0;
+  display: flex;
+}
+.user-profile-tab {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  padding: 16px 8px;
+  color: rgba(220, 210, 240, 0.6);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  letter-spacing: -0.01em;
+  transition: color 0.15s, background 0.15s;
+}
+.user-profile-tab:hover {
+  color: var(--ink, #fff);
+  background: rgba(159, 139, 199, 0.05);
+}
+.user-profile-tab.is-active {
+  color: var(--ink, #fff);
+  font-weight: 700;
+}
+.user-profile-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #ff1493, #ff7eb9);
+}
+
+/* 글 목록 — 카드 박스 제거 → divider 인라인 (X/Threads) */
+.user-profile-posts-list {
+  display: block;
+  gap: 0;
+  padding: 0;
+}
+.user-profile-posts-list .feed-post {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(159, 139, 199, 0.12) !important;
+  border-radius: 0 !important;
+  padding: 16px 18px !important;
+  margin: 0 !important;
+  transition: background 0.12s;
+}
+.user-profile-posts-list .feed-post:hover {
+  background: rgba(159, 139, 199, 0.04);
+}
+.user-profile-posts-list .feed-post:last-child {
+  border-bottom: 0 !important;
+}
+
+/* 빈 글 안내 — 인라인 */
+.user-profile-posts-empty {
+  margin: 0;
+  padding: 48px 20px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.user-profile-posts-empty strong {
+  color: var(--ink, #fff);
+  font-size: 16px;
+  font-weight: 700;
+}
+.user-profile-posts-empty p {
+  margin: 0;
+  color: rgba(220, 210, 240, 0.55);
+  font-size: 14px;
+}
+
+/* 미디어 그리드 — 1px gap (트렌드: tighter, denser grid) */
+.user-profile-media-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  padding: 0;
+  background: rgba(159, 139, 199, 0.08);
+}
+.user-profile-media-item {
+  position: relative;
+  display: block;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 0;
+  cursor: zoom-in;
+  background: rgba(15, 11, 30, 0.5);
+  transition: opacity 0.15s, transform 0.2s;
+}
+.user-profile-media-item:hover {
+  opacity: 0.88;
+}
+.user-profile-media-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* "이전 글 더 보기" — 인라인 텍스트 버튼 (트렌드: less chrome) */
+.user-profile-load-more {
+  display: block;
+  margin: 0;
+  width: 100%;
+  padding: 16px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(159, 139, 199, 0.12);
+  color: #ff7eb9;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  transition: background 0.12s;
+}
+.user-profile-load-more:hover {
+  background: rgba(255, 20, 147, 0.06);
+}
+.user-profile-load-more:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 좋아요 탭 — 핑크 액센트 (마이크로 인터랙션) */
+.user-profile-tab-likes::before {
+  content: "♥";
+  display: inline-block;
+  font-size: 12px;
+  color: #ff5fa2;
+  margin-right: 4px;
+  transform: translateY(-1px);
+}
+
+/* 모바일 (~768px) — banner 살짝 줄이고 padding 조정 */
+@media (max-width: 768px) {
+  .user-profile-shell {
+    max-width: 100%;
+  }
+  .user-profile-cover {
+    height: 140px;
+  }
+  .user-profile-head {
+    padding: 0 14px;
+    margin-top: -42px;
+  }
+  .user-profile-avatar {
+    width: 84px;
+    height: 84px;
+    border-width: 3px;
+  }
+  .user-profile-avatar-fallback {
+    font-size: 32px;
+  }
+  .user-profile-actions {
+    margin-top: 50px;
+  }
+  .user-profile-follow-btn,
+  .user-profile-edit-btn {
+    padding: 7px 14px;
+    font-size: 13.5px;
+    min-width: 80px;
+  }
+  .user-profile-meta {
+    padding: 10px 14px 14px;
+  }
+  .user-profile-name {
+    font-size: 19px;
+  }
+  .user-profile-handle {
+    font-size: 13.5px;
+  }
+  .user-profile-bio {
+    font-size: 14px;
+  }
+  .user-profile-stats {
+    gap: 14px;
+  }
+  .user-profile-tab {
+    padding: 14px 6px;
+    font-size: 13.5px;
+  }
+  .user-profile-posts-list .feed-post {
+    padding: 14px !important;
+  }
+}
+
+/* PC — 액션 버튼 banner 침범 안 하게 살짝 더 내림 */
+.user-profile-actions {
+  margin-top: 76px;
+}
+
+/* 모바일 깨짐 수정 — head를 수직 분리 (아바타 ↔ 액션 같은 줄 충돌 해소) */
+@media (max-width: 768px) {
+  .user-profile-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 0 14px;
+    margin-top: -42px;
+  }
+  .user-profile-actions {
+    margin-top: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .user-profile-follow-btn,
+  .user-profile-edit-btn {
+    min-width: 96px;
+  }
+}
+
+/* ── Lumina 차별화 (X 저작권 우려 회피) ──
+   X는 흰색 알약, 우리는 Lumina 핑크 그라디언트 + 호버 강조 */
+.user-profile-follow-btn:not(.is-following) {
+  background: linear-gradient(135deg, #ff1493, #ff7eb9);
+  border: 1px solid transparent;
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(255, 20, 147, 0.25);
+}
+.user-profile-follow-btn:not(.is-following):hover {
+  background: linear-gradient(135deg, #e6127f, #ff5fa2);
+  box-shadow: 0 3px 16px rgba(255, 20, 147, 0.35);
+}
+
+/* 통계 호버 시 핑크 액센트 (X는 흰색 underline) */
+.user-profile-stats li:hover small,
+.user-profile-stats li:hover strong {
+  color: #ff7eb9;
+  text-decoration-color: #ff7eb9;
+}
+
+/* cover banner — Lumina 핑크/보라 톤 강화 (X의 평범한 색감과 차별) */
+.user-profile-cover {
+  background: linear-gradient(135deg, #1a0a2a 0%, #3a0f4a 25%, #6a1a5a 55%, #c41e7a 100%);
+}
+.user-profile-cover::after {
+  background:
+    radial-gradient(ellipse at 25% 35%, rgba(255, 100, 200, 0.35), transparent 55%),
+    radial-gradient(ellipse at 75% 65%, rgba(180, 100, 255, 0.25), transparent 60%),
+    radial-gradient(ellipse at 50% 100%, rgba(255, 20, 147, 0.4), transparent 50%);
+}
+
+/* ════════════════════════════════════════════════════════════
+   user-profile 편집 모달 (X 패턴 — 사진/배너/자기소개 한 번에)
+   ════════════════════════════════════════════════════════════ */
+.profile-edit-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.profile-edit-modal:not([hidden]) {
+  display: flex;
+}
+.profile-edit-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+.profile-edit-modal.is-open .profile-edit-modal-backdrop {
+  opacity: 1;
+}
+.profile-edit-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  background: #1a0f2e;
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(8px) scale(0.98);
+  opacity: 0;
+  transition: transform 0.2s ease-out, opacity 0.18s ease-out;
+}
+.profile-edit-modal.is-open .profile-edit-modal-card {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+/* 헤더 — 좌측 닫기, 가운데 제목, 우측 저장 (X 패턴) */
+.profile-edit-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(159, 139, 199, 0.12);
+  background: rgba(13, 13, 26, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  flex-shrink: 0;
+}
+.profile-edit-modal-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--ink, #fff);
+  letter-spacing: -0.02em;
+}
+.profile-edit-close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: transparent;
+  border: 0;
+  color: var(--ink, #fff);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.profile-edit-close-btn:hover {
+  background: rgba(159, 139, 199, 0.15);
+}
+.profile-edit-save-btn {
+  padding: 7px 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ff1493, #ff7eb9);
+  border: 0;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  box-shadow: 0 2px 12px rgba(255, 20, 147, 0.25);
+  transition: transform 0.1s, box-shadow 0.15s, opacity 0.15s;
+}
+.profile-edit-save-btn:hover {
+  box-shadow: 0 3px 16px rgba(255, 20, 147, 0.4);
+}
+.profile-edit-save-btn:active {
+  transform: scale(0.97);
+}
+.profile-edit-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 본문 — 스크롤 가능 */
+.profile-edit-modal-body {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Cover banner 편집 — 미리보기 + 카메라 버튼 */
+.profile-edit-cover {
+  position: relative;
+  width: 100%;
+  height: 160px;
+  overflow: hidden;
+}
+.profile-edit-cover-preview {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #1a0a2a 0%, #3a0f4a 25%, #6a1a5a 55%, #c41e7a 100%);
+  background-size: cover;
+  background-position: center;
+}
+.profile-edit-cover-preview::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 25% 35%, rgba(255, 100, 200, 0.35), transparent 55%),
+    radial-gradient(ellipse at 75% 65%, rgba(180, 100, 255, 0.25), transparent 60%);
+  pointer-events: none;
+}
+.profile-edit-cover-preview.has-image::after {
+  background: rgba(0, 0, 0, 0.18);
+}
+.profile-edit-cover-change {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  border: 0;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background 0.15s, transform 0.1s;
+}
+.profile-edit-cover-change:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+.profile-edit-cover-change:active {
+  transform: translate(-50%, -50%) scale(0.95);
+}
+
+/* 아바타 편집 — cover와 오버랩 */
+.profile-edit-avatar-row {
+  padding: 0 18px;
+  margin-top: -42px;
+  position: relative;
+  z-index: 3;
+}
+.profile-edit-avatar {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  border: 4px solid #1a0f2e;
+  background: linear-gradient(135deg, #ff1493, #9f8bc7);
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible; /* 카메라 버튼이 살짝 밖으로 */
+}
+.profile-edit-avatar.has-image {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+.profile-edit-avatar-fallback {
+  color: #fff;
+  font-weight: 800;
+  font-size: 36px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.profile-edit-avatar-change {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid #1a0f2e;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.1s;
+}
+.profile-edit-avatar-change:hover {
+  background: rgba(255, 20, 147, 0.85);
+}
+.profile-edit-avatar-change:active {
+  transform: scale(0.92);
+}
+
+/* 자기소개 입력 */
+.profile-edit-field {
+  padding: 16px 18px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.profile-edit-field label {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(220, 210, 240, 0.7);
+  letter-spacing: -0.01em;
+}
+.profile-edit-field textarea {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(15, 11, 30, 0.5);
+  border: 1px solid rgba(159, 139, 199, 0.2);
+  border-radius: 10px;
+  color: var(--ink, #fff);
+  font: inherit;
+  font-size: 14.5px;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 84px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.profile-edit-field textarea:focus {
+  outline: none;
+  border-color: rgba(255, 20, 147, 0.5);
+  background: rgba(15, 11, 30, 0.7);
+}
+.profile-edit-counter {
+  align-self: flex-end;
+  font-size: 12px;
+  color: rgba(220, 210, 240, 0.5);
+  font-weight: 500;
+}
+
+/* 상태 메시지 */
+.profile-edit-status {
+  margin: 12px 18px 18px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  background: rgba(159, 139, 199, 0.1);
+  color: rgba(220, 210, 240, 0.85);
+}
+.profile-edit-status[data-kind="success"] {
+  background: rgba(40, 200, 100, 0.14);
+  color: #6fe5a3;
+}
+.profile-edit-status[data-kind="error"] {
+  background: rgba(255, 80, 100, 0.14);
+  color: #ff7e90;
+}
+.profile-edit-status[data-kind="info"] {
+  background: rgba(255, 20, 147, 0.1);
+  color: #ff7eb9;
+}
+
+/* 모바일 */
+@media (max-width: 768px) {
+  .profile-edit-modal {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .profile-edit-modal-card {
+    max-width: 100%;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 16px 16px 0 0;
+  }
+  .profile-edit-cover {
+    height: 130px;
+  }
+  .profile-edit-avatar {
+    width: 80px;
+    height: 80px;
+    border-width: 3px;
+  }
+  .profile-edit-avatar-fallback {
+    font-size: 30px;
+  }
+  .profile-edit-avatar-row {
+    margin-top: -36px;
+    padding: 0 14px;
+  }
+  .profile-edit-field {
+    padding: 14px;
+  }
+  .profile-edit-status {
+    margin: 12px 14px 14px;
+  }
+}
+
+/* 통계 — 한 줄로 강제 (이전 CSS의 li display 충돌 해결) */
+.user-profile-stats {
+  list-style: none !important;
+  margin: 12px 0 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 18px !important;
+  border: 0 !important;
+  align-items: baseline !important;
+}
+.user-profile-stats li {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: baseline !important;
+  gap: 5px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  width: auto !important;
+  min-width: 0 !important;
+}
+.user-profile-stats strong {
+  display: inline !important;
+  font-size: 14.5px !important;
+  font-weight: 700 !important;
+  color: var(--ink, #fff) !important;
+  letter-spacing: -0.01em !important;
+}
+.user-profile-stats small {
+  display: inline !important;
+  font-size: 14px !important;
+  color: rgba(220, 210, 240, 0.55) !important;
+  font-weight: 400 !important;
+}
+
+/* 자기소개 — 3줄까지만 보이고 그 이상은 더보기 토글 */
+.user-profile-bio {
+  margin: 12px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: rgba(240, 238, 248, 0.92);
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  position: relative;
+}
+.user-profile-bio.is-expanded {
+  -webkit-line-clamp: unset;
+  display: block;
+  overflow: visible;
+}
+.user-profile-bio.is-empty {
+  color: rgba(220, 210, 240, 0.4);
+  font-style: italic;
+  -webkit-line-clamp: unset;
+  display: block;
+}
+/* "더 보기" / "접기" 인라인 텍스트 버튼 */
+.user-profile-bio-toggle {
+  display: none;
+  margin: 6px 0 0;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: #ff7eb9;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+}
+.user-profile-bio-toggle:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.user-profile-bio-toggle.is-visible {
+  display: inline-block;
+}
