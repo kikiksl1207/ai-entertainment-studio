@@ -202,6 +202,8 @@
 
   function setActiveSection(sectionId) {
     if (!sectionId) return;
+    const target = document.getElementById(sectionId);
+    if (!target?.classList.contains("studio-section")) return;
     document.querySelectorAll(".studio-nav button").forEach(button => {
       const active = button.dataset.section === sectionId;
       button.classList.toggle("is-active", active);
@@ -210,6 +212,7 @@
     document.querySelectorAll(".studio-section").forEach(section => {
       section.classList.toggle("is-active", section.id === sectionId);
     });
+    history.replaceState(null, "", `#${sectionId}`);
     document.querySelector(".studio-main")?.scrollTo?.({ top: 0, behavior: "smooth" });
   }
 
@@ -718,8 +721,14 @@
       setActiveSection(button.dataset.section);
     });
   });
+  document.querySelectorAll("[data-section-jump]").forEach(button => {
+    button.addEventListener("click", () => setActiveSection(button.dataset.sectionJump));
+  });
   ["studioModalClose", "studioModalCancel"].forEach(id => {
     document.getElementById(id)?.addEventListener("click", closeStudioModal);
+  });
+  document.getElementById("studioModal")?.addEventListener("click", event => {
+    if (event.target === event.currentTarget) closeStudioModal();
   });
   document.getElementById("studioModalConfirm")?.addEventListener("click", () => {
     if (typeof studioModalConfirmHandler === "function") {
@@ -753,6 +762,9 @@
       showToast(actionButton.textContent.trim() + " 기능은 다음 연결 단계에서 활성화합니다.");
     }
   });
+
+  const initialSection = location.hash.replace("#", "");
+  if (initialSection) setActiveSection(initialSection);
 
   async function verify() {
     const handoff = readStudioHandoff();
