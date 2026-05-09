@@ -1,0 +1,845 @@
+/* My Page styles. Loaded after styles.css. */
+
+/* My Page */
+.page-mypage {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 20, 147, 0.12), transparent 28%),
+    radial-gradient(circle at 88% 8%, rgba(200, 166, 255, 0.12), transparent 30%),
+    var(--bg);
+}
+
+.mypage-hero {
+  padding: 56px 0 26px;
+}
+
+.mypage-hero-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 28px;
+  align-items: end;
+}
+
+.mypage-hero-copy h1 {
+  margin: 8px 0 12px;
+  font-size: clamp(38px, 7vw, 72px);
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+}
+
+.mypage-hero-copy p,
+.mypage-login-inner p {
+  max-width: 620px;
+  margin: 0;
+  color: rgba(240, 238, 248, 0.7);
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.mypage-hero-panel,
+.mypage-login-inner,
+.mypage-panel,
+.mypage-side {
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  background: linear-gradient(180deg, rgba(159, 139, 199, 0.08), rgba(159, 139, 199, 0.025));
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22);
+}
+
+.mypage-hero-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 116px;
+  padding: 20px;
+  border-radius: 16px;
+}
+
+.mypage-avatar {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff1493 0%, #9f8bc7 100%);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 8px 24px rgba(255, 20, 147, 0.28);
+}
+
+.mypage-hero-panel span,
+.mypage-balance-card span,
+.mypage-field span {
+  display: block;
+  color: rgba(255, 180, 215, 0.85);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.mypage-hero-panel strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.mypage-hero-panel small {
+  display: block;
+  margin-top: 4px;
+  color: rgba(240, 238, 248, 0.58);
+  overflow-wrap: anywhere;
+}
+
+.mypage-login-panel {
+  padding: 20px 0 64px;
+}
+
+.mypage-login-inner {
+  max-width: 720px;
+  padding: 28px;
+  border-radius: 16px;
+}
+
+.mypage-login-inner h2 {
+  margin: 8px 0 10px;
+  font-size: clamp(26px, 4vw, 40px);
+  line-height: 1.12;
+}
+
+.mypage-section {
+  padding: 18px 0 80px;
+}
+
+.mypage-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+/* X 패턴 가로 탭바 — 사이드 nav 대체 (2026-05-03 사용자 결정) */
+.mypage-tabs {
+  position: sticky;
+  top: 72px;
+  z-index: 10;
+  display: flex;
+  gap: 0;
+  padding: 0;
+  background: rgba(11, 8, 23, 0.92);
+  -webkit-backdrop-filter: blur(14px);
+          backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(159, 139, 199, 0.18);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.mypage-tabs::-webkit-scrollbar { display: none; }
+
+.mypage-tab {
+  position: relative;
+  flex-shrink: 0;
+  padding: 14px 20px 13px;
+  background: transparent;
+  border: none;
+  color: rgba(240, 238, 248, 0.62);
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.mypage-tab:hover {
+  color: rgba(255, 200, 225, 0.95);
+}
+.mypage-tab.is-active {
+  color: #ff1493;
+}
+.mypage-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, #ff1493 0%, #c8a6ff 100%);
+  border-radius: 2px 2px 0 0;
+}
+
+/* X 패턴: 톱니바퀴 설정 탭 — 우측 끝, 아이콘 only, 시각 분리 */
+.mypage-tab-settings {
+  margin-left: auto;
+  padding: 12px 16px 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid rgba(159, 139, 199, 0.14);
+}
+.mypage-tab-settings svg {
+  display: block;
+  transition: transform 0.3s;
+}
+.mypage-tab-settings:hover svg {
+  transform: rotate(45deg);
+}
+.mypage-tab-settings.is-active::after {
+  left: 12px;
+  right: 12px;
+}
+
+/* 기존 사이드 nav 스타일 — 더 이상 사용하지 않으나 다른 페이지 영향 방지 위해 유지하지 않고 hidden */
+.mypage-side {
+  display: none !important;
+}
+
+.mypage-content {
+  display: grid;
+  gap: 18px;
+}
+
+.mypage-panel {
+  padding: 24px;
+  border-radius: 16px;
+  scroll-margin-top: 96px;
+}
+
+.mypage-panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.mypage-panel-head h2 {
+  margin: 6px 0 0;
+  font-size: clamp(24px, 4vw, 34px);
+  line-height: 1.12;
+}
+
+.mypage-field-grid,
+.mypage-wallet-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+/* 모달(다이얼로그) 안에서는 field-grid를 1열로 — 비번 변경 같은 폼이 자연스럽게 세로 배치되도록 (#사용자 피드백) */
+.mypage-dialog-card .mypage-field-grid {
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.mypage-profile-preview {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid rgba(255, 20, 147, 0.18);
+  border-radius: 14px;
+  background: rgba(10, 8, 18, 0.28);
+}
+
+.mypage-profile-image {
+  display: grid;
+  place-items: center;
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  background:
+    linear-gradient(135deg, rgba(255, 20, 147, 0.72), rgba(159, 139, 199, 0.88));
+  background-size: cover;
+  background-position: center;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 900;
+  box-shadow: 0 16px 34px rgba(255, 20, 147, 0.18);
+}
+
+.mypage-profile-image.has-image span {
+  display: none;
+}
+
+/* #058 — 프로필 이미지 업로드 상태 (저장 전 / 업로드 중 / 완료 / 실패) */
+.mypage-profile-image {
+  position: relative;
+  transition: outline-color 180ms, box-shadow 180ms;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+.mypage-profile-image.is-pending {
+  /* 저장 전 — 새로 선택한 이미지임을 노란 톤으로 시각 구분 */
+  outline-color: rgba(255, 200, 80, 0.85);
+  box-shadow: 0 0 0 4px rgba(255, 200, 80, 0.18), 0 16px 34px rgba(255, 20, 147, 0.18);
+}
+.mypage-profile-image.is-loading {
+  /* 업로드 중 — dim + 스피너 */
+  outline-color: rgba(255, 20, 147, 0.55);
+  box-shadow: 0 0 0 4px rgba(255, 20, 147, 0.18), 0 16px 34px rgba(255, 20, 147, 0.22);
+}
+.mypage-profile-image.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(10, 8, 18, 0.42);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+.mypage-profile-image.is-loading::before {
+  content: "";
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  animation: mypage-avatar-spin 700ms linear infinite;
+  z-index: 1;
+}
+@keyframes mypage-avatar-spin {
+  to { transform: rotate(360deg); }
+}
+.mypage-profile-image.is-success {
+  outline-color: rgba(120, 230, 160, 0.9);
+  box-shadow: 0 0 0 4px rgba(120, 230, 160, 0.22), 0 16px 34px rgba(255, 20, 147, 0.18);
+}
+.mypage-profile-image.is-error {
+  outline-color: rgba(255, 90, 110, 0.9);
+  box-shadow: 0 0 0 4px rgba(255, 90, 110, 0.22), 0 16px 34px rgba(255, 20, 147, 0.18);
+}
+
+/* 상태 텍스트(#mypageAvatarStatus) 색상 */
+#mypageAvatarStatus.is-info,
+#mypageAvatarStatus.is-loading {
+  color: rgba(240, 238, 248, 0.62);
+}
+#mypageAvatarStatus.is-success {
+  color: #7be4a3;
+}
+#mypageAvatarStatus.is-error {
+  color: #ff6f7d;
+}
+
+.mypage-profile-preview strong {
+  display: block;
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.mypage-profile-preview p {
+  margin: 6px 0 0;
+  color: rgba(240, 238, 248, 0.62);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* #058 — 업로드 규칙 hint (status 텍스트 아래 작은 안내문) */
+.mypage-avatar-hint {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 20, 147, 0.10);
+  border: 1px solid rgba(255, 20, 147, 0.22);
+  color: rgba(255, 130, 200, 0.85);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.mypage-field {
+  display: grid;
+  gap: 7px;
+}
+
+.mypage-field input,
+.mypage-settings-list select {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid rgba(159, 139, 199, 0.24);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.mypage-field input:focus,
+.mypage-settings-list select:focus {
+  outline: none;
+  border-color: rgba(255, 20, 147, 0.7);
+  box-shadow: 0 0 0 3px rgba(255, 20, 147, 0.12);
+}
+
+.mypage-field input[readonly] {
+  color: rgba(240, 238, 248, 0.62);
+}
+
+.mypage-field small,
+.mypage-balance-card small,
+.mypage-status-card p,
+.mypage-empty p {
+  color: rgba(240, 238, 248, 0.58);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.mypage-action-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.mypage-icon-button,
+.mypage-filter-row button,
+.mypage-settings-list button {
+  border: 1px solid rgba(255, 20, 147, 0.32);
+  background: rgba(255, 20, 147, 0.08);
+  color: #ffb4d7;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mypage-balance-card {
+  min-height: 150px;
+  padding: 20px;
+  border: 1px solid rgba(255, 20, 147, 0.2);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 20, 147, 0.13), rgba(159, 139, 199, 0.045));
+}
+
+.mypage-balance-card.is-soft {
+  border-color: rgba(200, 166, 255, 0.2);
+  background: linear-gradient(180deg, rgba(200, 166, 255, 0.1), rgba(159, 139, 199, 0.035));
+}
+
+.mypage-balance-card strong {
+  display: block;
+  margin: 12px 0 6px;
+  color: #ff1493;
+  font-size: clamp(34px, 6vw, 52px);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mypage-status-card,
+.mypage-empty {
+  padding: 18px;
+  border: 1px solid rgba(159, 139, 199, 0.16);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.mypage-status-badge {
+  display: inline-flex;
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 201, 122, 0.12);
+  color: #ffc97a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mypage-status-card strong,
+.mypage-empty strong {
+  display: block;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.mypage-list-row {
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mypage-list-row:first-child {
+  padding-top: 0;
+}
+
+.mypage-list-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+/* #140 — 정산 프로필 폼 (마이페이지 지갑 탭 안) */
+.mypage-settlement-notice {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: rgba(255, 20, 147, 0.06);
+  border: 1px solid rgba(255, 20, 147, 0.22);
+  border-radius: 10px;
+  color: rgba(240, 238, 248, 0.86);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.mypage-settlement-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.mypage-settlement-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(220, 210, 240, 0.85);
+}
+.mypage-settlement-field > span {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.mypage-settlement-field input,
+.mypage-settlement-field textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid rgba(159, 139, 199, 0.24);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+}
+.mypage-settlement-field input:focus,
+.mypage-settlement-field textarea:focus {
+  outline: none;
+  border-color: rgba(255, 20, 147, 0.55);
+}
+.mypage-settlement-field textarea {
+  min-height: 70px;
+  resize: vertical;
+  font-weight: 500;
+}
+.mypage-settlement-field small {
+  color: rgba(220, 210, 240, 0.55);
+  font-size: 11.5px;
+}
+.mypage-settlement-checkbox {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(220, 210, 240, 0.85);
+  cursor: pointer;
+}
+.mypage-settlement-form #settlementExceptionWrap {
+  grid-column: 1 / -1;
+}
+.mypage-settlement-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #ff7a99;
+  font-size: 13px;
+}
+.mypage-settlement-saved {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #88e0a8;
+  font-size: 13px;
+}
+.mypage-settlement-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+}
+.mypage-settlement-actions .button-primary {
+  min-width: 120px;
+}
+@media (max-width: 768px) {
+  .mypage-settlement-form {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .mypage-settlement-actions {
+    justify-content: stretch;
+  }
+  .mypage-settlement-actions .button-primary {
+    width: 100%;
+    min-height: 46px;
+  }
+}
+
+.mypage-following-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mypage-following-grid > strong,
+.mypage-following-grid > p {
+  grid-column: 1 / -1;
+}
+
+.mypage-following-card {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  padding: 10px;
+  border: 1px solid rgba(159, 139, 199, 0.16);
+  border-radius: 12px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.mypage-following-card:hover {
+  border-color: rgba(255, 20, 147, 0.38);
+  transform: translateY(-1px);
+}
+
+.mypage-following-thumb {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background:
+    linear-gradient(135deg, rgba(255, 20, 147, 0.5), rgba(159, 139, 199, 0.6));
+  background-size: cover;
+  background-position: center;
+  color: #fff;
+  font-weight: 900;
+}
+
+.mypage-following-card strong {
+  display: block;
+  color: var(--ink);
+}
+
+.mypage-following-card p {
+  margin: 4px 0 0;
+  color: rgba(240, 238, 248, 0.56);
+  font-size: 13px;
+}
+
+.mypage-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.mypage-filter-row button.is-active {
+  background: linear-gradient(135deg, #ff1493 0%, #9f8bc7 100%);
+  color: #fff;
+}
+
+.mypage-settings-list {
+  display: grid;
+  gap: 10px;
+}
+
+.mypage-settings-list label,
+.mypage-settings-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(159, 139, 199, 0.16);
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.mypage-settings-list select {
+  width: min(210px, 52vw);
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+.mypage-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(4, 3, 10, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.mypage-dialog[hidden] {
+  display: none;
+}
+
+.mypage-dialog-card {
+  width: min(620px, 100%);
+  max-height: min(720px, calc(100vh - 44px));
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid rgba(159, 139, 199, 0.22);
+  border-radius: 16px;
+  background: #141020;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.52);
+}
+
+.mypage-dialog-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.mypage-dialog-head h2 {
+  margin: 6px 0 0;
+  color: var(--ink);
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.mypage-dialog-close {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mypage-dialog-message {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 201, 122, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 201, 122, 0.08);
+  color: #ffc97a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .mypage-hero-inner,
+  .mypage-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .mypage-side {
+    display: none !important;
+  }
+
+  /* 모바일 — 가로 탭바 미세 조정 */
+  .mypage-tabs {
+    top: 56px;
+    margin: 0 -10px 4px;
+    padding: 0 10px;
+  }
+  .mypage-tab {
+    padding: 12px 14px;
+    font-size: 13.5px;
+  }
+  .mypage-tab.is-active::after {
+    left: 12px;
+    right: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .mypage-hero {
+    padding: 34px 0 18px;
+  }
+
+  .mypage-section {
+    padding-top: 8px;
+    padding-bottom: 56px;
+  }
+
+  .mypage-panel,
+  .mypage-login-inner {
+    padding: 18px;
+    border-radius: 14px;
+  }
+
+  .mypage-panel-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mypage-field-grid,
+  .mypage-wallet-grid,
+  .mypage-following-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mypage-profile-preview {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .mypage-action-row .button-primary,
+  .mypage-action-row .button-secondary,
+  .mypage-panel-head .button-primary,
+  .mypage-icon-button {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .mypage-settings-list label {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mypage-settings-list select {
+    width: 100%;
+  }
+}
+
+.mypage-public-profile-link {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 20, 147, 0.1);
+  border: 1px solid rgba(255, 20, 147, 0.25);
+  border-radius: 999px;
+  color: #ff7eb9;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: -0.01em;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.mypage-public-profile-link:hover {
+  background: rgba(255, 20, 147, 0.18);
+  border-color: rgba(255, 20, 147, 0.4);
+}
+
+.mypage-profile-image-notice {
+  margin: 12px 0 24px;
+  padding: 14px 16px;
+  background: rgba(255, 20, 147, 0.08);
+  border: 1px solid rgba(255, 20, 147, 0.18);
+  border-radius: 10px;
+  color: rgba(220, 210, 240, 0.85);
+  font-size: 13.5px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+}
+
+.mypage-profile-image-notice strong {
+  color: #ff7eb9;
+  font-weight: 700;
+}
