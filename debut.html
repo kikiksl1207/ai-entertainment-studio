@@ -131,13 +131,13 @@
         </div>
       </section>
 
-      <!-- ── 데뷔 유형 안내 (5가지, 에밀리 #018 카피 적용) ── -->
+      <!-- ── 데뷔 유형 안내 (4가지) ── -->
       <section class="content-section">
         <div class="shell">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">데뷔 유형</p>
-              <h2>당신에게 맞는 데뷔 방식을 선택하세요.</h2>
+              <p class="eyebrow">개인 데뷔 자료</p>
+              <h2>개인 데뷔 자료 방식을 선택하세요.</h2>
               <p>
                 모든 지원자가 같은 방식으로 시작할 필요는 없습니다.
                 제공할 수 있는 자료와 참여하고 싶은 깊이에 따라
@@ -165,11 +165,6 @@
               <span class="debut-type-num">04</span>
               <h3>창작자 직접 기획형</h3>
               <p>외모 제공보다 기획과 세계관에 더 강한 지원자를 위한 유형입니다. 캐릭터, 서사, 콘텐츠 방향을 직접 제안하고 함께 다듬습니다.</p>
-            </article>
-            <article class="debut-type-card">
-              <span class="debut-type-num">05</span>
-              <h3>공동 제작형</h3>
-              <p>Lumina Stage와 지원자가 제작 과정에 함께 참여합니다. 이미지, 콘셉트, 콘텐츠 운영, 팬 반응을 보며 장기적으로 성장시키는 방식입니다.</p>
             </article>
           </div>
         </div>
@@ -265,7 +260,6 @@
                   <option value="appearance_concept">외모 + 콘셉트 제공형</option>
                   <option value="appearance_voice">외모 + 노래/음성 제공형</option>
                   <option value="creator">창작자 직접 기획형</option>
-                  <option value="co_create">공동 제작형</option>
                 </select>
                 <small id="debutTypeHelper">제공할 수 있는 자료와 참여 깊이에 맞춰 선택해주세요.</small>
               </label>
@@ -301,6 +295,15 @@
             </label>
 
             <div class="debut-consent-list">
+              <label class="debut-consent-master" style="display:flex;align-items:flex-start;gap:10px;font-weight:700;letter-spacing:-0.01em;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:12px;margin-bottom:6px;">
+                <input type="checkbox" id="debutConsentAll" style="margin-top:4px;" />
+                <span style="display:flex;flex-direction:column;gap:2px;">
+                  <strong style="font-weight:700;">모두 동의하기</strong>
+                  <small style="font-weight:500;color:rgba(220,210,240,0.6);font-size:12.5px;letter-spacing:-0.01em;">필수·선택 항목을 한 번에 선택합니다.</small>
+                </span>
+              </label>
+
+              <p style="font-weight:700;letter-spacing:0.06em;text-transform:uppercase;font-size:11px;color:rgba(255,79,195,0.85);margin:8px 0 4px;">필수 동의</p>
               <label><input type="checkbox" name="isAdult" required /> 만 19세 이상이며, 신청 자격을 확인했습니다.</label>
               <label data-hide-for-type="partnership_other"><input type="checkbox" name="consentAppearance" required /> 제출 자료가 본인 것이거나 제출 권한이 있음을 확인합니다.</label>
               <label data-hide-for-type="partnership_other"><input type="checkbox" name="consentRightsRelationship" required /> 소속사·매니지먼트·전속계약 등 권리 관계가 있는 경우 사실대로 기재합니다.</label>
@@ -308,6 +311,10 @@
               <label data-hide-for-type="partnership_other"><input type="checkbox" name="consentRevenuePolicy" required /> 수익 배분, 금지 표현, 허위 제출 시 심사 중단 기준을 확인했습니다.</label>
               <label><input type="checkbox" name="consentPrivacy" required /> 상담 진행을 위한 개인정보 수집 및 이용에 동의합니다.</label>
               <label><input type="checkbox" name="consultationConsent" required /> 담당자의 유선 상담 연락에 동의합니다.</label>
+
+              <p style="font-weight:700;letter-spacing:0.06em;text-transform:uppercase;font-size:11px;color:rgba(155,124,247,0.85);margin:12px 0 4px;">선택 동의</p>
+              <label><input type="checkbox" name="consentMarketing" /> Lumina Stage 운영팀이 보내는 데뷔 안내, 이벤트, 신규 모집 소식을 이메일 또는 문자로 받아보겠습니다. 선택하지 않아도 신청에는 영향이 없습니다.</label>
+
               <p class="debut-consent-warning">
                 타인 사진, 타인 음성, 무단 촬영물, 계약상 사용할 수 없는 자료는 제출할 수 없습니다.
               </p>
@@ -370,8 +377,7 @@
           appearance_only: "외모 제공형은 본인의 사진 자료가 필요해요. 상담 단계에서는 자료 보유 여부만 확인합니다.",
           appearance_concept: "사진과 아티스트 설정 문서를 함께 제안하는 유형이에요.",
           appearance_voice: "사진과 음성 샘플을 함께 반영하는 유형이에요. 상담 후 제출 방식을 안내합니다.",
-          creator: "캐릭터 설정, 음악 방향, 가사, 세계관 문서를 중심으로 심사해요.",
-          co_create: "운영팀과 제작 범위, 일정, 역할을 협의한 뒤 진행돼요."
+          creator: "캐릭터 설정, 음악 방향, 가사, 세계관 문서를 중심으로 심사해요."
         };
         // #062: applicationType helper 메시지
         const applicationTypeHelperMap = {
@@ -541,6 +547,7 @@
             isAdult: checked("isAdult"),
             consentPrivacy: checked("consentPrivacy"),
             consultationConsent: checked("consultationConsent"),
+            consentMarketing: checked("consentMarketing"),
             metadata: {
               materialSubmissionMode: "no_file_upload_mvp"
             }
@@ -567,6 +574,7 @@
             consentRevenuePolicy: checked("consentRevenuePolicy"),
             consentPrivacy: checked("consentPrivacy"),
             consultationConsent: checked("consultationConsent"),
+            consentMarketing: checked("consentMarketing"),
             metadata: {
               restrictedExpressions: data.restrictedExpressions,
               materialSubmissionMode: "no_file_upload_mvp"
@@ -591,7 +599,7 @@
               throwOnError: true,
               body: payload
             });
-            setMessage("신청이 접수되었어요. 운영팀이 자료와 동의 항목을 검토한 뒤 다음 단계를 안내합니다.", "success");
+            setMessage("신청이 접수됐어요. 운영팀이 자료와 운영 조건을 확인한 뒤 안내드릴게요.", "success");
             form.reset();
             form.querySelector(".debut-choice")?.classList.add("is-selected");
           } catch (err) {
@@ -620,6 +628,44 @@
             setBusy(false);
           }
         });
+
+        // ── 모두 동의하기 마스터 체크박스 동기화 ──
+        // 마스터 체크 → 화면에 보이는 하위 체크박스 모두 토글
+        // 하위 수동 변경 시 → 모두 체크면 마스터 on, 하나라도 빠지면 off
+        // partnership_other 등으로 hide된 체크박스는 제외 (offsetParent로 판정)
+        const consentAll = form.querySelector("#debutConsentAll");
+        const consentList = form.querySelector(".debut-consent-list");
+        function getConsentItems() {
+          if (!consentList) return [];
+          return Array.from(consentList.querySelectorAll('input[type="checkbox"]'))
+            .filter(cb => cb.id !== "debutConsentAll");
+        }
+        function getVisibleConsentItems() {
+          return getConsentItems().filter(cb => {
+            const lbl = cb.closest("label");
+            return lbl && lbl.offsetParent !== null;
+          });
+        }
+        function syncConsentAll() {
+          if (!consentAll) return;
+          const items = getVisibleConsentItems();
+          consentAll.checked = items.length > 0 && items.every(cb => cb.checked);
+        }
+        if (consentAll) {
+          consentAll.addEventListener("change", () => {
+            const items = getVisibleConsentItems();
+            items.forEach(cb => { cb.checked = consentAll.checked; });
+          });
+          getConsentItems().forEach(cb => {
+            cb.addEventListener("change", syncConsentAll);
+          });
+          // 신청 유형 변경으로 hide/show가 바뀌면 마스터 상태 재계산
+          form.addEventListener("change", e => {
+            if (e.target && (e.target.name === "applicationType")) {
+              setTimeout(syncConsentAll, 0);
+            }
+          });
+        }
       })();
     </script>
     <!-- ── 모바일 하단 탭바 (768px 이하 노출, #017 — 2026-05-02) ── -->
