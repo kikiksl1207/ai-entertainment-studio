@@ -1,6 +1,6 @@
 # Lumina Stage Ops Board
 
-Updated: 2026-05-07
+Updated: 2026-05-10
 Leader: Chamo
 
 ## Today Focus
@@ -11,7 +11,6 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 
 | ID | Owner | Status | Task |
 | --- | --- | --- | --- |
-| RV-002 | Reviewer | open | Review wallet adjustment controls already on main (`6e1c720`) before rollout confidence |
 | BA-002 | Builder A | open | Design backend contract for the 1st fan engagement loop |
 | BB-002 | Builder B | open | Map the 1st fan engagement loop to existing pages and minimal UI surfaces |
 | IN-002 | Integrator | waiting | Integrate BA/BB/RV outputs after branches are ready |
@@ -33,12 +32,12 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 
 ## Priority Today
 
-1. Review wallet adjustment safety before relying on it in production operations.
-2. Split the 20-item PM review into an implementable 1st fan engagement loop.
-3. Team2 checks current product QA blockers while Team1 designs the next loop.
-4. Keep image upload/R2 diagnostics and Creator Studio access from regressing.
-5. Run lint/build on any branch that changes backend contracts.
-6. Treat mobile layout and localization/mojibake checks as always-on acceptance criteria.
+1. Split the 20-item PM review into an implementable 1st fan engagement loop.
+2. Team2 checks current product QA blockers while Team1 designs the next loop.
+3. Keep image upload/R2 diagnostics and Creator Studio access from regressing.
+4. Run lint/build on any branch that changes backend contracts.
+5. Treat mobile layout and localization/mojibake checks as always-on acceptance criteria.
+6. Run one safe live wallet adjustment smoke after a safe Backstage admin account and safe QA wallet are available.
 
 ## Do Not Do Today
 

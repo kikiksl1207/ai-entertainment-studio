@@ -92,3 +92,30 @@ next_needed:
 - Backend owner should patch wallet debit to use an atomic/locked non-negative balance update and reject UI-generated placeholder notes for wallet adjustments.
 - Builder A and Builder B should settle one endpoint contract for missions, participations, concept votes, achievements, public titles, and Creator Studio today tasks.
 - Run browser QA for Backstage wallet adjustment confirmation at mobile/narrow and desktop widths after fixes.
+
+---
+
+status: done
+task: RV-002 re-review close - Wallet adjustment safety
+branch/commit: main / origin/main 8f66064
+changed_files:
+- docs/ops/board.md
+- docs/ops/tasks/closed/RV-002-review-wallet-adjustments.md
+- docs/ops/inbox/reviewer.md
+tests:
+- npm.cmd run lint
+- npm.cmd run build
+- node --check backstage.js
+- git diff --check
+result:
+- P0 wallet debit concurrency: resolved.
+- P1 empty-note wallet adjustment execution: resolved.
+- Backstage confirmation UI desktop/mobile/narrow: PASS.
+- Empty note state does not call the API: PASS.
+- RV-002 removed from Active Tasks and closed.
+caveat:
+- Safe Backstage admin account and safe QA wallet were not available in this session, so live server mutation and insufficient-balance debit smoke were not executed.
+- Before production reliance, run one live smoke with a safe QA wallet: direct note credit/debit, insufficient-balance debit failure, and no negative balance.
+safety:
+- No secrets or sensitive values recorded.
+- No real wallet adjustment executed.
