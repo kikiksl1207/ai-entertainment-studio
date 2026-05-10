@@ -11,10 +11,9 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 
 | ID | Owner | Status | Task |
 | --- | --- | --- | --- |
-| BA-005 | Builder A | open | Verify backend readiness for fan engagement mission participation submit |
-| BB-006 | Builder B | open | Prepare frontend submit UI states without enabling mutation |
-| QA2-003 | Team2 QA | open | Prepare safe QA matrix and data requirements for mission submit |
-| IN-003 | Integrator | waiting | Gate fan engagement submit Phase 3B after BA-005, BB-006, and QA2-003 |
+| BA-006 | Builder A | open | Harden fan engagement mission submit before frontend enablement |
+| QA2-004 | Team2 QA | waiting | Live mission submit smoke after BA-006 and safe QA data are available |
+| IN-004 | Integrator | waiting | Gate fan engagement submit Phase 3B after BA-006 and QA2-004 |
 | BA-003 | Builder A | open | Prepare backend implementation plan for the reconciled fan engagement contract |
 | BB-003 | Builder B | open | Prepare frontend implementation map; Home read-only/mock teaser first, no mutations before Backend First PR |
 | IN-002 | Integrator | waiting | Integrate BA/BB/RV outputs after branches are ready |
@@ -50,10 +49,17 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 - Backend First PR and BA-004 messageKey follow-up are merged.
 - Frontend submit/API mutation wiring is still blocked. Phase 3A readiness must
   finish before opening any Phase 3B submit implementation.
-- Phase 3A is readiness only: BA-005, BB-006, QA2-003, and IN-003. It must not
+- Phase 3A readiness completed with a NO-GO decision for Phase 3B. BA-005 found
+  backend hardening gaps and QA2-003 found no safe active QA mission/vote data.
+- BA-006 must resolve mission submit hardening before any frontend submit
+  implementation opens.
+- QA2-004 may run live mutation only after BA-006 is merged and safe QA
+  mission/user/reset conditions are explicitly available.
+- BB-006 confirmed the frontend plan is ready, but Builder B must wait. Do not
   enable mission participation submit, concept vote ballot submit, fan proposal
   submit, title equip, Creator Studio mutation, Backstage mutation, or
-  wallet/settlement/paid-like behavior.
+  wallet/settlement/paid-like behavior until a later Phase 3B task explicitly
+  opens.
 - RV-003 returned Reviewer PASS for `origin/team2-backend/fan-engagement-first-pr`; Integrator may merge only after the required gate checks pass.
 
 ## Do Not Do Today
