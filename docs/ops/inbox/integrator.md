@@ -198,6 +198,47 @@ next_needed:
 ---
 
 status: done
+task: Integrate Fan Engagement Home Teaser Phase 2 Real GET
+branch/commit: main / b23f44e
+source_branch:
+- origin/team2-frontend/fan-engagement-home-teaser-phase-2
+source_commit:
+- ce013fea79c8e44c23c7018c260c1ea84642ffd2
+changed_files:
+- data/fan-engagement-copy.js
+- pages/fan-engagement.js
+- styles/home.css
+review_confirmed:
+- no app.js / index.html / styles.css / backend changes
+- read-only GET only: `/api/v1/fan-engagement/missions?surface=home&scope=today&take=3`
+- CTA remains disabled
+- fixture fallback, loading, empty, and error states present
+- Korean fallback copy and raw-key protection present
+- no POST/PATCH/submit/mutation wiring
+tests:
+- node --check pages/fan-engagement.js
+- node --check data/fan-engagement-copy.js
+- git diff --check
+result:
+- Phase 2 branch merged into main.
+- Frontend mutation gate remains active.
+- QA2-002 opened for Home fan engagement real GET read-only smoke.
+still_blocked:
+- mission participation submit
+- concept vote ballot submit
+- fan proposal submit
+- title equip
+- Creator Studio / Backstage mutation
+- wallet / settlement / paid-like connection
+blocked_by:
+- none for merge.
+next_needed:
+- Push main.
+- Team2 QA should run QA2-002 after deployment.
+
+---
+
+status: done
 task: Close Fan Engagement Home Teaser Phase 1 QA PASS
 branch/commit: main / pending
 qa_branch:
