@@ -1,7 +1,7 @@
 # BA-007 - Fan Engagement Safe QA Data Prep
 
 Owner: Builder A / Backend
-Status: open
+Status: closed
 Priority: P1
 
 ## Context
@@ -92,3 +92,30 @@ Include:
 ## Completion Note
 
 Use the standard completion note from `docs/ops/agents.md`.
+
+## Closure
+
+Closed on 2026-05-10 after docs/runbook merge.
+
+Merged:
+
+- source branch `origin/team2-backend/ba-007-safe-qa-mission-runbook`
+- source commit `ca539f618e19636b8415161b0fcca386ed12c458`
+- merge commit `bae721d Merge fan engagement safe QA data runbook`
+
+Verified:
+
+- changed file from source branch was `docs/ops/inbox/builder-a.md` only
+- no product code changes
+- no frontend, schema, migration, or seed changes
+- `git diff --check`
+
+Result:
+
+- Safe QA user and QA-only mission/reset bucket runbook is documented in `docs/ops/inbox/builder-a.md`.
+- Runbook is staging/local only unless Leader explicitly approves a dedicated production QA environment and QA-only user/mission.
+- No secrets or live mutation were recorded.
+
+Remaining gate:
+
+- Phase 3B frontend submit remains blocked until the runbook is executed, a safe QA mission is visible, and logged-in submit smoke passes.

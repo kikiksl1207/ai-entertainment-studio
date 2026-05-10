@@ -11,7 +11,6 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 
 | ID | Owner | Status | Task |
 | --- | --- | --- | --- |
-| BA-007 | Builder A | open | Prepare safe QA user, active QA mission, and reset bucket for submit smoke |
 | BA-003 | Builder A | open | Prepare backend implementation plan for the reconciled fan engagement contract |
 | BB-003 | Builder B | open | Prepare frontend implementation map; Home read-only/mock teaser first, no mutations before Backend First PR |
 | IN-002 | Integrator | waiting | Integrate BA/BB/RV outputs after branches are ready |
@@ -53,8 +52,11 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 - QA2-004 returned partial pass: logged-out `AUTH_REQUIRED` passed, but logged-in
   live mutation was blocked because no safe QA user, active QA mission, or reset
   bucket was available.
-- IN-004 closed with a NO-GO decision for Phase 3B. The only next allowed work is
-  BA-007 safe QA user + safe active QA mission/reset bucket preparation.
+- IN-004 closed with a NO-GO decision for Phase 3B and opened BA-007 for safe QA
+  user + safe active QA mission/reset bucket preparation.
+- BA-007 runbook is merged and closed. It is staging/local only unless Leader
+  explicitly approves a dedicated production QA environment; Phase 3B remains
+  blocked until the runbook is executed and a logged-in smoke passes.
 - BB-006 confirmed the frontend plan is ready, but Builder B must wait. Do not
   enable mission participation submit, concept vote ballot submit, fan proposal
   submit, title equip, Creator Studio mutation, Backstage mutation, or

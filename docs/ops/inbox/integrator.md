@@ -244,6 +244,40 @@ next_needed:
 ---
 
 status: done
+task: Close BA-007 safe QA user and mission reset runbook
+branch/commit: main / pending
+source_branch:
+- origin/team2-backend/ba-007-safe-qa-mission-runbook
+source_commit:
+- ca539f618e19636b8415161b0fcca386ed12c458
+merge_commit:
+- bae721d Merge fan engagement safe QA data runbook
+changed_files:
+- docs/ops/inbox/builder-a.md
+- docs/ops/board.md
+- docs/ops/tasks/closed/BA-007-fan-engagement-safe-qa-data-prep.md
+- docs/ops/inbox/integrator.md
+tests:
+- git diff --check
+result:
+- BA-007 runbook merged and task closed.
+- Source branch changed only `docs/ops/inbox/builder-a.md`.
+- No product code, frontend, schema, migration, seed, wallet, Lumina, settlement, payout, paid-like, Creator Studio, or Backstage mutation changes were included.
+- The runbook remains staging/local only unless Leader explicitly approves a dedicated production QA environment and QA-only user/mission.
+still_blocked:
+- Frontend Phase 3B submit implementation.
+- Mission participation submit UI enablement.
+- Concept vote ballot submit.
+- Fan proposal submit.
+- Title equip.
+- Creator Studio / Backstage mutation.
+- Wallet / Lumina / settlement / payout / paid-like connection.
+next_needed:
+- Execute the runbook with a safe QA user and visible QA-only mission, then open a separate logged-in submit smoke task only after those prerequisites exist.
+
+---
+
+status: done
 task: IN-003 fan engagement submit readiness gate
 branch/commit: ops/fan-engagement-phase-3a-nogo-followups / pending
 source_reports:
