@@ -40,8 +40,8 @@ Out of scope:
 | Creator Studio today tasks | `GET /api/v1/me/creator-studio/today-tasks?artistId=&take=20` | `GET /api/v1/me/creator-studio/fan-engagement/tasks?status=pending` | Today tasks is an aggregate queue. Mutations target proposals/drafts, not task IDs. |
 | Creator Studio fan proposal action | `POST /api/v1/me/creator-studio/fan-proposals/:proposalId/shortlist`, `POST /api/v1/me/creator-studio/fan-proposals/:proposalId/reject` | task approve/hold endpoints | Keep actions on the real source object. |
 | Creator Studio draft action | `POST /api/v1/me/creator-studio/reaction-drafts`, `POST /api/v1/me/creator-studio/reaction-drafts/:draftId/approve`, `POST /api/v1/me/creator-studio/reaction-drafts/:draftId/reject` | task approve/hold endpoints | Drafts never publish without creator approval and moderation approval. |
-| Backstage overview | `GET /admin/api/v1/backstage/fan-engagement/overview?period=&artistId=` | none | Admin summary only; no wallet/settlement controls. |
-| Backstage mission management | `POST /admin/api/v1/backstage/fan-engagement/missions`, `PATCH /admin/api/v1/backstage/fan-engagement/missions/:missionId` | none | Mission config requires admin audit events. |
+| Backstage overview | Use `adminApiPath('/backstage/fan-engagement/overview?period=&artistId=')`; deployed external path is `/api/v1/admin/api/v1/backstage/fan-engagement/overview?period=&artistId=` when the API base URL has no `/api/v1` suffix. | none | Admin summary only; no wallet/settlement controls. |
+| Backstage mission management | Use `adminApiPath('/backstage/fan-engagement/missions')`; deployed external paths are `GET/POST /api/v1/admin/api/v1/backstage/fan-engagement/missions` and `POST /api/v1/admin/api/v1/backstage/fan-engagement/missions/:missionId/archive` when the API base URL has no `/api/v1` suffix. | none | Mission config requires admin audit events. |
 
 ## I18n Policy
 
@@ -578,16 +578,27 @@ Response:
 
 ## Backstage / Admin
 
-Keep BA-002 admin endpoints:
+Backstage frontend code must not hardcode the external deployed admin path. Use the
+existing `adminApiPath('/...')` helper:
 
-- `GET /admin/api/v1/backstage/fan-engagement/overview?period=YYYY-MM&artistId=`
-- `POST /admin/api/v1/backstage/fan-engagement/missions`
-- `PATCH /admin/api/v1/backstage/fan-engagement/missions/:missionId`
-- `GET /admin/api/v1/backstage/fan-engagement/proposals?status=&moderationStatus=`
-- `PATCH /admin/api/v1/backstage/fan-engagement/proposals/:proposalId/moderation`
-- `GET /admin/api/v1/backstage/fan-engagement/reaction-drafts?status=&moderationStatus=`
-- `PATCH /admin/api/v1/backstage/fan-engagement/reaction-drafts/:draftId/moderation`
-- `GET /admin/api/v1/backstage/fan-engagement/point-ledger?userId=&artistId=`
+- If the configured API base already ends in `/api/v1`, the helper emits
+  `/admin/api/v1/...`.
+- If the configured API base is the host root such as `https://api.lumina-stage.com`,
+  the helper emits `/api/v1/admin/api/v1/...`.
+- Current production route checks showed `/api/v1/admin/api/v1/...` reaches the
+  deployed admin route, while `/admin/api/v1/...` at host root may return 404.
+
+Backstage admin endpoint intentions:
+
+- `GET adminApiPath('/backstage/fan-engagement/overview?period=YYYY-MM&artistId=')`
+- `GET adminApiPath('/backstage/fan-engagement/missions')`
+- `POST adminApiPath('/backstage/fan-engagement/missions')`
+- `POST adminApiPath('/backstage/fan-engagement/missions/:missionId/archive')`
+- `GET adminApiPath('/backstage/fan-engagement/proposals?status=&moderationStatus=')`
+- `PATCH adminApiPath('/backstage/fan-engagement/proposals/:proposalId/moderation')`
+- `GET adminApiPath('/backstage/fan-engagement/reaction-drafts?status=&moderationStatus=')`
+- `PATCH adminApiPath('/backstage/fan-engagement/reaction-drafts/:draftId/moderation')`
+- `GET adminApiPath('/backstage/fan-engagement/point-ledger?userId=&artistId=')`
 
 Admin policy:
 

@@ -20,6 +20,26 @@ Add a small Backstage/admin backend API that lets a super-admin create, list,
 and archive fan engagement missions. This unlocks QA-only missions now and
 becomes the foundation for real mission operations later.
 
+## Route Contract
+
+Backstage frontend code should call the existing helper instead of hardcoding an
+external path:
+
+- list: `adminApiPath('/backstage/fan-engagement/missions')`
+- create: `adminApiPath('/backstage/fan-engagement/missions')`
+- archive/deactivate: `adminApiPath('/backstage/fan-engagement/missions/:missionId/archive')`
+
+With the current production API host root (`https://api.lumina-stage.com`), this
+resolves to:
+
+- `GET /api/v1/admin/api/v1/backstage/fan-engagement/missions`
+- `POST /api/v1/admin/api/v1/backstage/fan-engagement/missions`
+- `POST /api/v1/admin/api/v1/backstage/fan-engagement/missions/:missionId/archive`
+
+Do not use `/admin/api/v1/...` as a host-root external call example; it can
+return 404 in the current deployment. If an API base URL already includes
+`/api/v1`, the helper may emit `/admin/api/v1/...` relative to that base.
+
 ## Scope
 
 Backend only.
