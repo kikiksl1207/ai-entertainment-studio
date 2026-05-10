@@ -175,3 +175,43 @@ blocked_by:
 - Backend First PR is required before frontend mutation wiring.
 next_needed:
 - Builder B should keep BB-003 as a planning task and explicitly mark mutation wiring as blocked.
+
+---
+
+status: done
+task: BB-006 - Fan Engagement Submit Readiness Frontend Check
+branch/commit: team2-frontend/bb-006-submit-readiness / this commit
+changed_files:
+- docs/ops/inbox/builder-b.md
+tests:
+- node --check pages/fan-engagement.js
+- node --check data/fan-engagement-copy.js
+- git diff --check
+- no browser QA required; readiness note only, no product UI/code changed
+result:
+- Current Home teaser Phase 2 remains mutation-free. `pages/fan-engagement.js` only performs `GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=3`; no POST, participation, ballot, fan proposal, title equip, Creator Studio mutation, Backstage mutation, wallet, settlement, Lumina, or paid-like wiring was found in the Home fan engagement files.
+- Current CTA remains disabled in main: mission cards render `<button class="fan-mission-cta" type="button" disabled>...`.
+- Phase 3B should add a local submit state machine in `pages/fan-engagement.js` without touching `app.js`: `idle_not_started`, `logged_out_requires_auth`, `submitting`, `accepted`, `already_participated`, `idempotent_replay`, `validation_error`, `network_error`, and `unavailable_or_expired`.
+- Logged-out flow should call the existing auth modal from the click handler, preserve the intended mission id locally, and not fire submit until the user explicitly retries after auth.
+- Submit loading should mark only the clicked card busy, keep the CTA disabled during the request, and prevent double submit.
+- Success/accepted state should update card copy to a completed Korean label and leave reward copy as non-cash fan points only.
+- Already participated and idempotent replay should be distinct UI states but may share calm Korean copy if QA accepts it.
+- Backend validation errors must prefer `messageKey` mapped through frontend Korean fallback copy. Raw backend `code`, enum, status, or English message must not render directly.
+- Network/error fallback should keep the existing card visible and show a small Korean message in the card, not replace the full Home section.
+- Mobile/narrow layout is ready for one full-width CTA per card; Phase 3B should keep status copy short so `.fan-mission-card` does not overflow.
+- Copy keys/fallback Korean labels needed for Phase 3B:
+  - `fanMission.submit.cta`: `참여하기`
+  - `fanMission.submit.loginRequired`: `로그인이 필요해요`
+  - `fanMission.submit.submitting`: `참여 기록 중이에요`
+  - `fanMission.submit.accepted`: `참여 완료`
+  - `fanMission.submit.alreadyParticipated`: `오늘은 이미 참여했어요`
+  - `fanMission.submit.idempotentReplay`: `이미 반영된 참여예요`
+  - `fanMission.submit.validationError`: `참여 조건을 확인해 주세요`
+  - `fanMission.submit.networkError`: `참여를 완료하지 못했어요. 잠시 후 다시 시도해 주세요`
+  - `fanMission.submit.unavailable`: `지금은 참여할 수 없는 미션이에요`
+- Proposed Phase 3B files: `pages/fan-engagement.js`, `data/fan-engagement-copy.js`, `styles/home.css`; `index.html` only if an extra per-card message slot is required. `app.js` should remain untouched.
+blocked_by:
+- BA-005 must confirm safe mission/test data, endpoint rejection behavior, idempotency behavior, and stable `code`/`messageKey` responses.
+- QA2-003 must define safe QA user/mission data and acceptance matrix before any live submit is enabled.
+next_needed:
+- Wait for BA-005 and QA2-003 outputs, then let Integrator open Phase 3B only if both confirm safe mutation testing.
