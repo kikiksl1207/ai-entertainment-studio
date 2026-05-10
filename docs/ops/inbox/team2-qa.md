@@ -60,6 +60,65 @@ security_check:
 - PASS: no sensitive values were recorded.
 - PASS: no submit or mutation was executed.
 
+---
+
+status: blocked for live mutation; readiness matrix complete
+task: QA2-003 - Fan engagement submit readiness QA
+branch/commit:
+- branch: team2-qa/QA2-003-fan-engagement-submit-readiness
+- local main after pull: origin/main
+- basis commit: 15ec446d8eee391176a8f0d2d0ee9181182e238b
+- observed API health commit: f94ffd2ae1aee3c0d100a07d9aa508a702a5a79b
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: read `docs/ops/tasks/open/QA2-003-fan-engagement-submit-readiness.md`.
+- PASS: read `docs/ops/fan-engagement-reconciled-contract.md`.
+- PASS: read `docs/ops/board.md`.
+- PASS: read `docs/ops/agents.md` because QA2-003 listed it in Read First.
+- PASS: read-only live GET `https://api.lumina-stage.com/api/v1/fan-engagement/missions?surface=home&scope=today&take=3` returned HTTP 200 with `items: 0`.
+- PASS: read-only live GET `https://api.lumina-stage.com/api/v1/fan-engagement/concept-votes?status=active&surface=artist_detail&take=3` returned HTTP 200 with `items: 0`.
+- PASS: frontend scan found Home teaser only calls the read-only mission GET from `pages/fan-engagement.js`.
+- PASS: backend scan confirmed submit endpoints are JWT-protected but live mutation readiness still requires safe data.
+- PASS: fan engagement policy and point ledger remain separate from Lumina wallet/settlement/paid-like surfaces in the contract and implementation scan.
+result:
+- Live mission submit QA is blocked for now.
+- No safe active QA mission was available from live read-only GET; `items: 0`.
+- No safe active concept vote was available from live read-only GET; `items: 0`.
+- A safe QA user may exist operationally, but this task did not verify credentials and did not use secrets.
+- No documented reset/isolation bucket or cleanup procedure for production QA participation was found in the required docs.
+- Duplicate submit and idempotency replay cannot be safely verified on live production until a disposable QA mission/user/reset bucket is explicitly provided.
+- Logged-out/no-mutation behavior should be verified in Phase 3B by clicking enabled CTA while logged out and confirming auth UI plus zero POST/PATCH/PUT/DELETE. In this readiness task, no logged-out POST was sent.
+- Fan points can be verified separately from Lumina because contract and implementation expose `fan_engagement_point_ledger`, `cashLike: false`, `luminaAmount: 0`, `settlementEligible: false`, and `pointsTransferable: false`.
+- No mission participation submit, concept vote ballot submit, fan proposal submit, title equip, Creator Studio mutation, Backstage mutation, wallet, settlement, paid-like, payout, or cash-like mutation was executed.
+
+phase_3b_qa_matrix:
+- logged-out CTA: open enabled CTA state, expect auth modal or auth-required state, zero mutation requests.
+- logged-in first mission submit: safe QA user + safe QA mission only; expect `POST /api/v1/fan-engagement/missions/:missionId/participations`, `participation.status=accepted`, `idempotentReplay=false`, non-cash points only.
+- duplicate mission submit same reset bucket: repeat with same QA user/mission after first accepted submit; expect stable already-participated response and no extra point ledger grant.
+- idempotency replay same key/body: repeat same request with same idempotency key; expect `idempotentReplay=true` and no duplicate participation or point ledger.
+- idempotency mismatch: reuse key against a different mission or payload if supported; expect stable validation error such as idempotency-key-reused and no mutation.
+- concept vote ballot submit: safe QA vote/option only; expect ballot accepted, optional linked mission participation, no wallet/Lumina/settlement side effect.
+- fan one-line proposal submit: safe QA artist/mission only; expect moderation/pending state, no public exposure before approval, no wallet/Lumina/settlement side effect.
+- fan points separation: compare fan engagement summary before/after with wallet/Lumina balance unchanged; verify `cashLike=false`, `luminaAmount=0`, `settlementEligible=false`.
+- mobile/narrow enabled CTA: verify enabled CTA, loading, success, duplicate, error, and auth-required states at desktop, 390px, and 320px without overlap/overflow.
+- raw copy/i18n: verify Korean user-facing messages, no raw enum/message keys in visible UI.
+- observability: record sanitized request path, HTTP status, code/messageKey only; no token/cookie/password/env/idempotency key body values.
+
+blocked_by:
+- Safe active QA mission is not available or not identified.
+- Safe active QA concept vote/option is not available or not identified.
+- Reset bucket cleanup/isolation procedure is not documented for production QA.
+- Explicit Leader approval for a disposable QA user + QA mission + reset/cleanup plan was not provided in this task.
+
+next_needed:
+- Builder/Leader should provide a disposable QA user, a QA-only active mission/vote/proposal target, expected reset policy, and cleanup/reset instructions.
+- Integrator should keep Phase 3B submit gate closed until BA-005, BB-006, QA2-003 readiness blockers are resolved.
+
+security_check:
+- PASS: no sensitive values were recorded.
+- PASS: no live mutation request was sent.
+
 next_needed:
 - No follow-up required for this smoke scope.
 
