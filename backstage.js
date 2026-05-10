@@ -43,12 +43,16 @@ const confirmMessage = document.getElementById("confirmMessage");
 const confirmPayload = document.getElementById("confirmPayload");
 const confirmCancelButton = document.getElementById("confirmCancelButton");
 const confirmRunButton = document.getElementById("confirmRunButton");
+const fanMissionForm = document.getElementById("fanMissionForm");
+const fanMissionStatus = document.getElementById("fanMissionStatus");
+const fanMissionCountBadge = document.getElementById("fanMissionCountBadge");
 
 let selectedDetail = null;
 let pendingActionPreview = null;
 const sectionState = {
   admins: { rows: [], auditRows: [] },
   creators: { rows: [], artistOptions: [], accessRows: [] },
+  fanMissions: { rows: [], publicRows: [] },
   users: { cursor: null, hasMore: false, rows: [] },
   settlement: { cursor: null, hasMore: false, rows: [], conversionRows: [] },
   logs: { cursor: null, hasMore: false, rows: [] }
@@ -89,6 +93,9 @@ const statusClassMap = {
   "확정전": "is-hold",
   "매출없음": "is-review",
   "완료": "is-paid",
+  "진행중": "is-approved",
+  "초안": "is-review",
+  "비활성": "is-hold",
   "공개": "is-approved",
   "정상": "is-approved",
   "공개 제외": "is-blocked",
@@ -263,6 +270,8 @@ const tableMeta = {
   reportCancelRows: { type: "취소/철회 신고", labels: ["신고", "대상", "신고자", "상태", "사유", "권장 액션"] },
   feedSearchRows: { type: "피드 검색어 분석", labels: ["순위", "키워드", "타입", "언어", "검색 수", "평균 결과", "최근 검색"] },
   feedBlockedTermRows: { type: "검색어 숨김 관리", labels: ["키워드", "타입", "언어", "상태", "사유", "수정일", "권장 액션"] },
+  fanMissionRows: { type: "팬 미션", labels: ["Slug", "상태", "Surface", "Reset", "Points", "생성일", "Home 노출", "권장 액션"] },
+  fanMissionPublicRows: { type: "Public 팬 미션", labels: ["Title", "Slug", "Type", "Status", "Points", "Artist"] },
   studioSettlementRows: { type: "스튜디오 운영자 정산", labels: ["운영자", "정산 유형", "캐릭터", "루미나", "총매출", "차감", "정산금", "상태", "권장 액션"] },
   settlementRows: { type: "유저 크리에이터 정산", labels: ["아티스트", "제작자", "이벤트", "루미나", "총매출", "차감", "정산금", "상태", "권장 액션"] },
   settlementConversionRows: { type: "정산금 충전 신청", labels: ["신청자", "정산 키", "신청 금액", "지급 루미나", "상태", "신청 메모", "권장 액션"] },
@@ -276,6 +285,7 @@ const sectionLoaders = {
   creators: loadCreatorsSection,
   "ai-content": loadAiContentSection,
   moderation: loadModerationSection,
+  "fan-missions": loadFanMissionsSection,
   payouts: loadSettlementSection,
   logs: loadAuditSection
 };
@@ -2931,6 +2941,8 @@ function renderBackstageTables() {
   renderRows("reportCancelRows", backstageRows.reportCancels, 3);
   renderRows("feedSearchRows", backstageRows.feedSearches, -1);
   renderRows("feedBlockedTermRows", backstageRows.feedBlockedTerms, 3);
+  renderLoadingRow("fanMissionRows", "팬 미션 탭에서 목록을 불러옵니다.");
+  renderLoadingRow("fanMissionPublicRows", "팬 미션 탭에서 public 목록을 확인합니다.");
   renderRows("studioSettlementRows", backstageRows.studioSettlement, 7);
   renderRows("settlementRows", backstageRows.settlement, 7);
   renderRows("settlementConversionRows", backstageRows.settlementConversions, 4);
@@ -2991,6 +3003,7 @@ function canAccessBackstageSection(sectionId) {
     creators: ["partner_admin", "partnership_admin", "artist_ops_admin", "ai_artist_admin", "content_admin"],
     "ai-content": ["artist_ops_admin", "ai_artist_admin", "content_admin"],
     moderation: ["cs_admin", "support_admin", "content_admin"],
+    "fan-missions": [],
     settlement: ["commerce_admin", "settlement_admin", "finance_admin"],
     payouts: ["commerce_admin", "settlement_admin", "finance_admin"]
   };
@@ -2999,6 +3012,7 @@ function canAccessBackstageSection(sectionId) {
     creators: ["debut:read", "creator:read", "artists:read"],
     "ai-content": ["artists:read", "assets:read", "shortforms:read"],
     moderation: ["community:read", "community:write", "reports:read"],
+    "fan-missions": ["*"],
     settlement: ["payments:read", "settlement:read", "payout:read"],
     payouts: ["payments:read", "settlement:read", "payout:read", "payout:write"]
   };
@@ -3711,6 +3725,287 @@ async function loadModerationSection() {
   }
 }
 
+function fanMissionStatusLabel(status) {
+  const labels = {
+    active: "진행중",
+    draft: "초안",
+    inactive: "비활성",
+    archived: "보관"
+  };
+  return labels[status] || status || "-";
+}
+
+function fanMissionSurfaceLabel(surface) {
+  const labels = {
+    home: "메인",
+    artist_detail: "아티스트 상세",
+    feed: "피드",
+    mypage: "마이페이지",
+    creator_studio_hint: "크리에이터 스튜디오"
+  };
+  return labels[surface] || surface || "-";
+}
+
+function fanMissionTypeLabel(type) {
+  const labels = {
+    daily_signal: "응원 미션",
+    vote_concept: "콘셉트 투표",
+    fan_proposal: "팬 제안"
+  };
+  return labels[type] || type || "-";
+}
+
+function fanMissionPoints(mission = {}) {
+  const points = Number(mission.rewardPolicy?.points ?? mission.rewardPreview?.points ?? 0);
+  return Number.isFinite(points) ? points : 0;
+}
+
+function fanMissionCopyText(copy = {}, key = "title") {
+  return copy?.labels?.ko?.[key] || copy?.[`${key}Key`] || "-";
+}
+
+function isHomeTodayMission(mission = {}) {
+  const now = new Date();
+  const surfaces = Array.isArray(mission.surfaces) ? mission.surfaces : [mission.surface].filter(Boolean);
+  const startsAt = mission.startsAt ? new Date(mission.startsAt) : null;
+  const endsAt = mission.endsAt ? new Date(mission.endsAt) : null;
+  return mission.status === "active"
+    && (surfaces.length === 0 || surfaces.includes("home"))
+    && (!startsAt || Number.isNaN(startsAt.getTime()) || startsAt <= now)
+    && (!endsAt || Number.isNaN(endsAt.getTime()) || endsAt > now);
+}
+
+function normalizeFanMissionItems(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.missions)) return data.missions;
+  if (data?.mission) return [data.mission];
+  return [];
+}
+
+function renderFanMissionRows(missions = []) {
+  const target = document.getElementById("fanMissionRows");
+  if (!target) return;
+  if (fanMissionCountBadge) fanMissionCountBadge.textContent = String(missions.length || 0);
+  if (!missions.length) {
+    renderLoadingRow("fanMissionRows", "생성된 팬 미션이 없습니다.");
+    return;
+  }
+  target.innerHTML = missions.map((mission) => {
+    const surfaces = Array.isArray(mission.surfaces) ? mission.surfaces : [mission.surface].filter(Boolean);
+    const surfaceText = surfaces.map(fanMissionSurfaceLabel).join(", ") || "-";
+    const ready = isHomeTodayMission(mission);
+    const canArchive = mission.id && !["archived", "inactive"].includes(mission.status);
+    const action = canArchive
+      ? `<button class="text-action" type="button" data-fan-mission-archive="${escapeHtml(mission.id)}" data-fan-mission-slug="${escapeHtml(mission.slug)}">보관</button>`
+      : "-";
+    return `
+      <tr>
+        <td>${escapeHtml(mission.slug || "-")}</td>
+        <td>${statusBadge(fanMissionStatusLabel(mission.status))}</td>
+        <td>${escapeHtml(surfaceText)}</td>
+        <td>${escapeHtml(mission.resetPolicy || "-")}</td>
+        <td>${escapeHtml(`${fanMissionPoints(mission)}P`)}</td>
+        <td>${escapeHtml(formatDate(mission.createdAt))}</td>
+        <td><span class="fan-mission-readiness ${ready ? "is-on" : "is-off"}">${ready ? "노출 가능" : "제외"}</span></td>
+        <td>${action}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function renderPublicFanMissionRows(missions = []) {
+  const target = document.getElementById("fanMissionPublicRows");
+  if (!target) return;
+  if (!missions.length) {
+    renderLoadingRow("fanMissionPublicRows", "현재 메인에 노출되는 팬 미션이 없습니다.");
+    return;
+  }
+  target.innerHTML = missions.map((mission) => `
+    <tr>
+      <td>${escapeHtml(fanMissionCopyText(mission.copy, "title"))}</td>
+      <td>${escapeHtml(mission.slug || "-")}</td>
+      <td>${escapeHtml(fanMissionTypeLabel(mission.missionType))}</td>
+      <td>${statusBadge(fanMissionStatusLabel(mission.status))}</td>
+      <td>${escapeHtml(`${fanMissionPoints(mission)}P`)}</td>
+      <td>${escapeHtml(mission.artist?.displayName || mission.artist?.slug || "Lumina Stage")}</td>
+    </tr>
+  `).join("");
+}
+
+function setFanMissionStatus(message, type = "info") {
+  if (!fanMissionStatus) return;
+  fanMissionStatus.textContent = message || "";
+  fanMissionStatus.classList.toggle("is-error", type === "error");
+  fanMissionStatus.classList.toggle("is-success", type === "success");
+}
+
+function toDatetimeLocalValue(date) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function fromDatetimeLocalValue(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
+function qaDateStamp(date = new Date()) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("");
+}
+
+function initFanMissionFormDefaults(force = false) {
+  if (!fanMissionForm) return;
+  const stamp = qaDateStamp();
+  const run = `${String(new Date().getHours()).padStart(2, "0")}${String(new Date().getMinutes()).padStart(2, "0")}`;
+  const now = new Date();
+  const later = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const slug = fanMissionForm.elements.slug;
+  const resetPolicy = fanMissionForm.elements.resetPolicy;
+  const startsAt = fanMissionForm.elements.startsAt;
+  const endsAt = fanMissionForm.elements.endsAt;
+  if (slug && (force || !slug.value)) slug.value = `qa-home-${stamp}-${run}`;
+  if (resetPolicy && (force || !resetPolicy.value)) resetPolicy.value = `season:qa-${stamp}-run-${run}`;
+  if (startsAt && (force || !startsAt.value)) startsAt.value = toDatetimeLocalValue(now);
+  if (endsAt && (force || !endsAt.value)) endsAt.value = toDatetimeLocalValue(later);
+}
+
+function fanMissionFormPayload() {
+  const form = new FormData(fanMissionForm);
+  const startsAt = fromDatetimeLocalValue(form.get("startsAt"));
+  const endsAt = fromDatetimeLocalValue(form.get("endsAt"));
+  if (!startsAt || !endsAt) throw new Error("시작/종료 시간을 확인해 주세요.");
+  const payload = {
+    slug: String(form.get("slug") || "").trim(),
+    missionType: String(form.get("missionType") || "daily_signal"),
+    status: String(form.get("status") || "active"),
+    surface: String(form.get("surface") || "home"),
+    resetPolicy: String(form.get("resetPolicy") || "").trim(),
+    rewardPolicy: {
+      points: Number(form.get("points") || 0)
+    },
+    copy: {
+      titleKey: String(form.get("titleKey") || "").trim(),
+      descriptionKey: String(form.get("descriptionKey") || "").trim(),
+      ctaKey: String(form.get("ctaKey") || "").trim(),
+      statusKey: String(form.get("statusKey") || "").trim(),
+      labels: {
+        ko: {
+          title: String(form.get("titleLabel") || "").trim(),
+          description: String(form.get("descriptionLabel") || "").trim(),
+          cta: String(form.get("ctaLabel") || "").trim(),
+          status: String(form.get("statusLabel") || "").trim()
+        }
+      }
+    },
+    startsAt,
+    endsAt
+  };
+  ["artistId", "actionType", "actionTargetId"].forEach((key) => {
+    const value = String(form.get(key) || "").trim();
+    if (value) payload[key] = value;
+  });
+  return payload;
+}
+
+async function loadFanMissionsSection() {
+  initFanMissionFormDefaults();
+  renderLoadingRow("fanMissionRows");
+  renderLoadingRow("fanMissionPublicRows");
+  setFanMissionStatus("팬 미션 목록을 불러오는 중입니다.");
+  try {
+    const search = readSectionSearch("fan-missions");
+    const query = new URLSearchParams({ take: "20" });
+    if (search) {
+      if (["active", "draft", "inactive", "archived"].includes(search)) query.set("status", search);
+      else query.set("slug", search);
+    }
+    const [adminData, publicData] = await Promise.all([
+      backstageFetch(adminApiPath(`/backstage/fan-engagement/missions?${query}`), { auth: true }),
+      backstageFetch(publicApiPath("/fan-engagement/missions?surface=home&scope=today&take=3")).catch(() => ({ items: [] }))
+    ]);
+    const adminRows = normalizeFanMissionItems(adminData);
+    const publicRows = normalizeFanMissionItems(publicData);
+    sectionState.fanMissions = { rows: adminRows, publicRows };
+    renderFanMissionRows(adminRows);
+    renderPublicFanMissionRows(publicRows);
+    setFanMissionStatus("팬 미션 목록을 불러왔습니다.", "success");
+  } catch (error) {
+    if (fanMissionCountBadge) fanMissionCountBadge.textContent = "!";
+    renderLoadingRow("fanMissionRows", error.message || "팬 미션 목록을 불러오지 못했습니다.");
+    renderLoadingRow("fanMissionPublicRows", "public read-only 목록을 확인하지 못했습니다.");
+    setFanMissionStatus(error.message || "팬 미션 API 확인이 필요합니다.", "error");
+  }
+}
+
+async function handleFanMissionSubmit(event) {
+  event.preventDefault();
+  setFanMissionStatus("QA 미션을 생성하는 중입니다.");
+  const submitButton = fanMissionForm?.querySelector("button[type='submit']");
+  if (submitButton) submitButton.disabled = true;
+  try {
+    const payload = fanMissionFormPayload();
+    const data = await backstageFetch(adminApiPath("/backstage/fan-engagement/missions"), {
+      method: "POST",
+      auth: true,
+      body: payload
+    });
+    const readiness = data?.publicReadiness?.homeTodayEligible ? "메인 노출 가능" : "메인 노출 조건 확인 필요";
+    await loadFanMissionsSection();
+    setFanMissionStatus(`생성 완료: ${data?.mission?.slug || payload.slug} · ${readiness}`, "success");
+  } catch (error) {
+    setFanMissionStatus(error.message || "QA 미션 생성에 실패했습니다.", "error");
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
+}
+
+function openFanMissionArchiveConfirm(button) {
+  const missionId = button.dataset.fanMissionArchive;
+  const slug = button.dataset.fanMissionSlug || missionId;
+  if (!missionId || !confirmModal) return;
+  pendingActionPreview = {
+    menu: "Fan Missions",
+    actionGroup: "팬 미션",
+    targetType: "fanMission",
+    target: slug,
+    detailKey: `fan-mission:${missionId}`,
+    requestedAction: "보관",
+    method: "POST",
+    apiHint: "POST /admin/api/v1/backstage/fan-engagement/missions/:missionId/archive",
+    status: "저장 가능",
+    note: "QA 또는 운영 미션 보관",
+    warning: "이 미션을 보관하면 public read-only 메인 미션 목록에서 제외됩니다. 참여 submit은 실행하지 않습니다.",
+    canRunLocally: false,
+    canRunApi: true,
+    apiRequest: {
+      method: "POST",
+      path: adminApiPath(`/backstage/fan-engagement/missions/${encodeURIComponent(missionId)}/archive`),
+      body: {
+        status: "archived",
+        reason: "Backstage fan mission archive"
+      }
+    },
+    bodyPreview: {
+      targetType: "fanMission",
+      target: slug,
+      action: "archive"
+    }
+  };
+  confirmType.textContent = "Fan Missions";
+  confirmTitle.textContent = "팬 미션을 보관할까요?";
+  confirmMessage.textContent = pendingActionPreview.warning;
+  confirmPayload.innerHTML = renderConfirmSummary(pendingActionPreview);
+  confirmRunButton.textContent = "보관하기";
+  confirmRunButton.disabled = false;
+  confirmModal.classList.remove("is-hidden");
+}
+
 async function loadSettlementSection() {
   sectionState.settlement = { cursor: null, hasMore: false, rows: [], studioRows: [], conversionRows: [] };
   renderLoadingRow("settlementConversionRows");
@@ -3927,6 +4222,18 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const fanMissionArchiveButton = event.target.closest("[data-fan-mission-archive]");
+  if (fanMissionArchiveButton) {
+    openFanMissionArchiveConfirm(fanMissionArchiveButton);
+    return;
+  }
+
+  const fanMissionRefresh = event.target.closest("#fanMissionRefreshButton");
+  if (fanMissionRefresh) {
+    loadFanMissionsSection();
+    return;
+  }
+
   const quickButton = event.target.closest(".text-action");
   if (quickButton && quickButton.id !== "detailCloseButton") {
     openQuickAction(quickButton);
@@ -3939,6 +4246,10 @@ document.addEventListener("click", (event) => {
     const input = searchButton.closest(".search-box")?.querySelector("input");
     if (section?.id === "users") {
       loadUsersSection();
+      return;
+    }
+    if (section?.id === "fan-missions") {
+      loadFanMissionsSection();
       return;
     }
     if (section && input) applyTableSearch(section, input.value);
@@ -3970,6 +4281,10 @@ document.addEventListener("keydown", (event) => {
   const section = input.closest(".section-block");
   if (section?.id === "users") {
     loadUsersSection();
+    return;
+  }
+  if (section?.id === "fan-missions") {
+    loadFanMissionsSection();
     return;
   }
   if (section) applyTableSearch(section, input.value);
@@ -4017,6 +4332,7 @@ document.querySelectorAll("[data-load-more]").forEach((button) => {
   });
 });
 
+fanMissionForm?.addEventListener("submit", handleFanMissionSubmit);
 loginForm.addEventListener("submit", handleLogin);
 googleButton.addEventListener("click", handleGoogleLogin);
 logoutButton.addEventListener("click", () => {
