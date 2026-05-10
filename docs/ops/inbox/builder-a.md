@@ -672,3 +672,21 @@ result:
 - User-facing copy must use stable keys plus optional localized labels; do not return English-only `title`, `description`, or `ctaLabel` as the only display source.
 next_needed:
 - Use the reconciled contract as the source of truth before any backend implementation or schema migration.
+
+---
+
+status: completed
+task: BA-004 fan engagement error message keys
+branch: team2-backend/ba-004-fan-engagement-error-message-keys
+changed_files:
+- server/src/fan-engagement/fan-engagement.service.ts
+- docs/ops/inbox/builder-a.md
+result:
+- Added stable `messageKey` coverage to fan engagement mission, concept vote, ballot, duplicate/idempotency, inactive/expired, not-found, and validation errors.
+- Preserved existing HTTP statuses and existing error `code` values.
+- Added only a narrow fan engagement error response helper; no frontend, Prisma schema, migration, wallet, Lumina, settlement, payout, or revenue behavior changes.
+- Fan proposal/moderation endpoints are not present in the current fan-engagement implementation, so there were no proposal-specific API errors to update in this PR.
+tests:
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
