@@ -431,9 +431,7 @@ export class UserAssetsService {
     );
     const sourceBuffer = source.buffer;
     context.source = this.publicSourceImageDiagnostics(source);
-    const sourceMetadata = await this.runDerivativeStage(context, 'read-source-metadata', () =>
-      this.readSourceMetadata(sourceBuffer, context.source),
-    );
+    const sourceMetadata = await this.readSourceMetadata(sourceBuffer, context);
     const display = await this.runDerivativeStage(context, 'build-display', () =>
       this.buildImageDerivative(sourceBuffer, {
         maxEdge: FEED_IMAGE_DISPLAY_MAX_EDGE,
@@ -547,21 +545,24 @@ export class UserAssetsService {
 
   private async readSourceMetadata(
     sourceBuffer: Buffer,
-    sourceDiagnostics?: Omit<SourceImageDownload, 'buffer'>,
+    context: FeedImageDerivativeContext,
   ) {
     try {
       return await sharp(sourceBuffer, { animated: false, failOn: 'none' }).metadata();
     } catch (error) {
-      throw new BadRequestException({
-        code: 'FEED_IMAGE_SOURCE_METADATA_FAILED',
-        message: 'Uploaded image could not be read by the image processor',
-        details: {
-          stage: 'read-source-metadata',
-          source: sourceDiagnostics ?? null,
+      this.logger.warn({
+        event: 'feed_image_source_metadata_unavailable',
+        assetId: context.assetId,
+        requestId: context.requestId,
+        stage: 'read-source-metadata',
+        reason: error instanceof Error ? error.message : 'unknown error',
+        diagnostics: {
+          source: context.source ?? null,
           sharp: this.safeSharpDiagnostics(),
-          reason: error instanceof Error ? error.message : 'unknown error',
         },
       });
+
+      return { width: null, height: null };
     }
   }
 
@@ -926,7 +927,10 @@ export class UserAssetsService {
   }
 
   private safeSharpDiagnostics() {
-    const versions = sharp.versions as Record<string, string | undefined>;
+    const sharpModule = sharp as unknown as {
+      versions?: Record<string, string | undefined>;
+    };
+    const versions = sharpModule.versions ?? {};
 
     return {
       sharp: versions.sharp ?? null,
