@@ -2965,13 +2965,40 @@ function setActiveSection(sectionId = "overview") {
 
 function currentAdminRoleName() {
   const user = getBackstageAuth()?.user || {};
-  return user.adminUser?.role?.name || user.adminRole?.name || user.roleName || user.adminRoleName || user.role || null;
+  return firstValue(
+    user.adminUser?.role?.name,
+    user.adminUser?.roleName,
+    user.adminUser?.adminRole,
+    typeof user.adminRole === "string" ? user.adminRole : user.adminRole?.name,
+    user.roles?.admin?.roleName,
+    user.roles?.admin?.role?.name,
+    user.roles?.admin?.adminRole,
+    user.roleName,
+    user.adminRoleName,
+    user.role
+  ) || null;
+}
+
+function adminPermissionList(...sources) {
+  const values = [];
+  sources.forEach((source) => {
+    if (Array.isArray(source)) values.push(...source);
+    else if (typeof source === "string" && source) values.push(source);
+  });
+  return [...new Set(values)];
 }
 
 function currentAdminPermissions() {
   const user = getBackstageAuth()?.user || {};
-  const permissions = user.adminUser?.role?.permissions || user.adminRole?.permissions || user.permissions || [];
-  return Array.isArray(permissions) ? permissions : [];
+  return adminPermissionList(
+    user.adminUser?.role?.permissions,
+    user.adminUser?.permissions,
+    typeof user.adminRole === "object" ? user.adminRole?.permissions : null,
+    user.roles?.admin?.permissions,
+    user.roles?.admin?.role?.permissions,
+    user.adminPermissions,
+    user.permissions
+  );
 }
 
 function syncCurrentAdminContext(adminUsers = []) {
@@ -2995,7 +3022,7 @@ function canAccessBackstageSection(sectionId) {
   if (sectionId === "overview" || sectionId === "logs") return true;
   const role = currentAdminRoleName();
   const permissions = currentAdminPermissions();
-  if (!role && permissions.length === 0) return true;
+  if (!role && permissions.length === 0) return false;
   if (role === "super_admin" || permissions.includes("*")) return true;
   const areaMap = {
     admins: ["super_admin"],
