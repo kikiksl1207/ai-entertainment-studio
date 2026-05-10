@@ -43,6 +43,33 @@ Produce a frontend implementation map for the first fan engagement loop:
 - how Korean/i18n fallback is handled
 - what can ship first without making users do heavy work
 
+## Approved First Slice Lock
+
+Leader approval is limited to:
+
+- `index.html` Home read-only/mock teaser planning first.
+- No real submit behavior.
+- No API mutation wiring.
+- No mission completion, concept vote ballot, fan proposal submit, title equip, Creator Studio approval, or Backstage mission mutation until the Backend First PR is complete and reviewed.
+
+Allowed before Backend First PR:
+
+- Read-only/mock Home teaser placement plan.
+- Static/mock data shape for layout planning.
+- Loading/empty/error visual state plan without live mutation.
+- Korean/i18n fallback key plan.
+- Mobile/responsive QA checklist.
+
+Not allowed before Backend First PR:
+
+- Calling `POST /api/v1/fan-engagement/missions/:missionId/participations`.
+- Calling `POST /api/v1/fan-engagement/concept-votes/:voteId/ballots`.
+- Calling `POST /api/v1/artists/:artistId/fan-proposals`.
+- Calling `PATCH /api/v1/me/fan-engagement/title`.
+- Calling Creator Studio proposal/draft approval/reject/request endpoints.
+- Calling Backstage fan engagement create/update/moderation endpoints.
+- Adding enabled submit buttons that imply a real mutation is available.
+
 ## Required Output
 
 Write the map to `docs/ops/inbox/builder-b.md`.
@@ -60,6 +87,7 @@ Include:
 - Risk list: layout collision, duplicate submit, stale auth, Creator Studio access gate, moderation display, mojibake.
 - First UI slice recommendation.
 - What backend fields are blocking UI wiring.
+- Explicit confirmation that the first frontend slice is Home read-only/mock teaser only until Backend First PR lands.
 
 ## Canonical Decisions To Preserve
 
@@ -77,6 +105,7 @@ Include:
 - Do not implement UI code.
 - Do not edit backend files.
 - Do not change canonical endpoint names without writing a blocker.
+- Do not attach submit/API mutation behavior before Backend First PR is complete and reviewed.
 - Do not add wallet, payout, settlement, trading, adult-brand, or revenue-sharing UI.
 - Do not make a landing page or marketing hero.
 - Do not expose raw enum keys, English-only backend copy, or mojibake to users.

@@ -156,3 +156,22 @@ result:
 - Frontend must map stable label keys to Korean copy and must not render raw enum keys or English-only backend copy.
 next_needed:
 - Update any future UI skeleton against the reconciled endpoints before wiring API calls.
+
+---
+
+status: locked
+task: BB-003 frontend implementation lock
+branch/commit: team2-qa/backstage-wallet-adjustment-qa / this lock commit
+changed_files:
+- docs/ops/tasks/open/BB-003-fan-engagement-frontend-implementation-map.md
+- docs/ops/board.md
+- docs/ops/inbox/builder-b.md
+- docs/ops/inbox/integrator.md
+result:
+- Leader approved Builder B planning only under the condition that the first slice is `index.html` Home read-only/mock teaser.
+- Frontend must not wire submit behavior or API mutations until the Backend First PR is complete and reviewed.
+- Before Backend First PR, Builder B may plan placement, static/mock data shape, loading/empty/error states, mobile behavior, and Korean/i18n fallback only.
+blocked_by:
+- Backend First PR is required before frontend mutation wiring.
+next_needed:
+- Builder B should keep BB-003 as a planning task and explicitly mark mutation wiring as blocked.

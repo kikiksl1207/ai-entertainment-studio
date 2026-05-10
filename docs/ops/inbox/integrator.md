@@ -86,3 +86,24 @@ blocked_by:
 - none
 next_needed:
 - Send BA-003 to Builder A and BB-003 to Builder B.
+
+---
+
+status: locked
+task: BB-003 Home read-only/mock teaser first
+branch/commit: team2-qa/backstage-wallet-adjustment-qa / this lock commit
+changed_files:
+- docs/ops/tasks/open/BB-003-fan-engagement-frontend-implementation-map.md
+- docs/ops/board.md
+- docs/ops/inbox/builder-b.md
+- docs/ops/inbox/integrator.md
+tests:
+- git diff --check
+result:
+- Builder B plan is approved only if the first frontend slice is `index.html` Home read-only/mock teaser.
+- Frontend submit/API mutation wiring is locked until Backend First PR is complete and reviewed.
+- Disallowed before Backend First PR: mission completion, concept vote ballot, fan proposal submit, title equip, Creator Studio approval/reject/request, and Backstage fan engagement mutation calls.
+blocked_by:
+- Backend First PR.
+next_needed:
+- Builder B can proceed with planning under the read-only/mock lock.
