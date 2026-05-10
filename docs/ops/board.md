@@ -11,6 +11,10 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 
 | ID | Owner | Status | Task |
 | --- | --- | --- | --- |
+| BA-005 | Builder A | open | Verify backend readiness for fan engagement mission participation submit |
+| BB-006 | Builder B | open | Prepare frontend submit UI states without enabling mutation |
+| QA2-003 | Team2 QA | open | Prepare safe QA matrix and data requirements for mission submit |
+| IN-003 | Integrator | waiting | Gate fan engagement submit Phase 3B after BA-005, BB-006, and QA2-003 |
 | BA-003 | Builder A | open | Prepare backend implementation plan for the reconciled fan engagement contract |
 | BB-003 | Builder B | open | Prepare frontend implementation map; Home read-only/mock teaser first, no mutations before Backend First PR |
 | IN-002 | Integrator | waiting | Integrate BA/BB/RV outputs after branches are ready |
@@ -44,7 +48,12 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 - Builder B first frontend slice `index.html` Home read-only/mock teaser passed QA and is closed.
 - Home teaser real read-only GET passed QA2-002 and is closed.
 - Backend First PR and BA-004 messageKey follow-up are merged.
-- Frontend submit/API mutation wiring still requires a separate task and review before enabling.
+- Frontend submit/API mutation wiring is still blocked. Phase 3A readiness must
+  finish before opening any Phase 3B submit implementation.
+- Phase 3A is readiness only: BA-005, BB-006, QA2-003, and IN-003. It must not
+  enable mission participation submit, concept vote ballot submit, fan proposal
+  submit, title equip, Creator Studio mutation, Backstage mutation, or
+  wallet/settlement/paid-like behavior.
 - RV-003 returned Reviewer PASS for `origin/team2-backend/fan-engagement-first-pr`; Integrator may merge only after the required gate checks pass.
 
 ## Do Not Do Today
