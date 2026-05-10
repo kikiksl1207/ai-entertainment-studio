@@ -152,3 +152,46 @@ blocked_by:
 next_needed:
 - Merge Backend First PR into main.
 - Run `npx.cmd prisma generate`, `npm.cmd run lint`, `npm.cmd run build`, and `git diff --check`.
+
+---
+
+status: done
+task: Integrate fan engagement Backend First PR
+branch/commit: main / 608465e
+branches_merged:
+- team2-qa/backstage-wallet-adjustment-qa via `26e6800 Merge ops fan engagement review records`
+- origin/team2-backend/fan-engagement-first-pr via `608465e Merge fan engagement backend first PR`
+source_commit:
+- cec520d0ed14af8132ac1204636f48c45d90ff15
+changed_files:
+- server/prisma/migrations/0037_fan_engagement_core/migration.sql
+- server/prisma/schema.prisma
+- server/src/app.module.ts
+- server/src/fan-engagement/fan-engagement.controller.ts
+- server/src/fan-engagement/fan-engagement.module.ts
+- server/src/fan-engagement/fan-engagement.service.ts
+- docs/ops/*
+tests:
+- npx.cmd prisma generate
+- npm.cmd run lint
+- npm.cmd run build
+- git diff --check
+migration_scope:
+- Additive migration.
+- Adds fan engagement mission, participation, concept vote, ballot, point ledger, achievement, and title tables.
+- Adds indexes and unique constraints for reset bucket, idempotency, vote/user uniqueness, point grant reference uniqueness, achievements, and titles.
+- No destructive DROP statements observed.
+- No wallet/settlement schema coupling observed.
+result:
+- Reviewer PASS was recorded before merge.
+- Backend First PR merged into main.
+- Prisma generate passed.
+- Server lint passed.
+- Server build passed.
+- `git diff --check` passed.
+- P2 follow-up remains open as BA-004 for stable fan-engagement error `messageKey` coverage.
+blocked_by:
+- none
+next_needed:
+- Push main.
+- Keep frontend mutation wiring gated to a separate frontend implementation task/review; do not rely on API error rendering until BA-004 is resolved.
