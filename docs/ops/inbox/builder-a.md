@@ -761,3 +761,104 @@ blocked_by:
 - Phase 3B frontend submit should remain gated until QA2-004 performs the live mutation smoke with the safe QA mission/user above.
 next_needed:
 - QA2-004 can run after this branch is merged and safe staging/local QA mission/user/reset conditions are provisioned.
+
+---
+
+status: completed
+task: BA-007 safe QA user and mission reset runbook for QA2-004
+branch/commit: team2-backend/ba-007-safe-qa-mission-runbook / this runbook commit
+changed_files:
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: git diff --check
+- not run: npm.cmd run lint (doc-only QA data runbook; no backend code changed)
+- not run: npm.cmd run build (doc-only QA data runbook; no backend code changed)
+result:
+- Prepared a QA-only runbook for `QA2-004` logged-in mission submit smoke.
+- No production auto seed, frontend change, schema change, wallet/Lumina/settlement/paid-like integration, or live mutation was performed.
+- Safe data path is staging/local only unless Leader explicitly approves a dedicated production QA environment and QA-only user/mission.
+safe_qa_user:
+- Use a dedicated QA account created through the normal auth flow in staging/local. Do not use a real customer/user account.
+- The account must be active and disposable for this smoke. Record only a non-secret handle in QA notes, never password/token/cookie values.
+- Before mutation, QA should capture the user id from a safe authenticated `/api/v1/auth/me` or equivalent account endpoint response, without recording auth secrets.
+safe_qa_mission:
+- Create exactly one QA-only active mission in staging/local. Do not add an automatic seed and do not insert into production as part of deploy.
+- Recommended mission values:
+  - `slug`: `qa-home-submit-YYYYMMDD-runN`
+  - `mission_type`: `daily_signal`
+  - `status`: `active`
+  - `surfaces`: `ARRAY['home']`
+  - `reset_policy`: `season:qa-YYYYMMDD-runN`
+  - `reward_policy`: `{"points":1}`
+  - `copy`: stable keys only, e.g. `fanMission.qaHomeSubmit.title`, `fanMission.qaHomeSubmit.description`, `fanMission.qaHomeSubmit.cta`
+  - `starts_at`: a recent timestamp before the smoke
+  - `ends_at`: a short QA window after the smoke
+- `artist_id`, `action_type`, and `action_target_id` can remain null for this one-tap submit smoke.
+manual_staging_local_sql_template:
+```sql
+-- Staging/local only. Replace RUN_ID with a unique value such as 20260510-r1.
+-- Do not run as a production migration or production auto seed.
+INSERT INTO fan_missions (
+  slug,
+  mission_type,
+  status,
+  surfaces,
+  reset_policy,
+  reward_policy,
+  copy,
+  starts_at,
+  ends_at
+) VALUES (
+  'qa-home-submit-RUN_ID',
+  'daily_signal',
+  'active',
+  ARRAY['home']::text[],
+  'season:qa-RUN_ID',
+  '{"points":1}'::jsonb,
+  '{
+    "titleKey":"fanMission.qaHomeSubmit.title",
+    "descriptionKey":"fanMission.qaHomeSubmit.description",
+    "ctaKey":"fanMission.qaHomeSubmit.cta",
+    "statusKey":"fanMission.status.active",
+    "labels":{"ko":{"title":"QA 미션","description":"QA 전용 제출 검증","cta":"QA 제출"}}
+  }'::jsonb,
+  now() - interval '5 minutes',
+  now() + interval '2 hours'
+)
+ON CONFLICT (slug) DO UPDATE SET
+  status = 'active',
+  surfaces = ARRAY['home']::text[],
+  reset_policy = EXCLUDED.reset_policy,
+  reward_policy = EXCLUDED.reward_policy,
+  copy = EXCLUDED.copy,
+  starts_at = EXCLUDED.starts_at,
+  ends_at = EXCLUDED.ends_at,
+  updated_at = now()
+RETURNING id, slug, reset_policy;
+```
+visibility_check:
+- Run `GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=3`.
+- PASS condition: the returned `items` include `slug=qa-home-submit-RUN_ID`, `status=active`, `rewardPreview.points=1`, and policy flags remain non-cash.
+- If the QA mission is not in the first 3 items, do not alter real missions. In staging/local, first deactivate only older QA-only `qa-home-submit-*` missions or use an isolated staging/local DB with no competing active `home` missions, then repeat the visibility check.
+- If production has real active home missions crowding `take=3`, this runbook is a blocker for production smoke; use staging/local or request a dedicated QA-only environment instead.
+submit_smoke_matrix:
+- Logged-out submit: `POST /api/v1/fan-engagement/missions/:missionId/participations` should return `AUTH_REQUIRED` and must not create a row.
+- First logged-in submit body: `{"action":"complete","sourceType":"qa_smoke","sourceId":"00000000-0000-4000-8000-000000000001","idempotencyKey":"qa-submit-RUN_ID-a"}`. Expected: accepted participation, `idempotentReplay:false`, `rewards.pointsGranted:1`.
+- Same key and same body: expected safe replay with `idempotentReplay:true`, no extra fan point ledger row.
+- Same key and changed body, for example `sourceId=00000000-0000-4000-8000-000000000002`: expected `IDEMPOTENCY_BODY_MISMATCH`.
+- New idempotency key in same `season:qa-RUN_ID` reset bucket: expected `ALREADY_PARTICIPATED`.
+- Verify fan points only in `fan_engagement_point_ledger` with `ledger_type=mission_reward` and `reference_type=fan_mission_participation`. Do not inspect or mutate wallet, Lumina, settlement, payout, boost, or paid-like tables except to confirm no change if QA has a safe read-only comparison path.
+reset_and_cleanup:
+- Preferred reset is to create a new QA mission with a new `RUN_ID` and `reset_policy=season:qa-RUN_ID`; this avoids deleting participation history.
+- After QA, mark only the QA mission inactive in staging/local:
+```sql
+UPDATE fan_missions
+SET status = 'archived', updated_at = now()
+WHERE slug = 'qa-home-submit-RUN_ID'
+  AND slug LIKE 'qa-home-submit-%';
+```
+- Do not delete production records. Do not delete or edit non-QA rows. Do not run cleanup against real user data.
+blocked_by:
+- QA2-004 live mutation remains blocked until BA-006 is deployed and this runbook is executed in staging/local with a dedicated QA user and visible QA mission.
+next_needed:
+- QA or Integrator should provision the staging/local QA user and mission using this runbook, then run QA2-004 against the deployed BA-006+ commit.
