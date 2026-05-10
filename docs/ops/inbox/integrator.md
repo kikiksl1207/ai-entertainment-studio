@@ -305,6 +305,57 @@ next_needed:
 
 ---
 
+status: blocked
+task: IN-005 - Fan Engagement QA Environment Handoff
+branch/commit: main / pending
+acceptable_path_used:
+- none
+api_host_checked:
+- api.lumina-stage.com
+deploy_health:
+- commit `8c24969a750a6fa765c56c3b570bdb92da16b0a8`
+qa_mission:
+- id: none
+- slug: none
+- reset_bucket: none
+qa_user:
+- handle: none
+visibility_check:
+- `GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=3`
+- result: failed / `items: []`
+qa2_005_can_open:
+- no
+blocked_by:
+- No local API was running at `localhost:3001`.
+- No local PostgreSQL was reachable at `localhost:5432`.
+- `psql`, Docker, and Podman were unavailable.
+- Required safe execution handles were absent: `DATABASE_URL`, `QA_USER_EMAIL`, `QA_USER_PASSWORD`, `API_BASE_URL`, and `STAGING_API_BASE_URL`.
+- No safe QA user/account path was available.
+- No QA-only active mission was available or created.
+- No reset bucket was available or created.
+security_check:
+- No secret, token, password, cookie, DB URL, signed URL, or env value was printed or recorded.
+- No real user was used.
+- No QA user or QA mission was created.
+- No live mutation was executed.
+- No frontend submit implementation was added.
+- No wallet, Lumina, settlement, payout, paid-like, trading, or revenue-sharing data was touched.
+tests:
+- git checkout main
+- git pull --ff-only origin main
+- checked required non-secret environment handles by presence only
+- checked local API and PostgreSQL reachability
+- checked `psql`, Docker, and Podman availability
+- checked production `/health`
+- checked read-only production mission list
+- git diff --check
+next_needed:
+- Keep Phase 3B closed.
+- Provide a private/local safe execution target or manual operator setup with only non-secret QA mission/user handoff values.
+- Open QA2-005 only after a safe QA mission is visible and a QA-only user path exists.
+
+---
+
 status: done
 task: IN-003 fan engagement submit readiness gate
 branch/commit: ops/fan-engagement-phase-3a-nogo-followups / pending

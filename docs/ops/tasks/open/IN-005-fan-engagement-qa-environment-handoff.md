@@ -1,7 +1,7 @@
 # IN-005 - Fan Engagement QA Environment Handoff
 
 Owner: Integrator / Operator
-Status: open
+Status: blocked
 Priority: P1
 
 ## Context
@@ -110,3 +110,45 @@ For docs-only work:
 ## Completion Note
 
 Use the standard completion note from `docs/ops/agents.md`.
+
+## Attempt Note
+
+Attempted on 2026-05-10.
+
+Result:
+
+- Blocked. No safe QA environment handoff could be completed in this session.
+
+Checked without recording secret values:
+
+- `DATABASE_URL`: not present.
+- `QA_USER_EMAIL`: not present.
+- `QA_USER_PASSWORD`: not present.
+- `API_BASE_URL`: not present.
+- `STAGING_API_BASE_URL`: not present.
+- `psql`: unavailable.
+- Docker: unavailable.
+- Podman: unavailable.
+- `localhost:3001` health: unavailable.
+- `localhost:5432`: unavailable.
+- production API health: reachable at `api.lumina-stage.com`, commit `8c24969a750a6fa765c56c3b570bdb92da16b0a8`.
+- production read-only mission list: `GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=3` returned `items: []`.
+
+Non-secret handoff values:
+
+- API host: `api.lumina-stage.com`
+- QA mission id: none
+- QA mission slug: none
+- reset bucket: none
+- QA user handle: none
+- visibility check result: failed / no QA mission visible
+- QA2-005 can open: no
+
+No QA user was created. No QA mission was created. No live mutation was executed.
+No secrets were read, printed, or recorded.
+
+Next required input:
+
+- Provide a private/local safe execution target: local/staging API + DB path, or
+  staging API/admin path + QA-only credentials, or manual operator setup with
+  only non-secret mission/user handoff values.
