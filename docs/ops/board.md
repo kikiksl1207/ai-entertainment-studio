@@ -12,6 +12,7 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 | ID | Owner | Status | Task |
 | --- | --- | --- | --- |
 | IN-005 | Integrator / Operator | blocked | Provide safe QA environment handoff for fan engagement submit smoke |
+| OP-001 | Leader / Operator | open | Provide private fan engagement QA handoff inputs without exposing secrets |
 | BA-003 | Builder A | open | Prepare backend implementation plan for the reconciled fan engagement contract |
 | BB-003 | Builder B | open | Prepare frontend implementation map; Home read-only/mock teaser first, no mutations before Backend First PR |
 | IN-002 | Integrator | waiting | Integrate BA/BB/RV outputs after branches are ready |
@@ -65,6 +66,9 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 - IN-005 was attempted and remains blocked: this session has no local API, no
   local PostgreSQL, no `psql`/Docker/Podman path, no required safe QA env handles,
   and production read-only mission visibility still returns `items: []`.
+- OP-001 is the required private handoff request. Once OP-001 provides either a
+  safe staging/local env path, a staging API/admin path, or manual non-secret QA
+  mission details, IN-005 can resume and then QA2-005 can open.
 - BB-006 confirmed the frontend plan is ready, but Builder B must wait. Do not
   enable mission participation submit, concept vote ballot submit, fan proposal
   submit, title equip, Creator Studio mutation, Backstage mutation, or

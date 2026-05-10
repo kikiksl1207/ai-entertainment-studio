@@ -101,6 +101,16 @@ If this task succeeds, open QA2-005 for logged-in mission submit live smoke.
 
 If this task remains blocked, record the blocker and keep Phase 3B closed.
 
+## Current Required Input
+
+IN-005 is currently blocked by missing private execution handles. OP-001 now
+tracks the exact Leader/Operator handoff needed before IN-005 can resume.
+
+Do not retry IN-005 until OP-001 provides either:
+
+- private local/staging environment handles, or
+- manual non-secret QA mission/user confirmation values.
+
 ## Required Checks
 
 For docs-only work:

@@ -225,6 +225,30 @@ next_needed:
 
 ---
 
+status: done
+task: Open OP-001 private handoff request for fan engagement QA
+branch/commit: main / pending
+result:
+- IN-005 remains blocked because no safe QA environment/account/mission handoff
+  exists in this session.
+- Opened OP-001 to request the exact private handoff values from
+  Leader/Operator without writing secrets to Git, Notion, docs, or chat.
+- OP-001 allows one of three paths: private local/staging env values, manual
+  operator setup with non-secret mission details, or a staging admin/API setup.
+- Frontend submit remains blocked.
+changed_files:
+- docs/ops/board.md
+- docs/ops/tasks/open/OP-001-fan-engagement-qa-private-handoff.md
+- docs/ops/tasks/open/IN-005-fan-engagement-qa-environment-handoff.md
+- docs/ops/inbox/integrator.md
+next_needed:
+- Leader/Operator completes OP-001.
+- IN-005 resumes after OP-001 provides a safe handoff.
+- QA2-005 opens only after IN-005 confirms a visible QA mission and safe QA user
+  path.
+
+---
+
 status: no-go
 task: IN-004 - Fan Engagement Submit Hardening Gate
 branch/commit: main / pending
