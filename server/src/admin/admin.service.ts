@@ -15,6 +15,21 @@ import { PrismaService } from '../prisma/prisma.service';
 
 type AdminPayload = Record<string, unknown>;
 type AuditQuery = Record<string, string | undefined>;
+const BACKSTAGE_FAN_MISSION_INCLUDE = {
+  artist: {
+    select: {
+      id: true,
+      slug: true,
+      displayName: true,
+      status: true,
+    },
+  },
+} satisfies Prisma.FanMissionInclude;
+
+type BackstageFanMission = Prisma.FanMissionGetPayload<{
+  include: typeof BACKSTAGE_FAN_MISSION_INCLUDE;
+}>;
+
 type SettlementComplianceUser = {
   id: string;
   phoneNumber: string | null;
@@ -111,6 +126,37 @@ const DEFAULT_CURRENCY = 'LUMINA';
 const FEED_SEARCH_LANGUAGES = new Set(['all', 'ko', 'ja', 'en', 'zh', 'unknown']);
 const FEED_SEARCH_TYPES = new Set(['all', 'text', 'hashtag']);
 const FEED_SEARCH_BLOCKED_TERM_STATUSES = new Set(['active', 'inactive', 'archived']);
+const FAN_MISSION_STATUSES = new Set(['draft', 'active', 'inactive', 'archived']);
+const FAN_MISSION_ARCHIVE_STATUSES = new Set(['inactive', 'archived']);
+const FAN_MISSION_SURFACES = new Set([
+  'home',
+  'artist_detail',
+  'feed',
+  'mypage',
+  'creator_studio_hint',
+]);
+const FAN_MISSION_NON_CASH_POLICY = {
+  cashLike: false,
+  luminaAmount: 0,
+  settlementEligible: false,
+  transferable: false,
+};
+const FAN_MISSION_FORBIDDEN_REWARD_KEYS = [
+  'amount',
+  'cash',
+  'cashlike',
+  'currency',
+  'lumina',
+  'luminaamount',
+  'paidlike',
+  'payout',
+  'pricelumina',
+  'revenue',
+  'settlement',
+  'settlementeligible',
+  'transferable',
+  'wallet',
+];
 const FEED_SEARCH_WINDOWS: Record<string, number> = {
   '15m': 15 * 60 * 1000,
   '1h': 60 * 60 * 1000,
@@ -261,6 +307,180 @@ export class AdminService {
         requiredPutHeader: 'content-type',
         secretsReturned: false,
       },
+    };
+  }
+
+  async getBackstageFanMissions(user: AuthUser, query: AuditQuery) {
+    this.assertSuperAdmin(user);
+    const pagination = this.adminPagination(query);
+    const status = this.optionalString(query, 'status');
+    const surface = this.optionalString(query, 'surface');
+    const artistId = this.optionalString(query, 'artistId');
+    const slug = this.optionalString(query, 'slug');
+
+    if (status && !FAN_MISSION_STATUSES.has(status)) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_STATUS',
+        'Invalid fan mission status',
+        'admin.fanEngagement.mission.invalidStatus',
+        { allowed: [...FAN_MISSION_STATUSES] },
+      );
+    }
+
+    if (surface && !FAN_MISSION_SURFACES.has(surface)) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_SURFACE',
+        'Invalid fan mission surface',
+        'admin.fanEngagement.mission.invalidSurface',
+        { allowed: [...FAN_MISSION_SURFACES] },
+      );
+    }
+
+    if (artistId && !this.isUuid(artistId)) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_ARTIST_ID',
+        'artistId must be a UUID',
+        'admin.fanEngagement.mission.invalidArtistId',
+      );
+    }
+
+    const where: Prisma.FanMissionWhereInput = this.clean({
+      status,
+      artistId,
+      slug: slug ? { contains: slug, mode: 'insensitive' } : undefined,
+      OR: surface
+        ? [{ surfaces: { has: surface } }, { surfaces: { isEmpty: true } }]
+        : undefined,
+    });
+
+    const [rows, total] = await Promise.all([
+      this.prisma.fanMission.findMany({
+        where,
+        take: pagination.takeForQuery,
+        ...pagination.cursorArgs,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        include: BACKSTAGE_FAN_MISSION_INCLUDE,
+      }),
+      this.prisma.fanMission.count({ where }),
+    ]);
+    const page = this.paginated(rows, pagination.take);
+
+    return {
+      ...page,
+      items: page.items.map((mission) => this.backstageFanMission(mission)),
+      total,
+      policy: this.fanMissionNonCashPolicy(),
+      filters: {
+        status: status ?? null,
+        surface: surface ?? null,
+        artistId: artistId ?? null,
+        slug: slug ?? null,
+      },
+    };
+  }
+
+  async createBackstageFanMission(user: AuthUser, input: AdminPayload) {
+    this.assertSuperAdmin(user);
+    const data = await this.backstageFanMissionCreateData(input);
+    const existing = await this.prisma.fanMission.findUnique({
+      where: { slug: data.slug },
+      select: { id: true },
+    });
+
+    if (existing) {
+      throw this.adminConflict(
+        'FAN_MISSION_SLUG_EXISTS',
+        'Fan mission slug already exists',
+        'admin.fanEngagement.mission.slugExists',
+        { slug: data.slug },
+      );
+    }
+
+    const mission = await this.createFanMissionWithStableDuplicateError(data);
+
+    await this.recordAudit(
+      user,
+      'fan_mission.create',
+      'fan_mission',
+      mission.id,
+      null,
+      this.backstageFanMission(mission),
+      { policy: this.fanMissionNonCashPolicy() },
+    );
+
+    return {
+      mission: this.backstageFanMission(mission),
+      publicReadiness: this.fanMissionPublicReadiness(mission),
+      policy: this.fanMissionNonCashPolicy(),
+    };
+  }
+
+  async archiveBackstageFanMission(
+    user: AuthUser,
+    missionId: string,
+    input: AdminPayload,
+  ) {
+    this.assertSuperAdmin(user);
+
+    if (!this.isUuid(missionId)) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_ID',
+        'missionId must be a UUID',
+        'admin.fanEngagement.mission.invalidId',
+      );
+    }
+
+    const before = await this.prisma.fanMission.findUnique({
+      where: { id: missionId },
+      include: BACKSTAGE_FAN_MISSION_INCLUDE,
+    });
+
+    if (!before) {
+      throw this.adminNotFound(
+        'FAN_MISSION_NOT_FOUND',
+        'Fan mission not found',
+        'admin.fanEngagement.mission.notFound',
+      );
+    }
+
+    const nextStatus = this.optionalString(input, 'status') ?? 'archived';
+
+    if (!FAN_MISSION_ARCHIVE_STATUSES.has(nextStatus)) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_ARCHIVE_STATUS',
+        'Archive status must be inactive or archived',
+        'admin.fanEngagement.mission.invalidArchiveStatus',
+        { allowed: [...FAN_MISSION_ARCHIVE_STATUSES] },
+      );
+    }
+
+    const mission = await this.prisma.fanMission.update({
+      where: { id: missionId },
+      data: {
+        status: nextStatus,
+        updatedAt: new Date(),
+      },
+      include: BACKSTAGE_FAN_MISSION_INCLUDE,
+    });
+
+    await this.recordAudit(
+      user,
+      'fan_mission.archive',
+      'fan_mission',
+      mission.id,
+      this.backstageFanMission(before),
+      this.backstageFanMission(mission),
+      {
+        reason: this.optionalString(input, 'reason') ?? null,
+        policy: this.fanMissionNonCashPolicy(),
+      },
+    );
+
+    return {
+      mission: this.backstageFanMission(mission),
+      archived: mission.status === 'archived',
+      deactivated: mission.status === 'inactive',
+      policy: this.fanMissionNonCashPolicy(),
     };
   }
 
@@ -7335,6 +7555,492 @@ export class AdminService {
     ) {
       throw new ForbiddenException('Super admin access is required');
     }
+  }
+
+  private adminBadRequest(
+    code: string,
+    message: string,
+    messageKey: string,
+    details: AdminPayload = {},
+  ) {
+    return new BadRequestException({ code, message, messageKey, details });
+  }
+
+  private adminConflict(
+    code: string,
+    message: string,
+    messageKey: string,
+    details: AdminPayload = {},
+  ) {
+    return new ConflictException({ code, message, messageKey, details });
+  }
+
+  private adminNotFound(
+    code: string,
+    message: string,
+    messageKey: string,
+    details: AdminPayload = {},
+  ) {
+    return new NotFoundException({ code, message, messageKey, details });
+  }
+
+  private async backstageFanMissionCreateData(input: AdminPayload) {
+    const artistId = this.fanMissionOptionalUuid(
+      input,
+      'artistId',
+      'FAN_MISSION_INVALID_ARTIST_ID',
+      'admin.fanEngagement.mission.invalidArtistId',
+    );
+    const actionTargetId = this.fanMissionOptionalUuid(
+      input,
+      'actionTargetId',
+      'FAN_MISSION_INVALID_ACTION_TARGET_ID',
+      'admin.fanEngagement.mission.invalidActionTargetId',
+    );
+    const startsAt = this.fanMissionDate(input, 'startsAt');
+    const endsAt = this.fanMissionDate(input, 'endsAt');
+
+    if (endsAt <= startsAt) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_WINDOW',
+        'Fan mission endsAt must be after startsAt',
+        'admin.fanEngagement.mission.invalidWindow',
+      );
+    }
+
+    if (artistId) {
+      const artist = await this.prisma.artist.findUnique({
+        where: { id: artistId },
+        select: { id: true },
+      });
+
+      if (!artist) {
+        throw this.adminNotFound(
+          'FAN_MISSION_ARTIST_NOT_FOUND',
+          'Artist not found',
+          'admin.fanEngagement.mission.artistNotFound',
+        );
+      }
+    }
+
+    return {
+      artistId,
+      slug: this.fanMissionSlug(input),
+      missionType: this.fanMissionSafeKey(
+        input,
+        'missionType',
+        'FAN_MISSION_INVALID_TYPE',
+        'admin.fanEngagement.mission.invalidType',
+      ),
+      status: this.fanMissionStatus(input),
+      surfaces: this.fanMissionSurfaces(input),
+      resetPolicy: this.fanMissionResetPolicy(input),
+      actionType: this.fanMissionOptionalSafeKey(
+        input,
+        'actionType',
+        'FAN_MISSION_INVALID_ACTION_TYPE',
+        'admin.fanEngagement.mission.invalidActionType',
+      ),
+      actionTargetId,
+      rewardPolicy: this.toJson(this.fanMissionRewardPolicy(input)),
+      copy: this.toJson(this.fanMissionCopy(input)),
+      startsAt,
+      endsAt,
+    } satisfies Prisma.FanMissionUncheckedCreateInput;
+  }
+
+  private async createFanMissionWithStableDuplicateError(
+    data: Prisma.FanMissionUncheckedCreateInput,
+  ) {
+    try {
+      return await this.prisma.fanMission.create({
+        data,
+        include: BACKSTAGE_FAN_MISSION_INCLUDE,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw this.adminConflict(
+          'FAN_MISSION_SLUG_EXISTS',
+          'Fan mission slug already exists',
+          'admin.fanEngagement.mission.slugExists',
+          { slug: data.slug },
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  private backstageFanMission(mission: BackstageFanMission) {
+    return {
+      id: mission.id,
+      slug: mission.slug,
+      missionType: mission.missionType,
+      status: mission.status,
+      statusKey: `fanMission.status.${mission.status}`,
+      surfaces: mission.surfaces,
+      resetPolicy: mission.resetPolicy,
+      action: {
+        type: mission.actionType,
+        targetId: mission.actionTargetId,
+      },
+      artist: mission.artist
+        ? {
+            id: mission.artist.id,
+            slug: mission.artist.slug,
+            displayName: mission.artist.displayName,
+            status: mission.artist.status,
+          }
+        : null,
+      rewardPolicy: this.fanMissionRewardPolicyForResponse(mission.rewardPolicy),
+      copy: this.metadataObject(mission.copy),
+      startsAt: mission.startsAt,
+      endsAt: mission.endsAt,
+      createdAt: mission.createdAt,
+      updatedAt: mission.updatedAt,
+      policy: this.fanMissionNonCashPolicy(),
+    };
+  }
+
+  private fanMissionPublicReadiness(mission: BackstageFanMission) {
+    const now = new Date();
+    const homeEligible =
+      mission.status === 'active' &&
+      (mission.surfaces.length === 0 || mission.surfaces.includes('home')) &&
+      (!mission.startsAt || mission.startsAt <= now) &&
+      (!mission.endsAt || mission.endsAt > now);
+
+    return {
+      publicListEndpoint:
+        'GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=3',
+      homeTodayEligible: homeEligible,
+      warningKey: homeEligible ? null : 'admin.fanEngagement.mission.notHomeTodayEligible',
+      policy: this.fanMissionNonCashPolicy(),
+    };
+  }
+
+  private fanMissionNonCashPolicy() {
+    return { ...FAN_MISSION_NON_CASH_POLICY };
+  }
+
+  private fanMissionSlug(input: AdminPayload) {
+    const slug = this.fanMissionRequiredString(
+      input,
+      'slug',
+      'FAN_MISSION_SLUG_REQUIRED',
+      'admin.fanEngagement.mission.slugRequired',
+    ).toLowerCase();
+
+    if (!/^[a-z0-9][a-z0-9-]{2,80}$/.test(slug)) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_SLUG',
+        'Fan mission slug must be lowercase alphanumeric with hyphens',
+        'admin.fanEngagement.mission.invalidSlug',
+      );
+    }
+
+    return slug;
+  }
+
+  private fanMissionStatus(input: AdminPayload) {
+    const status = this.fanMissionRequiredString(
+      input,
+      'status',
+      'FAN_MISSION_STATUS_REQUIRED',
+      'admin.fanEngagement.mission.statusRequired',
+    );
+
+    if (!FAN_MISSION_STATUSES.has(status)) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_STATUS',
+        'Invalid fan mission status',
+        'admin.fanEngagement.mission.invalidStatus',
+        { allowed: [...FAN_MISSION_STATUSES] },
+      );
+    }
+
+    return status;
+  }
+
+  private fanMissionSurfaces(input: AdminPayload) {
+    const singleSurface = this.fanMissionOptionalString(
+      input,
+      'surface',
+      'FAN_MISSION_INVALID_SURFACE',
+      'admin.fanEngagement.mission.invalidSurface',
+    );
+    const surfaceList = this.fanMissionOptionalStringArray(
+      input,
+      'surfaces',
+      'FAN_MISSION_INVALID_SURFACES',
+      'admin.fanEngagement.mission.invalidSurfaces',
+    );
+    const surfaces = [...new Set([...surfaceList, ...(singleSurface ? [singleSurface] : [])])];
+
+    if (surfaces.length === 0) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_SURFACES',
+        'At least one fan mission surface is required',
+        'admin.fanEngagement.mission.invalidSurfaces',
+        { allowed: [...FAN_MISSION_SURFACES] },
+      );
+    }
+
+    const invalid = surfaces.filter((surface) => !FAN_MISSION_SURFACES.has(surface));
+
+    if (invalid.length > 0) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_SURFACE',
+        'Invalid fan mission surface',
+        'admin.fanEngagement.mission.invalidSurface',
+        { invalid, allowed: [...FAN_MISSION_SURFACES] },
+      );
+    }
+
+    return surfaces;
+  }
+
+  private fanMissionResetPolicy(input: AdminPayload) {
+    const resetPolicy = this.fanMissionRequiredString(
+      input,
+      'resetPolicy',
+      'FAN_MISSION_RESET_POLICY_REQUIRED',
+      'admin.fanEngagement.mission.resetPolicyRequired',
+    );
+    const [policy, value] = resetPolicy.split(':', 2);
+    const valid =
+      ['once', 'daily', 'weekly'].includes(resetPolicy) ||
+      (policy === 'season' && Boolean(value) && /^[a-z0-9][a-z0-9_-]{1,80}$/.test(value));
+
+    if (!valid) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_RESET_POLICY',
+        'Invalid fan mission reset policy',
+        'admin.fanEngagement.mission.invalidResetPolicy',
+        { examples: ['once', 'daily', 'weekly', 'season:qa-20260510-run1'] },
+      );
+    }
+
+    return resetPolicy;
+  }
+
+  private fanMissionRewardPolicy(input: AdminPayload) {
+    const rewardPolicy = this.object(input, 'rewardPolicy');
+
+    if (!rewardPolicy) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_REWARD_POLICY',
+        'rewardPolicy must be an object',
+        'admin.fanEngagement.mission.invalidRewardPolicy',
+      );
+    }
+
+    const points = Number(rewardPolicy.points ?? 0);
+
+    if (!Number.isInteger(points) || points < 0 || points > 1000) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_REWARD_POINTS',
+        'rewardPolicy.points must be an integer fan point amount',
+        'admin.fanEngagement.mission.invalidRewardPoints',
+      );
+    }
+
+    const forbiddenKey = this.firstForbiddenFanRewardKey(rewardPolicy);
+
+    if (forbiddenKey) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_CASH_LIKE_REWARD_FORBIDDEN',
+        'Fan mission rewards must remain non-cash fan engagement points',
+        'admin.fanEngagement.mission.cashLikeRewardForbidden',
+        { key: forbiddenKey },
+      );
+    }
+
+    return rewardPolicy;
+  }
+
+  private fanMissionRewardPolicyForResponse(value: Prisma.JsonValue) {
+    const rewardPolicy = this.metadataObject(value);
+    const points = Number(rewardPolicy.points ?? 0);
+
+    return {
+      ...rewardPolicy,
+      points: Number.isInteger(points) && points >= 0 ? points : 0,
+      policy: this.fanMissionNonCashPolicy(),
+    };
+  }
+
+  private fanMissionCopy(input: AdminPayload) {
+    const copy = this.object(input, 'copy');
+
+    if (!copy) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_COPY',
+        'copy must be an object with stable keys',
+        'admin.fanEngagement.mission.invalidCopy',
+      );
+    }
+
+    const requiredKeys = ['titleKey', 'descriptionKey', 'ctaKey', 'statusKey'];
+    const missing = requiredKeys.filter((key) => typeof copy[key] !== 'string' || !copy[key]);
+
+    if (missing.length > 0) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_COPY_KEYS_REQUIRED',
+        'Fan mission copy requires stable message keys',
+        'admin.fanEngagement.mission.copyKeysRequired',
+        { missing },
+      );
+    }
+
+    return copy;
+  }
+
+  private fanMissionSafeKey(
+    input: AdminPayload,
+    key: string,
+    code: string,
+    messageKey: string,
+  ) {
+    const value = this.fanMissionRequiredString(
+      input,
+      key,
+      code,
+      messageKey,
+    );
+
+    if (!/^[a-z][a-z0-9_:-]{1,80}$/.test(value)) {
+      throw this.adminBadRequest(code, `${key} must be a stable key`, messageKey);
+    }
+
+    return value;
+  }
+
+  private fanMissionOptionalSafeKey(
+    input: AdminPayload,
+    key: string,
+    code: string,
+    messageKey: string,
+  ) {
+    return input[key] === undefined
+      ? undefined
+      : this.fanMissionSafeKey(input, key, code, messageKey);
+  }
+
+  private fanMissionOptionalUuid(
+    input: AdminPayload,
+    key: string,
+    code: string,
+    messageKey: string,
+  ) {
+    const value = this.fanMissionOptionalString(input, key, code, messageKey);
+
+    if (value && !this.isUuid(value)) {
+      throw this.adminBadRequest(code, `${key} must be a UUID`, messageKey);
+    }
+
+    return value;
+  }
+
+  private fanMissionRequiredString(
+    input: AdminPayload,
+    key: string,
+    code: string,
+    messageKey: string,
+  ) {
+    const value = input[key];
+
+    if (typeof value !== 'string' || !value.trim()) {
+      throw this.adminBadRequest(code, `${key} must be a non-empty string`, messageKey);
+    }
+
+    return value.trim();
+  }
+
+  private fanMissionOptionalString(
+    input: AdminPayload,
+    key: string,
+    code: string,
+    messageKey: string,
+  ) {
+    const value = input[key];
+
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (typeof value !== 'string' || !value.trim()) {
+      throw this.adminBadRequest(code, `${key} must be a non-empty string`, messageKey);
+    }
+
+    return value.trim();
+  }
+
+  private fanMissionOptionalStringArray(
+    input: AdminPayload,
+    key: string,
+    code: string,
+    messageKey: string,
+  ) {
+    const value = input[key];
+
+    if (value === undefined) {
+      return [];
+    }
+
+    if (
+      !Array.isArray(value) ||
+      value.some((item) => typeof item !== 'string' || !item.trim())
+    ) {
+      throw this.adminBadRequest(code, `${key} must be an array of strings`, messageKey);
+    }
+
+    return value.map((item) => item.trim());
+  }
+
+  private fanMissionDate(input: AdminPayload, key: string) {
+    const value = input[key];
+    const date = new Date(String(value));
+
+    if (!value || Number.isNaN(date.getTime())) {
+      throw this.adminBadRequest(
+        'FAN_MISSION_INVALID_DATE',
+        `${key} must be a valid date`,
+        'admin.fanEngagement.mission.invalidDate',
+        { field: key },
+      );
+    }
+
+    return date;
+  }
+
+  private firstForbiddenFanRewardKey(value: unknown): string | null {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((item) => this.firstForbiddenFanRewardKey(item)).find(Boolean) ?? null;
+    }
+
+    for (const [key, nestedValue] of Object.entries(value)) {
+      const normalized = key.toLowerCase();
+
+      if (FAN_MISSION_FORBIDDEN_REWARD_KEYS.includes(normalized)) {
+        return key;
+      }
+
+      const nested = this.firstForbiddenFanRewardKey(nestedValue);
+
+      if (nested) {
+        return nested;
+      }
+    }
+
+    return null;
   }
 
   private assertNotSelf(user: AuthUser, targetUserId: string) {

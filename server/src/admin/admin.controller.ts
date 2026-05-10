@@ -77,6 +77,34 @@ export class AdminController {
     return this.adminService.getBackstageObjectStorageDiagnostics();
   }
 
+  @Get('backstage/fan-engagement/missions')
+  @RequireAdminPermissions('*')
+  getBackstageFanMissions(
+    @CurrentUser() user: AuthUser,
+    @Query() query: AuditQuery,
+  ) {
+    return this.adminService.getBackstageFanMissions(user, query);
+  }
+
+  @Post('backstage/fan-engagement/missions')
+  @RequireAdminPermissions('*')
+  createBackstageFanMission(
+    @CurrentUser() user: AuthUser,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.createBackstageFanMission(user, body);
+  }
+
+  @Post('backstage/fan-engagement/missions/:missionId/archive')
+  @RequireAdminPermissions('*')
+  archiveBackstageFanMission(
+    @CurrentUser() user: AuthUser,
+    @Param('missionId') missionId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.archiveBackstageFanMission(user, missionId, body);
+  }
+
   @Post('backstage/operations/qa/creator-settlement-revenue')
   @RequireAdminPermissions('*')
   createBackstageQaCreatorSettlementRevenue(

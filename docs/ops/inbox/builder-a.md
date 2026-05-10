@@ -899,3 +899,59 @@ blocked_by:
 next_needed:
 - Re-run this task after safe local/staging execution handles are available.
 - QA2-005 live submit smoke remains blocked until a QA mission is created and `GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=3` returns the QA mission.
+
+---
+
+status: completed
+task: BA-008 backstage fan mission management API
+branch/commit: team2-backend/ba-008-backstage-fan-mission-management-api / this commit
+changed_files:
+- server/src/admin/admin.controller.ts
+- server/src/admin/admin.service.ts
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Added super-admin-only Backstage fan mission management endpoints:
+  - GET /admin/api/v1/backstage/fan-engagement/missions
+  - POST /admin/api/v1/backstage/fan-engagement/missions
+  - POST /admin/api/v1/backstage/fan-engagement/missions/:missionId/archive
+- Permission model: routes require `@RequireAdminPermissions('*')`, and service methods also call `assertSuperAdmin(user)`.
+- Create validates slug/status/surface/resetPolicy/date window/copy/rewardPolicy with stable `code` and `messageKey` errors.
+- Duplicate slug returns stable `FAN_MISSION_SLUG_EXISTS` with `admin.fanEngagement.mission.slugExists`.
+- Reward policy remains fan engagement only: integer `points`, no WalletAccount/WalletLedger/Lumina/settlement/payout/revenue/paid-like coupling, and responses include `cashLike:false`, `luminaAmount:0`, `settlementEligible:false`, `transferable:false`.
+- No frontend files changed. No schema or migration added. No seed/data injection added.
+sample_non_secret_create_body:
+```json
+{
+  "slug": "qa-home-submit-20260510-run1",
+  "missionType": "qa_submit_smoke",
+  "status": "active",
+  "surfaces": ["home"],
+  "resetPolicy": "season:qa-20260510-run1",
+  "rewardPolicy": { "points": 1 },
+  "copy": {
+    "titleKey": "fanMission.qaSubmit.title",
+    "descriptionKey": "fanMission.qaSubmit.description",
+    "ctaKey": "fanMission.qaSubmit.cta",
+    "statusKey": "fanMission.status.active"
+  },
+  "startsAt": "set to now minus 5 minutes",
+  "endsAt": "set to now plus 2 hours"
+}
+```
+archive_or_deactivate:
+- Archive: POST /admin/api/v1/backstage/fan-engagement/missions/:missionId/archive with `{ "status": "archived", "reason": "qa-smoke-complete" }`.
+- Deactivate without archive: POST the same endpoint with `{ "status": "inactive", "reason": "qa-smoke-paused" }`.
+qa2_005_gate:
+- QA2-005 can open after deploy once a super-admin creates a QA mission through this API and confirms it appears in `GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=3`.
+- If more than three active home missions crowd the public list, archive/deactivate only older QA-only missions; do not alter real missions.
+blocked_by:
+- none for backend implementation.
+next_needed:
+- Merge/deploy BA-008.
+- Create one QA-only mission through the admin API.
+- Record mission id, slug, and reset policy only; do not record secrets/tokens/cookies.
+- Re-run QA2-005 live submit smoke.
