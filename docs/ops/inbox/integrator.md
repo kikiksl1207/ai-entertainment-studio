@@ -194,6 +194,35 @@ blocked_by:
 - none
 next_needed:
 - Push main.
+
+---
+
+status: done
+task: Close Fan Engagement Home Teaser Phase 1 QA PASS
+branch/commit: main / pending
+qa_branch:
+- team2-qa/fan-engagement-home-teaser-smoke
+qa_commit:
+- d6fc223581370ccfb196aa3e3e0dd3e01cc7c4f6
+main_basis:
+- f94ffd2
+changed_files:
+- docs/ops/board.md
+- docs/ops/tasks/closed/BB-004-fan-engagement-home-teaser-phase-1.md
+- docs/ops/tasks/open/BB-005-fan-engagement-home-teaser-real-get.md
+- docs/ops/inbox/integrator.md
+- docs/ops/inbox/team2-qa.md
+tests:
+- git diff --check
+result:
+- Phase 1 Home teaser QA PASS recorded and closed.
+- QA confirmed teaser section, 3 mission cards, Korean copy, no raw enum/key leakage, CTA disabled, zero mutation/API submit, responsive desktop/mobile/narrow layout, and no Home section regression.
+- Frontend mutation gate remains active.
+- Next frontend task opened as BB-005: Home teaser real read-only GET only.
+blocked_by:
+- none for Phase 1 closure.
+next_needed:
+- Assign BB-005 to Builder B.
 - Keep frontend mutation wiring gated to a separate frontend implementation task/review; do not rely on API error rendering until BA-004 is resolved.
 
 ---
