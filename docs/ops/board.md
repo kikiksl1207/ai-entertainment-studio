@@ -1,6 +1,6 @@
 # Lumina Stage Ops Board
 
-Updated: 2026-05-07
+Updated: 2026-05-10
 Leader: Chamo
 
 ## Today Focus
@@ -11,9 +11,9 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 
 | ID | Owner | Status | Task |
 | --- | --- | --- | --- |
-| RV-002 | Reviewer | open | Review wallet adjustment controls already on main (`6e1c720`) before rollout confidence |
-| BA-002 | Builder A | open | Design backend contract for the 1st fan engagement loop |
-| BB-002 | Builder B | open | Map the 1st fan engagement loop to existing pages and minimal UI surfaces |
+| BA-003 | Builder A | open | Prepare backend implementation plan for the reconciled fan engagement contract |
+| BA-004 | Builder A | open | Add stable messageKey coverage for fan engagement error responses |
+| BB-003 | Builder B | open | Prepare frontend implementation map; Home read-only/mock teaser first, no mutations before Backend First PR |
 | IN-002 | Integrator | waiting | Integrate BA/BB/RV outputs after branches are ready |
 | QA2-001 | Team2 QA | open | Smoke-test live product flows and report reproducible blockers |
 | BE2-001 | Team2 Backend | open | Investigate backend/API causes for QA blockers without touching fan loop design |
@@ -33,12 +33,18 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 
 ## Priority Today
 
-1. Review wallet adjustment safety before relying on it in production operations.
-2. Split the 20-item PM review into an implementable 1st fan engagement loop.
-3. Team2 checks current product QA blockers while Team1 designs the next loop.
-4. Keep image upload/R2 diagnostics and Creator Studio access from regressing.
-5. Run lint/build on any branch that changes backend contracts.
-6. Treat mobile layout and localization/mojibake checks as always-on acceptance criteria.
+1. Split the reconciled fan engagement contract into backend and frontend implementation plans.
+2. Team2 checks current product QA blockers while Team1 plans the next loop.
+3. Keep image upload/R2 diagnostics and Creator Studio access from regressing.
+4. Run lint/build on any branch that changes backend contracts.
+5. Treat mobile layout and localization/mojibake checks as always-on acceptance criteria.
+6. Run one safe live wallet adjustment smoke after a safe Backstage admin account and safe QA wallet are available.
+
+## Implementation Locks
+
+- Builder B may plan the first frontend slice as `index.html` Home read-only/mock teaser only.
+- Frontend submit/API mutation wiring is locked until the Backend First PR is complete and reviewed.
+- RV-003 returned Reviewer PASS for `origin/team2-backend/fan-engagement-first-pr`; Integrator may merge only after the required gate checks pass.
 
 ## Do Not Do Today
 

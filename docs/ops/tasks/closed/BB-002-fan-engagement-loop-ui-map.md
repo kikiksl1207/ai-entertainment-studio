@@ -1,7 +1,7 @@
 # BB-002 - 1st Fan Engagement Loop UI Map
 
 Owner: Builder B / Frontend
-Status: open
+Status: closed
 Priority: P1
 
 ## Context
@@ -58,3 +58,28 @@ If you make a code patch, keep it narrow and run:
 - `node --check backstage.js`
 - parse any changed inline scripts with Node Function constructor if editing HTML inline scripts.
 - `git diff --check`
+
+## Leader Reconciliation
+
+Use `docs/ops/fan-engagement-reconciled-contract.md` as the canonical V1 contract before UI skeleton or API wiring.
+
+Endpoint replacements:
+
+- `daily-missions?surface=home` -> `GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=3`.
+- `missions/:missionId/complete` -> `POST /api/v1/fan-engagement/missions/:missionId/participations`.
+- `concept-votes/:voteId/options/:optionId` -> `POST /api/v1/fan-engagement/concept-votes/:voteId/ballots`.
+- `me/achievements` or `me/fan-engagement/summary` conflict -> use `GET /api/v1/me/fan-engagement/summary`.
+- Creator Studio `fan-engagement/tasks` -> use `GET /api/v1/me/creator-studio/today-tasks`; mutate source proposal/draft endpoints.
+
+I18n rule:
+
+- UI should render Korean from stable label keys and local fallback maps.
+- Do not show raw enum keys or English-only backend copy to users.
+
+## Closure
+
+Closed on 2026-05-10 after the BA/BB contract was reconciled in `docs/ops/fan-engagement-reconciled-contract.md`.
+
+Next frontend task:
+
+- `docs/ops/tasks/open/BB-003-fan-engagement-frontend-implementation-map.md`

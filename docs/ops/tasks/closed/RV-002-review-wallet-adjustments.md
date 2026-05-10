@@ -1,7 +1,7 @@
 # RV-002 - Review Backstage Wallet Adjustment Controls
 
 Owner: Reviewer
-Status: open
+Status: closed
 Priority: P0
 
 ## Context
@@ -45,6 +45,24 @@ If no blocking findings, say that clearly and list residual rollout risks.
 - `npm.cmd run build` in `server/`
 - `node --check backstage.js`
 - `git diff --check origin/main~1..origin/main`
+
+## Closure
+
+Closed on 2026-05-10 after RV-002 re-review.
+
+Resolved:
+
+- P0 wallet debit concurrency: resolved.
+- P1 empty-note wallet adjustment execution: resolved.
+- Backstage confirmation UI desktop/mobile/narrow: PASS.
+- Empty note state does not call the API: PASS.
+
+Caveat:
+
+- Live server mutation and insufficient-balance debit smoke were not executed because this session did not have a safe Backstage admin account and safe QA wallet.
+- Before production reliance, run one live smoke with a safe QA wallet: direct note credit/debit, insufficient-balance debit failure, and no negative balance.
+
+No secrets or sensitive values were recorded. No real wallet adjustment was executed during review.
 
 ## Do Not
 

@@ -138,3 +138,40 @@ blocked_by:
 - none for mapping; implementation still depends on Builder A response shapes.
 next_needed:
 - Push this branch and have Integrator/Builder A review endpoint names before UI skeleton work starts.
+
+---
+
+status: reconciled
+task: BB-002 contract reconciliation follow-up
+branch/commit: team2-qa/backstage-wallet-adjustment-qa / this reconciliation commit
+changed_files:
+- docs/ops/fan-engagement-reconciled-contract.md
+result:
+- Leader reconciled BB-002 with BA-002 in `docs/ops/fan-engagement-reconciled-contract.md`.
+- Replace `GET /api/v1/fan-engagement/daily-missions?surface=home` with `GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=3`.
+- Replace `POST /api/v1/fan-engagement/missions/:missionId/complete` with `POST /api/v1/fan-engagement/missions/:missionId/participations`.
+- Replace `POST /api/v1/fan-engagement/concept-votes/:voteId/options/:optionId` with `POST /api/v1/fan-engagement/concept-votes/:voteId/ballots`.
+- Use `GET /api/v1/me/fan-engagement/summary` for MyPage points, achievements, titles, and recent participation.
+- Use `GET /api/v1/me/creator-studio/today-tasks` for Creator Studio queues; actions mutate the source proposal/draft endpoints, not task IDs.
+- Frontend must map stable label keys to Korean copy and must not render raw enum keys or English-only backend copy.
+next_needed:
+- Update any future UI skeleton against the reconciled endpoints before wiring API calls.
+
+---
+
+status: locked
+task: BB-003 frontend implementation lock
+branch/commit: team2-qa/backstage-wallet-adjustment-qa / this lock commit
+changed_files:
+- docs/ops/tasks/open/BB-003-fan-engagement-frontend-implementation-map.md
+- docs/ops/board.md
+- docs/ops/inbox/builder-b.md
+- docs/ops/inbox/integrator.md
+result:
+- Leader approved Builder B planning only under the condition that the first slice is `index.html` Home read-only/mock teaser.
+- Frontend must not wire submit behavior or API mutations until the Backend First PR is complete and reviewed.
+- Before Backend First PR, Builder B may plan placement, static/mock data shape, loading/empty/error states, mobile behavior, and Korean/i18n fallback only.
+blocked_by:
+- Backend First PR is required before frontend mutation wiring.
+next_needed:
+- Builder B should keep BB-003 as a planning task and explicitly mark mutation wiring as blocked.
