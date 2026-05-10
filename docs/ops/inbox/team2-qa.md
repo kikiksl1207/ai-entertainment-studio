@@ -1,64 +1,72 @@
 # Team2 QA Inbox
 
-status: fail
-task: QA2-001 - feed image upload pipeline final recheck
+status: pass
+task: QA2-001 - feed image sharp runtime binding fix recheck
 environment:
-- branch: team2-qa/feed-image-pipeline-final-recheck
+- branch: team2-qa/feed-image-sharp-runtime-recheck
 - local main after pull: origin/main
-- expected deployed commit from request: 1d60b9d1458da139884ac9ff46ee085d2efe11a4
-- /health actual commit: 174854a3186d9f599780645da4b007229e3ebe5a
+- health actual commit: 8f660647f9fee8960a0c7b3a824665e4c410345c
 - frontend: https://www.lumina-stage.com
 - backend: https://api.lumina-stage.com
-- No passwords, tokens, cookies, signed URL full values, direct upload target URLs, or env values were recorded.
+- No signed URL, direct upload URL, object URL, token, cookie, password, env value, or S3 credential was recorded.
 
 tested_flows:
-- FAIL: `/health` responds, but reports commit `174854a3186d9f599780645da4b007229e3ebe5a` instead of requested commit `1d60b9d1458da139884ac9ff46ee085d2efe11a4`.
-- PASS: `/api/v1/app/bootstrap` returns `userImageUpload.maxBytes = 20971520` and `userImageUpload.maxMegabytes = 20`.
-- FAIL: 1MB 이하 image pipeline. `upload-intent` returned 201 and S3 PUT returned 200, but `confirm-upload` failed.
-- FAIL: 14MB near image pipeline. `upload-intent` returned 201 and S3 PUT returned 200, but `confirm-upload` failed.
-- PASS: 20MB 초과 image is blocked before upload completion with a clear UI message: `이미지가 너무 큽니다. 20MB 이하 이미지를 올려주세요.`
-- PASS: 20MB 초과 API attempt is rejected at `upload-intent` with 413.
-- FAIL: Feed post creation could not be completed for 1MB 이하 or 14MB image cases because `confirm-upload` failed before post submission.
-- FAIL: Feed card image display for newly uploaded images could not be verified because no image post was created.
-- FAIL: Image click lightbox for newly uploaded images could not be verified because no image post was created.
-- FAIL: Feed API display/thumbnail variant URL for newly uploaded images could not be verified because no image post was created.
+- PASS: `/health` responds 200 and reports commit `8f660647f9fee8960a0c7b3a824665e4c410345c`.
+- PASS: under 1MB image `upload-intent` returned 201.
+- PASS: under 1MB image S3 PUT returned 200.
+- PASS: under 1MB image `confirm-upload` returned 201.
+- PASS: under 1MB feed post creation returned 201.
+- PASS: under 1MB Feed API returned display/thumbnail variant public asset URLs.
+- PASS: under 1MB feed card image displayed in browser.
+- PASS: under 1MB image lightbox opened and displayed the image.
+- PASS: near 14MB image `upload-intent` returned 201.
+- PASS: near 14MB image S3 PUT returned 200.
+- PASS: near 14MB image `confirm-upload` returned 201.
+- PASS: near 14MB feed post creation returned 201.
+- PASS: near 14MB Feed API returned display/thumbnail variant public asset URLs.
+- PASS: near 14MB feed card image displayed in browser.
+- PASS: near 14MB image lightbox opened and displayed the image.
+- PASS: over 20MB frontend block remains active; the browser UI showed a 20MB limit message after file selection.
+- PASS: over 20MB API block remains active; `upload-intent` returned 413.
 
-failures:
-- 1MB 이하 image: stage `confirm-upload`, requestId `18457c9c-cf5c-4182-be2f-b22923fea481`, sanitized reason `FEED_IMAGE_DERIVATIVE_FAILED`.
-- 14MB near image: stage `confirm-upload`, requestId `8b73b903-21b1-4aa0-bf5e-e111a8dea36a`, sanitized reason `FEED_IMAGE_DERIVATIVE_FAILED`.
-- 20MB 초과 image: stage `upload-intent`, requestId `8e416d36-f49c-405d-9d06-5dc3530c3678`, sanitized reason `PAYLOAD_TOO_LARGE`.
-
-blockers:
-- P0 backend: `confirm-upload` fails after successful upload-intent and S3 PUT for valid feed images, so users cannot complete image feed post creation.
-- P1 deployment verification: `/health` actual commit does not match the requested deployed commit for this recheck.
+observed_20mb_api_block:
+- HTTP status: 413
+- code: `PAYLOAD_TOO_LARGE`
+- details.stage: null
+- details.requestId: null
+- details.reason: null
 
 repro_steps:
 1. Run `git pull origin main`.
-2. Open `https://api.lumina-stage.com/health`.
-3. Observe `/health` actual commit `174854a3186d9f599780645da4b007229e3ebe5a`, not requested commit `1d60b9d1458da139884ac9ff46ee085d2efe11a4`.
-4. Log in to `https://www.lumina-stage.com/login.html` with the prepared regular QA user.
-5. Request `https://api.lumina-stage.com/api/v1/app/bootstrap`.
-6. Confirm `userImageUpload.maxBytes` is `20971520` and `userImageUpload.maxMegabytes` is `20`.
-7. Open `https://www.lumina-stage.com/lumina-feed.html`.
-8. Select a 1MB 이하 image and start feed image upload.
-9. Observe `upload-intent` returns 201.
-10. Observe S3 PUT returns 200.
-11. Observe `confirm-upload` returns 400 with sanitized reason `FEED_IMAGE_DERIVATIVE_FAILED`.
-12. Repeat steps 8-11 with a 14MB near image.
-13. Select a 20MB 초과 image in the browser UI.
-14. Observe the UI blocks the upload with the clear 20MB limit message.
-15. Attempt the 20MB 초과 API path.
-16. Observe `upload-intent` returns 413 with sanitized reason `PAYLOAD_TOO_LARGE`.
+2. Open `/health`.
+3. Confirm commit `8f660647f9fee8960a0c7b3a824665e4c410345c`.
+4. Sign in with a regular QA user.
+5. For an under 1MB JPEG, call `POST /api/v1/me/assets/upload-intents`.
+6. Observe 201.
+7. PUT the same image to the returned upload target without recording the target URL.
+8. Observe S3 PUT 200.
+9. Call `POST /api/v1/me/assets/:assetId/confirm-upload`.
+10. Observe 201.
+11. Create a feed post with the confirmed asset.
+12. Observe feed post creation 201.
+13. Open `lumina-feed.html` as the same user.
+14. Observe the new feed card image is visible and loaded.
+15. Click the image.
+16. Observe the lightbox opens and the lightbox image is visible and loaded.
+17. Repeat steps 5-16 with a near 14MB JPEG.
+18. In the browser feed composer, select an over 20MB image file.
+19. Observe the frontend blocks it and shows a 20MB limit message.
+20. Call `POST /api/v1/me/assets/upload-intents` with the over 20MB file metadata.
+21. Observe 413 with code `PAYLOAD_TOO_LARGE`.
 
-screenshots_or_notes:
-- Signed URL full values were intentionally not logged or written.
-- Direct upload target URLs were intentionally not logged or written.
-- Passwords, tokens, cookies, and env values were intentionally not logged or written.
-- No Lumina balance or other production data changes were performed.
+notes:
+- The under 1MB test file size was 422,924 bytes.
+- The near 14MB test file size was 14,576,926 bytes.
+- The over 20MB test file size was 22,020,608 bytes.
+- Direct upload targets, signed delivery URLs, and object URLs were intentionally not logged or written.
+- No production Lumina balance changes were performed.
 
-suspected_owner: backend
+suspected_owner: none
 
 next_needed:
-- Confirm why stage `/health` is not reporting the requested commit.
-- Fix derivative generation during `confirm-upload`.
-- Re-run feed post creation, card image display, lightbox, and display/thumbnail variant URL checks after `confirm-upload` succeeds.
+- No blocker found in the requested feed image pipeline scope.
