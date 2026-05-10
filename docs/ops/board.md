@@ -11,6 +11,7 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 
 | ID | Owner | Status | Task |
 | --- | --- | --- | --- |
+| BA-008 | Builder A / Backend | open | Add minimal Backstage fan mission management API |
 | IN-005 | Integrator / Operator | blocked | Provide safe QA environment handoff for fan engagement submit smoke |
 | OP-001 | Leader / Operator | open | Provide private fan engagement QA handoff inputs without exposing secrets |
 | BA-003 | Builder A | open | Prepare backend implementation plan for the reconciled fan engagement contract |
@@ -69,6 +70,10 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 - OP-001 is the required private handoff request. Once OP-001 provides either a
   safe staging/local env path, a staging API/admin path, or manual non-secret QA
   mission details, IN-005 can resume and then QA2-005 can open.
+- BA-008 is now the forward path if no private DB/API handoff is available:
+  create a super-admin-only minimal Backstage API to list/create/archive fan
+  missions so QA missions can be created through product infrastructure instead
+  of ad hoc DB access.
 - BB-006 confirmed the frontend plan is ready, but Builder B must wait. Do not
   enable mission participation submit, concept vote ballot submit, fan proposal
   submit, title equip, Creator Studio mutation, Backstage mutation, or

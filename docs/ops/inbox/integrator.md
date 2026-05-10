@@ -249,6 +249,29 @@ next_needed:
 
 ---
 
+status: done
+task: Open BA-008 Backstage fan mission management API
+branch/commit: main / pending
+result:
+- Opened BA-008 as the forward development path because raw DB/API handoff is
+  not available and asking the Leader to shuttle secrets is not acceptable.
+- BA-008 asks Backend to add a minimal super-admin Backstage/admin API for
+  listing, creating, and archiving fan missions.
+- This should let the team create QA-only active missions through product
+  infrastructure instead of ad hoc DB access.
+- Frontend submit remains blocked.
+changed_files:
+- docs/ops/board.md
+- docs/ops/tasks/open/BA-008-backstage-fan-mission-management-api.md
+- docs/ops/inbox/integrator.md
+next_needed:
+- Assign BA-008 to Builder A / Backend.
+- Do not assign frontend submit work yet.
+- After BA-008 deploy, create QA mission through the admin path, then open
+  QA2-005.
+
+---
+
 status: no-go
 task: IN-004 - Fan Engagement Submit Hardening Gate
 branch/commit: main / pending
