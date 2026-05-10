@@ -62,6 +62,57 @@ security_check:
 
 ---
 
+status: partial pass; live logged-in mutation blocked
+task: QA2-004 - Fan engagement mission submit live smoke
+branch/commit:
+- branch: team2-qa/QA2-004-fan-engagement-submit-live-smoke
+- local main after pull: origin/main
+- basis commit: 8c24969a750a6fa765c56c3b570bdb92da16b0a8
+- tested backend health commit: 8c24969a750a6fa765c56c3b570bdb92da16b0a8
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: read `docs/ops/tasks/open/QA2-004-fan-engagement-submit-live-smoke.md`.
+- PASS: read `docs/ops/fan-engagement-reconciled-contract.md`.
+- PASS: read `docs/ops/board.md`.
+- PASS: read `docs/ops/inbox/builder-a.md`.
+- PASS: `/health` returned expected commit `8c24969a750a6fa765c56c3b570bdb92da16b0a8`.
+- PASS: logged-out submit probe to `POST /api/v1/fan-engagement/missions/:missionId/participations` returned HTTP 401 with `code=AUTH_REQUIRED`; no auth token/cookie was sent.
+- PASS: public read-only `GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=20` returned HTTP 200 with `items: 0`; no safe QA mission was exposed publicly.
+- PASS: repo scan found no production-safe QA mission creation endpoint or fixture; only BA-006 manual runbook exists.
+- PASS: no concept vote ballot submit was executed.
+- PASS: no frontend submit implementation was changed.
+- PASS: `git diff --check`.
+result:
+- Logged-out/no-mutation smoke passed for `AUTH_REQUIRED`.
+- Logged-in live mutation smoke was not executed because safe QA prerequisites were not available in this workspace/session.
+- Safe QA account: blocked. `.env.local` was not present in repo root or parent workspace path, and the current process did not have `QA_USER_EMAIL` / `QA_USER_PASSWORD` environment variables. No password/token/cookie/env value was printed or recorded.
+- Safe active QA mission: blocked. Live read-only mission list returned `items: 0`; no `qa-*`, smoke, or test mission slug was available to select.
+- Reset bucket isolation: blocked. No live mission was available to confirm a `season:qa-*` isolated reset bucket.
+- First submit accepted participation: not run.
+- Same idempotency key + same body replay: not run.
+- Same idempotency key + changed `sourceType`/`sourceId` mismatch: not run.
+- New key in same reset bucket duplicate behavior: not run.
+- Logged-in invalid UUID -> `INVALID_UUID`: not run because safe QA credentials were unavailable.
+- Inactive/expired QA mission -> `MISSION_NOT_ACTIVE`: not run because no inactive/expired QA mission was provided.
+- Fan points isolation: not mutated. Contract/BA-006 review still indicates fan points must use `fan_engagement_point_ledger` only, with non-cash flags.
+- Lumina wallet / settlement / payout / paid-like: no mutation request was sent, and no related endpoint was called.
+- Phase 3B frontend submit should remain closed until QA2-004 can run with an explicit safe QA account, safe active QA mission, and isolated reset bucket.
+blocked_by:
+- Missing `.env.local` / QA credential source in the current workspace/session.
+- Missing safe active QA mission in live read-only mission list.
+- Missing explicit reset bucket evidence for a live QA mission.
+next_needed:
+- Provide or provision a safe QA user credential source in the workspace/session without exposing secrets.
+- Provide a QA-only active mission visible to that QA user, preferably with `resetPolicy=season:qa-YYYYMMDD-runN`, `rewardPolicy={"points":1}`, and a short QA window.
+- Re-run QA2-004 logged-in mutation matrix after those prerequisites are available.
+security_check:
+- PASS: no token, cookie, password, env value, signed URL, or secret was recorded.
+- PASS: no logged-in live mission mutation was executed.
+- PASS: no wallet, settlement, payout, Lumina, paid-like, Creator Studio, Backstage, title equip, fan proposal, or concept vote ballot mutation was executed.
+
+---
+
 status: blocked for live mutation; readiness matrix complete
 task: QA2-003 - Fan engagement submit readiness QA
 branch/commit:
