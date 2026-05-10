@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import sharp from 'sharp';
+import * as sharp from 'sharp';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -985,8 +985,8 @@ export class UserAssetsService {
   private safeSharpDiagnostics() {
     const sharpModule = sharp as unknown as {
       versions?: Record<string, string | undefined>;
-    };
-    const versions = sharpModule.versions ?? {};
+    } | undefined;
+    const versions = sharpModule?.versions ?? {};
 
     return {
       sharp: versions.sharp ?? null,
