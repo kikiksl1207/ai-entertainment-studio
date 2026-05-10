@@ -197,6 +197,52 @@ next_needed:
 
 ---
 
+status: no-go
+task: IN-004 - Fan Engagement Submit Hardening Gate
+branch/commit: main / pending
+qa_branch:
+- origin/team2-qa/QA2-004-fan-engagement-submit-live-smoke
+qa_commit:
+- da45831 docs: record QA2-004 submit smoke
+backend_merge:
+- 8c24969 Merge fan engagement submit hardening
+decision:
+- Phase 3B frontend submit implementation remains blocked.
+evidence:
+- BA-006 hardening is merged and deployed at `8c24969`.
+- QA2-004 confirmed `/health` returned `8c24969a750a6fa765c56c3b570bdb92da16b0a8`.
+- Logged-out submit probe returned HTTP 401 with `code=AUTH_REQUIRED`.
+- Live mission list returned HTTP 200 with `items: 0`.
+- Logged-in live mutation was not executed.
+- First submit, idempotency replay, idempotency mismatch, duplicate submit, and fan point ledger smoke were not run.
+- No sensitive values were recorded.
+- No wallet, Lumina, settlement, payout, paid-like, Creator Studio, Backstage, title equip, fan proposal, or concept vote ballot mutation was executed.
+blocked_by:
+- Missing safe QA user credential source in the current workspace/session.
+- Missing `QA_USER_EMAIL` / `QA_USER_PASSWORD` in the current workspace/session.
+- Missing safe active QA mission.
+- Missing isolated reset bucket evidence for a live QA mission.
+closed_tasks:
+- BA-006
+- QA2-004
+- IN-004
+opened_tasks:
+- BA-007
+still_forbidden:
+- Frontend Phase 3B submit implementation.
+- Mission participation submit UI enablement.
+- Concept vote ballot submit.
+- Fan proposal submit.
+- Title equip.
+- Creator Studio / Backstage mutation.
+- Wallet / Lumina / settlement / payout / paid-like connection.
+tests:
+- git diff --check
+next_needed:
+- Builder A should prepare a safe QA user path, safe active QA mission, and isolated reset bucket before QA opens another logged-in live submit smoke.
+
+---
+
 status: done
 task: IN-003 fan engagement submit readiness gate
 branch/commit: ops/fan-engagement-phase-3a-nogo-followups / pending

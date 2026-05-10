@@ -1,7 +1,7 @@
 # QA2-004 - Fan Engagement Mission Submit Live Smoke
 
 Owner: Team2 QA
-Status: waiting
+Status: closed
 Priority: P1
 
 ## Context
@@ -75,3 +75,35 @@ secrets.
 ## Completion Note
 
 Use the standard completion note from `docs/ops/agents.md`.
+
+## Closure
+
+Closed on 2026-05-10 as partial pass / blocked.
+
+QA branch:
+
+- `origin/team2-qa/QA2-004-fan-engagement-submit-live-smoke`
+- commit `da45831 docs: record QA2-004 submit smoke`
+
+Backend deploy verified:
+
+- `/health` returned `8c24969a750a6fa765c56c3b570bdb92da16b0a8`
+
+PASS:
+
+- Logged-out submit probe returned HTTP 401 with `code=AUTH_REQUIRED`.
+- No auth token, cookie, password, env value, or secret was recorded.
+- No logged-in live mission mutation was executed.
+- No wallet, Lumina, settlement, payout, paid-like, Creator Studio, Backstage, title equip, fan proposal, or concept vote ballot mutation was executed.
+
+Blocked:
+
+- No safe QA user credential source was available in the workspace/session.
+- `QA_USER_EMAIL` / `QA_USER_PASSWORD` were not available.
+- No safe active QA mission was available.
+- Live mission list returned `items: 0`.
+- First submit, idempotency replay, duplicate submit, and fan point ledger smoke were not run.
+
+Decision:
+
+- Phase 3B frontend submit implementation remains blocked.

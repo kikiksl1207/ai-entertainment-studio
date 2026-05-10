@@ -11,9 +11,7 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 
 | ID | Owner | Status | Task |
 | --- | --- | --- | --- |
-| BA-006 | Builder A | open | Harden fan engagement mission submit before frontend enablement |
-| QA2-004 | Team2 QA | waiting | Live mission submit smoke after BA-006 and safe QA data are available |
-| IN-004 | Integrator | waiting | Gate fan engagement submit Phase 3B after BA-006 and QA2-004 |
+| BA-007 | Builder A | open | Prepare safe QA user, active QA mission, and reset bucket for submit smoke |
 | BA-003 | Builder A | open | Prepare backend implementation plan for the reconciled fan engagement contract |
 | BB-003 | Builder B | open | Prepare frontend implementation map; Home read-only/mock teaser first, no mutations before Backend First PR |
 | IN-002 | Integrator | waiting | Integrate BA/BB/RV outputs after branches are ready |
@@ -51,10 +49,12 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
   finish before opening any Phase 3B submit implementation.
 - Phase 3A readiness completed with a NO-GO decision for Phase 3B. BA-005 found
   backend hardening gaps and QA2-003 found no safe active QA mission/vote data.
-- BA-006 must resolve mission submit hardening before any frontend submit
-  implementation opens.
-- QA2-004 may run live mutation only after BA-006 is merged and safe QA
-  mission/user/reset conditions are explicitly available.
+- BA-006 mission submit hardening is merged and deployed at `8c24969`.
+- QA2-004 returned partial pass: logged-out `AUTH_REQUIRED` passed, but logged-in
+  live mutation was blocked because no safe QA user, active QA mission, or reset
+  bucket was available.
+- IN-004 closed with a NO-GO decision for Phase 3B. The only next allowed work is
+  BA-007 safe QA user + safe active QA mission/reset bucket preparation.
 - BB-006 confirmed the frontend plan is ready, but Builder B must wait. Do not
   enable mission participation submit, concept vote ballot submit, fan proposal
   submit, title equip, Creator Studio mutation, Backstage mutation, or

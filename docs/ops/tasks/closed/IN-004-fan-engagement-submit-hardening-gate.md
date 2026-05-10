@@ -1,7 +1,7 @@
 # IN-004 - Fan Engagement Submit Hardening Gate
 
 Owner: Integrator
-Status: waiting
+Status: closed
 Priority: P1
 
 ## Context
@@ -72,3 +72,40 @@ For any code merge later, require the task-specific checks.
 ## Completion Note
 
 Use the standard completion note from `docs/ops/agents.md`.
+
+## Closure
+
+Closed on 2026-05-10 with a NO-GO decision for Phase 3B.
+
+Decision:
+
+- NO-GO. Do not open frontend submit implementation yet.
+
+Evidence:
+
+- BA-006 backend hardening is merged and deployed at `8c24969`.
+- QA2-004 confirmed logged-out submit returns HTTP 401 with `code=AUTH_REQUIRED`.
+- QA2-004 did not run logged-in live mutation because safe QA prerequisites were missing.
+- Live read-only mission list returned `items: 0`.
+- No logged-in mission participation, idempotency, duplicate, or fan point ledger smoke was executed.
+- No wallet, Lumina, settlement, payout, paid-like, Creator Studio, Backstage, title equip, fan proposal, or concept vote ballot mutation was executed.
+
+Blocked by:
+
+- Missing safe QA user credential source in the current workspace/session.
+- Missing safe active QA mission.
+- Missing isolated reset bucket evidence for a live QA mission.
+
+Next task:
+
+- Open BA-007 to prepare a safe QA user, active QA mission, and reset bucket for submit smoke.
+
+Still forbidden:
+
+- Frontend Phase 3B submit implementation.
+- Mission participation submit UI enablement.
+- Concept vote ballot submit.
+- Fan proposal submit.
+- Title equip.
+- Creator Studio / Backstage mutation.
+- Wallet / Lumina / settlement / payout / paid-like connection.

@@ -1,7 +1,7 @@
 # BA-006 - Fan Engagement Mission Submit Hardening
 
 Owner: Builder A / Backend
-Status: open
+Status: closed
 Priority: P1
 
 ## Context
@@ -111,3 +111,31 @@ Include:
 ## Completion Note
 
 Use the standard completion note from `docs/ops/agents.md`.
+
+## Closure
+
+Closed on 2026-05-10 after backend hardening merge and deploy verification.
+
+Merged:
+
+- source branch `origin/team2-backend/ba-006-fan-engagement-submit-hardening`
+- source commit `a2c378d271169d64a860d611493e12337ae7a11a`
+- merge commit `8c24969 Merge fan engagement submit hardening`
+
+Verified:
+
+- `git diff --check HEAD~1 HEAD`
+- `server > npm.cmd run lint`
+- `server > npm.cmd run build`
+- `/health` on both API domains returned `8c24969a750a6fa765c56c3b570bdb92da16b0a8`
+
+Result:
+
+- Mission submit auth errors now return stable `AUTH_REQUIRED` + `messageKey`.
+- Idempotency body mismatch handling is added.
+- Validation and not-found errors have stable `code` + `messageKey` coverage.
+- No frontend, schema, migration, seed, wallet, Lumina, settlement, payout, or paid-like changes were included.
+
+Remaining gate:
+
+- Phase 3B frontend submit remains blocked until safe QA user, safe active QA mission, and isolated reset bucket are prepared and verified.
