@@ -113,6 +113,52 @@ security_check:
 
 ---
 
+status: blocked
+task: QA-005 - Fan mission create + logged-in submit smoke
+branch/commit:
+- branch: qral/qa-005-fan-mission-submit-smoke-blocked
+- local main after fetch: origin/main
+- basis commit: 427ab95616f7c53692e4387fa4ad84b29372ea1a
+- tested API health commit: 427ab95616f7c53692e4387fa4ad84b29372ea1a
+environment:
+- role: QA / 큐알
+- API host: https://api.lumina-stage.com
+- Notion task: QA-005, 4th P0 fan engagement workflow item
+checks:
+- PASS: Notion 4th task identified as `QA-005 — 팬 미션 생성 + logged-in submit smoke`.
+- PASS: QA-005 start condition checked: requires IN-006 deployment, super-admin or QA Backstage session, and test QA user.
+- PASS: repo `main` is clean and at `427ab95616f7c53692e4387fa4ad84b29372ea1a`.
+- PASS: `/health` returned commit `427ab95616f7c53692e4387fa4ad84b29372ea1a`.
+- PASS: public read-only mission list `GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=3` returned HTTP 200 with `items: 0`.
+- PASS: local environment handle presence checked without printing values; `API_BASE_URL`, `STAGING_API_BASE_URL`, `QA_USER_EMAIL`, `QA_USER_PASSWORD`, `QA_ADMIN_EMAIL`, and `QA_ADMIN_PASSWORD` were not present.
+- PASS: `.env.local` file name search found no `.env.local` under the repo worktree.
+- PASS: no concept vote ballot submit was executed.
+- PASS: no Home submit UI was enabled or changed.
+- PASS: no wallet/Lumina/settlement/payout/paid-like request was sent.
+result:
+- QA-005 logged-in live smoke could not be executed safely.
+- Safe QA user/account: blocked. No private credential source was available in this workspace/session.
+- Safe active QA mission: blocked. Public mission list returned `items: 0`.
+- Reset bucket isolation: blocked. No QA mission was visible, so no `season:qa-*` reset bucket could be confirmed.
+- Backstage fan mission UI: blocked. Current frontend scan did not find a fan mission management UI in `backstage.html` / `backstage.js`.
+- Backstage admin API route signal: deployed route responds under `/api/v1/admin/api/v1/...` with 401 when unauthenticated, while `/admin/api/v1/...` returns 404. This matches current frontend `adminApiPath()` behavior but differs from some docs examples.
+- Logged-out submit, first logged-in submit, idempotent replay, idempotency body mismatch, duplicate reset bucket, fan point ledger, and archive-after-smoke cases were not run because the safe QA prerequisites were absent.
+blocked_by:
+- IN-006 deployment/start condition not confirmed in Notion; IN-006 page still showed 병합대기 in fetched content.
+- No super-admin/Backstage QA session or private credential source in the current workspace/session.
+- No visible QA-only active mission.
+- No Backstage fan mission UI found in frontend files.
+next_needed:
+- Complete FE-001/RV-004/IN-006 or provide the deployed Backstage mission creation path.
+- Provide private/local QA admin + QA user credential source without recording secrets.
+- Create one QA-only active mission with isolated `season:qa-*` reset bucket.
+- Re-run QA-005 after the mission appears in the public read-only mission list.
+security_check:
+- PASS: no secret, token, cookie, password, env value, DB URL, signed URL, or credential was printed or recorded.
+- PASS: no live logged-in mutation was executed.
+
+---
+
 status: blocked for live mutation; readiness matrix complete
 task: QA2-003 - Fan engagement submit readiness QA
 branch/commit:
