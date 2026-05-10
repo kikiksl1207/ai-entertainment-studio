@@ -33,3 +33,32 @@ blocked_by:
 next_needed:
 - Open integration PR / merge review for integrator/in-001-backstage-creator-studio.
 - Browser QA still needed with authorized Backstage and Creator Studio accounts against the deployed API.
+
+---
+
+status: done
+task: Fan engagement BA/BB contract reconciliation
+branch/commit: team2-qa/backstage-wallet-adjustment-qa / this reconciliation commit
+changed_files:
+- docs/ops/fan-engagement-reconciled-contract.md
+- docs/ops/inbox/integrator.md
+- docs/ops/inbox/builder-a.md
+- docs/ops/inbox/builder-b.md
+- docs/ops/tasks/open/BA-002-fan-engagement-loop-backend-contract.md
+- docs/ops/tasks/open/BB-002-fan-engagement-loop-ui-map.md
+tests:
+- git diff --check
+result:
+- Reconciled BA-002 and BB-002 endpoint naming, request/response shapes, achievements/points/title summary, Creator Studio task aggregation, and i18n policy.
+- Canonical contract is `docs/ops/fan-engagement-reconciled-contract.md`.
+- Mission list uses `GET /api/v1/fan-engagement/missions?surface=&artistId=&scope=today&take=20`.
+- Mission completion uses `POST /api/v1/fan-engagement/missions/:missionId/participations`.
+- Concept vote submission uses `POST /api/v1/fan-engagement/concept-votes/:voteId/ballots` with `optionId` in the body.
+- MyPage fan rewards use `GET /api/v1/me/fan-engagement/summary`; public profile uses `GET /api/v1/users/:userId/fan-engagement/public-summary`.
+- Backend must provide stable label keys and may provide localized Korean labels; frontend must not render raw English enum/user-facing copy.
+blocked_by:
+- none for contract reconciliation.
+next_needed:
+- Builder A can use the canonical contract for backend design/implementation planning.
+- Builder B can update UI map/skeleton assumptions against the canonical endpoints.
+- Reviewer should verify i18n fallback and non-cash reward wording before implementation rollout.

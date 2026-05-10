@@ -138,3 +138,21 @@ blocked_by:
 - none for mapping; implementation still depends on Builder A response shapes.
 next_needed:
 - Push this branch and have Integrator/Builder A review endpoint names before UI skeleton work starts.
+
+---
+
+status: reconciled
+task: BB-002 contract reconciliation follow-up
+branch/commit: team2-qa/backstage-wallet-adjustment-qa / this reconciliation commit
+changed_files:
+- docs/ops/fan-engagement-reconciled-contract.md
+result:
+- Leader reconciled BB-002 with BA-002 in `docs/ops/fan-engagement-reconciled-contract.md`.
+- Replace `GET /api/v1/fan-engagement/daily-missions?surface=home` with `GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=3`.
+- Replace `POST /api/v1/fan-engagement/missions/:missionId/complete` with `POST /api/v1/fan-engagement/missions/:missionId/participations`.
+- Replace `POST /api/v1/fan-engagement/concept-votes/:voteId/options/:optionId` with `POST /api/v1/fan-engagement/concept-votes/:voteId/ballots`.
+- Use `GET /api/v1/me/fan-engagement/summary` for MyPage points, achievements, titles, and recent participation.
+- Use `GET /api/v1/me/creator-studio/today-tasks` for Creator Studio queues; actions mutate the source proposal/draft endpoints, not task IDs.
+- Frontend must map stable label keys to Korean copy and must not render raw enum keys or English-only backend copy.
+next_needed:
+- Update any future UI skeleton against the reconciled endpoints before wiring API calls.

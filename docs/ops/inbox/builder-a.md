@@ -655,3 +655,20 @@ next_needed:
 - Leader should confirm whether v1 points are purely fan reputation or also used for feed/profile exposure ranking.
 - Builder B can map UI using the response shapes above without waiting for implementation.
 - Backend implementation should start with additive schema + read/list endpoints before AI generation.
+
+---
+
+status: reconciled
+task: BA-002 contract reconciliation follow-up
+branch/commit: team2-qa/backstage-wallet-adjustment-qa / this reconciliation commit
+changed_files:
+- docs/ops/fan-engagement-reconciled-contract.md
+result:
+- Leader reconciled BA-002 with BB-002 in `docs/ops/fan-engagement-reconciled-contract.md`.
+- Canonical mission list endpoint remains `GET /api/v1/fan-engagement/missions`, with `surface`, `artistId`, and `scope` query filters.
+- Canonical mission completion endpoint remains `POST /api/v1/fan-engagement/missions/:missionId/participations`; `complete` is a body action, not a URL.
+- Canonical concept vote submit endpoint is `POST /api/v1/fan-engagement/concept-votes/:voteId/ballots` with `optionId` in the body.
+- MyPage rewards summary uses `GET /api/v1/me/fan-engagement/summary`, not `GET /api/v1/me/achievements` in V1.
+- User-facing copy must use stable keys plus optional localized labels; do not return English-only `title`, `description`, or `ctaLabel` as the only display source.
+next_needed:
+- Use the reconciled contract as the source of truth before any backend implementation or schema migration.

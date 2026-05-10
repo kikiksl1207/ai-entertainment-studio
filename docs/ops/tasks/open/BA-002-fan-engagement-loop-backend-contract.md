@@ -79,3 +79,16 @@ Include:
 - Migration risk.
 - What Builder B needs from backend.
 - Tests run.
+
+## Leader Reconciliation
+
+Use `docs/ops/fan-engagement-reconciled-contract.md` as the canonical V1 contract before implementation.
+
+Key decisions:
+
+- Mission list: `GET /api/v1/fan-engagement/missions?surface=&artistId=&scope=today&take=20`.
+- Mission completion: `POST /api/v1/fan-engagement/missions/:missionId/participations`.
+- Concept vote submit: `POST /api/v1/fan-engagement/concept-votes/:voteId/ballots` with `optionId` in the body.
+- MyPage reward summary: `GET /api/v1/me/fan-engagement/summary`.
+- Creator Studio queue: `GET /api/v1/me/creator-studio/today-tasks`.
+- I18n: backend returns stable display keys plus optional localized labels; do not rely on English-only user-facing copy.
