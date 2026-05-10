@@ -536,7 +536,11 @@ export class UserAssetsService {
       throw new BadRequestException({
         code: 'FEED_IMAGE_DERIVATIVE_FAILED',
         message: 'Could not process uploaded feed image',
-        details: { stage },
+        details: {
+          stage,
+          requestId: context.requestId ?? null,
+          reason: this.safeErrorMessage(error),
+        },
       });
     }
   }
