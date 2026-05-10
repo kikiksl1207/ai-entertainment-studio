@@ -1,7 +1,7 @@
 # RV-003 - Review Fan Engagement Backend First PR
 
 Owner: Reviewer
-Status: open
+Status: closed
 Priority: P0
 
 ## Context
@@ -87,3 +87,32 @@ Write the result to `docs/ops/inbox/reviewer.md` using the standard completion n
 
 Do not merge.
 Do not edit feature code unless Leader explicitly asks.
+
+## Closure
+
+Closed on 2026-05-10 after Reviewer PASS was received.
+
+Reviewer decision:
+
+- P0: none.
+- P1: none.
+- P2: fan-engagement error responses need stable `messageKey` follow-up.
+- Merge decision: YES.
+- blocked_by: none.
+
+Confirmed:
+
+- Requested models are present.
+- Fan points are separate from `WalletAccount` / `WalletLedger`.
+- Points are integer and non-cash.
+- Duplicate mission, vote, and point grants are protected.
+- `resetBucket` is required.
+- Policy flags are present: `cashLike:false`, `luminaAmount:0`, `settlementEligible:false`, `transferable:false`.
+- No frontend edits.
+- No seed/data auto insert.
+- No admin UI/API.
+- No Creator Studio today-tasks.
+
+Follow-up:
+
+- Open P2 task for stable fan-engagement error `messageKey` coverage before frontend relies on API error rendering.
