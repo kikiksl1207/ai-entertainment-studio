@@ -213,6 +213,17 @@ td { color: var(--text); }
 .detail-form-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .tone-preview-box { min-height: 72px; padding: 12px; border: 1px dashed var(--line-strong); border-radius: 8px; background: #fff; color: var(--muted); font-size: 13px; line-height: 1.65; }
 .tone-preview-box.is-active { border-style: solid; border-color: #c084fc; background: #faf5ff; color: var(--text); font-weight: 800; }
+.fan-mission-form { display: grid; gap: 14px; padding: 16px; border-top: 1px solid var(--line); }
+.fan-mission-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.fan-mission-form label { display: grid; gap: 7px; color: var(--muted); font-size: 12px; font-weight: 900; }
+.fan-mission-form input, .fan-mission-form select, .fan-mission-form textarea { width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; color: var(--text); font: inherit; }
+.fan-mission-form textarea { min-height: 84px; resize: vertical; line-height: 1.5; }
+.fan-mission-form .is-wide { grid-column: 1 / -1; }
+.fan-mission-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.fan-mission-actions .form-status { flex: 1; text-align: right; }
+.fan-mission-readiness { font-weight: 900; }
+.fan-mission-readiness.is-on { color: var(--green); }
+.fan-mission-readiness.is-off { color: var(--danger); }
 .detail-history { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .detail-history-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .detail-history-title h3 { margin: 0; font-size: 15px; letter-spacing: 0; }
@@ -249,7 +260,7 @@ tr.is-selected td { background: #faf5ff; }
 .confirm-summary-list span { background: #fff; color: var(--text); word-break: keep-all; }
 .confirm-actions { flex-shrink: 0; display: flex; justify-content: flex-end; gap: 8px; }
 @media (max-width: 1100px) { .backstage-dashboard { grid-template-columns: 1fr; } .backstage-sidebar { position: static; height: auto; } .sidebar-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sidebar-operator { margin-top: 18px; } .metric-grid, .table-grid, .readiness-grid, .storage-diagnostic-grid, .storage-diagnostic-body { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 760px) { .backstage-login { grid-template-columns: 1fr; width: min(100% - 28px, 1160px); } .login-brand, .login-panel, .login-guard { grid-column: 1; } .dashboard-main { padding: 24px 16px 48px; } .dashboard-header, .section-title, .table-card header, .alert-strip, .launch-readiness header, .object-storage-diagnostics header, .detail-history-title { flex-direction: column; } .readiness-score { justify-items: start; } .metric-grid, .table-grid, .sidebar-nav, .readiness-grid, .storage-diagnostic-grid, .storage-diagnostic-body, .storage-upload-stats, .detail-actions, .detail-form-grid, .toggle-group > div, .detail-history-item { grid-template-columns: 1fr; } .search-box { width: 100%; align-items: stretch; flex-direction: column; } .confirm-modal { align-items: end; padding: 14px; } .confirm-card { max-height: calc(100vh - 28px); padding: 20px; } .confirm-summary-list div { grid-template-columns: 1fr; } .confirm-actions { flex-direction: column-reverse; } .confirm-actions button { width: 100%; } }
+@media (max-width: 760px) { .backstage-login { grid-template-columns: 1fr; width: min(100% - 28px, 1160px); } .login-brand, .login-panel, .login-guard { grid-column: 1; } .dashboard-main { padding: 24px 16px 48px; } .dashboard-header, .section-title, .table-card header, .alert-strip, .launch-readiness header, .object-storage-diagnostics header, .detail-history-title, .fan-mission-actions { flex-direction: column; } .readiness-score { justify-items: start; } .metric-grid, .table-grid, .sidebar-nav, .readiness-grid, .storage-diagnostic-grid, .storage-diagnostic-body, .storage-upload-stats, .detail-actions, .detail-form-grid, .fan-mission-form-grid, .toggle-group > div, .detail-history-item { grid-template-columns: 1fr; } .search-box { width: 100%; align-items: stretch; flex-direction: column; } .fan-mission-actions { align-items: stretch; } .fan-mission-actions .form-status { text-align: left; } .confirm-modal { align-items: end; padding: 14px; } .confirm-card { max-height: calc(100vh - 28px); padding: 20px; } .confirm-summary-list div { grid-template-columns: 1fr; } .confirm-actions { flex-direction: column-reverse; } .confirm-actions button { width: 100%; } }
 @media (max-width: 760px) {
   body {
     padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px));

@@ -74,6 +74,7 @@
             <a href="#creators">크리에이터 관리 <b>5</b></a>
             <a href="#ai-content">AI 콘텐츠 <b>9</b></a>
             <a href="#moderation">크리에이터 콘텐츠 <b>5</b></a>
+            <a href="#fan-missions">팬 미션 <b id="fanMissionCountBadge">0</b></a>
             <a href="#settlement">정산 현황 <b>3</b></a>
             <a href="#payouts">정산 처리 <b>4</b></a>
             <a href="#logs">운영 로그</a>
@@ -241,6 +242,48 @@
               <article class="table-card"><header><h3>범용 신고 큐</h3><button class="text-action" type="button">신고 큐 보기</button></header><div class="table-wrap"><table><thead><tr><th>신고</th><th>대상</th><th>신고자</th><th>사유</th><th>상태</th><th>메모</th><th>처리</th></tr></thead><tbody id="moderationReportRows"></tbody></table></div></article>
               <article class="table-card"><header><h3>이상 패턴</h3><button class="text-action" type="button">패턴 보기</button></header><div class="table-wrap"><table><thead><tr><th>콘텐츠</th><th>작성자</th><th>탐지 신호</th><th>위험도</th><th>처리</th></tr></thead><tbody id="contentAnomalyRows"></tbody></table></div></article>
               <article class="table-card"><header><h3>취소/철회 신고</h3><button class="text-action" type="button">신고 이력</button></header><div class="table-wrap"><table><thead><tr><th>신고</th><th>대상</th><th>신고자</th><th>상태</th><th>사유</th><th>처리</th></tr></thead><tbody id="reportCancelRows"></tbody></table></div></article>
+            </div>
+          </section>
+
+          <section class="section-block" id="fan-missions">
+            <div class="section-title">
+              <div><span class="section-kicker">Fan Missions</span><h2>팬 미션 관리</h2></div>
+              <div class="search-box"><input type="search" placeholder="slug 또는 상태 검색" aria-label="팬 미션 검색" /><button class="secondary-action" type="button">검색</button></div>
+            </div>
+            <p class="section-note">QA와 운영용 팬 참여 미션을 생성하고 보관합니다. 이 화면은 미션 생성과 public read-only 노출 확인만 처리하며, 참여 submit은 열지 않습니다.</p>
+            <div class="table-grid is-stacked">
+              <article class="table-card">
+                <header><h3>QA 미션 생성</h3><button class="text-action" type="button" id="fanMissionRefreshButton">목록 새로고침</button></header>
+                <form class="fan-mission-form" id="fanMissionForm">
+                  <div class="fan-mission-form-grid">
+                    <label>Slug<input name="slug" type="text" required placeholder="qa-home-20260511-run1" /></label>
+                    <label>Mission Type<select name="missionType"><option value="daily_signal">daily_signal</option><option value="vote_concept">vote_concept</option><option value="fan_proposal">fan_proposal</option></select></label>
+                    <label>상태<select name="status"><option value="active">active</option><option value="draft">draft</option><option value="inactive">inactive</option></select></label>
+                    <label>Surface<select name="surface"><option value="home">home</option><option value="artist_detail">artist_detail</option><option value="feed">feed</option><option value="mypage">mypage</option><option value="creator_studio_hint">creator_studio_hint</option></select></label>
+                    <label>Reset Policy<input name="resetPolicy" type="text" required placeholder="season:qa-20260511-run1" /></label>
+                    <label>Fan Points<input name="points" type="number" min="0" max="1000" step="1" value="1" /></label>
+                    <label>시작<input name="startsAt" type="datetime-local" required /></label>
+                    <label>종료<input name="endsAt" type="datetime-local" required /></label>
+                    <label>Title Key<input name="titleKey" type="text" required value="fanMission.qaDailySignal.title" /></label>
+                    <label>Title Label<input name="titleLabel" type="text" required value="오늘의 응원 미션" /></label>
+                    <label class="is-wide">Description Key<input name="descriptionKey" type="text" required value="fanMission.qaDailySignal.description" /></label>
+                    <label class="is-wide">Description Label<textarea name="descriptionLabel" required>한 번의 응원으로 아티스트에게 오늘의 신호를 보내주세요.</textarea></label>
+                    <label>CTA Key<input name="ctaKey" type="text" required value="fanMission.qaDailySignal.cta" /></label>
+                    <label>CTA Label<input name="ctaLabel" type="text" required value="응원하기" /></label>
+                    <label>Status Key<input name="statusKey" type="text" required value="fanMission.status.active" /></label>
+                    <label>Status Label<input name="statusLabel" type="text" required value="진행 중" /></label>
+                    <label>Artist ID<input name="artistId" type="text" placeholder="선택 사항" /></label>
+                    <label>Action Type<input name="actionType" type="text" placeholder="선택 사항" /></label>
+                    <label class="is-wide">Action Target ID<input name="actionTargetId" type="text" placeholder="선택 사항" /></label>
+                  </div>
+                  <div class="fan-mission-actions">
+                    <button class="primary-action" type="submit">QA 미션 생성</button>
+                    <p class="form-status" id="fanMissionStatus" role="status" aria-live="polite"></p>
+                  </div>
+                </form>
+              </article>
+              <article class="table-card"><header><h3>Backstage 미션 목록</h3><span class="section-note">보관은 확인 모달 후 처리됩니다.</span></header><div class="table-wrap"><table><thead><tr><th>Slug</th><th>상태</th><th>Surface</th><th>Reset</th><th>Points</th><th>생성일</th><th>Home 노출</th><th>액션</th></tr></thead><tbody id="fanMissionRows"></tbody></table></div></article>
+              <article class="table-card"><header><h3>Public read-only 확인</h3><span class="section-note">GET /fan-engagement/missions?surface=home&amp;scope=today&amp;take=3</span></header><div class="table-wrap"><table><thead><tr><th>Title</th><th>Slug</th><th>Type</th><th>Status</th><th>Points</th><th>Artist</th></tr></thead><tbody id="fanMissionPublicRows"></tbody></table></div></article>
             </div>
           </section>
 
