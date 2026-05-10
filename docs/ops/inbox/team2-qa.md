@@ -123,9 +123,9 @@ branch/commit:
 environment:
 - role: QA / 큐알
 - API host: https://api.lumina-stage.com
-- Notion task: QA-005, 4th P0 fan engagement workflow item
+- Notion task: QA-005. Initially checked as the 4th P0 fan engagement workflow item; after the PM rule update, the current board lists IN-006 as item 4 and QA-005 as item 5.
 checks:
-- PASS: Notion 4th task identified as `QA-005 — 팬 미션 생성 + logged-in submit smoke`.
+- PASS: Notion task identified as `QA-005 — 팬 미션 생성 + logged-in submit smoke`; updated board order now places it after IN-006.
 - PASS: QA-005 start condition checked: requires IN-006 deployment, super-admin or QA Backstage session, and test QA user.
 - PASS: repo `main` is clean and at `427ab95616f7c53692e4387fa4ad84b29372ea1a`.
 - PASS: `/health` returned commit `427ab95616f7c53692e4387fa4ad84b29372ea1a`.
