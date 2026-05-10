@@ -1,7 +1,7 @@
 # BA-005 - Fan Engagement Submit Readiness Backend Check
 
 Owner: Builder A / Backend
-Status: open
+Status: closed
 Priority: P1
 
 ## Context
@@ -87,3 +87,23 @@ Always run:
 ## Completion Note
 
 Use the standard completion note from `docs/ops/agents.md`.
+
+## Closure
+
+Closed on 2026-05-10 after Builder A reported readiness result in
+`docs/ops/inbox/builder-a.md`.
+
+Result: NO-GO for Phase 3B frontend submit wiring.
+
+Key blockers:
+
+- no safe active QA mission/test fixture was confirmed
+- logged-out submit is blocked by `JwtAuthGuard`, but not with a
+  fan-engagement-specific `code`/`messageKey`
+- some invalid UUID / not-found cases still lack stable application `code`
+- idempotency key reuse with a different `sourceType`/`sourceId` can replay
+  instead of returning a mismatch error
+
+Follow-up opened:
+
+- BA-006 - Fan Engagement Mission Submit Hardening

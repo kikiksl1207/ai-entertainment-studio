@@ -1,7 +1,7 @@
 # BB-006 - Fan Engagement Submit Readiness Frontend Check
 
 Owner: Builder B / Frontend
-Status: open
+Status: closed
 Priority: P1
 
 ## Context
@@ -85,3 +85,24 @@ If only docs are changed, note that no browser QA was required yet.
 ## Completion Note
 
 Use the standard completion note from `docs/ops/agents.md`.
+
+## Closure
+
+Closed on 2026-05-10 after Builder B reported readiness result in
+`docs/ops/inbox/builder-b.md`.
+
+Result: frontend planning is ready, but implementation remains blocked by BA-005
+and QA2-003 findings.
+
+Confirmed:
+
+- Home teaser remains GET/read-only.
+- CTA remains disabled.
+- Phase 3B UI states and Korean fallback needs are documented.
+- No product code, `app.js`, wallet/Lumina/settlement/paid-like behavior, or
+  submit mutation was changed.
+
+Next:
+
+- Builder B waits. Do not implement submit until IN-004 opens a later Phase 3B
+  frontend task.

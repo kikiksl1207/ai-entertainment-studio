@@ -198,6 +198,47 @@ next_needed:
 ---
 
 status: done
+task: IN-003 fan engagement submit readiness gate
+branch/commit: ops/fan-engagement-phase-3a-nogo-followups / pending
+source_reports:
+- origin/team2-backend/ba-005-submit-readiness
+- origin/team2-frontend/bb-006-submit-readiness
+- origin/team2-qa/QA2-003-fan-engagement-submit-readiness
+result:
+- Phase 3B frontend submit implementation is NO-GO.
+- BA-005 found backend hardening gaps: no safe active QA mission/test fixture,
+  auth errors not fan-engagement-specific, some missing stable application
+  codes, and idempotency key reuse with changed body replaying instead of
+  mismatch rejection.
+- BB-006 confirmed frontend planning is ready and current Home teaser remains
+  GET/read-only with disabled CTA.
+- QA2-003 confirmed live read-only endpoints return `items: 0` and no safe live
+  mutation data exists, so live submit was not executed.
+changed_files:
+- docs/ops/board.md
+- docs/ops/inbox/builder-a.md
+- docs/ops/inbox/builder-b.md
+- docs/ops/inbox/team2-qa.md
+- docs/ops/inbox/integrator.md
+- docs/ops/tasks/closed/BA-005-fan-engagement-submit-readiness-backend.md
+- docs/ops/tasks/closed/BB-006-fan-engagement-submit-readiness-frontend.md
+- docs/ops/tasks/closed/QA2-003-fan-engagement-submit-readiness.md
+- docs/ops/tasks/closed/IN-003-fan-engagement-submit-readiness-gate.md
+- docs/ops/tasks/open/BA-006-fan-engagement-submit-hardening.md
+- docs/ops/tasks/open/QA2-004-fan-engagement-submit-live-smoke.md
+- docs/ops/tasks/open/IN-004-fan-engagement-submit-hardening-gate.md
+blocked_by:
+- BA-006 backend hardening
+- safe QA mission/user/reset data for QA2-004
+next_needed:
+- Assign BA-006 to Builder A.
+- Keep Builder B waiting; do not open submit implementation.
+- Run QA2-004 only after BA-006 and safe QA data are available.
+- IN-004 decides whether a later Phase 3B frontend task can open.
+
+---
+
+status: done
 task: Integrate Fan Engagement Home Teaser Phase 2 Real GET
 branch/commit: main / b23f44e
 source_branch:

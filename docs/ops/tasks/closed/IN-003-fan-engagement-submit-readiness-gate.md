@@ -1,7 +1,7 @@
 # IN-003 - Fan Engagement Submit Readiness Gate
 
 Owner: Integrator
-Status: waiting
+Status: closed
 Priority: P1
 
 ## Context
@@ -61,3 +61,21 @@ If merging code in a later task, require the task-specific checks.
 ## Completion Note
 
 Use the standard completion note from `docs/ops/agents.md`.
+
+## Closure
+
+Closed on 2026-05-10 after BA-005, BB-006, and QA2-003 results were received.
+
+Decision: NO-GO for Phase 3B frontend submit implementation.
+
+Reason:
+
+- Backend submit readiness still has hardening gaps.
+- QA has no safe active mission/vote/reset path for live mutation smoke.
+- Frontend plan is ready, but implementation must wait for backend and QA gates.
+
+Follow-ups opened:
+
+- BA-006 - Fan Engagement Mission Submit Hardening
+- QA2-004 - Fan Engagement Mission Submit Live Smoke
+- IN-004 - Fan Engagement Submit Hardening Gate
