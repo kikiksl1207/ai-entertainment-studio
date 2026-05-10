@@ -11,6 +11,7 @@ import { validateEnv } from './config/env.validation';
 import { CreatorImageRequestsModule } from './creator-image-requests/creator-image-requests.module';
 import { CreatorStudioModule } from './creator-studio/creator-studio.module';
 import { DebutModule } from './debut/debut.module';
+import { FanEngagementModule } from './fan-engagement/fan-engagement.module';
 import { FanLettersModule } from './fan-letters/fan-letters.module';
 import { GiftsModule } from './gifts/gifts.module';
 import { HealthController } from './health.controller';
@@ -55,6 +56,7 @@ import { WalletModule } from './wallet/wallet.module';
     BoostsModule,
     PopularVoteModule,
     DebutModule,
+    FanEngagementModule,
     FanLettersModule,
     PremiumVideosModule,
     ChatModule,

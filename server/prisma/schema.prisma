@@ -57,6 +57,11 @@ model User {
   notificationActions  UserNotification[]       @relation("UserNotificationActor")
   creatorImageRequests CreatorImageRequest[]    @relation("CreatorImageRequestRequester")
   moderationReports    ModerationReport[]       @relation("ModerationReportReporter")
+  fanMissionParticipations FanMissionParticipation[]
+  conceptVoteBallots  ConceptVoteBallot[]
+  fanEngagementPointLedger FanEngagementPointLedger[]
+  fanAchievements     UserFanAchievement[]
+  fanTitles           UserFanTitle[]
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -251,6 +256,9 @@ model Artist {
   followers         ArtistFollow[]
   notifications     UserNotification[]
   creatorImageRequests CreatorImageRequest[]
+  fanMissions       FanMission[]
+  fanMissionParticipations FanMissionParticipation[]
+  conceptVotes      ConceptVote[]
 
   @@index([status, sortOrder], map: "idx_artists_status_sort")
   @@map("artists")
@@ -1042,6 +1050,193 @@ model ArtistFollow {
   @@index([artistId, status], map: "idx_artist_follows_artist_status")
   @@index([userId, status], map: "idx_artist_follows_user_status")
   @@map("artist_follows")
+}
+
+model FanMission {
+  id              String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId        String?                   @map("artist_id") @db.Uuid
+  slug            String                    @unique
+  missionType     String                    @map("mission_type")
+  status          String                    @default("active")
+  surfaces        String[]                  @default([])
+  resetPolicy     String                    @default("daily") @map("reset_policy")
+  actionType      String?                   @map("action_type")
+  actionTargetId  String?                   @map("action_target_id") @db.Uuid
+  rewardPolicy    Json                      @default("{}") @map("reward_policy")
+  copy            Json                      @default("{}")
+  startsAt        DateTime?                 @map("starts_at") @db.Timestamptz(6)
+  endsAt          DateTime?                 @map("ends_at") @db.Timestamptz(6)
+  createdAt       DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist          Artist?                   @relation(fields: [artistId], references: [id])
+  participations  FanMissionParticipation[]
+
+  @@index([status, startsAt, endsAt], map: "idx_fan_missions_status_window")
+  @@index([artistId, status], map: "idx_fan_missions_artist_status")
+  @@index([actionType, actionTargetId], map: "idx_fan_missions_action_target")
+  @@map("fan_missions")
+}
+
+model FanMissionParticipation {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  missionId         String     @map("mission_id") @db.Uuid
+  userId            String     @map("user_id") @db.Uuid
+  artistId          String?    @map("artist_id") @db.Uuid
+  participationType String     @map("participation_type")
+  status            String     @default("accepted")
+  moderationStatus  String     @default("not_required") @map("moderation_status")
+  resetBucket       String     @map("reset_bucket")
+  sourceType        String?    @map("source_type")
+  sourceId          String?    @map("source_id") @db.Uuid
+  idempotencyKey    String?    @map("idempotency_key")
+  metadata          Json       @default("{}")
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime   @default(now()) @map("updated_at") @db.Timestamptz(6)
+  mission           FanMission @relation(fields: [missionId], references: [id])
+  user              User       @relation(fields: [userId], references: [id])
+  artist            Artist?    @relation(fields: [artistId], references: [id])
+
+  @@unique([missionId, userId, resetBucket], map: "uq_fan_mission_participations_reset")
+  @@unique([userId, idempotencyKey], map: "uq_fan_mission_participations_idempotency")
+  @@index([userId, createdAt], map: "idx_fan_mission_participations_user_created")
+  @@index([missionId, status], map: "idx_fan_mission_participations_mission_status")
+  @@map("fan_mission_participations")
+}
+
+model ConceptVote {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId   String              @map("artist_id") @db.Uuid
+  status     String              @default("active")
+  visibility String              @default("public")
+  copy       Json                @default("{}")
+  metadata   Json                @default("{}")
+  startsAt   DateTime?           @map("starts_at") @db.Timestamptz(6)
+  endsAt     DateTime?           @map("ends_at") @db.Timestamptz(6)
+  createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist     Artist              @relation(fields: [artistId], references: [id])
+  options    ConceptVoteOption[]
+  ballots    ConceptVoteBallot[]
+
+  @@index([artistId, status], map: "idx_concept_votes_artist_status")
+  @@index([status, startsAt, endsAt], map: "idx_concept_votes_status_window")
+  @@map("concept_votes")
+}
+
+model ConceptVoteOption {
+  id        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  voteId    String              @map("vote_id") @db.Uuid
+  optionKey String              @map("option_key")
+  copy      Json                @default("{}")
+  sortOrder Int                 @default(0) @map("sort_order")
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  vote      ConceptVote         @relation(fields: [voteId], references: [id])
+  ballots   ConceptVoteBallot[]
+
+  @@unique([voteId, optionKey], map: "uq_concept_vote_options_key")
+  @@index([voteId, sortOrder], map: "idx_concept_vote_options_vote_sort")
+  @@map("concept_vote_options")
+}
+
+model ConceptVoteBallot {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  voteId         String       @map("vote_id") @db.Uuid
+  optionId       String       @map("option_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  missionId      String?      @map("mission_id") @db.Uuid
+  idempotencyKey String?      @map("idempotency_key")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  vote           ConceptVote  @relation(fields: [voteId], references: [id])
+  option         ConceptVoteOption @relation(fields: [optionId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([voteId, userId], map: "uq_concept_vote_ballots_user_vote")
+  @@unique([userId, idempotencyKey], map: "uq_concept_vote_ballots_idempotency")
+  @@index([voteId, createdAt], map: "idx_concept_vote_ballots_vote_created")
+  @@map("concept_vote_ballots")
+}
+
+model FanEngagementPointLedger {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  points        Int
+  direction     String
+  ledgerType    String   @map("ledger_type")
+  referenceType String   @map("reference_type")
+  referenceId   String   @map("reference_id") @db.Uuid
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, referenceType, referenceId, ledgerType], map: "uq_fan_point_ledger_reference")
+  @@index([userId, createdAt], map: "idx_fan_point_ledger_user_created")
+  @@index([referenceType, referenceId], map: "idx_fan_point_ledger_reference")
+  @@map("fan_engagement_point_ledger")
+}
+
+model FanAchievement {
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String               @unique
+  category    String
+  copy        Json                 @default("{}")
+  badgeIconKey String?             @map("badge_icon_key")
+  criteria    Json                 @default("{}")
+  status      String               @default("active")
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+  users       UserFanAchievement[]
+
+  @@index([status, category], map: "idx_fan_achievements_status_category")
+  @@map("fan_achievements")
+}
+
+model UserFanAchievement {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String         @map("user_id") @db.Uuid
+  achievementId   String         @map("achievement_id") @db.Uuid
+  status          String         @default("earned")
+  progressCurrent Int            @default(0) @map("progress_current")
+  progressTarget  Int            @default(1) @map("progress_target")
+  earnedAt        DateTime?      @map("earned_at") @db.Timestamptz(6)
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user            User           @relation(fields: [userId], references: [id])
+  achievement     FanAchievement @relation(fields: [achievementId], references: [id])
+
+  @@unique([userId, achievementId], map: "uq_user_fan_achievements_user_achievement")
+  @@index([userId, status], map: "idx_user_fan_achievements_user_status")
+  @@map("user_fan_achievements")
+}
+
+model FanTitle {
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code      String         @unique
+  rarity    String
+  copy      Json           @default("{}")
+  status    String         @default("active")
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  users     UserFanTitle[]
+
+  @@index([status, rarity], map: "idx_fan_titles_status_rarity")
+  @@map("fan_titles")
+}
+
+model UserFanTitle {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  titleId    String    @map("title_id") @db.Uuid
+  status     String    @default("active")
+  equipped   Boolean   @default(false)
+  equippedAt DateTime? @map("equipped_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user       User      @relation(fields: [userId], references: [id])
+  title      FanTitle  @relation(fields: [titleId], references: [id])
+
+  @@unique([userId, titleId], map: "uq_user_fan_titles_user_title")
+  @@index([userId, equipped], map: "idx_user_fan_titles_user_equipped")
+  @@map("user_fan_titles")
 }
 
 model UserFollow {
