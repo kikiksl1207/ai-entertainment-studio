@@ -215,34 +215,57 @@ export class UserAssetsService {
       throw this.feedImageTooLargeException(maxSize);
     }
 
-    const derivatives = await this.createFeedImageDerivatives(asset, requestId);
+    const derivatives = await this.runConfirmUploadStage(
+      asset.id,
+      requestId,
+      'create-derivatives',
+      () => this.createFeedImageDerivatives(asset, requestId),
+    );
 
     const confirmedAt = new Date().toISOString();
-    const updatedAsset = await this.prisma.asset.update({
-      where: { id: asset.id },
-      data: {
-        metadata: this.toJson({
-          ...metadata,
-          uploadIntent: {
-            ...uploadIntent,
-            status: 'uploaded',
-            confirmedByUserId: userId,
-            confirmedAt,
-            objectETag: this.optionalString(input, 'objectETag'),
+    const updatedAsset = await this.runConfirmUploadStage(
+      asset.id,
+      requestId,
+      'update-asset-metadata',
+      () =>
+        this.prisma.asset.update({
+          where: { id: asset.id },
+          data: {
+            metadata: this.toJson({
+              ...metadata,
+              uploadIntent: {
+                ...uploadIntent,
+                status: 'uploaded',
+                confirmedByUserId: userId,
+                confirmedAt,
+                objectETag: this.optionalString(input, 'objectETag'),
+              },
+              derivatives,
+            }),
+            updatedAt: new Date(),
           },
-          derivatives,
         }),
-        updatedAt: new Date(),
-      },
-    });
+    );
+    const presentedAsset = await this.runConfirmUploadStage(
+      asset.id,
+      requestId,
+      'present-confirmed-asset',
+      async () => this.presentAsset(updatedAsset),
+    );
+    const publicDerivatives = await this.runConfirmUploadStage(
+      asset.id,
+      requestId,
+      'public-derivative-summary',
+      async () => this.publicDerivativeSummary(updatedAsset.metadata),
+    );
 
     return {
-      asset: this.presentAsset(updatedAsset),
+      asset: presentedAsset,
       upload: {
         status: 'uploaded',
         confirmedAt,
         publicUrl: buildPublicAssetUrl(this.configService, updatedAsset.storageKey, null),
-        derivatives: this.publicDerivativeSummary(updatedAsset.metadata),
+        derivatives: publicDerivatives,
       },
     };
   }
@@ -537,6 +560,39 @@ export class UserAssetsService {
         details: {
           stage,
           requestId: context.requestId ?? null,
+          reason: this.safeErrorMessage(error),
+        },
+      });
+    }
+  }
+
+  private async runConfirmUploadStage<T>(
+    assetId: string,
+    requestId: string | undefined,
+    stage: string,
+    action: () => Promise<T>,
+  ) {
+    try {
+      return await action();
+    } catch (error) {
+      this.logger.error({
+        event: 'feed_image_confirm_upload_failed',
+        assetId,
+        requestId,
+        stage,
+        reason: this.safeErrorMessage(error),
+      });
+
+      if (this.isHttpExceptionLike(error)) {
+        throw error;
+      }
+
+      throw new BadRequestException({
+        code: 'FEED_IMAGE_CONFIRM_UPLOAD_FAILED',
+        message: 'Could not confirm uploaded feed image',
+        details: {
+          stage,
+          requestId: requestId ?? null,
           reason: this.safeErrorMessage(error),
         },
       });
