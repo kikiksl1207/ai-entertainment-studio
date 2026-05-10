@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  const apiBase = "https://api.lumina-stage.com";
+  const homeMissionEndpoint = "/api/v1/fan-engagement/missions?surface=home&scope=today&take=3";
   const fallbackCopy = window.LuminaFanEngagementCopy || {};
   const neutral = fallbackCopy.neutral || {};
 
@@ -120,13 +122,22 @@
       .replace(/'/g, "&#039;");
   }
 
+  function hasKoreanText(value) {
+    return /[가-힣]/.test(String(value || ""));
+  }
+
+  function safeLocalizedLabel(value) {
+    const text = String(value || "").trim();
+    return hasKoreanText(text) ? text : "";
+  }
+
   function labelFromKey(key, fallback) {
     if (!key) return fallback;
     return fallbackCopy.labelsByKey?.[key] || fallback;
   }
 
   function copyLabel(copy, labelName, keyName, fallback) {
-    const localized = copy?.labels?.ko?.[labelName];
+    const localized = safeLocalizedLabel(copy?.labels?.ko?.[labelName]);
     if (localized) return localized;
     return labelFromKey(copy?.[keyName], fallback);
   }
@@ -153,12 +164,54 @@
     return neutral.reward || "팬 포인트";
   }
 
+  function normalizeMission(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    return {
+      id: raw.id || raw.missionId || raw.slug || "",
+      slug: raw.slug || "",
+      missionType: raw.missionType || raw.type || "",
+      artist: raw.artist && typeof raw.artist === "object" ? raw.artist : {},
+      copy: raw.copy && typeof raw.copy === "object" ? raw.copy : {},
+      status: raw.status || "",
+      participation: raw.participation && typeof raw.participation === "object" ? raw.participation : {},
+      rewardPreview: raw.rewardPreview && typeof raw.rewardPreview === "object" ? raw.rewardPreview : {},
+      action: raw.action && typeof raw.action === "object" ? raw.action : {}
+    };
+  }
+
+  function normalizeMissionResponse(data) {
+    const items = Array.isArray(data?.items) ? data.items : [];
+    return items.map(normalizeMission).filter(Boolean).slice(0, 3);
+  }
+
+  async function loadHomeMissions() {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7000);
+    try {
+      const res = await fetch(apiBase + homeMissionEndpoint, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: controller.signal
+      });
+      if (!res.ok) throw new Error("fan-engagement-missions-unavailable");
+      const data = await res.json();
+      return normalizeMissionResponse(data);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  function renderStateMessage(root, message, state) {
+    root.dataset.state = state;
+    root.innerHTML = `<div class="fan-mission-empty" data-state="${escapeHtml(state)}">${escapeHtml(message)}</div>`;
+  }
+
   function renderMissionCard(mission) {
     const copy = mission?.copy || {};
     const title = copyLabel(copy, "title", "titleKey", neutral.title || "오늘의 팬 미션");
     const description = copyLabel(copy, "description", "descriptionKey", neutral.description || "아티스트에게 작은 응원 신호를 보내보세요.");
     const cta = copyLabel(copy, "cta", "ctaKey", neutral.cta || "참여하기");
-    const artistName = mission?.artist?.displayName || "Lumina Stage";
+    const artistName = safeLocalizedLabel(mission?.artist?.displayName) || "Lumina Stage";
     const status = missionStatusLabel(mission?.status);
     const type = missionTypeLabel(mission?.missionType);
     const participation = participationLabel(mission?.participation);
@@ -182,15 +235,36 @@
     `;
   }
 
-  function renderHomeMissionTeaser() {
+  function renderMissionList(root, missions, state) {
+    root.dataset.state = state;
+    root.innerHTML = missions.map(renderMissionCard).join("");
+  }
+
+  async function renderHomeMissionTeaser() {
     const root = document.getElementById("homeMissionTeaser");
     if (!root) return;
-    const missions = Array.isArray(homeMissionFixture.items) ? homeMissionFixture.items.slice(0, 3) : [];
-    if (!missions.length) {
-      root.innerHTML = `<div class="fan-mission-empty">${escapeHtml(neutral.status || "확인 중")}</div>`;
-      return;
+
+    renderStateMessage(root, neutral.loading || "오늘의 팬 미션을 불러오고 있어요.", "loading");
+
+    try {
+      const missions = await loadHomeMissions();
+      if (!missions.length) {
+        renderStateMessage(root, neutral.empty || "오늘 참여할 팬 미션을 준비하고 있어요.", "empty");
+        return;
+      }
+      renderMissionList(root, missions, "loaded");
+    } catch (_) {
+      const fallbackMissions = normalizeMissionResponse(homeMissionFixture);
+      if (!fallbackMissions.length) {
+        renderStateMessage(root, neutral.error || "미션 정보를 확인하고 있어요.", "error");
+        return;
+      }
+      root.dataset.state = "fallback";
+      root.innerHTML = `
+        <div class="fan-mission-notice">${escapeHtml(neutral.error || "미션 정보를 불러오지 못해 준비된 예시를 먼저 보여드려요.")}</div>
+        ${fallbackMissions.map(renderMissionCard).join("")}
+      `;
     }
-    root.innerHTML = missions.map(renderMissionCard).join("");
   }
 
   renderHomeMissionTeaser();
