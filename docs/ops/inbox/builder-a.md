@@ -690,3 +690,37 @@ tests:
 - PASS: npm.cmd run lint
 - PASS: npm.cmd run build
 - PASS: git diff --check
+
+---
+
+status: completed
+task: BA-005 fan engagement submit readiness backend check
+branch/commit: team2-backend/ba-005-submit-readiness / this readiness commit
+changed_files:
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: git diff --check
+- not run: npm.cmd run lint (doc-only readiness check; no backend code or local service mutation performed)
+- not run: npm.cmd run build (doc-only readiness check; no backend code or local service mutation performed)
+result:
+- Latest main was already up to date before inspection.
+- Backend readiness for `POST /api/v1/fan-engagement/missions/:missionId/participations` is partially ready by code path, but Phase 3B frontend submit mutation should remain blocked until the items below are resolved.
+- Safe mission/test data status: no repo-backed safe active fan mission fixture or production-safe seed was found. Search found only model/migration definitions for `fan_missions`, not `fanMission.create`, `fanMission.createMany`, or mission INSERT data. I did not run live mutation because no dedicated safe QA user/mission was available.
+- Logged-out requests are rejected by `JwtAuthGuard` on the participation endpoint (`server/src/fan-engagement/fan-engagement.controller.ts:53`, `server/src/fan-engagement/fan-engagement.controller.ts:54`; guard token checks in `server/src/auth/guards/jwt-auth.guard.ts:28`-`31`).
+- Invalid mission IDs are rejected before DB lookup (`server/src/fan-engagement/fan-engagement.service.ts:248`, `server/src/fan-engagement/fan-engagement.service.ts:1008`-`1014`).
+- Missing missions return fan-engagement not-found handling (`server/src/fan-engagement/fan-engagement.service.ts:575`-`583`).
+- Inactive/expired missions are blocked by status/time window checks with `MISSION_NOT_ACTIVE` and `fanEngagement.mission.notActive` (`server/src/fan-engagement/fan-engagement.service.ts:777`-`793`).
+- Duplicate participation for the same reset bucket is protected by both service pre-check and DB uniqueness (`server/src/fan-engagement/fan-engagement.service.ts:288`-`300`, `server/prisma/schema.prisma:1099`), with transaction race fallback (`server/src/fan-engagement/fan-engagement.service.ts:306`-`324`).
+- Successful participation creates at most one participation row because `resetBucket` is required and `missionId,userId,resetBucket` is unique (`server/prisma/schema.prisma:1088`, `server/prisma/schema.prisma:1099`).
+- Successful participation grants fan points at most once through `FanEngagementPointLedger` unique reference protection (`server/src/fan-engagement/fan-engagement.service.ts:620`-`659`, `server/prisma/schema.prisma:1159`-`1173`).
+- Fan points remain isolated from wallet/Lumina/settlement: the fan-engagement service writes only `fanEngagementPointLedger`, and response metadata/policy stays non-cash (`server/src/fan-engagement/fan-engagement.service.ts:646`-`657`, `server/src/fan-engagement/fan-engagement.service.ts:861`-`883`). No `WalletAccount`, `WalletLedger`, Lumina, payout, or settlement reference was found under `server/src/fan-engagement`.
+- Non-cash flags are present in rewards/policy: `cashLike:false`, `luminaAmount:0`, `settlementEligible:false`, `transferable:false` (`server/src/fan-engagement/fan-engagement.service.ts:861`-`883`).
+blocked_by:
+- No confirmed safe active mission/test data. Live mutation QA requires a dedicated safe QA user and safe active QA mission; do not use production user data or ad hoc production seed.
+- Logged-out rejection currently comes from shared `JwtAuthGuard`, which returns raw UnauthorizedException messages without fan-engagement `code`/`messageKey` (`server/src/auth/guards/jwt-auth.guard.ts:30`, `server/src/auth/guards/jwt-auth.guard.ts:65`). If frontend submit error rendering requires stable localized keys for logged-out submit, add a scoped auth error mapping before enabling mutation.
+- Some validation/not-found submit errors now have stable `messageKey` but no stable application `code`, for example invalid UUID and mission not found (`server/src/fan-engagement/fan-engagement.service.ts:575`-`583`, `server/src/fan-engagement/fan-engagement.service.ts:1008`-`1014`). BA-005 acceptance asks for stable `code` and `messageKey`.
+- Idempotency replay rejects reused keys only when they point to a different mission (`server/src/fan-engagement/fan-engagement.service.ts:260`-`281`). Same mission + same idempotency key with different `sourceType`/`sourceId` is treated as replay, not mismatched-body rejection. If Phase 3B depends on body mismatch rejection, store/compare an idempotency request fingerprint first.
+next_needed:
+- Keep Phase 3B frontend submit mutation gated.
+- Provision an explicit safe QA mission and safe QA user, or add dev/test-only fixture tooling outside production seed paths.
+- Decide whether submit error contract must require application `code` for auth, validation, and not-found cases before frontend mutation wiring starts.
