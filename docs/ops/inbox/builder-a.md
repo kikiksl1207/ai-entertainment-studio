@@ -862,3 +862,40 @@ blocked_by:
 - QA2-004 live mutation remains blocked until BA-006 is deployed and this runbook is executed in staging/local with a dedicated QA user and visible QA mission.
 next_needed:
 - QA or Integrator should provision the staging/local QA user and mission using this runbook, then run QA2-004 against the deployed BA-006+ commit.
+
+---
+
+status: blocked
+task: BA-007 runbook execution for QA2-005 live submit smoke
+branch/commit: team2-backend/ba-007-runbook-execution-blocked / this blocker commit
+changed_files:
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: git diff --check
+- not run: npm.cmd run lint (doc-only blocker note; no backend code changed)
+- not run: npm.cmd run build (doc-only blocker note; no backend code changed)
+result:
+- Pulled latest `main`; it was already up to date.
+- Read `docs/ops/inbox/builder-a.md`, `docs/ops/tasks/closed/BA-007-fan-engagement-safe-qa-data-prep.md`, and `docs/ops/board.md`.
+- Attempted to execute the BA-007 runbook only against safe local/staging conditions.
+- Local API was not running on `localhost:3001`.
+- Local PostgreSQL was not reachable on `localhost:5432`.
+- No local PostgreSQL service, `psql`, Docker, or Podman execution path was available in this session.
+- Required non-secret environment handles for safe execution were absent: `DATABASE_URL`, `QA_USER_EMAIL`, `QA_USER_PASSWORD`, `API_BASE_URL`, and `STAGING_API_BASE_URL` were not present. Values were not read or recorded.
+- Because there was no safe local/staging DB/API and no QA-only credential handoff, no QA user was created, no QA mission was created, and no live mutation or read visibility check was executed.
+safe_qa_user_path:
+- blocked: no QA-only account credential source was available in the session.
+qa_mission:
+- not created.
+- mission id: none
+- mission slug: none
+- reset bucket: none
+visibility_check:
+- not run because no safe local/staging API or DB was available.
+blocked_by:
+- Provide one safe execution target: either a running local PostgreSQL + local API, or a staging API base URL plus QA-only credentials, or a staging/local DB connection explicitly approved for QA-only mutation.
+- Values must be provided through a private/local mechanism such as environment variables; do not write passwords, tokens, cookies, or DB secrets into docs, Git, or chat.
+- Confirm the target is not production, or explicitly designate a dedicated production QA environment with QA-only user/mission approval before any mutation.
+next_needed:
+- Re-run this task after safe local/staging execution handles are available.
+- QA2-005 live submit smoke remains blocked until a QA mission is created and `GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=3` returns the QA mission.
