@@ -383,6 +383,17 @@
   text-align: center;
 }
 
+.fan-mission-notice {
+  grid-column: 1 / -1;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(255, 247, 252, 0.92);
+  border: 1px solid rgba(255, 20, 147, 0.12);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .artist-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

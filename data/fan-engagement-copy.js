@@ -9,7 +9,10 @@
       status: "진행 중",
       missionType: "팬 참여",
       reward: "팬 포인트",
-      remaining: "참여 가능"
+      remaining: "참여 가능",
+      loading: "오늘의 팬 미션을 불러오고 있어요.",
+      empty: "오늘 참여할 팬 미션을 준비하고 있어요.",
+      error: "미션 정보를 불러오지 못해 준비된 예시를 먼저 보여드려요."
     },
     labelsByKey: {
       "fanMission.dailySignal.title": "오늘의 응원 미션",
