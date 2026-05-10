@@ -1,64 +1,78 @@
 # Team2 QA Inbox
 
-status: fail
-task: QA2-001 - feed image upload pipeline final recheck
+status: partial
+task: Backstage wallet adjustment QA - single and bulk Lumina adjustments
 environment:
-- branch: team2-qa/feed-image-pipeline-final-recheck
+- branch: team2-qa/backstage-wallet-adjustment-qa
 - local main after pull: origin/main
-- expected deployed commit from request: 1d60b9d1458da139884ac9ff46ee085d2efe11a4
-- /health actual commit: 174854a3186d9f599780645da4b007229e3ebe5a
-- frontend: https://www.lumina-stage.com
+- frontend: https://www.lumina-stage.com/backstage.html
 - backend: https://api.lumina-stage.com
-- No passwords, tokens, cookies, signed URL full values, direct upload target URLs, or env values were recorded.
+- No signed URL, direct upload URL, object URL, token, cookie, password, env value, or S3 credential was recorded.
+- No real production user or real production amount was used.
+
+summary:
+- PASS: client-side empty note guard for single adjustment.
+- PASS: client-side empty note guard for bulk adjustment.
+- PASS: client-side confirmation modal summary for single adjustment.
+- PASS: client-side confirmation modal summary for bulk adjustment.
+- PASS: desktop confirmation modal layout at 1365px width.
+- PASS: mobile/narrow confirmation modal layout at 390px and 320px width.
+- NOT RUN: authenticated server-side wallet adjustment execution and debit insufficient-balance failure, because this QA session did not have a valid Backstage admin session or safe QA wallet credentials.
+- STATIC CHECK ONLY: backend code rejects empty notes, placeholder notes, missing targets, invalid amount, and insufficient debit balance, and uses guarded debit update logic to avoid negative balances.
 
 tested_flows:
-- FAIL: `/health` responds, but reports commit `174854a3186d9f599780645da4b007229e3ebe5a` instead of requested commit `1d60b9d1458da139884ac9ff46ee085d2efe11a4`.
-- PASS: `/api/v1/app/bootstrap` returns `userImageUpload.maxBytes = 20971520` and `userImageUpload.maxMegabytes = 20`.
-- FAIL: 1MB 이하 image pipeline. `upload-intent` returned 201 and S3 PUT returned 200, but `confirm-upload` failed.
-- FAIL: 14MB near image pipeline. `upload-intent` returned 201 and S3 PUT returned 200, but `confirm-upload` failed.
-- PASS: 20MB 초과 image is blocked before upload completion with a clear UI message: `이미지가 너무 큽니다. 20MB 이하 이미지를 올려주세요.`
-- PASS: 20MB 초과 API attempt is rejected at `upload-intent` with 413.
-- FAIL: Feed post creation could not be completed for 1MB 이하 or 14MB image cases because `confirm-upload` failed before post submission.
-- FAIL: Feed card image display for newly uploaded images could not be verified because no image post was created.
-- FAIL: Image click lightbox for newly uploaded images could not be verified because no image post was created.
-- FAIL: Feed API display/thumbnail variant URL for newly uploaded images could not be verified because no image post was created.
+- PASS: single adjustment with empty note did not open the confirmation modal.
+- PASS: single adjustment with empty note sent 0 wallet-adjustment API requests.
+- PASS: single adjustment with empty note showed an operator-facing message requiring a handling note: `처리 사유를 입력해 주세요. 예: 오픈 이벤트 지급 100L`.
+- PASS: bulk adjustment with empty note did not open the confirmation modal.
+- PASS: bulk adjustment with empty note sent 0 wallet-adjustment API requests.
+- PASS: bulk adjustment with empty note showed the same operator-facing handling-note message.
+- PASS: single adjustment with an operator-entered note opened the confirmation modal.
+- PASS: single adjustment confirmation modal showed direction, amount, target count, and the exact operator-entered note.
+- PASS: bulk adjustment with an operator-entered note opened the confirmation modal.
+- PASS: bulk adjustment confirmation modal showed direction, amount, target count, and the exact operator-entered note.
+- PASS: opening confirmation modals without clicking the final run button sent 0 wallet-adjustment API requests.
+- PASS: desktop confirmation modal summary/action area did not overflow the viewport.
+- PASS: 390px mobile confirmation modal summary/action area did not overflow the viewport.
+- PASS: 320px narrow confirmation modal summary/action area did not overflow the viewport.
 
-failures:
-- 1MB 이하 image: stage `confirm-upload`, requestId `18457c9c-cf5c-4182-be2f-b22923fea481`, sanitized reason `FEED_IMAGE_DERIVATIVE_FAILED`.
-- 14MB near image: stage `confirm-upload`, requestId `8b73b903-21b1-4aa0-bf5e-e111a8dea36a`, sanitized reason `FEED_IMAGE_DERIVATIVE_FAILED`.
-- 20MB 초과 image: stage `upload-intent`, requestId `8e416d36-f49c-405d-9d06-5dc3530c3678`, sanitized reason `PAYLOAD_TOO_LARGE`.
-
-blockers:
-- P0 backend: `confirm-upload` fails after successful upload-intent and S3 PUT for valid feed images, so users cannot complete image feed post creation.
-- P1 deployment verification: `/health` actual commit does not match the requested deployed commit for this recheck.
+debit_safety:
+- NOT RUN: actual authenticated debit against a safe QA wallet was not executed.
+- STATIC CHECK: backend returns `BadRequestException` for insufficient debit balance.
+- STATIC CHECK: backend debit path checks existing wallet balance before debit.
+- STATIC CHECK: backend debit path uses `updateMany` with `cachedBalance: { gte: amount }`.
+- STATIC CHECK: backend re-checks update count and throws `Insufficient Lumina balance for user ...` if debit cannot be applied.
+- STATIC CHECK: returned policy includes `allowNegativeBalance: false`.
+- STATIC CHECK: UI failure path displays the API error message in the confirmation modal if a server-side adjustment fails.
 
 repro_steps:
 1. Run `git pull origin main`.
-2. Open `https://api.lumina-stage.com/health`.
-3. Observe `/health` actual commit `174854a3186d9f599780645da4b007229e3ebe5a`, not requested commit `1d60b9d1458da139884ac9ff46ee085d2efe11a4`.
-4. Log in to `https://www.lumina-stage.com/login.html` with the prepared regular QA user.
-5. Request `https://api.lumina-stage.com/api/v1/app/bootstrap`.
-6. Confirm `userImageUpload.maxBytes` is `20971520` and `userImageUpload.maxMegabytes` is `20`.
-7. Open `https://www.lumina-stage.com/lumina-feed.html`.
-8. Select a 1MB 이하 image and start feed image upload.
-9. Observe `upload-intent` returns 201.
-10. Observe S3 PUT returns 200.
-11. Observe `confirm-upload` returns 400 with sanitized reason `FEED_IMAGE_DERIVATIVE_FAILED`.
-12. Repeat steps 8-11 with a 14MB near image.
-13. Select a 20MB 초과 image in the browser UI.
-14. Observe the UI blocks the upload with the clear 20MB limit message.
-15. Attempt the 20MB 초과 API path.
-16. Observe `upload-intent` returns 413 with sanitized reason `PAYLOAD_TOO_LARGE`.
+2. Open `https://www.lumina-stage.com/backstage.html`.
+3. For UI-only validation, render the Backstage dashboard with a non-sensitive local QA-only auth stub; do not click the final confirmation run button.
+4. Open `단건 조정`.
+5. Enter a safe QA-looking target email and amount, leave `처리 사유` empty.
+6. Click `단건 조정 실행`.
+7. Observe no confirmation modal and no wallet-adjustment API request.
+8. Enter an operator-written note.
+9. Click `단건 조정 실행`.
+10. Observe the confirmation modal includes direction, amount, target count, and note.
+11. Close the modal without running the action.
+12. Repeat steps 4-11 for `대량 조정`.
+13. Repeat confirmation modal layout checks at 1365px, 390px, and 320px viewport widths.
 
-screenshots_or_notes:
-- Signed URL full values were intentionally not logged or written.
-- Direct upload target URLs were intentionally not logged or written.
-- Passwords, tokens, cookies, and env values were intentionally not logged or written.
-- No Lumina balance or other production data changes were performed.
+blockers:
+- Auth/test-data blocker: no valid Backstage admin session or safe QA wallet credentials were available in this QA session, so actual server mutation and insufficient-balance debit behavior could not be exercised.
 
-suspected_owner: backend
+security_check:
+- PASS: no signed URL was recorded.
+- PASS: no direct upload URL was recorded.
+- PASS: no object URL was recorded.
+- PASS: no token, cookie, password, env value, or S3 credential was recorded.
+- PASS: no actual wallet adjustment was executed.
+
+suspected_owner: none for client-side validation; backend runtime debit safety still needs authenticated QA execution.
 
 next_needed:
-- Confirm why stage `/health` is not reporting the requested commit.
-- Fix derivative generation during `confirm-upload`.
-- Re-run feed post creation, card image display, lightbox, and display/thumbnail variant URL checks after `confirm-upload` succeeds.
+- Provide a valid Backstage admin QA session and safe QA wallet target(s).
+- Run actual insufficient-balance debit against a safe QA wallet.
+- Confirm server failure message and wallet balance display do not show a negative balance.
