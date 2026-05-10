@@ -1,7 +1,7 @@
 # BA-002 - 1st Fan Engagement Loop Backend Contract
 
 Owner: Builder A / Backend
-Status: open
+Status: closed
 Priority: P1
 
 ## Context
@@ -92,3 +92,11 @@ Key decisions:
 - MyPage reward summary: `GET /api/v1/me/fan-engagement/summary`.
 - Creator Studio queue: `GET /api/v1/me/creator-studio/today-tasks`.
 - I18n: backend returns stable display keys plus optional localized labels; do not rely on English-only user-facing copy.
+
+## Closure
+
+Closed on 2026-05-10 after the BA/BB contract was reconciled in `docs/ops/fan-engagement-reconciled-contract.md`.
+
+Next backend task:
+
+- `docs/ops/tasks/open/BA-003-fan-engagement-backend-implementation-plan.md`

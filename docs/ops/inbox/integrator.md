@@ -62,3 +62,27 @@ next_needed:
 - Builder A can use the canonical contract for backend design/implementation planning.
 - Builder B can update UI map/skeleton assumptions against the canonical endpoints.
 - Reviewer should verify i18n fallback and non-cash reward wording before implementation rollout.
+
+---
+
+status: issued
+task: Split fan engagement implementation planning into BA-003 and BB-003
+branch/commit: team2-qa/backstage-wallet-adjustment-qa / this task split commit
+changed_files:
+- docs/ops/board.md
+- docs/ops/tasks/open/BA-003-fan-engagement-backend-implementation-plan.md
+- docs/ops/tasks/open/BB-003-fan-engagement-frontend-implementation-map.md
+- docs/ops/tasks/closed/BA-002-fan-engagement-loop-backend-contract.md
+- docs/ops/tasks/closed/BB-002-fan-engagement-loop-ui-map.md
+- docs/ops/inbox/integrator.md
+tests:
+- git diff --check
+result:
+- BA-002 and BB-002 are closed as contract/map tasks.
+- BA-003 now owns backend implementation planning only.
+- BB-003 now owns frontend implementation mapping only.
+- Both tasks preserve the reconciled contract and explicitly forbid code implementation, DB migration, endpoint renaming, wallet/settlement/revenue UI, and secret recording.
+blocked_by:
+- none
+next_needed:
+- Send BA-003 to Builder A and BB-003 to Builder B.

@@ -1,7 +1,7 @@
 # BB-002 - 1st Fan Engagement Loop UI Map
 
 Owner: Builder B / Frontend
-Status: open
+Status: closed
 Priority: P1
 
 ## Context
@@ -75,3 +75,11 @@ I18n rule:
 
 - UI should render Korean from stable label keys and local fallback maps.
 - Do not show raw enum keys or English-only backend copy to users.
+
+## Closure
+
+Closed on 2026-05-10 after the BA/BB contract was reconciled in `docs/ops/fan-engagement-reconciled-contract.md`.
+
+Next frontend task:
+
+- `docs/ops/tasks/open/BB-003-fan-engagement-frontend-implementation-map.md`

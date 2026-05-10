@@ -11,8 +11,8 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 
 | ID | Owner | Status | Task |
 | --- | --- | --- | --- |
-| BA-002 | Builder A | open | Design backend contract for the 1st fan engagement loop |
-| BB-002 | Builder B | open | Map the 1st fan engagement loop to existing pages and minimal UI surfaces |
+| BA-003 | Builder A | open | Prepare backend implementation plan for the reconciled fan engagement contract |
+| BB-003 | Builder B | open | Prepare frontend implementation map for the reconciled fan engagement contract |
 | IN-002 | Integrator | waiting | Integrate BA/BB/RV outputs after branches are ready |
 | QA2-001 | Team2 QA | open | Smoke-test live product flows and report reproducible blockers |
 | BE2-001 | Team2 Backend | open | Investigate backend/API causes for QA blockers without touching fan loop design |
@@ -32,8 +32,8 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 
 ## Priority Today
 
-1. Split the 20-item PM review into an implementable 1st fan engagement loop.
-2. Team2 checks current product QA blockers while Team1 designs the next loop.
+1. Split the reconciled fan engagement contract into backend and frontend implementation plans.
+2. Team2 checks current product QA blockers while Team1 plans the next loop.
 3. Keep image upload/R2 diagnostics and Creator Studio access from regressing.
 4. Run lint/build on any branch that changes backend contracts.
 5. Treat mobile layout and localization/mojibake checks as always-on acceptance criteria.
