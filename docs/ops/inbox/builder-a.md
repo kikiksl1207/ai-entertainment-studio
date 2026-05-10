@@ -955,3 +955,30 @@ next_needed:
 - Create one QA-only mission through the admin API.
 - Record mission id, slug, and reset policy only; do not record secrets/tokens/cookies.
 - Re-run QA2-005 live submit smoke.
+
+---
+
+status: completed
+task: #5 Backstage admin route contract docs
+branch/commit: team2-backend/ba-009-admin-route-contract-docs / this commit
+changed_files:
+- docs/ops/fan-engagement-reconciled-contract.md
+- docs/ops/tasks/open/BA-008-backstage-fan-mission-management-api.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: git diff --check
+- not run: npm.cmd run lint (docs-only change)
+- not run: npm.cmd run build (docs-only change)
+result:
+- Clarified that Backstage frontend must call `adminApiPath('/backstage/fan-engagement/missions')` instead of hardcoding host-root `/admin/api/v1/...`.
+- Documented the current deployed external route shape for host-root API base URLs:
+  - `GET /api/v1/admin/api/v1/backstage/fan-engagement/missions`
+  - `POST /api/v1/admin/api/v1/backstage/fan-engagement/missions`
+  - `POST /api/v1/admin/api/v1/backstage/fan-engagement/missions/:missionId/archive`
+- Recorded that `/admin/api/v1/...` can be correct only relative to an API base URL that already includes `/api/v1`, and may 404 when called at host root.
+- No product code, API route code, frontend submit state, seed data, or production data was changed.
+blocked_by:
+- none for document cleanup.
+next_needed:
+- 뷰어 리뷰.
+민감값 기록 여부: 없음
