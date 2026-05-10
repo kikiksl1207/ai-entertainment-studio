@@ -195,3 +195,39 @@ blocked_by:
 next_needed:
 - Push main.
 - Keep frontend mutation wiring gated to a separate frontend implementation task/review; do not rely on API error rendering until BA-004 is resolved.
+
+---
+
+status: done
+task: Integrate BA-004 and Home read-only fan engagement teaser
+branch/commit: main / 0999e24
+branches_merged:
+- origin/team2-backend/ba-004-fan-engagement-error-message-keys via `808a9e1 Merge fan engagement error message keys`
+- origin/team2-frontend/fan-engagement-home-teaser-phase-1 via `0999e24 Merge fan engagement home teaser`
+source_commits:
+- 6cb8fff Add fan engagement error message keys
+- 0d5c274 Add home fan engagement mission teaser
+pre_merge_boundary_checks:
+- Backend branch changed only `docs/ops/inbox/builder-a.md` and `server/src/fan-engagement/fan-engagement.service.ts`.
+- Backend branch did not include frontend files.
+- Frontend branch changed only `data/fan-engagement-copy.js`, `index.html`, `pages/fan-engagement.js`, and `styles/home.css`.
+- Frontend branch did not include backend files.
+frontend_review:
+- Home teaser is mock/read-only.
+- No fetch/axios/XMLHttpRequest API calls found.
+- No mission participation, concept vote ballot, fan proposal submit, title equip, Creator Studio mutation, or Backstage mutation wiring found.
+- Teaser buttons are disabled and do not submit.
+tests:
+- backend merge: `npm.cmd run lint`
+- backend merge: `npm.cmd run build`
+- frontend merge: `node --check pages/fan-engagement.js`
+- frontend merge: `node --check data/fan-engagement-copy.js`
+- frontend merge: `git diff --check`
+result:
+- BA-004 merged cleanly.
+- Home read-only/mock teaser merged cleanly.
+- Frontend mutation wiring remains gated to a future task/review.
+blocked_by:
+- none
+next_needed:
+- Push main.

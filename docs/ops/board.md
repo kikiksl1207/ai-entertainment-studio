@@ -12,7 +12,6 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 | ID | Owner | Status | Task |
 | --- | --- | --- | --- |
 | BA-003 | Builder A | open | Prepare backend implementation plan for the reconciled fan engagement contract |
-| BA-004 | Builder A | open | Add stable messageKey coverage for fan engagement error responses |
 | BB-003 | Builder B | open | Prepare frontend implementation map; Home read-only/mock teaser first, no mutations before Backend First PR |
 | IN-002 | Integrator | waiting | Integrate BA/BB/RV outputs after branches are ready |
 | QA2-001 | Team2 QA | open | Smoke-test live product flows and report reproducible blockers |
@@ -42,8 +41,9 @@ Move forward through team work, not one-person rushes. Wallet/cash-like features
 
 ## Implementation Locks
 
-- Builder B may plan the first frontend slice as `index.html` Home read-only/mock teaser only.
-- Frontend submit/API mutation wiring is locked until the Backend First PR is complete and reviewed.
+- Builder B first frontend slice is `index.html` Home read-only/mock teaser only.
+- Backend First PR and BA-004 messageKey follow-up are merged.
+- Frontend submit/API mutation wiring still requires a separate task and review before enabling.
 - RV-003 returned Reviewer PASS for `origin/team2-backend/fan-engagement-first-pr`; Integrator may merge only after the required gate checks pass.
 
 ## Do Not Do Today

@@ -1,7 +1,7 @@
 # BA-004 - Fan Engagement Error Message Keys
 
 Owner: Builder A / Backend
-Status: open
+Status: closed
 Priority: P2
 
 ## Context
@@ -65,3 +65,17 @@ Run:
 - `npm.cmd run lint` in `server/`
 - `npm.cmd run build` in `server/`
 - `git diff --check`
+
+## Closure
+
+Closed on 2026-05-10 after merge from:
+
+- `origin/team2-backend/ba-004-fan-engagement-error-message-keys`
+- source commit `6cb8fff Add fan engagement error message keys`
+- merge commit `808a9e1 Merge fan engagement error message keys`
+
+Checks:
+
+- backend branch diff did not include frontend files.
+- `npm.cmd run lint` passed.
+- `npm.cmd run build` passed.
