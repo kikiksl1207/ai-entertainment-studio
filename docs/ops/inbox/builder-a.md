@@ -724,3 +724,40 @@ next_needed:
 - Keep Phase 3B frontend submit mutation gated.
 - Provision an explicit safe QA mission and safe QA user, or add dev/test-only fixture tooling outside production seed paths.
 - Decide whether submit error contract must require application `code` for auth, validation, and not-found cases before frontend mutation wiring starts.
+
+---
+
+status: completed
+task: BA-006 fan engagement mission submit hardening
+branch/commit: team2-backend/ba-006-fan-engagement-submit-hardening / this hardening commit
+changed_files:
+- server/src/fan-engagement/fan-engagement-auth.guard.ts
+- server/src/fan-engagement/fan-engagement.controller.ts
+- server/src/fan-engagement/fan-engagement.module.ts
+- server/src/fan-engagement/fan-engagement.service.ts
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Added a fan-engagement scoped auth guard for mission participation submit. Logged-out/invalid auth now returns a stable fan-engagement response shape on `POST /api/v1/fan-engagement/missions/:missionId/participations`: `code=AUTH_REQUIRED`, `messageKey=fanEngagement.auth.required`. Global auth behavior is unchanged for other routes.
+- Added a mission participation idempotency request fingerprint over normalized `action`, `sourceType`, and `sourceId`. Reusing the same `idempotencyKey` for the same mission with a different request body now returns `code=IDEMPOTENCY_BODY_MISMATCH`, `messageKey=fanEngagement.error.idempotencyBodyMismatch` instead of replaying.
+- Preserved same-body idempotent replay behavior: same user, same mission, same idempotency key, and same normalized body returns the original participation with `idempotentReplay:true` and no extra points.
+- Added stable application `code` values to fan-engagement validation/not-found errors that previously had `messageKey` only, including `INVALID_UUID`, `MISSION_NOT_FOUND`, `CONCEPT_VOTE_NOT_FOUND`, `INVALID_TAKE`, `INVALID_SURFACE`, `INVALID_MISSION_SCOPE`, `INVALID_VOTE_STATUS`, and `REQUIRED_STRING`.
+- Confirmed successful mission participation still relies on required `resetBucket` plus unique `missionId,userId,resetBucket`, so at most one participation row can be created per reset bucket.
+- Confirmed fan point grant remains one-time through `FanEngagementPointLedger` unique `userId,referenceType,referenceId,ledgerType`; rewards/policy still expose `cashLike:false`, `luminaAmount:0`, `settlementEligible:false`, and `transferable:false`.
+- Confirmed fan engagement points remain isolated from `WalletAccount`, `WalletLedger`, Lumina, settlement, payout, revenue, and paid-like flows. No wallet/Lumina/settlement references were added under `server/src/fan-engagement`.
+- No frontend files, schema, migration, concept vote ballot submit logic, Creator Studio mutation, Backstage mutation, production seed, or auto seed behavior was added.
+safe_qa_runbook:
+- Use staging or local QA only. Do not create or mutate production user data for this smoke.
+- Create or select one dedicated QA user through normal auth flow. Do not record token/cookie/password values in docs or PR.
+- Create one explicit QA-only active fan mission manually through a controlled staging/local DB operation or future admin path; do not add automatic production seed data. Recommended values: unique slug such as `qa-home-submit-YYYYMMDD-runN`, `status=active`, `surfaces=['home']`, `resetPolicy=season:qa-YYYYMMDD-runN` for isolated reset buckets, `rewardPolicy={"points":1}`, stable copy keys, and a short `startsAt`/`endsAt` QA window.
+- Verify read-only first: `GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=3` should return the QA mission for the QA user.
+- Smoke submit cases with the QA user only: logged-out submit returns `AUTH_REQUIRED`; first logged-in submit returns one accepted participation; same key/body replay returns `idempotentReplay:true`; same key with changed `sourceType` or `sourceId` returns `IDEMPOTENCY_BODY_MISMATCH`; new key in the same reset bucket returns `ALREADY_PARTICIPATED`; invalid UUID returns `INVALID_UUID`; inactive/expired QA mission returns `MISSION_NOT_ACTIVE`.
+- Verify fan points by checking only `fan_engagement_point_ledger`; do not compare or mutate Lumina wallet balance, settlement, payout, boost, or paid-like tables.
+- Reset by creating a new QA mission with a new `season:qa-*` reset bucket or by deactivating the staging/local QA mission after the run. Do not delete or rewrite production rows.
+blocked_by:
+- Phase 3B frontend submit should remain gated until QA2-004 performs the live mutation smoke with the safe QA mission/user above.
+next_needed:
+- QA2-004 can run after this branch is merged and safe staging/local QA mission/user/reset conditions are provisioned.
