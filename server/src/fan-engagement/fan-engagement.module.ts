@@ -4,11 +4,12 @@ import {
   FanEngagementController,
   MyFanEngagementController,
 } from './fan-engagement.controller';
+import { FanEngagementJwtAuthGuard } from './fan-engagement-auth.guard';
 import { FanEngagementService } from './fan-engagement.service';
 
 @Module({
   imports: [PrismaModule],
   controllers: [FanEngagementController, MyFanEngagementController],
-  providers: [FanEngagementService],
+  providers: [FanEngagementService, FanEngagementJwtAuthGuard],
 })
 export class FanEngagementModule {}

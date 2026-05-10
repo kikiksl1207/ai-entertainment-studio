@@ -12,6 +12,7 @@ import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
+import { FanEngagementJwtAuthGuard } from './fan-engagement-auth.guard';
 import { FanEngagementService } from './fan-engagement.service';
 
 type FanEngagementQuery = Record<string, string | undefined>;
@@ -51,7 +52,7 @@ export class FanEngagementController {
   }
 
   @Post('missions/:missionId/participations')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(FanEngagementJwtAuthGuard)
   createMissionParticipation(
     @CurrentUser() user: AuthUser,
     @Param('missionId') missionId: string,

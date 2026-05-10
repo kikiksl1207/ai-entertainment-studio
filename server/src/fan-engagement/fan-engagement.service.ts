@@ -5,6 +5,12 @@ import { PrismaService } from '../prisma/prisma.service';
 type FanEngagementQuery = Record<string, string | undefined>;
 type FanEngagementBody = Record<string, unknown>;
 type JsonRecord = Record<string, unknown>;
+type MissionParticipationRequest = {
+  action: 'complete';
+  sourceType: string | null;
+  sourceId: string | null;
+  fingerprint: string;
+};
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -161,6 +167,7 @@ export class FanEngagementService {
 
     if (!vote) {
       throw this.notFoundError(
+        'CONCEPT_VOTE_NOT_FOUND',
         'Concept vote not found',
         'fanEngagement.conceptVote.notFound',
         { voteId },
@@ -254,6 +261,12 @@ export class FanEngagementService {
         messageKey: 'fanEngagement.mission.invalidAction',
       });
     }
+    const sourceType = this.optionalString(input, 'sourceType') ?? null;
+    const sourceId = this.optionalString(input, 'sourceId') ?? null;
+    if (sourceId) {
+      this.assertUuid(sourceId, 'sourceId');
+    }
+    const request = this.missionParticipationRequest(action, sourceType, sourceId);
 
     const idempotencyKey = this.optionalString(input, 'idempotencyKey');
     const existingByIdempotency = idempotencyKey
@@ -272,6 +285,15 @@ export class FanEngagementService {
         });
       }
 
+      if (!this.matchesMissionParticipationRequest(existingByIdempotency, request)) {
+        throw this.badRequestError({
+          code: 'IDEMPOTENCY_BODY_MISMATCH',
+          message: 'idempotencyKey was already used with a different request body',
+          messageKey: 'fanEngagement.error.idempotencyBodyMismatch',
+          details: { missionId },
+        });
+      }
+
       return {
         participation: this.presentParticipation(existingByIdempotency),
         rewards: this.rewards(0),
@@ -280,11 +302,6 @@ export class FanEngagementService {
     }
 
     const mission = await this.findOpenMission(missionId);
-    const sourceType = this.optionalString(input, 'sourceType');
-    const sourceId = this.optionalString(input, 'sourceId');
-    if (sourceId) {
-      this.assertUuid(sourceId, 'sourceId');
-    }
     const resetBucket = this.resetBucket(mission);
     const existing = await this.prisma.fanMissionParticipation.findUnique({
       where: {
@@ -306,9 +323,10 @@ export class FanEngagementService {
         const participation = await this.createParticipationRow(tx, {
           mission,
           userId,
-          sourceType,
-          sourceId,
+          sourceType: request.sourceType,
+          sourceId: request.sourceId,
           idempotencyKey,
+          idempotencyRequest: request,
         });
         const pointsGranted = await this.grantMissionPoints(tx, userId, mission, participation.id);
         return { participation, pointsGranted };
@@ -576,6 +594,7 @@ export class FanEngagementService {
     const mission = await this.prisma.fanMission.findUnique({ where: { id: missionId } });
     if (!mission) {
       throw this.notFoundError(
+        'MISSION_NOT_FOUND',
         'Fan mission not found',
         'fanEngagement.mission.notFound',
         { missionId },
@@ -599,6 +618,7 @@ export class FanEngagementService {
       sourceType?: string | null;
       sourceId?: string | null;
       idempotencyKey?: string | null;
+      idempotencyRequest?: MissionParticipationRequest | null;
     },
   ) {
     return tx.fanMissionParticipation.create({
@@ -613,6 +633,20 @@ export class FanEngagementService {
         sourceType: input.sourceType,
         sourceId: input.sourceId,
         idempotencyKey: input.idempotencyKey,
+        metadata: this.toJson(
+          input.idempotencyRequest
+            ? {
+                idempotency: {
+                  requestFingerprint: input.idempotencyRequest.fingerprint,
+                  request: {
+                    action: input.idempotencyRequest.action,
+                    sourceType: input.idempotencyRequest.sourceType,
+                    sourceId: input.idempotencyRequest.sourceId,
+                  },
+                },
+              }
+            : {},
+        ),
       },
     });
   }
@@ -941,6 +975,7 @@ export class FanEngagementService {
     const parsed = Number(value);
     if (!Number.isInteger(parsed) || parsed < 1) {
       throw this.badRequestError({
+        code: 'INVALID_TAKE',
         message: 'take must be a positive integer',
         messageKey: 'fanEngagement.validation.takePositiveInteger',
         details: { field: 'take' },
@@ -957,6 +992,7 @@ export class FanEngagementService {
 
     if (!VALID_SURFACES.has(value)) {
       throw this.badRequestError({
+        code: 'INVALID_SURFACE',
         message: 'surface is invalid',
         messageKey: 'fanEngagement.validation.invalidSurface',
         details: { field: 'surface' },
@@ -970,6 +1006,7 @@ export class FanEngagementService {
     const scope = value ?? 'today';
     if (!VALID_MISSION_SCOPES.has(scope)) {
       throw this.badRequestError({
+        code: 'INVALID_MISSION_SCOPE',
         message: 'scope is invalid',
         messageKey: 'fanEngagement.validation.invalidMissionScope',
         details: { field: 'scope' },
@@ -983,6 +1020,7 @@ export class FanEngagementService {
     const status = value ?? 'active';
     if (!VALID_VOTE_STATUSES.has(status)) {
       throw this.badRequestError({
+        code: 'INVALID_VOTE_STATUS',
         message: 'status is invalid',
         messageKey: 'fanEngagement.validation.invalidVoteStatus',
         details: { field: 'status' },
@@ -1008,6 +1046,7 @@ export class FanEngagementService {
   private assertUuid(value: string, field: string) {
     if (!UUID_PATTERN.test(value)) {
       throw this.badRequestError({
+        code: 'INVALID_UUID',
         message: `${field} must be a UUID`,
         messageKey: 'fanEngagement.validation.invalidUuid',
         details: { field },
@@ -1019,6 +1058,7 @@ export class FanEngagementService {
     const value = input[key];
     if (typeof value !== 'string' || !value.trim()) {
       throw this.badRequestError({
+        code: 'REQUIRED_STRING',
         message: `${key} must be a non-empty string`,
         messageKey: 'fanEngagement.validation.requiredString',
         details: { field: key },
@@ -1049,6 +1089,52 @@ export class FanEngagementService {
     return this.metadataObject(error).code === 'P2002';
   }
 
+  private missionParticipationRequest(
+    action: 'complete',
+    sourceType: string | null,
+    sourceId: string | null,
+  ): MissionParticipationRequest {
+    const normalized = {
+      action,
+      sourceType,
+      sourceId: sourceId?.toLowerCase() ?? null,
+    };
+
+    return {
+      ...normalized,
+      fingerprint: JSON.stringify(normalized),
+    };
+  }
+
+  private matchesMissionParticipationRequest(
+    row: {
+      sourceType: string | null;
+      sourceId: string | null;
+      metadata: Prisma.JsonValue;
+    },
+    request: MissionParticipationRequest,
+  ) {
+    const metadata = this.metadataObject(row.metadata);
+    const idempotency = this.metadataObject(metadata.idempotency);
+    if (idempotency.requestFingerprint === request.fingerprint) {
+      return true;
+    }
+
+    const storedRequest = this.metadataObject(idempotency.request);
+    if (Object.keys(storedRequest).length) {
+      return (
+        storedRequest.action === request.action &&
+        storedRequest.sourceType === request.sourceType &&
+        storedRequest.sourceId === request.sourceId
+      );
+    }
+
+    return (
+      (row.sourceType ?? null) === request.sourceType &&
+      (row.sourceId?.toLowerCase() ?? null) === request.sourceId
+    );
+  }
+
   private badRequestError(input: {
     code?: string;
     message: string;
@@ -1058,8 +1144,13 @@ export class FanEngagementService {
     return new BadRequestException(this.errorResponse(input));
   }
 
-  private notFoundError(message: string, messageKey: string, details?: JsonRecord) {
-    return new NotFoundException(this.errorResponse({ message, messageKey, details }));
+  private notFoundError(
+    code: string,
+    message: string,
+    messageKey: string,
+    details?: JsonRecord,
+  ) {
+    return new NotFoundException(this.errorResponse({ code, message, messageKey, details }));
   }
 
   private errorResponse(input: {
