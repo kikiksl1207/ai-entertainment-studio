@@ -107,3 +107,24 @@ blocked_by:
 - Backend First PR.
 next_needed:
 - Builder B can proceed with planning under the read-only/mock lock.
+
+---
+
+status: waiting
+task: Backend First PR merge gate
+branch/commit: team2-qa/backstage-wallet-adjustment-qa / this review-gate commit
+changed_files:
+- docs/ops/board.md
+- docs/ops/tasks/open/RV-003-review-fan-engagement-backend-first-pr.md
+- docs/ops/tasks/open/IN-002-integrate-wallet-review-and-fan-loop.md
+- docs/ops/inbox/integrator.md
+tests:
+- git diff --check
+result:
+- Fan engagement Backend First PR is ready for Reviewer review at `origin/team2-backend/fan-engagement-first-pr` commit `cec520d`.
+- Merge is locked until RV-003 returns Reviewer PASS.
+- After PASS, Integrator must pull the branch, run `prisma generate`, `npm.cmd run lint`, `npm.cmd run build`, inspect migration scope, and merge only if no blocker remains.
+blocked_by:
+- RV-003 Reviewer PASS.
+next_needed:
+- Send RV-003 review task to Reviewer.
