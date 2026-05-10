@@ -160,15 +160,20 @@ export class FanEngagementService {
     });
 
     if (!vote) {
-      throw new NotFoundException('Concept vote not found');
+      throw this.notFoundError(
+        'Concept vote not found',
+        'fanEngagement.conceptVote.notFound',
+        { voteId },
+      );
     }
 
     this.assertVoteOpen(vote);
     const option = vote.options.find((item) => item.id === optionId);
     if (!option) {
-      throw new BadRequestException({
+      throw this.badRequestError({
         code: 'OPTION_NOT_IN_VOTE',
         message: 'optionId does not belong to this vote',
+        messageKey: 'fanEngagement.conceptVote.optionNotInVote',
         details: { voteId, optionId },
       });
     }
@@ -177,9 +182,10 @@ export class FanEngagementService {
       where: { voteId_userId: { voteId, userId } },
     });
     if (existingVote) {
-      throw new BadRequestException({
+      throw this.badRequestError({
         code: 'ALREADY_VOTED',
         message: 'User already voted in this concept vote',
+        messageKey: 'fanEngagement.conceptVote.alreadyVoted',
         details: { voteId },
       });
     }
@@ -242,9 +248,10 @@ export class FanEngagementService {
     this.assertUuid(missionId, 'missionId');
     const action = this.optionalString(input, 'action') ?? 'complete';
     if (action !== 'complete') {
-      throw new BadRequestException({
+      throw this.badRequestError({
         code: 'INVALID_MISSION_ACTION',
         message: 'action must be complete',
+        messageKey: 'fanEngagement.mission.invalidAction',
       });
     }
 
@@ -286,9 +293,10 @@ export class FanEngagementService {
     });
 
     if (existing) {
-      throw new BadRequestException({
+      throw this.badRequestError({
         code: 'ALREADY_PARTICIPATED',
         message: 'Mission already completed for this reset bucket',
+        messageKey: 'fanEngagement.mission.alreadyParticipated',
         details: { missionId, resetBucket },
       });
     }
@@ -553,9 +561,10 @@ export class FanEngagementService {
       mission.actionTargetId !== vote.id ||
       (mission.artistId && mission.artistId !== vote.artistId)
     ) {
-      throw new BadRequestException({
+      throw this.badRequestError({
         code: 'MISSION_NOT_LINKED_TO_VOTE',
         message: 'missionId is not linked to this concept vote',
+        messageKey: 'fanEngagement.mission.notLinkedToConceptVote',
         details: { missionId, voteId: vote.id },
       });
     }
@@ -566,7 +575,11 @@ export class FanEngagementService {
   private async findOpenMission(missionId: string) {
     const mission = await this.prisma.fanMission.findUnique({ where: { id: missionId } });
     if (!mission) {
-      throw new NotFoundException('Fan mission not found');
+      throw this.notFoundError(
+        'Fan mission not found',
+        'fanEngagement.mission.notFound',
+        { missionId },
+      );
     }
 
     this.assertMissionOpen(mission);
@@ -752,9 +765,11 @@ export class FanEngagementService {
   }) {
     const now = new Date();
     if (vote.status !== 'active' || (vote.startsAt && vote.startsAt > now) || (vote.endsAt && vote.endsAt <= now)) {
-      throw new BadRequestException({
+      throw this.badRequestError({
         code: 'VOTE_NOT_ACTIVE',
         message: 'Concept vote is not active',
+        messageKey: 'fanEngagement.conceptVote.notActive',
+        details: { reason: 'inactive_or_expired' },
       });
     }
   }
@@ -770,9 +785,11 @@ export class FanEngagementService {
       (mission.startsAt && mission.startsAt > now) ||
       (mission.endsAt && mission.endsAt <= now)
     ) {
-      throw new BadRequestException({
+      throw this.badRequestError({
         code: 'MISSION_NOT_ACTIVE',
         message: 'Fan mission is not active',
+        messageKey: 'fanEngagement.mission.notActive',
+        details: { reason: 'inactive_or_expired' },
       });
     }
   }
@@ -923,7 +940,11 @@ export class FanEngagementService {
 
     const parsed = Number(value);
     if (!Number.isInteger(parsed) || parsed < 1) {
-      throw new BadRequestException('take must be a positive integer');
+      throw this.badRequestError({
+        message: 'take must be a positive integer',
+        messageKey: 'fanEngagement.validation.takePositiveInteger',
+        details: { field: 'take' },
+      });
     }
 
     return Math.min(parsed, max);
@@ -935,7 +956,11 @@ export class FanEngagementService {
     }
 
     if (!VALID_SURFACES.has(value)) {
-      throw new BadRequestException('surface is invalid');
+      throw this.badRequestError({
+        message: 'surface is invalid',
+        messageKey: 'fanEngagement.validation.invalidSurface',
+        details: { field: 'surface' },
+      });
     }
 
     return value;
@@ -944,7 +969,11 @@ export class FanEngagementService {
   private missionScope(value: string | undefined) {
     const scope = value ?? 'today';
     if (!VALID_MISSION_SCOPES.has(scope)) {
-      throw new BadRequestException('scope is invalid');
+      throw this.badRequestError({
+        message: 'scope is invalid',
+        messageKey: 'fanEngagement.validation.invalidMissionScope',
+        details: { field: 'scope' },
+      });
     }
 
     return scope;
@@ -953,7 +982,11 @@ export class FanEngagementService {
   private voteStatus(value: string | undefined) {
     const status = value ?? 'active';
     if (!VALID_VOTE_STATUSES.has(status)) {
-      throw new BadRequestException('status is invalid');
+      throw this.badRequestError({
+        message: 'status is invalid',
+        messageKey: 'fanEngagement.validation.invalidVoteStatus',
+        details: { field: 'status' },
+      });
     }
 
     return status;
@@ -974,14 +1007,22 @@ export class FanEngagementService {
 
   private assertUuid(value: string, field: string) {
     if (!UUID_PATTERN.test(value)) {
-      throw new BadRequestException(`${field} must be a UUID`);
+      throw this.badRequestError({
+        message: `${field} must be a UUID`,
+        messageKey: 'fanEngagement.validation.invalidUuid',
+        details: { field },
+      });
     }
   }
 
   private string(input: FanEngagementBody, key: string) {
     const value = input[key];
     if (typeof value !== 'string' || !value.trim()) {
-      throw new BadRequestException(`${key} must be a non-empty string`);
+      throw this.badRequestError({
+        message: `${key} must be a non-empty string`,
+        messageKey: 'fanEngagement.validation.requiredString',
+        details: { field: key },
+      });
     }
 
     return value.trim();
@@ -1006,6 +1047,33 @@ export class FanEngagementService {
 
   private isUniqueConstraintError(error: unknown) {
     return this.metadataObject(error).code === 'P2002';
+  }
+
+  private badRequestError(input: {
+    code?: string;
+    message: string;
+    messageKey: string;
+    details?: JsonRecord;
+  }) {
+    return new BadRequestException(this.errorResponse(input));
+  }
+
+  private notFoundError(message: string, messageKey: string, details?: JsonRecord) {
+    return new NotFoundException(this.errorResponse({ message, messageKey, details }));
+  }
+
+  private errorResponse(input: {
+    code?: string;
+    message: string;
+    messageKey: string;
+    details?: JsonRecord;
+  }) {
+    return {
+      ...(input.code ? { code: input.code } : {}),
+      message: input.message,
+      messageKey: input.messageKey,
+      ...(input.details ? { details: input.details } : {}),
+    };
   }
 
   private toJson(value: unknown) {
