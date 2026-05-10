@@ -269,6 +269,42 @@ next_needed:
 ---
 
 status: done
+task: Close QA2-002 and BB-005 after Home teaser real GET PASS
+branch/commit: main / pending
+qa_branch:
+- origin/team2-qa/QA2-002-fan-engagement-real-get-smoke
+qa_commit:
+- be9b68c docs: record QA2-002 fan engagement smoke
+main_tested:
+- 412dedbaee9fd92a1e60277b3f3332d50b954496
+changed_files:
+- docs/ops/board.md
+- docs/ops/tasks/closed/QA2-002-fan-engagement-home-teaser-real-get-smoke.md
+- docs/ops/tasks/closed/BB-005-fan-engagement-home-teaser-real-get.md
+- docs/ops/inbox/integrator.md
+- docs/ops/inbox/team2-qa.md
+tests:
+- git diff --check
+result:
+- QA2-002 PASS recorded and task closed.
+- BB-005 Phase 2 real read-only GET task closed.
+- QA confirmed live GET, empty state, contract 3-card success rendering, forced failure fallback, disabled CTA, zero prohibited mutation requests, responsive layout, and no Home regression.
+- No sensitive values recorded and no submit/mutation executed.
+still_blocked:
+- mission participation submit
+- concept vote ballot submit
+- fan proposal submit
+- title equip
+- Creator Studio / Backstage mutation
+- wallet / settlement / paid-like connection
+blocked_by:
+- none
+next_needed:
+- Keep mutation gate active until a separate implementation task and review explicitly opens the next action.
+
+---
+
+status: done
 task: Integrate BA-004 and Home read-only fan engagement teaser
 branch/commit: main / 0999e24
 branches_merged:

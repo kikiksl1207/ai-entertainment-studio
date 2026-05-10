@@ -1,7 +1,7 @@
 # BB-005 - Fan Engagement Home Teaser Phase 2 Real GET
 
 Owner: Builder B / Frontend
-Status: open
+Status: closed
 Priority: P1
 
 ## Context
@@ -60,3 +60,22 @@ If inline script in `index.html` is changed, parse/check the changed script as w
 ## Completion Note
 
 Write result to `docs/ops/inbox/builder-b.md`.
+
+## Closure
+
+Closed on 2026-05-10 after merge and QA2-002 PASS.
+
+Merged:
+
+- source branch `origin/team2-frontend/fan-engagement-home-teaser-phase-2`
+- source commit `ce013fea79c8e44c23c7018c260c1ea84642ffd2`
+- merge commit `b23f44e Merge fan engagement home teaser real GET`
+
+Verified:
+
+- `node --check pages/fan-engagement.js`
+- `node --check data/fan-engagement-copy.js`
+- `git diff --check`
+- QA2-002 PASS via `origin/team2-qa/QA2-002-fan-engagement-real-get-smoke`
+
+Mutation gate remains active. This task does not authorize submit or mutation wiring.

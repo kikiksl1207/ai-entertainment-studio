@@ -1,7 +1,7 @@
 # QA2-002 - Fan Engagement Home Teaser Real GET Smoke
 
 Owner: Team2 QA
-Status: open
+Status: closed
 Priority: P1
 
 ## Context
@@ -66,3 +66,38 @@ Include:
 - PASS/FAIL
 - blockers
 - screenshots only if useful
+
+## Closure
+
+Closed on 2026-05-10 after QA PASS.
+
+QA branch:
+
+- `origin/team2-qa/QA2-002-fan-engagement-real-get-smoke`
+- commit `be9b68c docs: record QA2-002 fan engagement smoke`
+
+Main tested:
+
+- `412dedbaee9fd92a1e60277b3f3332d50b954496`
+
+PASS:
+
+- Home teaser GET 호출 확인.
+- Live API 200 + `items: []` empty 상태 정상.
+- Contract 3-item success 응답 카드 3개 렌더.
+- Forced failure fallback 카드 3개.
+- CTA disabled 유지.
+- Forced click 후 prohibited mutation 0건.
+- Desktop/mobile/narrow 레이아웃 정상.
+- 기존 Home hero/main artists/shortform/debut carousel 회귀 없음.
+- 민감값 기록 없음.
+- submit/mutation 실행 없음.
+
+Still blocked:
+
+- mission participation submit
+- concept vote ballot submit
+- fan proposal submit
+- title equip
+- Creator Studio / Backstage mutation
+- wallet / settlement / paid-like connection
