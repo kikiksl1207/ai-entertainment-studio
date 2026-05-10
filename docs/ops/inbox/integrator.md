@@ -197,6 +197,34 @@ next_needed:
 
 ---
 
+status: done
+task: Merge BA-007 runbook execution blocker and open QA environment handoff
+branch/commit: main / pending
+source_branch:
+- origin/team2-backend/ba-007-runbook-execution-blocked
+result:
+- Merged Builder A's BA-007 runbook execution blocker note.
+- Confirmed the blocker was environment/access related, not a product-code
+  regression: no local API, no local DB access, no DB client path, no QA
+  credentials, no API base URL, and no safe QA mission source were available.
+- No QA user or QA mission was created.
+- No live logged-in mutation was executed.
+- Opened IN-005 for a safe QA environment handoff.
+changed_files:
+- docs/ops/board.md
+- docs/ops/inbox/builder-a.md
+- docs/ops/inbox/integrator.md
+- docs/ops/tasks/open/IN-005-fan-engagement-qa-environment-handoff.md
+blocked_by:
+- safe QA environment/account/mission handoff
+next_needed:
+- Integrator/Operator completes IN-005 without exposing secrets.
+- Open QA2-005 only after IN-005 confirms a visible QA mission and a safe QA
+  user path.
+- Keep frontend Phase 3B submit implementation blocked.
+
+---
+
 status: no-go
 task: IN-004 - Fan Engagement Submit Hardening Gate
 branch/commit: main / pending
