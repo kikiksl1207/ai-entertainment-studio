@@ -97,6 +97,28 @@
         </div>
       </section>
 
+      <!-- #208 — 캐릭터챗 starter prompt 진입 (slug 자동 적용) -->
+      <section class="content-section">
+        <div class="shell" style="text-align:center;">
+          <a id="chatStartLink" class="button button-primary" href="./character-chat.html" style="display:inline-flex;align-items:center;gap:8px;padding:14px 28px;font-size:15px;letter-spacing:-0.01em;">
+            <span>이 아티스트와 대화하기</span>
+            <span aria-hidden="true" style="font-size:13px;opacity:0.85;">→</span>
+          </a>
+          <p style="margin:10px 0 0;font-size:13px;color:rgba(220,210,240,0.55);font-weight:500;letter-spacing:-0.01em;">초보자 시작 지문으로 가볍게 첫 마디를 건넬 수 있어요. 대화 응답은 운영 준비 중입니다.</p>
+        </div>
+        <script>
+          (function () {
+            try {
+              const slug = new URLSearchParams(window.location.search).get("slug") || "";
+              const link = document.getElementById("chatStartLink");
+              if (slug && link) {
+                link.href = "./character-chat.html?slug=" + encodeURIComponent(slug);
+              }
+            } catch (_) { /* noop */ }
+          })();
+        </script>
+      </section>
+
       <!-- 하단: 갤러리 + 프로필 + 숏폼 -->
       <section class="content-section">
         <div class="shell">
