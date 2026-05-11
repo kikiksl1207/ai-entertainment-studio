@@ -214,6 +214,7 @@ GET /api/v1/payments/orders/:orderId
 POST /api/v1/payments/webhooks/:provider
 GET /api/v1/rewards/activation-policy
 GET /api/v1/rewards/activation-progress
+GET /api/v1/rewards/ledger-policy
 ```
 
 중요:
@@ -246,6 +247,7 @@ Lumina Station:
 - `products[]` includes frontend convenience fields: `totalLumina`, `unitPriceKrw`, `bonusRate`, `discountAmount`, and `isBestValue`.
 - `GET /api/v1/rewards/activation-policy` returns the current launch reward policy contract: free promo reward cap 3000L, paid bonus cap 20%, daily attendance schedule, planned identity/birthday/profile/social milestones, and anti-abuse notes.
 - `GET /api/v1/rewards/activation-progress` returns the signed-in user's cap usage, paid-bonus usage, attendance state, first-charge state, and milestone progress. Planned milestones are display-only until a future grant endpoint is opened.
+- `GET /api/v1/rewards/ledger-policy` returns the fail-closed free Lumina reward ledger skeleton for achievements, titles, birthday, identity completion, attendance, profile, and first-action grants. It is read-only, does not open arbitrary reward grants, and states the 3000L lifetime free promo cap plus non-settlement policy.
 
 Identity verification skeleton:
 

@@ -39,6 +39,11 @@ export class RewardsController {
     return this.rewardsService.getActivationPolicy();
   }
 
+  @Get('ledger-policy')
+  getRewardLedgerPolicy() {
+    return this.rewardsService.getRewardLedgerPolicy();
+  }
+
   @Get('activation-progress')
   getActivationProgress(@CurrentUser() user: AuthUser) {
     return this.rewardsService.getActivationProgress(user.id);

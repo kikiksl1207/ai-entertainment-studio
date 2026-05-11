@@ -75,6 +75,7 @@ Implemented reward APIs:
 - `POST /api/v1/rewards/daily-attendance`
 - `GET /api/v1/rewards/daily-attendance/policy`
 - `GET /api/v1/rewards/daily-attendance`
+- `GET /api/v1/rewards/ledger-policy`
 
 Daily attendance is a small promo activation reward, not creator-settlement
 eligible revenue. The 7-day cycle repeats while the user keeps a consecutive
@@ -87,6 +88,17 @@ identity provider has stored a verified `birthDate` and `identitySubjectHash`,
 the Korea service date matches the birthday, and the same verified identity has
 not claimed in the current year. The ledger uses `ledgerType = birthday_bonus`
 and `birthday_bonus:<identitySubjectHash>:<year>` idempotency.
+
+Achievement/title reward skeleton is exposed through
+`GET /api/v1/rewards/ledger-policy`. The endpoint is read-only and fail-closed:
+public clients cannot request arbitrary Lumina grants, and every future free
+Lumina achievement grant must be server-verified before wallet mutation. Future
+achievement Lumina grants must use `wallet_ledger.ledgerType =
+achievement_reward`, deterministic idempotency keys such as
+`achievement_reward:<userId>:<code>`, and the same 3000L lifetime free promo cap
+check before crediting. Fan titles remain non-cash display state unless an
+explicit server-verified reward rule pairs them with a separate wallet ledger
+grant.
 
 Email and social signup accept optional `referralCode`. If the code is valid, active, and owned by another active user, both users receive referral Lumina through wallet ledger credits.
 

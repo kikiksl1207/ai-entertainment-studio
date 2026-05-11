@@ -11,6 +11,7 @@ const LUMINA_UNIT_PRICE_KRW = 10;
 const FREE_PROMO_REWARD_CAP_LUMINA = 3000;
 const PAID_BONUS_CAP_RATE = 0.2;
 const FIRST_CHARGE_BONUS_RATE = 0.1;
+const IDENTITY_VERIFICATION_REWARD_LUMINA = 100;
 const BIRTHDAY_REWARD_LUMINA = 500;
 const PROMO_REWARD_LEDGER_TYPES = [
   'signup_bonus',
@@ -50,6 +51,88 @@ const CLAIMABLE_ACTIVATION_QUESTS = {
   },
 } as const;
 type ClaimableActivationQuestCode = keyof typeof CLAIMABLE_ACTIVATION_QUESTS;
+const ACHIEVEMENT_TITLE_LEDGER_SKELETON = [
+  {
+    code: 'profile_basic_setup',
+    achievementCode: 'profile.basic_setup',
+    titleCode: 'profile_starter',
+    rewardLumina: 30,
+    ledgerType: 'profile_completion_reward',
+    grantMode: 'idempotent_activation_quest',
+    status: 'live',
+    claimEndpoint: '/api/v1/rewards/activation-quests/profile_basic_setup/claim',
+  },
+  {
+    code: 'first_feed_post',
+    achievementCode: 'feed.first_post',
+    titleCode: 'feed_first_spark',
+    rewardLumina: 20,
+    ledgerType: 'quest_reward',
+    grantMode: 'idempotent_activation_quest',
+    status: 'live',
+    claimEndpoint: '/api/v1/rewards/activation-quests/first_feed_post/claim',
+  },
+  {
+    code: 'first_feed_like',
+    achievementCode: 'feed.first_like',
+    titleCode: 'warm_signal',
+    rewardLumina: 10,
+    ledgerType: 'quest_reward',
+    grantMode: 'idempotent_activation_quest',
+    status: 'live',
+    claimEndpoint: '/api/v1/rewards/activation-quests/first_feed_like/claim',
+  },
+  {
+    code: 'first_follow',
+    achievementCode: 'social.first_follow',
+    titleCode: 'first_connection',
+    rewardLumina: 10,
+    ledgerType: 'quest_reward',
+    grantMode: 'idempotent_activation_quest',
+    status: 'live',
+    claimEndpoint: '/api/v1/rewards/activation-quests/first_follow/claim',
+  },
+  {
+    code: 'first_reply',
+    achievementCode: 'feed.first_reply',
+    titleCode: 'first_responder',
+    rewardLumina: 20,
+    ledgerType: 'quest_reward',
+    grantMode: 'idempotent_activation_quest',
+    status: 'live',
+    claimEndpoint: '/api/v1/rewards/activation-quests/first_reply/claim',
+  },
+  {
+    code: 'identity_verification_bonus',
+    achievementCode: 'account.identity_verified',
+    titleCode: 'verified_fan',
+    rewardLumina: IDENTITY_VERIFICATION_REWARD_LUMINA,
+    ledgerType: 'identity_verification_bonus',
+    grantMode: 'fail_closed_provider_event',
+    status: 'planned_after_real_identity_provider',
+    claimEndpoint: null,
+  },
+  {
+    code: 'birthday_verified_annual',
+    achievementCode: 'account.verified_birthday',
+    titleCode: 'birthday_star',
+    rewardLumina: BIRTHDAY_REWARD_LUMINA,
+    ledgerType: 'birthday_bonus',
+    grantMode: 'annual_claim_on_verified_birthday',
+    status: 'ready_after_identity_birthdate_provider',
+    claimEndpoint: '/api/v1/rewards/birthday/claim',
+  },
+  {
+    code: 'attendance_streak_7',
+    achievementCode: 'attendance.streak_7',
+    titleCode: 'seven_day_starter',
+    rewardLumina: 0,
+    ledgerType: 'achievement_reward',
+    grantMode: 'policy_only_no_public_grant',
+    status: 'planned_fail_closed',
+    claimEndpoint: null,
+  },
+] as const;
 
 @Injectable()
 export class RewardsService {
@@ -263,7 +346,7 @@ export class RewardsService {
             {
               code: 'identity_verification_bonus',
               title: 'Verify identity',
-              rewardLumina: 100,
+              rewardLumina: IDENTITY_VERIFICATION_REWARD_LUMINA,
               status: 'planned',
               grantMode: 'after_real_identity_provider',
             },
@@ -361,8 +444,66 @@ export class RewardsService {
         creatorSettlementExcludesFreePromoSignalAbuse: true,
         ledgerIdempotencyRequired: true,
       },
+      achievementTitleLedgerSkeleton: this.achievementTitleLedgerSkeleton(),
       note:
         'This endpoint is a product policy contract. Only live grantMode entries currently grant Lumina.',
+    };
+  }
+
+  getRewardLedgerPolicy() {
+    return {
+      generatedAt: new Date(),
+      currencyCode: DEFAULT_CURRENCY,
+      unitPriceKrw: LUMINA_UNIT_PRICE_KRW,
+      capScopes: {
+        freePromo: {
+          capLumina: FREE_PROMO_REWARD_CAP_LUMINA,
+          capKrwEquivalent: FREE_PROMO_REWARD_CAP_LUMINA * LUMINA_UNIT_PRICE_KRW,
+          ledgerTypes: [...PROMO_REWARD_LEDGER_TYPES],
+          includedSources: [
+            'signup',
+            'referral',
+            'daily_attendance',
+            'identity_verification',
+            'birthday',
+            'achievement',
+            'quest',
+            'profile_completion',
+          ],
+        },
+        paidBonus: {
+          capRate: PAID_BONUS_CAP_RATE,
+          capPercent: PAID_BONUS_CAP_RATE * 100,
+          ledgerTypes: ['first_charge_bonus'],
+          separatedFromFreePromoCap: true,
+        },
+      },
+      ledgerRules: {
+        walletMutationRequired: true,
+        walletAndLedgerSameTransaction: true,
+        clientProvidedAmountAccepted: false,
+        duplicateProtection: {
+          walletLedgerIdempotencyKey: true,
+          patterns: [
+            'signup_bonus:<userId>',
+            'referral:<role>:<rewardId>',
+            'daily_attendance:<userId>:<YYYY-MM-DD>',
+            'activation_quest:<userId>:<code>',
+            'birthday_bonus:<identitySubjectHash>:<year>',
+            'achievement_reward:<userId>:<code>',
+          ],
+        },
+        freePromoCapCheckBeforeCredit: true,
+        settlementEligible: false,
+        cashRefundable: false,
+      },
+      publicMutation: {
+        arbitraryLuminaGrant: false,
+        achievementRewardGrant: false,
+        titleGrant: false,
+        identityVerificationRewardGrant: false,
+      },
+      skeleton: this.achievementTitleLedgerSkeleton(),
     };
   }
 
@@ -986,6 +1127,36 @@ export class RewardsService {
         identity_verification_bonus: 'planned_after_real_identity_provider',
         birthday_verified_annual: 'planned_after_verified_birthdate',
         first_charge_bonus: 'automatic_payment_fulfillment_bonus',
+      },
+    };
+  }
+
+  private achievementTitleLedgerSkeleton() {
+    return {
+      status: 'skeleton',
+      publicRewardGrantOpen: false,
+      titleEquipDomain: 'fan_engagement_non_cash',
+      luminaRewardDomain: 'wallet_free_promo',
+      items: ACHIEVEMENT_TITLE_LEDGER_SKELETON.map((item) => ({
+        ...item,
+        capScope: 'free_promo',
+        cashLike: false,
+        settlementEligible: false,
+        transferable: false,
+        titleGrantPublicMutationOpen: false,
+        keys: {
+          achievementNameKey: `achievement.${item.achievementCode}.name`,
+          achievementDescriptionKey: `achievement.${item.achievementCode}.description`,
+          titleNameKey: `fanTitle.${item.titleCode}.name`,
+          titleDescriptionKey: `fanTitle.${item.titleCode}.description`,
+          statusKey: `reward.status.${item.status}`,
+        },
+      })),
+      grantSafety: {
+        requiresServerVerifiedCondition: true,
+        requiresWalletLedgerIdempotencyKey: true,
+        requiresFreePromoCapCheck: true,
+        noClientSuppliedAmount: true,
       },
     };
   }
