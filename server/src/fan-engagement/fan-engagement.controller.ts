@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -70,5 +71,23 @@ export class MyFanEngagementController {
   @Get('summary')
   getSummary(@CurrentUser() user: AuthUser, @Query() query: FanEngagementQuery) {
     return this.fanEngagementService.getMySummary(user.id, query);
+  }
+
+  @Patch('title')
+  equipTitle(@CurrentUser() user: AuthUser, @Body() body: FanEngagementBody) {
+    return this.fanEngagementService.equipTitle(user.id, body);
+  }
+}
+
+@Controller('users/:userId/fan-engagement')
+export class PublicFanEngagementController {
+  constructor(private readonly fanEngagementService: FanEngagementService) {}
+
+  @Get('public-summary')
+  getPublicSummary(
+    @Param('userId') userId: string,
+    @Query() query: FanEngagementQuery,
+  ) {
+    return this.fanEngagementService.getPublicSummary(userId, query);
   }
 }

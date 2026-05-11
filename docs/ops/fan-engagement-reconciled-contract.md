@@ -2,7 +2,7 @@
 
 Updated: 2026-05-10
 Owner: Chamo / Leader
-Status: reconciled contract, implementation not started
+Status: reconciled contract, partial implementation
 
 ## Scope
 
@@ -630,6 +630,9 @@ Admin policy:
 
 ## Final Notes
 
-- This is documentation and contract reconciliation only.
-- No code implementation, DB migration, or PR was created by this task.
+- Mission list, concept vote list/submit, mission participation,
+  my fan engagement summary, title equip, and public fan profile summary are now
+  partially implemented in the backend.
+- Fan one-line proposals, Creator Studio today tasks, AI reaction drafts, and
+  Backstage moderation queues remain planned contract items.
 - BA-002 and BB-002 should treat this document as the canonical V1 contract unless Leader updates it.

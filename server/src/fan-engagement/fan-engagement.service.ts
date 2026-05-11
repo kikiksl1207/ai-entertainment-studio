@@ -444,6 +444,104 @@ export class FanEngagementService {
     };
   }
 
+  async equipTitle(userId: string, input: FanEngagementBody) {
+    const titleCode = this.string(input, 'titleCode');
+    const ownedTitle = await this.prisma.userFanTitle.findFirst({
+      where: {
+        userId,
+        status: 'active',
+        title: { code: titleCode, status: 'active' },
+      },
+      include: { title: true },
+    });
+
+    if (!ownedTitle) {
+      throw this.notFoundError(
+        'FAN_TITLE_NOT_OWNED',
+        'Fan title is not owned by this user',
+        'fanTitle.notOwned',
+        { titleCode },
+      );
+    }
+
+    const equippedAt = new Date();
+    const equipped = await this.prisma.$transaction(async (tx) => {
+      await tx.userFanTitle.updateMany({
+        where: { userId, equipped: true },
+        data: { equipped: false, equippedAt: null, updatedAt: equippedAt },
+      });
+
+      return tx.userFanTitle.update({
+        where: { id: ownedTitle.id },
+        data: { equipped: true, equippedAt, updatedAt: equippedAt },
+        include: { title: true },
+      });
+    });
+
+    return {
+      equipped: this.presentEquippedTitle(equipped),
+      policy: this.policy(),
+    };
+  }
+
+  async getPublicSummary(userId: string, query: FanEngagementQuery) {
+    this.assertUuid(userId, 'userId');
+    const locale = this.locale(query.locale);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw this.notFoundError(
+        'USER_NOT_FOUND',
+        'User not found',
+        'fanEngagement.publicSummary.userNotFound',
+        { userId },
+      );
+    }
+
+    const [equippedTitle, achievements] = await Promise.all([
+      this.prisma.userFanTitle.findFirst({
+        where: {
+          userId,
+          status: 'active',
+          equipped: true,
+          title: { status: 'active' },
+        },
+        include: { title: true },
+        orderBy: [{ equippedAt: 'desc' }, { createdAt: 'desc' }],
+      }),
+      this.prisma.userFanAchievement.findMany({
+        where: {
+          userId,
+          status: 'earned',
+          achievement: { status: 'active' },
+        },
+        include: { achievement: true },
+        orderBy: [{ earnedAt: 'desc' }, { createdAt: 'desc' }],
+        take: 6,
+      }),
+    ]);
+
+    return {
+      userId,
+      publicTitle: this.presentEquippedTitle(equippedTitle ?? undefined),
+      publicBadges: achievements.map((row) => ({
+        code: row.achievement.code,
+        badgeIconKey: row.achievement.badgeIconKey,
+        copy: this.achievementCopy(row.achievement.copy, row.achievement.code),
+        earnedAt: row.earnedAt,
+      })),
+      privacy: {
+        participationHistoryPublic: false,
+        exposesPrivateLedger: false,
+      },
+      locale,
+      policy: this.policy(),
+    };
+  }
+
   private async participationMap(userId: string, missions: Array<{ id: string; resetPolicy: string }>) {
     const keys = missions.map((mission) => ({
       missionId: mission.id,

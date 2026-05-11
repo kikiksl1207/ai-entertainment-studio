@@ -677,6 +677,29 @@ Response:
 }
 ```
 
+Fan engagement endpoints:
+
+```http
+GET /api/v1/fan-engagement/missions?surface=home&scope=today&take=20
+GET /api/v1/fan-engagement/concept-votes?artistId=<artistId>&status=active
+POST /api/v1/fan-engagement/concept-votes/:voteId/ballots
+POST /api/v1/fan-engagement/missions/:missionId/participations
+GET /api/v1/me/fan-engagement/summary
+PATCH /api/v1/me/fan-engagement/title
+GET /api/v1/users/:userId/fan-engagement/public-summary
+```
+
+- Mission and concept vote list endpoints support optional auth and return viewer
+  participation hints when a user token is present.
+- Mission participation and concept vote ballots require auth and use
+  `idempotencyKey` for safe replay.
+- Fan engagement points, achievements, and titles are not cash-like, not
+  transferable, not settlement eligible, and not convertible to Lumina.
+- `PATCH /me/fan-engagement/title` equips an already-owned active fan title.
+- `GET /users/:userId/fan-engagement/public-summary` exposes only public title
+  and public badge data. It does not expose private participation history or
+  point ledger rows.
+
 Fan letter endpoints:
 
 ```http

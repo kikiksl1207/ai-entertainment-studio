@@ -9,6 +9,9 @@ const otherSourceId = '00000000-0000-4000-8000-000000000202';
 const createdAt = new Date('2026-05-10T00:00:00.000Z');
 
 type PrismaMock = {
+  user: {
+    findUnique: jest.Mock;
+  };
   fanMission: {
     findUnique: jest.Mock;
   };
@@ -19,6 +22,14 @@ type PrismaMock = {
   fanEngagementPointLedger: {
     findUnique: jest.Mock;
     create: jest.Mock;
+  };
+  userFanTitle: {
+    findFirst: jest.Mock;
+    updateMany: jest.Mock;
+    update: jest.Mock;
+  };
+  userFanAchievement: {
+    findMany: jest.Mock;
   };
   $transaction: jest.Mock;
 };
@@ -72,6 +83,9 @@ function participation(overrides: Record<string, unknown> = {}) {
 
 function createPrismaMock(): PrismaMock {
   const prisma: PrismaMock = {
+    user: {
+      findUnique: jest.fn(),
+    },
     fanMission: {
       findUnique: jest.fn(),
     },
@@ -82,6 +96,14 @@ function createPrismaMock(): PrismaMock {
     fanEngagementPointLedger: {
       findUnique: jest.fn(),
       create: jest.fn(),
+    },
+    userFanTitle: {
+      findFirst: jest.fn(),
+      updateMany: jest.fn(),
+      update: jest.fn(),
+    },
+    userFanAchievement: {
+      findMany: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -94,6 +116,69 @@ function createPrismaMock(): PrismaMock {
 
 function serviceWith(prisma: PrismaMock) {
   return new FanEngagementService(prisma as never);
+}
+
+function fanTitle(overrides: Record<string, unknown> = {}) {
+  return {
+    id: '00000000-0000-4000-8000-000000000501',
+    userId,
+    titleId: '00000000-0000-4000-8000-000000000502',
+    status: 'active',
+    equipped: false,
+    equippedAt: null,
+    createdAt,
+    updatedAt: createdAt,
+    title: {
+      id: '00000000-0000-4000-8000-000000000502',
+      code: 'concept_scout',
+      rarity: 'common',
+      copy: {
+        labels: {
+          ko: {
+            displayName: '콘셉트 스카우트',
+            description: '첫 콘셉트 참여 칭호',
+          },
+        },
+      },
+      status: 'active',
+      createdAt,
+      updatedAt: createdAt,
+    },
+    ...overrides,
+  };
+}
+
+function fanAchievement(overrides: Record<string, unknown> = {}) {
+  return {
+    id: '00000000-0000-4000-8000-000000000601',
+    userId,
+    achievementId: '00000000-0000-4000-8000-000000000602',
+    status: 'earned',
+    progressCurrent: 1,
+    progressTarget: 1,
+    earnedAt: createdAt,
+    createdAt,
+    updatedAt: createdAt,
+    achievement: {
+      id: '00000000-0000-4000-8000-000000000602',
+      code: 'first_signal',
+      category: 'mission',
+      copy: {
+        labels: {
+          ko: {
+            title: '첫 응원 신호',
+            description: '처음으로 팬 미션에 참여했어요.',
+          },
+        },
+      },
+      badgeIconKey: 'signal-star',
+      criteria: {},
+      status: 'active',
+      createdAt,
+      updatedAt: createdAt,
+    },
+    ...overrides,
+  };
 }
 
 describe('FanEngagementService.createMissionParticipation', () => {
@@ -254,5 +339,86 @@ describe('FanEngagementService.createMissionParticipation', () => {
     await expect(guard.canActivate({} as never)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
+  });
+});
+
+describe('FanEngagementService fan title/public summary', () => {
+  it('equips an owned active title and clears any previous equipped title', async () => {
+    const prisma = createPrismaMock();
+    const title = fanTitle();
+    const equippedAt = new Date('2026-05-10T01:00:00.000Z');
+    prisma.userFanTitle.findFirst.mockResolvedValue(title);
+    prisma.userFanTitle.updateMany.mockResolvedValue({ count: 1 });
+    prisma.userFanTitle.update.mockResolvedValue(
+      fanTitle({ equipped: true, equippedAt }),
+    );
+
+    const result = await serviceWith(prisma).equipTitle(userId, {
+      titleCode: 'concept_scout',
+    });
+
+    expect(prisma.userFanTitle.updateMany).toHaveBeenCalledWith({
+      where: { userId, equipped: true },
+      data: expect.objectContaining({ equipped: false, equippedAt: null }),
+    });
+    expect(result).toMatchObject({
+      equipped: {
+        code: 'concept_scout',
+        copy: {
+          labels: {
+            ko: {
+              displayName: '콘셉트 스카우트',
+            },
+          },
+        },
+      },
+      policy: {
+        settlementEligible: false,
+        luminaConvertible: false,
+      },
+    });
+  });
+
+  it('rejects title equip when the user does not own the title', async () => {
+    const prisma = createPrismaMock();
+    prisma.userFanTitle.findFirst.mockResolvedValue(null);
+
+    await expect(
+      serviceWith(prisma).equipTitle(userId, { titleCode: 'missing_title' }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'FAN_TITLE_NOT_OWNED',
+        messageKey: 'fanTitle.notOwned',
+      },
+    });
+  });
+
+  it('returns only public fan title and badge data for public summaries', async () => {
+    const prisma = createPrismaMock();
+    prisma.user.findUnique.mockResolvedValue({ id: userId });
+    prisma.userFanTitle.findFirst.mockResolvedValue(
+      fanTitle({ equipped: true, equippedAt: createdAt }),
+    );
+    prisma.userFanAchievement.findMany.mockResolvedValue([fanAchievement()]);
+
+    const result = await serviceWith(prisma).getPublicSummary(userId, {});
+
+    expect(result).toMatchObject({
+      userId,
+      publicTitle: {
+        code: 'concept_scout',
+      },
+      publicBadges: [
+        {
+          code: 'first_signal',
+          badgeIconKey: 'signal-star',
+        },
+      ],
+      privacy: {
+        participationHistoryPublic: false,
+        exposesPrivateLedger: false,
+      },
+    });
+    expect(result).not.toHaveProperty('recentLedger');
   });
 });
