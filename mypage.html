@@ -106,6 +106,17 @@
                 <input id="mypageAvatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden />
               </div>
 
+              <!-- #192 — 프로필 커버 이미지 변경 (공개 프로필/피드 미니프로필에 동일 적용) -->
+              <div class="mypage-cover-preview" id="mypageCoverPreviewBox" style="position:relative;width:100%;height:140px;border-radius:14px;background:linear-gradient(135deg,#1a0a2a 0%,#3a0f4a 25%,#6a1a5a 55%,#c41e7a 100%);overflow:hidden;margin:0 0 16px;">
+                <div id="mypageCoverPreview" aria-hidden="true" style="position:absolute;inset:0;background-size:cover;background-position:center;"></div>
+                <div style="position:absolute;right:12px;bottom:12px;display:flex;gap:8px;z-index:2;">
+                  <button class="mypage-icon-button" type="button" id="mypageCoverButton" style="background:rgba(0,0,0,0.55);color:#fff;border-color:rgba(255,255,255,0.18);">커버 변경</button>
+                  <button class="mypage-icon-button" type="button" id="mypageCoverRemoveButton" hidden style="background:rgba(0,0,0,0.55);color:#fff;border-color:rgba(255,255,255,0.18);">커버 제거</button>
+                </div>
+                <input id="mypageCoverInput" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+              </div>
+              <p id="mypageCoverStatus" style="margin:0 0 16px;font-size:13px;color:rgba(220,210,240,0.6);">표지 이미지는 공개 프로필과 피드 미니프로필에 적용돼요. JPG · PNG · WEBP &nbsp;|&nbsp; 8MB 이하</p>
+
               <div class="mypage-profile-preview">
                 <div class="mypage-profile-image" id="mypageProfilePreview">
                   <span id="mypageProfilePreviewInitial">LS</span>
