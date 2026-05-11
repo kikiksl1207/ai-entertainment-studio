@@ -293,8 +293,11 @@
     linear-gradient(160deg, rgba(80, 50, 140, 0.12), transparent);
 }
 
+/* #193 — 팬 미션 섹션 시각 개선 (홈 다크 톤 일관 / 점선 박스 제거 / 카드 모던 라디우스) */
 .fan-mission-surface {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(250, 247, 255, 0.94));
+  background:
+    linear-gradient(180deg, rgba(108, 70, 187, 0.08), rgba(108, 70, 187, 0.03)),
+    linear-gradient(160deg, rgba(80, 50, 140, 0.14), transparent);
 }
 
 .fan-mission-heading {
@@ -309,23 +312,35 @@
 
 .fan-mission-card {
   min-height: 220px;
-  padding: 18px;
-  border: 1px solid rgba(72, 55, 116, 0.16);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 18px 42px rgba(27, 22, 48, 0.08);
+  padding: 20px;
+  border: 1px solid rgba(180, 150, 255, 0.12);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
+    linear-gradient(160deg, rgba(108, 70, 187, 0.14), rgba(80, 50, 140, 0.06));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   gap: 12px;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fan-mission-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 79, 195, 0.32);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.4);
 }
 
 .fan-mission-card.is-default {
-  border-color: rgba(255, 79, 195, 0.32);
+  border-color: rgba(255, 79, 195, 0.3);
 }
 
 .fan-mission-card.is-completed {
-  border-color: rgba(72, 55, 116, 0.1);
-  background: rgba(255, 255, 255, 0.74);
+  border-color: rgba(180, 150, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
+    linear-gradient(160deg, rgba(108, 70, 187, 0.06), transparent);
+  opacity: 0.86;
 }
 
 .fan-mission-card.is-login_required {
@@ -347,32 +362,36 @@
 .fan-mission-type,
 .fan-mission-status,
 .fan-mission-meta span {
-  min-height: 28px;
-  padding: 6px 9px;
+  min-height: 26px;
+  padding: 5px 10px;
   border-radius: 999px;
-  background: rgba(245, 241, 255, 0.96);
-  color: var(--muted);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(220, 210, 240, 0.78);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .fan-mission-status {
-  background: rgba(255, 237, 247, 0.96);
-  color: var(--accent-dark);
+  background: rgba(255, 79, 195, 0.16);
+  color: #ff7eb9;
 }
 
 .fan-mission-card h3 {
   margin: 0;
-  font-size: 20px;
+  font-size: 19px;
   line-height: 1.32;
   color: var(--ink);
+  font-weight: 800;
+  letter-spacing: -0.02em;
   word-break: keep-all;
 }
 
 .fan-mission-card p {
   margin: 0;
-  color: var(--muted);
-  line-height: 1.6;
+  color: rgba(220, 210, 240, 0.72);
+  line-height: 1.55;
+  font-size: 14px;
 }
 
 .fan-mission-meta {
@@ -387,19 +406,27 @@
 
 .fan-mission-options button,
 .fan-mission-suggest input {
-  min-height: 38px;
-  border: 1px solid rgba(72, 55, 116, 0.16);
-  border-radius: 8px;
-  background: rgba(250, 247, 255, 0.88);
-  color: var(--muted);
+  min-height: 40px;
+  border: 1px solid rgba(180, 150, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ink);
   font: inherit;
-  font-size: 13px;
-  font-weight: 850;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .fan-mission-options button {
   padding: 8px 10px;
   text-align: center;
+  cursor: pointer;
+}
+
+.fan-mission-options button:hover {
+  background: rgba(255, 79, 195, 0.1);
+  border-color: rgba(255, 79, 195, 0.32);
 }
 
 .fan-mission-suggest {
@@ -412,63 +439,95 @@
   padding: 0 12px;
 }
 
+.fan-mission-suggest input:focus {
+  outline: none;
+  border-color: rgba(255, 79, 195, 0.55);
+  background: rgba(255, 79, 195, 0.04);
+  box-shadow: 0 0 0 3px rgba(255, 79, 195, 0.12);
+}
+
 .fan-mission-suggest small,
 .fan-mission-inline-status {
-  color: var(--muted);
+  color: rgba(220, 210, 240, 0.6);
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .fan-mission-inline-status {
   padding: 10px 12px;
-  border-radius: 8px;
-  background: rgba(245, 241, 255, 0.88);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .fan-mission-cta {
   width: 100%;
   min-height: 44px;
   border: 0;
-  border-radius: 8px;
-  background: linear-gradient(135deg, rgba(255, 20, 147, 0.18), rgba(122, 92, 255, 0.18));
-  color: var(--accent-dark);
-  font-weight: 900;
-  cursor: default;
-  opacity: 0.82;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ff4fc3 0%, #c459f0 50%, #9b7cf7 100%);
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(255, 79, 195, 0.22);
+  transition: transform 0.12s ease, box-shadow 0.18s ease;
+}
+
+.fan-mission-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 26px rgba(255, 79, 195, 0.32);
+}
+
+.fan-mission-cta:active {
+  transform: translateY(0) scale(0.98);
 }
 
 .fan-mission-card.is-completed .fan-mission-cta {
-  opacity: 0.45;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(220, 210, 240, 0.42);
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .fan-mission-card.is-login_required .fan-mission-cta {
-  background: rgba(159, 139, 199, 0.15);
-  color: #7b62bd;
+  background: rgba(159, 139, 199, 0.16);
+  color: #c4b0f0;
+  box-shadow: none;
 }
 
 .fan-mission-card.is-error .fan-mission-cta {
-  background: rgba(255, 95, 130, 0.12);
-  color: #d53f67;
+  background: rgba(255, 95, 130, 0.16);
+  color: #ff7e96;
+  box-shadow: none;
 }
 
 .fan-mission-empty {
   grid-column: 1 / -1;
-  padding: 24px;
-  border: 1px dashed rgba(72, 55, 116, 0.22);
-  border-radius: 8px;
-  color: var(--muted);
+  padding: 28px 20px;
+  border: 1px solid rgba(180, 150, 255, 0.1);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    linear-gradient(160deg, rgba(108, 70, 187, 0.08), transparent);
+  color: rgba(220, 210, 240, 0.65);
   text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
 .fan-mission-notice {
   grid-column: 1 / -1;
   padding: 12px 14px;
-  border-radius: 8px;
-  background: rgba(255, 247, 252, 0.92);
-  border: 1px solid rgba(255, 20, 147, 0.12);
-  color: var(--muted);
+  border-radius: 12px;
+  background: rgba(255, 79, 195, 0.06);
+  border: 1px solid rgba(255, 79, 195, 0.16);
+  color: rgba(220, 210, 240, 0.75);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .artist-grid {
