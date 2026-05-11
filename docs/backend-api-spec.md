@@ -220,6 +220,14 @@ GET /api/v1/rewards/activation-progress
 - 이미 `paid`인 주문에 대한 웹훅 재전송이나 중복 이벤트는 idempotent replay로 처리하고 추가 지급하지 않는다.
 - Payment and refund state transitions are documented in `docs/payment-refund-state-policy.md`.
 
+Provider adapter baseline:
+
+- Registered payment providers are `mock`, `payletter`, and `tosspayments`.
+- `payletter` checkout payload uses `mode = "server_request"` and returns non-secret metadata for the server-side Payletter payment request handoff. Required live secrets stay in env only.
+- `tosspayments` checkout payload uses `mode = "payment_widget"` and returns the configured public client key plus order metadata for TossPayments checkout setup.
+- Client-side success URLs never credit Lumina. Wallet credit still requires a verified provider webhook/callback and matching `payment_orders.provider`.
+- Provider keys, webhook secrets, signed payloads, and raw callback tokens must not be written to Git, Notion, or chat.
+
 Lumina Station:
 
 - `GET /api/v1/lumina-station?take=5` is an authenticated charge-screen bootstrap endpoint.

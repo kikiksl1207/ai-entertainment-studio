@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MockPaymentAdapter } from './mock-payment.adapter';
+import { PayletterPaymentAdapter } from './payletter-payment.adapter';
 import { PaymentProviderAdapter } from './payment-provider.types';
+import { TossPaymentsAdapter } from './tosspayments-payment.adapter';
 
 @Injectable()
 export class PaymentProviderRegistry {
@@ -9,7 +11,11 @@ export class PaymentProviderRegistry {
   private readonly configuredProvider: string;
 
   constructor(configService: ConfigService) {
-    this.providers = [new MockPaymentAdapter(configService)];
+    this.providers = [
+      new MockPaymentAdapter(configService),
+      new PayletterPaymentAdapter(configService),
+      new TossPaymentsAdapter(configService),
+    ];
     this.configuredProvider = configService.get<string>('PAYMENT_PROVIDER') ?? 'mock';
   }
 

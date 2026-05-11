@@ -28,6 +28,7 @@ export class MockPaymentAdapter implements PaymentProviderAdapter {
   }): PaymentCheckoutPayload {
     return {
       provider: this.provider,
+      mode: 'mock',
       orderNo: input.orderNo,
       amount: input.amount,
       currency: input.currency,

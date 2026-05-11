@@ -30,6 +30,7 @@ export function validateEnv(config: Env) {
     rejectPlaceholder(config.JWT_ACCESS_SECRET, 'JWT_ACCESS_SECRET');
     rejectPlaceholder(config.JWT_REFRESH_SECRET, 'JWT_REFRESH_SECRET');
     validateObjectStorage(config);
+    validatePaymentProvider(config);
 
     if ((config.PAYMENT_PROVIDER ?? 'mock') === 'mock') {
       throw new Error('PAYMENT_PROVIDER must be a real provider in production');
@@ -80,5 +81,45 @@ function validateObjectStorage(config: Env) {
 
   if (provider === 'r2' && !config.OBJECT_STORAGE_ENDPOINT) {
     throw new Error('OBJECT_STORAGE_ENDPOINT environment variable is required when OBJECT_STORAGE_PROVIDER=r2');
+  }
+}
+
+function validatePaymentProvider(config: Env) {
+  const provider = config.PAYMENT_PROVIDER ?? 'mock';
+
+  if (!['mock', 'payletter', 'tosspayments'].includes(provider)) {
+    throw new Error('PAYMENT_PROVIDER must be mock, payletter, or tosspayments');
+  }
+
+  if (provider === 'payletter') {
+    requireEnv(config, [
+      'PAYLETTER_CLIENT_ID',
+      'PAYLETTER_PAYMENT_API_KEY',
+      'PAYMENT_SUCCESS_URL',
+      'PAYMENT_FAIL_URL',
+      'PAYMENT_CALLBACK_URL',
+    ]);
+  }
+
+  if (provider === 'tosspayments') {
+    if (!config.TOSSPAYMENTS_WIDGET_CLIENT_KEY && !config.TOSSPAYMENTS_CLIENT_KEY) {
+      throw new Error(
+        'TOSSPAYMENTS_WIDGET_CLIENT_KEY or TOSSPAYMENTS_CLIENT_KEY is required when PAYMENT_PROVIDER=tosspayments',
+      );
+    }
+
+    requireEnv(config, [
+      'TOSSPAYMENTS_SECRET_KEY',
+      'PAYMENT_SUCCESS_URL',
+      'PAYMENT_FAIL_URL',
+    ]);
+  }
+}
+
+function requireEnv(config: Env, keys: string[]) {
+  for (const key of keys) {
+    if (!config[key]) {
+      throw new Error(`${key} environment variable is required`);
+    }
   }
 }

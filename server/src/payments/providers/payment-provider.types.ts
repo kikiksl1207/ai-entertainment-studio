@@ -4,9 +4,13 @@ export type PaymentCheckoutPayload = {
   amount: string;
   currency: string;
   orderName: string;
+  mode?: 'mock' | 'payment_widget' | 'payment_window' | 'server_request';
   clientKey?: string;
   successUrl?: string;
   failUrl?: string;
+  cancelUrl?: string;
+  checkoutUrl?: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type ParsedPaymentWebhook = {

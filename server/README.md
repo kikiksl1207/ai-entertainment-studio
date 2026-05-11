@@ -318,7 +318,21 @@ Payment flow:
 5. The server credits Lumina only after `POST /api/v1/payments/webhooks/:provider` verifies and parses a provider event.
 6. A successful provider event writes `payment_transactions`, marks the order `paid`, credits `wallet_accounts.cached_balance`, and records a `wallet_ledger` purchase entry in one transaction.
 
-The order's stored provider must match the webhook provider before any wallet credit is created. The current provider adapter is `mock`, which is safe for local development and keeps the production integration path ready for Toss Payments, PortOne, or another PG later. Provider secrets must remain in environment variables such as `MOCK_PAYMENT_WEBHOOK_SECRET`; real provider keys should never be committed.
+The order's stored provider must match the webhook provider before any wallet credit is created. Provider adapters currently registered are `mock`, `payletter`, and `tosspayments`. `mock` is safe for local development. `payletter` and `tosspayments` expose non-secret checkout metadata so the frontend can prepare provider-specific UI, but live credit still requires verified provider callbacks/webhooks. Provider secrets must remain in environment variables such as `MOCK_PAYMENT_WEBHOOK_SECRET`, `PAYLETTER_PAYMENT_API_KEY`, or `TOSSPAYMENTS_SECRET_KEY`; real provider keys should never be committed.
+
+Payletter notes:
+
+- Set `PAYMENT_PROVIDER=payletter`.
+- Required production env: `PAYLETTER_CLIENT_ID`, `PAYLETTER_PAYMENT_API_KEY`, `PAYMENT_SUCCESS_URL`, `PAYMENT_FAIL_URL`, and `PAYMENT_CALLBACK_URL`.
+- Optional env: `PAYLETTER_ENDPOINT`, `PAYLETTER_PGCODE`, `PAYLETTER_SERVICE_NAME`, `PAYMENT_CANCEL_URL`, `PAYLETTER_CALLBACK_SECRET`.
+- The checkout payload uses `mode: "server_request"` and describes the server-side `/v1.0/payments/request` handoff. Lumina must be credited only after the callback path is verified and parsed.
+
+TossPayments notes:
+
+- Set `PAYMENT_PROVIDER=tosspayments`.
+- Required production env: `TOSSPAYMENTS_SECRET_KEY`, `PAYMENT_SUCCESS_URL`, `PAYMENT_FAIL_URL`, and either `TOSSPAYMENTS_WIDGET_CLIENT_KEY` or `TOSSPAYMENTS_CLIENT_KEY`.
+- Optional env: `TOSSPAYMENTS_WIDGET_SECRET_KEY`, `TOSSPAYMENTS_CONFIRM_ENDPOINT`, `TOSSPAYMENTS_WEBHOOK_SECRET`.
+- The checkout payload uses `mode: "payment_widget"` and includes the configured public client key for frontend checkout setup.
 
 Payment webhook handlers preserve the raw request body so real PG adapters can verify provider signatures against the exact payload received from the provider.
 
