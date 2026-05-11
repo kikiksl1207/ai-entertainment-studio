@@ -517,85 +517,27 @@
     }
   ];
 
-  const characterFrontAssets = {
-    "cha-dohyun": {
-      gallery: generatedReferenceGallery("cha-dohyun", 20)
-    },
-    "choi-seojin": {
-      gallery: generatedReferenceGallery("choi-seojin", 20)
-    },
-    "yoon-serin": {
-      gallery: [
-        ["Full body", "./assets/characters/yoon-serin/reference-final/01_full-body-reference-01.png"],
-        ["Close-up stage", "./assets/characters/yoon-serin/reference-final/02_close-up-stage-01.png"],
-        ["Profile upper", "./assets/characters/yoon-serin/reference-final/03_profile-upper-01.png"],
-        ["Upper body stage", "./assets/characters/yoon-serin/reference-final/04_upper-body-stage-01.png"],
-        ["Performance half", "./assets/characters/yoon-serin/reference-final/05_performance-half-01.png"],
-        ["Editorial close-up", "./assets/characters/yoon-serin/reference-final/06_editorial-closeup-01.png"],
-        ["Stage half body", "./assets/characters/yoon-serin/reference-final/07_stage-half-body-01.png"],
-        ["Mic command", "./assets/characters/yoon-serin/reference-final/08_stage-mic-command-02.png"],
-        ["Beauty close-up", "./assets/characters/yoon-serin/reference-final/09_beauty-closeup-02.png"],
-        ["Official profile", "./assets/characters/yoon-serin/reference-final/10_official-profile-close-03.png"],
-        ["Soft profile", "./assets/characters/yoon-serin/reference-final/11_official-profile-soft-04.png"],
-        ["Backstage corridor", "./assets/characters/yoon-serin/reference-final/12_backstage-corridor-03.png"],
-        ["Stage cover", "./assets/characters/yoon-serin/reference-final/13_stage-cover-candidate-04.png"],
-        ["Backstage side", "./assets/characters/yoon-serin/reference-final/14_backstage-corridor-02.png"],
-        ["Styling chair", "./assets/characters/yoon-serin/reference-final/15_backstage-styling-chair-01.png"],
-        ["Side profile", "./assets/characters/yoon-serin/reference-final/16_profile-side-03.png"],
-        ["Rehearsal focus", "./assets/characters/yoon-serin/reference-final/17_rehearsal-focus-02.png"],
-        ["Stage cover alt", "./assets/characters/yoon-serin/reference-final/18_stage-cover-candidate-02.png"],
-        ["Stage full body", "./assets/characters/yoon-serin/reference-final/19_stage-full-body-02.png"],
-        ["Stage upper body", "./assets/characters/yoon-serin/reference-final/20_stage-upper-body-02.png"]
-      ]
-    },
-    "han-seoyul": {
-      gallery: generatedReferenceGallery("han-seoyul", 20)
-    },
-    "park-doa": {
-      gallery: [
-        ["Mukbang main smile", "./assets/characters/park-doa/reference-final/01_mukbang-main-smile-01.png"],
-        ["Big reaction", "./assets/characters/park-doa/reference-final/02_mukbang-big-reaction-01.png"],
-        ["Food reaction", "./assets/characters/park-doa/reference-final/03_mukbang-food-reaction-01.png"],
-        ["Table smile", "./assets/characters/park-doa/reference-final/04_mukbang-table-smile-01.png"],
-        ["Drink sofa", "./assets/characters/park-doa/reference-final/05_vlog-drink-sofa-01.png"],
-        ["Cushion smile", "./assets/characters/park-doa/reference-final/06_vlog-cushion-smile-01.png"],
-        ["Sofa natural", "./assets/characters/park-doa/reference-final/07_vlog-sofa-natural-01.png"],
-        ["Talking reaction", "./assets/characters/park-doa/reference-final/08_talking-reaction-01.png"],
-        ["Selfie reaction", "./assets/characters/park-doa/reference-final/09_streamer-selfie-reaction-01.png"],
-        ["Drink selfie", "./assets/characters/park-doa/reference-final/10_streamer-drink-selfie-01.png"],
-        ["Mukbang bite", "./assets/characters/park-doa/reference-final/11_mukbang-bite-01.png"],
-        ["Surprised bite", "./assets/characters/park-doa/reference-final/12_mukbang-surprised-bite-01.png"],
-        ["Dessert cake stream", "./assets/characters/park-doa/reference-final/13_dessert-cake-stream-01.png"],
-        ["Hotpot noodle live", "./assets/characters/park-doa/reference-final/14_hotpot-noodle-live-01.png"],
-        ["Sofa plush vlog", "./assets/characters/park-doa/reference-final/15_sofa-plush-vlog-01.png"],
-        ["Late night editing", "./assets/characters/park-doa/reference-final/16_late-night-editing-01.png"],
-        ["Fan gift unboxing", "./assets/characters/park-doa/reference-final/17_fan-gift-unboxing-01.png"],
-        ["Morning breakfast vlog", "./assets/characters/park-doa/reference-final/18_morning-breakfast-vlog-01.png"]
-      ]
-    },
-    "seo-yuan": {
-      gallery: generatedReferenceGallery("seo-yuan", 20)
-    },
-    "ha-yuna": {
-      gallery: Array.from({ length: 24 }, (_, index) => {
-        const number = String(index + 1).padStart(2, "0");
-        return [`Reference ${number}`, `./assets/characters/ha-yuna/reference-final-${number}.png`];
-      }).filter(([, src]) => !src.includes("reference-final-14.png"))
-    },
-    "kwon-taejun": {
-      gallery: Array.from({ length: 20 }, (_, index) => {
-        const number = String(index + 1).padStart(2, "0");
-        return [`Reference ${number}`, `./assets/characters/kwon-taejun/reference-final-${number}.png`];
-      })
-    }
-  };
+  const siteSelectedSlugs = [
+    "cha-dohyun",
+    "choi-seojin",
+    "yoon-serin",
+    "han-seoyul",
+    "park-doa",
+    "seo-yuan",
+    "ha-yuna",
+    "kwon-taejun"
+  ];
 
-  function generatedReferenceGallery(slug, count, exclude = []) {
-    const excluded = new Set(exclude);
+  const characterFrontAssets = siteSelectedSlugs.reduce((assets, slug) => {
+    assets[slug] = { gallery: siteSelectedGallery(slug, 14) };
+    return assets;
+  }, {});
+
+  function siteSelectedGallery(slug, count) {
     return Array.from({ length: count }, (_, index) => {
       const number = String(index + 1).padStart(2, "0");
-      return [`Reference ${number}`, `./assets/characters/${slug}/reference-final-${number}.png`];
-    }).filter(([, src]) => !excluded.has(src.split("/").pop()));
+      return [`Gallery ${number}`, `./assets/characters/${slug}/site-selected/gallery-${number}.png`];
+    });
   }
 
   const localGalleryLockedSlugs = new Set(Object.keys(characterFrontAssets));
