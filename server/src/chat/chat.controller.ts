@@ -6,6 +6,7 @@ import {
   Headers,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
@@ -46,6 +47,14 @@ export class ChatController {
   @Get('chat/sessions')
   getSessions(@CurrentUser() user: AuthUser) {
     return this.chatService.getSessions(user.id);
+  }
+
+  @Get('chat/starter-prompts')
+  getStarterPrompts(
+    @Query('artistId') artistId?: string,
+    @Query('artistSlug') artistSlug?: string,
+  ) {
+    return this.chatService.getStarterPrompts({ artistId, artistSlug });
   }
 
   @Get('chat/sessions/:sessionId/messages')

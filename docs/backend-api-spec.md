@@ -336,6 +336,8 @@ GET /api/v1/me/premium-video-unlocks
 ```http
 POST /api/v1/chat/sessions
 GET /api/v1/chat/sessions
+GET /api/v1/chat/starter-prompts?artistSlug=<artistSlug>
+GET /api/v1/chat/starter-prompts?artistId=<artistId>
 GET /api/v1/chat/sessions/:sessionId/messages
 POST /api/v1/chat/sessions/:sessionId/messages
 GET /api/v1/chat-feature-products
@@ -347,6 +349,12 @@ POST /api/v1/chat-feature-orders
 - 일반 캐릭터챗 전체를 유료로 잠그지 않는다.
 - 특별 답변, 음성 답장, 이미지형 응답, 특별 대사만 유료 특수 기능으로 처리한다.
 - 유료 기능으로 생성된 메시지는 `chat_feature_order_id`와 연결한다.
+
+Starter prompts are authenticated and return beginner-friendly opening message
+suggestions before the first character-chat message. The selection itself is free
+and only returns copy/policy data; real message sending and generation still
+follow the character chat wallet and LLM policy. Artist metadata can override the
+default copy with `publicMetadata.chatStarterPromptSets`.
 
 ## Admin APIs
 

@@ -295,10 +295,16 @@ Chat endpoints:
 
 - `POST /api/v1/chat/sessions`
 - `GET /api/v1/chat/sessions`
+- `GET /api/v1/chat/starter-prompts?artistSlug=<artistSlug>`
 - `GET /api/v1/chat/sessions/:sessionId/messages`
 - `POST /api/v1/chat/sessions/:sessionId/messages`
 - `GET /api/v1/chat-feature-products`
 - `POST /api/v1/chat-feature-orders`
+
+Starter prompts return beginner-friendly A/B opening message suggestions and a
+direct-input option for the selected active artist. The endpoint is authenticated,
+does not debit Lumina, and falls back to safe default Korean copy when artist
+metadata does not define `chatStarterPromptSets`.
 
 Premium video unlocks and paid chat feature orders debit `wallet_accounts.cached_balance` and write `wallet_ledger` records in the same transaction. Premium video access is also recorded in `user_premium_video_unlocks` and `user_entitlements`.
 

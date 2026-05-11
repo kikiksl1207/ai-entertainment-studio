@@ -47,10 +47,18 @@ Current implemented:
 GET /api/v1/chat-feature-products
 POST /api/v1/chat/sessions
 GET /api/v1/chat/sessions
+GET /api/v1/chat/starter-prompts?artistSlug=<artistSlug>
 GET /api/v1/chat/sessions/:sessionId/messages
 POST /api/v1/chat/sessions/:sessionId/messages
-POST /api/v1/chat/sessions/:sessionId/feature-orders
+POST /api/v1/chat-feature-orders/preview
+POST /api/v1/chat-feature-orders
 ```
+
+Starter prompts are a first-session UX helper for new users. They return up to
+two suggested opening messages plus a direct-input option and do not debit Lumina.
+Artist-specific copy can be supplied through
+`artist.publicProfile.publicMetadata.chatStarterPromptSets`; otherwise the API
+uses safe default Korean copy based on the artist display name.
 
 Recommended next contracts before real LLM generation:
 

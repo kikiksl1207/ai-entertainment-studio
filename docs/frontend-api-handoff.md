@@ -498,12 +498,21 @@ GET /me/trust
 GET /me/identity-verifications/policy
 POST /me/identity-verifications
 POST /me/identity-verifications/self/confirm
+GET /chat/starter-prompts?artistSlug=<artistSlug>
 GET /chat-feature-products
 POST /chat-feature-orders/preview
 POST /chat-feature-orders
 POST /moderation/preview
 Authorization: Bearer <accessToken>
 ```
+
+`GET /chat/starter-prompts` returns the beginner character-chat opening card
+contract for an active artist. Pass either `artistSlug` or `artistId`. The
+response includes `{ artist, policy, tone, sets, source }`; `sets[].options`
+contains the A/B suggested messages and `directInput` is the C/free-text path.
+Selecting a starter prompt is free and does not create a chat message by itself.
+The frontend sends the chosen `message` through the normal chat message or later
+generation flow.
 
 Identity verification is a fail-closed NICE-first skeleton for now. The policy
 endpoint exposes supported methods (`mobile_phone`, `ipin`) and non-secret
