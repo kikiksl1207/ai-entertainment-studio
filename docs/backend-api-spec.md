@@ -338,7 +338,9 @@ POST /api/v1/chat/sessions
 GET /api/v1/chat/sessions
 GET /api/v1/chat/sessions/:sessionId/messages
 POST /api/v1/chat/sessions/:sessionId/messages
+POST /api/v1/chat/sessions/:sessionId/generate
 GET /api/v1/chat-feature-products
+POST /api/v1/chat-feature-orders/preview
 POST /api/v1/chat-feature-orders
 ```
 
@@ -347,6 +349,17 @@ POST /api/v1/chat-feature-orders
 - 일반 캐릭터챗 전체를 유료로 잠그지 않는다.
 - 특별 답변, 음성 답장, 이미지형 응답, 특별 대사만 유료 특수 기능으로 처리한다.
 - 유료 기능으로 생성된 메시지는 `chat_feature_order_id`와 연결한다.
+
+LLM generation readiness:
+
+- Generation is fail-closed until a provider adapter is configured:
+  `CHAT_LLM_PROVIDER_NOT_CONFIGURED` with `messageKey =
+  chat.generation.providerNotConfigured`.
+- `policy.generation.canGenerate=false` means frontend must keep paid
+  generation CTAs disabled. New paid chat feature orders are blocked before
+  wallet debit while the provider is not configured.
+- Generated assistant usage metadata is stored in `chat_messages.model_metadata`;
+  safety metadata is stored in `chat_messages.safety_metadata`.
 
 ## Admin APIs
 
