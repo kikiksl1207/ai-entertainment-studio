@@ -181,8 +181,8 @@
                 <p>충전, 응원, 해금, 환불 내역이 있으면 이곳에 표시됩니다.</p>
               </div>
               <div class="mypage-empty" id="mypageActivationRewards" style="margin-top:14px;">
-                <strong>활성화 보상을 확인하고 있습니다.</strong>
-                <p>프로필, 피드, 팔로우 같은 첫 행동 보상이 있으면 이곳에서 받을 수 있습니다.</p>
+                <strong>참여 기록을 모으고 있어요.</strong>
+                <p>프로필을 채우거나 첫 응원을 남기면 이곳에 기록이 쌓입니다.</p>
               </div>
             </section>
 
@@ -474,28 +474,29 @@
             refunded: "환불 완료"
           }[status] || status || "";
         }
+        // #204 — 노션 v1 톤 (조명/시그널/무드 계열, 게임식 표현 회피)
         function rewardTitle(code) {
           return {
-            profile_basic_setup: "프로필 기본 설정",
-            first_feed_post: "첫 피드 작성",
-            first_feed_like: "첫 좋아요",
-            first_follow: "첫 팔로우",
-            first_reply: "첫 댓글"
-          }[code] || code || "활성화 보상";
+            profile_basic_setup: "내 무대 정리",
+            first_feed_post: "피드의 첫 줄",
+            first_feed_like: "첫 응원 시그널",
+            first_follow: "무대의 첫 줄",
+            first_reply: "한 줄의 응원"
+          }[code] || code || "참여 기록";
         }
         function rewardDescription(code) {
           return {
-            profile_basic_setup: "닉네임과 프로필을 정리하면 받을 수 있어요.",
-            first_feed_post: "루미나 피드에 첫 글을 남기면 받을 수 있어요.",
-            first_feed_like: "마음에 드는 글에 첫 좋아요를 누르면 받을 수 있어요.",
-            first_follow: "좋아하는 아티스트를 처음 팔로우하면 받을 수 있어요.",
-            first_reply: "피드에 첫 댓글을 남기면 받을 수 있어요."
-          }[code] || "조건을 달성하면 받을 수 있는 1회성 보상입니다.";
+            profile_basic_setup: "닉네임과 프로필이 채워지면 열려요.",
+            first_feed_post: "루미나 피드에 첫 글을 남기면 열려요.",
+            first_feed_like: "마음에 든 글에 첫 좋아요를 누르면 열려요.",
+            first_follow: "좋아하는 아티스트를 처음 팔로우하면 열려요.",
+            first_reply: "피드에 첫 댓글을 남기면 열려요."
+          }[code] || "조금만 더 참여하면 열려요.";
         }
         function rewardStatusLabel(item) {
-          if (item.claimed || item.claimStatus === "claimed") return "수령 완료";
+          if (item.claimed || item.claimStatus === "claimed") return "받았어요";
           if (item.completed && item.claimStatus === "claimable_when_completed") return "받기 가능";
-          if (item.completed) return "달성 완료";
+          if (item.completed) return "기록됨";
           return "진행 중";
         }
         function normalizeRewardItems(data) {
@@ -515,7 +516,7 @@
           const el = $("mypageActivationRewards");
           if (!el) return;
           if (!items.length) {
-            renderBox("mypageActivationRewards", "받을 수 있는 활성화 보상이 없습니다.", "보상 정책이 열리면 프로필, 피드, 팔로우 첫 행동 보상을 이곳에서 확인할 수 있습니다.");
+            renderBox("mypageActivationRewards", "지금 받을 수 있는 보상이 없어요.", "프로필을 채우거나 첫 응원을 남기면 이곳에 기록이 쌓여요.");
             return;
           }
           el.innerHTML = items.map(item => {
@@ -545,13 +546,21 @@
               throwOnError: true
             });
             await Promise.all([loadMypageSummary(), loadActivationProgress()]);
-            alert(result?.idempotentReplay ? "이미 받은 보상입니다. 중복 지급 없이 상태만 확인했어요." : "보상이 지급되었습니다.");
+            // #204 — 노션 v1: '지급/당첨' 대신 '적립' 톤 + 결과에서 amount 추출 가능 시 표기
+            if (result?.idempotentReplay) {
+              alert("이미 받은 보상입니다.");
+            } else {
+              const grantedLumina = result?.rewardLumina || result?.amountLumina || result?.lumina || 0;
+              alert(grantedLumina
+                ? "참여 보상으로 " + grantedLumina + "L가 적립되었어요."
+                : "참여 보상이 적립되었어요.");
+            }
           } catch (err) {
             const codeName = err?.body?.code || err?.code;
-            if (codeName === "ACTIVATION_QUEST_NOT_COMPLETED") alert("아직 조건을 달성하지 않았어요.");
+            if (codeName === "ACTIVATION_QUEST_NOT_COMPLETED") alert("조금만 더 참여하면 열려요.");
             else if (codeName === "ACTIVATION_QUEST_NOT_CLAIMABLE") alert("아직 받을 수 없는 보상입니다.");
             else if (codeName === "FREE_PROMO_REWARD_CAP_EXCEEDED") alert("무료 보상 한도에 도달했어요.");
-            else alert(err?.message || "보상 지급에 실패했습니다.");
+            else alert(err?.message || "보상을 받지 못했어요. 잠시 후 다시 시도해 주세요.");
           } finally {
             busy(button, false);
           }
