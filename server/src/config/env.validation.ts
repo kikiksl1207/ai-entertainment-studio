@@ -31,6 +31,7 @@ export function validateEnv(config: Env) {
     rejectPlaceholder(config.JWT_REFRESH_SECRET, 'JWT_REFRESH_SECRET');
     validateObjectStorage(config);
     validatePaymentProvider(config);
+    validateEmailDeliveryProvider(config);
 
     if ((config.PAYMENT_PROVIDER ?? 'mock') === 'mock') {
       throw new Error('PAYMENT_PROVIDER must be a real provider in production');
@@ -116,10 +117,48 @@ function validatePaymentProvider(config: Env) {
   }
 }
 
+function validateEmailDeliveryProvider(config: Env) {
+  const provider = config.EMAIL_DELIVERY_PROVIDER ?? config.AUTH_EMAIL_PROVIDER;
+
+  if (!provider) {
+    return;
+  }
+
+  if (!['resend', 'sendgrid'].includes(provider)) {
+    throw new Error('EMAIL_DELIVERY_PROVIDER must be resend or sendgrid');
+  }
+
+  requireAnyEnv(config, ['AUTH_EMAIL_FROM', 'EMAIL_FROM'], 'AUTH_EMAIL_FROM or EMAIL_FROM');
+  requireAnyEnv(
+    config,
+    ['AUTH_EMAIL_VERIFICATION_URL_BASE', 'EMAIL_VERIFICATION_URL_BASE', 'FRONTEND_PUBLIC_BASE_URL', 'WEB_PUBLIC_BASE_URL'],
+    'AUTH_EMAIL_VERIFICATION_URL_BASE, EMAIL_VERIFICATION_URL_BASE, FRONTEND_PUBLIC_BASE_URL, or WEB_PUBLIC_BASE_URL',
+  );
+  requireAnyEnv(
+    config,
+    ['AUTH_PASSWORD_RESET_URL_BASE', 'PASSWORD_RESET_URL_BASE', 'FRONTEND_PUBLIC_BASE_URL', 'WEB_PUBLIC_BASE_URL'],
+    'AUTH_PASSWORD_RESET_URL_BASE, PASSWORD_RESET_URL_BASE, FRONTEND_PUBLIC_BASE_URL, or WEB_PUBLIC_BASE_URL',
+  );
+
+  if (provider === 'resend') {
+    requireEnv(config, ['RESEND_API_KEY']);
+  }
+
+  if (provider === 'sendgrid') {
+    requireEnv(config, ['SENDGRID_API_KEY']);
+  }
+}
+
 function requireEnv(config: Env, keys: string[]) {
   for (const key of keys) {
     if (!config[key]) {
       throw new Error(`${key} environment variable is required`);
     }
+  }
+}
+
+function requireAnyEnv(config: Env, keys: string[], label: string) {
+  if (!keys.some((key) => config[key])) {
+    throw new Error(`${label} environment variable is required`);
   }
 }

@@ -186,6 +186,14 @@ Local/staging QA note:
 - `ACTION_TOKEN_DEBUG_ENABLED=true` exposes `debug.actionToken` and `debug.expiresAt` on email verification/password reset request responses only when `NODE_ENV !== production`.
 - Production must keep this disabled. The debug field is omitted when the target active account is not found and must not be used by production UI logic.
 
+Email delivery adapter:
+
+- No provider configured: request endpoints keep returning `delivery.status = "not_configured"`.
+- Provider configured: supported values are `EMAIL_DELIVERY_PROVIDER=resend` or `sendgrid`. The server creates a one-time action token, builds the configured verification/reset URL, and sends it by email.
+- Required non-secret handles: `AUTH_EMAIL_FROM` or `EMAIL_FROM`, plus either explicit action URL bases (`AUTH_EMAIL_VERIFICATION_URL_BASE`, `AUTH_PASSWORD_RESET_URL_BASE`) or a frontend base URL (`FRONTEND_PUBLIC_BASE_URL` or `WEB_PUBLIC_BASE_URL`).
+- Provider API keys stay only in environment variables (`RESEND_API_KEY` or `SENDGRID_API_KEY`). Do not record values in docs, Git, Notion, logs, or chat.
+- Normal production responses never include the raw action token. Local/staging debug token exposure is still gated by `ACTION_TOKEN_DEBUG_ENABLED=true` and `NODE_ENV !== production`.
+
 - `DELETE /api/v1/me` soft-deletes the current account. Email-password accounts must send `currentPassword`; social-only accounts may omit it.
 - Account deletion sets `users.status = deleted`, sets `deleted_at`, revokes all refresh-token sessions, consumes outstanding user action tokens, deactivates the user's referral code, and writes a `user.self_delete` audit event.
 - Wallet ledgers, payment orders, gift records, and audit history are retained.
