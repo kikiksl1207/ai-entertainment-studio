@@ -610,6 +610,51 @@ product price, and settlement hints before the wallet debit. `POST
 /chat-feature-orders` still performs the real wallet debit and must use an
 `Idempotency-Key` header or `idempotencyKey` body value.
 
+Character chat generation readiness:
+
+```http
+POST /chat/sessions/:sessionId/generate
+Authorization: Bearer <accessToken>
+```
+
+Request:
+
+```json
+{
+  "body": "user message",
+  "chatFeatureOrderId": "<optional completed paid order uuid>"
+}
+```
+
+Response when a provider is not connected:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "CHAT_LLM_PROVIDER_NOT_CONFIGURED",
+    "messageKey": "chat.generation.providerNotConfigured",
+    "statusCode": 503,
+    "details": {
+      "generationStatus": "provider_not_configured",
+      "provider": {
+        "name": "not_configured",
+        "configured": false,
+        "status": "provider_not_configured"
+      }
+    }
+  }
+}
+```
+
+Preview and order policy now include `policy.generation`. While
+`policy.generation.canGenerate` is `false`, the frontend must keep paid chat
+generation CTAs disabled. The backend also fails closed before wallet debit for
+new LLM-generation orders when the provider is not configured. Usage and model
+cost metadata will be stored on generated assistant messages at
+`chat_messages.model_metadata`; safety metadata will be stored at
+`chat_messages.safety_metadata`.
+
 Fan letter MVP:
 
 ```http

@@ -1,6 +1,6 @@
 # Character Chat Backend Plan
 
-Updated: 2026-05-03
+Updated: 2026-05-11
 
 This document fixes the backend direction for Notion tasks #094-#096.
 It covers character chat products, fan letters, settlement eligibility, and
@@ -60,13 +60,23 @@ Artist-specific copy can be supplied through
 `artist.publicProfile.publicMetadata.chatStarterPromptSets`; otherwise the API
 uses safe default Korean copy based on the artist display name.
 
-Recommended next contracts before real LLM generation:
+Implemented readiness contracts before real LLM generation:
 
 ```http
-POST /api/v1/chat/sessions/:sessionId/feature-orders/preview
 POST /api/v1/chat/sessions/:sessionId/generate
-POST /api/v1/chat/feature-orders/:orderId/mark-failed
 ```
+
+Existing global endpoints remain the canonical order flow:
+
+```http
+POST /api/v1/chat-feature-orders/preview
+POST /api/v1/chat-feature-orders
+```
+
+Until a real provider adapter is implemented, `preview` returns
+`policy.generation.canGenerate = false` and `POST /chat-feature-orders` fails
+closed with `CHAT_LLM_PROVIDER_NOT_CONFIGURED` before a wallet debit for LLM
+generation products. `generate` also fails closed with the same code.
 
 Preview response draft:
 
@@ -97,6 +107,7 @@ Generation response draft:
 
 ```json
 {
+  "generationStatus": "completed",
   "order": {
     "id": "<order uuid>",
     "status": "completed",
@@ -117,6 +128,75 @@ Generation response draft:
 }
 ```
 
+Provider-not-configured response:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "CHAT_LLM_PROVIDER_NOT_CONFIGURED",
+    "messageKey": "chat.generation.providerNotConfigured",
+    "statusCode": 503,
+    "details": {
+      "generationStatus": "provider_not_configured",
+      "provider": {
+        "name": "not_configured",
+        "configured": false,
+        "status": "provider_not_configured"
+      },
+      "policy": {
+        "generation": {
+          "canGenerate": false,
+          "canCreatePaidOrder": false,
+          "usageMetadataPath": "chat_messages.model_metadata",
+          "safetyMetadataPath": "chat_messages.safety_metadata"
+        }
+      }
+    }
+  }
+}
+```
+
+Generation request draft:
+
+```json
+{
+  "body": "user message",
+  "chatFeatureOrderId": "<optional paid order uuid>"
+}
+```
+
+If `chatFeatureOrderId` is omitted, the request is treated as basic
+`daily_talk`. Basic chat remains free, settlement-excluded, and subject to a
+30-second cooldown, daily cap, and low model tier before any live provider is
+enabled.
+
+## LLM Adapter Boundary
+
+Current code introduces a `ChatLlmProvider` interface and a fail-closed
+`ChatLlmProviderAdapter`. The adapter does not call OpenAI or any other
+provider yet and does not read or expose secrets in responses. Future provider
+implementations should return:
+
+- generated text body
+- provider and model name
+- input/output token counts
+- estimated KRW cost
+- safety metadata
+
+Successful generated assistant messages store usage and model cost metadata in
+`chat_messages.model_metadata` and safety details in
+`chat_messages.safety_metadata`.
+
+Cost guardrails before enabling a real provider:
+
+- Free `daily_talk`: nano/lowest-cost tier, 30-second cooldown, daily cap 50,
+  input max 1000 chars, estimated per-message ceiling 0.20 KRW.
+- Paid mini modes: input max 2000 chars, estimated cost ceiling 1.00 KRW.
+- Premium paid mode: estimated cost ceiling 3.00 KRW.
+- Async special/fan-letter style mode: estimated cost ceiling 5.00 KRW.
+- Image and voice replies stay draft until separate cost and safety validation.
+
 ## Failure And Wallet Rules
 
 - Idempotency is required for every paid action.
@@ -124,6 +204,11 @@ Generation response draft:
 - If LLM generation fails after a debit, mark the order `failed` and create a
   compensating wallet ledger, or keep the order in a recoverable status before
   final completion.
+- The current readiness implementation blocks new paid chat feature orders while
+  the provider is not configured, so no new wallet debit happens in that state.
+- If an old completed paid order reaches `generate` and generation fails, the
+  service marks the order `failed` and restores Lumina with a `refund` ledger
+  using idempotency key `chat-feature-refund:<orderId>`.
 - User-facing copy should say the answer was not generated and Lumina was not
   charged or will be restored.
 - Do not promise refunds for preference mismatch. Only technical failure,

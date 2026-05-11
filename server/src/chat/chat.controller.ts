@@ -31,6 +31,11 @@ type CreateFeatureOrderBody = {
   idempotencyKey?: string;
 };
 
+type GenerateChatMessageBody = {
+  body?: string;
+  chatFeatureOrderId?: string;
+};
+
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class ChatController {
@@ -71,6 +76,18 @@ export class ChatController {
     return this.chatService.createMessage(user.id, sessionId, {
       body: this.requireField(body?.body, 'body'),
       messageType: body?.messageType,
+      chatFeatureOrderId: body?.chatFeatureOrderId,
+    });
+  }
+
+  @Post('chat/sessions/:sessionId/generate')
+  generateMessage(
+    @CurrentUser() user: AuthUser,
+    @Param('sessionId') sessionId: string,
+    @Body() body: GenerateChatMessageBody,
+  ) {
+    return this.chatService.generateMessage(user.id, sessionId, {
+      body: this.requireField(body?.body, 'body'),
       chatFeatureOrderId: body?.chatFeatureOrderId,
     });
   }

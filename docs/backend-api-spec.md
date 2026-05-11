@@ -348,7 +348,9 @@ GET /api/v1/chat/starter-prompts?artistSlug=<artistSlug>
 GET /api/v1/chat/starter-prompts?artistId=<artistId>
 GET /api/v1/chat/sessions/:sessionId/messages
 POST /api/v1/chat/sessions/:sessionId/messages
+POST /api/v1/chat/sessions/:sessionId/generate
 GET /api/v1/chat-feature-products
+POST /api/v1/chat-feature-orders/preview
 POST /api/v1/chat-feature-orders
 ```
 
@@ -363,6 +365,17 @@ suggestions before the first character-chat message. The selection itself is fre
 and only returns copy/policy data; real message sending and generation still
 follow the character chat wallet and LLM policy. Artist metadata can override the
 default copy with `publicMetadata.chatStarterPromptSets`.
+
+LLM generation readiness:
+
+- Generation is fail-closed until a provider adapter is configured:
+  `CHAT_LLM_PROVIDER_NOT_CONFIGURED` with `messageKey =
+  chat.generation.providerNotConfigured`.
+- `policy.generation.canGenerate=false` means frontend must keep paid
+  generation CTAs disabled. New paid chat feature orders are blocked before
+  wallet debit while the provider is not configured.
+- Generated assistant usage metadata is stored in `chat_messages.model_metadata`;
+  safety metadata is stored in `chat_messages.safety_metadata`.
 
 ## Admin APIs
 
