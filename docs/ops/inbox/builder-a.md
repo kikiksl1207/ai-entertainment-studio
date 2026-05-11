@@ -1005,3 +1005,37 @@ blocked_by:
 next_needed:
 - 뷰어 리뷰.
 민감값 기록 여부: 없음
+
+---
+
+status: completed
+task: #11 fan mission submit API test case hardening plan
+branch/commit: team2-backend/fan-mission-submit-api-tests-plan / this commit
+changed_files:
+- server/jest.config.js
+- server/src/fan-engagement/fan-engagement.service.spec.ts
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npm.cmd test -- fan-engagement.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+test_cases:
+- first submit creates one participation and one non-cash point grant
+- same idempotency key/body replays without a new grant
+- same idempotency key with different source body returns `IDEMPOTENCY_BODY_MISMATCH`
+- duplicate reset bucket returns `ALREADY_PARTICIPATED`
+- missing mission returns `MISSION_NOT_FOUND`
+- inactive mission returns `MISSION_NOT_ACTIVE`
+- invalid mission id returns `INVALID_UUID`
+- logged-out submit guard returns `AUTH_REQUIRED`
+result:
+- Added a focused Jest unit spec around `FanEngagementService.createMissionParticipation` and `FanEngagementJwtAuthGuard`.
+- Added minimal Jest config so existing `npm.cmd test` can run TypeScript specs.
+- Did not change service/controller behavior.
+- Did not run live mutation, create production data, or touch wallet/Lumina/settlement/payout/paid-like flows.
+blocked_by:
+- none.
+next_needed:
+- 차모 완료확인 after merge/test/build.
+민감값 기록 여부: 없음
