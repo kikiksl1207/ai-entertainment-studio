@@ -26,6 +26,27 @@ The seed archives the old `CHAT_SPECIAL_REPLY` product and replaces it with
 fan-letter tiers. `CHAT_IMAGE_REPLY` and `CHAT_VOICE_REPLY` stay draft because
 model cost and safety rules need separate validation.
 
+Canonical #203 policy skeleton:
+
+| SKU | Feature type | Korean fallback label | Price | Order flow | Model tier | Creator share |
+| --- | --- | --- | ---: | --- | --- | --- |
+| none | `daily_talk` | 데일리 톡 | 0L | free basic chat | nano | excluded |
+| `CHAT_DEEP_REPLY` | `deep_reply` | 딥 리플 | 2L | paid generation preview -> order -> generate | mini | eligible |
+| `CHAT_STORY_REPLY` | `story_reply` | 스토리 리플 | 5L | paid generation preview -> order -> generate | mini | eligible |
+| `CHAT_PREMIUM_REPLY` | `premium_reply` | 프리미엄 리플 | 10L | paid generation preview -> order -> generate | premium | eligible |
+| `CHAT_FANLETTER_30` | `fan_letter` | 스페셜 팬레터 30 | 30L | async reviewed fan-letter response | async_special | eligible |
+| `CHAT_FANLETTER_50` | `fan_letter` | 스페셜 팬레터 50 | 50L | async reviewed fan-letter response | async_special | eligible |
+| `CHAT_FANLETTER_100` | `fan_letter` | 스페셜 팬레터 100 | 100L | async reviewed fan-letter response | async_special | eligible |
+| `CHAT_IMAGE_REPLY` | `image_reply` | 이미지 답장 | 20L | draft reserved | image_later | not yet eligible |
+| `CHAT_VOICE_REPLY` | `voice_reply` | 음성 답장 | 20L | draft reserved | voice_later | not yet eligible |
+
+The runtime policy lives in `server/src/chat/chat-feature-policy.ts`. Seed data
+uses that policy to keep product labels, price, draft/active status,
+`creatorShareEligible`, `settlementSource`, `providerRequired`, `orderFlow`,
+`generationMode`, and cost-ceiling metadata in one place. This is a skeleton
+contract only: it does not connect a real provider, API key, PG adapter, or
+settlement payout run.
+
 ## Existing Backend Fit
 
 Existing tables already cover the MVP paid-chat path:
@@ -102,6 +123,51 @@ Preview response draft:
   }
 }
 ```
+
+#203 adds an additive policy payload so the frontend can avoid guessing product
+state or showing raw enum values:
+
+```json
+{
+  "product": {
+    "displayName": "스토리 리플",
+    "description": "캐릭터 세계관과 상황을 반영한 긴 응답입니다.",
+    "modelTier": "mini"
+  },
+  "policy": {
+    "product": {
+      "orderFlow": "paid_generation",
+      "generationMode": "inline_reply",
+      "providerRequired": true,
+      "requiresPreview": true,
+      "mvpLocked": false,
+      "settlementEligible": true,
+      "creatorShareEligible": true,
+      "settlementSource": "chat",
+      "estimatedCostCeilingKrw": "1.00"
+    },
+    "generation": {
+      "canGenerate": false,
+      "canCreatePaidOrder": false,
+      "disabledReason": "provider_not_configured",
+      "disabledMessageKey": "chat.generation.providerNotConfigured",
+      "disabledDisplayMessageKo": "응답 생성 준비 중입니다."
+    },
+    "settlement": {
+      "eligible": true,
+      "creatorShareEligible": true,
+      "source": "chat",
+      "eventType": "chat",
+      "finalPayoutRequiresSettlementRun": true
+    }
+  }
+}
+```
+
+Frontend should use `displayName`, `description`, `disabledMessageKey`, or
+`disabledDisplayMessageKo` for copy. It must not show raw values such as
+`deep_reply`, `provider_not_configured`, or `async_reviewed_fan_letter` directly
+to users.
 
 Generation response draft:
 
