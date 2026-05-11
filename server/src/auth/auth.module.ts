@@ -7,6 +7,7 @@ import {
   MeController,
 } from './auth.controller';
 import { AuthService } from './auth.service';
+import { AuthEmailDeliveryService } from './auth-email-delivery.service';
 import { AdminPermissionGuard } from './guards/admin-permission.guard';
 import { AdminAuthGuard } from './guards/admin-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -24,6 +25,7 @@ import { SocialAuthService } from './social-auth.service';
   ],
   providers: [
     AuthService,
+    AuthEmailDeliveryService,
     SocialAuthService,
     JwtAuthGuard,
     OptionalJwtAuthGuard,

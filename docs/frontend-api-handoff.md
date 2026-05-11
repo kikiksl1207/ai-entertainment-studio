@@ -377,7 +377,13 @@ My Page scope notes for 2026-05-02:
 - `POST /auth/password-resets` body: `{ "email": "user@example.com" }`.
 - `POST /auth/password-resets/confirm` body: `{ "token": "<reset-token>", "newPassword": "<new-password>" }`.
 
-Email delivery is not connected yet. The two request endpoints currently return `delivery.status = "not_configured"` and never reveal whether the email exists. Once a mail provider is added, the frontend contract can stay the same.
+Email delivery contract:
+
+- If no backend mail provider is configured, the two request endpoints return `delivery.status = "not_configured"` and never reveal whether the email exists.
+- If `EMAIL_DELIVERY_PROVIDER` is configured to `resend` or `sendgrid`, the backend sends a one-time verification/reset link using the configured action URL base and returns `delivery.status = "accepted"`.
+- Frontend should show the same neutral success copy for both request endpoints, for example "If this email can receive account mail, check your inbox." Do not branch UI on account existence.
+- Confirmation endpoints still receive the token from the emailed URL: `POST /auth/email-verifications/confirm` with `{ "token": "<email-token>" }` and `POST /auth/password-resets/confirm` with `{ "token": "<reset-token>", "newPassword": "<new-password>" }`.
+- Provider API keys, raw tokens, cookies, and environment values must never be rendered, logged, or recorded by the frontend.
 
 For local/staging QA only, the backend can expose the generated action token when `ACTION_TOKEN_DEBUG_ENABLED=true` and `NODE_ENV` is not `production`. Production must keep this disabled. If enabled and the email belongs to an active account, request responses include:
 

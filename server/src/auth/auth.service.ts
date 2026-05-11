@@ -32,6 +32,7 @@ import {
   SUPPORTED_LOCALES,
 } from './dto/auth.dto';
 import { SocialAuthService } from './social-auth.service';
+import { AuthEmailDeliveryService } from './auth-email-delivery.service';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { USER_IMAGE_UPLOAD_MAX_BYTES } from '../assets/user-assets.service';
 
@@ -108,6 +109,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly socialAuthService: SocialAuthService,
+    private readonly authEmailDeliveryService: AuthEmailDeliveryService,
   ) {}
 
   async register(input: RegisterDto, sessionContext?: SessionContext) {
@@ -1475,12 +1477,18 @@ export class AuthService {
       );
     }
 
+    const delivery = debugToken
+      ? await this.authEmailDeliveryService.sendActionEmail({
+          to: email,
+          purpose: EMAIL_VERIFICATION_PURPOSE,
+          actionToken: debugToken.token,
+          expiresAt: debugToken.expiresAt,
+        })
+      : this.authEmailDeliveryService.requestStatus();
+
     return {
       ok: true,
-      delivery: {
-        status: 'not_configured',
-        channel: 'email',
-      },
+      delivery,
       debug: this.actionTokenDebugPayload(debugToken),
     };
   }
@@ -1535,12 +1543,18 @@ export class AuthService {
       );
     }
 
+    const delivery = debugToken
+      ? await this.authEmailDeliveryService.sendActionEmail({
+          to: email,
+          purpose: PASSWORD_RESET_PURPOSE,
+          actionToken: debugToken.token,
+          expiresAt: debugToken.expiresAt,
+        })
+      : this.authEmailDeliveryService.requestStatus();
+
     return {
       ok: true,
-      delivery: {
-        status: 'not_configured',
-        channel: 'email',
-      },
+      delivery,
       debug: this.actionTokenDebugPayload(debugToken),
     };
   }
