@@ -495,12 +495,24 @@ Implemented MVP support endpoints:
 
 ```http
 GET /me/trust
+GET /me/identity-verifications/policy
+POST /me/identity-verifications
+POST /me/identity-verifications/self/confirm
 GET /chat-feature-products
 POST /chat-feature-orders/preview
 POST /chat-feature-orders
 POST /moderation/preview
 Authorization: Bearer <accessToken>
 ```
+
+Identity verification is a fail-closed NICE-first skeleton for now. The policy
+endpoint exposes supported methods (`mobile_phone`, `ipin`) and non-secret
+provider readiness flags. Requesting a verification creates or updates only an
+`unverified` marker; confirmation returns
+`IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED` until the real NICE adapter is
+contracted and wired. Frontend copy may show "본인확인 준비중" or route users to a
+disabled/coming-soon state, but must not collect 주민등록번호, raw identity files,
+provider tokens, or API keys.
 
 Important frontend rule for later:
 

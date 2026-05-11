@@ -16,6 +16,7 @@ import { CurrentUser } from './decorators/current-user.decorator';
 import {
   ChangePasswordDto,
   ConfirmEmailVerificationDto,
+  ConfirmIdentityVerificationDto,
   ConfirmPasswordResetDto,
   DeleteAccountDto,
   DisplayNameAvailabilityQueryDto,
@@ -23,6 +24,7 @@ import {
   RefreshDto,
   RegisterDto,
   RequestEmailVerificationDto,
+  RequestIdentityVerificationDto,
   RequestPasswordResetDto,
   SetPasswordDto,
   SocialLoginDto,
@@ -130,6 +132,33 @@ export class MeController {
   @UseGuards(JwtAuthGuard)
   trust(@CurrentUser() user: AuthUser) {
     return this.authService.getMyTrust(user.id);
+  }
+
+  @Get('identity-verifications/policy')
+  @UseGuards(JwtAuthGuard)
+  identityVerificationPolicy() {
+    return this.authService.getIdentityVerificationPolicy();
+  }
+
+  @Post('identity-verifications')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  requestIdentityVerification(
+    @CurrentUser() user: AuthUser,
+    @Body() body: RequestIdentityVerificationDto,
+  ) {
+    return this.authService.requestIdentityVerification(user.id, body);
+  }
+
+  @Post('identity-verifications/:verificationId/confirm')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  confirmIdentityVerification(
+    @CurrentUser() user: AuthUser,
+    @Param('verificationId') verificationId: string,
+    @Body() body: ConfirmIdentityVerificationDto,
+  ) {
+    return this.authService.confirmIdentityVerification(user.id, verificationId, body);
   }
 
   @Get('settlement-profile')

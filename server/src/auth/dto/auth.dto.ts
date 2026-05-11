@@ -273,6 +273,33 @@ export class UpdateSettlementProfileDto {
   payoutExceptionReason?: string;
 }
 
+export class RequestIdentityVerificationDto {
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsIn(['mobile_phone', 'phone', 'ipin'])
+  method?: 'mobile_phone' | 'phone' | 'ipin';
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsIn(['nice'])
+  provider?: 'nice';
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MaxLength(500)
+  returnUrl?: string;
+}
+
+export class ConfirmIdentityVerificationDto {
+  @Transform(normalizeString)
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(4096)
+  token!: string;
+}
+
 export class RefreshDto {
   @Transform(normalizeString)
   @IsNotEmpty()

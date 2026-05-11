@@ -16,11 +16,13 @@ import { JwtPayload, SocialProviderConfig } from './auth.types';
 import {
   ChangePasswordDto,
   ConfirmEmailVerificationDto,
+  ConfirmIdentityVerificationDto,
   ConfirmPasswordResetDto,
   DeleteAccountDto,
   LoginDto,
   RegisterDto,
   RequestEmailVerificationDto,
+  RequestIdentityVerificationDto,
   RequestPasswordResetDto,
   SetPasswordDto,
   SocialLoginDto,
@@ -82,6 +84,21 @@ const TEMP_DISPLAY_NAME_OBJECTS = [
 type SessionContext = {
   userAgent?: string | null;
   ipAddress?: string | null;
+};
+
+type IdentityVerificationProvider = 'nice';
+type IdentityVerificationMethod = 'mobile_phone' | 'ipin';
+type IdentityVerificationProviderStatus = {
+  provider: IdentityVerificationProvider;
+  selected: boolean;
+  configured: boolean;
+  integrationStatus:
+    | 'provider_not_selected'
+    | 'not_configured'
+    | 'credentials_ready_adapter_stub';
+  methods: IdentityVerificationMethod[];
+  env: Record<string, boolean>;
+  requiredEnvKeys: string[];
 };
 
 @Injectable()
@@ -485,6 +502,7 @@ export class AuthService {
 
     const identityVerified =
       user.identityVerification?.status === 'verified' || Boolean(user.phoneNumber);
+    const identityProviderStatus = this.identityVerificationProviderStatus('nice');
     const payoutAccountReady = user.payoutAccount?.status === 'registered';
     const payoutExceptionApproved = user.payoutException?.status === 'approved';
     const hasActiveAdminAccess = user.adminAccess?.status === 'active';
@@ -520,6 +538,7 @@ export class AuthService {
         level,
         identityVerified,
         identityVerificationProvider: identityVerified ? 'phone_number_mvp' : null,
+        identityProviderStatus,
         referralEligible: identityVerified,
         paidSupportEligible: identityVerified,
         creatorSettlementEligible:
@@ -563,6 +582,122 @@ export class AuthService {
         guestBrowsingAllowed: true,
       },
     };
+  }
+
+  getIdentityVerificationPolicy() {
+    const providerStatus = this.identityVerificationProviderStatus('nice');
+
+    return {
+      provider: providerStatus.provider,
+      methods: providerStatus.methods,
+      providerStatus,
+      policy: {
+        maxAccountsPerIdentity: 3,
+        rawResidentRegistrationNumberStored: false,
+        rawIdentityDocumentUploadRequired: false,
+        supportedProviders: ['nice'],
+        phoneAndIpinPlanned: true,
+        launchMode: 'provider_adapter_stub',
+      },
+      nextAction: this.identityVerificationNextAction(providerStatus, 'unverified'),
+    };
+  }
+
+  async requestIdentityVerification(
+    userId: string,
+    input: RequestIdentityVerificationDto,
+  ) {
+    const provider = input.provider ?? 'nice';
+    const method = this.normalizeIdentityVerificationMethod(input.method);
+    const providerStatus = this.identityVerificationProviderStatus(provider);
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        identityVerification: true,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Active user not found');
+    }
+
+    if (user.identityVerification?.status === 'verified') {
+      return this.identityVerificationRequestView(
+        user.identityVerification,
+        providerStatus,
+        method,
+      );
+    }
+
+    const now = new Date();
+    const metadata = {
+      skeleton: true,
+      requestedAt: now.toISOString(),
+      method,
+      returnUrlProvided: Boolean(input.returnUrl),
+      providerConfigured: providerStatus.configured,
+      providerIntegrationStatus: providerStatus.integrationStatus,
+      rawIdentityDocumentStored: false,
+      residentRegistrationNumberStored: false,
+    };
+
+    const record = await this.prisma.userIdentityVerification.upsert({
+      where: { userId },
+      create: {
+        userId,
+        status: 'unverified',
+        provider,
+        metadata: this.toJson(metadata),
+      },
+      update: {
+        status: 'unverified',
+        provider,
+        metadata: this.toJson(metadata),
+        updatedAt: now,
+      },
+    });
+
+    return this.identityVerificationRequestView(record, providerStatus, method);
+  }
+
+  async confirmIdentityVerification(
+    userId: string,
+    verificationId: string,
+    input: ConfirmIdentityVerificationDto,
+  ) {
+    if (verificationId !== 'self') {
+      throw new BadRequestException('Invalid identity verification id');
+    }
+
+    const providerStatus = this.identityVerificationProviderStatus('nice');
+    const record = await this.prisma.userIdentityVerification.findUnique({
+      where: { userId },
+    });
+    const tokenReceived = input.token.trim().length > 0;
+
+    throw new HttpException(
+      {
+        code: 'IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED',
+        message: 'Identity verification provider adapter is not connected yet.',
+        statusCode: HttpStatus.NOT_IMPLEMENTED,
+        verificationId: 'self',
+        tokenReceived,
+        verification: record
+          ? this.identityVerificationSummary(record)
+          : this.identityVerificationSummary(null),
+        providerStatus,
+        nextAction: this.identityVerificationNextAction(
+          providerStatus,
+          record?.status ?? 'unverified',
+        ),
+      },
+      HttpStatus.NOT_IMPLEMENTED,
+    );
   }
 
   async getMySettlementProfile(userId: string) {
@@ -2041,6 +2176,110 @@ export class AuthService {
           user.artistOperators.length > 0 &&
           (payoutReady || payoutExceptionApproved),
         requiredActions,
+      },
+    };
+  }
+
+  private normalizeIdentityVerificationMethod(
+    method?: RequestIdentityVerificationDto['method'],
+  ): IdentityVerificationMethod {
+    return method === 'ipin' ? 'ipin' : 'mobile_phone';
+  }
+
+  private identityVerificationProviderStatus(
+    provider: IdentityVerificationProvider = 'nice',
+  ): IdentityVerificationProviderStatus {
+    const selectedProvider = (
+      this.configService.get<string>('IDENTITY_VERIFICATION_PROVIDER') ?? 'nice'
+    )
+      .trim()
+      .toLowerCase();
+    const selected = selectedProvider === provider;
+    const requiredEnvKeys = [
+      'NICE_IDENTITY_SITE_CODE',
+      'NICE_IDENTITY_SITE_PASSWORD',
+      'NICE_IDENTITY_RETURN_URL',
+      'NICE_IDENTITY_CALLBACK_URL',
+    ];
+    const env = Object.fromEntries(
+      requiredEnvKeys.map((key) => [key, this.hasConfig(key)]),
+    );
+    const configured = selected && requiredEnvKeys.every((key) => env[key]);
+    const integrationStatus = !selected
+      ? 'provider_not_selected'
+      : configured
+        ? 'credentials_ready_adapter_stub'
+        : 'not_configured';
+
+    return {
+      provider,
+      selected,
+      configured,
+      integrationStatus,
+      methods: ['mobile_phone', 'ipin'],
+      env,
+      requiredEnvKeys,
+    };
+  }
+
+  private identityVerificationNextAction(
+    providerStatus: IdentityVerificationProviderStatus,
+    status: string,
+  ) {
+    if (status === 'verified') {
+      return {
+        type: 'already_verified',
+        label: 'Identity verification complete',
+      };
+    }
+
+    if (!providerStatus.selected) {
+      return {
+        type: 'provider_not_selected',
+        label: 'Identity verification is unavailable',
+      };
+    }
+
+    if (!providerStatus.configured) {
+      return {
+        type: 'provider_not_configured',
+        label: 'Identity verification setup is required',
+      };
+    }
+
+    return {
+      type: 'provider_adapter_pending',
+      label: 'Identity verification adapter implementation is pending',
+    };
+  }
+
+  private identityVerificationRequestView(
+    record:
+      | {
+          status: string;
+          provider: string | null;
+          verifiedNameMasked: string | null;
+          verifiedAt: Date | null;
+          expiresAt: Date | null;
+        }
+      | null,
+    providerStatus: IdentityVerificationProviderStatus,
+    method: IdentityVerificationMethod,
+  ) {
+    const verification = this.identityVerificationSummary(record);
+
+    return {
+      verificationId: 'self',
+      method,
+      verification,
+      providerStatus,
+      nextAction: this.identityVerificationNextAction(
+        providerStatus,
+        verification.status,
+      ),
+      storagePolicy: {
+        rawResidentRegistrationNumberStored: false,
+        rawIdentityDocumentStored: false,
       },
     };
   }

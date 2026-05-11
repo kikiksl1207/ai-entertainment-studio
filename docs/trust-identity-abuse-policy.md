@@ -145,9 +145,22 @@ Recommended event types:
 
 ```http
 GET /api/v1/me/trust
+GET /api/v1/me/identity-verifications/policy
 POST /api/v1/me/identity-verifications
 POST /api/v1/me/identity-verifications/:verificationId/confirm
 ```
+
+Implementation status:
+
+- `GET /api/v1/me/identity-verifications/policy` is implemented as a
+  NICE-first provider skeleton.
+- `POST /api/v1/me/identity-verifications` records only an `unverified`
+  request marker and non-sensitive metadata.
+- `POST /api/v1/me/identity-verifications/self/confirm` fails closed with
+  `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED` until the real NICE callback
+  and signature verification contract are connected.
+- The server must not store resident registration numbers, raw identity
+  documents, raw provider tokens, or provider secrets.
 
 Restricted action error shape:
 

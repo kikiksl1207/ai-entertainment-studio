@@ -239,6 +239,21 @@ Lumina Station:
 - `GET /api/v1/rewards/activation-policy` returns the current launch reward policy contract: free promo reward cap 3000L, paid bonus cap 20%, daily attendance schedule, planned identity/birthday/profile/social milestones, and anti-abuse notes.
 - `GET /api/v1/rewards/activation-progress` returns the signed-in user's cap usage, paid-bonus usage, attendance state, first-charge state, and milestone progress. Planned milestones are display-only until a future grant endpoint is opened.
 
+Identity verification skeleton:
+
+- `GET /api/v1/me/identity-verifications/policy` returns the NICE-first provider
+  skeleton contract, supported methods (`mobile_phone`, `ipin`), and non-secret
+  env readiness flags.
+- `POST /api/v1/me/identity-verifications` accepts `{ "provider": "nice",
+  "method": "mobile_phone" | "phone" | "ipin" }` and records only an
+  `unverified` request marker.
+- `POST /api/v1/me/identity-verifications/self/confirm` accepts `{ "token":
+  "<provider-token>" }` but currently fails closed with
+  `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED`.
+- Resident registration numbers, raw identity documents, raw provider tokens,
+  and provider secrets must not be stored in Git, Notion, chat, or database
+  application metadata.
+
 ### Gifts
 
 ```http
