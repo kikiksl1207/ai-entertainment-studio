@@ -11,6 +11,7 @@ type ErrorResponseBody = {
   message?: unknown;
   error?: string;
   code?: string;
+  messageKey?: string;
   details?: unknown;
 };
 
@@ -54,6 +55,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       error: {
         code,
         message,
+        messageKey: body.messageKey,
         statusCode,
         details: body.details,
         path: request.url,

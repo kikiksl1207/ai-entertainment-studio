@@ -959,6 +959,29 @@ next_needed:
 ---
 
 status: completed
+task: #12 fan mission submit error messageKey propagation
+branch/commit: team2-backend/preserve-error-message-key / this commit
+changed_files:
+- server/src/common/http-exception.filter.ts
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Preserved safe `messageKey` from thrown `HttpException` response bodies into the final global error response under `error.messageKey`.
+- Kept existing `code`, `message`, `statusCode`, `details`, `path`, `requestId`, and `timestamp` behavior unchanged.
+- This lets fan engagement submit/admin validation errors expose `code`, `messageKey`, and `requestId` together for QA/operator troubleshooting.
+- No live mutation, Render secret/env lookup, production data creation, wallet/Lumina/settlement/payout/paid-like change, or route behavior change was performed.
+blocked_by:
+- none.
+next_needed:
+- 큐알 참고 after merge/deploy; collect `error.code`, `error.messageKey`, and `error.requestId` on failures.
+민감값 기록 여부: 없음
+
+---
+
+status: completed
 task: #5 Backstage admin route contract docs
 branch/commit: team2-backend/ba-009-admin-route-contract-docs / this commit
 changed_files:
