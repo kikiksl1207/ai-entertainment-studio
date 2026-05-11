@@ -5,6 +5,8 @@
   const homeMissionEndpoint = "/api/v1/fan-engagement/missions?surface=home&scope=today&take=3";
   const fallbackCopy = window.LuminaFanEngagementCopy || {};
   const neutral = fallbackCopy.neutral || {};
+  const submitCopy = fallbackCopy.submit || {};
+  const copyPack = fallbackCopy.copyPackV1 || {};
 
   const homeMissionFixture = {
     generatedAt: "2026-05-10T00:00:00.000Z",
@@ -164,6 +166,86 @@
     return neutral.reward || "팬 포인트";
   }
 
+  function hasAuthToken() {
+    try {
+      const auth = JSON.parse(localStorage.getItem("lumina_auth") || "null");
+      return Boolean(auth?.accessToken);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function missionUiState(mission) {
+    const status = mission?.participation?.status || mission?.status || "";
+    if (["accepted", "completed", "submitted"].includes(status)) return "completed";
+    if (mission?.action?.requiresAuth && !hasAuthToken()) return "login_required";
+    if (["inactive", "archived", "expired", "closed"].includes(mission?.status)) return "error";
+    return "default";
+  }
+
+  function missionStateCopy(mission, uiState, ctaFallback) {
+    const defaultCta = ctaFallback || submitCopy.cta || neutral.cta || "참여하기";
+    const map = {
+      default: {
+        cta: defaultCta,
+        status: participationLabel(mission?.participation)
+      },
+      completed: {
+        cta: submitCopy.accepted || "참여 완료",
+        status: mission?.participation?.status === "submitted"
+          ? (fallbackCopy.labelsByKey?.["fanMission.participation.submitted"] || "확인 중")
+          : (submitCopy.accepted || "참여 완료")
+      },
+      login_required: {
+        cta: submitCopy.loginRequired || "로그인이 필요해요",
+        status: (copyPack.loginRequired && copyPack.loginRequired[0]) || "로그인 후 참여할 수 있어요."
+      },
+      error: {
+        cta: submitCopy.unavailable || "지금은 참여할 수 없는 미션이에요",
+        status: submitCopy.networkError || "잠시 후 다시 시도해 주세요."
+      }
+    };
+    return map[uiState] || map.default;
+  }
+
+  function missionOptions(mission) {
+    const source = Array.isArray(mission?.options)
+      ? mission.options
+      : Array.isArray(mission?.action?.options)
+        ? mission.action.options
+        : [];
+    const labels = source
+      .map(option => safeLocalizedLabel(option?.label || option?.title || option?.name || option))
+      .filter(Boolean)
+      .slice(0, 4);
+    if (labels.length) return labels;
+    if (mission?.missionType === "vote_concept") return ["무대 의상", "화보 무드", "숏폼 콘셉트"];
+    return [];
+  }
+
+  function renderMissionBody(mission, uiState) {
+    if (mission?.missionType === "vote_concept") {
+      const options = missionOptions(mission);
+      return `
+        <div class="fan-mission-options" aria-label="미션 선택지">
+          ${options.map(option => `<button type="button" disabled>${escapeHtml(option)}</button>`).join("")}
+        </div>
+      `;
+    }
+    if (mission?.missionType === "fan_proposal") {
+      return `
+        <label class="fan-mission-suggest">
+          <input type="text" maxlength="50" disabled placeholder="한 줄 제안은 곧 열릴 예정이에요" />
+          <small>0 / 50</small>
+        </label>
+      `;
+    }
+    if (uiState === "completed") {
+      return `<p class="fan-mission-inline-status">✓ ${escapeHtml(submitCopy.accepted || "참여 완료")}</p>`;
+    }
+    return "";
+  }
+
   function normalizeMission(raw) {
     if (!raw || typeof raw !== "object") return null;
     return {
@@ -175,7 +257,8 @@
       status: raw.status || "",
       participation: raw.participation && typeof raw.participation === "object" ? raw.participation : {},
       rewardPreview: raw.rewardPreview && typeof raw.rewardPreview === "object" ? raw.rewardPreview : {},
-      action: raw.action && typeof raw.action === "object" ? raw.action : {}
+      action: raw.action && typeof raw.action === "object" ? raw.action : {},
+      options: Array.isArray(raw.options) ? raw.options : []
     };
   }
 
@@ -214,23 +297,26 @@
     const artistName = safeLocalizedLabel(mission?.artist?.displayName) || "Lumina Stage";
     const status = missionStatusLabel(mission?.status);
     const type = missionTypeLabel(mission?.missionType);
-    const participation = participationLabel(mission?.participation);
     const reward = rewardLabel(mission?.rewardPreview);
+    const uiState = missionUiState(mission);
+    const stateCopy = missionStateCopy(mission, uiState, cta);
+    const missionBody = renderMissionBody(mission, uiState);
 
     return `
-      <article class="fan-mission-card" data-mission-id="${escapeHtml(mission?.id)}">
+      <article class="fan-mission-card is-${escapeHtml(uiState)}" data-mission-id="${escapeHtml(mission?.id)}" data-ui-state="${escapeHtml(uiState)}">
         <div class="fan-mission-card-head">
           <span class="fan-mission-type">${escapeHtml(type)}</span>
           <span class="fan-mission-status">${escapeHtml(status)}</span>
         </div>
         <h3>${escapeHtml(title)}</h3>
         <p>${escapeHtml(description)}</p>
+        ${missionBody}
         <div class="fan-mission-meta">
           <span>${escapeHtml(artistName)}</span>
-          <span>${escapeHtml(participation)}</span>
+          <span>${escapeHtml(stateCopy.status)}</span>
           <span>${escapeHtml(reward)}</span>
         </div>
-        <button class="fan-mission-cta" type="button" disabled>${escapeHtml(cta)}</button>
+        <button class="fan-mission-cta" type="button" disabled>${escapeHtml(stateCopy.cta)}</button>
       </article>
     `;
   }

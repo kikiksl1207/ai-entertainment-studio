@@ -319,6 +319,23 @@
   gap: 12px;
 }
 
+.fan-mission-card.is-default {
+  border-color: rgba(255, 79, 195, 0.32);
+}
+
+.fan-mission-card.is-completed {
+  border-color: rgba(72, 55, 116, 0.1);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.fan-mission-card.is-login_required {
+  border-color: rgba(159, 139, 199, 0.32);
+}
+
+.fan-mission-card.is-error {
+  border-color: rgba(255, 95, 130, 0.45);
+}
+
 .fan-mission-card-head,
 .fan-mission-meta {
   display: flex;
@@ -362,9 +379,55 @@
   margin-top: auto;
 }
 
+.fan-mission-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fan-mission-options button,
+.fan-mission-suggest input {
+  min-height: 38px;
+  border: 1px solid rgba(72, 55, 116, 0.16);
+  border-radius: 8px;
+  background: rgba(250, 247, 255, 0.88);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.fan-mission-options button {
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.fan-mission-suggest {
+  display: grid;
+  gap: 6px;
+}
+
+.fan-mission-suggest input {
+  width: 100%;
+  padding: 0 12px;
+}
+
+.fan-mission-suggest small,
+.fan-mission-inline-status {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.fan-mission-inline-status {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(245, 241, 255, 0.88);
+}
+
 .fan-mission-cta {
   width: 100%;
-  min-height: 42px;
+  min-height: 44px;
   border: 0;
   border-radius: 8px;
   background: linear-gradient(135deg, rgba(255, 20, 147, 0.18), rgba(122, 92, 255, 0.18));
@@ -372,6 +435,20 @@
   font-weight: 900;
   cursor: default;
   opacity: 0.82;
+}
+
+.fan-mission-card.is-completed .fan-mission-cta {
+  opacity: 0.45;
+}
+
+.fan-mission-card.is-login_required .fan-mission-cta {
+  background: rgba(159, 139, 199, 0.15);
+  color: #7b62bd;
+}
+
+.fan-mission-card.is-error .fan-mission-cta {
+  background: rgba(255, 95, 130, 0.12);
+  color: #d53f67;
 }
 
 .fan-mission-empty {
