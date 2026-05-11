@@ -162,6 +162,58 @@
   margin-bottom: 20px;
 }
 
+.page-business .partner-inquiry-section {
+  padding-top: 0;
+}
+
+.page-business .partner-inquiry-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+  align-items: center;
+  padding: 32px;
+  border: 1px solid rgba(108, 70, 187, 0.14);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(108, 70, 187, 0.1), rgba(160, 125, 232, 0.08)),
+    #ffffff;
+  box-shadow: 0 8px 32px rgba(108, 70, 187, 0.1);
+}
+
+.page-business .partner-inquiry-card h2 {
+  margin: 8px 0 12px;
+  color: #1a1a2e;
+  font-size: clamp(26px, 4vw, 42px);
+  line-height: 1.14;
+  letter-spacing: 0;
+}
+
+.page-business .partner-inquiry-card p {
+  max-width: 720px;
+  margin: 0;
+  color: #5f5f7d;
+  line-height: 1.7;
+}
+
+.page-business .partner-inquiry-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #6c46bb, #a07de8);
+  color: #ffffff;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 14px 28px rgba(108, 70, 187, 0.24);
+}
+
+.page-business .partner-inquiry-cta:hover {
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
 .page-business .site-footer {
   background: #1a1a2e;
   color: rgba(255, 255, 255, 0.7);
@@ -177,5 +229,18 @@
 
 .page-business .site-footer a:hover {
   color: #ffffff;
+}
+
+@media (max-width: 760px) {
+  .page-business .partner-inquiry-card {
+    grid-template-columns: 1fr;
+    padding: 24px;
+  }
+
+  .page-business .partner-inquiry-cta {
+    width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
 }
 /* 캐릭터 상세 해시태그 + SNS 버튼 */
