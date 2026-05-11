@@ -442,6 +442,39 @@ function extractAuthPayload(data) {
   };
 }
 
+function applyAdminContext(data) {
+  const auth = getBackstageAuth();
+  const admin = data?.admin;
+  if (!auth || !admin) return;
+
+  const permissions = Array.isArray(admin.permissions) ? admin.permissions : [];
+  const roleName = admin.role || null;
+  setBackstageAuth({
+    ...auth,
+    user: {
+      ...(auth.user || {}),
+      ...(data.user || {}),
+      adminRole: roleName,
+      adminRoleName: roleName,
+      adminPermissions: permissions,
+      roleName,
+      adminUser: {
+        id: admin.id,
+        status: admin.status,
+        roleName,
+        adminRole: roleName,
+        permissions,
+        lastAccessAt: admin.lastAccessAt,
+        source: admin.source,
+        role: {
+          name: roleName,
+          permissions
+        }
+      }
+    }
+  });
+}
+
 function loadGoogleSDK() {
   if (window.google?.accounts?.oauth2) return Promise.resolve();
   if (googleSdkPromise) return googleSdkPromise;
@@ -534,6 +567,8 @@ function adminApiPath(path) {
   return BACKSTAGE_BASE_HAS_API_PREFIX ? `/admin/api/v1${path}` : `/api/v1/admin/api/v1${path}`;
 }
 async function verifyAdminAccess() {
+  const adminContext = await backstageFetch(adminApiPath("/me"), { auth: true });
+  applyAdminContext(adminContext);
   await backstageFetch(adminApiPath("/audit-events?take=1"), { auth: true });
 }
 
