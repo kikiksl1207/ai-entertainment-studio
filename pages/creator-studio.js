@@ -819,15 +819,18 @@
         allow(data);
         return;
       }
+      // #190 — access.enabled !== true 면 fail-closed (이전엔 toast만 보이고 shell이 열려 권한 우회됨)
       completed = true;
       clearTimeout(hardTimeoutId);
-      showToast("Studio access is still syncing. The workspace is open while we check again.");
+      deny("스튜디오 접근 권한이 없어요. 운영팀 승인 후 다시 시도해 주세요.");
+      return;
     } catch (error) {
       completed = true;
       clearTimeout(hardTimeoutId);
-      showToast(error?.name === "AbortError"
-        ? "Studio verification timed out. The workspace is open while we check again."
-        : "Studio verification could not finish. The workspace is open while we check again.");
+      // #190 — 에러 시에도 fail-closed (이전엔 toast만 보이고 shell이 열려 권한 우회됨)
+      deny(error?.name === "AbortError"
+        ? "스튜디오 권한 확인이 지연됐어요. 잠시 후 다시 시도해 주세요."
+        : "스튜디오 권한 확인에 실패했어요. 다시 시도해 주세요.");
     } finally {
       completed = true;
       clearTimeout(softTimeoutId);

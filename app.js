@@ -2054,24 +2054,37 @@ function bindLuminaFeedLike() {
         auth: true,
         throwOnError: true
       });
-      // 서버 응답 우선 — post.likeCount, post.viewer.hasLiked
+      // #191 — method 기반 의도된 상태가 진실. 서버 viewer.hasLiked가 stale로 와도 덮어쓰지 않음.
+      const targetLiked = !wasLiked;
       const post = res?.post || res?.data?.post || null;
-      if (post) {
-        // 로컬 캐시 갱신
-        const idx = _luminaFeedItems.findIndex(p => p.id === postId);
-        if (idx >= 0) {
-          _luminaFeedItems[idx] = { ..._luminaFeedItems[idx], ...post };
+      // 로컬 캐시 갱신 — post 응답이 있으면 병합하되 hasLiked는 의도 강제
+      const idx = _luminaFeedItems.findIndex(p => p.id === postId);
+      if (idx >= 0) {
+        _luminaFeedItems[idx] = {
+          ..._luminaFeedItems[idx],
+          ...(post || {}),
+          viewer: {
+            ...(_luminaFeedItems[idx].viewer || {}),
+            ...(post?.viewer || {}),
+            hasLiked: targetLiked
+          }
+        };
+      }
+      // 버튼 UI는 의도된 상태로 강제 (낙관적 토글 유지 — 서버 stale 응답으로 즉시 복구되는 문제 #191 방지)
+      btn.classList.toggle("is-liked", targetLiked);
+      btn.setAttribute("aria-pressed", String(targetLiked));
+      btn.setAttribute("aria-label", targetLiked ? "좋아요 취소하기" : "좋아요 누르기"); // #147 B-1 에밀리 카피
+      // 카운트는 서버 응답 우선, 없거나 잘못 오면 ±1로 fallback
+      const countEl = btn.querySelector("[data-feed-like-count]");
+      if (countEl) {
+        let n;
+        if (post && typeof post.likeCount === "number") {
+          n = post.likeCount;
+        } else {
+          const prev = Number(countEl.textContent) || 0;
+          n = Math.max(0, prev + (targetLiked ? 1 : -1));
         }
-        // 카드 내 카운트만 업데이트 (전체 재렌더 안 함 — 사용자 스크롤 위치 보존)
-        const liked = !!post.viewer?.hasLiked;
-        btn.classList.toggle("is-liked", liked);
-        btn.setAttribute("aria-pressed", String(liked));
-        btn.setAttribute("aria-label", liked ? "좋아요 취소하기" : "좋아요 누르기"); // #147 B-1 에밀리 카피
-        const countEl = btn.querySelector("[data-feed-like-count]");
-        if (countEl) {
-          const n = Number(post.likeCount) || 0;
-          countEl.textContent = String(n); // #147 B-3 — 0도 보여줌
-        }
+        countEl.textContent = String(n); // #147 B-3 — 0도 보여줌
       }
     } catch (err) {
       // 실패 시 낙관적 토글 롤백
