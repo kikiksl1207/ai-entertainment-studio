@@ -264,6 +264,202 @@ async function uploadMypageAvatar(file) {
   return updatedUser;
 }
 
+/* #192 — 마이페이지 커버 이미지 변경
+   avatar와 동일 flow + usageType: profile_cover + PATCH /me/profile { coverAssetId }
+   - 변경: file 선택 → upload-intents → S3 PUT → confirm-upload → PATCH coverAssetId
+   - 제거: PATCH { coverAssetId: null } */
+function updateMypageCoverPreview(user) {
+  const previewEl = document.getElementById("mypageCoverPreview");
+  const removeBtn = document.getElementById("mypageCoverRemoveButton");
+  const coverUrl = user?.coverImageUrl || user?.coverAsset?.url || "";
+  if (previewEl) {
+    previewEl.style.backgroundImage = coverUrl
+      ? "url('" + String(coverUrl).replace(/'/g, "%27") + "')"
+      : "";
+  }
+  if (removeBtn) removeBtn.hidden = !coverUrl;
+}
+
+function setMypageCoverStatus(message, kind) {
+  const el = document.getElementById("mypageCoverStatus");
+  if (!el) return;
+  el.textContent = message;
+  const color = kind === "error" ? "#ff5f82"
+              : kind === "success" ? "#5ee8a8"
+              : "rgba(220,210,240,0.6)";
+  el.style.color = color;
+}
+
+function bindMypageCoverUpload() {
+  const btn = document.getElementById("mypageCoverButton");
+  const input = document.getElementById("mypageCoverInput");
+  const removeBtn = document.getElementById("mypageCoverRemoveButton");
+  if (btn && btn.dataset.bound !== "1") {
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", () => {
+      const auth = getAuth();
+      if (!auth?.accessToken) {
+        setMypageCoverStatus("로그인 후 변경할 수 있어요.", "error");
+        return;
+      }
+      input?.click();
+    });
+  }
+  if (input && input.dataset.bound !== "1") {
+    input.dataset.bound = "1";
+    input.addEventListener("change", async e => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      await handleMypageCoverChange(file);
+      input.value = "";
+    });
+  }
+  if (removeBtn && removeBtn.dataset.bound !== "1") {
+    removeBtn.dataset.bound = "1";
+    removeBtn.addEventListener("click", handleMypageCoverRemove);
+  }
+}
+
+async function handleMypageCoverChange(file) {
+  const ALLOWED = ["image/png", "image/jpeg", "image/webp"];
+  const MAX = 8 * 1024 * 1024;
+  if (!ALLOWED.includes(file.type)) {
+    setMypageCoverStatus("지원하지 않는 형식이에요. JPG, PNG, WEBP 파일을 선택해 주세요.", "error");
+    return;
+  }
+  if (file.size > MAX) {
+    setMypageCoverStatus("이미지는 8MB 이하 파일로 선택해 주세요.", "error");
+    return;
+  }
+  const blobUrl = URL.createObjectURL(file);
+  const previewEl = document.getElementById("mypageCoverPreview");
+  if (previewEl) previewEl.style.backgroundImage = "url('" + blobUrl + "')";
+  setMypageCoverStatus("커버 이미지를 업로드하고 있어요…", "info");
+  try {
+    const updatedUser = await uploadMypageCover(file);
+    updateMypageCoverPreview(updatedUser);
+    const auth = getAuth();
+    if (auth) {
+      setAuth({ ...auth, user: { ...auth.user, ...(updatedUser || {}) } });
+    }
+    setMypageCoverStatus("커버 이미지가 저장됐어요.", "success");
+  } catch (err) {
+    console.error("[#192 mypage cover upload] 실패:", err, "status=", err?.status, "body=", err?.body, "stage=", err?._stage);
+    const auth = getAuth();
+    updateMypageCoverPreview(auth?.user || {});
+    let msg;
+    if (err?.status === 401) msg = "로그인이 만료됐어요. 다시 로그인해 주세요.";
+    else if (err?.status === 413) msg = "이미지 용량이 너무 커요. 8MB 이하 파일로 다시 시도해 주세요.";
+    else if (err?.status === 415) msg = "지원하지 않는 형식이에요. JPG, PNG, WEBP 파일을 선택해 주세요.";
+    else if (err?.message?.includes("Failed to fetch") || err?.name === "AbortError") msg = "네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
+    else msg = "커버 이미지 저장에 실패했어요. 잠시 후 다시 시도해 주세요.";
+    setMypageCoverStatus(msg, "error");
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+  }
+}
+
+async function uploadMypageCover(file) {
+  let intent;
+  try {
+    intent = await apiFetch("/api/v1/me/assets/upload-intents", {
+      method: "POST",
+      auth: true,
+      throwOnError: true,
+      body: {
+        fileName: file.name,
+        mimeType: file.type,
+        fileSizeBytes: file.size,
+        contentType: file.type,
+        fileSize: file.size,
+        usageType: "profile_cover"
+      }
+    });
+  } catch (err) {
+    err._stage = "upload-intents";
+    throw err;
+  }
+  if (!intent?.asset?.id || !intent?.upload) {
+    const err = new Error("Invalid upload intent response");
+    err._stage = "upload-intents";
+    err.body = intent;
+    throw err;
+  }
+  const assetId = intent.asset.id;
+  const upload = intent.upload;
+  if (upload.mode === "direct_upload_ready" && upload.url) {
+    const headers = upload.requiredHeaders || {};
+    let putRes;
+    try {
+      putRes = await fetch(upload.url, {
+        method: upload.method || "PUT",
+        headers,
+        body: file
+      });
+    } catch (err) {
+      err._stage = "direct-upload";
+      throw err;
+    }
+    if (!putRes.ok) {
+      const err = new Error("Upload failed (" + putRes.status + ")");
+      err.status = putRes.status;
+      err._stage = "direct-upload";
+      throw err;
+    }
+  }
+  let confirmed;
+  try {
+    confirmed = await apiFetch("/api/v1/me/assets/" + encodeURIComponent(assetId) + "/confirm-upload", {
+      method: "POST",
+      auth: true,
+      throwOnError: true,
+      body: {}
+    });
+  } catch (err) {
+    err._stage = "confirm-upload";
+    throw err;
+  }
+  const finalAsset = confirmed?.asset || confirmed;
+  const finalAssetId = finalAsset?.id || assetId;
+  let patched;
+  try {
+    patched = await apiFetch("/api/v1/me/profile", {
+      method: "PATCH",
+      auth: true,
+      throwOnError: true,
+      body: { coverAssetId: finalAssetId }
+    });
+  } catch (err) {
+    err._stage = "patch-profile";
+    throw err;
+  }
+  return patched?.user || patched;
+}
+
+async function handleMypageCoverRemove() {
+  setMypageCoverStatus("커버 이미지를 제거하고 있어요…", "info");
+  try {
+    const patched = await apiFetch("/api/v1/me/profile", {
+      method: "PATCH",
+      auth: true,
+      throwOnError: true,
+      body: { coverAssetId: null }
+    });
+    const updatedUser = patched?.user || patched;
+    updateMypageCoverPreview(updatedUser || {});
+    const auth = getAuth();
+    if (auth) {
+      setAuth({ ...auth, user: { ...auth.user, ...(updatedUser || {}) } });
+    }
+    setMypageCoverStatus("커버 이미지가 기본 배경으로 돌아갔어요.", "success");
+  } catch (err) {
+    console.error("[#192 mypage cover remove] 실패:", err, "status=", err?.status, "body=", err?.body);
+    let msg = "커버 제거에 실패했어요. 잠시 후 다시 시도해 주세요.";
+    if (err?.status === 401) msg = "로그인이 만료됐어요. 다시 로그인해 주세요.";
+    setMypageCoverStatus(msg, "error");
+  }
+}
+
 async function initMypagePage() {
   if (!document.body.classList.contains("page-mypage")) return;
 
@@ -290,6 +486,8 @@ async function initMypagePage() {
 
   // #058 — 프로필 이미지 업로드 핸들러 바인드 (로그인 여부 무관, 클릭 시 분기)
   bindMypageAvatarUpload();
+  // #192 — 프로필 커버 이미지 변경/제거 핸들러 바인드
+  bindMypageCoverUpload();
 
   if (!authed) return;
 
@@ -299,6 +497,7 @@ async function initMypagePage() {
   setMypageText("mypageUserName", displayName);
   setMypageText("mypageUserEmail", email);
   updateMypageProfilePreview(user, displayName);
+  updateMypageCoverPreview(user);
   setMypageInput("mypageProfileId", getMypageAccountDisplayId(user));
   setMypageInput("mypageProfileEmail", email);
   setMypageInput("mypageNickname", displayName);
