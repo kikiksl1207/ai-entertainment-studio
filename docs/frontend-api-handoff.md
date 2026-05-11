@@ -655,6 +655,37 @@ cost metadata will be stored on generated assistant messages at
 `chat_messages.model_metadata`; safety metadata will be stored at
 `chat_messages.safety_metadata`.
 
+#203 chat product policy skeleton:
+
+- `GET /chat-feature-products` returns active public chat products only:
+  `deep_reply`, `story_reply`, `premium_reply`, and `fan_letter` tiers.
+- Each product includes additive `displayName`, `description`, `modelTier`, and
+  `policy` fields. Existing IDs, SKU, feature type, price, status, timestamps,
+  and metadata remain available.
+- `policy.product` describes order/generation flow, preview requirement,
+  provider requirement, cost ceiling, input limit, and settlement hints.
+- `policy.generation.disabledReason`, `disabledMessageKey`, and
+  `disabledDisplayMessageKo` explain disabled states. Do not show raw enum
+  values or English keys directly in UI.
+- `policy.settlement.creatorShareEligible` is the backend hint for whether the
+  completed paid action can later become creator-share input. It is not a final
+  payout amount and still requires settlement calculation, fees, taxes, holds,
+  refunds, and admin confirmation.
+- When the provider is not configured, paid generation/fan-letter order CTAs
+  must stay disabled and `POST /chat-feature-orders` remains fail-closed before
+  wallet debit.
+
+Canonical product skeleton:
+
+| SKU | Label | Price | Frontend state while provider is missing |
+| --- | --- | ---: | --- |
+| `CHAT_DEEP_REPLY` | 딥 리플 | 2L | disabled, `chat.generation.providerNotConfigured` |
+| `CHAT_STORY_REPLY` | 스토리 리플 | 5L | disabled, `chat.generation.providerNotConfigured` |
+| `CHAT_PREMIUM_REPLY` | 프리미엄 리플 | 10L | disabled, `chat.generation.providerNotConfigured` |
+| `CHAT_FANLETTER_30` | 스페셜 팬레터 30 | 30L | disabled, async reviewed fan-letter policy |
+| `CHAT_FANLETTER_50` | 스페셜 팬레터 50 | 50L | disabled, async reviewed fan-letter policy |
+| `CHAT_FANLETTER_100` | 스페셜 팬레터 100 | 100L | disabled, async reviewed fan-letter policy |
+
 Fan letter MVP:
 
 ```http

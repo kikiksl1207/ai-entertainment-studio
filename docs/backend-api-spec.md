@@ -376,6 +376,14 @@ LLM generation readiness:
   wallet debit while the provider is not configured.
 - Generated assistant usage metadata is stored in `chat_messages.model_metadata`;
   safety metadata is stored in `chat_messages.safety_metadata`.
+- #203 product policy skeleton keeps public paid chat products explicit:
+  `CHAT_DEEP_REPLY` 2L, `CHAT_STORY_REPLY` 5L, `CHAT_PREMIUM_REPLY` 10L, and
+  `CHAT_FANLETTER_30/50/100` 30L/50L/100L. Preview/product responses include
+  Korean fallback copy, `disabledReason`, `disabledMessageKey`,
+  `disabledDisplayMessageKo`, order flow, generation mode, cost ceiling,
+  `creatorShareEligible`, and `settlementSource`. Frontend must not display raw
+  enum values such as `provider_not_configured` or `async_reviewed_fan_letter`
+  directly.
 
 ## Admin APIs
 

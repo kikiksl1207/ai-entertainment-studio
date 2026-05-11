@@ -12,6 +12,11 @@ import {
   ChatLlmProviderNotConfiguredError,
   ChatLlmProviderReadiness,
 } from './llm-provider.adapter';
+import {
+  CHAT_GENERATION_DISABLED_REASONS,
+  PUBLIC_CHAT_FEATURE_TYPES,
+  findChatFeatureProductPolicy,
+} from './chat-feature-policy';
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const UUID_V4_PATTERN =
@@ -249,11 +254,16 @@ export class ChatService {
     });
   }
 
-  getFeatureProducts() {
-    return this.prisma.chatFeatureProduct.findMany({
-      where: { status: 'active' },
+  async getFeatureProducts() {
+    const products = await this.prisma.chatFeatureProduct.findMany({
+      where: {
+        status: 'active',
+        featureType: { in: [...PUBLIC_CHAT_FEATURE_TYPES] },
+      },
       orderBy: [{ priceLumina: 'asc' }, { name: 'asc' }],
     });
+
+    return products.map((product) => this.chatFeatureProductResponse(product));
   }
 
   async previewFeatureOrder(
@@ -283,7 +293,7 @@ export class ChatService {
       throw new BadRequestException('Active wallet not found');
     }
 
-    const metadata = this.recordOrEmpty(product.metadata);
+    const productPolicy = this.chatFeatureProductPolicy(product);
     const generationPolicy = this.chatGenerationPolicy(product);
     const afterBalanceLumina = wallet.cachedBalance.minus(product.priceLumina);
     const sufficientBalance = wallet.cachedBalance.comparedTo(product.priceLumina) >= 0;
@@ -298,11 +308,12 @@ export class ChatService {
         id: product.id,
         sku: product.sku,
         name: product.name,
-        displayName: this.stringFromUnknown(metadata.displayNameKo) ?? product.name,
+        displayName: productPolicy.displayName,
+        description: productPolicy.description,
         featureType: product.featureType,
         priceLumina: product.priceLumina,
         status: product.status,
-        modelTier: this.stringFromUnknown(metadata.modelTier) ?? 'mini',
+        modelTier: productPolicy.modelTier,
       },
       wallet: {
         id: wallet.id,
@@ -313,11 +324,13 @@ export class ChatService {
       },
       policy: {
         idempotencyRequired: true,
-        settlementEligible: metadata.settlementEligible !== false,
-        refundOnGenerationFailure: true,
-        mvpLocked: metadata.mvpLocked === true,
+        settlementEligible: productPolicy.settlementEligible,
+        refundOnGenerationFailure: productPolicy.refundOnGenerationFailure,
+        mvpLocked: productPolicy.mvpLocked,
         requiresIdentityVerification: false,
         generationStatus: generationPolicy.generationStatus,
+        product: productPolicy,
+        settlement: this.chatSettlementPolicy(product),
         generation: generationPolicy,
         failure: GENERATION_FAILURE_POLICY,
       },
@@ -356,6 +369,7 @@ export class ChatService {
             idempotentReplay: true,
             policy: {
               generation: this.chatGenerationPolicy(existingOrder.chatFeatureProduct),
+              settlement: this.chatSettlementPolicy(existingOrder.chatFeatureProduct),
               failure: GENERATION_FAILURE_POLICY,
             },
           };
@@ -418,6 +432,7 @@ export class ChatService {
         idempotentReplay: false,
         policy: {
           generation: this.chatGenerationPolicy(product),
+          settlement: this.chatSettlementPolicy(product),
           failure: GENERATION_FAILURE_POLICY,
         },
       };
@@ -723,6 +738,7 @@ export class ChatService {
         product: product ? this.productSummary(product) : null,
         policy: {
           generation: this.chatGenerationPolicy(product),
+          settlement: product ? this.chatSettlementPolicy(product) : null,
           failure: GENERATION_FAILURE_POLICY,
         },
       },
@@ -730,30 +746,48 @@ export class ChatService {
   }
 
   private chatGenerationPolicy(product?: {
+    sku?: string;
     featureType: string;
     metadata: unknown;
+    status?: string;
   } | null) {
-    const metadata = this.recordOrEmpty(product?.metadata);
     const readiness = this.llmProvider.readiness();
-    const modelTier =
-      this.stringFromUnknown(metadata.modelTier) ??
-      (product ? 'mini' : BASIC_CHAT_POLICY.modelTier);
+    const productPolicy = product ? this.chatFeatureProductPolicy(product) : null;
+    const providerRequired = product
+      ? productPolicy?.providerRequired ?? this.requiresLlmGeneration(product)
+      : true;
+    const mvpLocked = productPolicy?.mvpLocked ?? false;
+    const providerUnavailable = providerRequired && !readiness.configured;
+    const disabledReason = mvpLocked
+      ? CHAT_GENERATION_DISABLED_REASONS.mvpLocked
+      : providerUnavailable
+        ? CHAT_GENERATION_DISABLED_REASONS.providerNotConfigured
+        : null;
+    const canGenerate = !mvpLocked && !providerUnavailable;
+    const canCreatePaidOrder = product ? canGenerate : false;
+    const modelTier = productPolicy?.modelTier ?? BASIC_CHAT_POLICY.modelTier;
 
     return {
       mode: product?.featureType ?? BASIC_CHAT_POLICY.mode,
       provider: this.providerDetails(readiness),
-      canGenerate: readiness.configured,
-      canCreatePaidOrder: product
-        ? readiness.configured || !this.requiresLlmGeneration(product)
-        : false,
-      generationStatus: readiness.configured ? 'ready' : readiness.status,
+      canGenerate,
+      canCreatePaidOrder,
+      disabledReason: disabledReason?.reason ?? null,
+      disabledMessageKey: disabledReason?.messageKey ?? null,
+      disabledDisplayMessageKo: disabledReason?.displayMessageKo ?? null,
+      generationStatus: canGenerate ? 'ready' : disabledReason?.reason ?? readiness.status,
       modelTier,
-      maxInputChars: product ? 2000 : BASIC_CHAT_POLICY.maxInputChars,
-      cooldownSeconds: product ? 0 : BASIC_CHAT_POLICY.cooldownSeconds,
-      dailyLimit: product ? null : BASIC_CHAT_POLICY.dailyLimit,
-      estimatedCostCeilingKrw: product
-        ? this.estimatedPaidCostCeiling(modelTier)
-        : BASIC_CHAT_POLICY.estimatedCostCeilingKrw,
+      orderFlow: productPolicy?.orderFlow ?? 'basic_chat',
+      generationMode: productPolicy?.generationMode ?? BASIC_CHAT_POLICY.mode,
+      providerRequired,
+      requiresPreview: product ? productPolicy?.requiresPreview ?? true : false,
+      maxInputChars: productPolicy?.maxInputChars ?? BASIC_CHAT_POLICY.maxInputChars,
+      cooldownSeconds:
+        productPolicy?.cooldownSeconds ?? BASIC_CHAT_POLICY.cooldownSeconds,
+      dailyLimit: productPolicy?.dailyLimit ?? BASIC_CHAT_POLICY.dailyLimit,
+      estimatedCostCeilingKrw:
+        productPolicy?.estimatedCostCeilingKrw ??
+        BASIC_CHAT_POLICY.estimatedCostCeilingKrw,
       usageMetadataPath: 'chat_messages.model_metadata',
       safetyMetadataPath: 'chat_messages.safety_metadata',
     };
@@ -762,16 +796,139 @@ export class ChatService {
   private productSummary(product: {
     id: string;
     sku: string;
+    name?: string;
     featureType: string;
+    priceLumina?: unknown;
+    status?: string;
     metadata: unknown;
   }) {
-    const metadata = this.recordOrEmpty(product.metadata);
+    const productPolicy = this.chatFeatureProductPolicy(product);
 
     return {
       id: product.id,
       sku: product.sku,
       featureType: product.featureType,
-      modelTier: this.stringFromUnknown(metadata.modelTier) ?? 'mini',
+      displayName: productPolicy.displayName,
+      modelTier: productPolicy.modelTier,
+      orderFlow: productPolicy.orderFlow,
+      generationMode: productPolicy.generationMode,
+    };
+  }
+
+  private chatFeatureProductResponse(product: {
+    id: string;
+    sku: string;
+    name: string;
+    featureType: string;
+    priceLumina: unknown;
+    status: string;
+    metadata: unknown;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
+    const productPolicy = this.chatFeatureProductPolicy(product);
+
+    return {
+      ...product,
+      displayName: productPolicy.displayName,
+      description: productPolicy.description,
+      modelTier: productPolicy.modelTier,
+      policy: {
+        product: productPolicy,
+        settlement: this.chatSettlementPolicy(product),
+        generation: this.chatGenerationPolicy(product),
+        failure: GENERATION_FAILURE_POLICY,
+      },
+    };
+  }
+
+  private chatFeatureProductPolicy(product: {
+    sku?: string;
+    name?: string;
+    featureType: string;
+    priceLumina?: unknown;
+    status?: string;
+    metadata: unknown;
+  }) {
+    const metadata = this.recordOrEmpty(product.metadata);
+    const configuredPolicy = findChatFeatureProductPolicy({
+      sku: product.sku,
+      featureType: product.featureType,
+    });
+    const metadataMvpLocked = metadata.mvpLocked === true;
+    const policyStatus = configuredPolicy?.status ?? product.status ?? 'active';
+    const mvpLocked =
+      metadataMvpLocked || configuredPolicy?.mvpLocked === true || policyStatus !== 'active';
+    const displayName =
+      this.stringFromUnknown(metadata.displayNameKo) ??
+      configuredPolicy?.displayNameKo ??
+      product.name ??
+      product.featureType;
+    const description =
+      this.stringFromUnknown(metadata.descriptionKo) ??
+      configuredPolicy?.descriptionKo ??
+      null;
+    const settlementEligible =
+      metadata.settlementEligible === false
+        ? false
+        : configuredPolicy?.settlementEligible ?? true;
+    const creatorShareEligible =
+      metadata.creatorShareEligible === false
+        ? false
+        : configuredPolicy?.creatorShareEligible ?? settlementEligible;
+    const modelTier =
+      this.stringFromUnknown(metadata.modelTier) ??
+      configuredPolicy?.modelTier ??
+      'mini';
+
+    return {
+      sku: product.sku ?? configuredPolicy?.sku ?? null,
+      featureType: product.featureType,
+      displayName,
+      description,
+      priceLumina: product.priceLumina ?? configuredPolicy?.priceLumina ?? null,
+      status: product.status ?? configuredPolicy?.status ?? 'active',
+      modelTier,
+      orderFlow: configuredPolicy?.orderFlow ?? 'paid_generation',
+      generationMode: configuredPolicy?.generationMode ?? 'inline_reply',
+      providerRequired:
+        configuredPolicy?.providerRequired ?? this.requiresLlmGeneration(product),
+      requiresPreview: configuredPolicy?.requiresPreview ?? true,
+      mvpLocked,
+      settlementEligible,
+      creatorShareEligible,
+      settlementSource:
+        this.stringFromUnknown(metadata.settlementSource) ??
+        configuredPolicy?.settlementSource ??
+        'chat',
+      maxInputChars: configuredPolicy?.maxInputChars ?? 2000,
+      cooldownSeconds: configuredPolicy?.cooldownSeconds ?? 0,
+      dailyLimit: configuredPolicy?.dailyLimit ?? null,
+      estimatedCostCeilingKrw:
+        configuredPolicy?.estimatedCostCeilingKrw ??
+        this.estimatedPaidCostCeiling(modelTier),
+      refundOnGenerationFailure:
+        configuredPolicy?.refundOnGenerationFailure ??
+        GENERATION_FAILURE_POLICY.refundOnGenerationFailure,
+    };
+  }
+
+  private chatSettlementPolicy(product: {
+    sku?: string;
+    featureType: string;
+    metadata: unknown;
+  }) {
+    const productPolicy = this.chatFeatureProductPolicy(product);
+
+    return {
+      eligible: productPolicy.settlementEligible,
+      creatorShareEligible: productPolicy.creatorShareEligible,
+      source: productPolicy.settlementSource,
+      eventType: productPolicy.creatorShareEligible
+        ? productPolicy.settlementSource ?? 'chat'
+        : null,
+      freeBasicExcluded: true,
+      finalPayoutRequiresSettlementRun: true,
     };
   }
 
@@ -800,7 +957,11 @@ export class ChatService {
   }
 
   private requiresLlmGeneration(product: { featureType: string }) {
-    return PAID_GENERATION_FEATURE_TYPES.has(product.featureType);
+    const configuredPolicy = findChatFeatureProductPolicy({
+      featureType: product.featureType,
+    });
+
+    return configuredPolicy?.providerRequired ?? PAID_GENERATION_FEATURE_TYPES.has(product.featureType);
   }
 
   private normalizeGenerationBody(value: string) {

@@ -2,6 +2,10 @@ import { createHash } from 'crypto';
 import { existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { PrismaClient } from '@prisma/client';
+import {
+  CHAT_FEATURE_PRODUCT_POLICIES,
+  LEGACY_CHAT_FEATURE_PRODUCT_POLICIES,
+} from '../src/chat/chat-feature-policy';
 
 const prisma = new PrismaClient();
 const launchedAt = new Date('2026-04-27T00:00:00.000Z');
@@ -922,6 +926,51 @@ async function seedPremiumAndChat() {
       updatedAt: new Date(),
     },
   });
+
+  const canonicalChatFeaturePolicies = [
+    ...LEGACY_CHAT_FEATURE_PRODUCT_POLICIES,
+    ...CHAT_FEATURE_PRODUCT_POLICIES,
+  ];
+
+  for (const policy of canonicalChatFeaturePolicies) {
+    const metadata = {
+      seed: true,
+      displayNameKo: policy.displayNameKo,
+      descriptionKo: policy.descriptionKo,
+      modelTier: policy.modelTier,
+      mvpLocked: policy.mvpLocked,
+      settlementEligible: policy.settlementEligible,
+      creatorShareEligible: policy.creatorShareEligible,
+      settlementSource: policy.settlementSource,
+      providerRequired: policy.providerRequired,
+      orderFlow: policy.orderFlow,
+      generationMode: policy.generationMode,
+      maxInputChars: policy.maxInputChars,
+      estimatedCostCeilingKrw: policy.estimatedCostCeilingKrw,
+      refundOnGenerationFailure: policy.refundOnGenerationFailure,
+      requiresPreview: policy.requiresPreview,
+    };
+
+    await prisma.chatFeatureProduct.upsert({
+      where: { sku: policy.sku },
+      update: {
+        name: policy.name,
+        featureType: policy.featureType,
+        priceLumina: policy.priceLumina,
+        status: policy.status,
+        metadata,
+        updatedAt: new Date(),
+      },
+      create: {
+        sku: policy.sku,
+        name: policy.name,
+        featureType: policy.featureType,
+        priceLumina: policy.priceLumina,
+        status: policy.status,
+        metadata,
+      },
+    });
+  }
 }
 
 async function upsertImageAsset(storageKey: string, title: string) {
