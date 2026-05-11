@@ -82,7 +82,7 @@ attendance streak. The server resets service dates on the Korea service day and
 stores every grant with `ledgerType = daily_attendance`.
 
 Verified birthday reward is available through `GET /api/v1/rewards/birthday`
-and `POST /api/v1/rewards/birthday/claim`. It grants 1,000 Lumina only when the
+and `POST /api/v1/rewards/birthday/claim`. It grants 500 Lumina only when the
 identity provider has stored a verified `birthDate` and `identitySubjectHash`,
 the Korea service date matches the birthday, and the same verified identity has
 not claimed in the current year. The ledger uses `ledgerType = birthday_bonus`
