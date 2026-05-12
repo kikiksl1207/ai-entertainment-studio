@@ -146,7 +146,8 @@ Seeded paid modes:
 Basic chat remains free and settlement excluded. Image and voice replies remain
 draft until model cost and safety validation are complete.
 
-Related plan: `docs/character-chat-backend-plan.md`.
+Related plans: `docs/character-chat-backend-plan.md` and
+`docs/character-chat-billing-safety-design.md`.
 
 ## User-To-User Gifts
 
