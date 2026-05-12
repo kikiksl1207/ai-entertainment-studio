@@ -3,21 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>대화 — Lumina Stage</title>
+    <title>캐릭터챗 | Lumina Stage</title>
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./styles/character-chat.css" />
-    <meta name="description" content="Lumina Stage AI 아티스트와의 대화 공간. 초보자는 짧은 시작 지문으로 자연스럽게 첫 마디를 건넵니다." />
+    <meta name="description" content="Lumina Stage AI 아티스트와 대화를 시작하기 전, 초보자용 시작 지문을 고르는 공간입니다." />
     <meta name="robots" content="noindex, nofollow" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="대화 — Lumina Stage" />
+    <meta property="og:title" content="캐릭터챗 | Lumina Stage" />
     <meta property="og:site_name" content="Lumina Stage" />
-    <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-1L7TCBQ0N4');
+      gtag("js", new Date());
+      gtag("config", "G-1L7TCBQ0N4");
     </script>
   </head>
   <body class="page-character-chat is-booting">
@@ -27,7 +26,7 @@
           <img class="brand-logo" src="./assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
           <span class="brand-copy">
             <strong>Lumina Stage</strong>
-            <small data-i18n="brand.tagline">아티스트 레이블</small>
+            <small data-i18n="brand.tagline">아티스트 라이브</small>
           </span>
         </a>
 
@@ -48,38 +47,31 @@
 
     <main class="chat-main">
       <div class="shell chat-shell">
-
-        <!-- 캐릭터 hero -->
-        <section class="chat-hero" aria-label="대화 상대">
-          <a class="chat-hero-back" href="./characters.html" aria-label="아티스트 목록으로 돌아가기">←</a>
+        <section class="chat-hero" aria-label="캐릭터챗 대상">
+          <a class="chat-hero-back" href="./characters.html" aria-label="아티스트 목록으로 돌아가기">‹</a>
           <div class="chat-hero-avatar" id="chatHeroAvatar" aria-hidden="true"></div>
           <div class="chat-hero-meta">
             <p class="eyebrow chat-hero-eyebrow">Now Chatting</p>
-            <h1 class="chat-hero-name" id="chatHeroName">대화 상대를 불러오는 중…</h1>
-            <p class="chat-hero-summary" id="chatHeroSummary"></p>
+            <h1 class="chat-hero-name" id="chatHeroName">아티스트를 불러오는 중</h1>
+            <p class="chat-hero-summary" id="chatHeroSummary">첫 마디를 고르기 전에 시작 지문을 준비하고 있어요.</p>
           </div>
-          <a class="chat-hero-profile" id="chatHeroProfile" href="#">아티스트 프로필 →</a>
+          <a class="chat-hero-profile" id="chatHeroProfile" href="./characters.html">아티스트 프로필</a>
         </section>
 
-        <!-- 채팅 영역 -->
         <section class="chat-stage" aria-live="polite">
-          <!-- 첫 진입: starter prompt 카드 노출 / 메시지 0개 상태 -->
           <div class="chat-empty" id="chatEmpty">
             <p class="chat-empty-text">아직 주고받은 메시지가 없어요. 아래 시작 지문으로 가볍게 첫 마디를 건네보세요.</p>
           </div>
           <ol class="chat-thread" id="chatThread" aria-label="대화 내용" hidden></ol>
         </section>
 
-        <!-- starter prompt 카드 (#200 시안 v1 — chat-starter-card) -->
         <div class="chat-starter-card" id="chatStarterCard" data-state="default" hidden role="region" aria-labelledby="chatStarterEyebrow">
           <header class="chat-starter-head">
             <span class="chat-starter-eyebrow" id="chatStarterEyebrow" data-i18n="chatStarter.eyebrow">처음이세요?</span>
             <button class="chat-starter-dismiss" type="button" data-chat-starter-dismiss aria-label="시작 카드 닫기">×</button>
           </header>
-          <p class="chat-starter-prompt" id="chatStarterPrompt" data-i18n="chatStarter.prompt">대화 상대를 불러오고 있어요.</p>
-          <div class="chat-starter-options" id="chatStarterOptions" role="group" aria-label="시작 지문 선택">
-            <!-- JS가 A/B 옵션 버튼을 렌더 -->
-          </div>
+          <p class="chat-starter-prompt" id="chatStarterPrompt" data-i18n="chatStarter.prompt">어떤 말로 시작해볼까요?</p>
+          <div class="chat-starter-options" id="chatStarterOptions" role="group" aria-label="시작 지문 선택"></div>
           <div class="chat-starter-footer">
             <button class="chat-starter-direct" type="button" data-chat-starter-direct data-i18n="chatStarter.direct">바로 입력할게요</button>
             <label class="chat-starter-mute">
@@ -90,21 +82,19 @@
           <p class="chat-starter-fallback" id="chatStarterFallback" hidden></p>
         </div>
 
-        <!-- 입력창 (1차에서는 LLM 호출 비활성 — 사용자가 입력만 가능, 전송 버튼은 곧 열림 안내) -->
         <form class="chat-input-form" id="chatInputForm" aria-label="대화 입력" novalidate>
           <textarea
             class="chat-input"
             id="chatInput"
             rows="1"
             maxlength="500"
-            placeholder="대화는 곧 열려요. 시작 지문을 골라 미리 적어둘 수 있어요."
+            placeholder="직접 쓰거나 시작 지문을 골라 첫 마디를 준비해보세요."
             aria-label="메시지 입력"></textarea>
-          <button class="chat-send-btn" type="submit" id="chatSendBtn" disabled aria-disabled="true" title="대화 응답은 준비 중이에요.">
-            <span data-i18n="chat.sendPending">곧 열려요</span>
+          <button class="chat-send-btn" type="submit" id="chatSendBtn" disabled aria-disabled="true" title="대화 응답 기능은 운영 준비 중입니다.">
+            <span data-i18n="chat.sendPending">준비 중</span>
           </button>
         </form>
-        <p class="chat-meta-note">대화 응답 기능은 운영 준비 중입니다. 지금은 첫 마디를 미리 골라 둘 수 있어요.</p>
-
+        <p class="chat-meta-note">대화 응답 기능은 운영 준비 중입니다. 지금은 첫 마디를 미리 골라볼 수 있어요.</p>
       </div>
     </main>
 
