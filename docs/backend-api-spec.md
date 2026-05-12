@@ -193,6 +193,11 @@ Email delivery adapter:
 - Required non-secret handles: `AUTH_EMAIL_FROM` or `EMAIL_FROM`, plus either explicit action URL bases (`AUTH_EMAIL_VERIFICATION_URL_BASE`, `AUTH_PASSWORD_RESET_URL_BASE`) or a frontend base URL (`FRONTEND_PUBLIC_BASE_URL` or `WEB_PUBLIC_BASE_URL`).
 - Provider API keys stay only in environment variables (`RESEND_API_KEY` or `SENDGRID_API_KEY`). Do not record values in docs, Git, Notion, logs, or chat.
 - Normal production responses never include the raw action token. Local/staging debug token exposure is still gated by `ACTION_TOKEN_DEBUG_ENABLED=true` and `NODE_ENV !== production`.
+- Confirmation endpoints return stable frontend-mappable errors:
+  - `AUTH_EMAIL_VERIFICATION_TOKEN_INVALID_OR_EXPIRED` / `auth.emailVerification.tokenInvalidOrExpired`
+  - `AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_EXPIRED` / `auth.passwordReset.tokenInvalidOrExpired`
+  - `AUTH_EMAIL_PASSWORD_NOT_CONFIGURED` / `auth.password.emailNotConfigured`
+  - `AUTH_USER_NOT_ACTIVE` / `auth.user.notActive`
 
 - `DELETE /api/v1/me` soft-deletes the current account. Email-password accounts must send `currentPassword`; social-only accounts may omit it.
 - Account deletion sets `users.status = deleted`, sets `deleted_at`, revokes all refresh-token sessions, consumes outstanding user action tokens, deactivates the user's referral code, and writes a `user.self_delete` audit event.
@@ -259,7 +264,10 @@ Identity verification skeleton:
   `unverified` request marker.
 - `POST /api/v1/me/identity-verifications/self/confirm` accepts `{ "token":
   "<provider-token>" }` but currently fails closed with
-  `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED`.
+  `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED` and
+  `messageKey = identityVerification.providerNotConnected`.
+- Invalid confirmation paths return `IDENTITY_VERIFICATION_INVALID_ID` with
+  `messageKey = identityVerification.invalidId`.
 - Resident registration numbers, raw identity documents, raw provider tokens,
   and provider secrets must not be stored in Git, Notion, chat, or database
   application metadata.

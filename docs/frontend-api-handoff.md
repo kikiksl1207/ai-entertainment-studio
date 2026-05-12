@@ -384,6 +384,11 @@ Email delivery contract:
 - If `EMAIL_DELIVERY_PROVIDER` is configured to `resend` or `sendgrid`, the backend sends a one-time verification/reset link using the configured action URL base and returns `delivery.status = "accepted"`.
 - Frontend should show the same neutral success copy for both request endpoints, for example "If this email can receive account mail, check your inbox." Do not branch UI on account existence.
 - Confirmation endpoints still receive the token from the emailed URL: `POST /auth/email-verifications/confirm` with `{ "token": "<email-token>" }` and `POST /auth/password-resets/confirm` with `{ "token": "<reset-token>", "newPassword": "<new-password>" }`.
+- Confirmation error responses include stable `error.code` and `error.messageKey` values for frontend copy mapping:
+  - `AUTH_EMAIL_VERIFICATION_TOKEN_INVALID_OR_EXPIRED` / `auth.emailVerification.tokenInvalidOrExpired`
+  - `AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_EXPIRED` / `auth.passwordReset.tokenInvalidOrExpired`
+  - `AUTH_EMAIL_PASSWORD_NOT_CONFIGURED` / `auth.password.emailNotConfigured`
+  - `AUTH_USER_NOT_ACTIVE` / `auth.user.notActive`
 - Provider API keys, raw tokens, cookies, and environment values must never be rendered, logged, or recorded by the frontend.
 
 For local/staging QA only, the backend can expose the generated action token when `ACTION_TOKEN_DEBUG_ENABLED=true` and `NODE_ENV` is not `production`. Production must keep this disabled. If enabled and the email belongs to an active account, request responses include:
@@ -526,9 +531,12 @@ endpoint exposes supported methods (`mobile_phone`, `ipin`) and non-secret
 provider readiness flags. Requesting a verification creates or updates only an
 `unverified` marker; confirmation returns
 `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED` until the real NICE adapter is
-contracted and wired. Frontend copy may show "본인확인 준비중" or route users to a
-disabled/coming-soon state, but must not collect 주민등록번호, raw identity files,
-provider tokens, or API keys.
+contracted and wired. The provider-not-connected response includes
+`messageKey = identityVerification.providerNotConnected`; invalid confirmation
+paths use `IDENTITY_VERIFICATION_INVALID_ID` with
+`messageKey = identityVerification.invalidId`. Frontend copy may show
+"본인확인 준비중" or route users to a disabled/coming-soon state, but must not
+collect 주민등록번호, raw identity files, provider tokens, or API keys.
 
 Important frontend rule for later:
 
