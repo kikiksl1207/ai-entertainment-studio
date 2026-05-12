@@ -72,6 +72,37 @@ const BASIC_CHAT_POLICY = {
   maxInputChars: 1000,
   estimatedCostCeilingKrw: '0.20',
 };
+const BASIC_CHAT_BLOCK_REASONS = {
+  invalidMode: {
+    reason: 'invalid_mode',
+    code: 'CHAT_GENERATION_INVALID_MODE',
+    messageKey: 'chat.generation.invalidMode',
+    fallbackCopyKo: '지원하지 않는 대화 모드입니다.',
+  },
+  invalidBody: {
+    reason: 'invalid_body',
+    code: 'CHAT_GENERATION_INVALID_BODY',
+    messageKey: 'chat.generation.invalidBody',
+    fallbackCopyKo: '메시지는 1,000자 이하로 입력해주세요.',
+  },
+  cooldownActive: {
+    reason: 'cooldown_active',
+    code: 'CHAT_GENERATION_COOLDOWN_ACTIVE',
+    messageKey: 'chat.generation.cooldownActive',
+    fallbackCopyKo: '잠시 후 다시 말을 걸어주세요.',
+  },
+  dailyLimitReached: {
+    reason: 'daily_limit_reached',
+    code: 'CHAT_GENERATION_DAILY_LIMIT_REACHED',
+    messageKey: 'chat.generation.dailyLimitReached',
+    fallbackCopyKo: '오늘의 무료 대화 한도에 도달했어요.',
+  },
+} as const;
+const CHAT_FEATURE_ORDER_IDEMPOTENCY_REQUIRED = {
+  code: 'CHAT_FEATURE_ORDER_IDEMPOTENCY_REQUIRED',
+  messageKey: 'chat.order.idempotencyRequired',
+  fallbackCopyKo: '주문을 안전하게 처리하려면 다시 시도해주세요.',
+};
 const PAID_GENERATION_FEATURE_TYPES = new Set([
   'deep_reply',
   'story_reply',
@@ -227,6 +258,21 @@ export class ChatService {
     });
   }
 
+  async preflightMessage(
+    userId: string,
+    sessionId: string,
+    input: {
+      body?: string;
+      mode?: string;
+    },
+  ) {
+    const mode = this.normalizeBasicChatMode(input.mode);
+    const body = this.normalizeBasicChatBody(input.body);
+    const session = await this.getOwnedSession(userId, sessionId);
+
+    return this.buildBasicChatPreflight(userId, session, body, mode);
+  }
+
   async createMessage(
     userId: string,
     sessionId: string,
@@ -364,6 +410,15 @@ export class ChatService {
       idempotencyKey?: string;
     },
   ) {
+    const idempotencyKey = input.idempotencyKey?.trim();
+
+    if (!idempotencyKey) {
+      throw new BadRequestException({
+        ...CHAT_FEATURE_ORDER_IDEMPOTENCY_REQUIRED,
+        message: CHAT_FEATURE_ORDER_IDEMPOTENCY_REQUIRED.fallbackCopyKo,
+      });
+    }
+
     const [session, product] = await Promise.all([
       this.getOwnedSession(userId, input.chatSessionId),
       this.prisma.chatFeatureProduct.findFirst({
@@ -376,23 +431,21 @@ export class ChatService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      if (input.idempotencyKey) {
-        const existingOrder = await tx.chatFeatureOrder.findUnique({
-          where: { idempotencyKey: input.idempotencyKey },
-          include: { walletLedger: true, chatFeatureProduct: true },
-        });
+      const existingOrder = await tx.chatFeatureOrder.findUnique({
+        where: { idempotencyKey },
+        include: { walletLedger: true, chatFeatureProduct: true },
+      });
 
-        if (existingOrder) {
-          return {
-            order: existingOrder,
-            idempotentReplay: true,
-            policy: {
-              generation: this.chatGenerationPolicy(existingOrder.chatFeatureProduct),
-              settlement: this.chatSettlementPolicy(existingOrder.chatFeatureProduct),
-              failure: GENERATION_FAILURE_POLICY,
-            },
-          };
-        }
+      if (existingOrder) {
+        return {
+          order: existingOrder,
+          idempotentReplay: true,
+          policy: {
+            generation: this.chatGenerationPolicy(existingOrder.chatFeatureProduct),
+            settlement: this.chatSettlementPolicy(existingOrder.chatFeatureProduct),
+            failure: GENERATION_FAILURE_POLICY,
+          },
+        };
       }
 
       if (this.requiresLlmGeneration(product) && !this.llmProvider.readiness().configured) {
@@ -426,9 +479,7 @@ export class ChatService {
           ledgerType: 'chat_feature_spend',
           referenceType: 'chat_feature_product',
           referenceId: product.id,
-          idempotencyKey: input.idempotencyKey
-            ? `chat-feature:${input.idempotencyKey}`
-            : undefined,
+          idempotencyKey: `chat-feature:${idempotencyKey}`,
           memo: `Chat feature order: ${product.name}`,
         },
       });
@@ -441,7 +492,7 @@ export class ChatService {
           chatFeatureProductId: product.id,
           walletLedgerId: ledger.id,
           status: 'completed',
-          idempotencyKey: input.idempotencyKey,
+          idempotencyKey,
         },
         include: { walletLedger: true, chatFeatureProduct: true },
       });
@@ -466,11 +517,27 @@ export class ChatService {
       chatFeatureOrderId?: string;
     },
   ) {
-    const body = this.normalizeGenerationBody(input.body);
     const session = await this.getOwnedSessionForGeneration(userId, sessionId);
     const order = input.chatFeatureOrderId
       ? await this.getFeatureOrderForGeneration(userId, session.id, input.chatFeatureOrderId)
       : null;
+    const body = order
+      ? this.normalizeGenerationBody(input.body)
+      : this.normalizeBasicChatBody(input.body);
+
+    if (!order) {
+      const preflight = await this.buildBasicChatPreflight(
+        userId,
+        session,
+        body,
+        BASIC_CHAT_POLICY.mode,
+      );
+
+      if (!preflight.canGenerate) {
+        throw this.basicChatPreflightException(preflight);
+      }
+    }
+
     const existingGenerated = order?.messages.find(
       (message) => message.senderType === 'artist_ai',
     );
@@ -633,6 +700,127 @@ export class ChatService {
     return order;
   }
 
+  private async buildBasicChatPreflight(
+    userId: string,
+    session: { id: string; artistId: string },
+    body: string,
+    mode: string,
+  ) {
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const cooldownCutoff = new Date(
+      now.getTime() - BASIC_CHAT_POLICY.cooldownSeconds * 1000,
+    );
+    const [lastFreeMessage, dailyUsed] = await Promise.all([
+      this.prisma.chatMessage.findFirst({
+        where: {
+          senderType: 'user',
+          chatFeatureOrderId: null,
+          createdAt: { gte: cooldownCutoff },
+          chatSession: {
+            userId,
+            artistId: session.artistId,
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, createdAt: true },
+      }),
+      this.prisma.chatMessage.count({
+        where: {
+          senderType: 'user',
+          chatFeatureOrderId: null,
+          createdAt: { gte: todayStart },
+          chatSession: {
+            userId,
+            artistId: session.artistId,
+          },
+        },
+      }),
+    ]);
+    const readiness = this.llmProvider.readiness();
+    const cooldownRemainingSeconds = lastFreeMessage
+      ? Math.max(
+          0,
+          Math.ceil(
+            (BASIC_CHAT_POLICY.cooldownSeconds * 1000 -
+              (now.getTime() - lastFreeMessage.createdAt.getTime())) /
+              1000,
+          ),
+        )
+      : 0;
+    const dailyRemaining = Math.max(0, BASIC_CHAT_POLICY.dailyLimit - dailyUsed);
+    const blockReason =
+      cooldownRemainingSeconds > 0
+        ? BASIC_CHAT_BLOCK_REASONS.cooldownActive
+        : dailyUsed >= BASIC_CHAT_POLICY.dailyLimit
+          ? BASIC_CHAT_BLOCK_REASONS.dailyLimitReached
+          : !readiness.configured
+            ? {
+                reason: CHAT_GENERATION_DISABLED_REASONS.providerNotConfigured.reason,
+                code: 'CHAT_LLM_PROVIDER_NOT_CONFIGURED',
+                messageKey:
+                  CHAT_GENERATION_DISABLED_REASONS.providerNotConfigured.messageKey,
+                fallbackCopyKo:
+                  CHAT_GENERATION_DISABLED_REASONS.providerNotConfigured.displayMessageKo,
+              }
+            : null;
+    const generationPolicy = this.chatGenerationPolicy(null);
+
+    return {
+      canSend: !blockReason,
+      canGenerate: !blockReason,
+      mode,
+      bodyLength: body.length,
+      limits: {
+        cooldownSeconds: BASIC_CHAT_POLICY.cooldownSeconds,
+        cooldownRemainingSeconds,
+        dailyLimit: BASIC_CHAT_POLICY.dailyLimit,
+        dailyUsed,
+        dailyRemaining,
+        maxInputChars: BASIC_CHAT_POLICY.maxInputChars,
+        estimatedCostCeilingKrw: BASIC_CHAT_POLICY.estimatedCostCeilingKrw,
+      },
+      provider: this.providerDetails(readiness),
+      disabledReason: blockReason?.reason ?? null,
+      messageKey: blockReason?.messageKey ?? null,
+      fallbackCopyKo: blockReason?.fallbackCopyKo ?? null,
+      walletMutation: false,
+      settlementEligible: false,
+      policy: {
+        generation: generationPolicy,
+        settlement: null,
+        failure: GENERATION_FAILURE_POLICY,
+      },
+    };
+  }
+
+  private basicChatPreflightException(
+    preflight: Awaited<ReturnType<ChatService['buildBasicChatPreflight']>>,
+  ) {
+    if (preflight.disabledReason === 'provider_not_configured') {
+      return this.providerUnavailableException(null, preflight);
+    }
+
+    const blockReason =
+      preflight.disabledReason === BASIC_CHAT_BLOCK_REASONS.cooldownActive.reason
+        ? BASIC_CHAT_BLOCK_REASONS.cooldownActive
+        : preflight.disabledReason ===
+            BASIC_CHAT_BLOCK_REASONS.dailyLimitReached.reason
+          ? BASIC_CHAT_BLOCK_REASONS.dailyLimitReached
+          : BASIC_CHAT_BLOCK_REASONS.invalidBody;
+
+    return new BadRequestException({
+      code: blockReason.code,
+      message: blockReason.fallbackCopyKo,
+      messageKey: blockReason.messageKey,
+      fallbackCopyKo: blockReason.fallbackCopyKo,
+      details: {
+        preflight,
+      },
+    });
+  }
+
   private async persistGeneratedMessage(
     userId: string,
     sessionId: string,
@@ -744,6 +932,7 @@ export class ChatService {
       featureType: string;
       metadata: unknown;
     } | null,
+    preflight?: Awaited<ReturnType<ChatService['buildBasicChatPreflight']>>,
   ) {
     const readiness = this.llmProvider.readiness();
 
@@ -751,10 +940,14 @@ export class ChatService {
       code: 'CHAT_LLM_PROVIDER_NOT_CONFIGURED',
       message: 'Character chat generation provider is not configured',
       messageKey: readiness.messageKey,
+      fallbackCopyKo:
+        CHAT_GENERATION_DISABLED_REASONS.providerNotConfigured.displayMessageKo,
+      walletMutation: false,
       details: {
         generationStatus: readiness.status,
         provider: this.providerDetails(readiness),
         product: product ? this.productSummary(product) : null,
+        preflight: preflight ?? null,
         policy: {
           generation: this.chatGenerationPolicy(product),
           settlement: product ? this.chatSettlementPolicy(product) : null,
@@ -981,6 +1174,41 @@ export class ChatService {
     });
 
     return configuredPolicy?.providerRequired ?? PAID_GENERATION_FEATURE_TYPES.has(product.featureType);
+  }
+
+  private normalizeBasicChatMode(value?: string) {
+    const mode = value?.trim() || BASIC_CHAT_POLICY.mode;
+
+    if (mode !== BASIC_CHAT_POLICY.mode) {
+      throw new BadRequestException({
+        code: BASIC_CHAT_BLOCK_REASONS.invalidMode.code,
+        message: BASIC_CHAT_BLOCK_REASONS.invalidMode.fallbackCopyKo,
+        messageKey: BASIC_CHAT_BLOCK_REASONS.invalidMode.messageKey,
+        fallbackCopyKo: BASIC_CHAT_BLOCK_REASONS.invalidMode.fallbackCopyKo,
+      });
+    }
+
+    return mode;
+  }
+
+  private normalizeBasicChatBody(value?: string) {
+    const body = value?.trim() ?? '';
+
+    if (!body || body.length > BASIC_CHAT_POLICY.maxInputChars) {
+      throw new BadRequestException({
+        code: BASIC_CHAT_BLOCK_REASONS.invalidBody.code,
+        message: BASIC_CHAT_BLOCK_REASONS.invalidBody.fallbackCopyKo,
+        messageKey: BASIC_CHAT_BLOCK_REASONS.invalidBody.messageKey,
+        fallbackCopyKo: BASIC_CHAT_BLOCK_REASONS.invalidBody.fallbackCopyKo,
+        details: {
+          limits: {
+            maxInputChars: BASIC_CHAT_POLICY.maxInputChars,
+          },
+        },
+      });
+    }
+
+    return body;
   }
 
   private normalizeGenerationBody(value: string) {

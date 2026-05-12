@@ -36,6 +36,11 @@ type GenerateChatMessageBody = {
   chatFeatureOrderId?: string;
 };
 
+type PreflightChatMessageBody = {
+  body?: string;
+  mode?: string;
+};
+
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class ChatController {
@@ -89,6 +94,18 @@ export class ChatController {
     return this.chatService.generateMessage(user.id, sessionId, {
       body: this.requireField(body?.body, 'body'),
       chatFeatureOrderId: body?.chatFeatureOrderId,
+    });
+  }
+
+  @Post('chat/sessions/:sessionId/preflight')
+  preflightMessage(
+    @CurrentUser() user: AuthUser,
+    @Param('sessionId') sessionId: string,
+    @Body() body: PreflightChatMessageBody,
+  ) {
+    return this.chatService.preflightMessage(user.id, sessionId, {
+      body: body?.body,
+      mode: body?.mode,
     });
   }
 

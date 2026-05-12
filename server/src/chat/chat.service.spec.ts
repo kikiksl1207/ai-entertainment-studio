@@ -56,3 +56,217 @@ describe('ChatService.getStarterPrompts', () => {
     expect(JSON.stringify(result.sets[0])).not.toMatch(/[�泥怨嫄]/);
   });
 });
+
+describe('ChatService.preflightMessage', () => {
+  const llmProvider = {
+    readiness: jest.fn().mockReturnValue({
+      provider: 'not_configured',
+      configured: false,
+      status: 'provider_not_configured',
+      messageKey: 'chat.generation.providerNotConfigured',
+    }),
+  };
+
+  it('returns provider-not-configured without wallet mutation', async () => {
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000214',
+          artistId: '00000000-0000-4000-8000-000000000001',
+          status: 'active',
+        }),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.preflightMessage(
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000214',
+      { mode: 'daily_talk', body: '오늘은 어떤 하루였어?' },
+    );
+
+    expect(result).toMatchObject({
+      canSend: false,
+      canGenerate: false,
+      mode: 'daily_talk',
+      provider: {
+        configured: false,
+        status: 'provider_not_configured',
+      },
+      disabledReason: 'provider_not_configured',
+      messageKey: 'chat.generation.providerNotConfigured',
+      walletMutation: false,
+      settlementEligible: false,
+    });
+    expect(result.limits).toMatchObject({
+      cooldownSeconds: 30,
+      dailyLimit: 50,
+      dailyUsed: 0,
+      dailyRemaining: 50,
+      maxInputChars: 1000,
+    });
+  });
+
+  it('returns cooldown state before provider readiness wins', async () => {
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000214',
+          artistId: '00000000-0000-4000-8000-000000000001',
+          status: 'active',
+        }),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000003',
+          createdAt: new Date(),
+        }),
+        count: jest.fn().mockResolvedValue(1),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.preflightMessage(
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000214',
+      { body: '방금 다시 말 걸어도 돼?' },
+    );
+
+    expect(result).toMatchObject({
+      canSend: false,
+      canGenerate: false,
+      disabledReason: 'cooldown_active',
+      messageKey: 'chat.generation.cooldownActive',
+      walletMutation: false,
+    });
+    expect(result.limits.cooldownRemainingSeconds).toBeGreaterThan(0);
+  });
+
+  it('returns daily limit state before provider readiness wins', async () => {
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000214',
+          artistId: '00000000-0000-4000-8000-000000000001',
+          status: 'active',
+        }),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(50),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.preflightMessage(
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000214',
+      { body: '오늘 마지막으로 한 번만 더 말 걸게.' },
+    );
+
+    expect(result).toMatchObject({
+      canSend: false,
+      canGenerate: false,
+      disabledReason: 'daily_limit_reached',
+      messageKey: 'chat.generation.dailyLimitReached',
+      walletMutation: false,
+    });
+    expect(result.limits).toMatchObject({
+      dailyLimit: 50,
+      dailyUsed: 50,
+      dailyRemaining: 0,
+    });
+  });
+});
+
+describe('ChatService.createFeatureOrder safety', () => {
+  const llmProvider = {
+    readiness: jest.fn().mockReturnValue({
+      provider: 'not_configured',
+      configured: false,
+      status: 'provider_not_configured',
+      messageKey: 'chat.generation.providerNotConfigured',
+    }),
+  };
+  const product = {
+    id: '00000000-0000-4000-8000-000000000004',
+    sku: 'CHAT_DEEP_REPLY',
+    name: 'Deep Reply',
+    featureType: 'deep_reply',
+    priceLumina: 2,
+    status: 'active',
+    metadata: {},
+  };
+
+  it('requires idempotency before opening a wallet-affecting transaction', async () => {
+    const prisma = {
+      chatSession: { findFirst: jest.fn() },
+      chatFeatureProduct: { findFirst: jest.fn() },
+      $transaction: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(
+      service.createFeatureOrder('00000000-0000-4000-8000-000000000002', {
+        chatSessionId: '00000000-0000-4000-8000-000000000214',
+        chatFeatureProductId: product.id,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'CHAT_FEATURE_ORDER_IDEMPOTENCY_REQUIRED',
+        messageKey: 'chat.order.idempotencyRequired',
+      }),
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before wallet lookup when provider is not configured', async () => {
+    const tx = {
+      chatFeatureOrder: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      walletAccount: {
+        findUnique: jest.fn(),
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+    };
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000214',
+          artistId: '00000000-0000-4000-8000-000000000001',
+          status: 'active',
+        }),
+      },
+      chatFeatureProduct: {
+        findFirst: jest.fn().mockResolvedValue(product),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(
+      service.createFeatureOrder('00000000-0000-4000-8000-000000000002', {
+        chatSessionId: '00000000-0000-4000-8000-000000000214',
+        chatFeatureProductId: product.id,
+        idempotencyKey: 'chat-order-214',
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'CHAT_LLM_PROVIDER_NOT_CONFIGURED',
+        messageKey: 'chat.generation.providerNotConfigured',
+        walletMutation: false,
+      }),
+    });
+    expect(tx.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(tx.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+  });
+});
