@@ -284,6 +284,9 @@ export class ChatService {
       chatFeatureOrderId?: string;
     },
   ) {
+    const body = input.chatFeatureOrderId
+      ? input.body
+      : this.normalizeBasicChatBody(input.body);
     const session = await this.getOwnedSession(userId, sessionId);
 
     if (input.chatFeatureOrderId) {
@@ -299,6 +302,17 @@ export class ChatService {
       if (!order) {
         throw new BadRequestException('Completed chat feature order not found');
       }
+    } else {
+      const preflight = await this.buildBasicChatPreflight(
+        userId,
+        session,
+        body,
+        BASIC_CHAT_POLICY.mode,
+      );
+
+      if (!preflight.canSend) {
+        throw this.basicChatPreflightException(preflight);
+      }
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -307,7 +321,7 @@ export class ChatService {
           chatSessionId: session.id,
           senderType: 'user',
           messageType: input.messageType ?? 'text',
-          body: input.body,
+          body,
           chatFeatureOrderId: input.chatFeatureOrderId,
         },
       });

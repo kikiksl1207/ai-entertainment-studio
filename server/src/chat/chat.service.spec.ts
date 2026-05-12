@@ -225,6 +225,78 @@ describe('ChatService.preflightMessage', () => {
   });
 });
 
+describe('ChatService.createMessage safety', () => {
+  const llmProvider = {
+    readiness: jest.fn().mockReturnValue({
+      provider: 'not_configured',
+      configured: false,
+      status: 'provider_not_configured',
+      messageKey: 'chat.generation.providerNotConfigured',
+    }),
+  };
+
+  it('fails closed before creating a free message when provider is not configured', async () => {
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000214',
+          artistId: '00000000-0000-4000-8000-000000000001',
+          status: 'active',
+        }),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      $transaction: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(
+      service.createMessage(
+        '00000000-0000-4000-8000-000000000002',
+        '00000000-0000-4000-8000-000000000214',
+        { body: 'provider missing should block storage too' },
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'CHAT_LLM_PROVIDER_NOT_CONFIGURED',
+        messageKey: 'chat.generation.providerNotConfigured',
+        walletMutation: false,
+      }),
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversized free messages before creating chat_messages rows', async () => {
+    const prisma = {
+      chatSession: { findFirst: jest.fn() },
+      chatMessage: {
+        findFirst: jest.fn(),
+        count: jest.fn(),
+      },
+      $transaction: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(
+      service.createMessage(
+        '00000000-0000-4000-8000-000000000002',
+        '00000000-0000-4000-8000-000000000214',
+        { body: 'x'.repeat(1001) },
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'CHAT_GENERATION_INVALID_BODY',
+        messageKey: 'chat.generation.invalidBody',
+      }),
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.findFirst).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.count).not.toHaveBeenCalled();
+  });
+});
+
 describe('ChatService.createFeatureOrder safety', () => {
   const llmProvider = {
     readiness: jest.fn().mockReturnValue({
