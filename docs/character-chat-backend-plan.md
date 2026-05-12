@@ -6,6 +6,8 @@ This document fixes the backend direction for Notion tasks #094-#096.
 It covers character chat products, fan letters, settlement eligibility, and
 frontend handoff rules. It does not connect a live LLM provider yet.
 
+Related safety design: `docs/character-chat-billing-safety-design.md`.
+
 ## Product Modes
 
 `1L = 10 KRW`.
