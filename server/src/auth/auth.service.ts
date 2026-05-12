@@ -673,7 +673,12 @@ export class AuthService {
     input: ConfirmIdentityVerificationDto,
   ) {
     if (verificationId !== 'self') {
-      throw new BadRequestException('Invalid identity verification id');
+      throw this.authBadRequest(
+        'IDENTITY_VERIFICATION_INVALID_ID',
+        'Invalid identity verification id.',
+        'identityVerification.invalidId',
+        { verificationId },
+      );
     }
 
     const providerStatus = this.identityVerificationProviderStatus('nice');
@@ -686,6 +691,7 @@ export class AuthService {
       {
         code: 'IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED',
         message: 'Identity verification provider adapter is not connected yet.',
+        messageKey: 'identityVerification.providerNotConnected',
         statusCode: HttpStatus.NOT_IMPLEMENTED,
         verificationId: 'self',
         tokenReceived,
@@ -1578,7 +1584,11 @@ export class AuthService {
       });
 
       if (!authAccount?.passwordHash) {
-        throw new BadRequestException('Email password is not configured for this account');
+        throw this.authBadRequest(
+          'AUTH_EMAIL_PASSWORD_NOT_CONFIGURED',
+          'Email password is not configured for this account.',
+          'auth.password.emailNotConfigured',
+        );
       }
 
       await tx.userAuthAccount.update({
@@ -2787,7 +2797,7 @@ export class AuthService {
     });
 
     if (!token) {
-      throw new BadRequestException('Token is invalid or expired');
+      throw this.invalidActionTokenException(purpose);
     }
 
     await this.prisma.userActionToken.update({
@@ -2968,8 +2978,49 @@ export class AuthService {
 
   private assertUserCanLogin(user: { status: string; deletedAt?: Date | null }) {
     if (user.status !== 'active' || user.deletedAt) {
-      throw new UnauthorizedException('User is not active');
+      throw this.authUnauthorized(
+        'AUTH_USER_NOT_ACTIVE',
+        'User is not active.',
+        'auth.user.notActive',
+      );
     }
+  }
+
+  private invalidActionTokenException(purpose: string) {
+    if (purpose === EMAIL_VERIFICATION_PURPOSE) {
+      return this.authBadRequest(
+        'AUTH_EMAIL_VERIFICATION_TOKEN_INVALID_OR_EXPIRED',
+        'Email verification token is invalid or expired.',
+        'auth.emailVerification.tokenInvalidOrExpired',
+      );
+    }
+
+    if (purpose === PASSWORD_RESET_PURPOSE) {
+      return this.authBadRequest(
+        'AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_EXPIRED',
+        'Password reset token is invalid or expired.',
+        'auth.passwordReset.tokenInvalidOrExpired',
+      );
+    }
+
+    return this.authBadRequest(
+      'AUTH_ACTION_TOKEN_INVALID_OR_EXPIRED',
+      'Action token is invalid or expired.',
+      'auth.actionToken.invalidOrExpired',
+    );
+  }
+
+  private authBadRequest(
+    code: string,
+    message: string,
+    messageKey: string,
+    details?: unknown,
+  ) {
+    return new BadRequestException({ code, message, messageKey, details });
+  }
+
+  private authUnauthorized(code: string, message: string, messageKey: string) {
+    return new UnauthorizedException({ code, message, messageKey });
   }
 
   private async assertActiveUser(userId: string) {
