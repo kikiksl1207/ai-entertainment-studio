@@ -28,6 +28,25 @@ const STARTER_PROMPT_POLICY = {
   maxVisibleOptions: 2,
   directInputEnabled: true,
 };
+const DEFAULT_STARTER_PROMPT_COPY = {
+  guideText: (artistDisplayName: string) =>
+    `처음이라 조금 어색하죠? ${artistDisplayName}에게 이렇게 말을 걸어볼까요?`,
+  options: [
+    {
+      key: 'A',
+      label: '오늘 어땠는지 물어보기',
+      message: (artistDisplayName: string) =>
+        `오늘 하루 어땠어? 괜히 ${artistDisplayName} 생각이 나서 들렀어.`,
+    },
+    {
+      key: 'B',
+      label: '조용히 응원하기',
+      message: (artistDisplayName: string) =>
+        `오늘도 ${artistDisplayName}의 무대를 기다리고 있어. 천천히 와도 괜찮아.`,
+    },
+  ],
+  directInputLabel: '직접 입력하기',
+};
 
 type StarterPromptOption = {
   key: string;
@@ -1052,7 +1071,9 @@ export class ChatService {
 
     return {
       key: this.stringFromUnknown(record.key) ?? 'C',
-      label: this.stringFromUnknown(record.label) ?? '직접 입력하기',
+      label:
+        this.stringFromUnknown(record.label) ??
+        DEFAULT_STARTER_PROMPT_COPY.directInputLabel,
     };
   }
 
@@ -1062,22 +1083,15 @@ export class ChatService {
   ): StarterPromptSet {
     return {
       id: `${artistSlug}-soft-start-1`,
-      guideText: `처음이라 조금 어색하죠? ${artistDisplayName}에게 이렇게 말을 걸어볼까요?`,
-      options: [
-        {
-          key: 'A',
-          label: '오늘 어땠는지 물어보기',
-          message: `오늘 하루 어땠어? 괜히 ${artistDisplayName} 생각이 나서 들렀어.`,
-        },
-        {
-          key: 'B',
-          label: '조용히 응원하기',
-          message: `오늘도 ${artistDisplayName}의 무대를 기다리고 있어. 천천히 와도 괜찮아.`,
-        },
-      ],
+      guideText: DEFAULT_STARTER_PROMPT_COPY.guideText(artistDisplayName),
+      options: DEFAULT_STARTER_PROMPT_COPY.options.map((option) => ({
+        key: option.key,
+        label: option.label,
+        message: option.message(artistDisplayName),
+      })),
       directInput: {
         key: 'C',
-        label: '직접 입력하기',
+        label: DEFAULT_STARTER_PROMPT_COPY.directInputLabel,
       },
     };
   }
