@@ -72,6 +72,8 @@ const BASIC_CHAT_POLICY = {
   maxInputChars: 1000,
   estimatedCostCeilingKrw: '0.20',
 };
+const KOREA_SERVICE_DAY_TIME_ZONE = 'Asia/Seoul';
+const KOREA_SERVICE_DAY_OFFSET_MS = 9 * 60 * 60 * 1000;
 const BASIC_CHAT_BLOCK_REASONS = {
   invalidMode: {
     reason: 'invalid_mode',
@@ -707,8 +709,7 @@ export class ChatService {
     mode: string,
   ) {
     const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStart = this.koreaServiceDayStartUtc(now);
     const cooldownCutoff = new Date(
       now.getTime() - BASIC_CHAT_POLICY.cooldownSeconds * 1000,
     );
@@ -778,6 +779,8 @@ export class ChatService {
         dailyLimit: BASIC_CHAT_POLICY.dailyLimit,
         dailyUsed,
         dailyRemaining,
+        serviceDayTimeZone: KOREA_SERVICE_DAY_TIME_ZONE,
+        serviceDayStartAt: todayStart.toISOString(),
         maxInputChars: BASIC_CHAT_POLICY.maxInputChars,
         estimatedCostCeilingKrw: BASIC_CHAT_POLICY.estimatedCostCeilingKrw,
       },
@@ -793,6 +796,13 @@ export class ChatService {
         failure: GENERATION_FAILURE_POLICY,
       },
     };
+  }
+
+  private koreaServiceDayStartUtc(now: Date) {
+    const koreaTime = new Date(now.getTime() + KOREA_SERVICE_DAY_OFFSET_MS);
+    koreaTime.setUTCHours(0, 0, 0, 0);
+
+    return new Date(koreaTime.getTime() - KOREA_SERVICE_DAY_OFFSET_MS);
   }
 
   private basicChatPreflightException(

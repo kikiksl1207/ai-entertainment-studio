@@ -181,6 +181,48 @@ describe('ChatService.preflightMessage', () => {
       dailyRemaining: 0,
     });
   });
+
+  it('counts daily usage from the Asia/Seoul service day boundary', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-12T01:30:00.000Z'));
+
+    try {
+      const count = jest.fn().mockResolvedValue(0);
+      const prisma = {
+        chatSession: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: '00000000-0000-4000-8000-000000000214',
+            artistId: '00000000-0000-4000-8000-000000000001',
+            status: 'active',
+          }),
+        },
+        chatMessage: {
+          findFirst: jest.fn().mockResolvedValue(null),
+          count,
+        },
+      };
+      const service = new ChatService(prisma as never, llmProvider as never);
+
+      const result = await service.preflightMessage(
+        '00000000-0000-4000-8000-000000000002',
+        '00000000-0000-4000-8000-000000000214',
+        { body: 'KST boundary check' },
+      );
+
+      expect(count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            createdAt: { gte: new Date('2026-05-11T15:00:00.000Z') },
+          }),
+        }),
+      );
+      expect(result.limits).toMatchObject({
+        serviceDayTimeZone: 'Asia/Seoul',
+        serviceDayStartAt: '2026-05-11T15:00:00.000Z',
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 describe('ChatService.createFeatureOrder safety', () => {
