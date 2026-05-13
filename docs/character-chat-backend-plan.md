@@ -73,6 +73,11 @@ GET /api/v1/chat/sessions
 GET /api/v1/chat/starter-prompts?artistSlug=<artistSlug>
 GET /api/v1/chat/persona-seed-policy
 GET /api/v1/chat/character-catalog?artistSlug=<artistSlug>
+POST /api/v1/character-chat/sessions
+GET /api/v1/character-chat/sessions
+GET /api/v1/character-chat/sessions/:sessionId/messages
+POST /api/v1/character-chat/sessions/:sessionId/messages
+GET /api/v1/character-chat/monetization-policy
 GET /api/v1/chat/sessions/:sessionId/messages
 POST /api/v1/chat/sessions/:sessionId/messages
 POST /api/v1/chat-feature-orders/preview
@@ -171,6 +176,27 @@ Frontend must render Korean labels/copy and never expose machine keys such as
 `chat_ready`, `conversation_archive`, or `mvp_not_open` as user-facing text.
 Gallery means a conversation-earned image archive, not a public gallery link.
 Short video request remains hidden or disabled for first launch.
+
+#231 adds authenticated character-chat skeleton endpoints under
+`/api/v1/character-chat/*`. These endpoints are for the DM-style page layer and
+do not replace the existing generation/order flow. They validate active artists,
+enforce own-session access, and can store a user text message. The returned
+`aiReply` is explicitly `pending_provider`; no LLM provider is called, no wallet
+is debited, no chat feature order is created, and no settlement eligibility is
+opened.
+
+#235 adds:
+
+```http
+GET /api/v1/character-chat/monetization-policy
+```
+
+This read-only endpoint summarizes fan-letter 30L/50L/100L candidates, Deep
+reply 2L, Story reply 5L, Premium story 10L, basic image request 30L, premium
+image request 100L, and short video request as hidden/reserved for MVP. It also
+documents ledger source rules: free, paid, ad, and promo Lumina are a single user
+balance in UI, while backend ledger metadata keeps source tracking for settlement
+policy. It performs no payment, wallet, settlement, or creator payout mutation.
 
 Implemented readiness contracts before real LLM generation:
 

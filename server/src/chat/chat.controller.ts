@@ -59,6 +59,48 @@ export class ChatController {
     return this.chatService.getSessions(user.id);
   }
 
+  @Post('character-chat/sessions')
+  createCharacterChatSession(
+    @CurrentUser() user: AuthUser,
+    @Body() body: CreateSessionBody & { artistSlug?: string },
+  ) {
+    return this.chatService.createCharacterChatSession(user.id, {
+      artistId: body?.artistId,
+      artistSlug: body?.artistSlug,
+      chatPersonaId: body?.chatPersonaId,
+    });
+  }
+
+  @Get('character-chat/sessions')
+  getCharacterChatSessions(@CurrentUser() user: AuthUser) {
+    return this.chatService.getCharacterChatSessions(user.id);
+  }
+
+  @Get('character-chat/sessions/:sessionId/messages')
+  getCharacterChatMessages(
+    @CurrentUser() user: AuthUser,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.chatService.getCharacterChatMessages(user.id, sessionId);
+  }
+
+  @Post('character-chat/sessions/:sessionId/messages')
+  createCharacterChatMessage(
+    @CurrentUser() user: AuthUser,
+    @Param('sessionId') sessionId: string,
+    @Body() body: CreateMessageBody,
+  ) {
+    return this.chatService.createCharacterChatUserMessage(user.id, sessionId, {
+      body: body?.body,
+      messageType: body?.messageType,
+    });
+  }
+
+  @Get('character-chat/monetization-policy')
+  getCharacterChatMonetizationPolicy() {
+    return this.chatService.getCharacterChatMonetizationPolicy();
+  }
+
   @Get('chat/persona-seed-policy')
   getPersonaSeedPolicy() {
     return this.chatService.getPersonaSeedPolicy();

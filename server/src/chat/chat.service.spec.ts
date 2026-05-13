@@ -157,6 +157,172 @@ describe('ChatService persona and catalog policy', () => {
   });
 });
 
+describe('ChatService character-chat skeleton', () => {
+  const llmProvider = {
+    readiness: jest.fn().mockReturnValue({
+      provider: 'not_configured',
+      configured: false,
+      status: 'provider_not_configured',
+      messageKey: 'chat.generation.providerNotConfigured',
+    }),
+    generate: jest.fn(),
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('creates a character-chat session after active artist validation', async () => {
+    const prisma = {
+      artist: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000231',
+          slug: 'yoon-serin',
+          displayName: '윤세린',
+          publicProfile: null,
+          contentProfile: null,
+        }),
+      },
+      chatSession: {
+        create: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000001',
+          userId: '00000000-0000-4000-8000-000000000002',
+          artistId: '00000000-0000-4000-8000-000000000231',
+          chatPersonaId: null,
+          status: 'active',
+        }),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.createCharacterChatSession(
+      '00000000-0000-4000-8000-000000000002',
+      { artistId: '00000000-0000-4000-8000-000000000231' },
+    );
+
+    expect(prisma.artist.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: '00000000-0000-4000-8000-000000000231',
+          status: 'active',
+        }),
+      }),
+    );
+    expect(prisma.chatSession.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: '00000000-0000-4000-8000-000000000002',
+          artistId: '00000000-0000-4000-8000-000000000231',
+          status: 'active',
+        }),
+      }),
+    );
+    expect(result.policy).toMatchObject({
+      requiresAuth: true,
+      ownSessionOnly: true,
+      llmCall: false,
+      walletMutation: false,
+    });
+  });
+
+  it('stores only the user message and returns pending AI reply without wallet or LLM mutation', async () => {
+    const tx = {
+      chatMessage: {
+        create: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000003',
+          chatSessionId: '00000000-0000-4000-8000-000000000231',
+          senderType: 'user',
+          messageType: 'text',
+          body: '오늘은 어떤 이야기를 해볼까?',
+        }),
+      },
+      chatSession: {
+        update: jest.fn().mockResolvedValue({}),
+      },
+      walletAccount: {
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+    };
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000231',
+          userId: '00000000-0000-4000-8000-000000000002',
+          artistId: '00000000-0000-4000-8000-000000000001',
+          chatPersonaId: null,
+          status: 'active',
+        }),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.createCharacterChatUserMessage(
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000231',
+      { body: '오늘은 어떤 이야기를 해볼까?' },
+    );
+
+    expect(tx.chatMessage.create).toHaveBeenCalledTimes(1);
+    expect(tx.chatMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          senderType: 'user',
+          body: '오늘은 어떤 이야기를 해볼까?',
+          modelMetadata: expect.objectContaining({
+            generationStatus: 'not_requested',
+            provider: 'not_called',
+          }),
+          safetyMetadata: expect.objectContaining({
+            llmCall: false,
+            walletMutation: false,
+          }),
+        }),
+      }),
+    );
+    expect(tx.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+    expect(llmProvider.generate).not.toHaveBeenCalled();
+    expect(result.aiReply).toMatchObject({
+      status: 'pending_provider',
+      llmCall: false,
+      walletMutation: false,
+    });
+  });
+
+  it('returns read-only monetization and ledger policy without user-facing paid/free split', () => {
+    const service = new ChatService({} as never, llmProvider as never);
+
+    const result = service.getCharacterChatMonetizationPolicy();
+
+    expect(result.currency).toMatchObject({
+      userBalancePresentation: 'single_balance',
+      doNotSplitPaidAndFreeInUserUi: true,
+    });
+    expect(result.products.fanLetters.map((item) => item.priceLumina)).toEqual([
+      30, 50, 100,
+    ]);
+    expect(result.products.characterChatReplies.map((item) => item.priceLumina)).toEqual([
+      2, 5, 10,
+    ]);
+    expect(result.ledgerContract.creditSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'ad_reward' }),
+        expect.objectContaining({ source: 'promotion_reward' }),
+      ]),
+    );
+    expect(result.safety).toMatchObject({
+      readOnly: true,
+      walletMutation: false,
+      settlementMutation: false,
+      paymentMutation: false,
+    });
+  });
+});
+
 describe('ChatService.preflightMessage', () => {
   const llmProvider = {
     readiness: jest.fn().mockReturnValue({

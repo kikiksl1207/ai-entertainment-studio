@@ -5,6 +5,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import type { InputJsonValue } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ChatGenerationResult,
@@ -17,6 +18,7 @@ import {
   PUBLIC_CHAT_FEATURE_TYPES,
   findChatFeatureProductPolicy,
 } from './chat-feature-policy';
+import { CHARACTER_CHAT_MONETIZATION_POLICY } from './chat-monetization-policy';
 import {
   CHARACTER_CHAT_CATALOG_POLICY,
   CHAT_PERSONA_SEED_POLICY,
@@ -27,7 +29,7 @@ import {
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const UUID_V4_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STARTER_PROMPT_POLICY = {
   showForFirstSession: true,
   hideAfterFirstMessage: true,
@@ -192,6 +194,64 @@ export class ChatService {
     });
   }
 
+  async createCharacterChatSession(
+    userId: string,
+    input: {
+      artistId?: string;
+      artistSlug?: string;
+      chatPersonaId?: string;
+    },
+  ) {
+    const artist = await this.findActiveChatArtist({
+      artistId: input.artistId,
+      artistSlug: input.artistSlug,
+    });
+
+    if (input.chatPersonaId) {
+      this.ensureUuidV4(input.chatPersonaId, 'chatPersonaId');
+      const persona = await this.prisma.chatPersona.findFirst({
+        where: {
+          id: input.chatPersonaId,
+          artistId: artist.id,
+          status: 'active',
+        },
+      });
+
+      if (!persona) {
+        throw new NotFoundException('Chat persona not found');
+      }
+    }
+
+    const session = await this.prisma.chatSession.create({
+      data: {
+        userId,
+        artistId: artist.id,
+        chatPersonaId: input.chatPersonaId,
+        status: 'active',
+      },
+      include: this.characterChatSessionInclude(),
+    });
+
+    return {
+      session,
+      policy: this.characterChatSkeletonPolicy(),
+    };
+  }
+
+  async getCharacterChatSessions(userId: string) {
+    const sessions = await this.prisma.chatSession.findMany({
+      where: { userId },
+      include: this.characterChatSessionInclude(),
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return {
+      items: sessions,
+      count: sessions.length,
+      policy: this.characterChatSkeletonPolicy(),
+    };
+  }
+
   getSessions(userId: string) {
     return this.prisma.chatSession.findMany({
       where: { userId },
@@ -207,6 +267,10 @@ export class ChatService {
 
   getPersonaSeedPolicy() {
     return CHAT_PERSONA_SEED_POLICY;
+  }
+
+  getCharacterChatMonetizationPolicy() {
+    return CHARACTER_CHAT_MONETIZATION_POLICY;
   }
 
   async getCharacterChatCatalog(input: { artistId?: string; artistSlug?: string }) {
@@ -300,6 +364,79 @@ export class ChatService {
       where: { chatSessionId: sessionId },
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  async getCharacterChatMessages(userId: string, sessionId: string) {
+    this.ensureUuidV4(sessionId, 'sessionId');
+    const session = await this.getOwnedSession(userId, sessionId);
+    const messages = await this.prisma.chatMessage.findMany({
+      where: { chatSessionId: sessionId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return {
+      session: {
+        id: session.id,
+        artistId: session.artistId,
+        chatPersonaId: session.chatPersonaId,
+        status: session.status,
+      },
+      items: messages,
+      count: messages.length,
+      aiReply: this.pendingCharacterChatReply(),
+      policy: this.characterChatSkeletonPolicy(),
+    };
+  }
+
+  async createCharacterChatUserMessage(
+    userId: string,
+    sessionId: string,
+    input: { body?: string; messageType?: string },
+  ) {
+    this.ensureUuidV4(sessionId, 'sessionId');
+    const body = this.normalizeBasicChatBody(input.body);
+    const session = await this.getOwnedSession(userId, sessionId);
+
+    const message = await this.prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const created = await tx.chatMessage.create({
+          data: {
+            chatSessionId: session.id,
+            senderType: 'user',
+            messageType: input.messageType?.trim() || 'text',
+            body,
+            modelMetadata: this.inputJson({
+              generationStatus: 'not_requested',
+              provider: 'not_called',
+              skeleton: true,
+            }),
+            safetyMetadata: this.inputJson({
+              skeleton: true,
+              llmCall: false,
+              walletMutation: false,
+            }),
+          },
+        });
+
+        await tx.chatSession.update({
+          where: { id: session.id },
+          data: { updatedAt: new Date() },
+        });
+
+        return created;
+      },
+    );
+
+    return {
+      session: {
+        id: session.id,
+        artistId: session.artistId,
+        chatPersonaId: session.chatPersonaId,
+      },
+      message,
+      aiReply: this.pendingCharacterChatReply(),
+      policy: this.characterChatSkeletonPolicy(),
+    };
   }
 
   async preflightMessage(
@@ -1236,6 +1373,45 @@ export class ChatService {
     };
   }
 
+  private characterChatSessionInclude() {
+    return {
+      artist: {
+        select: { id: true, slug: true, displayName: true },
+      },
+      chatPersona: true,
+    };
+  }
+
+  private characterChatSkeletonPolicy() {
+    return {
+      mode: BASIC_CHAT_POLICY.mode,
+      maxInputChars: BASIC_CHAT_POLICY.maxInputChars,
+      requiresAuth: true,
+      ownSessionOnly: true,
+      userMessageStorage: 'enabled',
+      aiReplyStatus: 'pending_provider',
+      llmCall: false,
+      walletMutation: false,
+      generationEndpoint: '/api/v1/chat/sessions/:sessionId/generate',
+      preflightEndpoint: '/api/v1/chat/sessions/:sessionId/preflight',
+      displayMessageKo:
+        '메시지는 저장됐고, 캐릭터 답변 생성은 준비 중이에요.',
+    };
+  }
+
+  private pendingCharacterChatReply() {
+    return {
+      status: 'pending_provider',
+      code: 'CHARACTER_CHAT_AI_REPLY_PENDING',
+      messageKey: 'chat.reply.pendingProvider',
+      displayMessageKo:
+        '캐릭터 답변은 준비 중이에요. 아직 실제 AI 호출은 실행하지 않았습니다.',
+      llmCall: false,
+      walletMutation: false,
+      settlementEligible: false,
+    };
+  }
+
   private requiresLlmGeneration(product: { featureType: string }) {
     const configuredPolicy = findChatFeatureProductPolicy({
       featureType: product.featureType,
@@ -1307,12 +1483,18 @@ export class ChatService {
       : {};
   }
 
-  private inputJson(value: unknown): Prisma.InputJsonValue {
-    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  private inputJson(value: unknown): InputJsonValue {
+    return JSON.parse(JSON.stringify(value)) as InputJsonValue;
   }
 
   private stringFromUnknown(value: unknown) {
     return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private ensureUuidV4(value: string, fieldName: string) {
+    if (!UUID_V4_PATTERN.test(value.trim())) {
+      throw new BadRequestException(`${fieldName} must be a UUID v4`);
+    }
   }
 
   private async findActiveChatArtist(input: { artistId?: string; artistSlug?: string }) {

@@ -385,6 +385,11 @@ GET /api/v1/chat/starter-prompts?artistId=<artistId>
 GET /api/v1/chat/persona-seed-policy
 GET /api/v1/chat/character-catalog?artistSlug=<artistSlug>
 GET /api/v1/chat/character-catalog?artistId=<artistId>
+POST /api/v1/character-chat/sessions
+GET /api/v1/character-chat/sessions
+GET /api/v1/character-chat/sessions/:sessionId/messages
+POST /api/v1/character-chat/sessions/:sessionId/messages
+GET /api/v1/character-chat/monetization-policy
 GET /api/v1/chat/sessions/:sessionId/messages
 POST /api/v1/chat/sessions/:sessionId/messages
 POST /api/v1/chat/sessions/:sessionId/generate
@@ -421,6 +426,21 @@ archive, and short video request as hidden/disabled for first launch. It perform
 no image/video request mutation, no wallet mutation, and no LLM call. Frontend
 must render Korean labels/copy and must not expose machine keys such as
 `chat_ready`, `conversation_archive`, or `mvp_not_open` directly to users.
+
+Character-chat session skeleton endpoints are authenticated. They validate the
+active artist, only return the current user's sessions/messages, and let the
+frontend store a user message before a real LLM provider is connected.
+`POST /character-chat/sessions/:sessionId/messages` writes only the user message
+and returns `aiReply.status = pending_provider` with Korean display copy. It does
+not call LLM, debit wallet, create chat feature orders, or mark settlement
+eligibility.
+
+`GET /character-chat/monetization-policy` is an authenticated/read-only contract
+for fan-letter, paid character-chat reply, image request, video request, and
+ledger source policy. User-facing balance must stay a single Lumina balance;
+paid/free/promo source is internal ledger metadata only. The endpoint has
+`safety.walletMutation=false`, `safety.settlementMutation=false`, and
+`safety.paymentMutation=false`.
 
 LLM generation readiness:
 

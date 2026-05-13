@@ -589,6 +589,11 @@ POST /me/identity-verifications/self/confirm
 GET /chat/starter-prompts?artistSlug=<artistSlug>
 GET /chat/persona-seed-policy
 GET /chat/character-catalog?artistSlug=<artistSlug>
+POST /character-chat/sessions
+GET /character-chat/sessions
+GET /character-chat/sessions/:sessionId/messages
+POST /character-chat/sessions/:sessionId/messages
+GET /character-chat/monetization-policy
 GET /chat-feature-products
 POST /chat-feature-orders/preview
 POST /chat-feature-orders
@@ -618,6 +623,22 @@ image archive, not a public gallery link, and that short video request remains
 hidden/disabled for first launch. Frontend must show Korean copy such as
 `labelKo`, `descriptionKo`, `disabledMessageKo`, and must not expose machine keys
 such as `chat_ready`, `conversation_archive`, or `mvp_not_open` directly.
+
+`POST /character-chat/sessions` creates an authenticated skeleton DM session for
+an active artist. Send `artistId` or `artistSlug`; `chatPersonaId` is optional.
+`GET /character-chat/sessions` and
+`GET /character-chat/sessions/:sessionId/messages` only return the logged-in
+user's own sessions/messages. `POST /character-chat/sessions/:sessionId/messages`
+stores a user text message and returns an `aiReply` object with
+`status = pending_provider` and Korean copy. It does not call LLM, create a paid
+order, debit wallet, or mark settlement eligibility.
+
+`GET /character-chat/monetization-policy` returns the read-only product and
+ledger contract for fan letters, paid chat replies, image requests, and reserved
+short video requests. Frontend must keep user Lumina as one balance and must not
+split paid/free/promo Lumina in user-facing UI. Source tracking is backend ledger
+metadata only. Do not show creator payout as confirmed revenue; use the provided
+warning copy when showing estimate candidates.
 
 Identity verification is a fail-closed NICE-first skeleton for now. The policy
 endpoint exposes supported methods (`mobile_phone`, `ipin`), non-secret provider
