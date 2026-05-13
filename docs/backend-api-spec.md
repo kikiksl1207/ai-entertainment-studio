@@ -768,6 +768,10 @@ Confirm upload validates the asset id, owner, `debut_application_material` scope
 private visibility, category, MIME family, file size, and object existence before
 marking the asset uploaded. Local development uses a metadata-only placeholder;
 object storage deployments verify the private object without exposing a read URL.
+The storage key uses the existing direct-upload-authorized object prefix while
+keeping `visibility = private` and `debut_application_material` scope, so this
+remains separate from the public feed/profile upload API and public delivery
+flow.
 
 `POST /api/v1/debut/applications` may link only confirmed private materials owned
 by the current user. Supported fields:

@@ -58,7 +58,7 @@ function createPrismaMock(): PrismaMock {
     assetType: 'image',
     visibility: 'private',
     storageProvider: 'local',
-    storageKey: 'uploads/debut-materials/images/test.png',
+    storageKey: 'uploads/user-images/2026/05/13/test-debut-material-image.png',
     mimeType: 'image/png',
     fileSizeBytes: BigInt(1024),
     width: null,
@@ -98,7 +98,7 @@ function materialAsset(status = 'uploaded', category = 'face_photo') {
     assetType: 'image',
     visibility: 'private',
     storageProvider: 'local',
-    storageKey: 'uploads/debut-materials/images/test.png',
+    storageKey: 'uploads/user-images/2026/05/13/test-debut-material-image.png',
     mimeType: 'image/png',
     fileSizeBytes: BigInt(1024),
     width: null,
@@ -155,6 +155,7 @@ describe('DebutService private material flow', () => {
       data: expect.objectContaining({
         assetType: 'image',
         visibility: 'private',
+        storageKey: expect.stringContaining('debut-material-image-face-photo.png'),
         mimeType: 'image/png',
         fileSizeBytes: BigInt(1024),
         metadata: expect.objectContaining({
