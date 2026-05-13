@@ -3,6 +3,35 @@
 Use the standard completion note from `docs/ops/agents.md`.
 
 status: completed
+task: #230 email verification/password reset API skeleton; #234 NICE identity/minor clean-mode API contract
+branch/commit: team2-backend/auth-email-identity-230-234 / this commit
+changed_files:
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npm.cmd test -- auth.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Confirmed #230 backend skeleton is already present on latest main: `POST /api/v1/auth/email-verifications`, `POST /api/v1/auth/email-verifications/confirm`, `POST /api/v1/auth/password-resets`, and `POST /api/v1/auth/password-resets/confirm`.
+- Confirmed action tokens are stored as SHA-256 hashes in `user_action_tokens`, expire separately for email verification/password reset, and are single-use via `consumedAt`.
+- Confirmed request endpoints use neutral `{ ok: true, delivery }` responses so account existence is not exposed; raw action tokens are only exposed behind local/staging `ACTION_TOKEN_DEBUG_ENABLED=true` when `NODE_ENV` is not production.
+- Confirmed password reset keeps the 8+ character letter+number policy, updates only the email password hash, and revokes active refresh-token sessions.
+- Confirmed #234 NICE-first identity skeleton is already present: `GET /api/v1/me/identity-verifications/policy`, `POST /api/v1/me/identity-verifications`, `POST /api/v1/me/identity-verifications/self/confirm`, and `GET /api/v1/me/trust`.
+- Confirmed provider confirm fails closed with `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED`; raw resident numbers, raw identity documents, NICE raw names/phone numbers, raw provider tokens, provider secrets, and raw env values are not stored or documented.
+- Confirmed `GET /api/v1/me/trust.accountState` exposes signup-not-blocked-before-verification, ageGate, and cleanMode; minor clean mode is only required when verified provider birth date proves minor status.
+- Fixed stale frontend handoff text that still said `emailVerifiedAt` was omitted and described identity verification as phone-number MVP rather than NICE-first skeleton.
+- No frontend runtime files, production seed/data, wallet/Lumina/settlement/payout/paid-like flow, provider secret, token value, cookie, password, env value, resident number, or raw identity payload was changed or recorded.
+blocked_by:
+- Real NICE adapter/callback and real mail provider credentials remain separate follow-up work.
+next_needed:
+- 뷰어/차모 review. If accepted, 큐알 can smoke the neutral request responses, local/staging debug-token confirm path, and identity provider-not-connected fail-closed response.
+민감값 기록 여부: 없음
+
+---
+
+status: completed
 task: #229 follow-up direct PUT AccessDenied fix
 branch/commit: team2-backend/debut-private-upload-storage-229 / this commit
 changed_files:
