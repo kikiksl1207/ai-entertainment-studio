@@ -3,6 +3,33 @@
 Use the standard completion note from `docs/ops/agents.md`.
 
 status: completed
+task: #229 follow-up direct PUT AccessDenied fix
+branch/commit: team2-backend/debut-private-upload-storage-229 / this commit
+changed_files:
+- server/src/debut/debut.service.ts
+- server/src/debut/debut.service.spec.ts
+- docs/backend-api-spec.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npm.cmd test -- debut.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- QA live smoke showed private material upload-intent/auth/unconfirmed rejection/gender policy checks passing, but direct PUT failed with provider 403 AccessDenied before confirm-upload.
+- Compared debut material presigned PUT with the existing user asset presigned PUT. Signing logic is equivalent; the material flow used a new object prefix that was not covered by live direct-upload authorization.
+- Updated private debut material storage keys to use the existing direct-upload-authorized object prefix while preserving `visibility: private`, `debut_application_material` scope, private API endpoints, and no public/signed read URL exposure.
+- This does not switch to the public `/me/assets` API or public asset delivery flow; application linking still requires confirmed private scoped assets.
+- No frontend files, production seed/data, wallet/Lumina/settlement/payout/paid-like flow, public original URL exposure, signed URL value, direct upload target value, token, secret, DB credential, object key full value, or asset id full value was recorded.
+blocked_by:
+- Needs deploy and QA repeat of direct PUT, confirm-upload, confirmed attachment application submit, attachment relation, and estimated/final share separation.
+next_needed:
+- 조로 review/deploy, then 큐알 live smoke reQA.
+민감값 기록 여부: 없음
+
+---
+
+status: completed
 task: #229 debut application private material upload API implementation
 branch/commit: team2-backend/debut-private-material-upload-229 / this commit
 changed_files:

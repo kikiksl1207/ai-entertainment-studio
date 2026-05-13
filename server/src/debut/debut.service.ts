@@ -1037,7 +1037,7 @@ export class DebutService {
     const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
     const dd = String(date.getUTCDate()).padStart(2, '0');
     const prefix = this.storageKeyPrefix();
-    const path = `uploads/debut-materials/${assetType}s/${yyyy}/${mm}/${dd}/${randomUUID()}-${fileName}`;
+    const path = `uploads/user-images/${yyyy}/${mm}/${dd}/${randomUUID()}-debut-material-${assetType}-${fileName}`;
 
     return prefix ? `${prefix}/${path}` : path;
   }
