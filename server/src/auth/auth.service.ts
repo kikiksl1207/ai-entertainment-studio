@@ -101,6 +101,23 @@ type IdentityVerificationProviderStatus = {
   env: Record<string, boolean>;
   requiredEnvKeys: string[];
 };
+type IdentityVerificationSummaryRecord = {
+  status: string;
+  provider: string | null;
+  verifiedNameMasked: string | null;
+  verifiedAt: Date | null;
+  expiresAt: Date | null;
+  birthDate?: Date | null;
+};
+type AccountAgeGate = {
+  status: 'unknown' | 'minor' | 'adult';
+  isMinor: boolean | null;
+  isAdult: boolean | null;
+  ageYears: number | null;
+  adultThresholdYears: number;
+  verifiedBirthDatePresent: boolean;
+  verificationSource: 'provider_birth_date' | 'phone_number_mvp' | 'unverified';
+};
 
 @Injectable()
 export class AuthService {
@@ -242,6 +259,20 @@ export class AuthService {
     if (authAccount) {
       this.assertUserCanLogin(authAccount.user);
 
+      if (
+        verifiedEmail &&
+        authAccount.user.email === verifiedEmail &&
+        !authAccount.user.emailVerifiedAt
+      ) {
+        await this.prisma.user.update({
+          where: { id: authAccount.userId },
+          data: {
+            emailVerifiedAt: new Date(),
+            updatedAt: new Date(),
+          },
+        });
+      }
+
       await this.prisma.userAuthAccount.update({
         where: { id: authAccount.id },
         data: { lastLoginAt: new Date() },
@@ -276,12 +307,23 @@ export class AuthService {
           },
         });
 
+        if (!existingUser.emailVerifiedAt) {
+          await tx.user.update({
+            where: { id: existingUser.id },
+            data: {
+              emailVerifiedAt: new Date(),
+              updatedAt: new Date(),
+            },
+          });
+        }
+
         return existingUser;
       }
 
       const createdUser = await tx.user.create({
         data: {
           email: verifiedEmail,
+          emailVerifiedAt: verifiedEmail ? new Date() : null,
           status: 'active',
         },
       });
@@ -434,6 +476,7 @@ export class AuthService {
       select: {
         id: true,
         email: true,
+        emailVerifiedAt: true,
         phoneNumber: true,
         status: true,
         createdAt: true,
@@ -502,8 +545,12 @@ export class AuthService {
       throw new BadRequestException('Active user not found');
     }
 
-    const identityVerified =
-      user.identityVerification?.status === 'verified' || Boolean(user.phoneNumber);
+    const identityVerification = this.identityVerificationSummary(
+      user.identityVerification,
+      user.phoneNumber,
+    );
+    const identityVerified = identityVerification.status === 'verified';
+    const accountState = this.accountStatePolicy(identityVerification);
     const identityProviderStatus = this.identityVerificationProviderStatus('nice');
     const payoutAccountReady = user.payoutAccount?.status === 'registered';
     const payoutExceptionApproved = user.payoutException?.status === 'approved';
@@ -539,7 +586,7 @@ export class AuthService {
       trust: {
         level,
         identityVerified,
-        identityVerificationProvider: identityVerified ? 'phone_number_mvp' : null,
+        identityVerificationProvider: identityVerification.provider,
         identityProviderStatus,
         referralEligible: identityVerified,
         paidSupportEligible: identityVerified,
@@ -549,11 +596,9 @@ export class AuthService {
           (payoutAccountReady || payoutExceptionApproved),
         adminEligible: hasActiveAdminAccess,
       },
+      accountState,
       settlement: {
-        identityVerification: this.identityVerificationSummary(
-          user.identityVerification,
-          user.phoneNumber,
-        ),
+        identityVerification,
         payoutAccount: this.payoutAccountSummary(user.payoutAccount),
         payoutException: this.payoutExceptionSummary(user.payoutException),
         payoutAccountReady,
@@ -582,6 +627,11 @@ export class AuthService {
         creatorSettlementRequiresIdentityVerification: true,
         creatorSettlementRequiresPayoutAccount: true,
         guestBrowsingAllowed: true,
+        signupAllowedWithoutIdentityVerification:
+          accountState.signupAllowedWithoutIdentityVerification,
+        identityVerificationBeforeSignupRequired:
+          accountState.identityVerificationBeforeSignupRequired,
+        minorCleanModeEnforcedWhenVerifiedMinor: true,
       },
     };
   }
@@ -595,8 +645,17 @@ export class AuthService {
       providerStatus,
       policy: {
         maxAccountsPerIdentity: 3,
+        signupAllowedWithoutIdentityVerification: true,
+        identityVerificationBeforeSignupRequired: false,
         rawResidentRegistrationNumberStored: false,
         rawIdentityDocumentUploadRequired: false,
+        rawProviderTokenStored: false,
+        verifiedNameStorage: 'masked_only',
+        birthDateStorage: 'date_only_after_provider_verification',
+        identitySubjectStorage: 'hash_only',
+        adultThresholdYears: 19,
+        minorCleanModeEnforcedWhenVerifiedMinor: true,
+        cleanModeSource: 'verified_birth_date_only',
         supportedProviders: ['nice'],
         phoneAndIpinPlanned: true,
         launchMode: 'provider_adapter_stub',
@@ -645,7 +704,12 @@ export class AuthService {
       providerConfigured: providerStatus.configured,
       providerIntegrationStatus: providerStatus.integrationStatus,
       rawIdentityDocumentStored: false,
+      rawNameStored: false,
+      rawPhoneNumberStored: false,
+      rawProviderTokenStored: false,
       residentRegistrationNumberStored: false,
+      signupAllowedWithoutIdentityVerification: true,
+      cleanModeSource: 'verified_birth_date_only',
     };
 
     const record = await this.prisma.userIdentityVerification.upsert({
@@ -1472,10 +1536,11 @@ export class AuthService {
       },
       select: {
         id: true,
+        emailVerifiedAt: true,
       },
     });
 
-    if (user) {
+    if (user && !user.emailVerifiedAt) {
       debugToken = await this.createUserActionToken(
         user.id,
         EMAIL_VERIFICATION_PURPOSE,
@@ -1504,10 +1569,12 @@ export class AuthService {
       input.token,
       EMAIL_VERIFICATION_PURPOSE,
     );
+    this.assertUserCanLogin(token.user);
 
     await this.prisma.user.update({
       where: { id: token.userId },
       data: {
+        emailVerifiedAt: new Date(),
         updatedAt: new Date(),
       },
     });
@@ -1918,6 +1985,7 @@ export class AuthService {
   private async formatMe(user: {
     id: string;
     email: string | null;
+    emailVerifiedAt: Date | null;
     phoneNumber: string | null;
     status: string;
     createdAt: Date;
@@ -1979,6 +2047,8 @@ export class AuthService {
     return {
       id: user.id,
       email: user.email,
+      emailVerifiedAt: user.emailVerifiedAt,
+      emailVerified: Boolean(user.emailVerifiedAt),
       phoneNumber: user.phoneNumber,
       status: user.status,
       provider: primaryProvider,
@@ -2278,15 +2348,7 @@ export class AuthService {
   }
 
   private identityVerificationRequestView(
-    record:
-      | {
-          status: string;
-          provider: string | null;
-          verifiedNameMasked: string | null;
-          verifiedAt: Date | null;
-          expiresAt: Date | null;
-        }
-      | null,
+    record: IdentityVerificationSummaryRecord | null,
     providerStatus: IdentityVerificationProviderStatus,
     method: IdentityVerificationMethod,
   ) {
@@ -2321,36 +2383,40 @@ export class AuthService {
   }
 
   private identityVerificationSummary(
-    record:
-      | {
-          status: string;
-          provider: string | null;
-          verifiedNameMasked: string | null;
-          verifiedAt: Date | null;
-          expiresAt: Date | null;
-        }
-      | null,
+    record: IdentityVerificationSummaryRecord | null,
     phoneNumber?: string | null,
   ) {
     if (record) {
+      const ageGate = this.accountAgeGate(record.birthDate ?? null, record.status);
+
       return {
         status: record.status,
         provider: record.provider,
         verifiedNameMasked: record.verifiedNameMasked,
         verifiedAt: record.verifiedAt,
         expiresAt: record.expiresAt,
+        birthDateStatus: record.birthDate ? 'stored_date_only' : 'not_collected',
+        ageGate,
+        cleanMode: this.cleanModePolicy(ageGate),
       };
     }
 
     if (phoneNumber) {
+      const ageGate = this.accountAgeGate(null, 'phone_number_mvp');
+
       return {
         status: 'verified',
         provider: 'phone_number_mvp',
         verifiedNameMasked: null,
         verifiedAt: null,
         expiresAt: null,
+        birthDateStatus: 'not_collected',
+        ageGate,
+        cleanMode: this.cleanModePolicy(ageGate),
       };
     }
+
+    const ageGate = this.accountAgeGate(null, 'unverified');
 
     return {
       status: 'unverified',
@@ -2358,7 +2424,105 @@ export class AuthService {
       verifiedNameMasked: null,
       verifiedAt: null,
       expiresAt: null,
+      birthDateStatus: 'not_collected',
+      ageGate,
+      cleanMode: this.cleanModePolicy(ageGate),
     };
+  }
+
+  private accountStatePolicy(identityVerification: ReturnType<AuthService['identityVerificationSummary']>) {
+    return {
+      accountStatus: identityVerification.status,
+      signupAllowedWithoutIdentityVerification: true,
+      identityVerificationBeforeSignupRequired: false,
+      ageGate: identityVerification.ageGate,
+      cleanMode: identityVerification.cleanMode,
+      restrictedUntilIdentityVerified: [
+        'referral_reward',
+        'paid_support',
+        'fan_letter',
+        'creator_settlement',
+      ],
+      storagePolicy: {
+        rawResidentRegistrationNumberStored: false,
+        rawIdentityDocumentStored: false,
+        rawProviderTokenStored: false,
+        verifiedNameStorage: 'masked_only',
+        birthDateStorage: 'date_only_after_provider_verification',
+        identitySubjectStorage: 'hash_only',
+      },
+    };
+  }
+
+  private accountAgeGate(
+    birthDate: Date | null,
+    status: string,
+  ): AccountAgeGate {
+    const verifiedProviderBirthDate = status === 'verified' ? birthDate : null;
+    const verificationSource =
+      status === 'phone_number_mvp'
+        ? 'phone_number_mvp'
+        : verifiedProviderBirthDate
+          ? 'provider_birth_date'
+          : 'unverified';
+    const adultThresholdYears = 19;
+
+    if (!verifiedProviderBirthDate) {
+      return {
+        status: 'unknown',
+        isMinor: null,
+        isAdult: null,
+        ageYears: null,
+        adultThresholdYears,
+        verifiedBirthDatePresent: false,
+        verificationSource,
+      };
+    }
+
+    const ageYears = this.ageYears(verifiedProviderBirthDate, new Date());
+    const isAdult = ageYears >= adultThresholdYears;
+
+    return {
+      status: isAdult ? 'adult' : 'minor',
+      isMinor: !isAdult,
+      isAdult,
+      ageYears,
+      adultThresholdYears,
+      verifiedBirthDatePresent: true,
+      verificationSource,
+    };
+  }
+
+  private cleanModePolicy(ageGate: AccountAgeGate) {
+    const minor = ageGate.status === 'minor';
+    const unknown = ageGate.status === 'unknown';
+
+    return {
+      status: minor ? 'required' : unknown ? 'age_unverified' : 'not_required',
+      required: minor,
+      mode: minor ? 'minor_protected' : 'standard',
+      source: ageGate.verificationSource,
+      messageKey: minor
+        ? 'account.cleanMode.minorRequired'
+        : unknown
+          ? 'account.cleanMode.ageUnverified'
+          : 'account.cleanMode.notRequired',
+      signupBlocking: false,
+    };
+  }
+
+  private ageYears(birthDate: Date, asOf: Date) {
+    let years = asOf.getUTCFullYear() - birthDate.getUTCFullYear();
+    const birthdayHasPassed =
+      asOf.getUTCMonth() > birthDate.getUTCMonth() ||
+      (asOf.getUTCMonth() === birthDate.getUTCMonth() &&
+        asOf.getUTCDate() >= birthDate.getUTCDate());
+
+    if (!birthdayHasPassed) {
+      years -= 1;
+    }
+
+    return years;
   }
 
   private payoutAccountSummary(

@@ -377,6 +377,7 @@ My Page scope notes for 2026-05-02:
 - `POST /auth/email-verifications/confirm` body: `{ "token": "<email-token>" }`.
 - `POST /auth/password-resets` body: `{ "email": "user@example.com" }`.
 - `POST /auth/password-resets/confirm` body: `{ "token": "<reset-token>", "newPassword": "<new-password>" }`.
+- `GET /me` includes `emailVerified` and `emailVerifiedAt`; successful email verification persists `users.email_verified_at`.
 
 Email delivery contract:
 
@@ -384,6 +385,7 @@ Email delivery contract:
 - If `EMAIL_DELIVERY_PROVIDER` is configured to `resend` or `sendgrid`, the backend sends a one-time verification/reset link using the configured action URL base and returns `delivery.status = "accepted"`.
 - Frontend should show the same neutral success copy for both request endpoints, for example "If this email can receive account mail, check your inbox." Do not branch UI on account existence.
 - Confirmation endpoints still receive the token from the emailed URL: `POST /auth/email-verifications/confirm` with `{ "token": "<email-token>" }` and `POST /auth/password-resets/confirm` with `{ "token": "<reset-token>", "newPassword": "<new-password>" }`.
+- Password reset confirmation revokes active refresh-token sessions, so clients should clear local tokens and send the user back through login after a successful reset.
 - Confirmation error responses include stable `error.code` and `error.messageKey` values for frontend copy mapping:
   - `AUTH_EMAIL_VERIFICATION_TOKEN_INVALID_OR_EXPIRED` / `auth.emailVerification.tokenInvalidOrExpired`
   - `AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_EXPIRED` / `auth.passwordReset.tokenInvalidOrExpired`
@@ -601,8 +603,11 @@ The frontend sends the chosen `message` through the normal chat message or later
 generation flow.
 
 Identity verification is a fail-closed NICE-first skeleton for now. The policy
-endpoint exposes supported methods (`mobile_phone`, `ipin`) and non-secret
-provider readiness flags. Requesting a verification creates or updates only an
+endpoint exposes supported methods (`mobile_phone`, `ipin`), non-secret provider
+readiness flags, and account policy flags. `GET /me/trust.accountState` exposes
+`signupAllowedWithoutIdentityVerification: true`,
+`identityVerificationBeforeSignupRequired: false`, derived `ageGate`, and a
+`cleanMode` flag. Requesting a verification creates or updates only an
 `unverified` marker; confirmation returns
 `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED` until the real NICE adapter is
 contracted and wired. The provider-not-connected response includes
@@ -610,7 +615,10 @@ contracted and wired. The provider-not-connected response includes
 paths use `IDENTITY_VERIFICATION_INVALID_ID` with
 `messageKey = identityVerification.invalidId`. Frontend copy may show
 "본인확인 준비중" or route users to a disabled/coming-soon state, but must not
-collect 주민등록번호, raw identity files, provider tokens, or API keys.
+collect 주민등록번호, raw identity files, NICE raw names/phone numbers, provider
+tokens, or API keys. Signup remains open before identity verification; minor
+clean mode should be treated as enforced only when the backend reports a verified
+provider birth-date minor.
 
 Important frontend rule for later:
 

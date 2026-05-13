@@ -153,14 +153,22 @@ POST /api/v1/me/identity-verifications/:verificationId/confirm
 Implementation status:
 
 - `GET /api/v1/me/identity-verifications/policy` is implemented as a
-  NICE-first provider skeleton.
+  NICE-first provider skeleton with account policy flags.
+- `GET /api/v1/me/trust` returns `accountState` with
+  `signupAllowedWithoutIdentityVerification: true`,
+  `identityVerificationBeforeSignupRequired: false`, derived `ageGate`,
+  `cleanMode`, and non-sensitive storage policy.
 - `POST /api/v1/me/identity-verifications` records only an `unverified`
   request marker and non-sensitive metadata.
 - `POST /api/v1/me/identity-verifications/self/confirm` fails closed with
   `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED` until the real NICE callback
   and signature verification contract are connected.
 - The server must not store resident registration numbers, raw identity
-  documents, raw provider tokens, or provider secrets.
+  documents, NICE raw names/phone numbers, raw provider tokens, or provider
+  secrets.
+- Signup must not be blocked before identity verification. Minor clean mode is
+  enforced only after a verified provider birth date proves the account is under
+  the adult threshold.
 
 Restricted action error shape:
 
