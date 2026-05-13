@@ -21,6 +21,10 @@ const OPEN_IMAGE_REQUEST_STATUSES = [
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CREATOR_STUDIO_INITIAL_SLOT_LIMIT = 10;
+const CREATOR_PAYOUT_CURRENCY = 'KRW';
+const CREATOR_PAYOUT_WITHHOLDING_TAX_BPS = 330;
+const CREATOR_PAYOUT_FX_SAFE_MARGIN_MIN_BPS = 300;
+const CREATOR_PAYOUT_FX_SAFE_MARGIN_MAX_BPS = 500;
 type CreatorRevenueType = 'chat' | 'gift' | 'paid_like' | 'premium_video' | 'fan_letter';
 
 @Injectable()
@@ -236,12 +240,114 @@ export class CreatorStudioService {
         endpoints: {
           createImageRequest: '/api/v1/creator-image-requests',
           imageRequests: '/api/v1/me/creator-image-requests',
+          payoutSummary: '/api/v1/me/creator-studio/payout-summary',
           settlementPreview: '/api/v1/me/creator-studio/settlement-preview',
           settlementConversions: '/api/v1/me/creator-studio/settlement-conversions',
           uploadIntent: '/api/v1/me/assets/upload-intents',
           confirmUpload: '/api/v1/me/assets/:assetId/confirm-upload',
         },
       },
+    };
+  }
+
+  async getPayoutSummary(
+    userId: string,
+    query: CreatorStudioSettlementPreviewQueryDto,
+  ) {
+    const preview = await this.getSettlementPreview(userId, query);
+    const tier = this.payoutSettlementTier(preview.items);
+    const grossAmount = preview.totals.creatorShareKrw;
+    const taxAmount = this.payoutTaxAmount(grossAmount);
+    const netAmount = Decimal.max(0, grossAmount.minus(taxAmount));
+    const hidePayoutRow = preview.items.length === 0 || tier === 'internal';
+    const fxSnapshot = this.payoutFxSnapshot();
+    const shareRate = this.payoutShareRate(preview.policy.settlementRateBps);
+
+    return {
+      period: preview.period,
+      currency: CREATOR_PAYOUT_CURRENCY,
+      fxSnapshot,
+      shareRate,
+      settlementTier: tier,
+      cards: [
+        this.payoutCard('grossLumina', {
+          amountLumina: preview.totals.grossLumina,
+        }),
+        this.payoutCard('eligibleLumina', {
+          amountLumina: preview.totals.grossLumina,
+        }),
+        this.payoutCard('grossAmount', {
+          amount: grossAmount,
+          currency: CREATOR_PAYOUT_CURRENCY,
+        }),
+        this.payoutCard('taxAmount', {
+          amount: taxAmount,
+          currency: CREATOR_PAYOUT_CURRENCY,
+        }),
+        this.payoutCard('netAmount', {
+          amount: netAmount,
+          currency: CREATOR_PAYOUT_CURRENCY,
+        }),
+      ],
+      totals: {
+        grossLumina: this.decimalString(preview.totals.grossLumina),
+        eligibleLumina: this.decimalString(preview.totals.grossLumina),
+        grossAmount: this.moneyAmount(grossAmount, CREATOR_PAYOUT_CURRENCY),
+        taxAmount: this.moneyAmount(taxAmount, CREATOR_PAYOUT_CURRENCY),
+        netAmount: this.moneyAmount(netAmount, CREATOR_PAYOUT_CURRENCY),
+        currency: CREATOR_PAYOUT_CURRENCY,
+        fxSnapshot,
+        shareRate,
+        settlementTier: tier,
+      },
+      artists: preview.items.map((item) => {
+        const artistTier = this.payoutSettlementTier([item]);
+        const artistGrossAmount = item.financials.creatorShareKrw;
+        const artistTaxAmount = this.payoutTaxAmount(artistGrossAmount);
+        const artistNetAmount = Decimal.max(0, artistGrossAmount.minus(artistTaxAmount));
+
+        return {
+          artist: item.artist,
+          eventCount: item.eventCount,
+          grossLumina: this.decimalString(item.grossLumina),
+          eligibleLumina: this.decimalString(item.grossLumina),
+          grossAmount: this.moneyAmount(artistGrossAmount, CREATOR_PAYOUT_CURRENCY),
+          taxAmount: this.moneyAmount(artistTaxAmount, CREATOR_PAYOUT_CURRENCY),
+          netAmount: this.moneyAmount(artistNetAmount, CREATOR_PAYOUT_CURRENCY),
+          currency: CREATOR_PAYOUT_CURRENCY,
+          shareRate: this.payoutShareRate(item.financials.settlementRateBps),
+          settlementTier: artistTier,
+          policy: {
+            hidePayoutRow: artistTier === 'internal',
+            hideReason: artistTier === 'internal' ? 'platform_owned_artist' : null,
+          },
+          status: item.status,
+        };
+      }),
+      policy: {
+        readOnly: true,
+        previewOnly: true,
+        payoutMutationOpen: false,
+        walletMutation: false,
+        settlementConfirmationOpen: false,
+        hidePayoutRow,
+        hideReason:
+          preview.items.length === 0
+            ? 'no_active_artist_operator'
+            : tier === 'internal'
+              ? 'platform_owned_artist'
+              : null,
+        sourceBreakdownVisibleToCreator: false,
+        creatorFacingPaidFreeSplit: false,
+        internalSourceVisibility: 'backstage_only',
+        calculationMode: 'estimated_creator_share_before_final_accounting',
+        withholdingTaxRateBps: CREATOR_PAYOUT_WITHHOLDING_TAX_BPS,
+        availableSettlementTiers: ['internal', 'staff', 'general', 'special'],
+        defaultCurrency: CREATOR_PAYOUT_CURRENCY,
+        fxSnapshot,
+      },
+      notice:
+        'Estimated read-only payout summary. Final payout requires admin confirmation, refund/chargeback checks, tax/accounting review, payout account verification, and active creator settlement compliance.',
     };
   }
 
@@ -1022,6 +1128,118 @@ export class CreatorStudioService {
       platformShareKrw,
       riskReserveKrw,
     };
+  }
+
+  private payoutCard(
+    id: 'grossLumina' | 'eligibleLumina' | 'grossAmount' | 'taxAmount' | 'netAmount',
+    value:
+      | { amountLumina: Decimal }
+      | { amount: Decimal; currency: typeof CREATOR_PAYOUT_CURRENCY },
+  ) {
+    const labelKey = `creatorStudio.payoutSummary.${id}.label`;
+    const descriptionKey = `creatorStudio.payoutSummary.${id}.description`;
+
+    if ('amountLumina' in value) {
+      return {
+        id,
+        labelKey,
+        descriptionKey,
+        value: this.decimalString(value.amountLumina),
+        unit: 'LUMINA',
+        amountLumina: this.decimalString(value.amountLumina),
+        amount: null,
+        currency: null,
+      };
+    }
+
+    return {
+      id,
+      labelKey,
+      descriptionKey,
+      value: this.moneyString(value.amount),
+      unit: value.currency,
+      amountLumina: null,
+      amount: this.moneyAmount(value.amount, value.currency),
+      currency: value.currency,
+    };
+  }
+
+  private payoutSettlementTier(
+    items: Array<{
+      operator: { role: string; permissions: string[] };
+    }>,
+  ): 'internal' | 'staff' | 'general' | 'special' {
+    if (items.some((item) => item.operator.permissions.includes('settlement:special'))) {
+      return 'special';
+    }
+
+    if (
+      items.some(
+        (item) =>
+          item.operator.role === 'staff' ||
+          item.operator.permissions.includes('settlement:staff'),
+      )
+    ) {
+      return 'staff';
+    }
+
+    if (
+      items.length > 0 &&
+      items.every(
+        (item) =>
+          item.operator.role === 'internal' ||
+          item.operator.permissions.includes('settlement:internal'),
+      )
+    ) {
+      return 'internal';
+    }
+
+    return 'general';
+  }
+
+  private payoutShareRate(settlementRateBps: number) {
+    return {
+      bps: settlementRateBps,
+      percent: this.decimalString(new Decimal(settlementRateBps).div(100)),
+    };
+  }
+
+  private payoutTaxAmount(amount: Decimal) {
+    return amount.mul(CREATOR_PAYOUT_WITHHOLDING_TAX_BPS).div(10_000);
+  }
+
+  private payoutFxSnapshot() {
+    return {
+      baseCurrency: CREATOR_PAYOUT_CURRENCY,
+      settlementCurrency: CREATOR_PAYOUT_CURRENCY,
+      snapshotStatus: 'krw_base_no_fx',
+      weeklyRefresh: true,
+      rateSource: 'weekly_reference_rate_placeholder',
+      baseRate: '1',
+      appliedRate: '1',
+      safeMarginRangeBps: {
+        min: CREATOR_PAYOUT_FX_SAFE_MARGIN_MIN_BPS,
+        max: CREATOR_PAYOUT_FX_SAFE_MARGIN_MAX_BPS,
+      },
+      appliedSafeMarginBps: 0,
+      capturedAt: null,
+      nextRefreshAt: null,
+    };
+  }
+
+  private moneyAmount(amount: Decimal, currency: typeof CREATOR_PAYOUT_CURRENCY) {
+    return {
+      amount: this.moneyString(amount),
+      currency,
+    };
+  }
+
+  private moneyString(amount: Decimal) {
+    return amount.toDecimalPlaces(2).toFixed(2);
+  }
+
+  private decimalString(amount: Decimal) {
+    return amount.toDecimalPlaces(2).toString();
   }
 
   private async assertArtistOperator(userId: string, artistId: string) {

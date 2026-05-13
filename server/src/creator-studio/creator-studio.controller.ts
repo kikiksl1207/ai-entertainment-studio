@@ -28,6 +28,14 @@ export class CreatorStudioController {
     return this.creatorStudioService.getSettlementPreview(user.id, query);
   }
 
+  @Get('payout-summary')
+  getPayoutSummary(
+    @CurrentUser() user: AuthUser,
+    @Query() query: CreatorStudioSettlementPreviewQueryDto,
+  ) {
+    return this.creatorStudioService.getPayoutSummary(user.id, query);
+  }
+
   @Get('settlement-conversions')
   getSettlementConversions(
     @CurrentUser() user: AuthUser,
