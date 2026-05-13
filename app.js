@@ -235,6 +235,12 @@ const I18N_DICT = {
     "en-US": "PAYOUT · This cycle",
     "zh-CN": "PAYOUT · 本期结算"
   },
+  "payout.card.sampleBadge": {
+    "ko-KR": "예시",
+    "ja-JP": "例",
+    "en-US": "Sample",
+    "zh-CN": "示例"
+  },
   "payout.card.title": {
     "ko-KR": "들어올 금액을 한눈에 정리했어요",
     "ja-JP": "今回入金される金額をまとめました",
@@ -318,6 +324,12 @@ const I18N_DICT = {
     "ja-JP": "税引後に口座へ入金される予定の金額です。為替・税務確認後に多少前後する可能性があります。",
     "en-US": "Expected amount landing in your account after tax. May shift slightly after FX/tax review.",
     "zh-CN": "税后预计入账金额。汇率与税务核对后可能略有变动。"
+  },
+  "payout.card.sampleNote": {
+    "ko-KR": "샘플 정산 예시입니다. 실제 정산액은 계약 등급, 환불, 세금, 환율 기준에 따라 달라질 수 있어요.",
+    "ja-JP": "精算サンプルです。実際の金額は契約ランク、返金、税金、為替条件により変わる場合があります。",
+    "en-US": "This is a sample payout preview. Actual payout may vary by contract tier, refunds, tax, and FX rules.",
+    "zh-CN": "这是结算示例。实际金额会因合同等级、退款、税费和汇率规则而变化。"
   },
   "payout.foot": {
     "ko-KR": "유저가 결제한 통화와 아티스트 정산 통화가 다를 수 있어요. 환율은 주간 기준환율과 3~5% 안전마진을 기준으로 기록해요. 정산표·세금 정책이 확정되기 전까지는 예상치로만 보여드려요. 확정 금액은 정산 회차 마감 후 알려드릴게요.",

@@ -196,6 +196,14 @@
     return formatNumber(Math.round(Number(value || 0))) + "원";
   }
 
+  function firstNumber(...values) {
+    for (const value of values) {
+      const number = Number(value);
+      if (Number.isFinite(number)) return number;
+    }
+    return 0;
+  }
+
   function showToast(message) {
     const el = document.getElementById("studioToast");
     if (!el) return;
@@ -508,6 +516,7 @@
     settlementPreview = data || null;
     const total = Number(data?.totals?.creatorShareKrw || 0);
     if (total) text("studioMetricSettlement", formatKrw(total));
+    renderPayoutBreakdown(data);
     renderSettlementProfile(data?.settlementProfile || data?.payoutProfile || data?.profile);
     const rows = document.getElementById("studioSettlementRows");
     if (rows && Array.isArray(data?.items) && data.items.length) {
@@ -525,6 +534,44 @@
     if (revenueRows && breakdown.length) {
       revenueRows.innerHTML = breakdown.map(item => "<tr><td>" + escapeHtml(item.label) + "</td><td>" + formatNumber(item.eventCount) + "</td><td>" + formatNumber(item.grossLumina) + "L</td><td>" + formatKrw(item.grossRevenueKrw) + "</td><td>완료 건만 포함</td></tr>").join("");
     }
+  }
+
+  function renderPayoutBreakdown(data) {
+    const card = document.getElementById("studioPayoutBreakdown");
+    if (!card || !data?.totals) return;
+
+    const policy = data.policy || {};
+    const totals = data.totals || {};
+    const settlementRateBps = firstNumber(policy.settlementRateBps, 7000);
+    const unitPriceKrw = firstNumber(policy.unitPriceKrw, 10);
+    const withholdingRateBps = firstNumber(policy.withholdingTaxRateBps, policy.taxRateBps, 330);
+    const grossLumina = firstNumber(totals.grossLumina, totals.receivedLumina);
+    const grossKrw = firstNumber(totals.creatorShareKrw, totals.payoutGrossKrw, totals.grossPayoutKrw);
+    const eligibleLumina = firstNumber(
+      totals.eligibleLumina,
+      totals.settlementLumina,
+      grossLumina * settlementRateBps / 10000,
+      unitPriceKrw ? grossKrw / unitPriceKrw : 0
+    );
+    const taxKrw = firstNumber(totals.withholdingTaxKrw, totals.taxKrw, grossKrw * withholdingRateBps / 10000);
+    const netKrw = firstNumber(totals.netPayoutKrw, totals.payoutNetKrw, Math.max(0, grossKrw - taxKrw));
+    const hasRealAmount = grossLumina > 0 || grossKrw > 0;
+
+    card.classList.toggle("is-payout-sample", !hasRealAmount);
+    card.dataset.payoutState = hasRealAmount ? "estimate" : "sample";
+    card.querySelectorAll("[data-payout-sample]").forEach(el => {
+      el.dataset.payoutSample = hasRealAmount ? "false" : "true";
+    });
+
+    if (!hasRealAmount) return;
+
+    text("studioPayoutGrossLumina", formatNumber(grossLumina) + "L");
+    text("studioPayoutEligibleLumina", formatNumber(Math.floor(eligibleLumina)) + "L");
+    text("studioPayoutGrossKrw", formatKrw(grossKrw));
+    text("studioPayoutTaxKrw", formatKrw(taxKrw));
+    text("studioPayoutNetKrw", formatKrw(netKrw));
+    text("studioPayoutCurrencyLabel", data.currencyLabel || policy.payoutCurrencyLabel || "KRW · 한국 원");
+    text("studioPayoutFxLabel", data.fxSnapshotLabel || policy.fxSnapshotLabel || "주간 기준환율 + 3~5% 안전마진");
   }
 
   function renderSettlementProfile(profile = {}) {
