@@ -388,3 +388,124 @@
   color: #ff9ad0;
   font-weight: 700;
 }
+
+/* #217 앱 패키지 / 이미지 요청 / 정책 안내 — read-only UI */
+.charge-app-pricing,
+.charge-request-grid,
+.charge-policy-note {
+  margin-top: 14px;
+}
+
+.charge-app-pricing {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(180, 150, 255, 0.18);
+  background: rgba(180, 150, 255, 0.045);
+}
+
+.charge-mini-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.charge-mini-heading h3 {
+  margin: 0;
+  color: var(--ink, #fff);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.charge-mini-heading p:not(.eyebrow) {
+  margin: 0;
+  color: rgba(220, 210, 240, 0.72);
+  font-size: 13px;
+  line-height: 1.55;
+  font-weight: 500;
+}
+
+.charge-package-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.charge-package-card,
+.charge-request-card {
+  min-width: 0;
+  border: 1px solid rgba(180, 150, 255, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.charge-package-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+}
+
+.charge-package-card span,
+.charge-request-card span {
+  color: rgba(220, 210, 240, 0.68);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.charge-package-card strong,
+.charge-request-card strong {
+  color: #ff9ad0;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.charge-request-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.charge-request-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+}
+
+.charge-request-card small {
+  color: rgba(220, 210, 240, 0.58);
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+.charge-policy-note {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 79, 195, 0.055);
+  border: 1px solid rgba(255, 79, 195, 0.16);
+  color: rgba(245, 230, 245, 0.76);
+  font-size: 12.5px;
+  line-height: 1.55;
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .charge-package-grid,
+  .charge-request-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 430px) {
+  .charge-package-grid,
+  .charge-request-grid {
+    grid-template-columns: 1fr;
+  }
+}
