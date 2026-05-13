@@ -5,10 +5,140 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_CURRENCY = 'LUMINA';
 const PRICE_UNIT_KRW = new Decimal(10);
 const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
+const CHARGE_POLICY_VERSION = '2026-05-13.charge-policy-v1';
+const WEB_PAID_BONUS_MAX_RATE = 0.2;
+const AD_REWARD_MAX_REVENUE_SHARE_RATE = 0.5;
+const AD_REWARD_DAILY_LIMIT = 50;
+const APP_CHARGE_PACKAGES = [
+  { sku: 'APP_LUMINA_70', priceKrw: 1000, luminaAmount: 70 },
+  { sku: 'APP_LUMINA_350', priceKrw: 5000, luminaAmount: 350 },
+  { sku: 'APP_LUMINA_700', priceKrw: 10000, luminaAmount: 700 },
+  { sku: 'APP_LUMINA_1400', priceKrw: 20000, luminaAmount: 1400 },
+  { sku: 'APP_LUMINA_3750', priceKrw: 50000, luminaAmount: 3750 },
+  { sku: 'APP_LUMINA_8000', priceKrw: 100000, luminaAmount: 8000 },
+] as const;
+const DEFERRED_APP_CHARGE_PACKAGES = [
+  { priceKrw: 30000, status: 'deferred_after_launch' },
+  { priceKrw: 70000, status: 'deferred_after_launch' },
+] as const;
+const CREATOR_REQUEST_PRODUCTS = [
+  {
+    sku: 'CREATOR_GALLERY_VIEW',
+    requestType: 'gallery_view',
+    displayNameKo: '공식 갤러리 보기',
+    priceLumina: 0,
+    descriptionKo: '공식 갤러리와 기존 사진 보기는 무료입니다.',
+  },
+  {
+    sku: 'CREATOR_IMAGE_BASIC',
+    requestType: 'basic_image',
+    displayNameKo: '기본 이미지 요청',
+    priceLumina: 30,
+    descriptionKo: '단일 콘셉트의 기본 이미지 요청입니다.',
+  },
+  {
+    sku: 'CREATOR_IMAGE_PREMIUM',
+    requestType: 'premium_image',
+    displayNameKo: '고급 이미지 요청',
+    priceLumina: 100,
+    descriptionKo: '더 높은 디테일의 이미지 요청입니다.',
+  },
+  {
+    sku: 'CREATOR_VIDEO_SHORT',
+    requestType: 'short_video',
+    displayNameKo: '짧은 영상 요청',
+    priceLumina: 300,
+    descriptionKo: '3~5초, 1캐릭터, 단일 콘셉트 기준의 영상 요청입니다.',
+  },
+] as const;
 
 @Injectable()
 export class LuminaStationService {
   constructor(private readonly prisma: PrismaService) {}
+
+  getChargePolicy() {
+    return {
+      policyVersion: CHARGE_POLICY_VERSION,
+      currency: {
+        code: DEFAULT_CURRENCY,
+        displayName: 'Lumina',
+        displayNameKo: '루미나',
+        unitPriceKrw: PRICE_UNIT_KRW.toNumber(),
+        unitLabelKo: '1L = 10원',
+      },
+      webCharge: {
+        platform: 'web',
+        baseUnitPriceKrw: PRICE_UNIT_KRW.toNumber(),
+        paidBonusMaxRate: WEB_PAID_BONUS_MAX_RATE,
+        paidBonusMaxPercent: WEB_PAID_BONUS_MAX_RATE * 100,
+        paymentProviderStatus: 'pg_pending',
+        createOrderEndpoint: '/api/v1/payments/orders',
+        orderHistoryEndpoint: '/api/v1/payments/orders',
+        walletMutation: false,
+        orderMutationEnabled: false,
+        displayCopyKo: {
+          unitPrice: '1L = 10원',
+          bonusCap: '웹 유료 보너스는 최대 20%까지 적용됩니다.',
+          pendingPayment: '결제 기능은 PG 승인 후 열립니다.',
+        },
+      },
+      appCharge: {
+        platform: 'app',
+        storePaymentStatus: 'iap_pending',
+        mutationEnabled: false,
+        packages: APP_CHARGE_PACKAGES.map((product) => ({
+          ...product,
+          bonusLumina: 0,
+          totalLumina: product.luminaAmount,
+          labelKo: `${product.priceKrw.toLocaleString('ko-KR')}원 = ${product.luminaAmount.toLocaleString('ko-KR')}L`,
+          iapProductId: null,
+        })),
+        deferredPackages: DEFERRED_APP_CHARGE_PACKAGES.map((product) => ({
+          ...product,
+          labelKo: `${product.priceKrw.toLocaleString('ko-KR')}원 패키지는 2차 이후 검토`,
+        })),
+        displayCopyKo: {
+          launchSet: '앱 1차 패키지 6종',
+          pendingStorePayment: '스토어 결제는 앱 심사와 IAP 계약 이후 연결됩니다.',
+        },
+      },
+      freeAdCharge: {
+        status: 'planned',
+        userFacingLabelKo: '오늘의 무료 루미나 받기',
+        maxRevenueShareRate: AD_REWARD_MAX_REVENUE_SHARE_RATE,
+        maxRevenueSharePercent: AD_REWARD_MAX_REVENUE_SHARE_RATE * 100,
+        dailyLimit: AD_REWARD_DAILY_LIMIT,
+        ledgerSourcePlanned: 'ad_reward',
+        sdkConfigured: false,
+        walletMutation: false,
+        claimMutationEnabled: false,
+        displayCopyKo: {
+          summary: '광고/오퍼월 수익의 최대 50% 상당 루미나를 지급할 예정입니다.',
+          limit: '하루 최대 50회까지 참여할 수 있습니다.',
+          pendingSdk: '광고 SDK 연결 전까지 실제 지급은 열리지 않습니다.',
+        },
+      },
+      creatorRequests: {
+        walletMutation: false,
+        orderMutationEnabled: false,
+        products: CREATOR_REQUEST_PRODUCTS,
+        videoPolicy: {
+          durationSeconds: { min: 3, max: 5 },
+          characterCount: 1,
+          conceptCount: 1,
+          displayCopyKo: '영상 기준: 3~5초, 1캐릭터, 단일 콘셉트',
+        },
+      },
+      safety: {
+        readOnly: true,
+        secretsReturned: false,
+        walletMutation: false,
+        paymentOrderMutation: false,
+        adSdkMutation: false,
+        frontendMayRenderPolicyOnly: true,
+      },
+    };
+  }
 
   async getStation(userId: string, takeQuery?: string) {
     const take = this.parseTake(takeQuery);
