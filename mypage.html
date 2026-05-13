@@ -154,6 +154,19 @@
               <div class="mypage-action-row">
                 <button class="button-primary" type="button" id="mypageSaveProfile">프로필 저장</button>
               </div>
+
+              <!-- #204 v1 — 칭호 라이브러리 미리보기. 보유/설정 저장 mutation 없음. -->
+              <section class="mypage-title-block" aria-labelledby="mypageTitleHeading">
+                <div class="mypage-section-subhead" style="margin-top:24px;">
+                  <div>
+                    <span class="eyebrow" style="display:block;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:0.04em;">TITLES · 칭호 라이브러리</span>
+                    <h3 id="mypageTitleHeading" style="margin:4px 0 0;font-size:15px;font-weight:700;letter-spacing:0;">달고 싶은 한 줄 — 칭호</h3>
+                    <p style="margin:6px 0 0;font-size:13px;font-weight:500;color:rgba(220,210,240,0.65);letter-spacing:0;">활동이 쌓이면 대표 칭호 한 줄을 골라 프로필에 달 수 있어요. 지금은 미리보기 단계예요.</p>
+                  </div>
+                </div>
+                <div class="mypage-title-chips" id="mypageTitleChips" role="list" aria-label="칭호 미리보기"></div>
+                <p class="mypage-title-foot">대표 칭호 설정은 곧 열려요. 활동을 쌓아두면 가장 잘 어울리는 한 줄을 추천해 드릴게요.</p>
+              </section>
             </section>
 
             <section class="mypage-panel" data-mypage-panel="wallet" id="wallet">
@@ -373,6 +386,44 @@
     <script src="./pages/mypage.js"></script>
     <script src="./app.js"></script>
     <script>
+      (function renderTitleChipsPreview() {
+        const wrap = document.getElementById("mypageTitleChips");
+        if (!wrap) return;
+        const tiers = {
+          soft: { surface: "rgba(180, 140, 255, 0.16)", ink: "#d6b8ff", glow: "linear-gradient(135deg, #b48cff 0%, #d6b8ff 100%)" },
+          pink: { surface: "rgba(255, 79, 195, 0.18)", ink: "#ff9ad0", glow: "linear-gradient(135deg, #ff4fc3 0%, #ff9ad0 100%)" },
+          stage: { surface: "rgba(155, 124, 247, 0.18)", ink: "#c8a8ff", glow: "linear-gradient(135deg, #9b7cf7 0%, #ff4fc3 100%)" },
+          spot: { surface: "rgba(90, 58, 168, 0.22)", ink: "#f4c97a", glow: "linear-gradient(135deg, #5a3aa8 0%, #f4c97a 100%)" }
+        };
+        const titles = [
+          ["첫 조명을 켠 팬", "soft"], ["무대의 첫 줄", "soft"], ["조용한 응원자", "pink"], ["핑크 시그널", "pink"],
+          ["오늘의 객석", "soft"], ["루미나 메이트", "soft"], ["일주일의 조명", "stage"], ["오래 켠 스포트라이트", "stage"],
+          ["무드 캐처", "pink"], ["피드의 온도", "pink"], ["한 줄의 응원", "pink"], ["팬레터 라이터", "stage"],
+          ["취향 큐레이터", "stage"], ["픽의 시작", "pink"], ["오늘의 선택자", "stage"], ["무대 뒤 친구", "soft"],
+          ["내 무대의 주인", "stage"], ["첫 데뷔 응원단", "pink"], ["크리에이터 서포터", "stage"], ["백스테이지 프렌드", "stage"],
+          ["루미나 키퍼", "spot"], ["새벽의 관객", "stage"], ["스테이지 리스너", "pink"], ["별빛을 모으는 사람", "spot"]
+        ];
+        wrap.innerHTML = "";
+        titles.forEach(([label, tierKey]) => {
+          const tier = tiers[tierKey] || tiers.soft;
+          const chip = document.createElement("span");
+          chip.className = "mypage-title-chip is-locked";
+          chip.setAttribute("role", "listitem");
+          chip.style.setProperty("--chip-surface", tier.surface);
+          chip.style.setProperty("--chip-ink", tier.ink);
+          const dot = document.createElement("i");
+          dot.className = "mypage-title-chip-dot";
+          dot.style.background = tier.glow;
+          dot.setAttribute("aria-hidden", "true");
+          const text = document.createElement("span");
+          text.className = "mypage-title-chip-label";
+          text.textContent = label;
+          chip.append(dot, text);
+          wrap.append(chip);
+        });
+      })();
+    </script>
+    <script>
       (function () {
         let mypageSummary = null;
         let mypageActivities = [];
@@ -481,8 +532,15 @@
             refunded: "환불 완료"
           }[status] || status || "";
         }
+        function isRawRewardCopy(value, code) {
+          const text = String(value || "").trim();
+          if (!text) return true;
+          if (code && text === String(code)) return true;
+          return /^[a-z0-9_:.|-]+$/i.test(text);
+        }
         // #204 — 노션 v1 톤 (조명/시그널/무드 계열, 게임식 표현 회피)
-        // 초보자 온보딩 핵심 5개 + 확장 보상 코드까지 커버
+        // 초보자 온보딩 핵심 5개 + 확장 보상 코드까지 커버.
+        // fallback 도 raw code 대신 안전 라벨로 내려 raw enum 노출을 막는다.
         function rewardTitle(code) {
           return {
             first_login: "첫 조명 켜기",
@@ -494,8 +552,10 @@
             first_follow: "무대의 첫 줄",
             first_reply: "한 줄의 응원",
             seven_day_visit: "일주일의 조명",
-            thirty_day_visit: "오래 켠 스포트라이트"
-          }[code] || code || "참여 기록";
+            thirty_day_visit: "오래 켠 스포트라이트",
+            identity_verification_bonus: "본인 확인 보상",
+            first_charge_bonus: "첫 충전 시그널"
+          }[code] || "참여 기록";
         }
         function rewardDescription(code) {
           return {
@@ -508,7 +568,9 @@
             first_follow: "좋아하는 아티스트를 처음 팔로우하면 열려요.",
             first_reply: "피드에 첫 댓글을 남기면 열려요.",
             seven_day_visit: "일주일 동안 조명이 이어지면 열려요.",
-            thirty_day_visit: "한 달 동안 조명이 꺼지지 않으면 열려요."
+            thirty_day_visit: "한 달 동안 조명이 꺼지지 않으면 열려요.",
+            identity_verification_bonus: "본인 확인을 마치면 열려요.",
+            first_charge_bonus: "처음으로 루미나를 충전하면 열려요."
           }[code] || "조금만 더 참여하면 열려요.";
         }
         // #204 v1: 상태 라벨도 게임식 표현(완료/달성/획득) 회피
@@ -520,15 +582,20 @@
         }
         function normalizeRewardItems(data) {
           return list(data?.milestoneStatus || data?.items || data?.quests || data)
-            .map(item => ({
-              code: item.code || item.questCode || item.key,
-              title: item.title || rewardTitle(item.code || item.questCode || item.key),
-              description: item.description || rewardDescription(item.code || item.questCode || item.key),
-              amountLumina: item.amountLumina || item.rewardLumina || item.lumina || 0,
-              completed: !!item.completed,
-              claimed: !!item.claimed,
-              claimStatus: item.claimStatus || item.status
-            }))
+            .map(item => {
+              const code = item.code || item.questCode || item.key;
+              const title = isRawRewardCopy(item.title, code) ? rewardTitle(code) : item.title;
+              const description = isRawRewardCopy(item.description, code) ? rewardDescription(code) : item.description;
+              return {
+                code,
+                title,
+                description,
+                amountLumina: item.amountLumina || item.rewardLumina || item.lumina || 0,
+                completed: !!item.completed,
+                claimed: !!item.claimed,
+                claimStatus: item.claimStatus || item.status
+              };
+            })
             .filter(item => item.code);
         }
         function renderActivationRewards(items) {
