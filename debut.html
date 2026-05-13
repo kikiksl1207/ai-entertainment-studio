@@ -209,16 +209,144 @@
             </fieldset>
 
             <div class="debut-form-grid">
-              <label class="debut-field-full">
-                <span>신청 유형 <em class="debut-required">*</em></span>
-                <select name="applicationType" id="debutApplicationType" required>
-                  <option value="personal_unaffiliated">개인/무소속 데뷔 신청</option>
-                  <option value="represented_artist">소속 아티스트/연습생/엔터 관계자 문의</option>
-                  <option value="ai_creator_partner">AI 제작자/크리에이터 파트너 지원</option>
-                  <option value="partnership_other">기타 제휴 문의</option>
-                </select>
-                <small id="debutApplicationTypeHelper">접수 목적에 가장 가까운 유형을 선택해주세요. 선택한 유형에 따라 운영팀의 검토 기준이 달라질 수 있어요.</small>
-              </label>
+              <!-- #227 — 신청 유형: select 깨짐 fix. 라디오 카드 그리드로 교체. -->
+              <fieldset class="debut-type-fieldset debut-field-full">
+                <legend>신청 유형 <em class="debut-required">*</em></legend>
+                <ul class="debut-type-grid" role="radiogroup" aria-labelledby="debutApplicationTypeLegend">
+                  <li>
+                    <label class="debut-type-card">
+                      <input type="radio" name="applicationType" value="personal_unaffiliated" id="debutApplicationType" checked required />
+                      <span class="debut-type-card-name">개인 / 무소속 데뷔 신청</span>
+                      <span class="debut-type-card-desc">소속사·전속계약이 없는 개인이 외형·재능·콘셉트 중 가질 수 있는 만큼 가지고 신청해요.</span>
+                    </label>
+                  </li>
+                  <li>
+                    <label class="debut-type-card">
+                      <input type="radio" name="applicationType" value="represented_artist" required />
+                      <span class="debut-type-card-name">소속 아티스트 · 연습생 · 엔터 관계자</span>
+                      <span class="debut-type-card-desc">기존 소속·전속·연습생 관계가 있는 신청은 권리 확인 후 별도 안내드려요.</span>
+                    </label>
+                  </li>
+                  <li>
+                    <label class="debut-type-card">
+                      <input type="radio" name="applicationType" value="ai_creator_partner" required />
+                      <span class="debut-type-card-name">AI 제작자 · 크리에이터 파트너</span>
+                      <span class="debut-type-card-desc">이미지·숏폼·영상 제작 도구로 캐릭터를 함께 만드는 파트너로 지원해요.</span>
+                    </label>
+                  </li>
+                  <li>
+                    <label class="debut-type-card">
+                      <input type="radio" name="applicationType" value="partnership_other" required />
+                      <span class="debut-type-card-name">기타 제휴 문의</span>
+                      <span class="debut-type-card-desc">브랜드·콘텐츠·사업 제휴 등 데뷔 신청 외 협업 문의를 보내요.</span>
+                    </label>
+                  </li>
+
+                  <!-- #227 — 개인/무소속 선택 시 하위 질문 영역 (JS 가 .is-active 토글) -->
+                  <li class="debut-personal-sub" id="debutPersonalSub" data-show-for="personal_unaffiliated" aria-labelledby="debutPersonalSubTitle">
+                    <header class="debut-personal-sub-head">
+                      <p id="debutPersonalSubTitle" class="debut-personal-sub-title">어떤 방식으로 데뷔하고 싶나요?</p>
+                      <p class="debut-personal-sub-desc">외형을 공개하든 공개하지 않든 모두 받아요. 가지고 있는 것을 기준으로 골라주세요.</p>
+                    </header>
+
+                    <ul class="debut-type-grid" role="radiogroup" aria-label="데뷔 방식">
+                      <li>
+                        <label class="debut-type-card">
+                          <input type="radio" name="debutMethod" value="public_appearance" checked required />
+                          <span class="debut-type-card-name">본인 외형 공개 데뷔</span>
+                          <span class="debut-type-card-desc">내 얼굴·분위기를 그대로 활용해 데뷔해요. 얼굴·상반신·전신 사진이 필요해요.</span>
+                        </label>
+                      </li>
+                      <li>
+                        <label class="debut-type-card">
+                          <input type="radio" name="debutMethod" value="private_persona" required />
+                          <span class="debut-type-card-name">비공개 데뷔</span>
+                          <span class="debut-type-card-desc">내 얼굴을 공개하지 않고 새 캐릭터로 데뷔해요. 외형 공개 없이도 목소리·노래·세계관으로 참여할 수 있어요.</span>
+                        </label>
+                      </li>
+                      <li>
+                        <label class="debut-type-card">
+                          <input type="radio" name="debutMethod" value="partial_provide" required />
+                          <span class="debut-type-card-name">부분 제공 데뷔</span>
+                          <span class="debut-type-card-desc">얼굴은 공개하지 않고 몸·동작·목소리·노래·춤 중 일부만 제공해요. 몸·동작 제공 시 참고 사진/영상이 있으면 좋아요.</span>
+                        </label>
+                      </li>
+                      <li>
+                        <label class="debut-type-card">
+                          <input type="radio" name="debutMethod" value="creator_plan" required />
+                          <span class="debut-type-card-name">창작자 직접 기획형</span>
+                          <span class="debut-type-card-desc">외형·재능보다 세계관·캐릭터 설정·콘텐츠 기획을 중심으로 참여해요.</span>
+                        </label>
+                      </li>
+                    </ul>
+
+                    <header class="debut-personal-sub-head" style="margin-top:16px;">
+                      <p class="debut-personal-sub-title">제공 가능한 것이 있나요? (복수 선택)</p>
+                      <p class="debut-personal-sub-desc">가진 만큼만 골라주세요. 비워두셔도 신청은 가능해요.</p>
+                    </header>
+                    <ul class="debut-provide-grid" role="group" aria-label="제공 가능 항목">
+                      <li><label class="debut-provide-card"><input type="checkbox" name="provides" value="face" /> 얼굴 / 외형 제공</label></li>
+                      <li><label class="debut-provide-card"><input type="checkbox" name="provides" value="body" /> 몸 / 체형 / 포즈 제공</label></li>
+                      <li><label class="debut-provide-card"><input type="checkbox" name="provides" value="vocal" /> 노래 제공</label></li>
+                      <li><label class="debut-provide-card"><input type="checkbox" name="provides" value="voice" /> 목소리 제공</label></li>
+                      <li><label class="debut-provide-card"><input type="checkbox" name="provides" value="dance" /> 춤 / 동작 제공</label></li>
+                      <li><label class="debut-provide-card"><input type="checkbox" name="provides" value="concept" /> 세계관 / 캐릭터 콘셉트 제공</label></li>
+                      <li><label class="debut-provide-card"><input type="checkbox" name="provides" value="fan_talk" /> 직접 팬 소통 가능</label></li>
+                      <li><label class="debut-provide-card"><input type="checkbox" name="provides" value="content_make" /> 직접 콘텐츠 제작 가능</label></li>
+                      <li><label class="debut-provide-card debut-provide-other"><input type="checkbox" name="provides" value="other" data-toggle-target="debutProvideOther" /> 기타 직접 입력</label></li>
+                    </ul>
+                    <label class="debut-textarea-field" id="debutProvideOther" data-show-when-checked="other" hidden>
+                      <span>기타 제공 가능한 항목</span>
+                      <textarea name="providesOther" rows="2" maxlength="400" placeholder="위 항목 외에 제공할 수 있는 것을 적어주세요. (예: 외국어 회화, 악기 연주, 특정 분야 전문성)"></textarea>
+                    </label>
+
+                    <header class="debut-personal-sub-head" style="margin-top:16px;">
+                      <p class="debut-personal-sub-title">사진 / 자료 업로드</p>
+                      <p class="debut-personal-sub-desc">선택한 데뷔 방식에 맞춰 참고 사진·자료를 첨부할 수 있어요. 본인 외형 공개 데뷔는 사진이 필수예요.</p>
+                    </header>
+                    <div class="debut-asset-upload" data-asset-upload="pending">
+                      <div class="debut-asset-upload-head">
+                        <p class="debut-asset-upload-title">사진 / 영상 / 참고 자료</p>
+                        <span class="debut-asset-upload-status">준비 중</span>
+                      </div>
+                      <p class="debut-asset-upload-desc">
+                        파일 업로드 연결이 끝나면 바로 열어드릴게요. 그때까지는 자기소개란에 외부 링크(YouTube, Vimeo, Drive 등)를 함께 적어주세요.
+                      </p>
+                      <button type="button" class="debut-asset-upload-btn" disabled aria-disabled="true">파일 첨부 (준비 중)</button>
+                      <p class="debut-asset-upload-hint">신분증 원본·주민번호·민감한 노출 사진은 받지 않아요. 본인 확인용 자료가 필요하면 운영팀이 별도로 안내드려요.</p>
+                    </div>
+
+                    <p class="debut-gender-note">
+                      <strong>성별 안내.</strong> 성별 전환 제작은 아직 지원하지 않아요. 대신 분위기·스타일·세계관은 최대한 함께 맞춰볼게요.
+                    </p>
+
+                    <section class="debut-payout-note" aria-labelledby="debutPayoutNoteTitle">
+                      <h4 id="debutPayoutNoteTitle">예상 정산 기준</h4>
+                      <p style="margin:0 0 8px;">정산 비율은 신청 내용·제공 자료·실제 활동 참여도·계약 심사에 따라 달라질 수 있어요. 화면에서는 <strong>예상 기준</strong>으로만 보여드려요.</p>
+                      <table class="debut-payout-table" aria-label="직접 소통하는 경우">
+                        <caption style="text-align:left;font-size:11.5px;color:rgba(220,210,240,0.55);font-weight:700;margin-bottom:4px;">소통을 본인이 하는 경우</caption>
+                        <tbody>
+                          <tr><td>외형 + 재능 제공</td><td>30%</td></tr>
+                          <tr><td>외형 미제공 + 재능 제공</td><td>25%</td></tr>
+                          <tr><td>외형 제공 + 재능 미제공</td><td>25%</td></tr>
+                          <tr><td>외형 / 재능 미제공</td><td>20%</td></tr>
+                        </tbody>
+                      </table>
+                      <table class="debut-payout-table" aria-label="소통하지 않는 경우">
+                        <caption style="text-align:left;font-size:11.5px;color:rgba(220,210,240,0.55);font-weight:700;margin-bottom:4px;">소통을 본인이 하지 않는 경우</caption>
+                        <tbody>
+                          <tr><td>외형 + 재능 제공</td><td>20%</td></tr>
+                          <tr><td>외형 미제공 + 재능 제공</td><td>15%</td></tr>
+                          <tr><td>외형 제공 + 재능 미제공</td><td>15%</td></tr>
+                          <tr><td>외형 / 재능 미제공</td><td>5%</td></tr>
+                        </tbody>
+                      </table>
+                      <small>초반 이벤트로 팔로워 1,000명 이상이 되면 +5%가 가산될 수 있어요. 최종 정산률은 계약서·운영 심사 기준으로 확정돼요.</small>
+                    </section>
+                  </li>
+                </ul>
+                <small id="debutApplicationTypeHelper" style="display:block;margin-top:10px;">접수 목적에 가장 가까운 유형을 선택해주세요. 선택한 유형에 따라 운영팀의 검토 기준이 달라질 수 있어요.</small>
+              </fieldset>
               <label>
                 <span>활동명</span>
                 <input name="displayName" type="text" maxlength="80" placeholder="예: 루미나 세린" />
@@ -252,17 +380,43 @@
                 <span>제작 경험 / 포트폴리오</span>
                 <textarea name="creatorExperienceNote" rows="3" maxlength="600" placeholder="사용 가능한 제작 도구(SD/ComfyUI/Flux/LoRA 등), 작업 영역, 포트폴리오 URL을 적어주세요."></textarea>
               </label>
-              <label data-hide-for-type="partnership_other">
-                <span>관심 데뷔 유형</span>
-                <select name="participationType" required>
-                  <option value="">참여 방식을 선택해주세요</option>
-                  <option value="appearance_only">외모 제공형</option>
-                  <option value="appearance_concept">외모 + 콘셉트 제공형</option>
-                  <option value="appearance_voice">외모 + 노래/음성 제공형</option>
-                  <option value="creator">창작자 직접 기획형</option>
-                </select>
-                <small id="debutTypeHelper">제공할 수 있는 자료와 참여 깊이에 맞춰 선택해주세요.</small>
-              </label>
+              <!-- #227 — 기존 participationType select 는 select 깨짐 fix 대상.
+                   개인/무소속(personal_unaffiliated)에서는 위쪽 debutMethod 라디오 카드가 대체하고,
+                   소속/AI 제작자에서는 카드 라디오로 보여준다. partnership_other 면 숨김. -->
+              <fieldset class="debut-type-fieldset debut-field-full" data-hide-for-type="partnership_other" data-hide-for-applicant="personal_unaffiliated">
+                <legend>관심 데뷔 유형</legend>
+                <ul class="debut-type-grid" role="radiogroup" aria-label="관심 데뷔 유형">
+                  <li>
+                    <label class="debut-type-card">
+                      <input type="radio" name="participationType" value="appearance_only" checked />
+                      <span class="debut-type-card-name">외모 제공형</span>
+                      <span class="debut-type-card-desc">외모 자료를 중심으로 캐릭터를 만드는 방식이에요.</span>
+                    </label>
+                  </li>
+                  <li>
+                    <label class="debut-type-card">
+                      <input type="radio" name="participationType" value="co_creator" />
+                      <span class="debut-type-card-name">외모 + 콘셉트 제공형</span>
+                      <span class="debut-type-card-desc">외모 자료와 함께 아티스트 설정/콘셉트 문서를 제안해요.</span>
+                    </label>
+                  </li>
+                  <li>
+                    <label class="debut-type-card">
+                      <input type="radio" name="participationType" value="voice_or_song" />
+                      <span class="debut-type-card-name">외모 + 노래/음성 제공형</span>
+                      <span class="debut-type-card-desc">외모와 함께 본인의 노래·음성 샘플을 반영하는 방식이에요.</span>
+                    </label>
+                  </li>
+                  <li>
+                    <label class="debut-type-card">
+                      <input type="radio" name="participationType" value="co_creator" />
+                      <span class="debut-type-card-name">창작자 직접 기획형</span>
+                      <span class="debut-type-card-desc">캐릭터 설정·음악 방향·세계관 문서를 중심으로 심사받아요.</span>
+                    </label>
+                  </li>
+                </ul>
+                <small id="debutTypeHelper" style="display:block;margin-top:8px;">제공할 수 있는 자료와 참여 깊이에 맞춰 선택해주세요.</small>
+              </fieldset>
               <label>
                 <span>희망 상담 시간</span>
                 <input name="preferredContactTime" type="text" placeholder="예: 평일 오후 2시 이후" />
@@ -377,9 +531,9 @@
 
         const helperMap = {
           appearance_only: "외모 제공형은 본인의 사진 자료가 필요해요. 상담 단계에서는 자료 보유 여부만 확인합니다.",
-          appearance_concept: "사진과 아티스트 설정 문서를 함께 제안하는 유형이에요.",
-          appearance_voice: "사진과 음성 샘플을 함께 반영하는 유형이에요. 상담 후 제출 방식을 안내합니다.",
-          creator: "캐릭터 설정, 음악 방향, 가사, 세계관 문서를 중심으로 심사해요."
+          voice_or_song: "사진과 음성 샘플을 함께 반영하는 유형이에요. 상담 후 제출 방식을 안내합니다.",
+          performance: "노래, 춤, 연기, 안무 등 퍼포먼스 자료를 중심으로 검토해요.",
+          co_creator: "캐릭터 설정, 음악 방향, 가사, 세계관 문서를 중심으로 심사해요."
         };
         // #062: applicationType helper 메시지
         const applicationTypeHelperMap = {
@@ -388,12 +542,27 @@
           ai_creator_partner: "이미지·영상 제작 파트너 검토를 요청합니다.",
           partnership_other: "브랜드, 콘텐츠, 사업 제휴를 제안합니다."
         };
-        const typeSelect = form.querySelector("[name='participationType']");
+        const participationTypeRadios = form.querySelectorAll("input[name='participationType']");
         const typeHelper = document.getElementById("debutTypeHelper");
-        const applicationTypeSelect = form.querySelector("[name='applicationType']");
+        /* #227 — applicationType 이 select → 라디오 그룹으로 바뀌어
+         * `.value` 직접 접근 대신 헬퍼로 읽고 쓴다. */
+        const applicationTypeRadios = form.querySelectorAll("input[name='applicationType']");
         const applicationTypeHelper = document.getElementById("debutApplicationTypeHelper");
+        const personalSub = document.getElementById("debutPersonalSub");
         const message = document.getElementById("debutApplyMessage");
         const submit = document.getElementById("debutApplySubmit");
+        function getApplicationType() {
+          const checked = form.querySelector("input[name='applicationType']:checked");
+          return checked?.value || "personal_unaffiliated";
+        }
+        function setApplicationType(value) {
+          let matched = false;
+          applicationTypeRadios.forEach(radio => {
+            radio.checked = radio.value === value;
+            if (radio.checked) matched = true;
+          });
+          return matched;
+        }
 
         function setMessage(text, kind) {
           if (!message) return;
@@ -408,12 +577,29 @@
           submit.textContent = isBusy ? "접수 중" : "상담 신청하기";
         }
 
-        // #062 + #089: applicationType 변경 시 — helper 갱신 + 조건부 필드 토글 + 채널 제약
+        // #062 + #089 + #227: applicationType 변경 시 — helper 갱신 + 조건부 필드 토글 + 채널 제약 + 개인/무소속 하위 섹션 토글
         function syncApplicationTypeUI() {
-          const value = applicationTypeSelect?.value || "personal_unaffiliated";
+          const value = getApplicationType();
           if (applicationTypeHelper) {
             applicationTypeHelper.textContent = applicationTypeHelperMap[value] || applicationTypeHelperMap.personal_unaffiliated;
           }
+          /* #227 — 개인/무소속 선택 시 데뷔 방식·제공·업로드·정산 안내 섹션 노출 */
+          if (personalSub) {
+            const isPersonal = value === "personal_unaffiliated";
+            personalSub.classList.toggle("is-active", isPersonal);
+            personalSub.hidden = !isPersonal;
+            personalSub.querySelectorAll("input").forEach(input => {
+              if (input.type === "radio" || input.type === "checkbox") {
+                input.disabled = !isPersonal;
+              }
+            });
+          }
+          /* #227 — data-hide-for-applicant: 개인/무소속에서는 기존 participationType 카드를 숨김
+           * (debutMethod 라디오가 의미를 대체). 다른 신청 유형에서만 노출. */
+          form.querySelectorAll("[data-hide-for-applicant]").forEach(el => {
+            const hide = el.dataset.hideForApplicant === value;
+            toggleConditional(el, !hide);
+          });
           // (a) data-show-for: applicationType 정확히 일치 시만 노출 (소속사/AI크리에이터/기타제휴 전용 영역)
           form.querySelectorAll("[data-show-for]").forEach(el => {
             const matches = el.dataset.showFor === value;
@@ -464,16 +650,66 @@
             toggleConditional(el, matches);
           });
         }
-        applicationTypeSelect?.addEventListener("change", syncApplicationTypeUI);
+        applicationTypeRadios.forEach(radio => radio.addEventListener("change", syncApplicationTypeUI));
         syncApplicationTypeUI(); // 초기 동기화
+
+        /* #227 — "기타 직접 입력" 체크박스 토글 + debutMethod → participationType enum 매핑 */
+        const debutMethodToParticipation = {
+          public_appearance: "appearance_only",
+          private_persona: "co_creator",
+          partial_provide: "performance",
+          creator_plan: "co_creator"
+        };
+        function checkedValues(name) {
+          return Array.from(form.querySelectorAll(`input[name="${name}"]:checked`))
+            .filter(input => !input.disabled)
+            .map(input => input.value);
+        }
+        function estimateSharePercent(providedMaterials) {
+          const values = new Set(providedMaterials || []);
+          const appearance = values.has("face") || values.has("body");
+          const talent = ["vocal", "voice", "dance", "concept", "content_make"].some(value => values.has(value));
+          const directTalk = values.has("fan_talk");
+          if (directTalk) {
+            if (appearance && talent) return 30;
+            if (!appearance && talent) return 25;
+            if (appearance && !talent) return 25;
+            return 20;
+          }
+          if (appearance && talent) return 20;
+          if (!appearance && talent) return 15;
+          if (appearance && !talent) return 15;
+          return 5;
+        }
+        const otherCheckbox = form.querySelector("input[name='provides'][value='other']");
+        const otherField = document.getElementById("debutProvideOther");
+        if (otherCheckbox && otherField) {
+          const syncOther = () => {
+            otherField.hidden = !otherCheckbox.checked;
+            const ta = otherField.querySelector("textarea");
+            if (ta) ta.disabled = !otherCheckbox.checked;
+          };
+          otherCheckbox.addEventListener("change", syncOther);
+          syncOther();
+        }
+        /* 개인/무소속 흐름에서는 사용자가 debutMethod 라디오 카드를 선택할 때
+         * 기존 participationType 라디오 그룹을 백엔드 호환용으로 자동 동기화한다.
+         * (participationType radio 자체는 화면에서 숨김 처리되어 사용자가 직접 만지지 않음.) */
+        form.querySelectorAll("input[name='debutMethod']").forEach(radio => {
+          radio.addEventListener("change", () => {
+            const mapped = debutMethodToParticipation[radio.value];
+            if (!mapped) return;
+            const target = form.querySelector(`input[name='participationType'][value='${mapped}']`);
+            if (target) target.checked = true;
+          });
+        });
 
         // #062: 3카드 CTA 클릭 → applicationType 설정 + 폼으로 스크롤
         document.querySelectorAll("[data-applicant-cta]").forEach(btn => {
           btn.addEventListener("click", e => {
             e.preventDefault();
             const type = btn.dataset.applicantCta;
-            if (applicationTypeSelect && type) {
-              applicationTypeSelect.value = type;
+            if (type && setApplicationType(type)) {
               syncApplicationTypeUI();
             }
             // 폼으로 부드럽게 스크롤
@@ -485,8 +721,10 @@
           });
         });
 
-        typeSelect?.addEventListener("change", () => {
-          if (typeHelper) typeHelper.textContent = helperMap[typeSelect.value] || "제공할 수 있는 자료와 참여 깊이에 맞춰 선택해주세요.";
+        participationTypeRadios.forEach(input => {
+          input.addEventListener("change", () => {
+            if (typeHelper) typeHelper.textContent = helperMap[input.value] || "제공할 수 있는 자료와 참여 깊이에 맞춰 선택해주세요.";
+          });
         });
 
         form.querySelectorAll("[name='applicationChannel']").forEach(input => {
@@ -535,6 +773,11 @@
             }
           }
 
+          const providedMaterials = checkedValues("provides");
+          const personalParticipationType = debutMethodToParticipation[data.debutMethod] || "co_creator";
+          const participationType = data.applicationType === "personal_unaffiliated"
+            ? personalParticipationType
+            : data.participationType;
           const payload = isPartnership ? {
             // #089 — 기타 제휴: 유선상담 강제 + 데뷔 관련 필드 제외, 문의 내용만 전송
             applicationChannel: "phone_consultation",
@@ -562,7 +805,7 @@
             contactEmail: data.contactEmail,
             contactPhone: data.contactPhone,
             preferredContactTime: data.preferredContactTime,
-            participationType: data.participationType,
+            participationType,
             // #089 — shareTierRequested 입력 제거: 유선 상담에서 협의. 페이로드에서도 제외.
             intro: (data.conceptSummary || "").trim(),
             // #089 — portfolioUrl: online_review 선택 시 입력 가능
@@ -570,7 +813,7 @@
             // #081 보강 — 체크박스 값을 화면에서 직접 읽어 페이로드 구성
             isAdult: checked("isAdult"),
             consentAppearance: checked("consentAppearance"),
-            consentVoice: data.participationType === "appearance_voice",
+            consentVoice: ["voice_or_song", "performance"].includes(participationType),
             consentRightsRelationship: checked("consentRightsRelationship"),
             consentNoGuarantee: checked("consentNoGuarantee"),
             consentRevenuePolicy: checked("consentRevenuePolicy"),
@@ -579,9 +822,20 @@
             consentMarketing: checked("consentMarketing"),
             metadata: {
               restrictedExpressions: data.restrictedExpressions,
+              debutMethod: data.debutMethod || null,
+              providedMaterials,
+              providesOther: (data.providesOther || "").trim() || null,
+              estimatedShareRatePercent: data.applicationType === "personal_unaffiliated"
+                ? estimateSharePercent(providedMaterials)
+                : null,
+              genderSwapRequested: false,
+              genderPolicyAcknowledged: true,
               materialSubmissionMode: "no_file_upload_mvp"
             }
           };
+          if (!isPartnership && data.applicationType === "personal_unaffiliated") {
+            payload.shareTierRequested = payload.metadata.estimatedShareRatePercent;
+          }
           // #062 조건부 필드 — applicationType에 따라 추가 필드 전송 (partnership 분기에서는 적용 안 됨)
           if (!isPartnership) {
             if (data.applicationType === "represented_artist") {
