@@ -683,6 +683,7 @@ Creator image request endpoints:
 
 ```http
 GET /api/v1/me/creator-studio
+GET /api/v1/me/creator-studio/payout-summary?period=2026-05
 GET /api/v1/me/creator-studio/settlement-preview?period=2026-05
 GET /api/v1/me/creator-studio/settlement-conversions?period=2026-05&status=requested
 POST /api/v1/me/creator-studio/settlement-conversions
@@ -703,6 +704,9 @@ Current workflow:
 - The bootstrap response includes `viewer.userId`, `viewer.email`, `access.reason`, `access.source`, and `access.approvedApplication` for access debugging. Access is enabled for an active artist operator row or an approved debut application pending artist-operator linkage.
 - The creator-studio bootstrap response now includes `access`, `summary`, and `policy.slotPolicy`. Frontend should show the account dropdown `스튜디오 스테이지` entry only when `access.enabled === true`.
 - Initial creator studio slot policy is preview-only: `slotLimit = 10`, used/remaining slots are derived from active operator artist count, and paid slot expansion is `planned_not_open`.
+- `GET /api/v1/me/creator-studio/payout-summary` is the creator-facing five-card payout summary projection for Creator Studio. Query `period=YYYY-MM` is optional and defaults to the current UTC month. It reuses settlement-preview calculations but returns only UI-safe fields: `grossLumina`, `eligibleLumina`, `grossAmount`, `taxAmount`, `netAmount`, `currency`, `fxSnapshot`, `shareRate`, `settlementTier`, and `policy.hidePayoutRow`.
+- Payout summary is read-only. It does not create settlement records, does not confirm payouts, does not debit or credit wallets, does not split creator-facing amounts by paid/free Lumina, and does not expose raw internal sources such as `admin_grant`, `bonus`, or `ad_reward`.
+- The first settlement currency is KRW. `fxSnapshot` is included as a future-safe placeholder for weekly reference FX rates plus a 3-5% safety margin when non-KRW display is opened later.
 - `GET /api/v1/me/creator-studio/settlement-preview` is the creator-facing earnings estimate for active operated artists only. Query `period=YYYY-MM` is optional and defaults to the current UTC month.
 - Creator Studio settlement preview includes completed chat orders, completed gift orders, paid-like boost events, premium video unlocks, and non-refunded paid fan letters. It excludes free likes and is preview-only, not a final payout record.
 - `GET /api/v1/me/creator-studio/settlement-conversions` lists creator requests to convert estimated settlement money into Lumina. Query `period=YYYY-MM` and `status=requested|approved|rejected|credited|cancelled` are optional.

@@ -1238,6 +1238,7 @@ Creator Studio bootstrap:
 
 ```http
 GET /me/creator-studio
+GET /me/creator-studio/payout-summary?period=2026-05
 GET /me/creator-studio/settlement-preview?period=2026-05
 PATCH /me/creator-studio/artists/:artistId/profile
 Authorization: Bearer <accessToken>
@@ -1248,6 +1249,114 @@ Use this as the first call for the creator-studio screen. It returns active arti
 Account dropdown rule: call this endpoint after login when the UI needs to decide
 whether to show `스튜디오 스테이지`. Show that menu item when
 `access.enabled === true`. Do not infer creator access from email or admin role.
+
+Creator Studio payout summary:
+
+```http
+GET /me/creator-studio/payout-summary?period=2026-05
+Authorization: Bearer <accessToken>
+```
+
+Use this for the Creator Studio five-card payout UI. It is read-only and does
+not open payout, settlement confirmation, wallet debit, wallet credit, PG, IAP,
+or NICE flows. Do not show paid/free Lumina separation in this creator-facing
+surface.
+
+Response shape:
+
+```json
+{
+  "period": {
+    "label": "2026-05",
+    "start": "2026-05-01T00:00:00.000Z",
+    "end": "2026-06-01T00:00:00.000Z"
+  },
+  "currency": "KRW",
+  "cards": [
+    {
+      "id": "grossLumina",
+      "labelKey": "creatorStudio.payoutSummary.grossLumina.label",
+      "descriptionKey": "creatorStudio.payoutSummary.grossLumina.description",
+      "value": "90",
+      "unit": "LUMINA",
+      "amountLumina": "90",
+      "amount": null,
+      "currency": null
+    },
+    {
+      "id": "netAmount",
+      "labelKey": "creatorStudio.payoutSummary.netAmount.label",
+      "descriptionKey": "creatorStudio.payoutSummary.netAmount.description",
+      "value": "613.80",
+      "unit": "KRW",
+      "amountLumina": null,
+      "amount": { "amount": "613.80", "currency": "KRW" },
+      "currency": "KRW"
+    }
+  ],
+  "totals": {
+    "grossLumina": "90",
+    "eligibleLumina": "90",
+    "grossAmount": { "amount": "634.75", "currency": "KRW" },
+    "taxAmount": { "amount": "20.95", "currency": "KRW" },
+    "netAmount": { "amount": "613.80", "currency": "KRW" },
+    "currency": "KRW",
+    "shareRate": { "bps": 8000, "percent": "80" },
+    "settlementTier": "general",
+    "fxSnapshot": {
+      "baseCurrency": "KRW",
+      "settlementCurrency": "KRW",
+      "snapshotStatus": "krw_base_no_fx",
+      "weeklyRefresh": true,
+      "rateSource": "weekly_reference_rate_placeholder",
+      "baseRate": "1",
+      "appliedRate": "1",
+      "safeMarginRangeBps": { "min": 300, "max": 500 },
+      "appliedSafeMarginBps": 0,
+      "capturedAt": null,
+      "nextRefreshAt": null
+    }
+  },
+  "artists": [
+    {
+      "artist": {
+        "id": "artist-uuid",
+        "slug": "creator-slug",
+        "displayName": "Creator Name",
+        "status": "active",
+        "sortOrder": 100
+      },
+      "grossLumina": "90",
+      "eligibleLumina": "90",
+      "grossAmount": { "amount": "634.75", "currency": "KRW" },
+      "taxAmount": { "amount": "20.95", "currency": "KRW" },
+      "netAmount": { "amount": "613.80", "currency": "KRW" },
+      "shareRate": { "bps": 8000, "percent": "80" },
+      "settlementTier": "general",
+      "policy": { "hidePayoutRow": false, "hideReason": null },
+      "status": "estimated"
+    }
+  ],
+  "policy": {
+    "readOnly": true,
+    "previewOnly": true,
+    "payoutMutationOpen": false,
+    "walletMutation": false,
+    "settlementConfirmationOpen": false,
+    "hidePayoutRow": false,
+    "sourceBreakdownVisibleToCreator": false,
+    "creatorFacingPaidFreeSplit": false,
+    "internalSourceVisibility": "backstage_only",
+    "defaultCurrency": "KRW"
+  },
+  "notice": "Estimated read-only payout summary..."
+}
+```
+
+The five expected card ids are `grossLumina`, `eligibleLumina`, `grossAmount`,
+`taxAmount`, and `netAmount`. `settlementTier` is one of `internal`, `staff`,
+`general`, or `special`. If `policy.hidePayoutRow === true`, hide the payout
+row/card cluster and use `hideReason` for a non-raw UI state.
 
 Creator Studio settlement preview:
 
