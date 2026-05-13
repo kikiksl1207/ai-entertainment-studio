@@ -6,7 +6,7 @@
     <title>캐릭터챗 | Lumina Stage</title>
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./styles/character-chat.css" />
-    <meta name="description" content="Lumina Stage AI 아티스트와 대화를 시작하기 전, 초보자용 시작 지문을 고르는 공간입니다." />
+    <meta name="description" content="Lumina Stage 아티스트와 1:1 DM처럼 부드럽게 대화를 시작해보세요." />
     <meta name="robots" content="noindex, nofollow" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="캐릭터챗 | Lumina Stage" />
@@ -20,7 +20,7 @@
     </script>
   </head>
   <body class="page-character-chat is-booting">
-    <header class="site-header">
+    <header class="site-header chat-site-header">
       <div class="shell header-inner">
         <a class="brand" href="./index.html">
           <img class="brand-logo" src="./assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
@@ -46,57 +46,169 @@
     </header>
 
     <main class="chat-main">
-      <div class="shell chat-shell">
-        <section class="chat-hero" aria-label="캐릭터챗 대상">
-          <a class="chat-hero-back" href="./characters.html" aria-label="아티스트 목록으로 돌아가기">‹</a>
-          <div class="chat-hero-avatar" id="chatHeroAvatar" aria-hidden="true"></div>
-          <div class="chat-hero-meta">
-            <p class="eyebrow chat-hero-eyebrow">Now Chatting</p>
-            <h1 class="chat-hero-name" id="chatHeroName">아티스트를 불러오는 중</h1>
-            <p class="chat-hero-summary" id="chatHeroSummary">첫 마디를 고르기 전에 시작 지문을 준비하고 있어요.</p>
+      <div class="shell chat-shell" data-clean-mode="off">
+        <!-- DM 헤더: 인스타 DM 상단 느낌 -->
+        <section class="dm-topbar" aria-label="대화 상대">
+          <a class="dm-back" href="./characters.html" aria-label="뒤로 가기">‹</a>
+          <div class="dm-peer">
+            <div class="dm-peer-avatar" id="chatHeroAvatar" aria-hidden="true">
+              <span class="dm-peer-status-dot" aria-hidden="true"></span>
+            </div>
+            <div class="dm-peer-meta">
+              <h1 class="dm-peer-name" id="chatHeroName">아티스트를 불러오는 중</h1>
+              <p class="dm-peer-status" id="chatHeroSummary">메시지를 준비하는 중이에요</p>
+            </div>
           </div>
-          <a class="chat-hero-profile" id="chatHeroProfile" href="./characters.html">아티스트 프로필</a>
+          <a class="dm-peer-profile" id="chatHeroProfile" href="./characters.html" aria-label="아티스트 프로필 열기">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22"><circle cx="12" cy="9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c.7-3.6 3.6-5.6 7-5.6s6.3 2 7 5.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </a>
         </section>
 
-        <section class="chat-stage" aria-live="polite">
-          <div class="chat-empty" id="chatEmpty">
-            <p class="chat-empty-text">아직 주고받은 메시지가 없어요. 아래 시작 지문으로 가볍게 첫 마디를 건네보세요.</p>
+        <!-- 미성년자 클린모드 / 안전 안내 영역 (서버 정책 도착 시 노출) -->
+        <aside class="dm-clean-notice" id="chatCleanNotice" hidden role="note">
+          <span class="dm-clean-badge">CLEAN</span>
+          <p class="dm-clean-text" id="chatCleanText">이 계정은 안전 모드로 대화 중이에요. 일부 표현과 이미지 요청은 안전을 위해 자동으로 조정돼요.</p>
+        </aside>
+
+        <!-- 대화 영역: DM 버블 톤 -->
+        <section class="dm-stage" id="chatStage" aria-live="polite">
+          <div class="dm-day-divider" id="chatDayDivider"><span>오늘</span></div>
+
+          <!-- 아티스트의 첫 인사 버블 (welcome) -->
+          <article class="dm-bubble dm-bubble-artist" id="chatWelcomeBubble" hidden>
+            <div class="dm-bubble-avatar" id="chatWelcomeAvatar" aria-hidden="true"></div>
+            <div class="dm-bubble-body">
+              <p class="dm-bubble-text" id="chatWelcomeText">반가워요. 오늘은 어떤 이야기로 시작해볼까요?</p>
+              <span class="dm-bubble-time" id="chatWelcomeTime"></span>
+            </div>
+          </article>
+
+          <!-- 사용자가 보낼 메시지가 들어갈 자리 (서버 응답 들어오면 같은 컨테이너에 append) -->
+          <ol class="dm-thread" id="chatThread" aria-label="대화 내용"></ol>
+
+          <!-- 빈 상태 (welcome도 못 그렸을 때) -->
+          <div class="dm-empty" id="chatEmpty" hidden>
+            <p>아티스트가 답장 준비 중이에요. 잠시 후 다시 시도해 주세요.</p>
           </div>
-          <ol class="chat-thread" id="chatThread" aria-label="대화 내용" hidden></ol>
         </section>
 
+        <!-- 첫 사용자 배려: 시작 지문 카드 -->
         <div class="chat-starter-card" id="chatStarterCard" data-state="default" hidden role="region" aria-labelledby="chatStarterEyebrow">
           <header class="chat-starter-head">
-            <span class="chat-starter-eyebrow" id="chatStarterEyebrow" data-i18n="chatStarter.eyebrow">처음이세요?</span>
-            <button class="chat-starter-dismiss" type="button" data-chat-starter-dismiss aria-label="시작 카드 닫기">×</button>
+            <span class="chat-starter-eyebrow" id="chatStarterEyebrow">처음이라 어색하죠?</span>
+            <button class="chat-starter-dismiss" type="button" data-chat-starter-dismiss aria-label="첫 인사 카드 닫기">×</button>
           </header>
-          <p class="chat-starter-prompt" id="chatStarterPrompt" data-i18n="chatStarter.prompt">어떤 말로 시작해볼까요?</p>
-          <div class="chat-starter-options" id="chatStarterOptions" role="group" aria-label="시작 지문 선택"></div>
+          <p class="chat-starter-prompt" id="chatStarterPrompt">이렇게 말을 걸어볼까요?</p>
+          <div class="chat-starter-options" id="chatStarterOptions" role="group" aria-label="추천 첫 인사 선택"></div>
           <div class="chat-starter-footer">
-            <button class="chat-starter-direct" type="button" data-chat-starter-direct data-i18n="chatStarter.direct">바로 입력할게요</button>
+            <button class="chat-starter-direct" type="button" data-chat-starter-direct>바로 입력할게요</button>
             <label class="chat-starter-mute">
               <input type="checkbox" data-chat-starter-mute />
-              <span data-i18n="chatStarter.mute">다시 보지 않기</span>
+              <span>다시 보지 않기</span>
             </label>
           </div>
           <p class="chat-starter-fallback" id="chatStarterFallback" hidden></p>
         </div>
 
-        <form class="chat-input-form" id="chatInputForm" aria-label="대화 입력" novalidate>
-          <textarea
-            class="chat-input"
-            id="chatInput"
-            rows="1"
-            maxlength="500"
-            placeholder="직접 쓰거나 시작 지문을 골라 첫 마디를 준비해보세요."
-            aria-label="메시지 입력"></textarea>
-          <button class="chat-send-btn" type="submit" id="chatSendBtn" disabled aria-disabled="true" title="대화 응답 기능은 운영 준비 중입니다.">
-            <span data-i18n="chat.sendPending">준비 중</span>
+        <!-- DM 입력 도크: 액션 + 입력창 + 보내기 -->
+        <form class="dm-dock" id="chatInputForm" aria-label="대화 입력" novalidate>
+          <!-- 좌측 액션: 갤러리(무료) / 이미지 요청(유료) / 영상 요청(유료) 분리 -->
+          <div class="dm-dock-actions" role="group" aria-label="추가 액션">
+            <a class="dm-action dm-action-gallery" id="chatGalleryLink" href="./characters.html" title="기존 갤러리 이미지 보기 (무료)">
+              <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><rect x="3.5" y="4.5" width="17" height="14" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9" cy="10" r="1.7" fill="currentColor"/><path d="M4.2 17.4l4.6-4.2 3.2 2.8 3.4-3.2 4.1 4.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              <span class="dm-action-label">갤러리</span>
+              <span class="dm-action-tag dm-action-tag-free">무료</span>
+            </a>
+            <button type="button" class="dm-action dm-action-request" id="chatRequestOpen" aria-haspopup="dialog" aria-controls="chatRequestSheet" title="스타에게 새 이미지·영상 부탁하기 (유료)">
+              <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path d="M12 4v16M4 12h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+              <span class="dm-action-label">새 요청</span>
+              <span class="dm-action-tag dm-action-tag-paid">유료</span>
+            </button>
+          </div>
+
+          <div class="dm-input-wrap">
+            <textarea
+              class="dm-input"
+              id="chatInput"
+              rows="1"
+              maxlength="500"
+              placeholder="메시지 보내기..."
+              aria-label="메시지 입력"></textarea>
+          </div>
+
+          <button class="dm-send-btn" type="submit" id="chatSendBtn" disabled aria-disabled="true" title="스타의 답장 기능은 곧 열려요.">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22"><path d="M3.5 11.5L20 4l-7.4 16-2-7.4z" fill="currentColor"/></svg>
+            <span class="sr-only">보내기</span>
           </button>
         </form>
-        <p class="chat-meta-note">대화 응답 기능은 운영 준비 중입니다. 지금은 첫 마디를 미리 골라볼 수 있어요.</p>
+        <p class="dm-foot-note">스타의 답장 기능은 곧 열려요. 지금은 첫 인사를 골라볼 수 있어요.</p>
       </div>
     </main>
+
+    <!-- 이미지/영상 요청 바텀시트 -->
+    <div class="dm-sheet-backdrop" id="chatRequestBackdrop" hidden></div>
+    <aside class="dm-sheet" id="chatRequestSheet" role="dialog" aria-modal="true" aria-labelledby="chatRequestSheetTitle" hidden>
+      <header class="dm-sheet-head">
+        <div class="dm-sheet-grip" aria-hidden="true"></div>
+        <h2 class="dm-sheet-title" id="chatRequestSheetTitle">새 이미지/영상 요청</h2>
+        <p class="dm-sheet-subtitle">기존 갤러리 보기는 무료예요. 아래는 <strong>나만을 위해 새로 만드는 유료 요청</strong>이에요.</p>
+        <button type="button" class="dm-sheet-close" data-request-close aria-label="요청 시트 닫기">×</button>
+      </header>
+
+      <div class="dm-sheet-body">
+        <!-- 가격 티어 카드 (기본 30L / 고급 100L / 영상 300L) -->
+        <div class="dm-tier-grid" id="chatRequestTiers" role="radiogroup" aria-label="요청 타입 선택">
+          <button type="button" class="dm-tier" role="radio" aria-checked="false" data-request-tier="image_basic">
+            <span class="dm-tier-name">기본 이미지</span>
+            <span class="dm-tier-desc">기본 분위기로 1장</span>
+            <span class="dm-tier-price">30 L</span>
+          </button>
+          <button type="button" class="dm-tier" role="radio" aria-checked="false" data-request-tier="image_premium">
+            <span class="dm-tier-name">고급 이미지</span>
+            <span class="dm-tier-desc">원하는 분위기 · 고해상도</span>
+            <span class="dm-tier-price">100 L</span>
+          </button>
+          <button type="button" class="dm-tier" role="radio" aria-checked="false" data-request-tier="video_short">
+            <span class="dm-tier-name">짧은 영상</span>
+            <span class="dm-tier-desc">3~5초 짧은 무빙 컷</span>
+            <span class="dm-tier-price">300 L</span>
+          </button>
+        </div>
+
+        <!-- 요청서 필드 -->
+        <div class="dm-request-form">
+          <label class="dm-field">
+            <span class="dm-field-label">분위기 · 콘셉트</span>
+            <select class="dm-field-input" id="chatRequestMood">
+              <option value="">선택해 주세요</option>
+              <option value="daily">데일리 · 일상</option>
+              <option value="lookbook">화보 · 룩북</option>
+              <option value="event">이벤트 · 기념일</option>
+              <option value="fanservice">팬서비스 컷</option>
+              <option value="custom">기타 (직접 입력)</option>
+            </select>
+          </label>
+          <label class="dm-field">
+            <span class="dm-field-label">참고 문구 (선택)</span>
+            <textarea class="dm-field-input dm-field-textarea" id="chatRequestNote" rows="3" maxlength="300" placeholder="원하는 장면이나 한 줄 분위기를 적어주세요."></textarea>
+          </label>
+        </div>
+
+        <!-- 안내 -->
+        <ul class="dm-request-notes">
+          <li>유료 요청은 결제 시스템 준비 후 차감됩니다. 지금은 <strong>예약 요청서</strong>만 접수돼요.</li>
+          <li>모든 새 이미지·영상은 운영 검수 이후 제작에 들어가요. 결제하자마자 바로 받아보실 수는 없어요.</li>
+          <li>성인물 · 실존 인물 사칭 · 위험 · 혐오 표현 요청은 제작이 거절될 수 있어요.</li>
+        </ul>
+      </div>
+
+      <footer class="dm-sheet-foot">
+        <button type="button" class="dm-sheet-secondary" data-request-close>닫기</button>
+        <button type="button" class="dm-sheet-primary" id="chatRequestSubmit" disabled aria-disabled="true">
+          <span id="chatRequestSubmitLabel">원하는 요청을 골라주세요</span>
+        </button>
+      </footer>
+    </aside>
 
     <footer class="site-footer">
       <div class="shell footer-inner">
