@@ -55,6 +55,24 @@
     if (el) el.textContent = value || "";
   }
 
+  function getCharacterBySlug(slug) {
+    const chars = (window.LuminaStaticData && window.LuminaStaticData.characters) || [];
+    return chars.find((character) => character && character.slug === slug) || null;
+  }
+
+  function hasFinalConsonant(value) {
+    const lastChar = String(value || "").trim().slice(-1);
+    if (!lastChar) return false;
+    const code = lastChar.charCodeAt(0);
+    if (code < 0xac00 || code > 0xd7a3) return false;
+    return ((code - 0xac00) % 28) !== 0;
+  }
+
+  function formatWithParticle(value, withFinal, withoutFinal) {
+    if (!value) return "";
+    return value + (hasFinalConsonant(value) ? withFinal : withoutFinal);
+  }
+
   function setFallback(message) {
     const fallback = $("chatStarterFallback");
     if (!fallback) return;
@@ -567,6 +585,17 @@
       // 보관함의 "공식 갤러리는 아티스트 상세에서" 안내 링크에 현재 slug 연결
       const link = $("chatInboxArtistGalleryLink");
       const slug = getArtistSlug();
+      const character = getCharacterBySlug(slug);
+      const characterName = character?.publicName || character?.name || character?.displayName || "";
+      const characterWithParticle = formatWithParticle(characterName, "과", "와");
+      setText("chatInboxSheetTitle", characterName ? `${characterWithParticle} 함께 모은 사진` : "함께 모은 사진");
+      setText(
+        "chatInboxSheetSubtitle",
+        characterName
+          ? `${characterWithParticle}의 대화에서 주고받은 사진과 영상이 이곳에 모여요.`
+          : "이 대화에서 주고받은 사진과 영상이 이곳에 모여요."
+      );
+      setText("chatInboxEmptyTitle", characterName ? `아직 ${characterWithParticle} 주고받은 사진이 없어요` : "아직 주고받은 사진이 없어요");
       if (link && slug) {
         link.href = "./character-detail.html?slug=" + encodeURIComponent(slug) + "#detailGallery";
       }
@@ -618,8 +647,7 @@
   function applyCharacterToneToRoom(slug) {
     if (!slug) return;
     const tone = getCharacterTone(slug);
-    const chars = (window.LuminaStaticData && window.LuminaStaticData.characters) || [];
-    const character = chars.find(c => c && c.slug === slug) || null;
+    const character = getCharacterBySlug(slug);
 
     // featured peer (대표 대화 카드, 큰 카드)
     if (character) renderFeaturedPeer(slug, character, tone);

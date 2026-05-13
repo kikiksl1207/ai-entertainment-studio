@@ -421,13 +421,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: linear-gradient(135deg, rgba(255, 79, 195, 0.25), rgba(155, 124, 247, 0.25));
   color: #fff;
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 900;
   letter-spacing: 0;
 }
 
@@ -452,19 +452,32 @@
 }
 
 .chat-starter-direct {
-  border: 0;
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 79, 195, 0.38);
+  border-radius: 999px;
+  background: rgba(255, 79, 195, 0.12);
   color: #ff7eb9;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   cursor: pointer;
   letter-spacing: 0;
-  padding: 6px 8px;
-  margin: -6px -8px;
+  padding: 8px 12px;
+  margin: 0;
+  box-shadow: 0 8px 18px rgba(255, 79, 195, 0.10);
 }
 
 .chat-starter-direct:hover {
   color: #ff4fc3;
+  background: rgba(255, 79, 195, 0.18);
+  border-color: rgba(255, 79, 195, 0.52);
+}
+
+.chat-starter-direct::before {
+  content: "✎";
+  font-size: 12px;
+  line-height: 1;
 }
 
 .chat-starter-mute {
@@ -1276,6 +1289,9 @@ select.dm-field-input option {
  * dm-topbar 가 위에 sticky 로 유지되고, 그 아래에 큰 hero 카드.
  * ────────────────────────────────────────────── */
 .dm-featured-peer {
+  position: sticky;
+  top: 68px;
+  z-index: 14;
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr);
   gap: 14px;
@@ -1285,8 +1301,10 @@ select.dm-field-input option {
   border-radius: 18px;
   background:
     linear-gradient(135deg, rgba(255, 79, 195, 0.10), rgba(155, 124, 247, 0.06)),
-    rgba(20, 14, 36, 0.55);
+    rgba(20, 14, 36, 0.94);
   border: 1px solid rgba(180, 150, 255, 0.18);
+  box-shadow: 0 18px 38px rgba(3, 2, 10, 0.28);
+  backdrop-filter: blur(14px);
 }
 .dm-featured-peer[hidden] { display: none !important; }
 .dm-featured-peer-avatar {
@@ -1352,10 +1370,16 @@ select.dm-field-input option {
 
 @media (max-width: 480px) {
   .dm-featured-peer {
-    grid-template-columns: 72px minmax(0, 1fr);
-    padding: 14px 14px 14px;
+    top: 60px;
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px 12px;
     margin: 6px 8px 0;
+    border-radius: 16px;
   }
-  .dm-featured-peer-avatar { width: 72px; height: 72px; border-radius: 18px; }
-  .dm-featured-peer-name { font-size: 18px; }
+  .dm-featured-peer-avatar { width: 56px; height: 56px; border-radius: 16px; }
+  .dm-featured-peer-name { font-size: 16px; }
+  .dm-featured-peer-summary { font-size: 12px; line-height: 1.4; }
+  .dm-featured-peer-tags { display: none; }
+  .dm-featured-peer-profile { font-size: 12px; margin-top: 4px; }
 }
