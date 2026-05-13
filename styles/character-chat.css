@@ -1006,20 +1006,28 @@
 
   .dm-dock {
     /* mobile-tabbar 위로 띄움 — app.js 가 tabbar를 띄울 때 안전 영역 추가 */
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0));
   }
 
-  .dm-action-label {
-    /* 아이콘만 노출해 입력창 공간 확보 */
-    display: none;
+  .dm-dock-actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
   }
 
   .dm-action {
-    padding: 8px 10px;
+    justify-content: center;
+    min-height: 36px;
+    padding: 8px 8px;
   }
 
   .dm-action-tag {
-    display: none;
+    margin-left: 0;
+    padding: 2px 5px;
+    font-size: 9px;
   }
 
   .dm-tier-grid {
