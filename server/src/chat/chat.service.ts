@@ -17,6 +17,13 @@ import {
   PUBLIC_CHAT_FEATURE_TYPES,
   findChatFeatureProductPolicy,
 } from './chat-feature-policy';
+import {
+  CHARACTER_CHAT_CATALOG_POLICY,
+  CHAT_PERSONA_SEED_POLICY,
+  defaultCharacterGreeting,
+  defaultCharacterStarterOptions,
+  defaultCharacterStatus,
+} from './chat-persona-catalog';
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const UUID_V4_PATTERN =
@@ -62,6 +69,17 @@ type StarterPromptSet = {
     key: string;
     label: string;
   };
+};
+type ChatFeatureProductRecord = {
+  id: string;
+  sku: string;
+  name: string;
+  featureType: string;
+  priceLumina: unknown;
+  status: string;
+  metadata: unknown;
+  createdAt: Date;
+  updatedAt: Date;
 };
 const BASIC_CHAT_POLICY = {
   mode: 'daily_talk',
@@ -187,46 +205,70 @@ export class ChatService {
     });
   }
 
+  getPersonaSeedPolicy() {
+    return CHAT_PERSONA_SEED_POLICY;
+  }
+
+  async getCharacterChatCatalog(input: { artistId?: string; artistSlug?: string }) {
+    const artist = await this.findActiveChatArtist(input);
+    const metadata = this.recordOrEmpty(artist.publicProfile?.publicMetadata);
+    const catalogMetadata = this.recordOrEmpty(metadata.chatCatalog);
+    const configuredSets = this.normalizeStarterPromptSets(
+      metadata.chatStarterPromptSets,
+    );
+    const starterSet =
+      configuredSets[0] ?? this.defaultStarterPromptSet(artist.slug, artist.displayName);
+    const metadataGreeting = this.stringFromUnknown(catalogMetadata.greetingText);
+    const statusLabelKo = this.stringFromUnknown(catalogMetadata.statusLabelKo);
+    const statusDescriptionKo = this.stringFromUnknown(
+      catalogMetadata.statusDescriptionKo,
+    );
+    const defaultStatus = defaultCharacterStatus();
+
+    return {
+      artist: {
+        id: artist.id,
+        slug: artist.slug,
+        displayName: artist.displayName,
+      },
+      status: {
+        key: defaultStatus.key,
+        labelKo: statusLabelKo ?? defaultStatus.labelKo,
+        descriptionKo: statusDescriptionKo ?? defaultStatus.descriptionKo,
+      },
+      greeting: {
+        text: metadataGreeting ?? defaultCharacterGreeting(artist.displayName),
+        source: metadataGreeting ? 'artist_metadata' : 'default',
+      },
+      starterOptions:
+        starterSet.options.length > 0
+          ? [
+              ...starterSet.options,
+              {
+                key: starterSet.directInput.key,
+                label: starterSet.directInput.label,
+                message: '',
+                directInput: true,
+              },
+            ].slice(0, CHARACTER_CHAT_CATALOG_POLICY.beginner.starterOptionMax)
+          : defaultCharacterStarterOptions(artist.displayName),
+      starterSets: configuredSets.length ? configuredSets : [starterSet],
+      directInput: {
+        enabled: CHARACTER_CHAT_CATALOG_POLICY.beginner.directInputEnabled,
+        ...starterSet.directInput,
+      },
+      tone: {
+        tagline: artist.publicProfile?.tagline ?? null,
+        contentTone: artist.contentProfile?.contentTone ?? null,
+        personalityKeywords: artist.publicProfile?.personalityKeywords ?? [],
+      },
+      policy: CHARACTER_CHAT_CATALOG_POLICY,
+      source: configuredSets.length || metadataGreeting ? 'artist_metadata' : 'default',
+    };
+  }
+
   async getStarterPrompts(input: { artistId?: string; artistSlug?: string }) {
-    const artistId = input.artistId?.trim();
-    const artistSlug = input.artistSlug?.trim();
-
-    if (!artistId && !artistSlug) {
-      throw new BadRequestException('artistId or artistSlug is required');
-    }
-
-    if (artistId && !UUID_V4_PATTERN.test(artistId)) {
-      throw new BadRequestException('artistId must be a UUID v4');
-    }
-
-    const artist = await this.prisma.artist.findFirst({
-      where: {
-        status: 'active',
-        ...(artistId ? { id: artistId } : { slug: artistSlug }),
-      },
-      select: {
-        id: true,
-        slug: true,
-        displayName: true,
-        publicProfile: {
-          select: {
-            publicMetadata: true,
-            tagline: true,
-            personalityKeywords: true,
-          },
-        },
-        contentProfile: {
-          select: {
-            contentTone: true,
-          },
-        },
-      },
-    });
-
-    if (!artist) {
-      throw new NotFoundException('Artist not found');
-    }
-
+    const artist = await this.findActiveChatArtist(input);
     const metadata = this.recordOrEmpty(artist.publicProfile?.publicMetadata);
     const configuredSets = this.normalizeStarterPromptSets(
       metadata.chatStarterPromptSets,
@@ -315,7 +357,7 @@ export class ChatService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const message = await tx.chatMessage.create({
         data: {
           chatSessionId: session.id,
@@ -344,7 +386,9 @@ export class ChatService {
       orderBy: [{ priceLumina: 'asc' }, { name: 'asc' }],
     });
 
-    return products.map((product) => this.chatFeatureProductResponse(product));
+    return products.map((product: ChatFeatureProductRecord) =>
+      this.chatFeatureProductResponse(product),
+    );
   }
 
   async previewFeatureOrder(
@@ -446,7 +490,7 @@ export class ChatService {
       throw new NotFoundException('Chat feature product not found');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existingOrder = await tx.chatFeatureOrder.findUnique({
         where: { idempotencyKey },
         include: { walletLedger: true, chatFeatureProduct: true },
@@ -555,7 +599,7 @@ export class ChatService {
     }
 
     const existingGenerated = order?.messages.find(
-      (message) => message.senderType === 'artist_ai',
+      (message: { senderType: string }) => message.senderType === 'artist_ai',
     );
 
     if (order && existingGenerated) {
@@ -852,7 +896,7 @@ export class ChatService {
     chatFeatureOrderId: string | undefined,
     generated: ChatGenerationResult,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const userMessage = await tx.chatMessage.create({
         data: {
           chatSessionId: sessionId,
@@ -869,13 +913,13 @@ export class ChatService {
           messageType: 'text',
           body: generated.body,
           chatFeatureOrderId,
-          modelMetadata: {
+          modelMetadata: this.inputJson({
             provider: generated.usage.provider,
             model: generated.usage.model,
             usage: generated.usage,
             estimatedCostKrw: generated.usage.estimatedCostKrw,
-          } satisfies Prisma.InputJsonObject,
-          safetyMetadata: generated.safetyMetadata as Prisma.InputJsonObject,
+          }),
+          safetyMetadata: this.inputJson(generated.safetyMetadata),
         },
       });
 
@@ -899,7 +943,7 @@ export class ChatService {
     orderId: string,
     reason: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const order = await tx.chatFeatureOrder.findFirst({
         where: { id: orderId, userId },
         include: { walletLedger: true },
@@ -1263,8 +1307,55 @@ export class ChatService {
       : {};
   }
 
+  private inputJson(value: unknown): Prisma.InputJsonValue {
+    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  }
+
   private stringFromUnknown(value: unknown) {
     return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private async findActiveChatArtist(input: { artistId?: string; artistSlug?: string }) {
+    const artistId = input.artistId?.trim();
+    const artistSlug = input.artistSlug?.trim();
+
+    if (!artistId && !artistSlug) {
+      throw new BadRequestException('artistId or artistSlug is required');
+    }
+
+    if (artistId && !UUID_V4_PATTERN.test(artistId)) {
+      throw new BadRequestException('artistId must be a UUID v4');
+    }
+
+    const artist = await this.prisma.artist.findFirst({
+      where: {
+        status: 'active',
+        ...(artistId ? { id: artistId } : { slug: artistSlug }),
+      },
+      select: {
+        id: true,
+        slug: true,
+        displayName: true,
+        publicProfile: {
+          select: {
+            publicMetadata: true,
+            tagline: true,
+            personalityKeywords: true,
+          },
+        },
+        contentProfile: {
+          select: {
+            contentTone: true,
+          },
+        },
+      },
+    });
+
+    if (!artist) {
+      throw new NotFoundException('Artist not found');
+    }
+
+    return artist;
   }
 
   private normalizeStarterPromptSets(value: unknown): StarterPromptSet[] {

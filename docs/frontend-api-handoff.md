@@ -585,6 +585,8 @@ GET /me/identity-verifications/policy
 POST /me/identity-verifications
 POST /me/identity-verifications/self/confirm
 GET /chat/starter-prompts?artistSlug=<artistSlug>
+GET /chat/persona-seed-policy
+GET /chat/character-catalog?artistSlug=<artistSlug>
 GET /chat-feature-products
 POST /chat-feature-orders/preview
 POST /chat-feature-orders
@@ -599,6 +601,21 @@ contains the A/B suggested messages and `directInput` is the C/free-text path.
 Selecting a starter prompt is free and does not create a chat message by itself.
 The frontend sends the chosen `message` through the normal chat message or later
 generation flow.
+
+`GET /chat/persona-seed-policy` returns the read-only persona seed/admin contract
+for character chat. It includes 20+ Korean personality tags, conflict rules,
+random assignment guidance, creator-editable fields, operator-locked fields, and
+seed examples. It does not call LLM, does not mutate wallet/chat state, and does
+not return secrets.
+
+`GET /chat/character-catalog` returns the read-only DM entry catalog for one
+artist. Pass either `artistSlug` or `artistId`. The response includes
+`artist`, Korean `status`, `greeting`, `starterOptions`, `directInput`, `tone`,
+and `policy`. The policy states that the gallery surface is a conversation-earned
+image archive, not a public gallery link, and that short video request remains
+hidden/disabled for first launch. Frontend must show Korean copy such as
+`labelKo`, `descriptionKo`, `disabledMessageKo`, and must not expose machine keys
+such as `chat_ready`, `conversation_archive`, or `mvp_not_open` directly.
 
 Identity verification is a fail-closed NICE-first skeleton for now. The policy
 endpoint exposes supported methods (`mobile_phone`, `ipin`) and non-secret

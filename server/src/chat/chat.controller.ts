@@ -59,6 +59,19 @@ export class ChatController {
     return this.chatService.getSessions(user.id);
   }
 
+  @Get('chat/persona-seed-policy')
+  getPersonaSeedPolicy() {
+    return this.chatService.getPersonaSeedPolicy();
+  }
+
+  @Get('chat/character-catalog')
+  getCharacterChatCatalog(
+    @Query('artistId') artistId?: string,
+    @Query('artistSlug') artistSlug?: string,
+  ) {
+    return this.chatService.getCharacterChatCatalog({ artistId, artistSlug });
+  }
+
   @Get('chat/starter-prompts')
   getStarterPrompts(
     @Query('artistId') artistId?: string,
