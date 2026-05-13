@@ -2,6 +2,41 @@
 
 Use the standard completion note from `docs/ops/agents.md`.
 
+status: completed
+task: #223 email verification/password reset API first implementation; #224 identity/minor clean-mode account flags
+branch/commit: team2-backend/auth-identity-flags-223-224 / this commit
+changed_files:
+- server/prisma/schema.prisma
+- server/prisma/migrations/0038_user_email_verified_at/migration.sql
+- server/src/auth/auth.service.ts
+- server/src/auth/auth.service.spec.ts
+- server/README.md
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/trust-identity-abuse-policy.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npx.cmd prisma generate
+- PASS: npm.cmd test -- auth.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+- INFO: npm.cmd test -- --runInBand also run; existing fan-engagement spec has a date-window failure unrelated to #223/#224.
+result:
+- Email verification confirm now persists `users.email_verified_at`; `GET /api/v1/me` returns `emailVerified` and `emailVerifiedAt`.
+- Email verification/password reset request endpoints keep existence-neutral responses; action tokens remain SHA-256 hashed, expiring, and single-use.
+- Password reset confirm keeps the existing password policy, updates only the email auth password hash, and revokes active refresh-token sessions.
+- Identity/account trust responses now expose stable account flags for signup-not-blocked-before-verification, derived age gate, and clean-mode state.
+- Minor clean mode is derived only from a verified provider birth date; NICE raw name/phone/resident-number/provider-token storage remains forbidden.
+- No frontend files, wallet/Lumina/settlement/payout/paid-like flow, production seed, or secrets/env values were changed or recorded.
+blocked_by:
+- none for #223/#224 implementation.
+next_needed:
+- Reviewer/Integrator can review API shape and deploy migration before frontend binds to `emailVerifiedAt` or `accountState`.
+민감값 기록 여부: 없음
+
+---
+
 status: done
 task: BA-001 - Backstage / Creator Studio Backend Contract Check
 branch/commit: builder-a-backend/ba-001-contract-check / df6995b84147

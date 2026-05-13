@@ -193,6 +193,8 @@ Email delivery adapter:
 - Required non-secret handles: `AUTH_EMAIL_FROM` or `EMAIL_FROM`, plus either explicit action URL bases (`AUTH_EMAIL_VERIFICATION_URL_BASE`, `AUTH_PASSWORD_RESET_URL_BASE`) or a frontend base URL (`FRONTEND_PUBLIC_BASE_URL` or `WEB_PUBLIC_BASE_URL`).
 - Provider API keys stay only in environment variables (`RESEND_API_KEY` or `SENDGRID_API_KEY`). Do not record values in docs, Git, Notion, logs, or chat.
 - Normal production responses never include the raw action token. Local/staging debug token exposure is still gated by `ACTION_TOKEN_DEBUG_ENABLED=true` and `NODE_ENV !== production`.
+- `POST /api/v1/auth/email-verifications/confirm` stores `users.email_verified_at` and `GET /api/v1/me` returns both `emailVerified` and `emailVerifiedAt`.
+- `POST /api/v1/auth/password-resets/confirm` updates only the email-password account password hash and revokes active refresh-token sessions.
 - Confirmation endpoints return stable frontend-mappable errors:
   - `AUTH_EMAIL_VERIFICATION_TOKEN_INVALID_OR_EXPIRED` / `auth.emailVerification.tokenInvalidOrExpired`
   - `AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_EXPIRED` / `auth.passwordReset.tokenInvalidOrExpired`
@@ -275,8 +277,14 @@ Lumina Station:
 Identity verification skeleton:
 
 - `GET /api/v1/me/identity-verifications/policy` returns the NICE-first provider
-  skeleton contract, supported methods (`mobile_phone`, `ipin`), and non-secret
-  env readiness flags.
+  skeleton contract, supported methods (`mobile_phone`, `ipin`), non-secret env
+  readiness flags, and account policy flags. Signup is not blocked before
+  identity verification.
+- `GET /api/v1/me/trust` returns `accountState` with
+  `signupAllowedWithoutIdentityVerification`, `identityVerificationBeforeSignupRequired`,
+  derived `ageGate`, `cleanMode`, and non-sensitive identity storage policy.
+  Minor clean mode is enforced only when a verified provider birth date proves
+  the user is under the configured adult threshold.
 - `POST /api/v1/me/identity-verifications` accepts `{ "provider": "nice",
   "method": "mobile_phone" | "phone" | "ipin" }` and records only an
   `unverified` request marker.
@@ -287,8 +295,8 @@ Identity verification skeleton:
 - Invalid confirmation paths return `IDENTITY_VERIFICATION_INVALID_ID` with
   `messageKey = identityVerification.invalidId`.
 - Resident registration numbers, raw identity documents, raw provider tokens,
-  and provider secrets must not be stored in Git, Notion, chat, or database
-  application metadata.
+  NICE raw names, NICE raw phone numbers, and provider secrets must not be
+  stored in Git, Notion, chat, or database application metadata.
 
 ### Gifts
 
