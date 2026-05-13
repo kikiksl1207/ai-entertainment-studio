@@ -77,8 +77,8 @@
               <h1>루미나 충전소</h1>
               <p>
                 좋아하는 아티스트에게 보낼 응원을 미리 준비해두세요.
-                충전한 루미나는 유료 좋아요, 선물, 프리미엄 해금 등
-                Lumina Stage 안에서 사용할 수 있습니다.
+                충전한 루미나는 유료 좋아요, 선물, 프리미엄 해금,
+                새 이미지·영상 요청까지 Lumina Stage 안에서 두루 쓸 수 있어요.
               </p>
             </div>
             <aside class="page-hero-panel">
@@ -98,6 +98,34 @@
           </div>
         </section>
 
+        <!-- #217 — 무료 애드충전 진입 카드 ("오늘의 무료 루미나 받기")
+             광고 SDK 미연결: 버튼 disabled + 상태 안내만. 실제 ledger 기록 X. -->
+        <section class="content-section" aria-labelledby="chargeAdTitle">
+          <div class="shell" style="max-width: 720px;">
+            <article class="charge-ad-card">
+              <div class="charge-ad-body">
+                <p class="charge-ad-eyebrow">
+                  <span class="charge-ad-badge">FREE</span>
+                  <span>오늘의 무료 루미나</span>
+                </p>
+                <h2 id="chargeAdTitle" class="charge-ad-title">짧은 광고 한 편 보면 무료 루미나가 쌓여요</h2>
+                <p class="charge-ad-desc">
+                  하루 최대 50회까지 무료 루미나를 받을 수 있어요.
+                  일반 루미나와 똑같이 응원·해금·새 이미지 요청에 쓸 수 있어요.
+                </p>
+                <div class="charge-ad-meta">
+                  <span>오늘 받을 수 있는 횟수 <strong id="chargeAdQuotaToday">최대 50회</strong></span>
+                  <span>적립 한도 <strong>총 3,000L</strong></span>
+                </div>
+              </div>
+              <div class="charge-ad-actions">
+                <button class="charge-ad-btn" type="button" id="chargeAdWatchBtn" disabled aria-disabled="true">오늘의 무료 루미나 받기</button>
+                <small class="charge-ad-status" id="chargeAdStatus">광고 연결 준비 중이에요. 곧 열어드릴게요.</small>
+              </div>
+            </article>
+          </div>
+        </section>
+
         <!-- 결제 준비 상태 안내 (PG 연결 전, #059 카피 적용) -->
         <section class="content-section" id="chargePendingNotice" hidden>
           <div class="shell" style="max-width: 720px;">
@@ -105,8 +133,8 @@
               <p class="eyebrow">Coming Soon</p>
               <h2 style="margin: 4px 0 12px;">결제 시스템 준비 중</h2>
               <p style="color: var(--muted); line-height: 1.7; margin: 0;">
-                결제 기능은 현재 준비 중입니다. 상품 정보와 예상 지급 루미나만 먼저 확인할 수 있어요.
-                실제 결제는 PG 연결 이후 제공됩니다.
+                결제 기능은 현재 준비 중이에요. 지금은 상품 정보와 예상 지급 루미나만 먼저 확인할 수 있어요.
+                결제 시스템 연결이 끝나면 바로 열어드릴게요.
               </p>
             </div>
           </div>
@@ -119,9 +147,13 @@
               <div>
                 <p class="eyebrow">Charge Products</p>
                 <h2>충전 상품</h2>
-                <p>한 번 충전하면 응원과 해금 모두 사용할 수 있어요. 1L = 10원 기준으로 표시됩니다.</p>
+                <p>한 번 충전하면 응원과 해금 모두 사용할 수 있어요. 웹 기준 <strong>1L = 10원</strong>으로 표시됩니다.</p>
               </div>
             </div>
+            <p class="charge-channel-note">
+              지금 보이는 가격은 <strong>웹 결제</strong> 기준이에요.
+              앱이 열리면 스토어 수수료가 반영된 별도 패키지(예: 1,000원 = 70L)가 함께 표시돼요.
+            </p>
             <div class="charge-product-grid" id="chargeProductGrid">
               <div class="charge-skeleton">상품을 불러오는 중…</div>
             </div>
@@ -157,7 +189,8 @@
                 <li>루미나는 Lumina Stage 서비스 안에서 사용하는 유료 재화이며, 현금처럼 환급되거나 외부에서 사용할 수 없습니다.</li>
                 <li>결제 취소와 환불은 환불 정책 및 결제 상태에 따라 처리됩니다.</li>
                 <li>보너스로 지급된 루미나는 환불 산정 시 제외되거나 차감될 수 있습니다.</li>
-                <li>실제 결제 기능은 PG 연결 이후 제공됩니다.</li>
+                <li>앱(스토어) 결제와 웹 결제는 수수료 차이로 지급 루미나·보너스가 다르게 표시될 수 있어요.</li>
+                <li>실제 결제 기능은 결제 시스템 연결이 끝난 뒤 차례로 열립니다.</li>
               </ul>
               <div style="margin-top: 14px; display:flex; gap:12px; flex-wrap:wrap;">
                 <a class="text-link" href="./refund-policy.html">환불 정책 보기</a>

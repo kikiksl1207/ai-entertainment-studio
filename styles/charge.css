@@ -247,3 +247,144 @@
     padding: 12px 14px;
   }
 }
+
+/* ──────────────────────────────────────────────
+ * #217 무료 애드충전 진입 카드 — "오늘의 무료 루미나 받기"
+ * 광고 시청 SDK는 미연결 상태. UI/카피만 노출, 실제 ledger 기록 X.
+ * ────────────────────────────────────────────── */
+.charge-ad-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 20px 22px;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(58, 210, 159, 0.10), rgba(255, 79, 195, 0.06)),
+    rgba(20, 14, 36, 0.4);
+  border: 1px solid rgba(58, 210, 159, 0.28);
+}
+.charge-ad-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.charge-ad-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #3ad29f;
+  text-transform: uppercase;
+}
+.charge-ad-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(58, 210, 159, 0.18);
+  color: #3ad29f;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.charge-ad-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink, #fff);
+  letter-spacing: 0;
+}
+.charge-ad-desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: rgba(220, 210, 240, 0.7);
+  line-height: 1.55;
+  font-weight: 500;
+}
+.charge-ad-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.charge-ad-btn {
+  padding: 11px 18px;
+  border-radius: 999px;
+  border: 0;
+  background: linear-gradient(135deg, #3ad29f 0%, #6fb8ff 100%);
+  color: #0c0617;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.1s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 6px 18px rgba(58, 210, 159, 0.22);
+}
+.charge-ad-btn:hover:not([disabled]) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(58, 210, 159, 0.34);
+}
+.charge-ad-btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  background: rgba(58, 210, 159, 0.18);
+  color: rgba(220, 240, 230, 0.7);
+}
+.charge-ad-status {
+  font-size: 11.5px;
+  color: rgba(220, 240, 230, 0.65);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-align: right;
+}
+.charge-ad-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: rgba(220, 210, 240, 0.55);
+  letter-spacing: 0;
+}
+.charge-ad-meta strong {
+  color: #3ad29f;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .charge-ad-card {
+    grid-template-columns: 1fr;
+  }
+  .charge-ad-actions {
+    align-items: stretch;
+  }
+  .charge-ad-status {
+    text-align: left;
+  }
+}
+
+/* #217 충전소 채널 안내 (웹/앱 가격 구분) */
+.charge-channel-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(180, 150, 255, 0.06);
+  border: 1px solid rgba(180, 150, 255, 0.18);
+  font-size: 12.5px;
+  color: rgba(220, 210, 240, 0.78);
+  line-height: 1.55;
+  font-weight: 500;
+}
+.charge-channel-note strong {
+  color: #ff9ad0;
+  font-weight: 700;
+}
