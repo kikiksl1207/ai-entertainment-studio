@@ -7,7 +7,9 @@ import { AdminPermissionGuard } from '../auth/guards/admin-permission.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   AdminUpdateDebutApplicationDto,
+  ConfirmDebutMaterialUploadDto,
   CreateDebutApplicationDto,
+  CreateDebutMaterialUploadIntentDto,
   DebutApplicationListQueryDto,
 } from './dto/debut.dto';
 import { DebutService } from './debut.service';
@@ -25,6 +27,25 @@ export class DebutController {
   @UseGuards(JwtAuthGuard)
   createApplication(@CurrentUser() user: AuthUser, @Body() body: CreateDebutApplicationDto) {
     return this.debutService.createApplication(user.id, body);
+  }
+
+  @Post('debut/application-materials/upload-intents')
+  @UseGuards(JwtAuthGuard)
+  createMaterialUploadIntent(
+    @CurrentUser() user: AuthUser,
+    @Body() body: CreateDebutMaterialUploadIntentDto,
+  ) {
+    return this.debutService.createMaterialUploadIntent(user.id, body);
+  }
+
+  @Post('debut/application-materials/:assetId/confirm-upload')
+  @UseGuards(JwtAuthGuard)
+  confirmMaterialUpload(
+    @CurrentUser() user: AuthUser,
+    @Param('assetId') assetId: string,
+    @Body() body: ConfirmDebutMaterialUploadDto,
+  ) {
+    return this.debutService.confirmMaterialUpload(user.id, assetId, body);
   }
 
   @Get('me/debut-applications')

@@ -366,6 +366,7 @@ model Asset {
   shortformAssets    ShortformAsset[]
   premiumVideoAssets PremiumVideoAsset[]
   communityPostAssets CommunityPostAsset[]
+  debutApplicationAttachments DebutApplicationAttachment[]
 
   @@unique([storageProvider, storageKey])
   @@index([assetType, visibility], map: "idx_assets_type_visibility")
@@ -802,10 +803,30 @@ model DebutApplication {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
   user                 User     @relation(fields: [userId], references: [id])
+  attachments          DebutApplicationAttachment[]
 
   @@index([status, createdAt], map: "idx_debut_applications_status_created")
   @@index([userId, createdAt], map: "idx_debut_applications_user_created")
   @@map("debut_applications")
+}
+
+model DebutApplicationAttachment {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId String            @map("application_id") @db.Uuid
+  assetId       String            @map("asset_id") @db.Uuid
+  category      String
+  sortOrder     Int               @default(0) @map("sort_order")
+  status        String            @default("attached")
+  metadata      Json              @default("{}")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
+  application   DebutApplication  @relation(fields: [applicationId], references: [id])
+  asset         Asset             @relation(fields: [assetId], references: [id])
+
+  @@unique([applicationId, assetId, category], map: "uq_debut_application_attachments_asset_category")
+  @@index([applicationId, category], map: "idx_debut_application_attachments_application_category")
+  @@index([assetId], map: "idx_debut_application_attachments_asset")
+  @@map("debut_application_attachments")
 }
 
 model SettlementRecord {
