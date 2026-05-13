@@ -227,7 +227,104 @@ const I18N_DICT = {
   // ── 브랜드 ──
   "brand.tagline": { "ko-KR": "아티스트 레이블", "ja-JP": "アーティストレーベル", "en-US": "Artist Label", "zh-CN": "艺人厂牌" },
   // ── 데뷔하기 강조 CTA (모바일) ──
-  "cta.debut": { "ko-KR": "데뷔하기", "ja-JP": "デビュー申請", "en-US": "Debut", "zh-CN": "出道申请" }
+  "cta.debut": { "ko-KR": "데뷔하기", "ja-JP": "デビュー申請", "en-US": "Debut", "zh-CN": "出道申请" },
+  // ── #219 정산 출금 5분리 카드 (에밀리 v1 톤, 4국 언어) ──
+  "payout.card.kicker": {
+    "ko-KR": "PAYOUT · 이번 정산 회차",
+    "ja-JP": "PAYOUT · 今回の精算",
+    "en-US": "PAYOUT · This cycle",
+    "zh-CN": "PAYOUT · 本期结算"
+  },
+  "payout.card.title": {
+    "ko-KR": "들어올 금액을 한눈에 정리했어요",
+    "ja-JP": "今回入金される金額をまとめました",
+    "en-US": "Here's what's coming in this cycle",
+    "zh-CN": "本期到账金额一目了然"
+  },
+  "payout.card.sub.currencyPrefix": {
+    "ko-KR": "정산 통화",
+    "ja-JP": "精算通貨",
+    "en-US": "Payout currency",
+    "zh-CN": "结算货币"
+  },
+  "payout.card.sub.fxPrefix": {
+    "ko-KR": "환율 스냅샷",
+    "ja-JP": "為替スナップショット",
+    "en-US": "FX snapshot",
+    "zh-CN": "汇率快照"
+  },
+  "payout.card.sub.fxDefault": {
+    "ko-KR": "주간 기준환율과 안전마진을 함께 기록해요",
+    "ja-JP": "週次基準レートと安全マージンを記録します",
+    "en-US": "Weekly reference FX plus a safety margin",
+    "zh-CN": "记录每周基准汇率与安全缓冲"
+  },
+  "payout.row.grossLumina": {
+    "ko-KR": "받은 루미나",
+    "ja-JP": "受け取ったルミナ",
+    "en-US": "Lumina received",
+    "zh-CN": "收到的 Lumina"
+  },
+  "payout.row.grossLumina.note": {
+    "ko-KR": "유저가 보낸 루미나 전부예요. 무료·유료를 가르지 않고 합산해서 보여드려요.",
+    "ja-JP": "ファンから届いたルミナの合計です。無料・有料を分けず合算して表示します。",
+    "en-US": "All Lumina sent by users — free and paid are summed together.",
+    "zh-CN": "用户发送的全部 Lumina。免费和付费一起合算显示。"
+  },
+  "payout.row.eligibleLumina": {
+    "ko-KR": "정산 반영 루미나",
+    "ja-JP": "精算対象ルミナ",
+    "en-US": "Eligible Lumina",
+    "zh-CN": "纳入结算的 Lumina"
+  },
+  "payout.row.eligibleLumina.note": {
+    "ko-KR": "환불·취소된 응원은 제외하고, 실제로 정산에 잡히는 양만 남겨서 보여드려요.",
+    "ja-JP": "返金・キャンセル分を除き、実際に精算対象となる量だけを表示します。",
+    "en-US": "Refunded or cancelled cheers are excluded, showing only what counts toward payout.",
+    "zh-CN": "已扣除退款和取消的应援，仅展示真正纳入结算的部分。"
+  },
+  "payout.row.grossKrw": {
+    "ko-KR": "정산 예정금 (세전)",
+    "ja-JP": "精算予定額(税引前)",
+    "en-US": "Payout subtotal (pre-tax)",
+    "zh-CN": "结算金额(税前)"
+  },
+  "payout.row.grossKrw.note": {
+    "ko-KR": "정산 통화 기준 세전 금액이에요. 주간 기준환율과 안전마진을 기준으로 환산돼요.",
+    "ja-JP": "精算通貨ベースの税引前金額です。週次基準レートと安全マージンで換算します。",
+    "en-US": "Pre-tax amount in the payout currency. Converted with the weekly reference FX plus a safety margin.",
+    "zh-CN": "结算货币的税前金额，按每周基准汇率与安全缓冲换算。"
+  },
+  "payout.row.taxKrw": {
+    "ko-KR": "원천징수 · 세금",
+    "ja-JP": "源泉徴収 · 税金",
+    "en-US": "Withholding · Tax",
+    "zh-CN": "代扣 · 税金"
+  },
+  "payout.row.taxKrw.note": {
+    "ko-KR": "계약·거주 국가 기준으로 미리 떼는 세금이에요. 확정은 정산 회차 마감 후에 나와요.",
+    "ja-JP": "契約・居住国の基準で先に差し引かれる税金です。確定は精算締め後となります。",
+    "en-US": "Tax withheld up front based on your contract and residence country. Finalized after cycle close.",
+    "zh-CN": "按合同与居住国预先扣除的税金。结算关账后正式确认。"
+  },
+  "payout.row.netKrw": {
+    "ko-KR": "실수령 예상액",
+    "ja-JP": "実受取予定額",
+    "en-US": "Estimated net payout",
+    "zh-CN": "实际到账预估"
+  },
+  "payout.row.netKrw.note": {
+    "ko-KR": "세금을 뺀 뒤 계좌로 들어올 예상 금액이에요. 환율·세무 검토 후 소폭 달라질 수 있어요.",
+    "ja-JP": "税引後に口座へ入金される予定の金額です。為替・税務確認後に多少前後する可能性があります。",
+    "en-US": "Expected amount landing in your account after tax. May shift slightly after FX/tax review.",
+    "zh-CN": "税后预计入账金额。汇率与税务核对后可能略有变动。"
+  },
+  "payout.foot": {
+    "ko-KR": "유저가 결제한 통화와 아티스트 정산 통화가 다를 수 있어요. 환율은 주간 기준환율과 3~5% 안전마진을 기준으로 기록해요. 정산표·세금 정책이 확정되기 전까지는 예상치로만 보여드려요. 확정 금액은 정산 회차 마감 후 알려드릴게요.",
+    "ja-JP": "ユーザーが支払った通貨とアーティストの精算通貨は異なる場合があります。為替は週次基準レートと3~5%の安全マージンを基準に記録します。精算表・税制が確定するまでは見込み値のみ表示し、確定額は精算締め後にお知らせします。",
+    "en-US": "User payment currency and your payout currency may differ. FX is recorded with a weekly reference rate plus a 3~5% safety margin. Until the payout table and tax policy are finalized, only estimates are shown. Final figures arrive after cycle close.",
+    "zh-CN": "用户支付货币与艺人结算货币可能不同。汇率按每周基准汇率与3~5%安全缓冲记录。结算表与税务政策确定前仅显示预估值，最终金额将在结算关账后通知。"
+  }
 };
 
 let _currentLocale = I18N_FALLBACK;

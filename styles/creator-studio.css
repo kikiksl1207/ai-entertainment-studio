@@ -311,6 +311,101 @@ td { color: var(--text); }
 .settlement-profile-card span { color: var(--muted); font-size: 12px; font-weight: 950; }
 .settlement-profile-card strong { font-size: 18px; overflow-wrap: anywhere; }
 .settlement-profile-card small { color: var(--muted); line-height: 1.5; }
+
+/* #219 — 출금 예상액 분리 카드 (받은 루미나 / 정산 반영 / 정산 예정금 / 원천징수 / 실수령) */
+.payout-breakdown {
+  margin: 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(155, 124, 247, 0.05);
+}
+.payout-breakdown-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed rgba(180, 150, 255, 0.18);
+}
+.payout-breakdown-head h3 {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.payout-breakdown-sub {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.payout-breakdown-sub strong {
+  color: rgba(245, 240, 255, 0.92);
+  font-weight: 700;
+}
+.payout-breakdown-rows {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.payout-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  min-width: 0;
+}
+.payout-row-label {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  text-transform: none;
+}
+.payout-row-value {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: rgba(245, 240, 255, 0.96);
+  overflow-wrap: anywhere;
+}
+.payout-row-note {
+  font-size: 11.5px;
+  color: rgba(220, 210, 240, 0.55);
+  line-height: 1.45;
+  font-weight: 500;
+}
+.payout-row-net {
+  background: linear-gradient(135deg, rgba(255, 79, 195, 0.12), rgba(155, 124, 247, 0.1));
+  border-color: rgba(255, 79, 195, 0.32);
+}
+.payout-row-net .payout-row-value {
+  color: #ff9ad0;
+}
+.payout-breakdown-foot {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.55;
+  font-weight: 500;
+}
+@media (max-width: 1120px) {
+  .payout-breakdown-rows { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .payout-row-net { grid-column: 1 / -1; }
+}
+@media (max-width: 680px) {
+  .payout-breakdown { margin: 14px 12px; padding: 14px; }
+  .payout-breakdown-rows { grid-template-columns: 1fr; }
+  .payout-row-net { grid-column: auto; }
+}
 @media (max-width: 1120px) {
   .studio-shell { grid-template-columns: 1fr; }
   .studio-sidebar { position: static; height: auto; }
