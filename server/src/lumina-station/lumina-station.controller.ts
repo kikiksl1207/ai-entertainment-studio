@@ -5,11 +5,16 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { LuminaStationService } from './lumina-station.service';
 
 @Controller('lumina-station')
-@UseGuards(JwtAuthGuard)
 export class LuminaStationController {
   constructor(private readonly luminaStationService: LuminaStationService) {}
 
+  @Get('charge-policy')
+  getChargePolicy() {
+    return this.luminaStationService.getChargePolicy();
+  }
+
   @Get()
+  @UseGuards(JwtAuthGuard)
   getStation(@CurrentUser() user: AuthUser, @Query('take') take?: string) {
     return this.luminaStationService.getStation(user.id, take);
   }

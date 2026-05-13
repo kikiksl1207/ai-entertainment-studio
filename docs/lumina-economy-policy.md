@@ -12,6 +12,25 @@ This document is the backend source of truth for Lumina Stage's virtual currency
 
 ## Purchase Products
 
+Read-only display policy:
+
+- `GET /api/v1/lumina-station/charge-policy` exposes frontend package and copy
+  policy only. It does not create payment orders, call an ad SDK, or mutate a
+  wallet.
+- Web charge display keeps the base exchange rate `1L = 10 KRW` and paid bonus
+  cap 20%.
+- App 1st launch packages:
+  - 1,000 KRW = 70 Lumina
+  - 5,000 KRW = 350 Lumina
+  - 10,000 KRW = 700 Lumina
+  - 20,000 KRW = 1,400 Lumina
+  - 50,000 KRW = 3,750 Lumina
+  - 100,000 KRW = 8,000 Lumina
+- App 30,000 KRW and 70,000 KRW packages are deferred until after launch.
+- Free ad charge is display/planned only: label `오늘의 무료 루미나 받기`, max
+  50% of ad/offerwall revenue equivalent, daily limit 50, future ledger source
+  `ad_reward`.
+
 Initial seed products:
 
 | SKU | User-facing product | Paid Lumina | Bonus Lumina | KRW |
@@ -148,6 +167,22 @@ draft until model cost and safety validation are complete.
 
 Related plans: `docs/character-chat-backend-plan.md` and
 `docs/character-chat-billing-safety-design.md`.
+
+## Creator Image And Short Video Requests
+
+The first frontend contract is exposed through
+`GET /api/v1/lumina-station/charge-policy` only. It is display policy, not an
+open order API.
+
+| Request | Lumina | Notes |
+| --- | ---: | --- |
+| Official gallery / existing photos | 0 | Browsing existing public assets remains free. |
+| Basic image request | 30 | Single-concept basic image request. |
+| Premium image request | 100 | Higher-detail image request. |
+| Short video request | 300 | 3-5 seconds, one character, one concept. |
+
+Opening actual request orders or wallet debits requires a separate API task with
+idempotency, moderation, refund, and settlement rules.
 
 ## User-To-User Gifts
 

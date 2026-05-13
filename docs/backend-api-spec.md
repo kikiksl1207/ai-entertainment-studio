@@ -211,6 +211,7 @@ Email delivery adapter:
 ```http
 GET /api/v1/wallet
 GET /api/v1/wallet/ledger
+GET /api/v1/lumina-station/charge-policy
 GET /api/v1/lumina-station
 GET /api/v1/lumina-products
 POST /api/v1/payments/orders
@@ -244,6 +245,23 @@ Provider adapter baseline:
 
 Lumina Station:
 
+- `GET /api/v1/lumina-station/charge-policy` is public and read-only. It returns
+  charge-screen policy copy and package constants only: web `1L = 10 KRW`,
+  web paid bonus cap 20%, app launch package prices, free ad-charge display
+  policy, and creator image/video request prices.
+- `charge-policy.safety.walletMutation = false`,
+  `charge-policy.safety.paymentOrderMutation = false`, and
+  `charge-policy.safety.adSdkMutation = false`; clients must treat the response
+  as display policy only.
+- App launch packages are 1,000 KRW = 70L, 5,000 KRW = 350L,
+  10,000 KRW = 700L, 20,000 KRW = 1,400L, 50,000 KRW = 3,750L,
+  and 100,000 KRW = 8,000L. 30,000 KRW and 70,000 KRW packages are deferred.
+- Free ad charge is labeled `오늘의 무료 루미나 받기`, has a planned daily limit
+  of 50, and reserves future ledger source `ad_reward`; no ad SDK or wallet
+  grant endpoint is opened by this policy.
+- Creator request policy prices are gallery view 0L, basic image 30L, premium
+  image 100L, and short video 300L. Short video copy is 3-5 seconds, one
+  character, one concept.
 - `GET /api/v1/lumina-station?take=5` is an authenticated charge-screen bootstrap endpoint.
 - It returns the user's Lumina wallet, active `lumina_products`, recent `payment_orders`, payment provider status, and client display policy.
 - It does not create a payment order and does not grant Lumina.

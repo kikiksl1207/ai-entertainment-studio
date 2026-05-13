@@ -467,6 +467,7 @@ Reward behavior:
 ## Commerce/Public Products
 
 ```http
+GET /lumina-station/charge-policy
 GET /lumina-station?take=5
 GET /lumina-products
 GET /payments/orders?take=20
@@ -480,6 +481,79 @@ GET /artists/:artistId/gift-products
 ```
 
 ### Lumina Station
+
+`GET /lumina-station/charge-policy` is a public read-only policy endpoint for
+charge UI copy and package rendering. It does not create payment orders, does
+not call an ad SDK, and does not mutate wallets.
+
+Response sample:
+
+```json
+{
+  "policyVersion": "2026-05-13.charge-policy-v1",
+  "currency": {
+    "code": "LUMINA",
+    "displayNameKo": "루미나",
+    "unitPriceKrw": 10,
+    "unitLabelKo": "1L = 10원"
+  },
+  "webCharge": {
+    "baseUnitPriceKrw": 10,
+    "paidBonusMaxPercent": 20,
+    "paymentProviderStatus": "pg_pending",
+    "walletMutation": false,
+    "orderMutationEnabled": false
+  },
+  "appCharge": {
+    "storePaymentStatus": "iap_pending",
+    "mutationEnabled": false,
+    "packages": [
+      { "sku": "APP_LUMINA_70", "priceKrw": 1000, "luminaAmount": 70, "labelKo": "1,000원 = 70L" },
+      { "sku": "APP_LUMINA_350", "priceKrw": 5000, "luminaAmount": 350, "labelKo": "5,000원 = 350L" },
+      { "sku": "APP_LUMINA_700", "priceKrw": 10000, "luminaAmount": 700, "labelKo": "10,000원 = 700L" },
+      { "sku": "APP_LUMINA_1400", "priceKrw": 20000, "luminaAmount": 1400, "labelKo": "20,000원 = 1,400L" },
+      { "sku": "APP_LUMINA_3750", "priceKrw": 50000, "luminaAmount": 3750, "labelKo": "50,000원 = 3,750L" },
+      { "sku": "APP_LUMINA_8000", "priceKrw": 100000, "luminaAmount": 8000, "labelKo": "100,000원 = 8,000L" }
+    ],
+    "deferredPackages": [
+      { "priceKrw": 30000, "status": "deferred_after_launch" },
+      { "priceKrw": 70000, "status": "deferred_after_launch" }
+    ]
+  },
+  "freeAdCharge": {
+    "status": "planned",
+    "userFacingLabelKo": "오늘의 무료 루미나 받기",
+    "maxRevenueSharePercent": 50,
+    "dailyLimit": 50,
+    "ledgerSourcePlanned": "ad_reward",
+    "sdkConfigured": false,
+    "walletMutation": false,
+    "claimMutationEnabled": false
+  },
+  "creatorRequests": {
+    "walletMutation": false,
+    "orderMutationEnabled": false,
+    "products": [
+      { "requestType": "gallery_view", "displayNameKo": "공식 갤러리 보기", "priceLumina": 0 },
+      { "requestType": "basic_image", "displayNameKo": "기본 이미지 요청", "priceLumina": 30 },
+      { "requestType": "premium_image", "displayNameKo": "고급 이미지 요청", "priceLumina": 100 },
+      { "requestType": "short_video", "displayNameKo": "짧은 영상 요청", "priceLumina": 300 }
+    ],
+    "videoPolicy": {
+      "durationSeconds": { "min": 3, "max": 5 },
+      "characterCount": 1,
+      "conceptCount": 1
+    }
+  },
+  "safety": {
+    "readOnly": true,
+    "secretsReturned": false,
+    "walletMutation": false,
+    "paymentOrderMutation": false,
+    "adSdkMutation": false
+  }
+}
+```
 
 `GET /lumina-station?take=5` requires `Authorization: Bearer <accessToken>` and is the recommended bootstrap endpoint for the Lumina charge screen. It returns the user's wallet, active charge products, recent orders, payment status hints, and display policy in one call.
 
