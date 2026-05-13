@@ -439,23 +439,269 @@
     }
   }
 
+  /* #216 v2 — DM 리스트 모드 (slug 없음) / 1:1 채팅 모드 (slug 있음) 분기 */
+  function showListMode() {
+    const listShell = $("chatListShell");
+    const roomShell = $("chatRoomShell");
+    if (listShell) listShell.hidden = false;
+    if (roomShell) roomShell.hidden = true;
+  }
+  function showRoomMode() {
+    const listShell = $("chatListShell");
+    const roomShell = $("chatRoomShell");
+    if (listShell) listShell.hidden = true;
+    if (roomShell) roomShell.hidden = false;
+  }
+
+  /* 캐릭터별 DM 톤을 가져온다. data/character-chat-tones.js 가 채움. */
+  function getCharacterTone(slug) {
+    const getter = window.LuminaStaticData?.getChatTone;
+    if (typeof getter === "function") return getter(slug);
+    return null;
+  }
+
+  /* #226 — character-catalog read-only API 가 머지되면 자동으로 사용한다.
+   * 응답 스키마(greeting/status/starterOptions/directInput/tone/policy)를 chatTones 와 동일 키로 매핑.
+   * 실패 시 null 을 반환하면 호출자는 로컬 fallback (chatTones) 으로 떨어진다.
+   * mutation 없음. read-only GET. */
+  async function fetchCharacterCatalog(slug) {
+    if (!slug) return null;
+    if (typeof apiFetch !== "function") return null;
+    try {
+      const data = await apiFetch(
+        "/api/v1/chat/character-catalog?artistSlug=" + encodeURIComponent(slug),
+        { auth: false, throwOnError: true }
+      );
+      if (!data || typeof data !== "object") return null;
+      // 응답에서 톤만 추려서 chatTones 형태로 정규화
+      return {
+        statusLine: data.status || data.statusLine || null,
+        welcomeMessage: data.greeting || data.welcomeMessage || null,
+        lastMessagePreview: data.greetingPreview || data.lastMessagePreview || data.greeting || null,
+        starters: Array.isArray(data.starterOptions)
+          ? data.starterOptions.slice(0, STARTER_MAX).map((opt, idx) => ({
+              key: opt.key || String.fromCharCode(65 + idx),
+              label: opt.label || ("선택지 " + (idx + 1)),
+              message: opt.message || opt.text || ""
+            }))
+          : null,
+        policy: data.policy || null
+      };
+    } catch (_) {
+      /* 404/네트워크 실패: 로컬 fallback 사용 */
+      return null;
+    }
+  }
+
+  /* 캐릭터 마스터에서 공개 캐릭터만 추려 DM 리스트 행 데이터로 만든다. */
+  function getDmListCharacters() {
+    const raw = (window.LuminaStaticData && window.LuminaStaticData.characters) || [];
+    return raw
+      .filter(c => c && c.slug && c.status !== "secret" && c.status !== "hidden")
+      .slice(0, 16);
+  }
+
+  function renderDmList() {
+    const wrap = $("chatListItems");
+    if (!wrap) return;
+    const chars = getDmListCharacters();
+    if (!chars.length) {
+      wrap.innerHTML = '<li class="dm-list-empty">아직 메시지를 시작할 아티스트가 준비 중이에요.</li>';
+      return;
+    }
+    wrap.textContent = "";
+    chars.forEach((char) => {
+      const tone = getCharacterTone(char.slug);
+      const li = document.createElement("li");
+      li.className = "dm-list-row";
+      li.setAttribute("role", "listitem");
+
+      const link = document.createElement("a");
+      link.className = "dm-list-row-link";
+      link.href = "./character-chat.html?slug=" + encodeURIComponent(char.slug);
+      link.setAttribute("aria-label", (char.name || char.slug) + "와의 대화 열기");
+
+      const avatar = document.createElement("span");
+      avatar.className = "dm-list-row-avatar";
+      const imgUrl = char.images?.thumb || char.images?.cover || ("./assets/characters/" + char.slug + "/thumb.png");
+      avatar.style.backgroundImage = "url(\"" + String(imgUrl).replace(/"/g, "%22") + "\")";
+      if (char.colorAccent) {
+        avatar.style.boxShadow = "0 0 0 2px " + char.colorAccent + " inset, 0 0 0 3px rgba(0,0,0,0.18)";
+      }
+      avatar.setAttribute("aria-hidden", "true");
+
+      const body = document.createElement("span");
+      body.className = "dm-list-row-body";
+
+      const head = document.createElement("span");
+      head.className = "dm-list-row-head";
+      const name = document.createElement("span");
+      name.className = "dm-list-row-name";
+      name.textContent = char.name || char.slug;
+      const time = document.createElement("span");
+      time.className = "dm-list-row-time";
+      time.textContent = "준비 중";
+      head.append(name, time);
+
+      const preview = document.createElement("span");
+      preview.className = "dm-list-row-preview";
+      preview.textContent = tone?.lastMessagePreview || tone?.welcomeMessage || "처음 인사를 기다리고 있어요.";
+
+      body.append(head, preview);
+      link.append(avatar, body);
+      li.append(link);
+      wrap.append(li);
+    });
+  }
+
+  /* 받은 이미지 보관함 시트 (대화 중 받은 이미지만 보관). 결제/주문 호출 없음. */
+  function bindInboxSheet() {
+    const open = $("chatInboxOpen");
+    const sheet = $("chatInboxSheet");
+    const backdrop = $("chatInboxBackdrop");
+    if (!open || !sheet || !backdrop) return;
+    function openSheet() {
+      sheet.hidden = false;
+      backdrop.hidden = false;
+      document.body.classList.add("is-sheet-open");
+      // 보관함의 "공식 갤러리는 아티스트 상세에서" 안내 링크에 현재 slug 연결
+      const link = $("chatInboxArtistGalleryLink");
+      const slug = getArtistSlug();
+      if (link && slug) {
+        link.href = "./character-detail.html?slug=" + encodeURIComponent(slug) + "#detailGallery";
+      }
+    }
+    function closeSheet() {
+      sheet.hidden = true;
+      backdrop.hidden = true;
+      document.body.classList.remove("is-sheet-open");
+    }
+    open.addEventListener("click", openSheet);
+    backdrop.addEventListener("click", closeSheet);
+    sheet.querySelectorAll("[data-inbox-close]").forEach((el) => {
+      el.addEventListener("click", closeSheet);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !sheet.hidden) closeSheet();
+    });
+  }
+
+  /* 선택 캐릭터를 채팅방 상단의 큰 대표 카드(featured peer)로 강조한다. */
+  function renderFeaturedPeer(slug, character, tone) {
+    const wrap = $("chatFeaturedPeer");
+    if (!wrap || !character) return;
+    wrap.hidden = false;
+    const avatar = $("chatFeaturedAvatar");
+    if (avatar) {
+      const imgUrl = character.images?.cover || character.images?.thumb || ("./assets/characters/" + slug + "/cover.png");
+      avatar.style.backgroundImage = "url(\"" + String(imgUrl).replace(/"/g, "%22") + "\")";
+      if (character.colorAccent) {
+        avatar.style.boxShadow = "0 0 0 3px " + character.colorAccent + " inset, 0 12px 28px rgba(0,0,0,0.32)";
+      }
+    }
+    setText("chatFeaturedName", character.name || slug);
+    setText("chatFeaturedSummary", tone?.statusLine || character.summary || "메시지를 기다리고 있어요");
+    const tagsEl = $("chatFeaturedTags");
+    if (tagsEl) {
+      tagsEl.textContent = "";
+      (character.tags || []).slice(0, 3).forEach((tag) => {
+        const li = document.createElement("li");
+        li.textContent = "#" + tag;
+        tagsEl.append(li);
+      });
+    }
+    const profile = $("chatFeaturedProfile");
+    if (profile) profile.href = "./character-detail.html?slug=" + encodeURIComponent(slug);
+  }
+
+  /* 캐릭터별 톤을 hero/welcome/starter card 에 주입. fetchStarterPrompts API 실패 시 fallback. */
+  function applyCharacterToneToRoom(slug) {
+    if (!slug) return;
+    const tone = getCharacterTone(slug);
+    const chars = (window.LuminaStaticData && window.LuminaStaticData.characters) || [];
+    const character = chars.find(c => c && c.slug === slug) || null;
+
+    // featured peer (대표 대화 카드, 큰 카드)
+    if (character) renderFeaturedPeer(slug, character, tone);
+
+    // hero: 캐릭터별 status line
+    if (character) {
+      const profile = $("chatHeroProfile");
+      if (profile) profile.href = "./character-detail.html?slug=" + encodeURIComponent(slug);
+      setText("chatHeroName", character.name || slug);
+      setText("chatHeroSummary", tone?.statusLine || "활동 중 · 메시지를 기다리고 있어요");
+      setHeroAvatar(slug, { displayName: character.name, avatarUrl: character.images?.thumb });
+    }
+
+    // welcome bubble: 캐릭터별 인사말
+    renderWelcomeBubble(slug, {
+      welcomeMessage: tone?.welcomeMessage,
+      summary: character?.summary
+    });
+
+    // starter card: 캐릭터별 starter 사용 (서버 응답 도착 전 미리 채움)
+    if (tone && Array.isArray(tone.starters) && tone.starters.length) {
+      setText("chatStarterPrompt", "이렇게 말을 걸어볼까요?");
+      const wrap = $("chatStarterOptions");
+      if (wrap) {
+        wrap.textContent = "";
+        tone.starters.slice(0, STARTER_MAX).forEach((opt, idx) => {
+          const key = opt.key || String.fromCharCode(65 + idx);
+          const button = document.createElement("button");
+          button.className = "chat-starter-option";
+          button.type = "button";
+          button.dataset.chatStarterChoice = key;
+          button.dataset.chatStarterFill = opt.message || "";
+          const keyEl = document.createElement("span");
+          keyEl.className = "chat-starter-option-label";
+          keyEl.textContent = key;
+          const textEl = document.createElement("span");
+          textEl.className = "chat-starter-option-text";
+          textEl.textContent = opt.label || ("선택지 " + key);
+          button.append(keyEl, textEl);
+          wrap.append(button);
+        });
+      }
+      showStarterCard();
+    }
+  }
+
   async function init() {
     const slug = getArtistSlug();
+
+    if (!slug) {
+      /* DM 리스트 모드: 캐릭터 목록 그리고 종료. starter/sheet/cleanmode 초기화는 X. */
+      showListMode();
+      renderDmList();
+      return;
+    }
+
+    /* 1:1 채팅 모드 */
+    showRoomMode();
     renderHero(slug, null);
     renderWelcomeBubble(slug, null);
+    applyCharacterToneToRoom(slug);
     bindStarterCardEvents();
     bindInputAutoGrow();
     bindSubmitGuard();
     bindRequestSheet();
+    bindInboxSheet();
     applyCleanModeIfReady();
 
-    if (!slug) {
-      setFallback("아티스트 프로필에서 대화하기 버튼으로 들어오면 맞춤 첫 인사를 볼 수 있어요. 아래 추천 인사말도 시작에 좋아요.");
-      setText("chatStarterPrompt", "이렇게 말을 걸어볼까요?");
-      renderStarterOptions([]);
-      showStarterCard();
-      return;
-    }
+    // #226 character-catalog 백엔드 머지되면 자동으로 캐릭터별 톤이 덮어쓰여짐.
+    fetchCharacterCatalog(slug).then((catalogTone) => {
+      if (!catalogTone) return;
+      const chars = (window.LuminaStaticData && window.LuminaStaticData.characters) || [];
+      const character = chars.find(c => c && c.slug === slug) || null;
+      if (catalogTone.statusLine) setText("chatHeroSummary", catalogTone.statusLine);
+      if (catalogTone.welcomeMessage) {
+        renderWelcomeBubble(slug, { welcomeMessage: catalogTone.welcomeMessage, summary: character?.summary });
+      }
+      if (Array.isArray(catalogTone.starters) && catalogTone.starters.length) {
+        renderStarterOptions(catalogTone.starters);
+        showStarterCard();
+      }
+    });
 
     if (isMuted(slug)) return;
     const data = await fetchStarterPrompts(slug);

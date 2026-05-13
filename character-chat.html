@@ -46,7 +46,19 @@
     </header>
 
     <main class="chat-main">
-      <div class="shell chat-shell" data-clean-mode="off">
+      <!-- #216 v2 — DM 리스트 진입 모드 (slug 파라미터가 없을 때 표시) -->
+      <section class="shell dm-list-shell" id="chatListShell" aria-label="메시지 목록" hidden>
+        <header class="dm-list-head">
+          <h1 class="dm-list-title">메시지</h1>
+          <p class="dm-list-sub">좋아하는 아티스트의 이름을 눌러 첫 메시지를 시작해보세요.</p>
+        </header>
+        <ul class="dm-list-items" id="chatListItems" role="list" aria-live="polite">
+          <li class="dm-list-skeleton">메시지 상대를 불러오는 중이에요…</li>
+        </ul>
+        <p class="dm-list-foot">스타의 답장 기능은 곧 열려요. 지금은 첫 인사를 미리 골라둘 수 있어요.</p>
+      </section>
+
+      <div class="shell chat-shell" id="chatRoomShell" data-clean-mode="off" hidden>
         <!-- DM 헤더: 인스타 DM 상단 느낌 -->
         <section class="dm-topbar" aria-label="대화 상대">
           <a class="dm-back" href="./characters.html" aria-label="뒤로 가기">‹</a>
@@ -62,6 +74,18 @@
           <a class="dm-peer-profile" id="chatHeroProfile" href="./characters.html" aria-label="아티스트 프로필 열기">
             <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22"><circle cx="12" cy="9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c.7-3.6 3.6-5.6 7-5.6s6.3 2 7 5.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
           </a>
+        </section>
+
+        <!-- #216 v2 — 선택 캐릭터 대표 대화 카드 (큰 아바타 + 이름 + 한 줄 소개 + 태그). slug 진입 시 채팅방 상단에 노출. -->
+        <section class="dm-featured-peer" id="chatFeaturedPeer" aria-label="지금 대화 중인 아티스트" hidden>
+          <div class="dm-featured-peer-avatar" id="chatFeaturedAvatar" aria-hidden="true"></div>
+          <div class="dm-featured-peer-body">
+            <p class="dm-featured-peer-eyebrow" id="chatFeaturedEyebrow">Now Chatting</p>
+            <h2 class="dm-featured-peer-name" id="chatFeaturedName">아티스트</h2>
+            <p class="dm-featured-peer-summary" id="chatFeaturedSummary">메시지를 기다리고 있어요</p>
+            <ul class="dm-featured-peer-tags" id="chatFeaturedTags"></ul>
+            <a class="dm-featured-peer-profile" id="chatFeaturedProfile" href="./characters.html">프로필 보기 →</a>
+          </div>
         </section>
 
         <!-- 미성년자 클린모드 / 안전 안내 영역 (서버 정책 도착 시 노출) -->
@@ -114,11 +138,12 @@
         <form class="dm-dock" id="chatInputForm" aria-label="대화 입력" novalidate>
           <!-- 좌측 액션: 갤러리(무료) / 이미지 요청(유료) / 영상 요청(유료) 분리 -->
           <div class="dm-dock-actions" role="group" aria-label="추가 액션">
-            <a class="dm-action dm-action-gallery" id="chatGalleryLink" href="./characters.html" title="기존 갤러리 이미지 보기 (무료)">
+            <!-- #216 v2 — 갤러리 액션: 공개 갤러리 링크 X. 받은 이미지 보관함 시트로 진입. -->
+            <button type="button" class="dm-action dm-action-gallery" id="chatInboxOpen" aria-haspopup="dialog" aria-controls="chatInboxSheet" title="받은 이미지 보관함 (무료)">
               <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><rect x="3.5" y="4.5" width="17" height="14" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9" cy="10" r="1.7" fill="currentColor"/><path d="M4.2 17.4l4.6-4.2 3.2 2.8 3.4-3.2 4.1 4.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-              <span class="dm-action-label">갤러리</span>
+              <span class="dm-action-label">보관함</span>
               <span class="dm-action-tag dm-action-tag-free">무료</span>
-            </a>
+            </button>
             <button type="button" class="dm-action dm-action-request" id="chatRequestOpen" aria-haspopup="dialog" aria-controls="chatRequestSheet" title="스타에게 새 이미지·영상 부탁하기 (유료)">
               <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path d="M12 4v16M4 12h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
               <span class="dm-action-label">새 요청</span>
@@ -168,7 +193,8 @@
             <span class="dm-tier-desc">원하는 분위기 · 고해상도</span>
             <span class="dm-tier-price">100L</span>
           </button>
-          <button type="button" class="dm-tier" role="radio" aria-checked="false" data-request-tier="video_short">
+          <!-- #216 v2 — 짧은 영상 1차 숨김. 2차 이후 재오픈 시 hidden 속성 제거. -->
+          <button type="button" class="dm-tier" role="radio" aria-checked="false" data-request-tier="video_short" hidden>
             <span class="dm-tier-name">짧은 영상</span>
             <span class="dm-tier-desc">3~5초 짧은 무빙 컷</span>
             <span class="dm-tier-price">300L</span>
@@ -210,6 +236,28 @@
       </footer>
     </aside>
 
+    <!-- #216 v2 — 받은 이미지 보관함 시트 (대화 중 받은 이미지만 보관, 공개 갤러리 X) -->
+    <div class="dm-sheet-backdrop" id="chatInboxBackdrop" hidden></div>
+    <aside class="dm-sheet dm-inbox-sheet" id="chatInboxSheet" role="dialog" aria-modal="true" aria-labelledby="chatInboxSheetTitle" hidden>
+      <header class="dm-sheet-head">
+        <div class="dm-sheet-grip" aria-hidden="true"></div>
+        <h2 class="dm-sheet-title" id="chatInboxSheetTitle">받은 이미지 보관함</h2>
+        <p class="dm-sheet-subtitle">대화 중에 스타에게 받은 이미지·영상이 이곳에 모여요.</p>
+        <button type="button" class="dm-sheet-close" data-inbox-close aria-label="보관함 닫기">×</button>
+      </header>
+      <div class="dm-sheet-body">
+        <div class="dm-inbox-empty">
+          <div class="dm-inbox-empty-icon" aria-hidden="true">📭</div>
+          <p class="dm-inbox-empty-title">아직 받은 이미지가 없어요</p>
+          <p class="dm-inbox-empty-desc">새 이미지·영상 요청이 검수와 제작을 거쳐 도착하면 이곳에 차곡차곡 쌓여요.</p>
+          <p class="dm-inbox-empty-hint">공식 갤러리는 <a class="text-link" id="chatInboxArtistGalleryLink" href="./characters.html">아티스트 상세 페이지</a>에서 무료로 감상할 수 있어요.</p>
+        </div>
+      </div>
+      <footer class="dm-sheet-foot">
+        <button type="button" class="dm-sheet-secondary" data-inbox-close>닫기</button>
+      </footer>
+    </aside>
+
     <footer class="site-footer">
       <div class="shell footer-inner">
         <div>
@@ -225,6 +273,8 @@
       </div>
     </footer>
 
+    <script src="./data/characters.js"></script>
+    <script src="./data/character-chat-tones.js"></script>
     <script src="./app.js"></script>
     <script src="./pages/character-chat.js"></script>
     <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">

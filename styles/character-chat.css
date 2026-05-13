@@ -1006,28 +1006,26 @@
 
   .dm-dock {
     /* mobile-tabbar 위로 띄움 — app.js 가 tabbar를 띄울 때 안전 영역 추가 */
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: stretch;
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0));
   }
 
-  .dm-dock-actions {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
+  /* #216 큐알 QA FAIL fix — 모바일에서도 무료/유료 구분이 한눈에 보여야 함.
+   * 라벨은 숨기더라도 무료/유료 태그는 필수 노출. 액션 칩 좌우 여백 축소. */
+  .dm-action-label {
+    display: none;
   }
 
   .dm-action {
-    justify-content: center;
-    min-height: 36px;
-    padding: 8px 8px;
+    padding: 6px 9px;
+    gap: 4px;
   }
 
   .dm-action-tag {
-    margin-left: 0;
-    padding: 2px 5px;
+    /* 모바일에서도 무료/유료 태그는 노출 유지 */
+    display: inline-flex;
+    padding: 2px 6px;
     font-size: 9px;
+    letter-spacing: 0.3px;
   }
 
   .dm-tier-grid {
@@ -1057,4 +1055,307 @@
 .dm-empty[hidden],
 .chat-starter-card[hidden] {
   display: none !important;
+}
+
+/* ──────────────────────────────────────────────
+ * #216 v2 — Instagram DM 메인 같은 리스트 진입 화면
+ * slug 가 없으면 채팅방 대신 캐릭터 목록을 먼저 보여준다.
+ * ────────────────────────────────────────────── */
+.dm-list-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 0;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.dm-list-shell[hidden] { display: none !important; }
+
+.dm-list-head {
+  padding: 18px 18px 6px;
+}
+.dm-list-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ink, #fff);
+}
+.dm-list-sub {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(220, 210, 240, 0.7);
+  line-height: 1.55;
+  letter-spacing: 0;
+}
+
+.dm-list-items {
+  list-style: none;
+  padding: 6px 8px 8px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dm-list-row {
+  margin: 0;
+}
+.dm-list-row-link {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 14px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.dm-list-row-link:hover {
+  background: rgba(255, 79, 195, 0.06);
+}
+.dm-list-row-link:active {
+  transform: scale(0.99);
+}
+.dm-list-row-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background-color: #211a35;
+  background-size: cover;
+  background-position: center;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+}
+.dm-list-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.dm-list-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dm-list-row-name {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink, #fff);
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dm-list-row-time {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(220, 210, 240, 0.45);
+  letter-spacing: 0;
+  flex: 0 0 auto;
+}
+.dm-list-row-preview {
+  font-size: 13px;
+  color: rgba(220, 210, 240, 0.6);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+.dm-list-skeleton,
+.dm-list-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: rgba(220, 210, 240, 0.55);
+  font-size: 13px;
+  font-weight: 500;
+  list-style: none;
+}
+.dm-list-foot {
+  margin: 8px 18px 18px;
+  font-size: 11.5px;
+  color: rgba(220, 210, 240, 0.45);
+  text-align: center;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+@media (min-width: 768px) {
+  .dm-list-shell {
+    margin: 24px auto;
+    padding: 8px 0 12px;
+    background: rgba(20, 14, 36, 0.45);
+    border: 1px solid rgba(180, 150, 255, 0.08);
+    border-radius: 18px;
+  }
+}
+
+/* 받은 이미지 보관함 빈 상태 */
+.dm-inbox-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 18px 16px;
+  text-align: center;
+}
+.dm-inbox-empty-icon {
+  font-size: 38px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.dm-inbox-empty-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink, #fff);
+  letter-spacing: 0;
+}
+.dm-inbox-empty-desc {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(220, 210, 240, 0.7);
+  line-height: 1.55;
+  font-weight: 500;
+  max-width: 360px;
+}
+.dm-inbox-empty-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: rgba(220, 210, 240, 0.55);
+  font-weight: 500;
+}
+
+/* #216 v2 — native select 깨짐 수정.
+ * 시스템 기본 화살표 제거하고 인라인 SVG caret 로 통일. */
+select.dm-field-input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23ff9ad0' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 6 8 11 13 6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px 14px;
+  padding-right: 36px;
+  background-color: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+select.dm-field-input::-ms-expand { display: none; }
+select.dm-field-input option {
+  background: #1a1230;
+  color: #fff;
+}
+
+/* #216 v2 — textarea 스크롤바 화살표(spin button) 제거 + 얇게.
+ * iOS/Android 기본 둥근 화살표는 못 건드리지만 Chromium 환경 정리. */
+.dm-input,
+.dm-field-textarea {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(180, 150, 255, 0.35) transparent;
+}
+.dm-input::-webkit-scrollbar,
+.dm-field-textarea::-webkit-scrollbar { width: 6px; height: 6px; }
+.dm-input::-webkit-scrollbar-thumb,
+.dm-field-textarea::-webkit-scrollbar-thumb {
+  background: rgba(180, 150, 255, 0.35);
+  border-radius: 999px;
+}
+.dm-input::-webkit-scrollbar-track,
+.dm-field-textarea::-webkit-scrollbar-track { background: transparent; }
+.dm-input::-webkit-scrollbar-button,
+.dm-field-textarea::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
+
+/* ──────────────────────────────────────────────
+ * #216 v2 — 대표 대화 카드 (선택 캐릭터를 채팅방 상단에 큰 카드로 강조).
+ * dm-topbar 가 위에 sticky 로 유지되고, 그 아래에 큰 hero 카드.
+ * ────────────────────────────────────────────── */
+.dm-featured-peer {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 16px 18px 18px;
+  margin: 6px 12px 0;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 79, 195, 0.10), rgba(155, 124, 247, 0.06)),
+    rgba(20, 14, 36, 0.55);
+  border: 1px solid rgba(180, 150, 255, 0.18);
+}
+.dm-featured-peer[hidden] { display: none !important; }
+.dm-featured-peer-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 24px;
+  background-color: #211a35;
+  background-size: cover;
+  background-position: center;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset, 0 8px 22px rgba(0, 0, 0, 0.3);
+}
+.dm-featured-peer-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.dm-featured-peer-eyebrow {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ff9ad0;
+}
+.dm-featured-peer-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--ink, #fff);
+  letter-spacing: -0.01em;
+}
+.dm-featured-peer-summary {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(220, 210, 240, 0.7);
+  font-weight: 500;
+  line-height: 1.5;
+}
+.dm-featured-peer-tags {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dm-featured-peer-tags li {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 79, 195, 0.12);
+  color: #ff9ad0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.dm-featured-peer-profile {
+  margin-top: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: rgba(220, 210, 240, 0.78);
+  text-decoration: none;
+  letter-spacing: 0;
+  align-self: flex-start;
+}
+.dm-featured-peer-profile:hover { color: #ff7eb9; }
+
+@media (max-width: 480px) {
+  .dm-featured-peer {
+    grid-template-columns: 72px minmax(0, 1fr);
+    padding: 14px 14px 14px;
+    margin: 6px 8px 0;
+  }
+  .dm-featured-peer-avatar { width: 72px; height: 72px; border-radius: 18px; }
+  .dm-featured-peer-name { font-size: 18px; }
 }

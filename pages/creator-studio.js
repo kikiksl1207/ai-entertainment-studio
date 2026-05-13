@@ -86,18 +86,23 @@
   function showGateActions() {
     if (!actions) return;
     actions.hidden = false;
-    const retry = actions.querySelector("[data-studio-retry]");
+    /* #222 v3 — `다시 확인` 버튼은 HTML 에 정적 정의됨(data-studio-retry).
+     * JS 는 click handler 만 한 번 바인딩한다. (정적 버튼이 없을 경우에만 prepend 보강) */
+    let retry = actions.querySelector("[data-studio-retry]");
     if (!retry) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "primary-action";
-      button.dataset.studioRetry = "true";
-      button.textContent = "다시 확인";
-      button.addEventListener("click", () => {
+      retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "primary-action";
+      retry.dataset.studioRetry = "true";
+      retry.textContent = "다시 확인";
+      actions.prepend(retry);
+    }
+    if (!retry.dataset.bound) {
+      retry.dataset.bound = "true";
+      retry.addEventListener("click", () => {
         actions.hidden = true;
         verify();
       });
-      actions.prepend(button);
     }
   }
 
