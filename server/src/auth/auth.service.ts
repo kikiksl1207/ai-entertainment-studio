@@ -557,6 +557,11 @@ export class AuthService {
     const hasActiveAdminAccess = user.adminAccess?.status === 'active';
     const artistOperators = user.artistOperators;
     const hasArtistOperatorAccess = artistOperators.length > 0;
+    const accountLimitBasis = identityVerified
+      ? identityVerification.provider === 'phone_number_mvp'
+        ? 'legacy_phone_number_mvp'
+        : 'provider_identity_subject_hash'
+      : 'unverified';
     const level = hasActiveAdminAccess
       ? 'admin'
       : hasArtistOperatorAccess
@@ -607,7 +612,7 @@ export class AuthService {
       accountLimit: {
         maxAccountsPerIdentity: 3,
         currentAccountsForIdentity: identityVerified ? 1 : null,
-        basis: identityVerified ? 'phone_number_mvp' : 'unverified',
+        basis: accountLimitBasis,
         enforcement: 'advisory_mvp',
       },
       roles: {

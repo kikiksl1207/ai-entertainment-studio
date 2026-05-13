@@ -319,6 +319,9 @@ describe('AuthService action token flows', () => {
           signupBlocking: false,
         },
       },
+      accountLimit: {
+        basis: 'provider_identity_subject_hash',
+      },
       policy: {
         signupAllowedWithoutIdentityVerification: true,
         identityVerificationBeforeSignupRequired: false,
