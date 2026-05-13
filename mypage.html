@@ -180,7 +180,14 @@
                 <strong>최근 지갑 내역을 불러오는 중입니다.</strong>
                 <p>충전, 응원, 해금, 환불 내역이 있으면 이곳에 표시됩니다.</p>
               </div>
-              <div class="mypage-empty" id="mypageActivationRewards" style="margin-top:14px;">
+              <!-- #204 - Notion v1: beginner reward group copy -->
+              <div class="mypage-section-subhead" style="margin-top:18px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                <div>
+                  <span class="eyebrow" style="display:block;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:0.04em;">ACHIEVEMENT · 처음 켠 조명</span>
+                  <p style="margin:4px 0 0;font-size:13px;font-weight:600;color:rgba(245,240,255,0.85);letter-spacing:0;">초보자 핵심 활동을 마치면 참여 보상이 적립돼요.</p>
+                </div>
+              </div>
+              <div class="mypage-empty" id="mypageActivationRewards" style="margin-top:10px;">
                 <strong>참여 기록을 모으고 있어요.</strong>
                 <p>프로필을 채우거나 첫 응원을 남기면 이곳에 기록이 쌓입니다.</p>
               </div>
@@ -475,29 +482,41 @@
           }[status] || status || "";
         }
         // #204 — 노션 v1 톤 (조명/시그널/무드 계열, 게임식 표현 회피)
+        // 초보자 온보딩 핵심 5개 + 확장 보상 코드까지 커버
         function rewardTitle(code) {
           return {
+            first_login: "첫 조명 켜기",
             profile_basic_setup: "내 무대 정리",
-            first_feed_post: "피드의 첫 줄",
             first_feed_like: "첫 응원 시그널",
+            first_character_chat: "첫 팬 대화",
+            first_popular_vote: "첫 픽 참여",
+            first_feed_post: "피드의 첫 줄",
             first_follow: "무대의 첫 줄",
-            first_reply: "한 줄의 응원"
+            first_reply: "한 줄의 응원",
+            seven_day_visit: "일주일의 조명",
+            thirty_day_visit: "오래 켠 스포트라이트"
           }[code] || code || "참여 기록";
         }
         function rewardDescription(code) {
           return {
+            first_login: "회원가입 후 처음 들어오면 열려요.",
             profile_basic_setup: "닉네임과 프로필이 채워지면 열려요.",
-            first_feed_post: "루미나 피드에 첫 글을 남기면 열려요.",
             first_feed_like: "마음에 든 글에 첫 좋아요를 누르면 열려요.",
+            first_character_chat: "아티스트와 첫 대화를 시작하면 열려요.",
+            first_popular_vote: "오늘의 픽에 한 표 보내면 열려요.",
+            first_feed_post: "루미나 피드에 첫 글을 남기면 열려요.",
             first_follow: "좋아하는 아티스트를 처음 팔로우하면 열려요.",
-            first_reply: "피드에 첫 댓글을 남기면 열려요."
+            first_reply: "피드에 첫 댓글을 남기면 열려요.",
+            seven_day_visit: "일주일 동안 조명이 이어지면 열려요.",
+            thirty_day_visit: "한 달 동안 조명이 꺼지지 않으면 열려요."
           }[code] || "조금만 더 참여하면 열려요.";
         }
+        // #204 v1: 상태 라벨도 게임식 표현(완료/달성/획득) 회피
         function rewardStatusLabel(item) {
-          if (item.claimed || item.claimStatus === "claimed") return "받았어요";
-          if (item.completed && item.claimStatus === "claimable_when_completed") return "받기 가능";
-          if (item.completed) return "기록됨";
-          return "진행 중";
+          if (item.claimed || item.claimStatus === "claimed") return "기록 완료";
+          if (item.completed && item.claimStatus === "claimable_when_completed") return "보상 열림";
+          if (item.completed) return "조건 충족";
+          return "준비 중";
         }
         function normalizeRewardItems(data) {
           return list(data?.milestoneStatus || data?.items || data?.quests || data)
