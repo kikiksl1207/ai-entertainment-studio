@@ -224,6 +224,19 @@
     });
   }
 
+  function renderLocalStarterFallback(slug, fallbackMessage) {
+    const tone = getCharacterTone(slug);
+    if (fallbackMessage) setFallback(fallbackMessage);
+    else setFallback(null);
+    setText("chatStarterPrompt", "이렇게 말을 걸어볼까요?");
+    renderStarterOptions(tone?.starters || []);
+    renderWelcomeBubble(slug, {
+      welcomeMessage: tone?.welcomeMessage,
+      summary: tone?.statusLine
+    });
+    showStarterCard();
+  }
+
   function applyStarterResponse(slug, data) {
     if (data?.artist) {
       renderHero(slug, data.artist);
@@ -232,11 +245,8 @@
     const firstSet = Array.isArray(data?.sets) ? data.sets[0] : null;
 
     if (!firstSet) {
-      // API 가 0개 보내도 fallback 으로 3~5개 보여줌
-      setText("chatStarterPrompt", "이렇게 말을 걸어볼까요?");
-      renderStarterOptions([]);
-      setFallback(null);
-      showStarterCard();
+      // API 가 0개 보내도 캐릭터별 fallback 으로 3~5개 보여줌
+      renderLocalStarterFallback(slug, null);
       return;
     }
 
@@ -264,11 +274,7 @@
 
     if (typeof apiFetch !== "function") {
       // 백엔드 미연결 환경: 로컬 fallback 으로 동작
-      setFallback(null);
-      setText("chatStarterPrompt", "이렇게 말을 걸어볼까요?");
-      renderStarterOptions([]);
-      showStarterCard();
-      renderWelcomeBubble(slug, null);
+      renderLocalStarterFallback(slug, null);
       return null;
     }
 
@@ -279,17 +285,15 @@
       );
     } catch (error) {
       // 401/403/404/기타 — fallback 5종을 보여주고 안내만 표시
+      let fallbackMessage = null;
       if (error?.status === 401 || error?.status === 403) {
-        setFallback("로그인하면 아티스트 맞춤 첫 인사를 받을 수 있어요. 지금은 추천 인사말을 먼저 보여드릴게요.");
+        fallbackMessage = "로그인하면 아티스트 맞춤 첫 인사를 받을 수 있어요. 지금은 추천 인사말을 먼저 보여드릴게요.";
       } else if (error?.status === 404) {
-        setFallback(null);
+        fallbackMessage = null;
       } else {
-        setFallback("추천 인사말을 잠시 가져오지 못했어요. 아래 인사로 먼저 시작해 보세요.");
+        fallbackMessage = "추천 인사말을 잠시 가져오지 못했어요. 아래 인사로 먼저 시작해 보세요.";
       }
-      setText("chatStarterPrompt", "이렇게 말을 걸어볼까요?");
-      renderStarterOptions([]);
-      showStarterCard();
-      renderWelcomeBubble(slug, null);
+      renderLocalStarterFallback(slug, fallbackMessage);
       return null;
     }
   }
