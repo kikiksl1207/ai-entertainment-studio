@@ -260,10 +260,17 @@ Current table:
 Current limitations:
 
 - No secure upload process for identity/contract files.
+- No safe applicant material upload process yet. The existing user image upload
+  flow is public-image oriented and returns public delivery URLs, so it must not
+  be reused as-is for debut face photos, body/motion references, voice samples,
+  dance videos, or private review attachments.
 - No contract version table.
 - No settlement table.
 - No structured review checklist table.
 - No public launch conversion from approved application to artist.
+- No canonical fields yet for `artistDebutMode`, granular contribution booleans,
+  gender policy flags, `portfolioUrls[]`, or categorized applicant attachment
+  ids.
 
 Policy endpoint:
 
@@ -284,8 +291,39 @@ Recommended next implementation tasks:
 
 1. Add dedicated `termsVersion`, `privacyVersion`, `revenuePolicyVersion`, and `appearanceConsentVersion` columns.
 2. Add admin structured review fields or a separate `debut_application_reviews` table.
-3. Add secure upload intent flow for applicant materials, reusing the asset/upload architecture.
-4. Add contract/settlement tables only after final legal and payment policy decisions.
+3. Add a private applicant material upload flow before opening `online_review`:
+   - create private assets only, with no public URL in request, response,
+     application body, logs, docs, or Notion.
+   - support categorized review material such as `face_photo`,
+     `body_motion_reference`, `voice_sample`, `dance_video_reference`, and
+     `portfolio_attachment`.
+   - validate ownership, upload status, visibility, asset type, MIME family,
+     file size, and lifecycle before linking the asset to an application.
+   - store only asset ids or storage keys in server data; never store signed
+     URLs, upload target URLs, tokens, or credentials.
+4. Prefer a `debut_application_attachments` relation when file upload opens:
+   `id`, `applicationId`, `assetId`, `category`, `sortOrder`, `status`,
+   `metadata`, `createdAt`. Metadata-only arrays can be used for a narrow
+   internal prototype, but they do not provide referential integrity or clean
+   admin filtering.
+5. Extend `POST /api/v1/debut/applications` only after the private upload flow
+   exists. Candidate fields:
+   - `artistDebutMode`
+   - `providesAppearance`, `providesBodyOrMotion`, `providesSinging`,
+     `providesVoice`, `providesDance`, `providesWorldview`,
+     `canCommunicateWithFans`, `canCreateContent`, `otherContributionText`
+   - `genderSwapRequested` must be absent or `false`; do not expose a supported
+     gender-swap production path.
+   - `genderPolicyAccepted`, `revenueShareNoticeAccepted`,
+     `portraitVoiceMotionRightsAccepted`, `privacyReviewNoticeAccepted`
+   - `facePhotoAssetIds`, `bodyMotionReferenceAssetIds`,
+     `voiceSampleAssetIds`, `danceVideoReferenceAssetIds`, `portfolioUrls`
+6. Keep revenue share non-final. The current `shareTierRequested` maps to the
+   applicant/requested estimate, and `shareTierApproved` maps to the admin final
+   review value. If frontend copy needs clearer names, expose read aliases such
+   as `estimatedShareRate` and `finalShareRate` without auto-approving the final
+   rate.
+7. Add contract/settlement tables only after final legal and payment policy decisions.
 
 Applicant withdrawal:
 

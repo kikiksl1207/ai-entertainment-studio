@@ -3,6 +3,36 @@
 Use the standard completion note from `docs/ops/agents.md`.
 
 status: completed
+task: #228 debut application photo/material upload and application-data API contract check
+branch/commit: team2-backend/debut-application-upload-contract-228 / this commit
+changed_files:
+- docs/ai-debut-policy-and-application-spec.md
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: git diff --check
+- not run: npm.cmd run lint (docs-only contract check)
+- not run: npm.cmd run build (docs-only contract check)
+result:
+- Current `POST /api/v1/debut/applications` is safe for the existing text/contact `phone_consultation` path, but it is not ready for photo/audio/video applicant materials.
+- Existing user asset upload intent cannot be reused as-is because it is image-only, public-visibility oriented, returns public delivery URLs, and confirms through the feed-image derivative path.
+- Admin asset upload can create private image/video assets, but it is admin-only and not an applicant material upload path.
+- Additional backend API is required before frontend opens `online_review` material upload: private applicant-material upload intent/confirm with no public URL, signed URL, token, or direct upload target recorded in docs/logs.
+- Recommended DB direction: add `debut_application_attachments` relation (`applicationId`, `assetId`, `category`, `sortOrder`, `status`, metadata) when uploads open; metadata arrays are only acceptable for a narrow internal prototype.
+- Existing application data covers `applicationType`, contact fields, participation type, requested/admin share, basic consents, and non-sensitive metadata. Missing canonical fields are `artistDebutMode`, contribution booleans, gender policy flags, categorized asset id arrays, and `portfolioUrls[]`.
+- `genderSwapRequested` must be absent or `false`; do not expose a supported gender-swap production capability.
+- Revenue share remains non-final: `shareTierRequested` maps to estimate/request, and `shareTierApproved` maps to later admin final value after review/contract. No automatic final share confirmation.
+- No frontend files, server runtime code, Prisma migration, production seed/data, wallet/Lumina/settlement/payout flow, secrets, tokens, signed URLs, or DB credentials were changed or recorded.
+blocked_by:
+- Material upload cannot open until a private applicant-material upload API and validation/linking contract is implemented.
+next_needed:
+- 조로/차모 review of contract direction, then create a separate implementation task for private debut material upload if `online_review` should open.
+민감값 기록 여부: 없음
+
+---
+
+status: completed
 task: #223 email verification/password reset API first implementation; #224 identity/minor clean-mode account flags
 branch/commit: team2-backend/auth-identity-flags-223-224 / this commit
 changed_files:
