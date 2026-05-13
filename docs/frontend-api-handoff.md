@@ -1199,6 +1199,22 @@ MVP application channel policy:
 - `online_review` is reserved for a later richer path. The current backend does not accept file uploads through the debut form.
 - The backend stores `applicationChannel`, `preferredContactTime`, `consultationConsent`, and `materialSubmissionMode: "no_file_upload_mvp"` in application metadata.
 
+Upload readiness:
+
+- Do not attach debut application materials through the current
+  `POST /me/assets/upload-intents` flow. That flow is public-image oriented and
+  returns public delivery URLs for avatar/feed/profile use.
+- A separate private applicant-material upload API is needed before the frontend
+  can collect face photos, body/motion references, voice samples, dance videos,
+  or portfolio attachments.
+- Until that backend contract exists, keep the debut form in text/contact mode:
+  `phone_consultation`, single `portfolioUrl`, and non-sensitive metadata only.
+- When the richer form opens, expected canonical fields are `artistDebutMode`,
+  contribution booleans, gender policy acceptance flags, categorized asset id
+  arrays, and `portfolioUrls[]`. `genderSwapRequested` must be absent or `false`.
+- Share-rate copy must remain estimated. Backend `shareTierRequested` is the
+  applicant estimate/request; `shareTierApproved` is the later admin final value.
+
 Allowed `applicationType` values:
 
 - `personal_unaffiliated`: default path for individual or unaffiliated applicants.

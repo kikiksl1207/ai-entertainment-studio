@@ -725,6 +725,31 @@ Current validation and workflow:
 - Allowed rights review statuses: `not_required`, `pending`, `reviewing`, `cleared`, `blocked`.
 - Allowed partner review statuses: `not_applicable`, `pending`, `reviewing`, `accepted`, `declined`.
 
+Debut material upload contract check:
+
+- Existing `POST /api/v1/me/assets/upload-intents` cannot be reused as-is for
+  debut application materials because it is image-only, public-visibility
+  oriented, generates public delivery URLs, and runs the feed image derivative
+  pipeline on confirm.
+- Admin asset upload can create private image/video assets, but it is
+  admin-only and is not an applicant upload path.
+- Opening applicant photos, voice samples, dance videos, or portfolio
+  attachments requires a new private applicant-material upload contract. The
+  response must not include public URLs, signed read URLs, direct upload target
+  URLs in docs/logs, or tokens.
+- `debut_applications.metadata` can hold temporary non-sensitive structured
+  choices, but uploaded material ids should be linked through a validated
+  relation such as `debut_application_attachments` before this is opened beyond
+  an internal prototype.
+- Missing canonical submit fields for the richer form are `artistDebutMode`,
+  contribution booleans, gender policy acceptance flags, categorized asset id
+  arrays, and `portfolioUrls[]`.
+- `genderSwapRequested` must be absent or `false`; the backend must not expose a
+  gender-swap production capability.
+- Revenue share remains non-final: `shareTierRequested` is the applicant-facing
+  estimate/request, and `shareTierApproved` is the admin final value after
+  review/contract. Do not auto-confirm final share from the public application.
+
 Creator image request endpoints:
 
 ```http
