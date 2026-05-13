@@ -71,6 +71,8 @@ GET /api/v1/chat-feature-products
 POST /api/v1/chat/sessions
 GET /api/v1/chat/sessions
 GET /api/v1/chat/starter-prompts?artistSlug=<artistSlug>
+GET /api/v1/chat/persona-seed-policy
+GET /api/v1/chat/character-catalog?artistSlug=<artistSlug>
 GET /api/v1/chat/sessions/:sessionId/messages
 POST /api/v1/chat/sessions/:sessionId/messages
 POST /api/v1/chat-feature-orders/preview
@@ -82,6 +84,93 @@ two suggested opening messages plus a direct-input option and do not debit Lumin
 Artist-specific copy can be supplied through
 `artist.publicProfile.publicMetadata.chatStarterPromptSets`; otherwise the API
 uses safe default Korean copy based on the artist display name.
+
+#225 adds a read-only persona seed contract endpoint:
+
+```http
+GET /api/v1/chat/persona-seed-policy
+```
+
+The endpoint returns no secrets, performs no LLM call, and writes no wallet or
+chat data. It confirms that the current Prisma schema is enough for MVP persona
+seed storage: `chat_personas.system_prompt`, `chat_personas.safety_rules`,
+`chat_personas.model_config`, and optional
+`artist_public_profiles.public_metadata.chatPersonaSeed`. It includes more than
+20 Korean personality tags, conflict rules such as `introverted` versus
+`very_extroverted`, creator-editable fields, operator-locked fields, random
+assignment policy, and at least two seed examples.
+
+#226 adds the read-only character chat catalog endpoint:
+
+```http
+GET /api/v1/chat/character-catalog?artistSlug=<artistSlug>
+GET /api/v1/chat/character-catalog?artistId=<artistId>
+```
+
+Response shape:
+
+```json
+{
+  "artist": {
+    "id": "<artist uuid>",
+    "slug": "yoon-serin",
+    "displayName": "윤세린"
+  },
+  "status": {
+    "key": "chat_ready",
+    "labelKo": "대화 준비됨",
+    "descriptionKo": "아직 실제 생성 요청 전이며, 인사말과 선택지만 미리 보여줍니다."
+  },
+  "greeting": {
+    "text": "윤세린 캐릭터와 처음 대화를 시작해요. 가볍게 안부를 묻거나, 오늘의 기분을 전해보세요.",
+    "source": "default"
+  },
+  "starterOptions": [
+    {
+      "key": "A",
+      "label": "오늘 기분 묻기",
+      "message": "윤세린, 오늘은 어떤 하루를 보내고 있어?"
+    },
+    {
+      "key": "B",
+      "label": "가볍게 응원하기",
+      "message": "윤세린, 오늘도 조용히 응원하고 있어."
+    },
+    {
+      "key": "C",
+      "label": "직접 입력하기",
+      "message": "",
+      "directInput": true
+    }
+  ],
+  "policy": {
+    "gallery": {
+      "mode": "conversation_archive",
+      "labelKo": "대화 중 얻은 이미지 보관함",
+      "externalPublicGalleryLink": false,
+      "requestMutationEnabled": false
+    },
+    "shortVideoRequest": {
+      "visibleInMvp": false,
+      "enabled": false,
+      "disabledMessageKo": "짧은 영상 요청은 1차 오픈 이후 준비돼요.",
+      "requestMutationEnabled": false
+    },
+    "safety": {
+      "readOnly": true,
+      "llmCall": false,
+      "walletMutation": false,
+      "imageRequestMutation": false,
+      "videoRequestMutation": false
+    }
+  }
+}
+```
+
+Frontend must render Korean labels/copy and never expose machine keys such as
+`chat_ready`, `conversation_archive`, or `mvp_not_open` as user-facing text.
+Gallery means a conversation-earned image archive, not a public gallery link.
+Short video request remains hidden or disabled for first launch.
 
 Implemented readiness contracts before real LLM generation:
 

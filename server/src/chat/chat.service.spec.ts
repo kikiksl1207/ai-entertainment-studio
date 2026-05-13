@@ -57,6 +57,106 @@ describe('ChatService.getStarterPrompts', () => {
   });
 });
 
+describe('ChatService persona and catalog policy', () => {
+  const llmProvider = {
+    readiness: jest.fn().mockReturnValue({
+      provider: 'not_configured',
+      configured: false,
+      status: 'provider_not_configured',
+      messageKey: 'chat.generation.providerNotConfigured',
+    }),
+  };
+
+  it('returns read-only persona seed policy with tag conflicts and examples', () => {
+    const service = new ChatService({} as never, llmProvider as never);
+
+    const result = service.getPersonaSeedPolicy();
+
+    expect(result.schemaMigrationRequired).toBe(false);
+    expect(result.tagCatalog.length).toBeGreaterThanOrEqual(20);
+    expect(result.conflictRules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: 'block',
+          tags: ['introverted', 'very_extroverted'],
+        }),
+      ]),
+    );
+    expect(result.seedExamples.length).toBeGreaterThanOrEqual(2);
+    expect(result.safety).toMatchObject({
+      readOnly: true,
+      llmCall: false,
+      walletMutation: false,
+      secretsReturned: false,
+    });
+  });
+
+  it('returns character-specific greeting catalog without request mutations', async () => {
+    const prisma = {
+      artist: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000206',
+          slug: 'yoon-serin',
+          displayName: '윤세린',
+          publicProfile: {
+            publicMetadata: {
+              chatCatalog: {
+                greetingText: '세린이 조용히 손을 흔들며 인사를 건네요.',
+                statusLabelKo: '세린 대화 준비됨',
+              },
+            },
+            tagline: '무대 위의 첫 인사',
+            personalityKeywords: ['다정함', '우아함'],
+          },
+          contentProfile: {
+            contentTone: 'warm',
+          },
+        }),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.getCharacterChatCatalog({
+      artistSlug: 'yoon-serin',
+    });
+
+    expect(result.artist).toMatchObject({
+      slug: 'yoon-serin',
+      displayName: '윤세린',
+    });
+    expect(result.status).toMatchObject({
+      key: 'chat_ready',
+      labelKo: '세린 대화 준비됨',
+    });
+    expect(result.greeting).toMatchObject({
+      text: '세린이 조용히 손을 흔들며 인사를 건네요.',
+      source: 'artist_metadata',
+    });
+    expect(result.starterOptions.length).toBeGreaterThanOrEqual(3);
+    expect(result.directInput).toMatchObject({
+      enabled: true,
+      key: 'C',
+    });
+    expect(result.policy.gallery).toMatchObject({
+      mode: 'conversation_archive',
+      externalPublicGalleryLink: false,
+      requestMutationEnabled: false,
+    });
+    expect(result.policy.shortVideoRequest).toMatchObject({
+      visibleInMvp: false,
+      enabled: false,
+      requestMutationEnabled: false,
+    });
+    expect(result.policy.safety).toMatchObject({
+      readOnly: true,
+      llmCall: false,
+      walletMutation: false,
+      imageRequestMutation: false,
+      videoRequestMutation: false,
+    });
+  });
+});
+
 describe('ChatService.preflightMessage', () => {
   const llmProvider = {
     readiness: jest.fn().mockReturnValue({

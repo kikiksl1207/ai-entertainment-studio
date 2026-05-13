@@ -374,6 +374,9 @@ POST /api/v1/chat/sessions
 GET /api/v1/chat/sessions
 GET /api/v1/chat/starter-prompts?artistSlug=<artistSlug>
 GET /api/v1/chat/starter-prompts?artistId=<artistId>
+GET /api/v1/chat/persona-seed-policy
+GET /api/v1/chat/character-catalog?artistSlug=<artistSlug>
+GET /api/v1/chat/character-catalog?artistId=<artistId>
 GET /api/v1/chat/sessions/:sessionId/messages
 POST /api/v1/chat/sessions/:sessionId/messages
 POST /api/v1/chat/sessions/:sessionId/generate
@@ -393,6 +396,23 @@ suggestions before the first character-chat message. The selection itself is fre
 and only returns copy/policy data; real message sending and generation still
 follow the character chat wallet and LLM policy. Artist metadata can override the
 default copy with `publicMetadata.chatStarterPromptSets`.
+
+Persona seed policy is authenticated/read-only and returns the MVP character
+persona contract. It does not call LLM, does not debit wallet, and does not write
+chat data. The current schema is enough for MVP: `chat_personas.system_prompt`,
+`chat_personas.safety_rules`, `chat_personas.model_config`, and optional
+`artist_public_profiles.public_metadata.chatPersonaSeed`. Response includes
+20+ Korean personality tag candidates, conflict rules, random assignment
+settings, creator-editable fields, operator-locked fields, and at least two seed
+examples.
+
+Character catalog is authenticated/read-only and returns character-specific
+greeting/status/starter option copy for the DM entry UI. It includes policy flags
+for beginner display, direct input, gallery as a conversation-earned image
+archive, and short video request as hidden/disabled for first launch. It performs
+no image/video request mutation, no wallet mutation, and no LLM call. Frontend
+must render Korean labels/copy and must not expose machine keys such as
+`chat_ready`, `conversation_archive`, or `mvp_not_open` directly to users.
 
 LLM generation readiness:
 
