@@ -1196,22 +1196,32 @@ MVP application channel policy:
 
 - Recommended default: `applicationChannel: "phone_consultation"`.
 - `phone_consultation` is the low-friction MVP path. It requires `contactPhone` and `consultationConsent: true`; the operator confirms details by phone after submission.
-- `online_review` is reserved for a later richer path. The current backend does not accept file uploads through the debut form.
-- The backend stores `applicationChannel`, `preferredContactTime`, `consultationConsent`, and `materialSubmissionMode: "no_file_upload_mvp"` in application metadata.
+- `online_review` is available only through the private debut material upload
+  contract below. Do not call public feed/profile image upload APIs for debut
+  applicant materials.
+- The backend stores `applicationChannel`, `preferredContactTime`,
+  `consultationConsent`, and `materialSubmissionMode` in application metadata.
 
-Upload readiness:
+Private material upload:
 
-- Do not attach debut application materials through the current
-  `POST /me/assets/upload-intents` flow. That flow is public-image oriented and
-  returns public delivery URLs for avatar/feed/profile use.
-- A separate private applicant-material upload API is needed before the frontend
-  can collect face photos, body/motion references, voice samples, dance videos,
-  or portfolio attachments.
-- Until that backend contract exists, keep the debut form in text/contact mode:
-  `phone_consultation`, single `portfolioUrl`, and non-sensitive metadata only.
-- When the richer form opens, expected canonical fields are `artistDebutMode`,
-  contribution booleans, gender policy acceptance flags, categorized asset id
-  arrays, and `portfolioUrls[]`. `genderSwapRequested` must be absent or `false`.
+- `POST /api/v1/debut/application-materials/upload-intents`
+- `POST /api/v1/debut/application-materials/:assetId/confirm-upload`
+- Both endpoints require logged-in user auth and create private
+  `debut_application_material` assets. The response intentionally has no public
+  URL or signed read URL.
+- Supported categories: `face_photo`, `body_motion_reference`, `voice_sample`,
+  `dance_video_reference`, `portfolio_attachment`.
+- Confirm upload before submitting the application. Unconfirmed asset ids are
+  rejected.
+- Submit confirmed asset ids with `POST /api/v1/debut/applications` using:
+  `facePhotoAssetIds`, `bodyMotionReferenceAssetIds`, `voiceSampleAssetIds`,
+  `danceVideoReferenceAssetIds`, and `portfolioAttachmentAssetIds`.
+- Richer form fields are `artistDebutMode`, contribution booleans, gender
+  policy acceptance flags, categorized asset id arrays, and `portfolioUrls[]`.
+  `genderSwapRequested` must be absent or `false`.
+- Store and render only returned asset ids/statuses in frontend state. Do not
+  persist or display real upload target URLs, signed URLs, tokens, cookies, or
+  credentials.
 - Share-rate copy must remain estimated. Backend `shareTierRequested` is the
   applicant estimate/request; `shareTierApproved` is the later admin final value.
 

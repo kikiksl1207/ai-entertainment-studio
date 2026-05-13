@@ -1,11 +1,16 @@
+import { createHash, createHmac, randomUUID } from 'crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { AuthUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AdminUpdateDebutApplicationDto,
+  ConfirmDebutMaterialUploadDto,
   CreateDebutApplicationDto,
+  CreateDebutMaterialUploadIntentDto,
   DebutApplicationListQueryDto,
+  DEBUT_MATERIAL_CATEGORIES,
 } from './dto/debut.dto';
 
 const APPLICATION_STATUSES = new Set([
@@ -20,6 +25,36 @@ const APPLICATION_STATUSES = new Set([
 
 const DEFAULT_APPLICATION_TYPE = 'personal_unaffiliated';
 const DEFAULT_PARTICIPATION_TYPE = 'appearance_only';
+const DEBUT_MATERIAL_SCOPE = 'debut_application_material';
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MATERIAL_CATEGORY_MIME_PREFIXES: Record<
+  (typeof DEBUT_MATERIAL_CATEGORIES)[number],
+  string[]
+> = {
+  face_photo: ['image/'],
+  body_motion_reference: ['image/', 'video/'],
+  voice_sample: ['audio/'],
+  dance_video_reference: ['video/'],
+  portfolio_attachment: ['image/', 'video/', 'application/pdf'],
+};
+const MATERIAL_CATEGORY_ASSET_FIELD: Record<
+  (typeof DEBUT_MATERIAL_CATEGORIES)[number],
+  keyof Pick<
+    CreateDebutApplicationDto,
+    | 'facePhotoAssetIds'
+    | 'bodyMotionReferenceAssetIds'
+    | 'voiceSampleAssetIds'
+    | 'danceVideoReferenceAssetIds'
+    | 'portfolioAttachmentAssetIds'
+  > | null
+> = {
+  face_photo: 'facePhotoAssetIds',
+  body_motion_reference: 'bodyMotionReferenceAssetIds',
+  voice_sample: 'voiceSampleAssetIds',
+  dance_video_reference: 'danceVideoReferenceAssetIds',
+  portfolio_attachment: 'portfolioAttachmentAssetIds',
+};
 
 type NormalizedCreateDebutApplicationInput = CreateDebutApplicationDto & {
   contactEmail: string;
@@ -31,7 +66,10 @@ type NormalizedCreateDebutApplicationInput = CreateDebutApplicationDto & {
 
 @Injectable()
 export class DebutService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   getPolicy() {
     return {
@@ -90,9 +128,9 @@ export class DebutService {
           value: 'online_review',
           label: 'Online review',
           description:
-            'Future review mode for applicants who want to submit images or portfolio materials online.',
-          uploadEnabled: false,
-          status: 'planned',
+            'Private review mode for applicants who want to submit images, voice, video, or portfolio materials online.',
+          uploadEnabled: true,
+          status: 'available_private_material_flow',
         },
       ],
       participationTypes: [
@@ -187,12 +225,25 @@ export class DebutService {
           'Use only non-sensitive structured details. Do not include IDs, bank accounts, contracts, secrets, or raw identity documents.',
       },
       materialSubmissionPolicy: {
-        currentMvpMode: 'no_file_upload',
+        currentMvpMode: 'private_applicant_material_upload',
         phoneConsultation:
           'Do not ask for files. The operator confirms details by phone after application submission.',
         onlineReview:
-          'Image or portfolio upload can be opened later through a separate secure upload flow.',
-        allowedLater: ['self_photos', 'portfolio_images', 'voice_sample', 'song_demo'],
+          'Use private debut application material upload intents. Do not use public user image uploads.',
+        uploadIntentEndpoint: '/api/v1/debut/application-materials/upload-intents',
+        confirmUploadEndpoint:
+          '/api/v1/debut/application-materials/:assetId/confirm-upload',
+        visibility: 'private',
+        publicUrlReturned: false,
+        allowedCategories: DEBUT_MATERIAL_CATEGORIES,
+        acceptedMaterialFields: [
+          'facePhotoAssetIds',
+          'bodyMotionReferenceAssetIds',
+          'voiceSampleAssetIds',
+          'danceVideoReferenceAssetIds',
+          'portfolioAttachmentAssetIds',
+          'portfolioUrls',
+        ],
       },
       restrictedCollection: [
         'resident_registration_number',
@@ -201,6 +252,130 @@ export class DebutService {
         'final_contract_file',
         'api_key_or_secret',
       ],
+    };
+  }
+
+  async createMaterialUploadIntent(
+    userId: string,
+    input: CreateDebutMaterialUploadIntentDto,
+  ) {
+    const category = this.materialCategory(input.category);
+    const mimeType = this.materialMimeType(category, input.mimeType);
+    const assetType = this.assetTypeFromMimeType(mimeType);
+    const fileName = this.safeFileName(input.fileName);
+    const fileSizeBytes = this.materialFileSizeBytes(input.fileSizeBytes, assetType);
+    const storageProvider = this.configService.get<string>('OBJECT_STORAGE_PROVIDER') ?? 'local';
+    const storageKey = this.buildStorageKey(assetType, fileName);
+    const expiresInSeconds = this.numberFromEnv('OBJECT_UPLOAD_INTENT_TTL_SECONDS', 900);
+    const uploadUrl = this.buildUploadUrl(
+      storageProvider,
+      storageKey,
+      expiresInSeconds,
+      mimeType,
+    );
+
+    const asset = await this.prisma.asset.create({
+      data: {
+        assetType,
+        visibility: 'private',
+        storageProvider,
+        storageKey,
+        mimeType,
+        fileSizeBytes,
+        width: input.width,
+        height: input.height,
+        durationSeconds: input.durationSeconds,
+        checksum: input.checksum,
+        metadata: this.toJson({
+          uploadIntent: {
+            status: 'pending_upload',
+            scope: DEBUT_MATERIAL_SCOPE,
+            category,
+            createdByUserId: userId,
+            fileName,
+            createdAt: new Date().toISOString(),
+          },
+          privacy: {
+            publicUrlReturned: false,
+            applicantMaterial: true,
+          },
+        }),
+      },
+    });
+
+    return {
+      asset: this.presentPrivateMaterialAsset(asset),
+      upload: {
+        method: 'PUT',
+        url: uploadUrl,
+        storageProvider,
+        requiredHeaders: {
+          'content-type': mimeType,
+        },
+        expiresInSeconds,
+        mode: storageProvider === 'local' ? 'metadata_only' : 'direct_upload_ready',
+      },
+      policy: this.materialUploadPolicy(),
+    };
+  }
+
+  async confirmMaterialUpload(
+    userId: string,
+    assetId: string,
+    input: ConfirmDebutMaterialUploadDto,
+  ) {
+    const asset = await this.findOwnedDebutMaterialAsset(userId, assetId);
+    const metadata = this.metadataObject(asset.metadata);
+    const uploadIntent = this.metadataObject(metadata.uploadIntent);
+    const category = this.materialCategory(String(uploadIntent.category ?? ''));
+    const mimeType = this.materialMimeType(category, asset.mimeType);
+    const assetType = this.assetTypeFromMimeType(mimeType);
+
+    if (asset.visibility !== 'private') {
+      throw this.badRequest(
+        'DEBUT_MATERIAL_NOT_PRIVATE',
+        'Debut material asset must be private.',
+        'debut.material.notPrivate',
+      );
+    }
+
+    if (input.fileSizeBytes !== undefined) {
+      this.materialFileSizeBytes(input.fileSizeBytes, assetType);
+    }
+
+    await this.assertObjectUploaded(
+      asset.storageProvider,
+      asset.storageKey,
+      mimeType,
+      this.maxMaterialFileSizeBytes(assetType),
+    );
+
+    const confirmedAt = new Date().toISOString();
+    const updatedAsset = await this.prisma.asset.update({
+      where: { id: asset.id },
+      data: {
+        checksum: input.checksum ?? asset.checksum,
+        metadata: this.toJson({
+          ...metadata,
+          uploadIntent: {
+            ...uploadIntent,
+            status: 'uploaded',
+            confirmedByUserId: userId,
+            confirmedAt,
+            objectETag: input.objectETag ?? null,
+          },
+        }),
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      asset: this.presentPrivateMaterialAsset(updatedAsset),
+      upload: {
+        status: 'uploaded',
+        confirmedAt,
+      },
+      policy: this.materialUploadPolicy(),
     };
   }
 
@@ -214,28 +389,40 @@ export class DebutService {
     this.assertRequiredConsents(normalized);
     this.assertApplicationChannel(normalized);
     this.assertIntroPolicy(normalized);
+    this.assertGenderPolicy(normalized);
+    const attachmentInputs = await this.validatedApplicationAttachments(
+      userId,
+      normalized,
+    );
     const metadata = this.applicationMetadata(normalized);
 
-    const application = await this.prisma.debutApplication.create({
-      data: {
-        userId,
-        applicantName: normalized.applicantName,
-        displayName: normalized.displayName,
-        contactEmail: normalized.contactEmail,
-        contactPhone: normalized.contactPhone,
-        isAdult: normalized.isAdult,
-        participationType: normalized.participationType,
-        shareTierRequested: normalized.shareTierRequested,
-        intro: normalized.intro,
-        portfolioUrl: normalized.portfolioUrl,
-        consentAppearance: normalized.consentAppearance === true,
-        consentVoice: normalized.consentVoice,
-        consentRevenuePolicy: normalized.consentRevenuePolicy === true,
-        consentPrivacy: true,
-        consentMarketing: this.optionalConsentMarketing(normalized),
-        metadata,
-      },
-      include: this.applicationInclude(),
+    const application = await this.prisma.$transaction(async (tx) => {
+      return tx.debutApplication.create({
+        data: {
+          userId,
+          applicantName: normalized.applicantName,
+          displayName: normalized.displayName,
+          contactEmail: normalized.contactEmail,
+          contactPhone: normalized.contactPhone,
+          isAdult: normalized.isAdult,
+          participationType: normalized.participationType,
+          shareTierRequested: normalized.shareTierRequested,
+          intro: normalized.intro,
+          portfolioUrl: normalized.portfolioUrl,
+          consentAppearance: normalized.consentAppearance === true,
+          consentVoice: normalized.consentVoice,
+          consentRevenuePolicy: normalized.consentRevenuePolicy === true,
+          consentPrivacy: true,
+          consentMarketing: this.optionalConsentMarketing(normalized),
+          metadata,
+          attachments: attachmentInputs.length
+            ? {
+                create: attachmentInputs,
+              }
+            : undefined,
+        },
+        include: this.applicationInclude(),
+      });
     });
 
     return {
@@ -456,6 +643,147 @@ export class DebutService {
     }
   }
 
+  private assertGenderPolicy(input: CreateDebutApplicationDto) {
+    if (input.genderSwapRequested === true) {
+      throw this.badRequest(
+        'DEBUT_GENDER_SWAP_UNSUPPORTED',
+        'genderSwapRequested must be false or omitted.',
+        'debut.genderSwap.unsupported',
+      );
+    }
+  }
+
+  private async validatedApplicationAttachments(
+    userId: string,
+    input: CreateDebutApplicationDto,
+  ) {
+    const requested = this.attachmentRequests(input);
+    if (requested.length === 0) {
+      return [];
+    }
+
+    const ids = requested.map((item) => item.assetId);
+    const uniqueIds = new Set(ids);
+    if (uniqueIds.size !== ids.length) {
+      throw this.badRequest(
+        'DEBUT_ATTACHMENT_DUPLICATE_ASSET',
+        'Debut application attachments must not repeat the same asset.',
+        'debut.attachment.duplicateAsset',
+      );
+    }
+
+    const assets = await this.prisma.asset.findMany({
+      where: { id: { in: ids } },
+    });
+    const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
+
+    return requested.map((item) => {
+      const asset = assetsById.get(item.assetId);
+      if (!asset) {
+        throw this.badRequest(
+          'DEBUT_ATTACHMENT_ASSET_NOT_FOUND',
+          'Debut application attachment asset was not found.',
+          'debut.attachment.notFound',
+          { assetId: item.assetId, category: item.category },
+        );
+      }
+
+      this.assertAttachableMaterialAsset(userId, asset, item.category);
+
+      return {
+        assetId: asset.id,
+        category: item.category,
+        sortOrder: item.sortOrder,
+        status: 'attached',
+        metadata: this.toJson({
+          linkedFrom: item.field,
+          linkedAt: new Date().toISOString(),
+        }),
+      };
+    });
+  }
+
+  private attachmentRequests(input: CreateDebutApplicationDto) {
+    return DEBUT_MATERIAL_CATEGORIES.flatMap((category) => {
+      const field = MATERIAL_CATEGORY_ASSET_FIELD[category];
+      if (!field) {
+        return [];
+      }
+
+      const values = input[field] ?? [];
+      return values.map((assetId, index) => {
+        if (!UUID_PATTERN.test(assetId)) {
+          throw this.badRequest(
+            'DEBUT_ATTACHMENT_INVALID_ASSET_ID',
+            'Debut attachment asset id must be a UUID.',
+            'debut.attachment.invalidAssetId',
+            { field, category },
+          );
+        }
+
+        return { assetId, category, field, sortOrder: index };
+      });
+    });
+  }
+
+  private assertAttachableMaterialAsset(
+    userId: string,
+    asset: {
+      id: string;
+      assetType: string;
+      visibility: string;
+      mimeType: string;
+      metadata: Prisma.JsonValue;
+    },
+    category: (typeof DEBUT_MATERIAL_CATEGORIES)[number],
+  ) {
+    const metadata = this.metadataObject(asset.metadata);
+    const uploadIntent = this.metadataObject(metadata.uploadIntent);
+    const lifecycle = this.metadataObject(metadata.lifecycle);
+
+    if (asset.visibility !== 'private') {
+      throw this.badRequest(
+        'DEBUT_ATTACHMENT_NOT_PRIVATE',
+        'Debut application attachments must be private assets.',
+        'debut.attachment.notPrivate',
+        { assetId: asset.id, category },
+      );
+    }
+
+    if (
+      uploadIntent.scope !== DEBUT_MATERIAL_SCOPE ||
+      uploadIntent.createdByUserId !== userId ||
+      uploadIntent.category !== category
+    ) {
+      throw this.badRequest(
+        'DEBUT_ATTACHMENT_INVALID_SCOPE',
+        'Debut application attachment asset does not belong to this material category.',
+        'debut.attachment.invalidScope',
+        { assetId: asset.id, category },
+      );
+    }
+
+    if (uploadIntent.status !== 'uploaded') {
+      throw this.badRequest(
+        'DEBUT_ATTACHMENT_UPLOAD_NOT_CONFIRMED',
+        'Debut application attachment upload must be confirmed first.',
+        'debut.attachment.uploadNotConfirmed',
+        { assetId: asset.id, category },
+      );
+    }
+
+    if (lifecycle.status === 'archived') {
+      throw this.badRequest(
+        'DEBUT_ATTACHMENT_ARCHIVED',
+        'Debut application attachment asset is archived.',
+        'debut.attachment.archived',
+        { assetId: asset.id, category },
+      );
+    }
+
+    this.materialMimeType(category, asset.mimeType);
+  }
+
   private applicationInclude() {
     return {
       user: {
@@ -468,7 +796,341 @@ export class DebutService {
           },
         },
       },
+      attachments: {
+        orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          category: true,
+          sortOrder: true,
+          status: true,
+          metadata: true,
+          createdAt: true,
+          updatedAt: true,
+          asset: {
+            select: {
+              id: true,
+              assetType: true,
+              visibility: true,
+              mimeType: true,
+              width: true,
+              height: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+        },
+      },
     } satisfies Prisma.DebutApplicationInclude;
+  }
+
+  private materialUploadPolicy() {
+    return {
+      visibility: 'private',
+      scope: DEBUT_MATERIAL_SCOPE,
+      publicUrlReturned: false,
+      signedReadUrlReturned: false,
+      categories: DEBUT_MATERIAL_CATEGORIES,
+      maxBytes: {
+        image: this.numberFromEnv('MAX_DEBUT_MATERIAL_IMAGE_BYTES', 20_971_520),
+        audio: this.numberFromEnv('MAX_DEBUT_MATERIAL_AUDIO_BYTES', 52_428_800),
+        video: this.numberFromEnv('MAX_DEBUT_MATERIAL_VIDEO_BYTES', 536_870_912),
+        document: this.numberFromEnv('MAX_DEBUT_MATERIAL_DOCUMENT_BYTES', 20_971_520),
+      },
+    };
+  }
+
+  private presentPrivateMaterialAsset(asset: {
+    id: string;
+    assetType: string;
+    visibility: string;
+    mimeType: string;
+    fileSizeBytes: bigint | null;
+    width: number | null;
+    height: number | null;
+    metadata: Prisma.JsonValue;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
+    const metadata = this.metadataObject(asset.metadata);
+    const uploadIntent = this.metadataObject(metadata.uploadIntent);
+    const lifecycle = this.metadataObject(metadata.lifecycle);
+
+    return {
+      id: asset.id,
+      category:
+        typeof uploadIntent.category === 'string' ? uploadIntent.category : null,
+      assetType: asset.assetType,
+      visibility: asset.visibility,
+      mimeType: asset.mimeType,
+      fileSizeBytes: asset.fileSizeBytes?.toString() ?? null,
+      width: asset.width,
+      height: asset.height,
+      uploadStatus:
+        typeof uploadIntent.status === 'string' ? uploadIntent.status : 'ready',
+      lifecycleStatus:
+        typeof lifecycle.status === 'string' ? lifecycle.status : 'active',
+      publicUrl: null,
+      createdAt: asset.createdAt,
+      updatedAt: asset.updatedAt,
+    };
+  }
+
+  private async findOwnedDebutMaterialAsset(userId: string, assetId: string) {
+    if (!UUID_PATTERN.test(assetId)) {
+      throw this.badRequest(
+        'DEBUT_MATERIAL_INVALID_ASSET_ID',
+        'assetId must be a UUID.',
+        'debut.material.invalidAssetId',
+      );
+    }
+
+    const asset = await this.prisma.asset.findFirst({
+      where: {
+        id: assetId,
+        metadata: {
+          path: ['uploadIntent', 'createdByUserId'],
+          equals: userId,
+        },
+      },
+    });
+
+    if (!asset) {
+      throw new NotFoundException({
+        code: 'DEBUT_MATERIAL_NOT_FOUND',
+        message: 'Debut material asset not found.',
+        messageKey: 'debut.material.notFound',
+      });
+    }
+
+    const metadata = this.metadataObject(asset.metadata);
+    const uploadIntent = this.metadataObject(metadata.uploadIntent);
+
+    if (uploadIntent.scope !== DEBUT_MATERIAL_SCOPE) {
+      throw this.badRequest(
+        'DEBUT_MATERIAL_INVALID_SCOPE',
+        'Asset is not a debut application material.',
+        'debut.material.invalidScope',
+      );
+    }
+
+    return asset;
+  }
+
+  private materialCategory(value: string) {
+    if (
+      !DEBUT_MATERIAL_CATEGORIES.includes(
+        value as (typeof DEBUT_MATERIAL_CATEGORIES)[number],
+      )
+    ) {
+      throw this.badRequest(
+        'DEBUT_MATERIAL_CATEGORY_INVALID',
+        'Debut material category is not supported.',
+        'debut.material.categoryInvalid',
+      );
+    }
+
+    return value as (typeof DEBUT_MATERIAL_CATEGORIES)[number];
+  }
+
+  private materialMimeType(
+    category: (typeof DEBUT_MATERIAL_CATEGORIES)[number],
+    rawMimeType: string,
+  ) {
+    const mimeType = rawMimeType.trim().toLowerCase();
+    const allowed = MATERIAL_CATEGORY_MIME_PREFIXES[category];
+    const matches = allowed.some((prefix) =>
+      prefix.endsWith('/') ? mimeType.startsWith(prefix) : mimeType === prefix,
+    );
+
+    if (!matches) {
+      throw this.badRequest(
+        'DEBUT_MATERIAL_MIME_TYPE_INVALID',
+        'Debut material mimeType is not allowed for this category.',
+        'debut.material.mimeTypeInvalid',
+        { category },
+      );
+    }
+
+    return mimeType;
+  }
+
+  private assetTypeFromMimeType(mimeType: string) {
+    if (mimeType.startsWith('image/')) {
+      return 'image';
+    }
+
+    if (mimeType.startsWith('audio/')) {
+      return 'audio';
+    }
+
+    if (mimeType.startsWith('video/')) {
+      return 'video';
+    }
+
+    if (mimeType === 'application/pdf') {
+      return 'document';
+    }
+
+    throw this.badRequest(
+      'DEBUT_MATERIAL_MIME_TYPE_INVALID',
+      'Debut material mimeType is not allowed.',
+      'debut.material.mimeTypeInvalid',
+    );
+  }
+
+  private materialFileSizeBytes(value: number, assetType: string) {
+    const size = Number(value);
+    const max = this.maxMaterialFileSizeBytes(assetType);
+
+    if (!Number.isInteger(size) || size < 1) {
+      throw this.badRequest(
+        'DEBUT_MATERIAL_FILE_SIZE_INVALID',
+        'fileSizeBytes must be a positive integer.',
+        'debut.material.fileSizeInvalid',
+      );
+    }
+
+    if (size > max) {
+      throw this.badRequest(
+        'DEBUT_MATERIAL_FILE_TOO_LARGE',
+        'Debut material file is too large.',
+        'debut.material.fileTooLarge',
+        { maxBytes: max },
+      );
+    }
+
+    return BigInt(size);
+  }
+
+  private maxMaterialFileSizeBytes(assetType: string) {
+    return assetType === 'video'
+      ? this.numberFromEnv('MAX_DEBUT_MATERIAL_VIDEO_BYTES', 536_870_912)
+      : assetType === 'audio'
+        ? this.numberFromEnv('MAX_DEBUT_MATERIAL_AUDIO_BYTES', 52_428_800)
+        : assetType === 'document'
+          ? this.numberFromEnv('MAX_DEBUT_MATERIAL_DOCUMENT_BYTES', 20_971_520)
+          : this.numberFromEnv('MAX_DEBUT_MATERIAL_IMAGE_BYTES', 20_971_520);
+  }
+
+  private safeFileName(fileName: string) {
+    const cleaned = fileName
+      .normalize('NFKD')
+      .replace(/[^\w.\-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^[-.]+|[-.]+$/g, '')
+      .toLowerCase();
+
+    if (!cleaned || !cleaned.includes('.')) {
+      throw this.badRequest(
+        'DEBUT_MATERIAL_FILE_NAME_INVALID',
+        'fileName must include a safe extension.',
+        'debut.material.fileNameInvalid',
+      );
+    }
+
+    return cleaned.slice(0, 120);
+  }
+
+  private buildStorageKey(assetType: string, fileName: string) {
+    const date = new Date();
+    const yyyy = date.getUTCFullYear();
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(date.getUTCDate()).padStart(2, '0');
+    const prefix = this.storageKeyPrefix();
+    const path = `uploads/debut-materials/${assetType}s/${yyyy}/${mm}/${dd}/${randomUUID()}-${fileName}`;
+
+    return prefix ? `${prefix}/${path}` : path;
+  }
+
+  private buildUploadUrl(
+    storageProvider: string,
+    storageKey: string,
+    expiresInSeconds: number,
+    mimeType: string,
+  ) {
+    if (storageProvider === 'r2' || storageProvider === 's3') {
+      return this.buildS3CompatiblePresignedPutUrl(
+        storageProvider,
+        storageKey,
+        expiresInSeconds,
+        mimeType,
+      );
+    }
+
+    if (storageProvider !== 'local') {
+      throw this.badRequest(
+        'DEBUT_MATERIAL_STORAGE_PROVIDER_INVALID',
+        'OBJECT_STORAGE_PROVIDER must be local, r2, or s3.',
+        'debut.material.storageProviderInvalid',
+      );
+    }
+
+    return `/pending-local-upload/${storageKey}`;
+  }
+
+  private async assertObjectUploaded(
+    storageProvider: string,
+    storageKey: string,
+    expectedMimeType: string,
+    maxBytes: number,
+  ) {
+    if (storageProvider === 'local') {
+      return;
+    }
+
+    if (storageProvider === 'r2' || storageProvider === 's3') {
+      const response = await fetch(
+        this.buildS3CompatibleSignedHeadUrl(storageProvider, storageKey),
+        { method: 'HEAD' },
+      );
+
+      if (response.status === 404) {
+        throw this.badRequest(
+          'DEBUT_MATERIAL_OBJECT_NOT_FOUND',
+          'Uploaded object was not found in storage.',
+          'debut.material.objectNotFound',
+        );
+      }
+
+      if (!response.ok) {
+        throw this.badRequest(
+          'DEBUT_MATERIAL_OBJECT_VERIFY_FAILED',
+          'Could not verify uploaded object.',
+          'debut.material.objectVerifyFailed',
+        );
+      }
+
+      const contentLength = Number(response.headers.get('content-length'));
+      if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+        throw this.badRequest(
+          'DEBUT_MATERIAL_FILE_TOO_LARGE',
+          'Debut material file is too large.',
+          'debut.material.fileTooLarge',
+          { maxBytes },
+        );
+      }
+
+      const objectMimeType = response.headers
+        .get('content-type')
+        ?.split(';')[0]
+        .trim()
+        .toLowerCase();
+      if (objectMimeType && objectMimeType !== expectedMimeType) {
+        throw this.badRequest(
+          'DEBUT_MATERIAL_OBJECT_MIME_TYPE_INVALID',
+          'Uploaded object content type does not match the upload intent.',
+          'debut.material.objectMimeTypeInvalid',
+        );
+      }
+
+      return;
+    }
+
+    throw this.badRequest(
+      'DEBUT_MATERIAL_STORAGE_PROVIDER_INVALID',
+      'OBJECT_STORAGE_PROVIDER must be local, r2, or s3.',
+      'debut.material.storageProviderInvalid',
+    );
   }
 
   private status(value: string) {
@@ -486,6 +1148,21 @@ export class DebutService {
     return Object.fromEntries(
       Object.entries(input).filter(([, value]) => value !== undefined),
     ) as T;
+  }
+
+  private metadataObject(value: unknown) {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  }
+
+  private badRequest(
+    code: string,
+    message: string,
+    messageKey: string,
+    details?: unknown,
+  ) {
+    return new BadRequestException({ code, message, messageKey, details });
   }
 
   private recordAudit(
@@ -518,6 +1195,232 @@ export class DebutService {
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
   }
 
+  private buildS3CompatiblePresignedPutUrl(
+    storageProvider: string,
+    storageKey: string,
+    expiresInSeconds: number,
+    mimeType: string,
+  ) {
+    const bucket = this.envString('OBJECT_STORAGE_BUCKET');
+    const region = this.configService.get<string>('OBJECT_STORAGE_REGION') ?? 'auto';
+    const accessKeyId = this.envString('OBJECT_STORAGE_ACCESS_KEY_ID');
+    const secretAccessKey = this.envString('OBJECT_STORAGE_SECRET_ACCESS_KEY');
+    const now = new Date();
+    const amzDate = this.amzDate(now);
+    const dateStamp = amzDate.slice(0, 8);
+    const scope = `${dateStamp}/${region}/s3/aws4_request`;
+    const endpoint = this.buildObjectStorageEndpoint(storageProvider, bucket, region);
+    const url = new URL(this.joinUrlPath(endpoint, storageKey));
+    const credential = `${accessKeyId}/${scope}`;
+    const signedHeaders = 'content-type;host';
+    const query: Record<string, string> = {
+      'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+      'X-Amz-Credential': credential,
+      'X-Amz-Date': amzDate,
+      'X-Amz-Expires': String(expiresInSeconds),
+      'X-Amz-SignedHeaders': signedHeaders,
+    };
+    const canonicalQuery = this.canonicalQueryString(query);
+    const canonicalRequest = [
+      'PUT',
+      this.canonicalUri(url.pathname),
+      canonicalQuery,
+      `content-type:${mimeType}\n` + `host:${url.host}\n`,
+      signedHeaders,
+      'UNSIGNED-PAYLOAD',
+    ].join('\n');
+    const stringToSign = [
+      'AWS4-HMAC-SHA256',
+      amzDate,
+      scope,
+      this.sha256Hex(canonicalRequest),
+    ].join('\n');
+    const signature = this.hmacHex(
+      this.signingKey(secretAccessKey, dateStamp, region, 's3'),
+      stringToSign,
+    );
+
+    url.search = `${canonicalQuery}&X-Amz-Signature=${signature}`;
+    return url.toString();
+  }
+
+  private buildS3CompatibleSignedHeadUrl(storageProvider: string, storageKey: string) {
+    const bucket = this.envString('OBJECT_STORAGE_BUCKET');
+    const region = this.configService.get<string>('OBJECT_STORAGE_REGION') ?? 'auto';
+    const accessKeyId = this.envString('OBJECT_STORAGE_ACCESS_KEY_ID');
+    const secretAccessKey = this.envString('OBJECT_STORAGE_SECRET_ACCESS_KEY');
+    const now = new Date();
+    const amzDate = this.amzDate(now);
+    const dateStamp = amzDate.slice(0, 8);
+    const scope = `${dateStamp}/${region}/s3/aws4_request`;
+    const endpoint = this.buildObjectStorageEndpoint(storageProvider, bucket, region);
+    const url = new URL(this.joinUrlPath(endpoint, storageKey));
+    const credential = `${accessKeyId}/${scope}`;
+    const signedHeaders = 'host';
+    const query: Record<string, string> = {
+      'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+      'X-Amz-Credential': credential,
+      'X-Amz-Date': amzDate,
+      'X-Amz-Expires': '60',
+      'X-Amz-SignedHeaders': signedHeaders,
+    };
+    const canonicalQuery = this.canonicalQueryString(query);
+    const canonicalRequest = [
+      'HEAD',
+      this.canonicalUri(url.pathname),
+      canonicalQuery,
+      `host:${url.host}\n`,
+      signedHeaders,
+      'UNSIGNED-PAYLOAD',
+    ].join('\n');
+    const stringToSign = [
+      'AWS4-HMAC-SHA256',
+      amzDate,
+      scope,
+      this.sha256Hex(canonicalRequest),
+    ].join('\n');
+    const signature = this.hmacHex(
+      this.signingKey(secretAccessKey, dateStamp, region, 's3'),
+      stringToSign,
+    );
+
+    url.search = `${canonicalQuery}&X-Amz-Signature=${signature}`;
+    return url.toString();
+  }
+
+  private buildObjectStorageEndpoint(
+    storageProvider: string,
+    bucket: string,
+    region: string,
+  ) {
+    if (storageProvider === 's3') {
+      return `https://${bucket}.s3.${region}.amazonaws.com`;
+    }
+
+    const configuredEndpoint = this.configService.get<string>('OBJECT_STORAGE_ENDPOINT');
+
+    if (configuredEndpoint) {
+      const endpoint = configuredEndpoint.replace(/\/+$/g, '');
+      return endpoint.includes(bucket) ? endpoint : `${endpoint}/${bucket}`;
+    }
+
+    throw this.badRequest(
+      'DEBUT_MATERIAL_OBJECT_STORAGE_ENDPOINT_REQUIRED',
+      'OBJECT_STORAGE_ENDPOINT is required for r2 storage.',
+      'debut.material.objectStorageEndpointRequired',
+    );
+  }
+
+  private joinUrlPath(base: string, path: string) {
+    return `${base.replace(/\/+$/g, '')}/${path
+      .split('/')
+      .map((part) => this.rfc3986Encode(part))
+      .join('/')}`;
+  }
+
+  private canonicalUri(pathname: string) {
+    return pathname
+      .split('/')
+      .map((part) => this.rfc3986Encode(decodeURIComponent(part)))
+      .join('/');
+  }
+
+  private canonicalQueryString(query: Record<string, string>) {
+    return Object.entries(query)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${this.rfc3986Encode(key)}=${this.rfc3986Encode(value)}`)
+      .join('&');
+  }
+
+  private rfc3986Encode(value: string) {
+    return encodeURIComponent(value).replace(/[!'()*]/g, (char) =>
+      `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
+  }
+
+  private amzDate(date: Date) {
+    return date.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  }
+
+  private sha256Hex(value: string) {
+    return createHash('sha256').update(value).digest('hex');
+  }
+
+  private signingKey(secretAccessKey: string, dateStamp: string, region: string, service: string) {
+    const dateKey = this.hmacBuffer(`AWS4${secretAccessKey}`, dateStamp);
+    const dateRegionKey = this.hmacBuffer(dateKey, region);
+    const dateRegionServiceKey = this.hmacBuffer(dateRegionKey, service);
+    return this.hmacBuffer(dateRegionServiceKey, 'aws4_request');
+  }
+
+  private hmacBuffer(key: string | Buffer, value: string) {
+    return createHmac('sha256', key).update(value).digest();
+  }
+
+  private hmacHex(key: string | Buffer, value: string) {
+    return createHmac('sha256', key).update(value).digest('hex');
+  }
+
+  private envString(key: string) {
+    const value = this.configService.get<string>(key);
+
+    if (!value) {
+      throw this.badRequest(
+        'DEBUT_MATERIAL_STORAGE_ENV_REQUIRED',
+        `${key} environment variable is required.`,
+        'debut.material.storageEnvRequired',
+        { key },
+      );
+    }
+
+    return value;
+  }
+
+  private storageKeyPrefix() {
+    const value = this.configService.get<string>('OBJECT_STORAGE_KEY_PREFIX');
+
+    if (!value) {
+      return '';
+    }
+
+    return value
+      .trim()
+      .replace(/^\/+|\/+$/g, '')
+      .replace(/\/+/g, '/')
+      .split('/')
+      .map((part) =>
+        part
+          .normalize('NFKD')
+          .replace(/[^\w.\-]+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^[-.]+|[-.]+$/g, '')
+          .toLowerCase(),
+      )
+      .filter(Boolean)
+      .join('/');
+  }
+
+  private numberFromEnv(key: string, fallback: number) {
+    const value = this.configService.get<string>(key);
+
+    if (!value) {
+      return fallback;
+    }
+
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      throw this.badRequest(
+        'DEBUT_MATERIAL_STORAGE_ENV_INVALID',
+        `${key} must be a positive number.`,
+        'debut.material.storageEnvInvalid',
+        { key },
+      );
+    }
+
+    return parsed;
+  }
+
   private applicationMetadata(input: CreateDebutApplicationDto) {
     const applicationType = input.applicationType ?? DEFAULT_APPLICATION_TYPE;
     const rightsReviewRequired = applicationType === 'represented_artist';
@@ -540,7 +1443,68 @@ export class DebutService {
       consultationConsent: input.consultationConsent ?? null,
       consentMarketing: this.optionalConsentMarketing(input),
       consultationStatus: 'pending',
-      materialSubmissionMode: 'no_file_upload_mvp',
+      materialSubmissionMode: this.attachmentRequests(input).length
+        ? 'private_applicant_material_upload'
+        : 'no_file_upload_mvp',
+      artistDebutMode: input.artistDebutMode ?? null,
+      contribution: {
+        providesAppearance: input.providesAppearance ?? false,
+        providesBodyOrMotion: input.providesBodyOrMotion ?? false,
+        providesSinging: input.providesSinging ?? false,
+        providesVoice: input.providesVoice ?? false,
+        providesDance: input.providesDance ?? false,
+        providesWorldview: input.providesWorldview ?? false,
+        canCommunicateWithFans: input.canCommunicateWithFans ?? false,
+        canCreateContent: input.canCreateContent ?? false,
+        otherContributionText: input.otherContributionText ?? null,
+      },
+      policyAcceptances: {
+        genderSwapRequested: input.genderSwapRequested ?? false,
+        genderPolicyAccepted: input.genderPolicyAccepted ?? false,
+        revenueShareNoticeAccepted: input.revenueShareNoticeAccepted ?? false,
+        portraitVoiceMotionRightsAccepted:
+          input.portraitVoiceMotionRightsAccepted ?? false,
+        privacyReviewNoticeAccepted: input.privacyReviewNoticeAccepted ?? false,
+      },
+      portfolioUrls: this.portfolioUrls(input),
+      shareRate: {
+        estimatedShareRate: input.shareTierRequested ?? null,
+        finalShareRate: null,
+        autoFinalization: false,
+      },
+    });
+  }
+
+  private portfolioUrls(input: CreateDebutApplicationDto) {
+    const values = [
+      ...(input.portfolioUrl ? [input.portfolioUrl] : []),
+      ...(input.portfolioUrls ?? []),
+    ];
+    const unique = [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+
+    return unique.map((value) => {
+      let url: URL;
+
+      try {
+        url = new URL(value);
+      } catch {
+        throw this.badRequest(
+          'DEBUT_PORTFOLIO_URL_INVALID',
+          'portfolioUrls must contain valid HTTPS URLs.',
+          'debut.portfolioUrl.invalid',
+        );
+      }
+
+      if (url.protocol !== 'https:') {
+        throw this.badRequest(
+          'DEBUT_PORTFOLIO_URL_INVALID',
+          'portfolioUrls must contain valid HTTPS URLs.',
+          'debut.portfolioUrl.invalid',
+        );
+      }
+
+      url.hash = '';
+      return url.toString();
     });
   }
 

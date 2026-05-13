@@ -3,6 +3,44 @@
 Use the standard completion note from `docs/ops/agents.md`.
 
 status: completed
+task: #229 debut application private material upload API implementation
+branch/commit: team2-backend/debut-private-material-upload-229 / this commit
+changed_files:
+- server/prisma/schema.prisma
+- server/prisma/migrations/0039_debut_application_attachments/migration.sql
+- server/src/debut/debut.controller.ts
+- server/src/debut/debut.service.ts
+- server/src/debut/debut.service.spec.ts
+- server/src/debut/dto/debut.dto.ts
+- docs/ai-debut-policy-and-application-spec.md
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npx.cmd prisma generate
+- PASS: npm.cmd test -- debut.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Added `debut_application_attachments` relation to link confirmed private applicant material assets to debut applications with `applicationId`, `assetId`, `category`, `sortOrder`, `status`, metadata, and timestamps.
+- Added authenticated private material APIs: `POST /api/v1/debut/application-materials/upload-intents` and `POST /api/v1/debut/application-materials/:assetId/confirm-upload`.
+- Upload intents create private `debut_application_material` assets for `face_photo`, `body_motion_reference`, `voice_sample`, `dance_video_reference`, and `portfolio_attachment`; responses do not expose public or signed read URLs.
+- Confirm upload verifies owner, scope, visibility, category, MIME family, size policy, object existence, and object-store HEAD content length/type before marking the asset uploaded.
+- `POST /api/v1/debut/applications` now links only confirmed private materials through asset id arrays: `facePhotoAssetIds`, `bodyMotionReferenceAssetIds`, `voiceSampleAssetIds`, `danceVideoReferenceAssetIds`, and `portfolioAttachmentAssetIds`.
+- Unconfirmed, duplicate, wrong-owner/scope/category, public, archived, or invalid-MIME assets are rejected before application creation.
+- `genderSwapRequested: true` is rejected; absent/false remains the only allowed path.
+- `shareTierRequested` remains estimated/applicant-requested and `shareTierApproved` remains later admin-final; no automatic final share rate is created.
+- No frontend files, production seed/data, wallet/Lumina/settlement/payout/paid-like flow, public original URL exposure, signed URL value, direct upload target value, token, secret, or DB credential was changed or recorded.
+blocked_by:
+- Deploy migration before opening the private material upload UI beyond QA/staging.
+next_needed:
+- 조로/차모 review, then deploy migration/API and QA upload-intent -> private object upload -> confirm-upload -> application submit flow with QA-only materials.
+민감값 기록 여부: 없음
+
+---
+
+status: completed
 task: #228 debut application photo/material upload and application-data API contract check
 branch/commit: team2-backend/debut-application-upload-contract-228 / this commit
 changed_files:

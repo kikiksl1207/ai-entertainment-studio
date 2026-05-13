@@ -706,7 +706,7 @@ Current validation and workflow:
 
 - `GET /api/v1/debut/policy` is public and returns form option/policy hints, including applicant types, participation types, status labels, consent keys, field limits, and restricted collection types.
 - MVP default channel is `phone_consultation`, which requires `contactPhone` and `consultationConsent: true`. The operator confirms details by phone after submission.
-- `online_review` is reserved for a later richer flow. The current backend records the requested channel in metadata but does not accept debut form file uploads.
+- `online_review` uses the private applicant-material upload flow. Do not reuse the public feed/profile image upload APIs for debut applicant materials.
 - MVP applications require `isAdult: true`.
 - Required consent fields are `consentAppearance`, `consentRevenuePolicy`, and `consentPrivacy`.
 - `applicationType` is optional and defaults to `personal_unaffiliated`. Allowed values are `personal_unaffiliated`, `represented_artist`, `ai_creator_partner`, and `partnership_other`.
@@ -724,31 +724,65 @@ Current validation and workflow:
 - Allowed consultation statuses: `pending`, `scheduled`, `contacted`, `no_answer`, `completed`.
 - Allowed rights review statuses: `not_required`, `pending`, `reviewing`, `cleared`, `blocked`.
 - Allowed partner review statuses: `not_applicable`, `pending`, `reviewing`, `accepted`, `declined`.
-
-Debut material upload contract check:
-
-- Existing `POST /api/v1/me/assets/upload-intents` cannot be reused as-is for
-  debut application materials because it is image-only, public-visibility
-  oriented, generates public delivery URLs, and runs the feed image derivative
-  pipeline on confirm.
-- Admin asset upload can create private image/video assets, but it is
-  admin-only and is not an applicant upload path.
-- Opening applicant photos, voice samples, dance videos, or portfolio
-  attachments requires a new private applicant-material upload contract. The
-  response must not include public URLs, signed read URLs, direct upload target
-  URLs in docs/logs, or tokens.
-- `debut_applications.metadata` can hold temporary non-sensitive structured
-  choices, but uploaded material ids should be linked through a validated
-  relation such as `debut_application_attachments` before this is opened beyond
-  an internal prototype.
-- Missing canonical submit fields for the richer form are `artistDebutMode`,
-  contribution booleans, gender policy acceptance flags, categorized asset id
-  arrays, and `portfolioUrls[]`.
-- `genderSwapRequested` must be absent or `false`; the backend must not expose a
-  gender-swap production capability.
+- Additional richer form fields are accepted and stored in application metadata:
+  `artistDebutMode`, contribution booleans, gender policy acceptance flags,
+  `portfolioUrls[]`, and categorized confirmed material asset id arrays.
+- `genderSwapRequested` must be absent or `false`; sending `true` returns
+  `DEBUT_GENDER_SWAP_UNSUPPORTED`.
 - Revenue share remains non-final: `shareTierRequested` is the applicant-facing
-  estimate/request, and `shareTierApproved` is the admin final value after
-  review/contract. Do not auto-confirm final share from the public application.
+  estimate/request, and `shareTierApproved` is the later admin final value.
+  Applicant submission never auto-confirms final share.
+
+Debut private material upload:
+
+```http
+POST /api/v1/debut/application-materials/upload-intents
+POST /api/v1/debut/application-materials/:assetId/confirm-upload
+```
+
+Both endpoints require JWT auth and fail closed to the authenticated owner. The
+upload intent body is:
+
+```json
+{
+  "category": "face_photo",
+  "fileName": "material.png",
+  "mimeType": "image/png",
+  "fileSizeBytes": 1048576,
+  "width": 1024,
+  "height": 1024,
+  "durationSeconds": null,
+  "checksum": "optional-client-checksum"
+}
+```
+
+Allowed `category` values are `face_photo`, `body_motion_reference`,
+`voice_sample`, `dance_video_reference`, and `portfolio_attachment`. The backend
+validates MIME family and size by asset type. Responses return the private asset
+id, upload status, upload method/header policy, and private material policy; they
+do not return public URLs or signed read URLs. Do not paste real upload target
+URLs, signed URLs, tokens, cookies, secrets, or credentials into docs, logs,
+Notion, or PR text.
+
+Confirm upload validates the asset id, owner, `debut_application_material` scope,
+private visibility, category, MIME family, file size, and object existence before
+marking the asset uploaded. Local development uses a metadata-only placeholder;
+object storage deployments verify the private object without exposing a read URL.
+
+`POST /api/v1/debut/applications` may link only confirmed private materials owned
+by the current user. Supported fields:
+
+- `facePhotoAssetIds`
+- `bodyMotionReferenceAssetIds`
+- `voiceSampleAssetIds`
+- `danceVideoReferenceAssetIds`
+- `portfolioAttachmentAssetIds`
+
+Linked materials are stored through `debut_application_attachments` with
+`applicationId`, `assetId`, `category`, `sortOrder`, `status`, metadata, and
+timestamps. Application payloads and metadata keep asset ids/relation data only;
+they must not store public original URLs, signed URLs, upload target URLs,
+tokens, or credentials.
 
 Creator image request endpoints:
 
