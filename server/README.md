@@ -460,6 +460,14 @@ and recommended future operator roles.
 
 Admin refund APIs create and track refund records only. Actual PG refund execution should be implemented in the provider adapter after the production PG is selected.
 
+Auth email copy:
+
+- Email verification and password reset provider templates are Korean-first for v1.
+- Verification subject: `이메일 주소를 한 번만 확인해 주세요`.
+- Password reset subject: `비밀번호 재설정 링크가 도착했어요`.
+- Expiry text is rendered by the backend as `YYYY-MM-DD HH:mm KST`.
+- Do not log or document provider secrets, raw action tokens, or real recipient addresses while testing the templates.
+
 For the first admin:
 
 1. Add the trusted account email to `ADMIN_EMAILS`.

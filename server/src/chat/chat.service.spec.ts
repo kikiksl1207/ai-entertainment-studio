@@ -284,6 +284,208 @@ describe('ChatService persona and catalog policy', () => {
   });
 });
 
+describe('ChatService provider ops guard', () => {
+  const userId = '00000000-0000-4000-8000-000000000242';
+  const readyState = {
+    provider: 'openai',
+    configured: true,
+    status: 'provider_ready',
+    messageKey: 'chat.generation.ready',
+  };
+
+  it('returns read-only provider usage status without exposing secrets or mutations', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-14T04:00:00.000Z'));
+
+    try {
+      const prisma = {
+        user: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: userId,
+            email: 'ops@example.com',
+          }),
+        },
+        chatMessage: {
+          findMany: jest.fn().mockResolvedValue([
+            {
+              modelMetadata: {
+                provider: 'openai',
+                model: 'gpt-5-mini',
+                usage: {
+                  inputTokens: 12,
+                  outputTokens: 24,
+                  estimatedCostKrw: '0.04',
+                },
+                estimatedCostKrw: '0.04',
+              },
+              safetyMetadata: {
+                provider: 'openai',
+                generationStatus: 'completed',
+              },
+            },
+            {
+              modelMetadata: {
+                provider: 'openai',
+                model: 'fallback',
+                usage: {
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  estimatedCostKrw: '0.00',
+                },
+                estimatedCostKrw: '0.00',
+              },
+              safetyMetadata: {
+                provider: 'openai',
+                generationStatus: 'fallback',
+                reason: 'provider_timeout',
+              },
+            },
+          ]),
+        },
+      };
+      const llmProvider = {
+        readiness: jest.fn().mockReturnValue(readyState),
+      };
+      const service = new ChatService(prisma as never, llmProvider as never);
+
+      const result = await service.getProviderOpsStatus(userId);
+
+      expect(llmProvider.readiness).toHaveBeenCalledWith({
+        userId,
+        userEmail: 'ops@example.com',
+      });
+      expect(result).toMatchObject({
+        serviceDay: {
+          timeZone: 'Asia/Seoul',
+          startedAt: '2026-05-13T15:00:00.000Z',
+        },
+        provider: {
+          name: 'openai',
+          configured: true,
+          status: 'provider_ready',
+        },
+        guard: {
+          providerDailyRequestLimit: 50,
+          providerDailyFailureLimit: 5,
+          requestRemaining: 48,
+          failureRemaining: 4,
+          canAttemptProvider: true,
+          walletMutation: false,
+          settlementMutation: false,
+        },
+        usage: {
+          totalResponses: 2,
+          failureCount: 1,
+          fallbackCount: 1,
+          estimatedCostKrw: '0.04',
+        },
+        walletMutation: false,
+        settlementMutation: false,
+        secretsReturned: false,
+      });
+      expect(result.usage.usageByModel).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            provider: 'openai',
+            model: 'gpt-5-mini',
+            responses: 1,
+            inputTokens: 12,
+            outputTokens: 24,
+            estimatedCostKrw: '0.04',
+          }),
+          expect.objectContaining({
+            provider: 'openai',
+            model: 'fallback',
+            responses: 1,
+            estimatedCostKrw: '0.00',
+          }),
+        ]),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe('ChatService.getUsageSummary', () => {
+  it('returns read-only chat usage limits without messages, wallet, or provider calls', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-14T04:00:00.000Z'));
+
+    try {
+      const prisma = {
+        artist: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: '00000000-0000-4000-8000-000000000001',
+            slug: 'yoon-serin',
+            displayName: 'Yoon Serin',
+          }),
+        },
+        user: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: '00000000-0000-4000-8000-000000000002',
+            email: 'usage@example.com',
+          }),
+        },
+        chatMessage: {
+          findFirst: jest.fn().mockResolvedValue(null),
+          count: jest.fn().mockResolvedValue(7),
+          findMany: jest.fn().mockResolvedValue([]),
+        },
+      };
+      const llmProvider = {
+        readiness: jest.fn().mockReturnValue({
+          provider: 'not_configured',
+          configured: false,
+          status: 'provider_not_configured',
+          messageKey: 'chat.generation.providerNotConfigured',
+        }),
+        generate: jest.fn(),
+      };
+      const service = new ChatService(prisma as never, llmProvider as never);
+
+      const result = await service.getUsageSummary(
+        '00000000-0000-4000-8000-000000000002',
+        { artistId: '00000000-0000-4000-8000-000000000001' },
+      );
+
+      expect(result).toMatchObject({
+        artist: {
+          id: '00000000-0000-4000-8000-000000000001',
+          slug: 'yoon-serin',
+        },
+        canSend: false,
+        canGenerate: false,
+        disabledReason: 'provider_not_configured',
+        cooldownSeconds: 30,
+        cooldownRemainingSeconds: 0,
+        dailyLimit: 50,
+        dailyUsed: 7,
+        dailyRemaining: 43,
+        providerDailyLimit: 50,
+        providerDailyUsed: 0,
+        providerDailyRemaining: 50,
+        serviceDayTimeZone: 'Asia/Seoul',
+        serviceDayStartAt: '2026-05-13T15:00:00.000Z',
+        maxInputChars: 1000,
+        provider: {
+          configured: false,
+          status: 'provider_not_configured',
+        },
+        walletMutation: false,
+        settlementEligible: false,
+        providerCall: false,
+        rawMessagesExposed: false,
+      });
+      expect(llmProvider.readiness).toHaveBeenCalledWith({
+        userId: '00000000-0000-4000-8000-000000000002',
+        userEmail: 'usage@example.com',
+      });
+      expect(llmProvider.generate).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
 describe('ChatService.preflightMessage', () => {
   const llmProvider = {
     readiness: jest.fn().mockReturnValue({
@@ -306,6 +508,7 @@ describe('ChatService.preflightMessage', () => {
       chatMessage: {
         findFirst: jest.fn().mockResolvedValue(null),
         count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
     const service = new ChatService(prisma as never, llmProvider as never);
@@ -353,6 +556,7 @@ describe('ChatService.preflightMessage', () => {
           createdAt: new Date(),
         }),
         count: jest.fn().mockResolvedValue(1),
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
     const service = new ChatService(prisma as never, llmProvider as never);
@@ -385,6 +589,7 @@ describe('ChatService.preflightMessage', () => {
       chatMessage: {
         findFirst: jest.fn().mockResolvedValue(null),
         count: jest.fn().mockResolvedValue(50),
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
     const service = new ChatService(prisma as never, llmProvider as never);
@@ -409,6 +614,69 @@ describe('ChatService.preflightMessage', () => {
     });
   });
 
+  it('blocks provider calls after the daily provider failure limit', async () => {
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: true,
+        status: 'provider_ready',
+        messageKey: 'chat.generation.ready',
+      }),
+    };
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000214',
+          artistId: '00000000-0000-4000-8000-000000000001',
+          status: 'active',
+        }),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue(
+          Array.from({ length: 5 }, () => ({
+            modelMetadata: {
+              provider: 'openai',
+              model: 'fallback',
+              usage: {
+                inputTokens: 0,
+                outputTokens: 0,
+                estimatedCostKrw: '0.00',
+              },
+              estimatedCostKrw: '0.00',
+            },
+            safetyMetadata: {
+              provider: 'openai',
+              generationStatus: 'fallback',
+              reason: 'provider_timeout',
+            },
+          })),
+        ),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.preflightMessage(
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000214',
+      { body: 'provider failures should fail closed' },
+    );
+
+    expect(result).toMatchObject({
+      canSend: false,
+      canGenerate: false,
+      disabledReason: 'provider_failure_limit_reached',
+      messageKey: 'chat.generation.providerFailureLimitReached',
+      walletMutation: false,
+    });
+    expect(result.limits).toMatchObject({
+      providerDailyFailureLimit: 5,
+      providerDailyFailureCount: 5,
+      providerDailyFailureRemaining: 0,
+    });
+  });
+
   it('counts daily usage from the Asia/Seoul service day boundary', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-05-12T01:30:00.000Z'));
 
@@ -425,6 +693,7 @@ describe('ChatService.preflightMessage', () => {
         chatMessage: {
           findFirst: jest.fn().mockResolvedValue(null),
           count,
+          findMany: jest.fn().mockResolvedValue([]),
         },
       };
       const service = new ChatService(prisma as never, llmProvider as never);
@@ -474,6 +743,7 @@ describe('ChatService.createMessage safety', () => {
       chatMessage: {
         findFirst: jest.fn().mockResolvedValue(null),
         count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       $transaction: jest.fn(),
     };
@@ -610,6 +880,191 @@ describe('ChatService.createFeatureOrder safety', () => {
     expect(tx.walletAccount.updateMany).not.toHaveBeenCalled();
     expect(tx.walletLedger.create).not.toHaveBeenCalled();
   });
+
+  it('uses user-scoped provider readiness before wallet lookup', async () => {
+    const tx = {
+      chatFeatureOrder: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      walletAccount: {
+        findUnique: jest.fn(),
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000002',
+          email: 'blocked@example.com',
+        }),
+      },
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000214',
+          artistId: '00000000-0000-4000-8000-000000000001',
+          status: 'active',
+        }),
+      },
+      chatFeatureProduct: {
+        findFirst: jest.fn().mockResolvedValue(product),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: false,
+        status: 'provider_not_allowed',
+        messageKey: 'chat.generation.providerNotAllowed',
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(
+      service.createFeatureOrder('00000000-0000-4000-8000-000000000002', {
+        chatSessionId: '00000000-0000-4000-8000-000000000214',
+        chatFeatureProductId: product.id,
+        idempotencyKey: 'chat-order-denied',
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'CHAT_LLM_PROVIDER_NOT_CONFIGURED',
+        walletMutation: false,
+      }),
+    });
+    expect(llmProvider.readiness).toHaveBeenCalledWith({
+      userId: '00000000-0000-4000-8000-000000000002',
+      userEmail: 'blocked@example.com',
+    });
+    expect(tx.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(tx.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('blocks mvp-locked products before wallet lookup', async () => {
+    const lockedProduct = {
+      id: '00000000-0000-4000-8000-000000000024',
+      sku: 'CHAT_IMAGE_REPLY',
+      name: 'Image Reply',
+      featureType: 'image_reply',
+      priceLumina: 20,
+      status: 'active',
+      metadata: {},
+    };
+    const tx = {
+      chatFeatureOrder: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      walletAccount: {
+        findUnique: jest.fn(),
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+    };
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000214',
+          artistId: '00000000-0000-4000-8000-000000000001',
+          status: 'active',
+        }),
+      },
+      chatFeatureProduct: {
+        findFirst: jest.fn().mockResolvedValue(lockedProduct),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: true,
+        status: 'provider_ready',
+        messageKey: 'chat.generation.ready',
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(
+      service.createFeatureOrder('00000000-0000-4000-8000-000000000002', {
+        chatSessionId: '00000000-0000-4000-8000-000000000214',
+        chatFeatureProductId: lockedProduct.id,
+        idempotencyKey: 'chat-order-locked',
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'CHAT_FEATURE_PRODUCT_LOCKED',
+        walletMutation: false,
+      }),
+    });
+    expect(tx.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(tx.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects idempotency replay conflicts without wallet mutation', async () => {
+    const tx = {
+      chatFeatureOrder: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000400',
+          userId: '00000000-0000-4000-8000-000000000999',
+          chatSessionId: '00000000-0000-4000-8000-000000000214',
+          chatFeatureProductId: product.id,
+          walletLedger: null,
+          chatFeatureProduct: product,
+        }),
+      },
+      walletAccount: {
+        findUnique: jest.fn(),
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+    };
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000214',
+          artistId: '00000000-0000-4000-8000-000000000001',
+          status: 'active',
+        }),
+      },
+      chatFeatureProduct: {
+        findFirst: jest.fn().mockResolvedValue(product),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: true,
+        status: 'provider_ready',
+        messageKey: 'chat.generation.ready',
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(
+      service.createFeatureOrder('00000000-0000-4000-8000-000000000002', {
+        chatSessionId: '00000000-0000-4000-8000-000000000214',
+        chatFeatureProductId: product.id,
+        idempotencyKey: 'chat-order-conflict',
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'CHAT_FEATURE_ORDER_IDEMPOTENCY_CONFLICT',
+        walletMutation: false,
+      }),
+    });
+    expect(tx.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(tx.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+  });
 });
 
 describe('ChatService.generateMessage provider beta', () => {
@@ -737,6 +1192,28 @@ describe('ChatService.generateMessage provider beta', () => {
     expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
     expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.chatMessage.create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          senderType: 'artist',
+          modelMetadata: expect.objectContaining({
+            usageSchemaVersion: '2026-05-14.chat-provider-usage-v1',
+            provider: 'openai',
+            model: 'gpt-5-mini',
+            usage: expect.objectContaining({
+              inputTokens: 11,
+              outputTokens: 12,
+            }),
+            opsGuard: expect.objectContaining({
+              policyVersion: '2026-05-14.chat-llm-ops-guard-v1',
+              serviceDayTimeZone: 'Asia/Seoul',
+              countedForDailyLimit: true,
+            }),
+          }),
+        }),
+      }),
+    );
   });
 
   it('stores a safe fallback reply instead of throwing on provider request errors', async () => {
@@ -784,5 +1261,198 @@ describe('ChatService.generateMessage provider beta', () => {
     expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
     expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('refunds a paid order before provider calls when provider is unavailable', async () => {
+    const paidProduct = {
+      id: '00000000-0000-4000-8000-000000000004',
+      sku: 'CHAT_DEEP_REPLY',
+      name: 'Deep Reply',
+      featureType: 'deep_reply',
+      priceLumina: 2,
+      status: 'active',
+      metadata: {},
+    };
+    const paidOrder = {
+      id: '00000000-0000-4000-8000-000000000777',
+      userId,
+      artistId: session.artistId,
+      chatSessionId: session.id,
+      chatFeatureProductId: paidProduct.id,
+      status: 'completed',
+      walletLedger: {
+        id: '00000000-0000-4000-8000-000000000778',
+        walletAccountId: '00000000-0000-4000-8000-000000000779',
+        amount: 2,
+      },
+      chatFeatureProduct: paidProduct,
+      messages: [],
+    };
+    const tx = {
+      chatFeatureOrder: {
+        findFirst: jest.fn().mockResolvedValue(paidOrder),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      walletLedger: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000780',
+        }),
+      },
+      walletAccount: {
+        update: jest.fn().mockResolvedValue({ id: paidOrder.walletLedger.walletAccountId }),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: userId,
+          email: 'blocked@example.com',
+        }),
+      },
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue(session),
+      },
+      chatFeatureOrder: {
+        findFirst: jest.fn().mockResolvedValue(paidOrder),
+      },
+      chatMessage: {
+        findMany: jest.fn(),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: false,
+        status: 'provider_not_allowed',
+        messageKey: 'chat.generation.providerNotAllowed',
+      }),
+      generate: jest.fn(),
+      fallbackResult: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(
+      service.generateMessage(userId, sessionId, {
+        body: 'paid reply please',
+        chatFeatureOrderId: paidOrder.id,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'CHAT_LLM_PROVIDER_NOT_CONFIGURED',
+        walletMutation: false,
+      }),
+    });
+    expect(llmProvider.generate).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.findMany).not.toHaveBeenCalled();
+    expect(tx.chatFeatureOrder.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: paidOrder.id,
+          status: { not: 'failed' },
+        }),
+      }),
+    );
+    expect(tx.walletLedger.findUnique).toHaveBeenCalledWith({
+      where: { idempotencyKey: `chat-feature-refund:${paidOrder.id}` },
+    });
+    expect(tx.walletAccount.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: paidOrder.walletLedger.walletAccountId },
+      }),
+    );
+    expect(tx.walletLedger.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          direction: 'credit',
+          ledgerType: 'refund',
+          referenceId: paidOrder.id,
+          idempotencyKey: `chat-feature-refund:${paidOrder.id}`,
+        }),
+      }),
+    );
+  });
+
+  it('does not create a duplicate refund ledger for repeated paid generation failures', async () => {
+    const paidProduct = {
+      id: '00000000-0000-4000-8000-000000000004',
+      sku: 'CHAT_DEEP_REPLY',
+      name: 'Deep Reply',
+      featureType: 'deep_reply',
+      priceLumina: 2,
+      status: 'active',
+      metadata: {},
+    };
+    const paidOrder = {
+      id: '00000000-0000-4000-8000-000000000781',
+      userId,
+      artistId: session.artistId,
+      chatSessionId: session.id,
+      chatFeatureProductId: paidProduct.id,
+      status: 'completed',
+      walletLedger: {
+        id: '00000000-0000-4000-8000-000000000782',
+        walletAccountId: '00000000-0000-4000-8000-000000000783',
+        amount: 2,
+      },
+      chatFeatureProduct: paidProduct,
+      messages: [],
+    };
+    const tx = {
+      chatFeatureOrder: {
+        findFirst: jest.fn().mockResolvedValue(paidOrder),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      walletLedger: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000784',
+        }),
+        create: jest.fn(),
+      },
+      walletAccount: {
+        update: jest.fn(),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: userId,
+          email: 'beta@example.com',
+        }),
+      },
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue(session),
+      },
+      chatFeatureOrder: {
+        findFirst: jest.fn().mockResolvedValue(paidOrder),
+      },
+      chatMessage: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockRejectedValue(new Error('paid generation failed')),
+      fallbackResult: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(
+      service.generateMessage(userId, sessionId, {
+        body: 'paid reply please',
+        chatFeatureOrderId: paidOrder.id,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'CHAT_LLM_GENERATION_FAILED',
+      }),
+    });
+    expect(tx.walletLedger.findUnique).toHaveBeenCalledWith({
+      where: { idempotencyKey: `chat-feature-refund:${paidOrder.id}` },
+    });
+    expect(tx.walletAccount.update).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
   });
 });

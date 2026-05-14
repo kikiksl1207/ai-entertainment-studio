@@ -1207,6 +1207,35 @@ next_needed:
 ---
 
 status: completed
+task: #241 auth email Korean copy template implementation
+branch/commit: team2-backend/auth-mail-copy-241 / this commit
+changed_files:
+- server/src/auth/auth-email-delivery.service.ts
+- server/src/auth/auth-email-delivery.service.spec.ts
+- server/README.md
+- docs/backend-api-spec.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npm.cmd test -- auth-email-delivery.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Replaced provider email subject/body copy for email verification and password reset with the approved Korean-first Lumina Stage tone.
+- Added backend-generated human-readable expiry text in `YYYY-MM-DD HH:mm KST` format.
+- Kept the existing action URL contract, provider config, request neutrality, and debug-token production guard unchanged.
+- Added focused tests for verification/reset Korean copy and KST expiry rendering.
+- Did not modify frontend screen files; `/verify-email` and `/reset-password` screen copy remains a separate #240/cloud task.
+sensitive_data:
+- none recorded.
+blocked_by:
+- none for backend mail template implementation.
+next_needed:
+- Viewer review, then QR QA with real email delivery in a safe environment.
+
+---
+
+status: completed
 task: #243 mail delivery status and audit-log admin lookup contract check
 branch/commit: team2-backend/mail-audit-admin-243 / this commit
 changed_files:

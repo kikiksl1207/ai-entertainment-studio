@@ -25,6 +25,16 @@ type ProviderConfig = {
   verificationUrlBase: string;
   passwordResetUrlBase: string;
 };
+type ActionEmailCopy = {
+  subject: string;
+  preheader: string;
+  intro: string;
+  helper?: string;
+  actionLabel: string;
+  fallback: string;
+  expires: string;
+  ignore: string;
+};
 
 @Injectable()
 export class AuthEmailDeliveryService {
@@ -131,35 +141,89 @@ export class AuthEmailDeliveryService {
 
   private actionEmailMessage(config: ProviderConfig, input: ActionEmailInput) {
     const isVerification = input.purpose === 'email_verification';
-    const title = isVerification
-      ? 'Lumina Stage email verification'
-      : 'Lumina Stage password reset';
-    const actionLabel = isVerification ? 'Verify email' : 'Reset password';
     const urlBase = isVerification
       ? config.verificationUrlBase
       : config.passwordResetUrlBase;
     const actionUrl = this.actionUrl(urlBase, input.actionToken);
-    const expiresText = input.expiresAt.toISOString();
+    const copy = this.actionEmailCopy(input.purpose, this.formatKstDateTime(input.expiresAt));
     const text = [
-      title,
+      '안녕하세요. Lumina Stage예요.',
       '',
-      `${actionLabel}: ${actionUrl}`,
-      `Expires at: ${expiresText}`,
+      copy.intro,
+      copy.helper,
       '',
-      'If you did not request this email, you can ignore it.',
-    ].join('\n');
+      `[${copy.actionLabel}]`,
+      '',
+      copy.fallback,
+      actionUrl,
+      '',
+      copy.expires,
+      copy.ignore,
+      '',
+      '— Lumina Stage 팀',
+    ].filter((line) => line !== undefined).join('\n');
+    const escapedActionUrl = this.escapeHtml(actionUrl);
 
     return {
       to: input.to,
-      subject: title,
+      subject: copy.subject,
       text,
       html: [
-        '<p>Hello from Lumina Stage.</p>',
-        `<p><a href="${this.escapeHtml(actionUrl)}">${this.escapeHtml(actionLabel)}</a></p>`,
-        `<p>Expires at: ${this.escapeHtml(expiresText)}</p>`,
-        '<p>If you did not request this email, you can ignore it.</p>',
+        `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${this.escapeHtml(copy.preheader)}</div>`,
+        '<p>안녕하세요. Lumina Stage예요.</p>',
+        `<p>${this.escapeHtml(copy.intro)}</p>`,
+        copy.helper ? `<p>${this.escapeHtml(copy.helper)}</p>` : '',
+        `<p><a href="${escapedActionUrl}">${this.escapeHtml(copy.actionLabel)}</a></p>`,
+        `<p>${this.escapeHtml(copy.fallback)}<br><a href="${escapedActionUrl}">${escapedActionUrl}</a></p>`,
+        `<p>${this.escapeHtml(copy.expires)} ${this.escapeHtml(copy.ignore)}</p>`,
+        '<p>— Lumina Stage 팀</p>',
       ].join(''),
     };
+  }
+
+  private actionEmailCopy(
+    purpose: AuthEmailPurpose,
+    expiresHuman: string,
+  ): ActionEmailCopy {
+    if (purpose === 'email_verification') {
+      return {
+        subject: '이메일 주소를 한 번만 확인해 주세요',
+        preheader: '인증 링크는 24시간 동안 열려 있어요.',
+        intro:
+          '회원가입을 마치기 전에, 이 메일 주소가 본인 것이 맞는지 한 번만 확인하고 싶어요.',
+        helper: '아래 버튼을 누르면 인증이 끝나요.',
+        actionLabel: '이메일 인증 완료하기',
+        fallback:
+          '버튼이 안 돌아갈 때는 아래 주소를 브라우저에 직접 붙여 넣어 주세요.',
+        expires: `이 링크는 ${expiresHuman}까지 열려 있어요.`,
+        ignore:
+          '직접 가입한 적이 없다면 이 메일은 그냥 닫아주세요. 따로 처리할 것은 없어요.',
+      };
+    }
+
+    return {
+      subject: '비밀번호 재설정 링크가 도착했어요',
+      preheader: '재설정 링크는 1시간 동안 열려 있어요.',
+      intro:
+        '비밀번호 재설정을 요청한 분이 맞다면 아래 버튼에서 새 비밀번호를 설정해 주세요.',
+      actionLabel: '비밀번호 재설정하기',
+      fallback:
+        '버튼이 안 돌아갈 때는 아래 주소를 브라우저에 직접 붙여 넣어 주세요.',
+      expires: `이 링크는 ${expiresHuman}까지 열려 있어요. 그 이후에는 보안을 위해 다시 요청해 주세요.`,
+      ignore:
+        '본인이 요청하지 않은 메일이라면 그냥 닫아도 괜찮아요. 비밀번호는 바뀌지 않아요.',
+    };
+  }
+
+  private formatKstDateTime(date: Date) {
+    const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+    const year = kst.getUTCFullYear();
+    const month = String(kst.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(kst.getUTCDate()).padStart(2, '0');
+    const hours = String(kst.getUTCHours()).padStart(2, '0');
+    const minutes = String(kst.getUTCMinutes()).padStart(2, '0');
+
+    return `${year}-${month}-${day} ${hours}:${minutes} KST`;
   }
 
   private actionUrl(urlBase: string, token: string) {
