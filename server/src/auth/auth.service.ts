@@ -1548,16 +1548,14 @@ export class AuthService {
       );
     }
 
-    const delivery = debugToken
-      ? await this.authEmailDeliveryService.sendActionEmail({
-          to: email,
-          purpose: EMAIL_VERIFICATION_PURPOSE,
-          actionToken: debugToken.token,
-          expiresAt: debugToken.expiresAt,
-        })
-      : this.authEmailDeliveryService.requestStatus();
+    const delivery = await this.sendActionEmailNeutral({
+      to: email,
+      purpose: EMAIL_VERIFICATION_PURPOSE,
+      debugToken,
+    });
 
     return {
+      success: true,
       ok: true,
       delivery,
       debug: this.actionTokenDebugPayload(debugToken),
@@ -1579,7 +1577,7 @@ export class AuthService {
       },
     });
 
-    return { ok: true };
+    return { success: true, ok: true };
   }
 
   async requestPasswordReset(input: RequestPasswordResetDto) {
@@ -1616,16 +1614,14 @@ export class AuthService {
       );
     }
 
-    const delivery = debugToken
-      ? await this.authEmailDeliveryService.sendActionEmail({
-          to: email,
-          purpose: PASSWORD_RESET_PURPOSE,
-          actionToken: debugToken.token,
-          expiresAt: debugToken.expiresAt,
-        })
-      : this.authEmailDeliveryService.requestStatus();
+    const delivery = await this.sendActionEmailNeutral({
+      to: email,
+      purpose: PASSWORD_RESET_PURPOSE,
+      debugToken,
+    });
 
     return {
+      success: true,
       ok: true,
       delivery,
       debug: this.actionTokenDebugPayload(debugToken),
@@ -1678,6 +1674,7 @@ export class AuthService {
     });
 
     return {
+      success: true,
       ok: true,
       revokedCount: result.count,
     };
@@ -2932,6 +2929,27 @@ export class AuthService {
       expiresAt: token.expiresAt,
       warning: 'Debug only. Never enable in production or share tokens publicly.',
     };
+  }
+
+  private async sendActionEmailNeutral(input: {
+    to: string;
+    purpose: typeof EMAIL_VERIFICATION_PURPOSE | typeof PASSWORD_RESET_PURPOSE;
+    debugToken: { token: string; expiresAt: Date } | null;
+  }) {
+    if (!input.debugToken) {
+      return this.authEmailDeliveryService.requestStatus();
+    }
+
+    try {
+      return await this.authEmailDeliveryService.sendActionEmail({
+        to: input.to,
+        purpose: input.purpose,
+        actionToken: input.debugToken.token,
+        expiresAt: input.debugToken.expiresAt,
+      });
+    } catch {
+      return this.authEmailDeliveryService.requestStatus();
+    }
   }
 
   private shouldExposeActionTokensForDebug() {

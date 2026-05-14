@@ -3,6 +3,40 @@
 Use the standard completion note from `docs/ops/agents.md`.
 
 status: completed
+task: #238 email verification and password reset API first implementation
+branch/commit: team2-backend/auth-email-reset-238 / this commit
+changed_files:
+- server/src/auth/auth.service.ts
+- server/src/auth/auth.service.spec.ts
+- server/README.md
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npm.cmd test -- auth.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+migration:
+- none in this branch; latest main already has `users.email_verified_at` and `user_action_tokens`.
+result:
+- Confirmed email verification/password reset API skeleton exists: `POST /api/v1/auth/email-verifications`, `POST /api/v1/auth/email-verifications/confirm`, `POST /api/v1/auth/password-resets`, and `POST /api/v1/auth/password-resets/confirm`.
+- Kept one-time tokens hashed in DB only through `user_action_tokens.tokenHash`; raw token values are never stored.
+- Added `success: true` as a success-response alias while preserving existing `ok: true` response shape.
+- Hardened request endpoints so provider delivery failures remain neutral and do not reveal whether the submitted email belongs to an active account.
+- Confirm endpoints still use stable error codes/message keys for invalid/expired/reused tokens, inactive users, and missing email-password accounts.
+- Password reset keeps the 8+ character letter+number policy, updates only the email auth password hash, and revokes active refresh-token sessions.
+- Local/staging debug token exposure remains gated by `ACTION_TOKEN_DEBUG_ENABLED=true` and `NODE_ENV != production`; production omits raw action tokens.
+- No frontend runtime files, social login flow, normal login, refresh-token rotation, production seed/data, provider secret, token value, cookie, password value, or env value was recorded.
+blocked_by:
+- Real email delivery requires provider env configuration outside Git/Notion/chat.
+next_needed:
+- 뷰어 review, then 큐알 QA for neutral request responses, local/staging debug confirm path, reset confirm session revoke, and no account-existence leak on delivery failure.
+민감값 기록 여부: 없음
+
+---
+
+status: completed
 task: #229 follow-up direct PUT AccessDenied fix
 branch/commit: team2-backend/debut-private-upload-storage-229 / this commit
 changed_files:
