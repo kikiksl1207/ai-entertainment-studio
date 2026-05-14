@@ -261,6 +261,12 @@ export class AdminController {
     return this.adminService.getAuditEvents(query);
   }
 
+  @Get('auth/action-tokens')
+  @RequireAdminPermissions('audit:read')
+  getAuthActionTokens(@Query() query: AuditQuery) {
+    return this.adminService.getAuthActionTokens(query);
+  }
+
   @Get('users')
   @RequireAdminPermissions('*')
   getUsers(@Query() query: AuditQuery) {

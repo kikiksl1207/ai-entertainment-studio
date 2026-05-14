@@ -1203,3 +1203,35 @@ blocked_by:
 next_needed:
 - 차모 완료확인 after merge/test/build.
 민감값 기록 여부: 없음
+
+---
+
+status: completed
+task: #243 mail delivery status and audit-log admin lookup contract check
+branch/commit: team2-backend/mail-audit-admin-243 / this commit
+changed_files:
+- server/src/admin/admin.controller.ts
+- server/src/admin/admin.service.ts
+- server/src/admin/admin.service.spec.ts
+- server/README.md
+- docs/backend-api-spec.md
+- docs/admin-permission-matrix.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npm.cmd test -- admin.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Confirmed current `user_action_tokens` supports ops tracing for `purpose`, `createdAt`, `expiresAt`, and `consumedAt` only.
+- Confirmed target email can be derived from the related user row, but admin responses must mask it first.
+- Confirmed delivery provider/status is not persisted today, so historical delivery acceptance/failure cannot be proven from DB rows.
+- Added read-only admin endpoint `GET /admin/api/v1/auth/action-tokens` with `audit:read` permission.
+- Endpoint supports `purpose`, `status`, `userId`, masked `email`, `take`, and `cursor` filters.
+- Endpoint returns derived token state plus `delivery.status=not_recorded`, `delivery.provider=null`, and policy flags showing raw token/hash/mail body/raw email are not returned.
+sensitive_data:
+- none recorded.
+blocked_by:
+- true delivery audit requires a later persistence design/table; current PR intentionally does not store provider delivery events.
+next_needed:
+- Reviewer check after lint/build.

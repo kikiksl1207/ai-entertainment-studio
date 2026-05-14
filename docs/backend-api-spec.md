@@ -201,6 +201,18 @@ Email delivery adapter:
   - `AUTH_EMAIL_PASSWORD_NOT_CONFIGURED` / `auth.password.emailNotConfigured`
   - `AUTH_USER_NOT_ACTIVE` / `auth.user.notActive`
 
+Admin action-token trace:
+
+```http
+GET /admin/api/v1/auth/action-tokens?purpose=email_verification&status=pending&take=50
+```
+
+- Requires `audit:read`.
+- Query filters: `purpose=email_verification|password_reset`, `status=all|pending|consumed|expired`, `userId`, `email`, `take`, and `cursor`.
+- Response rows expose only operationally safe fields: `id`, `purpose`, derived `status`, `statusKey`, `createdAt`, `expiresAt`, `consumedAt`, masked `target.emailMasked`, `target.userId`, `target.userStatus`, `target.emailVerified`, and `target.deleted`.
+- `delivery.status` is currently `not_recorded`, `delivery.provider` is `null`, and `delivery.persisted` is `false` because provider delivery acceptance/failure is not persisted in `user_action_tokens`.
+- The response policy explicitly keeps `rawEmailReturned`, `rawTokenReturned`, `tokenHashReturned`, and `mailBodyReturned` false. Token hashes, raw tokens, mail bodies, provider secrets, signed/provider URLs, and environment values must not be returned or documented.
+
 - `DELETE /api/v1/me` soft-deletes the current account. Email-password accounts must send `currentPassword`; social-only accounts may omit it.
 - Account deletion sets `users.status = deleted`, sets `deleted_at`, revokes all refresh-token sessions, consumes outstanding user action tokens, deactivates the user's referral code, and writes a `user.self_delete` audit event.
 - Wallet ledgers, payment orders, gift records, and audit history are retained.

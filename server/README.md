@@ -360,6 +360,7 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `POST /admin/api/v1/admin-users`
 - `PATCH /admin/api/v1/admin-users/:adminUserId`
 - `GET /admin/api/v1/audit-events`
+- `GET /admin/api/v1/auth/action-tokens?purpose=email_verification&status=pending&take=50`
 - `GET /admin/api/v1/payment-orders`
 - `GET /admin/api/v1/payment-orders/:orderId`
 - `POST /admin/api/v1/payment-orders/:orderId/refunds`
@@ -414,6 +415,8 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `PATCH /admin/api/v1/chat-feature-products/:productId`
 
 Admin create/update/snapshot mutations write `audit_events` rows with actor, action, target, before data, and after data. `GET /admin/api/v1/audit-events` can filter by `actorUserId`, `action`, `targetType`, and `targetId`; `take` defaults to 50 and is capped at 100.
+
+`GET /admin/api/v1/auth/action-tokens` requires `audit:read` and gives operators a read-only trace of email verification and password reset action-token state. It supports `purpose=email_verification|password_reset`, `status=all|pending|consumed|expired`, `userId`, masked `email`, `take`, and `cursor`. Rows expose token purpose, created/expires/consumed timestamps, derived status, masked target email, and an explicit delivery contract of `delivery.status = "not_recorded"` with `delivery.provider = null` because provider acceptance/failure is not persisted in `user_action_tokens`. The endpoint never returns raw token values, token hashes, mail bodies, raw target email, provider secrets, or environment values.
 
 User moderation endpoints are super-admin-only in the initial policy. `POST /admin/api/v1/users/:userId/suspend` sets `users.status = suspended` and revokes all active refresh-token sessions. `POST /admin/api/v1/users/:userId/delete` soft-deletes the account with `users.status = deleted`, sets `deleted_at`, revokes sessions, consumes outstanding user action tokens, and deactivates referral codes. `POST /admin/api/v1/users/:userId/restore` returns the account to `active` and clears `deleted_at`; it does not restore old refresh tokens. Admins cannot suspend or delete their own account through these endpoints.
 
