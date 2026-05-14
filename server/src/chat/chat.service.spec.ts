@@ -553,7 +553,7 @@ describe('ChatService.generateMessage provider beta', () => {
           })
           .mockResolvedValueOnce({
             id: '00000000-0000-4000-8000-000000000011',
-            senderType: 'artist_ai',
+            senderType: 'artist',
             body: aiBody,
             modelMetadata: {},
           }),
@@ -650,7 +650,7 @@ describe('ChatService.generateMessage provider beta', () => {
       generationStatus: 'fallback',
       requestId: 'req_237_timeout',
       message: {
-        senderType: 'artist_ai',
+        senderType: 'artist',
         body: '지금은 답장을 준비하는 중이에요. 잠시 후 다시 말을 걸어주세요.',
       },
     });

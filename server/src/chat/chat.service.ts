@@ -608,7 +608,7 @@ export class ChatService {
     }
 
     const existingGenerated = order?.messages.find(
-      (message: { senderType: string }) => message.senderType === 'artist_ai',
+      (message: { senderType: string }) => message.senderType === 'artist',
     );
 
     if (order && existingGenerated) {
@@ -764,7 +764,7 @@ export class ChatService {
         walletLedger: true,
         chatFeatureProduct: true,
         messages: {
-          where: { senderType: 'artist_ai' },
+          where: { senderType: 'artist' },
           take: 1,
           orderBy: { createdAt: 'desc' },
         },
@@ -964,7 +964,7 @@ export class ChatService {
       const aiMessage = await tx.chatMessage.create({
         data: {
           chatSessionId: sessionId,
-          senderType: 'artist_ai',
+          senderType: 'artist',
           messageType: 'text',
           body: generated.body,
           chatFeatureOrderId,
