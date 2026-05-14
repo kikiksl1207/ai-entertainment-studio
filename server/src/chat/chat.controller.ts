@@ -127,6 +127,21 @@ export class ChatController {
     });
   }
 
+  @Get('chat/provider-ops-status')
+  getProviderOpsStatus(@CurrentUser() user: AuthUser) {
+    return this.chatService.getProviderOpsStatus(user.id);
+  }
+
+  @Get('chat/usage-summary')
+  getUsageSummary(
+    @CurrentUser() user: AuthUser,
+    @Query('artistId') artistId?: string,
+  ) {
+    return this.chatService.getUsageSummary(user.id, {
+      artistId: this.requireField(artistId, 'artistId'),
+    });
+  }
+
   @Get('chat-feature-products')
   getFeatureProducts() {
     return this.chatService.getFeatureProducts();
