@@ -142,10 +142,12 @@
             /* #240 v2 — 백엔드가 자동 로그인용 access/refresh 토큰을 포함해 주면 보안적으로 저장.
              * 단 토큰을 console / Notion / URL 어디에도 남기지 않으며, setAuth() 는 localStorage 에만 넣는다. */
             try {
-              if (typeof setAuth === "function" && data && (data.accessToken || data.tokens?.accessToken)) {
+              const accessToken = data?.accessToken || data?.access_token || data?.tokens?.accessToken || data?.tokens?.access_token;
+              const refreshToken = data?.refreshToken || data?.refresh_token || data?.tokens?.refreshToken || data?.tokens?.refresh_token;
+              if (typeof setAuth === "function" && accessToken) {
                 setAuth({
-                  accessToken: data.accessToken || data.tokens?.accessToken || data.tokens?.access_token,
-                  refreshToken: data.refreshToken || data.tokens?.refreshToken || data.tokens?.refresh_token,
+                  accessToken,
+                  refreshToken,
                   user: data.user || null
                 });
               }
