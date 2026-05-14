@@ -155,6 +155,13 @@ const BASIC_CHAT_BLOCK_REASONS = {
     fallbackCopyKo:
       '\uc751\ub2f5\uc774 \uc548\uc815\ub420 \ub54c\uae4c\uc9c0 \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
   },
+  usageGuardUnavailable: {
+    reason: 'usage_guard_unavailable',
+    code: 'CHAT_GENERATION_USAGE_GUARD_UNAVAILABLE',
+    messageKey: 'chat.generation.usageGuardUnavailable',
+    fallbackCopyKo:
+      '\uc0ac\uc6a9\ub7c9 \ud655\uc778\uc774 \uc548\uc815\ub420 \ub54c\uae4c\uc9c0 \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
+  },
 } as const;
 const CHAT_FEATURE_ORDER_IDEMPOTENCY_REQUIRED = {
   code: 'CHAT_FEATURE_ORDER_IDEMPOTENCY_REQUIRED',
@@ -1009,8 +1016,13 @@ export class ChatService {
     const cooldownCutoff = new Date(
       now.getTime() - BASIC_CHAT_POLICY.cooldownSeconds * 1000,
     );
-    const [lastFreeMessage, dailyUsed, providerOpsStats, readiness] =
-      await Promise.all([
+    let lastFreeMessage: { id: string; createdAt: Date } | null;
+    let dailyUsed: number;
+    let providerOpsStats: ChatProviderOpsStats;
+    let readiness: ChatLlmProviderReadiness;
+
+    try {
+      [lastFreeMessage, dailyUsed, providerOpsStats, readiness] = await Promise.all([
         this.prisma.chatMessage.findFirst({
           where: {
             senderType: 'user',
@@ -1038,6 +1050,9 @@ export class ChatService {
         this.providerOpsStatsForUser(userId, todayStart),
         this.providerReadinessForUser(userId, providerUserContext),
       ]);
+    } catch {
+      return this.buildUsageGuardUnavailablePreflight(body, mode, todayStart);
+    }
     const cooldownRemainingSeconds = lastFreeMessage
       ? Math.max(
           0,
@@ -1125,6 +1140,66 @@ export class ChatService {
     };
   }
 
+  private buildUsageGuardUnavailablePreflight(
+    body: string,
+    mode: string,
+    todayStart: Date,
+  ) {
+    const blockReason = BASIC_CHAT_BLOCK_REASONS.usageGuardUnavailable;
+    const readiness = {
+      provider: 'unknown',
+      configured: false,
+      status: 'provider_disabled',
+      messageKey: blockReason.messageKey,
+    } satisfies ChatLlmProviderReadiness;
+    const generationPolicy = this.chatGenerationPolicy(null, readiness);
+
+    return {
+      canSend: false,
+      canGenerate: false,
+      mode,
+      bodyLength: body.length,
+      limits: {
+        cooldownSeconds: BASIC_CHAT_POLICY.cooldownSeconds,
+        cooldownRemainingSeconds: 0,
+        dailyLimit: BASIC_CHAT_POLICY.dailyLimit,
+        dailyUsed: BASIC_CHAT_POLICY.dailyLimit,
+        dailyRemaining: 0,
+        providerDailyLimit: CHAT_LLM_OPS_GUARD_POLICY.providerDailyRequestLimit,
+        providerDailyUsed: CHAT_LLM_OPS_GUARD_POLICY.providerDailyRequestLimit,
+        providerDailyRemaining: 0,
+        providerDailyFailureLimit:
+          CHAT_LLM_OPS_GUARD_POLICY.providerDailyFailureLimit,
+        providerDailyFailureCount:
+          CHAT_LLM_OPS_GUARD_POLICY.providerDailyFailureLimit,
+        providerDailyFailureRemaining: 0,
+        serviceDayTimeZone: KOREA_SERVICE_DAY_TIME_ZONE,
+        serviceDayStartAt: todayStart.toISOString(),
+        maxInputChars: BASIC_CHAT_POLICY.maxInputChars,
+        estimatedCostCeilingKrw: BASIC_CHAT_POLICY.estimatedCostCeilingKrw,
+        usageReliable: false,
+      },
+      provider: this.providerDetails(readiness),
+      providerOps: {
+        policy: CHAT_LLM_OPS_GUARD_POLICY,
+        usageByModel: [],
+        fallbackCount: 0,
+        estimatedCostKrw: '0.00',
+        usageReliable: false,
+      },
+      disabledReason: blockReason.reason,
+      messageKey: blockReason.messageKey,
+      fallbackCopyKo: blockReason.fallbackCopyKo,
+      walletMutation: false,
+      settlementEligible: false,
+      policy: {
+        generation: generationPolicy,
+        settlement: null,
+        failure: GENERATION_FAILURE_POLICY,
+      },
+    };
+  }
+
   private koreaServiceDayStartUtc(now: Date) {
     const koreaTime = new Date(now.getTime() + KOREA_SERVICE_DAY_OFFSET_MS);
     koreaTime.setUTCHours(0, 0, 0, 0);
@@ -1156,6 +1231,9 @@ export class ChatService {
           : preflight.disabledReason ===
               BASIC_CHAT_BLOCK_REASONS.providerFailureLimitReached.reason
             ? BASIC_CHAT_BLOCK_REASONS.providerFailureLimitReached
+            : preflight.disabledReason ===
+                BASIC_CHAT_BLOCK_REASONS.usageGuardUnavailable.reason
+              ? BASIC_CHAT_BLOCK_REASONS.usageGuardUnavailable
             : BASIC_CHAT_BLOCK_REASONS.invalidBody;
 
     return new BadRequestException({

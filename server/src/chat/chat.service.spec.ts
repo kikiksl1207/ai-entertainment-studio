@@ -719,6 +719,56 @@ describe('ChatService.preflightMessage', () => {
       jest.useRealTimers();
     }
   });
+
+  it('returns a fail-closed response when usage guard lookup fails', async () => {
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000214',
+          artistId: '00000000-0000-4000-8000-000000000001',
+          status: 'active',
+        }),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockRejectedValue(new Error('usage count failed')),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.preflightMessage(
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000214',
+      { body: 'QA live smoke' },
+    );
+
+    expect(result).toMatchObject({
+      canSend: false,
+      canGenerate: false,
+      disabledReason: 'usage_guard_unavailable',
+      messageKey: 'chat.generation.usageGuardUnavailable',
+      walletMutation: false,
+      settlementEligible: false,
+    });
+    expect(result.limits).toMatchObject({
+      dailyLimit: 50,
+      dailyUsed: 50,
+      dailyRemaining: 0,
+      providerDailyLimit: 50,
+      providerDailyUsed: 50,
+      providerDailyRemaining: 0,
+      providerDailyFailureLimit: 5,
+      providerDailyFailureCount: 5,
+      providerDailyFailureRemaining: 0,
+      usageReliable: false,
+    });
+    expect(result.providerOps).toMatchObject({
+      usageByModel: [],
+      estimatedCostKrw: '0.00',
+      usageReliable: false,
+    });
+  });
 });
 
 describe('ChatService.createMessage safety', () => {
