@@ -10,6 +10,7 @@ import {
   ChatGenerationResult,
   ChatLlmProviderAdapter,
   ChatLlmProviderNotConfiguredError,
+  ChatLlmProviderRequestError,
   ChatLlmProviderReadiness,
 } from './llm-provider.adapter';
 import {
@@ -80,6 +81,10 @@ type ChatFeatureProductRecord = {
   metadata: unknown;
   createdAt: Date;
   updatedAt: Date;
+};
+type ChatProviderUserContext = {
+  userId: string;
+  userEmail: string | null;
 };
 const BASIC_CHAT_POLICY = {
   mode: 'daily_talk',
@@ -584,6 +589,9 @@ export class ChatService {
     const body = order
       ? this.normalizeGenerationBody(input.body)
       : this.normalizeBasicChatBody(input.body);
+    const providerUserContext = order
+      ? null
+      : await this.getProviderUserContext(userId);
 
     if (!order) {
       const preflight = await this.buildBasicChatPreflight(
@@ -591,6 +599,7 @@ export class ChatService {
         session,
         body,
         BASIC_CHAT_POLICY.mode,
+        providerUserContext ?? undefined,
       );
 
       if (!preflight.canGenerate) {
@@ -630,6 +639,7 @@ export class ChatService {
       const generated = await this.llmProvider.generate({
         sessionId: session.id,
         userId,
+        userEmail: providerUserContext?.userEmail ?? null,
         artist: session.artist,
         persona: session.chatPersona
           ? {
@@ -667,6 +677,22 @@ export class ChatService {
 
       if (error instanceof ChatLlmProviderNotConfiguredError) {
         throw this.providerUnavailableException(order?.chatFeatureProduct ?? null);
+      }
+
+      if (!order && error instanceof ChatLlmProviderRequestError) {
+        const fallback = await this.persistGeneratedMessage(
+          userId,
+          session.id,
+          body,
+          undefined,
+          this.llmProvider.fallbackResult(error),
+        );
+
+        return {
+          ...fallback,
+          generationStatus: 'fallback',
+          requestId: error.requestId ?? null,
+        };
       }
 
       throw new ServiceUnavailableException({
@@ -765,39 +791,51 @@ export class ChatService {
     session: { id: string; artistId: string },
     body: string,
     mode: string,
+    providerUserContext?: ChatProviderUserContext,
   ) {
     const now = new Date();
     const todayStart = this.koreaServiceDayStartUtc(now);
     const cooldownCutoff = new Date(
       now.getTime() - BASIC_CHAT_POLICY.cooldownSeconds * 1000,
     );
-    const [lastFreeMessage, dailyUsed] = await Promise.all([
-      this.prisma.chatMessage.findFirst({
-        where: {
-          senderType: 'user',
-          chatFeatureOrderId: null,
-          createdAt: { gte: cooldownCutoff },
-          chatSession: {
-            userId,
-            artistId: session.artistId,
+    const [lastFreeMessage, dailyUsed, providerDailyUsed, readiness] =
+      await Promise.all([
+        this.prisma.chatMessage.findFirst({
+          where: {
+            senderType: 'user',
+            chatFeatureOrderId: null,
+            createdAt: { gte: cooldownCutoff },
+            chatSession: {
+              userId,
+              artistId: session.artistId,
+            },
           },
-        },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, createdAt: true },
-      }),
-      this.prisma.chatMessage.count({
-        where: {
-          senderType: 'user',
-          chatFeatureOrderId: null,
-          createdAt: { gte: todayStart },
-          chatSession: {
-            userId,
-            artistId: session.artistId,
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, createdAt: true },
+        }),
+        this.prisma.chatMessage.count({
+          where: {
+            senderType: 'user',
+            chatFeatureOrderId: null,
+            createdAt: { gte: todayStart },
+            chatSession: {
+              userId,
+              artistId: session.artistId,
+            },
           },
-        },
-      }),
-    ]);
-    const readiness = this.llmProvider.readiness();
+        }),
+        this.prisma.chatMessage.count({
+          where: {
+            senderType: 'user',
+            chatFeatureOrderId: null,
+            createdAt: { gte: todayStart },
+            chatSession: {
+              userId,
+            },
+          },
+        }),
+        this.providerReadinessForUser(userId, providerUserContext),
+      ]);
     const cooldownRemainingSeconds = lastFreeMessage
       ? Math.max(
           0,
@@ -814,17 +852,23 @@ export class ChatService {
         ? BASIC_CHAT_BLOCK_REASONS.cooldownActive
         : dailyUsed >= BASIC_CHAT_POLICY.dailyLimit
           ? BASIC_CHAT_BLOCK_REASONS.dailyLimitReached
-          : !readiness.configured
-            ? {
-                reason: CHAT_GENERATION_DISABLED_REASONS.providerNotConfigured.reason,
-                code: 'CHAT_LLM_PROVIDER_NOT_CONFIGURED',
-                messageKey:
-                  CHAT_GENERATION_DISABLED_REASONS.providerNotConfigured.messageKey,
-                fallbackCopyKo:
-                  CHAT_GENERATION_DISABLED_REASONS.providerNotConfigured.displayMessageKo,
-              }
-            : null;
-    const generationPolicy = this.chatGenerationPolicy(null);
+          : providerDailyUsed >= BASIC_CHAT_POLICY.dailyLimit
+            ? BASIC_CHAT_BLOCK_REASONS.dailyLimitReached
+            : !readiness.configured
+              ? {
+                  reason: readiness.status,
+                  code: 'CHAT_LLM_PROVIDER_NOT_CONFIGURED',
+                  messageKey: readiness.messageKey,
+                  fallbackCopyKo:
+                    CHAT_GENERATION_DISABLED_REASONS.providerNotConfigured
+                      .displayMessageKo,
+                }
+              : null;
+    const generationPolicy = this.chatGenerationPolicy(null, readiness);
+    const providerDailyRemaining = Math.max(
+      0,
+      BASIC_CHAT_POLICY.dailyLimit - providerDailyUsed,
+    );
 
     return {
       canSend: !blockReason,
@@ -837,6 +881,9 @@ export class ChatService {
         dailyLimit: BASIC_CHAT_POLICY.dailyLimit,
         dailyUsed,
         dailyRemaining,
+        providerDailyLimit: BASIC_CHAT_POLICY.dailyLimit,
+        providerDailyUsed,
+        providerDailyRemaining,
         serviceDayTimeZone: KOREA_SERVICE_DAY_TIME_ZONE,
         serviceDayStartAt: todayStart.toISOString(),
         maxInputChars: BASIC_CHAT_POLICY.maxInputChars,
@@ -863,10 +910,18 @@ export class ChatService {
     return new Date(koreaTime.getTime() - KOREA_SERVICE_DAY_OFFSET_MS);
   }
 
+  private isProviderUnavailableReason(reason: string | null) {
+    return (
+      reason === 'provider_disabled' ||
+      reason === 'provider_not_configured' ||
+      reason === 'provider_not_allowed'
+    );
+  }
+
   private basicChatPreflightException(
     preflight: Awaited<ReturnType<ChatService['buildBasicChatPreflight']>>,
   ) {
-    if (preflight.disabledReason === 'provider_not_configured') {
+    if (this.isProviderUnavailableReason(preflight.disabledReason)) {
       return this.providerUnavailableException(null, preflight);
     }
 
@@ -1002,7 +1057,16 @@ export class ChatService {
     } | null,
     preflight?: Awaited<ReturnType<ChatService['buildBasicChatPreflight']>>,
   ) {
-    const readiness = this.llmProvider.readiness();
+    const readiness = preflight
+      ? ({
+          provider: preflight.provider.name,
+          configured: preflight.provider.configured,
+          status: preflight.provider.status,
+          messageKey:
+            preflight.messageKey ??
+            CHAT_GENERATION_DISABLED_REASONS.providerNotConfigured.messageKey,
+        } satisfies ChatLlmProviderReadiness)
+      : this.llmProvider.readiness();
 
     return new ServiceUnavailableException({
       code: 'CHAT_LLM_PROVIDER_NOT_CONFIGURED',
@@ -1030,8 +1094,8 @@ export class ChatService {
     featureType: string;
     metadata: unknown;
     status?: string;
-  } | null) {
-    const readiness = this.llmProvider.readiness();
+  } | null, readinessOverride?: ChatLlmProviderReadiness) {
+    const readiness = readinessOverride ?? this.llmProvider.readiness();
     const productPolicy = product ? this.chatFeatureProductPolicy(product) : null;
     const providerRequired = product
       ? productPolicy?.providerRequired ?? this.requiresLlmGeneration(product)
@@ -1225,6 +1289,47 @@ export class ChatService {
       status: order.status,
       sku: order.chatFeatureProduct?.sku,
       featureType: order.chatFeatureProduct?.featureType,
+    };
+  }
+
+  private async providerReadinessForUser(
+    userId: string,
+    providerUserContext?: ChatProviderUserContext,
+  ) {
+    const context = providerUserContext ?? (await this.getProviderUserContext(userId));
+
+    return this.llmProvider.readiness({
+      userId: context.userId,
+      userEmail: context.userEmail,
+    });
+  }
+
+  private async getProviderUserContext(
+    userId: string,
+  ): Promise<ChatProviderUserContext> {
+    const userDelegate = (
+      this.prisma as unknown as {
+        user?: {
+          findUnique?: (args: {
+            where: { id: string };
+            select: { id: true; email: true };
+          }) => Promise<{ id: string; email: string | null } | null>;
+        };
+      }
+    ).user;
+
+    if (!userDelegate?.findUnique) {
+      return { userId, userEmail: null };
+    }
+
+    const user = await userDelegate.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true },
+    });
+
+    return {
+      userId,
+      userEmail: user?.email ?? null,
     };
   }
 

@@ -1,4 +1,5 @@
 import { ChatService } from './chat.service';
+import { ChatLlmProviderRequestError } from './llm-provider.adapter';
 
 describe('ChatService.getStarterPrompts', () => {
   it('returns readable Korean default starter prompt copy', async () => {
@@ -482,5 +483,180 @@ describe('ChatService.createFeatureOrder safety', () => {
     expect(tx.walletAccount.findUnique).not.toHaveBeenCalled();
     expect(tx.walletAccount.updateMany).not.toHaveBeenCalled();
     expect(tx.walletLedger.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('ChatService.generateMessage provider beta', () => {
+  const userId = '00000000-0000-4000-8000-000000000002';
+  const sessionId = '00000000-0000-4000-8000-000000000214';
+  const session = {
+    id: sessionId,
+    artistId: '00000000-0000-4000-8000-000000000001',
+    chatPersonaId: '00000000-0000-4000-8000-000000000003',
+    status: 'active',
+    artist: {
+      id: '00000000-0000-4000-8000-000000000001',
+      slug: 'yoon-serin',
+      displayName: '윤세린',
+    },
+    chatPersona: {
+      id: '00000000-0000-4000-8000-000000000003',
+      name: 'soft-dm',
+      systemPrompt: '짧고 따뜻하게 답한다.',
+      safetyRules: {},
+      modelConfig: {},
+    },
+  };
+  const readyState = {
+    provider: 'openai',
+    configured: true,
+    status: 'provider_ready',
+    messageKey: 'chat.generation.ready',
+  };
+
+  function prismaForGenerate(tx: Record<string, unknown>) {
+    return {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: userId,
+          email: 'beta@example.com',
+        }),
+      },
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue(session),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      walletAccount: {
+        findUnique: jest.fn(),
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+  }
+
+  function persistTx(aiBody: string) {
+    return {
+      chatMessage: {
+        create: jest
+          .fn()
+          .mockResolvedValueOnce({
+            id: '00000000-0000-4000-8000-000000000010',
+            senderType: 'user',
+            body: '오늘 조금 지쳤어.',
+          })
+          .mockResolvedValueOnce({
+            id: '00000000-0000-4000-8000-000000000011',
+            senderType: 'artist_ai',
+            body: aiBody,
+            modelMetadata: {},
+          }),
+      },
+      chatSession: {
+        update: jest.fn().mockResolvedValue({ id: sessionId }),
+      },
+    };
+  }
+
+  it('passes allowlisted user context to the provider without wallet mutation', async () => {
+    const tx = persistTx('조금 쉬어도 괜찮아. 오늘은 천천히 가자.');
+    const prisma = prismaForGenerate(tx);
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockResolvedValue({
+        body: '조금 쉬어도 괜찮아. 오늘은 천천히 가자.',
+        usage: {
+          provider: 'openai',
+          model: 'gpt-5-mini',
+          inputTokens: 11,
+          outputTokens: 12,
+          estimatedCostKrw: '0.00',
+        },
+        safetyMetadata: {
+          requestId: 'req_237_service',
+        },
+      }),
+      fallbackResult: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.generateMessage(userId, sessionId, {
+      body: '오늘 조금 지쳤어.',
+    });
+
+    expect(result).toMatchObject({
+      generationStatus: 'completed',
+      usage: {
+        provider: 'openai',
+        model: 'gpt-5-mini',
+      },
+    });
+    expect(llmProvider.readiness).toHaveBeenCalledWith({
+      userId,
+      userEmail: 'beta@example.com',
+    });
+    expect(llmProvider.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId,
+        userEmail: 'beta@example.com',
+        userMessage: '오늘 조금 지쳤어.',
+      }),
+    );
+    expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('stores a safe fallback reply instead of throwing on provider request errors', async () => {
+    const tx = persistTx('지금은 답장을 준비하는 중이에요. 잠시 후 다시 말을 걸어주세요.');
+    const prisma = prismaForGenerate(tx);
+    const providerError = new ChatLlmProviderRequestError(
+      'request failed',
+      'provider_timeout',
+      'req_237_timeout',
+    );
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockRejectedValue(providerError),
+      fallbackResult: jest.fn().mockReturnValue({
+        body: '지금은 답장을 준비하는 중이에요. 잠시 후 다시 말을 걸어주세요.',
+        usage: {
+          provider: 'openai',
+          model: 'fallback',
+          inputTokens: 0,
+          outputTokens: 0,
+          estimatedCostKrw: '0.00',
+        },
+        safetyMetadata: {
+          generationStatus: 'fallback',
+          reason: 'provider_timeout',
+          requestId: 'req_237_timeout',
+        },
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.generateMessage(userId, sessionId, {
+      body: '오늘 조금 지쳤어.',
+    });
+
+    expect(result).toMatchObject({
+      generationStatus: 'fallback',
+      requestId: 'req_237_timeout',
+      message: {
+        senderType: 'artist_ai',
+        body: '지금은 답장을 준비하는 중이에요. 잠시 후 다시 말을 걸어주세요.',
+      },
+    });
+    expect(llmProvider.fallbackResult).toHaveBeenCalledWith(providerError);
+    expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
   });
 });
