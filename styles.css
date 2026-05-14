@@ -1985,8 +1985,9 @@ p {
 }
 
 .auth-confirm-shell {
-  width: 100%;
+  width: min(560px, calc(100% - 24px));
   min-width: 0;
+  margin: 0 auto;
   display: flex;
   justify-content: center;
 }
