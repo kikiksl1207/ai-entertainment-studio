@@ -316,33 +316,6 @@
                       <p class="debut-asset-upload-hint">신분증 원본·주민번호·민감한 노출 사진은 받지 않아요. 본인 확인용 자료가 필요하면 운영팀이 별도로 안내드려요.</p>
                     </div>
 
-                    <p class="debut-gender-note">
-                      <strong>성별 안내.</strong> 성별 전환 제작은 아직 지원하지 않아요. 대신 분위기·스타일·세계관은 최대한 함께 맞춰볼게요.
-                    </p>
-
-                    <section class="debut-payout-note" aria-labelledby="debutPayoutNoteTitle">
-                      <h4 id="debutPayoutNoteTitle">예상 정산 기준</h4>
-                      <p style="margin:0 0 8px;">정산 비율은 신청 내용·제공 자료·실제 활동 참여도·계약 심사에 따라 달라질 수 있어요. 화면에서는 <strong>예상 기준</strong>으로만 보여드려요.</p>
-                      <table class="debut-payout-table" aria-label="직접 소통하는 경우">
-                        <caption style="text-align:left;font-size:11.5px;color:rgba(220,210,240,0.55);font-weight:700;margin-bottom:4px;">소통을 본인이 하는 경우</caption>
-                        <tbody>
-                          <tr><td>외형 + 재능 제공</td><td>30%</td></tr>
-                          <tr><td>외형 미제공 + 재능 제공</td><td>25%</td></tr>
-                          <tr><td>외형 제공 + 재능 미제공</td><td>25%</td></tr>
-                          <tr><td>외형 / 재능 미제공</td><td>20%</td></tr>
-                        </tbody>
-                      </table>
-                      <table class="debut-payout-table" aria-label="소통하지 않는 경우">
-                        <caption style="text-align:left;font-size:11.5px;color:rgba(220,210,240,0.55);font-weight:700;margin-bottom:4px;">소통을 본인이 하지 않는 경우</caption>
-                        <tbody>
-                          <tr><td>외형 + 재능 제공</td><td>20%</td></tr>
-                          <tr><td>외형 미제공 + 재능 제공</td><td>15%</td></tr>
-                          <tr><td>외형 제공 + 재능 미제공</td><td>15%</td></tr>
-                          <tr><td>외형 / 재능 미제공</td><td>5%</td></tr>
-                        </tbody>
-                      </table>
-                      <small>초반 이벤트로 팔로워 1,000명 이상이 되면 +5%가 가산될 수 있어요. 최종 정산률은 계약서·운영 심사 기준으로 확정돼요.</small>
-                    </section>
                   </li>
                 </ul>
                 <small id="debutApplicationTypeHelper" style="display:block;margin-top:10px;">접수 목적에 가장 가까운 유형을 선택해주세요. 선택한 유형에 따라 운영팀의 검토 기준이 달라질 수 있어요.</small>
@@ -380,43 +353,6 @@
                 <span>제작 경험 / 포트폴리오</span>
                 <textarea name="creatorExperienceNote" rows="3" maxlength="600" placeholder="사용 가능한 제작 도구(SD/ComfyUI/Flux/LoRA 등), 작업 영역, 포트폴리오 URL을 적어주세요."></textarea>
               </label>
-              <!-- #227 — 기존 participationType select 는 select 깨짐 fix 대상.
-                   개인/무소속(personal_unaffiliated)에서는 위쪽 debutMethod 라디오 카드가 대체하고,
-                   소속/AI 제작자에서는 카드 라디오로 보여준다. partnership_other 면 숨김. -->
-              <fieldset class="debut-type-fieldset debut-field-full" data-hide-for-type="partnership_other" data-hide-for-applicant="personal_unaffiliated">
-                <legend>관심 데뷔 유형</legend>
-                <ul class="debut-type-grid" role="radiogroup" aria-label="관심 데뷔 유형">
-                  <li>
-                    <label class="debut-type-card">
-                      <input type="radio" name="participationType" value="appearance_only" checked />
-                      <span class="debut-type-card-name">외모 제공형</span>
-                      <span class="debut-type-card-desc">외모 자료를 중심으로 캐릭터를 만드는 방식이에요.</span>
-                    </label>
-                  </li>
-                  <li>
-                    <label class="debut-type-card">
-                      <input type="radio" name="participationType" value="co_creator" />
-                      <span class="debut-type-card-name">외모 + 콘셉트 제공형</span>
-                      <span class="debut-type-card-desc">외모 자료와 함께 아티스트 설정/콘셉트 문서를 제안해요.</span>
-                    </label>
-                  </li>
-                  <li>
-                    <label class="debut-type-card">
-                      <input type="radio" name="participationType" value="voice_or_song" />
-                      <span class="debut-type-card-name">외모 + 노래/음성 제공형</span>
-                      <span class="debut-type-card-desc">외모와 함께 본인의 노래·음성 샘플을 반영하는 방식이에요.</span>
-                    </label>
-                  </li>
-                  <li>
-                    <label class="debut-type-card">
-                      <input type="radio" name="participationType" value="co_creator" />
-                      <span class="debut-type-card-name">창작자 직접 기획형</span>
-                      <span class="debut-type-card-desc">캐릭터 설정·음악 방향·세계관 문서를 중심으로 심사받아요.</span>
-                    </label>
-                  </li>
-                </ul>
-                <small id="debutTypeHelper" style="display:block;margin-top:8px;">제공할 수 있는 자료와 참여 깊이에 맞춰 선택해주세요.</small>
-              </fieldset>
               <label>
                 <span>희망 상담 시간</span>
                 <input name="preferredContactTime" type="text" placeholder="예: 평일 오후 2시 이후" />
@@ -449,33 +385,58 @@
             </label>
 
             <div class="debut-consent-list">
-              <label class="debut-consent-master" style="display:flex;align-items:flex-start;gap:10px;font-weight:700;letter-spacing:-0.01em;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:12px;margin-bottom:6px;">
-                <input type="checkbox" id="debutConsentAll" style="margin-top:4px;" />
-                <span style="display:flex;flex-direction:column;gap:2px;">
-                  <strong style="font-weight:700;">모두 동의하기</strong>
-                  <small style="font-weight:500;color:rgba(220,210,240,0.6);font-size:12.5px;letter-spacing:-0.01em;">필수·선택 항목을 한 번에 선택합니다.</small>
-                </span>
+              <label class="debut-consent-inline">
+                <input type="checkbox" name="requiredNoticeConsent" required />
+                <span id="debutRequiredNoticeLabel">필수 안내 및 예상 정산 기준을 확인했습니다.</span>
+                <button type="button" class="debut-consent-more" id="debutConsentMore" aria-haspopup="dialog" aria-controls="debutConsentModal">더 보기</button>
               </label>
-
-              <p style="font-weight:700;letter-spacing:0.06em;text-transform:uppercase;font-size:11px;color:rgba(255,79,195,0.85);margin:8px 0 4px;">필수 동의</p>
-              <label><input type="checkbox" name="isAdult" required /> 만 19세 이상이며, 신청 자격을 확인했습니다.</label>
-              <label data-hide-for-type="partnership_other"><input type="checkbox" name="consentAppearance" required /> 제출 자료가 본인 것이거나 제출 권한이 있음을 확인합니다.</label>
-              <label data-hide-for-type="partnership_other"><input type="checkbox" name="consentRightsRelationship" required /> 소속사·매니지먼트·전속계약 등 권리 관계가 있는 경우 사실대로 기재합니다.</label>
-              <label data-hide-for-type="partnership_other"><input type="checkbox" name="consentNoGuarantee" required /> 접수만으로 데뷔·제작·수익 정산이 확정되지 않음을 이해합니다.</label>
-              <label data-hide-for-type="partnership_other"><input type="checkbox" name="consentRevenuePolicy" required /> 수익 배분, 금지 표현, 허위 제출 시 심사 중단 기준을 확인했습니다.</label>
-              <label><input type="checkbox" name="consentPrivacy" required /> 상담 진행을 위한 개인정보 수집 및 이용에 동의합니다.</label>
-              <label><input type="checkbox" name="consultationConsent" required /> 담당자의 유선 상담 연락에 동의합니다.</label>
-
-              <p style="font-weight:700;letter-spacing:0.06em;text-transform:uppercase;font-size:11px;color:rgba(155,124,247,0.85);margin:12px 0 4px;">선택 동의</p>
-              <label><input type="checkbox" name="consentMarketing" /> Lumina Stage 운영팀이 보내는 데뷔 안내, 이벤트, 신규 모집 소식을 이메일 또는 문자로 받아보겠습니다. 선택하지 않아도 신청에는 영향이 없습니다.</label>
-
-              <p class="debut-consent-warning">
-                타인 사진, 타인 음성, 무단 촬영물, 계약상 사용할 수 없는 자료는 제출할 수 없습니다.
-              </p>
-              <p>
-                자세한 기준은 <a class="text-link" href="./debut-terms.html">AI 데뷔 신청 약관</a>에서 확인할 수 있어요.
-              </p>
             </div>
+
+            <div class="debut-consent-modal-backdrop" id="debutConsentBackdrop" hidden></div>
+            <aside class="debut-consent-modal" id="debutConsentModal" role="dialog" aria-modal="true" aria-labelledby="debutConsentModalTitle" hidden>
+              <header class="debut-consent-modal-head">
+                <div>
+                  <p class="eyebrow">Required Notice</p>
+                  <h3 id="debutConsentModalTitle">필수 안내 및 예상 정산 기준</h3>
+                </div>
+                <button type="button" class="debut-consent-modal-close" data-consent-close aria-label="닫기">×</button>
+              </header>
+              <div class="debut-consent-modal-body">
+                <section>
+                  <h4>신청 자격과 자료 제공</h4>
+                  <ul>
+                    <li>만 19세 이상 신청자만 접수할 수 있습니다.</li>
+                    <li>제출 자료는 본인 것이거나 사용할 권한이 있는 자료여야 합니다.</li>
+                    <li>소속사·매니지먼트·전속계약 등 권리 관계가 있다면 사실대로 알려야 합니다.</li>
+                  </ul>
+                </section>
+                <section data-hide-for-type="partnership_other">
+                  <h4>예상 정산 기준 요약</h4>
+                  <ul>
+                    <li>정산률은 제공 자료, 재능 제공, 소통 참여, 홍보 기여도에 따라 상담 후 달라질 수 있습니다.</li>
+                    <li>개인 아티스트 기준 예상 범위는 5%~30%입니다.</li>
+                    <li>최종 정산 조건은 상담 및 계약 단계에서 확정됩니다.</li>
+                  </ul>
+                </section>
+                <section>
+                  <h4>개인정보와 상담 연락</h4>
+                  <ul>
+                    <li>상담 진행을 위해 이름, 연락처, 신청 내용을 수집·이용합니다.</li>
+                    <li>담당자가 유선 또는 이메일로 신청 내용을 확인할 수 있습니다.</li>
+                    <li>접수만으로 제작 또는 협업 진행이 확정되지는 않습니다.</li>
+                  </ul>
+                </section>
+                <section data-hide-for-type="partnership_other">
+                  <h4>제작 기준</h4>
+                  <p>성별 전환은 지원 안함</p>
+                  <p>타인 사진, 타인 음성, 무단 촬영물, 계약상 사용할 수 없는 자료는 제출할 수 없습니다.</p>
+                  <p>자세한 기준은 <a class="text-link" href="./debut-terms.html">AI 데뷔 신청 약관</a>에서 확인할 수 있어요.</p>
+                </section>
+              </div>
+              <footer class="debut-consent-modal-foot">
+                <button type="button" class="button button-primary" data-consent-close>확인</button>
+              </footer>
+            </aside>
 
             <div class="debut-form-message" id="debutApplyMessage" hidden></div>
             <div class="debut-form-actions">
@@ -529,12 +490,6 @@
         const form = document.getElementById("debutApplyForm");
         if (!form) return;
 
-        const helperMap = {
-          appearance_only: "외모 제공형은 본인의 사진 자료가 필요해요. 상담 단계에서는 자료 보유 여부만 확인합니다.",
-          voice_or_song: "사진과 음성 샘플을 함께 반영하는 유형이에요. 상담 후 제출 방식을 안내합니다.",
-          performance: "노래, 춤, 연기, 안무 등 퍼포먼스 자료를 중심으로 검토해요.",
-          co_creator: "캐릭터 설정, 음악 방향, 가사, 세계관 문서를 중심으로 심사해요."
-        };
         // #062: applicationType helper 메시지
         const applicationTypeHelperMap = {
           personal_unaffiliated: "본인 기반 AI 아티스트 데뷔를 신청합니다.",
@@ -542,8 +497,6 @@
           ai_creator_partner: "이미지·영상 제작 파트너 검토를 요청합니다.",
           partnership_other: "브랜드, 콘텐츠, 사업 제휴를 제안합니다."
         };
-        const participationTypeRadios = form.querySelectorAll("input[name='participationType']");
-        const typeHelper = document.getElementById("debutTypeHelper");
         /* #227 — applicationType 이 select → 라디오 그룹으로 바뀌어
          * `.value` 직접 접근 대신 헬퍼로 읽고 쓴다. */
         const applicationTypeRadios = form.querySelectorAll("input[name='applicationType']");
@@ -551,6 +504,8 @@
         const personalSub = document.getElementById("debutPersonalSub");
         const message = document.getElementById("debutApplyMessage");
         const submit = document.getElementById("debutApplySubmit");
+        const requiredNoticeLabel = document.getElementById("debutRequiredNoticeLabel");
+        const consentModalTitle = document.getElementById("debutConsentModalTitle");
         function getApplicationType() {
           const checked = form.querySelector("input[name='applicationType']:checked");
           return checked?.value || "personal_unaffiliated";
@@ -580,10 +535,21 @@
         // #062 + #089 + #227: applicationType 변경 시 — helper 갱신 + 조건부 필드 토글 + 채널 제약 + 개인/무소속 하위 섹션 토글
         function syncApplicationTypeUI() {
           const value = getApplicationType();
+          const isPartnershipOther = value === "partnership_other";
           if (applicationTypeHelper) {
             applicationTypeHelper.textContent = applicationTypeHelperMap[value] || applicationTypeHelperMap.personal_unaffiliated;
           }
-          /* #227 — 개인/무소속 선택 시 데뷔 방식·제공·업로드·정산 안내 섹션 노출 */
+          if (requiredNoticeLabel) {
+            requiredNoticeLabel.textContent = isPartnershipOther
+              ? "필수 안내를 확인했습니다."
+              : "필수 안내 및 예상 정산 기준을 확인했습니다.";
+          }
+          if (consentModalTitle) {
+            consentModalTitle.textContent = isPartnershipOther
+              ? "필수 안내"
+              : "필수 안내 및 예상 정산 기준";
+          }
+          /* #227 — 개인/무소속 선택 시 데뷔 방식·제공·업로드 섹션 노출 */
           if (personalSub) {
             const isPersonal = value === "personal_unaffiliated";
             personalSub.classList.toggle("is-active", isPersonal);
@@ -594,12 +560,6 @@
               }
             });
           }
-          /* #227 — data-hide-for-applicant: 개인/무소속에서는 기존 participationType 카드를 숨김
-           * (debutMethod 라디오가 의미를 대체). 다른 신청 유형에서만 노출. */
-          form.querySelectorAll("[data-hide-for-applicant]").forEach(el => {
-            const hide = el.dataset.hideForApplicant === value;
-            toggleConditional(el, !hide);
-          });
           // (a) data-show-for: applicationType 정확히 일치 시만 노출 (소속사/AI크리에이터/기타제휴 전용 영역)
           form.querySelectorAll("[data-show-for]").forEach(el => {
             const matches = el.dataset.showFor === value;
@@ -616,7 +576,6 @@
             toggleConditional(el, !hide);
           });
           // (d) #089 — partnership_other이면 신청 방식을 phone_consultation으로 강제 + 온라인 라디오 잠금
-          const isPartnershipOther = value === "partnership_other";
           const onlineRadio = form.querySelector("input[name='applicationChannel'][value='online_review']");
           const phoneRadio = form.querySelector("input[name='applicationChannel'][value='phone_consultation']");
           if (onlineRadio && phoneRadio) {
@@ -692,18 +651,6 @@
           otherCheckbox.addEventListener("change", syncOther);
           syncOther();
         }
-        /* 개인/무소속 흐름에서는 사용자가 debutMethod 라디오 카드를 선택할 때
-         * 기존 participationType 라디오 그룹을 백엔드 호환용으로 자동 동기화한다.
-         * (participationType radio 자체는 화면에서 숨김 처리되어 사용자가 직접 만지지 않음.) */
-        form.querySelectorAll("input[name='debutMethod']").forEach(radio => {
-          radio.addEventListener("change", () => {
-            const mapped = debutMethodToParticipation[radio.value];
-            if (!mapped) return;
-            const target = form.querySelector(`input[name='participationType'][value='${mapped}']`);
-            if (target) target.checked = true;
-          });
-        });
-
         // #062: 3카드 CTA 클릭 → applicationType 설정 + 폼으로 스크롤
         document.querySelectorAll("[data-applicant-cta]").forEach(btn => {
           btn.addEventListener("click", e => {
@@ -721,12 +668,6 @@
           });
         });
 
-        participationTypeRadios.forEach(input => {
-          input.addEventListener("change", () => {
-            if (typeHelper) typeHelper.textContent = helperMap[input.value] || "제공할 수 있는 자료와 참여 깊이에 맞춰 선택해주세요.";
-          });
-        });
-
         form.querySelectorAll("[name='applicationChannel']").forEach(input => {
           input.addEventListener("change", () => {
             form.querySelectorAll(".debut-choice").forEach(label => {
@@ -734,6 +675,32 @@
             });
             syncApplicationChannelUI();
           });
+        });
+
+        const consentMore = document.getElementById("debutConsentMore");
+        const consentModal = document.getElementById("debutConsentModal");
+        const consentBackdrop = document.getElementById("debutConsentBackdrop");
+        function openConsentModal() {
+          if (!consentModal || !consentBackdrop) return;
+          consentModal.hidden = false;
+          consentBackdrop.hidden = false;
+          document.body.classList.add("is-debut-consent-open");
+          consentModal.querySelector("[data-consent-close]")?.focus({ preventScroll: true });
+        }
+        function closeConsentModal() {
+          if (!consentModal || !consentBackdrop) return;
+          consentModal.hidden = true;
+          consentBackdrop.hidden = true;
+          document.body.classList.remove("is-debut-consent-open");
+          consentMore?.focus({ preventScroll: true });
+        }
+        consentMore?.addEventListener("click", openConsentModal);
+        consentBackdrop?.addEventListener("click", closeConsentModal);
+        consentModal?.querySelectorAll("[data-consent-close]").forEach(button => {
+          button.addEventListener("click", closeConsentModal);
+        });
+        document.addEventListener("keydown", event => {
+          if (event.key === "Escape" && consentModal && !consentModal.hidden) closeConsentModal();
         });
 
         form.addEventListener("submit", async event => {
@@ -752,6 +719,7 @@
           const data = Object.fromEntries(new FormData(form).entries());
           // #081 보강 — 체크박스는 실제 화면 입력값을 boolean으로 (이전: 코드 하드코딩 true였음, 미성년자도 통과되던 버그)
           const checked = name => !!form.querySelector(`input[name="${name}"]`)?.checked;
+          const requiredNoticeConsent = checked("requiredNoticeConsent");
 
           // #089 — partnership_other 분기: 제휴 문의 단순폼
           const isPartnership = data.applicationType === "partnership_other";
@@ -777,7 +745,7 @@
           const personalParticipationType = debutMethodToParticipation[data.debutMethod] || "co_creator";
           const participationType = data.applicationType === "personal_unaffiliated"
             ? personalParticipationType
-            : data.participationType;
+            : undefined;
           const payload = isPartnership ? {
             // #089 — 기타 제휴: 유선상담 강제 + 데뷔 관련 필드 제외, 문의 내용만 전송
             applicationChannel: "phone_consultation",
@@ -789,10 +757,10 @@
             preferredContactTime: data.preferredContactTime,
             // partnership 본문은 intro 자리에 함께 담아 백엔드 호환 유지 + metadata에도 사본
             intro: (data.partnershipInquiry || "").trim(),
-            isAdult: checked("isAdult"),
-            consentPrivacy: checked("consentPrivacy"),
-            consultationConsent: checked("consultationConsent"),
-            consentMarketing: checked("consentMarketing"),
+            isAdult: requiredNoticeConsent,
+            consentPrivacy: requiredNoticeConsent,
+            consultationConsent: requiredNoticeConsent,
+            consentMarketing: false,
             metadata: {
               materialSubmissionMode: "no_file_upload_mvp"
             }
@@ -811,15 +779,15 @@
             // #089 — portfolioUrl: online_review 선택 시 입력 가능
             ...(data.portfolioUrl ? { portfolioUrl: data.portfolioUrl } : {}),
             // #081 보강 — 체크박스 값을 화면에서 직접 읽어 페이로드 구성
-            isAdult: checked("isAdult"),
-            consentAppearance: checked("consentAppearance"),
+            isAdult: requiredNoticeConsent,
+            consentAppearance: requiredNoticeConsent,
             consentVoice: ["voice_or_song", "performance"].includes(participationType),
-            consentRightsRelationship: checked("consentRightsRelationship"),
-            consentNoGuarantee: checked("consentNoGuarantee"),
-            consentRevenuePolicy: checked("consentRevenuePolicy"),
-            consentPrivacy: checked("consentPrivacy"),
-            consultationConsent: checked("consultationConsent"),
-            consentMarketing: checked("consentMarketing"),
+            consentRightsRelationship: requiredNoticeConsent,
+            consentNoGuarantee: requiredNoticeConsent,
+            consentRevenuePolicy: requiredNoticeConsent,
+            consentPrivacy: requiredNoticeConsent,
+            consultationConsent: requiredNoticeConsent,
+            consentMarketing: false,
             metadata: {
               restrictedExpressions: data.restrictedExpressions,
               debutMethod: data.debutMethod || null,
@@ -858,6 +826,7 @@
             setMessage("신청이 접수됐어요. 운영팀이 자료와 운영 조건을 확인한 뒤 안내드릴게요.", "success");
             form.reset();
             form.querySelector(".debut-choice")?.classList.add("is-selected");
+            syncApplicationTypeUI();
           } catch (err) {
             // #081 보강 — 응답 status별 사용자 카피 분기
             let msg = "신청을 접수하지 못했어요. 잠시 후 다시 시도해주세요.";
@@ -885,43 +854,6 @@
           }
         });
 
-        // ── 모두 동의하기 마스터 체크박스 동기화 ──
-        // 마스터 체크 → 화면에 보이는 하위 체크박스 모두 토글
-        // 하위 수동 변경 시 → 모두 체크면 마스터 on, 하나라도 빠지면 off
-        // partnership_other 등으로 hide된 체크박스는 제외 (offsetParent로 판정)
-        const consentAll = form.querySelector("#debutConsentAll");
-        const consentList = form.querySelector(".debut-consent-list");
-        function getConsentItems() {
-          if (!consentList) return [];
-          return Array.from(consentList.querySelectorAll('input[type="checkbox"]'))
-            .filter(cb => cb.id !== "debutConsentAll");
-        }
-        function getVisibleConsentItems() {
-          return getConsentItems().filter(cb => {
-            const lbl = cb.closest("label");
-            return lbl && lbl.offsetParent !== null;
-          });
-        }
-        function syncConsentAll() {
-          if (!consentAll) return;
-          const items = getVisibleConsentItems();
-          consentAll.checked = items.length > 0 && items.every(cb => cb.checked);
-        }
-        if (consentAll) {
-          consentAll.addEventListener("change", () => {
-            const items = getVisibleConsentItems();
-            items.forEach(cb => { cb.checked = consentAll.checked; });
-          });
-          getConsentItems().forEach(cb => {
-            cb.addEventListener("change", syncConsentAll);
-          });
-          // 신청 유형 변경으로 hide/show가 바뀌면 마스터 상태 재계산
-          form.addEventListener("change", e => {
-            if (e.target && (e.target.name === "applicationType")) {
-              setTimeout(syncConsentAll, 0);
-            }
-          });
-        }
       })();
     </script>
     <!-- ── 모바일 하단 탭바 (768px 이하 노출, #017 — 2026-05-02) ── -->
