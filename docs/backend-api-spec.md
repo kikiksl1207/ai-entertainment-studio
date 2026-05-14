@@ -206,11 +206,11 @@ Email delivery adapter:
 Admin action-token trace:
 
 ```http
-GET /admin/api/v1/auth/action-tokens?purpose=email_verification&status=pending&take=50
+GET /admin/api/v1/auth/action-tokens?purpose=email_verification&status=pending&deliveryStatus=accepted&deliveryProvider=resend&take=50
 ```
 
 - Requires `audit:read`.
-- Query filters: `purpose=email_verification|password_reset`, `status=all|pending|consumed|expired`, `userId`, `email`, `take`, and `cursor`.
+- Query filters: `purpose=email_verification|password_reset`, `status=all|pending|consumed|expired`, `deliveryStatus=all|not_recorded|pending|accepted|not_configured|failed`, `deliveryProvider=all|none|resend|sendgrid` (or `provider` alias), `userId`, `email`, `take`, and `cursor`.
 - Response rows expose only operationally safe fields: `id`, `purpose`, derived `status`, `statusKey`, `createdAt`, `expiresAt`, `consumedAt`, masked `target.emailMasked`, `target.userId`, `target.userStatus`, `target.emailVerified`, and `target.deleted`.
 - Delivery fields are persisted on `user_action_tokens` for rows created after this migration: `delivery.status` (`pending`, `accepted`, `not_configured`, `failed`, or historical `not_recorded`), `delivery.channel`, `delivery.provider`, `delivery.attemptedAt`, `delivery.acceptedAt`, and `delivery.failedAt`.
 - Request responses stay existence-neutral. If provider delivery throws, the request response still returns the neutral configured delivery status while admin audit stores `delivery.status = "failed"` without raw provider response bodies.

@@ -1299,3 +1299,35 @@ blocked_by:
 - live smoke still requires merge/deploy plus a safe `audit:read` admin account.
 next_needed:
 - QR QA after branch update: check pending/consumed/expired token state and delivery status/provider timestamps on safe data.
+
+---
+
+status: completed
+task: #243 mail delivery audit filter hardening
+branch/commit: team2-backend/mail-audit-admin-243 / this commit
+changed_files:
+- server/src/admin/admin.controller.ts
+- server/src/admin/admin.service.ts
+- server/src/admin/admin.service.spec.ts
+- server/README.md
+- docs/backend-api-spec.md
+- docs/admin-permission-matrix.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npx.cmd prisma generate
+- PASS: npm.cmd test -- auth.service.spec.ts admin.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check origin/main...HEAD
+result:
+- Added action-token audit query support for `deliveryStatus=all|not_recorded|pending|accepted|not_configured|failed`.
+- Added action-token audit query support for `deliveryProvider=all|none|resend|sendgrid`, with `provider` accepted as an alias.
+- Added stable admin errors for unsupported delivery status/provider filters.
+- Extended response `filters` and `policy` metadata so operators can see the supported delivery lookup contract.
+- Kept raw token, token hash, raw email, mail body, provider raw response, provider secret, action URL, and env values out of responses/docs.
+sensitive_data:
+- none recorded.
+blocked_by:
+- none for branch-level validation.
+next_needed:
+- QR QA delivery status/provider filter contract, then Chamo final completion/archive judgment.

@@ -159,6 +159,20 @@ const AUTH_ACTION_TOKEN_STATUSES = new Set([
   'consumed',
   'expired',
 ]);
+const AUTH_ACTION_TOKEN_DELIVERY_STATUSES = new Set([
+  'all',
+  'not_recorded',
+  'pending',
+  'accepted',
+  'not_configured',
+  'failed',
+]);
+const AUTH_ACTION_TOKEN_DELIVERY_PROVIDERS = new Set([
+  'all',
+  'none',
+  'resend',
+  'sendgrid',
+]);
 const FAN_MISSION_NON_CASH_POLICY = {
   cashLike: false,
   luminaAmount: 0,
@@ -3395,6 +3409,11 @@ export class AdminService {
     const status = this.optionalString(query, 'status') ?? 'all';
     const userId = this.optionalString(query, 'userId');
     const email = this.optionalString(query, 'email')?.toLowerCase();
+    const deliveryStatus = this.optionalString(query, 'deliveryStatus') ?? 'all';
+    const deliveryProvider =
+      this.optionalString(query, 'deliveryProvider') ??
+      this.optionalString(query, 'provider') ??
+      'all';
     const now = new Date();
 
     if (purpose && !AUTH_ACTION_TOKEN_PURPOSES.has(purpose)) {
@@ -3412,6 +3431,24 @@ export class AdminService {
         'Invalid auth action token status',
         'admin.authActionTokens.invalidStatus',
         { allowed: [...AUTH_ACTION_TOKEN_STATUSES] },
+      );
+    }
+
+    if (!AUTH_ACTION_TOKEN_DELIVERY_STATUSES.has(deliveryStatus)) {
+      throw this.adminBadRequest(
+        'AUTH_ACTION_TOKEN_INVALID_DELIVERY_STATUS',
+        'Invalid auth action token delivery status',
+        'admin.authActionTokens.invalidDeliveryStatus',
+        { allowed: [...AUTH_ACTION_TOKEN_DELIVERY_STATUSES] },
+      );
+    }
+
+    if (!AUTH_ACTION_TOKEN_DELIVERY_PROVIDERS.has(deliveryProvider)) {
+      throw this.adminBadRequest(
+        'AUTH_ACTION_TOKEN_INVALID_DELIVERY_PROVIDER',
+        'Invalid auth action token delivery provider',
+        'admin.authActionTokens.invalidDeliveryProvider',
+        { allowed: [...AUTH_ACTION_TOKEN_DELIVERY_PROVIDERS] },
       );
     }
 
@@ -3434,6 +3471,13 @@ export class AdminService {
             },
           }
         : undefined,
+      deliveryStatus: deliveryStatus === 'all' ? undefined : deliveryStatus,
+      deliveryProvider:
+        deliveryProvider === 'all'
+          ? undefined
+          : deliveryProvider === 'none'
+            ? null
+            : { equals: deliveryProvider, mode: 'insensitive' },
       ...this.authActionTokenStatusWhere(status, now),
     });
 
@@ -3456,6 +3500,8 @@ export class AdminService {
       filters: {
         purpose: purpose ?? 'all',
         status,
+        deliveryStatus,
+        deliveryProvider,
         userId: userId ?? null,
         email: email ? this.maskEmail(email) : null,
       },
@@ -6564,6 +6610,8 @@ export class AdminService {
       deliveryRawProviderResponseReturned: false,
       supportedPurposes: [...AUTH_ACTION_TOKEN_PURPOSES],
       supportedStatuses: [...AUTH_ACTION_TOKEN_STATUSES],
+      supportedDeliveryStatuses: [...AUTH_ACTION_TOKEN_DELIVERY_STATUSES],
+      supportedDeliveryProviders: [...AUTH_ACTION_TOKEN_DELIVERY_PROVIDERS],
     };
   }
 

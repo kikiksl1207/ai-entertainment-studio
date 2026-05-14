@@ -18,6 +18,11 @@ import { AdminService } from './admin.service';
 
 type AdminPayload = Record<string, unknown>;
 type AuditQuery = Record<string, string | undefined>;
+type AuthActionTokenAuditQuery = AuditQuery & {
+  deliveryStatus?: string;
+  deliveryProvider?: string;
+  provider?: string;
+};
 
 @Controller('/admin/api/v1')
 @UseGuards(AdminAuthGuard, AdminPermissionGuard)
@@ -263,7 +268,7 @@ export class AdminController {
 
   @Get('auth/action-tokens')
   @RequireAdminPermissions('audit:read')
-  getAuthActionTokens(@Query() query: AuditQuery) {
+  getAuthActionTokens(@Query() query: AuthActionTokenAuditQuery) {
     return this.adminService.getAuthActionTokens(query);
   }
 

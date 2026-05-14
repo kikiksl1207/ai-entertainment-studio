@@ -66,6 +66,8 @@ describe('AdminService auth action token audit', () => {
     const result = await service.getAuthActionTokens({
       purpose: 'email_verification',
       status: 'pending',
+      deliveryStatus: 'accepted',
+      deliveryProvider: 'resend',
     });
 
     expect(prisma.userActionToken.findMany).toHaveBeenCalledWith(
@@ -74,6 +76,8 @@ describe('AdminService auth action token audit', () => {
           purpose: 'email_verification',
           consumedAt: null,
           expiresAt: { gt: expect.any(Date) },
+          deliveryStatus: 'accepted',
+          deliveryProvider: { equals: 'resend', mode: 'insensitive' },
         }),
       }),
     );
@@ -104,8 +108,44 @@ describe('AdminService auth action token audit', () => {
         mailBodyReturned: false,
       },
     });
+    expect(result.filters).toMatchObject({
+      purpose: 'email_verification',
+      status: 'pending',
+      deliveryStatus: 'accepted',
+      deliveryProvider: 'resend',
+      email: null,
+    });
+    expect(result.policy).toMatchObject({
+      supportedDeliveryStatuses: expect.arrayContaining(['accepted', 'failed']),
+      supportedDeliveryProviders: expect.arrayContaining(['resend', 'sendgrid', 'none']),
+    });
     expect(JSON.stringify(result)).not.toContain('hash-value-must-not-leak');
     expect(JSON.stringify(result)).not.toContain('qa@example.com');
+  });
+
+  it('supports filtering delivery rows without a provider', async () => {
+    const { service, prisma } = createService();
+
+    prisma.userActionToken.findMany.mockResolvedValue([]);
+    prisma.userActionToken.count.mockResolvedValue(0);
+
+    const result = await service.getAuthActionTokens({
+      deliveryStatus: 'not_configured',
+      deliveryProvider: 'none',
+    });
+
+    expect(prisma.userActionToken.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          deliveryStatus: 'not_configured',
+          deliveryProvider: null,
+        }),
+      }),
+    );
+    expect(result.filters).toMatchObject({
+      deliveryStatus: 'not_configured',
+      deliveryProvider: 'none',
+    });
   });
 
   it('rejects unsupported purposes with a stable admin error', async () => {
@@ -121,5 +161,23 @@ describe('AdminService auth action token audit', () => {
         messageKey: 'admin.authActionTokens.invalidPurpose',
       });
     }
+  });
+
+  it('rejects unsupported delivery filters with stable admin errors', async () => {
+    const { service } = createService();
+
+    await expect(service.getAuthActionTokens({ deliveryStatus: 'sent' })).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'AUTH_ACTION_TOKEN_INVALID_DELIVERY_STATUS',
+        messageKey: 'admin.authActionTokens.invalidDeliveryStatus',
+      }),
+    });
+
+    await expect(service.getAuthActionTokens({ deliveryProvider: 'smtp' })).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'AUTH_ACTION_TOKEN_INVALID_DELIVERY_PROVIDER',
+        messageKey: 'admin.authActionTokens.invalidDeliveryProvider',
+      }),
+    });
   });
 });

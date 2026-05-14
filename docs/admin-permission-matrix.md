@@ -28,7 +28,7 @@ Lumina Stage backend operations.
 | Admin roles | `GET /admin-roles` | `*` | Super admin only. |
 | Admin users | `GET/POST/PATCH /admin-users` | `*` | Super admin only. Used to create and manage operators. |
 | Audit events | `GET /audit-events` | `audit:read` | Included in content and commerce roles for traceability. |
-| Auth action token audit | `GET /auth/action-tokens` | `audit:read` | Read-only email verification/password reset token trace. Returns masked target email, derived token state, and persisted delivery status/provider timestamps only; raw token, token hash, mail body, provider raw response, provider secret, and env values are never returned. |
+| Auth action token audit | `GET /auth/action-tokens` | `audit:read` | Read-only email verification/password reset token trace. Supports token state plus delivery status/provider filters. Returns masked target email, derived token state, and persisted delivery status/provider timestamps only; raw token, token hash, mail body, provider raw response, provider secret, and env values are never returned. |
 | Payment orders | `GET /payment-orders`, `GET /payment-orders/:orderId` | `payments:read` | Read-only payment investigation. |
 | Refund lookup | `GET /refund-transactions` | `payments:read` | Read-only refund investigation. |
 | Refund operations | `POST /payment-orders/:orderId/refunds`, `PATCH /refund-transactions/:refundId` | `refunds:write` | Creates or updates refund tracking records only. Actual PG refund execution is separate. |
