@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>이메일 인증 — Lumina Stage</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <meta name="description" content="Lumina Stage 이메일 인증 결과 페이지." />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="이메일 인증 — Lumina Stage" />
+    <meta property="og:site_name" content="Lumina Stage" />
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-1L7TCBQ0N4');
+    </script>
+  </head>
+  <body class="is-booting">
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="./index.html">
+          <img class="brand-logo" src="./assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
+          <span class="brand-copy">
+            <strong>Lumina Stage</strong>
+            <small data-i18n="brand.tagline">아티스트 레이블</small>
+          </span>
+        </a>
+      </div>
+    </header>
+
+    <main>
+      <section class="content-section auth-confirm-section">
+        <div class="shell auth-confirm-shell">
+          <article class="auth-confirm-card" id="verifyEmailCard" data-state="checking" aria-live="polite">
+            <p class="eyebrow" id="verifyEmailKicker">Checking</p>
+            <h1 id="verifyEmailTitle">이메일 인증을 확인하는 중이에요</h1>
+            <p id="verifyEmailBody">메일에서 받은 인증 링크를 확인하고 있습니다. 잠시만 기다려주세요.</p>
+            <div class="auth-confirm-spinner" id="verifyEmailSpinner" aria-hidden="true"></div>
+            <nav class="auth-confirm-actions" id="verifyEmailActions" hidden>
+              <a class="button button-primary" id="verifyEmailPrimaryAction" href="./mypage.html">마이페이지로 이동</a>
+              <a class="button button-secondary" href="./index.html">홈으로</a>
+            </nav>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-inner">
+        <div>
+          <strong>Lumina Stage</strong>
+          <p>이메일 인증 확인 페이지입니다.</p>
+        </div>
+        <div class="footer-links">
+          <a href="./characters.html" data-i18n="footer.artistRoster">아티스트 라인업</a>
+          <a href="./terms.html" data-i18n="footer.terms">이용약관</a>
+          <a href="./privacy.html" data-i18n="footer.privacy">개인정보처리방침</a>
+          <a href="./refund-policy.html" data-i18n="footer.refund">환불 정책</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="./app.js"></script>
+    <script>
+      /* #240 — 이메일 인증 확인 화면.
+       * URL `?token=...` 을 읽어 POST /api/v1/auth/email-verifications/confirm { token } 호출.
+       * 성공/실패/만료/이미 사용된 토큰 상태를 카드 카피로 구분 표시.
+       * 보안: token 값을 콘솔/Notion/스토리지에 기록하지 않는다. */
+      (function initVerifyEmail() {
+        const card = document.getElementById("verifyEmailCard");
+        const kicker = document.getElementById("verifyEmailKicker");
+        const title = document.getElementById("verifyEmailTitle");
+        const body = document.getElementById("verifyEmailBody");
+        const spinner = document.getElementById("verifyEmailSpinner");
+        const actions = document.getElementById("verifyEmailActions");
+        const primary = document.getElementById("verifyEmailPrimaryAction");
+        if (!card) return;
+
+        function setState(state, payload) {
+          card.dataset.state = state;
+          if (spinner) spinner.hidden = state !== "checking";
+          if (actions) actions.hidden = state === "checking";
+          if (state === "success") {
+            if (kicker) kicker.textContent = "Email Verified";
+            if (title) title.textContent = "이메일 인증이 완료됐어요";
+            if (body) body.textContent = payload?.message || "이제 로그인하고 Lumina Stage의 모든 기능을 사용할 수 있어요.";
+            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "./mypage.html"; }
+          } else if (state === "expired") {
+            if (kicker) kicker.textContent = "Expired";
+            if (title) title.textContent = "인증 링크가 만료됐어요";
+            if (body) body.textContent = "이메일 인증 링크는 일정 시간이 지나면 사용할 수 없어요. 마이페이지에서 인증 메일을 다시 보내주세요.";
+            if (primary) { primary.textContent = "마이페이지에서 재전송"; primary.href = "./mypage.html"; }
+          } else if (state === "used") {
+            if (kicker) kicker.textContent = "Already Verified";
+            if (title) title.textContent = "이미 사용한 인증 링크예요";
+            if (body) body.textContent = "이 인증 링크는 이미 사용됐어요. 그대로 로그인해 사용할 수 있어요.";
+            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "./mypage.html"; }
+          } else if (state === "invalid") {
+            if (kicker) kicker.textContent = "Invalid Link";
+            if (title) title.textContent = "이 링크는 인증에 사용할 수 없어요";
+            if (body) body.textContent = "메일에서 받은 인증 링크 전체를 다시 눌러주세요. 문제가 반복되면 마이페이지에서 인증 메일을 다시 보내주세요.";
+            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "./mypage.html"; }
+          } else if (state === "error") {
+            if (kicker) kicker.textContent = "Try Again";
+            if (title) title.textContent = "인증 처리 중 문제가 생겼어요";
+            if (body) body.textContent = "잠시 후 다시 시도해주세요. 같은 문제가 반복되면 마이페이지에서 인증 메일을 새로 받아주세요.";
+            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "./mypage.html"; }
+          }
+        }
+
+        function classifyError(err) {
+          const status = err?.status;
+          const code = (err?.body?.code || err?.body?.messageKey || err?.body?.error || "").toString().toLowerCase();
+          if (status === 410 || code.includes("expired")) return "expired";
+          if (status === 409 || code.includes("already") || code.includes("used")) return "used";
+          if (status === 400 || status === 404 || code.includes("invalid") || code.includes("not_found")) return "invalid";
+          return "error";
+        }
+
+        async function run() {
+          const params = new URLSearchParams(location.search);
+          const token = params.get("token") || "";
+          if (!token) {
+            setState("invalid");
+            return;
+          }
+          // 보안: token 자체를 화면·로그에 노출하지 않는다.
+          if (typeof apiFetch !== "function") {
+            setState("error");
+            return;
+          }
+          try {
+            const data = await apiFetch("/api/v1/auth/email-verifications/confirm", {
+              method: "POST",
+              body: { token },
+              throwOnError: true
+            });
+            /* #240 v2 — 백엔드가 자동 로그인용 access/refresh 토큰을 포함해 주면 보안적으로 저장.
+             * 단 토큰을 console / Notion / URL 어디에도 남기지 않으며, setAuth() 는 localStorage 에만 넣는다. */
+            try {
+              if (typeof setAuth === "function" && data && (data.accessToken || data.tokens?.accessToken)) {
+                setAuth({
+                  accessToken: data.accessToken || data.tokens?.accessToken || data.tokens?.access_token,
+                  refreshToken: data.refreshToken || data.tokens?.refreshToken || data.tokens?.refresh_token,
+                  user: data.user || null
+                });
+              }
+            } catch (_) { /* setAuth 실패해도 success 상태 자체는 유지 */ }
+            setState("success", data);
+          } catch (err) {
+            setState(classifyError(err));
+          }
+        }
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", run);
+        } else {
+          run();
+        }
+      })();
+    </script>
+  </body>
+</html>
