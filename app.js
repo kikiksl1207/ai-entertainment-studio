@@ -456,18 +456,25 @@ async function authLogin(email, password) {
     body: { email, password },
     throwOnError: true
   });
-  console.log("[Lumina] login 응답:", data);
   // 응답: { user, tokens: { accessToken, refreshToken } } 또는 호환 별칭 (top-level)
   const token = data?.accessToken || data?.tokens?.accessToken || data?.access_token;
   const refresh = data?.refreshToken || data?.tokens?.refreshToken;
   const user = data?.user;
+  console.info("[Lumina] login 응답:", {
+    hasUser: Boolean(user),
+    hasAccessToken: Boolean(token),
+    hasRefreshToken: Boolean(refresh)
+  });
   if (token) setAuth({ accessToken: token, refreshToken: refresh, user });
   return data;
 }
 async function authRegister(email, password, displayName, referralCode) {
   const body = { email, password, displayName };
   if (referralCode) body.referralCode = referralCode;
-  console.log("[Lumina] register 시도:", { ...body, password: "***" });
+  console.info("[Lumina] register 시도:", {
+    hasDisplayName: Boolean(displayName?.trim()),
+    hasReferralCode: Boolean(referralCode)
+  });
   const data = await apiFetch("/api/v1/auth/register", {
     method: "POST",
     body,
@@ -630,14 +637,7 @@ async function handleAuthSubmit(form, mode) {
     if (typeof initMypagePage === "function") initMypagePage();
     form.reset();
   } catch (err) {
-    // 백엔드 validation details 친절히 보여주기
-    let msg = "";
-    const details = err.body?.error?.details;
-    if (Array.isArray(details) && details.length > 0) {
-      msg = details.map(d => translateValidationError(d.field, d.messages?.[0] || "")).join("\n");
-    } else {
-      msg = err.message || (mode === "login" ? "로그인에 실패했습니다." : "가입에 실패했습니다.");
-    }
+    const msg = getAuthSubmitErrorMessage(err, mode);
     errorEl.textContent = msg;
     errorEl.hidden = false;
   } finally {
@@ -646,9 +646,40 @@ async function handleAuthSubmit(form, mode) {
   }
 }
 
+const AUTH_REFERRAL_CODE_ERROR_MESSAGE = "추천인 코드가 올바르지 않아요. 코드를 확인하거나 비워두고 가입해 주세요.";
+
+function getAuthSubmitErrorMessage(err, mode) {
+  const details = err.body?.error?.details;
+  if (Array.isArray(details) && details.length > 0) {
+    return details.map(d => translateValidationError(d.field, d.messages?.[0] || "")).join("\n");
+  }
+
+  const errorCode = [
+    err.body?.code,
+    err.body?.messageKey,
+    err.body?.error?.code,
+    err.body?.error?.messageKey
+  ].filter(Boolean).join(" ");
+  const rawMessage = err.message || err.body?.error?.message || "";
+
+  if (mode === "register" && isReferralCodeError(`${errorCode} ${rawMessage}`)) {
+    return AUTH_REFERRAL_CODE_ERROR_MESSAGE;
+  }
+
+  return rawMessage || (mode === "login" ? "로그인에 실패했습니다." : "가입에 실패했습니다.");
+}
+
+function isReferralCodeError(value) {
+  const text = String(value || "");
+  if (!/referral/i.test(text)) return false;
+  return /invalid|not\s*valid|not\s*found|expired|used|self\s*referral|REFERRAL_CODE/i.test(text);
+}
+
 /* 영문 검증 메시지 → 한국어 친절 메시지 변환 */
 function translateValidationError(field, message) {
-  const fieldKo = { email: "이메일", password: "비밀번호", displayName: "닉네임", name: "닉네임", nickname: "닉네임" }[field] || field;
+  const fieldKo = { email: "이메일", password: "비밀번호", displayName: "닉네임", name: "닉네임", nickname: "닉네임", referralCode: "추천인 코드" }[field] || field;
+  if (field === "referralCode" && isReferralCodeError(message)) return AUTH_REFERRAL_CODE_ERROR_MESSAGE;
+  if (isReferralCodeError(message)) return AUTH_REFERRAL_CODE_ERROR_MESSAGE;
   if (/must be an email/i.test(message))                  return `${fieldKo}: 올바른 이메일 형식이 아닙니다.`;
   if (/longer than or equal to (\d+)/i.test(message))     return `${fieldKo}: ${RegExp.$1}자 이상이어야 합니다.`;
   if (/shorter than or equal to (\d+)/i.test(message))    return `${fieldKo}: ${RegExp.$1}자 이하여야 합니다.`;
@@ -688,7 +719,7 @@ function captureReferralFromURL() {
       code: ref,
       expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
     }));
-    console.info("[Lumina] 추천인 코드 저장됨:", ref);
+    console.info("[Lumina] 추천인 코드 저장됨");
     // URL 깔끔하게 정리 (?ref= 제거)
     params.delete("ref");
     params.delete("referral");
