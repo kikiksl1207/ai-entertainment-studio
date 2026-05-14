@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>비밀번호 재설정 — Lumina Stage</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <!-- #240 — Resend 메일 URL 이 `/reset-password/?token=xxx` 또는 `/reset-password?token=xxx` 형태로
+         들어와도 안전하게 본 화면으로 보내기 위한 redirect shim. -->
+    <script>
+      (function () {
+        var qs = window.location.search || "";
+        var hash = window.location.hash || "";
+        window.location.replace("../reset-password.html" + qs + hash);
+      })();
+    </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0; url=../reset-password.html" />
+    </noscript>
+  </head>
+  <body>
+    <p style="font-family:system-ui,sans-serif;padding:24px;color:#333;">비밀번호 재설정 화면으로 이동 중입니다…
+      <a href="../reset-password.html">바로 가기</a>
+    </p>
+  </body>
+</html>
