@@ -87,6 +87,20 @@ type ChatProviderUserContext = {
   userId: string;
   userEmail: string | null;
 };
+type ChatProviderOpsStats = {
+  totalResponses: number;
+  failureCount: number;
+  fallbackCount: number;
+  usageByModel: Array<{
+    provider: string;
+    model: string;
+    responses: number;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostKrw: string;
+  }>;
+  estimatedCostKrw: string;
+};
 const BASIC_CHAT_POLICY = {
   mode: 'daily_talk',
   priceLumina: 0,
@@ -95,6 +109,17 @@ const BASIC_CHAT_POLICY = {
   dailyLimit: 50,
   maxInputChars: 1000,
   estimatedCostCeilingKrw: '0.20',
+};
+const CHAT_LLM_OPS_GUARD_POLICY = {
+  policyVersion: '2026-05-14.chat-llm-ops-guard-v1',
+  providerDailyRequestLimit: BASIC_CHAT_POLICY.dailyLimit,
+  providerDailyFailureLimit: 5,
+  cooldownSeconds: BASIC_CHAT_POLICY.cooldownSeconds,
+  failClosed: true,
+  usageMetadataPath: 'chat_messages.model_metadata.usage',
+  safetyMetadataPath: 'chat_messages.safety_metadata',
+  walletMutation: false,
+  settlementMutation: false,
 };
 const KOREA_SERVICE_DAY_TIME_ZONE = 'Asia/Seoul';
 const KOREA_SERVICE_DAY_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -122,6 +147,13 @@ const BASIC_CHAT_BLOCK_REASONS = {
     code: 'CHAT_GENERATION_DAILY_LIMIT_REACHED',
     messageKey: 'chat.generation.dailyLimitReached',
     fallbackCopyKo: '오늘의 무료 대화 한도에 도달했어요.',
+  },
+  providerFailureLimitReached: {
+    reason: 'provider_failure_limit_reached',
+    code: 'CHAT_GENERATION_PROVIDER_FAILURE_LIMIT_REACHED',
+    messageKey: 'chat.generation.providerFailureLimitReached',
+    fallbackCopyKo:
+      '\uc751\ub2f5\uc774 \uc548\uc815\ub420 \ub54c\uae4c\uc9c0 \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
   },
 } as const;
 const CHAT_FEATURE_ORDER_IDEMPOTENCY_REQUIRED = {
@@ -217,6 +249,55 @@ export class ChatService {
 
   getPersonaTraitCatalog() {
     return CHAT_PERSONA_TRAIT_CATALOG;
+  }
+
+  async getProviderOpsStatus(userId: string) {
+    const now = new Date();
+    const todayStart = this.koreaServiceDayStartUtc(now);
+    const [providerUserContext, opsStats] = await Promise.all([
+      this.getProviderUserContext(userId),
+      this.providerOpsStatsForUser(userId, todayStart),
+    ]);
+    const readiness = this.llmProvider.readiness({
+      userId: providerUserContext.userId,
+      userEmail: providerUserContext.userEmail,
+    });
+    const requestRemaining = Math.max(
+      0,
+      CHAT_LLM_OPS_GUARD_POLICY.providerDailyRequestLimit -
+        opsStats.totalResponses,
+    );
+    const failureRemaining = Math.max(
+      0,
+      CHAT_LLM_OPS_GUARD_POLICY.providerDailyFailureLimit -
+        opsStats.failureCount,
+    );
+
+    return {
+      serviceDay: {
+        timeZone: KOREA_SERVICE_DAY_TIME_ZONE,
+        startedAt: todayStart.toISOString(),
+        checkedAt: now.toISOString(),
+      },
+      provider: this.providerDetails(readiness),
+      guard: {
+        ...CHAT_LLM_OPS_GUARD_POLICY,
+        requestRemaining,
+        failureRemaining,
+        canAttemptProvider:
+          readiness.configured && requestRemaining > 0 && failureRemaining > 0,
+      },
+      usage: {
+        totalResponses: opsStats.totalResponses,
+        failureCount: opsStats.failureCount,
+        fallbackCount: opsStats.fallbackCount,
+        usageByModel: opsStats.usageByModel,
+        estimatedCostKrw: opsStats.estimatedCostKrw,
+      },
+      walletMutation: false,
+      settlementMutation: false,
+      secretsReturned: false,
+    };
   }
 
   async getCharacterChatCatalog(input: { artistId?: string; artistSlug?: string }) {
@@ -813,7 +894,7 @@ export class ChatService {
     const cooldownCutoff = new Date(
       now.getTime() - BASIC_CHAT_POLICY.cooldownSeconds * 1000,
     );
-    const [lastFreeMessage, dailyUsed, providerDailyUsed, readiness] =
+    const [lastFreeMessage, dailyUsed, providerOpsStats, readiness] =
       await Promise.all([
         this.prisma.chatMessage.findFirst({
           where: {
@@ -839,16 +920,7 @@ export class ChatService {
             },
           },
         }),
-        this.prisma.chatMessage.count({
-          where: {
-            senderType: 'user',
-            chatFeatureOrderId: null,
-            createdAt: { gte: todayStart },
-            chatSession: {
-              userId,
-            },
-          },
-        }),
+        this.providerOpsStatsForUser(userId, todayStart),
         this.providerReadinessForUser(userId, providerUserContext),
       ]);
     const cooldownRemainingSeconds = lastFreeMessage
@@ -867,22 +939,32 @@ export class ChatService {
         ? BASIC_CHAT_BLOCK_REASONS.cooldownActive
         : dailyUsed >= BASIC_CHAT_POLICY.dailyLimit
           ? BASIC_CHAT_BLOCK_REASONS.dailyLimitReached
-          : providerDailyUsed >= BASIC_CHAT_POLICY.dailyLimit
+          : providerOpsStats.totalResponses >=
+              CHAT_LLM_OPS_GUARD_POLICY.providerDailyRequestLimit
             ? BASIC_CHAT_BLOCK_REASONS.dailyLimitReached
-            : !readiness.configured
-              ? {
-                  reason: readiness.status,
-                  code: 'CHAT_LLM_PROVIDER_NOT_CONFIGURED',
-                  messageKey: readiness.messageKey,
-                  fallbackCopyKo:
-                    CHAT_GENERATION_DISABLED_REASONS.providerNotConfigured
-                      .displayMessageKo,
-                }
-              : null;
+            : providerOpsStats.failureCount >=
+                CHAT_LLM_OPS_GUARD_POLICY.providerDailyFailureLimit
+              ? BASIC_CHAT_BLOCK_REASONS.providerFailureLimitReached
+              : !readiness.configured
+                ? {
+                    reason: readiness.status,
+                    code: 'CHAT_LLM_PROVIDER_NOT_CONFIGURED',
+                    messageKey: readiness.messageKey,
+                    fallbackCopyKo:
+                      CHAT_GENERATION_DISABLED_REASONS.providerNotConfigured
+                        .displayMessageKo,
+                  }
+                : null;
     const generationPolicy = this.chatGenerationPolicy(null, readiness);
     const providerDailyRemaining = Math.max(
       0,
-      BASIC_CHAT_POLICY.dailyLimit - providerDailyUsed,
+      CHAT_LLM_OPS_GUARD_POLICY.providerDailyRequestLimit -
+        providerOpsStats.totalResponses,
+    );
+    const providerFailureRemaining = Math.max(
+      0,
+      CHAT_LLM_OPS_GUARD_POLICY.providerDailyFailureLimit -
+        providerOpsStats.failureCount,
     );
 
     return {
@@ -896,15 +978,25 @@ export class ChatService {
         dailyLimit: BASIC_CHAT_POLICY.dailyLimit,
         dailyUsed,
         dailyRemaining,
-        providerDailyLimit: BASIC_CHAT_POLICY.dailyLimit,
-        providerDailyUsed,
+        providerDailyLimit: CHAT_LLM_OPS_GUARD_POLICY.providerDailyRequestLimit,
+        providerDailyUsed: providerOpsStats.totalResponses,
         providerDailyRemaining,
+        providerDailyFailureLimit:
+          CHAT_LLM_OPS_GUARD_POLICY.providerDailyFailureLimit,
+        providerDailyFailureCount: providerOpsStats.failureCount,
+        providerDailyFailureRemaining: providerFailureRemaining,
         serviceDayTimeZone: KOREA_SERVICE_DAY_TIME_ZONE,
         serviceDayStartAt: todayStart.toISOString(),
         maxInputChars: BASIC_CHAT_POLICY.maxInputChars,
         estimatedCostCeilingKrw: BASIC_CHAT_POLICY.estimatedCostCeilingKrw,
       },
       provider: this.providerDetails(readiness),
+      providerOps: {
+        policy: CHAT_LLM_OPS_GUARD_POLICY,
+        usageByModel: providerOpsStats.usageByModel,
+        fallbackCount: providerOpsStats.fallbackCount,
+        estimatedCostKrw: providerOpsStats.estimatedCostKrw,
+      },
       disabledReason: blockReason?.reason ?? null,
       messageKey: blockReason?.messageKey ?? null,
       fallbackCopyKo: blockReason?.fallbackCopyKo ?? null,
@@ -946,7 +1038,10 @@ export class ChatService {
         : preflight.disabledReason ===
             BASIC_CHAT_BLOCK_REASONS.dailyLimitReached.reason
           ? BASIC_CHAT_BLOCK_REASONS.dailyLimitReached
-          : BASIC_CHAT_BLOCK_REASONS.invalidBody;
+          : preflight.disabledReason ===
+              BASIC_CHAT_BLOCK_REASONS.providerFailureLimitReached.reason
+            ? BASIC_CHAT_BLOCK_REASONS.providerFailureLimitReached
+            : BASIC_CHAT_BLOCK_REASONS.invalidBody;
 
     return new BadRequestException({
       code: blockReason.code,
@@ -966,6 +1061,8 @@ export class ChatService {
     chatFeatureOrderId: string | undefined,
     generated: ChatGenerationResult,
   ) {
+    const usageRecordedAt = new Date().toISOString();
+
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const userMessage = await tx.chatMessage.create({
         data: {
@@ -984,10 +1081,17 @@ export class ChatService {
           body: generated.body,
           chatFeatureOrderId,
           modelMetadata: this.inputJson({
+            usageSchemaVersion: '2026-05-14.chat-provider-usage-v1',
             provider: generated.usage.provider,
             model: generated.usage.model,
             usage: generated.usage,
             estimatedCostKrw: generated.usage.estimatedCostKrw,
+            usageRecordedAt,
+            opsGuard: {
+              policyVersion: CHAT_LLM_OPS_GUARD_POLICY.policyVersion,
+              serviceDayTimeZone: KOREA_SERVICE_DAY_TIME_ZONE,
+              countedForDailyLimit: !chatFeatureOrderId,
+            },
           }),
           safetyMetadata: this.inputJson(generated.safetyMetadata),
         },
@@ -1319,6 +1423,129 @@ export class ChatService {
     });
   }
 
+  private async providerOpsStatsForUser(
+    userId: string,
+    todayStart: Date,
+  ): Promise<ChatProviderOpsStats> {
+    const rows = await this.prisma.chatMessage.findMany({
+      where: {
+        senderType: 'artist',
+        chatFeatureOrderId: null,
+        createdAt: { gte: todayStart },
+        chatSession: {
+          userId,
+        },
+      },
+      select: {
+        modelMetadata: true,
+        safetyMetadata: true,
+      },
+    });
+
+    return this.aggregateProviderOpsStats(rows);
+  }
+
+  private aggregateProviderOpsStats(
+    rows: Array<{
+      modelMetadata: unknown;
+      safetyMetadata: unknown;
+    }>,
+  ): ChatProviderOpsStats {
+    const usageByModel = new Map<
+      string,
+      {
+        provider: string;
+        model: string;
+        responses: number;
+        inputTokens: number;
+        outputTokens: number;
+        estimatedCostKrw: number;
+      }
+    >();
+    let totalResponses = 0;
+    let failureCount = 0;
+    let fallbackCount = 0;
+
+    for (const row of rows) {
+      const modelMetadata = this.recordOrEmpty(row.modelMetadata);
+      const safetyMetadata = this.recordOrEmpty(row.safetyMetadata);
+      const usage = this.recordOrEmpty(modelMetadata.usage);
+      const provider =
+        this.stringFromUnknown(modelMetadata.provider) ??
+        this.stringFromUnknown(usage.provider) ??
+        this.stringFromUnknown(safetyMetadata.provider);
+      const model =
+        this.stringFromUnknown(modelMetadata.model) ??
+        this.stringFromUnknown(usage.model) ??
+        'unknown';
+      const isProviderTracked = Boolean(
+        provider ||
+          modelMetadata.usage ||
+          safetyMetadata.generationStatus ||
+          safetyMetadata.reason,
+      );
+
+      if (!isProviderTracked) {
+        continue;
+      }
+
+      const normalizedProvider = provider ?? 'unknown';
+      const generationStatus = this.stringFromUnknown(
+        safetyMetadata.generationStatus,
+      );
+      const failureReason = this.stringFromUnknown(safetyMetadata.reason);
+      const isFallback = generationStatus === 'fallback' || model === 'fallback';
+      const isFailure =
+        isFallback ||
+        generationStatus === 'failed' ||
+        Boolean(failureReason?.startsWith('provider_'));
+
+      totalResponses += 1;
+      fallbackCount += isFallback ? 1 : 0;
+      failureCount += isFailure ? 1 : 0;
+
+      const key = `${normalizedProvider}:${model}`;
+      const current =
+        usageByModel.get(key) ??
+        {
+          provider: normalizedProvider,
+          model,
+          responses: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          estimatedCostKrw: 0,
+        };
+
+      current.responses += 1;
+      current.inputTokens += this.numberFromUnknown(
+        usage.inputTokens ?? usage.input_tokens,
+      );
+      current.outputTokens += this.numberFromUnknown(
+        usage.outputTokens ?? usage.output_tokens,
+      );
+      current.estimatedCostKrw += this.numberFromUnknown(
+        modelMetadata.estimatedCostKrw ?? usage.estimatedCostKrw,
+      );
+      usageByModel.set(key, current);
+    }
+
+    const usageRows = [...usageByModel.values()].map((row) => ({
+      ...row,
+      estimatedCostKrw: row.estimatedCostKrw.toFixed(2),
+    }));
+    const estimatedCostKrw = usageRows
+      .reduce((sum, row) => sum + this.numberFromUnknown(row.estimatedCostKrw), 0)
+      .toFixed(2);
+
+    return {
+      totalResponses,
+      failureCount,
+      fallbackCount,
+      usageByModel: usageRows,
+      estimatedCostKrw,
+    };
+  }
+
   private async getProviderUserContext(
     userId: string,
   ): Promise<ChatProviderUserContext> {
@@ -1531,6 +1758,20 @@ export class ChatService {
 
   private stringFromUnknown(value: unknown) {
     return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private numberFromUnknown(value: unknown) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value);
+
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
   }
 
   private async findActiveChatArtist(input: { artistId?: string; artistSlug?: string }) {

@@ -284,6 +284,128 @@ describe('ChatService persona and catalog policy', () => {
   });
 });
 
+describe('ChatService provider ops guard', () => {
+  const userId = '00000000-0000-4000-8000-000000000242';
+  const readyState = {
+    provider: 'openai',
+    configured: true,
+    status: 'provider_ready',
+    messageKey: 'chat.generation.ready',
+  };
+
+  it('returns read-only provider usage status without exposing secrets or mutations', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-14T04:00:00.000Z'));
+
+    try {
+      const prisma = {
+        user: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: userId,
+            email: 'ops@example.com',
+          }),
+        },
+        chatMessage: {
+          findMany: jest.fn().mockResolvedValue([
+            {
+              modelMetadata: {
+                provider: 'openai',
+                model: 'gpt-5-mini',
+                usage: {
+                  inputTokens: 12,
+                  outputTokens: 24,
+                  estimatedCostKrw: '0.04',
+                },
+                estimatedCostKrw: '0.04',
+              },
+              safetyMetadata: {
+                provider: 'openai',
+                generationStatus: 'completed',
+              },
+            },
+            {
+              modelMetadata: {
+                provider: 'openai',
+                model: 'fallback',
+                usage: {
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  estimatedCostKrw: '0.00',
+                },
+                estimatedCostKrw: '0.00',
+              },
+              safetyMetadata: {
+                provider: 'openai',
+                generationStatus: 'fallback',
+                reason: 'provider_timeout',
+              },
+            },
+          ]),
+        },
+      };
+      const llmProvider = {
+        readiness: jest.fn().mockReturnValue(readyState),
+      };
+      const service = new ChatService(prisma as never, llmProvider as never);
+
+      const result = await service.getProviderOpsStatus(userId);
+
+      expect(llmProvider.readiness).toHaveBeenCalledWith({
+        userId,
+        userEmail: 'ops@example.com',
+      });
+      expect(result).toMatchObject({
+        serviceDay: {
+          timeZone: 'Asia/Seoul',
+          startedAt: '2026-05-13T15:00:00.000Z',
+        },
+        provider: {
+          name: 'openai',
+          configured: true,
+          status: 'provider_ready',
+        },
+        guard: {
+          providerDailyRequestLimit: 50,
+          providerDailyFailureLimit: 5,
+          requestRemaining: 48,
+          failureRemaining: 4,
+          canAttemptProvider: true,
+          walletMutation: false,
+          settlementMutation: false,
+        },
+        usage: {
+          totalResponses: 2,
+          failureCount: 1,
+          fallbackCount: 1,
+          estimatedCostKrw: '0.04',
+        },
+        walletMutation: false,
+        settlementMutation: false,
+        secretsReturned: false,
+      });
+      expect(result.usage.usageByModel).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            provider: 'openai',
+            model: 'gpt-5-mini',
+            responses: 1,
+            inputTokens: 12,
+            outputTokens: 24,
+            estimatedCostKrw: '0.04',
+          }),
+          expect.objectContaining({
+            provider: 'openai',
+            model: 'fallback',
+            responses: 1,
+            estimatedCostKrw: '0.00',
+          }),
+        ]),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
 describe('ChatService.preflightMessage', () => {
   const llmProvider = {
     readiness: jest.fn().mockReturnValue({
@@ -306,6 +428,7 @@ describe('ChatService.preflightMessage', () => {
       chatMessage: {
         findFirst: jest.fn().mockResolvedValue(null),
         count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
     const service = new ChatService(prisma as never, llmProvider as never);
@@ -353,6 +476,7 @@ describe('ChatService.preflightMessage', () => {
           createdAt: new Date(),
         }),
         count: jest.fn().mockResolvedValue(1),
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
     const service = new ChatService(prisma as never, llmProvider as never);
@@ -385,6 +509,7 @@ describe('ChatService.preflightMessage', () => {
       chatMessage: {
         findFirst: jest.fn().mockResolvedValue(null),
         count: jest.fn().mockResolvedValue(50),
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
     const service = new ChatService(prisma as never, llmProvider as never);
@@ -409,6 +534,69 @@ describe('ChatService.preflightMessage', () => {
     });
   });
 
+  it('blocks provider calls after the daily provider failure limit', async () => {
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: true,
+        status: 'provider_ready',
+        messageKey: 'chat.generation.ready',
+      }),
+    };
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000214',
+          artistId: '00000000-0000-4000-8000-000000000001',
+          status: 'active',
+        }),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue(
+          Array.from({ length: 5 }, () => ({
+            modelMetadata: {
+              provider: 'openai',
+              model: 'fallback',
+              usage: {
+                inputTokens: 0,
+                outputTokens: 0,
+                estimatedCostKrw: '0.00',
+              },
+              estimatedCostKrw: '0.00',
+            },
+            safetyMetadata: {
+              provider: 'openai',
+              generationStatus: 'fallback',
+              reason: 'provider_timeout',
+            },
+          })),
+        ),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.preflightMessage(
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000214',
+      { body: 'provider failures should fail closed' },
+    );
+
+    expect(result).toMatchObject({
+      canSend: false,
+      canGenerate: false,
+      disabledReason: 'provider_failure_limit_reached',
+      messageKey: 'chat.generation.providerFailureLimitReached',
+      walletMutation: false,
+    });
+    expect(result.limits).toMatchObject({
+      providerDailyFailureLimit: 5,
+      providerDailyFailureCount: 5,
+      providerDailyFailureRemaining: 0,
+    });
+  });
+
   it('counts daily usage from the Asia/Seoul service day boundary', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-05-12T01:30:00.000Z'));
 
@@ -425,6 +613,7 @@ describe('ChatService.preflightMessage', () => {
         chatMessage: {
           findFirst: jest.fn().mockResolvedValue(null),
           count,
+          findMany: jest.fn().mockResolvedValue([]),
         },
       };
       const service = new ChatService(prisma as never, llmProvider as never);
@@ -474,6 +663,7 @@ describe('ChatService.createMessage safety', () => {
       chatMessage: {
         findFirst: jest.fn().mockResolvedValue(null),
         count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       $transaction: jest.fn(),
     };
@@ -737,6 +927,28 @@ describe('ChatService.generateMessage provider beta', () => {
     expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
     expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.chatMessage.create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          senderType: 'artist',
+          modelMetadata: expect.objectContaining({
+            usageSchemaVersion: '2026-05-14.chat-provider-usage-v1',
+            provider: 'openai',
+            model: 'gpt-5-mini',
+            usage: expect.objectContaining({
+              inputTokens: 11,
+              outputTokens: 12,
+            }),
+            opsGuard: expect.objectContaining({
+              policyVersion: '2026-05-14.chat-llm-ops-guard-v1',
+              serviceDayTimeZone: 'Asia/Seoul',
+              countedForDailyLimit: true,
+            }),
+          }),
+        }),
+      }),
+    );
   });
 
   it('stores a safe fallback reply instead of throwing on provider request errors', async () => {
