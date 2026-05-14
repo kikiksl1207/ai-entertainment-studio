@@ -124,6 +124,7 @@ describe('AuthService action token flows', () => {
     await expect(
       service.requestEmailVerification({ email: ` ${email.toUpperCase()} ` }),
     ).resolves.toEqual({
+      success: true,
       ok: true,
       delivery: { status: 'not_configured', channel: 'email' },
       debug: undefined,
@@ -132,6 +133,25 @@ describe('AuthService action token flows', () => {
     expect(prisma.userActionToken.create).not.toHaveBeenCalled();
     expect(delivery.sendActionEmail).not.toHaveBeenCalled();
     expect(delivery.requestStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps email verification request neutral when delivery fails', async () => {
+    const prisma = createPrismaMock();
+    const { service, delivery } = serviceWith(prisma);
+    prisma.user.findFirst.mockResolvedValue({ id: userId, emailVerifiedAt: null });
+    delivery.sendActionEmail.mockRejectedValue(new Error('provider unavailable'));
+    delivery.requestStatus.mockReturnValue({
+      status: 'accepted',
+      channel: 'email',
+      provider: 'resend',
+    });
+
+    await expect(service.requestEmailVerification({ email })).resolves.toEqual({
+      success: true,
+      ok: true,
+      delivery: { status: 'accepted', channel: 'email', provider: 'resend' },
+      debug: undefined,
+    });
   });
 
   it('creates a new verification token while consuming older unused tokens', async () => {
@@ -188,7 +208,7 @@ describe('AuthService action token flows', () => {
 
     await expect(
       service.confirmEmailVerification({ token }),
-    ).resolves.toEqual({ ok: true });
+    ).resolves.toEqual({ success: true, ok: true });
 
     expect(prisma.userActionToken.findFirst).toHaveBeenCalledWith({
       where: {
@@ -248,6 +268,7 @@ describe('AuthService action token flows', () => {
     await expect(
       service.confirmPasswordReset({ token, newPassword: 'Newpass1' }),
     ).resolves.toEqual({
+      success: true,
       ok: true,
       revokedCount: 2,
     });
@@ -265,6 +286,32 @@ describe('AuthService action token flows', () => {
         revokedAt: null,
       },
       data: { revokedAt: expect.any(Date) },
+    });
+  });
+
+  it('keeps password reset request neutral when delivery fails', async () => {
+    const prisma = createPrismaMock();
+    const { service, delivery } = serviceWith(prisma);
+    prisma.userAuthAccount.findUnique.mockResolvedValue({
+      userId,
+      passwordHash: 'old-hash',
+      user: {
+        status: 'active',
+        deletedAt: null,
+      },
+    });
+    delivery.sendActionEmail.mockRejectedValue(new Error('provider unavailable'));
+    delivery.requestStatus.mockReturnValue({
+      status: 'accepted',
+      channel: 'email',
+      provider: 'sendgrid',
+    });
+
+    await expect(service.requestPasswordReset({ email })).resolves.toEqual({
+      success: true,
+      ok: true,
+      delivery: { status: 'accepted', channel: 'email', provider: 'sendgrid' },
+      debug: undefined,
     });
   });
 

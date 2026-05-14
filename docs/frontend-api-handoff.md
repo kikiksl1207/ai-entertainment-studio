@@ -344,7 +344,7 @@ Auth responses:
 - `POST /auth/social/login` accepts `{ "provider": "google" | "kakao" | "naver", "token": "<provider-token>" }`; `accessToken` is also accepted as an alias for `token`.
 - Authorization-code handoff is also accepted as `{ "provider": "kakao", "code": "<code>", "redirectUri": "<same-redirect-uri>" }`. The `redirectUri` value must exactly match the URI registered in Kakao Developers and used when the code was issued. The backend may override it with `KAKAO_REDIRECT_URI` in Render to avoid `www`/non-`www` drift.
 - Google can send either a Google ID token or OAuth access token. Kakao and Naver should send access tokens when using the token handoff.
-- `GET /me` returns the current user plus profile convenience fields: `displayName`, `publicHandle`, `avatarUrl`, `avatarAsset`, `coverImageUrl`, `coverAsset`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`. `emailVerifiedAt` is intentionally omitted for now; email verification remains a backend skeleton until the production DB rollout is explicitly confirmed.
+- `GET /me` returns the current user plus profile convenience fields: `displayName`, `publicHandle`, `avatarUrl`, `avatarAsset`, `coverImageUrl`, `coverAsset`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `emailVerified`, `emailVerifiedAt`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`.
 - `PATCH /me/profile` body: `{ "displayName": "닉네임", "bio": "optional", "avatarAssetId": "<asset uuid>", "coverAssetId": "<asset uuid or null>" }`. New accounts receive an auto-assigned temporary `displayName`; users can change it from My Page. `displayName` is 2-20 characters, must be unique, and can be changed once every 30 days after a user change. `coverAssetId: null` resets the public profile cover to the default gradient. The server returns the updated `GET /me` shape. If the nickname cooldown is active, expect `429 Nickname can be changed once every 30 days`. If the nickname is taken, expect `409 DISPLAY_NAME_ALREADY_TAKEN`.
 - Display-name availability checks: unauthenticated signup can call `GET /auth/display-name-availability?displayName=닉네임`; signed-in My Page can call `GET /me/profile/display-name-availability?displayName=닉네임`. Both return `{ displayName, available, reason, isCurrentUser, policy }`. On the signed-in endpoint, the current user's existing nickname returns `available: true` with `isCurrentUser: true`.
 - Avatar upload policy for 1차: reuse the asset upload flow and then pass the confirmed image asset id as `avatarAssetId`. A dedicated user-facing avatar upload intent can be split out later if needed.
@@ -381,8 +381,8 @@ My Page scope notes for 2026-05-02:
 
 Email delivery contract:
 
-- If no backend mail provider is configured, the two request endpoints return `delivery.status = "not_configured"` and never reveal whether the email exists.
-- If `EMAIL_DELIVERY_PROVIDER` is configured to `resend` or `sendgrid`, the backend sends a one-time verification/reset link using the configured action URL base and returns `delivery.status = "accepted"`.
+- If no backend mail provider is configured, the two request endpoints return `success: true`, `ok: true`, and `delivery.status = "not_configured"` without revealing whether the email exists.
+- If `EMAIL_DELIVERY_PROVIDER` is configured to `resend` or `sendgrid`, the backend attempts to send a one-time verification/reset link using the configured action URL base and returns `success: true`, `ok: true`, and `delivery.status = "accepted"`. Provider delivery failures are also kept neutral on request endpoints so account existence is not exposed.
 - Frontend should show the same neutral success copy for both request endpoints, for example "If this email can receive account mail, check your inbox." Do not branch UI on account existence.
 - Confirmation endpoints still receive the token from the emailed URL: `POST /auth/email-verifications/confirm` with `{ "token": "<email-token>" }` and `POST /auth/password-resets/confirm` with `{ "token": "<reset-token>", "newPassword": "<new-password>" }`.
 - Password reset confirmation revokes active refresh-token sessions, so clients should clear local tokens and send the user back through login after a successful reset.
@@ -397,6 +397,7 @@ For local/staging QA only, the backend can expose the generated action token whe
 
 ```json
 {
+  "success": true,
   "ok": true,
   "delivery": { "status": "not_configured", "channel": "email" },
   "debug": {
