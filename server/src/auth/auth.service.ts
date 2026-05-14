@@ -33,6 +33,7 @@ import {
 } from './dto/auth.dto';
 import { SocialAuthService } from './social-auth.service';
 import { AuthEmailDeliveryService } from './auth-email-delivery.service';
+import type { AuthEmailDeliveryResult } from './auth-email-delivery.service';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { USER_IMAGE_UPLOAD_MAX_BYTES } from '../assets/user-assets.service';
 
@@ -45,6 +46,7 @@ const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const EMAIL_VERIFICATION_PURPOSE = 'email_verification';
 const PASSWORD_RESET_PURPOSE = 'password_reset';
+type ActionTokenDebug = { id: string; token: string; expiresAt: Date };
 const ARTIST_CATEGORY_LABELS = [
   '아티스트',
   '모델',
@@ -1527,7 +1529,7 @@ export class AuthService {
 
   async requestEmailVerification(input: RequestEmailVerificationDto) {
     const email = input.email.trim().toLowerCase();
-    let debugToken: { token: string; expiresAt: Date } | null = null;
+    let debugToken: ActionTokenDebug | null = null;
     const user = await this.prisma.user.findFirst({
       where: {
         email,
@@ -1545,6 +1547,7 @@ export class AuthService {
         user.id,
         EMAIL_VERIFICATION_PURPOSE,
         EMAIL_VERIFICATION_TOKEN_TTL_MS,
+        email,
       );
     }
 
@@ -1582,7 +1585,7 @@ export class AuthService {
 
   async requestPasswordReset(input: RequestPasswordResetDto) {
     const email = input.email.trim().toLowerCase();
-    let debugToken: { token: string; expiresAt: Date } | null = null;
+    let debugToken: ActionTokenDebug | null = null;
     const authAccount = await this.prisma.userAuthAccount.findUnique({
       where: {
         provider_providerUserId: {
@@ -1611,6 +1614,7 @@ export class AuthService {
         authAccount.userId,
         PASSWORD_RESET_PURPOSE,
         PASSWORD_RESET_TOKEN_TTL_MS,
+        email,
       );
     }
 
@@ -2889,10 +2893,12 @@ export class AuthService {
     userId: string,
     purpose: string,
     ttlMs: number,
-  ) {
+    targetEmail: string,
+  ): Promise<ActionTokenDebug> {
     const rawToken = this.createOpaqueToken();
     const now = new Date();
     const expiresAt = new Date(now.getTime() + ttlMs);
+    let tokenId = '';
 
     await this.prisma.$transaction(async (tx) => {
       await tx.userActionToken.updateMany({
@@ -2906,20 +2912,24 @@ export class AuthService {
         },
       });
 
-      await tx.userActionToken.create({
+      const created = await tx.userActionToken.create({
         data: {
           userId,
           purpose,
           tokenHash: this.hashToken(rawToken),
           expiresAt,
+          deliveryStatus: 'pending',
+          deliveryChannel: 'email',
+          targetEmailMasked: this.maskEmail(targetEmail),
         },
       });
+      tokenId = created.id;
     });
 
-    return { token: rawToken, expiresAt };
+    return { id: tokenId, token: rawToken, expiresAt };
   }
 
-  private actionTokenDebugPayload(token: { token: string; expiresAt: Date } | null) {
+  private actionTokenDebugPayload(token: ActionTokenDebug | null) {
     if (!token || !this.shouldExposeActionTokensForDebug()) {
       return undefined;
     }
@@ -2934,22 +2944,70 @@ export class AuthService {
   private async sendActionEmailNeutral(input: {
     to: string;
     purpose: typeof EMAIL_VERIFICATION_PURPOSE | typeof PASSWORD_RESET_PURPOSE;
-    debugToken: { token: string; expiresAt: Date } | null;
+    debugToken: ActionTokenDebug | null;
   }) {
     if (!input.debugToken) {
       return this.authEmailDeliveryService.requestStatus();
     }
 
+    const attemptedAt = new Date();
+
     try {
-      return await this.authEmailDeliveryService.sendActionEmail({
+      const delivery = await this.authEmailDeliveryService.sendActionEmail({
         to: input.to,
         purpose: input.purpose,
         actionToken: input.debugToken.token,
         expiresAt: input.debugToken.expiresAt,
       });
+      await this.recordActionTokenDelivery(input.debugToken.id, delivery, attemptedAt);
+
+      return delivery;
     } catch {
-      return this.authEmailDeliveryService.requestStatus();
+      const delivery = this.authEmailDeliveryService.requestStatus();
+      await this.recordActionTokenDelivery(
+        input.debugToken.id,
+        delivery,
+        attemptedAt,
+        true,
+      );
+
+      return delivery;
     }
+  }
+
+  private recordActionTokenDelivery(
+    tokenId: string,
+    delivery: AuthEmailDeliveryResult,
+    attemptedAt: Date,
+    failed = false,
+  ) {
+    const now = new Date();
+    const deliveryStatus = failed ? 'failed' : delivery.status;
+
+    return this.prisma.userActionToken.update({
+      where: { id: tokenId },
+      data: {
+        deliveryStatus,
+        deliveryChannel: delivery.channel,
+        deliveryProvider: delivery.provider ?? null,
+        deliveryAttemptedAt: attemptedAt,
+        deliveryAcceptedAt: deliveryStatus === 'accepted' ? now : null,
+        deliveryFailedAt: deliveryStatus === 'failed' ? now : null,
+      },
+    });
+  }
+
+  private maskEmail(email?: string | null) {
+    if (!email) {
+      return null;
+    }
+
+    const [name, domain] = email.split('@');
+    if (!domain) {
+      return '***';
+    }
+
+    return `${name.slice(0, 2)}***@${domain}`;
   }
 
   private shouldExposeActionTokensForDebug() {

@@ -210,8 +210,9 @@ GET /admin/api/v1/auth/action-tokens?purpose=email_verification&status=pending&t
 - Requires `audit:read`.
 - Query filters: `purpose=email_verification|password_reset`, `status=all|pending|consumed|expired`, `userId`, `email`, `take`, and `cursor`.
 - Response rows expose only operationally safe fields: `id`, `purpose`, derived `status`, `statusKey`, `createdAt`, `expiresAt`, `consumedAt`, masked `target.emailMasked`, `target.userId`, `target.userStatus`, `target.emailVerified`, and `target.deleted`.
-- `delivery.status` is currently `not_recorded`, `delivery.provider` is `null`, and `delivery.persisted` is `false` because provider delivery acceptance/failure is not persisted in `user_action_tokens`.
-- The response policy explicitly keeps `rawEmailReturned`, `rawTokenReturned`, `tokenHashReturned`, and `mailBodyReturned` false. Token hashes, raw tokens, mail bodies, provider secrets, signed/provider URLs, and environment values must not be returned or documented.
+- Delivery fields are persisted on `user_action_tokens` for rows created after this migration: `delivery.status` (`pending`, `accepted`, `not_configured`, `failed`, or historical `not_recorded`), `delivery.channel`, `delivery.provider`, `delivery.attemptedAt`, `delivery.acceptedAt`, and `delivery.failedAt`.
+- Request responses stay existence-neutral. If provider delivery throws, the request response still returns the neutral configured delivery status while admin audit stores `delivery.status = "failed"` without raw provider response bodies.
+- The response policy explicitly keeps `rawEmailReturned`, `rawTokenReturned`, `tokenHashReturned`, `mailBodyReturned`, and raw provider responses false. Token hashes, raw tokens, mail bodies, provider secrets, signed/provider URLs, and environment values must not be returned or documented.
 
 - `DELETE /api/v1/me` soft-deletes the current account. Email-password accounts must send `currentPassword`; social-only accounts may omit it.
 - Account deletion sets `users.status = deleted`, sets `deleted_at`, revokes all refresh-token sessions, consumes outstanding user action tokens, deactivates the user's referral code, and writes a `user.self_delete` audit event.

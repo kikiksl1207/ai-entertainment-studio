@@ -69,16 +69,24 @@ model User {
 }
 
 model UserActionToken {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId     String    @map("user_id") @db.Uuid
-  purpose    String
-  tokenHash  String    @unique @map("token_hash")
-  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
-  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  user       User      @relation(fields: [userId], references: [id])
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String    @map("user_id") @db.Uuid
+  purpose             String
+  tokenHash           String    @unique @map("token_hash")
+  expiresAt           DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt          DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deliveryStatus      String    @default("not_recorded") @map("delivery_status")
+  deliveryChannel     String?   @map("delivery_channel")
+  deliveryProvider    String?   @map("delivery_provider")
+  deliveryAttemptedAt DateTime? @map("delivery_attempted_at") @db.Timestamptz(6)
+  deliveryAcceptedAt  DateTime? @map("delivery_accepted_at") @db.Timestamptz(6)
+  deliveryFailedAt    DateTime? @map("delivery_failed_at") @db.Timestamptz(6)
+  targetEmailMasked   String?   @map("target_email_masked")
+  user                User      @relation(fields: [userId], references: [id])
 
   @@index([userId, purpose, consumedAt, expiresAt], map: "idx_user_action_tokens_user_purpose")
+  @@index([deliveryStatus, deliveryAttemptedAt], map: "idx_user_action_tokens_delivery_status")
   @@map("user_action_tokens")
 }
 

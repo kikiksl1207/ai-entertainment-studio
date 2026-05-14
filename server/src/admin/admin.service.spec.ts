@@ -33,6 +33,8 @@ describe('AdminService auth action token audit', () => {
     const { service, prisma } = createService();
     const createdAt = new Date('2026-05-14T00:00:00.000Z');
     const expiresAt = new Date('2099-01-01T00:00:00.000Z');
+    const attemptedAt = new Date('2026-05-14T00:01:00.000Z');
+    const acceptedAt = new Date('2026-05-14T00:01:01.000Z');
 
     prisma.userActionToken.findMany.mockResolvedValue([
       {
@@ -43,6 +45,13 @@ describe('AdminService auth action token audit', () => {
         createdAt,
         expiresAt,
         consumedAt: null,
+        deliveryStatus: 'accepted',
+        deliveryChannel: 'email',
+        deliveryProvider: 'resend',
+        deliveryAttemptedAt: attemptedAt,
+        deliveryAcceptedAt: acceptedAt,
+        deliveryFailedAt: null,
+        targetEmailMasked: 'qa***@example.com',
         user: {
           id: '00000000-0000-4000-8000-000000000001',
           email: 'qa@example.com',
@@ -73,9 +82,13 @@ describe('AdminService auth action token audit', () => {
       purpose: 'email_verification',
       status: 'pending',
       delivery: {
-        status: 'not_recorded',
-        provider: null,
-        persisted: false,
+        status: 'accepted',
+        channel: 'email',
+        provider: 'resend',
+        persisted: true,
+        attemptedAt,
+        acceptedAt,
+        failedAt: null,
       },
       target: {
         userId: '00000000-0000-4000-8000-000000000001',
