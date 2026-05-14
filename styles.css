@@ -1981,16 +1981,21 @@ p {
   min-height: calc(100vh - 220px);
   display: flex;
   align-items: center;
+  overflow-x: clip;
 }
 
 .auth-confirm-shell {
   width: 100%;
+  min-width: 0;
   display: flex;
   justify-content: center;
 }
 
 .auth-confirm-card {
   width: min(560px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 34px 30px 30px;
   border: 1px solid rgba(180, 150, 255, 0.2);
   border-radius: 22px;
@@ -2007,6 +2012,7 @@ p {
   font-weight: 900;
   letter-spacing: -0.01em;
   line-height: 1.18;
+  overflow-wrap: anywhere;
 }
 
 .auth-confirm-card p {
@@ -2014,6 +2020,7 @@ p {
   color: rgba(220, 210, 240, 0.75);
   font-size: 15px;
   line-height: 1.65;
+  overflow-wrap: anywhere;
 }
 
 .auth-confirm-spinner {
@@ -2039,17 +2046,20 @@ p {
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 22px;
+  min-width: 0;
 }
 
 .auth-confirm-form {
   display: grid;
   gap: 14px;
   margin-top: 22px;
+  min-width: 0;
 }
 
 .auth-confirm-field {
   display: grid;
   gap: 7px;
+  min-width: 0;
 }
 
 .auth-confirm-field span {
@@ -2115,7 +2125,10 @@ p {
   .auth-confirm-actions .button,
   .auth-confirm-form .button {
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     justify-content: center;
+    white-space: normal;
   }
 }
 
