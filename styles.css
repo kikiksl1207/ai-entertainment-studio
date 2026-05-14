@@ -1974,6 +1974,165 @@ p {
 }
 .auth-modal-switch:hover { text-decoration: underline; }
 
+/* ══════════════════════════════════════
+   Auth Link Confirmation — 이메일 인증/비밀번호 재설정 (#240)
+══════════════════════════════════════ */
+.auth-confirm-section {
+  min-height: calc(100vh - 220px);
+  display: flex;
+  align-items: center;
+  overflow-x: clip;
+}
+
+.auth-confirm-shell {
+  width: min(560px, calc(100% - 24px));
+  min-width: 0;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-confirm-card {
+  width: min(560px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 34px 30px 30px;
+  border: 1px solid rgba(180, 150, 255, 0.2);
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(255, 79, 195, 0.09), rgba(155, 124, 247, 0.06)),
+    rgba(18, 12, 32, 0.92);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+}
+
+.auth-confirm-card h1 {
+  margin: 6px 0 12px;
+  color: var(--ink, #fff);
+  font-size: clamp(26px, 4vw, 38px);
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+
+.auth-confirm-card p {
+  margin: 0;
+  color: rgba(220, 210, 240, 0.75);
+  font-size: 15px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.auth-confirm-spinner {
+  width: 34px;
+  height: 34px;
+  margin-top: 22px;
+  border: 3px solid rgba(255, 255, 255, 0.16);
+  border-top-color: #ff7eb9;
+  border-radius: 50%;
+  animation: auth-confirm-spin 0.85s linear infinite;
+}
+
+@keyframes auth-confirm-spin {
+  to { transform: rotate(360deg); }
+}
+
+.auth-confirm-card [hidden] {
+  display: none !important;
+}
+
+.auth-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+  min-width: 0;
+}
+
+.auth-confirm-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+  min-width: 0;
+}
+
+.auth-confirm-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.auth-confirm-field span {
+  color: rgba(240, 238, 248, 0.92);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.auth-confirm-field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px 14px;
+  border: 1px solid rgba(180, 150, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ink, #fff);
+  font: inherit;
+  font-size: 14px;
+}
+
+.auth-confirm-field input:focus {
+  outline: none;
+  border-color: rgba(255, 79, 195, 0.58);
+  box-shadow: 0 0 0 3px rgba(255, 79, 195, 0.12);
+}
+
+.auth-confirm-field small,
+.auth-confirm-error {
+  color: rgba(220, 210, 240, 0.62);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.auth-confirm-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 95, 130, 0.28);
+  border-radius: 10px;
+  background: rgba(255, 95, 130, 0.10);
+  color: #ff9ab1;
+}
+
+.auth-confirm-card[data-state="success"] {
+  border-color: rgba(90, 220, 155, 0.32);
+}
+
+.auth-confirm-card[data-state="expired"],
+.auth-confirm-card[data-state="used"],
+.auth-confirm-card[data-state="invalid"],
+.auth-confirm-card[data-state="error"] {
+  border-color: rgba(255, 201, 122, 0.28);
+}
+
+@media (max-width: 480px) {
+  .auth-confirm-section {
+    min-height: auto;
+    align-items: flex-start;
+  }
+  .auth-confirm-card {
+    padding: 26px 20px 22px;
+    border-radius: 18px;
+  }
+  .auth-confirm-actions .button,
+  .auth-confirm-form .button {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    justify-content: center;
+    white-space: normal;
+  }
+}
+
 /* ─ 소셜 로그인 영역 ─ */
 .auth-modal-social-section {
   margin-top: 4px;
