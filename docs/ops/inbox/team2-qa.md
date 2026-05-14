@@ -62,6 +62,72 @@ security_check:
 
 ---
 
+status: partial pass
+task: QA2-001 scoped smoke - #241, #244, #245 only
+environment:
+- branch: qa/team2-241-244-245-smoke
+- local main after pull: origin/main
+- basis commit: 09ea0afb54c8620943d26f3602e3d63f4ffe85da
+- observed API health commit: 09ea0afb54c8620943d26f3602e3d63f4ffe85da
+- API: https://api.lumina-stage.com
+- Web static pages checked by headers: GitHub Pages `character-chat.html`, `reset-password.html`, `verify-email.html`, all HTTP 200.
+- Scope limited by user request to issues 241, 244, and 245. Full QA2-001 surface such as Creator Studio, Backstage, image upload, artist follow copy, and feed mini modal was not run in this pass.
+- No token, cookie, password, auth code, provider secret, raw credential, or mailbox content was recorded.
+
+tested_flows:
+- PASS: `git pull origin main` was run in the clean QA worktree and returned already up to date. Initial pull in `workspace-core` was blocked by pre-existing unrelated local changes, so a separate worktree from `origin/main` was used.
+- PASS: live API `/health` reports commit `09ea0afb54c8620943d26f3602e3d63f4ffe85da`, matching latest pulled main for #244/#245.
+- PASS: disposable QA email signup returned active email user, access/refresh tokens, `emailVerified:false`, and an active LUMINA wallet balance of `300`.
+- PASS: `GET /api/v1/me` returned the current user after signup.
+- PASS: `POST /api/v1/auth/logout` returned `{ ok: true }`.
+- PASS #241: `POST /api/v1/auth/password-resets` for the QA account returned HTTP 201, `success:true`, `ok:true`, delivery `accepted`, provider `resend`, and no debug token.
+- PASS #241: `POST /api/v1/auth/email-verifications` for the QA account returned HTTP 201, `success:true`, `ok:true`, delivery `accepted`, provider `resend`, and no debug token.
+- PASS #244/#245: unauthenticated chat product/provider/usage endpoints return HTTP 401 with `UNAUTHORIZED`.
+- PASS #244/#245: authenticated `GET /api/v1/chat-feature-products` returned 6 active products. First product `CHAT_DEEP_REPLY` had generation disabled with provider not configured/not allowed and `canCreatePaidOrder:false`.
+- PASS #244/#245: authenticated chat session creation for `seo-yuan` returned HTTP 201.
+- PASS #245: authenticated `GET /api/v1/chat/usage-summary` returned daily/provider counters, `walletMutation:false`, `settlementEligible:false`, `providerCall:false`, and `rawMessagesExposed:false`.
+- PASS #245: authenticated `GET /api/v1/chat/provider-ops-status` returned provider configured `false`, `canAttemptProvider:false`, `walletMutation:false`, `settlementMutation:false`, and `secretsReturned:false`.
+- PASS #244: authenticated `POST /api/v1/chat-feature-orders/preview` returned read-only preview with wallet before/after estimate only; no balance mutation was observed.
+- PASS #244: `POST /api/v1/chat-feature-orders` without idempotency key returned HTTP 400 `CHAT_FEATURE_ORDER_IDEMPOTENCY_REQUIRED`.
+- PASS #244: `POST /api/v1/chat-feature-orders` with idempotency key while provider is unavailable returned HTTP 503 before debit. Wallet balance before and after remained `300`.
+
+blockers:
+- None confirmed in the scoped live API smoke.
+
+repro_steps:
+1. Run `git pull origin main` in a clean worktree at `origin/main`.
+2. Confirm `curl https://api.lumina-stage.com/health` reports commit `09ea0afb54c8620943d26f3602e3d63f4ffe85da`.
+3. Create a disposable QA email user through `POST /api/v1/auth/register`; do not record the password or tokens.
+4. Call `GET /api/v1/me` with the access token and confirm current-user identity.
+5. Call `GET /api/v1/chat-feature-products` with the access token.
+6. Create a chat session for active artist `seo-yuan`.
+7. Call `GET /api/v1/chat/usage-summary?artistId=<seo-yuan id>`.
+8. Call `GET /api/v1/chat/provider-ops-status`.
+9. Call `POST /api/v1/chat-feature-orders/preview` with the session/product pair.
+10. Call `POST /api/v1/chat-feature-orders` once without idempotency key and confirm `CHAT_FEATURE_ORDER_IDEMPOTENCY_REQUIRED`.
+11. Call `POST /api/v1/chat-feature-orders` with an idempotency key while provider is unavailable and confirm HTTP 503 plus unchanged wallet balance.
+12. Request password reset and email verification for the QA account; verify accepted provider delivery response and absence of debug token.
+13. Logout with the refresh token.
+
+screenshots_or_notes:
+- No screenshots captured in this pass.
+- Real email subject/body copy for #241 could not be visually verified because no safe mailbox or received email content was available in this session. Only provider acceptance and no-debug-token behavior were verified live.
+- Focused Jest checks could not run because this fresh worktree has no installed `server/node_modules`; `npm.cmd test -- auth-email-delivery.service.spec.ts --runInBand` and `npm.cmd test -- chat.service.spec.ts --runInBand` both failed with `jest is not recognized`.
+- Minor consistency note for #244/#245: the order-create 503 uses error code `CHAT_LLM_PROVIDER_NOT_CONFIGURED` and backend message `Character chat generation provider is not configured`, while the response also includes `messageKey: chat.generation.privateBetaOnly` and nested policy `disabledMessageKey: chat.generation.providerNotConfigured`. If frontend renders `error.message` directly, this can become English-only UI; otherwise it is not a live blocker.
+
+suspected_owner: backend
+
+next_needed:
+- Provide a safe mailbox or mail-capture environment to verify #241 Korean email subject/body and KST expiry text end to end.
+- Install server dependencies in the QA worktree or provide CI output if focused spec rerun is required.
+- Frontend follow-up should ensure chat errors render localized `messageKey`/fallback copy instead of raw English `error.message`.
+
+security_check:
+- PASS: no secrets, tokens, passwords, cookies, auth codes, provider keys, or raw credentials were recorded.
+- PASS: no successful paid order, wallet debit, settlement mutation, payout mutation, Lumina manual adjustment, Creator Studio mutation, or Backstage mutation was executed.
+
+---
+
 status: partial pass; live logged-in mutation blocked
 task: QA2-004 - Fan engagement mission submit live smoke
 branch/commit:
