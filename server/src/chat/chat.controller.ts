@@ -127,6 +127,11 @@ export class ChatController {
     });
   }
 
+  @Get('chat/provider-ops-status')
+  getProviderOpsStatus(@CurrentUser() user: AuthUser) {
+    return this.chatService.getProviderOpsStatus(user.id);
+  }
+
   @Get('chat-feature-products')
   getFeatureProducts() {
     return this.chatService.getFeatureProducts();
