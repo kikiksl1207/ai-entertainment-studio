@@ -21,6 +21,7 @@ import {
 import {
   CHARACTER_CHAT_CATALOG_POLICY,
   CHAT_PERSONA_SEED_POLICY,
+  CHAT_PERSONA_TRAIT_CATALOG,
   defaultCharacterGreeting,
   defaultCharacterStarterOptions,
   defaultCharacterStatus,
@@ -214,6 +215,10 @@ export class ChatService {
     return CHAT_PERSONA_SEED_POLICY;
   }
 
+  getPersonaTraitCatalog() {
+    return CHAT_PERSONA_TRAIT_CATALOG;
+  }
+
   async getCharacterChatCatalog(input: { artistId?: string; artistSlug?: string }) {
     const artist = await this.findActiveChatArtist(input);
     const metadata = this.recordOrEmpty(artist.publicProfile?.publicMetadata);
@@ -267,6 +272,11 @@ export class ChatService {
         contentTone: artist.contentProfile?.contentTone ?? null,
         personalityKeywords: artist.publicProfile?.personalityKeywords ?? [],
       },
+      personaReference: this.personaReferenceFromMetadata({
+        metadata,
+        contentTone: artist.contentProfile?.contentTone ?? null,
+        personalityKeywords: artist.publicProfile?.personalityKeywords ?? [],
+      }),
       policy: CHARACTER_CHAT_CATALOG_POLICY,
       source: configuredSets.length || metadataGreeting ? 'artist_metadata' : 'default',
     };
@@ -291,6 +301,11 @@ export class ChatService {
         contentTone: artist.contentProfile?.contentTone ?? null,
         personalityKeywords: artist.publicProfile?.personalityKeywords ?? [],
       },
+      personaReference: this.personaReferenceFromMetadata({
+        metadata,
+        contentTone: artist.contentProfile?.contentTone ?? null,
+        personalityKeywords: artist.publicProfile?.personalityKeywords ?? [],
+      }),
       sets: configuredSets.length
         ? configuredSets
         : [this.defaultStarterPromptSet(artist.slug, artist.displayName)],
@@ -1414,6 +1429,104 @@ export class ChatService {
 
   private inputJson(value: unknown): Prisma.InputJsonValue {
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  }
+
+  private personaReferenceFromMetadata(input: {
+    metadata: Record<string, unknown>;
+    contentTone: string | null;
+    personalityKeywords: string[];
+  }) {
+    const personaSeed = this.recordOrEmpty(input.metadata.chatPersonaSeed);
+    const selectedTraitIds = this.normalizePersonaTraitIds(
+      personaSeed.selectedTraitIds ??
+        personaSeed.traitIds ??
+        personaSeed.tags ??
+        input.metadata.personaTraitIds,
+    );
+    const selectedTraits = CHAT_PERSONA_TRAIT_CATALOG.traits
+      .filter((trait) => selectedTraitIds.includes(trait.id))
+      .map((trait) => ({
+        id: trait.id,
+        group: trait.group,
+        labelKo: trait.labelKo,
+        i18nKey: trait.i18nKey,
+        conflictsWith: [...trait.conflictsWith],
+      }));
+    const customFields = {
+      customTraitsKo: this.normalizeStringList(
+        personaSeed.customTraitsKo ?? personaSeed.customTraits,
+        6,
+        30,
+      ),
+      fanNicknameKo: this.stringFromUnknown(personaSeed.fanNicknameKo),
+      relationshipToneKo: this.stringFromUnknown(personaSeed.relationshipToneKo),
+      favoriteTopicsKo: this.normalizeStringList(
+        personaSeed.favoriteTopicsKo ?? personaSeed.favoriteTopics,
+        8,
+        30,
+      ),
+      openingMoodKo: this.stringFromUnknown(personaSeed.openingMoodKo),
+    };
+    const hasCustomFields = Boolean(
+      customFields.customTraitsKo.length ||
+        customFields.fanNicknameKo ||
+        customFields.relationshipToneKo ||
+        customFields.favoriteTopicsKo.length ||
+        customFields.openingMoodKo,
+    );
+    const legacyToneSignals = {
+      contentTone: input.contentTone,
+      personalityKeywords: input.personalityKeywords,
+    };
+
+    return {
+      catalogVersion: CHAT_PERSONA_TRAIT_CATALOG.catalogVersion,
+      selectedTraitIds,
+      selectedTraits,
+      customFields,
+      legacyToneSignals,
+      source:
+        selectedTraitIds.length || hasCustomFields
+          ? 'artist_metadata'
+          : input.contentTone || input.personalityKeywords.length
+            ? 'legacy_artist_profile'
+            : 'default',
+      readOnly: true,
+      mutationEnabled: false,
+    };
+  }
+
+  private normalizePersonaTraitIds(value: unknown) {
+    const allowed = new Set<string>(
+      CHAT_PERSONA_TRAIT_CATALOG.traits.map((trait) => trait.id),
+    );
+    const rawItems = Array.isArray(value)
+      ? value
+      : typeof value === 'string'
+        ? value.split(',')
+        : [];
+    const ids = rawItems
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter((item) => allowed.has(item));
+
+    return [...new Set(ids)];
+  }
+
+  private normalizeStringList(value: unknown, maxItems: number, maxLength: number) {
+    const rawItems = Array.isArray(value)
+      ? value
+      : typeof value === 'string'
+        ? value.split(',')
+        : [];
+
+    return [
+      ...new Set(
+        rawItems
+          .map((item) => this.stringFromUnknown(item))
+          .filter((item): item is string => Boolean(item))
+          .map((item) => item.slice(0, maxLength)),
+      ),
+    ].slice(0, maxItems);
   }
 
   private stringFromUnknown(value: unknown) {
