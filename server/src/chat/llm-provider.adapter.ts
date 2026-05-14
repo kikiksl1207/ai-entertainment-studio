@@ -4,10 +4,11 @@ import { ConfigService } from '@nestjs/config';
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const DEFAULT_OPENAI_CHAT_MODEL = 'gpt-5-mini';
 const DEFAULT_OPENAI_CHAT_FALLBACK_MODEL = 'gpt-5-nano';
+const DEFAULT_OPENAI_REASONING_EFFORT = 'minimal';
 const CHAT_INPUT_MAX_CHARS = 1000;
 const CHAT_OUTPUT_MAX_CHARS = 700;
 const OPENAI_PROVIDER_TIMEOUT_MS = 12_000;
-const OPENAI_PROVIDER_MAX_OUTPUT_TOKENS = 220;
+const OPENAI_PROVIDER_MAX_OUTPUT_TOKENS = 700;
 const SAFE_FALLBACK_MESSAGE =
   '지금은 답장을 준비하는 중이에요. 잠시 후 다시 말을 걸어주세요.';
 
@@ -264,6 +265,11 @@ export class ChatLlmProviderAdapter implements ChatLlmProvider {
           model,
           instructions: this.buildSystemInstructions(request),
           input: this.buildConversationInput(request),
+          reasoning: {
+            effort:
+              this.envString('OPENAI_CHAT_REASONING_EFFORT') ??
+              DEFAULT_OPENAI_REASONING_EFFORT,
+          },
           max_output_tokens: OPENAI_PROVIDER_MAX_OUTPUT_TOKENS,
         }),
         signal: controller.signal,
