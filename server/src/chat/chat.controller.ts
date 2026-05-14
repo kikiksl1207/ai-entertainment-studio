@@ -64,6 +64,11 @@ export class ChatController {
     return this.chatService.getPersonaSeedPolicy();
   }
 
+  @Get('chat/persona-trait-catalog')
+  getPersonaTraitCatalog() {
+    return this.chatService.getPersonaTraitCatalog();
+  }
+
   @Get('chat/character-catalog')
   getCharacterChatCatalog(
     @Query('artistId') artistId?: string,

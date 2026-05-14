@@ -92,6 +92,68 @@ describe('ChatService persona and catalog policy', () => {
     });
   });
 
+  it('returns static persona trait catalog with custom-field contract', () => {
+    const service = new ChatService({} as never, llmProvider as never);
+
+    const result = service.getPersonaTraitCatalog();
+
+    expect(result).toMatchObject({
+      catalogVersion: '2026-05-14.chat-persona-trait-catalog-v1',
+      source: 'static',
+      readOnly: true,
+      customFieldContract: {
+        enabled: true,
+        reviewRequired: true,
+      },
+      starterPromptReference: {
+        enabled: true,
+      },
+      safety: {
+        readOnly: true,
+        llmCall: false,
+        walletMutation: false,
+        settlementMutation: false,
+        secretsReturned: false,
+      },
+    });
+    expect(result.traits.length).toBeGreaterThanOrEqual(20);
+    expect(result.traits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'introverted',
+          labelKo: '내성적인',
+          conflictsWith: ['very_extroverted'],
+        }),
+        expect.objectContaining({
+          id: 'very_extroverted',
+          labelKo: '매우 외향적인',
+          conflictsWith: ['introverted'],
+        }),
+      ]),
+    );
+    expect(result.conflictRules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'introvert_extrovert_block',
+          severity: 'block',
+          traitIds: ['introverted', 'very_extroverted'],
+        }),
+      ]),
+    );
+    expect(result.customFieldContract.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'customTraitsKo',
+          type: 'string_list',
+        }),
+        expect.objectContaining({
+          id: 'fanNicknameKo',
+          type: 'short_text',
+        }),
+      ]),
+    );
+  });
+
   it('returns character-specific greeting catalog without request mutations', async () => {
     const prisma = {
       artist: {
@@ -155,6 +217,70 @@ describe('ChatService persona and catalog policy', () => {
       imageRequestMutation: false,
       videoRequestMutation: false,
     });
+  });
+
+  it('returns starter prompt persona references from artist metadata', async () => {
+    const prisma = {
+      artist: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000239',
+          slug: 'han-bora',
+          displayName: '한보라',
+          publicProfile: {
+            publicMetadata: {
+              chatPersonaSeed: {
+                selectedTraitIds: [
+                  'warm',
+                  'quiet_comfort',
+                  'introverted',
+                  'not-in-catalog',
+                ],
+                customTraitsKo: ['새벽 감성', '무심한 응원'],
+                fanNicknameKo: '별빛이',
+                relationshipToneKo: '무대 뒤에서 조용히 응원받는 거리감',
+                favoriteTopicsKo: ['무대 준비', '밤 산책'],
+                openingMoodKo: '조심스럽게',
+              },
+            },
+            tagline: '새벽의 보컬',
+            personalityKeywords: ['다정함'],
+          },
+          contentProfile: {
+            contentTone: 'warm',
+          },
+        }),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.getStarterPrompts({ artistSlug: 'han-bora' });
+
+    expect(result.personaReference).toMatchObject({
+      catalogVersion: '2026-05-14.chat-persona-trait-catalog-v1',
+      selectedTraitIds: ['warm', 'quiet_comfort', 'introverted'],
+      customFields: {
+        customTraitsKo: ['새벽 감성', '무심한 응원'],
+        fanNicknameKo: '별빛이',
+        relationshipToneKo: '무대 뒤에서 조용히 응원받는 거리감',
+        favoriteTopicsKo: ['무대 준비', '밤 산책'],
+        openingMoodKo: '조심스럽게',
+      },
+      source: 'artist_metadata',
+      readOnly: true,
+      mutationEnabled: false,
+    });
+    expect(result.personaReference.selectedTraits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'warm',
+          labelKo: '다정한',
+        }),
+        expect.objectContaining({
+          id: 'quiet_comfort',
+          labelKo: '조용한 위로',
+        }),
+      ]),
+    );
   });
 });
 
