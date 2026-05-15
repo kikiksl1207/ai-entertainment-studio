@@ -724,10 +724,22 @@ GET /api/v1/me/debut-applications/latest
 POST /api/v1/me/debut-applications/:applicationId/withdraw
 GET /admin/api/v1/debut/applications?status=submitted&take=50
 GET /admin/api/v1/debut/applications/:applicationId
-PATCH /admin/api/v1/debut/applications/:applicationId
 ```
 
 `debut_applications` stores an operations-review application only. Sensitive identity documents and final contracts must use a later secure upload/contract process, not chat, Notion, or Git.
+
+Admin debut endpoints are read-only for the first operations contract. When the
+API base URL is the deployed host root, the external path follows the current
+admin route shape with the global prefix:
+
+```http
+GET /api/v1/admin/api/v1/debut/applications?status=submitted&take=50
+GET /api/v1/admin/api/v1/debut/applications/:applicationId
+```
+
+If a client helper/base URL already includes `/api/v1`, use the relative admin
+path `/admin/api/v1/debut/...`. Do not open or call status mutation endpoints
+until a separate mutation contract is approved.
 
 Current validation and workflow:
 
@@ -744,10 +756,19 @@ Current validation and workflow:
 - `consentVoice` is optional and defaults to `false`.
 - `shareTierRequested` and `shareTierApproved` are integers from 0 to 70.
 - Applicant withdrawal is available before final decision for `submitted`, `reviewing`, or `needs_more_info` applications.
-- Admin status updates accept `submitted`, `reviewing`, `needs_more_info`, `approved`, `rejected`, and `withdrawn`; `under_review` is accepted as a compatibility alias for `reviewing`.
+- Admin read-only status candidates are `submitted`, `reviewing`,
+  `needs_more_info`, `approved_for_contact`, `rejected`, and `archived`.
+  Existing `under_review`, `approved`, and `withdrawn` records are normalized in
+  the read-only response as `reviewing`, `approved_for_contact`, and `archived`.
 - `applicationChannel`, `applicationType`, `affiliatedOrgName`, `rightsRelationshipNote`, `creatorExperienceNote`, `preferredContactTime`, `consultationConsent`, and `materialSubmissionMode` are stored in `debut_applications.metadata` for now. Promote them to columns only after operations data proves the shape.
-- Admin list supports `applicationChannel`, `applicationType`, `rightsReviewRequired`, `partnerReviewRequired`, and `consultationStatus` query filters using metadata JSON path filters.
-- Admin PATCH accepts `consultationStatus`, `consultationScheduledAt`, `consultationNote`, `rightsReviewStatus`, `rightsReviewNote`, `partnerReviewStatus`, and `partnerReviewNote`. These are stored in metadata with admin update attribution.
+- Admin list supports `applicationChannel`, `applicationType`,
+  `rightsReviewRequired`, `partnerReviewRequired`, and `consultationStatus`
+  query filters using metadata JSON path filters.
+- Admin detail returns masked contact fields and private applicant material
+  metadata only. It must not return private signed URLs, original file URLs,
+  storage keys, object ETags, secrets, or tokens.
+- Admin status/consultation mutation is not open in this contract. If needed,
+  propose a separate mutation contract before exposing PATCH/POST handlers.
 - Allowed consultation statuses: `pending`, `scheduled`, `contacted`, `no_answer`, `completed`.
 - Allowed rights review statuses: `not_required`, `pending`, `reviewing`, `cleared`, `blocked`.
 - Allowed partner review statuses: `not_applicable`, `pending`, `reviewing`, `accepted`, `declined`.
