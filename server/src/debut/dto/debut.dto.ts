@@ -22,8 +22,10 @@ export const DEBUT_APPLICATION_STATUSES = [
   'reviewing',
   'under_review',
   'needs_more_info',
+  'approved_for_contact',
   'approved',
   'rejected',
+  'archived',
   'withdrawn',
 ] as const;
 
