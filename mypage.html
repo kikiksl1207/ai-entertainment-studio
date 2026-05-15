@@ -252,6 +252,10 @@
                 <span class="mypage-status-badge" id="mypageDebutStatus">신청 전</span>
                 <strong id="mypageDebutTitle">아직 제출된 데뷔 신청이 없습니다.</strong>
                 <p id="mypageDebutDescription">외모, 목소리, 콘셉트, 창작 역량 중 나에게 맞는 방식으로 새로운 아티스트를 준비할 수 있습니다.</p>
+                <div class="mypage-debut-next">
+                  <p id="mypageDebutNextAction">신청서를 제출하면 접수 완료, 검토 중, 추가 자료 필요, 상담 예정 상태를 이곳에서 확인할 수 있어요.</p>
+                  <ol class="mypage-debut-steps" id="mypageDebutSteps" aria-label="데뷔 신청 진행 단계"></ol>
+                </div>
               </div>
             </section>
 
@@ -786,9 +790,11 @@
             reviewing: "검토 중",
             under_review: "검토 중",
             needs_more_info: "추가 자료 필요",
+            approved_for_contact: "상담 예정",
             approved: "승인",
             rejected: "미승인",
-            withdrawn: "철회 완료"
+            withdrawn: "철회 완료",
+            archived: "보관됨"
           }[status] || "신청 전";
         }
 
@@ -798,10 +804,51 @@
             reviewing: "검토가 진행 중이에요. 콘셉트, 권리 동의, 제출 자료를 함께 확인하고 있어요.",
             under_review: "검토가 진행 중이에요. 콘셉트, 권리 동의, 제출 자료를 함께 확인하고 있어요.",
             needs_more_info: "추가 확인이 필요해요. 요청된 자료를 보완하면 심사가 다시 이어집니다.",
+            approved_for_contact: "상담 또는 계약 전 확인 단계로 넘어갈 수 있어요. 운영팀 안내를 확인해주세요.",
             approved: "데뷔 준비 단계로 넘어갈 수 있어요. 계약과 제작 안내를 확인해주세요.",
             rejected: "이번 신청은 승인되지 않았어요. 보완 후 다시 신청할 수 있어요.",
-            withdrawn: "신청이 철회되었어요. 언제든 준비가 되면 새로 신청할 수 있어요."
+            withdrawn: "신청이 철회되었어요. 언제든 준비가 되면 새로 신청할 수 있어요.",
+            archived: "이 신청은 보관 처리되었어요. 새 신청이 필요하면 다시 접수해주세요."
           }[status] || "나의 가능성을 아티스트로 만들 준비가 되었다면 지금 시작해보세요.";
+        }
+
+        function debutNextAction(status) {
+          return {
+            submitted: "지금은 운영팀 확인을 기다리면 돼요. 연락처가 바뀌면 프로필 정보를 먼저 정리해주세요.",
+            reviewing: "검토 중에는 추가로 제출할 자료를 임의로 올리지 않아도 돼요. 요청이 오면 그때 보완하면 됩니다.",
+            under_review: "검토 중에는 추가로 제출할 자료를 임의로 올리지 않아도 돼요. 요청이 오면 그때 보완하면 됩니다.",
+            needs_more_info: "운영팀 요청 내용을 확인하고, 필요한 자료나 답변을 준비해주세요.",
+            approved_for_contact: "상담 일정이나 계약 전 확인 안내를 기다려주세요. 확정 정산 조건은 아직 보장되지 않습니다.",
+            approved: "계약과 제작 안내를 확인할 단계예요. 정산률과 제공 범위는 최종 계약에서 확정됩니다.",
+            rejected: "이번 신청은 종료됐어요. 콘셉트나 제공 범위를 보완한 뒤 새로 신청할 수 있어요.",
+            withdrawn: "철회된 신청이에요. 다시 준비되면 새 신청서를 작성해주세요.",
+            archived: "보관된 신청이에요. 현재 이어서 처리할 항목은 없습니다."
+          }[status] || "데뷔하기에서 신청서를 제출하면 이곳에 진행 상태와 다음 행동이 표시됩니다.";
+        }
+
+        function debutStepIndex(status) {
+          if (["submitted"].includes(status)) return 0;
+          if (["reviewing", "under_review"].includes(status)) return 1;
+          if (["needs_more_info"].includes(status)) return 2;
+          if (["approved_for_contact", "approved"].includes(status)) return 3;
+          if (["rejected", "withdrawn", "archived"].includes(status)) return 4;
+          return -1;
+        }
+
+        function renderDebutSteps(status) {
+          const el = $("mypageDebutSteps");
+          if (!el) return;
+          const current = debutStepIndex(status);
+          const steps = [
+            ["접수", "신청 내용 저장"],
+            ["검토", "권리·콘셉트 확인"],
+            ["보완", "필요 시 자료 요청"],
+            ["상담", "계약 전 안내"],
+          ];
+          el.innerHTML = steps.map((step, index) => {
+            const state = current < 0 ? "is-pending" : index < current ? "is-done" : index === current ? "is-current" : "is-pending";
+            return "<li class=\"" + state + "\"><span>" + (index + 1) + "</span><p><b>" + step[0] + "</b>" + step[1] + "</p></li>";
+          }).join("");
         }
 
         function consultationStatusLabel(status) {
@@ -830,6 +877,8 @@
             setText("mypageDebutStatus", debutLabel("apply"));
             setText("mypageDebutTitle", "아직 데뷔 신청 전이에요.");
             setText("mypageDebutDescription", debutDescription("apply"));
+            setText("mypageDebutNextAction", debutNextAction("apply"));
+            renderDebutSteps("apply");
             return;
           }
 
@@ -848,6 +897,8 @@
           setText("mypageDebutStatus", consultation || debutLabel(status));
           setText("mypageDebutTitle", displayName + " 상태");
           setText("mypageDebutDescription", description);
+          setText("mypageDebutNextAction", debutNextAction(status));
+          renderDebutSteps(status);
         }
 
         function applySummary(summary) {
@@ -1269,6 +1320,8 @@
 
         async function initMypageEnhancements() {
           bindMypageActions();
+          setText("mypageDebutNextAction", debutNextAction("apply"));
+          renderDebutSteps("apply");
           // #057 충전소 분리 후 충전 상품 미리보기는 충전소 화면이 담당하므로 마이페이지에선 호출하지 않음
           await refreshMypageInlineData();
         }

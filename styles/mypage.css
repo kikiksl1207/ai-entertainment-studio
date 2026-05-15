@@ -649,6 +649,88 @@
   color: #fff;
 }
 
+.mypage-debut-next {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(159, 139, 199, 0.16);
+}
+
+.mypage-debut-next p {
+  margin: 0;
+  color: rgba(240, 238, 248, 0.68);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.mypage-debut-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mypage-debut-steps li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(159, 139, 199, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.mypage-debut-steps li.is-current {
+  border-color: rgba(255, 20, 147, 0.34);
+  background: rgba(255, 20, 147, 0.08);
+}
+
+.mypage-debut-steps li.is-done {
+  border-color: rgba(90, 220, 155, 0.24);
+  background: rgba(90, 220, 155, 0.06);
+}
+
+.mypage-debut-steps span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(159, 139, 199, 0.16);
+  color: #d8ccff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.mypage-debut-steps li.is-current span {
+  background: rgba(255, 20, 147, 0.22);
+  color: #ffd2ee;
+}
+
+.mypage-debut-steps li.is-done span {
+  background: rgba(90, 220, 155, 0.16);
+  color: #9cf1c4;
+}
+
+.mypage-debut-steps p {
+  margin: 0;
+  min-width: 0;
+  color: rgba(240, 238, 248, 0.56);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.mypage-debut-steps b {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ink);
+}
+
 .mypage-settings-list {
   display: grid;
   gap: 10px;
@@ -753,8 +835,9 @@
   /* 모바일 — 가로 탭바 미세 조정 */
   .mypage-tabs {
     top: 56px;
-    margin: 0 -10px 4px;
-    padding: 0 10px;
+    margin: 0 0 4px;
+    padding: 0;
+    max-width: 100%;
   }
   .mypage-tab {
     padding: 12px 14px;
@@ -763,6 +846,9 @@
   .mypage-tab.is-active::after {
     left: 12px;
     right: 12px;
+  }
+  .mypage-debut-steps {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
@@ -789,7 +875,8 @@
 
   .mypage-field-grid,
   .mypage-wallet-grid,
-  .mypage-following-grid {
+  .mypage-following-grid,
+  .mypage-debut-steps {
     grid-template-columns: 1fr;
   }
 
