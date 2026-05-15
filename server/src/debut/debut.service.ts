@@ -39,6 +39,68 @@ const ADMIN_APPLICATION_STATUS_ALIASES: Record<string, AdminDebutApplicationStat
   approved: 'approved_for_contact',
   withdrawn: 'archived',
 };
+const USER_DEBUT_APPLICATION_STATUS_CANDIDATES = [
+  'submitted',
+  'reviewing',
+  'needs_more_info',
+  'approved',
+  'rejected',
+  'canceled',
+] as const;
+type UserDebutApplicationStatus =
+  (typeof USER_DEBUT_APPLICATION_STATUS_CANDIDATES)[number];
+const USER_APPLICATION_STATUS_ALIASES: Record<string, UserDebutApplicationStatus> = {
+  under_review: 'reviewing',
+  approved_for_contact: 'approved',
+  archived: 'canceled',
+  withdrawn: 'canceled',
+};
+const USER_APPLICATION_STATUS_COPY: Record<
+  UserDebutApplicationStatus,
+  { labelKo: string; messageKey: string; defaultMessageKo: string }
+> = {
+  submitted: {
+    labelKo: '신청 접수 완료',
+    messageKey: 'debut.application.status.submitted',
+    defaultMessageKo: '데뷔 신청이 접수됐어요. 운영팀이 순서대로 확인합니다.',
+  },
+  reviewing: {
+    labelKo: '심사 중',
+    messageKey: 'debut.application.status.reviewing',
+    defaultMessageKo: '제출 내용을 검토하고 있어요. 결과가 정리되면 알려드릴게요.',
+  },
+  needs_more_info: {
+    labelKo: '보완 요청',
+    messageKey: 'debut.application.status.needsMoreInfo',
+    defaultMessageKo: '추가 확인이 필요한 항목이 있어요. 안내를 확인해 주세요.',
+  },
+  approved: {
+    labelKo: '연락 준비 중',
+    messageKey: 'debut.application.status.approved',
+    defaultMessageKo: '상담 또는 다음 안내를 드릴 수 있는 상태예요. 데뷔 확정은 별도 계약 이후 결정됩니다.',
+  },
+  rejected: {
+    labelKo: '심사 종료',
+    messageKey: 'debut.application.status.rejected',
+    defaultMessageKo: '이번 신청 검토가 종료됐어요. 공개 가능한 사유만 안내됩니다.',
+  },
+  canceled: {
+    labelKo: '신청 취소',
+    messageKey: 'debut.application.status.canceled',
+    defaultMessageKo: '사용자 요청 또는 운영 기준에 따라 신청이 종료됐어요.',
+  },
+};
+const USER_APPLICATION_STATUS_CTA: Record<
+  UserDebutApplicationStatus,
+  { key: string; labelKo: string; enabled: boolean }
+> = {
+  submitted: { key: 'view_status', labelKo: '상태 확인', enabled: false },
+  reviewing: { key: 'view_status', labelKo: '상태 확인', enabled: false },
+  needs_more_info: { key: 'check_request', labelKo: '보완 안내 확인', enabled: false },
+  approved: { key: 'check_result', labelKo: '결과 안내 확인', enabled: false },
+  rejected: { key: 'check_result', labelKo: '결과 안내 확인', enabled: false },
+  canceled: { key: 'view_status', labelKo: '상태 확인', enabled: false },
+};
 
 const DEFAULT_APPLICATION_TYPE = 'personal_unaffiliated';
 const DEFAULT_PARTICIPATION_TYPE = 'appearance_only';
@@ -131,6 +193,36 @@ type DebutApplicationAdminRecord = {
     profile: { displayName: string | null } | null;
   };
   attachments: DebutApplicationAdminAttachmentRecord[];
+};
+
+type DebutApplicationUserAttachmentRecord = {
+  id: string;
+  category: string;
+  sortOrder: number;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  asset?: {
+    id: string;
+    assetType: string;
+    visibility: string;
+    mimeType: string;
+    width: number | null;
+    height: number | null;
+  } | null;
+};
+
+type DebutApplicationUserRecord = {
+  id: string;
+  userId: string;
+  displayName: string | null;
+  status: string;
+  participationType: string;
+  shareTierRequested: number | null;
+  metadata: Prisma.JsonValue;
+  createdAt: Date;
+  updatedAt: Date;
+  attachments?: DebutApplicationUserAttachmentRecord[];
 };
 
 @Injectable()
@@ -529,18 +621,44 @@ export class DebutService {
   getMyApplications(userId: string) {
     return this.prisma.debutApplication.findMany({
       where: { userId },
+      select: this.userApplicationSelect(),
       orderBy: { createdAt: 'desc' },
+    }).then((applications) => ({
+      ...this.userDebutApplicationReadOnlyContract(),
+      items: applications.map((application) =>
+        this.presentUserDebutApplication(application),
+      ),
+      count: applications.length,
+      ctaState: applications.length ? 'status' : 'apply',
+    }));
+  }
+
+  async getMyApplicationStatus(userId: string, applicationId: string) {
+    const application = await this.prisma.debutApplication.findFirst({
+      where: { id: applicationId, userId },
+      select: this.userApplicationSelect(),
     });
+
+    if (!application) {
+      throw new NotFoundException('Debut application not found');
+    }
+
+    return {
+      ...this.userDebutApplicationReadOnlyContract(),
+      application: this.presentUserDebutApplication(application),
+    };
   }
 
   async getMyLatestApplication(userId: string) {
     const application = await this.prisma.debutApplication.findFirst({
       where: { userId },
+      select: this.userApplicationSelect(),
       orderBy: { createdAt: 'desc' },
     });
 
     return {
-      application,
+      ...this.userDebutApplicationReadOnlyContract(),
+      application: application ? this.presentUserDebutApplication(application) : null,
       ctaState: application ? 'status' : 'apply',
     };
   }
@@ -555,7 +673,11 @@ export class DebutService {
     }
 
     if (application.status === 'withdrawn') {
-      return { application, ok: true, alreadyWithdrawn: true };
+      return {
+        application: this.presentUserDebutApplication(application),
+        ok: true,
+        alreadyWithdrawn: true,
+      };
     }
 
     if (!['submitted', 'reviewing', 'needs_more_info'].includes(application.status)) {
@@ -585,7 +707,11 @@ export class DebutService {
       'debut_application.withdraw',
     );
 
-    return { application: withdrawn, ok: true, alreadyWithdrawn: false };
+    return {
+      application: this.presentUserDebutApplication(withdrawn),
+      ok: true,
+      alreadyWithdrawn: false,
+    };
   }
 
   async getApplications(query: DebutApplicationListQueryDto) {
@@ -900,6 +1026,205 @@ export class DebutService {
         },
       },
     } satisfies Prisma.DebutApplicationInclude;
+  }
+
+  private userApplicationSelect() {
+    return {
+      id: true,
+      userId: true,
+      displayName: true,
+      status: true,
+      participationType: true,
+      shareTierRequested: true,
+      metadata: true,
+      createdAt: true,
+      updatedAt: true,
+      attachments: {
+        orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          category: true,
+          sortOrder: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          asset: {
+            select: {
+              id: true,
+              assetType: true,
+              visibility: true,
+              mimeType: true,
+              width: true,
+              height: true,
+            },
+          },
+        },
+      },
+    } satisfies Prisma.DebutApplicationSelect;
+  }
+
+  private userDebutApplicationReadOnlyContract() {
+    return {
+      readOnly: true,
+      ownerOnly: true,
+      statusCandidates: [...USER_DEBUT_APPLICATION_STATUS_CANDIDATES],
+      statusCopy: USER_APPLICATION_STATUS_COPY,
+      notificationContract: this.debutApplicationNotificationContract(),
+      privateMaterialPolicy: {
+        metadataOnly: true,
+        publicUrlReturned: false,
+        signedReadUrlReturned: false,
+        originalFileUrlReturned: false,
+        storageKeyReturned: false,
+      },
+    };
+  }
+
+  private presentUserDebutApplication(application: DebutApplicationUserRecord) {
+    const metadata = this.metadataObject(application.metadata);
+    const status = this.userReviewStatus(application.status);
+    const copy = USER_APPLICATION_STATUS_COPY[status];
+    const attachments = application.attachments ?? [];
+    const categories = [...new Set(attachments.map((attachment) => attachment.category))];
+    const applicationChannel =
+      this.safeString(metadata.applicationChannel) ?? 'phone_consultation';
+    const applicationType =
+      this.safeString(metadata.applicationType) ?? DEFAULT_APPLICATION_TYPE;
+
+    return {
+      id: application.id,
+      status,
+      statusLabelKo: copy.labelKo,
+      messageKey: copy.messageKey,
+      defaultMessageKo: copy.defaultMessageKo,
+      cta: USER_APPLICATION_STATUS_CTA[status],
+      displayName: application.displayName,
+      participationType: application.participationType,
+      applicationChannel,
+      applicationType,
+      submittedAt: application.createdAt,
+      updatedAt: application.updatedAt,
+      requestedShareRate: application.shareTierRequested,
+      materialSummary: {
+        count: attachments.length,
+        categories,
+        materialTypes: categories,
+        hasPrivateMaterials: attachments.length > 0,
+        metadataOnly: true,
+      },
+      publicNotice: this.publicDebutApplicationNotice(status, metadata),
+      statusHistory: this.userDebutApplicationStatusHistory(application, status),
+      privacy: {
+        contactReturned: false,
+        introReturned: false,
+        adminReviewNoteReturned: false,
+        internalMetadataReturned: false,
+        privateMaterialUrlReturned: false,
+      },
+    };
+  }
+
+  private userDebutApplicationStatusHistory(
+    application: DebutApplicationUserRecord,
+    currentStatus: UserDebutApplicationStatus,
+  ) {
+    const metadata = this.metadataObject(application.metadata);
+    const submittedCopy = USER_APPLICATION_STATUS_COPY.submitted;
+    const history: Array<{
+      status: UserDebutApplicationStatus;
+      labelKo: string;
+      messageKey: string;
+      occurredAt: Date;
+      source: string;
+    }> = [
+      {
+        status: 'submitted',
+        labelKo: submittedCopy.labelKo,
+        messageKey: submittedCopy.messageKey,
+        occurredAt: application.createdAt,
+        source: 'application.createdAt',
+      },
+    ];
+
+    if (currentStatus !== 'submitted') {
+      const copy = USER_APPLICATION_STATUS_COPY[currentStatus];
+      history.push({
+        status: currentStatus,
+        labelKo: copy.labelKo,
+        messageKey: copy.messageKey,
+        occurredAt:
+          this.safeDateString(metadata.withdrawnAt) ??
+          this.safeDateString(metadata.adminReviewUpdatedAt) ??
+          application.updatedAt,
+        source: 'application.updatedAt',
+      });
+    }
+
+    return history;
+  }
+
+  private publicDebutApplicationNotice(
+    status: UserDebutApplicationStatus,
+    metadata: Record<string, unknown>,
+  ) {
+    const copy = USER_APPLICATION_STATUS_COPY[status];
+    const publicReason =
+      this.safeString(metadata.publicStatusReason) ??
+      this.safeString(metadata.userVisibleReason) ??
+      null;
+    const requestedActionKey =
+      status === 'needs_more_info'
+        ? this.safeString(metadata.requestedActionKey) ?? 'debut.application.action.provideMoreInfo'
+        : null;
+
+    return {
+      status,
+      titleKey: `${copy.messageKey}.title`,
+      bodyKey: `${copy.messageKey}.body`,
+      defaultTitleKo: copy.labelKo,
+      defaultBodyKo: copy.defaultMessageKo,
+      publicReason,
+      requestedActionKey,
+      channelsPlanned: ['in_app', 'email'],
+      dispatch: {
+        inAppSent: false,
+        emailSent: false,
+        contractOnly: true,
+      },
+      internalAdminNoteReturned: false,
+      settlementOrContractFinalized: false,
+    };
+  }
+
+  private debutApplicationNotificationContract() {
+    return {
+      dispatchEnabled: false,
+      contractOnly: true,
+      channelsPlanned: ['in_app', 'email'],
+      events: [
+        {
+          status: 'needs_more_info',
+          titleKey: 'debut.application.status.needsMoreInfo.title',
+          bodyKey: 'debut.application.status.needsMoreInfo.body',
+        },
+        {
+          status: 'approved',
+          titleKey: 'debut.application.status.approved.title',
+          bodyKey: 'debut.application.status.approved.body',
+        },
+        {
+          status: 'rejected',
+          titleKey: 'debut.application.status.rejected.title',
+          bodyKey: 'debut.application.status.rejected.body',
+        },
+      ],
+      internalFieldsExcluded: [
+        'reviewNote',
+        'consultationNote',
+        'rightsReviewNote',
+        'partnerReviewNote',
+      ],
+    };
   }
 
   private adminDebutApplicationReadOnlyContract() {
@@ -1379,11 +1704,23 @@ export class DebutService {
     return ADMIN_APPLICATION_STATUS_ALIASES[status] ?? this.adminStatusOrDefault(status);
   }
 
+  private userReviewStatus(status: string): UserDebutApplicationStatus {
+    return USER_APPLICATION_STATUS_ALIASES[status] ?? this.userStatusOrDefault(status);
+  }
+
   private adminStatusOrDefault(status: string): AdminDebutApplicationStatus {
     return ADMIN_DEBUT_APPLICATION_STATUS_CANDIDATES.includes(
       status as AdminDebutApplicationStatus,
     )
       ? (status as AdminDebutApplicationStatus)
+      : 'submitted';
+  }
+
+  private userStatusOrDefault(status: string): UserDebutApplicationStatus {
+    return USER_DEBUT_APPLICATION_STATUS_CANDIDATES.includes(
+      status as UserDebutApplicationStatus,
+    )
+      ? (status as UserDebutApplicationStatus)
       : 'submitted';
   }
 
@@ -1411,6 +1748,16 @@ export class DebutService {
     return value
       .map((item) => this.safeString(item))
       .filter((item): item is string => item !== null);
+  }
+
+  private safeDateString(value: unknown) {
+    const text = this.safeString(value);
+    if (!text) {
+      return null;
+    }
+
+    const date = new Date(text);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
   private safeBoolean(value: unknown, fallback: boolean) {

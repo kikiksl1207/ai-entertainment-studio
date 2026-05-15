@@ -315,6 +315,29 @@ POST /api/v1/debut/application-materials/:assetId/confirm-upload
   `shareTierApproved` remains the later admin final value; no automatic final
   share rate is produced by applicant submission.
 
+My application status:
+
+```http
+GET /api/v1/me/debut-applications
+GET /api/v1/me/debut-applications/latest
+GET /api/v1/me/debut-applications/:applicationId/status
+```
+
+- These endpoints are owner-only and read-only.
+- User-facing status candidates are `submitted`, `reviewing`,
+  `needs_more_info`, `approved`, `rejected`, and `canceled`.
+- Responses include Korean display copy keys, a derived status history, public
+  notice copy contract, submitted/updated dates, application channel/type, and
+  material category summary.
+- Responses do not expose contact values, intro text, admin review notes,
+  consultation notes, rights/partner review notes, internal metadata, private
+  signed URLs, original file URLs, storage keys, object ETags, secrets, or
+  tokens.
+- `approved` means the application can move to contact/next-step guidance. It
+  does not mean debut, settlement, payout, or contract finalization.
+- 보완요청/승인/반려 알림은 이번 단계에서 copy/API 계약만 정의합니다.
+  실제 이메일/인앱 발송은 별도 후속 구현 전까지 열지 않습니다.
+
 Phone-consultation operations:
 
 - Admin list can filter `applicationChannel=phone_consultation` and `consultationStatus=pending|scheduled|contacted|no_answer|completed`.

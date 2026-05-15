@@ -431,4 +431,90 @@ describe('DebutService private material flow', () => {
     expect(payload).not.toContain('blocked-etag-sample');
     expect(payload).not.toContain('https://storage.example.com/private.png');
   });
+
+  it('returns owner-only application status with safe history and copy keys', async () => {
+    const prisma = createPrismaMock();
+    const service = serviceWith(prisma);
+    prisma.debutApplication.findFirst.mockResolvedValue(
+      adminApplication({
+        status: 'needs_more_info',
+        metadata: {
+          applicationChannel: 'online_review',
+          applicationType: 'represented_artist',
+          publicStatusReason: '자료 확인이 더 필요합니다.',
+          consultationNote: 'Internal call memo must not leak',
+          rightsReviewNote: 'Internal rights note must not leak',
+          storageKey: 'private/status-key-must-not-leak',
+        },
+      }),
+    );
+
+    const result = await service.getMyApplicationStatus(
+      userId,
+      '00000000-0000-4000-8000-000000000301',
+    );
+    const payload = JSON.stringify(result);
+
+    expect(prisma.debutApplication.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: '00000000-0000-4000-8000-000000000301',
+        userId,
+      },
+      select: expect.any(Object),
+    });
+    expect(result).toMatchObject({
+      readOnly: true,
+      ownerOnly: true,
+      application: {
+        status: 'needs_more_info',
+        statusLabelKo: '보완 요청',
+        messageKey: 'debut.application.status.needsMoreInfo',
+        materialSummary: {
+          count: 1,
+          categories: ['face_photo'],
+          metadataOnly: true,
+        },
+        publicNotice: {
+          publicReason: '자료 확인이 더 필요합니다.',
+          dispatch: {
+            inAppSent: false,
+            emailSent: false,
+            contractOnly: true,
+          },
+          internalAdminNoteReturned: false,
+          settlementOrContractFinalized: false,
+        },
+      },
+    });
+    expect(result.application.statusHistory).toHaveLength(2);
+    expect(payload).not.toContain('applicant@example.com');
+    expect(payload).not.toContain('010-1234-5678');
+    expect(payload).not.toContain('Internal call memo must not leak');
+    expect(payload).not.toContain('Internal rights note must not leak');
+    expect(payload).not.toContain('private/status-key-must-not-leak');
+    expect(payload).not.toContain('Internal review note');
+  });
+
+  it('returns latest owner application in the safe status envelope', async () => {
+    const prisma = createPrismaMock();
+    const service = serviceWith(prisma);
+    prisma.debutApplication.findFirst.mockResolvedValue(adminApplication());
+
+    const result = await service.getMyLatestApplication(userId);
+    const payload = JSON.stringify(result);
+
+    expect(result).toMatchObject({
+      readOnly: true,
+      ownerOnly: true,
+      ctaState: 'status',
+      application: {
+        status: 'approved',
+        statusLabelKo: '연락 준비 중',
+        messageKey: 'debut.application.status.approved',
+      },
+    });
+    expect(payload).not.toContain('applicant@example.com');
+    expect(payload).not.toContain('Internal review note');
+    expect(payload).not.toContain('private/storage-key-must-not-leak');
+  });
 });

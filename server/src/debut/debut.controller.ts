@@ -59,6 +59,15 @@ export class DebutController {
     return this.debutService.getMyLatestApplication(user.id);
   }
 
+  @Get('me/debut-applications/:applicationId/status')
+  @UseGuards(JwtAuthGuard)
+  getMyApplicationStatus(
+    @CurrentUser() user: AuthUser,
+    @Param('applicationId') applicationId: string,
+  ) {
+    return this.debutService.getMyApplicationStatus(user.id, applicationId);
+  }
+
   @Post('me/debut-applications/:applicationId/withdraw')
   @UseGuards(JwtAuthGuard)
   withdrawMyApplication(
