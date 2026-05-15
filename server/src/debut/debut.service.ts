@@ -18,10 +18,27 @@ const APPLICATION_STATUSES = new Set([
   'reviewing',
   'under_review',
   'needs_more_info',
+  'approved_for_contact',
   'approved',
   'rejected',
+  'archived',
   'withdrawn',
 ]);
+const ADMIN_DEBUT_APPLICATION_STATUS_CANDIDATES = [
+  'submitted',
+  'reviewing',
+  'needs_more_info',
+  'approved_for_contact',
+  'rejected',
+  'archived',
+] as const;
+type AdminDebutApplicationStatus =
+  (typeof ADMIN_DEBUT_APPLICATION_STATUS_CANDIDATES)[number];
+const ADMIN_APPLICATION_STATUS_ALIASES: Record<string, AdminDebutApplicationStatus> = {
+  under_review: 'reviewing',
+  approved: 'approved_for_contact',
+  withdrawn: 'archived',
+};
 
 const DEFAULT_APPLICATION_TYPE = 'personal_unaffiliated';
 const DEFAULT_PARTICIPATION_TYPE = 'appearance_only';
@@ -62,6 +79,58 @@ type NormalizedCreateDebutApplicationInput = CreateDebutApplicationDto & {
   participationType: NonNullable<CreateDebutApplicationDto['participationType']>;
   consentVoice: boolean;
   applicationType: NonNullable<CreateDebutApplicationDto['applicationType']>;
+};
+
+type DebutApplicationAdminAttachmentRecord = {
+  id: string;
+  category: string;
+  sortOrder: number;
+  status: string;
+  metadata: Prisma.JsonValue;
+  createdAt: Date;
+  updatedAt: Date;
+  asset: {
+    id: string;
+    assetType: string;
+    visibility: string;
+    mimeType: string;
+    width: number | null;
+    height: number | null;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+};
+
+type DebutApplicationAdminRecord = {
+  id: string;
+  userId: string;
+  applicantName: string;
+  displayName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  isAdult: boolean;
+  participationType: string;
+  shareTierRequested: number | null;
+  shareTierApproved: number | null;
+  intro: string;
+  portfolioUrl: string | null;
+  status: string;
+  reviewNote: string | null;
+  consentAppearance: boolean;
+  consentVoice: boolean;
+  consentRevenuePolicy: boolean;
+  consentPrivacy: boolean;
+  consentMarketing: boolean;
+  metadata: Prisma.JsonValue;
+  createdAt: Date;
+  updatedAt: Date;
+  user: {
+    id: string;
+    email: string | null;
+    status: string;
+    profile: { displayName: string | null } | null;
+  };
+  attachments: DebutApplicationAdminAttachmentRecord[];
 };
 
 @Injectable()
@@ -519,7 +588,7 @@ export class DebutService {
     return { application: withdrawn, ok: true, alreadyWithdrawn: false };
   }
 
-  getApplications(query: DebutApplicationListQueryDto) {
+  async getApplications(query: DebutApplicationListQueryDto) {
     const take = query.take ?? 50;
     const status = query.status ? this.status(query.status) : undefined;
     const where = this.debutApplicationWhere({
@@ -532,8 +601,7 @@ export class DebutService {
       query: query.query,
     });
 
-    return this.prisma.debutApplication
-      .findMany({
+    const rows = await this.prisma.debutApplication.findMany({
       where,
       take: take + 1,
       ...(query.cursor
@@ -544,8 +612,16 @@ export class DebutService {
         : {}),
       include: this.applicationInclude(),
       orderBy: { createdAt: 'desc' },
-      })
-      .then((rows) => this.paginated(rows, take));
+    });
+    const page = this.paginated(rows, take);
+
+    return {
+      ...page,
+      ...this.adminDebutApplicationReadOnlyContract(),
+      items: page.items.map((application) =>
+        this.presentAdminDebutApplicationListItem(application),
+      ),
+    };
   }
 
   async getApplication(applicationId: string) {
@@ -558,7 +634,10 @@ export class DebutService {
       throw new NotFoundException('Debut application not found');
     }
 
-    return application;
+    return {
+      ...this.adminDebutApplicationReadOnlyContract(),
+      application: this.presentAdminDebutApplicationDetail(application),
+    };
   }
 
   async updateApplication(
@@ -821,6 +900,158 @@ export class DebutService {
         },
       },
     } satisfies Prisma.DebutApplicationInclude;
+  }
+
+  private adminDebutApplicationReadOnlyContract() {
+    return {
+      readOnly: true,
+      statusCandidates: [...ADMIN_DEBUT_APPLICATION_STATUS_CANDIDATES],
+      privateMaterialPolicy: {
+        metadataOnly: true,
+        publicUrlReturned: false,
+        signedReadUrlReturned: false,
+        originalFileUrlReturned: false,
+        storageKeyReturned: false,
+      },
+    };
+  }
+
+  private presentAdminDebutApplicationListItem(
+    application: DebutApplicationAdminRecord,
+  ) {
+    const metadata = this.metadataObject(application.metadata);
+    const attachments = application.attachments ?? [];
+    const materialCategories = [...new Set(attachments.map((item) => item.category))];
+    const applicationChannel =
+      this.safeString(metadata.applicationChannel) ?? 'phone_consultation';
+    const applicationType =
+      this.safeString(metadata.applicationType) ?? DEFAULT_APPLICATION_TYPE;
+
+    return {
+      id: application.id,
+      userId: application.userId,
+      applicant: {
+        name: application.applicantName,
+        displayName: application.displayName,
+        userDisplayName: application.user.profile?.displayName ?? null,
+      },
+      status: this.adminReviewStatus(application.status),
+      applicationChannel,
+      applicationType,
+      participationType: application.participationType,
+      submittedAt: application.createdAt,
+      updatedAt: application.updatedAt,
+      contact: {
+        emailMasked: this.maskEmail(application.contactEmail),
+        phoneMasked: this.maskPhone(application.contactPhone),
+        emailPresent: Boolean(this.safeString(application.contactEmail)),
+        phonePresent: Boolean(this.safeString(application.contactPhone)),
+        preferredContactTime: this.safeString(metadata.preferredContactTime),
+      },
+      user: {
+        id: application.user.id,
+        status: application.user.status,
+        emailMasked: this.maskEmail(application.user.email),
+      },
+      materialSummary: {
+        count: attachments.length,
+        categories: materialCategories,
+        materialTypes: materialCategories,
+        hasPrivateMaterials: attachments.length > 0,
+        submissionMode:
+          this.safeString(metadata.materialSubmissionMode) ??
+          (attachments.length > 0
+            ? 'private_applicant_material_upload'
+            : applicationChannel),
+        portfolioUrlPresent: Boolean(this.safeString(application.portfolioUrl)),
+        portfolioUrlCount: this.safeStringList(metadata.portfolioUrls).length,
+      },
+      review: {
+        status: this.adminReviewStatus(application.status),
+        consultationStatus: this.safeString(metadata.consultationStatus),
+        consultationScheduledAt: this.safeString(metadata.consultationScheduledAt),
+        rightsReviewRequired: this.safeBoolean(
+          metadata.rightsReviewRequired,
+          false,
+        ),
+        rightsReviewStatus: this.safeString(metadata.rightsReviewStatus),
+        partnerReviewRequired: this.safeBoolean(
+          metadata.partnerReviewRequired,
+          false,
+        ),
+        partnerReviewStatus: this.safeString(metadata.partnerReviewStatus),
+      },
+    };
+  }
+
+  private presentAdminDebutApplicationDetail(
+    application: DebutApplicationAdminRecord,
+  ) {
+    const metadata = this.metadataObject(application.metadata);
+
+    return {
+      ...this.presentAdminDebutApplicationListItem(application),
+      intro: application.intro,
+      reviewNote: application.reviewNote,
+      consents: {
+        isAdult: application.isAdult,
+        appearance: application.consentAppearance,
+        voice: application.consentVoice,
+        revenuePolicy: application.consentRevenuePolicy,
+        privacy: application.consentPrivacy,
+        marketing: application.consentMarketing,
+      },
+      portfolio: {
+        urlPresent: Boolean(this.safeString(application.portfolioUrl)),
+        urlCount: this.safeStringList(metadata.portfolioUrls).length,
+      },
+      attachments: application.attachments.map((attachment) =>
+        this.presentAdminDebutApplicationAttachment(attachment),
+      ),
+    };
+  }
+
+  private presentAdminDebutApplicationAttachment(
+    attachment: DebutApplicationAdminAttachmentRecord,
+  ) {
+    const metadata = this.metadataObject(attachment.metadata);
+    const uploadIntent = this.metadataObject(metadata.uploadIntent);
+    const lifecycle = this.metadataObject(metadata.lifecycle);
+
+    return {
+      id: attachment.id,
+      category: attachment.category,
+      materialType: attachment.category,
+      sortOrder: attachment.sortOrder,
+      status: attachment.status,
+      privateMaterial: true,
+      asset: {
+        id: attachment.asset.id,
+        assetType: attachment.asset.assetType,
+        visibility: attachment.asset.visibility,
+        mimeType: attachment.asset.mimeType,
+        width: attachment.asset.width,
+        height: attachment.asset.height,
+        createdAt: attachment.asset.createdAt,
+        updatedAt: attachment.asset.updatedAt,
+      },
+      upload: {
+        status: this.safeString(uploadIntent.status),
+        scope: this.safeString(uploadIntent.scope),
+        category: this.safeString(uploadIntent.category),
+      },
+      lifecycle: {
+        status: this.safeString(lifecycle.status),
+      },
+      privacy: {
+        publicUrlReturned: false,
+        signedReadUrlReturned: false,
+        originalFileUrlReturned: false,
+        storageKeyReturned: false,
+      },
+      createdAt: attachment.createdAt,
+      updatedAt: attachment.updatedAt,
+    };
   }
 
   private materialUploadPolicy() {
@@ -1137,11 +1368,23 @@ export class DebutService {
     const normalized = value.trim() === 'under_review' ? 'reviewing' : value.trim();
     if (!APPLICATION_STATUSES.has(normalized)) {
       throw new BadRequestException(
-        'status must be submitted, reviewing, needs_more_info, approved, rejected, or withdrawn',
+        'status must be submitted, reviewing, needs_more_info, approved_for_contact, rejected, or archived',
       );
     }
 
     return normalized;
+  }
+
+  private adminReviewStatus(status: string): AdminDebutApplicationStatus {
+    return ADMIN_APPLICATION_STATUS_ALIASES[status] ?? this.adminStatusOrDefault(status);
+  }
+
+  private adminStatusOrDefault(status: string): AdminDebutApplicationStatus {
+    return ADMIN_DEBUT_APPLICATION_STATUS_CANDIDATES.includes(
+      status as AdminDebutApplicationStatus,
+    )
+      ? (status as AdminDebutApplicationStatus)
+      : 'submitted';
   }
 
   private clean<T extends Record<string, unknown>>(input: T) {
@@ -1154,6 +1397,60 @@ export class DebutService {
     return value && typeof value === 'object' && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : {};
+  }
+
+  private safeString(value: unknown) {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private safeStringList(value: unknown) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value
+      .map((item) => this.safeString(item))
+      .filter((item): item is string => item !== null);
+  }
+
+  private safeBoolean(value: unknown, fallback: boolean) {
+    return typeof value === 'boolean' ? value : fallback;
+  }
+
+  private maskEmail(value: unknown) {
+    const email = this.safeString(value);
+    if (!email) {
+      return null;
+    }
+
+    const [local, domain] = email.split('@');
+    if (!domain) {
+      return this.maskText(email);
+    }
+
+    return `${local.slice(0, 1)}${'*'.repeat(Math.max(local.length - 1, 3))}@${domain}`;
+  }
+
+  private maskPhone(value: unknown) {
+    const phone = this.safeString(value);
+    if (!phone) {
+      return null;
+    }
+
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 7) {
+      return this.maskText(phone);
+    }
+
+    return `${digits.slice(0, 3)}-****-${digits.slice(-4)}`;
+  }
+
+  private maskText(value: string) {
+    if (value.length <= 2) {
+      return '*'.repeat(value.length);
+    }
+
+    return `${value.slice(0, 1)}${'*'.repeat(value.length - 2)}${value.slice(-1)}`;
   }
 
   private badRequest(
@@ -1529,7 +1826,12 @@ export class DebutService {
     const filters: Prisma.DebutApplicationWhereInput[] = [];
 
     if (input.status) {
-      filters.push({ status: input.status });
+      const statusValues = this.debutApplicationStatusValues(input.status);
+      filters.push(
+        statusValues.length === 1
+          ? { status: statusValues[0] }
+          : { OR: statusValues.map((status) => ({ status })) },
+      );
     }
 
     if (input.applicationChannel) {
@@ -1591,6 +1893,22 @@ export class DebutService {
     }
 
     return filters.length ? { AND: filters } : {};
+  }
+
+  private debutApplicationStatusValues(status: string) {
+    switch (status) {
+      case 'reviewing':
+      case 'under_review':
+        return ['reviewing', 'under_review'];
+      case 'approved_for_contact':
+      case 'approved':
+        return ['approved_for_contact', 'approved'];
+      case 'archived':
+      case 'withdrawn':
+        return ['archived', 'withdrawn'];
+      default:
+        return [status];
+    }
   }
 
   private paginated<T extends { id: string }>(rows: T[], take: number) {

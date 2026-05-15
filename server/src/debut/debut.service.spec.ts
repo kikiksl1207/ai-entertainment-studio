@@ -139,6 +139,81 @@ function validApplicationInput(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function adminApplication(overrides: Record<string, unknown> = {}) {
+  return {
+    id: '00000000-0000-4000-8000-000000000301',
+    userId,
+    applicantName: 'Applicant',
+    displayName: 'Stage Name',
+    contactEmail: 'applicant@example.com',
+    contactPhone: '010-1234-5678',
+    isAdult: true,
+    participationType: 'appearance_only',
+    shareTierRequested: null,
+    shareTierApproved: null,
+    intro: 'This is a private debut application introduction.',
+    portfolioUrl: 'https://example.com/private-portfolio',
+    status: 'approved',
+    reviewNote: 'Internal review note',
+    consentAppearance: true,
+    consentVoice: false,
+    consentRevenuePolicy: true,
+    consentPrivacy: true,
+    consentMarketing: false,
+    metadata: {
+      applicationChannel: 'online_review',
+      applicationType: 'personal_unaffiliated',
+      materialSubmissionMode: 'private_applicant_material_upload',
+      portfolioUrls: ['https://example.com/private-portfolio'],
+      preferredContactTime: 'weekday afternoon',
+      rightsReviewRequired: false,
+      partnerReviewRequired: false,
+      storageKey: 'private/storage-key-must-not-leak',
+    },
+    user: {
+      id: userId,
+      email: 'user@example.com',
+      status: 'active',
+      profile: { displayName: 'User Profile' },
+    },
+    attachments: [
+      {
+        id: '00000000-0000-4000-8000-000000000401',
+        category: 'face_photo',
+        sortOrder: 0,
+        status: 'attached',
+        metadata: {
+          uploadIntent: {
+            status: 'uploaded',
+            scope: 'debut_application_material',
+            category: 'face_photo',
+            storageKey: 'private/attachment-key-must-not-leak',
+            objectETag: 'blocked-etag-sample',
+          },
+          lifecycle: { status: 'active' },
+        },
+        createdAt,
+        updatedAt: createdAt,
+        asset: {
+          id: assetId,
+          assetType: 'image',
+          visibility: 'private',
+          mimeType: 'image/png',
+          width: 1024,
+          height: 1024,
+          storageKey: 'private/asset-key-must-not-leak',
+          publicUrl: 'https://storage.example.com/private.png',
+          createdAt,
+          updatedAt: createdAt,
+        },
+      },
+    ],
+    createdAt,
+    updatedAt: createdAt,
+    ...overrides,
+  };
+}
+
 describe('DebutService private material flow', () => {
   it('creates a private material upload intent without public delivery fields', async () => {
     const prisma = createPrismaMock();
@@ -273,5 +348,87 @@ describe('DebutService private material flow', () => {
       },
     });
     expect(prisma.debutApplication.create).not.toHaveBeenCalled();
+  });
+
+  it('returns masked admin application list items without private material URLs', async () => {
+    const prisma = createPrismaMock();
+    const service = serviceWith(prisma);
+    prisma.debutApplication.findMany.mockResolvedValue([adminApplication()]);
+
+    const result = await service.getApplications({ take: 1 } as never);
+    const payload = JSON.stringify(result);
+
+    expect(result.readOnly).toBe(true);
+    expect(result.statusCandidates).toEqual([
+      'submitted',
+      'reviewing',
+      'needs_more_info',
+      'approved_for_contact',
+      'rejected',
+      'archived',
+    ]);
+    expect(result.items[0]).toMatchObject({
+      status: 'approved_for_contact',
+      applicationChannel: 'online_review',
+      contact: {
+        emailPresent: true,
+        phonePresent: true,
+      },
+      materialSummary: {
+        count: 1,
+        categories: ['face_photo'],
+        hasPrivateMaterials: true,
+      },
+    });
+    expect(payload).not.toContain('applicant@example.com');
+    expect(payload).not.toContain('010-1234-5678');
+    expect(payload).not.toContain('private/storage-key-must-not-leak');
+    expect(payload).not.toContain('private/attachment-key-must-not-leak');
+    expect(payload).not.toContain('https://storage.example.com/private.png');
+  });
+
+  it('returns admin application detail with attachment metadata only', async () => {
+    const prisma = createPrismaMock();
+    const service = serviceWith(prisma);
+    prisma.debutApplication.findUnique.mockResolvedValue(adminApplication());
+
+    const result = await service.getApplication(
+      '00000000-0000-4000-8000-000000000301',
+    );
+    const payload = JSON.stringify(result);
+
+    expect(result.application).toMatchObject({
+      status: 'approved_for_contact',
+      portfolio: {
+        urlPresent: true,
+        urlCount: 1,
+      },
+    });
+    expect(result.application.attachments[0]).toMatchObject({
+      materialType: 'face_photo',
+      privateMaterial: true,
+      asset: {
+        id: assetId,
+        assetType: 'image',
+        visibility: 'private',
+        mimeType: 'image/png',
+      },
+      upload: {
+        status: 'uploaded',
+        scope: 'debut_application_material',
+        category: 'face_photo',
+      },
+      privacy: {
+        publicUrlReturned: false,
+        signedReadUrlReturned: false,
+        originalFileUrlReturned: false,
+        storageKeyReturned: false,
+      },
+    });
+    expect(payload).not.toContain('applicant@example.com');
+    expect(payload).not.toContain('010-1234-5678');
+    expect(payload).not.toContain('private/asset-key-must-not-leak');
+    expect(payload).not.toContain('blocked-etag-sample');
+    expect(payload).not.toContain('https://storage.example.com/private.png');
   });
 });
