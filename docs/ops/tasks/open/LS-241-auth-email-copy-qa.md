@@ -17,6 +17,17 @@ password reset after the Korean/KST template work.
 - `/verify-email` and `/reset-password` routes no longer return 404.
 - Code-level tests already passed on `main`.
 
+## PM Decision - 2026-05-15
+
+- Do not use the user's personal email as the final PASS basis for this task.
+- The final PASS requires a fresh email/password QA inbox that QR can inspect.
+- Neutral API `accepted` is evidence that the request path is alive, not proof
+  that the visible email copy is correct.
+- If no inspectable QA inbox is available, QR should report `BLOCKED` with
+  `blocked_by: safe QA inbox needed`.
+- Chamo's current action is complete once this task is handed back to QR with
+  the code-level template test result and this inbox rule.
+
 ## QA Scope
 
 - Email verification email subject and body.
@@ -64,4 +75,3 @@ blocked_by:
 next_needed:
 sensitive_values_written: none
 ```
-
