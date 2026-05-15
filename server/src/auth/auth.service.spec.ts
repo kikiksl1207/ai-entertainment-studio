@@ -2,7 +2,12 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
-import { ConfirmPasswordResetDto } from './dto/auth.dto';
+import {
+  ChangePasswordDto,
+  ConfirmPasswordResetDto,
+  RegisterDto,
+  SetPasswordDto,
+} from './dto/auth.dto';
 
 jest.mock('bcryptjs', () => ({
   hash: jest.fn(async (value: string) => `hashed:${value}`),
@@ -133,10 +138,19 @@ describe('AuthService action token flows', () => {
 
     await expect(
       service.requestEmailVerification({ email: ` ${email.toUpperCase()} ` }),
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({
       success: true,
       ok: true,
       delivery: { status: 'not_configured', channel: 'email' },
+      policy: {
+        purpose: 'email_verification',
+        neutralResponse: true,
+        recommendedClientCooldownSeconds: 60,
+        duplicatePendingTokenPolicy: 'consume_previous_pending_token',
+        rawTokenReturned: false,
+        tokenHashReturned: false,
+        messageKey: 'auth.emailVerification.requestAccepted',
+      },
       debug: undefined,
     });
 
@@ -156,10 +170,14 @@ describe('AuthService action token flows', () => {
       provider: 'resend',
     });
 
-    await expect(service.requestEmailVerification({ email })).resolves.toEqual({
+    await expect(service.requestEmailVerification({ email })).resolves.toMatchObject({
       success: true,
       ok: true,
       delivery: { status: 'accepted', channel: 'email', provider: 'resend' },
+      policy: {
+        purpose: 'email_verification',
+        neutralResponse: true,
+      },
       debug: undefined,
     });
     expect(prisma.userActionToken.update).toHaveBeenCalledWith({
@@ -342,10 +360,19 @@ describe('AuthService action token flows', () => {
       provider: 'sendgrid',
     });
 
-    await expect(service.requestPasswordReset({ email })).resolves.toEqual({
+    await expect(service.requestPasswordReset({ email })).resolves.toMatchObject({
       success: true,
       ok: true,
       delivery: { status: 'accepted', channel: 'email', provider: 'sendgrid' },
+      policy: {
+        purpose: 'password_reset',
+        neutralResponse: true,
+        recommendedClientCooldownSeconds: 60,
+        duplicatePendingTokenPolicy: 'consume_previous_pending_token',
+        rawTokenReturned: false,
+        tokenHashReturned: false,
+        messageKey: 'auth.passwordReset.requestAccepted',
+      },
       debug: undefined,
     });
     expect(prisma.userActionToken.update).toHaveBeenCalledWith({
@@ -361,15 +388,81 @@ describe('AuthService action token flows', () => {
     });
   });
 
-  it('keeps password reset policy validation on letter and number passwords', async () => {
-    const dto = plainToInstance(ConfirmPasswordResetDto, {
+  it('keeps password policy to 8 characters minimum without composition requirements', async () => {
+    const validSamples = [
+      plainToInstance(RegisterDto, {
+        email,
+        password: 'password',
+      }),
+      plainToInstance(ChangePasswordDto, {
+        currentPassword: 'old-password',
+        newPassword: 'password',
+      }),
+      plainToInstance(SetPasswordDto, {
+        newPassword: 'password',
+      }),
+      plainToInstance(ConfirmPasswordResetDto, {
+        token,
+        newPassword: 'password',
+      }),
+    ];
+    const invalidResetDto = plainToInstance(ConfirmPasswordResetDto, {
       token,
-      newPassword: 'passwordonly',
+      newPassword: 'short7!',
     });
 
-    const errors = await validate(dto);
+    await expect(Promise.all(validSamples.map((sample) => validate(sample)))).resolves
+      .toEqual([[], [], [], []]);
+
+    const errors = await validate(invalidResetDto);
 
     expect(errors.some((error) => error.property === 'newPassword')).toBe(true);
+    expect(errors[0]?.constraints).toMatchObject({
+      minLength: 'auth.password.minLength',
+    });
+  });
+
+  it('returns email verification gate state for unverified email accounts', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.user.findFirst.mockResolvedValue({
+      id: userId,
+      email,
+      emailVerifiedAt: null,
+      phoneNumber: null,
+      status: 'active',
+      createdAt: new Date('2026-05-15T00:00:00.000Z'),
+      authAccounts: [{ provider: 'email', passwordHash: 'hash' }],
+      profile: null,
+      settings: null,
+      walletAccounts: [],
+    });
+
+    await expect(service.getMe(userId)).resolves.toMatchObject({
+      emailVerified: false,
+      emailVerifiedAt: null,
+      emailVerification: {
+        status: 'required',
+        required: true,
+        code: 'AUTH_EMAIL_VERIFICATION_REQUIRED',
+        messageKey: 'auth.emailVerification.required',
+        requiredActions: ['verify_email'],
+        gates: {
+          coreFeaturesRequireVerifiedEmail: true,
+          coreFeaturesBlockedUntilVerified: true,
+          loginAllowedBeforeVerification: true,
+        },
+        resend: {
+          purpose: 'email_verification',
+          neutralResponse: true,
+          recommendedClientCooldownSeconds: 60,
+          duplicatePendingTokenPolicy: 'consume_previous_pending_token',
+          tokenTtlSeconds: 86400,
+          rawTokenReturned: false,
+          tokenHashReturned: false,
+        },
+      },
+    });
   });
 
   it('returns account age and clean-mode policy without blocking signup', async () => {

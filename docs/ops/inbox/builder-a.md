@@ -1391,3 +1391,44 @@ blocked_by:
 - none for branch validation.
 next_needed:
 - Viewer review, then QR live QA after merge/deploy: request/confirm 501 should expose `error.details.requestStarted=false`.
+
+---
+
+status: completed
+task: #254 email verification gate contract; #256 password policy reset safety
+branch/commit: team2-backend/auth-email-password-254-256 / this commit
+changed_files:
+- server/src/auth/auth.service.ts
+- server/src/auth/dto/auth.dto.ts
+- server/src/auth/auth.service.spec.ts
+- server/src/common/validation-exception.factory.ts
+- server/README.md
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/builder-a.md
+checked_api:
+- GET /api/v1/app/bootstrap
+- POST /api/v1/auth/email-verifications
+- POST /api/v1/auth/email-verifications/confirm
+- POST /api/v1/auth/password-resets
+- POST /api/v1/auth/password-resets/confirm
+- GET /api/v1/me
+tests:
+- PASS: npx.cmd prisma generate
+- PASS: npm.cmd test -- auth.service.spec.ts auth-email-delivery.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Added `user.emailVerification` gate state with stable `code`, `messageKey`, `requiredActions`, and `coreFeaturesBlockedUntilVerified` so frontend can distinguish verified/unverified email accounts without raw copy.
+- Added public bootstrap email verification policy with stable request/confirm endpoint hints and message keys.
+- Email verification/password reset request responses now include neutral `policy` metadata for rate-limit/cooldown hints, token TTL, duplicate pending token behavior, and no raw token/token hash exposure.
+- Kept action-token behavior safe: request responses remain existence-neutral, existing pending tokens are consumed before new token creation, confirm consumes tokens once, and reset revokes active refresh-token sessions.
+- Simplified password creation/reset policy to 8-128 characters only; letter/number composition is no longer server-required.
+- Validation failures now include stable `messageKey=validation.failed`, and password length details use `auth.password.minLength` / `auth.password.maxLength`.
+sensitive_data:
+- none recorded. No raw token, action link, token hash, cookie, password, or env value recorded.
+blocked_by:
+- live QA requires merge/deploy.
+next_needed:
+- Viewer review, then QR QA: verify unconfirmed vs confirmed `GET /me.emailVerification`, neutral resend policy, 7-char validation failure, 8-char password acceptance, single-use reset token reuse rejection.

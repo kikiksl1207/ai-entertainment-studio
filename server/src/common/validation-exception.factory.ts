@@ -9,6 +9,7 @@ export function createValidationException(errors: ValidationError[]) {
   return new BadRequestException({
     code: 'VALIDATION_FAILED',
     message: 'Request validation failed',
+    messageKey: 'validation.failed',
     details: flattenValidationErrors(errors),
   });
 }
