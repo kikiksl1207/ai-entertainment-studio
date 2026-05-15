@@ -1432,3 +1432,35 @@ blocked_by:
 - live QA requires merge/deploy.
 next_needed:
 - Viewer review, then QR QA: verify unconfirmed vs confirmed `GET /me.emailVerification`, neutral resend policy, 7-char validation failure, 8-char password acceptance, single-use reset token reuse rejection.
+
+---
+
+status: completed
+task: #259 debut status owner projection fixture follow-up
+branch/commit: team2-backend/debut-status-fixtures-259 / this commit
+changed_files:
+- server/src/debut/debut.service.spec.ts
+- docs/ops/qa-debut-status-owner-projection-259.md
+- docs/ops/inbox/builder-a.md
+checked_api:
+- GET /api/v1/me/debut-applications
+- GET /api/v1/me/debut-applications/latest
+- GET /api/v1/me/debut-applications/:applicationId/status
+tests:
+- PASS: npm.cmd run prisma:generate
+- PASS: npm.cmd test -- debut.service.spec.ts --runInBand
+- PASS: npm.cmd run lint -- --quiet src/debut/debut.service.spec.ts
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Added executable safe owner QA fixtures for `needs_more_info`, `approved_for_contact`, and `rejected` debut application statuses.
+- Verified `approved_for_contact` projects to the user-facing `approved` state without implying debut, settlement, contract, payout, or final share completion.
+- Verified public notice remains contract-only and disabled for in-app/email dispatch.
+- Verified contact values, intro text, internal review notes, internal metadata hints, private material URLs, storage keys, and object ETags are not exposed by the owner projection fixtures.
+- Added QR runbook for disposable staging/local owner fixtures and response checks.
+sensitive_data:
+- none recorded. No credential, cookie, JWT, signed URL, storage key, password, secret, or env value recorded.
+blocked_by:
+- none for branch-level validation.
+next_needed:
+- Merge/deploy this follow-up, then QR reQA with disposable `needs_more_info`, `approved_for_contact`, and `rejected` owner fixture records.
