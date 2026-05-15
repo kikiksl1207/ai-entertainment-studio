@@ -454,6 +454,9 @@ describe('AuthService action token flows', () => {
         messageKey: 'identityVerification.providerNotConnected',
         statusCode: 501,
         requestStarted: false,
+        details: {
+          requestStarted: false,
+        },
         verification: {
           status: 'unverified',
           identityVerified: false,
@@ -464,5 +467,28 @@ describe('AuthService action token flows', () => {
       },
     });
     expect(prisma.userIdentityVerification.upsert).not.toHaveBeenCalled();
+  });
+
+  it('keeps confirm fail-closed details visible through the error wrapper contract', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.userIdentityVerification.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.confirmIdentityVerification(userId, 'self', {
+        token: 'provider-token',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED',
+        messageKey: 'identityVerification.providerNotConnected',
+        statusCode: 501,
+        requestStarted: false,
+        details: {
+          requestStarted: false,
+          tokenReceived: true,
+        },
+      },
+    });
   });
 });

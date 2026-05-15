@@ -2419,7 +2419,10 @@ export class AuthService {
           providerStatus,
           verification.status,
         ),
-        details,
+        details: {
+          requestStarted: false,
+          ...details,
+        },
       },
       HttpStatus.NOT_IMPLEMENTED,
     );

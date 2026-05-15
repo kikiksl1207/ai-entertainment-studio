@@ -306,9 +306,11 @@ Identity verification skeleton:
   configured, the endpoint fails closed with
   `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED`, `requestStarted: false`, and
   `messageKey = identityVerification.providerNotConnected` without creating a
-  verification marker. When provider credentials are configured but the adapter
-  is still a skeleton, the endpoint may record only an `unverified` request
-  marker and must not report a successful identity verification.
+  verification marker. Because API errors are wrapped under `error.details`,
+  the fail-closed response also includes `details.requestStarted: false`. When
+  provider credentials are configured but the adapter is still a skeleton, the
+  endpoint may record only an `unverified` request marker and must not report a
+  successful identity verification.
 - `POST /api/v1/me/identity-verifications/self/confirm` accepts `{ "token":
   "<provider-token>" }` but currently fails closed with
   `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED` and
