@@ -624,9 +624,13 @@ Identity verification is a fail-closed NICE-first skeleton for now. The policy
 endpoint exposes supported methods (`mobile_phone`, `ipin`), non-secret provider
 readiness flags, and account policy flags. `GET /me/trust.accountState` exposes
 `signupAllowedWithoutIdentityVerification: true`,
-`identityVerificationBeforeSignupRequired: false`, derived `ageGate`, and a
-`cleanMode` flag. Requesting a verification creates or updates only an
-`unverified` marker; confirmation returns
+`identityVerificationBeforeSignupRequired: false`, derived `identityVerified`,
+`ageBand`, `minor`, `cleanModeRequired`, `ageGate`, and a `cleanMode` flag.
+Requesting a verification fails closed with
+`IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED` and `requestStarted: false` when
+the NICE provider is not configured; after provider credentials are configured,
+the skeleton request can create or update only an `unverified` marker.
+Confirmation returns
 `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED` until the real NICE adapter is
 contracted and wired. The provider-not-connected response includes
 `messageKey = identityVerification.providerNotConnected`; invalid confirmation
@@ -636,7 +640,9 @@ paths use `IDENTITY_VERIFICATION_INVALID_ID` with
 collect 주민등록번호, raw identity files, NICE raw names/phone numbers, provider
 tokens, or API keys. Signup remains open before identity verification; minor
 clean mode should be treated as enforced only when the backend reports a verified
-provider birth-date minor.
+provider birth-date minor. Account identity count limits are currently policy
+flags only (`enabled: false`, `enforced: false`) and are not connected to wallet,
+Lumina, settlement, payout, or paid-like reward mutations.
 
 Important frontend rule for later:
 
