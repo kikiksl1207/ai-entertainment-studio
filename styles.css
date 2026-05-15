@@ -3354,6 +3354,14 @@ p {
   line-height: 1.35;
 }
 
+.debut-submit-note {
+  margin: -4px 0 0;
+  color: rgba(220, 210, 240, 0.76);
+  font-size: 13px;
+  line-height: 1.55;
+  font-weight: 600;
+}
+
 .debut-submit-steps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
