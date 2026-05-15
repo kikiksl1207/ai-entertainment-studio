@@ -1232,3 +1232,102 @@ blocked_by:
 - none for backend mail template implementation.
 next_needed:
 - Viewer review, then QR QA with real email delivery in a safe environment.
+
+---
+
+status: completed
+task: #243 mail delivery status and audit-log admin lookup contract check
+branch/commit: team2-backend/mail-audit-admin-243 / this commit
+changed_files:
+- server/src/admin/admin.controller.ts
+- server/src/admin/admin.service.ts
+- server/src/admin/admin.service.spec.ts
+- server/README.md
+- docs/backend-api-spec.md
+- docs/admin-permission-matrix.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npm.cmd test -- admin.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Confirmed current `user_action_tokens` supports ops tracing for `purpose`, `createdAt`, `expiresAt`, and `consumedAt` only.
+- Confirmed target email can be derived from the related user row, but admin responses must mask it first.
+- Confirmed delivery provider/status is not persisted today, so historical delivery acceptance/failure cannot be proven from DB rows.
+- Added read-only admin endpoint `GET /admin/api/v1/auth/action-tokens` with `audit:read` permission.
+- Endpoint supports `purpose`, `status`, `userId`, masked `email`, `take`, and `cursor` filters.
+- Endpoint returns derived token state plus `delivery.status=not_recorded`, `delivery.provider=null`, and policy flags showing raw token/hash/mail body/raw email are not returned.
+sensitive_data:
+- none recorded.
+blocked_by:
+- true delivery audit requires a later persistence design/table; current PR intentionally does not store provider delivery events.
+next_needed:
+- Reviewer check after lint/build.
+
+---
+
+status: completed
+task: #243 mail delivery status persistence hardening
+branch/commit: team2-backend/mail-audit-admin-243 / this commit
+changed_files:
+- server/prisma/schema.prisma
+- server/prisma/migrations/0040_user_action_token_delivery_audit/migration.sql
+- server/src/auth/auth.service.ts
+- server/src/auth/auth.service.spec.ts
+- server/src/admin/admin.service.ts
+- server/src/admin/admin.service.spec.ts
+- server/README.md
+- docs/backend-api-spec.md
+- docs/admin-permission-matrix.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npx.cmd prisma generate
+- PASS: npm.cmd test -- auth.service.spec.ts admin.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Added delivery audit fields to `user_action_tokens` without storing raw token, token hash, raw email, mail body, provider raw response, provider secret, or env values.
+- Auth request flow now creates action tokens with `deliveryStatus=pending`, `deliveryChannel=email`, and masked target email.
+- Successful delivery writes `accepted` or `not_configured`; provider send exceptions keep the public neutral response while persisting `deliveryStatus=failed`.
+- Admin read-only endpoint now returns persisted `delivery.status`, `channel`, `provider`, `attemptedAt`, `acceptedAt`, and `failedAt` while preserving masked target email only.
+- Historical rows before migration remain represented by `deliveryStatus=not_recorded`.
+sensitive_data:
+- none recorded.
+blocked_by:
+- live smoke still requires merge/deploy plus a safe `audit:read` admin account.
+next_needed:
+- QR QA after branch update: check pending/consumed/expired token state and delivery status/provider timestamps on safe data.
+
+---
+
+status: completed
+task: #243 mail delivery audit filter hardening
+branch/commit: team2-backend/mail-audit-admin-243 / this commit
+changed_files:
+- server/src/admin/admin.controller.ts
+- server/src/admin/admin.service.ts
+- server/src/admin/admin.service.spec.ts
+- server/README.md
+- docs/backend-api-spec.md
+- docs/admin-permission-matrix.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npx.cmd prisma generate
+- PASS: npm.cmd test -- auth.service.spec.ts admin.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check origin/main...HEAD
+result:
+- Added action-token audit query support for `deliveryStatus=all|not_recorded|pending|accepted|not_configured|failed`.
+- Added action-token audit query support for `deliveryProvider=all|none|resend|sendgrid`, with `provider` accepted as an alias.
+- Added stable admin errors for unsupported delivery status/provider filters.
+- Extended response `filters` and `policy` metadata so operators can see the supported delivery lookup contract.
+- Kept raw token, token hash, raw email, mail body, provider raw response, provider secret, action URL, and env values out of responses/docs.
+sensitive_data:
+- none recorded.
+blocked_by:
+- none for branch-level validation.
+next_needed:
+- QR QA delivery status/provider filter contract, then Chamo final completion/archive judgment.

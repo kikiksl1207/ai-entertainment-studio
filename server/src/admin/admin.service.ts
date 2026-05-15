@@ -25,9 +25,23 @@ const BACKSTAGE_FAN_MISSION_INCLUDE = {
     },
   },
 } satisfies Prisma.FanMissionInclude;
+const AUTH_ACTION_TOKEN_AUDIT_INCLUDE = {
+  user: {
+    select: {
+      id: true,
+      email: true,
+      status: true,
+      deletedAt: true,
+      emailVerifiedAt: true,
+    },
+  },
+} satisfies Prisma.UserActionTokenInclude;
 
 type BackstageFanMission = Prisma.FanMissionGetPayload<{
   include: typeof BACKSTAGE_FAN_MISSION_INCLUDE;
+}>;
+type AuthActionTokenAuditRow = Prisma.UserActionTokenGetPayload<{
+  include: typeof AUTH_ACTION_TOKEN_AUDIT_INCLUDE;
 }>;
 
 type SettlementComplianceUser = {
@@ -134,6 +148,30 @@ const FAN_MISSION_SURFACES = new Set([
   'feed',
   'mypage',
   'creator_studio_hint',
+]);
+const AUTH_ACTION_TOKEN_PURPOSES = new Set([
+  'email_verification',
+  'password_reset',
+]);
+const AUTH_ACTION_TOKEN_STATUSES = new Set([
+  'all',
+  'pending',
+  'consumed',
+  'expired',
+]);
+const AUTH_ACTION_TOKEN_DELIVERY_STATUSES = new Set([
+  'all',
+  'not_recorded',
+  'pending',
+  'accepted',
+  'not_configured',
+  'failed',
+]);
+const AUTH_ACTION_TOKEN_DELIVERY_PROVIDERS = new Set([
+  'all',
+  'none',
+  'resend',
+  'sendgrid',
 ]);
 const FAN_MISSION_NON_CASH_POLICY = {
   cashLike: false,
@@ -3365,6 +3403,112 @@ export class AdminService {
       .then((rows) => this.paginated(rows, pagination.take));
   }
 
+  async getAuthActionTokens(query: AuditQuery) {
+    const pagination = this.adminPagination(query);
+    const purpose = this.optionalString(query, 'purpose');
+    const status = this.optionalString(query, 'status') ?? 'all';
+    const userId = this.optionalString(query, 'userId');
+    const email = this.optionalString(query, 'email')?.toLowerCase();
+    const deliveryStatus = this.optionalString(query, 'deliveryStatus') ?? 'all';
+    const deliveryProvider =
+      this.optionalString(query, 'deliveryProvider') ??
+      this.optionalString(query, 'provider') ??
+      'all';
+    const now = new Date();
+
+    if (purpose && !AUTH_ACTION_TOKEN_PURPOSES.has(purpose)) {
+      throw this.adminBadRequest(
+        'AUTH_ACTION_TOKEN_INVALID_PURPOSE',
+        'Invalid auth action token purpose',
+        'admin.authActionTokens.invalidPurpose',
+        { allowed: [...AUTH_ACTION_TOKEN_PURPOSES] },
+      );
+    }
+
+    if (!AUTH_ACTION_TOKEN_STATUSES.has(status)) {
+      throw this.adminBadRequest(
+        'AUTH_ACTION_TOKEN_INVALID_STATUS',
+        'Invalid auth action token status',
+        'admin.authActionTokens.invalidStatus',
+        { allowed: [...AUTH_ACTION_TOKEN_STATUSES] },
+      );
+    }
+
+    if (!AUTH_ACTION_TOKEN_DELIVERY_STATUSES.has(deliveryStatus)) {
+      throw this.adminBadRequest(
+        'AUTH_ACTION_TOKEN_INVALID_DELIVERY_STATUS',
+        'Invalid auth action token delivery status',
+        'admin.authActionTokens.invalidDeliveryStatus',
+        { allowed: [...AUTH_ACTION_TOKEN_DELIVERY_STATUSES] },
+      );
+    }
+
+    if (!AUTH_ACTION_TOKEN_DELIVERY_PROVIDERS.has(deliveryProvider)) {
+      throw this.adminBadRequest(
+        'AUTH_ACTION_TOKEN_INVALID_DELIVERY_PROVIDER',
+        'Invalid auth action token delivery provider',
+        'admin.authActionTokens.invalidDeliveryProvider',
+        { allowed: [...AUTH_ACTION_TOKEN_DELIVERY_PROVIDERS] },
+      );
+    }
+
+    if (userId && !this.isUuid(userId)) {
+      throw this.adminBadRequest(
+        'AUTH_ACTION_TOKEN_INVALID_USER_ID',
+        'userId must be a UUID',
+        'admin.authActionTokens.invalidUserId',
+      );
+    }
+
+    const where: Prisma.UserActionTokenWhereInput = this.clean({
+      purpose,
+      userId,
+      user: email
+        ? {
+            email: {
+              contains: email,
+              mode: 'insensitive',
+            },
+          }
+        : undefined,
+      deliveryStatus: deliveryStatus === 'all' ? undefined : deliveryStatus,
+      deliveryProvider:
+        deliveryProvider === 'all'
+          ? undefined
+          : deliveryProvider === 'none'
+            ? null
+            : { equals: deliveryProvider, mode: 'insensitive' },
+      ...this.authActionTokenStatusWhere(status, now),
+    });
+
+    const [rows, total] = await Promise.all([
+      this.prisma.userActionToken.findMany({
+        where,
+        take: pagination.takeForQuery,
+        ...pagination.cursorArgs,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        include: AUTH_ACTION_TOKEN_AUDIT_INCLUDE,
+      }),
+      this.prisma.userActionToken.count({ where }),
+    ]);
+    const page = this.paginated(rows, pagination.take);
+
+    return {
+      ...page,
+      items: page.items.map((row) => this.authActionTokenAuditItem(row, now)),
+      total,
+      filters: {
+        purpose: purpose ?? 'all',
+        status,
+        deliveryStatus,
+        deliveryProvider,
+        userId: userId ?? null,
+        email: email ? this.maskEmail(email) : null,
+      },
+      policy: this.authActionTokenAuditPolicy(),
+    };
+  }
+
   getUsers(query: AuditQuery) {
     const pagination = this.adminPagination(query);
     const email = this.optionalString(query, 'email');
@@ -6375,6 +6519,100 @@ export class AdminService {
     }
 
     return Boolean(user.adminRole && roles.includes(user.adminRole));
+  }
+
+  private authActionTokenStatusWhere(
+    status: string,
+    now: Date,
+  ): Prisma.UserActionTokenWhereInput {
+    if (status === 'pending') {
+      return {
+        consumedAt: null,
+        expiresAt: { gt: now },
+      };
+    }
+
+    if (status === 'consumed') {
+      return {
+        consumedAt: { not: null },
+      };
+    }
+
+    if (status === 'expired') {
+      return {
+        consumedAt: null,
+        expiresAt: { lte: now },
+      };
+    }
+
+    return {};
+  }
+
+  private authActionTokenAuditItem(row: AuthActionTokenAuditRow, now: Date) {
+    const status = this.authActionTokenAuditStatus(row, now);
+
+    return {
+      id: row.id,
+      purpose: row.purpose,
+      status,
+      statusKey: `admin.authActionTokens.status.${status}`,
+      createdAt: row.createdAt,
+      expiresAt: row.expiresAt,
+      consumedAt: row.consumedAt,
+      delivery: {
+        status: row.deliveryStatus,
+        channel: row.deliveryChannel,
+        provider: row.deliveryProvider,
+        persisted: row.deliveryStatus !== 'not_recorded',
+        source: 'user_action_tokens.delivery_audit_fields',
+        attemptedAt: row.deliveryAttemptedAt,
+        acceptedAt: row.deliveryAcceptedAt,
+        failedAt: row.deliveryFailedAt,
+        statusKey: `admin.authActionTokens.delivery.${row.deliveryStatus}`,
+      },
+      target: {
+        userId: row.userId,
+        emailMasked: row.targetEmailMasked ?? this.maskEmail(row.user.email),
+        userStatus: row.user.status,
+        emailVerified: Boolean(row.user.emailVerifiedAt),
+        deleted: Boolean(row.user.deletedAt),
+      },
+      sensitiveFields: {
+        rawTokenReturned: false,
+        tokenHashReturned: false,
+        rawEmailReturned: false,
+        mailBodyReturned: false,
+      },
+    };
+  }
+
+  private authActionTokenAuditStatus(row: AuthActionTokenAuditRow, now: Date) {
+    if (row.consumedAt) {
+      return 'consumed';
+    }
+
+    if (row.expiresAt.getTime() <= now.getTime()) {
+      return 'expired';
+    }
+
+    return 'pending';
+  }
+
+  private authActionTokenAuditPolicy() {
+    return {
+      targetEmailMasked: true,
+      rawEmailReturned: false,
+      rawTokenReturned: false,
+      tokenHashReturned: false,
+      mailBodyReturned: false,
+      deliveryStatusPersisted: true,
+      deliveryProviderPersisted: true,
+      deliveryRawProviderResponseReturned: false,
+      supportedPurposes: [...AUTH_ACTION_TOKEN_PURPOSES],
+      supportedStatuses: [...AUTH_ACTION_TOKEN_STATUSES],
+      supportedDeliveryStatuses: [...AUTH_ACTION_TOKEN_DELIVERY_STATUSES],
+      supportedDeliveryProviders: [...AUTH_ACTION_TOKEN_DELIVERY_PROVIDERS],
+    };
   }
 
   private maskEmail(email?: string | null) {

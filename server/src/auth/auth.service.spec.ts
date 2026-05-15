@@ -10,6 +10,7 @@ jest.mock('bcryptjs', () => ({
 }));
 
 const userId = '00000000-0000-4000-8000-000000000001';
+const actionTokenId = '00000000-0000-4000-8000-000000000101';
 const email = 'fan@example.com';
 const token = 'a'.repeat(40);
 
@@ -64,6 +65,7 @@ function createPrismaMock(): PrismaMock {
   prisma.$transaction.mockImplementation(
     async (callback: (tx: PrismaMock) => Promise<unknown>) => callback(prisma),
   );
+  prisma.userActionToken.create.mockResolvedValue({ id: actionTokenId });
 
   return prisma;
 }
@@ -152,6 +154,17 @@ describe('AuthService action token flows', () => {
       delivery: { status: 'accepted', channel: 'email', provider: 'resend' },
       debug: undefined,
     });
+    expect(prisma.userActionToken.update).toHaveBeenCalledWith({
+      where: { id: actionTokenId },
+      data: {
+        deliveryStatus: 'failed',
+        deliveryChannel: 'email',
+        deliveryProvider: 'resend',
+        deliveryAttemptedAt: expect.any(Date),
+        deliveryAcceptedAt: null,
+        deliveryFailedAt: expect.any(Date),
+      },
+    });
   });
 
   it('creates a new verification token while consuming older unused tokens', async () => {
@@ -175,6 +188,9 @@ describe('AuthService action token flows', () => {
         purpose: 'email_verification',
         tokenHash: expect.any(String),
         expiresAt: expect.any(Date),
+        deliveryStatus: 'pending',
+        deliveryChannel: 'email',
+        targetEmailMasked: 'fa***@example.com',
       }),
     });
     expect(delivery.sendActionEmail).toHaveBeenCalledWith(
@@ -184,6 +200,17 @@ describe('AuthService action token flows', () => {
         actionToken: expect.any(String),
       }),
     );
+    expect(prisma.userActionToken.update).toHaveBeenCalledWith({
+      where: { id: actionTokenId },
+      data: {
+        deliveryStatus: 'not_configured',
+        deliveryChannel: 'email',
+        deliveryProvider: null,
+        deliveryAttemptedAt: expect.any(Date),
+        deliveryAcceptedAt: null,
+        deliveryFailedAt: null,
+      },
+    });
   });
 
   it('does not issue another verification token for an already verified email', async () => {
@@ -312,6 +339,17 @@ describe('AuthService action token flows', () => {
       ok: true,
       delivery: { status: 'accepted', channel: 'email', provider: 'sendgrid' },
       debug: undefined,
+    });
+    expect(prisma.userActionToken.update).toHaveBeenCalledWith({
+      where: { id: actionTokenId },
+      data: {
+        deliveryStatus: 'failed',
+        deliveryChannel: 'email',
+        deliveryProvider: 'sendgrid',
+        deliveryAttemptedAt: expect.any(Date),
+        deliveryAcceptedAt: null,
+        deliveryFailedAt: expect.any(Date),
+      },
     });
   });
 
