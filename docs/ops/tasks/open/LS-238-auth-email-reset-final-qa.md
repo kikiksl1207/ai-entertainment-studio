@@ -19,6 +19,17 @@ recording raw links, tokens, or passwords.
   result.
 - Latest code-level regression test passed.
 
+## PM Decision - 2026-05-15
+
+- Chamo's code/API check is PASS.
+- Do not use the user's personal email as the final PASS basis.
+- Final PASS requires an inspectable fresh email/password QA inbox so QR can
+  open a real password reset link, save a new password, and log in again.
+- If no inspectable QA inbox or reset link is available, QR should report
+  `BLOCKED` with `blocked_by: safe QA inbox/reset link needed`.
+- Neutral provider `accepted` is not enough for completion because the reset
+  save flow must be proven with a real link.
+
 ## Test Baseline
 
 ```text
@@ -71,4 +82,3 @@ blocked_by:
 next_needed:
 sensitive_values_written: none
 ```
-

@@ -1,7 +1,7 @@
 # LS-246 - Referral Signup Error Copy
 
-Owner: QR
-Status: QA waiting
+Owner: Zoro
+Status: Deployment check waiting
 Priority: P0
 Notion: #246
 
@@ -18,12 +18,28 @@ continue when the field is empty.
 - Changed file: `app.js`
 - `node --check app.js` passed.
 - `git diff --check` passed.
+- Local QR verification passed, but live frontend was stale.
+
+## PM Decision - 2026-05-15
+
+- This is not ready for completion while the live frontend is stale.
+- Current owner is Zoro for deployment reflection check.
+- After Zoro confirms the live bundle includes `cbff81a`, hand the task back
+  to QR for real signup modal QA.
+- Do not mark complete from local-only evidence.
 
 ## Expected User Copy
 
 ```text
 추천인 코드가 올바르지 않아요. 코드를 확인하거나 비워두고 가입해 주세요.
 ```
+
+## Deployment Check
+
+- Confirm the live frontend bundle includes the `app.js` referral-copy change.
+- Confirm no later frontend change reverted the signup modal error handling.
+- If live is still stale, report `BLOCKED` with the deployment or cache reason.
+- Do not ask the user to test until the deployed frontend is confirmed current.
 
 ## QA Scope
 
@@ -49,6 +65,7 @@ continue when the field is empty.
 - Do not record passwords, tokens, cookies, or raw auth responses.
 - Do not use a personal email in the markdown report.
 - Do not mark complete if the text fits desktop but breaks on mobile.
+- Do not mark complete from local-only evidence while live is stale.
 
 ## Completion Report
 
@@ -57,8 +74,9 @@ Write the outcome in the Notion #246 page and keep the current-work row short:
 ```text
 status:
 task: #246
-owner: QR
+owner: Zoro
 environment:
+deploy_reflection:
 tested_flows:
 mobile_width:
 console_sensitive_check:
@@ -67,4 +85,3 @@ blocked_by:
 next_needed:
 sensitive_values_written: none
 ```
-
