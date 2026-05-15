@@ -628,8 +628,10 @@ readiness flags, and account policy flags. `GET /me/trust.accountState` exposes
 `ageBand`, `minor`, `cleanModeRequired`, `ageGate`, and a `cleanMode` flag.
 Requesting a verification fails closed with
 `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED` and `requestStarted: false` when
-the NICE provider is not configured; after provider credentials are configured,
-the skeleton request can create or update only an `unverified` marker.
+the NICE provider is not configured. The global error wrapper exposes the QA
+contract at `error.details.requestStarted: false`; after provider credentials are
+configured, the skeleton request can create or update only an `unverified`
+marker.
 Confirmation returns
 `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED` until the real NICE adapter is
 contracted and wired. The provider-not-connected response includes

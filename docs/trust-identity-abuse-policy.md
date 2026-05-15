@@ -163,7 +163,8 @@ Implementation status:
   request marker when the NICE provider is not configured. The response uses
   `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED`,
   `messageKey = identityVerification.providerNotConnected`, and
-  `requestStarted: false`.
+  `requestStarted: false`; through the global error wrapper this is visible as
+  `error.details.requestStarted: false`.
 - When provider credentials exist but the real adapter is still a skeleton,
   request can record only an `unverified` marker and non-sensitive metadata.
 - `POST /api/v1/me/identity-verifications/self/confirm` fails closed with

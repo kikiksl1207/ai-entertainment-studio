@@ -1362,3 +1362,32 @@ blocked_by:
 - real NICE provider contract/keys/adapter are still required before successful verification can be opened.
 next_needed:
 - Viewer review, then QR QA on fail-closed request/confirm and read-only trust contract.
+
+---
+
+status: completed
+task: #249 identity verification fail-closed wrapper detail follow-up
+branch/commit: team2-backend/identity-trust-skeleton-249 / this commit
+changed_files:
+- server/src/auth/auth.service.ts
+- server/src/auth/auth.service.spec.ts
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/trust-identity-abuse-policy.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npm.cmd test -- auth.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Kept provider-not-connected identity verification request/confirm fail-closed behavior unchanged.
+- Added `details.requestStarted=false` to the provider-not-connected error payload so the global error wrapper exposes the QA contract in live responses.
+- Confirm fail-closed details still include only safe diagnostic fields, including tokenReceived and requestStarted.
+- No frontend, wallet, Lumina, settlement, payout, reward mutation, seed, or schema changes.
+sensitive_data:
+- none recorded.
+blocked_by:
+- none for branch validation.
+next_needed:
+- Viewer review, then QR live QA after merge/deploy: request/confirm 501 should expose `error.details.requestStarted=false`.
