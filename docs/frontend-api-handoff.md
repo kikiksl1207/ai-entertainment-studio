@@ -1311,6 +1311,94 @@ Admin read-only status candidates are `submitted`, `reviewing`,
 `under_review`, `approved`, and `withdrawn` records are normalized in read-only
 responses as `reviewing`, `approved_for_contact`, and `archived`.
 
+User-facing status endpoints:
+
+```http
+GET /me/debut-applications
+GET /me/debut-applications/latest
+GET /me/debut-applications/:applicationId/status
+```
+
+These endpoints require the signed-in user's own JWT and return owner-only
+read-only projections. Frontends should use the returned `statusLabelKo`,
+`messageKey`, `defaultMessageKo`, `statusHistory`, and `publicNotice` fields
+instead of rendering raw backend enum values. User-facing statuses are
+`submitted`, `reviewing`, `needs_more_info`, `approved`, `rejected`, and
+`canceled`.
+
+Example latest/status response:
+
+```json
+{
+  "readOnly": true,
+  "ownerOnly": true,
+  "statusCandidates": [
+    "submitted",
+    "reviewing",
+    "needs_more_info",
+    "approved",
+    "rejected",
+    "canceled"
+  ],
+  "application": {
+    "id": "application-uuid",
+    "status": "needs_more_info",
+    "statusLabelKo": "보완 요청",
+    "messageKey": "debut.application.status.needsMoreInfo",
+    "defaultMessageKo": "추가 확인이 필요한 항목이 있어요. 안내를 확인해 주세요.",
+    "submittedAt": "2026-05-15T00:00:00.000Z",
+    "updatedAt": "2026-05-15T01:00:00.000Z",
+    "applicationChannel": "online_review",
+    "applicationType": "represented_artist",
+    "materialSummary": {
+      "count": 2,
+      "categories": ["face_photo", "voice_sample"],
+      "metadataOnly": true
+    },
+    "statusHistory": [
+      {
+        "status": "submitted",
+        "labelKo": "신청 접수 완료",
+        "messageKey": "debut.application.status.submitted",
+        "occurredAt": "2026-05-15T00:00:00.000Z"
+      },
+      {
+        "status": "needs_more_info",
+        "labelKo": "보완 요청",
+        "messageKey": "debut.application.status.needsMoreInfo",
+        "occurredAt": "2026-05-15T01:00:00.000Z"
+      }
+    ],
+    "publicNotice": {
+      "status": "needs_more_info",
+      "titleKey": "debut.application.status.needsMoreInfo.title",
+      "bodyKey": "debut.application.status.needsMoreInfo.body",
+      "publicReason": "자료 확인이 더 필요합니다.",
+      "dispatch": {
+        "inAppSent": false,
+        "emailSent": false,
+        "contractOnly": true
+      },
+      "internalAdminNoteReturned": false,
+      "settlementOrContractFinalized": false
+    }
+  },
+  "ctaState": "status"
+}
+```
+
+Do not show contact values, intro text, admin review notes, internal metadata,
+private material URLs, storage keys, object ETags, secrets, or tokens in My Page.
+`approved` means contact/next-step readiness only; it is not a debut,
+settlement, contract, or payout finalization.
+
+Review result notification copy is contract-only in this phase. The backend does
+not send email or in-app notifications yet. Future senders should use:
+
+- `debut.application.status.needsMoreInfo.title/body`
+- `debut.application.status.approved.title/body`
+- `debut.application.status.rejected.title/body`
+
 Admin/operations endpoints for phone consultation queue:
 
 ```http

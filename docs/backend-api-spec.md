@@ -721,6 +721,7 @@ GET /api/v1/debut/policy
 POST /api/v1/debut/applications
 GET /api/v1/me/debut-applications
 GET /api/v1/me/debut-applications/latest
+GET /api/v1/me/debut-applications/:applicationId/status
 POST /api/v1/me/debut-applications/:applicationId/withdraw
 GET /admin/api/v1/debut/applications?status=submitted&take=50
 GET /admin/api/v1/debut/applications/:applicationId
@@ -756,6 +757,24 @@ Current validation and workflow:
 - `consentVoice` is optional and defaults to `false`.
 - `shareTierRequested` and `shareTierApproved` are integers from 0 to 70.
 - Applicant withdrawal is available before final decision for `submitted`, `reviewing`, or `needs_more_info` applications.
+- User-facing read-only status candidates are `submitted`, `reviewing`,
+  `needs_more_info`, `approved`, `rejected`, and `canceled`. Existing
+  `approved_for_contact`, `approved`, `archived`, and `withdrawn` records are
+  normalized for user display without implying debut, contract, or settlement
+  finalization.
+- `GET /api/v1/me/debut-applications`,
+  `GET /api/v1/me/debut-applications/latest`, and
+  `GET /api/v1/me/debut-applications/:applicationId/status` return owner-only
+  status projections. They include Korean display copy keys, a derived
+  read-only status history, submitted/updated dates, application channel/type,
+  material category summary, and a notification contract preview. They do not
+  expose contact values, intro text, admin review notes, internal metadata,
+  private signed URLs, original file URLs, storage keys, object ETags, secrets,
+  or tokens.
+- Debut review notification dispatch is not enabled in this contract. The
+  response only defines planned in-app/email copy keys for `needs_more_info`,
+  `approved`, and `rejected` states. Actual email/in-app senders require a
+  separate mutation/delivery implementation.
 - Admin read-only status candidates are `submitted`, `reviewing`,
   `needs_more_info`, `approved_for_contact`, `rejected`, and `archived`.
   Existing `under_review`, `approved`, and `withdrawn` records are normalized in

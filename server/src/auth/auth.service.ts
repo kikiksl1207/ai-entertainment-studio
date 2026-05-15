@@ -46,6 +46,65 @@ const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const EMAIL_VERIFICATION_PURPOSE = 'email_verification';
 const PASSWORD_RESET_PURPOSE = 'password_reset';
+const MYPAGE_DEBUT_STATUS_COPY: Record<
+  string,
+  { status: string; labelKo: string; messageKey: string; defaultMessageKo: string }
+> = {
+  submitted: {
+    status: 'submitted',
+    labelKo: '신청 접수 완료',
+    messageKey: 'debut.application.status.submitted',
+    defaultMessageKo: '데뷔 신청이 접수됐어요. 운영팀이 순서대로 확인합니다.',
+  },
+  reviewing: {
+    status: 'reviewing',
+    labelKo: '심사 중',
+    messageKey: 'debut.application.status.reviewing',
+    defaultMessageKo: '제출 내용을 검토하고 있어요. 결과가 정리되면 알려드릴게요.',
+  },
+  under_review: {
+    status: 'reviewing',
+    labelKo: '심사 중',
+    messageKey: 'debut.application.status.reviewing',
+    defaultMessageKo: '제출 내용을 검토하고 있어요. 결과가 정리되면 알려드릴게요.',
+  },
+  needs_more_info: {
+    status: 'needs_more_info',
+    labelKo: '보완 요청',
+    messageKey: 'debut.application.status.needsMoreInfo',
+    defaultMessageKo: '추가 확인이 필요한 항목이 있어요. 안내를 확인해 주세요.',
+  },
+  approved_for_contact: {
+    status: 'approved',
+    labelKo: '연락 준비 중',
+    messageKey: 'debut.application.status.approved',
+    defaultMessageKo: '상담 또는 다음 안내를 드릴 수 있는 상태예요. 데뷔 확정은 별도 계약 이후 결정됩니다.',
+  },
+  approved: {
+    status: 'approved',
+    labelKo: '연락 준비 중',
+    messageKey: 'debut.application.status.approved',
+    defaultMessageKo: '상담 또는 다음 안내를 드릴 수 있는 상태예요. 데뷔 확정은 별도 계약 이후 결정됩니다.',
+  },
+  rejected: {
+    status: 'rejected',
+    labelKo: '심사 종료',
+    messageKey: 'debut.application.status.rejected',
+    defaultMessageKo: '이번 신청 검토가 종료됐어요. 공개 가능한 사유만 안내됩니다.',
+  },
+  archived: {
+    status: 'canceled',
+    labelKo: '신청 취소',
+    messageKey: 'debut.application.status.canceled',
+    defaultMessageKo: '사용자 요청 또는 운영 기준에 따라 신청이 종료됐어요.',
+  },
+  withdrawn: {
+    status: 'canceled',
+    labelKo: '신청 취소',
+    messageKey: 'debut.application.status.canceled',
+    defaultMessageKo: '사용자 요청 또는 운영 기준에 따라 신청이 종료됐어요.',
+  },
+};
 type ActionTokenDebug = { id: string; token: string; expiresAt: Date };
 const ARTIST_CATEGORY_LABELS = [
   '아티스트',
@@ -983,6 +1042,7 @@ export class AuthService {
       }),
       this.prisma.debutApplication.findMany({
         where: { userId },
+        select: this.myPageDebutApplicationSelect(),
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
@@ -1065,6 +1125,9 @@ export class AuthService {
     ]);
 
     const latestDebutApplication = debutApplications[0] ?? null;
+    const debutApplicationViews = debutApplications.map((application) =>
+      this.toMyPageDebutApplicationView(application),
+    );
 
     return {
       user,
@@ -1105,8 +1168,10 @@ export class AuthService {
       },
       recentActivities: recentActivities.items,
       debut: {
-        latestApplication: latestDebutApplication,
-        applications: debutApplications,
+        latestApplication: latestDebutApplication
+          ? this.toMyPageDebutApplicationView(latestDebutApplication)
+          : null,
+        applications: debutApplicationViews,
         ctaState: latestDebutApplication ? 'status' : 'apply',
       },
       policy: {
@@ -2826,6 +2891,118 @@ export class AuthService {
       latestFeedAt: latestFeed?.publishedAt ?? null,
       isFollowing: true,
     };
+  }
+
+  private myPageDebutApplicationSelect() {
+    return {
+      id: true,
+      status: true,
+      displayName: true,
+      participationType: true,
+      shareTierRequested: true,
+      metadata: true,
+      createdAt: true,
+      updatedAt: true,
+      attachments: {
+        select: {
+          id: true,
+          category: true,
+          status: true,
+        },
+      },
+    } satisfies Prisma.DebutApplicationSelect;
+  }
+
+  private toMyPageDebutApplicationView(application: any) {
+    const metadata = this.recordOrEmpty(application.metadata);
+    const copy =
+      MYPAGE_DEBUT_STATUS_COPY[application.status] ??
+      MYPAGE_DEBUT_STATUS_COPY.submitted;
+    const applicationChannel =
+      this.stringFromUnknown(metadata.applicationChannel) ?? 'phone_consultation';
+    const applicationType =
+      this.stringFromUnknown(metadata.applicationType) ?? 'personal_unaffiliated';
+    const attachments = application.attachments ?? [];
+    const categories = [
+      ...new Set(
+        attachments
+          .map((attachment: any) => this.stringFromUnknown(attachment.category))
+          .filter((category: string | undefined): category is string => Boolean(category)),
+      ),
+    ];
+
+    return {
+      id: application.id,
+      status: copy.status,
+      statusLabelKo: copy.labelKo,
+      messageKey: copy.messageKey,
+      defaultMessageKo: copy.defaultMessageKo,
+      displayName: application.displayName,
+      participationType: application.participationType,
+      applicationChannel,
+      applicationType,
+      submittedAt: application.createdAt,
+      updatedAt: application.updatedAt,
+      requestedShareRate: application.shareTierRequested,
+      materialSummary: {
+        count: attachments.length,
+        categories,
+        hasPrivateMaterials: attachments.length > 0,
+        metadataOnly: true,
+      },
+      statusHistory: this.myPageDebutStatusHistory(application, copy),
+      publicNotice: {
+        status: copy.status,
+        titleKey: `${copy.messageKey}.title`,
+        bodyKey: `${copy.messageKey}.body`,
+        publicReason:
+          this.stringFromUnknown(metadata.publicStatusReason) ??
+          this.stringFromUnknown(metadata.userVisibleReason) ??
+          null,
+        dispatch: {
+          inAppSent: false,
+          emailSent: false,
+          contractOnly: true,
+        },
+        internalAdminNoteReturned: false,
+        settlementOrContractFinalized: false,
+      },
+      privacy: {
+        contactReturned: false,
+        introReturned: false,
+        adminReviewNoteReturned: false,
+        internalMetadataReturned: false,
+        privateMaterialUrlReturned: false,
+      },
+    };
+  }
+
+  private myPageDebutStatusHistory(
+    application: any,
+    currentCopy: { status: string; labelKo: string; messageKey: string },
+  ) {
+    const submittedCopy = MYPAGE_DEBUT_STATUS_COPY.submitted;
+    const history = [
+      {
+        status: submittedCopy.status,
+        labelKo: submittedCopy.labelKo,
+        messageKey: submittedCopy.messageKey,
+        occurredAt: application.createdAt,
+        source: 'application.createdAt',
+      },
+    ];
+
+    if (currentCopy.status !== 'submitted') {
+      history.push({
+        status: currentCopy.status,
+        labelKo: currentCopy.labelKo,
+        messageKey: currentCopy.messageKey,
+        occurredAt: application.updatedAt,
+        source: 'application.updatedAt',
+      });
+    }
+
+    return history;
   }
 
   private assetStatus(metadata: unknown) {
