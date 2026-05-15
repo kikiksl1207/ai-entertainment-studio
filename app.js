@@ -732,7 +732,7 @@ function createAuthModal() {
           <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
         <label class="auth-modal-field"><span>닉네임 <small style="color:rgba(255,255,255,0.4);font-weight:400;">(선택)</small></span>
           <input type="text" name="displayName" autocomplete="nickname" placeholder="비워두면 임시 이름이 자동 부여돼요" />
-          <small style="color:rgba(255,255,255,0.45);font-size:11.5px;margin-top:4px;display:block;">이메일이나 실명은 공개 닉네임으로 사용하지 않아요. 마이페이지에서 언제든 바꿀 수 있어요.</small></label>
+          <small style="color:rgba(255,255,255,0.45);font-size:11.5px;margin-top:4px;display:block;">이메일이나 실명은 공개 닉네임으로 사용하지 않아요. 계정 설정에서 언제든 바꿀 수 있어요.</small></label>
         <label class="auth-modal-field"><span>비밀번호 (8자 이상)</span>
           <input type="password" name="password" required minlength="8" autocomplete="new-password" /></label>
         <label class="auth-modal-field"><span>추천인 코드 <small style="color:rgba(255,255,255,0.4);font-weight:400;">(선택)</small></span>
@@ -2056,9 +2056,9 @@ function createUserMenu() {
       <span>내 프로필</span>
       <small>다른 사람에게 보이는 화면</small>
     </button>
-    <button class="user-menu-item" type="button" data-action="profile">
-      <span>마이페이지</span>
-      <small>프로필</small>
+    <button class="user-menu-item" type="button" data-action="settings">
+      <span>계정 설정</span>
+      <small>비밀번호·알림·계정 관리</small>
     </button>
     <button class="user-menu-item user-menu-item-charge" type="button" data-action="charge">
       <span>충전하기</span>
@@ -2102,7 +2102,7 @@ function createUserMenu() {
         window.location.href = target;
       } else {
         const target = {
-          profile: "./mypage.html#profile",
+          settings: "./mypage.html#settings",
           charge: "./charge.html"
         }[action] || "./mypage.html";
         window.location.href = target;
