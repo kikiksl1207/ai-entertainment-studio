@@ -1973,6 +1973,52 @@ p {
   margin-left: 4px;
 }
 .auth-modal-switch:hover { text-decoration: underline; }
+.auth-modal-meta {
+  text-align: center;
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+}
+.auth-modal-link {
+  background: transparent;
+  border: 0;
+  color: var(--accent-dark, #c4b0f0);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.auth-modal-link:hover {
+  text-decoration: underline;
+  background: rgba(196, 176, 240, 0.08);
+}
+.auth-modal-info {
+  background: rgba(58, 210, 159, 0.1);
+  border: 1px solid rgba(58, 210, 159, 0.28);
+  color: rgba(190, 245, 220, 0.96);
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  line-height: 1.55;
+}
+.auth-modal-email-line {
+  margin: -4px 0 12px;
+  text-align: center;
+}
+.auth-modal-email-line small {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+.auth-modal-success-panel h2,
+.auth-modal-success-panel .auth-modal-subtitle {
+  text-align: center;
+}
+.auth-modal-success-panel .auth-modal-subtitle {
+  margin-bottom: 14px;
+}
 
 /* ══════════════════════════════════════
    Auth Link Confirmation — 이메일 인증/비밀번호 재설정 (#240)

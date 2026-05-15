@@ -110,7 +110,7 @@ async function refreshAuthOnce() {
       const newRefresh = data?.refreshToken || data?.tokens?.refreshToken || data?.refresh_token;
       const user = data?.user || auth.user;
       if (!newAccess) {
-        console.warn("[#088 refresh] 응답에 accessToken 없음", data);
+        console.warn("[#088 refresh] 응답에 accessToken 없음", { keys: data && typeof data === "object" ? Object.keys(data) : [] });
         clearAuth();
         notifyAuthExpired();
         return null;
@@ -336,6 +336,139 @@ const I18N_DICT = {
     "ja-JP": "ユーザーが支払った通貨とアーティストの精算通貨は異なる場合があります。為替は週次基準レートと3~5%の安全マージンを基準に記録します。精算表・税制が確定するまでは見込み値のみ表示し、確定額は精算締め後にお知らせします。",
     "en-US": "User payment currency and your payout currency may differ. FX is recorded with a weekly reference rate plus a 3~5% safety margin. Until the payout table and tax policy are finalized, only estimates are shown. Final figures arrive after cycle close.",
     "zh-CN": "用户支付货币与艺人结算货币可能不同。汇率按每周基准汇率与3~5%安全缓冲记录。结算表与税务政策确定前仅显示预估值，最终金额将在结算关账后通知。"
+  },
+  // ── #240/#247 이메일 인증·비밀번호 재설정 랜딩 ──
+  "resetPassword.form.title": {
+    "ko-KR": "새 비밀번호를 설정해 주세요",
+    "ja-JP": "新しいパスワードを設定してください",
+    "en-US": "Set a new password",
+    "zh-CN": "请设置新密码"
+  },
+  "resetPassword.form.body": {
+    "ko-KR": "기억하기 쉬우면서도 조금 복잡한 조합이 좋아요.",
+    "ja-JP": "覚えやすく、少し複雑な組み合わせをおすすめします。",
+    "en-US": "Memorable, but with a bit of complexity, works best.",
+    "zh-CN": "建议使用易记又稍复杂的组合。"
+  },
+  "resetPassword.form.passwordLabel": {
+    "ko-KR": "새 비밀번호",
+    "ja-JP": "新しいパスワード",
+    "en-US": "New password",
+    "zh-CN": "新密码"
+  },
+  "resetPassword.form.passwordHelper": {
+    "ko-KR": "영문·숫자·특수문자를 섞어 8자 이상을 추천드려요.",
+    "ja-JP": "英字・数字・記号を組み合わせて8文字以上を推奨します。",
+    "en-US": "We recommend 8+ characters mixing letters, numbers, and symbols.",
+    "zh-CN": "建议至少 8 位,混合字母、数字与符号。"
+  },
+  "resetPassword.form.confirmLabel": {
+    "ko-KR": "새 비밀번호 다시 입력",
+    "ja-JP": "新しいパスワード(確認)",
+    "en-US": "Confirm new password",
+    "zh-CN": "再次输入新密码"
+  },
+  "resetPassword.form.save": {
+    "ko-KR": "비밀번호 저장하기",
+    "ja-JP": "パスワードを保存",
+    "en-US": "Save password",
+    "zh-CN": "保存密码"
+  },
+  "resetPassword.form.saving": {
+    "ko-KR": "저장하는 중",
+    "ja-JP": "保存中",
+    "en-US": "Saving",
+    "zh-CN": "保存中"
+  },
+  "resetPassword.form.errorMismatch": {
+    "ko-KR": "두 비밀번호가 달라요. 다시 확인해 주세요.",
+    "ja-JP": "パスワードが一致しません。もう一度ご確認ください。",
+    "en-US": "Passwords don't match. Please check again.",
+    "zh-CN": "两次密码不一致,请重新确认。"
+  },
+  "resetPassword.form.errorTooShort": {
+    "ko-KR": "8자 이상으로 적어주세요.",
+    "ja-JP": "8文字以上で入力してください。",
+    "en-US": "Please use 8 or more characters.",
+    "zh-CN": "请输入至少 8 位。"
+  },
+  "resetPassword.success.title": {
+    "ko-KR": "새 비밀번호가 저장됐어요",
+    "ja-JP": "新しいパスワードを保存しました",
+    "en-US": "Your new password is saved",
+    "zh-CN": "新密码已保存"
+  },
+  "resetPassword.success.body": {
+    "ko-KR": "이제 새 비밀번호로 로그인해 주세요. 다른 기기에 로그인되어 있던 세션은 자동으로 정리됐어요.",
+    "ja-JP": "新しいパスワードでログインしてください。他の端末のセッションは自動的にクリアされました。",
+    "en-US": "Please log in with your new password. Other device sessions have been cleared automatically.",
+    "zh-CN": "请使用新密码登录。其他设备的会话已自动清除。"
+  },
+  "resetPassword.success.primary": {
+    "ko-KR": "로그인하러 가기",
+    "ja-JP": "ログインへ",
+    "en-US": "Go to log in",
+    "zh-CN": "前往登录"
+  },
+  "resetPassword.success.secondary": {
+    "ko-KR": "홈으로",
+    "ja-JP": "ホームへ",
+    "en-US": "Home",
+    "zh-CN": "返回首页"
+  },
+  "resetPassword.invalid.title": {
+    "ko-KR": "재설정 링크가 맞지 않아요",
+    "ja-JP": "再設定リンクが正しくありません",
+    "en-US": "This reset link doesn't match",
+    "zh-CN": "重置链接不匹配"
+  },
+  "resetPassword.invalid.body": {
+    "ko-KR": "메일에서 받은 링크가 맞는지 다시 한 번 확인해 주세요. 가장 최근에 받은 재설정 메일의 링크만 동작해요.",
+    "ja-JP": "メールで受け取ったリンクをご確認ください。最新の再設定メールのリンクのみ有効です。",
+    "en-US": "Please double-check the link. Only the most recent reset email's link works.",
+    "zh-CN": "请再次确认链接。仅最新一封重置邮件中的链接有效。"
+  },
+  "resetPassword.invalid.primary": {
+    "ko-KR": "재설정 메일 다시 받기",
+    "ja-JP": "再設定メールを再送する",
+    "en-US": "Resend reset email",
+    "zh-CN": "重新发送重置邮件"
+  },
+  "resetPassword.invalid.secondary": {
+    "ko-KR": "로그인 화면으로",
+    "ja-JP": "ログイン画面へ",
+    "en-US": "Back to log in",
+    "zh-CN": "返回登录"
+  },
+  "resetPassword.expired.title": {
+    "ko-KR": "이 재설정 링크는 시간이 지났어요",
+    "ja-JP": "この再設定リンクは有効期限が切れました",
+    "en-US": "This reset link has expired",
+    "zh-CN": "此重置链接已过期"
+  },
+  "resetPassword.expired.body": {
+    "ko-KR": "보안을 위해 재설정 링크는 1시간 동안만 열려 있어요. 다시 요청하면 새 메일이 발송돼요.",
+    "ja-JP": "セキュリティのため再設定リンクは1時間有効です。再度申請すると新しいメールが届きます。",
+    "en-US": "For security, reset links last 1 hour. Request again to receive a new email.",
+    "zh-CN": "出于安全考虑,重置链接仅 1 小时有效。重新申请将发送新邮件。"
+  },
+  "resetPassword.expired.primary": {
+    "ko-KR": "재설정 메일 다시 받기",
+    "ja-JP": "再設定メールを再送する",
+    "en-US": "Resend reset email",
+    "zh-CN": "重新发送重置邮件"
+  },
+  "auth.resend.cooldown": {
+    "ko-KR": "방금 메일이 발송됐어요. 잠시 뒤에 다시 요청할 수 있어요.",
+    "ja-JP": "メールを送信したばかりです。少し時間を置いて再度お試しください。",
+    "en-US": "We just sent the email. Please try again in a moment.",
+    "zh-CN": "刚刚已发送邮件,请稍后再试。"
+  },
+  "auth.resend.error": {
+    "ko-KR": "메일을 보내지 못했어요. 잠시 뒤에 다시 시도해 주세요.",
+    "ja-JP": "メールを送信できませんでした。少し時間を置いてもう一度お試しください。",
+    "en-US": "We couldn't send the email. Please try again shortly.",
+    "zh-CN": "邮件发送失败,请稍后重试。"
   }
 };
 
@@ -450,6 +583,19 @@ if (typeof window !== "undefined") {
   };
 }
 
+function maskEmail(value) {
+  if (!value || typeof value !== "string") return undefined;
+  const at = value.indexOf("@");
+  if (at <= 0) return "***";
+  return value[0] + "***@" + value.slice(at + 1);
+}
+
+function maskCode(value) {
+  if (!value || typeof value !== "string") return undefined;
+  if (value.length <= 4) return "***";
+  return value.slice(0, 2) + "***";
+}
+
 async function authLogin(email, password) {
   const data = await apiFetch("/api/v1/auth/login", {
     method: "POST",
@@ -460,7 +606,7 @@ async function authLogin(email, password) {
   const token = data?.accessToken || data?.tokens?.accessToken || data?.access_token;
   const refresh = data?.refreshToken || data?.tokens?.refreshToken;
   const user = data?.user;
-  console.info("[Lumina] login 응답:", {
+  console.info("[Lumina] login 응답 수신", {
     hasUser: Boolean(user),
     hasAccessToken: Boolean(token),
     hasRefreshToken: Boolean(refresh)
@@ -471,9 +617,11 @@ async function authLogin(email, password) {
 async function authRegister(email, password, displayName, referralCode) {
   const body = { email, password, displayName };
   if (referralCode) body.referralCode = referralCode;
-  console.info("[Lumina] register 시도:", {
+  console.info("[Lumina] register 시도", {
+    email: maskEmail(email),
+    hasPassword: Boolean(password),
     hasDisplayName: Boolean(displayName?.trim()),
-    hasReferralCode: Boolean(referralCode)
+    hasReferral: Boolean(referralCode)
   });
   const data = await apiFetch("/api/v1/auth/register", {
     method: "POST",
@@ -498,15 +646,19 @@ async function authLogout() {
 
 /* ── 백엔드 응답에서 토큰 추출 (키 이름 자동 인식) ── */
 function applyAuthResponse(data, providerName = "백엔드") {
-  console.log(`[Lumina] ${providerName} 응답 받음:`, data);
+  console.info(`[Lumina] ${providerName} 응답 수신`, {
+    hasUser: Boolean(data?.user || data?.profile || data?.account || data?.member),
+    hasAccessToken: Boolean(data?.accessToken || data?.tokens?.accessToken || data?.access_token || data?.token),
+    hasRefreshToken: Boolean(data?.refreshToken || data?.tokens?.refreshToken || data?.refresh_token)
+  });
   // 명세: { user, tokens: { accessToken, refreshToken } } + top-level 호환 별칭
   const accessToken = data?.accessToken || data?.tokens?.accessToken || data?.access_token || data?.token;
   const refreshToken = data?.refreshToken || data?.tokens?.refreshToken || data?.refresh_token;
   const user = data?.user || data?.profile || data?.account || data?.member;
 
   if (!accessToken) {
-    console.error(`[Lumina] ${providerName} 응답에 토큰 없음:`, data);
-    alert(`${providerName} 로그인 실패\n\n백엔드 응답:\n${JSON.stringify(data, null, 2)}\n\n→ 백엔드 응답 형식 확인 필요`);
+    console.error(`[Lumina] ${providerName} 응답에 토큰 없음`, { keys: data && typeof data === "object" ? Object.keys(data) : [] });
+    alert(`${providerName} 로그인에 실패했어요. 잠시 뒤에 다시 시도해 주세요.`);
     return false;
   }
   setAuth({ accessToken, refreshToken, user });
@@ -514,7 +666,7 @@ function applyAuthResponse(data, providerName = "백엔드") {
   updateAuthUI();
   if (typeof initMypagePage === "function") initMypagePage();
   loadWallet(); // 로그인/회원가입 직후 잔액 로드
-  console.info(`[Lumina] ${providerName} 로그인 성공:`, user?.displayName || user?.email);
+  console.info(`[Lumina] ${providerName} 로그인 성공`, { who: user?.displayName || maskEmail(user?.email) || "(unknown)" });
   return true;
 }
 
@@ -540,7 +692,38 @@ function createAuthModal() {
         <label class="auth-modal-field"><span>비밀번호</span>
           <input type="password" name="password" required autocomplete="current-password" /></label>
         <button type="submit" class="auth-modal-submit">로그인</button>
+        <p class="auth-modal-meta">
+          <button type="button" class="auth-modal-link" data-switch="forgot">비밀번호를 잊으셨나요?</button>
+        </p>
       </form>
+
+      <form class="auth-modal-form" data-form="forgot" novalidate hidden>
+        <h2>비밀번호 재설정</h2>
+        <p class="auth-modal-subtitle">가입한 이메일을 입력하면 재설정 안내 메일을 보내드려요.</p>
+        <div class="auth-modal-error" data-error hidden></div>
+        <div class="auth-modal-info" data-info hidden></div>
+        <label class="auth-modal-field"><span>이메일</span>
+          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
+        <button type="submit" class="auth-modal-submit">재설정 메일 보내기</button>
+        <p class="auth-modal-meta">
+          <button type="button" class="auth-modal-link" data-switch="login">로그인으로 돌아가기</button>
+        </p>
+      </form>
+
+      <div class="auth-modal-form auth-modal-success-panel" data-form="signupSuccess" hidden>
+        <h2>가입이 완료됐어요</h2>
+        <p class="auth-modal-subtitle">입력한 이메일로 인증 메일을 보냈어요. 메일함에서 인증을 마치면 Lumina Stage를 더 안전하게 이용할 수 있어요.</p>
+        <p class="auth-modal-email-line" data-signup-email-line hidden>
+          <small>받은 메일이 안 보이면 스팸·프로모션함도 한 번 확인해 보세요.</small>
+        </p>
+        <div class="auth-modal-error" data-error hidden></div>
+        <div class="auth-modal-info" data-info hidden></div>
+        <button type="button" class="auth-modal-submit" data-action="resend-verification">인증 메일 다시 받기</button>
+        <p class="auth-modal-meta">
+          <button type="button" class="auth-modal-link" data-action="close-modal">닫기</button>
+        </p>
+      </div>
+
       <form class="auth-modal-form" data-form="register" novalidate hidden>
         <h2>Lumina Stage 가입</h2>
         <p class="auth-modal-subtitle">팬으로서 좋아요와 응원을 보내세요</p>
@@ -588,7 +771,7 @@ function bindAuthModalEvents(modal) {
   });
   modal.querySelectorAll(".auth-modal-tab").forEach(t =>
     t.addEventListener("click", () => switchAuthTab(t.dataset.tab)));
-  modal.querySelectorAll(".auth-modal-switch").forEach(b =>
+  modal.querySelectorAll(".auth-modal-switch, .auth-modal-link[data-switch]").forEach(b =>
     b.addEventListener("click", () => switchAuthTab(b.dataset.switch)));
 
   // 로그인 폼
@@ -601,6 +784,87 @@ function bindAuthModalEvents(modal) {
     e.preventDefault();
     await handleAuthSubmit(e.currentTarget, "register");
   });
+  modal.querySelector('[data-form="forgot"]').addEventListener("submit", async e => {
+    e.preventDefault();
+    await handleForgotPasswordSubmit(e.currentTarget);
+  });
+  modal.querySelectorAll('[data-action="resend-verification"]').forEach(btn =>
+    btn.addEventListener("click", () => handleResendVerification(btn)));
+  modal.querySelectorAll('[data-action="close-modal"]').forEach(btn =>
+    btn.addEventListener("click", closeAuthModal));
+}
+
+async function handleForgotPasswordSubmit(form) {
+  const errorEl = form.querySelector("[data-error]");
+  const infoEl = form.querySelector("[data-info]");
+  const submitBtn = form.querySelector(".auth-modal-submit");
+  errorEl.hidden = true;
+  infoEl.hidden = true;
+
+  const email = form.email.value.trim();
+  if (!email) {
+    errorEl.textContent = "이메일을 입력해 주세요.";
+    errorEl.hidden = false;
+    return;
+  }
+
+  const originalText = submitBtn.textContent;
+  submitBtn.disabled = true;
+  submitBtn.textContent = "메일 보내는 중...";
+  const neutralMsg = "입력한 이메일로 비밀번호 재설정 안내를 보냈어요. 메일함을 확인해 주세요.";
+  try {
+    await apiFetch("/api/v1/auth/password-resets", {
+      method: "POST",
+      body: { email }
+    });
+    infoEl.textContent = neutralMsg;
+    infoEl.hidden = false;
+  } catch (err) {
+    if (err?.status >= 500) {
+      errorEl.textContent = "메일을 보내지 못했어요. 잠시 뒤에 다시 시도해 주세요.";
+      errorEl.hidden = false;
+    } else {
+      infoEl.textContent = neutralMsg;
+      infoEl.hidden = false;
+    }
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalText;
+  }
+}
+
+async function handleResendVerification(button) {
+  const panel = button.closest('[data-form="signupSuccess"]');
+  if (!panel) return;
+  const errorEl = panel.querySelector("[data-error]");
+  const infoEl = panel.querySelector("[data-info]");
+  errorEl.hidden = true;
+  infoEl.hidden = true;
+  const email = panel.dataset.email || "";
+  if (!email) {
+    errorEl.textContent = "이메일 정보를 찾지 못했어요. 다시 로그인해서 시도해 주세요.";
+    errorEl.hidden = false;
+    return;
+  }
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "다시 보내는 중...";
+  try {
+    await apiFetch("/api/v1/auth/email-verifications", {
+      method: "POST",
+      body: { email }
+    });
+    infoEl.textContent = "인증 메일을 다시 보냈어요. 메일함을 확인해 주세요.";
+    infoEl.hidden = false;
+  } catch (err) {
+    errorEl.textContent = err?.status === 429
+      ? "방금 메일이 발송됐어요. 잠시 뒤에 다시 요청할 수 있어요."
+      : "메일을 보내지 못했어요. 잠시 뒤에 다시 시도해 주세요.";
+    errorEl.hidden = false;
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 }
 
 async function handleAuthSubmit(form, mode) {
@@ -617,20 +881,24 @@ async function handleAuthSubmit(form, mode) {
       if (!form.termsConsent?.checked) {
         throw new Error("이용약관과 개인정보처리방침에 동의해주세요.");
       }
+      const regEmail = form.email.value.trim();
       await authRegister(
-        form.email.value.trim(),
+        regEmail,
         form.password.value,
         form.displayName.value.trim(),
         form.referralCode?.value.trim() || null
       );
-      // #074 — 임시 표시명 안내 (회원가입 성공 직후, displayName 비워둔 경우 자동 생성됨)
-      setTimeout(() => {
-        try {
-          const u = getAuth()?.user;
-          const name = u?.displayName || u?.publicHandle || "";
-          alert(`Lumina Stage에 오신 걸 환영해요.\n\n처음 시작하는 이름은 안전한 임시 표시명으로 준비해두었어요${name ? ` (${name})` : ""}. 마이페이지에서 원하는 닉네임으로 바꿀 수 있습니다.`);
-        } catch {}
-      }, 200);
+      updateAuthUI();
+      if (typeof initMypagePage === "function") initMypagePage();
+      const successPanel = document.querySelector('#authModal [data-form="signupSuccess"]');
+      if (successPanel) {
+        successPanel.dataset.email = regEmail;
+        const emailLine = successPanel.querySelector("[data-signup-email-line]");
+        if (emailLine) emailLine.hidden = false;
+      }
+      switchAuthTab("signupSuccess");
+      form.reset();
+      return;
     }
     closeAuthModal();
     updateAuthUI();
@@ -719,7 +987,7 @@ function captureReferralFromURL() {
       code: ref,
       expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
     }));
-    console.info("[Lumina] 추천인 코드 저장됨");
+    console.info("[Lumina] 추천인 코드 저장됨", { codeHint: maskCode(ref) });
     // URL 깔끔하게 정리 (?ref= 제거)
     params.delete("ref");
     params.delete("referral");
@@ -751,10 +1019,16 @@ function closeAuthModal() {
 function switchAuthTab(tab) {
   const modal = document.getElementById("authModal");
   if (!modal) return;
+  const isSpecial = tab === "forgot" || tab === "signupSuccess";
   modal.querySelectorAll(".auth-modal-tab").forEach(t => t.classList.toggle("is-active", t.dataset.tab === tab));
+  const tabBar = modal.querySelector(".auth-modal-tabs");
+  if (tabBar) tabBar.style.display = isSpecial ? "none" : "";
   modal.querySelectorAll(".auth-modal-form").forEach(f => f.hidden = f.dataset.form !== tab);
-  modal.querySelectorAll("[data-foot]").forEach(f => f.hidden = f.dataset.foot !== tab);
+  modal.querySelectorAll("[data-foot]").forEach(f => f.hidden = isSpecial || f.dataset.foot !== tab);
   modal.querySelectorAll("[data-error]").forEach(e => e.hidden = true);
+  modal.querySelectorAll("[data-info]").forEach(e => e.hidden = true);
+  const social = modal.querySelector("#authSocialSection");
+  if (social) social.style.display = isSpecial ? "none" : "";
 }
 
 /* ── 소셜 로그인 (Google/Kakao/Naver/Apple) ── */
@@ -914,7 +1188,7 @@ async function handleKakaoCallback() {
   }
 
   try {
-    console.log("[Lumina] Kakao code 받음, 백엔드 호출 중...");
+    console.info("[Lumina] Kakao code 수신, 백엔드 호출 중");
     // 백엔드에 code 전달 — 백엔드가 카카오와 토큰 교환 + 우리 토큰 발급
     const data = await apiFetch("/api/v1/auth/social/login", {
       method: "POST",
@@ -927,8 +1201,8 @@ async function handleKakaoCallback() {
     });
     applyAuthResponse(data, "Kakao");
   } catch (err) {
-    console.error("[Lumina] Kakao 백엔드 로그인 실패:", err, err.body);
-    alert("Kakao 로그인 실패\n에러: " + (err.message || "서버 오류") + (err.body ? "\n응답: " + JSON.stringify(err.body) : ""));
+    console.error("[Lumina] Kakao 백엔드 로그인 실패", { status: err?.status, message: err?.message });
+    alert("Kakao 로그인 실패\n에러: " + (err.message || "서버 오류"));
   }
 }
 
@@ -988,7 +1262,7 @@ async function handleNaverCallback() {
   }
 
   try {
-    console.log("[Lumina] Naver access_token 받음, 백엔드 호출 중...");
+    console.info("[Lumina] Naver access token 수신, 백엔드 호출 중");
     // 백엔드 명세: token handoff — { provider, token }
     const data = await apiFetch("/api/v1/auth/social/login", {
       method: "POST",
@@ -1000,8 +1274,8 @@ async function handleNaverCallback() {
     });
     applyAuthResponse(data, "Naver");
   } catch (err) {
-    console.error("[Lumina] Naver 백엔드 로그인 실패:", err, err.body);
-    alert("네이버 로그인 실패\n에러: " + (err.message || "서버 오류") + (err.body ? "\n응답: " + JSON.stringify(err.body) : ""));
+    console.error("[Lumina] Naver 백엔드 로그인 실패", { status: err?.status, message: err?.message });
+    alert("네이버 로그인 실패\n에러: " + (err.message || "서버 오류"));
   }
 }
 
@@ -1059,7 +1333,7 @@ function initGoogleAuth() {
 }
 
 async function handleGoogleTokenResponse(tokenResponse) {
-  console.log("[Lumina] Google access_token 받음, 백엔드 호출 중...");
+  console.info("[Lumina] Google access token 수신, 백엔드 호출 중");
   if (!tokenResponse?.access_token) {
     console.error("[Lumina] Google access_token 누락");
     return;
@@ -1075,8 +1349,8 @@ async function handleGoogleTokenResponse(tokenResponse) {
     });
     applyAuthResponse(data, "Google");
   } catch (err) {
-    console.error("[Lumina] Google 백엔드 로그인 실패:", err, err.body);
-    alert("Google 로그인 실패\n에러: " + (err.message || "서버 오류") + (err.body ? "\n응답: " + JSON.stringify(err.body) : ""));
+    console.error("[Lumina] Google 백엔드 로그인 실패", { status: err?.status, message: err?.message });
+    alert("Google 로그인 실패\n에러: " + (err.message || "서버 오류"));
   }
 }
 
