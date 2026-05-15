@@ -462,6 +462,16 @@
   font-weight: 800;
 }
 
+/* #255 — 이메일 인증 상태 배지: 인증 완료(녹색) / 인증 필요(주황 fallback) */
+.mypage-status-badge[data-state="ok"] {
+  background: rgba(120, 200, 150, 0.16);
+  color: rgba(190, 240, 200, 0.96);
+}
+.mypage-status-badge[data-state="warn"] {
+  background: rgba(255, 201, 122, 0.16);
+  color: #ffc97a;
+}
+
 .mypage-status-card strong,
 .mypage-empty strong {
   display: block;

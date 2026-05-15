@@ -294,7 +294,25 @@
             </section>
 
             <section class="mypage-panel" data-mypage-panel="security" id="security">
+              <!-- #255 — 이메일 인증 상태 카드. user.emailVerified 가 false 면 재발송 버튼 노출.
+                   가입 시 모달의 인증 안내(#247)와 짝이 되는 상시 진입점. token 원문은 표시하지 않는다. -->
               <div class="mypage-panel-head">
+                <div>
+                  <span class="eyebrow">EMAIL VERIFICATION</span>
+                  <h2>이메일 인증</h2>
+                </div>
+                <span class="mypage-status-badge" id="mypageEmailVerifyBadge" hidden>확인 중</span>
+              </div>
+              <div class="mypage-empty" id="mypageEmailVerifyCard">
+                <strong id="mypageEmailVerifyTitle">이메일 인증 상태</strong>
+                <p id="mypageEmailVerifyBody">로그인 정보를 불러오는 중이에요.</p>
+              </div>
+              <div class="mypage-action-row" id="mypageEmailVerifyActions">
+                <button type="button" class="button-secondary" id="mypageResendVerifyEmail" hidden>인증 메일 다시 받기</button>
+              </div>
+              <p class="mypage-foot-note" id="mypageEmailVerifyNote" hidden></p>
+
+              <div class="mypage-panel-head" style="margin-top:24px;">
                 <div>
                   <span class="eyebrow">PASSWORD</span>
                   <h2>비밀번호</h2>
@@ -962,6 +980,10 @@
             resetBtn.dataset.email = user.email || "";
           }
 
+          // #255 — 이메일 인증 상태 카드 갱신. emailVerified=true 이면 안심 안내,
+          // false 이면 "다시 받기" 버튼 노출. email 정보가 없으면 카드 자체 비활성.
+          renderEmailVerificationCard(user);
+
           if (user.canChangeNickname === false && user.nicknameNextChangeAt) {
             setText("mypageNicknameStatus", shortDate(user.nicknameNextChangeAt) + " 이후 다시 변경할 수 있습니다.");
           } else {
@@ -1227,6 +1249,91 @@
           }
         }
 
+        // #255 — security 탭의 이메일 인증 상태 카드 렌더링.
+        // backend GET /api/v1/me/summary 의 user.emailVerified / emailVerifiedAt 를 사용.
+        // 소셜 전용이라도 email 이 있으면 안내 가능. email 정보가 없을 때만 카드 비활성.
+        function renderEmailVerificationCard(user) {
+          const badge = $("mypageEmailVerifyBadge");
+          const title = $("mypageEmailVerifyTitle");
+          const body  = $("mypageEmailVerifyBody");
+          const resendBtn = $("mypageResendVerifyEmail");
+          const note  = $("mypageEmailVerifyNote");
+          if (!title || !body) return;
+          if (note) { note.hidden = true; note.textContent = ""; }
+          const email = user?.email || "";
+          if (!email) {
+            if (badge) badge.hidden = true;
+            title.textContent = "이메일 정보를 찾을 수 없어요";
+            body.textContent  = "프로필에 이메일이 연결되어 있지 않아 인증 안내를 보낼 수 없어요. 프로필 탭에서 계정 정보를 먼저 확인해 주세요.";
+            if (resendBtn) { resendBtn.hidden = true; resendBtn.dataset.email = ""; }
+            return;
+          }
+          const verified = user?.emailVerified === true;
+          if (badge) {
+            badge.hidden = false;
+            badge.textContent = verified ? "인증 완료" : "인증 필요";
+            badge.dataset.state = verified ? "ok" : "warn";
+          }
+          if (verified) {
+            title.textContent = "이메일 인증이 끝났어요";
+            body.textContent  = "현재 이 계정의 이메일은 인증된 상태예요. 다시 받을 필요는 없어요.";
+            if (resendBtn) { resendBtn.hidden = true; resendBtn.dataset.email = ""; }
+          } else {
+            title.textContent = "아직 이메일 인증이 안 됐어요";
+            body.textContent  = "가입 시 발송된 인증 메일을 못 받았다면 아래에서 다시 받을 수 있어요. 인증을 마치면 비밀번호 재설정과 안내 메일 수신이 더 안정적으로 동작해요.";
+            if (resendBtn) {
+              resendBtn.hidden = false;
+              resendBtn.dataset.email = email;
+            }
+          }
+        }
+
+        // #255 — POST /api/v1/auth/email-verifications { email } 재발송. 중립 안내(존재 여부 비노출).
+        async function sendMypageVerifyEmail() {
+          const btn = $("mypageResendVerifyEmail");
+          const note = $("mypageEmailVerifyNote");
+          if (!btn) return;
+          const email = btn.dataset.email || mypageSummary?.user?.email || "";
+          if (!email) {
+            if (note) {
+              note.textContent = "이메일 정보를 찾지 못했어요. 잠시 후 다시 시도해 주세요.";
+              note.hidden = false;
+            }
+            return;
+          }
+          const originalText = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = "메일 보내는 중...";
+          const neutralMsg = "입력하신 이메일로 인증 안내를 다시 보냈어요. 메일함을 확인해 주세요. 메일이 안 보이면 스팸·프로모션함도 한 번 열어 봐 주세요.";
+          try {
+            if (typeof apiFetch === "function") {
+              await apiFetch("/api/v1/auth/email-verifications", {
+                method: "POST",
+                body: { email }
+              });
+            }
+            if (note) {
+              note.textContent = neutralMsg;
+              note.hidden = false;
+            }
+          } catch (err) {
+            if (note) {
+              if (err?.status === 429) {
+                note.textContent = "방금 메일이 발송됐어요. 잠시 뒤에 다시 요청할 수 있어요.";
+              } else if (err?.status >= 500) {
+                note.textContent = "메일을 보내지 못했어요. 잠시 뒤에 다시 시도해 주세요.";
+              } else {
+                // 4xx 일반은 계정 존재/인증 상태 노출 방지를 위해 중립 안내 유지.
+                note.textContent = neutralMsg;
+              }
+              note.hidden = false;
+            }
+          } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+          }
+        }
+
         // #248 — security 탭의 \"이메일로 재설정 메일 받기\".
         // #247 의 POST /api/v1/auth/password-resets 흐름을 재사용. 성공/실패 모두 중립 안내.
         async function sendMypageResetEmail() {
@@ -1279,6 +1386,8 @@
             btn.addEventListener("click", () => jumpToMypageTab(btn.dataset.mypageTabJump));
           });
           $("mypageSendResetEmail")?.addEventListener("click", sendMypageResetEmail);
+          // #255 — 인증 메일 다시 받기 버튼
+          $("mypageResendVerifyEmail")?.addEventListener("click", sendMypageVerifyEmail);
           document.querySelectorAll("[data-dialog-close]").forEach(btn => btn.addEventListener("click", closePasswordDialog));
           $("mypagePasswordDialog")?.addEventListener("click", event => {
             if (event.target === $("mypagePasswordDialog")) closePasswordDialog();

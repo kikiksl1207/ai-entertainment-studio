@@ -3007,6 +3007,50 @@ p {
   padding-left: 18px;
 }
 
+/* #258 — 데뷔 신청 흐름 미니 익스플레이너. 폼 옆 안내 카드 안에 들어간다. */
+.debut-flow-mini {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.debut-flow-mini li {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  border-radius: 14px;
+  background: rgba(159, 139, 199, 0.05);
+}
+.debut-flow-mini .debut-flow-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(180, 150, 240, 0.18);
+  color: rgba(220, 200, 255, 0.96);
+  font-weight: 700;
+  font-size: 13px;
+}
+.debut-flow-mini strong {
+  display: block;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.debut-flow-mini p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: rgba(220, 210, 240, 0.78);
+}
+
 .debut-apply-form {
   display: grid;
   gap: 18px;
