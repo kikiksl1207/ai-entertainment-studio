@@ -38,12 +38,16 @@ import { buildPublicAssetUrl } from '../common/asset-url';
 import { USER_IMAGE_UPLOAD_MAX_BYTES } from '../assets/user-assets.service';
 
 const PASSWORD_HASH_ROUNDS = 12;
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_MAX_LENGTH = 128;
 const LUMINA_CURRENCY_CODE = 'LUMINA';
 const SIGNUP_BONUS_LUMINA = 300;
 const REFERRAL_REWARD_LUMINA = 500;
 const NICKNAME_CHANGE_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
 const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+const AUTH_ACTION_REQUEST_RATE_LIMIT = 5;
+const AUTH_ACTION_REQUEST_RATE_WINDOW_SECONDS = 60;
 const EMAIL_VERIFICATION_PURPOSE = 'email_verification';
 const PASSWORD_RESET_PURPOSE = 'password_reset';
 type ActionTokenDebug = { id: string; token: string; expiresAt: Date };
@@ -1126,10 +1130,11 @@ export class AuthService {
           editable: false,
         },
         passwordRule: {
-          minLength: 8,
-          maxLength: 128,
-          requiresLetter: true,
-          requiresNumber: true,
+          minLength: PASSWORD_MIN_LENGTH,
+          maxLength: PASSWORD_MAX_LENGTH,
+          requiresLetter: false,
+          requiresNumber: false,
+          messageKey: 'auth.password.rule.lengthOnly',
         },
         avatarUploadMode: 'asset_upload_flow',
         stellaDisplayThresholdLumina: 10000,
@@ -1469,11 +1474,23 @@ export class AuthService {
       auth: {
         emailPassword: {
           enabled: true,
-          passwordMinLength: 8,
-          passwordMaxLength: 128,
-          passwordRule: 'At least one letter and one number',
+          passwordMinLength: PASSWORD_MIN_LENGTH,
+          passwordMaxLength: PASSWORD_MAX_LENGTH,
+          passwordRule: '8_to_128_characters',
+          passwordRuleKey: 'auth.password.rule.lengthOnly',
           defaultDisplayNameFormat: '색상+사물+4자리숫자',
           defaultPublicHandleFormat: '색상+사물+4자리숫자',
+        },
+        emailVerification: {
+          requiredForEmailSignup: true,
+          coreFeaturesRequireVerifiedEmail: true,
+          statusField: 'user.emailVerification',
+          requestEndpoint: 'POST /api/v1/auth/email-verifications',
+          confirmEndpoint: 'POST /api/v1/auth/email-verifications/confirm',
+          requiredCode: 'AUTH_EMAIL_VERIFICATION_REQUIRED',
+          requiredMessageKey: 'auth.emailVerification.required',
+          verifiedMessageKey: 'auth.emailVerification.verified',
+          requestPolicy: this.actionEmailRequestPolicy(EMAIL_VERIFICATION_PURPOSE),
         },
         social: this.getSocialProviders(),
       },
@@ -1586,6 +1603,7 @@ export class AuthService {
       success: true,
       ok: true,
       delivery,
+      policy: this.actionEmailRequestPolicy(EMAIL_VERIFICATION_PURPOSE),
       debug: this.actionTokenDebugPayload(debugToken),
     };
   }
@@ -1653,6 +1671,7 @@ export class AuthService {
       success: true,
       ok: true,
       delivery,
+      policy: this.actionEmailRequestPolicy(PASSWORD_RESET_PURPOSE),
       debug: this.actionTokenDebugPayload(debugToken),
     };
   }
@@ -2075,6 +2094,7 @@ export class AuthService {
       email: user.email,
       emailVerifiedAt: user.emailVerifiedAt,
       emailVerified: Boolean(user.emailVerifiedAt),
+      emailVerification: this.emailVerificationState(user.emailVerifiedAt),
       phoneNumber: user.phoneNumber,
       status: user.status,
       provider: primaryProvider,
@@ -2121,6 +2141,38 @@ export class AuthService {
     return changedAt
       ? new Date(changedAt.getTime() + NICKNAME_CHANGE_INTERVAL_MS)
       : new Date(0);
+  }
+
+  private emailVerificationState(emailVerifiedAt: Date | null) {
+    const verified = Boolean(emailVerifiedAt);
+
+    return {
+      status: verified ? 'verified' : 'required',
+      required: !verified,
+      emailVerified: verified,
+      emailVerifiedAt,
+      code: verified
+        ? 'AUTH_EMAIL_VERIFIED'
+        : 'AUTH_EMAIL_VERIFICATION_REQUIRED',
+      messageKey: verified
+        ? 'auth.emailVerification.verified'
+        : 'auth.emailVerification.required',
+      titleKey: verified
+        ? 'auth.emailVerification.verified.title'
+        : 'auth.emailVerification.required.title',
+      descriptionKey: verified
+        ? 'auth.emailVerification.verified.description'
+        : 'auth.emailVerification.required.description',
+      ctaKey: verified ? null : 'auth.emailVerification.required.cta',
+      requiredActions: verified ? [] : ['verify_email'],
+      gates: {
+        coreFeaturesRequireVerifiedEmail: true,
+        coreFeaturesBlockedUntilVerified: !verified,
+        loginAllowedBeforeVerification: true,
+        signupAllowedBeforeVerification: true,
+      },
+      resend: this.actionEmailRequestPolicy(EMAIL_VERIFICATION_PURPOSE),
+    };
   }
 
   private async assertDisplayNameAvailable(displayName: string, currentUserId?: string) {
@@ -2961,6 +3013,32 @@ export class AuthService {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       tokenType: tokens.tokenType,
+    };
+  }
+
+  private actionEmailRequestPolicy(
+    purpose: typeof EMAIL_VERIFICATION_PURPOSE | typeof PASSWORD_RESET_PURPOSE,
+  ) {
+    return {
+      purpose,
+      neutralResponse: true,
+      rateLimit: {
+        limit: AUTH_ACTION_REQUEST_RATE_LIMIT,
+        windowSeconds: AUTH_ACTION_REQUEST_RATE_WINDOW_SECONDS,
+      },
+      recommendedClientCooldownSeconds: AUTH_ACTION_REQUEST_RATE_WINDOW_SECONDS,
+      duplicatePendingTokenPolicy: 'consume_previous_pending_token',
+      tokenTtlSeconds:
+        purpose === EMAIL_VERIFICATION_PURPOSE
+          ? Math.floor(EMAIL_VERIFICATION_TOKEN_TTL_MS / 1000)
+          : Math.floor(PASSWORD_RESET_TOKEN_TTL_MS / 1000),
+      rawTokenReturned: false,
+      tokenHashReturned: false,
+      debugTokenAllowedOnlyOutsideProduction: true,
+      messageKey:
+        purpose === EMAIL_VERIFICATION_PURPOSE
+          ? 'auth.emailVerification.requestAccepted'
+          : 'auth.passwordReset.requestAccepted',
     };
   }
 

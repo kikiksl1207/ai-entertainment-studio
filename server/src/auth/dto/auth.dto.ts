@@ -21,6 +21,10 @@ const normalizeEmail = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
 
 export const SUPPORTED_LOCALES = ['ko-KR', 'ja-JP', 'en-US', 'zh-CN'] as const;
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_MAX_LENGTH = 128;
+const PASSWORD_MIN_LENGTH_MESSAGE_KEY = 'auth.password.minLength';
+const PASSWORD_MAX_LENGTH_MESSAGE_KEY = 'auth.password.maxLength';
 
 export class RegisterDto {
   @Transform(normalizeEmail)
@@ -30,11 +34,8 @@ export class RegisterDto {
 
   @IsNotEmpty()
   @IsString()
-  @MinLength(8)
-  @MaxLength(128)
-  @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, {
-    message: 'password must include at least one letter and one number',
-  })
+  @MinLength(PASSWORD_MIN_LENGTH, { message: PASSWORD_MIN_LENGTH_MESSAGE_KEY })
+  @MaxLength(PASSWORD_MAX_LENGTH, { message: PASSWORD_MAX_LENGTH_MESSAGE_KEY })
   password!: string;
 
   @IsOptional()
@@ -75,22 +76,16 @@ export class ChangePasswordDto {
 
   @IsNotEmpty()
   @IsString()
-  @MinLength(8)
-  @MaxLength(128)
-  @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, {
-    message: 'newPassword must include at least one letter and one number',
-  })
+  @MinLength(PASSWORD_MIN_LENGTH, { message: PASSWORD_MIN_LENGTH_MESSAGE_KEY })
+  @MaxLength(PASSWORD_MAX_LENGTH, { message: PASSWORD_MAX_LENGTH_MESSAGE_KEY })
   newPassword!: string;
 }
 
 export class SetPasswordDto {
   @IsNotEmpty()
   @IsString()
-  @MinLength(8)
-  @MaxLength(128)
-  @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, {
-    message: 'newPassword must include at least one letter and one number',
-  })
+  @MinLength(PASSWORD_MIN_LENGTH, { message: PASSWORD_MIN_LENGTH_MESSAGE_KEY })
+  @MaxLength(PASSWORD_MAX_LENGTH, { message: PASSWORD_MAX_LENGTH_MESSAGE_KEY })
   newPassword!: string;
 }
 
@@ -233,11 +228,8 @@ export class ConfirmPasswordResetDto {
 
   @IsNotEmpty()
   @IsString()
-  @MinLength(8)
-  @MaxLength(128)
-  @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, {
-    message: 'newPassword must include at least one letter and one number',
-  })
+  @MinLength(PASSWORD_MIN_LENGTH, { message: PASSWORD_MIN_LENGTH_MESSAGE_KEY })
+  @MaxLength(PASSWORD_MAX_LENGTH, { message: PASSWORD_MAX_LENGTH_MESSAGE_KEY })
   newPassword!: string;
 }
 

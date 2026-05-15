@@ -334,7 +334,7 @@ Auth responses:
 - `GET /app/bootstrap` returns `policy.artistCategories.filterLabels = ["전체", "아티스트", "모델", "배우", "엔터테이너", "스포츠", "기타"]`. Build category filter UI from this list when possible, and read each artist card's `category/displayCategory` for the selected value.
 - `GET /app/bootstrap` returns `policy.userImageUpload.maxBytes = 8388608` by default. Use this as the frontend source of truth for avatar/feed image file-size validation when possible.
 - `GET /app/bootstrap` returns `policy.luminaFeed`: image attachments are capped at 4, feed video upload is not allowed in MVP, and external links are HTTPS metadata-only cards with remote fetching disabled.
-- Email-password signup uses email only. Password policy: 8-128 characters, at least one letter and one number. If `displayName` is omitted, the backend assigns a temporary display name such as `민트별빛4827`; do not derive a public name from the email prefix on the frontend.
+- Email-password signup uses email only. Password policy: 8-128 characters; letter/number composition is not a server requirement. If `displayName` is omitted, the backend assigns a temporary display name such as `민트별빛4827`; do not derive a public name from the email prefix on the frontend.
 - `POST /auth/register` and `POST /auth/login` return `{ user, tokens }`.
 - `tokens` contains `accessToken`, `refreshToken`, and `tokenType: "Bearer"`.
 - For compatibility with the current frontend, auth responses also include top-level `accessToken`, `refreshToken`, and `tokenType` aliases.
@@ -344,7 +344,8 @@ Auth responses:
 - `POST /auth/social/login` accepts `{ "provider": "google" | "kakao" | "naver", "token": "<provider-token>" }`; `accessToken` is also accepted as an alias for `token`.
 - Authorization-code handoff is also accepted as `{ "provider": "kakao", "code": "<code>", "redirectUri": "<same-redirect-uri>" }`. The `redirectUri` value must exactly match the URI registered in Kakao Developers and used when the code was issued. The backend may override it with `KAKAO_REDIRECT_URI` in Render to avoid `www`/non-`www` drift.
 - Google can send either a Google ID token or OAuth access token. Kakao and Naver should send access tokens when using the token handoff.
-- `GET /me` returns the current user plus profile convenience fields: `displayName`, `publicHandle`, `avatarUrl`, `avatarAsset`, `coverImageUrl`, `coverAsset`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `emailVerified`, `emailVerifiedAt`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`.
+- `GET /me` returns the current user plus profile convenience fields: `displayName`, `publicHandle`, `avatarUrl`, `avatarAsset`, `coverImageUrl`, `coverAsset`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `emailVerified`, `emailVerifiedAt`, `emailVerification`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`.
+- `GET /me.emailVerification` is the email-signup gate contract. Before confirmation it returns `status: "required"`, `code: "AUTH_EMAIL_VERIFICATION_REQUIRED"`, `messageKey: "auth.emailVerification.required"`, `requiredActions: ["verify_email"]`, and `gates.coreFeaturesBlockedUntilVerified: true`. After confirmation it returns `status: "verified"` and `messageKey: "auth.emailVerification.verified"`.
 - `PATCH /me/profile` body: `{ "displayName": "닉네임", "bio": "optional", "avatarAssetId": "<asset uuid>", "coverAssetId": "<asset uuid or null>" }`. New accounts receive an auto-assigned temporary `displayName`; users can change it from My Page. `displayName` is 2-20 characters, must be unique, and can be changed once every 30 days after a user change. `coverAssetId: null` resets the public profile cover to the default gradient. The server returns the updated `GET /me` shape. If the nickname cooldown is active, expect `429 Nickname can be changed once every 30 days`. If the nickname is taken, expect `409 DISPLAY_NAME_ALREADY_TAKEN`.
 - Display-name availability checks: unauthenticated signup can call `GET /auth/display-name-availability?displayName=닉네임`; signed-in My Page can call `GET /me/profile/display-name-availability?displayName=닉네임`. Both return `{ displayName, available, reason, isCurrentUser, policy }`. On the signed-in endpoint, the current user's existing nickname returns `available: true` with `isCurrentUser: true`.
 - Avatar upload policy for 1차: reuse the asset upload flow and then pass the confirmed image asset id as `avatarAssetId`. A dedicated user-facing avatar upload intent can be split out later if needed.
@@ -377,7 +378,8 @@ My Page scope notes for 2026-05-02:
 - `POST /auth/email-verifications/confirm` body: `{ "token": "<email-token>" }`.
 - `POST /auth/password-resets` body: `{ "email": "user@example.com" }`.
 - `POST /auth/password-resets/confirm` body: `{ "token": "<reset-token>", "newPassword": "<new-password>" }`.
-- `GET /me` includes `emailVerified` and `emailVerifiedAt`; successful email verification persists `users.email_verified_at`.
+- `GET /me` includes `emailVerified`, `emailVerifiedAt`, and `emailVerification`; successful email verification persists `users.email_verified_at`.
+- Email verification and password reset request responses include neutral `policy` metadata for rate-limit/cooldown hints, token TTL, and duplicate pending token handling. Frontend must still render neutral request copy and must not rely on response differences to infer whether an account exists.
 
 Email delivery contract:
 
