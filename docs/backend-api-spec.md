@@ -297,18 +297,28 @@ Identity verification skeleton:
   identity verification.
 - `GET /api/v1/me/trust` returns `accountState` with
   `signupAllowedWithoutIdentityVerification`, `identityVerificationBeforeSignupRequired`,
-  derived `ageGate`, `cleanMode`, and non-sensitive identity storage policy.
+  derived `identityVerified`, `ageBand`, `minor`, `cleanModeRequired`,
+  `ageGate`, `cleanMode`, and non-sensitive identity storage policy.
   Minor clean mode is enforced only when a verified provider birth date proves
   the user is under the configured adult threshold.
 - `POST /api/v1/me/identity-verifications` accepts `{ "provider": "nice",
-  "method": "mobile_phone" | "phone" | "ipin" }` and records only an
-  `unverified` request marker.
+  "method": "mobile_phone" | "phone" | "ipin" }`. When the NICE provider is not
+  configured, the endpoint fails closed with
+  `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED`, `requestStarted: false`, and
+  `messageKey = identityVerification.providerNotConnected` without creating a
+  verification marker. When provider credentials are configured but the adapter
+  is still a skeleton, the endpoint may record only an `unverified` request
+  marker and must not report a successful identity verification.
 - `POST /api/v1/me/identity-verifications/self/confirm` accepts `{ "token":
   "<provider-token>" }` but currently fails closed with
   `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED` and
   `messageKey = identityVerification.providerNotConnected`.
 - Invalid confirmation paths return `IDENTITY_VERIFICATION_INVALID_ID` with
   `messageKey = identityVerification.invalidId`.
+- Account identity count limits are exposed only as policy flags
+  (`enabled: false`, `enforced: false`, `enforcement: policy_flag_only`) until a
+  real provider supplies a stable identity subject hash. They are not connected
+  to wallet, Lumina, settlement, payout, or reward payout mutations.
 - Resident registration numbers, raw identity documents, raw provider tokens,
   NICE raw names, NICE raw phone numbers, and provider secrets must not be
   stored in Git, Notion, chat, or database application metadata.

@@ -33,6 +33,10 @@ type PrismaMock = {
   userRefreshToken: {
     updateMany: jest.Mock;
   };
+  userIdentityVerification: {
+    findUnique: jest.Mock;
+    upsert: jest.Mock;
+  };
   $transaction: jest.Mock;
 };
 
@@ -59,6 +63,10 @@ function createPrismaMock(): PrismaMock {
     },
     userRefreshToken: {
       updateMany: jest.fn(),
+    },
+    userIdentityVerification: {
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -388,10 +396,15 @@ describe('AuthService action token flows', () => {
 
     await expect(service.getMyTrust(userId)).resolves.toMatchObject({
       accountState: {
+        identityVerified: true,
+        ageBand: 'under_19',
+        minor: true,
+        cleanModeRequired: true,
         signupAllowedWithoutIdentityVerification: true,
         identityVerificationBeforeSignupRequired: false,
         ageGate: {
           status: 'minor',
+          ageBand: 'under_19',
           isMinor: true,
           isAdult: false,
           adultThresholdYears: 19,
@@ -403,12 +416,53 @@ describe('AuthService action token flows', () => {
           mode: 'minor_protected',
           signupBlocking: false,
         },
+        accountLimit: {
+          enabled: false,
+          enforced: false,
+          enforcement: 'policy_flag_only',
+        },
       },
       policy: {
         signupAllowedWithoutIdentityVerification: true,
         identityVerificationBeforeSignupRequired: false,
         minorCleanModeEnforcedWhenVerifiedMinor: true,
+        identityVerificationAccountLimit: {
+          enabled: false,
+          enforced: false,
+          enforcement: 'policy_flag_only',
+        },
       },
     });
+  });
+
+  it('fails closed before creating an identity verification when provider is not configured', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.user.findFirst.mockResolvedValue({
+      id: userId,
+      identityVerification: null,
+    });
+
+    await expect(
+      service.requestIdentityVerification(userId, {
+        provider: 'nice',
+        method: 'mobile_phone',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED',
+        messageKey: 'identityVerification.providerNotConnected',
+        statusCode: 501,
+        requestStarted: false,
+        verification: {
+          status: 'unverified',
+          identityVerified: false,
+          ageBand: 'unknown',
+          minor: null,
+          cleanModeRequired: false,
+        },
+      },
+    });
+    expect(prisma.userIdentityVerification.upsert).not.toHaveBeenCalled();
   });
 });

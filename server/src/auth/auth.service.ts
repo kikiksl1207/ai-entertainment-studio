@@ -111,8 +111,10 @@ type IdentityVerificationSummaryRecord = {
   expiresAt: Date | null;
   birthDate?: Date | null;
 };
+type AccountAgeBand = 'unknown' | 'under_19' | 'adult_19_plus';
 type AccountAgeGate = {
   status: 'unknown' | 'minor' | 'adult';
+  ageBand: AccountAgeBand;
   isMinor: boolean | null;
   isAdult: boolean | null;
   ageYears: number | null;
@@ -572,7 +574,8 @@ export class AuthService {
       : [
           {
             code: 'identity_verification_required',
-            title: 'Identity verification required',
+            titleKey: 'identityVerification.required.title',
+            messageKey: 'identityVerification.required',
             appliesTo: [
               'referral_reward',
               'paid_support',
@@ -590,6 +593,9 @@ export class AuthService {
         identityVerified,
         identityVerificationProvider: identityVerification.provider,
         identityProviderStatus,
+        ageBand: identityVerification.ageBand,
+        minor: identityVerification.minor,
+        cleanModeRequired: identityVerification.cleanModeRequired,
         referralEligible: identityVerified,
         paidSupportEligible: identityVerified,
         creatorSettlementEligible:
@@ -607,10 +613,18 @@ export class AuthService {
         payoutExceptionApproved,
       },
       accountLimit: {
+        enabled: false,
+        enforced: false,
         maxAccountsPerIdentity: 3,
         currentAccountsForIdentity: identityVerified ? 1 : null,
-        basis: identityVerified ? 'phone_number_mvp' : 'unverified',
-        enforcement: 'advisory_mvp',
+        basis:
+          identityVerification.provider === 'phone_number_mvp'
+            ? 'phone_number_mvp'
+            : identityVerified
+              ? 'identity_subject_hash_after_provider_verification'
+              : 'unverified',
+        enforcement: 'policy_flag_only',
+        messageKey: 'account.identityVerification.accountLimit',
       },
       roles: {
         admin: hasActiveAdminAccess
@@ -628,6 +642,14 @@ export class AuthService {
         referralRewardRequiresIdentityVerification: true,
         creatorSettlementRequiresIdentityVerification: true,
         creatorSettlementRequiresPayoutAccount: true,
+        identityVerificationAccountLimit: {
+          enabled: false,
+          enforced: false,
+          maxAccountsPerIdentity: 3,
+          basis: 'identity_subject_hash_after_provider_verification',
+          enforcement: 'policy_flag_only',
+          messageKey: 'account.identityVerification.accountLimit',
+        },
         guestBrowsingAllowed: true,
         signupAllowedWithoutIdentityVerification:
           accountState.signupAllowedWithoutIdentityVerification,
@@ -658,6 +680,14 @@ export class AuthService {
         adultThresholdYears: 19,
         minorCleanModeEnforcedWhenVerifiedMinor: true,
         cleanModeSource: 'verified_birth_date_only',
+        accountLimit: {
+          enabled: false,
+          enforced: false,
+          maxAccountsPerIdentity: 3,
+          basis: 'identity_subject_hash_after_provider_verification',
+          enforcement: 'policy_flag_only',
+          messageKey: 'account.identityVerification.accountLimit',
+        },
         supportedProviders: ['nice'],
         phoneAndIpinPlanned: true,
         launchMode: 'provider_adapter_stub',
@@ -693,6 +723,14 @@ export class AuthService {
       return this.identityVerificationRequestView(
         user.identityVerification,
         providerStatus,
+        method,
+      );
+    }
+
+    if (!providerStatus.configured) {
+      throw this.identityVerificationProviderNotConnectedException(
+        providerStatus,
+        user.identityVerification ?? null,
         method,
       );
     }
@@ -753,24 +791,11 @@ export class AuthService {
     });
     const tokenReceived = input.token.trim().length > 0;
 
-    throw new HttpException(
-      {
-        code: 'IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED',
-        message: 'Identity verification provider adapter is not connected yet.',
-        messageKey: 'identityVerification.providerNotConnected',
-        statusCode: HttpStatus.NOT_IMPLEMENTED,
-        verificationId: 'self',
-        tokenReceived,
-        verification: record
-          ? this.identityVerificationSummary(record)
-          : this.identityVerificationSummary(null),
-        providerStatus,
-        nextAction: this.identityVerificationNextAction(
-          providerStatus,
-          record?.status ?? 'unverified',
-        ),
-      },
-      HttpStatus.NOT_IMPLEMENTED,
+    throw this.identityVerificationProviderNotConnectedException(
+      providerStatus,
+      record,
+      undefined,
+      { tokenReceived },
     );
   }
 
@@ -2371,6 +2396,35 @@ export class AuthService {
     };
   }
 
+  private identityVerificationProviderNotConnectedException(
+    providerStatus: IdentityVerificationProviderStatus,
+    record: IdentityVerificationSummaryRecord | null,
+    method?: IdentityVerificationMethod,
+    details: Record<string, unknown> = {},
+  ) {
+    const verification = this.identityVerificationSummary(record);
+
+    return new HttpException(
+      {
+        code: 'IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED',
+        message: 'Identity verification provider adapter is not connected yet.',
+        messageKey: 'identityVerification.providerNotConnected',
+        statusCode: HttpStatus.NOT_IMPLEMENTED,
+        verificationId: 'self',
+        method,
+        requestStarted: false,
+        verification,
+        providerStatus,
+        nextAction: this.identityVerificationNextAction(
+          providerStatus,
+          verification.status,
+        ),
+        details,
+      },
+      HttpStatus.NOT_IMPLEMENTED,
+    );
+  }
+
   private settlementProfilePolicy() {
     return {
       rawAccountNumberStored: false,
@@ -2393,10 +2447,14 @@ export class AuthService {
       return {
         status: record.status,
         provider: record.provider,
+        identityVerified: record.status === 'verified',
         verifiedNameMasked: record.verifiedNameMasked,
         verifiedAt: record.verifiedAt,
         expiresAt: record.expiresAt,
         birthDateStatus: record.birthDate ? 'stored_date_only' : 'not_collected',
+        ageBand: ageGate.ageBand,
+        minor: ageGate.isMinor,
+        cleanModeRequired: this.cleanModePolicy(ageGate).required,
         ageGate,
         cleanMode: this.cleanModePolicy(ageGate),
       };
@@ -2408,10 +2466,14 @@ export class AuthService {
       return {
         status: 'verified',
         provider: 'phone_number_mvp',
+        identityVerified: true,
         verifiedNameMasked: null,
         verifiedAt: null,
         expiresAt: null,
         birthDateStatus: 'not_collected',
+        ageBand: ageGate.ageBand,
+        minor: ageGate.isMinor,
+        cleanModeRequired: this.cleanModePolicy(ageGate).required,
         ageGate,
         cleanMode: this.cleanModePolicy(ageGate),
       };
@@ -2422,10 +2484,14 @@ export class AuthService {
     return {
       status: 'unverified',
       provider: null,
+      identityVerified: false,
       verifiedNameMasked: null,
       verifiedAt: null,
       expiresAt: null,
       birthDateStatus: 'not_collected',
+      ageBand: ageGate.ageBand,
+      minor: ageGate.isMinor,
+      cleanModeRequired: this.cleanModePolicy(ageGate).required,
       ageGate,
       cleanMode: this.cleanModePolicy(ageGate),
     };
@@ -2434,6 +2500,10 @@ export class AuthService {
   private accountStatePolicy(identityVerification: ReturnType<AuthService['identityVerificationSummary']>) {
     return {
       accountStatus: identityVerification.status,
+      identityVerified: identityVerification.identityVerified,
+      ageBand: identityVerification.ageBand,
+      minor: identityVerification.minor,
+      cleanModeRequired: identityVerification.cleanModeRequired,
       signupAllowedWithoutIdentityVerification: true,
       identityVerificationBeforeSignupRequired: false,
       ageGate: identityVerification.ageGate,
@@ -2451,6 +2521,14 @@ export class AuthService {
         verifiedNameStorage: 'masked_only',
         birthDateStorage: 'date_only_after_provider_verification',
         identitySubjectStorage: 'hash_only',
+      },
+      accountLimit: {
+        enabled: false,
+        enforced: false,
+        maxAccountsPerIdentity: 3,
+        basis: 'identity_subject_hash_after_provider_verification',
+        enforcement: 'policy_flag_only',
+        messageKey: 'account.identityVerification.accountLimit',
       },
     };
   }
@@ -2471,6 +2549,7 @@ export class AuthService {
     if (!verifiedProviderBirthDate) {
       return {
         status: 'unknown',
+        ageBand: 'unknown',
         isMinor: null,
         isAdult: null,
         ageYears: null,
@@ -2485,6 +2564,7 @@ export class AuthService {
 
     return {
       status: isAdult ? 'adult' : 'minor',
+      ageBand: isAdult ? 'adult_19_plus' : 'under_19',
       isMinor: !isAdult,
       isAdult,
       ageYears,

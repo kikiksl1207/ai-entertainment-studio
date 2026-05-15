@@ -1331,3 +1331,34 @@ blocked_by:
 - none for branch-level validation.
 next_needed:
 - QR QA delivery status/provider filter contract, then Chamo final completion/archive judgment.
+
+---
+
+status: completed
+task: #249 identity verification and account trust skeleton
+branch/commit: team2-backend/identity-trust-skeleton-249 / this commit
+changed_files:
+- server/src/auth/auth.service.ts
+- server/src/auth/auth.service.spec.ts
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/trust-identity-abuse-policy.md
+- docs/ops/inbox/builder-a.md
+tests:
+- PASS: npx.cmd prisma generate
+- PASS: npm.cmd test -- auth.service.spec.ts --runInBand
+- PASS: npm.cmd run lint
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Identity verification request now fails closed before creating a request marker when the NICE provider is not configured.
+- Confirm remains fail-closed until the real provider adapter/callback/signature verification is connected.
+- Account trust now exposes non-secret derived fields: identityVerified, ageBand, minor, and cleanModeRequired.
+- Account identity count limit is documented and returned as a policy-only flag, not an enforced mutation path.
+- No wallet, Lumina, settlement, payout, or paid-like reward mutation integration was added.
+sensitive_data:
+- none recorded.
+blocked_by:
+- real NICE provider contract/keys/adapter are still required before successful verification can be opened.
+next_needed:
+- Viewer review, then QR QA on fail-closed request/confirm and read-only trust contract.

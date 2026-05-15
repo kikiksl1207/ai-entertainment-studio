@@ -156,13 +156,22 @@ Implementation status:
   NICE-first provider skeleton with account policy flags.
 - `GET /api/v1/me/trust` returns `accountState` with
   `signupAllowedWithoutIdentityVerification: true`,
-  `identityVerificationBeforeSignupRequired: false`, derived `ageGate`,
+  `identityVerificationBeforeSignupRequired: false`, derived
+  `identityVerified`, `ageBand`, `minor`, `cleanModeRequired`, `ageGate`,
   `cleanMode`, and non-sensitive storage policy.
-- `POST /api/v1/me/identity-verifications` records only an `unverified`
-  request marker and non-sensitive metadata.
+- `POST /api/v1/me/identity-verifications` fails closed before creating a
+  request marker when the NICE provider is not configured. The response uses
+  `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED`,
+  `messageKey = identityVerification.providerNotConnected`, and
+  `requestStarted: false`.
+- When provider credentials exist but the real adapter is still a skeleton,
+  request can record only an `unverified` marker and non-sensitive metadata.
 - `POST /api/v1/me/identity-verifications/self/confirm` fails closed with
   `IDENTITY_VERIFICATION_PROVIDER_NOT_CONNECTED` until the real NICE callback
   and signature verification contract are connected.
+- Account identity count limits are exposed as policy flags only
+  (`enabled: false`, `enforced: false`, `enforcement: policy_flag_only`) until a
+  real provider subject hash exists.
 - The server must not store resident registration numbers, raw identity
   documents, NICE raw names/phone numbers, raw provider tokens, or provider
   secrets.
