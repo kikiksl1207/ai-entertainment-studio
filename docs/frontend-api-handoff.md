@@ -1304,20 +1304,50 @@ Success:
 }
 ```
 
-Admin statuses are `submitted`, `reviewing`, `needs_more_info`, `approved`, `rejected`, and `withdrawn`. The backend also accepts `under_review` as a compatibility alias and stores it as `reviewing`.
+Admin read-only status candidates are `submitted`, `reviewing`,
+`needs_more_info`, `approved_for_contact`, `rejected`, and `archived`. Legacy
+`under_review`, `approved`, and `withdrawn` records are normalized in read-only
+responses as `reviewing`, `approved_for_contact`, and `archived`.
 
 Admin/operations endpoints for phone consultation queue:
 
 ```http
 GET /admin/api/v1/debut/applications?status=submitted&applicationChannel=phone_consultation&applicationType=represented_artist&rightsReviewRequired=true&consultationStatus=pending&query=seo&take=50&cursor=<nextCursor>
 GET /admin/api/v1/debut/applications/:applicationId
-PATCH /admin/api/v1/debut/applications/:applicationId
 ```
+
+Do not hardcode host-root `/admin/api/v1/...` for deployed calls unless the API
+base URL already includes `/api/v1`. With the deployed host root as base, the
+current external paths are:
+
+```http
+GET /api/v1/admin/api/v1/debut/applications?status=submitted&take=50
+GET /api/v1/admin/api/v1/debut/applications/:applicationId
+```
+
+Backstage/frontends should prefer the shared admin path helper/base convention
+for `/admin/api/v1/debut/...`.
 
 List response:
 
 ```json
 {
+  "readOnly": true,
+  "statusCandidates": [
+    "submitted",
+    "reviewing",
+    "needs_more_info",
+    "approved_for_contact",
+    "rejected",
+    "archived"
+  ],
+  "privateMaterialPolicy": {
+    "metadataOnly": true,
+    "publicUrlReturned": false,
+    "signedReadUrlReturned": false,
+    "originalFileUrlReturned": false,
+    "storageKeyReturned": false
+  },
   "items": [],
   "count": 0,
   "hasMore": false,
@@ -1328,25 +1358,20 @@ List response:
 Use `nextCursor` as the next request's `cursor`. `query` searches applicant
 name, display name, contact email/phone, intro, and linked user email.
 
-Admin PATCH can update review and consultation metadata together:
+List/detail responses expose masked contact fields plus submitted date,
+application channel, application type, material categories, and private material
+metadata only. They must not expose private signed URLs, original file URLs,
+storage keys, object ETags, secrets, or tokens.
 
-```json
-{
-  "status": "reviewing",
-  "consultationStatus": "scheduled",
-  "consultationScheduledAt": "2026-05-03T10:00:00.000Z",
-  "consultationNote": "Requested evening call. First contact scheduled.",
-  "rightsReviewStatus": "reviewing",
-  "rightsReviewNote": "Agency relationship should be confirmed before production review.",
-  "partnerReviewStatus": "not_applicable",
-  "reviewNote": "Phone consultation queue"
-}
-```
+Admin PATCH/status mutation is not open in this contract. If review state
+changes are needed, treat them as a separate backend-first mutation contract.
 
 Allowed `consultationStatus`: `pending`, `scheduled`, `contacted`, `no_answer`, `completed`.
 Allowed `rightsReviewStatus`: `not_required`, `pending`, `reviewing`, `cleared`, `blocked`.
 Allowed `partnerReviewStatus`: `not_applicable`, `pending`, `reviewing`, `accepted`, `declined`.
-The consultation, applicant-type, rights-review, and partner-review fields are stored in `application.metadata` until operations volume proves which fields deserve real DB columns.
+The consultation, applicant-type, rights-review, and partner-review fields are
+stored in `application.metadata` until operations volume proves which fields
+deserve real DB columns.
 
 Frontend first form sections:
 

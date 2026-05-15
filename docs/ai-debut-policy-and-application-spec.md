@@ -248,8 +248,19 @@ GET /api/v1/me/debut-applications/latest
 POST /api/v1/me/debut-applications/:applicationId/withdraw
 GET /admin/api/v1/debut/applications?status=submitted&take=50
 GET /admin/api/v1/debut/applications/:applicationId
-PATCH /admin/api/v1/debut/applications/:applicationId
 ```
+
+The admin debut endpoints above are read-only in the first operations contract.
+For deployed host-root calls, use the current external route shape:
+
+```http
+GET /api/v1/admin/api/v1/debut/applications?status=submitted&take=50
+GET /api/v1/admin/api/v1/debut/applications/:applicationId
+```
+
+If the client base/helper already includes `/api/v1`, use the relative
+`/admin/api/v1/debut/...` path. Status mutation remains a future contract and is
+not open here.
 
 Current table:
 
@@ -308,7 +319,10 @@ Phone-consultation operations:
 
 - Admin list can filter `applicationChannel=phone_consultation` and `consultationStatus=pending|scheduled|contacted|no_answer|completed`.
 - Admin detail is available at `GET /admin/api/v1/debut/applications/:applicationId`.
-- Admin PATCH can store `consultationStatus`, `consultationScheduledAt`, and `consultationNote` in metadata.
+- Admin list/detail responses expose masked contact fields and private applicant
+  material metadata only. They must not expose signed read URLs, original file
+  URLs, storage keys, object ETags, secrets, or tokens.
+- Admin status/consultation mutation is not open in this contract.
 - These fields stay in metadata during MVP so operations can learn the real workflow before schema hardening.
 
 ## 10. Backend Follow-Up
