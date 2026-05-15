@@ -147,25 +147,45 @@
                 <label class="mypage-field">
                   <span>계정 방식</span>
                   <input id="mypagePasswordState" type="text" value="-" readonly />
-                  <small>비밀번호 관리는 아래 비밀번호 탭에서 진행합니다.</small>
+                  <small id="mypagePasswordHint">비밀번호 변경은 비밀번호 탭에서 진행할 수 있어요.</small>
                 </label>
+              </div>
+
+              <!-- #248 — 비밀번호 탭 진입점 (계정 유형별 안내 + 직접 점프) -->
+              <div class="mypage-password-jump" id="mypagePasswordJump">
+                <div>
+                  <strong id="mypagePasswordJumpTitle">비밀번호 관리</strong>
+                  <p id="mypagePasswordJumpBody">계정 유형에 맞춰 비밀번호 변경 또는 재설정으로 안내드려요.</p>
+                </div>
+                <button type="button" class="button-secondary" id="mypagePasswordJumpAction" data-mypage-tab-jump="security">비밀번호 탭으로 가기</button>
               </div>
 
               <div class="mypage-action-row">
                 <button class="button-primary" type="button" id="mypageSaveProfile">프로필 저장</button>
               </div>
 
-              <!-- #204 v1 — 칭호 라이브러리 미리보기. 보유/설정 저장 mutation 없음. -->
+              <!-- #204 v1 + #248 — 대표 칭호 라이브러리.
+                   보유 mutation 없음. 활동 데이터 도착 전까지는 미리보기 단계지만,
+                   대표/추천/획득/미획득 시각 구분과 카테고리 필터를 미리 깔아둠. -->
               <section class="mypage-title-block" aria-labelledby="mypageTitleHeading">
-                <div class="mypage-section-subhead" style="margin-top:24px;">
+                <div class="mypage-section-subhead">
                   <div>
                     <span class="eyebrow" style="display:block;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:0.04em;">TITLES · 칭호 라이브러리</span>
-                    <h3 id="mypageTitleHeading" style="margin:4px 0 0;font-size:15px;font-weight:700;letter-spacing:0;">달고 싶은 한 줄 — 칭호</h3>
-                    <p style="margin:6px 0 0;font-size:13px;font-weight:500;color:rgba(220,210,240,0.65);letter-spacing:0;">활동이 쌓이면 대표 칭호 한 줄을 골라 프로필에 달 수 있어요. 지금은 미리보기 단계예요.</p>
+                    <h3 id="mypageTitleHeading" style="margin:6px 0 0;font-size:16px;font-weight:700;letter-spacing:0;">달고 싶은 한 줄 — 칭호</h3>
+                    <p style="margin:8px 0 0;font-size:13px;font-weight:500;color:rgba(220,210,240,0.65);line-height:1.6;letter-spacing:0;">활동이 쌓이면 이 중에서 대표 칭호 한 줄을 골라 프로필에 달 수 있어요. 미획득 칭호는 음영으로 보이고, 획득 조건이 짧게 뜨도록 마련했어요.</p>
                   </div>
                 </div>
+                <!-- #248 — 카테고리/상태 필터 (클라이언트 사이드 토글) -->
+                <div class="mypage-title-filter" id="mypageTitleFilter" role="tablist" aria-label="칭호 필터">
+                  <button type="button" class="is-active" data-title-filter="all">전체</button>
+                  <button type="button" data-title-filter="owned">획득</button>
+                  <button type="button" data-title-filter="locked">미획득</button>
+                  <button type="button" data-title-filter="suggested">추천</button>
+                  <button type="button" data-title-filter="rare">희귀</button>
+                </div>
                 <div class="mypage-title-chips" id="mypageTitleChips" role="list" aria-label="칭호 미리보기"></div>
-                <p class="mypage-title-foot">대표 칭호 설정은 곧 열려요. 활동을 쌓아두면 가장 잘 어울리는 한 줄을 추천해 드릴게요.</p>
+                <div class="mypage-title-empty" id="mypageTitleEmpty" hidden>아직 이 조건에 맞는 칭호가 없어요.</div>
+                <p class="mypage-title-foot" id="mypageTitleFoot">대표 칭호 설정은 곧 열려요. 활동을 쌓아두면 가장 잘 어울리는 한 줄을 추천해 드릴게요.</p>
               </section>
             </section>
 
@@ -193,7 +213,7 @@
                 <strong>최근 지갑 내역을 불러오는 중입니다.</strong>
                 <p>충전, 응원, 해금, 환불 내역이 있으면 이곳에 표시됩니다.</p>
               </div>
-              <!-- #204 - Notion v1: beginner reward group copy -->
+              <!-- #204 — 노션 v1: 초보자 보상 그룹명을 '처음 켠 조명'으로 -->
               <div class="mypage-section-subhead" style="margin-top:18px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
                 <div>
                   <span class="eyebrow" style="display:block;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:0.04em;">ACHIEVEMENT · 처음 켠 조명</span>
@@ -277,10 +297,16 @@
                 </div>
                 <button class="button-secondary" type="button" id="mypageChangePassword">비밀번호 변경</button>
               </div>
+              <!-- #248 — 계정 유형별 안내 박스 (이메일 계정 / 소셜 전용 자동 분기) -->
               <div class="mypage-empty" id="mypagePasswordGuide">
-                <strong>비밀번호 관리는 별도 화면으로 분리했습니다.</strong>
-                <p>이메일 계정은 비밀번호를 변경할 수 있고, 소셜 전용 계정은 별도 비밀번호 설정 정책을 따릅니다.</p>
+                <strong id="mypagePasswordGuideTitle">비밀번호 관리</strong>
+                <p id="mypagePasswordGuideBody">이메일 계정은 비밀번호를 변경할 수 있고, 소셜 전용 계정은 별도 비밀번호 설정 정책을 따릅니다.</p>
               </div>
+              <!-- #248 — 대체 행동: 이메일 계정용 재설정 메일 받기 (#247 흐름 재사용) -->
+              <div class="mypage-action-row" id="mypagePasswordActions">
+                <button type="button" class="button-secondary" id="mypageSendResetEmail" hidden>이메일로 재설정 메일 받기</button>
+              </div>
+              <p class="mypage-foot-note" id="mypagePasswordActionsNote" hidden></p>
             </section>
 
             <section class="mypage-panel" data-mypage-panel="settings" id="settings">
@@ -383,44 +409,117 @@
     </footer>
 
     <script src="./data/characters.js"></script>
+    <script src="./data/achievement-titles.js"></script>
     <script src="./pages/mypage.js"></script>
     <script src="./app.js"></script>
     <script>
+      /* #204 v1 + #248 — 칭호 라이브러리 렌더링.
+       * 사용자 보유 데이터는 추후 API (`mypageSummary.achievements`)에서 들어올 예정.
+       * 그 전까지는 추천(beginnerOnboarding.titleSuggestion)을 `is-suggested` 로 표시.
+       * 정렬: 대표(있으면) → 추천 → 일반 → 미획득. 미획득은 옅게 + 점선 + 조건 노출.
+       * 카테고리/상태 필터는 클라이언트 사이드 토글. 보유 mutation 없음. */
       (function renderTitleChipsPreview() {
+        const data = window.LuminaAchievementTitles;
         const wrap = document.getElementById("mypageTitleChips");
-        if (!wrap) return;
-        const tiers = {
-          soft: { surface: "rgba(180, 140, 255, 0.16)", ink: "#d6b8ff", glow: "linear-gradient(135deg, #b48cff 0%, #d6b8ff 100%)" },
-          pink: { surface: "rgba(255, 79, 195, 0.18)", ink: "#ff9ad0", glow: "linear-gradient(135deg, #ff4fc3 0%, #ff9ad0 100%)" },
-          stage: { surface: "rgba(155, 124, 247, 0.18)", ink: "#c8a8ff", glow: "linear-gradient(135deg, #9b7cf7 0%, #ff4fc3 100%)" },
-          spot: { surface: "rgba(90, 58, 168, 0.22)", ink: "#f4c97a", glow: "linear-gradient(135deg, #5a3aa8 0%, #f4c97a 100%)" }
-        };
-        const titles = [
-          ["첫 조명을 켠 팬", "soft"], ["무대의 첫 줄", "soft"], ["조용한 응원자", "pink"], ["핑크 시그널", "pink"],
-          ["오늘의 객석", "soft"], ["루미나 메이트", "soft"], ["일주일의 조명", "stage"], ["오래 켠 스포트라이트", "stage"],
-          ["무드 캐처", "pink"], ["피드의 온도", "pink"], ["한 줄의 응원", "pink"], ["팬레터 라이터", "stage"],
-          ["취향 큐레이터", "stage"], ["픽의 시작", "pink"], ["오늘의 선택자", "stage"], ["무대 뒤 친구", "soft"],
-          ["내 무대의 주인", "stage"], ["첫 데뷔 응원단", "pink"], ["크리에이터 서포터", "stage"], ["백스테이지 프렌드", "stage"],
-          ["루미나 키퍼", "spot"], ["새벽의 관객", "stage"], ["스테이지 리스너", "pink"], ["별빛을 모으는 사람", "spot"]
-        ];
-        wrap.innerHTML = "";
-        titles.forEach(([label, tierKey]) => {
-          const tier = tiers[tierKey] || tiers.soft;
-          const chip = document.createElement("span");
-          chip.className = "mypage-title-chip is-locked";
-          chip.setAttribute("role", "listitem");
-          chip.style.setProperty("--chip-surface", tier.surface);
-          chip.style.setProperty("--chip-ink", tier.ink);
-          const dot = document.createElement("i");
-          dot.className = "mypage-title-chip-dot";
-          dot.style.background = tier.glow;
-          dot.setAttribute("aria-hidden", "true");
-          const text = document.createElement("span");
-          text.className = "mypage-title-chip-label";
-          text.textContent = label;
-          chip.append(dot, text);
-          wrap.append(chip);
-        });
+        const emptyEl = document.getElementById("mypageTitleEmpty");
+        const filterBar = document.getElementById("mypageTitleFilter");
+        if (!data || !wrap) return;
+
+        // 추천 칭호 키 셋 (#204 beginnerOnboarding titleSuggestion 기반)
+        const suggestedKeys = new Set(
+          (data.beginnerOnboarding || []).map(b => b.titleSuggestion).filter(Boolean)
+        );
+        // 희귀: spotlight 등급
+        const rareTier = "spotlight";
+
+        // 현재 사용자 보유/대표는 API 도착 전이라 모두 미획득. 추후 mypageSummary.achievements
+        // 같은 경로에서 owned 셋과 equipped 키를 받아 status 를 채우면 됨.
+        function buildSorted() {
+          const titles = data.titles.map((t) => ({
+            ...t,
+            owned: false,
+            equipped: false,
+            suggested: suggestedKeys.has(t.key),
+            rare: t.tier === rareTier
+          }));
+          // 정렬: equipped → suggested → owned → 미획득(나머지). 같은 그룹 내에서는 원본 순서 유지.
+          const score = (t) =>
+            (t.equipped ? 0 : 0) - (t.equipped ? 4 : 0)
+            - (t.suggested ? 3 : 0)
+            - (t.owned ? 2 : 0);
+          return titles.sort((a, b) => score(a) - score(b));
+        }
+
+        function chipStatus(title) {
+          if (title.equipped) return { className: "is-equipped", label: "대표" };
+          if (title.owned) return { className: "is-owned", label: "획득" };
+          if (title.suggested) return { className: "is-suggested is-locked", label: "추천" };
+          return { className: "is-locked", label: "미획득" };
+        }
+
+        const sorted = buildSorted();
+
+        function renderFiltered(filter) {
+          wrap.innerHTML = "";
+          let shown = 0;
+          sorted.forEach((title) => {
+            const status = chipStatus(title);
+            const passes =
+              filter === "all" ||
+              (filter === "owned" && (title.owned || title.equipped)) ||
+              (filter === "locked" && !title.owned && !title.equipped) ||
+              (filter === "suggested" && title.suggested) ||
+              (filter === "rare" && title.rare);
+            if (!passes) return;
+            shown += 1;
+
+            const tier = data.getBadgeTier(title.tier);
+            const chip = document.createElement("span");
+            chip.className = "mypage-title-chip " + status.className;
+            chip.setAttribute("role", "listitem");
+            chip.dataset.tier = tier.key;
+            chip.dataset.titleKey = title.key;
+            chip.title = title.label + " · " + title.condition;
+            chip.style.setProperty("--chip-surface", tier.surface);
+            chip.style.setProperty("--chip-ink", tier.ink);
+
+            const dot = document.createElement("i");
+            dot.className = "mypage-title-chip-dot";
+            dot.style.background = tier.gradient;
+            dot.setAttribute("aria-hidden", "true");
+
+            const label = document.createElement("span");
+            label.className = "mypage-title-chip-label";
+            label.textContent = title.label;
+
+            const stateChip = document.createElement("span");
+            stateChip.className = "mypage-title-chip-state";
+            stateChip.textContent = status.label;
+
+            const tip = document.createElement("small");
+            tip.className = "mypage-title-chip-tip";
+            tip.textContent = title.condition;
+
+            chip.append(dot, label, stateChip, tip);
+            wrap.append(chip);
+          });
+          if (emptyEl) emptyEl.hidden = shown > 0;
+        }
+
+        // 초기 렌더 — 전체
+        renderFiltered("all");
+
+        // 필터 바인딩
+        if (filterBar) {
+          filterBar.addEventListener("click", (event) => {
+            const btn = event.target.closest("[data-title-filter]");
+            if (!btn) return;
+            filterBar.querySelectorAll("[data-title-filter]").forEach((el) =>
+              el.classList.toggle("is-active", el === btn)
+            );
+            renderFiltered(btn.dataset.titleFilter || "all");
+          });
+        }
       })();
     </script>
     <script>
@@ -532,27 +631,24 @@
             refunded: "환불 완료"
           }[status] || status || "";
         }
-        function isRawRewardCopy(value, code) {
-          const text = String(value || "").trim();
-          if (!text) return true;
-          if (code && text === String(code)) return true;
-          return /^[a-z0-9_:.|-]+$/i.test(text);
-        }
         // #204 — 노션 v1 톤 (조명/시그널/무드 계열, 게임식 표현 회피)
         // 초보자 온보딩 핵심 5개 + 확장 보상 코드까지 커버.
-        // fallback 도 raw code 대신 안전 라벨로 내려 raw enum 노출을 막는다.
+        // fallback 은 사용자에게 raw code 가 노출되지 않도록 안전 라벨로만 떨어진다.
         function rewardTitle(code) {
           return {
+            // 초보자 핵심 5
             first_login: "첫 조명 켜기",
             profile_basic_setup: "내 무대 정리",
             first_feed_like: "첫 응원 시그널",
             first_character_chat: "첫 팬 대화",
             first_popular_vote: "첫 픽 참여",
+            // 그 외 활동 (#204 v1 칭호와 1:1 매칭)
             first_feed_post: "피드의 첫 줄",
             first_follow: "무대의 첫 줄",
             first_reply: "한 줄의 응원",
             seven_day_visit: "일주일의 조명",
             thirty_day_visit: "오래 켠 스포트라이트",
+            // 본인확인·결제 시그널 (큐알 #204 FAIL — raw code 노출 차단)
             identity_verification_bonus: "본인 확인 보상",
             first_charge_bonus: "첫 충전 시그널"
           }[code] || "참여 기록";
@@ -573,7 +669,7 @@
             first_charge_bonus: "처음으로 루미나를 충전하면 열려요."
           }[code] || "조금만 더 참여하면 열려요.";
         }
-        // #204 v1: 상태 라벨도 게임식 표현(완료/달성/획득) 회피
+        // #204 v1: 상태 라벨도 게임식 표현(완료/달성/획득) 회피 → 조명/시그널 톤
         function rewardStatusLabel(item) {
           if (item.claimed || item.claimStatus === "claimed") return "기록 완료";
           if (item.completed && item.claimStatus === "claimable_when_completed") return "보상 열림";
@@ -582,20 +678,15 @@
         }
         function normalizeRewardItems(data) {
           return list(data?.milestoneStatus || data?.items || data?.quests || data)
-            .map(item => {
-              const code = item.code || item.questCode || item.key;
-              const title = isRawRewardCopy(item.title, code) ? rewardTitle(code) : item.title;
-              const description = isRawRewardCopy(item.description, code) ? rewardDescription(code) : item.description;
-              return {
-                code,
-                title,
-                description,
-                amountLumina: item.amountLumina || item.rewardLumina || item.lumina || 0,
-                completed: !!item.completed,
-                claimed: !!item.claimed,
-                claimStatus: item.claimStatus || item.status
-              };
-            })
+            .map(item => ({
+              code: item.code || item.questCode || item.key,
+              title: item.title || rewardTitle(item.code || item.questCode || item.key),
+              description: item.description || rewardDescription(item.code || item.questCode || item.key),
+              amountLumina: item.amountLumina || item.rewardLumina || item.lumina || 0,
+              completed: !!item.completed,
+              claimed: !!item.claimed,
+              claimStatus: item.claimStatus || item.status
+            }))
             .filter(item => item.code);
         }
         function renderActivationRewards(items) {
@@ -774,9 +865,51 @@
           setValue("mypageProfileEmail", user.email || "-");
           setValue("mypageNickname", user.displayName || "");
           setValue("mypagePasswordState", user.isSocialOnly ? "소셜 전용 계정" : (user.hasPassword ? "비밀번호 설정됨" : "비밀번호 미설정"));
-          setText("mypagePasswordGuide", user.isSocialOnly
-            ? "소셜 전용 계정입니다. 비밀번호 최초 설정이 필요하면 별도 설정 API 연결 후 진행합니다."
-            : "이메일 계정입니다. 비밀번호 변경은 이 탭의 버튼으로 진행합니다.");
+
+          // #248 — 프로필 탭의 비밀번호 진입 안내 / security 탭 안내 / 대체 행동 버튼 동시 갱신
+          const isSocialOnly = !!user.isSocialOnly;
+          const hasPassword = !!user.hasPassword;
+
+          // 프로필 탭의 small hint
+          setText("mypagePasswordHint", isSocialOnly
+            ? "소셜 로그인 전용 계정이에요. 별도 비밀번호 없이 소셜로 로그인하면 돼요."
+            : "비밀번호 변경 또는 잊었을 때 재설정 메일을 받을 수 있어요.");
+
+          // 프로필 탭의 비밀번호 점프 카드
+          const jumpTitle = $("mypagePasswordJumpTitle");
+          const jumpBody = $("mypagePasswordJumpBody");
+          const jumpAction = $("mypagePasswordJumpAction");
+          if (jumpTitle) jumpTitle.textContent = isSocialOnly ? "소셜 전용 계정이에요" : "비밀번호 관리";
+          if (jumpBody) {
+            jumpBody.textContent = isSocialOnly
+              ? "구글·카카오·네이버·애플로 가입한 계정이에요. 별도 비밀번호 없이 소셜 로그인으로 들어와요."
+              : (hasPassword
+                ? "비밀번호 변경이나 재설정 메일 받기를 비밀번호 탭에서 할 수 있어요."
+                : "비밀번호가 아직 설정되어 있지 않아요. 비밀번호 탭에서 새로 설정해 주세요.");
+          }
+          if (jumpAction) {
+            jumpAction.textContent = isSocialOnly ? "비밀번호 탭 살펴보기" : "비밀번호 탭으로 가기";
+          }
+
+          // security 탭의 안내 + 대체 행동 버튼
+          setText("mypagePasswordGuideTitle", isSocialOnly ? "소셜 전용 계정" : "비밀번호 관리");
+          setText("mypagePasswordGuideBody", isSocialOnly
+            ? "별도 비밀번호 없이 소셜 로그인으로만 들어오는 계정이에요. 비밀번호 변경/재설정은 사용하지 않아도 돼요."
+            : (hasPassword
+              ? "현재 비밀번호를 알고 있다면 위 \"비밀번호 변경\" 버튼으로 바꿀 수 있어요. 비밀번호가 기억나지 않으면 이메일로 재설정 메일을 받아주세요."
+              : "비밀번호가 아직 설정되어 있지 않아요. 새 비밀번호 설정은 \"비밀번호 변경\" 버튼으로 진행할 수 있어요."));
+
+          const changeBtn = $("mypageChangePassword");
+          if (changeBtn) {
+            changeBtn.hidden = isSocialOnly;
+            changeBtn.disabled = isSocialOnly;
+          }
+          const resetBtn = $("mypageSendResetEmail");
+          if (resetBtn) {
+            // 이메일 계정 + 비밀번호 설정됨 일 때만 노출 (소셜 전용은 무의미)
+            resetBtn.hidden = isSocialOnly || !hasPassword;
+            resetBtn.dataset.email = user.email || "";
+          }
 
           if (user.canChangeNickname === false && user.nicknameNextChangeAt) {
             setText("mypageNicknameStatus", shortDate(user.nicknameNextChangeAt) + " 이후 다시 변경할 수 있습니다.");
@@ -1029,10 +1162,72 @@
           }
         }
 
+        // #248 — 비밀번호 탭으로 점프하는 진입 버튼.
+        // 탭 전환 로직 (initMypageTabs) 안의 showTab 은 클로저라 외부에서 호출 못 하므로
+        // 동일 효과를 위해 해당 탭 버튼을 프로그램적으로 클릭한다.
+        function jumpToMypageTab(tabKey) {
+          if (!tabKey) return;
+          const tabBtn = document.querySelector(`.mypage-tab[data-mypage-tab="${tabKey}"]`);
+          if (tabBtn) tabBtn.click();
+          // 해시 동기화는 탭 클릭 핸들러가 처리. URL fragment 스크롤은 별도.
+          const panel = document.getElementById(tabKey);
+          if (panel && typeof panel.scrollIntoView === "function") {
+            try { panel.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (_) {}
+          }
+        }
+
+        // #248 — security 탭의 \"이메일로 재설정 메일 받기\".
+        // #247 의 POST /api/v1/auth/password-resets 흐름을 재사용. 성공/실패 모두 중립 안내.
+        async function sendMypageResetEmail() {
+          const btn = $("mypageSendResetEmail");
+          const note = $("mypagePasswordActionsNote");
+          if (!btn) return;
+          const email = btn.dataset.email || mypageSummary?.user?.email || "";
+          if (!email) {
+            if (note) {
+              note.textContent = "이메일 정보를 찾지 못했어요. 잠시 후 다시 시도해 주세요.";
+              note.hidden = false;
+            }
+            return;
+          }
+          const originalText = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = "메일 보내는 중...";
+          const neutralMsg = "입력한 이메일로 비밀번호 재설정 안내를 보냈어요. 메일함을 확인해 주세요.";
+          try {
+            if (typeof apiFetch === "function") {
+              await apiFetch("/api/v1/auth/password-resets", {
+                method: "POST",
+                body: { email }
+              });
+            }
+            if (note) {
+              note.textContent = neutralMsg;
+              note.hidden = false;
+            }
+          } catch (err) {
+            if (note) {
+              // 5xx 만 실패 안내. 4xx 는 계정 존재 여부 노출 방지를 위해 중립 안내 유지.
+              note.textContent = (err?.status >= 500)
+                ? "메일을 보내지 못했어요. 잠시 뒤에 다시 시도해 주세요."
+                : neutralMsg;
+              note.hidden = false;
+            }
+          } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+          }
+        }
+
         function bindMypageActions() {
           $("mypageSaveProfile")?.addEventListener("click", saveMypageProfile);
           $("mypageChangePassword")?.addEventListener("click", changeMypagePassword);
           $("mypageSubmitPassword")?.addEventListener("click", submitMypagePassword);
+          // #248 — 비밀번호 탭 진입 버튼 + 재설정 메일 받기 버튼 바인딩
+          document.querySelectorAll("[data-mypage-tab-jump]").forEach(btn => {
+            btn.addEventListener("click", () => jumpToMypageTab(btn.dataset.mypageTabJump));
+          });
+          $("mypageSendResetEmail")?.addEventListener("click", sendMypageResetEmail);
           document.querySelectorAll("[data-dialog-close]").forEach(btn => btn.addEventListener("click", closePasswordDialog));
           $("mypagePasswordDialog")?.addEventListener("click", event => {
             if (event.target === $("mypagePasswordDialog")) closePasswordDialog();

@@ -8,6 +8,10 @@
     var(--bg);
 }
 
+.page-mypage [hidden] {
+  display: none !important;
+}
+
 .mypage-hero {
   padding: 56px 0 26px;
 }
@@ -19,10 +23,17 @@
   align-items: end;
 }
 
+/* #248 — 히어로 텍스트 겹침 해결: eyebrow 칩에 하단 여백,
+ * h1 line-height 0.95 → 1.08 로 살짝 키우고 데스크톱 최대 폰트 72 → 60px 로 다듬어
+ * 라벨/제목/설명 3블록이 깔끔히 분리되게. */
+.mypage-hero-copy .eyebrow {
+  margin-bottom: 14px;
+}
+
 .mypage-hero-copy h1 {
-  margin: 8px 0 12px;
-  font-size: clamp(38px, 7vw, 72px);
-  line-height: 0.95;
+  margin: 0 0 14px;
+  font-size: clamp(36px, 6vw, 60px);
+  line-height: 1.08;
   letter-spacing: -0.01em;
 }
 
@@ -844,26 +855,119 @@
   font-weight: 700;
 }
 
-/* #204 — 칭호 라이브러리 미리보기. 보유/설정 mutation 없이 톤만 확인한다. */
-.mypage-title-block {
+/* ──────────────────────────────────────────────
+ * #204 v1 — 칭호 라이브러리 미리보기 (mypage 프로필 패널)
+ * 보유 mutation 없음. UI 진입 전 단계 칩 그리드만 표시.
+ * ────────────────────────────────────────────── */
+/* #248 — 프로필 탭 안 비밀번호 진입 카드 (탭으로 점프) */
+.mypage-password-jump {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 16px 18px;
+  border: 1px solid rgba(159, 139, 199, 0.2);
+  background: rgba(159, 139, 199, 0.06);
+  border-radius: 12px;
+}
+.mypage-password-jump > div {
+  min-width: 0;
+}
+.mypage-password-jump strong {
   display: block;
-  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(245, 240, 255, 0.92);
+  letter-spacing: 0;
+  margin-bottom: 4px;
+}
+.mypage-password-jump p {
+  margin: 0;
+  font-size: 12.5px;
+  color: rgba(220, 210, 240, 0.62);
+  line-height: 1.55;
+  letter-spacing: 0;
+}
+.mypage-password-jump .button-secondary {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .mypage-password-jump {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .mypage-password-jump .button-secondary {
+    width: 100%;
+  }
 }
 
+/* #248 — security 탭의 인라인 안내 노트 */
+.mypage-foot-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(58, 210, 159, 0.08);
+  border: 1px solid rgba(58, 210, 159, 0.22);
+  color: rgba(190, 245, 220, 0.92);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+/* #248 — 칭호 라이브러리: 섹션 여백 키움, 필터 행 추가, 획득/미획득 시각 구분 강화 */
+.mypage-title-block {
+  display: block;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(159, 139, 199, 0.14);
+}
+.mypage-title-block .mypage-section-subhead {
+  margin-bottom: 4px;
+}
+.mypage-title-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 0;
+}
+.mypage-title-filter button {
+  border: 1px solid rgba(159, 139, 199, 0.2);
+  background: transparent;
+  color: rgba(220, 210, 240, 0.65);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.mypage-title-filter button:hover {
+  border-color: rgba(255, 79, 195, 0.42);
+  color: #fff;
+}
+.mypage-title-filter button.is-active {
+  background: rgba(255, 79, 195, 0.16);
+  border-color: rgba(255, 79, 195, 0.6);
+  color: #fff;
+}
 .mypage-title-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
+  gap: 10px;
+  margin-top: 16px;
 }
-
 .mypage-title-chip {
   --chip-surface: rgba(180, 140, 255, 0.16);
   --chip-ink: #d6b8ff;
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 12px 7px 9px;
+  padding: 8px 14px 8px 10px;
   border-radius: 10px;
   background: var(--chip-surface);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -873,12 +977,33 @@
   letter-spacing: 0;
   line-height: 1.25;
   cursor: default;
+  transition: filter 0.15s ease, transform 0.1s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
-
+/* 미획득 — 음영 + 점선 보더 + 약한 채도 */
 .mypage-title-chip.is-locked {
-  filter: saturate(0.72) brightness(0.94);
+  opacity: 0.6;
+  filter: saturate(0.55) brightness(0.92);
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.16);
 }
-
+/* 획득 — 풀 컬러 */
+.mypage-title-chip.is-owned {
+  opacity: 1;
+  filter: none;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+/* 대표 칭호 — 글로우 + 강조 보더 */
+.mypage-title-chip.is-equipped {
+  border-color: rgba(255, 79, 195, 0.7);
+  box-shadow: 0 0 0 2px rgba(255, 79, 195, 0.18);
+}
+/* 추천 — 첫 무대용 빠른 시작 칭호 */
+.mypage-title-chip.is-suggested {
+  border-color: rgba(58, 210, 159, 0.5);
+}
+.mypage-title-chip:hover {
+  filter: saturate(1.05) brightness(1.03);
+}
 .mypage-title-chip-dot {
   display: inline-block;
   width: 12px;
@@ -887,14 +1012,52 @@
   flex: 0 0 auto;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
 }
-
 .mypage-title-chip-label {
   display: inline-block;
   white-space: nowrap;
 }
-
-.mypage-title-foot {
+.mypage-title-chip-state {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.78);
+  margin-left: 2px;
+}
+.mypage-title-chip.is-equipped .mypage-title-chip-state {
+  background: rgba(255, 79, 195, 0.32);
+  color: #fff;
+}
+.mypage-title-chip.is-suggested .mypage-title-chip-state {
+  background: rgba(58, 210, 159, 0.22);
+  color: #6df0c0;
+}
+/* tap/hover 시 조건 노출 — 모바일에서는 칩 아래 인라인 표시 */
+.mypage-title-chip-tip {
+  display: none;
+  width: 100%;
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: rgba(220, 210, 240, 0.62);
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+.mypage-title-empty {
   margin: 12px 0 0;
+  padding: 16px;
+  border: 1px dashed rgba(159, 139, 199, 0.22);
+  border-radius: 12px;
+  text-align: center;
+  font-size: 12.5px;
+  color: rgba(220, 210, 240, 0.6);
+  line-height: 1.55;
+}
+.mypage-title-foot {
+  margin: 16px 0 0;
   font-size: 12px;
   color: rgba(220, 210, 240, 0.55);
   font-weight: 500;
@@ -903,11 +1066,20 @@
 }
 
 @media (max-width: 640px) {
+  /* 모바일: 칭호 칩 클릭 시 조건 인라인 노출. ChipState 줄바꿈 자동 처리 */
+  .mypage-title-chip {
+    flex-wrap: wrap;
+  }
+  .mypage-title-chip-tip {
+    display: block;
+  }
+}
+
+@media (max-width: 640px) {
   .mypage-title-chip {
     font-size: 12px;
     padding: 6px 10px 6px 8px;
   }
-
   .mypage-title-chip-dot {
     width: 10px;
     height: 10px;
