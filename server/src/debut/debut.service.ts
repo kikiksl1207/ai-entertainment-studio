@@ -10,6 +10,7 @@ import {
   CreateDebutApplicationDto,
   CreateDebutMaterialUploadIntentDto,
   DebutApplicationListQueryDto,
+  DEBUT_OPERATION_SEGMENTS,
   DEBUT_MATERIAL_CATEGORIES,
 } from './dto/debut.dto';
 
@@ -105,6 +106,28 @@ const USER_APPLICATION_STATUS_CTA: Record<
 const DEFAULT_APPLICATION_TYPE = 'personal_unaffiliated';
 const DEFAULT_PARTICIPATION_TYPE = 'appearance_only';
 const DEBUT_MATERIAL_SCOPE = 'debut_application_material';
+const DEBUT_OPERATION_SEGMENT_CONTRACT = [
+  {
+    value: 'individual',
+    labelKo: '\uAC1C\uC778',
+    applicationTypes: ['personal_unaffiliated'],
+    adminFilter: { operationSegment: 'individual' },
+  },
+  {
+    value: 'entertainment_agency',
+    labelKo: '\uC5D4\uD130/\uC18C\uC18D\uC0AC',
+    applicationTypes: ['represented_artist'],
+    adminFilter: { operationSegment: 'entertainment_agency' },
+    reviewFlags: { rightsReviewRequired: true },
+  },
+  {
+    value: 'partner',
+    labelKo: '\uD30C\uD2B8\uB108/\uC81C\uD734',
+    applicationTypes: ['ai_creator_partner', 'partnership_other'],
+    adminFilter: { operationSegment: 'partner' },
+    reviewFlags: { partnerReviewRequired: true },
+  },
+] as const;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MATERIAL_CATEGORY_MIME_PREFIXES: Record<
@@ -276,6 +299,7 @@ export class DebutService {
           partnerReviewRequired: true,
         },
       ],
+      operationSegments: DEBUT_OPERATION_SEGMENT_CONTRACT,
       applicationChannels: [
         {
           value: 'phone_consultation',
@@ -377,6 +401,10 @@ export class DebutService {
             'ai_creator_partner',
             'partnership_other',
           ],
+        },
+        operationSegment: {
+          values: [...DEBUT_OPERATION_SEGMENTS],
+          adminFilterOnly: true,
         },
         affiliatedOrgName: { maxLength: 120, required: false },
         rightsRelationshipNote: { maxLength: 1000, required: false },
@@ -721,6 +749,7 @@ export class DebutService {
       status,
       applicationChannel: query.applicationChannel,
       applicationType: query.applicationType,
+      operationSegment: query.operationSegment,
       rightsReviewRequired: query.rightsReviewRequired,
       partnerReviewRequired: query.partnerReviewRequired,
       consultationStatus: query.consultationStatus,
@@ -1238,6 +1267,12 @@ export class DebutService {
         originalFileUrlReturned: false,
         storageKeyReturned: false,
       },
+      operationSegments: DEBUT_OPERATION_SEGMENT_CONTRACT,
+      routingContract: {
+        emailDispatchEnabled: false,
+        inAppDispatchEnabled: false,
+        contractOnly: true,
+      },
     };
   }
 
@@ -1263,6 +1298,7 @@ export class DebutService {
       status: this.adminReviewStatus(application.status),
       applicationChannel,
       applicationType,
+      operationSegment: this.debutOperationSegment(applicationType, metadata),
       participationType: application.participationType,
       submittedAt: application.createdAt,
       updatedAt: application.updatedAt,
@@ -1305,6 +1341,18 @@ export class DebutService {
           false,
         ),
         partnerReviewStatus: this.safeString(metadata.partnerReviewStatus),
+      },
+      organization: {
+        entertainmentAgencyInquiry:
+          this.debutOperationSegment(applicationType, metadata) ===
+          'entertainment_agency',
+        affiliatedOrgNamePresent: Boolean(this.safeString(metadata.affiliatedOrgName)),
+        rightsRelationshipNotePresent: Boolean(
+          this.safeString(metadata.rightsRelationshipNote),
+        ),
+        creatorExperienceNotePresent: Boolean(
+          this.safeString(metadata.creatorExperienceNote),
+        ),
       },
     };
   }
@@ -2076,6 +2124,7 @@ export class DebutService {
       applicationChannel: input.applicationChannel ?? 'phone_consultation',
       applicationType,
       applicantSegment: applicationType,
+      operationSegment: this.debutOperationSegmentFromApplicationType(applicationType),
       affiliatedOrgName: input.affiliatedOrgName ?? null,
       rightsRelationshipNote: input.rightsRelationshipNote ?? null,
       creatorExperienceNote: input.creatorExperienceNote ?? null,
@@ -2161,10 +2210,70 @@ export class DebutService {
     return typeof metadataConsent === 'boolean' ? metadataConsent : false;
   }
 
+  private debutOperationSegment(applicationType: string, metadata: Record<string, unknown>) {
+    const storedSegment = this.safeString(metadata.operationSegment);
+    if (
+      storedSegment &&
+      DEBUT_OPERATION_SEGMENTS.includes(
+        storedSegment as (typeof DEBUT_OPERATION_SEGMENTS)[number],
+      )
+    ) {
+      return storedSegment;
+    }
+
+    return this.debutOperationSegmentFromApplicationType(applicationType);
+  }
+
+  private debutOperationSegmentFromApplicationType(applicationType: string) {
+    if (applicationType === 'represented_artist') {
+      return 'entertainment_agency';
+    }
+
+    if (
+      applicationType === 'ai_creator_partner' ||
+      applicationType === 'partnership_other'
+    ) {
+      return 'partner';
+    }
+
+    return 'individual';
+  }
+
+  private debutOperationSegmentWhere(segment: string): Prisma.DebutApplicationWhereInput {
+    switch (segment) {
+      case 'entertainment_agency':
+        return {
+          OR: [
+            { metadata: { path: ['operationSegment'], equals: 'entertainment_agency' } },
+            { metadata: { path: ['applicationType'], equals: 'represented_artist' } },
+            { metadata: { path: ['rightsReviewRequired'], equals: true } },
+          ],
+        };
+      case 'partner':
+        return {
+          OR: [
+            { metadata: { path: ['operationSegment'], equals: 'partner' } },
+            { metadata: { path: ['applicationType'], equals: 'ai_creator_partner' } },
+            { metadata: { path: ['applicationType'], equals: 'partnership_other' } },
+            { metadata: { path: ['partnerReviewRequired'], equals: true } },
+          ],
+        };
+      case 'individual':
+      default:
+        return {
+          OR: [
+            { metadata: { path: ['operationSegment'], equals: 'individual' } },
+            { metadata: { path: ['applicationType'], equals: 'personal_unaffiliated' } },
+          ],
+        };
+    }
+  }
+
   private debutApplicationWhere(input: {
     status?: string;
     applicationChannel?: string;
     applicationType?: string;
+    operationSegment?: string;
     rightsReviewRequired?: boolean;
     partnerReviewRequired?: boolean;
     consultationStatus?: string;
@@ -2197,6 +2306,10 @@ export class DebutService {
           equals: input.applicationType,
         },
       });
+    }
+
+    if (input.operationSegment) {
+      filters.push(this.debutOperationSegmentWhere(input.operationSegment));
     }
 
     if (input.rightsReviewRequired !== undefined) {

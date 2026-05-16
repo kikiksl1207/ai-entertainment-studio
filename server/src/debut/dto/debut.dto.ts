@@ -48,6 +48,12 @@ export const DEBUT_APPLICANT_TYPES = [
   'partnership_other',
 ] as const;
 
+export const DEBUT_OPERATION_SEGMENTS = [
+  'individual',
+  'entertainment_agency',
+  'partner',
+] as const;
+
 export const DEBUT_CONSULTATION_STATUSES = [
   'pending',
   'scheduled',
@@ -481,6 +487,10 @@ export class DebutApplicationListQueryDto {
   @IsOptional()
   @IsIn(DEBUT_APPLICANT_TYPES)
   applicationType?: (typeof DEBUT_APPLICANT_TYPES)[number];
+
+  @IsOptional()
+  @IsIn(DEBUT_OPERATION_SEGMENTS)
+  operationSegment?: (typeof DEBUT_OPERATION_SEGMENTS)[number];
 
   @IsOptional()
   @Transform(booleanQuery)

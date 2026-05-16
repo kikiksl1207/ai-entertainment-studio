@@ -332,6 +332,42 @@ describe('DebutService private material flow', () => {
     expect(result.application.attachments).toHaveLength(1);
   });
 
+  it('classifies represented artist applications for entertainment agency operations', async () => {
+    const prisma = createPrismaMock();
+    const service = serviceWith(prisma);
+
+    await service.createApplication(
+      userId,
+      validApplicationInput({
+        applicationChannel: 'phone_consultation',
+        applicationType: 'represented_artist',
+        affiliatedOrgName: 'QA Entertainment',
+        rightsRelationshipNote: 'Non-sensitive rights relationship summary.',
+        facePhotoAssetIds: [],
+        contactPhone: '010-0000-0000',
+        consultationConsent: true,
+      }) as never,
+    );
+
+    expect(prisma.debutApplication.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        metadata: expect.objectContaining({
+          applicationChannel: 'phone_consultation',
+          applicationType: 'represented_artist',
+          applicantSegment: 'represented_artist',
+          operationSegment: 'entertainment_agency',
+          affiliatedOrgName: 'QA Entertainment',
+          rightsReviewRequired: true,
+          rightsReviewStatus: 'pending',
+          partnerReviewRequired: false,
+          partnerReviewStatus: 'not_applicable',
+          consultationStatus: 'pending',
+        }),
+      }),
+      include: expect.any(Object),
+    });
+  });
+
   it('fails closed when genderSwapRequested is true', async () => {
     const prisma = createPrismaMock();
     const service = serviceWith(prisma);
@@ -385,6 +421,94 @@ describe('DebutService private material flow', () => {
     expect(payload).not.toContain('private/storage-key-must-not-leak');
     expect(payload).not.toContain('private/attachment-key-must-not-leak');
     expect(payload).not.toContain('https://storage.example.com/private.png');
+  });
+
+  it('filters admin applications by entertainment agency operation segment', async () => {
+    const prisma = createPrismaMock();
+    const service = serviceWith(prisma);
+    prisma.debutApplication.findMany.mockResolvedValue([
+      adminApplication({
+        metadata: {
+          applicationChannel: 'phone_consultation',
+          applicationType: 'represented_artist',
+          operationSegment: 'entertainment_agency',
+          applicantSegment: 'represented_artist',
+          affiliatedOrgName: 'QA Entertainment',
+          rightsRelationshipNote: 'Internal relationship note',
+          rightsReviewRequired: true,
+          rightsReviewStatus: 'pending',
+          partnerReviewRequired: false,
+          partnerReviewStatus: 'not_applicable',
+        },
+      }),
+    ]);
+
+    const result = await service.getApplications({
+      take: 1,
+      operationSegment: 'entertainment_agency',
+    } as never);
+    const payload = JSON.stringify(result);
+
+    expect(prisma.debutApplication.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: [
+            {
+              OR: [
+                {
+                  metadata: {
+                    path: ['operationSegment'],
+                    equals: 'entertainment_agency',
+                  },
+                },
+                {
+                  metadata: {
+                    path: ['applicationType'],
+                    equals: 'represented_artist',
+                  },
+                },
+                {
+                  metadata: {
+                    path: ['rightsReviewRequired'],
+                    equals: true,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    expect(result.operationSegments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          value: 'entertainment_agency',
+          adminFilter: { operationSegment: 'entertainment_agency' },
+        }),
+      ]),
+    );
+    expect(result.routingContract).toMatchObject({
+      emailDispatchEnabled: false,
+      inAppDispatchEnabled: false,
+      contractOnly: true,
+    });
+    expect(result.items[0]).toMatchObject({
+      applicationType: 'represented_artist',
+      operationSegment: 'entertainment_agency',
+      review: {
+        rightsReviewRequired: true,
+        rightsReviewStatus: 'pending',
+      },
+      organization: {
+        entertainmentAgencyInquiry: true,
+        affiliatedOrgNamePresent: true,
+        rightsRelationshipNotePresent: true,
+      },
+    });
+    expect(payload).not.toContain('applicant@example.com');
+    expect(payload).not.toContain('010-1234-5678');
+    expect(payload).not.toContain('Internal relationship note');
+    expect(payload).not.toContain('private/storage-key-must-not-leak');
   });
 
   it('returns admin application detail with attachment metadata only', async () => {

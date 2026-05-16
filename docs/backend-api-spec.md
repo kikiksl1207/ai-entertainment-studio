@@ -801,8 +801,13 @@ Current validation and workflow:
   the read-only response as `reviewing`, `approved_for_contact`, and `archived`.
 - `applicationChannel`, `applicationType`, `affiliatedOrgName`, `rightsRelationshipNote`, `creatorExperienceNote`, `preferredContactTime`, `consultationConsent`, and `materialSubmissionMode` are stored in `debut_applications.metadata` for now. Promote them to columns only after operations data proves the shape.
 - Admin list supports `applicationChannel`, `applicationType`,
-  `rightsReviewRequired`, `partnerReviewRequired`, and `consultationStatus`
-  query filters using metadata JSON path filters.
+  `operationSegment`, `rightsReviewRequired`, `partnerReviewRequired`, and
+  `consultationStatus` query filters using metadata JSON path filters.
+  `operationSegment=entertainment_agency` is the read-only queue alias for
+  entertainment-company, agency, management, trainee, or represented-artist
+  applications. It maps to `applicationType=represented_artist` and the
+  rights-review queue without opening any mail, contract, settlement, debut
+  finalization, wallet, or Lumina mutation.
 - Admin detail returns masked contact fields and private applicant material
   metadata only. It must not return private signed URLs, original file URLs,
   storage keys, object ETags, secrets, or tokens.

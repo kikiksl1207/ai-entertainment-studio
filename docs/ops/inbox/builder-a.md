@@ -1494,3 +1494,39 @@ blocked_by:
 - none for branch-level validation.
 next_needed:
 - Merge/deploy this follow-up. Operator/QR can run the guarded fixture script with a disposable owner user, then QR reQA the three owner status endpoints.
+
+---
+
+status: completed
+task: #265 debut entertainment/agency application classification and admin filter contract
+branch/commit: team2-backend/debut-org-filter-265 / this commit
+changed_files:
+- server/src/debut/dto/debut.dto.ts
+- server/src/debut/debut.service.ts
+- server/src/debut/debut.service.spec.ts
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/builder-a.md
+checked_api:
+- GET /api/v1/debut/policy
+- GET /admin/api/v1/debut/applications?operationSegment=entertainment_agency
+- GET /admin/api/v1/debut/applications/:applicationId
+tests:
+- PASS: npm.cmd run prisma:generate
+- PASS: npm.cmd test -- debut.service.spec.ts --runInBand
+- PASS: npm.cmd run lint -- --quiet src/debut/debut.service.ts src/debut/debut.service.spec.ts src/debut/dto/debut.dto.ts
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Added the admin/read-only `operationSegment` contract with `entertainment_agency`, `individual`, and `partner` values.
+- Added `operationSegment=entertainment_agency` admin list filtering for represented artist, agency, management, and trainee style applications.
+- New application metadata now stores `operationSegment` derived from `applicationType` while keeping the existing submit flow and metadata shape.
+- Admin list items expose `operationSegment` and organization booleans so operators can identify entertainment/agency inquiries without exposing raw contact values or private material data.
+- Admin read-only contract now declares operation segments and keeps mail routing as contract-only with dispatch disabled.
+- Docs now describe the Backstage/operations filter path and explicitly state that no mail, contract, settlement, debut finalization, wallet, or Lumina mutation is opened.
+sensitive_data:
+- none recorded. No contact raw value, private material URL, storage key, object ETag, credential, token, secret, DB URL, or env value recorded.
+blocked_by:
+- none for branch-level validation.
+next_needed:
+- Viewer review, then QR/backstage regression QA for `operationSegment=entertainment_agency` list filtering and existing applicationType filter non-regression.

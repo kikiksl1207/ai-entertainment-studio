@@ -1404,7 +1404,7 @@ not send email or in-app notifications yet. Future senders should use:
 Admin/operations endpoints for phone consultation queue:
 
 ```http
-GET /admin/api/v1/debut/applications?status=submitted&applicationChannel=phone_consultation&applicationType=represented_artist&rightsReviewRequired=true&consultationStatus=pending&query=seo&take=50&cursor=<nextCursor>
+GET /admin/api/v1/debut/applications?status=submitted&applicationChannel=phone_consultation&operationSegment=entertainment_agency&rightsReviewRequired=true&consultationStatus=pending&query=seo&take=50&cursor=<nextCursor>
 GET /admin/api/v1/debut/applications/:applicationId
 ```
 
@@ -1433,6 +1433,20 @@ List response:
     "rejected",
     "archived"
   ],
+  "operationSegments": [
+    {
+      "value": "entertainment_agency",
+      "labelKo": "엔터/소속사",
+      "applicationTypes": ["represented_artist"],
+      "adminFilter": { "operationSegment": "entertainment_agency" },
+      "reviewFlags": { "rightsReviewRequired": true }
+    }
+  ],
+  "routingContract": {
+    "emailDispatchEnabled": false,
+    "inAppDispatchEnabled": false,
+    "contractOnly": true
+  },
   "privateMaterialPolicy": {
     "metadataOnly": true,
     "publicUrlReturned": false,
@@ -1451,9 +1465,17 @@ Use `nextCursor` as the next request's `cursor`. `query` searches applicant
 name, display name, contact email/phone, intro, and linked user email.
 
 List/detail responses expose masked contact fields plus submitted date,
-application channel, application type, material categories, and private material
-metadata only. They must not expose private signed URLs, original file URLs,
-storage keys, object ETags, secrets, or tokens.
+application channel, application type, operation segment, material categories,
+and private material metadata only. They must not expose private signed URLs,
+original file URLs, storage keys, object ETags, secrets, or tokens.
+
+Use `operationSegment=entertainment_agency` for the Backstage/operations
+entertainment-company or agency queue. The backend maps this queue to
+`applicationType=represented_artist` and rights-review-required records, and
+list items include `operationSegment` plus organization booleans such as
+`organization.entertainmentAgencyInquiry` and `affiliatedOrgNamePresent`. This
+is a read-only routing/filter contract only. It does not send mail, finalize
+contracts, finalize settlement, confirm debut, or touch wallet/Lumina state.
 
 Admin PATCH/status mutation is not open in this contract. If review state
 changes are needed, treat them as a separate backend-first mutation contract.
