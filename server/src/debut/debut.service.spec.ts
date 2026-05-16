@@ -495,6 +495,103 @@ describe('DebutService private material flow', () => {
     expect(payload).not.toContain('Internal review note');
   });
 
+  it.each([
+    {
+      rawStatus: 'needs_more_info',
+      expectedStatus: 'needs_more_info',
+      expectedMessageKey: 'debut.application.status.needsMoreInfo',
+      publicReason: 'QA needs an additional consent confirmation.',
+    },
+    {
+      rawStatus: 'approved_for_contact',
+      expectedStatus: 'approved',
+      expectedMessageKey: 'debut.application.status.approved',
+      publicReason: 'QA contact handoff is being prepared.',
+    },
+    {
+      rawStatus: 'rejected',
+      expectedStatus: 'rejected',
+      expectedMessageKey: 'debut.application.status.rejected',
+      publicReason: 'QA review ended without proceeding.',
+    },
+  ])(
+    'projects $rawStatus as a safe owner-only QA fixture',
+    async ({ rawStatus, expectedStatus, expectedMessageKey, publicReason }) => {
+      const prisma = createPrismaMock();
+      const service = serviceWith(prisma);
+      prisma.debutApplication.findFirst.mockResolvedValue(
+        adminApplication({
+          status: rawStatus,
+          reviewNote: `Internal ${rawStatus} review note must not leak`,
+          metadata: {
+            applicationChannel: 'online_review',
+            applicationType: 'represented_artist',
+            publicStatusReason: publicReason,
+            requestedActionKey: 'debut.application.action.qaOnly',
+            consultationNote: `Internal ${rawStatus} call memo must not leak`,
+            rightsReviewNote: `Internal ${rawStatus} rights note must not leak`,
+            partnerReviewNote: `Internal ${rawStatus} partner note must not leak`,
+            storageKey: `private/${rawStatus}-status-key-must-not-leak`,
+            privateMaterialUrl: `https://storage.example.com/private/${rawStatus}.png`,
+          },
+        }),
+      );
+
+      const result = await service.getMyApplicationStatus(
+        userId,
+        '00000000-0000-4000-8000-000000000301',
+      );
+      const payload = JSON.stringify(result);
+      const latestHistory =
+        result.application.statusHistory[result.application.statusHistory.length - 1];
+
+      expect(result).toMatchObject({
+        readOnly: true,
+        ownerOnly: true,
+        application: {
+          status: expectedStatus,
+          messageKey: expectedMessageKey,
+          materialSummary: {
+            metadataOnly: true,
+          },
+          publicNotice: {
+            status: expectedStatus,
+            titleKey: `${expectedMessageKey}.title`,
+            bodyKey: `${expectedMessageKey}.body`,
+            publicReason,
+            channelsPlanned: ['in_app', 'email'],
+            dispatch: {
+              inAppSent: false,
+              emailSent: false,
+              contractOnly: true,
+            },
+            internalAdminNoteReturned: false,
+            settlementOrContractFinalized: false,
+          },
+          privacy: {
+            contactReturned: false,
+            introReturned: false,
+            adminReviewNoteReturned: false,
+            internalMetadataReturned: false,
+            privateMaterialUrlReturned: false,
+          },
+        },
+      });
+      expect(result.application.cta.enabled).toBe(false);
+      expect(latestHistory).toMatchObject({
+        status: expectedStatus,
+        messageKey: expectedMessageKey,
+        source: 'application.updatedAt',
+      });
+      expect(payload).not.toContain('applicant@example.com');
+      expect(payload).not.toContain('010-1234-5678');
+      expect(payload).not.toContain(`Internal ${rawStatus}`);
+      expect(payload).not.toContain(`private/${rawStatus}-status-key-must-not-leak`);
+      expect(payload).not.toContain(`https://storage.example.com/private/${rawStatus}.png`);
+      expect(payload).not.toContain('blocked-etag-sample');
+    },
+  );
+
   it('returns latest owner application in the safe status envelope', async () => {
     const prisma = createPrismaMock();
     const service = serviceWith(prisma);
