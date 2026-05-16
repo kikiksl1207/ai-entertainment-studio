@@ -1,10 +1,29 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const PAID_LIKE_PRODUCT_SKU = 'BOOST_BASIC_VOTE';
 const PAID_LIKE_DAILY_LIMIT = 20;
+const BOOST_IDEMPOTENCY_REQUIRED = {
+  code: 'BOOST_IDEMPOTENCY_REQUIRED',
+  message: 'boost.error.idempotencyRequired',
+  messageKey: 'boost.error.idempotencyRequired',
+  walletMutation: false,
+  idempotencyRequired: true,
+} as const;
+const BOOST_IDEMPOTENCY_CONFLICT = {
+  code: 'BOOST_IDEMPOTENCY_CONFLICT',
+  message: 'boost.error.idempotencyConflict',
+  messageKey: 'boost.error.idempotencyConflict',
+  walletMutation: false,
+} as const;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -46,7 +65,7 @@ export class BoostsService {
       this.resolveActiveArtist(input.artistId, input.artistSlug),
     ]);
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       if (input.idempotencyKey) {
         const existingEvent = await tx.artistBoostEvent.findUnique({
           where: { idempotencyKey: input.idempotencyKey },
@@ -99,6 +118,9 @@ export class BoostsService {
     },
   ) {
     const quantity = this.parsePaidLikeQuantity(input.quantity);
+    const idempotencyKey = this.requireWalletMutationIdempotencyKey(
+      input.idempotencyKey,
+    );
     const [campaign, artist, boostProduct] = await Promise.all([
       this.getActiveCampaign(input.campaignId),
       this.resolveActiveArtist(input.artistId, input.artistSlug),
@@ -116,36 +138,42 @@ export class BoostsService {
     const totalBoostAmount = boostProduct.boostAmount.mul(quantityDecimal);
     const { start, resetAt } = this.todayWindow();
 
-    return this.prisma.$transaction(async (tx) => {
-      if (input.idempotencyKey) {
-        const existingEvent = await tx.artistBoostEvent.findUnique({
-          where: { idempotencyKey: input.idempotencyKey },
-          include: { walletLedger: true },
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const existingEvent = await tx.artistBoostEvent.findUnique({
+        where: { idempotencyKey },
+        include: { walletLedger: true },
+      });
+
+      if (existingEvent) {
+        this.assertPaidLikeIdempotentReplay(existingEvent, {
+          userId,
+          campaignId: campaign.id,
+          artistId: artist.id,
+          boostProductId: boostProduct.id,
+          quantity,
         });
 
-        if (existingEvent) {
-          const wallet = existingEvent.walletLedgerId
-            ? await tx.walletAccount.findFirst({
-                where: {
-                  userId,
-                  currencyCode: DEFAULT_CURRENCY,
-                },
-              })
-            : null;
+        const wallet = existingEvent.walletLedgerId
+          ? await tx.walletAccount.findFirst({
+              where: {
+                userId,
+                currencyCode: DEFAULT_CURRENCY,
+              },
+            })
+          : null;
 
-          return {
-            event: existingEvent,
-            idempotentReplay: true,
-            paidLike: {
-              quantity,
-              unitPriceLumina: boostProduct.priceLumina,
-              totalPriceLumina,
-              unitBoostAmount: boostProduct.boostAmount,
-              totalBoostAmount,
-            },
-            wallet,
-          };
-        }
+        return {
+          event: existingEvent,
+          idempotentReplay: true,
+          paidLike: {
+            quantity,
+            unitPriceLumina: boostProduct.priceLumina,
+            totalPriceLumina,
+            unitBoostAmount: boostProduct.boostAmount,
+            totalBoostAmount,
+          },
+          wallet,
+        };
       }
 
       const paidLikeEventsToday = await tx.artistBoostEvent.findMany({
@@ -204,9 +232,7 @@ export class BoostsService {
           ledgerType: 'boost_spend',
           referenceType: 'boost_product',
           referenceId: boostProduct.id,
-          idempotencyKey: input.idempotencyKey
-            ? `wallet:${input.idempotencyKey}`
-            : undefined,
+          idempotencyKey: `wallet:boost-paid-like:${idempotencyKey}`,
           memo: `Paid like x${quantity}: ${artist.displayName}`,
         },
       });
@@ -221,9 +247,10 @@ export class BoostsService {
           walletLedgerId: ledger.id,
           rawAmount: totalBoostAmount,
           weightedScore: totalBoostAmount.mul(campaign.luminaBoostWeight),
-          idempotencyKey: input.idempotencyKey,
+          idempotencyKey,
           metadata: {
             source: 'paid_like',
+            idempotencyScope: 'boost-paid-like',
             quantity,
             artistSlug: artist.slug,
             unitPriceLumina: boostProduct.priceLumina.toString(),
@@ -269,6 +296,9 @@ export class BoostsService {
       idempotencyKey?: string;
     },
   ) {
+    const idempotencyKey = this.requireWalletMutationIdempotencyKey(
+      input.idempotencyKey,
+    );
     const [campaign, boostProduct] = await Promise.all([
       this.getActiveCampaign(input.campaignId),
       this.prisma.boostProduct.findFirst({
@@ -280,16 +310,21 @@ export class BoostsService {
       throw new NotFoundException('Boost product not found');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      if (input.idempotencyKey) {
-        const existingEvent = await tx.artistBoostEvent.findUnique({
-          where: { idempotencyKey: input.idempotencyKey },
-          include: { walletLedger: true },
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const existingEvent = await tx.artistBoostEvent.findUnique({
+        where: { idempotencyKey },
+        include: { walletLedger: true },
+      });
+
+      if (existingEvent) {
+        this.assertBoostOrderIdempotentReplay(existingEvent, {
+          userId,
+          campaignId: campaign.id,
+          artistId: input.artistId,
+          boostProductId: boostProduct.id,
         });
 
-        if (existingEvent) {
-          return { event: existingEvent, idempotentReplay: true };
-        }
+        return { event: existingEvent, idempotentReplay: true };
       }
 
       const wallet = await tx.walletAccount.findUnique({
@@ -327,9 +362,7 @@ export class BoostsService {
           ledgerType: 'boost_spend',
           referenceType: 'boost_product',
           referenceId: boostProduct.id,
-          idempotencyKey: input.idempotencyKey
-            ? `wallet:${input.idempotencyKey}`
-            : undefined,
+          idempotencyKey: `wallet:boost-order:${idempotencyKey}`,
           memo: `Boost order: ${boostProduct.name}`,
         },
       });
@@ -344,7 +377,11 @@ export class BoostsService {
           walletLedgerId: ledger.id,
           rawAmount: boostProduct.boostAmount,
           weightedScore: boostProduct.boostAmount.mul(campaign.luminaBoostWeight),
-          idempotencyKey: input.idempotencyKey,
+          idempotencyKey,
+          metadata: {
+            source: 'boost_order',
+            idempotencyScope: 'boost-order',
+          },
         },
         include: { walletLedger: true },
       });
@@ -611,5 +648,89 @@ export class BoostsService {
 
       return total + (Number.isFinite(quantity) && quantity > 0 ? quantity : 1);
     }, 0);
+  }
+
+  private requireWalletMutationIdempotencyKey(value?: string) {
+    const idempotencyKey = value?.trim();
+
+    if (!idempotencyKey) {
+      throw new BadRequestException(BOOST_IDEMPOTENCY_REQUIRED);
+    }
+
+    return idempotencyKey;
+  }
+
+  private assertPaidLikeIdempotentReplay(
+    event: {
+      userId: string;
+      campaignId: string;
+      artistId: string;
+      boostType: string;
+      boostProductId: string | null;
+      metadata: unknown;
+    },
+    expected: {
+      userId: string;
+      campaignId: string;
+      artistId: string;
+      boostProductId: string;
+      quantity: number;
+    },
+  ) {
+    const metadata = this.metadataRecord(event.metadata);
+    const storedQuantity =
+      typeof metadata.quantity === 'number'
+        ? metadata.quantity
+        : typeof metadata.quantity === 'string'
+          ? Number(metadata.quantity)
+          : null;
+
+    if (
+      event.userId === expected.userId &&
+      event.campaignId === expected.campaignId &&
+      event.artistId === expected.artistId &&
+      event.boostType === 'lumina_boost' &&
+      event.boostProductId === expected.boostProductId &&
+      metadata.source === 'paid_like' &&
+      storedQuantity === expected.quantity
+    ) {
+      return;
+    }
+
+    throw new ConflictException(BOOST_IDEMPOTENCY_CONFLICT);
+  }
+
+  private assertBoostOrderIdempotentReplay(
+    event: {
+      userId: string;
+      campaignId: string;
+      artistId: string;
+      boostType: string;
+      boostProductId: string | null;
+    },
+    expected: {
+      userId: string;
+      campaignId: string;
+      artistId: string;
+      boostProductId: string;
+    },
+  ) {
+    if (
+      event.userId === expected.userId &&
+      event.campaignId === expected.campaignId &&
+      event.artistId === expected.artistId &&
+      event.boostType === 'lumina_boost' &&
+      event.boostProductId === expected.boostProductId
+    ) {
+      return;
+    }
+
+    throw new ConflictException(BOOST_IDEMPOTENCY_CONFLICT);
+  }
+
+  private metadataRecord(metadata: unknown) {
+    return metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
   }
 }
