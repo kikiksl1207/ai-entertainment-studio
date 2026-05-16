@@ -20,6 +20,11 @@ export type SocialProviderConfig = {
   provider: SocialProvider;
   displayName: string;
   enabled: boolean;
+  configured: boolean;
+  status: 'configured' | 'not_configured';
+  statusKey: string;
+  tokenLoginConfigured: boolean;
+  authorizationCodeLoginConfigured: boolean;
 };
 
 export type VerifiedSocialProfile = {

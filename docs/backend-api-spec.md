@@ -141,6 +141,12 @@ PATCH /api/v1/me/settings
 My Page contract:
 
 - `GET /api/v1/app/bootstrap` is public and returns non-secret first-load configuration: localization policy, social provider status, Lumina currency constants, feature flags, lightweight product policies, artist category filter labels, and important endpoint hints.
+- `GET /api/v1/auth/social/providers` and `auth.social.providers[]` in bootstrap
+  expose only non-secret provider readiness fields for Google/Kakao/Naver:
+  `enabled`, `configured`, `status` (`configured` or `not_configured`),
+  `statusKey`, `tokenLoginConfigured`, and
+  `authorizationCodeLoginConfigured`. They do not return client secrets,
+  redirect URI values, provider tokens, or raw provider responses.
 - `GET /api/v1/app/bootstrap` includes `policy.artistCategories` with `filterLabels`, `categoryLabels`, `fallbackCategory`, `sourceField`, and response field hints so the frontend can render category filters without hardcoding the taxonomy.
 - `GET /api/v1/me` returns `id`, `email`, `status`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `createdAt`, `displayName`, `publicHandle`, `avatarUrl`, `avatarAsset`, `coverImageUrl`, `coverAsset`, `bio`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, `canChangeNickname`, `profile`, `settings`, and `walletAccounts`. Email and social signup auto-assign a temporary display name and unique public handle like `민트별빛4827` when the request does not include `displayName`; the server checks existing profile handles and retries generation to avoid duplicate auto-assigned handles.
 - `GET /api/v1/auth/display-name-availability?displayName=<name>` is public and checks nickname availability before signup.
