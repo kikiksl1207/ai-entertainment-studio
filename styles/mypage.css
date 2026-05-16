@@ -659,6 +659,32 @@
   color: #fff;
 }
 
+/* #266 — 운영팀 안내(publicNotice.publicReason) 표시 박스. description 과 next-action 사이. */
+.mypage-debut-notice {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 201, 122, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 201, 122, 0.08);
+  display: grid;
+  gap: 6px;
+}
+.mypage-debut-notice-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255, 201, 122, 0.95);
+  text-transform: uppercase;
+}
+.mypage-debut-notice-body {
+  margin: 0;
+  color: rgba(240, 238, 248, 0.92);
+  font-size: 13.5px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
 .mypage-debut-next {
   display: grid;
   gap: 12px;
