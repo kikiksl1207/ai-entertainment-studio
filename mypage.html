@@ -609,6 +609,19 @@
           if (id) return provider ? provider + ":" + id : id;
           return user.email ? user.email.split("@")[0] : "-";
         }
+        // #262 — provider 라벨 정규화. user.provider / user.socialProvider /
+        // socialAccount.provider 중 어디에 와도 동일하게 한글 라벨로 변환. 미인식 값은 "" 반환.
+        function getSocialProviderLabel(user) {
+          if (!user) return "";
+          const social = user.socialAccount || user.socialProfile || user.oauthAccount || user.providerAccount || {};
+          const providers = user.providers;
+          const primary = Array.isArray(providers) && providers.length
+            ? (providers[0]?.provider || providers[0]?.name || providers[0])
+            : (user.provider || user.socialProvider || user.primaryProvider || social.provider || "");
+          const key = String(primary || "").toLowerCase().trim();
+          const map = { naver: "네이버", kakao: "카카오", google: "구글", apple: "애플" };
+          return map[key] || "";
+        }
         function getAvatarUrl(user) {
           return user.avatarUrl || user.avatarImageUrl || user.profileImageUrl || user.avatarAsset?.url || user.profileImage?.url || "";
         }
@@ -933,25 +946,38 @@
           setValue("mypageProfileId", getSocialAccountId(user));
           setValue("mypageProfileEmail", user.email || "-");
           setValue("mypageNickname", user.displayName || "");
-          setValue("mypagePasswordState", user.isSocialOnly ? "소셜 전용 계정" : (user.hasPassword ? "비밀번호 설정됨" : "비밀번호 미설정"));
-
           // #248 — 프로필 탭의 비밀번호 진입 안내 / security 탭 안내 / 대체 행동 버튼 동시 갱신
           const isSocialOnly = !!user.isSocialOnly;
           const hasPassword = !!user.hasPassword;
+          // #262 — 소셜 전용 계정이 어느 provider 인지 파악해 안내 카피에 사용한다.
+          // backend 가 user.provider / user.socialProvider / socialAccount.provider 중 하나로
+          // 내려줄 수 있어 모두 수용. raw 값이 비어 있으면 provider 미지정 fallback 카피로.
+          const socialLabel = getSocialProviderLabel(user);
+
+          // #262 — 프로필 탭의 \"비밀번호\" 작은 인풋 라벨도 provider 명시. 다른 카피와 일관.
+          setValue("mypagePasswordState", isSocialOnly
+            ? (socialLabel ? socialLabel + " 전용 계정" : "소셜 전용 계정")
+            : (hasPassword ? "비밀번호 설정됨" : "비밀번호 미설정"));
 
           // 프로필 탭의 small hint
           setText("mypagePasswordHint", isSocialOnly
-            ? "소셜 로그인 전용 계정이에요. 별도 비밀번호 없이 소셜로 로그인하면 돼요."
+            ? (socialLabel
+              ? socialLabel + " 계정으로 가입한 소셜 전용 계정이에요. 비밀번호 관리는 " + socialLabel + " 계정에서 해 주세요."
+              : "소셜 로그인 전용 계정이에요. 비밀번호 관리는 가입에 사용한 소셜 계정에서 해 주세요.")
             : "비밀번호 변경 또는 잊었을 때 재설정 메일을 받을 수 있어요.");
 
           // 프로필 탭의 비밀번호 점프 카드
           const jumpTitle = $("mypagePasswordJumpTitle");
           const jumpBody = $("mypagePasswordJumpBody");
           const jumpAction = $("mypagePasswordJumpAction");
-          if (jumpTitle) jumpTitle.textContent = isSocialOnly ? "소셜 전용 계정이에요" : "비밀번호 관리";
+          if (jumpTitle) jumpTitle.textContent = isSocialOnly
+            ? (socialLabel ? socialLabel + " 전용 계정이에요" : "소셜 전용 계정이에요")
+            : "비밀번호 관리";
           if (jumpBody) {
             jumpBody.textContent = isSocialOnly
-              ? "구글·카카오·네이버·애플로 가입한 계정이에요. 별도 비밀번호 없이 소셜 로그인으로 들어와요."
+              ? (socialLabel
+                ? socialLabel + "로 가입한 계정이라 Lumina Stage에는 별도 비밀번호가 없어요. 비밀번호 변경·재설정 메일도 발송되지 않아요."
+                : "구글·카카오·네이버·애플로 가입한 계정이에요. Lumina Stage에는 별도 비밀번호가 없어요.")
               : (hasPassword
                 ? "비밀번호 변경이나 재설정 메일 받기를 비밀번호 탭에서 할 수 있어요."
                 : "비밀번호가 아직 설정되어 있지 않아요. 비밀번호 탭에서 새로 설정해 주세요.");
@@ -961,9 +987,13 @@
           }
 
           // security 탭의 안내 + 대체 행동 버튼
-          setText("mypagePasswordGuideTitle", isSocialOnly ? "소셜 전용 계정" : "비밀번호 관리");
+          setText("mypagePasswordGuideTitle", isSocialOnly
+            ? (socialLabel ? socialLabel + " 전용 계정" : "소셜 전용 계정")
+            : "비밀번호 관리");
           setText("mypagePasswordGuideBody", isSocialOnly
-            ? "별도 비밀번호 없이 소셜 로그인으로만 들어오는 계정이에요. 비밀번호 변경/재설정은 사용하지 않아도 돼요."
+            ? (socialLabel
+              ? socialLabel + "로 가입한 계정이라 Lumina Stage 비밀번호가 없어요. 비밀번호 변경이나 재설정 메일을 요청해도 메일은 발송되지 않아요. 비밀번호는 " + socialLabel + " 계정에서 관리해 주세요."
+              : "소셜 로그인 전용 계정이라 Lumina Stage 비밀번호가 없어요. 비밀번호 변경이나 재설정 메일을 요청해도 메일은 발송되지 않아요. 비밀번호는 가입에 사용한 소셜 계정에서 관리해 주세요.")
             : (hasPassword
               ? "현재 비밀번호를 알고 있다면 위 \"비밀번호 변경\" 버튼으로 바꿀 수 있어요. 비밀번호가 기억나지 않으면 이메일로 재설정 메일을 받아주세요."
               : "비밀번호가 아직 설정되어 있지 않아요. 새 비밀번호 설정은 \"비밀번호 변경\" 버튼으로 진행할 수 있어요."));
@@ -1149,7 +1179,15 @@
         }
 
         async function changeMypagePassword() {
-          if (mypageSummary?.user?.isSocialOnly) return alert("소셜 전용 계정은 비밀번호 변경이 아직 지원되지 않습니다.");
+          // #262 — 소셜 전용 계정은 Lumina 비밀번호가 없으므로 변경 다이얼로그를 열지 않고
+          // 어디서 비밀번호를 관리해야 하는지 명확히 안내한다.
+          if (mypageSummary?.user?.isSocialOnly) {
+            const label = getSocialProviderLabel(mypageSummary.user);
+            alert(label
+              ? label + "로 가입한 소셜 전용 계정이에요. 비밀번호는 " + label + " 계정에서 관리해 주세요. Lumina Stage에는 별도 비밀번호가 없어요."
+              : "소셜 로그인 전용 계정이에요. 비밀번호는 가입에 사용한 소셜 계정에서 관리해 주세요. Lumina Stage에는 별도 비밀번호가 없어요.");
+            return;
+          }
           openPasswordDialog();
         }
 
