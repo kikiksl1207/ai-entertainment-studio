@@ -1464,3 +1464,33 @@ blocked_by:
 - none for branch-level validation.
 next_needed:
 - Merge/deploy this follow-up, then QR reQA with disposable `needs_more_info`, `approved_for_contact`, and `rejected` owner fixture records.
+
+---
+
+status: completed
+task: #259 debut status owner projection executable fixture script follow-up
+branch/commit: team2-backend/debut-status-live-fixtures-259 / this commit
+changed_files:
+- server/scripts/create-debut-status-owner-fixtures.mjs
+- server/package.json
+- docs/ops/qa-debut-status-owner-projection-259.md
+- docs/ops/inbox/builder-a.md
+checked_api:
+- GET /api/v1/me/debut-applications/:applicationId/status after fixture creation
+tests:
+- PASS: node --check server/scripts/create-debut-status-owner-fixtures.mjs
+- PASS: npm.cmd run qa:debut-status-fixtures with DEBUT_STATUS_QA_FIXTURE_DRY_RUN=true
+- PASS: npm.cmd test -- debut.service.spec.ts --runInBand
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Added a guarded QA-only script that creates disposable owner fixture rows for `needs_more_info`, `approved_for_contact`, and `rejected`.
+- Script requires explicit confirmation, an existing disposable owner user id, and blocks production-like targets unless an approved live-safe override is set.
+- Script writes only `debut_applications` QA fixture rows and does not send notifications or touch wallet, Lumina, settlement, payout, paid-like, contract, or artist operator state.
+- Runbook now includes exact PowerShell commands, dry-run mode, safety gates, and expected QR response checks.
+sensitive_data:
+- none recorded. No credential, cookie, JWT, signed URL, storage key, password, secret, DB URL, or env value recorded.
+blocked_by:
+- none for branch-level validation.
+next_needed:
+- Merge/deploy this follow-up. Operator/QR can run the guarded fixture script with a disposable owner user, then QR reQA the three owner status endpoints.

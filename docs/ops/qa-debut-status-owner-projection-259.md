@@ -33,6 +33,44 @@ The backend unit fixture `DebutService projects <status> as a safe owner-only QA
 fixture` covers the same three states. Use it as the branch-level regression
 fixture before QR live/staging smoke.
 
+## Executable Fixture Script
+
+The repo includes a QA-only helper for creating the three owner fixture rows:
+
+```powershell
+cd server
+$env:DEBUT_STATUS_QA_FIXTURE_CONFIRM="CREATE_DEBUT_STATUS_OWNER_FIXTURES"
+$env:DEBUT_STATUS_QA_USER_ID="<disposable QA owner user uuid>"
+$env:DEBUT_STATUS_QA_TARGET_ENV="staging"
+npm.cmd run qa:debut-status-fixtures
+```
+
+Dry-run check without database writes:
+
+```powershell
+cd server
+$env:DEBUT_STATUS_QA_FIXTURE_CONFIRM="CREATE_DEBUT_STATUS_OWNER_FIXTURES"
+$env:DEBUT_STATUS_QA_USER_ID="<disposable QA owner user uuid>"
+$env:DEBUT_STATUS_QA_FIXTURE_DRY_RUN="true"
+npm.cmd run qa:debut-status-fixtures
+```
+
+Script behavior:
+
+- Creates only `debut_applications` fixture rows for the provided owner user.
+- Creates one row for each raw status: `needs_more_info`,
+  `approved_for_contact`, and `rejected`.
+- Marks rows with `metadata.qaFixture.task="#259"` and a `runId`.
+- Prints only row ids, statuses, run id, and owner status endpoint paths.
+- Does not print credentials, cookies, JWTs, signed URLs, storage keys,
+  passwords, secrets, or environment values.
+- Does not send email/in-app notifications.
+- Does not touch wallet, Lumina, settlement, payout, boost, paid-like, contract,
+  or artist operator state.
+- Refuses production-like environments unless
+  `DEBUT_STATUS_QA_FIXTURE_ALLOW_PRODUCTION=true` is explicitly set for an
+  approved live-safe QA owner run.
+
 ## Expected Response Checks
 
 For each fixture, sign in as the owner and call the status endpoint for that
