@@ -432,21 +432,18 @@ export class AuthService {
   getSocialProviders(): { providers: SocialProviderConfig[] } {
     return {
       providers: [
-        {
-          provider: 'kakao',
-          displayName: 'Kakao',
-          enabled: this.hasConfig('KAKAO_REST_API_KEY'),
-        },
-        {
-          provider: 'google',
-          displayName: 'Google',
-          enabled: this.hasConfig('GOOGLE_OAUTH_CLIENT_ID'),
-        },
-        {
-          provider: 'naver',
-          displayName: 'Naver',
-          enabled: this.hasConfig('NAVER_CLIENT_ID'),
-        },
+        this.socialProviderStatus('kakao', 'Kakao', {
+          token: ['KAKAO_REST_API_KEY'],
+          authorizationCode: ['KAKAO_REST_API_KEY'],
+        }),
+        this.socialProviderStatus('google', 'Google', {
+          token: ['GOOGLE_OAUTH_CLIENT_ID'],
+          authorizationCode: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET'],
+        }),
+        this.socialProviderStatus('naver', 'Naver', {
+          token: ['NAVER_CLIENT_ID'],
+          authorizationCode: ['NAVER_CLIENT_ID', 'NAVER_CLIENT_SECRET'],
+        }),
       ],
     };
   }
@@ -3650,6 +3647,33 @@ export class AuthService {
 
   private hasConfig(key: string) {
     return Boolean(this.configService.get<string>(key)?.trim());
+  }
+
+  private socialProviderStatus(
+    provider: SocialProviderConfig['provider'],
+    displayName: string,
+    required: {
+      token: string[];
+      authorizationCode: string[];
+    },
+  ): SocialProviderConfig {
+    const tokenLoginConfigured = required.token.every((key) => this.hasConfig(key));
+    const authorizationCodeLoginConfigured = required.authorizationCode.every((key) =>
+      this.hasConfig(key),
+    );
+    const configured = tokenLoginConfigured;
+    const status = configured ? 'configured' : 'not_configured';
+
+    return {
+      provider,
+      displayName,
+      enabled: configured,
+      configured,
+      status,
+      statusKey: `auth.social.provider.${status}`,
+      tokenLoginConfigured,
+      authorizationCodeLoginConfigured,
+    };
   }
 
   private truncateNullable(value: string | null | undefined, maxLength: number) {

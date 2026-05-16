@@ -344,6 +344,13 @@ Auth responses:
 - `POST /auth/social/login` accepts `{ "provider": "google" | "kakao" | "naver", "token": "<provider-token>" }`; `accessToken` is also accepted as an alias for `token`.
 - Authorization-code handoff is also accepted as `{ "provider": "kakao", "code": "<code>", "redirectUri": "<same-redirect-uri>" }`. The `redirectUri` value must exactly match the URI registered in Kakao Developers and used when the code was issued. The backend may override it with `KAKAO_REDIRECT_URI` in Render to avoid `www`/non-`www` drift.
 - Google can send either a Google ID token or OAuth access token. Kakao and Naver should send access tokens when using the token handoff.
+- `GET /auth/social/providers` and `GET /app/bootstrap.auth.social.providers[]`
+  expose non-secret readiness for Google/Kakao/Naver: `enabled`,
+  `configured`, `status`, `statusKey`, `tokenLoginConfigured`, and
+  `authorizationCodeLoginConfigured`. Treat `status = "not_configured"` as a
+  disabled/coming-soon state and render copy from `statusKey`; never expect
+  client secrets, redirect URI values, provider tokens, or raw provider
+  responses in this payload.
 - `GET /me` returns the current user plus profile convenience fields: `displayName`, `publicHandle`, `avatarUrl`, `avatarAsset`, `coverImageUrl`, `coverAsset`, `provider`, `providers`, `hasPassword`, `isSocialOnly`, `emailVerified`, `emailVerifiedAt`, `emailVerification`, `nicknameLastChangedAt`, `nicknameNextChangeAt`, and `canChangeNickname`.
 - `GET /me.emailVerification` is the email-signup gate contract. Before confirmation it returns `status: "required"`, `code: "AUTH_EMAIL_VERIFICATION_REQUIRED"`, `messageKey: "auth.emailVerification.required"`, `requiredActions: ["verify_email"]`, and `gates.coreFeaturesBlockedUntilVerified: true`. After confirmation it returns `status: "verified"` and `messageKey: "auth.emailVerification.verified"`.
 - `PATCH /me/profile` body: `{ "displayName": "닉네임", "bio": "optional", "avatarAssetId": "<asset uuid>", "coverAssetId": "<asset uuid or null>" }`. New accounts receive an auto-assigned temporary `displayName`; users can change it from My Page. `displayName` is 2-20 characters, must be unique, and can be changed once every 30 days after a user change. `coverAssetId: null` resets the public profile cover to the default gradient. The server returns the updated `GET /me` shape. If the nickname cooldown is active, expect `429 Nickname can be changed once every 30 days`. If the nickname is taken, expect `409 DISPLAY_NAME_ALREADY_TAKEN`.

@@ -83,10 +83,10 @@ function createPrismaMock(): PrismaMock {
   return prisma;
 }
 
-function serviceWith(prisma: PrismaMock) {
+function serviceWith(prisma: PrismaMock, configValues: Record<string, string> = {}) {
   const config = {
     get: jest.fn((key: string) =>
-      key === 'NODE_ENV' ? 'test' : undefined,
+      key === 'NODE_ENV' ? 'test' : configValues[key],
     ),
     getOrThrow: jest.fn(),
   };
@@ -131,6 +131,70 @@ function activeActionToken(overrides: Record<string, unknown> = {}) {
 }
 
 describe('AuthService action token flows', () => {
+  it('returns non-secret social provider configured/status contract', () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma, {
+      KAKAO_REST_API_KEY: 'configured',
+      GOOGLE_OAUTH_CLIENT_ID: 'configured',
+      NAVER_CLIENT_ID: 'configured',
+      NAVER_CLIENT_SECRET: 'configured',
+    });
+
+    expect(service.getSocialProviders()).toEqual({
+      providers: [
+        {
+          provider: 'kakao',
+          displayName: 'Kakao',
+          enabled: true,
+          configured: true,
+          status: 'configured',
+          statusKey: 'auth.social.provider.configured',
+          tokenLoginConfigured: true,
+          authorizationCodeLoginConfigured: true,
+        },
+        {
+          provider: 'google',
+          displayName: 'Google',
+          enabled: true,
+          configured: true,
+          status: 'configured',
+          statusKey: 'auth.social.provider.configured',
+          tokenLoginConfigured: true,
+          authorizationCodeLoginConfigured: false,
+        },
+        {
+          provider: 'naver',
+          displayName: 'Naver',
+          enabled: true,
+          configured: true,
+          status: 'configured',
+          statusKey: 'auth.social.provider.configured',
+          tokenLoginConfigured: true,
+          authorizationCodeLoginConfigured: true,
+        },
+      ],
+    });
+  });
+
+  it('marks social providers not configured without exposing required secret names', () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+
+    expect(service.getSocialProviders().providers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: 'google',
+          enabled: false,
+          configured: false,
+          status: 'not_configured',
+          statusKey: 'auth.social.provider.not_configured',
+          tokenLoginConfigured: false,
+          authorizationCodeLoginConfigured: false,
+        }),
+      ]),
+    );
+  });
+
   it('keeps email verification request neutral when the account does not exist', async () => {
     const prisma = createPrismaMock();
     const { service, delivery } = serviceWith(prisma);
