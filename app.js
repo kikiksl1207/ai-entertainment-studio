@@ -2144,6 +2144,22 @@ function isPublicLineup(artist) {
   return window.LuminaStaticData.publicLineupSlugs.includes(artist.slug);
 }
 
+function getPublicLineupOrder(slug) {
+  const slugs = window.LuminaStaticData?.publicLineupSlugs || [];
+  const index = slugs.indexOf(slug);
+  return index >= 0 ? index : Number.POSITIVE_INFINITY;
+}
+
+function compareByPublicLineupOrder(a, b) {
+  const aOrder = getPublicLineupOrder(a?.slug);
+  const bOrder = getPublicLineupOrder(b?.slug);
+  const aKnown = Number.isFinite(aOrder);
+  const bKnown = Number.isFinite(bOrder);
+  if (aKnown && bKnown && aOrder !== bOrder) return aOrder - bOrder;
+  if (aKnown !== bKnown) return aKnown ? -1 : 1;
+  return 0;
+}
+
 let _luminaFeedItems = [];          // 정규화된 통일 구조
 
 /* authorType / postType 정규화 (운영 enum, 에밀리 한국어 모두 흡수) */

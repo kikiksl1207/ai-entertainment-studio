@@ -38,12 +38,13 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
     list = list.filter(a => a.status === statusFilter);
   }
 
-  // 정렬: 상태 그룹(public > candidate > secret) 순서 유지하면서 그룹 안에서 좋아요 많은 순
-  // 좋아요 데이터가 비어있으면 같은 그룹 안에서는 원래 순서 유지 (stable sort)
-  const statusOrder = { public: 0, candidate: 1, secret: 2 };
+  // 정렬: 공개 라인업은 운영 순서를 우선하고, 라인업 밖 항목만 같은 그룹 안에서 좋아요 순으로 보조 정렬
+  const statusOrder = { public: 0, debut: 0, candidate: 1, secret: 2 };
   list = [...list].sort((a, b) => {
     const so = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
     if (so !== 0) return so;
+    const lineupOrder = compareByPublicLineupOrder(a, b);
+    if (lineupOrder !== 0) return lineupOrder;
     return getLikesCount(b.slug) - getLikesCount(a.slug);
   });
 

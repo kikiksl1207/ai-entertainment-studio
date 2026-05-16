@@ -6,7 +6,7 @@
     if (!root) return;
 
     const list = _artists.filter(isPublicLineup);
-    list.sort((a, b) => getLikesCount(b.slug) - getLikesCount(a.slug));
+    list.sort(compareByPublicLineupOrder);
 
     root.innerHTML = list.map(a => `
       <article class="artist-card clickable-card" data-href="./character-detail.html?slug=${a.slug}"
