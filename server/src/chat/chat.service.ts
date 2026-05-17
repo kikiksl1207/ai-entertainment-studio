@@ -101,6 +101,7 @@ type ChatProviderOpsStats = {
   }>;
   estimatedCostKrw: string;
 };
+type ChatConversationBox = 'recent' | 'archive' | 'all';
 const BASIC_CHAT_POLICY = {
   mode: 'daily_talk',
   priceLumina: 0,
@@ -252,6 +253,86 @@ export class ChatService {
       },
       orderBy: { updatedAt: 'desc' },
     });
+  }
+
+  async getConversationList(
+    userId: string,
+    input: {
+      box?: string;
+      take?: number;
+      cursor?: string;
+    } = {},
+  ) {
+    const box = this.normalizeConversationBox(input.box);
+    const take = Math.min(input.take ?? 20, 50);
+    const rows = await this.prisma.chatSession.findMany({
+      where: this.conversationListWhere(userId, box),
+      take: take + 1,
+      ...(input.cursor
+        ? {
+            cursor: { id: this.validateCursor(input.cursor) },
+            skip: 1,
+          }
+        : {}),
+      include: {
+        artist: {
+          select: { id: true, slug: true, displayName: true },
+        },
+        chatPersona: {
+          select: { id: true, name: true, status: true },
+        },
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            senderType: true,
+            messageType: true,
+            body: true,
+            chatFeatureOrderId: true,
+            createdAt: true,
+          },
+        },
+        _count: {
+          select: { messages: true },
+        },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+    const page = this.paginate(rows, take);
+
+    return {
+      readOnly: true,
+      ownerOnly: true,
+      box,
+      items: page.items.map((session) => this.presentConversationListItem(session)),
+      count: page.items.length,
+      hasMore: page.hasMore,
+      nextCursor: page.nextCursor,
+      emptyState: this.conversationEmptyState(box),
+      readStateContract: {
+        supported: false,
+        unreadCount: null,
+        lastReadAt: null,
+        reason: 'read_receipts_not_implemented',
+        messageKey: 'chat.conversations.readStateNotAvailable',
+      },
+      archiveContract: {
+        supported: true,
+        mutationEnabled: false,
+        statusField: 'chat_sessions.status',
+        activeStatus: 'active',
+        archivedStatus: 'archived',
+      },
+      safety: {
+        llmCall: false,
+        walletMutation: false,
+        messageMutation: false,
+        orderMutation: false,
+        settlementMutation: false,
+        secretsReturned: false,
+      },
+    };
   }
 
   getPersonaSeedPolicy() {
@@ -936,6 +1017,149 @@ export class ChatService {
     }
 
     return session;
+  }
+
+  private normalizeConversationBox(value: string | undefined): ChatConversationBox {
+    if (!value) {
+      return 'recent';
+    }
+
+    if (value === 'recent' || value === 'archive' || value === 'all') {
+      return value;
+    }
+
+    throw new BadRequestException({
+      code: 'CHAT_CONVERSATION_BOX_INVALID',
+      message: 'box must be recent, archive, or all',
+      messageKey: 'chat.conversations.invalidBox',
+    });
+  }
+
+  private conversationListWhere(userId: string, box: ChatConversationBox) {
+    const where: {
+      userId: string;
+      status?: string | { in: string[] };
+    } = { userId };
+
+    if (box === 'recent') {
+      where.status = 'active';
+    } else if (box === 'archive') {
+      where.status = 'archived';
+    } else {
+      where.status = { in: ['active', 'archived'] };
+    }
+
+    return where;
+  }
+
+  private presentConversationListItem(session: {
+    id: string;
+    status: string;
+    createdAt: Date;
+    updatedAt: Date;
+    artist: {
+      id: string;
+      slug: string;
+      displayName: string;
+    };
+    chatPersona: {
+      id: string;
+      name: string;
+      status: string;
+    } | null;
+    messages: Array<{
+      id: string;
+      senderType: string;
+      messageType: string;
+      body: string | null;
+      chatFeatureOrderId: string | null;
+      createdAt: Date;
+    }>;
+    _count: {
+      messages: number;
+    };
+  }) {
+    const lastMessage = session.messages[0] ?? null;
+
+    return {
+      id: session.id,
+      box: session.status === 'archived' ? 'archive' : 'recent',
+      status: session.status,
+      artist: session.artist,
+      persona: session.chatPersona
+        ? {
+            id: session.chatPersona.id,
+            name: session.chatPersona.name,
+            status: session.chatPersona.status,
+          }
+        : null,
+      messageCount: session._count.messages,
+      lastMessage: lastMessage
+        ? {
+            id: lastMessage.id,
+            senderType: lastMessage.senderType,
+            messageType: lastMessage.messageType,
+            bodyPreview: this.bodyPreview(lastMessage.body),
+            createdAt: lastMessage.createdAt,
+            paidFeatureOrderPresent: Boolean(lastMessage.chatFeatureOrderId),
+          }
+        : null,
+      lastMessageAt: lastMessage?.createdAt ?? null,
+      lastActivityAt: lastMessage?.createdAt ?? session.updatedAt,
+      updatedAt: session.updatedAt,
+      createdAt: session.createdAt,
+      readState: {
+        supported: false,
+        unreadCount: null,
+        messageKey: 'chat.conversations.readStateNotAvailable',
+      },
+    };
+  }
+
+  private bodyPreview(value: string | null) {
+    if (!value) {
+      return null;
+    }
+
+    const collapsed = value.replace(/\s+/g, ' ').trim();
+    return collapsed.length > 120 ? `${collapsed.slice(0, 117)}...` : collapsed;
+  }
+
+  private conversationEmptyState(box: ChatConversationBox) {
+    return {
+      messageKey:
+        box === 'archive'
+          ? 'chat.conversations.emptyArchive'
+          : 'chat.conversations.emptyRecent',
+      defaultMessageKo:
+        box === 'archive'
+          ? '\uBCF4\uAD00\uD55C \uB300\uD654\uAC00 \uC5C6\uC5B4\uC694.'
+          : '\uC544\uC9C1 \uC2DC\uC791\uD55C \uB300\uD654\uAC00 \uC5C6\uC5B4\uC694.',
+    };
+  }
+
+  private paginate<T extends { id: string }>(rows: T[], take: number) {
+    const hasMore = rows.length > take;
+    const items = hasMore ? rows.slice(0, take) : rows;
+    const lastItem = items.at(-1);
+
+    return {
+      items,
+      hasMore,
+      nextCursor: hasMore && lastItem ? lastItem.id : null,
+    };
+  }
+
+  private validateCursor(value: string) {
+    if (!UUID_V4_PATTERN.test(value)) {
+      throw new BadRequestException({
+        code: 'CHAT_CONVERSATION_CURSOR_INVALID',
+        message: 'cursor must be a UUID v4',
+        messageKey: 'chat.conversations.invalidCursor',
+      });
+    }
+
+    return value;
   }
 
   private async getOwnedSessionForGeneration(userId: string, sessionId: string) {
