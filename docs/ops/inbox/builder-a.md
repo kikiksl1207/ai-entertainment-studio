@@ -1530,3 +1530,36 @@ blocked_by:
 - none for branch-level validation.
 next_needed:
 - Viewer review, then QR/backstage regression QA for `operationSegment=entertainment_agency` list filtering and existing applicationType filter non-regression.
+
+---
+
+status: completed
+task: #270 character chat recent conversation and archive API contract
+branch/commit: team2-backend/chat-recent-archive-contract-270 / this commit
+changed_files:
+- server/src/chat/chat.controller.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- docs/backend-api-spec.md
+- docs/character-chat-backend-plan.md
+- docs/ops/inbox/builder-a.md
+checked_api:
+- GET /api/v1/chat/conversations?box=recent|archive|all&take=20&cursor=<nextCursor>
+tests:
+- PASS: npm.cmd run prisma:generate
+- PASS: npm.cmd test -- chat.service.spec.ts --runInBand
+- PASS: npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts
+- PASS: npm.cmd run build
+- PASS: git diff --check
+result:
+- Added a new owner-only read-only conversation list endpoint for the character chat DM surface.
+- `box=recent` reads active sessions, `box=archive` reads archived sessions, and `box=all` reads both without opening archive/unarchive mutation.
+- Response includes artist/persona summary, message count, last message preview, last activity time, pagination, empty-state copy, archive contract, and read-state capability.
+- Read receipts are explicitly not implemented yet, so unread fields return `supported=false` and `unreadCount=null`.
+- Tests verify no LLM readiness call, no chat message write, no wallet update, and no wallet ledger creation.
+sensitive_data:
+- none recorded. No token, cookie, session secret, provider secret, wallet ledger id, model metadata, safety metadata, DB URL, or env value recorded.
+blocked_by:
+- none for branch-level validation.
+next_needed:
+- Viewer review, then QR/front-end contract smoke for recent/empty/archive DM list states.

@@ -58,6 +58,183 @@ describe('ChatService.getStarterPrompts', () => {
   });
 });
 
+describe('ChatService.getConversationList', () => {
+  const userId = '00000000-0000-4000-8000-000000000270';
+  const llmProvider = {
+    readiness: jest.fn(),
+  };
+
+  beforeEach(() => {
+    llmProvider.readiness.mockReset();
+  });
+
+  it('returns owner-only recent conversation summaries without LLM or wallet mutation', async () => {
+    const prisma = {
+      chatSession: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: '00000000-0000-4000-8000-000000000271',
+            userId,
+            artistId: '00000000-0000-4000-8000-000000000272',
+            chatPersonaId: null,
+            status: 'active',
+            createdAt: new Date('2026-05-16T00:00:00.000Z'),
+            updatedAt: new Date('2026-05-16T00:05:00.000Z'),
+            artist: {
+              id: '00000000-0000-4000-8000-000000000272',
+              slug: 'yoon-serin',
+              displayName: 'Yoon Serin',
+            },
+            chatPersona: null,
+            messages: [
+              {
+                id: '00000000-0000-4000-8000-000000000273',
+                senderType: 'artist',
+                messageType: 'text',
+                body: '오늘도 조용히 곁에 있을게요.',
+                chatFeatureOrderId: null,
+                modelMetadata: { providerSecret: 'must-not-return' },
+                safetyMetadata: { internal: 'must-not-return' },
+                createdAt: new Date('2026-05-16T00:06:00.000Z'),
+              },
+            ],
+            _count: {
+              messages: 3,
+            },
+          },
+        ]),
+      },
+      chatMessage: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+      },
+      walletAccount: {
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.getConversationList(userId, {
+      box: 'recent',
+      take: 10,
+    });
+    const payload = JSON.stringify(result);
+
+    expect(prisma.chatSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId, status: 'active' },
+        take: 11,
+        include: expect.objectContaining({
+          messages: expect.objectContaining({
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+          }),
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      readOnly: true,
+      ownerOnly: true,
+      box: 'recent',
+      count: 1,
+      hasMore: false,
+      nextCursor: null,
+      readStateContract: {
+        supported: false,
+        unreadCount: null,
+      },
+      archiveContract: {
+        supported: true,
+        mutationEnabled: false,
+      },
+      safety: {
+        llmCall: false,
+        walletMutation: false,
+        messageMutation: false,
+        orderMutation: false,
+      },
+    });
+    expect(result.items[0]).toMatchObject({
+      id: '00000000-0000-4000-8000-000000000271',
+      box: 'recent',
+      artist: {
+        slug: 'yoon-serin',
+        displayName: 'Yoon Serin',
+      },
+      messageCount: 3,
+      lastMessage: {
+        id: '00000000-0000-4000-8000-000000000273',
+        senderType: 'artist',
+        messageType: 'text',
+        bodyPreview: '오늘도 조용히 곁에 있을게요.',
+        paidFeatureOrderPresent: false,
+      },
+      readState: {
+        supported: false,
+        unreadCount: null,
+      },
+    });
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.findMany).not.toHaveBeenCalled();
+    expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+    expect(payload).not.toContain('must-not-return');
+  });
+
+  it('filters the archive box with no generation side effects', async () => {
+    const prisma = {
+      chatSession: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.getConversationList(userId, { box: 'archive' });
+
+    expect(prisma.chatSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId, status: 'archived' },
+      }),
+    );
+    expect(result).toMatchObject({
+      box: 'archive',
+      items: [],
+      emptyState: {
+        messageKey: 'chat.conversations.emptyArchive',
+      },
+      safety: {
+        llmCall: false,
+        walletMutation: false,
+        messageMutation: false,
+      },
+    });
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid conversation boxes before querying', async () => {
+    const prisma = {
+      chatSession: {
+        findMany: jest.fn(),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(
+      service.getConversationList(userId, { box: 'raw_active' }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'CHAT_CONVERSATION_BOX_INVALID',
+        messageKey: 'chat.conversations.invalidBox',
+      },
+    });
+    expect(prisma.chatSession.findMany).not.toHaveBeenCalled();
+  });
+});
+
 describe('ChatService persona and catalog policy', () => {
   const llmProvider = {
     readiness: jest.fn().mockReturnValue({

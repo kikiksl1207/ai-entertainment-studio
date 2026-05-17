@@ -433,6 +433,7 @@ GET /api/v1/me/premium-video-unlocks
 ```http
 POST /api/v1/chat/sessions
 GET /api/v1/chat/sessions
+GET /api/v1/chat/conversations?box=recent|archive|all&take=20&cursor=<nextCursor>
 GET /api/v1/chat/starter-prompts?artistSlug=<artistSlug>
 GET /api/v1/chat/starter-prompts?artistId=<artistId>
 GET /api/v1/chat/persona-seed-policy
@@ -457,6 +458,74 @@ suggestions before the first character-chat message. The selection itself is fre
 and only returns copy/policy data; real message sending and generation still
 follow the character chat wallet and LLM policy. Artist metadata can override the
 default copy with `publicMetadata.chatStarterPromptSets`.
+
+Conversation list is authenticated/read-only and owner-only. It powers the DM
+recent conversation and archive surfaces without creating chat messages, calling
+the LLM provider, creating feature orders, debiting wallet, or touching
+settlement state. Query `box=recent` returns active sessions, `box=archive`
+returns archived sessions, and `box=all` returns both. Response:
+
+```json
+{
+  "readOnly": true,
+  "ownerOnly": true,
+  "box": "recent",
+  "items": [
+    {
+      "id": "chat-session-uuid",
+      "box": "recent",
+      "artist": {
+        "id": "artist-uuid",
+        "slug": "yoon-serin",
+        "displayName": "Yoon Serin"
+      },
+      "persona": null,
+      "messageCount": 3,
+      "lastMessage": {
+        "id": "message-uuid",
+        "senderType": "artist",
+        "messageType": "text",
+        "bodyPreview": "마지막 메시지 미리보기",
+        "createdAt": "2026-05-17T00:00:00.000Z",
+        "paidFeatureOrderPresent": false
+      },
+      "lastMessageAt": "2026-05-17T00:00:00.000Z",
+      "lastActivityAt": "2026-05-17T00:00:00.000Z",
+      "readState": {
+        "supported": false,
+        "unreadCount": null,
+        "messageKey": "chat.conversations.readStateNotAvailable"
+      }
+    }
+  ],
+  "count": 1,
+  "hasMore": false,
+  "nextCursor": null,
+  "emptyState": {
+    "messageKey": "chat.conversations.emptyRecent",
+    "defaultMessageKo": "아직 시작한 대화가 없어요."
+  },
+  "archiveContract": {
+    "supported": true,
+    "mutationEnabled": false,
+    "statusField": "chat_sessions.status",
+    "activeStatus": "active",
+    "archivedStatus": "archived"
+  },
+  "safety": {
+    "llmCall": false,
+    "walletMutation": false,
+    "messageMutation": false,
+    "orderMutation": false,
+    "settlementMutation": false,
+    "secretsReturned": false
+  }
+}
+```
+
+Unread counts are not opened in this contract because read receipts do not exist
+yet. Frontend should show neutral read-state copy from `messageKey` instead of
+inventing unread numbers.
 
 Persona seed policy is authenticated/read-only and returns the MVP character
 persona contract. It does not call LLM, does not debit wallet, and does not write

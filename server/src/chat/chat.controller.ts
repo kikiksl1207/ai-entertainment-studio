@@ -41,6 +41,12 @@ type PreflightChatMessageBody = {
   mode?: string;
 };
 
+type ConversationListQuery = {
+  box?: string;
+  take?: string;
+  cursor?: string;
+};
+
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class ChatController {
@@ -57,6 +63,18 @@ export class ChatController {
   @Get('chat/sessions')
   getSessions(@CurrentUser() user: AuthUser) {
     return this.chatService.getSessions(user.id);
+  }
+
+  @Get('chat/conversations')
+  getConversations(
+    @CurrentUser() user: AuthUser,
+    @Query() query: ConversationListQuery,
+  ) {
+    return this.chatService.getConversationList(user.id, {
+      box: query?.box,
+      take: this.optionalPositiveInt(query?.take, 'take'),
+      cursor: query?.cursor,
+    });
   }
 
   @Get('chat/persona-seed-policy')
@@ -183,5 +201,18 @@ export class ChatController {
     }
 
     return value;
+  }
+
+  private optionalPositiveInt(value: string | undefined, fieldName: string) {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 1) {
+      throw new BadRequestException(`${fieldName} must be a positive integer`);
+    }
+
+    return parsed;
   }
 }
