@@ -100,6 +100,23 @@ maps to active sessions, `box=archive` maps to archived sessions, and archive
 mutation remains closed. Read receipts are not implemented yet, so unread fields
 return `supported=false` and `unreadCount=null`.
 
+#276 adds a read-only populated conversation-list QA verifier:
+
+```bash
+npm run qa:chat-conversation-list
+```
+
+The verifier is for an approved local/staging disposable owner account that
+already has populated `chat_sessions` rows. It expects at least one active
+session with messages and, for archive coverage, at least one archived session
+with messages. It performs DB reads plus authenticated
+`GET /api/v1/chat/conversations` calls for `recent`, `archive`, and `all`.
+It does not seed data, create chat messages, call LLM, create feature orders,
+debit wallet/Lumina, touch settlement, or print raw token/cookie/password/DB
+URL/raw email/owner UUID/raw message body. If populated rows do not exist, the
+QA state is `BLOCKED` until the environment owner approves a safe disposable
+seeded state.
+
 #225 adds a read-only persona seed contract endpoint:
 
 ```http

@@ -1563,3 +1563,55 @@ blocked_by:
 - none for branch-level validation.
 next_needed:
 - Viewer review, then QR/front-end contract smoke for recent/empty/archive DM list states.
+
+---
+
+task: #276 character chat populated conversation list QA fixture
+status: completed
+owner: 루피
+branch/commit: team2-backend/chat-conversation-fixture-276 / this commit
+push: pending
+changed_files:
+- server/package.json
+- server/scripts/verify-chat-conversation-list-fixture.mjs
+- server/src/chat/chat.service.spec.ts
+- docs/backend-api-spec.md
+- docs/character-chat-backend-plan.md
+- docs/ops/inbox/builder-a.md
+checked_api:
+- GET /api/v1/chat/conversations?box=recent|archive|all&take=20&cursor=<nextCursor>
+fixture_seed_method:
+- Added `npm run qa:chat-conversation-list` as a read-only populated-state verifier.
+- The verifier expects an approved disposable owner user with existing populated active and archived chat sessions.
+- It signs a short-lived owner token and calls only authenticated GET endpoints.
+- It does not create chat sessions, create chat messages, call LLM, create feature orders, debit wallet/Lumina, touch settlement, or print raw token, cookie, password, DB URL, raw email, owner UUID, or raw message body.
+- If populated rows are missing, the script reports BLOCKED until a safe local/staging disposable seeded state is approved.
+result:
+- Added archive populated + pagination unit coverage for `getConversationList`.
+- Confirmed frontend DM list minimum fields remain available: session id, box, status, artist, persona, message count, last message preview, timestamps, read state contract, archive contract, and safety flags.
+sensitive_data:
+- none recorded. No raw token, cookie, password, DB URL, raw email, owner UUID, raw message body, model metadata, safety metadata, provider secret, or env value recorded.
+blocked_by:
+- Live/staging populated execution still needs an approved disposable owner account and environment-provided secrets; no sensitive values were recorded.
+next_needed:
+- Viewer review.
+- QR/front-end can run the verifier only in an approved environment with a disposable populated owner.
+
+---
+
+task: #276 character chat populated verifier P1 follow-up
+status: completed
+owner: 루피
+branch/commit: team2-backend/chat-conversation-fixture-276 / follow-up commit
+push: pending
+changed_files:
+- server/scripts/verify-chat-conversation-list-fixture.mjs
+- docs/ops/inbox/builder-a.md
+fix_summary:
+- Tightened verifier PASS conditions for populated `recent`, `archive`, and `all` boxes.
+- When populated rows are expected, returned items must now include `messageCount > 0`, `lastMessage`, non-empty `lastMessage.bodyPreview`, and both `lastMessageAt` and `lastActivityAt`.
+- Output remains boolean/count based through `populatedShape`; raw message body, token, cookie, DB URL, owner UUID, secret, and raw email are not printed.
+sensitive_data:
+- none recorded.
+next_needed:
+- Viewer re-review.

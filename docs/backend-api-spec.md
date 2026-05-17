@@ -536,6 +536,26 @@ Unread counts are not opened in this contract because read receipts do not exist
 yet. Frontend should show neutral read-state copy from `messageKey` instead of
 inventing unread numbers.
 
+QA populated verification for #276 is read-only. Use an already approved
+disposable owner account that has at least one active chat session with messages
+and, for archive QA, at least one archived chat session with messages. Then run
+from `server/`:
+
+```bash
+npm run qa:chat-conversation-list
+```
+
+Required runtime values are `CHARACTER_CHAT_QA_USER_ID` and
+`JWT_ACCESS_SECRET`; optional values are `CHARACTER_CHAT_QA_API_BASE`,
+`CHARACTER_CHAT_QA_TAKE`, and `CHARACTER_CHAT_QA_ALLOW_MISSING_ARCHIVE`. The
+verifier signs a short-lived owner token, calls only
+`GET /api/v1/chat/conversations` for `recent`, `archive`, and `all`, and prints
+only safe booleans/counts. It does not create chat sessions, create chat
+messages, call LLM, create feature orders, debit wallet/Lumina, touch
+settlement, or print raw token, cookie, password, DB URL, raw email, owner UUID,
+or raw message body. If the populated owner rows are missing, treat the result as
+`BLOCKED` until a staging/local disposable seeded state is approved.
+
 Persona seed policy is authenticated/read-only and returns the MVP character
 persona contract. It does not call LLM, does not debit wallet, and does not write
 chat data. The current schema is enough for MVP: `chat_personas.system_prompt`,
