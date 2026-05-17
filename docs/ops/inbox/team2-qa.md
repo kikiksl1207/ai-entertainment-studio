@@ -1,6 +1,37 @@
 # Team2 QA Inbox
 
 status: pass
+task: #266 - debut status mobile tabbar live re-QA
+branch/commit:
+- branch: cloud/266-debut-status-ux
+- local main after pull: origin/main
+- basis commit: 2048ef5573d7d99c87f7061d8882690b69b39c5b
+- live page: https://kikiksl1207.github.io/ai-entertainment-studio/mypage.html#debut
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: ran `git pull origin main`; already up to date.
+- PASS: created a disposable QA user and a single debut application with `submitted` status for #266 layout verification.
+- PASS: live `GET /api/v1/me/debut-applications/latest` returned `submitted` for the disposable QA user.
+- PASS: live 390x844 `mypage.html#debut` rendered the Debut tab and submitted status card without the card title or body being covered by the fixed mobile tabbar.
+- PASS: live 390x844 measured `#mypageDebutTitle`, `#mypageDebutDescription`, `#mypageDebutNextAction`, and `#mypageDebutSteps` above `.mobile-tabbar`.
+- PASS: live 768x844 rendered the same submitted card without tabbar overlap.
+- PASS: live 1280x900 rendered the same submitted card; `.mobile-tabbar` was hidden.
+result:
+- The previous blocker is not reproducible on live after `2048ef5 #266 mypage: re-scroll active panel after showTab layout collapse`.
+- 390px mobile viewport shows `Q266 Live Smoke 상태`, the submitted explanation, next action copy, and all four progress steps above the bottom navigation.
+- No code files were modified.
+- No wallet, Lumina balance, settlement, payout, paid-like, Creator Studio, or Backstage mutation was executed.
+blocked_by:
+- None found.
+next_needed:
+- PM/차모 can mark #266 complete from QA2 perspective, or archive the older 7da0400/6434b83 notes as superseded by 2048ef5.
+security_check:
+- PASS: no token, cookie, password, env value, signed URL, object URL, or credential was recorded.
+
+---
+
+status: pass
 task: Fan engagement Home teaser smoke QA
 environment:
 - branch: team2-qa/fan-engagement-home-teaser-smoke
