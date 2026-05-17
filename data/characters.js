@@ -185,7 +185,9 @@
       fandom: "직관적 매력 소비형", business: "피트니스, 스포츠 뷰티, 라이프스타일",
       tags: ["피트니스", "러블리", "반전매력"],
       colorAccent: "#f0b0c0",
-      images: { cover: "./assets/characters/min-chaeon/cover.png", thumb: "./assets/characters/min-chaeon/thumb.png" },
+      // #277 — 에밀리 최종 PNG 도착 전까지 SVG placeholder 18장 (cover/thumb/gallery-01..16).
+      // PNG 도착 시 같은 파일명을 .png 로 추가하고, 이 path 의 확장자만 png 로 되돌리면 끝.
+      images: { cover: "./assets/characters/min-chaeon/site-selected/cover.svg", thumb: "./assets/characters/min-chaeon/site-selected/thumb.svg" },
       intro: "민채온은 러블리한 첫인상과 탄탄한 에너지가 공존하는 피트니스형 아이돌이다. 가벼운 미소로 다가오지만, 무대 위에서는 리듬과 체력으로 시선을 붙잡는다.",
       concept: "귀엽게 웃는 모습 뒤에 숨겨둔 힘을 무대에서 보여드릴게요. 가볍게 시작해도 끝까지 단단하게 버티는 에너지로 제 이름을 증명하겠습니다.",
       profile: {
@@ -531,20 +533,29 @@
     "seo-yuan",
     "ha-yuna",
     "kwon-taejun",
-    "oh-hyerin"
+    "oh-hyerin",
+    "min-chaeon"
   ];
 
-  const characterFrontAssets = siteSelectedSlugs.reduce((assets, slug) => {
-    assets[slug] = { gallery: siteSelectedGallery(slug, 14) };
-    return assets;
-  }, {});
+  // #277 — slug 마다 gallery 매수와 파일 확장자가 달라질 수 있게 lookup. 기본은 oh-hyerin 까지의
+  // 기존 규약(.png 14장). min-chaeon 은 placeholder SVG 18장 (cover/thumb + gallery 16).
+  // 에밀리 최종 PNG 도착 시 ext "png", count 16 으로 한 줄만 바꾸면 된다.
+  const siteSelectedGalleryConfig = {
+    "min-chaeon": { count: 16, ext: "svg" }
+  };
 
-  function siteSelectedGallery(slug, count) {
+  function siteSelectedGallery(slug) {
+    const { count = 14, ext = "png" } = siteSelectedGalleryConfig[slug] || {};
     return Array.from({ length: count }, (_, index) => {
       const number = String(index + 1).padStart(2, "0");
-      return [`Gallery ${number}`, `./assets/characters/${slug}/site-selected/gallery-${number}.png`];
+      return [`Gallery ${number}`, `./assets/characters/${slug}/site-selected/gallery-${number}.${ext}`];
     });
   }
+
+  const characterFrontAssets = siteSelectedSlugs.reduce((assets, slug) => {
+    assets[slug] = { gallery: siteSelectedGallery(slug) };
+    return assets;
+  }, {});
 
   const localGalleryLockedSlugs = new Set(Object.keys(characterFrontAssets));
 
