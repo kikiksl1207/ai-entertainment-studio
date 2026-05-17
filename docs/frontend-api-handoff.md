@@ -838,6 +838,7 @@ Create body:
 - Current fan-letter price is 30L, equivalent to 300 KRW at 1L = 10 KRW.
 - `POST /fan-letters/preview` returns artist, product, wallet balance, and policy.
 - `POST /fan-letters` deducts 30L and returns `{ fanLetter, idempotentReplay }`.
+- `Idempotency-Key` or body `idempotencyKey` is required before the 30L debit.
 - Artist operators use `GET /me/fan-letters/received` in Creator Studio.
 - Operator status update supports `submitted`, `seen`, `replied`, and `archived`.
   When setting `replied`, send `replyBody`.
@@ -937,6 +938,22 @@ Charge flow:
 
 Current MVP note: PG approval/provider is still pending, so `payment.status = "pg_pending"` is expected. The frontend can show the charge station UI and product cards now, but real payment completion depends on future PG adapter setup.
 
+### Wallet Debit Retry Safety
+
+For any user action that spends Lumina, the frontend must send a stable
+client-generated `Idempotency-Key` header or body `idempotencyKey` for that
+single intended purchase/support action. Do not queue paid actions while
+offline; wait for the server response and then refresh wallet/quota/ranking
+state from the API.
+
+If the key is missing, the server returns
+`WALLET_MUTATION_IDEMPOTENCY_REQUIRED` or a domain-specific equivalent with
+`walletMutation: false`. If the same key is reused with a different request
+body, the server returns `WALLET_MUTATION_IDEMPOTENCY_CONFLICT` or a
+domain-specific equivalent and does not debit again. A retry with the same key
+and same body returns `idempotentReplay: true` where the endpoint supports
+replay.
+
 ### Boost Campaign / Free Like
 
 ```http
@@ -978,8 +995,9 @@ Policy:
 - `quantity` defaults to `1` and must be an integer between `1` and `20`.
 - If the user exceeds the daily paid-like limit, expect `400 Daily paid like
   limit exceeded`.
-- Send `Idempotency-Key` header or `idempotencyKey` in the body to avoid
-  double spending on retries.
+- Send `Idempotency-Key` header or `idempotencyKey` in the body. This is
+  required for paid-like wallet debit safety and prevents double spending on
+  retries.
 - Future identity/trust rule: signup remains open, but paid support, referral
   rewards, fan letters, bonus-Lumina settlement spend, and creator settlement
   actions may return `IDENTITY_VERIFICATION_REQUIRED`. See

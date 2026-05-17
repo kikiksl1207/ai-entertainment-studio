@@ -19,6 +19,14 @@ NestJS를 추천하는 이유는 도메인 분리가 명확하고, 결제/지갑
 - 공개 조회 API와 사용자 인증 API를 분리한다.
 - 루미나 증감은 반드시 wallet service를 통해서만 처리한다.
 - 결제, 선물, 부스트, 프리미엄 해금, 챗 특수 기능 주문은 `Idempotency-Key` 헤더를 받는다.
+- Wallet-debit endpoints must receive either an `Idempotency-Key` header or a
+  body `idempotencyKey` before any wallet mutation. Missing keys return
+  `WALLET_MUTATION_IDEMPOTENCY_REQUIRED` or a domain-specific equivalent with
+  `walletMutation: false`. Reusing the same key with a different request body
+  returns `WALLET_MUTATION_IDEMPOTENCY_CONFLICT` or a domain-specific
+  equivalent and must not debit the wallet again. Debit transactions update
+  `wallet_accounts.cached_balance` only with a `cachedBalance >= amount`
+  condition, then write the ledger/event/order in the same DB transaction.
 - 클라이언트가 결제 성공을 주장해도 서버는 PG transaction/webhook으로만 확정한다.
 - 관리자/운영 API는 `/admin` namespace로 분리한다.
 
@@ -409,7 +417,8 @@ Paid like API:
 - Daily paid-like limit is 20 units per user per service day.
 - `quantity` defaults to 1 and accepts 1-20.
 - Limit failures return `400 Daily paid like limit exceeded`.
-- Supports `Idempotency-Key` header or body `idempotencyKey`.
+- Requires `Idempotency-Key` header or body `idempotencyKey` before wallet
+  debit.
 - `GET /api/v1/me/paid-like-quota` returns the active campaign, daily limit,
   used count, remaining count, reset time, and unit price.
 
@@ -1009,6 +1018,8 @@ Create body:
 ```
 
 - Create deducts 30L from the sender wallet and writes `wallet_ledger.ledger_type = fan_letter_spend`.
+- Create requires `Idempotency-Key` header or body `idempotencyKey` before the
+  wallet debit.
 - `fan_letters` are included in Backstage settlement preview as `productBreakdown.fan_letter`, but final settlement must still apply VAT, PG fees, refund/chargeback risk, and creator contract terms.
 - Artist operators can read received letters for artists they operate through `GET /me/fan-letters/received`.
 - Operator status update accepts `submitted`, `seen`, `replied`, or `archived`. `replied` requires `replyBody` and notifies the sender.
