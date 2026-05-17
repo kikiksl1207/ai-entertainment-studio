@@ -135,6 +135,14 @@ async function verifyConversationBox(box, token, fixtureState) {
   );
   const expectedPopulated = expectedPopulatedCount(box, fixtureState);
   const itemShapePass = items.every((item) => hasConversationItemShape(item));
+  const populatedShape = summarizePopulatedItems(items);
+  const populatedPass =
+    expectedPopulated === 0 ||
+    (items.length > 0 &&
+      populatedShape.allReturnedItemsHaveMessageCount &&
+      populatedShape.allReturnedItemsHaveLastMessage &&
+      populatedShape.allReturnedItemsHaveBodyPreview &&
+      populatedShape.allReturnedItemsHaveActivityTimestamps);
   const safety = data?.safety ?? {};
   const pass =
     res.status === 200 &&
@@ -143,6 +151,7 @@ async function verifyConversationBox(box, token, fixtureState) {
     data?.box === box &&
     itemShapePass &&
     (items.length > 0) === (expectedPopulated > 0) &&
+    populatedPass &&
     safety.llmCall === false &&
     safety.walletMutation === false &&
     safety.messageMutation === false &&
@@ -162,6 +171,8 @@ async function verifyConversationBox(box, token, fixtureState) {
     hasMore: data?.hasMore ?? null,
     nextCursorPresent: typeof data?.nextCursor === 'string' && data.nextCursor.length > 0,
     itemShapePass,
+    populatedShape,
+    populatedPass,
     safety,
     forbiddenPayloadTerms,
     pass,
@@ -234,6 +245,39 @@ function hasConversationItemShape(item) {
 function hasPreview(row) {
   const message = row.messages?.[0];
   return typeof message?.body === 'string' && message.body.trim().length > 0;
+}
+
+function summarizePopulatedItems(items) {
+  const total = items.length;
+  const withMessageCount = items.filter((item) => item?.messageCount > 0).length;
+  const withLastMessage = items.filter((item) => isObject(item?.lastMessage)).length;
+  const withBodyPreview = items.filter((item) =>
+    nonEmptyString(item?.lastMessage?.bodyPreview),
+  ).length;
+  const withActivityTimestamps = items.filter(
+    (item) => nonEmptyString(item?.lastMessageAt) && nonEmptyString(item?.lastActivityAt),
+  ).length;
+
+  return {
+    total,
+    withMessageCount,
+    withLastMessage,
+    withBodyPreview,
+    withActivityTimestamps,
+    allReturnedItemsHaveMessageCount: total > 0 && withMessageCount === total,
+    allReturnedItemsHaveLastMessage: total > 0 && withLastMessage === total,
+    allReturnedItemsHaveBodyPreview: total > 0 && withBodyPreview === total,
+    allReturnedItemsHaveActivityTimestamps:
+      total > 0 && withActivityTimestamps === total,
+  };
+}
+
+function isObject(value) {
+  return value !== null && typeof value === 'object';
+}
+
+function nonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
 function signAccessToken(user) {

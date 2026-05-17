@@ -1596,3 +1596,22 @@ blocked_by:
 next_needed:
 - Viewer review.
 - QR/front-end can run the verifier only in an approved environment with a disposable populated owner.
+
+---
+
+task: #276 character chat populated verifier P1 follow-up
+status: completed
+owner: 루피
+branch/commit: team2-backend/chat-conversation-fixture-276 / follow-up commit
+push: pending
+changed_files:
+- server/scripts/verify-chat-conversation-list-fixture.mjs
+- docs/ops/inbox/builder-a.md
+fix_summary:
+- Tightened verifier PASS conditions for populated `recent`, `archive`, and `all` boxes.
+- When populated rows are expected, returned items must now include `messageCount > 0`, `lastMessage`, non-empty `lastMessage.bodyPreview`, and both `lastMessageAt` and `lastActivityAt`.
+- Output remains boolean/count based through `populatedShape`; raw message body, token, cookie, DB URL, owner UUID, secret, and raw email are not printed.
+sensitive_data:
+- none recorded.
+next_needed:
+- Viewer re-review.
