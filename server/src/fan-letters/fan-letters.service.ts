@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import {
+  requireWalletMutationIdempotencyKey,
+  throwWalletMutationIdempotencyConflict,
+} from '../common/wallet-mutation-safety';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -100,21 +104,27 @@ export class FanLettersService {
   ) {
     const artist = await this.activeArtist(input.artistId);
     const body = this.fanLetterBody(input.body);
-    const title = this.optionalTitle(input.title);
+    const title = this.optionalTitle(input.title) ?? null;
+    const idempotencyKey = requireWalletMutationIdempotencyKey(input.idempotencyKey);
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      if (input.idempotencyKey) {
-        const existingLetter = await tx.fanLetter.findUnique({
-          where: { idempotencyKey: input.idempotencyKey },
-          include: this.fanLetterInclude(),
+    const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const existingLetter = await tx.fanLetter.findUnique({
+        where: { idempotencyKey },
+        include: this.fanLetterInclude(),
+      });
+
+      if (existingLetter) {
+        this.assertFanLetterIdempotentReplay(existingLetter, {
+          senderUserId: userId,
+          artistId: artist.id,
+          title,
+          body,
         });
 
-        if (existingLetter) {
-          return {
-            fanLetter: this.toFanLetterView(existingLetter),
-            idempotentReplay: true,
-          };
-        }
+        return {
+          fanLetter: this.toFanLetterView(existingLetter),
+          idempotentReplay: true,
+        };
       }
 
       const wallet = await tx.walletAccount.findUnique({
@@ -146,9 +156,7 @@ export class FanLettersService {
           amount: FAN_LETTER_PRICE_LUMINA,
           ledgerType: 'fan_letter_spend',
           referenceType: 'fan_letter',
-          idempotencyKey: input.idempotencyKey
-            ? `fan-letter:${input.idempotencyKey}`
-            : undefined,
+          idempotencyKey: `fan-letter:${idempotencyKey}`,
           memo: `Fan letter to ${artist.displayName}`,
         },
       });
@@ -161,7 +169,7 @@ export class FanLettersService {
           amountLumina: FAN_LETTER_PRICE_LUMINA,
           title,
           body,
-          idempotencyKey: input.idempotencyKey,
+          idempotencyKey,
           metadata: this.toJson({
             ...(input.metadata ?? {}),
             priceLumina: FAN_LETTER_PRICE_LUMINA.toString(),
@@ -424,6 +432,32 @@ export class FanLettersService {
         grossLumina: fanLetter.amountLumina,
       },
     };
+  }
+
+  private assertFanLetterIdempotentReplay(
+    letter: {
+      senderUserId: string;
+      artistId: string;
+      title: string | null;
+      body: string;
+    },
+    expected: {
+      senderUserId: string;
+      artistId: string;
+      title: string | null;
+      body: string;
+    },
+  ) {
+    if (
+      letter.senderUserId === expected.senderUserId &&
+      letter.artistId === expected.artistId &&
+      letter.title === expected.title &&
+      letter.body === expected.body
+    ) {
+      return;
+    }
+
+    throwWalletMutationIdempotencyConflict();
   }
 
   private productView() {

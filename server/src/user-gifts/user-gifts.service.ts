@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import {
+  requireWalletMutationIdempotencyKey,
+  throwWalletMutationIdempotencyConflict,
+} from '../common/wallet-mutation-safety';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_CURRENCY = 'LUMINA';
@@ -24,23 +28,29 @@ export class UserGiftsService {
     },
   ) {
     const amount = this.parseAmount(input.amountLumina);
+    const idempotencyKey = requireWalletMutationIdempotencyKey(input.idempotencyKey);
 
     if (senderUserId === input.recipientUserId) {
       throw new BadRequestException('Cannot send Lumina to yourself');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      if (input.idempotencyKey) {
-        const existingTransfer = await tx.userGiftTransfer.findUnique({
-          where: { idempotencyKey: input.idempotencyKey },
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const existingTransfer = await tx.userGiftTransfer.findUnique({
+        where: { idempotencyKey },
+      });
+
+      if (existingTransfer) {
+        this.assertUserGiftIdempotentReplay(existingTransfer, {
+          senderUserId,
+          recipientUserId: input.recipientUserId,
+          amountLumina: amount,
+          message: input.message || null,
         });
 
-        if (existingTransfer) {
-          return {
-            transfer: existingTransfer,
-            idempotentReplay: true,
-          };
-        }
+        return {
+          transfer: existingTransfer,
+          idempotentReplay: true,
+        };
       }
 
       const [senderWallet, recipientWallet, recipientUser] = await Promise.all([
@@ -91,7 +101,7 @@ export class UserGiftsService {
           amountLumina: amount,
           message: input.message || undefined,
           status: 'pending',
-          idempotencyKey: input.idempotencyKey,
+          idempotencyKey,
         },
       });
 
@@ -126,9 +136,7 @@ export class UserGiftsService {
             ledgerType: 'user_gift_send',
             referenceType: 'user_gift_transfer',
             referenceId: transfer.id,
-            idempotencyKey: input.idempotencyKey
-              ? `wallet:user_gift_send:${input.idempotencyKey}`
-              : undefined,
+            idempotencyKey: `wallet:user_gift_send:${idempotencyKey}`,
             memo: 'User gift sent',
           },
         }),
@@ -140,9 +148,7 @@ export class UserGiftsService {
             ledgerType: 'user_gift_receive',
             referenceType: 'user_gift_transfer',
             referenceId: transfer.id,
-            idempotencyKey: input.idempotencyKey
-              ? `wallet:user_gift_receive:${input.idempotencyKey}`
-              : undefined,
+            idempotencyKey: `wallet:user_gift_receive:${idempotencyKey}`,
             memo: 'User gift received',
           },
         }),
@@ -228,6 +234,32 @@ export class UserGiftsService {
     }
 
     return normalizedAmount;
+  }
+
+  private assertUserGiftIdempotentReplay(
+    transfer: {
+      senderUserId: string;
+      recipientUserId: string;
+      amountLumina: Decimal;
+      message: string | null;
+    },
+    expected: {
+      senderUserId: string;
+      recipientUserId: string;
+      amountLumina: Decimal;
+      message: string | null;
+    },
+  ) {
+    if (
+      transfer.senderUserId === expected.senderUserId &&
+      transfer.recipientUserId === expected.recipientUserId &&
+      transfer.amountLumina.equals(expected.amountLumina) &&
+      (transfer.message ?? null) === expected.message
+    ) {
+      return;
+    }
+
+    throwWalletMutationIdempotencyConflict();
   }
 
   private async enforceSenderLimits(

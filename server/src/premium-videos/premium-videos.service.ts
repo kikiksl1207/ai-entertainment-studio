@@ -1,4 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
+import {
+  requireWalletMutationIdempotencyKey,
+  throwWalletMutationIdempotencyConflict,
+} from '../common/wallet-mutation-safety';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_CURRENCY = 'LUMINA';
@@ -47,6 +53,7 @@ export class PremiumVideosService {
   }
 
   async unlock(userId: string, productId: string, idempotencyKey?: string) {
+    const normalizedIdempotencyKey = requireWalletMutationIdempotencyKey(idempotencyKey);
     const product = await this.prisma.premiumVideoProduct.findFirst({
       where: { id: productId, status: 'active' },
     });
@@ -55,7 +62,29 @@ export class PremiumVideosService {
       throw new NotFoundException('Premium video product not found');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const existingLedger = await tx.walletLedger.findUnique({
+        where: { idempotencyKey: `premium-video:${normalizedIdempotencyKey}` },
+      });
+
+      if (existingLedger) {
+        this.assertPremiumVideoIdempotentReplay(existingLedger, {
+          walletAccountId: null,
+          productId: product.id,
+          amount: product.priceLumina,
+        });
+
+        const replayedUnlock = await tx.userPremiumVideoUnlock.findFirst({
+          where: { walletLedgerId: existingLedger.id, userId },
+        });
+
+        if (!replayedUnlock) {
+          throwWalletMutationIdempotencyConflict();
+        }
+
+        return { unlock: replayedUnlock, idempotentReplay: true };
+      }
+
       const existingUnlock = await tx.userPremiumVideoUnlock.findUnique({
         where: {
           userId_premiumVideoProductId: {
@@ -67,19 +96,6 @@ export class PremiumVideosService {
 
       if (existingUnlock) {
         return { unlock: existingUnlock, idempotentReplay: true };
-      }
-
-      if (idempotencyKey) {
-        const existingLedger = await tx.walletLedger.findUnique({
-          where: { idempotencyKey: `premium-video:${idempotencyKey}` },
-        });
-
-        if (existingLedger) {
-          const replayedUnlock = await tx.userPremiumVideoUnlock.findFirst({
-            where: { walletLedgerId: existingLedger.id },
-          });
-          return { unlock: replayedUnlock, idempotentReplay: true };
-        }
       }
 
       const wallet = await tx.walletAccount.findUnique({
@@ -109,9 +125,7 @@ export class PremiumVideosService {
           ledgerType: 'premium_video_spend',
           referenceType: 'premium_video_product',
           referenceId: product.id,
-          idempotencyKey: idempotencyKey
-            ? `premium-video:${idempotencyKey}`
-            : undefined,
+          idempotencyKey: `premium-video:${normalizedIdempotencyKey}`,
           memo: `Premium video unlock: ${product.title}`,
         },
       });
@@ -157,5 +171,32 @@ export class PremiumVideosService {
       },
       orderBy: { unlockedAt: 'desc' },
     });
+  }
+
+  private assertPremiumVideoIdempotentReplay(
+    ledger: {
+      walletAccountId: string;
+      ledgerType: string;
+      referenceType: string | null;
+      referenceId: string | null;
+      amount: Decimal;
+    },
+    expected: {
+      walletAccountId: string | null;
+      productId: string;
+      amount: Decimal;
+    },
+  ) {
+    if (
+      (!expected.walletAccountId || ledger.walletAccountId === expected.walletAccountId) &&
+      ledger.ledgerType === 'premium_video_spend' &&
+      ledger.referenceType === 'premium_video_product' &&
+      ledger.referenceId === expected.productId &&
+      ledger.amount.equals(expected.amount)
+    ) {
+      return;
+    }
+
+    throwWalletMutationIdempotencyConflict();
   }
 }

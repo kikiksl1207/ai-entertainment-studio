@@ -1,5 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import {
+  requireWalletMutationIdempotencyKey,
+  throwWalletMutationIdempotencyConflict,
+} from '../common/wallet-mutation-safety';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_CURRENCY = 'LUMINA';
@@ -28,6 +33,7 @@ export class GiftsService {
     },
   ) {
     const quantity = this.parseQuantity(input.quantity);
+    const idempotencyKey = requireWalletMutationIdempotencyKey(input.idempotencyKey);
     const giftProduct = await this.prisma.giftProduct.findFirst({
       where: {
         id: input.giftProductId,
@@ -42,16 +48,22 @@ export class GiftsService {
 
     const totalLumina = giftProduct.priceLumina.mul(quantity);
 
-    return this.prisma.$transaction(async (tx) => {
-      if (input.idempotencyKey) {
-        const existingOrder = await tx.giftOrder.findUnique({
-          where: { idempotencyKey: input.idempotencyKey },
-          include: { walletLedger: true },
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const existingOrder = await tx.giftOrder.findUnique({
+        where: { idempotencyKey },
+        include: { walletLedger: true },
+      });
+
+      if (existingOrder) {
+        this.assertGiftOrderIdempotentReplay(existingOrder, {
+          userId,
+          artistId: input.artistId,
+          giftProductId: giftProduct.id,
+          quantity,
+          totalLumina,
         });
 
-        if (existingOrder) {
-          return { order: existingOrder, idempotentReplay: true };
-        }
+        return { order: existingOrder, idempotentReplay: true };
       }
 
       const wallet = await tx.walletAccount.findUnique({
@@ -89,9 +101,7 @@ export class GiftsService {
           ledgerType: 'gift_spend',
           referenceType: 'gift_product',
           referenceId: giftProduct.id,
-          idempotencyKey: input.idempotencyKey
-            ? `wallet:${input.idempotencyKey}`
-            : undefined,
+          idempotencyKey: `wallet:gift-order:${idempotencyKey}`,
           memo: `Gift order: ${giftProduct.name}`,
         },
       });
@@ -105,7 +115,7 @@ export class GiftsService {
           quantity,
           totalLumina,
           status: 'completed',
-          idempotencyKey: input.idempotencyKey,
+          idempotencyKey,
         },
         include: { walletLedger: true },
       });
@@ -229,5 +239,34 @@ export class GiftsService {
     }
 
     return quantity;
+  }
+
+  private assertGiftOrderIdempotentReplay(
+    order: {
+      userId: string;
+      artistId: string;
+      giftProductId: string;
+      quantity: number;
+      totalLumina: Decimal;
+    },
+    expected: {
+      userId: string;
+      artistId: string;
+      giftProductId: string;
+      quantity: number;
+      totalLumina: Decimal;
+    },
+  ) {
+    if (
+      order.userId === expected.userId &&
+      order.artistId === expected.artistId &&
+      order.giftProductId === expected.giftProductId &&
+      order.quantity === expected.quantity &&
+      order.totalLumina.equals(expected.totalLumina)
+    ) {
+      return;
+    }
+
+    throwWalletMutationIdempotencyConflict();
   }
 }
