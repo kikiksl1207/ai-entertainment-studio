@@ -215,6 +215,120 @@ describe('ChatService.getConversationList', () => {
     expect(llmProvider.readiness).not.toHaveBeenCalled();
   });
 
+  it('returns populated archive summaries with pagination metadata', async () => {
+    const prisma = {
+      chatSession: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: '00000000-0000-4000-8000-000000000274',
+            status: 'archived',
+            createdAt: new Date('2026-05-15T00:00:00.000Z'),
+            updatedAt: new Date('2026-05-15T00:10:00.000Z'),
+            artist: {
+              id: '00000000-0000-4000-8000-000000000275',
+              slug: 'han-seoyul',
+              displayName: 'Han Seoyul',
+            },
+            chatPersona: {
+              id: '00000000-0000-4000-8000-000000000276',
+              name: 'Soft Talk',
+              status: 'active',
+            },
+            messages: [
+              {
+                id: '00000000-0000-4000-8000-000000000277',
+                senderType: 'user',
+                messageType: 'text',
+                body: 'QA populated archive preview',
+                chatFeatureOrderId: null,
+                createdAt: new Date('2026-05-15T00:11:00.000Z'),
+              },
+            ],
+            _count: {
+              messages: 2,
+            },
+          },
+          {
+            id: '00000000-0000-4000-8000-000000000278',
+            status: 'archived',
+            createdAt: new Date('2026-05-14T00:00:00.000Z'),
+            updatedAt: new Date('2026-05-14T00:10:00.000Z'),
+            artist: {
+              id: '00000000-0000-4000-8000-000000000279',
+              slug: 'park-doa',
+              displayName: 'Park Doa',
+            },
+            chatPersona: null,
+            messages: [
+              {
+                id: '00000000-0000-4000-8000-000000000280',
+                senderType: 'artist',
+                messageType: 'text',
+                body: 'Second archived item for cursor check',
+                chatFeatureOrderId: null,
+                createdAt: new Date('2026-05-14T00:11:00.000Z'),
+              },
+            ],
+            _count: {
+              messages: 1,
+            },
+          },
+        ]),
+      },
+      chatMessage: {
+        create: jest.fn(),
+      },
+      walletAccount: {
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.getConversationList(userId, {
+      box: 'archive',
+      take: 1,
+    });
+
+    expect(prisma.chatSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId, status: 'archived' },
+        take: 2,
+      }),
+    );
+    expect(result).toMatchObject({
+      box: 'archive',
+      count: 1,
+      hasMore: true,
+      nextCursor: '00000000-0000-4000-8000-000000000274',
+      safety: {
+        llmCall: false,
+        walletMutation: false,
+        messageMutation: false,
+      },
+    });
+    expect(result.items[0]).toMatchObject({
+      id: '00000000-0000-4000-8000-000000000274',
+      box: 'archive',
+      status: 'archived',
+      messageCount: 2,
+      lastMessage: {
+        bodyPreview: 'QA populated archive preview',
+        paidFeatureOrderPresent: false,
+      },
+      persona: {
+        name: 'Soft Talk',
+        status: 'active',
+      },
+    });
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+    expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid conversation boxes before querying', async () => {
     const prisma = {
       chatSession: {
