@@ -596,6 +596,30 @@ function maskCode(value) {
   return value.slice(0, 2) + "***";
 }
 
+/* #261 — paid-like / boost-orders 같은 차감성 액션 재시도가 중복 차감되지 않도록
+   클라이언트에서 고유 idempotencyKey 를 생성한다. 같은 키로 재시도하면 백엔드가
+   이전 결과를 재사용. 키 자체는 wallet/ledger 와 직접 매핑되지 않는 임의값. */
+function generateIdempotencyKey() {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch (_) { /* noop */ }
+  // crypto.randomUUID 미지원 환경 fallback — RFC4122 v4 비슷한 형태.
+  const rnd = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).slice(1);
+  return rnd() + rnd() + "-" + rnd() + "-4" + rnd().slice(1) + "-" +
+         (8 + Math.floor(Math.random() * 4)).toString(16) + rnd().slice(1) + "-" +
+         rnd() + rnd() + rnd();
+}
+
+/* #261 — 오프라인이면 차감성 요청을 바로 차단. navigator.onLine 은 false 가
+   확정 단서 (true 면 \"아마 온라인\"). 따라서 false 일 때만 막고, true 일 때는
+   서버 응답으로 최종 판정한다. */
+function isLikelyOffline() {
+  try { return typeof navigator !== "undefined" && navigator.onLine === false; }
+  catch (_) { return false; }
+}
+
 async function authLogin(email, password) {
   const data = await apiFetch("/api/v1/auth/login", {
     method: "POST",
@@ -1562,7 +1586,9 @@ function getPaidLikeBalance() {
 async function loadPaidLikeQuota() {
   if (!isLoggedIn()) return null;
   try {
-    const data = await apiFetch("/api/v1/me/paid-like-quota");
+    // #261 — /me/paid-like-quota 는 owner-only 엔드포인트. 인증 헤더 누락 시 401 로
+    // 떨어져 조용히 null 이 됐는데, 이제는 Bearer 를 보내 정확히 조회한다.
+    const data = await apiFetch("/api/v1/me/paid-like-quota", { auth: true });
     return data || null;
   } catch (err) {
     console.warn("[Lumina] /me/paid-like-quota 실패:", err);
@@ -1679,37 +1705,76 @@ async function openPaidLikeModal(slug) {
     }
 
     const button = overlay.querySelector("[data-paid-like-confirm]");
+    // #261 — 차감성 액션은 offline queue 로 쌓지 않고, 즉시 차단해야 한다.
+    // navigator.onLine === false 이면 서버 도달도 못하는 것을 알기에 사용자에게 명확히 안내.
+    if (isLikelyOffline()) {
+      setMessage("인터넷 연결이 끊겼어요. 연결 상태가 안정된 뒤 다시 응원해 주세요. 지금은 루미나가 차감되지 않습니다.");
+      return;
+    }
     button.disabled = true;
     button.textContent = "전달 중";
+    // #261 — 같은 클릭/응답 유실 재시도에서 중복 차감되지 않도록 클라이언트가 고유 키 생성.
+    // 한 번 발급한 키를 같은 클릭 라이프사이클 동안만 사용 (재클릭 = 새 키).
+    const idempotencyKey = generateIdempotencyKey();
     try {
       await apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/paid-like`, {
         method: "POST",
         auth: true,
         throwOnError: true,
+        // #261 — body 와 헤더 둘 다 전송. 서버 계약상 body.idempotencyKey 가 canonical 이고,
+        // Idempotency-Key 헤더는 #057 패턴과 동일 (apiFetch extraHeaders 가 머지).
+        headers: { "Idempotency-Key": idempotencyKey },
         body: {
           artistId: artist?.id || slug,
           artistSlug: slug,
-          quantity: selectedBundle.quantity
+          quantity: selectedBundle.quantity,
+          idempotencyKey
         }
       });
+      // #261 — 낙관적 갱신은 즉시 시각 피드백용이고, 서버 재조회로 곧 정확한 값으로 정렬됨.
       const rank = _rankings.find(r => r.slug === slug);
       if (rank) rank.likes += selectedBundle.quantity;
       else _rankings.push({ slug, likes: selectedBundle.quantity });
       if (_wallet?.loaded) _wallet.balance = Math.max(0, Number(_wallet.balance || 0) - selectedBundle.lumina);
       updateLikeButtons(slug);
+      // #261 — 성공 후 서버 wallet / quota / rankings 모두 재조회. 낙관적 값이 서버 기준과
+      // 다르면 곧바로 정정. 음수 잔액/중복 차감을 사용자 화면에서 들킬 일이 없게.
       loadWallet?.();
-      // #047: 좋아요 후 free quota + paid quota 둘 다 재조회 (랭킹은 그 안에서)
+      // #047 + #261: 좋아요 후 free quota + paid quota 재조회.
       loadFreeLikeQuota().then(updateHeroQuotaDisplay);
       loadPaidLikeQuota();
+      // #261 — 랭킹도 서버에서 재조회. free-like 흐름과 동일 패턴(line 1505).
+      apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/rankings`)
+        .then(rankingsData => {
+          if (!rankingsData) return;
+          const list = Array.isArray(rankingsData) ? rankingsData : (rankingsData?.rankings || rankingsData?.items || []);
+          if (Array.isArray(list) && list.length > 0) {
+            _rankings = list.map(r => ({
+              slug: r.artistSlug || r.slug || r.artist?.slug || "",
+              likes: r.totalFreeLikes ?? r.totalWeightedScore ?? r.totalLikes ?? r.likes ?? r.score ?? 0
+            })).filter(r => r.slug);
+            updateLikeButtons(slug);
+          }
+        })
+        .catch(err => console.warn("[#261 paid-like] 랭킹 재로드 실패 (낙관적 갱신 유지):", { status: err?.status }));
       alert(`좋아요 ${selectedBundle.quantity}개가 전달되었어요.`);
       close();
     } catch (err) {
       const msg = err.body?.message || err.message || "";
-      // #047: 한도 초과 응답 사용자 문구로 변환
+      // #047 + #261: 한도 초과 / 잔액 부족 / idempotency mismatch / 네트워크 끊김 분기.
       if (/Daily paid like limit exceeded/i.test(msg)) {
         setMessage(`오늘 보낼 수 있는 추가 응원을 모두 사용했어요. 하루 최대 ${dailyLimit}개까지 응원할 수 있어요.`);
-      } else if (/insufficient.*balance/i.test(msg)) {
+      } else if (/insufficient.*balance/i.test(msg) || err?.status === 402) {
         setMessage("루미나 잔액이 부족해요. 충전 후 다시 시도해주세요.");
+      } else if (err?.status === 409 || /idempotency/i.test(msg)) {
+        // #261 — 서버가 같은 idempotencyKey 로 이미 처리했다는 응답. 사용자에게 \"중복 아님\" 안내.
+        setMessage("이 응원은 이미 전달됐어요. 잠시 후 잔액과 랭킹이 자동 새로고침돼요.");
+        loadWallet?.();
+        loadPaidLikeQuota();
+      } else if (err?.status === 400 && /idempotency/i.test(msg)) {
+        setMessage("응원을 다시 시도해 주세요. 같은 응원이 두 번 차감되지 않도록 키가 갱신돼요.");
+      } else if (err?.name === "AbortError" || /Failed to fetch/i.test(msg) || isLikelyOffline()) {
+        setMessage("네트워크가 끊긴 것 같아요. 잠시 후 다시 시도해 주세요. 지금은 루미나가 차감되지 않습니다.");
       } else {
         setMessage(msg || "응원을 전달하지 못했어요. 잠시 후 다시 시도해주세요.");
       }
