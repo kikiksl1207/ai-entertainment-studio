@@ -1595,7 +1595,8 @@
           const panels = document.querySelectorAll("[data-mypage-panel]");
           if (tabs.length === 0 || panels.length === 0) return;
 
-          function showTab(tabKey) {
+          function showTab(tabKey, opts) {
+            const scroll = !!(opts && opts.scrollIntoView);
             // 탭 활성 상태 갱신
             tabs.forEach(t => {
               const isActive = t.dataset.mypageTab === tabKey;
@@ -1603,22 +1604,37 @@
               t.setAttribute("aria-selected", isActive ? "true" : "false");
             });
             // 패널 노출 상태 갱신 (해당 탭 패널만 보이게)
+            // #266 — 패널이 hidden 되면 mypage-content 가 collapse 되어 active 패널의
+            // DOM 위치가 위/아래로 옮겨 가는데, 브라우저는 hash 스크롤 위치를 이미 잡아
+            // 둔 상태라 viewport 와 패널이 어긋남. layout 변경 직후 active 패널을 다시
+            // 안정적인 위치(상단 sticky tab 아래)로 스크롤한다.
+            let activePanel = null;
             panels.forEach(p => {
               const matches = p.dataset.mypagePanel === tabKey;
               p.hidden = !matches;
+              if (matches) activePanel = p;
             });
             // URL hash 동기화 (새로고침/뒤로가기 보존)
             try { history.replaceState(null, "", "#" + tabKey); } catch (_) {}
+            if (scroll && activePanel && typeof activePanel.scrollIntoView === "function") {
+              // layout 정리 후 다음 frame 에 scroll. instant 로 깜빡임 방지.
+              requestAnimationFrame(() => {
+                try { activePanel.scrollIntoView({ behavior: "auto", block: "start" }); } catch (_) {}
+              });
+            }
           }
 
           tabs.forEach(tab => {
-            tab.addEventListener("click", () => showTab(tab.dataset.mypageTab));
+            // 사용자가 직접 클릭한 경우에도 패널을 viewport 상단으로 정렬.
+            tab.addEventListener("click", () => showTab(tab.dataset.mypageTab, { scrollIntoView: true }));
           });
 
-          // 초기 활성 탭 — URL hash 우선, 없으면 profile
+          // 초기 활성 탭 — URL hash 우선, 없으면 profile.
+          // hash 진입(#debut 등)이면 패널 collapse 후 명시적으로 재스크롤한다.
           const initialTab = (location.hash || "").replace(/^#/, "");
           const validTabs = Array.from(tabs).map(t => t.dataset.mypageTab);
-          showTab(validTabs.includes(initialTab) ? initialTab : "profile");
+          const target = validTabs.includes(initialTab) ? initialTab : "profile";
+          showTab(target, { scrollIntoView: !!initialTab && validTabs.includes(initialTab) });
         }
 
         if (document.readyState === "loading") {
