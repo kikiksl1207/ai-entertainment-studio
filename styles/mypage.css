@@ -215,6 +215,10 @@
   padding: 24px;
   border-radius: 16px;
   scroll-margin-top: 96px;
+  /* #266 — 해시 점프(#debut 등)나 scrollIntoView 시 패널 본문이 모바일 하단 탭바에
+     가리지 않도록 bottom margin. 데스크톱에선 .mobile-tabbar 가 display:none 이라
+     영향 없음. */
+  scroll-margin-bottom: 112px;
 }
 
 .mypage-panel-head {
@@ -591,6 +595,12 @@
     width: 100%;
     min-height: 46px;
   }
+
+  /* #266 — .mobile-tabbar 가 display:flex 로 켜지는 ≤768px 구간 전체에서
+     .mypage-section 본문 끝이 하단 탭바에 가리지 않도록 bottom padding 확보. */
+  .mypage-section {
+    padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .mypage-following-grid {
@@ -893,9 +903,11 @@
     padding: 34px 0 18px;
   }
 
+  /* #266 — 모바일에서 .mobile-tabbar(하단 fixed)가 데뷔 상태 카드 본문 끝을 가리는 문제 해결.
+     tabbar 자체 높이(약 66px) + safe-area-inset-bottom + 시각 여백을 padding 으로 확보. */
   .mypage-section {
     padding-top: 8px;
-    padding-bottom: 56px;
+    padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
   }
 
   .mypage-panel,
