@@ -933,6 +933,16 @@ Current validation and workflow:
 
 - `GET /api/v1/debut/policy` is public and returns form option/policy hints, including applicant types, participation types, status labels, consent keys, field limits, and restricted collection types.
 - MVP default channel is `phone_consultation`, which requires `contactPhone` and `consultationConsent: true`. The operator confirms details by phone after submission.
+- `GET /api/v1/debut/policy` includes `phoneConsultationOperations`. If the
+  operations phone number is not configured, the API stays fail-closed:
+  `operatorPhone.configured=false`, `operatorPhone.numberReturned=false`, and
+  `operatorPhone.publicDisplayAllowed=false`. Even when configured, this
+  contract does not return the raw phone number.
+- Phone-consultation SLA copy is non-guaranteed and key-based:
+  `debut.phoneConsultation.sla.businessDayReview`, with `guaranteed=false` and
+  `finalDebutOrContractGuaranteed=false`. It must be rendered as business-day
+  review / contact-if-available guidance, not a guaranteed call, acceptance, or
+  debut promise.
 - `online_review` uses the private applicant-material upload flow. Do not reuse the public feed/profile image upload APIs for debut applicant materials.
 - MVP applications require `isAdult: true`.
 - Required consent fields are `consentAppearance`, `consentRevenuePolicy`, and `consentPrivacy`.
@@ -982,6 +992,12 @@ Current validation and workflow:
   applications. It maps to `applicationType=represented_artist` and the
   rights-review queue without opening any mail, contract, settlement, debut
   finalization, wallet, or Lumina mutation.
+- Admin list/detail rows include `operatorRouting` for read-only operations
+  triage. It separates `applicationChannel`, contact availability booleans,
+  `consultation.status`, and whether the row needs admin-queue notification.
+  `operatorRouting.notification` never means an SMS/email/call was sent; its
+  `externalDispatch.smsSent`, `externalDispatch.emailSent`, and
+  `externalDispatch.phoneCallPlaced` fields remain `false`.
 - Admin detail returns masked contact fields and private applicant material
   metadata only. It must not return private signed URLs, original file URLs,
   storage keys, object ETags, secrets, or tokens.

@@ -1515,7 +1515,30 @@ List response:
   "routingContract": {
     "emailDispatchEnabled": false,
     "inAppDispatchEnabled": false,
+    "smsDispatchEnabled": false,
+    "phoneCallAutomationEnabled": false,
+    "operatorPhoneNumberReturned": false,
     "contractOnly": true
+  },
+  "phoneConsultationOperations": {
+    "mode": "operator_queue",
+    "operatorPhone": {
+      "configured": false,
+      "numberReturned": false,
+      "publicDisplayAllowed": false,
+      "fallbackWhenMissing": "hide_public_phone"
+    },
+    "sla": {
+      "messageKey": "debut.phoneConsultation.sla.businessDayReview",
+      "guaranteed": false,
+      "finalDebutOrContractGuaranteed": false
+    },
+    "dispatch": {
+      "externalSmsEnabled": false,
+      "externalEmailEnabled": false,
+      "autoPhoneCallEnabled": false,
+      "contractOnly": true
+    }
   },
   "privateMaterialPolicy": {
     "metadataOnly": true,
@@ -1536,8 +1559,9 @@ name, display name, contact email/phone, intro, and linked user email.
 
 List/detail responses expose masked contact fields plus submitted date,
 application channel, application type, operation segment, material categories,
-and private material metadata only. They must not expose private signed URLs,
-original file URLs, storage keys, object ETags, secrets, or tokens.
+operator routing, and private material metadata only. They must not expose
+private signed URLs, original file URLs, storage keys, object ETags, secrets, or
+tokens.
 
 Use `operationSegment=entertainment_agency` for the Backstage/operations
 entertainment-company or agency queue. The backend maps this queue to
@@ -1546,6 +1570,16 @@ list items include `operationSegment` plus organization booleans such as
 `organization.entertainmentAgencyInquiry` and `affiliatedOrgNamePresent`. This
 is a read-only routing/filter contract only. It does not send mail, finalize
 contracts, finalize settlement, confirm debut, or touch wallet/Lumina state.
+
+For `phone_consultation`, use `operatorRouting` and
+`phoneConsultationOperations` as the frontend/admin-facing operations contract.
+The backend never returns an operations phone number in this phase. If the
+number is not configured, render no number. SLA copy must be rendered from
+`debut.phoneConsultation.sla.businessDayReview` as non-guaranteed
+business-day-review/contact-if-available guidance, not as a guaranteed call,
+approval, contract, or debut promise. `operatorRouting.notification.needed=true`
+means "show in the admin queue"; it does not mean SMS, external email, or phone
+automation was sent.
 
 Admin PATCH/status mutation is not open in this contract. If review state
 changes are needed, treat them as a separate backend-first mutation contract.

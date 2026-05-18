@@ -313,16 +313,21 @@ export class DebutService {
         {
           value: 'phone_consultation',
           label: 'Phone consultation',
+          labelKey: 'debut.applicationChannel.phoneConsultation.label',
           description:
             'Low-friction MVP application. Collect basic contact, story, and preferred call time; the operator confirms details by phone.',
+          descriptionKey: 'debut.applicationChannel.phoneConsultation.description',
           uploadEnabled: false,
           recommended: true,
+          operations: this.phoneConsultationOperationsContract(),
         },
         {
           value: 'online_review',
           label: 'Online review',
+          labelKey: 'debut.applicationChannel.onlineReview.label',
           description:
             'Private review mode for applicants who want to submit images, voice, video, or portfolio materials online.',
+          descriptionKey: 'debut.applicationChannel.onlineReview.description',
           uploadEnabled: true,
           status: 'available_private_material_flow',
         },
@@ -426,6 +431,7 @@ export class DebutService {
         currentMvpMode: 'private_applicant_material_upload',
         phoneConsultation:
           'Do not ask for files. The operator confirms details by phone after application submission.',
+        phoneConsultationOperations: this.phoneConsultationOperationsContract(),
         onlineReview:
           'Use private debut application material upload intents. Do not use public user image uploads.',
         uploadIntentEndpoint: '/api/v1/debut/application-materials/upload-intents',
@@ -1356,8 +1362,12 @@ export class DebutService {
       routingContract: {
         emailDispatchEnabled: false,
         inAppDispatchEnabled: false,
+        smsDispatchEnabled: false,
+        phoneCallAutomationEnabled: false,
+        operatorPhoneNumberReturned: false,
         contractOnly: true,
       },
+      phoneConsultationOperations: this.phoneConsultationOperationsContract(),
     };
   }
 
@@ -1439,6 +1449,11 @@ export class DebutService {
           this.safeString(metadata.creatorExperienceNote),
         ),
       },
+      operatorRouting: this.adminOperatorRouting(
+        application,
+        metadata,
+        applicationChannel,
+      ),
     };
   }
 
@@ -1525,6 +1540,96 @@ export class DebutService {
         video: this.numberFromEnv('MAX_DEBUT_MATERIAL_VIDEO_BYTES', 536_870_912),
         document: this.numberFromEnv('MAX_DEBUT_MATERIAL_DOCUMENT_BYTES', 20_971_520),
       },
+    };
+  }
+
+  private phoneConsultationOperationsContract() {
+    const operatorPhoneConfigured = Boolean(
+      this.safeString(
+        this.configService.get<string>('DEBUT_OPERATOR_PHONE_NUMBER'),
+      ),
+    );
+
+    return {
+      mode: 'operator_queue',
+      operatorPhone: {
+        configured: operatorPhoneConfigured,
+        numberReturned: false,
+        publicDisplayAllowed: false,
+        fallbackWhenMissing: 'hide_public_phone',
+      },
+      sla: {
+        messageKey: 'debut.phoneConsultation.sla.businessDayReview',
+        labelKo:
+          '\uC601\uC5C5\uC77C \uAE30\uC900 \uAC80\uD1A0 \uD6C4 \uC5F0\uB77D \uAC00\uB2A5 \uC2DC \uC5F0\uB77D',
+        guaranteed: false,
+        finalDebutOrContractGuaranteed: false,
+      },
+      dispatch: {
+        externalSmsEnabled: false,
+        externalEmailEnabled: false,
+        autoPhoneCallEnabled: false,
+        contractOnly: true,
+      },
+    };
+  }
+
+  private adminOperatorRouting(
+    application: DebutApplicationAdminRecord,
+    metadata: Record<string, unknown>,
+    applicationChannel: string,
+  ) {
+    const consultationStatus =
+      this.safeString(metadata.consultationStatus) ?? 'pending';
+    const emailPresent = Boolean(this.safeString(application.contactEmail));
+    const phonePresent = Boolean(this.safeString(application.contactPhone));
+    const preferredContactTimePresent = Boolean(
+      this.safeString(metadata.preferredContactTime),
+    );
+    const consultationConsent = this.safeBoolean(
+      metadata.consultationConsent,
+      false,
+    );
+    const phoneConsultation = applicationChannel === 'phone_consultation';
+    const contactable =
+      emailPresent || (phonePresent && (!phoneConsultation || consultationConsent));
+    const status = this.adminReviewStatus(application.status);
+    const notificationNeeded =
+      phoneConsultation &&
+      consultationStatus === 'pending' &&
+      ['submitted', 'reviewing'].includes(status);
+
+    return {
+      queue:
+        applicationChannel === 'online_review'
+          ? 'online_review'
+          : 'phone_consultation',
+      applicationChannel,
+      contactAvailability: {
+        contactable,
+        phonePresent,
+        emailPresent,
+        preferredContactTimePresent,
+        consultationConsent,
+      },
+      consultation: {
+        status: consultationStatus,
+        pendingOperatorContact: phoneConsultation && consultationStatus === 'pending',
+      },
+      notification: {
+        needed: notificationNeeded,
+        reasonKey: notificationNeeded
+          ? 'debut.operator.notification.phoneConsultation.pendingContact'
+          : 'debut.operator.notification.none',
+        channelsPlanned: ['admin_queue'],
+        externalDispatch: {
+          smsSent: false,
+          emailSent: false,
+          phoneCallPlaced: false,
+          contractOnly: true,
+        },
+      },
+      phoneConsultationOperations: this.phoneConsultationOperationsContract(),
     };
   }
 

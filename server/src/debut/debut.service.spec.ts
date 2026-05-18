@@ -78,9 +78,13 @@ function createPrismaMock(): PrismaMock {
   return prisma;
 }
 
-function serviceWith(prisma: PrismaMock) {
+function serviceWith(prisma: PrismaMock, configValues: Record<string, string> = {}) {
   const config = {
     get: jest.fn((key: string) => {
+      if (key in configValues) {
+        return configValues[key];
+      }
+
       if (key === 'OBJECT_STORAGE_PROVIDER') {
         return 'local';
       }
@@ -215,6 +219,44 @@ function adminApplication(overrides: Record<string, unknown> = {}) {
 }
 
 describe('DebutService private material flow', () => {
+  it('returns a fail-closed phone consultation operations policy without operator phone exposure', () => {
+    const prisma = createPrismaMock();
+    const service = serviceWith(prisma);
+
+    const result = service.getPolicy();
+    const payload = JSON.stringify(result);
+
+    expect(result.applicationChannels[0]).toMatchObject({
+      value: 'phone_consultation',
+      labelKey: 'debut.applicationChannel.phoneConsultation.label',
+      descriptionKey: 'debut.applicationChannel.phoneConsultation.description',
+      operations: {
+        mode: 'operator_queue',
+        operatorPhone: {
+          configured: false,
+          numberReturned: false,
+          publicDisplayAllowed: false,
+          fallbackWhenMissing: 'hide_public_phone',
+        },
+        sla: {
+          messageKey: 'debut.phoneConsultation.sla.businessDayReview',
+          guaranteed: false,
+          finalDebutOrContractGuaranteed: false,
+        },
+        dispatch: {
+          externalSmsEnabled: false,
+          externalEmailEnabled: false,
+          autoPhoneCallEnabled: false,
+          contractOnly: true,
+        },
+      },
+    });
+    expect(result.materialSubmissionPolicy.phoneConsultationOperations).toMatchObject(
+      result.applicationChannels[0].operations!,
+    );
+    expect(payload).not.toContain('DEBUT_OPERATOR_PHONE_NUMBER');
+  });
+
   it('creates a private material upload intent without public delivery fields', async () => {
     const prisma = createPrismaMock();
     const service = serviceWith(prisma);
@@ -490,6 +532,9 @@ describe('DebutService private material flow', () => {
     expect(result.routingContract).toMatchObject({
       emailDispatchEnabled: false,
       inAppDispatchEnabled: false,
+      smsDispatchEnabled: false,
+      phoneCallAutomationEnabled: false,
+      operatorPhoneNumberReturned: false,
       contractOnly: true,
     });
     expect(result.items[0]).toMatchObject({
@@ -504,11 +549,112 @@ describe('DebutService private material flow', () => {
         affiliatedOrgNamePresent: true,
         rightsRelationshipNotePresent: true,
       },
+      operatorRouting: {
+        queue: 'phone_consultation',
+        applicationChannel: 'phone_consultation',
+        contactAvailability: {
+          contactable: true,
+          phonePresent: true,
+          emailPresent: true,
+          preferredContactTimePresent: false,
+          consultationConsent: false,
+        },
+        consultation: {
+          status: 'pending',
+          pendingOperatorContact: true,
+        },
+        notification: {
+          needed: false,
+          reasonKey: 'debut.operator.notification.none',
+          channelsPlanned: ['admin_queue'],
+          externalDispatch: {
+            smsSent: false,
+            emailSent: false,
+            phoneCallPlaced: false,
+            contractOnly: true,
+          },
+        },
+        phoneConsultationOperations: {
+          operatorPhone: {
+            configured: false,
+            numberReturned: false,
+          },
+          sla: {
+            messageKey: 'debut.phoneConsultation.sla.businessDayReview',
+            guaranteed: false,
+          },
+        },
+      },
     });
     expect(payload).not.toContain('applicant@example.com');
     expect(payload).not.toContain('010-1234-5678');
     expect(payload).not.toContain('Internal relationship note');
     expect(payload).not.toContain('private/storage-key-must-not-leak');
+  });
+
+  it('marks pending phone consultation rows as admin-queue notification needed without dispatching externally', async () => {
+    const prisma = createPrismaMock();
+    const service = serviceWith(prisma, {
+      DEBUT_OPERATOR_PHONE_NUMBER: 'configured-test-value',
+    });
+    prisma.debutApplication.findMany.mockResolvedValue([
+      adminApplication({
+        status: 'submitted',
+        metadata: {
+          applicationChannel: 'phone_consultation',
+          applicationType: 'personal_unaffiliated',
+          operationSegment: 'individual',
+          consultationConsent: true,
+          consultationStatus: 'pending',
+          preferredContactTime: 'weekday afternoon',
+        },
+      }),
+    ]);
+
+    const result = await service.getApplications({
+      take: 1,
+      applicationChannel: 'phone_consultation',
+      consultationStatus: 'pending',
+    } as never);
+    const payload = JSON.stringify(result);
+
+    expect(result.phoneConsultationOperations).toMatchObject({
+      operatorPhone: {
+        configured: true,
+        numberReturned: false,
+        publicDisplayAllowed: false,
+      },
+      dispatch: {
+        externalSmsEnabled: false,
+        externalEmailEnabled: false,
+        autoPhoneCallEnabled: false,
+      },
+    });
+    expect(result.items[0]).toMatchObject({
+      operatorRouting: {
+        contactAvailability: {
+          contactable: true,
+          phonePresent: true,
+          emailPresent: true,
+          preferredContactTimePresent: true,
+          consultationConsent: true,
+        },
+        notification: {
+          needed: true,
+          reasonKey:
+            'debut.operator.notification.phoneConsultation.pendingContact',
+          externalDispatch: {
+            smsSent: false,
+            emailSent: false,
+            phoneCallPlaced: false,
+            contractOnly: true,
+          },
+        },
+      },
+    });
+    expect(payload).not.toContain('configured-test-value');
+    expect(payload).not.toContain('applicant@example.com');
+    expect(payload).not.toContain('010-1234-5678');
   });
 
   it('returns admin application detail with attachment metadata only', async () => {

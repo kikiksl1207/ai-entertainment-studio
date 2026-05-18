@@ -287,6 +287,18 @@ With the deployed host-root API base, the helper expands to
 
 `POST /api/v1/debut/applications` requires login and stores an operations-review application, not a final contract. Supported `applicationType` values are `personal_unaffiliated`, `represented_artist`, `ai_creator_partner`, and `partnership_other`; the default is `personal_unaffiliated`. `represented_artist` is flagged in metadata with `rightsReviewRequired: true`, while `ai_creator_partner` and `partnership_other` are flagged with `partnerReviewRequired: true`. Supported `participationType` values are `appearance_only`, `voice_or_song`, `performance`, and `co_creator`; requested/approved revenue share percentages are capped at 70. Required consent flags are `consentAppearance`, `consentRevenuePolicy`, and `consentPrivacy`. Real identity documents, signed contracts, API keys, and other sensitive files must not be committed or pasted into chat/Notion. Admin list filters include `applicationType`, `operationSegment`, `rightsReviewRequired`, `partnerReviewRequired`, and `consultationStatus`. Admin list/detail expose masked contact fields and private material metadata only; they must not expose signed read URLs, original file URLs, storage keys, object ETags, secrets, or tokens. Admin PATCH/status/consultation mutation is not open in the current contract.
 
+Phone-consultation operations are contract-only. `GET /api/v1/debut/policy` and
+admin debut list/detail expose `phoneConsultationOperations` with
+`operatorPhone.numberReturned=false`; if the operations number is not
+configured, `operatorPhone.configured=false` and clients must hide the public
+number surface. The raw operations phone number is never returned in this
+phase. SLA copy uses `debut.phoneConsultation.sla.businessDayReview` with
+`guaranteed=false`, so it must read as business-day review / contact-if-available
+guidance, not a guaranteed call, approval, contract, settlement, payout, or
+debut promise. Admin rows include `operatorRouting` for queue triage and
+contact availability; it does not send SMS, external email, or automated phone
+calls.
+
 ## Premium Video And Chat MVP APIs
 
 Premium video endpoints:
