@@ -874,11 +874,15 @@ async function handleResendVerification(button) {
   button.disabled = true;
   button.textContent = "다시 보내는 중...";
   try {
+    // #280 — #255 v2 와 같은 패턴. throwOnError 가 빠지면 apiFetch 가 429/5xx 를 흡수해
+    // 잘못된 성공 안내가 떨어진다.
     await apiFetch("/api/v1/auth/email-verifications", {
       method: "POST",
-      body: { email }
+      body: { email },
+      throwOnError: true
     });
-    infoEl.textContent = "인증 메일을 다시 보냈어요. 메일함을 확인해 주세요.";
+    // #280 — mypage 의 sendMypageVerifyEmail 과 카피 일치. 스팸함 안내 동봉.
+    infoEl.textContent = "인증 메일을 다시 보냈어요. 메일함을 확인해 주세요. 메일이 안 보이면 스팸·프로모션함도 한 번 열어 봐 주세요.";
     infoEl.hidden = false;
   } catch (err) {
     errorEl.textContent = err?.status === 429
