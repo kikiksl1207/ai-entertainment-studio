@@ -1,6 +1,50 @@
 # Team2 QA Inbox
 
 status: pass
+task: #302 - #298/#299 Lumina Feed post live regression QA
+branch/commit:
+- branch: team2-qa/302-lumina-feed-live-regression
+- local main after pull: origin/main
+- basis commit: 3e094185f0034ac978d7ed4dccff13a6e1f3a2a4
+- live health commit: f71c17368dc73db427feb5fb636fc1428819c0d3
+- live page: https://kikiksl1207.github.io/ai-entertainment-studio/lumina-feed.html
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: ran `git pull origin main`; fast-forwarded to `3e09418`.
+- PASS: live disposable owner/non-owner accounts created for #302 only; no credentials recorded.
+- PASS: owner `POST /api/v1/lumina-feed/posts` returned 201.
+- PASS: owner `GET /api/v1/me/lumina-feed?mode=all&take=30` returned the created post with `viewer.isAuthor=true`, `viewer.canEdit=true`, and `viewer.canDelete=true`.
+- PASS: non-owner `PATCH /api/v1/lumina-feed/posts/:postId` returned 403.
+- PASS: owner `PATCH /api/v1/lumina-feed/posts/:postId` returned 200 and the personalized feed reflected the edited body.
+- PASS: non-owner `DELETE /api/v1/lumina-feed/posts/:postId` returned 403.
+- PASS: owner `DELETE /api/v1/lumina-feed/posts/:postId` returned 200; repeated owner DELETE returned 200.
+- PASS: live UI showed the owner post edit/delete controls when authenticated as the owner.
+- PASS: live UI edit modal opened, saved edited text, closed, and updated the feed card plus API projection.
+- PASS: image upload happy path completed without recording signed URL: upload intent 201, direct PUT 200, confirm 201, image post 201, cleanup DELETE 200.
+- PASS: invalid upload MIME (`text/plain`) was rejected with 400.
+- PASS: existing broken image delivery cards render the public fallback copy `이미지를 불러올 수 없어요`.
+- PASS: 390x844, 768x844, and 1280x900 feed layouts had no horizontal overflow; visible post cards did not overflow their containers.
+- PASS: targeted backend regression test `npm.cmd test -- --runTestsByPath src/community/community.service.spec.ts --runInBand` passed 8/8.
+result:
+- #298 edit/delete API contract and live owner-only behavior passed.
+- #298 live UI edit flow passed.
+- #299 upload path and invalid-MIME failure guard passed; signed upload URL was not written to logs or docs.
+- Test posts created during QA were cleaned up with owner DELETE.
+- No wallet, Lumina, order, settlement, payout, paid-like, Creator Studio, or Backstage mutation was executed.
+caveats:
+- Browser automation could not safely complete the native `window.confirm` prompt for the delete button, so the delete button was verified by control exposure, source handler, and live API owner/non-owner/repeated-delete behavior rather than full visual confirm acceptance.
+- Browser isolated evaluation did not expose a `File` constructor for synthetic file chooser testing, so upload retry/remove UI internals were not fully automated in-browser. The live upload API path, invalid MIME failure, broken-image fallback copy, and #299 source controls were verified.
+blocked_by:
+- None for release decision.
+next_needed:
+- PM/차모 완료판단.
+security_check:
+- PASS: no token, cookie, password, env value, signed URL, object URL, raw email, or credential was recorded.
+
+---
+
+status: pass
 task: Fan engagement Home teaser smoke QA
 environment:
 - branch: team2-qa/fan-engagement-home-teaser-smoke
