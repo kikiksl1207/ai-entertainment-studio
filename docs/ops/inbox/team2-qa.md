@@ -1,5 +1,72 @@
 # Team2 QA Inbox
 
+status: fail
+task: #305/#306 - Lumina Feed compose UX live regression QA
+branch/commit:
+- branch: team2-qa/305-306-307-live-qa
+- local main after pull: origin/main
+- basis commit: 0a7f5a504fcf186ca06369b859619e4bedddb0ce
+- observed API health commit: 8cd422a096780feeb9a0f28ea31323ab72dfd671
+- static page: https://kikiksl1207.github.io/ai-entertainment-studio/lumina-feed.html
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: `git pull origin main`
+- PASS: deployed static `lumina-feed.html` contains `maxlength="2000"` and `#feedComposeCounter` initial copy `0 / 2000`.
+- PASS: deployed static `pages/lumina-feed.js` contains `FEED_COMPOSE_MAX_BODY = 2000` and #305 submit error-copy handling.
+- PASS: Browser check showed Korean compose/login copy without visible mojibake.
+- PASS: disposable QA account registration succeeded; token presence only was checked and no raw credential was recorded.
+- PASS: live API accepted a 500-character feed post, then cleanup deleted the post.
+- FAIL: live API rejected 501-character and 2000-character feed posts with HTTP 400.
+- PASS: `node --check pages/lumina-feed.js`
+- PASS: `npm.cmd test -- community.service.spec.ts --runInBand`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`
+- PASS: `git diff --check`
+result:
+- Blocker reproduced: #305 frontend/static UX advertises and permits 2000 characters, but the live backend create-post contract still rejects body length above 500.
+- User-visible impact: a user can type 501-2000 characters while the UI counter still looks valid, then posting fails server-side instead of succeeding under the advertised 2000-character limit.
+- Existing 500-character success path is still working and the QA post was deleted after verification.
+- No image, wallet, Lumina, settlement, payout, contract, or admin mutation was executed for this scope.
+blocked_by:
+- Frontend/backend feed post body limit mismatch: static #305 is 2000, live API create post remains 500.
+next_needed:
+- Return #305/#306 to the previous implementer/PM for contract alignment: either backend create-post must support 2000 characters or the UI/copy must be brought back to the actual backend limit.
+security_check:
+- PASS: no token, cookie, password, env value, raw email, signed URL, object URL, or credential was recorded.
+
+---
+
+status: partial / blocked for live admin mutation
+task: #307 - Debut operations admin review audit contract QA
+branch/commit:
+- branch: team2-qa/305-306-307-live-qa
+- local main after pull: origin/main
+- basis commit: 0a7f5a504fcf186ca06369b859619e4bedddb0ce
+- observed API health commit: 8cd422a096780feeb9a0f28ea31323ab72dfd671
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: `git pull origin main`
+- PASS: `/health` returned live commit `8cd422a096780feeb9a0f28ea31323ab72dfd671`, matching the #307 main/live basis.
+- PASS: unauthenticated `PATCH /api/v1/admin/api/v1/debut/applications/:applicationId/review` returned HTTP 401.
+- PASS: `npm.cmd test -- debut.service.spec.ts --runInBand`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`
+- PASS: `git diff --check`
+result:
+- Local contract tests confirm the admin review action writes a redacted audit payload, rejects final share updates, and avoids final debut/contract/settlement/payout/wallet/Lumina mutation.
+- Live guard check confirms the admin review endpoint is not reachable without an admin session.
+- The actual live admin review mutation and persisted audit row were not executed because this QA session has no safe admin account/application handoff, and creating or changing a real debut application status would be unsafe.
+blocked_by:
+- Safe admin QA credential/session and disposable debut application id were not available in the workspace/session.
+next_needed:
+- PM/operator should provide a safe admin QA handoff plus disposable debut application target, or accept the current unit/contract + live 401 evidence as the #307 QA boundary.
+security_check:
+- PASS: no token, cookie, password, env value, raw email, raw phone, private material URL, storage key, object ETag, or credential was recorded.
+
+---
+
 status: pass
 task: Fan engagement Home teaser smoke QA
 environment:
