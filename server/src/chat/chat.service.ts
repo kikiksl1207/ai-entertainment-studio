@@ -5,6 +5,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { InputJsonValue } from '@prisma/client/runtime/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ChatGenerationResult,
@@ -102,6 +103,33 @@ type ChatProviderOpsStats = {
   estimatedCostKrw: string;
 };
 type ChatConversationBox = 'recent' | 'archive' | 'all';
+type ChatConversationListSessionRecord = {
+  id: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  artist: {
+    id: string;
+    slug: string;
+    displayName: string;
+  };
+  chatPersona: {
+    id: string;
+    name: string;
+    status: string;
+  } | null;
+  messages: Array<{
+    id: string;
+    senderType: string;
+    messageType: string;
+    body: string | null;
+    chatFeatureOrderId: string | null;
+    createdAt: Date;
+  }>;
+  _count: {
+    messages: number;
+  };
+};
 const BASIC_CHAT_POLICY = {
   mode: 'daily_talk',
   priceLumina: 0,
@@ -299,7 +327,7 @@ export class ChatService {
       },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
     });
-    const page = this.paginate(rows, take);
+    const page = this.paginate<ChatConversationListSessionRecord>(rows, take);
 
     return {
       readOnly: true,
@@ -1052,33 +1080,7 @@ export class ChatService {
     return where;
   }
 
-  private presentConversationListItem(session: {
-    id: string;
-    status: string;
-    createdAt: Date;
-    updatedAt: Date;
-    artist: {
-      id: string;
-      slug: string;
-      displayName: string;
-    };
-    chatPersona: {
-      id: string;
-      name: string;
-      status: string;
-    } | null;
-    messages: Array<{
-      id: string;
-      senderType: string;
-      messageType: string;
-      body: string | null;
-      chatFeatureOrderId: string | null;
-      createdAt: Date;
-    }>;
-    _count: {
-      messages: number;
-    };
-  }) {
+  private presentConversationListItem(session: ChatConversationListSessionRecord) {
     const lastMessage = session.messages[0] ?? null;
 
     return {
@@ -2082,8 +2084,8 @@ export class ChatService {
       : {};
   }
 
-  private inputJson(value: unknown): Prisma.InputJsonValue {
-    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  private inputJson(value: unknown): InputJsonValue {
+    return JSON.parse(JSON.stringify(value)) as InputJsonValue;
   }
 
   private personaReferenceFromMetadata(input: {

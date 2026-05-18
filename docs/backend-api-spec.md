@@ -556,6 +556,26 @@ settlement, or print raw token, cookie, password, DB URL, raw email, owner UUID,
 or raw message body. If the populated owner rows are missing, treat the result as
 `BLOCKED` until a staging/local disposable seeded state is approved.
 
+Archive populated preparation for #276 is intentionally separate from the
+read-only verifier. If an approved disposable owner has recent populated
+sessions but no archive populated session, an operator can run:
+
+```bash
+npm run qa:chat-archive-fixture
+```
+
+The preparation script requires `CHARACTER_CHAT_ARCHIVE_QA_CONFIRM` with the
+documented confirmation phrase and `CHARACTER_CHAT_ARCHIVE_QA_USER_ID`. It
+defaults to local/staging safety and blocks production-like targets unless
+`CHARACTER_CHAT_ARCHIVE_QA_ALLOW_PRODUCTION=true` is explicitly provided for an
+approved live-safe disposable owner. It does not create chat sessions, create
+chat messages, call LLM, create feature orders, debit wallet/Lumina, touch
+settlement, or print raw token, cookie, password, DB URL, raw email, owner UUID,
+session UUID, or raw message body. The only write it can perform is changing one
+existing populated `chat_sessions.status` from `active` to `archived`; restore
+mode can change that same approved session back to `active` when a raw session
+id is supplied through the runtime environment.
+
 Persona seed policy is authenticated/read-only and returns the MVP character
 persona contract. It does not call LLM, does not debit wallet, and does not write
 chat data. The current schema is enough for MVP: `chat_personas.system_prompt`,
