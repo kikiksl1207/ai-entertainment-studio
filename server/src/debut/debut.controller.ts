@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequireAdminPermissions } from '../auth/decorators/admin-permissions.decorator';
@@ -9,6 +18,7 @@ import {
   ConfirmDebutMaterialUploadDto,
   CreateDebutApplicationDto,
   CreateDebutMaterialUploadIntentDto,
+  AdminUpdateDebutApplicationDto,
   DebutApplicationListQueryDto,
 } from './dto/debut.dto';
 import { DebutService } from './debut.service';
@@ -93,5 +103,15 @@ export class DebutAdminController {
   @RequireAdminPermissions('*')
   getApplication(@Param('applicationId') applicationId: string) {
     return this.debutService.getApplication(applicationId);
+  }
+
+  @Patch('applications/:applicationId/review')
+  @RequireAdminPermissions('*')
+  updateApplicationReview(
+    @CurrentUser() user: AuthUser,
+    @Param('applicationId') applicationId: string,
+    @Body() body: AdminUpdateDebutApplicationDto,
+  ) {
+    return this.debutService.updateApplication(user, applicationId, body);
   }
 }
