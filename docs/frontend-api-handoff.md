@@ -1581,6 +1581,59 @@ approval, contract, or debut promise. `operatorRouting.notification.needed=true`
 means "show in the admin queue"; it does not mean SMS, external email, or phone
 automation was sent.
 
+Backstage operations rows can distinguish phone, online, and entertainment/agency
+work using:
+
+```json
+{
+  "operatorRouting": {
+    "queue": "phone_consultation",
+    "queueSegment": "entertainment_agency",
+    "reviewQueues": [
+      "phone_consultation",
+      "entertainment_agency",
+      "rights_review"
+    ],
+    "operatorAssignment": {
+      "assigned": false,
+      "assignedUserIdReturned": false,
+      "assignedDisplayNameReturned": false,
+      "assignedAtPresent": false,
+      "guidanceKey": "debut.operator.assignment.missing"
+    },
+    "guidance": {
+      "operatorAssignmentMissing": true,
+      "preferredContactTimeMissing": true,
+      "operatorPhoneMissing": true,
+      "rightsReviewPending": true,
+      "partnerReviewPending": false,
+      "messageKeys": [
+        "debut.operator.assignment.missing",
+        "debut.operator.consultation.preferredTimeMissing",
+        "debut.operator.phone.missing",
+        "debut.operator.rightsReview.pending"
+      ]
+    },
+    "finalization": {
+      "messageKey": "debut.application.finalization.preContractReview",
+      "contractOnly": true,
+      "finalDebutConfirmed": false,
+      "contractFinalized": false,
+      "settlementFinalized": false,
+      "payoutEligible": false,
+      "walletMutationAllowed": false,
+      "luminaMutationAllowed": false
+    }
+  }
+}
+```
+
+Owner status projections also include the same `finalization` guard. Treat this
+as explicit backend confirmation that the application is still pre-contract /
+pre-settlement / pre-payout, even when the user-facing status is `approved`.
+Do not expose operator ids, raw email, raw phone, intro text, internal notes, or
+private material URLs in non-admin screens.
+
 Admin PATCH/status mutation is not open in this contract. If review state
 changes are needed, treat them as a separate backend-first mutation contract.
 

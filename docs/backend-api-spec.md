@@ -1064,6 +1064,20 @@ Current validation and workflow:
   `operatorRouting.notification` never means an SMS/email/call was sent; its
   `externalDispatch.smsSent`, `externalDispatch.emailSent`, and
   `externalDispatch.phoneCallPlaced` fields remain `false`.
+- `operatorRouting` also exposes safe queue guidance for operations:
+  `queueSegment`, `reviewQueues`, `operatorAssignment.assigned`,
+  `operatorAssignment.assignedUserIdReturned=false`, and guidance booleans for
+  missing operator assignment, missing preferred contact time, missing
+  operations phone configuration, pending rights review, and pending partner
+  review. It never returns an operator user id, operator display name, raw
+  phone, raw email, intro text, internal memo, or private material URL.
+- Admin and owner status projections include a `finalization` guard:
+  `finalDebutConfirmed=false`, `contractFinalized=false`,
+  `settlementFinalized=false`, `payoutEligible=false`,
+  `walletMutationAllowed=false`, and `luminaMutationAllowed=false`. For
+  `represented_artist`, pending rights review is shown as pre-contract review
+  only; it must not be interpreted as approval, contract execution, settlement,
+  or payout readiness.
 - Admin detail returns masked contact fields and private applicant material
   metadata only. It must not return private signed URLs, original file URLs,
   storage keys, object ETags, secrets, or tokens.
