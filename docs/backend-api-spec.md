@@ -915,6 +915,13 @@ Current validation and workflow:
   expose contact values, intro text, admin review notes, internal metadata,
   private signed URLs, original file URLs, storage keys, object ETags, secrets,
   or tokens.
+- User-facing status projections include an explicit `cta` contract on the
+  application and a mirrored `publicNotice.cta` summary. In this phase every CTA
+  is disabled: `enabled=false`, `actionAllowed=false`, `mutationAllowed=false`,
+  and `contractOnly=true`. The response also returns stable `messageKey`,
+  `disabledReasonKey`, and `blockedMutations` fields so frontend can show Korean
+  fallback copy without opening debut finalization, contract, settlement, payout,
+  wallet, Lumina, or notification dispatch actions.
 - Debut review notification dispatch is not enabled in this contract. The
   response only defines planned in-app/email copy keys for `needs_more_info`,
   `approved`, and `rejected` states. Actual email/in-app senders require a

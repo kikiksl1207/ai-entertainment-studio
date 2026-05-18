@@ -1373,6 +1373,27 @@ Example latest/status response:
     "statusLabelKo": "보완 요청",
     "messageKey": "debut.application.status.needsMoreInfo",
     "defaultMessageKo": "추가 확인이 필요한 항목이 있어요. 안내를 확인해 주세요.",
+    "cta": {
+      "key": "check_request",
+      "labelKo": "蹂댁셿 ?덈궡 ?뺤씤",
+      "messageKey": "debut.application.cta.checkRequest",
+      "defaultLabelKo": "보완 안내 확인",
+      "enabled": false,
+      "actionAllowed": false,
+      "mutationAllowed": false,
+      "contractOnly": true,
+      "disabledReasonKey": "debut.application.cta.disabled.contractOnly",
+      "defaultDisabledReasonKo": "보완 요청은 안내 확인용이며, 제출·수정 경로는 별도 안내 전까지 열지 않습니다.",
+      "blockedMutations": [
+        "debut_finalization",
+        "contract",
+        "settlement",
+        "payout",
+        "wallet",
+        "lumina",
+        "notification_dispatch"
+      ]
+    },
     "submittedAt": "2026-05-15T00:00:00.000Z",
     "updatedAt": "2026-05-15T01:00:00.000Z",
     "applicationChannel": "online_review",
@@ -1406,6 +1427,23 @@ Example latest/status response:
         "emailSent": false,
         "contractOnly": true
       },
+      "cta": {
+        "enabled": false,
+        "messageKey": "debut.application.cta.checkRequest",
+        "actionAllowed": false,
+        "mutationAllowed": false,
+        "contractOnly": true,
+        "disabledReasonKey": "debut.application.cta.disabled.contractOnly",
+        "blockedMutations": [
+          "debut_finalization",
+          "contract",
+          "settlement",
+          "payout",
+          "wallet",
+          "lumina",
+          "notification_dispatch"
+        ]
+      },
       "internalAdminNoteReturned": false,
       "settlementOrContractFinalized": false
     }
@@ -1418,6 +1456,12 @@ Do not show contact values, intro text, admin review notes, internal metadata,
 private material URLs, storage keys, object ETags, secrets, or tokens in My Page.
 `approved` means contact/next-step readiness only; it is not a debut,
 settlement, contract, or payout finalization.
+
+For `needs_more_info`, `approved`, and `rejected`, render CTA labels from
+`application.cta.messageKey` or `defaultLabelKo`, but keep the control disabled
+while `enabled=false`, `actionAllowed=false`, and `mutationAllowed=false`.
+Do not infer submit, contract, settlement, payout, wallet, Lumina, final debut,
+or notification dispatch actions from these read-only status responses.
 
 Review result notification copy is contract-only in this phase. The backend does
 not send email or in-app notifications yet. Future senders should use:
