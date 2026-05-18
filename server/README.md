@@ -298,6 +298,12 @@ guidance, not a guaranteed call, approval, contract, settlement, payout, or
 debut promise. Admin rows include `operatorRouting` for queue triage and
 contact availability; it does not send SMS, external email, or automated phone
 calls.
+`operatorRouting` also includes safe queue guidance: `queueSegment`,
+`reviewQueues`, assignment booleans without operator ids/names, and guidance
+keys for missing operator assignment, missing preferred contact time, missing
+operations phone configuration, pending rights review, and pending partner
+review. Admin and owner projections include `finalization` with final debut,
+contract, settlement, payout, wallet, and Lumina mutation flags all false.
 
 ## Premium Video And Chat MVP APIs
 

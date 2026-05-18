@@ -551,6 +551,12 @@ describe('DebutService private material flow', () => {
       },
       operatorRouting: {
         queue: 'phone_consultation',
+        queueSegment: 'entertainment_agency',
+        reviewQueues: [
+          'phone_consultation',
+          'entertainment_agency',
+          'rights_review',
+        ],
         applicationChannel: 'phone_consultation',
         contactAvailability: {
           contactable: true,
@@ -558,6 +564,13 @@ describe('DebutService private material flow', () => {
           emailPresent: true,
           preferredContactTimePresent: false,
           consultationConsent: false,
+        },
+        operatorAssignment: {
+          assigned: false,
+          assignedUserIdReturned: false,
+          assignedDisplayNameReturned: false,
+          assignedAtPresent: false,
+          guidanceKey: 'debut.operator.assignment.missing',
         },
         consultation: {
           status: 'pending',
@@ -572,6 +585,34 @@ describe('DebutService private material flow', () => {
             emailSent: false,
             phoneCallPlaced: false,
             contractOnly: true,
+          },
+        },
+        guidance: {
+          operatorAssignmentMissing: true,
+          preferredContactTimeMissing: true,
+          operatorPhoneMissing: true,
+          rightsReviewPending: true,
+          partnerReviewPending: false,
+          messageKeys: [
+            'debut.operator.assignment.missing',
+            'debut.operator.consultation.preferredTimeMissing',
+            'debut.operator.phone.missing',
+            'debut.operator.rightsReview.pending',
+          ],
+        },
+        finalization: {
+          messageKey: 'debut.application.finalization.preContractReview',
+          contractOnly: true,
+          finalDebutConfirmed: false,
+          contractFinalized: false,
+          settlementFinalized: false,
+          payoutEligible: false,
+          walletMutationAllowed: false,
+          luminaMutationAllowed: false,
+          rightsReview: {
+            required: true,
+            status: 'pending',
+            pending: true,
           },
         },
         phoneConsultationOperations: {
@@ -639,6 +680,12 @@ describe('DebutService private material flow', () => {
           preferredContactTimePresent: true,
           consultationConsent: true,
         },
+        operatorAssignment: {
+          assigned: false,
+          assignedUserIdReturned: false,
+          assignedDisplayNameReturned: false,
+          assignedAtPresent: false,
+        },
         notification: {
           needed: true,
           reasonKey:
@@ -649,6 +696,11 @@ describe('DebutService private material flow', () => {
             phoneCallPlaced: false,
             contractOnly: true,
           },
+        },
+        guidance: {
+          operatorAssignmentMissing: true,
+          preferredContactTimeMissing: false,
+          operatorPhoneMissing: false,
         },
       },
     });
@@ -743,6 +795,21 @@ describe('DebutService private material flow', () => {
           count: 1,
           categories: ['face_photo'],
           metadataOnly: true,
+        },
+        finalization: {
+          messageKey: 'debut.application.finalization.preContractReview',
+          contractOnly: true,
+          finalDebutConfirmed: false,
+          contractFinalized: false,
+          settlementFinalized: false,
+          payoutEligible: false,
+          walletMutationAllowed: false,
+          luminaMutationAllowed: false,
+          rightsReview: {
+            required: true,
+            status: 'pending',
+            pending: true,
+          },
         },
         publicNotice: {
           publicReason: '자료 확인이 더 필요합니다.',
@@ -849,6 +916,16 @@ describe('DebutService private material flow', () => {
           },
           materialSummary: {
             metadataOnly: true,
+          },
+          finalization: {
+            messageKey: 'debut.application.finalization.preContractReview',
+            contractOnly: true,
+            finalDebutConfirmed: false,
+            contractFinalized: false,
+            settlementFinalized: false,
+            payoutEligible: false,
+            walletMutationAllowed: false,
+            luminaMutationAllowed: false,
           },
           publicNotice: {
             status: expectedStatus,

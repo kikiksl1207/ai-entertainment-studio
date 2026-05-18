@@ -364,6 +364,15 @@ Phone-consultation operations:
   availability booleans, consultation status, and admin-queue notification
   need. `operatorRouting.notification` is queue guidance only; SMS, external
   email, and automatic phone call dispatch remain disabled.
+- Admin rows also expose `operatorRouting.queueSegment`,
+  `operatorRouting.reviewQueues`, safe `operatorAssignment` booleans, and
+  guidance keys for missing assignment, missing preferred contact time, missing
+  operations phone configuration, pending rights review, and pending partner
+  review. These are read-only triage hints; operator ids/names and raw contact
+  values are not returned.
+- Admin and owner projections expose `finalization` with all final debut,
+  contract, settlement, payout, wallet, and Lumina mutation flags set to false.
+  Rights/partner review status is shown only as pre-contract review state.
 - Admin status/consultation mutation is not open in this contract.
 - These fields stay in metadata during MVP so operations can learn the real workflow before schema hardening.
 

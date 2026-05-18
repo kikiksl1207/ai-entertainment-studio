@@ -1156,6 +1156,10 @@ export class DebutService {
         hasPrivateMaterials: attachments.length > 0,
         metadataOnly: true,
       },
+      finalization: this.debutApplicationFinalizationContract(
+        metadata,
+        applicationType,
+      ),
       publicNotice: this.publicDebutApplicationNotice(status, metadata),
       statusHistory: this.userDebutApplicationStatusHistory(application, status),
       privacy: {
@@ -1437,6 +1441,10 @@ export class DebutService {
         ),
         partnerReviewStatus: this.safeString(metadata.partnerReviewStatus),
       },
+      finalization: this.debutApplicationFinalizationContract(
+        metadata,
+        applicationType,
+      ),
       organization: {
         entertainmentAgencyInquiry:
           this.debutOperationSegment(applicationType, metadata) ===
@@ -1579,6 +1587,14 @@ export class DebutService {
     metadata: Record<string, unknown>,
     applicationChannel: string,
   ) {
+    const applicationType =
+      this.safeString(metadata.applicationType) ?? DEFAULT_APPLICATION_TYPE;
+    const operationSegment = this.debutOperationSegment(applicationType, metadata);
+    const finalization = this.debutApplicationFinalizationContract(
+      metadata,
+      applicationType,
+    );
+    const operations = this.phoneConsultationOperationsContract();
     const consultationStatus =
       this.safeString(metadata.consultationStatus) ?? 'pending';
     const emailPresent = Boolean(this.safeString(application.contactEmail));
@@ -1589,6 +1605,10 @@ export class DebutService {
     const consultationConsent = this.safeBoolean(
       metadata.consultationConsent,
       false,
+    );
+    const operatorAssigned = Boolean(
+      this.safeString(metadata.operatorAssignedToUserId) ??
+        this.safeString(metadata.operatorAssignedAt),
     );
     const phoneConsultation = applicationChannel === 'phone_consultation';
     const contactable =
@@ -1604,6 +1624,12 @@ export class DebutService {
         applicationChannel === 'online_review'
           ? 'online_review'
           : 'phone_consultation',
+      queueSegment: operationSegment,
+      reviewQueues: this.adminOperatorReviewQueues(
+        applicationChannel,
+        operationSegment,
+        finalization,
+      ),
       applicationChannel,
       contactAvailability: {
         contactable,
@@ -1611,6 +1637,15 @@ export class DebutService {
         emailPresent,
         preferredContactTimePresent,
         consultationConsent,
+      },
+      operatorAssignment: {
+        assigned: operatorAssigned,
+        assignedUserIdReturned: false,
+        assignedDisplayNameReturned: false,
+        assignedAtPresent: Boolean(this.safeString(metadata.operatorAssignedAt)),
+        guidanceKey: operatorAssigned
+          ? 'debut.operator.assignment.assigned'
+          : 'debut.operator.assignment.missing',
       },
       consultation: {
         status: consultationStatus,
@@ -1629,7 +1664,96 @@ export class DebutService {
           contractOnly: true,
         },
       },
-      phoneConsultationOperations: this.phoneConsultationOperationsContract(),
+      guidance: {
+        operatorAssignmentMissing: !operatorAssigned,
+        preferredContactTimeMissing:
+          phoneConsultation && !preferredContactTimePresent,
+        operatorPhoneMissing:
+          phoneConsultation && !operations.operatorPhone.configured,
+        rightsReviewPending: finalization.rightsReview.pending,
+        partnerReviewPending: finalization.partnerReview.pending,
+        messageKeys: [
+          ...(!operatorAssigned ? ['debut.operator.assignment.missing'] : []),
+          ...(phoneConsultation && !preferredContactTimePresent
+            ? ['debut.operator.consultation.preferredTimeMissing']
+            : []),
+          ...(phoneConsultation && !operations.operatorPhone.configured
+            ? ['debut.operator.phone.missing']
+            : []),
+          ...(finalization.rightsReview.pending
+            ? ['debut.operator.rightsReview.pending']
+            : []),
+          ...(finalization.partnerReview.pending
+            ? ['debut.operator.partnerReview.pending']
+            : []),
+        ],
+      },
+      finalization,
+      phoneConsultationOperations: operations,
+    };
+  }
+
+  private adminOperatorReviewQueues(
+    applicationChannel: string,
+    operationSegment: string,
+    finalization: {
+      rightsReview: { required: boolean };
+      partnerReview: { required: boolean };
+    },
+  ) {
+    return [
+      applicationChannel === 'online_review'
+        ? 'online_review'
+        : 'phone_consultation',
+      operationSegment,
+      ...(finalization.rightsReview.required ? ['rights_review'] : []),
+      ...(finalization.partnerReview.required ? ['partner_review'] : []),
+    ];
+  }
+
+  private debutApplicationFinalizationContract(
+    metadata: Record<string, unknown>,
+    applicationType: string,
+  ) {
+    const rightsReviewRequired = this.safeBoolean(
+      metadata.rightsReviewRequired,
+      applicationType === 'represented_artist',
+    );
+    const rightsReviewStatus =
+      this.safeString(metadata.rightsReviewStatus) ??
+      (rightsReviewRequired ? 'pending' : 'not_required');
+    const partnerReviewRequired = this.safeBoolean(
+      metadata.partnerReviewRequired,
+      applicationType === 'ai_creator_partner' ||
+        applicationType === 'partnership_other',
+    );
+    const partnerReviewStatus =
+      this.safeString(metadata.partnerReviewStatus) ??
+      (partnerReviewRequired ? 'pending' : 'not_applicable');
+
+    return {
+      messageKey: 'debut.application.finalization.preContractReview',
+      contractOnly: true,
+      finalDebutConfirmed: false,
+      contractFinalized: false,
+      settlementFinalized: false,
+      payoutEligible: false,
+      walletMutationAllowed: false,
+      luminaMutationAllowed: false,
+      rightsReview: {
+        required: rightsReviewRequired,
+        status: rightsReviewStatus,
+        pending:
+          rightsReviewRequired &&
+          !['cleared', 'not_required'].includes(rightsReviewStatus),
+      },
+      partnerReview: {
+        required: partnerReviewRequired,
+        status: partnerReviewStatus,
+        pending:
+          partnerReviewRequired &&
+          !['accepted', 'not_applicable'].includes(partnerReviewStatus),
+      },
     };
   }
 
