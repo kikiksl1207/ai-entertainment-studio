@@ -617,13 +617,12 @@ export class CommunityService {
     const post = await this.prisma.communityPost.findFirst({
       where: {
         id: postId,
-        deletedAt: null,
       },
       select: {
         id: true,
         authorUserId: true,
-        artistId: true,
         status: true,
+        deletedAt: true,
       },
     });
 
@@ -632,11 +631,15 @@ export class CommunityService {
     }
 
     if (post.authorUserId !== userId) {
-      if (!post.artistId) {
-        throw new ForbiddenException('Post author access is required');
+      if (post.deletedAt || post.status === 'deleted') {
+        throw new NotFoundException('Post not found');
       }
 
-      await this.assertArtistOperator(userId, post.artistId);
+      throw new ForbiddenException('Post author access is required');
+    }
+
+    if (post.deletedAt || post.status === 'deleted') {
+      return { ok: true };
     }
 
     await this.prisma.communityPost.update({
@@ -666,7 +669,6 @@ export class CommunityService {
       select: {
         id: true,
         authorUserId: true,
-        artistId: true,
         status: true,
       },
     });
@@ -680,11 +682,7 @@ export class CommunityService {
     }
 
     if (post.authorUserId !== userId) {
-      if (!post.artistId) {
-        throw new ForbiddenException('Post author access is required');
-      }
-
-      await this.assertArtistOperator(userId, post.artistId);
+      throw new ForbiddenException('Post author access is required');
     }
 
     const body = this.text(input, 'body', 1, 500);

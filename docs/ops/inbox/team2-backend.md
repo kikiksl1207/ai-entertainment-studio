@@ -1,5 +1,38 @@
 # Team2 Backend Inbox
 
+status: ready_for_review
+task: Team2 Backend / Lumina Feed post edit-delete author-only contract
+base: origin/main 11806cd
+branch/commit: team2-backend/lumina-feed-edit-delete-contract / final hash in completion report
+changed_files:
+- server/src/community/community.service.ts
+- server/src/community/community.service.spec.ts
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npm.cmd run prisma:generate
+- npm.cmd test -- community.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/community/community.service.ts src/community/community.service.spec.ts
+- npm.cmd run build
+- git diff --check
+contract_result:
+- PATCH /lumina-feed/posts/:postId and DELETE /lumina-feed/posts/:postId remain login-required through JwtAuthGuard.
+- Update/delete authorization is now author-only. Artist operator access no longer falls through for non-author feed edit/delete.
+- Update keeps post id and authorUserId unchanged and only writes the body edit metadata scope.
+- Delete remains a soft delete and repeated delete by the same author returns the same safe success shape without a second mutation.
+- Non-author access returns 403 while deleted/non-visible post access can safely resolve as 404.
+- Feed list and reply/detail visibility paths keep status=published and deletedAt=null projection filters.
+- Invalid id, missing post, empty body, and >500 character body validation are covered by service specs.
+blocked_by:
+- Live UI/API connection QA still needs deployed endpoint smoke.
+- Notion MCP client failed in this thread, so Notion status could not be updated from here.
+sensitive_values:
+- none recorded.
+next_needed:
+- Reviewer/QA should run API smoke for owner edit/delete, non-owner denial, and repeated delete after deploy.
+
+---
+
 status: ready_for_deploy
 task: Team2 Backend / Preserve Metadata Diagnostic Error
 branch/commit: pending commit
