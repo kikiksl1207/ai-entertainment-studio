@@ -142,6 +142,26 @@ describe('ChatService.getConversationList', () => {
       count: 1,
       hasMore: false,
       nextCursor: null,
+      paginationContract: {
+        defaultTake: 20,
+        maxTake: 50,
+        appliedTake: 10,
+        cursor: null,
+        cursorField: 'chat_sessions.id',
+      },
+      boxContract: {
+        recentStatus: 'active',
+        archiveStatus: 'archived',
+        allStatuses: ['active', 'archived'],
+      },
+      itemShapeContract: {
+        itemsAlwaysArray: true,
+        emptyItemsAllowed: true,
+        lastMessagePreviewMaxChars: 120,
+        lastMessageRawBodyReturned: false,
+        modelMetadataReturned: false,
+        safetyMetadataReturned: false,
+      },
       readStateContract: {
         supported: false,
         unreadCount: null,
@@ -198,6 +218,7 @@ describe('ChatService.getConversationList', () => {
     expect(prisma.chatSession.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId, status: 'archived' },
+        take: 21,
       }),
     );
     expect(result).toMatchObject({
@@ -212,6 +233,51 @@ describe('ChatService.getConversationList', () => {
         messageMutation: false,
       },
     });
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+  });
+
+  it('returns an explicit all-box empty state with the default limit contract', async () => {
+    const prisma = {
+      chatSession: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.getConversationList(userId, { box: 'all' });
+
+    expect(prisma.chatSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId, status: { in: ['active', 'archived'] } },
+        take: 21,
+      }),
+    );
+    expect(result).toMatchObject({
+      readOnly: true,
+      ownerOnly: true,
+      box: 'all',
+      items: [],
+      count: 0,
+      hasMore: false,
+      nextCursor: null,
+      paginationContract: {
+        defaultTake: 20,
+        maxTake: 50,
+        appliedTake: 20,
+        cursor: null,
+      },
+      emptyState: {
+        messageKey: 'chat.conversations.emptyAll',
+      },
+      safety: {
+        llmCall: false,
+        walletMutation: false,
+        messageMutation: false,
+        orderMutation: false,
+        settlementMutation: false,
+      },
+    });
+    expect(Array.isArray(result.items)).toBe(true);
     expect(llmProvider.readiness).not.toHaveBeenCalled();
   });
 
@@ -346,6 +412,37 @@ describe('ChatService.getConversationList', () => {
       },
     });
     expect(prisma.chatSession.findMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid take values before querying and caps oversized take', async () => {
+    const prisma = {
+      chatSession: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(
+      service.getConversationList(userId, { take: 0 }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'CHAT_CONVERSATION_TAKE_INVALID',
+        messageKey: 'chat.conversations.invalidTake',
+      },
+    });
+    expect(prisma.chatSession.findMany).not.toHaveBeenCalled();
+
+    const result = await service.getConversationList(userId, { take: 99 });
+
+    expect(prisma.chatSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        take: 51,
+      }),
+    );
+    expect(result.paginationContract).toMatchObject({
+      maxTake: 50,
+      appliedTake: 50,
+    });
   });
 });
 

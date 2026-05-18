@@ -50,7 +50,7 @@ try {
 
   print({
     ok: pass,
-    task: '#276',
+    task: '#276/#287',
     status: pass ? 'PASS' : 'BLOCKED',
     runId: `qa276-chat-conversations-${new Date()
       .toISOString()
@@ -134,8 +134,30 @@ async function verifyConversationBox(box, token, fixtureState) {
     payload.toLowerCase().includes(term.toLowerCase()),
   );
   const expectedPopulated = expectedPopulatedCount(box, fixtureState);
+  const expectedAppliedTake = Math.min(config.take, 50);
   const itemShapePass = items.every((item) => hasConversationItemShape(item));
   const populatedShape = summarizePopulatedItems(items);
+  const paginationContractPass =
+    data?.paginationContract?.defaultTake === 20 &&
+    data?.paginationContract?.maxTake === 50 &&
+    data?.paginationContract?.appliedTake === expectedAppliedTake &&
+    data?.paginationContract?.cursor === null &&
+    data?.paginationContract?.cursorField === 'chat_sessions.id';
+  const boxContractPass =
+    data?.boxContract?.recentStatus === 'active' &&
+    data?.boxContract?.archiveStatus === 'archived' &&
+    Array.isArray(data?.boxContract?.allStatuses) &&
+    data.boxContract.allStatuses.includes('active') &&
+    data.boxContract.allStatuses.includes('archived');
+  const itemShapeContractPass =
+    data?.itemShapeContract?.itemsAlwaysArray === true &&
+    data?.itemShapeContract?.emptyItemsAllowed === true &&
+    data?.itemShapeContract?.lastMessagePreviewMaxChars === 120 &&
+    data?.itemShapeContract?.lastMessageRawBodyReturned === false &&
+    data?.itemShapeContract?.modelMetadataReturned === false &&
+    data?.itemShapeContract?.safetyMetadataReturned === false;
+  const emptyStatePass =
+    items.length > 0 || data?.emptyState?.messageKey === expectedEmptyMessageKey(box);
   const populatedPass =
     expectedPopulated === 0 ||
     (items.length > 0 &&
@@ -150,6 +172,10 @@ async function verifyConversationBox(box, token, fixtureState) {
     data?.ownerOnly === true &&
     data?.box === box &&
     itemShapePass &&
+    paginationContractPass &&
+    boxContractPass &&
+    itemShapeContractPass &&
+    emptyStatePass &&
     (items.length > 0) === (expectedPopulated > 0) &&
     populatedPass &&
     safety.llmCall === false &&
@@ -171,12 +197,28 @@ async function verifyConversationBox(box, token, fixtureState) {
     hasMore: data?.hasMore ?? null,
     nextCursorPresent: typeof data?.nextCursor === 'string' && data.nextCursor.length > 0,
     itemShapePass,
+    paginationContractPass,
+    boxContractPass,
+    itemShapeContractPass,
+    emptyStatePass,
     populatedShape,
     populatedPass,
     safety,
     forbiddenPayloadTerms,
     pass,
   };
+}
+
+function expectedEmptyMessageKey(box) {
+  if (box === 'archive') {
+    return 'chat.conversations.emptyArchive';
+  }
+
+  if (box === 'all') {
+    return 'chat.conversations.emptyAll';
+  }
+
+  return 'chat.conversations.emptyRecent';
 }
 
 async function fetchJson(path, token) {

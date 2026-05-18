@@ -1618,6 +1618,42 @@ next_needed:
 
 ---
 
+task: #287 character chat conversation list archive/populated contract
+status: completed
+owner: 루피
+branch/commit: team2-backend/chat-list-contract-287 / this commit
+push: pending
+changed_files:
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/scripts/verify-chat-conversation-list-fixture.mjs
+- docs/backend-api-spec.md
+- docs/character-chat-backend-plan.md
+- docs/ops/inbox/builder-a.md
+contract_summary:
+- Strengthened `GET /api/v1/chat/conversations` with explicit `paginationContract`, `boxContract`, and `itemShapeContract`.
+- Kept `recent` mapped to active sessions, `archive` mapped to archived sessions, and `all` mapped to both.
+- Added explicit `chat.conversations.emptyAll` for all-box empty state while keeping recent/archive empty keys stable.
+- `take` now defaults to 20, caps at 50, and invalid non-positive values fail before querying.
+- The read-only fixture verifier now checks the new contract fields plus populated message count, last message preview, activity timestamps, and safety flags.
+response_shape_summary:
+- Empty list: `items: []`, stable `emptyState.messageKey`, count/hasMore/nextCursor, read-only safety flags, no mutation.
+- Populated list: item includes id, box, status, artist, persona, messageCount, lastMessage preview, lastMessageAt, lastActivityAt, readState.
+- Archive list: only `status=archived`; recent list: only `status=active`; all list: active and archived.
+sensitive_data:
+- none recorded. No raw token, cookie, DB URL, raw email, provider raw response, raw message body, model metadata, safety metadata, password, or secret was recorded.
+tests:
+- `npm.cmd ci` PASS
+- `npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts` PASS
+- `node --check scripts/verify-chat-conversation-list-fixture.mjs` PASS
+- `npm.cmd test -- chat.service.spec.ts --runInBand` PASS
+- `npm.cmd run build` PASS
+- `git diff --check` PASS
+next_needed:
+- Viewer review, then QR/front-end can smoke recent/archive/all empty and populated states.
+
+---
+
 task: #276 character chat archive populated fixture preparation
 status: completed
 owner: 루피

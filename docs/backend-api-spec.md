@@ -483,6 +483,7 @@ returns archived sessions, and `box=all` returns both. Response:
     {
       "id": "chat-session-uuid",
       "box": "recent",
+      "status": "active",
       "artist": {
         "id": "artist-uuid",
         "slug": "yoon-serin",
@@ -510,9 +511,43 @@ returns archived sessions, and `box=all` returns both. Response:
   "count": 1,
   "hasMore": false,
   "nextCursor": null,
+  "paginationContract": {
+    "defaultTake": 20,
+    "maxTake": 50,
+    "appliedTake": 20,
+    "cursor": null,
+    "cursorField": "chat_sessions.id"
+  },
   "emptyState": {
     "messageKey": "chat.conversations.emptyRecent",
     "defaultMessageKo": "아직 시작한 대화가 없어요."
+  },
+  "boxContract": {
+    "recentStatus": "active",
+    "archiveStatus": "archived",
+    "allStatuses": ["active", "archived"]
+  },
+  "itemShapeContract": {
+    "requiredFields": [
+      "id",
+      "box",
+      "status",
+      "artist",
+      "persona",
+      "messageCount",
+      "lastMessage",
+      "lastMessageAt",
+      "lastActivityAt",
+      "updatedAt",
+      "createdAt",
+      "readState"
+    ],
+    "itemsAlwaysArray": true,
+    "emptyItemsAllowed": true,
+    "lastMessagePreviewMaxChars": 120,
+    "lastMessageRawBodyReturned": false,
+    "modelMetadataReturned": false,
+    "safetyMetadataReturned": false
   },
   "archiveContract": {
     "supported": true,
@@ -535,6 +570,12 @@ returns archived sessions, and `box=all` returns both. Response:
 Unread counts are not opened in this contract because read receipts do not exist
 yet. Frontend should show neutral read-state copy from `messageKey` instead of
 inventing unread numbers.
+
+Empty states are explicit by box: `recent` uses
+`chat.conversations.emptyRecent`, `archive` uses
+`chat.conversations.emptyArchive`, and `all` uses
+`chat.conversations.emptyAll`. `take` defaults to 20, is capped at 50, and
+invalid non-positive values are rejected before querying.
 
 QA populated verification for #276 is read-only. Use an already approved
 disposable owner account that has at least one active chat session with messages
