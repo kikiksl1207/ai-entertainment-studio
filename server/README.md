@@ -277,10 +277,15 @@ User endpoints:
 
 Admin endpoints:
 
-- `GET /admin/api/v1/debut/applications?status=submitted&take=50`
-- `PATCH /admin/api/v1/debut/applications/:applicationId`
+- `GET /admin/api/v1/debut/applications?status=submitted&operationSegment=entertainment_agency&take=50`
+- `GET /admin/api/v1/debut/applications/:applicationId`
 
-`POST /api/v1/debut/applications` requires login and stores an operations-review application, not a final contract. Supported `applicationType` values are `personal_unaffiliated`, `represented_artist`, `ai_creator_partner`, and `partnership_other`; the default is `personal_unaffiliated`. `represented_artist` is flagged in metadata with `rightsReviewRequired: true`, while `ai_creator_partner` and `partnership_other` are flagged with `partnerReviewRequired: true`. Supported `participationType` values are `appearance_only`, `voice_or_song`, `performance`, and `co_creator`; requested/approved revenue share percentages are capped at 70. Required consent flags are `consentAppearance`, `consentRevenuePolicy`, and `consentPrivacy`. Real identity documents, signed contracts, API keys, and other sensitive files must not be committed or pasted into chat/Notion. Admin list filters now include `applicationType`, `rightsReviewRequired`, and `partnerReviewRequired`; admin PATCH can update rights and partner review statuses in metadata.
+Backstage should build these calls through `adminApiPath('/debut/applications...')`.
+With the deployed host-root API base, the helper expands to
+`/api/v1/admin/api/v1/debut/...`; if the configured base already includes
+`/api/v1`, the relative admin path stays `/admin/api/v1/debut/...`.
+
+`POST /api/v1/debut/applications` requires login and stores an operations-review application, not a final contract. Supported `applicationType` values are `personal_unaffiliated`, `represented_artist`, `ai_creator_partner`, and `partnership_other`; the default is `personal_unaffiliated`. `represented_artist` is flagged in metadata with `rightsReviewRequired: true`, while `ai_creator_partner` and `partnership_other` are flagged with `partnerReviewRequired: true`. Supported `participationType` values are `appearance_only`, `voice_or_song`, `performance`, and `co_creator`; requested/approved revenue share percentages are capped at 70. Required consent flags are `consentAppearance`, `consentRevenuePolicy`, and `consentPrivacy`. Real identity documents, signed contracts, API keys, and other sensitive files must not be committed or pasted into chat/Notion. Admin list filters include `applicationType`, `operationSegment`, `rightsReviewRequired`, `partnerReviewRequired`, and `consultationStatus`. Admin list/detail expose masked contact fields and private material metadata only; they must not expose signed read URLs, original file URLs, storage keys, object ETags, secrets, or tokens. Admin PATCH/status/consultation mutation is not open in the current contract.
 
 ## Premium Video And Chat MVP APIs
 
@@ -406,7 +411,7 @@ Admin access is now DB-backed through `admin_users` and `admin_roles`. `ADMIN_EM
 - `POST /admin/api/v1/community/posts/:postId/restore`
 - `POST /admin/api/v1/popular-vote/monthly-picks/finalize`
 - `GET /admin/api/v1/debut/applications?status=submitted&take=50`
-- `PATCH /admin/api/v1/debut/applications/:applicationId`
+- `GET /admin/api/v1/debut/applications/:applicationId`
 - `POST /admin/api/v1/premium-video-products`
 - `PATCH /admin/api/v1/premium-video-products/:productId`
 - `POST /admin/api/v1/premium-video-products/:productId/assets`

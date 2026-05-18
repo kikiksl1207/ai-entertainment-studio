@@ -1477,17 +1477,18 @@ GET /admin/api/v1/debut/applications?status=submitted&applicationChannel=phone_c
 GET /admin/api/v1/debut/applications/:applicationId
 ```
 
-Do not hardcode host-root `/admin/api/v1/...` for deployed calls unless the API
-base URL already includes `/api/v1`. With the deployed host root as base, the
-current external paths are:
+Use the shared `adminApiPath('/debut/applications...')` helper/base convention
+as the executable contract. Do not hardcode host-root `/admin/api/v1/...` for
+deployed calls unless the configured API base URL already includes `/api/v1`.
+With the deployed host root as base, the current external paths are:
 
 ```http
 GET /api/v1/admin/api/v1/debut/applications?status=submitted&take=50
 GET /api/v1/admin/api/v1/debut/applications/:applicationId
 ```
 
-Backstage/frontends should prefer the shared admin path helper/base convention
-for `/admin/api/v1/debut/...`.
+When a client base/helper already includes `/api/v1`, the relative helper path
+stays `/admin/api/v1/debut/...`.
 
 List response:
 
