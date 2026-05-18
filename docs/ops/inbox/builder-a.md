@@ -1615,3 +1615,33 @@ sensitive_data:
 - none recorded.
 next_needed:
 - Viewer re-review.
+
+---
+
+task: #276 character chat archive populated fixture preparation
+status: completed
+owner: 루피
+branch/commit: team2-backend/chat-archive-fixture-276 / this commit
+push: pending
+changed_files:
+- server/package.json
+- server/scripts/prepare-chat-archive-conversation-fixture.mjs
+- docs/backend-api-spec.md
+- docs/character-chat-backend-plan.md
+- docs/ops/inbox/builder-a.md
+prepared_command:
+- `npm run qa:chat-archive-fixture`
+fixture_seed_method:
+- Guarded script for approved disposable owner only.
+- If archive populated already exists, script no-ops by default.
+- If archive populated is missing, script can move one existing populated active `chat_sessions` row to `archived`.
+- Dry-run and restore modes are supported.
+- Production-like targets are blocked unless a one-run live-safe override is explicitly provided.
+result:
+- This prepares the missing archive populated condition for QR read-only verifier execution.
+- The script does not create chat sessions, create chat messages, call LLM, create feature orders, debit wallet/Lumina, touch settlement, or print raw token/cookie/password/DB URL/raw email/owner UUID/session UUID/raw message body.
+blocked_by:
+- Actual live/staging execution still requires an approved disposable owner and runtime env values held by the operator/QR environment.
+next_needed:
+- Viewer review, then QR can prepare archive fixture in an approved environment and rerun `npm run qa:chat-conversation-list`.
+민감값 기록 여부: 없음

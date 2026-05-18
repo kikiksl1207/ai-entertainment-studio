@@ -117,6 +117,23 @@ URL/raw email/owner UUID/raw message body. If populated rows do not exist, the
 QA state is `BLOCKED` until the environment owner approves a safe disposable
 seeded state.
 
+#276 archive populated preparation:
+
+```bash
+npm run qa:chat-archive-fixture
+```
+
+This guarded script is only for an approved disposable owner. It prepares archive
+coverage by moving one existing populated active `chat_sessions` row to
+`archived` when archive populated rows are missing. It will no-op when archive
+coverage already exists unless forced, supports dry-run, and blocks
+production-like targets unless an explicit one-run live-safe override is
+provided. It does not create sessions, create messages, call LLM, create feature
+orders, debit wallet/Lumina, touch settlement, or print raw token/cookie/DB
+URL/raw email/owner UUID/session UUID/raw message body. Restore mode can move an
+approved archived session back to `active` when the session id is supplied only
+through the runtime environment.
+
 #225 adds a read-only persona seed contract endpoint:
 
 ```http
