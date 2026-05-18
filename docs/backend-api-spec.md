@@ -873,18 +873,20 @@ GET /admin/api/v1/debut/applications/:applicationId
 
 `debut_applications` stores an operations-review application only. Sensitive identity documents and final contracts must use a later secure upload/contract process, not chat, Notion, or Git.
 
-Admin debut endpoints are read-only for the first operations contract. When the
-API base URL is the deployed host root, the external path follows the current
-admin route shape with the global prefix:
+Admin debut endpoints are read-only for the first operations contract. The
+canonical Backstage call site is `adminApiPath('/debut/applications...')`, and
+the helper resolves the executable path from the configured API base. When the
+API base URL is the deployed host root, the current external paths are:
 
 ```http
 GET /api/v1/admin/api/v1/debut/applications?status=submitted&take=50
 GET /api/v1/admin/api/v1/debut/applications/:applicationId
 ```
 
-If a client helper/base URL already includes `/api/v1`, use the relative admin
-path `/admin/api/v1/debut/...`. Do not open or call status mutation endpoints
-until a separate mutation contract is approved.
+If a client helper/base URL already includes `/api/v1`, the relative admin path
+stays `/admin/api/v1/debut/...`. Do not hardcode host-root
+`/admin/api/v1/debut/...` for deployed calls, and do not open or call status
+mutation endpoints until a separate mutation contract is approved.
 
 Current validation and workflow:
 

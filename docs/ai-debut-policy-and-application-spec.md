@@ -251,16 +251,19 @@ GET /admin/api/v1/debut/applications/:applicationId
 ```
 
 The admin debut endpoints above are read-only in the first operations contract.
-For deployed host-root calls, use the current external route shape:
+Use the shared `adminApiPath('/debut/applications...')` helper/base convention
+as the executable contract. For deployed host-root calls, use the current
+external route shape:
 
 ```http
 GET /api/v1/admin/api/v1/debut/applications?status=submitted&take=50
 GET /api/v1/admin/api/v1/debut/applications/:applicationId
 ```
 
-If the client base/helper already includes `/api/v1`, use the relative
-`/admin/api/v1/debut/...` path. Status mutation remains a future contract and is
-not open here.
+If the client base/helper already includes `/api/v1`, the relative path stays
+`/admin/api/v1/debut/...`. Do not hardcode host-root `/admin/api/v1/debut/...`
+for deployed calls. Status mutation remains a future contract and is not open
+here.
 
 Current table:
 
@@ -341,7 +344,11 @@ GET /api/v1/me/debut-applications/:applicationId/status
 Phone-consultation operations:
 
 - Admin list can filter `applicationChannel=phone_consultation` and `consultationStatus=pending|scheduled|contacted|no_answer|completed`.
-- Admin detail is available at `GET /admin/api/v1/debut/applications/:applicationId`.
+- Admin detail is available through `adminApiPath('/debut/applications/:applicationId')`.
+  With the deployed host-root API base, that resolves to
+  `/api/v1/admin/api/v1/debut/applications/:applicationId`; with a base/helper
+  that already includes `/api/v1`, the relative path stays
+  `/admin/api/v1/debut/applications/:applicationId`.
 - Admin list/detail responses expose masked contact fields and private applicant
   material metadata only. They must not expose signed read URLs, original file
   URLs, storage keys, object ETags, secrets, or tokens.
