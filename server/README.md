@@ -318,6 +318,9 @@ Chat endpoints:
 
 - `POST /api/v1/chat/sessions`
 - `GET /api/v1/chat/sessions`
+- `GET /api/v1/chat/conversations?box=recent|archive|all&take=20&cursor=<nextCursor>`
+- `POST /api/v1/chat/conversations/:sessionId/archive`
+- `POST /api/v1/chat/conversations/:sessionId/restore`
 - `GET /api/v1/chat/starter-prompts?artistSlug=<artistSlug>`
 - `GET /api/v1/chat/sessions/:sessionId/messages`
 - `POST /api/v1/chat/sessions/:sessionId/messages`
@@ -328,6 +331,15 @@ Starter prompts return beginner-friendly A/B opening message suggestions and a
 direct-input option for the selected active artist. The endpoint is authenticated,
 does not debit Lumina, and falls back to safe default Korean copy when artist
 metadata does not define `chatStarterPromptSets`.
+
+Conversation list is authenticated, owner-only, and read-only. It returns
+`latestMessage`/`latestAt` alongside `lastMessage`, keeps archived conversations
+separate from recent conversations through the `box` contract, and reports
+read-state as `not_tracked` with `chat.conversations.readStateNotAvailable` until
+read receipts exist. Pending provider, provider failure, and empty previews use
+stable `chat.conversations.latestMessage.*` keys instead of raw user-facing copy.
+The list path does not call LLM, create messages, debit wallet/Lumina, touch
+settlement, or return secrets/raw message bodies.
 
 Premium video unlocks and paid chat feature orders debit `wallet_accounts.cached_balance` and write `wallet_ledger` records in the same transaction. Premium video access is also recorded in `user_premium_video_unlocks` and `user_entitlements`.
 

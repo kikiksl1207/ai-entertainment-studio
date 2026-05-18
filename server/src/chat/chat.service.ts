@@ -230,6 +230,8 @@ const CHAT_CONVERSATION_ITEM_REQUIRED_FIELDS = [
   'messageCount',
   'lastMessage',
   'lastMessageAt',
+  'latestMessage',
+  'latestAt',
   'lastActivityAt',
   'updatedAt',
   'createdAt',
@@ -359,10 +361,24 @@ export class ChatService {
       },
       readStateContract: {
         supported: false,
+        status: 'not_tracked',
+        hasUnread: false,
         unreadCount: null,
         lastReadAt: null,
+        badgeVisible: false,
+        source: 'not_persisted',
         reason: 'read_receipts_not_implemented',
         messageKey: 'chat.conversations.readStateNotAvailable',
+      },
+      latestMessageContract: {
+        aliasOf: 'lastMessage',
+        previewField: 'bodyPreview',
+        previewRawBodyReturned: false,
+        pendingProviderMessageKey:
+          'chat.conversations.latestMessage.pendingProvider',
+        providerFailureMessageKey:
+          'chat.conversations.latestMessage.providerFailed',
+        emptyMessageKey: 'chat.conversations.latestMessage.empty',
       },
       archiveContract: {
         supported: true,
@@ -1222,6 +1238,10 @@ export class ChatService {
 
   private presentConversationListItem(session: ChatConversationListSessionRecord) {
     const lastMessage = session.messages[0] ?? null;
+    const presentedLastMessage = lastMessage
+      ? this.presentConversationLastMessage(lastMessage)
+      : null;
+    const latestAt = lastMessage?.createdAt ?? session.updatedAt;
 
     return {
       id: session.id,
@@ -1236,26 +1256,64 @@ export class ChatService {
           }
         : null,
       messageCount: session._count.messages,
-      lastMessage: lastMessage
-        ? {
-            id: lastMessage.id,
-            senderType: lastMessage.senderType,
-            messageType: lastMessage.messageType,
-            bodyPreview: this.bodyPreview(lastMessage.body),
-            createdAt: lastMessage.createdAt,
-            paidFeatureOrderPresent: Boolean(lastMessage.chatFeatureOrderId),
-          }
-        : null,
+      lastMessage: presentedLastMessage,
       lastMessageAt: lastMessage?.createdAt ?? null,
-      lastActivityAt: lastMessage?.createdAt ?? session.updatedAt,
+      latestMessage: presentedLastMessage,
+      latestAt,
+      lastActivityAt: latestAt,
       updatedAt: session.updatedAt,
       createdAt: session.createdAt,
       readState: {
         supported: false,
+        status: 'not_tracked',
+        hasUnread: false,
         unreadCount: null,
+        lastReadAt: null,
+        badgeVisible: false,
+        source: 'not_persisted',
         messageKey: 'chat.conversations.readStateNotAvailable',
       },
     };
+  }
+
+  private presentConversationLastMessage(
+    lastMessage: ChatConversationListSessionRecord['messages'][number],
+  ) {
+    const bodyPreview = this.bodyPreview(lastMessage.body);
+    const previewMessageKey = this.conversationPreviewMessageKey(
+      lastMessage.messageType,
+      bodyPreview,
+    );
+
+    return {
+      id: lastMessage.id,
+      senderType: lastMessage.senderType,
+      messageType: lastMessage.messageType,
+      bodyPreview,
+      previewMessageKey,
+      previewAvailable: Boolean(bodyPreview),
+      createdAt: lastMessage.createdAt,
+      paidFeatureOrderPresent: Boolean(lastMessage.chatFeatureOrderId),
+    };
+  }
+
+  private conversationPreviewMessageKey(
+    messageType: string,
+    bodyPreview: string | null,
+  ) {
+    if (messageType === 'pending_provider' || messageType === 'provider_pending') {
+      return 'chat.conversations.latestMessage.pendingProvider';
+    }
+
+    if (messageType === 'provider_error' || messageType === 'generation_failed') {
+      return 'chat.conversations.latestMessage.providerFailed';
+    }
+
+    if (!bodyPreview) {
+      return 'chat.conversations.latestMessage.empty';
+    }
+
+    return null;
   }
 
   private bodyPreview(value: string | null) {

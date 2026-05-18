@@ -498,14 +498,32 @@ returns archived sessions, and `box=all` returns both. Response:
         "senderType": "artist",
         "messageType": "text",
         "bodyPreview": "마지막 메시지 미리보기",
+        "previewMessageKey": null,
+        "previewAvailable": true,
         "createdAt": "2026-05-17T00:00:00.000Z",
         "paidFeatureOrderPresent": false
       },
       "lastMessageAt": "2026-05-17T00:00:00.000Z",
+      "latestMessage": {
+        "id": "message-uuid",
+        "senderType": "artist",
+        "messageType": "text",
+        "bodyPreview": "마지막 메시지 미리보기",
+        "previewMessageKey": null,
+        "previewAvailable": true,
+        "createdAt": "2026-05-17T00:00:00.000Z",
+        "paidFeatureOrderPresent": false
+      },
+      "latestAt": "2026-05-17T00:00:00.000Z",
       "lastActivityAt": "2026-05-17T00:00:00.000Z",
       "readState": {
         "supported": false,
+        "status": "not_tracked",
+        "hasUnread": false,
         "unreadCount": null,
+        "lastReadAt": null,
+        "badgeVisible": false,
+        "source": "not_persisted",
         "messageKey": "chat.conversations.readStateNotAvailable"
       }
     }
@@ -539,6 +557,8 @@ returns archived sessions, and `box=all` returns both. Response:
       "messageCount",
       "lastMessage",
       "lastMessageAt",
+      "latestMessage",
+      "latestAt",
       "lastActivityAt",
       "updatedAt",
       "createdAt",
@@ -550,6 +570,25 @@ returns archived sessions, and `box=all` returns both. Response:
     "lastMessageRawBodyReturned": false,
     "modelMetadataReturned": false,
     "safetyMetadataReturned": false
+  },
+  "readStateContract": {
+    "supported": false,
+    "status": "not_tracked",
+    "hasUnread": false,
+    "unreadCount": null,
+    "lastReadAt": null,
+    "badgeVisible": false,
+    "source": "not_persisted",
+    "reason": "read_receipts_not_implemented",
+    "messageKey": "chat.conversations.readStateNotAvailable"
+  },
+  "latestMessageContract": {
+    "aliasOf": "lastMessage",
+    "previewField": "bodyPreview",
+    "previewRawBodyReturned": false,
+    "pendingProviderMessageKey": "chat.conversations.latestMessage.pendingProvider",
+    "providerFailureMessageKey": "chat.conversations.latestMessage.providerFailed",
+    "emptyMessageKey": "chat.conversations.latestMessage.empty"
   },
   "archiveContract": {
     "supported": true,
@@ -572,9 +611,18 @@ returns archived sessions, and `box=all` returns both. Response:
 }
 ```
 
+`latestMessage` is a stable alias of `lastMessage` for DM list clients, and
+`latestAt` falls back to the session `updatedAt` when a conversation has no
+messages. Preview strings are capped at 120 characters and raw message bodies are
+not returned. Pending provider, provider failure, and empty preview states use
+`chat.conversations.latestMessage.pendingProvider`,
+`chat.conversations.latestMessage.providerFailed`, and
+`chat.conversations.latestMessage.empty`.
+
 Unread counts are not opened in this contract because read receipts do not exist
-yet. Frontend should show neutral read-state copy from `messageKey` instead of
-inventing unread numbers.
+yet. The list returns `readState.status=not_tracked`, `hasUnread=false`,
+`unreadCount=null`, and `badgeVisible=false`; frontend should show neutral
+read-state copy from `messageKey` instead of inventing unread numbers.
 
 Empty states are explicit by box: `recent` uses
 `chat.conversations.emptyRecent`, `archive` uses
@@ -621,11 +669,34 @@ or return secrets/raw message body. Response:
       "senderType": "artist",
       "messageType": "text",
       "bodyPreview": "마지막 메시지 미리보기",
+      "previewMessageKey": null,
+      "previewAvailable": true,
       "createdAt": "2026-05-17T00:00:00.000Z",
       "paidFeatureOrderPresent": false
     },
     "lastMessageAt": "2026-05-17T00:00:00.000Z",
-    "lastActivityAt": "2026-05-17T00:00:00.000Z"
+    "latestMessage": {
+      "id": "message-uuid",
+      "senderType": "artist",
+      "messageType": "text",
+      "bodyPreview": "마지막 메시지 미리보기",
+      "previewMessageKey": null,
+      "previewAvailable": true,
+      "createdAt": "2026-05-17T00:00:00.000Z",
+      "paidFeatureOrderPresent": false
+    },
+    "latestAt": "2026-05-17T00:00:00.000Z",
+    "lastActivityAt": "2026-05-17T00:00:00.000Z",
+    "readState": {
+      "supported": false,
+      "status": "not_tracked",
+      "hasUnread": false,
+      "unreadCount": null,
+      "lastReadAt": null,
+      "badgeVisible": false,
+      "source": "not_persisted",
+      "messageKey": "chat.conversations.readStateNotAvailable"
+    }
   },
   "listImpact": {
     "recent": false,
