@@ -624,23 +624,32 @@ describe('DebutService private material flow', () => {
       rawStatus: 'needs_more_info',
       expectedStatus: 'needs_more_info',
       expectedMessageKey: 'debut.application.status.needsMoreInfo',
+      expectedCtaMessageKey: 'debut.application.cta.checkRequest',
       publicReason: 'QA needs an additional consent confirmation.',
     },
     {
       rawStatus: 'approved_for_contact',
       expectedStatus: 'approved',
       expectedMessageKey: 'debut.application.status.approved',
+      expectedCtaMessageKey: 'debut.application.cta.checkResult',
       publicReason: 'QA contact handoff is being prepared.',
     },
     {
       rawStatus: 'rejected',
       expectedStatus: 'rejected',
       expectedMessageKey: 'debut.application.status.rejected',
+      expectedCtaMessageKey: 'debut.application.cta.checkResult',
       publicReason: 'QA review ended without proceeding.',
     },
   ])(
     'projects $rawStatus as a safe owner-only QA fixture',
-    async ({ rawStatus, expectedStatus, expectedMessageKey, publicReason }) => {
+    async ({
+      rawStatus,
+      expectedStatus,
+      expectedMessageKey,
+      expectedCtaMessageKey,
+      publicReason,
+    }) => {
       const prisma = createPrismaMock();
       const service = serviceWith(prisma);
       prisma.debutApplication.findFirst.mockResolvedValue(
@@ -675,6 +684,23 @@ describe('DebutService private material flow', () => {
         application: {
           status: expectedStatus,
           messageKey: expectedMessageKey,
+          cta: {
+            enabled: false,
+            messageKey: expectedCtaMessageKey,
+            actionAllowed: false,
+            mutationAllowed: false,
+            contractOnly: true,
+            disabledReasonKey: 'debut.application.cta.disabled.contractOnly',
+            blockedMutations: [
+              'debut_finalization',
+              'contract',
+              'settlement',
+              'payout',
+              'wallet',
+              'lumina',
+              'notification_dispatch',
+            ],
+          },
           materialSummary: {
             metadataOnly: true,
           },
@@ -691,6 +717,14 @@ describe('DebutService private material flow', () => {
             },
             internalAdminNoteReturned: false,
             settlementOrContractFinalized: false,
+            cta: {
+              enabled: false,
+              messageKey: expectedCtaMessageKey,
+              actionAllowed: false,
+              mutationAllowed: false,
+              contractOnly: true,
+              disabledReasonKey: 'debut.application.cta.disabled.contractOnly',
+            },
           },
           privacy: {
             contactReturned: false,

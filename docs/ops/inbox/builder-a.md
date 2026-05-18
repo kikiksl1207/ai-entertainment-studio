@@ -1644,4 +1644,53 @@ blocked_by:
 - Actual live/staging execution still requires an approved disposable owner and runtime env values held by the operator/QR environment.
 next_needed:
 - Viewer review, then QR can prepare archive fixture in an approved environment and rerun `npm run qa:chat-conversation-list`.
+
+---
+
+task: #284 debut review status notice and CTA contract
+status: completed
+owner: 루피
+branch/commit: team2-backend/debut-status-notice-cta-284 / this commit
+push: pending
+changed_files:
+- server/src/debut/debut.service.ts
+- server/src/debut/debut.service.spec.ts
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/builder-a.md
+contract_summary:
+- Added an explicit read-only `cta` contract to owner debut application status projection and `publicNotice.cta`.
+- `needs_more_info`, `approved_for_contact`/owner `approved`, and `rejected` now expose stable CTA `messageKey` values for Korean fallback rendering.
+- CTA is contract-only and disabled in this phase with `enabled=false`, `actionAllowed=false`, `mutationAllowed=false`, and `contractOnly=true`.
+- Blocked mutation hints cover debut finalization, contract, settlement, payout, wallet, Lumina, and notification dispatch.
+privacy_safety:
+- Owner/public status projection still does not expose contact values, intro text, internal admin notes, private material URLs, storage keys, object ETags, raw token, raw email, password, DB URL, or secrets.
+- No wallet, Lumina, settlement, contract, payout, notification dispatch, or debut finalization mutation was added.
+tests:
+- `npm.cmd run lint -- --quiet src/debut/debut.service.ts src/debut/debut.service.spec.ts` PASS
+- `npm.cmd test -- debut.service.spec.ts --runInBand` PASS
+- `npm.cmd run build` PASS
+- `git diff --check` PASS
+next_needed:
+- Viewer review, then frontend can wire disabled status CTA copy from `application.cta.messageKey` / `defaultLabelKo` without enabling submit or mutation flows.
+
+---
+
+task: #284 debut review status notice and CTA contract P2 doc fix
+status: completed
+owner: 루피
+branch/commit: team2-backend/debut-status-notice-cta-284 / this follow-up commit
+push: pending
+changed_files:
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/builder-a.md
+fix_summary:
+- Fixed the broken Korean `application.cta.labelKo` example in `docs/frontend-api-handoff.md`.
+- Runtime contract, API code, submit flows, wallet/Lumina/settlement/contract/payout, and notification dispatch behavior were not changed.
+sensitive_data:
+- none recorded.
+tests:
+- `git diff --check` PASS
+next_needed:
+- Viewer re-review.
 민감값 기록 여부: 없음

@@ -56,6 +56,15 @@ const USER_APPLICATION_STATUS_ALIASES: Record<string, UserDebutApplicationStatus
   archived: 'canceled',
   withdrawn: 'canceled',
 };
+const USER_APPLICATION_CTA_BLOCKED_MUTATIONS = [
+  'debut_finalization',
+  'contract',
+  'settlement',
+  'payout',
+  'wallet',
+  'lumina',
+  'notification_dispatch',
+] as const;
 const USER_APPLICATION_STATUS_COPY: Record<
   UserDebutApplicationStatus,
   { labelKo: string; messageKey: string; defaultMessageKo: string }
@@ -1126,7 +1135,7 @@ export class DebutService {
       statusLabelKo: copy.labelKo,
       messageKey: copy.messageKey,
       defaultMessageKo: copy.defaultMessageKo,
-      cta: USER_APPLICATION_STATUS_CTA[status],
+      cta: this.userDebutApplicationCta(status),
       displayName: application.displayName,
       participationType: application.participationType,
       applicationChannel,
@@ -1192,11 +1201,86 @@ export class DebutService {
     return history;
   }
 
+  private userDebutApplicationCta(status: UserDebutApplicationStatus) {
+    const cta = USER_APPLICATION_STATUS_CTA[status];
+
+    return {
+      ...cta,
+      messageKey: this.debutApplicationCtaMessageKey(cta.key),
+      defaultLabelKo: this.debutApplicationCtaDefaultLabel(cta.key),
+      actionAllowed: false,
+      mutationAllowed: false,
+      contractOnly: true,
+      disabledReasonKey: 'debut.application.cta.disabled.contractOnly',
+      defaultDisabledReasonKo: this.debutApplicationCtaDisabledReason(status),
+      blockedMutations: [...USER_APPLICATION_CTA_BLOCKED_MUTATIONS],
+    };
+  }
+
+  private publicDebutApplicationCta(status: UserDebutApplicationStatus) {
+    const cta = this.userDebutApplicationCta(status);
+
+    return {
+      enabled: cta.enabled,
+      messageKey: cta.messageKey,
+      actionAllowed: cta.actionAllowed,
+      mutationAllowed: cta.mutationAllowed,
+      contractOnly: cta.contractOnly,
+      disabledReasonKey: cta.disabledReasonKey,
+      blockedMutations: cta.blockedMutations,
+    };
+  }
+
+  private debutApplicationCtaMessageKey(key: string) {
+    if (key === 'check_request') {
+      return 'debut.application.cta.checkRequest';
+    }
+
+    if (key === 'check_result') {
+      return 'debut.application.cta.checkResult';
+    }
+
+    return 'debut.application.cta.viewStatus';
+  }
+
+  private debutApplicationCtaDefaultLabel(key: string) {
+    if (key === 'check_request') {
+      return '\uBCF4\uC644 \uC548\uB0B4 \uD655\uC778';
+    }
+
+    if (key === 'check_result') {
+      return '\uACB0\uACFC \uC548\uB0B4 \uD655\uC778';
+    }
+
+    return '\uC0C1\uD0DC \uD655\uC778';
+  }
+
+  private debutApplicationCtaDisabledReason(status: UserDebutApplicationStatus) {
+    if (status === 'needs_more_info') {
+      return '\uBCF4\uC644 \uC694\uCCAD\uC740 \uC548\uB0B4 \uD655\uC778\uC6A9\uC774\uBA70, \uC81C\uCD9C\u00B7\uC218\uC815 \uACBD\uB85C\uB294 \uBCC4\uB3C4 \uC548\uB0B4 \uC804\uAE4C\uC9C0 \uC5F4\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.';
+    }
+
+    if (status === 'approved') {
+      return '\uC5F0\uB77D \uC900\uBE44 \uC0C1\uD0DC\uC774\uBA70, \uACC4\uC57D\u00B7\uC815\uC0B0\u00B7\uCD5C\uC885 \uB370\uBDD4 \uD655\uC815 \uC804\uAE4C\uC9C0 CTA\uB294 \uC5F4\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.';
+    }
+
+    if (status === 'rejected') {
+      return '\uC2EC\uC0AC \uACB0\uACFC \uC548\uB0B4\uB9CC \uC81C\uACF5\uD558\uBA70, \uCD94\uAC00 \uC9C4\uD589 CTA\uB294 \uC5F4\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.';
+    }
+
+    if (status === 'canceled') {
+      return '\uC885\uB8CC\uB41C \uC2E0\uCCAD\uC740 \uC0C1\uD0DC \uD655\uC778\uB9CC \uAC00\uB2A5\uD569\uB2C8\uB2E4.';
+    }
+
+    return '\uD604\uC7AC \uD654\uBA74\uC740 \uC2EC\uC0AC \uC0C1\uD0DC \uD655\uC778\uC6A9\uC785\uB2C8\uB2E4.';
+  }
+
   private publicDebutApplicationNotice(
     status: UserDebutApplicationStatus,
     metadata: Record<string, unknown>,
   ) {
     const copy = USER_APPLICATION_STATUS_COPY[status];
+    const cta = this.publicDebutApplicationCta(status);
     const publicReason =
       this.safeString(metadata.publicStatusReason) ??
       this.safeString(metadata.userVisibleReason) ??
@@ -1214,6 +1298,7 @@ export class DebutService {
       defaultBodyKo: copy.defaultMessageKo,
       publicReason,
       requestedActionKey,
+      cta,
       channelsPlanned: ['in_app', 'email'],
       dispatch: {
         inAppSent: false,
