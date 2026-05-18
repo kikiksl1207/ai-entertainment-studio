@@ -4241,6 +4241,103 @@ p {
 }
 
 /* ── 라이트박스 (피드 이미지 클릭 시 큰 화면 + 확대) ── */
+.debut-path-grid {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.debut-path-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 22px 20px;
+  border: 1px solid rgba(159, 139, 199, 0.22);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(159, 139, 199, 0.06), rgba(159, 139, 199, 0.02));
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
+}
+.debut-path-card header {
+  display: grid;
+  gap: 6px;
+}
+.debut-path-kicker {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(180, 150, 240, 0.18);
+  color: rgba(220, 200, 255, 0.96);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.debut-path-card[data-path="phone"] .debut-path-kicker {
+  background: rgba(120, 200, 150, 0.16);
+  color: rgba(190, 240, 200, 0.96);
+}
+.debut-path-card[data-path="entity"] .debut-path-kicker {
+  background: rgba(255, 201, 122, 0.16);
+  color: #ffc97a;
+}
+.debut-path-card h3 {
+  margin: 0;
+  font-size: 16.5px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.35;
+}
+.debut-path-card > header > p {
+  margin: 0;
+  color: rgba(220, 214, 236, 0.78);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.debut-path-steps {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.debut-path-steps li {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: rgba(232, 226, 246, 0.92);
+}
+.debut-path-steps b {
+  color: rgba(190, 170, 240, 0.96);
+  font-weight: 700;
+  margin-right: 4px;
+}
+.debut-path-steps em {
+  font-style: normal;
+  color: rgba(255, 200, 225, 0.92);
+  font-weight: 600;
+}
+.debut-path-note {
+  margin: auto 0 0;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  color: rgba(200, 195, 222, 0.7);
+  line-height: 1.55;
+}
+@media (max-width: 980px) {
+  .debut-path-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+@media (max-width: 640px) {
+  .debut-path-card {
+    padding: 20px 18px 18px;
+  }
+}
+
 .lightbox-overlay {
   position: fixed;
   inset: 0;
