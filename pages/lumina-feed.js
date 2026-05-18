@@ -598,6 +598,46 @@ function feedUploadShortLabel(stage) {
   return "업로드 실패";
 }
 
+/* 피드 게시 실패 문구 매핑 — 비로그인/권한/네트워크/validation/용량/속도/서버 분기 */
+function feedComposeSubmitErrorMessage(err) {
+  const msg = err?.body?.message || err?.message || "";
+  const status = err?.status;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return "인터넷 연결을 확인한 뒤 다시 시도해주세요. 작성한 내용은 그대로 남아 있어요.";
+  }
+  if (status === 401) {
+    return "로그인이 만료됐어요. 다시 로그인하면 작성한 내용을 그대로 올릴 수 있어요.";
+  }
+  if (status === 403) {
+    return "지금은 이 글을 게시할 수 없어요. 권한 확인 후 다시 시도해주세요.";
+  }
+  if (status === 413 || /payload too large|entity too large|too large/i.test(msg)) {
+    return "내용 또는 첨부 파일이 너무 커요. 글자나 이미지를 줄인 뒤 다시 시도해주세요.";
+  }
+  if (status === 429) {
+    return "너무 자주 게시하고 있어요. 잠시 후 다시 시도해주세요.";
+  }
+  if (typeof status === "number" && status >= 500) {
+    return "서버 연결이 일시적으로 불안정해요. 잠시 후 다시 시도해주세요.";
+  }
+  if (/too long/i.test(msg)) {
+    return `본문은 ${FEED_COMPOSE_MAX_BODY}자 이하로 작성해주세요.`;
+  }
+  if (/too short|empty|required/i.test(msg)) {
+    return "내용을 더 입력하거나 이미지를 추가해주세요.";
+  }
+  if (/policy violation|forbidden|profanity|disallowed|invalid/i.test(msg)) {
+    return "정책에 맞지 않는 표현이 있어요. 내용을 수정한 뒤 다시 시도해주세요.";
+  }
+  if (status === 400 || /validation|invalid body/i.test(msg)) {
+    return "내용을 다시 확인해 주세요. 일부 입력이 올바르지 않아요.";
+  }
+  if (/failed to fetch|network|timeout/i.test(msg)) {
+    return "네트워크가 불안정해요. 연결을 확인한 뒤 다시 시도해주세요.";
+  }
+  return "게시하지 못했어요. 잠시 후 다시 시도해주세요. 작성한 내용은 그대로 남아 있어요.";
+}
+
 function releaseFeedComposeAssetPreview(asset) {
   if (asset?.localPreviewUrl?.startsWith("blob:")) {
     try { URL.revokeObjectURL(asset.localPreviewUrl); } catch {}
@@ -666,11 +706,25 @@ function bindFeedComposeOnce() {
   // 글자수 + 제출 가능 여부
   const updateState = () => {
     const len = textarea.value.length;
-    if (counter) counter.textContent = `${len} / ${FEED_COMPOSE_MAX_BODY}`;
+    if (counter) {
+      counter.textContent = `${len} / ${FEED_COMPOSE_MAX_BODY}`;
+      let state = "ok";
+      if (len >= FEED_COMPOSE_MAX_BODY) state = "danger";
+      else if (len >= FEED_COMPOSE_MAX_BODY - 200) state = "warn";
+      counter.dataset.state = state;
+      if (state === "danger") {
+        counter.setAttribute("title", `${FEED_COMPOSE_MAX_BODY}자까지 작성할 수 있어요. 더 쓰려면 줄여주세요.`);
+      } else if (state === "warn") {
+        counter.setAttribute("title", `${FEED_COMPOSE_MAX_BODY - len}자 남았어요.`);
+      } else {
+        counter.removeAttribute("title");
+      }
+    }
     const uploading = feedComposeHasPendingUpload();
     const doneCount = feedComposeDoneAssets().length;
     const hasContent = textarea.value.trim().length > 0 || doneCount > 0;
-    if (submitBtn) submitBtn.disabled = !hasContent || uploading;
+    const overLimit = len > FEED_COMPOSE_MAX_BODY; // maxlength로 막히지만 paste/조합 안전망
+    if (submitBtn) submitBtn.disabled = !hasContent || uploading || overLimit;
     if (fileInput) fileInput.disabled = uploading || _feedComposeAssets.length >= FEED_COMPOSE_MAX_IMAGES;
     if (attachBtn) {
       attachBtn.dataset.uploading = uploading ? "1" : "0";
@@ -736,9 +790,18 @@ function bindFeedComposeOnce() {
   // 제출
   submitBtn?.addEventListener("click", async () => {
     if (submitBtn.disabled) return;
-    const body = (textarea?.value || "").trim();
+    if (!isLoggedIn?.()) {
+      setFeedComposeMessage("로그인 후 작성할 수 있어요.", "warn");
+      return;
+    }
+    const rawBody = textarea?.value || "";
+    const body = rawBody.trim();
     if (feedComposeHasPendingUpload()) {
       setFeedComposeMessage("이미지 업로드가 끝난 뒤에 게시할 수 있어요.", "warn");
+      return;
+    }
+    if (rawBody.length > FEED_COMPOSE_MAX_BODY) {
+      setFeedComposeMessage(`본문은 ${FEED_COMPOSE_MAX_BODY}자 이하로 작성해주세요. (현재 ${rawBody.length}자)`, "warn");
       return;
     }
     const doneAssets = feedComposeDoneAssets();
@@ -783,14 +846,8 @@ function bindFeedComposeOnce() {
       await loadLuminaFeedData(_luminaFeedFilter || "all");
       renderLuminaFeed();
     } catch (err) {
-      const msg = err?.body?.message || err?.message || "";
-      let userMsg = "게시하지 못했어요. 잠시 후 다시 시도해주세요.";
-      if (/Policy violation|forbidden|too long|too short/i.test(msg)) {
-        userMsg = "정책에 맞지 않는 내용이 포함되어 있어요. 표현을 수정해 주세요.";
-      } else if (err?.status === 401) {
-        userMsg = "로그인이 만료됐어요. 다시 로그인해주세요.";
-      }
-      setFeedComposeMessage(userMsg, "warn");
+      console.warn("[#305 feed submit]", { status: err?.status || null });
+      setFeedComposeMessage(feedComposeSubmitErrorMessage(err), "warn");
     } finally {
       submitBtn.textContent = "게시하기";
       updateState();

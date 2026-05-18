@@ -642,6 +642,17 @@ body.is-booting .feed-list::before {
   font-size: 12px;
   color: var(--muted);
   letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.feed-compose-counter[data-state="warn"] {
+  color: #ffc97a;
+  font-weight: 700;
+}
+.feed-compose-counter[data-state="danger"] {
+  color: #ff7a8e;
+  font-weight: 800;
 }
 .feed-compose-submit {
   padding: 8px 18px;
@@ -758,6 +769,13 @@ body.is-booting .feed-list::before {
   }
   .feed-compose-thumbs {
     gap: 6px;
+  }
+  /* 좁은 모바일에서 actions 간격을 좁혀 카운터가 자연스럽게 wrap */
+  .feed-compose-actions {
+    gap: 8px;
+  }
+  .feed-compose-counter {
+    font-size: 11px;
   }
 }
 
