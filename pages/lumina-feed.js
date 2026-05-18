@@ -502,7 +502,9 @@ function bindLuminaFeedFollow() {
 
 const FEED_COMPOSE_MAX_IMAGES = 4;
 
-const FEED_COMPOSE_MAX_BODY = 2000;
+const FEED_COMPOSE_MAX_BODY = 500;
+
+// 백엔드 /api/v1/lumina-feed/posts contract — 501자 이상이면 HTTP 400. 큐알 QA 2026-05-19 확인.
 
 const FEED_COMPOSE_MAX_IMAGE_MB = 20;
 
@@ -708,9 +710,10 @@ function bindFeedComposeOnce() {
     const len = textarea.value.length;
     if (counter) {
       counter.textContent = `${len} / ${FEED_COMPOSE_MAX_BODY}`;
+      const warnThreshold = Math.ceil(FEED_COMPOSE_MAX_BODY * 0.9);
       let state = "ok";
       if (len >= FEED_COMPOSE_MAX_BODY) state = "danger";
-      else if (len >= FEED_COMPOSE_MAX_BODY - 200) state = "warn";
+      else if (len >= warnThreshold) state = "warn";
       counter.dataset.state = state;
       if (state === "danger") {
         counter.setAttribute("title", `${FEED_COMPOSE_MAX_BODY}자까지 작성할 수 있어요. 더 쓰려면 줄여주세요.`);
