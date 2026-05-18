@@ -164,7 +164,23 @@ describe('ChatService.getConversationList', () => {
       },
       readStateContract: {
         supported: false,
+        status: 'not_tracked',
+        hasUnread: false,
         unreadCount: null,
+        lastReadAt: null,
+        badgeVisible: false,
+        source: 'not_persisted',
+        messageKey: 'chat.conversations.readStateNotAvailable',
+      },
+      latestMessageContract: {
+        aliasOf: 'lastMessage',
+        previewField: 'bodyPreview',
+        previewRawBodyReturned: false,
+        pendingProviderMessageKey:
+          'chat.conversations.latestMessage.pendingProvider',
+        providerFailureMessageKey:
+          'chat.conversations.latestMessage.providerFailed',
+        emptyMessageKey: 'chat.conversations.latestMessage.empty',
       },
       archiveContract: {
         supported: true,
@@ -193,11 +209,27 @@ describe('ChatService.getConversationList', () => {
         senderType: 'artist',
         messageType: 'text',
         bodyPreview: '오늘도 조용히 곁에 있을게요.',
+        previewMessageKey: null,
+        previewAvailable: true,
         paidFeatureOrderPresent: false,
       },
+      latestMessage: {
+        id: '00000000-0000-4000-8000-000000000273',
+        bodyPreview: '오늘도 조용히 곁에 있을게요.',
+        previewMessageKey: null,
+        previewAvailable: true,
+        paidFeatureOrderPresent: false,
+      },
+      latestAt: new Date('2026-05-16T00:06:00.000Z'),
       readState: {
         supported: false,
+        status: 'not_tracked',
+        hasUnread: false,
         unreadCount: null,
+        lastReadAt: null,
+        badgeVisible: false,
+        source: 'not_persisted',
+        messageKey: 'chat.conversations.readStateNotAvailable',
       },
     });
     expect(llmProvider.readiness).not.toHaveBeenCalled();
@@ -206,6 +238,78 @@ describe('ChatService.getConversationList', () => {
     expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
     expect(payload).not.toContain('must-not-return');
+  });
+
+  it('returns stable latest message keys for pending provider previews without provider calls', async () => {
+    const prisma = {
+      chatSession: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: '00000000-0000-4000-8000-000000000281',
+            userId,
+            artistId: '00000000-0000-4000-8000-000000000282',
+            chatPersonaId: null,
+            status: 'active',
+            createdAt: new Date('2026-05-17T00:00:00.000Z'),
+            updatedAt: new Date('2026-05-17T00:03:00.000Z'),
+            artist: {
+              id: '00000000-0000-4000-8000-000000000282',
+              slug: 'seo-yuan',
+              displayName: 'Seo Yuan',
+            },
+            chatPersona: null,
+            messages: [
+              {
+                id: '00000000-0000-4000-8000-000000000283',
+                senderType: 'artist',
+                messageType: 'pending_provider',
+                body: null,
+                chatFeatureOrderId: null,
+                createdAt: new Date('2026-05-17T00:04:00.000Z'),
+              },
+            ],
+            _count: {
+              messages: 1,
+            },
+          },
+        ]),
+      },
+      chatMessage: {
+        create: jest.fn(),
+      },
+      walletAccount: {
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.getConversationList(userId, { box: 'recent' });
+
+    expect(result.items[0]).toMatchObject({
+      lastMessage: {
+        messageType: 'pending_provider',
+        bodyPreview: null,
+        previewAvailable: false,
+        previewMessageKey: 'chat.conversations.latestMessage.pendingProvider',
+      },
+      latestMessage: {
+        messageType: 'pending_provider',
+        bodyPreview: null,
+        previewMessageKey: 'chat.conversations.latestMessage.pendingProvider',
+      },
+      readState: {
+        status: 'not_tracked',
+        hasUnread: false,
+        badgeVisible: false,
+      },
+    });
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+    expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
   });
 
   it('filters the archive box with no generation side effects', async () => {

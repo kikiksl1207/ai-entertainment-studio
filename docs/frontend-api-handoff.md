@@ -599,6 +599,9 @@ POST /me/identity-verifications/self/confirm
 GET /chat/starter-prompts?artistSlug=<artistSlug>
 GET /chat/persona-seed-policy
 GET /chat/character-catalog?artistSlug=<artistSlug>
+GET /chat/conversations?box=recent|archive|all&take=20&cursor=<nextCursor>
+POST /chat/conversations/:sessionId/archive
+POST /chat/conversations/:sessionId/restore
 GET /chat-feature-products
 POST /chat-feature-orders/preview
 POST /chat-feature-orders
@@ -628,6 +631,19 @@ image archive, not a public gallery link, and that short video request remains
 hidden/disabled for first launch. Frontend must show Korean copy such as
 `labelKo`, `descriptionKo`, `disabledMessageKo`, and must not expose machine keys
 such as `chat_ready`, `conversation_archive`, or `mvp_not_open` directly.
+
+`GET /chat/conversations` is the read-only, owner-only DM list projection.
+`box=recent` returns active sessions, `box=archive` returns archived sessions,
+and `box=all` returns both. Items include `artist.slug`, `artist.displayName`,
+`lastMessage`, stable alias `latestMessage`, `latestAt`, and `readState`.
+Read receipts are not implemented yet, so the backend returns
+`readState.status=not_tracked`, `hasUnread=false`, `unreadCount=null`,
+`badgeVisible=false`, and `messageKey=chat.conversations.readStateNotAvailable`.
+For pending provider, provider failure, or empty previews, use
+`latestMessage.previewMessageKey` (`chat.conversations.latestMessage.*`) for UI
+copy instead of raw enum or English fallback. This endpoint does not create chat
+messages, call LLM, debit wallet/Lumina, touch settlement, or return raw message
+bodies/secrets.
 
 Identity verification is a fail-closed NICE-first skeleton for now. The policy
 endpoint exposes supported methods (`mobile_phone`, `ipin`), non-secret provider
