@@ -1,6 +1,46 @@
 # Team2 QA Inbox
 
 status: pass
+task: #304 - chat conversation latest/read/archive projection live QA
+branch/commit:
+- branch: team2-qa/304-chat-conversation-projection-live-qa
+- local main after pull: origin/main
+- basis commit: de1beb23c9de4dc51af300121b0807863841dd05
+- live health commit: de1beb23c9de4dc51af300121b0807863841dd05
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: ran `git fetch origin main` and `git pull origin main`; local branch is based on `origin/main @ de1beb2`.
+- PASS: `npm.cmd test -- --runTestsByPath src/chat/chat.service.spec.ts --runInBand` passed 34/34.
+- PASS: `npm.cmd run build` passed.
+- PASS: `npm.cmd run lint` passed.
+- PASS: live health returned `de1beb23c9de4dc51af300121b0807863841dd05`.
+- PASS: unauthenticated `GET /api/v1/chat/conversations?box=recent&take=5` returned 401.
+- PASS: disposable QA account `GET /api/v1/chat/conversations?box=recent&take=5` returned 200 with `readOnly=true`, `ownerOnly=true`, `box=recent`, `items=[]`, and empty message key `chat.conversations.emptyRecent`.
+- PASS: disposable QA account `GET /api/v1/chat/conversations?box=archive&take=5` returned 200 with `box=archive`, `items=[]`, and empty message key `chat.conversations.emptyArchive`.
+- PASS: disposable QA account `GET /api/v1/chat/conversations?box=all&take=5` returned 200 with `box=all`, `items=[]`, and empty message key `chat.conversations.emptyAll`.
+- PASS: all three live list responses returned `readStateContract.status=not_tracked`, `hasUnread=false`, `unreadCount=null`, `badgeVisible=false`, and message key `chat.conversations.readStateNotAvailable`.
+- PASS: all three live list responses returned `latestMessageContract.aliasOf=lastMessage`, preview field `bodyPreview`, and pending/provider-failure/empty preview message keys.
+- PASS: all three live list responses returned `boxContract` with recent=`active`, archive=`archived`, all statuses `active|archived`.
+- PASS: all three live list responses returned `archiveContract` with archive/restore path templates.
+- PASS: all three live list responses returned safety flags with `llmCall=false`, `walletMutation=false`, `messageMutation=false`, `orderMutation=false`, `settlementMutation=false`, `secretsReturned=false`.
+- PASS: invalid `box=bad` returned 400 with messageKey `chat.conversations.invalidBox`.
+- PASS: invalid `take=0` returned 400.
+- PASS: sanitized payload checks found no raw QA email or token/accessToken/refreshToken text in live list responses.
+result:
+- #304 conversation list projection contract is present on main/live for recent/archive/all boxes and empty-state contracts.
+- Because the live disposable QA account has no existing conversations, populated latestMessage item shape and archive mutation behavior were covered by local contract tests, not live mutation.
+- No chat session/message creation, LLM generation, archive/restore mutation, wallet, Lumina, order, settlement, or payout mutation was executed.
+blocked_by:
+- None for QA pass. A safe populated chat fixture would allow future live verification of non-empty latestMessage/readState/archive transitions without creating new conversations.
+next_needed:
+- PM/차모 완료판단 or proceed to #306 combined live UX QA if desired.
+security_check:
+- PASS: no token, cookie, password, raw email, DB URL, provider secret, prompt, chat body, wallet data, or credential was recorded.
+
+---
+
+status: pass
 task: Fan engagement Home teaser smoke QA
 environment:
 - branch: team2-qa/fan-engagement-home-teaser-smoke
