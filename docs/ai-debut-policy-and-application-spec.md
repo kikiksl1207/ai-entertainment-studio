@@ -352,6 +352,18 @@ Phone-consultation operations:
 - Admin list/detail responses expose masked contact fields and private applicant
   material metadata only. They must not expose signed read URLs, original file
   URLs, storage keys, object ETags, secrets, or tokens.
+- `GET /api/v1/debut/policy` and admin list/detail expose
+  `phoneConsultationOperations` as a contract-only operations hint. It may say
+  whether an operations phone number is configured, but it never returns the raw
+  number. When the number is missing, the frontend/admin UI must hide the public
+  number surface instead of showing a placeholder.
+- Phone-consultation SLA is key-based and non-guaranteed:
+  `debut.phoneConsultation.sla.businessDayReview`,
+  `guaranteed=false`, and `finalDebutOrContractGuaranteed=false`.
+- Admin rows expose `operatorRouting` with application channel, contact
+  availability booleans, consultation status, and admin-queue notification
+  need. `operatorRouting.notification` is queue guidance only; SMS, external
+  email, and automatic phone call dispatch remain disabled.
 - Admin status/consultation mutation is not open in this contract.
 - These fields stay in metadata during MVP so operations can learn the real workflow before schema hardening.
 
