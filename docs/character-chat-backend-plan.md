@@ -134,6 +134,21 @@ URL/raw email/owner UUID/session UUID/raw message body. Restore mode can move an
 approved archived session back to `active` when the session id is supplied only
 through the runtime environment.
 
+#287 conversation list product contract close:
+
+- The list response now includes `paginationContract`, `boxContract`, and
+  `itemShapeContract` so frontend can render empty and populated DM states from
+  stable fields.
+- `recent`, `archive`, and `all` have separate empty-state message keys:
+  `chat.conversations.emptyRecent`, `chat.conversations.emptyArchive`, and
+  `chat.conversations.emptyAll`.
+- `take` defaults to 20, caps at 50, and invalid non-positive values are rejected
+  before querying.
+- The #276 verifier now checks these contract fields in addition to populated
+  message count, last message preview, timestamps, and safety flags.
+- No LLM call, feature order, wallet/Lumina, settlement, or message mutation is
+  opened by this contract.
+
 #225 adds a read-only persona seed contract endpoint:
 
 ```http

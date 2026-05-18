@@ -216,6 +216,23 @@ const GENERATION_FAILURE_POLICY = {
   walletRecoveryLedgerType: 'refund',
   walletRecoveryReferenceType: 'chat_feature_order',
 };
+const CHAT_CONVERSATION_DEFAULT_TAKE = 20;
+const CHAT_CONVERSATION_MAX_TAKE = 50;
+const CHAT_CONVERSATION_LAST_MESSAGE_PREVIEW_MAX_CHARS = 120;
+const CHAT_CONVERSATION_ITEM_REQUIRED_FIELDS = [
+  'id',
+  'box',
+  'status',
+  'artist',
+  'persona',
+  'messageCount',
+  'lastMessage',
+  'lastMessageAt',
+  'lastActivityAt',
+  'updatedAt',
+  'createdAt',
+  'readState',
+] as const;
 
 @Injectable()
 export class ChatService {
@@ -292,7 +309,7 @@ export class ChatService {
     } = {},
   ) {
     const box = this.normalizeConversationBox(input.box);
-    const take = Math.min(input.take ?? 20, 50);
+    const take = this.normalizeConversationTake(input.take);
     const rows = await this.prisma.chatSession.findMany({
       where: this.conversationListWhere(userId, box),
       take: take + 1,
@@ -337,7 +354,29 @@ export class ChatService {
       count: page.items.length,
       hasMore: page.hasMore,
       nextCursor: page.nextCursor,
+      paginationContract: {
+        defaultTake: CHAT_CONVERSATION_DEFAULT_TAKE,
+        maxTake: CHAT_CONVERSATION_MAX_TAKE,
+        appliedTake: take,
+        cursor: input.cursor ?? null,
+        cursorField: 'chat_sessions.id',
+      },
       emptyState: this.conversationEmptyState(box),
+      boxContract: {
+        recentStatus: 'active',
+        archiveStatus: 'archived',
+        allStatuses: ['active', 'archived'],
+      },
+      itemShapeContract: {
+        requiredFields: [...CHAT_CONVERSATION_ITEM_REQUIRED_FIELDS],
+        itemsAlwaysArray: true,
+        emptyItemsAllowed: true,
+        lastMessagePreviewMaxChars:
+          CHAT_CONVERSATION_LAST_MESSAGE_PREVIEW_MAX_CHARS,
+        lastMessageRawBodyReturned: false,
+        modelMetadataReturned: false,
+        safetyMetadataReturned: false,
+      },
       readStateContract: {
         supported: false,
         unreadCount: null,
@@ -1063,6 +1102,22 @@ export class ChatService {
     });
   }
 
+  private normalizeConversationTake(value: number | undefined) {
+    if (value === undefined) {
+      return CHAT_CONVERSATION_DEFAULT_TAKE;
+    }
+
+    if (!Number.isInteger(value) || value < 1) {
+      throw new BadRequestException({
+        code: 'CHAT_CONVERSATION_TAKE_INVALID',
+        message: 'take must be a positive integer',
+        messageKey: 'chat.conversations.invalidTake',
+      });
+    }
+
+    return Math.min(value, CHAT_CONVERSATION_MAX_TAKE);
+  }
+
   private conversationListWhere(userId: string, box: ChatConversationBox) {
     const where: {
       userId: string;
@@ -1124,19 +1179,31 @@ export class ChatService {
     }
 
     const collapsed = value.replace(/\s+/g, ' ').trim();
-    return collapsed.length > 120 ? `${collapsed.slice(0, 117)}...` : collapsed;
+    return collapsed.length > CHAT_CONVERSATION_LAST_MESSAGE_PREVIEW_MAX_CHARS
+      ? `${collapsed.slice(0, CHAT_CONVERSATION_LAST_MESSAGE_PREVIEW_MAX_CHARS - 3)}...`
+      : collapsed;
   }
 
   private conversationEmptyState(box: ChatConversationBox) {
+    if (box === 'archive') {
+      return {
+        messageKey: 'chat.conversations.emptyArchive',
+        defaultMessageKo: '\uBCF4\uAD00\uD55C \uB300\uD654\uAC00 \uC5C6\uC5B4\uC694.',
+      };
+    }
+
+    if (box === 'all') {
+      return {
+        messageKey: 'chat.conversations.emptyAll',
+        defaultMessageKo:
+          '\uC544\uC9C1 \uC2DC\uC791\uD558\uAC70\uB098 \uBCF4\uAD00\uD55C \uB300\uD654\uAC00 \uC5C6\uC5B4\uC694.',
+      };
+    }
+
     return {
-      messageKey:
-        box === 'archive'
-          ? 'chat.conversations.emptyArchive'
-          : 'chat.conversations.emptyRecent',
+      messageKey: 'chat.conversations.emptyRecent',
       defaultMessageKo:
-        box === 'archive'
-          ? '\uBCF4\uAD00\uD55C \uB300\uD654\uAC00 \uC5C6\uC5B4\uC694.'
-          : '\uC544\uC9C1 \uC2DC\uC791\uD55C \uB300\uD654\uAC00 \uC5C6\uC5B4\uC694.',
+        '\uC544\uC9C1 \uC2DC\uC791\uD55C \uB300\uD654\uAC00 \uC5C6\uC5B4\uC694.',
     };
   }
 
