@@ -1673,4 +1673,24 @@ tests:
 - `git diff --check` PASS
 next_needed:
 - Viewer review, then frontend can wire disabled status CTA copy from `application.cta.messageKey` / `defaultLabelKo` without enabling submit or mutation flows.
+
+---
+
+task: #284 debut review status notice and CTA contract P2 doc fix
+status: completed
+owner: 루피
+branch/commit: team2-backend/debut-status-notice-cta-284 / this follow-up commit
+push: pending
+changed_files:
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/builder-a.md
+fix_summary:
+- Fixed the broken Korean `application.cta.labelKo` example in `docs/frontend-api-handoff.md`.
+- Runtime contract, API code, submit flows, wallet/Lumina/settlement/contract/payout, and notification dispatch behavior were not changed.
+sensitive_data:
+- none recorded.
+tests:
+- `git diff --check` PASS
+next_needed:
+- Viewer re-review.
 민감값 기록 여부: 없음

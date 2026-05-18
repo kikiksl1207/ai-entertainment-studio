@@ -1375,7 +1375,7 @@ Example latest/status response:
     "defaultMessageKo": "추가 확인이 필요한 항목이 있어요. 안내를 확인해 주세요.",
     "cta": {
       "key": "check_request",
-      "labelKo": "蹂댁셿 ?덈궡 ?뺤씤",
+      "labelKo": "보완 안내 확인",
       "messageKey": "debut.application.cta.checkRequest",
       "defaultLabelKo": "보완 안내 확인",
       "enabled": false,
