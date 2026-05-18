@@ -1,6 +1,17 @@
 (function initCharacterChatModule() {
   const MUTE_KEY_PREFIX = "chatStarter.muted.";
   const STARTER_MAX = 5;
+  const CONVERSATION_BOXES = ["recent", "archive", "all"];
+  const CONVERSATION_BOX_LABELS = {
+    recent: "최근",
+    archive: "보관함",
+    all: "전체"
+  };
+  const conversationListState = {
+    box: "recent",
+    busyId: null,
+    bound: false
+  };
 
   // 시작 지문 fallback — API 가 1~2개만 줄 때 채워서 3~5개 보장.
   // 모든 항목은 단순 텍스트만 사용. API 가 보내준 항목이 있다면 그것을 우선한다.
@@ -22,6 +33,16 @@
       return params.get("slug") || params.get("artistSlug") || "";
     } catch (_) {
       return "";
+    }
+  }
+
+  function getConversationBoxFromUrl() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const box = params.get("box") || "";
+      return CONVERSATION_BOXES.includes(box) ? box : "recent";
+    } catch (_) {
+      return "recent";
     }
   }
 
@@ -501,6 +522,168 @@
       .slice(0, 16);
   }
 
+  function setConversationStatus(message) {
+    const status = $("chatConversationStatus");
+    if (status) status.textContent = message || "";
+  }
+
+  function setConversationTabs(box) {
+    document.querySelectorAll("[data-chat-conversation-box]").forEach((tab) => {
+      const active = tab.dataset.chatConversationBox === box;
+      tab.classList.toggle("is-active", active);
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+    });
+  }
+
+  function conversationItemAvatar(item) {
+    const slug = item?.artist?.slug || "";
+    const chars = (window.LuminaStaticData && window.LuminaStaticData.characters) || [];
+    const character = slug ? chars.find(c => c && c.slug === slug) : null;
+    return character?.images?.thumb
+      || character?.images?.cover
+      || (slug ? "./assets/characters/" + slug + "/thumb.png" : "");
+  }
+
+  function conversationItemTitle(item) {
+    return item?.artist?.displayName
+      || item?.artist?.name
+      || item?.artist?.slug
+      || "대화";
+  }
+
+  function conversationItemPreview(item) {
+    return item?.lastMessage?.bodyPreview
+      || item?.emptyState?.defaultMessageKo
+      || "아직 표시할 메시지가 없어요.";
+  }
+
+  function conversationActionForItem(item) {
+    const archived = item?.status === "archived" || item?.box === "archive";
+    return archived
+      ? { action: "restore", label: "되돌리기", busy: "되돌리는 중" }
+      : { action: "archive", label: "보관", busy: "보관 중" };
+  }
+
+  function renderConversationRows(items, box) {
+    const wrap = $("chatListItems");
+    if (!wrap) return;
+    wrap.textContent = "";
+
+    if (!items.length) {
+      const empty = document.createElement("li");
+      empty.className = "dm-list-empty";
+      empty.textContent = box === "archive"
+        ? "보관한 대화가 아직 없어요."
+        : "아직 시작한 대화가 없어요. 아래 아티스트 목록에서 첫 인사를 골라보세요.";
+      wrap.append(empty);
+      if (box !== "archive") appendStaticDmListRows(wrap);
+      return;
+    }
+
+    items.forEach((item) => {
+      const li = document.createElement("li");
+      li.className = "dm-list-row dm-list-row-conversation";
+      li.setAttribute("role", "listitem");
+
+      const row = document.createElement("div");
+      row.className = "dm-list-row-link";
+
+      const avatar = document.createElement("span");
+      avatar.className = "dm-list-row-avatar";
+      const imgUrl = conversationItemAvatar(item);
+      if (imgUrl) avatar.style.backgroundImage = "url(\"" + String(imgUrl).replace(/"/g, "%22") + "\")";
+      avatar.setAttribute("aria-hidden", "true");
+
+      const body = document.createElement("span");
+      body.className = "dm-list-row-body";
+
+      const head = document.createElement("span");
+      head.className = "dm-list-row-head";
+      const name = document.createElement("span");
+      name.className = "dm-list-row-name";
+      name.textContent = conversationItemTitle(item);
+      const state = document.createElement("span");
+      state.className = "dm-list-row-time";
+      state.textContent = item?.status === "archived" ? "보관됨" : "최근";
+      head.append(name, state);
+
+      const preview = document.createElement("span");
+      preview.className = "dm-list-row-preview";
+      preview.textContent = conversationItemPreview(item);
+
+      body.append(head, preview);
+
+      const open = document.createElement("a");
+      open.className = "dm-list-open";
+      const slug = item?.artist?.slug || "";
+      open.href = slug
+        ? "./character-chat.html?slug=" + encodeURIComponent(slug) + "&sessionId=" + encodeURIComponent(item.id || "")
+        : "./character-chat.html";
+      open.setAttribute("aria-label", conversationItemTitle(item) + " 대화 열기");
+      open.textContent = "열기";
+
+      const actionMeta = conversationActionForItem(item);
+      const action = document.createElement("button");
+      action.className = "dm-list-action";
+      action.type = "button";
+      action.dataset.chatConversationAction = actionMeta.action;
+      action.dataset.chatConversationId = item.id || "";
+      action.disabled = !item.id || conversationListState.busyId === item.id;
+      action.textContent = conversationListState.busyId === item.id ? actionMeta.busy : actionMeta.label;
+
+      const actions = document.createElement("span");
+      actions.className = "dm-list-row-actions";
+      actions.append(open, action);
+
+      row.append(avatar, body, actions);
+      li.append(row);
+      wrap.append(li);
+    });
+  }
+
+  function appendStaticDmListRows(wrap) {
+    const chars = getDmListCharacters();
+    chars.slice(0, 6).forEach((char) => {
+      const tone = getCharacterTone(char.slug);
+      const li = document.createElement("li");
+      li.className = "dm-list-row dm-list-row-suggestion";
+      li.setAttribute("role", "listitem");
+
+      const link = document.createElement("a");
+      link.className = "dm-list-row-link";
+      link.href = "./character-chat.html?slug=" + encodeURIComponent(char.slug);
+      link.setAttribute("aria-label", (char.name || char.slug) + "와의 대화 시작");
+
+      const avatar = document.createElement("span");
+      avatar.className = "dm-list-row-avatar";
+      const imgUrl = char.images?.thumb || char.images?.cover || ("./assets/characters/" + char.slug + "/thumb.png");
+      avatar.style.backgroundImage = "url(\"" + String(imgUrl).replace(/"/g, "%22") + "\")";
+      if (char.colorAccent) {
+        avatar.style.boxShadow = "0 0 0 2px " + char.colorAccent + " inset, 0 0 0 3px rgba(0,0,0,0.18)";
+      }
+      avatar.setAttribute("aria-hidden", "true");
+
+      const body = document.createElement("span");
+      body.className = "dm-list-row-body";
+      const head = document.createElement("span");
+      head.className = "dm-list-row-head";
+      const name = document.createElement("span");
+      name.className = "dm-list-row-name";
+      name.textContent = char.name || char.slug;
+      const time = document.createElement("span");
+      time.className = "dm-list-row-time";
+      time.textContent = "새 대화";
+      head.append(name, time);
+      const preview = document.createElement("span");
+      preview.className = "dm-list-row-preview";
+      preview.textContent = tone?.lastMessagePreview || tone?.welcomeMessage || "처음 인사를 기다리고 있어요.";
+      body.append(head, preview);
+      link.append(avatar, body);
+      li.append(link);
+      wrap.append(li);
+    });
+  }
+
   function renderDmList() {
     const wrap = $("chatListItems");
     if (!wrap) return;
@@ -552,6 +735,95 @@
       li.append(link);
       wrap.append(li);
     });
+  }
+
+  async function loadConversationList(box = conversationListState.box) {
+    const wrap = $("chatListItems");
+    if (!wrap) return;
+    const safeBox = CONVERSATION_BOXES.includes(box) ? box : "recent";
+    conversationListState.box = safeBox;
+    setConversationTabs(safeBox);
+
+    if (typeof apiFetch !== "function") {
+      setConversationStatus("대화 API를 사용할 수 없어 아티스트 목록을 보여드려요.");
+      renderDmList();
+      return;
+    }
+
+    wrap.innerHTML = '<li class="dm-list-skeleton">대화 목록을 불러오는 중이에요…</li>';
+    setConversationStatus(CONVERSATION_BOX_LABELS[safeBox] + " 대화함을 확인하고 있어요.");
+
+    try {
+      const data = await apiFetch(
+        "/api/v1/chat/conversations?box=" + encodeURIComponent(safeBox) + "&take=20",
+        { auth: true, throwOnError: true }
+      );
+      const items = Array.isArray(data?.items) ? data.items : [];
+      renderConversationRows(items, safeBox);
+      setConversationStatus(items.length
+        ? CONVERSATION_BOX_LABELS[safeBox] + " 대화 " + items.length + "개를 불러왔어요."
+        : CONVERSATION_BOX_LABELS[safeBox] + " 대화함이 비어 있어요.");
+    } catch (error) {
+      if (error?.status === 401 || error?.status === 403) {
+        setConversationStatus("로그인하면 최근 대화와 보관함을 볼 수 있어요.");
+      } else {
+        setConversationStatus("대화 목록을 잠시 불러오지 못해 아티스트 목록을 보여드려요.");
+      }
+      renderDmList();
+    }
+  }
+
+  async function mutateConversationStatus(sessionId, action) {
+    if (!sessionId || !["archive", "restore"].includes(action) || typeof apiFetch !== "function") return;
+    conversationListState.busyId = sessionId;
+    setConversationStatus(action === "archive" ? "대화를 보관하고 있어요." : "대화를 되돌리고 있어요.");
+    try {
+      const result = await apiFetch(
+        "/api/v1/chat/conversations/" + encodeURIComponent(sessionId) + "/" + action,
+        { method: "POST", auth: true, throwOnError: true }
+      );
+      const changed = result?.changed !== false;
+      setConversationStatus(changed
+        ? (action === "archive" ? "대화를 보관했어요." : "대화를 최근 대화로 되돌렸어요.")
+        : "이미 반영된 상태예요.");
+    } catch (error) {
+      if (error?.status === 401 || error?.status === 403) {
+        if (typeof openAuthModal === "function") openAuthModal("login");
+        setConversationStatus("로그인이 필요해요. 다시 로그인한 뒤 시도해주세요.");
+      } else if (error?.status === 404) {
+        setConversationStatus("대화를 찾을 수 없거나 접근 권한이 없어요.");
+      } else {
+        setConversationStatus("대화 상태를 바꾸지 못했어요. 잠시 후 다시 시도해주세요.");
+      }
+    } finally {
+      conversationListState.busyId = null;
+      await loadConversationList(conversationListState.box);
+    }
+  }
+
+  function bindConversationListEvents() {
+    if (conversationListState.bound) return;
+    conversationListState.bound = true;
+
+    document.querySelectorAll("[data-chat-conversation-box]").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        loadConversationList(tab.dataset.chatConversationBox || "recent");
+      });
+    });
+
+    const wrap = $("chatListItems");
+    if (wrap) {
+      wrap.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-chat-conversation-action]");
+        if (!button) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (button.disabled) return;
+        button.disabled = true;
+        button.textContent = button.dataset.chatConversationAction === "archive" ? "보관 중" : "되돌리는 중";
+        mutateConversationStatus(button.dataset.chatConversationId, button.dataset.chatConversationAction);
+      });
+    }
   }
 
   /* 받은 이미지 보관함 시트 (대화 중 받은 이미지만 보관). 결제/주문 호출 없음. */
@@ -672,7 +944,8 @@
     if (!slug) {
       /* DM 리스트 모드: 캐릭터 목록 그리고 종료. starter/sheet/cleanmode 초기화는 X. */
       showListMode();
-      renderDmList();
+      bindConversationListEvents();
+      await loadConversationList(getConversationBoxFromUrl());
       return;
     }
 

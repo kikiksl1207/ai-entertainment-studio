@@ -1090,6 +1090,44 @@
   letter-spacing: 0;
 }
 
+.dm-list-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px 14px 4px;
+}
+.dm-list-tab {
+  min-height: 36px;
+  border: 1px solid rgba(180, 150, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(235, 224, 255, 0.72);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.dm-list-tab:hover {
+  border-color: rgba(255, 79, 195, 0.42);
+  color: #fff;
+}
+.dm-list-tab.is-active {
+  background: rgba(255, 79, 195, 0.16);
+  border-color: rgba(255, 79, 195, 0.52);
+  color: #fff;
+}
+.dm-list-status {
+  min-height: 18px;
+  margin: 4px 18px 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0;
+  color: rgba(220, 210, 240, 0.55);
+}
+
 .dm-list-items {
   list-style: none;
   padding: 6px 8px 8px;
@@ -1116,6 +1154,9 @@
 }
 .dm-list-row-link:active {
   transform: scale(0.99);
+}
+.dm-list-row-conversation .dm-list-row-link {
+  grid-template-columns: 52px minmax(0, 1fr) auto;
 }
 .dm-list-row-avatar {
   width: 52px;
@@ -1167,6 +1208,41 @@
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
 }
+.dm-list-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dm-list-open,
+.dm-list-action {
+  min-height: 32px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.dm-list-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(180, 150, 255, 0.18);
+  color: rgba(235, 224, 255, 0.82);
+  background: rgba(255, 255, 255, 0.04);
+}
+.dm-list-action {
+  border: 1px solid rgba(255, 79, 195, 0.38);
+  color: #ff9ad0;
+  background: rgba(255, 79, 195, 0.1);
+  cursor: pointer;
+}
+.dm-list-action:disabled {
+  cursor: progress;
+  opacity: 0.58;
+}
 .dm-list-skeleton,
 .dm-list-empty {
   padding: 32px 16px;
@@ -1192,6 +1268,22 @@
     background: rgba(20, 14, 36, 0.45);
     border: 1px solid rgba(180, 150, 255, 0.08);
     border-radius: 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  .dm-list-row-conversation .dm-list-row-link {
+    grid-template-columns: 46px minmax(0, 1fr);
+  }
+  .dm-list-row-conversation .dm-list-row-actions {
+    grid-column: 2;
+    justify-content: flex-start;
+    margin-top: 6px;
+  }
+  .dm-list-open,
+  .dm-list-action {
+    min-height: 30px;
+    padding: 0 10px;
   }
 }
 

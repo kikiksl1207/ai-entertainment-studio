@@ -50,12 +50,18 @@
       <section class="shell dm-list-shell" id="chatListShell" aria-label="메시지 목록" hidden>
         <header class="dm-list-head">
           <h1 class="dm-list-title">메시지</h1>
-          <p class="dm-list-sub">좋아하는 아티스트의 이름을 눌러 첫 메시지를 시작해보세요.</p>
+          <p class="dm-list-sub">최근 대화와 보관함을 확인하고, 필요 없는 대화는 안전하게 보관해둘 수 있어요.</p>
         </header>
+        <div class="dm-list-controls" role="tablist" aria-label="대화함 선택">
+          <button type="button" class="dm-list-tab is-active" data-chat-conversation-box="recent" role="tab" aria-selected="true">최근</button>
+          <button type="button" class="dm-list-tab" data-chat-conversation-box="archive" role="tab" aria-selected="false">보관함</button>
+          <button type="button" class="dm-list-tab" data-chat-conversation-box="all" role="tab" aria-selected="false">전체</button>
+        </div>
+        <p class="dm-list-status" id="chatConversationStatus" aria-live="polite">대화 목록을 확인하고 있어요.</p>
         <ul class="dm-list-items" id="chatListItems" role="list" aria-live="polite">
           <li class="dm-list-skeleton">메시지 상대를 불러오는 중이에요…</li>
         </ul>
-        <p class="dm-list-foot">스타의 답장 기능은 곧 열려요. 지금은 첫 인사를 미리 골라둘 수 있어요.</p>
+        <p class="dm-list-foot">보관/되돌리기는 대화 상태만 바꾸며 메시지, 루미나, 주문, 정산에는 영향을 주지 않아요.</p>
       </section>
 
       <div class="shell chat-shell" id="chatRoomShell" data-clean-mode="off" hidden>
