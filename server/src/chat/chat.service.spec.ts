@@ -168,7 +168,10 @@ describe('ChatService.getConversationList', () => {
       },
       archiveContract: {
         supported: true,
-        mutationEnabled: false,
+        mutationEnabled: true,
+        actions: ['archive', 'restore'],
+        archivePathTemplate: '/api/v1/chat/conversations/:sessionId/archive',
+        restorePathTemplate: '/api/v1/chat/conversations/:sessionId/restore',
       },
       safety: {
         llmCall: false,
@@ -443,6 +446,206 @@ describe('ChatService.getConversationList', () => {
       maxTake: 50,
       appliedTake: 50,
     });
+  });
+});
+
+describe('ChatService conversation archive/restore', () => {
+  const userId = '00000000-0000-4000-8000-000000000290';
+  const sessionId = '00000000-0000-4000-8000-000000000291';
+  const llmProvider = {
+    readiness: jest.fn(),
+  };
+
+  beforeEach(() => {
+    llmProvider.readiness.mockReset();
+  });
+
+  function conversationRecord(status: string) {
+    return {
+      id: sessionId,
+      status,
+      createdAt: new Date('2026-05-18T00:00:00.000Z'),
+      updatedAt: new Date('2026-05-18T00:01:00.000Z'),
+      artist: {
+        id: '00000000-0000-4000-8000-000000000292',
+        slug: 'yoon-serin',
+        displayName: 'Yoon Serin',
+      },
+      chatPersona: null,
+      messages: [
+        {
+          id: '00000000-0000-4000-8000-000000000293',
+          senderType: 'artist',
+          messageType: 'text',
+          body: 'Archive guard preview',
+          chatFeatureOrderId: null,
+          createdAt: new Date('2026-05-18T00:02:00.000Z'),
+        },
+      ],
+      _count: {
+        messages: 1,
+      },
+    };
+  }
+
+  it('archives an owned active conversation without LLM, message, wallet, or order mutation', async () => {
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue(conversationRecord('active')),
+        update: jest.fn().mockResolvedValue(conversationRecord('archived')),
+      },
+      chatMessage: {
+        create: jest.fn(),
+      },
+      chatFeatureOrder: {
+        create: jest.fn(),
+      },
+      walletAccount: {
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.archiveConversation(userId, sessionId);
+
+    expect(prisma.chatSession.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: sessionId, userId },
+      }),
+    );
+    expect(prisma.chatSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: sessionId },
+        data: { status: 'archived' },
+      }),
+    );
+    expect(result).toMatchObject({
+      ownerOnly: true,
+      idempotent: true,
+      action: 'archive',
+      changed: true,
+      targetStatus: 'archived',
+      targetBox: 'archive',
+      conversation: {
+        id: sessionId,
+        box: 'archive',
+        status: 'archived',
+        lastMessage: {
+          bodyPreview: 'Archive guard preview',
+        },
+      },
+      listImpact: {
+        recent: false,
+        archive: true,
+        all: true,
+      },
+      safety: {
+        llmCall: false,
+        walletMutation: false,
+        messageMutation: false,
+        orderMutation: false,
+        settlementMutation: false,
+      },
+    });
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+    expect(prisma.chatFeatureOrder.create).not.toHaveBeenCalled();
+    expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('treats archiving an already archived conversation as idempotent', async () => {
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue(conversationRecord('archived')),
+        update: jest.fn(),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.archiveConversation(userId, sessionId);
+
+    expect(prisma.chatSession.update).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      action: 'archive',
+      changed: false,
+      targetStatus: 'archived',
+      targetBox: 'archive',
+      conversation: {
+        box: 'archive',
+        status: 'archived',
+      },
+    });
+  });
+
+  it('restores an archived conversation and leaves active restore idempotent', async () => {
+    const prisma = {
+      chatSession: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValueOnce(conversationRecord('archived'))
+          .mockResolvedValueOnce(conversationRecord('active')),
+        update: jest.fn().mockResolvedValue(conversationRecord('active')),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const restored = await service.restoreConversation(userId, sessionId);
+    const alreadyActive = await service.restoreConversation(userId, sessionId);
+
+    expect(prisma.chatSession.update).toHaveBeenCalledTimes(1);
+    expect(restored).toMatchObject({
+      action: 'restore',
+      changed: true,
+      targetStatus: 'active',
+      targetBox: 'recent',
+      conversation: {
+        box: 'recent',
+        status: 'active',
+      },
+    });
+    expect(alreadyActive).toMatchObject({
+      action: 'restore',
+      changed: false,
+      targetStatus: 'active',
+      targetBox: 'recent',
+    });
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+  });
+
+  it('does not expose another user conversation and rejects invalid status transitions', async () => {
+    const prisma = {
+      chatSession: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(conversationRecord('deleted')),
+        update: jest.fn(),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(service.archiveConversation(userId, sessionId)).rejects.toMatchObject({
+      status: 404,
+    });
+    await expect(service.archiveConversation(userId, sessionId)).rejects.toMatchObject({
+      response: {
+        code: 'CHAT_CONVERSATION_STATUS_TRANSITION_INVALID',
+        messageKey: 'chat.conversations.invalidStatusTransition',
+      },
+    });
+    await expect(
+      service.restoreConversation(userId, 'not-a-conversation-id'),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'CHAT_CONVERSATION_ID_INVALID',
+        messageKey: 'chat.conversations.invalidConversationId',
+      },
+    });
+    expect(prisma.chatSession.update).not.toHaveBeenCalled();
   });
 });
 

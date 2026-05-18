@@ -77,6 +77,22 @@ export class ChatController {
     });
   }
 
+  @Post('chat/conversations/:sessionId/archive')
+  archiveConversation(
+    @CurrentUser() user: AuthUser,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.chatService.archiveConversation(user.id, sessionId);
+  }
+
+  @Post('chat/conversations/:sessionId/restore')
+  restoreConversation(
+    @CurrentUser() user: AuthUser,
+    @Param('sessionId') sessionId: string,
+  ) {
+    return this.chatService.restoreConversation(user.id, sessionId);
+  }
+
   @Get('chat/persona-seed-policy')
   getPersonaSeedPolicy() {
     return this.chatService.getPersonaSeedPolicy();
