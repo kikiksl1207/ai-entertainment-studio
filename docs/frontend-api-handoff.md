@@ -1491,6 +1491,7 @@ Admin/operations endpoints for phone consultation queue:
 ```http
 GET /admin/api/v1/debut/applications?status=submitted&applicationChannel=phone_consultation&operationSegment=entertainment_agency&rightsReviewRequired=true&consultationStatus=pending&query=seo&take=50&cursor=<nextCursor>
 GET /admin/api/v1/debut/applications/:applicationId
+PATCH /admin/api/v1/debut/applications/:applicationId/review
 ```
 
 Use the shared `adminApiPath('/debut/applications...')` helper/base convention
@@ -1501,6 +1502,7 @@ With the deployed host root as base, the current external paths are:
 ```http
 GET /api/v1/admin/api/v1/debut/applications?status=submitted&take=50
 GET /api/v1/admin/api/v1/debut/applications/:applicationId
+PATCH /api/v1/admin/api/v1/debut/applications/:applicationId/review
 ```
 
 When a client base/helper already includes `/api/v1`, the relative helper path
@@ -1650,8 +1652,22 @@ pre-settlement / pre-payout, even when the user-facing status is `approved`.
 Do not expose operator ids, raw email, raw phone, intro text, internal notes, or
 private material URLs in non-admin screens.
 
-Admin PATCH/status mutation is not open in this contract. If review state
-changes are needed, treat them as a separate backend-first mutation contract.
+Admin review/status mutation is separate from list/detail projection. Use
+`PATCH /admin/api/v1/debut/applications/:applicationId/review` only for explicit
+operations review changes. Supported fields are review status,
+`publicStatusReason`, `requestedActionKey`, consultation status/schedule, and
+rights/partner review status or internal notes. The response returns a list-row
+projection plus an audit summary; fetch detail separately when the admin needs
+full internal review context. The action does not confirm final debut, contract,
+settlement, payout, wallet, or Lumina state. `shareTierApproved` is blocked in
+this endpoint with `DEBUT_ADMIN_FINAL_SHARE_UPDATE_NOT_OPEN`.
+
+The review action audit contract is
+`2026-05-19.debut-ops-audit-v1`. Audit before/after payloads contain only safe
+status/routing/public-notice/material-summary booleans. They must not contain raw
+email, raw phone, intro text, internal note bodies, private material URLs,
+storage keys, object ETags, raw tokens, secrets, settlement values, or payout
+data.
 
 Allowed `consultationStatus`: `pending`, `scheduled`, `contacted`, `no_answer`, `completed`.
 Allowed `rightsReviewStatus`: `not_required`, `pending`, `reviewing`, `cleared`, `blocked`.

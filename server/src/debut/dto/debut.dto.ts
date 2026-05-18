@@ -436,6 +436,18 @@ export class AdminUpdateDebutApplicationDto {
   @IsOptional()
   @Transform(normalizeString)
   @IsString()
+  @MaxLength(500)
+  publicStatusReason?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @MaxLength(128)
+  requestedActionKey?: string;
+
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
   @MaxLength(2000)
   reviewNote?: string;
 

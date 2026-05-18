@@ -824,9 +824,12 @@ export class DebutService {
       throw new NotFoundException('Debut application not found');
     }
 
+    this.assertAdminUpdateContract(input);
+
     if (
       input.status === undefined &&
-      input.shareTierApproved === undefined &&
+      input.publicStatusReason === undefined &&
+      input.requestedActionKey === undefined &&
       input.reviewNote === undefined &&
       input.consultationStatus === undefined &&
       input.consultationScheduledAt === undefined &&
@@ -836,16 +839,20 @@ export class DebutService {
       input.partnerReviewStatus === undefined &&
       input.partnerReviewNote === undefined
     ) {
-      throw new BadRequestException(
-        'At least one admin update field is required',
+      throw this.badRequest(
+        'DEBUT_ADMIN_UPDATE_EMPTY',
+        'At least one admin update field is required.',
+        'debut.admin.update.empty',
       );
     }
 
     const application = await this.prisma.debutApplication.update({
       where: { id: applicationId },
       data: this.clean({
-        status: input.status === undefined ? undefined : this.status(input.status),
-        shareTierApproved: input.shareTierApproved,
+        status:
+          input.status === undefined
+            ? undefined
+            : this.adminWritableStatus(input.status),
         reviewNote: input.reviewNote,
         updatedAt: new Date(),
         metadata: this.mergeAdminReviewMetadata(before.metadata, input, user),
@@ -853,8 +860,41 @@ export class DebutService {
       include: this.applicationInclude(),
     });
 
-    await this.recordAudit(user, application.id, before, application);
-    return application;
+    const auditSummary = this.debutApplicationAuditSummary(before, application);
+    const auditEvent = await this.recordAudit(
+      user,
+      application.id,
+      before,
+      application,
+      'admin',
+      'debut_application.review_update',
+      auditSummary,
+    );
+    const auditEventId = this.safeString(this.metadataObject(auditEvent).id);
+
+    return {
+      ok: true,
+      action: 'debut_application.review_update',
+      application: this.presentAdminDebutApplicationListItem(application),
+      audit: {
+        recorded: true,
+        eventId: auditEventId,
+        contractVersion: auditSummary.metadata.contractVersion,
+        changedFields: auditSummary.metadata.changedFields,
+        sensitiveFieldsStored: false,
+        internalNotesStored: false,
+        privateMaterialUrlsStored: false,
+        storageKeysStored: false,
+      },
+      mutationPolicy: {
+        finalDebutMutation: false,
+        contractMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+        walletMutation: false,
+        luminaMutation: false,
+      },
+    };
   }
 
   private assertRequiredConsents(input: CreateDebutApplicationDto) {
@@ -2066,6 +2106,19 @@ export class DebutService {
     return ADMIN_APPLICATION_STATUS_ALIASES[status] ?? this.adminStatusOrDefault(status);
   }
 
+  private adminWritableStatus(status: string): AdminDebutApplicationStatus {
+    if (!APPLICATION_STATUSES.has(status)) {
+      throw this.badRequest(
+        'DEBUT_ADMIN_STATUS_INVALID',
+        'Invalid debut application admin status.',
+        'debut.admin.status.invalid',
+        { status },
+      );
+    }
+
+    return this.adminReviewStatus(status);
+  }
+
   private userReviewStatus(status: string): UserDebutApplicationStatus {
     return USER_APPLICATION_STATUS_ALIASES[status] ?? this.userStatusOrDefault(status);
   }
@@ -2162,6 +2215,23 @@ export class DebutService {
     return `${value.slice(0, 1)}${'*'.repeat(value.length - 2)}${value.slice(-1)}`;
   }
 
+  private assertAdminUpdateContract(input: AdminUpdateDebutApplicationDto) {
+    if (input.shareTierApproved !== undefined) {
+      throw this.badRequest(
+        'DEBUT_ADMIN_FINAL_SHARE_UPDATE_NOT_OPEN',
+        'Final debut share updates are not open in this operations review contract.',
+        'debut.admin.finalShareUpdateNotOpen',
+        {
+          contractOnly: true,
+          settlementMutation: false,
+          payoutMutation: false,
+          walletMutation: false,
+          luminaMutation: false,
+        },
+      );
+    }
+  }
+
   private badRequest(
     code: string,
     message: string,
@@ -2178,6 +2248,7 @@ export class DebutService {
     afterData: unknown,
     actorType = 'admin',
     action = 'debut_application.update',
+    auditSummary = this.debutApplicationAuditSummary(beforeData, afterData),
   ) {
     return this.prisma.auditEvent.create({
       data: {
@@ -2186,11 +2257,128 @@ export class DebutService {
         action,
         targetType: 'debut_application',
         targetId,
-        beforeData: this.toJson(beforeData),
-        afterData: this.toJson(afterData),
-        metadata: Prisma.JsonNull,
+        beforeData: this.toJson(auditSummary.beforeData),
+        afterData: this.toJson(auditSummary.afterData),
+        metadata: this.toJson(auditSummary.metadata),
       },
     });
+  }
+
+  private debutApplicationAuditSummary(beforeData: unknown, afterData: unknown) {
+    const beforeSnapshot = this.debutApplicationAuditSnapshot(beforeData);
+    const afterSnapshot = this.debutApplicationAuditSnapshot(afterData);
+
+    return {
+      beforeData: beforeSnapshot,
+      afterData: afterSnapshot,
+      metadata: {
+        contractVersion: '2026-05-19.debut-ops-audit-v1',
+        changedFields: this.debutApplicationAuditChangedFields(
+          beforeSnapshot,
+          afterSnapshot,
+        ),
+        redaction: {
+          contactStored: false,
+          introStored: false,
+          internalAdminNotesStored: false,
+          privateMaterialUrlsStored: false,
+          storageKeysStored: false,
+          objectETagsStored: false,
+          rawTokenStored: false,
+          secretStored: false,
+        },
+        mutationPolicy: {
+          finalDebutMutation: false,
+          contractMutation: false,
+          settlementMutation: false,
+          payoutMutation: false,
+          walletMutation: false,
+          luminaMutation: false,
+        },
+      },
+    };
+  }
+
+  private debutApplicationAuditSnapshot(value: unknown) {
+    const record = this.metadataObject(value);
+    const metadata = this.metadataObject(record.metadata);
+    const attachments = Array.isArray(record.attachments) ? record.attachments : [];
+    const status = this.safeString(record.status) ?? 'submitted';
+    const applicationType =
+      this.safeString(metadata.applicationType) ?? DEFAULT_APPLICATION_TYPE;
+    const materialCategories = [
+      ...new Set(
+        attachments
+          .map((attachment) => this.safeString(this.metadataObject(attachment).category))
+          .filter((category): category is string => category !== null),
+      ),
+    ];
+
+    return {
+      id: this.safeString(record.id),
+      status: this.adminReviewStatus(status),
+      userStatus: this.userReviewStatus(status),
+      applicationChannel:
+        this.safeString(metadata.applicationChannel) ?? 'phone_consultation',
+      applicationType,
+      operationSegment: this.debutOperationSegment(applicationType, metadata),
+      consultationStatus: this.safeString(metadata.consultationStatus),
+      rightsReviewRequired: this.safeBoolean(metadata.rightsReviewRequired, false),
+      rightsReviewStatus: this.safeString(metadata.rightsReviewStatus),
+      partnerReviewRequired: this.safeBoolean(metadata.partnerReviewRequired, false),
+      partnerReviewStatus: this.safeString(metadata.partnerReviewStatus),
+      publicNotice: {
+        publicReasonPresent: Boolean(this.safeString(metadata.publicStatusReason)),
+        requestedActionKey: this.safeString(metadata.requestedActionKey),
+      },
+      internalNotes: {
+        reviewNotePresent: Boolean(this.safeString(record.reviewNote)),
+        consultationNotePresent: Boolean(this.safeString(metadata.consultationNote)),
+        rightsReviewNotePresent: Boolean(this.safeString(metadata.rightsReviewNote)),
+        partnerReviewNotePresent: Boolean(this.safeString(metadata.partnerReviewNote)),
+      },
+      privateMaterials: {
+        count: attachments.length,
+        categories: materialCategories,
+        metadataOnly: true,
+        publicUrlReturned: false,
+        signedReadUrlReturned: false,
+        originalFileUrlReturned: false,
+        storageKeyReturned: false,
+        objectETagReturned: false,
+      },
+      finalization: this.debutApplicationFinalizationContract(
+        metadata,
+        applicationType,
+      ),
+    };
+  }
+
+  private debutApplicationAuditChangedFields(
+    beforeSnapshot: Record<string, unknown>,
+    afterSnapshot: Record<string, unknown>,
+  ) {
+    const fields = [
+      'status',
+      'userStatus',
+      'applicationChannel',
+      'applicationType',
+      'operationSegment',
+      'consultationStatus',
+      'rightsReviewRequired',
+      'rightsReviewStatus',
+      'partnerReviewRequired',
+      'partnerReviewStatus',
+      'publicNotice',
+      'internalNotes',
+      'privateMaterials',
+      'finalization',
+    ];
+
+    return fields.filter(
+      (field) =>
+        JSON.stringify(beforeSnapshot[field]) !== JSON.stringify(afterSnapshot[field]),
+    );
   }
 
   private toJson(value: unknown) {
@@ -2710,12 +2898,20 @@ export class DebutService {
       input.rightsReviewStatus === undefined &&
       input.rightsReviewNote === undefined &&
       input.partnerReviewStatus === undefined &&
-      input.partnerReviewNote === undefined
+      input.partnerReviewNote === undefined &&
+      input.publicStatusReason === undefined &&
+      input.requestedActionKey === undefined
     ) {
       return undefined;
     }
 
     return this.mergeMetadata(current, {
+      ...(input.publicStatusReason === undefined
+        ? {}
+        : { publicStatusReason: input.publicStatusReason }),
+      ...(input.requestedActionKey === undefined
+        ? {}
+        : { requestedActionKey: input.requestedActionKey }),
       ...(input.consultationStatus === undefined
         ? {}
         : { consultationStatus: input.consultationStatus }),

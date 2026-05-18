@@ -1047,6 +1047,7 @@ GET /api/v1/me/debut-applications/:applicationId/status
 POST /api/v1/me/debut-applications/:applicationId/withdraw
 GET /admin/api/v1/debut/applications?status=submitted&take=50
 GET /admin/api/v1/debut/applications/:applicationId
+PATCH /admin/api/v1/debut/applications/:applicationId/review
 ```
 
 `debut_applications` stores an operations-review application only. Sensitive identity documents and final contracts must use a later secure upload/contract process, not chat, Notion, or Git.
@@ -1059,12 +1060,14 @@ API base URL is the deployed host root, the current external paths are:
 ```http
 GET /api/v1/admin/api/v1/debut/applications?status=submitted&take=50
 GET /api/v1/admin/api/v1/debut/applications/:applicationId
+PATCH /api/v1/admin/api/v1/debut/applications/:applicationId/review
 ```
 
 If a client helper/base URL already includes `/api/v1`, the relative admin path
 stays `/admin/api/v1/debut/...`. Do not hardcode host-root
-`/admin/api/v1/debut/...` for deployed calls, and do not open or call status
-mutation endpoints until a separate mutation contract is approved.
+`/admin/api/v1/debut/...` for deployed calls. Admin read projections and the
+review action endpoint are separate contracts: use GET for queue/detail display
+and PATCH only for explicit operations review/status changes.
 
 Current validation and workflow:
 
@@ -1152,8 +1155,20 @@ Current validation and workflow:
 - Admin detail returns masked contact fields and private applicant material
   metadata only. It must not return private signed URLs, original file URLs,
   storage keys, object ETags, secrets, or tokens.
-- Admin status/consultation mutation is not open in this contract. If needed,
-  propose a separate mutation contract before exposing PATCH/POST handlers.
+- Admin review mutation is open only through
+  `PATCH /admin/api/v1/debut/applications/:applicationId/review`. The action can
+  update review status, public status reason/requested action key, consultation
+  status/schedule, and rights/partner review status or internal notes. It returns
+  a list-row projection plus an audit summary, not the admin detail projection.
+  The endpoint does not create final debut, contract, settlement, payout, wallet,
+  or Lumina mutations; `shareTierApproved` remains blocked here with
+  `DEBUT_ADMIN_FINAL_SHARE_UPDATE_NOT_OPEN`.
+- The review action records an audit event using
+  `2026-05-19.debut-ops-audit-v1`. Audit before/after payloads store only safe
+  status/routing/public-notice/material-summary booleans. They must not store
+  contact values, intro text, review notes, consultation/rights/partner note
+  bodies, private material URLs, storage keys, object ETags, raw tokens, secrets,
+  settlement values, or payout data.
 - Allowed consultation statuses: `pending`, `scheduled`, `contacted`, `no_answer`, `completed`.
 - Allowed rights review statuses: `not_required`, `pending`, `reviewing`, `cleared`, `blocked`.
 - Allowed partner review statuses: `not_applicable`, `pending`, `reviewing`, `accepted`, `declined`.

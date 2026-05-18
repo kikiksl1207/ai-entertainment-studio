@@ -754,6 +754,184 @@ describe('DebutService private material flow', () => {
     expect(payload).not.toContain('https://storage.example.com/private.png');
   });
 
+  it('updates admin review status with a redacted audit payload and no finalization mutation', async () => {
+    const prisma = createPrismaMock();
+    const service = serviceWith(prisma);
+    const before = adminApplication({
+      status: 'submitted',
+      reviewNote: 'Internal before note must not leak to audit',
+      metadata: {
+        applicationChannel: 'phone_consultation',
+        applicationType: 'represented_artist',
+        rightsReviewRequired: true,
+        rightsReviewStatus: 'pending',
+        consultationStatus: 'pending',
+        consultationNote: 'Internal before call memo must not leak to audit',
+        storageKey: 'private/audit-before-key-must-not-leak',
+      },
+    });
+    const after = adminApplication({
+      status: 'needs_more_info',
+      reviewNote: 'Internal status change note must not leak to audit',
+      metadata: {
+        applicationChannel: 'phone_consultation',
+        applicationType: 'represented_artist',
+        rightsReviewRequired: true,
+        rightsReviewStatus: 'reviewing',
+        consultationStatus: 'scheduled',
+        consultationNote: 'Internal after call memo must not leak to audit',
+        publicStatusReason: '보완 가능한 공개 안내만 노출',
+        requestedActionKey: 'debut.application.action.qaOnly',
+        storageKey: 'private/audit-after-key-must-not-leak',
+      },
+    });
+    prisma.debutApplication.findUnique.mockResolvedValue(before);
+    prisma.debutApplication.update.mockResolvedValue(after);
+    prisma.auditEvent.create.mockResolvedValue({
+      id: '00000000-0000-4000-8000-000000000501',
+    });
+
+    const result = await service.updateApplication(
+      { id: '00000000-0000-4000-8000-000000000901', email: null },
+      '00000000-0000-4000-8000-000000000301',
+      {
+        status: 'needs_more_info',
+        reviewNote: 'Internal status change note must not leak to audit',
+        consultationStatus: 'scheduled',
+        rightsReviewStatus: 'reviewing',
+        publicStatusReason: '보완 가능한 공개 안내만 노출',
+        requestedActionKey: 'debut.application.action.qaOnly',
+      },
+    );
+    const auditCall = prisma.auditEvent.create.mock.calls[0][0];
+    const auditPayload = JSON.stringify(auditCall.data);
+    const responsePayload = JSON.stringify(result);
+
+    expect(prisma.debutApplication.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: '00000000-0000-4000-8000-000000000301' },
+        data: expect.objectContaining({
+          status: 'needs_more_info',
+          reviewNote: 'Internal status change note must not leak to audit',
+          metadata: expect.objectContaining({
+            publicStatusReason: '보완 가능한 공개 안내만 노출',
+            requestedActionKey: 'debut.application.action.qaOnly',
+            consultationStatus: 'scheduled',
+            rightsReviewStatus: 'reviewing',
+          }),
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      action: 'debut_application.review_update',
+      application: {
+        status: 'needs_more_info',
+        review: {
+          consultationStatus: 'scheduled',
+          rightsReviewStatus: 'reviewing',
+        },
+      },
+      audit: {
+        recorded: true,
+        eventId: '00000000-0000-4000-8000-000000000501',
+        contractVersion: '2026-05-19.debut-ops-audit-v1',
+        sensitiveFieldsStored: false,
+        internalNotesStored: false,
+        privateMaterialUrlsStored: false,
+        storageKeysStored: false,
+      },
+      mutationPolicy: {
+        finalDebutMutation: false,
+        contractMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+        walletMutation: false,
+        luminaMutation: false,
+      },
+    });
+    expect(result.audit.changedFields).toEqual(
+      expect.arrayContaining([
+        'status',
+        'userStatus',
+        'consultationStatus',
+        'rightsReviewStatus',
+        'publicNotice',
+      ]),
+    );
+    expect(auditCall.data).toMatchObject({
+      actorUserId: '00000000-0000-4000-8000-000000000901',
+      actorType: 'admin',
+      action: 'debut_application.review_update',
+      targetType: 'debut_application',
+      targetId: '00000000-0000-4000-8000-000000000301',
+      beforeData: {
+        status: 'submitted',
+        privateMaterials: {
+          metadataOnly: true,
+          storageKeyReturned: false,
+          objectETagReturned: false,
+        },
+      },
+      afterData: {
+        status: 'needs_more_info',
+        publicNotice: {
+          publicReasonPresent: true,
+          requestedActionKey: 'debut.application.action.qaOnly',
+        },
+      },
+      metadata: {
+        contractVersion: '2026-05-19.debut-ops-audit-v1',
+        redaction: {
+          internalAdminNotesStored: false,
+          privateMaterialUrlsStored: false,
+          storageKeysStored: false,
+          objectETagsStored: false,
+        },
+        mutationPolicy: {
+          finalDebutMutation: false,
+          settlementMutation: false,
+          payoutMutation: false,
+          walletMutation: false,
+          luminaMutation: false,
+        },
+      },
+    });
+    expect(responsePayload).not.toContain('Internal status change note');
+    expect(auditPayload).not.toContain('Internal before note');
+    expect(auditPayload).not.toContain('Internal status change note');
+    expect(auditPayload).not.toContain('Internal before call memo');
+    expect(auditPayload).not.toContain('Internal after call memo');
+    expect(auditPayload).not.toContain('applicant@example.com');
+    expect(auditPayload).not.toContain('010-1234-5678');
+    expect(auditPayload).not.toContain('private/audit-before-key-must-not-leak');
+    expect(auditPayload).not.toContain('private/audit-after-key-must-not-leak');
+    expect(auditPayload).not.toContain('private/attachment-key-must-not-leak');
+    expect(auditPayload).not.toContain('blocked-etag-sample');
+    expect(auditPayload).not.toContain('https://storage.example.com/private.png');
+  });
+
+  it('rejects final share updates in the admin review contract', async () => {
+    const prisma = createPrismaMock();
+    const service = serviceWith(prisma);
+    prisma.debutApplication.findUnique.mockResolvedValue(adminApplication());
+
+    await expect(
+      service.updateApplication(
+        { id: '00000000-0000-4000-8000-000000000901', email: null },
+        '00000000-0000-4000-8000-000000000301',
+        { shareTierApproved: 50 },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'DEBUT_ADMIN_FINAL_SHARE_UPDATE_NOT_OPEN',
+        messageKey: 'debut.admin.finalShareUpdateNotOpen',
+      },
+    });
+    expect(prisma.debutApplication.update).not.toHaveBeenCalled();
+    expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+  });
+
   it('returns owner-only application status with safe history and copy keys', async () => {
     const prisma = createPrismaMock();
     const service = serviceWith(prisma);
