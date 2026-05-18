@@ -1,6 +1,45 @@
 # Team2 QA Inbox
 
 status: pass
+task: #303 - debut phone/agency ops queue read-only live regression QA
+branch/commit:
+- branch: team2-qa/303-debut-ops-queue-live-qa
+- local main after pull: origin/main
+- basis commit: e5a34ad7686df2c3d70256479b79819b95a82f0c
+- live health commit: e5a34ad7686df2c3d70256479b79819b95a82f0c
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: ran `git fetch origin main` and `git pull origin main`; local branch is based on `origin/main @ e5a34ad`.
+- PASS: `npm.cmd test -- --runTestsByPath src/debut/debut.service.spec.ts --runInBand` passed 16/16.
+- PASS: `npm.cmd run build` passed.
+- PASS: `npm.cmd run lint` passed.
+- PASS: live health returned `e5a34ad7686df2c3d70256479b79819b95a82f0c`.
+- PASS: live disposable QA owner registration returned 201; no credential value recorded.
+- PASS: live phone-consultation application create returned 201.
+- PASS: live represented-artist/agency application create returned 201.
+- PASS: live owner status `GET /api/v1/me/debut-applications/:applicationId/status` returned `readOnly=true` and `ownerOnly=true`.
+- PASS: phone-consultation owner projection returned `applicationChannel=phone_consultation`, `rightsReview.required=false`, `rightsReview.status=not_required`, `rightsReview.pending=false`.
+- PASS: represented-artist/agency owner projection returned `rightsReview.required=true`, `rightsReview.status=pending`, `rightsReview.pending=true`.
+- PASS: owner latest projection selected the latest agency application and kept the same finalization guard.
+- PASS: both owner projections returned `finalDebutConfirmed=false`, `contractFinalized=false`, `settlementFinalized=false`, `payoutEligible=false`, `walletMutationAllowed=false`, `luminaMutationAllowed=false`.
+- PASS: both owner projections returned privacy guard fields with contact/admin/internal/private material exposure disabled.
+- PASS: sanitized payload checks found no raw QA email, raw QA phone, agency rights note, token, access token, or refresh token text in owner projection responses.
+- PASS: unauthenticated admin read-only endpoint probe returned 401.
+result:
+- #303 backend contract is present on main/live and owner read-only projection behaves safely for phone-consultation and represented-artist/agency applications.
+- Admin list/detail contents were not opened live because this session has no safe admin QA credential; local contract tests cover masked admin list/detail, entertainment-agency queue filtering, operator routing, guidance, and finalization guards.
+- No SMS, phone call, external email, contract finalization, settlement, payout, wallet, or Lumina mutation was executed.
+blocked_by:
+- None for QA pass. Remaining product blockers are the known policy/operations gaps already listed in #303: real operator phone policy, operator assignment policy, external notification connector, rights review/contract/settlement workflow, and safe live admin QA credential.
+next_needed:
+- PM/차모 완료판단.
+security_check:
+- PASS: no raw email, raw phone, token, cookie, password, DB URL, private material URL, signed URL, object key, object ETag, or credential was recorded.
+
+---
+
+status: pass
 task: Fan engagement Home teaser smoke QA
 environment:
 - branch: team2-qa/fan-engagement-home-teaser-smoke
