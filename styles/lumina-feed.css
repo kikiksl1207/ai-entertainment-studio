@@ -480,16 +480,27 @@ body.is-booting .feed-list::before {
 }
 .feed-compose-thumb {
   position: relative;
-  width: 72px;
-  height: 72px;
-  border-radius: 8px;
+  width: 84px;
+  height: 84px;
+  border-radius: 10px;
   overflow: hidden;
   border: 1px solid rgba(159, 139, 199, 0.25);
+  background: rgba(20, 14, 36, 0.6);
 }
 .feed-compose-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+}
+.feed-compose-thumb-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(159, 139, 199, 0.08);
 }
 .feed-compose-thumb.is-broken {
   display: grid;
@@ -503,6 +514,71 @@ body.is-booting .feed-list::before {
   font-size: 11px;
   font-weight: 700;
   text-align: center;
+}
+.feed-compose-thumb[data-status="uploading"] img,
+.feed-compose-thumb[data-status="failed"] img {
+  filter: brightness(0.55) saturate(0.7);
+}
+.feed-compose-thumb-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 4px;
+  text-align: center;
+  pointer-events: none;
+}
+.feed-compose-thumb-state[data-state="failed"] {
+  background: rgba(120, 0, 30, 0.55);
+  pointer-events: auto;
+}
+.feed-compose-thumb-state[data-state="uploading"] {
+  background: rgba(20, 14, 36, 0.45);
+}
+.feed-compose-thumb-state-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.feed-compose-thumb-state-detail {
+  display: none;
+}
+.feed-compose-thumb-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.4px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ff7eb9;
+  animation: feedComposeSpin 0.85s linear infinite;
+}
+@keyframes feedComposeSpin {
+  to { transform: rotate(360deg); }
+}
+.feed-compose-thumb-retry {
+  margin-top: 2px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  pointer-events: auto;
+}
+.feed-compose-thumb-retry:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.75);
+}
+.feed-compose-thumb-retry:focus-visible {
+  outline: 2px solid #ff7eb9;
+  outline-offset: 2px;
 }
 .feed-compose-thumb-remove {
   position: absolute;
@@ -521,9 +597,19 @@ body.is-booting .feed-list::before {
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 2;
 }
 .feed-compose-thumb-remove:hover {
   background: rgba(255, 20, 147, 0.85);
+}
+.feed-compose-thumb[data-status="uploading"] .feed-compose-thumb-remove {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.feed-compose-attach-btn[data-uploading="1"],
+.feed-compose-attach-btn[data-full="1"] {
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 .feed-compose-actions {
@@ -640,8 +726,20 @@ body.is-booting .feed-list::before {
     height: 32px;
   }
   .feed-compose-thumb {
-    width: 60px;
-    height: 60px;
+    width: 72px;
+    height: 72px;
+  }
+  .feed-compose-thumb-spinner {
+    width: 18px;
+    height: 18px;
+    border-width: 2px;
+  }
+  .feed-compose-thumb-state-label {
+    font-size: 10.5px;
+  }
+  .feed-compose-thumb-retry {
+    padding: 3px 8px;
+    font-size: 10.5px;
   }
   .feed-compose-counter {
     font-size: 11px;
@@ -649,6 +747,17 @@ body.is-booting .feed-list::before {
   .feed-compose-submit {
     padding: 7px 14px;
     font-size: 12.5px;
+  }
+}
+
+/* 390px 미만의 좁은 모바일 — 4장 첨부 시 가로 정렬이 깨지지 않도록 추가 축소 */
+@media (max-width: 420px) {
+  .feed-compose-thumb {
+    width: 64px;
+    height: 64px;
+  }
+  .feed-compose-thumbs {
+    gap: 6px;
   }
 }
 

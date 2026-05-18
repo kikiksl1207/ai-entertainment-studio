@@ -512,9 +512,26 @@ const FEED_ALLOWED_IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp", "imag
 
 const FEED_ALLOWED_IMAGE_LABEL = "JPG, PNG, WEBP, GIF";
 
-let _feedComposeUploading = false;
+let _feedComposeAssets = []; // [{ localId, status, file?, fileName, mimeType, fileSize, assetId?, previewUrl?, localPreviewUrl?, errorMessage?, stage? }]
 
-let _feedComposeAssets = []; // [{ assetId, previewUrl, fileName, mimeType }]
+let _feedComposeAssetSeq = 0;
+
+function feedComposeNextLocalId() {
+  _feedComposeAssetSeq += 1;
+  return `feed-compose-${Date.now().toString(36)}-${_feedComposeAssetSeq}`;
+}
+
+function feedComposeDedupeKey(file) {
+  return `${file.name}::${file.size}::${file.type}`;
+}
+
+function feedComposeHasPendingUpload() {
+  return _feedComposeAssets.some(a => a.status === "uploading");
+}
+
+function feedComposeDoneAssets() {
+  return _feedComposeAssets.filter(a => a.status === "done");
+}
 
 function formatFeedUploadSize(bytes = 0) {
   const mb = Number(bytes || 0) / (1024 * 1024);
@@ -549,8 +566,9 @@ function feedAssetDisplayUrl(asset = {}, fallback = "") {
   return url ? normalizeAssetUrl(url) : "";
 }
 
-function feedUploadErrorMessage(err) {
+function feedUploadErrorMessage(err, stage) {
   const msg = err?.body?.message || err?.message || "";
+  const effectiveStage = stage || err?.stage || "";
   if (err?.status === 401) return "로그인이 만료됐어요. 다시 로그인해주세요.";
   if (/too large|payload|entity too large|file size|20MB/i.test(msg)) {
     return `이미지가 너무 큽니다. ${FEED_COMPOSE_MAX_IMAGE_MB}MB 이하 이미지를 올려주세요.`;
@@ -558,10 +576,26 @@ function feedUploadErrorMessage(err) {
   if (/unsupported|mime|file type|content-type/i.test(msg)) {
     return `지원하지 않는 파일 형식이에요. ${FEED_ALLOWED_IMAGE_LABEL} 파일로 다시 올려주세요.`;
   }
-  if (err?.stage === "direct-upload" || /upload failed|network|fetch|s3|r2|failed to fetch/i.test(msg)) {
-    return "네트워크 또는 이미지 저장소 업로드에 실패했어요. 연결을 확인한 뒤 다시 시도해주세요.";
+  if (/offline|failed to fetch|network/i.test(msg) || (typeof navigator !== "undefined" && navigator.onLine === false)) {
+    return "인터넷 연결을 확인한 뒤 다시 시도해주세요.";
+  }
+  if (effectiveStage === "intent") {
+    return "업로드 준비에 실패했어요. 잠시 후 다시 시도해주세요.";
+  }
+  if (effectiveStage === "direct-upload") {
+    return "이미지 저장소 업로드에 실패했어요. 다시 시도해주세요.";
+  }
+  if (effectiveStage === "confirm") {
+    return "업로드는 됐는데 확인 단계에서 실패했어요. 다시 시도해주세요.";
   }
   return "이미지를 업로드하지 못했어요. 잠시 후 다시 시도해주세요.";
+}
+
+function feedUploadShortLabel(stage) {
+  if (stage === "intent") return "준비 실패";
+  if (stage === "direct-upload") return "업로드 실패";
+  if (stage === "confirm") return "확인 실패";
+  return "업로드 실패";
 }
 
 function releaseFeedComposeAssetPreview(asset) {
@@ -633,8 +667,15 @@ function bindFeedComposeOnce() {
   const updateState = () => {
     const len = textarea.value.length;
     if (counter) counter.textContent = `${len} / ${FEED_COMPOSE_MAX_BODY}`;
-    const hasContent = textarea.value.trim().length > 0 || _feedComposeAssets.length > 0;
-    if (submitBtn) submitBtn.disabled = !hasContent || _feedComposeUploading;
+    const uploading = feedComposeHasPendingUpload();
+    const doneCount = feedComposeDoneAssets().length;
+    const hasContent = textarea.value.trim().length > 0 || doneCount > 0;
+    if (submitBtn) submitBtn.disabled = !hasContent || uploading;
+    if (fileInput) fileInput.disabled = uploading || _feedComposeAssets.length >= FEED_COMPOSE_MAX_IMAGES;
+    if (attachBtn) {
+      attachBtn.dataset.uploading = uploading ? "1" : "0";
+      attachBtn.dataset.full = _feedComposeAssets.length >= FEED_COMPOSE_MAX_IMAGES ? "1" : "0";
+    }
   };
 
   textarea?.addEventListener("input", updateState);
@@ -645,13 +686,39 @@ function bindFeedComposeOnce() {
     e.target.value = ""; // 같은 파일 다시 선택 가능하게
     if (files.length === 0) return;
 
+    if (feedComposeHasPendingUpload()) {
+      setFeedComposeMessage("업로드 중인 이미지가 있어요. 잠시 후 다시 시도해주세요.", "warn");
+      return;
+    }
+
     const remaining = FEED_COMPOSE_MAX_IMAGES - _feedComposeAssets.length;
     if (remaining <= 0) {
       setFeedComposeMessage(`이미지는 최대 ${FEED_COMPOSE_MAX_IMAGES}장까지 첨부할 수 있어요.`, "warn");
       return;
     }
-    const accepted = files.slice(0, remaining);
-    if (files.length > accepted.length) {
+
+    // 중복(파일명 + 크기 + 타입) 필터링 — 이미 첨부됐거나 업로드 실패로 남아 있는 항목 제외
+    const existingKeys = new Set(_feedComposeAssets.map(a => a.dedupeKey).filter(Boolean));
+    const dedupedAll = [];
+    let duplicateCount = 0;
+    for (const file of files) {
+      const key = feedComposeDedupeKey(file);
+      if (existingKeys.has(key)) {
+        duplicateCount += 1;
+        continue;
+      }
+      existingKeys.add(key);
+      dedupedAll.push(file);
+    }
+    if (duplicateCount > 0 && dedupedAll.length === 0) {
+      setFeedComposeMessage("이미 추가된 이미지예요.", "warn");
+      return;
+    }
+
+    const accepted = dedupedAll.slice(0, remaining);
+    if (duplicateCount > 0) {
+      setFeedComposeMessage(`중복된 ${duplicateCount}장은 빼고 ${accepted.length}장을 추가할게요.`, "info");
+    } else if (files.length > accepted.length) {
       setFeedComposeMessage(`이미지는 최대 ${FEED_COMPOSE_MAX_IMAGES}장까지 첨부할 수 있어요. ${accepted.length}장만 추가했어요.`, "warn");
     }
 
@@ -661,7 +728,6 @@ function bindFeedComposeOnce() {
         setFeedComposeMessage(validationMessage, "warn");
         continue;
       }
-      updateState();
       await uploadFeedComposeImage(file, updateState);
     }
     updateState();
@@ -671,16 +737,25 @@ function bindFeedComposeOnce() {
   submitBtn?.addEventListener("click", async () => {
     if (submitBtn.disabled) return;
     const body = (textarea?.value || "").trim();
-    if (!body && _feedComposeAssets.length === 0) {
-      setFeedComposeMessage("내용 또는 이미지를 추가해주세요.", "warn");
+    if (feedComposeHasPendingUpload()) {
+      setFeedComposeMessage("이미지 업로드가 끝난 뒤에 게시할 수 있어요.", "warn");
+      return;
+    }
+    const doneAssets = feedComposeDoneAssets();
+    const failedCount = _feedComposeAssets.filter(a => a.status === "failed").length;
+    if (!body && doneAssets.length === 0) {
+      const reason = failedCount > 0
+        ? "업로드에 실패한 이미지는 게시할 수 없어요. 다시 시도하거나 삭제해주세요."
+        : "내용 또는 이미지를 추가해주세요.";
+      setFeedComposeMessage(reason, "warn");
       return;
     }
     submitBtn.disabled = true;
     submitBtn.textContent = "게시 중";
     try {
       const payload = { body };
-      if (_feedComposeAssets.length > 0) {
-        payload.assetIds = _feedComposeAssets.map(a => a.assetId);
+      if (doneAssets.length > 0) {
+        payload.assetIds = doneAssets.map(a => a.assetId);
       }
       // #089 — 본문에서 첫 https URL 자동 감지 → externalUrl로 함께 전송 (백엔드가 metadata 저장)
       const urlMatch = body.match(/\bhttps:\/\/[^\s)\]]+/i);
@@ -698,7 +773,11 @@ function bindFeedComposeOnce() {
       _feedComposeAssets.forEach(releaseFeedComposeAssetPreview);
       _feedComposeAssets = [];
       renderFeedComposeThumbs();
-      setFeedComposeMessage("피드에 올라갔어요.", "success");
+      if (failedCount > 0) {
+        setFeedComposeMessage(`피드에 올라갔어요. 실패한 이미지 ${failedCount}장은 포함되지 않았어요.`, "success");
+      } else {
+        setFeedComposeMessage("피드에 올라갔어요.", "success");
+      }
       updateState();
       // 피드 다시 로드
       await loadLuminaFeedData(_luminaFeedFilter || "all");
@@ -718,17 +797,35 @@ function bindFeedComposeOnce() {
     }
   });
 
-  // 썸네일 영역 — 제거 버튼 위임
+  // 썸네일 영역 — 제거/재시도 버튼 위임
   const thumbs = document.getElementById("feedComposeThumbs");
-  thumbs?.addEventListener("click", e => {
+  thumbs?.addEventListener("click", async e => {
     const removeBtn = e.target.closest("[data-feed-thumb-remove]");
-    if (!removeBtn) return;
-    const idx = Number(removeBtn.dataset.feedThumbRemove);
-    if (Number.isInteger(idx) && idx >= 0 && idx < _feedComposeAssets.length) {
-      const [removed] = _feedComposeAssets.splice(idx, 1);
-      releaseFeedComposeAssetPreview(removed);
-      renderFeedComposeThumbs();
-      updateState();
+    if (removeBtn) {
+      const localId = removeBtn.dataset.feedThumbRemove;
+      const idx = _feedComposeAssets.findIndex(a => a.localId === localId);
+      if (idx >= 0) {
+        const item = _feedComposeAssets[idx];
+        if (item.status === "uploading") {
+          // 진행 중인 업로드는 취소하지 않고 안내만 — assetId/네트워크 정합성 보호
+          setFeedComposeMessage("업로드가 끝난 뒤 삭제할 수 있어요.", "warn");
+          return;
+        }
+        _feedComposeAssets.splice(idx, 1);
+        releaseFeedComposeAssetPreview(item);
+        renderFeedComposeThumbs();
+        updateState();
+      }
+      return;
+    }
+    const retryBtn = e.target.closest("[data-feed-thumb-retry]");
+    if (retryBtn) {
+      const localId = retryBtn.dataset.feedThumbRetry;
+      const idx = _feedComposeAssets.findIndex(a => a.localId === localId);
+      if (idx < 0) return;
+      const item = _feedComposeAssets[idx];
+      if (item.status !== "failed" || !item.file) return;
+      await retryFeedComposeUpload(item, updateState);
     }
   });
 
@@ -759,47 +856,120 @@ function renderFeedComposeThumbs() {
     return;
   }
   thumbs.hidden = false;
-  thumbs.innerHTML = _feedComposeAssets.map((asset, idx) => `
-    <div class="feed-compose-thumb">
-      <img src="${feedEscapeHtml(asset.previewUrl)}" data-local-src="${feedEscapeHtml(asset.localPreviewUrl || "")}" alt="" onerror="if(this.dataset.localSrc&&this.src!==this.dataset.localSrc){this.src=this.dataset.localSrc;}else{this.parentElement.classList.add('is-broken');this.style.display='none';}" />
-      <button type="button" class="feed-compose-thumb-remove" data-feed-thumb-remove="${idx}" aria-label="이미지 삭제">×</button>
-    </div>
-  `).join("");
+  thumbs.innerHTML = _feedComposeAssets.map(asset => {
+    const status = asset.status || "done";
+    const localId = feedEscapeHtml(asset.localId || "");
+    const fileNameLabel = feedEscapeHtml(asset.fileName || "이미지");
+    const previewSrc = feedEscapeHtml(asset.previewUrl || asset.localPreviewUrl || "");
+    const localFallback = feedEscapeHtml(asset.localPreviewUrl || "");
+    const removeLabel = status === "uploading" ? "삭제(업로드 중)" : "이미지 삭제";
+    let overlay = "";
+    if (status === "uploading") {
+      overlay = `
+        <div class="feed-compose-thumb-state" data-state="uploading" role="status" aria-live="polite">
+          <span class="feed-compose-thumb-spinner" aria-hidden="true"></span>
+          <span class="feed-compose-thumb-state-label">업로드 중</span>
+        </div>`;
+    } else if (status === "failed") {
+      const errorMessage = feedEscapeHtml(asset.errorMessage || "업로드 실패");
+      const shortLabel = feedEscapeHtml(feedUploadShortLabel(asset.stage));
+      overlay = `
+        <div class="feed-compose-thumb-state" data-state="failed" role="alert">
+          <span class="feed-compose-thumb-state-label">${shortLabel}</span>
+          <span class="feed-compose-thumb-state-detail">${errorMessage}</span>
+          <button type="button" class="feed-compose-thumb-retry" data-feed-thumb-retry="${localId}">다시 시도</button>
+        </div>`;
+    }
+    const previewImg = previewSrc
+      ? `<img src="${previewSrc}" data-local-src="${localFallback}" alt="${fileNameLabel}" onerror="if(this.dataset.localSrc&&this.src!==this.dataset.localSrc){this.src=this.dataset.localSrc;}else{this.parentElement.classList.add('is-broken');this.style.display='none';}" />`
+      : `<span class="feed-compose-thumb-fallback" aria-hidden="true">이미지</span>`;
+    return `
+      <div class="feed-compose-thumb" data-status="${status}" data-local-id="${localId}">
+        ${previewImg}
+        ${overlay}
+        <button type="button" class="feed-compose-thumb-remove" data-feed-thumb-remove="${localId}" aria-label="${removeLabel}">×</button>
+      </div>
+    `;
+  }).join("");
 }
 
-/* 단일 이미지 업로드 — intent → PUT → confirm */
+/* 단일 업로드 항목을 추가하고 3단계 업로드를 실행. 실패 시 항목을 failed 상태로 유지해 재시도 가능 */
 async function uploadFeedComposeImage(file, onStateChange) {
-  _feedComposeUploading = true;
+  const item = {
+    localId: feedComposeNextLocalId(),
+    status: "uploading",
+    file,
+    fileName: file.name,
+    mimeType: file.type,
+    fileSize: file.size,
+    dedupeKey: feedComposeDedupeKey(file),
+    localPreviewUrl: URL.createObjectURL(file),
+    previewUrl: "",
+    assetId: "",
+    errorMessage: "",
+    stage: ""
+  };
+  item.previewUrl = item.localPreviewUrl;
+  _feedComposeAssets.push(item);
+  renderFeedComposeThumbs();
   onStateChange?.();
-  const localPreviewUrl = URL.createObjectURL(file);
-  const sizeLabel = formatFeedUploadSize(file.size);
-  setFeedComposeMessage(`${file.name} 업로드 준비 중… (${sizeLabel} / ${FEED_COMPOSE_MAX_IMAGE_MB}MB)`, "info");
+  await runFeedComposeUploadStages(item, onStateChange);
+}
+
+async function retryFeedComposeUpload(item, onStateChange) {
+  if (!item || !item.file) return;
+  item.status = "uploading";
+  item.errorMessage = "";
+  item.stage = "";
+  if (!item.localPreviewUrl) {
+    try { item.localPreviewUrl = URL.createObjectURL(item.file); } catch {}
+    item.previewUrl = item.localPreviewUrl;
+  }
+  renderFeedComposeThumbs();
+  onStateChange?.();
+  await runFeedComposeUploadStages(item, onStateChange);
+}
+
+async function runFeedComposeUploadStages(item, onStateChange) {
+  const sizeLabel = formatFeedUploadSize(item.fileSize || item.file?.size || 0);
+  let stage = "intent";
   try {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      const offlineErr = new Error("offline");
+      offlineErr.stage = "intent";
+      throw offlineErr;
+    }
+    setFeedComposeMessage(`${item.fileName} 업로드 준비 중… (${sizeLabel} / ${FEED_COMPOSE_MAX_IMAGE_MB}MB)`, "info");
+
     // 1. intent 생성
     const intent = await apiFetch("/api/v1/me/assets/upload-intents", {
       method: "POST",
       auth: true,
       throwOnError: true,
       body: {
-        fileName: file.name,
-        mimeType: file.type,
-        fileSizeBytes: file.size
+        fileName: item.fileName,
+        mimeType: item.mimeType,
+        fileSizeBytes: item.fileSize
       }
     });
     if (!intent?.asset?.id || !intent?.upload) {
-      throw new Error("Invalid upload intent response");
+      const intentErr = new Error("Invalid upload intent response");
+      intentErr.stage = "intent";
+      throw intentErr;
     }
     const assetId = intent.asset.id;
     const upload = intent.upload;
+    item.assetId = assetId;
 
     // 2. 파일 업로드 (S3/R2 direct upload)
     if (upload.mode === "direct_upload_ready" && upload.url) {
-      setFeedComposeMessage(`${file.name} 이미지 저장소에 업로드 중… (${sizeLabel} / ${FEED_COMPOSE_MAX_IMAGE_MB}MB)`, "info");
+      stage = "direct-upload";
+      setFeedComposeMessage(`${item.fileName} 이미지 저장소에 업로드 중… (${sizeLabel} / ${FEED_COMPOSE_MAX_IMAGE_MB}MB)`, "info");
       const headers = upload.requiredHeaders || {};
       const putRes = await fetch(upload.url, {
         method: upload.method || "PUT",
         headers,
-        body: file
+        body: item.file
       });
       if (!putRes.ok) {
         const uploadError = new Error(`Upload failed (${putRes.status})`);
@@ -811,7 +981,8 @@ async function uploadFeedComposeImage(file, onStateChange) {
     // local mode (metadata_only)는 PUT 없이 confirm으로 바로 진행
 
     // 3. confirm
-    setFeedComposeMessage(`${file.name} 업로드 확인 중…`, "info");
+    stage = "confirm";
+    setFeedComposeMessage(`${item.fileName} 업로드 확인 중…`, "info");
     const confirmed = await apiFetch(`/api/v1/me/assets/${encodeURIComponent(assetId)}/confirm-upload`, {
       method: "POST",
       auth: true,
@@ -819,22 +990,22 @@ async function uploadFeedComposeImage(file, onStateChange) {
       body: {}
     });
     const finalAsset = confirmed?.asset || confirmed;
-    const previewUrl = feedAssetDisplayUrl(finalAsset, localPreviewUrl);
-
-    _feedComposeAssets.push({
-      assetId,
-      previewUrl,
-      localPreviewUrl,
-      fileName: file.name,
-      mimeType: file.type
-    });
+    item.previewUrl = feedAssetDisplayUrl(finalAsset, item.localPreviewUrl);
+    item.status = "done";
+    item.errorMessage = "";
+    item.stage = "";
     renderFeedComposeThumbs();
-    setFeedComposeMessage(`${file.name} 업로드 완료`, "success");
+    setFeedComposeMessage(`${item.fileName} 업로드 완료`, "success");
   } catch (err) {
-    releaseFeedComposeAssetPreview({ localPreviewUrl });
-    setFeedComposeMessage(feedUploadErrorMessage(err), "warn");
+    const failedStage = err?.stage || stage;
+    item.status = "failed";
+    item.stage = failedStage;
+    item.errorMessage = feedUploadErrorMessage(err, failedStage);
+    // S3 키/서명 URL 노출 금지 — 사용자 메시지에만 의존
+    console.warn("[#299 feed upload]", { stage: failedStage, status: err?.status || null });
+    renderFeedComposeThumbs();
+    setFeedComposeMessage(item.errorMessage, "warn");
   } finally {
-    _feedComposeUploading = false;
     onStateChange?.();
   }
 }
