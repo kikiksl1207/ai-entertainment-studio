@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 
 const SCRIPT_NAME = 'scripts/verify-chat-conversation-list-fixture.mjs';
 const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FORBIDDEN_PAYLOAD_TERMS = [
   'DATABASE_URL',
   'JWT_ACCESS_SECRET',
@@ -149,6 +149,14 @@ async function verifyConversationBox(box, token, fixtureState) {
     Array.isArray(data?.boxContract?.allStatuses) &&
     data.boxContract.allStatuses.includes('active') &&
     data.boxContract.allStatuses.includes('archived');
+  const archiveContractPass =
+    data?.archiveContract?.supported === true &&
+    data?.archiveContract?.mutationEnabled === true &&
+    data?.archiveContract?.activeStatus === 'active' &&
+    data?.archiveContract?.archivedStatus === 'archived' &&
+    Array.isArray(data?.archiveContract?.actions) &&
+    data.archiveContract.actions.includes('archive') &&
+    data.archiveContract.actions.includes('restore');
   const itemShapeContractPass =
     data?.itemShapeContract?.itemsAlwaysArray === true &&
     data?.itemShapeContract?.emptyItemsAllowed === true &&
@@ -174,6 +182,7 @@ async function verifyConversationBox(box, token, fixtureState) {
     itemShapePass &&
     paginationContractPass &&
     boxContractPass &&
+    archiveContractPass &&
     itemShapeContractPass &&
     emptyStatePass &&
     (items.length > 0) === (expectedPopulated > 0) &&
@@ -199,6 +208,7 @@ async function verifyConversationBox(box, token, fixtureState) {
     itemShapePass,
     paginationContractPass,
     boxContractPass,
+    archiveContractPass,
     itemShapeContractPass,
     emptyStatePass,
     populatedShape,

@@ -443,6 +443,8 @@ GET /api/v1/me/premium-video-unlocks
 POST /api/v1/chat/sessions
 GET /api/v1/chat/sessions
 GET /api/v1/chat/conversations?box=recent|archive|all&take=20&cursor=<nextCursor>
+POST /api/v1/chat/conversations/:sessionId/archive
+POST /api/v1/chat/conversations/:sessionId/restore
 GET /api/v1/chat/starter-prompts?artistSlug=<artistSlug>
 GET /api/v1/chat/starter-prompts?artistId=<artistId>
 GET /api/v1/chat/persona-seed-policy
@@ -551,7 +553,10 @@ returns archived sessions, and `box=all` returns both. Response:
   },
   "archiveContract": {
     "supported": true,
-    "mutationEnabled": false,
+    "mutationEnabled": true,
+    "actions": ["archive", "restore"],
+    "archivePathTemplate": "/api/v1/chat/conversations/:sessionId/archive",
+    "restorePathTemplate": "/api/v1/chat/conversations/:sessionId/restore",
     "statusField": "chat_sessions.status",
     "activeStatus": "active",
     "archivedStatus": "archived"
@@ -576,6 +581,67 @@ Empty states are explicit by box: `recent` uses
 `chat.conversations.emptyArchive`, and `all` uses
 `chat.conversations.emptyAll`. `take` defaults to 20, is capped at 50, and
 invalid non-positive values are rejected before querying.
+
+Conversation archive/restore is authenticated, owner-only, and idempotent:
+
+```http
+POST /api/v1/chat/conversations/:sessionId/archive
+POST /api/v1/chat/conversations/:sessionId/restore
+```
+
+`archive` moves an owned `active` session to `archived`; calling it again for an
+already archived session returns `changed=false`. `restore` moves an owned
+`archived` session back to `active`; calling it again for an active session also
+returns `changed=false`. Unknown sessions, sessions owned by another user, and
+states outside `active|archived` fail closed. The endpoints do not create chat
+messages, call LLM, create feature orders, debit wallet/Lumina, touch settlement,
+or return secrets/raw message body. Response:
+
+```json
+{
+  "ownerOnly": true,
+  "idempotent": true,
+  "action": "archive",
+  "changed": true,
+  "targetStatus": "archived",
+  "targetBox": "archive",
+  "conversation": {
+    "id": "chat-session-uuid",
+    "box": "archive",
+    "status": "archived",
+    "artist": {
+      "id": "artist-uuid",
+      "slug": "yoon-serin",
+      "displayName": "Yoon Serin"
+    },
+    "persona": null,
+    "messageCount": 3,
+    "lastMessage": {
+      "id": "message-uuid",
+      "senderType": "artist",
+      "messageType": "text",
+      "bodyPreview": "마지막 메시지 미리보기",
+      "createdAt": "2026-05-17T00:00:00.000Z",
+      "paidFeatureOrderPresent": false
+    },
+    "lastMessageAt": "2026-05-17T00:00:00.000Z",
+    "lastActivityAt": "2026-05-17T00:00:00.000Z"
+  },
+  "listImpact": {
+    "recent": false,
+    "archive": true,
+    "all": true
+  },
+  "safety": {
+    "llmCall": false,
+    "walletMutation": false,
+    "messageMutation": false,
+    "orderMutation": false,
+    "settlementMutation": false,
+    "secretsReturned": false
+  }
+}
+```
 
 QA populated verification for #276 is read-only. Use an already approved
 disposable owner account that has at least one active chat session with messages

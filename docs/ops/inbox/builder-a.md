@@ -1618,6 +1618,45 @@ next_needed:
 
 ---
 
+task: #290 character chat conversation archive/restore API guard
+status: completed
+owner: 루피
+branch/commit: team2-backend/chat-conversation-archive-290 / this commit
+push: pending
+changed_files:
+- server/src/chat/chat.controller.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/scripts/verify-chat-conversation-list-fixture.mjs
+- server/scripts/prepare-chat-archive-conversation-fixture.mjs
+- docs/backend-api-spec.md
+- docs/character-chat-backend-plan.md
+- docs/ops/inbox/builder-a.md
+api_contract:
+- `POST /api/v1/chat/conversations/:sessionId/archive`
+- `POST /api/v1/chat/conversations/:sessionId/restore`
+- Both endpoints are auth-required, owner-only, and idempotent.
+- Archive moves `active -> archived`; restore moves `archived -> active`.
+- Repeating the same operation returns `changed=false` without another update.
+- Other-user or missing conversation returns not found; non-active/non-archived status fails closed with `chat.conversations.invalidStatusTransition`.
+recent_archive_all_impact:
+- Archived conversations move from recent to archive and remain in all.
+- Restored conversations move from archive to recent and remain in all.
+- Response includes the same safe conversation item projection plus `listImpact`.
+safety:
+- No LLM call, chat message body mutation, feature order, wallet/Lumina, settlement, payout, provider raw response, token, password, DB URL, raw email, raw message body, or secret recorded.
+tests:
+- `npm.cmd ci` PASS
+- `npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts` PASS
+- `node --check scripts/verify-chat-conversation-list-fixture.mjs; node --check scripts/prepare-chat-archive-conversation-fixture.mjs` PASS
+- `npm.cmd test -- chat.service.spec.ts --runInBand` PASS
+- `npm.cmd run build` PASS
+- `git diff --check` PASS
+next_needed:
+- Viewer review, then 조로 main integration and QR live regression with recent/archive/all refresh.
+
+---
+
 task: #287 character chat conversation list archive/populated contract
 status: completed
 owner: 루피

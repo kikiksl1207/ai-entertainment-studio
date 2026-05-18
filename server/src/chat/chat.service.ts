@@ -30,7 +30,7 @@ import {
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const UUID_V4_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STARTER_PROMPT_POLICY = {
   showForFirstSession: true,
   hideAfterFirstMessage: true,
@@ -103,6 +103,7 @@ type ChatProviderOpsStats = {
   estimatedCostKrw: string;
 };
 type ChatConversationBox = 'recent' | 'archive' | 'all';
+type ChatConversationStatusMutation = 'archive' | 'restore';
 type ChatConversationListSessionRecord = {
   id: string;
   status: string;
@@ -130,6 +131,7 @@ type ChatConversationListSessionRecord = {
     messages: number;
   };
 };
+const CHAT_CONVERSATION_MUTABLE_STATUSES = new Set(['active', 'archived']);
 const BASIC_CHAT_POLICY = {
   mode: 'daily_talk',
   priceLumina: 0,
@@ -319,29 +321,7 @@ export class ChatService {
             skip: 1,
           }
         : {}),
-      include: {
-        artist: {
-          select: { id: true, slug: true, displayName: true },
-        },
-        chatPersona: {
-          select: { id: true, name: true, status: true },
-        },
-        messages: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          select: {
-            id: true,
-            senderType: true,
-            messageType: true,
-            body: true,
-            chatFeatureOrderId: true,
-            createdAt: true,
-          },
-        },
-        _count: {
-          select: { messages: true },
-        },
-      },
+      include: this.conversationListInclude(),
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
     });
     const page = this.paginate<ChatConversationListSessionRecord>(rows, take);
@@ -386,7 +366,10 @@ export class ChatService {
       },
       archiveContract: {
         supported: true,
-        mutationEnabled: false,
+        mutationEnabled: true,
+        actions: ['archive', 'restore'],
+        archivePathTemplate: '/api/v1/chat/conversations/:sessionId/archive',
+        restorePathTemplate: '/api/v1/chat/conversations/:sessionId/restore',
         statusField: 'chat_sessions.status',
         activeStatus: 'active',
         archivedStatus: 'archived',
@@ -400,6 +383,14 @@ export class ChatService {
         secretsReturned: false,
       },
     };
+  }
+
+  async archiveConversation(userId: string, sessionId: string) {
+    return this.mutateConversationStatus(userId, sessionId, 'archive');
+  }
+
+  async restoreConversation(userId: string, sessionId: string) {
+    return this.mutateConversationStatus(userId, sessionId, 'restore');
   }
 
   getPersonaSeedPolicy() {
@@ -1135,6 +1126,100 @@ export class ChatService {
     return where;
   }
 
+  private conversationListInclude() {
+    return {
+      artist: {
+        select: { id: true, slug: true, displayName: true },
+      },
+      chatPersona: {
+        select: { id: true, name: true, status: true },
+      },
+      messages: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: {
+          id: true,
+          senderType: true,
+          messageType: true,
+          body: true,
+          chatFeatureOrderId: true,
+          createdAt: true,
+        },
+      },
+      _count: {
+        select: { messages: true },
+      },
+    } as const;
+  }
+
+  private async mutateConversationStatus(
+    userId: string,
+    sessionId: string,
+    action: ChatConversationStatusMutation,
+  ) {
+    const session = await this.prisma.chatSession.findFirst({
+      where: { id: this.validateConversationId(sessionId), userId },
+      include: this.conversationListInclude(),
+    });
+
+    if (!session) {
+      throw new NotFoundException('Chat conversation not found');
+    }
+
+    if (!CHAT_CONVERSATION_MUTABLE_STATUSES.has(session.status)) {
+      throw new BadRequestException({
+        code: 'CHAT_CONVERSATION_STATUS_TRANSITION_INVALID',
+        message: 'chat conversation can only move between active and archived',
+        messageKey: 'chat.conversations.invalidStatusTransition',
+        status: session.status,
+      });
+    }
+
+    const targetStatus = action === 'archive' ? 'archived' : 'active';
+    const changed = session.status !== targetStatus;
+    const nextSession = changed
+      ? await this.prisma.chatSession.update({
+          where: { id: session.id },
+          data: { status: targetStatus },
+          include: this.conversationListInclude(),
+        })
+      : session;
+
+    return this.presentConversationMutation(action, nextSession, changed);
+  }
+
+  private presentConversationMutation(
+    action: ChatConversationStatusMutation,
+    session: ChatConversationListSessionRecord,
+    changed: boolean,
+  ) {
+    const targetStatus = action === 'archive' ? 'archived' : 'active';
+    const targetBox = targetStatus === 'archived' ? 'archive' : 'recent';
+
+    return {
+      ownerOnly: true,
+      idempotent: true,
+      action,
+      changed,
+      targetStatus,
+      targetBox,
+      conversation: this.presentConversationListItem(session),
+      listImpact: {
+        recent: targetStatus === 'active',
+        archive: targetStatus === 'archived',
+        all: true,
+      },
+      safety: {
+        llmCall: false,
+        walletMutation: false,
+        messageMutation: false,
+        orderMutation: false,
+        settlementMutation: false,
+        secretsReturned: false,
+      },
+    };
+  }
+
   private presentConversationListItem(session: ChatConversationListSessionRecord) {
     const lastMessage = session.messages[0] ?? null;
 
@@ -1225,6 +1310,18 @@ export class ChatService {
         code: 'CHAT_CONVERSATION_CURSOR_INVALID',
         message: 'cursor must be a UUID v4',
         messageKey: 'chat.conversations.invalidCursor',
+      });
+    }
+
+    return value;
+  }
+
+  private validateConversationId(value: string) {
+    if (!UUID_V4_PATTERN.test(value)) {
+      throw new BadRequestException({
+        code: 'CHAT_CONVERSATION_ID_INVALID',
+        message: 'conversation id must be a UUID v4',
+        messageKey: 'chat.conversations.invalidConversationId',
       });
     }
 

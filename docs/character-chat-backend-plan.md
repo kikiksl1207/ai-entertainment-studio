@@ -71,6 +71,8 @@ GET /api/v1/chat-feature-products
 POST /api/v1/chat/sessions
 GET /api/v1/chat/sessions
 GET /api/v1/chat/conversations?box=recent|archive|all&take=20&cursor=<nextCursor>
+POST /api/v1/chat/conversations/:sessionId/archive
+POST /api/v1/chat/conversations/:sessionId/restore
 GET /api/v1/chat/starter-prompts?artistSlug=<artistSlug>
 GET /api/v1/chat/persona-seed-policy
 GET /api/v1/chat/character-catalog?artistSlug=<artistSlug>
@@ -97,8 +99,9 @@ artist/persona summary, last message preview, last activity time, pagination, an
 empty-state copy. It does not create `chat_messages`, call the LLM provider,
 create feature orders, debit wallet, or create settlement events. `box=recent`
 maps to active sessions, `box=archive` maps to archived sessions, and archive
-mutation remains closed. Read receipts are not implemented yet, so unread fields
-return `supported=false` and `unreadCount=null`.
+and restore mutations are handled by the separate owner-only endpoints added in
+#290. Read receipts are not implemented yet, so unread fields return
+`supported=false` and `unreadCount=null`.
 
 #276 adds a read-only populated conversation-list QA verifier:
 
@@ -148,6 +151,25 @@ through the runtime environment.
   message count, last message preview, timestamps, and safety flags.
 - No LLM call, feature order, wallet/Lumina, settlement, or message mutation is
   opened by this contract.
+
+#290 conversation archive/restore API guard:
+
+```http
+POST /api/v1/chat/conversations/:sessionId/archive
+POST /api/v1/chat/conversations/:sessionId/restore
+```
+
+- Both endpoints are auth-required and owner-only.
+- `archive` moves `active -> archived`; `restore` moves `archived -> active`.
+- Repeating the same operation is idempotent and returns `changed=false` without
+  another update.
+- Unknown sessions and sessions owned by another user return not found.
+- Sessions outside `active|archived` fail closed with
+  `chat.conversations.invalidStatusTransition`.
+- Response returns the same safe conversation item projection used by the list,
+  plus `listImpact` for recent/archive/all refresh.
+- No LLM call, message body mutation, feature order, wallet/Lumina, settlement,
+  payout, provider response, token, or secret is involved.
 
 #225 adds a read-only persona seed contract endpoint:
 

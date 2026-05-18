@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 const SCRIPT_NAME = 'scripts/prepare-chat-archive-conversation-fixture.mjs';
 const CONFIRM_VALUE = 'PREPARE_CHARACTER_CHAT_ARCHIVE_QA_FIXTURE';
 const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const config = {
   confirm: env('CHARACTER_CHAT_ARCHIVE_QA_CONFIRM'),
