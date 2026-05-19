@@ -49,8 +49,9 @@
       lastMessagePreview: "오늘 본 장면 중에 마음에 남은 것 있어요?",
       starters: [
         { key: "A", label: "화보 한 컷 칭찬", message: "최근 화보 한 컷이 계속 머릿속에 남아요." },
-        { key: "B", label: "조용한 응원", message: "말 없이 응원만 보낼게요. 오래 봐줄게요." },
-        { key: "C", label: "다음 캠페인 궁금해하기", message: "다음 브랜드 협업은 어떤 무드일지 궁금해요." }
+        { key: "B", label: "조명 톤 칭찬", message: "말 없이 응원만 보낼게요. 오래 봐줄게요." },
+        { key: "C", label: "다음 캠페인 궁금해하기", message: "다음 브랜드 협업은 어떤 무드일지 궁금해요." },
+        { key: "D", label: "최근 인터뷰 한 마디", message: "최근 인터뷰에서 남긴 한 마디가 오래 남았어요." }
       ]
     },
     "oh-hyerin": {
@@ -60,7 +61,8 @@
       starters: [
         { key: "A", label: "오늘의 노래 추천하기", message: "오늘 듣다가 떠올라서 들어왔어요. 같이 들어볼래요?" },
         { key: "B", label: "다음 곡 기대", message: "다음 곡은 어떤 분위기일지 너무 궁금해요." },
-        { key: "C", label: "조용한 응원", message: "오늘도 한 음 한 음 잘 부르길 응원할게요." }
+        { key: "C", label: "조용한 응원", message: "오늘도 한 음 한 음 잘 부르길 응원할게요." },
+        { key: "D", label: "팬레터 기록 남기기", message: "오늘 들은 곡을 짧은 메모로 남겨두려고요." }
       ]
     },
     "cha-dohyun": {
@@ -70,7 +72,8 @@
       starters: [
         { key: "A", label: "오늘 코디 칭찬", message: "오늘 보여준 룩 진짜 멋졌어요." },
         { key: "B", label: "스타일 조언받기", message: "이번 주말 약속 룩 추천 좀 해줘요." },
-        { key: "C", label: "다음 무대 응원", message: "다음 무대도 차도현답게 장악해줘요." }
+        { key: "C", label: "다음 무대 응원", message: "다음 무대도 차도현답게 장악해줘요." },
+        { key: "D", label: "패션 영감 묻기", message: "요즘 영감을 받는 디자이너나 룩 있어요?" }
       ]
     },
     "seo-yuan": {
@@ -80,7 +83,8 @@
       starters: [
         { key: "A", label: "오늘 산책 같이하기", message: "오늘 같이 산책하는 느낌으로 한 마디만 남기고 갈게요." },
         { key: "B", label: "최근 컷 칭찬", message: "최근 화보 한 장이 너무 자연스러워서 좋았어요." },
-        { key: "C", label: "조용한 안부", message: "잘 지내요. 그 한 줄이면 충분해요." }
+        { key: "C", label: "조용한 안부", message: "잘 지내요. 그 한 줄이면 충분해요." },
+        { key: "D", label: "좋아하는 풍경 묻기", message: "요즘 카메라에 담고 싶은 풍경 있어요?" }
       ]
     },
     /* #315 — 공개 라인업이 늘어났는데 톤이 default로 떨어지면 캐릭터별 차별점이 사라짐.
@@ -112,10 +116,10 @@
       welcomeMessage: "왔군. 오늘은 길게 말하지 않아도 돼요. 한마디면 충분해요.",
       lastMessagePreview: "한마디면 충분해요.",
       starters: [
-        { key: "A", label: "조용한 안부", message: "그냥 잘 지낸다는 한 줄만 남기고 갈게요." },
+        { key: "A", label: "묵묵한 한 줄 응원", message: "그냥 잘 지낸다는 한 줄만 남기고 갈게요." },
         { key: "B", label: "최근 장면 칭찬", message: "최근 본 장면에서 침묵이 더 길게 남았어요." },
         { key: "C", label: "다음 작품 기대", message: "다음 작품은 어떤 결의 인물일지 궁금해요." },
-        { key: "D", label: "오늘 분위기 묻기", message: "오늘 분위기는 어떤 쪽이에요? 따라가볼게요." }
+        { key: "D", label: "오늘 결 묻기", message: "오늘은 어떤 결의 침묵이에요? 따라가볼게요." }
       ]
     }
   };
