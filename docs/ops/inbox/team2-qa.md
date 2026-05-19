@@ -1,5 +1,65 @@
 # Team2 QA Inbox
 
+status: fail
+task: #314 - Character chat persona/starter runtime re-QA
+environment:
+- branch: team2-qa/314-character-chat-reqa
+- local main after pull: origin/main
+- basis commit: de666395cb498f99978cfcfaa45a4572a17a01ba
+- live API health commit: de666395cb498f99978cfcfaa45a4572a17a01ba
+- live page: https://kikiksl1207.github.io/ai-entertainment-studio/character-chat.html
+- No token, cookie, password, env value, raw credential, raw prompt, provider response body, or secret was recorded.
+
+tested_flows:
+- PASS: live `/health` is on expected commit `de666395cb498f99978cfcfaa45a4572a17a01ba`.
+- PASS: unauthenticated `GET /api/v1/chat/character-catalog?artistSlug=yoon-serin` returned HTTP 401.
+- PASS: unauthenticated `GET /api/v1/chat/starter-prompts?artistSlug=yoon-serin` returned HTTP 401.
+- PASS: disposable authenticated QA user could call character chat read-only catalog/starter endpoints.
+- PASS: previous blocker is fixed for `yoon-serin`, `han-seoyul`, `park-doa`, and `choi-seojin`: `character-catalog` and `starter-prompts` now return distinct character-specific starter labels.
+- PASS: those 4 characters returned `runtimePersona.source=character_fallback` and distinct welcome/tone summaries.
+- PASS: operating static page still shows distinct first-screen starter sets for `yoon-serin`, `han-seoyul`, `park-doa`, `choi-seojin`, and `min-chaeon`.
+- PASS: 1280px and 390px static UI checks had no page-level horizontal overflow.
+- PASS: static UI checks had no visible mojibake, forbidden placeholder copy, or failed images.
+- FAIL: `min-chaeon` still returned HTTP 404 from live `character-catalog`.
+- FAIL: `min-chaeon` still returned HTTP 404 from live `starter-prompts`.
+- PASS: `node --check pages/character-chat.js`.
+- PASS: `node --check data/character-chat-tones.js`.
+- PASS: `npm.cmd test -- chat.service.spec.ts --runInBand` from `server` passed 36 tests.
+- PASS: `npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts` from `server`.
+- PASS: `npm.cmd run build` from `server`.
+- PASS: `npx.cmd tsc --noEmit --skipLibCheck --module commonjs --target ES2021 --moduleResolution node prisma/seed.ts` from `server`.
+- PASS: `git diff --check`.
+
+observed_live_api:
+- `yoon-serin`: 200, `character_fallback`, labels `무대의 여운 묻기`, `조용한 응원 보내기`, `직접 입력하기`.
+- `han-seoyul`: 200, `character_fallback`, labels `오늘의 소리 나누기`, `작은 위로 부탁하기`, `직접 입력하기`.
+- `park-doa`: 200, `character_fallback`, labels `오늘 텐션 충전하기`, `가벼운 장난 건네기`, `직접 입력하기`.
+- `choi-seojin`: 200, `character_fallback`, labels `오늘의 장면 묻기`, `깊은 응원 보내기`, `직접 입력하기`.
+- `min-chaeon`: 404 from both catalog and starter endpoints.
+
+repro_steps:
+1. Run `git pull origin main`.
+2. Confirm local `HEAD` is `de666395cb498f99978cfcfaa45a4572a17a01ba`.
+3. Confirm live `/health` returns `de666395cb498f99978cfcfaa45a4572a17a01ba`.
+4. Create a disposable QA user without recording credentials.
+5. Call authenticated `GET /api/v1/chat/character-catalog?artistSlug=<slug>` and `GET /api/v1/chat/starter-prompts?artistSlug=<slug>` for `yoon-serin`, `han-seoyul`, `park-doa`, `choi-seojin`, and `min-chaeon`.
+6. Confirm 4 existing characters return distinct `character_fallback` starter labels.
+7. Confirm `min-chaeon` still returns HTTP 404.
+
+blockers:
+- #314 cannot be marked complete while `min-chaeon` is exposed in the deployed static character chat UI but absent from live chat catalog/starter API.
+- This matches the implementer note that `min-chaeon` live 404 requires production seed/DB row status reflection after deploy.
+
+next_needed:
+- Return #314 to the deploy/integration owner to run or verify the production seed/DB activation for `min-chaeon`.
+- Re-run only the authenticated `min-chaeon` catalog/starter status check after seed/DB activation; the 4-character starter duplication blocker is already cleared.
+
+security_check:
+- PASS: no raw credential, token, cookie, password, env value, raw prompt, provider raw response, or generated body was recorded.
+- PASS: no wallet, order, settlement, payout, paid generation, or provider-response disclosure was executed.
+
+---
+
 status: pass
 task: Fan engagement Home teaser smoke QA
 environment:
