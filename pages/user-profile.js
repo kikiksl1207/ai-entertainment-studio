@@ -77,6 +77,7 @@ async function initUserProfilePage() {
   bindLuminaFeedDelete();
   bindLuminaFeedEdit();
   bindLuminaFeedLike();
+  bindLuminaFeedThreadBadge?.(); // #309 — 타래 배지 클릭 안내 (있을 때만)
   bindLuminaFeedComment();
   bindFeedAssetLightbox(); // 피드 이미지 라이트박스 + 우클릭 차단
 
@@ -1005,6 +1006,7 @@ function renderUserProfilePostListHtml(posts, options = {}) {
           </div>
         </header>
         <p class="feed-post-body">${feedEscapeHtml(post.body)}</p>
+        ${renderFeedPostThreadBadge(post)}
         ${renderFeedPostAssets(post.assets)}
         ${renderFeedLinkPreview(post.linkPreview)}
         <footer class="feed-post-actions">
