@@ -1,5 +1,40 @@
 # Team2 Backend Inbox
 
+status: PASS
+task: #308 Lumina Feed threaded long-form API contract design
+assignee: Luffy
+base: origin/main e2d4242
+branch/commit: team2-backend/feed-thread-contract-308 / pending commit
+contract_proposal:
+- Keep current single feed posts at 1-500 characters. No change to POST/PATCH /lumina-feed/posts.
+- Proposed thread model is root CommunityPost plus text-only thread item rows.
+- Feed list projection remains compact and returns root card plus thread summary fields: rootThreadId, parentFeedItemId, threadIndex, threadCount, previewItemCount, hasMoreThreadItems, itemsEndpoint.
+- Detail/read path can use GET /lumina-feed/posts/:postId/thread-items and/or GET /lumina-feed/posts/:postId/thread.
+- Proposed write path is POST /lumina-feed/posts/:postId/thread-items plus PATCH/DELETE /lumina-feed/thread-items/:threadItemId, but this is design only and not wired.
+- Owner-only rule stays strict: root author only for thread item create/edit/delete, no artist-operator fallback for edits/deletes.
+- Likes, replies, reports, hides, image attachments, link preview, and discovery initially stay on the root post only to avoid collisions.
+impact_api_files:
+- docs/lumina-feed-backend-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+relationship_to_500_char_ux:
+- #305 500 character composer remains canonical for single posts.
+- Threads require an explicit continue/thread UI later. No silent auto-bypass of the 500 character limit.
+followup_cloud_ui_requirements:
+- Add a visible continue-as-thread composer only after backend write APIs exist.
+- Render continue-reading from hasMoreThreadItems/itemsEndpoint.
+- Keep thread UI separate from wallet, Lumina, settlement, payout, paid-like, Shortform, and image upload flows in phase one.
+blocked_by:
+- Product decision still needed for max thread item count, aggregate length, search indexing, child images, and required/optional idempotency key.
+- Backend implementation, migration, service tests, and QA smoke are not part of this design task.
+next_needed:
+- Reviewer should confirm the proposed root + item contract before any migration/API implementation starts.
+- If approved, open a backend implementation task with migration, author-only tests, projection tests, and repeated delete idempotency tests.
+sensitive_values:
+- none recorded.
+
+---
+
 status: ready_for_review
 task: Team2 Backend / Lumina Feed post edit-delete author-only contract
 base: origin/main 11806cd

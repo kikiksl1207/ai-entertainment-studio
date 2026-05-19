@@ -2496,6 +2496,22 @@ To create a post with a link, send the same URL as `externalUrl`:
 ```
 
 Post responses include top-level `linkPreview` when an external URL is attached. Frontend should render it as a simple domain/link card for now.
+
+Threaded long-form proposal (#308, not implemented):
+
+- Keep the current single-post composer at 500 characters. Do not treat threads
+  as a way to bypass that limit inside the existing submit path.
+- Future backend contract should expose root feed posts with a compact `thread`
+  summary: `rootThreadId`, `parentFeedItemId`, `threadIndex`, `threadCount`,
+  `previewItemCount`, `hasMoreThreadItems`, and `itemsEndpoint`.
+- Follow-up UI should show an explicit continue/thread composer and a compact
+  continue-reading affordance. It should fetch the remaining items from
+  `GET /api/v1/lumina-feed/posts/:postId/thread-items`.
+- Do not wire POST/PATCH/DELETE thread-item mutations until the backend contract
+  is implemented and QA has owner-only/idempotency tests.
+- Thread UI must stay separate from wallet, Lumina, settlement, payout,
+  paid-like, Shortform, and image upload flows in the first pass.
+
 For normal logged-in users, use this image upload flow before creating a feed post:
 
 ```http

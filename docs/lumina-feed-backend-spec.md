@@ -388,6 +388,172 @@ MVP edit scope is body-only. Image replacement/removal is not supported yet.
 Signed-in feed responses from `GET /me/lumina-feed` include `viewer` and
 `permissions` hints so the frontend can show edit/delete only to the author.
 
+### Threaded Long-Form Proposal (#308)
+
+Status: proposal only. This is not implemented yet and must not change the
+existing 500 character single-post create/edit contract.
+
+The recommended first contract is a root post plus text-only thread items:
+
+- The existing `CommunityPost` row remains the root and the only timeline card.
+- Each root post body still validates at 1-500 characters.
+- Each thread item body should also validate at 1-500 characters.
+- Thread items are not separate public feed posts in the main timeline.
+- Likes, replies, reports, hides, image attachments, link preview, and discovery
+  initially belong to the root post only.
+- Backend should not auto-split long text in the first implementation. If the UI
+  offers splitting, it should submit explicit items that the server validates one
+  by one.
+
+Proposed storage shape:
+
+```text
+community_post_thread_items
+- id uuid pk
+- root_post_id uuid references community_posts(id)
+- parent_feed_item_id uuid nullable
+- author_user_id uuid references users(id)
+- body text
+- thread_index int
+- status text default 'published'
+- metadata jsonb default '{}'
+- created_at timestamptz
+- updated_at timestamptz
+- deleted_at timestamptz nullable
+```
+
+Recommended indexes:
+
+- `(root_post_id, status, thread_index)`
+- `(author_user_id, created_at)`
+- Unique active ordering guard for `(root_post_id, thread_index)` if the
+  implementation keeps indexes immutable.
+- Optional idempotency key storage/unique guard if append submit is retried from
+  the client.
+
+Proposed write APIs:
+
+```http
+POST /lumina-feed/posts/:postId/thread-items
+PATCH /lumina-feed/thread-items/:threadItemId
+DELETE /lumina-feed/thread-items/:threadItemId
+Authorization: Bearer <accessToken>
+```
+
+Append request:
+
+```json
+{
+  "body": "continued text, max 500 characters",
+  "parentFeedItemId": "root-or-previous-item-uuid",
+  "idempotencyKey": "optional-client-key"
+}
+```
+
+Append response:
+
+```json
+{
+  "threadItem": {
+    "id": "thread-item-uuid",
+    "rootThreadId": "root-post-uuid",
+    "parentFeedItemId": "previous-feed-item-uuid",
+    "threadIndex": 1,
+    "body": "continued text, max 500 characters",
+    "status": "published",
+    "createdAt": "2026-05-19T00:00:00.000Z"
+  },
+  "thread": {
+    "rootThreadId": "root-post-uuid",
+    "threadCount": 2,
+    "hasMoreThreadItems": false,
+    "itemsEndpoint": "/api/v1/lumina-feed/posts/root-post-uuid/thread-items"
+  }
+}
+```
+
+Proposed read APIs:
+
+```http
+GET /lumina-feed/posts/:postId/thread-items?take=20&cursor=<threadItemId>
+GET /lumina-feed/posts/:postId/thread
+```
+
+Feed list projection should stay compact. Return the root card with a thread
+summary instead of embedding the whole long text in every list item:
+
+```json
+{
+  "id": "root-post-uuid",
+  "body": "root text, max 500 characters",
+  "thread": {
+    "rootThreadId": "root-post-uuid",
+    "parentFeedItemId": null,
+    "threadIndex": 0,
+    "threadCount": 4,
+    "previewItemCount": 1,
+    "hasMoreThreadItems": true,
+    "itemsEndpoint": "/api/v1/lumina-feed/posts/root-post-uuid/thread-items"
+  }
+}
+```
+
+Detail projection may return either the root plus all visible thread items, or a
+paginated list when the thread is long:
+
+```json
+{
+  "root": { "id": "root-post-uuid", "threadIndex": 0 },
+  "items": [
+    {
+      "id": "thread-item-uuid",
+      "rootThreadId": "root-post-uuid",
+      "parentFeedItemId": "root-post-uuid",
+      "threadIndex": 1,
+      "body": "continued text"
+    }
+  ],
+  "threadCount": 2,
+  "nextCursor": null,
+  "hasMoreThreadItems": false
+}
+```
+
+Authorization and mutation safety:
+
+- Creating, editing, or deleting a thread item must require login and the root
+  post author. Artist-operator fallback should not grant thread edit/delete.
+- If the root post is deleted or not visible, thread-item reads should behave as
+  not found.
+- Deleting the root post should hide the whole thread from list/detail/search
+  projections.
+- Deleting an item should soft-delete that item. Do not hard-delete or reassign
+  ownership.
+- Repeated delete should be idempotent for the same author and must not double
+  mutate counts.
+- If the implementation stores `threadIndex`, prefer immutable indexes and
+  compute visible display order from non-deleted rows instead of reindexing on
+  every delete.
+
+Open policy decisions before implementation:
+
+- Maximum thread item count per root post.
+- Maximum aggregate body length per thread.
+- Whether child items can have image assets later. First pass should be text-only.
+- Whether search/hashtag discovery indexes child item bodies in phase one or only
+  the root body.
+- Whether append supports client idempotency key as a required or optional field.
+
+Frontend follow-up requirements:
+
+- Keep the existing 500 character composer unchanged for single posts.
+- Add an explicit "continue as thread" flow instead of silently bypassing the
+  500 character limit.
+- Render a compact "continue reading" affordance from `thread.hasMoreThreadItems`
+  and `thread.itemsEndpoint`.
+- Do not mix thread writing with wallet, Lumina, settlement, payout, paid-like,
+  image upload, or Shortform flows.
+
 ### Likes
 
 ```http
