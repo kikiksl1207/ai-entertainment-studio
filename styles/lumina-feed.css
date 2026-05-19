@@ -1116,6 +1116,10 @@ body.is-booting .feed-list::before {
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
+.feed-post-thread-badge[type="button"] {
+  appearance: none;
+  font-family: inherit;
+}
 .feed-post-thread-badge:hover {
   background: rgba(255, 20, 147, 0.12);
   border-color: rgba(255, 20, 147, 0.45);
@@ -1124,6 +1128,114 @@ body.is-booting .feed-list::before {
 .feed-post-thread-badge:focus-visible {
   outline: 2px solid #ff7eb9;
   outline-offset: 2px;
+}
+.feed-compose-thread-toggle[data-suggested="1"] {
+  border-color: rgba(255, 20, 147, 0.62);
+  box-shadow: 0 0 0 3px rgba(255, 20, 147, 0.12);
+}
+.feed-post-thread-summary {
+  margin: 6px 0 4px;
+}
+.feed-post-thread-preview {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.feed-thread-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.feed-thread-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 8, 18, 0.72);
+  backdrop-filter: blur(8px);
+}
+.feed-thread-modal-panel {
+  position: relative;
+  width: min(620px, 100%);
+  max-height: min(760px, 88vh);
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: #171321;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+  padding: 18px;
+}
+.feed-thread-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.feed-thread-modal-eyebrow {
+  display: block;
+  color: #c8a6ff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin-bottom: 4px;
+}
+.feed-thread-modal-head h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.35;
+}
+.feed-thread-modal-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.feed-thread-modal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.feed-thread-modal-item {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+}
+.feed-thread-modal-index {
+  color: #c8a6ff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.feed-thread-modal-item p,
+.feed-thread-modal-loading,
+.feed-thread-modal-policy {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.feed-thread-modal-policy {
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 /* 반응형 — 640px 이하 */
@@ -1156,6 +1268,16 @@ body.is-booting .feed-list::before {
   .feed-compose-thread-toggle span {
     /* 좁은 화면에서 라벨 축약 (svg + 짧은 단어) */
     font-size: 11.5px;
+  }
+  .feed-thread-modal {
+    padding: 14px;
+  }
+  .feed-thread-modal-panel {
+    max-height: 88vh;
+    padding: 14px;
+  }
+  .feed-thread-modal-head h3 {
+    font-size: 16px;
   }
 }
 
