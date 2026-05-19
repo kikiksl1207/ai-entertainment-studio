@@ -1,6 +1,76 @@
 # Team2 QA Inbox
 
 status: pass
+task: #313 - Lumina Feed thread API contract live QA
+branch/commit:
+- branch: team2-qa/313-315-qa
+- local main after pull: origin/main
+- basis commit: d4694673e2e2390417b00765689a9c8b90fae0a3
+- observed API health commit: d4694673e2e2390417b00765689a9c8b90fae0a3
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: `git pull origin main`
+- PASS: `/health` returned `d4694673e2e2390417b00765689a9c8b90fae0a3`, which includes #313 and #315.
+- PASS: live `POST /api/v1/lumina-feed/posts/thread` one-piece post returned `itemCount=1`.
+- PASS: live 2-piece thread created, detail projection returned `itemCount=2`, `threadCount=2`, and 2 ordered detail items.
+- PASS: owner could edit a non-root thread item.
+- PASS: non-owner edit of the same thread item returned HTTP 403.
+- PASS: repeated owner delete of the same thread item remained successful/idempotent.
+- PASS: 11-piece thread create returned HTTP 400.
+- PASS: 501-character thread piece returned HTTP 400.
+- PASS: QA root posts were deleted after verification.
+- PASS: `npm.cmd test -- community.service.spec.ts --runInBand`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`
+- PASS: `git diff --check`
+result:
+- #313 thread API contract is live and matches the expected root-included max-10, per-piece 500-character, no auto-split, owner-only edit/delete, and root-based engagement model.
+- No wallet, Lumina, order, settlement, payout, Backstage, Creator Studio, or LLM mutation was executed.
+blocked_by:
+- None.
+next_needed:
+- Move #313 to Chamo completion judgment. #316 can use this live API basis for combined API/UX QA.
+security_check:
+- PASS: no token, cookie, password, env value, raw email, signed URL, storage key, or credential was recorded.
+
+---
+
+status: fail
+task: #315 - Character Chat character-specific first-screen copy and empty-state UI live QA
+branch/commit:
+- branch: team2-qa/313-315-qa
+- local main after pull: origin/main
+- basis commit: d4694673e2e2390417b00765689a9c8b90fae0a3
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: `git pull origin main`
+- PASS: live browser QA for 5 characters: 윤세린, 한서율, 박도아, 최서진, 민채온.
+- PASS: 1280px, 768px, and 390px showed no horizontal overflow.
+- PASS: no visible mojibake.
+- PASS: no visible forbidden copy: `MVP`, `Coming Soon`, `테스트`, `임시`, `샘플`, `여기에 문구`.
+- PASS: each checked character showed a character-specific hero/status/welcome line.
+- PASS: Min Chaeon showed character-specific starter options.
+- FAIL: 윤세린, 한서율, 박도아, and 최서진 all showed the same 5 starter options: `오늘 어땠는지 물어보기`, `조용히 응원하기`, `오늘 하루 어땠는지 물어보기`, `응원 한마디 보내기`, `요즘 듣는 음악 물어보기`.
+- PASS: `node --check pages/character-chat.js`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`
+- PASS: `git diff --check`
+result:
+- #315 is not complete because 4 of the 5 sampled character first screens still share the same starter choices.
+- Welcome/hero/empty fallback improved and layout is stable, but the acceptance criterion says every character should not feel like the same copy/starter set.
+- No payment, charge, subscription, video request, wallet, Lumina, settlement, payout, Backstage, Creator Studio, or LLM mutation was executed.
+blocked_by:
+- Starter choices are still generic for multiple characters in the live first-screen UI.
+next_needed:
+- Return #315 to the previous owner/PM for starter copy differentiation, then re-run 5-character live QA.
+security_check:
+- PASS: no token, cookie, password, env value, raw email, signed URL, storage key, or credential was recorded.
+
+---
+
+status: pass
 task: Fan engagement Home teaser smoke QA
 environment:
 - branch: team2-qa/fan-engagement-home-teaser-smoke
