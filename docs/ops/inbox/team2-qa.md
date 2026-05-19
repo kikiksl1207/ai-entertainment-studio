@@ -1,6 +1,103 @@
 # Team2 QA Inbox
 
 status: pass
+task: #277 - Min Chaeon 13-image site connection live QA
+branch/commit:
+- branch: team2-qa/277-305-307-live-qa
+- local main after pull: origin/main
+- basis commit: e2d42426777642c08e6397508c347d3caff7147f
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: `git pull origin main`
+- PASS: `data/characters.js` includes `min-chaeon` with site-selected cover/thumb and `siteSelectedGalleryConfig["min-chaeon"] = { count: 13, ext: "png" }`.
+- PASS: live HEAD checks returned HTTP 200 for `cover.png`, `thumb.png`, and `gallery-01.png` through `gallery-13.png`.
+- PASS: live character detail page shows `민채온`, title `민채온 — Lumina Stage`, and 13 unique gallery PNGs from `gallery-01.png` through `gallery-13.png`.
+- PASS: 1280px, 768px, and 390px browser checks showed no horizontal overflow and no visible mojibake.
+- PASS: character catalog contains `민채온` with a loaded Min Chaeon image and no horizontal overflow.
+- PASS: character chat page contains `민채온`, no horizontal overflow, and no visible mojibake.
+result:
+- Min Chaeon is connected on the live site with the available 13 gallery images.
+- The missing gallery slots 14-16 remain a follow-up reinforcement item and do not block the 13-image public connection.
+- No image 404 was found for the current 13-image set.
+blocked_by:
+- None.
+next_needed:
+- Move #277 to Chamo completion judgment. Add gallery-14.png through gallery-16.png later and bump the count when those follow-up images are ready.
+security_check:
+- PASS: no prompt text, real-person source, token, cookie, password, env value, signed URL, storage key, or credential was recorded.
+
+---
+
+status: pass
+task: #305 - Lumina Feed compose failure copy and 500-character UX live QA
+branch/commit:
+- branch: team2-qa/277-305-307-live-qa
+- local main after pull: origin/main
+- basis commit: e2d42426777642c08e6397508c347d3caff7147f
+- observed API health commit: 8cd422a096780feeb9a0f28ea31323ab72dfd671
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: `git pull origin main`
+- PASS: deployed static `lumina-feed.html` contains `maxlength="500"` and initial counter `0 / 500`.
+- PASS: deployed static `pages/lumina-feed.js` uses `FEED_COMPOSE_MAX_BODY = 500` with 500-character warning/error copy paths.
+- PASS: browser checks at 1280px, 768px, and 390px showed `0 / 500`, `maxlength=500`, no horizontal overflow, and no visible mojibake.
+- PASS: live API accepted a disposable QA 500-character feed post.
+- PASS: live API rejected a 501-character feed post with HTTP 400.
+- PASS: the disposable QA feed post was deleted after verification.
+- PASS: `node --check pages/lumina-feed.js`
+- PASS: `npm.cmd test -- community.service.spec.ts --runInBand`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`
+- PASS: `git diff --check`
+result:
+- The previous 2000-vs-500 mismatch is resolved: live static UX and live API now agree on the 500-character boundary.
+- Existing 500-character success path still works.
+- 501-character validation failure is correctly blocked by the backend; the frontend maxlength/counter prevents a normal user from exceeding the boundary.
+- No image, wallet, Lumina, settlement, payout, contract, or admin mutation was executed for this scope.
+blocked_by:
+- None.
+next_needed:
+- Move #305 to Chamo completion judgment.
+security_check:
+- PASS: no token, cookie, password, env value, raw email, signed URL, object URL, or credential was recorded.
+
+---
+
+status: partial / blocked for live admin mutation
+task: #307 - Debut operations admin review audit contract QA
+branch/commit:
+- branch: team2-qa/277-305-307-live-qa
+- local main after pull: origin/main
+- basis commit: e2d42426777642c08e6397508c347d3caff7147f
+- observed API health commit: 8cd422a096780feeb9a0f28ea31323ab72dfd671
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: `git pull origin main`
+- PASS: `/health` returned live commit `8cd422a096780feeb9a0f28ea31323ab72dfd671`, matching the #307 deployed basis.
+- PASS: unauthenticated `PATCH /api/v1/admin/api/v1/debut/applications/:applicationId/review` returned HTTP 401.
+- PASS: Backstage browser check showed the operator login screen, with no active admin session available.
+- PASS: `npm.cmd test -- debut.service.spec.ts --runInBand`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`
+- PASS: `git diff --check`
+result:
+- No product blocker found in the safely testable #307 scope.
+- Contract/unit coverage confirms the review action writes a redacted audit payload, blocks `shareTierApproved`, keeps owner/public status projection safe, and avoids final debut/contract/settlement/payout/wallet/Lumina mutation.
+- Live deployment and unauth guard are correct.
+- Actual live admin status-change mutation and persisted audit-row inspection were not executed because this workspace/session has no safe Backstage admin account/session and no disposable debut application id.
+blocked_by:
+- Safe admin QA credential/session and disposable debut application id were not available.
+next_needed:
+- PM/operator should either provide a safe admin QA handoff plus disposable debut application target for full live mutation QA, or accept this as the #307 QA boundary and move to completion judgment.
+security_check:
+- PASS: no token, cookie, password, env value, raw email, raw phone, private material URL, storage key, object ETag, or credential was recorded.
+
+---
+
+status: pass
 task: Fan engagement Home teaser smoke QA
 environment:
 - branch: team2-qa/fan-engagement-home-teaser-smoke
