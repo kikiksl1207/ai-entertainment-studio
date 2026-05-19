@@ -245,6 +245,7 @@ function renderLuminaFeed() {
         </header>
         <p class="feed-post-body">${feedEscapeHtml(post.body)}</p>
         <button class="feed-post-expand-btn" type="button" aria-expanded="false">더 보기</button>
+        ${renderFeedPostThreadBadge(post)}
         ${renderFeedPostAssets(post.assets)}
         ${renderFeedLinkPreview(post.linkPreview)}
         <footer class="feed-post-actions">
@@ -506,6 +507,12 @@ const FEED_COMPOSE_MAX_BODY = 500;
 
 // 백엔드 /api/v1/lumina-feed/posts contract — 501자 이상이면 HTTP 400. 큐알 QA 2026-05-19 확인.
 
+// #309 — 타래 정책 (차모 2026-05-19 확정): 조각당 500자, root 포함 최대 10조각, 총 5000자.
+// 백엔드 POST /lumina-feed/posts/:id/thread-items 등은 아직 미구현. UI는 작성 흐름까지만 완성.
+const FEED_THREAD_MAX_ITEMS = 10;
+const FEED_THREAD_AGGREGATE_MAX = 5000;
+const FEED_THREAD_ITEM_MAX_BODY = FEED_COMPOSE_MAX_BODY;
+
 const FEED_COMPOSE_MAX_IMAGE_MB = 20;
 
 const FEED_COMPOSE_MAX_IMAGE_BYTES = FEED_COMPOSE_MAX_IMAGE_MB * 1024 * 1024;
@@ -517,6 +524,25 @@ const FEED_ALLOWED_IMAGE_LABEL = "JPG, PNG, WEBP, GIF";
 let _feedComposeAssets = []; // [{ localId, status, file?, fileName, mimeType, fileSize, assetId?, previewUrl?, localPreviewUrl?, errorMessage?, stage? }]
 
 let _feedComposeAssetSeq = 0;
+
+// #309 — 타래 모드 상태. UI 전용. 실제 게시 path는 아직 백엔드 미구현.
+let _feedComposeThreadMode = false;
+let _feedComposeThreadItems = []; // [{ localId, body }]
+let _feedComposeThreadItemSeq = 0;
+
+function feedComposeNextThreadLocalId() {
+  _feedComposeThreadItemSeq += 1;
+  return `feed-thread-${Date.now().toString(36)}-${_feedComposeThreadItemSeq}`;
+}
+
+function feedThreadAggregateLength(rootBodyLen) {
+  return _feedComposeThreadItems.reduce((sum, it) => sum + (it.body?.length || 0), Number(rootBodyLen) || 0);
+}
+
+function feedThreadItemCount() {
+  // root 1개 + 이어글 N개
+  return 1 + _feedComposeThreadItems.length;
+}
 
 function feedComposeNextLocalId() {
   _feedComposeAssetSeq += 1;
@@ -727,7 +753,8 @@ function bindFeedComposeOnce() {
     const doneCount = feedComposeDoneAssets().length;
     const hasContent = textarea.value.trim().length > 0 || doneCount > 0;
     const overLimit = len > FEED_COMPOSE_MAX_BODY; // maxlength로 막히지만 paste/조합 안전망
-    if (submitBtn) submitBtn.disabled = !hasContent || uploading || overLimit;
+    // #309 — 타래 모드일 때는 단문 게시 버튼 비활성 (게시는 타래 submit 버튼이 담당)
+    if (submitBtn) submitBtn.disabled = !hasContent || uploading || overLimit || _feedComposeThreadMode;
     if (fileInput) fileInput.disabled = uploading || _feedComposeAssets.length >= FEED_COMPOSE_MAX_IMAGES;
     if (attachBtn) {
       attachBtn.dataset.uploading = uploading ? "1" : "0";
@@ -838,6 +865,16 @@ function bindFeedComposeOnce() {
       textarea.value = "";
       _feedComposeAssets.forEach(releaseFeedComposeAssetPreview);
       _feedComposeAssets = [];
+      // #309 — 단문 게시 성공 시 타래 모드 상태도 정리 (이번 작성에 쓰지 않은 잔여 상태가 다음 게시에 끼지 않게)
+      _feedComposeThreadMode = false;
+      _feedComposeThreadItems = [];
+      const threadComposerEl = document.getElementById("feedThreadComposer");
+      if (threadComposerEl) threadComposerEl.hidden = true;
+      const threadToggleEl = document.getElementById("feedComposeThreadToggle");
+      if (threadToggleEl) {
+        threadToggleEl.classList.remove("is-active");
+        threadToggleEl.setAttribute("aria-pressed", "false");
+      }
       renderFeedComposeThumbs();
       if (failedCount > 0) {
         setFeedComposeMessage(`피드에 올라갔어요. 실패한 이미지 ${failedCount}장은 포함되지 않았어요.`, "success");
@@ -889,7 +926,200 @@ function bindFeedComposeOnce() {
     }
   });
 
+  // #309 — 타래 작성 모드 바인딩
+  bindFeedComposeThreadMode(textarea, updateState);
+
   updateState();
+}
+
+/* ── #309 타래 작성 UX ──────────────────────────
+   - 정책: 조각당 500자, 총 10조각(root 포함), aggregate 5000자.
+   - 자동 분할 없음. 사용자가 명시적으로 진입/추가/삭제.
+   - 실제 POST/PATCH/DELETE thread API는 아직 미구현 — 게시 버튼은 안내만 노출.
+*/
+function bindFeedComposeThreadMode(textarea, parentUpdateState) {
+  const toggle = document.getElementById("feedComposeThreadToggle");
+  const composer = document.getElementById("feedThreadComposer");
+  const itemsRoot = document.getElementById("feedThreadItems");
+  const aggregateEl = document.getElementById("feedThreadAggregate");
+  const addBtn = document.getElementById("feedThreadAddBtn");
+  const cancelBtn = document.getElementById("feedThreadCancelBtn");
+  const submitBtn = document.getElementById("feedThreadSubmitBtn");
+  if (!toggle || !composer || !itemsRoot) return;
+
+  const composeSubmitBtn = document.getElementById("feedComposeSubmit");
+
+  function syncToggleVisualState() {
+    toggle.classList.toggle("is-active", _feedComposeThreadMode);
+    toggle.setAttribute("aria-pressed", _feedComposeThreadMode ? "true" : "false");
+    composer.hidden = !_feedComposeThreadMode;
+    if (composeSubmitBtn) composeSubmitBtn.hidden = _feedComposeThreadMode;
+  }
+
+  function renderThreadItems() {
+    if (_feedComposeThreadItems.length === 0) {
+      itemsRoot.innerHTML = `
+        <p class="feed-thread-empty-hint">
+          아직 이어글이 없어요. 아래 <strong>+ 이어글 추가</strong> 버튼으로 한 조각씩 적어보세요.
+        </p>
+      `;
+      return;
+    }
+    itemsRoot.innerHTML = _feedComposeThreadItems.map((item, idx) => {
+      const len = item.body?.length || 0;
+      const warnThreshold = Math.ceil(FEED_THREAD_ITEM_MAX_BODY * 0.9);
+      let state = "ok";
+      if (len >= FEED_THREAD_ITEM_MAX_BODY) state = "danger";
+      else if (len >= warnThreshold) state = "warn";
+      const orderLabel = idx + 2; // root가 1번이므로 이어글은 2번부터
+      return `
+        <div class="feed-thread-item" data-thread-item-id="${feedEscapeHtml(item.localId)}">
+          <div class="feed-thread-item-head">
+            <span class="feed-thread-item-order">${orderLabel}/${FEED_THREAD_MAX_ITEMS}</span>
+            <button type="button" class="feed-thread-item-remove" data-thread-remove="${feedEscapeHtml(item.localId)}" aria-label="이어글 ${orderLabel}번 삭제">×</button>
+          </div>
+          <textarea
+            class="feed-thread-item-input"
+            rows="2"
+            maxlength="${FEED_THREAD_ITEM_MAX_BODY}"
+            data-thread-input="${feedEscapeHtml(item.localId)}"
+            placeholder="이어쓸 내용을 적어주세요. (${FEED_THREAD_ITEM_MAX_BODY}자 이하)"
+            aria-label="이어글 ${orderLabel}번"
+          >${feedEscapeHtml(item.body || "")}</textarea>
+          <span class="feed-thread-item-counter" data-state="${state}">${len} / ${FEED_THREAD_ITEM_MAX_BODY}자</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function updateThreadState() {
+    const rootBodyLen = (textarea?.value || "").length;
+    const aggregate = feedThreadAggregateLength(rootBodyLen);
+    const itemCount = feedThreadItemCount();
+    if (aggregateEl) {
+      const aggregateState = aggregate > FEED_THREAD_AGGREGATE_MAX
+        ? "danger"
+        : aggregate >= Math.ceil(FEED_THREAD_AGGREGATE_MAX * 0.9) ? "warn" : "ok";
+      aggregateEl.dataset.state = aggregateState;
+      aggregateEl.textContent = `총 ${aggregate} / ${FEED_THREAD_AGGREGATE_MAX}자 · 조각 ${itemCount} / ${FEED_THREAD_MAX_ITEMS}`;
+    }
+    if (addBtn) {
+      const atItemCap = itemCount >= FEED_THREAD_MAX_ITEMS;
+      const atAggregateCap = aggregate >= FEED_THREAD_AGGREGATE_MAX;
+      addBtn.disabled = atItemCap || atAggregateCap;
+      addBtn.dataset.reason = atItemCap ? "items" : atAggregateCap ? "aggregate" : "";
+      if (atItemCap) {
+        addBtn.title = `이어글은 최대 ${FEED_THREAD_MAX_ITEMS}조각까지 추가할 수 있어요.`;
+      } else if (atAggregateCap) {
+        addBtn.title = `타래 전체는 ${FEED_THREAD_AGGREGATE_MAX}자까지예요.`;
+      } else {
+        addBtn.removeAttribute("title");
+      }
+    }
+    if (submitBtn) {
+      const rootEmpty = !(textarea?.value || "").trim();
+      const hasEmptyItem = _feedComposeThreadItems.some(it => !(it.body || "").trim());
+      const overItemCap = _feedComposeThreadItems.some(it => (it.body?.length || 0) > FEED_THREAD_ITEM_MAX_BODY);
+      const overAggregateCap = aggregate > FEED_THREAD_AGGREGATE_MAX;
+      const overRootCap = rootBodyLen > FEED_COMPOSE_MAX_BODY;
+      // 작성 흐름만 검증. 실제 게시 path는 백엔드 미구현이라 항상 비활성으로 유지하되,
+      // 검증 통과 시 dataset.ready=1 로 표시해 유저가 "준비 완료" 상태를 시각적으로 확인할 수 있게 함.
+      const ready = !rootEmpty
+        && !hasEmptyItem
+        && !overItemCap
+        && !overAggregateCap
+        && !overRootCap
+        && _feedComposeThreadItems.length > 0;
+      submitBtn.dataset.ready = ready ? "1" : "0";
+    }
+    parentUpdateState?.();
+  }
+
+  toggle.addEventListener("click", () => {
+    _feedComposeThreadMode = !_feedComposeThreadMode;
+    if (_feedComposeThreadMode && _feedComposeThreadItems.length === 0) {
+      // 진입 직후 빈 이어글 한 줄을 제공해 사용자가 곧바로 작성 가능
+      _feedComposeThreadItems.push({ localId: feedComposeNextThreadLocalId(), body: "" });
+    }
+    syncToggleVisualState();
+    renderThreadItems();
+    updateThreadState();
+  });
+
+  cancelBtn?.addEventListener("click", () => {
+    if (_feedComposeThreadItems.some(it => (it.body || "").trim())) {
+      const ok = confirm("작성한 이어글 내용이 모두 지워져요. 타래를 취소할까요?");
+      if (!ok) return;
+    }
+    _feedComposeThreadMode = false;
+    _feedComposeThreadItems = [];
+    syncToggleVisualState();
+    renderThreadItems();
+    updateThreadState();
+  });
+
+  addBtn?.addEventListener("click", () => {
+    if (feedThreadItemCount() >= FEED_THREAD_MAX_ITEMS) return;
+    _feedComposeThreadItems.push({ localId: feedComposeNextThreadLocalId(), body: "" });
+    renderThreadItems();
+    updateThreadState();
+    // 새로 추가된 textarea에 포커스
+    const last = itemsRoot.querySelector(".feed-thread-item:last-child .feed-thread-item-input");
+    last?.focus();
+  });
+
+  // 이어글 입력 이벤트 위임 (textarea + remove button)
+  itemsRoot.addEventListener("input", e => {
+    const input = e.target.closest("[data-thread-input]");
+    if (!input) return;
+    const localId = input.dataset.threadInput;
+    const item = _feedComposeThreadItems.find(it => it.localId === localId);
+    if (!item) return;
+    item.body = input.value;
+    // 카운터만 가볍게 갱신 — 전체 re-render는 피해서 포커스 유지
+    const wrap = input.closest(".feed-thread-item");
+    const counter = wrap?.querySelector(".feed-thread-item-counter");
+    if (counter) {
+      const len = item.body.length;
+      counter.textContent = `${len} / ${FEED_THREAD_ITEM_MAX_BODY}자`;
+      const warnThreshold = Math.ceil(FEED_THREAD_ITEM_MAX_BODY * 0.9);
+      counter.dataset.state = len >= FEED_THREAD_ITEM_MAX_BODY
+        ? "danger"
+        : len >= warnThreshold ? "warn" : "ok";
+    }
+    updateThreadState();
+  });
+
+  itemsRoot.addEventListener("click", e => {
+    const removeBtn = e.target.closest("[data-thread-remove]");
+    if (!removeBtn) return;
+    const localId = removeBtn.dataset.threadRemove;
+    const idx = _feedComposeThreadItems.findIndex(it => it.localId === localId);
+    if (idx < 0) return;
+    const item = _feedComposeThreadItems[idx];
+    if ((item.body || "").trim()) {
+      const ok = confirm("이 이어글을 삭제할까요?");
+      if (!ok) return;
+    }
+    _feedComposeThreadItems.splice(idx, 1);
+    renderThreadItems();
+    updateThreadState();
+  });
+
+  submitBtn?.addEventListener("click", () => {
+    // 백엔드 API 미구현 — 안내만 표시. 사용자 입력은 보존.
+    setFeedComposeMessage(
+      "타래 게시 API는 곧 열려요. 작성한 내용은 그대로 남아 있어요.",
+      "info"
+    );
+  });
+
+  // 루트 textarea 글자수 변화 시에도 aggregate 갱신
+  textarea?.addEventListener("input", updateThreadState);
+
+  syncToggleVisualState();
+  renderThreadItems();
+  updateThreadState();
 }
 
 function setFeedComposeMessage(text, kind) {

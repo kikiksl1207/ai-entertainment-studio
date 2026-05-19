@@ -2522,6 +2522,21 @@ function bindLuminaFeedDelete() {
   });
 }
 
+/* #309 — 타래 배지 클릭. 실 상세 endpoint 미구현이라 안내만 표시.
+   contract: GET /api/v1/lumina-feed/posts/:postId/thread (또는 thread.itemsEndpoint).
+   배지가 카드 클릭(아티스트 라우팅)에 묻히지 않도록 stopPropagation. */
+function bindLuminaFeedThreadBadge() {
+  if (document._feedThreadBadgeBound) return;
+  document._feedThreadBadgeBound = true;
+  document.addEventListener("click", e => {
+    const badge = e.target.closest("[data-feed-thread-badge]");
+    if (!badge) return;
+    e.preventDefault();
+    e.stopPropagation();
+    alert("타래 상세는 곧 열어드릴게요. 이어글 미리보기 화면이 준비되면 자동으로 활성화돼요.");
+  });
+}
+
 /* #137 Phase A — 피드 좋아요 토글 (무료, 1인 1좋아요)
    - 차모 spec: POST/DELETE /api/v1/lumina-feed/posts/:postId/like
    - 응답에서 post.likeCount, post.viewer.hasLiked를 받아 UI 갱신
@@ -2941,6 +2956,33 @@ function renderFeedPostAssets(assets) {
           <img src="${src}" data-full-src="${full}" alt="" loading="lazy" oncontextmenu="return false;" draggable="false" onerror="if(!this.dataset.fullTried&&this.dataset.fullSrc&&this.src!==this.dataset.fullSrc){this.dataset.fullTried='1';this.src=this.dataset.fullSrc;}else{this.parentElement.classList.add('is-broken');this.style.display='none';}" />
         </a>`;
       }).join("")}
+    </div>
+  `;
+}
+
+/* #309 — 타래 요약 배지. post.thread 가 있는 글에만 노출.
+   thread.threadCount 가 1 이하이면 root만 있는 글이라 배지 미노출. 백엔드 contract:
+   { rootThreadId, parentFeedItemId, threadIndex, threadCount, previewItemCount,
+     hasMoreThreadItems, itemsEndpoint }. 현재는 backend 미구현이라 화면에 거의
+     안 그려지지만, API 도착 즉시 일관된 표시가 가능하도록 미리 와이어업. */
+function renderFeedPostThreadBadge(post) {
+  const thread = post?.thread;
+  if (!thread || typeof thread !== "object") return "";
+  const threadCount = Number(thread.threadCount) || 0;
+  if (threadCount <= 1) return "";
+  // 타래 N개 — root 포함 N. UI에서는 root 제외 이어글 수가 더 직관적이므로 (threadCount-1)을 노출.
+  const continued = Math.max(0, threadCount - 1);
+  const itemsEndpoint = typeof thread.itemsEndpoint === "string" ? thread.itemsEndpoint : "";
+  const rootThreadId = typeof thread.rootThreadId === "string" ? thread.rootThreadId : "";
+  return `
+    <div class="feed-post-thread-badge" data-feed-thread-badge
+         data-thread-count="${continued}"
+         data-thread-endpoint="${feedEscapeHtml(itemsEndpoint)}"
+         data-thread-root-id="${feedEscapeHtml(rootThreadId)}">
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+        <path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" fill="none" stroke-width="1.7" stroke-linecap="round"/>
+      </svg>
+      <span>이어글 ${continued}개 · 타래 보기</span>
     </div>
   `;
 }
@@ -3723,6 +3765,7 @@ async function init() {
     bindLuminaFeedDelete();
     bindLuminaFeedEdit(); // #137 Phase B — 피드 글 수정 모달
     bindLuminaFeedLike(); // #137 Phase A — 피드 좋아요 토글
+    bindLuminaFeedThreadBadge(); // #309 — 타래 배지 클릭 안내 (상세 endpoint 미구현)
     bindLuminaFeedComment();
     bindLuminaFeedFollow(); // #145 — 피드 카드 팔로우/언팔로우
     bindFeedAssetLightbox(); // 피드 이미지 라이트박스 + 우클릭 차단

@@ -864,3 +864,325 @@ body.is-booting .feed-list::before {
     white-space: nowrap;
   }
 }
+
+/* ─────────── #309 타래 작성 UX ─────────── */
+.feed-compose-thread-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid rgba(159, 139, 199, 0.35);
+  color: #c8a6ff;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.feed-compose-thread-toggle:hover {
+  background: rgba(159, 139, 199, 0.12);
+  border-color: rgba(159, 139, 199, 0.55);
+}
+.feed-compose-thread-toggle.is-active {
+  background: linear-gradient(135deg, rgba(255, 20, 147, 0.18), rgba(159, 139, 199, 0.22));
+  border-color: rgba(255, 20, 147, 0.55);
+  color: #ff7eb9;
+}
+.feed-compose-thread-toggle:focus-visible {
+  outline: 2px solid #ff7eb9;
+  outline-offset: 2px;
+}
+
+.feed-thread-composer {
+  margin-top: 10px;
+  padding: 14px 14px 16px;
+  border-radius: 14px;
+  background: rgba(159, 139, 199, 0.08);
+  border: 1px solid rgba(159, 139, 199, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.feed-thread-head h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #f4eaff;
+}
+.feed-thread-policy {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+  letter-spacing: -0.005em;
+}
+.feed-thread-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.feed-thread-empty-hint {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(20, 14, 36, 0.45);
+  font-size: 12.5px;
+  color: var(--muted);
+  letter-spacing: -0.005em;
+}
+.feed-thread-empty-hint strong {
+  color: #ff7eb9;
+}
+.feed-thread-item {
+  position: relative;
+  padding: 10px 12px 8px;
+  border-radius: 12px;
+  background: rgba(20, 14, 36, 0.55);
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.feed-thread-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.feed-thread-item-order {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #c8a6ff;
+  text-transform: none;
+}
+.feed-thread-item-remove {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.feed-thread-item-remove:hover {
+  background: rgba(255, 20, 147, 0.8);
+}
+.feed-thread-item-input {
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(159, 139, 199, 0.22);
+  color: #f4eaff;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.55;
+  resize: vertical;
+  letter-spacing: -0.005em;
+}
+.feed-thread-item-input:focus {
+  outline: 2px solid rgba(255, 20, 147, 0.45);
+  outline-offset: 1px;
+}
+.feed-thread-item-input::placeholder {
+  color: rgba(220, 210, 240, 0.38);
+}
+.feed-thread-item-counter {
+  align-self: flex-end;
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.005em;
+}
+.feed-thread-item-counter[data-state="warn"] {
+  color: #ffc97a;
+}
+.feed-thread-item-counter[data-state="danger"] {
+  color: #ff7a8e;
+  font-weight: 700;
+}
+.feed-thread-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.feed-thread-add-btn {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px dashed rgba(255, 20, 147, 0.45);
+  background: transparent;
+  color: #ff7eb9;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.feed-thread-add-btn:hover:not(:disabled) {
+  background: rgba(255, 20, 147, 0.08);
+  border-color: rgba(255, 20, 147, 0.7);
+}
+.feed-thread-add-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.feed-thread-aggregate {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  letter-spacing: -0.005em;
+}
+.feed-thread-aggregate[data-state="warn"] {
+  color: #ffc97a;
+}
+.feed-thread-aggregate[data-state="danger"] {
+  color: #ff7a8e;
+  font-weight: 700;
+}
+.feed-thread-cancel-btn {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(220, 210, 240, 0.28);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.feed-thread-cancel-btn:hover {
+  background: rgba(220, 210, 240, 0.06);
+  color: #f4eaff;
+}
+.feed-thread-submit-btn {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: none;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #fff;
+  background: linear-gradient(135deg, #ff1493 0%, #9f8bc7 100%);
+  cursor: not-allowed;
+  font-family: inherit;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.feed-thread-submit-btn[data-ready="1"] {
+  opacity: 0.78;
+}
+.feed-thread-submit-btn:hover[data-ready="1"] {
+  opacity: 0.92;
+}
+.feed-thread-submit-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  letter-spacing: -0.005em;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(159, 139, 199, 0.08);
+  border: 1px dashed rgba(159, 139, 199, 0.28);
+}
+
+/* 카드 본문 아래 타래 배지 */
+.feed-post-thread-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 2px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(159, 139, 199, 0.12);
+  border: 1px solid rgba(159, 139, 199, 0.28);
+  color: #c8a6ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.feed-post-thread-badge:hover {
+  background: rgba(255, 20, 147, 0.12);
+  border-color: rgba(255, 20, 147, 0.45);
+  color: #ff7eb9;
+}
+.feed-post-thread-badge:focus-visible {
+  outline: 2px solid #ff7eb9;
+  outline-offset: 2px;
+}
+
+/* 반응형 — 640px 이하 */
+@media (max-width: 640px) {
+  .feed-thread-composer {
+    padding: 12px 12px 14px;
+  }
+  .feed-thread-head h3 {
+    font-size: 13.5px;
+  }
+  .feed-thread-policy {
+    font-size: 11.5px;
+  }
+  .feed-thread-item-input {
+    font-size: 13px;
+  }
+  .feed-thread-add-btn,
+  .feed-thread-cancel-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  .feed-thread-submit-btn {
+    padding: 7px 14px;
+    font-size: 12.5px;
+  }
+  .feed-compose-thread-toggle {
+    font-size: 11.5px;
+    padding: 5px 10px;
+  }
+  .feed-compose-thread-toggle span {
+    /* 좁은 화면에서 라벨 축약 (svg + 짧은 단어) */
+    font-size: 11.5px;
+  }
+}
+
+/* 390px 미만 종이판 — 액션 줄이 두 줄로 wrap 되어도 자연스럽게 */
+@media (max-width: 420px) {
+  .feed-thread-actions {
+    gap: 8px;
+  }
+  .feed-thread-aggregate {
+    width: 100%;
+    margin-left: 0;
+    order: 3;
+    text-align: right;
+  }
+  .feed-thread-add-btn {
+    flex: 1 1 auto;
+  }
+  .feed-thread-cancel-btn,
+  .feed-thread-submit-btn {
+    flex: 1 1 auto;
+  }
+  .feed-compose-thread-toggle span {
+    /* 매우 좁은 화면에서는 아이콘만 보이게 — 라벨 hidden */
+    /* 정책: 그래도 a11y 위해 span은 남겨둠 (visually-hidden 패턴 가능). 현재는 줄임 표기 */
+    max-width: 84px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
