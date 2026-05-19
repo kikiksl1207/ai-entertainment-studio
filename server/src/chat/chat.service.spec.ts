@@ -914,6 +914,149 @@ describe('ChatService persona and catalog policy', () => {
     });
   });
 
+  it('returns distinct runtime persona contexts without provider calls', async () => {
+    const artists = {
+      'yoon-serin': {
+        id: '00000000-0000-4000-8000-000000000314',
+        slug: 'yoon-serin',
+        displayName: '윤세린',
+        publicProfile: {
+          publicMetadata: {
+            chatCatalog: {
+              greetingText: '세린이 조용히 손을 흔들며 인사해요.',
+              safetyNoteKo: '부드럽게 응원하되 현실 연예인처럼 말하지 않아요.',
+            },
+            chatStarterPromptSets: [
+              {
+                guideText: '세린에게 조용히 말을 걸어보세요.',
+                options: [
+                  {
+                    key: 'A',
+                    label: '오늘 기분 묻기',
+                    message: '세린아, 오늘은 어떤 하루였어?',
+                  },
+                ],
+              },
+            ],
+            chatPersonaSeed: {
+              selectedTraitIds: ['warm', 'quiet_comfort', 'artist_pride'],
+              customTraitsKo: ['따뜻한 응원'],
+              blockedExpressionsKo: ['실존 인물 사칭'],
+            },
+          },
+          tagline: '무대 앞의 첫 인사',
+          personalityKeywords: ['다정함'],
+        },
+        contentProfile: {
+          contentTone: 'warm',
+        },
+      },
+      'cha-dohyun': {
+        id: '00000000-0000-4000-8000-000000000315',
+        slug: 'cha-dohyun',
+        displayName: '차도현',
+        publicProfile: {
+          publicMetadata: {
+            chatCatalog: {
+              greetingText: '도현이 짧게 고개를 끄덕이며 기다려요.',
+              safetyNoteKo: '거리를 지키고 과한 집착 표현을 피합니다.',
+            },
+            chatStarterPromptSets: [
+              {
+                guideText: '도현에게 낮은 목소리로 말을 걸어보세요.',
+                options: [
+                  {
+                    key: 'A',
+                    label: '조용히 안부 묻기',
+                    message: '도현아, 지금 잠깐 이야기해도 돼?',
+                  },
+                ],
+              },
+            ],
+            chatPersonaSeed: {
+              selectedTraitIds: ['calm', 'mysterious', 'sharp_tension'],
+              customTraitsKo: ['차분한 거리감'],
+              blockedExpressionsKo: ['외부 연락처 교환'],
+            },
+          },
+          tagline: '낮은 조명의 시선',
+          personalityKeywords: ['차분함'],
+        },
+        contentProfile: {
+          contentTone: 'calm',
+        },
+      },
+      'ria-somi': {
+        id: '00000000-0000-4000-8000-000000000316',
+        slug: 'ria-somi',
+        displayName: '리아소미',
+        publicProfile: {
+          publicMetadata: {
+            chatCatalog: {
+              greetingText: '소미가 먼저 밝게 손을 흔들어요.',
+              safetyNoteKo: '장난스럽더라도 위험한 유도는 피합니다.',
+            },
+            chatStarterPromptSets: [
+              {
+                guideText: '소미에게 가볍게 말을 걸어보세요.',
+                options: [
+                  {
+                    key: 'A',
+                    label: '오늘 에너지 묻기',
+                    message: '소미야, 오늘 텐션은 어때?',
+                  },
+                ],
+              },
+            ],
+            chatPersonaSeed: {
+              selectedTraitIds: ['playful', 'high_energy', 'daily_friend'],
+              customTraitsKo: ['밝은 장난'],
+              blockedExpressionsKo: ['성인/위험 대화 유도'],
+            },
+          },
+          tagline: '밝은 리듬',
+          personalityKeywords: ['활발함'],
+        },
+        contentProfile: {
+          contentTone: 'high_energy',
+        },
+      },
+    };
+    const prisma = {
+      artist: {
+        findFirst: jest.fn(({ where }: { where: { slug: keyof typeof artists } }) =>
+          Promise.resolve(artists[where.slug]),
+        ),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const results = await Promise.all(
+      Object.keys(artists).map((artistSlug) =>
+        service.getCharacterChatCatalog({ artistSlug }),
+      ),
+    );
+
+    expect(new Set(results.map((result) => result.runtimePersona.welcome.text)).size).toBe(3);
+    expect(results[0].runtimePersona.tone.toneTags).toEqual(
+      expect.arrayContaining(['따뜻한 응원', '다정함']),
+    );
+    expect(results[1].runtimePersona.tone.toneTags).toEqual(
+      expect.arrayContaining(['차분한 거리감', '차분함']),
+    );
+    expect(results[2].runtimePersona.tone.toneTags).toEqual(
+      expect.arrayContaining(['밝은 장난', '활발함']),
+    );
+    expect(results[0].runtimePersona.forbiddenTone).toEqual(
+      expect.arrayContaining(['실존 인물 사칭']),
+    );
+    expect(results[1].runtimePersona.safetyNote).toMatchObject({
+      text: '거리를 지키고 과한 집착 표현을 피합니다.',
+      source: 'artist_metadata',
+    });
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+  });
+
   it('returns starter prompt persona references from artist metadata', async () => {
     const prisma = {
       artist: {
@@ -1774,6 +1917,36 @@ describe('ChatService.generateMessage provider beta', () => {
       id: '00000000-0000-4000-8000-000000000001',
       slug: 'yoon-serin',
       displayName: '윤세린',
+      publicProfile: {
+        publicMetadata: {
+          chatCatalog: {
+            greetingText: '세린 런타임 인사',
+            safetyNoteKo: '세린은 부드럽게 응원하고 fictional boundary를 지켜요.',
+          },
+          chatStarterPromptSets: [
+            {
+              guideText: '세린에게 조용히 말을 걸어보세요.',
+              options: [
+                {
+                  key: 'A',
+                  label: '오늘 기분 묻기',
+                  message: '세린아, 오늘은 어떤 하루였어?',
+                },
+              ],
+            },
+          ],
+          chatPersonaSeed: {
+            selectedTraitIds: ['warm', 'quiet_comfort'],
+            customTraitsKo: ['따뜻한 런타임'],
+            blockedExpressionsKo: ['실존 인물 사칭'],
+          },
+        },
+        tagline: '무대 앞의 첫 인사',
+        personalityKeywords: ['다정함'],
+      },
+      contentProfile: {
+        contentTone: 'warm',
+      },
     },
     chatPersona: {
       id: '00000000-0000-4000-8000-000000000003',
@@ -1882,6 +2055,26 @@ describe('ChatService.generateMessage provider beta', () => {
         userId,
         userEmail: 'beta@example.com',
         userMessage: '오늘 조금 지쳤어.',
+        runtimePersona: expect.objectContaining({
+          welcome: expect.objectContaining({
+            text: '세린 런타임 인사',
+            source: 'artist_metadata',
+          }),
+          starterOptions: expect.arrayContaining([
+            expect.objectContaining({
+              label: '오늘 기분 묻기',
+              message: '세린아, 오늘은 어떤 하루였어?',
+            }),
+          ]),
+          tone: expect.objectContaining({
+            toneTags: expect.arrayContaining(['따뜻한 런타임', '다정함']),
+          }),
+          forbiddenTone: expect.arrayContaining(['실존 인물 사칭']),
+          safetyNote: expect.objectContaining({
+            text: '세린은 부드럽게 응원하고 fictional boundary를 지켜요.',
+            source: 'artist_metadata',
+          }),
+        }),
       }),
     );
     expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();

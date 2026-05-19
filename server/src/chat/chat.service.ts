@@ -13,6 +13,7 @@ import {
   ChatLlmProviderNotConfiguredError,
   ChatLlmProviderRequestError,
   ChatLlmProviderReadiness,
+  ChatRuntimePersonaContext,
 } from './llm-provider.adapter';
 import {
   CHAT_GENERATION_DISABLED_REASONS,
@@ -57,6 +58,13 @@ const DEFAULT_STARTER_PROMPT_COPY = {
   ],
   directInputLabel: '직접 입력하기',
 };
+const DEFAULT_CHAT_RUNTIME_FORBIDDEN_TONE_KO = [
+  '실존 인물 사칭',
+  '성인/위험 대화 유도',
+  '외부 연락처·결제 유도',
+];
+const DEFAULT_CHAT_RUNTIME_SAFETY_NOTE_KO =
+  '캐릭터의 fictional boundary를 지키고, 실존 인물 사칭·성인/위험 대화·외부 연락처나 결제 유도는 피합니다.';
 
 type StarterPromptOption = {
   key: string;
@@ -69,6 +77,14 @@ type StarterPromptSet = {
   guideText: string;
   options: StarterPromptOption[];
   directInput: {
+    key: string;
+    label: string;
+  };
+};
+type CharacterRuntimePersonaContext = ChatRuntimePersonaContext & {
+  starterSets: StarterPromptSet[];
+  directInput: {
+    enabled: boolean;
     key: string;
     label: string;
   };
@@ -284,7 +300,23 @@ export class ChatService {
       },
       include: {
         artist: {
-          select: { id: true, slug: true, displayName: true },
+          select: {
+            id: true,
+            slug: true,
+            displayName: true,
+            publicProfile: {
+              select: {
+                publicMetadata: true,
+                tagline: true,
+                personalityKeywords: true,
+              },
+            },
+            contentProfile: {
+              select: {
+                contentTone: true,
+              },
+            },
+          },
         },
         chatPersona: true,
       },
@@ -529,9 +561,12 @@ export class ChatService {
     const configuredSets = this.normalizeStarterPromptSets(
       metadata.chatStarterPromptSets,
     );
-    const starterSet =
-      configuredSets[0] ?? this.defaultStarterPromptSet(artist.slug, artist.displayName);
     const metadataGreeting = this.stringFromUnknown(catalogMetadata.greetingText);
+    const runtimePersona = this.buildCharacterRuntimePersonaContext(artist, {
+      metadata,
+      catalogMetadata,
+      configuredSets,
+    });
     const statusLabelKo = this.stringFromUnknown(catalogMetadata.statusLabelKo);
     const statusDescriptionKo = this.stringFromUnknown(
       catalogMetadata.statusDescriptionKo,
@@ -549,37 +584,13 @@ export class ChatService {
         labelKo: statusLabelKo ?? defaultStatus.labelKo,
         descriptionKo: statusDescriptionKo ?? defaultStatus.descriptionKo,
       },
-      greeting: {
-        text: metadataGreeting ?? defaultCharacterGreeting(artist.displayName),
-        source: metadataGreeting ? 'artist_metadata' : 'default',
-      },
-      starterOptions:
-        starterSet.options.length > 0
-          ? [
-              ...starterSet.options,
-              {
-                key: starterSet.directInput.key,
-                label: starterSet.directInput.label,
-                message: '',
-                directInput: true,
-              },
-            ].slice(0, CHARACTER_CHAT_CATALOG_POLICY.beginner.starterOptionMax)
-          : defaultCharacterStarterOptions(artist.displayName),
-      starterSets: configuredSets.length ? configuredSets : [starterSet],
-      directInput: {
-        enabled: CHARACTER_CHAT_CATALOG_POLICY.beginner.directInputEnabled,
-        ...starterSet.directInput,
-      },
-      tone: {
-        tagline: artist.publicProfile?.tagline ?? null,
-        contentTone: artist.contentProfile?.contentTone ?? null,
-        personalityKeywords: artist.publicProfile?.personalityKeywords ?? [],
-      },
-      personaReference: this.personaReferenceFromMetadata({
-        metadata,
-        contentTone: artist.contentProfile?.contentTone ?? null,
-        personalityKeywords: artist.publicProfile?.personalityKeywords ?? [],
-      }),
+      greeting: runtimePersona.welcome,
+      starterOptions: runtimePersona.starterOptions,
+      starterSets: runtimePersona.starterSets,
+      directInput: runtimePersona.directInput,
+      tone: runtimePersona.tone,
+      personaReference: runtimePersona.personaReference,
+      runtimePersona,
       policy: CHARACTER_CHAT_CATALOG_POLICY,
       source: configuredSets.length || metadataGreeting ? 'artist_metadata' : 'default',
     };
@@ -591,6 +602,10 @@ export class ChatService {
     const configuredSets = this.normalizeStarterPromptSets(
       metadata.chatStarterPromptSets,
     );
+    const runtimePersona = this.buildCharacterRuntimePersonaContext(artist, {
+      metadata,
+      configuredSets,
+    });
 
     return {
       artist: {
@@ -599,19 +614,10 @@ export class ChatService {
         displayName: artist.displayName,
       },
       policy: STARTER_PROMPT_POLICY,
-      tone: {
-        tagline: artist.publicProfile?.tagline ?? null,
-        contentTone: artist.contentProfile?.contentTone ?? null,
-        personalityKeywords: artist.publicProfile?.personalityKeywords ?? [],
-      },
-      personaReference: this.personaReferenceFromMetadata({
-        metadata,
-        contentTone: artist.contentProfile?.contentTone ?? null,
-        personalityKeywords: artist.publicProfile?.personalityKeywords ?? [],
-      }),
-      sets: configuredSets.length
-        ? configuredSets
-        : [this.defaultStarterPromptSet(artist.slug, artist.displayName)],
+      tone: runtimePersona.tone,
+      personaReference: runtimePersona.personaReference,
+      sets: runtimePersona.starterSets,
+      runtimePersona,
       source: configuredSets.length ? 'artist_metadata' : 'default',
     };
   }
@@ -1000,6 +1006,7 @@ export class ChatService {
         body: true,
       },
     });
+    const runtimePersona = this.buildCharacterRuntimePersonaContext(session.artist);
 
     try {
       const generated = await this.llmProvider.generate({
@@ -1016,6 +1023,7 @@ export class ChatService {
               modelConfig: session.chatPersona.modelConfig,
             }
           : null,
+        runtimePersona,
         mode: order?.chatFeatureProduct.featureType ?? BASIC_CHAT_POLICY.mode,
         userMessage: body,
         recentMessages: recentMessages.reverse(),
@@ -2310,6 +2318,155 @@ export class ChatService {
     return JSON.parse(JSON.stringify(value)) as InputJsonValue;
   }
 
+  private buildCharacterRuntimePersonaContext(
+    artist: {
+      id: string;
+      slug: string;
+      displayName: string;
+      publicProfile?: {
+        publicMetadata?: unknown;
+        tagline?: string | null;
+        personalityKeywords?: string[] | null;
+      } | null;
+      contentProfile?: {
+        contentTone?: string | null;
+      } | null;
+    },
+    options: {
+      metadata?: Record<string, unknown>;
+      catalogMetadata?: Record<string, unknown>;
+      configuredSets?: StarterPromptSet[];
+    } = {},
+  ): CharacterRuntimePersonaContext {
+    const metadata =
+      options.metadata ?? this.recordOrEmpty(artist.publicProfile?.publicMetadata);
+    const catalogMetadata =
+      options.catalogMetadata ?? this.recordOrEmpty(metadata.chatCatalog);
+    const configuredSets =
+      options.configuredSets ??
+      this.normalizeStarterPromptSets(metadata.chatStarterPromptSets);
+    const starterSet =
+      configuredSets[0] ?? this.defaultStarterPromptSet(artist.slug, artist.displayName);
+    const metadataGreeting = this.stringFromUnknown(catalogMetadata.greetingText);
+    const personalityKeywords = this.normalizeStringList(
+      artist.publicProfile?.personalityKeywords,
+      8,
+      30,
+    );
+    const contentTone = this.stringFromUnknown(artist.contentProfile?.contentTone);
+    const personaReference = this.personaReferenceFromMetadata({
+      metadata,
+      contentTone,
+      personalityKeywords,
+    });
+    const forbiddenTone = this.runtimeForbiddenToneFromMetadata(
+      metadata,
+      catalogMetadata,
+    );
+    const safetyNote = this.runtimeSafetyNoteFromMetadata(metadata, catalogMetadata);
+
+    return {
+      welcome: {
+        text: metadataGreeting ?? defaultCharacterGreeting(artist.displayName),
+        source: metadataGreeting ? 'artist_metadata' : 'default',
+      },
+      starterOptions:
+        starterSet.options.length > 0
+          ? [
+              ...starterSet.options,
+              {
+                key: starterSet.directInput.key,
+                label: starterSet.directInput.label,
+                message: '',
+                directInput: true,
+              },
+            ].slice(0, CHARACTER_CHAT_CATALOG_POLICY.beginner.starterOptionMax)
+          : defaultCharacterStarterOptions(artist.displayName),
+      starterSets: configuredSets.length ? configuredSets : [starterSet],
+      directInput: {
+        enabled: CHARACTER_CHAT_CATALOG_POLICY.beginner.directInputEnabled,
+        ...starterSet.directInput,
+      },
+      tone: {
+        tagline: artist.publicProfile?.tagline ?? null,
+        contentTone,
+        personalityKeywords,
+        toneTags: this.runtimeToneTags(personaReference, personalityKeywords),
+      },
+      personaReference,
+      forbiddenTone,
+      safetyNote,
+      source:
+        metadataGreeting ||
+        configuredSets.length ||
+        safetyNote.source === 'artist_metadata' ||
+        personaReference.source === 'artist_metadata'
+          ? 'artist_metadata'
+          : personaReference.source === 'legacy_artist_profile'
+            ? 'legacy_artist_profile'
+            : 'default',
+    };
+  }
+
+  private runtimeToneTags(
+    personaReference: CharacterRuntimePersonaContext['personaReference'],
+    personalityKeywords: string[],
+  ) {
+    return [
+      ...new Set([
+        ...personaReference.selectedTraits.map((trait) => trait.labelKo),
+        ...personaReference.customFields.customTraitsKo,
+        ...personalityKeywords,
+      ]),
+    ].filter(Boolean).slice(0, 12);
+  }
+
+  private runtimeForbiddenToneFromMetadata(
+    metadata: Record<string, unknown>,
+    catalogMetadata: Record<string, unknown>,
+  ) {
+    const personaSeed = this.recordOrEmpty(metadata.chatPersonaSeed);
+    const forbiddenTone = [
+      ...this.normalizeStringList(
+        catalogMetadata.forbiddenToneKo ?? catalogMetadata.forbiddenTone,
+        8,
+        60,
+      ),
+      ...this.normalizeStringList(
+        personaSeed.blockedExpressionsKo ?? personaSeed.blockedExpressions,
+        8,
+        60,
+      ),
+      ...this.normalizeStringList(
+        personaSeed.forbiddenToneKo ?? personaSeed.forbiddenTone,
+        8,
+        60,
+      ),
+    ];
+    const uniqueForbiddenTone = [...new Set(forbiddenTone)].slice(0, 8);
+
+    return uniqueForbiddenTone.length
+      ? uniqueForbiddenTone
+      : [...DEFAULT_CHAT_RUNTIME_FORBIDDEN_TONE_KO];
+  }
+
+  private runtimeSafetyNoteFromMetadata(
+    metadata: Record<string, unknown>,
+    catalogMetadata: Record<string, unknown>,
+  ) {
+    const personaSeed = this.recordOrEmpty(metadata.chatPersonaSeed);
+    const text =
+      this.stringFromUnknown(catalogMetadata.safetyNoteKo) ??
+      this.stringFromUnknown(catalogMetadata.safetyNote) ??
+      this.stringFromUnknown(personaSeed.safetyNoteKo) ??
+      this.stringFromUnknown(personaSeed.safetyNote);
+
+    return {
+      text: text ?? DEFAULT_CHAT_RUNTIME_SAFETY_NOTE_KO,
+      source: text ? 'artist_metadata' : 'default',
+    };
+  }
+
   private personaReferenceFromMetadata(input: {
     metadata: Record<string, unknown>;
     contentTone: string | null;
@@ -2330,6 +2487,7 @@ export class ChatService {
         labelKo: trait.labelKo,
         i18nKey: trait.i18nKey,
         conflictsWith: [...trait.conflictsWith],
+        toneGuideKo: trait.toneGuideKo,
       }));
     const customFields = {
       customTraitsKo: this.normalizeStringList(

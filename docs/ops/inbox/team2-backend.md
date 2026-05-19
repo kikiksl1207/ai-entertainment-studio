@@ -255,3 +255,32 @@ next_needed:
 - For diagnostics, grant narrowly scoped `s3:ListBucket` only on the bucket with a prefix condition for the feed/user-image prefix, so missing-key cases return clear diagnostics instead of ambiguous 403. This can be temporary or kept as an ops-only diagnostic permission.
 - If the object is missing, treat affected feed asset rows as broken uploads: re-upload the object, relink the feed asset to an existing object, or mark/archive the asset row so feed does not render a broken image.
 - CORS is still worth checking for browser rendering, but it is not the first blocker while direct signed URL access returns 403.
+
+---
+
+status: done
+task: "#314 character chat persona/starter runtime application"
+branch/commit: team2-backend/character-chat-persona-runtime-314 / pending push commit
+changed_files:
+- server/src/chat/chat.service.ts
+- server/src/chat/llm-provider.adapter.ts
+- server/src/chat/chat.service.spec.ts
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Character chat catalog and starter prompt projections now include `runtimePersona`, preserving character-specific welcome text, starter options, tone tags, forbidden tone/blocked-expression notes, and safety note without LLM, wallet, order, settlement, or payout mutation.
+- Generation now loads the active artist profile metadata for the owned session and sends the runtime persona context to the provider request before generation, while leaving preflight/cooldown/daily/provider failure guards intact.
+- Provider instructions now incorporate the runtime persona summary internally; raw prompt, API key, token, provider raw response, and full generated text are not returned or recorded.
+- Provider disabled/failure fallback paths remain fail-closed or safe fallback as before; read-only welcome/starter projections remain character-specific because they do not depend on provider readiness.
+- Minimum three-character verification covered distinct warm/quiet, calm/distant, and playful/high-energy runtime tone summaries without recording generated response bodies.
+blocked_by:
+- none
+next_needed:
+- Viewer review, then deploy/smoke against staging with provider enabled using summary-only tone checks.
+sensitive_values_recorded:
+- none
