@@ -650,7 +650,7 @@
           const name = item.displayName || item.name || item.artist?.displayName || item.artist?.name || slug || "아티스트";
           const thumb = item.thumbnailUrl || item.thumbUrl || item.artist?.thumbnailUrl || item.artist?.images?.thumb || item.artist?.thumb || "";
           const meta = item.followedAt ? shortDate(item.followedAt) + "부터 팔로우" : "팔로우 중";
-          return "<a class=\"mypage-following-card\" href=\"./character-detail.html?slug=" + encodeURIComponent(slug) + "\">" +
+          return "<a class=\"mypage-following-card\" href=\"/character-detail?slug=" + encodeURIComponent(slug) + "\">" +
             "<span class=\"mypage-following-thumb\"" + (thumb ? " style=\"background-image:url('" + escapeHtml(thumb) + "')\"" : "") + ">" +
             (!thumb ? escapeHtml(name.slice(0, 1)) : "") + "</span><span><strong>" + escapeHtml(name) + "</strong><p>" + escapeHtml(meta) + "</p></span></a>";
         }
@@ -1522,7 +1522,7 @@
             });
           });
           $("mypageSaveSettings")?.addEventListener("click", saveMypageSettings);
-          $("mypageChargeButton")?.addEventListener("click", () => { window.location.href = "./charge.html"; });
+          $("mypageChargeButton")?.addEventListener("click", () => { window.location.href = "/charge"; });
           $("mypageActivationRewards")?.addEventListener("click", event => {
             const button = event.target.closest("[data-activation-claim]");
             if (!button) return;

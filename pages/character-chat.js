@@ -678,7 +678,7 @@
       const slug = item?.artist?.slug || "";
       open.href = slug
         ? "/character-chat?slug=" + encodeURIComponent(slug) + "&sessionId=" + encodeURIComponent(item.id || "")
-        : "./character-chat.html";
+        : "/character-chat";
       open.setAttribute("aria-label", conversationItemTitle(item) + " 대화 열기");
       open.textContent = "열기";
 

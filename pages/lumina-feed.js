@@ -305,7 +305,7 @@ function initLuminaFeedSidebar() {
   const panel = document.querySelector(".feed-side-panel");
   if (!panel) return;
   const me = (typeof getAuth === "function") ? getAuth()?.user : null;
-  const profileUrl = me ? buildUserProfileUrl(me) : "./mypage.html";
+  const profileUrl = me ? buildUserProfileUrl(me) : "/mypage";
   const profileLink = document.getElementById("feedSideProfileLink");
   const nameEl = document.getElementById("feedSideName");
   const avatarEl = document.getElementById("feedSideAvatar");

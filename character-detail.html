@@ -112,7 +112,7 @@
               const slug = new URLSearchParams(window.location.search).get("slug") || "";
               const link = document.getElementById("chatStartLink");
               if (slug && link) {
-                link.href = "./character-chat.html?slug=" + encodeURIComponent(slug);
+                link.href = "/character-chat?slug=" + encodeURIComponent(slug);
               }
             } catch (_) { /* noop */ }
           })();
