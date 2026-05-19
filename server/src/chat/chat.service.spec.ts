@@ -2050,6 +2050,28 @@ describe('ChatService.generateMessage provider beta', () => {
       userId,
       userEmail: 'beta@example.com',
     });
+    expect(prisma.chatSession.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          artist: expect.objectContaining({
+            select: expect.objectContaining({
+              publicProfile: expect.objectContaining({
+                select: expect.objectContaining({
+                  publicMetadata: true,
+                  tagline: true,
+                  personalityKeywords: true,
+                }),
+              }),
+              contentProfile: expect.objectContaining({
+                select: expect.objectContaining({
+                  contentTone: true,
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    );
     expect(llmProvider.generate).toHaveBeenCalledWith(
       expect.objectContaining({
         userId,
