@@ -1,6 +1,63 @@
 # Team2 QA Inbox
 
 status: fail
+task: #320 - clean URL live QA
+environment:
+- branch: team2-qa/320-clean-url-live-qa
+- local main after pull: origin/main
+- basis commit: 8afcbfccce437da4b57372f848c3d4f50749f158
+- primary live domain: https://www.lumina-stage.com
+- comparison GitHub Pages path: https://kikiksl1207.github.io/ai-entertainment-studio
+- No token, cookie, password, env value, raw credential, or secret was recorded.
+
+tested_flows:
+- PASS: root `/` on `www.lumina-stage.com` returned HTTP 200.
+- FAIL: clean URL `/characters` on `www.lumina-stage.com` returned HTTP 404.
+- FAIL: clean URL `/lumina-pick` on `www.lumina-stage.com` returned HTTP 404.
+- FAIL: clean URL `/lumina-feed` on `www.lumina-stage.com` returned HTTP 404.
+- FAIL: clean URL `/shortform` on `www.lumina-stage.com` returned HTTP 404.
+- FAIL: clean URL `/debut` on `www.lumina-stage.com` returned HTTP 404.
+- FAIL: clean URL `/charge` on `www.lumina-stage.com` returned HTTP 404.
+- FAIL: clean URL `/mypage` on `www.lumina-stage.com` returned HTTP 404.
+- FAIL: clean URL `/creator-studio` on `www.lumina-stage.com` returned HTTP 404.
+- PASS: existing `.html` URLs on `www.lumina-stage.com` returned HTTP 200 for `characters.html`, `popular-vote.html`, `lumina-feed.html`, `shortform.html`, `debut.html`, `charge.html`, `mypage.html`, and `creator-studio.html`.
+- PASS: token-style `verify-email` and `reset-password` routes returned HTTP 200 with token query redacted in notes.
+- FAIL: header/mobile nav on `www.lumina-stage.com` still exposes `.html` links: `index.html`, `characters.html`, `popular-vote.html`, `lumina-feed.html`, `shortform.html`, `debut.html`.
+- FAIL: unknown route on `www.lumina-stage.com` shows hosting default `404: NOT_FOUND`, not a user-facing safe 안내 page.
+- PASS: legacy `characters.html` page had no page-level horizontal overflow at 1280px, 768px, and 390px.
+- PASS: legacy `characters.html` page had no visible mojibake, forbidden placeholder copy, or failed images at those widths.
+- PASS: browser back navigation between legacy `.html` pages worked.
+- PARTIAL: GitHub Pages project path supports some extensionless paths (`/characters`, `/lumina-feed`, `/shortform`, `/debut`, `/charge`, `/mypage`, `/creator-studio`) but `/lumina-pick` returned 404 there too. The public custom domain remains the blocker.
+
+repro_steps:
+1. Run `git pull origin main`.
+2. Confirm local `HEAD` is `8afcbfccce437da4b57372f848c3d4f50749f158`.
+3. Open or request `https://www.lumina-stage.com/characters`.
+4. Repeat for `/lumina-pick`, `/lumina-feed`, `/shortform`, `/debut`, `/charge`, `/mypage`, and `/creator-studio`.
+5. Compare with the matching `.html` URLs.
+6. Inspect header/mobile nav links from `https://www.lumina-stage.com/`.
+7. Check token-style routes with a redacted synthetic query only; do not record token values.
+8. Check an unknown route such as `/qa-clean-url-missing-path`.
+
+blockers:
+- Public custom domain clean URLs are not routed. Only `/` works; all required clean page paths return 404.
+- Public nav still points to `.html` URLs, so new URL exposure is not active.
+- Missing route fallback is a provider default 404 rather than a product-safe 안내 page.
+- `lumina-pick` clean URL is also missing on the GitHub Pages project path.
+
+next_needed:
+- Return to the previous owner for #319/#320 clean URL routing fixes.
+- Add custom-domain routing/rewrites or static `path/index.html` shims for all required clean paths.
+- Update header/nav/card/button/share links to clean URLs.
+- Add a user-facing 404/safe 안내 page for unknown paths.
+
+security_check:
+- PASS: no raw token, credential, cookie, password, env value, or secret was recorded.
+- PASS: no auth, wallet, order, settlement, or mutation action was executed.
+
+---
+
+status: fail
 task: #314 - Character chat persona/starter runtime re-QA
 environment:
 - branch: team2-qa/314-character-chat-reqa
