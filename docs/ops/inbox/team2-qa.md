@@ -1,5 +1,36 @@
 # Team2 QA Inbox
 
+status: fail
+task: #312 - 전체 화면 문구 수정 live QA
+branch/commit:
+- branch: team2-qa/312-copy-live-qa
+- local main after pull: origin/main
+- basis commit: 0c55b3d249a001f8983e1aa7eab1f83f9ccd2414
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: `git pull origin main`
+- PASS: #311 changed-file review for `app.js`, `backstage.js`, `charge.html`, `creator-studio.html`, `debut.html`, `lumina-feed.html`, `privacy.html`, `terms.html`.
+- PASS: live browser QA at 1280px, 768px, and 390px for Home, Artists, Min Chaeon detail, Character Chat, Lumina Feed, Debut, Charge, Creator Studio, Backstage, Terms, and Privacy.
+- PASS: no horizontal overflow at 1280px, 768px, or 390px across checked pages.
+- PASS: no visible mojibake across checked pages.
+- PASS: no visible `MVP`, `placeholder`, `TODO`, or `Coming Soon` across checked pages.
+- PASS: `node --check app.js`
+- PASS: `node --check backstage.js`
+- PASS: `git diff --check`
+result:
+- FAIL: `lumina-feed.html` shows a public user post body containing `테스트` at 1280px, 768px, and 390px. This violates the #312 forbidden-copy QA criterion for live user-facing screens.
+- Observation: `debut.html` still contains the phrase `보컬 샘플`. This looks like a domain phrase rather than development-stage copy, but it includes the literal forbidden word `샘플`; PM should decide whether this specific phrase is allowed or should be rewritten.
+- No payment, settlement, wallet, Lumina, order, payout, Backstage mutation, Creator Studio mutation, or LLM mutation was executed.
+blocked_by:
+- Live Lumina Feed contains visible test-word content in a public feed card.
+next_needed:
+- Return #312 to the previous owner/PM for live content cleanup or copy policy decision. Re-run live QA after the Lumina Feed `테스트` post is removed/hidden or policy-cleared.
+security_check:
+- PASS: no token, cookie, password, env value, raw email, signed URL, storage key, or credential was recorded in this report.
+
+---
+
 status: pass
 task: Fan engagement Home teaser smoke QA
 environment:
