@@ -73,6 +73,7 @@
             <a href="#users">유저 관리 <b>3</b></a>
             <a href="#creators">크리에이터 관리 <b>5</b></a>
             <a href="#ai-content">AI 콘텐츠 <b>9</b></a>
+            <a href="#site-content">사이트 문구 관리 <b id="siteContentCountBadge">0</b></a>
             <a href="#moderation">크리에이터 콘텐츠 <b>5</b></a>
             <a href="#fan-missions">팬 미션 <b id="fanMissionCountBadge">0</b></a>
             <a href="#settlement">정산 현황 <b>3</b></a>
@@ -232,6 +233,165 @@
             </div>
           </section>
 
+          <section class="section-block" id="site-content">
+            <div class="section-title">
+              <div><span class="section-kicker">Site Content</span><h2>사이트 문구 관리</h2></div>
+              <p>홈/아티스트/캐릭터별 카드·히어로·CTA·FAQ 등 사이트 문구를 발행 단위로 관리합니다. 메인 메뉴명, 네비게이션, 가격은 이 화면에서 수정하지 않습니다.</p>
+            </div>
+            <p class="section-note">발행은 published 상태로 즉시 반영되며, 보관(archived)은 사용자 화면에서 숨김 처리됩니다. raw HTML/script 입력은 차단되고 CTA URL은 lumina-stage.com 호스트만 허용됩니다.</p>
+            <div class="filter-row section-filter-row" aria-label="사이트 문구 상태 필터">
+              <button class="filter-chip is-active" type="button" data-site-content-status="">전체</button>
+              <button class="filter-chip" type="button" data-site-content-status="draft">draft</button>
+              <button class="filter-chip" type="button" data-site-content-status="published">published</button>
+              <button class="filter-chip" type="button" data-site-content-status="archived">archived</button>
+            </div>
+            <form class="site-content-filters" id="siteContentFilterForm" aria-label="사이트 문구 필터">
+              <label>페이지
+                <select name="pageKey" id="siteContentPageKey">
+                  <option value="">전체</option>
+                  <option value="home">home</option>
+                  <option value="characters">characters</option>
+                  <option value="character-detail">character-detail</option>
+                  <option value="lumina-pick">lumina-pick</option>
+                  <option value="lumina-feed">lumina-feed</option>
+                  <option value="shortform">shortform</option>
+                  <option value="debut">debut</option>
+                  <option value="charge">charge</option>
+                  <option value="character-chat">character-chat</option>
+                </select>
+              </label>
+              <label>스코프
+                <select name="scope" id="siteContentScope">
+                  <option value="">전체</option>
+                  <option value="global">global</option>
+                  <option value="page">page</option>
+                  <option value="character">character</option>
+                  <option value="feature">feature</option>
+                  <option value="notice">notice</option>
+                </select>
+              </label>
+              <label>캐릭터 slug
+                <input type="text" id="siteContentCharacterSlug" name="characterSlug" placeholder="yoon-serin" maxlength="80" autocomplete="off" />
+              </label>
+              <label>모델 slug
+                <input type="text" id="siteContentModelSlug" name="modelSlug" placeholder="gpt-4o" maxlength="80" autocomplete="off" />
+              </label>
+              <label>로케일
+                <select name="locale" id="siteContentLocale">
+                  <option value="ko">ko</option>
+                  <option value="en">en</option>
+                </select>
+              </label>
+              <label class="is-wide">검색
+                <input type="search" id="siteContentSearch" name="search" placeholder="contentKey, 제목, 본문 검색" maxlength="80" autocomplete="off" />
+              </label>
+              <div class="site-content-filter-actions">
+                <button class="secondary-action" type="submit">필터 적용</button>
+                <button class="ghost-action" type="reset" id="siteContentFilterReset">초기화</button>
+                <button class="primary-action" type="button" id="siteContentCreateButton">새 문구 만들기</button>
+              </div>
+            </form>
+            <div class="table-grid is-stacked">
+              <article class="table-card">
+                <header>
+                  <h3>문구 목록</h3>
+                  <span class="section-note" id="siteContentTotalNote">총 0건</span>
+                </header>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>contentKey</th>
+                        <th>대상 페이지</th>
+                        <th>스코프</th>
+                        <th>캐릭터/모델</th>
+                        <th>현재 제목</th>
+                        <th>상태</th>
+                        <th>수정일</th>
+                        <th>액션</th>
+                      </tr>
+                    </thead>
+                    <tbody id="siteContentRows"></tbody>
+                  </table>
+                </div>
+              </article>
+              <article class="table-card is-hidden" id="siteContentEditorCard" aria-live="polite">
+                <header>
+                  <h3 id="siteContentEditorTitle">새 문구 만들기</h3>
+                  <button class="text-action" type="button" id="siteContentEditorClose">닫기</button>
+                </header>
+                <p class="section-note" id="siteContentEditorMeta"></p>
+                <form class="site-content-form" id="siteContentForm" novalidate>
+                  <div class="site-content-form-grid">
+                    <label class="is-wide">contentKey
+                      <input name="contentKey" type="text" required maxlength="160" placeholder="hero.title.home" />
+                      <small>소문자/숫자/`.`/`-`/`_`/`:` 조합 (3~160자). 발행 후에는 수정할 수 없습니다.</small>
+                    </label>
+                    <label>scope
+                      <select name="scope" required>
+                        <option value="global">global</option>
+                        <option value="page">page</option>
+                        <option value="character">character</option>
+                        <option value="feature">feature</option>
+                        <option value="notice">notice</option>
+                      </select>
+                    </label>
+                    <label>locale
+                      <select name="locale" required>
+                        <option value="ko">ko</option>
+                        <option value="en">en</option>
+                        <option value="ko-KR">ko-KR</option>
+                        <option value="en-US">en-US</option>
+                      </select>
+                    </label>
+                    <label>pageKey
+                      <input name="pageKey" type="text" maxlength="80" placeholder="home, characters, ..." autocomplete="off" />
+                    </label>
+                    <label>characterSlug
+                      <input name="characterSlug" type="text" maxlength="80" placeholder="yoon-serin" autocomplete="off" />
+                    </label>
+                    <label>modelSlug
+                      <input name="modelSlug" type="text" maxlength="80" placeholder="gpt-4o" autocomplete="off" />
+                    </label>
+                    <label class="is-wide">제목
+                      <input name="title" type="text" maxlength="180" />
+                      <small><span data-counter="title">0</span> / 180</small>
+                    </label>
+                    <label class="is-wide">본문
+                      <textarea name="body" maxlength="5000" rows="6"></textarea>
+                      <small><span data-counter="body">0</span> / 5000 · &lt;, &gt;, javascript:, data:text/html 같은 raw HTML/script 패턴은 저장이 거부됩니다.</small>
+                    </label>
+                    <label>CTA 라벨
+                      <input name="ctaLabel" type="text" maxlength="80" />
+                    </label>
+                    <label>CTA URL
+                      <input name="ctaHref" type="url" maxlength="500" placeholder="https://www.lumina-stage.com/..." />
+                      <small>lumina-stage.com / www.lumina-stage.com 만 허용</small>
+                    </label>
+                    <label class="is-wide">content JSON (선택)
+                      <textarea name="content" rows="4" placeholder='{"items":[{"label":"홈 카드","copy":"..."}]}'></textarea>
+                      <small>JSON 객체만 허용. 잘못된 JSON은 저장 시 거부됩니다.</small>
+                    </label>
+                  </div>
+                  <div class="site-content-actions">
+                    <button class="primary-action" type="submit" id="siteContentSaveButton">저장</button>
+                    <button class="secondary-action" type="button" id="siteContentPublishButton">발행</button>
+                    <button class="ghost-action" type="button" id="siteContentArchiveButton">보관</button>
+                    <p class="form-status" id="siteContentFormStatus" role="status" aria-live="polite"></p>
+                  </div>
+                </form>
+                <section class="site-content-preview" aria-label="문구 미리보기">
+                  <h4>미리보기</h4>
+                  <div id="siteContentPreview" class="site-content-preview-body">제목/본문/CTA를 입력하면 사용자 화면에 보일 모양을 미리 확인할 수 있어요.</div>
+                </section>
+                <section class="site-content-audit" aria-label="감사 로그" id="siteContentAuditSection" hidden>
+                  <h4>감사 로그</h4>
+                  <ul id="siteContentAuditList"></ul>
+                </section>
+              </article>
+            </div>
+          </section>
+
           <section class="section-block" id="moderation">
             <div class="section-title"><div><span class="section-kicker">Creator Contents</span><h2>크리에이터 콘텐츠</h2></div><p>전체 글을 다 열람하지 않고, 집중 관리 대상과 이상 패턴, 취소/철회 신고만 운영 확인합니다.</p></div>
             <p class="section-note" id="feedSearchSummary">검색어 분석은 최근 1시간 기준으로 언어/타입별 검색 흐름과 공개 탐색 제외어를 확인합니다.</p>
@@ -362,5 +522,6 @@
     </main>
 
     <script src="./backstage.js"></script>
+    <script src="./backstage-site-content.js"></script>
   </body>
 </html>
