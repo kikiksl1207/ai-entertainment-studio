@@ -326,7 +326,7 @@ const I18N_DICT = {
     "zh-CN": "税后预计入账金额。汇率与税务核对后可能略有变动。"
   },
   "payout.card.sampleNote": {
-    "ko-KR": "샘플 정산 예시입니다. 실제 정산액은 계약 등급, 환불, 세금, 환율 기준에 따라 달라질 수 있어요.",
+    "ko-KR": "예상 정산 미리보기입니다. 실제 정산액은 계약 등급, 환불, 세금, 환율 기준에 따라 달라질 수 있어요.",
     "ja-JP": "精算サンプルです。実際の金額は契約ランク、返金、税金、為替条件により変わる場合があります。",
     "en-US": "This is a sample payout preview. Actual payout may vary by contract tier, refunds, tax, and FX rules.",
     "zh-CN": "这是结算示例。实际金额会因合同等级、退款、税费和汇率规则而变化。"
@@ -755,7 +755,7 @@ function createAuthModal() {
         <label class="auth-modal-field"><span>이메일</span>
           <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
         <label class="auth-modal-field"><span>닉네임 <small style="color:rgba(255,255,255,0.4);font-weight:400;">(선택)</small></span>
-          <input type="text" name="displayName" autocomplete="nickname" placeholder="비워두면 임시 이름이 자동 부여돼요" />
+          <input type="text" name="displayName" autocomplete="nickname" placeholder="비워두면 기본 닉네임이 자동 부여돼요" />
           <small style="color:rgba(255,255,255,0.45);font-size:11.5px;margin-top:4px;display:block;">이메일이나 실명은 공개 닉네임으로 사용하지 않아요. 계정 설정에서 언제든 바꿀 수 있어요.</small></label>
         <label class="auth-modal-field"><span>비밀번호 (8자 이상)</span>
           <input type="password" name="password" required minlength="8" autocomplete="new-password" /></label>
