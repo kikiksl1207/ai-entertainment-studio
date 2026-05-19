@@ -90,6 +90,18 @@ export class CommunityController {
     return this.communityService.createPost(user.id, body);
   }
 
+  @Post('lumina-feed/posts/thread')
+  @UseGuards(JwtAuthGuard)
+  createThreadPost(@CurrentUser() user: AuthUser, @Body() body: CommunityBody) {
+    return this.communityService.createThreadPost(user.id, body);
+  }
+
+  @Get('lumina-feed/posts/:postId')
+  @UseGuards(OptionalJwtAuthGuard)
+  getPost(@Param('postId') postId: string, @Req() request: RequestWithOptionalAuth) {
+    return this.communityService.getPost(postId, request.user?.id);
+  }
+
   @Post('lumina-feed/link-preview')
   @UseGuards(JwtAuthGuard)
   createLinkPreview(@CurrentUser() user: AuthUser, @Body() body: CommunityBody) {
@@ -110,6 +122,27 @@ export class CommunityController {
     @Body() body: CommunityBody,
   ) {
     return this.communityService.updatePost(user.id, postId, body);
+  }
+
+  @Patch('lumina-feed/posts/:postId/thread-items/:itemId')
+  @UseGuards(JwtAuthGuard)
+  updateThreadItem(
+    @CurrentUser() user: AuthUser,
+    @Param('postId') postId: string,
+    @Param('itemId') itemId: string,
+    @Body() body: CommunityBody,
+  ) {
+    return this.communityService.updateThreadItem(user.id, postId, itemId, body);
+  }
+
+  @Delete('lumina-feed/posts/:postId/thread-items/:itemId')
+  @UseGuards(JwtAuthGuard)
+  deleteThreadItem(
+    @CurrentUser() user: AuthUser,
+    @Param('postId') postId: string,
+    @Param('itemId') itemId: string,
+  ) {
+    return this.communityService.deleteThreadItem(user.id, postId, itemId);
   }
 
   @Get('lumina-feed/posts/:postId/replies')

@@ -253,6 +253,10 @@ Lumina Feed follow endpoints:
 - `GET /api/v1/me/following-users`
 - `GET /api/v1/me/followers`
 - `GET /api/v1/me/lumina-feed`
+- `GET /api/v1/lumina-feed/posts/:postId`
+- `POST /api/v1/lumina-feed/posts/thread`
+- `PATCH /api/v1/lumina-feed/posts/:postId/thread-items/:itemId`
+- `DELETE /api/v1/lumina-feed/posts/:postId/thread-items/:itemId`
 - `POST /api/v1/lumina-feed/posts/:postId/hide`
 - `DELETE /api/v1/lumina-feed/posts/:postId/hide`
 - `GET /api/v1/me/hidden-posts`
@@ -267,6 +271,7 @@ Handle-based follow/block endpoints are available for public-handle profile scre
 `GET /api/v1/me/lumina-feed` keeps the public feed shape but excludes posts hidden by the current user and posts from active block relationships. Blocking a user also soft-deletes active follows in both directions.
 Feed actions now create notification-center rows: `feed.reply`, `feed.like`, and `user.follow`. Self-actions do not create notifications. `feedNotifications=false` suppresses `feed.*`; `activityNotifications=false` suppresses `user.follow`. Notification responses include an `i18n` block with translation keys and fallback text for frontend locale dictionaries.
 Feed posts can link up to 4 existing public image assets through `assetIds` on `POST /api/v1/lumina-feed/posts`. Assets must be uploaded/confirmed and not archived; post responses expose linked image URLs through `assets[]`.
+Manual feed threads use `POST /api/v1/lumina-feed/posts/thread`. The root piece is the normal feed post body, every piece is limited to 500 characters, and the default max is 10 pieces including the root. The backend does not auto-split. Feed rows expose `post.thread` with `isThread`, `itemCount`, `previewText`, and ordered `items`; likes, comments, reports, hides, and images remain root-post based. Non-root item edit/delete endpoints are author-only and do not touch wallet, Lumina, settlement, payout, or order flows.
 
 ## Debut Application APIs
 
