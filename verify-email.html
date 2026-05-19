@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>이메일 인증 — Lumina Stage</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="canonical" href="/verify-email/" />
     <meta name="description" content="Lumina Stage 이메일 인증 결과 페이지." />
     <meta name="robots" content="noindex, nofollow" />
     <meta property="og:type" content="website" />
@@ -41,7 +42,7 @@
             <p id="verifyEmailBody">메일에서 받은 인증 링크를 확인하고 있습니다. 잠시만 기다려주세요.</p>
             <div class="auth-confirm-spinner" id="verifyEmailSpinner" aria-hidden="true"></div>
             <nav class="auth-confirm-actions" id="verifyEmailActions" hidden>
-              <a class="button button-primary" id="verifyEmailPrimaryAction" href="./mypage.html">마이페이지로 이동</a>
+              <a class="button button-primary" id="verifyEmailPrimaryAction" href="./mypage/">마이페이지로 이동</a>
               <a class="button button-secondary" href="./index.html">홈으로</a>
             </nav>
           </article>
@@ -56,7 +57,7 @@
           <p>이메일 인증 확인 페이지입니다.</p>
         </div>
         <div class="footer-links">
-          <a href="./characters.html" data-i18n="footer.artistRoster">아티스트 라인업</a>
+          <a href="./characters/" data-i18n="footer.artistRoster">아티스트 라인업</a>
           <a href="./terms.html" data-i18n="footer.terms">이용약관</a>
           <a href="./privacy.html" data-i18n="footer.privacy">개인정보처리방침</a>
           <a href="./refund-policy.html" data-i18n="footer.refund">환불 정책</a>
@@ -88,27 +89,27 @@
             if (kicker) kicker.textContent = "이메일 인증";
             if (title) title.textContent = "이메일 인증이 완료됐어요";
             if (body) body.textContent = payload?.message || "이제 로그인하고 Lumina Stage의 모든 기능을 사용할 수 있어요.";
-            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "./mypage.html"; }
+            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "./mypage/"; }
           } else if (state === "expired") {
             if (kicker) kicker.textContent = "이메일 인증";
             if (title) title.textContent = "인증 링크가 만료됐어요";
             if (body) body.textContent = "이메일 인증 링크는 일정 시간이 지나면 사용할 수 없어요. 마이페이지에서 인증 메일을 다시 보내주세요.";
-            if (primary) { primary.textContent = "마이페이지에서 재전송"; primary.href = "./mypage.html"; }
+            if (primary) { primary.textContent = "마이페이지에서 재전송"; primary.href = "./mypage/"; }
           } else if (state === "used") {
             if (kicker) kicker.textContent = "이메일 인증";
             if (title) title.textContent = "이미 사용한 인증 링크예요";
             if (body) body.textContent = "이 인증 링크는 이미 사용됐어요. 그대로 로그인해 사용할 수 있어요.";
-            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "./mypage.html"; }
+            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "./mypage/"; }
           } else if (state === "invalid") {
             if (kicker) kicker.textContent = "이메일 인증";
             if (title) title.textContent = "이 링크는 인증에 사용할 수 없어요";
             if (body) body.textContent = "메일에서 받은 인증 링크 전체를 다시 눌러주세요. 문제가 반복되면 마이페이지에서 인증 메일을 다시 보내주세요.";
-            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "./mypage.html"; }
+            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "./mypage/"; }
           } else if (state === "error") {
             if (kicker) kicker.textContent = "이메일 인증";
             if (title) title.textContent = "인증 처리 중 문제가 생겼어요";
             if (body) body.textContent = "잠시 후 다시 시도해주세요. 같은 문제가 반복되면 마이페이지에서 인증 메일을 새로 받아주세요.";
-            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "./mypage.html"; }
+            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "./mypage/"; }
           }
         }
 

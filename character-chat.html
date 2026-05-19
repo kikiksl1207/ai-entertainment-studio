@@ -6,6 +6,7 @@
     <title>캐릭터챗 | Lumina Stage</title>
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./styles/character-chat.css" />
+    <link rel="canonical" href="/character-chat/" />
     <meta name="description" content="Lumina Stage 아티스트와 1:1 DM처럼 부드럽게 대화를 시작해보세요." />
     <meta name="robots" content="noindex, nofollow" />
     <meta property="og:type" content="website" />
@@ -32,12 +33,12 @@
 
         <nav class="main-nav" aria-label="메인 메뉴">
           <a href="./index.html" data-i18n="nav.home">홈</a>
-          <a href="./characters.html" data-i18n="nav.artists">아티스트</a>
-          <a href="./popular-vote.html" data-i18n="nav.luminaPick">루미나 픽</a>
-          <a href="./lumina-feed.html" data-i18n="nav.luminaFeed">루미나 피드</a>
-          <a href="./shortform.html" data-i18n="nav.shortform">숏폼</a>
+          <a href="./characters/" data-i18n="nav.artists">아티스트</a>
+          <a href="./lumina-pick/" data-i18n="nav.luminaPick">루미나 픽</a>
+          <a href="./lumina-feed/" data-i18n="nav.luminaFeed">루미나 피드</a>
+          <a href="./shortform/" data-i18n="nav.shortform">숏폼</a>
         </nav>
-        <a class="debut-cta-mobile" href="./debut.html" data-i18n="cta.debut">데뷔하기</a>
+        <a class="debut-cta-mobile" href="./debut/" data-i18n="cta.debut">데뷔하기</a>
         <div class="header-auth">
           <a class="auth-btn auth-btn-login" href="#" data-i18n="auth.login">로그인</a>
           <a class="auth-btn auth-btn-signup" href="#" data-i18n="auth.signup">회원가입</a>
@@ -67,7 +68,7 @@
       <div class="shell chat-shell" id="chatRoomShell" data-clean-mode="off" hidden>
         <!-- DM 헤더: 인스타 DM 상단 느낌 -->
         <section class="dm-topbar" aria-label="대화 상대">
-          <a class="dm-back" href="./characters.html" aria-label="뒤로 가기">‹</a>
+          <a class="dm-back" href="./characters/" aria-label="뒤로 가기">‹</a>
           <div class="dm-peer">
             <div class="dm-peer-avatar" id="chatHeroAvatar" aria-hidden="true">
               <span class="dm-peer-status-dot" aria-hidden="true"></span>
@@ -77,7 +78,7 @@
               <p class="dm-peer-status" id="chatHeroSummary">메시지를 준비하는 중이에요</p>
             </div>
           </div>
-          <a class="dm-peer-profile" id="chatHeroProfile" href="./characters.html" aria-label="아티스트 프로필 열기">
+          <a class="dm-peer-profile" id="chatHeroProfile" href="./characters/" aria-label="아티스트 프로필 열기">
             <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22"><circle cx="12" cy="9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c.7-3.6 3.6-5.6 7-5.6s6.3 2 7 5.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
           </a>
         </section>
@@ -90,7 +91,7 @@
             <h2 class="dm-featured-peer-name" id="chatFeaturedName">아티스트</h2>
             <p class="dm-featured-peer-summary" id="chatFeaturedSummary">메시지를 기다리고 있어요</p>
             <ul class="dm-featured-peer-tags" id="chatFeaturedTags"></ul>
-            <a class="dm-featured-peer-profile" id="chatFeaturedProfile" href="./characters.html">프로필 보기 →</a>
+            <a class="dm-featured-peer-profile" id="chatFeaturedProfile" href="./characters/">프로필 보기 →</a>
           </div>
         </section>
 
@@ -256,7 +257,7 @@
           <div class="dm-inbox-empty-icon" aria-hidden="true">📭</div>
           <p class="dm-inbox-empty-title">아직 받은 이미지가 없어요</p>
           <p class="dm-inbox-empty-desc">새 이미지·영상 요청이 검수와 제작을 거쳐 도착하면 이곳에 차곡차곡 쌓여요.</p>
-          <p class="dm-inbox-empty-hint">공식 갤러리는 <a class="text-link" id="chatInboxArtistGalleryLink" href="./characters.html">아티스트 상세 페이지</a>에서 무료로 감상할 수 있어요.</p>
+          <p class="dm-inbox-empty-hint">공식 갤러리는 <a class="text-link" id="chatInboxArtistGalleryLink" href="./characters/">아티스트 상세 페이지</a>에서 무료로 감상할 수 있어요.</p>
         </div>
       </div>
       <footer class="dm-sheet-foot">
@@ -271,7 +272,7 @@
           <p>아티스트와 팬이 같은 무대에서 만나는 공간입니다.</p>
         </div>
         <div class="footer-links">
-          <a href="./characters.html" data-i18n="footer.artistRoster">아티스트 라인업</a>
+          <a href="./characters/" data-i18n="footer.artistRoster">아티스트 라인업</a>
           <a href="./terms.html" data-i18n="footer.terms">이용약관</a>
           <a href="./privacy.html" data-i18n="footer.privacy">개인정보처리방침</a>
           <a href="./refund-policy.html" data-i18n="footer.refund">환불 정책</a>
@@ -287,13 +288,13 @@
       <a href="./index.html" class="mobile-tab" data-tab-key="index.html">
         <span class="mobile-tab-label" data-i18n="nav.home">홈</span>
       </a>
-      <a href="./characters.html" class="mobile-tab" data-tab-key="characters.html">
+      <a href="./characters/" class="mobile-tab" data-tab-key="characters.html">
         <span class="mobile-tab-label" data-i18n="nav.artists">아티스트</span>
       </a>
-      <a href="./lumina-feed.html" class="mobile-tab" data-tab-key="lumina-feed.html">
+      <a href="./lumina-feed/" class="mobile-tab" data-tab-key="lumina-feed.html">
         <span class="mobile-tab-label" data-i18n="nav.luminaFeed">피드</span>
       </a>
-      <a href="./mypage.html" class="mobile-tab" data-tab-key="mypage.html">
+      <a href="./mypage/" class="mobile-tab" data-tab-key="mypage.html">
         <span class="mobile-tab-label" data-i18n="nav.mypage">마이</span>
       </a>
     </nav>

@@ -1966,18 +1966,38 @@ function bindAuthHeaderEvents() {
 /* ── 현재 페이지에 해당하는 메뉴 항목에 is-active 자동 부여 ──
    각 HTML 파일에 일일이 class="is-active"를 박지 않고 JS가 자동 감지.
    2026-05-02: 모바일 가로 스크롤(메뉴 6개)에서 활성 항목 자동 scrollIntoView 추가.
-   2026-05-02 후속(#017): 하단 탭바도 동기 처리. */
+   2026-05-02 후속(#017): 하단 탭바도 동기 처리.
+   #319: clean URL (예: /characters/) 와 기존 .html URL (예: /characters.html) 둘 다
+   동일 페이지로 인식되도록 정규화. popular-vote.html 와 /lumina-pick/, user-profile.html 와
+   /my-profile/ 같은 alias 도 일치시킴. */
+const ROUTE_KEY_ALIASES = {
+  "popular-vote": "lumina-pick",
+  "user-profile": "my-profile",
+  "": "index",
+  "index": "index"
+};
+function routeKeyFromHrefOrPath(value) {
+  if (!value) return "index";
+  // 절대 URL → 경로만 추출
+  let s = String(value);
+  try { s = new URL(s, window.location.origin).pathname; } catch (_) { /* 상대값 */ }
+  s = s.toLowerCase();
+  // ?query, #hash 제거
+  s = s.replace(/[?#].*$/, "");
+  // 끝의 / 제거, .html / .htm 제거
+  s = s.replace(/\/+$/, "").replace(/\.html?$/, "");
+  // 마지막 path segment 만
+  const segment = s.split("/").pop() || "";
+  return ROUTE_KEY_ALIASES[segment] || segment || "index";
+}
 function activateCurrentNavItem() {
-  const path = window.location.pathname;
-  // 마지막 /를 기준으로 파일명 추출. "/" 또는 "" 인 경우 index.html로 간주.
-  const filename = (path.split("/").pop() || "index.html").toLowerCase();
+  const pageKey = routeKeyFromHrefOrPath(window.location.pathname);
   let activeLink = null;
 
   // 상단 nav (데스크톱 + 769px 이상)
   document.querySelectorAll(".main-nav a").forEach(link => {
-    const href = (link.getAttribute("href") || "").toLowerCase();
-    const linkFile = href.split("/").pop();
-    if (linkFile === filename) {
+    const linkKey = routeKeyFromHrefOrPath(link.getAttribute("href"));
+    if (linkKey && linkKey === pageKey) {
       link.classList.add("is-active");
       activeLink = link;
     } else {
@@ -1993,10 +2013,10 @@ function activateCurrentNavItem() {
   }
 
   // 하단 탭바 (모바일 768px↓) — 5개 탭 (홈/아티스트/루미나 픽/피드/숏폼) 동기 처리
-  // data-tab-key는 파일명. 데뷔하기는 헤더 우측 CTA로 분리되어 탭바에 없음.
+  // data-tab-key 는 정규화 전 원본 (예: "characters.html"). 같은 routeKey 헬퍼로 alias 흡수.
   document.querySelectorAll(".mobile-tab").forEach(tab => {
-    const tabKey = (tab.dataset.tabKey || "").toLowerCase();
-    tab.classList.toggle("is-active", tabKey === filename);
+    const tabKey = routeKeyFromHrefOrPath(tab.dataset.tabKey || tab.getAttribute("href"));
+    tab.classList.toggle("is-active", tabKey === pageKey);
   });
 }
 
