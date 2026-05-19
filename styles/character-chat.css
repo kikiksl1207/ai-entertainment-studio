@@ -1195,6 +1195,16 @@
   color: rgba(220, 210, 240, 0.45);
   letter-spacing: 0;
   flex: 0 0 auto;
+  /* #315 — 캐릭터 statusLine 을 짧게 보여주는 경우에도 좁은 화면에서 이름을 밀어내지 않도록 cap */
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 420px) {
+  .dm-list-row-time {
+    max-width: 96px;
+  }
 }
 .dm-list-row-preview {
   font-size: 13px;

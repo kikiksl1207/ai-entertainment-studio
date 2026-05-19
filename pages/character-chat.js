@@ -138,13 +138,18 @@
       setText("chatHeroName", "아티스트를 선택해 주세요");
       setText("chatHeroSummary", "아티스트 프로필에서 대화하기 버튼으로 들어오면 추천 첫 인사를 볼 수 있어요.");
       setHeroAvatar(slug, null);
+      // #315 — slug 없는 상태에서는 starter card 도 generic 안내로 복귀
+      setText("chatStarterEyebrow", "처음이라 어색하죠?");
       return;
     }
 
+    // #315 — 캐릭터별 starter card 헤더 + 히어로 summary 톤. 이름과 statusLine 을 사용해
+    // 모든 캐릭터가 같은 generic 문구로 보이는 문제를 해소.
     const displayName = artist?.displayName || artist?.name || slug;
+    const tone = getCharacterTone(slug);
+    setText("chatStarterEyebrow", `${displayName}에게 첫 인사 골라보기`);
     setText("chatHeroName", displayName);
-    // DM 상단의 status 라인은 "활동 중" 같은 친근한 톤
-    setText("chatHeroSummary", artist?.statusLine || "활동 중 · 메시지를 기다리고 있어요");
+    setText("chatHeroSummary", artist?.statusLine || tone?.statusLine || "활동 중 · 메시지를 기다리고 있어요");
     setHeroAvatar(slug, artist);
 
     // 갤러리 액션 링크: 같은 아티스트 상세 페이지의 갤러리로 이동
@@ -161,7 +166,11 @@
       bubble.hidden = true;
       return;
     }
+    // #315 — artist 객체가 없거나 welcomeMessage 가 비어 있으면 캐릭터별 정적 tone 으로 fallback.
+    // 모든 캐릭터가 같은 generic 문장으로 보이지 않도록 chatTones 데이터를 우선 사용한다.
+    const tone = getCharacterTone(slug);
     const greeting = artist?.welcomeMessage
+      || tone?.welcomeMessage
       || artist?.summary
       || "메시지 보내줘서 고마워요. 오늘은 어떤 이야기로 시작해볼까요?";
     setText("chatWelcomeText", greeting);
@@ -170,6 +179,25 @@
     const mm = String(now.getMinutes()).padStart(2, "0");
     setText("chatWelcomeTime", `${hh}:${mm}`);
     bubble.hidden = false;
+  }
+
+  /* #315 — chatEmpty 영역도 캐릭터별 정적 fallback 으로 메시지 차별화.
+     welcome bubble 이 안 그려지는 극단 케이스(데이터 미도착, 정적 fallback 도 실패)에서도
+     "아티스트가 답장 준비 중이에요" 같은 generic 문구가 모든 캐릭터에 동일하게 보이지 않게 한다. */
+  function applyChatEmptyForSlug(slug, artist) {
+    const empty = $("chatEmpty");
+    if (!empty) return;
+    const para = empty.querySelector("p");
+    if (!para) return;
+    if (!slug) {
+      para.textContent = "아티스트 프로필에서 대화하기 버튼으로 들어와 주세요.";
+      return;
+    }
+    const tone = getCharacterTone(slug);
+    const displayName = artist?.displayName || artist?.name || tone?.name || "";
+    const status = tone?.statusLine || "활동 중";
+    const namePrefix = displayName ? `${displayName} · ` : "";
+    para.textContent = `${namePrefix}${status}. 곧 한 마디 건네드릴게요.`;
   }
 
   function buildStarterOptions(serverOptions) {
@@ -232,6 +260,9 @@
       renderHero(slug, data.artist);
       renderWelcomeBubble(slug, data.artist);
     }
+    // #315 — chatEmpty fallback 도 항상 캐릭터별로 갱신 (welcome 이 그려지면 보이지 않지만,
+    // 안 그려지는 극단 케이스에서 generic 문구 노출을 막는 안전망)
+    applyChatEmptyForSlug(slug, data?.artist || null);
     const firstSet = Array.isArray(data?.sets) ? data.sets[0] : null;
 
     if (!firstSet) {
@@ -272,6 +303,7 @@
       renderStarterOptions([]);
       showStarterCard();
       renderWelcomeBubble(slug, null);
+      applyChatEmptyForSlug(slug, null);
       return null;
     }
 
@@ -293,6 +325,7 @@
       renderStarterOptions([]);
       showStarterCard();
       renderWelcomeBubble(slug, null);
+      applyChatEmptyForSlug(slug, null);
       return null;
     }
   }
@@ -723,12 +756,21 @@
       name.textContent = char.name || char.slug;
       const time = document.createElement("span");
       time.className = "dm-list-row-time";
-      time.textContent = "준비 중";
+      // #315 — "준비 중" 단일 라벨이 모든 캐릭터에 동일 노출되는 문제 해소.
+      // tone.statusLine 짧은 한 줄을 사용하고, 좁은 화면 보호를 위해 12자에서 자른다.
+      const moodText = (tone?.statusLine || "새 대화").trim();
+      const shortMood = moodText.length > 12 ? moodText.slice(0, 11) + "…" : moodText;
+      time.textContent = shortMood;
+      time.title = moodText; // 전체 문구는 title attribute 로 hover/long-press 확인
       head.append(name, time);
 
       const preview = document.createElement("span");
       preview.className = "dm-list-row-preview";
-      preview.textContent = tone?.lastMessagePreview || tone?.welcomeMessage || "처음 인사를 기다리고 있어요.";
+      // 캐릭터별 lastMessagePreview/welcomeMessage 가 없을 때도 일반 안내가 아닌
+      // 작품 라인업 안내로 폴백.
+      preview.textContent = tone?.lastMessagePreview
+        || tone?.welcomeMessage
+        || (char.role ? `${char.role}로 활동 중이에요.` : "첫 인사를 골라보세요.");
 
       body.append(head, preview);
       link.append(avatar, body);
