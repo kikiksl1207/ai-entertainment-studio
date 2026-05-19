@@ -2273,6 +2273,42 @@ function buildMiniProfileAuthorAttrs({ target, handle, userId } = {}) {
   return ` ${parts.join(" ")}`;
 }
 
+function normalizeFeedThread(rawThread, rawPost = {}) {
+  if (!rawThread || typeof rawThread !== "object") return null;
+  const rootPostId = String(rawThread.rootPostId || rawThread.rootThreadId || rawPost.id || "");
+  const rawItems = Array.isArray(rawThread.items) ? rawThread.items : [];
+  const items = rawItems
+    .map((item, idx) => ({
+      id: String(item?.id ?? `${rootPostId || "thread"}-${idx + 1}`),
+      postId: String(item?.postId || rootPostId || ""),
+      position: Number(item?.position || idx + 1),
+      role: item?.role || (idx === 0 ? "root" : "item"),
+      body: String(item?.body || item?.content || ""),
+      status: item?.status || "published",
+      createdAt: item?.createdAt || null,
+      updatedAt: item?.updatedAt || null
+    }))
+    .filter(item => item.body || item.role === "root");
+  const itemCount = Number(rawThread.itemCount ?? rawThread.threadCount ?? items.length) || items.length;
+  const threadCount = Number(rawThread.threadCount ?? rawThread.itemCount ?? itemCount) || itemCount;
+  const previewText = String(rawThread.previewText || items.map(item => item.body).filter(Boolean).join("\n")).slice(0, 160);
+
+  return {
+    ...rawThread,
+    rootPostId,
+    rootThreadId: rawThread.rootThreadId || rootPostId,
+    itemCount,
+    threadCount,
+    maxItems: Number(rawThread.maxItems) || 10,
+    previewText,
+    items,
+    isThread: Boolean(rawThread.isThread || threadCount > 1 || itemCount > 1),
+    rootOnlyEngagement: rawThread.rootOnlyEngagement !== false,
+    engagementTarget: rawThread.engagementTarget || "root",
+    assetTarget: rawThread.assetTarget || "root"
+  };
+}
+
 function normalizeFeedPost(raw) {
   const authUserId = getAuth()?.user?.id || getAuth()?.user?.userId || null;
   const authorUserId = raw.authorUserId || raw.userId || raw.createdByUserId || raw.author?.id || raw.user?.id || null;
@@ -2291,6 +2327,7 @@ function normalizeFeedPost(raw) {
     authorName: raw.authorName || raw.author?.displayName || raw.author?.nickname || raw.user?.displayName || raw.user?.nickname || raw.profile?.displayName || "",
     avatarUrl: raw.avatarUrl || raw.author?.avatarUrl || raw.author?.profile?.avatarUrl || raw.user?.avatarUrl || raw.profile?.avatarUrl || "",
     body: raw.body || raw.content || "",
+    thread: normalizeFeedThread(raw.thread, raw),
     assets: Array.isArray(raw.assets) ? raw.assets : [],
     linkPreview: raw.linkPreview || null,
     likeCount: Number(raw.likeCount) || 0,
@@ -2522,9 +2559,108 @@ function bindLuminaFeedDelete() {
   });
 }
 
-/* #309 — 타래 배지 클릭. 실 상세 endpoint 미구현이라 안내만 표시.
-   contract: GET /api/v1/lumina-feed/posts/:postId/thread (또는 thread.itemsEndpoint).
+/* #309 — 타래 배지 클릭. 상세 projection을 우선 사용하고 목록 projection을 fallback으로 표시.
+   contract: GET /api/v1/lumina-feed/posts/:postId.
    배지가 카드 클릭(아티스트 라우팅)에 묻히지 않도록 stopPropagation. */
+let _feedThreadModalEl = null;
+
+function closeFeedThreadModal() {
+  if (!_feedThreadModalEl) return;
+  if (_feedThreadModalEl._escHandler) {
+    document.removeEventListener("keydown", _feedThreadModalEl._escHandler);
+  }
+  _feedThreadModalEl.remove();
+  _feedThreadModalEl = null;
+  document.body.style.overflow = "";
+}
+
+function feedThreadModalItems(post) {
+  const thread = post?.thread;
+  const items = Array.isArray(thread?.items) && thread.items.length
+    ? thread.items
+    : [{ id: post?.id || "root", position: 1, role: "root", body: post?.body || "" }];
+  return items
+    .slice()
+    .sort((a, b) => Number(a.position || 0) - Number(b.position || 0))
+    .map((item, index) => ({
+      ...item,
+      position: Number(item.position || index + 1),
+      body: String(item.body || "")
+    }))
+    .filter(item => item.body);
+}
+
+function renderFeedThreadModalContent(post) {
+  const items = feedThreadModalItems(post);
+  const authorName = feedEscapeHtml(post?.authorName || "Lumina");
+  const itemCount = Number(post?.thread?.threadCount || post?.thread?.itemCount || items.length) || items.length;
+  return `
+    <header class="feed-thread-modal-head">
+      <div>
+        <span class="feed-thread-modal-eyebrow">Lumina Feed Thread</span>
+        <h3>${authorName}의 타래</h3>
+      </div>
+      <button type="button" class="feed-thread-modal-close" data-feed-thread-close aria-label="닫기">×</button>
+    </header>
+    <ol class="feed-thread-modal-list" aria-label="타래 글 목록">
+      ${items.map(item => `
+        <li class="feed-thread-modal-item" data-thread-role="${feedEscapeHtml(item.role || "")}">
+          <span class="feed-thread-modal-index">${Number(item.position || 0)} / ${itemCount}</span>
+          <p>${feedEscapeHtml(item.body)}</p>
+        </li>
+      `).join("")}
+    </ol>
+    <p class="feed-thread-modal-policy">좋아요, 댓글, 이미지와 신고는 첫 글 기준으로 처리됩니다.</p>
+  `;
+}
+
+function showFeedThreadModalShell(post) {
+  closeFeedThreadModal();
+  const modal = document.createElement("div");
+  modal.className = "feed-thread-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-label", "타래 보기");
+  modal.innerHTML = `
+    <div class="feed-thread-modal-backdrop" data-feed-thread-close></div>
+    <section class="feed-thread-modal-panel">
+      ${post ? renderFeedThreadModalContent(post) : '<p class="feed-thread-modal-loading">타래를 불러오고 있어요.</p>'}
+    </section>
+  `;
+  modal._escHandler = e => { if (e.key === "Escape") closeFeedThreadModal(); };
+  document.addEventListener("keydown", modal._escHandler);
+  document.body.appendChild(modal);
+  document.body.style.overflow = "hidden";
+  _feedThreadModalEl = modal;
+}
+
+async function openFeedThreadModal(postId) {
+  const cached = _luminaFeedItems.find(post => String(post.id) === String(postId)) || null;
+  showFeedThreadModalShell(cached);
+  try {
+    const res = await apiFetch(`/api/v1/lumina-feed/posts/${encodeURIComponent(postId)}`, {
+      auth: typeof isLoggedIn === "function" && isLoggedIn()
+    });
+    const serverPost = res?.post || res?.data?.post || res;
+    const normalized = normalizeFeedPost({ ...(cached || {}), ...(serverPost || {}) });
+    const idx = _luminaFeedItems.findIndex(post => String(post.id) === String(postId));
+    if (idx >= 0) _luminaFeedItems[idx] = normalized;
+    if (_feedThreadModalEl) {
+      const panel = _feedThreadModalEl.querySelector(".feed-thread-modal-panel");
+      if (panel) panel.innerHTML = renderFeedThreadModalContent(normalized);
+    }
+  } catch (err) {
+    console.warn("[#309 feed thread detail]", { status: err?.status || null });
+    if (!cached && _feedThreadModalEl) {
+      const panel = _feedThreadModalEl.querySelector(".feed-thread-modal-panel");
+      if (panel) panel.innerHTML = `
+        <button type="button" class="feed-thread-modal-close" data-feed-thread-close aria-label="닫기">×</button>
+        <p class="feed-thread-modal-loading">타래를 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.</p>
+      `;
+    }
+  }
+}
+
 function bindLuminaFeedThreadBadge() {
   if (document._feedThreadBadgeBound) return;
   document._feedThreadBadgeBound = true;
@@ -2533,7 +2669,13 @@ function bindLuminaFeedThreadBadge() {
     if (!badge) return;
     e.preventDefault();
     e.stopPropagation();
-    alert("타래 상세는 곧 열어드릴게요. 이어글 미리보기 화면이 준비되면 자동으로 활성화돼요.");
+    const postId = badge.dataset.feedThreadPostId || badge.dataset.threadRootId;
+    if (postId) openFeedThreadModal(postId);
+  });
+  document.addEventListener("click", e => {
+    if (!e.target.closest("[data-feed-thread-close]")) return;
+    e.preventDefault();
+    closeFeedThreadModal();
   });
 }
 
@@ -2960,29 +3102,28 @@ function renderFeedPostAssets(assets) {
   `;
 }
 
-/* #309 — 타래 요약 배지. post.thread 가 있는 글에만 노출.
-   thread.threadCount 가 1 이하이면 root만 있는 글이라 배지 미노출. 백엔드 contract:
-   { rootThreadId, parentFeedItemId, threadIndex, threadCount, previewItemCount,
-     hasMoreThreadItems, itemsEndpoint }. 현재는 backend 미구현이라 화면에 거의
-     안 그려지지만, API 도착 즉시 일관된 표시가 가능하도록 미리 와이어업. */
+/* #309 — 타래 요약 배지. #313 backend contract post.thread projection 기반. */
 function renderFeedPostThreadBadge(post) {
   const thread = post?.thread;
   if (!thread || typeof thread !== "object") return "";
-  const threadCount = Number(thread.threadCount) || 0;
+  const threadCount = Number(thread.threadCount || thread.itemCount) || 0;
   if (threadCount <= 1) return "";
   // 타래 N개 — root 포함 N. UI에서는 root 제외 이어글 수가 더 직관적이므로 (threadCount-1)을 노출.
   const continued = Math.max(0, threadCount - 1);
-  const itemsEndpoint = typeof thread.itemsEndpoint === "string" ? thread.itemsEndpoint : "";
-  const rootThreadId = typeof thread.rootThreadId === "string" ? thread.rootThreadId : "";
+  const preview = String(thread.previewText || "").trim();
+  const rootPostId = thread.rootPostId || thread.rootThreadId || post.id || "";
   return `
-    <div class="feed-post-thread-badge" data-feed-thread-badge
+    <div class="feed-post-thread-summary">
+      <button class="feed-post-thread-badge" type="button" data-feed-thread-badge
+         data-feed-thread-post-id="${feedEscapeHtml(post.id || rootPostId)}"
          data-thread-count="${continued}"
-         data-thread-endpoint="${feedEscapeHtml(itemsEndpoint)}"
-         data-thread-root-id="${feedEscapeHtml(rootThreadId)}">
-      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-        <path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" fill="none" stroke-width="1.7" stroke-linecap="round"/>
-      </svg>
-      <span>이어글 ${continued}개 · 타래 보기</span>
+         data-thread-root-id="${feedEscapeHtml(rootPostId)}">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" fill="none" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+        <span>이어글 ${continued}개 · 타래 보기</span>
+      </button>
+      ${preview ? `<p class="feed-post-thread-preview">${feedEscapeHtml(preview)}</p>` : ""}
     </div>
   `;
 }
@@ -3765,7 +3906,7 @@ async function init() {
     bindLuminaFeedDelete();
     bindLuminaFeedEdit(); // #137 Phase B — 피드 글 수정 모달
     bindLuminaFeedLike(); // #137 Phase A — 피드 좋아요 토글
-    bindLuminaFeedThreadBadge(); // #309 — 타래 배지 클릭 안내 (상세 endpoint 미구현)
+    bindLuminaFeedThreadBadge(); // #309 — 타래 배지 클릭 상세 보기
     bindLuminaFeedComment();
     bindLuminaFeedFollow(); // #145 — 피드 카드 팔로우/언팔로우
     bindFeedAssetLightbox(); // 피드 이미지 라이트박스 + 우클릭 차단

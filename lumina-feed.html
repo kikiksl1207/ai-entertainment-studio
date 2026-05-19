@@ -109,7 +109,6 @@
                   id="feedComposeText"
                   class="feed-compose-text"
                   rows="2"
-                  maxlength="500"
                   placeholder="지금 떠오른 응원을 남겨보세요."
                   aria-label="피드 내용"></textarea>
                 <div class="feed-compose-thumbs" id="feedComposeThumbs" hidden></div>
@@ -150,7 +149,7 @@
                   </button>
                 </div>
                 <p class="feed-compose-message" id="feedComposeMessage" hidden></p>
-                <!-- #309 — 타래 작성 영역. 타래 모드 활성 시 hidden 해제. 실 API 미구현이라 게시 버튼은 안내만 표시. -->
+                <!-- #309 — 타래 작성 영역. 타래 모드 활성 시 hidden 해제 후 /posts/thread로 제출. -->
                 <section class="feed-thread-composer" id="feedThreadComposer" hidden aria-label="타래 이어쓰기">
                   <header class="feed-thread-head">
                     <h3>타래로 이어쓰기</h3>
@@ -186,7 +185,7 @@
                     </button>
                   </div>
                   <p class="feed-thread-submit-note" id="feedThreadSubmitNote">
-                    타래 게시 API는 곧 열려요. 지금은 작성 흐름만 미리 둘러볼 수 있어요.
+                    첫 글과 이어글을 직접 확인한 뒤 타래로 게시합니다. 자동 분할은 하지 않아요.
                   </p>
                 </section>
               </div>

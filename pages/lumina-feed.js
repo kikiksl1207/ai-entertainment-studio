@@ -508,7 +508,7 @@ const FEED_COMPOSE_MAX_BODY = 500;
 // 백엔드 /api/v1/lumina-feed/posts contract — 501자 이상이면 HTTP 400. 큐알 QA 2026-05-19 확인.
 
 // #309 — 타래 정책 (차모 2026-05-19 확정): 조각당 500자, root 포함 최대 10조각, 총 5000자.
-// 백엔드 POST /lumina-feed/posts/:id/thread-items 등은 아직 미구현. UI는 작성 흐름까지만 완성.
+// 백엔드 POST /lumina-feed/posts/thread 계약에 맞춰 사용자가 직접 나눈 조각만 제출한다.
 const FEED_THREAD_MAX_ITEMS = 10;
 const FEED_THREAD_AGGREGATE_MAX = 5000;
 const FEED_THREAD_ITEM_MAX_BODY = FEED_COMPOSE_MAX_BODY;
@@ -525,7 +525,7 @@ let _feedComposeAssets = []; // [{ localId, status, file?, fileName, mimeType, f
 
 let _feedComposeAssetSeq = 0;
 
-// #309 — 타래 모드 상태. UI 전용. 실제 게시 path는 아직 백엔드 미구현.
+// #309 — 타래 모드 상태. POST /api/v1/lumina-feed/posts/thread 계약으로 게시.
 let _feedComposeThreadMode = false;
 let _feedComposeThreadItems = []; // [{ localId, body }]
 let _feedComposeThreadItemSeq = 0;
@@ -542,6 +542,54 @@ function feedThreadAggregateLength(rootBodyLen) {
 function feedThreadItemCount() {
   // root 1개 + 이어글 N개
   return 1 + _feedComposeThreadItems.length;
+}
+
+function feedThreadCleanItems(rootBody) {
+  return [
+    { body: String(rootBody || "").trim() },
+    ..._feedComposeThreadItems.map(item => ({ body: String(item.body || "").trim() }))
+  ];
+}
+
+function feedThreadValidation(rootBody) {
+  const items = feedThreadCleanItems(rootBody);
+  const aggregate = items.reduce((sum, item) => sum + item.body.length, 0);
+  if (!items[0].body) {
+    return { ok: false, message: "타래의 첫 글을 입력해 주세요." };
+  }
+  if (items.length < 2) {
+    return { ok: false, message: "이어글을 1개 이상 추가해 주세요." };
+  }
+  if (items.length > FEED_THREAD_MAX_ITEMS) {
+    return { ok: false, message: `타래는 첫 글 포함 ${FEED_THREAD_MAX_ITEMS}개까지 작성할 수 있어요.` };
+  }
+  const invalidIndex = items.findIndex(item => !item.body || item.body.length > FEED_THREAD_ITEM_MAX_BODY);
+  if (invalidIndex >= 0) {
+    return {
+      ok: false,
+      message: `${invalidIndex + 1}번째 조각을 1-${FEED_THREAD_ITEM_MAX_BODY}자로 맞춰 주세요.`
+    };
+  }
+  if (aggregate > FEED_THREAD_AGGREGATE_MAX) {
+    return { ok: false, message: `타래 전체는 ${FEED_THREAD_AGGREGATE_MAX}자까지 작성할 수 있어요.` };
+  }
+  return { ok: true, items, aggregate };
+}
+
+function feedThreadPostPayload(rootBody) {
+  const validation = feedThreadValidation(rootBody);
+  if (!validation.ok) return validation;
+  const payload = { items: validation.items };
+  const doneAssets = feedComposeDoneAssets();
+  if (doneAssets.length > 0) {
+    payload.assetIds = doneAssets.map(a => a.assetId);
+  }
+  const allText = validation.items.map(item => item.body).join(" ");
+  const urlMatch = allText.match(/\bhttps:\/\/[^\s)\]]+/i);
+  if (urlMatch) {
+    payload.externalUrl = urlMatch[0];
+  }
+  return { ...validation, payload };
 }
 
 function feedComposeNextLocalId() {
@@ -753,6 +801,20 @@ function bindFeedComposeOnce() {
     const doneCount = feedComposeDoneAssets().length;
     const hasContent = textarea.value.trim().length > 0 || doneCount > 0;
     const overLimit = len > FEED_COMPOSE_MAX_BODY; // maxlength로 막히지만 paste/조합 안전망
+    const threadToggle = document.getElementById("feedComposeThreadToggle");
+    if (threadToggle) {
+      threadToggle.dataset.suggested = overLimit && !_feedComposeThreadMode ? "1" : "0";
+    }
+    const messageEl = document.getElementById("feedComposeMessage");
+    if (overLimit && !_feedComposeThreadMode) {
+      setFeedComposeMessage(
+        `500자를 넘었어요. 첫 글은 ${FEED_COMPOSE_MAX_BODY}자 안으로 줄이고, 이어지는 내용은 타래로 이어쓰기에서 직접 나눠 주세요.`,
+        "warn",
+        "thread-over-limit"
+      );
+    } else if (messageEl?.dataset.reason === "thread-over-limit") {
+      setFeedComposeMessage("");
+    }
     // #309 — 타래 모드일 때는 단문 게시 버튼 비활성 (게시는 타래 submit 버튼이 담당)
     if (submitBtn) submitBtn.disabled = !hasContent || uploading || overLimit || _feedComposeThreadMode;
     if (fileInput) fileInput.disabled = uploading || _feedComposeAssets.length >= FEED_COMPOSE_MAX_IMAGES;
@@ -935,7 +997,7 @@ function bindFeedComposeOnce() {
 /* ── #309 타래 작성 UX ──────────────────────────
    - 정책: 조각당 500자, 총 10조각(root 포함), aggregate 5000자.
    - 자동 분할 없음. 사용자가 명시적으로 진입/추가/삭제.
-   - 실제 POST/PATCH/DELETE thread API는 아직 미구현 — 게시 버튼은 안내만 노출.
+   - POST /api/v1/lumina-feed/posts/thread 로 사용자가 확인한 조각을 제출한다.
 */
 function bindFeedComposeThreadMode(textarea, parentUpdateState) {
   const toggle = document.getElementById("feedComposeThreadToggle");
@@ -1022,15 +1084,15 @@ function bindFeedComposeThreadMode(textarea, parentUpdateState) {
       const overItemCap = _feedComposeThreadItems.some(it => (it.body?.length || 0) > FEED_THREAD_ITEM_MAX_BODY);
       const overAggregateCap = aggregate > FEED_THREAD_AGGREGATE_MAX;
       const overRootCap = rootBodyLen > FEED_COMPOSE_MAX_BODY;
-      // 작성 흐름만 검증. 실제 게시 path는 백엔드 미구현이라 항상 비활성으로 유지하되,
-      // 검증 통과 시 dataset.ready=1 로 표시해 유저가 "준비 완료" 상태를 시각적으로 확인할 수 있게 함.
       const ready = !rootEmpty
         && !hasEmptyItem
         && !overItemCap
         && !overAggregateCap
         && !overRootCap
-        && _feedComposeThreadItems.length > 0;
+        && _feedComposeThreadItems.length > 0
+        && !feedComposeHasPendingUpload();
       submitBtn.dataset.ready = ready ? "1" : "0";
+      submitBtn.disabled = !ready;
     }
     parentUpdateState?.();
   }
@@ -1106,12 +1168,56 @@ function bindFeedComposeThreadMode(textarea, parentUpdateState) {
     updateThreadState();
   });
 
-  submitBtn?.addEventListener("click", () => {
-    // 백엔드 API 미구현 — 안내만 표시. 사용자 입력은 보존.
-    setFeedComposeMessage(
-      "타래 게시 API는 곧 열려요. 작성한 내용은 그대로 남아 있어요.",
-      "info"
-    );
+  submitBtn?.addEventListener("click", async () => {
+    if (submitBtn.disabled) return;
+    if (!isLoggedIn?.()) {
+      setFeedComposeMessage("로그인 후 타래를 게시할 수 있어요.", "warn");
+      return;
+    }
+    if (feedComposeHasPendingUpload()) {
+      setFeedComposeMessage("이미지 업로드가 끝난 뒤 타래를 게시할 수 있어요.", "warn");
+      return;
+    }
+    const payloadResult = feedThreadPostPayload(textarea?.value || "");
+    if (!payloadResult.ok) {
+      setFeedComposeMessage(payloadResult.message, "warn");
+      updateThreadState();
+      return;
+    }
+    const failedCount = _feedComposeAssets.filter(a => a.status === "failed").length;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "타래 게시 중";
+    try {
+      await apiFetch("/api/v1/lumina-feed/posts/thread", {
+        method: "POST",
+        auth: true,
+        throwOnError: true,
+        body: payloadResult.payload
+      });
+      if (textarea) textarea.value = "";
+      _feedComposeAssets.forEach(releaseFeedComposeAssetPreview);
+      _feedComposeAssets = [];
+      _feedComposeThreadMode = false;
+      _feedComposeThreadItems = [];
+      syncToggleVisualState();
+      renderThreadItems();
+      renderFeedComposeThumbs();
+      setFeedComposeMessage(
+        failedCount > 0
+          ? `타래를 올렸어요. 업로드 실패 이미지 ${failedCount}개는 포함하지 않았어요.`
+          : "타래를 올렸어요.",
+        "success"
+      );
+      await loadLuminaFeedData(_luminaFeedFilter || "all");
+      renderLuminaFeed();
+    } catch (err) {
+      console.warn("[#309 thread submit]", { status: err?.status || null });
+      setFeedComposeMessage(feedComposeSubmitErrorMessage(err), "warn");
+    } finally {
+      submitBtn.textContent = "타래 게시";
+      updateThreadState();
+      parentUpdateState?.();
+    }
   });
 
   // 루트 textarea 글자수 변화 시에도 aggregate 갱신
@@ -1122,13 +1228,20 @@ function bindFeedComposeThreadMode(textarea, parentUpdateState) {
   updateThreadState();
 }
 
-function setFeedComposeMessage(text, kind) {
+function setFeedComposeMessage(text, kind, reason = "") {
   const el = document.getElementById("feedComposeMessage");
   if (!el) return;
-  if (!text) { el.hidden = true; el.textContent = ""; return; }
+  if (!text) {
+    el.hidden = true;
+    el.textContent = "";
+    delete el.dataset.reason;
+    return;
+  }
   el.hidden = false;
   el.textContent = text;
   el.dataset.kind = kind || "info";
+  if (reason) el.dataset.reason = reason;
+  else delete el.dataset.reason;
   // success는 잠시 후 자동 숨김
   if (kind === "success") {
     setTimeout(() => {
