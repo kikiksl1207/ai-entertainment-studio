@@ -54,6 +54,7 @@ export type ChatGenerationRequest = {
     safetyRules: unknown;
     modelConfig: unknown;
   } | null;
+  runtimePersona: ChatRuntimePersonaContext | null;
   mode: string;
   userMessage: string;
   recentMessages: Array<{
@@ -67,6 +68,57 @@ export type ChatGenerationRequest = {
     featureType: string;
     priceLumina: unknown;
   } | null;
+};
+
+export type ChatRuntimePersonaContext = {
+  welcome: {
+    text: string;
+    source: string;
+  };
+  starterOptions: Array<{
+    key: string;
+    label: string;
+    message: string;
+    directInput?: boolean;
+  }>;
+  tone: {
+    tagline: string | null;
+    contentTone: string | null;
+    personalityKeywords: string[];
+    toneTags: string[];
+  };
+  personaReference: {
+    catalogVersion: string;
+    selectedTraitIds: string[];
+    selectedTraits: Array<{
+      id: string;
+      group: string;
+      labelKo: string;
+      i18nKey: string;
+      conflictsWith: string[];
+      toneGuideKo?: string;
+    }>;
+    customFields: {
+      customTraitsKo: string[];
+      fanNicknameKo: string | null;
+      relationshipToneKo: string | null;
+      favoriteTopicsKo: string[];
+      openingMoodKo: string | null;
+    };
+    legacyToneSignals: {
+      contentTone: string | null;
+      personalityKeywords: string[];
+    };
+    source: string;
+    readOnly: boolean;
+    mutationEnabled: boolean;
+  };
+  forbiddenTone: string[];
+  safetyNote: {
+    text: string;
+    source: string;
+  };
+  source: string;
 };
 
 export type ChatGenerationResult = {
@@ -331,6 +383,9 @@ export class ChatLlmProviderAdapter implements ChatLlmProvider {
     const personaPrompt = request.persona?.systemPrompt?.trim();
     const safetyRules = this.safeJsonSummary(request.persona?.safetyRules);
     const modelConfig = this.safeJsonSummary(request.persona?.modelConfig);
+    const runtimePersona = this.buildRuntimePersonaInstructions(
+      request.runtimePersona,
+    );
 
     return [
       `You are ${request.artist.displayName}, a fictional Lumina Stage character chatting with a fan.`,
@@ -341,6 +396,7 @@ export class ChatLlmProviderAdapter implements ChatLlmProvider {
       'Avoid adult, dangerous, exploitative, payment, settlement, or external contact guidance.',
       'If the user asks for unsafe content, gently set a boundary and redirect to a safe topic.',
       personaPrompt ? `Character persona: ${personaPrompt}` : null,
+      runtimePersona ? `Character runtime persona:\n${runtimePersona}` : null,
       safetyRules ? `Safety notes: ${safetyRules}` : null,
       modelConfig ? `Tone notes: ${modelConfig}` : null,
     ]
@@ -365,6 +421,65 @@ export class ChatLlmProviderAdapter implements ChatLlmProvider {
     return [recent ? `최근 대화:\n${recent}` : null, `팬: ${userMessage}`]
       .filter(Boolean)
       .join('\n\n');
+  }
+
+  private buildRuntimePersonaInstructions(
+    runtimePersona: ChatRuntimePersonaContext | null,
+  ) {
+    if (!runtimePersona) {
+      return null;
+    }
+
+    const starterCues = runtimePersona.starterOptions
+      .filter((option) => !option.directInput && option.message.trim())
+      .slice(0, 3)
+      .map(
+        (option) =>
+          `${this.trimToLimit(option.label, 40)}: ${this.trimToLimit(
+            option.message,
+            120,
+          )}`,
+      );
+    const traitGuides = runtimePersona.personaReference.selectedTraits
+      .slice(0, 6)
+      .map((trait) =>
+        trait.toneGuideKo
+          ? `${trait.labelKo}: ${this.trimToLimit(trait.toneGuideKo, 120)}`
+          : trait.labelKo,
+      );
+    const customFields = runtimePersona.personaReference.customFields;
+
+    return [
+      `Welcome baseline: ${this.trimToLimit(runtimePersona.welcome.text, 160)}`,
+      starterCues.length ? `Starter cues: ${starterCues.join(' / ')}` : null,
+      runtimePersona.tone.toneTags.length
+        ? `Tone tags: ${runtimePersona.tone.toneTags.slice(0, 8).join(', ')}`
+        : null,
+      traitGuides.length ? `Trait guides: ${traitGuides.join(' / ')}` : null,
+      customFields.fanNicknameKo
+        ? `Fan nickname: ${this.trimToLimit(customFields.fanNicknameKo, 40)}`
+        : null,
+      customFields.relationshipToneKo
+        ? `Relationship tone: ${this.trimToLimit(
+            customFields.relationshipToneKo,
+            160,
+          )}`
+        : null,
+      customFields.favoriteTopicsKo.length
+        ? `Favorite topics: ${customFields.favoriteTopicsKo.slice(0, 8).join(', ')}`
+        : null,
+      customFields.openingMoodKo
+        ? `Opening mood: ${this.trimToLimit(customFields.openingMoodKo, 80)}`
+        : null,
+      runtimePersona.forbiddenTone.length
+        ? `Forbidden tone or blocked expressions: ${runtimePersona.forbiddenTone
+            .slice(0, 8)
+            .join(', ')}`
+        : null,
+      `Safety note: ${this.trimToLimit(runtimePersona.safetyNote.text, 180)}`,
+    ]
+      .filter(Boolean)
+      .join('\n');
   }
 
   private normalizeProviderOutput(responseBody: OpenAiResponseBody | null) {
