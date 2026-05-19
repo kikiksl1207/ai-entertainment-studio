@@ -147,6 +147,52 @@ const CHARACTER_CHAT_FALLBACK_COPY: Record<
     ],
   },
 };
+const CHARACTER_CHAT_FALLBACK_ARTISTS: Record<
+  string,
+  {
+    id: string;
+    displayName: string;
+    tagline: string | null;
+    personalityKeywords: string[];
+    contentTone: string | null;
+  }
+> = {
+  'yoon-serin': {
+    id: '00000000-0000-4000-8000-000000000601',
+    displayName: '\uC724\uC138\uB9B0',
+    tagline: null,
+    personalityKeywords: [],
+    contentTone: null,
+  },
+  'han-seoyul': {
+    id: '00000000-0000-4000-8000-000000000602',
+    displayName: '\uD55C\uC11C\uC728',
+    tagline: null,
+    personalityKeywords: [],
+    contentTone: null,
+  },
+  'park-doa': {
+    id: '00000000-0000-4000-8000-000000000603',
+    displayName: '\uBC15\uB3C4\uC544',
+    tagline: null,
+    personalityKeywords: [],
+    contentTone: null,
+  },
+  'choi-seojin': {
+    id: '00000000-0000-4000-8000-000000000604',
+    displayName: '\uCD5C\uC11C\uC9C4',
+    tagline: null,
+    personalityKeywords: [],
+    contentTone: null,
+  },
+  'min-chaeon': {
+    id: '00000000-0000-4000-8000-000000000605',
+    displayName: '\uBBFC\uCC44\uC628',
+    tagline: null,
+    personalityKeywords: [],
+    contentTone: null,
+  },
+};
 const DEFAULT_CHAT_RUNTIME_FORBIDDEN_TONE_KO = [
   '실존 인물 사칭',
   '성인/위험 대화 유도',
@@ -2720,10 +2766,44 @@ export class ChatService {
     });
 
     if (!artist) {
+      if (!artistId) {
+        const fallbackArtist = this.fallbackChatArtistForSlug(artistSlug);
+
+        if (fallbackArtist) {
+          return fallbackArtist;
+        }
+      }
+
       throw new NotFoundException('Artist not found');
     }
 
     return artist;
+  }
+
+  private fallbackChatArtistForSlug(artistSlug?: string) {
+    if (!artistSlug || !CHARACTER_CHAT_FALLBACK_COPY[artistSlug]) {
+      return null;
+    }
+
+    const fallback = CHARACTER_CHAT_FALLBACK_ARTISTS[artistSlug];
+
+    if (!fallback) {
+      return null;
+    }
+
+    return {
+      id: fallback.id,
+      slug: artistSlug,
+      displayName: fallback.displayName,
+      publicProfile: {
+        publicMetadata: {},
+        tagline: fallback.tagline,
+        personalityKeywords: [...fallback.personalityKeywords],
+      },
+      contentProfile: {
+        contentTone: fallback.contentTone,
+      },
+    };
   }
 
   private normalizeStarterPromptSets(value: unknown): StarterPromptSet[] {

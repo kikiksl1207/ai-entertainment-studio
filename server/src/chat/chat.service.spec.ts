@@ -1115,6 +1115,60 @@ describe('ChatService persona and catalog policy', () => {
     expect(llmProvider.readiness).not.toHaveBeenCalled();
   });
 
+  it('returns read-only fallback catalog and starters when a public fallback artist row is absent', async () => {
+    const prisma = {
+      artist: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const catalog = await service.getCharacterChatCatalog({
+      artistSlug: 'min-chaeon',
+    });
+    const prompts = await service.getStarterPrompts({
+      artistSlug: 'min-chaeon',
+    });
+
+    expect(prisma.artist.findFirst).toHaveBeenCalledTimes(2);
+    expect(catalog.artist).toMatchObject({
+      id: '00000000-0000-4000-8000-000000000605',
+      slug: 'min-chaeon',
+      displayName: '\uBBFC\uCC44\uC628',
+    });
+    expect(catalog.source).toBe('character_fallback');
+    expect(catalog.runtimePersona.source).toBe('character_fallback');
+    expect(catalog.greeting.source).toBe('character_fallback');
+    expect(catalog.starterSets[0].id).toBe('min-chaeon-character-start-1');
+    expect(prompts.source).toBe('character_fallback');
+    expect(prompts.sets[0].id).toBe('min-chaeon-character-start-1');
+    expect(prompts.sets[0].options[0].label).toBe(
+      catalog.starterOptions[0].label,
+    );
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+  });
+
+  it('keeps unknown missing artist slugs blocked instead of using fallback copy', async () => {
+    const prisma = {
+      artist: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(
+      service.getCharacterChatCatalog({ artistSlug: 'unknown-artist' }),
+    ).rejects.toMatchObject({
+      message: 'Artist not found',
+    });
+    await expect(
+      service.getStarterPrompts({ artistSlug: 'unknown-artist' }),
+    ).rejects.toMatchObject({
+      message: 'Artist not found',
+    });
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+  });
+
   it('returns starter prompt persona references from artist metadata', async () => {
     const prisma = {
       artist: {
