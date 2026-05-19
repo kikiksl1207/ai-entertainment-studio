@@ -82,6 +82,41 @@
         { key: "B", label: "최근 컷 칭찬", message: "최근 화보 한 장이 너무 자연스러워서 좋았어요." },
         { key: "C", label: "조용한 안부", message: "잘 지내요. 그 한 줄이면 충분해요." }
       ]
+    },
+    /* #315 — 공개 라인업이 늘어났는데 톤이 default로 떨어지면 캐릭터별 차별점이 사라짐.
+       민채온/하윤아/권태준 세 명을 페르소나에 맞춰 추가. */
+    "min-chaeon": {
+      statusLine: "스트레칭 끝내고 한숨 돌리는 중이에요",
+      welcomeMessage: "왔어요! 오늘 컨디션 어때요? 같이 무리 안 하고 시작해요.",
+      lastMessagePreview: "오늘 컨디션 어때요?",
+      starters: [
+        { key: "A", label: "오늘 컨디션 묻기", message: "오늘 몸 상태 어때요? 무리하지 말고 같이 천천히 가요." },
+        { key: "B", label: "운동 루틴 공유받기", message: "요즘 어떤 루틴으로 몸 만들고 있어요? 한 동작이라도 알려주세요." },
+        { key: "C", label: "무대 응원", message: "다음 무대에서 보여줄 반전 에너지 너무 기대돼요." },
+        { key: "D", label: "귀여운 안부", message: "오늘도 채온이답게 활짝 웃고 시작하세요." }
+      ]
+    },
+    "ha-yuna": {
+      statusLine: "오늘의 컬러 매치 골라보는 중이에요",
+      welcomeMessage: "와줬네요. 오늘 입은 컬러는 뭐예요? 사진 한 장만 보여줘요.",
+      lastMessagePreview: "오늘 입은 컬러는 뭐예요?",
+      starters: [
+        { key: "A", label: "오늘 컬러 자랑", message: "오늘 입은 컬러랑 무드 자랑하러 왔어요." },
+        { key: "B", label: "트렌드 추천받기", message: "이번 주 꽂힌 컬러나 아이템 있으면 추천해줘요." },
+        { key: "C", label: "최근 숏폼 응원", message: "최근 올린 컷 컬러 진짜 잘 맞춰서 한참 봤어요." },
+        { key: "D", label: "주말 룩 묻기", message: "이번 주말 약속 룩 같이 골라줄래요?" }
+      ]
+    },
+    "kwon-taejun": {
+      statusLine: "조용히 대본 한 줄을 다시 보는 중이에요",
+      welcomeMessage: "왔군. 오늘은 길게 말하지 않아도 돼요. 한마디면 충분해요.",
+      lastMessagePreview: "한마디면 충분해요.",
+      starters: [
+        { key: "A", label: "조용한 안부", message: "그냥 잘 지낸다는 한 줄만 남기고 갈게요." },
+        { key: "B", label: "최근 장면 칭찬", message: "최근 본 장면에서 침묵이 더 길게 남았어요." },
+        { key: "C", label: "다음 작품 기대", message: "다음 작품은 어떤 결의 인물일지 궁금해요." },
+        { key: "D", label: "오늘 분위기 묻기", message: "오늘 분위기는 어떤 쪽이에요? 따라가볼게요." }
+      ]
     }
   };
 
