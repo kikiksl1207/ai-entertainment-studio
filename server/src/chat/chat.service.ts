@@ -58,6 +58,95 @@ const DEFAULT_STARTER_PROMPT_COPY = {
   ],
   directInputLabel: '직접 입력하기',
 };
+const CHARACTER_CHAT_FALLBACK_COPY: Record<
+  string,
+  {
+    greetingText: string;
+    guideText: string;
+    options: StarterPromptOption[];
+  }
+> = {
+  'yoon-serin': {
+    greetingText: '세린이 무대 뒤 조용한 숨을 고르며 당신을 바라봐요.',
+    guideText: '세린에게 차분하게 말을 걸어보세요.',
+    options: [
+      {
+        key: 'A',
+        label: '무대의 여운 묻기',
+        message: '세린아, 오늘 무대에서 가장 오래 남은 순간은 뭐였어?',
+      },
+      {
+        key: 'B',
+        label: '조용한 응원 보내기',
+        message: '오늘도 네 무대를 조용히 응원하고 있어. 천천히 쉬어도 괜찮아.',
+      },
+    ],
+  },
+  'han-seoyul': {
+    greetingText: '서율이 밝은 목소리로 오늘의 이야기를 물어봐요.',
+    guideText: '서율에게 따뜻한 안부를 건네보세요.',
+    options: [
+      {
+        key: 'A',
+        label: '오늘의 소리 나누기',
+        message: '서율아, 오늘 하루를 노래로 표현하면 어떤 느낌일까?',
+      },
+      {
+        key: 'B',
+        label: '작은 위로 부탁하기',
+        message: '오늘 조금 지쳤어. 서율이의 밝은 한마디를 듣고 싶어.',
+      },
+    ],
+  },
+  'park-doa': {
+    greetingText: '도아가 먼저 활짝 웃으며 말을 걸 준비를 해요.',
+    guideText: '도아에게 가볍고 생기 있게 말을 걸어보세요.',
+    options: [
+      {
+        key: 'A',
+        label: '오늘 텐션 충전하기',
+        message: '도아야, 오늘 기분 올릴 수 있는 한마디 해줄래?',
+      },
+      {
+        key: 'B',
+        label: '가벼운 장난 건네기',
+        message: '도아랑 잠깐 웃고 싶어. 오늘 제일 재밌었던 일 뭐야?',
+      },
+    ],
+  },
+  'choi-seojin': {
+    greetingText: '서진이 차분한 시선으로 다음 장면을 기다려요.',
+    guideText: '서진에게 차분하고 선명하게 말을 걸어보세요.',
+    options: [
+      {
+        key: 'A',
+        label: '오늘의 장면 묻기',
+        message: '서진아, 오늘 가장 마음에 남은 장면은 어떤 분위기였어?',
+      },
+      {
+        key: 'B',
+        label: '깊은 응원 보내기',
+        message: '말은 길지 않아도 네 장면을 오래 응원하고 있어.',
+      },
+    ],
+  },
+  'min-chaeon': {
+    greetingText: '채온이 컨디션을 살피며 천천히 대화를 시작해요.',
+    guideText: '채온에게 부드럽게 컨디션과 루틴을 물어보세요.',
+    options: [
+      {
+        key: 'A',
+        label: '오늘 컨디션 묻기',
+        message: '채온아, 오늘 몸 상태는 어때? 무리하지 않았으면 좋겠어.',
+      },
+      {
+        key: 'B',
+        label: '무대 루틴 응원하기',
+        message: '다음 무대 준비도 채온답게 차근차근 해내길 응원할게.',
+      },
+    ],
+  },
+};
 const DEFAULT_CHAT_RUNTIME_FORBIDDEN_TONE_KO = [
   '실존 인물 사칭',
   '성인/위험 대화 유도',
@@ -576,7 +665,7 @@ export class ChatService {
       personaReference: runtimePersona.personaReference,
       runtimePersona,
       policy: CHARACTER_CHAT_CATALOG_POLICY,
-      source: configuredSets.length || metadataGreeting ? 'artist_metadata' : 'default',
+      source: configuredSets.length || metadataGreeting ? 'artist_metadata' : runtimePersona.source,
     };
   }
 
@@ -602,7 +691,7 @@ export class ChatService {
       personaReference: runtimePersona.personaReference,
       sets: runtimePersona.starterSets,
       runtimePersona,
-      source: configuredSets.length ? 'artist_metadata' : 'default',
+      source: configuredSets.length ? 'artist_metadata' : runtimePersona.source,
     };
   }
 
@@ -2345,6 +2434,7 @@ export class ChatService {
     const configuredSets =
       options.configuredSets ??
       this.normalizeStarterPromptSets(metadata.chatStarterPromptSets);
+    const fallbackCopy = CHARACTER_CHAT_FALLBACK_COPY[artist.slug];
     const starterSet =
       configuredSets[0] ?? this.defaultStarterPromptSet(artist.slug, artist.displayName);
     const metadataGreeting = this.stringFromUnknown(catalogMetadata.greetingText);
@@ -2367,8 +2457,15 @@ export class ChatService {
 
     return {
       welcome: {
-        text: metadataGreeting ?? defaultCharacterGreeting(artist.displayName),
-        source: metadataGreeting ? 'artist_metadata' : 'default',
+        text:
+          metadataGreeting ??
+          fallbackCopy?.greetingText ??
+          defaultCharacterGreeting(artist.displayName),
+        source: metadataGreeting
+          ? 'artist_metadata'
+          : fallbackCopy
+            ? 'character_fallback'
+            : 'default',
       },
       starterOptions:
         starterSet.options.length > 0
@@ -2402,6 +2499,8 @@ export class ChatService {
         safetyNote.source === 'artist_metadata' ||
         personaReference.source === 'artist_metadata'
           ? 'artist_metadata'
+          : fallbackCopy
+            ? 'character_fallback'
           : personaReference.source === 'legacy_artist_profile'
             ? 'legacy_artist_profile'
             : 'default',
@@ -2693,6 +2792,20 @@ export class ChatService {
     artistSlug: string,
     artistDisplayName: string,
   ): StarterPromptSet {
+    const fallbackCopy = CHARACTER_CHAT_FALLBACK_COPY[artistSlug];
+
+    if (fallbackCopy) {
+      return {
+        id: `${artistSlug}-character-start-1`,
+        guideText: fallbackCopy.guideText,
+        options: fallbackCopy.options.map((option) => ({ ...option })),
+        directInput: {
+          key: 'C',
+          label: DEFAULT_STARTER_PROMPT_COPY.directInputLabel,
+        },
+      };
+    }
+
     return {
       id: `${artistSlug}-soft-start-1`,
       guideText: DEFAULT_STARTER_PROMPT_COPY.guideText(artistDisplayName),

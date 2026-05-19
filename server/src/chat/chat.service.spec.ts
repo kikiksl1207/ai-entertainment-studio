@@ -7,8 +7,8 @@ describe('ChatService.getStarterPrompts', () => {
       artist: {
         findFirst: jest.fn().mockResolvedValue({
           id: '00000000-0000-4000-8000-000000000206',
-          slug: 'yoon-serin',
-          displayName: '윤세린',
+          slug: 'oh-hyerin',
+          displayName: '오혜린',
           publicProfile: {
             publicMetadata: {},
             tagline: '무대 위의 첫 인사',
@@ -30,13 +30,13 @@ describe('ChatService.getStarterPrompts', () => {
     };
     const service = new ChatService(prisma as never, llmProvider as never);
 
-    const result = await service.getStarterPrompts({ artistSlug: 'yoon-serin' });
+    const result = await service.getStarterPrompts({ artistSlug: 'oh-hyerin' });
 
-    expect(result.source).toBe('default');
+    expect(result.source).toBe('legacy_artist_profile');
     expect(result.sets).toHaveLength(1);
     expect(result.sets[0]).toMatchObject({
-      id: 'yoon-serin-soft-start-1',
-      guideText: '처음이라 조금 어색하죠? 윤세린에게 이렇게 말을 걸어볼까요?',
+      id: 'oh-hyerin-soft-start-1',
+      guideText: '처음이라 조금 어색하죠? 오혜린에게 이렇게 말을 걸어볼까요?',
       directInput: {
         key: 'C',
         label: '직접 입력하기',
@@ -46,12 +46,12 @@ describe('ChatService.getStarterPrompts', () => {
       {
         key: 'A',
         label: '오늘 어땠는지 물어보기',
-        message: '오늘 하루 어땠어? 괜히 윤세린 생각이 나서 들렀어.',
+        message: '오늘 하루 어땠어? 괜히 오혜린 생각이 나서 들렀어.',
       },
       {
         key: 'B',
         label: '조용히 응원하기',
-        message: '오늘도 윤세린의 무대를 기다리고 있어. 천천히 와도 괜찮아.',
+        message: '오늘도 오혜린의 무대를 기다리고 있어. 천천히 와도 괜찮아.',
       },
     ]);
     expect(JSON.stringify(result.sets[0])).not.toMatch(/[�泥怨嫄]/);
@@ -1054,6 +1054,64 @@ describe('ChatService persona and catalog policy', () => {
       text: '거리를 지키고 과한 집착 표현을 피합니다.',
       source: 'artist_metadata',
     });
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+  });
+
+  it('returns character-specific starter fallback copy when metadata has no starter sets', async () => {
+    const artists = [
+      ['yoon-serin', '윤세린'],
+      ['han-seoyul', '한서율'],
+      ['park-doa', '박도아'],
+      ['choi-seojin', '최서진'],
+      ['min-chaeon', '민채온'],
+    ].map(([slug, displayName]) => ({
+      id: `00000000-0000-4000-8000-${slug.replace(/-/g, '').slice(0, 12).padEnd(12, '0')}`,
+      slug,
+      displayName,
+      publicProfile: {
+        publicMetadata: {},
+        tagline: null,
+        personalityKeywords: [],
+      },
+      contentProfile: {
+        contentTone: null,
+      },
+    }));
+    const artistsBySlug = Object.fromEntries(
+      artists.map((artist) => [artist.slug, artist]),
+    );
+    const prisma = {
+      artist: {
+        findFirst: jest.fn(({ where }: { where: { slug: string } }) =>
+          Promise.resolve(artistsBySlug[where.slug]),
+        ),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const catalogs = await Promise.all(
+      artists.map((artist) =>
+        service.getCharacterChatCatalog({ artistSlug: artist.slug }),
+      ),
+    );
+    const promptSets = await Promise.all(
+      artists.map((artist) => service.getStarterPrompts({ artistSlug: artist.slug })),
+    );
+
+    expect(new Set(catalogs.map((catalog) => catalog.greeting.text)).size).toBe(5);
+    expect(new Set(catalogs.map((catalog) => catalog.starterOptions[0].label)).size).toBe(5);
+    expect(new Set(catalogs.map((catalog) => catalog.starterOptions[1].label)).size).toBe(5);
+    expect(
+      catalogs.every((catalog) => catalog.runtimePersona.source === 'character_fallback'),
+    ).toBe(true);
+    expect(promptSets.map((promptSet) => promptSet.sets[0].id)).toEqual([
+      'yoon-serin-character-start-1',
+      'han-seoyul-character-start-1',
+      'park-doa-character-start-1',
+      'choi-seojin-character-start-1',
+      'min-chaeon-character-start-1',
+    ]);
+    expect(new Set(promptSets.map((promptSet) => promptSet.sets[0].options[0].label)).size).toBe(5);
     expect(llmProvider.readiness).not.toHaveBeenCalled();
   });
 

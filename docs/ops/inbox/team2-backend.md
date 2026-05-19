@@ -288,6 +288,36 @@ sensitive_values_recorded:
 ---
 
 status: done
+task: "#314 QA FAIL follow-up: character-specific starter fallback"
+branch/commit: team2-backend/character-chat-starter-projection-314 / pending push commit
+changed_files:
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/prisma/seed.ts
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts
+- npm.cmd run build
+- npx.cmd tsc --noEmit --skipLibCheck --module commonjs --target ES2021 --moduleResolution node prisma/seed.ts
+- git diff --check
+result:
+- Fixed the QA FAIL where live character chat catalog/starter fallback labels were identical across characters when artist metadata had no `chatStarterPromptSets`.
+- Added backend slug-specific read-only fallback welcome/starter copy for yoon-serin, han-seoyul, park-doa, choi-seojin, and min-chaeon.
+- `getCharacterChatCatalog()` and `getStarterPrompts()` now report and reuse the character fallback through the same runtime persona path when metadata is empty.
+- Added regression coverage proving 5 fallback characters return distinct greeting text and distinct starter labels without provider calls or mutations.
+- Added min-chaeon to the seed public active slug source via `site-selected` assets so chat catalog/starter endpoints can resolve it after seed/deploy instead of returning 404 for a static exposed character.
+- Wallet, order, settlement, payout, provider generation, prompt logging, and raw provider response behavior were not changed.
+blocked_by:
+- Live min-chaeon 404 fix requires deploy/seed to update the DB row status.
+next_needed:
+- Viewer review, then live QA should recheck authenticated yoon-serin/han-seoyul/park-doa/choi-seojin starter labels and min-chaeon catalog/starter status after deploy/seed.
+sensitive_values_recorded:
+- none
+
+---
+
+status: done
 task: "#314 reviewer P1 fix: generation runtime persona select"
 branch/commit: team2-backend/character-chat-persona-runtime-314 / pending push follow-up commit
 changed_files:

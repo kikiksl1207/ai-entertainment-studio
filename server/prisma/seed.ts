@@ -441,6 +441,7 @@ const galleryDirsBySlug = {
   'seo-yuan': ['.'],
   'choi-seojin': ['.'],
   'cha-dohyun': ['.'],
+  'min-chaeon': ['site-selected'],
   'ha-yuna': ['.'],
   'kwon-taejun': ['.'],
 } as const;
