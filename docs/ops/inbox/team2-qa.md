@@ -1,5 +1,96 @@
 # Team2 QA Inbox
 
+status: fail
+task: #314 - Character chat persona/starter runtime live QA
+environment:
+- branch: team2-qa/314-315-character-chat-qa
+- local main after pull: origin/main
+- basis commit: 951214944de7c437b150b5abf4ddda3054efabbd
+- live API health commit: 951214944de7c437b150b5abf4ddda3054efabbd
+- live page: https://kikiksl1207.github.io/ai-entertainment-studio/character-chat.html
+- No token, cookie, password, env value, raw credential, raw prompt, provider response body, or secret was recorded.
+
+tested_flows:
+- PASS: unauthenticated `GET /api/v1/chat/character-catalog?artistSlug=yoon-serin` returned HTTP 401.
+- PASS: unauthenticated `GET /api/v1/chat/starter-prompts?artistSlug=yoon-serin` returned HTTP 401.
+- PASS: disposable authenticated QA user could call character chat read-only catalog/starter endpoints.
+- PASS: `character-catalog` returned `runtimePersona` for `yoon-serin`, `han-seoyul`, `park-doa`, and `choi-seojin`.
+- PASS: the 4 returned runtime persona rows had distinct tone tags and character-name-specific welcome text.
+- FAIL: `character-catalog` starter labels were identical for `yoon-serin`, `han-seoyul`, `park-doa`, and `choi-seojin`: `오늘 어땠는지 물어보기`, `조용히 응원하기`, `직접 입력하기`.
+- FAIL: `starter-prompts` starter labels were also identical for the same 4 characters.
+- FAIL: `min-chaeon` returned HTTP 404 from both `character-catalog` and `starter-prompts`, while the deployed static character chat page exposes a working `min-chaeon` first-screen fallback.
+- PASS: local regression coverage still passes: `npm.cmd test -- chat.service.spec.ts --runInBand` from `server` passed 35 tests.
+- PASS: provider/generation regression tests include runtime persona context assertions, but live provider request internals were not inspected and raw prompts/responses were not recorded.
+- PASS: `node --check pages/character-chat.js`.
+- PASS: `node --check data/character-chat-tones.js`.
+- PASS: `npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts` from `server`.
+- PASS: `npm.cmd run build` from `server`.
+- PASS: `git diff --check`.
+
+repro_steps:
+1. Run `git pull origin main`.
+2. Confirm `HEAD` is `951214944de7c437b150b5abf4ddda3054efabbd`.
+3. Confirm live `/health` returns commit `951214944de7c437b150b5abf4ddda3054efabbd`.
+4. Create a disposable QA user without recording credentials.
+5. Call `GET /api/v1/chat/character-catalog?artistSlug=yoon-serin`, `han-seoyul`, `park-doa`, `choi-seojin`, and `min-chaeon` with bearer auth.
+6. Call `GET /api/v1/chat/starter-prompts?artistSlug=...` for the same 5 slugs.
+7. Compare `runtimePersona.starterOptions` / `starterOptions` labels.
+
+blockers:
+- #314 live backend projection does not satisfy "character-specific starter/welcome projection PASS" yet because starter labels remain generic-identical for 4 characters.
+- `min-chaeon` is available in deployed static fallback UI but not in live chat catalog/starter API.
+
+next_needed:
+- Return #314 to the previous owner for backend/live data correction.
+- Make live `character-catalog` and `starter-prompts` return character-specific starter options for each supported character, or explicitly document that the backend should not own those starters.
+- Align backend supported artist rows with the deployed static character set, including `min-chaeon`, if chat entry is meant to work for that character.
+
+security_check:
+- PASS: no raw credential, token, cookie, password, env value, raw prompt, provider raw response, or generated body was recorded.
+- PASS: no wallet, order, settlement, payout, paid generation, or provider-response disclosure was executed.
+
+---
+
+status: pass
+task: #315 - Character chat first-screen/starter fallback v2 QA
+environment:
+- branch: team2-qa/314-315-character-chat-qa
+- local main after pull: origin/main
+- basis commit: 951214944de7c437b150b5abf4ddda3054efabbd
+- live page: https://kikiksl1207.github.io/ai-entertainment-studio/character-chat.html
+- No token, cookie, password, env value, raw credential, or secret was recorded.
+
+tested_flows:
+- PASS: live static first-screen starter fallback was checked for 5 characters: `yoon-serin`, `han-seoyul`, `park-doa`, `choi-seojin`, `min-chaeon`.
+- PASS: each of the 5 characters rendered a distinct starter set; the previous duplicated generic 5-choice pattern did not recur.
+- PASS: character-specific hero summary and welcome copy rendered for all 5 characters.
+- PASS: empty-state fallback was character-specific where active, and no blocker-level generic starter regression was observed.
+- PASS: 1280px, 768px, and 390px had no page-level horizontal overflow.
+- PASS: visible text had no mojibake replacement characters in the browser.
+- PASS: no visible `MVP`, `Coming Soon`, `테스트`, `임시`, `샘플`, or `여기에 문구`.
+- PASS: visible image failures were 0 across the checked pages.
+- PASS: no payment, charge, subscription, paid video, wallet, order, settlement, or payout CTA was activated.
+- PASS: `node --check pages/character-chat.js`.
+- PASS: `node --check data/character-chat-tones.js`.
+- PASS: `npm.cmd test -- chat.service.spec.ts --runInBand` from `server` passed 35 tests.
+- PASS: targeted chat lint, server build, and `git diff --check`.
+
+observed_static_starter_sets:
+- `yoon-serin`: `오늘 무대 응원 보내기`, `조용한 안부 묻기`, `다음 무대 궁금해하기`, `방금 본 화보 칭찬`.
+- `han-seoyul`: `오늘 하루 공유하기`, `센터 무대 응원`, `팬 인증 자랑하기`, `다음 팬미팅 기다리기`.
+- `park-doa`: `맛집 추천받기`, `오늘 짧은 안부`, `최근 방송 응원`, `주말 일정 묻기`.
+- `choi-seojin`: `화보 한 컷 칭찬`, `조명 톤 칭찬`, `다음 캠페인 궁금해하기`, `최근 인터뷰 한 마디`.
+- `min-chaeon`: `오늘 컨디션 묻기`, `운동 루틴 공유받기`, `무대 응원`, `귀여운 안부`.
+
+blockers:
+- None found for #315 v2 static fallback.
+
+security_check:
+- PASS: no sensitive values were recorded.
+- PASS: no paid or wallet-affecting action was executed.
+
+---
+
 status: pass
 task: Fan engagement Home teaser smoke QA
 environment:
