@@ -200,7 +200,7 @@
     para.textContent = `${namePrefix}${status}. 곧 한 마디 건네드릴게요.`;
   }
 
-  function buildStarterOptions(serverOptions) {
+  function buildStarterOptions(serverOptions, slug) {
     const out = [];
     const used = new Set();
 
@@ -215,26 +215,51 @@
       });
     }
 
-    // 부족분은 fallback 으로 채워 3~5개를 보장
-    for (const fb of STARTER_FALLBACK_OPTIONS) {
-      if (out.length >= STARTER_MAX) break;
-      if (used.has(fb.label)) continue;
-      out.push({
-        key: String.fromCharCode(65 + out.length),
-        label: fb.label,
-        message: fb.message
-      });
+    // #315 v2 — 큐알2 QA FAIL 후속: 부족분은 캐릭터별 tone.starters 로만 채운다.
+    // 이전 구현은 generic STARTER_FALLBACK_OPTIONS 가 여러 캐릭터에 동일하게 노출되어
+    // 4명+ 캐릭터가 같은 5개 starter 를 받음. tone 이 있는 slug 는 generic 폴백을 건너뛴다.
+    let toneFilled = false;
+    if (slug && out.length < STARTER_MAX) {
+      const tone = getCharacterTone(slug);
+      const toneStarters = Array.isArray(tone?.starters) ? tone.starters : [];
+      if (toneStarters.length > 0) {
+        toneFilled = true;
+        for (const opt of toneStarters) {
+          if (out.length >= STARTER_MAX) break;
+          if (!opt || used.has(opt.label)) continue;
+          out.push({
+            key: opt.key || String.fromCharCode(65 + out.length),
+            label: opt.label,
+            message: opt.message || ""
+          });
+          used.add(opt.label);
+        }
+      }
+    }
+
+    // 마지막 안전망 — slug 가 없거나 tone 이 0개 starter 인 경우에만 generic 으로 채운다.
+    // tone.starters 로 4개라도 채워졌다면 generic 을 섞지 않아 캐릭터별 차별화 유지.
+    if (!toneFilled) {
+      for (const fb of STARTER_FALLBACK_OPTIONS) {
+        if (out.length >= STARTER_MAX) break;
+        if (used.has(fb.label)) continue;
+        out.push({
+          key: String.fromCharCode(65 + out.length),
+          label: fb.label,
+          message: fb.message
+        });
+      }
     }
 
     return out.slice(0, STARTER_MAX);
   }
 
-  function renderStarterOptions(options) {
+  function renderStarterOptions(options, slug) {
     const wrap = $("chatStarterOptions");
     if (!wrap) return;
     wrap.textContent = "";
 
-    const visible = buildStarterOptions(options);
+    const visible = buildStarterOptions(options, slug);
     visible.forEach((option) => {
       const button = document.createElement("button");
       button.className = "chat-starter-option";
@@ -266,16 +291,16 @@
     const firstSet = Array.isArray(data?.sets) ? data.sets[0] : null;
 
     if (!firstSet) {
-      // API 가 0개 보내도 fallback 으로 3~5개 보여줌
+      // API 가 0개 보내도 fallback 으로 3~5개 보여줌 (#315 v2: tone.starters 우선)
       setText("chatStarterPrompt", "이렇게 말을 걸어볼까요?");
-      renderStarterOptions([]);
+      renderStarterOptions([], slug);
       setFallback(null);
       showStarterCard();
       return;
     }
 
     setText("chatStarterPrompt", firstSet.guideText || "이렇게 말을 걸어볼까요?");
-    renderStarterOptions(firstSet.options || []);
+    renderStarterOptions(firstSet.options || [], slug);
 
     const direct = document.querySelector("[data-chat-starter-direct]");
     if (direct && firstSet.directInput?.label) {
@@ -289,18 +314,18 @@
   async function fetchStarterPrompts(slug) {
     if (!slug) {
       setFallback("아티스트 정보가 없어 추천 인사말을 불러오지 못했어요. 아티스트 목록에서 다시 들어와 주세요.");
-      // 그래도 fallback 5종은 보여줌
+      // slug 없음 — tone 도 모르니 generic fallback 그대로 유지
       setText("chatStarterPrompt", "이렇게 말을 걸어볼까요?");
-      renderStarterOptions([]);
+      renderStarterOptions([], null);
       showStarterCard();
       return null;
     }
 
     if (typeof apiFetch !== "function") {
-      // 백엔드 미연결 환경: 로컬 fallback 으로 동작
+      // 백엔드 미연결 환경: 로컬 fallback 으로 동작 — #315 v2: slug 기반 tone.starters 우선
       setFallback(null);
       setText("chatStarterPrompt", "이렇게 말을 걸어볼까요?");
-      renderStarterOptions([]);
+      renderStarterOptions([], slug);
       showStarterCard();
       renderWelcomeBubble(slug, null);
       applyChatEmptyForSlug(slug, null);
@@ -322,7 +347,9 @@
         setFallback("추천 인사말을 잠시 가져오지 못했어요. 아래 인사로 먼저 시작해 보세요.");
       }
       setText("chatStarterPrompt", "이렇게 말을 걸어볼까요?");
-      renderStarterOptions([]);
+      // #315 v2 — API 실패 시에도 캐릭터별 tone.starters 가 우선 노출되어 4명+ 캐릭터가
+      // 같은 generic starter 를 받는 문제를 막는다.
+      renderStarterOptions([], slug);
       showStarterCard();
       renderWelcomeBubble(slug, null);
       applyChatEmptyForSlug(slug, null);
@@ -1013,7 +1040,7 @@
         renderWelcomeBubble(slug, { welcomeMessage: catalogTone.welcomeMessage, summary: character?.summary });
       }
       if (Array.isArray(catalogTone.starters) && catalogTone.starters.length) {
-        renderStarterOptions(catalogTone.starters);
+        renderStarterOptions(catalogTone.starters, slug);
         showStarterCard();
       }
     });
