@@ -1,6 +1,64 @@
 # Team2 QA Inbox
 
 status: pass
+task: #309 - Lumina Feed thread compose/view UX live QA
+environment:
+- branch: team2-qa/309-thread-ux-live-qa
+- local main after pull: origin/main
+- basis commit: 55329419ff6b4da69e540913676083cab4178a13
+- live page: https://kikiksl1207.github.io/ai-entertainment-studio/lumina-feed.html
+- live API health commit: d4694673e2e2390417b00765689a9c8b90fae0a3
+- No token, cookie, password, env value, or credential was recorded.
+
+tested_flows:
+- PASS: Live API accepted a manually confirmed 2-piece thread via `POST /api/v1/lumina-feed/posts/thread`.
+- PASS: Thread detail returned root + 이어글 with `detailItemCount=2`; both pieces were present in root-down order.
+- PASS: Feed list exposed the new root post and showed a thread/이어글 badge.
+- PASS: Thread detail modal opened from the list badge at 768px and contained both root and 이어글 text.
+- PASS: 500+ character root input showed the manual split guidance: first post must be within 500 chars and remaining text should be split through 타래로 이어쓰기.
+- PASS: Over-limit root input disabled the single-post submit path and highlighted the thread entry point.
+- PASS: Thread composer opened from the toggle at 1280px, 768px, and 390px.
+- PASS: Composer created one blank 이어글 row on entry, keeping the user in explicit/manual split flow.
+- PASS: Visible policy copy says per-piece 500 chars, max 10 pieces / 5000 chars, and no auto split.
+- PASS: Existing single-post submit path remains separate while thread mode is active.
+- PASS: 1280px, 768px, and 390px checks had no page-level horizontal overflow.
+- PASS: 1280px, 768px, and 390px checks had no visible mojibake in browser-rendered copy.
+- PASS: QA-created root post was deleted after the smoke run.
+- PASS: `node --check pages/lumina-feed.js`.
+- PASS: `npm.cmd test -- community.service.spec.ts --runInBand` from `server`.
+- PASS: `npm.cmd run lint` from `server`.
+- PASS: `npm.cmd run build` from `server`.
+- PASS: `git diff --check`.
+
+observations:
+- Existing public feed content included broken image requests under `https://kikiksl1207.github.io/api/v1/assets/public/.../display`. The QA-created #309 text-only thread did not introduce these images, and no #309 layout blocker was observed.
+- At 390px, `.feed-side-nav` measured a small internal `scrollWidth` delta, but document/body width stayed within viewport and no page-level horizontal scroll was exposed.
+
+repro_steps:
+1. Run `git pull origin main`.
+2. Confirm local `HEAD` is `55329419ff6b4da69e540913676083cab4178a13`.
+3. Open the live Lumina Feed page.
+4. Create a disposable QA user through the live auth API without recording credentials.
+5. Create a 2-piece thread through `/api/v1/lumina-feed/posts/thread`.
+6. Confirm thread detail returns two pieces in root-down order.
+7. Reload the live feed at 1280px, 768px, and 390px.
+8. Confirm the root post appears in the list with a thread/이어글 badge.
+9. At 768px, open the thread badge and confirm the modal shows root and 이어글.
+10. Open the thread composer toggle and confirm one blank 이어글 row plus policy/submission copy.
+11. Enter 501 characters in the root textarea and confirm manual split guidance plus disabled single-post submit.
+12. Confirm no page-level horizontal overflow at each viewport.
+13. Delete the QA-created root post.
+
+blockers:
+- None found for #309.
+
+security_check:
+- PASS: no token, cookie, password, env value, signed URL credential, or secret was recorded.
+- PASS: only the disposable QA thread mutation required for this smoke was executed, and the created root was cleaned up.
+
+---
+
+status: pass
 task: Fan engagement Home teaser smoke QA
 environment:
 - branch: team2-qa/fan-engagement-home-teaser-smoke
