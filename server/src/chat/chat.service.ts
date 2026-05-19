@@ -300,23 +300,7 @@ export class ChatService {
       },
       include: {
         artist: {
-          select: {
-            id: true,
-            slug: true,
-            displayName: true,
-            publicProfile: {
-              select: {
-                publicMetadata: true,
-                tagline: true,
-                personalityKeywords: true,
-              },
-            },
-            contentProfile: {
-              select: {
-                contentTone: true,
-              },
-            },
-          },
+          select: { id: true, slug: true, displayName: true },
         },
         chatPersona: true,
       },
@@ -1403,7 +1387,23 @@ export class ChatService {
       },
       include: {
         artist: {
-          select: { id: true, slug: true, displayName: true },
+          select: {
+            id: true,
+            slug: true,
+            displayName: true,
+            publicProfile: {
+              select: {
+                publicMetadata: true,
+                tagline: true,
+                personalityKeywords: true,
+              },
+            },
+            contentProfile: {
+              select: {
+                contentTone: true,
+              },
+            },
+          },
         },
         chatPersona: true,
       },

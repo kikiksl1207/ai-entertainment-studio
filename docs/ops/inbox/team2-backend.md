@@ -284,3 +284,29 @@ next_needed:
 - Viewer review, then deploy/smoke against staging with provider enabled using summary-only tone checks.
 sensitive_values_recorded:
 - none
+
+---
+
+status: done
+task: "#314 reviewer P1 fix: generation runtime persona select"
+branch/commit: team2-backend/character-chat-persona-runtime-314 / pending push follow-up commit
+changed_files:
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Fixed the reviewer P1: `getOwnedSessionForGeneration()` now selects the artist public metadata, tagline, personality keywords, and content tone needed by `buildCharacterRuntimePersonaContext()` before provider generation.
+- Reverted the accidental broader artist include on `createSession()`, keeping the expanded select scoped to the generation path.
+- Strengthened the provider beta test so the actual Prisma generation-session select shape must include `publicProfile` and `contentProfile` before asserting runtime persona injection.
+- Wallet, order, settlement, payout, API endpoint, provider readiness, cooldown, and daily-limit guard behavior were not changed.
+blocked_by:
+- none
+next_needed:
+- Viewer re-review on updated branch.
+sensitive_values_recorded:
+- none
