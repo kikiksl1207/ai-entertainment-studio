@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -19,6 +19,16 @@ type FeedSearchBlockedTermScope = {
   normalizedKeyword: string;
   searchType: string;
   language: string;
+};
+type StoredThreadItem = {
+  id: string;
+  position: number;
+  body: string;
+  status: string;
+  createdAt: unknown;
+  updatedAt: unknown;
+  deletedAt: unknown;
+  [key: string]: unknown;
 };
 
 const POST_VISIBILITIES = new Set(['public', 'followers']);
@@ -33,6 +43,9 @@ const REPORT_REASONS = new Set([
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FEED_POST_MAX_IMAGES = 4;
+const FEED_POST_MAX_BODY_CHARS = 500;
+const FEED_THREAD_MAX_ITEMS = 10;
+const FEED_THREAD_PREVIEW_MAX_CHARS = 160;
 const FEED_EXTERNAL_URL_MAX_LENGTH = 2048;
 const SEARCH_LANGUAGES = new Set(['ko', 'ja', 'en', 'zh', 'unknown']);
 const TRENDING_LANGUAGE_FILTERS = new Set(['all', 'ko', 'ja', 'en', 'zh', 'unknown']);
@@ -595,6 +608,68 @@ export class CommunityService {
     return { post: await this.toPostView(post) };
   }
 
+  async createThreadPost(userId: string, input: CommunityBody) {
+    await this.assertActiveUser(userId);
+    const assetIds = await this.resolvePostAssetIds(input);
+    const threadItems = this.feedThreadItems(input, assetIds.length > 0);
+    const artistId = await this.resolveOptionalArtistId(input);
+    const visibility = this.visibility(input.visibility);
+    const now = new Date();
+    const metadata = {
+      ...this.buildPostMetadata(input),
+      thread: this.buildThreadMetadata(threadItems, now),
+    };
+
+    if (artistId) {
+      await this.assertArtistOperator(userId, artistId);
+    }
+
+    const post = await this.prisma.communityPost.create({
+      data: {
+        authorUserId: userId,
+        artistId,
+        postType: artistId ? 'artist_post' : 'user_post',
+        visibility,
+        body: threadItems[0].body,
+        metadata: this.toJson(metadata),
+        assets: assetIds.length
+          ? {
+              create: assetIds.map((assetId, index) => ({
+                assetId,
+                role: 'attachment',
+                sortOrder: index,
+              })),
+            }
+          : undefined,
+      },
+      include: this.postInclude(),
+    });
+    const postView = await this.toPostView(post, userId);
+
+    return {
+      post: postView,
+      rootId: post.id,
+      rootPostId: post.id,
+      itemCount: postView.thread.itemCount,
+      threadCount: postView.thread.threadCount,
+      readProjection: postView.thread,
+      policy: this.feedThreadPolicy(),
+    };
+  }
+
+  async getPost(postId: string, viewerUserId?: string | null) {
+    const post = await this.findVisiblePostWithInclude(postId);
+
+    return {
+      post: await this.toPostView(post, viewerUserId),
+      policy: {
+        detailProjection: true,
+        threadItemsOrderedBy: 'position',
+        rootOnlyEngagement: true,
+      },
+    };
+  }
+
   async createLinkPreview(userId: string, input: CommunityBody) {
     await this.assertActiveUser(userId);
 
@@ -670,6 +745,7 @@ export class CommunityService {
         id: true,
         authorUserId: true,
         status: true,
+        metadata: true,
       },
     });
 
@@ -685,17 +761,32 @@ export class CommunityService {
       throw new ForbiddenException('Post author access is required');
     }
 
-    const body = this.text(input, 'body', 1, 500);
+    const body = this.text(input, 'body', 1, FEED_POST_MAX_BODY_CHARS);
+    const currentMetadata = this.metadataObject(post.metadata);
+    const inputMetadata = { ...(this.object(input, 'metadata') ?? {}) };
+    delete inputMetadata.thread;
+    const thread = this.threadMetadataObject(currentMetadata.thread);
+    const metadata = {
+      ...currentMetadata,
+      ...inputMetadata,
+      ...(thread
+        ? {
+            thread: {
+              ...thread,
+              updatedAt: new Date().toISOString(),
+              rootUpdatedAt: new Date().toISOString(),
+            },
+          }
+        : {}),
+      editedAt: new Date().toISOString(),
+      editedByUserId: userId,
+      editScope: 'body_only_mvp',
+    };
     const updatedPost = await this.prisma.communityPost.update({
       where: { id: post.id },
       data: {
         body,
-        metadata: this.toJson({
-          ...this.object(input, 'metadata'),
-          editedAt: new Date().toISOString(),
-          editedByUserId: userId,
-          editScope: 'body_only_mvp',
-        }),
+        metadata: this.toJson(metadata),
         updatedAt: new Date(),
       },
       include: this.postInclude(),
@@ -707,6 +798,111 @@ export class CommunityService {
         editScope: 'body_only_mvp',
         assetEditing: 'not_supported_yet',
       },
+    };
+  }
+
+  async updateThreadItem(
+    userId: string,
+    postId: string,
+    itemId: string,
+    input: CommunityBody,
+  ) {
+    await this.assertActiveUser(userId);
+    const post = await this.getOwnedThreadRoot(userId, postId);
+    const body = this.threadItemBody(input.body, 2);
+    const metadata = this.metadataObject(post.metadata);
+    const thread = this.requireMutableThread(metadata.thread);
+    const now = new Date().toISOString();
+    const items = this.mutableStoredThreadItems(thread);
+    const itemIndex = items.findIndex((item) => item.id === itemId);
+
+    if (itemIndex < 0) {
+      throw new NotFoundException('Thread item not found');
+    }
+
+    if (items[itemIndex].status === 'deleted' || items[itemIndex].deletedAt) {
+      throw new BadRequestException('Deleted thread items cannot be edited');
+    }
+
+    items[itemIndex] = {
+      ...items[itemIndex],
+      body,
+      updatedAt: now,
+    };
+
+    const updatedPost = await this.prisma.communityPost.update({
+      where: { id: post.id },
+      data: {
+        metadata: this.toJson({
+          ...metadata,
+          thread: {
+            ...thread,
+            items,
+            updatedAt: now,
+          },
+        }),
+        updatedAt: new Date(),
+      },
+      include: this.postInclude(),
+    });
+    const postView = await this.toPostView(updatedPost, userId);
+
+    return {
+      ok: true,
+      post: postView,
+      threadItem: postView.thread.items.find((item: any) => item.id === itemId) ?? null,
+      policy: this.feedThreadPolicy(),
+    };
+  }
+
+  async deleteThreadItem(userId: string, postId: string, itemId: string) {
+    await this.assertActiveUser(userId);
+    const post = await this.getOwnedThreadRoot(userId, postId);
+    const metadata = this.metadataObject(post.metadata);
+    const thread = this.requireMutableThread(metadata.thread);
+    const items = this.mutableStoredThreadItems(thread);
+    const itemIndex = items.findIndex((item) => item.id === itemId);
+
+    if (itemIndex < 0) {
+      throw new NotFoundException('Thread item not found');
+    }
+
+    if (items[itemIndex].status === 'deleted' || items[itemIndex].deletedAt) {
+      return { ok: true, alreadyDeleted: true };
+    }
+
+    const now = new Date().toISOString();
+    items[itemIndex] = {
+      ...items[itemIndex],
+      status: 'deleted',
+      deletedAt: now,
+      updatedAt: now,
+    };
+
+    const updatedPost = await this.prisma.communityPost.update({
+      where: { id: post.id },
+      data: {
+        metadata: this.toJson({
+          ...metadata,
+          thread: {
+            ...thread,
+            items,
+            updatedAt: now,
+          },
+        }),
+        updatedAt: new Date(),
+      },
+      include: this.postInclude(),
+    });
+    const postView = await this.toPostView(updatedPost, userId);
+
+    return {
+      ok: true,
+      alreadyDeleted: false,
+      post: postView,
+      itemCount: postView.thread.itemCount,
+      threadCount: postView.thread.threadCount,
+      policy: this.feedThreadPolicy(),
     };
   }
 
@@ -1800,6 +1996,7 @@ export class CommunityService {
   private async toPostView(post: any, viewerUserId?: string | null) {
     const metadata = this.metadataObject(post.metadata);
     const isAuthor = Boolean(viewerUserId && post.authorUserId === viewerUserId);
+    const thread = this.threadProjection(post, metadata);
     const [viewerReaction, artistFollow, authorFollow] = viewerUserId
       ? await Promise.all([
           this.prisma.communityReaction.findUnique({
@@ -1848,6 +2045,7 @@ export class CommunityService {
       linkPreview: metadata.linkPreview
         ? this.metadataObject(metadata.linkPreview)
         : null,
+      thread,
       assets: (post.assets ?? []).map((link: any) => {
         const displayUrl = this.publicFeedAssetUrl(
           link.asset.id,
@@ -1895,8 +2093,77 @@ export class CommunityService {
         canEdit: isAuthor,
         canDelete: isAuthor,
         editScope: 'body_only_mvp',
+        thread: {
+          canEditItems: isAuthor,
+          canDeleteItems: isAuthor,
+          rootOnlyEngagement: true,
+        },
       },
     };
+  }
+
+  private threadProjection(post: any, metadata: Record<string, unknown>) {
+    const thread = this.threadMetadataObject(metadata.thread);
+    const rootItem = {
+      id: post.id,
+      postId: post.id,
+      position: 1,
+      role: 'root',
+      body: typeof post.body === 'string' ? post.body : '',
+      status: post.status,
+      createdAt: this.isoString(post.createdAt),
+      updatedAt: this.isoString(post.updatedAt),
+      deletedAt: this.isoString(post.deletedAt),
+    };
+    const storedItems = thread
+      ? this.mutableStoredThreadItems(thread)
+          .filter((item) => item.status !== 'deleted' && !item.deletedAt)
+          .sort((first, second) => first.position - second.position)
+      : [];
+    const items = [
+      rootItem,
+      ...storedItems.map((item) => ({
+        id: item.id,
+        postId: post.id,
+        position: item.position,
+        role: 'item',
+        body: item.body,
+        status: item.status,
+        createdAt: this.isoString(item.createdAt),
+        updatedAt: this.isoString(item.updatedAt),
+        deletedAt: this.isoString(item.deletedAt),
+      })),
+    ];
+    const itemCount = items.length;
+
+    return {
+      isThread: Boolean(thread && itemCount > 1),
+      rootPostId: post.id,
+      itemCount,
+      threadCount: itemCount,
+      maxItems: FEED_THREAD_MAX_ITEMS,
+      previewText: this.threadPreviewText(items.map((item) => item.body)),
+      items,
+      autoSplit: false,
+      rootOnlyEngagement: true,
+      engagementTarget: 'root',
+      assetTarget: 'root',
+      likesTarget: 'root',
+      commentsTarget: 'root',
+      imagesTarget: 'root',
+    };
+  }
+
+  private threadPreviewText(bodies: string[]) {
+    const preview = bodies
+      .map((body) => body.trim())
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+
+    return preview.length > FEED_THREAD_PREVIEW_MAX_CHARS
+      ? preview.slice(0, FEED_THREAD_PREVIEW_MAX_CHARS)
+      : preview;
   }
 
   private publicFeedAssetUrl(assetId: string, storageKey: string, variant = 'display') {
@@ -2869,6 +3136,60 @@ export class CommunityService {
     return post;
   }
 
+  private async findVisiblePostWithInclude(postId: string) {
+    if (!UUID_PATTERN.test(postId)) {
+      throw new BadRequestException('postId must be a UUID');
+    }
+
+    const post = await this.prisma.communityPost.findFirst({
+      where: {
+        id: postId,
+        status: 'published',
+        deletedAt: null,
+      },
+      include: this.postInclude(),
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    return post;
+  }
+
+  private async getOwnedThreadRoot(userId: string, postId: string) {
+    if (!UUID_PATTERN.test(postId)) {
+      throw new BadRequestException('postId must be a UUID');
+    }
+
+    const post = await this.prisma.communityPost.findFirst({
+      where: {
+        id: postId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        authorUserId: true,
+        status: true,
+        metadata: true,
+      },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    if (post.status !== 'published') {
+      throw new BadRequestException('Only published posts can be edited');
+    }
+
+    if (post.authorUserId !== userId) {
+      throw new ForbiddenException('Post author access is required');
+    }
+
+    return post;
+  }
+
   private async createNotificationSafely(input: {
     userId: string;
     type: string;
@@ -3011,6 +3332,7 @@ export class CommunityService {
     delete metadata.linkPreview;
     delete metadata.externalUrl;
     delete metadata.feedPolicy;
+    delete metadata.thread;
 
     const externalUrl = this.optionalString(input.externalUrl);
 
@@ -3089,6 +3411,53 @@ export class CommunityService {
       bodyCopy: 'not_allowed',
       remoteFetch: 'disabled_for_mvp',
       videoUpload: 'not_allowed_in_feed_mvp',
+    };
+  }
+
+  private buildThreadMetadata(
+    threadItems: Array<{ position: number; body: string }>,
+    now: Date,
+  ) {
+    const timestamp = now.toISOString();
+
+    return {
+      version: 1,
+      type: 'manual_thread',
+      maxItems: FEED_THREAD_MAX_ITEMS,
+      autoSplit: false,
+      rootPosition: 1,
+      rootOnlyEngagement: true,
+      engagementTarget: 'root',
+      assetTarget: 'root',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      rootUpdatedAt: timestamp,
+      items: threadItems.slice(1).map((item) => ({
+        id: randomUUID(),
+        position: item.position,
+        body: item.body,
+        status: 'published',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        deletedAt: null,
+      })),
+    };
+  }
+
+  private feedThreadPolicy() {
+    return {
+      maxItems: FEED_THREAD_MAX_ITEMS,
+      maxCharsPerItem: FEED_POST_MAX_BODY_CHARS,
+      rootIncludedInLimit: true,
+      autoSplit: false,
+      rootOnlyEngagement: true,
+      likesTarget: 'root',
+      commentsTarget: 'root',
+      imagesTarget: 'root',
+      walletMutation: false,
+      luminaMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
     };
   }
 
@@ -3213,11 +3582,93 @@ export class CommunityService {
       throw new BadRequestException('body must be a non-empty string');
     }
 
-    if (value.length > 500) {
-      throw new BadRequestException('body must be shorter than or equal to 500 characters');
+    if (value.length > FEED_POST_MAX_BODY_CHARS) {
+      throw new BadRequestException(
+        `body must be shorter than or equal to ${FEED_POST_MAX_BODY_CHARS} characters`,
+      );
     }
 
     return value;
+  }
+
+  private feedThreadItems(input: CommunityBody, hasAssets: boolean) {
+    const rawItems = this.threadInputItems(input);
+
+    if (!rawItems) {
+      return [
+        {
+          position: 1,
+          body: this.feedPostBody(input, hasAssets),
+        },
+      ];
+    }
+
+    if (rawItems.length < 1) {
+      throw new BadRequestException('thread items must include at least one item');
+    }
+
+    if (rawItems.length > FEED_THREAD_MAX_ITEMS) {
+      throw new BadRequestException(
+        `thread items must include ${FEED_THREAD_MAX_ITEMS} items or fewer`,
+      );
+    }
+
+    return rawItems.map((item, index) => ({
+      position: index + 1,
+      body: this.threadItemBody(
+        this.threadItemBodyValue(item),
+        index + 1,
+        rawItems.length === 1 && hasAssets,
+      ),
+    }));
+  }
+
+  private threadInputItems(input: CommunityBody) {
+    const candidate =
+      input.items ?? input.threadItems ?? input.pieces ?? input.threadPieces;
+
+    if (candidate === undefined || candidate === null) {
+      return null;
+    }
+
+    if (!Array.isArray(candidate)) {
+      throw new BadRequestException('thread items must be an array');
+    }
+
+    return candidate;
+  }
+
+  private threadItemBodyValue(item: unknown) {
+    if (typeof item === 'string') {
+      return item;
+    }
+
+    const data =
+      item && typeof item === 'object' && !Array.isArray(item)
+        ? (item as Record<string, unknown>)
+        : null;
+
+    return data?.body ?? data?.text ?? data?.content;
+  }
+
+  private threadItemBody(value: unknown, position: number, allowEmpty = false) {
+    const body = typeof value === 'string' ? value.trim() : '';
+
+    if (!body) {
+      if (allowEmpty) {
+        return '';
+      }
+
+      throw new BadRequestException(`thread item ${position} body must be a non-empty string`);
+    }
+
+    if (body.length > FEED_POST_MAX_BODY_CHARS) {
+      throw new BadRequestException(
+        `thread item ${position} body must be shorter than or equal to ${FEED_POST_MAX_BODY_CHARS} characters`,
+      );
+    }
+
+    return body;
   }
 
   private optionalText(input: CommunityBody, key: string, max: number) {
@@ -3253,6 +3704,58 @@ export class CommunityService {
     return value && typeof value === 'object' && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : {};
+  }
+
+  private threadMetadataObject(value: unknown) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+
+    return value as Record<string, unknown>;
+  }
+
+  private requireMutableThread(value: unknown) {
+    const thread = this.threadMetadataObject(value);
+
+    if (!thread) {
+      throw new BadRequestException('Post is not a thread');
+    }
+
+    return thread;
+  }
+
+  private mutableStoredThreadItems(thread: Record<string, unknown>): StoredThreadItem[] {
+    const items = Array.isArray(thread.items) ? thread.items : [];
+
+    return items
+      .map((value, index) => {
+        const item = this.metadataObject(value);
+        const id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : null;
+
+        if (!id) {
+          return null;
+        }
+
+        return {
+          ...item,
+          id,
+          position: Number.isInteger(item.position) ? Number(item.position) : index + 2,
+          body: typeof item.body === 'string' ? item.body : '',
+          status: item.status === 'deleted' ? 'deleted' : 'published',
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+          deletedAt: item.deletedAt,
+        };
+      })
+      .filter((item): item is StoredThreadItem => item !== null);
+  }
+
+  private isoString(value: unknown) {
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    return typeof value === 'string' ? value : null;
   }
 
   private assetStatus(metadataValue: unknown) {

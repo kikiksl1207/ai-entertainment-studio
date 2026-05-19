@@ -9,6 +9,7 @@ const authorId = '00000000-0000-4000-8000-000000000101';
 const otherUserId = '00000000-0000-4000-8000-000000000102';
 const postId = '00000000-0000-4000-8000-000000000201';
 const artistId = '00000000-0000-4000-8000-000000000301';
+const threadItemId = '00000000-0000-4000-8000-000000000401';
 const createdAt = new Date('2026-05-18T00:00:00.000Z');
 
 type PrismaMock = ReturnType<typeof createPrismaMock>;
@@ -19,6 +20,7 @@ function createPrismaMock() {
       findFirst: jest.fn().mockResolvedValue({ id: authorId }),
     },
     communityPost: {
+      create: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
@@ -37,6 +39,9 @@ function createPrismaMock() {
     },
     artistOperator: {
       findFirst: jest.fn(),
+    },
+    asset: {
+      findMany: jest.fn().mockResolvedValue([]),
     },
   };
 }
@@ -82,6 +87,35 @@ function postView(overrides: Record<string, unknown> = {}) {
     artist: null,
     assets: [],
     ...overrides,
+  };
+}
+
+function threadMetadata(overrides: Record<string, unknown> = {}) {
+  return {
+    thread: {
+      version: 1,
+      type: 'manual_thread',
+      maxItems: 10,
+      autoSplit: false,
+      rootOnlyEngagement: true,
+      engagementTarget: 'root',
+      assetTarget: 'root',
+      createdAt: createdAt.toISOString(),
+      updatedAt: createdAt.toISOString(),
+      rootUpdatedAt: createdAt.toISOString(),
+      items: [
+        {
+          id: threadItemId,
+          position: 2,
+          body: 'Second piece',
+          status: 'published',
+          createdAt: createdAt.toISOString(),
+          updatedAt: createdAt.toISOString(),
+          deletedAt: null,
+        },
+      ],
+      ...overrides,
+    },
   };
 }
 
@@ -242,6 +276,180 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
 
     await expect(service.deletePost(authorId, postId)).resolves.toEqual({ ok: true });
     await expect(service.deletePost(authorId, postId)).resolves.toEqual({ ok: true });
+    expect(prisma.communityPost.update).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('CommunityService Lumina Feed thread contract', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('creates a one-piece thread with the same root body contract as a single feed post', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.create.mockImplementation(async (args: any) =>
+      postView({
+        body: args.data.body,
+        metadata: args.data.metadata,
+      }),
+    );
+    const service = serviceWith(prisma);
+
+    const result = await service.createThreadPost(authorId, { body: 'Solo post' });
+
+    expect(prisma.communityPost.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          body: 'Solo post',
+          metadata: expect.objectContaining({
+            thread: expect.objectContaining({
+              autoSplit: false,
+              rootOnlyEngagement: true,
+              items: [],
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(result.rootPostId).toBe(postId);
+    expect(result.itemCount).toBe(1);
+    expect(result.readProjection.isThread).toBe(false);
+    expect(result.policy.walletMutation).toBe(false);
+    expect(result.policy.luminaMutation).toBe(false);
+    expect(result.policy.settlementMutation).toBe(false);
+  });
+
+  it('creates two to ten manually confirmed pieces with stable root-based projection', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.create.mockImplementation(async (args: any) =>
+      postView({
+        body: args.data.body,
+        metadata: args.data.metadata,
+      }),
+    );
+    const service = serviceWith(prisma);
+
+    const result = await service.createThreadPost(authorId, {
+      items: [{ body: 'Root piece' }, { body: 'Second piece' }],
+    });
+
+    const createArg = prisma.communityPost.create.mock.calls[0][0];
+    expect(createArg.data.body).toBe('Root piece');
+    expect(createArg.data.metadata.thread.items).toEqual([
+      expect.objectContaining({
+        position: 2,
+        body: 'Second piece',
+        status: 'published',
+      }),
+    ]);
+    expect(result.itemCount).toBe(2);
+    expect(result.threadCount).toBe(2);
+    expect(result.readProjection.items.map((item: any) => item.position)).toEqual([1, 2]);
+    expect(result.readProjection.engagementTarget).toBe('root');
+    expect(result.readProjection.imagesTarget).toBe('root');
+  });
+
+  it('rejects eleven pieces and any piece over the 500-character contract before mutation', async () => {
+    const prisma = createPrismaMock();
+    const service = serviceWith(prisma);
+
+    await expect(
+      service.createThreadPost(authorId, {
+        items: Array.from({ length: 11 }, (_, index) => ({ body: `piece ${index + 1}` })),
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    await expect(
+      service.createThreadPost(authorId, {
+        items: [{ body: 'ok' }, { body: 'x'.repeat(501) }],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.communityPost.create).not.toHaveBeenCalled();
+  });
+
+  it('edits thread items only for the root post author and never via artist operator access', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findFirst.mockResolvedValue(
+      storedPost({ metadata: threadMetadata() }),
+    );
+    prisma.communityPost.update.mockImplementation(async (args: any) =>
+      postView({
+        body: 'Root piece',
+        metadata: args.data.metadata,
+      }),
+    );
+    const service = serviceWith(prisma);
+
+    const result = await service.updateThreadItem(authorId, postId, threadItemId, {
+      body: 'Updated second piece',
+    });
+
+    expect(prisma.communityPost.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: expect.objectContaining({
+            thread: expect.objectContaining({
+              items: [
+                expect.objectContaining({
+                  id: threadItemId,
+                  body: 'Updated second piece',
+                }),
+              ],
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(result.threadItem.body).toBe('Updated second piece');
+
+    prisma.user.findFirst.mockResolvedValue({ id: otherUserId });
+    prisma.communityPost.findFirst.mockResolvedValue(
+      storedPost({ artistId, authorUserId: authorId, metadata: threadMetadata() }),
+    );
+    await expect(
+      service.updateThreadItem(otherUserId, postId, threadItemId, {
+        body: 'Operator should not edit',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.artistOperator.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('keeps repeated thread item delete requests idempotent after the first mutation', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findFirst
+      .mockResolvedValueOnce(storedPost({ metadata: threadMetadata() }))
+      .mockResolvedValueOnce(
+        storedPost({
+          metadata: threadMetadata({
+            items: [
+              {
+                id: threadItemId,
+                position: 2,
+                body: 'Second piece',
+                status: 'deleted',
+                createdAt: createdAt.toISOString(),
+                updatedAt: createdAt.toISOString(),
+                deletedAt: createdAt.toISOString(),
+              },
+            ],
+          }),
+        }),
+      );
+    prisma.communityPost.update.mockImplementation(async (args: any) =>
+      postView({
+        body: 'Root piece',
+        metadata: args.data.metadata,
+      }),
+    );
+    const service = serviceWith(prisma);
+
+    await expect(service.deleteThreadItem(authorId, postId, threadItemId)).resolves.toEqual(
+      expect.objectContaining({ ok: true, alreadyDeleted: false, itemCount: 1 }),
+    );
+    await expect(service.deleteThreadItem(authorId, postId, threadItemId)).resolves.toEqual({
+      ok: true,
+      alreadyDeleted: true,
+    });
     expect(prisma.communityPost.update).toHaveBeenCalledTimes(1);
   });
 });

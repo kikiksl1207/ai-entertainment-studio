@@ -224,6 +224,10 @@ Query:
 
 ```http
 POST /lumina-feed/posts
+POST /lumina-feed/posts/thread
+GET /lumina-feed/posts/:postId
+PATCH /lumina-feed/posts/:postId/thread-items/:itemId
+DELETE /lumina-feed/posts/:postId/thread-items/:itemId
 DELETE /lumina-feed/posts/:postId
 Authorization: Bearer <accessToken>
 ```
@@ -249,8 +253,8 @@ Artist post:
 If `artistId` or `artistSlug` is provided, the backend requires an active
 `artist_operators` row for the current user and artist.
 `DELETE /lumina-feed/posts/:postId` soft-deletes the current user's own post
-and returns `{ "ok": true }`. Artist operators can also delete posts for artists
-they operate. It does not hard-delete content.
+and returns `{ "ok": true }`. Deleting a root thread post hides the full thread
+from feed lists. It does not hard-delete content.
 
 Body rules:
 
@@ -263,6 +267,27 @@ Body rules:
 - `externalUrl`: optional HTTPS URL, max 2048 characters. The backend stores a
   lightweight metadata-only `linkPreview` on `community_posts.metadata` and does
   not fetch, copy, or store the remote article/body/media for MVP.
+
+Manual thread rules:
+
+- `POST /lumina-feed/posts/thread` accepts `body` for a one-piece post or an
+  `items`/`threadItems`/`pieces` array for a manual thread.
+- The root piece is stored as the normal feed post body and counts toward the
+  default max of 10 pieces.
+- Each piece is limited to 500 characters. 11 or more pieces, empty pieces, or a
+  501-character piece return `400`.
+- The backend does not auto-split long text; clients must ask the user to
+  confirm each piece before submitting.
+- Response includes `{ post, rootId, rootPostId, itemCount, threadCount,
+  readProjection, policy }`.
+- Feed/detail post rows include `post.thread` with `isThread`, `rootPostId`,
+  `itemCount`, `threadCount`, `maxItems`, `previewText`, and ordered `items`.
+- Non-root item edit/delete is author-only. Artist operators must not edit or
+  delete another user's thread items.
+- Likes, comments, reports, hides, and images remain root-post based in this
+  phase.
+- Thread create/edit/delete does not mutate wallet, Lumina, settlement, payout,
+  order, or paid-like flows.
 
 External link example:
 

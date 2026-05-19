@@ -173,7 +173,9 @@ My Page contract:
 - `POST /api/v1/me/assets/:assetId/archive` marks the owned asset as archived in metadata without deleting object storage. It blocks active avatar, active profile cover, published feed, and creator-image request usage unless `{ "force": true }` is explicitly sent.
 - `POST /api/v1/me/assets/:assetId/restore` returns an owned archived asset to active.
 - `POST /api/v1/lumina-feed/posts` accepts optional `assetIds` with up to 4 existing public image asset UUIDs. The response exposes linked images through post `assets[]` with public URLs.
+- `POST /api/v1/lumina-feed/posts/thread` creates a manual Lumina Feed thread. The root post remains a normal feed post, each piece is limited to 500 characters, and the root piece is included in the default 10-piece max.
 - `PATCH /api/v1/lumina-feed/posts/:postId` edits the current user's own post body. MVP edit scope is body-only; image replacement/removal is not supported yet.
+- `PATCH /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` and `DELETE /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` are author-only for non-root thread items. Likes, comments, and images remain root-post based.
 - Signed-in `GET /api/v1/me/lumina-feed` post rows include `viewer` and `permissions` hints (`hasLiked`, `isAuthor`, `isFollowingArtist`, `isFollowingAuthor`, `canFollowArtist`, `canUnfollowArtist`, `canFollowAuthor`, `canUnfollowAuthor`, `canEdit`, `canDelete`) for frontend action rendering.
 
 이메일/비밀번호 가입 정책:
@@ -1457,6 +1459,10 @@ GET /api/v1/lumina-feed/search?q=%23seojin&type=hashtag&language=all&take=20
 GET /api/v1/lumina-feed/search-suggestions?q=seo&language=all&window=24h&take=8
 GET /api/v1/lumina-feed/trending-searches?language=all&type=all&window=1h&take=10
 GET /api/v1/lumina-feed/hashtags?language=all&window=24h&take=20
+GET /api/v1/lumina-feed/posts/:postId
+POST /api/v1/lumina-feed/posts/thread
+PATCH /api/v1/lumina-feed/posts/:postId/thread-items/:itemId
+DELETE /api/v1/lumina-feed/posts/:postId/thread-items/:itemId
 DELETE /api/v1/lumina-feed/posts/:postId
 DELETE /api/v1/lumina-feed/replies/:replyId
 POST /api/v1/lumina-feed/posts/:postId/hide
@@ -1477,7 +1483,13 @@ Authorization: Bearer <accessToken>
 - `GET /api/v1/lumina-feed/hashtags` parses hashtags from up to the latest 500 public feed posts in the selected window. Use it for search chips before search-event volume is high enough.
 - `GET /admin/api/v1/backstage/operations/feed-search-analytics` returns Backstage-only search analytics from `feed_search_events`, including grouped keywords, recent events, zero-result counts, and language/type/window filters.
 - `POST /api/v1/lumina-feed/posts` allows image-only posts. If `assetIds` contains at least one confirmed public image asset, `body` may be an empty string. Text-only posts still require non-empty `body`.
-- `DELETE /api/v1/lumina-feed/posts/:postId` soft-deletes the current user's own post. Artist operators can delete posts for artists they operate.
+- `POST /api/v1/lumina-feed/posts/thread` accepts `body` for a one-piece post or `items`/`threadItems`/`pieces` arrays for a manual thread. Every piece is trimmed and limited to 500 characters; 11 or more pieces return `400`. The backend does not auto-split text.
+- Thread post rows include `thread`: `{ isThread, rootPostId, itemCount, threadCount, maxItems, previewText, items, autoSplit, rootOnlyEngagement, engagementTarget, assetTarget }`. List rows can render `thread.isThread`, `thread.itemCount`, and `thread.previewText`; detail can use `thread.items` ordered by `position`.
+- `GET /api/v1/lumina-feed/posts/:postId` returns `{ post, policy }` for public published non-deleted posts and includes the ordered thread projection.
+- `PATCH /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` edits a non-root thread item body for the root author only. Root body edits continue to use `PATCH /api/v1/lumina-feed/posts/:postId`.
+- `DELETE /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` soft-deletes a non-root thread item for the root author only and is idempotent after the item is already deleted.
+- Thread likes, comments, reports, hides, and image assets remain root-post based in this phase. There is no wallet, Lumina, settlement, payout, or order mutation in thread create/edit/delete.
+- `DELETE /api/v1/lumina-feed/posts/:postId` soft-deletes the current user's own root post. Deleting the root hides the full thread from feed lists.
 - `DELETE /api/v1/lumina-feed/replies/:replyId` soft-deletes the current user's own reply. Artist operators can delete replies on operated artist posts.
 - Hidden posts use soft delete/reactivation with unique `(user_id, post_id)`.
 - `POST /api/v1/users/:userId/block` accepts optional `{ "reason": "..." }`, rejects self-block, soft-deletes active follows in both directions, and returns `{ block }`.

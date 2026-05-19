@@ -2328,6 +2328,7 @@ GET /lumina-feed/search-suggestions?q=seo&language=all&window=24h&take=8
 GET /lumina-feed/trending-searches?language=all&type=all&window=1h&take=10
 GET /lumina-feed/trending-searches?language=ko&type=hashtag&window=24h&take=10
 GET /lumina-feed/hashtags?language=all&window=24h&take=20
+GET /lumina-feed/posts/:postId
 GET /me/lumina-feed?mode=all&take=20
 GET /me/lumina-feed?mode=following&take=20
 GET /lumina-feed/samples?mode=all&take=20
@@ -2423,7 +2424,10 @@ Create/delete post:
 
 ```http
 POST /lumina-feed/posts
+POST /lumina-feed/posts/thread
 DELETE /lumina-feed/posts/:postId
+PATCH /lumina-feed/posts/:postId/thread-items/:itemId
+DELETE /lumina-feed/posts/:postId/thread-items/:itemId
 Authorization: Bearer <accessToken>
 ```
 
@@ -2456,6 +2460,29 @@ If `artistId` or `artistSlug` is provided, the backend requires an active
 
 Assets must already be uploaded/confirmed through the existing asset flow. Pending, archived, private, non-image, duplicate, or unknown assets return `400`.
 Feed video upload is not open in MVP. Route video/performance/challenge content to Shortform, not Lumina Feed.
+
+Manual thread posts:
+
+```json
+{
+  "items": [
+    { "body": "Root piece, max 500 chars" },
+    { "body": "Second piece, max 500 chars" }
+  ],
+  "assetIds": ["optional-root-image-asset-uuid"]
+}
+```
+
+- Use `POST /lumina-feed/posts/thread` when the user manually confirms a 1-10 piece thread. The backend does not auto-split long text.
+- The root piece is stored as the normal feed post body and counts toward the 10-piece max.
+- Each piece is limited to 500 characters. 11 or more pieces, empty pieces, or a 501-character piece return `400`.
+- One piece behaves like a normal feed post. Image-only one-piece posts are allowed when `assetIds` is present.
+- Feed rows and detail responses include `post.thread` with `isThread`, `rootPostId`, `itemCount`, `threadCount`, `maxItems`, `previewText`, and ordered `items`.
+- Render list cards from `post.thread.previewText`/`itemCount` when `post.thread.isThread` is true. Detail views can render `post.thread.items` in `position` order.
+- Likes, comments, reports, hides, and images remain attached to the root post in this phase.
+- `PATCH /lumina-feed/posts/:postId/thread-items/:itemId` edits non-root thread items for the author only. Root body edits still use `PATCH /lumina-feed/posts/:postId`.
+- `DELETE /lumina-feed/posts/:postId/thread-items/:itemId` is author-only and idempotent after deletion. `DELETE /lumina-feed/posts/:postId` hides the whole thread by deleting the root post.
+- Thread create/edit/delete does not mutate wallet, Lumina, settlement, payout, order, or paid-like flows.
 
 External URL posts use lightweight metadata only:
 
