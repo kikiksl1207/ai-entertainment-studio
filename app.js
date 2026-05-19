@@ -1819,7 +1819,7 @@ function bindLikeButtons() {
     const path = window.location.pathname;
     const isOnVoteRoom = path.includes("popular-vote.html");
     if (!isOnVoteRoom) {
-      window.location.href = `./popular-vote.html?artist=${encodeURIComponent(slug)}&tab=debut-race`;
+      window.location.href = `/lumina-pick?artist=${encodeURIComponent(slug)}&tab=debut-race`;
       return;
     }
     handleLike(slug, btn);
@@ -2056,8 +2056,8 @@ function storeCreatorStudioHandoff(data) {
   } catch (_) {}
 }
 
-function studioEntryUrl(url = "./creator-studio.html") {
-  const base = url || "./creator-studio.html";
+function studioEntryUrl(url = "/creator-studio") {
+  const base = url || "/creator-studio";
   const glue = base.includes("?") ? "&" : "?";
   return `${base}${glue}studio_v=${Date.now()}`;
 }
@@ -2080,7 +2080,7 @@ async function refreshStudioMenuVisibility(menu) {
       enabled: !!res?.access?.enabled,
       type: res?.access?.type || "",
       status: res?.access?.status || "",
-      entryUrl: res?.access?.entryUrl || "./creator-studio.html",
+      entryUrl: res?.access?.entryUrl || "/creator-studio",
       needsAttention: Number(res?.summary?.needsAttentionCount) || 0,
       ownedArtists: Number(res?.summary?.ownedArtistCount) || 0
     };
@@ -2160,20 +2160,20 @@ function createUserMenu() {
             }));
           }
         } catch (_) {}
-        window.location.href = studioEntryUrl(_creatorStudioAccess?.entryUrl || "./creator-studio.html");
+        window.location.href = studioEntryUrl(_creatorStudioAccess?.entryUrl || "/creator-studio");
       } else if (action === "public-profile") {
         // 본인 user-profile.html — publicHandle 우선, 없으면 user.id
         const me = (typeof getAuth === "function") ? getAuth()?.user : null;
         if (!me?.id && !me?.publicHandle) return;
         const target = me.publicHandle
-          ? `./user-profile.html?handle=${encodeURIComponent(me.publicHandle)}`
-          : `./user-profile.html?id=${encodeURIComponent(String(me.id))}`;
+          ? `/user-profile?handle=${encodeURIComponent(me.publicHandle)}`
+          : `/user-profile?id=${encodeURIComponent(String(me.id))}`;
         window.location.href = target;
       } else {
         const target = {
-          settings: "./mypage.html#settings",
-          charge: "./charge.html"
-        }[action] || "./mypage.html";
+          settings: "/mypage#settings",
+          charge: "/charge"
+        }[action] || "/mypage";
         window.location.href = target;
       }
       closeUserMenu();
@@ -2257,9 +2257,9 @@ function normalizeFeedAuthorType(rawAuthorType) {
 function buildUserProfileUrl(user = {}) {
   const handle = (user.publicHandle || user.authorPublicHandle || "").trim();
   const id = user.id || user.userId || user.authorUserId || "";
-  if (handle) return `./user-profile.html?handle=${encodeURIComponent(handle)}`;
-  if (id) return `./user-profile.html?id=${encodeURIComponent(String(id))}`;
-  return "./mypage.html";
+  if (handle) return `/user-profile?handle=${encodeURIComponent(handle)}`;
+  if (id) return `/user-profile?id=${encodeURIComponent(String(id))}`;
+  return "/mypage";
 }
 
 function buildMiniProfileAuthorAttrs({ target, handle, userId } = {}) {
@@ -3759,7 +3759,7 @@ function bindShareButtons() {
     if (!btn) return;
     e.preventDefault();
     const slug = btn.dataset.shareCharacter;
-    const url = `${window.location.origin}/character-detail.html?slug=${encodeURIComponent(slug)}`;
+    const url = `${window.location.origin}/character-detail?slug=${encodeURIComponent(slug)}`;
     const artist = getCharacterBySlug?.(slug);
     const title = artist ? `${artist.publicName} — Lumina Stage` : "Lumina Stage 아티스트";
     const text = artist?.summary || "Lumina Stage에서 확인해 보세요.";
@@ -4057,9 +4057,9 @@ function openMiniProfileModal(profileData) {
   const detailBtn = document.getElementById("miniProfileDetailBtn");
   if (detailBtn) {
     if (user.publicHandle) {
-      detailBtn.href = `./user-profile.html?handle=${encodeURIComponent(user.publicHandle)}`;
+      detailBtn.href = `/user-profile?handle=${encodeURIComponent(user.publicHandle)}`;
     } else if (user.id) {
-      detailBtn.href = `./user-profile.html?id=${encodeURIComponent(user.id)}`;
+      detailBtn.href = `/user-profile?id=${encodeURIComponent(user.id)}`;
     } else {
       detailBtn.href = "#";
     }

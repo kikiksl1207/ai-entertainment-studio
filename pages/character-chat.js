@@ -131,7 +131,7 @@
   function renderHero(slug, artist) {
     const profile = $("chatHeroProfile");
     if (profile) {
-      profile.href = slug ? `./character-detail.html?slug=${encodeURIComponent(slug)}` : "./characters.html";
+      profile.href = slug ? `/character-detail?slug=${encodeURIComponent(slug)}` : "/characters";
     }
 
     if (!slug) {
@@ -155,7 +155,7 @@
     // 갤러리 액션 링크: 같은 아티스트 상세 페이지의 갤러리로 이동
     const galleryLink = $("chatGalleryLink");
     if (galleryLink) {
-      galleryLink.href = `./character-detail.html?slug=${encodeURIComponent(slug)}#detailGallery`;
+      galleryLink.href = `/character-detail?slug=${encodeURIComponent(slug)}#detailGallery`;
     }
   }
 
@@ -677,7 +677,7 @@
       open.className = "dm-list-open";
       const slug = item?.artist?.slug || "";
       open.href = slug
-        ? "./character-chat.html?slug=" + encodeURIComponent(slug) + "&sessionId=" + encodeURIComponent(item.id || "")
+        ? "/character-chat?slug=" + encodeURIComponent(slug) + "&sessionId=" + encodeURIComponent(item.id || "")
         : "./character-chat.html";
       open.setAttribute("aria-label", conversationItemTitle(item) + " 대화 열기");
       open.textContent = "열기";
@@ -711,7 +711,7 @@
 
       const link = document.createElement("a");
       link.className = "dm-list-row-link";
-      link.href = "./character-chat.html?slug=" + encodeURIComponent(char.slug);
+      link.href = "/character-chat?slug=" + encodeURIComponent(char.slug);
       link.setAttribute("aria-label", (char.name || char.slug) + "와의 대화 시작");
 
       const avatar = document.createElement("span");
@@ -761,7 +761,7 @@
 
       const link = document.createElement("a");
       link.className = "dm-list-row-link";
-      link.href = "./character-chat.html?slug=" + encodeURIComponent(char.slug);
+      link.href = "/character-chat?slug=" + encodeURIComponent(char.slug);
       link.setAttribute("aria-label", (char.name || char.slug) + "와의 대화 열기");
 
       const avatar = document.createElement("span");
@@ -909,7 +909,7 @@
       const link = $("chatInboxArtistGalleryLink");
       const slug = getArtistSlug();
       if (link && slug) {
-        link.href = "./character-detail.html?slug=" + encodeURIComponent(slug) + "#detailGallery";
+        link.href = "/character-detail?slug=" + encodeURIComponent(slug) + "#detailGallery";
       }
     }
     function closeSheet() {
@@ -952,7 +952,7 @@
       });
     }
     const profile = $("chatFeaturedProfile");
-    if (profile) profile.href = "./character-detail.html?slug=" + encodeURIComponent(slug);
+    if (profile) profile.href = "/character-detail?slug=" + encodeURIComponent(slug);
   }
 
   /* 캐릭터별 톤을 hero/welcome/starter card 에 주입. fetchStarterPrompts API 실패 시 fallback. */
@@ -968,7 +968,7 @@
     // hero: 캐릭터별 status line
     if (character) {
       const profile = $("chatHeroProfile");
-      if (profile) profile.href = "./character-detail.html?slug=" + encodeURIComponent(slug);
+      if (profile) profile.href = "/character-detail?slug=" + encodeURIComponent(slug);
       setText("chatHeroName", character.name || slug);
       setText("chatHeroSummary", tone?.statusLine || "활동 중 · 메시지를 기다리고 있어요");
       setHeroAvatar(slug, { displayName: character.name, avatarUrl: character.images?.thumb });

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>루미나 피드 — Lumina Stage</title>
+    <link rel="canonical" href="https://www.lumina-stage.com/lumina-feed" />
+    <meta name="description" content="Lumina Stage 루미나 피드 — 팬과 아티스트가 함께 만드는 공식 피드." />
+    <!--
+      #319 clean URL shim — `/lumina-feed` 진입을 실제 페이지인 `/lumina-feed.html`로 안전하게 전달합니다.
+    -->
+    <script>
+      (function () {
+        var qs = window.location.search || "";
+        var hash = window.location.hash || "";
+        window.location.replace("../lumina-feed.html" + qs + hash);
+      })();
+    </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0; url=../lumina-feed.html" />
+    </noscript>
+  </head>
+  <body>
+    <p style="font-family:system-ui,sans-serif;padding:24px;color:#333;">루미나 피드로 이동 중입니다…
+      <a href="../lumina-feed.html">바로 가기</a>
+    </p>
+  </body>
+</html>

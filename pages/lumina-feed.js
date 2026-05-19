@@ -190,7 +190,7 @@ function renderLuminaFeed() {
     const typeKey = post.postType.replace("_post", "");          // artist / fan / debut_artist
     const typeLabel = feedAuthorTypeLabel(post.authorType);
     const clickable = artist
-      ? ` clickable-card" data-href="./character-detail.html?slug=${artist.slug}`
+      ? ` clickable-card" data-href="/character-detail?slug=${artist.slug}`
       : "";
     const deleteButton = post.viewer?.canDelete && post.id
       ? `<button class="feed-action-btn feed-delete-btn" type="button" data-feed-delete="${feedEscapeHtml(post.id)}" aria-label="게시글 삭제">삭제</button>`
@@ -209,8 +209,8 @@ function renderLuminaFeed() {
     if (!artist) {
       if (isMineByViewer && me?.id) {
         const target = me.publicHandle
-          ? `./user-profile.html?handle=${encodeURIComponent(me.publicHandle)}`
-          : `./user-profile.html?id=${encodeURIComponent(String(me.id))}`;
+          ? `/user-profile?handle=${encodeURIComponent(me.publicHandle)}`
+          : `/user-profile?id=${encodeURIComponent(String(me.id))}`;
         authorLink = buildMiniProfileAuthorAttrs({
           target,
           handle: me.publicHandle,
@@ -218,8 +218,8 @@ function renderLuminaFeed() {
         });
       } else if (post.authorPublicHandle || post.authorUserId) {
         const target = post.authorPublicHandle
-          ? `./user-profile.html?handle=${encodeURIComponent(post.authorPublicHandle)}`
-          : `./user-profile.html?id=${encodeURIComponent(String(post.authorUserId))}`;
+          ? `/user-profile?handle=${encodeURIComponent(post.authorPublicHandle)}`
+          : `/user-profile?id=${encodeURIComponent(String(post.authorUserId))}`;
         authorLink = buildMiniProfileAuthorAttrs({
           target,
           handle: post.authorPublicHandle,

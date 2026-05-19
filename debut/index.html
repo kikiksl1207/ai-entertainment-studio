@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>데뷔하기 — Lumina Stage</title>
+    <link rel="canonical" href="https://www.lumina-stage.com/debut" />
+    <meta name="description" content="Lumina Stage 데뷔하기 — 온라인 신청과 내 상태 확인." />
+    <!--
+      #319 clean URL shim — `/debut` 진입을 실제 페이지인 `/debut.html`로 안전하게 전달합니다.
+    -->
+    <script>
+      (function () {
+        var qs = window.location.search || "";
+        var hash = window.location.hash || "";
+        window.location.replace("../debut.html" + qs + hash);
+      })();
+    </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0; url=../debut.html" />
+    </noscript>
+  </head>
+  <body>
+    <p style="font-family:system-ui,sans-serif;padding:24px;color:#333;">데뷔하기 페이지로 이동 중입니다…
+      <a href="../debut.html">바로 가기</a>
+    </p>
+  </body>
+</html>

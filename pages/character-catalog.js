@@ -59,7 +59,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
 
   root.innerHTML = list.map(a => `
     <article class="catalog-card ${statusMeta[a.status].className} clickable-card"
-      data-href="./character-detail.html?slug=${a.slug}"
+      data-href="/character-detail?slug=${a.slug}"
       data-secret="${a.status === "secret"}"
       style="--char-accent: ${a.colorAccent || "#9f8bc7"}">
       ${renderCatalogMedia(a)}
@@ -76,7 +76,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
           <div><dt>브랜드 무드</dt><dd>${a.business}</dd></div>
         </dl>
         <div class="tag-list">${a.tags.map(t => `<span>${t}</span>`).join("")}</div>
-        <a class="text-link ${a.status === "secret" ? "is-dimmed" : ""}" href="./character-detail.html?slug=${a.slug}">무드 보기</a>
+        <a class="text-link ${a.status === "secret" ? "is-dimmed" : ""}" href="/character-detail?slug=${a.slug}">무드 보기</a>
       </div>
     </article>`).join("");
 
@@ -93,7 +93,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
       note.innerHTML = "";
     } else {
       note.innerHTML = `<span>현재 필터: ${parts.join(" / ")}</span>` +
-        (tagFilter ? `<a href="./characters.html" class="text-link">필터 해제</a>` : "");
+        (tagFilter ? `<a href="/characters" class="text-link">필터 해제</a>` : "");
     }
   }
 }

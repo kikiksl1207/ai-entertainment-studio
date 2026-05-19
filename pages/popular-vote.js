@@ -100,7 +100,7 @@ function renderMainPickTab() {
   const tribute = messages.tributeMessage;
 
   leaderRoot.innerHTML = `
-    <article class="vote-leader-card clickable-card" data-href="./character-detail.html?slug=${leaderArtist.slug}">
+    <article class="vote-leader-card clickable-card" data-href="/character-detail?slug=${leaderArtist.slug}">
       <div class="vote-leader-media">
         <img src="${leaderArtist.images.cover || leaderArtist.images.thumb}" alt="${leaderArtist.publicName}" />
         <div class="vote-leader-crown">👑</div>
@@ -112,7 +112,7 @@ function renderMainPickTab() {
           <p>${tribute}</p>
           <cite>— ${leaderArtist.publicName}</cite>
         </blockquote>
-        <a class="text-link" href="./character-detail.html?slug=${leaderArtist.slug}">${leaderArtist.publicName} 무드 보기</a>
+        <a class="text-link" href="/character-detail?slug=${leaderArtist.slug}">${leaderArtist.publicName} 무드 보기</a>
       </div>
     </article>
   `;
@@ -132,7 +132,7 @@ function renderMainPickTab() {
       // 1~3위는 금은동 메달, 4위 이후는 숫자만
       const medal = rankNum === 2 ? "🥈" : rankNum === 3 ? "🥉" : "";
       return `
-        <li class="vote-ranking-row clickable-card" data-href="./character-detail.html?slug=${r.artist.slug}">
+        <li class="vote-ranking-row clickable-card" data-href="/character-detail?slug=${r.artist.slug}">
           <span class="vote-rank-label">
             ${medal ? `<span class="vote-rank-medal">${medal}</span>` : ""}
             <span class="vote-rank-num">${rankNum}위</span>
@@ -213,7 +213,7 @@ function renderDebutRaceTab() {
     const appeal = getCharacterMessages(a.slug).voteAppeal;
     return `
       <article class="vote-debut-card clickable-card${isHighlighted ? " is-highlighted" : ""}"
-        data-href="./character-detail.html?slug=${a.slug}"
+        data-href="/character-detail?slug=${a.slug}"
         style="--char-accent: ${a.colorAccent || "#9f8bc7"}">
         <div class="vote-debut-rank-badge${medal ? " has-medal" : ""}">
           ${medal ? `<span class="vote-debut-medal">${medal}</span>` : ""}
@@ -252,7 +252,7 @@ function renderHallOfFameTab() {
     if (championArtist) {
       const championScore = champion.totalWeightedScore ?? champion.totalFreeLikes ?? champion.totalScore ?? champion.score ?? 0;
       championRoot.innerHTML = `
-        <article class="vote-year-champion-card clickable-card" data-href="./character-detail.html?slug=${championArtist.slug}">
+        <article class="vote-year-champion-card clickable-card" data-href="/character-detail?slug=${championArtist.slug}">
           <div class="vote-year-trophy">🏆</div>
           <div class="vote-year-info">
             <span class="vote-year-label">${year} 연간 챔피언</span>
@@ -294,7 +294,7 @@ function renderHallOfFameTab() {
       `;
     }
     return `
-      <article class="vote-monthly-card clickable-card" data-href="./character-detail.html?slug=${artist.slug}">
+      <article class="vote-monthly-card clickable-card" data-href="/character-detail?slug=${artist.slug}">
         <div class="vote-monthly-media">
           <img src="${artist.images.thumb || artist.images.cover}" alt="${artist.publicName}" />
         </div>

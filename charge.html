@@ -13,7 +13,7 @@
     <meta property="og:title" content="루미나 충전소 — Lumina Stage" />
     <meta property="og:description" content="Lumina Stage 루미나 충전소." />
     <meta property="og:image" content="./assets/characters/yoon-serin/cover.png" />
-    <meta property="og:url" content="https://www.lumina-stage.com/charge.html" />
+    <meta property="og:url" content="https://www.lumina-stage.com/charge" />
     <meta property="og:site_name" content="Lumina Stage" />
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4"></script>
@@ -27,7 +27,7 @@
   <body class="is-booting">
     <header class="site-header">
       <div class="shell header-inner">
-        <a class="brand" href="./index.html">
+        <a class="brand" href="/">
           <img class="brand-logo" src="./assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
           <span class="brand-copy">
             <strong>Lumina Stage</strong>
@@ -36,13 +36,13 @@
         </a>
 
         <nav class="main-nav" aria-label="메인 메뉴">
-          <a href="./index.html" data-i18n="nav.home">홈</a>
-          <a href="./characters.html" data-i18n="nav.artists">아티스트</a>
-          <a href="./popular-vote.html" data-i18n="nav.luminaPick">루미나 픽</a>
-          <a href="./lumina-feed.html" data-i18n="nav.luminaFeed">루미나 피드</a>
-          <a href="./shortform.html" data-i18n="nav.shortform">숏폼</a>
+          <a href="/" data-i18n="nav.home">홈</a>
+          <a href="/characters" data-i18n="nav.artists">아티스트</a>
+          <a href="/lumina-pick" data-i18n="nav.luminaPick">루미나 픽</a>
+          <a href="/lumina-feed" data-i18n="nav.luminaFeed">루미나 피드</a>
+          <a href="/shortform" data-i18n="nav.shortform">숏폼</a>
         </nav>
-        <a class="debut-cta-mobile" href="./debut.html" data-i18n="cta.debut">데뷔하기</a>
+        <a class="debut-cta-mobile" href="/debut" data-i18n="cta.debut">데뷔하기</a>
         <div class="header-auth">
           <a class="auth-btn auth-btn-login" href="#" data-i18n="auth.login">로그인</a>
           <a class="auth-btn auth-btn-signup" href="#" data-i18n="auth.signup">회원가입</a>
@@ -62,7 +62,7 @@
           </p>
           <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:24px;justify-content:center;">
             <a class="button button-primary" href="#" id="chargeLoginBtn">로그인하기</a>
-            <a class="button button-secondary" href="./index.html">홈으로</a>
+            <a class="button button-secondary" href="/">홈으로</a>
           </div>
         </div>
       </section>
@@ -198,7 +198,7 @@
             </div>
             <p class="charge-image-foot">
               모든 새 이미지·영상은 운영 검수 후 제작에 들어가요. 결제하자마자 바로 받아보실 수는 없어요.
-              요청은 <a class="text-link" href="./character-chat.html">캐릭터챗 화면의 <strong>새 요청</strong></a> 버튼에서 시작할 수 있어요.
+              요청은 <a class="text-link" href="/character-chat">캐릭터챗 화면의 <strong>새 요청</strong></a> 버튼에서 시작할 수 있어요.
             </p>
           </div>
         </section>
@@ -274,7 +274,7 @@
               <div class="charge-skeleton">불러오는 중…</div>
             </div>
             <div style="margin-top: 16px;">
-              <a class="text-link" href="./mypage.html#activity">전체 내역은 마이페이지에서 확인 →</a>
+              <a class="text-link" href="/mypage#activity">전체 내역은 마이페이지에서 확인 →</a>
             </div>
           </div>
         </section>
@@ -309,7 +309,7 @@
           <p>루미나 충전 공식 페이지입니다.</p>
         </div>
         <div class="footer-links">
-          <a href="./characters.html" data-i18n="footer.artistRoster">아티스트 라인업</a>
+          <a href="/characters" data-i18n="footer.artistRoster">아티스트 라인업</a>
           <a href="./terms.html" data-i18n="footer.terms">이용약관</a>
           <a href="./privacy.html" data-i18n="footer.privacy">개인정보처리방침</a>
           <a href="./refund-policy.html" data-i18n="footer.refund">환불 정책</a>
@@ -348,23 +348,23 @@
     </script>
     <!-- ── 모바일 하단 탭바 (768px 이하 노출) ── -->
     <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
-      <a href="./index.html" class="mobile-tab" data-tab-key="index.html">
+      <a href="/" class="mobile-tab" data-tab-key="index.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
         <span data-i18n="tab.home">홈</span>
       </a>
-      <a href="./characters.html" class="mobile-tab" data-tab-key="characters.html">
+      <a href="/characters" class="mobile-tab" data-tab-key="characters.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4.5 20c.6-3.6 3.7-6 7.5-6s6.9 2.4 7.5 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
         <span data-i18n="tab.artists">아티스트</span>
       </a>
-      <a href="./popular-vote.html" class="mobile-tab" data-tab-key="popular-vote.html">
+      <a href="/lumina-pick" class="mobile-tab" data-tab-key="popular-vote.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.5 5.5 6 .6-4.5 4.1 1.3 5.9L12 16.2 6.7 19.1l1.3-5.9L3.5 9.1l6-.6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
         <span data-i18n="tab.pick">루미나 픽</span>
       </a>
-      <a href="./lumina-feed.html" class="mobile-tab" data-tab-key="lumina-feed.html">
+      <a href="/lumina-feed" class="mobile-tab" data-tab-key="lumina-feed.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
         <span data-i18n="tab.feed">피드</span>
       </a>
-      <a href="./shortform.html" class="mobile-tab" data-tab-key="shortform.html">
+      <a href="/shortform" class="mobile-tab" data-tab-key="shortform.html">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v6l5-3z" fill="currentColor"/></svg>
         <span data-i18n="tab.shortform">숏폼</span>
       </a>

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>루미나 픽 — Lumina Stage</title>
+    <link rel="canonical" href="https://www.lumina-stage.com/lumina-pick" />
+    <meta name="description" content="Lumina Stage 루미나 픽 — 데뷔 레이스와 팬 응원이 만나는 공간." />
+    <!--
+      #319 clean URL shim — `/lumina-pick` 진입을 실제 페이지인 `/popular-vote.html`로 안전하게 전달합니다.
+    -->
+    <script>
+      (function () {
+        var qs = window.location.search || "";
+        var hash = window.location.hash || "";
+        window.location.replace("../popular-vote.html" + qs + hash);
+      })();
+    </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0; url=../popular-vote.html" />
+    </noscript>
+  </head>
+  <body>
+    <p style="font-family:system-ui,sans-serif;padding:24px;color:#333;">루미나 픽으로 이동 중입니다…
+      <a href="../popular-vote.html">바로 가기</a>
+    </p>
+  </body>
+</html>

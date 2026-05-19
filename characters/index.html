@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>아티스트 — Lumina Stage</title>
+    <link rel="canonical" href="https://www.lumina-stage.com/characters" />
+    <meta name="description" content="Lumina Stage 공식 아티스트 라인업. 공개 아티스트부터 비공개 후보 라인까지 한눈에 확인하세요." />
+    <!--
+      #319 clean URL shim — `/characters` 진입을 실제 페이지인 `/characters.html`로 안전하게 전달합니다.
+      query string과 hash를 유지하며, JS 미동작 환경은 meta refresh로 대체합니다.
+    -->
+    <script>
+      (function () {
+        var qs = window.location.search || "";
+        var hash = window.location.hash || "";
+        window.location.replace("../characters.html" + qs + hash);
+      })();
+    </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0; url=../characters.html" />
+    </noscript>
+  </head>
+  <body>
+    <p style="font-family:system-ui,sans-serif;padding:24px;color:#333;">아티스트 페이지로 이동 중입니다…
+      <a href="../characters.html">바로 가기</a>
+    </p>
+  </body>
+</html>

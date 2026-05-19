@@ -6,7 +6,7 @@ function renderShortforms() {
     const a = getCharacterByName(item.artist);
     const img = item.image || a?.images.thumb || a?.images.cover || "";
     return `
-      <article class="short-card clickable-card" data-href="./character-detail.html?slug=${a?.slug || ""}">
+      <article class="short-card clickable-card" data-href="/character-detail?slug=${a?.slug || ""}">
         <div class="short-card-head">
           <span class="eyebrow">${item.artist}</span>
           <strong>${item.title}</strong>
@@ -16,7 +16,7 @@ function renderShortforms() {
         </div>
         <div class="short-body">
           <p>${item.mainTone || item.tone}</p>
-          <a class="text-link" href="./character-detail.html?slug=${a?.slug || ""}">캐릭터 보기</a>
+          <a class="text-link" href="/character-detail?slug=${a?.slug || ""}">캐릭터 보기</a>
         </div>
       </article>`;
   }).join("");
@@ -29,7 +29,7 @@ function renderShortformHub() {
     const a = getCharacterByName(item.artist);
     const img = item.image || a?.images.thumb || a?.images.cover || "";
     return `
-      <article class="feed-card clickable-card" data-href="./character-detail.html?slug=${a?.slug || ""}">
+      <article class="feed-card clickable-card" data-href="/character-detail?slug=${a?.slug || ""}">
         <div class="feed-card-head">
           <span class="eyebrow">${item.artist}</span>
           <strong>${item.title}</strong>
@@ -40,7 +40,7 @@ function renderShortformHub() {
         </div>
         <div class="feed-card-body">
           <p>${item.hubTone || item.tone}</p>
-          <a class="text-link" href="./character-detail.html?slug=${a?.slug || ""}">캐릭터 보기</a>
+          <a class="text-link" href="/character-detail?slug=${a?.slug || ""}">캐릭터 보기</a>
         </div>
       </article>`;
   }).join("");

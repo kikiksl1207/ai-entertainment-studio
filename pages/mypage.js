@@ -506,10 +506,10 @@ async function initMypagePage() {
   const publicProfileLink = document.getElementById("mypagePublicProfileLink");
   if (publicProfileLink) {
     if (user?.publicHandle) {
-      publicProfileLink.href = `./user-profile.html?handle=${encodeURIComponent(user.publicHandle)}`;
+      publicProfileLink.href = `/user-profile?handle=${encodeURIComponent(user.publicHandle)}`;
       publicProfileLink.hidden = false;
     } else if (user?.id) {
-      publicProfileLink.href = `./user-profile.html?id=${encodeURIComponent(String(user.id))}`;
+      publicProfileLink.href = `/user-profile?id=${encodeURIComponent(String(user.id))}`;
       publicProfileLink.hidden = false;
     } else {
       publicProfileLink.hidden = true;
