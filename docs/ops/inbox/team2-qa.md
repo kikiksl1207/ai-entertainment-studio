@@ -1,5 +1,37 @@
 # Team2 QA Inbox
 
+status: partial / blocked for live admin mutation
+task: #307 - Debut operations admin review audit contract QA
+branch/commit:
+- branch: team2-qa/307-debut-ops-audit-contract-qa
+- local main after pull: origin/main
+- basis commit: 6bb4d772ef7cbf5ffc6ed8cdb99db0033d39b7a1
+- observed API health commit: 8cd422a096780feeb9a0f28ea31323ab72dfd671
+changed_files:
+- docs/ops/inbox/team2-qa.md
+tests:
+- PASS: `git pull origin main`
+- PASS: `/health` returned live commit `8cd422a096780feeb9a0f28ea31323ab72dfd671`, matching the #307 deployed basis.
+- PASS: unauthenticated `PATCH /api/v1/admin/api/v1/debut/applications/:applicationId/review` returned HTTP 401.
+- PASS: Backstage browser check showed the operator login screen, with no active admin session available.
+- PASS: `npm.cmd test -- debut.service.spec.ts --runInBand`
+- PASS: `npm.cmd run lint`
+- PASS: `npm.cmd run build`
+- PASS: `git diff --check`
+result:
+- No product blocker found in the safely testable #307 scope.
+- Contract/unit coverage confirms the review action writes a redacted audit payload, blocks `shareTierApproved`, keeps owner/public status projection safe, and avoids final debut/contract/settlement/payout/wallet/Lumina mutation.
+- Live deployment and unauth guard are correct.
+- Actual live admin status-change mutation and persisted audit-row inspection were not executed because this workspace/session has no safe Backstage admin account/session and no disposable debut application id.
+blocked_by:
+- Safe admin QA credential/session and disposable debut application id were not available.
+next_needed:
+- PM/operator should either provide a safe admin QA handoff plus disposable debut application target for full live mutation QA, or accept this as the #307 QA boundary and move to completion judgment.
+security_check:
+- PASS: no token, cookie, password, env value, raw email, raw phone, private material URL, storage key, object ETag, or credential was recorded.
+
+---
+
 status: pass
 task: Fan engagement Home teaser smoke QA
 environment:
