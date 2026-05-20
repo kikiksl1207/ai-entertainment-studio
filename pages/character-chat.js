@@ -280,6 +280,11 @@
     });
   }
 
+  function hydrateChatCms(slug) {
+    if (!slug || !window.LuminaCms || typeof window.LuminaCms.hydrate !== "function") return;
+    window.LuminaCms.hydrate({ pageKey: "character-chat", characterSlug: slug }).catch(function () {});
+  }
+
   function applyStarterResponse(slug, data) {
     if (data?.artist) {
       renderHero(slug, data.artist);
@@ -289,9 +294,7 @@
     // 안 그려지는 극단 케이스에서 generic 문구 노출을 막는 안전망)
     applyChatEmptyForSlug(slug, data?.artist || null);
     // #324 — 캐릭터별 운영자 CMS 문구가 있으면 위 정적 setText 결과를 덮어쓴다. 실패 시 그대로 fallback.
-    if (slug && window.LuminaCms && typeof window.LuminaCms.hydrate === "function") {
-      window.LuminaCms.hydrate({ pageKey: "character-chat", characterSlug: slug }).catch(function () {});
-    }
+    hydrateChatCms(slug);
     const firstSet = Array.isArray(data?.sets) ? data.sets[0] : null;
 
     if (!firstSet) {
@@ -333,6 +336,7 @@
       showStarterCard();
       renderWelcomeBubble(slug, null);
       applyChatEmptyForSlug(slug, null);
+      hydrateChatCms(slug);
       return null;
     }
 
@@ -357,6 +361,7 @@
       showStarterCard();
       renderWelcomeBubble(slug, null);
       applyChatEmptyForSlug(slug, null);
+      hydrateChatCms(slug);
       return null;
     }
   }
@@ -1047,7 +1052,10 @@
         renderStarterOptions(catalogTone.starters, slug);
         showStarterCard();
       }
+      hydrateChatCms(slug);
     });
+
+    hydrateChatCms(slug);
 
     if (isMuted(slug)) return;
     const data = await fetchStarterPrompts(slug);

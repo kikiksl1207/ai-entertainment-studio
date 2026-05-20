@@ -61,13 +61,20 @@
     return applied;
   }
 
+  function normalizeLocale(locale) {
+    var raw = String(locale || "").trim();
+    if (!raw || raw === "ko") return "ko-KR";
+    if (raw === "en") return "en-US";
+    return raw;
+  }
+
   function buildUrl(opts) {
     var params = new URLSearchParams();
     if (opts.pageKey) params.set("pageKey", opts.pageKey);
     if (opts.characterSlug) params.set("characterSlug", opts.characterSlug);
     if (opts.modelSlug) params.set("modelSlug", opts.modelSlug);
     if (opts.scope) params.set("scope", opts.scope);
-    var locale = opts.locale || document.documentElement.lang || "ko";
+    var locale = normalizeLocale(opts.locale || document.documentElement.lang || "ko-KR");
     params.set("locale", locale);
     return API_BASE + "/api/v1/site-content/bootstrap?" + params.toString();
   }
