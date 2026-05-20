@@ -78,7 +78,7 @@
             <button class="chat-rankings-period-chip" type="button" role="tab" aria-selected="false" data-chat-rankings-period="all">전체</button>
           </div>
 
-          <section class="chat-rankings-board" role="tabpanel" aria-labelledby="chatRankingsTabCommunication" id="chatRankingsPanel" aria-live="polite">
+          <section class="chat-rankings-board" role="tabpanel" aria-labelledby="chatRankingsTabCommunication" id="chatRankingsPanel" aria-live="polite" data-rankings-state="loading">
             <header class="chat-rankings-board-head">
               <div>
                 <h2 id="chatRankingsBoardTitle">소통 TOP</h2>
@@ -86,10 +86,31 @@
               </div>
               <span class="chat-rankings-state" id="chatRankingsStateLabel">상태 확인 중</span>
             </header>
-            <div class="chat-rankings-empty" id="chatRankingsBoardBody">
-              <p class="chat-rankings-empty-title">랭킹 데이터 준비 중</p>
-              <p class="chat-rankings-empty-body" id="chatRankingsBoardMessage">소통·후원 랭킹은 원장·보안 검증이 끝난 뒤 함께 공개돼요.</p>
-              <p class="chat-rankings-empty-note">좋아요 응원 순위는 <a class="text-link" href="/lumina-pick">루미나 픽</a>에서 확인할 수 있어요.</p>
+            <!-- #351 — 4상태: loading(스켈레톤) / empty(설명) / error(재시도) / success(랭킹 row) -->
+            <div class="chat-rankings-board-body" id="chatRankingsBoardBody">
+              <!-- loading -->
+              <ul class="chat-rankings-skeleton" id="chatRankingsSkeleton" aria-hidden="true">
+                <li><span class="chat-rankings-skel-rank"></span><span class="chat-rankings-skel-name"></span><span class="chat-rankings-skel-score"></span></li>
+                <li><span class="chat-rankings-skel-rank"></span><span class="chat-rankings-skel-name"></span><span class="chat-rankings-skel-score"></span></li>
+                <li><span class="chat-rankings-skel-rank"></span><span class="chat-rankings-skel-name"></span><span class="chat-rankings-skel-score"></span></li>
+                <li><span class="chat-rankings-skel-rank"></span><span class="chat-rankings-skel-name"></span><span class="chat-rankings-skel-score"></span></li>
+              </ul>
+              <!-- empty (API 비활성/0건/비로그인) -->
+              <div class="chat-rankings-empty" id="chatRankingsEmpty" hidden>
+                <p class="chat-rankings-empty-title" id="chatRankingsEmptyTitle">랭킹 데이터 준비 중</p>
+                <p class="chat-rankings-empty-body" id="chatRankingsBoardMessage">소통·후원 랭킹은 원장·보안 검증이 끝난 뒤 함께 공개돼요.</p>
+                <p class="chat-rankings-empty-note">좋아요 응원 순위는 <a class="text-link" href="/lumina-pick">루미나 픽</a>에서 확인할 수 있어요.</p>
+              </div>
+              <!-- error (정책 fetch 실패) -->
+              <div class="chat-rankings-error" id="chatRankingsError" hidden>
+                <p class="chat-rankings-empty-title">랭킹 정책을 불러오지 못했어요</p>
+                <p class="chat-rankings-empty-body">네트워크가 일시적으로 끊겼거나 서버가 응답하지 못했어요. 잠시 뒤 다시 시도해 주세요.</p>
+                <button type="button" class="chat-rankings-retry" id="chatRankingsRetryBtn">다시 시도</button>
+              </div>
+              <!-- success (rankings.enabled true + data) -->
+              <ol class="chat-rankings-rows" id="chatRankingsRows" hidden>
+                <!-- JS가 row 렌더 -->
+              </ol>
             </div>
           </section>
 
