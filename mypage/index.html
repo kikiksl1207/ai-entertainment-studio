@@ -261,8 +261,14 @@
                   <span class="mypage-debut-notice-label" id="mypageDebutNoticeLabel">운영팀 안내</span>
                   <p class="mypage-debut-notice-body" id="mypageDebutNoticeBody"></p>
                 </aside>
+                <!-- #350 — 상태별 CTA. needs_more_info에서는 "보완 안내 확인 / 다시 신청서 작성"을, rejected에서는 "다시 신청서 작성"만,
+                     submitted/reviewing/approved는 empty 상태 유지. backend cta.enabled가 false 동안에도 안내 진입은 가능. -->
+                <div class="mypage-debut-cta" id="mypageDebutCta" hidden role="group" aria-label="데뷔 신청 다음 행동">
+                  <button type="button" class="button-secondary" id="mypageDebutNoticeBtn" hidden>보완 안내 확인</button>
+                  <a class="button-primary" id="mypageDebutResubmitLink" href="/debut" hidden>다시 신청서 작성</a>
+                </div>
                 <div class="mypage-debut-next">
-                  <p id="mypageDebutNextAction">신청서를 제출하면 접수 완료, 검토 중, 추가 자료 필요, 상담 예정 상태를 이곳에서 확인할 수 있어요.</p>
+                  <p id="mypageDebutNextAction">신청서를 제출하면 접수 완료, 검토 중, 보완 요청, 연락 준비 중 상태를 이곳에서 확인할 수 있어요.</p>
                   <ol class="mypage-debut-steps" id="mypageDebutSteps" aria-label="데뷔 신청 진행 단계"></ol>
                 </div>
               </div>
@@ -824,18 +830,19 @@
               "</p></div>"
           );
         }
-        // #345 — 사용자용 fallback 라벨. backend의 application.statusLabelKo가 있으면 그 값을 우선 쓰고
-        // (applyDebutApplication 참고), 응답이 없을 때만 이 fallback이 노출된다. approved를 그대로 "승인"으로 쓰면
-        // 계약/연락 전 단계가 최종 승인처럼 보이므로 "연락 예정"으로 톤다운한다. approved_for_contact과 동일 단계 톤 유지.
+        // #345/#350 — 사용자용 fallback 라벨. backend의 application.statusLabelKo가 있으면 그 값을 우선 쓰고
+        // (applyDebutApplication 참고), 응답이 없을 때만 이 fallback이 노출된다.
+        // #350 spec — approved는 `연락 준비 중`, rejected는 `심사 종료`, needs_more_info는 `보완 요청` 톤으로 정리.
+        // 사용자가 화면 라벨만 보고 데뷔 확정/최종 거절로 오해하지 않도록 톤다운한다.
         function debutLabel(status) {
           return {
             submitted: "접수 완료",
             reviewing: "검토 중",
             under_review: "검토 중",
-            needs_more_info: "추가 자료 필요",
-            approved_for_contact: "연락 예정",
-            approved: "연락 예정",
-            rejected: "이번 신청 종료",
+            needs_more_info: "보완 요청",
+            approved_for_contact: "연락 준비 중",
+            approved: "연락 준비 중",
+            rejected: "심사 종료",
             withdrawn: "철회 완료",
             canceled: "신청 취소",
             archived: "보관됨"
@@ -966,6 +973,8 @@
           setText("mypageDebutNextAction", "응답을 받으면 상태와 다음 행동을 이곳에 정리해 보여드려요.");
           renderDebutPublicNotice("");
           renderDebutSteps("loading");
+          // #350 — loading 동안 CTA 숨김
+          const cta = $("mypageDebutCta"); if (cta) cta.hidden = true;
         }
 
         function applyDebutError() {
@@ -975,6 +984,8 @@
           setText("mypageDebutNextAction", "이 화면이 계속 보이면 새로고침하거나 잠시 후 다시 마이페이지에 들어와 주세요. 신청 자체는 안전하게 보관되어 있어요.");
           renderDebutPublicNotice("");
           renderDebutSteps("error");
+          // #350 — error 상태에서도 CTA 숨김 (상태가 정확히 잡힌 뒤에만 노출)
+          const cta = $("mypageDebutCta"); if (cta) cta.hidden = true;
         }
 
         function applyDebutApplication(latest) {
@@ -985,6 +996,8 @@
             setText("mypageDebutNextAction", debutNextAction("apply"));
             renderDebutPublicNotice("");
             renderDebutSteps("apply");
+            // #350 — 신청 전 상태: 별도 CTA 대신 패널 head의 "신청하러 가기" 버튼을 사용.
+            const cta = $("mypageDebutCta"); if (cta) cta.hidden = true;
             return;
           }
 
@@ -1013,10 +1026,63 @@
           setText("mypageDebutTitle", displayName + " 상태");
           setText("mypageDebutDescription", description);
           // #266 — 운영팀 공개 안내가 있을 때만 노출. 상태와 무관하게 백엔드가 내려주면 표시.
-          renderDebutPublicNotice(pickDebutPublicNotice(latest));
+          const publicNoticeText = pickDebutPublicNotice(latest);
+          renderDebutPublicNotice(publicNoticeText);
           setText("mypageDebutNextAction", debutNextAction(status));
           renderDebutSteps(status);
+          // #350 — 상태별 CTA. needs_more_info / rejected에서만 노출. submitted/reviewing/approved는 운영팀 안내 대기 상태이므로 CTA 없음.
+          applyDebutCta(status, { hasPublicNotice: !!publicNoticeText });
         }
+
+        // #350 — 보완요청·재제출 사용자 CTA.
+        function applyDebutCta(status, opts) {
+          const wrap = $("mypageDebutCta");
+          const noticeBtn = $("mypageDebutNoticeBtn");
+          const resubmit = $("mypageDebutResubmitLink");
+          if (!wrap) return;
+          const hasNotice = !!(opts && opts.hasPublicNotice);
+          if (status === "needs_more_info") {
+            if (noticeBtn) noticeBtn.hidden = !hasNotice;
+            if (resubmit) {
+              resubmit.hidden = false;
+              resubmit.textContent = "보완 후 다시 신청하기";
+            }
+            wrap.hidden = false;
+          } else if (status === "rejected") {
+            if (noticeBtn) noticeBtn.hidden = !hasNotice;
+            if (resubmit) {
+              resubmit.hidden = false;
+              resubmit.textContent = "새 신청서 작성하기";
+            }
+            wrap.hidden = false;
+          } else if (status === "withdrawn" || status === "canceled" || status === "archived") {
+            if (noticeBtn) noticeBtn.hidden = true;
+            if (resubmit) {
+              resubmit.hidden = false;
+              resubmit.textContent = "새 신청서 작성하기";
+            }
+            wrap.hidden = false;
+          } else {
+            // submitted / reviewing / approved / approved_for_contact: 운영팀 안내 대기. CTA 없음.
+            if (noticeBtn) noticeBtn.hidden = true;
+            if (resubmit) resubmit.hidden = true;
+            wrap.hidden = true;
+          }
+        }
+
+        // #350 — 보완 안내 확인 버튼: 운영팀 안내 영역으로 스크롤 + 시각적 강조.
+        document.addEventListener("DOMContentLoaded", function () {
+          const btn = $("mypageDebutNoticeBtn");
+          if (!btn || btn.dataset.bound === "1") return;
+          btn.dataset.bound = "1";
+          btn.addEventListener("click", function () {
+            const notice = $("mypageDebutNotice");
+            if (!notice || notice.hidden) return;
+            notice.scrollIntoView({ behavior: "smooth", block: "center" });
+            notice.classList.add("is-focused");
+            window.setTimeout(function () { notice.classList.remove("is-focused"); }, 1600);
+          });
+        });
 
         function applySummary(summary) {
           mypageSummary = summary;
