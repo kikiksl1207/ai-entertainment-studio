@@ -779,6 +779,29 @@ no image/video request mutation, no wallet mutation, and no LLM call. Frontend
 must render Korean labels/copy and must not expose machine keys such as
 `chat_ready`, `conversation_archive`, or `mvp_not_open` directly to users.
 
+Character-chat copy CMS contract (#335):
+
+- Published `site_content_entries` can override character DM copy with
+  `scope=character`, `pageKey=character-chat`,
+  `characterSlug=<artistSlug>`, `locale=ko-KR`, and
+  `contentKey=character-chat.copy.<artistSlug>`.
+- Editable CMS fields are limited to `welcome.text`, starter guide/options,
+  direct-input label, `emptyState.text`, `premiumChat.text`,
+  `premiumChat.ctaLabel`, `status.labelKo`, and `status.descriptionKo`.
+- Fixed product UI labels such as send/archive/report buttons, conversation
+  tabs, and provider-state labels remain outside CMS editing.
+- Read-only endpoints `GET /api/v1/chat/character-catalog` and
+  `GET /api/v1/chat/starter-prompts` use this order:
+  published site-content copy, artist metadata, character fallback, default
+  safe Korean copy.
+- Responses include `copyContract` with the expected content key, editable
+  fields, fixed labels, fallback order, and safety flags
+  (`rawPersonaPromptExposed=false`, `rawLlmPayloadExposed=false`,
+  `mutation=false`, `llmCall=false`, `walletMutation=false`).
+- `emptyState` and `premiumChat` are display copy projections only. They do not
+  create chat messages, orders, wallet ledger rows, settlement rows, or provider
+  calls.
+
 LLM generation readiness:
 
 - Generation is fail-closed until a provider adapter is configured:

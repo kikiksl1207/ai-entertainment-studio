@@ -1,5 +1,37 @@
 # Team2 Backend Inbox
 
+status: done
+task: "#335 Character chat per-character copy CMS contract"
+branch/commit: team2-backend/chat-copy-cms-contract-335 / pending push commit
+changed_files:
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npx.cmd prisma generate
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Added a read-only character-chat copy CMS adapter on top of existing `site_content_entries`.
+- Published CMS rows use `scope=character`, `pageKey=character-chat`, `characterSlug=<artistSlug>`, `locale=ko-KR`, and `contentKey=character-chat.copy.<artistSlug>`.
+- `GET /api/v1/chat/character-catalog` and `GET /api/v1/chat/starter-prompts` now prefer published site-content copy, then artist metadata, then character fallback, then default Korean copy.
+- The response includes `copyContract`, `emptyState`, and `premiumChat` projections. Editable CMS fields are welcome/starter/empty/premium/status copy only; fixed UI labels remain outside CMS editing.
+- Added regression coverage proving CMS copy overrides metadata, fallback remains available, and read-only catalog/starter projection performs no wallet, order, chat message, or LLM mutation.
+- Persona source data, secret prompts, raw LLM payloads, wallet, order, settlement, and payout flows were not changed.
+blocked_by:
+- none
+next_needed:
+- Viewer review. Frontend can read `copyContract`/`emptyState`/`premiumChat` but must not display raw source enums or enable premium/wallet/order mutations from this projection.
+sensitive_values_recorded:
+- none
+
+---
+
 status: ready_for_review
 task: Team2 Backend / Lumina Feed post edit-delete author-only contract
 base: origin/main 11806cd

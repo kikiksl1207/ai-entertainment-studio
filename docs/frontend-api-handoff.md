@@ -625,12 +625,32 @@ not return secrets.
 
 `GET /chat/character-catalog` returns the read-only DM entry catalog for one
 artist. Pass either `artistSlug` or `artistId`. The response includes
-`artist`, Korean `status`, `greeting`, `starterOptions`, `directInput`, `tone`,
-and `policy`. The policy states that the gallery surface is a conversation-earned
-image archive, not a public gallery link, and that short video request remains
-hidden/disabled for first launch. Frontend must show Korean copy such as
-`labelKo`, `descriptionKo`, `disabledMessageKo`, and must not expose machine keys
-such as `chat_ready`, `conversation_archive`, or `mvp_not_open` directly.
+`artist`, Korean `status`, `greeting`, `starterOptions`, `directInput`,
+`emptyState`, `premiumChat`, `tone`, `policy`, and `copyContract`. The policy
+states that the gallery surface is a conversation-earned image archive, not a
+public gallery link, and that short video request remains hidden/disabled for
+first launch. Frontend must show Korean copy such as `labelKo`,
+`descriptionKo`, `disabledMessageKo`, `emptyState.text`, and
+`premiumChat.text`, and must not expose machine keys such as `chat_ready`,
+`conversation_archive`, or `mvp_not_open` directly.
+
+Character-chat CMS copy (#335):
+
+- `copyContract.contentKey` is `character-chat.copy.<artistSlug>` and maps to a
+  published `site_content_entries` row with `scope=character`,
+  `pageKey=character-chat`, `characterSlug=<artistSlug>`, and `locale=ko-KR`.
+- Frontend should treat `copyContract.editableFields` as the admin-editable copy
+  boundary: welcome text, starter guide/options, direct-input label, empty
+  state text, premium-chat 안내 text/CTA, and Korean status label/description.
+- `copyContract.fixedUiLabels` lists UI labels that stay hard-coded/product
+  owned; do not make send/archive/report/tab/provider-state labels editable from
+  character copy CMS.
+- Fallback order is published site-content copy, artist metadata, character
+  fallback, default Korean copy. If no CMS row exists, keep using the existing
+  Korean fallback copy and never show raw enum/source strings in the UI.
+- `premiumChat.enabled=false` in this projection is copy-only. Do not connect
+  wallet, order, settlement, paid-like, or premium-chat mutation from these
+  fields.
 
 `GET /chat/conversations` is the read-only, owner-only DM list projection.
 `box=recent` returns active sessions, `box=archive` returns archived sessions,
