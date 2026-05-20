@@ -260,6 +260,27 @@ function renderLuminaFeed() {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
             <span>${Number(post.replyCount) || 0}</span>
           </button>
+          <!-- #356 — 타래 잇기: 작성된 글 아래에 이어지는 piece를 추가. 백엔드 append 계약 도착 전까지는 submit 잠금. -->
+          <button class="feed-action-btn feed-thread-extend-btn" type="button"
+                  data-feed-thread-extend="${feedEscapeHtml(post.id || "")}"
+                  aria-label="이 글에 타래 이어 쓰기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v14a3 3 0 0 0 3 3h7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/><circle cx="7" cy="4" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/><circle cx="17" cy="21" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
+            <span>타래 잇기</span>
+          </button>
+          <!-- #356 — 리포스트: 원글 참조 카드 + 내 코멘트. 단순 복사가 아니라 referenceCard 유지. submit은 루피 계약 도착 전까지 잠금. -->
+          <button class="feed-action-btn feed-repost-btn" type="button"
+                  data-feed-repost="${feedEscapeHtml(post.id || "")}"
+                  aria-label="이 글 리포스트하기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3l4 4-4 4M3 14l4 4 4-4M21 7H8a4 4 0 0 0-4 4v3M3 17h13a4 4 0 0 0 4-4v-3" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>리포스트</span>
+          </button>
+          <!-- #356 — 공유: Web Share 우선, 미지원 시 클립보드 fallback. POST/wallet/settlement mutation 0. -->
+          <button class="feed-action-btn feed-share-btn" type="button"
+                  data-feed-share="${feedEscapeHtml(post.id || "")}"
+                  aria-label="이 글 공유하기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 9l5-5m0 0v4m0-4h-4M10 15l-5 5m0 0v-4m0 4h4" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 4l-7 7M5 20l7-7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <span>공유</span>
+          </button>
           ${editButton}
           ${deleteButton}
         </footer>
@@ -1490,4 +1511,222 @@ async function runFeedComposeUploadStages(item, onStateChange) {
   window.bindLuminaFeedTabs = bindLuminaFeedTabs;
   window.bindLuminaFeedFollow = bindLuminaFeedFollow;
   window.initFeedCompose = initFeedCompose;
+
+  // #356 — 타래 잇기 / 리포스트 / 공유 액션 핸들러. event delegation으로 동적 카드까지 커버한다.
+  // 타래 append / repost는 백엔드 contract 도착 전이라 submit 잠금 + 안내 노출, 공유는 실제 동작.
+  function findPostFromCard(target) {
+    var card = target && target.closest ? target.closest("[data-feed-type]") : null;
+    if (!card) return null;
+    var likeBtn = card.querySelector("[data-feed-like]");
+    var postId = likeBtn ? likeBtn.getAttribute("data-feed-like") : "";
+    var author = card.querySelector(".feed-post-author");
+    var bodyEl = card.querySelector(".feed-post-body");
+    return {
+      card: card,
+      postId: postId,
+      authorName: author ? author.textContent.trim() : "",
+      body: bodyEl ? bodyEl.textContent.trim() : "",
+    };
+  }
+
+  function buildPostShareUrl(postId) {
+    var origin = (window.location && window.location.origin) || "https://www.lumina-stage.com";
+    return origin + "/lumina-feed?postId=" + encodeURIComponent(String(postId || ""));
+  }
+
+  function showFeedShareToast(text) {
+    var toast = document.getElementById("feedShareToast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "feedShareToast";
+      toast.className = "feed-share-toast";
+      toast.setAttribute("role", "status");
+      toast.setAttribute("aria-live", "polite");
+      document.body.appendChild(toast);
+    }
+    toast.textContent = text;
+    toast.classList.add("is-visible");
+    if (toast._hideTimer) clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(function () { toast.classList.remove("is-visible"); }, 1800);
+  }
+
+  async function handleFeedShare(postInfo) {
+    if (!postInfo || !postInfo.postId) {
+      showFeedShareToast("이 글의 공유 정보를 찾지 못했어요.");
+      return;
+    }
+    var url = buildPostShareUrl(postInfo.postId);
+    var title = postInfo.authorName ? postInfo.authorName + " — Lumina Feed" : "Lumina Feed";
+    var snippet = postInfo.body ? postInfo.body.slice(0, 120) : "";
+    if (navigator.share && navigator.canShare && navigator.canShare({ url: url })) {
+      try {
+        await navigator.share({ title: title, text: snippet, url: url });
+        return;
+      } catch (_) { /* user cancel or share fail → clipboard fallback */ }
+    } else if (navigator.share) {
+      try { await navigator.share({ title: title, text: snippet, url: url }); return; } catch (_) {}
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+        showFeedShareToast("링크가 복사되었어요.");
+        return;
+      }
+    } catch (_) {}
+    // 최후 fallback — textarea로 복사
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = url; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      document.execCommand && document.execCommand("copy");
+      document.body.removeChild(ta);
+      showFeedShareToast("링크가 복사되었어요.");
+    } catch (_) {
+      showFeedShareToast("공유 링크: " + url);
+    }
+  }
+
+  function buildPendingPanelHtml(opts) {
+    var kicker = opts && opts.kicker || "준비 중";
+    var note = opts && opts.note || "백엔드 계약이 도착하면 자동으로 열립니다.";
+    return (
+      '<div class="feed-pending-banner">' +
+        '<span class="feed-pending-badge">' + kicker + '</span>' +
+        '<p>' + note + '</p>' +
+      '</div>'
+    );
+  }
+
+  function toggleThreadExtendPanel(card, postInfo) {
+    if (!card) return;
+    var existing = card.querySelector(".feed-thread-extend-panel");
+    if (existing) {
+      existing.remove();
+      return;
+    }
+    var panel = document.createElement("section");
+    panel.className = "feed-thread-extend-panel";
+    panel.setAttribute("aria-label", "타래 이어 쓰기");
+    panel.innerHTML =
+      '<div class="feed-thread-extend-connector" aria-hidden="true"></div>' +
+      '<div class="feed-thread-extend-body">' +
+        buildPendingPanelHtml({
+          kicker: "이어 쓰기 준비 중",
+          note: "이어 쓰기 API는 루피 계약 도착 후 활성화돼요. 지금은 작성 화면만 미리 확인할 수 있어요."
+        }) +
+        '<label class="feed-thread-extend-field">' +
+          '<span>이어쓰기 본문</span>' +
+          '<textarea maxlength="500" rows="3" placeholder="원글에 이어서 쓸 내용을 적어주세요."></textarea>' +
+        '</label>' +
+        '<div class="feed-thread-extend-actions">' +
+          '<button type="button" class="feed-thread-extend-cancel" data-feed-thread-extend-cancel>취소</button>' +
+          '<button type="button" class="feed-thread-extend-submit" disabled aria-disabled="true" title="루피 계약 대기">이어쓰기 게시 (준비 중)</button>' +
+        '</div>' +
+      '</div>';
+    card.appendChild(panel);
+    var ta = panel.querySelector("textarea");
+    if (ta) ta.focus();
+  }
+
+  function closeRepostModal() {
+    var backdrop = document.getElementById("feedRepostBackdrop");
+    var modal = document.getElementById("feedRepostModal");
+    if (backdrop) backdrop.hidden = true;
+    if (modal) { modal.hidden = true; modal.innerHTML = ""; }
+    document.body.classList.remove("is-feed-repost-open");
+  }
+
+  function openRepostModal(postInfo) {
+    var backdrop = document.getElementById("feedRepostBackdrop");
+    var modal = document.getElementById("feedRepostModal");
+    if (!modal || !backdrop) return;
+    var body = feedEscapeHtml(postInfo.body || "");
+    var author = feedEscapeHtml(postInfo.authorName || "Lumina 사용자");
+    var postUrl = buildPostShareUrl(postInfo.postId);
+    modal.innerHTML =
+      '<header class="feed-repost-head">' +
+        '<h2>리포스트</h2>' +
+        '<button type="button" class="feed-repost-close" aria-label="리포스트 창 닫기" data-feed-repost-close>×</button>' +
+      '</header>' +
+      '<div class="feed-repost-body">' +
+        buildPendingPanelHtml({
+          kicker: "리포스트 준비 중",
+          note: "리포스트 게시 API는 루피 계약 도착 후 활성화돼요. 원글 작성자/본문/이동 링크는 유지된 채로 게시됩니다."
+        }) +
+        '<label class="feed-repost-field">' +
+          '<span>내 코멘트 (선택)</span>' +
+          '<textarea maxlength="500" rows="3" placeholder="원글에 덧붙일 내 한마디를 적어주세요."></textarea>' +
+        '</label>' +
+        '<article class="feed-repost-reference" aria-label="원글 참조">' +
+          '<header><strong>' + author + '</strong><a href="' + feedEscapeHtml(postUrl) + '" class="feed-repost-reference-link">원글 보기 →</a></header>' +
+          '<p>' + body + '</p>' +
+        '</article>' +
+      '</div>' +
+      '<footer class="feed-repost-foot">' +
+        '<button type="button" class="feed-repost-cancel" data-feed-repost-close>취소</button>' +
+        '<button type="button" class="feed-repost-submit" disabled aria-disabled="true" title="루피 계약 대기">리포스트 게시 (준비 중)</button>' +
+      '</footer>';
+    modal.hidden = false;
+    backdrop.hidden = false;
+    document.body.classList.add("is-feed-repost-open");
+    var ta = modal.querySelector("textarea");
+    if (ta) ta.focus();
+  }
+
+  function bindFeedCardSocialActions() {
+    if (document._feedSocialActionsBound) return;
+    document._feedSocialActionsBound = true;
+    document.addEventListener("click", function (e) {
+      // 타래 잇기
+      var threadBtn = e.target.closest("[data-feed-thread-extend]");
+      if (threadBtn) {
+        e.preventDefault();
+        var info = findPostFromCard(threadBtn);
+        if (info) toggleThreadExtendPanel(info.card, info);
+        return;
+      }
+      if (e.target.closest("[data-feed-thread-extend-cancel]")) {
+        e.preventDefault();
+        var panel = e.target.closest(".feed-thread-extend-panel");
+        if (panel) panel.remove();
+        return;
+      }
+      // 리포스트
+      var repostBtn = e.target.closest("[data-feed-repost]");
+      if (repostBtn) {
+        e.preventDefault();
+        var rInfo = findPostFromCard(repostBtn);
+        if (rInfo) openRepostModal(rInfo);
+        return;
+      }
+      if (e.target.closest("[data-feed-repost-close]")) {
+        e.preventDefault();
+        closeRepostModal();
+        return;
+      }
+      // 공유
+      var shareBtn = e.target.closest("[data-feed-share]");
+      if (shareBtn) {
+        e.preventDefault();
+        var sInfo = findPostFromCard(shareBtn);
+        handleFeedShare(sInfo);
+        return;
+      }
+    });
+    var backdrop = document.getElementById("feedRepostBackdrop");
+    if (backdrop && !backdrop.dataset.bound) {
+      backdrop.dataset.bound = "1";
+      backdrop.addEventListener("click", closeRepostModal);
+    }
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeRepostModal();
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindFeedCardSocialActions);
+  } else {
+    bindFeedCardSocialActions();
+  }
+  window.bindFeedCardSocialActions = bindFeedCardSocialActions;
 })();
