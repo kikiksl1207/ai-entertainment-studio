@@ -19,10 +19,27 @@
 
   function authToken() {
     try {
-      var raw = window.localStorage && window.localStorage.getItem("lumina.session");
-      if (!raw) return null;
-      var parsed = JSON.parse(raw);
-      return parsed && (parsed.accessToken || parsed.token) || null;
+      if (typeof window.getAccessToken === "function") {
+        var currentToken = window.getAccessToken();
+        if (currentToken) return currentToken;
+      }
+    } catch (_) {}
+    try {
+      if (!window.localStorage) return null;
+      var keys = ["lumina_auth", "lumina.session"];
+      for (var i = 0; i < keys.length; i += 1) {
+        var raw = window.localStorage.getItem(keys[i]);
+        if (!raw) continue;
+        var parsed = JSON.parse(raw);
+        var token = parsed && (
+          parsed.accessToken ||
+          parsed.token ||
+          parsed.access_token ||
+          (parsed.tokens && (parsed.tokens.accessToken || parsed.tokens.access_token))
+        );
+        if (token) return token;
+      }
+      return null;
     } catch (_) { return null; }
   }
 
