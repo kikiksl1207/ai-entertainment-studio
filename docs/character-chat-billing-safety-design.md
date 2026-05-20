@@ -74,6 +74,7 @@ Before opening any generation path:
 | `story_reply` | 5L | yes | preview -> order debit -> generate | creator-share candidate | disabled while provider missing |
 | `premium_reply` | 10L | yes | preview -> order debit -> generate | creator-share candidate | disabled while provider missing |
 | `fan_letter` 30/50/100 | 30L/50L/100L | yes | preview -> order debit -> async reviewed response | creator-share candidate | disabled while provider missing |
+| `premium_chat_donation` | TBD | yes | preview -> donation debit -> reviewed chat response | creator-share candidate | reserved; must use `premium_chat_donation` ledger/source |
 | `image_reply` | draft | yes | no public debit | not open | closed |
 | `voice_reply` | draft | yes | no public debit | not open | closed |
 

@@ -27,6 +27,12 @@ NestJS를 추천하는 이유는 도메인 분리가 명확하고, 결제/지갑
   equivalent and must not debit the wallet again. Debit transactions update
   `wallet_accounts.cached_balance` only with a `cachedBalance >= amount`
   condition, then write the ledger/event/order in the same DB transaction.
+- App and web clients must treat local Lumina balance, price, purchase,
+  refund, and settlement values as display-only. The server-authority contract
+  is documented in `docs/server-authority-ledger-contract.md`; provider
+  purchase verification, wallet ledger idempotency, fail-closed debits, and
+  advisory-only app integrity signals are mandatory before any app-store or
+  premium-chat paid flow is opened.
 - 클라이언트가 결제 성공을 주장해도 서버는 PG transaction/webhook으로만 확정한다.
 - 관리자/운영 API는 `/admin` namespace로 분리한다.
 
