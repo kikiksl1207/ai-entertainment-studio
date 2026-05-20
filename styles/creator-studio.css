@@ -504,6 +504,16 @@ td { color: var(--text); }
 .payout-breakdown.is-payout-sample .payout-row-value[data-payout-sample="true"] {
   color: #ffc97a;
 }
+
+/* #353 — 정산 회차 확정 전 row 자리에 사용자 화면용 "준비 중" placeholder를 채운다. */
+.payout-pending-row td {
+  padding: 18px 14px;
+  text-align: center;
+  color: rgba(245, 230, 200, 0.75);
+  font-size: 13px;
+  background: rgba(255, 201, 122, 0.04);
+  border-top: 1px dashed rgba(255, 201, 122, 0.25);
+}
 @media (max-width: 1120px) {
   .payout-breakdown-rows { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .payout-row-net { grid-column: 1 / -1; }
