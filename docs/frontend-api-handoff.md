@@ -2523,6 +2523,10 @@ Create/delete post:
 ```http
 POST /lumina-feed/posts
 POST /lumina-feed/posts/thread
+GET /lumina-feed/posts/:postId/thread-continuations
+POST /lumina-feed/posts/:postId/thread-continuations
+POST /lumina-feed/posts/:postId/reposts
+POST /lumina-feed/posts/:postId/share
 DELETE /lumina-feed/posts/:postId
 PATCH /lumina-feed/posts/:postId/thread-items/:itemId
 DELETE /lumina-feed/posts/:postId/thread-items/:itemId
@@ -2559,7 +2563,7 @@ If `artistId` or `artistSlug` is provided, the backend requires an active
 Assets must already be uploaded/confirmed through the existing asset flow. Pending, archived, private, non-image, duplicate, or unknown assets return `400`.
 Feed video upload is not open in MVP. Route video/performance/challenge content to Shortform, not Lumina Feed.
 
-Manual thread posts:
+Legacy manual multi-piece posts:
 
 ```json
 {
@@ -2571,7 +2575,7 @@ Manual thread posts:
 }
 ```
 
-- Use `POST /lumina-feed/posts/thread` when the user manually confirms a 1-10 piece thread. The backend does not auto-split long text.
+- `POST /lumina-feed/posts/thread` is the legacy manual 1-10 piece post contract. Do not use this path for the canonical "이어쓰기" button on an already-created post. The backend does not auto-split long text.
 - The root piece is stored as the normal feed post body and counts toward the 10-piece max.
 - Each piece is limited to 500 characters. 11 or more pieces, empty pieces, or a 501-character piece return `400`.
 - One piece behaves like a normal feed post. Image-only one-piece posts are allowed when `assetIds` is present.
@@ -2581,6 +2585,35 @@ Manual thread posts:
 - `PATCH /lumina-feed/posts/:postId/thread-items/:itemId` edits non-root thread items for the author only. Root body edits still use `PATCH /lumina-feed/posts/:postId`.
 - `DELETE /lumina-feed/posts/:postId/thread-items/:itemId` is author-only and idempotent after deletion. `DELETE /lumina-feed/posts/:postId` hides the whole thread by deleting the root post.
 - Thread create/edit/delete does not mutate wallet, Lumina, settlement, payout, order, or paid-like flows.
+
+Canonical thread continuation / repost / share:
+
+```http
+GET /lumina-feed/posts/:postId/thread-continuations?take=20&cursor=<postId>
+POST /lumina-feed/posts/:postId/thread-continuations
+POST /lumina-feed/posts/:postId/reposts
+POST /lumina-feed/posts/:postId/share
+```
+
+Thread continuation body:
+
+```json
+{ "body": "이어지는 글, max 500 chars" }
+```
+
+Repost body:
+
+```json
+{ "body": "optional quote text, max 500 chars" }
+```
+
+- "이어쓰기" means adding a new continuation post under an already-created public published root post. It is not long-text splitting and it is not a normal reply/comment.
+- `POST /lumina-feed/posts/:postId/thread-continuations` requires login and the caller must be the root post author. Non-authors get `403`; missing/deleted/private roots get safe `404`.
+- Created continuation rows include `post.threadContinuation`: `{ isContinuation: true, relation: "thread_continuation", rootPostId, parentPostId, displayPlacement: "under_root_post", commentRelation: false, replyRelation: false, autoSplit: false }`.
+- `GET /lumina-feed/posts/:postId/thread-continuations` lists only continuation rows for the root. Keep this UI separate from `GET /lumina-feed/posts/:postId/replies`.
+- `POST /lumina-feed/posts/:postId/reposts` requires login and creates either `repost` or `quote_repost` based on whether `body` is present. Rows include `post.repost.originalPostId` and original author/artist ids.
+- If the repost source is later deleted, hidden, blocked, or private, render the embedded original as unavailable/tombstone and do not expose the original body.
+- `POST /lumina-feed/posts/:postId/share` returns `share.publicPath`, `share.webShare`, and `share.countStrategy: "not_mutated_by_share_contract"`. It does not create a repost row and does not mutate wallet, Lumina, settlement, payout, order, or paid-like state.
 
 External URL posts use lightweight metadata only:
 

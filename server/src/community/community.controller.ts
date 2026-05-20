@@ -96,6 +96,45 @@ export class CommunityController {
     return this.communityService.createThreadPost(user.id, body);
   }
 
+  @Get('lumina-feed/posts/:postId/thread-continuations')
+  @UseGuards(OptionalJwtAuthGuard)
+  getThreadContinuations(
+    @Param('postId') postId: string,
+    @Query() query: CommunityQuery,
+    @Req() request: RequestWithOptionalAuth,
+  ) {
+    return this.communityService.getThreadContinuations(
+      postId,
+      query,
+      request.user?.id,
+    );
+  }
+
+  @Post('lumina-feed/posts/:postId/thread-continuations')
+  @UseGuards(JwtAuthGuard)
+  createThreadContinuation(
+    @CurrentUser() user: AuthUser,
+    @Param('postId') postId: string,
+    @Body() body: CommunityBody,
+  ) {
+    return this.communityService.createThreadContinuation(user.id, postId, body);
+  }
+
+  @Post('lumina-feed/posts/:postId/reposts')
+  @UseGuards(JwtAuthGuard)
+  createRepost(
+    @CurrentUser() user: AuthUser,
+    @Param('postId') postId: string,
+    @Body() body: CommunityBody,
+  ) {
+    return this.communityService.createRepost(user.id, postId, body);
+  }
+
+  @Post('lumina-feed/posts/:postId/share')
+  sharePost(@Param('postId') postId: string) {
+    return this.communityService.sharePost(postId);
+  }
+
   @Get('lumina-feed/posts/:postId')
   @UseGuards(OptionalJwtAuthGuard)
   getPost(@Param('postId') postId: string, @Req() request: RequestWithOptionalAuth) {

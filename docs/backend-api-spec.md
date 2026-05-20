@@ -179,7 +179,9 @@ My Page contract:
 - `POST /api/v1/me/assets/:assetId/archive` marks the owned asset as archived in metadata without deleting object storage. It blocks active avatar, active profile cover, published feed, and creator-image request usage unless `{ "force": true }` is explicitly sent.
 - `POST /api/v1/me/assets/:assetId/restore` returns an owned archived asset to active.
 - `POST /api/v1/lumina-feed/posts` accepts optional `assetIds` with up to 4 existing public image asset UUIDs. The response exposes linked images through post `assets[]` with public URLs.
-- `POST /api/v1/lumina-feed/posts/thread` creates a manual Lumina Feed thread. The root post remains a normal feed post, each piece is limited to 500 characters, and the root piece is included in the default 10-piece max.
+- `POST /api/v1/lumina-feed/posts/thread` creates a legacy manual Lumina Feed multi-piece post. Canonical "이어쓰기" uses `POST /api/v1/lumina-feed/posts/:postId/thread-continuations` against an existing post instead.
+- `GET /api/v1/lumina-feed/posts/:postId/thread-continuations` and `POST /api/v1/lumina-feed/posts/:postId/thread-continuations` keep continuation posts separate from normal comments/replies. Continuation create is login-required and root-author only.
+- `POST /api/v1/lumina-feed/posts/:postId/reposts` creates a user-owned repost or quote repost with an original post reference. `POST /api/v1/lumina-feed/posts/:postId/share` returns a share URL/Web Share contract only and does not mutate wallet, Lumina, settlement, payout, order, or paid-like state.
 - `PATCH /api/v1/lumina-feed/posts/:postId` edits the current user's own post body. MVP edit scope is body-only; image replacement/removal is not supported yet.
 - `PATCH /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` and `DELETE /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` are author-only for non-root thread items. Likes, comments, and images remain root-post based.
 - Signed-in `GET /api/v1/me/lumina-feed` post rows include `viewer` and `permissions` hints (`hasLiked`, `isAuthor`, `isFollowingArtist`, `isFollowingAuthor`, `canFollowArtist`, `canUnfollowArtist`, `canFollowAuthor`, `canUnfollowAuthor`, `canEdit`, `canDelete`) for frontend action rendering.
@@ -1770,6 +1772,10 @@ GET /api/v1/lumina-feed/trending-searches?language=all&type=all&window=1h&take=1
 GET /api/v1/lumina-feed/hashtags?language=all&window=24h&take=20
 GET /api/v1/lumina-feed/posts/:postId
 POST /api/v1/lumina-feed/posts/thread
+GET /api/v1/lumina-feed/posts/:postId/thread-continuations
+POST /api/v1/lumina-feed/posts/:postId/thread-continuations
+POST /api/v1/lumina-feed/posts/:postId/reposts
+POST /api/v1/lumina-feed/posts/:postId/share
 PATCH /api/v1/lumina-feed/posts/:postId/thread-items/:itemId
 DELETE /api/v1/lumina-feed/posts/:postId/thread-items/:itemId
 DELETE /api/v1/lumina-feed/posts/:postId
@@ -1792,12 +1798,18 @@ Authorization: Bearer <accessToken>
 - `GET /api/v1/lumina-feed/hashtags` parses hashtags from up to the latest 500 public feed posts in the selected window. Use it for search chips before search-event volume is high enough.
 - `GET /admin/api/v1/backstage/operations/feed-search-analytics` returns Backstage-only search analytics from `feed_search_events`, including grouped keywords, recent events, zero-result counts, and language/type/window filters.
 - `POST /api/v1/lumina-feed/posts` allows image-only posts. If `assetIds` contains at least one confirmed public image asset, `body` may be an empty string. Text-only posts still require non-empty `body`.
-- `POST /api/v1/lumina-feed/posts/thread` accepts `body` for a one-piece post or `items`/`threadItems`/`pieces` arrays for a manual thread. Every piece is trimmed and limited to 500 characters; 11 or more pieces return `400`. The backend does not auto-split text.
+- `POST /api/v1/lumina-feed/posts/thread` remains the legacy manual multi-piece post contract. It accepts `body` for a one-piece post or `items`/`threadItems`/`pieces` arrays for a manual thread. Every piece is trimmed and limited to 500 characters; 11 or more pieces return `400`. The backend does not auto-split text.
 - Thread post rows include `thread`: `{ isThread, rootPostId, itemCount, threadCount, maxItems, previewText, items, autoSplit, rootOnlyEngagement, engagementTarget, assetTarget }`. List rows can render `thread.isThread`, `thread.itemCount`, and `thread.previewText`; detail can use `thread.items` ordered by `position`.
 - `GET /api/v1/lumina-feed/posts/:postId` returns `{ post, policy }` for public published non-deleted posts and includes the ordered thread projection.
 - `PATCH /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` edits a non-root thread item body for the root author only. Root body edits continue to use `PATCH /api/v1/lumina-feed/posts/:postId`.
 - `DELETE /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` soft-deletes a non-root thread item for the root author only and is idempotent after the item is already deleted.
 - Thread likes, comments, reports, hides, and image assets remain root-post based in this phase. There is no wallet, Lumina, settlement, payout, or order mutation in thread create/edit/delete.
+- Canonical feed "이어쓰기" is `thread_continuation`, not automatic long-text splitting. Use `POST /api/v1/lumina-feed/posts/:postId/thread-continuations` to add a new continuation post under an existing public published root post. The caller must be the root post author; non-authors receive `403`, and missing/deleted/private roots are safe `404`.
+- Thread continuation body is required and limited to 500 characters. The created post is a normal `community_posts` row with `metadata.threadContinuation`: `{ type: "thread_continuation", rootPostId, parentPostId, source: "existing_post", displayPlacement: "under_root_post", commentRelation: false, replyRelation: false, autoSplit: false }`.
+- `GET /api/v1/lumina-feed/posts/:postId/thread-continuations?take=20&cursor=<postId>` lists continuation posts only. It does not return normal comments/replies. Rows include `post.threadContinuation` so the UI can place them under the root post without confusing them with reply/comment projections.
+- Use `POST /api/v1/lumina-feed/posts/:postId/reposts` for repost and quote repost. It requires login, accepts optional `{ "body": "quote text, max 500 chars" }`, creates a user-owned public repost row, and preserves `metadata.repost.originalPostId` plus original author/artist ids. Hidden/deleted/private source posts return safe `404`.
+- Repost rows include `post.repost`: `{ isRepost, type, originalPostId, originalAuthorUserId, originalArtistId, originalState, originalPost, policy }`. If the original becomes deleted/hidden/private/blocked, render the embedded original as unavailable/tombstone and do not expose the original body.
+- Use `POST /api/v1/lumina-feed/posts/:postId/share` to request the public share contract for a public published post. It returns `share.publicPath`, `share.webShare`, and `share.countStrategy: "not_mutated_by_share_contract"`. It does not create a feed row, share ledger, wallet, Lumina, settlement, payout, order, or paid-like mutation.
 - `DELETE /api/v1/lumina-feed/posts/:postId` soft-deletes the current user's own root post. Deleting the root hides the full thread from feed lists.
 - `DELETE /api/v1/lumina-feed/replies/:replyId` soft-deletes the current user's own reply. Artist operators can delete replies on operated artist posts.
 - Hidden posts use soft delete/reactivation with unique `(user_id, post_id)`.
