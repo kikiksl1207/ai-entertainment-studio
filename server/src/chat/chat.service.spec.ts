@@ -2215,6 +2215,32 @@ describe('ChatService premium chat support contract', () => {
     ]);
     expect(contract.policy.walletMutationEnabled).toBe(false);
     expect(contract.endpoints.donationCreate.enabled).toBe(false);
+    expect(contract.endpoints.rankings.query.type).toEqual([
+      'communication',
+      'donation',
+    ]);
+    expect(contract.apiContracts.donationCreate.enabled).toBe(false);
+    expect(contract.apiContracts.donationCreate.serverAuthority).toMatchObject({
+      clientBalanceTrusted: false,
+      debitSource: 'server wallet ledger only',
+    });
+    expect(contract.apiContracts.donationCreate.errorCodes).toEqual(
+      expect.arrayContaining([
+        { status: 400, code: 'idempotency_key_required' },
+        { status: 402, code: 'insufficient_lumina_balance' },
+        { status: 409, code: 'idempotency_conflict' },
+      ]),
+    );
+    expect(contract.apiContracts.rankingsList.enabled).toBe(false);
+    expect(contract.apiContracts.rankingsList.request.query.type).toEqual([
+      'communication',
+      'donation',
+    ]);
+    expect(contract.apiContracts.rankingsList.separation).toMatchObject({
+      likeRankingPath: '/api/v1/boost-campaigns/:campaignId/rankings',
+      likeRankingExcludedFromChatRankings: true,
+      chatDonationsExcludedFromLikeRankings: true,
+    });
     expect(contract.donation.ledger.sources).toEqual([
       'premium_chat_open',
       'premium_chat_message',

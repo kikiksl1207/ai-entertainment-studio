@@ -1,5 +1,39 @@
 # Team2 Backend Inbox
 
+status: ready_for_review
+task: "#341 premium chat support and communication ranking API contract"
+branch: team2-backend/premium-chat-ranking-api-contract-341
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/chat.service.spec.ts
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-support-contract.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Tightened the read-only premium chat support contract to version `2026-05-20.premium-chat-support.v2`.
+- Added explicit `apiContracts.donationPreview`, `apiContracts.donationCreate`, and `apiContracts.rankingsList` shapes with request, response, and error-code contracts.
+- Kept donation/ranking endpoints disabled. No POST donation, wallet debit, order, settlement, payout, chat message, or LLM mutation was opened.
+- Fixed the chat ranking contract to allow only `communication` and `donation`; like rankings remain on the Lumina Pick boost ranking lane.
+- Documented server-authoritative wallet debit and idempotency behavior: same key/fingerprint replays the existing projection, different fingerprint returns `409` before wallet lookup.
+blocked_by:
+- Actual donation POST and live chat ranking read models remain blocked until DB event/projection storage, wallet ledger type migration, moderation/refund projection, trust/identity limits, and settlement handling are implemented.
+next_needed:
+- Viewer review, then frontend can wire disabled UI/read-only teaser states from the contract only. Mutation buttons must remain disabled.
+sensitive_values_recorded:
+- none
+
+---
+
 status: done
 task: "#335 Character chat per-character copy CMS contract"
 branch/commit: team2-backend/chat-copy-cms-contract-335 / pending push commit

@@ -17,8 +17,10 @@ export const PREMIUM_CHAT_LEDGER_SOURCES = [
   'premium_chat_donation',
 ] as const;
 
+export const PREMIUM_CHAT_RANKING_TYPES = ['communication', 'donation'] as const;
+
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
-  version: '2026-05-20.premium-chat-support.v1',
+  version: '2026-05-20.premium-chat-support.v2',
   feature: 'premium_chat_support',
   status: 'contract_ready_mutation_blocked',
   policy: {
@@ -56,13 +58,143 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       method: 'GET',
       path: '/api/v1/chat/rankings',
       query: {
-        type: ['communication', 'donation', 'like'],
+        type: PREMIUM_CHAT_RANKING_TYPES,
         period: ['daily', 'weekly', 'monthly', 'all'],
         take: { default: 20, max: 50 },
         cursor: 'opaque optional pagination cursor',
       },
       status: 'planned',
+      enabled: false,
       walletMutation: false,
+    },
+  },
+  apiContracts: {
+    donationPreview: {
+      method: 'POST',
+      pathTemplate: '/api/v1/chat/sessions/:sessionId/donations/preview',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      request: {
+        params: {
+          sessionId: 'uuid owned by the authenticated user',
+        },
+        body: {
+          amountLumina: 'integer string or number',
+          message: 'optional string, max 200 chars',
+        },
+      },
+      response: {
+        sessionId: '<session id>',
+        amountLumina: '<decimal string>',
+        wallet: {
+          balanceLumina: '<decimal string>',
+          afterBalanceLumina: '<decimal string>',
+        },
+        policy: {
+          canDonate: '<boolean>',
+          disabledMessageKey: '<message key when blocked>',
+          walletMutation: false,
+        },
+      },
+      errorCodes: [
+        { status: 401, code: 'auth_required' },
+        { status: 400, code: 'invalid_amount' },
+        { status: 400, code: 'message_too_long' },
+        { status: 403, code: 'session_not_owned' },
+        { status: 404, code: 'session_not_found' },
+        { status: 409, code: 'blocked_room_state' },
+      ],
+    },
+    donationCreate: {
+      method: 'POST',
+      pathTemplate: '/api/v1/chat/sessions/:sessionId/donations',
+      enabled: false,
+      authRequired: true,
+      walletMutation: true,
+      request: {
+        headers: {
+          'Idempotency-Key': 'required client-generated key',
+        },
+        body: {
+          amountLumina: 'integer string or number',
+          message: 'optional string, max 200 chars',
+          idempotencyKey: 'optional fallback when header is unavailable',
+        },
+      },
+      response: {
+        donation: {
+          id: '<donation event id>',
+          sessionId: '<session id>',
+          amountLumina: '<decimal string>',
+          status: 'confirmed',
+          createdAt: '<ISO datetime>',
+        },
+        wallet: {
+          balanceLumina: '<decimal string after debit>',
+        },
+        rankingRefresh: {
+          endpoints: [
+            '/api/v1/chat/rankings?type=communication',
+            '/api/v1/chat/rankings?type=donation',
+          ],
+        },
+      },
+      errorCodes: [
+        { status: 401, code: 'auth_required' },
+        { status: 400, code: 'idempotency_key_required' },
+        { status: 400, code: 'invalid_amount' },
+        { status: 400, code: 'message_too_long' },
+        { status: 402, code: 'insufficient_lumina_balance' },
+        { status: 403, code: 'session_not_owned' },
+        { status: 403, code: 'identity_verification_required' },
+        { status: 404, code: 'session_not_found' },
+        { status: 409, code: 'blocked_room_state' },
+        { status: 409, code: 'idempotency_conflict' },
+      ],
+      serverAuthority: {
+        balanceSource: 'wallet_account.cached_balance in a DB transaction',
+        clientBalanceTrusted: false,
+        debitSource: 'server wallet ledger only',
+        repeatRequestBehavior:
+          'same idempotency key and same fingerprint returns existing projection without a second debit',
+        conflictBehavior:
+          'same idempotency key with a different fingerprint returns 409 before wallet lookup',
+      },
+    },
+    rankingsList: {
+      method: 'GET',
+      path: '/api/v1/chat/rankings',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      request: {
+        query: {
+          type: PREMIUM_CHAT_RANKING_TYPES,
+          period: ['daily', 'weekly', 'monthly', 'all'],
+          take: { default: 20, max: 50 },
+          cursor: 'opaque optional pagination cursor',
+        },
+      },
+      response: {
+        type: '<communication|donation>',
+        period: '<daily|weekly|monthly|all>',
+        items: ['rankingItem projection'],
+        nextCursor: '<opaque cursor or null>',
+        generatedAt: '<ISO datetime>',
+      },
+      errorCodes: [
+        { status: 401, code: 'auth_required' },
+        { status: 400, code: 'invalid_ranking_type' },
+        { status: 400, code: 'invalid_period' },
+        { status: 400, code: 'invalid_take' },
+      ],
+      separation: {
+        likeRankingPath: '/api/v1/boost-campaigns/:campaignId/rankings',
+        chatRankingTypes: PREMIUM_CHAT_RANKING_TYPES,
+        likeRankingExcludedFromChatRankings: true,
+        chatDonationsExcludedFromLikeRankings: true,
+      },
     },
   },
   donation: {
