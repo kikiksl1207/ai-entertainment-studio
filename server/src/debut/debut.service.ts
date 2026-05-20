@@ -10,6 +10,7 @@ import {
   CreateDebutApplicationDto,
   CreateDebutMaterialUploadIntentDto,
   DebutApplicationListQueryDto,
+  ResubmitDebutApplicationDto,
   DEBUT_OPERATION_SEGMENTS,
   DEBUT_MATERIAL_CATEGORIES,
 } from './dto/debut.dto';
@@ -106,7 +107,7 @@ const USER_APPLICATION_STATUS_CTA: Record<
 > = {
   submitted: { key: 'view_status', labelKo: '상태 확인', enabled: false },
   reviewing: { key: 'view_status', labelKo: '상태 확인', enabled: false },
-  needs_more_info: { key: 'check_request', labelKo: '보완 안내 확인', enabled: false },
+  needs_more_info: { key: 'resubmit', labelKo: '보완 제출', enabled: true },
   approved: { key: 'check_result', labelKo: '결과 안내 확인', enabled: false },
   rejected: { key: 'check_result', labelKo: '결과 안내 확인', enabled: false },
   canceled: { key: 'view_status', labelKo: '상태 확인', enabled: false },
@@ -115,6 +116,8 @@ const USER_APPLICATION_STATUS_CTA: Record<
 const DEFAULT_APPLICATION_TYPE = 'personal_unaffiliated';
 const DEFAULT_PARTICIPATION_TYPE = 'appearance_only';
 const DEBUT_MATERIAL_SCOPE = 'debut_application_material';
+const DEBUT_RESUBMISSION_ENDPOINT =
+  '/api/v1/me/debut-applications/:applicationId/resubmit';
 const DEBUT_OPERATION_SEGMENT_CONTRACT = [
   {
     value: 'individual',
@@ -645,12 +648,20 @@ export class DebutService {
   ): NormalizedCreateDebutApplicationInput {
     const contactEmail = input.contactEmail ?? input.applicantEmail;
     if (!contactEmail) {
-      throw new BadRequestException('contactEmail is required');
+      throw this.badRequest(
+        'DEBUT_CONTACT_EMAIL_REQUIRED',
+        'contactEmail is required.',
+        'debut.contactEmail.required',
+      );
     }
 
     const intro = input.intro ?? input.selfIntroduction;
     if (!intro) {
-      throw new BadRequestException('intro is required');
+      throw this.badRequest(
+        'DEBUT_INTRO_REQUIRED',
+        'intro is required.',
+        'debut.intro.required',
+      );
     }
 
     const contactPhone = input.contactPhone ?? input.applicantPhone;
@@ -759,6 +770,134 @@ export class DebutService {
       application: this.presentUserDebutApplication(withdrawn),
       ok: true,
       alreadyWithdrawn: false,
+    };
+  }
+
+  async resubmitMyApplication(
+    userId: string,
+    applicationId: string,
+    input: ResubmitDebutApplicationDto,
+  ) {
+    const before = await this.prisma.debutApplication.findFirst({
+      where: { id: applicationId, userId },
+      include: this.applicationInclude(),
+    });
+
+    if (!before) {
+      throw this.notFound(
+        'DEBUT_APPLICATION_NOT_FOUND',
+        'Debut application was not found.',
+        'debut.application.notFound',
+      );
+    }
+
+    if (before.status !== 'needs_more_info') {
+      throw this.badRequest(
+        'DEBUT_RESUBMIT_STATUS_NOT_OPEN',
+        'Only needs_more_info debut applications can be resubmitted.',
+        'debut.resubmit.statusNotOpen',
+        {
+          currentStatus: this.userReviewStatus(before.status),
+          allowedStatus: 'needs_more_info',
+        },
+      );
+    }
+
+    const normalized = this.normalizeCreateApplication(input);
+
+    if (!normalized.isAdult) {
+      throw this.badRequest(
+        'DEBUT_APPLICANT_ADULT_CONFIRMATION_REQUIRED',
+        'isAdult must be true for MVP debut applications.',
+        'debut.applicant.adultConfirmationRequired',
+      );
+    }
+
+    await this.assertVerifiedApplicantIsAdult(userId);
+    this.assertRequiredConsents(normalized);
+    this.assertApplicationChannel(normalized);
+    this.assertIntroPolicy(normalized);
+    this.assertGenderPolicy(normalized);
+    const attachmentInputs = await this.validatedApplicationAttachments(
+      userId,
+      normalized,
+    );
+    const now = new Date();
+    const resubmittedAt = now.toISOString();
+    const metadata = this.resubmissionMetadata(
+      before.metadata,
+      normalized,
+      resubmittedAt,
+    );
+
+    const application = await this.prisma.debutApplication.update({
+      where: { id: before.id },
+      data: {
+        status: 'submitted',
+        applicantName: normalized.applicantName,
+        displayName: normalized.displayName,
+        contactEmail: normalized.contactEmail,
+        contactPhone: normalized.contactPhone,
+        isAdult: normalized.isAdult,
+        participationType: normalized.participationType,
+        shareTierRequested: normalized.shareTierRequested,
+        intro: normalized.intro,
+        portfolioUrl: normalized.portfolioUrl,
+        consentAppearance: normalized.consentAppearance === true,
+        consentVoice: normalized.consentVoice,
+        consentRevenuePolicy: normalized.consentRevenuePolicy === true,
+        consentPrivacy: true,
+        consentMarketing: this.optionalConsentMarketing(normalized),
+        metadata,
+        updatedAt: now,
+        attachments: {
+          deleteMany: {},
+          ...(attachmentInputs.length ? { create: attachmentInputs } : {}),
+        },
+      },
+      include: this.applicationInclude(),
+    });
+
+    const auditEvent = await this.recordAudit(
+      { id: userId, email: null },
+      application.id,
+      before,
+      application,
+      'user',
+      'debut_application.resubmit',
+    );
+    const auditEventId = this.safeString(this.metadataObject(auditEvent).id);
+
+    return {
+      ok: true,
+      action: 'debut_application.resubmit',
+      application: this.presentUserDebutApplication(application),
+      resubmission: {
+        accepted: true,
+        endpoint: DEBUT_RESUBMISSION_ENDPOINT,
+        method: 'POST',
+        previousStatus: 'needs_more_info',
+        nextStatus: 'submitted',
+        createsNewApplication: false,
+        replacementMode: 'full_application',
+        resubmittedAt,
+      },
+      audit: {
+        recorded: true,
+        eventId: auditEventId,
+        sensitiveFieldsStored: false,
+        internalNotesStored: false,
+        privateMaterialUrlsStored: false,
+        storageKeysStored: false,
+      },
+      mutationPolicy: {
+        finalDebutMutation: false,
+        contractMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+        walletMutation: false,
+        luminaMutation: false,
+      },
     };
   }
 
@@ -911,7 +1050,12 @@ export class DebutService {
 
     for (const key of required) {
       if (input[key as keyof CreateDebutApplicationDto] !== true) {
-        throw new BadRequestException(`${key} must be true`);
+        throw this.badRequest(
+          'DEBUT_REQUIRED_CONSENT_MISSING',
+          `${key} must be true.`,
+          'debut.consent.required',
+          { consentKey: key },
+        );
       }
     }
   }
@@ -919,11 +1063,19 @@ export class DebutService {
   private assertApplicationChannel(input: CreateDebutApplicationDto) {
     const channel = input.applicationChannel ?? 'phone_consultation';
     if (channel === 'phone_consultation' && !input.contactPhone) {
-      throw new BadRequestException('contactPhone is required for phone_consultation');
+      throw this.badRequest(
+        'DEBUT_CONTACT_PHONE_REQUIRED',
+        'contactPhone is required for phone_consultation.',
+        'debut.contactPhone.requiredForPhoneConsultation',
+      );
     }
 
     if (channel === 'phone_consultation' && input.consultationConsent !== true) {
-      throw new BadRequestException('consultationConsent must be true for phone_consultation');
+      throw this.badRequest(
+        'DEBUT_CONSULTATION_CONSENT_REQUIRED',
+        'consultationConsent must be true for phone_consultation.',
+        'debut.consultationConsent.requiredForPhoneConsultation',
+      );
     }
   }
 
@@ -933,7 +1085,12 @@ export class DebutService {
       (input.applicationType ?? DEFAULT_APPLICATION_TYPE) === 'partnership_other' ? 10 : 20;
 
     if (intro.trim().length < minLength) {
-      throw new BadRequestException(`intro must be at least ${minLength} characters`);
+      throw this.badRequest(
+        'DEBUT_INTRO_TOO_SHORT',
+        `intro must be at least ${minLength} characters.`,
+        'debut.intro.tooShort',
+        { minLength },
+      );
     }
   }
 
@@ -1201,6 +1358,7 @@ export class DebutService {
         originalFileUrlReturned: false,
         storageKeyReturned: false,
       },
+      resubmissionPolicy: this.debutApplicationResubmissionPolicy(),
     };
   }
 
@@ -1274,7 +1432,17 @@ export class DebutService {
       },
     ];
 
-    if (currentStatus !== 'submitted') {
+    const resubmittedAt = this.safeDateString(metadata.lastResubmittedAt);
+
+    if (resubmittedAt) {
+      history.push({
+        status: 'submitted',
+        labelKo: submittedCopy.labelKo,
+        messageKey: submittedCopy.messageKey,
+        occurredAt: resubmittedAt,
+        source: 'application.resubmittedAt',
+      });
+    } else if (currentStatus !== 'submitted') {
       const copy = USER_APPLICATION_STATUS_COPY[currentStatus];
       history.push({
         status: currentStatus,
@@ -1293,16 +1461,26 @@ export class DebutService {
 
   private userDebutApplicationCta(status: UserDebutApplicationStatus) {
     const cta = USER_APPLICATION_STATUS_CTA[status];
+    const resubmissionOpen = status === 'needs_more_info';
 
     return {
       ...cta,
       messageKey: this.debutApplicationCtaMessageKey(cta.key),
       defaultLabelKo: this.debutApplicationCtaDefaultLabel(cta.key),
-      actionAllowed: false,
-      mutationAllowed: false,
-      contractOnly: true,
-      disabledReasonKey: 'debut.application.cta.disabled.contractOnly',
-      defaultDisabledReasonKo: this.debutApplicationCtaDisabledReason(status),
+      actionAllowed: resubmissionOpen,
+      mutationAllowed: resubmissionOpen,
+      contractOnly: !resubmissionOpen,
+      endpoint: resubmissionOpen ? DEBUT_RESUBMISSION_ENDPOINT : null,
+      method: resubmissionOpen ? 'POST' : null,
+      bodyContractKey: resubmissionOpen
+        ? 'debut.application.resubmission.body.fullApplication'
+        : null,
+      disabledReasonKey: resubmissionOpen
+        ? null
+        : 'debut.application.cta.disabled.contractOnly',
+      defaultDisabledReasonKo: resubmissionOpen
+        ? null
+        : this.debutApplicationCtaDisabledReason(status),
       blockedMutations: [...USER_APPLICATION_CTA_BLOCKED_MUTATIONS],
     };
   }
@@ -1316,12 +1494,40 @@ export class DebutService {
       actionAllowed: cta.actionAllowed,
       mutationAllowed: cta.mutationAllowed,
       contractOnly: cta.contractOnly,
+      endpoint: cta.endpoint,
+      method: cta.method,
+      bodyContractKey: cta.bodyContractKey,
       disabledReasonKey: cta.disabledReasonKey,
       blockedMutations: cta.blockedMutations,
     };
   }
 
+  private debutApplicationResubmissionPolicy() {
+    return {
+      enabledStatuses: ['needs_more_info'],
+      endpoint: DEBUT_RESUBMISSION_ENDPOINT,
+      method: 'POST',
+      bodyContract: 'CreateDebutApplicationDto',
+      bodyContractKey: 'debut.application.resubmission.body.fullApplication',
+      createsNewApplication: false,
+      statusAfterSuccess: 'submitted',
+      replacesPrivateMaterialLinks: true,
+      clearsPreviousPublicRequest: true,
+      ownerOnly: true,
+      finalDebutMutation: false,
+      contractMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      walletMutation: false,
+      luminaMutation: false,
+    };
+  }
+
   private debutApplicationCtaMessageKey(key: string) {
+    if (key === 'resubmit') {
+      return 'debut.application.cta.resubmit';
+    }
+
     if (key === 'check_request') {
       return 'debut.application.cta.checkRequest';
     }
@@ -1334,6 +1540,10 @@ export class DebutService {
   }
 
   private debutApplicationCtaDefaultLabel(key: string) {
+    if (key === 'resubmit') {
+      return '보완 제출하기';
+    }
+
     if (key === 'check_request') {
       return '\uBCF4\uC644 \uC548\uB0B4 \uD655\uC778';
     }
@@ -2281,6 +2491,15 @@ export class DebutService {
     return new BadRequestException({ code, message, messageKey, details });
   }
 
+  private notFound(
+    code: string,
+    message: string,
+    messageKey: string,
+    details?: unknown,
+  ) {
+    return new NotFoundException({ code, message, messageKey, details });
+  }
+
   private recordAudit(
     user: AuthUser,
     targetId: string,
@@ -2706,6 +2925,42 @@ export class DebutService {
         estimatedShareRate: input.shareTierRequested ?? null,
         finalShareRate: null,
         autoFinalization: false,
+      },
+    });
+  }
+
+  private resubmissionMetadata(
+    current: Prisma.JsonValue,
+    input: CreateDebutApplicationDto,
+    resubmittedAt: string,
+  ) {
+    const currentMetadata = this.metadataObject(current);
+    const nextMetadata = this.metadataObject(
+      this.applicationMetadata(input) as unknown as Prisma.JsonValue,
+    );
+    const resubmissionCount =
+      Number(currentMetadata.resubmissionCount ?? 0) >= 0
+        ? Number(currentMetadata.resubmissionCount ?? 0) + 1
+        : 1;
+
+    return this.toJson({
+      ...nextMetadata,
+      publicStatusReason: null,
+      requestedActionKey: null,
+      lastResubmittedAt: resubmittedAt,
+      resubmissionCount,
+      resubmissionPolicyVersion: '2026-05-20.debut-resubmission-v1',
+      lastResubmission: {
+        source: 'applicant',
+        at: resubmittedAt,
+        endpoint: DEBUT_RESUBMISSION_ENDPOINT,
+        replacementMode: 'full_application',
+        createsNewApplication: false,
+        previousPublicReasonPresent: Boolean(
+          this.safeString(currentMetadata.publicStatusReason),
+        ),
+        previousRequestedActionKey:
+          this.safeString(currentMetadata.requestedActionKey) ?? null,
       },
     });
   }

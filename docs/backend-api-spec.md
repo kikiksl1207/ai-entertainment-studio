@@ -1300,6 +1300,7 @@ GET /api/v1/me/debut-applications
 GET /api/v1/me/debut-applications/latest
 GET /api/v1/me/debut-applications/:applicationId/status
 POST /api/v1/me/debut-applications/:applicationId/withdraw
+POST /api/v1/me/debut-applications/:applicationId/resubmit
 GET /admin/api/v1/debut/applications?status=submitted&take=50
 GET /admin/api/v1/debut/applications/:applicationId
 PATCH /admin/api/v1/debut/applications/:applicationId/review
@@ -1371,12 +1372,26 @@ Current validation and workflow:
   private signed URLs, original file URLs, storage keys, object ETags, secrets,
   or tokens.
 - User-facing status projections include an explicit `cta` contract on the
-  application and a mirrored `publicNotice.cta` summary. In this phase every CTA
-  is disabled: `enabled=false`, `actionAllowed=false`, `mutationAllowed=false`,
-  and `contractOnly=true`. The response also returns stable `messageKey`,
-  `disabledReasonKey`, and `blockedMutations` fields so frontend can show Korean
-  fallback copy without opening debut finalization, contract, settlement, payout,
-  wallet, Lumina, or notification dispatch actions.
+  application and a mirrored `publicNotice.cta` summary. For `needs_more_info`,
+  the CTA opens owner-only resubmission with
+  `endpoint=/api/v1/me/debut-applications/:applicationId/resubmit`,
+  `method=POST`, `messageKey=debut.application.cta.resubmit`,
+  `actionAllowed=true`, and `mutationAllowed=true`. Other statuses keep
+  `enabled=false`, `actionAllowed=false`, `mutationAllowed=false`, and
+  `contractOnly=true`. All responses keep stable `messageKey`,
+  `disabledReasonKey`, and `blockedMutations` fields and never open debut
+  finalization, contract, settlement, payout, wallet, Lumina, or notification
+  dispatch actions.
+- `POST /api/v1/me/debut-applications/:applicationId/resubmit` is authenticated
+  and owner-only. It is allowed only from raw status `needs_more_info`, reuses
+  the same application id, treats the request body as a full
+  `CreateDebutApplicationDto` replacement, resets status to `submitted`,
+  replaces private material links, clears the previous public request fields,
+  and records a redacted audit event. Stable errors include
+  `DEBUT_APPLICATION_NOT_FOUND`, `DEBUT_RESUBMIT_STATUS_NOT_OPEN`,
+  `DEBUT_CONTACT_EMAIL_REQUIRED`, `DEBUT_INTRO_REQUIRED`,
+  `DEBUT_REQUIRED_CONSENT_MISSING`, `DEBUT_CONTACT_PHONE_REQUIRED`,
+  `DEBUT_CONSULTATION_CONSENT_REQUIRED`, and `DEBUT_INTRO_TOO_SHORT`.
 - Debut review notification dispatch is not enabled in this contract. The
   response only defines planned in-app/email copy keys for `needs_more_info`,
   `approved`, and `rejected` states. Actual email/in-app senders require a

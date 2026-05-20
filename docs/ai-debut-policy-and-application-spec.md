@@ -246,6 +246,7 @@ POST /api/v1/debut/applications
 GET /api/v1/me/debut-applications
 GET /api/v1/me/debut-applications/latest
 POST /api/v1/me/debut-applications/:applicationId/withdraw
+POST /api/v1/me/debut-applications/:applicationId/resubmit
 GET /admin/api/v1/debut/applications?status=submitted&take=50
 GET /admin/api/v1/debut/applications/:applicationId
 ```
@@ -402,6 +403,18 @@ Applicant withdrawal:
 - Applicants can withdraw their own applications while status is `submitted`, `reviewing`, or `needs_more_info`.
 - Withdrawal changes status to `withdrawn` and records `withdrawnBy` / `withdrawnAt` in metadata.
 - Final statuses such as `approved` and `rejected` need operator/legal handling rather than self-service withdrawal.
+
+Applicant resubmission:
+
+- Applicants can resubmit their own application only while raw status is
+  `needs_more_info`.
+- `POST /api/v1/me/debut-applications/:applicationId/resubmit` accepts the same
+  body shape as `POST /api/v1/debut/applications`.
+- The server keeps the same application id, resets status to `submitted`,
+  replaces applicant-visible fields and private material links, clears the
+  previous public request fields, and records a redacted audit event.
+- The endpoint does not finalize debut, contracts, settlement, payout, wallet,
+  Lumina, or notification dispatch.
 
 ## 11. Frontend Form Sections
 
