@@ -3,195 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>프로필 — Lumina Stage</title>
-    <link rel="stylesheet" href="./styles.css" />
-    <link rel="stylesheet" href="./styles/user-profile.css" />
-    <meta name="description" content="Lumina Stage 일반 유저 공개 프로필 페이지." />
+    <title>이동 중… — Lumina Stage</title>
+    <link rel="canonical" href="https://www.lumina-stage.com/user-profile" />
     <meta name="robots" content="noindex, nofollow" />
-    <meta property="og:type" content="profile" />
-    <meta property="og:title" content="프로필 — Lumina Stage" />
-    <meta property="og:site_name" content="Lumina Stage" />
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4"></script>
+    <!-- #320 — 기존 .html 진입을 clean URL(/user-profile)로 최종 redirect. query/hash 보존. -->
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-1L7TCBQ0N4');
+      (function () {
+        var qs = window.location.search || "";
+        var hash = window.location.hash || "";
+        window.location.replace("/user-profile" + qs + hash);
+      })();
     </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0; url=/user-profile" />
+    </noscript>
   </head>
-  <body class="is-booting">
-    <header class="site-header">
-      <div class="shell header-inner">
-        <a class="brand" href="/">
-          <img class="brand-logo" src="./assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
-          <span class="brand-copy">
-            <strong>Lumina Stage</strong>
-            <small data-i18n="brand.tagline">아티스트 레이블</small>
-          </span>
-        </a>
-
-        <nav class="main-nav" aria-label="메인 메뉴">
-          <a href="/" data-i18n="nav.home">홈</a>
-          <a href="/characters" data-i18n="nav.artists">아티스트</a>
-          <a href="/lumina-pick" data-i18n="nav.luminaPick">루미나 픽</a>
-          <a href="/lumina-feed" data-i18n="nav.luminaFeed">루미나 피드</a>
-          <a href="/shortform" data-i18n="nav.shortform">숏폼</a>
-        </nav>
-        <a class="debut-cta-mobile" href="/debut" data-i18n="cta.debut">데뷔하기</a>
-        <div class="header-auth">
-          <a class="auth-btn auth-btn-login" href="#" data-i18n="auth.login">로그인</a>
-          <a class="auth-btn auth-btn-signup" href="#" data-i18n="auth.signup">회원가입</a>
-        </div>
-      </div>
-    </header>
-
-    <main>
-      <!-- ── 일반 유저 공개 프로필 (#152, 차모 spec 3fa2600 기준) ── -->
-      <section class="content-section user-profile-section">
-        <div class="shell user-profile-shell">
-
-          <!-- 프로필 헤더 — X/Threads 패턴 (cover banner + 아바타 오버랩) -->
-          <article class="user-profile-card" id="userProfileCard" hidden>
-            <!-- Cover banner (추후 사용자 업로드 가능) -->
-            <div class="user-profile-cover" id="userProfileCover" aria-hidden="true"></div>
-
-            <!-- 아바타 (banner와 본문 사이 오버랩) + 우측 액션 버튼 -->
-            <div class="user-profile-head">
-              <div class="user-profile-avatar" id="userProfileAvatar">
-                <span class="user-profile-avatar-fallback" id="userProfileAvatarFallback">?</span>
-              </div>
-              <div class="user-profile-actions">
-                <button class="user-profile-follow-btn" id="userProfileFollowBtn" type="button" hidden>
-                  <span data-detail-follow-label>팔로우</span>
-                </button>
-                <a class="user-profile-edit-btn" id="userProfileEditBtn" href="#" data-open-edit-modal hidden>프로필 편집</a>
-              </div>
-            </div>
-
-            <!-- 이름·핸들·자기소개·통계 (좌측 정렬) -->
-            <div class="user-profile-meta">
-              <h1 class="user-profile-name" id="userProfileName">로딩 중…</h1>
-              <p class="user-profile-handle" id="userProfileHandle"></p>
-              <p class="user-profile-bio" id="userProfileBio" hidden></p>
-              <button class="user-profile-bio-toggle" id="userProfileBioToggle" type="button">더 보기</button>
-              <ul class="user-profile-stats" role="list">
-                <li><strong id="userProfileFollowerCount">…</strong><small>팔로워</small></li>
-                <li><strong id="userProfileFollowingCount">…</strong><small>팔로잉</small></li>
-                <li><strong id="userProfilePostCount">…</strong><small>글</small></li>
-              </ul>
-            </div>
-          </article>
-
-          <!-- 빈 상태 / 에러 상태 -->
-          <article class="user-profile-empty" id="userProfileEmpty" hidden>
-            <strong>프로필을 찾을 수 없어요</strong>
-            <p>URL을 다시 확인하거나 루미나 피드로 돌아가 주세요.</p>
-            <a class="text-link" href="/lumina-feed">루미나 피드로 돌아가기 →</a>
-          </article>
-
-          <article class="user-profile-blocked" id="userProfileBlocked" hidden>
-            <strong>지금은 이 프로필을 볼 수 없어요.</strong>
-            <p>접근할 수 없는 프로필입니다.</p>
-          </article>
-
-          <!-- 작성 글 목록 (X 패턴 3탭: 게시물 / 사진 / 숏폼) -->
-          <section class="user-profile-posts-section" id="userProfilePostsSection" hidden>
-            <nav class="user-profile-tabs" role="tablist" aria-label="작성한 글 탭">
-              <button class="user-profile-tab is-active" type="button" role="tab" aria-selected="true" data-user-profile-tab="posts">게시물</button>
-              <button class="user-profile-tab" type="button" role="tab" aria-selected="false" data-user-profile-tab="media">사진</button>
-              <button class="user-profile-tab" type="button" role="tab" aria-selected="false" data-user-profile-tab="shortform">숏폼</button>
-              <button class="user-profile-tab user-profile-tab-likes" type="button" role="tab" aria-selected="false" data-user-profile-tab="likes" hidden>좋아요</button>
-            </nav>
-            <div class="user-profile-posts-list feed-list" id="userProfilePostList"></div>
-            <div class="user-profile-posts-empty" id="userProfilePostsEmpty" hidden>
-              <strong>아직 공개한 글이 없어요.</strong>
-              <p>피드에 글을 남기면 이곳에 모아볼 수 있습니다.</p>
-            </div>
-            <button class="user-profile-load-more" id="userProfileLoadMore" type="button" hidden>이전 글 더 보기</button>
-          </section>
-
-        </div>
-      </section>
-    </main>
-
-    <!-- 프로필 편집 모달 (본인 프로필일 때만 작동) -->
-    <div class="profile-edit-modal" id="profileEditModal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="profileEditModalTitle">
-      <div class="profile-edit-modal-backdrop" data-profile-edit-close></div>
-      <div class="profile-edit-modal-card">
-        <header class="profile-edit-modal-head">
-          <button class="profile-edit-close-btn" type="button" data-profile-edit-close aria-label="닫기">×</button>
-          <h2 id="profileEditModalTitle">프로필 편집</h2>
-          <button class="profile-edit-save-btn" type="button" id="profileEditSaveBtn">저장</button>
-        </header>
-
-        <div class="profile-edit-modal-body">
-          <!-- Cover banner 편집 영역 -->
-          <div class="profile-edit-cover">
-            <div class="profile-edit-cover-preview" id="profileEditCoverPreview"></div>
-            <button class="profile-edit-cover-change" type="button" id="profileEditCoverChange" aria-label="표지 변경">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            </button>
-            <input type="file" id="profileEditCoverInput" accept="image/png,image/jpeg,image/webp" hidden />
-          </div>
-
-          <!-- 아바타 편집 영역 (cover와 오버랩) -->
-          <div class="profile-edit-avatar-row">
-            <div class="profile-edit-avatar" id="profileEditAvatarPreview">
-              <span class="profile-edit-avatar-fallback" id="profileEditAvatarFallback">?</span>
-              <button class="profile-edit-avatar-change" type="button" id="profileEditAvatarChange" aria-label="프로필 사진 변경">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              </button>
-              <input type="file" id="profileEditAvatarInput" accept="image/png,image/jpeg,image/webp" hidden />
-            </div>
-          </div>
-
-          <!-- 자기소개 입력 -->
-          <div class="profile-edit-field">
-            <label for="profileEditBio">자기소개</label>
-            <textarea id="profileEditBio" maxlength="160" rows="3" placeholder="자기소개를 입력해 보세요."></textarea>
-            <div class="profile-edit-counter"><span id="profileEditBioCounter">0</span> / 160</div>
-          </div>
-
-          <!-- 상태 메시지 -->
-          <p class="profile-edit-status" id="profileEditStatus" hidden></p>
-        </div>
-      </div>
-    </div>
-
-    <footer class="site-footer">
-      <div class="shell footer-inner">
-        <div>
-          <strong>Lumina Stage</strong>
-          <p>아티스트와 팬이 같은 무대에서 만나는 공간입니다.</p>
-        </div>
-        <div class="footer-links">
-          <a href="/characters" data-i18n="footer.artistRoster">아티스트 라인업</a>
-          <a href="./terms.html" data-i18n="footer.terms">이용약관</a>
-          <a href="./privacy.html" data-i18n="footer.privacy">개인정보처리방침</a>
-          <a href="./refund-policy.html" data-i18n="footer.refund">환불 정책</a>
-          <a href="./business.html" data-i18n="footer.businessInquiry" data-i18n-attr="title:footer.businessInquiry.helper" title="브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.">Business Inquiry</a>
-          <a href="./business.html#partner-inquiry" title="사업 제휴, 전략 파트너, 투자 관련 문의를 확인합니다.">사업·투자 문의</a>
-        </div>
-      </div>
-    </footer>
-
-    <script src="./data/characters.js"></script>
-    <script src="./pages/user-profile.js"></script>
-    <script src="./app.js"></script>
-    <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
-      <a href="/" class="mobile-tab" data-tab-key="index.html">
-        <span class="mobile-tab-label" data-i18n="nav.home">홈</span>
-      </a>
-      <a href="/characters" class="mobile-tab" data-tab-key="characters.html">
-        <span class="mobile-tab-label" data-i18n="nav.artists">아티스트</span>
-      </a>
-      <a href="/lumina-feed" class="mobile-tab" data-tab-key="lumina-feed.html">
-        <span class="mobile-tab-label" data-i18n="nav.luminaFeed">피드</span>
-      </a>
-      <a href="/mypage" class="mobile-tab" data-tab-key="mypage.html">
-        <span class="mobile-tab-label" data-i18n="nav.mypage">마이</span>
-      </a>
-    </nav>
+  <body>
+    <p style="font-family:system-ui,sans-serif;padding:24px;color:#333;">새 주소(/user-profile)로 이동 중입니다…
+      <a href="/user-profile">바로 가기</a>
+    </p>
   </body>
 </html>

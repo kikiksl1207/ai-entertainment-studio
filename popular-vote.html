@@ -3,202 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>루미나 픽 — Lumina Stage</title>
-    <link rel="stylesheet" href="./styles.css" />
-    <link rel="stylesheet" href="./styles/popular-vote.css" />
-    <!-- SEO -->
-    <meta name="description" content="이달의 픽, 응원 레이스, 명예의 전당까지. 루미나 픽에서 팬의 선택으로 아티스트의 다음 무대를 밝혀주세요." />
+    <title>이동 중… — Lumina Stage</title>
+    <link rel="canonical" href="https://www.lumina-stage.com/lumina-pick" />
     <meta name="robots" content="noindex, nofollow" />
-    <!-- Open Graph -->
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="루미나 픽 — Lumina Stage" />
-    <meta property="og:description" content="이달의 픽, 응원 레이스, 명예의 전당까지. 루미나 픽에서 팬의 선택으로 아티스트의 다음 무대를 밝혀주세요." />
-    <meta property="og:image" content="./assets/characters/yoon-serin/cover.png" />
-    <meta property="og:url" content="https://www.lumina-stage.com/lumina-pick" />
-    <meta property="og:site_name" content="Lumina Stage" />
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="루미나 픽 — Lumina Stage" />
-    <meta name="twitter:description" content="이달의 픽, 응원 레이스, 명예의 전당까지. 팬의 선택이 다음 무대를 만듭니다." />
-    <meta name="twitter:image" content="./assets/characters/yoon-serin/cover.png" />
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4"></script>
+    <!-- #320 — 기존 .html 진입을 clean URL(/lumina-pick)로 최종 redirect. query/hash 보존. -->
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-1L7TCBQ0N4');
+      (function () {
+        var qs = window.location.search || "";
+        var hash = window.location.hash || "";
+        window.location.replace("/lumina-pick" + qs + hash);
+      })();
     </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0; url=/lumina-pick" />
+    </noscript>
   </head>
-  <body class="is-booting">
-    <header class="site-header">
-      <div class="shell header-inner">
-        <a class="brand" href="/">
-          <img class="brand-logo" src="./assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
-          <span class="brand-copy">
-            <strong>Lumina Stage</strong>
-            <small data-i18n="brand.tagline">아티스트 레이블</small>
-          </span>
-        </a>
-
-        <nav class="main-nav" aria-label="메인 메뉴">
-          <a href="/" data-i18n="nav.home">홈</a>
-          <a href="/characters" data-i18n="nav.artists">아티스트</a>
-          <a href="/lumina-pick" data-i18n="nav.luminaPick">루미나 픽</a>
-          <a href="/lumina-feed" data-i18n="nav.luminaFeed">루미나 피드</a>
-          <a href="/shortform" data-i18n="nav.shortform">숏폼</a>
-        </nav>
-        <a class="debut-cta-mobile" href="/debut" data-i18n="cta.debut">데뷔하기</a>
-        <div class="header-auth">
-          <a class="auth-btn auth-btn-login" href="#" data-i18n="auth.login">로그인</a>
-          <a class="auth-btn auth-btn-signup" href="#" data-i18n="auth.signup">회원가입</a>
-        </div>
-      </div>
-    </header>
-
-    <main>
-      <!-- 페이지 hero -->
-      <section class="page-hero">
-        <div class="shell page-hero-grid">
-          <div class="page-hero-copy">
-            <p class="eyebrow">Lumina Pick</p>
-            <h1>루미나 픽</h1>
-            <p>
-              팬의 선택이 이달의 주인공을 만듭니다.
-              오늘 마음이 닿은 아티스트에게 한 표를 보내고,
-              다음 무대의 스포트라이트를 함께 밝혀주세요.
-            </p>
-          </div>
-          <aside class="page-hero-panel">
-            <div>
-              <span>이번 달</span>
-              <strong id="heroLeaderName">집계 중</strong>
-            </div>
-            <div>
-              <span>진행 중 캠페인</span>
-              <strong id="heroCampaignLabel">응원 레이스</strong>
-            </div>
-            <div>
-              <span>오늘의 무료 응원</span>
-              <strong id="heroQuotaLabel">오늘의 한 표</strong>
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <!-- 탭 네비게이션 -->
-      <section class="content-section vote-tabs-section">
-        <div class="shell">
-          <div class="vote-tabs" id="voteTabs" role="tablist">
-            <button class="vote-tab-btn is-active" data-tab="main-pick" role="tab" aria-selected="true">
-              <span class="vote-tab-en">Monthly Pick</span>
-              <span class="vote-tab-ko">이달의 픽</span>
-            </button>
-            <button class="vote-tab-btn" data-tab="debut-race" role="tab" aria-selected="false">
-              <span class="vote-tab-en">Cheer Race</span>
-              <span class="vote-tab-ko">응원 레이스</span>
-            </button>
-            <button class="vote-tab-btn" data-tab="hall-of-fame" role="tab" aria-selected="false">
-              <span class="vote-tab-en">Hall of Fame</span>
-              <span class="vote-tab-ko">명예의 전당</span>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- 탭 컨텐츠: Main Pick -->
-      <section class="content-section vote-tab-content is-active" id="tabMainPick" role="tabpanel">
-        <div class="shell">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Monthly Pick</p>
-              <h2>이달의 픽</h2>
-              <p>이번 달 가장 많은 선택을 받은 아티스트가 주인공이 됩니다. 월간 픽의 이름은 명예의 전당에 오래 남습니다.</p>
-            </div>
-          </div>
-          <div id="mainPickLeader" class="vote-leader-card-wrap"></div>
-          <div id="mainPickRankings" class="vote-rankings-list"></div>
-        </div>
-      </section>
-
-      <!-- 탭 컨텐츠: Debut Race -->
-      <section class="content-section vote-tab-content" id="tabDebutRace" role="tabpanel" hidden>
-        <div class="shell">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Cheer Race</p>
-              <h2>오늘의 한 표가 무대를 바꿉니다</h2>
-              <p>아티스트마다 다른 이유로 이 무대에 서 있습니다. 마음이 움직인 이름에게 오늘의 응원을 보내주세요.</p>
-            </div>
-          </div>
-          <div id="debutRaceGrid" class="vote-debut-grid"></div>
-        </div>
-      </section>
-
-      <!-- 탭 컨텐츠: Hall of Fame -->
-      <section class="content-section vote-tab-content" id="tabHallOfFame" role="tabpanel" hidden>
-        <div class="shell">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Hall of Fame</p>
-              <h2>명예의 전당</h2>
-              <p>월간 픽과 연간 챔피언이 기록되는 공간입니다. 팬이 만든 순간은 이곳에서 다시 빛납니다.</p>
-            </div>
-          </div>
-          <div id="yearChampion" class="vote-year-champion"></div>
-          <div class="vote-monthly-picks-block">
-            <h3 class="vote-section-subtitle">월간 픽 아카이브</h3>
-            <div id="monthlyPicksGrid" class="vote-monthly-grid"></div>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <footer class="site-footer">
-      <div class="shell footer-inner">
-        <div>
-          <strong>Lumina Stage</strong>
-          <p>아티스트와 팬이 만나는 공간입니다. 매일 응원으로 무대를 함께 만드세요.</p>
-        </div>
-        <div class="footer-links">
-          <a href="/characters" data-i18n="footer.artistRoster">아티스트 라인업</a>
-          <a href="./terms.html" data-i18n="footer.terms">이용약관</a>
-          <a href="./privacy.html" data-i18n="footer.privacy">개인정보처리방침</a>
-          <a href="./refund-policy.html" data-i18n="footer.refund">환불 정책</a>
-
-          <a href="./business.html" data-i18n="footer.businessInquiry" data-i18n-attr="title:footer.businessInquiry.helper" title="브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.">Business Inquiry</a>
-          <a href="./business.html#partner-inquiry" title="사업 제휴, 전략 파트너, 투자 관련 문의를 확인합니다.">사업·투자 문의</a>
-        </div>
-      </div>
-    </footer>
-
-    <script src="./data/character-messages.js"></script>
-    <script src="./data/lineup.js"></script>
-    <script src="./data/characters.js"></script>
-    <script src="./pages/popular-vote.js"></script>
-    <script src="./app.js"></script>
-    <!-- ── 모바일 하단 탭바 (768px 이하 노출, #017 — 2026-05-02) ── -->
-    <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
-      <a href="/" class="mobile-tab" data-tab-key="index.html">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        <span data-i18n="tab.home">홈</span>
-      </a>
-      <a href="/characters" class="mobile-tab" data-tab-key="characters.html">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4.5 20c.6-3.6 3.7-6 7.5-6s6.9 2.4 7.5 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-        <span data-i18n="tab.artists">아티스트</span>
-      </a>
-      <a href="/lumina-pick" class="mobile-tab" data-tab-key="popular-vote.html">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.5 5.5 6 .6-4.5 4.1 1.3 5.9L12 16.2 6.7 19.1l1.3-5.9L3.5 9.1l6-.6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        <span data-i18n="tab.pick">루미나 픽</span>
-      </a>
-      <a href="/lumina-feed" class="mobile-tab" data-tab-key="lumina-feed.html">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        <span data-i18n="tab.feed">피드</span>
-      </a>
-      <a href="/shortform" class="mobile-tab" data-tab-key="shortform.html">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v6l5-3z" fill="currentColor"/></svg>
-        <span data-i18n="tab.shortform">숏폼</span>
-      </a>
-    </nav>
+  <body>
+    <p style="font-family:system-ui,sans-serif;padding:24px;color:#333;">새 주소(/lumina-pick)로 이동 중입니다…
+      <a href="/lumina-pick">바로 가기</a>
+    </p>
   </body>
 </html>

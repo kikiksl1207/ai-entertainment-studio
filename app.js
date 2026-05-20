@@ -764,8 +764,8 @@ function createAuthModal() {
         <label class="auth-modal-consent">
           <input type="checkbox" name="termsConsent" required />
           <span>
-            <a href="./terms.html" target="_blank" rel="noopener">이용약관</a>과
-            <a href="./privacy.html" target="_blank" rel="noopener">개인정보처리방침</a>에 동의합니다.
+            <a href="/terms" target="_blank" rel="noopener">이용약관</a>과
+            <a href="/privacy" target="_blank" rel="noopener">개인정보처리방침</a>에 동의합니다.
           </span>
         </label>
         <button type="submit" class="auth-modal-submit">가입하기</button>
@@ -1813,11 +1813,12 @@ function bindLikeButtons() {
     e.stopPropagation();
     const slug = btn.dataset.likeSlug;
 
-    // 카탈로그(characters.html)에서는 좋아요 대신 루미나 픽으로 이동
+    // 카탈로그(/characters)에서는 좋아요 대신 루미나 픽으로 이동
     // → 진짜 투표는 루미나 픽에서. 카드의 좋아요 버튼은 entry point 역할.
-    // 루미나 픽(popular-vote.html) 자체에서는 기존 좋아요 동작 유지.
+    // 루미나 픽(/lumina-pick) 자체에서는 기존 좋아요 동작 유지.
+    // #320 clean URL flip 이후: 경로는 `/lumina-pick`, `/lumina-pick/`, 또는 legacy `/popular-vote.html`.
     const path = window.location.pathname;
-    const isOnVoteRoom = path.includes("popular-vote.html");
+    const isOnVoteRoom = path === "/lumina-pick" || path.startsWith("/lumina-pick/") || path.includes("popular-vote.html");
     if (!isOnVoteRoom) {
       window.location.href = `/lumina-pick?artist=${encodeURIComponent(slug)}&tab=debut-race`;
       return;
@@ -1969,14 +1970,20 @@ function bindAuthHeaderEvents() {
    2026-05-02 후속(#017): 하단 탭바도 동기 처리. */
 function activateCurrentNavItem() {
   const path = window.location.pathname;
-  // 마지막 /를 기준으로 파일명 추출. "/" 또는 "" 인 경우 index.html로 간주.
-  const filename = (path.split("/").pop() || "index.html").toLowerCase();
+  // #320 — clean URL 정규화. `/`, `/X`, `/X/`, `/X.html` 모두 같은 slug로 본다.
+  // 예) `/` → `index`, `/characters` → `characters`, `/characters/` → `characters`,
+  //     `/characters.html` → `characters`. 모바일 tab `data-tab-key`도 같은 slug로 비교한다.
+  const normalize = value => {
+    let segment = (String(value || "").split("/").filter(Boolean).pop() || "").toLowerCase().replace(/\.html$/, "");
+    if (!segment) segment = "index";
+    return segment;
+  };
+  const filename = normalize(path);
   let activeLink = null;
 
   // 상단 nav (데스크톱 + 769px 이상)
   document.querySelectorAll(".main-nav a").forEach(link => {
-    const href = (link.getAttribute("href") || "").toLowerCase();
-    const linkFile = href.split("/").pop();
+    const linkFile = normalize(link.getAttribute("href") || "");
     if (linkFile === filename) {
       link.classList.add("is-active");
       activeLink = link;
