@@ -914,6 +914,171 @@ describe('ChatService persona and catalog policy', () => {
     });
   });
 
+  it('uses published character chat CMS copy before metadata and keeps the projection read-only', async () => {
+    const cmsWelcome = '\uad00\ub9ac\uc790 \uc778\uc0ac';
+    const cmsGuide = '\uad00\ub9ac\uc790 \uccab \ub300\ud654 \uac00\uc774\ub4dc';
+    const cmsOptionLabel = '\uad00\ub9ac\uc790 \uc120\ud0dd\uc9c0';
+    const cmsOptionMessage = '\uc624\ub298\uc758 \ub300\ud654\ub97c \uc2dc\uc791\ud574\uc918.';
+    const cmsDirectInputLabel = '\uc9c1\uc811 \ub9d0 \uac78\uae30';
+    const cmsEmptyState = '\uc544\uc9c1 \ub300\ud654\uac00 \uc5c6\uc5b4\uc694.';
+    const cmsPremiumText = '\ud2b9\ubcc4 \ub2f5\ubcc0\uc740 \uc900\ube44 \uc911\uc774\uc5d0\uc694.';
+    const cmsPremiumCta = '\uc900\ube44 \uc911';
+    const prisma = {
+      artist: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000335',
+          slug: 'yoon-serin',
+          displayName: '\uc724\uc138\ub9b0',
+          publicProfile: {
+            publicMetadata: {
+              chatCatalog: {
+                greetingText: 'metadata greeting should not win',
+                statusLabelKo: 'metadata status should not win',
+              },
+            },
+            tagline: null,
+            personalityKeywords: [],
+          },
+          contentProfile: {
+            contentTone: null,
+          },
+        }),
+      },
+      siteContentEntry: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000336',
+          contentKey: 'character-chat.copy.yoon-serin',
+          locale: 'ko-KR',
+          body: null,
+          ctaLabel: null,
+          version: 3,
+          content: {
+            welcome: { text: cmsWelcome },
+            status: {
+              labelKo: '\uad00\ub9ac\uc790 \uc0c1\ud0dc',
+              descriptionKo: '\uad00\ub9ac\uc790 \uc0c1\ud0dc \uc124\uba85',
+            },
+            starterSets: [
+              {
+                id: 'cms-starter-yoon-serin',
+                guideText: cmsGuide,
+                options: [
+                  {
+                    key: 'A',
+                    label: cmsOptionLabel,
+                    message: cmsOptionMessage,
+                  },
+                ],
+                directInput: {
+                  key: 'C',
+                  label: cmsDirectInputLabel,
+                },
+              },
+            ],
+            emptyState: { text: cmsEmptyState },
+            premiumChat: {
+              text: cmsPremiumText,
+              ctaLabel: cmsPremiumCta,
+            },
+          },
+        }),
+      },
+      walletAccount: {
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+      chatMessage: {
+        create: jest.fn(),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const catalog = await service.getCharacterChatCatalog({
+      artistSlug: 'yoon-serin',
+    });
+    const prompts = await service.getStarterPrompts({
+      artistSlug: 'yoon-serin',
+    });
+
+    expect(prisma.siteContentEntry.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          contentKey: 'character-chat.copy.yoon-serin',
+          scope: 'character',
+          pageKey: 'character-chat',
+          characterSlug: 'yoon-serin',
+          locale: 'ko-KR',
+          status: 'published',
+          archivedAt: null,
+        },
+      }),
+    );
+    expect(catalog.greeting).toMatchObject({
+      text: cmsWelcome,
+      source: 'site_content',
+    });
+    expect(catalog.status).toMatchObject({
+      labelKo: '\uad00\ub9ac\uc790 \uc0c1\ud0dc',
+      descriptionKo: '\uad00\ub9ac\uc790 \uc0c1\ud0dc \uc124\uba85',
+    });
+    expect(catalog.starterSets[0]).toMatchObject({
+      id: 'cms-starter-yoon-serin',
+      guideText: cmsGuide,
+      directInput: {
+        label: cmsDirectInputLabel,
+      },
+    });
+    expect(catalog.starterOptions[0]).toMatchObject({
+      label: cmsOptionLabel,
+      message: cmsOptionMessage,
+    });
+    expect(catalog.emptyState).toMatchObject({
+      text: cmsEmptyState,
+      source: 'site_content',
+    });
+    expect(catalog.premiumChat).toMatchObject({
+      text: cmsPremiumText,
+      ctaLabel: cmsPremiumCta,
+      enabled: false,
+      walletMutation: false,
+      orderMutation: false,
+    });
+    expect(catalog.copyContract).toMatchObject({
+      version: '2026-05-20.character-chat-copy-cms.v1',
+      contentKey: 'character-chat.copy.yoon-serin',
+      scope: 'character',
+      pageKey: 'character-chat',
+      characterSlug: 'yoon-serin',
+      publishedEntryId: '00000000-0000-4000-8000-000000000336',
+      publishedVersion: 3,
+      source: 'site_content',
+      rawPersonaPromptExposed: false,
+      rawLlmPayloadExposed: false,
+      mutation: false,
+      llmCall: false,
+      walletMutation: false,
+    });
+    expect(catalog.copyContract.editableFields).toEqual(
+      expect.arrayContaining([
+        'welcome.text',
+        'starterSets[].options[].label',
+        'emptyState.text',
+        'premiumChat.text',
+      ]),
+    );
+    expect(catalog.copyContract.fixedUiLabels).toEqual(
+      expect.arrayContaining(['sendButton', 'providerStateLabels']),
+    );
+    expect(prompts.sets[0].guideText).toBe(cmsGuide);
+    expect(prompts.copyContract.source).toBe('site_content');
+    expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+  });
+
   it('returns distinct runtime persona contexts without provider calls', async () => {
     const artists = {
       'yoon-serin': {

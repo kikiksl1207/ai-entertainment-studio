@@ -217,6 +217,19 @@ type StarterPromptSet = {
     label: string;
   };
 };
+type CharacterChatCmsCopy = {
+  entryId: string;
+  contentKey: string;
+  locale: string;
+  version: number;
+  welcomeText?: string;
+  statusLabelKo?: string;
+  statusDescriptionKo?: string;
+  starterSets: StarterPromptSet[];
+  emptyStateText?: string;
+  premiumChatText?: string;
+  premiumChatCtaLabel?: string;
+};
 type CharacterRuntimePersonaContext = ChatRuntimePersonaContext & {
   starterSets: StarterPromptSet[];
   directInput: {
@@ -389,6 +402,36 @@ const CHAT_CONVERSATION_ITEM_REQUIRED_FIELDS = [
   'createdAt',
   'readState',
 ] as const;
+const CHARACTER_CHAT_COPY_CMS_VERSION = '2026-05-20.character-chat-copy-cms.v1';
+const CHARACTER_CHAT_COPY_CMS_SCOPE = 'character';
+const CHARACTER_CHAT_COPY_CMS_PAGE_KEY = 'character-chat';
+const CHARACTER_CHAT_COPY_CMS_LOCALE = 'ko-KR';
+const CHARACTER_CHAT_COPY_CMS_CONTENT_KEY_PREFIX = 'character-chat.copy.';
+const CHARACTER_CHAT_COPY_CMS_EDITABLE_FIELDS = [
+  'welcome.text',
+  'starterSets[].guideText',
+  'starterSets[].options[].label',
+  'starterSets[].options[].message',
+  'starterSets[].directInput.label',
+  'emptyState.text',
+  'premiumChat.text',
+  'premiumChat.ctaLabel',
+  'status.labelKo',
+  'status.descriptionKo',
+] as const;
+const CHARACTER_CHAT_COPY_FIXED_UI_LABELS = [
+  'sendButton',
+  'archiveButton',
+  'restoreButton',
+  'reportButton',
+  'conversationTabLabels',
+  'providerStateLabels',
+] as const;
+const CHARACTER_CHAT_DEFAULT_EMPTY_STATE_KO =
+  '\uc544\uc9c1 \ub300\ud654\uac00 \uc5c6\uc5b4\uc694. \uba3c\uc800 \uc778\uc0ac\ub97c \uac74\ub124\ubcf4\uc138\uc694.';
+const CHARACTER_CHAT_DEFAULT_PREMIUM_COPY_KO =
+  '\uae4a\uc740 \ub2f5\ubcc0\uacfc \ud2b9\ubcc4 \ud32c\ub808\ud130 \uae30\ub2a5\uc740 \uc900\ube44 \uc911\uc774\uc5d0\uc694.';
+const CHARACTER_CHAT_DEFAULT_PREMIUM_CTA_KO = '\uc900\ube44 \uc911';
 
 @Injectable()
 export class ChatService {
@@ -676,21 +719,25 @@ export class ChatService {
 
   async getCharacterChatCatalog(input: { artistId?: string; artistSlug?: string }) {
     const artist = await this.findActiveChatArtist(input);
+    const cmsCopy = await this.getCharacterChatCmsCopy(artist.slug);
     const metadata = this.recordOrEmpty(artist.publicProfile?.publicMetadata);
     const catalogMetadata = this.recordOrEmpty(metadata.chatCatalog);
-    const configuredSets = this.normalizeStarterPromptSets(
-      metadata.chatStarterPromptSets,
-    );
-    const metadataGreeting = this.stringFromUnknown(catalogMetadata.greetingText);
+    const cmsStarterSets = cmsCopy?.starterSets ?? [];
+    const metadataSets = this.normalizeStarterPromptSets(metadata.chatStarterPromptSets);
+    const configuredSets = cmsStarterSets.length ? cmsStarterSets : metadataSets;
+    const metadataGreeting =
+      cmsCopy?.welcomeText ?? this.stringFromUnknown(catalogMetadata.greetingText);
     const runtimePersona = this.buildCharacterRuntimePersonaContext(artist, {
       metadata,
       catalogMetadata,
       configuredSets,
+      cmsCopy,
     });
-    const statusLabelKo = this.stringFromUnknown(catalogMetadata.statusLabelKo);
-    const statusDescriptionKo = this.stringFromUnknown(
-      catalogMetadata.statusDescriptionKo,
-    );
+    const statusLabelKo =
+      cmsCopy?.statusLabelKo ?? this.stringFromUnknown(catalogMetadata.statusLabelKo);
+    const statusDescriptionKo =
+      cmsCopy?.statusDescriptionKo ??
+      this.stringFromUnknown(catalogMetadata.statusDescriptionKo);
     const defaultStatus = defaultCharacterStatus();
 
     return {
@@ -708,23 +755,34 @@ export class ChatService {
       starterOptions: runtimePersona.starterOptions,
       starterSets: runtimePersona.starterSets,
       directInput: runtimePersona.directInput,
+      emptyState: this.characterChatEmptyState(cmsCopy),
+      premiumChat: this.characterChatPremiumCopy(cmsCopy),
       tone: runtimePersona.tone,
       personaReference: runtimePersona.personaReference,
       runtimePersona,
       policy: CHARACTER_CHAT_CATALOG_POLICY,
-      source: configuredSets.length || metadataGreeting ? 'artist_metadata' : runtimePersona.source,
+      copyContract: this.characterChatCopyContract(artist.slug, cmsCopy),
+      source: cmsCopy
+        ? 'site_content'
+        : configuredSets.length || metadataGreeting
+          ? 'artist_metadata'
+          : runtimePersona.source,
     };
   }
 
   async getStarterPrompts(input: { artistId?: string; artistSlug?: string }) {
     const artist = await this.findActiveChatArtist(input);
+    const cmsCopy = await this.getCharacterChatCmsCopy(artist.slug);
     const metadata = this.recordOrEmpty(artist.publicProfile?.publicMetadata);
-    const configuredSets = this.normalizeStarterPromptSets(
-      metadata.chatStarterPromptSets,
-    );
+    const cmsStarterSets = cmsCopy?.starterSets ?? [];
+    const metadataSets = this.normalizeStarterPromptSets(metadata.chatStarterPromptSets);
+    const configuredSets = cmsStarterSets.length
+      ? cmsStarterSets
+      : metadataSets;
     const runtimePersona = this.buildCharacterRuntimePersonaContext(artist, {
       metadata,
       configuredSets,
+      cmsCopy,
     });
 
     return {
@@ -737,8 +795,15 @@ export class ChatService {
       tone: runtimePersona.tone,
       personaReference: runtimePersona.personaReference,
       sets: runtimePersona.starterSets,
+      emptyState: this.characterChatEmptyState(cmsCopy),
+      premiumChat: this.characterChatPremiumCopy(cmsCopy),
       runtimePersona,
-      source: configuredSets.length ? 'artist_metadata' : runtimePersona.source,
+      copyContract: this.characterChatCopyContract(artist.slug, cmsCopy),
+      source: cmsCopy
+        ? 'site_content'
+        : configuredSets.length
+          ? 'artist_metadata'
+          : runtimePersona.source,
     };
   }
 
@@ -2458,6 +2523,169 @@ export class ChatService {
     return JSON.parse(JSON.stringify(value)) as InputJsonValue;
   }
 
+  private async getCharacterChatCmsCopy(
+    artistSlug: string,
+  ): Promise<CharacterChatCmsCopy | null> {
+    const siteContentEntry = (this.prisma as unknown as {
+      siteContentEntry?: {
+        findFirst?: (args: unknown) => Promise<{
+          id: string;
+          contentKey: string;
+          locale: string;
+          body: string | null;
+          ctaLabel: string | null;
+          content: unknown;
+          version: number;
+        } | null>;
+      };
+    }).siteContentEntry;
+
+    if (!siteContentEntry?.findFirst) {
+      return null;
+    }
+
+    const contentKey = this.characterChatCopyContentKey(artistSlug);
+    const entry = await siteContentEntry.findFirst({
+      where: {
+        contentKey,
+        scope: CHARACTER_CHAT_COPY_CMS_SCOPE,
+        pageKey: CHARACTER_CHAT_COPY_CMS_PAGE_KEY,
+        characterSlug: artistSlug,
+        locale: CHARACTER_CHAT_COPY_CMS_LOCALE,
+        status: 'published',
+        archivedAt: null,
+      },
+      select: {
+        id: true,
+        contentKey: true,
+        locale: true,
+        body: true,
+        ctaLabel: true,
+        content: true,
+        version: true,
+      },
+      orderBy: [{ publishedAt: 'desc' }, { updatedAt: 'desc' }],
+    });
+
+    if (!entry) {
+      return null;
+    }
+
+    const content = this.recordOrEmpty(entry.content);
+    const welcome = this.recordOrEmpty(content.welcome);
+    const status = this.recordOrEmpty(content.status);
+    const emptyState = this.recordOrEmpty(content.emptyState);
+    const premiumChat = this.recordOrEmpty(content.premiumChat);
+    const normalizedStarterSets = this.normalizeStarterPromptSets(content.starterSets);
+    const starterSets =
+      normalizedStarterSets.length > 0
+        ? normalizedStarterSets
+        : this.characterChatCmsStarterSet(content);
+
+    return {
+      entryId: entry.id,
+      contentKey: entry.contentKey,
+      locale: entry.locale,
+      version: entry.version,
+      welcomeText:
+        this.stringFromUnknown(welcome.text) ??
+        this.stringFromUnknown(content.welcomeText) ??
+        this.stringFromUnknown(entry.body) ??
+        undefined,
+      statusLabelKo: this.stringFromUnknown(status.labelKo) ?? undefined,
+      statusDescriptionKo:
+        this.stringFromUnknown(status.descriptionKo) ?? undefined,
+      starterSets,
+      emptyStateText:
+        this.stringFromUnknown(emptyState.text) ??
+        this.stringFromUnknown(content.emptyStateText) ??
+        undefined,
+      premiumChatText:
+        this.stringFromUnknown(premiumChat.text) ??
+        this.stringFromUnknown(content.premiumChatText) ??
+        undefined,
+      premiumChatCtaLabel:
+        this.stringFromUnknown(premiumChat.ctaLabel) ??
+        this.stringFromUnknown(content.premiumChatCtaLabel) ??
+        this.stringFromUnknown(entry.ctaLabel) ??
+        undefined,
+    };
+  }
+
+  private characterChatCmsStarterSet(content: Record<string, unknown>) {
+    const starterOptions = this.normalizeStarterPromptOptions(content.starterOptions);
+    const guideText =
+      this.stringFromUnknown(content.guideText) ??
+      this.stringFromUnknown(this.recordOrEmpty(content.starter).guideText);
+
+    if (!guideText || starterOptions.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        id: this.stringFromUnknown(content.starterSetId) ?? 'cms-starter-1',
+        guideText,
+        options: starterOptions.slice(0, STARTER_PROMPT_POLICY.maxVisibleOptions),
+        directInput: this.normalizeDirectInput(content.directInput),
+      },
+    ];
+  }
+
+  private characterChatCopyContentKey(artistSlug: string) {
+    return `${CHARACTER_CHAT_COPY_CMS_CONTENT_KEY_PREFIX}${artistSlug}`;
+  }
+
+  private characterChatEmptyState(cmsCopy: CharacterChatCmsCopy | null) {
+    return {
+      text: cmsCopy?.emptyStateText ?? CHARACTER_CHAT_DEFAULT_EMPTY_STATE_KO,
+      source: cmsCopy?.emptyStateText ? 'site_content' : 'default',
+      messageKey: 'chat.character.emptyState.default',
+    };
+  }
+
+  private characterChatPremiumCopy(cmsCopy: CharacterChatCmsCopy | null) {
+    return {
+      text: cmsCopy?.premiumChatText ?? CHARACTER_CHAT_DEFAULT_PREMIUM_COPY_KO,
+      ctaLabel: cmsCopy?.premiumChatCtaLabel ?? CHARACTER_CHAT_DEFAULT_PREMIUM_CTA_KO,
+      enabled: false,
+      source:
+        cmsCopy?.premiumChatText || cmsCopy?.premiumChatCtaLabel
+          ? 'site_content'
+          : 'default',
+      messageKey: 'chat.character.premiumChat.locked',
+      walletMutation: false,
+      orderMutation: false,
+    };
+  }
+
+  private characterChatCopyContract(
+    artistSlug: string,
+    cmsCopy: CharacterChatCmsCopy | null,
+  ) {
+    return {
+      version: CHARACTER_CHAT_COPY_CMS_VERSION,
+      readOnlyProjection: true,
+      cmsSource: 'site_content',
+      contentKey: this.characterChatCopyContentKey(artistSlug),
+      scope: CHARACTER_CHAT_COPY_CMS_SCOPE,
+      pageKey: CHARACTER_CHAT_COPY_CMS_PAGE_KEY,
+      characterSlug: artistSlug,
+      locale: CHARACTER_CHAT_COPY_CMS_LOCALE,
+      publishedEntryId: cmsCopy?.entryId ?? null,
+      publishedVersion: cmsCopy?.version ?? null,
+      source: cmsCopy ? 'site_content' : 'fallback',
+      fallbackOrder: ['site_content', 'artist_metadata', 'character_fallback', 'default'],
+      editableFields: [...CHARACTER_CHAT_COPY_CMS_EDITABLE_FIELDS],
+      fixedUiLabels: [...CHARACTER_CHAT_COPY_FIXED_UI_LABELS],
+      rawPersonaPromptExposed: false,
+      rawLlmPayloadExposed: false,
+      mutation: false,
+      llmCall: false,
+      walletMutation: false,
+    };
+  }
+
   private buildCharacterRuntimePersonaContext(
     artist: {
       id: string;
@@ -2476,6 +2704,7 @@ export class ChatService {
       metadata?: Record<string, unknown>;
       catalogMetadata?: Record<string, unknown>;
       configuredSets?: StarterPromptSet[];
+      cmsCopy?: CharacterChatCmsCopy | null;
     } = {},
   ): CharacterRuntimePersonaContext {
     const metadata =
@@ -2485,10 +2714,12 @@ export class ChatService {
     const configuredSets =
       options.configuredSets ??
       this.normalizeStarterPromptSets(metadata.chatStarterPromptSets);
+    const cmsCopy = options.cmsCopy ?? null;
     const fallbackCopy = CHARACTER_CHAT_FALLBACK_COPY[artist.slug];
     const starterSet =
       configuredSets[0] ?? this.defaultStarterPromptSet(artist.slug, artist.displayName);
-    const metadataGreeting = this.stringFromUnknown(catalogMetadata.greetingText);
+    const metadataGreeting =
+      cmsCopy?.welcomeText ?? this.stringFromUnknown(catalogMetadata.greetingText);
     const personalityKeywords = this.normalizeStringList(
       artist.publicProfile?.personalityKeywords,
       8,
@@ -2512,8 +2743,10 @@ export class ChatService {
           metadataGreeting ??
           fallbackCopy?.greetingText ??
           defaultCharacterGreeting(artist.displayName),
-        source: metadataGreeting
-          ? 'artist_metadata'
+        source: cmsCopy?.welcomeText
+          ? 'site_content'
+          : metadataGreeting
+            ? 'artist_metadata'
           : fallbackCopy
             ? 'character_fallback'
             : 'default',
@@ -2545,11 +2778,14 @@ export class ChatService {
       forbiddenTone,
       safetyNote,
       source:
+        cmsCopy ||
         metadataGreeting ||
         configuredSets.length ||
         safetyNote.source === 'artist_metadata' ||
         personaReference.source === 'artist_metadata'
-          ? 'artist_metadata'
+          ? cmsCopy
+            ? 'site_content'
+            : 'artist_metadata'
           : fallbackCopy
             ? 'character_fallback'
           : personaReference.source === 'legacy_artist_profile'
