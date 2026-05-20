@@ -1,5 +1,52 @@
 # Team2 QA Inbox
 
+status: partial / blocked
+task: #325 - site content CMS Backstage + public page QA restore recheck
+environment:
+- branch: team2-qa/325-cms-restore-reqa
+- local main after pull: origin/main
+- basis commit: 47241dd80c39900fbb0d6b9f9f7baff0ac91f628
+- primary live domain: https://www.lumina-stage.com
+- API health commit observed: 47241dd80c39900fbb0d6b9f9f7baff0ac91f628
+- No token, cookie, password, env value, raw credential, or secret was recorded.
+
+tested_flows:
+- PASS: live `/health` returned commit `47241dd80c39900fbb0d6b9f9f7baff0ac91f628`.
+- PASS: #330 restore support is present in repo and live static files: `siteContentRestoreButton`, `restoreCurrent`, and `POST /api/v1/admin/api/v1/backstage/site-content/:id/restore`.
+- PASS: `npm.cmd test -- site-content.service.spec.ts --runInBand` passed 8 tests, including archived-key recreate recovery, restore-to-draft, restore-to-published, and idempotent restore.
+- PASS: public bootstrap for `pageKey=characters` returned HTTP 200 with `items: []`, `content: {}`, and fallback policy.
+- PASS: public bootstrap for `pageKey=character-chat&characterSlug=yoon-serin` and `characterSlug=han-seoyul` returned HTTP 200 with separate character filters and fallback policy.
+- PASS: unauthenticated correct admin path `/api/v1/admin/api/v1/backstage/site-content?take=1` and archived filter path returned HTTP 401.
+- PASS: `/backstage` deployed HTML includes `backstage-site-content.js` and `siteContentRestoreButton`.
+- PASS: deployed `backstage-site-content.js` includes `restoreCurrent`.
+- PASS: `/characters`, `/character-chat?slug=yoon-serin`, `/character-chat?slug=han-seoyul`, `/debut`, and `/charge` include `cms-bootstrap.js` and `data-cms-key` wiring.
+- PASS: live DOM checks at 1280px, 768px, and 390px showed no page-level horizontal overflow, no failed images, and no Unicode replacement-character mojibake for `/characters`, `/character-chat?slug=yoon-serin`, `/character-chat?slug=han-seoyul`, `/debut`, `/charge`, and `/backstage#site-content`.
+- PASS: public pages stayed in `data-cms-state=fallback`; no safe QA copy is currently published.
+- BLOCKED: this QA session still does not have a safe authenticated Backstage `super_admin` session, so Team2 QA could not personally execute draft -> publish -> public reflection -> archive -> restore/fallback in live Backstage.
+- BLOCKED: empty value / too-long value / script live write validation and restore button behavior could not be exercised through the authenticated UI by Team2 QA in this session.
+
+blockers:
+- Safe Backstage super_admin session is required for final live mutation QA. Chamo's page notes say Chamo already verified the admin flow with a safe session, but Team2 QA cannot independently rerun the admin mutation cycle without access.
+
+repro_steps:
+1. Run `git pull origin main`.
+2. Confirm local `HEAD` is `47241dd80c39900fbb0d6b9f9f7baff0ac91f628` before the QA report commit.
+3. Request `https://api.lumina-stage.com/health`.
+4. Request public bootstrap for `characters`, `character-chat&characterSlug=yoon-serin`, and `character-chat&characterSlug=han-seoyul`.
+5. Request unauthenticated `/api/v1/admin/api/v1/backstage/site-content?take=1` and `?status=archived&take=1`.
+6. Fetch `/backstage`, `/backstage-site-content.js`, `/characters`, `/character-chat?slug=yoon-serin`, `/character-chat?slug=han-seoyul`, `/debut`, and `/charge` and confirm CMS/restore wiring.
+7. Open the same public pages plus `/backstage#site-content` at 1280px, 768px, and 390px and confirm fallback/no overflow/no mojibake.
+8. Do not enter or record credentials.
+
+screenshots_or_notes:
+- No production CMS data was created, modified, published, restored, archived, or deleted by Team2 QA.
+- This is not a code FAIL from the checks available to Team2 QA; it is an access-limited final QA blocker.
+
+suspected_owner: PM / operator handoff
+next_needed:
+- Provide Team2 QA a safe Backstage `super_admin` QA session, or accept Chamo's safe-session admin-flow verification as the final mutation evidence.
+- If Team2 QA receives safe access, rerun: create safe key -> confirm draft hidden -> publish -> public reflection -> archive -> restore -> fallback/published behavior -> validation cases.
+
 status: fail
 task: #314 - Character chat persona/starter runtime re-QA
 environment:
