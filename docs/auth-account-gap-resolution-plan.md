@@ -4,6 +4,9 @@ Updated: 2026-05-20
 Owner: Kaido
 Tasks: Notion #344, #347
 
+Update for #344: the executable private-source contract and QR1 runbook live in
+`docs/auth-qa-credential-source-344.md`.
+
 This plan separates the remaining auth/account gaps after the email, password,
 social-provider, and identity-skeleton backend contracts were merged. It does
 not store credentials and does not enable external NICE/i-PIN/mobile identity
@@ -53,6 +56,19 @@ The handoff channel must be private. Do not write raw email, password, token,
 cookie, reset link, provider payload, DB URL, or env values in Notion, Git,
 logs, or chat.
 
+Required private-source slots:
+
+- `QA_VERIFIED_EMAIL`
+- `QA_VERIFIED_PASSWORD`
+- `QA_SOCIAL_PROVIDER`
+- `QA_SOCIAL_EMAIL`
+- `QA_SOCIAL_PASSWORD`
+
+Use `npm.cmd run qa:auth-credential-source` from `server` with
+`AUTH_QA_VERIFY_CONFIRM=VERIFY_AUTH_QA_CREDENTIAL_SOURCE` for a sanitized slot
+presence dry-run or live projection smoke. The verifier prints only slot names,
+booleans, HTTP status, and stable code/messageKey.
+
 ## QR Live ReQA Checklist
 
 - Record `/health` commit.
@@ -76,6 +92,8 @@ logs, or chat.
 
 ## Current Blocker For #344
 
-#344 cannot be closed by code alone. The remaining acceptance depends on the
-private QA credential source. If the credential source is unavailable, keep the
-task blocked and do not ask the user to paste secrets into Notion or chat.
+#344 live QA cannot pass unless the private QA credential source contains the
+verified email-password and social-only slots above, or an approved secure
+session fixture is prepared outside Git/Notion/chat. If the credential source is
+unavailable, keep the task blocked and do not ask the user to paste secrets into
+Notion or chat.
