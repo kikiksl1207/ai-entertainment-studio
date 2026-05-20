@@ -1,5 +1,9 @@
 # QA Debut Status Owner Projection Runbook #259
 
+Update: #352 extends this smoke with reusable fixture/session handoff steps and
+runId-based automated verification. Use
+`docs/ops/qa-debut-owner-fixture-session-352.md` for new QR1 owner fixture runs.
+
 Purpose: give QR a safe way to re-check the user-facing debut application status
 projection for `needs_more_info`, `approved_for_contact`, and `rejected` without
 opening any dispatch, settlement, contract, or admin mutation path.
@@ -60,7 +64,8 @@ Script behavior:
 - Creates only `debut_applications` fixture rows for the provided owner user.
 - Creates one row for each raw status: `needs_more_info`,
   `approved_for_contact`, and `rejected`.
-- Marks rows with `metadata.qaFixture.task="#259"` and a `runId`.
+- For new runs, marks rows with `metadata.qaFixture.task="#352"` and a
+  `runId`.
 - Prints only row ids, statuses, run id, and owner status endpoint paths.
 - Does not print credentials, cookies, JWTs, signed URLs, storage keys,
   passwords, secrets, or environment values.
@@ -80,7 +85,9 @@ application id. The response should include:
 - `ownerOnly=true`
 - `application.status` from the expected user status column above
 - `application.messageKey` with a `debut.application.status.*` key
-- `application.cta.enabled=false`
+- `application.cta.enabled=false` for non-resubmission statuses. Current main
+  opens only the safe owner resubmit CTA for `needs_more_info`; use the #352
+  runbook for that current expectation.
 - `application.materialSummary.metadataOnly=true`
 - `application.publicNotice.dispatch.contractOnly=true`
 - `application.publicNotice.dispatch.inAppSent=false`
