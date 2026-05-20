@@ -388,6 +388,35 @@ sensitive_values_recorded:
 ---
 
 status: done
+task: "#332 Lumina Feed thread API contract verification"
+branch/commit: team2-backend/feed-thread-contract-332 / pending push commit
+changed_files:
+- docs/ops/inbox/team2-backend.md
+verified_contract:
+- `POST /api/v1/lumina-feed/posts/thread` creates a manual thread with the root body stored on the normal feed post and each item capped at 500 characters.
+- The thread max is 10 pieces including the root. The backend rejects 11 pieces and overlong piece bodies before mutation.
+- `PATCH /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` and `DELETE /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` are login-required and author-only for non-root thread items.
+- Root post edit/delete remains author-only and preserves post id/author id.
+- Feed list, detail, and replies stay scoped to `status=published` and `deletedAt=null`; deleting a root post hides the full thread from public projections.
+- Repeated delete on both root posts and thread items is idempotent and does not perform a second mutation after the deleted state is reached.
+tests:
+- npm.cmd ci
+- npx.cmd prisma generate
+- npm.cmd test -- community.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/community/community.controller.ts src/community/community.service.ts src/community/community.service.spec.ts
+result:
+- PASS. The current main already contains the thread API contract and service-level tests for parent/root projection, child item projection, owner-only edit/delete, validation, and delete idempotency.
+- No wallet, Lumina, order, settlement, payout, provider, token, cookie, or raw DB value behavior was touched.
+blocked_by:
+- none
+next_needed:
+- Viewer review, then Cloud can continue #333 UI wiring against the fixed contract. POST/UI wiring must keep root-only likes/comments/images semantics.
+sensitive_values_recorded:
+- none
+
+---
+
+status: done
 task: "#314 reviewer P1 fix: generation runtime persona select"
 branch/commit: team2-backend/character-chat-persona-runtime-314 / pending push follow-up commit
 changed_files:
