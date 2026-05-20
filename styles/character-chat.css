@@ -1461,3 +1461,177 @@ select.dm-field-input option {
   .dm-featured-peer-avatar { width: 72px; height: 72px; border-radius: 18px; }
   .dm-featured-peer-name { font-size: 18px; }
 }
+
+/* ── #329 — 프리미엄챗 후원 dock action + 시트 + 고액 후원 모달 + /chat-rankings 페이지 ── */
+.dm-action-donate { color: #ec4899; }
+.dm-action-donate svg { color: #ec4899; }
+
+.dm-donation-sheet { padding-bottom: env(safe-area-inset-bottom, 0); }
+.dm-donation-sheet .dm-sheet-body { display: grid; gap: 16px; padding: 12px 18px 22px; }
+
+.donation-status {
+  border-radius: 12px; padding: 12px 14px;
+  background: rgba(244, 114, 182, 0.08);
+  border: 1px solid rgba(244, 114, 182, 0.25);
+  display: grid; gap: 4px;
+}
+.donation-status[data-state="disabled"] { background: rgba(148, 163, 184, 0.12); border-color: rgba(148, 163, 184, 0.28); }
+.donation-status[data-state="unauth"] { background: rgba(250, 204, 21, 0.12); border-color: rgba(202, 138, 4, 0.4); }
+.donation-status[data-state="ready"] { background: rgba(34, 197, 94, 0.1); border-color: rgba(22, 163, 74, 0.35); }
+.donation-status[data-flash="locked"] { animation: donation-flash-locked 1.4s ease-out 1; }
+@keyframes donation-flash-locked {
+  0% { background: rgba(244, 114, 182, 0.45); }
+  100% { background: rgba(148, 163, 184, 0.12); }
+}
+.donation-status-label { font-size: 13px; font-weight: 700; color: #f0f0f7; }
+.donation-status-text { font-size: 13px; line-height: 1.55; margin: 0; color: rgba(240, 238, 248, 0.78); }
+
+.donation-fixed, .donation-custom, .donation-message { border: 0; padding: 0; margin: 0; }
+.donation-fixed legend, .donation-custom legend, .donation-message legend {
+  font-size: 12px; font-weight: 700; color: rgba(240, 238, 248, 0.78);
+  text-transform: uppercase; letter-spacing: 0.04em; padding: 0; margin-bottom: 8px;
+}
+.donation-fixed-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.donation-amount {
+  appearance: none; -webkit-appearance: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 10px 6px; border: 1px solid rgba(244, 114, 182, 0.28); border-radius: 10px;
+  background: rgba(244, 114, 182, 0.05); color: #f0f0f7; cursor: pointer;
+  font: inherit; min-height: 56px;
+}
+.donation-amount:hover { background: rgba(244, 114, 182, 0.12); }
+.donation-amount.is-active { background: rgba(244, 114, 182, 0.25); border-color: #ec4899; }
+.donation-amount[data-high-value="1"] { box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.4); }
+.donation-amount-value { font-size: 15px; font-weight: 800; }
+.donation-amount-unit { font-size: 11px; font-weight: 700; color: rgba(240, 238, 248, 0.66); }
+
+.donation-custom-field, .donation-message-field { display: grid; gap: 6px; font-size: 13px; }
+.donation-custom-field input, .donation-message-field textarea {
+  width: 100%; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28); background: #0c0820; color: #f0f0f7;
+  font-family: inherit; font-size: 14px;
+}
+.donation-custom-field input:focus, .donation-message-field textarea:focus { outline: 2px solid #ec4899; outline-offset: 1px; }
+.donation-custom-hint, .donation-message-hint { font-size: 12px; color: rgba(240, 238, 248, 0.55); margin: 0; }
+.donation-message-field { position: relative; }
+.donation-message-counter {
+  position: absolute; right: 10px; bottom: 8px; font-size: 11px;
+  color: rgba(240, 238, 248, 0.55); pointer-events: none;
+}
+
+.donation-summary {
+  border-radius: 10px; padding: 10px 12px; background: rgba(15, 23, 42, 0.55);
+  border: 1px dashed rgba(244, 114, 182, 0.3); display: grid; gap: 4px;
+}
+.donation-summary-amount { font-size: 13px; color: rgba(240, 238, 248, 0.85); }
+.donation-summary-amount strong { font-size: 17px; color: #ec4899; }
+.donation-summary-tag {
+  font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  background: rgba(244, 63, 94, 0.15); color: #f43f5e; align-self: start; font-weight: 700;
+}
+.donation-summary-hint { font-size: 12px; color: #fca5a5; }
+
+.donation-policy {
+  border-radius: 10px; padding: 10px 14px; background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+.donation-policy p { margin: 0 0 6px; font-size: 12px; color: rgba(240, 238, 248, 0.78); }
+.donation-policy ul { margin: 0; padding-left: 18px; }
+.donation-policy li { font-size: 12px; line-height: 1.55; color: rgba(240, 238, 248, 0.66); }
+
+.dm-sheet-foot .dm-sheet-primary {
+  background: linear-gradient(135deg, #ec4899, #7c3aed);
+  color: #fff; border: 0; padding: 10px 18px; border-radius: 999px;
+  font-weight: 800; cursor: pointer;
+}
+.dm-sheet-foot .dm-sheet-primary[disabled],
+.dm-sheet-foot .dm-sheet-primary[aria-disabled="true"] {
+  background: rgba(148, 163, 184, 0.25); color: rgba(240, 238, 248, 0.6); cursor: not-allowed;
+}
+
+.dm-modal-backdrop { position: fixed; inset: 0; background: rgba(8, 4, 26, 0.66); z-index: 200; }
+.dm-modal { position: fixed; inset: 0; z-index: 210; display: grid; place-items: center; padding: 24px; }
+.dm-modal[hidden] { display: none; }
+.donation-confirm-modal { pointer-events: none; }
+.donation-confirm-modal:not([hidden]) { pointer-events: auto; }
+.donation-confirm-modal .dm-modal-head,
+.donation-confirm-modal .dm-modal-body,
+.donation-confirm-modal .dm-modal-foot {
+  background: #12092c; width: min(420px, 100%);
+  border-left: 1px solid rgba(244, 114, 182, 0.3);
+  border-right: 1px solid rgba(244, 114, 182, 0.3);
+}
+.donation-confirm-modal .dm-modal-head {
+  border-top: 1px solid rgba(244, 114, 182, 0.3);
+  border-top-left-radius: 16px; border-top-right-radius: 16px;
+  padding: 16px 18px 8px;
+}
+.donation-confirm-modal .dm-modal-head h2 { margin: 0; font-size: 17px; color: #f0f0f7; }
+.donation-confirm-modal .dm-modal-body { padding: 8px 18px 12px; }
+.donation-confirm-modal .dm-modal-body p { margin: 6px 0; font-size: 13px; color: rgba(240, 238, 248, 0.82); }
+.donation-confirm-amount {
+  font-size: 22px; font-weight: 800; color: #ec4899; text-align: center; margin: 12px 0 !important;
+}
+.donation-confirm-checks { margin: 8px 0; padding-left: 18px; }
+.donation-confirm-checks li { font-size: 12px; line-height: 1.55; color: rgba(240, 238, 248, 0.7); }
+.donation-confirm-note { margin: 8px 0 0 !important; font-size: 12px !important; color: #fca5a5 !important; }
+.donation-confirm-modal .dm-modal-foot {
+  border-bottom: 1px solid rgba(244, 114, 182, 0.3);
+  border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;
+  padding: 12px 18px 16px; display: flex; gap: 10px; justify-content: flex-end;
+}
+
+.dm-foot-rankings { margin: 4px 0 0; font-size: 12px; color: rgba(240, 238, 248, 0.55); }
+
+/* /chat-rankings 페이지 */
+.chat-rankings-tabs { display: flex; gap: 8px; margin: 18px 0 12px; }
+.chat-rankings-tab {
+  flex: 0 0 auto; padding: 10px 18px; border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.28); background: transparent;
+  color: rgba(240, 238, 248, 0.78); font-weight: 700; cursor: pointer;
+}
+.chat-rankings-tab:hover { background: rgba(244, 114, 182, 0.1); color: #f0f0f7; }
+.chat-rankings-tab.is-active {
+  background: linear-gradient(135deg, #ec4899, #7c3aed); color: #fff; border-color: transparent;
+}
+.chat-rankings-period { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 16px; }
+.chat-rankings-period-chip {
+  padding: 6px 14px; border-radius: 999px; font-size: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28); background: transparent;
+  color: rgba(240, 238, 248, 0.66); cursor: pointer; font-weight: 600;
+}
+.chat-rankings-period-chip.is-active { background: rgba(244, 114, 182, 0.18); color: #fff; border-color: #ec4899; }
+
+.chat-rankings-board {
+  border-radius: 16px; padding: 18px 22px; background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.18); display: grid; gap: 16px;
+}
+.chat-rankings-board-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.chat-rankings-board-head h2 { margin: 0 0 4px; font-size: 18px; color: #f0f0f7; }
+.chat-rankings-board-head p { margin: 0; color: rgba(240, 238, 248, 0.66); font-size: 13px; line-height: 1.6; max-width: 540px; }
+.chat-rankings-state {
+  font-size: 11px; padding: 4px 10px; border-radius: 999px;
+  background: rgba(148, 163, 184, 0.15); color: rgba(240, 238, 248, 0.78); font-weight: 700; white-space: nowrap;
+}
+
+.chat-rankings-empty {
+  border-radius: 12px; padding: 24px 18px; background: rgba(15, 23, 42, 0.3);
+  border: 1px dashed rgba(148, 163, 184, 0.28); text-align: center;
+}
+.chat-rankings-empty-title { font-size: 15px; font-weight: 700; color: #f0f0f7; margin: 0 0 6px; }
+.chat-rankings-empty-body { font-size: 13px; color: rgba(240, 238, 248, 0.78); line-height: 1.6; margin: 0 0 8px; }
+.chat-rankings-empty-note { font-size: 12px; color: rgba(240, 238, 248, 0.55); margin: 0; }
+
+.chat-rankings-separator {
+  margin-top: 22px; padding: 16px 20px; border-radius: 14px;
+  background: rgba(124, 58, 237, 0.08); border: 1px solid rgba(124, 58, 237, 0.2);
+}
+.chat-rankings-separator h3 { margin: 0 0 6px; font-size: 14px; color: #f0f0f7; }
+.chat-rankings-separator p { margin: 0; font-size: 13px; color: rgba(240, 238, 248, 0.7); line-height: 1.6; }
+
+@media (max-width: 480px) {
+  .donation-fixed-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .donation-amount-value { font-size: 14px; }
+  .chat-rankings-board-head h2 { font-size: 16px; }
+  .chat-rankings-board { padding: 14px 16px; }
+}
