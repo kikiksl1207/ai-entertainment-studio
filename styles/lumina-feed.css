@@ -1353,3 +1353,146 @@ body.is-booting .feed-list::before {
   .feed-compose-followup { flex-direction: column; align-items: stretch; }
   .feed-compose-followup-actions { justify-content: flex-end; }
 }
+
+/* ── #356 — 카드 액션바의 타래 잇기 / 리포스트 / 공유 + 인라인 패널 + 모달 + 토스트 ── */
+.feed-post-actions { flex-wrap: wrap; gap: 6px; }
+.feed-thread-extend-btn,
+.feed-repost-btn,
+.feed-share-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-radius: 999px;
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  background: transparent; color: rgba(220, 210, 240, 0.7);
+  font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+}
+.feed-thread-extend-btn svg, .feed-repost-btn svg, .feed-share-btn svg { width: 16px; height: 16px; }
+.feed-thread-extend-btn:hover { color: #ff7eb9; border-color: rgba(255, 20, 147, 0.4); }
+.feed-repost-btn:hover { color: #b6f5d8; border-color: rgba(58, 210, 159, 0.4); }
+.feed-share-btn:hover { color: #d4c1ff; border-color: rgba(124, 58, 237, 0.4); }
+
+/* 인라인 타래 잇기 패널 — 원글 카드 하단에 X-style 좌측 세로줄과 함께 표시 */
+.feed-thread-extend-panel {
+  display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px;
+  margin: 12px 0 0;
+}
+.feed-thread-extend-connector {
+  background: linear-gradient(180deg, rgba(255, 20, 147, 0.35), rgba(124, 58, 237, 0.35));
+  border-radius: 999px; width: 2px; margin-left: 7px;
+}
+.feed-thread-extend-body {
+  border: 1px solid rgba(255, 20, 147, 0.22);
+  border-radius: 14px; padding: 12px 14px;
+  background: rgba(159, 139, 199, 0.06);
+  display: grid; gap: 10px;
+}
+.feed-thread-extend-field { display: grid; gap: 6px; font-size: 12px; color: rgba(220, 210, 240, 0.78); }
+.feed-thread-extend-field textarea {
+  width: 100%; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(8, 5, 18, 0.55); color: var(--ink, #f0f0f7);
+  font-family: inherit; font-size: 14px; resize: vertical; min-height: 72px;
+}
+.feed-thread-extend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.feed-thread-extend-cancel,
+.feed-thread-extend-submit {
+  padding: 8px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 800;
+  border: 1px solid rgba(159, 139, 199, 0.28); background: transparent;
+  color: rgba(240, 238, 248, 0.85); cursor: pointer; font-family: inherit;
+}
+.feed-thread-extend-submit[disabled],
+.feed-thread-extend-submit[aria-disabled="true"] {
+  background: rgba(148, 163, 184, 0.18);
+  color: rgba(240, 238, 248, 0.55); cursor: not-allowed;
+}
+.feed-thread-extend-cancel:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+
+/* 준비 중 안내 배너 — 타래 잇기 패널/리포스트 모달 공통 */
+.feed-pending-banner {
+  display: grid; gap: 4px;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(255, 201, 122, 0.06);
+  border: 1px solid rgba(255, 201, 122, 0.28);
+  color: rgba(245, 230, 200, 0.9);
+}
+.feed-pending-badge {
+  display: inline-block; width: fit-content;
+  padding: 2px 8px; border-radius: 999px;
+  background: rgba(255, 201, 122, 0.18); color: #ffc97a;
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em;
+}
+.feed-pending-banner p { margin: 0; font-size: 12px; line-height: 1.55; }
+
+/* 리포스트 모달 */
+.feed-repost-backdrop { position: fixed; inset: 0; background: rgba(8, 4, 26, 0.6); z-index: 240; }
+.feed-repost-modal {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 250;
+  width: min(480px, calc(100% - 32px));
+  max-height: calc(100vh - 64px); overflow-y: auto;
+  background: linear-gradient(180deg, #1a1230 0%, #0e0820 100%);
+  border: 1px solid rgba(159, 139, 199, 0.24);
+  border-radius: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  display: flex; flex-direction: column;
+}
+.feed-repost-modal[hidden] { display: none; }
+.feed-repost-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid rgba(159, 139, 199, 0.18); }
+.feed-repost-head h2 { margin: 0; font-size: 16px; color: var(--ink, #f0f0f7); }
+.feed-repost-close {
+  width: 32px; height: 32px; border-radius: 50%; border: 0;
+  background: transparent; color: rgba(240, 238, 248, 0.7);
+  font-size: 22px; cursor: pointer; line-height: 1;
+}
+.feed-repost-close:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.feed-repost-body { padding: 14px 18px; display: grid; gap: 12px; }
+.feed-repost-field { display: grid; gap: 6px; font-size: 12px; color: rgba(220, 210, 240, 0.78); }
+.feed-repost-field textarea {
+  width: 100%; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(8, 5, 18, 0.55); color: var(--ink, #f0f0f7);
+  font-family: inherit; font-size: 14px; resize: vertical; min-height: 72px;
+}
+.feed-repost-reference {
+  border: 1px solid rgba(159, 139, 199, 0.22); border-radius: 12px;
+  background: rgba(159, 139, 199, 0.08); padding: 12px 14px;
+  display: grid; gap: 6px;
+}
+.feed-repost-reference header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.feed-repost-reference strong { font-size: 13px; color: var(--ink, #f0f0f7); }
+.feed-repost-reference p { margin: 0; font-size: 13px; line-height: 1.55; color: rgba(240, 238, 248, 0.82); overflow-wrap: anywhere; }
+.feed-repost-reference-link { font-size: 12px; color: #ff7eb9; text-decoration: none; }
+.feed-repost-reference-link:hover { text-decoration: underline; }
+.feed-repost-foot { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 18px 16px; border-top: 1px solid rgba(159, 139, 199, 0.18); }
+.feed-repost-cancel, .feed-repost-submit {
+  padding: 9px 16px; border-radius: 999px;
+  font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit;
+  border: 1px solid rgba(159, 139, 199, 0.28);
+  background: transparent; color: rgba(240, 238, 248, 0.85);
+}
+.feed-repost-cancel:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.feed-repost-submit[disabled],
+.feed-repost-submit[aria-disabled="true"] {
+  background: rgba(148, 163, 184, 0.18); color: rgba(240, 238, 248, 0.55);
+  cursor: not-allowed; border-color: rgba(148, 163, 184, 0.2);
+}
+body.is-feed-repost-open { overflow: hidden; }
+
+/* 공유 토스트 */
+.feed-share-toast {
+  position: fixed; left: 50%; bottom: 96px;
+  transform: translate(-50%, 20px);
+  background: rgba(20, 14, 36, 0.95);
+  color: var(--ink, #f0f0f7);
+  padding: 10px 18px; border-radius: 999px;
+  border: 1px solid rgba(159, 139, 199, 0.3);
+  font-size: 13px; font-weight: 700;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 260;
+}
+.feed-share-toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 480px) {
+  .feed-thread-extend-actions { flex-direction: column-reverse; align-items: stretch; }
+  .feed-repost-foot { flex-direction: column-reverse; align-items: stretch; }
+  .feed-share-toast { bottom: 112px; }
+}

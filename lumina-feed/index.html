@@ -129,12 +129,14 @@
                     </svg>
                     <span>이미지</span>
                   </label>
-                  <!-- #309 — 500자가 부족할 때 사용자가 명시적으로 타래 모드 진입. 자동 분할 금지. -->
+                  <!-- #356 — 작성 중 긴글 분할은 사용자 정신모형에 맞지 않아 hidden 처리. 글 게시 후 카드 액션바의 "타래 잇기"
+                       버튼으로 X-style 이어쓰기 흐름을 사용한다. 기존 토글은 향후 contract 조정 시 재오픈 가능하도록 마크업만 유지. -->
                   <button
                     class="feed-compose-thread-toggle"
                     type="button"
                     id="feedComposeThreadToggle"
                     aria-pressed="false"
+                    hidden
                     title="긴 글은 타래로 이어쓰기 (조각당 500자, 최대 10조각, 총 5000자)">
                     <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
                       <path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" fill="none" stroke-width="1.7" stroke-linecap="round"/>
@@ -237,6 +239,10 @@
         </div>
       </section>
     </main>
+
+    <!-- #356 — 리포스트 모달. 백엔드 contract가 오기 전이라 submit은 잠금 상태이고, 원글 reference card는 화면에 그대로 표시한다. -->
+    <div class="feed-repost-backdrop" id="feedRepostBackdrop" hidden></div>
+    <aside class="feed-repost-modal" id="feedRepostModal" role="dialog" aria-modal="true" aria-labelledby="feedRepostTitle" hidden></aside>
 
     <footer class="site-footer">
       <div class="shell footer-inner">
