@@ -2421,6 +2421,7 @@ describe('ChatService premium chat support contract', () => {
 
     const contract = service.getPremiumSupportContract();
 
+    expect(contract.version).toBe('2026-05-20.premium-chat-support.v3');
     expect(contract.donation.fixedAmountsLumina).toEqual([
       10,
       50,
@@ -2441,6 +2442,12 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.apiContracts.donationCreate.serverAuthority).toMatchObject({
       clientBalanceTrusted: false,
       debitSource: 'server wallet ledger only',
+      orderSource: 'server-created premium chat donation order only',
+    });
+    expect(contract.apiContracts.donationCreate.response.order).toMatchObject({
+      status: 'confirmed',
+      type: 'premium_chat_donation',
+      amountLumina: '<decimal string>',
     });
     expect(contract.apiContracts.donationCreate.errorCodes).toEqual(
       expect.arrayContaining([
@@ -2454,11 +2461,53 @@ describe('ChatService premium chat support contract', () => {
       'communication',
       'donation',
     ]);
+    expect(contract.apiContracts.rankingsList.request.query.period).toEqual([
+      'daily',
+      'weekly',
+      'monthly',
+      'all',
+    ]);
+    expect(contract.apiContracts.rankingsList.response.window).toMatchObject({
+      timezone: 'Asia/Seoul',
+    });
     expect(contract.apiContracts.rankingsList.separation).toMatchObject({
       likeRankingPath: '/api/v1/boost-campaigns/:campaignId/rankings',
       likeRankingExcludedFromChatRankings: true,
       chatDonationsExcludedFromLikeRankings: true,
     });
+    expect(contract.apiContracts.rankingsList.privacy).toMatchObject({
+      rawChatBodyReturned: false,
+      rawReportReasonReturned: false,
+      walletLedgerIdReturned: false,
+      userIdReturned: false,
+      messageIdsReturned: false,
+    });
+    expect(contract.donationOrderLedger).toMatchObject({
+      status: 'planned_disabled',
+      orderRecord: {
+        table: 'premium_chat_donation_orders',
+        clientTrustedFields: [],
+      },
+      ledgerWrite: {
+        transactionRequired: true,
+        walletBalanceSource: 'wallet_accounts.cached_balance',
+        ledgerType: 'premium_chat_donation',
+        referenceType: 'premium_chat_donation',
+        duplicateReplay: 'return_existing_order_and_projection',
+        conflictReplay: '409 before wallet lookup',
+      },
+    });
+    expect(contract.donationOrderLedger.validationOrder).toEqual([
+      'auth_required',
+      'session_exists_and_owned',
+      'room_state_allows_support',
+      'amount_allowed',
+      'message_length_allowed',
+      'idempotency_key_valid',
+      'idempotency_fingerprint_match_or_empty',
+      'wallet_active_and_sufficient',
+      'trust_or_identity_gate_for_high_value',
+    ]);
     expect(contract.donation.ledger.sources).toEqual([
       'premium_chat_open',
       'premium_chat_message',
@@ -2500,9 +2549,36 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.rankings.communication.scoreInputs).toContain(
       'premium_chat_donation',
     );
+    expect(contract.rankings.communication.periodWindows).toEqual([
+      'daily',
+      'weekly',
+      'monthly',
+      'all',
+    ]);
+    expect(contract.rankings.communication.scorePolicy).toMatchObject({
+      formulaStatus: 'planned_weighted_score_server_side_only',
+    });
+    expect(contract.rankings.communication.privacy).toMatchObject({
+      rawChatBodyReturned: false,
+      rawReportReasonReturned: false,
+      walletLedgerIdReturned: false,
+      userIdReturned: false,
+      messageIdsReturned: false,
+    });
     expect(contract.rankings.donation.scoreInputs).toEqual([
       'premium_chat_donation',
     ]);
+    expect(contract.rankings.donation.periodWindows).toEqual([
+      'daily',
+      'weekly',
+      'monthly',
+      'all',
+    ]);
+    expect(contract.rankings.donation.moderation).toMatchObject({
+      reportedRows: 'excluded_until_admin_safe',
+      refundedRows: 'excluded',
+      chargebackRows: 'excluded',
+    });
     expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
     expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();

@@ -836,7 +836,7 @@ LLM generation readiness:
   enum values such as `provider_not_configured` or `async_reviewed_fan_letter`
   directly.
 
-Premium chat support and ranking contract (#328):
+Premium chat support and ranking contract (#328/#348/#349):
 
 ```http
 GET /api/v1/chat/premium-support-contract
@@ -887,6 +887,26 @@ event/projection storage and update the wallet ledger type check to include:
 - `premium_chat_message`
 - `premium_chat_donation`
 
+Donation order and ledger contract (#348):
+
+- Planned donation create returns both an `order` projection and a safe
+  `donation` event projection. The order type is `premium_chat_donation`; the
+  order status flow is `pending`, `confirmed`, `failed`, `refunded`,
+  `chargeback_review`, `cancelled`.
+- After confirmation, the server treats `id`, `userId`, `artistId`,
+  `sessionId`, `amountLumina`, and `idempotencyKey` as immutable order fields.
+- No client-submitted field is trusted for wallet debit authority. The server
+  normalizes amount, validates ownership and room state, then reads
+  `wallet_accounts.cached_balance` inside the DB transaction.
+- The ledger write uses `ledgerType=premium_chat_donation`,
+  `referenceType=premium_chat_donation`, `direction=debit`, and
+  `referenceId` from the premium-chat donation order id.
+- Validation order is auth, session ownership, supportable room state, amount,
+  message length, idempotency key, idempotency fingerprint, active/sufficient
+  wallet, then trust/identity gate for high-value support.
+- Failed auth, missing/other-user session, blocked room state, invalid amount,
+  or invalid idempotency key must return before wallet lookup or mutation.
+
 Premium room-open contract (#331):
 
 - Room tiers are 300L, 500L, 1,000L, and 3,000L.
@@ -929,7 +949,7 @@ Donation fail-closed states:
   `chat.donation.identityVerificationRequired`; raw policy enum values are not
   user-facing copy.
 
-Ranking lanes are deliberately separated (#341):
+Ranking lanes are deliberately separated (#341/#349):
 
 ```http
 GET /api/v1/chat/rankings?type=communication&period=weekly&take=20
@@ -948,6 +968,20 @@ GET /api/v1/chat/rankings?type=donation&period=weekly&take=20
   projection policy.
 - Ranking item shape uses safe artist projection fields, `rankNo`, decimal
   string `score`, and `scoreLabelKey`. It must not expose raw wallet ledger ids.
+- Ranking windows are `daily`, `weekly`, `monthly`, and `all`, calculated in
+  `Asia/Seoul`. Responses include a `window` object with `startsAt`, `endsAt`,
+  and `timezone`.
+- Pagination uses an opaque cursor. Default `take` is 20 and max `take` is 50.
+- Communication ranking score candidates are confirmed premium-chat opens, safe
+  non-blinded message activity, confirmed net donation contribution, and safe
+  artist-side replies. The final formula is server-side only.
+- Donation ranking is based on confirmed net Lumina from
+  `premium_chat_donation` only.
+- Reported rows are excluded until admin-safe, blinded/suspended rooms are
+  excluded, and refunded/chargeback rows are excluded or zero-weighted according
+  to ranking lane policy.
+- Ranking responses must not include raw chat bodies, raw report reasons,
+  wallet ledger ids, user ids, or message ids.
 
 The current implementation exposes these shapes through read-only
 `GET /api/v1/chat/premium-support-contract` under `apiContracts`; the donation
