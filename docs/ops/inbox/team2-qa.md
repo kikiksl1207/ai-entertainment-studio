@@ -1,5 +1,53 @@
 # Team2 QA Inbox
 
+status: partial / blocked
+task: #325 - site content CMS Backstage + public page QA recheck
+environment:
+- branch: team2-qa/325-cms-public-backstage-reqa
+- local main after pull: origin/main
+- basis commit: 0dcfca42dd8842d97c2d42b0c9d1cd75d39dded4
+- primary live domain: https://www.lumina-stage.com
+- API health commit observed: 0dcfca42dd8842d97c2d42b0c9d1cd75d39dded4
+- No token, cookie, password, env value, raw credential, or secret was recorded.
+
+tested_flows:
+- PASS: live backend `/health` returned commit `0dcfca42dd8842d97c2d42b0c9d1cd75d39dded4`.
+- PASS: public bootstrap `GET /api/v1/site-content/bootstrap?locale=ko-KR&pageKey=characters&take=20` returned HTTP 200 with `items: []`, `content: {}`, and fallback policy.
+- PASS: public bootstrap for `pageKey=character-chat&characterSlug=yoon-serin` and `characterSlug=han-seoyul` returned HTTP 200 with separate `characterSlug` filters and no published rows.
+- PASS: `pageKey=characters&scope=page` returned HTTP 200 with `items: []`, `content: {}`, confirming no live safe QA row is currently published.
+- PASS: public policy still reports `publishedOnly: true`, `fallbackRequired: true`, `rawHtmlAllowed: false`, and `editableNavigation: false`.
+- PASS: correct protected admin path `GET /api/v1/admin/api/v1/backstage/site-content?take=1` returned HTTP 401 unauthenticated.
+- PASS: prefixless `/admin/api/v1/backstage/site-content?take=1` returned HTTP 404, matching Chamo's note that QA must not use that path.
+- PASS: `/characters`, `/character-chat?slug=yoon-serin`, `/character-chat?slug=han-seoyul`, `/debut`, and `/charge` include `cms-bootstrap.js` and `data-cms-key` wiring in deployed HTML.
+- PASS: `/backstage` includes `backstage-site-content.js` in deployed HTML.
+- PASS: live DOM at 1280px, 768px, and 390px loaded `/characters`, `/character-chat?slug=yoon-serin`, `/character-chat?slug=han-seoyul`, `/debut`, and `/charge` with `data-cms-state=fallback` and no page-level horizontal overflow.
+- PASS: Backstage login gate loads at 1280px, 768px, and 390px with no page-level horizontal overflow; no credential was entered.
+- PASS: fetched deployed HTML for `character-chat` and `debut` did not contain Unicode replacement characters.
+- BLOCKED: no safe authenticated Backstage `super_admin` session was available, so the required safe row draft -> publish -> public reflection -> archive/fallback cycle was not executed.
+- BLOCKED: empty value, too-long value, and script-input live write validation remain unexecuted through Backstage UI/API because they require authenticated admin writes.
+
+blockers:
+- Safe Backstage `super_admin` access is still unavailable in this session. The task's final PASS requires authenticated creation and mutation of safe test CMS rows.
+
+repro_steps:
+1. Run `git pull origin main`.
+2. Confirm local `HEAD` is `0dcfca42dd8842d97c2d42b0c9d1cd75d39dded4` before the QA report commit.
+3. Request `/health`, public `site-content/bootstrap` for `characters`, `character-chat&characterSlug=yoon-serin`, and `character-chat&characterSlug=han-seoyul`.
+4. Request unauthenticated admin API at `/api/v1/admin/api/v1/backstage/site-content?take=1` and confirm 401.
+5. Request prefixless `/admin/api/v1/backstage/site-content?take=1` and confirm 404.
+6. Open `/characters`, `/character-chat?slug=yoon-serin`, `/character-chat?slug=han-seoyul`, `/debut`, `/charge`, and `/backstage#site-content` at 1280px, 768px, and 390px.
+7. Confirm public pages stay in fallback state and Backstage remains at operator login gate without entering credentials.
+
+screenshots_or_notes:
+- Public fallback and API protection are healthy.
+- The safe QA copy `QA CMS 공개 반영 확인` is not visible publicly because no row is published.
+- No production CMS data was created, modified, published, archived, or deleted.
+
+suspected_owner: PM / operator handoff
+next_needed:
+- Provide a safe Backstage `super_admin` QA session or have an operator execute the safe test row workflow without exposing credentials.
+- After that, rerun #325 for final PASS/FAIL on draft invisibility, published public reflection, character scoping, archive behavior, and validation cases.
+
 status: fail
 task: #314 - Character chat persona/starter runtime re-QA
 environment:
