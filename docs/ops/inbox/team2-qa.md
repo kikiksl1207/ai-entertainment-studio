@@ -1,5 +1,55 @@
 # Team2 QA Inbox
 
+status: partial / blocked
+task: #325 - site content CMS Backstage + public page QA
+environment:
+- branch: team2-qa/325-cms-public-backstage-qa
+- local main after pull: origin/main
+- basis commit: 0dcfca42dd8842d97c2d42b0c9d1cd75d39dded4
+- primary live domain: https://www.lumina-stage.com
+- API health commit observed: 0dcfca42dd8842d97c2d42b0c9d1cd75d39dded4
+- No token, cookie, password, env value, raw credential, or secret was recorded.
+
+tested_flows:
+- PASS: live backend `/health` returned commit `0dcfca42dd8842d97c2d42b0c9d1cd75d39dded4`.
+- PASS: public CMS bootstrap returned HTTP 200 for `pageKey=characters`, `pageKey=character-detail&characterSlug=yoon-serin`, and `pageKey=character-detail&characterSlug=han-seoyul`.
+- PASS: bootstrap policy reports `publishedOnly: true`, `fallbackRequired: true`, `rawHtmlAllowed: false`, and `editableNavigation: false`.
+- PASS: current live has no published CMS rows for the checked scopes, so public responses returned `items: []` and `content: {}` as expected from handoff.
+- PASS: `/characters` loaded `data-cms-page-key=characters`, called `/api/v1/site-content/bootstrap?pageKey=characters&locale=ko-KR`, and stayed in `data-cms-state=fallback`.
+- PASS: `/character-detail?slug=yoon-serin` and `/character-detail?slug=han-seoyul` loaded `data-cms-page-key=character-detail`, `data-cms-auto-character-slug=1`, and called bootstrap with each matching `characterSlug`.
+- PASS: model/character scoped public fallback content did not cross-mix between `yoon-serin` and `han-seoyul` during no-published-row live smoke.
+- PASS: `/characters`, `/character-detail?slug=yoon-serin`, and `/character-detail?slug=han-seoyul` had no page-level horizontal overflow at 1280px, 768px, and 390px.
+- PASS: those public checks had no visible replacement-character mojibake.
+- PASS: `/backstage#site-content` loads the operator login gate at 1280px, 768px, and 390px with no horizontal overflow and no visible replacement-character mojibake.
+- PASS: unauthenticated Backstage site-content API request returned HTTP 401 `UNAUTHORIZED` / `Bearer token is required`.
+- PASS: `npm.cmd run prisma:generate` refreshed the local Prisma client, then `npm.cmd test -- site-content.service.spec.ts --runInBand` passed 4 tests.
+- BLOCKED: could not log in to Backstage with a safe super_admin account, so the required draft -> published -> archive mutation cycle was not executed.
+- BLOCKED: because no authenticated safe admin session was available, empty value / long value / script input validation could only be inferred from deployed API policy and code/tests, not exercised through live Backstage writes.
+
+blockers:
+- Safe authenticated Backstage super_admin access was not available in this session. Without it, QA cannot create a safe test row, verify draft invisibility, publish visibility, archive fallback/previous-published behavior, or live input validation from the admin UI.
+
+repro_steps:
+1. Run `git pull origin main`.
+2. Confirm local `HEAD` is `0dcfca42dd8842d97c2d42b0c9d1cd75d39dded4` before the QA report commit.
+3. Request `https://api.lumina-stage.com/health`.
+4. Request public bootstrap endpoints for `characters`, `character-detail&characterSlug=yoon-serin`, and `character-detail&characterSlug=han-seoyul`.
+5. Open `https://www.lumina-stage.com/characters` and the two character detail URLs at 1280px, 768px, and 390px.
+6. Confirm `data-cms-state=fallback`, no visible replacement-character mojibake, no page-level horizontal overflow, and per-character bootstrap request URLs.
+7. Open `https://www.lumina-stage.com/backstage#site-content` at 1280px, 768px, and 390px.
+8. Confirm the operator login gate appears and do not enter or record any credential.
+9. Request the Backstage site-content admin API without credentials and confirm 401.
+
+screenshots_or_notes:
+- Public fallback is healthy, but #325's core acceptance criteria depends on writing a safe CMS row through Backstage.
+- No production CMS data was created, modified, published, archived, or deleted.
+- Character detail smoke detected one existing image element with a failed `src` equal to the current page URL; this was not treated as the #325 blocker because the CMS bootstrap/fallback text path remained usable, but it may deserve a separate image QA follow-up if it is visible in a real browser.
+
+suspected_owner: PM / operator handoff
+next_needed:
+- Provide a safe Backstage super_admin QA account/session or have an operator run the draft/publish/archive cycle with non-sensitive test copy.
+- Then rerun #325 for full PASS/FAIL on admin mutation, public reflection, draft invisibility, archive behavior, and validation cases.
+
 status: fail
 task: #314 - Character chat persona/starter runtime re-QA
 environment:
