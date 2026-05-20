@@ -914,7 +914,7 @@ Donation fail-closed states:
   `chat.donation.identityVerificationRequired`; raw policy enum values are not
   user-facing copy.
 
-Ranking lanes are deliberately separated:
+Ranking lanes are deliberately separated (#341):
 
 ```http
 GET /api/v1/chat/rankings?type=communication&period=weekly&take=20
@@ -924,6 +924,8 @@ GET /api/v1/chat/rankings?type=donation&period=weekly&take=20
 - Like ranking remains on `GET /api/v1/boost-campaigns/:campaignId/rankings`
   and includes only `free_like` and `lumina_boost`. It must not include
   `premium_chat_donation`.
+- `GET /api/v1/chat/rankings` accepts only `type=communication` or
+  `type=donation`. Do not add a `type=like` alias to the chat ranking lane.
 - Communication ranking uses `premium_chat_open`, `premium_chat_message`,
   `premium_chat_donation`, and artist reply activity as a separate score lane.
 - Donation ranking uses confirmed net `premium_chat_donation` only. Refunded,
@@ -931,6 +933,60 @@ GET /api/v1/chat/rankings?type=donation&period=weekly&take=20
   projection policy.
 - Ranking item shape uses safe artist projection fields, `rankNo`, decimal
   string `score`, and `scoreLabelKey`. It must not expose raw wallet ledger ids.
+
+The current implementation exposes these shapes through read-only
+`GET /api/v1/chat/premium-support-contract` under `apiContracts`; the donation
+and ranking mutations/read models remain disabled until storage, ledger, and
+moderation integration are added.
+
+Donation preview error contract:
+
+| Status | Code |
+| --- | --- |
+| 401 | `auth_required` |
+| 400 | `invalid_amount` |
+| 400 | `message_too_long` |
+| 403 | `session_not_owned` |
+| 404 | `session_not_found` |
+| 409 | `blocked_room_state` |
+
+Donation create error contract:
+
+| Status | Code |
+| --- | --- |
+| 401 | `auth_required` |
+| 400 | `idempotency_key_required` |
+| 400 | `invalid_amount` |
+| 400 | `message_too_long` |
+| 402 | `insufficient_lumina_balance` |
+| 403 | `session_not_owned` |
+| 403 | `identity_verification_required` |
+| 404 | `session_not_found` |
+| 409 | `blocked_room_state` |
+| 409 | `idempotency_conflict` |
+
+Chat ranking error contract:
+
+| Status | Code |
+| --- | --- |
+| 401 | `auth_required` |
+| 400 | `invalid_ranking_type` |
+| 400 | `invalid_period` |
+| 400 | `invalid_take` |
+
+Idempotency and server authority:
+
+- The client may send `Idempotency-Key` or `body.idempotencyKey`, but the server
+  owns the final wallet debit decision.
+- The server trusts only the wallet account balance read inside the DB
+  transaction; client balance, local price display, or UI selected amount cannot
+  authorize a debit.
+- Replaying the same key with the same session, amount, and message returns the
+  existing donation projection without a second wallet debit.
+- Reusing the key with a different fingerprint returns `409
+  idempotency_conflict` before wallet lookup.
+- Ranking projections refresh from server-side donation/message/open events
+  only; the frontend must not submit ranking scores.
 
 ## Admin APIs
 

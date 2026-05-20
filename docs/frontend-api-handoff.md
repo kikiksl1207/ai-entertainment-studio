@@ -817,7 +817,7 @@ cost metadata will be stored on generated assistant messages at
 `chat_messages.model_metadata`; safety metadata will be stored at
 `chat_messages.safety_metadata`.
 
-Premium chat support contract (#328):
+Premium chat support contract (#328, tightened by #341):
 
 ```http
 GET /chat/premium-support-contract
@@ -864,8 +864,19 @@ Frontend rules:
   ranking on the boost/like lane.
 - Communication ranking and donation ranking are separate planned surfaces:
   `/chat/rankings?type=communication` and `/chat/rankings?type=donation`.
+- `chat/rankings` must not be called with `type=like`; use the Lumina Pick
+  boost ranking endpoint for likes.
 - Donation event projection must show safe public display fields only. Do not
   expose wallet ledger ids or settlement internals.
+- The read-only contract now includes `apiContracts.donationPreview`,
+  `apiContracts.donationCreate`, and `apiContracts.rankingsList` with planned
+  request/response/error-code shapes. They are still disabled and exist only for
+  UI readiness.
+- Future donation create must use server-authoritative wallet debit plus an
+  idempotency key. Same key + same session/amount/message replays the existing
+  projection; same key + different fingerprint returns `409` before wallet
+  lookup. Client balance, local price text, or cached UI state must never be
+  treated as payment authority.
 
 #203 chat product policy skeleton:
 
