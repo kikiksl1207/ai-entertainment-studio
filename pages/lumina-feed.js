@@ -529,6 +529,8 @@ let _feedComposeAssetSeq = 0;
 let _feedComposeThreadMode = false;
 let _feedComposeThreadItems = []; // [{ localId, body }]
 let _feedComposeThreadItemSeq = 0;
+// #333 — 단문 게시 후 "이어서 쓰기" CTA에서 사용할 직전 본문 캐시. 자동 분할/자동 게시는 하지 않고 사용자가 다시 누를 때만 채워 넣는다.
+let _feedComposeLastSubmittedBody = "";
 
 function feedComposeNextThreadLocalId() {
   _feedComposeThreadItemSeq += 1;
@@ -735,6 +737,7 @@ function initFeedCompose() {
   if (loggedIn) {
     syncFeedComposeAvatar();
     bindFeedComposeOnce();
+    bindFeedThreadFollowupCta();
   } else {
     // 비로그인 카드의 로그인 CTA
     if (guestRoot && !guestRoot._bound) {
@@ -938,11 +941,15 @@ function bindFeedComposeOnce() {
         threadToggleEl.setAttribute("aria-pressed", "false");
       }
       renderFeedComposeThumbs();
+      // #333 — 직전 단문 본문을 캐시했다가 "이어서 쓰기" CTA에서 첫 조각으로 복원한다. 자동 분할은 하지 않는다.
+      _feedComposeLastSubmittedBody = String(body || "");
       if (failedCount > 0) {
         setFeedComposeMessage(`피드에 올라갔어요. 실패한 이미지 ${failedCount}장은 포함되지 않았어요.`, "success");
       } else {
         setFeedComposeMessage("피드에 올라갔어요.", "success");
       }
+      // #333 — 단문 게시 직후 "이어서 쓰기" CTA를 보여준다. 클릭 시 thread 모드로 전환하면서 직전 본문을 item 1에 복원.
+      showFeedThreadFollowupCta(_feedComposeLastSubmittedBody);
       updateState();
       // 피드 다시 로드
       await loadLuminaFeedData(_luminaFeedFilter || "all");
@@ -1226,6 +1233,64 @@ function bindFeedComposeThreadMode(textarea, parentUpdateState) {
   syncToggleVisualState();
   renderThreadItems();
   updateThreadState();
+}
+
+// #333 — 단문 게시 후 "이어서 쓰기" CTA. 클릭 시 textarea에 직전 본문을 복원하고 thread 모드로 전환한다.
+function showFeedThreadFollowupCta(body) {
+  const cta = document.getElementById("feedComposeFollowupCta");
+  if (!cta) return;
+  const safeBody = String(body || "").slice(0, FEED_COMPOSE_MAX_BODY);
+  if (!safeBody) {
+    cta.hidden = true;
+    return;
+  }
+  cta.hidden = false;
+  cta.dataset.body = safeBody;
+}
+
+function dismissFeedThreadFollowupCta() {
+  const cta = document.getElementById("feedComposeFollowupCta");
+  if (!cta) return;
+  cta.hidden = true;
+  delete cta.dataset.body;
+}
+
+function applyFeedThreadFollowupContinue() {
+  const cta = document.getElementById("feedComposeFollowupCta");
+  const body = String((cta && cta.dataset.body) || _feedComposeLastSubmittedBody || "").slice(0, FEED_COMPOSE_MAX_BODY);
+  if (!body) {
+    dismissFeedThreadFollowupCta();
+    return;
+  }
+  // 원본 본문을 root textarea로 복원해 사용자가 편집 가능한 시작점으로 만든다.
+  const textarea = document.getElementById("feedComposeBody");
+  if (textarea) {
+    textarea.value = body;
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    textarea.focus();
+  }
+  // thread 모드가 아직 꺼져 있으면 toggle 클릭으로 진입. 이미 켜져 있으면 그대로.
+  if (!_feedComposeThreadMode) {
+    const toggle = document.getElementById("feedComposeThreadToggle");
+    toggle?.click();
+  }
+  dismissFeedThreadFollowupCta();
+}
+
+function bindFeedThreadFollowupCta() {
+  if (document._feedThreadFollowupBound) return;
+  document._feedThreadFollowupBound = true;
+  document.addEventListener("click", e => {
+    if (e.target.closest("[data-feed-followup-continue]")) {
+      e.preventDefault();
+      applyFeedThreadFollowupContinue();
+      return;
+    }
+    if (e.target.closest("[data-feed-followup-dismiss]")) {
+      e.preventDefault();
+      dismissFeedThreadFollowupCta();
+    }
+  });
 }
 
 function setFeedComposeMessage(text, kind, reason = "") {
