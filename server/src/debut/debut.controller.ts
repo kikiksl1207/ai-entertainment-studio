@@ -20,6 +20,7 @@ import {
   CreateDebutMaterialUploadIntentDto,
   AdminUpdateDebutApplicationDto,
   DebutApplicationListQueryDto,
+  ResubmitDebutApplicationDto,
 } from './dto/debut.dto';
 import { DebutService } from './debut.service';
 
@@ -85,6 +86,16 @@ export class DebutController {
     @Param('applicationId') applicationId: string,
   ) {
     return this.debutService.withdrawMyApplication(user.id, applicationId);
+  }
+
+  @Post('me/debut-applications/:applicationId/resubmit')
+  @UseGuards(JwtAuthGuard)
+  resubmitMyApplication(
+    @CurrentUser() user: AuthUser,
+    @Param('applicationId') applicationId: string,
+    @Body() body: ResubmitDebutApplicationDto,
+  ) {
+    return this.debutService.resubmitMyApplication(user.id, applicationId, body);
   }
 }
 

@@ -1041,7 +1041,11 @@ describe('DebutService private material flow', () => {
       rawStatus: 'needs_more_info',
       expectedStatus: 'needs_more_info',
       expectedMessageKey: 'debut.application.status.needsMoreInfo',
-      expectedCtaMessageKey: 'debut.application.cta.checkRequest',
+      expectedCtaMessageKey: 'debut.application.cta.resubmit',
+      expectedCtaEnabled: true,
+      expectedActionAllowed: true,
+      expectedContractOnly: false,
+      expectedDisabledReasonKey: null,
       publicReason: 'QA needs an additional consent confirmation.',
     },
     {
@@ -1049,6 +1053,10 @@ describe('DebutService private material flow', () => {
       expectedStatus: 'approved',
       expectedMessageKey: 'debut.application.status.approved',
       expectedCtaMessageKey: 'debut.application.cta.checkResult',
+      expectedCtaEnabled: false,
+      expectedActionAllowed: false,
+      expectedContractOnly: true,
+      expectedDisabledReasonKey: 'debut.application.cta.disabled.contractOnly',
       publicReason: 'QA contact handoff is being prepared.',
     },
     {
@@ -1056,6 +1064,10 @@ describe('DebutService private material flow', () => {
       expectedStatus: 'rejected',
       expectedMessageKey: 'debut.application.status.rejected',
       expectedCtaMessageKey: 'debut.application.cta.checkResult',
+      expectedCtaEnabled: false,
+      expectedActionAllowed: false,
+      expectedContractOnly: true,
+      expectedDisabledReasonKey: 'debut.application.cta.disabled.contractOnly',
       publicReason: 'QA review ended without proceeding.',
     },
   ])(
@@ -1065,6 +1077,10 @@ describe('DebutService private material flow', () => {
       expectedStatus,
       expectedMessageKey,
       expectedCtaMessageKey,
+      expectedCtaEnabled,
+      expectedActionAllowed,
+      expectedContractOnly,
+      expectedDisabledReasonKey,
       publicReason,
     }) => {
       const prisma = createPrismaMock();
@@ -1102,12 +1118,16 @@ describe('DebutService private material flow', () => {
           status: expectedStatus,
           messageKey: expectedMessageKey,
           cta: {
-            enabled: false,
+            enabled: expectedCtaEnabled,
             messageKey: expectedCtaMessageKey,
-            actionAllowed: false,
-            mutationAllowed: false,
-            contractOnly: true,
-            disabledReasonKey: 'debut.application.cta.disabled.contractOnly',
+            actionAllowed: expectedActionAllowed,
+            mutationAllowed: expectedActionAllowed,
+            contractOnly: expectedContractOnly,
+            endpoint: expectedActionAllowed
+              ? '/api/v1/me/debut-applications/:applicationId/resubmit'
+              : null,
+            method: expectedActionAllowed ? 'POST' : null,
+            disabledReasonKey: expectedDisabledReasonKey,
             blockedMutations: [
               'debut_finalization',
               'contract',
@@ -1145,12 +1165,16 @@ describe('DebutService private material flow', () => {
             internalAdminNoteReturned: false,
             settlementOrContractFinalized: false,
             cta: {
-              enabled: false,
+              enabled: expectedCtaEnabled,
               messageKey: expectedCtaMessageKey,
-              actionAllowed: false,
-              mutationAllowed: false,
-              contractOnly: true,
-              disabledReasonKey: 'debut.application.cta.disabled.contractOnly',
+              actionAllowed: expectedActionAllowed,
+              mutationAllowed: expectedActionAllowed,
+              contractOnly: expectedContractOnly,
+              endpoint: expectedActionAllowed
+                ? '/api/v1/me/debut-applications/:applicationId/resubmit'
+                : null,
+              method: expectedActionAllowed ? 'POST' : null,
+              disabledReasonKey: expectedDisabledReasonKey,
             },
           },
           privacy: {
@@ -1162,7 +1186,7 @@ describe('DebutService private material flow', () => {
           },
         },
       });
-      expect(result.application.cta.enabled).toBe(false);
+      expect(result.application.cta.enabled).toBe(expectedCtaEnabled);
       expect(latestHistory).toMatchObject({
         status: expectedStatus,
         messageKey: expectedMessageKey,
@@ -1176,6 +1200,129 @@ describe('DebutService private material flow', () => {
       expect(payload).not.toContain('blocked-etag-sample');
     },
   );
+
+  it('resubmits a needs_more_info application without opening finalization flows', async () => {
+    const prisma = createPrismaMock();
+    const service = serviceWith(prisma);
+    const applicationId = '00000000-0000-4000-8000-000000000301';
+    const before = adminApplication({
+      id: applicationId,
+      status: 'needs_more_info',
+      reviewNote: 'Internal request note must not leak',
+      metadata: {
+        applicationChannel: 'online_review',
+        applicationType: 'represented_artist',
+        publicStatusReason: 'Please add a safe public clarification.',
+        requestedActionKey: 'debut.application.action.qaOnly',
+        consultationNote: 'Internal consultation note must not leak',
+        storageKey: 'private/resubmit-before-key-must-not-leak',
+      },
+    });
+    const after = adminApplication({
+      id: applicationId,
+      status: 'submitted',
+      reviewNote: 'Internal request note must not leak',
+      metadata: {
+        applicationChannel: 'online_review',
+        applicationType: 'personal_unaffiliated',
+        publicStatusReason: null,
+        requestedActionKey: null,
+        materialSubmissionMode: 'private_applicant_material_upload',
+        lastResubmittedAt: '2026-05-20T07:30:00.000Z',
+        resubmissionCount: 1,
+        resubmissionPolicyVersion: '2026-05-20.debut-resubmission-v1',
+      },
+    });
+    prisma.debutApplication.findFirst.mockResolvedValue(before);
+    prisma.asset.findMany.mockResolvedValue([materialAsset('uploaded')]);
+    prisma.debutApplication.update.mockResolvedValue(after);
+    prisma.auditEvent.create.mockResolvedValue({
+      id: '00000000-0000-4000-8000-000000000502',
+    });
+
+    const result = await service.resubmitMyApplication(
+      userId,
+      applicationId,
+      validApplicationInput() as never,
+    );
+    const updateCall = prisma.debutApplication.update.mock.calls[0][0];
+    const responsePayload = JSON.stringify(result);
+    const auditPayload = JSON.stringify(prisma.auditEvent.create.mock.calls[0][0]);
+
+    expect(prisma.debutApplication.findFirst).toHaveBeenCalledWith({
+      where: { id: applicationId, userId },
+      include: expect.any(Object),
+    });
+    expect(prisma.debutApplication.update).toHaveBeenCalledWith({
+      where: { id: applicationId },
+      data: expect.objectContaining({
+        status: 'submitted',
+        applicantName: 'Applicant',
+        contactEmail: 'applicant@example.com',
+        metadata: expect.objectContaining({
+          publicStatusReason: null,
+          requestedActionKey: null,
+          resubmissionCount: 1,
+          resubmissionPolicyVersion: '2026-05-20.debut-resubmission-v1',
+          lastResubmission: expect.objectContaining({
+            source: 'applicant',
+            endpoint: '/api/v1/me/debut-applications/:applicationId/resubmit',
+            replacementMode: 'full_application',
+            createsNewApplication: false,
+            previousPublicReasonPresent: true,
+            previousRequestedActionKey: 'debut.application.action.qaOnly',
+          }),
+        }),
+        attachments: {
+          deleteMany: {},
+          create: [
+            expect.objectContaining({
+              assetId,
+              category: 'face_photo',
+              status: 'attached',
+            }),
+          ],
+        },
+      }),
+      include: expect.any(Object),
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      action: 'debut_application.resubmit',
+      application: {
+        status: 'submitted',
+        cta: {
+          enabled: false,
+          actionAllowed: false,
+          mutationAllowed: false,
+          contractOnly: true,
+        },
+      },
+      resubmission: {
+        accepted: true,
+        endpoint: '/api/v1/me/debut-applications/:applicationId/resubmit',
+        method: 'POST',
+        previousStatus: 'needs_more_info',
+        nextStatus: 'submitted',
+        createsNewApplication: false,
+        replacementMode: 'full_application',
+      },
+      mutationPolicy: {
+        finalDebutMutation: false,
+        contractMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+        walletMutation: false,
+        luminaMutation: false,
+      },
+    });
+    expect(updateCall.data.metadata).not.toHaveProperty('storageKey');
+    expect(responsePayload).not.toContain('Internal request note');
+    expect(responsePayload).not.toContain('private/resubmit-before-key-must-not-leak');
+    expect(auditPayload).not.toContain('Internal request note');
+    expect(auditPayload).not.toContain('applicant@example.com');
+    expect(auditPayload).not.toContain('private/resubmit-before-key-must-not-leak');
+  });
 
   it('returns latest owner application in the safe status envelope', async () => {
     const prisma = createPrismaMock();

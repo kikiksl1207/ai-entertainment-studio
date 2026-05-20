@@ -360,6 +360,8 @@ export class CreateDebutApplicationDto {
   metadata?: Record<string, unknown>;
 }
 
+export class ResubmitDebutApplicationDto extends CreateDebutApplicationDto {}
+
 export class CreateDebutMaterialUploadIntentDto {
   @IsIn(DEBUT_MATERIAL_CATEGORIES)
   category!: (typeof DEBUT_MATERIAL_CATEGORIES)[number];
