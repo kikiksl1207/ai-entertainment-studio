@@ -278,6 +278,8 @@
               </label>
               <label>로케일
                 <select name="locale" id="siteContentLocale">
+                  <option value="ko-KR">ko-KR</option>
+                  <option value="en-US">en-US</option>
                   <option value="ko">ko</option>
                   <option value="en">en</option>
                 </select>
@@ -338,10 +340,10 @@
                     </label>
                     <label>locale
                       <select name="locale" required>
-                        <option value="ko">ko</option>
-                        <option value="en">en</option>
                         <option value="ko-KR">ko-KR</option>
                         <option value="en-US">en-US</option>
+                        <option value="ko">ko</option>
+                        <option value="en">en</option>
                       </select>
                     </label>
                     <label>pageKey
@@ -365,7 +367,7 @@
                       <input name="ctaLabel" type="text" maxlength="80" />
                     </label>
                     <label>CTA URL
-                      <input name="ctaHref" type="url" maxlength="500" placeholder="https://www.lumina-stage.com/..." />
+                      <input name="ctaHref" type="url" maxlength="500" placeholder="/characters 또는 https://www.lumina-stage.com/..." />
                       <small>lumina-stage.com / www.lumina-stage.com 만 허용</small>
                     </label>
                     <label class="is-wide">content JSON (선택)

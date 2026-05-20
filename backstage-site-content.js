@@ -23,7 +23,7 @@
   var SCRIPT_LIKE = /(?:<\s*script\b|javascript:|data:text\/html)/i;
 
   var state = {
-    filters: { status: "", pageKey: "", scope: "", characterSlug: "", modelSlug: "", locale: "ko", search: "" },
+    filters: { status: "", pageKey: "", scope: "", characterSlug: "", modelSlug: "", locale: "ko-KR", search: "" },
     items: [],
     total: 0,
     selectedId: null,
@@ -71,7 +71,7 @@
 
   function statusBadgeHtml(status) {
     var label = status === "published" ? "발행됨" : status === "archived" ? "보관" : "초안";
-    var cls = status === "published" ? "is-active" : status === "archived" ? "is-review" : "is-pending";
+    var cls = status === "published" ? "is-approved" : status === "archived" ? "is-review" : "is-pending";
     return '<span class="status-badge ' + cls + '">' + escapeHtml(label) + "</span>";
   }
 
@@ -135,7 +135,7 @@
       scope: (data.get("scope") || "").toString().trim(),
       characterSlug: (data.get("characterSlug") || "").toString().trim(),
       modelSlug: (data.get("modelSlug") || "").toString().trim(),
-      locale: (data.get("locale") || "ko").toString().trim(),
+      locale: (data.get("locale") || "ko-KR").toString().trim(),
       search: (data.get("search") || "").toString().trim(),
     };
     state.filters = next;
@@ -192,7 +192,7 @@
       form.elements.contentKey.value = item.contentKey || "";
       form.elements.contentKey.readOnly = true;
       form.elements.scope.value = item.scope || "global";
-      form.elements.locale.value = item.locale || "ko";
+      form.elements.locale.value = item.locale || "ko-KR";
       form.elements.pageKey.value = item.pageKey || "";
       form.elements.characterSlug.value = item.characterSlug || "";
       form.elements.modelSlug.value = item.modelSlug || "";
@@ -218,7 +218,7 @@
       if (metaEl) metaEl.textContent = "발행 전 draft 상태로 저장되며, 발행 버튼으로만 published 상태가 됩니다.";
       form.reset();
       form.elements.contentKey.readOnly = false;
-      form.elements.locale.value = state.filters.locale || "ko";
+      form.elements.locale.value = state.filters.locale || "ko-KR";
       form.elements.scope.value = "global";
       dom("siteContentPublishButton").disabled = true;
       dom("siteContentArchiveButton").disabled = true;
@@ -324,7 +324,7 @@
       pageKey: (fd.get("pageKey") || "").toString().trim() || null,
       characterSlug: (fd.get("characterSlug") || "").toString().trim() || null,
       modelSlug: (fd.get("modelSlug") || "").toString().trim() || null,
-      locale: (fd.get("locale") || "ko").toString().trim(),
+      locale: (fd.get("locale") || "ko-KR").toString().trim(),
       title: (fd.get("title") || "").toString(),
       body: (fd.get("body") || "").toString(),
       ctaLabel: (fd.get("ctaLabel") || "").toString().trim() || null,
@@ -355,9 +355,12 @@
     });
     if (payload.ctaHref) {
       try {
+        if (payload.ctaHref.startsWith("/") && !payload.ctaHref.startsWith("//")) {
+          return;
+        }
         var u = new URL(payload.ctaHref);
-        if (!ALLOWED_HOSTS.includes(u.host)) {
-          throw new Error("CTA URL은 lumina-stage.com 호스트만 허용됩니다.");
+        if (u.protocol !== "https:" || !ALLOWED_HOSTS.includes(u.hostname)) {
+          throw new Error("CTA URL은 내부 경로 또는 lumina-stage.com HTTPS URL만 허용됩니다.");
         }
       } catch (error) {
         throw new Error("CTA URL 형식이 올바르지 않습니다.");
