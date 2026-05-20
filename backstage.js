@@ -1399,7 +1399,7 @@ function renderDetailForm(detail) {
           { value: "abuse_reversal", label: "악용/오지급 회수" },
           { value: "refund_correction", label: "환불/결제 보정" },
           { value: "customer_support", label: "고객지원 보정" },
-          { value: "qa_test", label: "QA 테스트" },
+          { value: "qa_test", label: "운영 검증 보정" },
           { value: "manual_correction", label: "수동 보정" }
         ], "event_grant", true)}
         ${detailTextarea("처리 사유", "note", "", true, "예: 오픈 이벤트 지급 100L / 악용 확인으로 100L 회수")}
@@ -1421,7 +1421,7 @@ function renderDetailForm(detail) {
           { value: "abuse_reversal", label: "악용/오지급 회수" },
           { value: "refund_correction", label: "환불/결제 보정" },
           { value: "customer_support", label: "고객지원 보정" },
-          { value: "qa_test", label: "QA 테스트" },
+          { value: "qa_test", label: "운영 검증 보정" },
           { value: "manual_correction", label: "수동 보정" }
         ], "event_grant", true)}
         ${detailTextarea("처리 사유", "note", "", true, "예: 5월 출석 이벤트 참여자 일괄 지급 100L")}
@@ -3226,9 +3226,9 @@ function renderLaunchReadinessFallback() {
     overall: { score: 0, belowTargetCategories: ["API 응답 확인 필요"] },
     categories: [
       { key: "public_content", label: "공개 캐릭터/콘텐츠", score: 0, status: "API 확인 필요", blockers: ["준비도 API 응답 확인"], nextActions: ["공개 캐릭터/콘텐츠 QA"] },
-      { key: "commerce_bm", label: "루미나 충전/BM", score: 0, status: "API 확인 필요", blockers: ["결제/충전 QA 확인"], nextActions: ["충전 주문 테스트"] },
-      { key: "feed_social", label: "루미나 피드/SNS 흐름", score: 0, status: "API 확인 필요", blockers: ["피드 인터랙션 QA 확인"], nextActions: ["수정/좋아요/댓글 테스트"] },
-      { key: "debut_creator_studio", label: "데뷔하기/크리에이터 스튜디오", score: 0, status: "API 확인 필요", blockers: ["데뷔 신청/스튜디오 진입 확인"], nextActions: ["신청 400 재테스트"] },
+      { key: "commerce_bm", label: "루미나 충전/BM", score: 0, status: "API 확인 필요", blockers: ["결제/충전 QA 확인"], nextActions: ["충전 주문 흐름 확인"] },
+      { key: "feed_social", label: "루미나 피드/SNS 흐름", score: 0, status: "API 확인 필요", blockers: ["피드 인터랙션 QA 확인"], nextActions: ["피드 상호작용 확인"] },
+      { key: "debut_creator_studio", label: "데뷔하기/크리에이터 스튜디오", score: 0, status: "API 확인 필요", blockers: ["데뷔 신청/스튜디오 진입 확인"], nextActions: ["신청 오류 응답 확인"] },
       { key: "backstage_safety", label: "백스테이지/운영/안전", score: 0, status: "API 확인 필요", blockers: ["권한/로그 확인"], nextActions: ["운영 로그 확인"] }
     ]
   });
