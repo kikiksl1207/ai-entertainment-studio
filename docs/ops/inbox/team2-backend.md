@@ -288,6 +288,39 @@ sensitive_values_recorded:
 ---
 
 status: done
+task: "#328 premium chat support and ranking API contract"
+branch/commit: team2-backend/premium-chat-ranking-contract-328 / pending push commit
+changed_files:
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/chat.controller.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-support-contract.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Added authenticated read-only `GET /api/v1/chat/premium-support-contract` so frontend can wire premium-chat support UI policy without opening wallet mutation.
+- Contract includes fixed support amounts `10/50/100/500/1000/5000/10000/50000L`, custom support bounds, idempotency rules, blocked-room fail-closed states, high-value review policy, and future preview/create endpoint templates.
+- Contract keeps donation create disabled with `walletMutationEnabled=false` and `endpoints.donationCreate.enabled=false`.
+- Documented ledger sources `premium_chat_open`, `premium_chat_message`, `premium_chat_donation` and the required future ledger type/storage migration before POST donation can be enabled.
+- Documented ranking separation: Lumina Pick/like ranking excludes premium chat donations; communication ranking and donation ranking use separate planned `/chat/rankings` lanes.
+- Added regression coverage proving the contract returns without wallet, ledger, order, chat message, settlement, or payout mutation calls.
+blocked_by:
+- Actual donation POST remains blocked until DB event/projection storage, wallet ledger type migration, trust/identity limits, refund/moderation policy, and settlement run handling are implemented.
+next_needed:
+- Viewer review, then Cloud/frontend can use the read-only contract for disabled UI wiring only. POST donation, settlement, payout, and wallet mutation must remain disconnected.
+sensitive_values_recorded:
+- none
+
+---
+
+status: done
 task: "#314 QA FAIL follow-up: character-specific starter fallback"
 branch/commit: team2-backend/character-chat-starter-projection-314 / pending push commit
 changed_files:

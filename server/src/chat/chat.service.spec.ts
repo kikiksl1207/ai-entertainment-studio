@@ -2017,6 +2017,59 @@ describe('ChatService.createFeatureOrder safety', () => {
   });
 });
 
+describe('ChatService premium chat support contract', () => {
+  it('returns a fail-closed donation and ranking contract without wallet mutation', () => {
+    const prisma = {
+      walletAccount: {
+        findUnique: jest.fn(),
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+      chatFeatureOrder: {
+        create: jest.fn(),
+      },
+      chatMessage: {
+        create: jest.fn(),
+      },
+    };
+    const service = new ChatService(prisma as never, {} as never);
+
+    const contract = service.getPremiumSupportContract();
+
+    expect(contract.donation.fixedAmountsLumina).toEqual([
+      10,
+      50,
+      100,
+      500,
+      1000,
+      5000,
+      10000,
+      50000,
+    ]);
+    expect(contract.policy.walletMutationEnabled).toBe(false);
+    expect(contract.endpoints.donationCreate.enabled).toBe(false);
+    expect(contract.donation.ledger.sources).toEqual([
+      'premium_chat_open',
+      'premium_chat_message',
+      'premium_chat_donation',
+    ]);
+    expect(contract.rankings.like.excludes).toContain('premium_chat_donation');
+    expect(contract.rankings.communication.scoreInputs).toContain(
+      'premium_chat_donation',
+    );
+    expect(contract.rankings.donation.scoreInputs).toEqual([
+      'premium_chat_donation',
+    ]);
+    expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+    expect(prisma.chatFeatureOrder.create).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+  });
+});
+
 describe('ChatService.generateMessage provider beta', () => {
   const userId = '00000000-0000-4000-8000-000000000002';
   const sessionId = '00000000-0000-4000-8000-000000000214';

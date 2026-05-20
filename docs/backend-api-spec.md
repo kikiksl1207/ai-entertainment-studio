@@ -792,6 +792,98 @@ LLM generation readiness:
   enum values such as `provider_not_configured` or `async_reviewed_fan_letter`
   directly.
 
+Premium chat support and ranking contract (#328):
+
+```http
+GET /api/v1/chat/premium-support-contract
+Authorization: Bearer <accessToken>
+```
+
+This is an authenticated, read-only contract endpoint for the premium-chat
+support UI. It returns fixed support amounts, future donation endpoint shapes,
+ledger source names, idempotency rules, and separated ranking projection lanes.
+It does not create chat messages, create orders, debit wallet/Lumina, touch
+settlement, touch payout, or write ledger rows.
+
+Current response status is `contract_ready_mutation_blocked`. Frontend may use
+the contract for copy, button layout, and disabled-state wiring, but must keep
+donation submit disabled until the server exposes the planned create endpoint as
+enabled.
+
+Fixed support amounts:
+
+```json
+[10, 50, 100, 500, 1000, 5000, 10000, 50000]
+```
+
+Planned donation preview and create endpoints:
+
+```http
+POST /api/v1/chat/sessions/:sessionId/donations/preview
+POST /api/v1/chat/sessions/:sessionId/donations
+Authorization: Bearer <accessToken>
+Idempotency-Key: <client-generated-key>
+```
+
+Create body contract:
+
+```json
+{
+  "amountLumina": "100",
+  "message": "optional short support message",
+  "idempotencyKey": "client-generated-key"
+}
+```
+
+Before the create endpoint can be enabled, the backend must add the required DB
+event/projection storage and update the wallet ledger type check to include:
+
+- `premium_chat_open`
+- `premium_chat_message`
+- `premium_chat_donation`
+
+Donation idempotency:
+
+- The key is accepted from the `Idempotency-Key` header or body
+  `idempotencyKey`.
+- The wallet ledger idempotency scope is
+  `premium-chat-donation:<sessionId>:<client-idempotency-key>`.
+- Safe replay of the same session, amount, and message returns the existing
+  donation projection without a second debit.
+- Reusing the key with a different session, amount, or message returns `409`
+  with `messageKey = chat.donation.idempotencyConflict` before wallet lookup.
+
+Donation fail-closed states:
+
+- Missing/invalid idempotency key, invalid amount, insufficient balance,
+  inactive wallet, missing/other-user session, reported room, blinded room,
+  suspended room, refund-pending room, refunded donation, chargeback review, or
+  high-value account review blocks before wallet mutation.
+- High-value support starts at `10000L`; daily support is capped at `50000L`
+  until account trust and identity checks are finalized.
+- Blocked states return safe message keys such as
+  `chat.donation.blockedRoomState` or
+  `chat.donation.identityVerificationRequired`; raw policy enum values are not
+  user-facing copy.
+
+Ranking lanes are deliberately separated:
+
+```http
+GET /api/v1/chat/rankings?type=communication&period=weekly&take=20
+GET /api/v1/chat/rankings?type=donation&period=weekly&take=20
+```
+
+- Like ranking remains on `GET /api/v1/boost-campaigns/:campaignId/rankings`
+  and includes only `free_like` and `lumina_boost`. It must not include
+  `premium_chat_donation`.
+- Communication ranking uses `premium_chat_open`, `premium_chat_message`,
+  `premium_chat_donation`, and artist reply activity as a separate score lane.
+- Donation ranking uses confirmed net `premium_chat_donation` only. Refunded,
+  blinded, chargeback, or moderation-held rows are excluded or zero-weighted by
+  projection policy.
+- Ranking item shape uses safe artist projection fields, `rankNo`, decimal
+  string `score`, and `scoreLabelKey`. It must not expose raw wallet ledger ids.
+
 ## Admin APIs
 
 관리자 API는 `admin_users` + `admin_roles.permissions` 기반으로 route-level permission을 검사한다.
