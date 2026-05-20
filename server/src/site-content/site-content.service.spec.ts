@@ -6,6 +6,7 @@ type PrismaMock = {
     findMany: jest.Mock;
     count: jest.Mock;
     findUnique: jest.Mock;
+    findFirst: jest.Mock;
   };
   $transaction: jest.Mock;
 };
@@ -53,6 +54,7 @@ function createService() {
       findMany: jest.fn(),
       count: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -131,6 +133,7 @@ describe('SiteContentService', () => {
 
   it('records audit metadata without raw body text on create', async () => {
     const { service, prisma } = createService();
+    prisma.siteContentEntry.findFirst.mockResolvedValue(null);
     const tx = {
       siteContentEntry: {
         create: jest.fn().mockResolvedValue(
@@ -168,5 +171,184 @@ describe('SiteContentService', () => {
         }),
       }),
     );
+  });
+
+  it('returns a recoverable key-exists error when an archived key is recreated', async () => {
+    const { service, prisma } = createService();
+    prisma.siteContentEntry.findFirst.mockResolvedValue(
+      entry({
+        status: 'archived',
+        archivedAt: new Date('2026-05-20T00:00:00.000Z'),
+        archivedByUserId: superAdmin.id,
+      }),
+    );
+
+    await expect(
+      service.createAdmin(superAdmin, {
+        contentKey: 'artists.hero.title',
+        scope: 'page',
+        pageKey: 'artists',
+        title: 'Recoverable archived copy',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'SITE_CONTENT_KEY_EXISTS',
+        messageKey: 'siteContent.error.keyExists',
+        details: expect.objectContaining({
+          contentKey: 'artists.hero.title',
+          locale: 'ko-KR',
+          existingStatus: 'archived',
+          recoverable: true,
+          restorePathTemplate:
+            '/api/v1/admin/api/v1/backstage/site-content/:id/restore',
+        }),
+      },
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('restores archived content to draft with audit and keeps public bootstrap published-only', async () => {
+    const { service, prisma } = createService();
+    const archived = entry({
+      status: 'archived',
+      archivedAt: new Date('2026-05-20T00:00:00.000Z'),
+      archivedByUserId: superAdmin.id,
+      publishedAt: new Date('2026-05-19T00:00:00.000Z'),
+      publishedByUserId: superAdmin.id,
+    });
+    const restored = entry({
+      status: 'draft',
+      version: 3,
+      archivedAt: null,
+      archivedByUserId: null,
+      publishedAt: null,
+      publishedByUserId: null,
+    });
+    const tx = {
+      siteContentEntry: {
+        update: jest.fn().mockResolvedValue(restored),
+      },
+      siteContentAuditLog: {
+        create: jest.fn().mockResolvedValue({}),
+      },
+    };
+    prisma.siteContentEntry.findUnique.mockResolvedValue(archived);
+    prisma.siteContentEntry.findMany.mockResolvedValue([]);
+    prisma.$transaction.mockImplementation((callback) => callback(tx));
+
+    const result = await service.restoreAdmin(superAdmin, archived.id, {});
+
+    expect(tx.siteContentEntry.update).toHaveBeenCalledWith({
+      where: { id: archived.id },
+      data: expect.objectContaining({
+        status: 'draft',
+        archivedAt: null,
+        archivedByUserId: null,
+        publishedAt: null,
+        publishedByUserId: null,
+        updatedByUserId: superAdmin.id,
+        version: { increment: 1 },
+      }),
+    });
+    expect(tx.siteContentAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'restore',
+          metadata: expect.objectContaining({
+            targetStatus: 'draft',
+          }),
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      restored: true,
+      targetStatus: 'draft',
+      item: {
+        status: 'draft',
+        policy: expect.objectContaining({
+          canRestore: false,
+          canEdit: true,
+          canPublish: true,
+        }),
+      },
+      policy: expect.objectContaining({
+        archivedKeyRecoverable: true,
+      }),
+    });
+
+    await service.getBootstrap({ locale: 'ko-KR', pageKey: 'artists' });
+    expect(prisma.siteContentEntry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'published',
+          locale: 'ko-KR',
+          pageKey: 'artists',
+        }),
+      }),
+    );
+  });
+
+  it('can restore archived content directly to published when content is present', async () => {
+    const { service, prisma } = createService();
+    const archived = entry({
+      status: 'archived',
+      archivedAt: new Date('2026-05-20T00:00:00.000Z'),
+      archivedByUserId: superAdmin.id,
+    });
+    const tx = {
+      siteContentEntry: {
+        update: jest.fn().mockResolvedValue(
+          entry({
+            status: 'published',
+            version: 3,
+            archivedAt: null,
+            archivedByUserId: null,
+            publishedAt: new Date('2026-05-20T00:00:00.000Z'),
+            publishedByUserId: superAdmin.id,
+          }),
+        ),
+      },
+      siteContentAuditLog: {
+        create: jest.fn().mockResolvedValue({}),
+      },
+    };
+    prisma.siteContentEntry.findUnique.mockResolvedValue(archived);
+    prisma.$transaction.mockImplementation((callback) => callback(tx));
+
+    const result = await service.restoreAdmin(superAdmin, archived.id, {
+      status: 'published',
+    });
+
+    expect(tx.siteContentEntry.update).toHaveBeenCalledWith({
+      where: { id: archived.id },
+      data: expect.objectContaining({
+        status: 'published',
+        archivedAt: null,
+        archivedByUserId: null,
+        publishedByUserId: superAdmin.id,
+        updatedByUserId: superAdmin.id,
+        version: { increment: 1 },
+      }),
+    });
+    expect(result).toMatchObject({
+      restored: true,
+      targetStatus: 'published',
+      item: { status: 'published' },
+    });
+  });
+
+  it('keeps restore idempotent for non-archived content without audit mutation', async () => {
+    const { service, prisma } = createService();
+    const published = entry();
+    prisma.siteContentEntry.findUnique.mockResolvedValue(published);
+
+    const result = await service.restoreAdmin(superAdmin, published.id, {});
+
+    expect(result).toMatchObject({
+      alreadyRestored: true,
+      restored: false,
+      targetStatus: 'published',
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

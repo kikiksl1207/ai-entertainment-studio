@@ -67,4 +67,13 @@ export class SiteContentAdminController {
   archive(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.siteContentService.archiveAdmin(user, id);
   }
+
+  @Post(':id/restore')
+  restore(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() body: SiteContentBody,
+  ) {
+    return this.siteContentService.restoreAdmin(user, id, body);
+  }
 }

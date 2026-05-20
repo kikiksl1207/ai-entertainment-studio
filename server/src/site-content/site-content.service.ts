@@ -56,6 +56,7 @@ const SAFE_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,78}[a-z0-9]$/;
 const SAFE_LOCALE_PATTERN = /^[a-z]{2}(?:-[A-Z]{2})?$/;
 const HTML_LIKE_PATTERN = /<\s*\/?\s*[a-zA-Z][^>]*>/;
 const SCRIPT_LIKE_PATTERN = /(?:<\s*script\b|javascript:|data:text\/html)/i;
+const VALID_RESTORE_TARGET_STATUSES = new Set(['draft', 'published']);
 const PUBLIC_TAKE_MAX = 500;
 const ADMIN_TAKE_MAX = 100;
 const MAX_TITLE_LENGTH = 180;
@@ -154,6 +155,13 @@ export class SiteContentService {
   async createAdmin(user: AuthUser, input: SiteContentBody) {
     this.assertSuperAdmin(user);
     const data = this.createData(user, input);
+    const existing = await this.prisma.siteContentEntry.findFirst({
+      where: { contentKey: data.contentKey, locale: data.locale },
+    });
+
+    if (existing) {
+      throw this.keyExistsError(data.contentKey, data.locale, existing);
+    }
 
     try {
       const entry = await this.prisma.$transaction(async (tx) => {
@@ -175,15 +183,7 @@ export class SiteContentService {
       };
     } catch (error) {
       if (this.isUniqueConstraintError(error)) {
-        throw this.badRequestError({
-          code: 'SITE_CONTENT_KEY_EXISTS',
-          message: 'Site content key already exists for this locale',
-          messageKey: 'siteContent.error.keyExists',
-          details: {
-            contentKey: data.contentKey,
-            locale: data.locale,
-          },
-        });
+        throw this.keyExistsError(data.contentKey, data.locale);
       }
 
       throw error;
@@ -323,6 +323,62 @@ export class SiteContentService {
 
     return {
       item: this.presentAdminEntry(entry),
+      policy: this.adminPolicy(),
+    };
+  }
+
+  async restoreAdmin(user: AuthUser, id: string, input: SiteContentBody = {}) {
+    this.assertSuperAdmin(user);
+    this.assertUuid(id, 'id');
+    const targetStatus = this.restoreTargetStatus(input.status);
+    const existing = await this.findAdminEntry(id);
+
+    if (existing.status !== 'archived') {
+      return {
+        item: this.presentAdminEntry(existing),
+        alreadyRestored: true,
+        restored: false,
+        targetStatus: existing.status,
+        policy: this.adminPolicy(),
+      };
+    }
+
+    if (targetStatus === 'published') {
+      this.assertHasPublishableContent(existing);
+    }
+
+    const now = new Date();
+    const entry = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.siteContentEntry.update({
+        where: { id },
+        data: {
+          status: targetStatus,
+          archivedAt: null,
+          archivedByUserId: null,
+          publishedAt: targetStatus === 'published' ? now : null,
+          publishedByUserId: targetStatus === 'published' ? user.id : null,
+          updatedByUserId: user.id,
+          version: { increment: 1 },
+        },
+      });
+      await this.recordAudit(tx, {
+        entryId: id,
+        actorUserId: user.id,
+        action: 'restore',
+        before: this.auditSnapshot(existing),
+        after: this.auditSnapshot(updated),
+        metadata: {
+          ...this.auditDiff(existing, updated),
+          targetStatus,
+        },
+      });
+      return updated;
+    });
+
+    return {
+      item: this.presentAdminEntry(entry),
+      restored: true,
+      targetStatus,
       policy: this.adminPolicy(),
     };
   }
@@ -494,6 +550,10 @@ export class SiteContentService {
         details: { id: entry.id },
       });
     }
+    this.assertHasPublishableContent(entry);
+  }
+
+  private assertHasPublishableContent(entry: SiteContentEntryRecord) {
     if (!this.hasPublishableContent(entry)) {
       throw this.badRequestError({
         code: 'SITE_CONTENT_EMPTY_CONTENT',
@@ -564,6 +624,10 @@ export class SiteContentService {
         rawHtmlAllowed: false,
         navigationKeyEditable: false,
         publishRequiresContent: true,
+        canEdit: entry.status !== 'archived',
+        canPublish: entry.status !== 'archived',
+        canArchive: entry.status !== 'archived',
+        canRestore: entry.status === 'archived',
       },
     };
   }
@@ -679,6 +743,8 @@ export class SiteContentService {
       auditRawContentStored: false,
       walletMutationAllowed: false,
       settlementMutationAllowed: false,
+      archivedKeyRecoverable: true,
+      restoreTargetStatuses: [...VALID_RESTORE_TARGET_STATUSES],
     };
   }
 
@@ -861,6 +927,20 @@ export class SiteContentService {
     return status;
   }
 
+  private restoreTargetStatus(value: unknown) {
+    const status = this.status(value, 'draft');
+    if (!VALID_RESTORE_TARGET_STATUSES.has(status)) {
+      throw this.badRequestError({
+        code: 'SITE_CONTENT_INVALID_RESTORE_STATUS',
+        message: 'Restore status must be draft or published',
+        messageKey: 'siteContent.error.invalidRestoreStatus',
+        details: { status, allowed: [...VALID_RESTORE_TARGET_STATUSES] },
+      });
+    }
+
+    return status;
+  }
+
   private locale(value?: string) {
     const locale = (value ?? 'ko-KR').trim();
     if (!SAFE_LOCALE_PATTERN.test(locale)) {
@@ -949,6 +1029,28 @@ export class SiteContentService {
       message: 'Site content entry not found',
       messageKey: 'siteContent.error.notFound',
       details: { id },
+    });
+  }
+
+  private keyExistsError(
+    contentKey: string,
+    locale: string,
+    existing?: SiteContentEntryRecord,
+  ) {
+    return this.badRequestError({
+      code: 'SITE_CONTENT_KEY_EXISTS',
+      message: 'Site content key already exists for this locale',
+      messageKey: 'siteContent.error.keyExists',
+      details: {
+        contentKey,
+        locale,
+        existingEntryId: existing?.id,
+        existingStatus: existing?.status,
+        recoverable: existing?.status === 'archived',
+        restorePathTemplate: existing
+          ? '/api/v1/admin/api/v1/backstage/site-content/:id/restore'
+          : undefined,
+      },
     });
   }
 

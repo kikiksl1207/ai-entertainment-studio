@@ -2977,6 +2977,37 @@ Current seeded admin roles:
 Permission rule: `*:write` for the same resource grants read routes too. For
 example, `creators:write` can call `creators:read` routes.
 
+Backstage site-content CMS:
+
+```http
+GET /site-content/bootstrap?locale=ko-KR&pageKey=characters
+GET /admin/api/v1/backstage/site-content?status=archived&take=100
+POST /admin/api/v1/backstage/site-content/:id/restore
+```
+
+When the frontend API base already includes `/api/v1`, admin paths are built
+with `adminApiPath('/backstage/site-content')`; deployed external URLs therefore
+look like `/api/v1/admin/api/v1/backstage/site-content`.
+
+- Public bootstrap renders only `published` rows. Draft and archived rows must
+  fall back to static copy.
+- Create is draft-only. If a duplicate archived `contentKey + locale` exists,
+  the API returns `SITE_CONTENT_KEY_EXISTS` with `details.recoverable=true` and
+  `existingEntryId`; guide the operator to filter archived rows and restore that
+  entry instead of making a duplicate.
+- Restore body defaults to draft:
+
+```json
+{ "status": "draft" }
+```
+
+- Restored draft rows can be edited and published again. Direct restore to
+  `published` is allowed only for rows with safe non-empty content.
+- Archive removes a row from public bootstrap; restore to draft keeps it hidden;
+  publish makes it public again.
+- Do not expose navigation/menu labels as editable CMS keys.
+- HTML/script-like text remains blocked by `SITE_CONTENT_UNSAFE_TEXT`.
+
 `GET /admin/api/v1/backstage/summary` requires admin auth. It is the recommended
 Backstage dashboard bootstrap endpoint. It returns:
 

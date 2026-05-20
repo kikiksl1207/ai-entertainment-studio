@@ -288,6 +288,43 @@ sensitive_values_recorded:
 ---
 
 status: done
+task: "#330 site-content CMS archived key restore"
+branch/commit: team2-backend/site-content-restore-330 / pending push commit
+changed_files:
+- server/src/site-content/site-content.controller.ts
+- server/src/site-content/site-content.service.ts
+- server/src/site-content/site-content.service.spec.ts
+- backstage-site-content.js
+- backstage/index.html
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npx.cmd prisma generate
+- npm.cmd test -- site-content.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/site-content/site-content.controller.ts src/site-content/site-content.service.ts src/site-content/site-content.service.spec.ts
+- npm.cmd run build
+- node --check backstage-site-content.js
+- git diff --check
+result:
+- Added super-admin-only `POST /api/v1/admin/api/v1/backstage/site-content/:id/restore`.
+- Archived CMS rows can now be restored to `draft` by default, or directly to `published` when safe non-empty content is present.
+- Restore clears archived metadata, updates version/updatedBy, and writes a `restore` audit log. Repeated restore on non-archived rows is idempotent and does not create another audit row.
+- Duplicate create for an archived `contentKey + locale` now returns `SITE_CONTENT_KEY_EXISTS` with `recoverable=true`, `existingEntryId`, and restore path details instead of leaving the key as a dead end.
+- Backstage site-content editor shows a Restore button for archived rows and keeps save/publish/archive disabled until restore.
+- Public bootstrap remains published-only; draft and archived rows remain hidden. HTML/script validation remains unchanged.
+- Wallet, Lumina, order, settlement, and payout mutations were not touched.
+blocked_by:
+- none
+next_needed:
+- Viewer review, then #325 QR1 live reQA can restore the archived `characters.hero.body` safe test row or verify the restore flow before rerunning draft/publish/archive/public bootstrap checks.
+sensitive_values_recorded:
+- none
+
+---
+
+status: done
 task: "#328 premium chat support and ranking API contract"
 branch/commit: team2-backend/premium-chat-ranking-contract-328 / pending push commit
 changed_files:

@@ -208,8 +208,14 @@
       } catch (_) {
         form.elements.content.value = "";
       }
-      dom("siteContentPublishButton").disabled = item.status === "archived";
-      dom("siteContentArchiveButton").disabled = item.status === "archived";
+      var isArchived = item.status === "archived";
+      if (dom("siteContentSaveButton")) dom("siteContentSaveButton").disabled = isArchived;
+      if (dom("siteContentPublishButton")) dom("siteContentPublishButton").disabled = isArchived;
+      if (dom("siteContentArchiveButton")) dom("siteContentArchiveButton").disabled = isArchived;
+      if (dom("siteContentRestoreButton")) {
+        dom("siteContentRestoreButton").disabled = !isArchived;
+        dom("siteContentRestoreButton").hidden = !isArchived;
+      }
       loadAudit(item.id);
       if (audit) audit.hidden = false;
     } else {
@@ -220,8 +226,13 @@
       form.elements.contentKey.readOnly = false;
       form.elements.locale.value = state.filters.locale || "ko-KR";
       form.elements.scope.value = "global";
-      dom("siteContentPublishButton").disabled = true;
-      dom("siteContentArchiveButton").disabled = true;
+      if (dom("siteContentSaveButton")) dom("siteContentSaveButton").disabled = false;
+      if (dom("siteContentPublishButton")) dom("siteContentPublishButton").disabled = true;
+      if (dom("siteContentArchiveButton")) dom("siteContentArchiveButton").disabled = true;
+      if (dom("siteContentRestoreButton")) {
+        dom("siteContentRestoreButton").disabled = true;
+        dom("siteContentRestoreButton").hidden = true;
+      }
       if (audit) {
         audit.hidden = true;
         var list = dom("siteContentAuditList");
@@ -453,6 +464,31 @@
     );
   }
 
+  async function restoreCurrent() {
+    if (!state.selectedId) {
+      setStatus("복구할 문구를 먼저 선택하세요.", "error");
+      return;
+    }
+    confirmAction(
+      "보관된 문구를 draft 상태로 복구합니다. 복구 후 수정하거나 다시 발행할 수 있어요.\n진행할까요?",
+      async function () {
+        setStatus("복구 처리 중...", "neutral");
+        try {
+          await adminFetch("/" + encodeURIComponent(state.selectedId) + "/restore", {
+            method: "POST",
+            body: { status: "draft" },
+          });
+          setStatus("문구를 draft 상태로 복구했습니다.", "success");
+          await loadList();
+          var refreshed = state.items.find(function (i) { return i.id === state.selectedId; });
+          if (refreshed) openEditor(refreshed);
+        } catch (error) {
+          setStatus(error?.message || "복구에 실패했습니다.", "error");
+        }
+      }
+    );
+  }
+
   function attachEvents() {
     var filterForm = dom("siteContentFilterForm");
     if (filterForm && !filterForm.dataset.bound) {
@@ -517,6 +553,11 @@
     if (archiveBtn && !archiveBtn.dataset.bound) {
       archiveBtn.dataset.bound = "1";
       archiveBtn.addEventListener("click", archiveCurrent);
+    }
+    var restoreBtn = dom("siteContentRestoreButton");
+    if (restoreBtn && !restoreBtn.dataset.bound) {
+      restoreBtn.dataset.bound = "1";
+      restoreBtn.addEventListener("click", restoreCurrent);
     }
   }
 

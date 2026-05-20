@@ -907,6 +907,48 @@ GET /api/v1/chat/rankings?type=donation&period=weekly&take=20
 
 ### Content / Assets
 
+### Backstage Site Content CMS
+
+```http
+GET /api/v1/site-content/bootstrap?locale=ko-KR&pageKey=characters
+GET /api/v1/admin/api/v1/backstage/site-content?status=archived&take=100
+GET /api/v1/admin/api/v1/backstage/site-content/:id
+POST /api/v1/admin/api/v1/backstage/site-content
+PATCH /api/v1/admin/api/v1/backstage/site-content/:id
+POST /api/v1/admin/api/v1/backstage/site-content/:id/publish
+POST /api/v1/admin/api/v1/backstage/site-content/:id/archive
+POST /api/v1/admin/api/v1/backstage/site-content/:id/restore
+```
+
+Backstage site-content writes are `super_admin` only. Public bootstrap returns
+`status=published` rows only, never draft or archived rows. Navigation keys and
+fixed menu labels remain outside CMS editing.
+
+Create is draft-only. `contentKey + locale` is unique, so a duplicate archived
+row returns `SITE_CONTENT_KEY_EXISTS` with `details.recoverable=true`,
+`existingEntryId`, `existingStatus`, and the restore path template. Operators
+must restore the archived row instead of creating a second row with the same
+key.
+
+Restore request:
+
+```json
+{
+  "status": "draft"
+}
+```
+
+- Omitted `status` defaults to `draft`.
+- `draft` clears `archivedAt`, `archivedByUserId`, `publishedAt`, and
+  `publishedByUserId`, then lets the operator edit and publish again.
+- `published` restores directly to public only when the row has non-empty safe
+  content.
+- Repeating restore on a non-archived row is idempotent and does not create a
+  new audit entry.
+- `publish`, `archive`, and `restore` all write `site_content_audit_logs`.
+- HTML/script-like text is still blocked with `SITE_CONTENT_UNSAFE_TEXT`.
+- No wallet, Lumina, order, settlement, or payout mutation is performed.
+
 ```http
 GET /admin/api/v1/assets
 GET /admin/api/v1/assets/:assetId
