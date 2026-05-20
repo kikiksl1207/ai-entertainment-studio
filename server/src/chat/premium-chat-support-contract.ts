@@ -1,3 +1,5 @@
+import { PREMIUM_CHAT_ROOM_CONTRACT } from './premium-chat-room-contract';
+
 export const PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA = [
   10,
   50,
@@ -107,6 +109,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       messageKey: 'chat.donation.identityVerificationRequired',
     },
   },
+  room: PREMIUM_CHAT_ROOM_CONTRACT,
   rankings: {
     like: {
       path: '/api/v1/boost-campaigns/:campaignId/rankings',

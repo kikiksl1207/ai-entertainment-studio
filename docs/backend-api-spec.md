@@ -807,14 +807,15 @@ Authorization: Bearer <accessToken>
 
 This is an authenticated, read-only contract endpoint for the premium-chat
 support UI. It returns fixed support amounts, future donation endpoint shapes,
-ledger source names, idempotency rules, and separated ranking projection lanes.
-It does not create chat messages, create orders, debit wallet/Lumina, touch
-settlement, touch payout, or write ledger rows.
+premium room-open policy, ledger source names, idempotency rules, refund/report
+policy, and separated ranking projection lanes. It does not create chat
+messages, create rooms, create orders, debit wallet/Lumina, touch settlement,
+touch payout, or write ledger rows.
 
 Current response status is `contract_ready_mutation_blocked`. Frontend may use
 the contract for copy, button layout, and disabled-state wiring, but must keep
-donation submit disabled until the server exposes the planned create endpoint as
-enabled.
+room-open and donation submit disabled until the server exposes the planned
+create endpoints as enabled.
 
 Fixed support amounts:
 
@@ -847,6 +848,24 @@ event/projection storage and update the wallet ledger type check to include:
 - `premium_chat_open`
 - `premium_chat_message`
 - `premium_chat_donation`
+
+Premium room-open contract (#331):
+
+- Room tiers are 300L, 500L, 1,000L, and 3,000L.
+- The server evaluates all follower unlock gates. Clients cannot unlock a tier
+  by submitting a follower count, local balance, price, or paid amount.
+- Base room duration is 3 days. Artist extension is capped at 10 additional
+  days, and server-calculated expiry is authoritative.
+- Future room-open create requires an idempotency key and a server wallet debit
+  key scoped as `premium-chat-room-open:<artistId>:<client-idempotency-key>`.
+- 24-hour no-answer refund is a server-generated 100% refund path.
+- User-fault partial refund allows 70% or 50% user refund only by server/admin
+  decision; client-submitted `refundRate` is ignored or rejected.
+- At least 10% of gross room Lumina remains as artist compensation candidate
+  from the non-refunded portion, but settlement and payout mutation stay
+  disabled until a later settlement task.
+- Report intake uses reported/blind/suspended/admin-review processing and no
+  wallet action before admin decision.
 
 Donation idempotency:
 

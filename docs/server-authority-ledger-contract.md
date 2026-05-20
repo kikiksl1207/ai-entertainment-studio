@@ -2,7 +2,7 @@
 
 Updated: 2026-05-20
 Owner: Kaido
-Task: Notion #327
+Task: Notion #327, #331, #334
 
 This contract exists to keep Lumina balances, paid actions, purchase credits,
 refunds, and creator-facing revenue signals server-authoritative. A modified
@@ -43,7 +43,9 @@ has verified and written the corresponding server ledger state.
 | Paid like / boost | debit | `boost_spend` | server wallet balance | client idempotency key |
 | Premium video unlock | debit | `premium_video_spend` | server wallet balance | client idempotency key |
 | Character chat paid feature | debit | `chat_feature_spend` | server wallet balance | client idempotency key |
+| Premium chat room open | debit | `premium_chat_open` | server room tier policy + wallet balance | client idempotency key |
 | Premium chat donation | debit | `premium_chat_donation` | server wallet balance | client idempotency key |
+| Premium chat room refund | credit | `refund` | server refund/moderation outcome | server room refund key |
 | Fan letter | debit | `fan_letter_spend` | server wallet balance | client idempotency key |
 | User gift send | debit | `user_gift_send` | server wallet balance | client idempotency key |
 | User gift receive | credit | `user_gift_receive` | paired server transfer | same transfer key |
@@ -53,6 +55,10 @@ has verified and written the corresponding server ledger state.
 `premium_chat_donation` is reserved as the ledger/source name for future
 premium chat donations. It must follow the same debit rules as other paid
 actions before any UI is opened.
+
+`premium_chat_open` is reserved for future premium chat room open debits. It is
+not enabled by default; the DB ledger type migration and room storage must land
+before any public mutation can write it.
 
 ## Paid Action Debit Pattern
 
@@ -112,6 +118,58 @@ verification or wallet ledger checks.
 - Technical failure reversals, such as paid chat generation failure, use a
   server-generated refund idempotency key and must credit at most once.
 - Chargeback/reversal policy must not rely on client state.
+
+## Premium Chat Room Open, Refund, And Report Contract
+
+The read-only premium chat contract is documented in
+`docs/premium-chat-room-ledger-contract.md` and exposed through
+`GET /api/v1/chat/premium-support-contract` under `room`.
+
+Current state:
+
+- `walletMutationEnabled=false`, `settlementMutationEnabled=false`, and
+  `payoutMutationEnabled=false`.
+- Room-open tiers are 300L, 500L, 1,000L, and 3,000L. The server evaluates any
+  follower-based unlock gate; clients cannot unlock a tier by submitting a
+  price or follower count.
+- Base room duration is 3 days. Artist extension is capped at 10 additional
+  days and server-calculated expiry is authoritative.
+- If the artist does not answer within 24 hours, the server refund policy can
+  credit a 100% refund with a server-generated refund key.
+- User-fault closure can restrict the user refund to 70% or 50%. The client
+  cannot submit the refund rate, and at least 10% of gross room Lumina remains
+  as artist compensation candidate from the non-refunded portion.
+- Report intake moves the room into reported/blind/suspended/admin-review
+  processing with no wallet action before an admin decision.
+
+Before any live room-open mutation is enabled, the backend must add room/report
+storage, idempotency replay storage, the `premium_chat_open` ledger type
+migration, atomic non-negative wallet debit, duplicate refund protection, and
+moderation/audit handling.
+
+## App And Web Tamper Defense Review
+
+The app/web checklist is documented in
+`docs/app-web-lumina-tamper-defense-checklist.md` and mirrored in
+`APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST`.
+
+Reviewed surfaces:
+
+- wallet balance reads,
+- paid like / boost,
+- chat feature products,
+- premium chat room/support,
+- premium video unlocks,
+- gifts, fan letters, and user gifts,
+- charge purchase credits,
+- refunds and technical reversals.
+
+The common rule is `clientEconomicFieldsTrusted=false`: a modified app or web
+client can change local display values, but the server ignores or rejects
+client-supplied balance, price, paid amount, refund rate, settlement share,
+wallet ledger id, and provider success state. Enabled debit paths still need
+idempotency and an atomic non-negative wallet update. Purchase credits still
+need provider verification.
 
 ## High-Value Risk Gates
 

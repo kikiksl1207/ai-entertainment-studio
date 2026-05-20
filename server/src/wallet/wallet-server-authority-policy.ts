@@ -12,6 +12,18 @@ export const SERVER_AUTHORITY_WALLET_POLICY = {
   rawPurchaseTokensLogged: false,
 } as const;
 
+export const CLIENT_ECONOMIC_TAMPER_FIELDS = [
+  'balanceLumina',
+  'cachedBalance',
+  'priceLumina',
+  'paidAmount',
+  'amountLumina',
+  'refundRate',
+  'settlementShare',
+  'walletLedgerId',
+  'providerResult',
+] as const;
+
 export const WALLET_LEDGER_SOURCE_CONTRACT = [
   {
     source: 'payment_purchase_credit',
@@ -56,11 +68,25 @@ export const WALLET_LEDGER_SOURCE_CONTRACT = [
     idempotency: 'client_idempotency_key',
   },
   {
+    source: 'premium_chat_room_open',
+    direction: 'debit',
+    ledgerType: 'premium_chat_open',
+    serverAuthority: 'premium_chat_room_policy_and_wallet_account_cached_balance',
+    idempotency: 'client_idempotency_key',
+  },
+  {
     source: 'premium_chat_donation',
     direction: 'debit',
     ledgerType: 'premium_chat_donation',
     serverAuthority: 'wallet_account_cached_balance',
     idempotency: 'client_idempotency_key',
+  },
+  {
+    source: 'premium_chat_room_refund',
+    direction: 'credit',
+    ledgerType: 'refund',
+    serverAuthority: 'server_refund_policy_and_moderation_outcome',
+    idempotency: 'server_room_refund_key',
   },
   {
     source: 'fan_letter',
@@ -96,6 +122,101 @@ export const WALLET_LEDGER_SOURCE_CONTRACT = [
     ledgerType: 'admin_wallet_adjustment',
     serverAuthority: 'super_admin_audited_operation',
     idempotency: 'server_batch_key',
+  },
+] as const;
+
+export const APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST = [
+  {
+    surface: 'wallet_balance',
+    endpoints: ['GET /api/v1/wallet', 'GET /api/v1/me/summary'],
+    mutation: false,
+    clientEconomicFieldsTrusted: false,
+    authority: ['wallet_accounts.cached_balance'],
+    idempotencyOrProviderTransactionKey: 'not_applicable_read_only',
+    doubleDebitGuard: 'not_applicable_read_only',
+  },
+  {
+    surface: 'paid_like_boost',
+    endpoints: [
+      'POST /api/v1/boost-campaigns/:campaignId/like',
+      'POST /api/v1/boost-campaigns/:campaignId/boost',
+    ],
+    mutation: true,
+    clientEconomicFieldsTrusted: false,
+    rejectedOrIgnoredFields: CLIENT_ECONOMIC_TAMPER_FIELDS,
+    authority: ['server boost product/campaign price', 'wallet_accounts.cached_balance'],
+    idempotencyOrProviderTransactionKey: 'client_idempotency_key',
+    doubleDebitGuard: 'wallet conditional update and boost event idempotency',
+  },
+  {
+    surface: 'chat_feature_product',
+    endpoints: ['POST /api/v1/chat-feature-orders'],
+    mutation: true,
+    clientEconomicFieldsTrusted: false,
+    rejectedOrIgnoredFields: CLIENT_ECONOMIC_TAMPER_FIELDS,
+    authority: ['chat_feature_products.price_lumina', 'wallet_accounts.cached_balance'],
+    idempotencyOrProviderTransactionKey: 'client_idempotency_key',
+    doubleDebitGuard: 'chat_feature_orders.idempotency_key and wallet ledger key',
+  },
+  {
+    surface: 'premium_chat_room_and_support',
+    endpoints: [
+      'POST /api/v1/chat/premium-rooms',
+      'POST /api/v1/chat/sessions/:sessionId/donations',
+    ],
+    mutation: false,
+    clientEconomicFieldsTrusted: false,
+    rejectedOrIgnoredFields: CLIENT_ECONOMIC_TAMPER_FIELDS,
+    authority: ['server premium chat room/support policy', 'wallet_accounts.cached_balance'],
+    idempotencyOrProviderTransactionKey: 'client_idempotency_key_required_when_enabled',
+    doubleDebitGuard: 'mutation_blocked_until_room_or_donation_storage_exists',
+  },
+  {
+    surface: 'premium_video_unlock',
+    endpoints: ['POST /api/v1/premium-videos/:productId/unlock'],
+    mutation: true,
+    clientEconomicFieldsTrusted: false,
+    rejectedOrIgnoredFields: CLIENT_ECONOMIC_TAMPER_FIELDS,
+    authority: ['premium_video_products.price_lumina', 'wallet_accounts.cached_balance'],
+    idempotencyOrProviderTransactionKey: 'client_idempotency_key',
+    doubleDebitGuard: 'user unlock uniqueness and wallet ledger key',
+  },
+  {
+    surface: 'donation_gift_fan_letter_user_gift',
+    endpoints: [
+      'POST /api/v1/gifts/orders',
+      'POST /api/v1/fan-letters',
+      'POST /api/v1/user-gifts/transfers',
+    ],
+    mutation: true,
+    clientEconomicFieldsTrusted: false,
+    rejectedOrIgnoredFields: CLIENT_ECONOMIC_TAMPER_FIELDS,
+    authority: ['server product/transfer policy', 'wallet_accounts.cached_balance'],
+    idempotencyOrProviderTransactionKey: 'client_idempotency_key',
+    doubleDebitGuard: 'domain idempotency key and wallet conditional update',
+  },
+  {
+    surface: 'charge_purchase_credit',
+    endpoints: [
+      'POST /api/v1/payments/orders',
+      'POST /api/v1/payments/webhooks/:provider',
+    ],
+    mutation: true,
+    clientEconomicFieldsTrusted: false,
+    rejectedOrIgnoredFields: CLIENT_ECONOMIC_TAMPER_FIELDS,
+    authority: ['server product table', 'provider verified transaction'],
+    idempotencyOrProviderTransactionKey: 'provider_transaction_id',
+    doubleDebitGuard: 'payment order status transition and provider transaction dedupe',
+  },
+  {
+    surface: 'refund_reversal',
+    endpoints: ['provider refund tracking', 'server technical failure reversal'],
+    mutation: true,
+    clientEconomicFieldsTrusted: false,
+    rejectedOrIgnoredFields: CLIENT_ECONOMIC_TAMPER_FIELDS,
+    authority: ['server refund policy', 'existing wallet ledger/order state'],
+    idempotencyOrProviderTransactionKey: 'server_refund_key',
+    doubleDebitGuard: 'refund ledger idempotency key',
   },
 ] as const;
 

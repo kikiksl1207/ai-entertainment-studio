@@ -2055,6 +2055,38 @@ describe('ChatService premium chat support contract', () => {
       'premium_chat_message',
       'premium_chat_donation',
     ]);
+    expect(contract.room.roomOpen.tiers.map((tier) => tier.amountLumina)).toEqual([
+      300,
+      500,
+      1000,
+      3000,
+    ]);
+    expect(contract.room.policy.walletMutationEnabled).toBe(false);
+    expect(contract.room.roomOpen.endpoint.enabled).toBe(false);
+    expect(contract.room.duration).toMatchObject({
+      baseDays: 3,
+      artistExtension: {
+        maxAdditionalDays: 10,
+      },
+      clientSubmittedExpiryTrusted: false,
+    });
+    expect(contract.room.refunds.unansweredAfterHours).toMatchObject({
+      hours: 24,
+      userRefundBps: 10000,
+      source: 'premium_chat_room_refund',
+    });
+    expect(contract.room.refunds.userFaultPartialRefund).toMatchObject({
+      allowedUserRefundBps: [7000, 5000],
+      clientSubmittedRefundRateTrusted: false,
+      minArtistCompensationBpsOfGross: 1000,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(contract.room.moderation).toMatchObject({
+      reportProcessingStatus: 'admin_review',
+      visibility: 'blind_until_admin_decision',
+      walletActionBeforeAdminDecision: 'none',
+    });
     expect(contract.rankings.like.excludes).toContain('premium_chat_donation');
     expect(contract.rankings.communication.scoreInputs).toContain(
       'premium_chat_donation',
