@@ -151,6 +151,17 @@
                   </button>
                 </div>
                 <p class="feed-compose-message" id="feedComposeMessage" hidden></p>
+                <!-- #333 — 단문 게시 직후 "이어서 쓰기" CTA. 클릭 시 thread 모드로 전환하고 직전 본문을 root textarea에 복원한다. -->
+                <div class="feed-compose-followup" id="feedComposeFollowupCta" role="status" aria-live="polite" hidden>
+                  <div class="feed-compose-followup-body">
+                    <strong class="feed-compose-followup-title">방금 글을 올렸어요</strong>
+                    <p class="feed-compose-followup-text">더 길게 잇고 싶으면 이어서 타래로 풀어쓸 수 있어요. 조각당 500자, 총 10조각까지.</p>
+                  </div>
+                  <div class="feed-compose-followup-actions">
+                    <button type="button" class="feed-compose-followup-btn" data-feed-followup-continue>이어서 쓰기</button>
+                    <button type="button" class="feed-compose-followup-dismiss" data-feed-followup-dismiss aria-label="이어서 쓰기 안내 닫기">×</button>
+                  </div>
+                </div>
                 <!-- #309 — 타래 작성 영역. 타래 모드 활성 시 hidden 해제 후 /posts/thread로 제출. -->
                 <section class="feed-thread-composer" id="feedThreadComposer" hidden aria-label="타래 이어쓰기">
                   <header class="feed-thread-head">
