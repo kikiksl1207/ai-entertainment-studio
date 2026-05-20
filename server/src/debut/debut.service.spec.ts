@@ -18,6 +18,9 @@ type PrismaMock = {
     findUnique: jest.Mock;
     update: jest.Mock;
   };
+  userIdentityVerification: {
+    findUnique: jest.Mock;
+  };
   auditEvent: {
     create: jest.Mock;
   };
@@ -38,6 +41,9 @@ function createPrismaMock(): PrismaMock {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+    },
+    userIdentityVerification: {
+      findUnique: jest.fn(),
     },
     auditEvent: {
       create: jest.fn(),
@@ -74,6 +80,7 @@ function createPrismaMock(): PrismaMock {
     createdAt,
     updatedAt: createdAt,
   }));
+  prisma.userIdentityVerification.findUnique.mockResolvedValue(null);
 
   return prisma;
 }
@@ -423,6 +430,25 @@ describe('DebutService private material flow', () => {
       response: {
         code: 'DEBUT_GENDER_SWAP_UNSUPPORTED',
         messageKey: 'debut.genderSwap.unsupported',
+      },
+    });
+    expect(prisma.debutApplication.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects verified minor applicants before creating an application', async () => {
+    const prisma = createPrismaMock();
+    const service = serviceWith(prisma);
+    prisma.userIdentityVerification.findUnique.mockResolvedValue({
+      status: 'verified',
+      birthDate: new Date('2010-01-01T00:00:00.000Z'),
+    });
+
+    await expect(
+      service.createApplication(userId, validApplicationInput() as never),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'DEBUT_APPLICANT_MINOR_NOT_ALLOWED',
+        messageKey: 'debut.applicant.minorNotAllowed',
       },
     });
     expect(prisma.debutApplication.create).not.toHaveBeenCalled();

@@ -314,6 +314,13 @@ POST /api/v1/debut/application-materials/:assetId/confirm-upload
 - `portfolioUrls[]` remains HTTPS metadata only and strips URL fragments before
   storage.
 - `genderSwapRequested` must be absent or `false`; the backend rejects `true`.
+- `isAdult=true` is required for MVP submission. If a real/verified identity
+  record already contains a minor birth date, the backend rejects submission
+  with `DEBUT_APPLICANT_MINOR_NOT_ALLOWED` and
+  `debut.applicant.minorNotAllowed`.
+- Email verification and password setup are account-state signals, not hard
+  submission gates for this MVP. Active social-only accounts can submit without
+  setting a password. See `docs/debut-auth-account-gap-check.md`.
 - `shareTierRequested` remains the applicant-facing estimate/request.
   `shareTierApproved` remains the later admin final value; no automatic final
   share rate is produced by applicant submission.

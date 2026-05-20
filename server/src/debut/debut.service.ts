@@ -587,9 +587,14 @@ export class DebutService {
     const normalized = this.normalizeCreateApplication(input);
 
     if (!normalized.isAdult) {
-      throw new BadRequestException('isAdult must be true for MVP debut applications');
+      throw this.badRequest(
+        'DEBUT_APPLICANT_ADULT_CONFIRMATION_REQUIRED',
+        'isAdult must be true for MVP debut applications.',
+        'debut.applicant.adultConfirmationRequired',
+      );
     }
 
+    await this.assertVerifiedApplicantIsAdult(userId);
     this.assertRequiredConsents(normalized);
     this.assertApplicationChannel(normalized);
     this.assertIntroPolicy(normalized);
@@ -940,6 +945,41 @@ export class DebutService {
         'debut.genderSwap.unsupported',
       );
     }
+  }
+
+  private async assertVerifiedApplicantIsAdult(userId: string) {
+    const verification = await this.prisma.userIdentityVerification.findUnique({
+      where: { userId },
+      select: { status: true, birthDate: true },
+    });
+
+    if (
+      verification?.status === 'verified' &&
+      verification.birthDate &&
+      this.ageYears(verification.birthDate) < 19
+    ) {
+      throw this.badRequest(
+        'DEBUT_APPLICANT_MINOR_NOT_ALLOWED',
+        'Verified minor accounts cannot submit MVP debut applications.',
+        'debut.applicant.minorNotAllowed',
+      );
+    }
+  }
+
+  private ageYears(birthDate: Date) {
+    const now = new Date();
+    let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
+    const birthMonth = birthDate.getUTCMonth();
+    const birthDay = birthDate.getUTCDate();
+    const birthdayPassed =
+      now.getUTCMonth() > birthMonth ||
+      (now.getUTCMonth() === birthMonth && now.getUTCDate() >= birthDay);
+
+    if (!birthdayPassed) {
+      age -= 1;
+    }
+
+    return age;
   }
 
   private async validatedApplicationAttachments(

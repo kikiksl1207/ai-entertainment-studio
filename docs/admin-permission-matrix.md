@@ -71,3 +71,18 @@ grows.
 - Keep payment webhooks outside admin routes; they must rely on provider
   signature verification, not admin permissions.
 - Continue writing `audit_events` for every admin mutation.
+
+## QA Account Split
+
+See `docs/auth-qa-account-access-handoff.md` for the current QA credential
+handoff contract.
+
+- `QA_USER` is for normal logged-in smoke only. It must not have Backstage write
+  permission.
+- `QA_CREATOR` is for Creator Studio smoke and needs an active
+  `artist_operators` row, not admin access.
+- `QA_ADMIN` is for Backstage write/admin smoke and must resolve to
+  `super_admin` with `*` permission through `AdminAuthGuard` and
+  `AdminPermissionGuard`.
+- Raw emails, passwords, bearer tokens, cookies, DB URLs, and provider secrets
+  must stay in a private secure channel or local security file only.

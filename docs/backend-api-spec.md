@@ -1268,7 +1268,14 @@ Current validation and workflow:
   review / contact-if-available guidance, not a guaranteed call, acceptance, or
   debut promise.
 - `online_review` uses the private applicant-material upload flow. Do not reuse the public feed/profile image upload APIs for debut applicant materials.
-- MVP applications require `isAdult: true`.
+- MVP applications require `isAdult: true`. If a verified identity record has a
+  known minor birth date, the backend rejects submit with
+  `DEBUT_APPLICANT_MINOR_NOT_ALLOWED` and
+  `debut.applicant.minorNotAllowed`.
+- Email verification, password setup, and NICE real-provider connection are not
+  hard submit gates in this MVP. Active social-only accounts can submit without
+  first setting a password. The account-state matrix is tracked in
+  `docs/debut-auth-account-gap-check.md`.
 - Required consent fields are `consentAppearance`, `consentRevenuePolicy`, and `consentPrivacy`.
 - `applicationType` is optional and defaults to `personal_unaffiliated`. Allowed values are `personal_unaffiliated`, `represented_artist`, `ai_creator_partner`, and `partnership_other`.
 - `represented_artist` applications automatically store `rightsReviewRequired: true` and `rightsReviewStatus: "pending"` in metadata. This is for affiliated artists, trainees, agencies, management, or entertainment-company inquiries.
