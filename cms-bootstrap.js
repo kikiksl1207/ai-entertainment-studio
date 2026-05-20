@@ -8,6 +8,7 @@
   if (typeof window === "undefined" || window.LuminaCms) return;
 
   var API_BASE = (window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
+  var responseCache = Object.create(null);
 
   function pickField(el, entry) {
     if (!entry) return null;
@@ -79,6 +80,34 @@
     return API_BASE + "/api/v1/site-content/bootstrap?" + params.toString();
   }
 
+  async function fetchBootstrap(url) {
+    if (responseCache[url]) return responseCache[url];
+    responseCache[url] = (async function () {
+      var response;
+      try {
+        response = await fetch(url, {
+          method: "GET",
+          credentials: "omit",
+          cache: "no-store",
+        });
+      } catch (_) {
+        throw { statusText: "fetch-error" };
+      }
+      if (!response.ok) {
+        throw { statusText: "http-" + response.status };
+      }
+      try {
+        return await response.json();
+      } catch (_) {
+        throw { statusText: "parse-error" };
+      }
+    })().catch(function (error) {
+      delete responseCache[url];
+      throw error;
+    });
+    return responseCache[url];
+  }
+
   async function hydrate(options) {
     var opts = options || {};
     var body = document.body || {};
@@ -110,27 +139,12 @@
       locale: opts.locale,
     });
 
-    var response;
-    try {
-      response = await fetch(url, {
-        method: "GET",
-        credentials: "omit",
-        cache: "no-store",
-      });
-    } catch (_) {
-      document.documentElement.setAttribute("data-cms-state", "fallback");
-      return { applied: 0, status: "fetch-error" };
-    }
-    if (!response.ok) {
-      document.documentElement.setAttribute("data-cms-state", "fallback");
-      return { applied: 0, status: "http-" + response.status };
-    }
     var data;
     try {
-      data = await response.json();
-    } catch (_) {
+      data = await fetchBootstrap(url);
+    } catch (error) {
       document.documentElement.setAttribute("data-cms-state", "fallback");
-      return { applied: 0, status: "parse-error" };
+      return { applied: 0, status: error && error.statusText ? error.statusText : "fetch-error" };
     }
     var applied = applyContent(data && data.content);
     return { applied: applied, status: applied > 0 ? "applied" : "fallback" };
