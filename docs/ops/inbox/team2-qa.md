@@ -1,5 +1,58 @@
 # Team2 QA Inbox
 
+status: pass
+task: #320 - clean URL live QA recheck
+environment:
+- branch: team2-qa/320-clean-url-reqa
+- local main after pull: origin/main
+- basis commit: a4f6a6b406b2383c6fd3c8e8abc5891d7537f275
+- primary live domain: https://www.lumina-stage.com
+- API health commit observed: 520360e2568c483b6f62c3f2522a629bb60ba126
+- No token, cookie, password, env value, raw credential, or secret was recorded.
+
+tested_flows:
+- PASS: root `/` on `www.lumina-stage.com` returned HTTP 200.
+- PASS: clean URL `/characters` returned HTTP 200.
+- PASS: clean URL `/lumina-pick` returned HTTP 200.
+- PASS: clean URL `/lumina-feed` returned HTTP 200.
+- PASS: clean URL `/shortform` returned HTTP 200.
+- PASS: clean URL `/debut` returned HTTP 200.
+- PASS: clean URL `/charge` returned HTTP 200.
+- PASS: clean URL `/mypage` returned HTTP 200.
+- PASS: clean URL `/creator-studio` returned HTTP 200.
+- PASS: existing `.html` URLs returned HTTP 200 for `characters.html`, `popular-vote.html`, `lumina-feed.html`, `shortform.html`, `debut.html`, `charge.html`, `mypage.html`, and `creator-studio.html`.
+- PASS: token-style `verify-email` and `reset-password` routes returned HTTP 200 with token query redacted in notes.
+- PASS: header and mobile nav on `/` expose clean links for `/`, `/characters`, `/lumina-pick`, `/lumina-feed`, `/shortform`, and `/debut`; header/mobile nav `.html` link count was 0.
+- PASS: unknown route `/qa-clean-url-missing-path-320` returned HTTP 404 with deployed `404.html` body and product-facing Lumina Stage 404 page.
+- PASS: browser back navigation from `/lumina-feed` to `/characters` worked.
+- PASS: browser reload after back kept the page usable.
+- PASS: `/`, `/characters`, `/lumina-pick`, `/lumina-feed`, `/shortform`, `/debut`, `/charge`, `/mypage`, and `/creator-studio` had no page-level horizontal overflow at 1280px, 768px, and 390px.
+- PASS: the same responsive checks had no visible mojibake replacement characters, no visible `MVP` / `Coming Soon`, and no failed images.
+- PASS: `git diff --check`.
+
+observations:
+- Clean URL direct navigation is served successfully, then the shim uses `window.location.replace()` to land on the existing `.html` page (`/characters` -> `/characters.html`, `/lumina-pick` -> `/popular-vote.html`, etc.). This matches the #319 shim implementation and did not break direct access, nav href exposure, back, reload, or old `.html` compatibility.
+- `api.lumina-stage.com/health` still reports backend commit `520360e...`; this task is static frontend routing and was verified against `origin/main` `a4f6a6b...`.
+
+repro_steps:
+1. Run `git pull origin main`.
+2. Confirm local `HEAD` is `a4f6a6b406b2383c6fd3c8e8abc5891d7537f275` before the QA report commit.
+3. Request `https://www.lumina-stage.com/characters`, `/lumina-pick`, `/lumina-feed`, `/shortform`, `/debut`, `/charge`, `/mypage`, and `/creator-studio`.
+4. Request the matching `.html` URLs.
+5. Inspect header/mobile nav links from `https://www.lumina-stage.com/`.
+6. Check token-style routes with a redacted synthetic query only; do not record token values.
+7. Check an unknown route such as `/qa-clean-url-missing-path-320`.
+8. Repeat page-level overflow checks at 1280px, 768px, and 390px.
+
+blockers:
+- None found for #320 after the #319 clean URL deployment.
+
+security_check:
+- PASS: no raw token, credential, cookie, password, env value, or secret was recorded.
+- PASS: no auth, wallet, order, settlement, or mutation action was executed.
+
+---
+
 status: fail
 task: #314 - Character chat persona/starter runtime re-QA
 environment:
