@@ -453,3 +453,184 @@ describe('CommunityService Lumina Feed thread contract', () => {
     expect(prisma.communityPost.update).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('CommunityService Lumina Feed thread continuation, repost, and share contract', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('creates a thread continuation under an existing author-owned public post', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Root post' }));
+    prisma.communityPost.create.mockImplementation(async (args: any) =>
+      postView({
+        id: '00000000-0000-4000-8000-000000000202',
+        body: args.data.body,
+        metadata: args.data.metadata,
+      }),
+    );
+    const service = serviceWith(prisma);
+
+    const result = await service.createThreadContinuation(authorId, postId, {
+      body: 'Continued thought',
+    });
+
+    expect(prisma.communityPost.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          authorUserId: authorId,
+          body: 'Continued thought',
+          metadata: expect.objectContaining({
+            threadContinuation: expect.objectContaining({
+              type: 'thread_continuation',
+              rootPostId: postId,
+              parentPostId: postId,
+              commentRelation: false,
+              replyRelation: false,
+              autoSplit: false,
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(result.relation).toBe('thread_continuation');
+    expect(result.post.threadContinuation.isContinuation).toBe(true);
+    expect(result.policy.walletMutation).toBe(false);
+    expect(result.policy.luminaMutation).toBe(false);
+  });
+
+  it('rejects thread continuations by non-authors and invalid bodies before mutation', async () => {
+    const prisma = createPrismaMock();
+    prisma.user.findFirst.mockResolvedValue({ id: otherUserId });
+    prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Root post' }));
+    const service = serviceWith(prisma);
+
+    await expect(
+      service.createThreadContinuation(otherUserId, postId, { body: 'Not mine' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.createThreadContinuation(authorId, 'not-a-uuid', { body: 'Invalid root' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Root post' }));
+    await expect(
+      service.createThreadContinuation(authorId, postId, { body: 'x'.repeat(501) }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.communityPost.create).not.toHaveBeenCalled();
+  });
+
+  it('lists thread continuations separately from normal comments', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findFirst.mockResolvedValue(storedPost());
+    prisma.communityPost.findMany.mockResolvedValue([
+      postView({
+        id: '00000000-0000-4000-8000-000000000202',
+        body: 'Continuation',
+        metadata: {
+          threadContinuation: {
+            rootPostId: postId,
+            parentPostId: postId,
+            sortKey: createdAt.toISOString(),
+          },
+        },
+      }),
+    ]);
+    const service = serviceWith(prisma);
+
+    const result = await service.getThreadContinuations(postId, { take: '3' }, authorId);
+
+    expect(prisma.communityPost.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          metadata: {
+            path: ['threadContinuation', 'rootPostId'],
+            equals: postId,
+          },
+        }),
+        orderBy: { publishedAt: 'asc' },
+      }),
+    );
+    expect(result.relation).toBe('thread_continuation');
+    expect(result.items[0].threadContinuation.commentRelation).toBe(false);
+    expect(result.items[0].threadContinuation.replyRelation).toBe(false);
+  });
+
+  it('creates quote reposts for public source posts without wallet or settlement mutation', async () => {
+    const prisma = createPrismaMock();
+    prisma.user.findFirst.mockResolvedValue({ id: otherUserId });
+    prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Original post' }));
+    prisma.communityPost.create.mockImplementation(async (args: any) =>
+      postView({
+        id: '00000000-0000-4000-8000-000000000203',
+        authorUserId: otherUserId,
+        body: args.data.body,
+        metadata: args.data.metadata,
+      }),
+    );
+    const service = serviceWith(prisma);
+
+    const result = await service.createRepost(otherUserId, postId, {
+      body: 'My take',
+    });
+
+    expect(prisma.communityPost.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          authorUserId: otherUserId,
+          postType: 'user_post',
+          body: 'My take',
+          metadata: expect.objectContaining({
+            repost: expect.objectContaining({
+              type: 'quote_repost',
+              originalPostId: postId,
+              originalAuthorUserId: authorId,
+              originalDeletionPolicy: 'render_tombstone_without_body',
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(result.relation).toBe('quote_repost');
+    expect(result.post.repost.originalPostId).toBe(postId);
+    expect(result.policy.walletMutation).toBe(false);
+    expect(result.policy.settlementMutation).toBe(false);
+  });
+
+  it('rejects repost sources that are missing, private, hidden, or deleted as safe not-found', async () => {
+    const prisma = createPrismaMock();
+    prisma.user.findFirst.mockResolvedValue({ id: otherUserId });
+    prisma.communityPost.findFirst.mockResolvedValue(null);
+    const service = serviceWith(prisma);
+
+    await expect(
+      service.createRepost(otherUserId, postId, { body: 'Cannot reference' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.communityPost.create).not.toHaveBeenCalled();
+  });
+
+  it('returns a share URL contract without mutating feed, wallet, or Lumina state', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findFirst.mockResolvedValue(storedPost());
+    const service = serviceWith(prisma);
+
+    const result = await service.sharePost(postId);
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        ok: true,
+        postId,
+        share: expect.objectContaining({
+          publicPath: `/lumina-feed/posts/${postId}`,
+          countStrategy: 'not_mutated_by_share_contract',
+        }),
+        policy: expect.objectContaining({
+          shareCountMutation: false,
+          walletMutation: false,
+          luminaMutation: false,
+        }),
+      }),
+    );
+    expect(prisma.communityPost.create).not.toHaveBeenCalled();
+    expect(prisma.communityPost.update).not.toHaveBeenCalled();
+  });
+});

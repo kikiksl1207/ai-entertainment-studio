@@ -1,6 +1,41 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#355 lumina feed thread continuation/repost/share backend contract"
+branch: team2-backend/feed-thread-repost-share-contract-355
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/community/community.controller.ts
+- server/src/community/community.service.ts
+- server/src/community/community.service.spec.ts
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npx.cmd prisma generate
+- npm.cmd test -- community.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/community/community.controller.ts src/community/community.service.ts src/community/community.service.spec.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Added canonical `thread_continuation` endpoints for adding/listing continuation posts under an existing public root post. This is separate from normal comments/replies and separate from the legacy manual multi-piece thread path.
+- Thread continuation create is login-required, root-author only, body-limited to 500 chars, and returns safe `404` for missing/deleted/private roots plus `403` for non-authors.
+- Added login-required repost/quote repost contract with original post reference metadata and tombstone/unavailable projection policy for deleted/hidden/private/blocked originals.
+- Added share URL/Web Share contract that returns a public path and count strategy without creating feed rows or wallet/Lumina/settlement/payout/order/paid-like mutations.
+blocked_by:
+- UI/API connection and QR/Cloud QA remain next; no frontend hardcode or wallet-linked behavior was opened.
+next_needed:
+- Viewer review, then Cloud UI can wire disabled/QA-safe controls against the separated thread continuation, repost, and share contracts.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#348 premium chat donation order and ledger API contract"
 branch: team2-backend/premium-chat-support-ranking-contract-348-349
 commit: final hash recorded in Notion completion report

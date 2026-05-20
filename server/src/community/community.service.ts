@@ -657,6 +657,127 @@ export class CommunityService {
     };
   }
 
+  async getThreadContinuations(
+    postId: string,
+    query: CommunityQuery,
+    viewerUserId?: string | null,
+  ) {
+    const rootPost = await this.findPublicPost(postId);
+    const take = this.take(query.take);
+    const cursor = this.optionalString(query.cursor);
+
+    if (cursor && !UUID_PATTERN.test(cursor)) {
+      throw new BadRequestException('cursor must be a post UUID');
+    }
+
+    const where = {
+      status: 'published',
+      visibility: 'public',
+      deletedAt: null,
+      metadata: {
+        path: ['threadContinuation', 'rootPostId'],
+        equals: rootPost.id,
+      },
+    } as Prisma.CommunityPostWhereInput;
+    const posts = await this.prisma.communityPost.findMany({
+      where,
+      take,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      include: this.postInclude(),
+      orderBy: { publishedAt: 'asc' },
+    });
+    const items = await Promise.all(
+      posts.map((post) => this.toPostView(post, viewerUserId)),
+    );
+
+    return {
+      rootPostId: rootPost.id,
+      relation: 'thread_continuation',
+      items,
+      posts: items,
+      count: items.length,
+      nextCursor: posts.length === take ? posts[posts.length - 1].id : null,
+      policy: this.feedThreadContinuationPolicy(),
+    };
+  }
+
+  async createThreadContinuation(
+    userId: string,
+    postId: string,
+    input: CommunityBody,
+  ) {
+    await this.assertActiveUser(userId);
+    const rootPost = await this.findPublicPostWithInclude(postId);
+
+    if (rootPost.authorUserId !== userId) {
+      throw new ForbiddenException('Post author access is required');
+    }
+
+    const body = this.text(input, 'body', 1, FEED_POST_MAX_BODY_CHARS);
+    const metadata = {
+      ...this.relationInputMetadata(input),
+      threadContinuation: this.buildThreadContinuationMetadata(rootPost, new Date()),
+    };
+    const post = await this.prisma.communityPost.create({
+      data: {
+        authorUserId: userId,
+        artistId: rootPost.artistId,
+        postType: rootPost.postType ?? (rootPost.artistId ? 'artist_post' : 'user_post'),
+        visibility: 'public',
+        body,
+        metadata: this.toJson(metadata),
+      },
+      include: this.postInclude(),
+    });
+
+    return {
+      post: await this.toPostView(post, userId),
+      rootPostId: rootPost.id,
+      parentPostId: rootPost.id,
+      relation: 'thread_continuation',
+      policy: this.feedThreadContinuationPolicy(),
+    };
+  }
+
+  async createRepost(userId: string, postId: string, input: CommunityBody) {
+    await this.assertActiveUser(userId);
+    const originalPost = await this.findPublicPostWithInclude(postId);
+    const quoteBody = this.optionalText(input, 'body', FEED_POST_MAX_BODY_CHARS) ?? '';
+    const metadata = {
+      ...this.relationInputMetadata(input),
+      repost: this.buildRepostMetadata(originalPost, quoteBody, new Date()),
+    };
+    const post = await this.prisma.communityPost.create({
+      data: {
+        authorUserId: userId,
+        artistId: null,
+        postType: 'user_post',
+        visibility: 'public',
+        body: quoteBody,
+        metadata: this.toJson(metadata),
+      },
+      include: this.postInclude(),
+    });
+
+    return {
+      post: await this.toPostView(post, userId),
+      originalPostId: originalPost.id,
+      relation: quoteBody ? 'quote_repost' : 'repost',
+      policy: this.feedRepostPolicy(),
+    };
+  }
+
+  async sharePost(postId: string) {
+    const post = await this.findPublicPost(postId);
+
+    return {
+      ok: true,
+      postId: post.id,
+      share: this.feedShareContract(post.id),
+      policy: this.feedSharePolicy(),
+    };
+  }
+
   async getPost(postId: string, viewerUserId?: string | null) {
     const post = await this.findVisiblePostWithInclude(postId);
 
@@ -1997,6 +2118,8 @@ export class CommunityService {
     const metadata = this.metadataObject(post.metadata);
     const isAuthor = Boolean(viewerUserId && post.authorUserId === viewerUserId);
     const thread = this.threadProjection(post, metadata);
+    const threadContinuation = this.threadContinuationProjection(metadata);
+    const repost = await this.repostProjection(metadata);
     const [viewerReaction, artistFollow, authorFollow] = viewerUserId
       ? await Promise.all([
           this.prisma.communityReaction.findUnique({
@@ -2046,6 +2169,8 @@ export class CommunityService {
         ? this.metadataObject(metadata.linkPreview)
         : null,
       thread,
+      threadContinuation,
+      repost,
       assets: (post.assets ?? []).map((link: any) => {
         const displayUrl = this.publicFeedAssetUrl(
           link.asset.id,
@@ -2097,6 +2222,12 @@ export class CommunityService {
           canEditItems: isAuthor,
           canDeleteItems: isAuthor,
           rootOnlyEngagement: true,
+        },
+        threadContinuation: {
+          canCreate: isAuthor,
+          relation: 'thread_continuation',
+          commentRelation: false,
+          replyRelation: false,
         },
       },
     };
@@ -2151,6 +2282,110 @@ export class CommunityService {
       likesTarget: 'root',
       commentsTarget: 'root',
       imagesTarget: 'root',
+    };
+  }
+
+  private threadContinuationProjection(metadata: Record<string, unknown>) {
+    const relation = this.metadataObject(metadata.threadContinuation);
+    const rootPostId = this.stringFromUnknown(relation.rootPostId);
+
+    if (!rootPostId) {
+      return {
+        isContinuation: false,
+        relation: null,
+      };
+    }
+
+    return {
+      isContinuation: true,
+      type: 'thread_continuation',
+      relation: 'thread_continuation',
+      rootPostId,
+      parentPostId: this.stringFromUnknown(relation.parentPostId) ?? rootPostId,
+      source: 'existing_post',
+      displayPlacement: 'under_root_post',
+      sortKey: this.stringFromUnknown(relation.sortKey) ?? null,
+      commentRelation: false,
+      replyRelation: false,
+      autoSplit: false,
+    };
+  }
+
+  private async repostProjection(metadata: Record<string, unknown>) {
+    const relation = this.metadataObject(metadata.repost);
+    const originalPostId = this.stringFromUnknown(relation.originalPostId);
+
+    if (!originalPostId) {
+      return null;
+    }
+
+    const originalPost = await this.prisma.communityPost.findFirst({
+      where: {
+        id: originalPostId,
+        status: 'published',
+        visibility: 'public',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        authorUserId: true,
+        artistId: true,
+        postType: true,
+        body: true,
+        publishedAt: true,
+        author: {
+          select: {
+            id: true,
+            profile: {
+              select: {
+                displayName: true,
+                publicHandle: true,
+                avatarAssetId: true,
+              },
+            },
+          },
+        },
+        artist: {
+          select: {
+            id: true,
+            slug: true,
+            displayName: true,
+          },
+        },
+      },
+    });
+
+    return {
+      isRepost: true,
+      type: this.stringFromUnknown(relation.type) ?? 'repost',
+      relation: 'repost',
+      originalPostId,
+      originalAuthorUserId:
+        this.stringFromUnknown(relation.originalAuthorUserId) ??
+        originalPost?.authorUserId ??
+        null,
+      originalArtistId:
+        this.stringFromUnknown(relation.originalArtistId) ??
+        originalPost?.artistId ??
+        null,
+      quoteBody:
+        this.stringFromUnknown(relation.quoteBody) ??
+        this.stringFromUnknown(relation.quoteText) ??
+        null,
+      originalState: originalPost ? 'visible' : 'unavailable',
+      originalPost: originalPost
+        ? {
+            id: originalPost.id,
+            authorUserId: originalPost.authorUserId,
+            artistId: originalPost.artistId,
+            postType: originalPost.postType,
+            body: originalPost.body,
+            publishedAt: originalPost.publishedAt,
+            author: originalPost.author,
+            artist: originalPost.artist,
+          }
+        : null,
+      policy: this.feedRepostPolicy(),
     };
   }
 
@@ -3136,6 +3371,54 @@ export class CommunityService {
     return post;
   }
 
+  private async findPublicPost(postId: string) {
+    if (!UUID_PATTERN.test(postId)) {
+      throw new BadRequestException('postId must be a UUID');
+    }
+
+    const post = await this.prisma.communityPost.findFirst({
+      where: {
+        id: postId,
+        status: 'published',
+        visibility: 'public',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        authorUserId: true,
+        artistId: true,
+      },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    return post;
+  }
+
+  private async findPublicPostWithInclude(postId: string) {
+    if (!UUID_PATTERN.test(postId)) {
+      throw new BadRequestException('postId must be a UUID');
+    }
+
+    const post = await this.prisma.communityPost.findFirst({
+      where: {
+        id: postId,
+        status: 'published',
+        visibility: 'public',
+        deletedAt: null,
+      },
+      include: this.postInclude(),
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    return post;
+  }
+
   private async findVisiblePostWithInclude(postId: string) {
     if (!UUID_PATTERN.test(postId)) {
       throw new BadRequestException('postId must be a UUID');
@@ -3354,6 +3637,19 @@ export class CommunityService {
     };
   }
 
+  private relationInputMetadata(input: CommunityBody) {
+    const metadata = { ...(this.object(input, 'metadata') ?? {}) };
+    delete metadata.linkPreview;
+    delete metadata.externalUrl;
+    delete metadata.feedPolicy;
+    delete metadata.thread;
+    delete metadata.threadContinuation;
+    delete metadata.repost;
+    delete metadata.share;
+
+    return metadata;
+  }
+
   private buildLinkPreview(rawUrl: string) {
     const trimmed = rawUrl.trim();
 
@@ -3444,6 +3740,48 @@ export class CommunityService {
     };
   }
 
+  private buildThreadContinuationMetadata(rootPost: any, now: Date) {
+    const timestamp = now.toISOString();
+
+    return {
+      version: 1,
+      type: 'thread_continuation',
+      rootPostId: rootPost.id,
+      parentPostId: rootPost.id,
+      rootAuthorUserId: rootPost.authorUserId,
+      rootArtistId: rootPost.artistId ?? null,
+      source: 'existing_post',
+      displayPlacement: 'under_root_post',
+      autoSplit: false,
+      commentRelation: false,
+      replyRelation: false,
+      rootAuthorOnly: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      sortKey: timestamp,
+    };
+  }
+
+  private buildRepostMetadata(originalPost: any, quoteBody: string, now: Date) {
+    const timestamp = now.toISOString();
+
+    return {
+      version: 1,
+      type: quoteBody ? 'quote_repost' : 'repost',
+      originalPostId: originalPost.id,
+      originalAuthorUserId: originalPost.authorUserId,
+      originalArtistId: originalPost.artistId ?? null,
+      originalPostType: originalPost.postType,
+      quoteBody: quoteBody || null,
+      sourceVisibility: 'public',
+      originalDeletionPolicy: 'render_tombstone_without_body',
+      originalHiddenPolicy: 'hide_embedded_original',
+      originalBlockedPolicy: 'hide_embedded_original',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+  }
+
   private feedThreadPolicy() {
     return {
       maxItems: FEED_THREAD_MAX_ITEMS,
@@ -3459,6 +3797,73 @@ export class CommunityService {
       settlementMutation: false,
       payoutMutation: false,
     };
+  }
+
+  private feedThreadContinuationPolicy() {
+    return {
+      relation: 'thread_continuation',
+      source: 'existing_post',
+      rootAuthorOnly: true,
+      maxCharsPerItem: FEED_POST_MAX_BODY_CHARS,
+      autoSplit: false,
+      commentRelation: false,
+      replyRelation: false,
+      listEndpoint: '/api/v1/lumina-feed/posts/:postId/thread-continuations',
+      createEndpoint: '/api/v1/lumina-feed/posts/:postId/thread-continuations',
+      deletedRootPolicy: 'not_found',
+      hiddenRootPolicy: 'not_found',
+      privateRootPolicy: 'not_found',
+      walletMutation: false,
+      luminaMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    };
+  }
+
+  private feedRepostPolicy() {
+    return {
+      relation: 'repost',
+      quoteBodyMaxChars: FEED_POST_MAX_BODY_CHARS,
+      sourceVisibility: 'public_only',
+      originalReferenceRequired: true,
+      originalDeletionPolicy: 'render_tombstone_without_body',
+      originalHiddenPolicy: 'hide_embedded_original',
+      originalBlockedPolicy: 'hide_embedded_original',
+      walletMutation: false,
+      luminaMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    };
+  }
+
+  private feedShareContract(postId: string) {
+    return {
+      publicPath: this.publicFeedPostPath(postId),
+      publicUrl: null,
+      webShare: {
+        enabled: true,
+        urlPath: this.publicFeedPostPath(postId),
+      },
+      shareCount: null,
+      countStrategy: 'not_mutated_by_share_contract',
+    };
+  }
+
+  private feedSharePolicy() {
+    return {
+      relation: 'share',
+      sourceVisibility: 'public_only',
+      publicPathTemplate: '/lumina-feed/posts/:postId',
+      shareCountMutation: false,
+      walletMutation: false,
+      luminaMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    };
+  }
+
+  private publicFeedPostPath(postId: string) {
+    return `/lumina-feed/posts/${postId}`;
   }
 
   private isBlockedExternalHostname(hostname: string) {
