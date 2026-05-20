@@ -1263,7 +1263,8 @@ function applyFeedThreadFollowupContinue() {
     return;
   }
   // 원본 본문을 root textarea로 복원해 사용자가 편집 가능한 시작점으로 만든다.
-  const textarea = document.getElementById("feedComposeBody");
+  // 작성창 textarea id는 lumina-feed/index.html 기준 #feedComposeText.
+  const textarea = document.getElementById("feedComposeText");
   if (textarea) {
     textarea.value = body;
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
