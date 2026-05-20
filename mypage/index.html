@@ -824,16 +824,20 @@
               "</p></div>"
           );
         }
+        // #345 — 사용자용 fallback 라벨. backend의 application.statusLabelKo가 있으면 그 값을 우선 쓰고
+        // (applyDebutApplication 참고), 응답이 없을 때만 이 fallback이 노출된다. approved를 그대로 "승인"으로 쓰면
+        // 계약/연락 전 단계가 최종 승인처럼 보이므로 "연락 예정"으로 톤다운한다. approved_for_contact과 동일 단계 톤 유지.
         function debutLabel(status) {
           return {
             submitted: "접수 완료",
             reviewing: "검토 중",
             under_review: "검토 중",
             needs_more_info: "추가 자료 필요",
-            approved_for_contact: "상담 예정",
-            approved: "승인",
-            rejected: "미승인",
+            approved_for_contact: "연락 예정",
+            approved: "연락 예정",
+            rejected: "이번 신청 종료",
             withdrawn: "철회 완료",
+            canceled: "신청 취소",
             archived: "보관됨"
           }[status] || "신청 전";
         }
@@ -989,14 +993,23 @@
           const channel = applicationChannelLabel(pickApplicationMeta(latest, "applicationChannel"));
           const consultation = consultationStatusLabel(pickApplicationMeta(latest, "consultationStatus"));
           const preferredTime = pickApplicationMeta(latest, "preferredContactTime");
+          // #345 — 사용자 상태 라벨/본문은 backend owner projection의 사용자용 카피(statusLabelKo / defaultMessageKo)를
+          // 우선 사용한다. backend가 비어 있을 때만 정적 fallback(debutLabel/debutDescription)으로 떨어진다.
+          // private admin note, contact, internal material URL은 여기서 절대 표시하지 않는다.
+          const safeStatusLabel = typeof latest.statusLabelKo === "string" && latest.statusLabelKo.trim()
+            ? latest.statusLabelKo.trim()
+            : "";
+          const safeDefaultMessage = typeof latest.defaultMessageKo === "string" && latest.defaultMessageKo.trim()
+            ? latest.defaultMessageKo.trim()
+            : "";
           const description = [
-            debutDescription(status),
+            safeDefaultMessage || debutDescription(status),
             channel ? "신청 방식: " + channel + "." : "",
             consultation ? "상담 상태: " + consultation + "." : "",
             preferredTime ? "희망 연락 시간: " + preferredTime + "." : ""
           ].filter(Boolean).join(" ");
 
-          setText("mypageDebutStatus", consultation || debutLabel(status));
+          setText("mypageDebutStatus", safeStatusLabel || consultation || debutLabel(status));
           setText("mypageDebutTitle", displayName + " 상태");
           setText("mypageDebutDescription", description);
           // #266 — 운영팀 공개 안내가 있을 때만 노출. 상태와 무관하게 백엔드가 내려주면 표시.
