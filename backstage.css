@@ -317,3 +317,39 @@ tr.is-selected td { background: #faf5ff; }
     min-width: 720px;
   }
 }
+
+/* #323 사이트 문구 관리 — Backstage CMS UI */
+.site-content-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); margin-bottom: 16px; }
+.site-content-filters label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-muted, #6b7280); }
+.site-content-filters label.is-wide { grid-column: span 2; }
+.site-content-filters input, .site-content-filters select { height: 38px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; color: var(--text); font-size: 13px; }
+.site-content-filters input:focus, .site-content-filters select:focus { border-color: var(--hot); box-shadow: 0 0 0 3px rgba(217,70,239,0.16); outline: none; }
+.site-content-filter-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.site-content-form { padding: 4px 0 8px; }
+.site-content-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.site-content-form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-muted, #6b7280); }
+.site-content-form-grid label.is-wide { grid-column: 1 / -1; }
+.site-content-form-grid input, .site-content-form-grid select, .site-content-form-grid textarea { padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; color: var(--text); font-size: 13px; font-family: inherit; }
+.site-content-form-grid input[readonly] { background: #f3f4f6; color: #6b7280; }
+.site-content-form-grid textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+.site-content-form-grid small { color: #9ca3af; font-size: 11px; line-height: 1.5; }
+.site-content-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 16px 0 4px; }
+.site-content-actions .form-status[data-tone="success"] { color: #15803d; }
+.site-content-actions .form-status[data-tone="error"] { color: #b91c1c; }
+.site-content-preview, .site-content-audit { margin-top: 18px; padding: 14px 16px; border: 1px dashed var(--line-strong); border-radius: 8px; background: #fafafa; }
+.site-content-preview h4, .site-content-audit h4 { margin: 0 0 8px; font-size: 13px; color: var(--text); }
+.site-content-preview-title { margin: 0 0 6px; font-size: 16px; }
+.site-content-preview-cta { display: inline-block; margin-top: 8px; padding: 8px 14px; border-radius: 999px; background: var(--hot); color: #fff; text-decoration: none; font-size: 13px; }
+.site-content-preview-empty { color: #9ca3af; font-size: 12px; margin: 0; }
+.site-content-audit ul { margin: 0; padding-left: 18px; font-size: 12px; color: #4b5563; line-height: 1.7; }
+#siteContentRows code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #4338ca; word-break: break-all; }
+#siteContentRows td .text-action { padding: 4px 10px; font-size: 12px; }
+#siteContentRows .row-loading, #siteContentRows .row-empty { padding: 18px; text-align: center; color: #9ca3af; font-size: 13px; }
+.status-badge.is-pending { background: #fef3c7; color: #92400e; }
+
+@media (max-width: 768px) {
+  .site-content-filters { grid-template-columns: 1fr; }
+  .site-content-filters label.is-wide { grid-column: span 1; }
+  .site-content-form-grid { grid-template-columns: 1fr; }
+  .site-content-actions button { flex: 1 1 calc(33% - 8px); }
+}

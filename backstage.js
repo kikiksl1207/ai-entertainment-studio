@@ -286,6 +286,7 @@ const sectionLoaders = {
   "ai-content": loadAiContentSection,
   moderation: loadModerationSection,
   "fan-missions": loadFanMissionsSection,
+  "site-content": () => window.LuminaSiteContent?.load?.(),
   payouts: loadSettlementSection,
   logs: loadAuditSection
 };
@@ -3066,6 +3067,7 @@ function canAccessBackstageSection(sectionId) {
     "ai-content": ["artist_ops_admin", "ai_artist_admin", "content_admin"],
     moderation: ["cs_admin", "support_admin", "content_admin"],
     "fan-missions": [],
+    "site-content": ["super_admin"],
     settlement: ["commerce_admin", "settlement_admin", "finance_admin"],
     payouts: ["commerce_admin", "settlement_admin", "finance_admin"]
   };
@@ -3075,6 +3077,7 @@ function canAccessBackstageSection(sectionId) {
     "ai-content": ["artists:read", "assets:read", "shortforms:read"],
     moderation: ["community:read", "community:write", "reports:read"],
     "fan-missions": ["*"],
+    "site-content": ["*"],
     settlement: ["payments:read", "settlement:read", "payout:read"],
     payouts: ["payments:read", "settlement:read", "payout:read", "payout:write"]
   };
