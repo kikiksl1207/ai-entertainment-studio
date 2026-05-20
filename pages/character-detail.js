@@ -209,11 +209,11 @@ function renderCharacterDetail() {
   if (intro) {
     intro.innerHTML = `
       <p class="eyebrow">공식 프로필</p>
-      <h1>${artist.publicName}</h1>
-      <p class="detail-summary">${artist.summary}</p>
+      <h1 data-cms-key="character-detail.intro.publicName">${artist.publicName}</h1>
+      <p class="detail-summary" data-cms-key="character-detail.intro.summary" data-cms-field="body">${artist.summary}</p>
       <div class="detail-bio">
-        <p>${artist.intro}</p>
-        <p class="detail-concept">${artist.concept}</p>
+        <p data-cms-key="character-detail.intro.body" data-cms-field="body">${artist.intro}</p>
+        <p class="detail-concept" data-cms-key="character-detail.intro.concept" data-cms-field="body">${artist.concept}</p>
       </div>
       <div class="detail-intro-bottom">
         <div class="detail-sns-section">
@@ -360,6 +360,12 @@ function renderCharacterDetail() {
   if (tagNav) {
     tagNav.innerHTML = artist.tags
       .map(t => `<a class="tag-link" href="/characters?tag=${encodeURIComponent(t)}">${t}</a>`).join("");
+  }
+
+  // #324 — 운영자가 Backstage CMS에서 수정한 캐릭터별 문구가 있으면 덮어쓰기.
+  // CMS 실패/키 누락 시 위에서 렌더한 정적 fallback 유지.
+  if (window.LuminaCms && typeof window.LuminaCms.hydrate === "function") {
+    window.LuminaCms.hydrate({ pageKey: "character-detail", characterSlug: artist.slug }).catch(function () {});
   }
 }
 
