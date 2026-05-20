@@ -1,5 +1,33 @@
 # Team2 QA Inbox
 
+status: pass
+task: #337 - premium chat / feed thread / server authority pre-QA matrix
+environment:
+- branch: team2-qa/337-premium-thread-qa-matrix
+- local main after pull: origin/main
+- basis commit: e369d5b74663e98e75d02c28fb4a3dbc588ed9bf
+- No token, cookie, password, env value, raw credential, or secret was recorded.
+
+changed_files:
+- `docs/ops/qa-premium-chat-thread-server-authority-matrix-337.md`
+- `docs/ops/inbox/team2-qa.md`
+
+result:
+- PASS: prepared a PASS/FAIL/PARTIAL/BLOCKED QA matrix for premium chat, Lumina Feed manual threads, server-authority wallet safety, and 390/768/1280px screen QA.
+- PASS: premium chat matrix covers room open, duration/extension, report/blind/refund-pending states, donation amount boundaries, idempotency replay/conflict, high-value gates, artist compensation, refund/chargeback handling, and separated like/communication/donation rankings.
+- PASS: feed thread matrix covers author-only write/edit/delete, 500-char and 10-piece limits, delete replay, root delete, hide/block/report projections, list/detail exposure, and root-based engagement.
+- PASS: server-authority matrix covers client balance/price tampering, missing/replayed/conflicting idempotency, concurrent debits, insufficient/inactive wallet fail-closed behavior, offline replay, provider purchase verification, integrity signal limits, refunds, admin adjustment, and closed premium-chat mutation state.
+- PASS: completion report template and minimum final PASS gates are included so future #331-#336 reports use a shared standard.
+
+tests:
+- `git diff --check` PASS.
+
+blocked_by:
+- none
+
+next_needed:
+- Future premium chat/feed thread/server-authority task owners should fill this matrix with PASS/FAIL/PARTIAL/BLOCKED evidence when implementation branches are ready.
+
 status: fail
 task: #314 - Character chat persona/starter runtime re-QA
 environment:
