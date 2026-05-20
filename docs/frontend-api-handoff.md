@@ -824,7 +824,7 @@ cost metadata will be stored on generated assistant messages at
 `chat_messages.model_metadata`; safety metadata will be stored at
 `chat_messages.safety_metadata`.
 
-Premium chat support contract (#328, tightened by #341):
+Premium chat support contract (#328, tightened by #341/#348/#349):
 
 ```http
 GET /chat/premium-support-contract
@@ -884,6 +884,16 @@ Frontend rules:
   projection; same key + different fingerprint returns `409` before wallet
   lookup. Client balance, local price text, or cached UI state must never be
   treated as payment authority.
+- #348 adds the planned donation order/ledger shape. Future successful create
+  responses include an `order` projection plus a safe `donation` projection, but
+  the current contract still has create disabled. The frontend must not infer a
+  wallet debit from local balance or selected button state.
+- #349 fixes ranking UI expectations: windows are `daily`, `weekly`,
+  `monthly`, and `all`; pagination is opaque cursor based with default `take=20`
+  and max `take=50`; the response window uses `Asia/Seoul`.
+- Ranking cards may show safe artist fields, rank, score, and label keys only.
+  Do not show raw chat body, report reason text, wallet ledger id, user id, or
+  message id from ranking APIs.
 
 #203 chat product policy skeleton:
 

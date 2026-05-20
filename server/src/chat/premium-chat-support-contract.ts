@@ -18,9 +18,15 @@ export const PREMIUM_CHAT_LEDGER_SOURCES = [
 ] as const;
 
 export const PREMIUM_CHAT_RANKING_TYPES = ['communication', 'donation'] as const;
+export const PREMIUM_CHAT_RANKING_PERIODS = [
+  'daily',
+  'weekly',
+  'monthly',
+  'all',
+] as const;
 
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
-  version: '2026-05-20.premium-chat-support.v2',
+  version: '2026-05-20.premium-chat-support.v3',
   feature: 'premium_chat_support',
   status: 'contract_ready_mutation_blocked',
   policy: {
@@ -59,7 +65,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       path: '/api/v1/chat/rankings',
       query: {
         type: PREMIUM_CHAT_RANKING_TYPES,
-        period: ['daily', 'weekly', 'monthly', 'all'],
+        period: PREMIUM_CHAT_RANKING_PERIODS,
         take: { default: 20, max: 50 },
         cursor: 'opaque optional pagination cursor',
       },
@@ -123,6 +129,14 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         },
       },
       response: {
+        order: {
+          id: '<premium chat donation order id>',
+          status: 'confirmed',
+          type: 'premium_chat_donation',
+          sessionId: '<session id>',
+          artistId: '<artist id>',
+          amountLumina: '<decimal string>',
+        },
         donation: {
           id: '<donation event id>',
           sessionId: '<session id>',
@@ -156,6 +170,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         balanceSource: 'wallet_account.cached_balance in a DB transaction',
         clientBalanceTrusted: false,
         debitSource: 'server wallet ledger only',
+        orderSource: 'server-created premium chat donation order only',
         repeatRequestBehavior:
           'same idempotency key and same fingerprint returns existing projection without a second debit',
         conflictBehavior:
@@ -171,7 +186,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       request: {
         query: {
           type: PREMIUM_CHAT_RANKING_TYPES,
-          period: ['daily', 'weekly', 'monthly', 'all'],
+          period: PREMIUM_CHAT_RANKING_PERIODS,
           take: { default: 20, max: 50 },
           cursor: 'opaque optional pagination cursor',
         },
@@ -179,6 +194,11 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       response: {
         type: '<communication|donation>',
         period: '<daily|weekly|monthly|all>',
+        window: {
+          startsAt: '<ISO datetime or null for all>',
+          endsAt: '<ISO datetime>',
+          timezone: 'Asia/Seoul',
+        },
         items: ['rankingItem projection'],
         nextCursor: '<opaque cursor or null>',
         generatedAt: '<ISO datetime>',
@@ -194,6 +214,13 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         chatRankingTypes: PREMIUM_CHAT_RANKING_TYPES,
         likeRankingExcludedFromChatRankings: true,
         chatDonationsExcludedFromLikeRankings: true,
+      },
+      privacy: {
+        rawChatBodyReturned: false,
+        rawReportReasonReturned: false,
+        walletLedgerIdReturned: false,
+        userIdReturned: false,
+        messageIdsReturned: false,
       },
     },
   },
@@ -241,6 +268,60 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       messageKey: 'chat.donation.identityVerificationRequired',
     },
   },
+  donationOrderLedger: {
+    status: 'planned_disabled',
+    orderRecord: {
+      table: 'premium_chat_donation_orders',
+      statusFlow: [
+        'pending',
+        'confirmed',
+        'failed',
+        'refunded',
+        'chargeback_review',
+        'cancelled',
+      ],
+      immutableFieldsAfterConfirm: [
+        'id',
+        'userId',
+        'artistId',
+        'sessionId',
+        'amountLumina',
+        'idempotencyKey',
+      ],
+      clientTrustedFields: [],
+    },
+    ledgerWrite: {
+      transactionRequired: true,
+      walletBalanceSource: 'wallet_accounts.cached_balance',
+      ledgerType: 'premium_chat_donation',
+      referenceType: 'premium_chat_donation',
+      referenceIdSource: 'premium_chat_donation_orders.id',
+      direction: 'debit',
+      amountSource: 'server-normalized donation amount',
+      idempotencyKeyPattern:
+        'premium-chat-donation:<sessionId>:<client-idempotency-key>',
+      duplicateReplay: 'return_existing_order_and_projection',
+      conflictReplay: '409 before wallet lookup',
+    },
+    validationOrder: [
+      'auth_required',
+      'session_exists_and_owned',
+      'room_state_allows_support',
+      'amount_allowed',
+      'message_length_allowed',
+      'idempotency_key_valid',
+      'idempotency_fingerprint_match_or_empty',
+      'wallet_active_and_sufficient',
+      'trust_or_identity_gate_for_high_value',
+    ],
+    noMutationBefore: [
+      'auth_required',
+      'session_exists_and_owned',
+      'room_state_allows_support',
+      'amount_allowed',
+      'idempotency_key_valid',
+    ],
+  },
   room: PREMIUM_CHAT_ROOM_CONTRACT,
   rankings: {
     like: {
@@ -251,20 +332,65 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     },
     communication: {
       path: '/api/v1/chat/rankings?type=communication',
+      periodWindows: PREMIUM_CHAT_RANKING_PERIODS,
+      pagination: {
+        cursor: 'opaque cursor from score, rank, artist id, and period window',
+        defaultTake: 20,
+        maxTake: 50,
+      },
       scoreInputs: [
         'premium_chat_open',
         'premium_chat_message',
         'premium_chat_donation',
         'artist_reply_activity',
       ],
+      scorePolicy: {
+        premiumChatOpen: 'count confirmed opened rooms',
+        premiumChatMessage: 'count safe non-blinded message activity',
+        premiumChatDonation: 'use confirmed net Lumina contribution as a separate factor',
+        artistReplyActivity: 'count safe artist-side replies without raw body exposure',
+        formulaStatus: 'planned_weighted_score_server_side_only',
+      },
       excludes: ['free_like', 'lumina_boost'],
+      moderation: {
+        reportedRows: 'excluded_until_admin_safe',
+        blindedRows: 'excluded',
+        suspendedRooms: 'excluded',
+        refundedOrChargebackRows: 'zero_weight_or_excluded',
+      },
+      privacy: {
+        rawChatBodyReturned: false,
+        rawReportReasonReturned: false,
+        walletLedgerIdReturned: false,
+        userIdReturned: false,
+        messageIdsReturned: false,
+      },
       refundedOrBlindedRows: 'excluded_or_zero_weight',
     },
     donation: {
       path: '/api/v1/chat/rankings?type=donation',
+      periodWindows: PREMIUM_CHAT_RANKING_PERIODS,
+      pagination: {
+        cursor: 'opaque cursor from confirmed net Lumina, rank, artist id, and period window',
+        defaultTake: 20,
+        maxTake: 50,
+      },
       scoreInputs: ['premium_chat_donation'],
       amountBasis: 'confirmed_net_lumina',
       excludes: ['free_like', 'lumina_boost', 'premium_chat_open', 'premium_chat_message'],
+      moderation: {
+        reportedRows: 'excluded_until_admin_safe',
+        blindedRows: 'excluded',
+        refundedRows: 'excluded',
+        chargebackRows: 'excluded',
+      },
+      privacy: {
+        rawChatBodyReturned: false,
+        rawReportReasonReturned: false,
+        walletLedgerIdReturned: false,
+        userIdReturned: false,
+        messageIdsReturned: false,
+      },
       refundedOrBlindedRows: 'excluded',
     },
   },

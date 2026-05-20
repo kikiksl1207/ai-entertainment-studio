@@ -1,6 +1,71 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#348 premium chat donation order and ledger API contract"
+branch: team2-backend/premium-chat-support-ranking-contract-348-349
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/chat.service.spec.ts
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-support-contract.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Tightened the read-only premium chat support contract to version `2026-05-20.premium-chat-support.v3`.
+- Added planned donation order projection details to donation create response and a `donationOrderLedger` contract for order status flow, immutable fields, ledger type, reference type, idempotency key scope, duplicate replay, and conflict replay.
+- Kept donation create disabled. No POST donation, wallet debit, payment/order mutation, settlement, payout, chat message, or LLM mutation was opened.
+- Documented validation order and no-mutation-before gates for auth, session ownership, room state, amount, and idempotency.
+blocked_by:
+- Actual donation create remains blocked until DB order/projection storage, wallet ledger type migration, moderation/refund projection, trust/identity limits, and settlement handling are implemented.
+next_needed:
+- Viewer review, then Cloud/frontend can use the read-only contract for disabled UI wiring only. Mutation buttons must remain disabled.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
+task: "#349 premium chat communication ranking API contract"
+branch: team2-backend/premium-chat-support-ranking-contract-348-349
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/chat.service.spec.ts
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-support-contract.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Added explicit ranking periods `daily`, `weekly`, `monthly`, and `all` to the read-only contract.
+- Added response window, opaque cursor pagination, default/max take, communication score candidates, donation score basis, moderation filtering, and privacy guards.
+- Ranking API remains disabled/planned and separate from Lumina Pick likes. No raw chat body, report reason, wallet ledger id, user id, or message id is exposed by the ranking contract.
+blocked_by:
+- Actual ranking read model remains blocked until server-side aggregation storage and moderation/refund filtering are implemented.
+next_needed:
+- Viewer review, then Cloud/frontend can wire ranking UI against disabled/read-only contract only.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#342 Character chat per-character copy isolation follow-up"
 branch: team2-backend/chat-copy-isolation-contract-342
 commit: final hash recorded in Notion completion report
