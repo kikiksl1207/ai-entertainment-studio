@@ -1491,7 +1491,8 @@ select.dm-field-input option {
   font-size: 12px; font-weight: 700; color: rgba(240, 238, 248, 0.78);
   text-transform: uppercase; letter-spacing: 0.04em; padding: 0; margin-bottom: 8px;
 }
-.donation-fixed-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+/* #343 — auto-fit grid: 5자리 금액(50,000L)이 다음 줄로 밀려도 깨지지 않게 자연스럽게 1~4열로 적응. */
+.donation-fixed-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 8px; }
 .donation-amount {
   appearance: none; -webkit-appearance: none;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -1511,6 +1512,8 @@ select.dm-field-input option {
   border: 1px solid rgba(148, 163, 184, 0.28); background: #0c0820; color: #f0f0f7;
   font-family: inherit; font-size: 14px;
 }
+/* #343 — message textarea는 우하단 counter와 글자가 겹치지 않게 아래쪽 padding을 reserve한다. */
+.donation-message-field textarea { padding-bottom: 24px; }
 .donation-custom-field input:focus, .donation-message-field textarea:focus { outline: 2px solid #ec4899; outline-offset: 1px; }
 .donation-custom-hint, .donation-message-hint { font-size: 12px; color: rgba(240, 238, 248, 0.55); margin: 0; }
 .donation-message-field { position: relative; }
@@ -1646,7 +1649,8 @@ select.dm-field-input option {
 }
 .premium-chat-hub-head h2 { margin: 0 0 4px; font-size: 16px; color: #f5f0ff; }
 .premium-chat-hub-head p { margin: 0; font-size: 12.5px; color: rgba(245, 240, 255, 0.7); line-height: 1.55; }
-.premium-chat-hub-cards { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* #343 — 3개 카드를 너비에 맞춰 자동으로 1~3열로 펼친다. 768px 같은 중간 너비에서 마지막 카드가 혼자 떨어지지 않도록. */
+.premium-chat-hub-cards { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .premium-chat-hub-card {
   display: block;
   padding: 12px 14px;
@@ -1748,14 +1752,13 @@ select.dm-field-input option {
 .premium-chat-hub-room-profile:hover { border-color: #ec4899; color: #fff; }
 .premium-chat-hub-rooms-foot { margin: 10px 0 0; font-size: 12px; color: rgba(245, 240, 255, 0.5); line-height: 1.5; }
 
-@media (max-width: 768px) {
-  .premium-chat-hub-cards { grid-template-columns: 1fr 1fr; }
-}
+/* #343 — auto-fit이 768px 중간 너비도 자연스럽게 풀어주므로 별도 강제 grid는 제거. 480px 이하만 단열 collapse. */
 @media (max-width: 480px) {
   .premium-chat-hub { padding: 12px; }
   .premium-chat-hub-cards { grid-template-columns: 1fr; }
-  .premium-chat-hub-room { grid-template-columns: 1fr; }
-  .premium-chat-hub-room-main { grid-template-columns: 36px minmax(0, 1fr); }
-  .premium-chat-hub-room-main .premium-chat-hub-room-badge { grid-column: 1 / -1; justify-self: start; }
-  .premium-chat-hub-room-profile { justify-self: end; }
+  .premium-chat-hub-room { grid-template-columns: 1fr; gap: 10px; }
+  .premium-chat-hub-room-main { grid-template-columns: 36px minmax(0, 1fr); gap: 10px; }
+  /* 모바일에서 badge는 본문 텍스트 다음 줄에 위치, 프로필 버튼은 카드 폭으로 늘려 탭 타깃 확대. */
+  .premium-chat-hub-room-main .premium-chat-hub-room-badge { grid-column: 2; justify-self: start; margin-top: 4px; }
+  .premium-chat-hub-room-profile { justify-self: stretch; text-align: center; }
 }

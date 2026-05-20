@@ -60,7 +60,8 @@
         <section class="premium-chat-hub" aria-label="프리미엄챗 허브">
           <header class="premium-chat-hub-head">
             <h2>프리미엄챗 허브</h2>
-            <p>좋아요 응원, 소통 활동, 후원은 각각 다른 화면에서 집계돼요. 한 자리에서 확인할 수 있게 진입을 모아 두었어요.</p>
+            <!-- #343 — 좋아요/소통/후원이 어디서 집계되는지 한 줄로 정리해 가독성을 높임. -->
+            <p>좋아요 응원, 소통 활동, 후원은 서로 다른 화면에서 따로 집계돼요.</p>
           </header>
           <ul class="premium-chat-hub-cards" role="list">
             <li>
@@ -227,7 +228,11 @@
           </button>
         </form>
         <p class="dm-foot-note">스타의 답장 기능은 곧 열려요. 지금은 첫 인사를 골라볼 수 있어요.</p>
-        <p class="dm-foot-note dm-foot-rankings">소통/후원 랭킹은 <a class="text-link" href="/chat-rankings">소통·후원 랭킹</a> 화면에서 따로 확인할 수 있어요. 좋아요 순위는 <a class="text-link" href="/lumina-pick">루미나 픽</a>에서 보세요.</p>
+        <!-- #343 — 좁은 화면에서 한 문단이 길게 줄바뀜되지 않게 짧은 문장 두 개로 분리. -->
+        <p class="dm-foot-note dm-foot-rankings">
+          소통/후원 랭킹: <a class="text-link" href="/chat-rankings">소통·후원 랭킹</a>
+          · 좋아요 순위: <a class="text-link" href="/lumina-pick">루미나 픽</a>
+        </p>
       </div>
     </main>
 
@@ -364,12 +369,11 @@
           <span class="donation-summary-amount">금액을 선택하면 합계가 표시됩니다.</span>
         </div>
 
+        <!-- #343 — 비용 구조를 장황하게 깔지 않고 안전 안내만 두 줄로 둔다. 고액 임계값/한도는 contract에서 동적으로 채워짐. -->
         <div class="donation-policy" id="donationPolicyInfo">
-          <p><strong>고액 후원 안내</strong></p>
           <ul>
-            <li id="donationPolicyHighValue">10,000L 이상 후원은 본인확인이 끝난 계정만 진행할 수 있어요.</li>
-            <li id="donationPolicyDailyLimit">하루 후원 합계는 50,000L까지로 제한돼요.</li>
-            <li id="donationPolicyBlockedStates">신고/블라인드/정지/환불 검토 중인 방에서는 후원이 막혀요.</li>
+            <li id="donationPolicyHighValue">10,000L 이상은 본인확인이 끝난 계정만 가능해요.</li>
+            <li id="donationPolicyBlockedStates">신고/블라인드/환불 검토 중인 방에서는 후원이 일시 정지돼요.</li>
           </ul>
         </div>
       </div>
