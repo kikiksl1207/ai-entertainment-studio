@@ -21,7 +21,7 @@
       gtag("config", "G-1L7TCBQ0N4");
     </script>
   </head>
-  <body class="page-character-chat is-booting">
+  <body class="page-character-chat is-booting" data-cms-page-key="character-chat" data-cms-auto-character-slug="1">
     <header class="site-header chat-site-header">
       <div class="shell header-inner">
         <a class="brand" href="/">
@@ -76,7 +76,7 @@
             </div>
             <div class="dm-peer-meta">
               <h1 class="dm-peer-name" id="chatHeroName">아티스트를 불러오는 중</h1>
-              <p class="dm-peer-status" id="chatHeroSummary">메시지를 준비하는 중이에요</p>
+              <p class="dm-peer-status" id="chatHeroSummary" data-cms-key="character-chat.hero.summary" data-cms-field="body">메시지를 준비하는 중이에요</p>
             </div>
           </div>
           <a class="dm-peer-profile" id="chatHeroProfile" href="/characters" aria-label="아티스트 프로필 열기">
@@ -110,7 +110,7 @@
           <article class="dm-bubble dm-bubble-artist" id="chatWelcomeBubble" hidden>
             <div class="dm-bubble-avatar" id="chatWelcomeAvatar" aria-hidden="true"></div>
             <div class="dm-bubble-body">
-              <p class="dm-bubble-text" id="chatWelcomeText">반가워요. 오늘은 어떤 이야기로 시작해볼까요?</p>
+              <p class="dm-bubble-text" id="chatWelcomeText" data-cms-key="character-chat.welcome.body" data-cms-field="body">반가워요. 오늘은 어떤 이야기로 시작해볼까요?</p>
               <span class="dm-bubble-time" id="chatWelcomeTime"></span>
             </div>
           </article>
@@ -120,14 +120,14 @@
 
           <!-- 빈 상태 (welcome도 못 그렸을 때) -->
           <div class="dm-empty" id="chatEmpty" hidden>
-            <p>아티스트가 답장 준비 중이에요. 잠시 후 다시 시도해 주세요.</p>
+            <p data-cms-key="character-chat.empty.body" data-cms-field="body">아티스트가 답장 준비 중이에요. 잠시 후 다시 시도해 주세요.</p>
           </div>
         </section>
 
         <!-- 첫 사용자 배려: 시작 지문 카드 -->
         <div class="chat-starter-card" id="chatStarterCard" data-state="default" hidden role="region" aria-labelledby="chatStarterEyebrow">
           <header class="chat-starter-head">
-            <span class="chat-starter-eyebrow" id="chatStarterEyebrow">처음이라 어색하죠?</span>
+            <span class="chat-starter-eyebrow" id="chatStarterEyebrow" data-cms-key="character-chat.starter.eyebrow" data-cms-field="body">처음이라 어색하죠?</span>
             <button class="chat-starter-dismiss" type="button" data-chat-starter-dismiss aria-label="첫 인사 카드 닫기">×</button>
           </header>
           <p class="chat-starter-prompt" id="chatStarterPrompt">이렇게 말을 걸어볼까요?</p>
@@ -283,6 +283,7 @@
 
     <script src="/data/characters.js"></script>
     <script src="/data/character-chat-tones.js"></script>
+    <script src="/cms-bootstrap.js"></script>
     <script src="/app.js"></script>
     <script src="/pages/character-chat.js"></script>
     <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">

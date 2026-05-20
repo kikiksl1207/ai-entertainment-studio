@@ -288,6 +288,10 @@
     // #315 — chatEmpty fallback 도 항상 캐릭터별로 갱신 (welcome 이 그려지면 보이지 않지만,
     // 안 그려지는 극단 케이스에서 generic 문구 노출을 막는 안전망)
     applyChatEmptyForSlug(slug, data?.artist || null);
+    // #324 — 캐릭터별 운영자 CMS 문구가 있으면 위 정적 setText 결과를 덮어쓴다. 실패 시 그대로 fallback.
+    if (slug && window.LuminaCms && typeof window.LuminaCms.hydrate === "function") {
+      window.LuminaCms.hydrate({ pageKey: "character-chat", characterSlug: slug }).catch(function () {});
+    }
     const firstSet = Array.isArray(data?.sets) ? data.sets[0] : null;
 
     if (!firstSet) {

@@ -61,7 +61,7 @@
       gtag('config', 'G-1L7TCBQ0N4');
     </script>
   </head>
-  <body class="is-booting">
+  <body class="is-booting" data-cms-page-key="character-detail" data-cms-auto-character-slug="1">
     <header class="site-header">
       <div class="shell header-inner">
         <a class="brand" href="/">
@@ -103,10 +103,10 @@
       <section class="content-section">
         <div class="shell" style="text-align:center;">
           <a id="chatStartLink" class="button button-primary" href="/character-chat" style="display:inline-flex;align-items:center;gap:8px;padding:14px 28px;font-size:15px;letter-spacing:0;">
-            <span>이 아티스트와 대화하기</span>
+            <span data-cms-key="character-detail.chat.ctaLabel" data-cms-field="ctaLabel">이 아티스트와 대화하기</span>
             <span aria-hidden="true" style="font-size:13px;opacity:0.85;">→</span>
           </a>
-          <p style="margin:10px 0 0;font-size:13px;color:rgba(220,210,240,0.55);font-weight:500;letter-spacing:0;">처음이라면 추천 인사말로 가볍게 첫 마디를 건네볼 수 있어요. 스타의 답장 기능은 곧 열려요.</p>
+          <p data-cms-key="character-detail.chat.note" data-cms-field="body" style="margin:10px 0 0;font-size:13px;color:rgba(220,210,240,0.55);font-weight:500;letter-spacing:0;">처음이라면 추천 인사말로 가볍게 첫 마디를 건네볼 수 있어요. 스타의 답장 기능은 곧 열려요.</p>
         </div>
         <script>
           (function () {
@@ -180,6 +180,7 @@
 
     <script src="/data/characters.js"></script>
     <script src="/pages/character-detail.js"></script>
+    <script src="/cms-bootstrap.js"></script>
     <script src="/app.js"></script>
     <!-- ── 모바일 하단 탭바 (768px 이하 노출, #017 — 2026-05-02) ── -->
     <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
