@@ -261,7 +261,7 @@
                   <span class="mypage-debut-notice-label" id="mypageDebutNoticeLabel">운영팀 안내</span>
                   <p class="mypage-debut-notice-body" id="mypageDebutNoticeBody"></p>
                 </aside>
-                <!-- #350 — 상태별 CTA. needs_more_info에서는 "보완 안내 확인 / 다시 신청서 작성"을, rejected에서는 "다시 신청서 작성"만,
+                <!-- #350 — 상태별 CTA. needs_more_info에서는 "보완 안내 확인 / 다시 신청서 작성"을, rejected에서는 "결과 안내 확인 / 다시 신청서 작성"을,
                      submitted/reviewing/approved는 empty 상태 유지. backend cta.enabled가 false 동안에도 안내 진입은 가능. -->
                 <div class="mypage-debut-cta" id="mypageDebutCta" hidden role="group" aria-label="데뷔 신청 다음 행동">
                   <button type="button" class="button-secondary" id="mypageDebutNoticeBtn" hidden>보완 안내 확인</button>
@@ -1042,14 +1042,20 @@
           if (!wrap) return;
           const hasNotice = !!(opts && opts.hasPublicNotice);
           if (status === "needs_more_info") {
-            if (noticeBtn) noticeBtn.hidden = !hasNotice;
+            if (noticeBtn) {
+              noticeBtn.hidden = !hasNotice;
+              noticeBtn.textContent = "보완 안내 확인";
+            }
             if (resubmit) {
               resubmit.hidden = false;
               resubmit.textContent = "보완 후 다시 신청하기";
             }
             wrap.hidden = false;
           } else if (status === "rejected") {
-            if (noticeBtn) noticeBtn.hidden = !hasNotice;
+            if (noticeBtn) {
+              noticeBtn.hidden = !hasNotice;
+              noticeBtn.textContent = "결과 안내 확인";
+            }
             if (resubmit) {
               resubmit.hidden = false;
               resubmit.textContent = "새 신청서 작성하기";
@@ -1070,7 +1076,7 @@
           }
         }
 
-        // #350 — 보완 안내 확인 버튼: 운영팀 안내 영역으로 스크롤 + 시각적 강조.
+        // #350/#352 — 상태 안내 확인 버튼: 운영팀 안내 영역으로 스크롤 + 시각적 강조.
         document.addEventListener("DOMContentLoaded", function () {
           const btn = $("mypageDebutNoticeBtn");
           if (!btn || btn.dataset.bound === "1") return;
