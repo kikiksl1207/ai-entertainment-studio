@@ -1,5 +1,5 @@
 export const AUTH_QA_ACCOUNT_ACCESS_CONTRACT = {
-  version: '2026-05-20.auth-qa-account-access.v1',
+  version: '2026-05-20.auth-qa-account-access.v2',
   sensitiveValuesRecorded: false,
   secureStorageOnly: [
     'raw email',
@@ -9,7 +9,59 @@ export const AUTH_QA_ACCOUNT_ACCESS_CONTRACT = {
     'cookie',
     'database url',
     'provider secret',
+    'provider account credential',
+    'provider access token',
+    'provider authorization code',
   ],
+  credentialSource: {
+    storage: 'private_credential_source_only',
+    rawValuePolicy: {
+      git: false,
+      notion: false,
+      chat: false,
+      logs: false,
+    },
+    requiredSlotGroups: [
+      {
+        key: 'verified_email_password',
+        purpose: 'verified email-password live QA',
+        requiredSlots: ['QA_VERIFIED_EMAIL', 'QA_VERIFIED_PASSWORD'],
+        expectedProjection: {
+          emailVerified: true,
+          emailVerificationStatus: 'verified',
+          hasPassword: true,
+          isSocialOnly: false,
+        },
+      },
+      {
+        key: 'social_only_manual_provider',
+        purpose: 'social-only browser QA through the provider login surface',
+        requiredSlots: ['QA_SOCIAL_PROVIDER', 'QA_SOCIAL_EMAIL', 'QA_SOCIAL_PASSWORD'],
+        expectedProjection: {
+          hasPassword: false,
+          isSocialOnly: true,
+          passwordSetupSurface: true,
+        },
+      },
+    ],
+    optionalAutomationSlotGroups: [
+      {
+        key: 'social_only_provider_token',
+        purpose: 'API-level social login smoke when a private provider token exists',
+        anyOf: [
+          ['QA_SOCIAL_PROVIDER', 'QA_SOCIAL_ACCESS_TOKEN'],
+          ['QA_SOCIAL_PROVIDER', 'QA_SOCIAL_AUTH_CODE', 'QA_SOCIAL_REDIRECT_URI'],
+        ],
+      },
+      {
+        key: 'secure_social_session_fixture',
+        purpose:
+          'secure runtime session fixture only when live OAuth/browser login is unavailable',
+        requiredSlots: ['QA_SOCIAL_SESSION_USER_ID', 'JWT_ACCESS_SECRET'],
+        tokenOutputAllowedOnlyToPrivateFile: true,
+      },
+    ],
+  },
   accounts: [
     {
       key: 'QA_USER',
@@ -72,6 +124,65 @@ export const AUTH_QA_ACCOUNT_ACCESS_CONTRACT = {
       mayUseForCreatorStudio: false,
       recordOnly: ['login possible', 'admin role', 'has wildcard permission'],
     },
+    {
+      key: 'QA_VERIFIED_EMAIL',
+      purpose: 'verified_email_password_live_smoke',
+      credentialSlots: ['QA_VERIFIED_EMAIL', 'QA_VERIFIED_PASSWORD'],
+      requiredState: {
+        userStatus: 'active',
+        authAccountRequired: true,
+        provider: 'email',
+        emailVerified: true,
+        emailVerificationStatus: 'verified',
+        hasPassword: true,
+        isSocialOnly: false,
+        adminAccessRequired: false,
+        artistOperatorRequired: false,
+      },
+      allowedChecks: [
+        'POST /api/v1/auth/login',
+        'GET /api/v1/me',
+        'GET /api/v1/me/trust',
+        'GET /api/v1/debut/policy',
+      ],
+      mayUseForBackstageWrite: false,
+      mayUseForCreatorStudio: false,
+      recordOnly: [
+        'login possible',
+        'email verification status',
+        'has password',
+        'not social-only',
+      ],
+    },
+    {
+      key: 'QA_SOCIAL_ONLY',
+      purpose: 'social_only_live_smoke',
+      credentialSlots: ['QA_SOCIAL_PROVIDER', 'QA_SOCIAL_EMAIL', 'QA_SOCIAL_PASSWORD'],
+      requiredState: {
+        userStatus: 'active',
+        authAccountRequired: true,
+        provider: 'google|kakao|naver',
+        emailProviderPasswordRequired: false,
+        hasPassword: false,
+        isSocialOnly: true,
+        adminAccessRequired: false,
+        artistOperatorRequired: false,
+      },
+      allowedChecks: [
+        'POST /api/v1/auth/social/login',
+        'GET /api/v1/me',
+        'GET /api/v1/me/trust',
+        'PATCH /api/v1/me/password/setup',
+      ],
+      mayUseForBackstageWrite: false,
+      mayUseForCreatorStudio: false,
+      recordOnly: [
+        'provider kind',
+        'login possible or secure session prepared',
+        'hasPassword=false',
+        'isSocialOnly=true',
+      ],
+    },
   ],
   authority: {
     normalUser: ['users.status', 'user_auth_accounts'],
@@ -86,6 +197,8 @@ export const AUTH_QA_ACCOUNT_ACCESS_CONTRACT = {
   missingAccountRunbook: [
     'Prepare credentials only in a private secure channel or local security file.',
     'Create or identify an active user without recording raw email/password in Git or Notion.',
+    'For QA_VERIFIED_EMAIL, use an active email-password user whose emailVerification.status is verified.',
+    'For QA_SOCIAL_ONLY, use a provider-owned account or secure session fixture whose /me projection is hasPassword=false and isSocialOnly=true.',
     'For QA_CREATOR, grant an active artist operator row through an existing super-admin path.',
     'For QA_ADMIN, prefer an active admin_users row with the super_admin role and * permission.',
     'Verify with /me, /me/trust, and /admin/api/v1/me responses; record only roles and booleans.',

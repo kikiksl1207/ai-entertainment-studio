@@ -4,6 +4,10 @@ Updated: 2026-05-20
 Owner: Kaido
 Task: Notion #339
 
+Update for #344: verified email-password and social-only QA now have a
+dedicated private-source runbook in `docs/auth-qa-credential-source-344.md`.
+Use that document before sending QR1 back to live account/security QA.
+
 This handoff separates the QA normal user, QA creator, and QA Backstage admin
 accounts by backend authority. It records only roles, booleans, and runbook
 steps. Do not write raw email, password, token, cookie, bearer value, DB URL, or
