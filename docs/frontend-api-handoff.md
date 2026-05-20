@@ -797,6 +797,56 @@ cost metadata will be stored on generated assistant messages at
 `chat_messages.model_metadata`; safety metadata will be stored at
 `chat_messages.safety_metadata`.
 
+Premium chat support contract (#328):
+
+```http
+GET /chat/premium-support-contract
+Authorization: Bearer <accessToken>
+```
+
+This endpoint is read-only. It exists so the premium-chat room UI can render the
+support amounts, disabled submit state, and separated ranking copy before the
+wallet mutation endpoint is opened. Current `status` is
+`contract_ready_mutation_blocked`; donation submit buttons must stay disabled
+while `policy.walletMutationEnabled=false` or
+`endpoints.donationCreate.enabled=false`.
+
+Fixed support buttons:
+
+```json
+[10, 50, 100, 500, 1000, 5000, 10000, 50000]
+```
+
+Planned create flow, still disabled:
+
+```http
+POST /chat/sessions/:sessionId/donations/preview
+POST /chat/sessions/:sessionId/donations
+Idempotency-Key: <client-generated-key>
+```
+
+```json
+{
+  "amountLumina": "100",
+  "message": "optional short support message",
+  "idempotencyKey": "client-generated-key"
+}
+```
+
+Frontend rules:
+
+- Do not connect POST donation, ballot, wallet, settlement, payout, or order
+  mutation from this contract alone.
+- Render Korean copy from local fallback maps or future `messageKey` mappings;
+  never show raw values like `premium_chat_donation`,
+  `contract_ready_mutation_blocked`, or `blockedRoomState` as UI text.
+- Like ranking remains separate from premium-chat support. Keep Lumina Pick
+  ranking on the boost/like lane.
+- Communication ranking and donation ranking are separate planned surfaces:
+  `/chat/rankings?type=communication` and `/chat/rankings?type=donation`.
+- Donation event projection must show safe public display fields only. Do not
+  expose wallet ledger ids or settlement internals.
+
 #203 chat product policy skeleton:
 
 - `GET /chat-feature-products` returns active public chat products only:

@@ -181,6 +181,11 @@ export class ChatController {
     return this.chatService.getFeatureProducts();
   }
 
+  @Get('chat/premium-support-contract')
+  getPremiumSupportContract() {
+    return this.chatService.getPremiumSupportContract();
+  }
+
   @Post('chat-feature-orders/preview')
   previewFeatureOrder(
     @CurrentUser() user: AuthUser,

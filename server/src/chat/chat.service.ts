@@ -28,6 +28,7 @@ import {
   defaultCharacterStarterOptions,
   defaultCharacterStatus,
 } from './chat-persona-catalog';
+import { PREMIUM_CHAT_SUPPORT_CONTRACT } from './premium-chat-support-contract';
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const UUID_V4_PATTERN =
@@ -837,6 +838,10 @@ export class ChatService {
     return products.map((product: ChatFeatureProductRecord) =>
       this.chatFeatureProductResponse(product),
     );
+  }
+
+  getPremiumSupportContract() {
+    return PREMIUM_CHAT_SUPPORT_CONTRACT;
   }
 
   async previewFeatureOrder(
