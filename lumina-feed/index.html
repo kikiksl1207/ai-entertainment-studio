@@ -5,24 +5,271 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>루미나 피드 — Lumina Stage</title>
     <link rel="canonical" href="https://www.lumina-stage.com/lumina-feed" />
-    <meta name="description" content="Lumina Stage 루미나 피드 — 팬과 아티스트가 함께 만드는 공식 피드." />
-    <!--
-      #319 clean URL shim — `/lumina-feed` 진입을 실제 페이지인 `/lumina-feed.html`로 안전하게 전달합니다.
-    -->
+    <script>(function(){if(window.history&&history.replaceState&&location.pathname.length>1&&location.pathname.charAt(location.pathname.length-1)==="/"){history.replaceState(null,"",location.pathname.slice(0,-1)+location.search+location.hash);}})();</script>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles/lumina-feed.css" />
+    <!-- SEO description: 초기 안정 카피. 에밀리 최종안 도착 시 한 줄 교체. -->
+    <meta name="description" content="아티스트와 팬이 같은 공간에서 만나는 소통 무대. 루미나 피드에서 작품, 후기, 응원을 함께 나눠요." />
+    <meta name="robots" content="noindex, nofollow" />
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="루미나 피드 — Lumina Stage" />
+    <meta property="og:description" content="아티스트와 팬이 같은 공간에서 만나는 소통 무대. 루미나 피드에서 작품, 후기, 응원을 함께 나눠요." />
+    <meta property="og:image" content="/assets/characters/yoon-serin/cover.png" />
+    <meta property="og:url" content="https://www.lumina-stage.com/lumina-feed" />
+    <meta property="og:site_name" content="Lumina Stage" />
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="루미나 피드 — Lumina Stage" />
+    <meta name="twitter:description" content="아티스트와 팬이 같은 공간에서 만나는 소통 무대. 루미나 피드에서 작품, 후기, 응원을 함께 나눠요." />
+    <meta name="twitter:image" content="/assets/characters/yoon-serin/cover.png" />
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4"></script>
     <script>
-      (function () {
-        var qs = window.location.search || "";
-        var hash = window.location.hash || "";
-        window.location.replace("../lumina-feed.html" + qs + hash);
-      })();
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-1L7TCBQ0N4');
     </script>
-    <noscript>
-      <meta http-equiv="refresh" content="0; url=../lumina-feed.html" />
-    </noscript>
   </head>
-  <body>
-    <p style="font-family:system-ui,sans-serif;padding:24px;color:#333;">루미나 피드로 이동 중입니다…
-      <a href="../lumina-feed.html">바로 가기</a>
-    </p>
+  <body class="is-booting">
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="/">
+          <img class="brand-logo" src="/assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
+          <span class="brand-copy">
+            <strong>Lumina Stage</strong>
+            <small data-i18n="brand.tagline">아티스트 레이블</small>
+          </span>
+        </a>
+
+        <nav class="main-nav" aria-label="메인 메뉴">
+          <a href="/" data-i18n="nav.home">홈</a>
+          <a href="/characters" data-i18n="nav.artists">아티스트</a>
+          <a href="/lumina-pick" data-i18n="nav.luminaPick">루미나 픽</a>
+          <a href="/lumina-feed" data-i18n="nav.luminaFeed">루미나 피드</a>
+          <a href="/shortform" data-i18n="nav.shortform">숏폼</a>
+        </nav>
+        <a class="debut-cta-mobile" href="/debut" data-i18n="cta.debut">데뷔하기</a>
+        <div class="header-auth">
+          <a class="auth-btn auth-btn-login" href="#" data-i18n="auth.login">로그인</a>
+          <a class="auth-btn auth-btn-signup" href="#" data-i18n="auth.signup">회원가입</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- ── 루미나 피드 ──
+           #019 에밀리 임시 샘플 포스트 30개 주입 (app.js의 luminaFeedSamplePosts).
+           차모 #014 API 본구축 시 GET /lumina-feed?mode=all 응답으로 자동 전환.
+           작성/신고/차단 등 인터랙션은 #020 카피 + 차모 API 후 본구축. -->
+      <section class="content-section feed-section">
+        <div class="shell feed-shell">
+          <aside class="feed-side-panel" aria-label="루미나 피드 바로가기">
+            <a class="feed-side-profile" id="feedSideProfileLink" href="/mypage">
+              <span class="feed-side-avatar" id="feedSideAvatar">?</span>
+              <span>
+                <strong id="feedSideName">내 프로필</strong>
+                <small>내꺼 보러가기</small>
+              </span>
+            </a>
+            <label class="feed-search">
+              <span>검색</span>
+              <input id="feedSearchInput" type="search" autocomplete="off" placeholder="작성자, 글 검색" />
+            </label>
+            <nav class="feed-side-nav" aria-label="내 피드 보기">
+              <a href="/mypage" data-feed-side-link="profile">내꺼 보러가기</a>
+              <a href="/mypage" data-feed-side-link="posts">게시물</a>
+              <a href="/mypage" data-feed-side-link="media">사진</a>
+              <a href="/mypage" data-feed-side-link="shortform">숏폼</a>
+              <a href="/mypage" data-feed-side-link="likes">좋아요</a>
+            </nav>
+          </aside>
+
+          <div class="feed-main-column">
+            <header class="feed-page-head">
+              <p class="feed-page-eyebrow">Lumina Feed</p>
+              <div class="feed-tabs" role="tablist" aria-label="피드 필터">
+                <button class="feed-tab is-active" data-feed-filter="all" role="tab" aria-selected="true">전체</button>
+                <button class="feed-tab" data-feed-filter="following" role="tab" aria-selected="false">팔로잉</button>
+                <button class="feed-tab" data-feed-filter="artist_post" role="tab" aria-selected="false">아티스트</button>
+                <button class="feed-tab" data-feed-filter="fan_post" role="tab" aria-selected="false">팬</button>
+                <button class="feed-tab" data-feed-filter="debut_artist_post" role="tab" aria-selected="false">데뷔 준비</button>
+              </div>
+            </header>
+
+          <!-- ── 작성창 (#056) — 로그인 시만 JS가 hidden 풀어줌
+               이미지 최대 4장 첨부, 차모 #054/#055 API 활용
+               비로그인 시: 로그인 유도 카드로 대체 -->
+          <section class="feed-compose" id="feedCompose" hidden aria-label="피드 작성">
+            <div class="feed-compose-row">
+              <div class="feed-compose-avatar" id="feedComposeAvatar">
+                <span class="feed-compose-avatar-fallback">?</span>
+              </div>
+              <div class="feed-compose-body">
+                <textarea
+                  id="feedComposeText"
+                  class="feed-compose-text"
+                  rows="2"
+                  placeholder="지금 떠오른 응원을 남겨보세요."
+                  aria-label="피드 내용"></textarea>
+                <div class="feed-compose-thumbs" id="feedComposeThumbs" hidden></div>
+                <div class="feed-compose-actions">
+                  <label class="feed-compose-attach-btn" title="이미지 첨부 (최대 4장)">
+                    <input
+                      type="file"
+                      id="feedComposeFile"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      multiple
+                      hidden />
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                      <path d="M5 4h14v16H5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                      <circle cx="9" cy="10" r="1.6" fill="currentColor"/>
+                      <path d="M5 17l5-5 4 4 3-3 2 2v5H5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                    </svg>
+                    <span>이미지</span>
+                  </label>
+                  <!-- #309 — 500자가 부족할 때 사용자가 명시적으로 타래 모드 진입. 자동 분할 금지. -->
+                  <button
+                    class="feed-compose-thread-toggle"
+                    type="button"
+                    id="feedComposeThreadToggle"
+                    aria-pressed="false"
+                    title="긴 글은 타래로 이어쓰기 (조각당 500자, 최대 10조각, 총 5000자)">
+                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                      <path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" fill="none" stroke-width="1.7" stroke-linecap="round"/>
+                    </svg>
+                    <span>타래로 이어쓰기</span>
+                  </button>
+                  <span class="feed-compose-counter" id="feedComposeCounter">0 / 500</span>
+                  <button
+                    class="feed-compose-submit"
+                    type="button"
+                    id="feedComposeSubmit"
+                    disabled>
+                    게시하기
+                  </button>
+                </div>
+                <p class="feed-compose-message" id="feedComposeMessage" hidden></p>
+                <!-- #309 — 타래 작성 영역. 타래 모드 활성 시 hidden 해제 후 /posts/thread로 제출. -->
+                <section class="feed-thread-composer" id="feedThreadComposer" hidden aria-label="타래 이어쓰기">
+                  <header class="feed-thread-head">
+                    <h3>타래로 이어쓰기</h3>
+                    <p class="feed-thread-policy">
+                      위의 첫 글이 타래의 시작이에요. 조각당 500자, 총 10조각·5000자까지 이어쓸 수 있어요.
+                      자동 분할 없이 직접 나눠 적어주세요.
+                    </p>
+                  </header>
+                  <div class="feed-thread-items" id="feedThreadItems"></div>
+                  <div class="feed-thread-actions">
+                    <button
+                      class="feed-thread-add-btn"
+                      type="button"
+                      id="feedThreadAddBtn">
+                      + 이어글 추가
+                    </button>
+                    <span class="feed-thread-aggregate" id="feedThreadAggregate" aria-live="polite">
+                      총 0 / 5000자 · 조각 1 / 10
+                    </span>
+                    <button
+                      class="feed-thread-cancel-btn"
+                      type="button"
+                      id="feedThreadCancelBtn">
+                      타래 취소
+                    </button>
+                    <button
+                      class="feed-thread-submit-btn"
+                      type="button"
+                      id="feedThreadSubmitBtn"
+                      disabled
+                      aria-describedby="feedThreadSubmitNote">
+                      타래 게시
+                    </button>
+                  </div>
+                  <p class="feed-thread-submit-note" id="feedThreadSubmitNote">
+                    첫 글과 이어글을 직접 확인한 뒤 타래로 게시합니다. 자동 분할은 하지 않아요.
+                  </p>
+                </section>
+              </div>
+            </div>
+          </section>
+
+          <!-- 비로그인 시 안내 카드 -->
+          <section class="feed-compose-guest" id="feedComposeGuest" hidden>
+            <p>로그인하면 응원과 후기를 직접 남길 수 있어요.</p>
+            <a class="feed-compose-guest-cta" href="#" data-action="login">로그인하기</a>
+          </section>
+
+            <div class="feed-list" id="luminaFeedList" aria-live="polite"></div>
+          </div>
+
+          <aside class="feed-trend-panel" aria-label="루미나 피드 실시간 검색">
+            <section class="feed-trend-card">
+              <header class="feed-trend-head">
+                <span>Hot Keywords</span>
+                <small id="feedTrendLocaleLabel">실시간</small>
+              </header>
+              <div class="feed-trend-list" id="feedTrendList">
+                <p class="feed-trend-empty">불러오는 중…</p>
+              </div>
+            </section>
+            <section class="feed-trend-card">
+              <header class="feed-trend-head">
+                <span>Hashtags</span>
+                <small>24H</small>
+              </header>
+              <div class="feed-hashtag-list" id="feedHashtagList">
+                <p class="feed-trend-empty">불러오는 중…</p>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-inner">
+        <div>
+          <strong>Lumina Stage</strong>
+          <p>아티스트와 팬이 같은 무대에서 만나는 공간입니다.</p>
+        </div>
+        <div class="footer-links">
+          <a href="/characters" data-i18n="footer.artistRoster">아티스트 라인업</a>
+          <a href="/terms" data-i18n="footer.terms">이용약관</a>
+          <a href="/privacy" data-i18n="footer.privacy">개인정보처리방침</a>
+          <a href="/refund-policy" data-i18n="footer.refund">환불 정책</a>
+
+          <a href="/business" data-i18n="footer.businessInquiry" data-i18n-attr="title:footer.businessInquiry.helper" title="브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.">Business Inquiry</a>
+          <a href="/business#partner-inquiry" title="사업 제휴, 전략 파트너, 투자 관련 문의를 확인합니다.">사업·투자 문의</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="/data/characters.js"></script>
+    <script src="/pages/lumina-feed.js"></script>
+    <script src="/app.js"></script>
+    <!-- ── 모바일 하단 탭바 (768px 이하 노출, #017 — 2026-05-02) ── -->
+    <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
+      <a href="/" class="mobile-tab" data-tab-key="index">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        <span data-i18n="tab.home">홈</span>
+      </a>
+      <a href="/characters" class="mobile-tab" data-tab-key="characters">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4.5 20c.6-3.6 3.7-6 7.5-6s6.9 2.4 7.5 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <span data-i18n="tab.artists">아티스트</span>
+      </a>
+      <a href="/lumina-pick" class="mobile-tab" data-tab-key="lumina-pick">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.5 5.5 6 .6-4.5 4.1 1.3 5.9L12 16.2 6.7 19.1l1.3-5.9L3.5 9.1l6-.6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        <span data-i18n="tab.pick">루미나 픽</span>
+      </a>
+      <a href="/lumina-feed" class="mobile-tab" data-tab-key="lumina-feed">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        <span data-i18n="tab.feed">피드</span>
+      </a>
+      <a href="/shortform" class="mobile-tab" data-tab-key="shortform">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v6l5-3z" fill="currentColor"/></svg>
+        <span data-i18n="tab.shortform">숏폼</span>
+      </a>
+    </nav>
   </body>
 </html>

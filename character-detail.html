@@ -3,204 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>캐릭터 프로필 — Lumina Stage</title>
-    <link rel="stylesheet" href="./styles.css" />
-    <link rel="stylesheet" href="./styles/character-detail.css" />
-    <!-- SEO -->
-    <meta name="description" content="Lumina Stage 공식 아티스트의 프로필, 숏폼 하이라이트, 팬 활동을 한곳에서 만나보세요." />
+    <title>이동 중… — Lumina Stage</title>
+    <link rel="canonical" href="https://www.lumina-stage.com/character-detail" />
     <meta name="robots" content="noindex, nofollow" />
-    <!-- Open Graph -->
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="캐릭터 프로필 — Lumina Stage" />
-    <meta property="og:description" content="Lumina Stage 공식 아티스트의 프로필, 숏폼 하이라이트, 팬 활동을 한곳에서 만나보세요." />
-    <meta property="og:image" content="./assets/characters/yoon-serin/thumb.png" />
-    <meta property="og:url" content="https://www.lumina-stage.com/character-detail" />
-    <meta property="og:site_name" content="Lumina Stage" />
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="캐릭터 프로필 — Lumina Stage" />
-    <meta name="twitter:description" content="Lumina Stage 공식 아티스트의 프로필, 숏폼 하이라이트, 팬 활동을 한곳에서 만나보세요." />
-    <meta name="twitter:image" content="./assets/characters/yoon-serin/thumb.png" />
-  <style>
-    /* CSS 충돌 방지 — 갤러리/프로필 레이아웃 직접 고정 */
-    .detail-body-grid {
-      display: grid !important;
-      grid-template-columns: 1fr 1fr !important;
-      gap: 24px !important;
-      align-items: stretch !important;
-      margin-bottom: 40px !important;
-    }
-    /* 갤러리 패널: flex column으로 슬라이더가 남은 공간을 채우도록 */
-    .detail-gallery-panel {
-      width: 100% !important;
-      height: 100% !important;
-      display: flex !important;
-      flex-direction: column !important;
-    }
-    .detail-gallery-slider { width: 100% !important; overflow: hidden !important; border-radius: 16px !important; background: #16122a !important; }
-    .gallery-track { display: flex !important; }
-    /* 모바일: 갤러리/프로필 세로 쌓기 */
-    @media (max-width: 768px) {
-      .detail-body-grid {
-        grid-template-columns: 1fr !important;
-        gap: 16px !important;
-      }
-      .detail-gallery-panel {
-        height: auto !important;
-      }
-    }
-  </style>
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4"></script>
+    <!-- #320 — 기존 .html 진입을 clean URL(/character-detail)로 최종 redirect. query/hash 보존. -->
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-1L7TCBQ0N4');
+      (function () {
+        var qs = window.location.search || "";
+        var hash = window.location.hash || "";
+        window.location.replace("/character-detail" + qs + hash);
+      })();
     </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0; url=/character-detail" />
+    </noscript>
   </head>
-  <body class="is-booting">
-    <header class="site-header">
-      <div class="shell header-inner">
-        <a class="brand" href="/">
-          <img class="brand-logo" src="./assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
-          <span class="brand-copy">
-            <strong>Lumina Stage</strong>
-            <small data-i18n="brand.tagline">아티스트 레이블</small>
-          </span>
-        </a>
-
-        <nav class="main-nav" aria-label="메인 메뉴">
-          <a href="/" data-i18n="nav.home">홈</a>
-          <a href="/characters" data-i18n="nav.artists">아티스트</a>
-          <a href="/lumina-pick" data-i18n="nav.luminaPick">루미나 픽</a>
-          <a href="/lumina-feed" data-i18n="nav.luminaFeed">루미나 피드</a>
-          <a href="/shortform" data-i18n="nav.shortform">숏폼</a>
-        </nav>
-        <a class="debut-cta-mobile" href="/debut" data-i18n="cta.debut">데뷔하기</a>
-        <div class="header-auth">
-          <a class="auth-btn auth-btn-login" href="#" data-i18n="auth.login">로그인</a>
-          <a class="auth-btn auth-btn-signup" href="#" data-i18n="auth.signup">회원가입</a>
-        </div>
-      </div>
-    </header>
-
-    <main>
-      <!-- 상단: 이미지(좌) + 이름/설명/태그(우) -->
-      <section class="page-hero">
-        <div class="shell detail-hero-layout">
-          <div class="detail-hero-card" id="detailHero"></div>
-          <div class="detail-intro-block">
-            <div id="detailIntro"></div>
-            <div id="detailMeta" class="detail-meta-panel"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- #208 — 캐릭터챗 starter prompt 진입 (slug 자동 적용) -->
-      <section class="content-section">
-        <div class="shell" style="text-align:center;">
-          <a id="chatStartLink" class="button button-primary" href="/character-chat" style="display:inline-flex;align-items:center;gap:8px;padding:14px 28px;font-size:15px;letter-spacing:0;">
-            <span>이 아티스트와 대화하기</span>
-            <span aria-hidden="true" style="font-size:13px;opacity:0.85;">→</span>
-          </a>
-          <p style="margin:10px 0 0;font-size:13px;color:rgba(220,210,240,0.55);font-weight:500;letter-spacing:0;">처음이라면 추천 인사말로 가볍게 첫 마디를 건네볼 수 있어요. 스타의 답장 기능은 곧 열려요.</p>
-        </div>
-        <script>
-          (function () {
-            try {
-              const slug = new URLSearchParams(window.location.search).get("slug") || "";
-              const link = document.getElementById("chatStartLink");
-              if (slug && link) {
-                link.href = "/character-chat?slug=" + encodeURIComponent(slug);
-              }
-            } catch (_) { /* noop */ }
-          })();
-        </script>
-      </section>
-
-      <!-- 하단: 갤러리 + 프로필 + 숏폼 -->
-      <section class="content-section">
-        <div class="shell">
-          <div class="detail-body-grid">
-            <!-- 갤러리 -->
-            <div id="detailGallery" class="detail-gallery-panel"></div>
-
-            <!-- 프로필 -->
-            <div class="detail-profile-block">
-              <p class="eyebrow">프로필</p>
-              <h3>핵심 프로필</h3>
-              <dl class="detail-profile-list" id="detailProfile"></dl>
-            </div>
-          </div>
-
-          <!-- 대표 숏폼 -->
-          <div class="detail-shorts-block">
-            <p class="eyebrow">숏폼 하이라이트</p>
-            <h3>대표 숏폼</h3>
-            <div class="detail-short-grid" id="detailShorts"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- CTA -->
-      <section class="content-section section-soft">
-        <div class="shell" id="detailCta"></div>
-      </section>
-
-      <!-- 태그 -->
-      <section class="content-section">
-        <div class="shell">
-          <p class="eyebrow">태그 탐색</p>
-          <h3>이 캐릭터와 연결된 태그</h3>
-          <div class="detail-tag-navigation" id="detailTagNavigation"></div>
-        </div>
-      </section>
-    </main>
-
-    <footer class="site-footer">
-      <div class="shell footer-inner">
-        <div>
-          <strong>Lumina Stage</strong>
-          <p>Lumina Stage 공식 아티스트 프로필입니다.</p>
-        </div>
-        <div class="footer-links">
-          <a href="/characters" data-i18n="footer.artistRoster">아티스트 라인업</a>
-          <a href="./terms.html" data-i18n="footer.terms">이용약관</a>
-          <a href="./privacy.html" data-i18n="footer.privacy">개인정보처리방침</a>
-          <a href="./refund-policy.html" data-i18n="footer.refund">환불 정책</a>
-
-          <a href="./business.html" data-i18n="footer.businessInquiry" data-i18n-attr="title:footer.businessInquiry.helper" title="브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.">Business Inquiry</a>
-          <a href="./business.html#partner-inquiry" title="사업 제휴, 전략 파트너, 투자 관련 문의를 확인합니다.">사업·투자 문의</a>
-        </div>
-      </div>
-    </footer>
-
-    <script src="./data/characters.js"></script>
-    <script src="./pages/character-detail.js"></script>
-    <script src="./app.js"></script>
-    <!-- ── 모바일 하단 탭바 (768px 이하 노출, #017 — 2026-05-02) ── -->
-    <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
-      <a href="/" class="mobile-tab" data-tab-key="index.html">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        <span data-i18n="tab.home">홈</span>
-      </a>
-      <a href="/characters" class="mobile-tab" data-tab-key="characters.html">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4.5 20c.6-3.6 3.7-6 7.5-6s6.9 2.4 7.5 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-        <span data-i18n="tab.artists">아티스트</span>
-      </a>
-      <a href="/lumina-pick" class="mobile-tab" data-tab-key="popular-vote.html">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.5 5.5 6 .6-4.5 4.1 1.3 5.9L12 16.2 6.7 19.1l1.3-5.9L3.5 9.1l6-.6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        <span data-i18n="tab.pick">루미나 픽</span>
-      </a>
-      <a href="/lumina-feed" class="mobile-tab" data-tab-key="lumina-feed.html">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        <span data-i18n="tab.feed">피드</span>
-      </a>
-      <a href="/shortform" class="mobile-tab" data-tab-key="shortform.html">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v6l5-3z" fill="currentColor"/></svg>
-        <span data-i18n="tab.shortform">숏폼</span>
-      </a>
-    </nav>
+  <body>
+    <p style="font-family:system-ui,sans-serif;padding:24px;color:#333;">새 주소(/character-detail)로 이동 중입니다…
+      <a href="/character-detail">바로 가기</a>
+    </p>
   </body>
 </html>
