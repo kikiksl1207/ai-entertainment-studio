@@ -2,13 +2,14 @@ import { PrismaClient } from '@prisma/client';
 
 const SCRIPT_NAME = 'scripts/create-debut-status-owner-fixtures.mjs';
 const CONFIRM_VALUE = 'CREATE_DEBUT_STATUS_OWNER_FIXTURES';
+const TASK_ID = '#352';
 
 const FIXTURES = [
   {
     status: 'needs_more_info',
     userStatus: 'needs_more_info',
     displayName: 'QA Debut Status - Needs More Info',
-    publicStatusReason: '보완 확인이 필요한 QA 전용 상태입니다.',
+    publicStatusReason: '보완 안내 확인이 필요한 QA 전용 상태입니다.',
     requestedActionKey: 'debut.application.action.provideMoreInfo',
   },
   {
@@ -65,9 +66,12 @@ if (config.dryRun) {
   printResult({
     ok: true,
     dryRun: true,
+    task: TASK_ID,
     runId: config.runId,
     targetEnv: config.targetEnv,
     plannedStatuses: FIXTURES.map(({ status, userStatus }) => ({ status, userStatus })),
+    ownerSessionHandoff:
+      'Use the disposable owner account through the private credential channel only. Do not paste a token, cookie, or password into Notion, Git, or chat.',
     note: 'No database writes were performed.',
   });
   process.exit(0);
@@ -138,6 +142,7 @@ try {
   printResult({
     ok: true,
     dryRun: false,
+    task: TASK_ID,
     runId: config.runId,
     targetEnv: config.targetEnv,
     created,
@@ -146,6 +151,8 @@ try {
       status: item.status,
       path: `/api/v1/me/debut-applications/${item.id}/status`,
     })),
+    ownerSessionHandoff:
+      'Sign in as the disposable owner through the private credential channel, then open the printed owner-only status paths in the order shown. Do not paste a token, cookie, or password into Notion, Git, or chat.',
     note: 'Use only with the disposable owner session. No dispatch, wallet, settlement, contract, payout, or Lumina mutation was performed by this script.',
   });
 } finally {
@@ -161,7 +168,8 @@ function metadataFor(fixture, runId, now) {
     requestedActionKey: fixture.requestedActionKey,
     adminReviewUpdatedAt: now.toISOString(),
     qaFixture: {
-      task: '#259',
+      task: TASK_ID,
+      sourceTasks: ['#259', TASK_ID],
       runId,
       disposable: true,
       status: fixture.status,
@@ -179,7 +187,7 @@ function contactEmailFor(status, runId) {
 }
 
 function defaultRunId() {
-  return `qa259-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`;
+  return `qa352-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`;
 }
 
 function env(key, fallback = '') {
