@@ -2612,7 +2612,7 @@ Repost body:
 - Created continuation rows include `post.threadContinuation`: `{ isContinuation: true, relation: "thread_continuation", rootPostId, parentPostId, displayPlacement: "under_root_post", commentRelation: false, replyRelation: false, autoSplit: false }`.
 - `GET /lumina-feed/posts/:postId/thread-continuations` lists only continuation rows for the root. Keep this UI separate from `GET /lumina-feed/posts/:postId/replies`.
 - `POST /lumina-feed/posts/:postId/reposts` requires login and creates either `repost` or `quote_repost` based on whether `body` is present. Rows include `post.repost.originalPostId` and original author/artist ids.
-- If the repost source is later deleted, hidden, blocked, or private, render the embedded original as unavailable/tombstone and do not expose the original body.
+- If the repost source is later deleted, hidden, blocked, or private, or if the current viewer has hidden the original or has an active block relationship with the original author, render the embedded original as unavailable/tombstone and do not expose the original body. In this state `post.repost.originalState` is `unavailable`, `post.repost.tombstone` is `true`, and `post.repost.originalPost` is `null`.
 - `POST /lumina-feed/posts/:postId/share` returns `share.publicPath`, `share.webShare`, and `share.countStrategy: "not_mutated_by_share_contract"`. It does not create a repost row and does not mutate wallet, Lumina, settlement, payout, order, or paid-like state.
 
 External URL posts use lightweight metadata only:

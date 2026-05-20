@@ -2119,7 +2119,7 @@ export class CommunityService {
     const isAuthor = Boolean(viewerUserId && post.authorUserId === viewerUserId);
     const thread = this.threadProjection(post, metadata);
     const threadContinuation = this.threadContinuationProjection(metadata);
-    const repost = await this.repostProjection(metadata);
+    const repost = await this.repostProjection(metadata, viewerUserId);
     const [viewerReaction, artistFollow, authorFollow] = viewerUserId
       ? await Promise.all([
           this.prisma.communityReaction.findUnique({
@@ -2311,7 +2311,10 @@ export class CommunityService {
     };
   }
 
-  private async repostProjection(metadata: Record<string, unknown>) {
+  private async repostProjection(
+    metadata: Record<string, unknown>,
+    viewerUserId?: string | null,
+  ) {
     const relation = this.metadataObject(metadata.repost);
     const originalPostId = this.stringFromUnknown(relation.originalPostId);
 
@@ -2319,12 +2322,25 @@ export class CommunityService {
       return null;
     }
 
+    const blockedUserIds = viewerUserId
+      ? await this.getBlockedRelationshipUserIds(viewerUserId)
+      : [];
     const originalPost = await this.prisma.communityPost.findFirst({
       where: {
         id: originalPostId,
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        authorUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
+        hiddenByUsers: viewerUserId
+          ? {
+              none: {
+                userId: viewerUserId,
+                status: 'active',
+                deletedAt: null,
+              },
+            }
+          : undefined,
       },
       select: {
         id: true,
@@ -2373,6 +2389,8 @@ export class CommunityService {
         this.stringFromUnknown(relation.quoteText) ??
         null,
       originalState: originalPost ? 'visible' : 'unavailable',
+      tombstone: !originalPost,
+      unavailableReason: originalPost ? null : 'viewer_restricted_or_unavailable',
       originalPost: originalPost
         ? {
             id: originalPost.id,
