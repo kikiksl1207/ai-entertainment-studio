@@ -651,6 +651,13 @@ Character-chat CMS copy (#335):
 - `premiumChat.enabled=false` in this projection is copy-only. Do not connect
   wallet, order, settlement, paid-like, or premium-chat mutation from these
   fields.
+- #342 follow-up: treat `copyContract.characterSlug` and
+  `copyContract.contentKey` as the source check for character-specific copy.
+  A character page must not reuse another character's welcome text, starter
+  prompt labels/messages, status copy, empty-state copy, or premium-chat copy.
+- `runtimePersona` and `personaReference` are read-only public context. Never
+  display raw persona prompts, provider payloads, model names, tokens, keys,
+  wallet/order ids, settlement rows, or payout internals.
 
 `GET /chat/conversations` is the read-only, owner-only DM list projection.
 `box=recent` returns active sessions, `box=archive` returns archived sessions,

@@ -802,6 +802,21 @@ Character-chat copy CMS contract (#335):
   create chat messages, orders, wallet ledger rows, settlement rows, or provider
   calls.
 
+Character-chat copy isolation check (#342):
+
+- `GET /api/v1/chat/character-catalog` and
+  `GET /api/v1/chat/starter-prompts` resolve CMS copy by the requested artist
+  slug and expected `contentKey=character-chat.copy.<artistSlug>`.
+- The catalog/starter response for one character must not reuse another
+  character's welcome text, starter guide, starter option label/message,
+  direct-input label, status copy, empty-state copy, or premium-chat copy.
+- `copyContract.characterSlug`, `copyContract.contentKey`, and
+  `copyContract.source` are the response contract fields frontend/QA should use
+  to verify the projected copy source.
+- `runtimePersona` and `personaReference` stay read-only public context. Raw
+  persona prompts, provider payloads, model names, tokens, keys, wallet/order
+  ids, settlement rows, and payout internals are not response fields.
+
 LLM generation readiness:
 
 - Generation is fail-closed until a provider adapter is configured:

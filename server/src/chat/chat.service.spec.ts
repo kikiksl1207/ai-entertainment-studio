@@ -1079,6 +1079,224 @@ describe('ChatService persona and catalog policy', () => {
     expect(llmProvider.readiness).not.toHaveBeenCalled();
   });
 
+  it('keeps per-character CMS copy isolated across catalog and starter prompt projections', async () => {
+    const serinWelcome = '\uc138\ub9b0 \uc804\uc6a9 \uc778\uc0ac';
+    const serinGuide = '\uc138\ub9b0 \uc804\uc6a9 \uac00\uc774\ub4dc';
+    const serinOptionLabel = '\uc138\ub9b0 \uc120\ud0dd\uc9c0';
+    const serinOptionMessage = '\uc138\ub9b0\uc5d0\uac8c\ub9cc \ubcf4\uc5ec\uc57c \ud558\ub294 \uba54\uc2dc\uc9c0';
+    const yuanWelcome = '\uc720\uc548 \uc804\uc6a9 \uc778\uc0ac';
+    const yuanGuide = '\uc720\uc548 \uc804\uc6a9 \uac00\uc774\ub4dc';
+    const yuanOptionLabel = '\uc720\uc548 \uc120\ud0dd\uc9c0';
+    const yuanOptionMessage = '\uc720\uc548\uc5d0\uac8c\ub9cc \ubcf4\uc5ec\uc57c \ud558\ub294 \uba54\uc2dc\uc9c0';
+    const artistsBySlug = new Map([
+      [
+        'yoon-serin',
+        {
+          id: '00000000-0000-4000-8000-000000000341',
+          slug: 'yoon-serin',
+          displayName: '\uc724\uc138\ub9b0',
+          publicProfile: {
+            publicMetadata: {
+              chatCatalog: {
+                greetingText: 'metadata serin greeting should not win',
+              },
+              chatPersonaSeed: {
+                privateSystemPrompt: 'DO_NOT_RETURN_SERIN_PROMPT',
+              },
+            },
+            tagline: '\uc138\ub9b0 \ud0dc\uadf8\ub77c\uc778',
+            personalityKeywords: ['\ucc28\ubd84\ud568'],
+          },
+          contentProfile: {
+            contentTone: 'calm',
+          },
+        },
+      ],
+      [
+        'seo-yuan',
+        {
+          id: '00000000-0000-4000-8000-000000000342',
+          slug: 'seo-yuan',
+          displayName: '\uc11c\uc720\uc548',
+          publicProfile: {
+            publicMetadata: {
+              chatCatalog: {
+                greetingText: 'metadata yuan greeting should not win',
+              },
+              chatPersonaSeed: {
+                privateSystemPrompt: 'DO_NOT_RETURN_YUAN_PROMPT',
+              },
+            },
+            tagline: '\uc720\uc548 \ud0dc\uadf8\ub77c\uc778',
+            personalityKeywords: ['\ub2e8\uc815\ud568'],
+          },
+          contentProfile: {
+            contentTone: 'precise',
+          },
+        },
+      ],
+    ]);
+    const cmsEntriesBySlug = new Map([
+      [
+        'yoon-serin',
+        {
+          id: '00000000-0000-4000-8000-000000000343',
+          contentKey: 'character-chat.copy.yoon-serin',
+          locale: 'ko-KR',
+          body: null,
+          ctaLabel: null,
+          version: 4,
+          content: {
+            welcome: { text: serinWelcome },
+            starterSets: [
+              {
+                id: 'cms-starter-yoon-serin-isolated',
+                guideText: serinGuide,
+                options: [
+                  {
+                    key: 'A',
+                    label: serinOptionLabel,
+                    message: serinOptionMessage,
+                  },
+                ],
+                directInput: {
+                  key: 'C',
+                  label: '\uc138\ub9b0\uc5d0\uac8c \uc9c1\uc811 \ub9d0\ud558\uae30',
+                },
+              },
+            ],
+          },
+        },
+      ],
+      [
+        'seo-yuan',
+        {
+          id: '00000000-0000-4000-8000-000000000344',
+          contentKey: 'character-chat.copy.seo-yuan',
+          locale: 'ko-KR',
+          body: null,
+          ctaLabel: null,
+          version: 5,
+          content: {
+            welcome: { text: yuanWelcome },
+            starterSets: [
+              {
+                id: 'cms-starter-seo-yuan-isolated',
+                guideText: yuanGuide,
+                options: [
+                  {
+                    key: 'A',
+                    label: yuanOptionLabel,
+                    message: yuanOptionMessage,
+                  },
+                ],
+                directInput: {
+                  key: 'C',
+                  label: '\uc720\uc548\uc5d0\uac8c \uc9c1\uc811 \ub9d0\ud558\uae30',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    ]);
+    const prisma = {
+      artist: {
+        findFirst: jest.fn(async (args: unknown) => {
+          const slug = (args as { where?: { slug?: string } }).where?.slug;
+
+          return slug ? artistsBySlug.get(slug) ?? null : null;
+        }),
+      },
+      siteContentEntry: {
+        findFirst: jest.fn(async (args: unknown) => {
+          const where = (args as { where?: { characterSlug?: string } }).where;
+          const slug = where?.characterSlug;
+
+          return slug ? cmsEntriesBySlug.get(slug) ?? null : null;
+        }),
+      },
+      walletAccount: {
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+      chatMessage: {
+        create: jest.fn(),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const serinCatalog = await service.getCharacterChatCatalog({
+      artistSlug: 'yoon-serin',
+    });
+    const yuanCatalog = await service.getCharacterChatCatalog({
+      artistSlug: 'seo-yuan',
+    });
+    const serinPrompts = await service.getStarterPrompts({
+      artistSlug: 'yoon-serin',
+    });
+    const yuanPrompts = await service.getStarterPrompts({
+      artistSlug: 'seo-yuan',
+    });
+    const serinPayload = JSON.stringify({ serinCatalog, serinPrompts });
+    const yuanPayload = JSON.stringify({ yuanCatalog, yuanPrompts });
+    const cmsLookupKeys = prisma.siteContentEntry.findFirst.mock.calls.map(
+      ([args]) =>
+        (args as { where?: { contentKey?: string } }).where?.contentKey,
+    );
+
+    expect(serinCatalog.copyContract).toMatchObject({
+      contentKey: 'character-chat.copy.yoon-serin',
+      characterSlug: 'yoon-serin',
+      source: 'site_content',
+      rawPersonaPromptExposed: false,
+      rawLlmPayloadExposed: false,
+    });
+    expect(yuanCatalog.copyContract).toMatchObject({
+      contentKey: 'character-chat.copy.seo-yuan',
+      characterSlug: 'seo-yuan',
+      source: 'site_content',
+      rawPersonaPromptExposed: false,
+      rawLlmPayloadExposed: false,
+    });
+    expect(serinCatalog.greeting.text).toBe(serinWelcome);
+    expect(yuanCatalog.greeting.text).toBe(yuanWelcome);
+    expect(serinCatalog.starterOptions[0]).toMatchObject({
+      label: serinOptionLabel,
+      message: serinOptionMessage,
+    });
+    expect(yuanCatalog.starterOptions[0]).toMatchObject({
+      label: yuanOptionLabel,
+      message: yuanOptionMessage,
+    });
+    expect(serinPrompts.sets[0]).toMatchObject({
+      id: 'cms-starter-yoon-serin-isolated',
+      guideText: serinGuide,
+    });
+    expect(yuanPrompts.sets[0]).toMatchObject({
+      id: 'cms-starter-seo-yuan-isolated',
+      guideText: yuanGuide,
+    });
+    expect(serinPayload).toContain(serinWelcome);
+    expect(serinPayload).not.toContain(yuanWelcome);
+    expect(yuanPayload).toContain(yuanWelcome);
+    expect(yuanPayload).not.toContain(serinWelcome);
+    expect(serinPayload).not.toContain('DO_NOT_RETURN_SERIN_PROMPT');
+    expect(yuanPayload).not.toContain('DO_NOT_RETURN_YUAN_PROMPT');
+    expect(cmsLookupKeys).toEqual([
+      'character-chat.copy.yoon-serin',
+      'character-chat.copy.seo-yuan',
+      'character-chat.copy.yoon-serin',
+      'character-chat.copy.seo-yuan',
+    ]);
+    expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+  });
+
   it('returns distinct runtime persona contexts without provider calls', async () => {
     const artists = {
       'yoon-serin': {
