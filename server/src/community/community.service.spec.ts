@@ -8,6 +8,7 @@ import { CommunityService } from './community.service';
 const authorId = '00000000-0000-4000-8000-000000000101';
 const otherUserId = '00000000-0000-4000-8000-000000000102';
 const postId = '00000000-0000-4000-8000-000000000201';
+const repostId = '00000000-0000-4000-8000-000000000203';
 const artistId = '00000000-0000-4000-8000-000000000301';
 const threadItemId = '00000000-0000-4000-8000-000000000401';
 const createdAt = new Date('2026-05-18T00:00:00.000Z');
@@ -36,6 +37,9 @@ function createPrismaMock() {
     },
     userFollow: {
       findUnique: jest.fn().mockResolvedValue(null),
+    },
+    userBlock: {
+      findMany: jest.fn().mockResolvedValue([]),
     },
     artistOperator: {
       findFirst: jest.fn(),
@@ -561,7 +565,7 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Original post' }));
     prisma.communityPost.create.mockImplementation(async (args: any) =>
       postView({
-        id: '00000000-0000-4000-8000-000000000203',
+        id: repostId,
         authorUserId: otherUserId,
         body: args.data.body,
         metadata: args.data.metadata,
@@ -592,8 +596,96 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     );
     expect(result.relation).toBe('quote_repost');
     expect(result.post.repost.originalPostId).toBe(postId);
+    expect(result.post.repost.originalState).toBe('visible');
+    expect(result.post.repost.originalPost.body).toBe('Original post');
     expect(result.policy.walletMutation).toBe(false);
     expect(result.policy.settlementMutation).toBe(false);
+  });
+
+  it('renders a tombstone when the viewer hid the repost source post', async () => {
+    const prisma = createPrismaMock();
+    const repost = postView({
+      id: repostId,
+      authorUserId: otherUserId,
+      body: 'Quote',
+      metadata: {
+        repost: {
+          type: 'quote_repost',
+          originalPostId: postId,
+          originalAuthorUserId: authorId,
+          quoteBody: 'Quote',
+        },
+      },
+    });
+    prisma.communityPost.findFirst
+      .mockResolvedValueOnce(repost)
+      .mockResolvedValueOnce(null);
+    const service = serviceWith(prisma);
+
+    const result = await service.getPost(repostId, otherUserId);
+
+    expect(prisma.communityPost.findFirst).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: postId,
+          hiddenByUsers: {
+            none: {
+              userId: otherUserId,
+              status: 'active',
+              deletedAt: null,
+            },
+          },
+        }),
+      }),
+    );
+    expect(result.post.repost.originalState).toBe('unavailable');
+    expect(result.post.repost.tombstone).toBe(true);
+    expect(result.post.repost.originalPost).toBeNull();
+    expect(JSON.stringify(result.post.repost)).not.toContain('Original body');
+  });
+
+  it('renders a tombstone when the repost source author is blocked either direction', async () => {
+    const prisma = createPrismaMock();
+    const repost = postView({
+      id: repostId,
+      authorUserId: otherUserId,
+      body: 'Quote',
+      metadata: {
+        repost: {
+          type: 'quote_repost',
+          originalPostId: postId,
+          originalAuthorUserId: authorId,
+          quoteBody: 'Quote',
+        },
+      },
+    });
+    prisma.userBlock.findMany.mockResolvedValue([
+      {
+        blockerUserId: otherUserId,
+        blockedUserId: authorId,
+      },
+    ]);
+    prisma.communityPost.findFirst
+      .mockResolvedValueOnce(repost)
+      .mockResolvedValueOnce(null);
+    const service = serviceWith(prisma);
+
+    const result = await service.getPost(repostId, otherUserId);
+
+    expect(prisma.communityPost.findFirst).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: postId,
+          authorUserId: { notIn: [authorId] },
+        }),
+      }),
+    );
+    expect(result.post.repost.originalState).toBe('unavailable');
+    expect(result.post.repost.tombstone).toBe(true);
+    expect(result.post.repost.originalPost).toBeNull();
+    expect(JSON.stringify(result.post.repost)).not.toContain('Original body');
   });
 
   it('rejects repost sources that are missing, private, hidden, or deleted as safe not-found', async () => {

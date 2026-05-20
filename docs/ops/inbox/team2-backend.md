@@ -1,6 +1,38 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#355 repost projection hidden/block tombstone hardening"
+branch: team2-backend/feed-repost-tombstone-355
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/community/community.service.ts
+- server/src/community/community.service.spec.ts
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npx.cmd prisma generate
+- npm.cmd test -- community.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/community/community.controller.ts src/community/community.service.ts src/community/community.service.spec.ts
+- npm.cmd run build
+- git diff --check origin/team2-backend/feed-thread-repost-share-contract-355...HEAD
+result:
+- Hardened repost embedded-original projection with viewer-aware hidden and active block relationship checks.
+- If the viewer hid the original post or either side has an active block relationship with the original author, `post.repost.originalState` becomes `unavailable`, `tombstone` is `true`, and `originalPost` is `null`.
+- Added tests for normal visible repost projection, viewer-hidden original tombstone, blocked author tombstone, and existing share no-mutation behavior.
+- Kept source create rules public/published/non-deleted only, and did not open wallet, Lumina, order, settlement, payout, or paid-like mutations.
+blocked_by:
+- Viewer re-review, then Zoro merge.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#355 lumina feed thread continuation/repost/share backend contract"
 branch: team2-backend/feed-thread-repost-share-contract-355
 commit: final hash recorded in Notion completion report
