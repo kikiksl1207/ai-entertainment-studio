@@ -149,7 +149,7 @@ async function handleMypageAvatarSelect(file) {
     } else if (err?.message?.includes("Failed to fetch") || err?.name === "AbortError") {
       msg = "네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
     } else {
-      // #353 — 사용자 화면에서는 "개발자 콘솔" 언급을 노출하지 않고, 고객센터 안내로 대체.
+      // #353 — 사용자 화면에서는 내부 디버깅 안내를 노출하지 않고, 고객센터 안내로 대체.
       msg = "이미지 저장에 실패했어요. 잠시 후 다시 시도해 주세요. 문제가 계속되면 고객센터로 문의해 주세요.";
     }
     setMypageAvatarStatus(msg, "error");
