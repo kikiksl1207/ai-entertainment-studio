@@ -1,6 +1,38 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#342 Character chat per-character copy isolation follow-up"
+branch: team2-backend/chat-copy-isolation-contract-342
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/chat.service.spec.ts
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Added regression coverage that calls `GET /api/v1/chat/character-catalog` and `GET /api/v1/chat/starter-prompts` service paths for two different character slugs in sequence.
+- The test fixes the contract that CMS rows are resolved by `characterSlug` and `contentKey=character-chat.copy.<artistSlug>`, and that one character's welcome/starter copy does not leak into another character's response.
+- The test also checks `copyContract.characterSlug`, `copyContract.contentKey`, `source=site_content`, raw persona prompt non-exposure, and no LLM/wallet/order/chat message mutation.
+- Documented the #342 copy isolation rule for backend and frontend handoff.
+blocked_by:
+- none
+next_needed:
+- Viewer review, then merge. Frontend should use `copyContract` to verify projected copy source and must not display raw persona/provider/internal fields.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#341 premium chat support and communication ranking API contract"
 branch: team2-backend/premium-chat-ranking-api-contract-341
 commit: final hash recorded in Notion completion report
