@@ -206,6 +206,11 @@ function renderChargeProductCard(p, isPgPending) {
   const bonusRate = Number(p.bonusRate || 0);
   const isBest = !!p.isBestValue;
   const discountAmount = Number(p.discountAmount || 0);
+  // #373 보강 — 첫 충전 보너스 projection. 계정당 1회, 기본 루미나 기준 10%, 패키지 보너스에 중복 X.
+  // backend가 firstChargeBonusLumina / firstChargeTotalLumina 를 내려주면 카드에 별도 줄로 표시한다.
+  const firstChargeBonusLumina = Number(p.firstChargeBonusLumina || 0);
+  const firstChargeTotalLumina = Number(p.firstChargeTotalLumina || 0);
+  const hasFirstChargeBonus = firstChargeBonusLumina > 0;
 
   return `
     <article class="charge-product-card${isBest ? ' is-best' : ''}" data-product-id="${feedEscapeHtml(productId)}">
@@ -217,7 +222,16 @@ function renderChargeProductCard(p, isPgPending) {
       <div class="charge-product-amount">
         <span class="charge-amount-main">${formatChargeLuminaAmount(totalLumina)}<small>L</small></span>
         ${bonusAmount > 0
-          ? `<span class="charge-amount-detail">기본 ${formatChargeLuminaAmount(luminaAmount)}L + 보너스 ${formatChargeLuminaAmount(bonusAmount)}L</span>`
+          ? `<span class="charge-amount-detail">기본 ${formatChargeLuminaAmount(luminaAmount)}L + 패키지 보너스 ${formatChargeLuminaAmount(bonusAmount)}L</span>`
+          : ""}
+        ${hasFirstChargeBonus
+          ? `<span class="charge-amount-first-charge" title="계정당 1회, 기본 루미나의 10%만 적용">
+               <span class="charge-first-charge-tag">첫 충전 1회</span>
+               + 첫충전 ${formatChargeLuminaAmount(firstChargeBonusLumina)}L
+               ${firstChargeTotalLumina > 0
+                 ? ` → 합계 ${formatChargeLuminaAmount(firstChargeTotalLumina)}L`
+                 : ""}
+             </span>`
           : ""}
       </div>
       <div class="charge-product-price">
