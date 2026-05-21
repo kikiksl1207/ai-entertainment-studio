@@ -26,6 +26,7 @@ const baseRequest = {
     },
   ],
   order: null,
+  runtimePersona: null,
 };
 
 function adapterWithEnv(env: Record<string, string | undefined>) {
