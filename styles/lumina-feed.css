@@ -1406,7 +1406,7 @@ body.is-booting .feed-list::before {
 }
 .feed-thread-extend-cancel:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
 
-/* 준비 중 안내 배너 — 타래 잇기 패널/리포스트 모달 공통 */
+/* 타래 잇기 패널/리포스트 모달 status 배너 공통 */
 .feed-pending-banner {
   display: grid; gap: 4px;
   padding: 10px 12px; border-radius: 10px;
@@ -1421,6 +1421,28 @@ body.is-booting .feed-list::before {
   font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em;
 }
 .feed-pending-banner p { margin: 0; font-size: 12px; line-height: 1.55; }
+/* #357 — 제출 실패/경고 status 영역. tone에 따라 색상만 바꿔서 같은 banner 컴포넌트를 재사용. */
+.feed-pending-banner[data-feed-status][data-kind="error"] {
+  background: rgba(244, 63, 94, 0.08);
+  border-color: rgba(244, 63, 94, 0.32);
+  color: #ffb4be;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.feed-pending-banner[data-feed-status][data-kind="warn"] {
+  background: rgba(255, 201, 122, 0.08);
+  border-color: rgba(255, 201, 122, 0.32);
+  color: #ffd6a0;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.feed-pending-banner[data-feed-status]:not([data-kind="error"]):not([data-kind="warn"]) {
+  background: rgba(124, 58, 237, 0.06);
+  border-color: rgba(124, 58, 237, 0.22);
+  color: rgba(240, 238, 248, 0.78);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
 
 /* 리포스트 모달 */
 .feed-repost-backdrop { position: fixed; inset: 0; background: rgba(8, 4, 26, 0.6); z-index: 240; }
