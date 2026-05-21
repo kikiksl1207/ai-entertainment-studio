@@ -378,18 +378,28 @@ describe('AuthService action token flows', () => {
     );
     prisma.userAuthAccount.findFirst.mockResolvedValue({
       id: '00000000-0000-4000-8000-000000000201',
+      providerUserId: email,
       passwordHash: 'old-hash',
     });
+    prisma.userActionToken.updateMany.mockResolvedValue({ count: 1 });
     prisma.userRefreshToken.updateMany.mockResolvedValue({ count: 2 });
 
     await expect(
-      service.confirmPasswordReset({ token, newPassword: 'Newpass1' }),
+      service.confirmPasswordReset({ token, email, newPassword: 'Newpass1' }),
     ).resolves.toEqual({
       success: true,
       ok: true,
       revokedCount: 2,
     });
 
+    expect(prisma.userActionToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: actionTokenId,
+        consumedAt: null,
+        expiresAt: { gt: expect.any(Date) },
+      },
+      data: { consumedAt: expect.any(Date) },
+    });
     expect(prisma.userAuthAccount.update).toHaveBeenCalledWith({
       where: { id: '00000000-0000-4000-8000-000000000201' },
       data: {
@@ -404,6 +414,35 @@ describe('AuthService action token flows', () => {
       },
       data: { revokedAt: expect.any(Date) },
     });
+  });
+
+  it('rejects password reset when the submitted email does not match the token account', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.userActionToken.findFirst.mockResolvedValue(
+      activeActionToken({ purpose: 'password_reset' }),
+    );
+    prisma.userAuthAccount.findFirst.mockResolvedValue({
+      id: '00000000-0000-4000-8000-000000000201',
+      providerUserId: email,
+      passwordHash: 'old-hash',
+    });
+
+    await expect(
+      service.confirmPasswordReset({
+        token,
+        email: 'other@example.com',
+        newPassword: 'Newpass1',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'AUTH_PASSWORD_RESET_EMAIL_MISMATCH',
+        messageKey: 'auth.passwordReset.emailMismatch',
+      },
+    });
+    expect(prisma.userActionToken.updateMany).not.toHaveBeenCalled();
+    expect(prisma.userAuthAccount.update).not.toHaveBeenCalled();
+    expect(prisma.userRefreshToken.updateMany).not.toHaveBeenCalled();
   });
 
   it('keeps password reset request neutral when delivery fails', async () => {
@@ -467,23 +506,32 @@ describe('AuthService action token flows', () => {
       }),
       plainToInstance(ConfirmPasswordResetDto, {
         token,
+        email: 'FAN@EXAMPLE.COM',
         newPassword: 'password',
       }),
     ];
     const invalidResetDto = plainToInstance(ConfirmPasswordResetDto, {
       token,
+      email,
       newPassword: 'short7!',
+    });
+    const missingEmailResetDto = plainToInstance(ConfirmPasswordResetDto, {
+      token,
+      newPassword: 'password',
     });
 
     await expect(Promise.all(validSamples.map((sample) => validate(sample)))).resolves
       .toEqual([[], [], [], []]);
 
     const errors = await validate(invalidResetDto);
+    const missingEmailErrors = await validate(missingEmailResetDto);
 
     expect(errors.some((error) => error.property === 'newPassword')).toBe(true);
     expect(errors[0]?.constraints).toMatchObject({
       minLength: 'auth.password.minLength',
     });
+    expect(missingEmailErrors.some((error) => error.property === 'email')).toBe(true);
+    expect(validSamples[3]).toMatchObject({ email });
   });
 
   it('returns email verification gate state for unverified email accounts', async () => {
