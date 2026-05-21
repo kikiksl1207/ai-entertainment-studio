@@ -5,11 +5,17 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_CURRENCY = 'LUMINA';
 const PRICE_UNIT_KRW = new Decimal(10);
 const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
+const FIRST_CHARGE_BONUS_BASIS = 'base_lumina_only';
 const CHARGE_POLICY_VERSION = '2026-05-21.charge-policy-v2';
 const ACTIVE_CHARGE_PRICE_AMOUNTS_KRW = [1000, 3000, 5000, 10000, 50000, 100000];
 const WEB_PAID_BONUS_MAX_RATE = 0.2;
 const AD_REWARD_MAX_REVENUE_SHARE_RATE = 0.5;
 const AD_REWARD_DAILY_LIMIT = 50;
+type ChargeProduct = {
+  priceAmount: Decimal;
+  luminaAmount: Decimal;
+  bonusAmount: Decimal;
+};
 const APP_CHARGE_PACKAGES = [
   { sku: 'APP_LUMINA_70', priceKrw: 1000, luminaAmount: 70 },
   { sku: 'APP_LUMINA_210', priceKrw: 3000, luminaAmount: 210 },
@@ -103,6 +109,41 @@ export class LuminaStationService {
           pendingStorePayment: '스토어 결제는 앱 심사와 IAP 계약 이후 연결됩니다.',
         },
       },
+      bonusPolicy: {
+        packageBonus: {
+          repeatable: true,
+          sourceField: 'lumina_products.bonus_amount',
+          includedInProductTotal: true,
+          firstChargeBonusAppliesAgain: false,
+        },
+        firstChargeBonus: {
+          oneTimePerUser: true,
+          appliesTo: 'first_paid_order_per_user',
+          rate: FIRST_CHARGE_BONUS_RATE.toString(),
+          percent: FIRST_CHARGE_BONUS_RATE.times(100).toNumber(),
+          basis: FIRST_CHARGE_BONUS_BASIS,
+          basisField: 'lumina_products.lumina_amount',
+          packageBonusIncluded: false,
+          ledgerType: 'first_charge_bonus',
+          idempotencyKeyPattern: 'first_charge_bonus:<userId>',
+          examples: [
+            {
+              priceKrw: 50000,
+              baseLumina: 5000,
+              packageBonusLumina: 800,
+              firstChargeBonusLumina: 500,
+              firstPurchaseTotalLumina: 6300,
+            },
+            {
+              priceKrw: 100000,
+              baseLumina: 10000,
+              packageBonusLumina: 2000,
+              firstChargeBonusLumina: 1000,
+              firstPurchaseTotalLumina: 13000,
+            },
+          ],
+        },
+      },
       freeAdCharge: {
         status: 'planned',
         userFacingLabelKo: '오늘의 무료 루미나 받기',
@@ -183,7 +224,7 @@ export class LuminaStationService {
 
     return {
       wallet,
-      products: products.map((product) => {
+      products: products.map((product: ChargeProduct) => {
         const totalLumina = product.luminaAmount.plus(product.bonusAmount);
         const firstChargeBonusLumina = firstChargeEligible
           ? product.luminaAmount.mul(FIRST_CHARGE_BONUS_RATE).toDecimalPlaces(2)
@@ -195,6 +236,8 @@ export class LuminaStationService {
           ...product,
           totalLumina,
           unitPriceKrw: product.priceAmount.div(totalLumina).toDecimalPlaces(2),
+          packageBonusLumina: product.bonusAmount,
+          firstChargeBonusBasisLumina: product.luminaAmount,
           firstChargeBonusLumina,
           firstChargeTotalLumina: totalLumina.plus(firstChargeBonusLumina),
           bonusRate:
@@ -224,8 +267,14 @@ export class LuminaStationService {
           eligible: firstChargeEligible,
           rate: FIRST_CHARGE_BONUS_RATE.toString(),
           percent: FIRST_CHARGE_BONUS_RATE.times(100).toString(),
+          basis: FIRST_CHARGE_BONUS_BASIS,
+          basisField: 'lumina_products.lumina_amount',
+          packageBonusIncluded: false,
+          packageBonusRepeatable: true,
+          appliesTo: 'first_paid_order_per_user',
           ledgerType: 'first_charge_bonus',
           oneTimePerUser: true,
+          idempotencyKeyPattern: 'first_charge_bonus:<userId>',
         },
         fulfillment:
           'Paid Lumina is credited only after the payment provider confirms a paid transaction.',

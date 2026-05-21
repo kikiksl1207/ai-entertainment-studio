@@ -46,11 +46,25 @@ Initial seed products:
 Old seed products `LUMINA_550`, `LUMINA_1200`, and `LUMINA_3300` should be
 archived by seed.
 
-First paid Lumina charge grants an automatic 10% first-charge bonus based on
-the product base Lumina amount. The bonus is stored as a separate
-`wallet_ledger` credit with `ledgerType = first_charge_bonus` and a
-`first_charge_bonus:<userId>` idempotency key. Product `bonusAmount` and the
-first-charge bonus both count toward the paid bonus cap, not the free promo cap.
+Package bonus and first-charge bonus are separate policies:
+
+- Package bonus is `lumina_products.bonus_amount`. It is included in the
+  purchased package total and is granted every time that product is purchased.
+- First-charge bonus is granted once per account on the first paid Lumina order
+  only. It is 10% of `lumina_products.lumina_amount` and explicitly excludes
+  `bonusAmount`.
+- First-charge bonus is stored as a separate `wallet_ledger` credit with
+  `ledgerType = first_charge_bonus` and `idempotencyKey =
+  first_charge_bonus:<userId>`.
+- Payment webhook replay, provider transaction replay, or any retry path must
+  not create a second `first_charge_bonus` ledger for the same user.
+- Example: 50,000 KRW product = base 5,000L + package bonus 800L + first-charge
+  bonus 500L = 6,300L on the user's first paid order.
+- Example: 100,000 KRW product = base 10,000L + package bonus 2,000L +
+  first-charge bonus 1,000L = 13,000L on the user's first paid order.
+
+Package bonus and first-charge bonus both count toward the paid bonus cap, not
+the free promo cap.
 
 ## Starter Grants
 

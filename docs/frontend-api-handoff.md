@@ -538,6 +538,41 @@ Response sample:
     ],
     "deferredPackages": []
   },
+  "bonusPolicy": {
+    "packageBonus": {
+      "repeatable": true,
+      "sourceField": "lumina_products.bonus_amount",
+      "includedInProductTotal": true,
+      "firstChargeBonusAppliesAgain": false
+    },
+    "firstChargeBonus": {
+      "oneTimePerUser": true,
+      "appliesTo": "first_paid_order_per_user",
+      "rate": "0.1",
+      "percent": 10,
+      "basis": "base_lumina_only",
+      "basisField": "lumina_products.lumina_amount",
+      "packageBonusIncluded": false,
+      "ledgerType": "first_charge_bonus",
+      "idempotencyKeyPattern": "first_charge_bonus:<userId>",
+      "examples": [
+        {
+          "priceKrw": 50000,
+          "baseLumina": 5000,
+          "packageBonusLumina": 800,
+          "firstChargeBonusLumina": 500,
+          "firstPurchaseTotalLumina": 6300
+        },
+        {
+          "priceKrw": 100000,
+          "baseLumina": 10000,
+          "packageBonusLumina": 2000,
+          "firstChargeBonusLumina": 1000,
+          "firstPurchaseTotalLumina": 13000
+        }
+      ]
+    }
+  },
   "freeAdCharge": {
     "status": "planned",
     "userFacingLabelKo": "오늘의 무료 루미나 받기",
@@ -572,6 +607,11 @@ Response sample:
   }
 }
 ```
+
+Package bonus is repeatable per purchase. First-charge bonus is separate: it is
+granted once per account on the first paid order only, uses 10% of base
+`luminaAmount`, excludes product `bonusAmount`, and is protected by the
+`first_charge_bonus:<userId>` ledger idempotency key.
 
 `GET /lumina-station?take=5` requires `Authorization: Bearer <accessToken>` and is the recommended bootstrap endpoint for the Lumina charge screen. It returns the user's wallet, active charge products, recent orders, payment status hints, and display policy in one call.
 
