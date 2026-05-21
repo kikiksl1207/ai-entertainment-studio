@@ -856,6 +856,28 @@ Character-chat copy isolation check (#342):
   persona prompts, provider payloads, model names, tokens, keys, wallet/order
   ids, settlement rows, and payout internals are not response fields.
 
+Character-chat greeting and tone contract (#381):
+
+- `GET /api/v1/chat/character-catalog` and
+  `GET /api/v1/chat/starter-prompts` expose the first-screen character copy as
+  a read-only contract with `greeting`, `openingPrompt`, `tone`, `personaTags`,
+  `forbiddenTone`, and `greetingToneContract`.
+- `greetingToneContract.version` is
+  `2026-05-21.character-chat-greeting-tone.v1`. It is read-only and has
+  `providerCall=false`, `mutation=false`, `walletMutation=false`,
+  `orderMutation=false`, and `settlementMutation=false`.
+- `openingPrompt` contains the first guide text, visible suggested options, and
+  direct-input label. It does not create a chat message or call the provider.
+- `forbiddenTone.items` is a display-safe blocked tone/expression list. It must
+  not expose raw persona prompts, provider payloads, model names, tokens, keys,
+  or internal prompt secrets.
+- The response must support at least two characters with different
+  `greeting.text`, `openingPrompt.guideText`, prompt labels/messages,
+  `tone.guideKo`, `personaTags`, and `forbiddenTone.items`.
+- Frontend/QA should use `copyContract.characterSlug`,
+  `copyContract.contentKey`, and `greetingToneContract.characterSlug` to verify
+  that one character's first greeting/tone contract is not reused for another.
+
 LLM generation readiness:
 
 - Generation is fail-closed until a provider adapter is configured:

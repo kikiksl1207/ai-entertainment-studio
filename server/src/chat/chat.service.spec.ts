@@ -1034,6 +1034,21 @@ describe('ChatService persona and catalog policy', () => {
       label: cmsOptionLabel,
       message: cmsOptionMessage,
     });
+    expect(catalog.openingPrompt).toMatchObject({
+      guideText: cmsGuide,
+      options: [
+        {
+          label: cmsOptionLabel,
+          message: cmsOptionMessage,
+        },
+      ],
+      directInput: {
+        label: cmsDirectInputLabel,
+      },
+      readOnly: true,
+      mutation: false,
+      llmCall: false,
+    });
     expect(catalog.emptyState).toMatchObject({
       text: cmsEmptyState,
       source: 'site_content',
@@ -1063,10 +1078,14 @@ describe('ChatService persona and catalog policy', () => {
     expect(catalog.copyContract.requiredUiFields).toEqual(
       expect.arrayContaining([
         'greeting.text',
+        'openingPrompt.guideText',
+        'openingPrompt.options[].label',
+        'openingPrompt.options[].message',
         'emptyState.text',
         'premiumChat.ctaLabel',
         'tone.guideKo',
         'personaTags',
+        'forbiddenTone.items',
       ]),
     );
     expect(catalog.copyContract.editableFields).toEqual(
@@ -1081,7 +1100,45 @@ describe('ChatService persona and catalog policy', () => {
       expect.arrayContaining(['sendButton', 'providerStateLabels']),
     );
     expect(prompts.sets[0].guideText).toBe(cmsGuide);
+    expect(prompts.greeting).toMatchObject({
+      text: cmsWelcome,
+      source: 'site_content',
+    });
+    expect(prompts.openingPrompt).toMatchObject({
+      guideText: cmsGuide,
+      options: [
+        {
+          label: cmsOptionLabel,
+          message: cmsOptionMessage,
+        },
+      ],
+      mutation: false,
+      llmCall: false,
+    });
     expect(prompts.copyContract.source).toBe('site_content');
+    expect(catalog.greetingToneContract).toMatchObject({
+      version: '2026-05-21.character-chat-greeting-tone.v1',
+      characterSlug: 'yoon-serin',
+      readOnlyProjection: true,
+      sampleMinimumCharacters: 2,
+      perCharacterIsolationRequired: true,
+      rawPersonaPromptExposed: false,
+      rawPromptSecretExposed: false,
+      rawLlmPayloadExposed: false,
+      providerCall: false,
+      mutation: false,
+      walletMutation: false,
+      orderMutation: false,
+      settlementMutation: false,
+    });
+    expect(catalog.greetingToneContract.responseFields).toEqual(
+      expect.arrayContaining([
+        'greeting.text',
+        'openingPrompt.guideText',
+        'tone.guideKo',
+        'forbiddenTone.items',
+      ]),
+    );
     expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
     expect(prisma.chatMessage.create).not.toHaveBeenCalled();
@@ -1280,6 +1337,34 @@ describe('ChatService persona and catalog policy', () => {
       label: yuanOptionLabel,
       message: yuanOptionMessage,
     });
+    expect(serinCatalog.openingPrompt).toMatchObject({
+      guideText: serinGuide,
+      options: [
+        {
+          label: serinOptionLabel,
+          message: serinOptionMessage,
+        },
+      ],
+    });
+    expect(yuanCatalog.openingPrompt).toMatchObject({
+      guideText: yuanGuide,
+      options: [
+        {
+          label: yuanOptionLabel,
+          message: yuanOptionMessage,
+        },
+      ],
+    });
+    expect(serinCatalog.greetingToneContract.characterSlug).toBe('yoon-serin');
+    expect(yuanCatalog.greetingToneContract.characterSlug).toBe('seo-yuan');
+    expect(serinCatalog.forbiddenTone).toMatchObject({
+      displaySafe: true,
+      rawPersonaPromptExposed: false,
+      rawPromptSecretExposed: false,
+      rawLlmPayloadExposed: false,
+      providerCall: false,
+      mutation: false,
+    });
     expect(serinPrompts.sets[0]).toMatchObject({
       id: 'cms-starter-yoon-serin-isolated',
       guideText: serinGuide,
@@ -1288,6 +1373,8 @@ describe('ChatService persona and catalog policy', () => {
       id: 'cms-starter-seo-yuan-isolated',
       guideText: yuanGuide,
     });
+    expect(serinPrompts.openingPrompt.guideText).toBe(serinGuide);
+    expect(yuanPrompts.openingPrompt.guideText).toBe(yuanGuide);
     expect(serinPayload).toContain(serinWelcome);
     expect(serinPayload).not.toContain(yuanWelcome);
     expect(yuanPayload).toContain(yuanWelcome);
@@ -1430,6 +1517,19 @@ describe('ChatService persona and catalog policy', () => {
     );
 
     expect(new Set(results.map((result) => result.runtimePersona.welcome.text)).size).toBe(3);
+    expect(new Set(results.map((result) => result.greeting.text)).size).toBe(3);
+    expect(new Set(results.map((result) => result.openingPrompt.guideText)).size).toBe(3);
+    expect(new Set(results.map((result) => result.tone.guideKo)).size).toBe(3);
+    expect(
+      results.every(
+        (result) =>
+          result.greetingToneContract.version ===
+            '2026-05-21.character-chat-greeting-tone.v1' &&
+          result.greetingToneContract.readOnlyProjection === true &&
+          result.greetingToneContract.providerCall === false &&
+          result.greetingToneContract.mutation === false,
+      ),
+    ).toBe(true);
     expect(results[0].runtimePersona.tone.toneTags).toEqual(
       expect.arrayContaining(['따뜻한 응원', '다정함']),
     );
@@ -1449,6 +1549,15 @@ describe('ChatService persona and catalog policy', () => {
     expect(results[0].runtimePersona.forbiddenTone).toEqual(
       expect.arrayContaining(['실존 인물 사칭']),
     );
+    expect(results[0].forbiddenTone.items.length).toBeGreaterThanOrEqual(1);
+    expect(results[0].forbiddenTone).toMatchObject({
+      displaySafe: true,
+      rawPersonaPromptExposed: false,
+      rawPromptSecretExposed: false,
+      rawLlmPayloadExposed: false,
+      providerCall: false,
+      mutation: false,
+    });
     expect(results[1].runtimePersona.safetyNote).toMatchObject({
       text: '거리를 지키고 과한 집착 표현을 피합니다.',
       source: 'artist_metadata',
@@ -1498,6 +1607,7 @@ describe('ChatService persona and catalog policy', () => {
     );
 
     expect(new Set(catalogs.map((catalog) => catalog.greeting.text)).size).toBe(5);
+    expect(new Set(catalogs.map((catalog) => catalog.openingPrompt.guideText)).size).toBe(5);
     expect(new Set(catalogs.map((catalog) => catalog.starterOptions[0].label)).size).toBe(5);
     expect(new Set(catalogs.map((catalog) => catalog.starterOptions[1].label)).size).toBe(5);
     expect(new Set(catalogs.map((catalog) => catalog.emptyState.text)).size).toBe(5);
@@ -1520,6 +1630,14 @@ describe('ChatService persona and catalog policy', () => {
     expect(
       catalogs.every((catalog) => catalog.runtimePersona.source === 'character_fallback'),
     ).toBe(true);
+    expect(
+      catalogs.every(
+        (catalog) =>
+          catalog.forbiddenTone.items.length >= 3 &&
+          catalog.forbiddenTone.rawPromptSecretExposed === false &&
+          catalog.greetingToneContract.perCharacterIsolationRequired === true,
+      ),
+    ).toBe(true);
     expect(promptSets.map((promptSet) => promptSet.sets[0].id)).toEqual([
       'yoon-serin-character-start-1',
       'han-seoyul-character-start-1',
@@ -1528,6 +1646,7 @@ describe('ChatService persona and catalog policy', () => {
       'min-chaeon-character-start-1',
     ]);
     expect(new Set(promptSets.map((promptSet) => promptSet.sets[0].options[0].label)).size).toBe(5);
+    expect(new Set(promptSets.map((promptSet) => promptSet.openingPrompt.guideText)).size).toBe(5);
     expect(llmProvider.readiness).not.toHaveBeenCalled();
   });
 
@@ -1564,8 +1683,26 @@ describe('ChatService persona and catalog policy', () => {
       expect.arrayContaining(['부드러움', '컨디션 케어']),
     );
     expect(catalog.starterSets[0].id).toBe('min-chaeon-character-start-1');
+    expect(catalog.openingPrompt.guideText).toBe(catalog.starterSets[0].guideText);
+    expect(catalog.forbiddenTone).toMatchObject({
+      displaySafe: true,
+      rawPromptSecretExposed: false,
+      rawLlmPayloadExposed: false,
+      providerCall: false,
+      mutation: false,
+    });
+    expect(catalog.greetingToneContract).toMatchObject({
+      version: '2026-05-21.character-chat-greeting-tone.v1',
+      characterSlug: 'min-chaeon',
+      readOnlyProjection: true,
+      providerCall: false,
+      mutation: false,
+      walletMutation: false,
+      orderMutation: false,
+    });
     expect(prompts.source).toBe('character_fallback');
     expect(prompts.sets[0].id).toBe('min-chaeon-character-start-1');
+    expect(prompts.openingPrompt.guideText).toBe(catalog.openingPrompt.guideText);
     expect(prompts.sets[0].options[0].label).toBe(
       catalog.starterOptions[0].label,
     );

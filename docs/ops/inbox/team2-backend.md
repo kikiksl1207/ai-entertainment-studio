@@ -1,6 +1,39 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#381 character chat greeting and tone contract"
+branch: team2-backend/character-chat-greeting-tone-contract-381
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- docs/character-chat-greeting-tone-contract.md
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npx.cmd prisma generate
+- npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts
+- npm.cmd run build
+- git diff --check origin/main...HEAD
+result:
+- Added additive read-only `openingPrompt`, `forbiddenTone`, and `greetingToneContract` fields to character catalog and starter prompt responses.
+- Fixed contract version `2026-05-21.character-chat-greeting-tone.v1` for first-screen greeting/tone wiring.
+- Extended copy contract required fields to include opening prompt guide/options and forbidden tone items.
+- Added regression coverage for CMS copy, per-character isolation, fallback copy, and missing-row fallback without provider calls or wallet/order/chat message mutations.
+blocked_by:
+- Viewer review, then frontend can wire #382 first-screen greeting/tone UI from the explicit response fields.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#376 premium chat donation and communication ranking API contract"
 branch: team2-backend/premium-chat-ranking-api-contract-376
 commit: final hash recorded in Notion completion report
