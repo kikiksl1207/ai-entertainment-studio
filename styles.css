@@ -3601,6 +3601,24 @@ p {
   gap: 14px;
   padding-top: 10px;
   border-top: 1px solid rgba(159, 139, 199, 0.12);
+  /* #378 - left engagement actions and right-side menu are split across the action bar. */
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.feed-post-actions-left,
+.feed-post-actions-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.feed-post-actions-right { gap: 6px; margin-left: auto; }
+/* #378 - Share stays in the right-bottom card action slot. Desktop shows the label; narrow mobile keeps icon-only. */
+.feed-action-btn.feed-share-btn .feed-action-btn-label { display: inline; }
+@media (max-width: 480px) {
+  .feed-action-btn.feed-share-btn .feed-action-btn-label { display: none; }
+  .feed-action-btn.feed-share-btn { padding: 6px; }
 }
 .feed-action-btn {
   display: inline-flex;

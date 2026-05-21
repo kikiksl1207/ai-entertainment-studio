@@ -349,41 +349,49 @@ function renderLuminaFeed() {
         ${renderFeedPostThreadBadge(post)}
         ${renderFeedPostAssets(post.assets)}
         ${renderFeedLinkPreview(post.linkPreview)}
+        <!-- #378 — 액션바 재정의: 좌측에 좋아요/댓글/타래 잇기/리포스트 (참여 기능), 우측에 공유 + 수정·삭제 (메뉴) 로 분리.
+             공유는 사용자가 자주 쓰지만 카드 변형을 만들지 않는 액션이라 우측 하단 아이콘 자리로 분리한다. 댓글과 타래는 명확히 다른 라벨/아이콘으로 구분. -->
         <footer class="feed-post-actions">
-          <button class="feed-action-btn feed-like-btn${post.viewer?.hasLiked ? " is-liked" : ""}" type="button"
-                  data-feed-like="${feedEscapeHtml(post.id || "")}"
-                  aria-pressed="${post.viewer?.hasLiked ? "true" : "false"}"
-                  aria-label="${post.viewer?.hasLiked ? "좋아요 취소하기" : "좋아요 누르기"}">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
-            <span data-feed-like-count>${Number(post.likeCount) || 0}</span>
-          </button>
-          <button class="feed-action-btn feed-comment-btn" type="button" data-feed-comment="${feedEscapeHtml(post.id || "")}" aria-label="댓글 보기">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
-            <span>${Number(post.replyCount) || 0}</span>
-          </button>
-          <!-- #357 — 타래 잇기: 작성된 글 아래에 이어지는 piece를 POST로 추가. -->
-          <button class="feed-action-btn feed-thread-extend-btn" type="button"
-                  data-feed-thread-extend="${feedEscapeHtml(post.id || "")}"
-                  aria-label="이 글에 타래 이어 쓰기">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v14a3 3 0 0 0 3 3h7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/><circle cx="7" cy="4" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/><circle cx="17" cy="21" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
-            <span>타래 잇기</span>
-          </button>
-          <!-- #357 — 리포스트: 원글 참조 카드 + 내 코멘트. 단순 복사가 아니라 referenceCard 유지. -->
-          <button class="feed-action-btn feed-repost-btn" type="button"
-                  data-feed-repost="${feedEscapeHtml(post.id || "")}"
-                  aria-label="이 글 리포스트하기">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3l4 4-4 4M3 14l4 4 4-4M21 7H8a4 4 0 0 0-4 4v3M3 17h13a4 4 0 0 0 4-4v-3" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span>리포스트</span>
-          </button>
-          <!-- #356 — 공유: Web Share 우선, 미지원 시 클립보드 fallback. POST/wallet/settlement mutation 0. -->
-          <button class="feed-action-btn feed-share-btn" type="button"
-                  data-feed-share="${feedEscapeHtml(post.id || "")}"
-                  aria-label="이 글 공유하기">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 9l5-5m0 0v4m0-4h-4M10 15l-5 5m0 0v-4m0 4h4" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 4l-7 7M5 20l7-7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/></svg>
-            <span>공유</span>
-          </button>
-          ${editButton}
-          ${deleteButton}
+          <div class="feed-post-actions-left" role="group" aria-label="참여 액션">
+            <button class="feed-action-btn feed-like-btn${post.viewer?.hasLiked ? " is-liked" : ""}" type="button"
+                    data-feed-like="${feedEscapeHtml(post.id || "")}"
+                    aria-pressed="${post.viewer?.hasLiked ? "true" : "false"}"
+                    aria-label="${post.viewer?.hasLiked ? "좋아요 취소하기" : "좋아요 누르기"}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
+              <span data-feed-like-count>${Number(post.likeCount) || 0}</span>
+            </button>
+            <!-- 댓글: 일반 답글. 타래(이어쓰기)와 명확히 구분되도록 라벨 "댓글" + 말풍선 아이콘 유지. -->
+            <button class="feed-action-btn feed-comment-btn" type="button" data-feed-comment="${feedEscapeHtml(post.id || "")}" aria-label="댓글 보기">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              <span>댓글 ${Number(post.replyCount) || 0}</span>
+            </button>
+            <!-- 타래 잇기: 작성된 글 아래에 같은 작성자 본인이 이어쓰는 piece. 댓글과 별개 endpoint. -->
+            <button class="feed-action-btn feed-thread-extend-btn" type="button"
+                    data-feed-thread-extend="${feedEscapeHtml(post.id || "")}"
+                    aria-label="이 글에 타래 이어 쓰기">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v14a3 3 0 0 0 3 3h7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/><circle cx="7" cy="4" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/><circle cx="17" cy="21" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
+              <span>타래 잇기</span>
+            </button>
+            <!-- 리포스트: 원글 reference + 선택 quote body. 단순 복사가 아니라 reference card 유지. -->
+            <button class="feed-action-btn feed-repost-btn" type="button"
+                    data-feed-repost="${feedEscapeHtml(post.id || "")}"
+                    aria-label="이 글 리포스트하기">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3l4 4-4 4M3 14l4 4 4-4M21 7H8a4 4 0 0 0-4 4v3M3 17h13a4 4 0 0 0 4-4v-3" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>리포스트</span>
+            </button>
+          </div>
+          <div class="feed-post-actions-right" role="group" aria-label="카드 메뉴">
+            <!-- #378 — 공유 버튼은 카드 우측 하단으로 분리. Web Share 우선, 미지원 시 클립보드 fallback. mutation 0. -->
+            <button class="feed-action-btn feed-share-btn" type="button"
+                    data-feed-share="${feedEscapeHtml(post.id || "")}"
+                    aria-label="이 글 공유하기"
+                    title="이 글 공유하기">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 9l5-5m0 0v4m0-4h-4M10 15l-5 5m0 0v-4m0 4h4" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 4l-7 7M5 20l7-7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/></svg>
+              <span class="feed-action-btn-label">공유</span>
+            </button>
+            ${editButton}
+            ${deleteButton}
+          </div>
         </footer>
       </article>
     `;
