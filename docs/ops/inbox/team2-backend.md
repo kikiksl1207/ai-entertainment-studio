@@ -1,6 +1,40 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#376 premium chat donation and communication ranking API contract"
+branch: team2-backend/premium-chat-ranking-api-contract-376
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/chat.service.spec.ts
+- docs/premium-chat-donation-ranking-api-contract.md
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npx.cmd prisma generate
+- npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-support-contract.ts src/chat/premium-chat-room-contract.ts
+- npm.cmd run build
+- git diff --check origin/main...HEAD
+result:
+- Bumped premium support contract to `2026-05-21.premium-chat-donation-ranking-api.v1`.
+- Added disabled owner-only `apiContracts.myDonationHistory` for `GET /api/v1/chat/me/premium-donations`.
+- Kept donation create disabled with `publicMutationEnabled=false`, idempotency required, and future server-authority wallet debit prerequisites documented.
+- Fixed donation availability by room status: reported/blind/suspended/refund-pending/refunded/admin-review/expired/closed rooms cannot accept donations.
+- Kept communication and donation rankings disabled, read-only, separated from likes/boosts, and blocked client-submitted score refresh.
+blocked_by:
+- Viewer review. Later implementation still needs storage/read-model/wallet-ledger integration before donation create, ranking list, or my-donation history endpoints can be enabled.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#372 premium chat room list and donation ranking read-only contract"
 branch: team2-backend/premium-chat-readonly-contract-372
 commit: final hash recorded in Notion completion report
