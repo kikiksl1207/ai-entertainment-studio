@@ -385,7 +385,7 @@ describe('AuthService action token flows', () => {
     prisma.userRefreshToken.updateMany.mockResolvedValue({ count: 2 });
 
     await expect(
-      service.confirmPasswordReset({ token, email, newPassword: 'Newpass1' }),
+      service.confirmPasswordReset({ token, newPassword: 'Newpass1' }),
     ).resolves.toEqual({
       success: true,
       ok: true,
@@ -506,7 +506,6 @@ describe('AuthService action token flows', () => {
       }),
       plainToInstance(ConfirmPasswordResetDto, {
         token,
-        email: 'FAN@EXAMPLE.COM',
         newPassword: 'password',
       }),
     ];
@@ -515,8 +514,9 @@ describe('AuthService action token flows', () => {
       email,
       newPassword: 'short7!',
     });
-    const missingEmailResetDto = plainToInstance(ConfirmPasswordResetDto, {
+    const invalidEmailResetDto = plainToInstance(ConfirmPasswordResetDto, {
       token,
+      email: 'not-an-email',
       newPassword: 'password',
     });
 
@@ -524,14 +524,13 @@ describe('AuthService action token flows', () => {
       .toEqual([[], [], [], []]);
 
     const errors = await validate(invalidResetDto);
-    const missingEmailErrors = await validate(missingEmailResetDto);
+    const invalidEmailErrors = await validate(invalidEmailResetDto);
 
     expect(errors.some((error) => error.property === 'newPassword')).toBe(true);
     expect(errors[0]?.constraints).toMatchObject({
       minLength: 'auth.password.minLength',
     });
-    expect(missingEmailErrors.some((error) => error.property === 'email')).toBe(true);
-    expect(validSamples[3]).toMatchObject({ email });
+    expect(invalidEmailErrors.some((error) => error.property === 'email')).toBe(true);
   });
 
   it('returns email verification gate state for unverified email accounts', async () => {

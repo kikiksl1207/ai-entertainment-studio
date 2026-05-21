@@ -44,11 +44,6 @@
 
             <form class="auth-confirm-form" id="resetPwForm" novalidate>
               <label class="auth-confirm-field">
-                <span>이메일</span>
-                <input id="resetPwEmail" name="email" type="email" autocomplete="email" required placeholder="가입한 이메일" />
-                <small>재설정 메일을 받은 그 계정 이메일을 적어주세요.</small>
-              </label>
-              <label class="auth-confirm-field">
                 <span data-i18n="resetPassword.form.passwordLabel">새 비밀번호</span>
                 <input id="resetPwNew" name="newPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="8자 이상" />
                 <small data-i18n="resetPassword.form.passwordHelper">영문·숫자·특수문자를 섞어 8자 이상을 추천드려요.</small>
@@ -89,14 +84,13 @@
     <script src="/app.js"></script>
     <script>
       /* #240 — 비밀번호 재설정 화면.
-       * URL `?token=...` 을 읽고, 사용자가 직접 이메일·새 비밀번호 입력 후
-       * POST /api/v1/auth/password-resets/confirm { token, email, newPassword } 호출.
+       * URL `?token=...` 을 읽고, 사용자가 새 비밀번호만 입력하면
+       * POST /api/v1/auth/password-resets/confirm { token, newPassword } 호출.
        * 성공/실패/만료/이미 사용된 토큰 상태를 카드 카피로 구분 표시.
        * 보안: token / newPassword 값을 콘솔·Notion·스토리지에 기록하지 않는다. */
       (function initResetPassword() {
         const card = document.getElementById("resetPwCard");
         const form = document.getElementById("resetPwForm");
-        const emailEl = document.getElementById("resetPwEmail");
         const newPwEl = document.getElementById("resetPwNew");
         const confirmEl = document.getElementById("resetPwConfirm");
         const submitBtn = document.getElementById("resetPwSubmit");
@@ -210,15 +204,9 @@
         form.addEventListener("submit", async (event) => {
           event.preventDefault();
           showError("");
-          const email = (emailEl?.value || "").trim();
           const newPassword = newPwEl?.value || "";
           const confirm = confirmEl?.value || "";
 
-          if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            showError("이메일 형식을 다시 확인해주세요.");
-            emailEl?.focus();
-            return;
-          }
           if (newPassword.length < 8) {
             showError(t("resetPassword.form.errorTooShort", "8자 이상으로 적어주세요."));
             newPwEl?.focus();
@@ -237,15 +225,15 @@
           try {
             const data = await apiFetch("/api/v1/auth/password-resets/confirm", {
               method: "POST",
-              body: { token, email, newPassword },
+              body: { token, newPassword },
               throwOnError: true
             });
             applyState("success", data);
           } catch (err) {
-            // 입력값(이메일/비번 미스매치) 사유면 사용자 입력 다시 받기, 토큰 사유면 상태 전환
+            // 입력값(비밀번호 정책) 사유면 사용자 입력 다시 받기, 토큰 사유면 상태 전환
             const reason = classifyError(err);
             if (reason === "input") {
-              showError("입력값을 확인해 주세요. 같은 계정 이메일과 8자 이상 비밀번호가 필요해요.");
+              showError("입력값을 확인해 주세요. 8자 이상 비밀번호가 필요해요.");
               if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = t("resetPassword.form.save", "비밀번호 저장하기"); }
               return;
             }

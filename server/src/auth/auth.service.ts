@@ -1739,7 +1739,7 @@ export class AuthService {
   }
 
   async confirmPasswordReset(input: ConfirmPasswordResetDto) {
-    const email = input.email.trim().toLowerCase();
+    const email = input.email?.trim().toLowerCase();
     const token = await this.prisma.userActionToken.findFirst({
       where: {
         tokenHash: this.hashToken(input.token),
@@ -1784,7 +1784,7 @@ export class AuthService {
       );
     }
 
-    if (authAccount.providerUserId.trim().toLowerCase() !== email) {
+    if (email && authAccount.providerUserId.trim().toLowerCase() !== email) {
       throw this.authBadRequest(
         'AUTH_PASSWORD_RESET_EMAIL_MISMATCH',
         'Password reset email does not match this token.',
