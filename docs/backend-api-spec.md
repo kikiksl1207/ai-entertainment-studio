@@ -865,7 +865,7 @@ LLM generation readiness:
   enum values such as `provider_not_configured` or `async_reviewed_fan_letter`
   directly.
 
-Premium chat support and ranking contract (#328/#348/#349):
+Premium chat support and ranking contract (#328/#348/#349/#372):
 
 ```http
 GET /api/v1/chat/premium-support-contract
@@ -954,6 +954,30 @@ Premium room-open contract (#331):
 - Report intake uses reported/blind/suspended/admin-review processing and no
   wallet action before admin decision.
 
+Premium room list read-only contract (#372):
+
+```http
+GET /api/v1/chat/premium-rooms?artistSlug=<artist-slug>&take=20
+```
+
+- This is a planned read-only contract shape exposed through
+  `GET /api/v1/chat/premium-support-contract` as
+  `apiContracts.roomList`. It remains `enabled=false`.
+- The public room list returns only minimal artist-safe projection fields:
+  public room id, safe artist id/slug/display name/avatar, server tier summary,
+  status label key, duration timestamps, viewer CTA state, and public metrics.
+- Tier amounts must come from the same room-open policy as create:
+  300L, 500L, 1,000L, and 3,000L. Local price labels or client-submitted
+  amounts are not authoritative.
+- Visible room statuses are `opened`, `active`, and `artist_answered`.
+  `reported`, `blind`, `suspended`, `refund_pending`, `refunded`, and
+  `admin_review` rooms are excluded from list projections.
+- The projection must not include wallet ledger ids, support point ledger ids,
+  conversation meter ledger ids, raw admin notes, raw report reasons, raw
+  payloads, raw chat bodies, or raw user ids.
+- Calling the room list must not open a room, create a donation, debit wallet,
+  touch settlement, touch payout, or write ledger rows.
+
 Donation idempotency:
 
 - The key is accepted from the `Idempotency-Key` header or body
@@ -993,8 +1017,8 @@ GET /api/v1/chat/rankings?type=donation&period=weekly&take=20
 - Communication ranking uses `premium_chat_open`, `premium_chat_message`,
   `premium_chat_donation`, and artist reply activity as a separate score lane.
 - Donation ranking uses confirmed net `premium_chat_donation` only. Refunded,
-  blinded, chargeback, or moderation-held rows are excluded or zero-weighted by
-  projection policy.
+  blinded, reported, chargeback, cancelled, or moderation-held rows are excluded
+  by projection policy.
 - Ranking item shape uses safe artist projection fields, `rankNo`, decimal
   string `score`, and `scoreLabelKey`. It must not expose raw wallet ledger ids.
 - Ranking windows are `daily`, `weekly`, `monthly`, and `all`, calculated in
@@ -1007,21 +1031,22 @@ GET /api/v1/chat/rankings?type=donation&period=weekly&take=20
 - Donation ranking is based on confirmed net Lumina from
   `premium_chat_donation` only.
 - Reported rows are excluded until admin-safe, blinded/suspended rooms are
-  excluded, and refunded/chargeback rows are excluded or zero-weighted according
-  to ranking lane policy.
+  excluded, and refunded/chargeback rows are excluded according to ranking lane
+  policy.
 - Ranking responses must not include raw chat bodies, raw report reasons,
   wallet ledger ids, user ids, or message ids.
 
 The current implementation exposes these shapes through read-only
-`GET /api/v1/chat/premium-support-contract` under `apiContracts`; the donation
-and ranking mutations/read models remain disabled until storage, ledger, and
-moderation integration are added.
+`GET /api/v1/chat/premium-support-contract` under `apiContracts`; the room list,
+donation, and ranking mutations/read models remain disabled until storage,
+ledger, and moderation integration are added.
 
 Premium chat support point ledger contract (#363):
 
-- The contract version is `2026-05-21.premium-chat-support-ledger.v1` and keeps
-  room-open, donation, conversation-meter, support-point, settlement, and payout
-  writes disabled.
+- The support-point ledger sub-contract version is
+  `2026-05-21.premium-chat-support-point-ledger.v1` and keeps room-open,
+  donation, conversation-meter, support-point, settlement, and payout writes
+  disabled.
 - `conversationMetering` defines the planned server-only message activity meter:
   table `premium_chat_conversation_meter_ledger`,
   `ledgerType=premium_chat_message`, unit `message_activity_unit`, idempotency

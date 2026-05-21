@@ -1,4 +1,7 @@
-import { PREMIUM_CHAT_ROOM_CONTRACT } from './premium-chat-room-contract';
+import {
+  PREMIUM_CHAT_ROOM_CONTRACT,
+  PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
+} from './premium-chat-room-contract';
 
 export const PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA = [
   10,
@@ -38,9 +41,24 @@ export const PREMIUM_CHAT_RANKING_PERIODS = [
   'all',
 ] as const;
 
+export const PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES = [
+  'opened',
+  'active',
+  'artist_answered',
+] as const;
+
+export const PREMIUM_CHAT_ROOM_LIST_EXCLUDED_STATUSES = [
+  'reported',
+  'blind',
+  'suspended',
+  'refund_pending',
+  'refunded',
+  'admin_review',
+] as const;
+
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
-  version: '2026-05-21.premium-chat-support-ledger.v1',
-  previousVersion: '2026-05-20.premium-chat-support.v3',
+  version: '2026-05-21.premium-chat-readonly-room-ranking.v1',
+  previousVersion: '2026-05-21.premium-chat-support-ledger.v1',
   feature: 'premium_chat_support',
   status: 'contract_ready_mutation_blocked',
   policy: {
@@ -59,6 +77,20 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       method: 'GET',
       path: '/api/v1/chat/premium-support-contract',
       authRequired: true,
+      walletMutation: false,
+    },
+    roomList: {
+      method: 'GET',
+      path: '/api/v1/chat/premium-rooms',
+      query: {
+        artistSlug: 'optional artist slug',
+        status: PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES,
+        take: { default: 20, max: 50 },
+        cursor: 'opaque optional pagination cursor',
+      },
+      status: 'planned',
+      enabled: false,
+      authRequired: false,
       walletMutation: false,
     },
     donationPreview: {
@@ -91,6 +123,57 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     },
   },
   apiContracts: {
+    roomList: {
+      method: 'GET',
+      path: '/api/v1/chat/premium-rooms',
+      enabled: false,
+      authRequired: false,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      request: {
+        query: {
+          artistSlug: 'optional artist slug',
+          status: PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES,
+          take: { default: 20, max: 50 },
+          cursor: 'opaque optional pagination cursor',
+        },
+      },
+      response: {
+        items: ['roomListItem projection'],
+        nextCursor: '<opaque cursor or null>',
+        generatedAt: '<ISO datetime>',
+      },
+      tierPolicy: {
+        source: 'PREMIUM_CHAT_ROOM_CONTRACT.roomOpen.tiers',
+        allowedAmountsLumina: PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
+        clientSubmittedPriceTrusted: false,
+        localDisplayPriceAuthoritative: false,
+      },
+      visibility: {
+        visibleStatuses: PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES,
+        excludedStatuses: PREMIUM_CHAT_ROOM_LIST_EXCLUDED_STATUSES,
+        reportedRooms: 'excluded',
+        blindedRooms: 'excluded',
+        refundedRooms: 'excluded',
+        adminReviewRooms: 'excluded',
+      },
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        rawSupportPointLedgerIdReturned: false,
+        rawConversationMeterLedgerIdReturned: false,
+        rawAdminNoteReturned: false,
+        rawReportReasonReturned: false,
+        rawPayloadReturned: false,
+        rawChatBodyReturned: false,
+        rawUserIdReturned: false,
+      },
+      errorCodes: [
+        { status: 400, code: 'invalid_artist_slug' },
+        { status: 400, code: 'invalid_room_status' },
+        { status: 400, code: 'invalid_take' },
+      ],
+    },
     donationPreview: {
       method: 'POST',
       pathTemplate: '/api/v1/chat/sessions/:sessionId/donations/preview',
@@ -230,6 +313,38 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         chatRankingTypes: PREMIUM_CHAT_RANKING_TYPES,
         likeRankingExcludedFromChatRankings: true,
         chatDonationsExcludedFromLikeRankings: true,
+      },
+      sourceFilters: {
+        communication: {
+          includes: [
+            'confirmed_premium_chat_room_open',
+            'safe_visible_premium_chat_message',
+            'confirmed_net_premium_chat_donation',
+            'safe_artist_reply_activity',
+          ],
+          excludes: [
+            'free_like',
+            'lumina_boost',
+            'reported_room_rows',
+            'blinded_message_rows',
+            'refunded_donation_rows',
+            'chargeback_donation_rows',
+          ],
+        },
+        donation: {
+          includes: ['confirmed_net_premium_chat_donation'],
+          excludes: [
+            'free_like',
+            'lumina_boost',
+            'premium_chat_open',
+            'premium_chat_message',
+            'reported_room_rows',
+            'blinded_rows',
+            'refunded_donation_rows',
+            'chargeback_donation_rows',
+            'cancelled_donation_rows',
+          ],
+        },
       },
       privacy: {
         rawChatBodyReturned: false,
@@ -421,6 +536,23 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     },
   },
   room: PREMIUM_CHAT_ROOM_CONTRACT,
+  roomList: {
+    status: 'planned_disabled',
+    endpoint: '/api/v1/chat/premium-rooms',
+    visibleStatuses: PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES,
+    excludedStatuses: PREMIUM_CHAT_ROOM_LIST_EXCLUDED_STATUSES,
+    tierAmountsLumina: PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
+    tierSource: 'room.roomOpen.tiers',
+    publicFieldsOnly: true,
+    projection: 'roomListItem',
+    noMutation: {
+      roomOpen: true,
+      donationCreate: true,
+      walletDebit: true,
+      settlement: true,
+      payout: true,
+    },
+  },
   rankings: {
     like: {
       path: '/api/v1/boost-campaigns/:campaignId/rankings',
@@ -460,8 +592,9 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       moderation: {
         reportedRows: 'excluded_until_admin_safe',
         blindedRows: 'excluded',
+        refundedRows: 'excluded',
+        chargebackRows: 'excluded',
         suspendedRooms: 'excluded',
-        refundedOrChargebackRows: 'zero_weight_or_excluded',
       },
       privacy: {
         rawChatBodyReturned: false,
@@ -522,6 +655,48 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       scoreLabelKey: 'chat.rankings.score.communication|chat.rankings.score.donation',
       viewer: {
         followed: '<boolean when auth context is present>',
+      },
+    },
+    roomListItem: {
+      roomId: '<premium chat room public id>',
+      artist: {
+        id: '<artist id>',
+        artistSlug: '<artist slug>',
+        displayName: '<artist display name>',
+        avatarUrl: '<safe public avatar url or null>',
+      },
+      tier: {
+        tierKey:
+          'premium_chat_room_300|premium_chat_room_500|premium_chat_room_1000|premium_chat_room_3000',
+        amountLumina: '<300|500|1000|3000>',
+        unlockGate: '<server-evaluated gate summary>',
+      },
+      status: {
+        key: '<opened|active|artist_answered>',
+        labelKey: '<stable Korean-copy key>',
+      },
+      duration: {
+        baseDays: 3,
+        openedAt: '<ISO datetime>',
+        expiresAt: '<ISO datetime>',
+      },
+      viewer: {
+        canOpen: '<boolean when auth context is present>',
+        disabledMessageKey: '<message key or null>',
+      },
+      metrics: {
+        supporterCount: '<public count or null>',
+        lastActivityAt: '<ISO datetime or null>',
+      },
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        rawSupportPointLedgerIdReturned: false,
+        rawConversationMeterLedgerIdReturned: false,
+        rawAdminNoteReturned: false,
+        rawReportReasonReturned: false,
+        rawPayloadReturned: false,
+        rawChatBodyReturned: false,
+        rawUserIdReturned: false,
       },
     },
   },

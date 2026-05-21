@@ -835,7 +835,7 @@ cost metadata will be stored on generated assistant messages at
 `chat_messages.model_metadata`; safety metadata will be stored at
 `chat_messages.safety_metadata`.
 
-Premium chat support contract (#328, tightened by #341/#348/#349):
+Premium chat support contract (#328, tightened by #341/#348/#349/#372):
 
 ```http
 GET /chat/premium-support-contract
@@ -886,10 +886,19 @@ Frontend rules:
   boost ranking endpoint for likes.
 - Donation event projection must show safe public display fields only. Do not
   expose wallet ledger ids or settlement internals.
-- The read-only contract now includes `apiContracts.donationPreview`,
-  `apiContracts.donationCreate`, and `apiContracts.rankingsList` with planned
-  request/response/error-code shapes. They are still disabled and exist only for
-  UI readiness.
+- The read-only contract now includes `apiContracts.roomList`,
+  `apiContracts.donationPreview`, `apiContracts.donationCreate`, and
+  `apiContracts.rankingsList` with planned request/response/error-code shapes.
+  They are still disabled and exist only for UI readiness.
+- Room list cards may show only public room id, safe artist projection, one of
+  the server tier prices 300L/500L/1000L/3000L, status label key, duration,
+  viewer CTA state, and public metrics. Do not show raw room lifecycle enums as
+  copy.
+- Room list UI must hide reported, blinded, suspended, refund-pending, refunded,
+  and admin-review rooms if the future read model ever returns filter hints.
+  Do not expose raw admin notes, report reasons, raw payloads, chat bodies,
+  user ids, wallet ledger ids, support point ledger ids, or conversation meter
+  ledger ids.
 - Future donation create must use server-authoritative wallet debit plus an
   idempotency key. Same key + same session/amount/message replays the existing
   projection; same key + different fingerprint returns `409` before wallet
@@ -916,6 +925,9 @@ Frontend rules:
 - Ranking cards may show safe artist fields, rank, score, and label keys only.
   Do not show raw chat body, report reason text, wallet ledger id, user id, or
   message id from ranking APIs.
+- Donation ranking must use confirmed net premium-chat donation only. Keep
+  reported/blinded/refunded/chargeback/cancelled rows excluded and never merge
+  the lane with free likes or Lumina boost rankings.
 
 #203 chat product policy skeleton:
 
