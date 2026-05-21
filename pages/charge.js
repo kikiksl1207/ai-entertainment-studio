@@ -27,8 +27,30 @@ const CHARGE_PAYMENT_STATUS = Object.freeze({
   pending: "pending"
 });
 
+// #373 — 충전소 6종 정책(1,000 / 3,000 / 5,000 / 10,000 / 50,000 / 100,000원)에 맞춰 화면 표시 정리.
+// backend 응답이 30,000원·70,000원처럼 spec 외 상품을 포함하더라도 사용자 화면에는 노출하지 않는다.
+// 결제/원장은 backend가 그대로 관리하고, 클라이언트는 시각 표시만 필터링한다.
+const CHARGE_HIDDEN_PRICE_AMOUNTS = new Set([30000, 70000]);
+const CHARGE_VISIBLE_PRICE_ORDER = [1000, 3000, 5000, 10000, 50000, 100000];
+
 function normalizeChargeProducts(data) {
-  return Array.isArray(data?.products) ? data.products : [];
+  const raw = Array.isArray(data?.products) ? data.products : [];
+  // 1) 숨김 가격(30,000 / 70,000) 제외
+  const filtered = raw.filter((p) => {
+    const price = Number(p?.priceAmount || p?.priceKrw || 0);
+    return Number.isFinite(price) && !CHARGE_HIDDEN_PRICE_AMOUNTS.has(price);
+  });
+  // 2) 가격 오름차순 안정 정렬 — 소액(1k/3k/5k) 카드가 첫 화면에 먼저 보이게.
+  return filtered.slice().sort((a, b) => {
+    const ap = Number(a?.priceAmount || a?.priceKrw || 0);
+    const bp = Number(b?.priceAmount || b?.priceKrw || 0);
+    const ai = CHARGE_VISIBLE_PRICE_ORDER.indexOf(ap);
+    const bi = CHARGE_VISIBLE_PRICE_ORDER.indexOf(bp);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return ap - bp;
+  });
 }
 
 function canCreatePaymentOrder(stationData = _chargeStationData) {
