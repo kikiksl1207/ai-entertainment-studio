@@ -161,7 +161,8 @@
     } else if (reason === "disabled") {
       setStateLabel("원장·보안 검증 대기");
       var disabledMsg = state.contract && state.contract.policy && state.contract.policy.disabledDisplayMessageKo;
-      if (title) title.textContent = "랭킹 데이터 준비 중";
+      // #379 — "준비 중" 직접 노출 톤 변경.
+      if (title) title.textContent = "랭킹 데이터를 모으는 중이에요";
       if (body) body.textContent = state.type === "donation"
         ? (disabledMsg || "후원 랭킹은 원장·보안 검증이 끝난 뒤 공개돼요.")
         : "소통 랭킹은 원장·검증이 끝난 뒤 함께 공개돼요.";

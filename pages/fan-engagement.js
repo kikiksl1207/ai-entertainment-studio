@@ -341,16 +341,10 @@
       }
       renderMissionList(root, missions, "loaded");
     } catch (_) {
-      const fallbackMissions = normalizeMissionResponse(homeMissionFixture);
-      if (!fallbackMissions.length) {
-        renderStateMessage(root, neutral.error || "미션 정보를 확인하고 있어요.", "error");
-        return;
-      }
-      root.dataset.state = "fallback";
-      root.innerHTML = `
-        <div class="fan-mission-notice">${escapeHtml(neutral.error || "미션 정보를 불러오지 못해 준비된 예시를 먼저 보여드려요.")}</div>
-        ${fallbackMissions.map(renderMissionCard).join("")}
-      `;
+      // #379 — API 실패 시 inline fallback 예시 카드가 실서비스 콘텐츠처럼 보이지 않게 한다.
+      // 사용자에게는 빈 상태 안내만 노출하고 fallback 예시 카드는 운영 화면에서 노출하지 않는다.
+      root.dataset.state = "error";
+      renderStateMessage(root, "미션 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.", "error");
     }
   }
 

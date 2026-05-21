@@ -1113,8 +1113,9 @@ async function handleSocialLogin(provider) {
       if (!initGoogleAuth()) throw new Error("Google SDK 초기화 실패");
       _googleTokenClient.requestAccessToken();
     } catch (err) {
+      // #379 — 사용자 alert에는 SDK/raw err.message를 노출하지 않는다. 콘솔 로그에서만 디버깅용으로 기록.
       console.error("[Lumina] Google 로그인 오류:", err);
-      alert("Google 로그인 준비 실패: " + (err.message || "알 수 없는 오류"));
+      alert("로그인 연결이 원활하지 않아요. 이메일 로그인으로 먼저 이용해 주세요.");
     }
     return;
   }
@@ -1191,8 +1192,9 @@ async function handleKakaoLogin() {
       console.warn("[Lumina] Kakao authorize 호출 후 1초 — 페이지 이동 안 함. redirect_uri 또는 도메인 등록 확인 필요");
     }, 1000);
   } catch (err) {
+    // #379 — 사용자 alert에는 SDK/raw err.message를 노출하지 않는다. 콘솔 로그에서만 디버깅용으로 기록.
     console.error("[Lumina] 카카오 로그인 오류:", err);
-    alert("카카오 로그인 준비 실패: " + (err.message || "SDK 로드 실패"));
+    alert("로그인 연결이 원활하지 않아요. 이메일 로그인으로 먼저 이용해 주세요.");
   }
 }
 
@@ -1231,8 +1233,9 @@ async function handleKakaoCallback() {
     });
     applyAuthResponse(data, "Kakao");
   } catch (err) {
-    console.error("[Lumina] Kakao 백엔드 로그인 실패", { status: err?.status, message: err?.message });
-    alert("Kakao 로그인 실패\n에러: " + (err.message || "서버 오류"));
+    // #379 — 사용자 alert에 raw err.message 노출 금지. 콘솔 로그는 status만.
+    console.error("[Lumina] Kakao 백엔드 로그인 실패", { status: err && err.status });
+    alert("로그인 연결이 원활하지 않아요. 이메일 로그인으로 먼저 이용해 주세요.");
   }
 }
 
@@ -1304,8 +1307,9 @@ async function handleNaverCallback() {
     });
     applyAuthResponse(data, "Naver");
   } catch (err) {
-    console.error("[Lumina] Naver 백엔드 로그인 실패", { status: err?.status, message: err?.message });
-    alert("네이버 로그인 실패\n에러: " + (err.message || "서버 오류"));
+    // #379 — 사용자 alert에는 raw err.message 노출 금지.
+    console.error("[Lumina] Naver 백엔드 로그인 실패", { status: err && err.status });
+    alert("로그인 연결이 원활하지 않아요. 이메일 로그인으로 먼저 이용해 주세요.");
   }
 }
 
@@ -1353,10 +1357,10 @@ function initGoogleAuth() {
     scope: "openid email profile",
     callback: handleGoogleTokenResponse,
     error_callback: (err) => {
+      // #379 — 사용자 alert에는 raw err.message / err.type 노출 금지. popup 닫힘 등 조용히 무시.
       console.error("[Lumina] Google OAuth 에러:", err);
-      // 사용자가 popup 닫음 등은 조용히 무시
       if (err.type === "popup_closed" || err.type === "popup_failed_to_open") return;
-      alert("Google 로그인 취소됨: " + (err.message || err.type));
+      alert("로그인 연결이 원활하지 않아요. 이메일 로그인으로 먼저 이용해 주세요.");
     }
   });
   return true;
@@ -1379,8 +1383,9 @@ async function handleGoogleTokenResponse(tokenResponse) {
     });
     applyAuthResponse(data, "Google");
   } catch (err) {
-    console.error("[Lumina] Google 백엔드 로그인 실패", { status: err?.status, message: err?.message });
-    alert("Google 로그인 실패\n에러: " + (err.message || "서버 오류"));
+    // #379 — raw err.message 사용자 노출 금지. status만 콘솔 로그.
+    console.error("[Lumina] Google 백엔드 로그인 실패", { status: err && err.status });
+    alert("로그인 연결이 원활하지 않아요. 이메일 로그인으로 먼저 이용해 주세요.");
   }
 }
 

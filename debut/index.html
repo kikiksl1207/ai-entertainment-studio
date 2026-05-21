@@ -383,19 +383,20 @@
                       <textarea name="providesOther" rows="2" maxlength="400" placeholder="위 항목 외에 제공할 수 있는 것을 적어주세요. (예: 외국어 회화, 악기 연주, 특정 분야 전문성)"></textarea>
                     </label>
 
+                    <!-- #379 — "준비 중" 반복 톤 제거. 실서비스 톤: 자료 제출은 링크/운영팀 안내 기준. -->
                     <header class="debut-personal-sub-head" style="margin-top:16px;">
                       <p class="debut-personal-sub-title">사진 / 자료 업로드</p>
-                      <p class="debut-personal-sub-desc">파일 업로드는 아직 준비 중이에요. 공개 외형 데뷔처럼 자료가 필요한 경우 운영팀이 별도 안내합니다.</p>
+                      <p class="debut-personal-sub-desc">파일 업로드는 운영팀 안내 후 진행돼요. 공개 외형 데뷔처럼 자료가 필요한 경우 별도 안내드립니다.</p>
                     </header>
                     <div class="debut-asset-upload" data-asset-upload="pending">
                       <div class="debut-asset-upload-head">
                         <p class="debut-asset-upload-title">사진 / 영상 / 참고 자료</p>
-                        <span class="debut-asset-upload-status">준비 중</span>
+                        <span class="debut-asset-upload-status">운영팀 안내 후 활성</span>
                       </div>
                       <p class="debut-asset-upload-desc">
-                        파일 업로드 연결이 끝나면 바로 열어드릴게요. 그때까지는 자기소개란에 외부 링크(YouTube, Vimeo, Drive 등)를 함께 적어주세요.
+                        자료 제출은 링크로 먼저 받을게요. 자기소개란에 외부 링크(YouTube, Vimeo, Drive 등)를 함께 적어주세요.
                       </p>
-                      <button type="button" class="debut-asset-upload-btn" disabled aria-disabled="true">파일 첨부 (준비 중)</button>
+                      <button type="button" class="debut-asset-upload-btn" disabled aria-disabled="true">파일 첨부</button>
                       <p class="debut-asset-upload-hint">신분증 원본·주민번호·민감한 노출 사진은 받지 않아요. 본인 확인용 자료가 필요하면 운영팀이 별도로 안내드려요.</p>
                     </div>
 
@@ -444,7 +445,8 @@
               <label class="debut-field-conditional debut-field-full" data-show-for-channel="online_review">
                 <span>자기소개 영상 / 포트폴리오 URL</span>
                 <input name="portfolioUrl" type="url" maxlength="500" placeholder="https:// (YouTube, Vimeo, Drive, 본인 사이트 등)" />
-                <small>온라인 심사를 선택한 경우 자기소개 영상 또는 포트폴리오가 담긴 URL을 함께 보내주세요. 영상 파일 직접 업로드는 준비 중이에요.</small>
+                <!-- #379 — "준비 중" 톤다운, 운영팀 안내 후 지원 톤으로 통일. -->
+                <small>온라인 심사를 선택한 경우 자기소개 영상 또는 포트폴리오가 담긴 URL을 함께 보내주세요. 영상 파일 직접 업로드는 운영팀 안내 후 지원돼요.</small>
               </label>
             </div>
 
