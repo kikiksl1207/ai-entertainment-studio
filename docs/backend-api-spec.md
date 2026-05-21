@@ -985,7 +985,7 @@ GET /api/v1/chat/me/premium-donations?period=monthly&status=confirmed&take=20
   meter ledger ids, internal admin notes, raw payloads, counterparty user ids,
   or message ids.
 
-Premium room-open contract (#331):
+Premium room-open/refund/moderation contract (#331/#383):
 
 - Room tiers are 300L, 500L, 1,000L, and 3,000L.
 - The server evaluates all follower unlock gates. Clients cannot unlock a tier
@@ -995,13 +995,22 @@ Premium room-open contract (#331):
 - Future room-open create requires an idempotency key and a server wallet debit
   key scoped as `premium-chat-room-open:<artistId>:<client-idempotency-key>`.
 - 24-hour no-answer refund is a server-generated 100% refund path.
+- Artist forced close outside a normal answered/expired close moves through
+  `refund_pending` and is a server-generated 100% refund candidate.
 - User-fault partial refund allows 70% or 50% user refund only by server/admin
   decision; client-submitted `refundRate` is ignored or rejected.
-- At least 10% of gross room Lumina remains as artist compensation candidate
-  from the non-refunded portion, but settlement and payout mutation stay
-  disabled until a later settlement task.
+- The 70% user-fault outcome records planned entries for 70% user refund, 20%
+  company retention, and 10% artist compensation. The 50% outcome records 50%
+  user refund, 20% company retention, 10% artist compensation, and a 20% policy
+  hold until PM/admin policy resolves the remainder.
+- Artist compensation is only a future accounting candidate; settlement and
+  payout mutation stay disabled until a later settlement task.
 - Report intake uses reported/blind/suspended/admin-review processing and no
   wallet action before admin decision.
+- `closed`, `artist_closed`, `expired`, `reported`, `blind`, `suspended`,
+  `refund_pending`, `refunded`, and `admin_review` fail closed before support,
+  debit, message, conversation-meter, support-point, settlement, or payout
+  mutation.
 
 Premium room list read-only contract (#372):
 

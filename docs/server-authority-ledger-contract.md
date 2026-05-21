@@ -2,7 +2,7 @@
 
 Updated: 2026-05-21
 Owner: Kaido
-Task: Notion #327, #331, #334, #377
+Task: Notion #327, #331, #334, #377, #383
 
 This contract exists to keep Lumina balances, paid actions, purchase credits,
 refunds, and creator-facing revenue signals server-authoritative. A modified
@@ -46,6 +46,9 @@ has verified and written the corresponding server ledger state.
 | Premium chat room open | debit | `premium_chat_open` | server room tier policy + wallet balance | client idempotency key |
 | Premium chat donation | debit | `premium_chat_donation` | server wallet balance | client idempotency key |
 | Premium chat room refund | credit | `refund` | server refund/moderation outcome | server room refund key |
+| Premium chat room company retention | credit | `premium_chat_room_company_revenue` | server refund restriction outcome | server admin decision key |
+| Premium chat room artist compensation | credit | `premium_chat_room_artist_compensation` | server refund restriction outcome | server admin decision key |
+| Premium chat room policy hold | hold | `premium_chat_room_policy_hold` | unresolved 50% refund restriction remainder | server admin decision key |
 | Fan letter | debit | `fan_letter_spend` | server wallet balance | client idempotency key |
 | User gift send | debit | `user_gift_send` | server wallet balance | client idempotency key |
 | User gift receive | credit | `user_gift_receive` | paired server transfer | same transfer key |
@@ -66,6 +69,11 @@ rows and from fan engagement points. The planned
 `premium_chat_support_point_ledger` table is non-cash, non-transferable, not
 settlement eligible, and not payout eligible. It can later feed premium-chat
 communication/donation rankings, but it cannot credit or debit wallet balance.
+
+Premium chat room company retention, artist compensation, and policy hold rows
+are planned premium-chat accounting ledgers, not `wallet_ledger` rows. They must
+not mutate user wallet balance, settlement, or payout state until a separate
+admin-reviewed revenue workflow is implemented.
 
 ## Paid Action Debit Pattern
 
@@ -156,16 +164,28 @@ Current state:
   days and server-calculated expiry is authoritative.
 - If the artist does not answer within 24 hours, the server refund policy can
   credit a 100% refund with a server-generated refund key.
+- If the artist force-closes the room outside a normal answered/expired close,
+  the server refund policy can move the room through `refund_pending` and credit
+  a 100% user refund with a server-generated refund key.
 - User-fault closure can restrict the user refund to 70% or 50%. The client
   cannot submit the refund rate, and at least 10% of gross room Lumina remains
   as artist compensation candidate from the non-refunded portion.
+- The 70% user-fault outcome records planned accounting entries as 70% user
+  refund, 20% company revenue retention, and 10% artist compensation retention.
+  The 50% outcome records 50% user refund, 20% company retention, 10% artist
+  compensation, and a 20% `premium_chat_room_policy_hold` until PM/admin policy
+  resolves the remainder.
 - Report intake moves the room into reported/blind/suspended/admin-review
   processing with no wallet action before an admin decision.
+- `closed`, `artist_closed`, `expired`, `reported`, `blind`, `suspended`,
+  `refund_pending`, `refunded`, and `admin_review` must fail closed before
+  message, support, debit, conversation-meter, support-point, settlement, or
+  payout mutation.
 
 Before any live room-open mutation is enabled, the backend must add room/report
 storage, idempotency replay storage, the `premium_chat_open` ledger type
-migration, atomic non-negative wallet debit, duplicate refund protection, and
-moderation/audit handling.
+migration, atomic non-negative wallet debit, duplicate refund protection,
+refund restriction accounting storage, and moderation/audit handling.
 
 Before any premium-chat support point or conversation-meter write is enabled,
 the backend must add `premium_chat_conversation_meter_ledger` and

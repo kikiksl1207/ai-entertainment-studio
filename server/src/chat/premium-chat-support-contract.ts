@@ -1,5 +1,6 @@
 import {
   PREMIUM_CHAT_ROOM_CONTRACT,
+  PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
   PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
 } from './premium-chat-room-contract';
 
@@ -55,6 +56,9 @@ export const PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES = [
 ] as const;
 
 export const PREMIUM_CHAT_ROOM_LIST_EXCLUDED_STATUSES = [
+  'closed',
+  'artist_closed',
+  'expired',
   'reported',
   'blind',
   'suspended',
@@ -64,7 +68,7 @@ export const PREMIUM_CHAT_ROOM_LIST_EXCLUDED_STATUSES = [
 ] as const;
 
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
-  version: '2026-05-21.premium-chat-donation-ranking-api.v1',
+  version: '2026-05-21.premium-chat-refund-report-ledger.v2',
   previousVersion: '2026-05-21.premium-chat-readonly-room-ranking.v1',
   feature: 'premium_chat_support',
   status: 'contract_ready_mutation_blocked',
@@ -75,6 +79,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     payoutMutationEnabled: false,
     supportPointLedgerMutationEnabled: false,
     conversationMeterMutationEnabled: false,
+    premiumChatAccountingLedgerMutationEnabled: false,
     disabledMessageKey: 'chat.donation.contractPending',
     disabledDisplayMessageKo:
       '프리미엄챗 후원은 원장·보안 검증이 끝난 뒤 열릴 예정이에요.',
@@ -298,6 +303,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
           'premium_chat_donation_orders storage migration',
           'wallet ledger type allowlist migration',
           'room state moderation guard',
+          'closed_or_reported_room_fail_closed_guard',
+          'refund_restriction_accounting_ledger_contract',
           'idempotency replay projection',
           'ranking read-model refresh worker',
         ],
@@ -467,23 +474,14 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       requiresWalletLedgerTypeMigration: true,
     },
     blockedStates: {
-      session: ['reported', 'blind', 'suspended', 'refund_pending'],
+      session: PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
       donation: ['refunded', 'chargeback_review', 'cancelled'],
       behavior: 'fail_closed_before_wallet_lookup',
       messageKey: 'chat.donation.blockedRoomState',
     },
     availabilityByRoomStatus: {
       allowed: ['opened', 'active', 'artist_answered'],
-      blocked: [
-        'artist_closed',
-        'expired',
-        'reported',
-        'blind',
-        'suspended',
-        'refund_pending',
-        'refunded',
-        'admin_review',
-      ],
+      blocked: PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
       reportedOrBlindedCanDonate: false,
       suspendedOrRefundPendingCanDonate: false,
       checkOrder: [

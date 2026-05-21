@@ -2463,7 +2463,7 @@ describe('ChatService premium chat support contract', () => {
     const contract = service.getPremiumSupportContract();
 
     expect(contract.version).toBe(
-      '2026-05-21.premium-chat-donation-ranking-api.v1',
+      '2026-05-21.premium-chat-refund-report-ledger.v2',
     );
     expect(contract.previousVersion).toBe(
       '2026-05-21.premium-chat-readonly-room-ranking.v1',
@@ -2481,6 +2481,7 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.policy.walletMutationEnabled).toBe(false);
     expect(contract.policy.supportPointLedgerMutationEnabled).toBe(false);
     expect(contract.policy.conversationMeterMutationEnabled).toBe(false);
+    expect(contract.policy.premiumChatAccountingLedgerMutationEnabled).toBe(false);
     expect(contract.endpoints.roomList).toMatchObject({
       method: 'GET',
       path: '/api/v1/chat/premium-rooms',
@@ -2516,6 +2517,9 @@ describe('ChatService premium chat support contract', () => {
       visibility: {
         visibleStatuses: ['opened', 'active', 'artist_answered'],
         excludedStatuses: [
+          'closed',
+          'artist_closed',
+          'expired',
           'reported',
           'blind',
           'suspended',
@@ -2551,6 +2555,8 @@ describe('ChatService premium chat support contract', () => {
         'premium_chat_donation_orders storage migration',
         'wallet ledger type allowlist migration',
         'room state moderation guard',
+        'closed_or_reported_room_fail_closed_guard',
+        'refund_restriction_accounting_ledger_contract',
         'idempotency replay projection',
         'ranking read-model refresh worker',
       ],
@@ -2684,6 +2690,7 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.donation.availabilityByRoomStatus).toMatchObject({
       allowed: ['opened', 'active', 'artist_answered'],
       blocked: [
+        'closed',
         'artist_closed',
         'expired',
         'reported',
@@ -2777,6 +2784,9 @@ describe('ChatService premium chat support contract', () => {
       endpoint: '/api/v1/chat/premium-rooms',
       visibleStatuses: ['opened', 'active', 'artist_answered'],
       excludedStatuses: [
+        'closed',
+        'artist_closed',
+        'expired',
         'reported',
         'blind',
         'suspended',
