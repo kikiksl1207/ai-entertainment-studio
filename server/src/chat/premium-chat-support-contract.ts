@@ -41,6 +41,13 @@ export const PREMIUM_CHAT_RANKING_PERIODS = [
   'all',
 ] as const;
 
+export const PREMIUM_CHAT_DONATION_HISTORY_STATUSES = [
+  'confirmed',
+  'refunded',
+  'chargeback_review',
+  'cancelled',
+] as const;
+
 export const PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES = [
   'opened',
   'active',
@@ -57,8 +64,8 @@ export const PREMIUM_CHAT_ROOM_LIST_EXCLUDED_STATUSES = [
 ] as const;
 
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
-  version: '2026-05-21.premium-chat-readonly-room-ranking.v1',
-  previousVersion: '2026-05-21.premium-chat-support-ledger.v1',
+  version: '2026-05-21.premium-chat-donation-ranking-api.v1',
+  previousVersion: '2026-05-21.premium-chat-readonly-room-ranking.v1',
   feature: 'premium_chat_support',
   status: 'contract_ready_mutation_blocked',
   policy: {
@@ -107,6 +114,21 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       enabled: false,
       walletMutation: true,
       requiresIdempotencyKey: true,
+    },
+    myDonationHistory: {
+      method: 'GET',
+      path: '/api/v1/chat/me/premium-donations',
+      query: {
+        period: PREMIUM_CHAT_RANKING_PERIODS,
+        artistSlug: 'optional artist slug',
+        status: PREMIUM_CHAT_DONATION_HISTORY_STATUSES,
+        take: { default: 20, max: 50 },
+        cursor: 'opaque optional pagination cursor',
+      },
+      status: 'planned',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
     },
     rankings: {
       method: 'GET',
@@ -215,6 +237,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       method: 'POST',
       pathTemplate: '/api/v1/chat/sessions/:sessionId/donations',
       enabled: false,
+      publicMutationEnabled: false,
       authRequired: true,
       walletMutation: true,
       request: {
@@ -251,6 +274,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
             '/api/v1/chat/rankings?type=communication',
             '/api/v1/chat/rankings?type=donation',
           ],
+          clientSubmittedScoreTrusted: false,
         },
       },
       errorCodes: [
@@ -270,11 +294,68 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         clientBalanceTrusted: false,
         debitSource: 'server wallet ledger only',
         orderSource: 'server-created premium chat donation order only',
+        mutationOpenPrerequisites: [
+          'premium_chat_donation_orders storage migration',
+          'wallet ledger type allowlist migration',
+          'room state moderation guard',
+          'idempotency replay projection',
+          'ranking read-model refresh worker',
+        ],
         repeatRequestBehavior:
           'same idempotency key and same fingerprint returns existing projection without a second debit',
         conflictBehavior:
           'same idempotency key with a different fingerprint returns 409 before wallet lookup',
       },
+    },
+    myDonationHistory: {
+      method: 'GET',
+      path: '/api/v1/chat/me/premium-donations',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      request: {
+        query: {
+          period: PREMIUM_CHAT_RANKING_PERIODS,
+          artistSlug: 'optional artist slug',
+          status: PREMIUM_CHAT_DONATION_HISTORY_STATUSES,
+          take: { default: 20, max: 50 },
+          cursor: 'opaque optional pagination cursor',
+        },
+      },
+      response: {
+        items: ['myDonationHistoryItem projection'],
+        summary: {
+          totalConfirmedLumina: '<decimal string for filtered window>',
+          refundedLumina: '<decimal string for filtered window>',
+          donationCount: '<number>',
+        },
+        nextCursor: '<opaque cursor or null>',
+        generatedAt: '<ISO datetime>',
+      },
+      visibility: {
+        ownerOnly: true,
+        otherUserAccess: '404_or_403_without_identity_leak',
+        reportedOrBlindedRoomPolicy:
+          'hide raw room/chat content and keep only safe donation status fields',
+      },
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        rawSupportPointLedgerIdReturned: false,
+        rawConversationMeterLedgerIdReturned: false,
+        rawAdminNoteReturned: false,
+        rawReportReasonReturned: false,
+        rawPayloadReturned: false,
+        rawChatBodyReturned: false,
+        counterpartyUserIdReturned: false,
+      },
+      errorCodes: [
+        { status: 401, code: 'auth_required' },
+        { status: 400, code: 'invalid_period' },
+        { status: 400, code: 'invalid_status' },
+        { status: 400, code: 'invalid_take' },
+      ],
     },
     rankingsList: {
       method: 'GET',
@@ -390,6 +471,31 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       donation: ['refunded', 'chargeback_review', 'cancelled'],
       behavior: 'fail_closed_before_wallet_lookup',
       messageKey: 'chat.donation.blockedRoomState',
+    },
+    availabilityByRoomStatus: {
+      allowed: ['opened', 'active', 'artist_answered'],
+      blocked: [
+        'artist_closed',
+        'expired',
+        'reported',
+        'blind',
+        'suspended',
+        'refund_pending',
+        'refunded',
+        'admin_review',
+      ],
+      reportedOrBlindedCanDonate: false,
+      suspendedOrRefundPendingCanDonate: false,
+      checkOrder: [
+        'auth_required',
+        'session_exists_and_owned',
+        'room_status_allows_support',
+        'donation_status_allows_support',
+        'amount_allowed',
+        'message_length_allowed',
+        'idempotency_key_valid',
+        'wallet_authority_ready',
+      ],
     },
     highValuePolicy: {
       startsAtLumina: 10000,
@@ -632,6 +738,13 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       },
       refundedOrBlindedRows: 'excluded',
     },
+    apiReadiness: {
+      rankingEndpointEnabled: false,
+      donationCreateEnabled: false,
+      myDonationHistoryEnabled: false,
+      scoreRefreshMutationByClient: false,
+      frontendSubmitAllowed: false,
+    },
   },
   projections: {
     donationEvent: {
@@ -655,6 +768,42 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       scoreLabelKey: 'chat.rankings.score.communication|chat.rankings.score.donation',
       viewer: {
         followed: '<boolean when auth context is present>',
+      },
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        rawSupportPointLedgerIdReturned: false,
+        rawConversationMeterLedgerIdReturned: false,
+        rawChatBodyReturned: false,
+        rawReportReasonReturned: false,
+        rawUserIdReturned: false,
+        messageIdsReturned: false,
+      },
+    },
+    myDonationHistoryItem: {
+      donationId: '<premium chat donation public id>',
+      sessionId: '<premium chat session id owned by viewer>',
+      artist: {
+        id: '<artist id>',
+        artistSlug: '<artist slug>',
+        displayName: '<artist display name>',
+        avatarUrl: '<safe public avatar url or null>',
+      },
+      amountLumina: '<decimal string>',
+      status: {
+        key: '<confirmed|refunded|chargeback_review|cancelled>',
+        labelKey: '<stable Korean-copy key>',
+      },
+      messagePreview: '<viewer-owned safe support message preview or null>',
+      createdAt: '<ISO datetime>',
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        rawSupportPointLedgerIdReturned: false,
+        rawConversationMeterLedgerIdReturned: false,
+        rawAdminNoteReturned: false,
+        rawReportReasonReturned: false,
+        rawPayloadReturned: false,
+        rawChatBodyReturned: false,
+        counterpartyUserIdReturned: false,
       },
     },
     roomListItem: {

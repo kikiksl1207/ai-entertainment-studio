@@ -875,7 +875,7 @@ LLM generation readiness:
   enum values such as `provider_not_configured` or `async_reviewed_fan_letter`
   directly.
 
-Premium chat support and ranking contract (#328/#348/#349/#372):
+Premium chat support and ranking contract (#328/#348/#349/#372/#376):
 
 ```http
 GET /api/v1/chat/premium-support-contract
@@ -945,6 +945,45 @@ Donation order and ledger contract (#348):
   wallet, then trust/identity gate for high-value support.
 - Failed auth, missing/other-user session, blocked room state, invalid amount,
   or invalid idempotency key must return before wallet lookup or mutation.
+
+Premium chat donation and ranking API contract (#376):
+
+The following shapes are exposed through
+`GET /api/v1/chat/premium-support-contract` as disabled API contracts. They are
+for frontend/backend wiring alignment only and do not make the endpoints live.
+
+```http
+POST /api/v1/chat/sessions/:sessionId/donations
+GET /api/v1/chat/rankings?type=communication&period=weekly&take=20
+GET /api/v1/chat/rankings?type=donation&period=weekly&take=20
+GET /api/v1/chat/me/premium-donations?period=monthly&status=confirmed&take=20
+```
+
+- `apiContracts.donationCreate.enabled=false` and
+  `publicMutationEnabled=false`. Future wallet debit remains server-authority
+  only and requires storage, wallet ledger allowlist, moderation guard,
+  idempotency replay projection, and ranking read-model refresh work.
+- Donation presets are 10L, 50L, 100L, 500L, 1,000L, 5,000L, 10,000L, and
+  50,000L. Custom donation is 1L through 50,000L, integer only.
+- Donation create accepts an optional message up to 200 chars and requires an
+  idempotency key from the header or body.
+- Donation create is blocked before wallet lookup for reported, blind,
+  suspended, refund-pending, refunded, admin-review, expired, or closed rooms.
+- Ranking list is read-only and disabled. The frontend cannot submit scores or
+  request score refresh mutation.
+- Donation ranking uses confirmed net premium-chat donation only. It excludes
+  free likes, Lumina boosts, room-open rows, message rows, reported/blinded
+  rows, refunded rows, chargeback rows, and cancelled rows.
+- Communication ranking remains a separate server-weighted lane for room open,
+  safe visible message activity, confirmed net donation, and safe artist reply
+  activity.
+- My donation history is owner-only and disabled. It returns safe donation
+  projection fields plus filtered summary totals only. Other-user access must be
+  safe 404 or 403 without identity leakage.
+- Donation, ranking, and history projections must not expose raw chat bodies,
+  raw report reasons, wallet ledger ids, support point ledger ids, conversation
+  meter ledger ids, internal admin notes, raw payloads, counterparty user ids,
+  or message ids.
 
 Premium room-open contract (#331):
 

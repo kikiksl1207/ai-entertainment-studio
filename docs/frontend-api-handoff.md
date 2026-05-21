@@ -875,7 +875,7 @@ cost metadata will be stored on generated assistant messages at
 `chat_messages.model_metadata`; safety metadata will be stored at
 `chat_messages.safety_metadata`.
 
-Premium chat support contract (#328, tightened by #341/#348/#349/#372):
+Premium chat support contract (#328, tightened by #341/#348/#349/#372/#376):
 
 ```http
 GET /chat/premium-support-contract
@@ -944,6 +944,19 @@ Frontend rules:
   projection; same key + different fingerprint returns `409` before wallet
   lookup. Client balance, local price text, or cached UI state must never be
   treated as payment authority.
+- #376 keeps donation create as an API contract only:
+  `apiContracts.donationCreate.enabled=false` and
+  `publicMutationEnabled=false`. Do not enable the submit CTA from this contract
+  alone.
+- Donation create copy can show preset amounts 10L/50L/100L/500L/1000L/5000L/
+  10000L/50000L and custom amount copy, but the frontend must keep POST
+  donation disabled until backend explicitly opens the endpoint.
+- Reported, blinded, suspended, refund-pending, refunded, admin-review, expired,
+  or closed rooms cannot accept donations. Show mapped Korean copy from message
+  keys; never show raw room status enums.
+- `apiContracts.myDonationHistory` is an owner-only planned read contract for
+  the viewer's donation history. It is disabled, returns safe projection fields
+  only, and must not be used to infer wallet, settlement, or payout state.
 - #348 adds the planned donation order/ledger shape. Future successful create
   responses include an `order` projection plus a safe `donation` projection, but
   the current contract still has create disabled. The frontend must not infer a
@@ -968,6 +981,8 @@ Frontend rules:
 - Donation ranking must use confirmed net premium-chat donation only. Keep
   reported/blinded/refunded/chargeback/cancelled rows excluded and never merge
   the lane with free likes or Lumina boost rankings.
+- The frontend must not submit ranking scores, ranking refresh requests, local
+  message counts, donation totals, or client-generated ranking positions.
 
 #203 chat product policy skeleton:
 

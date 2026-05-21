@@ -2463,10 +2463,10 @@ describe('ChatService premium chat support contract', () => {
     const contract = service.getPremiumSupportContract();
 
     expect(contract.version).toBe(
-      '2026-05-21.premium-chat-readonly-room-ranking.v1',
+      '2026-05-21.premium-chat-donation-ranking-api.v1',
     );
     expect(contract.previousVersion).toBe(
-      '2026-05-21.premium-chat-support-ledger.v1',
+      '2026-05-21.premium-chat-readonly-room-ranking.v1',
     );
     expect(contract.donation.fixedAmountsLumina).toEqual([
       10,
@@ -2489,6 +2489,13 @@ describe('ChatService premium chat support contract', () => {
       walletMutation: false,
     });
     expect(contract.endpoints.donationCreate.enabled).toBe(false);
+    expect(contract.endpoints.myDonationHistory).toMatchObject({
+      method: 'GET',
+      path: '/api/v1/chat/me/premium-donations',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+    });
     expect(contract.endpoints.rankings.query.type).toEqual([
       'communication',
       'donation',
@@ -2535,15 +2542,32 @@ describe('ChatService premium chat support contract', () => {
       'roomListItem projection',
     ]);
     expect(contract.apiContracts.donationCreate.enabled).toBe(false);
+    expect(contract.apiContracts.donationCreate.publicMutationEnabled).toBe(false);
     expect(contract.apiContracts.donationCreate.serverAuthority).toMatchObject({
       clientBalanceTrusted: false,
       debitSource: 'server wallet ledger only',
       orderSource: 'server-created premium chat donation order only',
+      mutationOpenPrerequisites: [
+        'premium_chat_donation_orders storage migration',
+        'wallet ledger type allowlist migration',
+        'room state moderation guard',
+        'idempotency replay projection',
+        'ranking read-model refresh worker',
+      ],
     });
     expect(contract.apiContracts.donationCreate.response.order).toMatchObject({
       status: 'confirmed',
       type: 'premium_chat_donation',
       amountLumina: '<decimal string>',
+    });
+    expect(
+      contract.apiContracts.donationCreate.response.rankingRefresh,
+    ).toMatchObject({
+      endpoints: [
+        '/api/v1/chat/rankings?type=communication',
+        '/api/v1/chat/rankings?type=donation',
+      ],
+      clientSubmittedScoreTrusted: false,
     });
     expect(contract.apiContracts.donationCreate.errorCodes).toEqual(
       expect.arrayContaining([
@@ -2552,6 +2576,44 @@ describe('ChatService premium chat support contract', () => {
         { status: 409, code: 'idempotency_conflict' },
       ]),
     );
+    expect(contract.apiContracts.myDonationHistory).toMatchObject({
+      method: 'GET',
+      path: '/api/v1/chat/me/premium-donations',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      request: {
+        query: {
+          period: ['daily', 'weekly', 'monthly', 'all'],
+          status: ['confirmed', 'refunded', 'chargeback_review', 'cancelled'],
+          take: { default: 20, max: 50 },
+        },
+      },
+      response: {
+        items: ['myDonationHistoryItem projection'],
+        summary: {
+          totalConfirmedLumina: '<decimal string for filtered window>',
+          refundedLumina: '<decimal string for filtered window>',
+          donationCount: '<number>',
+        },
+      },
+      visibility: {
+        ownerOnly: true,
+        otherUserAccess: '404_or_403_without_identity_leak',
+      },
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        rawSupportPointLedgerIdReturned: false,
+        rawConversationMeterLedgerIdReturned: false,
+        rawAdminNoteReturned: false,
+        rawReportReasonReturned: false,
+        rawPayloadReturned: false,
+        rawChatBodyReturned: false,
+        counterpartyUserIdReturned: false,
+      },
+    });
     expect(contract.apiContracts.rankingsList.enabled).toBe(false);
     expect(contract.apiContracts.rankingsList.request.query.type).toEqual([
       'communication',
@@ -2619,6 +2681,21 @@ describe('ChatService premium chat support contract', () => {
       'wallet_active_and_sufficient',
       'trust_or_identity_gate_for_high_value',
     ]);
+    expect(contract.donation.availabilityByRoomStatus).toMatchObject({
+      allowed: ['opened', 'active', 'artist_answered'],
+      blocked: [
+        'artist_closed',
+        'expired',
+        'reported',
+        'blind',
+        'suspended',
+        'refund_pending',
+        'refunded',
+        'admin_review',
+      ],
+      reportedOrBlindedCanDonate: false,
+      suspendedOrRefundPendingCanDonate: false,
+    });
     expect(contract.conversationMetering).toMatchObject({
       status: 'planned_disabled',
       unit: 'message_activity_unit',
@@ -2794,6 +2871,41 @@ describe('ChatService premium chat support contract', () => {
       blindedRows: 'excluded',
       refundedRows: 'excluded',
       chargebackRows: 'excluded',
+    });
+    expect(contract.rankings.apiReadiness).toMatchObject({
+      rankingEndpointEnabled: false,
+      donationCreateEnabled: false,
+      myDonationHistoryEnabled: false,
+      scoreRefreshMutationByClient: false,
+      frontendSubmitAllowed: false,
+    });
+    expect(contract.projections.rankingItem.privacy).toMatchObject({
+      rawWalletLedgerIdReturned: false,
+      rawSupportPointLedgerIdReturned: false,
+      rawConversationMeterLedgerIdReturned: false,
+      rawChatBodyReturned: false,
+      rawReportReasonReturned: false,
+      rawUserIdReturned: false,
+      messageIdsReturned: false,
+    });
+    expect(contract.projections.myDonationHistoryItem).toMatchObject({
+      donationId: '<premium chat donation public id>',
+      sessionId: '<premium chat session id owned by viewer>',
+      amountLumina: '<decimal string>',
+      status: {
+        key: '<confirmed|refunded|chargeback_review|cancelled>',
+        labelKey: '<stable Korean-copy key>',
+      },
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        rawSupportPointLedgerIdReturned: false,
+        rawConversationMeterLedgerIdReturned: false,
+        rawAdminNoteReturned: false,
+        rawReportReasonReturned: false,
+        rawPayloadReturned: false,
+        rawChatBodyReturned: false,
+        counterpartyUserIdReturned: false,
+      },
     });
     expect(contract.projections.roomListItem).toMatchObject({
       roomId: '<premium chat room public id>',
