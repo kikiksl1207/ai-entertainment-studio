@@ -21,12 +21,13 @@ Read-only display policy:
   cap 20%.
 - App 1st launch packages:
   - 1,000 KRW = 70 Lumina
+  - 3,000 KRW = 210 Lumina
   - 5,000 KRW = 350 Lumina
   - 10,000 KRW = 700 Lumina
-  - 20,000 KRW = 1,400 Lumina
   - 50,000 KRW = 3,750 Lumina
   - 100,000 KRW = 8,000 Lumina
-- App 30,000 KRW and 70,000 KRW packages are deferred until after launch.
+- 20,000 KRW and 30,000 KRW packages are not part of the first
+  charge-policy response.
 - Free ad charge is display/planned only: label `오늘의 무료 루미나 받기`, max
   50% of ad/offerwall revenue equivalent, daily limit 50, future ledger source
   `ad_reward`.
@@ -35,12 +36,15 @@ Initial seed products:
 
 | SKU | User-facing product | Paid Lumina | Bonus Lumina | KRW |
 | --- | --- | ---: | ---: | ---: |
+| `LUMINA_100` | Lumina 100 | 100 | 0 | 1,000 |
+| `LUMINA_300` | Lumina 300 | 300 | 0 | 3,000 |
+| `LUMINA_500` | Lumina 500 | 500 | 0 | 5,000 |
 | `LUMINA_1000` | Lumina 1,000 | 1,000 | 0 | 10,000 |
-| `LUMINA_3300` | Lumina 3,000 + bonus 300 | 3,000 | 300 | 30,000 |
 | `LUMINA_5800` | Lumina 5,000 + bonus 800 | 5,000 | 800 | 50,000 |
 | `LUMINA_12000` | Lumina 10,000 + bonus 2,000 | 10,000 | 2,000 | 100,000 |
 
-Old seed products `LUMINA_100`, `LUMINA_550`, and `LUMINA_1200` should be archived by seed.
+Old seed products `LUMINA_550`, `LUMINA_1200`, and `LUMINA_3300` should be
+archived by seed.
 
 First paid Lumina charge grants an automatic 10% first-charge bonus based on
 the product base Lumina amount. The bonus is stored as a separate

@@ -511,7 +511,7 @@ Response sample:
 
 ```json
 {
-  "policyVersion": "2026-05-13.charge-policy-v1",
+  "policyVersion": "2026-05-21.charge-policy-v2",
   "currency": {
     "code": "LUMINA",
     "displayNameKo": "루미나",
@@ -530,16 +530,13 @@ Response sample:
     "mutationEnabled": false,
     "packages": [
       { "sku": "APP_LUMINA_70", "priceKrw": 1000, "luminaAmount": 70, "labelKo": "1,000원 = 70L" },
+      { "sku": "APP_LUMINA_210", "priceKrw": 3000, "luminaAmount": 210, "labelKo": "3,000원 = 210L" },
       { "sku": "APP_LUMINA_350", "priceKrw": 5000, "luminaAmount": 350, "labelKo": "5,000원 = 350L" },
       { "sku": "APP_LUMINA_700", "priceKrw": 10000, "luminaAmount": 700, "labelKo": "10,000원 = 700L" },
-      { "sku": "APP_LUMINA_1400", "priceKrw": 20000, "luminaAmount": 1400, "labelKo": "20,000원 = 1,400L" },
       { "sku": "APP_LUMINA_3750", "priceKrw": 50000, "luminaAmount": 3750, "labelKo": "50,000원 = 3,750L" },
       { "sku": "APP_LUMINA_8000", "priceKrw": 100000, "luminaAmount": 8000, "labelKo": "100,000원 = 8,000L" }
     ],
-    "deferredPackages": [
-      { "priceKrw": 30000, "status": "deferred_after_launch" },
-      { "priceKrw": 70000, "status": "deferred_after_launch" }
-    ]
+    "deferredPackages": []
   },
   "freeAdCharge": {
     "status": "planned",

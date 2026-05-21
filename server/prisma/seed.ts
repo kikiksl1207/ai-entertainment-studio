@@ -657,8 +657,10 @@ async function main() {
 
 async function seedCommerce() {
   const luminaProducts = [
+    ['LUMINA_100', '루미나 100', 100, 0, 1000],
+    ['LUMINA_300', '루미나 300', 300, 0, 3000],
+    ['LUMINA_500', '루미나 500', 500, 0, 5000],
     ['LUMINA_1000', '루미나 1,000', 1000, 0, 10000],
-    ['LUMINA_3300', '루미나 3,000 + 보너스 300', 3000, 300, 30000],
     ['LUMINA_5800', '루미나 5,000 + 보너스 800', 5000, 800, 50000],
     ['LUMINA_12000', '루미나 10,000 + 보너스 2,000 (1 스텔라+)', 10000, 2000, 100000],
   ] as const;
@@ -689,7 +691,7 @@ async function seedCommerce() {
 
   await prisma.luminaProduct.updateMany({
     where: {
-      sku: { in: ['LUMINA_100', 'LUMINA_550', 'LUMINA_1200'] },
+      sku: { in: ['LUMINA_550', 'LUMINA_1200', 'LUMINA_3300'] },
     },
     data: {
       status: 'archived',

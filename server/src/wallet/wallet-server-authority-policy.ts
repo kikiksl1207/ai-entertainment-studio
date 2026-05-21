@@ -7,6 +7,8 @@ export const SERVER_AUTHORITY_WALLET_POLICY = {
   allWalletDebitsRequireServerLedgerBalanceCheck: true,
   allWalletDebitsRequireAtomicNonNegativeUpdate: true,
   allWalletMutationsRequireIdempotencyOrProviderTransactionKey: true,
+  paymentOrderReplayRequiresSameUserProductAndProvider: true,
+  paymentWebhookRawProviderPayloadStored: false,
   purchaseCreditsRequireProviderVerification: true,
   appIntegrityIsAdvisoryOnly: true,
   rawPurchaseTokensLogged: false,
@@ -206,7 +208,8 @@ export const APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST = [
     rejectedOrIgnoredFields: CLIENT_ECONOMIC_TAMPER_FIELDS,
     authority: ['server product table', 'provider verified transaction'],
     idempotencyOrProviderTransactionKey: 'provider_transaction_id',
-    doubleDebitGuard: 'payment order status transition and provider transaction dedupe',
+    doubleDebitGuard:
+      'payment order status transition, provider transaction dedupe, and sanitized webhook audit payload',
   },
   {
     surface: 'refund_reversal',

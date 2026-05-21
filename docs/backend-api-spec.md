@@ -328,9 +328,10 @@ Lumina Station:
   `charge-policy.safety.paymentOrderMutation = false`, and
   `charge-policy.safety.adSdkMutation = false`; clients must treat the response
   as display policy only.
-- App launch packages are 1,000 KRW = 70L, 5,000 KRW = 350L,
-  10,000 KRW = 700L, 20,000 KRW = 1,400L, 50,000 KRW = 3,750L,
-  and 100,000 KRW = 8,000L. 30,000 KRW and 70,000 KRW packages are deferred.
+- App launch packages are 1,000 KRW = 70L, 3,000 KRW = 210L,
+  5,000 KRW = 350L, 10,000 KRW = 700L, 50,000 KRW = 3,750L,
+  and 100,000 KRW = 8,000L. 20,000 KRW and 30,000 KRW packages are not part
+  of the first charge-policy response.
 - Free ad charge is labeled `오늘의 무료 루미나 받기`, has a planned daily limit
   of 50, and reserves future ledger source `ad_reward`; no ad SDK or wallet
   grant endpoint is opened by this policy.
@@ -338,11 +339,18 @@ Lumina Station:
   image 100L, and short video 300L. Short video copy is 3-5 seconds, one
   character, one concept.
 - `GET /api/v1/lumina-station?take=5` is an authenticated charge-screen bootstrap endpoint.
-- It returns the user's Lumina wallet, active `lumina_products`, recent `payment_orders`, payment provider status, and client display policy.
+- It returns the user's Lumina wallet, active six-tier `lumina_products`, recent `payment_orders`, payment provider status, and client display policy. 20,000 KRW and 30,000 KRW products are filtered out even if legacy rows remain active.
 - It does not create a payment order and does not grant Lumina.
-- The frontend still creates charge orders with `POST /api/v1/payments/orders`.
+- The frontend still creates charge orders with `POST /api/v1/payments/orders`. Order creation accepts active products only when their KRW price is one of 1,000 / 3,000 / 5,000 / 10,000 / 50,000 / 100,000.
 - `payment.status = "pg_pending"` means the UI may show products but real checkout is pending PG provider approval/integration.
 - `products[]` includes frontend convenience fields: `totalLumina`, `unitPriceKrw`, `bonusRate`, `discountAmount`, and `isBestValue`.
+- `POST /api/v1/payments/orders` idempotency replay is valid only for the same
+  user, Lumina product, and provider. Reusing a key for a different body returns
+  `PAYMENT_ORDER_IDEMPOTENCY_CONFLICT` / `payments.order.idempotencyConflict`
+  before a new order or checkout payload is created.
+- Payment webhook storage keeps a sanitized audit projection only. Raw provider
+  payloads, payment tokens, cookies, signed payloads, card data, and secrets
+  must not be stored or copied to docs/Notion.
 - `GET /api/v1/rewards/activation-policy` returns the current launch reward policy contract: free promo reward cap 3000L, paid bonus cap 20%, daily attendance schedule, planned identity/birthday/profile/social milestones, and anti-abuse notes.
 - `GET /api/v1/rewards/activation-progress` returns the signed-in user's cap usage, paid-bonus usage, attendance state, first-charge state, and milestone progress. Planned milestones are display-only until a future grant endpoint is opened.
 - `GET /api/v1/rewards/ledger-policy` returns the fail-closed free Lumina reward ledger skeleton for achievements, titles, birthday, identity completion, attendance, profile, and first-action grants. It is read-only, does not open arbitrary reward grants, and states the 3000L lifetime free promo cap plus non-settlement policy.

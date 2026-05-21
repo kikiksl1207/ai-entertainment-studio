@@ -7,7 +7,7 @@ describe('LuminaStationService.getChargePolicy', () => {
     const policy = service.getChargePolicy();
 
     expect(policy).toMatchObject({
-      policyVersion: '2026-05-13.charge-policy-v1',
+      policyVersion: '2026-05-21.charge-policy-v2',
       currency: {
         code: 'LUMINA',
         unitPriceKrw: 10,
@@ -39,16 +39,20 @@ describe('LuminaStationService.getChargePolicy', () => {
     });
     expect(policy.appCharge.packages).toEqual([
       expect.objectContaining({ priceKrw: 1000, luminaAmount: 70 }),
+      expect.objectContaining({ priceKrw: 3000, luminaAmount: 210 }),
       expect.objectContaining({ priceKrw: 5000, luminaAmount: 350 }),
       expect.objectContaining({ priceKrw: 10000, luminaAmount: 700 }),
-      expect.objectContaining({ priceKrw: 20000, luminaAmount: 1400 }),
       expect.objectContaining({ priceKrw: 50000, luminaAmount: 3750 }),
       expect.objectContaining({ priceKrw: 100000, luminaAmount: 8000 }),
     ]);
-    expect(policy.appCharge.deferredPackages).toEqual([
-      expect.objectContaining({ priceKrw: 30000 }),
-      expect.objectContaining({ priceKrw: 70000 }),
-    ]);
+    expect(policy.appCharge.packages).toHaveLength(6);
+    expect(policy.appCharge.packages).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ priceKrw: 20000 }),
+        expect.objectContaining({ priceKrw: 30000 }),
+      ]),
+    );
+    expect(policy.appCharge.deferredPackages).toEqual([]);
     expect(policy.creatorRequests.products).toEqual([
       expect.objectContaining({ requestType: 'gallery_view', priceLumina: 0 }),
       expect.objectContaining({ requestType: 'basic_image', priceLumina: 30 }),

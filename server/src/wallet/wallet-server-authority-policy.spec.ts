@@ -16,6 +16,8 @@ describe('server-authority wallet policy', () => {
       allWalletDebitsRequireServerLedgerBalanceCheck: true,
       allWalletDebitsRequireAtomicNonNegativeUpdate: true,
       allWalletMutationsRequireIdempotencyOrProviderTransactionKey: true,
+      paymentOrderReplayRequiresSameUserProductAndProvider: true,
+      paymentWebhookRawProviderPayloadStored: false,
       appIntegrityIsAdvisoryOnly: true,
       rawPurchaseTokensLogged: false,
     });
@@ -82,6 +84,21 @@ describe('server-authority wallet policy', () => {
         (contract) => contract.integritySignalRequiredForLedgerCredit === false,
       ),
     ).toBe(true);
+  });
+
+  it('requires payment order replay and webhook audit to stay server-authoritative', () => {
+    const chargeSurface = APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST.find(
+      (item) => item.surface === 'charge_purchase_credit',
+    );
+
+    expect(chargeSurface).toMatchObject({
+      clientEconomicFieldsTrusted: false,
+      authority: ['server product table', 'provider verified transaction'],
+      idempotencyOrProviderTransactionKey: 'provider_transaction_id',
+    });
+    expect(chargeSurface?.doubleDebitGuard).toContain(
+      'sanitized webhook audit payload',
+    );
   });
 
   it('covers app and web Lumina tamper surfaces without trusting client economics', () => {

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,6 +11,13 @@ import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
+const ACTIVE_CHARGE_PRICE_AMOUNTS_KRW = [1000, 3000, 5000, 10000, 50000, 100000];
+const PAYMENT_ORDER_IDEMPOTENCY_CONFLICT = {
+  code: 'PAYMENT_ORDER_IDEMPOTENCY_CONFLICT',
+  message: 'payments.order.idempotencyConflict',
+  messageKey: 'payments.order.idempotencyConflict',
+  paymentOrderMutation: false,
+} as const;
 
 @Injectable()
 export class PaymentsService {
@@ -32,14 +40,21 @@ export class PaymentsService {
 
     const provider = input.provider ?? this.providerRegistry.defaultProvider();
     const adapter = this.providerRegistry.get(provider);
+    const idempotencyKey = input.idempotencyKey?.trim() || undefined;
 
-    if (input.idempotencyKey) {
+    if (idempotencyKey) {
       const existingOrder = await this.prisma.paymentOrder.findUnique({
-        where: { idempotencyKey: input.idempotencyKey },
+        where: { idempotencyKey },
         include: { luminaProduct: true, transactions: true },
       });
 
       if (existingOrder) {
+        this.assertCreateOrderIdempotentReplay(existingOrder, {
+          userId,
+          luminaProductId: input.luminaProductId,
+          provider,
+        });
+
         return {
           order: existingOrder,
           checkout: adapter.createCheckoutPayload({
@@ -58,6 +73,7 @@ export class PaymentsService {
       where: {
         id: input.luminaProductId,
         status: 'active',
+        priceAmount: { in: ACTIVE_CHARGE_PRICE_AMOUNTS_KRW },
       },
     });
 
@@ -74,7 +90,7 @@ export class PaymentsService {
         status: 'pending',
         amount: product.priceAmount,
         currency: product.priceCurrency,
-        idempotencyKey: input.idempotencyKey,
+        idempotencyKey,
       },
       include: { luminaProduct: true, transactions: true },
     });
@@ -184,7 +200,7 @@ export class PaymentsService {
           provider,
           providerTransactionId: event.providerTransactionId,
           status: event.status,
-          rawPayload: event.rawPayload as object,
+          rawPayload: this.providerWebhookAuditPayload(provider, event),
         },
       });
 
@@ -332,6 +348,47 @@ export class PaymentsService {
 
   private createOrderNo() {
     return `LUMINA-${Date.now()}-${randomUUID().slice(0, 8)}`;
+  }
+
+  private assertCreateOrderIdempotentReplay(
+    order: {
+      userId: string;
+      luminaProductId: string;
+      provider: string;
+    },
+    input: {
+      userId: string;
+      luminaProductId: string;
+      provider: string;
+    },
+  ) {
+    if (
+      order.userId !== input.userId ||
+      order.luminaProductId !== input.luminaProductId ||
+      order.provider !== input.provider
+    ) {
+      throw new ConflictException(PAYMENT_ORDER_IDEMPOTENCY_CONFLICT);
+    }
+  }
+
+  private providerWebhookAuditPayload(
+    provider: string,
+    event: {
+      orderNo: string;
+      providerTransactionId: string;
+      status: string;
+      amount: string;
+    },
+  ) {
+    return {
+      provider,
+      orderNo: event.orderNo,
+      providerTransactionId: event.providerTransactionId,
+      status: event.status,
+      amount: event.amount,
+      sanitized: true,
+      rawProviderPayloadStored: false,
+    };
   }
 
   private parseTake(value?: string) {

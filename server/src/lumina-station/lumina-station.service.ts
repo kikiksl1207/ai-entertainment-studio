@@ -5,22 +5,23 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_CURRENCY = 'LUMINA';
 const PRICE_UNIT_KRW = new Decimal(10);
 const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
-const CHARGE_POLICY_VERSION = '2026-05-13.charge-policy-v1';
+const CHARGE_POLICY_VERSION = '2026-05-21.charge-policy-v2';
+const ACTIVE_CHARGE_PRICE_AMOUNTS_KRW = [1000, 3000, 5000, 10000, 50000, 100000];
 const WEB_PAID_BONUS_MAX_RATE = 0.2;
 const AD_REWARD_MAX_REVENUE_SHARE_RATE = 0.5;
 const AD_REWARD_DAILY_LIMIT = 50;
 const APP_CHARGE_PACKAGES = [
   { sku: 'APP_LUMINA_70', priceKrw: 1000, luminaAmount: 70 },
+  { sku: 'APP_LUMINA_210', priceKrw: 3000, luminaAmount: 210 },
   { sku: 'APP_LUMINA_350', priceKrw: 5000, luminaAmount: 350 },
   { sku: 'APP_LUMINA_700', priceKrw: 10000, luminaAmount: 700 },
-  { sku: 'APP_LUMINA_1400', priceKrw: 20000, luminaAmount: 1400 },
   { sku: 'APP_LUMINA_3750', priceKrw: 50000, luminaAmount: 3750 },
   { sku: 'APP_LUMINA_8000', priceKrw: 100000, luminaAmount: 8000 },
 ] as const;
-const DEFERRED_APP_CHARGE_PACKAGES = [
-  { priceKrw: 30000, status: 'deferred_after_launch' },
-  { priceKrw: 70000, status: 'deferred_after_launch' },
-] as const;
+const DEFERRED_APP_CHARGE_PACKAGES: ReadonlyArray<{
+  priceKrw: number;
+  status: 'deferred_after_launch';
+}> = [];
 const CREATOR_REQUEST_PRODUCTS = [
   {
     sku: 'CREATOR_GALLERY_VIEW',
@@ -158,7 +159,10 @@ export class LuminaStationService {
         },
       }),
       this.prisma.luminaProduct.findMany({
-        where: { status: 'active' },
+        where: {
+          status: 'active',
+          priceAmount: { in: ACTIVE_CHARGE_PRICE_AMOUNTS_KRW },
+        },
         orderBy: [{ priceAmount: 'asc' }, { luminaAmount: 'asc' }],
       }),
       this.prisma.paymentOrder.findMany({

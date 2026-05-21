@@ -1,8 +1,8 @@
 # App And Web Lumina Tamper Defense Checklist
 
-Updated: 2026-05-20
+Updated: 2026-05-21
 Owner: Kaido
-Task: Notion #334
+Task: Notion #365
 
 This checklist verifies the server-authority rule for modified apps, browser
 console edits, offline replays, and client-side Lumina display manipulation.
@@ -33,7 +33,7 @@ spent, refunded, donated, settled, or converted.
 | Premium chat room/support | No | Server contract only | Mutation blocked until storage/migration | OK blocked |
 | Premium video unlock | Yes | `premium_video_products.price_lumina` + wallet balance | Unlock uniqueness + ledger idempotency | OK |
 | Gifts / fan letters / user gifts | Yes | Server product/transfer policy + wallet balance | Domain idempotency + conditional wallet debit | OK |
-| Charge purchase credit | Yes | Server product table + provider verification | Provider transaction dedupe | OK |
+| Charge purchase credit | Yes | Server product table + provider verification | Payment-order replay scope + provider transaction dedupe | OK |
 | Refund/reversal | Server-only | Existing order/ledger + refund policy | Server refund key | OK |
 
 ## Endpoint Notes
@@ -50,6 +50,13 @@ spent, refunded, donated, settled, or converted.
   must not be displayed as Lumina or fan engagement points.
 - Provider checkout/webhook flows must keep provider tokens, signed payloads,
   secrets, and raw callback data out of docs, Notion, and application logs.
+- Payment order idempotency replay is valid only for the same user, Lumina
+  product, and provider. Reusing the same idempotency key for a different body
+  returns a stable conflict before a new order or checkout payload is created.
+- Payment webhook persistence stores a sanitized audit projection containing
+  provider, order number, provider transaction id, status, and amount only. Raw
+  provider webhook payloads, tokens, cookies, signed payloads, card data, and
+  secrets must not be stored or copied to Notion.
 - Offline or replayed app/web paid actions must be treated as display-only until
   the online backend mutation confirms an idempotent server result.
 
