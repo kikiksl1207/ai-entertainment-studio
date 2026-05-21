@@ -1824,3 +1824,38 @@ select.dm-field-input option {
   .premium-chat-hub-room-main .premium-chat-hub-room-badge { grid-column: 2; justify-self: start; margin-top: 4px; }
   .premium-chat-hub-room-profile { justify-self: stretch; text-align: center; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   #382 — 390px 첫인사 영역 겹침 방지
+   문제: mobile에서 featured peer card + dm-stage(min-height:320px) + starter card
+         + dock + footnotes 합산이 가용 shell 높이(595–772px)를 초과.
+         dm-stage의 min-height:320px이 flex 수축을 막아 starter card가
+         dock 아래로 밀리거나 겹침 발생.
+   수정: chat-shell을 dvh 고정 높이로 지정 + dm-stage min-height:0으로 flex 정상화.
+   대상: 390px / 768px 미만 (768px·1280px 중단점은 데스크톱 경로 유지).
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .chat-shell {
+    height: calc(100vh - 72px);    /* dvh 미지원 브라우저 fallback */
+    height: calc(100dvh - 72px);   /* dvh: 모바일 브라우저 툴바 높이 반영 (Safari/Chrome) */
+    overflow: hidden;               /* 내부 flex item이 shell 밖으로 흘러넘치지 않도록 */
+  }
+  .dm-topbar         { flex-shrink: 0; } /* 캐릭터 상단바 — 고정 높이 유지 */
+  .dm-featured-peer  { flex-shrink: 0; } /* featured peer card — 고정 높이 유지 */
+  .dm-stage {
+    min-height: 0;
+    /* shell 고정 높이 기준 flex:1이 정확히 남은 공간을 채움.
+       내부 welcome bubble·메시지는 overflow-y:auto 스크롤. */
+  }
+  .chat-starter-card { flex-shrink: 0; } /* 스타터 카드 4개 — 고정 높이 유지 */
+  .dm-dock {
+    flex-shrink: 0;
+    position: relative; /* shell 고정 높이이므로 sticky 불필요, 항상 화면 내 위치 */
+    bottom: auto;
+  }
+  .dm-foot-note {
+    display: none;
+    /* 좁은 화면에서 첫인사·스타터 카드 영역 확보를 위해 footnote 숨김.
+       768px 이상에서는 기존 표시 유지. */
+  }
+}
