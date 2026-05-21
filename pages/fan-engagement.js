@@ -235,7 +235,8 @@
     if (mission?.missionType === "fan_proposal") {
       return `
         <label class="fan-mission-suggest">
-          <input type="text" maxlength="50" disabled placeholder="한 줄 제안은 곧 열릴 예정이에요" />
+          <!-- #362 — "곧 열릴 예정" 카피 제거. 접수 가능한 제안 미션이 없는 상태로 분리하여 실서비스 톤 유지. -->
+          <input type="text" maxlength="50" disabled placeholder="아직 접수 가능한 제안 미션이 없습니다." />
           <small>0 / 50</small>
         </label>
       `;

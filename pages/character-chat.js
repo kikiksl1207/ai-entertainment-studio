@@ -758,7 +758,8 @@
     if (!wrap) return;
     const chars = getDmListCharacters();
     if (!chars.length) {
-      wrap.innerHTML = '<li class="dm-list-empty">아직 메시지를 시작할 아티스트가 준비 중이에요.</li>';
+      // #362 — "준비 중" 반복 톤다운. 실서비스 안내.
+      wrap.innerHTML = '<li class="dm-list-empty">대화를 시작할 수 있는 아티스트가 아직 없습니다.</li>';
       return;
     }
     wrap.textContent = "";

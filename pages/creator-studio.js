@@ -156,8 +156,12 @@
     if (gate) gate.hidden = true;
     if (shell) shell.hidden = false;
     const email = data?.access?.accountEmail || readAuth()?.user?.email;
-    const account = document.querySelector(".studio-account strong");
-    if (email && account) account.textContent = email;
+    // #362 — sidebar 접속 계정 projection 으로 채우기. 실패/로딩 시 "로그인한 크리에이터" fallback.
+    const account = document.getElementById("studioAccountEmail") || document.querySelector(".studio-account strong");
+    if (account) account.textContent = email || "로그인한 크리에이터";
+    const roleEl = document.getElementById("studioAccountRole");
+    const roleLabel = data?.access?.roleLabel || data?.access?.accountTypeLabel || "크리에이터";
+    if (roleEl) roleEl.textContent = roleLabel;
     markStudioReady();
     hydrateStudio(data);
     loadSettlementPreview();
@@ -168,8 +172,8 @@
     if (gate) gate.hidden = true;
     if (shell) shell.hidden = false;
     const email = readAuth()?.user?.email;
-    const account = document.querySelector(".studio-account strong");
-    if (email && account) account.textContent = email;
+    const account = document.getElementById("studioAccountEmail") || document.querySelector(".studio-account strong");
+    if (account) account.textContent = email || "계정 정보를 불러오는 중입니다.";
     markStudioReady();
   }
 

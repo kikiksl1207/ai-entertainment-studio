@@ -50,9 +50,10 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
 
   // #080 — 빈상태: 필터 결과가 0이면 안내 카드
   if (list.length === 0) {
+    // #362 — 빈상태 카피 톤다운. "준비 중" 반복 없이 실서비스 안내.
     root.innerHTML = `<div class="catalog-empty" style="grid-column:1/-1;padding:48px 24px;text-align:center;color:rgba(240,238,248,0.62);background:rgba(10,8,18,0.32);border:1px dashed rgba(255,20,147,0.18);border-radius:14px;">
       <strong style="display:block;font-size:15px;color:var(--ink);margin-bottom:6px;">아직 이 카테고리에 공개된 아티스트가 없어요</strong>
-      준비 중인 라인업은 곧 순차적으로 공개됩니다.
+      새 아티스트 라인업은 공지로 안내드릴게요.
     </div>`;
     return;
   }

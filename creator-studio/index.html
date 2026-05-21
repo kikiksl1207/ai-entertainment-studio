@@ -51,10 +51,12 @@
           <button type="button" data-section="settlement">정산 <b>₩</b></button>
           <button type="button" data-section="settings">설정 <b>!</b></button>
         </nav>
+        <!-- #362 — 사이드바 접속 계정. JS가 실제 로그인한 크리에이터 계정 projection으로 #studioAccountEmail / #studioAccountRole 텍스트를 채운다.
+             projection 도착 전 fallback은 "계정 정보를 불러오는 중입니다." 로 유지하고, test 계정 메일이 화면에 직접 노출되지 않게 한다. -->
         <div class="studio-account">
           <small>접속 계정</small>
-          <strong>creator@lumina-stage.test</strong>
-          <span class="badge is-good">스튜디오 운영자</span>
+          <strong id="studioAccountEmail">계정 정보를 불러오는 중입니다.</strong>
+          <span class="badge is-good" id="studioAccountRole">크리에이터</span>
           <button type="button" data-action="toast">로그아웃</button>
         </div>
       </aside>
@@ -309,7 +311,8 @@
             <section class="payout-breakdown is-payout-sample" id="studioPayoutBreakdown" aria-label="이번 정산 회차에 들어올 금액" data-payout-state="sample">
               <header class="payout-breakdown-head">
                 <span class="panel-kicker" data-i18n="payout.card.kicker">PAYOUT · 이번 정산 회차</span>
-                <span class="payout-sample-badge" id="studioPayoutSampleBadge" data-i18n="payout.card.sampleBadge">예시</span>
+                <!-- #362 — "예시" 라벨은 사용자에게 가짜 정산을 보는 듯한 인상을 주므로 "정산 대기"로 톤다운. JS가 hasRealAmount 시 노출 토글. -->
+                <span class="payout-sample-badge" id="studioPayoutSampleBadge" data-i18n="payout.card.sampleBadge">정산 대기</span>
                 <h3 data-i18n="payout.card.title">들어올 금액을 한눈에 정리했어요</h3>
                 <p class="payout-breakdown-sub">
                   <span data-i18n="payout.card.sub.currencyPrefix">정산 통화</span>:
