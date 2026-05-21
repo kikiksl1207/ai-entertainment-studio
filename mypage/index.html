@@ -250,8 +250,14 @@
                 </div>
                 <a class="button-primary" href="/debut">신청하러 가기</a>
               </div>
-              <div class="mypage-status-card">
-                <span class="mypage-status-badge" id="mypageDebutStatus">신청 전</span>
+              <div class="mypage-status-card" id="mypageDebutCard" aria-live="polite">
+                <!-- #366 — 상태에 따라 색상이 분기되도록 data-debut-status 속성을 JS가 채운다. screen reader는 aria-live로 갱신 알림. -->
+                <span class="mypage-status-badge" id="mypageDebutStatus" data-debut-status="empty">신청 전</span>
+                <!-- #366 — 신청 시점/최근 갱신 시점을 함께 노출해 사용자가 진행 흐름을 시간순으로 인지할 수 있게. -->
+                <p class="mypage-debut-timestamps" id="mypageDebutTimestamps" hidden>
+                  <span class="mypage-debut-timestamp" id="mypageDebutSubmittedAt"></span>
+                  <span class="mypage-debut-timestamp" id="mypageDebutUpdatedAt"></span>
+                </p>
                 <strong id="mypageDebutTitle">아직 제출된 데뷔 신청이 없습니다.</strong>
                 <p id="mypageDebutDescription">외모, 목소리, 콘셉트, 창작 역량 중 나에게 맞는 방식으로 새로운 아티스트를 준비할 수 있습니다.</p>
                 <!-- #266 — 운영팀이 사용자에게 공개한 안내(publicNotice.publicReason).
@@ -968,6 +974,9 @@
         // 실패해도 \"신청 전\" 으로 잘못 표시되지 않도록 분기.
         function applyDebutLoading() {
           setText("mypageDebutStatus", "불러오는 중");
+          // #366 — loading/error/empty 모두 badge data-debut-status 와 timestamps를 리셋해 stale 표시 방지
+          const sb = $("mypageDebutStatus"); if (sb) sb.setAttribute("data-debut-status", "loading");
+          const ts = $("mypageDebutTimestamps"); if (ts) ts.hidden = true;
           setText("mypageDebutTitle", "데뷔 상태를 불러오고 있어요");
           setText("mypageDebutDescription", "잠시만 기다려 주세요. 가장 최근 신청 상태를 확인하고 있어요.");
           setText("mypageDebutNextAction", "응답을 받으면 상태와 다음 행동을 이곳에 정리해 보여드려요.");
@@ -979,6 +988,8 @@
 
         function applyDebutError() {
           setText("mypageDebutStatus", "확인 실패");
+          const sb = $("mypageDebutStatus"); if (sb) sb.setAttribute("data-debut-status", "error");
+          const ts = $("mypageDebutTimestamps"); if (ts) ts.hidden = true;
           setText("mypageDebutTitle", "데뷔 상태를 불러오지 못했어요");
           setText("mypageDebutDescription", "네트워크가 일시적으로 끊겼거나 서버가 응답하지 못했어요. 잠시 뒤에 다시 시도해 주세요.");
           setText("mypageDebutNextAction", "이 화면이 계속 보이면 새로고침하거나 잠시 후 다시 마이페이지에 들어와 주세요. 신청 자체는 안전하게 보관되어 있어요.");
@@ -991,6 +1002,9 @@
         function applyDebutApplication(latest) {
           if (!latest) {
             setText("mypageDebutStatus", debutLabel("apply"));
+            // #366 — 신청 전 empty 상태도 badge/timestamp 리셋
+            const sb = $("mypageDebutStatus"); if (sb) sb.setAttribute("data-debut-status", "empty");
+            const ts = $("mypageDebutTimestamps"); if (ts) ts.hidden = true;
             setText("mypageDebutTitle", "아직 데뷔 신청 전이에요.");
             setText("mypageDebutDescription", debutDescription("apply"));
             setText("mypageDebutNextAction", debutNextAction("apply"));
@@ -1023,8 +1037,13 @@
           ].filter(Boolean).join(" ");
 
           setText("mypageDebutStatus", safeStatusLabel || consultation || debutLabel(status));
+          // #366 — 상태 badge에 data-debut-status를 부여해 CSS 색상이 분기되도록 한다. screen reader는 aria-live="polite"가 알린다.
+          const statusBadge = $("mypageDebutStatus");
+          if (statusBadge) statusBadge.setAttribute("data-debut-status", String(status || "submitted"));
           setText("mypageDebutTitle", displayName + " 상태");
           setText("mypageDebutDescription", description);
+          // #366 — 신청 시점/최근 갱신 시점을 함께 노출. backend가 ISO datetime을 내려주면 한국어 한 줄 라벨로 변환.
+          applyDebutTimestamps(latest);
           // #266 — 운영팀 공개 안내가 있을 때만 노출. 상태와 무관하게 백엔드가 내려주면 표시.
           const publicNoticeText = pickDebutPublicNotice(latest);
           renderDebutPublicNotice(publicNoticeText);
@@ -1032,6 +1051,33 @@
           renderDebutSteps(status);
           // #350 — 상태별 CTA. needs_more_info / rejected에서만 노출. submitted/reviewing/approved는 운영팀 안내 대기 상태이므로 CTA 없음.
           applyDebutCta(status, { hasPublicNotice: !!publicNoticeText });
+        }
+
+        // #366 — 데뷔 신청 시점/최근 갱신 시점 라벨. backend ISO datetime → "yyyy.MM.dd HH:mm 접수" / "yyyy.MM.dd HH:mm 갱신".
+        function formatDebutTimestamp(iso, prefix) {
+          if (!iso) return "";
+          try {
+            const d = new Date(iso);
+            if (Number.isNaN(d.getTime())) return "";
+            const pad = (n) => String(n).padStart(2, "0");
+            const text = d.getFullYear() + "." + pad(d.getMonth() + 1) + "." + pad(d.getDate())
+              + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+            return text + " " + prefix;
+          } catch (_) { return ""; }
+        }
+
+        function applyDebutTimestamps(latest) {
+          const wrap = $("mypageDebutTimestamps");
+          if (!wrap) return;
+          const submitted = latest && (latest.submittedAt || latest.createdAt);
+          const updated = latest && (latest.updatedAt || latest.lastUpdatedAt);
+          const submittedText = formatDebutTimestamp(submitted, "접수");
+          const updatedText = formatDebutTimestamp(updated, "갱신");
+          setText("mypageDebutSubmittedAt", submittedText);
+          // 같은 시각이면 갱신 라벨은 숨김 (방금 접수된 케이스)
+          const updatedVisible = updatedText && submittedText !== updatedText;
+          setText("mypageDebutUpdatedAt", updatedVisible ? updatedText : "");
+          wrap.hidden = !(submittedText || updatedVisible);
         }
 
         // #350 — 보완요청·재제출 사용자 CTA.

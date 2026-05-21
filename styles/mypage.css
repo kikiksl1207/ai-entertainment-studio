@@ -476,6 +476,53 @@
   color: #ffc97a;
 }
 
+/* #366 — 데뷔 신청 상태 배지 색상 분기. data-debut-status는 backend application.status 값 그대로. */
+.mypage-status-badge[data-debut-status="submitted"],
+.mypage-status-badge[data-debut-status="reviewing"],
+.mypage-status-badge[data-debut-status="under_review"] {
+  background: rgba(124, 156, 238, 0.18);
+  color: #b6c6ff;
+}
+.mypage-status-badge[data-debut-status="needs_more_info"] {
+  background: rgba(255, 201, 122, 0.22);
+  color: #ffd6a0;
+}
+.mypage-status-badge[data-debut-status="approved"],
+.mypage-status-badge[data-debut-status="approved_for_contact"] {
+  background: rgba(120, 200, 150, 0.22);
+  color: #b6f5d8;
+}
+.mypage-status-badge[data-debut-status="rejected"] {
+  background: rgba(244, 114, 132, 0.18);
+  color: #ffb4be;
+}
+.mypage-status-badge[data-debut-status="withdrawn"],
+.mypage-status-badge[data-debut-status="canceled"],
+.mypage-status-badge[data-debut-status="archived"] {
+  background: rgba(148, 163, 184, 0.18);
+  color: rgba(240, 238, 248, 0.7);
+}
+.mypage-status-badge[data-debut-status="loading"] {
+  background: rgba(124, 58, 237, 0.18);
+  color: #c4b5fd;
+}
+.mypage-status-badge[data-debut-status="error"] {
+  background: rgba(244, 63, 94, 0.18);
+  color: #fda4af;
+}
+
+/* #366 — 데뷔 신청/갱신 시점 라벨. status badge 옆 또는 아래에 작게 노출. */
+.mypage-debut-timestamps {
+  margin: 0 0 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 12px;
+  color: rgba(240, 238, 248, 0.6);
+}
+.mypage-debut-timestamp:empty { display: none; }
+.mypage-debut-timestamp { letter-spacing: 0; }
+
 .mypage-status-card strong,
 .mypage-empty strong {
   display: block;
