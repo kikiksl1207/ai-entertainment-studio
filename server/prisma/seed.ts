@@ -777,8 +777,8 @@ async function seedBoosts() {
   await prisma.boostCampaign.upsert({
     where: { slug: 'mvp-launch-main-pick' },
     update: {
-      name: 'MVP 런칭 메인픽',
-      description: '초기 공개 6캐릭터 부스트 캠페인',
+      name: '루미나 메인픽',
+      description: '첫 공개 6캐릭터 부스트 캠페인',
       status: 'active',
       startsAt: launchedAt,
       endsAt: new Date('2026-12-31T14:59:59.000Z'),
@@ -789,8 +789,8 @@ async function seedBoosts() {
     },
     create: {
       slug: 'mvp-launch-main-pick',
-      name: 'MVP 런칭 메인픽',
-      description: '초기 공개 6캐릭터 부스트 캠페인',
+      name: '루미나 메인픽',
+      description: '첫 공개 6캐릭터 부스트 캠페인',
       status: 'active',
       startsAt: launchedAt,
       endsAt: new Date('2026-12-31T14:59:59.000Z'),

@@ -1738,7 +1738,7 @@ Response:
   "campaign": {
     "id": "campaign-uuid",
     "slug": "mvp-launch-main-pick",
-    "name": "MVP 런칭 메인픽"
+    "name": "루미나 메인픽"
   },
   "dailyLimit": 1,
   "usedToday": 0,
