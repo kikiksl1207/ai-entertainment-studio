@@ -286,7 +286,8 @@ async function handleChargeBuy(productId) {
     }
 
     if (status === CHARGE_PAYMENT_STATUS.pgPending || status === CHARGE_PAYMENT_STATUS.pending) {
-      alert("결제 기능은 현재 준비 중입니다. 상품 정보와 예상 지급 루미나만 먼저 확인할 수 있어요.");
+      // #362 — alert 카피도 동일 톤으로 정리. "준비 중" 어휘 반복 축소.
+      alert("결제 가능 시점은 공지와 메일로 안내드릴게요. 지금은 상품 정보와 예상 지급 루미나를 먼저 확인할 수 있어요.");
       // 충전소 데이터 재조회 (잔액은 변동 없지만 상태 갱신)
       await loadChargeStationData();
       renderChargePage();

@@ -103,12 +103,13 @@
         <!-- 결제 준비 상태 안내 (PG 연결 전, #059 카피 적용) -->
         <section class="content-section" id="chargePendingNotice" hidden>
           <div class="shell" style="max-width: 720px;">
+            <!-- #362 — "준비 중" 카피 3회 반복을 줄이고 결제 안내 톤으로 통합. eyebrow → "결제 안내", h2/p 한 줄 안내로 정리. -->
             <div class="charge-pending-card">
-              <p class="eyebrow">오픈 준비 중</p>
-              <h2 data-cms-key="charge.policy.title" style="margin: 4px 0 12px;">결제 시스템 준비 중</h2>
+              <p class="eyebrow">결제 안내</p>
+              <h2 data-cms-key="charge.policy.title" style="margin: 4px 0 12px;">결제 시점은 공지로 안내드려요</h2>
               <p data-cms-key="charge.policy.body" data-cms-field="body" style="color: var(--muted); line-height: 1.7; margin: 0;">
-                결제 기능은 현재 준비 중이에요. 지금은 상품 정보와 예상 지급 루미나만 먼저 확인할 수 있어요.
-                결제 시스템 연결이 끝나면 바로 열어드릴게요.
+                현재는 상품 정보와 예상 지급 루미나를 먼저 확인할 수 있어요.
+                결제 가능 시점이 정해지면 공지와 메일로 알려드릴게요.
               </p>
             </div>
           </div>

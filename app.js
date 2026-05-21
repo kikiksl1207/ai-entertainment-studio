@@ -235,11 +235,12 @@ const I18N_DICT = {
     "en-US": "PAYOUT · This cycle",
     "zh-CN": "PAYOUT · 本期结算"
   },
+  // #362 — 사용자 화면 톤. "예시 / Sample" 라벨이 가짜 정산을 보는 듯한 인상을 주므로 "정산 대기" 톤으로 통일.
   "payout.card.sampleBadge": {
-    "ko-KR": "예시",
-    "ja-JP": "例",
-    "en-US": "Sample",
-    "zh-CN": "示例"
+    "ko-KR": "정산 대기",
+    "ja-JP": "精算待機中",
+    "en-US": "Awaiting payout",
+    "zh-CN": "结算待中"
   },
   "payout.card.title": {
     "ko-KR": "들어올 금액을 한눈에 정리했어요",
@@ -325,11 +326,12 @@ const I18N_DICT = {
     "en-US": "Expected amount landing in your account after tax. May shift slightly after FX/tax review.",
     "zh-CN": "税后预计入账金额。汇率与税务核对后可能略有变动。"
   },
+  // #362 — "sample payout preview" 톤 제거. 정산 회차 확정 전임을 안내하는 실서비스 카피로 정리.
   "payout.card.sampleNote": {
-    "ko-KR": "예상 정산 미리보기입니다. 실제 정산액은 계약 등급, 환불, 세금, 환율 기준에 따라 달라질 수 있어요.",
-    "ja-JP": "精算サンプルです。実際の金額は契約ランク、返金、税金、為替条件により変わる場合があります。",
-    "en-US": "This is a sample payout preview. Actual payout may vary by contract tier, refunds, tax, and FX rules.",
-    "zh-CN": "这是结算示例。实际金额会因合同等级、退款、税费和汇率规则而变化。"
+    "ko-KR": "정산 데이터 준비 중입니다. 금액은 정산 회차가 확정되면 표시됩니다. 실제 정산액은 계약 등급, 환불, 세금, 환율 기준에 따라 달라질 수 있어요.",
+    "ja-JP": "精算データを準備中です。金額は精算サイクルが確定すると表示されます。実際の金額は契約ランク、返金、税金、為替条件により変わる場合があります。",
+    "en-US": "Payout data is being prepared. Amounts appear once the payout cycle is confirmed. Actual payout may vary by contract tier, refunds, tax, and FX rules.",
+    "zh-CN": "结算数据准备中。金额将在结算周期确定后显示。实际金额会因合同等级、退款、税费和汇率规则而变化。"
   },
   "payout.foot": {
     "ko-KR": "유저가 결제한 통화와 아티스트 정산 통화가 다를 수 있어요. 환율은 주간 기준환율과 3~5% 안전마진을 기준으로 기록해요. 정산표·세금 정책이 확정되기 전까지는 예상치로만 보여드려요. 확정 금액은 정산 회차 마감 후 알려드릴게요.",
