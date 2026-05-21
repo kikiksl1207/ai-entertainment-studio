@@ -1586,15 +1586,36 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     }
   }
 
-  function buildPendingPanelHtml(opts) {
-    var kicker = opts && opts.kicker || "준비 중";
-    var note = opts && opts.note || "백엔드 계약이 도착하면 자동으로 열립니다.";
-    return (
-      '<div class="feed-pending-banner">' +
-        '<span class="feed-pending-badge">' + kicker + '</span>' +
-        '<p>' + note + '</p>' +
-      '</div>'
-    );
+  // #357 — 타래/리포스트 submit 활성화. 사용자 화면에서 보이던 "준비 중" 안내는 모두 제거하고,
+  // 실패 시에만 status 영역에 사용자 카피로 분기. POST는 #355 contract의 thread-continuations / reposts.
+  function setPanelStatus(rootEl, message, kind) {
+    if (!rootEl) return;
+    var statusEl = rootEl.querySelector("[data-feed-status]");
+    if (!statusEl) return;
+    statusEl.textContent = message || "";
+    statusEl.dataset.kind = message ? (kind || "info") : "";
+    statusEl.hidden = !message;
+  }
+
+  function feedSubmitErrorMessage(err, opts) {
+    var status = err && err.status;
+    var ctx = opts && opts.context;
+    if (status === 401) return "로그인 후 다시 시도해 주세요.";
+    if (status === 403) {
+      if (ctx === "thread") return "타래 이어쓰기는 원글 작성자만 추가할 수 있어요.";
+      return "이 글에는 추가 작업을 진행할 수 없어요.";
+    }
+    if (status === 404) {
+      if (ctx === "thread") return "원글을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.";
+      if (ctx === "repost") return "원글이 비공개·삭제됐어요. 다른 글을 리포스트해 주세요.";
+      return "글을 찾을 수 없어요. 새로고침 후 다시 시도해 주세요.";
+    }
+    if (status === 409) return "방금 같은 요청이 처리 중이에요. 잠시 후 다시 시도해 주세요.";
+    if (status === 429) return "요청이 너무 잦아요. 잠시 후 다시 시도해 주세요.";
+    if (err && (err.name === "AbortError" || (err.message && err.message.includes("Failed to fetch")))) {
+      return "네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
+    }
+    return "게시에 실패했어요. 잠시 후 다시 시도해 주세요.";
   }
 
   function toggleThreadExtendPanel(card, postInfo) {
@@ -1607,20 +1628,18 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     var panel = document.createElement("section");
     panel.className = "feed-thread-extend-panel";
     panel.setAttribute("aria-label", "타래 이어 쓰기");
+    panel.dataset.postId = postInfo.postId || "";
     panel.innerHTML =
       '<div class="feed-thread-extend-connector" aria-hidden="true"></div>' +
       '<div class="feed-thread-extend-body">' +
-        buildPendingPanelHtml({
-          kicker: "이어 쓰기 준비 중",
-          note: "이어 쓰기 API는 루피 계약 도착 후 활성화돼요. 지금은 작성 화면만 미리 확인할 수 있어요."
-        }) +
         '<label class="feed-thread-extend-field">' +
           '<span>이어쓰기 본문</span>' +
-          '<textarea maxlength="500" rows="3" placeholder="원글에 이어서 쓸 내용을 적어주세요."></textarea>' +
+          '<textarea maxlength="500" rows="3" placeholder="원글에 이어서 쓸 내용을 적어주세요." data-feed-thread-extend-input></textarea>' +
         '</label>' +
+        '<p class="feed-pending-banner" data-feed-status hidden role="status" aria-live="polite"></p>' +
         '<div class="feed-thread-extend-actions">' +
           '<button type="button" class="feed-thread-extend-cancel" data-feed-thread-extend-cancel>취소</button>' +
-          '<button type="button" class="feed-thread-extend-submit" disabled aria-disabled="true" title="루피 계약 대기">이어쓰기 게시 (준비 중)</button>' +
+          '<button type="button" class="feed-thread-extend-submit" data-feed-thread-extend-submit>이어쓰기 게시</button>' +
         '</div>' +
       '</div>';
     card.appendChild(panel);
@@ -1628,11 +1647,53 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     if (ta) ta.focus();
   }
 
+  async function submitThreadContinuation(panel) {
+    if (!panel || panel.dataset.busy === "1") return;
+    var postId = panel.dataset.postId || "";
+    if (!postId) return;
+    var ta = panel.querySelector("[data-feed-thread-extend-input]");
+    var body = (ta && ta.value || "").trim();
+    if (!body) {
+      setPanelStatus(panel, "이어쓸 본문을 입력해 주세요.", "warn");
+      ta && ta.focus();
+      return;
+    }
+    if (typeof isLoggedIn === "function" && !isLoggedIn()) {
+      setPanelStatus(panel, "로그인 후 다시 시도해 주세요.", "warn");
+      return;
+    }
+    var submitBtn = panel.querySelector("[data-feed-thread-extend-submit]");
+    panel.dataset.busy = "1";
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "게시 중"; }
+    setPanelStatus(panel, "", "info");
+    try {
+      await apiFetch(
+        "/api/v1/lumina-feed/posts/" + encodeURIComponent(postId) + "/thread-continuations",
+        { method: "POST", auth: true, throwOnError: true, body: { body: body } }
+      );
+      // 성공 — panel 제거 + 피드 reload
+      if (ta) ta.value = "";
+      panel.remove();
+      if (typeof loadLuminaFeedData === "function" && typeof renderLuminaFeed === "function") {
+        try {
+          await loadLuminaFeedData(typeof _luminaFeedFilter !== "undefined" ? _luminaFeedFilter : "all");
+          renderLuminaFeed();
+        } catch (_) { /* render 실패는 silent — 다음 사용자 액션에서 복구 */ }
+      }
+    } catch (err) {
+      console.warn("[#357 thread-continuation submit]", { status: err && err.status });
+      setPanelStatus(panel, feedSubmitErrorMessage(err, { context: "thread" }), "error");
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "이어쓰기 게시"; }
+    } finally {
+      panel.dataset.busy = "0";
+    }
+  }
+
   function closeRepostModal() {
     var backdrop = document.getElementById("feedRepostBackdrop");
     var modal = document.getElementById("feedRepostModal");
     if (backdrop) backdrop.hidden = true;
-    if (modal) { modal.hidden = true; modal.innerHTML = ""; }
+    if (modal) { modal.hidden = true; modal.innerHTML = ""; modal.dataset.postId = ""; }
     document.body.classList.remove("is-feed-repost-open");
   }
 
@@ -1643,34 +1704,70 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     var body = feedEscapeHtml(postInfo.body || "");
     var author = feedEscapeHtml(postInfo.authorName || "Lumina 사용자");
     var postUrl = buildPostShareUrl(postInfo.postId);
+    modal.dataset.postId = postInfo.postId || "";
     modal.innerHTML =
       '<header class="feed-repost-head">' +
         '<h2>리포스트</h2>' +
         '<button type="button" class="feed-repost-close" aria-label="리포스트 창 닫기" data-feed-repost-close>×</button>' +
       '</header>' +
       '<div class="feed-repost-body">' +
-        buildPendingPanelHtml({
-          kicker: "리포스트 준비 중",
-          note: "리포스트 게시 API는 루피 계약 도착 후 활성화돼요. 원글 작성자/본문/이동 링크는 유지된 채로 게시됩니다."
-        }) +
         '<label class="feed-repost-field">' +
           '<span>내 코멘트 (선택)</span>' +
-          '<textarea maxlength="500" rows="3" placeholder="원글에 덧붙일 내 한마디를 적어주세요."></textarea>' +
+          '<textarea maxlength="500" rows="3" placeholder="원글에 덧붙일 내 한마디를 적어주세요." data-feed-repost-input></textarea>' +
         '</label>' +
         '<article class="feed-repost-reference" aria-label="원글 참조">' +
           '<header><strong>' + author + '</strong><a href="' + feedEscapeHtml(postUrl) + '" class="feed-repost-reference-link">원글 보기 →</a></header>' +
           '<p>' + body + '</p>' +
         '</article>' +
+        '<p class="feed-pending-banner" data-feed-status hidden role="status" aria-live="polite"></p>' +
       '</div>' +
       '<footer class="feed-repost-foot">' +
         '<button type="button" class="feed-repost-cancel" data-feed-repost-close>취소</button>' +
-        '<button type="button" class="feed-repost-submit" disabled aria-disabled="true" title="루피 계약 대기">리포스트 게시 (준비 중)</button>' +
+        '<button type="button" class="feed-repost-submit" data-feed-repost-submit>리포스트 게시</button>' +
       '</footer>';
     modal.hidden = false;
     backdrop.hidden = false;
     document.body.classList.add("is-feed-repost-open");
     var ta = modal.querySelector("textarea");
     if (ta) ta.focus();
+  }
+
+  async function submitRepost() {
+    var modal = document.getElementById("feedRepostModal");
+    if (!modal || modal.dataset.busy === "1") return;
+    var postId = modal.dataset.postId || "";
+    if (!postId) return;
+    if (typeof isLoggedIn === "function" && !isLoggedIn()) {
+      setPanelStatus(modal, "로그인 후 다시 시도해 주세요.", "warn");
+      return;
+    }
+    var ta = modal.querySelector("[data-feed-repost-input]");
+    var body = (ta && ta.value || "").trim();
+    var submitBtn = modal.querySelector("[data-feed-repost-submit]");
+    modal.dataset.busy = "1";
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "게시 중"; }
+    setPanelStatus(modal, "", "info");
+    try {
+      // body는 선택. 빈 본문이면 {}로 보내고, 있으면 quote repost로 전송.
+      var payload = body ? { body: body } : {};
+      await apiFetch(
+        "/api/v1/lumina-feed/posts/" + encodeURIComponent(postId) + "/reposts",
+        { method: "POST", auth: true, throwOnError: true, body: payload }
+      );
+      closeRepostModal();
+      if (typeof loadLuminaFeedData === "function" && typeof renderLuminaFeed === "function") {
+        try {
+          await loadLuminaFeedData(typeof _luminaFeedFilter !== "undefined" ? _luminaFeedFilter : "all");
+          renderLuminaFeed();
+        } catch (_) {}
+      }
+    } catch (err) {
+      console.warn("[#357 repost submit]", { status: err && err.status });
+      setPanelStatus(modal, feedSubmitErrorMessage(err, { context: "repost" }), "error");
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "리포스트 게시"; }
+    } finally {
+      modal.dataset.busy = "0";
+    }
   }
 
   function bindFeedCardSocialActions() {
@@ -1691,6 +1788,14 @@ async function runFeedComposeUploadStages(item, onStateChange) {
         if (panel) panel.remove();
         return;
       }
+      // #357 — 타래 이어쓰기 실제 제출
+      var threadSubmit = e.target.closest("[data-feed-thread-extend-submit]");
+      if (threadSubmit) {
+        e.preventDefault();
+        var threadPanel = threadSubmit.closest(".feed-thread-extend-panel");
+        if (threadPanel) submitThreadContinuation(threadPanel);
+        return;
+      }
       // 리포스트
       var repostBtn = e.target.closest("[data-feed-repost]");
       if (repostBtn) {
@@ -1702,6 +1807,12 @@ async function runFeedComposeUploadStages(item, onStateChange) {
       if (e.target.closest("[data-feed-repost-close]")) {
         e.preventDefault();
         closeRepostModal();
+        return;
+      }
+      // #357 — 리포스트 실제 제출
+      if (e.target.closest("[data-feed-repost-submit]")) {
+        e.preventDefault();
+        submitRepost();
         return;
       }
       // 공유
