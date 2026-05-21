@@ -1,8 +1,8 @@
 # Premium Chat Room Ledger Contract
 
-Updated: 2026-05-20
+Updated: 2026-05-21
 Owner: Kaido
-Task: Notion #331
+Task: Notion #331, #383
 
 This contract fixes the backend authority rules for premium chat room opening,
 artist closure, report/blind handling, and refund outcomes. It does not open a
@@ -12,6 +12,8 @@ live debit, refund, settlement, or payout mutation.
 
 - Public room-open, donation-create, report, refund, settlement, and payout
   mutations remain disabled until a later implementation task.
+- Public PG refund calls and premium-chat accounting ledger writes remain
+  disabled. This document only fixes the server contract and test baseline.
 - The read-only contract is exposed through
   `GET /api/v1/chat/premium-support-contract` under `room`.
 - Clients may render disabled UI from stable keys, but they must not calculate
@@ -49,7 +51,11 @@ only after the backend has evaluated eligibility.
 | --- | --- | --- | --- | --- |
 | Room open | debit | `premium_chat_open` | `premium_chat_room` | client key scoped as `premium-chat-room-open:<artistId>:<client-key>` |
 | 24h no-answer refund | credit | `refund` | `premium_chat_room` | server key `premium-chat-room-refund:<roomId>:<reasonKey>` |
+| Artist forced close refund | credit | `refund` | `premium_chat_room` | server key `premium-chat-room-refund:<roomId>:<reasonKey>` |
 | User-fault partial refund | credit | `refund` | `premium_chat_room` | server admin decision key |
+| User-fault company retention | credit | `premium_chat_room_company_revenue` | `premium_chat_room` | server admin decision key |
+| User-fault artist compensation | credit | `premium_chat_room_artist_compensation` | `premium_chat_room` | server admin decision key |
+| 50% policy remainder hold | hold | `premium_chat_room_policy_hold` | `premium_chat_room` | server admin decision key |
 | Report/blind pending review | none | none | report/moderation record | no wallet action before admin decision |
 
 `premium_chat_open` is a reserved future ledger type and still needs a wallet
@@ -60,10 +66,20 @@ PR only fixes the contract and tests.
 
 - If the artist does not answer within 24 hours, the user receives a 100%
   Lumina refund through a server-generated refund key.
+- If the artist force-closes the room outside a normal answered/expired close,
+  the room moves to `refund_pending` and the base room open cost is a 100%
+  user refund candidate. The refund can only be credited through the server
+  refund key after the policy decision is recorded.
 - If the user is at fault, allowed refund outcomes are 70% or 50%. The client
   cannot submit or override the refund rate.
-- For user-fault partial refunds, at least 10% of gross room Lumina must remain
-  as artist compensation from the non-refunded portion.
+- For a 70% user-fault refund, the planned accounting split is 70% user Lumina
+  refund, 20% company revenue retention, and 10% artist compensation
+  retention. Settlement and payout mutation still remain disabled.
+- For a 50% user-fault refund, the planned accounting split is 50% user Lumina
+  refund, 20% company revenue retention, 10% artist compensation retention,
+  and 20% `premium_chat_room_policy_hold`. The hold must stay in admin review
+  until PM/admin policy explicitly resolves it; do not turn it into settlement
+  or payout by default.
 - Artist compensation is a later settlement event candidate only. This contract
   does not create settlement, payout, or revenue-share mutation.
 - Duplicate refund attempts must reuse the original refund projection and must
@@ -73,8 +89,10 @@ PR only fixes the contract and tests.
 
 | Case | State | Wallet action |
 | --- | --- | --- |
-| Normal artist close after answer/expiry | `artist_closed` | No automatic refund. |
-| User-fault close | `refund_pending` | Admin/server policy decides 70% or 50% refund. |
+| Normal close after answer/expiry | `closed` (`artist_closed` legacy alias) | No automatic refund. |
+| Artist forced close | `refund_pending` -> `refunded` | Server policy decides 100% user refund. |
+| User-fault 70% close | `refund_pending` -> `refunded` | User refund plus company/artist accounting entries. |
+| User-fault 50% close | `refund_pending` -> `admin_review` | User refund plus company/artist accounting entries and policy hold. |
 | Operator sanction close | `admin_review` | No artist compensation until review completes. |
 | User report | `reported`, `blind`, `suspended`, `admin_review` | No wallet action before admin decision. |
 
@@ -82,6 +100,11 @@ Report intake must blind/suspend the room or mark it processing until admin
 review. User-facing responses use stable message keys such as
 `chat.premiumRoom.report.processing`; raw internal status strings are not the
 only UI copy source.
+
+The following room states fail closed before message, support, debit,
+conversation-meter, support-point, settlement, or payout mutation:
+`closed`, `artist_closed`, `expired`, `reported`, `blind`, `suspended`,
+`refund_pending`, `refunded`, and `admin_review`.
 
 ## Open Blockers
 
@@ -93,3 +116,6 @@ only UI copy source.
   non-negative wallet debit.
 - Implement refund/admin decision workflow with duplicate refund protection.
 - Add moderation queue and audit log entries before public reporting is opened.
+- Resolve the 50% user-fault remainder policy before settlement or payout is
+  enabled. The current v2 contract keeps the remainder in
+  `premium_chat_room_policy_hold`.
