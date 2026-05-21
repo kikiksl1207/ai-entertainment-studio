@@ -16,7 +16,11 @@ function basePrismaMock() {
       findUnique: jest.fn(),
     },
     giftOrder: {
+      create: jest.fn(),
       findUnique: jest.fn(),
+    },
+    artistReactionEvent: {
+      create: jest.fn(),
     },
     premiumVideoProduct: {
       findFirst: jest.fn(),
@@ -29,6 +33,7 @@ function basePrismaMock() {
       findUnique: jest.fn(),
     },
     walletAccount: {
+      findUnique: jest.fn(),
       updateMany: jest.fn(),
     },
     walletLedger: {
@@ -104,6 +109,151 @@ describe('paid wallet action idempotency safety', () => {
       }),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(tx.walletAccount.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('ignores client-submitted balance and price fields when debiting gift orders', async () => {
+    const { prisma, tx } = basePrismaMock();
+    const service = new GiftsService(prisma as never);
+    prisma.giftProduct.findFirst.mockResolvedValue({
+      id: productId,
+      name: 'Server Gift',
+      giftKind: 'instant',
+      priceLumina: new Decimal(10),
+      progressAmount: new Decimal(1),
+      targetAmount: null,
+      unlockAssetId: null,
+      reactionAssetId: null,
+    });
+    tx.giftOrder.findUnique.mockResolvedValue(null);
+    tx.walletAccount.findUnique.mockResolvedValue({
+      id: 'wallet-1',
+      status: 'active',
+      cachedBalance: new Decimal(20),
+    });
+    tx.walletAccount.updateMany.mockResolvedValue({ count: 1 });
+    tx.walletLedger.create.mockResolvedValue({ id: 'ledger-1' });
+    tx.giftOrder.create.mockResolvedValue({
+      id: 'order-1',
+      userId,
+      artistId,
+      giftProductId: productId,
+      quantity: 2,
+      totalLumina: new Decimal(20),
+    });
+
+    await expect(
+      service.createGiftOrder(userId, {
+        artistId,
+        giftProductId: productId,
+        quantity: 2,
+        idempotencyKey: 'gift-server-price-1',
+        balanceLumina: '999999',
+        cachedBalance: '999999',
+        priceLumina: '0',
+        amountLumina: '0',
+      } as any),
+    ).resolves.toMatchObject({
+      idempotentReplay: false,
+    });
+
+    expect(tx.walletAccount.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'wallet-1',
+        cachedBalance: { gte: new Decimal(20) },
+      },
+      data: {
+        cachedBalance: { decrement: new Decimal(20) },
+      },
+    });
+    expect(tx.walletLedger.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          amount: new Decimal(20),
+          ledgerType: 'gift_spend',
+          idempotencyKey: 'wallet:gift-order:gift-server-price-1',
+        }),
+      }),
+    );
+  });
+
+  it('fails closed on insufficient gift balance before ledger or order creation', async () => {
+    const { prisma, tx } = basePrismaMock();
+    const service = new GiftsService(prisma as never);
+    prisma.giftProduct.findFirst.mockResolvedValue({
+      id: productId,
+      name: 'Server Gift',
+      giftKind: 'instant',
+      priceLumina: new Decimal(10),
+      progressAmount: new Decimal(1),
+      targetAmount: null,
+      unlockAssetId: null,
+      reactionAssetId: null,
+    });
+    tx.giftOrder.findUnique.mockResolvedValue(null);
+    tx.walletAccount.findUnique.mockResolvedValue({
+      id: 'wallet-1',
+      status: 'active',
+      cachedBalance: new Decimal(5),
+    });
+    tx.walletAccount.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.createGiftOrder(userId, {
+        artistId,
+        giftProductId: productId,
+        quantity: 1,
+        idempotencyKey: 'gift-insufficient-1',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'WALLET_MUTATION_INSUFFICIENT_BALANCE',
+        messageKey: 'wallet.mutation.insufficientBalance',
+        walletMutation: false,
+      },
+    });
+
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.giftOrder.create).not.toHaveBeenCalled();
+    expect(tx.artistReactionEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('replays duplicate gift order requests without a second debit', async () => {
+    const { prisma, tx } = basePrismaMock();
+    const service = new GiftsService(prisma as never);
+    prisma.giftProduct.findFirst.mockResolvedValue({
+      id: productId,
+      name: 'Server Gift',
+      giftKind: 'instant',
+      priceLumina: new Decimal(10),
+      progressAmount: new Decimal(1),
+      targetAmount: null,
+      unlockAssetId: null,
+      reactionAssetId: null,
+    });
+    tx.giftOrder.findUnique.mockResolvedValue({
+      id: 'order-1',
+      userId,
+      artistId,
+      giftProductId: productId,
+      quantity: 2,
+      totalLumina: new Decimal(20),
+      walletLedger: { id: 'ledger-1' },
+    });
+
+    await expect(
+      service.createGiftOrder(userId, {
+        artistId,
+        giftProductId: productId,
+        quantity: 2,
+        idempotencyKey: 'gift-replay-1',
+      }),
+    ).resolves.toMatchObject({
+      idempotentReplay: true,
+    });
+    expect(tx.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(tx.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.giftOrder.create).not.toHaveBeenCalled();
   });
 
   it('requires idempotency before creating fan letters', async () => {

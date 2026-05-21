@@ -1,5 +1,5 @@
 export const SERVER_AUTHORITY_WALLET_POLICY = {
-  policyVersion: '2026-05-20.server-authority-ledger',
+  policyVersion: '2026-05-21.server-authority-ledger-v1',
   clientSubmittedBalanceTrusted: false,
   clientSubmittedPriceTrusted: false,
   clientSubmittedSettlementTrusted: false,
@@ -7,6 +7,8 @@ export const SERVER_AUTHORITY_WALLET_POLICY = {
   allWalletDebitsRequireServerLedgerBalanceCheck: true,
   allWalletDebitsRequireAtomicNonNegativeUpdate: true,
   allWalletMutationsRequireIdempotencyOrProviderTransactionKey: true,
+  localTestGrantRequiresEnvGate: true,
+  localTestGrantRequiresIdempotencyKey: true,
   paymentOrderReplayRequiresSameUserProductAndProvider: true,
   paymentWebhookRawProviderPayloadStored: false,
   purchaseCreditsRequireProviderVerification: true,
@@ -125,7 +127,35 @@ export const WALLET_LEDGER_SOURCE_CONTRACT = [
     serverAuthority: 'super_admin_audited_operation',
     idempotency: 'server_batch_key',
   },
+  {
+    source: 'local_test_grant',
+    direction: 'credit',
+    ledgerType: 'event_grant',
+    serverAuthority: 'non_production_env_gate_and_server_amount',
+    idempotency: 'client_idempotency_key_required',
+  },
 ] as const;
+
+export const WALLET_MUTATION_GUARD_STEPS = {
+  debit: [
+    'require_idempotency_key_before_wallet_lookup',
+    'resolve_price_or_amount_from_server_product_policy_or_validated_transfer_body',
+    'fetch_active_wallet_accounts_row',
+    'atomic_update_many_cached_balance_gte_amount',
+    'write_wallet_ledger_and_domain_record_in_same_transaction',
+  ],
+  credit: [
+    'require_provider_transaction_or_server_idempotency_key',
+    'derive_credit_amount_on_server',
+    'dedupe_existing_ledger_or_provider_transaction',
+    'increment_cached_balance_and_write_wallet_ledger_in_same_transaction',
+  ],
+  failClosed: [
+    'insufficient_balance_creates_no_wallet_ledger',
+    'idempotency_mismatch_creates_no_wallet_mutation',
+    'provider_replay_creates_no_duplicate_credit',
+  ],
+} as const;
 
 export const APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST = [
   {

@@ -2,7 +2,7 @@
 
 Updated: 2026-05-21
 Owner: Kaido
-Task: Notion #365
+Task: Notion #365, #377
 
 This checklist verifies the server-authority rule for modified apps, browser
 console edits, offline replays, and client-side Lumina display manipulation.
@@ -20,6 +20,9 @@ spent, refunded, donated, settled, or converted.
   mutation and use an atomic non-negative wallet update.
 - Every purchase credit must be based on a server-verified provider transaction
   id, not app/web success redirects.
+- Local test wallet grants are blocked in production and require an idempotency
+  key before wallet creation or credit even when non-production explicitly
+  enables them.
 - App integrity signals can raise or lower risk, but never credit Lumina by
   themselves.
 
@@ -59,11 +62,21 @@ spent, refunded, donated, settled, or converted.
   secrets must not be stored or copied to Notion.
 - Offline or replayed app/web paid actions must be treated as display-only until
   the online backend mutation confirms an idempotent server result.
+- Gift order regression coverage now sends fake client `balanceLumina`,
+  `cachedBalance`, `priceLumina`, and `amountLumina` fields and verifies the
+  debit still uses the server gift product price plus the server wallet balance
+  condition.
 
 ## Required Regression Coverage
 
 - Wallet policy test covers all reviewed app/web tamper surfaces with
   `clientEconomicFieldsTrusted=false`.
+- Wallet paid-action tests cover ignored client economic fields, insufficient
+  balance fail-closed behavior, and same-key gift order replay without another
+  debit.
+- Wallet service tests cover production-disabled local grants, required
+  idempotency before wallet creation, same-key replay, and amount-mismatch
+  conflict for local test grants.
 - Wallet policy test reserves premium chat room open/refund ledger sources.
 - Chat premium support contract test confirms room-open tiers, disabled
   mutation state, 3-day base duration, 10-day artist extension cap, 24-hour

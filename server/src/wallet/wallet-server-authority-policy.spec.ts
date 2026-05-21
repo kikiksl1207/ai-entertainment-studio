@@ -4,6 +4,7 @@ import {
   CLIENT_ECONOMIC_TAMPER_FIELDS,
   SERVER_AUTHORITY_WALLET_POLICY,
   WALLET_LEDGER_SOURCE_CONTRACT,
+  WALLET_MUTATION_GUARD_STEPS,
 } from './wallet-server-authority-policy';
 
 describe('server-authority wallet policy', () => {
@@ -16,6 +17,8 @@ describe('server-authority wallet policy', () => {
       allWalletDebitsRequireServerLedgerBalanceCheck: true,
       allWalletDebitsRequireAtomicNonNegativeUpdate: true,
       allWalletMutationsRequireIdempotencyOrProviderTransactionKey: true,
+      localTestGrantRequiresEnvGate: true,
+      localTestGrantRequiresIdempotencyKey: true,
       paymentOrderReplayRequiresSameUserProductAndProvider: true,
       paymentWebhookRawProviderPayloadStored: false,
       appIntegrityIsAdvisoryOnly: true,
@@ -61,6 +64,41 @@ describe('server-authority wallet policy', () => {
     expect(
       WALLET_LEDGER_SOURCE_CONTRACT.every((source) => source.idempotency.length > 0),
     ).toBe(true);
+  });
+
+  it('keeps debit and credit guard steps explicit for app tamper defense', () => {
+    expect(WALLET_MUTATION_GUARD_STEPS.debit).toEqual(
+      expect.arrayContaining([
+        'require_idempotency_key_before_wallet_lookup',
+        'atomic_update_many_cached_balance_gte_amount',
+        'write_wallet_ledger_and_domain_record_in_same_transaction',
+      ]),
+    );
+    expect(WALLET_MUTATION_GUARD_STEPS.credit).toEqual(
+      expect.arrayContaining([
+        'require_provider_transaction_or_server_idempotency_key',
+        'derive_credit_amount_on_server',
+        'dedupe_existing_ledger_or_provider_transaction',
+      ]),
+    );
+    expect(WALLET_MUTATION_GUARD_STEPS.failClosed).toEqual(
+      expect.arrayContaining([
+        'insufficient_balance_creates_no_wallet_ledger',
+        'provider_replay_creates_no_duplicate_credit',
+      ]),
+    );
+  });
+
+  it('keeps local test grants gated and idempotent when non-production enables them', () => {
+    expect(WALLET_LEDGER_SOURCE_CONTRACT).toContainEqual(
+      expect.objectContaining({
+        source: 'local_test_grant',
+        direction: 'credit',
+        ledgerType: 'event_grant',
+        serverAuthority: 'non_production_env_gate_and_server_amount',
+        idempotency: 'client_idempotency_key_required',
+      }),
+    );
   });
 
   it('requires server-side app-store purchase verification before credits', () => {

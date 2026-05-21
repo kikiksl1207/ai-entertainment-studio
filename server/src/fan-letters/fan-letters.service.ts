@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
+  assertAtomicWalletDebitSucceeded,
   requireWalletMutationIdempotencyKey,
   throwWalletMutationIdempotencyConflict,
 } from '../common/wallet-mutation-safety';
@@ -145,9 +146,7 @@ export class FanLettersService {
         },
       });
 
-      if (updatedWallet.count !== 1) {
-        throw new BadRequestException('Insufficient Lumina balance');
-      }
+      assertAtomicWalletDebitSucceeded(updatedWallet);
 
       const ledger = await tx.walletLedger.create({
         data: {

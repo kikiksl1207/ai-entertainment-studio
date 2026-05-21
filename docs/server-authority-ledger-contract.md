@@ -1,8 +1,8 @@
 # Server Authority Ledger Contract
 
-Updated: 2026-05-20
+Updated: 2026-05-21
 Owner: Kaido
-Task: Notion #327, #331, #334
+Task: Notion #327, #331, #334, #377
 
 This contract exists to keep Lumina balances, paid actions, purchase credits,
 refunds, and creator-facing revenue signals server-authoritative. A modified
@@ -51,6 +51,7 @@ has verified and written the corresponding server ledger state.
 | User gift receive | credit | `user_gift_receive` | paired server transfer | same transfer key |
 | Generation failure reversal | credit | `refund` | server failure recovery | server order refund key |
 | Admin wallet adjustment | credit/debit | `admin_wallet_adjustment` | super-admin audited operation | server batch key |
+| Local test grant | credit | `event_grant` | non-production env gate + server amount | required client idempotency key |
 
 `premium_chat_donation` is reserved as the ledger/source name for future
 premium chat donations. It must follow the same debit rules as other paid
@@ -93,6 +94,19 @@ Existing backend examples:
 - `server/src/fan-letters/fan-letters.service.ts`
 - `server/src/user-gifts/user-gifts.service.ts`
 - `server/src/admin/admin.service.ts`
+
+The shared `server/src/common/wallet-mutation-safety.ts` helper owns the
+common wallet mutation error contracts for missing idempotency, idempotency
+conflict, and insufficient balance. Gift orders, fan letters, premium video
+unlocks, and user gifts use the shared insufficient-balance guard after the
+atomic `cachedBalance >= amount` update. Boosts, chat feature orders, and admin
+wallet adjustments keep equivalent conditional-update guards in their service
+paths.
+
+Local test grants are non-production only, must be explicitly enabled by env,
+and require an idempotency key before `getOrCreateWallet` can create or mutate
+a wallet. Replaying the same local grant key with a different amount is a
+conflict and must not create another credit.
 
 ## Purchase Credit Verification
 

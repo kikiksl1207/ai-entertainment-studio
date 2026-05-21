@@ -1,6 +1,11 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import {
+  requireWalletMutationIdempotencyKey,
+  throwWalletMutationIdempotencyConflict,
+} from '../common/wallet-mutation-safety';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_CURRENCY = 'LUMINA';
@@ -50,24 +55,33 @@ export class WalletService {
     },
   ) {
     this.assertLocalTestGrantEnabled();
+    const idempotencyKey = requireWalletMutationIdempotencyKey(input.idempotencyKey);
     const amount = this.parseAmount(input.amount);
     const wallet = await this.getOrCreateWallet(userId);
 
-    return this.prisma.$transaction(async (tx) => {
-      if (input.idempotencyKey) {
-        const existingLedger = await tx.walletLedger.findUnique({
-          where: { idempotencyKey: input.idempotencyKey },
-        });
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const existingLedger = await tx.walletLedger.findUnique({
+        where: { idempotencyKey },
+      });
 
-        if (existingLedger) {
-          return {
-            wallet: await tx.walletAccount.findUniqueOrThrow({
-              where: { id: wallet.id },
-            }),
-            ledger: existingLedger,
-            idempotentReplay: true,
-          };
+      if (existingLedger) {
+        if (
+          existingLedger.walletAccountId !== wallet.id ||
+          existingLedger.direction !== 'credit' ||
+          existingLedger.ledgerType !== 'event_grant' ||
+          existingLedger.referenceType !== 'local_test' ||
+          !existingLedger.amount.equals(amount)
+        ) {
+          throwWalletMutationIdempotencyConflict();
         }
+
+        return {
+          wallet: await tx.walletAccount.findUniqueOrThrow({
+            where: { id: wallet.id },
+          }),
+          ledger: existingLedger,
+          idempotentReplay: true,
+        };
       }
 
       const updatedWallet = await tx.walletAccount.update({
@@ -86,7 +100,7 @@ export class WalletService {
           amount,
           ledgerType: 'event_grant',
           referenceType: 'local_test',
-          idempotencyKey: input.idempotencyKey,
+          idempotencyKey,
           memo: input.memo ?? 'Local test Lumina grant',
         },
       });

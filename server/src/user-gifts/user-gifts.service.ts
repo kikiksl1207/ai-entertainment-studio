@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
+  assertAtomicWalletDebitSucceeded,
   requireWalletMutationIdempotencyKey,
   throwWalletMutationIdempotencyConflict,
 } from '../common/wallet-mutation-safety';
@@ -116,9 +117,7 @@ export class UserGiftsService {
         },
       });
 
-      if (debitResult.count !== 1) {
-        throw new BadRequestException('Insufficient Lumina balance');
-      }
+      assertAtomicWalletDebitSucceeded(debitResult);
 
       await tx.walletAccount.update({
         where: { id: recipientWallet.id },

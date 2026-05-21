@@ -15,6 +15,14 @@ export const WALLET_MUTATION_IDEMPOTENCY_CONFLICT = {
   walletMutation: false,
 } as const;
 
+export const WALLET_MUTATION_INSUFFICIENT_BALANCE = {
+  code: 'WALLET_MUTATION_INSUFFICIENT_BALANCE',
+  message: 'wallet.mutation.insufficientBalance',
+  messageKey: 'wallet.mutation.insufficientBalance',
+  walletMutation: false,
+  serverAuthority: 'wallet_accounts.cached_balance',
+} as const;
+
 export function requireWalletMutationIdempotencyKey(value?: string) {
   const idempotencyKey = value?.trim();
 
@@ -27,4 +35,10 @@ export function requireWalletMutationIdempotencyKey(value?: string) {
 
 export function throwWalletMutationIdempotencyConflict(): never {
   throw new ConflictException(WALLET_MUTATION_IDEMPOTENCY_CONFLICT);
+}
+
+export function assertAtomicWalletDebitSucceeded(result: { count: number }) {
+  if (result.count !== 1) {
+    throw new BadRequestException(WALLET_MUTATION_INSUFFICIENT_BALANCE);
+  }
 }
