@@ -61,6 +61,88 @@ function feedLocaleToLanguage(locale = _currentLocale) {
   return ({ ko: "ko", ja: "ja", en: "en", zh: "zh" })[prefix] || "all";
 }
 
+// #358 — repost 원글 reference card 렌더. originalPost가 있으면 임베드, tombstone이면 안전 안내.
+// 원문 body는 backend가 tombstone/hidden/private/blocked 케이스에서 null로 내려주므로 그대로 표시해도 안전.
+function renderFeedRepostSource(repost) {
+  if (!repost || typeof repost !== "object") return "";
+  if (!repost.isRepost) return "";
+  // tombstone / 비공개 / 차단 케이스
+  if (repost.tombstone || repost.originalState === "unavailable" || !repost.originalPost) {
+    var reasonLabel = "원글을 볼 수 없어요";
+    var unavailable = repost.unavailableReason || "";
+    var subnote = unavailable === "deleted" ? "원글이 삭제됐어요."
+      : unavailable === "hidden" ? "원글이 운영자에 의해 숨겨졌어요."
+      : unavailable === "private" ? "원글이 비공개 처리됐어요."
+      : unavailable === "blocked" ? "차단된 사용자의 글이라 원글이 표시되지 않아요."
+      : "원글이 더 이상 제공되지 않아요.";
+    return (
+      '<aside class="feed-post-repost-source is-tombstone" aria-label="원글 참조 (표시 불가)">' +
+        '<span class="feed-post-repost-eyebrow">원글 참조</span>' +
+        '<strong class="feed-post-repost-tombstone-title">' + feedEscapeHtml(reasonLabel) + '</strong>' +
+        '<p class="feed-post-repost-tombstone-body">' + feedEscapeHtml(subnote) + '</p>' +
+      '</aside>'
+    );
+  }
+  var orig = repost.originalPost || {};
+  var origAuthor = orig.authorName || orig.author?.displayName || orig.author?.nickname || "Lumina 사용자";
+  var origBody = orig.body || orig.content || "";
+  var origId = orig.id || repost.originalPostId || "";
+  var origUrl = origId ? ("/lumina-feed?postId=" + encodeURIComponent(String(origId))) : "/lumina-feed";
+  return (
+    '<aside class="feed-post-repost-source" aria-label="원글 참조">' +
+      '<span class="feed-post-repost-eyebrow">원글 참조</span>' +
+      '<div class="feed-post-repost-source-head">' +
+        '<strong>' + feedEscapeHtml(origAuthor) + '</strong>' +
+        '<a class="feed-post-repost-source-link" href="' + feedEscapeHtml(origUrl) + '">원글 보기 →</a>' +
+      '</div>' +
+      '<p class="feed-post-repost-source-body">' + feedEscapeHtml(origBody) + '</p>' +
+    '</aside>'
+  );
+}
+
+// #358 — thread continuation 카드를 root 카드 뒤에 묶어주는 reorder.
+// 원본 순서(보통 최신순)는 유지하면서 continuation만 root 바로 뒤로 이동시킨다.
+// continuation의 rootPostId가 visible list에 없으면 원래 위치 유지(고아 방지).
+function sortFeedListWithThreadContinuations(list) {
+  if (!Array.isArray(list) || list.length <= 1) return list;
+  var indexById = Object.create(null);
+  list.forEach(function (post, idx) {
+    if (post && post.id) indexById[String(post.id)] = idx;
+  });
+  var grouped = [];
+  var consumed = Object.create(null);
+  list.forEach(function (post, idx) {
+    if (consumed[idx]) return;
+    var continuation = post && post.threadContinuation;
+    var rootId = continuation && (continuation.rootPostId || continuation.parentPostId);
+    var isContinuation = !!(continuation && (continuation.isContinuation || rootId));
+    // continuation이고 root가 같은 list에 존재 + root 인덱스가 이 위치보다 앞이면 이미 root 다음에 배치됨.
+    // root가 뒤에 있거나 같은 그룹에서 처음 만나는 root면 root + 모든 continuation 묶음을 push.
+    if (isContinuation && rootId != null && indexById[String(rootId)] != null) {
+      // root를 아직 안 넣었으면 우선 root 발견 위치까지 진행하지 말고 skip — root 차례에 묶을 것.
+      // 단, root가 visible list 범위 밖이면 자기만 push (예외적 케이스).
+      return;
+    }
+    grouped.push(post);
+    consumed[idx] = true;
+    // 이 post가 root 후보 → 자신을 root로 가진 continuation들을 같이 push (원본 순서대로).
+    list.forEach(function (other, otherIdx) {
+      if (consumed[otherIdx]) return;
+      var oc = other && other.threadContinuation;
+      var oRoot = oc && (oc.rootPostId || oc.parentPostId);
+      if (oc && (oc.isContinuation || oRoot) && oRoot != null && String(oRoot) === String(post.id)) {
+        grouped.push(other);
+        consumed[otherIdx] = true;
+      }
+    });
+  });
+  // root 없는 continuation들은 마지막에 그대로 (rare)
+  list.forEach(function (post, idx) {
+    if (!consumed[idx]) grouped.push(post);
+  });
+  return grouped;
+}
+
 function feedAuthorTypeLabel(authorTypeEnum) {
   return ({
     "ai_artist": "AI 아티스트",
@@ -149,9 +231,12 @@ function renderLuminaFeed() {
   const root = document.getElementById("luminaFeedList");
   if (!root) return;
 
-  const list = (_luminaFeedFilter === "all" || _luminaFeedFilter === "following")
+  const baseList = (_luminaFeedFilter === "all" || _luminaFeedFilter === "following")
     ? _luminaFeedItems
     : _luminaFeedItems.filter(p => p.postType === _luminaFeedFilter);
+  // #358 — thread continuation 카드는 root 바로 뒤에 묶여서 X-style 하위 타래로 보이도록 reorder.
+  // 원본 시간순(보통 최신순)은 그대로 두되, continuation 만 root post id 뒤로 이동시킨다.
+  const list = sortFeedListWithThreadContinuations(baseList);
   const query = (_luminaFeedQuery || "").trim().toLowerCase();
   const visibleList = query && _luminaFeedSource !== "search"
     ? list.filter(p => [
@@ -229,8 +314,23 @@ function renderLuminaFeed() {
       // 위 둘 다 안 맞으면 authorLink는 "" → 작성자 영역 클릭 비활성화 (헛클릭 방지)
     }
 
+    // #358 — thread continuation 시각화: X-style 좌측 세로 연결선 + 들여쓰기, "이어쓴 글" 배지.
+    const isThreadContinuation = !!(post.threadContinuation && (post.threadContinuation.isContinuation || post.threadContinuation.rootPostId));
+    const continuationRootId = isThreadContinuation
+      ? (post.threadContinuation.rootPostId || post.threadContinuation.parentPostId || "")
+      : "";
+    const continuationClass = isThreadContinuation ? " feed-post-continuation is-thread-continuation" : "";
+    const continuationConnector = isThreadContinuation
+      ? '<span class="feed-post-continuation-connector" aria-hidden="true"></span>'
+        + '<span class="feed-post-continuation-badge" data-continuation-root="' + feedEscapeHtml(continuationRootId) + '">이어쓴 글</span>'
+      : "";
+
+    // #358 — repost 카드 안에 원글 reference embed. tombstone 케이스도 안전 안내.
+    const repostEmbed = renderFeedRepostSource(post.repost);
+
     return `
-      <article class="feed-post${clickable}" data-feed-type="${post.postType}">
+      <article class="feed-post${clickable}${continuationClass}" data-feed-type="${post.postType}"${isThreadContinuation ? ' data-feed-continuation-root="' + feedEscapeHtml(continuationRootId) + '"' : ""}>
+        ${continuationConnector}
         <header class="feed-post-head"${authorLink}>
           <div class="feed-post-avatar">
             ${avatarSrc
@@ -245,6 +345,7 @@ function renderLuminaFeed() {
         </header>
         <p class="feed-post-body">${feedEscapeHtml(post.body)}</p>
         <button class="feed-post-expand-btn" type="button" aria-expanded="false">더 보기</button>
+        ${repostEmbed}
         ${renderFeedPostThreadBadge(post)}
         ${renderFeedPostAssets(post.assets)}
         ${renderFeedLinkPreview(post.linkPreview)}

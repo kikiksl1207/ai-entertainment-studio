@@ -1518,3 +1518,103 @@ body.is-feed-repost-open { overflow: hidden; }
   .feed-repost-foot { flex-direction: column-reverse; align-items: stretch; }
   .feed-share-toast { bottom: 112px; }
 }
+
+/* ── #358 — thread continuation 카드 시각화 (X-style 좌측 세로선 + 들여쓰기 + 배지) ── */
+.feed-post-continuation {
+  position: relative;
+  margin-left: 22px;
+  padding-left: 14px;
+  background: rgba(159, 139, 199, 0.04);
+  border-left: 2px solid rgba(255, 20, 147, 0.4);
+}
+.feed-post-continuation-connector {
+  position: absolute;
+  left: -22px;
+  top: -10px;
+  bottom: 20px;
+  width: 16px;
+  border-left: 2px solid rgba(255, 20, 147, 0.32);
+  border-bottom: 2px solid rgba(255, 20, 147, 0.32);
+  border-bottom-left-radius: 12px;
+}
+.feed-post-continuation-badge {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 20, 147, 0.18), rgba(124, 58, 237, 0.18));
+  border: 1px solid rgba(255, 20, 147, 0.32);
+  color: #ff7eb9;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+/* ── #358 — repost 카드 안 원글 참조 임베드 (quote_repost / repost 공통) + tombstone 안전 안내 ── */
+.feed-post-repost-source {
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(159, 139, 199, 0.22);
+  border-radius: 12px;
+  background: rgba(159, 139, 199, 0.06);
+  display: grid;
+  gap: 6px;
+}
+.feed-post-repost-eyebrow {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(124, 58, 237, 0.18);
+  color: #c4b5fd;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  width: fit-content;
+}
+.feed-post-repost-source-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.feed-post-repost-source-head strong {
+  font-size: 13px;
+  color: var(--ink, #f0eef8);
+  font-weight: 700;
+}
+.feed-post-repost-source-link {
+  font-size: 12px;
+  color: #ff7eb9;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.feed-post-repost-source-link:hover { text-decoration: underline; }
+.feed-post-repost-source-body {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: rgba(240, 238, 248, 0.82);
+  overflow-wrap: anywhere;
+}
+.feed-post-repost-source.is-tombstone {
+  background: rgba(148, 163, 184, 0.06);
+  border-color: rgba(148, 163, 184, 0.24);
+  border-style: dashed;
+}
+.feed-post-repost-tombstone-title {
+  font-size: 13px;
+  color: rgba(240, 238, 248, 0.85);
+  font-weight: 700;
+}
+.feed-post-repost-tombstone-body {
+  margin: 0;
+  font-size: 12.5px;
+  color: rgba(240, 238, 248, 0.6);
+  line-height: 1.55;
+}
+
+@media (max-width: 480px) {
+  .feed-post-continuation { margin-left: 14px; padding-left: 10px; }
+  .feed-post-continuation-connector { left: -14px; width: 12px; }
+}

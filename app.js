@@ -2335,6 +2335,11 @@ function normalizeFeedPost(raw) {
     avatarUrl: raw.avatarUrl || raw.author?.avatarUrl || raw.author?.profile?.avatarUrl || raw.user?.avatarUrl || raw.profile?.avatarUrl || "",
     body: raw.body || raw.content || "",
     thread: normalizeFeedThread(raw.thread, raw),
+    // #358 — #355 contract projections.
+    // threadContinuation: under_root_post 으로 묶어서 X-style 시각화에 사용. comment/reply와 구분되는 정상 post row.
+    threadContinuation: raw.threadContinuation || raw.metadata?.threadContinuation || null,
+    // repost: 원글 reference + 내 quote body. originalPost가 있으면 그대로 임베드, tombstone이면 안전 안내.
+    repost: raw.repost || raw.metadata?.repost || null,
     assets: Array.isArray(raw.assets) ? raw.assets : [],
     linkPreview: raw.linkPreview || null,
     likeCount: Number(raw.likeCount) || 0,
