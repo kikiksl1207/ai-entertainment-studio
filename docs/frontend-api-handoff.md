@@ -657,6 +657,11 @@ Character-chat CMS copy (#335):
 - Fallback order is published site-content copy, artist metadata, character
   fallback, default Korean copy. If no CMS row exists, keep using the existing
   Korean fallback copy and never show raw enum/source strings in the UI.
+- Character fallback copy now covers the opening copy set as a unit:
+  `greeting.text`, `emptyState.text`, `premiumChat.text`,
+  `premiumChat.ctaLabel`, `tone.guideKo`, and `personaTags`. Render only those
+  Korean strings/tags; do not surface `source`, `guideSource`, raw trait ids, or
+  internal prompt/provider fields as user-facing text.
 - `premiumChat.enabled=false` in this projection is copy-only. Do not connect
   wallet, order, settlement, paid-like, or premium-chat mutation from these
   fields.

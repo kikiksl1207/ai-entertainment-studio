@@ -1060,6 +1060,15 @@ describe('ChatService persona and catalog policy', () => {
       llmCall: false,
       walletMutation: false,
     });
+    expect(catalog.copyContract.requiredUiFields).toEqual(
+      expect.arrayContaining([
+        'greeting.text',
+        'emptyState.text',
+        'premiumChat.ctaLabel',
+        'tone.guideKo',
+        'personaTags',
+      ]),
+    );
     expect(catalog.copyContract.editableFields).toEqual(
       expect.arrayContaining([
         'welcome.text',
@@ -1424,6 +1433,13 @@ describe('ChatService persona and catalog policy', () => {
     expect(results[0].runtimePersona.tone.toneTags).toEqual(
       expect.arrayContaining(['따뜻한 응원', '다정함']),
     );
+    expect(results[0].runtimePersona.personaTags).toEqual(
+      expect.arrayContaining(['따뜻한 응원', '다정함']),
+    );
+    expect(results[0].runtimePersona.tone).toMatchObject({
+      guideKo: expect.any(String),
+      guideSource: 'artist_metadata',
+    });
     expect(results[1].runtimePersona.tone.toneTags).toEqual(
       expect.arrayContaining(['차분한 거리감', '차분함']),
     );
@@ -1484,6 +1500,23 @@ describe('ChatService persona and catalog policy', () => {
     expect(new Set(catalogs.map((catalog) => catalog.greeting.text)).size).toBe(5);
     expect(new Set(catalogs.map((catalog) => catalog.starterOptions[0].label)).size).toBe(5);
     expect(new Set(catalogs.map((catalog) => catalog.starterOptions[1].label)).size).toBe(5);
+    expect(new Set(catalogs.map((catalog) => catalog.emptyState.text)).size).toBe(5);
+    expect(new Set(catalogs.map((catalog) => catalog.premiumChat.ctaLabel)).size).toBe(5);
+    expect(new Set(catalogs.map((catalog) => catalog.runtimePersona.tone.guideKo)).size).toBe(5);
+    expect(
+      catalogs.every((catalog) => catalog.emptyState.source === 'character_fallback'),
+    ).toBe(true);
+    expect(
+      catalogs.every((catalog) => catalog.premiumChat.source === 'character_fallback'),
+    ).toBe(true);
+    expect(
+      catalogs.every(
+        (catalog) =>
+          catalog.runtimePersona.tone.guideSource === 'character_fallback' &&
+          catalog.runtimePersona.personaTags.length >= 3 &&
+          catalog.personaTags.length >= 3,
+      ),
+    ).toBe(true);
     expect(
       catalogs.every((catalog) => catalog.runtimePersona.source === 'character_fallback'),
     ).toBe(true);
@@ -1522,6 +1555,14 @@ describe('ChatService persona and catalog policy', () => {
     expect(catalog.source).toBe('character_fallback');
     expect(catalog.runtimePersona.source).toBe('character_fallback');
     expect(catalog.greeting.source).toBe('character_fallback');
+    expect(catalog.emptyState.source).toBe('character_fallback');
+    expect(catalog.premiumChat.source).toBe('character_fallback');
+    expect(catalog.runtimePersona.tone).toMatchObject({
+      guideSource: 'character_fallback',
+    });
+    expect(catalog.personaTags).toEqual(
+      expect.arrayContaining(['부드러움', '컨디션 케어']),
+    );
     expect(catalog.starterSets[0].id).toBe('min-chaeon-character-start-1');
     expect(prompts.source).toBe('character_fallback');
     expect(prompts.sets[0].id).toBe('min-chaeon-character-start-1');
@@ -2772,7 +2813,10 @@ describe('ChatService.generateMessage provider beta', () => {
           ]),
           tone: expect.objectContaining({
             toneTags: expect.arrayContaining(['따뜻한 런타임', '다정함']),
+            guideKo: expect.any(String),
+            guideSource: 'artist_metadata',
           }),
+          personaTags: expect.arrayContaining(['따뜻한 런타임', '다정함']),
           forbiddenTone: expect.arrayContaining(['실존 인물 사칭']),
           safetyNote: expect.objectContaining({
             text: '세린은 부드럽게 응원하고 fictional boundary를 지켜요.',

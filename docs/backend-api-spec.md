@@ -817,6 +817,11 @@ Character-chat copy CMS contract (#335):
 - `emptyState` and `premiumChat` are display copy projections only. They do not
   create chat messages, orders, wallet ledger rows, settlement rows, or provider
   calls.
+- Character fallback rows also provide character-specific `emptyState.text`,
+  `premiumChat.text`, `premiumChat.ctaLabel`, `tone.guideKo`, and
+  `personaTags`. Only the final Korean copy/tag arrays should be rendered in UI;
+  raw source enums and internal persona/provider prompts remain non-display
+  diagnostics.
 
 Character-chat copy isolation check (#342):
 

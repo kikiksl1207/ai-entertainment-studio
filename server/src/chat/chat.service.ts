@@ -59,14 +59,17 @@ const DEFAULT_STARTER_PROMPT_COPY = {
   ],
   directInputLabel: '직접 입력하기',
 };
-const CHARACTER_CHAT_FALLBACK_COPY: Record<
-  string,
-  {
-    greetingText: string;
-    guideText: string;
-    options: StarterPromptOption[];
-  }
-> = {
+type CharacterChatFallbackCopy = {
+  greetingText: string;
+  guideText: string;
+  options: StarterPromptOption[];
+  emptyStateText: string;
+  premiumChatText: string;
+  premiumChatCtaLabel: string;
+  toneGuideKo: string;
+  personaTags: string[];
+};
+const CHARACTER_CHAT_FALLBACK_COPY: Record<string, CharacterChatFallbackCopy> = {
   'yoon-serin': {
     greetingText: '세린이 무대 뒤 조용한 숨을 고르며 당신을 바라봐요.',
     guideText: '세린에게 차분하게 말을 걸어보세요.',
@@ -82,6 +85,11 @@ const CHARACTER_CHAT_FALLBACK_COPY: Record<
         message: '오늘도 네 무대를 조용히 응원하고 있어. 천천히 쉬어도 괜찮아.',
       },
     ],
+    emptyStateText: '세린과의 첫 대화가 아직 없어요. 조용한 인사를 건네보세요.',
+    premiumChatText: '세린의 깊은 답변은 준비 중이에요. 지금은 차분한 첫 대화를 시작해 보세요.',
+    premiumChatCtaLabel: '세린에게 인사하기',
+    toneGuideKo: '차분하고 다정한 무대 뒤 톤을 유지하며 짧고 섬세하게 답해요.',
+    personaTags: ['차분함', '다정함', '무대의 여운'],
   },
   'han-seoyul': {
     greetingText: '서율이 밝은 목소리로 오늘의 이야기를 물어봐요.',
@@ -98,6 +106,11 @@ const CHARACTER_CHAT_FALLBACK_COPY: Record<
         message: '오늘 조금 지쳤어. 서율이의 밝은 한마디를 듣고 싶어.',
       },
     ],
+    emptyStateText: '서율과 아직 나눈 이야기가 없어요. 밝은 안부부터 시작해 보세요.',
+    premiumChatText: '서율의 특별 답변은 준비 중이에요. 지금은 따뜻한 안부를 남겨보세요.',
+    premiumChatCtaLabel: '서율에게 안부 묻기',
+    toneGuideKo: '밝고 따뜻한 목소리로 팬의 하루를 먼저 살피는 톤을 유지해요.',
+    personaTags: ['밝음', '따뜻함', '작은 위로'],
   },
   'park-doa': {
     greetingText: '도아가 먼저 활짝 웃으며 말을 걸 준비를 해요.',
@@ -114,6 +127,11 @@ const CHARACTER_CHAT_FALLBACK_COPY: Record<
         message: '도아랑 잠깐 웃고 싶어. 오늘 제일 재밌었던 일 뭐야?',
       },
     ],
+    emptyStateText: '도아와의 대화가 아직 없어요. 가볍게 텐션을 올려보세요.',
+    premiumChatText: '도아의 특별 답변은 준비 중이에요. 지금은 생기 있는 인사를 건네보세요.',
+    premiumChatCtaLabel: '도아와 웃기',
+    toneGuideKo: '활기 있고 장난스러운 리듬을 살리되 안전한 응원 대화로 이어가요.',
+    personaTags: ['활기', '장난기', '에너지 충전'],
   },
   'choi-seojin': {
     greetingText: '서진이 차분한 시선으로 다음 장면을 기다려요.',
@@ -130,6 +148,11 @@ const CHARACTER_CHAT_FALLBACK_COPY: Record<
         message: '말은 길지 않아도 네 장면을 오래 응원하고 있어.',
       },
     ],
+    emptyStateText: '서진과 아직 대화가 없어요. 마음에 남은 장면을 물어보세요.',
+    premiumChatText: '서진의 깊은 답변은 준비 중이에요. 지금은 조용한 응원을 전해보세요.',
+    premiumChatCtaLabel: '서진에게 장면 묻기',
+    toneGuideKo: '선명하고 절제된 표현으로 감정의 깊이를 천천히 보여줘요.',
+    personaTags: ['절제', '깊은 응원', '선명한 장면'],
   },
   'min-chaeon': {
     greetingText: '채온이 컨디션을 살피며 천천히 대화를 시작해요.',
@@ -146,6 +169,11 @@ const CHARACTER_CHAT_FALLBACK_COPY: Record<
         message: '다음 무대 준비도 채온답게 차근차근 해내길 응원할게.',
       },
     ],
+    emptyStateText: '채온과의 대화가 아직 없어요. 컨디션을 먼저 물어보세요.',
+    premiumChatText: '채온의 특별 답변은 준비 중이에요. 지금은 루틴을 응원해 보세요.',
+    premiumChatCtaLabel: '채온의 컨디션 묻기',
+    toneGuideKo: '부드럽고 현실적인 컨디션 체크 톤으로 무리 없는 응원을 건네요.',
+    personaTags: ['부드러움', '컨디션 케어', '차근차근'],
   },
 };
 const CHARACTER_CHAT_FALLBACK_ARTISTS: Record<
@@ -432,6 +460,8 @@ const CHARACTER_CHAT_DEFAULT_EMPTY_STATE_KO =
 const CHARACTER_CHAT_DEFAULT_PREMIUM_COPY_KO =
   '\uae4a\uc740 \ub2f5\ubcc0\uacfc \ud2b9\ubcc4 \ud32c\ub808\ud130 \uae30\ub2a5\uc740 \uc900\ube44 \uc911\uc774\uc5d0\uc694.';
 const CHARACTER_CHAT_DEFAULT_PREMIUM_CTA_KO = '\uc900\ube44 \uc911';
+const CHARACTER_CHAT_DEFAULT_TONE_GUIDE_KO =
+  '\uce90\ub9ad\ud130\uc758 \uacf5\uac1c \ud1a4\uacfc \uc548\uc804 \uacbd\uacc4\ub97c \uc9c0\ud0a4\uba70 \uc9e7\uace0 \ub530\ub73b\ud558\uac8c \ub2f5\ud574\uc694.';
 
 @Injectable()
 export class ChatService {
@@ -725,6 +755,7 @@ export class ChatService {
     const cmsStarterSets = cmsCopy?.starterSets ?? [];
     const metadataSets = this.normalizeStarterPromptSets(metadata.chatStarterPromptSets);
     const configuredSets = cmsStarterSets.length ? cmsStarterSets : metadataSets;
+    const fallbackCopy = CHARACTER_CHAT_FALLBACK_COPY[artist.slug];
     const metadataGreeting =
       cmsCopy?.welcomeText ?? this.stringFromUnknown(catalogMetadata.greetingText);
     const runtimePersona = this.buildCharacterRuntimePersonaContext(artist, {
@@ -755,9 +786,10 @@ export class ChatService {
       starterOptions: runtimePersona.starterOptions,
       starterSets: runtimePersona.starterSets,
       directInput: runtimePersona.directInput,
-      emptyState: this.characterChatEmptyState(cmsCopy),
-      premiumChat: this.characterChatPremiumCopy(cmsCopy),
+      emptyState: this.characterChatEmptyState(cmsCopy, fallbackCopy),
+      premiumChat: this.characterChatPremiumCopy(cmsCopy, fallbackCopy),
       tone: runtimePersona.tone,
+      personaTags: runtimePersona.personaTags,
       personaReference: runtimePersona.personaReference,
       runtimePersona,
       policy: CHARACTER_CHAT_CATALOG_POLICY,
@@ -779,6 +811,7 @@ export class ChatService {
     const configuredSets = cmsStarterSets.length
       ? cmsStarterSets
       : metadataSets;
+    const fallbackCopy = CHARACTER_CHAT_FALLBACK_COPY[artist.slug];
     const runtimePersona = this.buildCharacterRuntimePersonaContext(artist, {
       metadata,
       configuredSets,
@@ -793,10 +826,11 @@ export class ChatService {
       },
       policy: STARTER_PROMPT_POLICY,
       tone: runtimePersona.tone,
+      personaTags: runtimePersona.personaTags,
       personaReference: runtimePersona.personaReference,
       sets: runtimePersona.starterSets,
-      emptyState: this.characterChatEmptyState(cmsCopy),
-      premiumChat: this.characterChatPremiumCopy(cmsCopy),
+      emptyState: this.characterChatEmptyState(cmsCopy, fallbackCopy),
+      premiumChat: this.characterChatPremiumCopy(cmsCopy, fallbackCopy),
       runtimePersona,
       copyContract: this.characterChatCopyContract(artist.slug, cmsCopy),
       source: cmsCopy
@@ -2636,23 +2670,44 @@ export class ChatService {
     return `${CHARACTER_CHAT_COPY_CMS_CONTENT_KEY_PREFIX}${artistSlug}`;
   }
 
-  private characterChatEmptyState(cmsCopy: CharacterChatCmsCopy | null) {
+  private characterChatEmptyState(
+    cmsCopy: CharacterChatCmsCopy | null,
+    fallbackCopy?: CharacterChatFallbackCopy,
+  ) {
     return {
-      text: cmsCopy?.emptyStateText ?? CHARACTER_CHAT_DEFAULT_EMPTY_STATE_KO,
-      source: cmsCopy?.emptyStateText ? 'site_content' : 'default',
+      text:
+        cmsCopy?.emptyStateText ??
+        fallbackCopy?.emptyStateText ??
+        CHARACTER_CHAT_DEFAULT_EMPTY_STATE_KO,
+      source: cmsCopy?.emptyStateText
+        ? 'site_content'
+        : fallbackCopy?.emptyStateText
+          ? 'character_fallback'
+          : 'default',
       messageKey: 'chat.character.emptyState.default',
     };
   }
 
-  private characterChatPremiumCopy(cmsCopy: CharacterChatCmsCopy | null) {
+  private characterChatPremiumCopy(
+    cmsCopy: CharacterChatCmsCopy | null,
+    fallbackCopy?: CharacterChatFallbackCopy,
+  ) {
     return {
-      text: cmsCopy?.premiumChatText ?? CHARACTER_CHAT_DEFAULT_PREMIUM_COPY_KO,
-      ctaLabel: cmsCopy?.premiumChatCtaLabel ?? CHARACTER_CHAT_DEFAULT_PREMIUM_CTA_KO,
+      text:
+        cmsCopy?.premiumChatText ??
+        fallbackCopy?.premiumChatText ??
+        CHARACTER_CHAT_DEFAULT_PREMIUM_COPY_KO,
+      ctaLabel:
+        cmsCopy?.premiumChatCtaLabel ??
+        fallbackCopy?.premiumChatCtaLabel ??
+        CHARACTER_CHAT_DEFAULT_PREMIUM_CTA_KO,
       enabled: false,
       source:
         cmsCopy?.premiumChatText || cmsCopy?.premiumChatCtaLabel
           ? 'site_content'
-          : 'default',
+          : fallbackCopy?.premiumChatText || fallbackCopy?.premiumChatCtaLabel
+            ? 'character_fallback'
+            : 'default',
       messageKey: 'chat.character.premiumChat.locked',
       walletMutation: false,
       orderMutation: false,
@@ -2676,6 +2731,25 @@ export class ChatService {
       publishedVersion: cmsCopy?.version ?? null,
       source: cmsCopy ? 'site_content' : 'fallback',
       fallbackOrder: ['site_content', 'artist_metadata', 'character_fallback', 'default'],
+      characterFallbackAvailable: Boolean(CHARACTER_CHAT_FALLBACK_COPY[artistSlug]),
+      requiredUiFields: [
+        'greeting.text',
+        'emptyState.text',
+        'premiumChat.ctaLabel',
+        'tone.guideKo',
+        'personaTags',
+      ],
+      characterSpecificFallbackFields: [
+        'greeting.text',
+        'starterSets[].guideText',
+        'starterSets[].options[].label',
+        'starterSets[].options[].message',
+        'emptyState.text',
+        'premiumChat.text',
+        'premiumChat.ctaLabel',
+        'tone.guideKo',
+        'personaTags',
+      ],
       editableFields: [...CHARACTER_CHAT_COPY_CMS_EDITABLE_FIELDS],
       fixedUiLabels: [...CHARACTER_CHAT_COPY_FIXED_UI_LABELS],
       rawPersonaPromptExposed: false,
@@ -2736,6 +2810,27 @@ export class ChatService {
       catalogMetadata,
     );
     const safetyNote = this.runtimeSafetyNoteFromMetadata(metadata, catalogMetadata);
+    const metadataToneGuide = this.runtimeToneGuideFromMetadata(
+      metadata,
+      catalogMetadata,
+      personaReference,
+    );
+    const personaTagsFromMetadata = this.runtimeToneTags(
+      personaReference,
+      personalityKeywords,
+    );
+    const personaTags = personaTagsFromMetadata.length
+      ? personaTagsFromMetadata
+      : [...(fallbackCopy?.personaTags ?? [])].slice(0, 12);
+    const toneGuideKo =
+      metadataToneGuide ??
+      fallbackCopy?.toneGuideKo ??
+      CHARACTER_CHAT_DEFAULT_TONE_GUIDE_KO;
+    const toneGuideSource = metadataToneGuide
+      ? 'artist_metadata'
+      : fallbackCopy?.toneGuideKo
+        ? 'character_fallback'
+        : 'default';
 
     return {
       welcome: {
@@ -2772,8 +2867,11 @@ export class ChatService {
         tagline: artist.publicProfile?.tagline ?? null,
         contentTone,
         personalityKeywords,
-        toneTags: this.runtimeToneTags(personaReference, personalityKeywords),
+        toneTags: personaTags,
+        guideKo: toneGuideKo,
+        guideSource: toneGuideSource,
       },
+      personaTags,
       personaReference,
       forbiddenTone,
       safetyNote,
@@ -2781,6 +2879,7 @@ export class ChatService {
         cmsCopy ||
         metadataGreeting ||
         configuredSets.length ||
+        toneGuideSource === 'artist_metadata' ||
         safetyNote.source === 'artist_metadata' ||
         personaReference.source === 'artist_metadata'
           ? cmsCopy
@@ -2805,6 +2904,35 @@ export class ChatService {
         ...personalityKeywords,
       ]),
     ].filter(Boolean).slice(0, 12);
+  }
+
+  private runtimeToneGuideFromMetadata(
+    metadata: Record<string, unknown>,
+    catalogMetadata: Record<string, unknown>,
+    personaReference: CharacterRuntimePersonaContext['personaReference'],
+  ) {
+    const personaSeed = this.recordOrEmpty(metadata.chatPersonaSeed);
+    const configuredGuide =
+      this.stringFromUnknown(catalogMetadata.toneGuideKo) ??
+      this.stringFromUnknown(catalogMetadata.toneGuide) ??
+      this.stringFromUnknown(personaSeed.toneGuideKo) ??
+      this.stringFromUnknown(personaSeed.toneGuide);
+
+    if (configuredGuide) {
+      return configuredGuide;
+    }
+
+    const traitGuide = personaReference.selectedTraits
+      .map((trait) => trait.toneGuideKo)
+      .filter((guide): guide is string => Boolean(guide))
+      .slice(0, 2)
+      .join(' ');
+
+    if (traitGuide) {
+      return traitGuide;
+    }
+
+    return personaReference.customFields.relationshipToneKo;
   }
 
   private runtimeForbiddenToneFromMetadata(
