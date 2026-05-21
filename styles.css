@@ -3601,6 +3601,25 @@ p {
   gap: 14px;
   padding-top: 10px;
   border-top: 1px solid rgba(159, 139, 199, 0.12);
+  /* #378 — 좌측 참여 액션(좋아요/댓글/타래/리포스트)과 우측 메뉴(공유/수정/삭제)를 양 끝 정렬. */
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.feed-post-actions-left,
+.feed-post-actions-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.feed-post-actions-right { gap: 6px; margin-left: auto; }
+/* #378 — 공유 아이콘은 우측 하단 자리에 두되 아이콘 중심으로 노출.
+   데스크톱 ≥769px 에서는 라벨 "공유" 함께 보이고, 좁은 화면에서는 아이콘만 노출해 카드가 좁혀져도 줄칸이 깨지지 않는다. */
+.feed-action-btn.feed-share-btn .feed-action-btn-label { display: inline; }
+@media (max-width: 480px) {
+  .feed-action-btn.feed-share-btn .feed-action-btn-label { display: none; }
+  .feed-action-btn.feed-share-btn { padding: 6px; }
 }
 .feed-action-btn {
   display: inline-flex;
