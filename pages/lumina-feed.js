@@ -204,27 +204,14 @@ async function loadLuminaFeedData(scope = "all") {
       return;
     }
   } catch (err) {
-    console.warn("[Lumina] /lumina-feed 실패, samples 시도:", err);
+    console.warn("[Lumina] /lumina-feed 실패:", err && err.status);
   }
 
-  // 2. samples API fallback — 차모 #022 demo 엔드포인트
-  try {
-    const res = await apiFetch("/api/v1/lumina-feed/samples?mode=all&take=30");
-    const items = Array.isArray(res) ? res : (res?.items || []);
-    if (Array.isArray(items) && items.length > 0) {
-      _luminaFeedItems = items.map(normalizeFeedPost);
-      _luminaFeedSource = "samples";
-      console.info(`[Lumina] 루미나 피드 samples API 로드 ${items.length}건`);
-      return;
-    }
-  } catch (err) {
-    console.warn("[Lumina] /lumina-feed/samples 실패, inline 사용:", err);
-  }
-
-  // 3. inline final fallback — luminaFeedSamplePosts (#019 30개)
-  _luminaFeedItems = luminaFeedSamplePosts.map(normalizeFeedPost);
-  _luminaFeedSource = "inline";
-  console.info(`[Lumina] 루미나 피드 inline fallback 사용 (${_luminaFeedItems.length}건)`);
+  // #379 — 운영 API 실패 시 samples/inline fallback이 실서비스 피드처럼 노출되지 않게 빈 상태로 전환한다.
+  // samples API와 luminaFeedSamplePosts는 더 이상 자동 fallback에 사용하지 않는다 (개발 환경 전용).
+  _luminaFeedItems = [];
+  _luminaFeedSource = "error";
+  console.info("[Lumina] 루미나 피드 운영 API 실패 — 빈 상태로 전환");
 }
 
 function renderLuminaFeed() {
@@ -248,7 +235,10 @@ function renderLuminaFeed() {
     : list;
 
   if (visibleList.length === 0) {
-    const emptyMsg = _luminaFeedSource === "following_guest"
+    // #379 — 운영 API 실패 케이스(error)는 sample fallback 대신 명확한 안내로 분리한다.
+    const emptyMsg = _luminaFeedSource === "error" || _luminaFeedSource === "following_error"
+      ? "피드 소식을 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+      : _luminaFeedSource === "following_guest"
       ? "로그인하면 응원과 후기를 직접 남길 수 있어요. 팔로우한 아티스트의 소식도 이곳에 모입니다."
       : query
         ? "검색 결과가 없어요. 다른 이름이나 문장으로 다시 찾아볼까요?"
