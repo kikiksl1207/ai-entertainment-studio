@@ -49,6 +49,88 @@ function existingOrder(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function paidWebhookFixture(
+  overrides: {
+    existingFirstChargeBonusLedger?: Record<string, unknown> | null;
+    existingTransaction?: Record<string, unknown> | null;
+    order?: Record<string, unknown>;
+    paidTransitionCount?: number;
+    priorPaidOrderCount?: number;
+    providerTransactionId?: string;
+  } = {},
+) {
+  const order = existingOrder({
+    amount: new Decimal(50000),
+    luminaProduct: {
+      id: productId,
+      name: 'Lumina 5,000 + bonus 800',
+      luminaAmount: new Decimal(5000),
+      bonusAmount: new Decimal(800),
+    },
+    ...overrides.order,
+  });
+  const providerTransactionId = overrides.providerTransactionId ?? 'provider-txn-paid-1';
+  const transaction = {
+    id: '00000000-0000-4000-8000-000000000301',
+    provider: 'mock',
+    providerTransactionId,
+  };
+  const wallet = {
+    id: '00000000-0000-4000-8000-000000000401',
+  };
+  let ledgerCreateIndex = 0;
+  const tx = {
+    paymentTransaction: {
+      findUnique: jest.fn().mockResolvedValue(overrides.existingTransaction ?? null),
+      upsert: jest.fn().mockResolvedValue(transaction),
+    },
+    paymentOrder: {
+      updateMany: jest.fn().mockResolvedValue({
+        count: overrides.paidTransitionCount ?? 1,
+      }),
+      findUniqueOrThrow: jest.fn().mockResolvedValue(order),
+      count: jest.fn().mockResolvedValue(overrides.priorPaidOrderCount ?? 0),
+    },
+    walletAccount: {
+      upsert: jest.fn().mockResolvedValue(wallet),
+      update: jest.fn().mockResolvedValue(wallet),
+    },
+    walletLedger: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue(overrides.existingFirstChargeBonusLedger ?? null),
+      create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
+        id: `ledger-${++ledgerCreateIndex}`,
+        ...data,
+      })),
+    },
+  };
+  const prisma = {
+    paymentOrder: {
+      findUnique: jest.fn().mockResolvedValue(order),
+    },
+    $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
+  };
+
+  return {
+    order,
+    prisma,
+    tx,
+    webhookEvent: {
+      orderNo: order.orderNo,
+      providerTransactionId,
+      status: 'paid',
+      amount: order.amount.toString(),
+      rawPayload: {
+        orderNo: order.orderNo,
+        providerTransactionId,
+        status: 'paid',
+        amount: order.amount.toString(),
+      },
+    },
+  };
+}
+
 describe('PaymentsService server-authority contract', () => {
   it('creates checkout orders only from active charge-policy price tiers', async () => {
     const product = {
@@ -204,5 +286,88 @@ describe('PaymentsService server-authority contract', () => {
       rawProviderPayloadStored: false,
     });
     expect(JSON.stringify(createArg.rawPayload)).not.toContain('must-not-be-stored');
+  });
+
+  it('grants repeatable package bonus and one-time first-charge bonus from base Lumina only', async () => {
+    const { prisma, tx, webhookEvent } = paidWebhookFixture();
+    const { service } = serviceWith(prisma, {
+      verifyAndParseWebhook: jest.fn().mockReturnValue(webhookEvent),
+    });
+
+    const result = await service.handleWebhook('mock', {}, {});
+
+    expect(tx.walletLedger.create).toHaveBeenCalledTimes(2);
+    const purchaseLedger = tx.walletLedger.create.mock.calls[0][0].data;
+    const firstChargeBonusLedger = tx.walletLedger.create.mock.calls[1][0].data;
+    expect((purchaseLedger.amount as Decimal).toString()).toBe('5800');
+    expect(purchaseLedger.ledgerType).toBe('purchase');
+    expect((firstChargeBonusLedger.amount as Decimal).toString()).toBe('500');
+    expect(firstChargeBonusLedger.ledgerType).toBe('first_charge_bonus');
+    expect(firstChargeBonusLedger.idempotencyKey).toBe(`first_charge_bonus:${userId}`);
+    const walletIncrement = tx.walletAccount.update.mock.calls[0][0].data.cachedBalance
+      .increment as Decimal;
+    expect(walletIncrement.toString()).toBe('6300');
+    expect(result).toMatchObject({
+      firstChargeBonus: {
+        applied: true,
+        rate: '0.1',
+        amount: '500',
+        basis: 'base_lumina_only',
+        basisField: 'lumina_products.lumina_amount',
+        packageBonusIncluded: false,
+        oneTimePerUser: true,
+      },
+      idempotentReplay: false,
+    });
+  });
+
+  it('does not duplicate first-charge bonus when the user already has the grant ledger', async () => {
+    const { prisma, tx, webhookEvent } = paidWebhookFixture({
+      existingFirstChargeBonusLedger: {
+        id: 'existing-first-charge-bonus-ledger',
+        idempotencyKey: `first_charge_bonus:${userId}`,
+      },
+    });
+    const { service } = serviceWith(prisma, {
+      verifyAndParseWebhook: jest.fn().mockReturnValue(webhookEvent),
+    });
+
+    const result = await service.handleWebhook('mock', {}, {});
+
+    expect(tx.walletLedger.create).toHaveBeenCalledTimes(1);
+    const purchaseLedger = tx.walletLedger.create.mock.calls[0][0].data;
+    expect((purchaseLedger.amount as Decimal).toString()).toBe('5800');
+    const walletIncrement = tx.walletAccount.update.mock.calls[0][0].data.cachedBalance
+      .increment as Decimal;
+    expect(walletIncrement.toString()).toBe('5800');
+    expect(result).toMatchObject({
+      firstChargeBonus: {
+        applied: false,
+        amount: '0',
+        basis: 'base_lumina_only',
+        packageBonusIncluded: false,
+      },
+    });
+  });
+
+  it('treats duplicate provider webhook delivery as an idempotent replay without ledgers', async () => {
+    const { prisma, tx, webhookEvent } = paidWebhookFixture({
+      existingTransaction: {
+        id: 'existing-provider-transaction',
+        provider: 'mock',
+        providerTransactionId: 'provider-txn-paid-1',
+      },
+    });
+    const { service } = serviceWith(prisma, {
+      verifyAndParseWebhook: jest.fn().mockReturnValue(webhookEvent),
+    });
+
+    await expect(service.handleWebhook('mock', {}, {})).resolves.toMatchObject({
+      idempotentReplay: true,
+    });
+    expect(tx.paymentTransaction.upsert).not.toHaveBeenCalled();
+    expect(tx.walletAccount.upsert).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.walletAccount.update).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -11,6 +12,7 @@ import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
+const FIRST_CHARGE_BONUS_BASIS = 'base_lumina_only';
 const ACTIVE_CHARGE_PRICE_AMOUNTS_KRW = [1000, 3000, 5000, 10000, 50000, 100000];
 const PAYMENT_ORDER_IDEMPOTENCY_CONFLICT = {
   code: 'PAYMENT_ORDER_IDEMPOTENCY_CONFLICT',
@@ -166,7 +168,7 @@ export class PaymentsService {
       throw new BadRequestException('Payment amount does not match order amount');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existingTransaction = await tx.paymentTransaction.findUnique({
         where: {
           provider_providerTransactionId: {
@@ -268,9 +270,9 @@ export class PaymentsService {
         },
       });
 
-      const creditAmount = order.luminaProduct.luminaAmount.plus(
-        order.luminaProduct.bonusAmount,
-      );
+      const packageBaseAmount = order.luminaProduct.luminaAmount;
+      const packageBonusAmount = order.luminaProduct.bonusAmount;
+      const packageCreditAmount = packageBaseAmount.plus(packageBonusAmount);
       const priorPaidOrderCount = await tx.paymentOrder.count({
         where: {
           userId: order.userId,
@@ -284,17 +286,15 @@ export class PaymentsService {
       });
       const firstChargeBonusAmount =
         priorPaidOrderCount === 0 && !existingFirstChargeBonusLedger
-          ? order.luminaProduct.luminaAmount
-              .mul(FIRST_CHARGE_BONUS_RATE)
-              .toDecimalPlaces(2)
+          ? packageBaseAmount.mul(FIRST_CHARGE_BONUS_RATE).toDecimalPlaces(2)
           : new Decimal(0);
-      const totalCreditAmount = creditAmount.plus(firstChargeBonusAmount);
+      const totalCreditAmount = packageCreditAmount.plus(firstChargeBonusAmount);
 
       const ledger = await tx.walletLedger.create({
         data: {
           walletAccountId: wallet.id,
           direction: 'credit',
-          amount: creditAmount,
+          amount: packageCreditAmount,
           ledgerType: 'purchase',
           referenceType: 'payment_order',
           referenceId: order.id,
@@ -340,6 +340,11 @@ export class PaymentsService {
           applied: Boolean(firstChargeBonusLedger),
           rate: FIRST_CHARGE_BONUS_RATE.toString(),
           amount: firstChargeBonusAmount.toString(),
+          basis: FIRST_CHARGE_BONUS_BASIS,
+          basisField: 'lumina_products.lumina_amount',
+          packageBonusIncluded: false,
+          oneTimePerUser: true,
+          idempotencyKeyPattern: 'first_charge_bonus:<userId>',
         },
         idempotentReplay: false,
       };

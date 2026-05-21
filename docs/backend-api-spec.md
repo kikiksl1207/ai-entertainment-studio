@@ -332,6 +332,16 @@ Lumina Station:
   5,000 KRW = 350L, 10,000 KRW = 700L, 50,000 KRW = 3,750L,
   and 100,000 KRW = 8,000L. 20,000 KRW and 30,000 KRW packages are not part
   of the first charge-policy response.
+- Product package bonus and first-charge bonus are separate. Package bonus is
+  `lumina_products.bonus_amount` and is repeatable on every purchase.
+  First-charge bonus is once per account on the first paid order only, uses 10%
+  of `lumina_products.lumina_amount`, and excludes `bonusAmount`. The
+  first-charge ledger uses `ledgerType = first_charge_bonus` and
+  `idempotencyKey = first_charge_bonus:<userId>`, so webhook retry or provider
+  replay cannot duplicate the bonus.
+- First paid purchase examples: 50,000 KRW = base 5,000L + package bonus 800L +
+  first-charge bonus 500L = 6,300L total; 100,000 KRW = base 10,000L + package
+  bonus 2,000L + first-charge bonus 1,000L = 13,000L total.
 - Free ad charge is labeled `오늘의 무료 루미나 받기`, has a planned daily limit
   of 50, and reserves future ledger source `ad_reward`; no ad SDK or wallet
   grant endpoint is opened by this policy.
