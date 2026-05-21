@@ -232,7 +232,21 @@
 }
 
 /* 모바일 */
-@media (max-width: 640px) {
+/* #373 — 6종 카드가 모바일에서 한 줄에 하나로 떨어지면 1천/3천/5천원 소액 카드가
+   첫 화면에 너무 적게 보이므로 중간 너비(480~640px)에서는 2열을 유지한다. */
+@media (max-width: 640px) and (min-width: 480px) {
+  .charge-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .charge-amount-main {
+    font-size: 22px;
+  }
+  .charge-product-card {
+    padding: 18px 16px;
+  }
+}
+@media (max-width: 479px) {
   .charge-product-grid {
     grid-template-columns: 1fr;
     gap: 12px;
