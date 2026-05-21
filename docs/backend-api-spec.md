@@ -1009,6 +1009,31 @@ The current implementation exposes these shapes through read-only
 and ranking mutations/read models remain disabled until storage, ledger, and
 moderation integration are added.
 
+Premium chat support point ledger contract (#363):
+
+- The contract version is `2026-05-21.premium-chat-support-ledger.v1` and keeps
+  room-open, donation, conversation-meter, support-point, settlement, and payout
+  writes disabled.
+- `conversationMetering` defines the planned server-only message activity meter:
+  table `premium_chat_conversation_meter_ledger`,
+  `ledgerType=premium_chat_message`, unit `message_activity_unit`, idempotency
+  key `premium-chat-message-meter:<messageId>`, and no wallet mutation.
+- `supportPointLedger` defines the planned non-cash ranking point table
+  `premium_chat_support_point_ledger`. It is not shared with `wallet_ledger` or
+  `fan_engagement_point_ledger`, is not transferable, and is not settlement or
+  payout eligible.
+- Support point ledger types are
+  `premium_chat_room_open_support_point`,
+  `premium_chat_message_activity_support_point`, and
+  `premium_chat_donation_support_point`. Donation points default to one point
+  per confirmed net Lumina; room-open and message weights remain server policy
+  only.
+- Communication ranking can read the three premium-chat support point ledger
+  types after storage exists. Donation ranking can read only
+  `premium_chat_donation_support_point`. The final score formula stays
+  server-side only and must not expose wallet ledger ids, raw user ids, raw
+  message ids, raw chat bodies, or report reasons.
+
 Donation preview error contract:
 
 | Status | Code |

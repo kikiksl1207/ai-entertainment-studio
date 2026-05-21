@@ -17,6 +17,19 @@ export const PREMIUM_CHAT_LEDGER_SOURCES = [
   'premium_chat_donation',
 ] as const;
 
+export const PREMIUM_CHAT_SUPPORT_POINT_LEDGER_TYPES = [
+  'premium_chat_room_open_support_point',
+  'premium_chat_message_activity_support_point',
+  'premium_chat_donation_support_point',
+] as const;
+
+export const PREMIUM_CHAT_CONVERSATION_METER_EVENTS = [
+  'user_message_visible',
+  'artist_reply_visible',
+  'message_blinded',
+  'room_suspended',
+] as const;
+
 export const PREMIUM_CHAT_RANKING_TYPES = ['communication', 'donation'] as const;
 export const PREMIUM_CHAT_RANKING_PERIODS = [
   'daily',
@@ -26,7 +39,8 @@ export const PREMIUM_CHAT_RANKING_PERIODS = [
 ] as const;
 
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
-  version: '2026-05-20.premium-chat-support.v3',
+  version: '2026-05-21.premium-chat-support-ledger.v1',
+  previousVersion: '2026-05-20.premium-chat-support.v3',
   feature: 'premium_chat_support',
   status: 'contract_ready_mutation_blocked',
   policy: {
@@ -34,6 +48,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     walletMutationEnabled: false,
     settlementMutationEnabled: false,
     payoutMutationEnabled: false,
+    supportPointLedgerMutationEnabled: false,
+    conversationMeterMutationEnabled: false,
     disabledMessageKey: 'chat.donation.contractPending',
     disabledDisplayMessageKo:
       '프리미엄챗 후원은 원장·보안 검증이 끝난 뒤 열릴 예정이에요.',
@@ -322,6 +338,88 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       'idempotency_key_valid',
     ],
   },
+  conversationMetering: {
+    version: '2026-05-21.premium-chat-conversation-meter.v1',
+    status: 'planned_disabled',
+    unit: 'message_activity_unit',
+    mutationEnabled: false,
+    walletMutation: false,
+    settlementMutation: false,
+    clientSubmittedMessageCountTrusted: false,
+    events: PREMIUM_CHAT_CONVERSATION_METER_EVENTS,
+    decrementRules: {
+      authority: 'server_visible_message_event',
+      idempotencyKeyPattern: 'premium-chat-message-meter:<messageId>',
+      duplicateMessageEventBehavior: 'ignore_without_second_decrement',
+      blindedOrSuspendedRoomBehavior: 'hold_or_zero_weight_until_admin_safe',
+      rawMessageBodyRequired: false,
+    },
+    ledgerWrite: {
+      table: 'premium_chat_conversation_meter_ledger',
+      ledgerType: 'premium_chat_message',
+      direction: 'debit',
+      referenceType: 'chat_message',
+      referenceIdSource: 'chat_messages.id',
+      requiresStorageMigration: true,
+    },
+    roomBalance: {
+      source: 'premium_chat_rooms.remaining_message_units',
+      clientSubmittedRemainingUnitsTrusted: false,
+      overuseBehavior: 'fail_closed_before_message_acceptance',
+      includedUnitsByTier: 'server_room_policy_only',
+    },
+  },
+  supportPointLedger: {
+    version: '2026-05-21.premium-chat-support-point-ledger.v1',
+    status: 'planned_disabled',
+    table: 'premium_chat_support_point_ledger',
+    mutationEnabled: false,
+    walletMutation: false,
+    luminaWalletShared: false,
+    fanEngagementPointLedgerShared: false,
+    cashLike: false,
+    transferable: false,
+    settlementEligible: false,
+    payoutEligible: false,
+    pointScale: {
+      donation: '1 point per confirmed net Lumina',
+      roomOpen: 'server weighted room open point',
+      messageActivity: 'server weighted visible safe message point',
+      clientSubmittedPointTrusted: false,
+    },
+    ledgerTypes: PREMIUM_CHAT_SUPPORT_POINT_LEDGER_TYPES,
+    entries: [
+      {
+        ledgerType: 'premium_chat_room_open_support_point',
+        direction: 'credit',
+        referenceType: 'premium_chat_room',
+        source: 'confirmed_room_open',
+      },
+      {
+        ledgerType: 'premium_chat_message_activity_support_point',
+        direction: 'credit',
+        referenceType: 'chat_message',
+        source: 'safe_visible_premium_chat_message',
+      },
+      {
+        ledgerType: 'premium_chat_donation_support_point',
+        direction: 'credit',
+        referenceType: 'premium_chat_donation',
+        source: 'confirmed_net_donation',
+      },
+    ],
+    idempotency: {
+      uniqueness: ['userId', 'artistId', 'referenceType', 'referenceId', 'ledgerType'],
+      duplicateReferenceBehavior: 'return_existing_projection_without_second_point_grant',
+      conflictBehavior: '409_before_wallet_or_point_mutation',
+    },
+    privacy: {
+      walletLedgerIdReturned: false,
+      rawUserIdReturned: false,
+      rawMessageBodyReturned: false,
+      rawReportReasonReturned: false,
+    },
+  },
   room: PREMIUM_CHAT_ROOM_CONTRACT,
   rankings: {
     like: {
@@ -349,8 +447,15 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         premiumChatMessage: 'count safe non-blinded message activity',
         premiumChatDonation: 'use confirmed net Lumina contribution as a separate factor',
         artistReplyActivity: 'count safe artist-side replies without raw body exposure',
+        supportPointLedger:
+          'premium_chat_support_point_ledger is the ranking source once storage exists',
         formulaStatus: 'planned_weighted_score_server_side_only',
       },
+      sourceLedgerTypes: [
+        'premium_chat_room_open_support_point',
+        'premium_chat_message_activity_support_point',
+        'premium_chat_donation_support_point',
+      ],
       excludes: ['free_like', 'lumina_boost'],
       moderation: {
         reportedRows: 'excluded_until_admin_safe',
@@ -376,6 +481,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         maxTake: 50,
       },
       scoreInputs: ['premium_chat_donation'],
+      sourceLedgerTypes: ['premium_chat_donation_support_point'],
       amountBasis: 'confirmed_net_lumina',
       excludes: ['free_like', 'lumina_boost', 'premium_chat_open', 'premium_chat_message'],
       moderation: {

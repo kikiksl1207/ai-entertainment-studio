@@ -1,6 +1,41 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#363 premium chat support point ledger contract v1"
+branch: team2-backend/premium-chat-ledger-contract-363
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/chat.service.spec.ts
+- docs/premium-chat-support-point-ledger-contract.md
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/server-authority-ledger-contract.md
+- docs/app-web-lumina-tamper-defense-checklist.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npx.cmd prisma generate
+- npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-support-contract.ts src/chat/premium-chat-room-contract.ts
+- npm.cmd run build
+- git diff --check origin/main...HEAD
+result:
+- Bumped premium support contract to `2026-05-21.premium-chat-support-ledger.v1`.
+- Added disabled conversation metering contract for premium chat message activity units with server-only visible-message authority and no wallet/settlement mutation.
+- Added disabled non-cash `premium_chat_support_point_ledger` contract, separate from `wallet_ledger` and `fan_engagement_point_ledger`, for room-open/message/donation support points.
+- Kept room tiers 300L/500L/1000L/3000L, 3-day base duration, 10-day artist extension cap, 24h no-answer refund, 70%/50% user-fault refund policy, and separated communication/donation ranking lanes.
+blocked_by:
+- Viewer review. Later implementation still needs storage/migrations before room-open, donation, meter, support point, ranking, settlement, or payout writes can be enabled.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#360 character chat character-specific greeting/tone copy contract"
 branch: team2-backend/character-chat-persona-copy-360
 commit: final hash recorded in Notion completion report

@@ -44,6 +44,10 @@ spent, refunded, donated, settled, or converted.
 - Premium chat room open and support donation endpoints remain disabled. The
   read-only contract explicitly says `walletMutationEnabled=false` for current
   state.
+- Premium chat conversation meter and support point ledger sections are also
+  disabled contract hints. App/web clients cannot submit authoritative message
+  counts, remaining units, point amounts, or ranking scores, and support points
+  must not be displayed as Lumina or fan engagement points.
 - Provider checkout/webhook flows must keep provider tokens, signed payloads,
   secrets, and raw callback data out of docs, Notion, and application logs.
 - Offline or replayed app/web paid actions must be treated as display-only until
@@ -56,13 +60,16 @@ spent, refunded, donated, settled, or converted.
 - Wallet policy test reserves premium chat room open/refund ledger sources.
 - Chat premium support contract test confirms room-open tiers, disabled
   mutation state, 3-day base duration, 10-day artist extension cap, 24-hour
-  no-answer refund, user-fault partial refund rates, and report/blind pending
-  review behavior.
+  no-answer refund, user-fault partial refund rates, report/blind pending
+  review behavior, disabled conversation metering, and non-cash support point
+  ledger separation.
 
 ## Remaining Open Work
 
 - Add real premium chat room storage and mutation tests before opening room
   creation.
 - Add ledger type migration for future premium chat room open ledger writes.
+- Add premium chat conversation meter and support point ledger storage before
+  enabling message activity or ranking materialization.
 - Run live QA only with safe test wallets and no production balance mutation
   unless explicitly approved.

@@ -905,6 +905,17 @@ Frontend rules:
 - #349 fixes ranking UI expectations: windows are `daily`, `weekly`,
   `monthly`, and `all`; pagination is opaque cursor based with default `take=20`
   and max `take=50`; the response window uses `Asia/Seoul`.
+- #363 adds read-only `conversationMetering` and `supportPointLedger` sections.
+  These are disabled contract hints only. Do not show support points as Lumina,
+  do not mix them with fan engagement points, and do not let the client submit
+  message counts, remaining units, point values, ranking scores, refund rates,
+  or settlement shares.
+- Communication ranking can later read
+  `premium_chat_room_open_support_point`,
+  `premium_chat_message_activity_support_point`, and
+  `premium_chat_donation_support_point`; donation ranking can later read only
+  `premium_chat_donation_support_point`. Until those read models are enabled,
+  keep ranking submit/refresh mutations disabled.
 - Ranking cards may show safe artist fields, rank, score, and label keys only.
   Do not show raw chat body, report reason text, wallet ledger id, user id, or
   message id from ranking APIs.

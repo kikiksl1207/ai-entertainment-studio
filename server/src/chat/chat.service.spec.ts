@@ -2462,7 +2462,8 @@ describe('ChatService premium chat support contract', () => {
 
     const contract = service.getPremiumSupportContract();
 
-    expect(contract.version).toBe('2026-05-20.premium-chat-support.v3');
+    expect(contract.version).toBe('2026-05-21.premium-chat-support-ledger.v1');
+    expect(contract.previousVersion).toBe('2026-05-20.premium-chat-support.v3');
     expect(contract.donation.fixedAmountsLumina).toEqual([
       10,
       50,
@@ -2474,6 +2475,8 @@ describe('ChatService premium chat support contract', () => {
       50000,
     ]);
     expect(contract.policy.walletMutationEnabled).toBe(false);
+    expect(contract.policy.supportPointLedgerMutationEnabled).toBe(false);
+    expect(contract.policy.conversationMeterMutationEnabled).toBe(false);
     expect(contract.endpoints.donationCreate.enabled).toBe(false);
     expect(contract.endpoints.rankings.query.type).toEqual([
       'communication',
@@ -2549,6 +2552,71 @@ describe('ChatService premium chat support contract', () => {
       'wallet_active_and_sufficient',
       'trust_or_identity_gate_for_high_value',
     ]);
+    expect(contract.conversationMetering).toMatchObject({
+      status: 'planned_disabled',
+      unit: 'message_activity_unit',
+      mutationEnabled: false,
+      walletMutation: false,
+      settlementMutation: false,
+      clientSubmittedMessageCountTrusted: false,
+      decrementRules: {
+        authority: 'server_visible_message_event',
+        duplicateMessageEventBehavior: 'ignore_without_second_decrement',
+        rawMessageBodyRequired: false,
+      },
+      ledgerWrite: {
+        table: 'premium_chat_conversation_meter_ledger',
+        ledgerType: 'premium_chat_message',
+        direction: 'debit',
+        referenceType: 'chat_message',
+        requiresStorageMigration: true,
+      },
+      roomBalance: {
+        clientSubmittedRemainingUnitsTrusted: false,
+        overuseBehavior: 'fail_closed_before_message_acceptance',
+      },
+    });
+    expect(contract.conversationMetering.events).toEqual([
+      'user_message_visible',
+      'artist_reply_visible',
+      'message_blinded',
+      'room_suspended',
+    ]);
+    expect(contract.supportPointLedger).toMatchObject({
+      status: 'planned_disabled',
+      table: 'premium_chat_support_point_ledger',
+      mutationEnabled: false,
+      walletMutation: false,
+      luminaWalletShared: false,
+      fanEngagementPointLedgerShared: false,
+      cashLike: false,
+      transferable: false,
+      settlementEligible: false,
+      payoutEligible: false,
+      pointScale: {
+        donation: '1 point per confirmed net Lumina',
+        clientSubmittedPointTrusted: false,
+      },
+      idempotency: {
+        duplicateReferenceBehavior: 'return_existing_projection_without_second_point_grant',
+        conflictBehavior: '409_before_wallet_or_point_mutation',
+      },
+      privacy: {
+        walletLedgerIdReturned: false,
+        rawUserIdReturned: false,
+        rawMessageBodyReturned: false,
+      },
+    });
+    expect(contract.supportPointLedger.ledgerTypes).toEqual([
+      'premium_chat_room_open_support_point',
+      'premium_chat_message_activity_support_point',
+      'premium_chat_donation_support_point',
+    ]);
+    expect(contract.supportPointLedger.entries.map((entry) => entry.ledgerType)).toEqual([
+      'premium_chat_room_open_support_point',
+      'premium_chat_message_activity_support_point',
+      'premium_chat_donation_support_point',
+    ]);
     expect(contract.donation.ledger.sources).toEqual([
       'premium_chat_open',
       'premium_chat_message',
@@ -2597,8 +2665,15 @@ describe('ChatService premium chat support contract', () => {
       'all',
     ]);
     expect(contract.rankings.communication.scorePolicy).toMatchObject({
+      supportPointLedger:
+        'premium_chat_support_point_ledger is the ranking source once storage exists',
       formulaStatus: 'planned_weighted_score_server_side_only',
     });
+    expect(contract.rankings.communication.sourceLedgerTypes).toEqual([
+      'premium_chat_room_open_support_point',
+      'premium_chat_message_activity_support_point',
+      'premium_chat_donation_support_point',
+    ]);
     expect(contract.rankings.communication.privacy).toMatchObject({
       rawChatBodyReturned: false,
       rawReportReasonReturned: false,
@@ -2608,6 +2683,9 @@ describe('ChatService premium chat support contract', () => {
     });
     expect(contract.rankings.donation.scoreInputs).toEqual([
       'premium_chat_donation',
+    ]);
+    expect(contract.rankings.donation.sourceLedgerTypes).toEqual([
+      'premium_chat_donation_support_point',
     ]);
     expect(contract.rankings.donation.periodWindows).toEqual([
       'daily',

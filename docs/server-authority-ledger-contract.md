@@ -60,6 +60,12 @@ actions before any UI is opened.
 not enabled by default; the DB ledger type migration and room storage must land
 before any public mutation can write it.
 
+Premium chat support points are deliberately separate from Lumina wallet ledger
+rows and from fan engagement points. The planned
+`premium_chat_support_point_ledger` table is non-cash, non-transferable, not
+settlement eligible, and not payout eligible. It can later feed premium-chat
+communication/donation rankings, but it cannot credit or debit wallet balance.
+
 ## Paid Action Debit Pattern
 
 Required backend order:
@@ -146,6 +152,14 @@ Before any live room-open mutation is enabled, the backend must add room/report
 storage, idempotency replay storage, the `premium_chat_open` ledger type
 migration, atomic non-negative wallet debit, duplicate refund protection, and
 moderation/audit handling.
+
+Before any premium-chat support point or conversation-meter write is enabled,
+the backend must add `premium_chat_conversation_meter_ledger` and
+`premium_chat_support_point_ledger` storage. Message activity decrements are
+server-visible-message events only, and support points are server-derived from
+confirmed room open, safe message activity, or confirmed net donation events.
+Clients never submit authoritative message counts, remaining units, point
+amounts, or ranking scores.
 
 ## App And Web Tamper Defense Review
 
