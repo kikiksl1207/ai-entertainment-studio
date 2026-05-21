@@ -121,6 +121,74 @@
         { key: "C", label: "다음 작품 기대", message: "다음 작품은 어떤 결의 인물일지 궁금해요." },
         { key: "D", label: "오늘 결 묻기", message: "오늘은 어떤 결의 침묵이에요? 따라가볼게요." }
       ]
+    },
+    /* #382 — 이하 6명: 현재 status:"secret" 라인. slug 직접 접근 시 generic fallback 노출 차단.
+       공개 전환 시 별도 작업 없이 바로 연결되도록 선행 작성. */
+    "kang-sia": {
+      statusLine: "연남동 카페 한 바퀴 돌고 왔어요",
+      welcomeMessage: "왔어요. 특별한 이유 없어도 들어오면 돼요. 그냥 같이 있어요.",
+      lastMessagePreview: "특별한 이유 없어도 들어오면 돼요.",
+      starters: [
+        { key: "A", label: "동네 카페 이야기", message: "요즘 자주 가는 카페 있어요? 저 좋은 자리 발견했어요." },
+        { key: "B", label: "조용한 안부", message: "그냥 지나다 들렀어요. 잘 지내고 있죠?" },
+        { key: "C", label: "필름 사진 이야기", message: "요즘 필름 카메라로 담고 싶은 장면 있어요?" },
+        { key: "D", label: "오늘 하루 나누기", message: "오늘 하루 어떤 빛이었어요? 별 거 없어도 좋아요." }
+      ]
+    },
+    "lee-jiwon": {
+      statusLine: "야간 드라이브 루트 새로 찾는 중이에요",
+      welcomeMessage: "왔군요. 말 많이 안 해도 돼요. 그냥 있어도 되는 곳이에요.",
+      lastMessagePreview: "말 많이 안 해도 되는 곳이에요.",
+      starters: [
+        { key: "A", label: "조용한 존재 확인", message: "그냥 잘 있나 확인하러 왔어요." },
+        { key: "B", label: "최근 장면 칭찬", message: "최근 본 장면에서 눈빛이 오래 남았어요." },
+        { key: "C", label: "드라이브 루트 추천", message: "밤에 드라이브하기 좋은 길 알면 알려줘요." },
+        { key: "D", label: "다음 작품 기대", message: "다음 작품에서 어떤 역할을 맡을지 궁금해요." }
+      ]
+    },
+    "baek-ria": {
+      statusLine: "다음 직캠 편집 기다리는 중이에요",
+      welcomeMessage: "안녕! 오늘도 좋은 거 들으러 왔어요? 저도 막 새 노래 발견했어요.",
+      lastMessagePreview: "오늘도 좋은 거 들으러 왔어요?",
+      starters: [
+        { key: "A", label: "요즘 노래 공유", message: "요즘 계속 듣는 노래 있어요? 저도 추천해줄게요." },
+        { key: "B", label: "직캠 응원", message: "직캠 볼 때마다 표정이 너무 밝아서 같이 기분 좋아져요." },
+        { key: "C", label: "여름 무대 기대", message: "여름 무대에서 어떤 노래 부를지 너무 기대돼요." },
+        { key: "D", label: "청량한 안부", message: "오늘 날씨만큼 기분도 맑아요? 저는 지금 딱 좋아요." }
+      ]
+    },
+    "oh-yuna": {
+      statusLine: "다음 페스티벌 셋리스트 짜는 중이에요",
+      welcomeMessage: "왔어요! 여름 준비됐어요? 저는 이미 모드 다 들어갔어요.",
+      lastMessagePreview: "여름 준비됐어요?",
+      starters: [
+        { key: "A", label: "여름 페스티벌 기대", message: "이번 여름 페스티벌 무대 너무 기대하고 있어요." },
+        { key: "B", label: "뜨거운 응원", message: "오늘도 제일 뜨겁게 응원하러 왔어요." },
+        { key: "C", label: "무대 에너지 묻기", message: "이번 무대에서 가장 터뜨릴 포인트가 어디예요?" },
+        { key: "D", label: "여름 기분 공유", message: "오늘 날씨가 딱 페스티벌 분위기예요. 설레지 않아요?" }
+      ]
+    },
+    "seo-hamin": {
+      statusLine: "오프닝 큐카드 정리하는 중이에요",
+      welcomeMessage: "어서 와요! 어색한 거 싫어서 제가 먼저 말 걸게요. 오늘 뭐가 제일 웃겼어요?",
+      lastMessagePreview: "어색한 거 싫어서 제가 먼저 말 걸게요.",
+      starters: [
+        { key: "A", label: "오늘의 웃긴 에피소드", message: "오늘 웃긴 일 있었어요? 저한테 먼저 풀어요." },
+        { key: "B", label: "진행 칭찬", message: "오늘 진행 너무 자연스러웠어요. 공기 확 풀었어요." },
+        { key: "C", label: "팬 이벤트 기대", message: "다음 팬 이벤트에 어떤 코너 준비하고 있어요?" },
+        { key: "D", label: "편한 안부", message: "부담 없이 그냥 안녕 하러 왔어요. 잘 지내요?" }
+      ]
+    },
+    "ryu-taeo": {
+      statusLine: "러닝 기록 체크하고 있어요",
+      welcomeMessage: "왔어요! 오늘 뭔가 움직였어요? 저 방금 뛰고 왔는데 같이 달리면 더 신날 것 같아요.",
+      lastMessagePreview: "오늘 뭔가 움직였어요?",
+      starters: [
+        { key: "A", label: "오늘 운동 공유", message: "오늘 얼마나 움직였어요? 저랑 기록 비교해봐요." },
+        { key: "B", label: "응원 챌린지 참여", message: "이번 챌린지 같이 해요. 저 먼저 시작할게요." },
+        { key: "C", label: "에너지 응원", message: "오늘도 끝까지 뛰는 모습 응원해요. 지치지 말아요." },
+        { key: "D", label: "활기찬 안부", message: "요즘 잘 지내요? 저는 에너지 넘치게 지내고 있어요." }
+      ]
     }
   };
 
