@@ -2600,10 +2600,10 @@ describe('ChatService premium chat support contract', () => {
     const contract = service.getPremiumSupportContract();
 
     expect(contract.version).toBe(
-      '2026-05-21.premium-chat-refund-report-ledger.v2',
+      '2026-05-21.premium-chat-status-read-api.v1',
     );
     expect(contract.previousVersion).toBe(
-      '2026-05-21.premium-chat-readonly-room-ranking.v1',
+      '2026-05-21.premium-chat-refund-report-ledger.v2',
     );
     expect(contract.donation.fixedAmountsLumina).toEqual([
       10,
@@ -2633,6 +2633,25 @@ describe('ChatService premium chat support contract', () => {
       enabled: false,
       authRequired: true,
       walletMutation: false,
+    });
+    expect(contract.endpoints.userRoomStatus).toMatchObject({
+      method: 'GET',
+      pathTemplate: '/api/v1/chat/me/premium-rooms/:roomId/status',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(contract.endpoints.artistRoomStatus).toMatchObject({
+      method: 'GET',
+      pathTemplate:
+        '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
     });
     expect(contract.endpoints.rankings.query.type).toEqual([
       'communication',
@@ -2755,6 +2774,102 @@ describe('ChatService premium chat support contract', () => {
         rawPayloadReturned: false,
         rawChatBodyReturned: false,
         counterpartyUserIdReturned: false,
+      },
+    });
+    expect(contract.apiContracts.userRoomStatus).toMatchObject({
+      method: 'GET',
+      pathTemplate: '/api/v1/chat/me/premium-rooms/:roomId/status',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      access: {
+        ownerUser: {
+          allowed: true,
+          canSeeRefundStatus: true,
+          canSeeReportStatus: true,
+          canSeeArtistForceCloseAvailability: false,
+        },
+        artistOwner: {
+          allowed: false,
+        },
+        nonOwner: {
+          allowed: false,
+          response: '403_or_404_without_identity_leak',
+        },
+        unauthenticated: {
+          allowed: false,
+          status: 401,
+          code: 'auth_required',
+        },
+      },
+      visibility: {
+        allowedStatusKeys: [
+          'active',
+          'reported',
+          'admin_review',
+          'refund_pending',
+          'refunded',
+          'closed',
+          'expired',
+          'suspended',
+        ],
+        statusLabelKeyRequired: true,
+        rawStatusAsCopy: false,
+      },
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        rawAdminNoteReturned: false,
+        rawReportReasonReturned: false,
+        rawReporterUserIdReturned: false,
+        rawPayloadReturned: false,
+        rawChatBodyReturned: false,
+        counterpartyUserIdReturned: false,
+      },
+    });
+    expect(contract.apiContracts.artistRoomStatus).toMatchObject({
+      method: 'GET',
+      pathTemplate:
+        '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      access: {
+        artistOwner: {
+          allowed: true,
+          canSeeRefundStatus: true,
+          canSeeReportPendingFlag: true,
+          canSeeForceCloseAvailability: true,
+        },
+        ownerUser: {
+          allowed: false,
+        },
+        nonOwnerArtist: {
+          allowed: false,
+          response: '403_or_404_without_identity_leak',
+        },
+        unauthenticated: {
+          allowed: false,
+          status: 401,
+          code: 'auth_required',
+        },
+      },
+      visibility: {
+        rawStatusAsCopy: false,
+        reportedRoomRawReasonReturned: false,
+        adminInternalDecisionReturned: false,
+      },
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        rawAdminNoteReturned: false,
+        rawReportReasonReturned: false,
+        rawReporterUserIdReturned: false,
+        rawPayloadReturned: false,
+        rawChatBodyReturned: false,
+        userPrivateProfileReturned: false,
       },
     });
     expect(contract.apiContracts.rankingsList.enabled).toBe(false);
@@ -2941,6 +3056,78 @@ describe('ChatService premium chat support contract', () => {
         payout: true,
       },
     });
+    expect(contract.roomStatusRead).toMatchObject({
+      status: 'planned_disabled',
+      userEndpoint: '/api/v1/chat/me/premium-rooms/:roomId/status',
+      artistEndpoint:
+        '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
+      readOnly: true,
+      ownerOnly: true,
+      authRequired: true,
+      noMutation: {
+        roomOpen: true,
+        donationCreate: true,
+        messageCreate: true,
+        refundCreate: true,
+        walletDebit: true,
+        walletRefund: true,
+        settlement: true,
+        payout: true,
+      },
+      accessMatrix: {
+        unauthenticated: {
+          allowed: false,
+          status: 401,
+          code: 'auth_required',
+        },
+        ownerUser: {
+          userEndpoint: true,
+          artistEndpoint: false,
+          canSeePublicRefundStatus: true,
+          canSeeReportProcessingStatus: true,
+        },
+        artistOwner: {
+          userEndpoint: false,
+          artistEndpoint: true,
+          canSeeReportPendingFlag: true,
+          canSeeForceCloseAvailability: true,
+        },
+        nonOwner: {
+          allowed: false,
+          response: '403_or_404_without_identity_leak',
+        },
+      },
+    });
+    expect(contract.roomStatusRead.responseStatusKeys).toEqual([
+      'active',
+      'reported',
+      'admin_review',
+      'refund_pending',
+      'refunded',
+      'closed',
+      'expired',
+      'suspended',
+    ]);
+    expect(
+      contract.roomStatusRead.blockedStateMutationPolicy.statuses,
+    ).toEqual(
+      expect.arrayContaining([
+        'closed',
+        'reported',
+        'refund_pending',
+        'refunded',
+        'admin_review',
+      ]),
+    );
+    expect(contract.roomStatusRead.blockedStateMutationPolicy).toMatchObject({
+      supportDisabled: true,
+      messageDisabled: true,
+      forceCloseMutationDisabledUntilFutureEndpoint: true,
+      duplicateRefundBehavior:
+        'return_existing_refund_projection_without_second_credit',
+      duplicateReportBehavior:
+        'return_existing_report_projection_without_second_state_mutation',
+    });
     expect(contract.room.policy.walletMutationEnabled).toBe(false);
     expect(contract.room.roomOpen.endpoint.enabled).toBe(false);
     expect(contract.room.duration).toMatchObject({
@@ -3072,6 +3259,58 @@ describe('ChatService premium chat support contract', () => {
         rawUserIdReturned: false,
       },
     });
+    expect(contract.projections.premiumRoomStatus).toMatchObject({
+      roomId: '<premium chat room public id>',
+      viewerRole: '<user|artist>',
+      status: {
+        key: '<active|reported|admin_review|refund_pending|refunded|closed|expired|suspended>',
+        labelKey: '<stable Korean-copy key>',
+      },
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        rawAdminNoteReturned: false,
+        rawReportReasonReturned: false,
+        rawReporterUserIdReturned: false,
+        rawPayloadReturned: false,
+        rawChatBodyReturned: false,
+      },
+    });
+    expect(contract.projections.premiumRoomRefundStatus).toMatchObject({
+      state: '<none|not_eligible|pending|refunded|admin_review>',
+      labelKey: '<stable Korean-copy key>',
+      duplicateReplay:
+        'existing refund projection is returned without a second credit ledger',
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        providerRefundIdReturned: false,
+        internalAdminNoteReturned: false,
+      },
+    });
+    expect(contract.projections.premiumRoomReportStatus).toMatchObject({
+      state: '<none|reported|blind|suspended|admin_review|resolved>',
+      labelKey: '<stable Korean-copy key>',
+      duplicateReplay:
+        'existing report projection is returned without a second moderation mutation',
+      privacy: {
+        rawReportReasonReturned: false,
+        rawReporterUserIdReturned: false,
+        internalAdminNoteReturned: false,
+      },
+    });
+    expect(contract.projections.premiumRoomMutationAvailability).toMatchObject({
+      canSendMessage: '<boolean>',
+      canDonate: '<boolean>',
+      disabledMessageKey: '<stable Korean-copy key or null>',
+      walletMutation: false,
+      messageMutation: false,
+      donationMutation: false,
+      refundMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(
+      contract.projections.premiumRoomMutationAvailability.blockedStatuses,
+    ).toEqual(expect.arrayContaining(['closed', 'reported', 'refund_pending']));
     expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
     expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
