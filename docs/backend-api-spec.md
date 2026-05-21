@@ -231,7 +231,10 @@ Email delivery adapter:
 - `POST /api/v1/auth/email-verifications` and
   `POST /api/v1/auth/password-resets` include a neutral `policy` object with
   request rate-limit/cooldown hints, token TTL, and duplicate pending token
-  behavior. Existing pending tokens for the same user/purpose are consumed
+  behavior. If a still-pending token for the same user/purpose was created
+  within the 60 second server cooldown, the request returns the same neutral
+  accepted shape without creating a new token or sending another email. Outside
+  that cooldown, existing pending tokens for the same user/purpose are consumed
   before a new token is created. Request responses remain existence-neutral and
   never return raw tokens or token hashes outside the existing local/staging
   debug-only gate.
@@ -246,6 +249,11 @@ Email delivery adapter:
   - `AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_EXPIRED` / `auth.passwordReset.tokenInvalidOrExpired`
   - `AUTH_EMAIL_PASSWORD_NOT_CONFIGURED` / `auth.password.emailNotConfigured`
   - `AUTH_USER_NOT_ACTIVE` / `auth.user.notActive`
+- Invalid/expired/reused verification and reset links keep the same stable
+  HTTP status and error code above, but include safe `details.state` as
+  `invalid`, `expired`, or `already_used` plus a `details.statusKey` such as
+  `auth.emailVerification.expired`. `details.rawTokenReturned=false` and
+  `details.tokenHashReturned=false`.
 
 Admin action-token trace:
 
@@ -258,6 +266,12 @@ GET /admin/api/v1/auth/action-tokens?purpose=email_verification&status=pending&d
 - Response rows expose only operationally safe fields: `id`, `purpose`, derived `status`, `statusKey`, `createdAt`, `expiresAt`, `consumedAt`, masked `target.emailMasked`, `target.userId`, `target.userStatus`, `target.emailVerified`, and `target.deleted`.
 - Delivery fields are persisted on `user_action_tokens` for rows created after this migration: `delivery.status` (`pending`, `accepted`, `not_configured`, `failed`, or historical `not_recorded`), `delivery.channel`, `delivery.provider`, `delivery.attemptedAt`, `delivery.acceptedAt`, and `delivery.failedAt`.
 - Request responses stay existence-neutral. If provider delivery throws, the request response still returns the neutral configured delivery status while admin audit stores `delivery.status = "failed"` without raw provider response bodies.
+- Cooldown-suppressed duplicate requests do not create a new audit row and do
+  not send another provider request. Operators should inspect the existing
+  pending token row for `createdAt`, `expiresAt`, and delivery status. The admin
+  policy reports `requestCooldownSeconds=60`,
+  `duplicatePendingTokenPolicy="reuse_recent_pending_token_within_cooldown_else_consume_previous"`,
+  and `cooldownDuplicateRequestsCreateNewRow=false`.
 - The response policy explicitly keeps `rawEmailReturned`, `rawTokenReturned`, `tokenHashReturned`, `mailBodyReturned`, and raw provider responses false. Token hashes, raw tokens, mail bodies, provider secrets, signed/provider URLs, and environment values must not be returned or documented.
 
 - `DELETE /api/v1/me` soft-deletes the current account. Email-password accounts must send `currentPassword`; social-only accounts may omit it.

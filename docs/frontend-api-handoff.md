@@ -387,6 +387,11 @@ My Page scope notes for 2026-05-02:
 - `POST /auth/password-resets/confirm` body: `{ "token": "<reset-token>", "newPassword": "<new-password>" }`.
 - `GET /me` includes `emailVerified`, `emailVerifiedAt`, and `emailVerification`; successful email verification persists `users.email_verified_at`.
 - Email verification and password reset request responses include neutral `policy` metadata for rate-limit/cooldown hints, token TTL, and duplicate pending token handling. Frontend must still render neutral request copy and must not rely on response differences to infer whether an account exists.
+- The backend enforces a 60 second duplicate-send cooldown for pending
+  verification/reset tokens. During cooldown the request still returns the same
+  neutral accepted shape and does not disclose whether a new email was sent.
+  `policy.duplicatePendingTokenPolicy` is
+  `reuse_recent_pending_token_within_cooldown_else_consume_previous`.
 
 Email delivery contract:
 
@@ -400,6 +405,10 @@ Email delivery contract:
   - `AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_EXPIRED` / `auth.passwordReset.tokenInvalidOrExpired`
   - `AUTH_EMAIL_PASSWORD_NOT_CONFIGURED` / `auth.password.emailNotConfigured`
   - `AUTH_USER_NOT_ACTIVE` / `auth.user.notActive`
+- For invalid, expired, and already-used links, the backend keeps those stable
+  codes and adds safe `error.details.state`: `invalid`, `expired`, or
+  `already_used`. Use this only for finer copy selection; never render or log
+  the submitted token.
 - Provider API keys, raw tokens, cookies, and environment values must never be rendered, logged, or recorded by the frontend.
 
 For local/staging QA only, the backend can expose the generated action token when `ACTION_TOKEN_DEBUG_ENABLED=true` and `NODE_ENV` is not `production`. Production must keep this disabled. If enabled and the email belongs to an active account, request responses include:
