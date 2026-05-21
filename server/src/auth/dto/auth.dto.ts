@@ -226,6 +226,11 @@ export class ConfirmPasswordResetDto {
   @MaxLength(256)
   token!: string;
 
+  @Transform(normalizeEmail)
+  @IsEmail()
+  @MaxLength(254)
+  email!: string;
+
   @IsNotEmpty()
   @IsString()
   @MinLength(PASSWORD_MIN_LENGTH, { message: PASSWORD_MIN_LENGTH_MESSAGE_KEY })

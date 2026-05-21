@@ -1739,29 +1739,73 @@ export class AuthService {
   }
 
   async confirmPasswordReset(input: ConfirmPasswordResetDto) {
-    const token = await this.consumeUserActionToken(input.token, PASSWORD_RESET_PURPOSE);
+    const email = input.email.trim().toLowerCase();
+    const token = await this.prisma.userActionToken.findFirst({
+      where: {
+        tokenHash: this.hashToken(input.token),
+        purpose: PASSWORD_RESET_PURPOSE,
+        consumedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            status: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!token) {
+      throw this.invalidActionTokenException(PASSWORD_RESET_PURPOSE);
+    }
+
     this.assertUserCanLogin(token.user);
+
+    const authAccount = await this.prisma.userAuthAccount.findFirst({
+      where: {
+        userId: token.userId,
+        provider: 'email',
+      },
+      select: {
+        id: true,
+        providerUserId: true,
+        passwordHash: true,
+      },
+    });
+
+    if (!authAccount?.passwordHash) {
+      throw this.authBadRequest(
+        'AUTH_EMAIL_PASSWORD_NOT_CONFIGURED',
+        'Email password is not configured for this account.',
+        'auth.password.emailNotConfigured',
+      );
+    }
+
+    if (authAccount.providerUserId.trim().toLowerCase() !== email) {
+      throw this.authBadRequest(
+        'AUTH_PASSWORD_RESET_EMAIL_MISMATCH',
+        'Password reset email does not match this token.',
+        'auth.passwordReset.emailMismatch',
+      );
+    }
 
     const passwordHash = await bcrypt.hash(input.newPassword, PASSWORD_HASH_ROUNDS);
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const authAccount = await tx.userAuthAccount.findFirst({
+      const consumeResult = await tx.userActionToken.updateMany({
         where: {
-          userId: token.userId,
-          provider: 'email',
+          id: token.id,
+          consumedAt: null,
+          expiresAt: { gt: new Date() },
         },
-        select: {
-          id: true,
-          passwordHash: true,
-        },
+        data: { consumedAt: new Date() },
       });
 
-      if (!authAccount?.passwordHash) {
-        throw this.authBadRequest(
-          'AUTH_EMAIL_PASSWORD_NOT_CONFIGURED',
-          'Email password is not configured for this account.',
-          'auth.password.emailNotConfigured',
-        );
+      if (consumeResult.count !== 1) {
+        throw this.invalidActionTokenException(PASSWORD_RESET_PURPOSE);
       }
 
       await tx.userAuthAccount.update({
