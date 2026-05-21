@@ -1613,8 +1613,8 @@ async function runFeedComposeUploadStages(item, onStateChange) {
   window.bindLuminaFeedFollow = bindLuminaFeedFollow;
   window.initFeedCompose = initFeedCompose;
 
-  // #356 — 타래 잇기 / 리포스트 / 공유 액션 핸들러. event delegation으로 동적 카드까지 커버한다.
-  // 타래 append / repost는 백엔드 contract 도착 전이라 submit 잠금 + 안내 노출, 공유는 실제 동작.
+  // #358 — 타래 잇기 / 리포스트 / 공유 액션 핸들러. event delegation으로 동적 카드까지 커버한다.
+  // 타래 append / repost submit은 #357 contract로 활성화했고, 공유는 Web Share/clipboard fallback으로 동작한다.
   function findPostFromCard(target) {
     var card = target && target.closest ? target.closest("[data-feed-type]") : null;
     if (!card) return null;
