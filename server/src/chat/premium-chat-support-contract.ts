@@ -49,6 +49,17 @@ export const PREMIUM_CHAT_DONATION_HISTORY_STATUSES = [
   'cancelled',
 ] as const;
 
+export const PREMIUM_CHAT_ROOM_STATUS_READ_KEYS = [
+  'active',
+  'reported',
+  'admin_review',
+  'refund_pending',
+  'refunded',
+  'closed',
+  'expired',
+  'suspended',
+] as const;
+
 export const PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES = [
   'opened',
   'active',
@@ -68,8 +79,8 @@ export const PREMIUM_CHAT_ROOM_LIST_EXCLUDED_STATUSES = [
 ] as const;
 
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
-  version: '2026-05-21.premium-chat-refund-report-ledger.v2',
-  previousVersion: '2026-05-21.premium-chat-readonly-room-ranking.v1',
+  version: '2026-05-21.premium-chat-status-read-api.v1',
+  previousVersion: '2026-05-21.premium-chat-refund-report-ledger.v2',
   feature: 'premium_chat_support',
   status: 'contract_ready_mutation_blocked',
   policy: {
@@ -134,6 +145,27 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       enabled: false,
       authRequired: true,
       walletMutation: false,
+    },
+    userRoomStatus: {
+      method: 'GET',
+      pathTemplate: '/api/v1/chat/me/premium-rooms/:roomId/status',
+      status: 'planned',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    },
+    artistRoomStatus: {
+      method: 'GET',
+      pathTemplate:
+        '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
+      status: 'planned',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
     },
     rankings: {
       method: 'GET',
@@ -363,6 +395,140 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         { status: 400, code: 'invalid_status' },
         { status: 400, code: 'invalid_take' },
       ],
+    },
+    userRoomStatus: {
+      method: 'GET',
+      pathTemplate: '/api/v1/chat/me/premium-rooms/:roomId/status',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      request: {
+        params: {
+          roomId: 'uuid owned by the authenticated user',
+        },
+      },
+      response: {
+        room: 'premiumRoomStatus projection',
+        refund: 'premiumRoomRefundStatus projection',
+        report: 'premiumRoomReportStatus projection',
+        mutationAvailability: 'premiumRoomMutationAvailability projection',
+        generatedAt: '<ISO datetime>',
+      },
+      access: {
+        ownerUser: {
+          allowed: true,
+          canSeeRefundStatus: true,
+          canSeeReportStatus: true,
+          canSeeArtistForceCloseAvailability: false,
+        },
+        artistOwner: {
+          allowed: false,
+          useEndpoint:
+            '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
+        },
+        nonOwner: {
+          allowed: false,
+          response: '403_or_404_without_identity_leak',
+        },
+        unauthenticated: {
+          allowed: false,
+          status: 401,
+          code: 'auth_required',
+        },
+      },
+      visibility: {
+        allowedStatusKeys: PREMIUM_CHAT_ROOM_STATUS_READ_KEYS,
+        statusLabelKeyRequired: true,
+        rawStatusAsCopy: false,
+        reportedRoomRawReasonReturned: false,
+        adminInternalDecisionReturned: false,
+      },
+      errorCodes: [
+        { status: 401, code: 'auth_required' },
+        { status: 400, code: 'invalid_room_id' },
+        { status: 403, code: 'room_not_owned' },
+        { status: 404, code: 'room_not_found' },
+      ],
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        rawSupportPointLedgerIdReturned: false,
+        rawConversationMeterLedgerIdReturned: false,
+        rawAdminNoteReturned: false,
+        rawReportReasonReturned: false,
+        rawReporterUserIdReturned: false,
+        rawPayloadReturned: false,
+        rawChatBodyReturned: false,
+        counterpartyUserIdReturned: false,
+      },
+    },
+    artistRoomStatus: {
+      method: 'GET',
+      pathTemplate:
+        '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      request: {
+        params: {
+          roomId: 'uuid for a premium room opened to the authenticated artist',
+        },
+      },
+      response: {
+        room: 'premiumRoomStatus projection',
+        refund: 'premiumRoomRefundStatus projection',
+        report: 'premiumRoomReportStatus projection',
+        mutationAvailability: 'premiumRoomMutationAvailability projection',
+        generatedAt: '<ISO datetime>',
+      },
+      access: {
+        artistOwner: {
+          allowed: true,
+          canSeeRefundStatus: true,
+          canSeeReportPendingFlag: true,
+          canSeeForceCloseAvailability: true,
+        },
+        ownerUser: {
+          allowed: false,
+          useEndpoint: '/api/v1/chat/me/premium-rooms/:roomId/status',
+        },
+        nonOwnerArtist: {
+          allowed: false,
+          response: '403_or_404_without_identity_leak',
+        },
+        unauthenticated: {
+          allowed: false,
+          status: 401,
+          code: 'auth_required',
+        },
+      },
+      visibility: {
+        allowedStatusKeys: PREMIUM_CHAT_ROOM_STATUS_READ_KEYS,
+        statusLabelKeyRequired: true,
+        rawStatusAsCopy: false,
+        reportedRoomRawReasonReturned: false,
+        adminInternalDecisionReturned: false,
+      },
+      errorCodes: [
+        { status: 401, code: 'auth_required' },
+        { status: 400, code: 'invalid_room_id' },
+        { status: 403, code: 'artist_room_not_owned' },
+        { status: 404, code: 'room_not_found' },
+      ],
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        rawSupportPointLedgerIdReturned: false,
+        rawConversationMeterLedgerIdReturned: false,
+        rawAdminNoteReturned: false,
+        rawReportReasonReturned: false,
+        rawReporterUserIdReturned: false,
+        rawPayloadReturned: false,
+        rawChatBodyReturned: false,
+        userPrivateProfileReturned: false,
+      },
     },
     rankingsList: {
       method: 'GET',
@@ -657,6 +823,58 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       payout: true,
     },
   },
+  roomStatusRead: {
+    status: 'planned_disabled',
+    userEndpoint: '/api/v1/chat/me/premium-rooms/:roomId/status',
+    artistEndpoint: '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
+    responseStatusKeys: PREMIUM_CHAT_ROOM_STATUS_READ_KEYS,
+    readOnly: true,
+    ownerOnly: true,
+    authRequired: true,
+    noMutation: {
+      roomOpen: true,
+      donationCreate: true,
+      messageCreate: true,
+      refundCreate: true,
+      walletDebit: true,
+      walletRefund: true,
+      settlement: true,
+      payout: true,
+    },
+    blockedStateMutationPolicy: {
+      statuses: PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
+      supportDisabled: true,
+      messageDisabled: true,
+      forceCloseMutationDisabledUntilFutureEndpoint: true,
+      duplicateRefundBehavior:
+        'return_existing_refund_projection_without_second_credit',
+      duplicateReportBehavior:
+        'return_existing_report_projection_without_second_state_mutation',
+    },
+    accessMatrix: {
+      unauthenticated: {
+        allowed: false,
+        status: 401,
+        code: 'auth_required',
+      },
+      ownerUser: {
+        userEndpoint: true,
+        artistEndpoint: false,
+        canSeePublicRefundStatus: true,
+        canSeeReportProcessingStatus: true,
+      },
+      artistOwner: {
+        userEndpoint: false,
+        artistEndpoint: true,
+        canSeeReportPendingFlag: true,
+        canSeeForceCloseAvailability: true,
+      },
+      nonOwner: {
+        allowed: false,
+        response: '403_or_404_without_identity_leak',
+      },
+    },
+  },
   rankings: {
     like: {
       path: '/api/v1/boost-campaigns/:campaignId/rankings',
@@ -845,6 +1063,81 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         rawChatBodyReturned: false,
         rawUserIdReturned: false,
       },
+    },
+    premiumRoomStatus: {
+      roomId: '<premium chat room public id>',
+      viewerRole: '<user|artist>',
+      artist: {
+        id: '<artist id>',
+        artistSlug: '<artist slug>',
+        displayName: '<artist display name>',
+        avatarUrl: '<safe public avatar url or null>',
+      },
+      tier: {
+        tierKey:
+          'premium_chat_room_300|premium_chat_room_500|premium_chat_room_1000|premium_chat_room_3000',
+        amountLumina: '<300|500|1000|3000>',
+      },
+      status: {
+        key: '<active|reported|admin_review|refund_pending|refunded|closed|expired|suspended>',
+        labelKey: '<stable Korean-copy key>',
+      },
+      duration: {
+        openedAt: '<ISO datetime>',
+        expiresAt: '<ISO datetime>',
+        closedAt: '<ISO datetime or null>',
+      },
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        rawAdminNoteReturned: false,
+        rawReportReasonReturned: false,
+        rawReporterUserIdReturned: false,
+        rawPayloadReturned: false,
+        rawChatBodyReturned: false,
+      },
+    },
+    premiumRoomRefundStatus: {
+      state: '<none|not_eligible|pending|refunded|admin_review>',
+      labelKey: '<stable Korean-copy key>',
+      policyKey:
+        '<none|unanswered_24h|artist_forced_close_full_refund|user_fault_refund_70|user_fault_refund_50|operator_sanction_review>',
+      amountLumina: '<decimal string or null>',
+      requestedAt: '<ISO datetime or null>',
+      resolvedAt: '<ISO datetime or null>',
+      duplicateReplay:
+        'existing refund projection is returned without a second credit ledger',
+      privacy: {
+        rawWalletLedgerIdReturned: false,
+        providerRefundIdReturned: false,
+        internalAdminNoteReturned: false,
+      },
+    },
+    premiumRoomReportStatus: {
+      state: '<none|reported|blind|suspended|admin_review|resolved>',
+      labelKey: '<stable Korean-copy key>',
+      reportedAt: '<ISO datetime or null>',
+      resolvedAt: '<ISO datetime or null>',
+      duplicateReplay:
+        'existing report projection is returned without a second moderation mutation',
+      privacy: {
+        rawReportReasonReturned: false,
+        rawReporterUserIdReturned: false,
+        internalAdminNoteReturned: false,
+      },
+    },
+    premiumRoomMutationAvailability: {
+      canSendMessage: '<boolean>',
+      canDonate: '<boolean>',
+      canArtistForceClose: '<boolean display-only until mutation endpoint exists>',
+      canRequestRefund: '<boolean display-only until mutation endpoint exists>',
+      disabledMessageKey: '<stable Korean-copy key or null>',
+      blockedStatuses: PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
+      walletMutation: false,
+      messageMutation: false,
+      donationMutation: false,
+      refundMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
     },
   },
 } as const;

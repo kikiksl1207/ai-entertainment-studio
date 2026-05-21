@@ -1,6 +1,39 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#384 premium chat report/refund status read API contract"
+branch: team2-backend/premium-chat-status-readonly-384
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/chat.service.spec.ts
+- docs/premium-chat-status-read-api-contract.md
+- docs/backend-api-spec.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npx.cmd prisma generate
+- npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-support-contract.ts src/chat/premium-chat-room-contract.ts
+- npm.cmd run build
+- git diff --check origin/main...HEAD
+result:
+- Added disabled/read-only user and artist premium-room status API contracts for safe report/refund/closure state lookup.
+- Fixed owner-user, artist-owner, non-owner, and unauthenticated access matrix in the contract response.
+- Added safe projections for room status, refund status, report status, and mutation availability.
+- Kept closed/reported/refund_pending and related moderation states fail-closed for message/support/donation/refund/wallet/settlement/payout mutation.
+- Documented that repeated refund/report status reads replay existing projections and must not create duplicate refund or moderation mutations.
+blocked_by:
+- Actual premium-chat room/report/refund storage is still required before enabling the planned read endpoints.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#381 character chat greeting and tone contract"
 branch: team2-backend/character-chat-greeting-tone-contract-381
 commit: final hash recorded in Notion completion report

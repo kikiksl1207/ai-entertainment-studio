@@ -1036,6 +1036,44 @@ Premium room-open/refund/moderation contract (#331/#383):
   debit, message, conversation-meter, support-point, settlement, or payout
   mutation.
 
+Premium room status read API contract (#384):
+
+The following read-only API shapes are exposed through
+`GET /api/v1/chat/premium-support-contract` under
+`apiContracts.userRoomStatus`, `apiContracts.artistRoomStatus`, and
+`roomStatusRead`. They remain `enabled=false` until premium-chat room/report and
+refund storage exists.
+
+```http
+GET /api/v1/chat/me/premium-rooms/:roomId/status
+GET /api/v1/creator-studio/premium-chat/rooms/:roomId/status
+Authorization: Bearer <accessToken>
+```
+
+- Both planned endpoints are authenticated, owner-only, read-only projections.
+- Owner users may read their own room status, safe refund state, and safe report
+  processing state.
+- Artist owners may read rooms opened to their own artist profile, safe report
+  pending state, safe refund state, and display-only force-close availability.
+- Unauthenticated access returns `401 auth_required`.
+- Non-owner user or artist access returns `403` or safe `404` without identity
+  leakage.
+- Status keys currently covered are `active`, `reported`, `admin_review`,
+  `refund_pending`, `refunded`, `closed`, `expired`, and `suspended`, always
+  paired with stable Korean-copy label keys. Clients must not display raw
+  status enums as the only user-facing copy.
+- Response projections are `premiumRoomStatus`, `premiumRoomRefundStatus`,
+  `premiumRoomReportStatus`, and `premiumRoomMutationAvailability`.
+- The projections must not include raw chat bodies, raw report reasons,
+  reporter user ids, counterparty private user ids, wallet ledger ids, support
+  point ledger ids, conversation meter ledger ids, internal admin notes,
+  provider refund ids, raw payloads, tokens, cookies, or DB URLs.
+- `closed`, `reported`, `refund_pending`, `refunded`, `admin_review`,
+  `suspended`, `blind`, `expired`, and `artist_closed` remain fail-closed for
+  message, support, donation, refund, wallet, settlement, and payout mutation.
+- Repeated refund or report status reads must replay the existing projection and
+  must not create duplicate refund ledger or moderation rows.
+
 Premium room list read-only contract (#372):
 
 ```http
