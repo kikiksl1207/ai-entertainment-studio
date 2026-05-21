@@ -230,6 +230,9 @@ const DEFAULT_CHAT_RUNTIME_FORBIDDEN_TONE_KO = [
 const DEFAULT_CHAT_RUNTIME_SAFETY_NOTE_KO =
   '캐릭터의 fictional boundary를 지키고, 실존 인물 사칭·성인/위험 대화·외부 연락처나 결제 유도는 피합니다.';
 
+const CHARACTER_CHAT_GREETING_TONE_CONTRACT_VERSION =
+  '2026-05-21.character-chat-greeting-tone.v1';
+
 type StarterPromptOption = {
   key: string;
   label: string;
@@ -783,6 +786,7 @@ export class ChatService {
         descriptionKo: statusDescriptionKo ?? defaultStatus.descriptionKo,
       },
       greeting: runtimePersona.welcome,
+      openingPrompt: this.characterChatOpeningPrompt(runtimePersona),
       starterOptions: runtimePersona.starterOptions,
       starterSets: runtimePersona.starterSets,
       directInput: runtimePersona.directInput,
@@ -790,10 +794,12 @@ export class ChatService {
       premiumChat: this.characterChatPremiumCopy(cmsCopy, fallbackCopy),
       tone: runtimePersona.tone,
       personaTags: runtimePersona.personaTags,
+      forbiddenTone: this.characterChatForbiddenTone(runtimePersona),
       personaReference: runtimePersona.personaReference,
       runtimePersona,
       policy: CHARACTER_CHAT_CATALOG_POLICY,
       copyContract: this.characterChatCopyContract(artist.slug, cmsCopy),
+      greetingToneContract: this.characterChatGreetingToneContract(artist.slug),
       source: cmsCopy
         ? 'site_content'
         : configuredSets.length || metadataGreeting
@@ -825,14 +831,18 @@ export class ChatService {
         displayName: artist.displayName,
       },
       policy: STARTER_PROMPT_POLICY,
+      greeting: runtimePersona.welcome,
+      openingPrompt: this.characterChatOpeningPrompt(runtimePersona),
       tone: runtimePersona.tone,
       personaTags: runtimePersona.personaTags,
+      forbiddenTone: this.characterChatForbiddenTone(runtimePersona),
       personaReference: runtimePersona.personaReference,
       sets: runtimePersona.starterSets,
       emptyState: this.characterChatEmptyState(cmsCopy, fallbackCopy),
       premiumChat: this.characterChatPremiumCopy(cmsCopy, fallbackCopy),
       runtimePersona,
       copyContract: this.characterChatCopyContract(artist.slug, cmsCopy),
+      greetingToneContract: this.characterChatGreetingToneContract(artist.slug),
       source: cmsCopy
         ? 'site_content'
         : configuredSets.length
@@ -2734,13 +2744,20 @@ export class ChatService {
       characterFallbackAvailable: Boolean(CHARACTER_CHAT_FALLBACK_COPY[artistSlug]),
       requiredUiFields: [
         'greeting.text',
+        'openingPrompt.guideText',
+        'openingPrompt.options[].label',
+        'openingPrompt.options[].message',
         'emptyState.text',
         'premiumChat.ctaLabel',
         'tone.guideKo',
         'personaTags',
+        'forbiddenTone.items',
       ],
       characterSpecificFallbackFields: [
         'greeting.text',
+        'openingPrompt.guideText',
+        'openingPrompt.options[].label',
+        'openingPrompt.options[].message',
         'starterSets[].guideText',
         'starterSets[].options[].label',
         'starterSets[].options[].message',
@@ -2749,6 +2766,7 @@ export class ChatService {
         'premiumChat.ctaLabel',
         'tone.guideKo',
         'personaTags',
+        'forbiddenTone.items',
       ],
       editableFields: [...CHARACTER_CHAT_COPY_CMS_EDITABLE_FIELDS],
       fixedUiLabels: [...CHARACTER_CHAT_COPY_FIXED_UI_LABELS],
@@ -2757,6 +2775,64 @@ export class ChatService {
       mutation: false,
       llmCall: false,
       walletMutation: false,
+    };
+  }
+
+  private characterChatGreetingToneContract(artistSlug: string) {
+    return {
+      version: CHARACTER_CHAT_GREETING_TONE_CONTRACT_VERSION,
+      characterSlug: artistSlug,
+      readOnlyProjection: true,
+      fallbackOrder: ['site_content', 'artist_metadata', 'character_fallback', 'default'],
+      responseFields: [
+        'greeting.text',
+        'openingPrompt.guideText',
+        'openingPrompt.options[].label',
+        'openingPrompt.options[].message',
+        'tone.guideKo',
+        'tone.toneTags',
+        'personaTags',
+        'forbiddenTone.items',
+      ],
+      sampleMinimumCharacters: 2,
+      perCharacterIsolationRequired: true,
+      rawPersonaPromptExposed: false,
+      rawPromptSecretExposed: false,
+      rawLlmPayloadExposed: false,
+      providerCall: false,
+      mutation: false,
+      walletMutation: false,
+      orderMutation: false,
+      settlementMutation: false,
+    };
+  }
+
+  private characterChatOpeningPrompt(runtimePersona: CharacterRuntimePersonaContext) {
+    const starterSet = runtimePersona.starterSets[0];
+
+    return {
+      guideText: starterSet.guideText,
+      options: starterSet.options
+        .slice(0, STARTER_PROMPT_POLICY.maxVisibleOptions)
+        .map((option) => ({ ...option })),
+      directInput: { ...runtimePersona.directInput },
+      source: runtimePersona.source,
+      readOnly: true,
+      mutation: false,
+      llmCall: false,
+    };
+  }
+
+  private characterChatForbiddenTone(runtimePersona: CharacterRuntimePersonaContext) {
+    return {
+      items: [...runtimePersona.forbiddenTone],
+      source: runtimePersona.source,
+      displaySafe: true,
+      rawPersonaPromptExposed: false,
+      rawPromptSecretExposed: false,
+      rawLlmPayloadExposed: false,
+      providerCall: false,
+      mutation: false,
     };
   }
 

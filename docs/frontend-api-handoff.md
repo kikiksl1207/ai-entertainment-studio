@@ -706,6 +706,21 @@ Character-chat CMS copy (#335):
   `copyContract.contentKey` as the source check for character-specific copy.
   A character page must not reuse another character's welcome text, starter
   prompt labels/messages, status copy, empty-state copy, or premium-chat copy.
+- #381 adds the first-screen greeting/tone contract. Use `greeting`,
+  `openingPrompt`, `tone`, `personaTags`, `forbiddenTone`, and
+  `greetingToneContract` from `GET /chat/character-catalog` or
+  `GET /chat/starter-prompts`. `greetingToneContract.version` is
+  `2026-05-21.character-chat-greeting-tone.v1`.
+- `openingPrompt` is the first visible prompt card: guide text, suggested
+  options, and direct input label. Selecting it still does not create a chat
+  message by itself.
+- `forbiddenTone.items` is display-safe guidance. Never render raw persona
+  prompts, provider payloads, model names, tokens, keys, or internal prompt
+  secrets.
+- Verify per-character isolation with `copyContract.characterSlug`,
+  `copyContract.contentKey`, and `greetingToneContract.characterSlug`; do not
+  reuse another character's greeting, opening prompt, tone guide/tags, or
+  forbidden-tone list.
 - `runtimePersona` and `personaReference` are read-only public context. Never
   display raw persona prompts, provider payloads, model names, tokens, keys,
   wallet/order ids, settlement rows, or payout internals.
