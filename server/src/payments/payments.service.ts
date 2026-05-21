@@ -8,17 +8,27 @@ import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  activeChargeProductWhere,
+  isActiveChargeProduct,
+} from './charge-products.policy';
 import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
 const FIRST_CHARGE_BONUS_BASIS = 'base_lumina_only';
-const ACTIVE_CHARGE_PRICE_AMOUNTS_KRW = [1000, 3000, 5000, 10000, 50000, 100000];
 const PAYMENT_ORDER_IDEMPOTENCY_CONFLICT = {
   code: 'PAYMENT_ORDER_IDEMPOTENCY_CONFLICT',
   message: 'payments.order.idempotencyConflict',
   messageKey: 'payments.order.idempotencyConflict',
   paymentOrderMutation: false,
+} as const;
+const PAYMENT_CHARGE_PRODUCT_UNAVAILABLE = {
+  code: 'PAYMENT_CHARGE_PRODUCT_UNAVAILABLE',
+  message: 'payments.order.chargeProductUnavailable',
+  messageKey: 'payments.order.chargeProductUnavailable',
+  paymentOrderMutation: false,
+  walletMutation: false,
 } as const;
 
 @Injectable()
@@ -72,15 +82,13 @@ export class PaymentsService {
     }
 
     const product = await this.prisma.luminaProduct.findFirst({
-      where: {
+      where: activeChargeProductWhere({
         id: input.luminaProductId,
-        status: 'active',
-        priceAmount: { in: ACTIVE_CHARGE_PRICE_AMOUNTS_KRW },
-      },
+      }),
     });
 
     if (!product) {
-      throw new NotFoundException('Lumina product not found');
+      throw new NotFoundException(PAYMENT_CHARGE_PRODUCT_UNAVAILABLE);
     }
 
     const order = await this.prisma.paymentOrder.create({
@@ -159,6 +167,8 @@ export class PaymentsService {
     if (!order) {
       throw new NotFoundException('Payment order not found');
     }
+
+    this.assertServerChargeProduct(order.luminaProduct);
 
     if (order.provider !== provider) {
       throw new BadRequestException('Payment provider does not match order provider');
@@ -280,16 +290,6 @@ export class PaymentsService {
           id: { not: order.id },
         },
       });
-      const firstChargeBonusIdempotencyKey = `first_charge_bonus:${order.userId}`;
-      const existingFirstChargeBonusLedger = await tx.walletLedger.findUnique({
-        where: { idempotencyKey: firstChargeBonusIdempotencyKey },
-      });
-      const firstChargeBonusAmount =
-        priorPaidOrderCount === 0 && !existingFirstChargeBonusLedger
-          ? packageBaseAmount.mul(FIRST_CHARGE_BONUS_RATE).toDecimalPlaces(2)
-          : new Decimal(0);
-      const totalCreditAmount = packageCreditAmount.plus(firstChargeBonusAmount);
-
       const ledger = await tx.walletLedger.create({
         data: {
           walletAccountId: wallet.id,
@@ -302,12 +302,19 @@ export class PaymentsService {
           memo: `Lumina purchase: ${order.luminaProduct.name}`,
         },
       });
-      const firstChargeBonusLedger = firstChargeBonusAmount.gt(0)
-        ? await tx.walletLedger.create({
-            data: {
+      const firstChargeBonusIdempotencyKey = `first_charge_bonus:${order.userId}`;
+      const firstChargeBonusCandidateAmount =
+        priorPaidOrderCount === 0
+          ? packageBaseAmount.mul(FIRST_CHARGE_BONUS_RATE).toDecimalPlaces(2)
+          : new Decimal(0);
+      const firstChargeBonusLedger = firstChargeBonusCandidateAmount.gt(0)
+        ? await tx.walletLedger.upsert({
+            where: { idempotencyKey: firstChargeBonusIdempotencyKey },
+            update: {},
+            create: {
               walletAccountId: wallet.id,
               direction: 'credit',
-              amount: firstChargeBonusAmount,
+              amount: firstChargeBonusCandidateAmount,
               ledgerType: 'first_charge_bonus',
               referenceType: 'payment_order',
               referenceId: order.id,
@@ -316,6 +323,12 @@ export class PaymentsService {
             },
           })
         : null;
+      const firstChargeBonusApplied =
+        firstChargeBonusLedger?.referenceId === order.id;
+      const firstChargeBonusAmount = firstChargeBonusApplied
+        ? firstChargeBonusCandidateAmount
+        : new Decimal(0);
+      const totalCreditAmount = packageCreditAmount.plus(firstChargeBonusAmount);
 
       await tx.walletAccount.update({
         where: { id: wallet.id },
@@ -335,9 +348,11 @@ export class PaymentsService {
         order: updatedOrder,
         transaction,
         ledger,
-        firstChargeBonusLedger,
+        firstChargeBonusLedger: firstChargeBonusApplied
+          ? firstChargeBonusLedger
+          : null,
         firstChargeBonus: {
-          applied: Boolean(firstChargeBonusLedger),
+          applied: firstChargeBonusApplied,
           rate: FIRST_CHARGE_BONUS_RATE.toString(),
           amount: firstChargeBonusAmount.toString(),
           basis: FIRST_CHARGE_BONUS_BASIS,
@@ -373,6 +388,18 @@ export class PaymentsService {
       order.provider !== input.provider
     ) {
       throw new ConflictException(PAYMENT_ORDER_IDEMPOTENCY_CONFLICT);
+    }
+  }
+
+  private assertServerChargeProduct(product: {
+    sku?: string | null;
+    priceAmount: Decimal.Value;
+    priceCurrency?: string | null;
+    luminaAmount: Decimal.Value;
+    bonusAmount: Decimal.Value;
+  }) {
+    if (!isActiveChargeProduct(product)) {
+      throw new BadRequestException(PAYMENT_CHARGE_PRODUCT_UNAVAILABLE);
     }
   }
 

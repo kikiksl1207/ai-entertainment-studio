@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
+import { activeChargeProductWhere } from '../payments/charge-products.policy';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_CURRENCY = 'LUMINA';
@@ -7,7 +8,6 @@ const PRICE_UNIT_KRW = new Decimal(10);
 const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
 const FIRST_CHARGE_BONUS_BASIS = 'base_lumina_only';
 const CHARGE_POLICY_VERSION = '2026-05-21.charge-policy-v2';
-const ACTIVE_CHARGE_PRICE_AMOUNTS_KRW = [1000, 3000, 5000, 10000, 50000, 100000];
 const WEB_PAID_BONUS_MAX_RATE = 0.2;
 const AD_REWARD_MAX_REVENUE_SHARE_RATE = 0.5;
 const AD_REWARD_DAILY_LIMIT = 50;
@@ -200,10 +200,7 @@ export class LuminaStationService {
         },
       }),
       this.prisma.luminaProduct.findMany({
-        where: {
-          status: 'active',
-          priceAmount: { in: ACTIVE_CHARGE_PRICE_AMOUNTS_KRW },
-        },
+        where: activeChargeProductWhere(),
         orderBy: [{ priceAmount: 'asc' }, { luminaAmount: 'asc' }],
       }),
       this.prisma.paymentOrder.findMany({

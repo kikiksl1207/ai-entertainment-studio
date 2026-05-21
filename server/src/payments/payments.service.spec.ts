@@ -40,9 +40,13 @@ function existingOrder(overrides: Record<string, unknown> = {}) {
     currency: 'KRW',
     luminaProduct: {
       id: productId,
-      name: 'Lumina 70',
-      luminaAmount: new Decimal(70),
+      sku: 'LUMINA_100',
+      name: 'Lumina 100',
+      luminaAmount: new Decimal(100),
       bonusAmount: new Decimal(0),
+      priceAmount: new Decimal(1000),
+      priceCurrency: 'KRW',
+      status: 'active',
     },
     transactions: [],
     ...overrides,
@@ -63,9 +67,13 @@ function paidWebhookFixture(
     amount: new Decimal(50000),
     luminaProduct: {
       id: productId,
+      sku: 'LUMINA_5800',
       name: 'Lumina 5,000 + bonus 800',
       luminaAmount: new Decimal(5000),
       bonusAmount: new Decimal(800),
+      priceAmount: new Decimal(50000),
+      priceCurrency: 'KRW',
+      status: 'active',
     },
     ...overrides.order,
   });
@@ -96,13 +104,17 @@ function paidWebhookFixture(
       update: jest.fn().mockResolvedValue(wallet),
     },
     walletLedger: {
-      findUnique: jest
-        .fn()
-        .mockResolvedValue(overrides.existingFirstChargeBonusLedger ?? null),
       create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
         id: `ledger-${++ledgerCreateIndex}`,
         ...data,
       })),
+      upsert: jest.fn(
+        async ({ create }: { create: Record<string, unknown> }) =>
+          overrides.existingFirstChargeBonusLedger ?? {
+            id: `ledger-${++ledgerCreateIndex}`,
+            ...create,
+          },
+      ),
     },
   };
   const prisma = {
@@ -136,8 +148,11 @@ describe('PaymentsService server-authority contract', () => {
     const product = {
       id: productId,
       name: 'Lumina 100',
+      sku: 'LUMINA_100',
       priceAmount: new Decimal(1000),
       priceCurrency: 'KRW',
+      luminaAmount: new Decimal(100),
+      bonusAmount: new Decimal(0),
     };
     const order = existingOrder({
       luminaProductId: product.id,
@@ -160,26 +175,75 @@ describe('PaymentsService server-authority contract', () => {
       service.createOrder(userId, {
         luminaProductId: productId,
         idempotencyKey: ' charge-key-1 ',
-      }),
+        priceAmount: '1',
+        luminaAmount: '999999',
+        bonusAmount: '999999',
+        totalLumina: '999999',
+      } as never),
     ).resolves.toMatchObject({
       order,
       idempotentReplay: false,
     });
 
     expect(prisma.luminaProduct.findFirst).toHaveBeenCalledWith({
-      where: {
+      where: expect.objectContaining({
         id: productId,
         status: 'active',
-        priceAmount: { in: [1000, 3000, 5000, 10000, 50000, 100000] },
-      },
+        OR: expect.arrayContaining([
+          expect.objectContaining({
+            sku: 'LUMINA_100',
+            priceAmount: 1000,
+            luminaAmount: 100,
+            bonusAmount: 0,
+          }),
+          expect.objectContaining({
+            sku: 'LUMINA_12000',
+            priceAmount: 100000,
+            luminaAmount: 10000,
+            bonusAmount: 2000,
+          }),
+        ]),
+      }),
     });
     expect(prisma.paymentOrder.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
+          amount: product.priceAmount,
+          currency: 'KRW',
           idempotencyKey: 'charge-key-1',
         }),
       }),
     );
+  });
+
+  it('rejects active products that do not match the six server charge packages', async () => {
+    const prisma = {
+      paymentOrder: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn(),
+      },
+      luminaProduct: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    };
+    const { service, adapter } = serviceWith(prisma);
+
+    await expect(
+      service.createOrder(userId, {
+        luminaProductId: productId,
+        idempotencyKey: 'charge-key-rogue',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'PAYMENT_CHARGE_PRODUCT_UNAVAILABLE',
+        messageKey: 'payments.order.chargeProductUnavailable',
+        paymentOrderMutation: false,
+        walletMutation: false,
+      },
+    });
+
+    expect(adapter.createCheckoutPayload).not.toHaveBeenCalled();
+    expect(prisma.paymentOrder.create).not.toHaveBeenCalled();
   });
 
   it('rejects idempotency key reuse across another user before returning checkout data', async () => {
@@ -296,9 +360,10 @@ describe('PaymentsService server-authority contract', () => {
 
     const result = await service.handleWebhook('mock', {}, {});
 
-    expect(tx.walletLedger.create).toHaveBeenCalledTimes(2);
+    expect(tx.walletLedger.create).toHaveBeenCalledTimes(1);
+    expect(tx.walletLedger.upsert).toHaveBeenCalledTimes(1);
     const purchaseLedger = tx.walletLedger.create.mock.calls[0][0].data;
-    const firstChargeBonusLedger = tx.walletLedger.create.mock.calls[1][0].data;
+    const firstChargeBonusLedger = tx.walletLedger.upsert.mock.calls[0][0].create;
     expect((purchaseLedger.amount as Decimal).toString()).toBe('5800');
     expect(purchaseLedger.ledgerType).toBe('purchase');
     expect((firstChargeBonusLedger.amount as Decimal).toString()).toBe('500');
@@ -335,6 +400,7 @@ describe('PaymentsService server-authority contract', () => {
     const result = await service.handleWebhook('mock', {}, {});
 
     expect(tx.walletLedger.create).toHaveBeenCalledTimes(1);
+    expect(tx.walletLedger.upsert).toHaveBeenCalledTimes(1);
     const purchaseLedger = tx.walletLedger.create.mock.calls[0][0].data;
     expect((purchaseLedger.amount as Decimal).toString()).toBe('5800');
     const walletIncrement = tx.walletAccount.update.mock.calls[0][0].data.cachedBalance
@@ -348,6 +414,71 @@ describe('PaymentsService server-authority contract', () => {
         packageBonusIncluded: false,
       },
     });
+  });
+
+  it('does not credit first-charge bonus when the user-scoped bonus key already won a race', async () => {
+    const { prisma, tx, webhookEvent } = paidWebhookFixture({
+      existingFirstChargeBonusLedger: {
+        id: 'existing-first-charge-bonus-ledger',
+        referenceId: '00000000-0000-4000-8000-000000000999',
+        idempotencyKey: `first_charge_bonus:${userId}`,
+      },
+      priorPaidOrderCount: 0,
+    });
+    const { service } = serviceWith(prisma, {
+      verifyAndParseWebhook: jest.fn().mockReturnValue(webhookEvent),
+    });
+
+    const result = await service.handleWebhook('mock', {}, {});
+
+    expect(tx.walletLedger.create).toHaveBeenCalledTimes(1);
+    expect(tx.walletLedger.upsert).toHaveBeenCalledTimes(1);
+    const walletIncrement = tx.walletAccount.update.mock.calls[0][0].data.cachedBalance
+      .increment as Decimal;
+    expect(walletIncrement.toString()).toBe('5800');
+    expect(result).toMatchObject({
+      firstChargeBonusLedger: null,
+      firstChargeBonus: {
+        applied: false,
+        amount: '0',
+        oneTimePerUser: true,
+      },
+    });
+  });
+
+  it('fails closed before wallet credit if a paid order references a non-canonical charge product', async () => {
+    const { prisma, tx, webhookEvent, order } = paidWebhookFixture({
+      order: {
+        luminaProduct: {
+          id: productId,
+          sku: 'LUMINA_TAMPERED',
+          name: 'Tampered Lumina',
+          luminaAmount: new Decimal(999999),
+          bonusAmount: new Decimal(999999),
+          priceAmount: new Decimal(1000),
+          priceCurrency: 'KRW',
+          status: 'active',
+        },
+      },
+    });
+    const { service } = serviceWith(prisma, {
+      verifyAndParseWebhook: jest.fn().mockReturnValue({
+        ...webhookEvent,
+        amount: order.amount.toString(),
+      }),
+    });
+
+    await expect(service.handleWebhook('mock', {}, {})).rejects.toMatchObject({
+      response: {
+        code: 'PAYMENT_CHARGE_PRODUCT_UNAVAILABLE',
+        messageKey: 'payments.order.chargeProductUnavailable',
+        walletMutation: false,
+      },
+    });
+    expect(tx.walletAccount.upsert).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.walletLedger.upsert).not.toHaveBeenCalled();
+    expect(tx.walletAccount.update).not.toHaveBeenCalled();
   });
 
   it('treats duplicate provider webhook delivery as an idempotent replay without ledgers', async () => {

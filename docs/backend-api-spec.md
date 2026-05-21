@@ -337,8 +337,9 @@ Lumina Station:
   First-charge bonus is once per account on the first paid order only, uses 10%
   of `lumina_products.lumina_amount`, and excludes `bonusAmount`. The
   first-charge ledger uses `ledgerType = first_charge_bonus` and
-  `idempotencyKey = first_charge_bonus:<userId>`, so webhook retry or provider
-  replay cannot duplicate the bonus.
+  `idempotencyKey = first_charge_bonus:<userId>`. Fulfillment upserts this
+  user-scoped bonus ledger key, so webhook retry, provider replay, or parallel
+  first-payment races cannot duplicate the bonus.
 - First paid purchase examples: 50,000 KRW = base 5,000L + package bonus 800L +
   first-charge bonus 500L = 6,300L total; 100,000 KRW = base 10,000L + package
   bonus 2,000L + first-charge bonus 1,000L = 13,000L total.
@@ -349,9 +350,10 @@ Lumina Station:
   image 100L, and short video 300L. Short video copy is 3-5 seconds, one
   character, one concept.
 - `GET /api/v1/lumina-station?take=5` is an authenticated charge-screen bootstrap endpoint.
-- It returns the user's Lumina wallet, active six-tier `lumina_products`, recent `payment_orders`, payment provider status, and client display policy. 20,000 KRW and 30,000 KRW products are filtered out even if legacy rows remain active.
+- It returns the user's Lumina wallet, active six-tier `lumina_products`, recent `payment_orders`, payment provider status, and client display policy. Only canonical server products matching SKU, KRW price, base Lumina, package bonus, and KRW currency are returned; 20,000 KRW, 30,000 KRW, and same-price tampered active rows are filtered out.
 - It does not create a payment order and does not grant Lumina.
-- The frontend still creates charge orders with `POST /api/v1/payments/orders`. Order creation accepts active products only when their KRW price is one of 1,000 / 3,000 / 5,000 / 10,000 / 50,000 / 100,000.
+- The frontend still creates charge orders with `POST /api/v1/payments/orders`. Order creation accepts active products only when they match the server canonical charge packages: `LUMINA_100` 1,000 KRW = 100L, `LUMINA_300` 3,000 KRW = 300L, `LUMINA_500` 5,000 KRW = 500L, `LUMINA_1000` 10,000 KRW = 1,000L, `LUMINA_5800` 50,000 KRW = 5,000L + 800L bonus, and `LUMINA_12000` 100,000 KRW = 10,000L + 2,000L bonus.
+- Client-submitted economic fields such as `priceAmount`, `luminaAmount`, `bonusAmount`, or `totalLumina` are ignored for order creation and fulfillment. The order amount, checkout payload, wallet purchase ledger, and first-charge bonus are derived from the matched server product row only.
 - `payment.status = "pg_pending"` means the UI may show products but real checkout is pending PG provider approval/integration.
 - `products[]` includes frontend convenience fields: `totalLumina`, `unitPriceKrw`, `bonusRate`, `discountAmount`, and `isBestValue`.
 - `POST /api/v1/payments/orders` idempotency replay is valid only for the same
