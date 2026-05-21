@@ -1,6 +1,38 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#360 character chat character-specific greeting/tone copy contract"
+branch: team2-backend/character-chat-persona-copy-360
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/src/chat/llm-provider.adapter.ts
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npx.cmd prisma generate
+- npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Extended character-chat fallback copy as a complete per-character UI copy set: greeting, empty state, premium CTA copy, tone guide, and persona tags.
+- Catalog/starter projections now expose `tone.guideKo`, `tone.guideSource`, and `personaTags` while keeping `copyContract` read-only and mutation-disabled.
+- Added tests for per-character fallback greeting/empty/CTA/tone/persona isolation, CMS override safety, and provider runtime persona compatibility without wallet/order/provider-readiness side effects in read-only projections.
+blocked_by:
+- Viewer review, then frontend can render Korean fallback copy/tags without surfacing raw source enums or internal prompt/provider fields.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#355 repost projection hidden/block tombstone hardening"
 branch: team2-backend/feed-repost-tombstone-355
 commit: final hash recorded in Notion completion report

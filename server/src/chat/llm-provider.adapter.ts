@@ -86,7 +86,10 @@ export type ChatRuntimePersonaContext = {
     contentTone: string | null;
     personalityKeywords: string[];
     toneTags: string[];
+    guideKo: string;
+    guideSource: string;
   };
+  personaTags: string[];
   personaReference: {
     catalogVersion: string;
     selectedTraitIds: string[];
