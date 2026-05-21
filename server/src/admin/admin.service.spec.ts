@@ -118,6 +118,10 @@ describe('AdminService auth action token audit', () => {
     expect(result.policy).toMatchObject({
       supportedDeliveryStatuses: expect.arrayContaining(['accepted', 'failed']),
       supportedDeliveryProviders: expect.arrayContaining(['resend', 'sendgrid', 'none']),
+      requestCooldownSeconds: 60,
+      duplicatePendingTokenPolicy:
+        'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+      cooldownDuplicateRequestsCreateNewRow: false,
     });
     expect(JSON.stringify(result)).not.toContain('hash-value-must-not-leak');
     expect(JSON.stringify(result)).not.toContain('qa@example.com');

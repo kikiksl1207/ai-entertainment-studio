@@ -48,6 +48,8 @@ const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const AUTH_ACTION_REQUEST_RATE_LIMIT = 5;
 const AUTH_ACTION_REQUEST_RATE_WINDOW_SECONDS = 60;
+const AUTH_ACTION_REQUEST_COOLDOWN_MS =
+  AUTH_ACTION_REQUEST_RATE_WINDOW_SECONDS * 1000;
 const EMAIL_VERIFICATION_PURPOSE = 'email_verification';
 const PASSWORD_RESET_PURPOSE = 'password_reset';
 const MYPAGE_DEBUT_STATUS_COPY: Record<
@@ -1740,27 +1742,10 @@ export class AuthService {
 
   async confirmPasswordReset(input: ConfirmPasswordResetDto) {
     const email = input.email?.trim().toLowerCase();
-    const token = await this.prisma.userActionToken.findFirst({
-      where: {
-        tokenHash: this.hashToken(input.token),
-        purpose: PASSWORD_RESET_PURPOSE,
-        consumedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            status: true,
-            deletedAt: true,
-          },
-        },
-      },
-    });
-
-    if (!token) {
-      throw this.invalidActionTokenException(PASSWORD_RESET_PURPOSE);
-    }
+    const token = await this.findUserActionTokenForConfirmation(
+      input.token,
+      PASSWORD_RESET_PURPOSE,
+    );
 
     this.assertUserCanLogin(token.user);
 
@@ -1805,7 +1790,10 @@ export class AuthService {
       });
 
       if (consumeResult.count !== 1) {
-        throw this.invalidActionTokenException(PASSWORD_RESET_PURPOSE);
+        throw this.invalidActionTokenException(
+          PASSWORD_RESET_PURPOSE,
+          'already_used',
+        );
       }
 
       await tx.userAuthAccount.update({
@@ -3245,7 +3233,10 @@ export class AuthService {
         windowSeconds: AUTH_ACTION_REQUEST_RATE_WINDOW_SECONDS,
       },
       recommendedClientCooldownSeconds: AUTH_ACTION_REQUEST_RATE_WINDOW_SECONDS,
-      duplicatePendingTokenPolicy: 'consume_previous_pending_token',
+      serverEnforcedCooldownSeconds: AUTH_ACTION_REQUEST_RATE_WINDOW_SECONDS,
+      duplicatePendingTokenPolicy:
+        'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+      cooldownResponseDisclosure: 'neutral_request_accepted',
       tokenTtlSeconds:
         purpose === EMAIL_VERIFICATION_PURPOSE
           ? Math.floor(EMAIL_VERIFICATION_TOKEN_TTL_MS / 1000)
@@ -3273,9 +3264,27 @@ export class AuthService {
     purpose: string,
     ttlMs: number,
     targetEmail: string,
-  ): Promise<ActionTokenDebug> {
-    const rawToken = this.createOpaqueToken();
+  ): Promise<ActionTokenDebug | null> {
     const now = new Date();
+    const cooldownStartedAt = new Date(
+      now.getTime() - AUTH_ACTION_REQUEST_COOLDOWN_MS,
+    );
+    const recentPendingToken = await this.prisma.userActionToken.findFirst({
+      where: {
+        userId,
+        purpose,
+        consumedAt: null,
+        expiresAt: { gt: now },
+        createdAt: { gte: cooldownStartedAt },
+      },
+      select: { id: true },
+    });
+
+    if (recentPendingToken) {
+      return null;
+    }
+
+    const rawToken = this.createOpaqueToken();
     const expiresAt = new Date(now.getTime() + ttlMs);
     let tokenId = '';
 
@@ -3396,13 +3405,12 @@ export class AuthService {
     );
   }
 
-  private async consumeUserActionToken(rawToken: string, purpose: string) {
+  private async findUserActionTokenForConfirmation(rawToken: string, purpose: string) {
+    const now = new Date();
     const token = await this.prisma.userActionToken.findFirst({
       where: {
         tokenHash: this.hashToken(rawToken),
         purpose,
-        consumedAt: null,
-        expiresAt: { gt: new Date() },
       },
       include: {
         user: {
@@ -3416,13 +3424,34 @@ export class AuthService {
     });
 
     if (!token) {
-      throw this.invalidActionTokenException(purpose);
+      throw this.invalidActionTokenException(purpose, 'invalid');
     }
 
-    await this.prisma.userActionToken.update({
-      where: { id: token.id },
+    if (token.consumedAt) {
+      throw this.invalidActionTokenException(purpose, 'already_used');
+    }
+
+    if (token.expiresAt.getTime() <= now.getTime()) {
+      throw this.invalidActionTokenException(purpose, 'expired');
+    }
+
+    return token;
+  }
+
+  private async consumeUserActionToken(rawToken: string, purpose: string) {
+    const token = await this.findUserActionTokenForConfirmation(rawToken, purpose);
+    const result = await this.prisma.userActionToken.updateMany({
+      where: {
+        id: token.id,
+        consumedAt: null,
+        expiresAt: { gt: new Date() },
+      },
       data: { consumedAt: new Date() },
     });
+
+    if (result.count !== 1) {
+      throw this.invalidActionTokenException(purpose, 'already_used');
+    }
 
     return token;
   }
@@ -3605,12 +3634,18 @@ export class AuthService {
     }
   }
 
-  private invalidActionTokenException(purpose: string) {
+  private invalidActionTokenException(
+    purpose: string,
+    state: 'invalid' | 'expired' | 'already_used' = 'invalid',
+  ) {
+    const details = this.invalidActionTokenDetails(purpose, state);
+
     if (purpose === EMAIL_VERIFICATION_PURPOSE) {
       return this.authBadRequest(
         'AUTH_EMAIL_VERIFICATION_TOKEN_INVALID_OR_EXPIRED',
         'Email verification token is invalid or expired.',
         'auth.emailVerification.tokenInvalidOrExpired',
+        details,
       );
     }
 
@@ -3619,6 +3654,7 @@ export class AuthService {
         'AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_EXPIRED',
         'Password reset token is invalid or expired.',
         'auth.passwordReset.tokenInvalidOrExpired',
+        details,
       );
     }
 
@@ -3626,7 +3662,28 @@ export class AuthService {
       'AUTH_ACTION_TOKEN_INVALID_OR_EXPIRED',
       'Action token is invalid or expired.',
       'auth.actionToken.invalidOrExpired',
+      details,
     );
+  }
+
+  private invalidActionTokenDetails(
+    purpose: string,
+    state: 'invalid' | 'expired' | 'already_used',
+  ) {
+    const prefix =
+      purpose === EMAIL_VERIFICATION_PURPOSE
+        ? 'auth.emailVerification'
+        : purpose === PASSWORD_RESET_PURPOSE
+          ? 'auth.passwordReset'
+          : 'auth.actionToken';
+
+    return {
+      purpose,
+      state,
+      statusKey: `${prefix}.${state}`,
+      rawTokenReturned: false,
+      tokenHashReturned: false,
+    };
   }
 
   private authBadRequest(

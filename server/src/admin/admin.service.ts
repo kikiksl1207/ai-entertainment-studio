@@ -6608,6 +6608,10 @@ export class AdminService {
       deliveryStatusPersisted: true,
       deliveryProviderPersisted: true,
       deliveryRawProviderResponseReturned: false,
+      requestCooldownSeconds: 60,
+      duplicatePendingTokenPolicy:
+        'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+      cooldownDuplicateRequestsCreateNewRow: false,
       supportedPurposes: [...AUTH_ACTION_TOKEN_PURPOSES],
       supportedStatuses: [...AUTH_ACTION_TOKEN_STATUSES],
       supportedDeliveryStatuses: [...AUTH_ACTION_TOKEN_DELIVERY_STATUSES],

@@ -119,7 +119,7 @@ function activeActionToken(overrides: Record<string, unknown> = {}) {
     userId,
     tokenHash: hashToken(token),
     purpose: 'email_verification',
-    expiresAt: new Date('2026-05-14T00:00:00.000Z'),
+    expiresAt: new Date('2099-05-14T00:00:00.000Z'),
     consumedAt: null,
     user: {
       id: userId,
@@ -210,7 +210,10 @@ describe('AuthService action token flows', () => {
         purpose: 'email_verification',
         neutralResponse: true,
         recommendedClientCooldownSeconds: 60,
-        duplicatePendingTokenPolicy: 'consume_previous_pending_token',
+        serverEnforcedCooldownSeconds: 60,
+        duplicatePendingTokenPolicy:
+          'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+        cooldownResponseDisclosure: 'neutral_request_accepted',
         rawTokenReturned: false,
         tokenHashReturned: false,
         messageKey: 'auth.emailVerification.requestAccepted',
@@ -303,6 +306,34 @@ describe('AuthService action token flows', () => {
     });
   });
 
+  it('keeps repeated verification requests inside cooldown neutral without sending another email', async () => {
+    const prisma = createPrismaMock();
+    const { service, delivery } = serviceWith(prisma);
+    prisma.user.findFirst.mockResolvedValue({ id: userId, emailVerifiedAt: null });
+    prisma.userActionToken.findFirst.mockResolvedValue({
+      id: actionTokenId,
+      createdAt: new Date(),
+    });
+
+    await expect(service.requestEmailVerification({ email })).resolves.toMatchObject({
+      success: true,
+      ok: true,
+      delivery: { status: 'not_configured', channel: 'email' },
+      policy: {
+        purpose: 'email_verification',
+        serverEnforcedCooldownSeconds: 60,
+        duplicatePendingTokenPolicy:
+          'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+      },
+      debug: undefined,
+    });
+
+    expect(prisma.userActionToken.create).not.toHaveBeenCalled();
+    expect(prisma.userActionToken.updateMany).not.toHaveBeenCalled();
+    expect(delivery.sendActionEmail).not.toHaveBeenCalled();
+    expect(delivery.requestStatus).toHaveBeenCalledTimes(1);
+  });
+
   it('does not issue another verification token for an already verified email', async () => {
     const prisma = createPrismaMock();
     const { service, delivery } = serviceWith(prisma);
@@ -322,6 +353,7 @@ describe('AuthService action token flows', () => {
     const prisma = createPrismaMock();
     const { service } = serviceWith(prisma);
     prisma.userActionToken.findFirst.mockResolvedValue(activeActionToken());
+    prisma.userActionToken.updateMany.mockResolvedValue({ count: 1 });
 
     await expect(
       service.confirmEmailVerification({ token }),
@@ -331,8 +363,6 @@ describe('AuthService action token flows', () => {
       where: {
         tokenHash: hashToken(token),
         purpose: 'email_verification',
-        consumedAt: null,
-        expiresAt: { gt: expect.any(Date) },
       },
       include: {
         user: {
@@ -344,8 +374,12 @@ describe('AuthService action token flows', () => {
         },
       },
     });
-    expect(prisma.userActionToken.update).toHaveBeenCalledWith({
-      where: { id: '00000000-0000-4000-8000-000000000101' },
+    expect(prisma.userActionToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: '00000000-0000-4000-8000-000000000101',
+        consumedAt: null,
+        expiresAt: { gt: expect.any(Date) },
+      },
       data: { consumedAt: expect.any(Date) },
     });
     expect(prisma.user.update).toHaveBeenCalledWith({
@@ -366,6 +400,53 @@ describe('AuthService action token flows', () => {
       response: {
         code: 'AUTH_EMAIL_VERIFICATION_TOKEN_INVALID_OR_EXPIRED',
         messageKey: 'auth.emailVerification.tokenInvalidOrExpired',
+        details: {
+          state: 'invalid',
+          statusKey: 'auth.emailVerification.invalid',
+          rawTokenReturned: false,
+          tokenHashReturned: false,
+        },
+      },
+    });
+  });
+
+  it('distinguishes expired and already-used email verification links without exposing token data', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+
+    prisma.userActionToken.findFirst.mockResolvedValueOnce(
+      activeActionToken({
+        expiresAt: new Date('2000-01-01T00:00:00.000Z'),
+      }),
+    );
+    await expect(service.confirmEmailVerification({ token })).rejects.toMatchObject({
+      response: {
+        code: 'AUTH_EMAIL_VERIFICATION_TOKEN_INVALID_OR_EXPIRED',
+        messageKey: 'auth.emailVerification.tokenInvalidOrExpired',
+        details: {
+          state: 'expired',
+          statusKey: 'auth.emailVerification.expired',
+          rawTokenReturned: false,
+          tokenHashReturned: false,
+        },
+      },
+    });
+
+    prisma.userActionToken.findFirst.mockResolvedValueOnce(
+      activeActionToken({
+        consumedAt: new Date('2026-05-14T00:00:00.000Z'),
+      }),
+    );
+    await expect(service.confirmEmailVerification({ token })).rejects.toMatchObject({
+      response: {
+        code: 'AUTH_EMAIL_VERIFICATION_TOKEN_INVALID_OR_EXPIRED',
+        messageKey: 'auth.emailVerification.tokenInvalidOrExpired',
+        details: {
+          state: 'already_used',
+          statusKey: 'auth.emailVerification.already_used',
+          rawTokenReturned: false,
+          tokenHashReturned: false,
+        },
       },
     });
   });
@@ -471,7 +552,10 @@ describe('AuthService action token flows', () => {
         purpose: 'password_reset',
         neutralResponse: true,
         recommendedClientCooldownSeconds: 60,
-        duplicatePendingTokenPolicy: 'consume_previous_pending_token',
+        serverEnforcedCooldownSeconds: 60,
+        duplicatePendingTokenPolicy:
+          'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+        cooldownResponseDisclosure: 'neutral_request_accepted',
         rawTokenReturned: false,
         tokenHashReturned: false,
         messageKey: 'auth.passwordReset.requestAccepted',
@@ -489,6 +573,41 @@ describe('AuthService action token flows', () => {
         deliveryFailedAt: expect.any(Date),
       },
     });
+  });
+
+  it('keeps repeated password reset requests inside cooldown neutral without sending another email', async () => {
+    const prisma = createPrismaMock();
+    const { service, delivery } = serviceWith(prisma);
+    prisma.userAuthAccount.findUnique.mockResolvedValue({
+      userId,
+      passwordHash: 'old-hash',
+      user: {
+        status: 'active',
+        deletedAt: null,
+      },
+    });
+    prisma.userActionToken.findFirst.mockResolvedValue({
+      id: actionTokenId,
+      createdAt: new Date(),
+    });
+
+    await expect(service.requestPasswordReset({ email })).resolves.toMatchObject({
+      success: true,
+      ok: true,
+      delivery: { status: 'not_configured', channel: 'email' },
+      policy: {
+        purpose: 'password_reset',
+        serverEnforcedCooldownSeconds: 60,
+        duplicatePendingTokenPolicy:
+          'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+      },
+      debug: undefined,
+    });
+
+    expect(prisma.userActionToken.create).not.toHaveBeenCalled();
+    expect(prisma.userActionToken.updateMany).not.toHaveBeenCalled();
+    expect(delivery.sendActionEmail).not.toHaveBeenCalled();
+    expect(delivery.requestStatus).toHaveBeenCalledTimes(1);
   });
 
   it('keeps password policy to 8 characters minimum without composition requirements', async () => {
@@ -567,7 +686,10 @@ describe('AuthService action token flows', () => {
           purpose: 'email_verification',
           neutralResponse: true,
           recommendedClientCooldownSeconds: 60,
-          duplicatePendingTokenPolicy: 'consume_previous_pending_token',
+          serverEnforcedCooldownSeconds: 60,
+          duplicatePendingTokenPolicy:
+            'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+          cooldownResponseDisclosure: 'neutral_request_accepted',
           tokenTtlSeconds: 86400,
           rawTokenReturned: false,
           tokenHashReturned: false,
