@@ -328,7 +328,7 @@ const I18N_DICT = {
   },
   // #362 — "sample payout preview" 톤 제거. 정산 회차 확정 전임을 안내하는 실서비스 카피로 정리.
   "payout.card.sampleNote": {
-    "ko-KR": "정산 데이터 준비 중입니다. 금액은 정산 회차가 확정되면 표시됩니다. 실제 정산액은 계약 등급, 환불, 세금, 환율 기준에 따라 달라질 수 있어요.",
+    "ko-KR": "정산 회차 확인 전입니다. 회차가 확정되면 금액이 표시됩니다. 실제 정산액은 계약 등급, 환불, 세금, 환율 기준에 따라 달라질 수 있어요.",
     "ja-JP": "精算データを準備中です。金額は精算サイクルが確定すると表示されます。実際の金額は契約ランク、返金、税金、為替条件により変わる場合があります。",
     "en-US": "Payout data is being prepared. Amounts appear once the payout cycle is confirmed. Actual payout may vary by contract tier, refunds, tax, and FX rules.",
     "zh-CN": "结算数据准备中。金额将在结算周期确定后显示。实际金额会因合同等级、退款、税费和汇率规则而变化。"
