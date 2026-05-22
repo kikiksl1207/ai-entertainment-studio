@@ -88,12 +88,13 @@ function renderFeedRepostSource(repost) {
   var origBody = orig.body || orig.content || "";
   var origId = orig.id || repost.originalPostId || "";
   var origUrl = origId ? ("/lumina-feed?postId=" + encodeURIComponent(String(origId))) : "/lumina-feed";
+  var origPostAttr = origId ? ' data-feed-original-post-id="' + feedEscapeHtml(String(origId)) + '"' : "";
   return (
     '<aside class="feed-post-repost-source" aria-label="원글 참조">' +
       '<span class="feed-post-repost-eyebrow">원글 참조</span>' +
       '<div class="feed-post-repost-source-head">' +
         '<strong>' + feedEscapeHtml(origAuthor) + '</strong>' +
-        '<a class="feed-post-repost-source-link" href="' + feedEscapeHtml(origUrl) + '">원글 보기 →</a>' +
+        '<a class="feed-post-repost-source-link" href="' + feedEscapeHtml(origUrl) + '"' + origPostAttr + '>원글 보기 →</a>' +
       '</div>' +
       '<p class="feed-post-repost-source-body">' + feedEscapeHtml(origBody) + '</p>' +
     '</aside>'
@@ -319,7 +320,7 @@ function renderLuminaFeed() {
     const repostEmbed = renderFeedRepostSource(post.repost);
 
     return `
-      <article class="feed-post${clickable}${continuationClass}" data-feed-type="${post.postType}"${isThreadContinuation ? ' data-feed-continuation-root="' + feedEscapeHtml(continuationRootId) + '"' : ""}>
+      <article class="feed-post${clickable}${continuationClass}" data-feed-type="${post.postType}" data-feed-post-id="${feedEscapeHtml(post.id || "")}"${isThreadContinuation ? ' data-feed-continuation-root="' + feedEscapeHtml(continuationRootId) + '"' : ""}>
         ${continuationConnector}
         <header class="feed-post-head"${authorLink}>
           <div class="feed-post-avatar">
@@ -1068,8 +1069,6 @@ function bindFeedComposeOnce() {
       } else {
         setFeedComposeMessage("피드에 올라갔어요.", "success");
       }
-      // #333 — 단문 게시 직후 "이어서 쓰기" CTA를 보여준다. 클릭 시 thread 모드로 전환하면서 직전 본문을 item 1에 복원.
-      showFeedThreadFollowupCta(_feedComposeLastSubmittedBody);
       updateState();
       // 피드 다시 로드
       await loadLuminaFeedData(_luminaFeedFilter || "all");
@@ -1359,13 +1358,8 @@ function bindFeedComposeThreadMode(textarea, parentUpdateState) {
 function showFeedThreadFollowupCta(body) {
   const cta = document.getElementById("feedComposeFollowupCta");
   if (!cta) return;
-  const safeBody = String(body || "").slice(0, FEED_COMPOSE_MAX_BODY);
-  if (!safeBody) {
-    cta.hidden = true;
-    return;
-  }
-  cta.hidden = false;
-  cta.dataset.body = safeBody;
+  cta.hidden = true;
+  delete cta.dataset.body;
 }
 
 function dismissFeedThreadFollowupCta() {
@@ -1649,6 +1643,56 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     toast._hideTimer = setTimeout(function () { toast.classList.remove("is-visible"); }, 1800);
   }
 
+  function focusFeedPostCard(postId) {
+    var targetId = String(postId || "");
+    if (!targetId) return false;
+    var card = null;
+    document.querySelectorAll("[data-feed-post-id]").forEach(function (el) {
+      if (!card && String(el.getAttribute("data-feed-post-id") || "") === targetId) {
+        card = el;
+      }
+    });
+    if (!card) return false;
+    card.classList.add("is-feed-target");
+    card.setAttribute("tabindex", "-1");
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    try { card.focus({ preventScroll: true }); } catch (_) { card.focus(); }
+    if (card._feedTargetTimer) clearTimeout(card._feedTargetTimer);
+    card._feedTargetTimer = setTimeout(function () {
+      card.classList.remove("is-feed-target");
+    }, 2200);
+    return true;
+  }
+
+  async function handleFeedOriginalPostLink(postId) {
+    var targetId = String(postId || "");
+    if (!targetId) return;
+    if (focusFeedPostCard(targetId)) return;
+    try {
+      var res = await apiFetch(
+        "/api/v1/lumina-feed/posts/" + encodeURIComponent(targetId),
+        { auth: typeof isLoggedIn === "function" && isLoggedIn(), throwOnError: true }
+      );
+      var rawPost = res && (res.post || res.item || res.data || res);
+      if (!rawPost || !rawPost.id) {
+        showFeedShareToast("원글을 찾지 못했어요.");
+        return;
+      }
+      var normalized = normalizeFeedPost(rawPost);
+      var exists = _luminaFeedItems.some(function (post) {
+        return String(post && post.id || "") === targetId;
+      });
+      if (!exists) _luminaFeedItems = [normalized].concat(_luminaFeedItems);
+      renderLuminaFeed();
+      requestAnimationFrame(function () {
+        if (!focusFeedPostCard(targetId)) showFeedShareToast("원글을 불러왔지만 화면에서 찾지 못했어요.");
+      });
+    } catch (err) {
+      console.warn("[#401 original post focus]", { status: err && err.status });
+      showFeedShareToast("원글을 불러오지 못했어요.");
+    }
+  }
+
   async function handleFeedShare(postInfo) {
     if (!postInfo || !postInfo.postId) {
       showFeedShareToast("이 글의 공유 정보를 찾지 못했어요.");
@@ -1819,6 +1863,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     var body = feedEscapeHtml(bodySnippet);
     var author = feedEscapeHtml(postInfo.authorName || "Lumina 사용자");
     var postUrl = buildPostShareUrl(postInfo.postId);
+    var postIdAttr = postInfo.postId ? ' data-feed-original-post-id="' + feedEscapeHtml(String(postInfo.postId)) + '"' : "";
     modal.dataset.postId = postInfo.postId || "";
     modal.innerHTML =
       '<header class="feed-repost-head">' +
@@ -1831,7 +1876,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
           '<textarea maxlength="500" rows="3" placeholder="원글에 덧붙일 내 한마디를 적어주세요." data-feed-repost-input></textarea>' +
         '</label>' +
         '<article class="feed-repost-reference" aria-label="원글 참조">' +
-          '<header><strong>' + author + '</strong><a href="' + feedEscapeHtml(postUrl) + '" class="feed-repost-reference-link">원글 보기 →</a></header>' +
+          '<header><strong>' + author + '</strong><a href="' + feedEscapeHtml(postUrl) + '" class="feed-repost-reference-link"' + postIdAttr + '>원글 보기 →</a></header>' +
           '<p>' + body + '</p>' +
         '</article>' +
         '<p class="feed-pending-banner" data-feed-status hidden role="status" aria-live="polite"></p>' +
@@ -1889,6 +1934,12 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     if (document._feedSocialActionsBound) return;
     document._feedSocialActionsBound = true;
     document.addEventListener("click", function (e) {
+      var originalPostLink = e.target.closest("[data-feed-original-post-id]");
+      if (originalPostLink) {
+        e.preventDefault();
+        handleFeedOriginalPostLink(originalPostLink.getAttribute("data-feed-original-post-id"));
+        return;
+      }
       // 타래 잇기
       var threadBtn = e.target.closest("[data-feed-thread-extend]");
       if (threadBtn) {

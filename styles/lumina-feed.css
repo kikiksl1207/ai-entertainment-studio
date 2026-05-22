@@ -866,6 +866,12 @@ body.is-booting .feed-list::before {
 }
 
 /* ─────────── #309 타래 작성 UX ─────────── */
+.feed-compose-thread-toggle[hidden],
+.feed-thread-composer[hidden],
+.feed-compose-followup[hidden] {
+  display: none !important;
+}
+
 .feed-compose-thread-toggle {
   display: inline-flex;
   align-items: center;
@@ -1356,6 +1362,10 @@ body.is-booting .feed-list::before {
 
 /* ── #356 — 카드 액션바의 타래 잇기 / 리포스트 / 공유 + 인라인 패널 + 모달 + 토스트 ── */
 .feed-post-actions { flex-wrap: wrap; gap: 6px; }
+.feed-post.is-feed-target {
+  border-color: rgba(255, 126, 185, 0.72);
+  box-shadow: 0 0 0 2px rgba(255, 126, 185, 0.18), 0 18px 40px rgba(124, 58, 237, 0.18);
+}
 .feed-thread-extend-btn,
 .feed-repost-btn,
 .feed-share-btn {
