@@ -1,5 +1,51 @@
 # Team2 QA Inbox
 
+status: pass
+task: #391 - Charge products and first-charge bonus live QA
+environment:
+- branch: team2-qa/391-charge-products-live-qa
+- local main after pull: origin/main
+- basis commit: 02be921dde7ca5fb82204de1c1f3650cf4a26763
+- live API health commit: a792baa96b8308538508108a3c4bdbb31da674f5
+- live page: https://www.lumina-stage.com/charge
+- No token, cookie, password, env value, raw credential, or secret was recorded.
+- No PG/payment/order/wallet/refund/settlement mutation was executed.
+
+tested_flows:
+- PASS: `git pull origin main` completed before QA; local basis commit is `02be921dde7ca5fb82204de1c1f3650cf4a26763`.
+- PASS: live `/health` returned HTTP 200 and commit `a792baa96b8308538508108a3c4bdbb31da674f5`.
+- PASS: public `GET /api/v1/lumina-station/charge-policy` returned policy version `2026-05-21.charge-policy-v2`, web unit `1L = 10원`, `pg_pending`, and `orderMutationEnabled=false`.
+- PASS: public `GET /api/v1/lumina-products` returned exactly 6 active web charge products: 1,000 / 3,000 / 5,000 / 10,000 / 50,000 / 100,000 KRW.
+- PASS: live `/charge` rendered exactly 6 `.charge-product-card` cards at desktop 1280px, tablet 768px, and mobile 390px.
+- PASS: student small-pay products were clear on live cards: 1,000원=100L, 3,000원=300L, 5,000원=500L.
+- PASS: first-charge bonus copy was visible as a one-time benefit and calculated from base Lumina only: 10L, 30L, 50L, 100L, 500L, 1,000L.
+- PASS: 50,000원 displayed `기본 5,000L + 패키지 보너스 800L` separately from `첫충전 500L`, with total 6,300L.
+- PASS: 100,000원 displayed `기본 10,000L + 패키지 보너스 2,000L` separately from `첫충전 1,000L`, with total 13,000L.
+- PASS: all six live charge buttons were disabled as `결제 준비 중`, so no real payment/order flow could be triggered during QA.
+- PASS: 1280px, 768px, and 390px live checks had no page-level horizontal overflow.
+- PASS: live text had no replacement-character mojibake and no failed images were observed.
+- PASS: unauthenticated `GET /api/v1/lumina-station?take=6` returned HTTP 401, so account-specific station history remains protected.
+- PASS: `node --check pages/charge.js`.
+- PASS: `npm.cmd test -- lumina-station.service.spec.ts charge-products.policy.spec.ts payments.service.spec.ts --runInBand` from `server` passed 15 tests.
+
+observed_live_cards:
+- `루미나 100`: 100L, first-charge +10L, total 110L, 1,000원.
+- `루미나 300`: 300L, first-charge +30L, total 330L, 3,000원.
+- `루미나 500`: 500L, first-charge +50L, total 550L, 5,000원.
+- `루미나 1,000`: 1,000L, first-charge +100L, total 1,100L, 10,000원.
+- `루미나 5,000 + 보너스 800`: package total 5,800L, first-charge total 6,300L, 50,000원.
+- `루미나 10,000 + 보너스 2,000`: package total 12,000L, first-charge total 13,000L, 100,000원.
+
+notes:
+- Live API `/health` is behind local pulled main, but deployed charge policy/static page already expose the #391 target behavior.
+- No blocker found. Ready to move #391 out of QA/current-owner state.
+
+security_check:
+- PASS: no raw credential, token, cookie, password, env value, secret, or personal contact detail was written.
+- PASS: no PG/payment/order/wallet/refund/settlement mutation was executed.
+
+---
+
 status: fail
 task: #314 - Character chat persona/starter runtime re-QA
 environment:
