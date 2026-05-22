@@ -152,8 +152,11 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       acceptedFrom: ['Idempotency-Key header', 'body.idempotencyKey'],
       replayBehavior: 'return_existing_room_projection_without_second_debit',
       conflictStatus: 409,
+      conflictCode: 'PREMIUM_CHAT_ROOM_IDEMPOTENCY_CONFLICT',
       conflictMessageKey: 'chat.premiumRoom.idempotencyConflict',
       requestFingerprintFields: ['artistId', 'tierKey', 'amountLumina'],
+      replayRequiresSameFingerprint: true,
+      conflictWalletMutation: false,
       walletLedgerKeyPattern:
         'premium-chat-room-open:<artistId>:<client-idempotency-key>',
     },
@@ -164,6 +167,12 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       referenceType: 'premium_chat_room',
       requiresWalletLedgerTypeMigration: true,
       mutationEnabledByDefault: false,
+      balanceSource: 'wallet_accounts.cached_balance',
+      clientSubmittedBalanceTrusted: false,
+      amountSource: 'server room tier policy',
+      atomicBalanceGuard: 'cached_balance >= server_amount',
+      insufficientBalanceBehavior:
+        'return stable insufficient balance error without room, order, or ledger write',
     },
   },
   duration: {

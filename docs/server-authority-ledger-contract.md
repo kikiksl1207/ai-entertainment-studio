@@ -57,11 +57,15 @@ has verified and written the corresponding server ledger state.
 
 `premium_chat_donation` is reserved as the ledger/source name for future
 premium chat donations. It must follow the same debit rules as other paid
-actions before any UI is opened.
+actions before any UI is opened. Donation amount is server-normalized from the
+allowed fixed presets or integer custom amount range of 1L through 50,000L;
+client balance, local amount display, support score, ranking refresh, and
+remaining-meter values are never authority.
 
 `premium_chat_open` is reserved for future premium chat room open debits. It is
 not enabled by default; the DB ledger type migration and room storage must land
-before any public mutation can write it.
+before any public mutation can write it. Room-open amount must come from the
+server room tier policy only.
 
 Premium chat support points are deliberately separate from Lumina wallet ledger
 rows and from fan engagement points. The planned
@@ -180,6 +184,11 @@ Current state:
 - Public room-open policy responses expose stable public reasons only and do
   not expose internal admin notes, wallet ledger ids, provider payloads, raw
   user email, tokens, cookies, or DB URLs.
+- Room-open and donation retries are idempotent only for the same request
+  fingerprint. A same key with a different body returns the stable conflict code
+  before wallet lookup. Future debits use
+  `wallet_accounts.cached_balance >= server_amount`; insufficient balance writes
+  no room/order/event/wallet-ledger/support-point/ranking row.
 - Report intake moves the room into reported/blind/suspended/admin-review
   processing with no wallet action before an admin decision.
 - `closed`, `artist_closed`, `expired`, `reported`, `blind`, `suspended`,

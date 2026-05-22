@@ -15,6 +15,13 @@ export const PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA = [
   50000,
 ] as const;
 
+export const PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY = {
+  supported: true,
+  minLumina: 1,
+  maxLumina: 50000,
+  integerOnly: true,
+} as const;
+
 export const PREMIUM_CHAT_LEDGER_SOURCES = [
   'premium_chat_open',
   'premium_chat_message',
@@ -612,10 +619,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
   donation: {
     fixedAmountsLumina: PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA,
     customAmount: {
-      supported: true,
-      minLumina: 1,
-      maxLumina: 50000,
-      integerOnly: true,
+      ...PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY,
     },
     message: {
       optional: true,
@@ -626,8 +630,11 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       acceptedFrom: ['Idempotency-Key header', 'body.idempotencyKey'],
       replayBehavior: 'return_existing_projection_without_second_debit',
       conflictStatus: 409,
+      conflictCode: 'PREMIUM_CHAT_DONATION_IDEMPOTENCY_CONFLICT',
       conflictMessageKey: 'chat.donation.idempotencyConflict',
       requestFingerprintFields: ['sessionId', 'amountLumina', 'message'],
+      replayRequiresSameFingerprint: true,
+      conflictWalletMutation: false,
       walletLedgerKeyPattern:
         'premium-chat-donation:<sessionId>:<client-idempotency-key>',
     },
@@ -638,6 +645,14 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       referenceType: 'premium_chat_donation',
       artistSettlementEligible: true,
       requiresWalletLedgerTypeMigration: true,
+      balanceSource: 'wallet_accounts.cached_balance',
+      clientSubmittedBalanceTrusted: false,
+      amountSource: 'server-normalized donation amount',
+      allowedFixedAmountsLumina: PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA,
+      customAmount: PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY,
+      atomicBalanceGuard: 'cached_balance >= server_amount',
+      insufficientBalanceBehavior:
+        'return stable insufficient balance error without order, donation event, ledger, or ranking write',
     },
     blockedStates: {
       session: PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
@@ -702,7 +717,13 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       idempotencyKeyPattern:
         'premium-chat-donation:<sessionId>:<client-idempotency-key>',
       duplicateReplay: 'return_existing_order_and_projection',
+      duplicateReplayRequiresSameFingerprint: true,
       conflictReplay: '409 before wallet lookup',
+      conflictCode: 'PREMIUM_CHAT_DONATION_IDEMPOTENCY_CONFLICT',
+      conflictWalletMutation: false,
+      atomicBalanceGuard: 'cached_balance >= server_amount',
+      insufficientBalanceBehavior:
+        'no premium_chat_donation order/event/ledger/support-point/ranking write',
     },
     validationOrder: [
       'auth_required',
@@ -1141,3 +1162,57 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     },
   },
 } as const;
+
+export function resolvePremiumChatDonationAmountPolicy(input: {
+  amountLumina: unknown;
+}) {
+  const amount =
+    typeof input.amountLumina === 'number'
+      ? input.amountLumina
+      : typeof input.amountLumina === 'string'
+        ? Number(input.amountLumina)
+        : NaN;
+  const fixedAmounts = PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA as readonly number[];
+
+  if (!Number.isInteger(amount)) {
+    return {
+      allowed: false,
+      status: 400,
+      code: 'PREMIUM_CHAT_DONATION_AMOUNT_INVALID',
+      messageKey: 'chat.donation.invalidAmount',
+      amountLumina: null,
+      walletMutationEnabled: false,
+      clientSubmittedBalanceTrusted: false,
+    } as const;
+  }
+
+  if (
+    amount < PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY.minLumina ||
+    amount > PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY.maxLumina
+  ) {
+    return {
+      allowed: false,
+      status: 400,
+      code: 'PREMIUM_CHAT_DONATION_AMOUNT_OUT_OF_RANGE',
+      messageKey: 'chat.donation.amountOutOfRange',
+      amountLumina: amount,
+      minLumina: PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY.minLumina,
+      maxLumina: PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY.maxLumina,
+      walletMutationEnabled: false,
+      clientSubmittedBalanceTrusted: false,
+    } as const;
+  }
+
+  return {
+    allowed: true,
+    amountLumina: amount,
+    amountKind: fixedAmounts.includes(amount) ? 'fixed' : 'custom',
+    source: 'server-normalized donation amount',
+    walletMutationEnabled: false,
+    clientSubmittedBalanceTrusted: false,
+    clientSubmittedScoreTrusted: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+    messageKey: 'chat.donation.amountAccepted',
+  } as const;
+}

@@ -201,7 +201,8 @@ export const APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST = [
     rejectedOrIgnoredFields: CLIENT_ECONOMIC_TAMPER_FIELDS,
     authority: ['server premium chat room/support policy', 'wallet_accounts.cached_balance'],
     idempotencyOrProviderTransactionKey: 'client_idempotency_key_required_when_enabled',
-    doubleDebitGuard: 'mutation_blocked_until_room_or_donation_storage_exists',
+    doubleDebitGuard:
+      'mutation_blocked_until_room_or_donation_storage_exists_then_idempotency_fingerprint_and_atomic_cached_balance_gte_amount',
   },
   {
     surface: 'premium_video_unlock',

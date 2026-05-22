@@ -1022,6 +1022,16 @@ GET /api/v1/chat/me/premium-donations?period=monthly&status=confirmed&take=20
   50,000L. Custom donation is 1L through 50,000L, integer only.
 - Donation create accepts an optional message up to 200 chars and requires an
   idempotency key from the header or body.
+- Donation amount is normalized by the server. Client balance, local price,
+  support score, ranking refresh, and remaining-room meter values are not
+  authority. A same idempotency key with the same fingerprint replays the
+  existing projection; a same key with a different `sessionId`, `amountLumina`,
+  or `message` returns `PREMIUM_CHAT_DONATION_IDEMPOTENCY_CONFLICT` before
+  wallet lookup or ledger mutation.
+- Future donation debit must read `wallet_accounts.cached_balance` in the
+  transaction and use an atomic `cached_balance >= server_amount` guard. If the
+  guard fails, no donation order, donation event, wallet ledger,
+  support-point row, or ranking row is written.
 - Donation create is blocked before wallet lookup for reported, blind,
   suspended, refund-pending, refunded, admin-review, expired, or closed rooms.
 - Ranking list is read-only and disabled. The frontend cannot submit scores or
@@ -1052,6 +1062,11 @@ Premium room-open/refund/moderation contract (#331/#383/#395):
   10-day total, and server-calculated expiry is authoritative.
 - Future room-open create requires an idempotency key and a server wallet debit
   key scoped as `premium-chat-room-open:<artistId>:<client-idempotency-key>`.
+- Room-open retry uses the same replay rule: same key and same
+  `artistId/tierKey/amountLumina` fingerprint returns the existing projection;
+  a mismatch returns `PREMIUM_CHAT_ROOM_IDEMPOTENCY_CONFLICT` before wallet
+  lookup. Future room-open debit must use server tier amount plus an atomic
+  `wallet_accounts.cached_balance >= server_amount` guard.
 - 24-hour no-answer refund is a server-generated 100% refund path.
 - Artist forced close outside a normal answered/expired close moves through
   `refund_pending` and is a server-generated 100% refund candidate.
