@@ -1,6 +1,71 @@
 # Team2 QA Inbox
 
 status: fail
+task: #398 - Premium chat policy and screen QA matrix
+environment:
+- branch: team2-qa/398-premium-chat-policy-screen-qa
+- local main after pull: origin/main
+- basis commit: db9b68e9422d15ad54e711c5d1ecfd172b7763f9
+- live API health: HTTP 200
+- live pages:
+  - https://www.lumina-stage.com/character-chat
+  - https://www.lumina-stage.com/character-chat?slug=yoon-serin
+  - https://www.lumina-stage.com/chat-rankings
+- No token, cookie, password, env value, raw credential, or secret was recorded.
+- No wallet debit, order creation, settlement, payout, donation POST, room-open POST, or refund mutation was executed.
+
+tested_flows:
+- PASS: `git pull origin main` completed before QA; local basis commit is `db9b68e9422d15ad54e711c5d1ecfd172b7763f9`.
+- PASS: live `/character-chat` premium hub separates 좋아요 응원 순위, 소통 TOP, and 후원 랭킹; 좋아요 순위 links to `/lumina-pick`, while 소통/후원 rankings link to `/chat-rankings`.
+- PASS: live premium room plan cards show exactly 300L, 500L, 1,000L, and 3,000L tiers; no tier above 3,000L was visible.
+- PASS: live plan cards show 300L as the basic/entry room and 500L/1,000L/3,000L as locked/unlock-required tiers.
+- PASS: live plan cards show 기본 3일 and 최대 10일.
+- PASS: live `/chat-rankings` has separate 소통 TOP and 후원 랭킹 tabs, and states that 좋아요/lumina-boost ranking stays in 루미나 픽 and 후원 금액 is not mixed into 좋아요 순위.
+- PASS: live 후원 sheet opened from `character-chat?slug=yoon-serin` and showed fixed support amounts 10L, 50L, 100L, 500L, 1,000L, 5,000L, 10,000L, 50,000L plus direct custom input from 1L to 50,000L.
+- PASS: selecting 50,000L on the live 후원 sheet showed a high-value 본인확인 notice.
+- PASS: donation confirmation remained disabled as `후원 안내 확인`; no donation/payment/wallet mutation could be triggered.
+- PASS: 1280px, 768px, and 390px live checks had no page-level horizontal overflow, no replacement-character mojibake, and no failed images.
+- PASS: public unauthenticated `GET /api/v1/chat/premium-support-contract` returned HTTP 401, matching auth-required policy.
+- PASS: `node --check pages/premium-chat-support.js`, `pages/premium-chat-hub.js`, and `pages/chat-rankings.js`.
+- PASS: `npm.cmd test -- chat.service.spec.ts premium-chat-room-contract.spec.ts wallet-server-authority-policy.spec.ts --runInBand` from `server` passed 67 tests.
+- FAIL: live user-facing premium chat screens do not visibly state the 24-hour unanswered refund rule.
+- FAIL: live user-facing premium chat screens do not visibly state the user-fault refund limitation rates, 70% and 50%.
+
+repro_steps:
+1. Open `https://www.lumina-stage.com/character-chat`.
+2. Confirm the premium chat hub and plan cards show 300L / 500L / 1,000L / 3,000L, 기본 3일, 최대 10일.
+3. Open `https://www.lumina-stage.com/character-chat?slug=yoon-serin`.
+4. Click `후원 유료` to open the support sheet.
+5. Confirm the sheet shows 10L through 50,000L fixed support amounts and `내맘대로 후원`.
+6. Search visible copy on the hub, plan cards, ranking page, and support sheet for `24시간`, `70%`, and `50%`.
+7. Result: those refund-policy values are not visible on the tested user surfaces.
+
+expected:
+- Because #398 QA scope explicitly includes `24시간 미답변 환불 안내` and `유저 귀책 70%/50% 환불 제한 표시 톤`, at least one premium chat policy/user-facing surface should expose those values clearly before QA completion.
+
+actual:
+- The UI only shows general refund-related copy such as `환불·블라인드 처리된 항목은 제외돼요` and `신고/블라인드/환불 검토 중인 방에서는 후원이 일시 정지돼요`.
+- The concrete 24-hour unanswered refund rule and 70%/50% user-fault refund limitation rates are not visible.
+
+server_contract_reference:
+- Local contract on pulled main contains `PREMIUM_CHAT_ROOM_CONTRACT.refunds.unansweredAfterHours.hours = 24`.
+- Local contract contains `PREMIUM_CHAT_ROOM_CONTRACT.refunds.userFaultPartialRefund.allowedUserRefundBps = [7000, 5000]`.
+- Related tests passed, so the mismatch is screen/copy exposure rather than a local contract test failure.
+
+blockers:
+- #398 should not be marked complete until premium chat UI/copy exposes the 24-hour unanswered refund policy and the 70%/50% user-fault refund limitation clearly enough for users/operators.
+
+next_needed:
+- Return #398 to the previous screen owner, Cloud/#396, or PM Chamo for copy/UI follow-up.
+- Re-run the same matrix after the policy copy is visible on the deployed premium chat surface.
+
+security_check:
+- PASS: no raw credential, token, cookie, password, env value, secret, or personal contact detail was written.
+- PASS: no wallet debit, order creation, donation POST, room-open POST, refund, settlement, or payout mutation was executed.
+
+---
+
+status: fail
 task: #314 - Character chat persona/starter runtime re-QA
 environment:
 - branch: team2-qa/314-character-chat-reqa
