@@ -103,6 +103,11 @@ export class ChatController {
     return this.chatService.getPersonaTraitCatalog();
   }
 
+  @Get('chat/artist-knowledge-contract')
+  getArtistKnowledgeContract() {
+    return this.chatService.getArtistKnowledgeContract();
+  }
+
   @Get('chat/character-catalog')
   getCharacterChatCatalog(
     @Query('artistId') artistId?: string,

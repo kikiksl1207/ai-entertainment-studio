@@ -314,6 +314,7 @@ model Artist {
   followers         ArtistFollow[]
   notifications     UserNotification[]
   creatorImageRequests CreatorImageRequest[]
+  knowledgeSources ArtistKnowledgeSource[]
   fanMissions       FanMission[]
   fanMissionParticipations FanMissionParticipation[]
   conceptVotes      ConceptVote[]
@@ -365,6 +366,35 @@ model CreatorImageRequest {
   @@index([artistId, status, createdAt], map: "idx_creator_image_requests_artist_status")
   @@index([status, createdAt], map: "idx_creator_image_requests_status_created")
   @@map("creator_image_requests")
+}
+
+model ArtistKnowledgeSource {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId          String    @map("artist_id") @db.Uuid
+  sourceUrl         String    @map("source_url")
+  sourceDomain      String    @map("source_domain")
+  sourcePlatform    String    @default("other") @map("source_platform")
+  sourceType        String    @default("other") @map("source_type")
+  title             String?
+  artistDescription String   @map("artist_description")
+  summary           String
+  visibility        String    @default("chat_reference")
+  status            String    @default("pending")
+  rejectReason      String?   @map("reject_reason")
+  createdByUserId   String?   @map("created_by_user_id") @db.Uuid
+  updatedByUserId   String?   @map("updated_by_user_id") @db.Uuid
+  reviewedByUserId  String?   @map("reviewed_by_user_id") @db.Uuid
+  approvedAt        DateTime? @map("approved_at") @db.Timestamptz(6)
+  rejectedAt        DateTime? @map("rejected_at") @db.Timestamptz(6)
+  archivedAt        DateTime? @map("archived_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  artist            Artist    @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([artistId, sourceUrl], map: "uq_artist_knowledge_sources_artist_url")
+  @@index([artistId, status, visibility, approvedAt], map: "idx_artist_knowledge_sources_chat_lookup")
+  @@index([artistId, status, updatedAt], map: "idx_artist_knowledge_sources_artist_status")
+  @@map("artist_knowledge_sources")
 }
 
 model ArtistPublicProfile {

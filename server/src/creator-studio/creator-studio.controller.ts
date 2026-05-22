@@ -7,6 +7,10 @@ import {
   CreatorStudioSettlementPreviewQueryDto,
   CreatorStudioSettlementConversionQueryDto,
   CreateCreatorStudioSettlementConversionDto,
+  CreateCreatorStudioKnowledgeUrlDto,
+  CreatorStudioKnowledgeUrlQueryDto,
+  ReviewCreatorStudioKnowledgeUrlDto,
+  UpdateCreatorStudioKnowledgeUrlDto,
   UpdateCreatorStudioArtistProfileDto,
 } from './dto/creator-studio.dto';
 
@@ -50,6 +54,56 @@ export class CreatorStudioController {
     @Body() body: CreateCreatorStudioSettlementConversionDto,
   ) {
     return this.creatorStudioService.createSettlementConversion(user.id, body);
+  }
+
+  @Get('knowledge-urls')
+  getKnowledgeUrls(
+    @CurrentUser() user: AuthUser,
+    @Query() query: CreatorStudioKnowledgeUrlQueryDto,
+  ) {
+    return this.creatorStudioService.getKnowledgeUrls(user.id, query);
+  }
+
+  @Post('knowledge-urls')
+  createKnowledgeUrl(
+    @CurrentUser() user: AuthUser,
+    @Body() body: CreateCreatorStudioKnowledgeUrlDto,
+  ) {
+    return this.creatorStudioService.createKnowledgeUrl(user.id, body);
+  }
+
+  @Patch('knowledge-urls/:sourceId')
+  updateKnowledgeUrl(
+    @CurrentUser() user: AuthUser,
+    @Param('sourceId') sourceId: string,
+    @Body() body: UpdateCreatorStudioKnowledgeUrlDto,
+  ) {
+    return this.creatorStudioService.updateKnowledgeUrl(user.id, sourceId, body);
+  }
+
+  @Post('knowledge-urls/:sourceId/approve')
+  approveKnowledgeUrl(
+    @CurrentUser() user: AuthUser,
+    @Param('sourceId') sourceId: string,
+  ) {
+    return this.creatorStudioService.approveKnowledgeUrl(user.id, sourceId);
+  }
+
+  @Post('knowledge-urls/:sourceId/reject')
+  rejectKnowledgeUrl(
+    @CurrentUser() user: AuthUser,
+    @Param('sourceId') sourceId: string,
+    @Body() body: ReviewCreatorStudioKnowledgeUrlDto,
+  ) {
+    return this.creatorStudioService.rejectKnowledgeUrl(user.id, sourceId, body);
+  }
+
+  @Post('knowledge-urls/:sourceId/archive')
+  archiveKnowledgeUrl(
+    @CurrentUser() user: AuthUser,
+    @Param('sourceId') sourceId: string,
+  ) {
+    return this.creatorStudioService.archiveKnowledgeUrl(user.id, sourceId);
   }
 
   @Patch('artists/:artistId/profile')
