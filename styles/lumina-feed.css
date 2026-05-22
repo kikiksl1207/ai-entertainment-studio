@@ -1618,3 +1618,143 @@ body.is-feed-repost-open { overflow: hidden; }
   .feed-post-continuation { margin-left: 14px; padding-left: 10px; }
   .feed-post-continuation-connector { left: -14px; width: 12px; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   #390 — 루미나 피드 프리미엄챗 진입 영역
+   feed-trend-panel 안의 세 번째 카드. 390px / 768px / 1280px 모두
+   겹침 없도록 flex column 부모(feed-trend-panel) 안에서 자연스럽게 배치.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* 랭킹 링크 3개 */
+.feed-premium-entry-all {
+  font-size: 11px;
+  font-weight: 700;
+  color: #c8a6ff;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.feed-premium-entry-all:hover { color: #fff; }
+
+.feed-premium-entry-rankings {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.feed-premium-entry-rank {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 6px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: rgba(240, 238, 248, 0.82);
+  font-size: 12.5px;
+  transition: background 0.15s;
+}
+.feed-premium-entry-rank:hover {
+  background: rgba(159, 139, 199, 0.12);
+  color: #f0eef8;
+}
+.feed-premium-entry-rank-label { flex: 1; min-width: 0; }
+.feed-premium-entry-rank-arrow {
+  flex-shrink: 0;
+  font-size: 15px;
+  color: rgba(200, 166, 255, 0.6);
+  line-height: 1;
+}
+
+/* 구분선 */
+.feed-premium-entry-divider {
+  border: none;
+  border-top: 1px solid rgba(159, 139, 199, 0.15);
+  margin: 8px 0;
+}
+
+/* 내 채팅방 */
+.feed-premium-entry-rooms-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.feed-premium-entry-rooms-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(240, 238, 248, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.feed-premium-entry-rooms-state {
+  font-size: 11px;
+  color: rgba(200, 166, 255, 0.7);
+  font-weight: 700;
+}
+
+.feed-premium-entry-rooms-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.feed-premium-entry-rooms-loading,
+.feed-premium-entry-rooms-empty {
+  font-size: 12px;
+  color: rgba(240, 238, 248, 0.45);
+  padding: 4px 6px;
+}
+.feed-premium-entry-rooms-cta {
+  color: #c8a6ff;
+  text-decoration: none;
+}
+.feed-premium-entry-rooms-cta:hover { text-decoration: underline; }
+
+.feed-premium-entry-room { display: block; }
+.feed-premium-entry-room-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: rgba(240, 238, 248, 0.85);
+  font-size: 12.5px;
+  transition: background 0.15s;
+}
+.feed-premium-entry-room-link:hover {
+  background: rgba(159, 139, 199, 0.12);
+  color: #f0eef8;
+}
+.feed-premium-entry-room-avatar {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(159, 139, 199, 0.25) center/cover no-repeat;
+}
+.feed-premium-entry-room-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 비용·안전 안내 */
+.feed-premium-entry-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: rgba(240, 238, 248, 0.38);
+}
+
+/* ≤640px (390px 포함): feed-trend-panel이 이미 order:3/static → 카드 자체는 변화 없음.
+   겹침 없음 확인: feed-shell이 flex column이므로 카드들이 순서대로 쌓임. */
+@media (max-width: 640px) {
+  .feed-premium-entry-rank { padding: 8px 6px; }
+}
