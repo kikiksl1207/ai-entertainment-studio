@@ -166,6 +166,7 @@
     hydrateStudio(data);
     loadSettlementPreview();
     loadSettlementConversions();
+    loadKnowledgeUrls();
   }
 
   function openStudioShellPending() {
@@ -312,6 +313,7 @@
 
     renderArtists(artists, usedSlots, slotLimit);
     populateProfileEditor(artists);
+    populateKnowledgeUrlArtistSelect(artists);
   }
 
   function renderArtists(artists, usedSlots, slotLimit) {
@@ -595,6 +597,167 @@
     text("studioSettlementException", exceptionApproved ? "예외 승인" : "고객센터 문의");
   }
 
+  // ── #409 — 아티스트 자료 URL 등록 ──────────────────────────────────────
+
+  function isValidKnowledgeUrl(value) {
+    if (!value) return false;
+    try {
+      const u = new URL(value);
+      return u.protocol === "http:" || u.protocol === "https:";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function setKnowledgeUrlState(message, tone) {
+    const el = document.getElementById("knowledgeUrlFormState");
+    if (!el) return;
+    el.textContent = message;
+    el.classList.toggle("is-good", tone === "good");
+    el.classList.toggle("is-danger", tone === "danger");
+  }
+
+  function knowledgeUrlStatusLabel(status) {
+    return { pending: "승인 대기", approved: "승인됨", rejected: "반려", archived: "보관", processing: "처리 중" }[status] || "승인 대기";
+  }
+
+  function knowledgeUrlStatusClass(status) {
+    return { pending: "is-warn", approved: "is-good", rejected: "is-error", archived: "", processing: "" }[status] || "is-warn";
+  }
+
+  function knowledgeUrlTypeLabel(type) {
+    return { youtube: "YouTube", instagram: "Instagram", tiktok: "TikTok", blog: "블로그", notice: "공지", other: "기타" }[type] || "기타";
+  }
+
+  function populateKnowledgeUrlArtistSelect(artists) {
+    const select = document.getElementById("knowledgeUrlArtistSelect");
+    if (!select || !artists.length) return;
+    select.innerHTML = artists.map(item => '<option value="' + escapeHtml(artistId(item)) + '">' + escapeHtml(artistName(item)) + '</option>').join("");
+  }
+
+  function renderKnowledgeUrls(items) {
+    const rows = document.getElementById("knowledgeUrlRows");
+    if (!rows) return;
+    const navBadge = document.querySelector('[data-section="knowledge-url"] b');
+    if (navBadge) navBadge.textContent = String(items.length);
+    if (!items.length) {
+      rows.innerHTML = '<tr><td colspan="6">등록된 자료 URL이 없습니다. 위 폼으로 첫 번째 자료를 등록해보세요.</td></tr>';
+      return;
+    }
+    rows.innerHTML = items.map(item => {
+      const rawUrl = String(item.url || "");
+      const urlTrunc = rawUrl.replace(/^https?:\/\//, "").slice(0, 40) + (rawUrl.length > 40 ? "…" : "");
+      const rawDesc = String(item.description || item.summary || "");
+      const descTrunc = rawDesc.slice(0, 60) + (rawDesc.length > 60 ? "…" : "");
+      const allowRef = item.allowChatRef !== false;
+      const chatLabel = !allowRef ? "미허용" : (item.status === "approved" ? "참고 가능" : "승인 대기");
+      const chatClass = !allowRef ? "" : (item.status === "approved" ? "is-good" : "is-warn");
+      const statusLabel = knowledgeUrlStatusLabel(item.status || "pending");
+      const statusClass = knowledgeUrlStatusClass(item.status || "pending");
+      const typeLabel = knowledgeUrlTypeLabel(item.type || "other");
+      const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" }) : "-";
+      return "<tr>" +
+        "<td><span class=\"badge\">" + escapeHtml(typeLabel) + "</span></td>" +
+        "<td><a class=\"knowledge-url-link\" href=\"" + escapeHtml(rawUrl || "#") + "\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"" + escapeHtml(rawUrl) + "\">" + escapeHtml(urlTrunc || "-") + "</a></td>" +
+        "<td>" + escapeHtml(descTrunc || "-") + "</td>" +
+        "<td><span class=\"badge " + escapeHtml(chatClass) + "\">" + escapeHtml(chatLabel) + "</span></td>" +
+        "<td><span class=\"badge " + escapeHtml(statusClass) + "\">" + escapeHtml(statusLabel) + "</span></td>" +
+        "<td>" + escapeHtml(dateStr) + "</td>" +
+      "</tr>";
+    }).join("");
+  }
+
+  async function loadKnowledgeUrls() {
+    const token = readAuth()?.accessToken;
+    const rows = document.getElementById("knowledgeUrlRows");
+    if (!token || !rows) return;
+    rows.innerHTML = '<tr><td colspan="6">자료 URL 목록을 불러오는 중입니다.</td></tr>';
+    try {
+      const params = new URLSearchParams();
+      const artistSel = document.getElementById("knowledgeUrlArtistSelect");
+      if (artistSel?.value) params.set("artistId", artistSel.value);
+      const res = await fetch(apiBase + "/api/v1/me/creator-studio/knowledge-urls?" + params, {
+        headers: { Authorization: "Bearer " + token }
+      });
+      if (res.status === 404 || res.status === 501) {
+        rows.innerHTML = '<tr><td colspan="6">자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요. 폼 구성은 미리 확인할 수 있습니다.</td></tr>';
+        return;
+      }
+      if (!res.ok) throw new Error("load failed");
+      const data = await res.json().catch(() => null);
+      const items = Array.isArray(data) ? data : (data?.items || data?.urls || []);
+      renderKnowledgeUrls(items);
+    } catch (_) {
+      if (rows) rows.innerHTML = '<tr><td colspan="6">목록을 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</td></tr>';
+    }
+  }
+
+  async function submitKnowledgeUrl() {
+    const token = readAuth()?.accessToken;
+    const artistSel = document.getElementById("knowledgeUrlArtistSelect");
+    const typeSel = document.getElementById("knowledgeUrlType");
+    const urlInput = document.getElementById("knowledgeUrlInput");
+    const descEl = document.getElementById("knowledgeUrlDesc");
+    const allowChatEl = document.getElementById("knowledgeUrlAllowChat");
+    const submitBtn = document.getElementById("knowledgeUrlSubmit");
+
+    const url = urlInput?.value.trim() || "";
+    const description = descEl?.value.trim() || "";
+    const type = typeSel?.value || "other";
+    const allowChatRef = allowChatEl?.checked ?? true;
+    const selectedArtistId = artistSel?.value || "";
+
+    if (!url) {
+      setKnowledgeUrlState("URL을 입력해주세요.", "danger");
+      urlInput?.focus();
+      return;
+    }
+    if (!isValidKnowledgeUrl(url)) {
+      setKnowledgeUrlState("올바른 URL 형식이 아닙니다. https://로 시작하는 주소를 입력해주세요.", "danger");
+      urlInput?.focus();
+      return;
+    }
+    if (!description) {
+      setKnowledgeUrlState("캐릭터가 참고할 설명을 입력해주세요.", "danger");
+      descEl?.focus();
+      return;
+    }
+    if (!token) {
+      setKnowledgeUrlState("로그인 정보가 없습니다. 다시 로그인해주세요.", "danger");
+      return;
+    }
+
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "등록 중"; }
+    setKnowledgeUrlState("등록 신청 중입니다.", "");
+
+    try {
+      const res = await fetch(apiBase + "/api/v1/me/creator-studio/knowledge-urls", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+        body: JSON.stringify({ artistId: selectedArtistId, type, url, description, allowChatRef })
+      });
+      if (res.status === 404 || res.status === 501) {
+        setKnowledgeUrlState("자료 URL 등록 API가 아직 준비 중입니다. 운영팀 안내 후 이용할 수 있어요.", "danger");
+        return;
+      }
+      if (!res.ok) {
+        setKnowledgeUrlState("등록에 실패했습니다. 잠시 후 다시 시도해주세요.", "danger");
+        return;
+      }
+      setKnowledgeUrlState("자료 URL이 등록되었습니다. 관리자 검토 후 승인 대기 상태로 전환됩니다.", "good");
+      if (urlInput) urlInput.value = "";
+      if (descEl) descEl.value = "";
+      showToast("등록 신청이 접수되었습니다. 검토 후 안내드립니다.");
+      loadKnowledgeUrls();
+    } catch (_) {
+      setKnowledgeUrlState("등록 요청 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", "danger");
+    } finally {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "등록 신청"; }
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+
   function aggregateBreakdown(items) {
     const labels = {
       chat: "채팅",
@@ -818,6 +981,18 @@
       showToast(actionButton.textContent.trim() + " 기능은 다음 연결 단계에서 활성화합니다.");
     }
   });
+
+  // #409 — 자료 URL 등록 이벤트
+  document.getElementById("knowledgeUrlSubmit")?.addEventListener("click", submitKnowledgeUrl);
+  document.getElementById("knowledgeUrlReset")?.addEventListener("click", () => {
+    const urlInput = document.getElementById("knowledgeUrlInput");
+    const descEl = document.getElementById("knowledgeUrlDesc");
+    if (urlInput) urlInput.value = "";
+    if (descEl) descEl.value = "";
+    setKnowledgeUrlState("URL과 설명을 입력한 뒤 등록하면 관리자 검토 대기 상태로 접수됩니다.", "");
+  });
+  document.getElementById("knowledgeUrlRefresh")?.addEventListener("click", loadKnowledgeUrls);
+  document.getElementById("knowledgeUrlArtistSelect")?.addEventListener("change", loadKnowledgeUrls);
 
   const initialSection = location.hash.replace("#", "");
   if (initialSection) setActiveSection(initialSection);

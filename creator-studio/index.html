@@ -48,6 +48,7 @@
           <button type="button" data-section="feed">피드 작성 <b>6</b></button>
           <button type="button" data-section="media">이미지/숏폼 <b>24</b></button>
           <button type="button" data-section="image-lab" disabled aria-disabled="true" style="opacity:.45; cursor:not-allowed;">이미지 요청 <b>준비</b></button>
+          <button type="button" data-section="knowledge-url">자료 URL <b>0</b></button>
           <button type="button" data-section="settlement">정산 <b>₩</b></button>
           <button type="button" data-section="settings">설정 <b>!</b></button>
         </nav>
@@ -269,6 +270,73 @@
                   <tr><td>IMG-024</td><td>하윤아</td><td>숏폼 썸네일</td><td>운영 검토</td><td><span class="badge is-warn">검수 대기</span></td><td>레드/블루 조명 후보</td></tr>
                   <tr><td>IMG-023</td><td>윤세린</td><td>피드 이미지</td><td>운영 검토</td><td><span class="badge is-good">전달 완료</span></td><td>공식 피드 슬롯 연결</td></tr>
                   <tr><td>IMG-022</td><td>박도아</td><td>콘셉트 레퍼런스</td><td>운영 검토</td><td><span class="badge">재조정 1회</span></td><td>표정 톤 재요청</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <!-- #409 — 아티스트 자료 URL 등록 UI 1차 -->
+        <section class="studio-section" id="knowledge-url">
+          <article class="panel">
+            <div class="panel-header">
+              <div><span class="panel-kicker">KNOWLEDGE</span><h2>자료 URL 등록</h2></div>
+              <span class="badge">승인 후 캐릭터챗 참고</span>
+            </div>
+            <div class="notice">
+              <strong>참고 반영 흐름</strong>
+              <span>등록된 URL은 즉시 캐릭터챗에 반영되지 않습니다. 관리자 검토와 AI 요약 처리 후 참고 상태로 전환됩니다. 승인 전에는 <strong>승인 대기</strong> 상태로 표시됩니다.</span>
+            </div>
+            <div class="form-grid">
+              <label>
+                <span>대상 아티스트</span>
+                <select id="knowledgeUrlArtistSelect"></select>
+              </label>
+              <label>
+                <span>자료 유형</span>
+                <select id="knowledgeUrlType">
+                  <option value="youtube">YouTube</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="blog">블로그</option>
+                  <option value="notice">공지·발표</option>
+                  <option value="other">기타 URL</option>
+                </select>
+              </label>
+              <label class="is-wide">
+                <span>URL</span>
+                <input id="knowledgeUrlInput" type="url" maxlength="2000" placeholder="https://..." autocomplete="off" spellcheck="false" />
+              </label>
+              <label class="is-wide">
+                <span>캐릭터가 참고할 요약 설명</span>
+                <textarea id="knowledgeUrlDesc" maxlength="500" placeholder="이 자료에서 캐릭터챗이 참고할 내용을 간략히 설명해주세요. (최대 500자)"></textarea>
+              </label>
+              <label class="is-wide">
+                <span>캐릭터챗 참고 허용</span>
+                <span class="knowledge-url-check-row">
+                  <input id="knowledgeUrlAllowChat" type="checkbox" class="knowledge-url-checkbox" checked />
+                  <span>관리자 승인 후 AI 요약 처리에 포함합니다. 승인 전에는 <strong>캐릭터챗 참고 대기</strong> 상태로 표시됩니다.</span>
+                </span>
+              </label>
+            </div>
+            <p class="studio-form-state" id="knowledgeUrlFormState">URL과 설명을 입력한 뒤 등록하면 관리자 검토 대기 상태로 접수됩니다.</p>
+            <div class="composer-tools">
+              <button class="primary-action" type="button" id="knowledgeUrlSubmit">등록 신청</button>
+              <button class="secondary-action" type="button" id="knowledgeUrlReset">초기화</button>
+            </div>
+          </article>
+          <article class="table-card">
+            <header>
+              <div><span class="panel-kicker">REGISTERED</span><h3>등록 자료 목록</h3></div>
+              <button class="secondary-action" type="button" id="knowledgeUrlRefresh">새로고침</button>
+            </header>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>유형</th><th>URL</th><th>설명 요약</th><th>캐릭터챗</th><th>상태</th><th>등록일</th></tr>
+                </thead>
+                <tbody id="knowledgeUrlRows">
+                  <tr><td colspan="6">등록된 자료 URL을 불러오는 중입니다.</td></tr>
                 </tbody>
               </table>
             </div>

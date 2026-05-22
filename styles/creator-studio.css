@@ -722,6 +722,50 @@ label { gap: 8px; }
   }
 }
 
+/* #409 — 자료 URL 등록 (knowledge-url 섹션) */
+.knowledge-url-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.055);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.knowledge-url-check-row:has(.knowledge-url-checkbox:focus-visible) {
+  border-color: rgba(255, 79, 195, 0.55);
+  box-shadow: 0 0 0 3px rgba(255, 79, 195, 0.12);
+}
+.knowledge-url-checkbox {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  min-height: auto;
+  margin-top: 2px;
+  accent-color: var(--hot);
+  border-radius: 4px;
+}
+.knowledge-url-check-row > span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.knowledge-url-check-row > span strong {
+  color: var(--text);
+}
+.knowledge-url-link {
+  color: var(--violet);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+  transition: color 0.15s;
+}
+.knowledge-url-link:hover {
+  color: var(--hot);
+}
+
 /* Creator Studio shared polish */
 .page-creator-studio .studio-nav b {
   color: #ff5aa8;
