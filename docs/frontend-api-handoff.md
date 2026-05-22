@@ -2683,6 +2683,9 @@ If `artistId` or `artistSlug` is provided, the backend requires an active
 
 Assets must already be uploaded/confirmed through the existing asset flow. Pending, archived, private, non-image, duplicate, or unknown assets return `400`.
 Feed video upload is not open in MVP. Route video/performance/challenge content to Shortform, not Lumina Feed.
+Regular Lumina Feed post bodies are capped at 2200 characters. A 2201-character
+regular post body returns `400`. Image-only posts remain allowed when `assetIds`
+contains at least one confirmed public image asset.
 
 Legacy manual multi-piece posts:
 
@@ -2725,14 +2728,14 @@ Thread continuation body:
 Repost body:
 
 ```json
-{ "body": "optional quote text, max 500 chars" }
+{ "body": "optional quote text, max 2200 chars" }
 ```
 
 - "이어쓰기" means adding a new continuation post under an already-created public published root post. It is not long-text splitting and it is not a normal reply/comment.
 - `POST /lumina-feed/posts/:postId/thread-continuations` requires login and the caller must be the root post author. Non-authors get `403`; missing/deleted/private roots get safe `404`.
 - Created continuation rows include `post.threadContinuation`: `{ isContinuation: true, relation: "thread_continuation", rootPostId, parentPostId, displayPlacement: "under_root_post", commentRelation: false, replyRelation: false, autoSplit: false }`.
 - `GET /lumina-feed/posts/:postId/thread-continuations` lists only continuation rows for the root. Keep this UI separate from `GET /lumina-feed/posts/:postId/replies`.
-- `POST /lumina-feed/posts/:postId/reposts` requires login and creates either `repost` or `quote_repost` based on whether `body` is present. Rows include `post.repost.originalPostId` and original author/artist ids.
+- `POST /lumina-feed/posts/:postId/reposts` requires login and creates either `repost` or `quote_repost` based on whether `body` is present. Quote body is capped at 2200 characters. Rows include `post.repost.originalPostId` and original author/artist ids.
 - If the repost source is later deleted, hidden, blocked, or private, or if the current viewer has hidden the original or has an active block relationship with the original author, render the embedded original as unavailable/tombstone and do not expose the original body. In this state `post.repost.originalState` is `unavailable`, `post.repost.tombstone` is `true`, and `post.repost.originalPost` is `null`.
 - `POST /lumina-feed/posts/:postId/share` returns `share.publicPath`, `share.webShare`, and `share.countStrategy: "not_mutated_by_share_contract"`. It does not create a repost row and does not mutate wallet, Lumina, settlement, payout, order, or paid-like state.
 
@@ -2835,7 +2838,7 @@ Post responses include `assets` when images are linked:
 }
 ```
 `DELETE /lumina-feed/posts/:postId` soft-deletes the current user's own post and returns `{ "ok": true }`. Artist operators can also delete posts for artists they operate. It does not hard-delete content.
-`PATCH /lumina-feed/posts/:postId` edits the post body for the current user's own post and returns `{ post, policy }`. MVP edit scope is body-only; image replacement/removal is not supported yet. Body must be 1-500 characters.
+`PATCH /lumina-feed/posts/:postId` edits the post body for the current user's own post and returns `{ post, policy }`. MVP edit scope is body-only; image replacement/removal is not supported yet. Body must be 1-2200 characters.
 Signed-in feed responses from `GET /me/lumina-feed` include `post.viewer` and `post.permissions` hints: `hasLiked`, `isAuthor`, `isFollowingArtist`, `isFollowingAuthor`, `canFollowArtist`, `canUnfollowArtist`, `canFollowAuthor`, `canUnfollowAuthor`, `canEdit`, `canDelete`, and `editScope`. Use these to decide whether to show like, follow, edit, and delete actions. Public `GET /lumina-feed` cannot include viewer-specific state.
 
 Replies:

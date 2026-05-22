@@ -258,7 +258,12 @@ from feed lists. It does not hard-delete content.
 
 Body rules:
 
-- `body`: 1-500 characters.
+- Regular feed `body`: 1-2200 characters. If `assetIds` contains at least one
+  confirmed public image asset, an empty body is still allowed for image-only
+  posts.
+- Quote repost `body` uses the same 2200-character cap as regular feed posts.
+- Thread continuation body remains capped at 500 characters.
+- Reply body remains capped at 300 characters.
 - `visibility`: `public` or `followers`, default `public`.
 - MVP only exposes `public` feed. `followers` is reserved for later UI/policy work.
 - `assetIds`: optional array of 0-4 unique public image asset UUIDs. Assets must
@@ -274,8 +279,8 @@ Manual thread rules:
   `items`/`threadItems`/`pieces` array for a manual thread.
 - The root piece is stored as the normal feed post body and counts toward the
   default max of 10 pieces.
-- Each piece is limited to 500 characters. 11 or more pieces, empty pieces, or a
-  501-character piece return `400`.
+- Each manual thread piece remains limited to 500 characters. 11 or more pieces,
+  empty pieces, or a 501-character piece return `400`.
 - The backend does not auto-split long text; clients must ask the user to
   confirm each piece before submitting.
 - Response includes `{ post, rootId, rootPostId, itemCount, threadCount,

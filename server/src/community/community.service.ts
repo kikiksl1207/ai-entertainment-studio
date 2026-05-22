@@ -43,9 +43,12 @@ const REPORT_REASONS = new Set([
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FEED_POST_MAX_IMAGES = 4;
-const FEED_POST_MAX_BODY_CHARS = 500;
+const FEED_POST_MAX_BODY_CHARS = 2200;
 const FEED_THREAD_MAX_ITEMS = 10;
+const FEED_THREAD_ITEM_MAX_BODY_CHARS = 500;
+const FEED_THREAD_CONTINUATION_MAX_BODY_CHARS = 500;
 const FEED_THREAD_PREVIEW_MAX_CHARS = 160;
+const FEED_REPLY_MAX_BODY_CHARS = 300;
 const FEED_EXTERNAL_URL_MAX_LENGTH = 2048;
 const SEARCH_LANGUAGES = new Set(['ko', 'ja', 'en', 'zh', 'unknown']);
 const TRENDING_LANGUAGE_FILTERS = new Set(['all', 'ko', 'ja', 'en', 'zh', 'unknown']);
@@ -713,7 +716,7 @@ export class CommunityService {
       throw new ForbiddenException('Post author access is required');
     }
 
-    const body = this.text(input, 'body', 1, FEED_POST_MAX_BODY_CHARS);
+    const body = this.text(input, 'body', 1, FEED_THREAD_CONTINUATION_MAX_BODY_CHARS);
     const metadata = {
       ...this.relationInputMetadata(input),
       threadContinuation: this.buildThreadContinuationMetadata(rootPost, new Date()),
@@ -1047,7 +1050,7 @@ export class CommunityService {
   async createReply(userId: string, postId: string, input: CommunityBody) {
     await this.assertActiveUser(userId);
     const post = await this.findVisiblePost(postId);
-    const body = this.text(input, 'body', 1, 300);
+    const body = this.text(input, 'body', 1, FEED_REPLY_MAX_BODY_CHARS);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const reply = await tx.communityReply.create({
@@ -3803,7 +3806,7 @@ export class CommunityService {
   private feedThreadPolicy() {
     return {
       maxItems: FEED_THREAD_MAX_ITEMS,
-      maxCharsPerItem: FEED_POST_MAX_BODY_CHARS,
+      maxCharsPerItem: FEED_THREAD_ITEM_MAX_BODY_CHARS,
       rootIncludedInLimit: true,
       autoSplit: false,
       rootOnlyEngagement: true,
@@ -3822,7 +3825,7 @@ export class CommunityService {
       relation: 'thread_continuation',
       source: 'existing_post',
       rootAuthorOnly: true,
-      maxCharsPerItem: FEED_POST_MAX_BODY_CHARS,
+      maxCharsPerItem: FEED_THREAD_CONTINUATION_MAX_BODY_CHARS,
       autoSplit: false,
       commentRelation: false,
       replyRelation: false,
@@ -4085,9 +4088,9 @@ export class CommunityService {
       throw new BadRequestException(`thread item ${position} body must be a non-empty string`);
     }
 
-    if (body.length > FEED_POST_MAX_BODY_CHARS) {
+    if (body.length > FEED_THREAD_ITEM_MAX_BODY_CHARS) {
       throw new BadRequestException(
-        `thread item ${position} body must be shorter than or equal to ${FEED_POST_MAX_BODY_CHARS} characters`,
+        `thread item ${position} body must be shorter than or equal to ${FEED_THREAD_ITEM_MAX_BODY_CHARS} characters`,
       );
     }
 
