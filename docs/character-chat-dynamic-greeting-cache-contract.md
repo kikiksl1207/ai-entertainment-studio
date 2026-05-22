@@ -1,0 +1,104 @@
+# Character Chat Dynamic Greeting Cache Contract
+
+Updated: 2026-05-22
+Owner: Luffy
+Task: Notion #388
+
+This contract makes the first character-chat greeting dynamic per chat session
+without generating a new greeting on every page refresh. It keeps raw prompts,
+provider payloads, tokens, API keys, user private data, wallet/order/settlement,
+and payout details out of public responses and documentation.
+
+## Runtime Shape
+
+`POST /api/v1/chat/sessions` still creates an authenticated chat session. The
+response now includes an additive `openingGreeting` projection:
+
+```json
+{
+  "id": "<chat session id>",
+  "artist": { "id": "<artist id>", "slug": "<artist slug>", "displayName": "<name>" },
+  "openingGreeting": {
+    "id": "<chat message id>",
+    "text": "<short display-safe greeting>",
+    "messageType": "opening_greeting",
+    "cache": {
+      "scope": "chat_session",
+      "key": "opening_greeting",
+      "hit": false,
+      "reloadCreatesNewGreeting": false
+    },
+    "generation": {
+      "contractVersion": "2026-05-22.character-chat-dynamic-greeting-cache.v1",
+      "providerCall": true,
+      "maxOutputChars": 180,
+      "maxOutputTokens": 120
+    }
+  }
+}
+```
+
+The greeting is stored as a `chat_messages` row with:
+
+- `senderType=artist`
+- `messageType=opening_greeting`
+- `chatSessionId=<session id>`
+
+`GET /api/v1/chat/sessions/:sessionId/messages` checks for that row before
+returning the message list. If the row already exists, it returns the cached
+message and does not call the provider.
+
+## Generation Policy
+
+- Cache scope: one greeting per `chat_sessions.id`.
+- Same session reload: return cached `opening_greeting`.
+- Same character, different sessions: wording can vary through provider output
+  or deterministic fallback variant seed from the session id.
+- Provider output is limited to a short greeting:
+  `maxOutputTokens=120`, `maxOutputChars=180`.
+- Provider generation is attempted only when the provider is ready and the
+  existing daily provider guard has remaining request/failure capacity.
+- If provider readiness, guard, or request fails, the backend stores a
+  character-specific fallback greeting.
+- Fallback uses the same character runtime persona source order:
+  site-content copy, artist metadata, character fallback, then default copy.
+
+## Safety
+
+The opening greeting metadata records only safe operational facts:
+
+- contract version
+- purpose `opening_greeting`
+- cache scope
+- provider/model/usage only when a provider response was actually used
+- fallback reason when fallback was used
+
+It does not store or return:
+
+- raw prompt
+- provider payload
+- token
+- API key
+- user private data
+- raw provider secret
+- wallet/order/settlement/payout ids
+
+## Frontend Notes
+
+- Prefer `openingGreeting.text` from `POST /chat/sessions` when present.
+- When loading messages, render the `opening_greeting` message as the first
+  artist-side greeting if it appears in the message list.
+- Do not request a new greeting on refresh. Reloading the same session should
+  use `GET /chat/sessions/:sessionId/messages` and the cached row.
+- Do not display raw source/metadata enum values as user copy.
+
+## Test Baseline
+
+The backend test fixes:
+
+- provider-generated opening greeting is stored once as `opening_greeting`
+- cached message reads do not call the provider
+- provider-unavailable fallback still returns character-specific text
+- same character can produce different fallback greetings for different session
+  ids
+- raw prompt/provider payload/user private data flags remain false

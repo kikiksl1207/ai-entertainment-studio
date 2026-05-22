@@ -58,6 +58,267 @@ describe('ChatService.getStarterPrompts', () => {
   });
 });
 
+describe('ChatService dynamic opening greeting cache', () => {
+  const userId = '00000000-0000-4000-8000-000000000388';
+  const artist = {
+    id: '00000000-0000-4000-8000-000000000389',
+    slug: 'yoon-serin',
+    displayName: '윤세린',
+    publicProfile: {
+      publicMetadata: {
+        chatCatalog: {
+          greetingText: '세린이 조용히 손을 흔들며 인사해요.',
+        },
+        chatStarterPromptSets: [
+          {
+            id: 'serin-start',
+            guideText: '세린에게 차분하게 말을 걸어보세요.',
+            options: [
+              {
+                key: 'A',
+                label: '무대 뒤 안부',
+                message: '오늘 무대 뒤 공기는 어땠는지 조용히 물어봐요.',
+              },
+            ],
+          },
+        ],
+        chatPersonaSeed: {
+          selectedTraitIds: ['quiet_comfort'],
+          customTraitsKo: ['잔잔한 온도'],
+        },
+      },
+      tagline: '무대 앞의 조용한 첫인사',
+      personalityKeywords: ['차분함'],
+    },
+    contentProfile: {
+      contentTone: 'calm',
+    },
+  };
+  const sessionBase = {
+    userId,
+    artistId: artist.id,
+    chatPersonaId: null,
+    status: 'active',
+    createdAt: new Date('2026-05-22T00:00:00.000Z'),
+    updatedAt: new Date('2026-05-22T00:00:00.000Z'),
+    artist,
+    chatPersona: null,
+  };
+
+  function txMock() {
+    return {
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn(async (args) => ({
+          id: '00000000-0000-4000-8000-000000000399',
+          senderType: args.data.senderType,
+          messageType: args.data.messageType,
+          body: args.data.body,
+          modelMetadata: args.data.modelMetadata,
+          safetyMetadata: args.data.safetyMetadata,
+          createdAt: new Date('2026-05-22T00:00:01.000Z'),
+        })),
+      },
+      chatSession: {
+        update: jest.fn(),
+      },
+    };
+  }
+
+  it('generates one short opening greeting on session creation and caches it as a chat message', async () => {
+    const session = {
+      ...sessionBase,
+      id: '00000000-0000-4000-8000-000000000381',
+    };
+    const tx = txMock();
+    const prisma = {
+      artist: {
+        findFirst: jest.fn().mockResolvedValue({ id: artist.id }),
+      },
+      chatSession: {
+        create: jest.fn().mockResolvedValue(session),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: userId,
+          email: null,
+        }),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: true,
+        status: 'provider_ready',
+        messageKey: 'chat.generation.ready',
+      }),
+      generate: jest.fn().mockResolvedValue({
+        body: '세린이 오늘의 첫 장면처럼 조용히 인사를 건네요.',
+        usage: {
+          provider: 'openai',
+          model: 'gpt-5-nano',
+          inputTokens: 12,
+          outputTokens: 18,
+          estimatedCostKrw: '0.01',
+        },
+        safetyMetadata: {
+          provider: 'openai',
+          generationStatus: 'completed',
+        },
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.createSession(userId, {
+      artistId: artist.id,
+    });
+
+    expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+    expect(llmProvider.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: session.id,
+        mode: 'opening_greeting',
+        recentMessages: [],
+        maxOutputTokens: 120,
+      }),
+    );
+    expect(tx.chatMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          chatSessionId: session.id,
+          senderType: 'artist',
+          messageType: 'opening_greeting',
+          body: '세린이 오늘의 첫 장면처럼 조용히 인사를 건네요.',
+        }),
+      }),
+    );
+    expect(result.openingGreeting).toMatchObject({
+      text: '세린이 오늘의 첫 장면처럼 조용히 인사를 건네요.',
+      messageType: 'opening_greeting',
+      cache: {
+        scope: 'chat_session',
+        hit: false,
+        reloadCreatesNewGreeting: false,
+      },
+      generation: {
+        contractVersion: '2026-05-22.character-chat-dynamic-greeting-cache.v1',
+        providerCall: true,
+        maxOutputChars: 180,
+        maxOutputTokens: 120,
+      },
+      safety: {
+        rawPromptStored: false,
+        rawProviderPayloadStored: false,
+        userPrivateDataStored: false,
+        tokenReturned: false,
+        apiKeyReturned: false,
+      },
+    });
+  });
+
+  it('returns the cached opening greeting on message reads without a provider call', async () => {
+    const session = {
+      ...sessionBase,
+      id: '00000000-0000-4000-8000-000000000382',
+    };
+    const cachedGreeting = {
+      id: '00000000-0000-4000-8000-000000000398',
+      senderType: 'artist',
+      messageType: 'opening_greeting',
+      body: '이미 저장된 세린의 첫인사예요.',
+      modelMetadata: {},
+      safetyMetadata: {
+        openingGreetingSource: 'provider',
+      },
+      createdAt: new Date('2026-05-22T00:00:01.000Z'),
+    };
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue(session),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(cachedGreeting),
+        findMany: jest.fn().mockResolvedValue([cachedGreeting]),
+      },
+      $transaction: jest.fn(),
+    };
+    const llmProvider = {
+      readiness: jest.fn(),
+      generate: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const messages = await service.getMessages(userId, session.id);
+
+    expect(messages).toEqual([cachedGreeting]);
+    expect(llmProvider.generate).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.findMany).toHaveBeenCalledWith({
+      where: { chatSessionId: session.id },
+      orderBy: { createdAt: 'asc' },
+    });
+  });
+
+  it('uses character fallback greetings when the provider is unavailable and varies by session', async () => {
+    const sessions = [
+      {
+        ...sessionBase,
+        id: '00000000-0000-4000-8000-000000000381',
+      },
+      {
+        ...sessionBase,
+        id: '00000000-0000-4000-8000-000000000382',
+      },
+    ];
+    const tx = txMock();
+    const prisma = {
+      artist: {
+        findFirst: jest.fn().mockResolvedValue({ id: artist.id }),
+      },
+      chatSession: {
+        create: jest
+          .fn()
+          .mockResolvedValueOnce(sessions[0])
+          .mockResolvedValueOnce(sessions[1]),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: userId,
+          email: null,
+        }),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: false,
+        status: 'provider_disabled',
+        messageKey: 'chat.generation.providerNotConfigured',
+      }),
+      generate: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const first = await service.createSession(userId, { artistId: artist.id });
+    const second = await service.createSession(userId, { artistId: artist.id });
+
+    expect(llmProvider.generate).not.toHaveBeenCalled();
+    expect(first.openingGreeting.text).not.toBe(second.openingGreeting.text);
+    expect(first.openingGreeting.generation.providerCall).toBe(false);
+    expect(second.openingGreeting.generation.providerCall).toBe(false);
+    expect(tx.chatMessage.create).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('ChatService.getConversationList', () => {
   const userId = '00000000-0000-4000-8000-000000000270';
   const llmProvider = {

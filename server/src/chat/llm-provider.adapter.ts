@@ -57,6 +57,7 @@ export type ChatGenerationRequest = {
   runtimePersona: ChatRuntimePersonaContext | null;
   mode: string;
   userMessage: string;
+  maxOutputTokens?: number;
   recentMessages: Array<{
     senderType: string;
     messageType: string;
@@ -325,7 +326,8 @@ export class ChatLlmProviderAdapter implements ChatLlmProvider {
               this.envString('OPENAI_CHAT_REASONING_EFFORT') ??
               DEFAULT_OPENAI_REASONING_EFFORT,
           },
-          max_output_tokens: OPENAI_PROVIDER_MAX_OUTPUT_TOKENS,
+          max_output_tokens:
+            request.maxOutputTokens ?? OPENAI_PROVIDER_MAX_OUTPUT_TOKENS,
         }),
         signal: controller.signal,
       });

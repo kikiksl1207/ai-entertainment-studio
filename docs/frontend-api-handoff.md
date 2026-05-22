@@ -724,6 +724,19 @@ Character-chat CMS copy (#335):
 - `runtimePersona` and `personaReference` are read-only public context. Never
   display raw persona prompts, provider payloads, model names, tokens, keys,
   wallet/order ids, settlement rows, or payout internals.
+- #388 adds dynamic opening greeting cache. `POST /chat/sessions` now returns
+  additive `openingGreeting`; prefer `openingGreeting.text` for the first
+  artist greeting when present. The same greeting is also stored as a
+  `chat_messages` row with `messageType=opening_greeting`.
+- Reloading the same session must use `GET /chat/sessions/:sessionId/messages`
+  and render the cached `opening_greeting` row. Do not request or fake a new
+  greeting on refresh.
+- `dynamicGreetingContract.version` is
+  `2026-05-22.character-chat-dynamic-greeting-cache.v1`. Provider output is
+  short by contract (`maxOutputTokens=120`, `maxOutputChars=180`) and falls
+  back to character-specific copy when provider readiness or guard fails.
+- Do not display `openingGreeting.source`, metadata flags, provider/model
+  values, or fallback reasons as user copy.
 
 `GET /chat/conversations` is the read-only, owner-only DM list projection.
 `box=recent` returns active sessions, `box=archive` returns archived sessions,

@@ -880,6 +880,34 @@ Character-chat greeting and tone contract (#381):
   `copyContract.contentKey`, and `greetingToneContract.characterSlug` to verify
   that one character's first greeting/tone contract is not reused for another.
 
+Character-chat dynamic opening greeting cache (#388):
+
+- `POST /api/v1/chat/sessions` returns an additive `openingGreeting` projection
+  after creating the session.
+- The opening greeting is stored as a `chat_messages` row with
+  `senderType=artist`, `messageType=opening_greeting`, and the new
+  `chatSessionId`.
+- `GET /api/v1/chat/sessions/:sessionId/messages` checks for the cached
+  `opening_greeting` row first. If it exists, the backend returns the cached
+  message list without another provider call.
+- The cache scope is one greeting per chat session. Refreshing the same session
+  must not create or generate a new greeting.
+- The same character can still produce different first greetings across
+  different sessions through provider output or deterministic fallback variant
+  seed from `chat_sessions.id`.
+- Provider generation is short and low-cost by contract:
+  `maxOutputTokens=120`, `maxOutputChars=180`, lightweight model preferred.
+- If provider readiness, daily guard, or request fails, the backend stores a
+  character-specific fallback greeting from site-content copy, artist metadata,
+  character fallback, or default copy.
+- `dynamicGreetingContract.version` is
+  `2026-05-22.character-chat-dynamic-greeting-cache.v1` and is exposed on
+  `GET /api/v1/chat/character-catalog` and
+  `GET /api/v1/chat/starter-prompts`.
+- Opening greeting metadata must not store or return raw prompts, provider
+  payloads, tokens, API keys, user private data, wallet/order/settlement ids, or
+  payout internals.
+
 LLM generation readiness:
 
 - Generation is fail-closed until a provider adapter is configured:

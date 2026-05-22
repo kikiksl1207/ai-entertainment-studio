@@ -1,6 +1,42 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#388 character chat dynamic opening greeting and session cache"
+branch: team2-backend/character-chat-dynamic-greeting-cache-388
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/src/chat/llm-provider.adapter.ts
+- docs/character-chat-dynamic-greeting-cache-contract.md
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npx.cmd prisma generate
+- npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts
+- npm.cmd run build
+- git diff --check origin/main...HEAD
+result:
+- Added `opening_greeting` session cache stored in `chat_messages`.
+- `POST /chat/sessions` now returns additive `openingGreeting`; `GET /chat/sessions/:sessionId/messages` reuses the cached row instead of calling the provider on refresh.
+- Added `dynamicGreetingContract` to character catalog and starter prompt projections.
+- Added provider-ready short greeting generation with `maxOutputTokens=120` and `maxOutputChars=180`.
+- Added provider-unavailable/guard/error fallback using character runtime persona copy, with deterministic session-based variation.
+- Added tests for provider generation, cache replay without provider call, and same-character fallback variation across sessions.
+blocked_by:
+- Live provider QA still requires an approved allowlisted disposable account and configured provider environment.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#384 premium chat report/refund status read API contract"
 branch: team2-backend/premium-chat-status-readonly-384
 commit: final hash recorded in Notion completion report
