@@ -317,6 +317,176 @@ describe('ChatService dynamic opening greeting cache', () => {
     expect(second.openingGreeting.generation.providerCall).toBe(false);
     expect(tx.chatMessage.create).toHaveBeenCalledTimes(2);
   });
+
+  it('serializes concurrent opening greeting requests before provider generation', async () => {
+    const session = {
+      ...sessionBase,
+      id: '00000000-0000-4000-8000-000000000386',
+    };
+    const storedGreeting = {
+      id: '00000000-0000-4000-8000-000000000400',
+      senderType: 'artist',
+      messageType: 'opening_greeting',
+      body: 'Serin opens the session with a quiet hello.',
+      modelMetadata: {},
+      safetyMetadata: {
+        openingGreetingSource: 'provider',
+      },
+      createdAt: new Date('2026-05-22T00:00:01.000Z'),
+    };
+    const tx = txMock();
+    tx.chatMessage.findFirst
+      .mockReset()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(storedGreeting);
+    tx.chatMessage.create.mockResolvedValue(storedGreeting);
+
+    let transactionQueue = Promise.resolve();
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue(session),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn(async (args) =>
+          args?.where?.chatSessionId ? [storedGreeting] : [],
+        ),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: userId,
+          email: null,
+        }),
+      },
+      $transaction: jest.fn((callback) => {
+        const run = transactionQueue.then(() => callback(tx));
+        transactionQueue = run.then(
+          () => undefined,
+          () => undefined,
+        );
+
+        return run;
+      }),
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: true,
+        status: 'provider_ready',
+        messageKey: 'chat.generation.ready',
+      }),
+      generate: jest.fn().mockResolvedValue({
+        body: 'Serin opens the session with a quiet hello.',
+        usage: {
+          provider: 'openai',
+          model: 'gpt-5-nano',
+          inputTokens: 10,
+          outputTokens: 12,
+          estimatedCostKrw: '0.01',
+        },
+        safetyMetadata: {
+          provider: 'openai',
+          generationStatus: 'completed',
+        },
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await Promise.all([
+      service.getMessages(userId, session.id),
+      service.getMessages(userId, session.id),
+    ]);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(tx.chatSession.update).toHaveBeenCalledWith({
+      where: { id: session.id },
+      data: { updatedAt: expect.any(Date) },
+    });
+    expect(tx.chatMessage.create).toHaveBeenCalledTimes(1);
+    expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it('stores an opening greeting fallback when provider generation fails', async () => {
+    const session = {
+      ...sessionBase,
+      id: '00000000-0000-4000-8000-000000000387',
+    };
+    const tx = txMock();
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn().mockResolvedValue(session),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn(async (args) =>
+          args?.where?.chatSessionId
+            ? [
+                {
+                  id: '00000000-0000-4000-8000-000000000401',
+                  senderType: 'artist',
+                  messageType: 'opening_greeting',
+                  body: 'fallback greeting',
+                  modelMetadata: {},
+                  safetyMetadata: {
+                    openingGreetingSource: 'fallback',
+                    fallbackReason: 'provider_timeout',
+                  },
+                  createdAt: new Date('2026-05-22T00:00:01.000Z'),
+                },
+              ]
+            : [],
+        ),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: userId,
+          email: null,
+        }),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: true,
+        status: 'provider_ready',
+        messageKey: 'chat.generation.ready',
+      }),
+      generate: jest
+        .fn()
+        .mockRejectedValue(
+          new ChatLlmProviderRequestError(
+            'opening greeting timeout',
+            'provider_timeout',
+            'req_opening_timeout',
+          ),
+        ),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await service.getMessages(userId, session.id);
+
+    expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+    expect(tx.chatMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          chatSessionId: session.id,
+          senderType: 'artist',
+          messageType: 'opening_greeting',
+          modelMetadata: expect.objectContaining({
+            source: 'fallback',
+            fallbackReason: 'provider_timeout',
+          }),
+          safetyMetadata: expect.objectContaining({
+            openingGreetingSource: 'fallback',
+            providerAttempted: true,
+            fallbackReason: 'provider_timeout',
+            rawProviderPayloadStored: false,
+          }),
+        }),
+      }),
+    );
+  });
 });
 
 describe('ChatService.getConversationList', () => {

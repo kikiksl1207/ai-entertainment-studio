@@ -892,6 +892,9 @@ Character-chat dynamic opening greeting cache (#388):
   message list without another provider call.
 - The cache scope is one greeting per chat session. Refreshing the same session
   must not create or generate a new greeting.
+- Same-session concurrent requests are serialized by locking the
+  `chat_sessions` row inside the greeting transaction, rechecking the cached
+  `opening_greeting`, and generating only when the cached row is still absent.
 - The same character can still produce different first greetings across
   different sessions through provider output or deterministic fallback variant
   seed from `chat_sessions.id`.

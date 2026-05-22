@@ -48,6 +48,12 @@ The greeting is stored as a `chat_messages` row with:
 returning the message list. If the row already exists, it returns the cached
 message and does not call the provider.
 
+Concurrent requests for the same session must serialize before provider
+generation. The backend locks the `chat_sessions` row inside the greeting
+transaction, checks again for an existing `opening_greeting`, and only then
+generates provider or fallback text. This keeps refresh races from creating two
+provider requests or two opening-greeting rows for one session.
+
 ## Generation Policy
 
 - Cache scope: one greeting per `chat_sessions.id`.
@@ -99,6 +105,9 @@ The backend test fixes:
 - provider-generated opening greeting is stored once as `opening_greeting`
 - cached message reads do not call the provider
 - provider-unavailable fallback still returns character-specific text
+- concurrent same-session requests produce one stored opening greeting and one
+  provider attempt
+- provider request errors store a fallback greeting instead of throwing
 - same character can produce different fallback greetings for different session
   ids
 - raw prompt/provider payload/user private data flags remain false

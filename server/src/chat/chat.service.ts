@@ -932,9 +932,13 @@ export class ChatService {
       });
     }
 
-    const candidate = await this.buildOpeningGreetingCandidate(userId, session);
-
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Lock the session row so concurrent opening-greeting requests serialize.
+      await tx.chatSession.update({
+        where: { id: session.id },
+        data: { updatedAt: new Date() },
+      });
+
       const cachedInTransaction = await tx.chatMessage.findFirst({
         where: {
           chatSessionId: session.id,
@@ -951,6 +955,8 @@ export class ChatService {
         });
       }
 
+      const candidate = await this.buildOpeningGreetingCandidate(userId, session);
+
       const message = await tx.chatMessage.create({
         data: {
           chatSessionId: session.id,
@@ -964,11 +970,6 @@ export class ChatService {
             this.openingGreetingSafetyMetadata(candidate),
           ),
         },
-      });
-
-      await tx.chatSession.update({
-        where: { id: session.id },
-        data: { updatedAt: new Date() },
       });
 
       return this.openingGreetingResponse(message, {
