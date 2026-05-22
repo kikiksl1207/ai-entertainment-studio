@@ -102,6 +102,46 @@
           </section>
         </section>
 
+        <!-- #396 — 프리미엄챗 방 플랜 선택
+             300L 기본(진입 가능) / 500L·1000L·3000L 해금 조건 배지.
+             방 열기·차감 POST는 원장·보안 검증 전까지 비활성 유지. -->
+        <section class="premium-chat-plans" aria-label="프리미엄 채팅방 플랜">
+          <header class="premium-chat-plans-head">
+            <h3 class="premium-chat-plans-title">프리미엄 채팅방 플랜</h3>
+          </header>
+          <p class="premium-chat-plans-note">방 플랜은 루미나(L)로 열고 기본 3일 유지돼요. 아티스트가 최대 10일까지 연장할 수 있어요. 방 열기는 원장·보안 검증이 끝난 뒤 활성화됩니다.</p>
+          <ul class="premium-chat-plan-list" role="list">
+            <li class="premium-chat-plan is-available">
+              <span class="premium-chat-plan-price">300<small>L</small></span>
+              <span class="premium-chat-plan-name">기본 방</span>
+              <span class="premium-chat-plan-duration">기본 3일 · 최대 10일</span>
+              <span class="premium-chat-plan-badge is-available">진입 가능</span>
+              <button class="premium-chat-plan-btn" type="button" disabled aria-disabled="true">방 열기 안내 예정</button>
+            </li>
+            <li class="premium-chat-plan is-locked">
+              <span class="premium-chat-plan-price">500<small>L</small></span>
+              <span class="premium-chat-plan-name">스탠다드 방</span>
+              <span class="premium-chat-plan-duration">기본 3일 · 최대 10일</span>
+              <span class="premium-chat-plan-badge is-locked"><span class="premium-chat-plan-lock-icon" aria-hidden="true">🔒</span>해금 전</span>
+              <button class="premium-chat-plan-btn" type="button" disabled aria-disabled="true">조건 충족 후 해금</button>
+            </li>
+            <li class="premium-chat-plan is-locked">
+              <span class="premium-chat-plan-price">1,000<small>L</small></span>
+              <span class="premium-chat-plan-name">프리미엄 방</span>
+              <span class="premium-chat-plan-duration">기본 3일 · 최대 10일</span>
+              <span class="premium-chat-plan-badge is-locked"><span class="premium-chat-plan-lock-icon" aria-hidden="true">🔒</span>해금 전</span>
+              <button class="premium-chat-plan-btn" type="button" disabled aria-disabled="true">조건 충족 후 해금</button>
+            </li>
+            <li class="premium-chat-plan is-locked is-max">
+              <span class="premium-chat-plan-price">3,000<small>L</small></span>
+              <span class="premium-chat-plan-name">VIP 방</span>
+              <span class="premium-chat-plan-duration">기본 3일 · 최대 10일</span>
+              <span class="premium-chat-plan-badge is-max"><span class="premium-chat-plan-lock-icon" aria-hidden="true">🔒</span>최대 · 해금 전</span>
+              <button class="premium-chat-plan-btn" type="button" disabled aria-disabled="true">조건 충족 후 해금</button>
+            </li>
+          </ul>
+        </section>
+
         <div class="dm-list-controls" role="tablist" aria-label="대화함 선택">
           <button type="button" class="dm-list-tab is-active" data-chat-conversation-box="recent" role="tab" aria-selected="true">최근</button>
           <button type="button" class="dm-list-tab" data-chat-conversation-box="archive" role="tab" aria-selected="false">보관함</button>
@@ -350,9 +390,9 @@
         </fieldset>
 
         <fieldset class="donation-custom">
-          <legend>직접 입력</legend>
+          <legend>내맘대로 후원</legend>
           <label class="donation-custom-field">
-            <span>금액 (L)</span>
+            <span>직접 입력 (L)</span>
             <input type="number" id="donationCustomAmount" min="1" max="50000" step="1" inputmode="numeric" placeholder="1 ~ 50,000" aria-describedby="donationCustomHint" />
           </label>
           <p class="donation-custom-hint" id="donationCustomHint">최소 1L, 최대 50,000L까지 입력할 수 있어요. 정수만 가능합니다.</p>

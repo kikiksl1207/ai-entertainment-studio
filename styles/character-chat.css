@@ -1859,3 +1859,155 @@ select.dm-field-input option {
        768px 이상에서는 기존 표시 유지. */
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   #396 — 프리미엄챗 방 플랜 선택 (300L/500L/1000L/3000L)
+   - is-available: 300L 기본 방 (진입 가능 배지)
+   - is-locked: 500L·1000L·3000L 해금 전 (잠금 배지)
+   - is-max: 3000L 최대 방 강조
+   - 390px 이하: 가로 스크롤 (4개 카드 고정 폭)
+   - 768px·1280px: 4열 그리드 유지
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.premium-chat-plans {
+  padding: 16px 16px 12px;
+  border-top: 1px solid rgba(159, 139, 199, 0.10);
+}
+
+.premium-chat-plans-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.premium-chat-plans-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(245, 240, 255, 0.95);
+  margin: 0;
+}
+
+.premium-chat-plans-note {
+  font-size: 11.5px;
+  color: rgba(245, 240, 255, 0.48);
+  margin: 0 0 12px;
+  line-height: 1.55;
+}
+
+.premium-chat-plan-list {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.premium-chat-plan {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(159, 139, 199, 0.14);
+  border-radius: 12px;
+  padding: 14px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.premium-chat-plan.is-available {
+  border-color: rgba(168, 139, 250, 0.32);
+  background: rgba(168, 139, 250, 0.055);
+}
+
+.premium-chat-plan.is-locked { opacity: 0.75; }
+
+.premium-chat-plan.is-max {
+  border-color: rgba(236, 72, 153, 0.28);
+}
+
+.premium-chat-plan-price {
+  font-size: 20px;
+  font-weight: 800;
+  color: #c8a6ff;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.premium-chat-plan-price small {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin-left: 1px;
+}
+
+.premium-chat-plan-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: rgba(245, 240, 255, 0.90);
+}
+
+.premium-chat-plan-duration {
+  font-size: 11px;
+  color: rgba(245, 240, 255, 0.46);
+  line-height: 1.4;
+}
+
+.premium-chat-plan-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  width: fit-content;
+  margin-top: 3px;
+}
+
+.premium-chat-plan-badge.is-available {
+  background: rgba(34, 197, 94, 0.14);
+  color: #4ade80;
+}
+
+.premium-chat-plan-badge.is-locked {
+  background: rgba(244, 114, 182, 0.11);
+  color: #f0abfc;
+}
+
+.premium-chat-plan-badge.is-max {
+  background: rgba(236, 72, 153, 0.11);
+  color: #f9a8d4;
+}
+
+.premium-chat-plan-lock-icon {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.premium-chat-plan-btn {
+  margin-top: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  background: transparent;
+  color: rgba(245, 240, 255, 0.42);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: not-allowed;
+  text-align: center;
+  width: 100%;
+  line-height: 1.35;
+}
+
+/* 390px 이하: 가로 스크롤 (카드 고정 폭 148px, 스크롤바 숨김) */
+@media (max-width: 480px) {
+  .premium-chat-plan-list {
+    grid-template-columns: repeat(4, 148px);
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .premium-chat-plan-list::-webkit-scrollbar { display: none; }
+  .premium-chat-plans { padding: 14px 12px 10px; }
+}
