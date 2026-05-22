@@ -1392,7 +1392,17 @@ body.is-booting .feed-list::before {
   background: rgba(8, 5, 18, 0.55); color: var(--ink, #f0f0f7);
   font-family: inherit; font-size: 14px; resize: vertical; min-height: 72px;
 }
-.feed-thread-extend-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.feed-thread-extend-actions { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+/* #401 — 타래 잇기 패널 글자수 카운터 (작성창 compose 카운터와 동일 톤) */
+.feed-thread-extend-counter {
+  font-size: 11.5px;
+  color: rgba(220, 210, 240, 0.48);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.005em;
+  margin-right: auto;
+}
+.feed-thread-extend-counter[data-state="warn"] { color: #ffc97a; }
+.feed-thread-extend-counter[data-state="danger"] { color: #ff7a8e; font-weight: 700; }
 .feed-thread-extend-cancel,
 .feed-thread-extend-submit {
   padding: 8px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 800;

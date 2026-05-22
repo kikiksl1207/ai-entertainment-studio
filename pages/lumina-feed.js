@@ -1736,13 +1736,25 @@ async function runFeedComposeUploadStages(item, onStateChange) {
           '<textarea maxlength="500" rows="3" placeholder="원글에 이어서 쓸 내용을 적어주세요." data-feed-thread-extend-input></textarea>' +
         '</label>' +
         '<p class="feed-pending-banner" data-feed-status hidden role="status" aria-live="polite"></p>' +
+        // #401 — 글자수 카운터: 작성창 compose 영역과 동일 톤으로 잔여량을 실시간 표시.
         '<div class="feed-thread-extend-actions">' +
+          '<span class="feed-thread-extend-counter" aria-live="polite" aria-atomic="true">0 / 500</span>' +
           '<button type="button" class="feed-thread-extend-cancel" data-feed-thread-extend-cancel>취소</button>' +
           '<button type="button" class="feed-thread-extend-submit" data-feed-thread-extend-submit>이어쓰기 게시</button>' +
         '</div>' +
       '</div>';
     card.appendChild(panel);
     var ta = panel.querySelector("textarea");
+    var counter = panel.querySelector(".feed-thread-extend-counter");
+    if (ta && counter) {
+      ta.addEventListener("input", function () {
+        var len = ta.value.length;
+        counter.textContent = len + " / 500";
+        if (len >= 500) { counter.dataset.state = "danger"; }
+        else if (len >= 450) { counter.dataset.state = "warn"; }
+        else { delete counter.dataset.state; }
+      });
+    }
     if (ta) ta.focus();
   }
 
@@ -1800,7 +1812,11 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     var backdrop = document.getElementById("feedRepostBackdrop");
     var modal = document.getElementById("feedRepostModal");
     if (!modal || !backdrop) return;
-    var body = feedEscapeHtml(postInfo.body || "");
+    // #401 — 리포스트 모달 원글 참조: 본문이 길 때 160자에서 자르고 말줄임 처리.
+    //         원글 전체는 "원글 보기 →" 링크로 접근. 민감값 기록 없음.
+    var rawBody = postInfo.body || "";
+    var bodySnippet = rawBody.length > 160 ? rawBody.slice(0, 160) + "…" : rawBody;
+    var body = feedEscapeHtml(bodySnippet);
     var author = feedEscapeHtml(postInfo.authorName || "Lumina 사용자");
     var postUrl = buildPostShareUrl(postInfo.postId);
     modal.dataset.postId = postInfo.postId || "";
