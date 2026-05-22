@@ -60,7 +60,9 @@ function renderMainPickTab() {
     leaderArtist = getCharacterBySlug(apiLeader.artist?.slug || apiLeader.slug || apiLeader.artistSlug);
     rankingsList = apiRankings.map(r => ({
       artist: getCharacterBySlug(r.artist?.slug || r.slug || r.artistSlug),
-      likes: r.totalFreeLikes ?? r.totalWeightedScore ?? r.totalLikes ?? r.likes ?? r.score ?? 0
+      likes: typeof getRankingLikes === "function"
+        ? getRankingLikes(r)
+        : (r.totalWeightedScore ?? r.totalFreeLikes ?? r.totalLikes ?? r.likes ?? r.score ?? 0)
     })).filter(r => r.artist);
   } else {
     // Fallback: 초기 공개 6명 라인업을 좋아요 순으로
@@ -112,7 +114,10 @@ function renderMainPickTab() {
           <p>${tribute}</p>
           <cite>— ${leaderArtist.publicName}</cite>
         </blockquote>
-        <a class="text-link" href="/character-detail?slug=${leaderArtist.slug}">${leaderArtist.publicName} 무드 보기</a>
+        <div class="vote-card-actions">
+          <a class="text-link" href="/character-detail?slug=${leaderArtist.slug}">${leaderArtist.publicName} 무드 보기</a>
+          <a class="vote-premium-chat-link" href="/character-chat?slug=${encodeURIComponent(leaderArtist.slug)}">프리미엄챗</a>
+        </div>
       </div>
     </article>
   `;
@@ -227,6 +232,7 @@ function renderDebutRaceTab() {
             <strong>${a.publicName}</strong>
             <small>${a.summary || ""}</small>
             <p class="vote-debut-appeal">"${appeal}"</p>
+            <a class="vote-premium-chat-link" href="/character-chat?slug=${encodeURIComponent(a.slug)}">프리미엄챗</a>
         </div>
       </article>
     `;

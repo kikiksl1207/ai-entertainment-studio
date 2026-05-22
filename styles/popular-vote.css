@@ -371,6 +371,33 @@
   line-height: 1.5;
 }
 
+.vote-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.vote-premium-chat-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 20, 147, 0.42);
+  border-radius: 999px;
+  background: rgba(255, 20, 147, 0.12);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.vote-premium-chat-link:hover {
+  background: rgba(255, 20, 147, 0.22);
+  border-color: rgba(255, 20, 147, 0.68);
+}
+
 /* like-btn-vote: 인기투표실 안 좋아요 버튼은 같은 사이즈 + 진짜 작동 */
 /* (.like-btn.like-btn-vote는 .like-btn-large 그대로 사용 — 추가 스타일 없음, modifier는 JS 클래스 식별용) */
 

@@ -976,6 +976,17 @@ p {
   border-color: rgba(108, 70, 187, 0.15);
 }
 
+.cta-btn-link {
+  cursor: pointer;
+  opacity: 1;
+  text-decoration: none;
+}
+
+.cta-btn-link:hover {
+  border-color: rgba(255, 20, 147, 0.38);
+  background: rgba(255, 20, 147, 0.08);
+}
+
 /* #150 — 아티스트 상세 팔로우 버튼 (CTA 첫 자리, 활성 상태) */
 .cta-btn-follow {
   border-color: rgba(255, 20, 147, 0.55);

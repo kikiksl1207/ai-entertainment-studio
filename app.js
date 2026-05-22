@@ -1396,6 +1396,40 @@ let _currentCampaign = null;
 let _rankings = []; // [{ slug, likes }]
 let _userLikedSlugs = new Set(); // 이번 세션에 좋아요 누른 슬러그
 
+function rankingMetricNumber(value) {
+  if (value == null) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (typeof value === "object") {
+    if (typeof value.toString === "function") {
+      const n = Number(value.toString());
+      return Number.isFinite(n) ? n : null;
+    }
+    if (typeof value.valueOf === "function") {
+      const n = Number(value.valueOf());
+      return Number.isFinite(n) ? n : null;
+    }
+  }
+  return null;
+}
+
+function getRankingLikes(row) {
+  const direct = [
+    row?.totalWeightedScore,
+    row?.totalLikes,
+    row?.likes,
+    row?.score,
+    row?.count
+  ].map(rankingMetricNumber).find(value => value != null);
+  if (direct != null) return direct;
+  const freeLikes = rankingMetricNumber(row?.totalFreeLikes) || 0;
+  const paidBoosts = rankingMetricNumber(row?.totalLuminaBoosts) || 0;
+  return freeLikes + paidBoosts;
+}
+
 async function loadBoostState() {
   const campaign = await apiFetch("/api/v1/boost-campaigns/current");
   if (!campaign?.id) {
@@ -1410,7 +1444,7 @@ async function loadBoostState() {
     const list = Array.isArray(rankingsData) ? rankingsData : (rankingsData.rankings || rankingsData.items || []);
     _rankings = list.map(r => ({
       slug: r.artistSlug || r.slug || r.artist?.slug || "",
-      likes: r.totalLikes ?? r.likes ?? r.count ?? r.score ?? 0
+      likes: getRankingLikes(r)
     })).filter(r => r.slug);
   }
 }
@@ -1512,7 +1546,10 @@ async function handleLike(slug, btnEl) {
     openAuthModal("login");
     return;
   }
-  if (_userLikedSlugs.has(slug)) return; // 이미 누름
+  if (_userLikedSlugs.has(slug)) {
+    openPaidLikeModal(slug);
+    return;
+  }
 
   if (btnEl) btnEl.disabled = true;
 
@@ -1544,7 +1581,7 @@ async function handleLike(slug, btnEl) {
           if (Array.isArray(list) && list.length > 0) {
             _rankings = list.map(r => ({
               slug: r.artistSlug || r.slug || r.artist?.slug || "",
-              likes: r.totalFreeLikes ?? r.totalWeightedScore ?? r.totalLikes ?? r.likes ?? r.score ?? 0
+              likes: getRankingLikes(r)
             })).filter(r => r.slug);
             updateLikeButtons(slug);
           }
@@ -1762,7 +1799,7 @@ async function openPaidLikeModal(slug) {
           if (Array.isArray(list) && list.length > 0) {
             _rankings = list.map(r => ({
               slug: r.artistSlug || r.slug || r.artist?.slug || "",
-              likes: r.totalFreeLikes ?? r.totalWeightedScore ?? r.totalLikes ?? r.likes ?? r.score ?? 0
+              likes: getRankingLikes(r)
             })).filter(r => r.slug);
             updateLikeButtons(slug);
           }
@@ -1803,7 +1840,9 @@ function updateLikeButtons(slug) {
   document.querySelectorAll(`[data-like-slug="${slug}"]`).forEach(btn => {
     const liked = _userLikedSlugs.has(slug);
     btn.classList.toggle("is-liked", liked);
-    btn.disabled = liked;
+    btn.disabled = false;
+    btn.setAttribute("aria-label", liked ? "좋아요 추가 응원" : "좋아요");
+    btn.title = liked ? "유료 좋아요 추가 응원" : (btn.title || "좋아요");
     const countEl = btn.querySelector(".like-count");
     if (countEl) countEl.textContent = formatLikeCount(getLikesCount(slug));
   });
