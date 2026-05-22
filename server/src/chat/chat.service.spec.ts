@@ -194,6 +194,14 @@ describe('ChatService dynamic opening greeting cache', () => {
           chatSessionId: session.id,
           senderType: 'artist',
           messageType: 'opening_greeting',
+          modelMetadata: expect.objectContaining({
+            toneCandidate: expect.objectContaining({
+              contractVersion: '2026-05-21.character-chat-greeting-tone.v1',
+              characterSlug: 'yoon-serin',
+              displaySafe: true,
+              rawPersonaPromptStored: false,
+            }),
+          }),
           body: '세린이 오늘의 첫 장면처럼 조용히 인사를 건네요.',
         }),
       }),
@@ -211,6 +219,12 @@ describe('ChatService dynamic opening greeting cache', () => {
         providerCall: true,
         maxOutputChars: 180,
         maxOutputTokens: 120,
+      },
+      toneCandidate: {
+        contractVersion: '2026-05-21.character-chat-greeting-tone.v1',
+        characterSlug: 'yoon-serin',
+        displaySafe: true,
+        rawPersonaPromptStored: false,
       },
       safety: {
         rawPromptStored: false,
@@ -490,6 +504,22 @@ describe('ChatService dynamic opening greeting cache', () => {
       greetingsBySlug.set(plannedSession.artist.slug, current);
       expect(result.openingGreeting.generation.providerCall).toBe(false);
       expect(result.openingGreeting.cache.scope).toBe('chat_session');
+      const toneCandidate = result.openingGreeting.toneCandidate;
+
+      expect(toneCandidate).toMatchObject({
+        contractVersion: '2026-05-21.character-chat-greeting-tone.v1',
+        characterSlug: plannedSession.artist.slug,
+        guideKo: plannedSession.artist.publicProfile.publicMetadata.chatCatalog
+          .toneGuideKo,
+        displaySafe: true,
+        rawPersonaPromptStored: false,
+      });
+      expect(toneCandidate?.toneTags).toEqual(
+        expect.arrayContaining(plannedSession.artist.publicProfile.personalityKeywords),
+      );
+      expect(toneCandidate?.personaTags).toEqual(
+        expect.arrayContaining(plannedSession.artist.publicProfile.personalityKeywords),
+      );
     }
 
     for (const sample of characterSamples) {

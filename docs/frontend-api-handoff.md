@@ -735,6 +735,10 @@ Character-chat CMS copy (#335):
   `2026-05-22.character-chat-dynamic-greeting-cache.v1`. Provider output is
   short by contract (`maxOutputTokens=120`, `maxOutputChars=180`) and falls
   back to character-specific copy when provider readiness or guard fails.
+- #402 adds `openingGreeting.toneCandidate` as display-safe contract data:
+  `guideKo`, `toneTags`, `personaTags`, and `characterSlug`. Use it only for
+  QA/debug contract checks or safe UI hints if needed; do not render raw enum
+  keys or treat it as an editable system prompt.
 - Do not display `openingGreeting.source`, metadata flags, provider/model
   values, or fallback reasons as user copy.
 

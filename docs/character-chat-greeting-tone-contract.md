@@ -1,6 +1,6 @@
 # Character Chat Greeting and Tone Contract
 
-Task: #381
+Task: #381, #402
 
 Status: read-only contract ready.
 
@@ -61,6 +61,12 @@ The read-only response guarantees these character-specific fields:
 
 At least two characters must be able to return different values for greeting,
 opening prompt guide/options, tone guide/tags, and forbidden tone.
+
+`POST /api/v1/chat/sessions` also snapshots the display-safe tone candidate
+used by the dynamic opening greeting as `openingGreeting.toneCandidate`. That
+snapshot contains public tone guide/tags and persona tags only. It must not
+store raw persona prompts, provider payloads, tokens, keys, or user private
+data.
 
 ## Safety
 

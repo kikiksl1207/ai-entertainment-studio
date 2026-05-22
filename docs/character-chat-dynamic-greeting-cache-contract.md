@@ -2,7 +2,7 @@
 
 Updated: 2026-05-22
 Owner: Luffy
-Task: Notion #388, #397 regression contract
+Task: Notion #388, #397 regression contract, #402 tone candidate contract
 
 This contract makes the first character-chat greeting dynamic per chat session
 without generating a new greeting on every page refresh. It keeps raw prompts,
@@ -33,6 +33,16 @@ response now includes an additive `openingGreeting` projection:
       "providerCall": true,
       "maxOutputChars": 180,
       "maxOutputTokens": 120
+    },
+    "toneCandidate": {
+      "contractVersion": "2026-05-21.character-chat-greeting-tone.v1",
+      "characterSlug": "<artist slug>",
+      "guideKo": "<display-safe tone guide>",
+      "guideSource": "site_content|artist_metadata|character_fallback|default",
+      "toneTags": ["<display-safe tone tag>"],
+      "personaTags": ["<display-safe persona tag>"],
+      "displaySafe": true,
+      "rawPersonaPromptStored": false
     }
   }
 }
@@ -60,6 +70,9 @@ provider requests or two opening-greeting rows for one session.
 - Same session reload: return cached `opening_greeting`.
 - Same character, different sessions: wording can vary through provider output
   or deterministic fallback variant seed from the session id.
+- The `openingGreeting.toneCandidate` projection snapshots the public
+  character tone guide/tags used for the session. It is display-safe contract
+  data, not a raw prompt or provider payload.
 - Provider output is limited to a short greeting:
   `maxOutputTokens=120`, `maxOutputChars=180`.
 - Provider generation is attempted only when the provider is ready and the
@@ -108,6 +121,8 @@ The backend test fixes:
 - provider-unavailable fallback is checked across at least three character
   fixtures and ten sessions per character, so same-character greetings cannot
   silently regress to one fixed sentence
+- the opening greeting response and stored metadata carry character-specific
+  display-safe tone/persona candidate fields
 - exhausted daily provider guard stores a zero-cost fallback and skips provider
   generation
 - concurrent same-session requests produce one stored opening greeting and one
