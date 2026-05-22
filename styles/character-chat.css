@@ -1891,8 +1891,16 @@ select.dm-field-input option {
 .premium-chat-plans-note {
   font-size: 11.5px;
   color: rgba(245, 240, 255, 0.48);
-  margin: 0 0 12px;
+  margin: 0 0 6px;
   line-height: 1.55;
+}
+
+/* #398 QA — 환불 정책 안내 (24h 미답변·귀책 환불 제한 톤) */
+.premium-chat-plans-refund-note {
+  font-size: 11px;
+  color: rgba(245, 240, 255, 0.35);
+  margin: 0 0 12px;
+  line-height: 1.5;
 }
 
 .premium-chat-plan-list {
