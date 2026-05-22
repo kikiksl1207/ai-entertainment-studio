@@ -175,3 +175,102 @@ export class CreateCreatorStudioSettlementConversionDto {
   @MaxLength(120)
   idempotencyKey?: string | null;
 }
+
+export class CreatorStudioKnowledgeUrlQueryDto {
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  artistId?: string | null;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @Matches(/^(pending|approved|rejected|archived)$/)
+  status?: string | null;
+}
+
+export class CreateCreatorStudioKnowledgeUrlDto {
+  @Transform(normalizeOptionalString)
+  @IsString()
+  artistId!: string;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(40)
+  type?: string | null;
+
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(2000)
+  url!: string;
+
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(2000)
+  description!: string;
+
+  @IsOptional()
+  allowChatRef?: boolean;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(160)
+  title?: string | null;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(2000)
+  summary?: string | null;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(120)
+  idempotencyKey?: string | null;
+}
+
+export class UpdateCreatorStudioKnowledgeUrlDto {
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(40)
+  type?: string | null;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(2000)
+  url?: string | null;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(2000)
+  description?: string | null;
+
+  @IsOptional()
+  allowChatRef?: boolean;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(160)
+  title?: string | null;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(2000)
+  summary?: string | null;
+}
+
+export class ReviewCreatorStudioKnowledgeUrlDto {
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(500)
+  reason?: string | null;
+}

@@ -159,3 +159,178 @@ describe('CreatorStudioService.getPayoutSummary', () => {
     });
   });
 });
+
+describe('CreatorStudioService knowledge URL contract', () => {
+  const baseRow = {
+    id: '00000000-0000-4000-8000-000000000331',
+    artistId,
+    sourceUrl: 'https://youtube.com/watch?v=abc',
+    sourceDomain: 'youtube.com',
+    sourcePlatform: 'youtube',
+    sourceType: 'youtube',
+    title: 'Behind clip',
+    artistDescription: 'Public behind clip for chat reference',
+    summary: 'Public behind clip for chat reference',
+    visibility: 'chat_reference',
+    status: 'pending',
+    rejectReason: null,
+    createdByUserId: userId,
+    updatedByUserId: userId,
+    reviewedByUserId: null,
+    approvedAt: null,
+    rejectedAt: null,
+    archivedAt: null,
+    createdAt: new Date('2026-05-22T00:00:00.000Z'),
+    updatedAt: new Date('2026-05-22T00:00:00.000Z'),
+  };
+
+  function serviceWithKnowledge(overrides: Record<string, unknown> = {}) {
+    const prisma = {
+      artistOperator: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000332',
+          role: 'owner',
+          permissions: [],
+        }),
+        findMany: jest.fn().mockResolvedValue([{ artistId }]),
+      },
+      artistKnowledgeSource: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([baseRow]),
+        findUnique: jest.fn().mockResolvedValue(baseRow),
+        create: jest.fn().mockResolvedValue(baseRow),
+        update: jest.fn().mockResolvedValue({
+          ...baseRow,
+          status: 'approved',
+          approvedAt: new Date('2026-05-22T01:00:00.000Z'),
+        }),
+      },
+      ...overrides,
+    };
+
+    return {
+      prisma,
+      service: new CreatorStudioService(prisma as never, { get: jest.fn() } as never),
+    };
+  }
+
+  it('creates pending artist URL knowledge without crawling or chat exposure', async () => {
+    const { prisma, service } = serviceWithKnowledge();
+
+    const result = await service.createKnowledgeUrl(userId, {
+      artistId,
+      type: 'youtube',
+      url: 'https://youtube.com/watch?v=abc#secret',
+      description: 'Public behind clip for chat reference',
+      allowChatRef: true,
+    });
+
+    expect(prisma.artistOperator.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userId, artistId, status: 'active' }),
+      }),
+    );
+    expect(prisma.artistKnowledgeSource.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          artistId,
+          sourceUrl: 'https://youtube.com/watch?v=abc',
+          sourceDomain: 'youtube.com',
+          sourcePlatform: 'youtube',
+          sourceType: 'youtube',
+          artistDescription: 'Public behind clip for chat reference',
+          summary: 'Public behind clip for chat reference',
+          visibility: 'chat_reference',
+          status: 'pending',
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      idempotentReplay: false,
+      item: {
+        status: 'pending',
+        allowChatRef: true,
+        chatReference: {
+          eligible: false,
+          approvedOnly: true,
+          fullUrlInjected: false,
+          rawSourceInjected: false,
+        },
+      },
+      policy: {
+        storage: {
+          table: 'artist_knowledge_sources',
+          noAutoCrawling: true,
+          secretOrTokenRequired: false,
+        },
+      },
+    });
+  });
+
+  it('replays duplicate create by artist and URL without duplicate mutation', async () => {
+    const { prisma, service } = serviceWithKnowledge({
+      artistKnowledgeSource: {
+        findFirst: jest.fn().mockResolvedValue(baseRow),
+        create: jest.fn(),
+      },
+    });
+
+    const result = await service.createKnowledgeUrl(userId, {
+      artistId,
+      type: 'youtube',
+      url: 'https://youtube.com/watch?v=abc',
+      description: 'Public behind clip for chat reference',
+      allowChatRef: true,
+    });
+
+    expect(prisma.artistKnowledgeSource.create).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      idempotentReplay: true,
+      item: { id: baseRow.id, status: 'pending' },
+    });
+  });
+
+  it('enforces owner or review permission for approval transitions', async () => {
+    const { prisma, service } = serviceWithKnowledge();
+
+    const result = await service.approveKnowledgeUrl(userId, baseRow.id);
+
+    expect(prisma.artistKnowledgeSource.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: baseRow.id },
+        data: expect.objectContaining({
+          status: 'approved',
+          approvedAt: expect.any(Date),
+          reviewedByUserId: userId,
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      item: {
+        status: 'approved',
+        chatReference: {
+          eligible: true,
+          runtimeFields: ['domain', 'platform', 'title', 'summary'],
+        },
+      },
+    });
+  });
+
+  it('blocks approval when the operator lacks review authority', async () => {
+    const { service } = serviceWithKnowledge({
+      artistOperator: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000333',
+          role: 'editor',
+          permissions: [],
+        }),
+      },
+    });
+
+    await expect(service.approveKnowledgeUrl(userId, baseRow.id)).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Artist knowledge review permission is required',
+      }),
+    });
+  });
+});

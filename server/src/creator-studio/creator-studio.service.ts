@@ -6,9 +6,13 @@ import { AuthUser } from '../auth/auth.types';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  CreateCreatorStudioKnowledgeUrlDto,
   CreateCreatorStudioSettlementConversionDto,
+  CreatorStudioKnowledgeUrlQueryDto,
   CreatorStudioSettlementConversionQueryDto,
   CreatorStudioSettlementPreviewQueryDto,
+  ReviewCreatorStudioKnowledgeUrlDto,
+  UpdateCreatorStudioKnowledgeUrlDto,
   UpdateCreatorStudioArtistProfileDto,
 } from './dto/creator-studio.dto';
 
@@ -25,7 +29,43 @@ const CREATOR_PAYOUT_CURRENCY = 'KRW';
 const CREATOR_PAYOUT_WITHHOLDING_TAX_BPS = 330;
 const CREATOR_PAYOUT_FX_SAFE_MARGIN_MIN_BPS = 300;
 const CREATOR_PAYOUT_FX_SAFE_MARGIN_MAX_BPS = 500;
+const KNOWLEDGE_URL_DESCRIPTION_MAX_CHARS = 2000;
+const KNOWLEDGE_URL_SUMMARY_MAX_CHARS = 600;
+const KNOWLEDGE_URL_TITLE_MAX_CHARS = 160;
+const KNOWLEDGE_URL_STATUSES = ['pending', 'approved', 'rejected', 'archived'];
+const KNOWLEDGE_URL_TYPES = ['youtube', 'instagram', 'tiktok', 'blog', 'notice', 'other'];
+const KNOWLEDGE_URL_REVIEW_PERMISSIONS = [
+  'artist_knowledge:review',
+  'artist-knowledge:review',
+  'knowledge_url:review',
+  'knowledge-url:review',
+];
+const KNOWLEDGE_URL_MANAGE_PERMISSIONS = [
+  'artist_knowledge:manage',
+  'artist-knowledge:manage',
+  'knowledge_url:manage',
+  'knowledge-url:manage',
+];
 type CreatorRevenueType = 'chat' | 'gift' | 'paid_like' | 'premium_video' | 'fan_letter';
+type KnowledgeUrlRow = {
+  id: string;
+  artistId: string;
+  sourceUrl: string;
+  sourceDomain: string;
+  sourcePlatform: string;
+  sourceType: string;
+  title: string | null;
+  artistDescription: string;
+  summary: string;
+  visibility: string;
+  status: string;
+  rejectReason: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  approvedAt: Date | null;
+  rejectedAt: Date | null;
+  archivedAt: Date | null;
+};
 
 @Injectable()
 export class CreatorStudioService {
@@ -243,6 +283,14 @@ export class CreatorStudioService {
           payoutSummary: '/api/v1/me/creator-studio/payout-summary',
           settlementPreview: '/api/v1/me/creator-studio/settlement-preview',
           settlementConversions: '/api/v1/me/creator-studio/settlement-conversions',
+          knowledgeUrls: '/api/v1/me/creator-studio/knowledge-urls',
+          knowledgeUrlUpdate: '/api/v1/me/creator-studio/knowledge-urls/:sourceId',
+          knowledgeUrlApprove:
+            '/api/v1/me/creator-studio/knowledge-urls/:sourceId/approve',
+          knowledgeUrlReject:
+            '/api/v1/me/creator-studio/knowledge-urls/:sourceId/reject',
+          knowledgeUrlArchive:
+            '/api/v1/me/creator-studio/knowledge-urls/:sourceId/archive',
           uploadIntent: '/api/v1/me/assets/upload-intents',
           confirmUpload: '/api/v1/me/assets/:assetId/confirm-upload',
         },
@@ -680,6 +728,297 @@ export class CreatorStudioService {
       policy,
       notice:
         'Request received only. Lumina is credited after admin/accounting approval; no wallet balance changed yet.',
+    };
+  }
+
+  async getKnowledgeUrls(
+    userId: string,
+    query: CreatorStudioKnowledgeUrlQueryDto,
+  ) {
+    const artistIds = await this.creatorStudioArtistIds(userId);
+    const requestedArtistId = query.artistId ?? null;
+    const status = this.optionalKnowledgeUrlStatus(query.status ?? null);
+
+    if (requestedArtistId) {
+      this.assertUuid(requestedArtistId, 'artistId');
+      if (!artistIds.includes(requestedArtistId)) {
+        throw new ForbiddenException('Artist operator access is required');
+      }
+    }
+
+    const rows = artistIds.length
+      ? await this.prisma.artistKnowledgeSource.findMany({
+          where: this.clean({
+            artistId: requestedArtistId ?? { in: artistIds },
+            status,
+          }),
+          take: 100,
+          orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+        })
+      : [];
+
+    return {
+      items: rows.map((row) => this.presentKnowledgeUrl(row)),
+      count: rows.length,
+      policy: this.knowledgeUrlPolicy(),
+    };
+  }
+
+  async createKnowledgeUrl(
+    userId: string,
+    input: CreateCreatorStudioKnowledgeUrlDto,
+  ) {
+    const artistId = this.requiredUuid(input.artistId, 'artistId');
+    await this.assertArtistKnowledgeAccess(userId, artistId, 'manage');
+    const url = this.normalizeKnowledgeUrl(input.url);
+    const description = this.requiredText(
+      input.description,
+      'description',
+      KNOWLEDGE_URL_DESCRIPTION_MAX_CHARS,
+    );
+    const sourceType = this.normalizeKnowledgeUrlType(input.type);
+    const sourcePlatform = this.inferKnowledgeUrlPlatform(url, sourceType);
+    const visibility = input.allowChatRef === false ? 'private' : 'chat_reference';
+    const existing = await this.prisma.artistKnowledgeSource.findFirst({
+      where: { artistId, sourceUrl: url },
+    });
+
+    if (existing) {
+      return {
+        item: this.presentKnowledgeUrl(existing),
+        idempotentReplay: true,
+        policy: this.knowledgeUrlPolicy(),
+      };
+    }
+
+    const row = await this.prisma.artistKnowledgeSource.create({
+      data: {
+        artistId,
+        sourceUrl: url,
+        sourceDomain: new URL(url).hostname.toLowerCase(),
+        sourcePlatform,
+        sourceType,
+        title: this.optionalText(input.title, KNOWLEDGE_URL_TITLE_MAX_CHARS),
+        artistDescription: description,
+        summary: this.requiredText(
+          input.summary ?? description,
+          'summary',
+          KNOWLEDGE_URL_SUMMARY_MAX_CHARS,
+        ),
+        visibility,
+        status: 'pending',
+        createdByUserId: userId,
+        updatedByUserId: userId,
+      },
+    });
+
+    return {
+      item: this.presentKnowledgeUrl(row),
+      idempotentReplay: false,
+      policy: this.knowledgeUrlPolicy(),
+      notice:
+        'URL material was received as pending. It is not used by character chat until approved.',
+    };
+  }
+
+  async updateKnowledgeUrl(
+    userId: string,
+    sourceId: string,
+    input: UpdateCreatorStudioKnowledgeUrlDto,
+  ) {
+    this.assertUuid(sourceId, 'sourceId');
+    const before = await this.getKnowledgeUrlForMutation(sourceId);
+    await this.assertArtistKnowledgeAccess(userId, before.artistId, 'manage');
+
+    if (!['pending', 'rejected'].includes(before.status)) {
+      throw new BadRequestException({
+        code: 'ARTIST_KNOWLEDGE_SOURCE_LOCKED',
+        message: 'Only pending or rejected knowledge URLs can be edited',
+      });
+    }
+
+    const nextUrl =
+      input.url === undefined || input.url === null
+        ? before.sourceUrl
+        : this.normalizeKnowledgeUrl(input.url);
+
+    if (nextUrl !== before.sourceUrl) {
+      const duplicate = await this.prisma.artistKnowledgeSource.findFirst({
+        where: {
+          artistId: before.artistId,
+          sourceUrl: nextUrl,
+          id: { not: before.id },
+        },
+        select: { id: true },
+      });
+
+      if (duplicate) {
+        throw new BadRequestException({
+          code: 'ARTIST_KNOWLEDGE_SOURCE_DUPLICATE_URL',
+          message: 'A knowledge URL with the same artist and URL already exists',
+        });
+      }
+    }
+
+    const sourceType =
+      input.type === undefined ? before.sourceType : this.normalizeKnowledgeUrlType(input.type);
+    const row = await this.prisma.artistKnowledgeSource.update({
+      where: { id: before.id },
+      data: this.clean({
+        sourceUrl: nextUrl,
+        sourceDomain: new URL(nextUrl).hostname.toLowerCase(),
+        sourcePlatform: this.inferKnowledgeUrlPlatform(nextUrl, sourceType),
+        sourceType,
+        title:
+          input.title === undefined
+            ? undefined
+            : this.optionalText(input.title, KNOWLEDGE_URL_TITLE_MAX_CHARS),
+        artistDescription:
+          input.description === undefined
+            ? undefined
+            : this.requiredText(
+                input.description,
+                'description',
+                KNOWLEDGE_URL_DESCRIPTION_MAX_CHARS,
+              ),
+        summary:
+          input.summary === undefined
+            ? undefined
+            : this.requiredText(input.summary, 'summary', KNOWLEDGE_URL_SUMMARY_MAX_CHARS),
+        visibility:
+          input.allowChatRef === undefined
+            ? undefined
+            : input.allowChatRef === false
+              ? 'private'
+              : 'chat_reference',
+        status: 'pending',
+        rejectReason: null,
+        rejectedAt: null,
+        reviewedByUserId: null,
+        updatedByUserId: userId,
+      }),
+    });
+
+    return {
+      item: this.presentKnowledgeUrl(row),
+      idempotentReplay: false,
+      policy: this.knowledgeUrlPolicy(),
+      notice: 'Knowledge URL was updated and returned to pending review.',
+    };
+  }
+
+  async approveKnowledgeUrl(userId: string, sourceId: string) {
+    this.assertUuid(sourceId, 'sourceId');
+    const before = await this.getKnowledgeUrlForMutation(sourceId);
+    await this.assertArtistKnowledgeAccess(userId, before.artistId, 'review');
+
+    if (before.status === 'approved') {
+      return {
+        item: this.presentKnowledgeUrl(before),
+        idempotentReplay: true,
+        policy: this.knowledgeUrlPolicy(),
+      };
+    }
+
+    if (before.status === 'archived') {
+      throw new BadRequestException({
+        code: 'ARTIST_KNOWLEDGE_SOURCE_ARCHIVED',
+        message: 'Archived knowledge URLs cannot be approved',
+      });
+    }
+
+    const row = await this.prisma.artistKnowledgeSource.update({
+      where: { id: before.id },
+      data: {
+        status: 'approved',
+        visibility: before.visibility === 'private' ? 'private' : 'chat_reference',
+        approvedAt: new Date(),
+        rejectedAt: null,
+        archivedAt: null,
+        rejectReason: null,
+        reviewedByUserId: userId,
+        updatedByUserId: userId,
+      },
+    });
+
+    return {
+      item: this.presentKnowledgeUrl(row),
+      idempotentReplay: false,
+      policy: this.knowledgeUrlPolicy(),
+    };
+  }
+
+  async rejectKnowledgeUrl(
+    userId: string,
+    sourceId: string,
+    input: ReviewCreatorStudioKnowledgeUrlDto,
+  ) {
+    this.assertUuid(sourceId, 'sourceId');
+    const before = await this.getKnowledgeUrlForMutation(sourceId);
+    await this.assertArtistKnowledgeAccess(userId, before.artistId, 'review');
+
+    if (before.status === 'rejected') {
+      return {
+        item: this.presentKnowledgeUrl(before),
+        idempotentReplay: true,
+        policy: this.knowledgeUrlPolicy(),
+      };
+    }
+
+    if (before.status === 'archived') {
+      throw new BadRequestException({
+        code: 'ARTIST_KNOWLEDGE_SOURCE_ARCHIVED',
+        message: 'Archived knowledge URLs cannot be rejected',
+      });
+    }
+
+    const row = await this.prisma.artistKnowledgeSource.update({
+      where: { id: before.id },
+      data: {
+        status: 'rejected',
+        approvedAt: null,
+        rejectedAt: new Date(),
+        rejectReason: this.optionalText(input.reason, 500),
+        reviewedByUserId: userId,
+        updatedByUserId: userId,
+      },
+    });
+
+    return {
+      item: this.presentKnowledgeUrl(row),
+      idempotentReplay: false,
+      policy: this.knowledgeUrlPolicy(),
+    };
+  }
+
+  async archiveKnowledgeUrl(userId: string, sourceId: string) {
+    this.assertUuid(sourceId, 'sourceId');
+    const before = await this.getKnowledgeUrlForMutation(sourceId);
+    await this.assertArtistKnowledgeAccess(userId, before.artistId, 'manage');
+
+    if (before.status === 'archived') {
+      return {
+        item: this.presentKnowledgeUrl(before),
+        idempotentReplay: true,
+        policy: this.knowledgeUrlPolicy(),
+      };
+    }
+
+    const row = await this.prisma.artistKnowledgeSource.update({
+      where: { id: before.id },
+      data: {
+        status: 'archived',
+        archivedAt: new Date(),
+        approvedAt: null,
+        rejectedAt: null,
+        updatedByUserId: userId,
+      },
+    });
+
+    return {
+      item: this.presentKnowledgeUrl(row),
+      idempotentReplay: false,
+      policy: this.knowledgeUrlPolicy(),
     };
   }
 
@@ -1363,6 +1702,287 @@ export class CreatorStudioService {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       metadata: this.recordOrEmpty(row.metadata),
+    };
+  }
+
+  private async creatorStudioArtistIds(userId: string) {
+    const operators = await this.prisma.artistOperator.findMany({
+      where: {
+        userId,
+        status: 'active',
+        revokedAt: null,
+      },
+      select: { artistId: true },
+    });
+
+    if (!operators.length) {
+      throw new ForbiddenException('Creator Studio artist operator access is required');
+    }
+
+    return operators.map((operator) => operator.artistId);
+  }
+
+  private async getKnowledgeUrlForMutation(sourceId: string) {
+    const row = await this.prisma.artistKnowledgeSource.findUnique({
+      where: { id: sourceId },
+    });
+
+    if (!row) {
+      throw new NotFoundException('Knowledge URL not found');
+    }
+
+    return row;
+  }
+
+  private async assertArtistKnowledgeAccess(
+    userId: string,
+    artistId: string,
+    mode: 'manage' | 'review',
+  ) {
+    const operator = await this.prisma.artistOperator.findFirst({
+      where: {
+        userId,
+        artistId,
+        status: 'active',
+        revokedAt: null,
+      },
+      select: {
+        id: true,
+        role: true,
+        permissions: true,
+      },
+    });
+
+    if (!operator) {
+      throw new ForbiddenException('Artist operator access is required');
+    }
+
+    if (mode === 'manage') {
+      return operator;
+    }
+
+    const canReview =
+      ['owner', 'admin', 'staff', 'internal'].includes(operator.role) ||
+      operator.permissions.some((permission) =>
+        KNOWLEDGE_URL_REVIEW_PERMISSIONS.includes(permission),
+      ) ||
+      operator.permissions.some((permission) =>
+        KNOWLEDGE_URL_MANAGE_PERMISSIONS.includes(permission),
+      );
+
+    if (!canReview) {
+      throw new ForbiddenException('Artist knowledge review permission is required');
+    }
+
+    return operator;
+  }
+
+  private requiredUuid(value: string | null | undefined, field: string) {
+    const normalized = this.optionalText(value, 80);
+
+    if (!normalized) {
+      throw new BadRequestException(`${field} is required`);
+    }
+
+    this.assertUuid(normalized, field);
+    return normalized;
+  }
+
+  private requiredText(value: string | null | undefined, field: string, max: number) {
+    const normalized = this.optionalText(value, max);
+
+    if (!normalized) {
+      throw new BadRequestException(`${field} is required`);
+    }
+
+    return normalized;
+  }
+
+  private optionalText(value: string | null | undefined, max: number) {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    const normalized = String(value).trim().replace(/\s+/g, ' ');
+
+    if (!normalized) {
+      return null;
+    }
+
+    return normalized.length > max ? normalized.slice(0, max) : normalized;
+  }
+
+  private normalizeKnowledgeUrl(value: string | null | undefined) {
+    const raw = this.requiredText(value, 'url', 2000);
+    let parsed: URL;
+
+    try {
+      parsed = new URL(raw);
+    } catch {
+      throw new BadRequestException({
+        code: 'ARTIST_KNOWLEDGE_SOURCE_URL_INVALID',
+        message: 'url must be a valid HTTPS URL',
+      });
+    }
+
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+      throw new BadRequestException({
+        code: 'ARTIST_KNOWLEDGE_SOURCE_URL_INVALID',
+        message: 'url must be a valid HTTPS URL without credentials',
+      });
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+    if (!hostname || this.isBlockedKnowledgeUrlHost(hostname)) {
+      throw new BadRequestException({
+        code: 'ARTIST_KNOWLEDGE_SOURCE_URL_HOST_BLOCKED',
+        message: 'url host is not allowed for artist knowledge sources',
+      });
+    }
+
+    parsed.hash = '';
+    return parsed.toString();
+  }
+
+  private isBlockedKnowledgeUrlHost(hostname: string) {
+    if (
+      hostname === 'localhost' ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal')
+    ) {
+      return true;
+    }
+
+    const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (!ipv4) {
+      return hostname === '::1' || hostname.startsWith('fc') || hostname.startsWith('fd');
+    }
+
+    const octets = ipv4.slice(1).map((part) => Number(part));
+    if (octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+      return true;
+    }
+
+    const [first, second] = octets;
+    return (
+      first === 10 ||
+      first === 127 ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168) ||
+      (first === 169 && second === 254)
+    );
+  }
+
+  private normalizeKnowledgeUrlType(value: string | null | undefined) {
+    const normalized = this.optionalText(value, 40)?.toLowerCase() ?? 'other';
+
+    return KNOWLEDGE_URL_TYPES.includes(normalized) ? normalized : 'other';
+  }
+
+  private inferKnowledgeUrlPlatform(url: string, sourceType: string) {
+    if (sourceType !== 'other') {
+      return sourceType;
+    }
+
+    const hostname = new URL(url).hostname.toLowerCase();
+    if (hostname.includes('youtube.com') || hostname.includes('youtu.be')) {
+      return 'youtube';
+    }
+    if (hostname.includes('instagram.com')) {
+      return 'instagram';
+    }
+    if (hostname.includes('tiktok.com')) {
+      return 'tiktok';
+    }
+    if (hostname.includes('blog.') || hostname.includes('tistory.com')) {
+      return 'blog';
+    }
+
+    return 'other';
+  }
+
+  private optionalKnowledgeUrlStatus(value: string | null) {
+    if (!value) {
+      return undefined;
+    }
+
+    if (!KNOWLEDGE_URL_STATUSES.includes(value)) {
+      throw new BadRequestException('status must be pending, approved, rejected, or archived');
+    }
+
+    return value;
+  }
+
+  private presentKnowledgeUrl(row: KnowledgeUrlRow) {
+    const allowChatRef = ['chat_reference', 'public'].includes(row.visibility);
+    const chatReferenceEligible =
+      row.status === 'approved' && allowChatRef && row.approvedAt !== null;
+
+    return {
+      id: row.id,
+      artistId: row.artistId,
+      type: row.sourceType,
+      platform: row.sourcePlatform,
+      url: row.sourceUrl,
+      sourceDomain: row.sourceDomain,
+      title: row.title,
+      description: row.artistDescription,
+      summary: row.summary,
+      allowChatRef,
+      visibility: row.visibility,
+      status: row.status,
+      rejectReason: row.rejectReason,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      approvedAt: row.approvedAt,
+      rejectedAt: row.rejectedAt,
+      archivedAt: row.archivedAt,
+      chatReference: {
+        eligible: chatReferenceEligible,
+        approvedOnly: true,
+        runtimeFields: ['domain', 'platform', 'title', 'summary'],
+        fullUrlInjected: false,
+        rawSourceInjected: false,
+      },
+    };
+  }
+
+  private knowledgeUrlPolicy() {
+    return {
+      contractVersion: '2026-05-22.artist-knowledge-sources.v1',
+      storage: {
+        table: 'artist_knowledge_sources',
+        uniqueKey: ['artistId', 'url'],
+        noAutoCrawling: true,
+        noExternalAccountRequired: true,
+        secretOrTokenRequired: false,
+      },
+      statuses: KNOWLEDGE_URL_STATUSES,
+      transitions: {
+        create: { from: null, to: 'pending', actor: 'active_artist_operator' },
+        update: { from: ['pending', 'rejected'], to: 'pending' },
+        approve: { from: ['pending', 'rejected'], to: 'approved' },
+        reject: { from: ['pending', 'approved'], to: 'rejected' },
+        archive: { from: ['pending', 'approved', 'rejected'], to: 'archived' },
+      },
+      permissions: {
+        list: 'active_artist_operator',
+        create: 'active_artist_operator',
+        update: 'active_artist_operator_pending_or_rejected_only',
+        approve: 'owner_or_artist_knowledge_review_permission',
+        reject: 'owner_or_artist_knowledge_review_permission',
+        archive: 'active_artist_operator',
+      },
+      chatReference: {
+        acceptedStatuses: ['approved'],
+        excludedStatuses: ['pending', 'rejected', 'archived'],
+        requiredVisibility: ['chat_reference', 'public'],
+        providerRuntimeFields: ['domain', 'platform', 'title', 'summary'],
+        fullUrlInjected: false,
+        rawSourceInjected: false,
+        maxSnippetsPerGeneration: 3,
+        promptInjectionTreatment: 'facts_only_never_instruction',
+      },
     };
   }
 

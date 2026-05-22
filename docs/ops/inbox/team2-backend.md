@@ -37,6 +37,54 @@ sensitive_values_recorded:
 
 ---
 
+status: done
+task: "#408 artist URL knowledge registration and character chat reference contract fix"
+branch/commit: team2-backend/artist-url-knowledge-contract-408-fix / pending push commit
+changed_files:
+- server/prisma/schema.prisma
+- server/prisma/migrations/0043_artist_knowledge_sources/migration.sql
+- server/src/creator-studio/creator-studio.controller.ts
+- server/src/creator-studio/creator-studio.service.ts
+- server/src/creator-studio/creator-studio.service.spec.ts
+- server/src/creator-studio/dto/creator-studio.dto.ts
+- server/src/chat/chat.controller.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/src/chat/llm-provider.adapter.ts
+- docs/artist-url-knowledge-chat-reference-contract.md
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npx.cmd prisma generate
+- node --check server/src/creator-studio/creator-studio.service.ts
+- node --check server/src/creator-studio/creator-studio.controller.ts
+- node --check server/src/creator-studio/dto/creator-studio.dto.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.controller.ts
+- node --check server/src/chat/llm-provider.adapter.ts
+- npm.cmd test -- creator-studio.service.spec.ts chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/creator-studio/creator-studio.controller.ts src/creator-studio/creator-studio.service.ts src/creator-studio/creator-studio.service.spec.ts src/creator-studio/dto/creator-studio.dto.ts src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Added `artist_knowledge_sources` persistence shape and migration for artist URL material registration.
+- Added Creator Studio read/write endpoints for list, create, edit, approve, reject, and archive under `/api/v1/me/creator-studio/knowledge-urls`.
+- Added state transition and permission contract: active artist operator can list/create/update/archive; owner/admin/staff/internal or knowledge-review/manage permission can approve/reject.
+- Duplicate artist URL create is idempotent and returns the existing row without duplicate mutation.
+- Character chat generation reads approved, chat-visible, non-archived sources only and passes at most three facts-only snippets to provider runtime.
+- Provider runtime receives only domain/platform/title/summary; full URL/raw source is not injected, and URL/prompt-injection phrases are sanitized before runtime use.
+- Added `GET /api/v1/chat/artist-knowledge-contract` and documented endpoint/storage/runtime contract for #409 UI and #410 QA.
+blocked_by:
+- Live verification requires deploy and an active creator/operator test account with safe credentials provided outside Git/Notion/chat.
+next_needed:
+- Viewer review, then #409 UI/#410 QA can verify pending registration, list rendering, approval state, archive behavior, and approved-only chat reference after deploy.
+sensitive_values_recorded:
+- none
+
+---
+
 status: ready_for_review
 task: "#397 character chat dynamic opening greeting session regression contract"
 branch: team2-backend/character-chat-greeting-regression-397
