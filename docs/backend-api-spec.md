@@ -895,6 +895,10 @@ Character-chat dynamic opening greeting cache (#388):
 - Same-session concurrent requests are serialized by locking the
   `chat_sessions` row inside the greeting transaction, rechecking the cached
   `opening_greeting`, and generating only when the cached row is still absent.
+- #402 adds `openingGreeting.toneCandidate` to the session response and stored
+  `opening_greeting` metadata. It snapshots display-safe character tone guide,
+  tone tags, and persona tags from the runtime persona contract so QA can verify
+  that one character's tone candidate is not reused for another.
 - The same character can still produce different first greetings across
   different sessions through provider output or deterministic fallback variant
   seed from `chat_sessions.id`.
@@ -910,6 +914,8 @@ Character-chat dynamic opening greeting cache (#388):
 - Opening greeting metadata must not store or return raw prompts, provider
   payloads, tokens, API keys, user private data, wallet/order/settlement ids, or
   payout internals.
+- `openingGreeting.toneCandidate` is display-safe contract data only. Do not
+  treat it as an editable system prompt or expose raw metadata keys as user copy.
 
 LLM generation readiness:
 

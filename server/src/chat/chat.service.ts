@@ -370,11 +370,22 @@ type ChatOpeningGreetingMessageRecord = {
   safetyMetadata?: unknown;
   createdAt: Date;
 };
+type ChatOpeningGreetingToneCandidate = {
+  contractVersion: string;
+  characterSlug: string;
+  guideKo: string;
+  guideSource: string;
+  toneTags: string[];
+  personaTags: string[];
+  displaySafe: true;
+  rawPersonaPromptStored: false;
+};
 type ChatOpeningGreetingCandidate = {
   body: string;
   source: 'provider' | 'fallback';
   providerCall: boolean;
   providerAttempted: boolean;
+  toneCandidate: ChatOpeningGreetingToneCandidate;
   generated?: ChatGenerationResult;
   fallbackReason?: string;
 };
@@ -984,6 +995,10 @@ export class ChatService {
     session: ChatOpeningGreetingSessionRecord,
   ): Promise<ChatOpeningGreetingCandidate> {
     const runtimePersona = this.buildCharacterRuntimePersonaContext(session.artist);
+    const toneCandidate = this.openingGreetingToneCandidate(
+      session.artist.slug,
+      runtimePersona,
+    );
     const providerUserContext = await this.getProviderUserContext(userId);
     const readiness = await this.providerReadinessForUser(
       userId,
@@ -1034,6 +1049,7 @@ export class ChatService {
               source: 'provider',
               providerCall: true,
               providerAttempted: true,
+              toneCandidate,
               generated: {
                 ...generated,
                 body,
@@ -1044,6 +1060,7 @@ export class ChatService {
           return this.fallbackOpeningGreetingCandidate(
             runtimePersona,
             session.id,
+            toneCandidate,
             'provider_empty_response',
             true,
           );
@@ -1051,6 +1068,7 @@ export class ChatService {
           return this.fallbackOpeningGreetingCandidate(
             runtimePersona,
             session.id,
+            toneCandidate,
             error instanceof ChatLlmProviderRequestError
               ? error.code
               : 'provider_failed',
@@ -1062,6 +1080,7 @@ export class ChatService {
       return this.fallbackOpeningGreetingCandidate(
         runtimePersona,
         session.id,
+        toneCandidate,
         'provider_guard_blocked',
         false,
       );
@@ -1070,6 +1089,7 @@ export class ChatService {
     return this.fallbackOpeningGreetingCandidate(
       runtimePersona,
       session.id,
+      toneCandidate,
       readiness.status,
       false,
     );
@@ -1078,6 +1098,7 @@ export class ChatService {
   private fallbackOpeningGreetingCandidate(
     runtimePersona: CharacterRuntimePersonaContext,
     sessionId: string,
+    toneCandidate: ChatOpeningGreetingToneCandidate,
     fallbackReason: string,
     providerAttempted: boolean,
   ): ChatOpeningGreetingCandidate {
@@ -1086,6 +1107,7 @@ export class ChatService {
       source: 'fallback',
       providerCall: false,
       providerAttempted,
+      toneCandidate,
       fallbackReason,
     };
   }
@@ -1149,6 +1171,7 @@ export class ChatService {
         estimatedCostKrw: '0.00',
         maxOutputChars: CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS,
         cacheScope: 'chat_session',
+        toneCandidate: candidate.toneCandidate,
         rawPromptStored: false,
         rawProviderPayloadStored: false,
         userPrivateDataStored: false,
@@ -1166,6 +1189,7 @@ export class ChatService {
       maxOutputChars: CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS,
       maxOutputTokens: CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS,
       cacheScope: 'chat_session',
+      toneCandidate: candidate.toneCandidate,
       rawPromptStored: false,
       rawProviderPayloadStored: false,
       userPrivateDataStored: false,
@@ -1197,6 +1221,7 @@ export class ChatService {
       providerCall: boolean;
     },
   ) {
+    const modelMetadata = this.recordOrEmpty(message.modelMetadata);
     const safetyMetadata = this.recordOrEmpty(message.safetyMetadata);
 
     return {
@@ -1220,6 +1245,7 @@ export class ChatService {
         maxOutputChars: CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS,
         maxOutputTokens: CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS,
       },
+      toneCandidate: this.openingGreetingToneCandidateFromMetadata(modelMetadata),
       safety: {
         rawPromptStored: false,
         rawProviderPayloadStored: false,
@@ -1227,6 +1253,46 @@ export class ChatService {
         tokenReturned: false,
         apiKeyReturned: false,
       },
+    };
+  }
+
+  private openingGreetingToneCandidate(
+    characterSlug: string,
+    runtimePersona: CharacterRuntimePersonaContext,
+  ): ChatOpeningGreetingToneCandidate {
+    return {
+      contractVersion: CHARACTER_CHAT_GREETING_TONE_CONTRACT_VERSION,
+      characterSlug,
+      guideKo: runtimePersona.tone.guideKo,
+      guideSource: runtimePersona.tone.guideSource,
+      toneTags: runtimePersona.tone.toneTags.slice(0, 8),
+      personaTags: runtimePersona.personaTags.slice(0, 8),
+      displaySafe: true,
+      rawPersonaPromptStored: false,
+    };
+  }
+
+  private openingGreetingToneCandidateFromMetadata(
+    modelMetadata: Record<string, unknown>,
+  ) {
+    const toneCandidate = this.recordOrEmpty(modelMetadata.toneCandidate);
+    const guideKo = this.stringFromUnknown(toneCandidate.guideKo);
+
+    if (!guideKo) {
+      return null;
+    }
+
+    return {
+      contractVersion:
+        this.stringFromUnknown(toneCandidate.contractVersion) ??
+        CHARACTER_CHAT_GREETING_TONE_CONTRACT_VERSION,
+      characterSlug: this.stringFromUnknown(toneCandidate.characterSlug) ?? null,
+      guideKo,
+      guideSource: this.stringFromUnknown(toneCandidate.guideSource) ?? null,
+      toneTags: this.normalizeStringList(toneCandidate.toneTags, 8, 40),
+      personaTags: this.normalizeStringList(toneCandidate.personaTags, 8, 40),
+      displaySafe: toneCandidate.displaySafe === true,
+      rawPersonaPromptStored: false,
     };
   }
 
@@ -3275,11 +3341,21 @@ export class ChatService {
         sourceOrder: ['site_content', 'artist_metadata', 'character_fallback', 'default'],
         sessionVariantSeed: 'chat_sessions.id',
       },
+      toneCandidate: {
+        enabled: true,
+        contractVersion: CHARACTER_CHAT_GREETING_TONE_CONTRACT_VERSION,
+        source: 'runtimePersona.tone',
+        displaySafe: true,
+        rawPersonaPromptStored: false,
+      },
       responseFields: [
         'openingGreeting.text',
         'openingGreeting.cache.scope',
         'openingGreeting.cache.hit',
         'openingGreeting.generation.providerCall',
+        'openingGreeting.toneCandidate.guideKo',
+        'openingGreeting.toneCandidate.toneTags',
+        'openingGreeting.toneCandidate.personaTags',
         'openingGreeting.safety.rawPromptStored',
       ],
       rawPromptStored: false,
