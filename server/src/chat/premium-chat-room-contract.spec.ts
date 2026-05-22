@@ -1,5 +1,6 @@
 import {
   isPremiumChatRoomMutationBlocked,
+  premiumChatRoomAllowedTierKeysForServerUnlocks,
   premiumChatRoomAccessForRole,
   PREMIUM_CHAT_ROOM_CONTRACT,
   PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
@@ -10,9 +11,43 @@ import {
 } from './premium-chat-room-contract';
 
 describe('premium chat room refund and moderation ledger contract', () => {
-  it('uses server room tier policy instead of client-submitted price or follower count', () => {
+  it('keeps initial artists on the 300L tier until the server unlocks higher tiers', () => {
     const resolved = resolvePremiumChatRoomOpenPolicy({
       tierKey: 'premium_chat_room_500',
+      clientSubmittedAmountLumina: 1,
+      clientSubmittedFollowerCount: 99999999,
+    });
+
+    expect(premiumChatRoomAllowedTierKeysForServerUnlocks()).toEqual([
+      'premium_chat_room_300',
+    ]);
+    expect(resolved).toMatchObject({
+      allowed: false,
+      status: 403,
+      code: 'PREMIUM_CHAT_ROOM_TIER_LOCKED',
+      messageKey: 'chat.premiumRoom.tierLocked',
+      tierKey: 'premium_chat_room_500',
+      amountLumina: 500,
+      maxTierAmountLumina: 3000,
+      allowedTierKeys: ['premium_chat_room_300'],
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedFollowerCountTrusted: false,
+      clientSubmittedFollowerCountIgnored: true,
+      publicReason: {
+        reasonKey: 'tier_locked',
+        messageKey: 'chat.premiumRoom.tierLocked',
+        labels: {},
+      },
+    });
+  });
+
+  it('uses server room tier unlocks instead of client-submitted price or follower count', () => {
+    const resolved = resolvePremiumChatRoomOpenPolicy({
+      tierKey: 'premium_chat_room_500',
+      serverUnlockedTierKeys: ['premium_chat_room_500'],
       clientSubmittedAmountLumina: 1,
       clientSubmittedFollowerCount: 99999999,
     });
@@ -21,6 +56,8 @@ describe('premium chat room refund and moderation ledger contract', () => {
       allowed: true,
       tierKey: 'premium_chat_room_500',
       amountLumina: 500,
+      maxTierAmountLumina: 3000,
+      allowedTierKeys: ['premium_chat_room_300', 'premium_chat_room_500'],
       source: 'server_room_open_tier_policy',
       walletMutationEnabled: false,
       settlementMutationEnabled: false,
@@ -30,13 +67,19 @@ describe('premium chat room refund and moderation ledger contract', () => {
       clientSubmittedAmountMismatch: true,
       clientSubmittedFollowerCountTrusted: false,
       clientSubmittedFollowerCountIgnored: true,
+      publicReason: {
+        reasonKey: 'open_allowed',
+        messageKey: 'chat.premiumRoom.openAllowed',
+        labels: {},
+      },
     });
   });
 
-  it('rejects unknown room tiers with a stable message key before wallet mutation', () => {
+  it('rejects unknown or above-maximum room tiers with a stable message key before wallet mutation', () => {
     const resolved = resolvePremiumChatRoomOpenPolicy({
-      tierKey: 'premium_chat_room_1',
-      clientSubmittedAmountLumina: 1,
+      tierKey: 'premium_chat_room_5000',
+      serverUnlockedTierKeys: ['premium_chat_room_3000', 'premium_chat_room_5000'],
+      clientSubmittedAmountLumina: 5000,
     });
 
     expect(resolved).toMatchObject({
@@ -47,6 +90,12 @@ describe('premium chat room refund and moderation ledger contract', () => {
       amountLumina: null,
       walletMutationEnabled: false,
       clientSubmittedAmountTrusted: false,
+      allowedTierKeys: ['premium_chat_room_300', 'premium_chat_room_3000'],
+      publicReason: {
+        reasonKey: 'invalid_tier',
+        messageKey: 'chat.premiumRoom.invalidTier',
+        labels: {},
+      },
     });
   });
 
@@ -128,6 +177,13 @@ describe('premium chat room refund and moderation ledger contract', () => {
       duplicateRefundProtection: true,
       settlementMutationEnabled: false,
       payoutMutationEnabled: false,
+    });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.refunds.unansweredAfterHours).toMatchObject({
+      hours: 24,
+      stateKey: 'unanswered_24h_refund_pending',
+      publicReasonKey: 'unanswered_24h',
+      userRefundBps: 10000,
+      messageKey: 'chat.premiumRoom.refund.unanswered24h',
     });
     expect(
       resolvePremiumChatRoomRefundPolicy({
@@ -293,6 +349,26 @@ describe('premium chat room refund and moderation ledger contract', () => {
       tokenCookieSecretDbUrlLogged: false,
       signedUrlLogged: false,
     });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.responsePolicy).toMatchObject({
+      publicReasonOnly: true,
+      publicReasonFields: ['reasonKey', 'messageKey', 'labels'],
+      blockedPublicFields: expect.arrayContaining([
+        'rawAdminNote',
+        'rawWalletLedgerId',
+        'rawProviderPayload',
+        'rawUserEmail',
+      ]),
+      rawEnumUserCopyAllowed: false,
+    });
+    const publicResult = resolvePremiumChatRoomOpenPolicy({
+      tierKey: 'premium_chat_room_300',
+      clientSubmittedFollowerCount: 1,
+    });
+    const publicPayload = JSON.stringify(publicResult);
+
+    expect(publicPayload).not.toContain('rawAdminNote');
+    expect(publicPayload).not.toContain('rawWalletLedgerId');
+    expect(publicPayload).not.toContain('rawUserEmail');
   });
 
   it('keeps user, artist, and non-owner access separated without opening mutations', () => {

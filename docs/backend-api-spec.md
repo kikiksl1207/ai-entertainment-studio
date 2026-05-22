@@ -1040,11 +1040,14 @@ GET /api/v1/chat/me/premium-donations?period=monthly&status=confirmed&take=20
   meter ledger ids, internal admin notes, raw payloads, counterparty user ids,
   or message ids.
 
-Premium room-open/refund/moderation contract (#331/#383):
+Premium room-open/refund/moderation contract (#331/#383/#395):
 
 - Room tiers are 300L, 500L, 1,000L, and 3,000L.
 - The server evaluates all follower unlock gates. Clients cannot unlock a tier
   by submitting a follower count, local balance, price, or paid amount.
+- Initial artists are limited to the 300L tier until the server unlocks 500L,
+  1,000L, or 3,000L by stored artist policy. 3,000L is the current maximum tier;
+  5,000L or higher room tiers are invalid until a later server policy adds them.
 - Base room duration is 3 days. Artist setting can extend the room up to a
   10-day total, and server-calculated expiry is authoritative.
 - Future room-open create requires an idempotency key and a server wallet debit
@@ -1058,7 +1061,11 @@ Premium room-open/refund/moderation contract (#331/#383):
   company retention, and 10% artist compensation. The 50% outcome records 50%
   user refund, 40% company retention, and 10% artist compensation. The
   restricted portion is split as 10% artist / remainder company, and there is
-  no policy-hold row in the #389 room contract.
+  no policy-hold row in the #395 room contract.
+- Room-open policy responses expose only public reason fields (`reasonKey`,
+  `messageKey`, optional localized `labels`) and must not expose internal admin
+  notes, wallet ledger ids, provider payloads, raw user email, tokens, cookies,
+  or DB URLs.
 - Artist compensation is only a future accounting candidate; settlement and
   payout mutation stay disabled until a later settlement task.
 - Report intake uses reported/blind/suspended/admin-review processing and no

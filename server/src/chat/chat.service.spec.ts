@@ -3462,6 +3462,20 @@ describe('ChatService premium chat support contract', () => {
       1000,
       3000,
     ]);
+    expect(contract.room.roomOpen.tiers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tierKey: 'premium_chat_room_300',
+          initialArtistEligible: true,
+          maxTier: false,
+        }),
+        expect.objectContaining({
+          tierKey: 'premium_chat_room_3000',
+          initialArtistEligible: false,
+          maxTier: true,
+        }),
+      ]),
+    );
     expect(contract.roomList).toMatchObject({
       status: 'planned_disabled',
       endpoint: '/api/v1/chat/premium-rooms',
@@ -3573,6 +3587,8 @@ describe('ChatService premium chat support contract', () => {
     });
     expect(contract.room.refunds.unansweredAfterHours).toMatchObject({
       hours: 24,
+      stateKey: 'unanswered_24h_refund_pending',
+      publicReasonKey: 'unanswered_24h',
       userRefundBps: 10000,
       source: 'premium_chat_room_refund',
     });
@@ -3582,6 +3598,16 @@ describe('ChatService premium chat support contract', () => {
       minArtistCompensationBpsOfGross: 1000,
       settlementMutationEnabled: false,
       payoutMutationEnabled: false,
+    });
+    expect(contract.room.responsePolicy).toMatchObject({
+      publicReasonOnly: true,
+      publicReasonFields: ['reasonKey', 'messageKey', 'labels'],
+      blockedPublicFields: expect.arrayContaining([
+        'rawAdminNote',
+        'rawWalletLedgerId',
+        'rawProviderPayload',
+        'rawUserEmail',
+      ]),
     });
     expect(contract.room.moderation).toMatchObject({
       reportProcessingStatus: 'admin_review',

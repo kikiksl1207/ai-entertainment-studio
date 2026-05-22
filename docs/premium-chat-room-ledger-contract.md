@@ -2,7 +2,7 @@
 
 Updated: 2026-05-21
 Owner: Kaido
-Task: Notion #331, #383, #389
+Task: Notion #331, #383, #389, #395
 
 This contract fixes the backend authority rules for premium chat room opening,
 artist closure, report/blind handling, and refund outcomes. It does not open a
@@ -32,9 +32,15 @@ live debit, refund, settlement, or payout mutation.
 | `premium_chat_room_1000` | 1,000L | Server follower policy `premiumChat.roomUnlock.1000`. |
 | `premium_chat_room_3000` | 3,000L | Server follower policy `premiumChat.roomUnlock.3000`. |
 
-Follower thresholds are not client input. If thresholds become configurable,
-they must live in server policy/admin storage and be returned as display hints
-only after the backend has evaluated eligibility.
+Initial artists only receive `premium_chat_room_300` unless the server has
+stored higher-tier unlocks. Follower thresholds are not client input. Clients
+cannot unlock a tier by sending follower count, local balance, price, or paid
+amount. `premium_chat_room_3000` is the current maximum tier; 5,000L or higher
+room tiers are invalid until a later server policy explicitly adds them.
+
+If thresholds become configurable, they must live in server policy/admin
+storage and be returned as display hints only after the backend has evaluated
+eligibility.
 
 ## Duration
 
@@ -77,7 +83,7 @@ PR only fixes the contract and tests.
 - For a 50% user-fault refund, the planned accounting split is 50% user Lumina
   refund, 40% company revenue retention, and 10% artist compensation
   retention. This keeps the restricted portion split as 10% artist / remainder
-  company, with no policy-hold row in the #389 contract.
+  company, with no policy-hold row in the #395 contract.
 - Artist compensation is a later settlement event candidate only. This contract
   does not create settlement, payout, or revenue-share mutation.
 - Duplicate refund attempts must reuse the original refund projection and must
@@ -97,7 +103,10 @@ PR only fixes the contract and tests.
 Report intake must blind/suspend the room or mark it processing until admin
 review. User-facing responses use stable message keys such as
 `chat.premiumRoom.report.processing`; raw internal status strings are not the
-only UI copy source.
+only UI copy source. Room-open policy responses may expose public reasons only:
+`reasonKey`, `messageKey`, and optional localized `labels`. They must not expose
+internal admin notes, wallet ledger ids, provider payloads, raw user email, DB
+URLs, cookies, or tokens.
 
 The following room states fail closed before message, support, debit,
 conversation-meter, support-point, settlement, or payout mutation:
@@ -115,5 +124,5 @@ conversation-meter, support-point, settlement, or payout mutation:
 - Implement refund/admin decision workflow with duplicate refund protection.
 - Add moderation queue and audit log entries before public reporting is opened.
 - Implement storage for the 50% user-fault company-retention remainder before
-  settlement or payout is enabled. The current #389 contract keeps settlement
+  settlement or payout is enabled. The current #395 contract keeps settlement
   and payout disabled.

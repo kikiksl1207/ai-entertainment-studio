@@ -159,6 +159,9 @@ Current state:
 - Room-open tiers are 300L, 500L, 1,000L, and 3,000L. The server evaluates any
   follower-based unlock gate; clients cannot unlock a tier by submitting a
   price or follower count.
+- Initial artists are limited to 300L until the server unlocks higher tiers.
+  3,000L is the current maximum; 5,000L or higher room tiers are invalid until
+  a later server policy adds them.
 - Base room duration is 3 days. Artist setting can extend the room up to a
   10-day total and server-calculated expiry is authoritative.
 - If the artist does not answer within 24 hours, the server refund policy can
@@ -173,7 +176,10 @@ Current state:
   refund, 20% company revenue retention, and 10% artist compensation retention.
   The 50% outcome records 50% user refund, 40% company retention, and 10%
   artist compensation. The restricted portion is split as 10% artist /
-  remainder company, with no policy-hold row in the #389 contract.
+  remainder company, with no policy-hold row in the #395 contract.
+- Public room-open policy responses expose stable public reasons only and do
+  not expose internal admin notes, wallet ledger ids, provider payloads, raw
+  user email, tokens, cookies, or DB URLs.
 - Report intake moves the room into reported/blind/suspended/admin-review
   processing with no wallet action before an admin decision.
 - `closed`, `artist_closed`, `expired`, `reported`, `blind`, `suspended`,

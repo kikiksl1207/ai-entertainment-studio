@@ -1,8 +1,12 @@
 export const PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA = [300, 500, 1000, 3000] as const;
 
 export const PREMIUM_CHAT_ROOM_DEFAULT_TIER_KEY = 'premium_chat_room_300';
+export const PREMIUM_CHAT_ROOM_DEFAULT_UNLOCKED_TIER_KEYS = [
+  PREMIUM_CHAT_ROOM_DEFAULT_TIER_KEY,
+] as const;
 export const PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS = 3;
 export const PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS = 10;
+export const PREMIUM_CHAT_ROOM_MAX_TIER_AMOUNT_LUMINA = 3000;
 
 export const PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES = [
   'closed',
@@ -102,6 +106,8 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       {
         tierKey: 'premium_chat_room_300',
         amountLumina: 300,
+        initialArtistEligible: true,
+        maxTier: false,
         unlockGate: {
           type: 'none',
           serverEvaluated: true,
@@ -110,6 +116,8 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       {
         tierKey: 'premium_chat_room_500',
         amountLumina: 500,
+        initialArtistEligible: false,
+        maxTier: false,
         unlockGate: {
           type: 'artist_follower_policy',
           policyKey: 'premiumChat.roomUnlock.500',
@@ -119,6 +127,8 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       {
         tierKey: 'premium_chat_room_1000',
         amountLumina: 1000,
+        initialArtistEligible: false,
+        maxTier: false,
         unlockGate: {
           type: 'artist_follower_policy',
           policyKey: 'premiumChat.roomUnlock.1000',
@@ -128,6 +138,8 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       {
         tierKey: 'premium_chat_room_3000',
         amountLumina: 3000,
+        initialArtistEligible: false,
+        maxTier: true,
         unlockGate: {
           type: 'artist_follower_policy',
           policyKey: 'premiumChat.roomUnlock.3000',
@@ -217,6 +229,8 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
   refunds: {
     unansweredAfterHours: {
       hours: 24,
+      stateKey: 'unanswered_24h_refund_pending',
+      publicReasonKey: 'unanswered_24h',
       userRefundBps: 10000,
       ledgerType: 'refund',
       source: 'premium_chat_room_refund',
@@ -453,9 +467,22 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     stableKeysOnlyForUserFacingCopy: true,
     rawEnumUserCopyAllowed: false,
     labelsOptional: true,
+    publicReasonOnly: true,
+    publicReasonFields: ['reasonKey', 'messageKey', 'labels'],
+    blockedPublicFields: [
+      'rawAdminNote',
+      'rawLedgerId',
+      'rawWalletLedgerId',
+      'rawProviderPayload',
+      'rawUserEmail',
+    ],
   },
   accessControl: PREMIUM_CHAT_ROOM_ACCESS_CONTROL,
 } as const;
+
+export function premiumChatRoomKnownTierKeys() {
+  return PREMIUM_CHAT_ROOM_CONTRACT.roomOpen.tiers.map((tier) => tier.tierKey);
+}
 
 export function premiumChatRoomTierByKey(tierKey: string | null | undefined) {
   return (
@@ -465,13 +492,30 @@ export function premiumChatRoomTierByKey(tierKey: string | null | undefined) {
   );
 }
 
+export function premiumChatRoomAllowedTierKeysForServerUnlocks(
+  serverUnlockedTierKeys: readonly string[] = PREMIUM_CHAT_ROOM_DEFAULT_UNLOCKED_TIER_KEYS,
+) {
+  const knownKeys = new Set<string>(premiumChatRoomKnownTierKeys());
+  const allowed = new Set<string>(PREMIUM_CHAT_ROOM_DEFAULT_UNLOCKED_TIER_KEYS);
+
+  serverUnlockedTierKeys
+    .filter((tierKey) => knownKeys.has(tierKey))
+    .forEach((tierKey) => allowed.add(tierKey));
+
+  return premiumChatRoomKnownTierKeys().filter((tierKey) => allowed.has(tierKey));
+}
+
 export function resolvePremiumChatRoomOpenPolicy(input: {
   tierKey?: string | null;
+  serverUnlockedTierKeys?: readonly string[];
   clientSubmittedAmountLumina?: unknown;
   clientSubmittedFollowerCount?: unknown;
 } = {}) {
   const tierKey = input.tierKey ?? PREMIUM_CHAT_ROOM_DEFAULT_TIER_KEY;
   const tier = premiumChatRoomTierByKey(tierKey);
+  const allowedTierKeys = premiumChatRoomAllowedTierKeysForServerUnlocks(
+    input.serverUnlockedTierKeys,
+  );
 
   if (!tier) {
     return {
@@ -486,6 +530,38 @@ export function resolvePremiumChatRoomOpenPolicy(input: {
       clientSubmittedAmountIgnored:
         input.clientSubmittedAmountLumina !== undefined,
       clientSubmittedFollowerCountTrusted: false,
+      allowedTierKeys,
+      publicReason: {
+        reasonKey: 'invalid_tier',
+        messageKey: 'chat.premiumRoom.invalidTier',
+        labels: {},
+      },
+    } as const;
+  }
+
+  if (!allowedTierKeys.includes(tier.tierKey)) {
+    return {
+      allowed: false,
+      status: 403,
+      code: 'PREMIUM_CHAT_ROOM_TIER_LOCKED',
+      messageKey: 'chat.premiumRoom.tierLocked',
+      tierKey: tier.tierKey,
+      amountLumina: tier.amountLumina,
+      maxTierAmountLumina: PREMIUM_CHAT_ROOM_MAX_TIER_AMOUNT_LUMINA,
+      allowedTierKeys,
+      unlockGate: tier.unlockGate,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedFollowerCountTrusted: false,
+      clientSubmittedFollowerCountIgnored:
+        input.clientSubmittedFollowerCount !== undefined,
+      publicReason: {
+        reasonKey: 'tier_locked',
+        messageKey: 'chat.premiumRoom.tierLocked',
+        labels: {},
+      },
     } as const;
   }
 
@@ -500,6 +576,8 @@ export function resolvePremiumChatRoomOpenPolicy(input: {
     allowed: true,
     tierKey: tier.tierKey,
     amountLumina: tier.amountLumina,
+    maxTierAmountLumina: PREMIUM_CHAT_ROOM_MAX_TIER_AMOUNT_LUMINA,
+    allowedTierKeys,
     unlockGate: tier.unlockGate,
     source: 'server_room_open_tier_policy',
     walletMutationEnabled: false,
@@ -514,6 +592,11 @@ export function resolvePremiumChatRoomOpenPolicy(input: {
     clientSubmittedFollowerCountTrusted: false,
     clientSubmittedFollowerCountIgnored:
       input.clientSubmittedFollowerCount !== undefined,
+    publicReason: {
+      reasonKey: 'open_allowed',
+      messageKey: 'chat.premiumRoom.openAllowed',
+      labels: {},
+    },
   } as const;
 }
 
