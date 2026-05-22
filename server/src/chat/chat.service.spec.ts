@@ -318,6 +318,270 @@ describe('ChatService dynamic opening greeting cache', () => {
     expect(tx.chatMessage.create).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps fallback opening greetings varied across three characters and ten sessions each', async () => {
+    const characterSamples = [
+      {
+        id: '00000000-0000-4000-8000-000000000391',
+        slug: 'serin-regression',
+        displayName: 'Serin',
+        publicProfile: {
+          publicMetadata: {
+            chatCatalog: {
+              greetingText: 'Serin opens with a quiet studio greeting.',
+              toneGuideKo: 'Use a calm and careful tone.',
+            },
+            chatStarterPromptSets: [
+              {
+                id: 'serin-regression-start',
+                guideText: 'Start gently with Serin.',
+                options: [
+                  {
+                    key: 'A',
+                    label: 'Quiet stage',
+                    message: 'Ask Serin about the quiet stage air.',
+                  },
+                ],
+              },
+            ],
+            chatPersonaSeed: {
+              customTraitsKo: ['quiet focus'],
+            },
+          },
+          tagline: 'Quiet stage listener',
+          personalityKeywords: ['calm'],
+        },
+        contentProfile: {
+          contentTone: 'calm',
+        },
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000392',
+        slug: 'chaeon-regression',
+        displayName: 'Chaeon',
+        publicProfile: {
+          publicMetadata: {
+            chatCatalog: {
+              greetingText: 'Chaeon opens with a bright practice-room greeting.',
+              toneGuideKo: 'Use a bright but grounded tone.',
+            },
+            chatStarterPromptSets: [
+              {
+                id: 'chaeon-regression-start',
+                guideText: 'Start brightly with Chaeon.',
+                options: [
+                  {
+                    key: 'A',
+                    label: 'Practice room',
+                    message: 'Ask Chaeon about practice-room energy.',
+                  },
+                ],
+              },
+            ],
+            chatPersonaSeed: {
+              customTraitsKo: ['bright focus'],
+            },
+          },
+          tagline: 'Bright practice partner',
+          personalityKeywords: ['bright'],
+        },
+        contentProfile: {
+          contentTone: 'bright',
+        },
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000393',
+        slug: 'mira-regression',
+        displayName: 'Mira',
+        publicProfile: {
+          publicMetadata: {
+            chatCatalog: {
+              greetingText: 'Mira opens with a measured backstage greeting.',
+              toneGuideKo: 'Use a measured and observant tone.',
+            },
+            chatStarterPromptSets: [
+              {
+                id: 'mira-regression-start',
+                guideText: 'Start steadily with Mira.',
+                options: [
+                  {
+                    key: 'A',
+                    label: 'Backstage',
+                    message: 'Ask Mira about the backstage mood.',
+                  },
+                ],
+              },
+            ],
+            chatPersonaSeed: {
+              customTraitsKo: ['measured focus'],
+            },
+          },
+          tagline: 'Measured backstage guide',
+          personalityKeywords: ['observant'],
+        },
+        contentProfile: {
+          contentTone: 'measured',
+        },
+      },
+    ];
+    const plannedSessions = characterSamples.flatMap((sample, artistIndex) =>
+      Array.from({ length: 10 }, (_, sessionIndex) => {
+        const suffix = (0x500 + artistIndex * 16 + sessionIndex)
+          .toString(16)
+          .padStart(12, '0');
+
+        return {
+          ...sessionBase,
+          id: `00000000-0000-4000-8000-${suffix}`,
+          artistId: sample.id,
+          artist: sample,
+        };
+      }),
+    );
+    let nextSessionIndex = 0;
+    const tx = txMock();
+    const prisma = {
+      artist: {
+        findFirst: jest.fn(async (args) =>
+          characterSamples.some((sample) => sample.id === args.where.id)
+            ? { id: args.where.id }
+            : null,
+        ),
+      },
+      chatSession: {
+        create: jest.fn(async (args) => {
+          const nextSession = plannedSessions[nextSessionIndex++];
+
+          expect(nextSession.artistId).toBe(args.data.artistId);
+
+          return nextSession;
+        }),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: userId,
+          email: null,
+        }),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: false,
+        status: 'provider_disabled',
+        messageKey: 'chat.generation.providerNotConfigured',
+      }),
+      generate: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+    const greetingsBySlug = new Map<string, string[]>();
+
+    for (const plannedSession of plannedSessions) {
+      const result = await service.createSession(userId, {
+        artistId: plannedSession.artistId,
+      });
+      const current = greetingsBySlug.get(plannedSession.artist.slug) ?? [];
+
+      current.push(result.openingGreeting.text);
+      greetingsBySlug.set(plannedSession.artist.slug, current);
+      expect(result.openingGreeting.generation.providerCall).toBe(false);
+      expect(result.openingGreeting.cache.scope).toBe('chat_session');
+    }
+
+    for (const sample of characterSamples) {
+      const greetings = greetingsBySlug.get(sample.slug) ?? [];
+
+      expect(greetings).toHaveLength(10);
+      expect(new Set(greetings).size).toBeGreaterThanOrEqual(3);
+    }
+    expect(new Set([...greetingsBySlug.values()].flat()).size).toBeGreaterThanOrEqual(9);
+    expect(llmProvider.generate).not.toHaveBeenCalled();
+    expect(tx.chatMessage.create).toHaveBeenCalledTimes(30);
+  });
+
+  it('skips provider opening greeting generation when the daily provider guard is exhausted', async () => {
+    const session = {
+      ...sessionBase,
+      id: '00000000-0000-4000-8000-000000000385',
+    };
+    const tx = txMock();
+    const providerGuardRows = Array.from({ length: 50 }, () => ({
+      modelMetadata: {
+        provider: 'openai',
+        model: 'gpt-5-nano',
+        usage: {
+          provider: 'openai',
+          model: 'gpt-5-nano',
+          inputTokens: 1,
+          outputTokens: 1,
+          estimatedCostKrw: '0.01',
+        },
+      },
+      safetyMetadata: {
+        generationStatus: 'completed',
+      },
+    }));
+    const prisma = {
+      artist: {
+        findFirst: jest.fn().mockResolvedValue({ id: artist.id }),
+      },
+      chatSession: {
+        create: jest.fn().mockResolvedValue(session),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue(providerGuardRows),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: userId,
+          email: null,
+        }),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: true,
+        status: 'provider_ready',
+        messageKey: 'chat.generation.ready',
+      }),
+      generate: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.createSession(userId, {
+      artistId: artist.id,
+    });
+
+    expect(llmProvider.generate).not.toHaveBeenCalled();
+    expect(result.openingGreeting.generation.providerCall).toBe(false);
+    expect(tx.chatMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          messageType: 'opening_greeting',
+          modelMetadata: expect.objectContaining({
+            source: 'fallback',
+            fallbackReason: 'provider_guard_blocked',
+            estimatedCostKrw: '0.00',
+          }),
+          safetyMetadata: expect.objectContaining({
+            openingGreetingSource: 'fallback',
+            providerAttempted: false,
+            fallbackReason: 'provider_guard_blocked',
+            rawPromptStored: false,
+            rawProviderPayloadStored: false,
+            userPrivateDataStored: false,
+          }),
+        }),
+      }),
+    );
+  });
+
   it('serializes concurrent opening greeting requests before provider generation', async () => {
     const session = {
       ...sessionBase,

@@ -2,7 +2,7 @@
 
 Updated: 2026-05-22
 Owner: Luffy
-Task: Notion #388
+Task: Notion #388, #397 regression contract
 
 This contract makes the first character-chat greeting dynamic per chat session
 without generating a new greeting on every page refresh. It keeps raw prompts,
@@ -105,6 +105,11 @@ The backend test fixes:
 - provider-generated opening greeting is stored once as `opening_greeting`
 - cached message reads do not call the provider
 - provider-unavailable fallback still returns character-specific text
+- provider-unavailable fallback is checked across at least three character
+  fixtures and ten sessions per character, so same-character greetings cannot
+  silently regress to one fixed sentence
+- exhausted daily provider guard stores a zero-cost fallback and skips provider
+  generation
 - concurrent same-session requests produce one stored opening greeting and one
   provider attempt
 - provider request errors store a fallback greeting instead of throwing

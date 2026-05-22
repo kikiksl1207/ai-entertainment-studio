@@ -1,6 +1,38 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#397 character chat dynamic opening greeting session regression contract"
+branch: team2-backend/character-chat-greeting-regression-397
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/chat.service.spec.ts
+- docs/character-chat-dynamic-greeting-cache-contract.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.service.spec.ts
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npx.cmd prisma generate
+- npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts
+- npm.cmd run build
+- git diff --check
+- git diff --check origin/main...HEAD
+result:
+- Added regression coverage for provider-unavailable fallback variation across 3 character fixtures and 10 sessions per character.
+- Added regression coverage for exhausted daily provider guard skipping opening greeting provider generation and storing zero-cost fallback metadata.
+- Kept raw prompt, token, provider payload, user private data, wallet/order/settlement/payout details out of docs and assertions.
+blocked_by:
+- none for contract test coverage; live provider QA still depends on configured provider environment.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#388 character chat dynamic opening greeting and session cache"
 branch: team2-backend/character-chat-dynamic-greeting-cache-388
 commit: final hash recorded in Notion completion report
