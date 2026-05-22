@@ -160,6 +160,14 @@ describe('server-authority wallet policy', () => {
       ),
     ).toBe(true);
     expect(
+      APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST.find(
+        (item) => item.surface === 'premium_chat_room_and_support',
+      ),
+    ).toMatchObject({
+      doubleDebitGuard:
+        'mutation_blocked_until_room_or_donation_storage_exists_then_idempotency_fingerprint_and_atomic_cached_balance_gte_amount',
+    });
+    expect(
       APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST.filter((item) => item.mutation).every(
         (item) => item.idempotencyOrProviderTransactionKey.length > 0,
       ),

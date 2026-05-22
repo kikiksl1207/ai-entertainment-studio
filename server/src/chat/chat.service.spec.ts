@@ -1,5 +1,6 @@
 import { ChatService } from './chat.service';
 import { ChatLlmProviderRequestError } from './llm-provider.adapter';
+import { resolvePremiumChatDonationAmountPolicy } from './premium-chat-support-contract';
 
 describe('ChatService.getStarterPrompts', () => {
   it('returns readable Korean default starter prompt copy', async () => {
@@ -3310,6 +3311,35 @@ describe('ChatService premium chat support contract', () => {
       10000,
       50000,
     ]);
+    expect(contract.donation.customAmount).toMatchObject({
+      supported: true,
+      minLumina: 1,
+      maxLumina: 50000,
+      integerOnly: true,
+    });
+    expect(resolvePremiumChatDonationAmountPolicy({ amountLumina: 100 })).toMatchObject({
+      allowed: true,
+      amountLumina: 100,
+      amountKind: 'fixed',
+      source: 'server-normalized donation amount',
+      walletMutationEnabled: false,
+      clientSubmittedBalanceTrusted: false,
+    });
+    expect(resolvePremiumChatDonationAmountPolicy({ amountLumina: '1234' })).toMatchObject({
+      allowed: true,
+      amountLumina: 1234,
+      amountKind: 'custom',
+      clientSubmittedScoreTrusted: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(resolvePremiumChatDonationAmountPolicy({ amountLumina: 50001 })).toMatchObject({
+      allowed: false,
+      status: 400,
+      code: 'PREMIUM_CHAT_DONATION_AMOUNT_OUT_OF_RANGE',
+      messageKey: 'chat.donation.amountOutOfRange',
+      walletMutationEnabled: false,
+    });
     expect(contract.policy.walletMutationEnabled).toBe(false);
     expect(contract.policy.supportPointLedgerMutationEnabled).toBe(false);
     expect(contract.policy.conversationMeterMutationEnabled).toBe(false);
@@ -3411,6 +3441,14 @@ describe('ChatService premium chat support contract', () => {
         'idempotency replay projection',
         'ranking read-model refresh worker',
       ],
+    });
+    expect(contract.donation.idempotency).toMatchObject({
+      required: true,
+      conflictStatus: 409,
+      conflictCode: 'PREMIUM_CHAT_DONATION_IDEMPOTENCY_CONFLICT',
+      replayRequiresSameFingerprint: true,
+      conflictWalletMutation: false,
+      requestFingerprintFields: ['sessionId', 'amountLumina', 'message'],
     });
     expect(contract.apiContracts.donationCreate.response.order).toMatchObject({
       status: 'confirmed',
@@ -3620,7 +3658,13 @@ describe('ChatService premium chat support contract', () => {
         ledgerType: 'premium_chat_donation',
         referenceType: 'premium_chat_donation',
         duplicateReplay: 'return_existing_order_and_projection',
+        duplicateReplayRequiresSameFingerprint: true,
         conflictReplay: '409 before wallet lookup',
+        conflictCode: 'PREMIUM_CHAT_DONATION_IDEMPOTENCY_CONFLICT',
+        conflictWalletMutation: false,
+        atomicBalanceGuard: 'cached_balance >= server_amount',
+        insufficientBalanceBehavior:
+          'no premium_chat_donation order/event/ledger/support-point/ranking write',
       },
     });
     expect(contract.donationOrderLedger.validationOrder).toEqual([
@@ -3649,6 +3693,16 @@ describe('ChatService premium chat support contract', () => {
       ],
       reportedOrBlindedCanDonate: false,
       suspendedOrRefundPendingCanDonate: false,
+    });
+    expect(contract.donation.ledger).toMatchObject({
+      donationSource: 'premium_chat_donation',
+      direction: 'debit',
+      balanceSource: 'wallet_accounts.cached_balance',
+      clientSubmittedBalanceTrusted: false,
+      amountSource: 'server-normalized donation amount',
+      atomicBalanceGuard: 'cached_balance >= server_amount',
+      insufficientBalanceBehavior:
+        'return stable insufficient balance error without order, donation event, ledger, or ranking write',
     });
     expect(contract.conversationMetering).toMatchObject({
       status: 'planned_disabled',

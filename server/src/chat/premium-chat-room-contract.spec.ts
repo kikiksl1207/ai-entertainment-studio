@@ -73,6 +73,25 @@ describe('premium chat room refund and moderation ledger contract', () => {
         labels: {},
       },
     });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.roomOpen.idempotency).toMatchObject({
+      required: true,
+      conflictStatus: 409,
+      conflictCode: 'PREMIUM_CHAT_ROOM_IDEMPOTENCY_CONFLICT',
+      replayRequiresSameFingerprint: true,
+      conflictWalletMutation: false,
+      requestFingerprintFields: ['artistId', 'tierKey', 'amountLumina'],
+    });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.roomOpen.ledger).toMatchObject({
+      source: 'premium_chat_room_open',
+      ledgerType: 'premium_chat_open',
+      direction: 'debit',
+      balanceSource: 'wallet_accounts.cached_balance',
+      clientSubmittedBalanceTrusted: false,
+      amountSource: 'server room tier policy',
+      atomicBalanceGuard: 'cached_balance >= server_amount',
+      insufficientBalanceBehavior:
+        'return stable insufficient balance error without room, order, or ledger write',
+    });
   });
 
   it('rejects unknown or above-maximum room tiers with a stable message key before wallet mutation', () => {

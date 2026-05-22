@@ -67,6 +67,12 @@ eligibility.
 ledger type migration before the room-open mutation can be enabled. The current
 PR only fixes the contract and tests.
 
+Room-open retry is safe only when the stored fingerprint matches
+`artistId`, `tierKey`, and the server tier amount. A mismatched replay returns
+`PREMIUM_CHAT_ROOM_IDEMPOTENCY_CONFLICT` before wallet lookup. Future debit
+must use `wallet_accounts.cached_balance >= server_amount`; insufficient
+balance writes no room, order, or ledger row.
+
 ## Refund Policy
 
 - If the artist does not answer within 24 hours, the user receives a 100%
