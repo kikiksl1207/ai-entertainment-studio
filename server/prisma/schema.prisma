@@ -8,61 +8,63 @@ datasource db {
 }
 
 model User {
-  id                   String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  status               String                   @default("active")
-  email                String?                  @unique
-  emailVerifiedAt      DateTime?                @map("email_verified_at") @db.Timestamptz(6)
-  phoneNumber          String?                  @unique @map("phone_number")
-  createdAt            DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
-  deletedAt            DateTime?                @map("deleted_at") @db.Timestamptz(6)
-  authAccounts         UserAuthAccount[]
-  profile              UserProfile?
-  settings             UserSettings?
-  identityVerification UserIdentityVerification?
-  payoutAccount        UserPayoutAccount?
-  payoutException      UserPayoutException?
-  refreshTokens        UserRefreshToken[]
-  walletAccounts       WalletAccount[]
-  videoUnlocks         UserPremiumVideoUnlock[]
-  chatSessions         ChatSession[]
-  chatFeatureOrders    ChatFeatureOrder[]
-  fanLetters           FanLetter[]              @relation("FanLetterSender")
-  entitlements         UserEntitlement[]
-  paymentOrders        PaymentOrder[]
-  auditEvents          AuditEvent[]
-  adminAccess          AdminUser?               @relation("AdminAccess")
-  createdAdminUsers    AdminUser[]              @relation("AdminCreatedBy")
-  referralCode         UserReferralCode?
-  sentReferrals        ReferralReward[]         @relation("ReferralReferrer")
-  receivedReferral     ReferralReward?          @relation("ReferralReferred")
-  attendanceRewards    DailyAttendanceReward[]
-  sentUserGifts        UserGiftTransfer[]       @relation("UserGiftSender")
-  receivedUserGifts    UserGiftTransfer[]       @relation("UserGiftRecipient")
-  actionTokens         UserActionToken[]
-  debutApplications    DebutApplication[]
-  artistOperators      ArtistOperator[]
-  communityPosts       CommunityPost[]          @relation("CommunityPostAuthor")
-  communityReplies     CommunityReply[]         @relation("CommunityReplyAuthor")
-  communityReactions   CommunityReaction[]
-  feedSearchEvents     FeedSearchEvent[]
-  feedSearchBlockedTerms FeedSearchBlockedTerm[]
-  communityReports     CommunityReport[]        @relation("CommunityReportReporter")
-  hiddenCommunityPosts CommunityHiddenPost[]
-  artistFollows        ArtistFollow[]
-  followingUsers       UserFollow[]             @relation("UserFollowFollower")
-  followers            UserFollow[]             @relation("UserFollowFollowing")
-  blockedUsers         UserBlock[]              @relation("UserBlockBlocker")
-  blockedByUsers       UserBlock[]              @relation("UserBlockBlocked")
-  notifications        UserNotification[]       @relation("UserNotificationRecipient")
-  notificationActions  UserNotification[]       @relation("UserNotificationActor")
-  creatorImageRequests CreatorImageRequest[]    @relation("CreatorImageRequestRequester")
-  moderationReports    ModerationReport[]       @relation("ModerationReportReporter")
-  fanMissionParticipations FanMissionParticipation[]
-  conceptVoteBallots  ConceptVoteBallot[]
-  fanEngagementPointLedger FanEngagementPointLedger[]
-  fanAchievements     UserFanAchievement[]
-  fanTitles           UserFanTitle[]
+  id                           String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  status                       String                     @default("active")
+  email                        String?                    @unique
+  emailVerifiedAt              DateTime?                  @map("email_verified_at") @db.Timestamptz(6)
+  phoneNumber                  String?                    @unique @map("phone_number")
+  createdAt                    DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime                   @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt                    DateTime?                  @map("deleted_at") @db.Timestamptz(6)
+  authAccounts                 UserAuthAccount[]
+  profile                      UserProfile?
+  settings                     UserSettings?
+  identityVerification         UserIdentityVerification?
+  payoutAccount                UserPayoutAccount?
+  payoutException              UserPayoutException?
+  refreshTokens                UserRefreshToken[]
+  walletAccounts               WalletAccount[]
+  videoUnlocks                 UserPremiumVideoUnlock[]
+  chatSessions                 ChatSession[]
+  chatFeatureOrders            ChatFeatureOrder[]
+  fanLetters                   FanLetter[]                @relation("FanLetterSender")
+  entitlements                 UserEntitlement[]
+  paymentOrders                PaymentOrder[]
+  auditEvents                  AuditEvent[]
+  adminAccess                  AdminUser?                 @relation("AdminAccess")
+  createdAdminUsers            AdminUser[]                @relation("AdminCreatedBy")
+  referralCode                 UserReferralCode?
+  sentReferrals                ReferralReward[]           @relation("ReferralReferrer")
+  receivedReferral             ReferralReward?            @relation("ReferralReferred")
+  attendanceRewards            DailyAttendanceReward[]
+  sentUserGifts                UserGiftTransfer[]         @relation("UserGiftSender")
+  receivedUserGifts            UserGiftTransfer[]         @relation("UserGiftRecipient")
+  actionTokens                 UserActionToken[]
+  debutApplications            DebutApplication[]
+  artistOperators              ArtistOperator[]
+  communityPosts               CommunityPost[]            @relation("CommunityPostAuthor")
+  communityReplies             CommunityReply[]           @relation("CommunityReplyAuthor")
+  communityReactions           CommunityReaction[]
+  feedSearchEvents             FeedSearchEvent[]
+  feedSearchBlockedTerms       FeedSearchBlockedTerm[]
+  communityReports             CommunityReport[]          @relation("CommunityReportReporter")
+  hiddenCommunityPosts         CommunityHiddenPost[]
+  artistFollows                ArtistFollow[]
+  followingUsers               UserFollow[]               @relation("UserFollowFollower")
+  followers                    UserFollow[]               @relation("UserFollowFollowing")
+  blockedUsers                 UserBlock[]                @relation("UserBlockBlocker")
+  blockedByUsers               UserBlock[]                @relation("UserBlockBlocked")
+  notifications                UserNotification[]         @relation("UserNotificationRecipient")
+  notificationActions          UserNotification[]         @relation("UserNotificationActor")
+  creatorImageRequests         CreatorImageRequest[]      @relation("CreatorImageRequestRequester")
+  moderationReports            ModerationReport[]         @relation("ModerationReportReporter")
+  fanMissionParticipations     FanMissionParticipation[]
+  conceptVoteBallots           ConceptVoteBallot[]
+  fanEngagementPointLedger     FanEngagementPointLedger[]
+  fanAchievements              UserFanAchievement[]
+  fanTitles                    UserFanTitle[]
+  submittedArtistKnowledgeUrls ArtistKnowledgeUrl[]       @relation("ArtistKnowledgeUrlSubmittedBy")
+  reviewedArtistKnowledgeUrls  ArtistKnowledgeUrl[]       @relation("ArtistKnowledgeUrlReviewedBy")
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -136,18 +138,18 @@ model UserSettings {
 }
 
 model UserIdentityVerification {
-  userId             String    @id @map("user_id") @db.Uuid
-  status             String    @default("unverified")
-  provider           String?
-  identitySubjectHash String?  @map("identity_subject_hash")
-  birthDate          DateTime? @map("birth_date") @db.Date
-  verifiedNameMasked String?   @map("verified_name_masked")
-  verifiedAt         DateTime? @map("verified_at") @db.Timestamptz(6)
-  expiresAt          DateTime? @map("expires_at") @db.Timestamptz(6)
-  metadata           Json      @default("{}")
-  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
-  user               User      @relation(fields: [userId], references: [id])
+  userId              String    @id @map("user_id") @db.Uuid
+  status              String    @default("unverified")
+  provider            String?
+  identitySubjectHash String?   @map("identity_subject_hash")
+  birthDate           DateTime? @map("birth_date") @db.Date
+  verifiedNameMasked  String?   @map("verified_name_masked")
+  verifiedAt          DateTime? @map("verified_at") @db.Timestamptz(6)
+  expiresAt           DateTime? @map("expires_at") @db.Timestamptz(6)
+  metadata            Json      @default("{}")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user                User      @relation(fields: [userId], references: [id])
 
   @@index([status], map: "idx_user_identity_verifications_status")
   @@index([identitySubjectHash], map: "idx_user_identity_verifications_subject_hash")
@@ -283,41 +285,41 @@ model SiteContentAuditLog {
 }
 
 model Artist {
-  id                String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  slug              String                  @unique
-  displayName       String                  @map("display_name")
-  status            String                  @default("draft")
-  sortOrder         Int                     @default(0) @map("sort_order")
-  launchedAt        DateTime?               @map("launched_at") @db.Timestamptz(6)
-  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime                @default(now()) @map("updated_at") @db.Timestamptz(6)
-  publicProfile     ArtistPublicProfile?
-  visualProfile     ArtistVisualProfile?
-  contentProfile    ArtistContentProfile?
-  artistAssets      ArtistAsset[]
-  shortforms        Shortform[]
-  giftProducts      GiftProduct[]
-  giftOrders        GiftOrder[]
-  giftProgress      ArtistGiftProgress[]
-  reactionEvents    ArtistReactionEvent[]
-  equippedItems     ArtistEquippedItem[]
-  boostEvents       ArtistBoostEvent[]
-  rankingScores     ArtistRankingSnapshot[]
-  monthlyPickWins   MonthlyPickWinner[]
-  premiumVideos     PremiumVideoProduct[]
-  chatPersonas      ChatPersona[]
-  chatSessions      ChatSession[]
-  chatFeatureOrders ChatFeatureOrder[]
-  fanLetters        FanLetter[]
-  artistOperators   ArtistOperator[]
-  communityPosts    CommunityPost[]
-  followers         ArtistFollow[]
-  notifications     UserNotification[]
-  creatorImageRequests CreatorImageRequest[]
-  knowledgeSources ArtistKnowledgeSource[]
-  fanMissions       FanMission[]
+  id                       String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug                     String                    @unique
+  displayName              String                    @map("display_name")
+  status                   String                    @default("draft")
+  sortOrder                Int                       @default(0) @map("sort_order")
+  launchedAt               DateTime?                 @map("launched_at") @db.Timestamptz(6)
+  createdAt                DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  publicProfile            ArtistPublicProfile?
+  visualProfile            ArtistVisualProfile?
+  contentProfile           ArtistContentProfile?
+  artistAssets             ArtistAsset[]
+  shortforms               Shortform[]
+  giftProducts             GiftProduct[]
+  giftOrders               GiftOrder[]
+  giftProgress             ArtistGiftProgress[]
+  reactionEvents           ArtistReactionEvent[]
+  equippedItems            ArtistEquippedItem[]
+  boostEvents              ArtistBoostEvent[]
+  rankingScores            ArtistRankingSnapshot[]
+  monthlyPickWins          MonthlyPickWinner[]
+  premiumVideos            PremiumVideoProduct[]
+  chatPersonas             ChatPersona[]
+  chatSessions             ChatSession[]
+  chatFeatureOrders        ChatFeatureOrder[]
+  fanLetters               FanLetter[]
+  artistOperators          ArtistOperator[]
+  communityPosts           CommunityPost[]
+  followers                ArtistFollow[]
+  notifications            UserNotification[]
+  creatorImageRequests     CreatorImageRequest[]
+  fanMissions              FanMission[]
   fanMissionParticipations FanMissionParticipation[]
-  conceptVotes      ConceptVote[]
+  conceptVotes             ConceptVote[]
+  knowledgeUrls            ArtistKnowledgeUrl[]
 
   @@index([status, sortOrder], map: "idx_artists_status_sort")
   @@map("artists")
@@ -368,35 +370,6 @@ model CreatorImageRequest {
   @@map("creator_image_requests")
 }
 
-model ArtistKnowledgeSource {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  artistId          String    @map("artist_id") @db.Uuid
-  sourceUrl         String    @map("source_url")
-  sourceDomain      String    @map("source_domain")
-  sourcePlatform    String    @default("other") @map("source_platform")
-  sourceType        String    @default("other") @map("source_type")
-  title             String?
-  artistDescription String   @map("artist_description")
-  summary           String
-  visibility        String    @default("chat_reference")
-  status            String    @default("pending")
-  rejectReason      String?   @map("reject_reason")
-  createdByUserId   String?   @map("created_by_user_id") @db.Uuid
-  updatedByUserId   String?   @map("updated_by_user_id") @db.Uuid
-  reviewedByUserId  String?   @map("reviewed_by_user_id") @db.Uuid
-  approvedAt        DateTime? @map("approved_at") @db.Timestamptz(6)
-  rejectedAt        DateTime? @map("rejected_at") @db.Timestamptz(6)
-  archivedAt        DateTime? @map("archived_at") @db.Timestamptz(6)
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  artist            Artist    @relation(fields: [artistId], references: [id], onDelete: Cascade)
-
-  @@unique([artistId, sourceUrl], map: "uq_artist_knowledge_sources_artist_url")
-  @@index([artistId, status, visibility, approvedAt], map: "idx_artist_knowledge_sources_chat_lookup")
-  @@index([artistId, status, updatedAt], map: "idx_artist_knowledge_sources_artist_status")
-  @@map("artist_knowledge_sources")
-}
-
 model ArtistPublicProfile {
   artistId            String   @id @map("artist_id") @db.Uuid
   tagline             String?
@@ -434,25 +407,54 @@ model ArtistContentProfile {
   @@map("artist_content_profiles")
 }
 
+model ArtistKnowledgeUrl {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId           String    @map("artist_id") @db.Uuid
+  submittedByUserId  String    @map("submitted_by_user_id") @db.Uuid
+  reviewedByUserId   String?   @map("reviewed_by_user_id") @db.Uuid
+  status             String    @default("pending")
+  sourceType         String    @map("source_type")
+  url                String    @db.VarChar(2000)
+  canonicalUrl       String    @map("canonical_url") @db.VarChar(2000)
+  artistDescription  String    @map("artist_description") @db.VarChar(500)
+  summary            String    @db.VarChar(700)
+  allowChatReference Boolean   @default(true) @map("allow_chat_reference")
+  rejectionReason    String?   @map("rejection_reason") @db.VarChar(500)
+  metadata           Json      @default("{}")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  reviewedAt         DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  archivedAt         DateTime? @map("archived_at") @db.Timestamptz(6)
+  artist             Artist    @relation(fields: [artistId], references: [id])
+  submittedBy        User      @relation("ArtistKnowledgeUrlSubmittedBy", fields: [submittedByUserId], references: [id])
+  reviewedBy         User?     @relation("ArtistKnowledgeUrlReviewedBy", fields: [reviewedByUserId], references: [id])
+
+  @@unique([artistId, canonicalUrl], map: "artist_knowledge_urls_artist_id_canonical_url_key")
+  @@index([artistId, status, createdAt], map: "idx_artist_knowledge_urls_artist_status")
+  @@index([submittedByUserId, createdAt], map: "idx_artist_knowledge_urls_submitter")
+  @@index([reviewedByUserId, reviewedAt], map: "idx_artist_knowledge_urls_reviewer")
+  @@map("artist_knowledge_urls")
+}
+
 model Asset {
-  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  assetType          String              @map("asset_type")
-  visibility         String              @default("public")
-  storageProvider    String              @default("local") @map("storage_provider")
-  storageKey         String              @map("storage_key")
-  mimeType           String              @map("mime_type")
-  fileSizeBytes      BigInt?             @map("file_size_bytes")
-  width              Int?
-  height             Int?
-  durationSeconds    Decimal?            @map("duration_seconds") @db.Decimal(12, 3)
-  checksum           String?
-  metadata           Json                @default("{}")
-  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
-  artistAssets       ArtistAsset[]
-  shortformAssets    ShortformAsset[]
-  premiumVideoAssets PremiumVideoAsset[]
-  communityPostAssets CommunityPostAsset[]
+  id                          String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assetType                   String                       @map("asset_type")
+  visibility                  String                       @default("public")
+  storageProvider             String                       @default("local") @map("storage_provider")
+  storageKey                  String                       @map("storage_key")
+  mimeType                    String                       @map("mime_type")
+  fileSizeBytes               BigInt?                      @map("file_size_bytes")
+  width                       Int?
+  height                      Int?
+  durationSeconds             Decimal?                     @map("duration_seconds") @db.Decimal(12, 3)
+  checksum                    String?
+  metadata                    Json                         @default("{}")
+  createdAt                   DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime                     @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artistAssets                ArtistAsset[]
+  shortformAssets             ShortformAsset[]
+  premiumVideoAssets          PremiumVideoAsset[]
+  communityPostAssets         CommunityPostAsset[]
   debutApplicationAttachments DebutApplicationAttachment[]
 
   @@unique([storageProvider, storageKey])
@@ -867,29 +869,29 @@ model MonthlyPickWinner {
 }
 
 model DebutApplication {
-  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId               String   @map("user_id") @db.Uuid
-  status               String   @default("submitted")
-  applicantName        String   @map("applicant_name")
-  displayName          String?  @map("display_name")
-  contactEmail         String   @map("contact_email")
-  contactPhone         String?  @map("contact_phone")
-  isAdult              Boolean  @map("is_adult")
-  participationType    String   @map("participation_type")
-  shareTierRequested   Int?     @map("share_tier_requested")
-  shareTierApproved    Int?     @map("share_tier_approved")
+  id                   String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String                       @map("user_id") @db.Uuid
+  status               String                       @default("submitted")
+  applicantName        String                       @map("applicant_name")
+  displayName          String?                      @map("display_name")
+  contactEmail         String                       @map("contact_email")
+  contactPhone         String?                      @map("contact_phone")
+  isAdult              Boolean                      @map("is_adult")
+  participationType    String                       @map("participation_type")
+  shareTierRequested   Int?                         @map("share_tier_requested")
+  shareTierApproved    Int?                         @map("share_tier_approved")
   intro                String
-  portfolioUrl         String?  @map("portfolio_url")
-  consentAppearance    Boolean  @default(false) @map("consent_appearance")
-  consentVoice         Boolean  @default(false) @map("consent_voice")
-  consentRevenuePolicy Boolean  @default(false) @map("consent_revenue_policy")
-  consentPrivacy       Boolean  @default(false) @map("consent_privacy")
-  consentMarketing     Boolean  @default(false) @map("consent_marketing")
-  reviewNote           String?  @map("review_note")
-  metadata             Json     @default("{}")
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
-  user                 User     @relation(fields: [userId], references: [id])
+  portfolioUrl         String?                      @map("portfolio_url")
+  consentAppearance    Boolean                      @default(false) @map("consent_appearance")
+  consentVoice         Boolean                      @default(false) @map("consent_voice")
+  consentRevenuePolicy Boolean                      @default(false) @map("consent_revenue_policy")
+  consentPrivacy       Boolean                      @default(false) @map("consent_privacy")
+  consentMarketing     Boolean                      @default(false) @map("consent_marketing")
+  reviewNote           String?                      @map("review_note")
+  metadata             Json                         @default("{}")
+  createdAt            DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                     @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user                 User                         @relation(fields: [userId], references: [id])
   attachments          DebutApplicationAttachment[]
 
   @@index([status, createdAt], map: "idx_debut_applications_status_created")
@@ -898,17 +900,17 @@ model DebutApplication {
 }
 
 model DebutApplicationAttachment {
-  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  applicationId String            @map("application_id") @db.Uuid
-  assetId       String            @map("asset_id") @db.Uuid
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId String           @map("application_id") @db.Uuid
+  assetId       String           @map("asset_id") @db.Uuid
   category      String
-  sortOrder     Int               @default(0) @map("sort_order")
-  status        String            @default("attached")
-  metadata      Json              @default("{}")
-  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
-  application   DebutApplication  @relation(fields: [applicationId], references: [id])
-  asset         Asset             @relation(fields: [assetId], references: [id])
+  sortOrder     Int              @default(0) @map("sort_order")
+  status        String           @default("attached")
+  metadata      Json             @default("{}")
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  application   DebutApplication @relation(fields: [applicationId], references: [id])
+  asset         Asset            @relation(fields: [assetId], references: [id])
 
   @@unique([applicationId, assetId, category], map: "uq_debut_application_attachments_asset_category")
   @@index([applicationId, category], map: "idx_debut_application_attachments_application_category")
@@ -917,25 +919,25 @@ model DebutApplicationAttachment {
 }
 
 model SettlementRecord {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  settlementKey   String   @unique @map("settlement_key")
-  settlementType  String   @map("settlement_type")
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  settlementKey   String    @unique @map("settlement_key")
+  settlementType  String    @map("settlement_type")
   period          String
-  status          String   @default("estimated")
-  artistId        String?  @map("artist_id") @db.Uuid
-  partnerUserId   String?  @map("partner_user_id") @db.Uuid
-  creatorUserId   String?  @map("creator_user_id") @db.Uuid
-  amountKrw       Decimal? @map("amount_krw") @db.Decimal(14, 2)
+  status          String    @default("estimated")
+  artistId        String?   @map("artist_id") @db.Uuid
+  partnerUserId   String?   @map("partner_user_id") @db.Uuid
+  creatorUserId   String?   @map("creator_user_id") @db.Uuid
+  amountKrw       Decimal?  @map("amount_krw") @db.Decimal(14, 2)
   reason          String?
   note            String?
   paidAt          DateTime? @map("paid_at") @db.Timestamptz(6)
-  paymentMethod   String?  @map("payment_method")
-  payoutReference String?  @map("payout_reference")
-  metadata        Json     @default("{}")
-  createdByUserId String?  @map("created_by_user_id") @db.Uuid
-  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  paymentMethod   String?   @map("payment_method")
+  payoutReference String?   @map("payout_reference")
+  metadata        Json      @default("{}")
+  createdByUserId String?   @map("created_by_user_id") @db.Uuid
+  updatedByUserId String?   @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@index([settlementType, period], map: "idx_settlement_records_type_period")
   @@index([status, period], map: "idx_settlement_records_status_period")
@@ -945,29 +947,29 @@ model SettlementRecord {
 }
 
 model SettlementLuminaConversionRequest {
-  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  requesterUserId    String    @map("requester_user_id") @db.Uuid
-  settlementKey      String    @map("settlement_key")
-  settlementType     String    @map("settlement_type")
-  period             String
-  targetArtistId     String?   @map("target_artist_id") @db.Uuid
-  amountKrw          Decimal   @map("amount_krw") @db.Decimal(14, 2)
-  requestedLumina    Decimal   @map("requested_lumina") @db.Decimal(18, 2)
-  status             String    @default("requested")
-  note               String?
-  adminNote          String?   @map("admin_note")
-  walletLedgerId     String?   @map("wallet_ledger_id") @db.Uuid
-  processedByUserId  String?   @map("processed_by_user_id") @db.Uuid
-  processedAt        DateTime? @map("processed_at") @db.Timestamptz(6)
-  idempotencyKey     String?   @map("idempotency_key")
-  metadata           Json      @default("{}")
-  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requesterUserId   String    @map("requester_user_id") @db.Uuid
+  settlementKey     String    @map("settlement_key")
+  settlementType    String    @map("settlement_type")
+  period            String
+  targetArtistId    String?   @map("target_artist_id") @db.Uuid
+  amountKrw         Decimal   @map("amount_krw") @db.Decimal(14, 2)
+  requestedLumina   Decimal   @map("requested_lumina") @db.Decimal(18, 2)
+  status            String    @default("requested")
+  note              String?
+  adminNote         String?   @map("admin_note")
+  walletLedgerId    String?   @map("wallet_ledger_id") @db.Uuid
+  processedByUserId String?   @map("processed_by_user_id") @db.Uuid
+  processedAt       DateTime? @map("processed_at") @db.Timestamptz(6)
+  idempotencyKey    String?   @map("idempotency_key")
+  metadata          Json      @default("{}")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
+  @@unique([requesterUserId, idempotencyKey], map: "uq_settlement_lumina_conversions_idempotency")
   @@index([requesterUserId, createdAt], map: "idx_settlement_lumina_conversions_requester")
   @@index([settlementKey, status], map: "idx_settlement_lumina_conversions_key_status")
   @@index([status, createdAt], map: "idx_settlement_lumina_conversions_status")
-  @@unique([requesterUserId, idempotencyKey], map: "uq_settlement_lumina_conversions_idempotency")
   @@map("settlement_lumina_conversion_requests")
 }
 
@@ -1162,23 +1164,23 @@ model ArtistFollow {
 }
 
 model FanMission {
-  id              String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  artistId        String?                   @map("artist_id") @db.Uuid
-  slug            String                    @unique
-  missionType     String                    @map("mission_type")
-  status          String                    @default("active")
-  surfaces        String[]                  @default([])
-  resetPolicy     String                    @default("daily") @map("reset_policy")
-  actionType      String?                   @map("action_type")
-  actionTargetId  String?                   @map("action_target_id") @db.Uuid
-  rewardPolicy    Json                      @default("{}") @map("reward_policy")
-  copy            Json                      @default("{}")
-  startsAt        DateTime?                 @map("starts_at") @db.Timestamptz(6)
-  endsAt          DateTime?                 @map("ends_at") @db.Timestamptz(6)
-  createdAt       DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime                  @default(now()) @map("updated_at") @db.Timestamptz(6)
-  artist          Artist?                   @relation(fields: [artistId], references: [id])
-  participations  FanMissionParticipation[]
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId       String?                   @map("artist_id") @db.Uuid
+  slug           String                    @unique
+  missionType    String                    @map("mission_type")
+  status         String                    @default("active")
+  surfaces       String[]                  @default([])
+  resetPolicy    String                    @default("daily") @map("reset_policy")
+  actionType     String?                   @map("action_type")
+  actionTargetId String?                   @map("action_target_id") @db.Uuid
+  rewardPolicy   Json                      @default("{}") @map("reward_policy")
+  copy           Json                      @default("{}")
+  startsAt       DateTime?                 @map("starts_at") @db.Timestamptz(6)
+  endsAt         DateTime?                 @map("ends_at") @db.Timestamptz(6)
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist         Artist?                   @relation(fields: [artistId], references: [id])
+  participations FanMissionParticipation[]
 
   @@index([status, startsAt, endsAt], map: "idx_fan_missions_status_window")
   @@index([artistId, status], map: "idx_fan_missions_artist_status")
@@ -1248,16 +1250,16 @@ model ConceptVoteOption {
 }
 
 model ConceptVoteBallot {
-  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  voteId         String       @map("vote_id") @db.Uuid
-  optionId       String       @map("option_id") @db.Uuid
-  userId         String       @map("user_id") @db.Uuid
-  missionId      String?      @map("mission_id") @db.Uuid
-  idempotencyKey String?      @map("idempotency_key")
-  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  vote           ConceptVote  @relation(fields: [voteId], references: [id])
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  voteId         String            @map("vote_id") @db.Uuid
+  optionId       String            @map("option_id") @db.Uuid
+  userId         String            @map("user_id") @db.Uuid
+  missionId      String?           @map("mission_id") @db.Uuid
+  idempotencyKey String?           @map("idempotency_key")
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  vote           ConceptVote       @relation(fields: [voteId], references: [id])
   option         ConceptVoteOption @relation(fields: [optionId], references: [id])
-  user           User         @relation(fields: [userId], references: [id])
+  user           User              @relation(fields: [userId], references: [id])
 
   @@unique([voteId, userId], map: "uq_concept_vote_ballots_user_vote")
   @@unique([userId, idempotencyKey], map: "uq_concept_vote_ballots_idempotency")
@@ -1284,16 +1286,16 @@ model FanEngagementPointLedger {
 }
 
 model FanAchievement {
-  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code        String               @unique
-  category    String
-  copy        Json                 @default("{}")
-  badgeIconKey String?             @map("badge_icon_key")
-  criteria    Json                 @default("{}")
-  status      String               @default("active")
-  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
-  users       UserFanAchievement[]
+  id           String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String               @unique
+  category     String
+  copy         Json                 @default("{}")
+  badgeIconKey String?              @map("badge_icon_key")
+  criteria     Json                 @default("{}")
+  status       String               @default("active")
+  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+  users        UserFanAchievement[]
 
   @@index([status, category], map: "idx_fan_achievements_status_category")
   @@map("fan_achievements")
@@ -1542,25 +1544,25 @@ model ChatMessage {
 }
 
 model FanLetter {
-  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  senderUserId   String        @map("sender_user_id") @db.Uuid
-  artistId       String        @map("artist_id") @db.Uuid
-  walletLedgerId String?       @map("wallet_ledger_id") @db.Uuid
-  status         String        @default("submitted")
-  moderationStatus String     @default("pending") @map("moderation_status")
-  amountLumina   Decimal       @default(30) @map("amount_lumina") @db.Decimal(18, 2)
-  title          String?
-  body           String
-  replyBody      String?       @map("reply_body")
-  repliedAt      DateTime?     @map("replied_at") @db.Timestamptz(6)
-  repliedByUserId String?      @map("replied_by_user_id") @db.Uuid
-  idempotencyKey String?       @unique @map("idempotency_key")
-  metadata       Json          @default("{}")
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
-  sender         User          @relation("FanLetterSender", fields: [senderUserId], references: [id])
-  artist         Artist        @relation(fields: [artistId], references: [id])
-  walletLedger   WalletLedger? @relation(fields: [walletLedgerId], references: [id])
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  senderUserId     String        @map("sender_user_id") @db.Uuid
+  artistId         String        @map("artist_id") @db.Uuid
+  walletLedgerId   String?       @map("wallet_ledger_id") @db.Uuid
+  status           String        @default("submitted")
+  moderationStatus String        @default("pending") @map("moderation_status")
+  amountLumina     Decimal       @default(30) @map("amount_lumina") @db.Decimal(18, 2)
+  title            String?
+  body             String
+  replyBody        String?       @map("reply_body")
+  repliedAt        DateTime?     @map("replied_at") @db.Timestamptz(6)
+  repliedByUserId  String?       @map("replied_by_user_id") @db.Uuid
+  idempotencyKey   String?       @unique @map("idempotency_key")
+  metadata         Json          @default("{}")
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  sender           User          @relation("FanLetterSender", fields: [senderUserId], references: [id])
+  artist           Artist        @relation(fields: [artistId], references: [id])
+  walletLedger     WalletLedger? @relation(fields: [walletLedgerId], references: [id])
 
   @@index([senderUserId, createdAt], map: "idx_fan_letters_sender_created")
   @@index([artistId, status, createdAt], map: "idx_fan_letters_artist_status_created")

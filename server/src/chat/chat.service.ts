@@ -16,6 +16,13 @@ import {
   ChatRuntimePersonaContext,
 } from './llm-provider.adapter';
 import {
+  ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY,
+  ARTIST_URL_KNOWLEDGE_CONTRACT,
+  buildArtistKnowledgeChatContext,
+  ArtistKnowledgeChatCandidate,
+  ArtistKnowledgeChatContext,
+} from './artist-url-knowledge-contract';
+import {
   CHAT_GENERATION_DISABLED_REASONS,
   PUBLIC_CHAT_FEATURE_TYPES,
   findChatFeatureProductPolicy,
@@ -234,12 +241,9 @@ const CHARACTER_CHAT_GREETING_TONE_CONTRACT_VERSION =
   '2026-05-21.character-chat-greeting-tone.v1';
 const CHARACTER_CHAT_DYNAMIC_GREETING_CONTRACT_VERSION =
   '2026-05-22.character-chat-dynamic-greeting-cache.v1';
-const ARTIST_KNOWLEDGE_CHAT_REFERENCE_CONTRACT_VERSION =
-  '2026-05-22.artist-knowledge-chat-reference.v1';
 const CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE = 'opening_greeting';
 const CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS = 180;
 const CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS = 120;
-const ARTIST_KNOWLEDGE_CHAT_MAX_SNIPPETS = 3;
 
 type StarterPromptOption = {
   key: string;
@@ -276,12 +280,6 @@ type CharacterRuntimePersonaContext = ChatRuntimePersonaContext & {
     key: string;
     label: string;
   };
-};
-type ArtistKnowledgeRuntimeSnippet = {
-  domain: string;
-  platform: string;
-  title: string | null;
-  summary: string;
 };
 type ChatFeatureProductRecord = {
   id: string;
@@ -720,10 +718,6 @@ export class ChatService {
     return CHAT_PERSONA_TRAIT_CATALOG;
   }
 
-  getArtistKnowledgeContract() {
-    return this.artistKnowledgeChatReferenceContract();
-  }
-
   async getProviderOpsStatus(userId: string) {
     const now = new Date();
     const todayStart = this.koreaServiceDayStartUtc(now);
@@ -882,7 +876,6 @@ export class ChatService {
       dynamicGreetingContract: this.characterChatDynamicGreetingContract(
         artist.slug,
       ),
-      artistKnowledgeContract: this.artistKnowledgeChatReferenceContract(),
       source: cmsCopy
         ? 'site_content'
         : configuredSets.length || metadataGreeting
@@ -929,7 +922,6 @@ export class ChatService {
       dynamicGreetingContract: this.characterChatDynamicGreetingContract(
         artist.slug,
       ),
-      artistKnowledgeContract: this.artistKnowledgeChatReferenceContract(),
       source: cmsCopy
         ? 'site_content'
         : configuredSets.length
@@ -1009,12 +1001,7 @@ export class ChatService {
     userId: string,
     session: ChatOpeningGreetingSessionRecord,
   ): Promise<ChatOpeningGreetingCandidate> {
-    const knowledgeSnippets = await this.approvedArtistKnowledgeSnippets(
-      session.artist.id,
-    );
-    const runtimePersona = this.buildCharacterRuntimePersonaContext(session.artist, {
-      knowledgeSnippets,
-    });
+    const runtimePersona = this.buildCharacterRuntimePersonaContext(session.artist);
     const toneCandidate = this.openingGreetingToneCandidate(
       session.artist.slug,
       runtimePersona,
@@ -1441,6 +1428,10 @@ export class ChatService {
     return PREMIUM_CHAT_SUPPORT_CONTRACT;
   }
 
+  getArtistUrlKnowledgeContract() {
+    return ARTIST_URL_KNOWLEDGE_CONTRACT;
+  }
+
   async previewFeatureOrder(
     userId: string,
     input: {
@@ -1727,12 +1718,10 @@ export class ChatService {
         body: true,
       },
     });
-    const knowledgeSnippets = await this.approvedArtistKnowledgeSnippets(
+    const runtimePersona = this.buildCharacterRuntimePersonaContext(session.artist);
+    runtimePersona.knowledgeContext = await this.loadApprovedArtistKnowledgeContext(
       session.artist.id,
     );
-    const runtimePersona = this.buildCharacterRuntimePersonaContext(session.artist, {
-      knowledgeSnippets,
-    });
 
     try {
       const generated = await this.llmProvider.generate({
@@ -3424,126 +3413,6 @@ export class ChatService {
     };
   }
 
-  private async approvedArtistKnowledgeSnippets(
-    artistId: string,
-  ): Promise<ArtistKnowledgeRuntimeSnippet[]> {
-    const delegate = (
-      this.prisma as PrismaService & {
-        artistKnowledgeSource?: {
-          findMany: (args: unknown) => Promise<
-            Array<{
-              sourceDomain: string;
-              sourcePlatform: string;
-              title: string | null;
-              summary: string;
-            }>
-          >;
-        };
-      }
-    ).artistKnowledgeSource;
-
-    if (!delegate) {
-      return [];
-    }
-
-    const rows = await delegate.findMany({
-      where: {
-        artistId,
-        status: 'approved',
-        visibility: { in: ['chat_reference', 'public'] },
-        approvedAt: { not: null },
-        archivedAt: null,
-      },
-      select: {
-        sourceDomain: true,
-        sourcePlatform: true,
-        title: true,
-        summary: true,
-      },
-      orderBy: [{ approvedAt: 'desc' }, { updatedAt: 'desc' }],
-      take: ARTIST_KNOWLEDGE_CHAT_MAX_SNIPPETS,
-    });
-
-    return rows.map((row) => ({
-      domain: this.sanitizeKnowledgeSnippetText(row.sourceDomain, 100),
-      platform: this.sanitizeKnowledgeSnippetText(row.sourcePlatform, 40),
-      title: row.title
-        ? this.sanitizeKnowledgeSnippetText(row.title, 120)
-        : null,
-      summary: this.sanitizeKnowledgeSnippetText(row.summary, 500),
-    }));
-  }
-
-  private sanitizeKnowledgeSnippetText(value: string, limit: number) {
-    return value
-      .replace(/https?:\/\/\S+/gi, '[link omitted]')
-      .replace(/\b(ignore|disregard|override|system prompt|developer message)\b/gi, '[instruction omitted]')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, limit);
-  }
-
-  private artistKnowledgeChatReferenceContract() {
-    return {
-      contractVersion: ARTIST_KNOWLEDGE_CHAT_REFERENCE_CONTRACT_VERSION,
-      storage: {
-        table: 'artist_knowledge_sources',
-        statuses: ['pending', 'approved', 'rejected', 'archived'],
-        firstPassShape: [
-          'artistId',
-          'sourceUrl',
-          'sourceDomain',
-          'sourcePlatform',
-          'sourceType',
-          'artistDescription',
-          'summary',
-          'visibility',
-          'status',
-          'approvedAt',
-          'rejectedAt',
-          'archivedAt',
-        ],
-      },
-      endpoints: {
-        contract: 'GET /api/v1/chat/artist-url-knowledge-contract',
-        legacyContract: 'GET /api/v1/chat/artist-knowledge-contract',
-        list: 'GET /api/v1/me/creator-studio/knowledge-urls?artistId=&status=',
-        create: 'POST /api/v1/me/creator-studio/knowledge-urls',
-        update: 'PATCH /api/v1/me/creator-studio/knowledge-urls/:sourceId',
-        approve: 'POST /api/v1/me/creator-studio/knowledge-urls/:sourceId/approve',
-        reject: 'POST /api/v1/me/creator-studio/knowledge-urls/:sourceId/reject',
-        archive: 'POST /api/v1/me/creator-studio/knowledge-urls/:sourceId/archive',
-      },
-      permissions: {
-        listCreateUpdateArchive: 'active_artist_operator_for_artist',
-        approveReject: 'owner_or_artist_knowledge_review_permission',
-      },
-      chatReference: {
-        acceptedStatuses: ['approved'],
-        excludedStatuses: ['pending', 'rejected', 'archived'],
-        requiredVisibility: ['chat_reference', 'public'],
-        maxSnippetsPerGeneration: ARTIST_KNOWLEDGE_CHAT_MAX_SNIPPETS,
-        providerRuntimeFields: ['domain', 'platform', 'title', 'summary'],
-        fullUrlInjected: false,
-        rawSourceInjected: false,
-        promptInjectionTreatment: 'facts_only_never_instruction',
-      },
-      crawling: {
-        automaticCrawling: false,
-        externalAccountRequired: false,
-        socialPasswordRequired: false,
-        apiKeyOrTokenRequired: false,
-      },
-      mutations: {
-        wallet: false,
-        lumina: false,
-        order: false,
-        settlement: false,
-        payout: false,
-      },
-    };
-  }
-
   private buildCharacterRuntimePersonaContext(
     artist: {
       id: string;
@@ -3563,7 +3432,6 @@ export class ChatService {
       catalogMetadata?: Record<string, unknown>;
       configuredSets?: StarterPromptSet[];
       cmsCopy?: CharacterChatCmsCopy | null;
-      knowledgeSnippets?: ArtistKnowledgeRuntimeSnippet[];
     } = {},
   ): CharacterRuntimePersonaContext {
     const metadata =
@@ -3660,17 +3528,6 @@ export class ChatService {
       personaReference,
       forbiddenTone,
       safetyNote,
-      knowledgeSnippets: (options.knowledgeSnippets ?? []).slice(
-        0,
-        ARTIST_KNOWLEDGE_CHAT_MAX_SNIPPETS,
-      ),
-      knowledgePolicy: {
-        approvedOnly: true,
-        fullUrlInjected: false,
-        rawSourceInjected: false,
-        promptInjectionTreatment: 'facts_only_never_instruction',
-        maxSnippets: ARTIST_KNOWLEDGE_CHAT_MAX_SNIPPETS,
-      },
       source:
         cmsCopy ||
         metadataGreeting ||
@@ -3943,6 +3800,45 @@ export class ChatService {
     }
 
     return artist;
+  }
+
+  private async loadApprovedArtistKnowledgeContext(
+    artistId: string,
+  ): Promise<ArtistKnowledgeChatContext> {
+    const delegate = (
+      this.prisma as unknown as {
+        artistKnowledgeUrl?: {
+          findMany: (args: unknown) => Promise<ArtistKnowledgeChatCandidate[]>;
+        };
+      }
+    ).artistKnowledgeUrl;
+
+    if (!delegate?.findMany) {
+      return buildArtistKnowledgeChatContext([]);
+    }
+
+    const items = await delegate.findMany({
+      where: {
+        artistId,
+        status: 'approved',
+        allowChatReference: true,
+      },
+      orderBy: [{ reviewedAt: 'desc' }, { createdAt: 'desc' }],
+      take: ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY.maxItems,
+      select: {
+        id: true,
+        artistId: true,
+        status: true,
+        sourceType: true,
+        canonicalUrl: true,
+        summary: true,
+        allowChatReference: true,
+        reviewedAt: true,
+        createdAt: true,
+      },
+    });
+
+    return buildArtistKnowledgeChatContext(items);
   }
 
   private fallbackChatArtistForSlug(artistSlug?: string) {

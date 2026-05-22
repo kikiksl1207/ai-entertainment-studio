@@ -10,6 +10,12 @@ import { Prisma, SettlementLuminaConversionRequest, SettlementRecord } from '@pr
 import { Decimal } from '@prisma/client/runtime/library';
 import { createHash, createHmac, randomUUID } from 'crypto';
 import { AuthUser } from '../auth/auth.types';
+import {
+  ARTIST_URL_KNOWLEDGE_CONTRACT,
+  ARTIST_URL_KNOWLEDGE_STATUSES,
+  isArtistKnowledgeSourceType,
+  normalizeArtistKnowledgeSummary,
+} from '../chat/artist-url-knowledge-contract';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -5283,6 +5289,333 @@ export class AdminService {
     return { ok: true, post };
   }
 
+  async getBackstageArtistKnowledgeUrls(query: AuditQuery) {
+    const pagination = this.adminPagination(query, 50);
+    const artistId = this.optionalString(query, 'artistId');
+    const status = this.optionalString(query, 'status');
+
+    if (artistId && !this.isUuid(artistId)) {
+      throw new BadRequestException('artistId must be a UUID');
+    }
+
+    if (
+      status &&
+      !(ARTIST_URL_KNOWLEDGE_STATUSES as readonly string[]).includes(status)
+    ) {
+      throw new BadRequestException(
+        `status must be one of ${ARTIST_URL_KNOWLEDGE_STATUSES.join(', ')}`,
+      );
+    }
+
+    const rows = await this.prisma.artistKnowledgeUrl.findMany({
+      where: this.clean({
+        artistId,
+        status,
+      }),
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
+      orderBy: [{ createdAt: 'desc' }],
+      include: {
+        artist: {
+          select: {
+            id: true,
+            slug: true,
+            displayName: true,
+            status: true,
+          },
+        },
+        submittedBy: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+        reviewedBy: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+    });
+    const paginated = this.paginated(rows, pagination.take);
+
+    return {
+      ...paginated,
+      items: paginated.items.map((row) =>
+        this.presentBackstageArtistKnowledgeUrl(row),
+      ),
+      contract: ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts.adminList,
+    };
+  }
+
+  async approveBackstageArtistKnowledgeUrl(
+    user: AuthUser,
+    knowledgeUrlId: string,
+    input: AdminPayload,
+  ) {
+    this.assertUuid(knowledgeUrlId, 'knowledgeUrlId');
+    const existing = await this.prisma.artistKnowledgeUrl.findUnique({
+      where: { id: knowledgeUrlId },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Artist knowledge URL not found');
+    }
+
+    if (existing.status === 'archived') {
+      throw new ConflictException({
+        code: 'ARTIST_KNOWLEDGE_URL_ARCHIVED',
+        message: 'Archived knowledge URLs cannot be approved',
+        messageKey: 'artistKnowledgeUrl.error.archived',
+      });
+    }
+
+    const summary =
+      normalizeArtistKnowledgeSummary(this.optionalString(input, 'summary')) ??
+      normalizeArtistKnowledgeSummary(existing.summary);
+
+    if (!summary) {
+      throw new BadRequestException('summary is required');
+    }
+
+    const before = existing;
+    const row = await this.prisma.artistKnowledgeUrl.update({
+      where: { id: existing.id },
+      data: {
+        status: 'approved',
+        summary,
+        allowChatReference: this.boolean(
+          input,
+          'allowChatRef',
+          existing.allowChatReference,
+        ),
+        rejectionReason: null,
+        reviewedByUserId: user.id,
+        reviewedAt: new Date(),
+        archivedAt: null,
+        updatedAt: new Date(),
+        metadata: this.toJson({
+          ...this.metadataObject(existing.metadata),
+          contractVersion: ARTIST_URL_KNOWLEDGE_CONTRACT.version,
+          summarySource: input.summary
+            ? 'admin_review_summary'
+            : 'artist_description_reviewed',
+          externalFetchPerformed: false,
+          rawPageBodyStored: false,
+        }),
+      },
+      include: {
+        artist: true,
+        submittedBy: true,
+        reviewedBy: true,
+      },
+    });
+
+    await this.recordAudit(
+      user,
+      'artist_knowledge_url.approve',
+      'artist_knowledge_url',
+      row.id,
+      before,
+      row,
+    );
+
+    return {
+      item: this.presentBackstageArtistKnowledgeUrl(row),
+      contract: ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts.adminApprove,
+    };
+  }
+
+  async rejectBackstageArtistKnowledgeUrl(
+    user: AuthUser,
+    knowledgeUrlId: string,
+    input: AdminPayload,
+  ) {
+    this.assertUuid(knowledgeUrlId, 'knowledgeUrlId');
+    const reason = this.string(input, 'reason');
+    const existing = await this.prisma.artistKnowledgeUrl.findUnique({
+      where: { id: knowledgeUrlId },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Artist knowledge URL not found');
+    }
+
+    if (existing.status === 'archived') {
+      throw new ConflictException({
+        code: 'ARTIST_KNOWLEDGE_URL_ARCHIVED',
+        message: 'Archived knowledge URLs cannot be rejected',
+        messageKey: 'artistKnowledgeUrl.error.archived',
+      });
+    }
+
+    const before = existing;
+    const row = await this.prisma.artistKnowledgeUrl.update({
+      where: { id: existing.id },
+      data: {
+        status: 'rejected',
+        rejectionReason: reason.slice(0, 500),
+        reviewedByUserId: user.id,
+        reviewedAt: new Date(),
+        updatedAt: new Date(),
+        metadata: this.toJson({
+          ...this.metadataObject(existing.metadata),
+          contractVersion: ARTIST_URL_KNOWLEDGE_CONTRACT.version,
+          chatReferenceBlocked: true,
+        }),
+      },
+      include: {
+        artist: true,
+        submittedBy: true,
+        reviewedBy: true,
+      },
+    });
+
+    await this.recordAudit(
+      user,
+      'artist_knowledge_url.reject',
+      'artist_knowledge_url',
+      row.id,
+      before,
+      row,
+    );
+
+    return {
+      item: this.presentBackstageArtistKnowledgeUrl(row),
+      contract: ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts.adminReject,
+    };
+  }
+
+  async archiveBackstageArtistKnowledgeUrl(
+    user: AuthUser,
+    knowledgeUrlId: string,
+    input: AdminPayload,
+  ) {
+    this.assertUuid(knowledgeUrlId, 'knowledgeUrlId');
+    const existing = await this.prisma.artistKnowledgeUrl.findUnique({
+      where: { id: knowledgeUrlId },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Artist knowledge URL not found');
+    }
+
+    const before = existing;
+    const row = await this.prisma.artistKnowledgeUrl.update({
+      where: { id: existing.id },
+      data: {
+        status: 'archived',
+        archivedAt: new Date(),
+        updatedAt: new Date(),
+        metadata: this.toJson({
+          ...this.metadataObject(existing.metadata),
+          contractVersion: ARTIST_URL_KNOWLEDGE_CONTRACT.version,
+          archivedReason: this.optionalString(input, 'reason') ?? null,
+          chatReferenceBlocked: true,
+        }),
+      },
+      include: {
+        artist: true,
+        submittedBy: true,
+        reviewedBy: true,
+      },
+    });
+
+    await this.recordAudit(
+      user,
+      'artist_knowledge_url.archive',
+      'artist_knowledge_url',
+      row.id,
+      before,
+      row,
+    );
+
+    return {
+      item: this.presentBackstageArtistKnowledgeUrl(row),
+      contract: ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts.adminArchive,
+    };
+  }
+
+  private presentBackstageArtistKnowledgeUrl(row: {
+    id: string;
+    artistId: string;
+    submittedByUserId: string;
+    reviewedByUserId: string | null;
+    status: string;
+    sourceType: string;
+    url: string;
+    canonicalUrl: string;
+    artistDescription: string;
+    summary: string;
+    allowChatReference: boolean;
+    rejectionReason: string | null;
+    metadata: Prisma.JsonValue;
+    createdAt: Date;
+    updatedAt: Date;
+    reviewedAt: Date | null;
+    archivedAt: Date | null;
+    artist?: {
+      id: string;
+      slug: string;
+      displayName: string;
+      status: string;
+    };
+    submittedBy?: {
+      id: string;
+      email: string | null;
+    };
+    reviewedBy?: {
+      id: string;
+      email: string | null;
+    } | null;
+  }) {
+    return {
+      id: row.id,
+      artistId: row.artistId,
+      artist: row.artist ?? null,
+      submittedByUserId: row.submittedByUserId,
+      submittedBy: row.submittedBy
+        ? {
+            id: row.submittedBy.id,
+            emailMasked: this.maskEmail(row.submittedBy.email),
+          }
+        : null,
+      reviewedByUserId: row.reviewedByUserId,
+      reviewedBy: row.reviewedBy
+        ? {
+            id: row.reviewedBy.id,
+            emailMasked: this.maskEmail(row.reviewedBy.email),
+          }
+        : null,
+      type: isArtistKnowledgeSourceType(row.sourceType)
+        ? row.sourceType
+        : 'other',
+      url: row.url,
+      canonicalUrl: row.canonicalUrl,
+      description: row.artistDescription,
+      summary: row.summary,
+      allowChatRef: row.allowChatReference,
+      status: ARTIST_URL_KNOWLEDGE_STATUSES.includes(row.status as never)
+        ? row.status
+        : 'pending',
+      rejectionReason: row.rejectionReason,
+      metadata: this.metadataObject(row.metadata),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      reviewedAt: row.reviewedAt,
+      archivedAt: row.archivedAt,
+      chatReference: {
+        eligible:
+          row.status === 'approved' &&
+          row.allowChatReference &&
+          Boolean(row.summary),
+        approvedOnly: true,
+        rawUrlIncludedInPrompt: false,
+      },
+    };
+  }
+
   private presentAiContentHealth(artist: Record<string, unknown>) {
     const assetLinks = Array.isArray(artist.artistAssets) ? artist.artistAssets : [];
     const publicProfile = this.metadataObject(artist.publicProfile);
@@ -8755,6 +9088,12 @@ export class AdminService {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       value,
     );
+  }
+
+  private assertUuid(value: string, field: string) {
+    if (!this.isUuid(value)) {
+      throw new BadRequestException(`${field} must be a UUID`);
+    }
   }
 
   private number(input: AdminPayload, key: string, fallback?: number) {

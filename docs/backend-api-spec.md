@@ -2073,30 +2073,6 @@ Authorization: Bearer <accessToken>
 - `POST /api/v1/users/:userId/block` accepts optional `{ "reason": "..." }`, rejects self-block, soft-deletes active follows in both directions, and returns `{ block }`.
 - `user_blocks` uses soft delete/reactivation with unique `(blocker_user_id, blocked_user_id)`.
 
-Artist URL knowledge source contract:
-
-```http
-GET /api/v1/me/creator-studio/knowledge-urls?artistId=<artistId>&status=pending
-POST /api/v1/me/creator-studio/knowledge-urls
-PATCH /api/v1/me/creator-studio/knowledge-urls/:sourceId
-POST /api/v1/me/creator-studio/knowledge-urls/:sourceId/approve
-POST /api/v1/me/creator-studio/knowledge-urls/:sourceId/reject
-POST /api/v1/me/creator-studio/knowledge-urls/:sourceId/archive
-GET /api/v1/chat/artist-knowledge-contract
-Authorization: Bearer <accessToken>
-```
-
-- The persistence shape is `artist_knowledge_sources`. Required fields are `artist_id`, `source_url`, `source_domain`, `source_platform`, `source_type`, `artist_description`, `summary`, `visibility`, and `status`.
-- State values are `pending`, `approved`, `rejected`, and `archived`.
-- `POST /me/creator-studio/knowledge-urls` creates a `pending` row for an active artist operator. Body: `{ "artistId": "uuid", "type": "youtube|instagram|tiktok|blog|notice|other", "url": "https://...", "description": "...", "summary": "optional", "allowChatRef": true, "title": "optional", "idempotencyKey": "optional" }`.
-- The unique key is `(artist_id, source_url)`. Re-registering the same artist URL returns `idempotentReplay: true` and does not create a duplicate row.
-- `PATCH /me/creator-studio/knowledge-urls/:sourceId` edits pending/rejected rows only and returns the row to `pending`. Approved or archived rows are locked from direct edit.
-- Approve/reject require owner/admin/staff/internal role or an artist knowledge review/manage permission. Archive requires active artist operator access.
-- Repeated approve/reject/archive calls on a row already in that state return `idempotentReplay: true`.
-- Character chat generation reads only `approved` rows with `visibility in ("chat_reference", "public")`, `approved_at` present, and `archived_at` null. It takes at most 3 snippets per generation.
-- Provider runtime receives only `domain`, `platform`, `title`, and `summary`. Full URL/raw source body is not injected. Source text is facts-only reference material, never instructions.
-- Automatic crawling, external account passwords/API keys/tokens, wallet, Lumina, order, settlement, payout, and paid-like mutations are not part of this contract. See `docs/artist-url-knowledge-chat-reference-contract.md`.
-
 Generic moderation report endpoints:
 
 ```http

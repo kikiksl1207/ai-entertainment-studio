@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
+  IsBoolean,
   IsArray,
   IsObject,
   IsOptional,
@@ -27,6 +28,28 @@ const normalizeStringArray = ({ value }: { value: unknown }) => {
     .filter((item): item is string => typeof item === 'string')
     .map((item) => item.trim())
     .filter(Boolean);
+};
+
+const normalizeOptionalBoolean = ({ value }: { value: unknown }) => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  if (['true', '1', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+
+  if (['false', '0', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+
+  return value;
 };
 
 export class CreatorStudioPublicProfileDto {
@@ -152,6 +175,74 @@ export class CreatorStudioSettlementConversionQueryDto {
   status?: string;
 }
 
+export class CreatorStudioKnowledgeUrlQueryDto {
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @Matches(/^[0-9a-fA-F-]{36}$/)
+  artistId?: string | null;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @Matches(/^(pending|approved|rejected|archived)$/)
+  status?: string | null;
+}
+
+export class CreateCreatorStudioKnowledgeUrlDto {
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @Matches(/^[0-9a-fA-F-]{36}$/)
+  artistId!: string;
+
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @Matches(/^(youtube|instagram|tiktok|blog|notice|other)$/)
+  type!: string;
+
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(2000)
+  @Matches(/^https?:\/\/\S+$/i)
+  url!: string;
+
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(500)
+  description!: string;
+
+  @IsOptional()
+  @Transform(normalizeOptionalBoolean)
+  @IsBoolean()
+  allowChatRef?: boolean;
+}
+
+export class UpdateCreatorStudioKnowledgeUrlDto {
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @Matches(/^(youtube|instagram|tiktok|blog|notice|other)$/)
+  type?: string | null;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(2000)
+  @Matches(/^https?:\/\/\S+$/i)
+  url?: string | null;
+
+  @IsOptional()
+  @Transform(normalizeOptionalString)
+  @IsString()
+  @MaxLength(500)
+  description?: string | null;
+
+  @IsOptional()
+  @Transform(normalizeOptionalBoolean)
+  @IsBoolean()
+  allowChatRef?: boolean;
+}
+
 export class CreateCreatorStudioSettlementConversionDto {
   @Transform(normalizeOptionalString)
   @IsString()
@@ -174,103 +265,4 @@ export class CreateCreatorStudioSettlementConversionDto {
   @IsString()
   @MaxLength(120)
   idempotencyKey?: string | null;
-}
-
-export class CreatorStudioKnowledgeUrlQueryDto {
-  @IsOptional()
-  @Transform(normalizeOptionalString)
-  @IsString()
-  artistId?: string | null;
-
-  @IsOptional()
-  @Transform(normalizeOptionalString)
-  @IsString()
-  @Matches(/^(pending|approved|rejected|archived)$/)
-  status?: string | null;
-}
-
-export class CreateCreatorStudioKnowledgeUrlDto {
-  @Transform(normalizeOptionalString)
-  @IsString()
-  artistId!: string;
-
-  @IsOptional()
-  @Transform(normalizeOptionalString)
-  @IsString()
-  @MaxLength(40)
-  type?: string | null;
-
-  @Transform(normalizeOptionalString)
-  @IsString()
-  @MaxLength(2000)
-  url!: string;
-
-  @Transform(normalizeOptionalString)
-  @IsString()
-  @MaxLength(2000)
-  description!: string;
-
-  @IsOptional()
-  allowChatRef?: boolean;
-
-  @IsOptional()
-  @Transform(normalizeOptionalString)
-  @IsString()
-  @MaxLength(160)
-  title?: string | null;
-
-  @IsOptional()
-  @Transform(normalizeOptionalString)
-  @IsString()
-  @MaxLength(2000)
-  summary?: string | null;
-
-  @IsOptional()
-  @Transform(normalizeOptionalString)
-  @IsString()
-  @MaxLength(120)
-  idempotencyKey?: string | null;
-}
-
-export class UpdateCreatorStudioKnowledgeUrlDto {
-  @IsOptional()
-  @Transform(normalizeOptionalString)
-  @IsString()
-  @MaxLength(40)
-  type?: string | null;
-
-  @IsOptional()
-  @Transform(normalizeOptionalString)
-  @IsString()
-  @MaxLength(2000)
-  url?: string | null;
-
-  @IsOptional()
-  @Transform(normalizeOptionalString)
-  @IsString()
-  @MaxLength(2000)
-  description?: string | null;
-
-  @IsOptional()
-  allowChatRef?: boolean;
-
-  @IsOptional()
-  @Transform(normalizeOptionalString)
-  @IsString()
-  @MaxLength(160)
-  title?: string | null;
-
-  @IsOptional()
-  @Transform(normalizeOptionalString)
-  @IsString()
-  @MaxLength(2000)
-  summary?: string | null;
-}
-
-export class ReviewCreatorStudioKnowledgeUrlDto {
-  @IsOptional()
-  @Transform(normalizeOptionalString)
-  @IsString()
-  @MaxLength(500)
-  reason?: string | null;
 }

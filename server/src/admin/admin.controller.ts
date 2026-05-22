@@ -58,6 +58,54 @@ export class AdminController {
     return this.adminService.getBackstageAiContentHealth(query);
   }
 
+  @Get('backstage/operations/artist-knowledge-urls')
+  @RequireAdminPermissions('artists:read')
+  getBackstageArtistKnowledgeUrls(@Query() query: AuditQuery) {
+    return this.adminService.getBackstageArtistKnowledgeUrls(query);
+  }
+
+  @Post('backstage/operations/artist-knowledge-urls/:knowledgeUrlId/approve')
+  @RequireAdminPermissions('artists:write')
+  approveBackstageArtistKnowledgeUrl(
+    @CurrentUser() user: AuthUser,
+    @Param('knowledgeUrlId') knowledgeUrlId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.approveBackstageArtistKnowledgeUrl(
+      user,
+      knowledgeUrlId,
+      body,
+    );
+  }
+
+  @Post('backstage/operations/artist-knowledge-urls/:knowledgeUrlId/reject')
+  @RequireAdminPermissions('artists:write')
+  rejectBackstageArtistKnowledgeUrl(
+    @CurrentUser() user: AuthUser,
+    @Param('knowledgeUrlId') knowledgeUrlId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.rejectBackstageArtistKnowledgeUrl(
+      user,
+      knowledgeUrlId,
+      body,
+    );
+  }
+
+  @Post('backstage/operations/artist-knowledge-urls/:knowledgeUrlId/archive')
+  @RequireAdminPermissions('artists:write')
+  archiveBackstageArtistKnowledgeUrl(
+    @CurrentUser() user: AuthUser,
+    @Param('knowledgeUrlId') knowledgeUrlId: string,
+    @Body() body: AdminPayload,
+  ) {
+    return this.adminService.archiveBackstageArtistKnowledgeUrl(
+      user,
+      knowledgeUrlId,
+      body,
+    );
+  }
+
   @Get('backstage/operations/users-overview')
   @RequireAdminPermissions('users:read')
   getBackstageUsersOverview(@Query() query: AuditQuery) {

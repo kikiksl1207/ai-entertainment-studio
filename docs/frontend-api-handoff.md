@@ -3703,26 +3703,6 @@ when the current user has an active `artist_operators` row for that artist. The
 create body accepts `{ "email": "operator@example.com", "role": "owner",
 "permissions": ["feed:post", "feed:reply"] }` or `userId` instead of `email`.
 
-Creator Studio artist knowledge URLs:
-
-```http
-GET /me/creator-studio/knowledge-urls?artistId=<artistId>&status=pending
-POST /me/creator-studio/knowledge-urls
-PATCH /me/creator-studio/knowledge-urls/:sourceId
-POST /me/creator-studio/knowledge-urls/:sourceId/approve
-POST /me/creator-studio/knowledge-urls/:sourceId/reject
-POST /me/creator-studio/knowledge-urls/:sourceId/archive
-GET /chat/artist-knowledge-contract
-```
-
-- Use these endpoints for the Creator Studio URL material table and submit form.
-- A create request stores a `pending` item. Suggested body: `{ "artistId": "uuid", "type": "youtube|instagram|tiktok|blog|notice|other", "url": "https://...", "description": "...", "summary": "optional", "allowChatRef": true, "title": "optional" }`.
-- List rows expose `item.status`, `item.allowChatRef`, `item.chatReference.eligible`, `item.description`, `item.summary`, `item.url`, `item.type`, `item.platform`, and review timestamps. UI should display Korean fallback labels for `pending`, `approved`, `rejected`, and `archived`; do not display raw enum keys as copy.
-- Duplicate create of the same artist URL returns the existing item with `idempotentReplay: true`.
-- Only `approved` rows with `allowChatRef=true` are eligible for character chat reference. Pending/rejected/archived rows must stay visible in Creator Studio as management state but not be shown as chat-ready.
-- Chat provider runtime receives only `domain`, `platform`, `title`, and `summary`; frontend should not expect raw source body/provider prompt visibility.
-- The backend does not crawl external URLs and does not require social account passwords, API keys, tokens, or wallet/Lumina/settlement/paid-like wiring.
-
 ## Notes For Claude
 
 - Do not hardcode local-only URLs in production frontend.
