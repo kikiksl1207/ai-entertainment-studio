@@ -4549,6 +4549,26 @@ p {
   flex-shrink: 0;
 }
 
+/* +N 더보기 오버레이 — 5장 이상일 때 4번째 슬롯에 표시 */
+.feed-asset-more-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  pointer-events: none;
+  z-index: 2;
+  border-radius: inherit;
+}
+.feed-post-asset-item.has-more img {
+  filter: brightness(0.5);
+}
+
 
 .user-menu-item-public-profile span {
   color: #ff7eb9;

@@ -3092,28 +3092,35 @@ function feedResolveAssetUrl(entry, type = "full") {
 
 function renderFeedPostAssets(assets) {
   if (!Array.isArray(assets) || assets.length === 0) return "";
-  const items = assets
+  // #401 — 5장 이상일 때 4번째 슬롯에 +N 오버레이 표시. 슬라이스 전에 전체 수를 기록.
+  const allFiltered = assets
     .map(a => ({
       fullUrl: feedResolveAssetUrl(a, "full"),
       thumbUrl: feedResolveAssetUrl(a, "thumb"),
     }))
-    .filter(item => item.fullUrl)
-    .slice(0, 4);
-  if (items.length === 0) return "";
+    .filter(item => item.fullUrl);
+  if (allFiltered.length === 0) return "";
+  const items = allFiltered.slice(0, 4);
+  const extraCount = Math.max(0, allFiltered.length - 4); // 4번째 슬롯 뒤에 숨겨진 장 수
   const gridClass = `feed-post-assets feed-post-assets-${items.length}`;
   const isMulti = items.length > 1;
   // 라이트박스용 src 묶음을 부모에 데이터로 (다음/이전 슬라이드 가능)
   const sources = items.map(item => item.fullUrl).join("|");
   return `
-    <div class="${gridClass}${isMulti ? ' has-multi' : ''}" data-feed-asset-group="${feedEscapeHtml(sources)}">
+    <div class="${gridClass}${isMulti ? ' has-multi' : ''}${extraCount > 0 ? ' has-extra' : ''}" data-feed-asset-group="${feedEscapeHtml(sources)}">
       ${items.map((a, idx) => {
         const src = feedEscapeHtml(a.thumbUrl || a.fullUrl);
         const full = feedEscapeHtml(a.fullUrl);
-        const badge = (idx === 0 && isMulti)
+        // 5장 이상일 때 첫 슬롯 배지(총 장수 표시)는 숨기고 4번째 슬롯 오버레이로 대체
+        const badge = (idx === 0 && isMulti && extraCount === 0)
           ? `<span class="feed-asset-multi-badge" aria-label="${items.length}장의 이미지"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 5h12v10H4zM18 7h2v10H8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>${items.length}</span>`
           : "";
-        return `<a class="feed-post-asset-item" href="${full}" rel="noopener noreferrer" data-feed-asset data-asset-index="${idx}" data-asset-url="${full}" oncontextmenu="return false;" draggable="false">
-          ${badge}
+        // 4번째 슬롯(idx===3)이고 숨겨진 이미지가 있을 때 +N 오버레이 렌더
+        const moreOverlay = (idx === 3 && extraCount > 0)
+          ? `<span class="feed-asset-more-overlay" aria-label="${extraCount}장 더 있음">+${extraCount}</span>`
+          : "";
+        return `<a class="feed-post-asset-item${idx === 3 && extraCount > 0 ? ' has-more' : ''}" href="${full}" rel="noopener noreferrer" data-feed-asset data-asset-index="${idx}" data-asset-url="${full}" oncontextmenu="return false;" draggable="false">
+          ${badge}${moreOverlay}
           <img src="${src}" data-full-src="${full}" alt="" loading="lazy" oncontextmenu="return false;" draggable="false" onerror="if(!this.dataset.fullTried&&this.dataset.fullSrc&&this.src!==this.dataset.fullSrc){this.dataset.fullTried='1';this.src=this.dataset.fullSrc;}else{this.parentElement.classList.add('is-broken');this.style.display='none';}" />
         </a>`;
       }).join("")}
