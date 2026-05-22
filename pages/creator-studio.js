@@ -617,6 +617,15 @@
     el.classList.toggle("is-danger", tone === "danger");
   }
 
+  function setKnowledgeSubmitLocked(locked) {
+    const btn = document.getElementById("knowledgeUrlSubmit");
+    if (!btn) return;
+    btn.disabled = locked;
+    btn.setAttribute("aria-disabled", locked ? "true" : "false");
+    btn.style.opacity = locked ? "0.45" : "";
+    btn.style.cursor = locked ? "not-allowed" : "";
+  }
+
   function knowledgeUrlStatusLabel(status) {
     return { pending: "승인 대기", approved: "승인됨", rejected: "반려", archived: "보관", processing: "처리 중" }[status] || "승인 대기";
   }
@@ -681,11 +690,15 @@
       });
       if (res.status === 404 || res.status === 501) {
         rows.innerHTML = '<tr><td colspan="6">자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요. 폼 구성은 미리 확인할 수 있습니다.</td></tr>';
+        setKnowledgeSubmitLocked(true);
+        setKnowledgeUrlState("자료 URL 등록 API가 아직 준비 중입니다. 운영팀 안내 후 이용할 수 있어요.", "danger");
         return;
       }
       if (!res.ok) throw new Error("load failed");
       const data = await res.json().catch(() => null);
       const items = Array.isArray(data) ? data : (data?.items || data?.urls || []);
+      setKnowledgeSubmitLocked(false);
+      setKnowledgeUrlState("", "");
       renderKnowledgeUrls(items);
     } catch (_) {
       if (rows) rows.innerHTML = '<tr><td colspan="6">목록을 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</td></tr>';
