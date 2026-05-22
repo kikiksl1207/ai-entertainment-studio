@@ -56,6 +56,8 @@ let _luminaFeedSearchTimer = null;
 
 let _luminaFeedSearchSeq = 0;
 
+let _feedDetailOpen = false;
+
 function feedLocaleToLanguage(locale = _currentLocale) {
   const prefix = String(locale || "").toLowerCase().split("-")[0];
   return ({ ko: "ko", ja: "ja", en: "en", zh: "zh" })[prefix] || "all";
@@ -1596,6 +1598,207 @@ async function runFeedComposeUploadStages(item, onStateChange) {
 
 /* ── 상태 메타 ──────────────────────────────── */
 
+  // ── #411 글 상세 보기 ──────────────────────────────────────────────────────
+
+  function renderFeedDetailTombstone(reason) {
+    var title = "이 글을 볼 수 없어요";
+    var body = reason === "deleted"    ? "글이 삭제됐어요."
+      : reason === "private"          ? "글이 비공개 처리됐어요."
+      : reason === "blocked"          ? "차단된 사용자의 글이라 표시되지 않아요."
+      : reason === "error"            ? "글 정보를 불러오지 못했어요. 잠시 후 다시 시도해주세요."
+      :                                 "글이 더 이상 제공되지 않아요.";
+    return (
+      '<div class="feed-detail-tombstone">' +
+        '<strong class="feed-detail-tombstone-title">' + feedEscapeHtml(title) + '</strong>' +
+        '<p class="feed-detail-tombstone-body">' + feedEscapeHtml(body) + '</p>' +
+      '</div>'
+    );
+  }
+
+  function buildFeedDetailHTML(post) {
+    var artist = (typeof getCharacterBySlug === "function" && post.artistSlug)
+      ? getCharacterBySlug(post.artistSlug) : null;
+    var me = (typeof getAuth === "function") ? getAuth()?.user : null;
+    var isMineByViewer = !!post.viewer?.isAuthor;
+    var authorName = artist
+      ? artist.publicName
+      : (isMineByViewer && me
+          ? (me.displayName || me.email?.split("@")[0] || "내 계정")
+          : (post.authorName || (post.postType === "debut_artist_post" ? "데뷔 준비 중인 아티스트" : "익명의 팬")));
+    var avatarSrc = artist?.images?.thumb
+      || (isMineByViewer && me?.avatarUrl ? me.avatarUrl : post.avatarUrl || "");
+    var initial = (authorName || "?").charAt(0);
+    var typeKey = (post.postType || "fan_post").replace("_post", "");
+    var typeLabel = feedAuthorTypeLabel(post.authorType);
+    var postIdStr = feedEscapeHtml(post.id || "");
+
+    // 작성자 헤더 클릭 → 프로필/캐릭터 상세 이동
+    var authorLink = "";
+    if (artist) {
+      authorLink = ' data-user-profile-link="' + feedEscapeHtml("/character-detail?slug=" + artist.slug) + '" style="cursor:pointer;"';
+    } else if (isMineByViewer && me?.id) {
+      var target = me.publicHandle
+        ? "/user-profile?handle=" + encodeURIComponent(me.publicHandle)
+        : "/user-profile?id=" + encodeURIComponent(String(me.id));
+      authorLink = (typeof buildMiniProfileAuthorAttrs === "function")
+        ? buildMiniProfileAuthorAttrs({ target: target, handle: me.publicHandle, userId: me.id })
+        : "";
+    } else if (post.authorPublicHandle || post.authorUserId) {
+      var target2 = post.authorPublicHandle
+        ? "/user-profile?handle=" + encodeURIComponent(post.authorPublicHandle)
+        : "/user-profile?id=" + encodeURIComponent(String(post.authorUserId));
+      authorLink = (typeof buildMiniProfileAuthorAttrs === "function")
+        ? buildMiniProfileAuthorAttrs({ target: target2, handle: post.authorPublicHandle, userId: post.authorUserId })
+        : "";
+    }
+
+    var avatarHtml = avatarSrc
+      ? '<img src="' + feedEscapeHtml(avatarSrc) + '" alt="' + feedEscapeHtml(authorName) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'" />' +
+        '<span class="feed-post-avatar-fallback" style="display:none;">' + feedEscapeHtml(initial) + '</span>'
+      : '<span class="feed-post-avatar-fallback">' + feedEscapeHtml(initial) + '</span>';
+
+    var repostEmbed  = (typeof renderFeedRepostSource     === "function") ? renderFeedRepostSource(post.repost) : "";
+    var threadBadge  = (typeof renderFeedPostThreadBadge  === "function") ? renderFeedPostThreadBadge(post) : "";
+    var assetsHtml   = (typeof renderFeedPostAssets       === "function") ? renderFeedPostAssets(post.assets) : "";
+    var linkPreview  = (typeof renderFeedLinkPreview      === "function") ? renderFeedLinkPreview(post.linkPreview) : "";
+    var deleteButton = post.viewer?.canDelete && post.id
+      ? '<button class="feed-action-btn feed-delete-btn" type="button" data-feed-delete="' + postIdStr + '" aria-label="게시글 삭제">삭제</button>' : "";
+    var editButton   = post.viewer?.canEdit && post.id
+      ? '<button class="feed-action-btn feed-edit-btn" type="button" data-feed-edit="' + postIdStr + '" aria-label="게시글 수정">수정</button>' : "";
+
+    return (
+      '<div class="feed-detail-back-bar">' +
+        '<button class="feed-detail-back-btn" type="button" id="feedDetailBackBtn">← 피드로 돌아가기</button>' +
+      '</div>' +
+      '<article class="feed-post feed-detail-post" data-feed-type="' + feedEscapeHtml(post.postType || "fan_post") + '" data-feed-post-id="' + postIdStr + '">' +
+        '<header class="feed-post-head"' + authorLink + '>' +
+          '<div class="feed-post-avatar">' + avatarHtml + '</div>' +
+          '<div class="feed-post-meta">' +
+            '<strong class="feed-post-author">' + feedEscapeHtml(authorName) + '</strong>' +
+            '<span class="feed-post-type feed-post-type-' + feedEscapeHtml(typeKey) + '">' + feedEscapeHtml(typeLabel) + '</span>' +
+          '</div>' +
+        '</header>' +
+        '<p class="feed-post-body">' + feedEscapeHtml(post.body || "") + '</p>' +
+        repostEmbed +
+        threadBadge +
+        assetsHtml +
+        linkPreview +
+        '<footer class="feed-post-actions">' +
+          '<div class="feed-post-actions-left" role="group" aria-label="참여 액션">' +
+            '<button class="feed-action-btn feed-like-btn' + (post.viewer?.hasLiked ? " is-liked" : "") + '" type="button" data-feed-like="' + postIdStr + '" aria-pressed="' + (post.viewer?.hasLiked ? "true" : "false") + '" aria-label="' + (post.viewer?.hasLiked ? "좋아요 취소하기" : "좋아요 누르기") + '">' +
+              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>' +
+              '<span data-feed-like-count>' + (Number(post.likeCount) || 0) + '</span>' +
+            '</button>' +
+            '<button class="feed-action-btn feed-comment-btn" type="button" data-feed-comment="' + postIdStr + '" aria-label="댓글 보기">' +
+              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>' +
+              '<span>댓글 ' + (Number(post.replyCount) || 0) + '</span>' +
+            '</button>' +
+            '<button class="feed-action-btn feed-thread-extend-btn" type="button" data-feed-thread-extend="' + postIdStr + '" aria-label="이 글에 타래 이어 쓰기">' +
+              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v14a3 3 0 0 0 3 3h7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/><circle cx="7" cy="4" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/><circle cx="17" cy="21" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>' +
+              '<span>타래 잇기</span>' +
+            '</button>' +
+            '<button class="feed-action-btn feed-repost-btn" type="button" data-feed-repost="' + postIdStr + '" aria-label="이 글 리포스트하기">' +
+              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3l4 4-4 4M3 14l4 4 4-4M21 7H8a4 4 0 0 0-4 4v3M3 17h13a4 4 0 0 0 4-4v-3" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+              '<span>리포스트</span>' +
+            '</button>' +
+          '</div>' +
+          '<div class="feed-post-actions-right" role="group" aria-label="카드 메뉴">' +
+            '<button class="feed-action-btn feed-share-btn" type="button" data-feed-share="' + postIdStr + '" aria-label="이 글 공유하기" title="이 글 공유하기">' +
+              '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.2" stroke="currentColor" fill="none" stroke-width="1.6"/><circle cx="6" cy="12" r="2.2" stroke="currentColor" fill="none" stroke-width="1.6"/><circle cx="18" cy="19" r="2.2" stroke="currentColor" fill="none" stroke-width="1.6"/><line x1="8.1" y1="10.9" x2="15.9" y2="6.1" stroke="currentColor" stroke-width="1.6"/><line x1="8.1" y1="13.1" x2="15.9" y2="17.9" stroke="currentColor" stroke-width="1.6"/></svg>' +
+            '</button>' +
+            editButton + deleteButton +
+          '</div>' +
+        '</footer>' +
+      '</article>'
+    );
+  }
+
+  async function openFeedPostDetail(postId, opts) {
+    var targetId = String(postId || "");
+    if (!targetId) return;
+    var pushHistory = !opts || opts.pushHistory !== false;
+
+    var mainColumn = document.querySelector(".feed-main-column");
+    var detailEl   = document.getElementById("feedPostDetail");
+    if (!detailEl || !mainColumn) return;
+
+    _feedDetailOpen = true;
+    mainColumn.classList.add("is-detail-open");
+    detailEl.removeAttribute("hidden");
+
+    if (pushHistory && window.history && history.pushState) {
+      history.pushState({ feedPostId: targetId }, "", "/lumina-feed?postId=" + encodeURIComponent(targetId));
+    }
+
+    detailEl.innerHTML = '<div class="feed-detail-loading">글 정보를 불러오는 중입니다.</div>';
+
+    // 기존 목록에서 찾기 → 없으면 API 조회
+    var post = Array.isArray(_luminaFeedItems)
+      ? _luminaFeedItems.find(function (p) { return String(p && p.id || "") === targetId; })
+      : null;
+
+    if (!post) {
+      try {
+        var isAuth = typeof isLoggedIn === "function" && isLoggedIn();
+        var res = await apiFetch(
+          "/api/v1/lumina-feed/posts/" + encodeURIComponent(targetId),
+          { auth: isAuth, throwOnError: true }
+        );
+        var rawPost = res && (res.post || res.item || res.data || res);
+        if (!rawPost || !rawPost.id) {
+          detailEl.innerHTML = renderFeedDetailTombstone("unavailable");
+          return;
+        }
+        post = (typeof normalizeFeedPost === "function") ? normalizeFeedPost(rawPost) : rawPost;
+      } catch (err) {
+        var status = err && err.status;
+        if (status === 404 || status === 410) {
+          detailEl.innerHTML = renderFeedDetailTombstone("deleted");
+        } else if (status === 403) {
+          detailEl.innerHTML = renderFeedDetailTombstone("private");
+        } else {
+          detailEl.innerHTML = renderFeedDetailTombstone("error");
+        }
+        return;
+      }
+    }
+
+    detailEl.innerHTML = buildFeedDetailHTML(post);
+    var backBtn = detailEl.querySelector("#feedDetailBackBtn");
+    if (backBtn) backBtn.addEventListener("click", function () { closeFeedPostDetail(); });
+  }
+
+  function closeFeedPostDetail(opts) {
+    var pushHistory = !opts || opts.pushHistory !== false;
+    _feedDetailOpen = false;
+    var mainColumn = document.querySelector(".feed-main-column");
+    var detailEl   = document.getElementById("feedPostDetail");
+    if (mainColumn) mainColumn.classList.remove("is-detail-open");
+    if (detailEl)   { detailEl.setAttribute("hidden", ""); detailEl.innerHTML = ""; }
+    if (pushHistory && window.history && history.pushState) {
+      history.pushState({ feedPostId: null }, "", "/lumina-feed");
+    }
+  }
+
+  function initFeedPostDetailFromURL() {
+    var params;
+    try { params = new URLSearchParams(window.location.search); } catch (_) { return; }
+    var postId = params.get("postId");
+    if (!postId) return;
+    openFeedPostDetail(postId, { pushHistory: false });
+  }
+
+  function bindFeedPostDetailPopstate() {
+    window.addEventListener("popstate", function (e) {
+      var state = e.state;
+      if (state && state.feedPostId) {
+        openFeedPostDetail(state.feedPostId, { pushHistory: false });
+      } else if (_feedDetailOpen) {
+        closeFeedPostDetail({ pushHistory: false });
+      }
+    });
+  }
+
   window.loadLuminaFeedData = loadLuminaFeedData;
   window.initLuminaFeedSidebar = initLuminaFeedSidebar;
   window.bindLuminaFeedSearch = bindLuminaFeedSearch;
@@ -1604,6 +1807,10 @@ async function runFeedComposeUploadStages(item, onStateChange) {
   window.bindLuminaFeedTabs = bindLuminaFeedTabs;
   window.bindLuminaFeedFollow = bindLuminaFeedFollow;
   window.initFeedCompose = initFeedCompose;
+  window.openFeedPostDetail = openFeedPostDetail;
+  window.closeFeedPostDetail = closeFeedPostDetail;
+  window.initFeedPostDetailFromURL = initFeedPostDetailFromURL;
+  window.bindFeedPostDetailPopstate = bindFeedPostDetailPopstate;
 
   // #358 — 타래 잇기 / 리포스트 / 공유 액션 핸들러. event delegation으로 동적 카드까지 커버한다.
   // 타래 append / repost submit은 #357 contract로 활성화했고, 공유는 Web Share/clipboard fallback으로 동작한다.
@@ -1664,32 +1871,12 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     return true;
   }
 
+  // #411 — 원글 보기 링크 클릭 → 글 상세 보기 오픈 (scroll/focus 방식 대체).
   async function handleFeedOriginalPostLink(postId) {
     var targetId = String(postId || "");
     if (!targetId) return;
-    if (focusFeedPostCard(targetId)) return;
-    try {
-      var res = await apiFetch(
-        "/api/v1/lumina-feed/posts/" + encodeURIComponent(targetId),
-        { auth: typeof isLoggedIn === "function" && isLoggedIn(), throwOnError: true }
-      );
-      var rawPost = res && (res.post || res.item || res.data || res);
-      if (!rawPost || !rawPost.id) {
-        showFeedShareToast("원글을 찾지 못했어요.");
-        return;
-      }
-      var normalized = normalizeFeedPost(rawPost);
-      var exists = _luminaFeedItems.some(function (post) {
-        return String(post && post.id || "") === targetId;
-      });
-      if (!exists) _luminaFeedItems = [normalized].concat(_luminaFeedItems);
-      renderLuminaFeed();
-      requestAnimationFrame(function () {
-        if (!focusFeedPostCard(targetId)) showFeedShareToast("원글을 불러왔지만 화면에서 찾지 못했어요.");
-      });
-    } catch (err) {
-      console.warn("[#401 original post focus]", { status: err && err.status });
-      showFeedShareToast("원글을 불러오지 못했어요.");
+    if (typeof openFeedPostDetail === "function") {
+      openFeedPostDetail(targetId);
     }
   }
 

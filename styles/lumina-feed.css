@@ -1778,3 +1778,102 @@ body.is-feed-repost-open { overflow: hidden; }
 @media (max-width: 640px) {
   .feed-premium-entry-rank { padding: 8px 6px; }
 }
+
+/* ── #411 글 상세 보기 ──────────────────────────────────────────────── */
+
+/* is-detail-open 시 목록·탭·작성창 숨기고 상세 패널만 표시 */
+.feed-main-column.is-detail-open .feed-page-head,
+.feed-main-column.is-detail-open .feed-list,
+.feed-main-column.is-detail-open #feedCompose,
+.feed-main-column.is-detail-open #feedComposeGuest {
+  display: none;
+}
+
+.feed-post-detail {
+  min-height: 120px;
+}
+
+/* 뒤로 가기 바 */
+.feed-detail-back-bar {
+  display: flex;
+  align-items: center;
+  padding: 12px 0 14px;
+  border-bottom: 1px solid rgba(159, 139, 199, 0.13);
+  margin-bottom: 14px;
+}
+
+.feed-detail-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid rgba(159, 139, 199, 0.22);
+  border-radius: 20px;
+  color: var(--violet, #9f8bc7);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.feed-detail-back-btn:hover {
+  background: rgba(159, 139, 199, 0.1);
+  border-color: rgba(159, 139, 199, 0.38);
+}
+
+/* 상세 카드 */
+.feed-detail-post {
+  border: 1px solid rgba(159, 139, 199, 0.16) !important;
+  border-radius: 18px !important;
+  padding: 20px 18px 14px !important;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* 본문: 6줄 clamp 해제 — 전체 노출 */
+.feed-detail-post .feed-post-body {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  overflow: visible;
+  max-height: none;
+  font-size: 15px;
+  line-height: 1.72;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 로딩 표시 */
+.feed-detail-loading {
+  padding: 40px 0;
+  text-align: center;
+  color: rgba(240, 238, 248, 0.42);
+  font-size: 14px;
+}
+
+/* 삭제/비공개/차단 tombstone */
+.feed-detail-tombstone {
+  padding: 36px 20px;
+  text-align: center;
+  border: 1px solid rgba(159, 139, 199, 0.13);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.feed-detail-tombstone-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(240, 238, 248, 0.65);
+  margin-bottom: 8px;
+}
+.feed-detail-tombstone-body {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(240, 238, 248, 0.38);
+  line-height: 1.6;
+}
+
+/* 390px — 뒤로가기 바 패딩 조정 */
+@media (max-width: 480px) {
+  .feed-detail-back-btn { font-size: 12.5px; padding: 5px 12px; }
+  .feed-detail-post { padding: 16px 14px 12px !important; }
+}

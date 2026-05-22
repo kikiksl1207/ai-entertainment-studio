@@ -3938,6 +3938,9 @@ async function init() {
     bindFeedAssetLightbox(); // 피드 이미지 라이트박스 + 우클릭 차단
     // #056: 피드 작성창 (로그인 시 노출, 이미지 4장 첨부 + 업로드 흐름)
     initFeedCompose();
+    // #411 — postId 쿼리 파람 진입 시 상세 보기 오픈 + 뒤로가기 popstate 핸들러
+    initFeedPostDetailFromURL();
+    bindFeedPostDetailPopstate();
   }
 
   // #057: 충전소 페이지 (charge.html)
