@@ -119,6 +119,11 @@ export class ChatController {
     return this.chatService.getStarterPrompts({ artistId, artistSlug });
   }
 
+  @Get('chat/artist-knowledge-contract')
+  getArtistKnowledgeContract() {
+    return this.chatService.getArtistKnowledgeContract();
+  }
+
   @Get('chat/sessions/:sessionId/messages')
   getMessages(@CurrentUser() user: AuthUser, @Param('sessionId') sessionId: string) {
     return this.chatService.getMessages(user.id, sessionId);

@@ -911,6 +911,28 @@ Character-chat dynamic opening greeting cache (#388):
   payloads, tokens, API keys, user private data, wallet/order/settlement ids, or
   payout internals.
 
+Artist URL knowledge chat reference contract (#408):
+
+- `GET /api/v1/chat/artist-knowledge-contract` returns the read-only contract
+  for artist-submitted URL knowledge sources. It is not a crawler and performs
+  no mutation.
+- `GET /api/v1/chat/character-catalog` and
+  `GET /api/v1/chat/starter-prompts` include `artistKnowledgeContract` for the
+  requested character.
+- Source lifecycle statuses are `pending`, `approved`, `rejected`, and
+  `archived`. Character chat may reference only `approved` sources with chat
+  visibility.
+- Runtime retrieval is capped at three snippets per generation request,
+  ordered by newest approval/update. Pending, rejected, and archived records are
+  excluded before provider generation.
+- Provider runtime context receives only display-safe title, summary, source
+  platform, and source domain. Full source URLs, cookies, tokens, secrets, raw
+  provider payloads, user private data, and source prompt text must not be
+  injected into the provider prompt.
+- URL/source text is factual context only. Instructions inside artist-submitted
+  descriptions, captions, pages, or summaries must never override system or
+  developer instructions.
+
 LLM generation readiness:
 
 - Generation is fail-closed until a provider adapter is configured:

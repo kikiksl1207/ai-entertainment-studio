@@ -1,6 +1,48 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#408 artist URL knowledge registration and character chat reference contract"
+branch: team2-backend/artist-url-knowledge-chat-contract-408
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/chat.controller.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/src/chat/llm-provider.adapter.ts
+- docs/artist-url-knowledge-chat-reference-contract.md
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- node --check server/src/chat/chat.controller.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.service.spec.ts
+- node --check server/src/chat/llm-provider.adapter.ts
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npx.cmd prisma generate
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts
+- npm.cmd run build
+- git diff --check
+- git diff --check origin/main...HEAD
+result:
+- Added read-only artist URL knowledge chat reference contract endpoint.
+- Added `artistKnowledgeContract` to character catalog and starter prompt projections.
+- Added optional approved-only artist knowledge retrieval for character chat provider context with max-three snippet cap.
+- Provider runtime context receives display-safe title/summary/platform/domain only; full source URLs are not injected.
+- Pending/rejected/archived knowledge sources are excluded from generation context.
+- Prompt-injection phrases in source summaries are sanitized and source text is labeled facts-only, never instructions.
+blocked_by:
+- Actual artist knowledge storage migration/admin or creator UI is still a follow-up; this contract uses the optional `artistKnowledgeSource` delegate when storage exists.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#397 character chat dynamic opening greeting session regression contract"
 branch: team2-backend/character-chat-greeting-regression-397
 commit: final hash recorded in Notion completion report
