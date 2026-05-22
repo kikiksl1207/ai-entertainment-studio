@@ -154,7 +154,74 @@
     renderRooms(rooms.slice(0, 6), mutationOpen);
   }
 
-  window.LuminaPremiumChatHub = { load: load };
+  // ── #390 — 루미나 피드 진입 영역 (피드 사이드 패널용 경량 렌더) ────────────────
+
+  function setFeedState(text) {
+    var el = $("feedPremiumRoomsState");
+    if (el) el.textContent = text;
+  }
+
+  function renderFeedRooms(rooms) {
+    var list = $("feedPremiumRoomsList");
+    if (!list) return;
+    if (!rooms.length) {
+      list.innerHTML =
+        '<li class="feed-premium-entry-rooms-empty">' +
+          '아직 열어둔 방이 없어요. ' +
+          '<a class="feed-premium-entry-rooms-cta" href="/characters">아티스트 보러 가기 →</a>' +
+        '</li>';
+      return;
+    }
+    list.innerHTML = rooms.map(function (room) {
+      var slug = room.slug || "";
+      var name = escapeHtml(room.name || slug || "아티스트");
+      var chatHref = slug ? "/character-chat?slug=" + encodeURIComponent(slug) : "/character-chat";
+      var avatarStyle = slug
+        ? ' style="background-image:url(\'/assets/characters/' + encodeURIComponent(slug) + '/thumb.png\')"'
+        : "";
+      return (
+        '<li class="feed-premium-entry-room">' +
+          '<a class="feed-premium-entry-room-link" href="' + chatHref + '" aria-label="' + name + ' 채팅방 열기">' +
+            '<span class="feed-premium-entry-room-avatar" aria-hidden="true"' + avatarStyle + '></span>' +
+            '<span class="feed-premium-entry-room-name">' + name + '</span>' +
+          '</a>' +
+        '</li>'
+      );
+    }).join("");
+  }
+
+  async function loadForFeedEntry() {
+    var list = $("feedPremiumRoomsList");
+    if (!list || list.dataset.feedLoaded === "1") return;
+    list.dataset.feedLoaded = "1";
+
+    // 1) contract (로그인 여부 + walletMutationEnabled 확인)
+    var contractRes = await fetchJson("/api/v1/chat/premium-support-contract");
+    if (contractRes.error === "unauth") {
+      setFeedState("로그인 필요");
+      list.innerHTML = '<li class="feed-premium-entry-rooms-empty"><a class="feed-premium-entry-rooms-cta" href="#" data-action="login">로그인하면 내 채팅방을 볼 수 있어요</a></li>';
+      return;
+    }
+
+    // 2) conversations (read-only)
+    var convRes = await fetchJson("/api/v1/chat/conversations?box=all&take=4");
+    if (convRes.error === "unauth") {
+      setFeedState("로그인 필요");
+      renderFeedRooms([]);
+      return;
+    }
+    if (convRes.error) {
+      setFeedState("불러오기 실패");
+      list.innerHTML = '<li class="feed-premium-entry-rooms-empty">잠시 후 다시 확인해 주세요.</li>';
+      return;
+    }
+    var items = (convRes.data && (convRes.data.items || (convRes.data.data && convRes.data.data.items))) || [];
+    var rooms = items.map(normalizeConversation).filter(function (r) { return r.slug || r.name; });
+    setFeedState(rooms.length ? rooms.length + "개" : "");
+    renderFeedRooms(rooms.slice(0, 4));
+  }
+
+  window.LuminaPremiumChatHub = { load: load, loadForFeedEntry: loadForFeedEntry };
 
   function maybeStart() {
     // chatListShell이 등장(slug 없이 진입한 리스트 모드)할 때만 로드.
@@ -181,8 +248,13 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", pollForListShell);
+    document.addEventListener("DOMContentLoaded", function () {
+      pollForListShell();
+      // 루미나 피드 페이지에 feedPremiumRoomsList가 있으면 피드 진입 영역도 초기화.
+      if ($("feedPremiumRoomsList")) loadForFeedEntry();
+    });
   } else {
     pollForListShell();
+    if ($("feedPremiumRoomsList")) loadForFeedEntry();
   }
 })();

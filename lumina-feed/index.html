@@ -235,6 +235,44 @@
                 <p class="feed-trend-empty">불러오는 중…</p>
               </div>
             </section>
+
+            <!-- #390 — 프리미엄챗 진입 영역.
+                 랭킹 링크 3개(정적) + 내가 열어둔 채팅방 목록(동적, premium-chat-hub.js).
+                 방 오픈/차감은 walletMutationEnabled 전까지 비활성 — 진입과 프로필 이동만 가능. -->
+            <section class="feed-premium-entry feed-trend-card" aria-label="프리미엄챗 진입">
+              <header class="feed-trend-head">
+                <span>프리미엄챗</span>
+                <a class="feed-premium-entry-all" href="/character-chat" aria-label="내 채팅방 전체 보기">전체 →</a>
+              </header>
+              <!-- 랭킹 3종 정적 링크 -->
+              <nav class="feed-premium-entry-rankings" aria-label="랭킹 바로가기">
+                <a class="feed-premium-entry-rank" href="/lumina-pick">
+                  <span class="feed-premium-entry-rank-label">좋아요 응원 순위</span>
+                  <span class="feed-premium-entry-rank-arrow" aria-hidden="true">›</span>
+                </a>
+                <a class="feed-premium-entry-rank" href="/chat-rankings?type=communication">
+                  <span class="feed-premium-entry-rank-label">소통 TOP</span>
+                  <span class="feed-premium-entry-rank-arrow" aria-hidden="true">›</span>
+                </a>
+                <a class="feed-premium-entry-rank" href="/chat-rankings?type=donation">
+                  <span class="feed-premium-entry-rank-label">후원 랭킹</span>
+                  <span class="feed-premium-entry-rank-arrow" aria-hidden="true">›</span>
+                </a>
+              </nav>
+              <hr class="feed-premium-entry-divider" />
+              <!-- 내가 열어둔 채팅방 (JS 렌더) -->
+              <section aria-label="내가 열어둔 채팅방">
+                <header class="feed-premium-entry-rooms-head">
+                  <span class="feed-premium-entry-rooms-title">내 채팅방</span>
+                  <span class="feed-premium-entry-rooms-state" id="feedPremiumRoomsState" aria-live="polite"></span>
+                </header>
+                <ul class="feed-premium-entry-rooms-list" id="feedPremiumRoomsList" role="list" aria-live="polite">
+                  <li class="feed-premium-entry-rooms-loading">확인 중…</li>
+                </ul>
+              </section>
+              <!-- 비용·안전 안내 -->
+              <p class="feed-premium-entry-note">대화량에 따라 루미나가 차감돼요. 부적절한 대화는 신고 가능하며, 신고 접수 즉시 관리자 확인 전까지 방이 일시 정지돼요.</p>
+            </section>
           </aside>
         </div>
       </section>
@@ -264,6 +302,7 @@
 
     <script src="/data/characters.js"></script>
     <script src="/pages/lumina-feed.js"></script>
+    <script src="/pages/premium-chat-hub.js"></script>
     <script src="/app.js"></script>
     <!-- ── 모바일 하단 탭바 (768px 이하 노출, #017 — 2026-05-02) ── -->
     <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
