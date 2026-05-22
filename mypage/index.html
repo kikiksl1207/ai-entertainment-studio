@@ -730,7 +730,7 @@
           if (item.claimed || item.claimStatus === "claimed") return "기록 완료";
           if (item.completed && item.claimStatus === "claimable_when_completed") return "보상 열림";
           if (item.completed) return "조건 충족";
-          return "준비 중";
+          return "참여 전";
         }
         function normalizeRewardItems(data) {
           return list(data?.milestoneStatus || data?.items || data?.quests || data)

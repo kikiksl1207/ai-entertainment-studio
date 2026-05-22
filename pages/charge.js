@@ -243,7 +243,7 @@ function renderChargeProductCard(p, isPgPending) {
         type="button"
         data-charge-buy="${feedEscapeHtml(productId)}"
         ${isPgPending ? 'disabled' : ''}>
-        ${isPgPending ? '결제 준비 중' : `${formatChargeLuminaAmount(totalLumina)}L 충전하기`}
+        ${isPgPending ? '결제 안내 대기' : `${formatChargeLuminaAmount(totalLumina)}L 충전하기`}
       </button>
     </article>
   `;

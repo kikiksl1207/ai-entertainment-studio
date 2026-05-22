@@ -231,7 +231,7 @@
       btn.setAttribute("aria-disabled", "true");
       btn.title = (state.contract && state.contract.policy && state.contract.policy.disabledDisplayMessageKo) ||
         FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
-      label.textContent = "후원 잠금";
+      label.textContent = "후원 안내 확인";
       return;
     }
     var hasAmount = state.selectedAmount != null;
@@ -253,8 +253,8 @@
       label = "로그인이 필요해요";
       body = "후원 정책은 로그인한 팬에게만 공개돼요. 로그인 후 다시 시도해 주세요.";
     } else if (disabled) {
-      // #379 — "후원 준비 중" 직접 라벨 톤다운. 후원 오픈 안내 대기 톤.
-      label = "후원 오픈 안내 대기";
+      // #379/#394 — 실서비스 톤. 결제 오픈 일정 안내 예정 뉘앙스.
+      label = "후원 가능 시점 안내 대기";
       body = (contract && contract.policy && contract.policy.disabledDisplayMessageKo) ||
         FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
     } else {
