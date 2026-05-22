@@ -3132,10 +3132,13 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.room.roomOpen.endpoint.enabled).toBe(false);
     expect(contract.room.duration).toMatchObject({
       baseDays: 3,
+      maxTotalDays: 10,
       artistExtension: {
-        maxAdditionalDays: 10,
+        maxAdditionalDays: 7,
+        maxTotalDays: 10,
       },
       clientSubmittedExpiryTrusted: false,
+      clientSubmittedDurationTrusted: false,
     });
     expect(contract.room.refunds.unansweredAfterHours).toMatchObject({
       hours: 24,

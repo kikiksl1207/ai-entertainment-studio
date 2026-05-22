@@ -48,7 +48,6 @@ has verified and written the corresponding server ledger state.
 | Premium chat room refund | credit | `refund` | server refund/moderation outcome | server room refund key |
 | Premium chat room company retention | credit | `premium_chat_room_company_revenue` | server refund restriction outcome | server admin decision key |
 | Premium chat room artist compensation | credit | `premium_chat_room_artist_compensation` | server refund restriction outcome | server admin decision key |
-| Premium chat room policy hold | hold | `premium_chat_room_policy_hold` | unresolved 50% refund restriction remainder | server admin decision key |
 | Fan letter | debit | `fan_letter_spend` | server wallet balance | client idempotency key |
 | User gift send | debit | `user_gift_send` | server wallet balance | client idempotency key |
 | User gift receive | credit | `user_gift_receive` | paired server transfer | same transfer key |
@@ -70,9 +69,9 @@ rows and from fan engagement points. The planned
 settlement eligible, and not payout eligible. It can later feed premium-chat
 communication/donation rankings, but it cannot credit or debit wallet balance.
 
-Premium chat room company retention, artist compensation, and policy hold rows
-are planned premium-chat accounting ledgers, not `wallet_ledger` rows. They must
-not mutate user wallet balance, settlement, or payout state until a separate
+Premium chat room company retention and artist compensation rows are planned
+premium-chat accounting ledgers, not `wallet_ledger` rows. They must not mutate
+user wallet balance, settlement, or payout state until a separate
 admin-reviewed revenue workflow is implemented.
 
 ## Paid Action Debit Pattern
@@ -160,8 +159,8 @@ Current state:
 - Room-open tiers are 300L, 500L, 1,000L, and 3,000L. The server evaluates any
   follower-based unlock gate; clients cannot unlock a tier by submitting a
   price or follower count.
-- Base room duration is 3 days. Artist extension is capped at 10 additional
-  days and server-calculated expiry is authoritative.
+- Base room duration is 3 days. Artist setting can extend the room up to a
+  10-day total and server-calculated expiry is authoritative.
 - If the artist does not answer within 24 hours, the server refund policy can
   credit a 100% refund with a server-generated refund key.
 - If the artist force-closes the room outside a normal answered/expired close,
@@ -172,9 +171,9 @@ Current state:
   as artist compensation candidate from the non-refunded portion.
 - The 70% user-fault outcome records planned accounting entries as 70% user
   refund, 20% company revenue retention, and 10% artist compensation retention.
-  The 50% outcome records 50% user refund, 20% company retention, 10% artist
-  compensation, and a 20% `premium_chat_room_policy_hold` until PM/admin policy
-  resolves the remainder.
+  The 50% outcome records 50% user refund, 40% company retention, and 10%
+  artist compensation. The restricted portion is split as 10% artist /
+  remainder company, with no policy-hold row in the #389 contract.
 - Report intake moves the room into reported/blind/suspended/admin-review
   processing with no wallet action before an admin decision.
 - `closed`, `artist_closed`, `expired`, `reported`, `blind`, `suspended`,

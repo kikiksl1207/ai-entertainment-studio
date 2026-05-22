@@ -2,7 +2,7 @@
 
 Updated: 2026-05-21
 Owner: Kaido
-Task: Notion #331, #383
+Task: Notion #331, #383, #389
 
 This contract fixes the backend authority rules for premium chat room opening,
 artist closure, report/blind handling, and refund outcomes. It does not open a
@@ -39,7 +39,7 @@ only after the backend has evaluated eligibility.
 ## Duration
 
 - Base room duration: 3 days.
-- Artist extension: max 10 additional days.
+- Artist setting can extend the room up to a 10-day total.
 - The server calculates `expiresAt`; client-submitted expiry is ignored or
   rejected.
 - Repeated extension requests must be idempotent or guarded by a server event
@@ -55,7 +55,6 @@ only after the backend has evaluated eligibility.
 | User-fault partial refund | credit | `refund` | `premium_chat_room` | server admin decision key |
 | User-fault company retention | credit | `premium_chat_room_company_revenue` | `premium_chat_room` | server admin decision key |
 | User-fault artist compensation | credit | `premium_chat_room_artist_compensation` | `premium_chat_room` | server admin decision key |
-| 50% policy remainder hold | hold | `premium_chat_room_policy_hold` | `premium_chat_room` | server admin decision key |
 | Report/blind pending review | none | none | report/moderation record | no wallet action before admin decision |
 
 `premium_chat_open` is a reserved future ledger type and still needs a wallet
@@ -76,10 +75,9 @@ PR only fixes the contract and tests.
   refund, 20% company revenue retention, and 10% artist compensation
   retention. Settlement and payout mutation still remain disabled.
 - For a 50% user-fault refund, the planned accounting split is 50% user Lumina
-  refund, 20% company revenue retention, 10% artist compensation retention,
-  and 20% `premium_chat_room_policy_hold`. The hold must stay in admin review
-  until PM/admin policy explicitly resolves it; do not turn it into settlement
-  or payout by default.
+  refund, 40% company revenue retention, and 10% artist compensation
+  retention. This keeps the restricted portion split as 10% artist / remainder
+  company, with no policy-hold row in the #389 contract.
 - Artist compensation is a later settlement event candidate only. This contract
   does not create settlement, payout, or revenue-share mutation.
 - Duplicate refund attempts must reuse the original refund projection and must
@@ -92,7 +90,7 @@ PR only fixes the contract and tests.
 | Normal close after answer/expiry | `closed` (`artist_closed` legacy alias) | No automatic refund. |
 | Artist forced close | `refund_pending` -> `refunded` | Server policy decides 100% user refund. |
 | User-fault 70% close | `refund_pending` -> `refunded` | User refund plus company/artist accounting entries. |
-| User-fault 50% close | `refund_pending` -> `admin_review` | User refund plus company/artist accounting entries and policy hold. |
+| User-fault 50% close | `refund_pending` -> `refunded` | User refund plus company/artist accounting entries. |
 | Operator sanction close | `admin_review` | No artist compensation until review completes. |
 | User report | `reported`, `blind`, `suspended`, `admin_review` | No wallet action before admin decision. |
 
@@ -116,6 +114,6 @@ conversation-meter, support-point, settlement, or payout mutation:
   non-negative wallet debit.
 - Implement refund/admin decision workflow with duplicate refund protection.
 - Add moderation queue and audit log entries before public reporting is opened.
-- Resolve the 50% user-fault remainder policy before settlement or payout is
-  enabled. The current v2 contract keeps the remainder in
-  `premium_chat_room_policy_hold`.
+- Implement storage for the 50% user-fault company-retention remainder before
+  settlement or payout is enabled. The current #389 contract keeps settlement
+  and payout disabled.

@@ -1014,8 +1014,8 @@ Premium room-open/refund/moderation contract (#331/#383):
 - Room tiers are 300L, 500L, 1,000L, and 3,000L.
 - The server evaluates all follower unlock gates. Clients cannot unlock a tier
   by submitting a follower count, local balance, price, or paid amount.
-- Base room duration is 3 days. Artist extension is capped at 10 additional
-  days, and server-calculated expiry is authoritative.
+- Base room duration is 3 days. Artist setting can extend the room up to a
+  10-day total, and server-calculated expiry is authoritative.
 - Future room-open create requires an idempotency key and a server wallet debit
   key scoped as `premium-chat-room-open:<artistId>:<client-idempotency-key>`.
 - 24-hour no-answer refund is a server-generated 100% refund path.
@@ -1025,8 +1025,9 @@ Premium room-open/refund/moderation contract (#331/#383):
   decision; client-submitted `refundRate` is ignored or rejected.
 - The 70% user-fault outcome records planned entries for 70% user refund, 20%
   company retention, and 10% artist compensation. The 50% outcome records 50%
-  user refund, 20% company retention, 10% artist compensation, and a 20% policy
-  hold until PM/admin policy resolves the remainder.
+  user refund, 40% company retention, and 10% artist compensation. The
+  restricted portion is split as 10% artist / remainder company, and there is
+  no policy-hold row in the #389 room contract.
 - Artist compensation is only a future accounting candidate; settlement and
   payout mutation stay disabled until a later settlement task.
 - Report intake uses reported/blind/suspended/admin-review processing and no

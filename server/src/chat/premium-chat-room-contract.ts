@@ -1,5 +1,9 @@
 export const PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA = [300, 500, 1000, 3000] as const;
 
+export const PREMIUM_CHAT_ROOM_DEFAULT_TIER_KEY = 'premium_chat_room_300';
+export const PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS = 3;
+export const PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS = 10;
+
 export const PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES = [
   'closed',
   'artist_closed',
@@ -16,8 +20,48 @@ export const PREMIUM_CHAT_ROOM_REFUND_ACCOUNTING_LEDGER_TYPES = [
   'refund',
   'premium_chat_room_company_revenue',
   'premium_chat_room_artist_compensation',
-  'premium_chat_room_policy_hold',
 ] as const;
+
+export const PREMIUM_CHAT_ROOM_ACCESS_CONTROL = {
+  unauthenticated: {
+    allowed: false,
+    status: 401,
+    code: 'auth_required',
+    messageKey: 'auth.required',
+    response: 'global_auth_mapping',
+  },
+  ownerUser: {
+    allowed: true,
+    userEndpoint: true,
+    artistEndpoint: false,
+    canOpenRoom: false,
+    canSeePublicRefundStatus: true,
+    canSeeReportProcessingStatus: true,
+    canSeeArtistForceCloseAvailability: false,
+    canForceClose: false,
+    canReport: true,
+  },
+  artistOperator: {
+    allowed: true,
+    userEndpoint: false,
+    artistEndpoint: true,
+    canOpenRoom: false,
+    canSeePublicRefundStatus: true,
+    canSeeReportPendingFlag: true,
+    canSeeForceCloseAvailability: true,
+    canForceClose: false,
+    canReport: false,
+  },
+  nonOwner: {
+    allowed: false,
+    status: 403,
+    code: 'PREMIUM_CHAT_ROOM_NOT_OWNED',
+    messageKey: 'chat.premiumRoom.notOwned',
+    response: '403_or_404_without_identity_leak',
+  },
+} as const;
+
+export type PremiumChatRoomAccessRole = keyof typeof PREMIUM_CHAT_ROOM_ACCESS_CONTROL;
 
 export function isPremiumChatRoomMutationBlocked(status: string) {
   return (PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES as readonly string[]).includes(
@@ -38,7 +82,10 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     payoutMutationEnabled: false,
     clientSubmittedAmountTrusted: false,
     clientSubmittedBalanceTrusted: false,
+    clientSubmittedPriceTrusted: false,
     clientSubmittedRefundRateTrusted: false,
+    clientSubmittedArtistShareTrusted: false,
+    clientSubmittedDurationTrusted: false,
     clientSubmittedSettlementShareTrusted: false,
     disabledMessageKey: 'chat.premiumRoom.contractPending',
   },
@@ -108,13 +155,17 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     },
   },
   duration: {
-    baseDays: 3,
+    baseDays: PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+    maxTotalDays: PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS,
     artistExtension: {
-      maxAdditionalDays: 10,
+      maxAdditionalDays:
+        PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS - PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+      maxTotalDays: PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS,
       serverEvaluated: true,
       messageKey: 'chat.premiumRoom.extensionLimit',
     },
     clientSubmittedExpiryTrusted: false,
+    clientSubmittedDurationTrusted: false,
   },
   lifecycleStates: [
     'opened',
@@ -240,12 +291,10 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
         {
           outcomeKey: 'user_fault_refund_50',
           userRefundBps: 5000,
-          companyRevenueBps: 2000,
+          companyRevenueBps: 4000,
           artistCompensationBps: 1000,
-          policyHoldBps: 2000,
-          resultingStatus: 'admin_review',
-          unresolvedRemainderPolicy:
-            'pm_decision_required_before_settlement_or_payout',
+          policyHoldBps: 0,
+          resultingStatus: 'refunded',
           ledgerEntries: [
             {
               entryKey: 'user_lumina_refund',
@@ -265,7 +314,7 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
               ledgerType: 'premium_chat_room_company_revenue',
               source: 'premium_chat_room_refund_restriction',
               direction: 'credit',
-              bps: 2000,
+              bps: 4000,
               walletLedger: false,
               settlementMutation: false,
               payoutMutation: false,
@@ -277,17 +326,6 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
               source: 'premium_chat_room_refund_restriction',
               direction: 'credit',
               bps: 1000,
-              walletLedger: false,
-              settlementMutation: false,
-              payoutMutation: false,
-            },
-            {
-              entryKey: 'policy_remainder_hold',
-              ledger: 'premium_chat_room_policy_hold_ledger',
-              ledgerType: 'premium_chat_room_policy_hold',
-              source: 'premium_chat_room_refund_restriction',
-              direction: 'hold',
-              bps: 2000,
               walletLedger: false,
               settlementMutation: false,
               payoutMutation: false,
@@ -342,13 +380,12 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     userFaultRefund50: {
       from: ['opened', 'active', 'artist_answered'],
       to: 'refund_pending',
-      finalStatus: 'admin_review',
+      finalStatus: 'refunded',
       refundPolicyKey: 'user_fault_refund_50',
       walletLedgerEntries: ['premium_chat_room_refund'],
       accountingLedgerEntries: [
         'premium_chat_room_company_revenue',
         'premium_chat_room_artist_compensation',
-        'premium_chat_room_policy_hold',
       ],
       orderMutation: false,
       settlementMutation: false,
@@ -417,4 +454,172 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     rawEnumUserCopyAllowed: false,
     labelsOptional: true,
   },
+  accessControl: PREMIUM_CHAT_ROOM_ACCESS_CONTROL,
 } as const;
+
+export function premiumChatRoomTierByKey(tierKey: string | null | undefined) {
+  return (
+    PREMIUM_CHAT_ROOM_CONTRACT.roomOpen.tiers.find(
+      (tier) => tier.tierKey === tierKey,
+    ) ?? null
+  );
+}
+
+export function resolvePremiumChatRoomOpenPolicy(input: {
+  tierKey?: string | null;
+  clientSubmittedAmountLumina?: unknown;
+  clientSubmittedFollowerCount?: unknown;
+} = {}) {
+  const tierKey = input.tierKey ?? PREMIUM_CHAT_ROOM_DEFAULT_TIER_KEY;
+  const tier = premiumChatRoomTierByKey(tierKey);
+
+  if (!tier) {
+    return {
+      allowed: false,
+      status: 400,
+      code: 'PREMIUM_CHAT_ROOM_TIER_INVALID',
+      messageKey: 'chat.premiumRoom.invalidTier',
+      tierKey,
+      amountLumina: null,
+      walletMutationEnabled: false,
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedAmountIgnored:
+        input.clientSubmittedAmountLumina !== undefined,
+      clientSubmittedFollowerCountTrusted: false,
+    } as const;
+  }
+
+  const submittedAmount =
+    typeof input.clientSubmittedAmountLumina === 'number'
+      ? input.clientSubmittedAmountLumina
+      : typeof input.clientSubmittedAmountLumina === 'string'
+        ? Number(input.clientSubmittedAmountLumina)
+        : null;
+
+  return {
+    allowed: true,
+    tierKey: tier.tierKey,
+    amountLumina: tier.amountLumina,
+    unlockGate: tier.unlockGate,
+    source: 'server_room_open_tier_policy',
+    walletMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+    clientSubmittedAmountTrusted: false,
+    clientSubmittedAmountIgnored: input.clientSubmittedAmountLumina !== undefined,
+    clientSubmittedAmountMismatch:
+      submittedAmount !== null &&
+      Number.isFinite(submittedAmount) &&
+      submittedAmount !== tier.amountLumina,
+    clientSubmittedFollowerCountTrusted: false,
+    clientSubmittedFollowerCountIgnored:
+      input.clientSubmittedFollowerCount !== undefined,
+  } as const;
+}
+
+export function resolvePremiumChatRoomDurationPolicy(input: {
+  requestedTotalDays?: unknown;
+} = {}) {
+  const requested =
+    typeof input.requestedTotalDays === 'number'
+      ? input.requestedTotalDays
+      : typeof input.requestedTotalDays === 'string'
+        ? Number(input.requestedTotalDays)
+        : null;
+  const validRequested =
+    requested !== null && Number.isInteger(requested) && requested > 0
+      ? requested
+      : null;
+  const requestedOrBase = validRequested ?? PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS;
+  const totalDays = Math.min(
+    Math.max(requestedOrBase, PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS),
+    PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS,
+  );
+
+  return {
+    baseDays: PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+    maxTotalDays: PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS,
+    totalDays,
+    clientSubmittedDurationTrusted: false,
+    clientSubmittedExpiryTrusted: false,
+    serverCalculatedExpiryAuthoritative: true,
+    capped: validRequested !== null && validRequested > PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS,
+    raisedToBase:
+      validRequested !== null && validRequested < PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+    messageKey:
+      validRequested !== null && validRequested > PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS
+        ? 'chat.premiumRoom.extensionLimit'
+        : null,
+  } as const;
+}
+
+export function resolvePremiumChatRoomRefundPolicy(input: {
+  policyKey: string;
+  clientSubmittedRefundBps?: unknown;
+  clientSubmittedArtistShareBps?: unknown;
+}) {
+  if (input.policyKey === 'artist_forced_close_full_refund') {
+    return {
+      allowed: true,
+      policyKey: input.policyKey,
+      userRefundBps: PREMIUM_CHAT_ROOM_CONTRACT.refunds.artistForcedClose.userRefundBps,
+      companyRevenueBps:
+        PREMIUM_CHAT_ROOM_CONTRACT.refunds.artistForcedClose.companyRevenueBps,
+      artistCompensationBps:
+        PREMIUM_CHAT_ROOM_CONTRACT.refunds.artistForcedClose.artistCompensationBps,
+      clientSubmittedRefundRateTrusted: false,
+      clientSubmittedArtistShareTrusted: false,
+      clientSubmittedRefundRateIgnored:
+        input.clientSubmittedRefundBps !== undefined,
+      clientSubmittedArtistShareIgnored:
+        input.clientSubmittedArtistShareBps !== undefined,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      messageKey: PREMIUM_CHAT_ROOM_CONTRACT.refunds.artistForcedClose.messageKey,
+    } as const;
+  }
+
+  const outcome =
+    PREMIUM_CHAT_ROOM_CONTRACT.refunds.userFaultPartialRefund.outcomes.find(
+      (candidate) => candidate.outcomeKey === input.policyKey,
+    );
+
+  if (!outcome) {
+    return {
+      allowed: false,
+      status: 400,
+      code: 'PREMIUM_CHAT_ROOM_REFUND_POLICY_INVALID',
+      messageKey: 'chat.premiumRoom.refund.invalidPolicy',
+      policyKey: input.policyKey,
+      clientSubmittedRefundRateTrusted: false,
+      clientSubmittedArtistShareTrusted: false,
+      walletMutationEnabled: false,
+    } as const;
+  }
+
+  return {
+    allowed: true,
+    policyKey: outcome.outcomeKey,
+    userRefundBps: outcome.userRefundBps,
+    companyRevenueBps: outcome.companyRevenueBps,
+    artistCompensationBps: outcome.artistCompensationBps,
+    policyHoldBps: outcome.policyHoldBps,
+    resultingStatus: outcome.resultingStatus,
+    ledgerEntries: outcome.ledgerEntries,
+    clientSubmittedRefundRateTrusted: false,
+    clientSubmittedArtistShareTrusted: false,
+    clientSubmittedRefundRateIgnored: input.clientSubmittedRefundBps !== undefined,
+    clientSubmittedArtistShareIgnored:
+      input.clientSubmittedArtistShareBps !== undefined,
+    walletMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+    messageKey:
+      PREMIUM_CHAT_ROOM_CONTRACT.refunds.userFaultPartialRefund.messageKey,
+  } as const;
+}
+
+export function premiumChatRoomAccessForRole(role: PremiumChatRoomAccessRole) {
+  return PREMIUM_CHAT_ROOM_ACCESS_CONTROL[role];
+}
