@@ -42,7 +42,7 @@
 | `character-detail.intro.summary`    | character | character-detail | `.detail-summary` | `${artist.summary}` |
 | `character-detail.intro.body`       | character | character-detail | `.detail-bio p`   | `${artist.intro}` |
 | `character-detail.intro.concept`    | character | character-detail | `.detail-concept` | `${artist.concept}` |
-| `character-detail.chat.ctaLabel`    | character | character-detail | chatStartLink span | 이 아티스트와 대화하기 |
+| `character-detail.chat.ctaLabel`    | character | character-detail | chatStartLink span | 프리미엄챗으로 대화하기 |
 | `character-detail.chat.note`        | character | character-detail | chatStartLink 아래 안내문 | 처음이라면 추천 인사말로 가볍게… |
 
 ### 4) `/character-chat` 캐릭터챗 (`/character-chat/index.html`)
@@ -156,6 +156,7 @@
 
 ## 변경 이력
 
+- 2026-05-23 (#420): `character-detail.chat.ctaLabel` 정적 fallback 수정 — "이 아티스트와 대화하기" → "프리미엄챗으로 대화하기" (#418 큐알2 FAIL 대응).
 - 2026-05-23 (#405): v2. 홈(`/`) hero 영역 CMS 연결. `home.hero.title` / `home.hero.body` 키 신규 추가. `index.html`에 `data-cms-page-key="home"` + `cms-bootstrap.js` 로드 추가. v2 신규 적용 표 및 v3 후보 목록 정리.
 - 2026-05-21 (#361): v1 작성. characters/character-detail/character-chat/lumina-pick/shortform/debut/charge/chat-rankings/not-found 카피 키 분류. lumina-pick·shortform·404·character-chat starter prompt에 `data-cms-key` 신규 부여.
 - 2026-05-20 (#324): cms-bootstrap.js로 hydrate 시작. characters/character-detail/character-chat/debut/charge 카피 키 초안 발행.

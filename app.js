@@ -1701,6 +1701,8 @@ async function openPaidLikeModal(slug) {
         `;}).join("")}
       </div>
       <p class="paid-like-message" data-paid-like-message hidden></p>
+      <!-- #420 — 중복 차감 방지 안내: 응원하기 버튼 누르기 전 사용자에게 visible하게 표시 -->
+      <p class="paid-like-safety-note">같은 응원이 두 번 차감되지 않도록 중복 방지 처리가 적용됩니다. 응원하기 진행 중에는 버튼이 비활성화돼요.</p>
       <div class="paid-like-actions">
         <button class="button-primary" type="button" data-paid-like-confirm>응원하기</button>
         <button class="button-secondary" type="button" data-paid-like-cancel>취소</button>
