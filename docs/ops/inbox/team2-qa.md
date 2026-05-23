@@ -1,6 +1,68 @@
 # Team2 QA Inbox
 
 status: fail
+task: #418 - Lumina Pick paid-like and premium chat live re-QA
+environment:
+- branch: team2-qa/418-lumina-pick-live-qa-rerun
+- local main after pull: origin/main
+- basis commit: 714216df8416833d73933dbdb0a86f31c39f437d
+- live pages:
+  - https://www.lumina-stage.com/lumina-pick?tab=debut-race
+  - https://www.lumina-stage.com/character-detail?slug=yoon-serin
+  - https://www.lumina-stage.com/character-chat?slug=yoon-serin
+- No token, cookie, password, env value, raw credential, signed URL, or raw response body was recorded.
+- No paid like, wallet debit, order creation, settlement, payout, donation POST, room-open POST, or refund mutation was executed.
+
+tested_flows:
+- PASS: started from latest `origin/main`; branch is `team2-qa/418-lumina-pick-live-qa-rerun`.
+- PASS: logged-in live header showed current user indicator `S / 300 L` and `로그아웃`.
+- PASS: live Cheer Race showed free quota `오늘 0/1 남음`, 한서율 score 191, 서유안 score 50, 윤세린 score 13, and visible `프리미엄챗` buttons on Lumina Pick cards.
+- PASS: public `GET /api/v1/popular-vote/main-pick` summary still showed 윤세린 `totalFreeLikes=3`, `totalLuminaBoosts=10`, `totalWeightedScore=13`.
+- PASS: clicking 윤세린 score/like button with the free quota already used opened the paid-like modal instead of fully blocking the button.
+- PASS: paid-like modal showed balance `300L`, daily paid-like quota `20개`, bundles `1개 10L`, `5개 50L`, `10개 90L`, `20개 200L`, and `응원하기`/`취소`.
+- PASS: I did not press `응원하기`; no paid mutation or wallet debit was executed.
+- PASS: direct `/character-chat?slug=yoon-serin` opened the character chat room.
+- PASS: tested desktop viewport had no page-level horizontal overflow, no replacement-character mojibake, and no failed page load.
+- FAIL: paid-like modal still does not visibly explain `2회 차감 방지`, idempotency, or duplicate-submit/duplicate-debit safety before the user can press `응원하기`.
+- FAIL: character detail has a working `/character-chat?slug=yoon-serin` CTA, but the visible CTA copy is `이 아티스트와 대화하기`, not the required `프리미엄챗`.
+- BLOCKED: actual paid-like confirm and replay/idempotency behavior still cannot be verified without explicit safe account/amount approval.
+
+repro_steps:
+1. Open `https://www.lumina-stage.com/lumina-pick?tab=debut-race` while logged in with a user whose free like is already used.
+2. Confirm the header shows the user indicator and Lumina balance, and the page shows `오늘 0/1 남음`.
+3. Click the 윤세린 score/like button.
+4. Confirm the paid-like modal opens and inspect visible copy for `2회`, `중복`, `idempotency`, `차감 방지`, or equivalent duplicate-debit safety wording.
+5. Do not click `응원하기`; close or navigate away.
+6. Open `https://www.lumina-stage.com/character-detail?slug=yoon-serin`.
+7. Inspect the chat CTA text and target.
+
+expected:
+- Paid-like confirmation UI should show clear duplicate-charge/idempotency safety guidance before paid confirmation, or the task should provide an approved safe paid mutation path for replay verification.
+- Character detail should visibly expose a `프리미엄챗` entry button and navigate to `/character-chat?slug=...`.
+
+actual:
+- Paid-like modal opens and paid bundles are selectable, but visible copy only explains bundles, balance, and daily paid-like quota.
+- No duplicate-debit/idempotency safety notice was visible in the modal.
+- Character detail CTA navigates to `/character-chat?slug=yoon-serin`, but the visible CTA label is `이 아티스트와 대화하기`.
+- `응원하기` remained enabled; it was not clicked.
+
+blockers:
+- #418 should not be marked complete while duplicate-charge/idempotency guidance is absent from the paid-like modal.
+- #418 should not be marked complete while the character detail CTA copy does not match the required `프리미엄챗` visible entry.
+
+suspected_owner: frontend
+
+next_needed:
+- Return #418 to PM/Chamo or the frontend owner to add visible 2회 차감 방지/idempotency guidance and align the character detail CTA copy.
+- Provide explicit safe paid-like amount/account approval only if server replay/idempotency mutation verification is required.
+
+security_check:
+- PASS: no raw credential, token, cookie, password, env value, signed URL, secret, or raw response body was written.
+- PASS: no paid like, wallet debit, order creation, donation, room-open, refund, settlement, or payout mutation was executed.
+
+---
+
+status: fail
 task: #398 - Premium chat policy and screen QA matrix
 environment:
 - branch: team2-qa/398-premium-chat-policy-screen-qa
