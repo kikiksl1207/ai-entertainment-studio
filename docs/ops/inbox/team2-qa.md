@@ -1,6 +1,54 @@
 # Team2 QA Inbox
 
 status: fail
+task: #418 - Lumina Pick paid-like boundary re-QA
+environment:
+- branch: team2-qa/418-lumina-pick-paid-like-boundary-reqa
+- local main after pull: origin/main
+- basis commit: 714216df8416833d73933dbdb0a86f31c39f437d
+- live page: https://www.lumina-stage.com/lumina-pick?tab=debut-race
+- No token, cookie, password, env value, raw credential, signed URL, or raw response body was recorded.
+- No paid like, wallet debit, order creation, settlement, payout, donation POST, room-open POST, or refund mutation was executed.
+
+tested_flows:
+- PASS: started from latest `origin/main`; branch is `team2-qa/418-lumina-pick-paid-like-boundary-reqa`.
+- PASS: after the previous approved bounded free-like check, live Cheer Race showed free quota `오늘 0/1 남음` and 윤세린 score 13.
+- PASS: server `GET /api/v1/popular-vote/main-pick` still showed 윤세린 `totalFreeLikes=3`, `totalLuminaBoosts=10`, `totalWeightedScore=13`.
+- PASS: clicking the already-free-liked 윤세린 like button opened the paid-like modal instead of blocking the button.
+- PASS: paid-like modal showed balance `300L`, daily paid-like quota `20개`, bundles `1개 10L`, `5개 50L`, `10개 90L`, `20개 200L`, and `응원하기`/`취소`.
+- PASS: I closed the modal without pressing `응원하기`; no paid mutation or wallet debit was executed.
+- PASS: modal check had no page-level horizontal overflow, no replacement-character mojibake, and no failed images.
+- FAIL: the paid-like modal still does not visibly explain `2회 차감 방지` or idempotency/duplicate-submit safety before the user can press `응원하기`.
+- BLOCKED: actual paid-like confirm and replay/idempotency behavior still cannot be verified without explicit safe account/amount approval.
+
+repro_steps:
+1. Open `https://www.lumina-stage.com/lumina-pick?tab=debut-race` while logged in with a user whose free like is already used.
+2. Confirm 윤세린 score is 13 and free quota shows `오늘 0/1 남음`.
+3. Click 윤세린 like button.
+4. Confirm the paid-like modal opens.
+5. Inspect modal copy for `2회 차감 방지`, `중복`, `idempotency`, or equivalent duplicate-debit safety wording.
+
+expected:
+- Because #418 completion criteria include `유료 좋아요는 2회 차감 방지와 idempotency 안내가 깨지지 않습니다`, the paid-like confirmation UI should show a clear duplicate-charge/idempotency safety notice before paid confirmation, or the task should provide an approved safe paid mutation path to verify the server replay behavior.
+
+actual:
+- Modal opens and paid options are usable, but visible copy only explains bundles, balance, and daily paid-like quota.
+- No duplicate-debit/idempotency safety notice was visible in the modal.
+- `응원하기` remained enabled; it was not clicked.
+
+blockers:
+- #418 should not be marked complete while duplicate-charge/idempotency guidance is absent from the paid-like modal and no approved paid replay test is available.
+
+next_needed:
+- Return to PM/Chamo or frontend owner to add visible 2회 차감 방지/idempotency guidance, or provide explicit safe paid-like amount/account approval for a server replay verification.
+
+security_check:
+- PASS: no raw credential, token, cookie, password, env value, signed URL, secret, or raw response body was written.
+- PASS: no paid like, wallet debit, order creation, donation, room-open, refund, settlement, or payout mutation was executed.
+
+---
+
+status: fail
 task: #398 - Premium chat policy and screen QA matrix
 environment:
 - branch: team2-qa/398-premium-chat-policy-screen-qa
