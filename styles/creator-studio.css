@@ -168,6 +168,12 @@ a { color: inherit; text-decoration: none; }
   text-decoration: none;
   vertical-align: middle;
 }
+/* #406 — 게이트 카드 본문 긴 텍스트 우측 잘림 방지 */
+.studio-gate-card h1,
+.studio-gate-card p {
+  overflow-wrap: break-word;
+  word-break: keep-all;
+}
 @media (max-width: 480px) {
   .studio-gate-card nav .primary-action,
   .studio-gate-card nav .secondary-action,
@@ -175,6 +181,27 @@ a { color: inherit; text-decoration: none; }
   .studio-gate-card nav a.secondary-action {
     flex: 1 1 0;
     min-width: 0;
+  }
+}
+/* #406 — 390px 이하 게이트 카드: 패딩 축소 + 버튼 세로 적층 */
+@media (max-width: 390px) {
+  .studio-access-gate {
+    padding: 12px;
+  }
+  .studio-gate-card {
+    padding: 18px;
+  }
+  .studio-gate-card nav {
+    flex-direction: column;
+  }
+  .studio-gate-card nav .primary-action,
+  .studio-gate-card nav .secondary-action,
+  .studio-gate-card nav a.primary-action,
+  .studio-gate-card nav a.secondary-action {
+    width: 100%;
+    flex: none;
+    text-align: center;
+    justify-content: center;
   }
 }
 .studio-access-gate[hidden], .studio-shell[hidden] { display: none; }

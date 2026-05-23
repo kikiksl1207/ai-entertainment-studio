@@ -176,9 +176,10 @@ function renderCharacterDetail() {
   const artist = slug ? getCharacterBySlug(slug) : null;
 
   // #080 후속 — slug 누락 또는 일치 없음 → 빈상태 안내 (이전: _artists[0] fallback이라 다른 캐릭터가 보였음)
+  // #406 — slug 누락/불일치 시 오류 카드 느낌 제거 → 아티스트 목록 진입 유도로 대체.
   if (!artist) {
     hero.className = "detail-hero-card";
-    hero.innerHTML = `<div class="detail-hero-secret"><strong>아티스트 정보를 찾을 수 없어요</strong><p style="margin-top:8px;color:rgba(240,238,248,0.62);font-size:14px;">URL을 다시 확인하거나 아티스트 목록에서 다시 들어와 주세요.</p><a class="text-link" href="/characters" style="margin-top:12px;display:inline-block;">아티스트 목록으로 돌아가기 →</a></div>`;
+    hero.innerHTML = `<div class="detail-hero-secret"><strong>아티스트를 선택해 주세요</strong><p style="margin-top:8px;color:rgba(240,238,248,0.62);font-size:14px;">아래 목록에서 아티스트를 골라 프로필을 확인해 보세요.</p><a class="text-link" href="/characters" style="margin-top:12px;display:inline-block;">아티스트 목록 보러 가기 →</a></div>`;
     const intro = document.getElementById("detailIntro");
     if (intro) intro.innerHTML = "";
     const meta = document.getElementById("detailMeta");
@@ -187,7 +188,7 @@ function renderCharacterDetail() {
     if (gallery) gallery.innerHTML = "";
     const shorts = document.getElementById("detailShorts");
     if (shorts) shorts.innerHTML = "";
-    document.title = "아티스트를 찾을 수 없어요 — Lumina Stage";
+    document.title = "아티스트 선택 — Lumina Stage";
     return;
   }
   const status = statusMeta[artist.status];

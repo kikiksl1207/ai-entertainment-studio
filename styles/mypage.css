@@ -1045,6 +1045,17 @@
   }
 }
 
+/* ── #406 — 390px 이하 mypage guest 로그인 안내 패널 잘림 방지 ── */
+@media (max-width: 390px) {
+  .mypage-login-inner {
+    padding: 16px;
+  }
+  .mypage-login-inner h2 {
+    overflow-wrap: break-word;
+    word-break: keep-all;
+  }
+}
+
 .mypage-public-profile-link {
   display: inline-block;
   margin-top: 6px;

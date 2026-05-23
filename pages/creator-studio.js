@@ -149,7 +149,7 @@
   });
 
   window.addEventListener("unhandledrejection", function () {
-    deny("스튜디오 권한 확인 중 처리되지 않은 오류가 발생했습니다. 로그인 계정과 API 응답을 확인해 주세요.");
+    deny("스튜디오 권한 확인 중 오류가 발생했습니다. 새로고침 후에도 반복되면 로그인 상태를 확인해 주세요.");
   });
 
   function allow(data) {
@@ -691,7 +691,7 @@
       if (res.status === 404 || res.status === 501) {
         rows.innerHTML = '<tr><td colspan="6">자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요. 폼 구성은 미리 확인할 수 있습니다.</td></tr>';
         setKnowledgeSubmitLocked(true);
-        setKnowledgeUrlState("자료 URL 등록 API가 아직 준비 중입니다. 운영팀 안내 후 이용할 수 있어요.", "danger");
+        setKnowledgeUrlState("자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요.", "danger");
         return;
       }
       if (!res.ok) throw new Error("load failed");
@@ -750,7 +750,7 @@
         body: JSON.stringify({ artistId: selectedArtistId, type, url, description, allowChatRef })
       });
       if (res.status === 404 || res.status === 501) {
-        setKnowledgeUrlState("자료 URL 등록 API가 아직 준비 중입니다. 운영팀 안내 후 이용할 수 있어요.", "danger");
+        setKnowledgeUrlState("자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요.", "danger");
         return;
       }
       if (!res.ok) {
