@@ -1,6 +1,41 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#422 Lumina Feed 2200-character live API blocker fix"
+branch: team2-backend/lumina-feed-2200-live-blocker-422
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/community/community.service.ts
+- server/src/community/community.service.spec.ts
+- docs/backend-api-spec.md
+- docs/lumina-feed-backend-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npx.cmd prisma generate
+- node --check server/src/community/community.service.ts
+- node --check server/src/community/community.service.spec.ts
+- npm.cmd test -- community.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/community/community.service.ts src/community/community.service.spec.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Reapplied the live API blocker fix on latest main so regular Lumina Feed post body, post body edit, and quote repost body validation allow 2200 characters.
+- Split shared limits so manual thread items and thread continuations remain capped at 500 characters, while replies remain capped at 300 characters.
+- Preserved image-only feed post empty body support when a confirmed public image asset is attached.
+- Added regression tests for 2200/2201 create, edit, and quote repost behavior plus existing 501 thread continuation and 301 reply blocking.
+blocked_by:
+- Review/merge and #423 live reQA after deployment.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#402 character chat tone and opening greeting session variation contract"
 branch: team2-backend/character-chat-tone-greeting-contract-402
 commit: final hash recorded in Notion completion report
