@@ -33,6 +33,13 @@ NestJS를 추천하는 이유는 도메인 분리가 명확하고, 결제/지갑
   purchase verification, wallet ledger idempotency, fail-closed debits, and
   advisory-only app integrity signals are mandatory before any app-store or
   premium-chat paid flow is opened.
+- App tamper defense follows the #404 server trust contract: client-submitted
+  `balanceLumina`, payment success, bonus display, amount, SKU, refund rate,
+  settlement share, and wallet ledger ids are never authority. Safe retries use
+  user/action-scoped idempotency plus a request fingerprint; changed-body
+  replays fail before wallet lookup or provider checkout creation. Risk logs
+  may store sanitized request/decision context only, never raw purchase tokens,
+  cookies, provider payloads, signed URLs, DB URLs, or provider secrets.
 - 클라이언트가 결제 성공을 주장해도 서버는 PG transaction/webhook으로만 확정한다.
 - 관리자/운영 API는 `/admin` namespace로 분리한다.
 

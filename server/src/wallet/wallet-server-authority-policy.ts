@@ -1,8 +1,10 @@
 export const SERVER_AUTHORITY_WALLET_POLICY = {
-  policyVersion: '2026-05-21.server-authority-ledger-v1',
+  policyVersion: '2026-05-23.app-tamper-server-trust-v1',
   clientSubmittedBalanceTrusted: false,
   clientSubmittedPriceTrusted: false,
   clientSubmittedSettlementTrusted: false,
+  clientSubmittedPaymentSuccessTrusted: false,
+  clientSubmittedBonusTrusted: false,
   offlinePaidActionAllowed: false,
   allWalletDebitsRequireServerLedgerBalanceCheck: true,
   allWalletDebitsRequireAtomicNonNegativeUpdate: true,
@@ -26,6 +28,120 @@ export const CLIENT_ECONOMIC_TAMPER_FIELDS = [
   'settlementShare',
   'walletLedgerId',
   'providerResult',
+  'paymentSuccess',
+  'bonusAmount',
+  'sku',
+  'productSku',
+] as const;
+
+export const APP_TAMPER_THREAT_MODEL = [
+  {
+    threat: 'client_balance_or_bonus_display_tamper',
+    examples: ['modified_app_balance', 'browser_console_balance', 'fake_bonus_badge'],
+    trustedClientFields: false,
+    serverGate: 'wallet_accounts.cached_balance_and_wallet_ledger',
+    expectedDecision: 'ignore_client_display_values',
+    walletMutationAllowedFromClientProof: false,
+  },
+  {
+    threat: 'client_payment_success_spoof',
+    examples: ['fake_success_redirect', 'forged_provider_result'],
+    trustedClientFields: false,
+    serverGate: 'server_verified_provider_transaction',
+    expectedDecision: 'no_credit_without_provider_verification',
+    walletMutationAllowedFromClientProof: false,
+  },
+  {
+    threat: 'offline_replay_or_retry',
+    examples: ['offline_queue_replay', 'duplicate_submit', 'same_key_changed_body'],
+    trustedClientFields: false,
+    serverGate: 'user_scoped_idempotency_key_and_request_fingerprint',
+    expectedDecision: 'same_fingerprint_replay_or_conflict_before_wallet_lookup',
+    walletMutationAllowedFromClientProof: false,
+  },
+  {
+    threat: 'amount_or_sku_tamper',
+    examples: ['priceLumina_zero', 'amountLumina_override', 'rogue_product_sku'],
+    trustedClientFields: false,
+    serverGate: 'server_product_catalog_and_domain_policy',
+    expectedDecision: 'resolve_amount_on_server_or_reject',
+    walletMutationAllowedFromClientProof: false,
+  },
+  {
+    threat: 'refund_or_settlement_tamper',
+    examples: ['client_refundRate_override', 'client_settlementShare_override'],
+    trustedClientFields: false,
+    serverGate: 'server_refund_policy_existing_order_and_ledger_state',
+    expectedDecision: 'ignore_client_refund_and_settlement_values',
+    walletMutationAllowedFromClientProof: false,
+  },
+] as const;
+
+export const WALLET_RISK_LOG_CONTRACT = {
+  requiredFields: [
+    'requestId',
+    'userId',
+    'sessionOrActionId',
+    'surface',
+    'idempotencyScope',
+    'requestFingerprintHash',
+    'serverAmountLumina',
+    'decision',
+    'reasonCode',
+  ],
+  optionalFields: [
+    'provider',
+    'providerTransactionId',
+    'serverProductId',
+    'riskSignals',
+  ],
+  forbiddenFields: [
+    'rawIdempotencyKey',
+    'rawPurchaseToken',
+    'rawProviderPayload',
+    'rawIntegrityPayload',
+    'cookie',
+    'password',
+    'dbUrl',
+    'signedUrl',
+    'providerSecret',
+  ],
+  clientEconomicValuesStoredAsAuthority: false,
+  providerSecretsLogged: false,
+  rawProviderPayloadLogged: false,
+} as const;
+
+export const APP_TAMPER_CONTRACT_TEST_CASES = [
+  {
+    caseId: 'client_balance_tamper_ignored',
+    tamperedFields: ['balanceLumina', 'cachedBalance'],
+    expectedGate: 'wallet_accounts.cached_balance',
+    expectedOutcome: 'server_amount_and_balance_only',
+  },
+  {
+    caseId: 'fake_payment_success_rejected',
+    tamperedFields: ['providerResult', 'paymentSuccess'],
+    expectedGate: 'provider_verified_transaction',
+    expectedOutcome: 'no_purchase_credit_without_verified_provider_event',
+  },
+  {
+    caseId: 'idempotency_replay_same_body',
+    tamperedFields: [],
+    expectedGate: 'request_fingerprint_match',
+    expectedOutcome: 'replay_existing_projection_without_duplicate_ledger',
+  },
+  {
+    caseId: 'idempotency_replay_changed_body',
+    tamperedFields: ['amountLumina', 'productSku'],
+    expectedGate: 'request_fingerprint_mismatch',
+    expectedOutcome: 'stable_conflict_before_wallet_lookup',
+  },
+  {
+    caseId: 'sku_or_amount_tamper_rejected',
+    tamperedFields: ['sku', 'priceLumina', 'amountLumina'],
+    expectedGate: 'server_product_catalog_and_policy',
+    expectedOutcome: 'reject_or_use_server_amount_never_client_amount',
+  },
 ] as const;
 
 export const WALLET_LEDGER_SOURCE_CONTRACT = [

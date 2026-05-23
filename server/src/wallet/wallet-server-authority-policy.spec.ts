@@ -1,8 +1,11 @@
 import {
+  APP_TAMPER_CONTRACT_TEST_CASES,
+  APP_TAMPER_THREAT_MODEL,
   APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST,
   APP_PURCHASE_VERIFICATION_CONTRACT,
   CLIENT_ECONOMIC_TAMPER_FIELDS,
   SERVER_AUTHORITY_WALLET_POLICY,
+  WALLET_RISK_LOG_CONTRACT,
   WALLET_LEDGER_SOURCE_CONTRACT,
   WALLET_MUTATION_GUARD_STEPS,
 } from './wallet-server-authority-policy';
@@ -13,6 +16,8 @@ describe('server-authority wallet policy', () => {
       clientSubmittedBalanceTrusted: false,
       clientSubmittedPriceTrusted: false,
       clientSubmittedSettlementTrusted: false,
+      clientSubmittedPaymentSuccessTrusted: false,
+      clientSubmittedBonusTrusted: false,
       offlinePaidActionAllowed: false,
       allWalletDebitsRequireServerLedgerBalanceCheck: true,
       allWalletDebitsRequireAtomicNonNegativeUpdate: true,
@@ -180,8 +185,117 @@ describe('server-authority wallet policy', () => {
         'balanceLumina',
         'priceLumina',
         'paidAmount',
+        'paymentSuccess',
+        'bonusAmount',
+        'sku',
+        'productSku',
         'refundRate',
         'settlementShare',
+      ]),
+    );
+  });
+
+  it('documents the app tamper threat model as fail-closed server gates', () => {
+    expect(APP_TAMPER_THREAT_MODEL).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          threat: 'client_balance_or_bonus_display_tamper',
+          serverGate: 'wallet_accounts.cached_balance_and_wallet_ledger',
+          expectedDecision: 'ignore_client_display_values',
+          walletMutationAllowedFromClientProof: false,
+        }),
+        expect.objectContaining({
+          threat: 'client_payment_success_spoof',
+          serverGate: 'server_verified_provider_transaction',
+          expectedDecision: 'no_credit_without_provider_verification',
+        }),
+        expect.objectContaining({
+          threat: 'offline_replay_or_retry',
+          serverGate: 'user_scoped_idempotency_key_and_request_fingerprint',
+          expectedDecision:
+            'same_fingerprint_replay_or_conflict_before_wallet_lookup',
+        }),
+        expect.objectContaining({
+          threat: 'amount_or_sku_tamper',
+          serverGate: 'server_product_catalog_and_domain_policy',
+          expectedDecision: 'resolve_amount_on_server_or_reject',
+        }),
+      ]),
+    );
+    expect(
+      APP_TAMPER_THREAT_MODEL.every(
+        (threat) =>
+          threat.trustedClientFields === false &&
+          threat.walletMutationAllowedFromClientProof === false,
+      ),
+    ).toBe(true);
+  });
+
+  it('keeps risk logs useful without storing raw secrets or provider payloads', () => {
+    expect(WALLET_RISK_LOG_CONTRACT.requiredFields).toEqual(
+      expect.arrayContaining([
+        'requestId',
+        'userId',
+        'sessionOrActionId',
+        'surface',
+        'idempotencyScope',
+        'requestFingerprintHash',
+        'serverAmountLumina',
+        'decision',
+        'reasonCode',
+      ]),
+    );
+    expect(WALLET_RISK_LOG_CONTRACT).toMatchObject({
+      clientEconomicValuesStoredAsAuthority: false,
+      providerSecretsLogged: false,
+      rawProviderPayloadLogged: false,
+    });
+    expect(WALLET_RISK_LOG_CONTRACT.forbiddenFields).toEqual(
+      expect.arrayContaining([
+        'rawIdempotencyKey',
+        'rawPurchaseToken',
+        'rawProviderPayload',
+        'rawIntegrityPayload',
+        'cookie',
+        'password',
+        'dbUrl',
+        'signedUrl',
+        'providerSecret',
+      ]),
+    );
+  });
+
+  it('keeps minimum tamper regression cases explicit and provider-secret-free', () => {
+    expect(APP_TAMPER_CONTRACT_TEST_CASES).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          caseId: 'client_balance_tamper_ignored',
+          expectedGate: 'wallet_accounts.cached_balance',
+        }),
+        expect.objectContaining({
+          caseId: 'fake_payment_success_rejected',
+          expectedGate: 'provider_verified_transaction',
+        }),
+        expect.objectContaining({
+          caseId: 'idempotency_replay_changed_body',
+          expectedOutcome: 'stable_conflict_before_wallet_lookup',
+        }),
+        expect.objectContaining({
+          caseId: 'sku_or_amount_tamper_rejected',
+          expectedGate: 'server_product_catalog_and_policy',
+        }),
+      ]),
+    );
+    expect(
+      APP_TAMPER_CONTRACT_TEST_CASES.flatMap((testCase) =>
+        testCase.tamperedFields,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        'balanceLumina',
+        'paymentSuccess',
+        'productSku',
+        'sku',
       ]),
     );
   });

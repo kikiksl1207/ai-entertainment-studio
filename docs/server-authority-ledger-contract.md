@@ -1,8 +1,8 @@
 # Server Authority Ledger Contract
 
-Updated: 2026-05-21
+Updated: 2026-05-23
 Owner: Kaido
-Task: Notion #327, #331, #334, #377, #383
+Task: Notion #327, #331, #334, #377, #383, #404
 
 This contract exists to keep Lumina balances, paid actions, purchase credits,
 refunds, and creator-facing revenue signals server-authoritative. A modified
@@ -32,6 +32,31 @@ has verified and written the corresponding server ledger state.
 10. Logs, docs, audit events, and Notion updates must not contain raw purchase
     tokens, signed transactions, cookies, passwords, DB URLs, API keys, or full
     app integrity payloads.
+
+## App Tamper Server Trust Contract
+
+The app may later cache wallet displays, purchase status, bonus badges, or
+queued paid actions. Those values are hints for UI only. Server trust remains:
+
+- Balance authority: `wallet_accounts.cached_balance` plus `wallet_ledger`.
+- Charge authority: canonical `lumina_products` policy plus a
+  server-verified provider transaction.
+- Debit authority: server product/action policy, active wallet account, and an
+  atomic `cached_balance >= amount` update in the same transaction as the
+  domain order/event/ledger write.
+- Retry authority: user/action-scoped idempotency plus request fingerprint.
+  Same fingerprint can replay; changed body must fail before wallet lookup.
+- Refund/settlement authority: existing server order/ledger state, refund
+  policy, and moderation/admin outcome only.
+- Integrity authority: Play Integrity, App Attest, and DeviceCheck are risk
+  inputs only and cannot create or bypass ledger rows.
+
+Risk logs must be useful for replay and tamper analysis without preserving raw
+secrets. They may include request id, user id, session/action id, surface,
+idempotency scope, request fingerprint hash, server amount, decision, and
+reason code. They must not include raw idempotency keys, purchase tokens, full
+provider payloads, full app integrity payloads, cookies, passwords, DB URLs,
+signed URLs, or provider secrets.
 
 ## Server Ledger Sources
 

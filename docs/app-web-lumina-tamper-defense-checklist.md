@@ -1,8 +1,8 @@
 # App And Web Lumina Tamper Defense Checklist
 
-Updated: 2026-05-21
+Updated: 2026-05-23
 Owner: Kaido
-Task: Notion #365, #377
+Task: Notion #365, #377, #404
 
 This checklist verifies the server-authority rule for modified apps, browser
 console edits, offline replays, and client-side Lumina display manipulation.
@@ -25,6 +25,30 @@ spent, refunded, donated, settled, or converted.
   enables them.
 - App integrity signals can raise or lower risk, but never credit Lumina by
   themselves.
+
+## #404 Threat Model
+
+| Threat | Tampered client claim | Server gate | Required outcome |
+| --- | --- | --- | --- |
+| Local Lumina display/cache tamper | `balanceLumina`, `cachedBalance`, fake bonus badge | `wallet_accounts.cached_balance` + `wallet_ledger` | Ignore client value; spend/refund/settlement uses server ledger only. |
+| Fake app payment success | success redirect, `providerResult`, local receipt flag | Server-verified provider transaction | No Lumina credit until provider verification creates or replays a server transaction. |
+| Offline replay / duplicate retry | queued paid action, same key changed body | user-scoped idempotency key + request fingerprint | Same fingerprint replays; mismatch returns a stable conflict before wallet lookup. |
+| Amount or SKU tamper | `priceLumina=0`, altered `amountLumina`, rogue `sku`/`productSku` | server product catalog and domain policy | Reject or normalize from server policy; never use client amount as authority. |
+| Refund / settlement tamper | client `refundRate`, `settlementShare`, `walletLedgerId` | existing order, ledger, refund policy, moderation outcome | Ignore client rate/share/id; server decides any credit/accounting entry. |
+
+## Risk Log Contract
+
+Risk logs and audit projections may record sanitized decision context only:
+
+- required: request id, user id, session/action id, surface, idempotency scope,
+  request fingerprint hash, server amount, decision, and reason code.
+- optional: provider name, provider transaction id, server product id, and
+  coarse risk signals.
+- forbidden: raw idempotency key, raw purchase token, raw provider payload, raw
+  app integrity payload, cookie, password, DB URL, signed URL, provider secret,
+  or full provider callback body.
+- Client-submitted economic fields are never stored as authority in logs,
+  ledger rows, or replay decisions.
 
 ## Surface Review
 
@@ -71,6 +95,8 @@ spent, refunded, donated, settled, or converted.
 
 - Wallet policy test covers all reviewed app/web tamper surfaces with
   `clientEconomicFieldsTrusted=false`.
+- Wallet policy test covers the #404 threat model, risk log forbidden fields,
+  and provider-secret-free minimum test matrix.
 - Wallet paid-action tests cover ignored client economic fields, insufficient
   balance fail-closed behavior, and same-key gift order replay without another
   debit.
@@ -83,6 +109,19 @@ spent, refunded, donated, settled, or converted.
   no-answer refund, user-fault partial refund rates, report/blind pending
   review behavior, disabled conversation metering, and non-cash support point
   ledger separation.
+- Payment tests cover canonical SKU/product filtering, same idempotency key
+  mismatch, sanitized provider audit payloads, duplicate webhook replay, and
+  no wallet credit for non-canonical charge products.
+
+## Minimum Provider-Free Test Matrix
+
+| Case | Input shape | Expected server behavior |
+| --- | --- | --- |
+| client balance tamper | high `balanceLumina` / `cachedBalance` | Debit path still uses server wallet row and conditional balance update. |
+| fake payment success | client success flag or forged provider result | No credit without provider adapter verification and provider transaction id. |
+| same-key same-body retry | same user/action/idempotency fingerprint | Return stored projection with no duplicate ledger. |
+| same-key changed-body retry | same idempotency key with changed amount/product/session | Stable conflict before wallet lookup or provider checkout creation. |
+| SKU / amount tamper | rogue SKU, price zero, oversized amount | Reject or use canonical server product/policy amount only. |
 
 ## Remaining Open Work
 
