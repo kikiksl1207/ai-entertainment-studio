@@ -1,5 +1,59 @@
 # Team2 QA Inbox
 
+status: partial-blocked
+task: #418 - Lumina Pick free/paid like and premium chat live QA
+environment:
+- branch: team2-qa/418-lumina-pick-premium-chat-live-qa
+- local main after pull: origin/main
+- basis commit: b25c26aa3b383aa19700e1ad33e5ed902ae7d1bb
+- live API health commit: 23b4047994cf135cddfec0c4e2445c8f52b23df4
+- live pages:
+  - https://www.lumina-stage.com/lumina-pick
+  - https://www.lumina-stage.com/character-detail?slug=yoon-serin
+  - https://www.lumina-stage.com/character-chat?slug=yoon-serin
+- No token, cookie, password, env value, raw credential, signed URL, or raw response body was recorded.
+- No paid like, wallet debit, order creation, settlement, payout, donation POST, room-open POST, or refund mutation was executed.
+
+tested_flows:
+- PASS: `git pull origin main` completed before QA; local basis commit is `b25c26aa3b383aa19700e1ad33e5ed902ae7d1bb`.
+- PASS: live `/health` returned HTTP 200 and commit `23b4047994cf135cddfec0c4e2445c8f52b23df4`.
+- PASS: live `GET /api/v1/boost-campaigns/current` returned active campaign `루미나 메인픽`.
+- PASS: live `GET /api/v1/boost-products` returned active paid-like products including 10L price / 10 boost and 100L price / 100 boost.
+- PASS: live `GET /api/v1/popular-vote/main-pick` returned server rankings. Top visible scores matched the page after reload: 한서율 191, 서유안 50, 윤세린 12, 박도아 1.
+- PASS: live `/lumina-pick` did not reset visible like scores to 0 after reload.
+- PASS: live `/lumina-pick` Monthly Pick and Cheer Race surfaces show `프리미엄챗` links. Cheer Race visible cards expose `프리미엄챗` links for all tested ranked artists, including `/character-chat?slug=yoon-serin`.
+- PASS: live `/character-detail?slug=yoon-serin` shows `이 아티스트와 대화하기` and `프리미엄챗 대화/방 보기`; both point to `/character-chat?slug=yoon-serin`.
+- PASS: clicking the detail page chat entry navigated to `https://www.lumina-stage.com/character-chat?slug=yoon-serin`.
+- PASS: live `/character-chat?slug=yoon-serin` opened with the correct slug and showed the premium chat plan area / support actions without wallet mutation.
+- PASS: 1280px, 768px, and 390px checks had no page-level horizontal overflow and no replacement-character mojibake.
+- PASS: mobile 390px Cheer Race cards showed like scores and `프리미엄챗` buttons within the viewport width.
+- PASS: `node --check pages/popular-vote.js`, `pages/character-detail.js`, and `pages/character-chat.js`.
+- PASS: `npm.cmd test -- boosts.service.spec.ts popular-vote.service.spec.ts chat.service.spec.ts --runInBand` from `server` passed 55 tests.
+- BLOCKED: I did not click live free like to consume the current daily quota because the session showed `오늘 1/1 남음`, and doing so would mutate live ranking state.
+- BLOCKED: I did not execute paid-like add flow or idempotency replay because #418 explicitly forbids real paid debit without user-approved safe account/amount.
+
+observed_live_values:
+- `/lumina-pick` visible scores before reload: 191, 50, 12, 1, 0, 0, 0, 0.
+- `/lumina-pick` visible scores after reload: 191, 50, 12, 1, 0, 0, 0, 0.
+- Server main-pick top rows: 한서율 free 1 + paid 190, 서유안 paid 50, 윤세린 free 2 + paid 10, 박도아 free 1.
+- Current session indicator showed `오늘 1/1 남음`, so the required already-liked same-character paid follow-up state was not available without mutating production.
+
+notes:
+- A hidden/zero-size `encar-main-img` on `/character-detail?slug=yoon-serin` reported `naturalWidth=0` with page URL as src, while visible hero/gallery images loaded successfully. This was not user-visible in the tested viewports but should be watched against the #417 asset prerequisite.
+
+blocked_by:
+- Need PM-approved safe live QA account/amount or explicit approval to consume one free like and proceed only to the non-charging paid-like confirmation/idempotency boundary.
+
+next_needed:
+- PM/Chamo should confirm whether Team2 QA may use the current safe browser session to consume one free like and inspect the paid-like entry state, or provide a dedicated safe QA account/artist/amount.
+- Re-run only the free-like-consumed -> paid-like-entry/idempotency boundary after that approval. Do not execute wallet debit unless separately approved.
+
+security_check:
+- PASS: no raw credential, token, cookie, password, env value, signed URL, secret, or raw response body was written.
+- PASS: no paid like, wallet debit, order creation, donation, room-open, refund, settlement, or payout mutation was executed.
+
+---
+
 status: fail
 task: #398 - Premium chat policy and screen QA matrix
 environment:
