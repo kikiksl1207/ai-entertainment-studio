@@ -1,5 +1,60 @@
 # Team2 QA Inbox
 
+status: pass
+task: #407 - Donation ranking deep-link initialization re-QA
+environment:
+- branch: team2-qa/407-donation-ranking-deeplink-reqa
+- local main after pull: origin/main
+- basis commit: 0b3094ce9b9aa01d229304255662aa4ac579f7ac
+- live API health: HTTP 200, commit `714216df8416833d73933dbdb0a86f31c39f437d`
+- live pages:
+  - https://www.lumina-stage.com/chat-rankings?type=donation
+  - https://www.lumina-stage.com/chat-rankings?type=communication
+  - https://www.lumina-stage.com/chat-rankings?type=unknown
+  - https://www.lumina-stage.com/chat-rankings
+  - https://www.lumina-stage.com/character-chat
+  - https://www.lumina-stage.com/lumina-feed
+- No token, cookie, password, env value, raw credential, signed URL, or raw response body was recorded.
+- No support POST, premium room-open POST, wallet debit, settlement, payout, refund, or donation mutation was executed.
+
+tested_flows:
+- PASS: started from latest `origin/main`; branch is `team2-qa/407-donation-ranking-deeplink-reqa`.
+- PASS: `node --check pages/chat-rankings.js` passed.
+- PASS: `/chat-rankings?type=donation` now initializes with `후원 랭킹` board title, donation tab `aria-selected=true`, and support copy `확정된 후원 합계 기준 랭킹입니다. 환불·블라인드 처리된 항목은 제외돼요.`
+- PASS: `/chat-rankings?type=donation` empty/disabled message is support-specific: `프리미엄챗 후원은 원장·보안 검증이 끝난 뒤 열릴 예정이에요.`
+- PASS: `/chat-rankings?type=communication` initializes with `소통 TOP` board title, communication tab `aria-selected=true`, and communication copy.
+- PASS: `/chat-rankings?type=unknown` and `/chat-rankings` keep the default communication board.
+- PASS: `/character-chat` hub `후원 랭킹 →` link targets `/chat-rankings?type=donation`.
+- PASS: `/lumina-feed` premium entry `후원 랭킹 ›` link targets `/chat-rankings?type=donation`.
+- PASS: 390px, 768px, and 1280px checks for donation and communication direct URLs had no page-level horizontal overflow, no visible mojibake, and no forbidden `MVP`/`테스트`/`샘플`/`임시`/`여기에 문구` copy.
+- PASS: temporary viewport override was reset after the responsive checks; no temp files were created for this run.
+
+repro_steps:
+1. Open `https://www.lumina-stage.com/chat-rankings?type=donation`.
+2. Confirm the selected ranking tab is `후원 랭킹`.
+3. Confirm the board title is `후원 랭킹` and the subtitle mentions confirmed support total plus refund/blind exclusions.
+4. Open `https://www.lumina-stage.com/chat-rankings?type=communication`.
+5. Confirm the selected ranking tab is `소통 TOP`.
+6. Open `/character-chat` and `/lumina-feed`; confirm their support-ranking links target `/chat-rankings?type=donation`.
+
+screenshots_or_notes:
+- Live ranking API can still show disabled/error/empty states depending on auth and policy availability, but the selected tab and board copy now match the URL type on first render.
+- The QA stayed read-only; no support, room-open, wallet, settlement, or refund mutation was attempted.
+
+blockers:
+- None found within the approved no-mutation QA scope.
+
+suspected_owner: none
+
+next_needed:
+- PM/Chamo can close or archive #407.
+
+security_check:
+- PASS: no raw credential, token, cookie, password, env value, signed URL, secret, or raw response body was written.
+- PASS: no support POST, premium room-open POST, wallet debit, order creation, donation, refund, settlement, or payout mutation was executed.
+
+---
+
 status: fail
 task: #398 - Premium chat policy and screen QA matrix
 environment:
