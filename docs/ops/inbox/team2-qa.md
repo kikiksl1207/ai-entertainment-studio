@@ -1,6 +1,69 @@
 # Team2 QA Inbox
 
 status: fail
+task: #407 - Premium chat and support ranking regression QA
+environment:
+- branch: team2-qa/407-premium-chat-ranking-regression-qa
+- local main after pull: origin/main
+- basis commit: a7fa72ced78ffef60120d7581dd7eb7660d8148f
+- live API health: HTTP 200, commit `714216df8416833d73933dbdb0a86f31c39f437d`
+- live pages:
+  - https://www.lumina-stage.com/character-chat
+  - https://www.lumina-stage.com/character-chat?slug=yoon-serin
+  - https://www.lumina-stage.com/chat-rankings?type=communication
+  - https://www.lumina-stage.com/chat-rankings?type=donation
+  - https://www.lumina-stage.com/character-detail?slug=yoon-serin
+- No token, cookie, password, env value, raw credential, signed URL, or raw response body was recorded.
+- No support POST, premium room-open POST, wallet debit, settlement, payout, refund, or donation mutation was executed.
+
+tested_flows:
+- PASS: started from latest `origin/main`; branch is `team2-qa/407-premium-chat-ranking-regression-qa`.
+- PASS: logged-in live header eventually showed current user indicator `S / 300 L` and `로그아웃`.
+- PASS: `/character-chat` hub separates Lumina Pick likes, communication ranking, and support ranking. It states likes/lumina-boost are counted only in Lumina Pick and support is separate.
+- PASS: `/character-chat` shows "내가 열어둔 프리미엄 채팅방"; for this user it resolved to an empty state and "후원 잠금 · 진입만 가능" without a stuck skeleton.
+- PASS: premium room plan cards show 300L, 500L, 1,000L, 3,000L, basic 3 days, max 10 days, and room-open buttons are disabled/read-only.
+- PASS: `/character-chat?slug=yoon-serin` opens the 윤세린 room, shows profile navigation to `/character-detail?slug=yoon-serin`, and keeps ranking links to `소통·후원 랭킹` and `루미나 픽`.
+- PASS: support sheet opens from the `후원` action and shows fixed amount choices 10L, 50L, 100L, 500L, 1,000L, 5,000L, 10,000L, 50,000L plus custom amount input `1 ~ 50,000`.
+- PASS: support sheet shows high-value identity notice and `신고/블라인드/환불 검토 중인 방에서는 후원이 일시 정지돼요.`
+- PASS: support confirm remained disabled as `후원 안내 확인`; no support mutation could be triggered in the approved QA scope.
+- PASS: `/chat-rankings?type=communication` shows the communication board, disabled/empty state, and Lumina Pick separation notice.
+- PASS: manually clicking the `후원 랭킹` tab on `/chat-rankings?type=donation` changes the board to `후원 랭킹` and shows "확정된 후원 합계 기준 랭킹입니다. 환불·블라인드 처리된 항목은 제외돼요."
+- PASS: 390px, 768px, and 1280px public checks for the tested pages had no page-level horizontal overflow and no forbidden `MVP`/`테스트`/`샘플`/`임시`/`여기에 문구` copy.
+- PASS: temporary headless browser profile folders created during QA were cleaned up.
+- FAIL: direct navigation to `/chat-rankings?type=donation` renders the board as `소통 TOP` with `aria-selected=true` on the communication tab at 390px, 768px, 1280px, and the active browser width.
+
+repro_steps:
+1. Open `https://www.lumina-stage.com/character-chat`.
+2. Click or open the hub card link for `후원 랭킹`, which targets `/chat-rankings?type=donation`.
+3. Observe the resulting page at `/chat-rankings?type=donation`.
+4. Confirm the board title is `소통 TOP`, the communication tab is selected, and the empty-state message says `소통 랭킹은 원장·검증이 끝난 뒤 함께 공개돼요.`
+5. Click the visible `후원 랭킹` tab manually.
+6. Confirm the board then changes to `후원 랭킹` and the support-specific copy appears.
+
+expected:
+- A direct URL with `?type=donation` should initialize the support-ranking tab and board.
+- Hub users who click `후원 랭킹 →` should land on support ranking, not communication ranking.
+
+actual:
+- The URL remains `/chat-rankings?type=donation`, but the initial selected tab and board are `소통 TOP`.
+- Support ranking appears only after an extra manual tab click.
+
+blockers:
+- #407 should not be marked complete because the support-ranking deep link is inconsistent with the visible board state and the hub's support-ranking card target.
+
+suspected_owner: frontend
+
+next_needed:
+- Return to PM/Chamo or the previous frontend owner to make `/chat-rankings?type=donation` initialize the donation tab and support board on first render.
+- Re-run #407 after the deep-link initialization is fixed.
+
+security_check:
+- PASS: no raw credential, token, cookie, password, env value, signed URL, secret, or raw response body was written.
+- PASS: no support POST, premium room-open POST, wallet debit, order creation, donation, refund, settlement, or payout mutation was executed.
+
+---
+
+status: fail
 task: #398 - Premium chat policy and screen QA matrix
 environment:
 - branch: team2-qa/398-premium-chat-policy-screen-qa
