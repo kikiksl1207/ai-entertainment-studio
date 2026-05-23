@@ -185,8 +185,8 @@
       fandom: "직관적 매력 소비형", business: "피트니스, 스포츠 뷰티, 라이프스타일",
       tags: ["피트니스", "러블리", "반전매력"],
       colorAccent: "#f0b0c0",
-      // #277 — 13장 기준 사이트 공개 연결. cover.png + thumb.png + gallery-01.png..gallery-13.png 사용
-      // (siteSelectedGalleryConfig에서 count: 13으로 잠금). 부족한 3장(gallery-14..16)은 후속 보강 대기.
+      // #277 — 14장 기준 사이트 공개 연결. cover.png + thumb.png + gallery-01.png..gallery-14.png 사용
+      // (siteSelectedGalleryConfig에서 count: 14로 잠금). 후속 보강 시 count와 파일을 함께 확장.
       images: { cover: "./assets/characters/min-chaeon/site-selected/cover.png", thumb: "./assets/characters/min-chaeon/site-selected/thumb.png" },
       intro: "민채온은 러블리한 첫인상과 탄탄한 에너지가 공존하는 피트니스형 아이돌이다. 가벼운 미소로 다가오지만, 무대 위에서는 리듬과 체력으로 시선을 붙잡는다.",
       concept: "귀엽게 웃는 모습 뒤에 숨겨둔 힘을 무대에서 보여드릴게요. 가볍게 시작해도 끝까지 단단하게 버티는 에너지로 제 이름을 증명하겠습니다.",
@@ -538,10 +538,10 @@
   ];
 
   // #277 — slug 마다 gallery 매수와 파일 확장자가 달라질 수 있게 lookup. 기본은 oh-hyerin 까지의
-  // 기존 규약(.png 14장). min-chaeon 은 현재 확보된 13장(cover/thumb + gallery 13) 기준으로
-  // 공개 연결. 부족한 3장(gallery-14..16)이 도착하면 count 만 16 으로 올리면 된다.
+  // 기존 규약(.png 14장). min-chaeon 은 최종 PNG 14장으로 전환 완료.
+  // site-selected gallery-01.png..gallery-14.png 를 사이트 노출 기준으로 사용한다.
   const siteSelectedGalleryConfig = {
-    "min-chaeon": { count: 13, ext: "png" }
+    "min-chaeon": { count: 14, ext: "png" }
   };
 
   function siteSelectedGallery(slug) {
