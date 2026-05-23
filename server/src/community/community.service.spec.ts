@@ -11,6 +11,7 @@ const postId = '00000000-0000-4000-8000-000000000201';
 const repostId = '00000000-0000-4000-8000-000000000203';
 const artistId = '00000000-0000-4000-8000-000000000301';
 const threadItemId = '00000000-0000-4000-8000-000000000401';
+const imageAssetId = '00000000-0000-4000-8000-000000000501';
 const createdAt = new Date('2026-05-18T00:00:00.000Z');
 
 type PrismaMock = ReturnType<typeof createPrismaMock>;
@@ -128,6 +129,63 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
     jest.clearAllMocks();
   });
 
+  it('creates regular feed posts up to 2200 characters and rejects 2201', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.create.mockImplementation(async (args: any) =>
+      postView({ body: args.data.body }),
+    );
+    const service = serviceWith(prisma);
+    const maxBody = 'x'.repeat(2200);
+
+    const result = await service.createPost(authorId, { body: maxBody });
+
+    expect(prisma.communityPost.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ body: maxBody }),
+      }),
+    );
+    expect(result.post.body).toBe(maxBody);
+
+    await expect(
+      service.createPost(authorId, { body: 'x'.repeat(2201) }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.communityPost.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps image-only feed post empty body support', async () => {
+    const prisma = createPrismaMock();
+    prisma.asset.findMany.mockResolvedValue([
+      {
+        id: imageAssetId,
+        assetType: 'image',
+        mimeType: 'image/png',
+        visibility: 'public',
+        metadata: { uploadIntent: { status: 'uploaded' }, lifecycle: {} },
+      },
+    ]);
+    prisma.communityPost.create.mockImplementation(async (args: any) =>
+      postView({ body: args.data.body, assets: [] }),
+    );
+    const service = serviceWith(prisma);
+
+    const result = await service.createPost(authorId, {
+      body: '',
+      assetIds: [imageAssetId],
+    });
+
+    expect(prisma.communityPost.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          body: '',
+          assets: expect.objectContaining({
+            create: [expect.objectContaining({ assetId: imageAssetId })],
+          }),
+        }),
+      }),
+    );
+    expect(result.post.body).toBe('');
+  });
+
   it('updates only the author-owned post body and preserves post and author ids', async () => {
     const prisma = createPrismaMock();
     prisma.communityPost.findFirst.mockResolvedValue(storedPost());
@@ -166,7 +224,25 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
     expect(prisma.communityPost.update).not.toHaveBeenCalled();
   });
 
-  it('rejects invalid, missing, empty, and too-long update requests before mutation', async () => {
+  it('allows 2200-character post body edits and rejects 2201 before mutation', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findFirst.mockResolvedValue(storedPost());
+    prisma.communityPost.update.mockImplementation(async (args: any) =>
+      postView({ body: args.data.body }),
+    );
+    const service = serviceWith(prisma);
+    const maxBody = 'x'.repeat(2200);
+
+    const result = await service.updatePost(authorId, postId, { body: maxBody });
+
+    expect(result.post.body).toBe(maxBody);
+    await expect(
+      service.updatePost(authorId, postId, { body: 'x'.repeat(2201) }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.communityPost.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects invalid, missing, and empty update requests before mutation', async () => {
     const prisma = createPrismaMock();
     prisma.communityPost.findFirst.mockResolvedValue(storedPost());
     const service = serviceWith(prisma);
@@ -184,9 +260,6 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
     await expect(service.updatePost(authorId, postId, { body: '   ' })).rejects.toBeInstanceOf(
       BadRequestException,
     );
-    await expect(
-      service.updatePost(authorId, postId, { body: 'x'.repeat(501) }),
-    ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.communityPost.update).not.toHaveBeenCalled();
   });
 
@@ -503,7 +576,7 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     expect(result.policy.luminaMutation).toBe(false);
   });
 
-  it('rejects thread continuations by non-authors and invalid bodies before mutation', async () => {
+  it('rejects thread continuations by non-authors and 501-character bodies before mutation', async () => {
     const prisma = createPrismaMock();
     prisma.user.findFirst.mockResolvedValue({ id: otherUserId });
     prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Root post' }));
@@ -572,9 +645,10 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
       }),
     );
     const service = serviceWith(prisma);
+    const maxQuote = 'q'.repeat(2200);
 
     const result = await service.createRepost(otherUserId, postId, {
-      body: 'My take',
+      body: maxQuote,
     });
 
     expect(prisma.communityPost.create).toHaveBeenCalledWith(
@@ -582,7 +656,7 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
         data: expect.objectContaining({
           authorUserId: otherUserId,
           postType: 'user_post',
-          body: 'My take',
+          body: maxQuote,
           metadata: expect.objectContaining({
             repost: expect.objectContaining({
               type: 'quote_repost',
@@ -600,6 +674,22 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     expect(result.post.repost.originalPost.body).toBe('Original post');
     expect(result.policy.walletMutation).toBe(false);
     expect(result.policy.settlementMutation).toBe(false);
+
+    await expect(
+      service.createRepost(otherUserId, postId, { body: 'q'.repeat(2201) }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.communityPost.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps reply bodies capped at 300 characters', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Root post' }));
+    const service = serviceWith(prisma);
+
+    await expect(
+      service.createReply(otherUserId, postId, { body: 'r'.repeat(301) }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.communityReply.findMany).not.toHaveBeenCalled();
   });
 
   it('renders a tombstone when the viewer hid the repost source post', async () => {
