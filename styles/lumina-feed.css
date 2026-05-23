@@ -1877,3 +1877,29 @@ body.is-feed-repost-open { overflow: hidden; }
   .feed-detail-back-btn { font-size: 12.5px; padding: 5px 12px; }
   .feed-detail-post { padding: 16px 14px 12px !important; }
 }
+
+/* ── #415 — 리포스트 모달 카운터 ── */
+.feed-repost-counter {
+  display: block;
+  font-size: 12px;
+  color: rgba(240, 238, 248, 0.42);
+  text-align: right;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.feed-repost-counter[data-state="warn"]   { color: #ffc97a; }
+.feed-repost-counter[data-state="danger"] { color: #ff6b6b; font-weight: 600; }
+
+/* ── #415 — 수정 모달 카운터 ── */
+.feed-edit-modal-meta {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.feed-edit-modal-counter {
+  font-size: 12px;
+  color: rgba(240, 238, 248, 0.42);
+  font-variant-numeric: tabular-nums;
+}
+.feed-edit-modal-counter[data-state="warn"]   { color: #ffc97a; }
+.feed-edit-modal-counter[data-state="danger"] { color: #ff6b6b; font-weight: 600; }

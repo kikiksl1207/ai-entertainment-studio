@@ -2433,7 +2433,10 @@ function openFeedEditModal(post) {
         <button class="feed-edit-modal-close" type="button" data-feed-edit-cancel aria-label="닫기">×</button>
       </header>
       <p class="feed-edit-modal-notice">지금은 글 내용만 수정할 수 있어요. 이미지 교체는 다음 업데이트에서 지원할 예정입니다.</p>
-      <textarea class="feed-edit-modal-textarea" rows="6" maxlength="2000" placeholder="내용을 입력해주세요."></textarea>
+      <textarea class="feed-edit-modal-textarea" rows="6" maxlength="2200" placeholder="내용을 입력해주세요."></textarea>
+      <div class="feed-edit-modal-meta">
+        <span class="feed-edit-modal-counter" aria-live="polite" aria-atomic="true">0 / 2200</span>
+      </div>
       <p class="feed-edit-modal-error" hidden></p>
       <footer class="feed-edit-modal-actions">
         <button class="feed-edit-modal-cancel" type="button" data-feed-edit-cancel>취소</button>
@@ -2442,7 +2445,20 @@ function openFeedEditModal(post) {
     </div>
   `;
   const textarea = modal.querySelector("textarea");
+  const editCounter = modal.querySelector(".feed-edit-modal-counter");
   textarea.value = post.body || "";
+  // 초기 카운터 + 실시간 업데이트
+  function syncEditCounter() {
+    const len = textarea.value.length;
+    if (editCounter) {
+      editCounter.textContent = len + " / 2200";
+      if (len >= 2200) editCounter.dataset.state = "danger";
+      else if (len >= 1980) editCounter.dataset.state = "warn";
+      else delete editCounter.dataset.state;
+    }
+  }
+  syncEditCounter();
+  textarea.addEventListener("input", syncEditCounter);
   modal.querySelector("[data-feed-edit-save]").dataset.postId = post.id;
   document.body.appendChild(modal);
   _feedEditModalEl = modal;
@@ -2502,6 +2518,12 @@ function bindLuminaFeedEdit() {
     const newBody = (textarea.value || "").trim();
     if (!newBody) {
       errorEl.textContent = "내용을 입력해주세요.";
+      errorEl.hidden = false;
+      textarea.focus();
+      return;
+    }
+    if (newBody.length > 2200) {
+      errorEl.textContent = `2200자까지 입력할 수 있어요. 현재 ${newBody.length}자입니다.`;
       errorEl.hidden = false;
       textarea.focus();
       return;

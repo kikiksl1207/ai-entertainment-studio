@@ -626,15 +626,15 @@ function bindLuminaFeedFollow() {
 
 const FEED_COMPOSE_MAX_IMAGES = 4;
 
-const FEED_COMPOSE_MAX_BODY = 500;
-
-// 백엔드 /api/v1/lumina-feed/posts contract — 501자 이상이면 HTTP 400. 큐알 QA 2026-05-19 확인.
+// #415 — 2200자 정책: 백엔드 /api/v1/lumina-feed/posts contract 업데이트 반영.
+const FEED_COMPOSE_MAX_BODY = 2200;
 
 // #309 — 타래 정책 (차모 2026-05-19 확정): 조각당 500자, root 포함 최대 10조각, 총 5000자.
+// 타래 조각은 2200자 정책 변경과 무관하게 500자 유지 (#415 spec).
 // 백엔드 POST /lumina-feed/posts/thread 계약에 맞춰 사용자가 직접 나눈 조각만 제출한다.
 const FEED_THREAD_MAX_ITEMS = 10;
 const FEED_THREAD_AGGREGATE_MAX = 5000;
-const FEED_THREAD_ITEM_MAX_BODY = FEED_COMPOSE_MAX_BODY;
+const FEED_THREAD_ITEM_MAX_BODY = 500; // 타래 조각 상한 — FEED_COMPOSE_MAX_BODY와 분리 유지
 
 const FEED_COMPOSE_MAX_IMAGE_MB = 20;
 
@@ -934,7 +934,7 @@ function bindFeedComposeOnce() {
     const messageEl = document.getElementById("feedComposeMessage");
     if (overLimit && !_feedComposeThreadMode) {
       setFeedComposeMessage(
-        `500자를 넘었어요. 첫 글은 ${FEED_COMPOSE_MAX_BODY}자 안으로 줄이고, 이어지는 내용은 타래로 이어쓰기에서 직접 나눠 주세요.`,
+        `${FEED_COMPOSE_MAX_BODY}자까지 입력할 수 있어요. 현재 글을 줄여주세요.`,
         "warn",
         "thread-over-limit"
       );
@@ -2060,7 +2060,8 @@ async function runFeedComposeUploadStages(item, onStateChange) {
       '<div class="feed-repost-body">' +
         '<label class="feed-repost-field">' +
           '<span>내 코멘트 (선택)</span>' +
-          '<textarea maxlength="500" rows="3" placeholder="원글에 덧붙일 내 한마디를 적어주세요." data-feed-repost-input></textarea>' +
+          '<textarea maxlength="2200" rows="3" placeholder="원글에 덧붙일 내 한마디를 적어주세요." data-feed-repost-input></textarea>' +
+          '<span class="feed-repost-counter" aria-live="polite" aria-atomic="true">0 / 2200</span>' +
         '</label>' +
         '<article class="feed-repost-reference" aria-label="원글 참조">' +
           '<header><strong>' + author + '</strong><a href="' + feedEscapeHtml(postUrl) + '" class="feed-repost-reference-link"' + postIdAttr + '>원글 보기 →</a></header>' +
@@ -2075,7 +2076,17 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     modal.hidden = false;
     backdrop.hidden = false;
     document.body.classList.add("is-feed-repost-open");
-    var ta = modal.querySelector("textarea");
+    var ta = modal.querySelector("[data-feed-repost-input]");
+    var repostCounter = modal.querySelector(".feed-repost-counter");
+    if (ta && repostCounter) {
+      ta.addEventListener("input", function () {
+        var len = ta.value.length;
+        repostCounter.textContent = len + " / 2200";
+        if (len >= 2200) { repostCounter.dataset.state = "danger"; }
+        else if (len >= 1980) { repostCounter.dataset.state = "warn"; }
+        else { delete repostCounter.dataset.state; }
+      });
+    }
     if (ta) ta.focus();
   }
 
