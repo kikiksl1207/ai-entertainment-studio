@@ -1,6 +1,47 @@
 # Team2 QA Inbox
 
 status: partial-blocked
+task: #418 - Lumina Pick free-to-paid like boundary re-QA
+environment:
+- branch: team2-qa/418-lumina-pick-premium-chat-live-qa
+- local main after pull: origin/main
+- basis commit: b25c26aa3b383aa19700e1ad33e5ed902ae7d1bb
+- live API health commit from prior same-task run: 23b4047994cf135cddfec0c4e2445c8f52b23df4
+- live page: https://www.lumina-stage.com/lumina-pick?tab=debut-race
+- No token, cookie, password, env value, raw credential, signed URL, or raw response body was recorded.
+- No paid like, wallet debit, order creation, settlement, payout, donation POST, room-open POST, or refund mutation was executed.
+
+tested_flows:
+- PASS: pulled latest `origin/main`; branch was already up to date with main.
+- PASS: before action, live Cheer Race showed 윤세린 score 12 and free quota `오늘 1/1 남음`.
+- PASS: clicked 윤세린 free like once. This intentionally consumed the available live free-like quota for QA.
+- PASS: after free like, 윤세린 score changed 12 -> 13, button state changed to paid-add boundary (`좋아요 추가 응원` / `유료 좋아요 추가 응원`), and quota changed to `오늘 0/1 남음`.
+- PASS: clicking 윤세린 again opened the paid-like modal instead of blocking the button.
+- PASS: paid-like modal showed current Lumina balance, daily remaining paid-like quota, and bundles: 1개 10L, 5개 50L, 10개 90L, 20개 200L.
+- PASS: paid-like modal did not auto-charge. I closed it without pressing `응원하기`.
+- PASS: after reload, 윤세린 score stayed 13 and server `GET /api/v1/popular-vote/main-pick` showed 윤세린 `totalFreeLikes=3`, `totalLuminaBoosts=10`, `totalWeightedScore=13`.
+- PASS: modal check had no page-level horizontal overflow, no replacement-character mojibake, and no failed images.
+- BLOCKED: actual paid-like confirm / idempotency replay was not executed because #418 still requires user-approved safe account/amount before any real paid debit.
+
+observed_paid_like_boundary:
+- Modal text included: `좋아요 추가 응원`, `현재 보유 루미나 300L`, `오늘 보낼 수 있는 추가 응원 20개 · 하루 최대 20개`, `응원하기`, `취소`.
+- Confirm button was enabled, so a real paid debit would be possible if clicked; it was not clicked.
+- Initial modal copy did not visibly mention `idempotency` or `2회 차감 방지`; duplicate-debit safety remains unverified without a paid mutation/replay test.
+
+blocked_by:
+- Need explicit PM/user approval for a safe paid-like amount/account before pressing `응원하기` or testing idempotency replay.
+
+next_needed:
+- If PM approves, run the minimum paid-like boundary with a safe amount and verify duplicate submission/idempotency messaging.
+- If no approval, #418 remains PARTIAL rather than complete because paid debit/idempotency cannot be fully exercised.
+
+security_check:
+- PASS: no raw credential, token, cookie, password, env value, signed URL, secret, or raw response body was written.
+- PASS: no paid like, wallet debit, order creation, donation, room-open, refund, settlement, or payout mutation was executed.
+
+---
+
+status: partial-blocked
 task: #418 - Lumina Pick free/paid like and premium chat live QA
 environment:
 - branch: team2-qa/418-lumina-pick-premium-chat-live-qa
