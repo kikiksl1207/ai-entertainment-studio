@@ -1,5 +1,60 @@
 # Team2 QA Inbox
 
+status: pass
+task: #420 - Lumina Pick paid-like safety copy and premium chat CTA live re-QA
+environment:
+- branch: team2-qa/420-lumina-pick-paid-like-cta-qa
+- local main after pull: origin/main
+- basis commit: a7fa72ced78ffef60120d7581dd7eb7660d8148f
+- live pages:
+  - https://www.lumina-stage.com/lumina-pick?tab=debut-race
+  - https://www.lumina-stage.com/character-detail?slug=yoon-serin
+  - https://www.lumina-stage.com/character-chat?slug=yoon-serin
+- No token, cookie, password, env value, raw credential, signed URL, or raw response body was recorded.
+- No paid like, wallet debit, order creation, settlement, payout, donation POST, room-open POST, or refund mutation was executed.
+
+tested_flows:
+- PASS: started from latest `origin/main`; branch is `team2-qa/420-lumina-pick-paid-like-cta-qa`.
+- PASS: live logged-in header showed current user indicator `S / 300 L` and `로그아웃`.
+- PASS: live Cheer Race showed free quota `오늘 0/1 남음`, 한서율 score 191, 서유안 score 50, 윤세린 score 13, and visible `프리미엄챗` card buttons.
+- PASS: public `GET /api/v1/popular-vote/main-pick` summary showed 윤세린 `totalFreeLikes=3`, `totalLuminaBoosts=10`, `totalWeightedScore=13`.
+- PASS: clicking 윤세린 score/like button with the free quota already used opened the paid-like modal instead of fully blocking the button.
+- PASS: paid-like modal showed balance `300L`, daily paid-like quota `20개`, bundles `1개 10L`, `5개 50L`, `10개 90L`, `20개 200L`, and `응원하기`/`취소`.
+- PASS: paid-like modal now visibly shows duplicate-debit safety copy: `같은 응원이 두 번 차감되지 않도록 중복 방지 처리가 적용됩니다. 응원하기 진행 중에는 버튼이 비활성화돼요.`
+- PASS: deployed `app.js` on the pulled commit sets the paid-like confirm button `disabled = true` and text `전달 중` before calling the paid-like API; actual click was not executed because it would create a paid-like mutation.
+- PASS: `/character-detail?slug=yoon-serin` now shows `프리미엄챗으로 대화하기 →` and the href remains `/character-chat?slug=yoon-serin`.
+- PASS: direct `/character-chat?slug=yoon-serin` opened the character chat room.
+- PASS: 390px, 768px, and 1280px public checks for Lumina Pick and character detail had no page-level horizontal overflow, no visible mojibake, and no forbidden `MVP`/`테스트`/`샘플`/`임시`/`여기에 문구` copy.
+- PASS: paid-like modal at the active live browser width had no horizontal overflow, no mojibake, and no forbidden placeholder copy.
+
+repro_steps:
+1. Open `https://www.lumina-stage.com/lumina-pick?tab=debut-race` while logged in with a user whose free like is already used.
+2. Confirm the header shows the user indicator and Lumina balance, and the page shows `오늘 0/1 남음`.
+3. Click the 윤세린 score/like button.
+4. Confirm the paid-like modal opens and shows the duplicate-debit safety sentence before `응원하기`.
+5. Do not click `응원하기`.
+6. Open `https://www.lumina-stage.com/character-detail?slug=yoon-serin`.
+7. Confirm the CTA text includes `프리미엄챗` and still points to `/character-chat?slug=yoon-serin`.
+8. Open `https://www.lumina-stage.com/character-chat?slug=yoon-serin` and confirm the room loads.
+
+screenshots_or_notes:
+- Paid-like confirm was intentionally not clicked; the disabled/progress state was checked from the deployed script path, not by executing a production paid mutation.
+- Headless 390px/768px/1280px public checks covered Lumina Pick card CTA and character-detail CTA layout; logged-in paid-like modal viewport was checked only in the active live browser session.
+
+blockers:
+- None found within the approved no-mutation QA scope.
+
+suspected_owner: none
+
+next_needed:
+- PM/Chamo can close #420 or approve any deeper paid-like replay/idempotency mutation verification with a safe account and amount.
+
+security_check:
+- PASS: no raw credential, token, cookie, password, env value, signed URL, secret, or raw response body was written.
+- PASS: no paid like, wallet debit, order creation, donation, room-open, refund, settlement, or payout mutation was executed.
+
+---
+
 status: fail
 task: #398 - Premium chat policy and screen QA matrix
 environment:
