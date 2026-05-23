@@ -6,6 +6,7 @@
     radial-gradient(circle at 12% 0%, rgba(255, 20, 147, 0.12), transparent 28%),
     radial-gradient(circle at 88% 8%, rgba(200, 166, 255, 0.12), transparent 30%),
     var(--bg);
+  overflow-x: hidden;
 }
 
 .page-mypage [hidden] {
@@ -116,6 +117,8 @@
   margin: 8px 0 10px;
   font-size: clamp(26px, 4vw, 40px);
   line-height: 1.12;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .mypage-section {
@@ -1006,6 +1009,21 @@
   .mypage-login-inner {
     padding: 18px;
     border-radius: 14px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .mypage-hero-copy h1,
+  .mypage-hero-copy p,
+  .mypage-login-inner h2,
+  .mypage-login-inner p {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  .mypage-login-inner h2 {
+    font-size: clamp(24px, 7vw, 30px);
   }
 
   .mypage-panel-head {
@@ -1051,8 +1069,8 @@
     padding: 16px;
   }
   .mypage-login-inner h2 {
-    overflow-wrap: break-word;
-    word-break: keep-all;
+    overflow-wrap: anywhere;
+    word-break: normal;
   }
 }
 

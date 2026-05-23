@@ -47,6 +47,7 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: "SeoulNamsan", "Noto Sans KR", system-ui, sans-serif;
+  overflow-x: hidden;
 }
 
 body.is-booting .auth-btn,
@@ -203,8 +204,8 @@ button {
 
 .page-hero-copy h1 {
   line-height: 1.16;
-  word-break: keep-all;
-  overflow-wrap: break-word;
+  word-break: normal;
+  overflow-wrap: anywhere;
   font-size: clamp(34px, 5vw, 56px);
 }
 
@@ -2178,6 +2179,15 @@ p {
 }
 
 @media (max-width: 480px) {
+  .header-auth .auth-btn-signup {
+    display: none;
+  }
+
+  .page-hero-copy h1 {
+    max-width: 12ch;
+    font-size: clamp(28px, 8vw, 34px);
+  }
+
   .auth-confirm-section {
     min-height: auto;
     align-items: flex-start;

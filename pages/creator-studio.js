@@ -930,7 +930,7 @@
     openStudioModal({
       type: "TONE PREVIEW",
       title: "톤앤매너 미리보기",
-      message: "실제 AI 변환 API 연결 전, 현재 저장된 톤 기준을 확인하는 미리보기입니다.",
+      message: "실제 변환 기능 연결 전, 현재 저장된 톤 기준을 확인하는 미리보기입니다.",
       summaryHtml: [
         modalRow("아티스트", artistName(item)),
         modalRow("톤 기준", tone),
