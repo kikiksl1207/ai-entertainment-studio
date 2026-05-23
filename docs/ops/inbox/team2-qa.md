@@ -1,6 +1,93 @@
 # Team2 QA Inbox
 
 status: fail
+task: #410 - Artist URL knowledge registration QA
+environment:
+- branch: team2-qa/410-artist-url-knowledge-qa
+- local main after pull: origin/main
+- basis commit: 0b3094ce9b9aa01d229304255662aa4ac579f7ac
+- live API health: HTTP 200, commit 714216df8416833d73933dbdb0a86f31c39f437d
+- live pages:
+  - https://www.lumina-stage.com/creator-studio
+  - https://www.lumina-stage.com/creator-studio#knowledge-url
+  - https://www.lumina-stage.com/backstage
+- No token, cookie, password, env value, secret, signed URL, raw provider payload, or raw credential was recorded.
+- No approved URL creation, approval, rejection, archive, balance adjustment, social login, external crawl, or provider call was executed.
+
+tested_flows:
+- PASS: `git pull origin main` completed before QA; local basis commit is `0b3094ce9b9aa01d229304255662aa4ac579f7ac`.
+- PASS: live Creator Studio initially exposed the `자료 URL` navigation item and the `자료 URL 등록` form for artist `윤세린`.
+- PASS: the form copy states newly registered URLs do not immediately enter character chat and stay `승인 대기` until admin review and AI summary handling.
+- PASS: empty URL validation shows `URL을 입력해주세요.`
+- PASS: invalid URL validation shows `올바른 URL 형식이 아닙니다. https://로 시작하는 주소를 입력해주세요.`
+- PASS: URL input max length is 2000 and summary description max length is 500.
+- PASS: the form exposes `캐릭터챗 참고 허용` and defaults it checked, with copy that approval is required before chat reference.
+- PASS: 1280px, 768px, and 390px checks on the access-required fallback had no page-level horizontal overflow and no replacement-character mojibake.
+- PASS: `node --check pages/creator-studio.js`.
+- PASS: `node --check pages/character-chat.js`.
+- PASS: `git diff --check`.
+- PASS: `npm.cmd test -- artist-url-knowledge-contract.spec.ts chat.service.spec.ts --runInBand` from `server` passed 52 tests.
+- FAIL: live API `/health` is still on commit `714216df8416833d73933dbdb0a86f31c39f437d`, while local pulled main is `0b3094ce9b9aa01d229304255662aa4ac579f7ac`; #410 cannot be fully accepted against a stale deployed backend.
+- FAIL: same live browser session showed `로그인한 크리에이터` in Creator Studio, but submitting the URL form after client-side validation returned `로그인 정보가 없습니다. 다시 로그인해주세요.`
+- FAIL: direct `creator-studio#knowledge-url` reloads at 1280/768/390 showed `ACCESS REQUIRED`, so the approved creator URL registration path is not stably reachable.
+- FAIL: Backstage live page remained at operator login and did not expose an artist knowledge URL approval/reject/archive queue without entering credentials.
+- FAIL: `npm.cmd test -- artist-url-knowledge-contract.spec.ts chat.service.spec.ts creator-studio.service.spec.ts --runInBand` fails at TypeScript compile because `PrismaService.artistKnowledgeUrl` is missing from the generated Prisma service type.
+
+repro_steps:
+1. Run `git pull origin main`.
+2. Confirm local `HEAD` is `0b3094ce9b9aa01d229304255662aa4ac579f7ac`.
+3. Confirm live `https://api.lumina-stage.com/health` returns commit `714216df8416833d73933dbdb0a86f31c39f437d`.
+4. Open `https://www.lumina-stage.com/creator-studio`.
+5. Click `자료 URL 0`.
+6. Click `등록 신청` with an empty URL and confirm `URL을 입력해주세요.`
+7. Enter `not-a-url` plus a short summary and click `등록 신청`; confirm malformed URL validation.
+8. Enter a syntactically valid URL and leave the previously visible summary in place; click `등록 신청`.
+9. Observe `로그인 정보가 없습니다. 다시 로그인해주세요.` while the page chrome still says `로그인한 크리에이터`.
+10. Reload `https://www.lumina-stage.com/creator-studio#knowledge-url` at desktop, tablet, and mobile widths.
+11. Observe `ACCESS REQUIRED` instead of the approved creator knowledge URL form.
+12. Run `npm.cmd test -- artist-url-knowledge-contract.spec.ts chat.service.spec.ts creator-studio.service.spec.ts --runInBand` from `server`.
+13. Observe TypeScript compile errors on `PrismaService.artistKnowledgeUrl`.
+
+expected:
+- The deployed API and static surface should be on the commit intended for #410 QA.
+- An approved creator session should remain authorized on the direct `#knowledge-url` route.
+- The form should be able to create a pending URL record after valid client validation, without losing login context.
+- Backstage should expose the review queue for approval/reject/archive checks to an authenticated operator session.
+- Creator Studio service tests should compile with the Prisma model used by the feature.
+
+actual:
+- Deployed API commit is stale relative to pulled main.
+- Creator Studio shows the knowledge URL form in one navigation path, but direct route reloads fall back to access-required.
+- Valid-form submission cannot reach pending creation because the client reports missing login information.
+- Backstage approval/reject/archive paths could not be verified without credentials.
+- Local Creator Studio service test suite cannot compile due to missing generated `artistKnowledgeUrl` delegate type.
+
+not_verified_due_to_blocker:
+- Approved-only material entering character chat.
+- Pending material being excluded from character chat.
+- Rejected/archived material being excluded from character chat.
+- URL/description prompt-injection text being treated as untrusted reference text in a live provider request.
+- Backstage approval, rejection, and archive status transitions.
+
+server_contract_reference:
+- `artist-url-knowledge-contract.spec.ts` and `chat.service.spec.ts` pass.
+- Local contract/code filters chat references to approved rows with `allowChatReference=true`, limits max items, excludes raw URLs from provider prompt context, and marks reference text as non-instructional.
+- This is only a local contract signal; live acceptance remains blocked by deployment/session/test failures above.
+
+blockers:
+- #410 should not be marked complete until the deployed backend is current, Creator Studio keeps approved creator auth on `#knowledge-url`, valid pending creation works in production, Backstage review controls are reachable for operator QA, and the Creator Studio service test compile failure is fixed.
+
+next_needed:
+- Return #410 to PM Chamo or the previous implementation/deploy owner for deploy/auth/Prisma generated-client follow-up.
+- Re-run the live pending/approved/rejected/archived chat-reference matrix after those blockers are cleared.
+
+security_check:
+- PASS: no secrets, tokens, passwords, cookies, env values, signed URLs, raw provider payloads, DB URLs, or credentials were written.
+- PASS: no live URL record was intentionally created or approved; no social login or external crawl was performed.
+
+---
+
+status: fail
 task: #398 - Premium chat policy and screen QA matrix
 environment:
 - branch: team2-qa/398-premium-chat-policy-screen-qa
