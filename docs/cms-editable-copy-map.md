@@ -14,9 +14,16 @@
 
 각 항목은 `(contentKey, 권장 scope, pageKey, 위치, fallback 텍스트)` 순으로 정리합니다.
 
-### 1) `/` 홈 (`/index.html`)
+### 1) `/` 홈 (`/index.html`) — v2 (#405)
 
-> v1에서는 홈 hero에 별도 CMS 키를 부여하지 않습니다. 후속 PR에서 `home.hero.title` / `home.hero.body` 도입을 검토합니다.
+`<body data-cms-page-key="home">` + `cms-bootstrap.js`로 연결.
+
+| contentKey | scope | pageKey | 위치 | 정적 fallback |
+|---|---|---|---|---|
+| `home.hero.title` | page | home | `<h1 data-cms-key="home.hero.title">` | 아티스트와 팬이 만나는 공간, Lumina Stage |
+| `home.hero.body`  | page | home | `<p class="hero-description" data-cms-key="home.hero.body">` | 팬의 응원이 순위를 만들고, 순위가 다음 무대를 여는 곳. … |
+
+> **고정 유지**: hero-metrics(대표 아티스트 수 등 동적 지표), hero-feature(JS가 좋아요 1위 캐릭터로 채움), hero-actions CTA href(내비게이션 타겟). nav 라벨 제외 원칙 동일.
 
 ### 2) `/characters` 아티스트 라인업 (`/characters/index.html`)
 
@@ -132,9 +139,15 @@
 - 사용자 컨텐츠 (피드 본문, 댓글, 채팅 메시지)
 - 토큰/이메일 인증 메일 본문 (서버 발송 → `action-token` 계약 측에서 관리)
 
-## v1 → v2 후속 후보
+## v2 신규 적용 (#405)
 
-- `home.hero.*` (홈 hero CMS 진입 — 첫 방문 동선 카피)
+| contentKey | 페이지 | 상태 |
+|---|---|---|
+| `home.hero.title` | `/` 홈 | ✅ 연결 완료 (2026-05-23) |
+| `home.hero.body`  | `/` 홈 | ✅ 연결 완료 (2026-05-23) |
+
+## v2 → v3 후속 후보
+
 - `debut.faq.<n>.title|body` (데뷔 FAQ 4~6개)
 - `character-detail.gallery.note` (갤러리 영역 안내문)
 - `lumina-feed.compose.hint` (작성창 placeholder/안내)
@@ -143,5 +156,6 @@
 
 ## 변경 이력
 
+- 2026-05-23 (#405): v2. 홈(`/`) hero 영역 CMS 연결. `home.hero.title` / `home.hero.body` 키 신규 추가. `index.html`에 `data-cms-page-key="home"` + `cms-bootstrap.js` 로드 추가. v2 신규 적용 표 및 v3 후보 목록 정리.
 - 2026-05-21 (#361): v1 작성. characters/character-detail/character-chat/lumina-pick/shortform/debut/charge/chat-rankings/not-found 카피 키 분류. lumina-pick·shortform·404·character-chat starter prompt에 `data-cms-key` 신규 부여.
 - 2026-05-20 (#324): cms-bootstrap.js로 hydrate 시작. characters/character-detail/character-chat/debut/charge 카피 키 초안 발행.
