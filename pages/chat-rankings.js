@@ -277,6 +277,12 @@
   }
 
   function init() {
+    // #407 — URL ?type= 쿼리로 초기 탭 결정.
+    // type=donation → 후원 랭킹, type=communication → 소통 TOP, 없거나 허용값 외 → 기본값 유지.
+    var urlType = new URLSearchParams(window.location.search).get("type");
+    if (urlType === "donation" || urlType === "communication") {
+      state.type = urlType;
+    }
     bindUi();
     updateTabState();
     refresh();
