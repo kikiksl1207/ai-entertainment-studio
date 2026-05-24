@@ -1,6 +1,51 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#429 premium chat room open/support fail-closed activation audit"
+branch: team2-backend/premium-chat-fail-closed-audit-429
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npx.cmd prisma generate
+- node --check server/src/chat/chat.controller.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/premium-chat-room-contract.ts
+- node --check server/src/chat/premium-chat-support-contract.ts
+- node --check server/src/wallet/wallet-server-authority-policy.ts
+- npm.cmd test -- chat.service.spec.ts premium-chat-room-contract.spec.ts wallet-server-authority-policy.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-room-contract.ts src/chat/premium-chat-room-contract.spec.ts src/chat/premium-chat-support-contract.ts src/wallet/wallet-server-authority-policy.ts src/wallet/wallet-server-authority-policy.spec.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Confirmed premium chat room tiers are server-authored as 300/500/1000/3000L. The default accessible tier is 300L, higher tiers remain server-unlocked follower/support tiers, and client-submitted amount, balance, duration, price, follower state, refund rate, or settlement share is not trusted.
+- Confirmed actual room open, donation preview/create, room status, donation history, rankings list, report, force-close, refund, settlement, payout, and support/conversation ledger mutations are absent, planned disabled, or fail-closed by contract. The exposed premium support endpoint remains read-only `GET /api/v1/chat/premium-support-contract`.
+- Confirmed frontend premium chat support/hub/ranking pages consume the read-only contract, keep donation/room-open paths locked while `walletMutationEnabled=false`, and do not send donation, room-open, wallet debit, refund, settlement, payout, or ranking refresh POSTs.
+- Confirmed room open, message/conversation metering, donation, refund, report/force-close, and repeated/invalid attempts require server ledger authority, idempotency, atomic wallet guards, and blocked-state checks before activation. No client-only debit or temporary hardcoding is permitted.
+- Confirmed donation ranking and like ranking remain separate: Lumina Pick/boost rankings exclude premium chat donation, while planned chat communication/donation rankings exclude free-like/lumina-boost lanes and unsafe refunded/blinded/reported rows.
+safe_fixture_verifiable:
+- Contract helpers and specs verify tier locks, server amount authority, disabled endpoint flags, blocked room states, ranking lane separation, privacy-safe projections, and no wallet/order/message mutation during read-only contract access.
+- UI fixture/read-only checks can verify 300/500/1000/3000L copy, locked donation confirmation, and separated ranking copy without executing mutations.
+not_open_before_activation:
+- POST room open, donation preview/create, wallet debit/refund, conversation meter decrement, support point grants, settlement/payout accrual, report/force-close mutation, and ranking read-model refresh.
+activation_checklist:
+- Add storage/migrations for premium chat rooms, donation orders, support point ledger, conversation meter ledger, accounting ledger, refund decisions, moderation decisions, and ranking read models.
+- Implement server-only mutation endpoints with auth, idempotency fingerprints, duplicate replay behavior, atomic nonnegative wallet guards, and server-normalized amounts.
+- Add QA fixtures for user, artist, follower-tier unlocks, insufficient balance, repeated delete/close/refund-like replay, blocked room states, and rollback/ops runbook.
+- Gate activation with contract flags so frontend submit stays disabled until backend storage, ledger, moderation, refund, and ranking read models are live.
+- Surface refund policy copy before public activation: 24-hour unanswered full refund and 70%/50% user-fault refund limits were previously flagged as a user-facing QA blocker.
+blocked_by:
+- Backend storage/mutation implementation and explicit activation approval. No live payment, donation, room-open, wallet debit, refund, settlement, or payout mutation should run before that approval.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#422 Lumina Feed 2200-character live API blocker fix"
 branch: team2-backend/lumina-feed-2200-live-blocker-422
 commit: final hash recorded in Notion completion report
