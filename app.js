@@ -2859,8 +2859,9 @@ function openFeedCommentModal(post) {
         <p class="feed-comment-state">댓글을 불러오고 있어요…</p>
       </div>
       <form class="feed-comment-form" data-feed-comment-form>
-        <textarea rows="3" maxlength="600" placeholder="댓글을 남겨보세요." aria-label="댓글 입력"></textarea>
+        <textarea rows="3" maxlength="300" placeholder="댓글을 남겨보세요." aria-label="댓글 입력"></textarea>
         <div class="feed-comment-form-actions">
+          <span class="feed-comment-counter" aria-live="polite" aria-atomic="true">0 / 300</span>
           <p class="feed-comment-message" data-feed-comment-message hidden></p>
           <button type="submit">등록</button>
         </div>
@@ -2871,6 +2872,18 @@ function openFeedCommentModal(post) {
   document.body.appendChild(modal);
   document.body.style.overflow = "hidden";
   _feedCommentModalEl = modal;
+  // #437 — 댓글 300자 카운터 실시간 업데이트.
+  const commentTa = modal.querySelector("textarea");
+  const commentCounter = modal.querySelector(".feed-comment-counter");
+  if (commentTa && commentCounter) {
+    commentTa.addEventListener("input", () => {
+      const len = commentTa.value.length;
+      commentCounter.textContent = len + " / 300";
+      if (len >= 300)       commentCounter.dataset.state = "danger";
+      else if (len >= 270)  commentCounter.dataset.state = "warn";
+      else                  delete commentCounter.dataset.state;
+    });
+  }
   loadFeedComments(post.id);
   setTimeout(() => modal.querySelector("textarea")?.focus(), 80);
 }
