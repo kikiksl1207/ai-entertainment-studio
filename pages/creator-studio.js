@@ -60,7 +60,8 @@
       const hasToken = Boolean(auth?.accessToken || auth?.refreshToken);
       const authEmail = auth?.user?.email || "";
       const sameUser = !handoff.viewerEmail || Boolean(authEmail && handoff.viewerEmail === authEmail);
-      return recent && hasToken && sameUser && handoff.data?.access?.enabled === true ? handoff.data : null;
+      const hasFullBootstrap = Array.isArray(handoff.data?.artists);
+      return recent && hasToken && sameUser && hasFullBootstrap && handoff.data?.access?.enabled === true ? handoff.data : null;
     } catch (_) {
       return null;
     }
