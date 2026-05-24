@@ -4,7 +4,9 @@ import { BoostsService } from './boosts.service';
 
 const campaign = {
   id: '11111111-1111-4111-8111-111111111111',
+  freeLikeWeight: new Decimal(1),
   luminaBoostWeight: new Decimal(1),
+  dailyFreeLikeLimit: 1,
 };
 const artist = {
   id: '22222222-2222-4222-8222-222222222222',
@@ -29,6 +31,7 @@ function createHarness() {
     artistBoostEvent: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
       create: jest.fn(),
     },
     walletAccount: {
@@ -201,6 +204,111 @@ describe('BoostsService wallet mutation safety', () => {
         }),
       }),
     );
+    expect(tx.artistBoostEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          boostType: 'lumina_boost',
+          metadata: {
+            path: ['source'],
+            equals: 'paid_like',
+          },
+        }),
+      }),
+    );
+    expect(tx.artistBoostEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          artistId: artist.id,
+          boostType: 'lumina_boost',
+          metadata: expect.objectContaining({ source: 'paid_like' }),
+        }),
+      }),
+    );
+  });
+
+  it('replays a matching free-like idempotency key without creating another ledger row', async () => {
+    const { service, prisma, tx } = createHarness();
+    prisma.boostCampaign.findFirst.mockResolvedValue(campaign);
+    prisma.artist.findFirst.mockResolvedValue(artist);
+    tx.artistBoostEvent.findUnique.mockResolvedValue({
+      id: 'free-like-event-1',
+      userId: 'user-1',
+      campaignId: campaign.id,
+      artistId: artist.id,
+      boostType: 'free_like',
+    });
+
+    const result = await service.createFreeLike('user-1', {
+      campaignId: campaign.id,
+      artistId: artist.id,
+      idempotencyKey: 'free-like-1',
+    });
+
+    expect(result).toMatchObject({ idempotentReplay: true });
+    expect(tx.artistBoostEvent.count).not.toHaveBeenCalled();
+    expect(tx.artistBoostEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects free-like idempotency key reuse with a different body', async () => {
+    const { service, prisma, tx } = createHarness();
+    prisma.boostCampaign.findFirst.mockResolvedValue(campaign);
+    prisma.artist.findFirst.mockResolvedValue(artist);
+    tx.artistBoostEvent.findUnique.mockResolvedValue({
+      id: 'free-like-event-1',
+      userId: 'user-1',
+      campaignId: campaign.id,
+      artistId: '99999999-9999-4999-8999-999999999999',
+      boostType: 'free_like',
+    });
+
+    await expect(
+      service.createFreeLike('user-1', {
+        campaignId: campaign.id,
+        artistId: artist.id,
+        idempotencyKey: 'free-like-1',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'BOOST_IDEMPOTENCY_CONFLICT',
+        messageKey: 'boost.error.idempotencyConflict',
+        walletMutation: false,
+      },
+    });
+    expect(tx.artistBoostEvent.count).not.toHaveBeenCalled();
+    expect(tx.artistBoostEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('builds refreshed like and paid-like counts from the server boost ledger', async () => {
+    const { service, prisma } = createHarness();
+    prisma.artistBoostEvent.findMany.mockResolvedValue([
+      {
+        artistId: artist.id,
+        artist,
+        boostType: 'free_like',
+        rawAmount: new Decimal(1),
+        weightedScore: new Decimal(1),
+      },
+      {
+        artistId: artist.id,
+        artist,
+        boostType: 'lumina_boost',
+        rawAmount: new Decimal(3),
+        weightedScore: new Decimal(3),
+        metadata: { source: 'paid_like' },
+      },
+    ]);
+
+    const rankings = await service.getRankings(campaign.id);
+    const [row] = rankings;
+
+    expect(prisma.artistBoostEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { campaignId: campaign.id } }),
+    );
+    expect(row.artist).toEqual(artist);
+    expect(row.totalFreeLikes.toString()).toBe('1');
+    expect(row.totalPaidLikes.toString()).toBe('3');
+    expect(row.totalLuminaBoosts.toString()).toBe('3');
+    expect(row.totalWeightedScore.toString()).toBe('4');
   });
 
   it('requires an idempotency key before a boost-order wallet mutation', async () => {

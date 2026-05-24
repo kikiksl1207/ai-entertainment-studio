@@ -1295,7 +1295,9 @@ Success response:
 ```
 
 After a successful paid like, refresh rankings with
-`GET /boost-campaigns/:campaignId/rankings`.
+`GET /boost-campaigns/:campaignId/rankings`. These ranking rows include
+server-ledger totals for `totalFreeLikes`, `totalPaidLikes`,
+`totalLuminaBoosts`, and `totalWeightedScore`.
 
 Ranking rows from `GET /popular-vote/main-pick` and
 `GET /popular-vote/hall-of-fame/year-champion` now include
