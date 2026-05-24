@@ -1814,6 +1814,111 @@ select.dm-field-input option {
 .premium-chat-hub-room-profile:hover { border-color: #ec4899; color: #fff; }
 .premium-chat-hub-rooms-foot { margin: 10px 0 0; font-size: 12px; color: rgba(245, 240, 255, 0.5); line-height: 1.5; }
 
+/* ─── #469 — 프리미엄챗 가능 아티스트 섹션 ─────────────────────────────────── */
+.premium-chat-available-artists {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(124, 58, 237, 0.22);
+}
+.premium-chat-available-artists-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.premium-chat-available-artists-head h3 { margin: 0; font-size: 14px; color: #f5f0ff; }
+.premium-chat-available-artists-state {
+  font-size: 11px; padding: 3px 8px; border-radius: 999px;
+  background: rgba(148, 163, 184, 0.15); color: rgba(245, 240, 255, 0.78); font-weight: 800;
+}
+
+/* #469 — "AI 아님" 안내 배너: CSS 주석만이 아닌 사용자 화면 직접 노출 */
+.premium-chat-real-answer-notice {
+  font-size: 12px;
+  color: rgba(236, 72, 153, 0.9);
+  margin: 0 0 12px;
+  padding: 7px 12px;
+  background: rgba(236, 72, 153, 0.08);
+  border-radius: 7px;
+  border-left: 2px solid rgba(236, 72, 153, 0.5);
+  line-height: 1.5;
+}
+
+.premium-chat-available-artists-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.premium-chat-available-artist {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 14px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.premium-chat-available-artist-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12) center / cover no-repeat;
+  flex-shrink: 0;
+}
+.premium-chat-available-artist-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f5f0ff;
+  text-align: center;
+}
+.premium-chat-available-artist-profile {
+  font-size: 11px;
+  color: rgba(245, 240, 255, 0.48);
+  text-decoration: none;
+}
+.premium-chat-available-artist-profile:hover { color: rgba(245, 240, 255, 0.8); }
+.premium-chat-available-artist-chat {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: rgba(236, 72, 153, 0.8);
+  color: #fff;
+  text-decoration: none;
+  margin-top: 4px;
+}
+.premium-chat-available-artist-chat[aria-disabled="true"] {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(245, 240, 255, 0.35);
+  pointer-events: none;
+  cursor: default;
+}
+.premium-chat-available-artists-skeleton,
+.premium-chat-available-artists-empty {
+  list-style: none;
+  color: rgba(245, 240, 255, 0.48);
+  font-size: 13px;
+  padding: 14px 0;
+  grid-column: 1 / -1;
+}
+.premium-chat-available-artists-empty p { margin: 0 0 6px; }
+.premium-chat-available-artists-cta {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: rgba(236, 72, 153, 0.85);
+  text-decoration: none;
+}
+.premium-chat-available-artists-cta:hover { color: #ec4899; }
+
 /* #343 — auto-fit이 768px 중간 너비도 자연스럽게 풀어주므로 별도 강제 grid는 제거. 480px 이하만 단열 collapse. */
 @media (max-width: 480px) {
   .premium-chat-hub { padding: 12px; }
@@ -1823,6 +1928,8 @@ select.dm-field-input option {
   /* 모바일에서 badge는 본문 텍스트 다음 줄에 위치, 프로필 버튼은 카드 폭으로 늘려 탭 타깃 확대. */
   .premium-chat-hub-room-main .premium-chat-hub-room-badge { grid-column: 2; justify-self: start; margin-top: 4px; }
   .premium-chat-hub-room-profile { justify-self: stretch; text-align: center; }
+  /* #469 — 모바일: 아티스트 카드 2열 */
+  .premium-chat-available-artists-list { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

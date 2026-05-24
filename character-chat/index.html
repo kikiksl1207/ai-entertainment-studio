@@ -90,6 +90,23 @@
               </a>
             </li>
           </ul>
+
+          <!-- #469 — 프리미엄챗 오픈 가능 아티스트 목록.
+               "AI 아님" 안내를 사용자 화면에 명시적으로 노출.
+               JS: loadAvailableArtists() → #premiumChatAvailableArtists.
+               실제 차감/오픈 POST는 walletMutationEnabled 전까지 비활성. -->
+          <section class="premium-chat-available-artists" aria-label="프리미엄챗 가능 아티스트">
+            <header class="premium-chat-available-artists-head">
+              <h3>프리미엄챗 가능 아티스트</h3>
+              <span class="premium-chat-available-artists-state" id="premiumChatArtistsState">확인 중</span>
+            </header>
+            <!-- #469 — 사용자 오해 방지: 아티스트 본인 답변, AI 응답 아님을 명시 -->
+            <p class="premium-chat-real-answer-notice">아티스트 본인이 직접 답변해요. AI 생성 응답이 아니에요.</p>
+            <ul class="premium-chat-available-artists-list" id="premiumChatAvailableArtists" role="list" aria-live="polite">
+              <li class="premium-chat-available-artists-skeleton">참여 가능한 아티스트를 불러오는 중이에요…</li>
+            </ul>
+          </section>
+
           <section class="premium-chat-hub-rooms" aria-label="내가 열어둔 프리미엄 채팅방">
             <header class="premium-chat-hub-rooms-head">
               <h3>내가 열어둔 프리미엄 채팅방</h3>

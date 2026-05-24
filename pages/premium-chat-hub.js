@@ -110,6 +110,77 @@
     }).join("");
   }
 
+  // ── #469 — 프리미엄챗 가능 아티스트 렌더 ────────────────────────────────────
+
+  function renderAvailableArtists(artists, mutationOpen) {
+    var list = $("premiumChatAvailableArtists");
+    var stateEl = $("premiumChatArtistsState");
+    if (!list) return;
+    if (!artists.length) {
+      if (stateEl) stateEl.textContent = "0명";
+      list.innerHTML =
+        '<li class="premium-chat-available-artists-empty">' +
+          '<p>아직 프리미엄챗 가능 아티스트가 없어요.</p>' +
+          '<a class="premium-chat-available-artists-cta" href="/characters">아티스트 라인업 보기 →</a>' +
+        '</li>';
+      return;
+    }
+    if (stateEl) stateEl.textContent = artists.length + "명";
+    list.innerHTML = artists.map(function (artist) {
+      var slug = artist.slug || "";
+      var name = escapeHtml(artist.displayName || artist.name || slug || "아티스트");
+      var profileHref = slug ? "/character-detail?slug=" + encodeURIComponent(slug) : "/characters";
+      var chatHref = slug ? "/character-chat?slug=" + encodeURIComponent(slug) : "/character-chat";
+      var avatarStyle = slug
+        ? ' style="background-image:url(\'/assets/characters/' + encodeURIComponent(slug) + '/thumb.png\')"'
+        : "";
+      var btnLabel = mutationOpen ? "채팅 열기" : "채팅 안내 예정";
+      var disabledAttrs = mutationOpen ? "" : ' aria-disabled="true" tabindex="-1"';
+      return (
+        '<li class="premium-chat-available-artist">' +
+          '<span class="premium-chat-available-artist-avatar" aria-hidden="true"' + avatarStyle + '></span>' +
+          '<strong class="premium-chat-available-artist-name">' + name + '</strong>' +
+          '<a class="premium-chat-available-artist-profile" href="' + profileHref + '">프로필 보기</a>' +
+          '<a class="premium-chat-available-artist-chat" href="' + chatHref + '"' + disabledAttrs + '>' + btnLabel + '</a>' +
+        '</li>'
+      );
+    }).join("");
+  }
+
+  async function loadAvailableArtists(mutationOpen) {
+    var list = $("premiumChatAvailableArtists");
+    var stateEl = $("premiumChatArtistsState");
+    if (!list) return;
+
+    // 1) API 시도
+    var res = await fetchJson("/api/v1/chat/premium-available-artists");
+    if (res.data) {
+      var apiItems = res.data.items || res.data.artists || (Array.isArray(res.data) ? res.data : []);
+      if (stateEl) stateEl.textContent = apiItems.length ? apiItems.length + "명" : "0명";
+      renderAvailableArtists(apiItems.slice(0, 12), mutationOpen);
+      return;
+    }
+
+    // 2) window.LuminaCharacterData fallback (CMS 주입 데이터)
+    if (window.LuminaCharacterData && Array.isArray(window.LuminaCharacterData)) {
+      var eligible = window.LuminaCharacterData.filter(function (c) {
+        return c.premiumChatAvailable || c.hasPremiumChat;
+      });
+      var fallback = eligible.length ? eligible : window.LuminaCharacterData.slice(0, 8);
+      if (stateEl) stateEl.textContent = fallback.length + "명";
+      renderAvailableArtists(fallback.slice(0, 12), mutationOpen);
+      return;
+    }
+
+    // 3) 404/501 — 엔드포인트 미개방 (contract: planned 상태)
+    if (stateEl) stateEl.textContent = "원장 검증 대기";
+    list.innerHTML =
+      '<li class="premium-chat-available-artists-empty">' +
+        '<p>프리미엄챗 아티스트 목록은 원장·보안 검증이 끝난 뒤 공개돼요.</p>' +
+        '<a class="premium-chat-available-artists-cta" href="/characters">아티스트 라인업 보기 →</a>' +
+      '</li>';
+  }
+
   function normalizeConversation(item) {
     var artist = item.artist || item.peer || {};
     return {
@@ -146,12 +217,14 @@
     if (convRes.error) {
       setState(mutationOpen ? "데이터 로드 실패" : "원장·보안 검증 대기");
       renderRooms([], mutationOpen);
+      loadAvailableArtists(mutationOpen); // #469 — 방 목록 실패여도 아티스트 목록은 시도
       return;
     }
     var items = (convRes.data && (convRes.data.items || convRes.data.data?.items)) || [];
     var rooms = items.map(normalizeConversation).filter(function (r) { return r.slug || r.name; });
     setState(mutationOpen ? "준비 완료" : "후원 잠금 · 진입만 가능");
     renderRooms(rooms.slice(0, 6), mutationOpen);
+    loadAvailableArtists(mutationOpen); // #469 — 가능 아티스트 목록 병렬 로드
   }
 
   // ── #390 — 루미나 피드 진입 영역 (피드 사이드 패널용 경량 렌더) ────────────────
