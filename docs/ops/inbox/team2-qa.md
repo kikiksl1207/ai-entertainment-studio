@@ -1,5 +1,69 @@
 # Team2 QA Inbox
 
+status: blocked
+task: #470 - charge package and first-charge bonus live QA
+environment:
+- branch: team2-qa/470-charge-package-first-bonus-live-qa
+- `git pull origin main`: fast-forwarded to f05ec14ee5ba4ba2901da74d156649dd2b3e620b
+- local basis commit: f05ec14ee5ba4ba2901da74d156649dd2b3e620b
+- live API health: HTTP 200, commit e0cfad8596b0c6b99d7f330b9dd645bbad9f6f72
+- live pages/APIs checked:
+  - https://www.lumina-stage.com/charge
+  - https://api.lumina-stage.com/api/v1/lumina-station/charge-policy
+  - https://api.lumina-stage.com/api/v1/lumina-station
+- No account, payment, token, cookie, password, DB URL, signed URL, raw credential, or payment-sensitive value was recorded.
+- No payment order, PG redirect, wallet, balance, or paid mutation was executed.
+
+tested_flows:
+- PASS: public charge policy endpoint returned HTTP 200.
+- PASS: live public policy version is `2026-05-21.charge-policy-v2`.
+- PASS: live public app package list exposes exactly six package prices: 1,000 / 3,000 / 5,000 / 10,000 / 50,000 / 100,000 KRW.
+- PASS: live public policy has no deferred app package entries and does not expose a 30,000 KRW package in the public package list.
+- PASS: live public first-charge policy is one-time per user, 10%, `base_lumina_only`, and excludes package bonus from the first-charge bonus basis.
+- PASS: live public examples keep package bonus separate from first-charge bonus: 50,000 KRW => 6,300L first-purchase total, 100,000 KRW => 13,000L first-purchase total.
+- PASS: live public web charge policy reports `pg_pending`, `walletMutation=false`, and `orderMutationEnabled=false`.
+- PASS: unauthenticated `GET /api/v1/lumina-station` returned HTTP 401, so station products and order history stay behind auth.
+- PASS: live `/charge` logged-out browser view shows the Korean login gate and does not expose purchase buttons or product cards before login.
+- PASS: `node --check pages/charge.js`.
+- PASS: `node --check app.js`.
+- PASS: `npm.cmd test -- charge-products.policy.spec.ts lumina-station.service.spec.ts --runInBand` passed 2 suites / 5 tests after using the already-installed server toolchain path.
+- BLOCKED: logged-in live `/charge` card rendering could not be verified because the browser session had no authenticated QA user/session.
+
+not_verified_due_to_blocker:
+- Logged-in visible web card matrix for 1,000 / 3,000 / 5,000 / 10,000 / 50,000 / 100,000 KRW.
+- Logged-in visible separation of 50,000/100,000 package bonus from first-charge 10% bonus.
+- Logged-in first-charge eligibility turning off after one paid order.
+- Logged-in absence of 30,000 KRW product cards in the rendered product grid.
+
+repro_steps:
+1. Start from `origin/main` and run `git pull origin main`.
+2. Confirm local basis commit is `f05ec14ee5ba4ba2901da74d156649dd2b3e620b`.
+3. Confirm live `/health` reports API commit `e0cfad8596b0c6b99d7f330b9dd645bbad9f6f72`.
+4. Request live public `/api/v1/lumina-station/charge-policy`.
+5. Observe six public app package prices: 1,000 / 3,000 / 5,000 / 10,000 / 50,000 / 100,000 KRW.
+6. Observe first-charge public policy: one-time, 10%, base lumina only, package bonus not included.
+7. Request live authenticated `/api/v1/lumina-station` without auth and observe HTTP 401.
+8. Open `https://www.lumina-stage.com/charge` in the browser session.
+9. Observe logged-out login gate; product grid stays hidden and no buy buttons are exposed.
+10. Do not click any charge/purchase/PG action.
+
+expected:
+- A safe authenticated QA session should show exactly the six web charge cards.
+- 50,000/100,000 package bonuses should be visibly separate from the first-charge 10% line.
+- The 30,000 KRW package should not appear.
+- First-charge bonus should be shown as a one-time benefit and should be unavailable after one paid order.
+
+actual:
+- Public server policy and local focused specs match the #470 contract.
+- Current live browser session is unauthenticated, so the logged-in card UI cannot be completed as live QA.
+- No product bug was proven from the public/read-only checks, but the task completion criteria require logged-in visible screen verification.
+
+blockers:
+- Need a safe authenticated QA user/session with no secret recorded in the report to finish the live product-grid verification.
+
+next_needed:
+- Return #470 to PM Chamo for safe QA session handoff, then re-run only the logged-in visible card checks. If a logged-in screen mismatch appears, route to Cloud for frontend/copy or Kaido for server contract.
+
 status: fail
 task: #436 - Artist URL knowledge integrated live re-QA after health alignment
 environment:
