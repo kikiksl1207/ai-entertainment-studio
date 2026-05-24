@@ -5295,15 +5295,23 @@ export class AdminService {
     const status = this.optionalString(query, 'status');
 
     if (artistId && !this.isUuid(artistId)) {
-      throw new BadRequestException('artistId must be a UUID');
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_INVALID_ID',
+        'artistKnowledgeUrl.error.invalidId',
+        '자료 URL 요청 정보를 확인해 주세요.',
+        { field: 'artistId' },
+      );
     }
 
     if (
       status &&
       !(ARTIST_URL_KNOWLEDGE_STATUSES as readonly string[]).includes(status)
     ) {
-      throw new BadRequestException(
-        `status must be one of ${ARTIST_URL_KNOWLEDGE_STATUSES.join(', ')}`,
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_STATUS_INVALID',
+        'artistKnowledgeUrl.error.statusInvalid',
+        '자료 URL 상태 필터를 확인해 주세요.',
+        { supportedStatuses: ARTIST_URL_KNOWLEDGE_STATUSES },
       );
     }
 
@@ -5354,19 +5362,19 @@ export class AdminService {
     knowledgeUrlId: string,
     input: AdminPayload,
   ) {
-    this.assertUuid(knowledgeUrlId, 'knowledgeUrlId');
+    this.assertArtistKnowledgeUuid(knowledgeUrlId, 'knowledgeUrlId');
     const existing = await this.prisma.artistKnowledgeUrl.findUnique({
       where: { id: knowledgeUrlId },
     });
 
     if (!existing) {
-      throw new NotFoundException('Artist knowledge URL not found');
+      this.throwArtistKnowledgeNotFound();
     }
 
     if (existing.status === 'archived') {
       throw new ConflictException({
         code: 'ARTIST_KNOWLEDGE_URL_ARCHIVED',
-        message: 'Archived knowledge URLs cannot be approved',
+        message: '보관된 자료 URL은 승인할 수 없습니다.',
         messageKey: 'artistKnowledgeUrl.error.archived',
       });
     }
@@ -5376,7 +5384,11 @@ export class AdminService {
       normalizeArtistKnowledgeSummary(existing.summary);
 
     if (!summary) {
-      throw new BadRequestException('summary is required');
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_SUMMARY_REQUIRED',
+        'artistKnowledgeUrl.error.summaryRequired',
+        '승인하려면 요약 설명이 필요합니다.',
+      );
     }
 
     const before = existing;
@@ -5432,20 +5444,27 @@ export class AdminService {
     knowledgeUrlId: string,
     input: AdminPayload,
   ) {
-    this.assertUuid(knowledgeUrlId, 'knowledgeUrlId');
-    const reason = this.string(input, 'reason');
+    this.assertArtistKnowledgeUuid(knowledgeUrlId, 'knowledgeUrlId');
+    const reason = this.optionalString(input, 'reason');
+    if (!reason) {
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_REJECTION_REASON_REQUIRED',
+        'artistKnowledgeUrl.error.rejectionReasonRequired',
+        '반려하려면 사유를 입력해 주세요.',
+      );
+    }
     const existing = await this.prisma.artistKnowledgeUrl.findUnique({
       where: { id: knowledgeUrlId },
     });
 
     if (!existing) {
-      throw new NotFoundException('Artist knowledge URL not found');
+      this.throwArtistKnowledgeNotFound();
     }
 
     if (existing.status === 'archived') {
       throw new ConflictException({
         code: 'ARTIST_KNOWLEDGE_URL_ARCHIVED',
-        message: 'Archived knowledge URLs cannot be rejected',
+        message: '보관된 자료 URL은 반려할 수 없습니다.',
         messageKey: 'artistKnowledgeUrl.error.archived',
       });
     }
@@ -5492,13 +5511,13 @@ export class AdminService {
     knowledgeUrlId: string,
     input: AdminPayload,
   ) {
-    this.assertUuid(knowledgeUrlId, 'knowledgeUrlId');
+    this.assertArtistKnowledgeUuid(knowledgeUrlId, 'knowledgeUrlId');
     const existing = await this.prisma.artistKnowledgeUrl.findUnique({
       where: { id: knowledgeUrlId },
     });
 
     if (!existing) {
-      throw new NotFoundException('Artist knowledge URL not found');
+      this.throwArtistKnowledgeNotFound();
     }
 
     const before = existing;
@@ -5614,6 +5633,34 @@ export class AdminService {
         rawUrlIncludedInPrompt: false,
       },
     };
+  }
+
+  private assertArtistKnowledgeUuid(value: string, field: string) {
+    if (!this.isUuid(value)) {
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_INVALID_ID',
+        'artistKnowledgeUrl.error.invalidId',
+        '자료 URL 요청 정보를 확인해 주세요.',
+        { field },
+      );
+    }
+  }
+
+  private throwArtistKnowledgeNotFound(): never {
+    throw new NotFoundException({
+      code: 'ARTIST_KNOWLEDGE_URL_NOT_FOUND',
+      message: '자료 URL을 찾을 수 없습니다.',
+      messageKey: 'artistKnowledgeUrl.error.notFound',
+    });
+  }
+
+  private throwArtistKnowledgeBadRequest(
+    code: string,
+    messageKey: string,
+    message: string,
+    details?: Record<string, unknown>,
+  ): never {
+    throw new BadRequestException(this.clean({ code, message, messageKey, details }));
   }
 
   private presentAiContentHealth(artist: Record<string, unknown>) {

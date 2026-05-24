@@ -621,14 +621,18 @@ export class CreatorStudioService {
     user: AuthUser,
     input: CreateCreatorStudioKnowledgeUrlDto,
   ) {
-    await this.assertArtistOperator(user.id, input.artistId);
+    await this.assertArtistKnowledgeOperator(user.id, input.artistId);
 
     const sourceType = this.knowledgeSourceType(input.type);
     const canonicalUrl = this.canonicalKnowledgeUrl(input.url);
     const summary = normalizeArtistKnowledgeSummary(input.description);
 
     if (!summary) {
-      throw new BadRequestException('description is required');
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_DESCRIPTION_REQUIRED',
+        'artistKnowledgeUrl.error.descriptionRequired',
+        '자료 설명을 입력해 주세요.',
+      );
     }
 
     await this.assertKnowledgeUrlNotDuplicated(input.artistId, canonicalUrl);
@@ -664,21 +668,21 @@ export class CreatorStudioService {
     knowledgeUrlId: string,
     input: UpdateCreatorStudioKnowledgeUrlDto,
   ) {
-    this.assertUuid(knowledgeUrlId, 'knowledgeUrlId');
+    this.assertArtistKnowledgeUuid(knowledgeUrlId, 'knowledgeUrlId');
     const existing = await this.prisma.artistKnowledgeUrl.findUnique({
       where: { id: knowledgeUrlId },
     });
 
     if (!existing) {
-      throw new NotFoundException('Artist knowledge URL not found');
+      this.throwArtistKnowledgeNotFound();
     }
 
-    await this.assertArtistOperator(user.id, existing.artistId);
+    await this.assertArtistKnowledgeOperator(user.id, existing.artistId);
 
     if (existing.status === 'archived') {
       throw new ConflictException({
         code: 'ARTIST_KNOWLEDGE_URL_ARCHIVED',
-        message: 'Archived knowledge URLs cannot be edited',
+        message: '보관된 자료 URL은 수정할 수 없습니다.',
         messageKey: 'artistKnowledgeUrl.error.archived',
       });
     }
@@ -690,7 +694,11 @@ export class CreatorStudioService {
       input.allowChatRef !== undefined;
 
     if (!hasPatch) {
-      throw new BadRequestException('At least one field is required');
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_PATCH_REQUIRED',
+        'artistKnowledgeUrl.error.patchRequired',
+        '수정할 항목을 하나 이상 입력해 주세요.',
+      );
     }
 
     const canonicalUrl =
@@ -713,7 +721,11 @@ export class CreatorStudioService {
     const summary = normalizeArtistKnowledgeSummary(description);
 
     if (!summary) {
-      throw new BadRequestException('description is required');
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_DESCRIPTION_REQUIRED',
+        'artistKnowledgeUrl.error.descriptionRequired',
+        '자료 설명을 입력해 주세요.',
+      );
     }
 
     const row = await this.prisma.artistKnowledgeUrl.update({
@@ -753,16 +765,16 @@ export class CreatorStudioService {
   }
 
   async archiveKnowledgeUrl(user: AuthUser, knowledgeUrlId: string) {
-    this.assertUuid(knowledgeUrlId, 'knowledgeUrlId');
+    this.assertArtistKnowledgeUuid(knowledgeUrlId, 'knowledgeUrlId');
     const existing = await this.prisma.artistKnowledgeUrl.findUnique({
       where: { id: knowledgeUrlId },
     });
 
     if (!existing) {
-      throw new NotFoundException('Artist knowledge URL not found');
+      this.throwArtistKnowledgeNotFound();
     }
 
-    await this.assertArtistOperator(user.id, existing.artistId);
+    await this.assertArtistKnowledgeOperator(user.id, existing.artistId);
 
     const row = await this.prisma.artistKnowledgeUrl.update({
       where: { id: existing.id },
@@ -1149,7 +1161,9 @@ export class CreatorStudioService {
       description: row.artistDescription,
       summary: row.summary,
       allowChatRef: row.allowChatReference,
-      status: row.status,
+      status: ARTIST_URL_KNOWLEDGE_STATUSES.includes(row.status as never)
+        ? row.status
+        : 'pending',
       rejectionReason: row.rejectionReason,
       metadata: this.recordOrEmpty(row.metadata),
       createdAt: row.createdAt,
@@ -1514,13 +1528,33 @@ export class CreatorStudioService {
     }
   }
 
+  private async assertArtistKnowledgeOperator(userId: string, artistId: string) {
+    const operator = await this.prisma.artistOperator.findFirst({
+      where: {
+        userId,
+        artistId,
+        status: 'active',
+        revokedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!operator) {
+      throw new ForbiddenException({
+        code: 'ARTIST_KNOWLEDGE_URL_ACCESS_REQUIRED',
+        message: '이 아티스트의 자료 URL을 관리할 권한이 없습니다.',
+        messageKey: 'artistKnowledgeUrl.error.accessRequired',
+      });
+    }
+  }
+
   private async creatorStudioKnowledgeArtistIds(
     userId: string,
     artistId?: string,
   ) {
     if (artistId) {
-      this.assertUuid(artistId, 'artistId');
-      await this.assertArtistOperator(userId, artistId);
+      this.assertArtistKnowledgeUuid(artistId, 'artistId');
+      await this.assertArtistKnowledgeOperator(userId, artistId);
 
       return [artistId];
     }
@@ -1540,8 +1574,11 @@ export class CreatorStudioService {
 
   private knowledgeSourceType(type: string) {
     if (!isArtistKnowledgeSourceType(type)) {
-      throw new BadRequestException(
-        `type must be one of ${ARTIST_URL_KNOWLEDGE_CONTRACT.sourceTypes.join(', ')}`,
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_TYPE_INVALID',
+        'artistKnowledgeUrl.error.typeInvalid',
+        '지원하는 자료 유형을 선택해 주세요.',
+        { supportedTypes: ARTIST_URL_KNOWLEDGE_CONTRACT.sourceTypes },
       );
     }
 
@@ -1563,7 +1600,11 @@ export class CreatorStudioService {
 
       return url.toString();
     } catch {
-      throw new BadRequestException('url must be a valid http or https URL');
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_INVALID_URL',
+        'artistKnowledgeUrl.error.invalidUrl',
+        'http 또는 https로 시작하는 올바른 URL을 입력해 주세요.',
+      );
     }
   }
 
@@ -1587,7 +1628,7 @@ export class CreatorStudioService {
     if (existing) {
       throw new ConflictException({
         code: 'ARTIST_KNOWLEDGE_URL_DUPLICATED',
-        message: 'This URL is already registered for the artist',
+        message: '이미 등록된 자료 URL입니다.',
         messageKey: 'artistKnowledgeUrl.error.duplicated',
         existingStatus: ARTIST_URL_KNOWLEDGE_STATUSES.includes(
           existing.status as never,
@@ -1596,6 +1637,34 @@ export class CreatorStudioService {
           : 'pending',
       });
     }
+  }
+
+  private assertArtistKnowledgeUuid(value: string, field: string) {
+    if (!UUID_PATTERN.test(value)) {
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_INVALID_ID',
+        'artistKnowledgeUrl.error.invalidId',
+        '자료 URL 요청 정보를 확인해 주세요.',
+        { field },
+      );
+    }
+  }
+
+  private throwArtistKnowledgeNotFound(): never {
+    throw new NotFoundException({
+      code: 'ARTIST_KNOWLEDGE_URL_NOT_FOUND',
+      message: '자료 URL을 찾을 수 없습니다.',
+      messageKey: 'artistKnowledgeUrl.error.notFound',
+    });
+  }
+
+  private throwArtistKnowledgeBadRequest(
+    code: string,
+    messageKey: string,
+    message: string,
+    details?: Record<string, unknown>,
+  ): never {
+    throw new BadRequestException(this.clean({ code, message, messageKey, details }));
   }
 
   private parseSettlementKey(settlementKey: string) {
