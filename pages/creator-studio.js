@@ -198,7 +198,8 @@
   }
 
   window.addEventListener("error", function () {
-    deny("스튜디오 화면 스크립트 실행 중 오류가 발생했습니다. 새로고침 후에도 반복되면 배포 파일을 확인해야 합니다.");
+    // #460 — "배포 파일을 확인해야 합니다" 개발 투명 문구 → 서비스 톤으로 교체
+    deny("스튜디오 화면을 불러오는 중 문제가 생겼어요. 새로고침 후에도 계속되면 고객센터에 문의해 주세요.");
   });
 
   window.addEventListener("unhandledrejection", function () {
@@ -761,6 +762,13 @@
       const artistSel = document.getElementById("knowledgeUrlArtistSelect");
       if (artistSel?.value) params.set("artistId", artistSel.value);
       const res = await fetchCreatorStudioApi("/api/v1/me/creator-studio/knowledge-urls?" + params);
+      // #460 — API 미개방(404/501)과 권한 없음(403) 구분
+      if (res.status === 403) {
+        rows.innerHTML = '<tr><td colspan="6">이 기능 사용 권한이 없어요. 운영팀 안내 후 이용할 수 있습니다.</td></tr>';
+        setKnowledgeSubmitLocked(true);
+        setKnowledgeUrlState("이 기능 사용 권한이 없어요. 운영팀 안내 후 이용할 수 있습니다.", "");
+        return;
+      }
       if (res.status === 404 || res.status === 501) {
         rows.innerHTML = '<tr><td colspan="6">자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요. 폼 구성은 미리 확인할 수 있습니다.</td></tr>';
         setKnowledgeSubmitLocked(true);
@@ -827,6 +835,11 @@
         method: "POST",
         body: { artistId: selectedArtistId, type, url, description, allowChatRef }
       });
+      // #460 — API 미개방(404/501)과 권한 없음(403) 구분
+      if (res.status === 403) {
+        setKnowledgeUrlState("이 기능 사용 권한이 없어요. 운영팀 안내 후 이용할 수 있습니다.", "");
+        return;
+      }
       if (res.status === 404 || res.status === 501) {
         // #440 — 기능 미개방은 사용자 오류가 아니므로 danger 대신 중립 톤.
         setKnowledgeUrlState("자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요.", "");
