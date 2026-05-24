@@ -1538,6 +1538,8 @@ body.is-feed-repost-open { overflow: hidden; }
 
 @media (max-width: 480px) {
   .feed-thread-extend-actions { flex-direction: column-reverse; align-items: stretch; }
+  /* #447 — 타래 잇기 패널 카운터: column-reverse 방향에서 우측 정렬 */
+  .feed-thread-extend-counter { text-align: right; margin-right: 0; }
   .feed-repost-foot { flex-direction: column-reverse; align-items: stretch; }
   .feed-share-toast { bottom: 112px; }
 }
@@ -1892,6 +1894,17 @@ body.is-feed-repost-open { overflow: hidden; }
 }
 .feed-repost-counter[data-state="warn"]   { color: #ffc97a; }
 .feed-repost-counter[data-state="danger"] { color: #ff6b6b; font-weight: 600; }
+
+/* ── #447 — 390px 카드 액션바 폴리싱 ──────────────────────────────────────────
+   390px (≤420px) 에서 left-group 버튼 4개 + 공유가 338px 안에 들어오지 않아
+   줄바꿈이 발생하는 문제 수정.
+   타래 잇기·리포스트는 아이콘+aria-label 유지, 라벨 span만 숨김. (공유처럼) */
+@media (max-width: 420px) {
+  .feed-post-actions { gap: 8px; }
+  .feed-post-actions-left { gap: 8px; }
+  .feed-action-btn.feed-thread-extend-btn span,
+  .feed-action-btn.feed-repost-btn span { display: none; }
+}
 
 /* ── #415 — 수정 모달 카운터 ── */
 .feed-edit-modal-meta {
