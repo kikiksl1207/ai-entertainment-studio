@@ -3583,6 +3583,16 @@ p {
   background: linear-gradient(180deg, rgba(255, 20, 147, 0.05), rgba(159, 139, 199, 0.04));
   transform: translateY(-1px);
 }
+/* #437 — 팬/데뷔 카드: 클릭으로 글 상세 진입 가능. 아티스트 카드(.clickable-card)와 톤 통일하되
+   hover 색상은 보라 계열로 구분(아티스트=핑크, 팬/데뷔=보라). */
+.feed-post[data-feed-open-id] {
+  cursor: pointer;
+}
+.feed-post[data-feed-open-id]:hover {
+  border-color: rgba(159, 139, 199, 0.5);
+  background: linear-gradient(180deg, rgba(159, 139, 199, 0.1), rgba(159, 139, 199, 0.04));
+  transform: translateY(-1px);
+}
 
 .feed-post-head {
   display: flex;
@@ -3870,6 +3880,15 @@ p {
   justify-content: space-between;
   gap: 12px;
 }
+/* #437 — 댓글 300자 카운터 */
+.feed-comment-counter {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(220, 210, 240, 0.48);
+  letter-spacing: 0;
+}
+.feed-comment-counter[data-state="warn"]   { color: rgba(255, 180, 80, 0.9); }
+.feed-comment-counter[data-state="danger"] { color: #ff4d4d; }
 
 .feed-comment-form button {
   min-width: 86px;

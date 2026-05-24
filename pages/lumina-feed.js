@@ -270,6 +270,9 @@ function renderLuminaFeed() {
     const clickable = artist
       ? ` clickable-card" data-href="/character-detail?slug=${artist.slug}`
       : "";
+    // #437 — 팬/데뷔 카드에 data-feed-open-id 추가 → 카드 본문 클릭 시 openFeedPostDetail() 진입.
+    // 아티스트 카드는 .clickable-card/data-href 로 character-detail 페이지로 이동하므로 제외.
+    const cardOpenAttr = (!artist && post.id) ? ` data-feed-open-id="${feedEscapeHtml(post.id)}"` : "";
     const deleteButton = post.viewer?.canDelete && post.id
       ? `<button class="feed-action-btn feed-delete-btn" type="button" data-feed-delete="${feedEscapeHtml(post.id)}" aria-label="게시글 삭제">삭제</button>`
       : "";
@@ -322,7 +325,7 @@ function renderLuminaFeed() {
     const repostEmbed = renderFeedRepostSource(post.repost);
 
     return `
-      <article class="feed-post${clickable}${continuationClass}" data-feed-type="${post.postType}" data-feed-post-id="${feedEscapeHtml(post.id || "")}"${isThreadContinuation ? ' data-feed-continuation-root="' + feedEscapeHtml(continuationRootId) + '"' : ""}>
+      <article class="feed-post${clickable}${continuationClass}" data-feed-type="${post.postType}" data-feed-post-id="${feedEscapeHtml(post.id || "")}"${cardOpenAttr}${isThreadContinuation ? ' data-feed-continuation-root="' + feedEscapeHtml(continuationRootId) + '"' : ""}>
         ${continuationConnector}
         <header class="feed-post-head"${authorLink}>
           <div class="feed-post-avatar">
@@ -2132,6 +2135,22 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     if (document._feedSocialActionsBound) return;
     document._feedSocialActionsBound = true;
     document.addEventListener("click", function (e) {
+      // #437 — 팬/데뷔 카드 본문 클릭 → 글 상세 진입.
+      // a / button / 이미지 / 타래 확장 패널 클릭은 각각의 전용 핸들러에서 처리하므로 제외.
+      // 아티스트 카드(.clickable-card)는 data-feed-open-id가 없어 자동으로 제외됨.
+      // 상세 패널 안의 .feed-detail-post도 data-feed-open-id가 없어 제외됨.
+      if (!e.target.closest("a, button, [data-feed-asset], [data-feed-asset-group], .feed-thread-extend-panel")) {
+        var openCard = e.target.closest("[data-feed-open-id]");
+        if (openCard) {
+          var openId = openCard.getAttribute("data-feed-open-id");
+          if (openId && typeof openFeedPostDetail === "function") {
+            e.preventDefault();
+            openFeedPostDetail(openId);
+            return;
+          }
+        }
+      }
+
       var originalPostLink = e.target.closest("[data-feed-original-post-id]");
       if (originalPostLink) {
         e.preventDefault();
