@@ -912,16 +912,18 @@ function bindFeedComposeOnce() {
   const updateState = () => {
     const len = textarea.value.length;
     if (counter) {
-      counter.textContent = `${len} / ${FEED_COMPOSE_MAX_BODY}`;
-      const warnThreshold = Math.ceil(FEED_COMPOSE_MAX_BODY * 0.9);
+      // #444 — 타래 모드일 때 첫 조각도 500자 정책. 카운터 기준을 맞춰 혼동 방지.
+      const effectiveMax = _feedComposeThreadMode ? FEED_THREAD_ITEM_MAX_BODY : FEED_COMPOSE_MAX_BODY;
+      counter.textContent = `${len} / ${effectiveMax}`;
+      const warnThreshold = Math.ceil(effectiveMax * 0.9);
       let state = "ok";
-      if (len >= FEED_COMPOSE_MAX_BODY) state = "danger";
+      if (len >= effectiveMax) state = "danger";
       else if (len >= warnThreshold) state = "warn";
       counter.dataset.state = state;
       if (state === "danger") {
-        counter.setAttribute("title", `${FEED_COMPOSE_MAX_BODY}자까지 작성할 수 있어요. 더 쓰려면 줄여주세요.`);
+        counter.setAttribute("title", `${effectiveMax}자까지 작성할 수 있어요. 더 쓰려면 줄여주세요.`);
       } else if (state === "warn") {
-        counter.setAttribute("title", `${FEED_COMPOSE_MAX_BODY - len}자 남았어요.`);
+        counter.setAttribute("title", `${effectiveMax - len}자 남았어요.`);
       } else {
         counter.removeAttribute("title");
       }
@@ -1147,6 +1149,9 @@ function bindFeedComposeThreadMode(textarea, parentUpdateState) {
     toggle.setAttribute("aria-pressed", _feedComposeThreadMode ? "true" : "false");
     composer.hidden = !_feedComposeThreadMode;
     if (composeSubmitBtn) composeSubmitBtn.hidden = _feedComposeThreadMode;
+    // #444 — 타래 모드 전환 시 compose 텍스트 maxlength를 첫 조각 기준(500자)으로 맞춤.
+    // 일반 모드에서는 2200자로 복원.
+    if (textarea) textarea.maxLength = _feedComposeThreadMode ? FEED_THREAD_ITEM_MAX_BODY : FEED_COMPOSE_MAX_BODY;
   }
 
   function renderThreadItems() {
@@ -1214,7 +1219,8 @@ function bindFeedComposeThreadMode(textarea, parentUpdateState) {
       const hasEmptyItem = _feedComposeThreadItems.some(it => !(it.body || "").trim());
       const overItemCap = _feedComposeThreadItems.some(it => (it.body?.length || 0) > FEED_THREAD_ITEM_MAX_BODY);
       const overAggregateCap = aggregate > FEED_THREAD_AGGREGATE_MAX;
-      const overRootCap = rootBodyLen > FEED_COMPOSE_MAX_BODY;
+      // #444 — 타래 첫 조각(root)도 feedThreadValidation과 동일하게 500자 기준 적용.
+      const overRootCap = rootBodyLen > FEED_THREAD_ITEM_MAX_BODY;
       const ready = !rootEmpty
         && !hasEmptyItem
         && !overItemCap
@@ -1363,6 +1369,13 @@ function bindFeedComposeThreadMode(textarea, parentUpdateState) {
 function showFeedThreadFollowupCta(body) {
   const cta = document.getElementById("feedComposeFollowupCta");
   if (!cta) return;
+  // #444 — 타래 모드 이미 활성 중이거나 본문이 없으면 CTA 억제. 중복 "타래로 이어쓰기" 안내 방지.
+  if (_feedComposeThreadMode || !body) {
+    cta.hidden = true;
+    delete cta.dataset.body;
+    return;
+  }
+  // #378 — 현재 노출 억제. 향후 재활성화 시 아래 두 줄 제거 (위 guard는 유지).
   cta.hidden = true;
   delete cta.dataset.body;
 }
@@ -1954,9 +1967,20 @@ async function runFeedComposeUploadStages(item, onStateChange) {
   function toggleThreadExtendPanel(card, postInfo) {
     if (!card) return;
     var existing = card.querySelector(".feed-thread-extend-panel");
+    var threadBtn = card.querySelector("[data-feed-thread-extend]");
     if (existing) {
       existing.remove();
+      // #444 — 패널 닫힘: 타래 잇기 버튼 활성 피드백 해제.
+      if (threadBtn) {
+        threadBtn.classList.remove("is-active");
+        threadBtn.removeAttribute("aria-pressed");
+      }
       return;
+    }
+    // #444 — 패널 열림: 타래 잇기 버튼에 활성 피드백. 중복 CTA처럼 보이지 않게 토글 상태 명시.
+    if (threadBtn) {
+      threadBtn.classList.add("is-active");
+      threadBtn.setAttribute("aria-pressed", "true");
     }
     var panel = document.createElement("section");
     panel.className = "feed-thread-extend-panel";

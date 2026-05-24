@@ -1377,6 +1377,9 @@ body.is-booting .feed-list::before {
 }
 .feed-thread-extend-btn svg, .feed-repost-btn svg, .feed-share-btn svg { width: 16px; height: 16px; }
 .feed-thread-extend-btn:hover { color: #ff7eb9; border-color: rgba(255, 20, 147, 0.4); }
+/* #444 — 타래 잇기 패널 열린 동안 버튼 활성 피드백 (토글 상태 명시, 중복 CTA 오해 방지) */
+.feed-thread-extend-btn.is-active,
+.feed-thread-extend-btn[aria-pressed="true"] { color: #ff7eb9; border-color: rgba(255, 20, 147, 0.4); }
 .feed-repost-btn:hover { color: #b6f5d8; border-color: rgba(58, 210, 159, 0.4); }
 .feed-share-btn:hover { color: #d4c1ff; border-color: rgba(124, 58, 237, 0.4); }
 
