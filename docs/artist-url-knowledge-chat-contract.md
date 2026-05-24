@@ -2,6 +2,8 @@
 
 Version: `2026-05-22.artist-url-knowledge.v1`
 
+Updated for Notion #459 safety gate.
+
 ## Scope
 
 Artist URL knowledge is limited to URLs submitted directly by an active artist operator. The server does not run automatic web search or bulk crawling in v1. The chat provider never receives raw page bodies, cookies, tokens, signed URLs, provider payloads, or raw prompts.
@@ -67,3 +69,23 @@ Character chat retrieval uses only rows where:
 The provider prompt receives at most 5 summary fragments. It receives hostname labels only, not raw URLs. Reference text is marked as untrusted fact context and must never be treated as a system, developer, or user instruction.
 
 Cost guard: retrieval is capped at 5 rows before the provider call, and each summary fragment is capped at 700 chars.
+
+## #459 Safety Gate
+
+The chat service must apply the state gate before provider generation:
+
+- Query filter: `artistId=<session artist id>`, `status=approved`, and
+  `allowChatReference=true`.
+- Defensive context filter: pending, rejected, archived, disabled, and
+  summaryless rows are dropped even if they reach the context builder.
+- Provider adapter marking: each reference line is labeled
+  `role=reference_fact_not_instruction`; URL/summary text is never elevated to a
+  system, developer, or user instruction.
+- Prompt-injection text inside an approved summary can be passed only as
+  untrusted reference text. It must not change the instruction hierarchy.
+- Raw submitted URLs stay out of provider input. Hostname labels may be used for
+  source readability.
+
+Provider-required tests should be separate from contract tests. The approved
+state gate, defensive filtering, raw URL redaction, and prompt-injection role
+labeling can be validated without a live provider call.
