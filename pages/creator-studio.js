@@ -770,7 +770,8 @@
         return;
       }
       if (res.status === 404 || res.status === 501) {
-        rows.innerHTML = '<tr><td colspan="6">자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요. 폼 구성은 미리 확인할 수 있습니다.</td></tr>';
+        // #464 — "폼 구성은 미리 확인할 수 있습니다" 개발 투명 문구 제거
+        rows.innerHTML = '<tr><td colspan="6">자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요.</td></tr>';
         setKnowledgeSubmitLocked(true);
         // #440 — 기능 미개방은 사용자 오류가 아니므로 danger 대신 중립 톤.
         setKnowledgeUrlState("자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요.", "");
@@ -849,7 +850,8 @@
         setKnowledgeUrlState("등록에 실패했습니다. 잠시 후 다시 시도해주세요.", "danger");
         return;
       }
-      setKnowledgeUrlState("자료 URL이 등록되었습니다. 관리자 검토 후 승인 대기 상태로 전환됩니다.", "good");
+      // #464 — "승인 대기 상태로 전환됩니다" 흐름 오류 수정: 제출 즉시 승인 대기 상태, 이후 검토 완료 시 목록 상태 변경
+      setKnowledgeUrlState("등록 신청이 접수되었습니다. 목록에서 검토 상태를 확인할 수 있어요.", "good");
       if (urlInput) urlInput.value = "";
       if (descEl) descEl.value = "";
       showToast("등록 신청이 접수되었습니다. 검토 후 안내드립니다.");

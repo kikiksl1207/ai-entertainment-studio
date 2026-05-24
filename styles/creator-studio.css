@@ -572,6 +572,8 @@ td { color: var(--text); }
 @media (max-width: 680px) {
   .studio-main { padding: 22px 14px 42px; }
   .studio-topbar, .panel-header, .table-card header { flex-direction: column; }
+  /* #464 — 안내 블록 모바일 세로 정렬: 제목·본문 가로 나열 → 세로 스택 */
+  .notice { flex-direction: column; gap: 8px; }
   .studio-nav, .metric-grid, .media-grid, .form-grid, .account-mode, .studio-mini-grid, .studio-check-item, .requirement-item, .settlement-profile-grid { grid-template-columns: 1fr; }
   .studio-shell, .studio-main, .studio-section, .panel, .table-card, .artist-list, .artist-card, .table-wrap { min-width: 0; max-width: 100%; }
   .table-wrap { width: 100%; }
