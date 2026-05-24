@@ -1,5 +1,7 @@
 export const ARTIST_URL_KNOWLEDGE_CONTRACT_VERSION =
   '2026-05-22.artist-url-knowledge.v1';
+export const ARTIST_URL_KNOWLEDGE_AUDIT_CONTRACT_VERSION =
+  '2026-05-24.artist-url-knowledge-audit.v1';
 
 export const ARTIST_URL_KNOWLEDGE_STATUSES = [
   'pending',
@@ -33,6 +35,34 @@ export type ArtistKnowledgeChatCandidate = {
   allowChatReference: boolean;
   reviewedAt?: Date | string | null;
   createdAt?: Date | string | null;
+};
+export type ArtistKnowledgeAuditCandidate = {
+  id: string;
+  artistId: string;
+  submittedByUserId?: string | null;
+  reviewedByUserId?: string | null;
+  status: string;
+  sourceType: string;
+  allowChatReference: boolean;
+  summary?: string | null;
+  rejectionReason?: string | null;
+  reviewedAt?: Date | string | null;
+  archivedAt?: Date | string | null;
+};
+
+export type ArtistKnowledgeAuditSnapshot = {
+  contractVersion: typeof ARTIST_URL_KNOWLEDGE_AUDIT_CONTRACT_VERSION;
+  id: string;
+  artistId: string;
+  submittedByUserId: string | null;
+  reviewedByUserId: string | null;
+  status: ArtistUrlKnowledgeStatus;
+  sourceType: ArtistUrlKnowledgeSourceType;
+  allowChatReference: boolean;
+  summaryPresent: boolean;
+  rejectionReasonPresent: boolean;
+  reviewedAt: string | null;
+  archivedAt: string | null;
 };
 
 export type ArtistKnowledgeChatContext = {
@@ -197,6 +227,44 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
     rawPromptStored: false,
     privateMaterialsExposedToChat: false,
   },
+  auditContract: {
+    version: ARTIST_URL_KNOWLEDGE_AUDIT_CONTRACT_VERSION,
+    actions: [
+      'creator_studio.artist_knowledge_url.create',
+      'creator_studio.artist_knowledge_url.update',
+      'creator_studio.artist_knowledge_url.archive',
+      'artist_knowledge_url.approve',
+      'artist_knowledge_url.reject',
+      'artist_knowledge_url.archive',
+    ],
+    targetType: 'artist_knowledge_url',
+    actorTypes: ['creator', 'admin'],
+    storesOnly: [
+      'actor user id',
+      'target id',
+      'artist id',
+      'submitted by user id',
+      'reviewed by user id',
+      'status transition',
+      'source type',
+      'allowChatReference boolean',
+      'summary/rejection presence booleans',
+      'reviewed/archived timestamps',
+    ],
+    forbiddenFields: [
+      'url',
+      'canonicalUrl',
+      'artistDescription',
+      'summary text',
+      'rejection reason text',
+      'raw page body',
+      'token',
+      'cookie',
+      'password',
+      'provider payload',
+      'database url',
+    ],
+  },
 } as const;
 
 export function isArtistKnowledgeStatus(
@@ -282,6 +350,87 @@ export function buildArtistKnowledgeChatContext(
         instructionRole: 'reference_fact_not_instruction',
       })),
   };
+}
+
+export function buildArtistKnowledgeAuditSnapshot(
+  row: ArtistKnowledgeAuditCandidate | null | undefined,
+): ArtistKnowledgeAuditSnapshot | null {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    contractVersion: ARTIST_URL_KNOWLEDGE_AUDIT_CONTRACT_VERSION,
+    id: row.id,
+    artistId: row.artistId,
+    submittedByUserId: row.submittedByUserId ?? null,
+    reviewedByUserId: row.reviewedByUserId ?? null,
+    status: isArtistKnowledgeStatus(row.status) ? row.status : 'pending',
+    sourceType: isArtistKnowledgeSourceType(row.sourceType) ? row.sourceType : 'other',
+    allowChatReference: row.allowChatReference === true,
+    summaryPresent: Boolean(normalizeArtistKnowledgeSummary(row.summary)),
+    rejectionReasonPresent: Boolean(normalizeArtistKnowledgeSummary(row.rejectionReason)),
+    reviewedAt: isoStringOrNull(row.reviewedAt),
+    archivedAt: isoStringOrNull(row.archivedAt),
+  };
+}
+
+export function buildArtistKnowledgeAuditPayload(
+  action: string,
+  before: ArtistKnowledgeAuditCandidate | null | undefined,
+  after: ArtistKnowledgeAuditCandidate | null | undefined,
+) {
+  const beforeData = buildArtistKnowledgeAuditSnapshot(before);
+  const afterData = buildArtistKnowledgeAuditSnapshot(after);
+
+  return {
+    beforeData,
+    afterData,
+    metadata: {
+      contractVersion: ARTIST_URL_KNOWLEDGE_AUDIT_CONTRACT_VERSION,
+      action,
+      statusTransition: {
+        from: beforeData?.status ?? null,
+        to: afterData?.status ?? null,
+      },
+      changedFields: artistKnowledgeAuditChangedFields(beforeData, afterData),
+      sensitiveDataStored: false,
+      rawUrlStored: false,
+      rawPageBodyStored: false,
+      tokenCookiePasswordStored: false,
+      providerPayloadStored: false,
+      dbUrlStored: false,
+    },
+  };
+}
+
+function artistKnowledgeAuditChangedFields(
+  before: ArtistKnowledgeAuditSnapshot | null,
+  after: ArtistKnowledgeAuditSnapshot | null,
+) {
+  if (!before && after) {
+    return ['created'];
+  }
+
+  if (before && !after) {
+    return ['deleted'];
+  }
+
+  if (!before || !after) {
+    return [];
+  }
+
+  const changedFieldCandidates: Array<keyof ArtistKnowledgeAuditSnapshot> = [
+    'status',
+    'reviewedByUserId',
+    'allowChatReference',
+    'summaryPresent',
+    'rejectionReasonPresent',
+    'reviewedAt',
+    'archivedAt',
+  ];
+
+  return changedFieldCandidates.filter((field) => before[field] !== after[field]);
 }
 
 function sourceLabelFromUrl(value: string | null | undefined) {

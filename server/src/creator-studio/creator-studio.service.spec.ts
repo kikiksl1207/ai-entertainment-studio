@@ -215,6 +215,9 @@ describe('CreatorStudioService artist knowledge URLs', () => {
         create: jest.fn().mockResolvedValue(row),
         update: jest.fn().mockResolvedValue(row),
       },
+      auditEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+      },
       ...overrides,
     };
     const service = new CreatorStudioService(
@@ -259,6 +262,34 @@ describe('CreatorStudioService artist knowledge URLs', () => {
         }),
       }),
     );
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          actorUserId: userId,
+          actorType: 'creator',
+          action: 'creator_studio.artist_knowledge_url.create',
+          targetType: 'artist_knowledge_url',
+          targetId: row.id,
+          beforeData: expect.anything(),
+          afterData: expect.objectContaining({
+            status: 'pending',
+            artistId,
+            summaryPresent: true,
+          }),
+          metadata: expect.objectContaining({
+            statusTransition: { from: null, to: 'pending' },
+            rawUrlStored: false,
+            rawPageBodyStored: false,
+            tokenCookiePasswordStored: false,
+            providerPayloadStored: false,
+            dbUrlStored: false,
+          }),
+        }),
+      }),
+    );
+    const auditPayload = JSON.stringify(prisma.auditEvent.create.mock.calls[0][0]);
+    expect(auditPayload).not.toContain('https://www.youtube.com/watch?v=abc');
+    expect(auditPayload).not.toContain('Behind the scenes rehearsal update.');
     expect(result).toMatchObject({
       item: {
         status: 'pending',
@@ -373,6 +404,18 @@ describe('CreatorStudioService artist knowledge URLs', () => {
           reviewedAt: null,
           rejectionReason: null,
           summary: 'Updated artist-provided summary.',
+        }),
+      }),
+    );
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          actorType: 'creator',
+          action: 'creator_studio.artist_knowledge_url.update',
+          metadata: expect.objectContaining({
+            statusTransition: { from: 'approved', to: 'pending' },
+            rawUrlStored: false,
+          }),
         }),
       }),
     );
