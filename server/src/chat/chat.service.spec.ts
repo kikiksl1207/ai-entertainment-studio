@@ -4208,6 +4208,9 @@ describe('ChatService.generateMessage provider beta', () => {
       walletLedger: {
         create: jest.fn(),
       },
+      artistKnowledgeUrl: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       $transaction: jest.fn((callback) => callback(tx)),
     };
   }
@@ -4647,6 +4650,9 @@ describe('ChatService.generateMessage provider beta', () => {
         findFirst: jest.fn().mockResolvedValue(paidOrder),
       },
       chatMessage: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      artistKnowledgeUrl: {
         findMany: jest.fn().mockResolvedValue([]),
       },
       $transaction: jest.fn((callback) => callback(tx)),

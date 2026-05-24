@@ -23,6 +23,7 @@
     "render:start:seed": "npm run prisma:deploy && npm run prisma:seed:fast && npm run start:prod",
     "verify:object-storage": "node scripts/verify-object-storage-upload.mjs",
     "lint": "eslint \"src/**/*.ts\"",
+    "pretest": "prisma generate",
     "test": "jest"
   },
   "prisma": {

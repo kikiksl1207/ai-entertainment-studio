@@ -19,7 +19,6 @@ import {
   ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY,
   ARTIST_URL_KNOWLEDGE_CONTRACT,
   buildArtistKnowledgeChatContext,
-  ArtistKnowledgeChatCandidate,
   ArtistKnowledgeChatContext,
 } from './artist-url-knowledge-contract';
 import {
@@ -3805,19 +3804,7 @@ export class ChatService {
   private async loadApprovedArtistKnowledgeContext(
     artistId: string,
   ): Promise<ArtistKnowledgeChatContext> {
-    const delegate = (
-      this.prisma as unknown as {
-        artistKnowledgeUrl?: {
-          findMany: (args: unknown) => Promise<ArtistKnowledgeChatCandidate[]>;
-        };
-      }
-    ).artistKnowledgeUrl;
-
-    if (!delegate?.findMany) {
-      return buildArtistKnowledgeChatContext([]);
-    }
-
-    const items = await delegate.findMany({
+    const items = await this.prisma.artistKnowledgeUrl.findMany({
       where: {
         artistId,
         status: 'approved',
