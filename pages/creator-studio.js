@@ -707,7 +707,8 @@
   function syncKnowledgeUrlAvailability() {
     if (canSubmitKnowledgeUrl()) return false;
     setKnowledgeSubmitLocked(true);
-    setKnowledgeUrlState("운영 아티스트 연결이 완료되면 자료 URL을 등록할 수 있어요. 계정 승인 상태는 유지됩니다.", "danger");
+    // #440 — 아티스트 미연결은 사용자 오류가 아니라 계정 준비 단계. danger 대신 중립 톤.
+    setKnowledgeUrlState("운영 아티스트 연결이 완료되면 자료 URL을 등록할 수 있어요. 계정 승인 상태는 유지됩니다.", "");
     return true;
   }
 
@@ -726,8 +727,10 @@
       const rawDesc = String(item.description || item.summary || "");
       const descTrunc = rawDesc.slice(0, 60) + (rawDesc.length > 60 ? "…" : "");
       const allowRef = item.allowChatRef !== false;
-      const chatLabel = !allowRef ? "미허용" : (item.status === "approved" ? "참고 가능" : "승인 대기");
-      const chatClass = !allowRef ? "" : (item.status === "approved" ? "is-good" : "is-warn");
+      // #440 — 반려·보관 항목은 "승인 대기"가 아닌 실제 상태에 맞는 문구로 안내.
+      const isRejectedOrArchived = item.status === "rejected" || item.status === "archived";
+      const chatLabel = !allowRef ? "미허용" : (item.status === "approved" ? "참고 가능" : isRejectedOrArchived ? "참고 불가" : "승인 대기");
+      const chatClass = !allowRef ? "" : (item.status === "approved" ? "is-good" : isRejectedOrArchived ? "is-error" : "is-warn");
       const statusLabel = knowledgeUrlStatusLabel(item.status || "pending");
       const statusClass = knowledgeUrlStatusClass(item.status || "pending");
       const typeLabel = knowledgeUrlTypeLabel(item.type || "other");
@@ -760,7 +763,8 @@
       if (res.status === 404 || res.status === 501) {
         rows.innerHTML = '<tr><td colspan="6">자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요. 폼 구성은 미리 확인할 수 있습니다.</td></tr>';
         setKnowledgeSubmitLocked(true);
-        setKnowledgeUrlState("자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요.", "danger");
+        // #440 — 기능 미개방은 사용자 오류가 아니므로 danger 대신 중립 톤.
+        setKnowledgeUrlState("자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요.", "");
         return;
       }
       if (!res.ok) throw new Error("load failed");
@@ -823,7 +827,8 @@
         body: { artistId: selectedArtistId, type, url, description, allowChatRef }
       });
       if (res.status === 404 || res.status === 501) {
-        setKnowledgeUrlState("자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요.", "danger");
+        // #440 — 기능 미개방은 사용자 오류가 아니므로 danger 대신 중립 톤.
+        setKnowledgeUrlState("자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요.", "");
         return;
       }
       if (!res.ok) {
