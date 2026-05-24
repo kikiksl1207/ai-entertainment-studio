@@ -2205,16 +2205,8 @@ function createUserMenu() {
       if (action === "logout") {
         authLogout();
       } else if (action === "studio") {
-        // #144 차모 spec: access.entryUrl 우선
-        try {
-          if (_creatorStudioAccess?.enabled && !sessionStorage.getItem(CREATOR_STUDIO_HANDOFF_KEY)) {
-            sessionStorage.setItem(CREATOR_STUDIO_HANDOFF_KEY, JSON.stringify({
-              savedAt: Date.now(),
-              viewerEmail: getAuth()?.user?.email || "",
-              data: { access: _creatorStudioAccess, viewer: getAuth()?.user || null }
-            }));
-          }
-        } catch (_) {}
+        // #436: do not synthesize a partial handoff here. The Studio page must
+        // fetch the full bootstrap so artist/profile/knowledge-url state is present.
         window.location.href = studioEntryUrl(_creatorStudioAccess?.entryUrl || "/creator-studio");
       } else if (action === "public-profile") {
         // 본인 user-profile.html — publicHandle 우선, 없으면 user.id
