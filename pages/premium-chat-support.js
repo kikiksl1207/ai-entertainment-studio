@@ -19,7 +19,7 @@
     policy: {
       authRequired: true,
       walletMutationEnabled: false,
-      disabledDisplayMessageKo: "프리미엄챗 후원은 원장·보안 검증이 끝난 뒤 열릴 예정이에요."
+      disabledDisplayMessageKo: "프리미엄챗 후원은 서비스 준비가 완료된 뒤 열릴 예정이에요." // #474 내부 용어 제거
     },
     donation: {
       fixedAmountsLumina: [10, 50, 100, 500, 1000, 5000, 10000, 50000],

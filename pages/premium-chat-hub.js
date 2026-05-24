@@ -173,10 +173,10 @@
     }
 
     // 3) 404/501 — 엔드포인트 미개방 (contract: planned 상태)
-    if (stateEl) stateEl.textContent = "원장 검증 대기";
+    if (stateEl) stateEl.textContent = "준비 중"; // #474 내부 용어 제거
     list.innerHTML =
       '<li class="premium-chat-available-artists-empty">' +
-        '<p>프리미엄챗 아티스트 목록은 원장·보안 검증이 끝난 뒤 공개돼요.</p>' +
+        '<p>프리미엄챗 가능 아티스트는 서비스 준비 완료 후 공개돼요.</p>' +
         '<a class="premium-chat-available-artists-cta" href="/characters">아티스트 라인업 보기 →</a>' +
       '</li>';
   }
@@ -215,7 +215,7 @@
       return;
     }
     if (convRes.error) {
-      setState(mutationOpen ? "데이터 로드 실패" : "원장·보안 검증 대기");
+      setState(mutationOpen ? "데이터 로드 실패" : "서비스 준비 중"); // #474 내부 용어 제거
       renderRooms([], mutationOpen);
       loadAvailableArtists(mutationOpen); // #469 — 방 목록 실패여도 아티스트 목록은 시도
       return;
