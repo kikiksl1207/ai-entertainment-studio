@@ -92,6 +92,55 @@ describe('auth QA account access contract', () => {
     );
   });
 
+  it('defines the sanitized live access self-check for QA creator and admin', () => {
+    expect(AUTH_QA_ACCOUNT_ACCESS_CONTRACT.liveAccessSelfCheck).toMatchObject({
+      task: '#458',
+      script: 'npm run qa:auth-access-self-check',
+      confirmEnv: 'AUTH_QA_ACCESS_VERIFY_CONFIRM',
+      confirmValue: 'VERIFY_AUTH_QA_ACCESS_SELF_CHECK',
+      requiredSlotGroups: [
+        expect.objectContaining({
+          key: 'qa_creator',
+          requiredSlots: ['QA_CREATOR_EMAIL', 'QA_CREATOR_PASSWORD'],
+          passCriteria: expect.objectContaining({
+            creatorStudioAccessEnabled: true,
+            artistOperatorAccess: true,
+            accessSource: 'artist_operator',
+          }),
+        }),
+        expect.objectContaining({
+          key: 'qa_admin',
+          requiredSlots: ['QA_ADMIN_EMAIL', 'QA_ADMIN_PASSWORD'],
+          passCriteria: expect.objectContaining({
+            adminAccessEnabled: true,
+            roleKind: 'super_admin',
+            hasWildcardPermission: true,
+            backstageSummaryAccess: true,
+          }),
+        }),
+      ],
+    });
+    expect(AUTH_QA_ACCOUNT_ACCESS_CONTRACT.liveAccessSelfCheck.allowedOutput).toEqual(
+      expect.arrayContaining([
+        'HTTP status',
+        'access enabled booleans',
+        'safe role kind',
+        'permission booleans',
+        'nextOwner routing key',
+      ]),
+    );
+    expect(AUTH_QA_ACCOUNT_ACCESS_CONTRACT.liveAccessSelfCheck.forbiddenOutput).toEqual(
+      expect.arrayContaining([
+        'raw email',
+        'password',
+        'access token',
+        'cookie',
+        'raw response body',
+        'environment value',
+      ]),
+    );
+  });
+
   it('keeps secrets out of the QA account handoff contract', () => {
     const payload = JSON.stringify(AUTH_QA_ACCOUNT_ACCESS_CONTRACT);
 

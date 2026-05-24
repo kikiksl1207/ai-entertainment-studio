@@ -17,6 +17,7 @@
     "qa:debut-status-fixtures": "node scripts/create-debut-status-owner-fixtures.mjs",
     "qa:debut-status-owner-projection": "node scripts/verify-debut-status-owner-projection.mjs",
     "qa:auth-credential-source": "node scripts/verify-auth-qa-credential-source.mjs",
+    "qa:auth-access-self-check": "node scripts/verify-auth-qa-access-self-check.mjs",
     "qa:chat-conversation-list": "node scripts/verify-chat-conversation-list-fixture.mjs",
     "qa:chat-archive-fixture": "node scripts/prepare-chat-archive-conversation-fixture.mjs",
     "render:start": "npm run prisma:deploy && npm run start:prod",
