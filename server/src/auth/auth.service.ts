@@ -19,6 +19,7 @@ import {
   ConfirmIdentityVerificationDto,
   ConfirmPasswordResetDto,
   DeleteAccountDto,
+  InspectPasswordResetDto,
   LoginDto,
   RegisterDto,
   RequestEmailVerificationDto,
@@ -1740,6 +1741,29 @@ export class AuthService {
     };
   }
 
+  async inspectPasswordReset(input: InspectPasswordResetDto) {
+    const token = await this.inspectUserActionToken(
+      input.token,
+      PASSWORD_RESET_PURPOSE,
+    );
+    const status = token.state;
+    const canReset = status === 'valid';
+
+    return {
+      success: true,
+      ok: true,
+      purpose: PASSWORD_RESET_PURPOSE,
+      status,
+      statusKey: `auth.passwordReset.${status}`,
+      canReset,
+      email: {
+        masked: canReset ? token.targetEmailMasked : null,
+        returned: canReset && token.targetEmailMasked ? 'masked_only' : 'not_returned',
+      },
+      policy: this.passwordResetInspectPolicy(),
+    };
+  }
+
   async confirmPasswordReset(input: ConfirmPasswordResetDto) {
     const email = input.email?.trim().toLowerCase();
     const token = await this.findUserActionTokenForConfirmation(
@@ -3251,6 +3275,25 @@ export class AuthService {
     };
   }
 
+  private passwordResetInspectPolicy() {
+    return {
+      readOnly: true,
+      consumesToken: false,
+      confirmRequiresEmail: false,
+      rawTokenReturned: false,
+      tokenHashReturned: false,
+      fullEmailReturned: false,
+      passwordReturned: false,
+      confirmEndpoint: {
+        method: 'POST',
+        path: '/api/v1/auth/password-resets/confirm',
+        requiredFields: ['token', 'newPassword'],
+        optionalFields: ['email'],
+      },
+      messageKey: 'auth.passwordReset.inspect',
+    };
+  }
+
   private hashToken(token: string) {
     return createHash('sha256').update(token).digest('hex');
   }
@@ -3436,6 +3479,48 @@ export class AuthService {
     }
 
     return token;
+  }
+
+  private async inspectUserActionToken(rawToken: string, purpose: string) {
+    const now = new Date();
+    const token = await this.prisma.userActionToken.findFirst({
+      where: {
+        tokenHash: this.hashToken(rawToken),
+        purpose,
+      },
+      select: {
+        consumedAt: true,
+        expiresAt: true,
+        targetEmailMasked: true,
+        user: {
+          select: {
+            status: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!token) {
+      return { state: 'invalid' as const, targetEmailMasked: null };
+    }
+
+    if (token.consumedAt) {
+      return { state: 'already_used' as const, targetEmailMasked: null };
+    }
+
+    if (token.expiresAt.getTime() <= now.getTime()) {
+      return { state: 'expired' as const, targetEmailMasked: null };
+    }
+
+    if (token.user.status !== 'active' || token.user.deletedAt) {
+      return { state: 'user_not_active' as const, targetEmailMasked: null };
+    }
+
+    return {
+      state: 'valid' as const,
+      targetEmailMasked: token.targetEmailMasked ?? null,
+    };
   }
 
   private async consumeUserActionToken(rawToken: string, purpose: string) {

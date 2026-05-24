@@ -303,6 +303,7 @@ POST /auth/logout
 POST /auth/email-verifications
 POST /auth/email-verifications/confirm
 POST /auth/password-resets
+POST /auth/password-resets/inspect
 POST /auth/password-resets/confirm
 GET /me
 GET /me/summary
@@ -384,6 +385,7 @@ My Page scope notes for 2026-05-02:
 - `POST /auth/email-verifications` body: `{ "email": "user@example.com" }`.
 - `POST /auth/email-verifications/confirm` body: `{ "token": "<email-token>" }`.
 - `POST /auth/password-resets` body: `{ "email": "user@example.com" }`.
+- `POST /auth/password-resets/inspect` body: `{ "token": "<reset-token>" }`.
 - `POST /auth/password-resets/confirm` body: `{ "token": "<reset-token>", "newPassword": "<new-password>" }`.
 - `GET /me` includes `emailVerified`, `emailVerifiedAt`, and `emailVerification`; successful email verification persists `users.email_verified_at`.
 - Email verification and password reset request responses include neutral `policy` metadata for rate-limit/cooldown hints, token TTL, and duplicate pending token handling. Frontend must still render neutral request copy and must not rely on response differences to infer whether an account exists.
@@ -398,7 +400,8 @@ Email delivery contract:
 - If no backend mail provider is configured, the two request endpoints return `success: true`, `ok: true`, and `delivery.status = "not_configured"` without revealing whether the email exists.
 - If `EMAIL_DELIVERY_PROVIDER` is configured to `resend` or `sendgrid`, the backend attempts to send a one-time verification/reset link using the configured action URL base and returns `success: true`, `ok: true`, and `delivery.status = "accepted"`. Provider delivery failures are also kept neutral on request endpoints so account existence is not exposed.
 - Frontend should show the same neutral success copy for both request endpoints, for example "If this email can receive account mail, check your inbox." Do not branch UI on account existence.
-- Confirmation endpoints still receive the token from the emailed URL: `POST /auth/email-verifications/confirm` with `{ "token": "<email-token>" }` and `POST /auth/password-resets/confirm` with `{ "token": "<reset-token>", "newPassword": "<new-password>" }`.
+- The reset screen may call `POST /auth/password-resets/inspect` after reading the emailed URL token. It is read-only, does not consume the token, never returns the raw token/hash/full email/password, and returns `{ status, statusKey, canReset, email: { masked, returned }, policy }`. `status` can be `valid`, `invalid`, `expired`, `already_used`, or `user_not_active`. For `valid`, `email.masked` may contain the stored masked target email; otherwise it is `null`.
+- Confirmation endpoints still receive the token from the emailed URL: `POST /auth/email-verifications/confirm` with `{ "token": "<email-token>" }` and `POST /auth/password-resets/confirm` with `{ "token": "<reset-token>", "newPassword": "<new-password>" }`. Password reset confirmation does not require `email`; `email` remains an optional defense-in-depth check if a client already has it.
 - Password reset confirmation revokes active refresh-token sessions, so clients should clear local tokens and send the user back through login after a successful reset.
 - Confirmation error responses include stable `error.code` and `error.messageKey` values for frontend copy mapping:
   - `AUTH_EMAIL_VERIFICATION_TOKEN_INVALID_OR_EXPIRED` / `auth.emailVerification.tokenInvalidOrExpired`
