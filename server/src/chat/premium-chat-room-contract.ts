@@ -26,6 +26,47 @@ export const PREMIUM_CHAT_ROOM_REFUND_ACCOUNTING_LEDGER_TYPES = [
   'premium_chat_room_artist_compensation',
 ] as const;
 
+export const PREMIUM_CHAT_BILLING_LEDGER_EVENT_NAMES = [
+  'premium_chat.room_open_fee.debit',
+  'premium_chat.message_pair.debit',
+  'premium_chat.donation.debit',
+  'premium_chat.room_refund.credit',
+  'premium_chat.refund_restriction.company_revenue.credit',
+  'premium_chat.refund_restriction.artist_compensation.credit',
+] as const;
+
+export const PREMIUM_CHAT_REFUND_REASON_KEYS = [
+  'unanswered_24h_full_refund',
+  'artist_forced_close_full_refund',
+  'user_fault_report_refund_70',
+  'operator_sanction_user_fault_refund_50',
+  'operator_sanction_artist_fault_full_refund',
+] as const;
+
+export const PREMIUM_CHAT_LEDGER_TRACE_FIELDS = [
+  'premiumChatLedgerGroupId',
+  'flowType',
+  'ledgerEventName',
+  'ledgerType',
+  'source',
+  'direction',
+  'referenceType',
+  'referenceId',
+  'roomId',
+  'artistId',
+  'userId',
+  'grossLumina',
+  'debitLumina',
+  'refundLumina',
+  'companyRevenueLumina',
+  'artistCompensationLumina',
+  'refundReasonKey',
+  'revenueSplitBps',
+  'idempotencyKeyHash',
+  'settlementCandidate',
+  'payoutCandidate',
+] as const;
+
 export const PREMIUM_CHAT_ROOM_ACCESS_CONTROL = {
   unauthenticated: {
     allowed: false,
@@ -74,7 +115,8 @@ export function isPremiumChatRoomMutationBlocked(status: string) {
 }
 
 export const PREMIUM_CHAT_ROOM_CONTRACT = {
-  version: '2026-05-21.premium-chat-room-refund-ledger.v2',
+  version: '2026-05-25.premium-chat-billing-ledger.v1',
+  previousVersion: '2026-05-21.premium-chat-room-refund-ledger.v2',
   feature: 'premium_chat_room',
   status: 'contract_ready_mutation_blocked',
   policy: {
@@ -161,6 +203,7 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
         'premium-chat-room-open:<artistId>:<client-idempotency-key>',
     },
     ledger: {
+      eventName: 'premium_chat.room_open_fee.debit',
       source: 'premium_chat_room_open',
       ledgerType: 'premium_chat_open',
       direction: 'debit',
@@ -173,7 +216,100 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       atomicBalanceGuard: 'cached_balance >= server_amount',
       insufficientBalanceBehavior:
         'return stable insufficient balance error without room, order, or ledger write',
+      traceFields: PREMIUM_CHAT_LEDGER_TRACE_FIELDS,
     },
+  },
+  billingLedger: {
+    version: '2026-05-25.premium-chat-billing-ledger.v1',
+    mutationEnabled: false,
+    walletMutationEnabled: false,
+    pgRefundMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+    eventNames: PREMIUM_CHAT_BILLING_LEDGER_EVENT_NAMES,
+    traceFields: PREMIUM_CHAT_LEDGER_TRACE_FIELDS,
+    flowTypes: ['charge', 'refund', 'donation', 'revenue_split'],
+    roomOpenFee: {
+      eventName: 'premium_chat.room_open_fee.debit',
+      source: 'premium_chat_room_open',
+      ledgerType: 'premium_chat_open',
+      direction: 'debit',
+      referenceType: 'premium_chat_room',
+      amountSource: 'server room tier policy',
+      allowedAmountsLumina: PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
+      idempotencyKeyPattern:
+        'premium-chat-room-open:<artistId>:<client-idempotency-key>',
+    },
+    messagePairCharge: {
+      eventName: 'premium_chat.message_pair.debit',
+      source: 'premium_chat_message',
+      ledgerType: 'premium_chat_message',
+      direction: 'debit',
+      referenceType: 'premium_chat_message_meter_window',
+      unit: {
+        userVisibleSentenceCount: 1,
+        artistVisibleSentenceCount: 1,
+        chargeLumina: 1,
+      },
+      rounding: {
+        fractionalLuminaAllowed: false,
+        halfPairWalletDebitAllowed: false,
+        chargeablePairsFormula:
+          'min(serverVisibleUserSentenceCount, serverVisibleArtistSentenceCount)',
+        unpairedSentenceBehavior:
+          'carry_forward_or_hold_without_wallet_ledger_until_counterparty_sentence_exists',
+      },
+      idempotencyKeyPattern:
+        'premium-chat-message-pair:<roomId>:<meter-window-or-message-pair-id>',
+      clientSubmittedMessageCountTrusted: false,
+      rawMessageBodyRequired: false,
+    },
+    donation: {
+      eventName: 'premium_chat.donation.debit',
+      source: 'premium_chat_donation',
+      ledgerType: 'premium_chat_donation',
+      direction: 'debit',
+      referenceType: 'premium_chat_donation',
+      amountSource: 'server-normalized donation amount',
+      settlementCandidate: true,
+      payoutCandidate: false,
+      idempotencyKeyPattern:
+        'premium-chat-donation:<sessionId>:<client-idempotency-key>',
+    },
+    refundCredit: {
+      eventName: 'premium_chat.room_refund.credit',
+      source: 'premium_chat_room_refund',
+      ledgerType: 'refund',
+      direction: 'credit',
+      referenceType: 'premium_chat_room',
+      idempotencyKeyPattern: 'premium-chat-room-refund:<roomId>:<reasonKey>',
+      duplicateRefundProtection: true,
+    },
+    revenueSplitEntries: [
+      {
+        eventName: 'premium_chat.refund_restriction.company_revenue.credit',
+        source: 'premium_chat_room_refund_restriction',
+        ledgerType: 'premium_chat_room_company_revenue',
+        direction: 'credit',
+        flowType: 'revenue_split',
+        walletLedger: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+      {
+        eventName:
+          'premium_chat.refund_restriction.artist_compensation.credit',
+        source: 'premium_chat_room_refund_restriction',
+        ledgerType: 'premium_chat_room_artist_compensation',
+        direction: 'credit',
+        flowType: 'revenue_split',
+        walletLedger: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+    ],
+    sameLedgerTraceability:
+      'All premium chat charge, refund, donation, and revenue split rows must share premiumChatLedgerGroupId, roomId, artistId, flowType, ledgerEventName, refundReasonKey when applicable, and revenueSplitBps when applicable.',
   },
   duration: {
     baseDays: PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
@@ -236,18 +372,59 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     },
   },
   refunds: {
+    reasonKeys: PREMIUM_CHAT_REFUND_REASON_KEYS,
+    reasonPolicy: [
+      {
+        reasonKey: 'unanswered_24h_full_refund',
+        userRefundBps: 10000,
+        companyRevenueBps: 0,
+        artistCompensationBps: 0,
+        artistCompensationEligible: false,
+      },
+      {
+        reasonKey: 'artist_forced_close_full_refund',
+        userRefundBps: 10000,
+        companyRevenueBps: 0,
+        artistCompensationBps: 0,
+        artistCompensationEligible: false,
+      },
+      {
+        reasonKey: 'user_fault_report_refund_70',
+        userRefundBps: 7000,
+        companyRevenueBps: 2000,
+        artistCompensationBps: 1000,
+        artistCompensationEligible: true,
+      },
+      {
+        reasonKey: 'operator_sanction_user_fault_refund_50',
+        userRefundBps: 5000,
+        companyRevenueBps: 4000,
+        artistCompensationBps: 1000,
+        artistCompensationEligible: true,
+      },
+      {
+        reasonKey: 'operator_sanction_artist_fault_full_refund',
+        userRefundBps: 10000,
+        companyRevenueBps: 0,
+        artistCompensationBps: 0,
+        artistCompensationEligible: false,
+      },
+    ],
     unansweredAfterHours: {
       hours: 24,
       stateKey: 'unanswered_24h_refund_pending',
       publicReasonKey: 'unanswered_24h',
       userRefundBps: 10000,
       ledgerType: 'refund',
+      eventName: 'premium_chat.room_refund.credit',
       source: 'premium_chat_room_refund',
       idempotency: 'server_room_refund_key',
       messageKey: 'chat.premiumRoom.refund.unanswered24h',
     },
     artistForcedClose: {
+      reasonKey: 'artist_forced_close_full_refund',
       userRefundBps: 10000,
+      eventName: 'premium_chat.room_refund.credit',
       ledgerType: 'refund',
       source: 'premium_chat_room_refund',
       idempotency: 'server_room_refund_key',
@@ -259,6 +436,10 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       messageKey: 'chat.premiumRoom.refund.artistForcedClose',
     },
     userFaultPartialRefund: {
+      allowedReasonKeys: [
+        'user_fault_report_refund_70',
+        'operator_sanction_user_fault_refund_50',
+      ],
       allowedUserRefundBps: [7000, 5000],
       clientSubmittedRefundRateTrusted: false,
       minArtistCompensationBpsOfGross: 1000,
@@ -269,6 +450,7 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       outcomes: [
         {
           outcomeKey: 'user_fault_refund_70',
+          reasonKey: 'user_fault_report_refund_70',
           userRefundBps: 7000,
           companyRevenueBps: 2000,
           artistCompensationBps: 1000,
@@ -277,6 +459,7 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
           ledgerEntries: [
             {
               entryKey: 'user_lumina_refund',
+              eventName: 'premium_chat.room_refund.credit',
               ledger: 'wallet_ledger',
               ledgerType: 'refund',
               source: 'premium_chat_room_refund',
@@ -289,6 +472,8 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
             },
             {
               entryKey: 'company_revenue_retention',
+              eventName:
+                'premium_chat.refund_restriction.company_revenue.credit',
               ledger: 'premium_chat_room_revenue_ledger',
               ledgerType: 'premium_chat_room_company_revenue',
               source: 'premium_chat_room_refund_restriction',
@@ -300,6 +485,8 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
             },
             {
               entryKey: 'artist_compensation_retention',
+              eventName:
+                'premium_chat.refund_restriction.artist_compensation.credit',
               ledger: 'premium_chat_artist_revenue_ledger',
               ledgerType: 'premium_chat_room_artist_compensation',
               source: 'premium_chat_room_refund_restriction',
@@ -313,6 +500,7 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
         },
         {
           outcomeKey: 'user_fault_refund_50',
+          reasonKey: 'operator_sanction_user_fault_refund_50',
           userRefundBps: 5000,
           companyRevenueBps: 4000,
           artistCompensationBps: 1000,
@@ -321,6 +509,7 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
           ledgerEntries: [
             {
               entryKey: 'user_lumina_refund',
+              eventName: 'premium_chat.room_refund.credit',
               ledger: 'wallet_ledger',
               ledgerType: 'refund',
               source: 'premium_chat_room_refund',
@@ -333,6 +522,8 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
             },
             {
               entryKey: 'company_revenue_retention',
+              eventName:
+                'premium_chat.refund_restriction.company_revenue.credit',
               ledger: 'premium_chat_room_revenue_ledger',
               ledgerType: 'premium_chat_room_company_revenue',
               source: 'premium_chat_room_refund_restriction',
@@ -344,6 +535,8 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
             },
             {
               entryKey: 'artist_compensation_retention',
+              eventName:
+                'premium_chat.refund_restriction.artist_compensation.credit',
               ledger: 'premium_chat_artist_revenue_ledger',
               ledgerType: 'premium_chat_room_artist_compensation',
               source: 'premium_chat_room_refund_restriction',
@@ -710,6 +903,75 @@ export function resolvePremiumChatRoomRefundPolicy(input: {
     messageKey:
       PREMIUM_CHAT_ROOM_CONTRACT.refunds.userFaultPartialRefund.messageKey,
   } as const;
+}
+
+export function resolvePremiumChatMessageChargePolicy(input: {
+  userVisibleSentenceCount?: unknown;
+  artistVisibleSentenceCount?: unknown;
+  clientSubmittedChargeLumina?: unknown;
+} = {}) {
+  const userVisibleSentenceCount = nonNegativeInteger(
+    input.userVisibleSentenceCount,
+  );
+  const artistVisibleSentenceCount = nonNegativeInteger(
+    input.artistVisibleSentenceCount,
+  );
+  const chargeablePairCount = Math.min(
+    userVisibleSentenceCount,
+    artistVisibleSentenceCount,
+  );
+  const chargeLumina = chargeablePairCount;
+  const clientSubmittedChargeLumina =
+    typeof input.clientSubmittedChargeLumina === 'number'
+      ? input.clientSubmittedChargeLumina
+      : typeof input.clientSubmittedChargeLumina === 'string'
+        ? Number(input.clientSubmittedChargeLumina)
+        : null;
+
+  return {
+    eventName: 'premium_chat.message_pair.debit',
+    source: 'premium_chat_message',
+    ledgerType: 'premium_chat_message',
+    direction: 'debit',
+    unitLumina: 1,
+    userVisibleSentenceCount,
+    artistVisibleSentenceCount,
+    chargeablePairCount,
+    chargeLumina,
+    unpairedUserSentenceCount:
+      userVisibleSentenceCount - chargeablePairCount,
+    unpairedArtistSentenceCount:
+      artistVisibleSentenceCount - chargeablePairCount,
+    fractionalLuminaAllowed: false,
+    halfPairWalletDebitAllowed: false,
+    walletMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+    clientSubmittedChargeTrusted: false,
+    clientSubmittedChargeIgnored:
+      input.clientSubmittedChargeLumina !== undefined,
+    clientSubmittedChargeMismatch:
+      clientSubmittedChargeLumina !== null &&
+      Number.isFinite(clientSubmittedChargeLumina) &&
+      clientSubmittedChargeLumina !== chargeLumina,
+    rawMessageBodyRequired: false,
+    messageKey: 'chat.premiumRoom.messageChargePolicy',
+  } as const;
+}
+
+function nonNegativeInteger(value: unknown) {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number(value)
+        : 0;
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+
+  return Math.floor(parsed);
 }
 
 export function premiumChatRoomAccessForRole(role: PremiumChatRoomAccessRole) {

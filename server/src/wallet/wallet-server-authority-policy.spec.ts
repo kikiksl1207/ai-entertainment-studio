@@ -55,11 +55,32 @@ describe('server-authority wallet policy', () => {
           idempotency: 'client_idempotency_key',
         }),
         expect.objectContaining({
+          source: 'premium_chat_message',
+          direction: 'debit',
+          ledgerType: 'premium_chat_message',
+          serverAuthority: 'server_visible_two_way_sentence_pair_meter',
+          idempotency: 'server_message_pair_meter_key',
+        }),
+        expect.objectContaining({
           source: 'premium_chat_room_refund',
           direction: 'credit',
           ledgerType: 'refund',
           serverAuthority: 'server_refund_policy_and_moderation_outcome',
           idempotency: 'server_room_refund_key',
+        }),
+        expect.objectContaining({
+          source: 'premium_chat_room_refund_restriction',
+          direction: 'credit',
+          ledgerType: 'premium_chat_room_company_revenue',
+          serverAuthority: 'server_refund_restriction_outcome',
+          idempotency: 'server_admin_decision_key',
+        }),
+        expect.objectContaining({
+          source: 'premium_chat_room_refund_restriction',
+          direction: 'credit',
+          ledgerType: 'premium_chat_room_artist_compensation',
+          serverAuthority: 'server_refund_restriction_outcome',
+          idempotency: 'server_admin_decision_key',
         }),
       ]),
     );

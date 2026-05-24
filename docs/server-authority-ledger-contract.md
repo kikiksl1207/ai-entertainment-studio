@@ -1,8 +1,8 @@
 # Server Authority Ledger Contract
 
-Updated: 2026-05-23
+Updated: 2026-05-25
 Owner: Kaido
-Task: Notion #327, #331, #334, #377, #383, #404
+Task: Notion #327, #331, #334, #377, #383, #404, #467
 
 This contract exists to keep Lumina balances, paid actions, purchase credits,
 refunds, and creator-facing revenue signals server-authoritative. A modified
@@ -69,6 +69,7 @@ signed URLs, or provider secrets.
 | Premium video unlock | debit | `premium_video_spend` | server wallet balance | client idempotency key |
 | Character chat paid feature | debit | `chat_feature_spend` | server wallet balance | client idempotency key |
 | Premium chat room open | debit | `premium_chat_open` | server room tier policy + wallet balance | client idempotency key |
+| Premium chat message pair | debit | `premium_chat_message` | server-visible two-way sentence pair meter | server message-pair meter key |
 | Premium chat donation | debit | `premium_chat_donation` | server wallet balance | client idempotency key |
 | Premium chat room refund | credit | `refund` | server refund/moderation outcome | server room refund key |
 | Premium chat room company retention | credit | `premium_chat_room_company_revenue` | server refund restriction outcome | server admin decision key |
@@ -92,6 +93,13 @@ not enabled by default; the DB ledger type migration and room storage must land
 before any public mutation can write it. Room-open amount must come from the
 server room tier policy only.
 
+`premium_chat_message` is reserved for future premium chat message-pair debits.
+One user-visible sentence and one artist-visible sentence form one chargeable
+pair worth 1L. The backend must use server-visible message events only,
+calculate `min(userVisibleSentenceCount, artistVisibleSentenceCount)`, and
+carry unmatched single-side sentences forward without a half-pair wallet
+ledger. Fractional Lumina debits are not allowed.
+
 Premium chat support points are deliberately separate from Lumina wallet ledger
 rows and from fan engagement points. The planned
 `premium_chat_support_point_ledger` table is non-cash, non-transferable, not
@@ -102,6 +110,12 @@ Premium chat room company retention and artist compensation rows are planned
 premium-chat accounting ledgers, not `wallet_ledger` rows. They must not mutate
 user wallet balance, settlement, or payout state until a separate
 admin-reviewed revenue workflow is implemented.
+
+For #467 traceability, premium chat charge/refund/donation/split rows should
+share stable grouping fields such as `premiumChatLedgerGroupId`, `flowType`,
+`ledgerEventName`, `roomId`, `artistId`, `grossLumina`, `refundReasonKey`, and
+`revenueSplitBps`. Raw idempotency keys, provider payloads, PG secrets, wallet
+secrets, tokens, passwords, and DB URLs must not be stored or reported.
 
 ## Paid Action Debit Pattern
 
