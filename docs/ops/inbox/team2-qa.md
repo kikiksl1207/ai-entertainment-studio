@@ -1,6 +1,94 @@
 # Team2 QA Inbox
 
 status: fail
+task: #436 - Artist URL knowledge integrated live re-QA after health alignment
+environment:
+- branch: team2-qa/436-live-reqa-health-aligned
+- `git pull origin main`: already up to date
+- local basis commit: a492d13d12b48e7129043f5427e472e645d101cb
+- live API health: HTTP 200, commit a492d13d12b48e7129043f5427e472e645d101cb
+- live pages:
+  - https://www.lumina-stage.com/creator-studio
+  - https://www.lumina-stage.com/creator-studio#knowledge-url
+  - https://www.lumina-stage.com/backstage
+- No token, cookie, password, env value, secret, signed URL, raw provider payload, raw response body, DB URL, or raw credential was recorded.
+- No URL record creation, approval, rejection, archive, social login, external crawl, provider call, payment, wallet, or balance mutation was executed.
+
+tested_flows:
+- PASS: `git pull origin main` completed on the health-aligned QA branch and reported already up to date.
+- PASS: local QA basis is `a492d13d12b48e7129043f5427e472e645d101cb`.
+- PASS: live `/health` now matches `origin/main` and local `HEAD`: `a492d13d12b48e7129043f5427e472e645d101cb`.
+- PASS: unauthenticated `GET /api/v1/me/creator-studio/knowledge-urls` returned HTTP 401.
+- PASS: unauthenticated `GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-urls` returned HTTP 401.
+- PASS: unauthenticated `GET /api/v1/chat/character-catalog?artistSlug=yoon-serin` returned HTTP 401.
+- PASS: live Creator Studio access fallback copy remains Korean and no longer shows the literal `ACCESS REQUIRED` English headline.
+- PASS: Creator Studio access fallback has no visible replacement-character mojibake at 1280px, 768px, or 390px.
+- PASS: Creator Studio access fallback has no horizontal overflow at 1280px, 768px, or 390px; 390px viewport reported client width 375px and scroll width 375px.
+- PASS: live Backstage operator-login fallback was reachable and had no visible replacement-character mojibake.
+- PASS: `node --check pages/creator-studio.js`.
+- PASS: `node --check app.js`.
+- PASS: `node --check pages/character-chat.js`.
+- PASS: `node --check backstage.js`.
+- PASS: `npm.cmd test -- artist-url-knowledge-contract.spec.ts chat.service.spec.ts creator-studio.service.spec.ts admin.service.spec.ts --runInBand` from `server` passed 66 tests after Prisma generate.
+- PASS: `git diff --check`.
+- FAIL: live `https://www.lumina-stage.com/creator-studio#knowledge-url` still shows the visible access fallback `접근 확인 필요 / 스튜디오 접근 권한이 필요합니다...` instead of the approved creator URL registration form.
+- FAIL: live `https://www.lumina-stage.com/creator-studio` also shows the same fallback; clicking `다시 확인` does not restore an approved creator session.
+- FAIL: the visible page does not show `로그인한 크리에이터`, visible `자료 URL`, or visible `자료 URL 등록`; hidden DOM remnants are not accepted as a passable creator flow.
+- FAIL: live Backstage remains on operator login; the artist knowledge URL approval/reject/archive queue is not reachable without entering credentials.
+- BLOCKED: valid URL registration, pending status, pending exclusion from character chat, approve/reject/archive transitions, approved-only chat inclusion, rejected/archived exclusion, and live prompt-injection defense could not be executed because the required approved creator/operator sessions were unavailable in the browser session.
+
+repro_steps:
+1. Start from `origin/main` and run `git pull origin main`.
+2. Confirm local `HEAD` is `a492d13d12b48e7129043f5427e472e645d101cb`.
+3. Confirm `https://api.lumina-stage.com/health` returns commit `a492d13d12b48e7129043f5427e472e645d101cb`.
+4. Open `https://www.lumina-stage.com/creator-studio#knowledge-url`.
+5. Observe `접근 확인 필요 스튜디오 접근 권한이 필요합니다...` instead of visible `자료 URL 등록`.
+6. Open `https://www.lumina-stage.com/creator-studio`.
+7. Observe the same access fallback.
+8. Click `다시 확인`.
+9. Observe the page remains in the access fallback; no visible `로그인한 크리에이터`, `자료 URL`, or `자료 URL 등록` appears.
+10. Check `creator-studio#knowledge-url` at 1280px, 768px, and 390px; no overflow or mojibake is visible, but the form remains blocked.
+11. Open `https://www.lumina-stage.com/backstage`.
+12. Observe the operator login screen; no artist knowledge URL review queue is reachable without credentials.
+13. Run the local checks listed above.
+
+expected:
+- With live health aligned to `origin/main`, an approved creator should be able to direct-load/reload `/creator-studio#knowledge-url`.
+- Valid URL registration should create a pending item that is not referenced by character chat before approval.
+- Backstage should expose the artist knowledge URL queue to an operator with the required permissions.
+- Only approved `allowChatReference=true` summaries should enter character chat reference context; pending/rejected/archived material should stay excluded.
+
+actual:
+- Deploy basis alignment is now fixed and local contract/service/admin checks are green.
+- Creator Studio approved creator path remains blocked by access fallback in the current browser session.
+- Backstage review controls are not accessible in the current browser session without credentials.
+- No QA fixture was created, so there was no fixture cleanup to perform.
+
+not_verified_due_to_blocker:
+- valid URL creation and pending list state.
+- pending material being excluded from character chat.
+- approved material being included in character chat reference context.
+- rejected/archived material being excluded from character chat.
+- URL/description prompt-injection text being treated as untrusted reference text in live provider path.
+- Backstage pending list, approval, rejection, archive, and no-permission UI/action behavior.
+
+blockers:
+- #436 should not be marked complete until QA has a safe approved creator session plus safe Backstage operator session, or the live session handoff is fixed enough to expose the approved creator form in this browser session.
+
+next_needed:
+- Return #436 to PM Chamo or the auth/session/Backstage handoff owner.
+- Re-run #436 after safe approved creator/operator access is available.
+
+fixture_cleanup:
+- No fixture was created, approved, rejected, or archived during this run.
+
+security_check:
+- PASS: no secrets, tokens, passwords, cookies, env values, signed URLs, raw response bodies, raw provider payloads, DB URLs, or credentials were written.
+- PASS: no live URL record was created, approved, rejected, or archived; no social login, external crawl, provider call, payment, wallet, or balance change was performed.
+
+---
+
+status: fail
 task: #436 - Artist URL knowledge integrated live re-QA
 environment:
 - branch: team2-qa/436-artist-url-integrated-live-reqa

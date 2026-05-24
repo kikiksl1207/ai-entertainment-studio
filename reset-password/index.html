@@ -43,6 +43,8 @@
             <p id="resetPwBody" data-i18n="resetPassword.form.body">기억하기 쉬우면서도 조금 복잡한 조합이 좋아요.</p>
 
             <form class="auth-confirm-form" id="resetPwForm" novalidate>
+              <!-- #455 — inspect 마스킹 이메일 힌트 (valid 상태에서만 노출) -->
+              <p class="auth-confirm-email-hint" id="resetPwEmailHint" hidden></p>
               <label class="auth-confirm-field">
                 <span data-i18n="resetPassword.form.passwordLabel">새 비밀번호</span>
                 <input id="resetPwNew" name="newPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="8자 이상" />
@@ -134,6 +136,14 @@
         function applyState(state, payload) {
           card.dataset.state = state;
           if (kicker) kicker.textContent = STATE_KICKER;
+          // #455 — 토큰 inspect 진행 중 로딩 상태
+          if (state === "loading") {
+            form.hidden = true;
+            if (actions) actions.hidden = true;
+            if (title) title.textContent = "링크 확인 중…";
+            if (body) body.textContent = "";
+            return;
+          }
           if (state === "form") {
             form.hidden = false;
             if (actions) actions.hidden = true;
@@ -141,6 +151,13 @@
             setI18nKey(body, "resetPassword.form.body");
             title.textContent = t("resetPassword.form.title", "새 비밀번호를 설정해 주세요");
             body.textContent = t("resetPassword.form.body", "기억하기 쉬우면서도 조금 복잡한 조합이 좋아요.");
+            // #455 — inspect 마스킹 이메일 힌트 표시 (있을 때만)
+            const emailHintEl = document.getElementById("resetPwEmailHint");
+            if (emailHintEl) {
+              const m = payload?.maskedEmail;
+              if (m) { emailHintEl.textContent = "계정: " + m; emailHintEl.hidden = false; }
+              else { emailHintEl.hidden = true; }
+            }
             return;
           }
           form.hidden = true;
@@ -180,6 +197,14 @@
             if (body) body.textContent = "잠시 뒤에 다시 시도해 주세요. 같은 문제가 반복되면 재설정 메일을 새로 받아 주세요.";
             if (primary) { primary.textContent = t("resetPassword.invalid.primary", "재설정 메일 다시 받기"); primary.href = "/#login"; }
             if (secondary) { secondary.textContent = t("resetPassword.success.secondary", "홈으로"); secondary.href = "/"; }
+          // #455 — user_not_active: 계정 비활성 상태
+          } else if (state === "inactive") {
+            setI18nKey(title, null);
+            setI18nKey(body, null);
+            if (title) title.textContent = "계정이 활성화되지 않은 상태예요";
+            if (body) body.textContent = "이 계정은 현재 비활성 상태라 비밀번호를 재설정할 수 없어요. 고객센터에 문의해 주세요.";
+            if (primary) { primary.textContent = "홈으로"; primary.href = "/"; }
+            if (secondary) { secondary.textContent = "로그인 화면으로"; secondary.href = "/#login"; }
           }
         }
 
@@ -200,6 +225,37 @@
           applyState("invalid");
           return;
         }
+
+        // #455 — 페이지 진입 시 token 유효성 inspect (read-only, token 미소모)
+        // 상태: valid→form(마스킹 이메일 힌트 포함) | expired→expired | already_used→used | user_not_active→inactive | 그 외→invalid
+        applyState("loading");
+        (async function inspectToken() {
+          if (typeof apiFetch !== "function") { applyState("invalid"); return; }
+          try {
+            const data = await apiFetch("/api/v1/auth/password-resets/inspect", {
+              method: "POST",
+              body: { token },
+              throwOnError: true
+            });
+            const status = data?.status || "";
+            if (status === "valid" && data?.canReset) {
+              applyState("form", { maskedEmail: data?.email?.masked || null });
+            } else if (status === "expired") {
+              applyState("expired");
+            } else if (status === "already_used") {
+              applyState("used");
+            } else if (status === "user_not_active") {
+              applyState("inactive");
+            } else {
+              applyState("invalid");
+            }
+          } catch (err) {
+            const reason = classifyError(err);
+            if (reason === "expired") applyState("expired");
+            else if (reason === "used") applyState("used");
+            else applyState("invalid");
+          }
+        }());
 
         form.addEventListener("submit", async (event) => {
           event.preventDefault();
