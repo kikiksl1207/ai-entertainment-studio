@@ -1,8 +1,8 @@
 # Premium Chat Room Ledger Contract
 
-Updated: 2026-05-21
+Updated: 2026-05-25
 Owner: Kaido
-Task: Notion #331, #383, #389, #395
+Task: Notion #331, #383, #389, #395, #467
 
 This contract fixes the backend authority rules for premium chat room opening,
 artist closure, report/blind handling, and refund outcomes. It does not open a
@@ -55,7 +55,9 @@ eligibility.
 
 | Flow | Direction | Ledger type | Reference | Idempotency |
 | --- | --- | --- | --- | --- |
-| Room open | debit | `premium_chat_open` | `premium_chat_room` | client key scoped as `premium-chat-room-open:<artistId>:<client-key>` |
+| Room open fee | debit | `premium_chat_open` | `premium_chat_room` | client key scoped as `premium-chat-room-open:<artistId>:<client-key>` |
+| Message pair charge | debit | `premium_chat_message` | `premium_chat_message_meter_window` | server key `premium-chat-message-pair:<roomId>:<meter-window-or-message-pair-id>` |
+| Premium chat donation | debit | `premium_chat_donation` | `premium_chat_donation` | client key scoped as `premium-chat-donation:<sessionId>:<client-key>` |
 | 24h no-answer refund | credit | `refund` | `premium_chat_room` | server key `premium-chat-room-refund:<roomId>:<reasonKey>` |
 | Artist forced close refund | credit | `refund` | `premium_chat_room` | server key `premium-chat-room-refund:<roomId>:<reasonKey>` |
 | User-fault partial refund | credit | `refund` | `premium_chat_room` | server admin decision key |
@@ -63,9 +65,44 @@ eligibility.
 | User-fault artist compensation | credit | `premium_chat_room_artist_compensation` | `premium_chat_room` | server admin decision key |
 | Report/blind pending review | none | none | report/moderation record | no wallet action before admin decision |
 
-`premium_chat_open` is a reserved future ledger type and still needs a wallet
-ledger type migration before the room-open mutation can be enabled. The current
-PR only fixes the contract and tests.
+Ledger event names:
+
+| Event name | Meaning |
+| --- | --- |
+| `premium_chat.room_open_fee.debit` | Room open fee debit for 300L/500L/1,000L/3,000L tiers. |
+| `premium_chat.message_pair.debit` | Future message-pair debit. |
+| `premium_chat.donation.debit` | Premium chat donation debit. |
+| `premium_chat.room_refund.credit` | User Lumina refund credit. |
+| `premium_chat.refund_restriction.company_revenue.credit` | Company retained accounting row after restricted refund. |
+| `premium_chat.refund_restriction.artist_compensation.credit` | Artist 10% compensation accounting row after eligible restricted refund. |
+
+`premium_chat_open`, `premium_chat_message`, and `premium_chat_donation` are
+reserved future wallet ledger types and still need a wallet ledger type
+migration before the corresponding mutation can be enabled. The current PR only
+fixes the contract and tests.
+
+Every charge/refund/donation/split row must be traceable by stable fields:
+`premiumChatLedgerGroupId`, `flowType`, `ledgerEventName`, `ledgerType`,
+`source`, `direction`, `referenceType`, `referenceId`, `roomId`, `artistId`,
+`userId`, `grossLumina`, `debitLumina`, `refundLumina`,
+`companyRevenueLumina`, `artistCompensationLumina`, `refundReasonKey`,
+`revenueSplitBps`, `idempotencyKeyHash`, `settlementCandidate`, and
+`payoutCandidate`. Store a hash/surrogate for idempotency, not the raw key.
+
+## Message Pair Charge
+
+The future message unit charge is server-derived from visible safe message
+events only. One user-visible sentence plus one artist-visible sentence forms
+one chargeable pair and costs 1L. The server formula is:
+
+`chargeablePairs = min(serverVisibleUserSentenceCount, serverVisibleArtistSentenceCount)`
+
+`chargeLumina = chargeablePairs * 1L`
+
+No fractional Lumina or half-pair wallet ledger is allowed. Unmatched user-side
+or artist-side sentences are carried forward or held without a wallet ledger
+until a counterparty sentence exists. Raw chat body text is not required for the
+ledger row; message ids or a server meter-window id are enough.
 
 Room-open retry is safe only when the stored fingerprint matches
 `artistId`, `tierKey`, and the server tier amount. A mismatched replay returns
@@ -95,6 +132,16 @@ balance writes no room, order, or ledger row.
 - Duplicate refund attempts must reuse the original refund projection and must
   not create a second credit ledger.
 
+Reason keys:
+
+| Reason key | User refund | Company retention | Artist compensation | Artist 10% eligible |
+| --- | ---: | ---: | ---: | --- |
+| `unanswered_24h_full_refund` | 100% | 0% | 0% | No |
+| `artist_forced_close_full_refund` | 100% | 0% | 0% | No |
+| `user_fault_report_refund_70` | 70% | 20% | 10% | Yes |
+| `operator_sanction_user_fault_refund_50` | 50% | 40% | 10% | Yes |
+| `operator_sanction_artist_fault_full_refund` | 100% | 0% | 0% | No |
+
 ## Closure And Moderation States
 
 | Case | State | Wallet action |
@@ -123,8 +170,9 @@ conversation-meter, support-point, settlement, or payout mutation:
 
 - Add DB tables for premium chat rooms, reports, room events, and donation
   projections.
-- Add wallet ledger type migration for `premium_chat_open` and any future
-  donation/room ledger types.
+- Add wallet ledger type migration for `premium_chat_open`,
+  `premium_chat_message`, `premium_chat_donation`, and any future
+  premium-chat wallet ledger types.
 - Implement room-open preview/create with server tier lookup and atomic
   non-negative wallet debit.
 - Implement refund/admin decision workflow with duplicate refund protection.

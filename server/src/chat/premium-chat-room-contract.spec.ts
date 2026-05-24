@@ -1,11 +1,15 @@
 import {
   isPremiumChatRoomMutationBlocked,
+  PREMIUM_CHAT_BILLING_LEDGER_EVENT_NAMES,
+  PREMIUM_CHAT_LEDGER_TRACE_FIELDS,
+  PREMIUM_CHAT_REFUND_REASON_KEYS,
   premiumChatRoomAllowedTierKeysForServerUnlocks,
   premiumChatRoomAccessForRole,
   PREMIUM_CHAT_ROOM_CONTRACT,
   PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
   PREMIUM_CHAT_ROOM_REFUND_ACCOUNTING_LEDGER_TYPES,
   resolvePremiumChatRoomDurationPolicy,
+  resolvePremiumChatMessageChargePolicy,
   resolvePremiumChatRoomOpenPolicy,
   resolvePremiumChatRoomRefundPolicy,
 } from './premium-chat-room-contract';
@@ -82,6 +86,7 @@ describe('premium chat room refund and moderation ledger contract', () => {
       requestFingerprintFields: ['artistId', 'tierKey', 'amountLumina'],
     });
     expect(PREMIUM_CHAT_ROOM_CONTRACT.roomOpen.ledger).toMatchObject({
+      eventName: 'premium_chat.room_open_fee.debit',
       source: 'premium_chat_room_open',
       ledgerType: 'premium_chat_open',
       direction: 'debit',
@@ -91,6 +96,11 @@ describe('premium chat room refund and moderation ledger contract', () => {
       atomicBalanceGuard: 'cached_balance >= server_amount',
       insufficientBalanceBehavior:
         'return stable insufficient balance error without room, order, or ledger write',
+    });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.billingLedger.roomOpenFee).toMatchObject({
+      eventName: 'premium_chat.room_open_fee.debit',
+      allowedAmountsLumina: [300, 500, 1000, 3000],
+      amountSource: 'server room tier policy',
     });
   });
 
@@ -153,6 +163,57 @@ describe('premium chat room refund and moderation ledger contract', () => {
     });
   });
 
+  it('charges visible two-way message pairs as integer Lumina without half-pair debits', () => {
+    const resolved = resolvePremiumChatMessageChargePolicy({
+      userVisibleSentenceCount: 3,
+      artistVisibleSentenceCount: 1,
+      clientSubmittedChargeLumina: 99,
+    });
+
+    expect(resolved).toMatchObject({
+      eventName: 'premium_chat.message_pair.debit',
+      source: 'premium_chat_message',
+      ledgerType: 'premium_chat_message',
+      direction: 'debit',
+      unitLumina: 1,
+      userVisibleSentenceCount: 3,
+      artistVisibleSentenceCount: 1,
+      chargeablePairCount: 1,
+      chargeLumina: 1,
+      unpairedUserSentenceCount: 2,
+      unpairedArtistSentenceCount: 0,
+      fractionalLuminaAllowed: false,
+      halfPairWalletDebitAllowed: false,
+      clientSubmittedChargeTrusted: false,
+      clientSubmittedChargeMismatch: true,
+      walletMutationEnabled: false,
+    });
+    expect(
+      resolvePremiumChatMessageChargePolicy({
+        userVisibleSentenceCount: 1,
+        artistVisibleSentenceCount: 0,
+      }),
+    ).toMatchObject({
+      chargeablePairCount: 0,
+      chargeLumina: 0,
+      unpairedUserSentenceCount: 1,
+      halfPairWalletDebitAllowed: false,
+    });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.billingLedger.messagePairCharge).toMatchObject({
+      unit: {
+        userVisibleSentenceCount: 1,
+        artistVisibleSentenceCount: 1,
+        chargeLumina: 1,
+      },
+      rounding: {
+        fractionalLuminaAllowed: false,
+        halfPairWalletDebitAllowed: false,
+        chargeablePairsFormula:
+          'min(serverVisibleUserSentenceCount, serverVisibleArtistSentenceCount)',
+      },
+    });
+  });
+
   it('keeps normal room close read-only with no refund or settlement mutation', () => {
     const transition = PREMIUM_CHAT_ROOM_CONTRACT.stateTransitions.normalClose;
 
@@ -188,7 +249,9 @@ describe('premium chat room refund and moderation ledger contract', () => {
       payoutMutation: false,
     });
     expect(PREMIUM_CHAT_ROOM_CONTRACT.refunds.artistForcedClose).toMatchObject({
+      reasonKey: 'artist_forced_close_full_refund',
       userRefundBps: 10000,
+      eventName: 'premium_chat.room_refund.credit',
       source: 'premium_chat_room_refund',
       ledgerType: 'refund',
       companyRevenueBps: 0,
@@ -231,6 +294,7 @@ describe('premium chat room refund and moderation ledger contract', () => {
       );
 
     expect(outcome).toMatchObject({
+      reasonKey: 'user_fault_report_refund_70',
       userRefundBps: 7000,
       companyRevenueBps: 2000,
       artistCompensationBps: 1000,
@@ -245,12 +309,14 @@ describe('premium chat room refund and moderation ledger contract', () => {
     expect(outcome?.ledgerEntries).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          eventName: 'premium_chat.room_refund.credit',
           ledgerType: 'refund',
           source: 'premium_chat_room_refund',
           walletLedger: true,
           bps: 7000,
         }),
         expect.objectContaining({
+          eventName: 'premium_chat.refund_restriction.company_revenue.credit',
           ledgerType: 'premium_chat_room_company_revenue',
           walletLedger: false,
           settlementMutation: false,
@@ -258,6 +324,7 @@ describe('premium chat room refund and moderation ledger contract', () => {
           bps: 2000,
         }),
         expect.objectContaining({
+          eventName: 'premium_chat.refund_restriction.artist_compensation.credit',
           ledgerType: 'premium_chat_room_artist_compensation',
           walletLedger: false,
           settlementMutation: false,
@@ -275,6 +342,7 @@ describe('premium chat room refund and moderation ledger contract', () => {
       );
 
     expect(outcome).toMatchObject({
+      reasonKey: 'operator_sanction_user_fault_refund_50',
       userRefundBps: 5000,
       companyRevenueBps: 4000,
       artistCompensationBps: 1000,
@@ -309,6 +377,90 @@ describe('premium chat room refund and moderation ledger contract', () => {
       clientSubmittedArtistShareIgnored: true,
       settlementMutationEnabled: false,
       payoutMutationEnabled: false,
+    });
+  });
+
+  it('separates refund reason keys and artist compensation split conditions', () => {
+    expect(PREMIUM_CHAT_REFUND_REASON_KEYS).toEqual([
+      'unanswered_24h_full_refund',
+      'artist_forced_close_full_refund',
+      'user_fault_report_refund_70',
+      'operator_sanction_user_fault_refund_50',
+      'operator_sanction_artist_fault_full_refund',
+    ]);
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.refunds.reasonPolicy).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reasonKey: 'artist_forced_close_full_refund',
+          userRefundBps: 10000,
+          artistCompensationBps: 0,
+          artistCompensationEligible: false,
+        }),
+        expect.objectContaining({
+          reasonKey: 'user_fault_report_refund_70',
+          userRefundBps: 7000,
+          companyRevenueBps: 2000,
+          artistCompensationBps: 1000,
+          artistCompensationEligible: true,
+        }),
+        expect.objectContaining({
+          reasonKey: 'operator_sanction_user_fault_refund_50',
+          userRefundBps: 5000,
+          companyRevenueBps: 4000,
+          artistCompensationBps: 1000,
+          artistCompensationEligible: true,
+        }),
+        expect.objectContaining({
+          reasonKey: 'operator_sanction_artist_fault_full_refund',
+          userRefundBps: 10000,
+          artistCompensationBps: 0,
+          artistCompensationEligible: false,
+        }),
+      ]),
+    );
+  });
+
+  it('fixes premium chat ledger event names and trace fields across charge refund donation and split flows', () => {
+    expect(PREMIUM_CHAT_BILLING_LEDGER_EVENT_NAMES).toEqual([
+      'premium_chat.room_open_fee.debit',
+      'premium_chat.message_pair.debit',
+      'premium_chat.donation.debit',
+      'premium_chat.room_refund.credit',
+      'premium_chat.refund_restriction.company_revenue.credit',
+      'premium_chat.refund_restriction.artist_compensation.credit',
+    ]);
+    expect(PREMIUM_CHAT_LEDGER_TRACE_FIELDS).toEqual(
+      expect.arrayContaining([
+        'premiumChatLedgerGroupId',
+        'flowType',
+        'ledgerEventName',
+        'ledgerType',
+        'roomId',
+        'artistId',
+        'grossLumina',
+        'refundLumina',
+        'companyRevenueLumina',
+        'artistCompensationLumina',
+        'refundReasonKey',
+        'revenueSplitBps',
+        'idempotencyKeyHash',
+      ]),
+    );
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.billingLedger).toMatchObject({
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      eventNames: PREMIUM_CHAT_BILLING_LEDGER_EVENT_NAMES,
+      flowTypes: ['charge', 'refund', 'donation', 'revenue_split'],
+      donation: {
+        eventName: 'premium_chat.donation.debit',
+        ledgerType: 'premium_chat_donation',
+      },
+      refundCredit: {
+        eventName: 'premium_chat.room_refund.credit',
+        duplicateRefundProtection: true,
+      },
+      sameLedgerTraceability:
+        'All premium chat charge, refund, donation, and revenue split rows must share premiumChatLedgerGroupId, roomId, artistId, flowType, ledgerEventName, refundReasonKey when applicable, and revenueSplitBps when applicable.',
     });
   });
 
