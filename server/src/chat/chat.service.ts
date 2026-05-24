@@ -3353,6 +3353,14 @@ export class ChatService {
         enabled: true,
         sourceOrder: ['site_content', 'artist_metadata', 'character_fallback', 'default'],
         sessionVariantSeed: 'chat_sessions.id',
+        candidateInputs: [
+          'runtimePersona.welcome.text',
+          'runtimePersona.starterOptions[].message',
+          'runtimePersona.tone.guideKo',
+          'runtimePersona.personaTags[]',
+        ],
+        selectionStrategy: 'deterministic_session_variant_index',
+        sameSessionStable: true,
       },
       toneCandidate: {
         enabled: true,

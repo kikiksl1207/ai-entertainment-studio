@@ -1865,6 +1865,29 @@ describe('ChatService persona and catalog policy', () => {
         'forbiddenTone.items',
       ]),
     );
+    expect(catalog.dynamicGreetingContract).toMatchObject({
+      version: '2026-05-22.character-chat-dynamic-greeting-cache.v1',
+      characterSlug: 'yoon-serin',
+      cacheScope: 'chat_session',
+      refreshCreatesNewGreeting: false,
+      sameSessionReplay: 'return_cached_opening_greeting',
+      sameCharacterDifferentSessionsCanVary: true,
+      fallback: {
+        enabled: true,
+        sessionVariantSeed: 'chat_sessions.id',
+        selectionStrategy: 'deterministic_session_variant_index',
+        sameSessionStable: true,
+        candidateInputs: [
+          'runtimePersona.welcome.text',
+          'runtimePersona.starterOptions[].message',
+          'runtimePersona.tone.guideKo',
+          'runtimePersona.personaTags[]',
+        ],
+      },
+      walletMutation: false,
+      orderMutation: false,
+      settlementMutation: false,
+    });
     expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
     expect(prisma.chatMessage.create).not.toHaveBeenCalled();
