@@ -12,6 +12,7 @@ import { AuthUser } from '../auth/auth.types';
 import {
   ARTIST_URL_KNOWLEDGE_CONTRACT,
   ARTIST_URL_KNOWLEDGE_STATUSES,
+  buildArtistKnowledgeAuditPayload,
   isArtistKnowledgeSourceType,
   normalizeArtistKnowledgeSummary,
 } from '../chat/artist-url-knowledge-contract';
@@ -657,6 +658,13 @@ export class CreatorStudioService {
       },
     });
 
+    await this.recordArtistKnowledgeAudit(
+      user,
+      'creator_studio.artist_knowledge_url.create',
+      null,
+      row,
+    );
+
     return {
       item: this.presentKnowledgeUrl(row),
       contract: ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts.creatorCreate,
@@ -758,6 +766,13 @@ export class CreatorStudioService {
       }),
     });
 
+    await this.recordArtistKnowledgeAudit(
+      user,
+      'creator_studio.artist_knowledge_url.update',
+      existing,
+      row,
+    );
+
     return {
       item: this.presentKnowledgeUrl(row),
       contract: ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts.creatorUpdate,
@@ -784,6 +799,13 @@ export class CreatorStudioService {
         updatedAt: new Date(),
       },
     });
+
+    await this.recordArtistKnowledgeAudit(
+      user,
+      'creator_studio.artist_knowledge_url.archive',
+      existing,
+      row,
+    );
 
     return {
       item: this.presentKnowledgeUrl(row),
@@ -1179,6 +1201,29 @@ export class CreatorStudioService {
         rawUrlIncludedInPrompt: false,
       },
     };
+  }
+
+  private recordArtistKnowledgeAudit(
+    user: AuthUser,
+    action: string,
+    beforeData: Parameters<typeof buildArtistKnowledgeAuditPayload>[1],
+    afterData: Parameters<typeof buildArtistKnowledgeAuditPayload>[2],
+  ) {
+    const audit = buildArtistKnowledgeAuditPayload(action, beforeData, afterData);
+    const targetId = afterData?.id ?? beforeData?.id ?? null;
+
+    return this.prisma.auditEvent.create({
+      data: {
+        actorUserId: user.id,
+        actorType: 'creator',
+        action,
+        targetType: 'artist_knowledge_url',
+        targetId,
+        beforeData: this.toJson(audit.beforeData),
+        afterData: this.toJson(audit.afterData),
+        metadata: this.toJson(audit.metadata),
+      },
+    });
   }
 
   private presentImageRequest(

@@ -2,7 +2,7 @@
 
 Version: `2026-05-22.artist-url-knowledge.v1`
 
-Updated for Notion #459 safety gate.
+Updated for Notion #459 safety gate and #462 audit contract.
 
 ## Scope
 
@@ -56,6 +56,51 @@ Requires `artists:write`. Requires `reason`, sets `status=rejected`, and blocks 
 `POST /api/v1/admin/api/v1/backstage/operations/artist-knowledge-urls/:knowledgeUrlId/archive`
 
 Requires `artists:write`. Sets `status=archived` and blocks chat reference.
+
+## Audit Contract #462
+
+Creator Studio registration/revision/archive and Backstage review actions write
+`audit_events` with `targetType="artist_knowledge_url"` and the knowledge URL
+id as `targetId`.
+
+Event names:
+
+- `creator_studio.artist_knowledge_url.create`
+- `creator_studio.artist_knowledge_url.update`
+- `creator_studio.artist_knowledge_url.archive`
+- `artist_knowledge_url.approve`
+- `artist_knowledge_url.reject`
+- `artist_knowledge_url.archive`
+
+The audit payload is intentionally redacted. `beforeData` and `afterData` store
+only the audit contract version, knowledge URL id, artist id, submitted/reviewed
+user ids, lifecycle status, source type, `allowChatReference`, summary/rejection
+presence booleans, and review/archive timestamps. `metadata` stores the status
+transition, changed field names, and safety booleans such as
+`rawUrlStored=false`, `rawPageBodyStored=false`,
+`tokenCookiePasswordStored=false`, `providerPayloadStored=false`, and
+`dbUrlStored=false`.
+
+Do not store raw submitted URLs, canonical URLs, artist descriptions, summary
+text, rejection reason text, fetched page bodies, tokens, cookies, passwords,
+provider payloads, DB URLs, or signed/private URLs in audit `beforeData`,
+`afterData`, or `metadata`.
+
+Read-only audit lookup may be used by admins with `audit:read`, but it must rely
+on the redacted audit payload above. Backstage artist knowledge list/review
+endpoints may show the submitted URL needed for review, but no fetched raw page
+body or provider payload is stored or returned by this contract.
+
+Failure routing:
+
+- If a Creator Studio registration/update/archive does not create an audit
+  event, keep follow-up with Kaido/backend.
+- If Backstage approve/reject/archive lacks an audit event, keep follow-up with
+  Kaido/backend.
+- If QR cannot see audit lookup due to role/permission setup, route to the
+  Backstage/admin permission owner rather than frontend owners.
+- If the live fixture account cannot reach Creator Studio, use the QA account
+  self-check handoff from #458 before changing existing fixture rows.
 
 ## Chat Reference Rules
 
