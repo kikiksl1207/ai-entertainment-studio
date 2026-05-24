@@ -1,12 +1,13 @@
 # Team2 Backend Inbox
 
-status: ready_for_review
+status: reviewed_for_main
 task: "#463 URL knowledge character chat context verification"
-branch: team2-backend/artist-url-chat-context-463
-commit: final hash recorded in Notion completion report
-push: yes after final validation
-main_reflected: no, review/merge pending
-worktree_cleanup: yes after push and Notion completion report
+source_branch: team2-backend/artist-url-chat-context-463
+source_commit: 0dca0d0
+main_merge_commit: 4430c5c
+push: yes after viewer validation
+main_reflected: yes after viewer validation and merge
+worktree_cleanup: yes after Notion completion report
 changed_files:
 - server/src/chat/chat.service.spec.ts
 - docs/artist-url-knowledge-chat-contract.md
