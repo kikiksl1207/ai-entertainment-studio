@@ -1077,8 +1077,8 @@
         showToast("Studio verification is still loading. The workspace is open while we check again.");
       }
     }, 8000);
-    const token = readAuth()?.accessToken;
-    if (!token) {
+    const auth = readAuth();
+    if (!auth?.accessToken && !auth?.refreshToken) {
       completed = true;
       clearTimeout(hardTimeoutId);
       deny("로그인 후 승인된 크리에이터 계정으로만 접근할 수 있습니다.");
@@ -1087,7 +1087,7 @@
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
     try {
-      let res = await fetchStudioBootstrap(token, controller.signal);
+      let res = await fetchStudioBootstrap(auth.accessToken, controller.signal);
       if (res.status === 401) {
         const refreshed = await refreshStudioAuthOnce();
         if (refreshed?.accessToken) {

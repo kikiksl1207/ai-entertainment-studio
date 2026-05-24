@@ -52,7 +52,7 @@ let selectedDetail = null;
 let pendingActionPreview = null;
 const sectionState = {
   admins: { rows: [], auditRows: [] },
-  creators: { rows: [], artistOptions: [], accessRows: [] },
+  creators: { rows: [], artistOptions: [], accessRows: [], knowledgeRows: [] },
   fanMissions: { rows: [], publicRows: [] },
   users: { cursor: null, hasMore: false, rows: [] },
   settlement: { cursor: null, hasMore: false, rows: [], conversionRows: [] },
@@ -262,6 +262,7 @@ const tableMeta = {
   userRiskRows: { type: "신고/제재 유저", labels: ["유저", "사유", "누적", "상태", "최근 조치", "권장 액션"] },
   creatorRows: { type: "유저 크리에이터", labels: ["본명", "활동명", "로그인", "로그인 계정", "연락 이메일", "연결 아티스트", "스튜디오 권한", "상태", "권장 액션"] },
   creatorImageRequestRows: { type: "이미지 제작 요청", labels: ["요청", "아티스트", "요청자", "차감", "재조정", "상태", "검수", "결과", "권장 액션"] },
+  artistKnowledgeUrlRows: { type: "자료 URL 심사", labels: ["아티스트", "상태", "유형", "요약", "제출자", "생성일", "권장 액션"] },
   aiCreatorRows: { type: "AI 아티스트", labels: ["아티스트", "분류", "만든 관리자", "프로필", "이미지", "상태", "권장 액션"] },
   aiAssetRows: { type: "AI 아티스트 에셋", labels: ["아티스트", "커버", "썸네일", "포토갤러리", "숏폼", "업로드 규칙", "권장 액션"] },
   aiPostRows: { type: "AI 아티스트 콘텐츠", labels: ["아티스트", "피드 글", "프로필 문구", "채팅", "프리미엄", "권장 액션"] },
@@ -1636,6 +1637,27 @@ function renderDetailForm(detail) {
       </div>
       <p class="detail-form-note">slug는 운영자가 입력하지 않습니다. 아티스트 이름을 선택하면 artistId로 Creator Studio 권한을 연결합니다.</p>
     `;
+  } else if (tableId === "artistKnowledgeUrlRows") {
+    html = `
+      <h3>자료 URL 심사</h3>
+      <div class="detail-form-grid">
+        ${detailInput("Knowledge URL ID", "knowledgeUrlId", escapeHtml(meta.knowledgeUrlId || ""), "text", true)}
+        ${detailInput("아티스트", "artist", escapeHtml(meta.artistName || row[0] || ""))}
+        ${detailInput("자료 URL", "url", escapeHtml(meta.url || ""), "url", true)}
+        ${detailSelect("처리 상태", "reviewStatus", [
+          { value: "approved", label: "승인" },
+          { value: "rejected", label: "반려" },
+          { value: "archived", label: "보관" }
+        ], meta.status === "rejected" ? "rejected" : meta.status === "archived" ? "archived" : "approved")}
+        ${detailSelect("채팅 참고 허용", "allowChatRef", [
+          { value: "true", label: "허용" },
+          { value: "false", label: "차단" }
+        ], meta.allowChatRef === false ? "false" : "true")}
+        ${detailTextarea("승인 요약", "summary", escapeHtml(meta.summary || meta.description || ""), true, "승인 시 캐릭터챗에 들어갈 안전 요약을 입력합니다.")}
+        ${detailTextarea("반려/보관 사유", "reason", escapeHtml(meta.rejectionReason || ""), true, "반려 또는 보관 시 운영 사유를 입력합니다.")}
+      </div>
+      <p class="detail-form-note">승인된 자료만 캐릭터챗 참고 후보가 됩니다. raw 페이지 본문이나 토큰 값은 저장하지 않습니다.</p>
+    `;
   } else if (quickTitle === "이미지 제작 요청" || tableId === "creatorImageRequestRows") {
     html = `
       <h3>유저 아티스트 이미지 제작</h3>
@@ -1960,6 +1982,22 @@ function getActionProfile(detail, action = "memo") {
       warning: "데뷔 신청 상세, 보완 요청, 승인/반려는 신청서 권리 확인과 연락처 권한을 함께 봐야 합니다.",
       holdLabel: "보완 요청 메모",
       dangerLabel: "상태 저장",
+      showHold: true,
+      showDanger: true,
+      dangerDisabled: false
+    };
+  }
+
+  if (tableId === "artistKnowledgeUrlRows") {
+    return {
+      ...profile,
+      group: "아티스트 자료 URL 심사",
+      targetType: "artistKnowledgeUrl",
+      endpoint: "POST /admin/api/v1/backstage/operations/artist-knowledge-urls/:knowledgeUrlId/(approve|reject|archive)",
+      method: "POST",
+      warning: "승인된 자료만 캐릭터챗 참고 후보가 됩니다. 요약, 채팅 참고 허용 여부, 반려/보관 사유를 확인하세요.",
+      holdLabel: "심사 보류 메모",
+      dangerLabel: "심사 상태 저장",
       showHold: true,
       showDanger: true,
       dangerDisabled: false
@@ -2403,6 +2441,38 @@ function buildActionRequest(detail, action) {
     };
   }
 
+  if (tableId === "artistKnowledgeUrlRows") {
+    const knowledgeUrlId = firstValue(meta.knowledgeUrlId, form.knowledgeUrlId);
+    if (!knowledgeUrlId) return null;
+    const reviewStatus = form.reviewStatus || "approved";
+    if (reviewStatus === "rejected") {
+      return {
+        method: "POST",
+        path: adminApiPath(`/backstage/operations/artist-knowledge-urls/${encodeURIComponent(knowledgeUrlId)}/reject`),
+        body: {
+          reason: firstValue(form.reason, reason)
+        }
+      };
+    }
+    if (reviewStatus === "archived") {
+      return {
+        method: "POST",
+        path: adminApiPath(`/backstage/operations/artist-knowledge-urls/${encodeURIComponent(knowledgeUrlId)}/archive`),
+        body: {
+          reason: firstValue(form.reason, reason)
+        }
+      };
+    }
+    return {
+      method: "POST",
+      path: adminApiPath(`/backstage/operations/artist-knowledge-urls/${encodeURIComponent(knowledgeUrlId)}/approve`),
+      body: {
+        summary: firstValue(form.summary, meta.summary, meta.description),
+        allowChatRef: form.allowChatRef === "false" ? false : true
+      }
+    };
+  }
+
   if (quickTitle === "AI 아티스트 추가") {
     return {
       method: "POST",
@@ -2805,6 +2875,9 @@ function actionChangeLabel(preview) {
     const count = splitTargetUsers(form.targetUsers).length || (form.email || form.userId ? 1 : preview?.apiRequest?.body?.targets?.length || 0);
     return `${amount}L ${direction}${count > 1 ? ` · ${formatCount(count)}명` : ""}`;
   }
+  if (preview?.targetType === "artistKnowledgeUrl") {
+    return localizeArtistKnowledgeStatus(form.reviewStatus || preview?.bodyPreview?.action || "approved");
+  }
   if (preview?.targetType === "creatorSettlement" || preview?.targetType === "studioSettlement") {
     return settlementStatusLabel(form.settlementStatus || preview?.apiRequest?.body?.status);
   }
@@ -2977,7 +3050,12 @@ async function runPreparedAction() {
       confirmMessage.textContent = isMutation ? "변경이 완료됐습니다." : "조회가 완료됐습니다.";
       confirmPayload.innerHTML = renderConfirmSummary(pendingActionPreview, { status: isMutation ? "변경 완료" : "조회 완료", message: summary });
       appendActionHistory(pendingActionPreview, { status: isMutation ? "변경 완료" : "조회 완료", message: summary });
-      console.debug("Backstage action result", { preview: pendingActionPreview, result: data });
+      console.debug("Backstage action result", {
+        targetType: pendingActionPreview.targetType,
+        method: request.method,
+        path: request.path,
+        resultSummary: summary
+      });
       confirmRunButton.textContent = isMutation ? "변경 완료" : "조회 완료";
       if (help) help.textContent = `${pendingActionPreview.actionGroup} ${isMutation ? "저장" : "조회"} 처리가 끝났어요. 화면 반영이 필요한 목록은 새로고침으로 다시 불러올 수 있습니다.`;
       await reloadCurrentSectionAfterAction();
@@ -2998,7 +3076,14 @@ async function runPreparedAction() {
       confirmMessage.textContent = error.message || "처리에 실패했어요.";
       confirmPayload.innerHTML = renderConfirmSummary(pendingActionPreview, { status: "처리 실패", message: error.message || "잠시 후 다시 시도해 주세요." });
       appendActionHistory(pendingActionPreview, { status: "처리 실패", message: error.message || "잠시 후 다시 시도해 주세요." });
-      console.debug("Backstage action error", { preview: pendingActionPreview, errorStatus: error.status, errorBody: error.body });
+      console.debug("Backstage action error", {
+        targetType: pendingActionPreview.targetType,
+        method: request.method,
+        path: request.path,
+        errorStatus: error.status,
+        errorCode: error.body?.code || error.body?.error?.code || null,
+        messageKey: error.body?.messageKey || error.body?.error?.messageKey || null
+      });
       confirmRunButton.textContent = isMutation ? "다시 변경" : "다시 조회";
       confirmRunButton.disabled = false;
     }
@@ -3021,6 +3106,7 @@ function renderBackstageTables() {
   renderRows("userRiskRows", backstageRows.userRisks, 3);
   renderRows("creatorRows", backstageRows.creators, 7);
   renderRows("creatorImageRequestRows", backstageRows.creatorImageRequests, 5);
+  renderLoadingRow("artistKnowledgeUrlRows", "자료 URL 심사 큐는 운영자 권한 확인 후 불러옵니다.");
   renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
   renderRows("aiAssetRows", backstageRows.aiAssets, -1);
   renderRows("aiPostRows", backstageRows.aiPosts, -1);
@@ -3480,6 +3566,34 @@ function localizeWorkflowStatus(status) {
   return statusMap[status] || status || "-";
 }
 
+function localizeArtistKnowledgeStatus(status) {
+  const statusMap = {
+    pending: "접수",
+    approved: "승인",
+    rejected: "반려",
+    archived: "보관"
+  };
+  return statusMap[status] || status || "-";
+}
+
+function localizeArtistKnowledgeType(type) {
+  const typeMap = {
+    official: "공식",
+    sns: "SNS",
+    interview: "인터뷰",
+    article: "기사",
+    video: "영상",
+    other: "기타"
+  };
+  return typeMap[type] || type || "기타";
+}
+
+function compactText(value = "", limit = 64) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return "-";
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+}
+
 function countLabel(count, unit = "개") {
   const number = Number(count || 0);
   return number > 0 ? `${number.toLocaleString("ko-KR")}${unit}` : "필요";
@@ -3636,14 +3750,16 @@ async function loadUsersPage(append = true) {
 }
 
 async function loadCreatorsSection() {
-  sectionState.creators = { rows: [], artistOptions: [], accessRows: [] };
+  sectionState.creators = { rows: [], artistOptions: [], accessRows: [], knowledgeRows: [] };
   renderLoadingRow("creatorRows");
   renderLoadingRow("creatorImageRequestRows");
+  renderLoadingRow("artistKnowledgeUrlRows");
   renderLoadingRow("aiCreatorRows");
   try {
-    const [data, imageRequestsPage] = await Promise.all([
+    const [data, imageRequestsPage, knowledgeUrlsPage] = await Promise.all([
       backstageFetch(adminApiPath("/backstage/operations/creators?take=20"), { auth: true }),
-      backstageFetch(adminApiPath("/creator-image-requests?take=20"), { auth: true }).catch(() => null)
+      backstageFetch(adminApiPath("/creator-image-requests?take=20"), { auth: true }).catch(() => null),
+      backstageFetch(adminApiPath("/backstage/operations/artist-knowledge-urls?take=20"), { auth: true }).catch(() => null)
     ]);
     const applicationsPage = normalizePage(data?.applications || data);
     const activeCreators = data?.activeCreators || [];
@@ -3724,18 +3840,51 @@ async function loadCreatorsSection() {
         resultAssetIds: request.resultAssetIds || []
       }
     }));
+    const knowledgeRows = normalizePage(knowledgeUrlsPage).items.map((item) => {
+      const artistName = item.artist?.displayName || item.artist?.slug || item.artistId?.slice?.(0, 8) || "-";
+      const summary = compactText(item.summary || item.description || item.url, 56);
+      return {
+        row: [
+          escapeHtml(artistName),
+          localizeArtistKnowledgeStatus(item.status),
+          escapeHtml(localizeArtistKnowledgeType(item.type)),
+          escapeHtml(summary),
+          escapeHtml(item.submittedBy?.emailMasked || item.submittedByUserId?.slice?.(0, 8) || "-"),
+          escapeHtml(formatDate(item.createdAt)),
+          item.status === "approved" ? "재심사" : item.status === "archived" ? "보관됨" : "심사"
+        ],
+        meta: {
+          knowledgeUrlId: item.id,
+          artistId: item.artistId,
+          artistName,
+          status: item.status,
+          type: item.type,
+          url: item.url,
+          canonicalUrl: item.canonicalUrl,
+          description: item.description,
+          summary: item.summary,
+          allowChatRef: item.allowChatRef,
+          rejectionReason: item.rejectionReason
+        }
+      };
+    });
     if (rows.length) renderRows("creatorRows", rows, 7);
     else renderLoadingRow("creatorRows", "표시할 신청 내역이 없습니다.");
     if (imageRequestRows.length) renderRows("creatorImageRequestRows", imageRequestRows, 5);
     else renderLoadingRow("creatorImageRequestRows", "표시할 이미지 제작 요청이 없습니다.");
+    sectionState.creators.knowledgeRows = knowledgeRows;
+    if (knowledgeRows.length) renderRows("artistKnowledgeUrlRows", knowledgeRows, 1);
+    else renderLoadingRow("artistKnowledgeUrlRows", "심사할 자료 URL이 없습니다.");
     if (aiRows.length) renderRows("aiCreatorRows", aiRows, 5);
     else renderLoadingRow("aiCreatorRows", "표시할 AI 아티스트가 없습니다.");
   } catch {
     renderRows("creatorRows", backstageRows.creators, 7);
     renderRows("creatorImageRequestRows", backstageRows.creatorImageRequests, 5);
+    renderLoadingRow("artistKnowledgeUrlRows", "자료 URL 심사 큐를 불러오지 못했습니다.");
     renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
     renderFallbackNote("creatorRows");
     renderFallbackNote("creatorImageRequestRows");
+    renderFallbackNote("artistKnowledgeUrlRows");
     renderFallbackNote("aiCreatorRows");
   }
 }
@@ -4303,7 +4452,7 @@ async function handleLogin(event) {
 
 async function bootstrapBackstage() {
   const auth = getBackstageAuth();
-  if (!auth?.accessToken) {
+  if (!auth?.accessToken && !auth?.refreshToken) {
     showLogin();
     return;
   }
@@ -4349,6 +4498,12 @@ document.addEventListener("click", (event) => {
   const fanMissionRefresh = event.target.closest("#fanMissionRefreshButton");
   if (fanMissionRefresh) {
     loadFanMissionsSection();
+    return;
+  }
+
+  const artistKnowledgeRefresh = event.target.closest("#artistKnowledgeRefreshButton");
+  if (artistKnowledgeRefresh) {
+    loadCreatorsSection();
     return;
   }
 
