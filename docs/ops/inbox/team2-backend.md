@@ -1,12 +1,13 @@
 # Team2 Backend Inbox
 
-status: ready_for_review
+status: reviewed_for_main
 task: "#459 artist URL knowledge character chat safety gate"
-branch: team2-backend/artist-url-chat-safety-gate-459
-commit: final hash recorded in Notion completion report
-push: yes after final validation
-main_reflected: no, review/merge pending
-worktree_cleanup: yes after push and Notion completion report
+source_branch: team2-backend/artist-url-chat-safety-gate-459
+source_commit: f49c9f4
+main_commit: e137c82
+push: yes after viewer validation
+main_reflected: yes after viewer validation and merge
+worktree_cleanup: yes after Notion completion report
 changed_files:
 - server/src/chat/llm-provider.adapter.ts
 - server/src/chat/llm-provider.adapter.spec.ts
