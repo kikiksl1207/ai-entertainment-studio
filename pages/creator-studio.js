@@ -1,6 +1,7 @@
 (function guardCreatorStudioAccess() {
-  const apiBase = "https://api.lumina-stage.com";
+  const apiBase = (window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
   const authKey = "lumina_auth";
+  const authStorageKeys = ["lumina_auth", "lumina.session"];
   const studioHandoffKey = "lumina_creator_studio_handoff";
   const shell = document.getElementById("studioShell");
   const gate = document.getElementById("studioAccessGate");
@@ -14,12 +15,17 @@
   let studioToastTimer = null;
 
   function readAuth() {
-    try {
-      const raw = localStorage.getItem(authKey);
-      return raw ? JSON.parse(raw) : null;
-    } catch (_) {
-      return null;
+    for (const key of authStorageKeys) {
+      try {
+        const raw = localStorage.getItem(key);
+        const normalized = normalizeAuth(raw ? JSON.parse(raw) : null);
+        if (normalized?.accessToken || normalized?.refreshToken) {
+          if (key !== authKey) writeAuth(normalized);
+          return normalized;
+        }
+      } catch (_) {}
     }
+    return null;
   }
 
   function writeAuth(auth) {
@@ -29,6 +35,18 @@
     } catch (_) {}
   }
 
+  function normalizeAuth(auth) {
+    if (!auth || typeof auth !== "object") return null;
+    const accessToken = auth.accessToken || auth.access_token || auth.token || auth.tokens?.accessToken || auth.tokens?.access_token || null;
+    const refreshToken = auth.refreshToken || auth.refresh_token || auth.tokens?.refreshToken || auth.tokens?.refresh_token || null;
+    return {
+      ...auth,
+      accessToken,
+      refreshToken,
+      user: auth.user || auth.viewer || null
+    };
+  }
+
   function readStudioHandoff() {
     try {
       const raw = sessionStorage.getItem(studioHandoffKey);
@@ -36,9 +54,10 @@
       const handoff = JSON.parse(raw);
       const recent = Date.now() - Number(handoff.savedAt || 0) < 5 * 60 * 1000;
       const auth = readAuth();
+      const hasToken = Boolean(auth?.accessToken || auth?.refreshToken);
       const authEmail = auth?.user?.email || "";
-      const sameUser = !handoff.viewerEmail || !authEmail || handoff.viewerEmail === authEmail;
-      return recent && sameUser && handoff.data?.access?.enabled === true ? handoff.data : null;
+      const sameUser = !handoff.viewerEmail || Boolean(authEmail && handoff.viewerEmail === authEmail);
+      return recent && hasToken && sameUser && handoff.data?.access?.enabled === true ? handoff.data : null;
     } catch (_) {
       return null;
     }
@@ -69,11 +88,13 @@
         writeAuth(null);
         return null;
       }
-      const nextAuth = {
+      const nextAuth = normalizeAuth({
+        ...auth,
+        ...data,
         accessToken,
         refreshToken: nextRefreshToken,
         user: data?.user || auth.user
-      };
+      });
       writeAuth(nextAuth);
       return nextAuth;
     } catch (_) {
@@ -107,10 +128,38 @@
   }
 
   async function fetchStudioBootstrap(token, signal) {
-    return fetch(apiBase + "/api/v1/me/creator-studio", {
-      headers: { Authorization: "Bearer " + token },
+    return fetchCreatorStudioApi("/api/v1/me/creator-studio", {
+      token,
       signal
     });
+  }
+
+  async function fetchCreatorStudioApi(path, options = {}) {
+    let auth = readAuth();
+    if (!options.token && !auth?.accessToken && auth?.refreshToken) {
+      auth = await refreshStudioAuthOnce();
+    }
+    const token = options.token || auth?.accessToken;
+    const headers = { ...(options.headers || {}) };
+    if (token) headers.Authorization = "Bearer " + token;
+    if (options.body) headers["Content-Type"] = "application/json";
+    let res = await fetch(apiBase + path, {
+      method: options.method || "GET",
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: options.signal
+    });
+    if (res.status === 401 && !options._retried) {
+      const refreshed = await refreshStudioAuthOnce();
+      if (refreshed?.accessToken) {
+        res = await fetchCreatorStudioApi(path, {
+          ...options,
+          token: refreshed.accessToken,
+          _retried: true
+        });
+      }
+    }
+    return res;
   }
 
   function authEmail() {
@@ -677,17 +726,15 @@
   }
 
   async function loadKnowledgeUrls() {
-    const token = readAuth()?.accessToken;
+    const auth = readAuth();
     const rows = document.getElementById("knowledgeUrlRows");
-    if (!token || !rows) return;
+    if ((!auth?.accessToken && !auth?.refreshToken) || !rows) return;
     rows.innerHTML = '<tr><td colspan="6">자료 URL 목록을 불러오는 중입니다.</td></tr>';
     try {
       const params = new URLSearchParams();
       const artistSel = document.getElementById("knowledgeUrlArtistSelect");
       if (artistSel?.value) params.set("artistId", artistSel.value);
-      const res = await fetch(apiBase + "/api/v1/me/creator-studio/knowledge-urls?" + params, {
-        headers: { Authorization: "Bearer " + token }
-      });
+      const res = await fetchCreatorStudioApi("/api/v1/me/creator-studio/knowledge-urls?" + params);
       if (res.status === 404 || res.status === 501) {
         rows.innerHTML = '<tr><td colspan="6">자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요. 폼 구성은 미리 확인할 수 있습니다.</td></tr>';
         setKnowledgeSubmitLocked(true);
@@ -706,7 +753,7 @@
   }
 
   async function submitKnowledgeUrl() {
-    const token = readAuth()?.accessToken;
+    const auth = readAuth();
     const artistSel = document.getElementById("knowledgeUrlArtistSelect");
     const typeSel = document.getElementById("knowledgeUrlType");
     const urlInput = document.getElementById("knowledgeUrlInput");
@@ -735,7 +782,7 @@
       descEl?.focus();
       return;
     }
-    if (!token) {
+    if (!auth?.accessToken && !auth?.refreshToken) {
       setKnowledgeUrlState("로그인 정보가 없습니다. 다시 로그인해주세요.", "danger");
       return;
     }
@@ -744,10 +791,9 @@
     setKnowledgeUrlState("등록 신청 중입니다.", "");
 
     try {
-      const res = await fetch(apiBase + "/api/v1/me/creator-studio/knowledge-urls", {
+      const res = await fetchCreatorStudioApi("/api/v1/me/creator-studio/knowledge-urls", {
         method: "POST",
-        headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-        body: JSON.stringify({ artistId: selectedArtistId, type, url, description, allowChatRef })
+        body: { artistId: selectedArtistId, type, url, description, allowChatRef }
       });
       if (res.status === 404 || res.status === 501) {
         setKnowledgeUrlState("자료 URL 등록 기능은 운영팀 안내 후 이용할 수 있어요.", "danger");

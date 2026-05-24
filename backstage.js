@@ -1,6 +1,7 @@
 ﻿const BACKSTAGE_API_BASE = (window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
 const BACKSTAGE_BASE_HAS_API_PREFIX = /\/api\/v1$/.test(BACKSTAGE_API_BASE);
 const BACKSTAGE_AUTH_KEY = "lumina_backstage_auth";
+const SHARED_AUTH_KEYS = [BACKSTAGE_AUTH_KEY, "lumina_auth", "lumina.session"];
 const BACKSTAGE_SECTION_KEY = "lumina_backstage_active_section";
 const BACKSTAGE_DRAFT_KEY = "lumina_backstage_detail_drafts";
 const BACKSTAGE_HISTORY_KEY = "lumina_backstage_action_history";
@@ -292,12 +293,16 @@ const sectionLoaders = {
 };
 
 function getBackstageAuth() {
-  try {
-    const raw = localStorage.getItem(BACKSTAGE_AUTH_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
+  for (const key of SHARED_AUTH_KEYS) {
+    try {
+      const raw = localStorage.getItem(key);
+      const auth = normalizeAuthPayload(raw ? JSON.parse(raw) : null);
+      if (auth?.accessToken || auth?.refreshToken) return auth;
+    } catch {
+      // Keep checking other supported auth stores.
+    }
   }
+  return null;
 }
 
 function setBackstageAuth(auth) {
@@ -414,16 +419,32 @@ function setLoading(isLoading) {
 }
 
 async function backstageFetch(path, options = {}) {
-  const auth = getBackstageAuth();
+  let auth = getBackstageAuth();
+  if (options.auth && !auth?.accessToken && auth?.refreshToken) {
+    auth = await refreshBackstageAuthOnce();
+  }
   const headers = { ...(options.headers || {}) };
   if (options.body) headers["Content-Type"] = "application/json";
   if (options.auth && auth?.accessToken) headers.Authorization = `Bearer ${auth.accessToken}`;
 
-  const response = await fetch(BACKSTAGE_API_BASE + path, {
+  let response = await fetch(BACKSTAGE_API_BASE + path, {
     method: options.method || "GET",
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined
   });
+  if (options.auth && response.status === 401 && !options._retried) {
+    const refreshed = await refreshBackstageAuthOnce();
+    if (refreshed?.accessToken) {
+      response = await fetch(BACKSTAGE_API_BASE + path, {
+        method: options.method || "GET",
+        headers: {
+          ...headers,
+          Authorization: `Bearer ${refreshed.accessToken}`
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+    }
+  }
 
   const data = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
@@ -436,11 +457,43 @@ async function backstageFetch(path, options = {}) {
 }
 
 function extractAuthPayload(data) {
+  return normalizeAuthPayload(data);
+}
+
+function normalizeAuthPayload(data) {
+  if (!data || typeof data !== "object") return null;
+  const accessToken = data.accessToken || data.access_token || data.token || data.tokens?.accessToken || data.tokens?.access_token || null;
+  const refreshToken = data.refreshToken || data.refresh_token || data.tokens?.refreshToken || data.tokens?.refresh_token || null;
   return {
-    accessToken: data?.accessToken || data?.tokens?.accessToken || data?.access_token,
-    refreshToken: data?.refreshToken || data?.tokens?.refreshToken || data?.refresh_token,
-    user: data?.user || null
+    ...data,
+    accessToken,
+    refreshToken,
+    user: data.user || data.viewer || null
   };
+}
+
+async function refreshBackstageAuthOnce() {
+  const auth = getBackstageAuth();
+  const refreshToken = auth?.refreshToken;
+  if (!refreshToken) return null;
+  try {
+    const response = await fetch(BACKSTAGE_API_BASE + publicApiPath("/auth/refresh"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken })
+    });
+    if (!response.ok) return null;
+    const data = await response.json().catch(() => null);
+    const refreshed = normalizeAuthPayload({
+      ...auth,
+      ...data,
+      user: data?.user || auth.user
+    });
+    if (refreshed?.accessToken) setBackstageAuth(refreshed);
+    return refreshed;
+  } catch {
+    return null;
+  }
 }
 
 function applyAdminContext(data) {
@@ -531,7 +584,7 @@ async function handleGoogleTokenResponse(tokenResponse) {
       }
     });
     const auth = extractAuthPayload(data);
-    if (!auth.accessToken) throw new Error("Google 로그인 응답에서 토큰을 찾지 못했어요.");
+    if (!auth?.accessToken) throw new Error("Google 로그인 응답에서 토큰을 찾지 못했어요.");
     setBackstageAuth(auth);
     await verifyAdminAccess();
     setStatus("Google 운영자 권한이 확인됐어요.", "success");
@@ -570,7 +623,7 @@ function adminApiPath(path) {
 async function verifyAdminAccess() {
   const adminContext = await backstageFetch(adminApiPath("/me"), { auth: true });
   applyAdminContext(adminContext);
-  await backstageFetch(adminApiPath("/audit-events?take=1"), { auth: true });
+  await backstageFetch(adminApiPath("/audit-events?take=1"), { auth: true }).catch(() => null);
 }
 
 function statusBadge(value) {
@@ -4234,7 +4287,7 @@ async function handleLogin(event) {
   try {
     const data = await backstageFetch(publicApiPath("/auth/login"), { method: "POST", body: { email: emailInput.value.trim(), password: passwordInput.value } });
     const auth = extractAuthPayload(data);
-    if (!auth.accessToken) throw new Error("로그인 응답에서 토큰을 찾지 못했어요.");
+    if (!auth?.accessToken) throw new Error("로그인 응답에서 토큰을 찾지 못했어요.");
     setBackstageAuth(auth);
     await verifyAdminAccess();
     setStatus("백스테이지 입장 권한이 확인됐어요.", "success");
