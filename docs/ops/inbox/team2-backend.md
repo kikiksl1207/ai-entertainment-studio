@@ -1,5 +1,47 @@
 # Team2 Backend Inbox
 
+status: ready_for_review
+task: "#468 character chat random tone opening greeting contract"
+branch: team2-backend/character-chat-random-greeting-tone-468
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- docs/character-chat-dynamic-greeting-cache-contract.md
+- docs/ops/inbox/team2-backend.md
+checked_files:
+- server/src/chat/chat.controller.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/src/chat/chat-persona-catalog.ts
+- server/src/chat/llm-provider.adapter.ts
+tests:
+- node --check server/src/chat/chat.controller.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.service.spec.ts
+- node --check server/src/chat/chat-persona-catalog.ts
+- node --check server/src/chat/llm-provider.adapter.ts
+- npx.cmd prisma generate
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/chat-persona-catalog.ts src/chat/llm-provider.adapter.ts
+- git diff --check
+- git diff --check origin/main...HEAD
+result:
+- Confirmed existing regression coverage already fails if fallback opening greetings regress to one fixed common sentence: 3 characters x 10 sessions must produce at least 3 variants per character and at least 9 total variants.
+- Added explicit `dynamicGreetingContract.fallback` response fields for candidate inputs, deterministic session variant selection, session id seed, and same-session stability.
+- Fixed the response contract that fallback candidate inputs are character-specific: welcome text, starter option messages, tone guide, and persona tags.
+- Confirmed same session replay remains cached through `opening_greeting`; refresh does not create a fresh random greeting.
+- No provider payload, raw prompt, OpenAI key, wallet/Lumina, order, settlement, or payout path was opened.
+blocked_by:
+- Live UI/provider verification still requires a safe deployed environment and account; this task used contract and unit tests only.
+sensitive_values_recorded:
+- none
+
+---
+
 status: reviewed_for_main
 task: "#463 URL knowledge character chat context verification"
 source_branch: team2-backend/artist-url-chat-context-463

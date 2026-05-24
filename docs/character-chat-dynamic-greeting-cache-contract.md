@@ -3,7 +3,7 @@
 Updated: 2026-05-22
 Owner: Luffy
 Task: Notion #388, #397 regression contract, #402 tone candidate contract, #454
-greeting/recommended-reply diversity contract
+greeting/recommended-reply diversity contract, #468 random tone selection contract
 
 This contract makes the first character-chat greeting dynamic per chat session
 without generating a new greeting on every page refresh. It keeps raw prompts,
@@ -71,6 +71,12 @@ provider requests or two opening-greeting rows for one session.
 - Same session reload: return cached `opening_greeting`.
 - Same character, different sessions: wording can vary through provider output
   or deterministic fallback variant seed from the session id.
+- Fallback variation uses a deterministic session variant index, not a fresh
+  random draw on every render. Candidate inputs are character-specific:
+  `runtimePersona.welcome.text`, `runtimePersona.starterOptions[].message`,
+  `runtimePersona.tone.guideKo`, and `runtimePersona.personaTags[]`.
+- Same session stability is required: once `opening_greeting` is stored, later
+  reads return the cached row even if the page is refreshed.
 - Recommended reply candidates stay read-only and zero-cost. They are exposed
   through `openingPrompt.options[]`, `starterOptions[]`, and
   `sets[].options[]`; selecting one only pre-fills/sends user text through the
@@ -117,6 +123,10 @@ It does not store or return:
 - Treat `openingPrompt.options[]`, `starterOptions[]`, and `sets[].options[]`
   as the first-screen recommended replies. They are character-specific copy,
   not raw enum values, and should show Korean `label`/`message` only.
+- `dynamicGreetingContract.fallback` exposes the display-safe selection
+  contract: `candidateInputs`, `selectionStrategy =
+  deterministic_session_variant_index`, `sessionVariantSeed =
+  chat_sessions.id`, and `sameSessionStable = true`.
 - Do not display raw source/metadata enum values as user copy.
 
 ## Test Baseline
@@ -129,6 +139,8 @@ The backend test fixes:
 - provider-unavailable fallback is checked across at least three character
   fixtures and ten sessions per character, so same-character greetings cannot
   silently regress to one fixed sentence
+- `dynamicGreetingContract.fallback` exposes the candidate inputs and stable
+  deterministic session selection strategy
 - the opening greeting response and stored metadata carry character-specific
   display-safe tone/persona candidate fields
 - exhausted daily provider guard stores a zero-cost fallback and skips provider
