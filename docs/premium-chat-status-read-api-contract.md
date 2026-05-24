@@ -2,7 +2,7 @@
 
 Updated: 2026-05-21
 Owner: Luffy
-Task: Notion #384
+Task: Notion #384, #473 room interaction status contract
 
 This contract prepares read-only user and artist lookups for premium-chat room
 report/refund/closure state. It does not enable room-open, message, donation,
@@ -23,6 +23,8 @@ Current contract paths:
 - `projections.premiumRoomRefundStatus`
 - `projections.premiumRoomReportStatus`
 - `projections.premiumRoomMutationAvailability`
+- `roomStatusRead.interactionStatusMatrix`
+- `roomStatusRead.unansweredRefundTransition`
 
 ## Planned Read Endpoints
 
@@ -119,6 +121,37 @@ and must block any future mutation before wallet lookup or message acceptance:
 
 For #384 specifically, `closed`, `reported`, and `refund_pending` were checked
 as required examples. They remain fail-closed for support and message mutation.
+
+## Room Interaction Matrix
+
+#473 fixes the read/send/donation availability matrix before live room storage
+exists. This matrix is exposed as `roomStatusRead.interactionStatusMatrix`.
+
+| Room status | Read mode | User send | Artist reply | Donation | Ranking/meter |
+| --- | --- | --- | --- | --- | --- |
+| `opened` | `safe_conversation` | yes | yes | yes | eligible |
+| `active` | `safe_conversation` | yes | yes | yes | eligible |
+| `artist_answered` | `safe_conversation` | yes | yes | yes | eligible |
+| `reported` | `safe_status_only` | no | no | no | excluded |
+| `blind` | `safe_status_only` | no | no | no | excluded |
+| `suspended` | `safe_status_only` | no | no | no | excluded |
+| `admin_review` | `safe_status_only` | no | no | no | excluded |
+| `refund_pending` | `safe_status_only` | no | no | no | excluded |
+| `refunded` | `safe_archive` | no | no | no | excluded |
+| `expired` | `safe_archive` | no | no | no | excluded |
+| `closed` | `safe_archive` | no | no | no | excluded |
+| `artist_closed` | `safe_archive` | no | no | no | excluded |
+
+The 24-hour no-answer path is represented by
+`roomStatusRead.unansweredRefundTransition`: if an `opened` or `active` room has
+no artist answer for 24 hours, the future storage layer moves it to
+`refund_pending` with `unanswered_24h_full_refund`. After that transition,
+user send, artist reply, donation, message metering, support-point grant, and
+ranking eligibility are all disabled.
+
+Reported, blinded, suspended, admin-review, refund-pending, and refunded rooms
+remain readable only through safe status/refund/report projections. They must
+not expose raw chat bodies or raw report reasons.
 
 ## Still Blocked
 

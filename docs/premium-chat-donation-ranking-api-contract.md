@@ -1,6 +1,6 @@
 # Premium Chat Donation and Ranking API Contract
 
-Task: #376
+Task: #376, #473 support message routing
 
 Status: contract ready, endpoints disabled.
 
@@ -90,6 +90,19 @@ Success projection shape:
 Donation is blocked before wallet lookup when the room/session is reported,
 blind, suspended, refund-pending, refunded, admin-review, expired, or closed.
 
+Donation support-message routing is fixed by #473:
+
+- `message` is a premium-chat donation/support message field, not a Lumina Pick
+  like event and not a client-submitted ranking score.
+- It may feed only the premium chat communication/support projections and the
+  donation projection after server storage exists.
+- It must not be copied into `/api/v1/boost-campaigns/:campaignId/rankings` or
+  any `type=like` chat ranking alias.
+- Ranking projections must not return the raw support message body.
+- The current contract keeps donation create disabled, so no support message,
+  wallet debit, chat message, ranking row, settlement, or payout mutation is
+  created.
+
 ## Rankings
 
 Planned endpoint:
@@ -114,6 +127,8 @@ Rules:
 - frontend cannot submit ranking scores or refresh mutations
 - like rankings stay on the Lumina Pick boost lane
 - donation ranking uses confirmed net premium-chat donation only
+- donation support messages may affect only premium chat communication/support
+  projections, never the Lumina Pick like ranking lane
 - communication ranking can later combine server-weighted room open, safe
   visible message activity, confirmed net donation, and safe artist reply
   activity
