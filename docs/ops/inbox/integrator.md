@@ -584,3 +584,52 @@ blocked_by:
 - none
 next_needed:
 - Push main.
+---
+
+status: done
+task: #428 Lumina Pick paid-like safe account and server ledger QA contract
+branch/commit: kaido/428-luminapick-paid-like-ledger-contract / see Notion completion report
+changed_files:
+- docs/ops/luminapick-paid-like-safe-ledger-contract-428.md
+- docs/ops/inbox/integrator.md
+tests:
+- static scan: `server/src/boosts/boosts.controller.ts`
+- static scan: `server/src/boosts/boosts.service.ts`
+- static scan: `server/src/boosts/boosts.service.spec.ts`
+- static scan: `server/prisma/schema.prisma`
+- static scan: `server/src/wallet/wallet-server-authority-policy.ts`
+- static scan: `docs/frontend-api-handoff.md`
+- static scan: `docs/backend-api-spec.md`
+- static scan: `docs/app-web-lumina-tamper-defense-checklist.md`
+- static scan: Notion #418 and #420
+- PASS: `git diff --check`
+result:
+- Defined the server-ledger QA contract for free-like versus paid-like.
+- Free-like is `artist_boost_events.boost_type=free_like` and must not create
+  wallet ledger, payment order, settlement, payout, or refund mutations.
+- Paid-like is `artist_boost_events.boost_type=lumina_boost` with
+  `metadata.source=paid_like`, one wallet debit ledger, and server-derived
+  `BOOST_BASIC_VOTE` price in one transaction.
+- Confirmed paid-like requires idempotency before wallet mutation, replays same
+  key/body without another debit, rejects mismatched reuse with
+  `BOOST_IDEMPOTENCY_CONFLICT`, and uses an atomic balance guard.
+- Clarified that paid-like submit does not create `payment_orders`; charge
+  orders are wallet top-up records, not paid-like order records.
+- Separated settlement preview from final payout and kept refund mutation out of
+  scope until a dedicated policy task exists.
+- No token, password, cookie, DB URL, signed URL, raw response body, or provider
+  payload was recorded.
+- No live wallet debit, payment order, settlement, payout, or refund mutation
+  was executed.
+blocked_by:
+- Safe dedicated QA user, active QA wallet with disposable Lumina, campaign,
+  artist, active `BOOST_BASIC_VOTE` product confirmation, and explicit live debit
+  approval were not provided in this session.
+- Free-like legacy failure responses still include raw messages in some paths;
+  open a later hardening task before frontend error rendering depends on them.
+next_needed:
+- Merge the QA contract document.
+- If Leader approves live QA, use the documented minimal smoke only with a
+  dedicated QA account and quantity 1.
+- Keep settlement/refund/payout mutation closed unless a separate approved task
+  opens it.
