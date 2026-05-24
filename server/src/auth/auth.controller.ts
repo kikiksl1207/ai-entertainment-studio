@@ -20,6 +20,7 @@ import {
   ConfirmPasswordResetDto,
   DeleteAccountDto,
   DisplayNameAvailabilityQueryDto,
+  InspectPasswordResetDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
@@ -103,6 +104,12 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   requestPasswordReset(@Body() body: RequestPasswordResetDto) {
     return this.authService.requestPasswordReset(body);
+  }
+
+  @Post('password-resets/inspect')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  inspectPasswordReset(@Body() body: InspectPasswordResetDto) {
+    return this.authService.inspectPasswordReset(body);
   }
 
   @Post('password-resets/confirm')

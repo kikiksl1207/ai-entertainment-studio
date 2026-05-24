@@ -133,6 +133,7 @@ POST /api/v1/auth/logout
 POST /api/v1/auth/email-verifications
 POST /api/v1/auth/email-verifications/confirm
 POST /api/v1/auth/password-resets
+POST /api/v1/auth/password-resets/inspect
 POST /api/v1/auth/password-resets/confirm
 GET /api/v1/me
 GET /api/v1/me/summary
@@ -245,6 +246,14 @@ Email delivery adapter:
   before a new token is created. Request responses remain existence-neutral and
   never return raw tokens or token hashes outside the existing local/staging
   debug-only gate.
+- `POST /api/v1/auth/password-resets/inspect` accepts `{ "token": "<reset-token>" }`
+  and returns read-only reset-link state without consuming the token. Response
+  shape: `{ success, ok, purpose: "password_reset", status, statusKey,
+  canReset, email: { masked, returned }, policy }`. `status` is one of
+  `valid`, `invalid`, `expired`, `already_used`, or `user_not_active`. Only
+  `valid` may return a stored masked email hint; raw token, token hash, full
+  email, and password are never returned. The endpoint exists so reset screens
+  can avoid asking the user to re-enter email.
 - `POST /api/v1/auth/password-resets/confirm` updates only the email-password account password hash and revokes active refresh-token sessions.
 - Password reset, password setup, password change, and email signup all use the
   same 8-128 character length-only password policy. Validation failures return

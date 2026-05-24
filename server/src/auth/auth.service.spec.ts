@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import {
   ChangePasswordDto,
   ConfirmPasswordResetDto,
+  InspectPasswordResetDto,
   RegisterDto,
   SetPasswordDto,
 } from './dto/auth.dto';
@@ -121,6 +122,7 @@ function activeActionToken(overrides: Record<string, unknown> = {}) {
     purpose: 'email_verification',
     expiresAt: new Date('2099-05-14T00:00:00.000Z'),
     consumedAt: null,
+    targetEmailMasked: 'fa***@example.com',
     user: {
       id: userId,
       status: 'active',
@@ -497,6 +499,86 @@ describe('AuthService action token flows', () => {
     });
   });
 
+  it('inspects password reset tokens without consuming them or returning secrets', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.userActionToken.findFirst.mockResolvedValue(
+      activeActionToken({ purpose: 'password_reset' }),
+    );
+
+    await expect(service.inspectPasswordReset({ token })).resolves.toMatchObject({
+      success: true,
+      ok: true,
+      purpose: 'password_reset',
+      status: 'valid',
+      statusKey: 'auth.passwordReset.valid',
+      canReset: true,
+      email: {
+        masked: 'fa***@example.com',
+        returned: 'masked_only',
+      },
+      policy: {
+        readOnly: true,
+        consumesToken: false,
+        confirmRequiresEmail: false,
+        rawTokenReturned: false,
+        tokenHashReturned: false,
+        fullEmailReturned: false,
+        passwordReturned: false,
+        confirmEndpoint: {
+          method: 'POST',
+          path: '/api/v1/auth/password-resets/confirm',
+          requiredFields: ['token', 'newPassword'],
+          optionalFields: ['email'],
+        },
+      },
+    });
+    expect(prisma.userActionToken.updateMany).not.toHaveBeenCalled();
+    expect(prisma.userAuthAccount.update).not.toHaveBeenCalled();
+    expect(prisma.userRefreshToken.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('inspects invalid, expired, and used password reset links safely', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.userActionToken.findFirst.mockResolvedValueOnce(null);
+
+    await expect(service.inspectPasswordReset({ token })).resolves.toMatchObject({
+      status: 'invalid',
+      canReset: false,
+      email: { masked: null, returned: 'not_returned' },
+      policy: {
+        rawTokenReturned: false,
+        tokenHashReturned: false,
+        fullEmailReturned: false,
+      },
+    });
+
+    prisma.userActionToken.findFirst.mockResolvedValueOnce(
+      activeActionToken({
+        purpose: 'password_reset',
+        expiresAt: new Date('2000-01-01T00:00:00.000Z'),
+      }),
+    );
+    await expect(service.inspectPasswordReset({ token })).resolves.toMatchObject({
+      status: 'expired',
+      canReset: false,
+      email: { masked: null, returned: 'not_returned' },
+    });
+
+    prisma.userActionToken.findFirst.mockResolvedValueOnce(
+      activeActionToken({
+        purpose: 'password_reset',
+        consumedAt: new Date('2026-05-14T00:00:00.000Z'),
+      }),
+    );
+    await expect(service.inspectPasswordReset({ token })).resolves.toMatchObject({
+      status: 'already_used',
+      canReset: false,
+      email: { masked: null, returned: 'not_returned' },
+    });
+  });
+
   it('rejects password reset when the submitted email does not match the token account', async () => {
     const prisma = createPrismaMock();
     const { service } = serviceWith(prisma);
@@ -627,6 +709,9 @@ describe('AuthService action token flows', () => {
         token,
         newPassword: 'password',
       }),
+      plainToInstance(InspectPasswordResetDto, {
+        token,
+      }),
     ];
     const invalidResetDto = plainToInstance(ConfirmPasswordResetDto, {
       token,
@@ -640,7 +725,7 @@ describe('AuthService action token flows', () => {
     });
 
     await expect(Promise.all(validSamples.map((sample) => validate(sample)))).resolves
-      .toEqual([[], [], [], []]);
+      .toEqual([[], [], [], [], []]);
 
     const errors = await validate(invalidResetDto);
     const invalidEmailErrors = await validate(invalidEmailResetDto);

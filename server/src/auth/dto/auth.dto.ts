@@ -218,6 +218,15 @@ export class RequestPasswordResetDto {
   email!: string;
 }
 
+export class InspectPasswordResetDto {
+  @Transform(normalizeString)
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(32)
+  @MaxLength(256)
+  token!: string;
+}
+
 export class ConfirmPasswordResetDto {
   @Transform(normalizeString)
   @IsNotEmpty()
