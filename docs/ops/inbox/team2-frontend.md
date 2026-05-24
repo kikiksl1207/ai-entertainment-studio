@@ -1,12 +1,12 @@
 # Team2 Frontend Inbox
 
-status: ready_for_review
+status: reviewed_for_main
 task: "#449 premium chat CTA and safe room-open path regression check"
-branch: team2-frontend/premium-chat-cta-safe-path-449
-commit: final hash recorded in Notion completion report
-push: yes after final validation
-main_reflected: no, review/merge pending
-worktree_cleanup: yes after push and Notion completion report
+source_branch: team2-frontend/premium-chat-cta-safe-path-449
+source_commit: d3b402eee104a20b2930e23a144a53cce4575e8d
+review_branch: main
+main_reflected: yes after viewer validation and cherry-pick
+worktree_cleanup: yes; source worktree removed by 루피, no viewer worktree created
 changed_files:
 - docs/ops/inbox/team2-frontend.md
 checked_files:
@@ -21,7 +21,7 @@ checked_files:
 - server/src/chat/premium-chat-room-contract.ts
 - server/src/chat/premium-chat-support-contract.ts
 - server/src/chat/chat.service.spec.ts
-tests:
+source_tests:
 - node --check pages/popular-vote.js
 - node --check pages/character-detail.js
 - node --check pages/premium-chat-hub.js
@@ -35,6 +35,19 @@ tests:
 - npm.cmd test -- chat.service.spec.ts premium-chat-room-contract.spec.ts --runInBand
 - git diff --check
 - git diff --check origin/main...HEAD
+viewer_tests:
+- node --check pages/popular-vote.js
+- node --check pages/character-detail.js
+- node --check pages/premium-chat-hub.js
+- node --check pages/premium-chat-support.js
+- node --check pages/chat-rankings.js
+- node --check server/src/chat/chat.controller.ts
+- node --check server/src/chat/premium-chat-room-contract.ts
+- node --check server/src/chat/premium-chat-support-contract.ts
+- rg server controller premium/ranking/donation routes: read-only `GET /api/v1/chat/premium-support-contract` only
+- rg client premium files: no `method: POST`; fetch paths are contract GET and gated rankings GET
+- npm.cmd test -- chat.service.spec.ts premium-chat-room-contract.spec.ts --runInBand
+- git diff --check
 result:
 - Confirmed Lumina Pick/popular-vote leader and debut cards expose a visible `vote-premium-chat-link` to `/character-chat?slug=...`.
 - Confirmed character detail CTA renders a `cta-btn-chat` link to `/character-chat?slug=...` beside the disabled support CTA, so users can find the premium chat entry from the detail page.
@@ -42,6 +55,11 @@ result:
 - Confirmed chat rankings fetch `/api/v1/chat/rankings` only when the contract endpoint reports rankings enabled/live/ready; current server contract keeps rankings `enabled: false` and planned.
 - Confirmed server controller exposes read-only `GET /api/v1/chat/premium-support-contract`; live premium room open, donation preview/create, force-close/report/refund, settlement, payout, and ranking mutation routes are not mounted.
 - Confirmed room-open tiers remain server-authored as 300/500/1000/3000L and donation/like ranking lanes stay separated by contract.
+viewer_review:
+- Reviewed source commit `d3b402eee104a20b2930e23a144a53cce4575e8d` on top of current main.
+- Confirmed the current main keeps Lumina Pick and character-detail CTA entry paths visible without opening paid mutation flows.
+- Confirmed premium chat support, hub, and rankings stay fail-closed while contract mutation/ranking switches remain disabled.
+- Confirmed targeted syntax checks, server tests, route grep, client mutation grep, and diff whitespace check pass on the viewer workstation.
 blocked_by:
 - Live visual QA still needs a deployed environment and safe account/access to verify the CTA in browser/mobile without executing paid mutation.
 sensitive_values_recorded:
