@@ -1,12 +1,12 @@
 # Team2 Backend Inbox
 
-status: ready_for_review
+status: reviewed_for_main
 task: "#439 artist URL approved knowledge character chat reference contract"
-branch: team2-backend/artist-url-chat-reference-439
-commit: final hash recorded in Notion completion report
-push: yes after final validation
-main_reflected: no, review/merge pending
-worktree_cleanup: yes after push and Notion completion report
+source_branch: team2-backend/artist-url-chat-reference-439
+source_commit: 7e661a26e301ba11368d126487c73ff0a5518f50
+review_branch: main
+main_reflected: yes after viewer validation and cherry-pick
+worktree_cleanup: yes; source worktree removed by 루피, no viewer worktree created
 changed_files:
 - server/src/chat/artist-url-knowledge-contract.spec.ts
 - server/src/chat/chat.service.spec.ts
@@ -18,7 +18,7 @@ checked_files:
 - server/src/creator-studio/creator-studio.service.ts
 - server/src/admin/admin.service.ts
 - docs/ops/inbox/team2-qa.md
-tests:
+source_tests:
 - npm.cmd ci
 - npx.cmd prisma generate
 - node --check server/src/chat/artist-url-knowledge-contract.ts
@@ -31,6 +31,23 @@ tests:
 - npm.cmd run build
 - git diff --check
 - git diff --check origin/main...HEAD
+viewer_tests:
+- node --check server/src/chat/artist-url-knowledge-contract.ts
+- node --check server/src/chat/artist-url-knowledge-contract.spec.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.service.spec.ts
+- node --check server/src/chat/llm-provider.adapter.ts
+- npm.cmd test -- artist-url-knowledge-contract.spec.ts chat.service.spec.ts creator-studio.service.spec.ts admin.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/artist-url-knowledge-contract.ts src/chat/artist-url-knowledge-contract.spec.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts src/creator-studio/creator-studio.service.ts src/creator-studio/creator-studio.service.spec.ts src/admin/admin.service.ts src/admin/admin.service.spec.ts
+- npm.cmd run build
+- git diff --check
+- git diff --check origin/main...HEAD
+viewer_review:
+- Reviewed source commit `7e661a26e301ba11368d126487c73ff0a5518f50` on top of the current artist URL integration main.
+- Confirmed server retrieval uses `artistId`, `status: approved`, and `allowChatReference: true` filters before building character chat provider context.
+- Confirmed defensive context construction drops pending/rejected/archived, disabled, and summaryless rows, and strips raw submitted URLs from provider context.
+- Confirmed approved knowledge is passed only as untrusted reference facts, not system/developer instructions.
+- Confirmed targeted syntax checks, contract/service tests, lint, build, and diff whitespace checks pass on the viewer workstation.
 result:
 - Confirmed character chat retrieves artist URL knowledge with server filters `status: approved` and `allowChatReference: true` only.
 - Confirmed pending, rejected, archived, chat-reference-disabled, and summaryless rows are not eligible for provider context even if passed through a defensive helper path.
