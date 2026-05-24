@@ -30,8 +30,11 @@
 
   function writeAuth(auth) {
     try {
-      if (auth) localStorage.setItem(authKey, JSON.stringify(auth));
-      else localStorage.removeItem(authKey);
+      if (auth) {
+        localStorage.setItem(authKey, JSON.stringify(auth));
+      } else {
+        authStorageKeys.forEach(key => localStorage.removeItem(key));
+      }
     } catch (_) {}
   }
 
@@ -169,7 +172,7 @@
 
   function setGateChecking() {
     const email = authEmail();
-    if (kicker) kicker.textContent = "Checking";
+    if (kicker) kicker.textContent = "권한 확인 중";
     if (title) title.textContent = "스튜디오 권한을 확인하고 있습니다.";
     if (body) body.textContent = email
       ? "현재 로그인 계정 " + email + " 기준으로 Creator Studio 권한을 확인하고 있습니다."
@@ -186,7 +189,7 @@
   function deny(message) {
     if (shell) shell.hidden = true;
     if (gate) gate.hidden = false;
-    if (kicker) kicker.textContent = "Access Required";
+    if (kicker) kicker.textContent = "접근 확인 필요";
     if (title) title.textContent = "스튜디오 접근 권한이 필요합니다.";
     if (body) body.textContent = message || "승인된 크리에이터 계정만 스튜디오 스테이지에 들어올 수 있습니다.";
     showGateActions();
@@ -689,8 +692,23 @@
 
   function populateKnowledgeUrlArtistSelect(artists) {
     const select = document.getElementById("knowledgeUrlArtistSelect");
-    if (!select || !artists.length) return;
+    if (!select) return;
+    if (!artists.length) {
+      select.innerHTML = '<option value="">운영 아티스트 연결 대기 중</option>';
+      return;
+    }
     select.innerHTML = artists.map(item => '<option value="' + escapeHtml(artistId(item)) + '">' + escapeHtml(artistName(item)) + '</option>').join("");
+  }
+
+  function canSubmitKnowledgeUrl() {
+    return studioArtists.some(item => Boolean(artistId(item)));
+  }
+
+  function syncKnowledgeUrlAvailability() {
+    if (canSubmitKnowledgeUrl()) return false;
+    setKnowledgeSubmitLocked(true);
+    setKnowledgeUrlState("운영 아티스트 연결이 완료되면 자료 URL을 등록할 수 있어요. 계정 승인 상태는 유지됩니다.", "danger");
+    return true;
   }
 
   function renderKnowledgeUrls(items) {
@@ -729,6 +747,10 @@
     const auth = readAuth();
     const rows = document.getElementById("knowledgeUrlRows");
     if ((!auth?.accessToken && !auth?.refreshToken) || !rows) return;
+    if (syncKnowledgeUrlAvailability()) {
+      rows.innerHTML = '<tr><td colspan="6">운영 아티스트 연결 후 등록 자료 목록을 확인할 수 있어요.</td></tr>';
+      return;
+    }
     rows.innerHTML = '<tr><td colspan="6">자료 URL 목록을 불러오는 중입니다.</td></tr>';
     try {
       const params = new URLSearchParams();
@@ -767,6 +789,11 @@
     const allowChatRef = allowChatEl?.checked ?? true;
     const selectedArtistId = artistSel?.value || "";
 
+    if (!selectedArtistId) {
+      setKnowledgeUrlState("운영 아티스트 연결이 완료되면 자료 URL을 등록할 수 있어요.", "danger");
+      artistSel?.focus();
+      return;
+    }
     if (!url) {
       setKnowledgeUrlState("URL을 입력해주세요.", "danger");
       urlInput?.focus();
@@ -1074,7 +1101,7 @@
     const hardTimeoutId = setTimeout(() => {
       if (!completed) {
         completed = true;
-        showToast("Studio verification is still loading. The workspace is open while we check again.");
+        showToast("스튜디오 권한 확인이 지연되고 있어요. 잠시 후 다시 확인해 주세요.");
       }
     }, 8000);
     const auth = readAuth();
@@ -1096,9 +1123,9 @@
       }
       if (!res.ok) {
         if (res.status === 401) {
-          deny("Login session expired. Please sign in again.");
+          deny("로그인 시간이 만료됐어요. 다시 로그인한 뒤 스튜디오를 열어 주세요.");
         } else {
-          showToast("Studio verification could not finish. The workspace is open while we check again.");
+          showToast("스튜디오 권한 확인을 마치지 못했어요. 잠시 후 다시 확인해 주세요.");
         }
         return;
       }
