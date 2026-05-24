@@ -1,5 +1,5 @@
 export const AUTH_QA_ACCOUNT_ACCESS_CONTRACT = {
-  version: '2026-05-20.auth-qa-account-access.v2',
+  version: '2026-05-24.auth-qa-account-access.v3',
   sensitiveValuesRecorded: false,
   secureStorageOnly: [
     'raw email',
@@ -192,6 +192,76 @@ export const AUTH_QA_ACCOUNT_ACCESS_CONTRACT = {
       'admin_roles.name',
       'admin_roles.permissions',
       'ADMIN_EMAILS bootstrap fallback',
+    ],
+  },
+  liveAccessSelfCheck: {
+    task: '#458',
+    script: 'npm run qa:auth-access-self-check',
+    confirmEnv: 'AUTH_QA_ACCESS_VERIFY_CONFIRM',
+    confirmValue: 'VERIFY_AUTH_QA_ACCESS_SELF_CHECK',
+    dryRunEnv: 'AUTH_QA_ACCESS_VERIFY_DRY_RUN',
+    apiBaseEnv: ['AUTH_QA_ACCESS_API_BASE', 'AUTH_QA_API_BASE', 'API_BASE_URL'],
+    requiredSlotGroups: [
+      {
+        key: 'qa_creator',
+        requiredSlots: ['QA_CREATOR_EMAIL', 'QA_CREATOR_PASSWORD'],
+        checks: [
+          'POST /api/v1/auth/login',
+          'GET /api/v1/me',
+          'GET /api/v1/me/trust',
+          'GET /api/v1/me/creator-studio',
+        ],
+        passCriteria: {
+          creatorStudioAccessEnabled: true,
+          artistOperatorAccess: true,
+          accessSource: 'artist_operator',
+        },
+        failureOwner: {
+          missingCredentials: 'private_credential_owner',
+          missingArtistOperator: 'creator_access_owner',
+          serverError: 'backend_owner',
+        },
+      },
+      {
+        key: 'qa_admin',
+        requiredSlots: ['QA_ADMIN_EMAIL', 'QA_ADMIN_PASSWORD'],
+        checks: [
+          'POST /api/v1/auth/login',
+          'GET /api/v1/admin/api/v1/me',
+          'GET /api/v1/admin/api/v1/backstage/summary',
+        ],
+        passCriteria: {
+          adminAccessEnabled: true,
+          roleKind: 'super_admin',
+          hasWildcardPermission: true,
+          backstageSummaryAccess: true,
+        },
+        failureOwner: {
+          missingCredentials: 'private_credential_owner',
+          missingAdminAccess: 'backstage_admin_owner',
+          missingPermission: 'backstage_permission_owner',
+          serverError: 'backend_owner',
+        },
+      },
+    ],
+    allowedOutput: [
+      'slot names present/missing',
+      'HTTP status',
+      'stable code/messageKey',
+      'access enabled booleans',
+      'safe role kind',
+      'permission booleans',
+      'nextOwner routing key',
+    ],
+    forbiddenOutput: [
+      'raw email',
+      'password',
+      'access token',
+      'refresh token',
+      'cookie',
+      'database url',
+      'raw response body',
+      'environment value',
     ],
   },
   missingAccountRunbook: [
