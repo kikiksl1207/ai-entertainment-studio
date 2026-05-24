@@ -1,3 +1,4 @@
+import { HttpException } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
 import { CreatorStudioService } from './creator-studio.service';
 
@@ -82,6 +83,21 @@ function preview(overrides: Record<string, unknown> = {}) {
   };
 
   return { ...base, ...overrides };
+}
+
+async function expectHttpError(
+  promise: Promise<unknown>,
+  expected: Record<string, unknown>,
+) {
+  try {
+    await promise;
+  } catch (error) {
+    expect(error).toBeInstanceOf(HttpException);
+    expect((error as HttpException).getResponse()).toMatchObject(expected);
+    return;
+  }
+
+  throw new Error('Expected promise to reject');
 }
 
 describe('CreatorStudioService.getPayoutSummary', () => {
@@ -258,6 +274,75 @@ describe('CreatorStudioService artist knowledge URLs', () => {
         chatEligibleAfterCreate: false,
       },
     });
+  });
+
+  it('returns a stable user-facing error when the artist is not managed by the creator', async () => {
+    const { service } = serviceWithKnowledgePrisma({
+      artistOperator: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    });
+
+    await expectHttpError(
+      service.createKnowledgeUrl(authUser as never, {
+        artistId,
+        type: 'youtube',
+        url: 'https://www.youtube.com/watch?v=abc',
+        description: 'Behind the scenes rehearsal update.',
+        allowChatRef: true,
+      }),
+      {
+        code: 'ARTIST_KNOWLEDGE_URL_ACCESS_REQUIRED',
+        messageKey: 'artistKnowledgeUrl.error.accessRequired',
+      },
+    );
+  });
+
+  it('returns stable validation errors for malformed artist knowledge URL input', async () => {
+    const { service } = serviceWithKnowledgePrisma();
+
+    await expectHttpError(
+      service.createKnowledgeUrl(authUser as never, {
+        artistId,
+        type: 'video',
+        url: 'https://www.youtube.com/watch?v=abc',
+        description: 'Behind the scenes rehearsal update.',
+        allowChatRef: true,
+      }),
+      {
+        code: 'ARTIST_KNOWLEDGE_URL_TYPE_INVALID',
+        messageKey: 'artistKnowledgeUrl.error.typeInvalid',
+      },
+    );
+
+    await expectHttpError(
+      service.createKnowledgeUrl(authUser as never, {
+        artistId,
+        type: 'youtube',
+        url: 'javascript:alert(1)',
+        description: 'Behind the scenes rehearsal update.',
+        allowChatRef: true,
+      }),
+      {
+        code: 'ARTIST_KNOWLEDGE_URL_INVALID_URL',
+        messageKey: 'artistKnowledgeUrl.error.invalidUrl',
+      },
+    );
+
+    await expectHttpError(
+      service.createKnowledgeUrl(authUser as never, {
+        artistId,
+        type: 'youtube',
+        url: 'https://www.youtube.com/watch?v=abc',
+        description: '   ',
+        allowChatRef: true,
+      }),
+      {
+        code: 'ARTIST_KNOWLEDGE_URL_DESCRIPTION_REQUIRED',
+        messageKey: 'artistKnowledgeUrl.error.descriptionRequired',
+      },
+    );
   });
 
   it('reopens approved URL edits as pending and clears review fields', async () => {

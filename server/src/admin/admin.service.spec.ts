@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminService } from './admin.service';
@@ -26,6 +26,21 @@ function createService() {
   );
 
   return { service, prisma };
+}
+
+async function expectHttpError(
+  promise: Promise<unknown>,
+  expected: Record<string, unknown>,
+) {
+  try {
+    await promise;
+  } catch (error) {
+    expect(error).toBeInstanceOf(HttpException);
+    expect((error as HttpException).getResponse()).toMatchObject(expected);
+    return;
+  }
+
+  throw new Error('Expected promise to reject');
 }
 
 describe('AdminService auth action token audit', () => {
@@ -183,5 +198,125 @@ describe('AdminService auth action token audit', () => {
         messageKey: 'admin.authActionTokens.invalidDeliveryProvider',
       }),
     });
+  });
+});
+
+describe('AdminService artist knowledge URL operations', () => {
+  const adminUser = {
+    id: '00000000-0000-4000-8000-000000000900',
+    email: 'admin@example.com',
+    role: 'admin',
+    adminPermissions: ['artists:write'],
+  };
+  const row = {
+    id: '00000000-0000-4000-8000-000000000230',
+    artistId: '00000000-0000-4000-8000-000000000221',
+    submittedByUserId: '00000000-0000-4000-8000-000000000220',
+    reviewedByUserId: null,
+    status: 'pending',
+    sourceType: 'youtube',
+    url: 'https://www.youtube.com/watch?v=abc',
+    canonicalUrl: 'https://www.youtube.com/watch?v=abc',
+    artistDescription: 'Behind the scenes rehearsal update.',
+    summary: 'Behind the scenes rehearsal update.',
+    allowChatReference: true,
+    rejectionReason: null,
+    metadata: {},
+    createdAt: new Date('2026-05-22T00:00:00.000Z'),
+    updatedAt: new Date('2026-05-22T00:00:00.000Z'),
+    reviewedAt: null,
+    archivedAt: null,
+    artist: {
+      id: '00000000-0000-4000-8000-000000000221',
+      slug: 'test-creator',
+      displayName: 'Test Creator',
+      status: 'active',
+    },
+    submittedBy: {
+      id: '00000000-0000-4000-8000-000000000220',
+      email: 'creator@example.com',
+    },
+    reviewedBy: null,
+  };
+
+  function createKnowledgeService(overrides: Record<string, unknown> = {}) {
+    const prisma = {
+      artistKnowledgeUrl: {
+        findMany: jest.fn().mockResolvedValue([row]),
+        findUnique: jest.fn().mockResolvedValue(row),
+        update: jest.fn().mockResolvedValue({
+          ...row,
+          status: 'approved',
+          reviewedByUserId: adminUser.id,
+          reviewedBy: { id: adminUser.id, email: adminUser.email },
+          reviewedAt: new Date('2026-05-22T01:00:00.000Z'),
+        }),
+      },
+      auditEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+      },
+      ...overrides,
+    };
+    const config = { get: jest.fn() };
+    const service = new AdminService(
+      prisma as unknown as PrismaService,
+      config as unknown as ConfigService,
+    );
+
+    return { service, prisma };
+  }
+
+  it('approves pending artist knowledge URLs and makes them chat eligible', async () => {
+    const { service, prisma } = createKnowledgeService();
+
+    const result = await service.approveBackstageArtistKnowledgeUrl(
+      adminUser as never,
+      row.id,
+      { summary: 'Approved artist-provided summary.' },
+    );
+
+    expect(prisma.artistKnowledgeUrl.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: row.id },
+        data: expect.objectContaining({
+          status: 'approved',
+          summary: 'Approved artist-provided summary.',
+          rejectionReason: null,
+          reviewedByUserId: adminUser.id,
+        }),
+      }),
+    );
+    expect(prisma.auditEvent.create).toHaveBeenCalled();
+    expect(result).toMatchObject({
+      item: {
+        status: 'approved',
+        chatReference: {
+          eligible: true,
+          approvedOnly: true,
+          rawUrlIncludedInPrompt: false,
+        },
+      },
+      contract: {
+        resultingStatus: 'approved',
+        chatEligibleAfterApprove: true,
+      },
+    });
+  });
+
+  it('returns stable user-facing errors for invalid filters and missing rejection reason', async () => {
+    const { service } = createKnowledgeService();
+
+    await expectHttpError(service.getBackstageArtistKnowledgeUrls({ status: 'draft' }), {
+      code: 'ARTIST_KNOWLEDGE_URL_STATUS_INVALID',
+      messageKey: 'artistKnowledgeUrl.error.statusInvalid',
+    });
+
+    await expectHttpError(
+      service.rejectBackstageArtistKnowledgeUrl(adminUser as never, row.id, {}),
+      {
+        code: 'ARTIST_KNOWLEDGE_URL_REJECTION_REASON_REQUIRED',
+        messageKey: 'artistKnowledgeUrl.error.rejectionReasonRequired',
+      },
+    );
   });
 });
