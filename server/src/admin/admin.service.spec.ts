@@ -287,6 +287,39 @@ describe('AdminService artist knowledge URL operations', () => {
       }),
     );
     expect(prisma.auditEvent.create).toHaveBeenCalled();
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          actorUserId: adminUser.id,
+          actorType: 'admin',
+          action: 'artist_knowledge_url.approve',
+          targetType: 'artist_knowledge_url',
+          targetId: row.id,
+          beforeData: expect.objectContaining({
+            status: 'pending',
+            artistId: row.artistId,
+            summaryPresent: true,
+          }),
+          afterData: expect.objectContaining({
+            status: 'approved',
+            artistId: row.artistId,
+            summaryPresent: true,
+          }),
+          metadata: expect.objectContaining({
+            statusTransition: { from: 'pending', to: 'approved' },
+            rawUrlStored: false,
+            rawPageBodyStored: false,
+            tokenCookiePasswordStored: false,
+            providerPayloadStored: false,
+            dbUrlStored: false,
+          }),
+        }),
+      }),
+    );
+    const auditPayload = JSON.stringify(prisma.auditEvent.create.mock.calls[0][0]);
+    expect(auditPayload).not.toContain('https://www.youtube.com/watch?v=abc');
+    expect(auditPayload).not.toContain('Approved artist-provided summary.');
+    expect(auditPayload).not.toContain('Behind the scenes rehearsal update.');
     expect(result).toMatchObject({
       item: {
         status: 'approved',

@@ -1,5 +1,6 @@
 import {
   ARTIST_URL_KNOWLEDGE_CONTRACT,
+  buildArtistKnowledgeAuditPayload,
   buildArtistKnowledgeChatContext,
   isArtistKnowledgeChatEligible,
 } from './artist-url-knowledge-contract';
@@ -197,5 +198,67 @@ describe('artist URL knowledge contract', () => {
     });
     expect(JSON.stringify(context)).not.toContain('watch?v=abc123');
     expect(JSON.stringify(context)).not.toContain('pending-1');
+  });
+
+  it('builds URL-redacted audit payloads for creator/admin status transitions', () => {
+    const before = {
+      id: 'knowledge-1',
+      artistId: 'artist-1',
+      submittedByUserId: 'creator-1',
+      reviewedByUserId: null,
+      status: 'pending',
+      sourceType: 'youtube',
+      url: 'https://example.com/watch?token=secret',
+      canonicalUrl: 'https://example.com/watch?token=secret',
+      artistDescription: 'Raw artist description must not be in audit.',
+      summary: 'Raw summary must not be in audit.',
+      allowChatReference: true,
+      rejectionReason: null,
+      reviewedAt: null,
+      archivedAt: null,
+    };
+    const after = {
+      ...before,
+      status: 'approved',
+      reviewedByUserId: 'admin-1',
+      reviewedAt: new Date('2026-05-24T00:00:00.000Z'),
+    };
+
+    const audit = buildArtistKnowledgeAuditPayload(
+      'artist_knowledge_url.approve',
+      before,
+      after,
+    );
+
+    expect(audit).toMatchObject({
+      beforeData: {
+        status: 'pending',
+        artistId: 'artist-1',
+        summaryPresent: true,
+        rejectionReasonPresent: false,
+      },
+      afterData: {
+        status: 'approved',
+        reviewedByUserId: 'admin-1',
+        summaryPresent: true,
+      },
+      metadata: {
+        statusTransition: { from: 'pending', to: 'approved' },
+        rawUrlStored: false,
+        rawPageBodyStored: false,
+        tokenCookiePasswordStored: false,
+        providerPayloadStored: false,
+        dbUrlStored: false,
+      },
+    });
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.auditContract).toMatchObject({
+      targetType: 'artist_knowledge_url',
+      actorTypes: ['creator', 'admin'],
+    });
+    const payload = JSON.stringify(audit);
+    expect(payload).not.toContain('https://example.com');
+    expect(payload).not.toContain('secret');
+    expect(payload).not.toContain('Raw artist description');
+    expect(payload).not.toContain('Raw summary');
   });
 });

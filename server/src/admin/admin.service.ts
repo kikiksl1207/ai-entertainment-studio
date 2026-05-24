@@ -13,6 +13,7 @@ import { AuthUser } from '../auth/auth.types';
 import {
   ARTIST_URL_KNOWLEDGE_CONTRACT,
   ARTIST_URL_KNOWLEDGE_STATUSES,
+  buildArtistKnowledgeAuditPayload,
   isArtistKnowledgeSourceType,
   normalizeArtistKnowledgeSummary,
 } from '../chat/artist-url-knowledge-contract';
@@ -5423,14 +5424,20 @@ export class AdminService {
         reviewedBy: true,
       },
     });
+    const audit = buildArtistKnowledgeAuditPayload(
+      'artist_knowledge_url.approve',
+      before,
+      row,
+    );
 
     await this.recordAudit(
       user,
       'artist_knowledge_url.approve',
       'artist_knowledge_url',
       row.id,
-      before,
-      row,
+      audit.beforeData,
+      audit.afterData,
+      audit.metadata,
     );
 
     return {
@@ -5490,14 +5497,20 @@ export class AdminService {
         reviewedBy: true,
       },
     });
+    const audit = buildArtistKnowledgeAuditPayload(
+      'artist_knowledge_url.reject',
+      before,
+      row,
+    );
 
     await this.recordAudit(
       user,
       'artist_knowledge_url.reject',
       'artist_knowledge_url',
       row.id,
-      before,
-      row,
+      audit.beforeData,
+      audit.afterData,
+      audit.metadata,
     );
 
     return {
@@ -5540,14 +5553,20 @@ export class AdminService {
         reviewedBy: true,
       },
     });
+    const audit = buildArtistKnowledgeAuditPayload(
+      'artist_knowledge_url.archive',
+      before,
+      row,
+    );
 
     await this.recordAudit(
       user,
       'artist_knowledge_url.archive',
       'artist_knowledge_url',
       row.id,
-      before,
-      row,
+      audit.beforeData,
+      audit.afterData,
+      audit.metadata,
     );
 
     return {
