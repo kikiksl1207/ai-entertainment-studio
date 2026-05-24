@@ -1,5 +1,64 @@
 # Team2 Backend Inbox
 
+status: ready_for_review
+task: "#435 premium chat room open/support fail-closed activation recheck"
+branch: team2-backend/premium-chat-fail-closed-audit-435
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- docs/ops/inbox/team2-backend.md
+checked_files:
+- server/src/chat/chat.controller.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/premium-chat-room-contract.ts
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/wallet/wallet-server-authority-policy.ts
+- pages/premium-chat-support.js
+- pages/premium-chat-hub.js
+- pages/chat-rankings.js
+- docs/ops/inbox/team2-qa.md
+tests:
+- npm.cmd ci
+- npx.cmd prisma generate
+- node --check server/src/chat/chat.controller.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/premium-chat-room-contract.ts
+- node --check server/src/chat/premium-chat-support-contract.ts
+- node --check server/src/wallet/wallet-server-authority-policy.ts
+- node --check pages/premium-chat-support.js
+- node --check pages/premium-chat-hub.js
+- node --check pages/chat-rankings.js
+- npm.cmd test -- chat.service.spec.ts premium-chat-room-contract.spec.ts wallet-server-authority-policy.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-room-contract.ts src/chat/premium-chat-room-contract.spec.ts src/chat/premium-chat-support-contract.ts src/wallet/wallet-server-authority-policy.ts src/wallet/wallet-server-authority-policy.spec.ts
+- npm.cmd run build
+- git diff --check
+- git diff --check origin/main...HEAD
+result:
+- Rechecked current main `6bbe10e` after the prior #429 merge. The premium chat room open and donation contract remains fail-closed for live mutation activation.
+- Confirmed room open tiers are still server-authored as 300/500/1000/3000L. Default accessible tier is 300L, higher tiers remain server-unlocked follower/support tiers, and client-submitted amount, balance, duration, follower state, price, refund rate, or settlement share is not trusted.
+- Confirmed the public chat controller still does not mount live premium room open, donation preview/create, chat ranking, report, force-close, refund, settlement, or payout mutation routes. The premium support contract endpoint remains read-only `GET /api/v1/chat/premium-support-contract`.
+- Confirmed frontend premium chat support/hub/ranking scripts stay contract-gated: donation confirmation remains disabled while `walletMutationEnabled=false`, rankings are not fetched while the ranking endpoint is planned/disabled, and no room-open/donation/wallet/refund/settlement/payout POST is wired.
+- Confirmed donation ranking and like ranking remain separate. Lumina Pick/boost rankings exclude premium chat donation, and planned chat communication/donation rankings exclude free-like/lumina-boost rows plus unsafe refunded/blinded/reported rows.
+safe_fixture_verifiable:
+- Contract specs cover tier lock/unlock behavior, server amount authority, disabled endpoint flags, blocked room states, idempotency expectations, ranking lane separation, privacy-safe projections, and no wallet/order/message mutation during read-only contract access.
+- UI/read-only fixture checks can verify 300/500/1000/3000L copy, locked donation confirmation, and separated ranking copy without executing live mutation.
+not_open_before_activation:
+- POST room open, donation preview/create, wallet debit/refund, conversation meter decrement, support point grants, settlement/payout accrual, report/force-close mutation, and ranking read-model refresh.
+activation_checklist:
+- Add storage/migrations for premium chat rooms, donation orders, support point ledger, conversation meter ledger, accounting ledger, refund decisions, moderation decisions, and ranking read models.
+- Implement server-only mutation endpoints with auth, idempotency fingerprints, duplicate replay handling, atomic nonnegative wallet guards, and server-normalized amounts.
+- Add QA fixtures for user, artist, follower-tier unlocks, insufficient balance, blocked room states, repeated room/donation/refund-like replay, and rollback/ops runbook.
+- Keep frontend submit disabled until backend storage, ledger, moderation, refund, ranking read models, and explicit activation flags are live.
+- ReQA user-facing refund policy copy before public activation: prior QA flagged the 24-hour unanswered full refund and 70%/50% user-fault refund limits as not sufficiently visible.
+blocked_by:
+- Backend storage/mutation implementation and explicit activation approval. No live payment, donation, room-open, wallet debit, refund, settlement, or payout mutation should run before that approval.
+sensitive_values_recorded:
+- none
+
+---
+
 status: reviewed_for_main
 task: "#429 premium chat room open/support fail-closed activation audit"
 source_branch: team2-backend/premium-chat-fail-closed-audit-429
