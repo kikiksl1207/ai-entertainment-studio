@@ -1,11 +1,12 @@
 # Team2 Backend Inbox
 
-status: ready_for_review
+status: reviewed_for_main
 task: "#454 character chat greeting and recommended reply diversity contract"
-branch: team2-backend/character-chat-persona-contract-454
-commit: final hash recorded in Notion completion report
-push: yes after final validation
-main_reflected: no, review/merge pending
+source_branch: team2-backend/character-chat-persona-contract-454
+source_commit: e6355ecf495549eb544f80cdcc9d3a9377e12a6b
+main_commit: dc439f2
+push: yes after viewer validation
+main_reflected: yes after viewer validation and cherry-pick
 worktree_cleanup: yes after push and Notion completion report
 changed_files:
 - docs/character-chat-greeting-tone-contract.md
@@ -21,17 +22,10 @@ checked_files:
 - pages/character-chat.js
 - data/character-chat-tones.js
 tests:
-- node --check server/src/chat/chat.controller.ts
-- node --check server/src/chat/chat.service.ts
-- node --check server/src/chat/chat.service.spec.ts
-- node --check server/src/chat/chat-persona-catalog.ts
-- node --check pages/character-chat.js
-- node --check data/character-chat-tones.js
-- npx.cmd prisma generate
 - npm.cmd test -- chat.service.spec.ts --runInBand
-- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/chat-persona-catalog.ts src/chat/llm-provider.adapter.ts
-- git diff --check
-- git diff --check origin/main...HEAD
+- npm.cmd run lint
+- npm.cmd run build
+- git diff --check HEAD~2..HEAD
 result:
 - Confirmed the existing character-chat first-screen contract already uses `GET /api/v1/chat/character-catalog`, `GET /api/v1/chat/starter-prompts`, and `POST /api/v1/chat/sessions` rather than a new endpoint.
 - Fixed the #454 contract wording: `openingPrompt.options[]`, `starterOptions[]`, and `sets[].options[]` are the first-screen recommended reply candidates.
