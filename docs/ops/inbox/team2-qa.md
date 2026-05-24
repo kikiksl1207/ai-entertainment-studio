@@ -1,6 +1,89 @@
 # Team2 QA Inbox
 
 status: fail
+task: #427 - #410 Artist URL knowledge integrated re-QA
+environment:
+- branch: team2-qa/427-artist-url-knowledge-integrated-reqa
+- local main after fetch/pull attempt: origin/main
+- basis commit: a165917954cf988e7e7c8c2df5f353768025cd27
+- live API health: HTTP 200, commit a165917954cf988e7e7c8c2df5f353768025cd27
+- live pages:
+  - https://www.lumina-stage.com/creator-studio
+  - https://www.lumina-stage.com/creator-studio#knowledge-url
+  - https://www.lumina-stage.com/backstage
+- No token, cookie, password, env value, secret, signed URL, raw provider payload, or raw credential was recorded.
+- No URL record creation, approval, rejection, archive, social login, external crawl, provider call, or wallet/balance mutation was executed.
+
+tested_flows:
+- PASS: latest `origin/main` was fetched and QA branch was created from `origin/main` at `a165917954cf988e7e7c8c2df5f353768025cd27`.
+- PASS: live `/health` now matches the local QA basis commit `a165917954cf988e7e7c8c2df5f353768025cd27`; the #410 stale deploy blocker is cleared.
+- PASS: unauthenticated `GET /api/v1/me/creator-studio/knowledge-urls` returned HTTP 401.
+- PASS: unauthenticated `GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-urls` returned HTTP 401.
+- PASS: unauthenticated `GET /api/v1/chat/character-catalog?artistSlug=yoon-serin` returned HTTP 401.
+- PASS: live Backstage login fallback was reachable and had no visible replacement-character mojibake at desktop/tablet/mobile.
+- PASS: `node --check pages/creator-studio.js`.
+- PASS: `node --check pages/character-chat.js`.
+- PASS: `node --check backstage.js`.
+- PASS: `npm.cmd test -- artist-url-knowledge-contract.spec.ts chat.service.spec.ts creator-studio.service.spec.ts admin.service.spec.ts --runInBand` from `server` passed 60 tests after Prisma generate.
+- PASS: `git diff --check`.
+- FAIL: live `https://www.lumina-stage.com/creator-studio#knowledge-url` still shows `ACCESS REQUIRED` instead of the approved creator URL registration form.
+- FAIL: live `https://www.lumina-stage.com/creator-studio` also shows `ACCESS REQUIRED`; clicking `다시 확인` does not restore the approved creator session.
+- FAIL: because the approved creator URL form is not reachable, pending URL creation, valid URL/description submit, and pending exclusion from character chat cannot be verified in production.
+- FAIL: live Backstage remains on operator login; the artist knowledge URL approval/reject/archive queue cannot be verified without entering credentials.
+- FAIL: mobile `creator-studio#knowledge-url` fallback has slight horizontal overflow: client width 375px, scroll width 378px.
+
+repro_steps:
+1. Fetch/pull latest main and start from `origin/main` commit `a165917954cf988e7e7c8c2df5f353768025cd27`.
+2. Confirm `https://api.lumina-stage.com/health` returns commit `a165917954cf988e7e7c8c2df5f353768025cd27`.
+3. Open `https://www.lumina-stage.com/creator-studio#knowledge-url`.
+4. Observe `ACCESS REQUIRED 스튜디오 접근 권한이 필요합니다...` instead of `자료 URL 등록`.
+5. Open `https://www.lumina-stage.com/creator-studio`.
+6. Observe the same `ACCESS REQUIRED` state.
+7. Click `다시 확인`.
+8. Observe the page remains in `ACCESS REQUIRED`; no `로그인한 크리에이터` or `자료 URL 등록` form appears.
+9. Open `https://www.lumina-stage.com/backstage`.
+10. Observe the operator login screen; no artist knowledge URL review queue is reachable without credentials.
+11. Check desktop/tablet/mobile widths for Creator Studio and Backstage; note mobile Creator Studio fallback scroll width 378px on a 375px client.
+12. Run the local checks listed above.
+
+expected:
+- After #424/#425/#426 fixes, the deployed product should let an approved creator session reach `creator-studio#knowledge-url` directly.
+- Valid URL registration should create a pending item that is not referenced by character chat before approval.
+- Backstage operator flow should expose the artist knowledge URL review queue so approve/reject/archive transitions can be QAed.
+- After approval only approved `allowChatReference=true` summaries should be eligible for character chat reference context; rejected/archived/pending items should stay excluded.
+- Mobile fallback should not horizontally overflow.
+
+actual:
+- Deploy commit alignment is fixed and local contract/service/admin tests pass.
+- The live approved creator path remains blocked by `ACCESS REQUIRED`, so the integrated creator-to-backstage-to-chat QA matrix cannot proceed.
+- Backstage review controls are not accessible in the current session without credentials.
+- The mobile Creator Studio access fallback overflows by 3px.
+
+not_verified_due_to_blocker:
+- Pending URL creation after valid URL/description submit.
+- Approved-only material entering character chat.
+- Pending/rejected/archived material being excluded from character chat.
+- URL/description prompt-injection text being treated as untrusted reference text in a live provider path.
+- Backstage approval, rejection, and archive state transitions.
+
+resolved_from_previous_410_blockers:
+- PASS: live API commit mismatch is resolved.
+- PASS: Prisma `artistKnowledgeUrl` generated-client/type blocker is resolved in local tests.
+
+blockers:
+- #427 should not be marked complete until an approved creator QA session can reach `creator-studio#knowledge-url`, a safe production/staging URL item can be created and reviewed, Backstage review queue access is available, and the mobile access fallback overflow is fixed.
+
+next_needed:
+- Return #427 to PM Chamo or the auth/session/Backstage handoff owner.
+- Provide a safe approved creator/operator QA session or staging handoff, then re-run only the pending/approved/rejected/archived chat-reference matrix.
+
+security_check:
+- PASS: no secrets, tokens, passwords, cookies, env values, signed URLs, raw provider payloads, DB URLs, or credentials were written.
+- PASS: no live URL record was created, approved, rejected, or archived; no social login, external crawl, provider call, or balance change was performed.
+
+---
+
+status: fail
 task: #398 - Premium chat policy and screen QA matrix
 environment:
 - branch: team2-qa/398-premium-chat-policy-screen-qa
