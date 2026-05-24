@@ -1,12 +1,12 @@
 # Team2 Backend Inbox
 
-status: ready_for_review
+status: reviewed_for_main
 task: "#435 premium chat room open/support fail-closed activation recheck"
-branch: team2-backend/premium-chat-fail-closed-audit-435
-commit: final hash recorded in Notion completion report
-push: yes after final validation
-main_reflected: no, review/merge pending
-worktree_cleanup: yes after push and Notion completion report
+source_branch: team2-backend/premium-chat-fail-closed-audit-435
+source_commit: c7d68e97b0e03187f3465880c49138aff241e536
+review_branch: main
+main_reflected: yes after viewer validation and cherry-pick
+worktree_cleanup: yes; source worktree removed by 루피, no viewer worktree created
 changed_files:
 - docs/ops/inbox/team2-backend.md
 checked_files:
@@ -19,7 +19,7 @@ checked_files:
 - pages/premium-chat-hub.js
 - pages/chat-rankings.js
 - docs/ops/inbox/team2-qa.md
-tests:
+source_tests:
 - npm.cmd ci
 - npx.cmd prisma generate
 - node --check server/src/chat/chat.controller.ts
@@ -35,8 +35,22 @@ tests:
 - npm.cmd run build
 - git diff --check
 - git diff --check origin/main...HEAD
+viewer_tests:
+- node --check pages/premium-chat-support.js
+- node --check pages/premium-chat-hub.js
+- node --check pages/chat-rankings.js
+- npm.cmd test -- chat.service.spec.ts premium-chat-room-contract.spec.ts wallet-server-authority-policy.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-room-contract.ts src/chat/premium-chat-room-contract.spec.ts src/chat/premium-chat-support-contract.ts src/wallet/wallet-server-authority-policy.ts src/wallet/wallet-server-authority-policy.spec.ts
+- npm.cmd run build
+- git diff --check
+- git diff --check origin/main...HEAD
+viewer_review:
+- Reviewed source commit `c7d68e97b0e03187f3465880c49138aff241e536` against latest main `e0e379e` before integration.
+- Confirmed the controller exposes only read-only `GET /api/v1/chat/premium-support-contract`; no premium room open, donation preview/create, rankings, report, force-close, refund, settlement, or payout mutation route is mounted.
+- Confirmed frontend support/hub/rankings scripts keep mutation and ranking fetches gated by `walletMutationEnabled=false` and planned/disabled ranking contract status.
+- Confirmed targeted syntax checks, contract tests, lint, build, and diff whitespace checks pass on the viewer workstation.
 result:
-- Rechecked current main `6bbe10e` after the prior #429 merge. The premium chat room open and donation contract remains fail-closed for live mutation activation.
+- Rechecked current main `e0e379e` after the #433 integration and prior #429 merge. The premium chat room open and donation contract remains fail-closed for live mutation activation.
 - Confirmed room open tiers are still server-authored as 300/500/1000/3000L. Default accessible tier is 300L, higher tiers remain server-unlocked follower/support tiers, and client-submitted amount, balance, duration, follower state, price, refund rate, or settlement share is not trusted.
 - Confirmed the public chat controller still does not mount live premium room open, donation preview/create, chat ranking, report, force-close, refund, settlement, or payout mutation routes. The premium support contract endpoint remains read-only `GET /api/v1/chat/premium-support-contract`.
 - Confirmed frontend premium chat support/hub/ranking scripts stay contract-gated: donation confirmation remains disabled while `walletMutationEnabled=false`, rankings are not fetched while the ranking endpoint is planned/disabled, and no room-open/donation/wallet/refund/settlement/payout POST is wired.
