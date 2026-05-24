@@ -1,8 +1,8 @@
 # Premium Chat Status Read API Contract
 
-Updated: 2026-05-21
-Owner: Luffy
-Task: Notion #384
+Updated: 2026-05-25
+Owner: Luffy / Kaido
+Task: Notion #384, #472
 
 This contract prepares read-only user and artist lookups for premium-chat room
 report/refund/closure state. It does not enable room-open, message, donation,
@@ -64,8 +64,11 @@ The read projection currently fixes these safe status keys:
 
 - `active`
 - `reported`
+- `blinded`
 - `admin_review`
 - `refund_pending`
+- `refund_limited_70`
+- `refund_limited_50`
 - `refunded`
 - `closed`
 - `expired`
@@ -73,6 +76,25 @@ The read projection currently fixes these safe status keys:
 
 Each status must include a stable Korean-copy label key. Clients must not use
 raw status strings as the only user-facing copy.
+
+`blinded` is the public status key for user/artist-facing projections. Existing
+storage or older contracts may still use `blind`; readers must normalize it to
+`blinded` before returning a public projection.
+
+Report/review reason keys are stable:
+
+| Status key | Reason key | Message key |
+| --- | --- | --- |
+| `reported` | `user_report_received` | `chat.premiumRoom.report.reported` |
+| `blinded` | `room_blinded_pending_admin_review` | `chat.premiumRoom.report.blinded` |
+| `admin_review` | `admin_review_pending_decision` | `chat.premiumRoom.report.adminReview` |
+| `suspended` | `room_suspended_pending_admin_review` | `chat.premiumRoom.report.suspended` |
+| `refund_limited_70` | `user_fault_report_refund_70` | `chat.premiumRoom.refund.limited70` |
+| `refund_limited_50` | `operator_sanction_user_fault_refund_50` | `chat.premiumRoom.refund.limited50` |
+
+For `refund_limited_70` and `refund_limited_50`, the read projection may show
+the stable status/reason/message keys and display-safe percentages, but must not
+perform or imply wallet, PG, settlement, or payout mutation.
 
 ## Response Shape
 
@@ -112,8 +134,11 @@ and must block any future mutation before wallet lookup or message acceptance:
 - `expired`
 - `reported`
 - `blind`
+- `blinded`
 - `suspended`
 - `refund_pending`
+- `refund_limited_70`
+- `refund_limited_50`
 - `refunded`
 - `admin_review`
 

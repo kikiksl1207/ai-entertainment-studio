@@ -2,7 +2,7 @@
 
 Updated: 2026-05-25
 Owner: Kaido
-Task: Notion #331, #383, #389, #395, #467
+Task: Notion #331, #383, #389, #395, #467, #472
 
 This contract fixes the backend authority rules for premium chat room opening,
 artist closure, report/blind handling, and refund outcomes. It does not open a
@@ -85,8 +85,10 @@ Every charge/refund/donation/split row must be traceable by stable fields:
 `premiumChatLedgerGroupId`, `flowType`, `ledgerEventName`, `ledgerType`,
 `source`, `direction`, `referenceType`, `referenceId`, `roomId`, `artistId`,
 `userId`, `grossLumina`, `debitLumina`, `refundLumina`,
-`companyRevenueLumina`, `artistCompensationLumina`, `refundReasonKey`,
-`revenueSplitBps`, `idempotencyKeyHash`, `settlementCandidate`, and
+`userRefundLumina`, `companyRevenueLumina`, `artistCompensationLumina`,
+`refundReasonKey`, `refundRestrictionStatusKey`, `moderationStatusKey`,
+`moderationReasonKey`, `revenueSplitBps`, `adminDecisionKeyHash`, `reportId`,
+`reportDecisionId`, `idempotencyKeyHash`, `settlementCandidate`, and
 `payoutCandidate`. Store a hash/surrogate for idempotency, not the raw key.
 
 ## Message Pair Charge
@@ -142,16 +144,40 @@ Reason keys:
 | `operator_sanction_user_fault_refund_50` | 50% | 40% | 10% | Yes |
 | `operator_sanction_artist_fault_full_refund` | 100% | 0% | 0% | No |
 
+## Report And Refund Limitation Status Keys
+
+Report/review states must be exposed through stable keys and message keys, not
+raw English copy. `blinded` is the public contract key for a blinded room. The
+existing storage/internal alias `blind` is still recognized for compatibility,
+but clients should render `blinded`.
+
+| Status key | Reason key | Message key | Wallet action |
+| --- | --- | --- | --- |
+| `reported` | `user_report_received` | `chat.premiumRoom.report.reported` | none |
+| `blinded` | `room_blinded_pending_admin_review` | `chat.premiumRoom.report.blinded` | none |
+| `admin_review` | `admin_review_pending_decision` | `chat.premiumRoom.report.adminReview` | none |
+| `suspended` | `room_suspended_pending_admin_review` | `chat.premiumRoom.report.suspended` | none |
+| `refund_limited_70` | `user_fault_report_refund_70` | `chat.premiumRoom.refund.limited70` | server refund after admin decision only |
+| `refund_limited_50` | `operator_sanction_user_fault_refund_50` | `chat.premiumRoom.refund.limited50` | server refund after admin decision only |
+
+Refund-limited states are moderation/admin decision states. They do not make
+wallet, PG, settlement, or payout mutation live by themselves. When a future
+admin decision resolves a restricted refund, the same ledger trace group must
+carry `refundRestrictionStatusKey`, `refundReasonKey`, `userRefundLumina`,
+`companyRevenueLumina`, `artistCompensationLumina`, `revenueSplitBps`, and
+`adminDecisionKeyHash` so user return, company retention, and artist
+compensation remain separable.
+
 ## Closure And Moderation States
 
 | Case | State | Wallet action |
 | --- | --- | --- |
 | Normal close after answer/expiry | `closed` (`artist_closed` legacy alias) | No automatic refund. |
 | Artist forced close | `refund_pending` -> `refunded` | Server policy decides 100% user refund. |
-| User-fault 70% close | `refund_pending` -> `refunded` | User refund plus company/artist accounting entries. |
-| User-fault 50% close | `refund_pending` -> `refunded` | User refund plus company/artist accounting entries. |
+| User-fault 70% close | `refund_pending` -> `refund_limited_70` -> `refunded` | User refund plus company/artist accounting entries after admin decision. |
+| User-fault 50% close | `refund_pending` -> `refund_limited_50` -> `refunded` | User refund plus company/artist accounting entries after admin decision. |
 | Operator sanction close | `admin_review` | No artist compensation until review completes. |
-| User report | `reported`, `blind`, `suspended`, `admin_review` | No wallet action before admin decision. |
+| User report | `reported`, `blinded` (`blind` storage alias), `suspended`, `admin_review` | No wallet action before admin decision. |
 
 Report intake must blind/suspend the room or mark it processing until admin
 review. User-facing responses use stable message keys such as
@@ -163,8 +189,9 @@ URLs, cookies, or tokens.
 
 The following room states fail closed before message, support, debit,
 conversation-meter, support-point, settlement, or payout mutation:
-`closed`, `artist_closed`, `expired`, `reported`, `blind`, `suspended`,
-`refund_pending`, `refunded`, and `admin_review`.
+`closed`, `artist_closed`, `expired`, `reported`, `blind`, `blinded`,
+`suspended`, `refund_pending`, `refund_limited_70`, `refund_limited_50`,
+`refunded`, and `admin_review`.
 
 ## Open Blockers
 
