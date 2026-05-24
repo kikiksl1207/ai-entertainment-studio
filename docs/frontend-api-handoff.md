@@ -717,6 +717,15 @@ Character-chat CMS copy (#335):
 - `openingPrompt` is the first visible prompt card: guide text, suggested
   options, and direct input label. Selecting it still does not create a chat
   message by itself.
+- #454 names the existing option fields as the recommended-reply contract:
+  `openingPrompt.options[]`, `starterOptions[]`, and `sets[].options[]` are the
+  first-screen recommended replies. Render only Korean `label` and `message`
+  copy, keep 1 to 3 candidates when provided, and never show raw keys, source
+  enums, trait ids, provider state, prompt ids, or English fallback text.
+- Candidate selection should only fill or send the user's intended message
+  through the normal chat flow. Do not add a separate submit endpoint, provider
+  request, wallet/Lumina debit, settlement, payout, or paid-like action from
+  the candidate click itself.
 - `forbiddenTone.items` is display-safe guidance. Never render raw persona
   prompts, provider payloads, model names, tokens, keys, or internal prompt
   secrets.
@@ -738,6 +747,10 @@ Character-chat CMS copy (#335):
   `2026-05-22.character-chat-dynamic-greeting-cache.v1`. Provider output is
   short by contract (`maxOutputTokens=120`, `maxOutputChars=180`) and falls
   back to character-specific copy when provider readiness or guard fails.
+- For 10 different users opening the same character, the UI should prefer the
+  cached per-session `openingGreeting.text` when available so first greetings
+  can vary by session. Recommended replies can stay stable per character unless
+  the backend later adds an explicit display-safe variant field.
 - #402 adds `openingGreeting.toneCandidate` as display-safe contract data:
   `guideKo`, `toneTags`, `personaTags`, and `characterSlug`. Use it only for
   QA/debug contract checks or safe UI hints if needed; do not render raw enum

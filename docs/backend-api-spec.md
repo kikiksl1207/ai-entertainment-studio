@@ -886,6 +886,17 @@ Character-chat greeting and tone contract (#381):
   `orderMutation=false`, and `settlementMutation=false`.
 - `openingPrompt` contains the first guide text, visible suggested options, and
   direct-input label. It does not create a chat message or call the provider.
+- #454 fixes the recommended-reply contract on the existing fields:
+  `openingPrompt.options[]`, `starterOptions[]`, and `sets[].options[]` are the
+  first-screen recommended reply candidates. They must expose 1 to 3
+  display-safe Korean `label`/`message` candidates when character copy exists,
+  may use the current two-candidate default plus direct input, and must follow
+  the same source order as greetings: published site-content, artist metadata,
+  character fallback, default Korean copy.
+- Selecting a recommended reply is an input convenience only. It must not create
+  a chat message, call the provider, create an order, debit wallet/Lumina, touch
+  settlement, or create payout state until the user submits through the normal
+  chat message/generation flow.
 - `forbiddenTone.items` is a display-safe blocked tone/expression list. It must
   not expose raw persona prompts, provider payloads, model names, tokens, keys,
   or internal prompt secrets.
@@ -923,6 +934,10 @@ Character-chat dynamic opening greeting cache (#388):
 - If provider readiness, daily guard, or request fails, the backend stores a
   character-specific fallback greeting from site-content copy, artist metadata,
   character fallback, or default copy.
+- Cost guard for #454: recommended reply candidates are read-only projection
+  data and always zero-provider-call. Dynamic first greeting is the only
+  first-entry provider candidate, and it remains behind provider readiness,
+  daily request/failure guards, one-per-session cache, and short-output limits.
 - `dynamicGreetingContract.version` is
   `2026-05-22.character-chat-dynamic-greeting-cache.v1` and is exposed on
   `GET /api/v1/chat/character-catalog` and
