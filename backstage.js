@@ -1,4 +1,4 @@
-﻿const BACKSTAGE_API_BASE = (window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
+const BACKSTAGE_API_BASE = (window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
 const BACKSTAGE_BASE_HAS_API_PREFIX = /\/api\/v1$/.test(BACKSTAGE_API_BASE);
 const BACKSTAGE_AUTH_KEY = "lumina_backstage_auth";
 const SHARED_AUTH_KEYS = [BACKSTAGE_AUTH_KEY, "lumina_auth", "lumina.session"];
@@ -1168,6 +1168,33 @@ function renderLoadingRow(targetId, label = "데이터를 불러오는 중입니
 
 function renderFallbackNote(targetId, label = "현재 데이터를 불러오지 못해 샘플 데이터를 유지합니다.") {
   console.warn(`Backstage ${targetId}: ${label}`);
+}
+
+function backstageErrorStatus(error) {
+  const status = Number(error?.status || error?.body?.statusCode || 0);
+  return Number.isFinite(status) ? status : 0;
+}
+
+function backstageUserFacingError(error, fallback = "요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.") {
+  const status = backstageErrorStatus(error);
+  if (status === 401) {
+    return "운영자 세션이 만료됐어요. 다시 로그인한 뒤 시도해 주세요.";
+  }
+  if (status === 403) {
+    return "이 작업에 필요한 운영자 권한이 없어요. 권한을 확인해 주세요.";
+  }
+  return fallback;
+}
+
+function artistKnowledgeQueueErrorMessage(error) {
+  const status = backstageErrorStatus(error);
+  if (status === 401) {
+    return "운영자 세션이 만료됐어요. 다시 로그인하면 자료 URL 심사 큐를 확인할 수 있어요.";
+  }
+  if (status === 403) {
+    return "자료 URL 심사 큐는 artists:read 권한이 있는 운영자만 볼 수 있어요.";
+  }
+  return "자료 URL 심사 큐를 불러오지 못했습니다. 네트워크 또는 배포 상태를 확인해 주세요.";
 }
 
 function formatHistoryTime(value) {
@@ -3073,9 +3100,10 @@ async function runPreparedAction() {
         if (help) help.textContent = "크리에이터 콘텐츠 조치 이력은 남겼습니다. 서버 저장 연결은 PM/백엔드 확인 후 다시 붙이면 됩니다.";
         return;
       }
-      confirmMessage.textContent = error.message || "처리에 실패했어요.";
-      confirmPayload.innerHTML = renderConfirmSummary(pendingActionPreview, { status: "처리 실패", message: error.message || "잠시 후 다시 시도해 주세요." });
-      appendActionHistory(pendingActionPreview, { status: "처리 실패", message: error.message || "잠시 후 다시 시도해 주세요." });
+      const message = backstageUserFacingError(error);
+      confirmMessage.textContent = message;
+      confirmPayload.innerHTML = renderConfirmSummary(pendingActionPreview, { status: "처리 실패", message });
+      appendActionHistory(pendingActionPreview, { status: "처리 실패", message });
       console.debug("Backstage action error", {
         targetType: pendingActionPreview.targetType,
         method: request.method,
@@ -3759,7 +3787,8 @@ async function loadCreatorsSection() {
     const [data, imageRequestsPage, knowledgeUrlsPage] = await Promise.all([
       backstageFetch(adminApiPath("/backstage/operations/creators?take=20"), { auth: true }),
       backstageFetch(adminApiPath("/creator-image-requests?take=20"), { auth: true }).catch(() => null),
-      backstageFetch(adminApiPath("/backstage/operations/artist-knowledge-urls?take=20"), { auth: true }).catch(() => null)
+      backstageFetch(adminApiPath("/backstage/operations/artist-knowledge-urls?take=20"), { auth: true })
+        .catch((error) => ({ error, __failed: true }))
     ]);
     const applicationsPage = normalizePage(data?.applications || data);
     const activeCreators = data?.activeCreators || [];
@@ -3840,7 +3869,8 @@ async function loadCreatorsSection() {
         resultAssetIds: request.resultAssetIds || []
       }
     }));
-    const knowledgeRows = normalizePage(knowledgeUrlsPage).items.map((item) => {
+    const knowledgeQueueError = knowledgeUrlsPage?.__failed ? knowledgeUrlsPage.error : null;
+    const knowledgeRows = knowledgeQueueError ? [] : normalizePage(knowledgeUrlsPage).items.map((item) => {
       const artistName = item.artist?.displayName || item.artist?.slug || item.artistId?.slice?.(0, 8) || "-";
       const summary = compactText(item.summary || item.description || item.url, 56);
       return {
@@ -3873,14 +3903,15 @@ async function loadCreatorsSection() {
     if (imageRequestRows.length) renderRows("creatorImageRequestRows", imageRequestRows, 5);
     else renderLoadingRow("creatorImageRequestRows", "표시할 이미지 제작 요청이 없습니다.");
     sectionState.creators.knowledgeRows = knowledgeRows;
-    if (knowledgeRows.length) renderRows("artistKnowledgeUrlRows", knowledgeRows, 1);
+    if (knowledgeQueueError) renderLoadingRow("artistKnowledgeUrlRows", artistKnowledgeQueueErrorMessage(knowledgeQueueError));
+    else if (knowledgeRows.length) renderRows("artistKnowledgeUrlRows", knowledgeRows, 1);
     else renderLoadingRow("artistKnowledgeUrlRows", "심사할 자료 URL이 없습니다.");
     if (aiRows.length) renderRows("aiCreatorRows", aiRows, 5);
     else renderLoadingRow("aiCreatorRows", "표시할 AI 아티스트가 없습니다.");
-  } catch {
+  } catch (error) {
     renderRows("creatorRows", backstageRows.creators, 7);
     renderRows("creatorImageRequestRows", backstageRows.creatorImageRequests, 5);
-    renderLoadingRow("artistKnowledgeUrlRows", "자료 URL 심사 큐를 불러오지 못했습니다.");
+    renderLoadingRow("artistKnowledgeUrlRows", backstageUserFacingError(error, "자료 URL 심사 큐를 불러오지 못했습니다."));
     renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
     renderFallbackNote("creatorRows");
     renderFallbackNote("creatorImageRequestRows");

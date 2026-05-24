@@ -1,5 +1,52 @@
 # Team2 Frontend Inbox
 
+status: ready_for_review
+task: "#452 Backstage artist knowledge URL queue access blocker check"
+branch: team2-frontend/backstage-artist-url-queue-452
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- backstage.js
+- docs/ops/inbox/team2-frontend.md
+checked_files:
+- backstage.html
+- backstage.css
+- server/src/admin/admin.controller.ts
+- server/src/auth/guards/admin-auth.guard.ts
+- server/src/auth/guards/admin-permission.guard.ts
+- server/src/admin/admin.service.ts
+- server/src/admin/admin.service.spec.ts
+- docs/ops/inbox/team2-qa.md
+tests:
+- node --check backstage.js
+- node --check server/src/admin/admin.controller.ts
+- node --check server/src/admin/admin.service.ts
+- node --check server/src/admin/admin.service.spec.ts
+- npm.cmd ci
+- npx.cmd prisma generate
+- npm.cmd test -- admin.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/admin/admin.controller.ts src/admin/admin.service.ts src/admin/admin.service.spec.ts src/auth/guards/admin-auth.guard.ts src/auth/guards/admin-permission.guard.ts
+- git diff --check
+- git diff --check origin/main...HEAD
+result:
+- Confirmed the Backstage artist knowledge URL list endpoint is `GET /admin/api/v1/backstage/operations/artist-knowledge-urls` behind `AdminAuthGuard` and `artists:read`.
+- Confirmed approve/reject/archive endpoints are POST routes behind `artists:write`; no live mutation was executed.
+- Confirmed the Backstage creators section calls the artist knowledge URL queue endpoint, and the blocker from #436 is primarily missing safe operator session/deploy-basis alignment rather than a missing route.
+- Updated Backstage queue failure UI so session expiry, missing `artists:read`, and generic network/deploy errors are separated instead of silently showing an empty queue.
+- Updated Backstage action failure copy so 401/403 approval/reject/archive attempts show Korean user-facing session/permission guidance instead of raw guard text.
+safe_access_path:
+- Operator must be authenticated with an active admin user or bootstrap admin email.
+- Queue read requires `artists:read`, `artists:write`, `artists:*`, or `*` because read is allowed by write-level permission.
+- Approve/reject/archive requires `artists:write`, `artists:*`, or `*`.
+blocked_by:
+- Live verification still requires a safe Backstage operator session with `artists:read` and `artists:write`; no credentials were available in this workspace/session.
+sensitive_values_recorded:
+- none
+
+---
+
 status: reviewed_for_main
 task: "#449 premium chat CTA and safe room-open path regression check"
 source_branch: team2-frontend/premium-chat-cta-safe-path-449
