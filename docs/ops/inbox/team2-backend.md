@@ -1,6 +1,46 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#426 artistKnowledgeUrl Prisma type and character chat contract"
+branch: team2-backend/artist-knowledge-url-chat-contract-426
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/src/chat/artist-url-knowledge-contract.spec.ts
+- docs/ops/inbox/team2-backend.md
+tests:
+- npm.cmd ci
+- npx.cmd prisma generate
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.service.spec.ts
+- node --check server/src/chat/artist-url-knowledge-contract.spec.ts
+- npm.cmd test -- artist-url-knowledge-contract.spec.ts chat.service.spec.ts creator-studio.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/artist-url-knowledge-contract.spec.ts src/creator-studio/creator-studio.service.ts src/creator-studio/creator-studio.service.spec.ts
+- npm.cmd run build
+- git diff --check
+result:
+- Removed the optional delegate cast from ChatService so `PrismaService.artistKnowledgeUrl` is a direct Prisma service contract dependency.
+- Kept character chat retrieval scoped to approved, chat-enabled artist knowledge URLs only.
+- Strengthened tests so pending, rejected, archived, and approved-but-disabled URL knowledge cannot enter provider knowledge context even if a mock returns mixed rows.
+- Confirmed URL query strings are not included in provider context and reference text is marked as untrusted fact context, not an instruction.
+status_matrix:
+- pending: not chat eligible
+- approved + allowChatReference + summary: chat eligible
+- approved + allowChatReference false: not chat eligible
+- rejected: not chat eligible
+- archived: not chat eligible
+blocked_by:
+- Review/merge and #427 integrated live reQA after #424/#425/#426 deployment.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#422 Lumina Feed 2200-character live API blocker fix"
 branch: team2-backend/lumina-feed-2200-live-blocker-422
 commit: final hash recorded in Notion completion report

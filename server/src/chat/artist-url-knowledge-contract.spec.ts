@@ -50,6 +50,23 @@ describe('artist URL knowledge contract', () => {
   });
 
   it('allows character chat to reference only approved, chat-enabled summaries', () => {
+    const lifecycleEligibility = {
+      pending: false,
+      approved: true,
+      rejected: false,
+      archived: false,
+    } as const;
+
+    for (const [status, eligible] of Object.entries(lifecycleEligibility)) {
+      expect(
+        isArtistKnowledgeChatEligible({
+          status,
+          allowChatReference: true,
+          summary: 'Artist-provided reference summary.',
+        }),
+      ).toBe(eligible);
+    }
+
     expect(
       isArtistKnowledgeChatEligible({
         status: 'approved',
@@ -57,16 +74,6 @@ describe('artist URL knowledge contract', () => {
         summary: 'New YouTube behind-the-scenes video summary.',
       }),
     ).toBe(true);
-
-    for (const status of ['pending', 'rejected', 'archived']) {
-      expect(
-        isArtistKnowledgeChatEligible({
-          status,
-          allowChatReference: true,
-          summary: 'Do not leak this before review.',
-        }),
-      ).toBe(false);
-    }
 
     expect(
       isArtistKnowledgeChatEligible({

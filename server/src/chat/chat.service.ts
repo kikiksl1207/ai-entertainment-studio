@@ -3805,19 +3805,8 @@ export class ChatService {
   private async loadApprovedArtistKnowledgeContext(
     artistId: string,
   ): Promise<ArtistKnowledgeChatContext> {
-    const delegate = (
-      this.prisma as unknown as {
-        artistKnowledgeUrl?: {
-          findMany: (args: unknown) => Promise<ArtistKnowledgeChatCandidate[]>;
-        };
-      }
-    ).artistKnowledgeUrl;
-
-    if (!delegate?.findMany) {
-      return buildArtistKnowledgeChatContext([]);
-    }
-
-    const items = await delegate.findMany({
+    const items: ArtistKnowledgeChatCandidate[] =
+      await this.prisma.artistKnowledgeUrl.findMany({
       where: {
         artistId,
         status: 'approved',
