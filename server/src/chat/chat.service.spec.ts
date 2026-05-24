@@ -4438,6 +4438,58 @@ describe('ChatService.generateMessage provider beta', () => {
     );
   });
 
+  it('continues character chat without URL references when no approved knowledge exists', async () => {
+    const tx = persistTx('No approved reference was needed.');
+    const prisma = prismaForGenerate(tx);
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockResolvedValue({
+        body: 'No approved reference was needed.',
+        usage: {
+          provider: 'openai',
+          model: 'gpt-5-mini',
+          inputTokens: 16,
+          outputTokens: 7,
+          estimatedCostKrw: '0.00',
+        },
+        safetyMetadata: {
+          requestId: 'req_no_knowledge',
+        },
+      }),
+      fallbackResult: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await service.generateMessage(userId, sessionId, {
+      body: 'Anything new?',
+    });
+
+    expect(prisma.artistKnowledgeUrl.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          artistId: session.artistId,
+          status: 'approved',
+          allowChatReference: true,
+        },
+        take: 5,
+      }),
+    );
+
+    const request = llmProvider.generate.mock.calls[0][0];
+
+    expect(request.runtimePersona.knowledgeContext).toMatchObject({
+      source: 'approved_artist_knowledge_urls',
+      items: [],
+      promptInjectionPolicy: {
+        untrustedReferenceTextOnly: true,
+        rawUrlIsNeverInstruction: true,
+        rawPageBodyStored: false,
+        rawPromptStored: false,
+      },
+    });
+    expect(tx.chatMessage.create).toHaveBeenCalledTimes(2);
+  });
+
   it('stores a safe fallback reply instead of throwing on provider request errors', async () => {
     const tx = persistTx('지금은 답장을 준비하는 중이에요. 잠시 후 다시 말을 걸어주세요.');
     const prisma = prismaForGenerate(tx);

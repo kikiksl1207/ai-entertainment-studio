@@ -77,6 +77,72 @@ describe('artist URL knowledge contract', () => {
     ).toBe(false);
   });
 
+  it('keeps pending, rejected, archived, disabled, or summaryless rows out of provider context', () => {
+    const context = buildArtistKnowledgeChatContext([
+      {
+        id: 'pending-1',
+        artistId: 'artist-1',
+        status: 'pending',
+        sourceType: 'youtube',
+        canonicalUrl: 'https://example.com/pending',
+        allowChatReference: true,
+        summary: 'Pending item should stay out of chat.',
+        reviewedAt: null,
+      },
+      {
+        id: 'rejected-1',
+        artistId: 'artist-1',
+        status: 'rejected',
+        sourceType: 'blog',
+        canonicalUrl: 'https://example.com/rejected',
+        allowChatReference: true,
+        summary: 'Rejected item should stay out of chat.',
+        reviewedAt: null,
+      },
+      {
+        id: 'archived-1',
+        artistId: 'artist-1',
+        status: 'archived',
+        sourceType: 'notice',
+        canonicalUrl: 'https://example.com/archived',
+        allowChatReference: true,
+        summary: 'Archived item should stay out of chat.',
+        reviewedAt: null,
+      },
+      {
+        id: 'disabled-1',
+        artistId: 'artist-1',
+        status: 'approved',
+        sourceType: 'instagram',
+        canonicalUrl: 'https://example.com/disabled',
+        allowChatReference: false,
+        summary: 'Approved but disabled item should stay out of chat.',
+        reviewedAt: new Date('2026-05-22T00:00:00.000Z'),
+      },
+      {
+        id: 'summaryless-1',
+        artistId: 'artist-1',
+        status: 'approved',
+        sourceType: 'tiktok',
+        canonicalUrl: 'https://example.com/summaryless',
+        allowChatReference: true,
+        summary: '   ',
+        reviewedAt: new Date('2026-05-22T00:00:00.000Z'),
+      },
+    ]);
+
+    expect(context.items).toEqual([]);
+    expect(context).toMatchObject({
+      source: 'approved_artist_knowledge_urls',
+      promptInjectionPolicy: {
+        untrustedReferenceTextOnly: true,
+        rawUrlIsNeverInstruction: true,
+        rawPageBodyStored: false,
+        rawPromptStored: false,
+      },
+    });
+  });
+
   it('builds a capped, URL-redacted, untrusted reference context for the provider', () => {
     const context = buildArtistKnowledgeChatContext(
       [

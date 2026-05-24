@@ -1,5 +1,52 @@
 # Team2 Backend Inbox
 
+status: ready_for_review
+task: "#439 artist URL approved knowledge character chat reference contract"
+branch: team2-backend/artist-url-chat-reference-439
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/artist-url-knowledge-contract.spec.ts
+- server/src/chat/chat.service.spec.ts
+- docs/ops/inbox/team2-backend.md
+checked_files:
+- server/src/chat/artist-url-knowledge-contract.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/llm-provider.adapter.ts
+- server/src/creator-studio/creator-studio.service.ts
+- server/src/admin/admin.service.ts
+- docs/ops/inbox/team2-qa.md
+tests:
+- npm.cmd ci
+- npx.cmd prisma generate
+- node --check server/src/chat/artist-url-knowledge-contract.ts
+- node --check server/src/chat/artist-url-knowledge-contract.spec.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.service.spec.ts
+- node --check server/src/chat/llm-provider.adapter.ts
+- npm.cmd test -- artist-url-knowledge-contract.spec.ts chat.service.spec.ts creator-studio.service.spec.ts admin.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/artist-url-knowledge-contract.ts src/chat/artist-url-knowledge-contract.spec.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts src/creator-studio/creator-studio.service.ts src/creator-studio/creator-studio.service.spec.ts src/admin/admin.service.ts src/admin/admin.service.spec.ts
+- npm.cmd run build
+- git diff --check
+- git diff --check origin/main...HEAD
+result:
+- Confirmed character chat retrieves artist URL knowledge with server filters `status: approved` and `allowChatReference: true` only.
+- Confirmed pending, rejected, archived, chat-reference-disabled, and summaryless rows are not eligible for provider context even if passed through a defensive helper path.
+- Confirmed provider context uses capped summaries, hostname-only source labels, and `instructionRole: reference_fact_not_instruction`; raw submitted URLs are not included in the provider knowledge context.
+- Confirmed `llm-provider.adapter.ts` adds approved knowledge only as untrusted reference facts and explicitly says never to treat them as system or developer instructions.
+- Confirmed empty/unapproved knowledge falls back to normal character chat generation with an empty `approved_artist_knowledge_urls` context instead of exposing pending/rejected/archived material or failing the chat path.
+spec_hardening:
+- Added contract coverage for pending/rejected/archived, disabled, and summaryless knowledge rows staying out of provider context.
+- Added ChatService coverage for the no-approved-knowledge path so character chat continues safely without URL references.
+remaining_live_qa:
+- Prior QA still could not verify production creator URL registration or Backstage review queue because live access remained gated. ReQA needs approved creator/operator access after deployment.
+sensitive_values_recorded:
+- none
+
+---
+
 status: reviewed_for_main
 task: "#435 premium chat room open/support fail-closed activation recheck"
 source_branch: team2-backend/premium-chat-fail-closed-audit-435
