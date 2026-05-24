@@ -1,11 +1,12 @@
 # Team2 Frontend Inbox
 
-status: ready_for_review
+status: reviewed_for_main
 task: "#452 Backstage artist knowledge URL queue access blocker check"
-branch: team2-frontend/backstage-artist-url-queue-452
-commit: final hash recorded in Notion completion report
-push: yes after final validation
-main_reflected: no, review/merge pending
+source_branch: team2-frontend/backstage-artist-url-queue-452
+source_commit: b30d5269a0f9f0477f49bd901eb5f684264584da
+main_commit: ceb7388
+push: yes after viewer validation
+main_reflected: yes after viewer validation and cherry-pick
 worktree_cleanup: yes after push and Notion completion report
 changed_files:
 - backstage.js
@@ -21,15 +22,10 @@ checked_files:
 - docs/ops/inbox/team2-qa.md
 tests:
 - node --check backstage.js
-- node --check server/src/admin/admin.controller.ts
-- node --check server/src/admin/admin.service.ts
-- node --check server/src/admin/admin.service.spec.ts
-- npm.cmd ci
-- npx.cmd prisma generate
 - npm.cmd test -- admin.service.spec.ts --runInBand
 - npm.cmd run lint -- --quiet src/admin/admin.controller.ts src/admin/admin.service.ts src/admin/admin.service.spec.ts src/auth/guards/admin-auth.guard.ts src/auth/guards/admin-permission.guard.ts
-- git diff --check
-- git diff --check origin/main...HEAD
+- git diff --check HEAD~1..HEAD
+- git diff --check HEAD~2..HEAD
 result:
 - Confirmed the Backstage artist knowledge URL list endpoint is `GET /admin/api/v1/backstage/operations/artist-knowledge-urls` behind `AdminAuthGuard` and `artists:read`.
 - Confirmed approve/reject/archive endpoints are POST routes behind `artists:write`; no live mutation was executed.
