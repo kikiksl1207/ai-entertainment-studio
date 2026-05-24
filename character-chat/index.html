@@ -115,7 +115,8 @@
             <ul class="premium-chat-hub-rooms-list" id="premiumChatRoomsList" role="list" aria-live="polite">
               <li class="premium-chat-hub-rooms-skeleton">프리미엄 채팅방 정보를 불러오는 중이에요…</li>
             </ul>
-            <p class="premium-chat-hub-rooms-foot">방 오픈/차감은 원장·보안 검증이 끝난 뒤 열려요. 지금은 진입과 아티스트 프로필 이동만 가능합니다.</p>
+            <!-- #474 — "원장·보안 검증" 내부 용어 제거, 서비스 톤으로 교체 -->
+            <p class="premium-chat-hub-rooms-foot">방 오픈은 서비스 준비 완료 후 활성화돼요. 지금은 아티스트 프로필과 채팅방 진입만 가능해요.</p>
           </section>
         </section>
 
@@ -126,9 +127,10 @@
           <header class="premium-chat-plans-head">
             <h3 class="premium-chat-plans-title">프리미엄 채팅방 플랜</h3>
           </header>
-          <p class="premium-chat-plans-note">방 플랜은 루미나(L)로 열고 기본 3일 유지돼요. 아티스트가 최대 10일까지 연장할 수 있어요. 방 열기는 원장·보안 검증이 끝난 뒤 활성화됩니다.</p>
-          <!-- #398 QA — 환불 정책 안내: 24h 미답변 전액환불·귀책 환불 제한 톤. 정확한 비율은 서버 결정이므로 노출 안 함. -->
-          <p class="premium-chat-plans-refund-note">24시간 내 아티스트 미답변 시 전액 환불돼요. 유저 귀책 사유 발생 시 운영 검토 결과에 따라 환불이 제한될 수 있어요.</p>
+          <!-- #474 — "원장·보안 검증" 내부 용어 → 서비스 톤 교체 -->
+          <p class="premium-chat-plans-note">방 플랜은 루미나(L)로 열고 기본 3일 유지돼요. 아티스트가 최대 10일까지 연장할 수 있어요. 방 열기는 서비스 준비 완료 후 활성화됩니다.</p>
+          <!-- #474 — #471 리뷰 반영: 귀책 시 50–70% 제한 가능성 명시(과하지 않게). #398 "비율 비노출" 방침 변경. -->
+          <p class="premium-chat-plans-refund-note">24시간 내 아티스트 미답변 시 전액 환불돼요. 유저 귀책 사유 발생 시 환불 금액이 50–70% 수준으로 제한될 수 있어요.</p>
           <ul class="premium-chat-plan-list" role="list">
             <li class="premium-chat-plan is-available">
               <span class="premium-chat-plan-price">300<small>L</small></span>
@@ -434,15 +436,17 @@
         <div class="donation-policy" id="donationPolicyInfo">
           <ul>
             <li id="donationPolicyHighValue">10,000L 이상은 본인확인이 끝난 계정만 가능해요.</li>
-            <li id="donationPolicyBlockedStates">신고/블라인드/환불 검토 중인 방에서는 후원이 일시 정지돼요.</li>
+            <!-- #474 — "블라인드" 내부 용어 제거, 신고·운영 검토 톤으로 정리 -->
+            <li id="donationPolicyBlockedStates">신고·운영 검토 중인 방에서는 후원이 일시 중단될 수 있어요.</li>
           </ul>
         </div>
       </div>
 
       <footer class="dm-sheet-foot">
         <button type="button" class="dm-sheet-secondary" data-donation-close>닫기</button>
-        <button type="button" class="dm-sheet-primary" id="donationConfirmBtn" disabled aria-disabled="true" title="후원은 원장·보안 검증이 끝난 뒤 열려요.">
-          <span id="donationConfirmLabel">후원 잠금</span>
+        <!-- #474 — title·label 내부 용어 제거 -->
+        <button type="button" class="dm-sheet-primary" id="donationConfirmBtn" disabled aria-disabled="true" title="후원 기능은 서비스 준비 완료 후 열려요.">
+          <span id="donationConfirmLabel">후원 안내 확인</span>
         </button>
       </footer>
     </aside>
@@ -462,7 +466,8 @@
           <!-- #370 — 환불/chargeback/refunded 상태를 분리하는 현재 계약과 충돌하지 않도록 "절대 불가" 표현 회피. -->
           <li>후원 진행 후 취소·환불은 운영 정책과 검토 결과에 따라 제한될 수 있어요.</li>
         </ul>
-        <p class="donation-confirm-note" id="donationConfirmNote">실제 후원 처리는 원장·보안 검증이 끝난 뒤 열려요.</p>
+        <!-- #474 — "원장·보안 검증" 내부 용어 제거 -->
+        <p class="donation-confirm-note" id="donationConfirmNote">후원 기능은 서비스 준비 완료 후 활성화돼요.</p>
       </div>
       <footer class="dm-modal-foot">
         <button type="button" class="dm-sheet-secondary" data-donation-confirm-cancel>다시 보기</button>
