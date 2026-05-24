@@ -1,5 +1,48 @@
 # Team2 Backend Inbox
 
+status: ready_for_review
+task: "#463 URL knowledge character chat context verification"
+branch: team2-backend/artist-url-chat-context-463
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/chat.service.spec.ts
+- docs/artist-url-knowledge-chat-contract.md
+- docs/ops/inbox/team2-backend.md
+checked_files:
+- server/src/chat/artist-url-knowledge-contract.ts
+- server/src/chat/artist-url-knowledge-contract.spec.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/src/chat/llm-provider.adapter.ts
+- server/src/chat/llm-provider.adapter.spec.ts
+tests:
+- node --check server/src/chat/artist-url-knowledge-contract.ts
+- node --check server/src/chat/artist-url-knowledge-contract.spec.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.service.spec.ts
+- node --check server/src/chat/llm-provider.adapter.ts
+- node --check server/src/chat/llm-provider.adapter.spec.ts
+- npx.cmd prisma generate
+- npm.cmd test -- artist-url-knowledge-contract.spec.ts chat.service.spec.ts llm-provider.adapter.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/artist-url-knowledge-contract.ts src/chat/artist-url-knowledge-contract.spec.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts src/chat/llm-provider.adapter.spec.ts
+- git diff --check
+- git diff --check origin/main...HEAD
+result:
+- Added service-level regression coverage for mixed artist URL knowledge rows returned from a mocked defensive path.
+- Confirmed the service query still requests only `artistId`, `status=approved`, and `allowChatReference=true` rows.
+- Confirmed provider context keeps only the eligible approved + chat-reference-enabled row and drops pending, rejected, archived, disabled, and summaryless rows before LLM provider handoff.
+- Confirmed the surviving context item carries `instructionRole=reference_fact_not_instruction`.
+- Documented the #463 verification baseline for service retrieval, context builder filtering, provider adapter role labeling, raw URL redaction, and prompt-injection handling.
+blocked_by:
+- Live provider behavior still requires a safe provider-enabled beta account/environment; this task used provider-free contract tests only.
+sensitive_values_recorded:
+- none
+
+---
+
 status: reviewed_for_main
 task: "#459 artist URL knowledge character chat safety gate"
 source_branch: team2-backend/artist-url-chat-safety-gate-459
