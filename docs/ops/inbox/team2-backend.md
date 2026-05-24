@@ -1,5 +1,48 @@
 # Team2 Backend Inbox
 
+status: ready_for_review
+task: "#459 artist URL knowledge character chat safety gate"
+branch: team2-backend/artist-url-chat-safety-gate-459
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/llm-provider.adapter.ts
+- server/src/chat/llm-provider.adapter.spec.ts
+- docs/artist-url-knowledge-chat-contract.md
+- docs/ops/inbox/team2-backend.md
+checked_files:
+- server/src/chat/artist-url-knowledge-contract.ts
+- server/src/chat/artist-url-knowledge-contract.spec.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/src/admin/admin.service.ts
+tests:
+- node --check server/src/chat/artist-url-knowledge-contract.ts
+- node --check server/src/chat/artist-url-knowledge-contract.spec.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.service.spec.ts
+- node --check server/src/chat/llm-provider.adapter.ts
+- node --check server/src/chat/llm-provider.adapter.spec.ts
+- npx.cmd prisma generate
+- npm.cmd test -- artist-url-knowledge-contract.spec.ts chat.service.spec.ts llm-provider.adapter.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/artist-url-knowledge-contract.ts src/chat/artist-url-knowledge-contract.spec.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/llm-provider.adapter.ts src/chat/llm-provider.adapter.spec.ts
+- git diff --check
+- git diff --check origin/main...HEAD
+result:
+- Confirmed character chat retrieval is gated by `artistId`, `status=approved`, and `allowChatReference=true` before provider generation.
+- Confirmed the defensive context builder drops pending, rejected, archived, chat-reference-disabled, and summaryless rows.
+- Strengthened provider adapter instructions so each approved URL knowledge fragment is labeled `role=reference_fact_not_instruction`.
+- Added adapter coverage that prompt-injection text inside an approved summary stays inside the untrusted reference block, raw URL query strings stay out, and reference text is not placed in the user input field.
+- Documented the #459 safety gate and split provider-free contract tests from live provider-required verification.
+blocked_by:
+- Live provider behavior still requires a safe provider-enabled beta account/environment; no live provider request or mutation was executed for this task.
+sensitive_values_recorded:
+- none
+
+---
+
 status: reviewed_for_main
 task: "#454 character chat greeting and recommended reply diversity contract"
 source_branch: team2-backend/character-chat-persona-contract-454

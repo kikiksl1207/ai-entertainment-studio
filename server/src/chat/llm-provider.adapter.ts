@@ -505,7 +505,7 @@ export class ChatLlmProviderAdapter implements ChatLlmProvider {
       .map((item) => {
         const source = item.sourceLabel ? ` (${item.sourceLabel})` : '';
 
-        return `- ${item.sourceType}${source}: ${this.trimToLimit(
+        return `- role=${item.instructionRole}; source=${item.sourceType}${source}; summary=${this.trimToLimit(
           item.summary,
           context.maxSummaryChars,
         )}`;
