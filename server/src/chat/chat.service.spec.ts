@@ -4438,6 +4438,138 @@ describe('ChatService.generateMessage provider beta', () => {
     );
   });
 
+  it('drops non-eligible artist URL knowledge rows before provider context is built', async () => {
+    const tx = persistTx('Only eligible knowledge was used.');
+    const prisma = {
+      ...prismaForGenerate(tx),
+      artistKnowledgeUrl: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: '00000000-0000-4000-8000-000000000963',
+            artistId: session.artistId,
+            status: 'approved',
+            sourceType: 'notice',
+            canonicalUrl: 'https://artist.example/safe-approved',
+            summary: 'Approved stage note for chat reference.',
+            allowChatReference: true,
+            reviewedAt: new Date('2026-05-24T00:00:00.000Z'),
+            createdAt: new Date('2026-05-24T00:00:00.000Z'),
+          },
+          {
+            id: 'pending-463',
+            artistId: session.artistId,
+            status: 'pending',
+            sourceType: 'youtube',
+            canonicalUrl: 'https://artist.example/pending',
+            summary: 'Pending instruction must not enter provider context.',
+            allowChatReference: true,
+            reviewedAt: null,
+            createdAt: new Date('2026-05-24T00:01:00.000Z'),
+          },
+          {
+            id: 'rejected-463',
+            artistId: session.artistId,
+            status: 'rejected',
+            sourceType: 'blog',
+            canonicalUrl: 'https://artist.example/rejected',
+            summary: 'Rejected instruction must not enter provider context.',
+            allowChatReference: true,
+            reviewedAt: new Date('2026-05-24T00:02:00.000Z'),
+            createdAt: new Date('2026-05-24T00:02:00.000Z'),
+          },
+          {
+            id: 'archived-463',
+            artistId: session.artistId,
+            status: 'archived',
+            sourceType: 'instagram',
+            canonicalUrl: 'https://artist.example/archived',
+            summary: 'Archived instruction must not enter provider context.',
+            allowChatReference: true,
+            reviewedAt: new Date('2026-05-24T00:03:00.000Z'),
+            createdAt: new Date('2026-05-24T00:03:00.000Z'),
+          },
+          {
+            id: 'disabled-463',
+            artistId: session.artistId,
+            status: 'approved',
+            sourceType: 'tiktok',
+            canonicalUrl: 'https://artist.example/disabled',
+            summary: 'Disabled approved note must not enter provider context.',
+            allowChatReference: false,
+            reviewedAt: new Date('2026-05-24T00:04:00.000Z'),
+            createdAt: new Date('2026-05-24T00:04:00.000Z'),
+          },
+          {
+            id: 'summaryless-463',
+            artistId: session.artistId,
+            status: 'approved',
+            sourceType: 'other',
+            canonicalUrl: 'https://artist.example/summaryless',
+            summary: '   ',
+            allowChatReference: true,
+            reviewedAt: new Date('2026-05-24T00:05:00.000Z'),
+            createdAt: new Date('2026-05-24T00:05:00.000Z'),
+          },
+        ]),
+      },
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockResolvedValue({
+        body: 'Only eligible knowledge was used.',
+        usage: {
+          provider: 'openai',
+          model: 'gpt-5-mini',
+          inputTokens: 20,
+          outputTokens: 8,
+          estimatedCostKrw: '0.00',
+        },
+        safetyMetadata: {
+          requestId: 'req_463_mixed_knowledge',
+        },
+      }),
+      fallbackResult: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await service.generateMessage(userId, sessionId, {
+      body: 'Use only approved references.',
+    });
+
+    expect(prisma.artistKnowledgeUrl.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          artistId: session.artistId,
+          status: 'approved',
+          allowChatReference: true,
+        },
+        take: 5,
+      }),
+    );
+
+    const context = llmProvider.generate.mock.calls[0][0].runtimePersona
+      .knowledgeContext;
+
+    expect(context.items).toEqual([
+      expect.objectContaining({
+        id: '00000000-0000-4000-8000-000000000963',
+        instructionRole: 'reference_fact_not_instruction',
+        summary: 'Approved stage note for chat reference.',
+      }),
+    ]);
+
+    const serialized = JSON.stringify(context);
+    expect(serialized).not.toContain('pending-463');
+    expect(serialized).not.toContain('rejected-463');
+    expect(serialized).not.toContain('archived-463');
+    expect(serialized).not.toContain('disabled-463');
+    expect(serialized).not.toContain('summaryless-463');
+    expect(serialized).not.toContain('Pending instruction');
+    expect(serialized).not.toContain('Rejected instruction');
+    expect(serialized).not.toContain('Archived instruction');
+    expect(serialized).not.toContain('Disabled approved note');
+  });
+
   it('continues character chat without URL references when no approved knowledge exists', async () => {
     const tx = persistTx('No approved reference was needed.');
     const prisma = prismaForGenerate(tx);

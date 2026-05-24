@@ -70,7 +70,7 @@ The provider prompt receives at most 5 summary fragments. It receives hostname l
 
 Cost guard: retrieval is capped at 5 rows before the provider call, and each summary fragment is capped at 700 chars.
 
-## #459 Safety Gate
+## #459/#463 Safety Gate
 
 The chat service must apply the state gate before provider generation:
 
@@ -89,3 +89,19 @@ The chat service must apply the state gate before provider generation:
 Provider-required tests should be separate from contract tests. The approved
 state gate, defensive filtering, raw URL redaction, and prompt-injection role
 labeling can be validated without a live provider call.
+
+## #463 Verification Baseline
+
+Provider-free tests must cover both layers:
+
+- Service retrieval asks the database for only `status=approved` and
+  `allowChatReference=true` rows for the current session artist.
+- The context builder still drops pending, rejected, archived, disabled, and
+  summaryless rows if a defensive or mocked path returns mixed data.
+- The provider adapter receives only eligible context items, with
+  `instructionRole=reference_fact_not_instruction`.
+- Prompt-injection text in an approved summary can appear only inside the
+  approved knowledge reference block. It must not be copied to user input and
+  must not become a system or developer instruction.
+- Raw submitted URLs and query strings stay out of provider instructions; only
+  safe hostname labels may be present.
