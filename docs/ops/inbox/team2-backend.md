@@ -1,5 +1,50 @@
 # Team2 Backend Inbox
 
+status: ready_for_review
+task: "#454 character chat greeting and recommended reply diversity contract"
+branch: team2-backend/character-chat-persona-contract-454
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- docs/character-chat-greeting-tone-contract.md
+- docs/character-chat-dynamic-greeting-cache-contract.md
+- docs/backend-api-spec.md
+- docs/frontend-api-handoff.md
+- docs/ops/inbox/team2-backend.md
+checked_files:
+- server/src/chat/chat.controller.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/src/chat/chat-persona-catalog.ts
+- pages/character-chat.js
+- data/character-chat-tones.js
+tests:
+- node --check server/src/chat/chat.controller.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.service.spec.ts
+- node --check server/src/chat/chat-persona-catalog.ts
+- node --check pages/character-chat.js
+- node --check data/character-chat-tones.js
+- npx.cmd prisma generate
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/chat-persona-catalog.ts src/chat/llm-provider.adapter.ts
+- git diff --check
+- git diff --check origin/main...HEAD
+result:
+- Confirmed the existing character-chat first-screen contract already uses `GET /api/v1/chat/character-catalog`, `GET /api/v1/chat/starter-prompts`, and `POST /api/v1/chat/sessions` rather than a new endpoint.
+- Fixed the #454 contract wording: `openingPrompt.options[]`, `starterOptions[]`, and `sets[].options[]` are the first-screen recommended reply candidates.
+- Clarified that recommended reply candidates are read-only, zero-provider-call, zero-wallet-mutation projections; selecting one only prepares user text for the normal chat flow.
+- Clarified that dynamic first greeting variation should use cached per-session `openingGreeting.text` from `POST /chat/sessions` or cached `opening_greeting` messages.
+- Added clean-mode/tone guardrails for minors, prohibited expression categories, external contact/payment, and excessive intimacy.
+blocked_by:
+- Live DM UI verification still needs a deployed environment and safe authenticated account; no provider call or live mutation was executed for this contract task.
+sensitive_values_recorded:
+- none
+
+---
+
 status: reviewed_for_main
 task: "#439 artist URL approved knowledge character chat reference contract"
 source_branch: team2-backend/artist-url-chat-reference-439

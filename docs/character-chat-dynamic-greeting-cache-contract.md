@@ -2,7 +2,8 @@
 
 Updated: 2026-05-22
 Owner: Luffy
-Task: Notion #388, #397 regression contract, #402 tone candidate contract
+Task: Notion #388, #397 regression contract, #402 tone candidate contract, #454
+greeting/recommended-reply diversity contract
 
 This contract makes the first character-chat greeting dynamic per chat session
 without generating a new greeting on every page refresh. It keeps raw prompts,
@@ -70,6 +71,10 @@ provider requests or two opening-greeting rows for one session.
 - Same session reload: return cached `opening_greeting`.
 - Same character, different sessions: wording can vary through provider output
   or deterministic fallback variant seed from the session id.
+- Recommended reply candidates stay read-only and zero-cost. They are exposed
+  through `openingPrompt.options[]`, `starterOptions[]`, and
+  `sets[].options[]`; selecting one only pre-fills/sends user text through the
+  normal chat flow and does not create a provider request by itself.
 - The `openingGreeting.toneCandidate` projection snapshots the public
   character tone guide/tags used for the session. It is display-safe contract
   data, not a raw prompt or provider payload.
@@ -109,6 +114,9 @@ It does not store or return:
   artist-side greeting if it appears in the message list.
 - Do not request a new greeting on refresh. Reloading the same session should
   use `GET /chat/sessions/:sessionId/messages` and the cached row.
+- Treat `openingPrompt.options[]`, `starterOptions[]`, and `sets[].options[]`
+  as the first-screen recommended replies. They are character-specific copy,
+  not raw enum values, and should show Korean `label`/`message` only.
 - Do not display raw source/metadata enum values as user copy.
 
 ## Test Baseline
