@@ -3,7 +3,8 @@
 Updated: 2026-05-25
 Owner: Luffy / Kaido
 Task: Notion #384, #472, #473 room interaction status contract, #477,
-#478 projection copy contract, #486 room guidance tone
+#478 projection copy contract, #486 room guidance tone, #490 room list/detail
+projection contract
 
 This contract prepares read-only user and artist lookups for premium-chat room
 report/refund/closure state. It does not enable room-open, message, donation,
@@ -24,6 +25,8 @@ Current contract paths:
 - `projections.premiumRoomRefundStatus`
 - `projections.premiumRoomReportStatus`
 - `projections.premiumRoomMutationAvailability`
+- `projections.premiumRoomDetail`
+- `roomProjection`
 - `roomStatusRead.interactionStatusMatrix`
 - `roomStatusRead.unansweredRefundTransition`
 - `productProjection`
@@ -144,6 +147,7 @@ Required behavior before these routes can be enabled:
 ```json
 {
   "room": "premiumRoomStatus projection",
+  "detail": "premiumRoomDetail projection",
   "refund": "premiumRoomRefundStatus projection",
   "report": "premiumRoomReportStatus projection",
   "mutationAvailability": "premiumRoomMutationAvailability projection",
@@ -153,6 +157,8 @@ Required behavior before these routes can be enabled:
 
 `premiumRoomStatus` includes only public room id, viewer role, safe artist
 projection, server tier summary, status key/label key, and duration timestamps.
+For #490 it also includes user-visible status message keys, artist-visible
+status message keys, last response status, and the room lock state.
 
 `premiumRoomRefundStatus` exposes display-safe refund state, label key,
 policy key, amount if safe for the viewer, timestamps, and duplicate replay
@@ -166,6 +172,21 @@ return the same projection and never create another moderation mutation.
 `premiumRoomMutationAvailability` is display-only. It reports whether the UI
 should keep message, donation, artist-force-close, or refund request affordances
 disabled. It does not make any mutation endpoint live.
+
+`premiumRoomDetail` is the page/detail projection for UI wiring. It exposes
+only stable copy keys and safe booleans for:
+
+- user-visible status message
+- artist-visible status message
+- report/admin-review/refund/closed lock state
+- donation button enabled/disabled state and public disabled reason key
+- artist reply activity and creator revenue possibility hint
+
+The detail projection must not expose raw status enums as display copy, raw
+internal decision reasons, settlement rates, internal calculation rules,
+admin-only notes, raw chat bodies, wallet ledger ids, support-point ledger ids,
+conversation-meter ledger ids, raw payloads, tokens, cookies, passwords, DB
+URLs, or AI auto-reply wording.
 
 ## Fail-Closed Mutation Policy
 
