@@ -3352,10 +3352,10 @@ describe('ChatService premium chat support contract', () => {
     const contract = service.getPremiumSupportContract();
 
     expect(contract.version).toBe(
-      '2026-05-25.premium-chat-report-refund-product-projection.v1',
+      '2026-05-25.premium-chat-copy-status-consistency.v1',
     );
     expect(contract.previousVersion).toBe(
-      '2026-05-25.premium-chat-room-interaction-status.v1',
+      '2026-05-25.premium-chat-report-refund-product-projection.v1',
     );
     expect(contract.donation.fixedAmountsLumina).toEqual([
       10,
@@ -3402,7 +3402,7 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.policy.premiumChatAccountingLedgerMutationEnabled).toBe(false);
     expect(contract.policy.productProjectionMutationEnabled).toBe(false);
     expect(contract.productProjection).toMatchObject({
-      version: '2026-05-25.premium-chat-product-projection.v1',
+      version: '2026-05-25.premium-chat-copy-status-consistency.v1',
       userArtistCopySeparated: true,
       aiAutoReplyCopyAllowed: false,
       rawPromptReturned: false,
@@ -3426,6 +3426,11 @@ describe('ChatService premium chat support contract', () => {
         trigger: 'no_artist_answer_after_24h',
         roomStatus: 'refund_pending',
         refundPolicyKey: 'unanswered_24h_full_refund',
+        refundStateMeaning: 'refund_candidate_pending_server_decision',
+        refundCompletedCopyAllowed: false,
+        autoRefundCompletedCopyAllowed: false,
+        requiresServerRefundDecisionBeforeCredit: true,
+        userRefundRatePercent: 100,
         userVisibleCopy: {
           titleKey: 'chat.premiumRoom.unanswered.user.title',
           bodyKey: 'chat.premiumRoom.unanswered.user.body',
@@ -3439,6 +3444,69 @@ describe('ChatService premium chat support contract', () => {
           userCanSendMessage: false,
           artistCanReply: false,
           canDonate: false,
+        },
+      },
+      copyStatusConsistency: {
+        unansweredAfter24h: {
+          copyIntent: 'refund_candidate_pending_not_completed',
+          statusKey: 'refund_pending',
+          refundReasonKey: 'unanswered_24h_full_refund',
+          userRefundRatePercent: 100,
+          refundCompletedCopyAllowed: false,
+          autoRefundCompletedCopyAllowed: false,
+          requiresServerRefundDecisionBeforeCredit: true,
+          availability: {
+            readMode: 'safe_status_only',
+            userCanSendMessage: false,
+            artistCanReply: false,
+            canDonate: false,
+          },
+          requiredCopyKeys: expect.arrayContaining([
+            'chat.premiumRoom.unanswered.user.title',
+            'chat.premiumRoom.unanswered.user.body',
+            'chat.premiumRoom.unanswered.artist.title',
+            'chat.premiumRoom.unanswered.artist.body',
+          ]),
+        },
+        userFaultRefundLimit: {
+          copyIntent: 'possible_refund_limit_after_server_or_admin_decision',
+          copyMustBeConditional: true,
+          clientSubmittedRefundRateTrusted: false,
+          allowedRefundRatePercents: [70, 50],
+          allowedRefundBps: [7000, 5000],
+          artistCompensationRatePercent: 10,
+          artistCompensationBps: 1000,
+          refundRestrictionStatusKeys: ['refund_limited_70', 'refund_limited_50'],
+          refundReasonKeys: [
+            'user_fault_report_refund_70',
+            'operator_sanction_user_fault_refund_50',
+          ],
+          requiredCopyKeys: [
+            'chat.premiumRoom.refund.limited70',
+            'chat.premiumRoom.refund.limited50',
+          ],
+        },
+        reportAndReviewPause: {
+          copyIntent: 'room_temporarily_paused_during_report_or_admin_review',
+          statusKeys: [
+            'paused_by_report',
+            'reported',
+            'blinded',
+            'suspended',
+            'admin_review',
+          ],
+          userCanSendMessage: false,
+          artistCanReply: false,
+          canDonate: false,
+          supportPointEligible: false,
+          messageMeterEligible: false,
+          walletMutationAllowed: false,
+          requiredCopyKeys: expect.arrayContaining([
+            'chat.premiumRoom.report.processing',
+            'chat.premiumRoom.report.blinded',
+            'chat.premiumRoom.adminReview',
+            'chat.premiumRoom.suspended',
+          ]),
         },
       },
       conversationMeterNotice: {
