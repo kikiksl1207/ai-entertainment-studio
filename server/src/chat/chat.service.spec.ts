@@ -3352,10 +3352,10 @@ describe('ChatService premium chat support contract', () => {
     const contract = service.getPremiumSupportContract();
 
     expect(contract.version).toBe(
-      '2026-05-25.premium-chat-room-interaction-status.v1',
+      '2026-05-25.premium-chat-report-refund-api.v1',
     );
     expect(contract.previousVersion).toBe(
-      '2026-05-21.premium-chat-status-read-api.v1',
+      '2026-05-25.premium-chat-room-interaction-status.v1',
     );
     expect(contract.donation.fixedAmountsLumina).toEqual([
       10,
@@ -3459,8 +3459,11 @@ describe('ChatService premium chat support contract', () => {
           'expired',
           'reported',
           'blind',
+          'blinded',
           'suspended',
           'refund_pending',
+          'refund_limited_70',
+          'refund_limited_50',
           'refunded',
           'admin_review',
         ],
@@ -3596,11 +3599,17 @@ describe('ChatService premium chat support contract', () => {
       visibility: {
         allowedStatusKeys: [
           'active',
+          'paused_by_report',
           'reported',
+          'blinded',
           'admin_review',
           'refund_pending',
+          'refund_limited_70',
+          'refund_limited_50',
           'refunded',
           'closed',
+          'closed_by_artist',
+          'closed_by_operator',
           'expired',
           'suspended',
         ],
@@ -3661,6 +3670,129 @@ describe('ChatService premium chat support contract', () => {
         userPrivateProfileReturned: false,
       },
     });
+    expect(contract.endpoints.reportSubmit).toMatchObject({
+      method: 'POST',
+      pathTemplate: '/api/v1/chat/premium-rooms/:roomId/reports',
+      enabled: false,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(contract.endpoints.artistForceClose).toMatchObject({
+      method: 'POST',
+      enabled: false,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+    });
+    expect(contract.endpoints.operatorClose).toMatchObject({
+      method: 'POST',
+      enabled: false,
+      superAdminOnly: true,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+    });
+    expect(contract.apiContracts.reportSubmit).toMatchObject({
+      method: 'POST',
+      pathTemplate: '/api/v1/chat/premium-rooms/:roomId/reports',
+      enabled: false,
+      authRequired: true,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+      response: {
+        room: {
+          status: {
+            key: 'paused_by_report',
+            labelKey: 'chat.premiumRoom.report.processing',
+          },
+          canSendMessage: false,
+          canDonate: false,
+        },
+      },
+      projection: {
+        actionKey: 'report_submit',
+        roomStatusKey: 'paused_by_report',
+        reportStatusKey: 'reported',
+        nextReviewStatusKeys: ['blinded', 'suspended', 'admin_review'],
+      },
+      privacy: {
+        rawChatBodyReturned: false,
+        rawReportBodyReturned: false,
+        rawReportReasonReturned: false,
+      },
+    });
+    expect(contract.apiContracts.reportSubmit.idempotency).toMatchObject({
+      conflictStatus: 409,
+      conflictCode: 'PREMIUM_CHAT_REPORT_REFUND_IDEMPOTENCY_CONFLICT',
+      conflictMutation: false,
+      requestFingerprintFields: {
+        reportSubmit: ['roomId', 'reasonKey', 'safeEvidenceHash'],
+        artistForceClose: ['roomId', 'reasonKey'],
+        operatorClose: ['roomId', 'decisionKey', 'refundPolicyKey'],
+      },
+    });
+    expect(contract.apiContracts.artistForceClose).toMatchObject({
+      method: 'POST',
+      enabled: false,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+      response: {
+        room: {
+          status: {
+            key: 'refund_pending',
+            labelKey: 'chat.premiumRoom.refund.artistForcedClose',
+          },
+        },
+      },
+      projection: {
+        actionKey: 'artist_force_close',
+        roomStatusKey: 'refund_pending',
+        closeStatusKey: 'closed_by_artist',
+        refundReasonKey: 'artist_forced_close_full_refund',
+      },
+    });
+    expect(contract.apiContracts.operatorClose).toMatchObject({
+      method: 'POST',
+      enabled: false,
+      superAdminOnly: true,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+      response: {
+        room: {
+          status: {
+            key: 'closed_by_operator',
+            labelKey: 'chat.premiumRoom.closed.operator',
+          },
+        },
+      },
+      projection: {
+        actionKey: 'operator_sanction_close',
+        roomStatusKey: 'closed_by_operator',
+        allowedRefundRestrictionStatusKeys: [
+          'refund_limited_70',
+          'refund_limited_50',
+        ],
+      },
+    });
+    expect(contract.apiContracts.operatorClose.refundOutcomes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          refundReasonKey: 'user_fault_report_refund_70',
+          refundRatePercent: 70,
+          artistCompensationRatePercent: 10,
+        }),
+        expect.objectContaining({
+          refundReasonKey: 'operator_sanction_user_fault_refund_50',
+          refundRatePercent: 50,
+          artistCompensationRatePercent: 10,
+        }),
+        expect.objectContaining({
+          refundReasonKey: 'operator_sanction_artist_fault_full_refund',
+          refundRatePercent: 100,
+          artistCompensationRatePercent: 0,
+        }),
+      ]),
+    );
     expect(contract.apiContracts.rankingsList.enabled).toBe(false);
     expect(contract.apiContracts.rankingsList.request.query.type).toEqual([
       'communication',
@@ -3875,8 +4007,11 @@ describe('ChatService premium chat support contract', () => {
         'expired',
         'reported',
         'blind',
+        'blinded',
         'suspended',
         'refund_pending',
+        'refund_limited_70',
+        'refund_limited_50',
         'refunded',
         'admin_review',
       ],
@@ -3970,7 +4105,19 @@ describe('ChatService premium chat support contract', () => {
         artistCanReply: false,
         canDonate: false,
       },
+      paused_by_report: {
+        readMode: 'safe_status_only',
+        userCanSendMessage: false,
+        artistCanReply: false,
+        canDonate: false,
+      },
       blind: {
+        readMode: 'safe_status_only',
+        userCanSendMessage: false,
+        artistCanReply: false,
+        canDonate: false,
+      },
+      blinded: {
         readMode: 'safe_status_only',
         userCanSendMessage: false,
         artistCanReply: false,
@@ -3983,6 +4130,18 @@ describe('ChatService premium chat support contract', () => {
         canDonate: false,
       },
       refund_pending: {
+        readMode: 'safe_status_only',
+        userCanSendMessage: false,
+        artistCanReply: false,
+        canDonate: false,
+      },
+      refund_limited_70: {
+        readMode: 'safe_status_only',
+        userCanSendMessage: false,
+        artistCanReply: false,
+        canDonate: false,
+      },
+      refund_limited_50: {
         readMode: 'safe_status_only',
         userCanSendMessage: false,
         artistCanReply: false,
@@ -4022,11 +4181,17 @@ describe('ChatService premium chat support contract', () => {
     });
     expect(contract.roomStatusRead.responseStatusKeys).toEqual([
       'active',
+      'paused_by_report',
       'reported',
+      'blinded',
       'admin_review',
       'refund_pending',
+      'refund_limited_70',
+      'refund_limited_50',
       'refunded',
       'closed',
+      'closed_by_artist',
+      'closed_by_operator',
       'expired',
       'suspended',
     ]);
@@ -4049,6 +4214,34 @@ describe('ChatService premium chat support contract', () => {
         'return_existing_refund_projection_without_second_credit',
       duplicateReportBehavior:
         'return_existing_report_projection_without_second_state_mutation',
+    });
+    expect(contract.roomStatusRead.reportRefundApiStatusKeys).toEqual([
+      'active',
+      'paused_by_report',
+      'refund_pending',
+      'refunded',
+      'closed_by_artist',
+      'closed_by_operator',
+    ]);
+    expect(contract.reportRefundApi).toMatchObject({
+      status: 'planned_disabled',
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      pgRefundMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      projections: {
+        reportSubmitAccepted: {
+          roomStatusKey: 'paused_by_report',
+          canSendMessage: false,
+          canDonate: false,
+        },
+        unansweredRefundCandidate: {
+          actionKey: 'unanswered_24h_refund_candidate',
+          roomStatusKey: 'refund_pending',
+          refundReasonKey: 'unanswered_24h_full_refund',
+        },
+      },
     });
     expect(contract.room.policy.walletMutationEnabled).toBe(false);
     expect(contract.room.roomOpen.endpoint.enabled).toBe(false);
@@ -4209,7 +4402,8 @@ describe('ChatService premium chat support contract', () => {
       roomId: '<premium chat room public id>',
       viewerRole: '<user|artist>',
       status: {
-        key: '<active|reported|admin_review|refund_pending|refunded|closed|expired|suspended>',
+        key:
+          '<active|paused_by_report|reported|blinded|admin_review|refund_pending|refund_limited_70|refund_limited_50|refunded|closed|closed_by_artist|closed_by_operator|expired|suspended>',
         labelKey: '<stable Korean-copy key>',
       },
       privacy: {
@@ -4222,8 +4416,11 @@ describe('ChatService premium chat support contract', () => {
       },
     });
     expect(contract.projections.premiumRoomRefundStatus).toMatchObject({
-      state: '<none|not_eligible|pending|refunded|admin_review>',
+      state:
+        '<none|not_eligible|pending|refund_limited_70|refund_limited_50|refunded|admin_review>',
       labelKey: '<stable Korean-copy key>',
+      refundRatePercent: '<100|70|50|null>',
+      artistCompensationRatePercent: '<0|10|null>',
       duplicateReplay:
         'existing refund projection is returned without a second credit ledger',
       privacy: {
@@ -4233,7 +4430,7 @@ describe('ChatService premium chat support contract', () => {
       },
     });
     expect(contract.projections.premiumRoomReportStatus).toMatchObject({
-      state: '<none|reported|blind|suspended|admin_review|resolved>',
+      state: '<none|reported|blinded|suspended|admin_review|resolved>',
       labelKey: '<stable Korean-copy key>',
       duplicateReplay:
         'existing report projection is returned without a second moderation mutation',

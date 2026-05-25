@@ -2,7 +2,7 @@
 
 Updated: 2026-05-25
 Owner: Kaido
-Task: Notion #331, #383, #389, #395, #467, #472
+Task: Notion #331, #383, #389, #395, #467, #472, #477
 
 This contract fixes the backend authority rules for premium chat room opening,
 artist closure, report/blind handling, and refund outcomes. It does not open a
@@ -167,6 +167,56 @@ carry `refundRestrictionStatusKey`, `refundReasonKey`, `userRefundLumina`,
 `companyRevenueLumina`, `artistCompensationLumina`, `revenueSplitBps`, and
 `adminDecisionKeyHash` so user return, company retention, and artist
 compensation remain separable.
+
+## Report And Refund Limitation API Contract
+
+The report/refund mutation API remains disabled until storage, idempotency
+replay, and accounting ledgers are implemented. The contract keys are fixed so
+frontend, QA, and future backend storage use the same names.
+
+Planned endpoints:
+
+| Flow | Method/path | Enabled | Idempotency | Wallet action |
+| --- | --- | --- | --- | --- |
+| Report submit | `POST /api/v1/chat/premium-rooms/:roomId/reports` | No | Required | none |
+| Artist force close | `POST /api/v1/creator-studio/premium-chat/rooms/:roomId/force-close` | No | Required | none until policy decision |
+| Operator close | `POST /admin/api/v1/backstage/premium-chat/rooms/:roomId/operator-close` | No | Required | none until policy decision |
+
+API-safe room status keys:
+
+| Status key | Meaning |
+| --- | --- |
+| `active` | Normal room that can later support send/donate when mutation opens. |
+| `paused_by_report` | Reported/blinded/suspended/admin-review aggregate; send and donation disabled. |
+| `refund_pending` | Refund candidate or refund decision in progress. |
+| `refunded` | Refund completed projection. |
+| `closed_by_artist` | Artist closed or force-close path. |
+| `closed_by_operator` | Operator/admin closed path, including refund-limited outcomes. |
+
+Report submit returns a safe projection with `room.status.key =
+paused_by_report`, `report.status.key = reported`, and next possible review
+states `blinded`, `suspended`, and `admin_review`. The response must not return
+raw report text, raw chat body, reporter id, admin note, token, cookie,
+password, DB URL, or raw payload.
+
+Artist force close returns a `refund_pending` projection with
+`refundReasonKey = artist_forced_close_full_refund`. The future refund rate is
+100%, artist compensation is 0%, and the request is idempotent.
+
+Operator close supports these stable outcomes:
+
+| Decision | Room/status key | Refund | Company | Artist compensation |
+| --- | --- | ---: | ---: | ---: |
+| Artist fault full refund | `closed_by_operator` | 100% | 0% | 0% |
+| User fault report refund | `refund_limited_70` under `closed_by_operator` | 70% | 20% | 10% |
+| Operator sanction user fault | `refund_limited_50` under `closed_by_operator` | 50% | 40% | 10% |
+
+All three endpoints accept `Idempotency-Key` or `body.idempotencyKey`.
+Repeating the same key with the same safe request fingerprint returns the
+existing projection without a second status, refund, ledger, settlement, or
+payout mutation. Reusing the key with a different fingerprint returns
+`409 PREMIUM_CHAT_REPORT_REFUND_IDEMPOTENCY_CONFLICT` before wallet lookup or
+any mutation. Raw idempotency keys are never logged or returned.
 
 ## Closure And Moderation States
 
