@@ -1,6 +1,6 @@
 # Premium Chat Donation and Ranking API Contract
 
-Task: #376, #473 support message routing, #478 support message projection
+Task: #376, #473 support message routing, #478 support message projection, #495 support amount/lock guard
 
 Status: contract ready, endpoints disabled.
 
@@ -39,11 +39,16 @@ Rules:
 - fixed preset amounts are 10L, 50L, 100L, 500L, 1000L, 5000L, 10000L,
   and 50000L
 - custom amount is supported from 1L through 50000L, integer only
+- amount is normalized by the server before any future wallet lookup; client
+  balance, local price text, local ranking score, and custom decimal values are
+  never trusted
 - message is optional and capped at 200 chars
 - idempotency key is required
 - wallet debit is future server authority only
-- client balance, local price text, local ranking score, and local room state
-  are never trusted
+- replaying the same idempotency key with the same safe fingerprint returns the
+  existing projection without another debit; replaying it with a different
+  `sessionId`, `amountLumina`, or `message` returns
+  `PREMIUM_CHAT_DONATION_IDEMPOTENCY_CONFLICT` before wallet lookup
 
 Request body shape:
 
@@ -88,7 +93,31 @@ Success projection shape:
 ```
 
 Donation is blocked before wallet lookup when the room/session is reported,
-blind, suspended, refund-pending, refunded, admin-review, expired, or closed.
+paused by report, blind/blinded, suspended, refund-pending, refund-limited,
+refunded, admin-review, expired, closed, artist-closed, or operator-closed.
+The donation button projection must use stable reason keys and message keys,
+not raw status copy.
+
+| Room status | Donation reason key | Message key source |
+| --- | --- | --- |
+| `reported`, `paused_by_report` | `room_reported` | `chat.premiumRoom.report.processing` |
+| `blind`, `blinded` | `room_blinded` | `chat.premiumRoom.report.blinded` |
+| `suspended` | `room_suspended` | `chat.premiumRoom.suspended` |
+| `admin_review` | `room_admin_review` | `chat.premiumRoom.adminReview` |
+| `refund_pending` | `room_refund_pending` | `chat.premiumRoom.refund.pending` |
+| `refund_limited_70`, `refund_limited_50` | `room_refund_limited` | matching refund-limited message key |
+| `refunded` | `room_refunded` | `chat.premiumRoom.refund.completed` |
+| `expired` | `room_expired` | `chat.premiumRoom.expired` |
+| `closed`, `artist_closed`, `closed_by_artist`, `closed_by_operator` | `room_closed` | matching closed message key |
+
+Amount guard results:
+
+| Case | Stable code | Message key |
+| --- | --- | --- |
+| integer preset or integer custom amount in range | `PREMIUM_CHAT_DONATION_ALLOWED` | `chat.donation.amountAccepted` |
+| decimal, NaN, empty, or non-integer amount | `PREMIUM_CHAT_DONATION_AMOUNT_INVALID` | `chat.donation.invalidAmount` |
+| integer below 1L or above 50,000L | `PREMIUM_CHAT_DONATION_AMOUNT_OUT_OF_RANGE` | `chat.donation.amountOutOfRange` |
+| locked room status | `PREMIUM_CHAT_DONATION_ROOM_LOCKED` | status-specific room lock message key |
 
 Donation support-message routing is fixed by #473:
 

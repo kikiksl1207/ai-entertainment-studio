@@ -1,7 +1,6 @@
 import {
   PREMIUM_CHAT_REPORT_REFUND_API_STATUS_KEYS,
   PREMIUM_CHAT_ROOM_CONTRACT,
-  PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
   PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
 } from './premium-chat-room-contract';
 
@@ -56,6 +55,42 @@ export const PREMIUM_CHAT_DONATION_HISTORY_STATUSES = [
   'chargeback_review',
   'cancelled',
 ] as const;
+
+export const PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES = [
+  'closed',
+  'artist_closed',
+  'closed_by_artist',
+  'closed_by_operator',
+  'expired',
+  'reported',
+  'paused_by_report',
+  'blind',
+  'blinded',
+  'suspended',
+  'refund_pending',
+  'refund_limited_70',
+  'refund_limited_50',
+  'refunded',
+  'admin_review',
+] as const;
+
+export const PREMIUM_CHAT_DONATION_DISABLED_REASON_BY_STATUS = {
+  reported: 'room_reported',
+  paused_by_report: 'room_reported',
+  blind: 'room_blinded',
+  blinded: 'room_blinded',
+  suspended: 'room_suspended',
+  admin_review: 'room_admin_review',
+  refund_pending: 'room_refund_pending',
+  refund_limited_70: 'room_refund_limited',
+  refund_limited_50: 'room_refund_limited',
+  refunded: 'room_refunded',
+  expired: 'room_expired',
+  closed: 'room_closed',
+  artist_closed: 'room_closed',
+  closed_by_artist: 'room_closed',
+  closed_by_operator: 'room_closed',
+} as const;
 
 export const PREMIUM_CHAT_ROOM_STATUS_READ_KEYS = [
   'active',
@@ -1393,16 +1428,19 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         'return stable insufficient balance error without order, donation event, ledger, or ranking write',
     },
     blockedStates: {
-      session: PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
+      session: PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES,
       donation: ['refunded', 'chargeback_review', 'cancelled'],
       behavior: 'fail_closed_before_wallet_lookup',
       messageKey: 'chat.donation.blockedRoomState',
     },
     availabilityByRoomStatus: {
       allowed: ['opened', 'active', 'artist_answered'],
-      blocked: PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
+      blocked: PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES,
       reportedOrBlindedCanDonate: false,
       suspendedOrRefundPendingCanDonate: false,
+      closedOrExpiredCanDonate: false,
+      disabledReasonSource:
+        'PREMIUM_CHAT_DONATION_DISABLED_REASON_BY_STATUS',
       checkOrder: [
         'auth_required',
         'session_exists_and_owned',
@@ -1634,7 +1672,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       payout: true,
     },
     blockedStateMutationPolicy: {
-      statuses: PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
+      statuses: PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES,
       supportDisabled: true,
       messageDisabled: true,
       forceCloseMutationDisabledUntilFutureEndpoint: true,
@@ -2058,7 +2096,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       canArtistForceClose: '<boolean display-only until mutation endpoint exists>',
       canRequestRefund: '<boolean display-only until mutation endpoint exists>',
       disabledMessageKey: '<stable Korean-copy key or null>',
-      blockedStatuses: PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
+      blockedStatuses: PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES,
       copySafety: {
         aiAutoReplyCopyAllowed: false,
         rawStatusAsCopy: false,
@@ -2126,6 +2164,95 @@ export function resolvePremiumChatDonationAmountPolicy(input: {
     settlementMutationEnabled: false,
     payoutMutationEnabled: false,
     messageKey: 'chat.donation.amountAccepted',
+  } as const;
+}
+
+export function resolvePremiumChatDonationGuardPolicy(input: {
+  roomStatus?: string | null;
+  amountLumina?: unknown;
+} = {}) {
+  const roomStatus = input.roomStatus ?? 'unknown';
+  const availability = resolvePremiumChatRoomInteractionAvailability(roomStatus);
+  const disabledReasonKey =
+    (
+      PREMIUM_CHAT_DONATION_DISABLED_REASON_BY_STATUS as Record<
+        string,
+        string | undefined
+      >
+    )[roomStatus] ?? (availability.canDonate ? null : 'room_status_unknown');
+
+  if (!availability.canDonate) {
+    return {
+      canDonate: false,
+      status: 409,
+      code: 'PREMIUM_CHAT_DONATION_ROOM_LOCKED',
+      roomStatus,
+      disabledReasonKey,
+      disabledMessageKey:
+        availability.disabledMessageKey ?? 'chat.donation.blockedRoomState',
+      amountPolicy: null,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      supportPointLedgerMutationEnabled: false,
+      donationOrderMutationEnabled: false,
+    } as const;
+  }
+
+  if (input.amountLumina !== undefined) {
+    const amountPolicy = resolvePremiumChatDonationAmountPolicy({
+      amountLumina: input.amountLumina,
+    });
+
+    if (!amountPolicy.allowed) {
+      return {
+        canDonate: false,
+        status: amountPolicy.status,
+        code: amountPolicy.code,
+        roomStatus,
+        disabledReasonKey:
+          amountPolicy.code === 'PREMIUM_CHAT_DONATION_AMOUNT_OUT_OF_RANGE'
+            ? 'amount_out_of_range'
+            : 'invalid_amount',
+        disabledMessageKey: amountPolicy.messageKey,
+        amountPolicy,
+        walletMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+        supportPointLedgerMutationEnabled: false,
+        donationOrderMutationEnabled: false,
+      } as const;
+    }
+
+    return {
+      canDonate: true,
+      status: 200,
+      code: 'PREMIUM_CHAT_DONATION_ALLOWED',
+      roomStatus,
+      disabledReasonKey: null,
+      disabledMessageKey: null,
+      amountPolicy,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      supportPointLedgerMutationEnabled: false,
+      donationOrderMutationEnabled: false,
+    } as const;
+  }
+
+  return {
+    canDonate: true,
+    status: 200,
+    code: 'PREMIUM_CHAT_DONATION_ALLOWED',
+    roomStatus,
+    disabledReasonKey: null,
+    disabledMessageKey: null,
+    amountPolicy: null,
+    walletMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+    supportPointLedgerMutationEnabled: false,
+    donationOrderMutationEnabled: false,
   } as const;
 }
 
