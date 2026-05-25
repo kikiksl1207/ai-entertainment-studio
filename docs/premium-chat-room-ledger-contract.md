@@ -2,7 +2,7 @@
 
 Updated: 2026-05-25
 Owner: Kaido
-Task: Notion #331, #383, #389, #395, #467, #472, #477, #485
+Task: Notion #331, #383, #389, #395, #467, #472, #477, #485, #489
 
 This contract fixes the backend authority rules for premium chat room opening,
 artist closure, report/blind handling, and refund outcomes. It does not open a
@@ -50,6 +50,18 @@ eligibility.
   rejected.
 - Repeated extension requests must be idempotent or guarded by a server event
   key so retries cannot extend beyond the allowed cap.
+- A newly opened room uses server time as `openedAt`, server tier policy as the
+  authoritative amount, and `openedAt + serverDurationDays` as `expiresAt`.
+  The client cannot submit a trusted expiry, duration, price, balance, or
+  follower count.
+- Expiry is a server-clock transition to `expired`. It disables message send,
+  support donation, conversation metering, support-point grants, wallet writes,
+  settlement, and payout. Retried expiry handling must return the existing
+  expired projection without another status event.
+- Reusing the room-open idempotency key with the same safe fingerprint returns
+  the existing room projection without a second debit. Reusing it with a
+  different `artistId`, `tierKey`, or server tier amount returns
+  `PREMIUM_CHAT_ROOM_IDEMPOTENCY_CONFLICT` before wallet lookup.
 
 ## Ledger And Idempotency
 
@@ -115,7 +127,9 @@ balance writes no room, order, or ledger row.
 ## Refund Policy
 
 - If the artist does not answer within 24 hours, the user receives a 100%
-  Lumina refund through a server-generated refund key.
+  Lumina refund candidate through a server-generated refund key. This is
+  `refund_pending`, not `refunded`, until the server refund decision/credit path
+  is recorded.
 - If the artist force-closes the room outside a normal answered/expired close,
   the room moves to `refund_pending` and the base room open cost is a 100%
   user refund candidate. The refund can only be credited through the server
@@ -234,6 +248,30 @@ User-facing copy must match the server state machine:
   explain that the room is temporarily locked. It must keep user send, artist
   reply, support donation, message metering, support-point grant, wallet,
   settlement, and payout affordances disabled.
+
+## Room Lifecycle Projection
+
+The server projection must keep room state and allowed actions consistent:
+
+| Storage or lifecycle state | Public status key | Send | Donate | Meter | Wallet/refund mutation |
+| --- | --- | --- | --- | --- | --- |
+| `opened`, `active`, `artist_answered` | `active` | Yes | Yes | Yes | Disabled until later mutation PR |
+| `expired` | `expired` | No | No | No | None |
+| `closed` | `closed` | No | No | No | None |
+| `artist_closed` | `closed_by_artist` | No | No | No | Server policy only |
+| `reported`, `blind`, `blinded`, `suspended`, `admin_review` | `paused_by_report` | No | No | No | No wallet action before admin decision |
+| `refund_pending` | `refund_pending` | No | No | No | Server refund decision only |
+| `refunded` | `refunded` | No | No | No | Existing projection only |
+| `refund_limited_70`, `refund_limited_50` | `closed_by_operator` | No | No | No | Server/admin decision only |
+
+The 24-hour unanswered path is a candidate projection:
+
+- trigger key: `unanswered_24h_refund_candidate`
+- reason key: `unanswered_24h_full_refund`
+- public status key: `refund_pending`
+- automatic refund credit: no
+- duplicate candidate behavior: return the existing `refund_pending` projection
+  without a second refund, status event, settlement, or payout mutation
 
 ## Closure And Moderation States
 

@@ -7,15 +7,18 @@ import {
   PREMIUM_CHAT_REPORT_REVIEW_REASON_KEYS,
   PREMIUM_CHAT_REPORT_REVIEW_STATUS_KEYS,
   PREMIUM_CHAT_REFUND_REASON_KEYS,
+  PREMIUM_CHAT_ROOM_LIFECYCLE_PROJECTION_STATUS_KEYS,
   premiumChatRoomAllowedTierKeysForServerUnlocks,
   premiumChatRoomAccessForRole,
   PREMIUM_CHAT_ROOM_CONTRACT,
   PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
   PREMIUM_CHAT_ROOM_REFUND_ACCOUNTING_LEDGER_TYPES,
+  resolvePremiumChatRoomLifecycleProjection,
   resolvePremiumChatRoomDurationPolicy,
   resolvePremiumChatMessageChargePolicy,
   resolvePremiumChatRoomOpenPolicy,
   resolvePremiumChatRoomRefundPolicy,
+  resolvePremiumChatRoomUnansweredRefundCandidate,
 } from './premium-chat-room-contract';
 
 describe('premium chat room refund and moderation ledger contract', () => {
@@ -164,6 +167,175 @@ describe('premium chat room refund and moderation ledger contract', () => {
       totalDays: 3,
       raisedToBase: true,
       clientSubmittedExpiryTrusted: false,
+    });
+  });
+
+  it('fixes room open and expiry as server-authoritative projections without live mutation', () => {
+    expect(PREMIUM_CHAT_ROOM_LIFECYCLE_PROJECTION_STATUS_KEYS).toEqual([
+      'active',
+      'expired',
+      'closed',
+      'paused_by_report',
+      'refund_pending',
+      'refunded',
+      'closed_by_artist',
+      'closed_by_operator',
+    ]);
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle).toMatchObject({
+      version: '2026-05-25.premium-chat-room-open-expiry.v1',
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      roomOpen: {
+        createdStatusKey: 'active',
+        defaultTierKey: 'premium_chat_room_300',
+        defaultAmountLumina: 300,
+        amountSource: 'server room tier policy',
+        openedAtSource: 'server_now',
+        expiresAtSource: 'server_opened_at_plus_server_duration_days',
+        baseDurationDays: 3,
+        maxTotalDays: 10,
+        clientSubmittedExpiryTrusted: false,
+        clientSubmittedDurationTrusted: false,
+        clientSubmittedAmountTrusted: false,
+      },
+      expiration: {
+        statusKey: 'expired',
+        serverClockAuthoritative: true,
+        canSendMessage: false,
+        canDonate: false,
+        canMeterConversation: false,
+        supportPointGrantAllowed: false,
+        walletAction: 'none',
+        messageKey: 'chat.premiumRoom.expired',
+      },
+    });
+    expect(
+      PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.roomOpen.duplicateOpenPolicy,
+    ).toMatchObject({
+      sameIdempotencyFingerprint:
+        'return_existing_room_projection_without_second_debit',
+      mismatchedIdempotencyFingerprint:
+        '409 PREMIUM_CHAT_ROOM_IDEMPOTENCY_CONFLICT before wallet lookup',
+      sameUserArtistActiveRoom:
+        'return_existing_non_terminal_room_projection_without_second_debit',
+    });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.roomOpen.storageRequiredBeforeMutation).toEqual([
+      'premium_chat_rooms',
+      'premium_chat_room_status_events',
+      'premium_chat_accounting_ledger',
+      'idempotency_replay_projection',
+    ]);
+  });
+
+  it('keeps expired, closed, and report-paused rooms unable to chat or donate', () => {
+    expect(resolvePremiumChatRoomLifecycleProjection('opened')).toMatchObject({
+      statusKey: 'active',
+      canSendMessage: true,
+      canDonate: true,
+      canMeterConversation: true,
+      supportPointGrantAllowed: true,
+      walletMutationEnabled: false,
+    });
+    expect(resolvePremiumChatRoomLifecycleProjection('expired')).toMatchObject({
+      statusKey: 'expired',
+      reasonKey: 'room_expired',
+      canSendMessage: false,
+      canDonate: false,
+      canMeterConversation: false,
+      supportPointGrantAllowed: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      messageKey: 'chat.premiumRoom.expired',
+    });
+    expect(resolvePremiumChatRoomLifecycleProjection('closed')).toMatchObject({
+      statusKey: 'closed',
+      reasonKey: 'room_closed',
+      canSendMessage: false,
+      canDonate: false,
+      messageKey: 'chat.premiumRoom.closed.normal',
+    });
+    expect(resolvePremiumChatRoomLifecycleProjection('blinded')).toMatchObject({
+      normalizedStatus: 'blind',
+      statusKey: 'paused_by_report',
+      reasonKey: 'admin_review_pending_decision',
+      canSendMessage: false,
+      canDonate: false,
+      messageKey: 'chat.premiumRoom.report.processing',
+    });
+    expect(resolvePremiumChatRoomLifecycleProjection('refund_limited_70')).toMatchObject({
+      statusKey: 'closed_by_operator',
+      reasonKey: 'refund_limited_70',
+      canSendMessage: false,
+      canDonate: false,
+      walletMutationEnabled: false,
+    });
+  });
+
+  it('marks 24h unanswered rooms as refund candidates, not completed refunds', () => {
+    const candidate = resolvePremiumChatRoomUnansweredRefundCandidate({
+      currentStatus: 'active',
+      hoursSinceOpen: 24,
+      hasArtistAnswer: false,
+    });
+    const tooEarly = resolvePremiumChatRoomUnansweredRefundCandidate({
+      currentStatus: 'active',
+      hoursSinceOpen: 23.9,
+      hasArtistAnswer: false,
+    });
+    const answered = resolvePremiumChatRoomUnansweredRefundCandidate({
+      currentStatus: 'artist_answered',
+      hoursSinceOpen: 48,
+      hasArtistAnswer: true,
+    });
+    const duplicate = resolvePremiumChatRoomUnansweredRefundCandidate({
+      currentStatus: 'refund_pending',
+      hoursSinceOpen: 48,
+      hasArtistAnswer: false,
+    });
+
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.unansweredRefundCandidate).toMatchObject({
+      afterHours: 24,
+      statusKey: 'refund_pending',
+      actionKey: 'unanswered_24h_refund_candidate',
+      reasonKey: 'unanswered_24h_full_refund',
+      candidateOnly: true,
+      automaticRefundCredit: false,
+      finalStatusKeyAfterDecision: 'refunded',
+      walletAction: 'server_refund_after_policy_decision_only',
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(candidate).toMatchObject({
+      candidate: true,
+      duplicateCandidate: false,
+      statusKey: 'refund_pending',
+      actionKey: 'unanswered_24h_refund_candidate',
+      reasonKey: 'unanswered_24h_full_refund',
+      candidateOnly: true,
+      automaticRefundCredit: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(tooEarly).toMatchObject({
+      candidate: false,
+      statusKey: 'active',
+      reasonKey: 'not_yet_24h',
+      thresholdHours: 24,
+    });
+    expect(answered).toMatchObject({
+      candidate: false,
+      statusKey: 'active',
+      reasonKey: 'artist_answered',
+    });
+    expect(duplicate).toMatchObject({
+      candidate: true,
+      duplicateCandidate: true,
+      statusKey: 'refund_pending',
+      automaticRefundCredit: false,
     });
   });
 
