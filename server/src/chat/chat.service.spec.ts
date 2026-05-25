@@ -1,7 +1,10 @@
 import { ChatService } from './chat.service';
 import { ChatLlmProviderRequestError } from './llm-provider.adapter';
 import {
+  PREMIUM_CHAT_DONATION_DISABLED_REASON_BY_STATUS,
+  PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES,
   resolvePremiumChatDonationAmountPolicy,
+  resolvePremiumChatDonationGuardPolicy,
   resolvePremiumChatRoomInteractionAvailability,
 } from './premium-chat-support-contract';
 
@@ -3396,6 +3399,66 @@ describe('ChatService premium chat support contract', () => {
       messageKey: 'chat.donation.amountOutOfRange',
       walletMutationEnabled: false,
     });
+    expect(resolvePremiumChatDonationAmountPolicy({ amountLumina: 10.5 })).toMatchObject({
+      allowed: false,
+      status: 400,
+      code: 'PREMIUM_CHAT_DONATION_AMOUNT_INVALID',
+      messageKey: 'chat.donation.invalidAmount',
+      walletMutationEnabled: false,
+    });
+    expect(resolvePremiumChatDonationGuardPolicy({
+      roomStatus: 'active',
+      amountLumina: 50000,
+    })).toMatchObject({
+      canDonate: true,
+      code: 'PREMIUM_CHAT_DONATION_ALLOWED',
+      disabledReasonKey: null,
+      disabledMessageKey: null,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      amountPolicy: {
+        allowed: true,
+        amountLumina: 50000,
+        amountKind: 'fixed',
+      },
+    });
+    expect(resolvePremiumChatDonationGuardPolicy({
+      roomStatus: 'opened',
+      amountLumina: 1234,
+    })).toMatchObject({
+      canDonate: true,
+      code: 'PREMIUM_CHAT_DONATION_ALLOWED',
+      amountPolicy: {
+        allowed: true,
+        amountLumina: 1234,
+        amountKind: 'custom',
+      },
+    });
+    expect(resolvePremiumChatDonationGuardPolicy({
+      roomStatus: 'active',
+      amountLumina: 0,
+    })).toMatchObject({
+      canDonate: false,
+      status: 400,
+      code: 'PREMIUM_CHAT_DONATION_AMOUNT_OUT_OF_RANGE',
+      disabledReasonKey: 'amount_out_of_range',
+      disabledMessageKey: 'chat.donation.amountOutOfRange',
+      walletMutationEnabled: false,
+    });
+    expect(resolvePremiumChatDonationGuardPolicy({
+      roomStatus: 'reported',
+      amountLumina: 100,
+    })).toMatchObject({
+      canDonate: false,
+      status: 409,
+      code: 'PREMIUM_CHAT_DONATION_ROOM_LOCKED',
+      disabledReasonKey: 'room_reported',
+      disabledMessageKey: 'chat.premiumRoom.report.processing',
+      amountPolicy: null,
+      walletMutationEnabled: false,
+      donationOrderMutationEnabled: false,
+    });
     expect(contract.policy.walletMutationEnabled).toBe(false);
     expect(contract.policy.supportPointLedgerMutationEnabled).toBe(false);
     expect(contract.policy.conversationMeterMutationEnabled).toBe(false);
@@ -4210,8 +4273,11 @@ describe('ChatService premium chat support contract', () => {
       blocked: [
         'closed',
         'artist_closed',
+        'closed_by_artist',
+        'closed_by_operator',
         'expired',
         'reported',
+        'paused_by_report',
         'blind',
         'blinded',
         'suspended',
@@ -4223,6 +4289,58 @@ describe('ChatService premium chat support contract', () => {
       ],
       reportedOrBlindedCanDonate: false,
       suspendedOrRefundPendingCanDonate: false,
+      closedOrExpiredCanDonate: false,
+      disabledReasonSource:
+        'PREMIUM_CHAT_DONATION_DISABLED_REASON_BY_STATUS',
+    });
+    expect(PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES).toEqual([
+      'closed',
+      'artist_closed',
+      'closed_by_artist',
+      'closed_by_operator',
+      'expired',
+      'reported',
+      'paused_by_report',
+      'blind',
+      'blinded',
+      'suspended',
+      'refund_pending',
+      'refund_limited_70',
+      'refund_limited_50',
+      'refunded',
+      'admin_review',
+    ]);
+    expect(PREMIUM_CHAT_DONATION_DISABLED_REASON_BY_STATUS).toMatchObject({
+      reported: 'room_reported',
+      blind: 'room_blinded',
+      blinded: 'room_blinded',
+      suspended: 'room_suspended',
+      admin_review: 'room_admin_review',
+      refund_pending: 'room_refund_pending',
+      expired: 'room_expired',
+      closed: 'room_closed',
+      closed_by_artist: 'room_closed',
+      closed_by_operator: 'room_closed',
+    });
+    expect(resolvePremiumChatDonationGuardPolicy({
+      roomStatus: 'closed_by_operator',
+      amountLumina: 100,
+    })).toMatchObject({
+      canDonate: false,
+      code: 'PREMIUM_CHAT_DONATION_ROOM_LOCKED',
+      disabledReasonKey: 'room_closed',
+      disabledMessageKey: 'chat.premiumRoom.closed.operator',
+      amountPolicy: null,
+      walletMutationEnabled: false,
+    });
+    expect(resolvePremiumChatDonationGuardPolicy({
+      roomStatus: 'expired',
+      amountLumina: 100,
+    })).toMatchObject({
+      canDonate: false,
+      disabledReasonKey: 'room_expired',
+      disabledMessageKey: 'chat.premiumRoom.expired',
+      donationOrderMutationEnabled: false,
     });
     expect(contract.donation.supportMessageRouting).toMatchObject({
       sourceField: 'donation.message',
