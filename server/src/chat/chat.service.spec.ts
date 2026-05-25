@@ -3352,10 +3352,10 @@ describe('ChatService premium chat support contract', () => {
     const contract = service.getPremiumSupportContract();
 
     expect(contract.version).toBe(
-      '2026-05-25.premium-chat-report-refund-product-projection.v1',
+      '2026-05-25.premium-chat-room-copy-tone.v1',
     );
     expect(contract.previousVersion).toBe(
-      '2026-05-25.premium-chat-room-interaction-status.v1',
+      '2026-05-25.premium-chat-report-refund-product-projection.v1',
     );
     expect(contract.donation.fixedAmountsLumina).toEqual([
       10,
@@ -3402,7 +3402,7 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.policy.premiumChatAccountingLedgerMutationEnabled).toBe(false);
     expect(contract.policy.productProjectionMutationEnabled).toBe(false);
     expect(contract.productProjection).toMatchObject({
-      version: '2026-05-25.premium-chat-product-projection.v1',
+      version: '2026-05-25.premium-chat-room-copy-tone.v1',
       userArtistCopySeparated: true,
       aiAutoReplyCopyAllowed: false,
       rawPromptReturned: false,
@@ -3412,6 +3412,52 @@ describe('ChatService premium chat support contract', () => {
       internalSettlementRateReturned: false,
       ledgerCalculationReturned: false,
       adminMemoReturned: false,
+      serviceTone: {
+        language: 'ko-KR',
+        style: ['plain_service', 'calm', 'non_technical'],
+        forbiddenUiTerms: expect.arrayContaining([
+          'provider',
+          'prompt',
+          'ledger',
+          'mutation',
+          'projection',
+          '원장',
+          '정산율',
+          '관리자 메모',
+          '내부 계산식',
+        ]),
+        aiAutoReplyImplicationAllowed: false,
+      },
+      roomGuidanceCopy: {
+        userVisibleCopy: {
+          directArtistReply:
+            '이 방은 아티스트가 직접 확인하고 답변하는 프리미엄챗이에요.',
+          meterNotice:
+            '대화가 오가면 이용량에 따라 루미나가 차감될 수 있어요.',
+          unansweredRefundReview:
+            '아티스트 답변이 24시간 동안 없으면 환불 검토 대상이 될 수 있어요.',
+          reviewPaused:
+            '신고 또는 운영 검토 중이라 잠시 대화와 후원이 멈춰 있어요.',
+          supportRanking:
+            '후원 메시지는 좋아요 순위가 아니라 후원/소통 랭킹에 반영돼요.',
+        },
+        artistVisibleCopy: {
+          directReply:
+            '팬이 기다리고 있어요. 직접 답변하면 프리미엄챗 소통이 이어져요.',
+          revenueHint:
+            '대화와 후원 참여가 늘면 크리에이터 수익에 도움이 될 수 있어요.',
+          reviewPaused:
+            '운영 검토 중인 방은 답변과 후원이 잠시 제한돼요.',
+          supportRanking:
+            '후원 메시지는 후원/소통 랭킹 흐름에만 반영돼요.',
+        },
+        supportMessageCopy: {
+          userVisible:
+            '응원의 마음을 후원 메시지로 남길 수 있어요. 좋아요 순위와는 별도로 반영돼요.',
+          artistVisible:
+            '팬의 후원 메시지가 도착했어요. 답변으로 소통을 이어갈 수 있어요.',
+        },
+      },
       userCopyPolicy: {
         meterNoticeMode: 'summary_only',
         perLineAmountCopyAllowed: false,
@@ -3529,6 +3575,18 @@ describe('ChatService premium chat support contract', () => {
         },
       },
     });
+    const visibleRoomGuidanceCopy = JSON.stringify(
+      contract.productProjection.roomGuidanceCopy,
+    );
+    expect(visibleRoomGuidanceCopy).not.toMatch(
+      /provider|prompt|ledger|mutation|projection|원장|정산율|관리자 메모|내부 계산식/i,
+    );
+    expect(visibleRoomGuidanceCopy).not.toMatch(/AI|자동응답|LLM/i);
+    expect(visibleRoomGuidanceCopy).toContain('아티스트가 직접 확인하고 답변');
+    expect(visibleRoomGuidanceCopy).toContain('루미나가 차감될 수 있어요');
+    expect(visibleRoomGuidanceCopy).toContain('24시간');
+    expect(visibleRoomGuidanceCopy).toContain('신고 또는 운영 검토 중');
+    expect(visibleRoomGuidanceCopy).toContain('좋아요 순위가 아니라 후원/소통 랭킹');
     expect(contract.endpoints.roomList).toMatchObject({
       method: 'GET',
       path: '/api/v1/chat/premium-rooms',

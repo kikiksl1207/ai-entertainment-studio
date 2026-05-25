@@ -3,7 +3,7 @@
 Updated: 2026-05-25
 Owner: Luffy / Kaido
 Task: Notion #384, #472, #473 room interaction status contract, #477,
-#478 projection copy contract
+#478 projection copy contract, #486 room guidance tone
 
 This contract prepares read-only user and artist lookups for premium-chat room
 report/refund/closure state. It does not enable room-open, message, donation,
@@ -245,6 +245,28 @@ projection is exposed as `productProjection` and remains read-only.
 - Projections must not expose raw chat bodies, raw support messages in
   rankings, raw prompts, provider payloads, wallet ledger ids, support-point
   ledger ids, internal settlement formulas/rates, or admin-only memos.
+
+## Room Guidance Tone
+
+#486 fixes the Korean service tone for premium-chat room guidance. The visible
+copy is exposed through `productProjection.roomGuidanceCopy`.
+
+- User copy says the room is answered directly by the artist, not by an AI
+  auto-reply.
+- User copy summarizes that Lumina may be deducted by conversation amount,
+  without showing per-line prices.
+- User copy explains that no artist answer for 24 hours may become a refund
+  review candidate.
+- Reported, blinded, suspended, admin-review, and refund-pending copy says
+  conversation and support are temporarily paused during review.
+- Artist copy may say active conversation and support can help creator revenue,
+  but must not expose settlement rates, ledger math, payout internals, or admin
+  notes.
+- Support-message copy says support messages affect support/communication
+  rankings separately from likes.
+- UI-visible copy must not contain internal terms such as `provider`, `prompt`,
+  `ledger`, `mutation`, `projection`, `원장`, `정산율`, `관리자 메모`, or
+  `내부 계산식`.
 
 ## Still Blocked
 

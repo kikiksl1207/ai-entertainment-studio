@@ -1253,6 +1253,15 @@ Premium room projection copy contract (#478):
   prompts, provider payloads, raw chat bodies, raw support messages in rankings,
   wallet ledger ids, support-point ledger ids, internal settlement formulas,
   settlement rates, or admin-only memos.
+- #486 fixes `productProjection.roomGuidanceCopy` as Korean service-tone copy:
+  user copy says the room is answered directly by the artist, summarizes
+  conversation-based Lumina deduction without per-line prices, explains 24-hour
+  unanswered refund review, pauses conversation/support during report or
+  operator review, and says support messages are reflected in support/
+  communication ranking separately from likes. Artist copy may say conversation
+  and support can help creator revenue, but must not expose settlement rates,
+  ledger math, payout internals, provider/prompt terms, mutation/projection
+  terms, admin notes, or raw chat bodies.
 
 Premium room list read-only contract (#372):
 
