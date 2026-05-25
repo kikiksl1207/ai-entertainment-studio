@@ -2,7 +2,7 @@
 
 Updated: 2026-05-25
 Owner: Kaido
-Task: Notion #331, #383, #389, #395, #467, #472, #477
+Task: Notion #331, #383, #389, #395, #467, #472, #477, #485
 
 This contract fixes the backend authority rules for premium chat room opening,
 artist closure, report/blind handling, and refund outcomes. It does not open a
@@ -217,6 +217,23 @@ existing projection without a second status, refund, ledger, settlement, or
 payout mutation. Reusing the key with a different fingerprint returns
 `409 PREMIUM_CHAT_REPORT_REFUND_IDEMPOTENCY_CONFLICT` before wallet lookup or
 any mutation. Raw idempotency keys are never logged or returned.
+
+## Refund Copy And Server State Consistency
+
+User-facing copy must match the server state machine:
+
+- 24-hour no-answer copy maps to `refund_pending` and
+  `unanswered_24h_full_refund`. It may say the policy is a 100% refund
+  candidate, but it must not say refund is already completed until the server
+  refund decision/credit path is recorded.
+- User-fault copy maps to `refund_limited_70` or `refund_limited_50` only after
+  server/admin decision. It must use conditional wording, not client-selected
+  or guaranteed wording. The only visible rates are 70% or 50% user refund, and
+  the artist compensation candidate remains 10%.
+- Report, blinded, suspended, admin-review, and `paused_by_report` copy must
+  explain that the room is temporarily locked. It must keep user send, artist
+  reply, support donation, message metering, support-point grant, wallet,
+  settlement, and payout affordances disabled.
 
 ## Closure And Moderation States
 

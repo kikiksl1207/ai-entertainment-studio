@@ -1014,6 +1014,11 @@ Frontend rules:
   `closed_by_artist`, and `closed_by_operator`; refund displays may use stable
   `refundRatePercent` 100/70/50 and `artistCompensationRatePercent` 0/10 from
   the backend contract, never client-calculated values.
+- #485 tightens copy/status consistency: 24-hour unanswered copy must render as
+  a `refund_pending` candidate, not an already completed refund; 70%/50%
+  user-fault refund copy must be conditional on server/admin decision; and
+  reported/blinded/suspended/admin-review copy must keep message and donation
+  actions locked.
 - `apiContracts.myDonationHistory` is an owner-only planned read contract for
   the viewer's donation history. It is disabled, returns safe projection fields
   only, and must not be used to infer wallet, settlement, or payout state.

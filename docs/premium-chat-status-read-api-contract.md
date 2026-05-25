@@ -230,6 +230,19 @@ projection is exposed as `productProjection` and remains read-only.
   `productProjection.unansweredRefundCandidate`. It explains the pending refund
   candidate state through stable copy keys and does not imply AI or provider
   retry.
+- #485 adds `productProjection.copyStatusConsistency` so visible refund copy
+  cannot drift from server state. The 24-hour no-answer path must be described
+  as a `refund_pending` candidate awaiting server refund decision, not as an
+  already-completed automatic refund. It may show the 100% user refund policy
+  only together with pending/candidate semantics.
+- User-fault refund limitation copy must stay conditional because only a
+  server/admin decision can choose 70% or 50%. The contract fixes
+  `allowedRefundRatePercents=[70,50]`,
+  `artistCompensationRatePercent=10`, and the matching reason keys; clients
+  must not calculate or override those rates.
+- Report/review copy must map reported, blinded, suspended, admin-review, and
+  `paused_by_report` states to disabled message send, artist reply, donation,
+  message-meter, support-point, and wallet mutation affordances.
 - Conversation-meter copy uses `conversationMeterNotice`. User copy is summary
   only: it may say that Lumina can be deducted by conversation amount, but must
   not show a per-line amount or internal calculation formula. Artist copy may

@@ -1243,6 +1243,17 @@ Premium room projection copy contract (#478):
   artist copy keys for the 24-hour unanswered refund candidate state. It must
   not imply that the room is AI auto-answered or that a provider retry is in
   progress.
+- #485 adds `productProjection.copyStatusConsistency`. 24-hour unanswered copy
+  must match server status `refund_pending`: it can describe a 100% refund
+  candidate, but must not say refund is already completed before the server
+  refund decision/credit path runs.
+- User-fault copy must describe 70%/50% as possible server/admin decisions,
+  not as client-selected values. The contract fixes
+  `allowedRefundRatePercents=[70,50]` and
+  `artistCompensationRatePercent=10`.
+- Report/blind/admin-review copy must keep message send, artist reply, support
+  donation, message-meter, support-point, wallet, settlement, and payout
+  affordances disabled.
 - `productProjection.conversationMeterNotice` lets user UI summarize that
   Lumina can be deducted by conversation amount, while preventing per-line
   amount display and internal formula exposure. Artist UI may show a creator
