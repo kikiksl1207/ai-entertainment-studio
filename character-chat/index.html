@@ -438,6 +438,10 @@
             <li id="donationPolicyHighValue">10,000L 이상은 본인확인이 끝난 계정만 가능해요.</li>
             <!-- #474 — "블라인드" 내부 용어 제거, 신고·운영 검토 톤으로 정리 -->
             <li id="donationPolicyBlockedStates">신고·운영 검토 중인 방에서는 후원이 일시 중단될 수 있어요.</li>
+            <!-- #475 — room view(chatListShell hidden)에서도 환불 정책이 노출되도록 donation sheet에 명시.
+                 24시간 미답변 전액 환불, 귀책 시 50%/70% 제한 QA FAIL 항목 수정. -->
+            <li id="donationPolicy24h">아티스트가 24시간 내 답변하지 않으면 전액 환불돼요.</li>
+            <li id="donationPolicyRefundRate">유저 귀책 사유 발생 시 환불 금액이 50% 또는 70% 수준으로 제한될 수 있어요.</li>
           </ul>
         </div>
       </div>
@@ -463,8 +467,8 @@
         <ul class="donation-confirm-checks">
           <li id="donationConfirmIdentity">본인확인이 필요한 금액입니다.</li>
           <li id="donationConfirmDaily">하루 후원 합계 제한(50,000L) 안에 있어야 합니다.</li>
-          <!-- #370 — 환불/chargeback/refunded 상태를 분리하는 현재 계약과 충돌하지 않도록 "절대 불가" 표현 회피. -->
-          <li>후원 진행 후 취소·환불은 운영 정책과 검토 결과에 따라 제한될 수 있어요.</li>
+          <!-- #370/#475 — "절대 불가" 회피 유지, 귀책 시 50%/70% 비율 명시 추가 -->
+          <li>후원 귀책 시 취소·환불은 50% 또는 70% 수준으로 제한될 수 있어요.</li>
         </ul>
         <!-- #474 — "원장·보안 검증" 내부 용어 제거 -->
         <p class="donation-confirm-note" id="donationConfirmNote">후원 기능은 서비스 준비 완료 후 활성화돼요.</p>
