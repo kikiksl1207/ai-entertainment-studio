@@ -229,8 +229,8 @@
     if (!mutationOpen) {
       btn.disabled = true;
       btn.setAttribute("aria-disabled", "true");
-      btn.title = (state.contract && state.contract.policy && state.contract.policy.disabledDisplayMessageKo) ||
-        FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
+      // #484 — API의 disabledDisplayMessageKo를 신뢰하지 않음. 내부어 노출 방지를 위해 FALLBACK 고정 사용.
+      btn.title = FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
       label.textContent = "후원 안내 확인";
       return;
     }
@@ -254,9 +254,9 @@
       body = "후원 정책은 로그인한 팬에게만 공개돼요. 로그인 후 다시 시도해 주세요.";
     } else if (disabled) {
       // #379/#394 — 실서비스 톤. 결제 오픈 일정 안내 예정 뉘앙스.
+      // #484 — API 값 무시, FALLBACK 고정 (API가 내부어 포함 가능).
       label = "후원 가능 시점 안내 대기";
-      body = (contract && contract.policy && contract.policy.disabledDisplayMessageKo) ||
-        FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
+      body = FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
     } else {
       label = "후원 가능";
       body = "고액 후원은 본인확인이 끝난 계정만 진행할 수 있어요.";
@@ -331,8 +331,8 @@
       proceed.disabled = !mutationOpen;
       proceed.setAttribute("aria-disabled", mutationOpen ? "false" : "true");
       proceed.textContent = mutationOpen ? "진행하기" : "진행 잠금";
-      proceed.title = mutationOpen ? "" : (state.contract && state.contract.policy && state.contract.policy.disabledDisplayMessageKo) ||
-        FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
+      // #484 — API 값 무시, FALLBACK 고정 (API가 내부어 포함 가능).
+      proceed.title = mutationOpen ? "" : FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
     }
   }
 

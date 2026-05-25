@@ -160,11 +160,10 @@
       if (body) body.textContent = "프리미엄챗 소통/후원 랭킹은 로그인한 팬에게만 공개돼요. 먼저 로그인해 주세요.";
     } else if (reason === "disabled") {
       setStateLabel("서비스 준비 중"); // #474 내부 용어 제거
-      var disabledMsg = state.contract && state.contract.policy && state.contract.policy.disabledDisplayMessageKo;
-      // #379/#474 — 사용자 화면 톤: 내부 용어(원장·검증) 제거.
+      // #484 — API의 disabledDisplayMessageKo 제거. 내부어 노출 방지를 위해 고정 문구 사용.
       if (title) title.textContent = "랭킹 데이터를 모으는 중이에요";
       if (body) body.textContent = state.type === "donation"
-        ? (disabledMsg || "후원 랭킹은 서비스 준비가 완료된 뒤 공개돼요.")
+        ? "후원 랭킹은 서비스 준비가 완료된 뒤 공개돼요."
         : "소통 랭킹은 서비스 준비가 완료된 뒤 함께 공개돼요.";
     } else {
       // 0건
