@@ -1765,8 +1765,9 @@ select.dm-field-input option {
   border-radius: 999px; background: rgba(236, 72, 153, 0.16);
   color: #f0abfc; font-weight: 800; text-decoration: none; font-size: 12.5px;
 }
+/* #479 — 방 목록: flex-column으로 변경 (main + actions 행 분리) */
 .premium-chat-hub-room {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px;
+  display: flex; flex-direction: column; gap: 8px;
   padding: 10px 12px;
   border-radius: 12px;
   background: rgba(15, 23, 42, 0.4);
@@ -1800,8 +1801,32 @@ select.dm-field-input option {
 }
 .premium-chat-hub-room-badge.is-ready { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
 .premium-chat-hub-room-badge.is-locked { background: rgba(244, 114, 182, 0.18); color: #f0abfc; }
+/* #479 — 방 상세: 남은 기간·미답변·신고 상태 배지 묶음 */
+.premium-chat-hub-room-detail { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.premium-chat-hub-room-remaining {
+  display: inline-flex; align-items: center;
+  font-size: 11px; color: rgba(192, 132, 252, 0.9);
+  background: rgba(124, 58, 237, 0.14); border-radius: 4px; padding: 1px 6px;
+  font-weight: 600;
+}
+.premium-chat-hub-room-unanswered {
+  display: inline-flex; align-items: center;
+  font-size: 11px; color: #fbbf24;
+  background: rgba(251, 191, 36, 0.13); border-radius: 4px; padding: 1px 6px;
+  font-weight: 700;
+}
+.premium-chat-hub-room-status {
+  display: inline-flex; align-items: center;
+  font-size: 11px; border-radius: 4px; padding: 1px 6px; font-weight: 700;
+}
+.premium-chat-hub-room-status.is-blocked { color: #f87171; background: rgba(248, 113, 113, 0.13); }
+.premium-chat-hub-room-status.is-refund  { color: #fb923c; background: rgba(251, 146, 60, 0.13); }
+
+/* #479 — 방 목록 액션 행: 프로필 보기 + 후원 버튼 */
+.premium-chat-hub-room-actions {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
 .premium-chat-hub-room-profile {
-  align-self: center;
   padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid rgba(159, 139, 199, 0.28);
@@ -1812,6 +1837,20 @@ select.dm-field-input option {
   white-space: nowrap;
 }
 .premium-chat-hub-room-profile:hover { border-color: #ec4899; color: #fff; }
+.premium-chat-hub-room-donate-btn {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(192, 132, 252, 0.35);
+  background: rgba(124, 58, 237, 0.16);
+  color: #c084fc;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s;
+}
+.premium-chat-hub-room-donate-btn:hover:not(.is-locked) { border-color: #a855f7; background: rgba(124, 58, 237, 0.28); color: #e9d5ff; }
+.premium-chat-hub-room-donate-btn.is-locked { opacity: 0.45; cursor: not-allowed; }
 .premium-chat-hub-rooms-foot { margin: 10px 0 0; font-size: 12px; color: rgba(245, 240, 255, 0.5); line-height: 1.5; }
 
 /* ─── #469 — 프리미엄챗 가능 아티스트 섹션 ─────────────────────────────────── */
@@ -1923,11 +1962,14 @@ select.dm-field-input option {
 @media (max-width: 480px) {
   .premium-chat-hub { padding: 12px; }
   .premium-chat-hub-cards { grid-template-columns: 1fr; }
-  .premium-chat-hub-room { grid-template-columns: 1fr; gap: 10px; }
+  /* #479 — flex-column 전환: grid 규칙 불필요. main 내부 grid는 유지. */
   .premium-chat-hub-room-main { grid-template-columns: 36px minmax(0, 1fr); gap: 10px; }
-  /* 모바일에서 badge는 본문 텍스트 다음 줄에 위치, 프로필 버튼은 카드 폭으로 늘려 탭 타깃 확대. */
+  /* 모바일에서 badge는 본문 텍스트 다음 줄에 위치 */
   .premium-chat-hub-room-main .premium-chat-hub-room-badge { grid-column: 2; justify-self: start; margin-top: 4px; }
-  .premium-chat-hub-room-profile { justify-self: stretch; text-align: center; }
+  /* 액션 버튼들은 모바일에서 카드 폭으로 늘려 탭 타깃 확대 */
+  .premium-chat-hub-room-actions { flex-direction: column; gap: 6px; }
+  .premium-chat-hub-room-profile,
+  .premium-chat-hub-room-donate-btn { width: 100%; text-align: center; box-sizing: border-box; }
   /* #469 — 모바일: 아티스트 카드 2열 */
   .premium-chat-available-artists-list { grid-template-columns: repeat(2, 1fr); }
 }

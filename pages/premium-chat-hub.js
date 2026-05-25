@@ -69,9 +69,27 @@
     if (el) el.textContent = text;
   }
 
+  // #479 — donation sheet 열기 (방 목록 후원 버튼용 이벤트 델리게이션)
+  function bindRoomDonateButtons() {
+    var list = $("premiumChatRoomsList");
+    if (!list || list.dataset.donateBound === "1") return;
+    list.dataset.donateBound = "1";
+    list.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-room-donate]");
+      if (!btn) return;
+      if (btn.getAttribute("aria-disabled") === "true") return;
+      e.preventDefault();
+      var sheet = $("chatDonationSheet");
+      var backdrop = $("chatDonationBackdrop");
+      if (sheet) { sheet.hidden = false; }
+      if (backdrop) { backdrop.hidden = false; }
+    });
+  }
+
   function renderRooms(rooms, mutationOpen) {
     var list = $("premiumChatRoomsList");
     if (!list) return;
+    bindRoomDonateButtons();
     if (!rooms.length) {
       list.innerHTML =
         '<li class="premium-chat-hub-rooms-empty">' +
@@ -92,7 +110,30 @@
       var avatarStyle = slug
         ? 'style="background-image:url(\'/assets/characters/' + encodeURIComponent(slug) + '/thumb.png\')"'
         : "";
-      var lastMessage = escapeHtml(room.lastMessageAt || room.updatedAt || "");
+      var lastMessage = escapeHtml(room.updatedAt || "");
+
+      // #479 — 방 상세: 남은 기간 · 미답변 · 상태 배지
+      var detailParts = [];
+      if (room.remainingDays != null) {
+        detailParts.push('<span class="premium-chat-hub-room-remaining">' + room.remainingDays + '일 남음</span>');
+      }
+      if (room.unanswered) {
+        detailParts.push('<span class="premium-chat-hub-room-unanswered">24시간 답변 대기 중</span>');
+      }
+      if (room.roomStatus === "blocked" || room.roomStatus === "under_review") {
+        detailParts.push('<span class="premium-chat-hub-room-status is-blocked">신고·운영 검토 중</span>');
+      } else if (room.roomStatus === "refund_review") {
+        detailParts.push('<span class="premium-chat-hub-room-status is-refund">환불 검토 중</span>');
+      }
+      var detailHtml = detailParts.length
+        ? '<span class="premium-chat-hub-room-detail">' + detailParts.join("") + '</span>'
+        : "";
+
+      // #479 — 후원 버튼 (방 목록 아이템)
+      var donateBtnLabel = mutationOpen ? "후원하기" : "후원 안내 예정";
+      var donateBtnDisabled = mutationOpen ? "" : ' aria-disabled="true" tabindex="-1"';
+      var donateBtnCls = "premium-chat-hub-room-donate-btn" + (mutationOpen ? "" : " is-locked");
+
       return (
         '<li class="premium-chat-hub-room">' +
           '<a class="premium-chat-hub-room-main" href="' + chatHref + '" aria-label="' + name + ' 채팅방 열기">' +
@@ -100,11 +141,15 @@
             '<span class="premium-chat-hub-room-body">' +
               '<strong>' + name + '</strong>' +
               (summary ? '<span class="premium-chat-hub-room-summary">' + summary + '</span>' : "") +
+              detailHtml +
               (lastMessage ? '<span class="premium-chat-hub-room-time">' + lastMessage + '</span>' : "") +
             '</span>' +
             '<span class="premium-chat-hub-room-badge ' + statusClass + '">' + statusLabel + '</span>' +
           '</a>' +
-          '<a class="premium-chat-hub-room-profile" href="' + profileHref + '">프로필 보기</a>' +
+          '<div class="premium-chat-hub-room-actions">' +
+            '<a class="premium-chat-hub-room-profile" href="' + profileHref + '">프로필 보기</a>' +
+            '<button type="button" class="' + donateBtnCls + '" data-room-donate="' + escapeHtml(slug) + '"' + donateBtnDisabled + '>' + donateBtnLabel + '</button>' +
+          '</div>' +
         '</li>'
       );
     }).join("");
@@ -183,11 +228,24 @@
 
   function normalizeConversation(item) {
     var artist = item.artist || item.peer || {};
+    // #479 — 방 상세: 상태·남은 기간·미답변 추출.
+    var roomStatus = item.status || item.roomStatus || "normal";
+    var remainingDays = null;
+    if (item.expiresAt || item.expiredAt) {
+      var diff = new Date(item.expiresAt || item.expiredAt) - Date.now();
+      remainingDays = Math.max(0, Math.ceil(diff / 86400000));
+    } else if (item.remainingDays != null) {
+      remainingDays = Number(item.remainingDays);
+    }
+    var unanswered = !!(item.artistUnresponded || item.hasUnansweredMessage || false);
     return {
       slug: artist.slug || item.artistSlug || item.slug || "",
       name: artist.displayName || artist.name || item.artistName || "",
       summary: artist.statusLine || item.lastMessagePreview || "",
       updatedAt: item.lastMessageAt || item.updatedAt || "",
+      roomStatus: roomStatus,
+      remainingDays: remainingDays,
+      unanswered: unanswered,
     };
   }
 
