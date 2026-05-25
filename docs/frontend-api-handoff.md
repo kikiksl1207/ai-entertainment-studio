@@ -1002,6 +1002,18 @@ Frontend rules:
 - Reported, blinded, suspended, refund-pending, refunded, admin-review, expired,
   or closed rooms cannot accept donations. Show mapped Korean copy from message
   keys; never show raw room status enums.
+- #477 adds disabled report/refund limitation API contracts for future
+  `POST /chat/premium-rooms/:roomId/reports`,
+  `POST /creator-studio/premium-chat/rooms/:roomId/force-close`, and
+  `POST /admin/api/v1/backstage/premium-chat/rooms/:roomId/operator-close`.
+  Frontend must not enable these submits from the contract alone.
+- Future report submit responses use `paused_by_report` and disable message
+  send/donation while detailed report states remain `reported`, `blinded`,
+  `suspended`, or `admin_review`.
+- Future artist/operator close responses distinguish `refund_pending`,
+  `closed_by_artist`, and `closed_by_operator`; refund displays may use stable
+  `refundRatePercent` 100/70/50 and `artistCompensationRatePercent` 0/10 from
+  the backend contract, never client-calculated values.
 - `apiContracts.myDonationHistory` is an owner-only planned read contract for
   the viewer's donation history. It is disabled, returns safe projection fields
   only, and must not be used to infer wallet, settlement, or payout state.

@@ -45,6 +45,22 @@ export const PREMIUM_CHAT_ROOM_STATUS_ALIASES = {
   blinded: 'blind',
 } as const;
 
+export const PREMIUM_CHAT_REPORT_REFUND_API_STATUS_KEYS = [
+  'active',
+  'paused_by_report',
+  'refund_pending',
+  'refunded',
+  'closed_by_artist',
+  'closed_by_operator',
+] as const;
+
+export const PREMIUM_CHAT_REPORT_REFUND_API_ACTION_KEYS = [
+  'report_submit',
+  'artist_force_close',
+  'operator_sanction_close',
+  'unanswered_24h_refund_candidate',
+] as const;
+
 export const PREMIUM_CHAT_ROOM_REFUND_ACCOUNTING_LEDGER_TYPES = [
   'refund',
   'premium_chat_room_company_revenue',
@@ -147,8 +163,8 @@ export function isPremiumChatRoomMutationBlocked(status: string) {
 }
 
 export const PREMIUM_CHAT_ROOM_CONTRACT = {
-  version: '2026-05-25.premium-chat-report-refund-status.v1',
-  previousVersion: '2026-05-25.premium-chat-billing-ledger.v1',
+  version: '2026-05-25.premium-chat-report-refund-api.v1',
+  previousVersion: '2026-05-25.premium-chat-report-refund-status.v1',
   feature: 'premium_chat_room',
   status: 'contract_ready_mutation_blocked',
   policy: {
@@ -783,6 +799,212 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     walletActionBeforeAdminDecision: 'none',
     mutationGuard: 'fail_closed_before_wallet_or_message_mutation',
     messageKey: 'chat.premiumRoom.report.processing',
+  },
+  reportRefundApi: {
+    version: '2026-05-25.premium-chat-report-refund-api.v1',
+    status: 'planned_disabled',
+    mutationEnabled: false,
+    walletMutationEnabled: false,
+    pgRefundMutationEnabled: false,
+    premiumChatAccountingLedgerMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+    statusKeys: PREMIUM_CHAT_REPORT_REFUND_API_STATUS_KEYS,
+    actionKeys: PREMIUM_CHAT_REPORT_REFUND_API_ACTION_KEYS,
+    statusMapping: {
+      active: {
+        lifecycleStatuses: ['opened', 'active', 'artist_answered'],
+        canSendMessage: true,
+        canDonate: true,
+        messageKey: 'chat.premiumRoom.active',
+      },
+      paused_by_report: {
+        lifecycleStatuses: ['reported', 'blinded', 'blind', 'suspended', 'admin_review'],
+        canSendMessage: false,
+        canDonate: false,
+        messageKey: 'chat.premiumRoom.report.processing',
+      },
+      refund_pending: {
+        lifecycleStatuses: ['refund_pending'],
+        canSendMessage: false,
+        canDonate: false,
+        messageKey: 'chat.premiumRoom.refund.pending',
+      },
+      refunded: {
+        lifecycleStatuses: ['refunded'],
+        canSendMessage: false,
+        canDonate: false,
+        messageKey: 'chat.premiumRoom.refund.completed',
+      },
+      closed_by_artist: {
+        lifecycleStatuses: ['artist_closed'],
+        canSendMessage: false,
+        canDonate: false,
+        messageKey: 'chat.premiumRoom.closed.artist',
+      },
+      closed_by_operator: {
+        lifecycleStatuses: [
+          'closed',
+          'refund_limited_70',
+          'refund_limited_50',
+        ],
+        canSendMessage: false,
+        canDonate: false,
+        messageKey: 'chat.premiumRoom.closed.operator',
+      },
+    },
+    endpoints: {
+      reportSubmit: {
+        method: 'POST',
+        pathTemplate: '/api/v1/chat/premium-rooms/:roomId/reports',
+        enabled: false,
+        authRequired: true,
+        requiresIdempotencyKey: true,
+        walletMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+      artistForceClose: {
+        method: 'POST',
+        pathTemplate:
+          '/api/v1/creator-studio/premium-chat/rooms/:roomId/force-close',
+        enabled: false,
+        authRequired: true,
+        requiresIdempotencyKey: true,
+        walletMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+      operatorClose: {
+        method: 'POST',
+        pathTemplate:
+          '/admin/api/v1/backstage/premium-chat/rooms/:roomId/operator-close',
+        enabled: false,
+        authRequired: true,
+        superAdminOnly: true,
+        requiresIdempotencyKey: true,
+        walletMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+    },
+    idempotency: {
+      acceptedFrom: ['Idempotency-Key header', 'body.idempotencyKey'],
+      rawIdempotencyKeyLogged: false,
+      replayBehavior:
+        'same key and same safe request fingerprint returns existing projection without a second state, refund, or ledger mutation',
+      conflictStatus: 409,
+      conflictCode: 'PREMIUM_CHAT_REPORT_REFUND_IDEMPOTENCY_CONFLICT',
+      conflictMessageKey: 'chat.premiumRoom.idempotencyConflict',
+      conflictMutation: false,
+      requestFingerprintFields: {
+        reportSubmit: ['roomId', 'reasonKey', 'safeEvidenceHash'],
+        artistForceClose: ['roomId', 'reasonKey'],
+        operatorClose: ['roomId', 'decisionKey', 'refundPolicyKey'],
+      },
+    },
+    projections: {
+      reportSubmitAccepted: {
+        actionKey: 'report_submit',
+        roomStatusKey: 'paused_by_report',
+        reportStatusKey: 'reported',
+        nextReviewStatusKeys: ['blinded', 'suspended', 'admin_review'],
+        messageKey: 'chat.premiumRoom.report.processing',
+        canSendMessage: false,
+        canDonate: false,
+        rawReportBodyReturned: false,
+      },
+      artistForceCloseAccepted: {
+        actionKey: 'artist_force_close',
+        roomStatusKey: 'refund_pending',
+        closeStatusKey: 'closed_by_artist',
+        refundReasonKey: 'artist_forced_close_full_refund',
+        messageKey: 'chat.premiumRoom.refund.artistForcedClose',
+      },
+      operatorCloseAccepted: {
+        actionKey: 'operator_sanction_close',
+        roomStatusKey: 'closed_by_operator',
+        allowedRefundRestrictionStatusKeys: [
+          'refund_limited_70',
+          'refund_limited_50',
+        ],
+        messageKey: 'chat.premiumRoom.closed.operator',
+      },
+      unansweredRefundCandidate: {
+        actionKey: 'unanswered_24h_refund_candidate',
+        roomStatusKey: 'refund_pending',
+        refundReasonKey: 'unanswered_24h_full_refund',
+        messageKey: 'chat.premiumRoom.refund.unanswered24h',
+      },
+    },
+    refundOutcomes: [
+      {
+        actionKey: 'unanswered_24h_refund_candidate',
+        refundReasonKey: 'unanswered_24h_full_refund',
+        resultingStatusKey: 'refund_pending',
+        refundRatePercent: 100,
+        refundRateBps: 10000,
+        artistCompensationRatePercent: 0,
+        artistCompensationBps: 0,
+      },
+      {
+        actionKey: 'artist_force_close',
+        refundReasonKey: 'artist_forced_close_full_refund',
+        resultingStatusKey: 'refund_pending',
+        refundRatePercent: 100,
+        refundRateBps: 10000,
+        artistCompensationRatePercent: 0,
+        artistCompensationBps: 0,
+      },
+      {
+        actionKey: 'operator_sanction_close',
+        refundReasonKey: 'user_fault_report_refund_70',
+        refundRestrictionStatusKey: 'refund_limited_70',
+        resultingStatusKey: 'closed_by_operator',
+        refundRatePercent: 70,
+        refundRateBps: 7000,
+        companyRetentionRatePercent: 20,
+        companyRevenueBps: 2000,
+        artistCompensationRatePercent: 10,
+        artistCompensationBps: 1000,
+      },
+      {
+        actionKey: 'operator_sanction_close',
+        refundReasonKey: 'operator_sanction_user_fault_refund_50',
+        refundRestrictionStatusKey: 'refund_limited_50',
+        resultingStatusKey: 'closed_by_operator',
+        refundRatePercent: 50,
+        refundRateBps: 5000,
+        companyRetentionRatePercent: 40,
+        companyRevenueBps: 4000,
+        artistCompensationRatePercent: 10,
+        artistCompensationBps: 1000,
+      },
+      {
+        actionKey: 'operator_sanction_close',
+        refundReasonKey: 'operator_sanction_artist_fault_full_refund',
+        resultingStatusKey: 'closed_by_operator',
+        refundRatePercent: 100,
+        refundRateBps: 10000,
+        artistCompensationRatePercent: 0,
+        artistCompensationBps: 0,
+      },
+    ],
+    noMutationBeforeStorage: [
+      'premium_chat_rooms',
+      'premium_chat_room_reports',
+      'premium_chat_room_status_events',
+      'premium_chat_room_refund_decisions',
+      'premium_chat_accounting_ledger',
+      'idempotency_replay_projection',
+    ],
+    privacy: {
+      rawChatBodyLogged: false,
+      rawReportBodyReturned: false,
+      rawReportReasonReturned: false,
+      rawAdminNoteReturned: false,
+      tokenCookieSecretDbUrlLogged: false,
+    },
   },
   sensitiveDataPolicy: {
     rawChatBodyLogged: false,

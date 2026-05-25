@@ -2,6 +2,8 @@ import {
   isPremiumChatRoomMutationBlocked,
   PREMIUM_CHAT_BILLING_LEDGER_EVENT_NAMES,
   PREMIUM_CHAT_LEDGER_TRACE_FIELDS,
+  PREMIUM_CHAT_REPORT_REFUND_API_ACTION_KEYS,
+  PREMIUM_CHAT_REPORT_REFUND_API_STATUS_KEYS,
   PREMIUM_CHAT_REPORT_REVIEW_REASON_KEYS,
   PREMIUM_CHAT_REPORT_REVIEW_STATUS_KEYS,
   PREMIUM_CHAT_REFUND_REASON_KEYS,
@@ -650,6 +652,182 @@ describe('premium chat room refund and moderation ledger contract', () => {
       settlementMutation: false,
       payoutMutation: false,
     });
+  });
+
+  it('fixes disabled report and refund limitation API status keys', () => {
+    expect(PREMIUM_CHAT_REPORT_REFUND_API_STATUS_KEYS).toEqual([
+      'active',
+      'paused_by_report',
+      'refund_pending',
+      'refunded',
+      'closed_by_artist',
+      'closed_by_operator',
+    ]);
+    expect(PREMIUM_CHAT_REPORT_REFUND_API_ACTION_KEYS).toEqual([
+      'report_submit',
+      'artist_force_close',
+      'operator_sanction_close',
+      'unanswered_24h_refund_candidate',
+    ]);
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi).toMatchObject({
+      status: 'planned_disabled',
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      pgRefundMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      statusKeys: PREMIUM_CHAT_REPORT_REFUND_API_STATUS_KEYS,
+      actionKeys: PREMIUM_CHAT_REPORT_REFUND_API_ACTION_KEYS,
+      endpoints: {
+        reportSubmit: {
+          method: 'POST',
+          pathTemplate: '/api/v1/chat/premium-rooms/:roomId/reports',
+          enabled: false,
+          requiresIdempotencyKey: true,
+          walletMutation: false,
+        },
+        artistForceClose: {
+          method: 'POST',
+          enabled: false,
+          requiresIdempotencyKey: true,
+          walletMutation: false,
+        },
+        operatorClose: {
+          method: 'POST',
+          enabled: false,
+          superAdminOnly: true,
+          requiresIdempotencyKey: true,
+          walletMutation: false,
+        },
+      },
+    });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.statusMapping).toMatchObject({
+      paused_by_report: {
+        lifecycleStatuses: [
+          'reported',
+          'blinded',
+          'blind',
+          'suspended',
+          'admin_review',
+        ],
+        canSendMessage: false,
+        canDonate: false,
+      },
+      closed_by_artist: {
+        lifecycleStatuses: ['artist_closed'],
+        canDonate: false,
+      },
+      closed_by_operator: {
+        lifecycleStatuses: [
+          'closed',
+          'refund_limited_70',
+          'refund_limited_50',
+        ],
+        canSendMessage: false,
+      },
+    });
+  });
+
+  it('fixes report/close idempotency and safe projections without raw payloads', () => {
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.idempotency).toMatchObject({
+      acceptedFrom: ['Idempotency-Key header', 'body.idempotencyKey'],
+      rawIdempotencyKeyLogged: false,
+      conflictStatus: 409,
+      conflictCode: 'PREMIUM_CHAT_REPORT_REFUND_IDEMPOTENCY_CONFLICT',
+      conflictMessageKey: 'chat.premiumRoom.idempotencyConflict',
+      conflictMutation: false,
+      requestFingerprintFields: {
+        reportSubmit: ['roomId', 'reasonKey', 'safeEvidenceHash'],
+        artistForceClose: ['roomId', 'reasonKey'],
+        operatorClose: ['roomId', 'decisionKey', 'refundPolicyKey'],
+      },
+    });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.projections).toMatchObject({
+      reportSubmitAccepted: {
+        actionKey: 'report_submit',
+        roomStatusKey: 'paused_by_report',
+        reportStatusKey: 'reported',
+        nextReviewStatusKeys: ['blinded', 'suspended', 'admin_review'],
+        canSendMessage: false,
+        canDonate: false,
+        rawReportBodyReturned: false,
+      },
+      artistForceCloseAccepted: {
+        actionKey: 'artist_force_close',
+        roomStatusKey: 'refund_pending',
+        closeStatusKey: 'closed_by_artist',
+        refundReasonKey: 'artist_forced_close_full_refund',
+      },
+      operatorCloseAccepted: {
+        actionKey: 'operator_sanction_close',
+        roomStatusKey: 'closed_by_operator',
+        allowedRefundRestrictionStatusKeys: [
+          'refund_limited_70',
+          'refund_limited_50',
+        ],
+      },
+      unansweredRefundCandidate: {
+        actionKey: 'unanswered_24h_refund_candidate',
+        roomStatusKey: 'refund_pending',
+        refundReasonKey: 'unanswered_24h_full_refund',
+      },
+    });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.privacy).toMatchObject({
+      rawChatBodyLogged: false,
+      rawReportBodyReturned: false,
+      rawReportReasonReturned: false,
+      rawAdminNoteReturned: false,
+      tokenCookieSecretDbUrlLogged: false,
+    });
+  });
+
+  it('fixes 100/70/50 refund rates and 0/10 artist compensation rates for API outcomes', () => {
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.refundOutcomes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actionKey: 'unanswered_24h_refund_candidate',
+          refundReasonKey: 'unanswered_24h_full_refund',
+          refundRatePercent: 100,
+          artistCompensationRatePercent: 0,
+        }),
+        expect.objectContaining({
+          actionKey: 'artist_force_close',
+          refundReasonKey: 'artist_forced_close_full_refund',
+          refundRatePercent: 100,
+          artistCompensationRatePercent: 0,
+        }),
+        expect.objectContaining({
+          actionKey: 'operator_sanction_close',
+          refundReasonKey: 'user_fault_report_refund_70',
+          refundRestrictionStatusKey: 'refund_limited_70',
+          refundRatePercent: 70,
+          companyRetentionRatePercent: 20,
+          artistCompensationRatePercent: 10,
+        }),
+        expect.objectContaining({
+          actionKey: 'operator_sanction_close',
+          refundReasonKey: 'operator_sanction_user_fault_refund_50',
+          refundRestrictionStatusKey: 'refund_limited_50',
+          refundRatePercent: 50,
+          companyRetentionRatePercent: 40,
+          artistCompensationRatePercent: 10,
+        }),
+        expect.objectContaining({
+          actionKey: 'operator_sanction_close',
+          refundReasonKey: 'operator_sanction_artist_fault_full_refund',
+          refundRatePercent: 100,
+          artistCompensationRatePercent: 0,
+        }),
+      ]),
+    );
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.noMutationBeforeStorage).toEqual([
+      'premium_chat_rooms',
+      'premium_chat_room_reports',
+      'premium_chat_room_status_events',
+      'premium_chat_room_refund_decisions',
+      'premium_chat_accounting_ledger',
+      'idempotency_replay_projection',
+    ]);
   });
 
   it('keeps sensitive values and live mutations out of the contract', () => {

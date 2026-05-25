@@ -1193,6 +1193,41 @@ candidates before mutation routes are enabled.
   transition send/reply/donation stay disabled.
 - Unknown future room statuses fail closed as `safe_status_only`.
 
+Premium room report/refund limitation API contract (#477):
+
+The following planned mutation shapes are exposed through
+`GET /api/v1/chat/premium-support-contract` as disabled API contracts. They do
+not open live report, refund, wallet, settlement, payout, or accounting-ledger
+mutation.
+
+```http
+POST /api/v1/chat/premium-rooms/:roomId/reports
+POST /api/v1/creator-studio/premium-chat/rooms/:roomId/force-close
+POST /admin/api/v1/backstage/premium-chat/rooms/:roomId/operator-close
+Idempotency-Key: <client-or-admin-generated-key>
+```
+
+- API-safe room status keys are `active`, `paused_by_report`,
+  `refund_pending`, `refunded`, `closed_by_artist`, and
+  `closed_by_operator`.
+- Report submit returns a `paused_by_report` projection and disables message
+  send and donation while the detailed report state moves through `reported`,
+  `blinded`, `suspended`, or `admin_review`.
+- Artist force-close returns a `refund_pending` projection with
+  `artist_forced_close_full_refund`, refund rate 100%, and artist compensation
+  0%.
+- Operator close supports 100%, 70%, and 50% refund outcomes. The 70% and 50%
+  user-fault outcomes keep 10% artist compensation as a planned accounting
+  candidate, while settlement and payout remain disabled.
+- Repeating the same idempotency key with the same safe fingerprint returns the
+  existing projection without a second status, refund, wallet, accounting,
+  settlement, or payout mutation.
+- Reusing the same idempotency key with a different fingerprint returns
+  `409 PREMIUM_CHAT_REPORT_REFUND_IDEMPOTENCY_CONFLICT` before wallet lookup or
+  mutation.
+- Responses and logs must not include raw report text, raw chat body, raw
+  payload, token, cookie, password, DB URL, or raw idempotency key.
+
 Premium room list read-only contract (#372):
 
 ```http

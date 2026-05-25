@@ -1,4 +1,5 @@
 import {
+  PREMIUM_CHAT_REPORT_REFUND_API_STATUS_KEYS,
   PREMIUM_CHAT_ROOM_CONTRACT,
   PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
   PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
@@ -58,11 +59,17 @@ export const PREMIUM_CHAT_DONATION_HISTORY_STATUSES = [
 
 export const PREMIUM_CHAT_ROOM_STATUS_READ_KEYS = [
   'active',
+  'paused_by_report',
   'reported',
+  'blinded',
   'admin_review',
   'refund_pending',
+  'refund_limited_70',
+  'refund_limited_50',
   'refunded',
   'closed',
+  'closed_by_artist',
+  'closed_by_operator',
   'expired',
   'suspended',
 ] as const;
@@ -79,8 +86,11 @@ export const PREMIUM_CHAT_ROOM_LIST_EXCLUDED_STATUSES = [
   'expired',
   'reported',
   'blind',
+  'blinded',
   'suspended',
   'refund_pending',
+  'refund_limited_70',
+  'refund_limited_50',
   'refunded',
   'admin_review',
 ] as const;
@@ -126,7 +136,27 @@ export const PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX = {
     donationRankingEligible: false,
     disabledMessageKey: 'chat.premiumRoom.report.processing',
   },
+  paused_by_report: {
+    readMode: 'safe_status_only',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.report.processing',
+  },
   blind: {
+    readMode: 'safe_status_only',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.report.blinded',
+  },
+  blinded: {
     readMode: 'safe_status_only',
     userCanSendMessage: false,
     artistCanReply: false,
@@ -165,6 +195,26 @@ export const PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX = {
     communicationRankingEligible: false,
     donationRankingEligible: false,
     disabledMessageKey: 'chat.premiumRoom.refund.pending',
+  },
+  refund_limited_70: {
+    readMode: 'safe_status_only',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.refund.limited70',
+  },
+  refund_limited_50: {
+    readMode: 'safe_status_only',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.refund.limited50',
   },
   refunded: {
     readMode: 'safe_archive',
@@ -206,11 +256,31 @@ export const PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX = {
     donationRankingEligible: false,
     disabledMessageKey: 'chat.premiumRoom.closed.artist',
   },
+  closed_by_artist: {
+    readMode: 'safe_archive',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.closed.artist',
+  },
+  closed_by_operator: {
+    readMode: 'safe_archive',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.closed.operator',
+  },
 } as const;
 
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
-  version: '2026-05-25.premium-chat-room-interaction-status.v1',
-  previousVersion: '2026-05-21.premium-chat-status-read-api.v1',
+  version: '2026-05-25.premium-chat-report-refund-api.v1',
+  previousVersion: '2026-05-25.premium-chat-room-interaction-status.v1',
   feature: 'premium_chat_support',
   status: 'contract_ready_mutation_blocked',
   policy: {
@@ -293,6 +363,42 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       status: 'planned',
       enabled: false,
       authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    },
+    reportSubmit: {
+      method: 'POST',
+      pathTemplate: '/api/v1/chat/premium-rooms/:roomId/reports',
+      status: 'planned',
+      enabled: false,
+      authRequired: true,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    },
+    artistForceClose: {
+      method: 'POST',
+      pathTemplate:
+        '/api/v1/creator-studio/premium-chat/rooms/:roomId/force-close',
+      status: 'planned',
+      enabled: false,
+      authRequired: true,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    },
+    operatorClose: {
+      method: 'POST',
+      pathTemplate:
+        '/admin/api/v1/backstage/premium-chat/rooms/:roomId/operator-close',
+      status: 'planned',
+      enabled: false,
+      authRequired: true,
+      superAdminOnly: true,
+      requiresIdempotencyKey: true,
       walletMutation: false,
       settlementMutation: false,
       payoutMutation: false,
@@ -660,6 +766,174 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         userPrivateProfileReturned: false,
       },
     },
+    reportSubmit: {
+      method: 'POST',
+      pathTemplate: '/api/v1/chat/premium-rooms/:roomId/reports',
+      enabled: false,
+      authRequired: true,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      request: {
+        headers: {
+          'Idempotency-Key': 'required client-generated key',
+        },
+        params: {
+          roomId: 'uuid owned by the authenticated user',
+        },
+        body: {
+          reasonKey: 'stable report reason key',
+          evidenceHash: 'optional safe hash, never raw chat body',
+          idempotencyKey: 'optional fallback when header is unavailable',
+        },
+      },
+      response: {
+        room: {
+          status: {
+            key: 'paused_by_report',
+            labelKey: 'chat.premiumRoom.report.processing',
+          },
+          canSendMessage: false,
+          canDonate: false,
+        },
+        report: 'premiumRoomReportStatus projection',
+        mutationAvailability: 'premiumRoomMutationAvailability projection',
+        idempotentReplay: '<boolean>',
+      },
+      idempotency:
+        PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.idempotency,
+      projection:
+        PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.projections.reportSubmitAccepted,
+      errorCodes: [
+        { status: 401, code: 'auth_required' },
+        { status: 400, code: 'invalid_room_id' },
+        { status: 400, code: 'idempotency_key_required' },
+        { status: 400, code: 'invalid_report_reason' },
+        { status: 403, code: 'room_not_owned' },
+        { status: 404, code: 'room_not_found' },
+        { status: 409, code: 'blocked_room_state' },
+        { status: 409, code: 'idempotency_conflict' },
+      ],
+      privacy: {
+        rawChatBodyReturned: false,
+        rawReportBodyReturned: false,
+        rawReportReasonReturned: false,
+        rawReporterUserIdReturned: false,
+        rawPayloadReturned: false,
+      },
+    },
+    artistForceClose: {
+      method: 'POST',
+      pathTemplate:
+        '/api/v1/creator-studio/premium-chat/rooms/:roomId/force-close',
+      enabled: false,
+      authRequired: true,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      request: {
+        headers: {
+          'Idempotency-Key': 'required client-generated key',
+        },
+        params: {
+          roomId: 'uuid for a premium room opened to the authenticated artist',
+        },
+        body: {
+          reasonKey: 'artist_forced_close_full_refund',
+          idempotencyKey: 'optional fallback when header is unavailable',
+        },
+      },
+      response: {
+        room: {
+          status: {
+            key: 'refund_pending',
+            labelKey: 'chat.premiumRoom.refund.artistForcedClose',
+          },
+        },
+        refund: 'premiumRoomRefundStatus projection',
+        idempotentReplay: '<boolean>',
+      },
+      projection:
+        PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.projections
+          .artistForceCloseAccepted,
+      errorCodes: [
+        { status: 401, code: 'auth_required' },
+        { status: 400, code: 'invalid_room_id' },
+        { status: 400, code: 'idempotency_key_required' },
+        { status: 403, code: 'artist_room_not_owned' },
+        { status: 404, code: 'room_not_found' },
+        { status: 409, code: 'blocked_room_state' },
+        { status: 409, code: 'idempotency_conflict' },
+      ],
+      privacy: {
+        rawChatBodyReturned: false,
+        rawAdminNoteReturned: false,
+        rawPayloadReturned: false,
+        rawWalletLedgerIdReturned: false,
+      },
+    },
+    operatorClose: {
+      method: 'POST',
+      pathTemplate:
+        '/admin/api/v1/backstage/premium-chat/rooms/:roomId/operator-close',
+      enabled: false,
+      authRequired: true,
+      superAdminOnly: true,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      request: {
+        headers: {
+          'Idempotency-Key': 'required admin-generated key',
+        },
+        params: {
+          roomId: 'uuid for a premium room under admin review',
+        },
+        body: {
+          decisionKey:
+            'user_fault_report_refund_70|operator_sanction_user_fault_refund_50|operator_sanction_artist_fault_full_refund',
+          idempotencyKey: 'optional fallback when header is unavailable',
+        },
+      },
+      response: {
+        room: {
+          status: {
+            key: 'closed_by_operator',
+            labelKey: 'chat.premiumRoom.closed.operator',
+          },
+        },
+        refund: 'premiumRoomRefundStatus projection',
+        accounting: 'premiumRoomRefundRestrictionAccounting projection',
+        idempotentReplay: '<boolean>',
+      },
+      projection:
+        PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.projections
+          .operatorCloseAccepted,
+      refundOutcomes:
+        PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.refundOutcomes.filter(
+          (outcome) => outcome.actionKey === 'operator_sanction_close',
+        ),
+      errorCodes: [
+        { status: 401, code: 'auth_required' },
+        { status: 403, code: 'super_admin_required' },
+        { status: 400, code: 'invalid_room_id' },
+        { status: 400, code: 'idempotency_key_required' },
+        { status: 400, code: 'invalid_operator_decision' },
+        { status: 404, code: 'room_not_found' },
+        { status: 409, code: 'blocked_room_state' },
+        { status: 409, code: 'idempotency_conflict' },
+      ],
+      privacy: {
+        rawChatBodyReturned: false,
+        rawReportBodyReturned: false,
+        rawAdminNoteReturned: false,
+        rawPayloadReturned: false,
+        rawWalletLedgerIdReturned: false,
+      },
+    },
     rankingsList: {
       method: 'GET',
       path: '/api/v1/chat/rankings',
@@ -987,6 +1261,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     userEndpoint: '/api/v1/chat/me/premium-rooms/:roomId/status',
     artistEndpoint: '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
     responseStatusKeys: PREMIUM_CHAT_ROOM_STATUS_READ_KEYS,
+    reportRefundApiStatusKeys: PREMIUM_CHAT_REPORT_REFUND_API_STATUS_KEYS,
     interactionStatusMatrix: PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX,
     unansweredRefundTransition: {
       trigger: 'no artist answer after 24 hours',
@@ -1044,6 +1319,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       },
     },
   },
+  reportRefundApi: PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi,
   rankings: {
     like: {
       path: '/api/v1/boost-campaigns/:campaignId/rankings',
@@ -1251,7 +1527,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         amountLumina: '<300|500|1000|3000>',
       },
       status: {
-        key: '<active|reported|admin_review|refund_pending|refunded|closed|expired|suspended>',
+        key:
+          '<active|paused_by_report|reported|blinded|admin_review|refund_pending|refund_limited_70|refund_limited_50|refunded|closed|closed_by_artist|closed_by_operator|expired|suspended>',
         labelKey: '<stable Korean-copy key>',
       },
       duration: {
@@ -1269,10 +1546,13 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       },
     },
     premiumRoomRefundStatus: {
-      state: '<none|not_eligible|pending|refunded|admin_review>',
+      state:
+        '<none|not_eligible|pending|refund_limited_70|refund_limited_50|refunded|admin_review>',
       labelKey: '<stable Korean-copy key>',
       policyKey:
         '<none|unanswered_24h|artist_forced_close_full_refund|user_fault_refund_70|user_fault_refund_50|operator_sanction_review>',
+      refundRatePercent: '<100|70|50|null>',
+      artistCompensationRatePercent: '<0|10|null>',
       amountLumina: '<decimal string or null>',
       requestedAt: '<ISO datetime or null>',
       resolvedAt: '<ISO datetime or null>',
@@ -1285,7 +1565,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       },
     },
     premiumRoomReportStatus: {
-      state: '<none|reported|blind|suspended|admin_review|resolved>',
+      state: '<none|reported|blinded|suspended|admin_review|resolved>',
       labelKey: '<stable Korean-copy key>',
       reportedAt: '<ISO datetime or null>',
       resolvedAt: '<ISO datetime or null>',

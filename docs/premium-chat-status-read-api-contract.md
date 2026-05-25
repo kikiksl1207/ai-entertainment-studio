@@ -2,7 +2,7 @@
 
 Updated: 2026-05-25
 Owner: Luffy / Kaido
-Task: Notion #384, #472, #473 room interaction status contract
+Task: Notion #384, #472, #473 room interaction status contract, #477
 
 This contract prepares read-only user and artist lookups for premium-chat room
 report/refund/closure state. It does not enable room-open, message, donation,
@@ -97,6 +97,45 @@ Report/review reason keys are stable:
 For `refund_limited_70` and `refund_limited_50`, the read projection may show
 the stable status/reason/message keys and display-safe percentages, but must not
 perform or imply wallet, PG, settlement, or payout mutation.
+
+For #477, read projections also recognize API aggregate status keys that future
+mutations will return:
+
+- `paused_by_report`: aggregate for reported/blinded/suspended/admin-review.
+- `closed_by_artist`: artist close or artist force-close path.
+- `closed_by_operator`: operator/admin close path.
+
+These aggregate keys do not replace the detailed report/refund reason keys.
+They give clients a stable room-level state while detailed report/refund
+projections carry `reasonKey`, `refundRatePercent`, and
+`artistCompensationRatePercent`.
+
+## Planned Report/Close Mutation Contracts
+
+The following endpoint shapes remain disabled and are exposed only as a backend
+contract through `GET /api/v1/chat/premium-support-contract`:
+
+```http
+POST /api/v1/chat/premium-rooms/:roomId/reports
+POST /api/v1/creator-studio/premium-chat/rooms/:roomId/force-close
+POST /admin/api/v1/backstage/premium-chat/rooms/:roomId/operator-close
+Idempotency-Key: <client-or-admin-generated-key>
+```
+
+Required behavior before these routes can be enabled:
+
+- report submit moves the public room projection to `paused_by_report`, blinds
+  or pauses the room for review, and disables message/donation affordances.
+- artist force-close moves the public refund projection to `refund_pending`
+  with `artist_forced_close_full_refund`, refund rate 100%, and artist
+  compensation 0%.
+- operator close can produce 100%, 70%, or 50% refund outcomes; user-fault 70%
+  and 50% outcomes keep 10% artist compensation as an accounting candidate.
+- repeated same-key/same-body calls return the existing projection.
+- same key with a different safe fingerprint returns a stable idempotency
+  conflict before wallet, refund, settlement, payout, or accounting mutation.
+- raw report text, raw chat body, token, cookie, password, DB URL, and raw
+  payload are not returned or documented.
 
 ## Response Shape
 
