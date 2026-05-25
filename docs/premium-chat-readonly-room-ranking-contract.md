@@ -1,6 +1,6 @@
 # Premium Chat Room List and Ranking Read-only Contract
 
-Task: #372, #490
+Task: #372, #490, #496
 
 Status: contract ready, read-only models disabled.
 
@@ -89,6 +89,14 @@ Rules:
 - no `type=like` alias
 - like ranking stays on the Lumina Pick boost lane
 - donation ranking uses confirmed net premium-chat donation only
+- `supportRankingProjection` keeps support-message copy separate from like
+  ranking copy
+- fixed amount and custom amount support-message UI uses stable copy keys
+- locked or review rooms cannot create support messages
+- communication ranking copy is summary-only: room open, conversation activity,
+  support, and artist replies may contribute, but raw formulas and internal
+  source names are not user-facing
+- donation ranking copy is summary-only and based on confirmed net support
 - donation ranking excludes free likes, Lumina boosts, room-open rows,
   message rows, reported room rows, blinded rows, refunded donation rows,
   chargeback donation rows, and cancelled donation rows
@@ -98,8 +106,13 @@ Forbidden ranking fields:
 - raw chat body
 - raw report reason
 - wallet ledger id
+- support point ledger id
+- conversation meter ledger id
 - user id
 - message id
+- raw support message body
+- raw formula or internal source names
+- raw ranking type enum as UI copy
 
 ## Mutation Block
 

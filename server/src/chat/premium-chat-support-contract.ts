@@ -314,7 +314,7 @@ export const PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX = {
 } as const;
 
 export const PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT = {
-  version: '2026-05-25.premium-chat-copy-status-room-tone.v1',
+  version: '2026-05-25.premium-chat-support-ranking-projection.v1',
   status: 'contract_ready_mutation_blocked',
   userArtistCopySeparated: true,
   aiAutoReplyCopyAllowed: false,
@@ -422,10 +422,32 @@ export const PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT = {
     messageMaxChars: 200,
     createsAiReply: false,
     createsChatMessage: false,
+    createsSupportMessageWhenLocked: false,
     rankingLanes: {
       like: false,
       communication: true,
       donation: true,
+    },
+    amountDisplay: {
+      fixedAmountLabelKey: 'chat.donation.amount.fixed',
+      fixedAmountOptionKey: 'chat.donation.amount.fixedOption',
+      customAmountLabelKey: 'chat.donation.amount.custom',
+      customAmountHelperKey: 'chat.donation.amount.customHelper',
+      rawAmountEnumAsCopy: false,
+    },
+    submitAvailability: {
+      allowedRoomStatuses: PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES,
+      blockedRoomStatuses: PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES,
+      lockedOrReviewCanCreateSupportMessage: false,
+      disabledMessageKey: 'chat.donation.blockedRoomState',
+    },
+    rankingSeparationCopy: {
+      supportAffectsKey: 'chat.donation.ranking.supportAffects',
+      notLikeRankingKey: 'chat.donation.ranking.notLikeRanking',
+      communicationSummaryKey: 'chat.rankings.communication.summary',
+      donationSummaryKey: 'chat.rankings.donation.summary',
+      rawScoringFormulaReturned: false,
+      internalTermsReturned: false,
     },
     userVisibleCopy: {
       sheetTitleKey: 'chat.donation.sheet.title',
@@ -445,6 +467,12 @@ export const PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT = {
       walletLedgerIdReturned: false,
       supportPointLedgerIdReturned: false,
       adminMemoReturned: false,
+    },
+    copySafety: {
+      rawEnumCopyReturned: false,
+      rawRankingTypeAsCopy: false,
+      internalTermsReturned: false,
+      aiAutoReplyCopyAllowed: false,
     },
   },
   lockedRoomMessages: {
@@ -566,8 +594,8 @@ export const PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT = {
 } as const;
 
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
-  version: '2026-05-25.premium-chat-room-list-detail-projection.v1',
-  previousVersion: '2026-05-25.premium-chat-copy-status-room-tone.v1',
+  version: '2026-05-25.premium-chat-support-ranking-projection.v1',
+  previousVersion: '2026-05-25.premium-chat-room-list-detail-projection.v1',
   feature: 'premium_chat_support',
   status: 'contract_ready_mutation_blocked',
   policy: {
@@ -706,6 +734,57 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     },
   },
   productProjection: PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT,
+  supportRankingProjection: {
+    version: '2026-05-25.premium-chat-support-ranking-projection.v1',
+    status: 'contract_ready_mutation_blocked',
+    enabled: false,
+    supportMessage: {
+      amountDisplay: {
+        fixedAmountLabelKey: 'chat.donation.amount.fixed',
+        customAmountLabelKey: 'chat.donation.amount.custom',
+        customAmountHelperKey: 'chat.donation.amount.customHelper',
+      },
+      allowedRoomStatuses: PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES,
+      blockedRoomStatuses: PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES,
+      lockedOrReviewCanCreateSupportMessage: false,
+      disabledMessageKey: 'chat.donation.blockedRoomState',
+    },
+    rankingLanes: {
+      like: {
+        path: '/api/v1/boost-campaigns/:campaignId/rankings',
+        receivesPremiumChatSupport: false,
+      },
+      communication: {
+        path: '/api/v1/chat/rankings?type=communication',
+        userVisibleSummaryKey: 'chat.rankings.communication.summary',
+        scoreDetailMode: 'summary_only',
+        roomOpenMayContribute: true,
+        conversationMayContribute: true,
+        supportMayContribute: true,
+        rawFormulaReturned: false,
+      },
+      donation: {
+        path: '/api/v1/chat/rankings?type=donation',
+        userVisibleSummaryKey: 'chat.rankings.donation.summary',
+        scoreDetailMode: 'summary_only',
+        confirmedNetSupportOnly: true,
+        rawSupportMessageReturned: false,
+      },
+    },
+    copySafety: {
+      rawEnumCopyReturned: false,
+      rawRankingTypeAsCopy: false,
+      internalTermsReturned: false,
+      aiAutoReplyCopyAllowed: false,
+    },
+    noMutation: {
+      donationCreate: true,
+      walletDebit: true,
+      rankingRefresh: true,
+      settlement: true,
+      payout: true,
+    },
+  },
   roomProjection: {
     version: '2026-05-25.premium-chat-room-list-detail-projection.v1',
     status: 'contract_ready_mutation_blocked',
@@ -1318,6 +1397,13 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
           timezone: 'Asia/Seoul',
         },
         items: ['rankingItem projection'],
+        copyPolicy: {
+          laneLabelKeyRequired: true,
+          scoreSummaryKeyRequired: true,
+          rawRankingTypeAsCopy: false,
+          rawScoreFormulaReturned: false,
+          internalTermsReturned: false,
+        },
         nextCursor: '<opaque cursor or null>',
         generatedAt: '<ISO datetime>',
       },
@@ -1349,6 +1435,11 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
             'refunded_donation_rows',
             'chargeback_donation_rows',
           ],
+          userVisibleCopy: {
+            summaryKey: 'chat.rankings.communication.summary',
+            detailMode: 'summary_only',
+            rawFormulaReturned: false,
+          },
         },
         donation: {
           includes: ['confirmed_net_premium_chat_donation'],
@@ -1363,6 +1454,11 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
             'chargeback_donation_rows',
             'cancelled_donation_rows',
           ],
+          userVisibleCopy: {
+            summaryKey: 'chat.rankings.donation.summary',
+            detailMode: 'summary_only',
+            rawSupportMessageReturned: false,
+          },
         },
       },
       privacy: {
@@ -1387,6 +1483,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       sourceField: 'donation.message',
       maxChars: 200,
       createsChatMessage: false,
+      createsSupportMessageWhenLocked: false,
       rawMessageBodyReturnedInRankings: false,
       rawMessageBodyLogged: false,
       rankingLanes: {
@@ -1397,6 +1494,10 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       allowedRankingTypes: PREMIUM_CHAT_RANKING_TYPES,
       excludedRankingPaths: ['/api/v1/boost-campaigns/:campaignId/rankings'],
       messageKey: 'chat.donation.supportMessage',
+      fixedAmountLabelKey: 'chat.donation.amount.fixed',
+      customAmountLabelKey: 'chat.donation.amount.custom',
+      customAmountHelperKey: 'chat.donation.amount.customHelper',
+      lockedRoomDisabledMessageKey: 'chat.donation.blockedRoomState',
     },
     idempotency: {
       required: true,
@@ -1733,6 +1834,9 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         premiumChatMessage: 'count safe non-blinded message activity',
         premiumChatDonation: 'use confirmed net Lumina contribution as a separate factor',
         artistReplyActivity: 'count safe artist-side replies without raw body exposure',
+        userVisibleSummaryKey: 'chat.rankings.communication.summary',
+        detailMode: 'summary_only',
+        rawFormulaReturned: false,
         supportPointLedger:
           'premium_chat_support_point_ledger is the ranking source once storage exists',
         formulaStatus: 'planned_weighted_score_server_side_only',
@@ -1770,6 +1874,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       scoreInputs: ['premium_chat_donation'],
       sourceLedgerTypes: ['premium_chat_donation_support_point'],
       amountBasis: 'confirmed_net_lumina',
+      userVisibleSummaryKey: 'chat.rankings.donation.summary',
+      detailMode: 'summary_only',
       supportMessagePolicy:
         'Donation messages may affect only premium chat communication/support projections, never Lumina Pick like rankings.',
       excludes: ['free_like', 'lumina_boost', 'premium_chat_open', 'premium_chat_message'],
@@ -1800,9 +1906,14 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     donationEvent: {
       target: 'chat room system message',
       aiAutoReply: false,
+      supportMessageCreatesChatReply: false,
+      supportMessageAllowedWhenLocked: false,
       userVisibleCopy: {
         titleKey: 'chat.donation.event.user.title',
         bodyKey: 'chat.donation.event.user.body',
+        fixedAmountLabelKey: 'chat.donation.amount.fixed',
+        customAmountLabelKey: 'chat.donation.amount.custom',
+        rankingSeparationKey: 'chat.donation.ranking.notLikeRanking',
       },
       artistVisibleCopy: {
         titleKey: 'chat.donation.event.artist.title',
@@ -1828,6 +1939,18 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       rankNo: '<number>',
       score: '<decimal string>',
       scoreLabelKey: 'chat.rankings.score.communication|chat.rankings.score.donation',
+      lane: {
+        type: '<communication|donation>',
+        labelKey: 'chat.rankings.type.communication|chat.rankings.type.donation',
+        summaryKey: 'chat.rankings.communication.summary|chat.rankings.donation.summary',
+        notLikeRankingKey: 'chat.rankings.notLikeRanking',
+        rawRankingTypeAsCopy: false,
+      },
+      scorePresentation: {
+        mode: 'summary_only',
+        rawFormulaReturned: false,
+        internalReasonReturned: false,
+      },
       viewer: {
         followed: '<boolean when auth context is present>',
       },
