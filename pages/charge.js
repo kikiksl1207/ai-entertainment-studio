@@ -227,7 +227,7 @@ function renderChargeProductCard(p, isPgPending) {
         ${hasFirstChargeBonus
           ? `<span class="charge-amount-first-charge" title="계정당 1회, 기본 루미나의 10%만 적용">
                <span class="charge-first-charge-tag">첫 충전 1회</span>
-               + 첫충전 ${formatChargeLuminaAmount(firstChargeBonusLumina)}L
+               + 첫 충전 보너스 ${formatChargeLuminaAmount(firstChargeBonusLumina)}L
                ${firstChargeTotalLumina > 0
                  ? ` → 합계 ${formatChargeLuminaAmount(firstChargeTotalLumina)}L`
                  : ""}
