@@ -2,7 +2,7 @@
 
 Updated: 2026-05-25
 Owner: Kaido
-Task: Notion #327, #331, #334, #377, #383, #404, #467
+Task: Notion #327, #331, #334, #377, #383, #404, #467, #472
 
 This contract exists to keep Lumina balances, paid actions, purchase credits,
 refunds, and creator-facing revenue signals server-authoritative. A modified
@@ -114,7 +114,11 @@ admin-reviewed revenue workflow is implemented.
 For #467 traceability, premium chat charge/refund/donation/split rows should
 share stable grouping fields such as `premiumChatLedgerGroupId`, `flowType`,
 `ledgerEventName`, `roomId`, `artistId`, `grossLumina`, `refundReasonKey`, and
-`revenueSplitBps`. Raw idempotency keys, provider payloads, PG secrets, wallet
+`revenueSplitBps`. For #472 refund restriction review states, the trace must
+also separate `refundRestrictionStatusKey`, `moderationStatusKey`,
+`moderationReasonKey`, `userRefundLumina`, `companyRevenueLumina`,
+`artistCompensationLumina`, `adminDecisionKeyHash`, `reportId`, and
+`reportDecisionId`. Raw idempotency keys, provider payloads, PG secrets, wallet
 secrets, tokens, passwords, and DB URLs must not be stored or reported.
 
 ## Paid Action Debit Pattern
@@ -228,12 +232,18 @@ Current state:
   before wallet lookup. Future debits use
   `wallet_accounts.cached_balance >= server_amount`; insufficient balance writes
   no room/order/event/wallet-ledger/support-point/ranking row.
-- Report intake moves the room into reported/blind/suspended/admin-review
-  processing with no wallet action before an admin decision.
-- `closed`, `artist_closed`, `expired`, `reported`, `blind`, `suspended`,
-  `refund_pending`, `refunded`, and `admin_review` must fail closed before
-  message, support, debit, conversation-meter, support-point, settlement, or
-  payout mutation.
+- Report intake moves the room into reported/blinded/suspended/admin-review
+  processing with no wallet action before an admin decision. `blind` remains a
+  storage compatibility alias for the public contract key `blinded`.
+- User-fault refund limitation review states are `refund_limited_70` and
+  `refund_limited_50`. They carry stable reason keys
+  `user_fault_report_refund_70` and
+  `operator_sanction_user_fault_refund_50` and still require a server admin
+  decision before any wallet credit or accounting row.
+- `closed`, `artist_closed`, `expired`, `reported`, `blind`, `blinded`,
+  `suspended`, `refund_pending`, `refund_limited_70`, `refund_limited_50`,
+  `refunded`, and `admin_review` must fail closed before message, support,
+  debit, conversation-meter, support-point, settlement, or payout mutation.
 
 Before any live room-open mutation is enabled, the backend must add room/report
 storage, idempotency replay storage, the `premium_chat_open` ledger type

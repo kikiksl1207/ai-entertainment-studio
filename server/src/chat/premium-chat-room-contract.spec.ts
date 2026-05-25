@@ -2,6 +2,8 @@ import {
   isPremiumChatRoomMutationBlocked,
   PREMIUM_CHAT_BILLING_LEDGER_EVENT_NAMES,
   PREMIUM_CHAT_LEDGER_TRACE_FIELDS,
+  PREMIUM_CHAT_REPORT_REVIEW_REASON_KEYS,
+  PREMIUM_CHAT_REPORT_REVIEW_STATUS_KEYS,
   PREMIUM_CHAT_REFUND_REASON_KEYS,
   premiumChatRoomAllowedTierKeysForServerUnlocks,
   premiumChatRoomAccessForRole,
@@ -439,10 +441,17 @@ describe('premium chat room refund and moderation ledger contract', () => {
         'artistId',
         'grossLumina',
         'refundLumina',
+        'userRefundLumina',
         'companyRevenueLumina',
         'artistCompensationLumina',
         'refundReasonKey',
+        'refundRestrictionStatusKey',
+        'moderationStatusKey',
+        'moderationReasonKey',
         'revenueSplitBps',
+        'adminDecisionKeyHash',
+        'reportId',
+        'reportDecisionId',
         'idempotencyKeyHash',
       ]),
     );
@@ -471,8 +480,11 @@ describe('premium chat room refund and moderation ledger contract', () => {
       'expired',
       'reported',
       'blind',
+      'blinded',
       'suspended',
       'refund_pending',
+      'refund_limited_70',
+      'refund_limited_50',
       'refunded',
       'admin_review',
     ]);
@@ -498,6 +510,145 @@ describe('premium chat room refund and moderation ledger contract', () => {
         code: 'PREMIUM_CHAT_ROOM_MUTATION_BLOCKED',
         messageKey: 'chat.premiumRoom.blockedState',
       },
+    });
+  });
+
+  it('fixes premium chat report review and refund limitation status keys', () => {
+    expect(PREMIUM_CHAT_REPORT_REVIEW_STATUS_KEYS).toEqual([
+      'reported',
+      'blinded',
+      'admin_review',
+      'suspended',
+      'refund_limited_70',
+      'refund_limited_50',
+    ]);
+    expect(PREMIUM_CHAT_REPORT_REVIEW_REASON_KEYS).toEqual([
+      'user_report_received',
+      'room_blinded_pending_admin_review',
+      'admin_review_pending_decision',
+      'room_suspended_pending_admin_review',
+      'user_fault_report_refund_70',
+      'operator_sanction_user_fault_refund_50',
+    ]);
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.moderation).toMatchObject({
+      statusKeys: PREMIUM_CHAT_REPORT_REVIEW_STATUS_KEYS,
+      reasonKeys: PREMIUM_CHAT_REPORT_REVIEW_REASON_KEYS,
+      statusAliases: {
+        blinded: 'blind',
+      },
+      roomStatusesWhilePending: ['reported', 'blinded', 'suspended'],
+      visibility: 'blind_until_admin_decision',
+      walletActionBeforeAdminDecision: 'none',
+    });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.moderation.reviewStatuses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          statusKey: 'reported',
+          reasonKey: 'user_report_received',
+          messageKey: 'chat.premiumRoom.report.reported',
+          mutationAllowed: false,
+          walletAction: 'none',
+        }),
+        expect.objectContaining({
+          statusKey: 'blinded',
+          storageStatusKey: 'blind',
+          reasonKey: 'room_blinded_pending_admin_review',
+          messageKey: 'chat.premiumRoom.report.blinded',
+          mutationAllowed: false,
+        }),
+        expect.objectContaining({
+          statusKey: 'admin_review',
+          reasonKey: 'admin_review_pending_decision',
+          messageKey: 'chat.premiumRoom.report.adminReview',
+          walletAction: 'none',
+        }),
+        expect.objectContaining({
+          statusKey: 'suspended',
+          reasonKey: 'room_suspended_pending_admin_review',
+          messageKey: 'chat.premiumRoom.report.suspended',
+          mutationAllowed: false,
+        }),
+      ]),
+    );
+    expect(PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES).toEqual(
+      expect.arrayContaining([
+        'reported',
+        'blind',
+        'blinded',
+        'admin_review',
+        'suspended',
+        'refund_limited_70',
+        'refund_limited_50',
+      ]),
+    );
+  });
+
+  it('tracks refund limitation split fields for 70 and 50 percent decisions', () => {
+    const limited70 =
+      PREMIUM_CHAT_ROOM_CONTRACT.moderation.reviewStatuses.find(
+        (status) => status.statusKey === 'refund_limited_70',
+      );
+    const limited50 =
+      PREMIUM_CHAT_ROOM_CONTRACT.moderation.reviewStatuses.find(
+        (status) => status.statusKey === 'refund_limited_50',
+      );
+
+    expect(limited70).toMatchObject({
+      statusKey: 'refund_limited_70',
+      reasonKey: 'user_fault_report_refund_70',
+      refundPolicyKey: 'user_fault_refund_70',
+      messageKey: 'chat.premiumRoom.refund.limited70',
+      walletAction: 'server_refund_after_admin_decision_only',
+      userRefundBps: 7000,
+      companyRevenueBps: 2000,
+      artistCompensationBps: 1000,
+    });
+    expect(limited50).toMatchObject({
+      statusKey: 'refund_limited_50',
+      reasonKey: 'operator_sanction_user_fault_refund_50',
+      refundPolicyKey: 'user_fault_refund_50',
+      messageKey: 'chat.premiumRoom.refund.limited50',
+      walletAction: 'server_refund_after_admin_decision_only',
+      userRefundBps: 5000,
+      companyRevenueBps: 4000,
+      artistCompensationBps: 1000,
+    });
+    expect(limited70?.splitTraceFields).toEqual(
+      expect.arrayContaining([
+        'refundRestrictionStatusKey',
+        'refundReasonKey',
+        'userRefundLumina',
+        'companyRevenueLumina',
+        'artistCompensationLumina',
+        'revenueSplitBps',
+        'adminDecisionKeyHash',
+      ]),
+    );
+    expect(
+      PREMIUM_CHAT_ROOM_CONTRACT.refunds.userFaultPartialRefund.outcomes,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          outcomeKey: 'user_fault_refund_70',
+          refundRestrictionStatusKey: 'refund_limited_70',
+          reasonKey: 'user_fault_report_refund_70',
+        }),
+        expect.objectContaining({
+          outcomeKey: 'user_fault_refund_50',
+          refundRestrictionStatusKey: 'refund_limited_50',
+          reasonKey: 'operator_sanction_user_fault_refund_50',
+        }),
+      ]),
+    );
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.stateTransitions.userFaultRefund70).toMatchObject({
+      reviewStatus: 'refund_limited_70',
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.stateTransitions.userFaultRefund50).toMatchObject({
+      reviewStatus: 'refund_limited_50',
+      settlementMutation: false,
+      payoutMutation: false,
     });
   });
 

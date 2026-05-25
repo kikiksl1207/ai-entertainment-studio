@@ -14,11 +14,36 @@ export const PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES = [
   'expired',
   'reported',
   'blind',
+  'blinded',
   'suspended',
   'refund_pending',
+  'refund_limited_70',
+  'refund_limited_50',
   'refunded',
   'admin_review',
 ] as const;
+
+export const PREMIUM_CHAT_REPORT_REVIEW_STATUS_KEYS = [
+  'reported',
+  'blinded',
+  'admin_review',
+  'suspended',
+  'refund_limited_70',
+  'refund_limited_50',
+] as const;
+
+export const PREMIUM_CHAT_REPORT_REVIEW_REASON_KEYS = [
+  'user_report_received',
+  'room_blinded_pending_admin_review',
+  'admin_review_pending_decision',
+  'room_suspended_pending_admin_review',
+  'user_fault_report_refund_70',
+  'operator_sanction_user_fault_refund_50',
+] as const;
+
+export const PREMIUM_CHAT_ROOM_STATUS_ALIASES = {
+  blinded: 'blind',
+} as const;
 
 export const PREMIUM_CHAT_ROOM_REFUND_ACCOUNTING_LEDGER_TYPES = [
   'refund',
@@ -58,10 +83,17 @@ export const PREMIUM_CHAT_LEDGER_TRACE_FIELDS = [
   'grossLumina',
   'debitLumina',
   'refundLumina',
+  'userRefundLumina',
   'companyRevenueLumina',
   'artistCompensationLumina',
   'refundReasonKey',
+  'refundRestrictionStatusKey',
+  'moderationStatusKey',
+  'moderationReasonKey',
   'revenueSplitBps',
+  'adminDecisionKeyHash',
+  'reportId',
+  'reportDecisionId',
   'idempotencyKeyHash',
   'settlementCandidate',
   'payoutCandidate',
@@ -115,8 +147,8 @@ export function isPremiumChatRoomMutationBlocked(status: string) {
 }
 
 export const PREMIUM_CHAT_ROOM_CONTRACT = {
-  version: '2026-05-25.premium-chat-billing-ledger.v1',
-  previousVersion: '2026-05-21.premium-chat-room-refund-ledger.v2',
+  version: '2026-05-25.premium-chat-report-refund-status.v1',
+  previousVersion: '2026-05-25.premium-chat-billing-ledger.v1',
   feature: 'premium_chat_room',
   status: 'contract_ready_mutation_blocked',
   policy: {
@@ -333,8 +365,11 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     'expired',
     'reported',
     'blind',
+    'blinded',
     'suspended',
     'refund_pending',
+    'refund_limited_70',
+    'refund_limited_50',
     'refunded',
     'admin_review',
   ],
@@ -450,6 +485,7 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       outcomes: [
         {
           outcomeKey: 'user_fault_refund_70',
+          refundRestrictionStatusKey: 'refund_limited_70',
           reasonKey: 'user_fault_report_refund_70',
           userRefundBps: 7000,
           companyRevenueBps: 2000,
@@ -500,6 +536,7 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
         },
         {
           outcomeKey: 'user_fault_refund_50',
+          refundRestrictionStatusKey: 'refund_limited_50',
           reasonKey: 'operator_sanction_user_fault_refund_50',
           userRefundBps: 5000,
           companyRevenueBps: 4000,
@@ -581,6 +618,7 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     userFaultRefund70: {
       from: ['opened', 'active', 'artist_answered'],
       to: 'refund_pending',
+      reviewStatus: 'refund_limited_70',
       finalStatus: 'refunded',
       refundPolicyKey: 'user_fault_refund_70',
       walletLedgerEntries: ['premium_chat_room_refund'],
@@ -596,6 +634,7 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     userFaultRefund50: {
       from: ['opened', 'active', 'artist_answered'],
       to: 'refund_pending',
+      reviewStatus: 'refund_limited_50',
       finalStatus: 'refunded',
       refundPolicyKey: 'user_fault_refund_50',
       walletLedgerEntries: ['premium_chat_room_refund'],
@@ -652,8 +691,94 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       enabled: false,
       walletMutation: false,
     },
+    statusKeys: PREMIUM_CHAT_REPORT_REVIEW_STATUS_KEYS,
+    reasonKeys: PREMIUM_CHAT_REPORT_REVIEW_REASON_KEYS,
+    statusAliases: PREMIUM_CHAT_ROOM_STATUS_ALIASES,
     reportProcessingStatus: 'admin_review',
-    roomStatusesWhilePending: ['reported', 'blind', 'suspended'],
+    roomStatusesWhilePending: ['reported', 'blinded', 'suspended'],
+    storageStatusAliases: [
+      {
+        publicStatusKey: 'blinded',
+        storageStatusKey: 'blind',
+        reasonKey: 'room_blinded_pending_admin_review',
+        messageKey: 'chat.premiumRoom.report.blinded',
+      },
+    ],
+    reviewStatuses: [
+      {
+        statusKey: 'reported',
+        reasonKey: 'user_report_received',
+        messageKey: 'chat.premiumRoom.report.reported',
+        mutationAllowed: false,
+        walletAction: 'none',
+        publicCopySource: 'messageKey',
+      },
+      {
+        statusKey: 'blinded',
+        storageStatusKey: 'blind',
+        reasonKey: 'room_blinded_pending_admin_review',
+        messageKey: 'chat.premiumRoom.report.blinded',
+        mutationAllowed: false,
+        walletAction: 'none',
+        publicCopySource: 'messageKey',
+      },
+      {
+        statusKey: 'admin_review',
+        reasonKey: 'admin_review_pending_decision',
+        messageKey: 'chat.premiumRoom.report.adminReview',
+        mutationAllowed: false,
+        walletAction: 'none',
+        publicCopySource: 'messageKey',
+      },
+      {
+        statusKey: 'suspended',
+        reasonKey: 'room_suspended_pending_admin_review',
+        messageKey: 'chat.premiumRoom.report.suspended',
+        mutationAllowed: false,
+        walletAction: 'none',
+        publicCopySource: 'messageKey',
+      },
+      {
+        statusKey: 'refund_limited_70',
+        reasonKey: 'user_fault_report_refund_70',
+        refundPolicyKey: 'user_fault_refund_70',
+        messageKey: 'chat.premiumRoom.refund.limited70',
+        mutationAllowed: false,
+        walletAction: 'server_refund_after_admin_decision_only',
+        userRefundBps: 7000,
+        companyRevenueBps: 2000,
+        artistCompensationBps: 1000,
+        splitTraceFields: [
+          'refundRestrictionStatusKey',
+          'refundReasonKey',
+          'userRefundLumina',
+          'companyRevenueLumina',
+          'artistCompensationLumina',
+          'revenueSplitBps',
+          'adminDecisionKeyHash',
+        ],
+      },
+      {
+        statusKey: 'refund_limited_50',
+        reasonKey: 'operator_sanction_user_fault_refund_50',
+        refundPolicyKey: 'user_fault_refund_50',
+        messageKey: 'chat.premiumRoom.refund.limited50',
+        mutationAllowed: false,
+        walletAction: 'server_refund_after_admin_decision_only',
+        userRefundBps: 5000,
+        companyRevenueBps: 4000,
+        artistCompensationBps: 1000,
+        splitTraceFields: [
+          'refundRestrictionStatusKey',
+          'refundReasonKey',
+          'userRefundLumina',
+          'companyRevenueLumina',
+          'artistCompensationLumina',
+          'revenueSplitBps',
+          'adminDecisionKeyHash',
+        ],
+      },
+    ],
     visibility: 'blind_until_admin_decision',
     walletActionBeforeAdminDecision: 'none',
     mutationGuard: 'fail_closed_before_wallet_or_message_mutation',
