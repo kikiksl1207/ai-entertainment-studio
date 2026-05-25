@@ -1,6 +1,50 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#490 premium chat room list/detail projection contract"
+branch: team2-backend/premium-chat-room-projection-490
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/chat.service.spec.ts
+- docs/backend-api-spec.md
+- docs/premium-chat-status-read-api-contract.md
+- docs/premium-chat-readonly-room-ranking-contract.md
+- docs/ops/inbox/team2-backend.md
+checked_files:
+- server/src/chat/chat.controller.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/premium-chat-room-contract.ts
+tests:
+- node --check server/src/chat/chat.controller.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.service.spec.ts
+- node --check server/src/chat/premium-chat-support-contract.ts
+- node --check server/src/chat/premium-chat-room-contract.ts
+- npx.cmd prisma generate
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-support-contract.ts src/chat/premium-chat-room-contract.ts
+- git diff --check
+- git diff --check origin/main...HEAD
+result:
+- Added read-only `roomProjection` for premium chat room list/detail UI wiring.
+- Fixed room list required fields: artist, remaining period, room status, last response status, and donation/support availability.
+- Added `premiumRoomDetail` contract shape for user-visible status message, artist-visible status message, review/lock state, donation button state, and artist activity/revenue hint.
+- Donation button disabled state now uses public reason/message keys and blocks raw enum/internal reason copy.
+- Kept room open, donation create, wallet/Lumina debit, settlement, payout, support-point, conversation-meter, report/refund mutation, provider/prompt payload, raw chat body, and admin-note paths closed.
+blocked_by:
+- Live room list/detail storage and UI wiring still need later implementation after contract review/merge.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#486 premium chat room guidance copy tone"
 branch: team2-backend/premium-chat-room-copy-tone-486
 commit: final hash recorded in Notion completion report

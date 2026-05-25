@@ -1,6 +1,6 @@
 # Premium Chat Room List and Ranking Read-only Contract
 
-Task: #372
+Task: #372, #490
 
 Status: contract ready, read-only models disabled.
 
@@ -46,7 +46,9 @@ Allowed projection fields:
 - safe artist id, slug, display name, and avatar URL
 - tier key and amount from server policy
 - status label key for UI copy mapping
-- opened/expires timestamps
+- opened/expires timestamps and remaining-period summary
+- last response status label/message keys
+- donation/support availability with public disabled reason/message keys
 - viewer CTA state
 - public metrics only
 
@@ -60,6 +62,15 @@ Forbidden projection fields:
 - raw payload
 - raw chat body
 - raw user id
+- raw room enum strings as display copy
+- internal disabled reasons or decision notes
+
+The room detail/status surfaces are exposed through `roomProjection`,
+`projections.premiumRoomStatus`, `projections.premiumRoomDetail`, and
+`projections.premiumRoomMutationAvailability`. They provide user-visible status
+message keys, artist-visible status message keys, lock state, and donation
+button state without enabling room, donation, wallet, settlement, payout,
+support-point, conversation-meter, report, or refund mutation.
 
 ## Rankings
 

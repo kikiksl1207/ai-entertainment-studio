@@ -1274,6 +1274,34 @@ Premium room projection copy contract (#478):
   ledger math, payout internals, provider/prompt terms, mutation/projection
   terms, admin notes, or raw chat bodies.
 
+Premium room list/detail projection contract (#490):
+
+`GET /api/v1/chat/premium-support-contract` exposes `roomProjection` and the
+planned `premiumRoomDetail` projection for Home/Feed/Studio UI wiring. These
+remain read-only contract shapes; `apiContracts.roomList`,
+`apiContracts.userRoomStatus`, and `apiContracts.artistRoomStatus` are still
+`enabled=false`.
+
+- The room list response must include only artist-safe fields for artist,
+  remaining period, room status, last response status, and donation/support
+  availability.
+- The room detail response composes `premiumRoomStatus`,
+  `premiumRoomRefundStatus`, `premiumRoomReportStatus`, and
+  `premiumRoomMutationAvailability`, plus the `premiumRoomDetail` shape for
+  user-visible status copy, artist-visible status copy, review/lock state, and
+  donation button state.
+- Donation button disabled reasons are public reason/message keys only. Raw
+  room enums or internal decision reasons must not be used as UI copy.
+- Artist-facing detail copy may show reply activity and a creator revenue
+  possibility hint, but must not expose settlement rates, internal calculation
+  rules, admin notes, raw chat bodies, wallet ledger ids, support-point ledger
+  ids, or conversation-meter ledger ids.
+- The contract forbids AI auto-reply wording and internal implementation terms
+  from user-visible room copy.
+- This contract does not enable room open, donation create, wallet debit,
+  settlement, payout, support-point writes, conversation-meter writes, or
+  report/refund mutation routes.
+
 Premium room list read-only contract (#372):
 
 ```http
