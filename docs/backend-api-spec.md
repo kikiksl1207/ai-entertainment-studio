@@ -1059,6 +1059,12 @@ GET /api/v1/chat/me/premium-donations?period=monthly&status=confirmed&take=20
   50,000L. Custom donation is 1L through 50,000L, integer only.
 - Donation create accepts an optional message up to 200 chars and requires an
   idempotency key from the header or body.
+- The optional donation `message` is a premium-chat support message only. It is
+  not a Lumina Pick like event, not a client-submitted ranking score, and must
+  never feed `/api/v1/boost-campaigns/:campaignId/rankings` or a chat
+  `type=like` alias. After storage exists, it may affect only the premium-chat
+  communication/support and donation projections, and ranking projections must
+  not return the raw message body.
 - Donation amount is normalized by the server. Client balance, local price,
   support score, ranking refresh, and remaining-room meter values are not
   authority. A same idempotency key with the same fingerprint replays the
@@ -1164,6 +1170,28 @@ Authorization: Bearer <accessToken>
   message, support, donation, refund, wallet, settlement, and payout mutation.
 - Repeated refund or report status reads must replay the existing projection and
   must not create duplicate refund ledger or moderation rows.
+
+Premium room interaction status matrix (#473):
+
+`GET /api/v1/chat/premium-support-contract` exposes
+`roomStatusRead.interactionStatusMatrix` and
+`roomStatusRead.unansweredRefundTransition` so frontend and later backend
+implementation can separate normal rooms from 24-hour unanswered refund
+candidates before mutation routes are enabled.
+
+- `opened`, `active`, and `artist_answered` use `safe_conversation` read mode
+  and allow future user send, artist reply, donation, message-meter, and
+  premium-chat communication/donation ranking eligibility.
+- `reported`, `blind`, `suspended`, `admin_review`, and `refund_pending` use
+  `safe_status_only` read mode and disable user send, artist reply, donation,
+  message-meter, support-point grant, ranking eligibility, wallet, settlement,
+  and payout mutation.
+- `refunded`, `expired`, `closed`, and `artist_closed` use `safe_archive` read
+  mode and keep user send, artist reply, and donation disabled.
+- 24-hour no-answer handling moves an `opened` or `active` room with no artist
+  answer to `refund_pending` under `unanswered_24h_full_refund`; after that
+  transition send/reply/donation stay disabled.
+- Unknown future room statuses fail closed as `safe_status_only`.
 
 Premium room list read-only contract (#372):
 

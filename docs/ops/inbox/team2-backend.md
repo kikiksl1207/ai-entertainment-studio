@@ -1,6 +1,49 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#473 premium chat unanswered/support message chat contract"
+branch: team2-backend/premium-chat-room-status-contract-473
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/chat.service.spec.ts
+- docs/backend-api-spec.md
+- docs/premium-chat-status-read-api-contract.md
+- docs/premium-chat-donation-ranking-api-contract.md
+- docs/ops/inbox/team2-backend.md
+checked_files:
+- server/src/chat/chat.controller.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/premium-chat-room-contract.ts
+tests:
+- node --check server/src/chat/chat.controller.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.service.spec.ts
+- node --check server/src/chat/premium-chat-support-contract.ts
+- node --check server/src/chat/premium-chat-room-contract.ts
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-support-contract.ts src/chat/premium-chat-room-contract.ts
+- git diff --check
+- git diff --check origin/main...HEAD
+result:
+- Added an explicit `roomStatusRead.interactionStatusMatrix` contract for `opened`, `active`, `artist_answered`, reported/blind/suspended/admin-review/refund-pending, refunded/expired/closed/artist-closed room states.
+- Fixed the 24-hour no-answer transition contract: `opened`/`active` rooms with no artist answer move to `refund_pending` under `unanswered_24h_full_refund`, and send/reply/donation/meter/ranking eligibility are disabled after transition.
+- Added `resolvePremiumChatRoomInteractionAvailability` fail-closed helper coverage for normal, refund-pending, and unknown future statuses.
+- Clarified that donation support messages are premium-chat support/communication/donation projections only, never Lumina Pick likes or `/boost-campaigns` ranking input, and raw support message bodies are not returned in rankings.
+- Kept room-open, donation create, wallet/Lumina debit, provider/LLM, settlement, payout, and accounting/support-point/conversation-meter mutations disabled.
+blocked_by:
+- Live storage/API mutation implementation is still blocked until premium-chat room/report/refund/donation storage and read models exist.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#468 character chat random tone opening greeting contract"
 branch: team2-backend/character-chat-random-greeting-tone-468
 commit: final hash recorded in Notion completion report

@@ -85,9 +85,132 @@ export const PREMIUM_CHAT_ROOM_LIST_EXCLUDED_STATUSES = [
   'admin_review',
 ] as const;
 
+export const PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX = {
+  opened: {
+    readMode: 'safe_conversation',
+    userCanSendMessage: true,
+    artistCanReply: true,
+    canDonate: true,
+    messageMeterEligible: true,
+    communicationRankingEligible: true,
+    donationRankingEligible: true,
+    disabledMessageKey: null,
+  },
+  active: {
+    readMode: 'safe_conversation',
+    userCanSendMessage: true,
+    artistCanReply: true,
+    canDonate: true,
+    messageMeterEligible: true,
+    communicationRankingEligible: true,
+    donationRankingEligible: true,
+    disabledMessageKey: null,
+  },
+  artist_answered: {
+    readMode: 'safe_conversation',
+    userCanSendMessage: true,
+    artistCanReply: true,
+    canDonate: true,
+    messageMeterEligible: true,
+    communicationRankingEligible: true,
+    donationRankingEligible: true,
+    disabledMessageKey: null,
+  },
+  reported: {
+    readMode: 'safe_status_only',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.report.processing',
+  },
+  blind: {
+    readMode: 'safe_status_only',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.report.blinded',
+  },
+  suspended: {
+    readMode: 'safe_status_only',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.suspended',
+  },
+  admin_review: {
+    readMode: 'safe_status_only',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.adminReview',
+  },
+  refund_pending: {
+    readMode: 'safe_status_only',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.refund.pending',
+  },
+  refunded: {
+    readMode: 'safe_archive',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.refund.completed',
+  },
+  expired: {
+    readMode: 'safe_archive',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.expired',
+  },
+  closed: {
+    readMode: 'safe_archive',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.closed',
+  },
+  artist_closed: {
+    readMode: 'safe_archive',
+    userCanSendMessage: false,
+    artistCanReply: false,
+    canDonate: false,
+    messageMeterEligible: false,
+    communicationRankingEligible: false,
+    donationRankingEligible: false,
+    disabledMessageKey: 'chat.premiumRoom.closed.artist',
+  },
+} as const;
+
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
-  version: '2026-05-21.premium-chat-status-read-api.v1',
-  previousVersion: '2026-05-21.premium-chat-refund-report-ledger.v2',
+  version: '2026-05-25.premium-chat-room-interaction-status.v1',
+  previousVersion: '2026-05-21.premium-chat-status-read-api.v1',
   feature: 'premium_chat_support',
   status: 'contract_ready_mutation_blocked',
   policy: {
@@ -625,6 +748,21 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       optional: true,
       maxChars: 200,
     },
+    supportMessageRouting: {
+      sourceField: 'donation.message',
+      maxChars: 200,
+      createsChatMessage: false,
+      rawMessageBodyReturnedInRankings: false,
+      rawMessageBodyLogged: false,
+      rankingLanes: {
+        like: false,
+        communication: true,
+        donation: true,
+      },
+      allowedRankingTypes: PREMIUM_CHAT_RANKING_TYPES,
+      excludedRankingPaths: ['/api/v1/boost-campaigns/:campaignId/rankings'],
+      messageKey: 'chat.donation.supportMessage',
+    },
     idempotency: {
       required: true,
       acceptedFrom: ['Idempotency-Key header', 'body.idempotencyKey'],
@@ -849,6 +987,16 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     userEndpoint: '/api/v1/chat/me/premium-rooms/:roomId/status',
     artistEndpoint: '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
     responseStatusKeys: PREMIUM_CHAT_ROOM_STATUS_READ_KEYS,
+    interactionStatusMatrix: PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX,
+    unansweredRefundTransition: {
+      trigger: 'no artist answer after 24 hours',
+      fromStatuses: ['opened', 'active'],
+      toStatus: 'refund_pending',
+      refundPolicyKey: 'unanswered_24h_full_refund',
+      userRefundBps: 10000,
+      afterTransitionAvailability:
+        PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.refund_pending,
+    },
     readOnly: true,
     ownerOnly: true,
     authRequired: true,
@@ -900,7 +1048,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     like: {
       path: '/api/v1/boost-campaigns/:campaignId/rankings',
       includes: ['free_like', 'lumina_boost'],
-      excludes: ['premium_chat_donation'],
+      excludes: ['premium_chat_donation', 'premium_chat_donation_message'],
       note: 'Likes stay in the Lumina Pick/boost ranking lane.',
     },
     communication: {
@@ -915,6 +1063,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         'premium_chat_open',
         'premium_chat_message',
         'premium_chat_donation',
+        'premium_chat_donation_message',
         'artist_reply_activity',
       ],
       scorePolicy: {
@@ -959,6 +1108,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       scoreInputs: ['premium_chat_donation'],
       sourceLedgerTypes: ['premium_chat_donation_support_point'],
       amountBasis: 'confirmed_net_lumina',
+      supportMessagePolicy:
+        'Donation messages may affect only premium chat communication/support projections, never Lumina Pick like rankings.',
       excludes: ['free_like', 'lumina_boost', 'premium_chat_open', 'premium_chat_message'],
       moderation: {
         reportedRows: 'excluded_until_admin_safe',
@@ -1215,4 +1366,24 @@ export function resolvePremiumChatDonationAmountPolicy(input: {
     payoutMutationEnabled: false,
     messageKey: 'chat.donation.amountAccepted',
   } as const;
+}
+
+export function resolvePremiumChatRoomInteractionAvailability(status: string) {
+  const matrix = PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX as Record<
+    string,
+    (typeof PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX)[keyof typeof PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX]
+  >;
+
+  return (
+    matrix[status] ?? {
+      readMode: 'safe_status_only',
+      userCanSendMessage: false,
+      artistCanReply: false,
+      canDonate: false,
+      messageMeterEligible: false,
+      communicationRankingEligible: false,
+      donationRankingEligible: false,
+      disabledMessageKey: 'chat.premiumRoom.statusUnknown',
+    }
+  );
 }

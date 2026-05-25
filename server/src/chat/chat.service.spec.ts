@@ -1,6 +1,9 @@
 import { ChatService } from './chat.service';
 import { ChatLlmProviderRequestError } from './llm-provider.adapter';
-import { resolvePremiumChatDonationAmountPolicy } from './premium-chat-support-contract';
+import {
+  resolvePremiumChatDonationAmountPolicy,
+  resolvePremiumChatRoomInteractionAvailability,
+} from './premium-chat-support-contract';
 
 describe('ChatService.getStarterPrompts', () => {
   it('returns readable Korean default starter prompt copy', async () => {
@@ -3349,10 +3352,10 @@ describe('ChatService premium chat support contract', () => {
     const contract = service.getPremiumSupportContract();
 
     expect(contract.version).toBe(
-      '2026-05-21.premium-chat-status-read-api.v1',
+      '2026-05-25.premium-chat-room-interaction-status.v1',
     );
     expect(contract.previousVersion).toBe(
-      '2026-05-21.premium-chat-refund-report-ledger.v2',
+      '2026-05-21.premium-chat-status-read-api.v1',
     );
     expect(contract.donation.fixedAmountsLumina).toEqual([
       10,
@@ -3739,13 +3742,28 @@ describe('ChatService premium chat support contract', () => {
         'expired',
         'reported',
         'blind',
+        'blinded',
         'suspended',
         'refund_pending',
+        'refund_limited_70',
+        'refund_limited_50',
         'refunded',
         'admin_review',
       ],
       reportedOrBlindedCanDonate: false,
       suspendedOrRefundPendingCanDonate: false,
+    });
+    expect(contract.donation.supportMessageRouting).toMatchObject({
+      sourceField: 'donation.message',
+      createsChatMessage: false,
+      rawMessageBodyReturnedInRankings: false,
+      rawMessageBodyLogged: false,
+      rankingLanes: {
+        like: false,
+        communication: true,
+        donation: true,
+      },
+      excludedRankingPaths: ['/api/v1/boost-campaigns/:campaignId/rankings'],
     });
     expect(contract.donation.ledger).toMatchObject({
       donationSource: 'premium_chat_donation',
@@ -3914,6 +3932,94 @@ describe('ChatService premium chat support contract', () => {
         },
       },
     });
+    expect(contract.roomStatusRead.unansweredRefundTransition).toMatchObject({
+      trigger: 'no artist answer after 24 hours',
+      fromStatuses: ['opened', 'active'],
+      toStatus: 'refund_pending',
+      refundPolicyKey: 'unanswered_24h_full_refund',
+      userRefundBps: 10000,
+      afterTransitionAvailability: {
+        readMode: 'safe_status_only',
+        userCanSendMessage: false,
+        artistCanReply: false,
+        canDonate: false,
+      },
+    });
+    expect(contract.roomStatusRead.interactionStatusMatrix).toMatchObject({
+      opened: {
+        readMode: 'safe_conversation',
+        userCanSendMessage: true,
+        artistCanReply: true,
+        canDonate: true,
+      },
+      active: {
+        readMode: 'safe_conversation',
+        userCanSendMessage: true,
+        artistCanReply: true,
+        canDonate: true,
+      },
+      artist_answered: {
+        readMode: 'safe_conversation',
+        userCanSendMessage: true,
+        artistCanReply: true,
+        canDonate: true,
+      },
+      reported: {
+        readMode: 'safe_status_only',
+        userCanSendMessage: false,
+        artistCanReply: false,
+        canDonate: false,
+      },
+      blind: {
+        readMode: 'safe_status_only',
+        userCanSendMessage: false,
+        artistCanReply: false,
+        canDonate: false,
+      },
+      suspended: {
+        readMode: 'safe_status_only',
+        userCanSendMessage: false,
+        artistCanReply: false,
+        canDonate: false,
+      },
+      refund_pending: {
+        readMode: 'safe_status_only',
+        userCanSendMessage: false,
+        artistCanReply: false,
+        canDonate: false,
+      },
+      refunded: {
+        readMode: 'safe_archive',
+        userCanSendMessage: false,
+        artistCanReply: false,
+        canDonate: false,
+      },
+    });
+    expect(resolvePremiumChatRoomInteractionAvailability('active')).toMatchObject({
+      readMode: 'safe_conversation',
+      userCanSendMessage: true,
+      artistCanReply: true,
+      canDonate: true,
+      messageMeterEligible: true,
+    });
+    expect(
+      resolvePremiumChatRoomInteractionAvailability('refund_pending'),
+    ).toMatchObject({
+      readMode: 'safe_status_only',
+      userCanSendMessage: false,
+      artistCanReply: false,
+      canDonate: false,
+      disabledMessageKey: 'chat.premiumRoom.refund.pending',
+    });
+    expect(
+      resolvePremiumChatRoomInteractionAvailability('unknown_future_status'),
+    ).toMatchObject({
+      readMode: 'safe_status_only',
+      userCanSendMessage: false,
+      artistCanReply: false,
+      canDonate: false,
+      disabledMessageKey: 'chat.premiumRoom.statusUnknown',
+    });
     expect(contract.roomStatusRead.responseStatusKeys).toEqual([
       'active',
       'reported',
@@ -3986,8 +4092,14 @@ describe('ChatService premium chat support contract', () => {
       walletActionBeforeAdminDecision: 'none',
     });
     expect(contract.rankings.like.excludes).toContain('premium_chat_donation');
+    expect(contract.rankings.like.excludes).toContain(
+      'premium_chat_donation_message',
+    );
     expect(contract.rankings.communication.scoreInputs).toContain(
       'premium_chat_donation',
+    );
+    expect(contract.rankings.communication.scoreInputs).toContain(
+      'premium_chat_donation_message',
     );
     expect(contract.rankings.communication.periodWindows).toEqual([
       'daily',
@@ -4022,6 +4134,9 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.rankings.donation.scoreInputs).toEqual([
       'premium_chat_donation',
     ]);
+    expect(contract.rankings.donation.supportMessagePolicy).toBe(
+      'Donation messages may affect only premium chat communication/support projections, never Lumina Pick like rankings.',
+    );
     expect(contract.rankings.donation.sourceLedgerTypes).toEqual([
       'premium_chat_donation_support_point',
     ]);
