@@ -86,6 +86,9 @@
               </div>
               <span class="chat-rankings-state" id="chatRankingsStateLabel">상태 확인 중</span>
             </header>
+            <p class="chat-rankings-policy-note" id="chatRankingsPolicyNote">
+              24시간 내 아티스트 답변이 없던 방은 전액 환불 검토 대상이에요. 유저 귀책 사유가 확인되면 환불 금액이 50% 또는 70% 수준으로 제한될 수 있고, 신고·운영 검토 중인 활동은 랭킹에서 제외돼요.
+            </p>
             <!-- #351 — 4상태: loading(스켈레톤) / empty(설명) / error(재시도) / success(랭킹 row) -->
             <div class="chat-rankings-board-body" id="chatRankingsBoardBody">
               <!-- loading -->
@@ -99,7 +102,7 @@
               <div class="chat-rankings-empty" id="chatRankingsEmpty" hidden>
                 <!-- #379 — "준비 중" 직접 노출 톤 변경. -->
                 <p class="chat-rankings-empty-title" id="chatRankingsEmptyTitle">랭킹 데이터를 모으는 중이에요</p>
-                <p class="chat-rankings-empty-body" id="chatRankingsBoardMessage">소통·후원 랭킹은 원장·보안 검증이 끝난 뒤 함께 공개돼요.</p>
+                <p class="chat-rankings-empty-body" id="chatRankingsBoardMessage">소통·후원 랭킹은 서비스 준비가 완료된 뒤 함께 공개돼요.</p>
                 <p class="chat-rankings-empty-note">좋아요 응원 순위는 <a class="text-link" href="/lumina-pick">루미나 픽</a>에서 확인할 수 있어요.</p>
               </div>
               <!-- error (정책 fetch 실패) -->

@@ -1612,6 +1612,16 @@ select.dm-field-input option {
 .chat-rankings-board-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .chat-rankings-board-head h2 { margin: 0 0 4px; font-size: 18px; color: #f0f0f7; }
 .chat-rankings-board-head p { margin: 0; color: rgba(240, 238, 248, 0.66); font-size: 13px; line-height: 1.6; max-width: 540px; }
+.chat-rankings-policy-note {
+  margin: -4px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(236, 72, 153, 0.08);
+  border: 1px solid rgba(236, 72, 153, 0.16);
+  color: rgba(245, 240, 255, 0.76);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
 .chat-rankings-state {
   font-size: 11px; padding: 4px 10px; border-radius: 999px;
   background: rgba(148, 163, 184, 0.15); color: rgba(240, 238, 248, 0.78); font-weight: 700; white-space: nowrap;
