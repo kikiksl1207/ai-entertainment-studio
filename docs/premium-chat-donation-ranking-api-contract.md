@@ -1,6 +1,6 @@
 # Premium Chat Donation and Ranking API Contract
 
-Task: #376, #473 support message routing
+Task: #376, #473 support message routing, #478 support message projection
 
 Status: contract ready, endpoints disabled.
 
@@ -102,6 +102,18 @@ Donation support-message routing is fixed by #473:
 - The current contract keeps donation create disabled, so no support message,
   wallet debit, chat message, ranking row, settlement, or payout mutation is
   created.
+
+The #478 product projection adds display-only support-message copy:
+
+- `productProjection.supportMessageProjection.fixedAmountsLumina` is the same
+  fixed amount list: 10L, 50L, 100L, 500L, 1,000L, 5,000L, 10,000L, 50,000L.
+- `productProjection.supportMessageProjection.customAmount` carries the same
+  custom amount policy as donation create: 1L through 50,000L, integer only.
+- The projection has separate `userVisibleCopy` and `artistVisibleCopy` keys.
+  It must not be rendered as an AI-generated reply.
+- The projection must not return raw support message bodies in rankings, raw
+  wallet ledger ids, support-point ledger ids, admin memos, internal settlement
+  formulas, or payout details.
 
 ## Rankings
 

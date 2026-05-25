@@ -2,7 +2,8 @@
 
 Updated: 2026-05-25
 Owner: Luffy / Kaido
-Task: Notion #384, #472, #473 room interaction status contract, #477
+Task: Notion #384, #472, #473 room interaction status contract, #477,
+#478 projection copy contract
 
 This contract prepares read-only user and artist lookups for premium-chat room
 report/refund/closure state. It does not enable room-open, message, donation,
@@ -25,6 +26,7 @@ Current contract paths:
 - `projections.premiumRoomMutationAvailability`
 - `roomStatusRead.interactionStatusMatrix`
 - `roomStatusRead.unansweredRefundTransition`
+- `productProjection`
 
 ## Planned Read Endpoints
 
@@ -216,6 +218,33 @@ ranking eligibility are all disabled.
 Reported, blinded, suspended, admin-review, refund-pending, and refunded rooms
 remain readable only through safe status/refund/report projections. They must
 not expose raw chat bodies or raw report reasons.
+
+## Product Projection Copy
+
+#478 fixes the product/chat copy projection used inside premium-chat rooms. The
+projection is exposed as `productProjection` and remains read-only.
+
+- User and artist copy are separated by `userVisibleCopy` and
+  `artistVisibleCopy`; clients must not reuse one side as the other side.
+- 24-hour unanswered refund candidate copy uses
+  `productProjection.unansweredRefundCandidate`. It explains the pending refund
+  candidate state through stable copy keys and does not imply AI or provider
+  retry.
+- Conversation-meter copy uses `conversationMeterNotice`. User copy is summary
+  only: it may say that Lumina can be deducted by conversation amount, but must
+  not show a per-line amount or internal calculation formula. Artist copy may
+  say active conversation can contribute to creator revenue, but must not expose
+  settlement formulas, rates, or payout internals.
+- Locked room copy is fixed under `lockedRoomMessages` for reported, blinded,
+  suspended, admin-review, and refund-pending states. These states keep user
+  send, artist reply, donation, and ranking/meter eligibility disabled.
+- Support-message projection uses fixed amounts
+  `10/50/100/500/1000/5000/10000/50000L` plus the custom amount policy. It is a
+  premium-chat support message, not an AI response and not a Lumina Pick like
+  signal.
+- Projections must not expose raw chat bodies, raw support messages in
+  rankings, raw prompts, provider payloads, wallet ledger ids, support-point
+  ledger ids, internal settlement formulas/rates, or admin-only memos.
 
 ## Still Blocked
 

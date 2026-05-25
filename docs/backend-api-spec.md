@@ -1065,6 +1065,12 @@ GET /api/v1/chat/me/premium-donations?period=monthly&status=confirmed&take=20
   `type=like` alias. After storage exists, it may affect only the premium-chat
   communication/support and donation projections, and ranking projections must
   not return the raw message body.
+- #478 adds `productProjection.supportMessageProjection` as the display-only
+  chat/product projection for the support sheet and room system event. It
+  exposes the same fixed amount list
+  `10/50/100/500/1000/5000/10000/50000L`, the custom 1L-50,000L policy, and
+  separate `userVisibleCopy` / `artistVisibleCopy` keys. It does not create an
+  AI reply, chat message, wallet debit, ranking row, settlement, or payout.
 - Donation amount is normalized by the server. Client balance, local price,
   support score, ranking refresh, and remaining-room meter values are not
   authority. A same idempotency key with the same fingerprint replays the
@@ -1227,6 +1233,26 @@ Idempotency-Key: <client-or-admin-generated-key>
   mutation.
 - Responses and logs must not include raw report text, raw chat body, raw
   payload, token, cookie, password, DB URL, or raw idempotency key.
+
+Premium room projection copy contract (#478):
+
+`GET /api/v1/chat/premium-support-contract` also exposes
+`productProjection`, a read-only product/chat copy contract.
+
+- `productProjection.unansweredRefundCandidate` provides separate user and
+  artist copy keys for the 24-hour unanswered refund candidate state. It must
+  not imply that the room is AI auto-answered or that a provider retry is in
+  progress.
+- `productProjection.conversationMeterNotice` lets user UI summarize that
+  Lumina can be deducted by conversation amount, while preventing per-line
+  amount display and internal formula exposure. Artist UI may show a creator
+  revenue hint, but not internal settlement rates or payout math.
+- `productProjection.lockedRoomMessages` fixes user/artist copy keys for
+  reported, blinded, suspended, admin-review, and refund-pending rooms.
+- `productProjection` has `aiAutoReplyCopyAllowed=false` and must not expose raw
+  prompts, provider payloads, raw chat bodies, raw support messages in rankings,
+  wallet ledger ids, support-point ledger ids, internal settlement formulas,
+  settlement rates, or admin-only memos.
 
 Premium room list read-only contract (#372):
 

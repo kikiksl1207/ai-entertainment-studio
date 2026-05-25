@@ -3352,7 +3352,7 @@ describe('ChatService premium chat support contract', () => {
     const contract = service.getPremiumSupportContract();
 
     expect(contract.version).toBe(
-      '2026-05-25.premium-chat-report-refund-api.v1',
+      '2026-05-25.premium-chat-report-refund-product-projection.v1',
     );
     expect(contract.previousVersion).toBe(
       '2026-05-25.premium-chat-room-interaction-status.v1',
@@ -3400,6 +3400,135 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.policy.supportPointLedgerMutationEnabled).toBe(false);
     expect(contract.policy.conversationMeterMutationEnabled).toBe(false);
     expect(contract.policy.premiumChatAccountingLedgerMutationEnabled).toBe(false);
+    expect(contract.policy.productProjectionMutationEnabled).toBe(false);
+    expect(contract.productProjection).toMatchObject({
+      version: '2026-05-25.premium-chat-product-projection.v1',
+      userArtistCopySeparated: true,
+      aiAutoReplyCopyAllowed: false,
+      rawPromptReturned: false,
+      providerPayloadReturned: false,
+      rawChatBodyReturned: false,
+      internalSettlementFormulaReturned: false,
+      internalSettlementRateReturned: false,
+      ledgerCalculationReturned: false,
+      adminMemoReturned: false,
+      userCopyPolicy: {
+        meterNoticeMode: 'summary_only',
+        perLineAmountCopyAllowed: false,
+        messageKey: 'chat.premiumRoom.meter.userSummary',
+      },
+      artistCopyPolicy: {
+        revenueNoticeMode: 'creator_revenue_hint_only',
+        settlementFormulaCopyAllowed: false,
+        messageKey: 'chat.premiumRoom.meter.artistRevenueHint',
+      },
+      unansweredRefundCandidate: {
+        trigger: 'no_artist_answer_after_24h',
+        roomStatus: 'refund_pending',
+        refundPolicyKey: 'unanswered_24h_full_refund',
+        userVisibleCopy: {
+          titleKey: 'chat.premiumRoom.unanswered.user.title',
+          bodyKey: 'chat.premiumRoom.unanswered.user.body',
+        },
+        artistVisibleCopy: {
+          titleKey: 'chat.premiumRoom.unanswered.artist.title',
+          bodyKey: 'chat.premiumRoom.unanswered.artist.body',
+        },
+        availabilityAfterProjection: {
+          readMode: 'safe_status_only',
+          userCanSendMessage: false,
+          artistCanReply: false,
+          canDonate: false,
+        },
+      },
+      conversationMeterNotice: {
+        userVisibleCopy: {
+          summaryKey: 'chat.premiumRoom.meter.userSummary',
+        },
+        artistVisibleCopy: {
+          summaryKey: 'chat.premiumRoom.meter.artistSummary',
+        },
+        perLineLuminaCopyAllowed: false,
+        internalFormulaReturned: false,
+        remainingUnitsClientTrusted: false,
+      },
+      supportMessageProjection: {
+        fixedAmountsLumina: [
+          10,
+          50,
+          100,
+          500,
+          1000,
+          5000,
+          10000,
+          50000,
+        ],
+        messageMaxChars: 200,
+        createsAiReply: false,
+        createsChatMessage: false,
+        rankingLanes: {
+          like: false,
+          communication: true,
+          donation: true,
+        },
+        userVisibleCopy: {
+          sheetTitleKey: 'chat.donation.sheet.title',
+          customAmountLabelKey: 'chat.donation.amount.custom',
+        },
+        artistVisibleCopy: {
+          receivedTitleKey: 'chat.donation.artist.receivedTitle',
+          revenueHintKey: 'chat.donation.artist.revenueHint',
+        },
+        privacy: {
+          rawSupportMessageReturnedInRankings: false,
+          rawSupportMessageLogged: false,
+          walletLedgerIdReturned: false,
+          supportPointLedgerIdReturned: false,
+          adminMemoReturned: false,
+        },
+      },
+      lockedRoomMessages: {
+        reported: {
+          userVisibleCopy: {
+            titleKey: 'chat.premiumRoom.lock.reported.user.title',
+          },
+          artistVisibleCopy: {
+            titleKey: 'chat.premiumRoom.lock.reported.artist.title',
+          },
+          availability: {
+            userCanSendMessage: false,
+            artistCanReply: false,
+            canDonate: false,
+          },
+        },
+        blinded: {
+          userVisibleCopy: {
+            titleKey: 'chat.premiumRoom.lock.blinded.user.title',
+          },
+          artistVisibleCopy: {
+            titleKey: 'chat.premiumRoom.lock.blinded.artist.title',
+          },
+          availability: {
+            userCanSendMessage: false,
+            artistCanReply: false,
+            canDonate: false,
+          },
+        },
+        admin_review: {
+          userVisibleCopy: {
+            titleKey: 'chat.premiumRoom.lock.adminReview.user.title',
+          },
+          artistVisibleCopy: {
+            titleKey: 'chat.premiumRoom.lock.adminReview.artist.title',
+          },
+          availability: {
+            userCanSendMessage: false,
+            artistCanReply: false,
+            canDonate: false,
+          },
+        },
+      },
+    });
     expect(contract.endpoints.roomList).toMatchObject({
       method: 'GET',
       path: '/api/v1/chat/premium-rooms',
@@ -4352,6 +4481,22 @@ describe('ChatService premium chat support contract', () => {
       scoreRefreshMutationByClient: false,
       frontendSubmitAllowed: false,
     });
+    expect(contract.projections.donationEvent).toMatchObject({
+      target: 'chat room system message',
+      aiAutoReply: false,
+      userVisibleCopy: {
+        titleKey: 'chat.donation.event.user.title',
+        bodyKey: 'chat.donation.event.user.body',
+      },
+      artistVisibleCopy: {
+        titleKey: 'chat.donation.event.artist.title',
+        bodyKey: 'chat.donation.event.artist.body',
+      },
+      rawWalletLedgerIdExposed: false,
+      rawChatBodyReturned: false,
+      internalSettlementFormulaReturned: false,
+      adminMemoReturned: false,
+    });
     expect(contract.projections.rankingItem.privacy).toMatchObject({
       rawWalletLedgerIdReturned: false,
       rawSupportPointLedgerIdReturned: false,
@@ -4443,6 +4588,8 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.projections.premiumRoomMutationAvailability).toMatchObject({
       canSendMessage: '<boolean>',
       canDonate: '<boolean>',
+      userVisibleCopy: '<projection copy key object>',
+      artistVisibleCopy: '<projection copy key object>',
       disabledMessageKey: '<stable Korean-copy key or null>',
       walletMutation: false,
       messageMutation: false,

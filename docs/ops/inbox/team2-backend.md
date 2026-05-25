@@ -1,6 +1,50 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#478 premium chat unanswered/support message projection contract"
+branch: team2-backend/premium-chat-projection-contract-478
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/chat.service.spec.ts
+- docs/backend-api-spec.md
+- docs/premium-chat-status-read-api-contract.md
+- docs/premium-chat-donation-ranking-api-contract.md
+- docs/ops/inbox/team2-backend.md
+checked_files:
+- server/src/chat/chat.controller.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/premium-chat-room-contract.ts
+tests:
+- node --check server/src/chat/chat.controller.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.service.spec.ts
+- node --check server/src/chat/premium-chat-support-contract.ts
+- node --check server/src/chat/premium-chat-room-contract.ts
+- npx.cmd prisma generate
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-support-contract.ts src/chat/premium-chat-room-contract.ts
+- git diff --check
+- git diff --check origin/main...HEAD
+result:
+- Added read-only `productProjection` to the premium support contract for 24-hour unanswered refund candidate copy, conversation-meter notice copy, support-message projection copy, and locked-room messages.
+- Fixed user-visible and artist-visible copy as separate key objects and kept AI auto-reply wording prohibited through `aiAutoReplyCopyAllowed=false`.
+- Support-message projection exposes fixed 10L/50L/100L/500L/1000L/5000L/10000L/50000L amounts plus custom amount policy, but creates no AI reply, chat message, wallet debit, ranking row, settlement, or payout.
+- Locked reported/blinded/suspended/admin-review/refund-pending projections keep user send, artist reply, donation, meter, and ranking eligibility disabled.
+- Confirmed raw chat bodies, raw support messages in rankings, raw prompt/provider payload, wallet/support-point ledger ids, internal settlement formulas/rates, payout math, and admin memos are not exposed.
+blocked_by:
+- Live projection implementation still needs premium-chat room/report/refund/donation storage and read models.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#473 premium chat unanswered/support message chat contract"
 branch: team2-backend/premium-chat-room-status-contract-473
 commit: final hash recorded in Notion completion report

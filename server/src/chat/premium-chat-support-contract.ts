@@ -278,8 +278,150 @@ export const PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX = {
   },
 } as const;
 
+export const PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT = {
+  version: '2026-05-25.premium-chat-product-projection.v1',
+  status: 'contract_ready_mutation_blocked',
+  userArtistCopySeparated: true,
+  aiAutoReplyCopyAllowed: false,
+  rawPromptReturned: false,
+  providerPayloadReturned: false,
+  rawChatBodyReturned: false,
+  internalSettlementFormulaReturned: false,
+  internalSettlementRateReturned: false,
+  ledgerCalculationReturned: false,
+  adminMemoReturned: false,
+  userCopyPolicy: {
+    meterNoticeMode: 'summary_only',
+    perLineAmountCopyAllowed: false,
+    messageKey: 'chat.premiumRoom.meter.userSummary',
+  },
+  artistCopyPolicy: {
+    revenueNoticeMode: 'creator_revenue_hint_only',
+    settlementFormulaCopyAllowed: false,
+    messageKey: 'chat.premiumRoom.meter.artistRevenueHint',
+  },
+  unansweredRefundCandidate: {
+    trigger: 'no_artist_answer_after_24h',
+    roomStatus: 'refund_pending',
+    refundPolicyKey: 'unanswered_24h_full_refund',
+    userVisibleCopy: {
+      titleKey: 'chat.premiumRoom.unanswered.user.title',
+      bodyKey: 'chat.premiumRoom.unanswered.user.body',
+      ctaKey: 'chat.premiumRoom.unanswered.user.cta',
+    },
+    artistVisibleCopy: {
+      titleKey: 'chat.premiumRoom.unanswered.artist.title',
+      bodyKey: 'chat.premiumRoom.unanswered.artist.body',
+      ctaKey: 'chat.premiumRoom.unanswered.artist.cta',
+    },
+    availabilityAfterProjection:
+      PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.refund_pending,
+  },
+  conversationMeterNotice: {
+    userVisibleCopy: {
+      summaryKey: 'chat.premiumRoom.meter.userSummary',
+      detailKey: 'chat.premiumRoom.meter.userDetail',
+    },
+    artistVisibleCopy: {
+      summaryKey: 'chat.premiumRoom.meter.artistSummary',
+      detailKey: 'chat.premiumRoom.meter.artistDetail',
+    },
+    perLineLuminaCopyAllowed: false,
+    internalFormulaReturned: false,
+    remainingUnitsClientTrusted: false,
+  },
+  supportMessageProjection: {
+    fixedAmountsLumina: PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA,
+    customAmount: PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY,
+    messageMaxChars: 200,
+    createsAiReply: false,
+    createsChatMessage: false,
+    rankingLanes: {
+      like: false,
+      communication: true,
+      donation: true,
+    },
+    userVisibleCopy: {
+      sheetTitleKey: 'chat.donation.sheet.title',
+      amountLabelKey: 'chat.donation.amount.label',
+      customAmountLabelKey: 'chat.donation.amount.custom',
+      messagePlaceholderKey: 'chat.donation.message.placeholder',
+      submittedMessageKey: 'chat.donation.message.submitted',
+    },
+    artistVisibleCopy: {
+      receivedTitleKey: 'chat.donation.artist.receivedTitle',
+      revenueHintKey: 'chat.donation.artist.revenueHint',
+      replyPromptKey: 'chat.donation.artist.replyPrompt',
+    },
+    privacy: {
+      rawSupportMessageReturnedInRankings: false,
+      rawSupportMessageLogged: false,
+      walletLedgerIdReturned: false,
+      supportPointLedgerIdReturned: false,
+      adminMemoReturned: false,
+    },
+  },
+  lockedRoomMessages: {
+    reported: {
+      userVisibleCopy: {
+        titleKey: 'chat.premiumRoom.lock.reported.user.title',
+        bodyKey: 'chat.premiumRoom.lock.reported.user.body',
+      },
+      artistVisibleCopy: {
+        titleKey: 'chat.premiumRoom.lock.reported.artist.title',
+        bodyKey: 'chat.premiumRoom.lock.reported.artist.body',
+      },
+      availability: PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.reported,
+    },
+    blinded: {
+      userVisibleCopy: {
+        titleKey: 'chat.premiumRoom.lock.blinded.user.title',
+        bodyKey: 'chat.premiumRoom.lock.blinded.user.body',
+      },
+      artistVisibleCopy: {
+        titleKey: 'chat.premiumRoom.lock.blinded.artist.title',
+        bodyKey: 'chat.premiumRoom.lock.blinded.artist.body',
+      },
+      availability: PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.blinded,
+    },
+    suspended: {
+      userVisibleCopy: {
+        titleKey: 'chat.premiumRoom.lock.suspended.user.title',
+        bodyKey: 'chat.premiumRoom.lock.suspended.user.body',
+      },
+      artistVisibleCopy: {
+        titleKey: 'chat.premiumRoom.lock.suspended.artist.title',
+        bodyKey: 'chat.premiumRoom.lock.suspended.artist.body',
+      },
+      availability: PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.suspended,
+    },
+    admin_review: {
+      userVisibleCopy: {
+        titleKey: 'chat.premiumRoom.lock.adminReview.user.title',
+        bodyKey: 'chat.premiumRoom.lock.adminReview.user.body',
+      },
+      artistVisibleCopy: {
+        titleKey: 'chat.premiumRoom.lock.adminReview.artist.title',
+        bodyKey: 'chat.premiumRoom.lock.adminReview.artist.body',
+      },
+      availability: PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.admin_review,
+    },
+    refund_pending: {
+      userVisibleCopy: {
+        titleKey: 'chat.premiumRoom.lock.refundPending.user.title',
+        bodyKey: 'chat.premiumRoom.lock.refundPending.user.body',
+      },
+      artistVisibleCopy: {
+        titleKey: 'chat.premiumRoom.lock.refundPending.artist.title',
+        bodyKey: 'chat.premiumRoom.lock.refundPending.artist.body',
+      },
+      availability: PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.refund_pending,
+    },
+  },
+} as const;
+
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
-  version: '2026-05-25.premium-chat-report-refund-api.v1',
+  version: '2026-05-25.premium-chat-report-refund-product-projection.v1',
   previousVersion: '2026-05-25.premium-chat-room-interaction-status.v1',
   feature: 'premium_chat_support',
   status: 'contract_ready_mutation_blocked',
@@ -291,6 +433,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     supportPointLedgerMutationEnabled: false,
     conversationMeterMutationEnabled: false,
     premiumChatAccountingLedgerMutationEnabled: false,
+    productProjectionMutationEnabled: false,
     disabledMessageKey: 'chat.donation.contractPending',
     disabledDisplayMessageKo:
       '프리미엄챗 후원은 원장·보안 검증이 끝난 뒤 열릴 예정이에요.',
@@ -417,6 +560,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       walletMutation: false,
     },
   },
+  productProjection: PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT,
   apiContracts: {
     roomList: {
       method: 'GET',
@@ -1413,6 +1557,15 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
   projections: {
     donationEvent: {
       target: 'chat room system message',
+      aiAutoReply: false,
+      userVisibleCopy: {
+        titleKey: 'chat.donation.event.user.title',
+        bodyKey: 'chat.donation.event.user.body',
+      },
+      artistVisibleCopy: {
+        titleKey: 'chat.donation.event.artist.title',
+        bodyKey: 'chat.donation.event.artist.body',
+      },
       bodyShape: {
         id: '<donation event id>',
         type: 'premium_chat_donation',
@@ -1422,6 +1575,9 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         createdAt: '<ISO datetime>',
       },
       rawWalletLedgerIdExposed: false,
+      rawChatBodyReturned: false,
+      internalSettlementFormulaReturned: false,
+      adminMemoReturned: false,
     },
     rankingItem: {
       id: '<artist id>',
@@ -1580,6 +1736,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     premiumRoomMutationAvailability: {
       canSendMessage: '<boolean>',
       canDonate: '<boolean>',
+      userVisibleCopy: '<projection copy key object>',
+      artistVisibleCopy: '<projection copy key object>',
       canArtistForceClose: '<boolean display-only until mutation endpoint exists>',
       canRequestRefund: '<boolean display-only until mutation endpoint exists>',
       disabledMessageKey: '<stable Korean-copy key or null>',
