@@ -1,6 +1,7 @@
 # Premium Chat Donation and Ranking API Contract
 
-Task: #376, #473 support message routing, #478 support message projection, #495 support amount/lock guard
+Task: #376, #473 support message routing, #478 support message projection,
+#495 support amount/lock guard, #496 support message/ranking projection
 
 Status: contract ready, endpoints disabled.
 
@@ -144,6 +145,21 @@ The #478 product projection adds display-only support-message copy:
   wallet ledger ids, support-point ledger ids, admin memos, internal settlement
   formulas, or payout details.
 
+The #496 support/ranking projection tightens display rules:
+
+- Fixed amount options use `chat.donation.amount.fixed` and related amount
+  label keys. Custom amount uses `chat.donation.amount.custom` and helper copy
+  keys for "내맘대로 후원" style UI. Raw amount enums are not user-facing copy.
+- Locked, reported, blinded, suspended, admin-review, refund-pending, closed,
+  or expired rooms must not create support messages. They return stable disabled
+  message keys before wallet lookup or donation/order writes.
+- Support-message copy must say it affects premium-chat support/communication
+  and donation ranking lanes only. It must not imply a like, boost, or AI reply.
+- User-visible copy must not expose provider, prompt, ledger, mutation,
+  projection, raw prompt/provider payload, token, cookie, DB URL, raw chat body,
+  raw support message body in rankings, wallet ledger id, support-point id,
+  conversation-meter id, admin note, settlement formula, or payout detail.
+
 ## Rankings
 
 Planned endpoint:
@@ -173,6 +189,11 @@ Rules:
 - communication ranking can later combine server-weighted room open, safe
   visible message activity, confirmed net donation, and safe artist reply
   activity
+- communication ranking copy is `summary_only`; clients may describe that room
+  activity, conversation, support, and artist replies can contribute, but must
+  not show raw formulas or internal source names
+- donation ranking copy is `summary_only` and based on confirmed net support;
+  raw support-message bodies are not returned in ranking items
 
 Ranking projections must not expose raw chat body, raw report reason, wallet
 ledger id, support point ledger id, conversation meter ledger id, raw user id,

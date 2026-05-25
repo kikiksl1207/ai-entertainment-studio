@@ -1302,6 +1302,32 @@ remain read-only contract shapes; `apiContracts.roomList`,
   settlement, payout, support-point writes, conversation-meter writes, or
   report/refund mutation routes.
 
+Premium chat support message and ranking projection contract (#496):
+
+`GET /api/v1/chat/premium-support-contract` exposes
+`supportRankingProjection` and updates `productProjection.supportMessageProjection`
+for display-only support-message/ranking UI wiring. The contract remains
+read-only and all donation/wallet/ranking-refresh mutations stay disabled.
+
+- Support-message amount UI must use stable copy keys for fixed amounts and
+  custom amount ("내맘대로 후원") labels. Raw amount enums must not be used as UI
+  copy.
+- Support messages may affect only the premium-chat communication/support and
+  donation ranking lanes. They must never feed Lumina Pick likes or
+  `/api/v1/boost-campaigns/:campaignId/rankings`.
+- Communication ranking copy is summary-only: room open, safe conversation
+  activity, support, and artist reply activity may contribute, but clients must
+  not show raw scoring formulas or internal source names.
+- Donation ranking copy is summary-only and based on confirmed net support.
+  Raw support-message bodies are not returned in ranking items.
+- Reported, blinded, suspended, admin-review, refund-pending, closed, or
+  expired rooms must keep support-message creation disabled before wallet lookup
+  or any donation event/order write.
+- User-visible support/ranking copy must not contain provider, prompt, ledger,
+  mutation, projection, AI auto-reply wording, raw prompt/provider payloads,
+  tokens, cookies, DB URLs, wallet ledger ids, support-point ids,
+  conversation-meter ids, admin notes, or raw chat bodies.
+
 Premium room list read-only contract (#372):
 
 ```http

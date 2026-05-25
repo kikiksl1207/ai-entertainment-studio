@@ -3355,10 +3355,10 @@ describe('ChatService premium chat support contract', () => {
     const contract = service.getPremiumSupportContract();
 
     expect(contract.version).toBe(
-      '2026-05-25.premium-chat-room-list-detail-projection.v1',
+      '2026-05-25.premium-chat-support-ranking-projection.v1',
     );
     expect(contract.previousVersion).toBe(
-      '2026-05-25.premium-chat-copy-status-room-tone.v1',
+      '2026-05-25.premium-chat-room-list-detail-projection.v1',
     );
     expect(contract.donation.fixedAmountsLumina).toEqual([
       10,
@@ -3465,7 +3465,7 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.policy.premiumChatAccountingLedgerMutationEnabled).toBe(false);
     expect(contract.policy.productProjectionMutationEnabled).toBe(false);
     expect(contract.productProjection).toMatchObject({
-      version: '2026-05-25.premium-chat-copy-status-room-tone.v1',
+      version: '2026-05-25.premium-chat-support-ranking-projection.v1',
       userArtistCopySeparated: true,
       aiAutoReplyCopyAllowed: false,
       rawPromptReturned: false,
@@ -3643,10 +3643,38 @@ describe('ChatService premium chat support contract', () => {
         messageMaxChars: 200,
         createsAiReply: false,
         createsChatMessage: false,
+        createsSupportMessageWhenLocked: false,
         rankingLanes: {
           like: false,
           communication: true,
           donation: true,
+        },
+        amountDisplay: {
+          fixedAmountLabelKey: 'chat.donation.amount.fixed',
+          fixedAmountOptionKey: 'chat.donation.amount.fixedOption',
+          customAmountLabelKey: 'chat.donation.amount.custom',
+          customAmountHelperKey: 'chat.donation.amount.customHelper',
+          rawAmountEnumAsCopy: false,
+        },
+        submitAvailability: {
+          allowedRoomStatuses: ['opened', 'active', 'artist_answered'],
+          blockedRoomStatuses: expect.arrayContaining([
+            'reported',
+            'blinded',
+            'admin_review',
+            'refund_pending',
+            'closed',
+          ]),
+          lockedOrReviewCanCreateSupportMessage: false,
+          disabledMessageKey: 'chat.donation.blockedRoomState',
+        },
+        rankingSeparationCopy: {
+          supportAffectsKey: 'chat.donation.ranking.supportAffects',
+          notLikeRankingKey: 'chat.donation.ranking.notLikeRanking',
+          communicationSummaryKey: 'chat.rankings.communication.summary',
+          donationSummaryKey: 'chat.rankings.donation.summary',
+          rawScoringFormulaReturned: false,
+          internalTermsReturned: false,
         },
         userVisibleCopy: {
           sheetTitleKey: 'chat.donation.sheet.title',
@@ -3662,6 +3690,12 @@ describe('ChatService premium chat support contract', () => {
           walletLedgerIdReturned: false,
           supportPointLedgerIdReturned: false,
           adminMemoReturned: false,
+        },
+        copySafety: {
+          rawEnumCopyReturned: false,
+          rawRankingTypeAsCopy: false,
+          internalTermsReturned: false,
+          aiAutoReplyCopyAllowed: false,
         },
       },
       lockedRoomMessages: {
@@ -3762,6 +3796,63 @@ describe('ChatService premium chat support contract', () => {
         'LLM',
       ]),
     );
+    expect(contract.supportRankingProjection).toMatchObject({
+      version: '2026-05-25.premium-chat-support-ranking-projection.v1',
+      status: 'contract_ready_mutation_blocked',
+      enabled: false,
+      supportMessage: {
+        amountDisplay: {
+          fixedAmountLabelKey: 'chat.donation.amount.fixed',
+          customAmountLabelKey: 'chat.donation.amount.custom',
+          customAmountHelperKey: 'chat.donation.amount.customHelper',
+        },
+        allowedRoomStatuses: ['opened', 'active', 'artist_answered'],
+        blockedRoomStatuses: expect.arrayContaining([
+          'reported',
+          'blinded',
+          'admin_review',
+          'refund_pending',
+          'closed',
+        ]),
+        lockedOrReviewCanCreateSupportMessage: false,
+        disabledMessageKey: 'chat.donation.blockedRoomState',
+      },
+      rankingLanes: {
+        like: {
+          path: '/api/v1/boost-campaigns/:campaignId/rankings',
+          receivesPremiumChatSupport: false,
+        },
+        communication: {
+          path: '/api/v1/chat/rankings?type=communication',
+          userVisibleSummaryKey: 'chat.rankings.communication.summary',
+          scoreDetailMode: 'summary_only',
+          roomOpenMayContribute: true,
+          conversationMayContribute: true,
+          supportMayContribute: true,
+          rawFormulaReturned: false,
+        },
+        donation: {
+          path: '/api/v1/chat/rankings?type=donation',
+          userVisibleSummaryKey: 'chat.rankings.donation.summary',
+          scoreDetailMode: 'summary_only',
+          confirmedNetSupportOnly: true,
+          rawSupportMessageReturned: false,
+        },
+      },
+      copySafety: {
+        rawEnumCopyReturned: false,
+        rawRankingTypeAsCopy: false,
+        internalTermsReturned: false,
+        aiAutoReplyCopyAllowed: false,
+      },
+      noMutation: {
+        donationCreate: true,
+        walletDebit: true,
+        rankingRefresh: true,
+        settlement: true,
+        payout: true,
+      },
+    });
     const visibleRoomGuidanceCopy = JSON.stringify(
       contract.productProjection.roomGuidanceCopy,
     );
@@ -4209,6 +4300,13 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.apiContracts.rankingsList.response.window).toMatchObject({
       timezone: 'Asia/Seoul',
     });
+    expect(contract.apiContracts.rankingsList.response.copyPolicy).toMatchObject({
+      laneLabelKeyRequired: true,
+      scoreSummaryKeyRequired: true,
+      rawRankingTypeAsCopy: false,
+      rawScoreFormulaReturned: false,
+      internalTermsReturned: false,
+    });
     expect(contract.apiContracts.rankingsList.separation).toMatchObject({
       likeRankingPath: '/api/v1/boost-campaigns/:campaignId/rankings',
       likeRankingExcludedFromChatRankings: true,
@@ -4228,6 +4326,20 @@ describe('ChatService premium chat support contract', () => {
         'refunded_donation_rows',
         'chargeback_donation_rows',
       ]),
+      userVisibleCopy: {
+        summaryKey: 'chat.rankings.donation.summary',
+        detailMode: 'summary_only',
+        rawSupportMessageReturned: false,
+      },
+    });
+    expect(
+      contract.apiContracts.rankingsList.sourceFilters.communication,
+    ).toMatchObject({
+      userVisibleCopy: {
+        summaryKey: 'chat.rankings.communication.summary',
+        detailMode: 'summary_only',
+        rawFormulaReturned: false,
+      },
     });
     expect(contract.apiContracts.rankingsList.privacy).toMatchObject({
       rawChatBodyReturned: false,
@@ -4345,6 +4457,7 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.donation.supportMessageRouting).toMatchObject({
       sourceField: 'donation.message',
       createsChatMessage: false,
+      createsSupportMessageWhenLocked: false,
       rawMessageBodyReturnedInRankings: false,
       rawMessageBodyLogged: false,
       rankingLanes: {
@@ -4353,6 +4466,10 @@ describe('ChatService premium chat support contract', () => {
         donation: true,
       },
       excludedRankingPaths: ['/api/v1/boost-campaigns/:campaignId/rankings'],
+      fixedAmountLabelKey: 'chat.donation.amount.fixed',
+      customAmountLabelKey: 'chat.donation.amount.custom',
+      customAmountHelperKey: 'chat.donation.amount.customHelper',
+      lockedRoomDisabledMessageKey: 'chat.donation.blockedRoomState',
     });
     expect(contract.donation.ledger).toMatchObject({
       donationSource: 'premium_chat_donation',
@@ -4780,6 +4897,9 @@ describe('ChatService premium chat support contract', () => {
       'all',
     ]);
     expect(contract.rankings.communication.scorePolicy).toMatchObject({
+      userVisibleSummaryKey: 'chat.rankings.communication.summary',
+      detailMode: 'summary_only',
+      rawFormulaReturned: false,
       supportPointLedger:
         'premium_chat_support_point_ledger is the ranking source once storage exists',
       formulaStatus: 'planned_weighted_score_server_side_only',
@@ -4812,6 +4932,10 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.rankings.donation.sourceLedgerTypes).toEqual([
       'premium_chat_donation_support_point',
     ]);
+    expect(contract.rankings.donation).toMatchObject({
+      userVisibleSummaryKey: 'chat.rankings.donation.summary',
+      detailMode: 'summary_only',
+    });
     expect(contract.rankings.donation.periodWindows).toEqual([
       'daily',
       'weekly',
@@ -4834,9 +4958,14 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.projections.donationEvent).toMatchObject({
       target: 'chat room system message',
       aiAutoReply: false,
+      supportMessageCreatesChatReply: false,
+      supportMessageAllowedWhenLocked: false,
       userVisibleCopy: {
         titleKey: 'chat.donation.event.user.title',
         bodyKey: 'chat.donation.event.user.body',
+        fixedAmountLabelKey: 'chat.donation.amount.fixed',
+        customAmountLabelKey: 'chat.donation.amount.custom',
+        rankingSeparationKey: 'chat.donation.ranking.notLikeRanking',
       },
       artistVisibleCopy: {
         titleKey: 'chat.donation.event.artist.title',
@@ -4846,6 +4975,20 @@ describe('ChatService premium chat support contract', () => {
       rawChatBodyReturned: false,
       internalSettlementFormulaReturned: false,
       adminMemoReturned: false,
+    });
+    expect(contract.projections.rankingItem).toMatchObject({
+      lane: {
+        type: '<communication|donation>',
+        labelKey: 'chat.rankings.type.communication|chat.rankings.type.donation',
+        summaryKey: 'chat.rankings.communication.summary|chat.rankings.donation.summary',
+        notLikeRankingKey: 'chat.rankings.notLikeRanking',
+        rawRankingTypeAsCopy: false,
+      },
+      scorePresentation: {
+        mode: 'summary_only',
+        rawFormulaReturned: false,
+        internalReasonReturned: false,
+      },
     });
     expect(contract.projections.rankingItem.privacy).toMatchObject({
       rawWalletLedgerIdReturned: false,
@@ -5080,6 +5223,15 @@ describe('ChatService premium chat support contract', () => {
       detailDonation: contract.projections.premiumRoomDetail.donationButton,
       availabilityButton:
         contract.projections.premiumRoomMutationAvailability.donationButton,
+      supportAmount:
+        contract.productProjection.supportMessageProjection.amountDisplay,
+      supportRanking:
+        contract.productProjection.supportMessageProjection.rankingSeparationCopy,
+      supportSubmit:
+        contract.productProjection.supportMessageProjection.submitAvailability,
+      rankingLane: contract.projections.rankingItem.lane,
+      rankingScore: contract.projections.rankingItem.scorePresentation,
+      rankingResponse: contract.apiContracts.rankingsList.response.copyPolicy,
     });
     expect(displayCopyKeys).not.toMatch(
       /\b(provider|prompt|ledger|mutation|projection|AI|LLM)\b|auto reply/i,

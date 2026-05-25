@@ -4,7 +4,7 @@ Updated: 2026-05-25
 Owner: Luffy / Kaido
 Task: Notion #384, #472, #473 room interaction status contract, #477,
 #478 projection copy contract, #486 room guidance tone, #490 room list/detail
-projection contract
+projection contract, #496 support/ranking projection contract
 
 This contract prepares read-only user and artist lookups for premium-chat room
 report/refund/closure state. It does not enable room-open, message, donation,
@@ -296,8 +296,12 @@ copy is exposed through `productProjection.roomGuidanceCopy`.
 - Artist copy may say active conversation and support can help creator revenue,
   but must not expose settlement rates, ledger math, payout internals, or admin
   notes.
-- Support-message copy says support messages affect support/communication
-  rankings separately from likes.
+- Support-message copy says support messages affect premium-chat
+  support/communication and donation ranking lanes separately from likes.
+- #496 adds `supportRankingProjection`: fixed/custom amount display uses stable
+  copy keys, locked/review rooms cannot create support messages, and
+  communication/donation ranking copy stays summary-only without raw formulas or
+  internal source names.
 - UI-visible copy must not contain internal terms such as `provider`, `prompt`,
   `ledger`, `mutation`, `projection`, `원장`, `정산율`, `관리자 메모`, or
   `내부 계산식`.
