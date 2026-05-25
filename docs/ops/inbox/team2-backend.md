@@ -1,6 +1,49 @@
 # Team2 Backend Inbox
 
 status: ready_for_review
+task: "#486 premium chat room guidance copy tone"
+branch: team2-backend/premium-chat-room-copy-tone-486
+commit: final hash recorded in Notion completion report
+push: yes after final validation
+main_reflected: no, review/merge pending
+worktree_cleanup: yes after push and Notion completion report
+changed_files:
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/chat.service.spec.ts
+- docs/backend-api-spec.md
+- docs/premium-chat-status-read-api-contract.md
+- docs/ops/inbox/team2-backend.md
+checked_files:
+- server/src/chat/chat.controller.ts
+- server/src/chat/chat.service.ts
+- server/src/chat/chat.service.spec.ts
+- server/src/chat/premium-chat-support-contract.ts
+- server/src/chat/premium-chat-room-contract.ts
+tests:
+- node --check server/src/chat/chat.controller.ts
+- node --check server/src/chat/chat.service.ts
+- node --check server/src/chat/chat.service.spec.ts
+- node --check server/src/chat/premium-chat-support-contract.ts
+- node --check server/src/chat/premium-chat-room-contract.ts
+- npx.cmd prisma generate
+- npm.cmd test -- chat.service.spec.ts --runInBand
+- npm.cmd run lint -- --quiet src/chat/chat.controller.ts src/chat/chat.service.ts src/chat/chat.service.spec.ts src/chat/premium-chat-support-contract.ts src/chat/premium-chat-room-contract.ts
+- git diff --check
+- git diff --check origin/main...HEAD
+result:
+- Added Korean service-tone room guidance copy under `productProjection.roomGuidanceCopy`.
+- User copy now fixes artist-direct-answer guidance, conversation-based Lumina deduction summary, 24-hour unanswered refund review wording, report/operator-review pause wording, and support-message ranking separation from likes.
+- Artist copy now fixes direct-reply guidance, creator-revenue hint, review pause wording, and support/communication ranking-only support message wording.
+- Added `serviceTone.forbiddenUiTerms` and tests that visible room guidance copy does not contain provider/prompt/ledger/mutation/projection/internal settlement/admin-memo wording or AI auto-reply wording.
+- Kept donation create, room open, wallet/Lumina debit, settlement, payout, provider/LLM, raw prompt, raw chat body, and raw provider payload paths closed.
+blocked_by:
+- Live UI copy rendering still needs frontend wiring against the read-only contract after review/merge.
+sensitive_values_recorded:
+- none
+
+---
+
+status: ready_for_review
 task: "#478 premium chat unanswered/support message projection contract"
 branch: team2-backend/premium-chat-projection-contract-478
 commit: final hash recorded in Notion completion report

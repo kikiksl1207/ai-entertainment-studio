@@ -279,7 +279,7 @@ export const PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX = {
 } as const;
 
 export const PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT = {
-  version: '2026-05-25.premium-chat-copy-status-consistency.v1',
+  version: '2026-05-25.premium-chat-copy-status-room-tone.v1',
   status: 'contract_ready_mutation_blocked',
   userArtistCopySeparated: true,
   aiAutoReplyCopyAllowed: false,
@@ -290,6 +290,52 @@ export const PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT = {
   internalSettlementRateReturned: false,
   ledgerCalculationReturned: false,
   adminMemoReturned: false,
+  serviceTone: {
+    language: 'ko-KR',
+    style: ['plain_service', 'calm', 'non_technical'],
+    forbiddenUiTerms: [
+      'provider',
+      'prompt',
+      'ledger',
+      'mutation',
+      'projection',
+      '원장',
+      '정산율',
+      '관리자 메모',
+      '내부 계산식',
+    ],
+    aiAutoReplyImplicationAllowed: false,
+  },
+  roomGuidanceCopy: {
+    userVisibleCopy: {
+      directArtistReply:
+        '이 방은 아티스트가 직접 확인하고 답변하는 프리미엄챗이에요.',
+      meterNotice:
+        '대화가 오가면 이용량에 따라 루미나가 차감될 수 있어요.',
+      unansweredRefundReview:
+        '아티스트 답변이 24시간 동안 없으면 환불 검토 대상이 될 수 있어요.',
+      reviewPaused:
+        '신고 또는 운영 검토 중이라 잠시 대화와 후원이 멈춰 있어요.',
+      supportRanking:
+        '후원 메시지는 좋아요 순위가 아니라 후원/소통 랭킹에 반영돼요.',
+    },
+    artistVisibleCopy: {
+      directReply:
+        '팬이 기다리고 있어요. 직접 답변하면 프리미엄챗 소통이 이어져요.',
+      revenueHint:
+        '대화와 후원 참여가 늘면 크리에이터 수익에 도움이 될 수 있어요.',
+      reviewPaused:
+        '운영 검토 중인 방은 답변과 후원이 잠시 제한돼요.',
+      supportRanking:
+        '후원 메시지는 후원/소통 랭킹 흐름에만 반영돼요.',
+    },
+    supportMessageCopy: {
+      userVisible:
+        '응원의 마음을 후원 메시지로 남길 수 있어요. 좋아요 순위와는 별도로 반영돼요.',
+      artistVisible:
+        '팬의 후원 메시지가 도착했어요. 답변으로 소통을 이어갈 수 있어요.',
+    },
+  },
   userCopyPolicy: {
     meterNoticeMode: 'summary_only',
     perLineAmountCopyAllowed: false,
@@ -485,7 +531,7 @@ export const PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT = {
 } as const;
 
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
-  version: '2026-05-25.premium-chat-copy-status-consistency.v1',
+  version: '2026-05-25.premium-chat-copy-status-room-tone.v1',
   previousVersion: '2026-05-25.premium-chat-report-refund-product-projection.v1',
   feature: 'premium_chat_support',
   status: 'contract_ready_mutation_blocked',
