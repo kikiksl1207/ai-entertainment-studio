@@ -34,7 +34,10 @@ import {
   defaultCharacterStarterOptions,
   defaultCharacterStatus,
 } from './chat-persona-catalog';
-import { PREMIUM_CHAT_SUPPORT_CONTRACT } from './premium-chat-support-contract';
+import {
+  CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT,
+  PREMIUM_CHAT_SUPPORT_CONTRACT,
+} from './premium-chat-support-contract';
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const UUID_V4_PATTERN =
@@ -3245,6 +3248,7 @@ export class ChatService {
             ? 'character_fallback'
             : 'default',
       messageKey: 'chat.character.premiumChat.locked',
+      transitionCta: CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT,
       walletMutation: false,
       orderMutation: false,
     };
@@ -3275,6 +3279,9 @@ export class ChatService {
         'openingPrompt.options[].message',
         'emptyState.text',
         'premiumChat.ctaLabel',
+        'premiumChat.transitionCta.replyModeCopy.directArtistReplyKo',
+        'premiumChat.transitionCta.roomStateReasons',
+        'premiumChat.transitionCta.priceSummary',
         'tone.guideKo',
         'personaTags',
         'forbiddenTone.items',

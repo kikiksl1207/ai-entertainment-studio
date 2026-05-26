@@ -1,6 +1,7 @@
 import { ChatService } from './chat.service';
 import { ChatLlmProviderRequestError } from './llm-provider.adapter';
 import {
+  CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT,
   PREMIUM_CHAT_DONATION_DISABLED_REASON_BY_STATUS,
   PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES,
   resolvePremiumChatDonationAmountPolicy,
@@ -1789,9 +1790,81 @@ describe('ChatService persona and catalog policy', () => {
       text: cmsPremiumText,
       ctaLabel: cmsPremiumCta,
       enabled: false,
+      transitionCta: {
+        version: '2026-05-26.character-chat-premium-cta-projection.v1',
+        sourceSurface: 'character_chat',
+        targetSurface: 'premium_chat_room',
+        enabled: false,
+        readOnly: true,
+        authRequired: true,
+        directArtistReplyRequired: true,
+        aiAutoReplyCopyAllowed: false,
+        roomOpenCta: {
+          enabled: false,
+          submitEnabled: false,
+          walletDebitEnabled: false,
+          roomOpenOrderEnabled: false,
+          disabledReasonKey: 'premium_chat_room_open_contract_pending',
+          disabledMessageKo:
+            '\uc9c0\uae08\uc740 \ud504\ub9ac\ubbf8\uc5c4\ucc57 \ubc29 \uc624\ud508 \uc900\ube44 \uc911\uc774\uc5d0\uc694.',
+        },
+        roomStateReasons: {
+          available: {
+            canOpenRoom: true,
+            messageKo:
+              '\uc544\ud2f0\uc2a4\ud2b8 \uc9c1\uc811 \ub2f5\ubcc0 \ubc29\uc744 \uc5f4 \uc218 \uc788\uc5b4\uc694.',
+          },
+          artist_rest: {
+            canOpenRoom: false,
+            messageKo:
+              '\uc544\ud2f0\uc2a4\ud2b8\uac00 \uc26c\ub294 \uc911\uc774\ub77c \uc9c0\uae08\uc740 \ubc29\uc744 \uc5f4 \uc218 \uc5c6\uc5b4\uc694.',
+          },
+          under_review: {
+            canOpenRoom: false,
+            messageKo:
+              '\uc6b4\uc601 \uac80\ud1a0 \uc911\uc774\ub77c \ud504\ub9ac\ubbf8\uc5c4\ucc57\uc744 \uc7a0\uc2dc \uba48\ucdc4\uc5b4\uc694.',
+          },
+          expired: {
+            canOpenRoom: false,
+            messageKo:
+              '\uc774\uc804 \ud504\ub9ac\ubbf8\uc5c4\ucc57 \ubc29\uc774 \ub9cc\ub8cc\ub418\uc5b4 \uc0c8 \uc548\ub0b4\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.',
+          },
+        },
+        priceSummary: {
+          displayMode: 'summary_only',
+          internalFormulaReturned: false,
+          clientSubmittedPriceTrusted: false,
+        },
+        safety: {
+          rawEnumCopyReturned: false,
+          rawStatusAsCopy: false,
+          rawPromptReturned: false,
+          providerPayloadReturned: false,
+          tokenReturned: false,
+          walletMutationEnabled: false,
+          orderMutationEnabled: false,
+          settlementMutationEnabled: false,
+          payoutMutationEnabled: false,
+        },
+      },
       walletMutation: false,
       orderMutation: false,
     });
+    expect(prompts.premiumChat.transitionCta).toEqual(catalog.premiumChat.transitionCta);
+    const visibleTransitionCtaCopy = [
+      ...Object.values(catalog.premiumChat.transitionCta.replyModeCopy),
+      ...Object.values(catalog.premiumChat.transitionCta.roomStateReasons).map(
+        (reason) => reason.messageKo,
+      ),
+      catalog.premiumChat.transitionCta.priceSummary.roomOpenSummaryKo,
+      catalog.premiumChat.transitionCta.priceSummary.supportSummaryKo,
+    ].join(' ');
+    expect(visibleTransitionCtaCopy).not.toMatch(
+      /provider|prompt|ledger|mutation|projection|\bAI\b|\bLLM\b|auto reply/i,
+    );
+    expect(visibleTransitionCtaCopy).toContain(
+      '\uc544\ud2f0\uc2a4\ud2b8\uac00 \uc9c1\uc811 \ud655\uc778\ud558\uace0 \ub2f5\ud558\ub294',
+    );
     expect(catalog.copyContract).toMatchObject({
       version: '2026-05-20.character-chat-copy-cms.v1',
       contentKey: 'character-chat.copy.yoon-serin',
@@ -1815,6 +1888,9 @@ describe('ChatService persona and catalog policy', () => {
         'openingPrompt.options[].message',
         'emptyState.text',
         'premiumChat.ctaLabel',
+        'premiumChat.transitionCta.replyModeCopy.directArtistReplyKo',
+        'premiumChat.transitionCta.roomStateReasons',
+        'premiumChat.transitionCta.priceSummary',
         'tone.guideKo',
         'personaTags',
         'forbiddenTone.items',
@@ -3531,6 +3607,58 @@ describe('ChatService premium chat support contract', () => {
         settlementFormulaCopyAllowed: false,
         messageKey: 'chat.premiumRoom.meter.artistRevenueHint',
       },
+      characterChatTransitionCta: {
+        version: '2026-05-26.character-chat-premium-cta-projection.v1',
+        status: 'contract_ready_submit_blocked',
+        sourceSurface: 'character_chat',
+        targetSurface: 'premium_chat_room',
+        enabled: false,
+        readOnly: true,
+        authRequired: true,
+        directArtistReplyRequired: true,
+        aiAutoReplyCopyAllowed: false,
+        roomOpenCta: {
+          enabled: false,
+          submitEnabled: false,
+          walletDebitEnabled: false,
+          roomOpenOrderEnabled: false,
+          disabledReasonKey: 'premium_chat_room_open_contract_pending',
+        },
+        roomStateReasons: {
+          available: {
+            canOpenRoom: true,
+            messageKey: 'chat.characterPremiumCta.available',
+          },
+          artist_rest: {
+            canOpenRoom: false,
+            messageKey: 'chat.characterPremiumCta.artistRest',
+          },
+          under_review: {
+            canOpenRoom: false,
+            messageKey: 'chat.characterPremiumCta.underReview',
+          },
+          expired: {
+            canOpenRoom: false,
+            messageKey: 'chat.characterPremiumCta.expired',
+          },
+        },
+        priceSummary: {
+          displayMode: 'summary_only',
+          internalFormulaReturned: false,
+          clientSubmittedPriceTrusted: false,
+        },
+        safety: {
+          rawEnumCopyReturned: false,
+          rawStatusAsCopy: false,
+          rawPromptReturned: false,
+          providerPayloadReturned: false,
+          tokenReturned: false,
+          walletMutationEnabled: false,
+          orderMutationEnabled: false,
+          settlementMutationEnabled: false,
+          payoutMutationEnabled: false,
+        },
+      },
       unansweredRefundCandidate: {
         trigger: 'no_artist_answer_after_24h',
         roomStatus: 'refund_pending',
@@ -3795,6 +3923,27 @@ describe('ChatService premium chat support contract', () => {
         'AI',
         'LLM',
       ]),
+    );
+    expect(contract.productProjection.characterChatTransitionCta).toEqual(
+      CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT,
+    );
+    const visibleTransitionCtaContractCopy = [
+      ...Object.values(
+        contract.productProjection.characterChatTransitionCta.replyModeCopy,
+      ),
+      ...Object.values(
+        contract.productProjection.characterChatTransitionCta.roomStateReasons,
+      ).map((reason) => reason.messageKo),
+      contract.productProjection.characterChatTransitionCta.priceSummary
+        .roomOpenSummaryKo,
+      contract.productProjection.characterChatTransitionCta.priceSummary
+        .supportSummaryKo,
+    ].join(' ');
+    expect(visibleTransitionCtaContractCopy).not.toMatch(
+      /provider|prompt|ledger|mutation|projection|\bAI\b|\bLLM\b|auto reply/i,
+    );
+    expect(visibleTransitionCtaContractCopy).toContain(
+      '\ud504\ub9ac\ubbf8\uc5c4\ucc57\uc740 \uc544\ud2f0\uc2a4\ud2b8\uac00 \uc9c1\uc811',
     );
     expect(contract.supportRankingProjection).toMatchObject({
       version: '2026-05-25.premium-chat-support-ranking-projection.v1',

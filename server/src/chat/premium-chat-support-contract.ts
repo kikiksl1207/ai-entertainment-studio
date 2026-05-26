@@ -56,6 +56,98 @@ export const PREMIUM_CHAT_DONATION_HISTORY_STATUSES = [
   'cancelled',
 ] as const;
 
+export const CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT = {
+  version: '2026-05-26.character-chat-premium-cta-projection.v1',
+  status: 'contract_ready_submit_blocked',
+  sourceSurface: 'character_chat',
+  targetSurface: 'premium_chat_room',
+  enabled: false,
+  readOnly: true,
+  authRequired: true,
+  directArtistReplyRequired: true,
+  aiAutoReplyCopyAllowed: false,
+  replyModeCopy: {
+    currentChatLabelKo: '\uc77c\ubc18 \uce90\ub9ad\ud130\ucc57',
+    targetChatLabelKo:
+      '\uc544\ud2f0\uc2a4\ud2b8 \uc9c1\uc811 \ub2f5\ubcc0 \ud504\ub9ac\ubbf8\uc5c4\ucc57',
+    currentChatKo:
+      '\uc9c0\uae08 \ub300\ud654\ub294 \uce90\ub9ad\ud130\uc640 \ub098\ub204\ub294 \uc77c\ubc18 \ucc44\ud305\uc774\uc5d0\uc694.',
+    directArtistReplyKo:
+      '\ud504\ub9ac\ubbf8\uc5c4\ucc57\uc740 \uc544\ud2f0\uc2a4\ud2b8\uac00 \uc9c1\uc811 \ud655\uc778\ud558\uace0 \ub2f5\ud558\ub294 \uacf5\uac04\uc774\uc5d0\uc694.',
+  },
+  roomOpenCta: {
+    enabled: false,
+    submitEnabled: false,
+    walletDebitEnabled: false,
+    roomOpenOrderEnabled: false,
+    disabledReasonKey: 'premium_chat_room_open_contract_pending',
+    disabledMessageKo:
+      '\uc9c0\uae08\uc740 \ud504\ub9ac\ubbf8\uc5c4\ucc57 \ubc29 \uc624\ud508 \uc900\ube44 \uc911\uc774\uc5d0\uc694.',
+  },
+  roomStateReasons: {
+    available: {
+      canOpenRoom: true,
+      messageKey: 'chat.characterPremiumCta.available',
+      messageKo:
+        '\uc544\ud2f0\uc2a4\ud2b8 \uc9c1\uc811 \ub2f5\ubcc0 \ubc29\uc744 \uc5f4 \uc218 \uc788\uc5b4\uc694.',
+    },
+    artist_rest: {
+      canOpenRoom: false,
+      messageKey: 'chat.characterPremiumCta.artistRest',
+      messageKo:
+        '\uc544\ud2f0\uc2a4\ud2b8\uac00 \uc26c\ub294 \uc911\uc774\ub77c \uc9c0\uae08\uc740 \ubc29\uc744 \uc5f4 \uc218 \uc5c6\uc5b4\uc694.',
+    },
+    under_review: {
+      canOpenRoom: false,
+      messageKey: 'chat.characterPremiumCta.underReview',
+      messageKo:
+        '\uc6b4\uc601 \uac80\ud1a0 \uc911\uc774\ub77c \ud504\ub9ac\ubbf8\uc5c4\ucc57\uc744 \uc7a0\uc2dc \uba48\ucdc4\uc5b4\uc694.',
+    },
+    expired: {
+      canOpenRoom: false,
+      messageKey: 'chat.characterPremiumCta.expired',
+      messageKo:
+        '\uc774\uc804 \ud504\ub9ac\ubbf8\uc5c4\ucc57 \ubc29\uc774 \ub9cc\ub8cc\ub418\uc5b4 \uc0c8 \uc548\ub0b4\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.',
+    },
+    unavailable: {
+      canOpenRoom: false,
+      messageKey: 'chat.characterPremiumCta.unavailable',
+      messageKo:
+        '\uc9c0\uae08\uc740 \ud504\ub9ac\ubbf8\uc5c4\ucc57 \ubc29 \uc624\ud508 \uc900\ube44 \uc911\uc774\uc5d0\uc694.',
+    },
+  },
+  priceSummary: {
+    displayMode: 'summary_only',
+    roomOpenSummaryKo:
+      '\ubc29 \uc624\ud508 \uae08\uc561\uc740 \uc120\ud0dd\ud55c \ud504\ub9ac\ubbf8\uc5c4\ucc57 \uc0c1\ud488 \uae30\uc900\uc73c\ub85c \uc548\ub0b4\ub3fc\uc694.',
+    supportSummaryKo:
+      '\ud6c4\uc6d0 \uae08\uc561\uc740 \uc120\ud0dd\ud55c \ud45c\uc2dc \uae08\uc561 \uae30\uc900\uc73c\ub85c \uc548\ub0b4\ub3fc\uc694.',
+    internalFormulaReturned: false,
+    clientSubmittedPriceTrusted: false,
+  },
+  forbiddenUserCopyTerms: [
+    'provider',
+    'prompt',
+    'ledger',
+    'mutation',
+    'projection',
+    'AI',
+    'LLM',
+    'auto reply',
+  ],
+  safety: {
+    rawEnumCopyReturned: false,
+    rawStatusAsCopy: false,
+    rawPromptReturned: false,
+    providerPayloadReturned: false,
+    tokenReturned: false,
+    walletMutationEnabled: false,
+    orderMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+  },
+} as const;
+
 export const PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES = [
   'closed',
   'artist_closed',
@@ -381,6 +473,7 @@ export const PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT = {
     settlementFormulaCopyAllowed: false,
     messageKey: 'chat.premiumRoom.meter.artistRevenueHint',
   },
+  characterChatTransitionCta: CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT,
   unansweredRefundCandidate: {
     trigger: 'no_artist_answer_after_24h',
     roomStatus: 'refund_pending',
