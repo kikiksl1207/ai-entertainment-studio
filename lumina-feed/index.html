@@ -241,11 +241,12 @@
 
             <!-- #390 — 프리미엄챗 진입 영역.
                  랭킹 링크 3개(정적) + 내가 열어둔 채팅방 목록(동적, premium-chat-hub.js).
-                 방 오픈/차감은 walletMutationEnabled 전까지 비활성 — 진입과 프로필 이동만 가능. -->
+                 방 오픈/차감은 walletMutationEnabled 전까지 비활성 — 진입과 프로필 이동만 가능.
+                 #500 — "전체 →"가 /character-chat(AI챗)으로 오연결 → 프리미엄챗 허브 미준비 상태이므로 링크 제거. AI챗 대체 연결 금지. -->
             <section class="feed-premium-entry feed-trend-card" aria-label="프리미엄챗 진입">
               <header class="feed-trend-head">
                 <span>프리미엄챗</span>
-                <a class="feed-premium-entry-all" href="/character-chat" aria-label="내 채팅방 전체 보기">전체 →</a>
+                <span class="feed-premium-entry-all" aria-label="프리미엄챗 허브 준비 중" style="opacity:.45;cursor:default;font-size:13px;">준비 중</span>
               </header>
               <!-- 랭킹 3종 정적 링크 -->
               <nav class="feed-premium-entry-rankings" aria-label="랭킹 바로가기">
