@@ -346,6 +346,13 @@ GET /api/v1/me/debut-applications/:applicationId/status
   tokens.
 - `approved` means the application can move to contact/next-step guidance. It
   does not mean debut, settlement, payout, or contract finalization.
+- Debut application status notifications are contract-only until QA approves
+  dispatch. Covered raw statuses are `submitted`, `needs_more_info`,
+  `approved_for_contact`, `rejected`, and `archived`; each channel is
+  idempotent by `applicationId`, `recipientUserId`, `rawStatus`, and `channel`.
+- User notification/email payloads must use stable copy keys and must not expose
+  operator notes, contact values, private material URLs, signed URLs, storage
+  keys, object ETags, raw email values, tokens, cookies, secrets, or DB URLs.
 - 보완요청/승인/반려 알림은 이번 단계에서 copy/API 계약만 정의합니다.
   실제 이메일/인앱 발송은 별도 후속 구현 전까지 열지 않습니다.
 

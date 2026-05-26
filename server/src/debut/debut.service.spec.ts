@@ -563,6 +563,63 @@ describe('DebutService private material flow', () => {
       operatorPhoneNumberReturned: false,
       contractOnly: true,
     });
+    expect(result.statusNotificationGuard).toMatchObject({
+      version: '2026-05-26.debut-status-notification-mail-guard.v1',
+      dispatchEnabled: false,
+      inAppDispatchEnabled: false,
+      emailDispatchEnabled: false,
+      externalEmailDispatchEnabled: false,
+      emailTemplateReady: false,
+      noDispatchReasonKey: 'debut.application.notification.noDispatchReadOnly',
+      contractOnly: true,
+      rawStatuses: [
+        'submitted',
+        'needs_more_info',
+        'approved_for_contact',
+        'rejected',
+        'archived',
+      ],
+      idempotency: {
+        scopeFields: ['applicationId', 'recipientUserId', 'rawStatus', 'channel'],
+        duplicateBehavior:
+          'return_existing_projection_without_second_notification_or_email',
+        rawKeyReturned: false,
+        rawKeyLogged: false,
+      },
+      duplicatePolicy: {
+        duplicateStatusDispatchAllowed: false,
+        perChannelOnce: true,
+      },
+      privacy: {
+        contactReturned: false,
+        internalAdminNoteReturned: false,
+        privateMaterialUrlReturned: false,
+        signedReadUrlReturned: false,
+        storageKeyReturned: false,
+      },
+    });
+    expect(result.statusNotificationGuard.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          rawStatus: 'submitted',
+          userStatus: 'submitted',
+          titleKey: 'debut.application.status.submitted.title',
+          emailDispatchEnabled: false,
+        }),
+        expect.objectContaining({
+          rawStatus: 'approved_for_contact',
+          userStatus: 'approved',
+          titleKey: 'debut.application.status.approved.title',
+          emailDispatchEnabled: false,
+        }),
+        expect.objectContaining({
+          rawStatus: 'archived',
+          userStatus: 'canceled',
+          titleKey: 'debut.application.status.canceled.title',
+          emailDispatchEnabled: false,
+        }),
+      ]),
+    );
     expect(result.items[0]).toMatchObject({
       applicationType: 'represented_artist',
       operationSegment: 'entertainment_agency',
@@ -874,6 +931,43 @@ describe('DebutService private material flow', () => {
         payoutMutation: false,
         walletMutation: false,
         luminaMutation: false,
+        notificationDispatchMutation: false,
+      },
+      notificationGuard: {
+        previousRawStatus: 'submitted',
+        nextRawStatus: 'needs_more_info',
+        previousUserStatus: 'submitted',
+        nextUserStatus: 'needs_more_info',
+        statusChanged: true,
+        channelsPlanned: ['in_app', 'email'],
+        dispatch: {
+          dispatchEnabled: false,
+          inAppDispatchEnabled: false,
+          emailDispatchEnabled: false,
+          externalEmailDispatchEnabled: false,
+          emailTemplateReady: false,
+          noDispatchReasonKey: 'debut.application.notification.noDispatchReadOnly',
+          duplicateDispatchAllowed: false,
+          qaApprovalRequired: true,
+          inAppSent: false,
+          emailSent: false,
+          contractOnly: true,
+        },
+        idempotency: {
+          scopeFields: ['applicationId', 'recipientUserId', 'rawStatus', 'channel'],
+          duplicateBehavior:
+            'return_existing_projection_without_second_notification_or_email',
+          rawKeyReturned: false,
+          rawKeyLogged: false,
+        },
+        privacy: {
+          contactReturned: false,
+          internalAdminNoteReturned: false,
+          privateMaterialUrlReturned: false,
+          signedReadUrlReturned: false,
+          storageKeyReturned: false,
+          rawEmailReturned: false,
+        },
       },
     });
     expect(result.audit.changedFields).toEqual(
@@ -991,6 +1085,37 @@ describe('DebutService private material flow', () => {
     expect(result).toMatchObject({
       readOnly: true,
       ownerOnly: true,
+      notificationContract: {
+        version: '2026-05-26.debut-status-notification-mail-guard.v1',
+        dispatchEnabled: false,
+        inAppDispatchEnabled: false,
+        emailDispatchEnabled: false,
+        externalEmailDispatchEnabled: false,
+        emailTemplateReady: false,
+        noDispatchReasonKey: 'debut.application.notification.noDispatchReadOnly',
+        contractOnly: true,
+        rawStatuses: [
+          'submitted',
+          'needs_more_info',
+          'approved_for_contact',
+          'rejected',
+          'archived',
+        ],
+        idempotency: {
+          scopeFields: ['applicationId', 'recipientUserId', 'rawStatus', 'channel'],
+          duplicateBehavior:
+            'return_existing_projection_without_second_notification_or_email',
+          rawKeyReturned: false,
+          rawKeyLogged: false,
+        },
+        privacy: {
+          contactReturned: false,
+          internalAdminNoteReturned: false,
+          privateMaterialUrlReturned: false,
+          signedReadUrlReturned: false,
+          storageKeyReturned: false,
+        },
+      },
       application: {
         status: 'needs_more_info',
         statusLabelKo: '보완 요청',
@@ -1027,6 +1152,22 @@ describe('DebutService private material flow', () => {
         },
       },
     });
+    expect(result.notificationContract.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          rawStatus: 'needs_more_info',
+          userStatus: 'needs_more_info',
+          titleKey: 'debut.application.status.needsMoreInfo.title',
+          emailDispatchEnabled: false,
+        }),
+        expect.objectContaining({
+          rawStatus: 'rejected',
+          userStatus: 'rejected',
+          titleKey: 'debut.application.status.rejected.title',
+          emailDispatchEnabled: false,
+        }),
+      ]),
+    );
     expect(result.application.statusHistory).toHaveLength(2);
     expect(payload).not.toContain('applicant@example.com');
     expect(payload).not.toContain('010-1234-5678');
