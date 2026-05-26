@@ -948,6 +948,28 @@ Character-chat dynamic opening greeting cache (#388):
 - `openingGreeting.toneCandidate` is display-safe contract data only. Do not
   treat it as an editable system prompt or expose raw metadata keys as user copy.
 
+Character-chat premium transition CTA contract (#500):
+
+- `GET /api/v1/chat/character-catalog` and
+  `GET /api/v1/chat/starter-prompts` include
+  `premiumChat.transitionCta.version =
+  2026-05-26.character-chat-premium-cta-projection.v1`.
+- The transition CTA is read-only and submit-blocked:
+  `enabled=false`, `roomOpenCta.submitEnabled=false`,
+  `walletDebitEnabled=false`, and `roomOpenOrderEnabled=false`.
+- The visible copy separates normal character chat from artist direct-reply
+  premium chat. It must not imply an automatic AI reply for premium chat.
+- `roomStateReasons` provides Korean user-facing reasons for available,
+  artist-resting, under-review, expired, and unavailable states. Frontend must
+  render those Korean messages instead of raw state keys.
+- `priceSummary` is summary-only copy for room-open/support display. It must not
+  expose internal formulas, ledgers, provider payloads, prompts, tokens, or
+  settlement/payout internals.
+- The same CTA contract is also referenced from
+  `GET /api/v1/chat/premium-support-contract` as
+  `productProjection.characterChatTransitionCta` so product QA can verify the
+  character-chat entry point and premium-chat product copy together.
+
 LLM generation readiness:
 
 - Generation is fail-closed until a provider adapter is configured:
