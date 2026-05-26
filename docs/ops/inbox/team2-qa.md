@@ -1,5 +1,80 @@
 # Team2 QA Inbox
 
+status: mixed
+tasks: #502 - debut status screen live QA / #508 - search indexing block retention QA
+environment:
+- branch: team2-qa/502-508-live-qa
+- `git pull origin main`: already up to date after isolated worktree creation
+- local basis commit: 1ac9de60aef05fa379f875a880e6e6d97865598b
+- live API health: HTTP 200, commit fc8c82ca26963e9d9c5d6b783cfe5428e8d90f07
+- live pages/APIs checked:
+  - https://www.lumina-stage.com/robots.txt
+  - https://www.lumina-stage.com/
+  - https://www.lumina-stage.com/debut
+  - https://www.lumina-stage.com/business
+  - https://www.lumina-stage.com/terms
+  - https://www.lumina-stage.com/privacy
+  - https://www.lumina-stage.com/refund-policy
+  - https://www.lumina-stage.com/mypage
+  - https://www.lumina-stage.com/charge
+  - https://www.lumina-stage.com/character-chat
+  - https://www.lumina-stage.com/creator-studio
+  - https://www.lumina-stage.com/backstage
+  - unauthenticated `/api/v1/me/debut-applications/latest`
+  - unauthenticated `/api/v1/me/debut-applications/:applicationId/status`
+- No token, cookie, password, raw email, DB URL, signed URL, private material URL, storage key, raw response body, Search Console credential, or secret was recorded.
+- No debut application, resubmit, mail, notification, settlement, contract, payout, wallet, Lumina, Search Console, or indexing mutation was executed.
+
+result:
+- #502: BLOCKED. Local contracts and live unauthenticated guards are green, but the required owner-only live status screens for `needs_more_info`, `approved_for_contact`, and `rejected` could not be completed without a safe disposable owner session/fixture.
+- #508: PASS. Live robots/meta policy still blocks indexing as intended, and checked pages had no horizontal overflow at 1280px, 768px, or 390px.
+
+tested_flows:
+- PASS (#502): unauthenticated `GET /api/v1/me/debut-applications/latest` returned HTTP 401.
+- PASS (#502): unauthenticated `GET /api/v1/me/debut-applications/:applicationId/status` returned HTTP 401.
+- PASS (#502): live `/mypage` opened read-only while logged out and showed the debut status default `신청 전`; no private debut status payload was exposed.
+- PASS (#502): live `/debut` and `/mypage` had no visible replacement-character mojibake and no horizontal overflow at 1280px, 768px, and 390px.
+- PASS (#502): `node --check server/scripts/verify-debut-status-owner-projection.mjs`.
+- PASS (#502): `node --check server/scripts/create-debut-status-owner-fixtures.mjs`.
+- PASS (#502): `npm.cmd test -- debut.service.spec.ts --runInBand` passed 1 suite / 20 tests, including `needs_more_info`, `approved_for_contact`, `rejected` owner projection, CTA, notification/mail guard, and private material leak coverage.
+- BLOCKED (#502): live owner-only status screens for the three target statuses were not exercised because no safe disposable owner credentials, fixture ids, or approved live-safe run handoff were available.
+- PASS (#508): live `robots.txt` returned HTTP 200 and contained `User-agent: *` plus `Disallow: /`.
+- PASS (#508): source/head checks found `meta name="robots" content="noindex, nofollow"` on `/`, `/debut`, `/business`, `/terms`, `/privacy`, `/refund-policy`, `/mypage`, `/charge`, `/character-chat`, `/creator-studio`, and `/backstage`.
+- PASS (#508): browser checks confirmed `noindex, nofollow` and no horizontal overflow for `/`, `/debut`, `/mypage`, `/character-chat`, and `/backstage` at 1280px, 768px, and 390px.
+- PASS (#508): Search Console login was not requested; current robots blocking should be treated as expected policy noise until PM-approved open transition.
+
+not_verified_due_to_blocker:
+- #502 logged-in `needs_more_info` visible screen copy and CTA.
+- #502 logged-in `approved_for_contact` visible contact-wait copy and disabled/no-action behavior.
+- #502 logged-in `rejected` visible result copy and CTA behavior.
+- #502 live owner-only payload absence of contact/private URL/operator metadata beyond local contract coverage.
+
+repro_steps:
+1. Start from `origin/main`, create an isolated QA worktree, and run `git pull origin main`.
+2. Confirm local basis commit is `1ac9de60aef05fa379f875a880e6e6d97865598b`.
+3. Confirm live API `/health` reports commit `fc8c82ca26963e9d9c5d6b783cfe5428e8d90f07`.
+4. For #502, request the two owner debut endpoints without auth and confirm HTTP 401.
+5. Open live `/debut` and `/mypage` at 1280px, 768px, and 390px without logging in; confirm no overflow/mojibake and no private status exposure.
+6. Run the local debut service focused spec and QA script syntax checks.
+7. For #508, request live `/robots.txt` and confirm site-wide `Disallow: /`.
+8. Request source for the checked public/hidden candidate pages and confirm `noindex, nofollow`.
+9. Open representative live pages at 1280px, 768px, and 390px and confirm no horizontal overflow.
+
+expected:
+- #502 owner-only status screens should be verified with a safe disposable owner session and fixture ids for all three statuses.
+- #508 should keep site-wide robots blocking and page-level `noindex, nofollow` until the PM-approved open transition.
+
+actual:
+- #502 backend/front contract is covered locally and live unauthenticated access is protected, but live state-screen matrix is blocked by missing safe QA handoff.
+- #508 live robots/meta/layout checks match the current search-blocking policy.
+
+blocked_by:
+- #502 requires a safe disposable owner session and fixture ids or a private QA handoff that does not expose credentials/secrets in chat, Notion, Git, or screenshots.
+
+next_needed:
+- Return #502 to PM Chamo for safe fixture/session handoff, then re-run the three logged-in owner screens only.
+- Mark #508 complete/archive; no fix owner needed.
+
 status: fail
 task: #436 - Artist URL knowledge integrated live re-QA after health alignment
 environment:
