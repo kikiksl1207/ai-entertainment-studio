@@ -345,10 +345,17 @@ function renderCharacterDetail() {
                <span class="cta-btn-icon">💜</span>
                <span class="cta-btn-label"><strong>후원하기</strong><small>곧 공개</small></span>
              </button>
+             <!-- #500 — 캐릭터챗(AI)·프리미엄챗(아티스트 직접) 진입점 분리.
+                  기존 "프리미엄챗" 라벨이 /character-chat(AI챗)으로 연결되어 오인 유발 → AI챗 라벨로 교체.
+                  프리미엄챗은 API·화면 준비 전이므로 disabled 상태로 별도 표시. AI챗으로 대체 연결 금지. -->
              <a class="cta-btn cta-btn-chat cta-btn-link" href="/character-chat?slug=${encodeURIComponent(artist.slug)}">
                <span class="cta-btn-icon">💬</span>
-               <span class="cta-btn-label"><strong>프리미엄챗</strong><small>대화/방 보기</small></span>
+               <span class="cta-btn-label"><strong>캐릭터챗</strong><small>AI 대화 시작</small></span>
              </a>
+             <button class="cta-btn cta-btn-premium" disabled aria-disabled="true">
+               <span class="cta-btn-icon">⭐</span>
+               <span class="cta-btn-label"><strong>프리미엄챗</strong><small>방 오픈 준비 중</small></span>
+             </button>
            </div>
          </div>`;
     // 비동기로 viewer/stats 받아 팔로우 버튼·팔로워 수 갱신
