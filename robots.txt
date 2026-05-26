@@ -1,3 +1,27 @@
+# ── Lumina Stage 검색 색인 정책 (#507) ──────────────────────────────────────
+# 현재 서비스는 내부 테스트·운영 준비 단계입니다.
+# Disallow: / 는 서버 보호 및 조기 색인 방지를 위해 의도적으로 유지하는 설정입니다.
+# Search Console의 "robots.txt에 의해 차단됨" 알림은 현재 단계에서 정상/예상 동작입니다.
+# HTML의 noindex, nofollow 메타태그도 정식 검색 노출 전까지 함께 유지합니다.
+#
+# ── 오픈 전환 기준 (차모 PM 명시적 승인 후 단계적 적용) ──────────────────────
+# 사용자 승인 없이 Disallow: / 를 단독으로 제거하지 않습니다.
+#
+# 1단계 공개 후보 (승인 시 Disallow: / → 경로별 규칙으로 교체):
+#   / /characters /character-detail /lumina-feed /lumina-pick
+#   /debut /business /terms /privacy /refund-policy
+#
+# 계속 숨김 유지 대상 (비로그인·인증·결제·운영 관련):
+#   /mypage /charge /character-chat /creator-studio /backstage
+#   /verify-email /reset-password /404
+#
+# ── 오픈 시 추가 작업 체크리스트 ─────────────────────────────────────────────
+# - sitemap.xml 생성 (canonical 정리 URL 기준, .html URL 미포함)
+# - 공개 페이지의 meta name="robots" → "index, follow" 로 교체
+#   (계속 숨김 페이지는 noindex, nofollow 유지)
+# - 한국어 title / description / OG 태그 최종 점검
+# - Search Console 재크롤 요청
+# ──────────────────────────────────────────────────────────────────────────────
 User-agent: *
 Disallow: /
 
