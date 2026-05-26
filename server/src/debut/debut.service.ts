@@ -113,6 +113,43 @@ const USER_APPLICATION_STATUS_CTA: Record<
   canceled: { key: 'view_status', labelKo: '상태 확인', enabled: false },
 };
 
+const DEBUT_APPLICATION_NOTIFICATION_CHANNELS = ['in_app', 'email'] as const;
+const DEBUT_APPLICATION_NOTIFICATION_RAW_STATUSES = [
+  'submitted',
+  'needs_more_info',
+  'approved_for_contact',
+  'rejected',
+  'archived',
+] as const;
+const DEBUT_APPLICATION_NOTIFICATION_IDEMPOTENCY_SCOPE_FIELDS = [
+  'applicationId',
+  'recipientUserId',
+  'rawStatus',
+  'channel',
+] as const;
+const DEBUT_APPLICATION_NOTIFICATION_IDEMPOTENCY_KEY_PATTERN =
+  'debut-application-status:<applicationId>:<recipientUserId>:<rawStatus>:<channel>';
+const DEBUT_APPLICATION_NOTIFICATION_BLOCKED_FIELDS = [
+  'reviewNote',
+  'consultationNote',
+  'rightsReviewNote',
+  'partnerReviewNote',
+  'contactEmail',
+  'contactPhone',
+  'intro',
+  'portfolioUrl',
+  'privateMaterialUrl',
+  'signedReadUrl',
+  'uploadTargetUrl',
+  'storageKey',
+  'objectETag',
+  'rawEmail',
+  'token',
+  'password',
+  'cookie',
+  'dbUrl',
+] as const;
+
 const DEFAULT_APPLICATION_TYPE = 'personal_unaffiliated';
 const DEFAULT_PARTICIPATION_TYPE = 'appearance_only';
 const DEBUT_MATERIAL_SCOPE = 'debut_application_material';
@@ -897,7 +934,12 @@ export class DebutService {
         payoutMutation: false,
         walletMutation: false,
         luminaMutation: false,
+        notificationDispatchMutation: false,
       },
+      notificationGuard: this.debutApplicationStatusNotificationGuard(
+        before.status,
+        application.status,
+      ),
     };
   }
 
@@ -1037,7 +1079,12 @@ export class DebutService {
         payoutMutation: false,
         walletMutation: false,
         luminaMutation: false,
+        notificationDispatchMutation: false,
       },
+      notificationGuard: this.debutApplicationStatusNotificationGuard(
+        before.status,
+        application.status,
+      ),
     };
   }
 
@@ -1599,45 +1646,121 @@ export class DebutService {
       publicReason,
       requestedActionKey,
       cta,
-      channelsPlanned: ['in_app', 'email'],
-      dispatch: {
-        inAppSent: false,
-        emailSent: false,
-        contractOnly: true,
-      },
+      channelsPlanned: [...DEBUT_APPLICATION_NOTIFICATION_CHANNELS],
+      dispatch: this.debutApplicationNotificationDispatchGuard(),
       internalAdminNoteReturned: false,
       settlementOrContractFinalized: false,
     };
   }
 
-  private debutApplicationNotificationContract() {
+  private debutApplicationNotificationIdempotencyContract() {
+    return {
+      scopeFields: [...DEBUT_APPLICATION_NOTIFICATION_IDEMPOTENCY_SCOPE_FIELDS],
+      keyPattern: DEBUT_APPLICATION_NOTIFICATION_IDEMPOTENCY_KEY_PATTERN,
+      duplicateBehavior:
+        'return_existing_projection_without_second_notification_or_email',
+      conflictBehavior: 'safe_no_dispatch_conflict',
+      rawKeyReturned: false,
+      rawKeyLogged: false,
+    };
+  }
+
+  private debutApplicationNotificationDispatchGuard() {
     return {
       dispatchEnabled: false,
+      inAppDispatchEnabled: false,
+      emailDispatchEnabled: false,
+      externalEmailDispatchEnabled: false,
+      emailTemplateReady: false,
+      noDispatchReasonKey: 'debut.application.notification.noDispatchReadOnly',
+      idempotencyKeyPattern: DEBUT_APPLICATION_NOTIFICATION_IDEMPOTENCY_KEY_PATTERN,
+      duplicateDispatchAllowed: false,
+      qaApprovalRequired: true,
+      inAppSent: false,
+      emailSent: false,
       contractOnly: true,
-      channelsPlanned: ['in_app', 'email'],
-      events: [
-        {
-          status: 'needs_more_info',
-          titleKey: 'debut.application.status.needsMoreInfo.title',
-          bodyKey: 'debut.application.status.needsMoreInfo.body',
-        },
-        {
-          status: 'approved',
-          titleKey: 'debut.application.status.approved.title',
-          bodyKey: 'debut.application.status.approved.body',
-        },
-        {
-          status: 'rejected',
-          titleKey: 'debut.application.status.rejected.title',
-          bodyKey: 'debut.application.status.rejected.body',
-        },
-      ],
-      internalFieldsExcluded: [
-        'reviewNote',
-        'consultationNote',
-        'rightsReviewNote',
-        'partnerReviewNote',
-      ],
+    };
+  }
+
+  private debutApplicationNotificationEvent(
+    rawStatus: (typeof DEBUT_APPLICATION_NOTIFICATION_RAW_STATUSES)[number],
+  ) {
+    const userStatus = this.userReviewStatus(rawStatus);
+    const copy = USER_APPLICATION_STATUS_COPY[userStatus];
+
+    return {
+      rawStatus,
+      userStatus,
+      titleKey: `${copy.messageKey}.title`,
+      bodyKey: `${copy.messageKey}.body`,
+      channels: [...DEBUT_APPLICATION_NOTIFICATION_CHANNELS],
+      dispatchEnabled: false,
+      inAppDispatchEnabled: false,
+      emailDispatchEnabled: false,
+      idempotencyKeyPattern:
+        `debut-application-status:<applicationId>:<recipientUserId>:${rawStatus}:<channel>`,
+      blockedFields: [...DEBUT_APPLICATION_NOTIFICATION_BLOCKED_FIELDS],
+    };
+  }
+
+  private debutApplicationNotificationPrivacyContract() {
+    return {
+      contactReturned: false,
+      internalAdminNoteReturned: false,
+      privateMaterialUrlReturned: false,
+      signedReadUrlReturned: false,
+      storageKeyReturned: false,
+      objectETagReturned: false,
+      rawEmailReturned: false,
+      tokenReturned: false,
+      secretReturned: false,
+    };
+  }
+
+  private debutApplicationStatusNotificationGuard(
+    previousRawStatus: string,
+    nextRawStatus: string,
+  ) {
+    const previousAdminStatus = this.adminReviewStatus(previousRawStatus);
+    const nextAdminStatus = this.adminReviewStatus(nextRawStatus);
+
+    return {
+      previousRawStatus: previousAdminStatus,
+      nextRawStatus: nextAdminStatus,
+      previousUserStatus: this.userReviewStatus(previousAdminStatus),
+      nextUserStatus: this.userReviewStatus(nextAdminStatus),
+      statusChanged: previousAdminStatus !== nextAdminStatus,
+      channelsPlanned: [...DEBUT_APPLICATION_NOTIFICATION_CHANNELS],
+      dispatch: this.debutApplicationNotificationDispatchGuard(),
+      idempotency: this.debutApplicationNotificationIdempotencyContract(),
+      privacy: this.debutApplicationNotificationPrivacyContract(),
+      blockedFields: [...DEBUT_APPLICATION_NOTIFICATION_BLOCKED_FIELDS],
+    };
+  }
+
+  private debutApplicationNotificationContract() {
+    return {
+      version: '2026-05-26.debut-status-notification-mail-guard.v1',
+      dispatchEnabled: false,
+      inAppDispatchEnabled: false,
+      emailDispatchEnabled: false,
+      externalEmailDispatchEnabled: false,
+      emailTemplateReady: false,
+      noDispatchReasonKey: 'debut.application.notification.noDispatchReadOnly',
+      contractOnly: true,
+      channelsPlanned: [...DEBUT_APPLICATION_NOTIFICATION_CHANNELS],
+      rawStatuses: [...DEBUT_APPLICATION_NOTIFICATION_RAW_STATUSES],
+      events: DEBUT_APPLICATION_NOTIFICATION_RAW_STATUSES.map((status) =>
+        this.debutApplicationNotificationEvent(status),
+      ),
+      idempotency: this.debutApplicationNotificationIdempotencyContract(),
+      duplicatePolicy: {
+        duplicateStatusDispatchAllowed: false,
+        perChannelOnce: true,
+        replayReturnsExistingProjection: true,
+      },
+      privacy: this.debutApplicationNotificationPrivacyContract(),
+      internalFieldsExcluded: [...DEBUT_APPLICATION_NOTIFICATION_BLOCKED_FIELDS],
     };
   }
 
@@ -1661,6 +1784,7 @@ export class DebutService {
         operatorPhoneNumberReturned: false,
         contractOnly: true,
       },
+      statusNotificationGuard: this.debutApplicationNotificationContract(),
       phoneConsultationOperations: this.phoneConsultationOperationsContract(),
     };
   }
@@ -2553,6 +2677,7 @@ export class DebutService {
           payoutMutation: false,
           walletMutation: false,
           luminaMutation: false,
+          notificationDispatchMutation: false,
         },
       },
     };
