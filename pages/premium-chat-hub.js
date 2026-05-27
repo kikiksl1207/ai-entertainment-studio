@@ -69,6 +69,50 @@
     if (el) el.textContent = text;
   }
 
+  var REVIEW_PAUSED_STATUSES = {
+    blocked: true,
+    under_review: true,
+    reported: true,
+    blinded: true,
+    admin_review: true,
+    suspended: true,
+    paused_by_report: true
+  };
+  var REFUND_STATUSES = {
+    refund_review: true,
+    refund_pending: true,
+    refund_limited_70: true,
+    refund_limited_50: true,
+    refunded: true
+  };
+  var CLOSED_STATUSES = {
+    closed: true,
+    artist_closed: true,
+    closed_by_artist: true,
+    closed_by_operator: true,
+    expired: true
+  };
+
+  function normalizeStatusKey(value) {
+    return String(value || "active").trim().toLowerCase();
+  }
+
+  function roomStateFromStatus(room) {
+    var statusKey = normalizeStatusKey(room && room.roomStatus);
+    var remainingDays = room && room.remainingDays;
+    var expiredByTime = remainingDays != null && Number(remainingDays) <= 0;
+    if (REVIEW_PAUSED_STATUSES[statusKey]) {
+      return { key: "paused", label: "검토 일시정지", detail: "신고·운영 검토 중 · 입장 일시 중단", locked: true };
+    }
+    if (REFUND_STATUSES[statusKey]) {
+      return { key: "refund", label: statusKey === "refunded" ? "환불 완료" : "환불 검토 중", detail: statusKey === "refunded" ? "환불 완료" : "환불 검토 중", locked: true };
+    }
+    if (CLOSED_STATUSES[statusKey] || expiredByTime) {
+      return { key: "closed", label: statusKey === "expired" || expiredByTime ? "기간 만료" : "종료됨", detail: statusKey === "expired" || expiredByTime ? "기간 만료" : "방 종료", locked: true };
+    }
+    return { key: "active", label: null, detail: null, locked: false };
+  }
+
   // #479 — donation sheet 열기 (방 목록 후원 버튼용 이벤트 델리게이션)
   function bindRoomDonateButtons() {
     var list = $("premiumChatRoomsList");
@@ -103,8 +147,6 @@
       var slug = room.slug || "";
       var name = escapeHtml(room.name || slug || "아티스트");
       var summary = escapeHtml(room.summary || "");
-      var statusLabel = mutationOpen ? "후원 가능" : "후원 잠금";
-      var statusClass = mutationOpen ? "is-ready" : "is-locked";
       var chatHref = slug ? "/character-chat?slug=" + encodeURIComponent(slug) : "/character-chat";
       var profileHref = slug ? "/character-detail?slug=" + encodeURIComponent(slug) : "/characters";
       var avatarStyle = slug
@@ -113,25 +155,31 @@
       var lastMessage = escapeHtml(room.updatedAt || "");
 
       // #518 — 방 상태별 UX 보강: 만료 임박 urgency / blocked 진입 차단 / per-room 후원 잠금
-      var isBlocked = room.roomStatus === "blocked" || room.roomStatus === "under_review";
-      var isExpiringSoon = room.remainingDays != null && room.remainingDays <= 3;
+      var roomState = roomStateFromStatus(room);
+      var isBlocked = !!roomState.locked;
+      var isExpiringSoon = room.remainingDays != null && room.remainingDays > 0 && room.remainingDays <= 3;
+      var statusLabel = roomState.label || (mutationOpen ? "후원 가능" : "후원 준비 중");
+      var statusClass = roomState.key === "active"
+        ? (mutationOpen ? "is-ready" : "is-locked")
+        : "is-locked";
 
       // 상태 배지 목록
       var detailParts = [];
       if (room.remainingDays != null) {
         var remainingCls = "premium-chat-hub-room-remaining" + (isExpiringSoon ? " is-expiring" : "");
-        var remainingLabel = isExpiringSoon
-          ? room.remainingDays + "일 남음 · 만료 임박"
-          : room.remainingDays + "일 남음";
+        var remainingLabel = room.remainingDays <= 0
+          ? "기간 만료"
+          : isExpiringSoon
+            ? room.remainingDays + "일 남음 · 만료 임박"
+            : room.remainingDays + "일 남음";
         detailParts.push('<span class="' + remainingCls + '">' + remainingLabel + '</span>');
       }
       if (room.unanswered) {
         detailParts.push('<span class="premium-chat-hub-room-unanswered">24시간 답변 대기 중</span>');
       }
-      if (isBlocked) {
-        detailParts.push('<span class="premium-chat-hub-room-status is-blocked">신고·운영 검토 중 · 입장 일시 중단</span>');
-      } else if (room.roomStatus === "refund_review") {
-        detailParts.push('<span class="premium-chat-hub-room-status is-refund">환불 검토 중</span>');
+      if (roomState.detail) {
+        var stateCls = roomState.key === "refund" ? "is-refund" : "is-blocked";
+        detailParts.push('<span class="premium-chat-hub-room-status ' + stateCls + '">' + roomState.detail + '</span>');
       }
       var detailHtml = detailParts.length
         ? '<span class="premium-chat-hub-room-detail">' + detailParts.join("") + '</span>'
@@ -139,8 +187,10 @@
 
       // #518 — 후원 버튼: 전역 잠금(mutationOpen) + per-room 차단(blocked) 모두 확인
       var donateDisabled = !mutationOpen || isBlocked;
-      var donateBtnLabel = isBlocked ? "후원 일시 중단" : (mutationOpen ? "후원하기" : "후원 안내 예정");
-      var donateBtnDisabled = donateDisabled ? ' aria-disabled="true" tabindex="-1"' : "";
+      var donateBtnLabel = isBlocked ? "후원 일시 중단" : (mutationOpen ? "후원하기" : "후원 준비 중");
+      var donateBtnDisabled = donateDisabled
+        ? ' disabled aria-disabled="true" title="' + (isBlocked ? "현재 방 상태에서는 후원할 수 없어요." : "후원 기능은 서비스 준비 완료 후 열려요.") + '"'
+        : ' aria-disabled="false"';
       var donateBtnCls = "premium-chat-hub-room-donate-btn" + (donateDisabled ? " is-locked" : "");
 
       // #518 — blocked 방은 채팅 진입 링크를 비활성 span으로 교체 (AI챗 오연결 방지 연장)
@@ -294,7 +344,7 @@
     }
     var items = (convRes.data && (convRes.data.items || convRes.data.data?.items)) || [];
     var rooms = items.map(normalizeConversation).filter(function (r) { return r.slug || r.name; });
-    setState(mutationOpen ? "준비 완료" : "후원 잠금 · 진입만 가능");
+    setState(mutationOpen ? "준비 완료" : "후원 준비 중 · 보기만 가능");
     renderRooms(rooms.slice(0, 6), mutationOpen);
     loadAvailableArtists(mutationOpen); // #469 — 가능 아티스트 목록 병렬 로드
   }

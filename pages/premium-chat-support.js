@@ -382,7 +382,13 @@
     var openBtn = $("chatDonationOpen");
     if (openBtn && !openBtn.dataset.bound) {
       openBtn.dataset.bound = "1";
-      openBtn.addEventListener("click", openSheet);
+      openBtn.addEventListener("click", function (event) {
+        if (openBtn.disabled || openBtn.getAttribute("aria-disabled") === "true") {
+          event.preventDefault();
+          return;
+        }
+        openSheet();
+      });
     }
     document.querySelectorAll("[data-donation-close]").forEach(function (el) {
       if (el.dataset.bound) return;

@@ -7,6 +7,7 @@
     archive: "보관함",
     all: "전체"
   };
+  const CHAT_API_BASE = (window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
   const conversationListState = {
     box: "recent",
     busyId: null,
@@ -31,6 +32,15 @@
     try {
       const params = new URLSearchParams(window.location.search);
       return params.get("slug") || params.get("artistSlug") || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function getSessionIdFromUrl() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("sessionId") || params.get("roomId") || "";
     } catch (_) {
       return "";
     }
@@ -596,6 +606,270 @@
     if (status) status.textContent = message || "";
   }
 
+  function chatAuthToken() {
+    try {
+      if (typeof window.getAccessToken === "function") {
+        const currentToken = window.getAccessToken();
+        if (currentToken) return currentToken;
+      }
+    } catch (_) {}
+    try {
+      const keys = ["lumina_auth", "lumina.session"];
+      for (const key of keys) {
+        const raw = window.localStorage?.getItem(key);
+        if (!raw) continue;
+        const parsed = JSON.parse(raw);
+        const token = parsed?.accessToken ||
+          parsed?.token ||
+          parsed?.access_token ||
+          parsed?.tokens?.accessToken ||
+          parsed?.tokens?.access_token;
+        if (token) return token;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  async function fetchPremiumJson(path) {
+    const token = chatAuthToken();
+    if (!token) {
+      const error = new Error("auth required");
+      error.status = 401;
+      throw error;
+    }
+    const response = await fetch(CHAT_API_BASE + path, {
+      method: "GET",
+      credentials: "omit",
+      cache: "no-store",
+      headers: { Authorization: "Bearer " + token }
+    });
+    if (!response.ok) {
+      const error = new Error("http " + response.status);
+      error.status = response.status;
+      throw error;
+    }
+    return response.json();
+  }
+
+  const PREMIUM_REVIEW_PAUSED_STATUSES = new Set([
+    "blocked",
+    "under_review",
+    "reported",
+    "blinded",
+    "admin_review",
+    "suspended",
+    "paused_by_report"
+  ]);
+  const PREMIUM_REFUND_STATUSES = new Set([
+    "refund_review",
+    "refund_pending",
+    "refund_limited_70",
+    "refund_limited_50",
+    "refunded"
+  ]);
+  const PREMIUM_CLOSED_STATUSES = new Set([
+    "closed",
+    "artist_closed",
+    "closed_by_artist",
+    "closed_by_operator",
+    "expired"
+  ]);
+
+  function setDonationActionState(locked, tagText, reason) {
+    const button = $("chatDonationOpen");
+    if (!button) return;
+    button.disabled = !!locked;
+    button.classList.toggle("is-disabled", !!locked);
+    button.setAttribute("aria-disabled", locked ? "true" : "false");
+    button.setAttribute("aria-describedby", "premiumChatRoomStatus");
+    button.title = reason || (locked ? "후원 기능은 서비스 준비 완료 후 열려요." : "스타에게 후원하기");
+    const tag = button.querySelector(".dm-action-tag");
+    if (tag) tag.textContent = tagText || (locked ? "준비" : "유료");
+  }
+
+  function renderPremiumRoomStatus({ state = "pending", title, body, badges = [] } = {}) {
+    const wrap = $("premiumChatRoomStatus");
+    if (!wrap) return;
+    const titleEl = $("premiumChatRoomStatusTitle");
+    const bodyEl = $("premiumChatRoomStatusBody");
+    const badgeList = $("premiumChatRoomStatusBadges");
+    wrap.hidden = false;
+    wrap.dataset.state = state;
+    if (titleEl) titleEl.textContent = title || "프리미엄챗 상태 확인 중";
+    if (bodyEl) bodyEl.textContent = body || "방 상태와 후원 가능 여부를 확인하고 있어요.";
+    if (badgeList) {
+      badgeList.textContent = "";
+      badges.filter(Boolean).forEach((badge) => {
+        const li = document.createElement("li");
+        li.textContent = badge;
+        badgeList.append(li);
+      });
+    }
+  }
+
+  function premiumRoomStatusKey(item) {
+    return String(
+      item?.roomStatus ||
+      item?.status?.key ||
+      item?.status ||
+      item?.room?.status?.key ||
+      item?.lockState?.reasonKey ||
+      "active"
+    ).trim().toLowerCase();
+  }
+
+  function premiumRoomRemainingDays(item) {
+    const raw = item?.remainingDays ??
+      item?.remainingPeriod?.remainingDays ??
+      item?.remainingPeriod?.daysRemaining ??
+      item?.room?.remainingPeriod?.remainingDays ??
+      item?.duration?.remainingDays;
+    if (raw != null && Number.isFinite(Number(raw))) {
+      return Math.max(0, Number(raw));
+    }
+    const expiresAt = item?.expiresAt ||
+      item?.expiredAt ||
+      item?.duration?.expiresAt ||
+      item?.room?.duration?.expiresAt ||
+      item?.remainingPeriod?.expiresAt;
+    if (!expiresAt) return null;
+    const diff = new Date(expiresAt) - Date.now();
+    if (!Number.isFinite(diff)) return null;
+    return Math.max(0, Math.ceil(diff / 86400000));
+  }
+
+  function premiumRoomHasUnanswered(item) {
+    const responseKey = String(item?.lastResponseStatus?.key || item?.responseStatus?.key || "").toLowerCase();
+    return !!(
+      item?.artistUnresponded ||
+      item?.hasUnansweredMessage ||
+      item?.unanswered ||
+      item?.unansweredRefundCandidate ||
+      responseKey === "waiting_artist"
+    );
+  }
+
+  function conversationArtistSlug(item) {
+    return item?.artist?.slug || item?.artistSlug || item?.slug || item?.room?.artist?.artistSlug || "";
+  }
+
+  function matchPremiumRoomItem(items, slug, sessionId) {
+    if (!Array.isArray(items)) return null;
+    if (sessionId) {
+      const bySession = items.find((item) =>
+        [item?.id, item?.sessionId, item?.chatSessionId, item?.roomId].filter(Boolean).includes(sessionId)
+      );
+      if (bySession) return bySession;
+    }
+    if (!slug) return null;
+    return items.find((item) => conversationArtistSlug(item) === slug) || null;
+  }
+
+  function roomStatusPresentation(item, mutationOpen) {
+    const statusKey = premiumRoomStatusKey(item);
+    const remainingDays = premiumRoomRemainingDays(item);
+    const unanswered = premiumRoomHasUnanswered(item);
+    const badges = [];
+    if (remainingDays != null && remainingDays > 0) {
+      badges.push(`${remainingDays}일 남음${remainingDays <= 3 ? " · 만료 임박" : ""}`);
+    }
+    if (unanswered) badges.push("아티스트 답변 대기 중");
+    if (PREMIUM_REVIEW_PAUSED_STATUSES.has(statusKey)) {
+      badges.push("신고·운영 검토 중");
+      return {
+        state: "paused",
+        locked: true,
+        tag: "중단",
+        title: "프리미엄챗 일시정지",
+        body: "신고 또는 운영 검토 중이라 이 방의 대화 진입과 후원은 잠시 멈춰 있어요.",
+        badges
+      };
+    }
+    if (PREMIUM_REFUND_STATUSES.has(statusKey)) {
+      badges.push(statusKey === "refunded" ? "환불 완료" : "환불 검토 중");
+      return {
+        state: "refund",
+        locked: true,
+        tag: "검토",
+        title: statusKey === "refunded" ? "환불 완료된 방" : "환불 검토 중",
+        body: "환불 상태가 확인 중인 방이라 후원은 일시 중단돼요.",
+        badges
+      };
+    }
+    if (PREMIUM_CLOSED_STATUSES.has(statusKey) || remainingDays === 0) {
+      badges.push(statusKey === "expired" || remainingDays === 0 ? "프리미엄 기간 만료" : "방 종료");
+      return {
+        state: "closed",
+        locked: true,
+        tag: "종료",
+        title: statusKey === "expired" || remainingDays === 0 ? "프리미엄챗 기간 만료" : "프리미엄챗 종료",
+        body: "이 방의 프리미엄 상태가 종료되어 후원은 사용할 수 없어요.",
+        badges
+      };
+    }
+    badges.push(mutationOpen ? "후원 가능" : "후원 준비 중");
+    badges.push("프로필 보기 가능");
+    return {
+      state: remainingDays != null && remainingDays <= 3 ? "expiring" : "active",
+      locked: !mutationOpen,
+      tag: mutationOpen ? "유료" : "준비",
+      title: "프리미엄챗 상태",
+      body: mutationOpen
+        ? "방 상태를 확인했어요. 후원은 선택 금액 확인 뒤 진행할 수 있어요."
+        : "후원 기능은 서비스 준비 완료 후 활성화돼요. 지금은 대화 화면과 프로필을 확인할 수 있어요.",
+      badges
+    };
+  }
+
+  async function loadPremiumRoomDetailState(slug) {
+    renderPremiumRoomStatus({
+      state: "pending",
+      title: "프리미엄챗 상태 확인 중",
+      body: "방 상태와 후원 가능 여부를 확인하고 있어요.",
+      badges: ["read-only 확인"]
+    });
+    setDonationActionState(true, "준비", "후원 가능 여부를 확인하고 있어요.");
+
+    let mutationOpen = false;
+    try {
+      const contractData = await fetchPremiumJson("/api/v1/chat/premium-support-contract");
+      const contract = contractData?.contract || contractData?.data?.contract || contractData;
+      mutationOpen = !!contract?.policy?.walletMutationEnabled;
+    } catch (_) {
+      mutationOpen = false;
+    }
+
+    try {
+      const data = await fetchPremiumJson("/api/v1/chat/conversations?box=all&take=20");
+      const items = Array.isArray(data?.items) ? data.items : [];
+      const item = matchPremiumRoomItem(items, slug, getSessionIdFromUrl());
+      if (!item) {
+        renderPremiumRoomStatus({
+          state: "pending",
+          title: "프리미엄챗 준비 중",
+          body: "이 아티스트의 열린 프리미엄챗 방을 찾지 못했어요. 방 오픈과 후원은 서비스 준비 완료 후 안내돼요.",
+          badges: ["AI 캐릭터챗 진입 가능", mutationOpen ? "후원 가능" : "후원 준비 중"]
+        });
+        setDonationActionState(!mutationOpen, mutationOpen ? "유료" : "준비", mutationOpen ? "스타에게 후원하기" : "후원 기능은 서비스 준비 완료 후 열려요.");
+        return;
+      }
+      const view = roomStatusPresentation(item, mutationOpen);
+      renderPremiumRoomStatus(view);
+      setDonationActionState(view.locked, view.tag, view.locked ? view.body : "스타에게 후원하기");
+    } catch (error) {
+      const loginNeeded = error?.status === 401 || error?.status === 403;
+      renderPremiumRoomStatus({
+        state: "pending",
+        title: loginNeeded ? "로그인 후 방 상태 확인 가능" : "프리미엄챗 상태 확인 지연",
+        body: loginNeeded
+          ? "내가 열어둔 방의 만료·미답변·검토 상태는 로그인 후 확인할 수 있어요."
+          : "방 상태를 잠시 불러오지 못해 후원은 준비 상태로 유지돼요.",
+        badges: [loginNeeded ? "로그인 필요" : "다시 확인 필요", "후원 준비 중"]
+      });
+      setDonationActionState(true, "준비", "방 상태 확인 후 후원을 이용할 수 있어요.");
+    }
+  }
+
   function setConversationTabs(box) {
     document.querySelectorAll("[data-chat-conversation-box]").forEach((tab) => {
       const active = tab.dataset.chatConversationBox === box;
@@ -1033,6 +1307,7 @@
     renderHero(slug, null);
     renderWelcomeBubble(slug, null);
     applyCharacterToneToRoom(slug);
+    void loadPremiumRoomDetailState(slug);
     bindStarterCardEvents();
     bindInputAutoGrow();
     bindSubmitGuard();

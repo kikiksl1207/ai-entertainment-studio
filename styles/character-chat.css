@@ -138,6 +138,79 @@
   color: #ff7eb9;
 }
 
+.premium-chat-room-status {
+  display: grid;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: rgba(20, 14, 36, 0.62);
+  border: 1px solid rgba(180, 150, 255, 0.14);
+}
+
+.premium-chat-room-status[hidden] {
+  display: none !important;
+}
+
+.premium-chat-room-status[data-state="active"] {
+  border-color: rgba(58, 210, 159, 0.28);
+  background: rgba(58, 210, 159, 0.06);
+}
+
+.premium-chat-room-status[data-state="expiring"],
+.premium-chat-room-status[data-state="refund"] {
+  border-color: rgba(251, 146, 60, 0.32);
+  background: rgba(251, 146, 60, 0.07);
+}
+
+.premium-chat-room-status[data-state="paused"],
+.premium-chat-room-status[data-state="closed"] {
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.07);
+}
+
+.premium-chat-room-status-copy {
+  min-width: 0;
+}
+
+.premium-chat-room-status-copy strong {
+  display: block;
+  color: #f5f0ff;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.premium-chat-room-status-copy p {
+  margin: 3px 0 0;
+  color: rgba(220, 210, 240, 0.68);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.premium-chat-room-status-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.premium-chat-room-status-badges li {
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(245, 240, 255, 0.82);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 /* 클린모드 배너 */
 .dm-clean-notice {
   display: flex;
@@ -540,6 +613,20 @@
   background: rgba(255, 79, 195, 0.08);
   border-color: rgba(255, 79, 195, 0.36);
   color: #fff;
+}
+
+.dm-action:disabled,
+.dm-action[aria-disabled="true"] {
+  opacity: 0.46;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.dm-action:disabled:hover,
+.dm-action[aria-disabled="true"]:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(180, 150, 255, 0.14);
+  color: rgba(240, 238, 248, 0.9);
 }
 
 .dm-action:active {
