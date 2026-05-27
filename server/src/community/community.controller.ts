@@ -395,6 +395,20 @@ export class CommunityController {
     );
   }
 
+  @Get('users/:userId/following-artists')
+  @UseGuards(OptionalJwtAuthGuard)
+  getUserFollowingArtists(
+    @Param('userId') userId: string,
+    @Query() query: CommunityQuery,
+    @Req() request: RequestWithOptionalAuth,
+  ) {
+    return this.communityService.getPublicUserFollowingArtists(
+      userId,
+      query,
+      request.user?.id,
+    );
+  }
+
   @Get('users/handle/:publicHandle/followers')
   @UseGuards(OptionalJwtAuthGuard)
   getUserFollowersByHandle(
@@ -417,6 +431,20 @@ export class CommunityController {
     @Req() request: RequestWithOptionalAuth,
   ) {
     return this.communityService.getPublicUserFollowingUsersByHandle(
+      publicHandle,
+      query,
+      request.user?.id,
+    );
+  }
+
+  @Get('users/handle/:publicHandle/following-artists')
+  @UseGuards(OptionalJwtAuthGuard)
+  getUserFollowingArtistsByHandle(
+    @Param('publicHandle') publicHandle: string,
+    @Query() query: CommunityQuery,
+    @Req() request: RequestWithOptionalAuth,
+  ) {
+    return this.communityService.getPublicUserFollowingArtistsByHandle(
       publicHandle,
       query,
       request.user?.id,

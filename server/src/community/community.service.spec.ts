@@ -35,7 +35,11 @@ function createPrismaMock() {
       findUnique: jest.fn().mockResolvedValue(null),
     },
     artistFollow: {
+      findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue(null),
+      upsert: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      count: jest.fn().mockResolvedValue(0),
     },
     userFollow: {
       findUnique: jest.fn().mockResolvedValue(null),
@@ -623,6 +627,89 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
     expect(result.items[0].user).not.toHaveProperty('email');
     expect(result.policy.privateFieldsExcluded).toContain('email');
     expect(JSON.stringify(result)).not.toContain('PRIVATE_FOLLOWING_EMAIL_SHOULD_NOT_LEAK');
+  });
+
+  it('returns public following artists by handle without private artist fields', async () => {
+    const prisma = createPrismaMock();
+    prisma.user.findFirst.mockResolvedValue({
+      id: authorId,
+      profile: {
+        displayName: 'Author',
+        publicHandle: 'author',
+        avatarAssetId: null,
+        coverAssetId: null,
+      },
+    });
+    prisma.artistFollow.findMany.mockResolvedValue([
+      {
+        id: '00000000-0000-4000-8000-000000000603',
+        status: 'active',
+        createdAt,
+        updatedAt: createdAt,
+        artist: {
+          id: artistId,
+          slug: 'artist-slug',
+          displayName: 'Artist Name',
+          ownerUserId: 'PRIVATE_OWNER_ID_SHOULD_NOT_LEAK',
+          settlementAccount: 'PRIVATE_SETTLEMENT_SHOULD_NOT_LEAK',
+          status: 'active',
+          publicProfile: {
+            publicMetadata: {
+              profileFacts: {
+                characterType: 'solo',
+              },
+            },
+          },
+          artistAssets: [],
+        },
+      },
+    ]);
+    prisma.artistFollow.count.mockResolvedValue(1);
+    prisma.communityPost.findFirst.mockResolvedValue(null);
+    const service = serviceWith(prisma);
+
+    const result = await service.getPublicUserFollowingArtistsByHandle('author', {
+      take: '1',
+    });
+
+    expect(prisma.artistFollow.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: authorId,
+          status: 'active',
+          deletedAt: null,
+          artist: { status: 'active' },
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      count: 1,
+      total: 1,
+      target: {
+        id: authorId,
+        displayName: 'Author',
+        publicHandle: 'author',
+      },
+      viewer: {
+        isAuthenticated: false,
+        canViewList: true,
+      },
+      policy: {
+        projection: 'public_user_follow_summary_v1',
+        list: 'following-artists',
+      },
+    });
+    expect(result.items[0]).toMatchObject({
+      id: artistId,
+      followId: '00000000-0000-4000-8000-000000000603',
+      slug: 'artist-slug',
+      displayName: 'Artist Name',
+      thumbnailUrl: null,
+    });
+    expect(result.artists).toEqual(result.items);
+    expect(JSON.stringify(result)).not.toMatch(
+      /PRIVATE_OWNER_ID_SHOULD_NOT_LEAK|PRIVATE_SETTLEMENT_SHOULD_NOT_LEAK|ownerUserId|settlementAccount/,
+    );
   });
 
   it('soft-deletes only author-owned posts', async () => {
