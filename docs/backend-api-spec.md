@@ -1263,6 +1263,44 @@ candidates before mutation routes are enabled.
   transition send/reply/donation stay disabled.
 - Unknown future room statuses fail closed as `safe_status_only`.
 
+Premium chat artist inbox/count projection contract (#517):
+
+`GET /api/v1/chat/premium-support-contract` exposes
+`artistInboxProjection`, `endpoints.artistRoomInbox`, and
+`apiContracts.artistRoomInbox` for the future Creator Studio premium-chat
+artist inbox. The planned read API remains `enabled=false` and submit-blocked.
+
+```http
+GET /api/v1/creator-studio/premium-chat/rooms?answerState=needs_reply&take=20
+Authorization: Bearer <accessToken>
+```
+
+- The projection is authenticated, artist-owner-only, and read-only. Owner
+  users must use their own user room status endpoint; non-owner artists return
+  `403` or safe `404` without identity leakage.
+- Supported answer filters are `all`, `needs_reply`, `due_soon_24h`,
+  `overdue_24h`, and `replied`. Supported message-kind filters are `all`,
+  `conversation`, and `support_message`.
+- Counts include `total`, `needsReply`, `dueSoon24h`, `overdue24h`, `replied`,
+  and `supportMessages`.
+- Each item exposes only safe projection fields such as `roomId`, `artist`,
+  `userSafeDisplay`, `roomStatus`, `answerState`, `unansweredState`,
+  `lastUserMessageAt`, `lastArtistReplyAt`, and `lastMessageKind`.
+- The unanswered SLA uses the same 24-hour no-answer window as the room
+  lifecycle contract and a 4-hour due-soon projection window for UI sorting.
+- Support messages are separated from normal conversation messages. They do not
+  create chat replies, answer requirements, or AI replies, and they are counted
+  separately from conversation activity.
+- Raw room status, answer state, and message-kind enums must not be used as
+  user-facing copy. Clients should use label keys or Korean fallback copy.
+- The projection must not expose raw chat bodies, raw support-message bodies,
+  raw user email or phone, private user profiles, counterparty private user ids,
+  message ids, wallet ledger ids, support-point ledger ids, conversation-meter
+  ledger ids, admin notes, raw report reasons, tokens, cookies, or DB URLs.
+- Artist reply creation, user message creation, donation creation,
+  support-point ledger mutation, conversation-meter debit, refund creation,
+  wallet debit, settlement, and payout remain disabled.
+
 Premium room report/refund limitation API contract (#477):
 
 The following planned mutation shapes are exposed through

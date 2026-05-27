@@ -249,6 +249,21 @@ export const PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES = [
   'artist_answered',
 ] as const;
 
+export const PREMIUM_CHAT_ARTIST_INBOX_ROOM_STATUSES = [
+  'opened',
+  'active',
+  'artist_answered',
+  'paused_by_report',
+  'reported',
+  'blinded',
+  'admin_review',
+  'refund_pending',
+  'closed_by_artist',
+  'closed_by_operator',
+  'expired',
+  'suspended',
+] as const;
+
 export const PREMIUM_CHAT_ROOM_LIST_EXCLUDED_STATUSES = [
   'closed',
   'artist_closed',
@@ -728,6 +743,151 @@ export const PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT = {
   },
 } as const;
 
+export const PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT = {
+  version: '2026-05-27.premium-chat-artist-inbox-count-projection.v1',
+  status: 'contract_ready_read_only_submit_blocked',
+  surface: 'creator_studio_artist_inbox',
+  endpoint: '/api/v1/creator-studio/premium-chat/rooms',
+  enabled: false,
+  readOnly: true,
+  authRequired: true,
+  artistOwnerOnly: true,
+  query: {
+    answerState: [
+      'all',
+      'needs_reply',
+      'due_soon_24h',
+      'overdue_24h',
+      'replied',
+    ],
+    messageKind: ['all', 'conversation', 'support_message'],
+    status: PREMIUM_CHAT_ARTIST_INBOX_ROOM_STATUSES,
+    take: { default: 20, max: 50 },
+    cursor: 'opaque optional pagination cursor',
+  },
+  response: {
+    items: ['artistPremiumRoomInboxItem projection'],
+    counts: {
+      total: '<number>',
+      needsReply: '<number>',
+      dueSoon24h: '<number>',
+      overdue24h: '<number>',
+      replied: '<number>',
+      supportMessages: '<number>',
+    },
+    generatedAt: '<ISO datetime>',
+    nextCursor: '<opaque cursor|null>',
+  },
+  itemProjection: {
+    requiredFields: [
+      'roomId',
+      'artist',
+      'userSafeDisplay',
+      'roomStatus',
+      'answerState',
+      'unansweredState',
+      'lastUserMessageAt',
+      'lastArtistReplyAt',
+      'lastMessageKind',
+    ],
+    timeFields: {
+      lastUserMessageAt: '<ISO datetime|null>',
+      lastArtistReplyAt: '<ISO datetime|null>',
+      unansweredDeadlineAt: '<ISO datetime|null>',
+      generatedAt: '<ISO datetime>',
+    },
+    safePreview: {
+      mode: 'limited_redacted_preview',
+      conversationPreviewMaxChars: 80,
+      supportMessagePreviewMaxChars: 80,
+      rawConversationBodyReturned: false,
+      rawSupportMessageBodyReturned: false,
+    },
+    labels: {
+      roomStatusLabelKeyRequired: true,
+      answerStateLabelKeyRequired: true,
+      messageKindLabelKeyRequired: true,
+      rawStatusAsCopy: false,
+      rawAnswerStateAsCopy: false,
+      rawMessageKindAsCopy: false,
+    },
+  },
+  unansweredSla: {
+    afterHours:
+      PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.unansweredRefundCandidate
+        .afterHours,
+    dueSoonWindowHours: 4,
+    needsReplyState: 'needs_reply',
+    dueSoonState: 'due_soon_24h',
+    overdueState: 'overdue_24h',
+    repliedState: 'replied',
+  },
+  messageKindSeparation: {
+    conversationKind: 'conversation',
+    supportMessageKind: 'support_message',
+    supportMessageCreatesChatReply: false,
+    supportMessageCreatesAnswerRequirement: false,
+    supportMessageCreatesAiReply: false,
+    supportMessageCountedSeparately: true,
+  },
+  access: {
+    artistOwner: {
+      allowed: true,
+      canSeeCounts: true,
+      canSeeSafePreview: true,
+    },
+    ownerUser: {
+      allowed: false,
+      useEndpoint: '/api/v1/chat/me/premium-rooms/:roomId/status',
+    },
+    nonOwnerArtist: {
+      allowed: false,
+      response: '403_or_404_without_identity_leak',
+    },
+    unauthenticated: {
+      allowed: false,
+      status: 401,
+      code: 'auth_required',
+    },
+  },
+  privacy: {
+    rawChatBodyReturned: false,
+    rawSupportMessageReturned: false,
+    rawAdminNoteReturned: false,
+    rawReportReasonReturned: false,
+    rawPayloadReturned: false,
+    rawWalletLedgerIdReturned: false,
+    rawSupportPointLedgerIdReturned: false,
+    rawConversationMeterLedgerIdReturned: false,
+    rawUserEmailReturned: false,
+    rawUserPhoneReturned: false,
+    rawUserPrivateProfileReturned: false,
+    counterpartyUserIdReturned: false,
+    messageIdsReturned: false,
+  },
+  noMutation: {
+    artistReplyCreate: true,
+    userMessageCreate: true,
+    donationCreate: true,
+    supportPointDebit: true,
+    supportPointLedgerMutation: true,
+    conversationMeterDebit: true,
+    refundCreate: true,
+    walletDebit: true,
+    settlement: true,
+    payout: true,
+  },
+  copySafety: {
+    statusLabelKeyRequired: true,
+    answerStateLabelKeyRequired: true,
+    messageKindLabelKeyRequired: true,
+    rawEnumCopyReturned: false,
+    rawStatusAsCopy: false,
+    internalReasonReturned: false,
+    aiAutoReplyCopyAllowed: false,
+  },
+} as const;
+
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
   version: '2026-05-25.premium-chat-support-ranking-projection.v1',
   previousVersion: '2026-05-25.premium-chat-room-list-detail-projection.v1',
@@ -811,6 +971,17 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       method: 'GET',
       pathTemplate:
         '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
+      status: 'planned',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    },
+    artistRoomInbox: {
+      method: 'GET',
+      path: PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT.endpoint,
+      query: PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT.query,
       status: 'planned',
       enabled: false,
       authRequired: true,
@@ -1340,6 +1511,35 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         rawChatBodyReturned: false,
         userPrivateProfileReturned: false,
       },
+    },
+    artistRoomInbox: {
+      method: 'GET',
+      path: PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT.endpoint,
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      request: {
+        query: PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT.query,
+      },
+      response: PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT.response,
+      projection:
+        PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT.itemProjection,
+      unansweredSla:
+        PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT.unansweredSla,
+      messageKindSeparation:
+        PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT.messageKindSeparation,
+      access: PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT.access,
+      privacy: PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT.privacy,
+      noMutation: PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT.noMutation,
+      copySafety: PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT.copySafety,
+      errorCodes: [
+        { status: 401, code: 'auth_required' },
+        { status: 400, code: 'invalid_artist_inbox_query' },
+        { status: 403, code: 'artist_profile_required' },
+        { status: 404, code: 'artist_profile_not_found' },
+      ],
     },
     reportSubmit: {
       method: 'POST',
@@ -1941,6 +2141,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       },
     },
   },
+  artistInboxProjection: PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT,
   reportRefundApi: PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi,
   adminReportRefundReadOnly:
     PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.adminReadOnly,

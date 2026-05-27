@@ -2,6 +2,7 @@ import { ChatService } from './chat.service';
 import { ChatLlmProviderRequestError } from './llm-provider.adapter';
 import {
   CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT,
+  PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT,
   PREMIUM_CHAT_DONATION_DISABLED_REASON_BY_STATUS,
   PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES,
   resolvePremiumChatDonationAmountPolicy,
@@ -4265,6 +4266,32 @@ describe('ChatService premium chat support contract', () => {
       settlementMutation: false,
       payoutMutation: false,
     });
+    expect(contract.endpoints.artistRoomInbox).toMatchObject({
+      method: 'GET',
+      path: '/api/v1/creator-studio/premium-chat/rooms',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(contract.endpoints.artistRoomInbox.query).toMatchObject({
+      answerState: [
+        'all',
+        'needs_reply',
+        'due_soon_24h',
+        'overdue_24h',
+        'replied',
+      ],
+      messageKind: ['all', 'conversation', 'support_message'],
+      status: expect.arrayContaining([
+        'opened',
+        'active',
+        'artist_answered',
+        'refund_pending',
+      ]),
+      take: { default: 20, max: 50 },
+    });
     expect(contract.endpoints.rankings.query.type).toEqual([
       'communication',
       'donation',
@@ -4529,6 +4556,146 @@ describe('ChatService premium chat support contract', () => {
       report: 'premiumRoomReportStatus projection',
       mutationAvailability: 'premiumRoomMutationAvailability projection',
     });
+    expect(contract.artistInboxProjection).toEqual(
+      PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT,
+    );
+    expect(contract.artistInboxProjection).toMatchObject({
+      version: '2026-05-27.premium-chat-artist-inbox-count-projection.v1',
+      enabled: false,
+      readOnly: true,
+      authRequired: true,
+      artistOwnerOnly: true,
+      unansweredSla: {
+        afterHours: 24,
+        dueSoonWindowHours: 4,
+        needsReplyState: 'needs_reply',
+        dueSoonState: 'due_soon_24h',
+        overdueState: 'overdue_24h',
+        repliedState: 'replied',
+      },
+      messageKindSeparation: {
+        conversationKind: 'conversation',
+        supportMessageKind: 'support_message',
+        supportMessageCreatesChatReply: false,
+        supportMessageCreatesAnswerRequirement: false,
+        supportMessageCreatesAiReply: false,
+        supportMessageCountedSeparately: true,
+      },
+      privacy: {
+        rawChatBodyReturned: false,
+        rawSupportMessageReturned: false,
+        rawUserEmailReturned: false,
+        rawUserPhoneReturned: false,
+        rawUserPrivateProfileReturned: false,
+        counterpartyUserIdReturned: false,
+        messageIdsReturned: false,
+      },
+      noMutation: {
+        artistReplyCreate: true,
+        userMessageCreate: true,
+        donationCreate: true,
+        supportPointLedgerMutation: true,
+        conversationMeterDebit: true,
+        refundCreate: true,
+        walletDebit: true,
+        settlement: true,
+        payout: true,
+      },
+      copySafety: {
+        statusLabelKeyRequired: true,
+        answerStateLabelKeyRequired: true,
+        messageKindLabelKeyRequired: true,
+        rawEnumCopyReturned: false,
+        rawStatusAsCopy: false,
+      },
+    });
+    expect(contract.artistInboxProjection.response.counts).toMatchObject({
+      total: '<number>',
+      needsReply: '<number>',
+      dueSoon24h: '<number>',
+      overdue24h: '<number>',
+      replied: '<number>',
+      supportMessages: '<number>',
+    });
+    expect(contract.artistInboxProjection.itemProjection.requiredFields).toEqual(
+      [
+        'roomId',
+        'artist',
+        'userSafeDisplay',
+        'roomStatus',
+        'answerState',
+        'unansweredState',
+        'lastUserMessageAt',
+        'lastArtistReplyAt',
+        'lastMessageKind',
+      ],
+    );
+    expect(contract.apiContracts.artistRoomInbox).toMatchObject({
+      method: 'GET',
+      path: '/api/v1/creator-studio/premium-chat/rooms',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      request: {
+        query: {
+          answerState: [
+            'all',
+            'needs_reply',
+            'due_soon_24h',
+            'overdue_24h',
+            'replied',
+          ],
+          messageKind: ['all', 'conversation', 'support_message'],
+          status: expect.arrayContaining([
+            'opened',
+            'active',
+            'artist_answered',
+            'refund_pending',
+          ]),
+          take: { default: 20, max: 50 },
+        },
+      },
+      access: {
+        artistOwner: {
+          allowed: true,
+          canSeeCounts: true,
+          canSeeSafePreview: true,
+        },
+        nonOwnerArtist: {
+          allowed: false,
+          response: '403_or_404_without_identity_leak',
+        },
+        unauthenticated: {
+          allowed: false,
+          status: 401,
+          code: 'auth_required',
+        },
+      },
+      privacy: {
+        rawChatBodyReturned: false,
+        rawSupportMessageReturned: false,
+        rawUserEmailReturned: false,
+        counterpartyUserIdReturned: false,
+      },
+      noMutation: {
+        artistReplyCreate: true,
+        donationCreate: true,
+        refundCreate: true,
+        walletDebit: true,
+        settlement: true,
+        payout: true,
+      },
+    });
+    expect(
+      contract.apiContracts.artistRoomInbox.errorCodes,
+    ).toEqual(
+      expect.arrayContaining([
+        { status: 401, code: 'auth_required' },
+        { status: 403, code: 'artist_profile_required' },
+      ]),
+    );
     expect(contract.endpoints.reportSubmit).toMatchObject({
       method: 'POST',
       pathTemplate: '/api/v1/chat/premium-rooms/:roomId/reports',
