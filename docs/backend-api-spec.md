@@ -983,6 +983,17 @@ Character-chat premium transition CTA contract (#500/#511):
   `productProjection.characterChatTransitionCta` so product QA can verify the
   character-chat entry point and premium-chat product copy together.
 
+Chat/product contract closure (#548-#552):
+
+- `docs/ops/chat-product-contracts-548-552.md` is the backend/product review
+  handoff for character opening greeting variation, approved artist URL
+  knowledge context adaptation, chat usage/cost/daily-limit guardrails,
+  character-chat versus premium-chat routing separation, and AI premium content
+  request-state adaptation.
+- This closure does not enable live providers, crawler integrations,
+  premium-chat room opening, AI premium content generation, wallet/order
+  mutations, settlement, payout, or paid-like behavior.
+
 LLM generation readiness:
 
 - Generation is fail-closed until a provider adapter is configured:
