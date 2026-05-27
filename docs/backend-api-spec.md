@@ -948,15 +948,28 @@ Character-chat dynamic opening greeting cache (#388):
 - `openingGreeting.toneCandidate` is display-safe contract data only. Do not
   treat it as an editable system prompt or expose raw metadata keys as user copy.
 
-Character-chat premium transition CTA contract (#500):
+Character-chat premium transition CTA contract (#500/#511):
 
 - `GET /api/v1/chat/character-catalog` and
   `GET /api/v1/chat/starter-prompts` include
   `premiumChat.transitionCta.version =
-  2026-05-26.character-chat-premium-cta-projection.v1`.
+  2026-05-27.character-chat-premium-routing-product-separation.v1`.
 - The transition CTA is read-only and submit-blocked:
   `enabled=false`, `roomOpenCta.submitEnabled=false`,
   `walletDebitEnabled=false`, and `roomOpenOrderEnabled=false`.
+- #511 fixes the routing/product separation contract:
+  `characterDetailCtaProjection.aiChatCta` is the only CTA that points to
+  `/character-chat?slug={artistSlug}` and is explicitly `ai_character_chat` /
+  `ai_character_reply`.
+- `characterDetailCtaProjection.premiumChatCta` is explicitly
+  `artist_direct_premium_dm` / `artist_direct_reply`, disabled while room-open
+  is not enabled, and has `hrefTemplate=null` plus `fallbackHrefTemplate=null`.
+  Premium unavailable states must not route users to `/character-chat` as a
+  substitute.
+- `routingSeparation` keeps starter prompts and random/dynamic opening
+  greetings scoped to character chat only. Premium room list/detail projections
+  are artist direct-reply DM surfaces and must not reuse character-chat starter
+  prompt or random greeting behavior.
 - The visible copy separates normal character chat from artist direct-reply
   premium chat. It must not imply an automatic AI reply for premium chat.
 - `roomStateReasons` provides Korean user-facing reasons for available,
