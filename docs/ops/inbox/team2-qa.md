@@ -1,5 +1,73 @@
 # Team2 QA Inbox
 
+status: blocked
+task: #534 - premium chat live status matrix QA resume
+environment:
+- branch: team2-qa/534-live-matrix-qa
+- `git pull origin main`: fast-forwarded to `94137b8`.
+- local basis commit: 94137b8b02867d7e943aae0ba5de4bc8aebc8f80
+- live API health: HTTP 200, commit 94137b8b02867d7e943aae0ba5de4bc8aebc8f80
+- live pages:
+  - https://www.lumina-stage.com/character-chat
+  - https://www.lumina-stage.com/character-chat?slug=oh-hyerin
+- No token, cookie, password, env value, secret, signed URL, raw provider payload, raw response body, DB URL, raw credential, raw email, room id, or private user id was recorded.
+- No fixture prepare/verify/cleanup against live DB, donation, room-open, wallet, refund, report, settlement, payout, payment, or paid mutation was executed.
+
+tested_flows:
+- PASS: `git pull origin main` completed and live `/health` matches local basis `94137b8b02867d7e943aae0ba5de4bc8aebc8f80`.
+- PASS: runbook `docs/ops/premium-chat-live-qa-fixture-session-534.md` defines the seven target buckets: baseline active, reported, admin review, unanswered refund candidate, near expiry, closed, expired.
+- PASS: `npm.cmd run qa:premium-chat-live-fixtures` default mode is dry-run only, prints planned buckets, and reports no DB connection/write.
+- PASS: `PREMIUM_CHAT_QA_FIXTURE_MODE=prepare` without `PREMIUM_CHAT_QA_FIXTURE_CONFIRM` refuses to run.
+- PASS: production-like prepare with explicit prepare confirm but without `PREMIUM_CHAT_QA_FIXTURE_ALLOW_PRODUCTION=true` refuses to run before DB work.
+- PASS: unauthenticated `GET /api/v1/chat/premium-support-contract` returns HTTP 401.
+- PASS: unauthenticated owner detail `GET /api/v1/chat/me/premium-rooms/:roomId/status` returns HTTP 401.
+- PASS: unauthenticated artist/operator detail `GET /api/v1/creator-studio/premium-chat/rooms/:roomId/status` returns HTTP 401.
+- PASS: live public `GET /api/v1/chat/premium-rooms?take=20` returns HTTP 200 with `policy.readOnly=true`.
+- PASS: live public `GET /api/v1/chat/premium-rooms?status=active&take=20` returns HTTP 200.
+- PASS: live `/character-chat` and `/character-chat?slug=oh-hyerin` show login-required/fail-closed premium room copy and disabled/prelaunch room-open/donation controls.
+- PASS: visible checked pages had no replacement-character mojibake and no horizontal overflow at 1280px, 768px, and 390px.
+- PASS: `node --check server/scripts/prepare-premium-chat-live-qa-fixtures.mjs`.
+- PASS: `node --check server/src/chat/chat.service.ts`.
+- PASS: `node --check server/src/chat/chat.service.spec.ts`.
+- PASS: `node --check server/src/chat/premium-chat-support-contract.ts`.
+- PASS: `npm.cmd test -- premium-chat-room-contract.spec.ts premium-chat-rooms-read.controller.spec.ts chat.controller.spec.ts chat.service.spec.ts --runInBand` passed 83 tests.
+- BLOCKED: live public premium room list currently returns 0 rooms, so no #534 bucket row is available for list/detail matrix verification.
+- BLOCKED: approved owner/operator QA session was not available in this runtime. Per runbook, raw password/token/cookie/DB URL must not be requested or recorded, so owner and artist detail matrix cannot be exercised here.
+
+not_verified_due_to_blocker:
+- `baseline_active_room` owner/artist detail.
+- `reported_room` paused/report locked state.
+- `admin_review_room` review state.
+- `unanswered_refund_candidate` refund candidate state.
+- `near_expiry_room` `nearExpiry=true` projection.
+- `closed_room` archive/closed projection.
+- `expired_room` archive/expired projection.
+- cleanup verification for live #534 tagged rows.
+
+repro_steps:
+1. Start from `origin/main`, run `git pull origin main`, and confirm local/live basis `94137b8b02867d7e943aae0ba5de4bc8aebc8f80`.
+2. Read `docs/ops/premium-chat-live-qa-fixture-session-534.md`.
+3. From `server`, run `npm.cmd run qa:premium-chat-live-fixtures`; observe dry-run planned buckets and no DB write.
+4. Run prepare without the confirm env; observe fail-closed refusal.
+5. Run production-like prepare without one-run production allow; observe fail-closed refusal.
+6. Call the live read endpoints above without auth; observe public list 200/read-only and detail/contract 401 where auth is required.
+7. Open `/character-chat` and `/character-chat?slug=oh-hyerin` at 1280px, 768px, and 390px; observe login-required/fail-closed copy.
+8. Stop before any fixture prepare/live DB write or paid/social mutation.
+
+expected:
+- After an approved secure QA runtime prepares #534 fixture rows and provides an approved owner/operator session, QR2 can verify each bucket through read-only list/detail endpoints and then cleanup the tagged rows.
+
+actual:
+- Runbook and local safety gates pass.
+- Live public list is read-only but empty, and no approved private session/fixture is available in this runtime.
+- Full status matrix remains blocked rather than complete.
+
+blockers:
+- #534 cannot be marked complete until approved secure QA runtime runs prepare -> verify and provides owner/operator read-only session access for the seven bucket rows.
+
+next_needed:
+- Return #534 to PM Chamo or the secure QA runtime/session owner to execute the runbook prepare/verify handoff, then send QR2 only the approved session path and bucket-level room references through the private channel.
+
 status: fail
 task: #436 - Artist URL knowledge integrated live re-QA after health alignment
 environment:
