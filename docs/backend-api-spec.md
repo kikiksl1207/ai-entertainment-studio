@@ -2236,6 +2236,17 @@ Current workflow:
 - Final generated images are attached as existing `assets` through `resultAssetIds`; linking to public artist/profile/feed surfaces remains a separate product decision.
 - The request flow must not store resident registration numbers, contracts, API keys, raw identity documents, or secrets.
 
+AI premium content generation pipeline draft:
+
+- `docs/ops/ai-premium-content-generation-contract-537.md` is the draft
+  provider-neutral contract for combining image generation, video generation,
+  and premium content packs under one server-owned flow.
+- The draft keeps `creator_image_requests` as the current image queue while
+  defining future request types, context snapshots, model routing, safety gates,
+  cost/usage logs, admin tracking fields, and user-facing status separation.
+- The draft does not enable live provider calls, wallet/order/settlement
+  mutations, paid-like behavior, public publishing, or vendor-specific coupling.
+
 Free-like quota endpoint:
 
 ```http
