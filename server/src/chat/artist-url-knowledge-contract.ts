@@ -19,11 +19,35 @@ export const ARTIST_URL_KNOWLEDGE_SOURCE_TYPES = [
   'other',
 ] as const;
 
+export const ARTIST_URL_KNOWLEDGE_INGEST_STATES = [
+  'not_started',
+  'summary_missing',
+  'summary_ready',
+  'unsafe',
+  'failed',
+] as const;
+
+export const ARTIST_URL_KNOWLEDGE_CHAT_ELIGIBILITY_STATES = [
+  'eligible',
+  'pending_review',
+  'rejected',
+  'archived',
+  'chat_disabled',
+  'summary_missing',
+  'unsafe',
+] as const;
+
 export type ArtistUrlKnowledgeStatus =
   (typeof ARTIST_URL_KNOWLEDGE_STATUSES)[number];
 
 export type ArtistUrlKnowledgeSourceType =
   (typeof ARTIST_URL_KNOWLEDGE_SOURCE_TYPES)[number];
+
+export type ArtistUrlKnowledgeIngestState =
+  (typeof ARTIST_URL_KNOWLEDGE_INGEST_STATES)[number];
+
+export type ArtistUrlKnowledgeChatEligibilityState =
+  (typeof ARTIST_URL_KNOWLEDGE_CHAT_ELIGIBILITY_STATES)[number];
 
 export type ArtistKnowledgeChatCandidate = {
   id: string;
@@ -33,6 +57,7 @@ export type ArtistKnowledgeChatCandidate = {
   summary: string | null;
   canonicalUrl?: string | null;
   allowChatReference: boolean;
+  ingestState?: string | null;
   reviewedAt?: Date | string | null;
   createdAt?: Date | string | null;
 };
@@ -44,6 +69,7 @@ export type ArtistKnowledgeAuditCandidate = {
   status: string;
   sourceType: string;
   allowChatReference: boolean;
+  ingestState?: string | null;
   summary?: string | null;
   rejectionReason?: string | null;
   reviewedAt?: Date | string | null;
@@ -58,6 +84,9 @@ export type ArtistKnowledgeAuditSnapshot = {
   reviewedByUserId: string | null;
   status: ArtistUrlKnowledgeStatus;
   sourceType: ArtistUrlKnowledgeSourceType;
+  lifecycleStatus: ArtistUrlKnowledgeStatus;
+  ingestState: ArtistUrlKnowledgeIngestState;
+  chatEligibility: ArtistUrlKnowledgeChatEligibilityState;
   allowChatReference: boolean;
   summaryPresent: boolean;
   rejectionReasonPresent: boolean;
@@ -124,6 +153,20 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
   },
   lifecycleStatuses: ARTIST_URL_KNOWLEDGE_STATUSES,
   sourceTypes: ARTIST_URL_KNOWLEDGE_SOURCE_TYPES,
+  stateModel: {
+    lifecycleStatusField: 'status',
+    lifecycleStatuses: ARTIST_URL_KNOWLEDGE_STATUSES,
+    ingestStateField: 'ingestState',
+    ingestStates: ARTIST_URL_KNOWLEDGE_INGEST_STATES,
+    chatEligibilityField: 'chatEligibility',
+    chatEligibilityStates: ARTIST_URL_KNOWLEDGE_CHAT_ELIGIBILITY_STATES,
+    chatEligibleOnlyWhen: {
+      lifecycleStatus: 'approved',
+      ingestState: 'summary_ready',
+      allowChatReference: true,
+      summaryPresent: true,
+    },
+  },
   apiContracts: {
     creatorList: {
       method: 'GET',
@@ -238,6 +281,15 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
       'artist_knowledge_url.archive',
     ],
     targetType: 'artist_knowledge_url',
+    eventSkeleton: {
+      statusTransitionRequired: true,
+      redactedPayloadOnly: true,
+      rawUrlQueryStored: false,
+      tokenCookiePasswordStored: false,
+      rawEmailStored: false,
+      providerPayloadStored: false,
+      chatEligibilitySnapshotStored: true,
+    },
     actorTypes: ['creator', 'admin'],
     storesOnly: [
       'actor user id',
@@ -247,6 +299,9 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
       'reviewed by user id',
       'status transition',
       'source type',
+      'lifecycle status',
+      'ingest state',
+      'chat eligibility',
       'allowChatReference boolean',
       'summary/rejection presence booleans',
       'reviewed/archived timestamps',
@@ -283,17 +338,55 @@ export function isArtistKnowledgeSourceType(
   );
 }
 
-export function isArtistKnowledgeChatEligible(
-  item: Pick<
-    ArtistKnowledgeChatCandidate,
-    'status' | 'allowChatReference' | 'summary'
-  >,
-) {
-  return (
-    item.status === 'approved' &&
-    item.allowChatReference === true &&
-    Boolean(normalizeArtistKnowledgeSummary(item.summary))
+export function isArtistKnowledgeIngestState(
+  ingestState: string | null | undefined,
+): ingestState is ArtistUrlKnowledgeIngestState {
+  return (ARTIST_URL_KNOWLEDGE_INGEST_STATES as readonly string[]).includes(
+    ingestState ?? '',
   );
+}
+
+export function isArtistKnowledgeChatEligible(
+  item: {
+    status: string;
+    allowChatReference: boolean;
+    summary?: string | null;
+    ingestState?: string | null;
+  },
+) {
+  return resolveArtistKnowledgeChatEligibility(item).eligible;
+}
+
+export function resolveArtistKnowledgeChatEligibility(
+  item: {
+    status: string;
+    allowChatReference: boolean;
+    summary?: string | null;
+    ingestState?: string | null;
+  },
+) {
+  const lifecycleStatus = isArtistKnowledgeStatus(item.status)
+    ? item.status
+    : 'pending';
+  const summaryPresent = Boolean(normalizeArtistKnowledgeSummary(item.summary));
+  const ingestState = resolveArtistKnowledgeIngestState(
+    item.ingestState,
+    summaryPresent,
+  );
+  const chatEligibility = resolveArtistKnowledgeChatEligibilityState({
+    lifecycleStatus,
+    ingestState,
+    allowChatReference: item.allowChatReference,
+    summaryPresent,
+  });
+
+  return {
+    eligible: chatEligibility === 'eligible',
+    lifecycleStatus,
+    ingestState,
+    chatEligibility,
+    summaryPresent,
+  } as const;
 }
 
 export function normalizeArtistKnowledgeSummary(
@@ -367,6 +460,12 @@ export function buildArtistKnowledgeAuditSnapshot(
     reviewedByUserId: row.reviewedByUserId ?? null,
     status: isArtistKnowledgeStatus(row.status) ? row.status : 'pending',
     sourceType: isArtistKnowledgeSourceType(row.sourceType) ? row.sourceType : 'other',
+    lifecycleStatus: isArtistKnowledgeStatus(row.status) ? row.status : 'pending',
+    ingestState: resolveArtistKnowledgeIngestState(
+      row.ingestState,
+      Boolean(normalizeArtistKnowledgeSummary(row.summary)),
+    ),
+    chatEligibility: resolveArtistKnowledgeChatEligibility(row).chatEligibility,
     allowChatReference: row.allowChatReference === true,
     summaryPresent: Boolean(normalizeArtistKnowledgeSummary(row.summary)),
     rejectionReasonPresent: Boolean(normalizeArtistKnowledgeSummary(row.rejectionReason)),
@@ -394,9 +493,22 @@ export function buildArtistKnowledgeAuditPayload(
         to: afterData?.status ?? null,
       },
       changedFields: artistKnowledgeAuditChangedFields(beforeData, afterData),
+      redactedCategories: [
+        'raw_url_query',
+        'token',
+        'cookie',
+        'raw_email',
+        'provider_payload',
+      ],
+      chatEligibilityTransition: {
+        from: beforeData?.chatEligibility ?? null,
+        to: afterData?.chatEligibility ?? null,
+      },
       sensitiveDataStored: false,
       rawUrlStored: false,
+      rawUrlQueryStored: false,
       rawPageBodyStored: false,
+      rawEmailStored: false,
       tokenCookiePasswordStored: false,
       providerPayloadStored: false,
       dbUrlStored: false,
@@ -422,6 +534,9 @@ function artistKnowledgeAuditChangedFields(
 
   const changedFieldCandidates: Array<keyof ArtistKnowledgeAuditSnapshot> = [
     'status',
+    'lifecycleStatus',
+    'ingestState',
+    'chatEligibility',
     'reviewedByUserId',
     'allowChatReference',
     'summaryPresent',
@@ -431,6 +546,50 @@ function artistKnowledgeAuditChangedFields(
   ];
 
   return changedFieldCandidates.filter((field) => before[field] !== after[field]);
+}
+
+function resolveArtistKnowledgeIngestState(
+  ingestState: string | null | undefined,
+  summaryPresent: boolean,
+): ArtistUrlKnowledgeIngestState {
+  if (isArtistKnowledgeIngestState(ingestState)) {
+    return ingestState;
+  }
+
+  return summaryPresent ? 'summary_ready' : 'summary_missing';
+}
+
+function resolveArtistKnowledgeChatEligibilityState(input: {
+  lifecycleStatus: ArtistUrlKnowledgeStatus;
+  ingestState: ArtistUrlKnowledgeIngestState;
+  allowChatReference: boolean;
+  summaryPresent: boolean;
+}): ArtistUrlKnowledgeChatEligibilityState {
+  if (input.lifecycleStatus === 'archived') {
+    return 'archived';
+  }
+
+  if (input.lifecycleStatus === 'rejected') {
+    return 'rejected';
+  }
+
+  if (input.lifecycleStatus !== 'approved') {
+    return 'pending_review';
+  }
+
+  if (input.ingestState === 'unsafe') {
+    return 'unsafe';
+  }
+
+  if (!input.allowChatReference) {
+    return 'chat_disabled';
+  }
+
+  if (!input.summaryPresent || input.ingestState !== 'summary_ready') {
+    return 'summary_missing';
+  }
+
+  return 'eligible';
 }
 
 function sourceLabelFromUrl(value: string | null | undefined) {

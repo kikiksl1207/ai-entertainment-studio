@@ -1288,6 +1288,32 @@ candidates before mutation routes are enabled.
   second refund, wallet ledger, settlement, payout, or status-event mutation.
 - Unknown future room statuses fail closed as `safe_status_only`.
 
+Premium chat unanswered refund candidate job skeleton (#553):
+
+`GET /api/v1/chat/premium-support-contract` exposes
+`roomLifecycle.unansweredRefundCandidateJob` as a planned disabled server job
+contract. It is not mounted as a live mutation path in this PR.
+
+- The job is disabled by default under key
+  `premium-chat-unanswered-refund-candidate`.
+- Eligible rows are premium rooms with status `opened` or `active`, opened at
+  least 24 hours ago, no stored first artist reply, no existing
+  `refundCandidateAt`, and no report/admin-review/terminal status.
+- When enabled by a later PR, the only allowed transition is candidate-state
+  marking to `refund_pending` with action key
+  `unanswered_24h_refund_candidate` and reason key
+  `unanswered_24h_full_refund`.
+- Idempotency is scoped to
+  `premium-chat-room-unanswered-refund-candidate:<roomId>:unanswered_24h`.
+  Replays must return the existing candidate projection without creating a
+  second room event or refund candidate mark.
+- The job must not perform actual refund credit, wallet ledger writes, PG
+  refunds, settlement mutation, payout mutation, donation mutation,
+  support-point mutation, or revenue sharing.
+- User-fault reports, admin-review rooms, and already terminal/refunded rooms
+  are intentionally excluded so this path cannot overlap report/refund
+  adjudication.
+
 Premium chat live QA fixture readiness (#520):
 
 `GET /api/v1/chat/premium-support-contract` exposes
@@ -2268,6 +2294,49 @@ AI premium content generation pipeline draft:
   cost/usage logs, admin tracking fields, and user-facing status separation.
 - The draft does not enable live provider calls, wallet/order/settlement
   mutations, paid-like behavior, public publishing, or vendor-specific coupling.
+- #544/#554 add the backend skeleton contract in
+  `server/src/creator-image-requests/ai-premium-content-generation.contract.ts`.
+  The future endpoints are closed by default:
+  `POST /api/v1/me/creator-studio/ai-premium-content-requests`,
+  `GET /api/v1/me/creator-studio/ai-premium-content-requests`,
+  `GET /api/v1/me/creator-studio/ai-premium-content-requests/:requestId`, and
+  `POST /api/v1/admin/api/v1/backstage/ai-premium-content-requests/:requestId/review`.
+  While providers are not configured, create readiness returns
+  `AI_PREMIUM_CONTENT_PROVIDER_DISABLED` with message key
+  `aiPremiumContent.providerDisabled`.
+- Request skeleton fields are provider-neutral: `requestType`, `status`,
+  `moderationStatus`, `routingReadiness`, `safetyDecision`, `contextSnapshot`,
+  `referenceAssetIds`, `resultAssetIds`, and `costUsage`.
+- Cost/usage placeholder schema is
+  `2026-05-28.ai-premium-content-cost-usage.v1` and stores only
+  `requestId`, `providerFamily`, `modelAlias`, `capability`, `attempt`,
+  `regenerationCount`, `estimatedCostMicros`, `actualCostMicros`,
+  `inputUnits`, `outputUnits`, `failureCode`, and `recordedAt`. Vendor
+  credentials, raw provider payloads, raw prompts, raw asset bytes, wallet
+  ledger ids, settlement ids, payout ids, and order/payment ids must not be
+  recorded in the usage row.
+- Provider router defaults to `provider_disabled` and fail-closed. GPT Image,
+  Stable Diffusion, Seedance, and other vendor calls remain disabled until a
+  later provider integration PR explicitly opens them.
+
+Artist URL knowledge lifecycle/audit skeleton:
+
+- #546/#555 keep artist URL knowledge separate from character-chat provider
+  context until the row is approved, chat-enabled, and has a usable summary.
+- Lifecycle state uses `status=pending|approved|rejected|archived`; ingest state
+  uses `not_started|summary_missing|summary_ready|unsafe|failed`; chat
+  eligibility resolves to
+  `eligible|pending_review|rejected|archived|chat_disabled|summary_missing|unsafe`.
+- Character chat context may reference only `status=approved`,
+  `ingestState=summary_ready`, `allowChatReference=true`, and
+  `summaryPresent=true`. Pending, rejected, archived, unsafe, disabled, or
+  summaryless rows fail closed and do not enter provider instructions.
+- Audit payloads are redacted snapshots only. They may store actor/target ids,
+  artist id, lifecycle status, ingest state, chat eligibility, source type,
+  status transition, allow-chat boolean, presence booleans, and reviewed/
+  archived timestamps. They must not store raw URL query strings, raw submitted
+  URL, artist description text, summary text, rejection reason text, raw page
+  body, token, cookie, password, raw email, provider payload, or DB URL.
 
 Free-like quota endpoint:
 

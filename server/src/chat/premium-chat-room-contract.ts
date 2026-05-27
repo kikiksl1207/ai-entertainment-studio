@@ -513,6 +513,48 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       payoutMutationEnabled: false,
       messageKey: 'chat.premiumRoom.refund.unanswered24h',
     },
+    unansweredRefundCandidateJob: {
+      jobKey: 'premium-chat-unanswered-refund-candidate',
+      status: 'planned_disabled',
+      enabledByDefault: false,
+      scanCadence: 'every_15_minutes_or_operator_triggered',
+      serverClockAuthoritative: true,
+      eligibleWhere: {
+        status: PREMIUM_CHAT_UNANSWERED_REFUND_ELIGIBLE_STATUSES,
+        openedAt: 'lte_now_minus_24h',
+        firstArtistReplyAt: null,
+        refundCandidateAt: null,
+        reportOrAdminReviewStatusExcluded: true,
+        terminalStatusExcluded: true,
+      },
+      transition: {
+        toStatus: 'refund_pending',
+        reasonKey: 'unanswered_24h_full_refund',
+        actionKey: 'unanswered_24h_refund_candidate',
+        statusEventKeyPattern:
+          'premium-chat-room-unanswered-refund-candidate:<roomId>:unanswered_24h',
+      },
+      idempotency: {
+        keyPattern:
+          'premium-chat-room-unanswered-refund-candidate:<roomId>:unanswered_24h',
+        duplicateRunBehavior:
+          'return_existing_refund_pending_projection_without_second_refund_or_status_event',
+      },
+      mutationScopeWhenEnabled: {
+        candidateStatusOnly: true,
+        actualRefundCredit: false,
+        walletCredit: false,
+        walletDebit: false,
+        pgRefund: false,
+        settlement: false,
+        payout: false,
+      },
+      privacy: {
+        rawChatBodyLogged: false,
+        rawReportReasonLogged: false,
+        tokenCookieSecretDbUrlLogged: false,
+      },
+    },
     publicProjectionStatusKeys: PREMIUM_CHAT_ROOM_LIFECYCLE_PROJECTION_STATUS_KEYS,
     terminalOrPausedProjection: {
       canSendMessage: false,

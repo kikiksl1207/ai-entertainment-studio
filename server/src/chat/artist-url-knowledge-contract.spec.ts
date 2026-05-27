@@ -1,8 +1,11 @@
 import {
   ARTIST_URL_KNOWLEDGE_CONTRACT,
+  ARTIST_URL_KNOWLEDGE_CHAT_ELIGIBILITY_STATES,
+  ARTIST_URL_KNOWLEDGE_INGEST_STATES,
   buildArtistKnowledgeAuditPayload,
   buildArtistKnowledgeChatContext,
   isArtistKnowledgeChatEligible,
+  resolveArtistKnowledgeChatEligibility,
 } from './artist-url-knowledge-contract';
 
 describe('artist URL knowledge contract', () => {
@@ -48,6 +51,33 @@ describe('artist URL knowledge contract', () => {
       resultingStatus: 'archived',
       chatEligibleAfterArchive: false,
     });
+    expect(ARTIST_URL_KNOWLEDGE_INGEST_STATES).toEqual([
+      'not_started',
+      'summary_missing',
+      'summary_ready',
+      'unsafe',
+      'failed',
+    ]);
+    expect(ARTIST_URL_KNOWLEDGE_CHAT_ELIGIBILITY_STATES).toEqual([
+      'eligible',
+      'pending_review',
+      'rejected',
+      'archived',
+      'chat_disabled',
+      'summary_missing',
+      'unsafe',
+    ]);
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.stateModel).toMatchObject({
+      lifecycleStatusField: 'status',
+      ingestStateField: 'ingestState',
+      chatEligibilityField: 'chatEligibility',
+      chatEligibleOnlyWhen: {
+        lifecycleStatus: 'approved',
+        ingestState: 'summary_ready',
+        allowChatReference: true,
+        summaryPresent: true,
+      },
+    });
   });
 
   it('allows character chat to reference only approved, chat-enabled summaries', () => {
@@ -76,6 +106,30 @@ describe('artist URL knowledge contract', () => {
         summary: 'Approved but not allowed for chat.',
       }),
     ).toBe(false);
+    expect(
+      resolveArtistKnowledgeChatEligibility({
+        status: 'approved',
+        allowChatReference: true,
+        ingestState: 'unsafe',
+        summary: 'Unsafe summary must not enter chat.',
+      }),
+    ).toMatchObject({
+      eligible: false,
+      lifecycleStatus: 'approved',
+      ingestState: 'unsafe',
+      chatEligibility: 'unsafe',
+    });
+    expect(
+      resolveArtistKnowledgeChatEligibility({
+        status: 'approved',
+        allowChatReference: true,
+        summary: 'Approved summary is ready.',
+      }),
+    ).toMatchObject({
+      eligible: true,
+      ingestState: 'summary_ready',
+      chatEligibility: 'eligible',
+    });
   });
 
   it('keeps pending, rejected, archived, disabled, or summaryless rows out of provider context', () => {
@@ -239,13 +293,26 @@ describe('artist URL knowledge contract', () => {
       },
       afterData: {
         status: 'approved',
+        lifecycleStatus: 'approved',
+        ingestState: 'summary_ready',
+        chatEligibility: 'eligible',
         reviewedByUserId: 'admin-1',
         summaryPresent: true,
       },
       metadata: {
         statusTransition: { from: 'pending', to: 'approved' },
+        chatEligibilityTransition: { from: 'pending_review', to: 'eligible' },
+        redactedCategories: [
+          'raw_url_query',
+          'token',
+          'cookie',
+          'raw_email',
+          'provider_payload',
+        ],
         rawUrlStored: false,
+        rawUrlQueryStored: false,
         rawPageBodyStored: false,
+        rawEmailStored: false,
         tokenCookiePasswordStored: false,
         providerPayloadStored: false,
         dbUrlStored: false,

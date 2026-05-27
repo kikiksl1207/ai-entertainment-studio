@@ -407,6 +407,40 @@ describe('premium chat room refund and moderation ledger contract', () => {
       statusKey: 'refund_pending',
       automaticRefundCredit: false,
     });
+    expect(
+      PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.unansweredRefundCandidateJob,
+    ).toMatchObject({
+      jobKey: 'premium-chat-unanswered-refund-candidate',
+      status: 'planned_disabled',
+      enabledByDefault: false,
+      eligibleWhere: {
+        status: ['opened', 'active'],
+        openedAt: 'lte_now_minus_24h',
+        firstArtistReplyAt: null,
+        refundCandidateAt: null,
+        reportOrAdminReviewStatusExcluded: true,
+        terminalStatusExcluded: true,
+      },
+      transition: {
+        toStatus: 'refund_pending',
+        reasonKey: 'unanswered_24h_full_refund',
+        actionKey: 'unanswered_24h_refund_candidate',
+      },
+      mutationScopeWhenEnabled: {
+        candidateStatusOnly: true,
+        actualRefundCredit: false,
+        walletCredit: false,
+        walletDebit: false,
+        pgRefund: false,
+        settlement: false,
+        payout: false,
+      },
+      privacy: {
+        rawChatBodyLogged: false,
+        rawReportReasonLogged: false,
+        tokenCookieSecretDbUrlLogged: false,
+      },
+    });
   });
 
   it('charges visible two-way message pairs as integer Lumina without half-pair debits', () => {
