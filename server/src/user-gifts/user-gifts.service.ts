@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
@@ -34,6 +39,8 @@ export class UserGiftsService {
     if (senderUserId === input.recipientUserId) {
       throw new BadRequestException('Cannot send Lumina to yourself');
     }
+
+    await this.assertNoActiveUserBlock(senderUserId, input.recipientUserId);
 
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existingTransfer = await tx.userGiftTransfer.findUnique({
@@ -233,6 +240,32 @@ export class UserGiftsService {
     }
 
     return normalizedAmount;
+  }
+
+  private async assertNoActiveUserBlock(senderUserId: string, recipientUserId: string) {
+    const block = await this.prisma.userBlock.findFirst({
+      where: {
+        status: 'active',
+        deletedAt: null,
+        OR: [
+          { blockerUserId: senderUserId, blockedUserId: recipientUserId },
+          { blockerUserId: recipientUserId, blockedUserId: senderUserId },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (block) {
+      throw new ForbiddenException({
+        code: 'USER_GIFT_BLOCKED',
+        message: 'User gift transfer is blocked',
+        messageKey: 'social.gift.blocked',
+        walletMutation: false,
+        luminaMutation: false,
+        paymentMutation: false,
+        settlementMutation: false,
+      });
+    }
   }
 
   private assertUserGiftIdempotentReplay(

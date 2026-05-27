@@ -17,7 +17,8 @@ const createdAt = new Date('2026-05-18T00:00:00.000Z');
 type PrismaMock = ReturnType<typeof createPrismaMock>;
 
 function createPrismaMock() {
-  return {
+  const prisma: any = {
+    $transaction: jest.fn(async (callback: any) => callback(prisma)),
     user: {
       findFirst: jest.fn().mockResolvedValue({ id: authorId }),
     },
@@ -38,17 +39,27 @@ function createPrismaMock() {
     },
     userFollow: {
       findUnique: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+      upsert: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      count: jest.fn().mockResolvedValue(0),
     },
     userBlock: {
       findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn().mockResolvedValue(null),
+      upsert: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     artistOperator: {
       findFirst: jest.fn(),
     },
     asset: {
       findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn().mockResolvedValue(null),
     },
   };
+
+  return prisma;
 }
 
 function serviceWith(prisma: PrismaMock) {
@@ -123,6 +134,165 @@ function threadMetadata(overrides: Record<string, unknown> = {}) {
     },
   };
 }
+
+describe('CommunityService user follow/block mutation contract', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('fails closed when a blocked user tries to follow or refollow', async () => {
+    const prisma = createPrismaMock();
+    prisma.userBlock.findFirst.mockResolvedValue({ id: 'block-row' });
+    const service = serviceWith(prisma);
+
+    await expect(service.followUser(authorId, otherUserId)).rejects.toMatchObject({
+      response: {
+        code: 'USER_FOLLOW_BLOCKED',
+        messageKey: 'social.follow.blocked',
+      },
+      status: 403,
+    });
+    expect(prisma.userFollow.upsert).not.toHaveBeenCalled();
+  });
+
+  it('removes an active follower without creating a block or wallet-like mutation', async () => {
+    const prisma = createPrismaMock();
+    prisma.user.findFirst.mockResolvedValue({
+      id: otherUserId,
+      profile: {
+        displayName: 'Follower',
+        publicHandle: 'follower',
+        avatarAssetId: null,
+        coverAssetId: null,
+      },
+    });
+    prisma.userFollow.updateMany.mockResolvedValue({ count: 1 });
+    prisma.userFollow.count
+      .mockResolvedValueOnce(12)
+      .mockResolvedValueOnce(3);
+    const service = serviceWith(prisma);
+
+    const result = await service.removeFollower(authorId, otherUserId);
+
+    expect(prisma.userFollow.updateMany).toHaveBeenCalledWith({
+      where: {
+        followerUserId: otherUserId,
+        followingUserId: authorId,
+        status: 'active',
+      },
+      data: {
+        status: 'deleted',
+        deletedAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      },
+    });
+    expect(prisma.userBlock.upsert).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      removed: true,
+      user: {
+        id: otherUserId,
+        displayName: 'Follower',
+        publicHandle: 'follower',
+      },
+      stats: {
+        followerCount: 12,
+        followingCount: 3,
+      },
+      policy: {
+        blockCreated: false,
+        refollowAllowed: true,
+        walletMutation: false,
+        luminaMutation: false,
+        paymentMutation: false,
+        refundMutation: false,
+        settlementMutation: false,
+      },
+    });
+  });
+
+  it('activates user block and soft-deletes follows in both directions', async () => {
+    const prisma = createPrismaMock();
+    prisma.userBlock.upsert.mockResolvedValue({
+      id: 'block-row',
+      status: 'active',
+      reason: 'spam',
+      createdAt,
+      updatedAt: createdAt,
+      blocked: {
+        id: otherUserId,
+        status: 'active',
+        profile: {
+          displayName: 'Blocked',
+          publicHandle: 'blocked',
+          avatarAssetId: null,
+          coverAssetId: null,
+        },
+      },
+    });
+    prisma.userFollow.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 1 });
+    const service = serviceWith(prisma);
+
+    const result = await service.blockUser(authorId, otherUserId, { reason: 'spam' });
+
+    expect(prisma.userFollow.updateMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        followerUserId: authorId,
+        followingUserId: otherUserId,
+        status: 'active',
+      },
+      data: {
+        status: 'deleted',
+        deletedAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      },
+    });
+    expect(prisma.userFollow.updateMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        followerUserId: otherUserId,
+        followingUserId: authorId,
+        status: 'active',
+      },
+      data: {
+        status: 'deleted',
+        deletedAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      },
+    });
+    expect(result).toMatchObject({
+      block: {
+        id: 'block-row',
+        status: 'active',
+        reason: 'spam',
+        user: {
+          id: otherUserId,
+          displayName: 'Blocked',
+          publicHandle: 'blocked',
+        },
+      },
+      effects: {
+        viewerToTargetFollowRemoved: true,
+        targetToViewerFollowRemoved: true,
+        refollowBlocked: true,
+        feedHiddenForViewer: true,
+        commentsHiddenForViewer: true,
+        premiumChatBlockedBeforeWallet: true,
+        supportBlockedBeforeWallet: true,
+      },
+      policy: {
+        relationship: 'user_block',
+        walletMutation: false,
+        luminaMutation: false,
+        paymentMutation: false,
+        refundMutation: false,
+        settlementMutation: false,
+      },
+    });
+    expect(result.block.user).not.toHaveProperty('email');
+  });
+});
 
 describe('CommunityService Lumina Feed post edit/delete contract', () => {
   beforeEach(() => {

@@ -185,8 +185,13 @@ export class CommunityController {
   }
 
   @Get('lumina-feed/posts/:postId/replies')
-  getReplies(@Param('postId') postId: string, @Query() query: CommunityQuery) {
-    return this.communityService.getReplies(postId, query);
+  @UseGuards(OptionalJwtAuthGuard)
+  getReplies(
+    @Param('postId') postId: string,
+    @Query() query: CommunityQuery,
+    @Req() request: RequestWithOptionalAuth,
+  ) {
+    return this.communityService.getReplies(postId, query, request.user?.id);
   }
 
   @Post('lumina-feed/posts/:postId/replies')
@@ -384,6 +389,12 @@ export class CommunityController {
   @UseGuards(JwtAuthGuard)
   getMyFollowers(@CurrentUser() user: AuthUser, @Query() query: CommunityQuery) {
     return this.communityService.getMyFollowers(user.id, query);
+  }
+
+  @Delete('me/followers/:userId')
+  @UseGuards(JwtAuthGuard)
+  removeFollower(@CurrentUser() user: AuthUser, @Param('userId') userId: string) {
+    return this.communityService.removeFollower(user.id, userId);
   }
 
   @Get('me/hidden-posts')

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
 import { FanLettersService } from '../fan-letters/fan-letters.service';
 import { GiftsService } from '../gifts/gifts.service';
@@ -50,6 +50,9 @@ function basePrismaMock() {
     },
     premiumVideoProduct: {
       findFirst: jest.fn(),
+    },
+    userBlock: {
+      findFirst: jest.fn().mockResolvedValue(null),
     },
     $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
   };
@@ -336,6 +339,39 @@ describe('paid wallet action idempotency safety', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('blocks user gift transfers between blocked users before wallet lookup', async () => {
+    const { prisma, tx } = basePrismaMock();
+    const service = new UserGiftsService(prisma as never);
+    prisma.userBlock.findFirst.mockResolvedValue({ id: 'block-row' });
+
+    await expect(
+      service.createTransfer(userId, {
+        recipientUserId,
+        amountLumina: '10',
+        idempotencyKey: 'user-gift-blocked',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'USER_GIFT_BLOCKED',
+        messageKey: 'social.gift.blocked',
+        walletMutation: false,
+        luminaMutation: false,
+        paymentMutation: false,
+        settlementMutation: false,
+      },
+    });
+    await expect(
+      service.createTransfer(userId, {
+        recipientUserId,
+        amountLumina: '10',
+        idempotencyKey: 'user-gift-blocked',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(tx.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(tx.walletAccount.updateMany).not.toHaveBeenCalled();
   });
 
   it('rejects user gift key reuse with a different body before debit', async () => {

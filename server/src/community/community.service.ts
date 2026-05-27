@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -1030,21 +1031,25 @@ export class CommunityService {
     };
   }
 
-  async getReplies(postId: string, query: CommunityQuery) {
+  async getReplies(postId: string, query: CommunityQuery, viewerUserId?: string) {
     await this.findVisiblePost(postId);
+    const blockedUserIds = viewerUserId
+      ? await this.getBlockedRelationshipUserIds(viewerUserId)
+      : [];
 
     const replies = await this.prisma.communityReply.findMany({
       where: {
         postId,
         status: 'published',
         deletedAt: null,
+        authorUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
       },
       take: this.take(query.take),
       include: this.replyInclude(),
       orderBy: { createdAt: 'asc' },
     });
 
-    return replies.map((reply) => this.toReplyView(reply));
+    return replies.map((reply) => this.toReplyView(reply, viewerUserId));
   }
 
   async createReply(userId: string, postId: string, input: CommunityBody) {
@@ -1365,15 +1370,24 @@ export class CommunityService {
 
   async followUser(followerUserId: string, followingUserId: string) {
     if (!UUID_PATTERN.test(followingUserId)) {
-      throw new BadRequestException('userId must be a UUID');
+      throw this.socialBadRequest(
+        'INVALID_USER_ID',
+        'social.user.invalidId',
+        'userId must be a UUID',
+      );
     }
 
     if (followerUserId === followingUserId) {
-      throw new BadRequestException('Cannot follow yourself');
+      throw this.socialConflict(
+        'SELF_FOLLOW_NOT_ALLOWED',
+        'social.follow.selfNotAllowed',
+        'Cannot follow yourself',
+      );
     }
 
     await this.assertActiveUser(followerUserId);
     await this.assertActiveUser(followingUserId);
+    await this.assertNoActiveUserBlock(followerUserId, followingUserId);
 
     const existing = await this.prisma.userFollow.findUnique({
       where: {
@@ -1430,7 +1444,11 @@ export class CommunityService {
 
   async unfollowUser(followerUserId: string, followingUserId: string) {
     if (!UUID_PATTERN.test(followingUserId)) {
-      throw new BadRequestException('userId must be a UUID');
+      throw this.socialBadRequest(
+        'INVALID_USER_ID',
+        'social.user.invalidId',
+        'userId must be a UUID',
+      );
     }
 
     await this.prisma.userFollow.updateMany({
@@ -1467,18 +1485,26 @@ export class CommunityService {
 
   async blockUser(blockerUserId: string, blockedUserId: string, input: CommunityBody = {}) {
     if (!UUID_PATTERN.test(blockedUserId)) {
-      throw new BadRequestException('userId must be a UUID');
+      throw this.socialBadRequest(
+        'INVALID_USER_ID',
+        'social.user.invalidId',
+        'userId must be a UUID',
+      );
     }
 
     if (blockerUserId === blockedUserId) {
-      throw new BadRequestException('Cannot block yourself');
+      throw this.socialConflict(
+        'SELF_BLOCK_NOT_ALLOWED',
+        'social.block.selfNotAllowed',
+        'Cannot block yourself',
+      );
     }
 
     const reason = this.optionalText(input, 'reason', 200);
     await this.assertActiveUser(blockerUserId);
     await this.assertActiveUser(blockedUserId);
 
-    const block = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const created = await tx.userBlock.upsert({
         where: {
           blockerUserId_blockedUserId: {
@@ -1500,12 +1526,22 @@ export class CommunityService {
         include: this.userBlockInclude(),
       });
 
-      await tx.userFollow.updateMany({
+      const viewerToTargetFollow = await tx.userFollow.updateMany({
         where: {
-          OR: [
-            { followerUserId: blockerUserId, followingUserId: blockedUserId },
-            { followerUserId: blockedUserId, followingUserId: blockerUserId },
-          ],
+          followerUserId: blockerUserId,
+          followingUserId: blockedUserId,
+          status: 'active',
+        },
+        data: {
+          status: 'deleted',
+          deletedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+      const targetToViewerFollow = await tx.userFollow.updateMany({
+        where: {
+          followerUserId: blockedUserId,
+          followingUserId: blockerUserId,
           status: 'active',
         },
         data: {
@@ -1515,10 +1551,26 @@ export class CommunityService {
         },
       });
 
-      return created;
+      return {
+        block: created,
+        viewerToTargetFollowRemoved: viewerToTargetFollow.count > 0,
+        targetToViewerFollowRemoved: targetToViewerFollow.count > 0,
+      };
     });
 
-    return { block: await this.toUserBlockView(block) };
+    return {
+      block: await this.toUserBlockView(result.block),
+      effects: {
+        viewerToTargetFollowRemoved: result.viewerToTargetFollowRemoved,
+        targetToViewerFollowRemoved: result.targetToViewerFollowRemoved,
+        refollowBlocked: true,
+        feedHiddenForViewer: true,
+        commentsHiddenForViewer: true,
+        premiumChatBlockedBeforeWallet: true,
+        supportBlockedBeforeWallet: true,
+      },
+      policy: this.userBlockPolicy(),
+    };
   }
 
   async blockUserByHandle(
@@ -1533,7 +1585,11 @@ export class CommunityService {
 
   async unblockUser(blockerUserId: string, blockedUserId: string) {
     if (!UUID_PATTERN.test(blockedUserId)) {
-      throw new BadRequestException('userId must be a UUID');
+      throw this.socialBadRequest(
+        'INVALID_USER_ID',
+        'social.user.invalidId',
+        'userId must be a UUID',
+      );
     }
 
     await this.prisma.userBlock.updateMany({
@@ -1827,7 +1883,11 @@ export class CommunityService {
     });
 
     if (block) {
-      throw new ForbiddenException('User profile is not available');
+      throw this.socialForbidden(
+        'USER_PROFILE_BLOCKED',
+        'social.profile.blocked',
+        'User profile is not available',
+      );
     }
   }
 
@@ -1966,6 +2026,65 @@ export class CommunityService {
     );
 
     return this.userFollowListResponse(items, follows, total, take);
+  }
+
+  async removeFollower(userId: string, followerUserId: string) {
+    if (!UUID_PATTERN.test(followerUserId)) {
+      throw this.socialBadRequest(
+        'INVALID_USER_ID',
+        'social.user.invalidId',
+        'userId must be a UUID',
+      );
+    }
+
+    if (userId === followerUserId) {
+      throw this.socialConflict(
+        'SELF_FOLLOW_NOT_ALLOWED',
+        'social.follow.selfNotAllowed',
+        'Cannot remove yourself as follower',
+      );
+    }
+
+    await this.assertActiveUser(userId);
+    await this.assertActiveUser(followerUserId);
+
+    const removed = await this.prisma.userFollow.updateMany({
+      where: {
+        followerUserId,
+        followingUserId: userId,
+        status: 'active',
+      },
+      data: {
+        status: 'deleted',
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      ok: true,
+      removed: removed.count > 0,
+      user: await this.publicUserSummary(followerUserId),
+      stats: await this.userFollowStats(userId),
+      viewer: {
+        isAuthenticated: true,
+        isSelf: false,
+        isFollowing: false,
+        canFollow: true,
+        canUnfollow: false,
+      },
+      policy: {
+        blockCreated: false,
+        refollowAllowed: true,
+        walletMutation: false,
+        luminaMutation: false,
+        paymentMutation: false,
+        refundMutation: false,
+        payoutMutation: false,
+        settlementMutation: false,
+        revenueSharingMutation: false,
+      },
+    };
   }
 
   async getMyHiddenPosts(userId: string, query: CommunityQuery) {
@@ -2541,7 +2660,6 @@ export class CommunityService {
       blocked: {
         select: {
           id: true,
-          email: true,
           status: true,
           profile: {
             select: {
@@ -2567,7 +2685,33 @@ export class CommunityService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw this.socialNotFound(
+        'USER_NOT_FOUND',
+        'social.user.notFound',
+        'User not found',
+      );
+    }
+  }
+
+  private async assertNoActiveUserBlock(firstUserId: string, secondUserId: string) {
+    const block = await this.prisma.userBlock.findFirst({
+      where: {
+        status: 'active',
+        deletedAt: null,
+        OR: [
+          { blockerUserId: firstUserId, blockedUserId: secondUserId },
+          { blockerUserId: secondUserId, blockedUserId: firstUserId },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (block) {
+      throw this.socialForbidden(
+        'USER_FOLLOW_BLOCKED',
+        'social.follow.blocked',
+        'User follow is blocked',
+      );
     }
   }
 
@@ -2662,7 +2806,11 @@ export class CommunityService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw this.socialNotFound(
+        'USER_NOT_FOUND',
+        'social.user.notFound',
+        'User not found',
+      );
     }
 
     return this.toCompactUserView(user);
@@ -2740,7 +2888,11 @@ export class CommunityService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw this.socialNotFound(
+        'USER_NOT_FOUND',
+        'social.user.notFound',
+        'User not found',
+      );
     }
 
     return user.id;
@@ -2750,7 +2902,11 @@ export class CommunityService {
     const normalizedHandle = publicHandle.trim();
 
     if (!normalizedHandle || normalizedHandle.length > 80) {
-      throw new BadRequestException('publicHandle is invalid');
+      throw this.socialBadRequest(
+        'INVALID_PUBLIC_HANDLE',
+        'social.profile.invalidHandle',
+        'publicHandle is invalid',
+      );
     }
 
     return normalizedHandle;
@@ -4210,6 +4366,36 @@ export class CommunityService {
 
   private stringFromUnknown(value: unknown) {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  }
+
+  private userBlockPolicy() {
+    return {
+      relationship: 'user_block',
+      scope: 'viewer_target_pair',
+      walletMutation: false,
+      luminaMutation: false,
+      paymentMutation: false,
+      refundMutation: false,
+      payoutMutation: false,
+      settlementMutation: false,
+      revenueSharingMutation: false,
+    };
+  }
+
+  private socialBadRequest(code: string, messageKey: string, message: string) {
+    return new BadRequestException({ code, message, messageKey });
+  }
+
+  private socialConflict(code: string, messageKey: string, message: string) {
+    return new ConflictException({ code, message, messageKey });
+  }
+
+  private socialForbidden(code: string, messageKey: string, message: string) {
+    return new ForbiddenException({ code, message, messageKey });
+  }
+
+  private socialNotFound(code: string, messageKey: string, message: string) {
+    return new NotFoundException({ code, message, messageKey });
   }
 
   private isUniqueConstraint(error: unknown) {
