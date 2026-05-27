@@ -1,4 +1,6 @@
 import {
+  PREMIUM_CHAT_ADMIN_REFUND_STATE_KEYS,
+  PREMIUM_CHAT_ADMIN_REPORT_REFUND_QUERY_STATUS_KEYS,
   isPremiumChatRoomMutationBlocked,
   PREMIUM_CHAT_BILLING_LEDGER_EVENT_NAMES,
   PREMIUM_CHAT_LEDGER_TRACE_FIELDS,
@@ -7,6 +9,7 @@ import {
   PREMIUM_CHAT_REPORT_REVIEW_REASON_KEYS,
   PREMIUM_CHAT_REPORT_REVIEW_STATUS_KEYS,
   PREMIUM_CHAT_REFUND_REASON_KEYS,
+  PREMIUM_CHAT_ROOM_STATUS_READ_KEYS,
   PREMIUM_CHAT_ROOM_LIFECYCLE_PROJECTION_STATUS_KEYS,
   premiumChatRoomAllowedTierKeysForServerUnlocks,
   premiumChatRoomAccessForRole,
@@ -950,6 +953,135 @@ describe('premium chat room refund and moderation ledger contract', () => {
       rawReportReasonReturned: false,
       rawAdminNoteReturned: false,
       tokenCookieSecretDbUrlLogged: false,
+    });
+  });
+
+  it('defines admin report and refund read-only list/detail projections', () => {
+    const adminReadOnly = PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.adminReadOnly;
+
+    expect(PREMIUM_CHAT_ADMIN_REPORT_REFUND_QUERY_STATUS_KEYS).toEqual([
+      'reported',
+      'blinded',
+      'suspended',
+      'admin_review',
+      'refund_pending',
+      'refund_limited_70',
+      'refund_limited_50',
+      'refunded',
+      'closed_by_artist',
+      'closed_by_operator',
+    ]);
+    expect(PREMIUM_CHAT_ADMIN_REFUND_STATE_KEYS).toEqual([
+      'none',
+      'not_eligible',
+      'pending',
+      'refund_limited_70',
+      'refund_limited_50',
+      'refunded',
+      'admin_review',
+    ]);
+    expect(adminReadOnly).toMatchObject({
+      version: '2026-05-27.premium-chat-admin-report-refund-readonly.v1',
+      status: 'planned_disabled',
+      readOnly: true,
+      enabled: false,
+      authRequired: true,
+      adminOnly: true,
+      permissionKeys: ['payments:read', 'community:read'],
+      writePermissionRequiredForMutationOnly: 'refunds:write',
+      endpoints: {
+        list: {
+          method: 'GET',
+          path: '/admin/api/v1/backstage/premium-chat/report-refund-rooms',
+          enabled: false,
+          walletMutation: false,
+          refundMutation: false,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+        detail: {
+          method: 'GET',
+          pathTemplate:
+            '/admin/api/v1/backstage/premium-chat/report-refund-rooms/:roomId',
+          enabled: false,
+          walletMutation: false,
+          refundMutation: false,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+      },
+      listProjection: {
+        projection: 'premiumRoomAdminReportRefundListItem',
+        statusLabelKeyRequired: true,
+        reportReasonKeyReturned: true,
+        refundPolicyKeyReturned: true,
+        rawStatusAsCopy: false,
+        rawReportReasonReturned: false,
+        rawChatBodyReturned: false,
+        internalAdminNoteReturned: false,
+        personalContactReturned: false,
+      },
+      detailProjection: {
+        projection: 'premiumRoomAdminReportRefundDetail',
+        actionAvailability: {
+          operatorCloseMutationEnabled: false,
+          refundCreditMutationEnabled: false,
+          walletDebitMutationEnabled: false,
+          settlementMutationEnabled: false,
+          payoutMutationEnabled: false,
+        },
+      },
+      privacy: {
+        rawChatBodyReturned: false,
+        chatMessagePreviewMode: 'redacted_or_safe_hash_only',
+        rawReportBodyReturned: false,
+        rawReportReasonReturned: false,
+        rawReporterUserIdReturned: false,
+        userEmailReturned: false,
+        userPhoneReturned: false,
+        internalAdminNoteReturned: false,
+        rawWalletLedgerIdReturned: false,
+        providerRefundIdReturned: false,
+        tokenCookieSecretDbUrlLogged: false,
+      },
+      noMutation: {
+        roomStatusChange: true,
+        reportStateChange: true,
+        refundDecision: true,
+        walletCredit: true,
+        walletDebit: true,
+        pgRefund: true,
+        accountingLedger: true,
+        settlement: true,
+        payout: true,
+      },
+    });
+    expect(adminReadOnly.statusKeys).toMatchObject({
+      room: PREMIUM_CHAT_ROOM_STATUS_READ_KEYS,
+      reportReview: PREMIUM_CHAT_REPORT_REVIEW_STATUS_KEYS,
+      reportReason: PREMIUM_CHAT_REPORT_REVIEW_REASON_KEYS,
+      refund: PREMIUM_CHAT_ADMIN_REFUND_STATE_KEYS,
+      query: PREMIUM_CHAT_ADMIN_REPORT_REFUND_QUERY_STATUS_KEYS,
+    });
+    expect(adminReadOnly.detailProjection.refundRestrictionMetadata).toMatchObject({
+      userFault70: {
+        statusKey: 'refund_limited_70',
+        refundReasonKey: 'user_fault_report_refund_70',
+        userRefundRatePercent: 70,
+        artistCompensationRatePercent: 10,
+        artistCompensationBps: 1000,
+        displayToAdminReadOnly: true,
+        walletCreditMutation: false,
+      },
+      userFault50: {
+        statusKey: 'refund_limited_50',
+        refundReasonKey: 'operator_sanction_user_fault_refund_50',
+        userRefundRatePercent: 50,
+        artistCompensationRatePercent: 10,
+        artistCompensationBps: 1000,
+        displayToAdminReadOnly: true,
+        walletCreditMutation: false,
+      },
     });
   });
 

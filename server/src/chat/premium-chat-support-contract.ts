@@ -1942,6 +1942,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     },
   },
   reportRefundApi: PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi,
+  adminReportRefundReadOnly:
+    PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.adminReadOnly,
   rankings: {
     like: {
       path: '/api/v1/boost-campaigns/:campaignId/rankings',
