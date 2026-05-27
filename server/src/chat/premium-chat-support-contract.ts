@@ -480,6 +480,17 @@ export const PREMIUM_CHAT_LIVE_QA_FIXTURE_READINESS = {
     mode: 'read_model_only',
     writePathEnabled: false,
   },
+  preparation: {
+    script: 'npm run qa:premium-chat-live-fixtures',
+    runbook: 'docs/ops/premium-chat-live-qa-fixture-session-534.md',
+    modes: ['dry-run', 'prepare', 'verify', 'cleanup'],
+    createsOnlyTaggedPremiumRoomRows: true,
+    createsUsers: false,
+    createsArtists: false,
+    createsWalletRows: false,
+    createsReportRows: false,
+    createsRefundRows: false,
+  },
   currentBlockers: [
     'safe_login_or_session_fixture_missing',
     'qa_fixture_rows_not_prepared',

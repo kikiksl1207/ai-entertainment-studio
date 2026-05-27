@@ -58,6 +58,8 @@ const PREMIUM_ROOM_READ_STATUSES = [
   'refunded',
   'closed',
   'artist_closed',
+  'closed_by_artist',
+  'closed_by_operator',
   'expired',
 ] as const;
 const PREMIUM_ROOM_SAFE_STATUS_ONLY_STATUSES = [
@@ -72,6 +74,8 @@ const PREMIUM_ROOM_ARCHIVE_STATUSES = [
   'refunded',
   'closed',
   'artist_closed',
+  'closed_by_artist',
+  'closed_by_operator',
   'expired',
 ] as const;
 const PREMIUM_ROOM_NEAR_EXPIRY_WINDOW_MS = 24 * 60 * 60 * 1000;

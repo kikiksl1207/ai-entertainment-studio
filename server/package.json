@@ -20,6 +20,7 @@
     "qa:auth-access-self-check": "node scripts/verify-auth-qa-access-self-check.mjs",
     "qa:chat-conversation-list": "node scripts/verify-chat-conversation-list-fixture.mjs",
     "qa:chat-archive-fixture": "node scripts/prepare-chat-archive-conversation-fixture.mjs",
+    "qa:premium-chat-live-fixtures": "node scripts/prepare-premium-chat-live-qa-fixtures.mjs",
     "render:start": "npm run prisma:deploy && npm run start:prod",
     "render:start:seed": "npm run prisma:deploy && npm run prisma:seed:fast && npm run start:prod",
     "verify:object-storage": "node scripts/verify-object-storage-upload.mjs",

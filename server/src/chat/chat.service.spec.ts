@@ -213,6 +213,38 @@ describe('ChatService premium room read storage endpoints', () => {
     });
     expect(JSON.stringify(result)).not.toMatch(/ownerUserId|email|phone/);
   });
+
+  it('preserves closed-by-artist fixture status as a safe archive projection', async () => {
+    const { prisma, service } = premiumRoomReadServiceWith();
+    prisma.premiumChatRoom.findFirst.mockResolvedValue(
+      premiumRoomFixture({
+        status: 'closed_by_artist',
+        closedAt: premiumRoomNow,
+      }),
+    );
+
+    const result = await service.getMyPremiumRoomStatus(
+      premiumRoomOwnerUserId,
+      premiumRoomId,
+    );
+
+    expect(result).toMatchObject({
+      premiumRoomStatus: {
+        roomStatus: 'closed_by_artist',
+        readMode: 'safe_archive',
+      },
+      premiumRoomMutationAvailability: {
+        canSendMessage: false,
+        canArtistReply: false,
+        canDonate: false,
+        walletMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+    });
+    expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+  });
 });
 
 describe('ChatService.getStarterPrompts', () => {
@@ -5424,6 +5456,17 @@ describe('ChatService premium chat support contract', () => {
         'safe_login_or_session_fixture_missing',
         'qa_fixture_rows_not_prepared',
       ],
+      preparation: {
+        script: 'npm run qa:premium-chat-live-fixtures',
+        runbook: 'docs/ops/premium-chat-live-qa-fixture-session-534.md',
+        modes: ['dry-run', 'prepare', 'verify', 'cleanup'],
+        createsOnlyTaggedPremiumRoomRows: true,
+        createsUsers: false,
+        createsArtists: false,
+        createsWalletRows: false,
+        createsReportRows: false,
+        createsRefundRows: false,
+      },
       fixtureCreationPolicy: {
         actualPaymentMutation: false,
         supportDonationMutation: false,

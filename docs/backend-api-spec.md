@@ -1478,6 +1478,13 @@ Authorization: Bearer <accessToken> # status endpoints only
   staging data. Do not request or record raw password, token, cookie, email,
   direct DB URL, object URL, payment id, wallet ledger id, settlement id, or
   payout id in Notion or docs.
+- #534 provides the guarded fixture procedure in
+  `docs/ops/premium-chat-live-qa-fixture-session-534.md` and
+  `npm run qa:premium-chat-live-fixtures`. The script supports `dry-run`,
+  `prepare`, `verify`, and `cleanup` modes, creates only tagged
+  `premium_chat_rooms` read-model rows, and never creates users, artists,
+  artist operators, wallet rows, reports, refunds, settlement rows, payout rows,
+  or chat messages.
 - Until a later mutation PR exists, QA may verify only read projections and
   matrix visibility. Any attempt to use this storage as a payment/support/
   wallet/report/refund/settlement/payout mutation path must fail closed.
