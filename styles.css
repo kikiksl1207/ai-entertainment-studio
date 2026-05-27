@@ -5140,6 +5140,11 @@ p {
   border-color: rgba(255, 20, 147, 0.38);
 }
 
+/* 팬 카드: 연보라 좌측 강조선 (#541 — 아티스트/데뷔 카드와 통일감 있는 3종 구분) */
+.feed-post[data-feed-type="fan_post"] {
+  border-left: 2.5px solid rgba(159, 139, 199, 0.38);
+}
+
 /* 데뷔 준비 카드: 골드 좌측 강조선 + 따뜻한 배경 */
 .feed-post[data-feed-type="debut_artist_post"] {
   border-left: 2.5px solid rgba(255, 180, 80, 0.55);
