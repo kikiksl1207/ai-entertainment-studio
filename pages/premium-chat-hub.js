@@ -112,16 +112,24 @@
         : "";
       var lastMessage = escapeHtml(room.updatedAt || "");
 
-      // #479 — 방 상세: 남은 기간 · 미답변 · 상태 배지
+      // #518 — 방 상태별 UX 보강: 만료 임박 urgency / blocked 진입 차단 / per-room 후원 잠금
+      var isBlocked = room.roomStatus === "blocked" || room.roomStatus === "under_review";
+      var isExpiringSoon = room.remainingDays != null && room.remainingDays <= 3;
+
+      // 상태 배지 목록
       var detailParts = [];
       if (room.remainingDays != null) {
-        detailParts.push('<span class="premium-chat-hub-room-remaining">' + room.remainingDays + '일 남음</span>');
+        var remainingCls = "premium-chat-hub-room-remaining" + (isExpiringSoon ? " is-expiring" : "");
+        var remainingLabel = isExpiringSoon
+          ? room.remainingDays + "일 남음 · 만료 임박"
+          : room.remainingDays + "일 남음";
+        detailParts.push('<span class="' + remainingCls + '">' + remainingLabel + '</span>');
       }
       if (room.unanswered) {
         detailParts.push('<span class="premium-chat-hub-room-unanswered">24시간 답변 대기 중</span>');
       }
-      if (room.roomStatus === "blocked" || room.roomStatus === "under_review") {
-        detailParts.push('<span class="premium-chat-hub-room-status is-blocked">신고·운영 검토 중</span>');
+      if (isBlocked) {
+        detailParts.push('<span class="premium-chat-hub-room-status is-blocked">신고·운영 검토 중 · 입장 일시 중단</span>');
       } else if (room.roomStatus === "refund_review") {
         detailParts.push('<span class="premium-chat-hub-room-status is-refund">환불 검토 중</span>');
       }
@@ -129,23 +137,29 @@
         ? '<span class="premium-chat-hub-room-detail">' + detailParts.join("") + '</span>'
         : "";
 
-      // #479 — 후원 버튼 (방 목록 아이템)
-      var donateBtnLabel = mutationOpen ? "후원하기" : "후원 안내 예정";
-      var donateBtnDisabled = mutationOpen ? "" : ' aria-disabled="true" tabindex="-1"';
-      var donateBtnCls = "premium-chat-hub-room-donate-btn" + (mutationOpen ? "" : " is-locked");
+      // #518 — 후원 버튼: 전역 잠금(mutationOpen) + per-room 차단(blocked) 모두 확인
+      var donateDisabled = !mutationOpen || isBlocked;
+      var donateBtnLabel = isBlocked ? "후원 일시 중단" : (mutationOpen ? "후원하기" : "후원 안내 예정");
+      var donateBtnDisabled = donateDisabled ? ' aria-disabled="true" tabindex="-1"' : "";
+      var donateBtnCls = "premium-chat-hub-room-donate-btn" + (donateDisabled ? " is-locked" : "");
+
+      // #518 — blocked 방은 채팅 진입 링크를 비활성 span으로 교체 (AI챗 오연결 방지 연장)
+      var roomBodyHtml =
+        '<span class="premium-chat-hub-room-avatar" aria-hidden="true" ' + avatarStyle + '></span>' +
+        '<span class="premium-chat-hub-room-body">' +
+          '<strong>' + name + '</strong>' +
+          (summary ? '<span class="premium-chat-hub-room-summary">' + summary + '</span>' : "") +
+          detailHtml +
+          (lastMessage ? '<span class="premium-chat-hub-room-time">' + lastMessage + '</span>' : "") +
+        '</span>' +
+        '<span class="premium-chat-hub-room-badge ' + statusClass + '">' + statusLabel + '</span>';
+      var roomMainHtml = isBlocked
+        ? '<span class="premium-chat-hub-room-main is-blocked" aria-label="' + name + ' 채팅방 — 현재 검토 중">' + roomBodyHtml + '</span>'
+        : '<a class="premium-chat-hub-room-main" href="' + chatHref + '" aria-label="' + name + ' 채팅방 열기">' + roomBodyHtml + '</a>';
 
       return (
-        '<li class="premium-chat-hub-room">' +
-          '<a class="premium-chat-hub-room-main" href="' + chatHref + '" aria-label="' + name + ' 채팅방 열기">' +
-            '<span class="premium-chat-hub-room-avatar" aria-hidden="true" ' + avatarStyle + '></span>' +
-            '<span class="premium-chat-hub-room-body">' +
-              '<strong>' + name + '</strong>' +
-              (summary ? '<span class="premium-chat-hub-room-summary">' + summary + '</span>' : "") +
-              detailHtml +
-              (lastMessage ? '<span class="premium-chat-hub-room-time">' + lastMessage + '</span>' : "") +
-            '</span>' +
-            '<span class="premium-chat-hub-room-badge ' + statusClass + '">' + statusLabel + '</span>' +
-          '</a>' +
+        '<li class="premium-chat-hub-room' + (isBlocked ? " is-blocked" : "") + (isExpiringSoon ? " is-expiring" : "") + '">' +
+          roomMainHtml +
           '<div class="premium-chat-hub-room-actions">' +
             '<a class="premium-chat-hub-room-profile" href="' + profileHref + '">프로필 보기</a>' +
             '<button type="button" class="' + donateBtnCls + '" data-room-donate="' + escapeHtml(slug) + '"' + donateBtnDisabled + '>' + donateBtnLabel + '</button>' +

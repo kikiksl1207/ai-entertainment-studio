@@ -1831,6 +1831,13 @@ select.dm-field-input option {
 }
 .premium-chat-hub-room-status.is-blocked { color: #f87171; background: rgba(248, 113, 113, 0.13); }
 .premium-chat-hub-room-status.is-refund  { color: #fb923c; background: rgba(251, 146, 60, 0.13); }
+/* #518 — 만료 임박(≤3일): amber urgency */
+.premium-chat-hub-room-remaining.is-expiring { color: #fb923c; font-weight: 700; }
+/* #518 — 방 카드 blocked 상태: 어둡게 + 클릭 없음 */
+.premium-chat-hub-room.is-blocked { opacity: 0.72; }
+.premium-chat-hub-room-main.is-blocked { cursor: default; pointer-events: none; }
+/* #518 — 방 카드 만료 임박: 좌측 amber border */
+.premium-chat-hub-room.is-expiring { border-left: 2px solid rgba(251, 146, 60, 0.55); }
 
 /* #479 — 방 목록 액션 행: 프로필 보기 + 후원 버튼 */
 .premium-chat-hub-room-actions {
