@@ -1,6 +1,73 @@
 # Team2 QA Inbox
 
 status: fail
+task: #530 - follower/block and Oh Hyerin live regression QA
+environment:
+- branch: team2-qa/530-live-qa
+- `git pull origin main`: fast-forwarded to `6adf2c1`.
+- local basis commit: 6adf2c13cbc4ee06aa9d2d1764c4e1e47dd16e93
+- live API health: HTTP 200, commit 6adf2c13cbc4ee06aa9d2d1764c4e1e47dd16e93
+- live pages:
+  - https://www.lumina-stage.com/lumina-pick
+  - https://www.lumina-stage.com/characters
+  - https://www.lumina-stage.com/character-detail?slug=oh-hyerin
+  - https://www.lumina-stage.com/lumina-feed
+  - https://www.lumina-stage.com/user-profile?handle=user-5e717dd887e148428bdfa5b9d89aa70b
+- No token, cookie, password, env value, secret, signed URL, raw provider payload, raw response body, DB URL, raw credential, or raw email value was recorded.
+- No follow, unfollow, block, unblock, remove-follower, like, feed, payment, wallet, refund, or paid mutation was executed.
+
+tested_flows:
+- PASS: `git pull origin main` completed and live `/health` matches local basis `6adf2c13cbc4ee06aa9d2d1764c4e1e47dd16e93`.
+- PASS: `GET /api/v1/artists` returns 8 artists and includes `oh-hyerin`.
+- PASS: `GET /api/v1/artists/oh-hyerin` returns an active public artist detail with anonymous `viewer.isAuthenticated=false` and no follow permission.
+- PASS: live `/characters` shows an `oh-hyerin` detail link at 1280px, 768px, and 390px.
+- PASS: live `/character-detail?slug=oh-hyerin` renders the Oh Hyerin profile and links character chat to `/character-chat?slug=oh-hyerin` at 1280px, 768px, and 390px.
+- PASS: `GET /api/v1/boost-campaigns/current` returns active campaign `mvp-launch-main-pick`.
+- PASS: `GET /api/v1/boost-campaigns/:campaignId/rankings` returns 8 ranking rows and includes `oh-hyerin`.
+- PASS: unauthenticated `GET /api/v1/me/following`, `GET /api/v1/me/followers`, `GET /api/v1/me/blocked-users?take=20`, and `GET /api/v1/me/lumina-feed?mode=following&take=20` return HTTP 401.
+- PASS: public user profile `GET /api/v1/users/handle/:publicHandle/profile` returns follower/following stats without an email field.
+- PASS: clicking the visible follower stat on the public user profile opens the follower/following modal without executing block/follow mutation; non-self block action is not visible.
+- PASS: visible live pages had no replacement-character mojibake and no horizontal overflow at 1280px, 768px, and 390px.
+- PASS: `node --check pages/user-profile.js`.
+- PASS: `node --check pages/lumina-feed.js`.
+- PASS: `node --check pages/popular-vote.js`.
+- PASS: `node --check pages/character-detail.js`.
+- PASS: `node --check pages/character-catalog.js`.
+- PASS: `npm.cmd test -- community.service.spec.ts popular-vote.service.spec.ts chat.service.spec.ts --runInBand` passed 83 tests.
+- FAIL: live `/lumina-pick` does not render `oh-hyerin` text or link at 1280px, 768px, or 390px even though the boost rankings API includes `oh-hyerin`.
+- FAIL: public follow-list read endpoints return HTTP 404 for `GET /api/v1/users/handle/:publicHandle/followers`, `following-users`, `following-artists`, and UUID equivalents. The UI only shows a prepared-state message after opening the modal, so live public follow-list connectivity is not complete.
+- FAIL: public `GET /api/v1/lumina-feed?take=1` includes an `author.email` field in the JSON response. The visible UI does not render the email, but the public API response exposes a private author email field and must be treated as a blocker. The actual email value was not recorded.
+
+repro_steps:
+1. Start from `origin/main`, run `git pull origin main`, and confirm local/live basis `6adf2c13cbc4ee06aa9d2d1764c4e1e47dd16e93`.
+2. Open `https://www.lumina-stage.com/lumina-pick` at 1280px, 768px, and 390px.
+3. Search the rendered page text/links for `오혜린` or `oh-hyerin`.
+4. Call `GET /api/v1/boost-campaigns/current`, then `GET /api/v1/boost-campaigns/:campaignId/rankings`; compare API inclusion with the `/lumina-pick` UI.
+5. Call `GET /api/v1/artists` and `GET /api/v1/artists/oh-hyerin`.
+6. Open `/characters` and `/character-detail?slug=oh-hyerin`.
+7. Open a public user profile and click the follower stat; observe the prepared-state modal and no visible non-self block action.
+8. Call public follow-list endpoints for the same public handle/UUID.
+9. Call `GET /api/v1/lumina-feed?take=1` and inspect the response shape for private author fields without storing field values.
+
+expected:
+- Oh Hyerin should be present consistently on `/lumina-pick`, `GET /api/v1/artists`, and boost rankings.
+- Public follow-list UI should either connect to implemented read endpoints or clearly remain in a planned/prepared state matching backend status.
+- Public feed responses must not expose author email or other private user identifiers.
+
+actual:
+- Oh Hyerin is present in `GET /api/v1/artists`, the detail API, `/characters`, the detail page, and boost rankings, but missing from `/lumina-pick`.
+- Public follow-list profile UI opens, but the documented public read endpoints return 404 in live.
+- Public feed JSON exposes `author.email`; visible UI hides it, but the API response is still unsafe.
+
+blockers:
+- P1: `/lumina-pick` is stale or filtering out zero-score/low-rank Oh Hyerin rows despite API rankings inclusion.
+- P0/P1: public feed response leaks `author.email`; remove private author fields from public projection.
+- P1: public follow-list read endpoints are not live while the profile UI exposes follower/following list affordances.
+
+next_needed:
+- Return #530 to PM Chamo or the backend/frontend owners for public feed projection hardening, follow-list endpoint alignment, and `/lumina-pick` Oh Hyerin rendering fix.
+
+status: fail
 task: #436 - Artist URL knowledge integrated live re-QA after health alignment
 environment:
 - branch: team2-qa/436-live-reqa-health-aligned
