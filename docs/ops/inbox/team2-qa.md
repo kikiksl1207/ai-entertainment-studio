@@ -1,6 +1,40 @@
 # Team2 QA Inbox
 
 status: blocked
+task: #534 - premium chat live status matrix QA fourth recheck after secure fixture handoff
+environment:
+- branch: team2-qa/534-live-matrix-qa
+- `git pull origin main`: fast-forwarded main; QA worktree merged latest `origin/main`.
+- live API health: HTTP 200, commit a7c2927315124c8f4dbc1f0715f8cec2eacfcb12.
+- No token, cookie, password, env value, secret, signed URL, raw provider payload, raw response body, DB URL, raw credential, raw email, or private user id was recorded.
+- No fixture prepare/verify/cleanup against live DB, donation, room-open, wallet, refund, report, settlement, payout, payment, or paid mutation was executed.
+
+tested_flows:
+- PASS: Notion contains secure fixture prepare/verify PASS handoff for 7 buckets, so QR2 rechecked live read-only surfaces.
+- PASS: `GET /api/v1/chat/premium-rooms?status=active&take=20` returns HTTP 200/read-only with 2 active rows.
+- PASS: public active list contains the handoff baseline active bucket.
+- PASS: public active list contains the handoff near-expiry bucket and exposes the near-expiry flag.
+- PASS: public list contains no non-active statuses, matching the expectation that reported/admin-review/refund/closed/expired are not public active-list rows.
+- PASS: unauthenticated owner detail and artist/operator detail endpoint checks return HTTP 401.
+- PASS: current browser session is not an approved owner/operator session; raw session/token/cookie was not requested or inspected.
+- PASS: `npm.cmd run qa:premium-chat-live-fixtures` remains dry-run only with no DB connection/write.
+- PASS: `node --check server/scripts/prepare-premium-chat-live-qa-fixtures.mjs`.
+- PASS: `node --check server/src/chat/chat.service.ts`.
+- PASS: `node --check server/src/chat/chat.service.spec.ts`.
+- PASS: `node --check server/src/chat/premium-chat-support-contract.ts`.
+- PASS: `npm.cmd test -- premium-chat-room-contract.spec.ts premium-chat-rooms-read.controller.spec.ts chat.controller.spec.ts chat.service.spec.ts --runInBand` passed 83 tests.
+- BLOCKED: owner-only detail matrix cannot be verified without the approved owner QA session.
+- BLOCKED: artist/operator-only detail matrix cannot be verified without the approved artist/operator QA session.
+- BLOCKED: reported, admin review, unanswered refund candidate, closed, and expired buckets are prepared according to handoff but are not verifiable through public unauthenticated endpoints.
+
+actual:
+- Public active-list coverage is now partially PASS for baseline active and near-expiry buckets.
+- Full #534 matrix remains blocked at the private owner/operator detail layer.
+
+next_needed:
+- Return #534 to PM Chamo or secure QA session owner to provide approved owner/operator session access through the private channel, or have that owner run the owner/artist detail checks and hand back bucket-level PASS/FAIL only. Do not mark complete yet.
+
+status: blocked
 task: #534 - premium chat live status matrix QA recheck after latest main
 environment:
 - branch: team2-qa/534-live-matrix-qa
