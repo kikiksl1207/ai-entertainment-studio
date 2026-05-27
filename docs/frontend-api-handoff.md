@@ -3072,6 +3072,9 @@ User profile pages should use the handle route when possible:
 ```http
 GET /users/handle/:publicHandle/profile
 GET /users/handle/:publicHandle/lumina-feed?take=20&cursor=<postId>
+GET /users/handle/:publicHandle/followers?take=20&cursor=<followId>
+GET /users/handle/:publicHandle/following-users?take=20&cursor=<followId>
+GET /users/handle/:publicHandle/following-artists?take=20&cursor=<followId>
 Authorization: Bearer <accessToken>  // optional
 ```
 
@@ -3080,6 +3083,9 @@ UUID routes are also available:
 ```http
 GET /users/:userId/profile
 GET /users/:userId/lumina-feed?take=20&cursor=<postId>
+GET /users/:userId/followers?take=20&cursor=<followId>
+GET /users/:userId/following-users?take=20&cursor=<followId>
+GET /users/:userId/following-artists?take=20&cursor=<followId>
 Authorization: Bearer <accessToken>  // optional
 ```
 
@@ -3149,6 +3155,10 @@ Rules:
 - If logged in, pass Authorization so `viewer` can show self/follow state.
 - Use `viewer.isSelf` to show "profile edit" linking to My Page.
 - Public profile pages must never show email or private account data.
+- Public followers/following endpoints return read-only public projections.
+  `followers` and `following-users` rows expose `user`; `following-artists`
+  rows expose the compact public artist projection and the `artists` alias. They
+  must not be used as mutation endpoints.
 - Block relationship with the viewer returns `403 User profile is not available`.
 - User post list returns public, published, non-deleted posts only.
 - Cursor pagination uses the post `id` from the last item as `cursor`.

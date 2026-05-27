@@ -1840,7 +1840,11 @@ export class CommunityService {
     viewerUserId?: string,
   ) {
     if (!UUID_PATTERN.test(userId)) {
-      throw new BadRequestException('userId must be a UUID');
+      throw this.socialBadRequest(
+        'INVALID_USER_ID',
+        'social.user.invalidId',
+        'userId must be a UUID',
+      );
     }
 
     return this.getPublicUserFollowListByWhere(
@@ -1857,7 +1861,11 @@ export class CommunityService {
     viewerUserId?: string,
   ) {
     if (!UUID_PATTERN.test(userId)) {
-      throw new BadRequestException('userId must be a UUID');
+      throw this.socialBadRequest(
+        'INVALID_USER_ID',
+        'social.user.invalidId',
+        'userId must be a UUID',
+      );
     }
 
     return this.getPublicUserFollowListByWhere(
@@ -1898,6 +1906,40 @@ export class CommunityService {
     );
   }
 
+  async getPublicUserFollowingArtists(
+    userId: string,
+    query: CommunityQuery = {},
+    viewerUserId?: string,
+  ) {
+    if (!UUID_PATTERN.test(userId)) {
+      throw this.socialBadRequest(
+        'INVALID_USER_ID',
+        'social.user.invalidId',
+        'userId must be a UUID',
+      );
+    }
+
+    return this.getPublicUserFollowingArtistListByWhere(
+      { id: userId },
+      query,
+      viewerUserId,
+    );
+  }
+
+  async getPublicUserFollowingArtistsByHandle(
+    publicHandle: string,
+    query: CommunityQuery = {},
+    viewerUserId?: string,
+  ) {
+    const normalizedHandle = this.normalizePublicHandle(publicHandle);
+
+    return this.getPublicUserFollowingArtistListByWhere(
+      { profile: { is: { publicHandle: normalizedHandle } } },
+      query,
+      viewerUserId,
+    );
+  }
+
   private async getPublicUserFollowListByWhere(
     where: {
       id?: string;
@@ -1927,7 +1969,11 @@ export class CommunityService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw this.socialNotFound(
+        'USER_NOT_FOUND',
+        'social.user.notFound',
+        'User not found',
+      );
     }
 
     await this.assertProfileVisibleToViewer(user.id, viewerUserId);
@@ -1936,7 +1982,11 @@ export class CommunityService {
     const cursor = this.optionalString(query.cursor);
 
     if (cursor && !UUID_PATTERN.test(cursor)) {
-      throw new BadRequestException('cursor must be a follow UUID');
+      throw this.socialBadRequest(
+        'INVALID_CURSOR',
+        'social.followList.invalidCursor',
+        'cursor must be a follow UUID',
+      );
     }
 
     const direction = list === 'followers' ? 'follower' : 'following';
@@ -1996,6 +2046,110 @@ export class CommunityService {
           'walletLedger',
           'paymentOrders',
           'privateProfile',
+          'moderationNotes',
+        ],
+      },
+    };
+  }
+
+  private async getPublicUserFollowingArtistListByWhere(
+    where: {
+      id?: string;
+      profile?: { is: { publicHandle: string } };
+    },
+    query: CommunityQuery,
+    viewerUserId?: string,
+  ) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        ...where,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        profile: {
+          select: {
+            displayName: true,
+            publicHandle: true,
+            avatarAssetId: true,
+            coverAssetId: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw this.socialNotFound(
+        'USER_NOT_FOUND',
+        'social.user.notFound',
+        'User not found',
+      );
+    }
+
+    await this.assertProfileVisibleToViewer(user.id, viewerUserId);
+
+    const take = this.take(query.take);
+    const cursor = this.optionalString(query.cursor);
+
+    if (cursor && !UUID_PATTERN.test(cursor)) {
+      throw this.socialBadRequest(
+        'INVALID_CURSOR',
+        'social.followList.invalidCursor',
+        'cursor must be a follow UUID',
+      );
+    }
+
+    const followWhere = {
+      userId: user.id,
+      status: 'active',
+      deletedAt: null,
+      artist: { status: 'active' },
+    } satisfies Prisma.ArtistFollowWhereInput;
+
+    const [follows, total] = await Promise.all([
+      this.prisma.artistFollow.findMany({
+        where: followWhere,
+        include: this.followInclude(),
+        orderBy: { createdAt: 'desc' },
+        take,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.artistFollow.count({ where: followWhere }),
+    ]);
+    const items = await Promise.all(
+      follows.map((follow) => this.toArtistFollowView(follow)),
+    );
+
+    return {
+      items,
+      artists: items,
+      count: items.length,
+      total,
+      nextCursor: follows.length === take ? follows[follows.length - 1]?.id ?? null : null,
+      target: await this.toCompactUserView(user),
+      viewer: {
+        ...(await this.userProfileViewerState(user.id, viewerUserId)),
+        canViewList: true,
+      },
+      policy: {
+        projection: 'public_user_follow_summary_v1',
+        visibility: 'public_active_profiles_only',
+        list: 'following-artists',
+        hiddenArtistRule:
+          'Only active public artists are returned; draft, archived, deleted, or suspended artists are hidden from public follow cards.',
+        privateFieldsExcluded: [
+          'email',
+          'phone',
+          'providerIds',
+          'walletAccounts',
+          'walletLedger',
+          'paymentOrders',
+          'privateProfile',
+          'artistOwnership',
+          'operatorFields',
+          'settlement',
+          'payout',
           'moderationNotes',
         ],
       },

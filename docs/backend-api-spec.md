@@ -2395,7 +2395,7 @@ Authorization: Bearer <accessToken>
 - `userId` must be a user UUID and cannot equal the current user id.
 - `GET /api/v1/me/following` returns `{ artists, users }`.
 - `GET /api/v1/me/following-users?take=20&cursor=<followId>` and `GET /api/v1/me/followers?take=20&cursor=<followId>` return wrapped lists with `{ items, users, count, total, nextCursor }`. Cursor is the follow row id.
-- Public follow-list endpoints are planned as optional-auth reads for another active public user profile:
+- Public follow-list endpoints are optional-auth reads for another active public user profile:
   - `GET /api/v1/users/:userId/followers?take=20&cursor=<followId>`
   - `GET /api/v1/users/:userId/following-users?take=20&cursor=<followId>`
   - `GET /api/v1/users/:userId/following-artists?take=20&cursor=<followId>`
@@ -2468,16 +2468,16 @@ Authorization: Bearer <accessToken>
 }
 ```
 
-- `following-artists` rows replace `user` with the existing compact public artist projection and may also return `artists` as the list alias. It must not expose internal artist ownership, settlement, or operator fields.
-- Implementation status: public user follower/following-user routes are live for
+- `following-artists` rows replace `user` with the existing compact public artist projection and return `artists` as the list alias. They must not expose internal artist ownership, settlement, payout, or operator fields.
+- Implementation status: public follow-list routes are live for
   `GET /api/v1/users/:userId/followers`,
   `GET /api/v1/users/:userId/following-users`,
+  `GET /api/v1/users/:userId/following-artists`,
   `GET /api/v1/users/handle/:publicHandle/followers`, and
-  `GET /api/v1/users/handle/:publicHandle/following-users`. Public
-  `following-artists` routes remain contract-ready until the matching public
-  artist-follow list implementation is merged. Existing follow, unfollow, block,
-  unblock, remove-follower, public profile, and My Page follow-list routes are
-  live under the current addendum.
+  `GET /api/v1/users/handle/:publicHandle/following-users`,
+  `GET /api/v1/users/handle/:publicHandle/following-artists`. Existing follow,
+  unfollow, block, unblock, remove-follower, public profile, and My Page
+  follow-list routes are live under the current addendum.
 - Public follow-list endpoints accept optional bearer auth. Anonymous callers can read public active profiles; authenticated callers receive viewer hints and block filtering. If the viewer has an active block relationship with the target profile in either direction, the endpoint returns `403 USER_PROFILE_BLOCKED` with `messageKey: "social.profile.blocked"`.
 - Public follow-list item projection is limited to public profile fields: ids needed for routing, display name, public handle/slug, public avatar URL, follow row timestamps, and status. It must not expose email, social provider ids, phone, private bio metadata, wallet/Lumina balances, payment/refund/order rows, settlement/payout state, or admin/moderation notes.
 - `GET /api/v1/users/handle/:publicHandle/profile` is public and returns the same shape as `GET /api/v1/users/:userId/profile`, resolving by the unique `user_profiles.public_handle`.

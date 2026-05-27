@@ -141,7 +141,9 @@
     {
       name: "오혜린", publicName: "오혜린", slug: "oh-hyerin",
       gender: "female",
-      type: "아티스트", tier: "sub", status: "debut",
+      // #535 — status "debut" → "public": 백엔드 #526 live 반영에 맞춰 프론트 로컬 fallback 동기화.
+      // renderDebutRaceTab이 status === "public" 필터를 쓰므로 이전에는 응원 레이스에서 누락됐음.
+      type: "아티스트", tier: "sub", status: "public",
       role: "감성 메인보컬 / 음원 퀸",
       artistDescription: "맑고 깊은 목소리로 팬에게 조용한 위로를 건네는 Lumina Stage의 감성 메인보컬.",
       summary: "촉촉한 눈빛과 오래 남는 목소리로 조용한 위로를 건네는 감성 보컬.",
