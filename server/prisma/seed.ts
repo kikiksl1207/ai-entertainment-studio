@@ -438,6 +438,7 @@ const galleryDirsBySlug = {
   'yoon-serin': ['reference-final'],
   'han-seoyul': ['.'],
   'park-doa': ['reference-final'],
+  'oh-hyerin': ['site-selected'],
   'seo-yuan': ['.'],
   'choi-seojin': ['.'],
   'cha-dohyun': ['.'],
@@ -545,8 +546,8 @@ async function main() {
     const expectedStorageKeys = new Set<string>();
 
     for (const usageType of ['cover', 'thumb'] as const) {
-      const storageKey = `assets/characters/${artist.slug}/${usageType}.png`;
-      if (!assetStorageKeyExists(storageKey)) {
+      const storageKey = getPrimaryImageStorageKey(artist.slug, usageType);
+      if (!storageKey) {
         continue;
       }
 
@@ -1020,6 +1021,24 @@ function getGalleryImageKeys(slug: string) {
   }
 
   return keys;
+}
+
+function getPrimaryImageStorageKey(slug: string, usageType: 'cover' | 'thumb') {
+  const rootStorageKey = `assets/characters/${slug}/${usageType}.png`;
+  if (assetStorageKeyExists(rootStorageKey)) {
+    return rootStorageKey;
+  }
+
+  const dirs = galleryDirsBySlug[slug as keyof typeof galleryDirsBySlug] ?? [];
+  for (const dir of dirs) {
+    const storageDir = dir === '.' ? `assets/characters/${slug}` : `assets/characters/${slug}/${dir}`;
+    const storageKey = `${storageDir}/${usageType}.png`;
+    if (assetStorageKeyExists(storageKey)) {
+      return storageKey;
+    }
+  }
+
+  return null;
 }
 
 function assetStorageKeyExists(storageKey: string) {

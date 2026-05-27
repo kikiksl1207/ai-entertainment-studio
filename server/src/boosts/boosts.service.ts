@@ -397,19 +397,33 @@ export class BoostsService {
   }
 
   async getRankings(campaignId: string) {
-    const events = await this.prisma.artistBoostEvent.findMany({
-      where: { campaignId },
-      include: {
-        artist: {
-          select: {
-            id: true,
-            slug: true,
-            displayName: true,
+    const [events, activeArtists] = await Promise.all([
+      this.prisma.artistBoostEvent.findMany({
+        where: { campaignId },
+        include: {
+          artist: {
+            select: {
+              id: true,
+              slug: true,
+              displayName: true,
+            },
           },
         },
-      },
-    });
+      }),
+      this.prisma.artist.findMany({
+        where: { status: 'active' },
+        select: {
+          id: true,
+          slug: true,
+          displayName: true,
+        },
+        orderBy: [{ sortOrder: 'asc' }, { displayName: 'asc' }],
+      }),
+    ]);
 
+    const activeArtistOrder = new Map(
+      activeArtists.map((activeArtist, index) => [activeArtist.id, index]),
+    );
     const rows = new Map<
       string,
       {
@@ -420,6 +434,16 @@ export class BoostsService {
         totalWeightedScore: Decimal;
       }
     >();
+
+    for (const activeArtist of activeArtists) {
+      rows.set(activeArtist.id, {
+        artist: activeArtist,
+        totalFreeLikes: new Decimal(0),
+        totalPaidLikes: new Decimal(0),
+        totalLuminaBoosts: new Decimal(0),
+        totalWeightedScore: new Decimal(0),
+      });
+    }
 
     for (const event of events) {
       const row = rows.get(event.artistId) ?? {
@@ -444,7 +468,20 @@ export class BoostsService {
     }
 
     return [...rows.values()]
-      .sort((left, right) => right.totalWeightedScore.comparedTo(left.totalWeightedScore))
+      .sort((left, right) => {
+        const scoreOrder = right.totalWeightedScore.comparedTo(left.totalWeightedScore);
+        if (scoreOrder !== 0) {
+          return scoreOrder;
+        }
+
+        const leftOrder = activeArtistOrder.get(left.artist.id) ?? Number.MAX_SAFE_INTEGER;
+        const rightOrder = activeArtistOrder.get(right.artist.id) ?? Number.MAX_SAFE_INTEGER;
+        if (leftOrder !== rightOrder) {
+          return leftOrder - rightOrder;
+        }
+
+        return left.artist.displayName.localeCompare(right.artist.displayName, 'ko');
+      })
       .map((row, index) => ({
         rankNo: index + 1,
         ...row,
