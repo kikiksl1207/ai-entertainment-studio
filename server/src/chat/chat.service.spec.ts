@@ -178,6 +178,38 @@ describe('ChatService premium room read storage endpoints', () => {
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
   });
 
+  it('preserves paused-by-report fixture status as a safe status projection', async () => {
+    const { prisma, service } = premiumRoomReadServiceWith();
+    prisma.premiumChatRoom.findFirst.mockResolvedValue(
+      premiumRoomFixture({
+        status: 'paused_by_report',
+        reportedAt: premiumRoomNow,
+      }),
+    );
+
+    const result = await service.getMyPremiumRoomStatus(
+      premiumRoomOwnerUserId,
+      premiumRoomId,
+    );
+
+    expect(result).toMatchObject({
+      premiumRoomStatus: {
+        roomStatus: 'paused_by_report',
+        readMode: 'safe_status_only',
+      },
+      premiumRoomMutationAvailability: {
+        canSendMessage: false,
+        canArtistReply: false,
+        canDonate: false,
+        walletMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+    });
+    expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+  });
+
   it('allows artist operator status reads without returning private counterparty data', async () => {
     const { prisma, service } = premiumRoomReadServiceWith();
     prisma.premiumChatRoom.findFirst.mockResolvedValue(premiumRoomFixture());

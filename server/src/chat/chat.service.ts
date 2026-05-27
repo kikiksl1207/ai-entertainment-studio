@@ -50,6 +50,7 @@ const PREMIUM_ROOM_READ_STATUSES = [
   'active',
   'artist_answered',
   'reported',
+  'paused_by_report',
   'blind',
   'blinded',
   'suspended',
@@ -64,6 +65,7 @@ const PREMIUM_ROOM_READ_STATUSES = [
 ] as const;
 const PREMIUM_ROOM_SAFE_STATUS_ONLY_STATUSES = [
   'reported',
+  'paused_by_report',
   'blind',
   'blinded',
   'suspended',
