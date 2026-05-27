@@ -5107,3 +5107,89 @@ p {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── #521 — 루미나 피드 X 유사감 감소: Lumina 톤 카드 UI 개편 ──────────────────
+   아티스트/데뷔 카드 좌측 강조선, 액션바 그라데이션 구분선, 버튼 pill 호버,
+   아바타 브랜드 링, 작성자 이름 색상 적용.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* 아티스트 포스트: 핫핑크 좌측 강조선 + 브랜드 배경 */
+.feed-post[data-feed-type="artist_post"] {
+  border-left: 2.5px solid rgba(255, 20, 147, 0.6);
+  background: linear-gradient(170deg, rgba(255, 20, 147, 0.07), rgba(159, 139, 199, 0.04));
+}
+.feed-post[data-feed-type="artist_post"].clickable-card:hover {
+  border-color: rgba(255, 20, 147, 0.85);
+  border-left-color: rgba(255, 20, 147, 0.95);
+  background: linear-gradient(170deg, rgba(255, 20, 147, 0.1), rgba(159, 139, 199, 0.055));
+}
+
+/* 아티스트 아바타: 브랜드 핑크 이중 링 */
+.feed-post[data-feed-type="artist_post"] .feed-post-avatar {
+  box-shadow: 0 0 0 2px rgba(255, 20, 147, 0.5), 0 0 0 3.5px rgba(10, 6, 24, 0.92);
+}
+
+/* 아티스트 작성자 이름: Lumina 핑크 톤 */
+.feed-post[data-feed-type="artist_post"] .feed-post-author {
+  color: #ffd6ee;
+}
+
+/* 아티스트 타입 배지: 더 선명한 핑크 */
+.feed-post[data-feed-type="artist_post"] .feed-post-type-artist {
+  background: rgba(255, 20, 147, 0.2);
+  border-color: rgba(255, 20, 147, 0.38);
+}
+
+/* 데뷔 준비 카드: 골드 좌측 강조선 + 따뜻한 배경 */
+.feed-post[data-feed-type="debut_artist_post"] {
+  border-left: 2.5px solid rgba(255, 180, 80, 0.55);
+  background: linear-gradient(170deg, rgba(255, 180, 80, 0.06), rgba(159, 139, 199, 0.035));
+}
+
+/* 액션바 구분선: flat border-top → 양끝 fade 그라데이션 라인 (X 패턴 탈피) */
+.feed-post-actions {
+  border-top: none;
+  position: relative;
+}
+.feed-post-actions::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 4px;
+  right: 4px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(159, 139, 199, 0.24) 15%,
+    rgba(255, 20, 147, 0.16) 50%,
+    rgba(159, 139, 199, 0.24) 85%,
+    transparent
+  );
+}
+
+/* 액션 버튼 hover: 투명 flat → Lumina 브랜드 pill 배경 */
+.feed-action-btn:hover:not(:disabled) {
+  background: rgba(159, 139, 199, 0.12);
+  color: #f0eef8;
+}
+
+/* 좋아요 버튼 hover: 핫핑크 pill */
+.feed-action-btn.feed-like-btn:hover:not(:disabled):not(.is-liked) {
+  background: rgba(255, 20, 147, 0.1);
+  color: #ff7eb9;
+}
+
+/* 리포스트 버튼 hover: 보라 pill */
+.feed-action-btn.feed-repost-btn:hover:not(:disabled) {
+  background: rgba(124, 58, 237, 0.1);
+  color: #c8a6ff;
+}
+
+/* 390px 이하: 액션바 좌측 padding 없이도 ::before 라인 맞춤 */
+@media (max-width: 420px) {
+  .feed-post-actions::before {
+    left: 0;
+    right: 0;
+  }
+}

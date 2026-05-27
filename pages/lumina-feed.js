@@ -148,7 +148,7 @@ function sortFeedListWithThreadContinuations(list) {
 
 function feedAuthorTypeLabel(authorTypeEnum) {
   return ({
-    "ai_artist": "AI 아티스트",
+    "ai_artist": "Lumina 아티스트",
     "fan": "팬",
     "debut_artist": "데뷔 준비"
   })[authorTypeEnum] || "팬";
@@ -372,7 +372,7 @@ function renderLuminaFeed() {
             <button class="feed-action-btn feed-repost-btn" type="button"
                     data-feed-repost="${feedEscapeHtml(post.id || "")}"
                     aria-label="이 글 리포스트하기">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3l4 4-4 4M3 14l4 4 4-4M21 7H8a4 4 0 0 0-4 4v3M3 17h13a4 4 0 0 0 4-4v-3" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v7H9l-2 2V6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 4h9v7l-2-2h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
               <span>리포스트</span>
             </button>
           </div>
