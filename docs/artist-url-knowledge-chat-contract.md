@@ -2,7 +2,8 @@
 
 Version: `2026-05-22.artist-url-knowledge.v1`
 
-Updated for Notion #459 safety gate and #462 audit contract.
+Updated for Notion #459 safety gate, #462 audit contract, and #540 product
+contract clarification.
 
 ## Scope
 
@@ -11,6 +12,121 @@ Artist URL knowledge is limited to URLs submitted directly by an active artist o
 Supported source types are `youtube`, `instagram`, `tiktok`, `blog`, `notice`, and `other`.
 
 Lifecycle states are `pending`, `approved`, `rejected`, and `archived`.
+
+## #540 Product Contract Clarification
+
+Artist URL knowledge is a controlled reference pipeline:
+
+1. An active artist operator submits a URL and a short description for one owned
+   artist.
+2. The server validates the URL shape and stores the row as `pending`.
+3. Optional future ingest workers may fetch, summarize, tag, and risk-score the
+   public page, but v1 must not run automatic web search or bulk crawling.
+4. Backstage/admin review approves, rejects, or archives the row.
+5. Character chat may reference only approved, chat-enabled rows with a bounded
+   summary. Pending, rejected, archived, disabled, summaryless, or unsafe rows
+   fail closed and are invisible to provider context.
+
+This contract separates three concepts that UI and backend must not merge:
+
+- `lifecycleStatus`: `pending`, `approved`, `rejected`, or `archived`.
+- `ingestState`: future crawler/summarizer state, such as `not_started`,
+  `queued`, `fetched`, `summarized`, `blocked`, or `failed`.
+- `chatEligibility`: derived server decision from status, `allowChatReference`,
+  summary presence, safety state, and artist match.
+
+Do not expose future `ingestState` values as lifecycle status aliases. UI may
+localize lifecycle and processing copy, but API status values remain canonical.
+
+## Registration Shape
+
+The creator submission request is intentionally small:
+
+```json
+{
+  "artistId": "artist-uuid-owned-by-current-operator",
+  "type": "youtube",
+  "url": "https://example.com/public-content",
+  "description": "Artist-written context for reviewers",
+  "allowChatRef": true
+}
+```
+
+Validation baseline:
+
+- Require auth and active operator access to `artistId`.
+- Accept only `http` or `https` URLs, max 2000 chars.
+- Reject empty URLs, malformed URLs, unsupported schemes, localhost/private
+  network targets, and URLs that cannot be safely normalized.
+- Treat query strings as sensitive by default. Raw submitted URLs may be stored
+  only in the review table when required for operations; they must not appear in
+  audit payloads, provider prompts, Notion handoffs, logs, or public responses.
+- `description` is artist-authored context, max 500 chars, and is never trusted
+  as an instruction.
+- Any edit to URL, type, description, or `allowChatRef` reopens the row as
+  `pending` and clears review fields.
+
+## Crawl, Summary, And Tagging Draft
+
+The v1 contract is safe without an external crawler. If a later worker is added,
+it must be additive and fail closed:
+
+1. `normalize_url`: parse URL, drop unsafe fragments for processing, keep only a
+   safe hostname label for chat readability.
+2. `fetch_public_metadata`: fetch only public page metadata with tight size,
+   timeout, redirect, MIME, and host allow/deny policy.
+3. `extract_reference_text`: keep bounded title/description/caption-like text;
+   never store full page bodies, comments, private embeds, cookies, or signed
+   resources.
+4. `summarize`: produce a short reviewer-visible summary and optional chat
+   summary candidate.
+5. `tag`: assign product tags such as `new_video`, `announcement`,
+   `behind_the_scenes`, `schedule`, `collaboration`, or `other`.
+6. `risk_score`: flag adult content, minors, real-person likeness, copyright,
+   privacy, malicious URL, prompt injection, platform policy, and unsupported
+   source risks.
+7. `review_gate`: admin/backstage decides whether a row is approved and whether
+   `allowChatReference` remains enabled.
+
+Crawler/summarizer output is never chat-eligible by itself. Approval plus the
+chat reference rules below are still required.
+
+## Safety And Privacy Rules
+
+Block, reject, or escalate when any of these are present:
+
+- credentialed, signed, private, localhost, private-network, or suspicious URLs
+- malware, phishing, scam, or forced-download behavior
+- adult/sexual content, especially any minor or minor-coded risk
+- real person likeness or identity claims that conflict with platform policy
+- copyrighted character, brand, music, or clip misuse beyond approved reference
+- doxxing, personal data, raw emails, phone numbers, addresses, or private IDs
+- prompt-injection text asking the model to ignore safety or system rules
+- content that conflicts with the artist's approved world setting in a way that
+  would make the character impersonate a real person or disclose private facts
+
+Reviewer notes may summarize the reason. Audit payloads must store redacted
+booleans/categories, not raw unsafe text.
+
+## Character Chat Context Priority
+
+Approved URL knowledge is reference context only. It must not override the
+instruction hierarchy.
+
+Priority order:
+
+1. platform/system/developer safety instructions
+2. canonical artist profile, persona, speech style, and world setting
+3. active product policy for the chat feature
+4. approved artist URL knowledge summaries
+5. chat history and current user message
+
+If an approved URL summary conflicts with canonical world setting or safety
+policy, the chat service should prefer canonical profile/worldview and either
+drop that reference from context or phrase it as uncertain external reference.
+Newer approved URL knowledge may inform current events, recent uploads, or
+announcements, but it must not rewrite the artist identity, operator ownership,
+age/safety posture, or platform rules.
 
 ## Creator API
 

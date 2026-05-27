@@ -61,6 +61,18 @@ export const PREMIUM_CHAT_REPORT_REFUND_API_ACTION_KEYS = [
   'unanswered_24h_refund_candidate',
 ] as const;
 
+export const PREMIUM_CHAT_UNANSWERED_REFUND_ELIGIBLE_STATUSES = [
+  'opened',
+  'active',
+] as const;
+
+export const PREMIUM_CHAT_UNANSWERED_REFUND_EXCLUDED_REASON_KEYS = [
+  'artist_answered',
+  'report_or_admin_review_not_unanswered',
+  'terminal_status_not_unanswered',
+  'not_yet_24h',
+] as const;
+
 export const PREMIUM_CHAT_ROOM_STATUS_READ_KEYS = [
   'active',
   'paused_by_report',
@@ -474,6 +486,13 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     },
     unansweredRefundCandidate: {
       afterHours: 24,
+      eligibleFromStatuses: PREMIUM_CHAT_UNANSWERED_REFUND_ELIGIBLE_STATUSES,
+      firstArtistAnswerEvidence: [
+        'room.status=artist_answered',
+        'first_artist_reply_at_present',
+        'hasArtistAnswer=true',
+      ],
+      excludedReasonKeys: PREMIUM_CHAT_UNANSWERED_REFUND_EXCLUDED_REASON_KEYS,
       statusKey: 'refund_pending',
       publicStatusKey: 'refund_pending',
       actionKey: 'unanswered_24h_refund_candidate',
@@ -1558,14 +1577,19 @@ export function resolvePremiumChatRoomUnansweredRefundCandidate(input: {
   alreadyCandidate?: boolean;
 } = {}) {
   const currentStatus = input.currentStatus ?? 'active';
+  const normalizedStatus = normalizePremiumChatRoomStatus(currentStatus);
   const projection = resolvePremiumChatRoomLifecycleProjection(currentStatus);
   const hoursSinceOpen = nonNegativeNumber(input.hoursSinceOpen);
-  const hasArtistAnswer = input.hasArtistAnswer === true;
+  const hasArtistAnswer =
+    input.hasArtistAnswer === true || normalizedStatus === 'artist_answered';
   const alreadyCandidate =
     input.alreadyCandidate === true || projection.statusKey === 'refund_pending';
+  const eligibleFromCurrentStatus = (
+    PREMIUM_CHAT_UNANSWERED_REFUND_ELIGIBLE_STATUSES as readonly string[]
+  ).includes(normalizedStatus);
   const candidateEligible =
     !alreadyCandidate &&
-    projection.statusKey === 'active' &&
+    eligibleFromCurrentStatus &&
     !hasArtistAnswer &&
     hoursSinceOpen >=
       PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.unansweredRefundCandidate.afterHours;
@@ -1586,11 +1610,17 @@ export function resolvePremiumChatRoomUnansweredRefundCandidate(input: {
     } as const;
   }
 
+  const reasonKey = unansweredRefundIneligibleReasonKey({
+    hasArtistAnswer,
+    eligibleFromCurrentStatus,
+    projectionStatusKey: projection.statusKey,
+  });
+
   return {
     candidate: false,
     duplicateCandidate: false,
     statusKey: projection.statusKey,
-    reasonKey: hasArtistAnswer ? 'artist_answered' : 'not_yet_24h',
+    reasonKey,
     hoursSinceOpen,
     thresholdHours:
       PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.unansweredRefundCandidate.afterHours,
@@ -1759,6 +1789,28 @@ function normalizePremiumChatRoomStatus(status: string) {
   return (
     (PREMIUM_CHAT_ROOM_STATUS_ALIASES as Record<string, string>)[status] ?? status
   );
+}
+
+function unansweredRefundIneligibleReasonKey(input: {
+  hasArtistAnswer: boolean;
+  eligibleFromCurrentStatus: boolean;
+  projectionStatusKey: string;
+}) {
+  if (input.hasArtistAnswer) {
+    return 'artist_answered';
+  }
+
+  if (input.eligibleFromCurrentStatus) {
+    return 'not_yet_24h';
+  }
+
+  if (
+    ['paused_by_report', 'closed_by_operator'].includes(input.projectionStatusKey)
+  ) {
+    return 'report_or_admin_review_not_unanswered';
+  }
+
+  return 'terminal_status_not_unanswered';
 }
 
 function blockedPremiumChatRoomProjection(
