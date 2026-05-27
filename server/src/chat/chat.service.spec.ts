@@ -3436,6 +3436,61 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.previousVersion).toBe(
       '2026-05-25.premium-chat-room-list-detail-projection.v1',
     );
+    expect(contract.status).toBe('contract_ready_mutation_blocked');
+    expect(contract.policy).toMatchObject({
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      supportPointLedgerMutationEnabled: false,
+      conversationMeterMutationEnabled: false,
+      premiumChatAccountingLedgerMutationEnabled: false,
+      productProjectionMutationEnabled: false,
+    });
+    expect(contract.endpoints.contract).toMatchObject({
+      method: 'GET',
+      path: '/api/v1/chat/premium-support-contract',
+      walletMutation: false,
+    });
+    expect(contract.endpoints.roomList).toMatchObject({
+      method: 'GET',
+      enabled: false,
+      walletMutation: false,
+    });
+    expect(contract.endpoints.donationPreview).toMatchObject({
+      method: 'POST',
+      enabled: false,
+      walletMutation: false,
+    });
+    expect(contract.endpoints.donationCreate).toMatchObject({
+      method: 'POST',
+      enabled: false,
+      requiresIdempotencyKey: true,
+    });
+    expect(contract.endpoints.reportSubmit).toMatchObject({
+      method: 'POST',
+      enabled: false,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(contract.endpoints.artistForceClose).toMatchObject({
+      method: 'POST',
+      enabled: false,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(contract.endpoints.operatorClose).toMatchObject({
+      method: 'POST',
+      enabled: false,
+      superAdminOnly: true,
+      requiresIdempotencyKey: true,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
     expect(contract.donation.fixedAmountsLumina).toEqual([
       10,
       50,
