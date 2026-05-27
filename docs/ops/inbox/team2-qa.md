@@ -1,5 +1,50 @@
 # Team2 QA Inbox
 
+status: partial-pass / blocked
+task: #534, #564, #565, #566, #567 - premium chat live QA bundle
+environment:
+- branch: team2-qa/534-live-matrix-qa
+- `git pull origin main`: completed; QA branch merged latest `origin/main`.
+- basis after pull: 6dd24a57e41c019d946f0f15da38c8620fd42cd4.
+- live API health: HTTP 200, commit 2bf35dcda36cfeb7721c6ed2790e1a4e83ce23c3.
+- No token, cookie, password, env value, secret, DB URL, raw response body, raw credential, raw email, private user id, or raw room id was recorded in this report.
+- No live fixture prepare/cleanup, donation, room-open, wallet, report, refund, settlement, payout, payment, or paid mutation was executed.
+
+tested_flows:
+- #534 PARTIAL PASS / BLOCKED: secure handoff says 7 buckets were prepared and verified. Public read-only list confirmed the baseline active bucket and near-expiry bucket, including the near-expiry flag. Owner/operator detail matrix is still blocked because this runtime has no approved owner or artist/operator session.
+- #564 BLOCKED: owner-only detail matrix could not be authorized in this runtime. Safety check PASS: all 7 owner detail paths returned HTTP 401 without auth.
+- #565 BLOCKED: artist/operator detail matrix could not be authorized in this runtime. Safety check PASS: all 7 creator-studio detail paths returned HTTP 401 without auth.
+- #566 PASS: public `GET /api/v1/chat/premium-rooms?status=active&take=20` returned HTTP 200/read-only with 2 active rows. Only active baseline and active near-expiry buckets were visible. Reported, admin-review, refund-pending, closed, and expired buckets were not exposed in the public active list.
+- #566 PASS: public non-active status filters for reported/admin-review/refund-pending/closed/expired returned HTTP 400, so non-public states are not queryable through the public list.
+- #567 PASS for cleanup safety plan: cleanup was not executed because private detail QA is incomplete. Script review confirms cleanup targets only premium chat rows tagged with the #534 task and matching run id. Runtime fail-closed check confirmed cleanup without the explicit confirm value exits before DB work.
+- PASS: `node --check server/scripts/prepare-premium-chat-live-qa-fixtures.mjs`.
+- PASS: `node --check server/src/chat/chat.service.ts`.
+- PASS: `node --check server/src/chat/chat.service.spec.ts`.
+- PASS: `node --check server/src/chat/premium-chat-support-contract.ts`.
+- PASS: `npm.cmd test -- premium-chat-room-contract.spec.ts premium-chat-rooms-read.controller.spec.ts chat.controller.spec.ts chat.service.spec.ts --runInBand` passed 83 tests.
+
+blockers:
+- #534/#564/#565 remain blocked at the authorized owner/operator session layer. Current browser/runtime is logged out and has no approved QA owner/operator session.
+- Bucket status/copy inside owner and artist detail responses cannot be verified from public unauthenticated endpoints.
+- Cleanup should stay pending until PM or the secure QA session owner confirms private detail QA is complete.
+
+repro_steps:
+1. Pull latest main into `team2-qa/534-live-matrix-qa`.
+2. Open the Notion #534 secure handoff and use only bucket names/status expectations for reporting.
+3. Call public active premium room list and confirm read-only policy plus the active baseline and near-expiry buckets.
+4. Call public non-active status filters and confirm they are rejected.
+5. Call owner and creator-studio detail paths without auth and confirm HTTP 401 for every bucket.
+6. Run cleanup mode without the explicit cleanup confirm and confirm fail-closed exit before DB work.
+7. Do not execute prepare, cleanup, paid, wallet, report, refund, settlement, payout, or room-open mutations.
+
+suspected_owner: PM Chamo / secure QA session owner for #534/#564/#565 authorized-session blocker; backend for any future private detail mismatch if the approved-session matrix fails.
+next_needed:
+- Return #534/#564/#565 to PM Chamo or the secure QA session owner for approved owner/operator session execution, or have that owner provide bucket-level PASS/FAIL only.
+- #566 can move to complete/archive.
+- #567 cleanup safety can move to complete/archive, but actual cleanup must wait until #534/#564/#565 private matrix is finished.
+
+---
+
 status: blocked
 task: #534 - premium chat live status matrix QA fourth recheck after secure fixture handoff
 environment:
