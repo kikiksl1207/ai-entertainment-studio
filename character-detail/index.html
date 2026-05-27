@@ -102,13 +102,18 @@
       <!-- #208 — 캐릭터챗 starter prompt 진입 (slug 자동 적용) -->
       <section class="content-section">
         <div class="shell" style="text-align:center;">
-          <!-- #500 — 캐릭터챗(AI챗)·프리미엄챗(아티스트 직접) 진입점 분리.
-               /character-chat은 AI챗 전용. 프리미엄챗은 별도 버튼(방 오픈 준비 중)으로 분리.
-               (#420에서 "프리미엄챗으로 대화하기" 문구를 달았으나 실제 경로는 AI챗이어서 오인 유발 → 수정) -->
-          <a id="chatStartLink" class="button button-primary" href="/character-chat" style="display:inline-flex;align-items:center;gap:8px;padding:14px 28px;font-size:15px;letter-spacing:0;">
-            <span data-cms-key="character-detail.chat.ctaLabel" data-cms-field="ctaLabel">AI 캐릭터와 대화하기</span>
-            <span aria-hidden="true" style="font-size:13px;opacity:0.85;">→</span>
-          </a>
+          <!-- #512 — 중앙 CTA 2버튼 정리: AI챗(primary)·프리미엄챗(disabled secondary) 분리.
+               (#500에서 경로 분리 완료, #512에서 중앙 CTA에도 프리미엄챗 disabled 버튼 추가) -->
+          <div style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
+            <a id="chatStartLink" class="button button-primary" href="/character-chat" style="display:inline-flex;align-items:center;gap:8px;padding:14px 28px;font-size:15px;letter-spacing:0;">
+              <span data-cms-key="character-detail.chat.ctaLabel" data-cms-field="ctaLabel">AI 캐릭터와 대화하기</span>
+              <span aria-hidden="true" style="font-size:13px;opacity:0.85;">→</span>
+            </a>
+            <button type="button" class="button button-secondary" disabled aria-disabled="true" style="display:inline-flex;align-items:center;gap:6px;padding:14px 20px;font-size:15px;letter-spacing:0;opacity:.45;cursor:default;pointer-events:none;">
+              <span data-cms-key="character-detail.premium.ctaLabel" data-cms-field="ctaLabel">프리미엄챗</span>
+              <small style="font-size:11px;opacity:0.8;">방 오픈 준비 중</small>
+            </button>
+          </div>
           <p data-cms-key="character-detail.chat.note" data-cms-field="body" style="margin:10px 0 0;font-size:13px;color:rgba(220,210,240,0.55);font-weight:500;letter-spacing:0;">처음이라면 추천 인사말로 가볍게 첫 마디를 건네볼 수 있어요.</p>
         </div>
         <script>

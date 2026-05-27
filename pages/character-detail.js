@@ -350,7 +350,7 @@ function renderCharacterDetail() {
                   프리미엄챗은 API·화면 준비 전이므로 disabled 상태로 별도 표시. AI챗으로 대체 연결 금지. -->
              <a class="cta-btn cta-btn-chat cta-btn-link" href="/character-chat?slug=${encodeURIComponent(artist.slug)}">
                <span class="cta-btn-icon">💬</span>
-               <span class="cta-btn-label"><strong>캐릭터챗</strong><small>AI 대화 시작</small></span>
+               <span class="cta-btn-label"><strong>캐릭터챗</strong><small>AI와 바로 대화</small></span>
              </a>
              <button class="cta-btn cta-btn-premium" disabled aria-disabled="true">
                <span class="cta-btn-icon">⭐</span>
