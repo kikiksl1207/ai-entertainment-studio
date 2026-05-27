@@ -220,9 +220,11 @@
           </div>
 
           <aside class="feed-trend-panel" aria-label="루미나 피드 실시간 검색">
+            <!-- #531 — "Hot Keywords" / "Hashtags" → Lumina 고유 맥락 라벨로 교체.
+                 feedTrendList / feedHashtagList ID는 JS가 참조하므로 유지. -->
             <section class="feed-trend-card">
               <header class="feed-trend-head">
-                <span>Hot Keywords</span>
+                <span>아티스트 Pulse</span>
                 <small id="feedTrendLocaleLabel">실시간</small>
               </header>
               <div class="feed-trend-list" id="feedTrendList">
@@ -231,8 +233,8 @@
             </section>
             <section class="feed-trend-card">
               <header class="feed-trend-head">
-                <span>Hashtags</span>
-                <small>24H</small>
+                <span>팬덤 미션</span>
+                <small>오늘</small>
               </header>
               <div class="feed-hashtag-list" id="feedHashtagList">
                 <p class="feed-trend-empty">불러오는 중…</p>

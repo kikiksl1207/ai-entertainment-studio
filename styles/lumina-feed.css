@@ -353,6 +353,10 @@ body.is-booting .feed-list::before {
     padding: 6px 12px;
     font-size: 12px;
   }
+  /* #531 — 768px 태블릿 이하에서 하단 모바일 탭바(~64px) 위에 충분한 여백 확보 */
+  .feed-section {
+    padding-bottom: 80px;
+  }
 }
 
 .feed-post-type {
