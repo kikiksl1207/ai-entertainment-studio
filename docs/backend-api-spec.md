@@ -1261,9 +1261,31 @@ candidates before mutation routes are enabled.
   and payout mutation.
 - `refunded`, `expired`, `closed`, and `artist_closed` use `safe_archive` read
   mode and keep user send, artist reply, and donation disabled.
-- 24-hour no-answer handling moves an `opened` or `active` room with no artist
-  answer to `refund_pending` under `unanswered_24h_full_refund`; after that
-  transition send/reply/donation stay disabled.
+- 24-hour no-answer handling is a candidate transition only. The eligible
+  source statuses are exactly `opened` and `active`; `artist_answered`,
+  `reported`, `blind`, `suspended`, `admin_review`, `refund_pending`,
+  `refunded`, `expired`, `closed`, and `artist_closed` are not eligible for the
+  simple unanswered path.
+- The first artist answer is server evidence, not client copy: a room with
+  `room.status=artist_answered`, a stored first artist reply timestamp, or a
+  server-computed `hasArtistAnswer=true` must not become an unanswered refund
+  candidate even if it is older than 24 hours.
+- An eligible room with no artist answer at or after 24 hours resolves to
+  `refund_pending` with reason key `unanswered_24h_full_refund` and action key
+  `unanswered_24h_refund_candidate`; this is not a completed refund. Actual
+  wallet/PG refund credit, settlement, payout, and revenue-sharing mutation stay
+  disabled until a later approved operator/server decision.
+- Excluded status reason keys are separated so user-fault/report review does
+  not mix with simple unanswered protection: `artist_answered`,
+  `report_or_admin_review_not_unanswered`, `terminal_status_not_unanswered`,
+  and `not_yet_24h`.
+- The accounting contract for this candidate is ratio/state-only:
+  `userRefundBps=10000`, company revenue `0`, artist compensation `0`,
+  automatic refund credit `false`, settlement mutation `false`, payout mutation
+  `false`.
+- After a room is in `refund_pending`, send/reply/donation stay disabled and
+  repeated candidate evaluation replays the existing safe projection without a
+  second refund, wallet ledger, settlement, payout, or status-event mutation.
 - Unknown future room statuses fail closed as `safe_status_only`.
 
 Premium chat live QA fixture readiness (#520):
