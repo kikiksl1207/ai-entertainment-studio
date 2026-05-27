@@ -1,6 +1,31 @@
 # Team2 QA Inbox
 
 status: blocked
+task: #534 - premium chat live status matrix QA second recheck
+environment:
+- branch: team2-qa/534-live-matrix-qa
+- `git pull origin main`: already up to date.
+- local/live basis commit: 47dc4df4ba75f39bc1a817d4b0f89a91f1ad565f.
+- No token, cookie, password, env value, secret, signed URL, raw provider payload, raw response body, DB URL, raw credential, raw email, room id, or private user id was recorded.
+- No fixture prepare/verify/cleanup against live DB, donation, room-open, wallet, refund, report, settlement, payout, payment, or paid mutation was executed.
+
+tested_flows:
+- PASS: Notion was again `[큐알2 현재차례] #534`, so QR2 rechecked live readiness.
+- PASS: live `/health` is still `47dc4df4ba75f39bc1a817d4b0f89a91f1ad565f`.
+- PASS: live public `GET /api/v1/chat/premium-rooms?take=20` returns HTTP 200/read-only with 2 rows.
+- PASS: both visible public rows are `active`.
+- BLOCKED: `qa534Count=0`; no row is tagged as #534 fixture.
+- BLOCKED: `nearExpiryCount=0` and `lockedCount=0`; public list still does not cover near-expiry/reported/admin-review/refund/closed/expired buckets.
+- BLOCKED: approved owner/operator session is still not available in this runtime, so detail matrix remains unverified.
+
+actual:
+- No material readiness change from the previous QR2 recheck.
+- Full #534 matrix remains blocked until tagged fixture rows and approved private owner/operator session are prepared.
+
+next_needed:
+- Return #534 to PM Chamo or secure QA runtime/session owner. Do not leave as QR2 current turn or complete until the fixture/session handoff exists.
+
+status: blocked
 task: #534 - premium chat live status matrix QA recheck after current-turn restore
 environment:
 - branch: team2-qa/534-live-matrix-qa
