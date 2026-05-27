@@ -86,6 +86,12 @@ async function initUserProfilePage() {
   bindProfileEditModal();
   const requestedTab = params.get("tab");
   if (requestedTab) setUserProfileActiveTab(requestedTab);
+
+  // #523 — 팔로워·팔로잉 목록 & 차단 UX
+  bindFollowListStatClick();
+  bindFollowListModal();
+  bindFollowListBlockAction();
+  bindBlockConfirmModal();
 }
 
 let _userProfileActiveTab = "posts";
@@ -1047,6 +1053,340 @@ function showUserProfileBlocked() {
     if (el) { el.hidden = true; el.style.display = "none"; }
   });
   document.title = "이 프로필을 볼 수 없어요 — Lumina Stage";
+}
+
+/* ══════════════════════════════════════════════════════════════
+   #523 — 팔로워·팔로잉 목록 모달 & 차단 UX
+   - 팔로워/팔로잉 숫자 클릭 → 목록 모달
+   - 본인 프로필이면 팔로워 목록에 "차단" 버튼 (live)
+   - "팔로워 제거"는 contract-ready → 비활성 표시
+   - 차단 전 확인 모달 (실수 방지)
+   ══════════════════════════════════════════════════════════════ */
+
+let _followListActiveTab = "followers"; // "followers" | "following"
+let _followListCursor = null;
+let _followListIsSelf = false;
+let _followListTargetId = null;
+let _blockConfirmTargetId = null;
+let _blockConfirmTargetName = "";
+
+// ── 통계 숫자 클릭 바인딩 ──
+function bindFollowListStatClick() {
+  const statItems = document.querySelectorAll(".user-profile-stats li");
+  statItems.forEach(li => {
+    const label = li.querySelector("small");
+    if (!label) return;
+    const text = (label.textContent || "").trim();
+    let type = null;
+    if (text === "팔로워") type = "followers";
+    if (text === "팔로잉") type = "following";
+    if (!type) return;
+    li.style.cursor = "pointer";
+    li.addEventListener("click", () => openFollowListModal(type));
+  });
+}
+
+// ── 목록 모달 열기 ──
+function openFollowListModal(type) {
+  const modal = document.getElementById("followListModal");
+  if (!modal) return;
+
+  _followListActiveTab = type || "followers";
+  _followListCursor = null;
+
+  // isSelf 판단 (renderUserProfileCard와 동일 로직)
+  const viewer = _userProfileData?.viewer || {};
+  const profileUser = _userProfileData?.user || {};
+  const myUserId = (typeof getAuth === "function") ? (getAuth()?.user?.id || getAuth()?.user?.userId) : null;
+  _followListIsSelf = !!(viewer.isSelf || viewer.canEditProfile || (myUserId && profileUser.id && String(myUserId) === String(profileUser.id)));
+  _followListTargetId = profileUser.id || null;
+
+  // 탭 상태 갱신
+  modal.querySelectorAll("[data-follow-tab]").forEach(tab => {
+    const isActive = tab.dataset.followTab === _followListActiveTab;
+    tab.classList.toggle("is-active", isActive);
+    tab.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+  const titleEl = document.getElementById("followListModalTitle");
+  if (titleEl) titleEl.textContent = _followListActiveTab === "followers" ? "팔로워" : "팔로잉";
+
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => modal.classList.add("is-open"));
+  document.body.style.overflow = "hidden";
+
+  loadFollowList(_followListActiveTab, /* append */ false);
+}
+
+// ── 목록 모달 닫기 ──
+function closeFollowListModal() {
+  const modal = document.getElementById("followListModal");
+  if (!modal) return;
+  modal.classList.remove("is-open");
+  document.body.style.overflow = "";
+  setTimeout(() => {
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+  }, 200);
+}
+
+// ── 목록 모달 이벤트 바인딩 ──
+function bindFollowListModal() {
+  const modal = document.getElementById("followListModal");
+  if (!modal || modal._bound523) return;
+  modal._bound523 = true;
+
+  document.getElementById("followListCloseBtn")?.addEventListener("click", closeFollowListModal);
+  document.getElementById("followListModalBackdrop")?.addEventListener("click", closeFollowListModal);
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && modal.classList.contains("is-open")) closeFollowListModal();
+  });
+
+  // 탭 전환
+  modal.querySelectorAll("[data-follow-tab]").forEach(tab => {
+    tab.addEventListener("click", () => {
+      const newType = tab.dataset.followTab;
+      if (newType === _followListActiveTab) return;
+      _followListActiveTab = newType;
+      _followListCursor = null;
+      modal.querySelectorAll("[data-follow-tab]").forEach(t => {
+        const active = t.dataset.followTab === newType;
+        t.classList.toggle("is-active", active);
+        t.setAttribute("aria-selected", active ? "true" : "false");
+      });
+      const titleEl = document.getElementById("followListModalTitle");
+      if (titleEl) titleEl.textContent = newType === "followers" ? "팔로워" : "팔로잉";
+      loadFollowList(newType, false);
+    });
+  });
+
+  // 더 보기
+  document.getElementById("followListLoadMore")?.addEventListener("click", async () => {
+    if (!_followListCursor) return;
+    const btn = document.getElementById("followListLoadMore");
+    if (btn) btn.disabled = true;
+    await loadFollowList(_followListActiveTab, true);
+    if (btn) btn.disabled = false;
+  });
+}
+
+// ── API 호출 & 목록 렌더 ──
+async function loadFollowList(type, append) {
+  const itemsEl = document.getElementById("followListItems");
+  const emptyEl = document.getElementById("followListEmpty");
+  const loadMoreBtn = document.getElementById("followListLoadMore");
+  if (!itemsEl) return;
+
+  if (!append) {
+    itemsEl.innerHTML = `<div class="follow-list-loading">불러오는 중…</div>`;
+    if (emptyEl) { emptyEl.hidden = true; emptyEl.innerHTML = ""; }
+    if (loadMoreBtn) loadMoreBtn.hidden = true;
+  }
+
+  const isAuth = typeof isLoggedIn === "function" && isLoggedIn();
+  let endpoint;
+  if (_followListIsSelf) {
+    // 본인: /me/* 엔드포인트 (live)
+    endpoint = type === "followers"
+      ? `/api/v1/me/followers?take=20`
+      : `/api/v1/me/following-users?take=20`;
+  } else {
+    // 타인: /users/:id/* (contract-ready)
+    const uid = encodeURIComponent(_followListTargetId || "");
+    endpoint = type === "followers"
+      ? `/api/v1/users/${uid}/followers?take=20`
+      : `/api/v1/users/${uid}/following-users?take=20`;
+  }
+  if (_followListCursor) endpoint += `&cursor=${encodeURIComponent(_followListCursor)}`;
+
+  try {
+    const res = await apiFetch(endpoint, { auth: isAuth });
+    const rawItems = Array.isArray(res?.items) ? res.items
+      : Array.isArray(res?.users) ? res.users
+      : [];
+
+    if (!append) itemsEl.innerHTML = "";
+
+    if (rawItems.length === 0 && !append) {
+      if (emptyEl) {
+        const label = type === "followers" ? "팔로워가 아직 없어요." : "팔로잉이 아직 없어요.";
+        emptyEl.innerHTML = `<strong>${label}</strong>`;
+        emptyEl.hidden = false;
+      }
+      if (loadMoreBtn) loadMoreBtn.hidden = true;
+      return;
+    }
+
+    const html = rawItems.map(item => renderFollowListItem(item, type)).join("");
+    if (append) {
+      itemsEl.insertAdjacentHTML("beforeend", html);
+    } else {
+      itemsEl.innerHTML = html;
+    }
+
+    _followListCursor = res?.nextCursor || null;
+    if (loadMoreBtn) loadMoreBtn.hidden = !_followListCursor;
+
+  } catch (err) {
+    console.warn(`[#523 follow-list] ${type} 로드 실패:`, err?.status, err?.message);
+    if (!append) {
+      itemsEl.innerHTML = "";
+      let msg = "목록을 불러오지 못했어요.";
+      let sub = "잠시 후 다시 시도해 주세요.";
+      if (err?.status === 404 || err?.status === 501) {
+        msg = "이 목록은 아직 준비 중이에요.";
+        sub = "조금만 기다려 주세요.";
+      } else if (err?.status === 403) {
+        msg = "이 프로필의 목록을 볼 수 없어요.";
+        sub = "";
+      }
+      if (emptyEl) {
+        emptyEl.innerHTML = `<strong>${msg}</strong>${sub ? `<p>${sub}</p>` : ""}`;
+        emptyEl.hidden = false;
+      }
+      if (loadMoreBtn) loadMoreBtn.hidden = true;
+    }
+  }
+}
+
+// ── 목록 아이템 HTML ──
+function renderFollowListItem(item, type) {
+  const user = item?.user || item || {};
+  const userId = user?.id || "";
+  const displayName = user?.displayName || "Lumina User";
+  const publicHandle = user?.publicHandle || "";
+  const avatarUrl = user?.avatarUrl || "";
+  const initial = (displayName || "?").charAt(0);
+
+  const profileHref = (typeof buildUserProfileUrl === "function")
+    ? buildUserProfileUrl({ publicHandle, id: userId })
+    : `/user-profile?id=${encodeURIComponent(userId)}`;
+
+  const esc = (s) => (typeof feedEscapeHtml === "function") ? feedEscapeHtml(String(s)) : String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+  const avatarHtml = avatarUrl
+    ? `<img src="${esc(avatarUrl)}" alt="${esc(displayName)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="follow-list-item-avatar-fallback" style="display:none;">${esc(initial)}</span>`
+    : `<span class="follow-list-item-avatar-fallback">${esc(initial)}</span>`;
+
+  const handleHtml = publicHandle
+    ? `<span class="follow-list-item-handle">@${esc(publicHandle)}</span>`
+    : "";
+
+  // 차단·제거 버튼 (본인 팔로워 목록에만)
+  let actionsHtml = "";
+  if (_followListIsSelf && type === "followers" && userId) {
+    actionsHtml = `
+      <div class="follow-list-item-actions">
+        <button class="follow-list-block-btn" type="button"
+                data-follow-block-user="${esc(userId)}"
+                data-follow-block-name="${esc(displayName)}">차단</button>
+        <button class="follow-list-remove-btn" type="button" disabled
+                title="팔로워 제거는 준비 중이에요.">제거</button>
+      </div>`;
+  }
+
+  return `
+    <div class="follow-list-item" data-follow-item-user="${esc(userId)}">
+      <a class="follow-list-item-avatar" href="${esc(profileHref)}" target="_blank" rel="noopener noreferrer">
+        ${avatarHtml}
+      </a>
+      <div class="follow-list-item-info">
+        <a class="follow-list-item-name" href="${esc(profileHref)}" target="_blank" rel="noopener noreferrer">${esc(displayName)}</a>
+        ${handleHtml}
+      </div>
+      ${actionsHtml}
+    </div>`;
+}
+
+// ── 차단 버튼 이벤트 (이벤트 위임) ──
+function bindFollowListBlockAction() {
+  const itemsEl = document.getElementById("followListItems");
+  if (!itemsEl || itemsEl._blockBound523) return;
+  itemsEl._blockBound523 = true;
+
+  itemsEl.addEventListener("click", e => {
+    const btn = e.target.closest("[data-follow-block-user]");
+    if (!btn) return;
+    e.preventDefault();
+    const userId = btn.dataset.followBlockUser;
+    const displayName = btn.dataset.followBlockName || "이 회원";
+    if (!userId) return;
+    openBlockConfirmModal(userId, displayName);
+  });
+}
+
+// ── 차단 확인 모달 ──
+function openBlockConfirmModal(userId, displayName) {
+  _blockConfirmTargetId = userId;
+  _blockConfirmTargetName = displayName;
+
+  const modal = document.getElementById("blockConfirmModal");
+  if (!modal) return;
+
+  const descEl = document.getElementById("blockConfirmDesc");
+  if (descEl) {
+    descEl.textContent = `차단하면 ${displayName}님이 내 글·프로필을 볼 수 없어요. 양쪽 팔로우도 해제돼요.`;
+  }
+
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function closeBlockConfirmModal() {
+  const modal = document.getElementById("blockConfirmModal");
+  if (!modal) return;
+  modal.hidden = true;
+  modal.setAttribute("aria-hidden", "true");
+  _blockConfirmTargetId = null;
+  _blockConfirmTargetName = "";
+}
+
+function bindBlockConfirmModal() {
+  const modal = document.getElementById("blockConfirmModal");
+  if (!modal || modal._bound523) return;
+  modal._bound523 = true;
+
+  document.getElementById("blockConfirmCancel")?.addEventListener("click", closeBlockConfirmModal);
+  document.getElementById("blockConfirmBackdrop")?.addEventListener("click", closeBlockConfirmModal);
+
+  document.getElementById("blockConfirmSubmit")?.addEventListener("click", async () => {
+    if (!_blockConfirmTargetId) return;
+    const submitBtn = document.getElementById("blockConfirmSubmit");
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+      await apiFetch(`/api/v1/users/${encodeURIComponent(_blockConfirmTargetId)}/block`, {
+        method: "POST",
+        auth: true,
+        throwOnError: true,
+        body: {}
+      });
+
+      // 성공: 목록에서 해당 아이템 페이드 아웃
+      const targetId = _blockConfirmTargetId;
+      closeBlockConfirmModal();
+      const itemEl = document.querySelector(`[data-follow-item-user="${targetId}"]`);
+      if (itemEl) {
+        itemEl.style.transition = "opacity 0.22s, transform 0.22s";
+        itemEl.style.opacity = "0";
+        itemEl.style.transform = "translateX(10px)";
+        setTimeout(() => itemEl.remove(), 230);
+      }
+      // 팔로워 카운트 -1 (낙관적)
+      const followerCountEl = document.getElementById("userProfileFollowerCount");
+      if (followerCountEl) {
+        const cur = parseInt((followerCountEl.textContent || "0").replace(/,/g, ""), 10) || 0;
+        followerCountEl.textContent = Math.max(0, cur - 1).toLocaleString("ko-KR");
+      }
+    } catch (err) {
+      console.error("[#523 block] 실패:", err?.status, err?.message);
+      let msg = "차단에 실패했어요. 잠시 후 다시 시도해 주세요.";
+      if (err?.status === 401) msg = "로그인이 만료됐어요. 다시 로그인해 주세요.";
+      if (submitBtn) submitBtn.disabled = false;
+      alert(msg);
+    }
+  });
 }
 
   window.initUserProfilePage = initUserProfilePage;

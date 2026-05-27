@@ -178,6 +178,41 @@
       </div>
     </footer>
 
+    <!-- 팔로워·팔로잉 목록 모달 (#523) -->
+    <div class="follow-list-modal" id="followListModal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="followListModalTitle">
+      <div class="follow-list-modal-backdrop" id="followListModalBackdrop"></div>
+      <div class="follow-list-modal-card">
+        <header class="follow-list-modal-head">
+          <button class="follow-list-close-btn" type="button" id="followListCloseBtn" aria-label="닫기">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <h2 id="followListModalTitle">팔로워</h2>
+        </header>
+        <nav class="follow-list-tabs" role="tablist" aria-label="팔로워·팔로잉 탭">
+          <button class="follow-list-tab is-active" type="button" role="tab" aria-selected="true" data-follow-tab="followers">팔로워</button>
+          <button class="follow-list-tab" type="button" role="tab" aria-selected="false" data-follow-tab="following">팔로잉</button>
+        </nav>
+        <div class="follow-list-body">
+          <div class="follow-list-items" id="followListItems"></div>
+          <div class="follow-list-empty" id="followListEmpty" hidden></div>
+          <button class="follow-list-load-more" id="followListLoadMore" type="button" hidden>더 보기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 차단 확인 모달 (#523) -->
+    <div class="block-confirm-modal" id="blockConfirmModal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="blockConfirmTitle">
+      <div class="block-confirm-modal-backdrop" id="blockConfirmBackdrop"></div>
+      <div class="block-confirm-modal-card">
+        <h2 class="block-confirm-title" id="blockConfirmTitle">차단할까요?</h2>
+        <p class="block-confirm-desc" id="blockConfirmDesc">차단하면 이 회원이 내 글·프로필을 볼 수 없어요.</p>
+        <div class="block-confirm-actions">
+          <button class="block-confirm-cancel" type="button" id="blockConfirmCancel">취소</button>
+          <button class="block-confirm-submit" type="button" id="blockConfirmSubmit">차단</button>
+        </div>
+      </div>
+    </div>
+
     <script src="/data/characters.js"></script>
     <script src="/pages/user-profile.js"></script>
     <script src="/app.js"></script>
