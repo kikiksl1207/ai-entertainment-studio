@@ -1,5 +1,71 @@
 # Team2 QA Inbox
 
+status: blocked
+task: #520 - #515~#519 live regression QA
+environment:
+- branch: team2-qa/520-live-qa
+- `git pull origin main`: up to date
+- local basis commit: dd89d2b fix(#521): align feed detail repost icon
+- live API health: HTTP 200, commit 28a0c14ec857cc8c1aca5c70b49164a52dc5cd7f
+- live pages:
+  - https://www.lumina-stage.com/character-detail?slug=yoon-serin
+  - https://www.lumina-stage.com/character-chat
+  - https://www.lumina-stage.com/character-chat?slug=yoon-serin
+  - https://www.lumina-stage.com/chat-rankings?type=communication
+  - https://www.lumina-stage.com/chat-rankings?type=donation
+- No token, cookie, password, env value, secret, signed URL, raw provider payload, raw response body, DB URL, or raw credential was recorded.
+- No donation, room-open, wallet, refund, report, balance, payment, or paid mutation was executed.
+
+tested_flows:
+- PASS: `git pull origin main` completed on the isolated #520 QA worktree and reported already up to date.
+- PASS: artist detail central CTA separates AI character chat from premium chat: `AI 캐릭터와 대화하기` links to `/character-chat?slug=yoon-serin`, while `프리미엄챗 방 오픈 준비 중` is disabled and has no premium-room mutation link.
+- PASS: artist detail lower CTA separates `캐릭터챗 AI와 바로 대화` from disabled `프리미엄챗 방 오픈 준비 중`.
+- PASS: `/character-chat` hub copy separates like ranking, communication ranking, and donation ranking. Like ranking links to `/lumina-pick`; communication and donation ranking cards link to `/chat-rankings?type=communication` and `/chat-rankings?type=donation`.
+- PASS: premium chat plan open button remains disabled with `방 열기 안내 예정`.
+- PASS: unauthenticated `/character-chat?slug=yoon-serin` shows fail-closed room status copy: `로그인 후 방 상태 확인 가능`, `로그인 필요`, and `후원 준비 중`.
+- PASS: unauthenticated `GET /api/v1/chat/premium-support-contract` returned HTTP 401.
+- PASS: unauthenticated `GET /api/v1/chat/conversations?box=all&take=20` returned HTTP 401.
+- PASS: visible pages had no replacement-character mojibake and no horizontal overflow at 1280px, 768px, and 390px.
+- PASS: communication and donation ranking pages show login-required copy and state that reported/refunded items are excluded from ranking.
+- PASS: `node --check pages/character-chat.js`.
+- PASS: `node --check pages/premium-chat-hub.js`.
+- PASS: `node --check pages/premium-chat-support.js`.
+- PASS: `node --check pages/character-detail.js`.
+- PASS: `node --check pages/chat-rankings.js`.
+- PASS: `npm.cmd test -- premium-chat-room-contract.spec.ts chat.controller.spec.ts chat.service.spec.ts --runInBand` passed 76 tests.
+- BLOCKED: live logged-in premium room list/detail states for reported, refunded, unanswered, expired, and closed rooms could not be verified because the browser session has no safe user/operator fixture with premium rooms.
+- BLOCKED: live creator/artist-side premium room management view could not be verified without a safe authorized Creator Studio/Backstage session.
+
+not_verified_due_to_blocker:
+- logged-in premium room list with real room rows.
+- logged-in premium room detail state matrix: 신고·운영 검토 중, 환불 검토 중, 환불 완료, 아티스트 답변 대기 중, 기간 만료, 종료.
+- live report/refund request surfaces beyond read-only/login-required copy.
+- live artist/operator room-management status projection.
+
+repro_steps:
+1. Start from `origin/main` and run `git pull origin main`.
+2. Confirm local QA branch is `team2-qa/520-live-qa` at `dd89d2b`.
+3. Confirm live API `/health` returns HTTP 200 with commit `28a0c14ec857cc8c1aca5c70b49164a52dc5cd7f`.
+4. Open the live pages listed above at 1280px, 768px, and 390px.
+5. Confirm artist detail AI CTA links to `/character-chat?slug=yoon-serin` and premium chat CTAs are disabled/prelaunch.
+6. Confirm `/character-chat` hub separates `/lumina-pick`, `/chat-rankings?type=communication`, and `/chat-rankings?type=donation`.
+7. Confirm `/character-chat?slug=yoon-serin` shows login-required premium room status and disabled/read-only donation state.
+8. Confirm ranking pages show login-required copy and exclusion copy for refunded/reported items.
+9. Run the local syntax and contract checks listed above.
+
+expected:
+- Full #520 live QA needs a safe logged-in user/operator fixture with premium rooms in the reported/refund/unanswered/expired/closed states, while keeping all wallet/refund/donation/open-room mutations disabled or untouched.
+
+actual:
+- Public/live logged-out surfaces and local contract coverage pass.
+- The actual logged-in live premium room list/detail state matrix is not reachable in the current browser session without safe credentials/fixture.
+
+blockers:
+- #520 should not be marked complete until QA receives a safe session or seeded fixture that exposes premium room list/detail states without requiring paid/wallet/refund/report mutations.
+
+next_needed:
+- Return #520 to PM Chamo or the premium-chat fixture/session owner for a safe live QA fixture, then re-run the logged-in room state matrix.
+
 status: fail
 task: #436 - Artist URL knowledge integrated live re-QA after health alignment
 environment:
