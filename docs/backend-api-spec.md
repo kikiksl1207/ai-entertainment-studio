@@ -2292,6 +2292,12 @@ GET /api/v1/me/following
 GET /api/v1/me/following-artists
 GET /api/v1/me/following-users
 GET /api/v1/me/followers
+GET /api/v1/users/:userId/followers
+GET /api/v1/users/:userId/following-users
+GET /api/v1/users/:userId/following-artists
+GET /api/v1/users/handle/:publicHandle/followers
+GET /api/v1/users/handle/:publicHandle/following-users
+GET /api/v1/users/handle/:publicHandle/following-artists
 GET /api/v1/users/handle/:publicHandle/profile
 POST /api/v1/users/handle/:publicHandle/follow
 DELETE /api/v1/users/handle/:publicHandle/follow
@@ -2304,6 +2310,83 @@ Authorization: Bearer <accessToken>
 - `userId` must be a user UUID and cannot equal the current user id.
 - `GET /api/v1/me/following` returns `{ artists, users }`.
 - `GET /api/v1/me/following-users?take=20&cursor=<followId>` and `GET /api/v1/me/followers?take=20&cursor=<followId>` return wrapped lists with `{ items, users, count, total, nextCursor }`. Cursor is the follow row id.
+- Public follow-list endpoints are planned as optional-auth reads for another active public user profile:
+  - `GET /api/v1/users/:userId/followers?take=20&cursor=<followId>`
+  - `GET /api/v1/users/:userId/following-users?take=20&cursor=<followId>`
+  - `GET /api/v1/users/:userId/following-artists?take=20&cursor=<followId>`
+  - `GET /api/v1/users/handle/:publicHandle/followers?take=20&cursor=<followId>`
+  - `GET /api/v1/users/handle/:publicHandle/following-users?take=20&cursor=<followId>`
+  - `GET /api/v1/users/handle/:publicHandle/following-artists?take=20&cursor=<followId>`
+- Public user follow-list responses use the existing My Page pagination contract and add a safe target/viewer/policy envelope:
+
+```json
+{
+  "items": [
+    {
+      "id": "follow-row-uuid",
+      "status": "active",
+      "followedAt": "2026-05-27T00:00:00.000Z",
+      "updatedAt": "2026-05-27T00:00:00.000Z",
+      "user": {
+        "id": "public-user-uuid",
+        "displayName": "public display name",
+        "publicHandle": "public-handle",
+        "avatarUrl": "public asset url or null"
+      }
+    }
+  ],
+  "users": [
+    {
+      "id": "follow-row-uuid",
+      "status": "active",
+      "followedAt": "2026-05-27T00:00:00.000Z",
+      "updatedAt": "2026-05-27T00:00:00.000Z",
+      "user": {
+        "id": "public-user-uuid",
+        "displayName": "public display name",
+        "publicHandle": "public-handle",
+        "avatarUrl": "public asset url or null"
+      }
+    }
+  ],
+  "count": 1,
+  "total": 1,
+  "nextCursor": null,
+  "target": {
+    "id": "target-user-uuid",
+    "displayName": "target display name",
+    "publicHandle": "target-handle",
+    "avatarUrl": "public asset url or null"
+  },
+  "viewer": {
+    "isAuthenticated": true,
+    "isSelf": false,
+    "canViewList": true,
+    "blockedByMe": false,
+    "hasBlockedMe": false
+  },
+  "policy": {
+    "projection": "public_user_follow_summary_v1",
+    "visibility": "public_active_profiles_only",
+    "hiddenUserRule": "Only active non-deleted users and public active artists are returned.",
+    "privateFieldsExcluded": [
+      "email",
+      "phone",
+      "providerIds",
+      "walletAccounts",
+      "walletLedger",
+      "paymentOrders",
+      "privateProfile",
+      "moderationNotes"
+    ]
+  }
+}
+```
+
+- `following-artists` rows replace `user` with the existing compact public artist projection and may also return `artists` as the list alias. It must not expose internal artist ownership, settlement, or operator fields.
+- Implementation status: the public follow-list and remove-follower routes above are contract-ready and should not be wired by frontend until the matching controller/service implementation is merged. Existing follow, unfollow, block, unblock, public profile, and My Page follow-list routes remain live under the current addendum.
+- Public follow-list endpoints accept optional bearer auth. Anonymous callers can read public active profiles; authenticated callers receive viewer hints and block filtering. If the viewer has an active block relationship with the target profile in either direction, the endpoint returns `403 USER_PROFILE_BLOCKED` with `messageKey: "social.profile.blocked"`.
+- Public follow-list item projection is limited to public profile fields: ids needed for routing, display name, public handle/slug, public avatar URL, follow row timestamps, and status. It must not expose email, social provider ids, phone, private bio metadata, wallet/Lumina balances, payment/refund/order rows, settlement/payout state, or admin/moderation notes.
 - `GET /api/v1/users/handle/:publicHandle/profile` is public and returns the same shape as `GET /api/v1/users/:userId/profile`, resolving by the unique `user_profiles.public_handle`.
 - Public user profile responses include `user.coverImageUrl`; render the frontend default cover when it is `null`.
 - Public user profile routes accept optional bearer auth. When present and valid, responses include `viewer.isSelf`, `viewer.isFollowing`, `viewer.canFollow`, `viewer.canUnfollow`, and `viewer.canEditProfile`.
@@ -2338,6 +2421,7 @@ DELETE /api/v1/lumina-feed/posts/:postId/hide
 GET /api/v1/me/hidden-posts?take=20
 POST /api/v1/users/:userId/block
 DELETE /api/v1/users/:userId/block
+DELETE /api/v1/me/followers/:userId
 GET /api/v1/me/blocked-users?take=20
 Authorization: Bearer <accessToken>
 ```
@@ -2366,8 +2450,101 @@ Authorization: Bearer <accessToken>
 - `DELETE /api/v1/lumina-feed/posts/:postId` soft-deletes the current user's own root post. Deleting the root hides the full thread from feed lists.
 - `DELETE /api/v1/lumina-feed/replies/:replyId` soft-deletes the current user's own reply. Artist operators can delete replies on operated artist posts.
 - Hidden posts use soft delete/reactivation with unique `(user_id, post_id)`.
-- `POST /api/v1/users/:userId/block` accepts optional `{ "reason": "..." }`, rejects self-block, soft-deletes active follows in both directions, and returns `{ block }`.
+- `POST /api/v1/users/:userId/block` and `POST /api/v1/users/handle/:publicHandle/block` accept optional `{ "reason": "..." }`, reject self-block, soft-delete active follows in both directions, and return `{ block, effects, policy }`.
+- `DELETE /api/v1/me/followers/:userId` is the planned remove-follower-without-block contract. It requires login, treats the current user as the profile owner, soft-deletes an active `user_follows` row where `follower_user_id = :userId` and `following_user_id = currentUser.id`, and returns `{ ok, removed, user, stats, viewer, policy }`. It does not create a `user_blocks` row and does not prevent the removed user from following again.
+- Remove-follower response shape:
+
+```json
+{
+  "ok": true,
+  "removed": true,
+  "user": {
+    "id": "removed-follower-user-uuid",
+    "displayName": "public display name",
+    "publicHandle": "public-handle",
+    "avatarUrl": "public asset url or null"
+  },
+  "stats": {
+    "followerCount": 12,
+    "followingCount": 3
+  },
+  "viewer": {
+    "isAuthenticated": true,
+    "isSelf": false,
+    "isFollowing": false,
+    "canFollow": true,
+    "canUnfollow": false
+  },
+  "policy": {
+    "blockCreated": false,
+    "refollowAllowed": true,
+    "walletMutation": false,
+    "luminaMutation": false,
+    "paymentMutation": false,
+    "refundMutation": false,
+    "settlementMutation": false
+  }
+}
+```
+
+- User-block response shape:
+
+```json
+{
+  "block": {
+    "id": "block-row-uuid",
+    "status": "active",
+    "reason": "optional trimmed reason or null",
+    "blockedAt": "2026-05-27T00:00:00.000Z",
+    "updatedAt": "2026-05-27T00:00:00.000Z",
+    "user": {
+      "id": "blocked-user-uuid",
+      "displayName": "public display name",
+      "publicHandle": "public-handle",
+      "avatarUrl": "public asset url or null"
+    }
+  },
+  "effects": {
+    "viewerToTargetFollowRemoved": true,
+    "targetToViewerFollowRemoved": true,
+    "refollowBlocked": true,
+    "feedHiddenForViewer": true,
+    "commentsHiddenForViewer": true,
+    "premiumChatBlockedBeforeWallet": true,
+    "supportBlockedBeforeWallet": true
+  },
+  "policy": {
+    "relationship": "user_block",
+    "scope": "viewer_target_pair",
+    "walletMutation": false,
+    "luminaMutation": false,
+    "paymentMutation": false,
+    "refundMutation": false,
+    "settlementMutation": false
+  }
+}
+```
+
+- Block expectations:
+  - Active follows in both directions are soft-deleted in the same server operation that activates the block.
+  - A user blocked by the profile owner cannot refollow that owner while the block is active. Follow attempts in either blocked direction fail before creating/reactivating `user_follows`.
+  - Authenticated feed, user profile post lists, repost embeds, comments/replies, and notification-style public projections hide rows authored by users in an active block relationship with the viewer. Anonymous public reads cannot apply relationship filtering because there is no viewer identity.
+  - Premium chat, fan support, donation, gift, paid unlock, and any cash-like interaction between blocked users must fail closed before wallet, Lumina, payment, refund, payout, settlement, or revenue-sharing lookup/mutation.
+  - Unblock only soft-deletes the `user_blocks` row. It does not restore removed follow rows; either user must follow again explicitly after unblock.
 - `user_blocks` uses soft delete/reactivation with unique `(blocker_user_id, blocked_user_id)`.
+- Follow/block error states use stable codes and message keys:
+
+| Status | Code | Message key | Applies to |
+| --- | --- | --- | --- |
+| 400 | `INVALID_USER_ID` | `social.user.invalidId` | Invalid UUID user id. |
+| 400 | `INVALID_CURSOR` | `social.followList.invalidCursor` | Invalid follow-list cursor. |
+| 400 | `INVALID_PUBLIC_HANDLE` | `social.profile.invalidHandle` | Invalid handle syntax. |
+| 401 | `AUTH_REQUIRED` | `auth.required` | Mutations without login. |
+| 403 | `USER_PROFILE_BLOCKED` | `social.profile.blocked` | Active block relationship prevents viewing the profile or follow list. |
+| 403 | `USER_FOLLOW_BLOCKED` | `social.follow.blocked` | Follow/refollow blocked by an active user block. |
+| 404 | `USER_NOT_FOUND` | `social.user.notFound` | Target is missing, deleted, suspended, or inactive. |
+| 409 | `SELF_FOLLOW_NOT_ALLOWED` | `social.follow.selfNotAllowed` | User tries to follow self. |
+| 409 | `SELF_BLOCK_NOT_ALLOWED` | `social.block.selfNotAllowed` | User tries to block self. |
 
 Generic moderation report endpoints:
 
