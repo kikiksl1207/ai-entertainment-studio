@@ -1,6 +1,47 @@
 # Team2 QA Inbox
 
 status: blocked
+task: #534 - premium chat live status matrix QA recheck after current-turn restore
+environment:
+- branch: team2-qa/534-live-matrix-qa
+- `git pull origin main`: fast-forwarded main to `47dc4df`; QA worktree merged latest `origin/main`.
+- local basis commit: 47dc4df4ba75f39bc1a817d4b0f89a91f1ad565f plus QA report branch merge.
+- live API health: HTTP 200, commit 47dc4df4ba75f39bc1a817d4b0f89a91f1ad565f.
+- No token, cookie, password, env value, secret, signed URL, raw provider payload, raw response body, DB URL, raw credential, raw email, room id, or private user id was recorded.
+- No fixture prepare/verify/cleanup against live DB, donation, room-open, wallet, refund, report, settlement, payout, payment, or paid mutation was executed.
+
+tested_flows:
+- PASS: Notion is back to `[큐알2 현재차례] #534`, so QR2 rechecked live readiness.
+- PASS: `npm.cmd run qa:premium-chat-live-fixtures` remains dry-run only and prints the 7 planned buckets with no DB connection/write.
+- PASS: `GET /api/v1/chat/premium-rooms?take=20` now returns HTTP 200/read-only with 2 public room rows.
+- PASS: `GET /api/v1/chat/premium-rooms?status=active&take=20` returns 2 active rows.
+- PASS: unauthenticated owner detail and artist/operator detail endpoints still return HTTP 401.
+- PASS: `node --check server/scripts/prepare-premium-chat-live-qa-fixtures.mjs`.
+- PASS: `node --check server/src/chat/chat.service.ts`.
+- PASS: `node --check server/src/chat/chat.service.spec.ts`.
+- PASS: `node --check server/src/chat/premium-chat-support-contract.ts`.
+- PASS: `npm.cmd test -- premium-chat-room-contract.spec.ts premium-chat-rooms-read.controller.spec.ts chat.controller.spec.ts chat.service.spec.ts --runInBand` passed 83 tests.
+- BLOCKED: the 2 live public rows are both `active`, not tagged as #534 fixture rows, and do not cover reported/admin_review/refund/near-expiry/closed/expired buckets.
+- BLOCKED: approved owner/operator QA session is still unavailable in this runtime, so owner detail and artist detail matrix cannot be exercised without requesting raw credentials.
+
+not_verified_due_to_blocker:
+- `reported_room` / `paused_by_report`.
+- `admin_review_room` / `admin_review`.
+- `unanswered_refund_candidate` / `refund_pending`.
+- `near_expiry_room` / `active` with near-expiry projection.
+- `closed_room` / `closed_by_artist`.
+- `expired_room` / `expired`.
+- owner-only and artist/operator-only status detail projections.
+- cleanup verification for tagged #534 rows.
+
+actual:
+- Public active list is no longer empty, so baseline public list readiness improved.
+- Full #534 matrix remains blocked because the required tagged fixture rows and approved private owner/operator session are still not available to QR2.
+
+next_needed:
+- Return #534 to PM Chamo or secure QA runtime/session owner to prepare/verify the tagged #534 rows and provide QR2 only approved private-session access/bucket references. Do not mark complete yet.
+
+status: blocked
 task: #534 - premium chat live status matrix QA resume
 environment:
 - branch: team2-qa/534-live-matrix-qa
