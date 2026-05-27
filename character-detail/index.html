@@ -99,22 +99,29 @@
         </div>
       </section>
 
-      <!-- #208 — 캐릭터챗 starter prompt 진입 (slug 자동 적용) -->
+      <!-- #538 — 캐릭터챗·프리미엄챗 선택 UX 보강 (2-option card layout) -->
+      <!-- (이전: #208 starter prompt 진입, #512 disabled secondary 버튼 → #538에서 카드형으로 재설계) -->
       <section class="content-section">
-        <div class="shell" style="text-align:center;">
-          <!-- #512 — 중앙 CTA 2버튼 정리: AI챗(primary)·프리미엄챗(disabled secondary) 분리.
-               (#500에서 경로 분리 완료, #512에서 중앙 CTA에도 프리미엄챗 disabled 버튼 추가) -->
-          <div style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
-            <a id="chatStartLink" class="button button-primary" href="/character-chat" style="display:inline-flex;align-items:center;gap:8px;padding:14px 28px;font-size:15px;letter-spacing:0;">
-              <span data-cms-key="character-detail.chat.ctaLabel" data-cms-field="ctaLabel">AI 캐릭터와 대화하기</span>
-              <span aria-hidden="true" style="font-size:13px;opacity:0.85;">→</span>
+        <div class="shell">
+          <div class="detail-chat-select" id="detailChatSelect" aria-label="대화 방법 선택">
+            <a class="detail-chat-option" id="chatStartLink" href="/character-chat">
+              <span class="detail-chat-option-icon" aria-hidden="true">💬</span>
+              <div class="detail-chat-option-body">
+                <strong>캐릭터챗</strong>
+                <small>AI 아티스트와 언제든 바로 대화</small>
+              </div>
+              <span class="detail-chat-option-arrow" aria-hidden="true">→</span>
             </a>
-            <button type="button" class="button button-secondary" disabled aria-disabled="true" style="display:inline-flex;align-items:center;gap:6px;padding:14px 20px;font-size:15px;letter-spacing:0;opacity:.45;cursor:default;pointer-events:none;">
-              <span data-cms-key="character-detail.premium.ctaLabel" data-cms-field="ctaLabel">프리미엄챗</span>
-              <small style="font-size:11px;opacity:0.8;">방 오픈 준비 중</small>
-            </button>
+            <div class="detail-chat-option is-locked" aria-disabled="true" role="group" aria-label="프리미엄챗 준비 중">
+              <span class="detail-chat-option-icon" aria-hidden="true">⭐</span>
+              <div class="detail-chat-option-body">
+                <strong>프리미엄챗</strong>
+                <small>아티스트가 직접 답하는 방</small>
+              </div>
+              <span class="detail-chat-option-badge">준비 중</span>
+            </div>
           </div>
-          <p data-cms-key="character-detail.chat.note" data-cms-field="body" style="margin:10px 0 0;font-size:13px;color:rgba(220,210,240,0.55);font-weight:500;letter-spacing:0;">처음이라면 추천 인사말로 가볍게 첫 마디를 건네볼 수 있어요.</p>
+          <p class="detail-chat-select-note">처음이라면 추천 인사말로 가볍게 첫 마디를 건네볼 수 있어요.</p>
         </div>
         <script>
           (function () {

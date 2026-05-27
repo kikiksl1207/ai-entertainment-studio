@@ -348,13 +348,14 @@ function renderCharacterDetail() {
              <!-- #500 — 캐릭터챗(AI)·프리미엄챗(아티스트 직접) 진입점 분리.
                   기존 "프리미엄챗" 라벨이 /character-chat(AI챗)으로 연결되어 오인 유발 → AI챗 라벨로 교체.
                   프리미엄챗은 API·화면 준비 전이므로 disabled 상태로 별도 표시. AI챗으로 대체 연결 금지. -->
-             <a class="cta-btn cta-btn-chat cta-btn-link" href="/character-chat?slug=${encodeURIComponent(artist.slug)}">
+             <!-- #538 — 설명 문구 강화: AI챗/프리미엄챗 차이 명확화 -->
+             <a class="cta-btn cta-btn-chat cta-btn-link" href="/character-chat?slug=${encodeURIComponent(artist.slug)}" title="AI 아티스트와 바로 대화할 수 있습니다">
                <span class="cta-btn-icon">💬</span>
-               <span class="cta-btn-label"><strong>캐릭터챗</strong><small>AI와 바로 대화</small></span>
+               <span class="cta-btn-label"><strong>캐릭터챗</strong><small>AI 아티스트와 바로 대화</small></span>
              </a>
-             <button class="cta-btn cta-btn-premium" disabled aria-disabled="true">
+             <button class="cta-btn cta-btn-premium" disabled aria-disabled="true" title="아티스트가 직접 답변하는 프리미엄챗은 준비 중입니다">
                <span class="cta-btn-icon">⭐</span>
-               <span class="cta-btn-label"><strong>프리미엄챗</strong><small>방 오픈 준비 중</small></span>
+               <span class="cta-btn-label"><strong>프리미엄챗</strong><small>아티스트 직접 답변 · 준비 중</small></span>
              </button>
            </div>
          </div>`;
