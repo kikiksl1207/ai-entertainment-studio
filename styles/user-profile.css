@@ -1257,6 +1257,422 @@
   }
 }
 
+/* ════════════════════════════════════════════════════════════
+   #523 — 팔로워·팔로잉 목록 모달 & 차단 확인 모달
+   ════════════════════════════════════════════════════════════ */
+
+/* 팔로워·팔로잉 목록 모달 */
+.follow-list-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px 24px;
+}
+.follow-list-modal:not([hidden]) {
+  display: flex;
+}
+.follow-list-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.follow-list-modal.is-open .follow-list-modal-backdrop {
+  opacity: 1;
+}
+.follow-list-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100vh - 80px);
+  background: #1a0f2e;
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateY(12px) scale(0.97);
+  opacity: 0;
+  transition: transform 0.2s ease, opacity 0.18s ease;
+}
+.follow-list-modal.is-open .follow-list-modal-card {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+/* 헤더 */
+.follow-list-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(159, 139, 199, 0.12);
+  flex-shrink: 0;
+}
+.follow-list-modal-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--ink, #fff);
+  letter-spacing: -0.02em;
+}
+.follow-list-close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: transparent;
+  border: 0;
+  color: var(--ink, #fff);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.follow-list-close-btn:hover {
+  background: rgba(159, 139, 199, 0.14);
+}
+
+/* 탭 (팔로워 / 팔로잉) */
+.follow-list-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(159, 139, 199, 0.12);
+  flex-shrink: 0;
+}
+.follow-list-tab {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  padding: 13px 8px;
+  color: rgba(220, 210, 240, 0.6);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  letter-spacing: -0.01em;
+  transition: color 0.15s, background 0.15s;
+}
+.follow-list-tab:hover {
+  color: var(--ink, #fff);
+  background: rgba(159, 139, 199, 0.05);
+}
+.follow-list-tab.is-active {
+  color: var(--ink, #fff);
+  font-weight: 700;
+}
+.follow-list-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 48px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #ff1493, #ff7eb9);
+}
+
+/* 목록 바디 */
+.follow-list-body {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.follow-list-items {
+  display: flex;
+  flex-direction: column;
+}
+.follow-list-loading {
+  padding: 32px 16px;
+  text-align: center;
+  color: rgba(220, 210, 240, 0.5);
+  font-size: 14px;
+}
+.follow-list-empty {
+  padding: 40px 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.follow-list-empty strong {
+  color: rgba(220, 210, 240, 0.78);
+  font-size: 15px;
+  font-weight: 700;
+}
+.follow-list-empty p {
+  margin: 0;
+  color: rgba(220, 210, 240, 0.5);
+  font-size: 13.5px;
+}
+
+/* 각 아이템 */
+.follow-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(159, 139, 199, 0.08);
+  transition: background 0.12s;
+}
+.follow-list-item:last-child {
+  border-bottom: 0;
+}
+.follow-list-item:hover {
+  background: rgba(159, 139, 199, 0.05);
+}
+.follow-list-item-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff1493, #9f8bc7);
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  text-decoration: none;
+}
+.follow-list-item-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.follow-list-item-avatar-fallback {
+  color: #fff;
+  font-weight: 800;
+  font-size: 18px;
+  line-height: 1;
+}
+.follow-list-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.follow-list-item-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink, #fff);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+}
+.follow-list-item-name:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.follow-list-item-handle {
+  font-size: 13px;
+  color: rgba(220, 210, 240, 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.follow-list-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* 차단 버튼 */
+.follow-list-block-btn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid rgba(255, 80, 100, 0.4);
+  color: #ff7e90;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.follow-list-block-btn:hover:not(:disabled) {
+  background: rgba(255, 80, 100, 0.12);
+  border-color: rgba(255, 80, 100, 0.65);
+}
+
+/* 제거 버튼 (준비 중 → 비활성) */
+.follow-list-remove-btn {
+  position: relative;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid rgba(159, 139, 199, 0.22);
+  color: rgba(220, 210, 240, 0.45);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: not-allowed;
+  white-space: nowrap;
+  opacity: 0.65;
+}
+.follow-list-remove-btn::after {
+  content: attr(title);
+  position: absolute;
+  bottom: calc(100% + 7px);
+  right: 0;
+  background: rgba(20, 14, 42, 0.94);
+  color: rgba(220, 210, 240, 0.82);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  z-index: 1;
+}
+.follow-list-remove-btn:hover::after {
+  opacity: 1;
+}
+
+/* 더 보기 */
+.follow-list-load-more {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid rgba(159, 139, 199, 0.1);
+  color: #ff7eb9;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.follow-list-load-more:hover:not(:disabled) {
+  background: rgba(255, 20, 147, 0.06);
+}
+.follow-list-load-more:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 모바일 — 하단 시트 */
+@media (max-width: 768px) {
+  .follow-list-modal {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .follow-list-modal-card {
+    max-width: 100%;
+    max-height: 85vh;
+    border-radius: 16px 16px 0 0;
+  }
+}
+
+/* ── 차단 확인 모달 ── */
+.block-confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.block-confirm-modal:not([hidden]) {
+  display: flex;
+}
+.block-confirm-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+}
+.block-confirm-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  background: #1a0f2e;
+  border: 1px solid rgba(159, 139, 199, 0.2);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  padding: 28px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: blockConfirmIn 0.17s ease;
+}
+@keyframes blockConfirmIn {
+  from { transform: scale(0.94); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+.block-confirm-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--ink, #fff);
+  letter-spacing: -0.02em;
+}
+.block-confirm-desc {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(220, 210, 240, 0.72);
+}
+.block-confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  justify-content: flex-end;
+}
+.block-confirm-cancel {
+  padding: 9px 20px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid rgba(159, 139, 199, 0.28);
+  color: rgba(220, 210, 240, 0.85);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.block-confirm-cancel:hover {
+  background: rgba(159, 139, 199, 0.1);
+}
+.block-confirm-submit {
+  padding: 9px 20px;
+  border-radius: 999px;
+  background: rgba(255, 60, 80, 0.14);
+  border: 1px solid rgba(255, 60, 80, 0.42);
+  color: #ff7e90;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.block-confirm-submit:hover:not(:disabled) {
+  background: rgba(255, 60, 80, 0.24);
+  border-color: rgba(255, 60, 80, 0.68);
+}
+.block-confirm-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* 통계 — 한 줄로 강제 (이전 CSS의 li display 충돌 해결) */
 .user-profile-stats {
   list-style: none !important;
