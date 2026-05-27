@@ -147,10 +147,15 @@ function sortFeedListWithThreadContinuations(list) {
 }
 
 function feedAuthorTypeLabel(authorTypeEnum) {
+  // #541 — 한국어 직접 입력(샘플/레거시) + enum 모두 지원. "Lumina" → "루미나" 브랜드 통일.
   return ({
-    "ai_artist": "Lumina 아티스트",
+    "ai_artist": "루미나 아티스트",
     "fan": "팬",
-    "debut_artist": "데뷔 준비"
+    "debut_artist": "데뷔 준비",
+    "AI 아티스트": "루미나 아티스트",
+    "아티스트": "루미나 아티스트",
+    "팬": "팬",
+    "데뷔 준비": "데뷔 준비"
   })[authorTypeEnum] || "팬";
 }
 
@@ -349,16 +354,17 @@ function renderLuminaFeed() {
              공유는 사용자가 자주 쓰지만 카드 변형을 만들지 않는 액션이라 우측 하단 아이콘 자리로 분리한다. 댓글과 타래는 명확히 다른 라벨/아이콘으로 구분. -->
         <footer class="feed-post-actions">
           <div class="feed-post-actions-left" role="group" aria-label="참여 액션">
+            <!-- #541 — 좋아요 → 응원: 별 아이콘 + 라벨 (Lumina Stage 팬덤/무대 컨셉, X 하트 패턴 탈피) -->
             <button class="feed-action-btn feed-like-btn${post.viewer?.hasLiked ? " is-liked" : ""}" type="button"
                     data-feed-like="${feedEscapeHtml(post.id || "")}"
                     aria-pressed="${post.viewer?.hasLiked ? "true" : "false"}"
-                    aria-label="${post.viewer?.hasLiked ? "좋아요 취소하기" : "좋아요 누르기"}">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
+                    aria-label="${post.viewer?.hasLiked ? "응원 취소하기" : "응원하기"}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.5 7.5H22l-6.5 4.7 2.5 7.7L12 17.5l-6 4.4 2.5-7.7L2 9.5h7.5z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
               <span data-feed-like-count>${Number(post.likeCount) || 0}</span>
             </button>
-            <!-- 댓글: 일반 답글. 타래(이어쓰기)와 명확히 구분되도록 라벨 "댓글" + 말풍선 아이콘 유지. -->
+            <!-- #541 — 댓글 아이콘: 직각 → 라운드 말풍선 (X 직각형 패턴 탈피). 라벨 "댓글" 유지. -->
             <button class="feed-action-btn feed-comment-btn" type="button" data-feed-comment="${feedEscapeHtml(post.id || "")}" aria-label="댓글 보기">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 4V6z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
               <span>댓글 ${Number(post.replyCount) || 0}</span>
             </button>
             <!-- 타래 잇기: 본인 글에만 노출 (#531 — viewer.isAuthor || viewer.canEdit 조건) -->
@@ -370,12 +376,12 @@ function renderLuminaFeed() {
               <span>타래 잇기</span>
             </button>`
               : ""}
-            <!-- 리포스트: 원글 reference + 선택 quote body. 단순 복사가 아니라 reference card 유지. -->
+            <!-- #541 — 리포스트 → "퍼나르기": 업로드 화살표 아이콘 + 한국어 라벨 (X 리트윗 패턴 탈피). 기능 유지. -->
             <button class="feed-action-btn feed-repost-btn" type="button"
                     data-feed-repost="${feedEscapeHtml(post.id || "")}"
-                    aria-label="이 글 리포스트하기">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v7H9l-2 2V6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 4h9v7l-2-2h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-              <span>리포스트</span>
+                    aria-label="이 글 퍼나르기">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/><path d="M16 8l-4-4-4 4M12 4v12" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>퍼나르기</span>
             </button>
           </div>
           <div class="feed-post-actions-right" role="group" aria-label="카드 메뉴">
@@ -1703,12 +1709,14 @@ async function runFeedComposeUploadStages(item, onStateChange) {
         linkPreview +
         '<footer class="feed-post-actions">' +
           '<div class="feed-post-actions-left" role="group" aria-label="참여 액션">' +
-            '<button class="feed-action-btn feed-like-btn' + (post.viewer?.hasLiked ? " is-liked" : "") + '" type="button" data-feed-like="' + postIdStr + '" aria-pressed="' + (post.viewer?.hasLiked ? "true" : "false") + '" aria-label="' + (post.viewer?.hasLiked ? "좋아요 취소하기" : "좋아요 누르기") + '">' +
-              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>' +
+            /* #541 — 응원 버튼 (상세뷰): 별 아이콘 + aria-label 교체 */
+            '<button class="feed-action-btn feed-like-btn' + (post.viewer?.hasLiked ? " is-liked" : "") + '" type="button" data-feed-like="' + postIdStr + '" aria-pressed="' + (post.viewer?.hasLiked ? "true" : "false") + '" aria-label="' + (post.viewer?.hasLiked ? "응원 취소하기" : "응원하기") + '">' +
+              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.5 7.5H22l-6.5 4.7 2.5 7.7L12 17.5l-6 4.4 2.5-7.7L2 9.5h7.5z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>' +
               '<span data-feed-like-count>' + (Number(post.likeCount) || 0) + '</span>' +
             '</button>' +
+            /* #541 — 댓글 아이콘 (상세뷰): 라운드 말풍선 */
             '<button class="feed-action-btn feed-comment-btn" type="button" data-feed-comment="' + postIdStr + '" aria-label="댓글 보기">' +
-              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>' +
+              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 4V6z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>' +
               '<span>댓글 ' + (Number(post.replyCount) || 0) + '</span>' +
             '</button>' +
             /* #531 — 타래 잇기: 본인 글에만 노출 */
@@ -1718,9 +1726,10 @@ async function runFeedComposeUploadStages(item, onStateChange) {
                   '<span>타래 잇기</span>' +
                 '</button>'
               : "") +
-            '<button class="feed-action-btn feed-repost-btn" type="button" data-feed-repost="' + postIdStr + '" aria-label="이 글 리포스트하기">' +
-              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v7H9l-2 2V6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 4h9v7l-2-2h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>' +
-              '<span>리포스트</span>' +
+            /* #541 — 퍼나르기 버튼 (상세뷰): 업로드 아이콘 + 한국어 라벨 */
+            '<button class="feed-action-btn feed-repost-btn" type="button" data-feed-repost="' + postIdStr + '" aria-label="이 글 퍼나르기">' +
+              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/><path d="M16 8l-4-4-4 4M12 4v12" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+              '<span>퍼나르기</span>' +
             '</button>' +
           '</div>' +
           '<div class="feed-post-actions-right" role="group" aria-label="카드 메뉴">' +
