@@ -367,6 +367,62 @@ export class CommunityController {
     );
   }
 
+  @Get('users/:userId/followers')
+  @UseGuards(OptionalJwtAuthGuard)
+  getUserFollowers(
+    @Param('userId') userId: string,
+    @Query() query: CommunityQuery,
+    @Req() request: RequestWithOptionalAuth,
+  ) {
+    return this.communityService.getPublicUserFollowers(
+      userId,
+      query,
+      request.user?.id,
+    );
+  }
+
+  @Get('users/:userId/following-users')
+  @UseGuards(OptionalJwtAuthGuard)
+  getUserFollowingUsers(
+    @Param('userId') userId: string,
+    @Query() query: CommunityQuery,
+    @Req() request: RequestWithOptionalAuth,
+  ) {
+    return this.communityService.getPublicUserFollowingUsers(
+      userId,
+      query,
+      request.user?.id,
+    );
+  }
+
+  @Get('users/handle/:publicHandle/followers')
+  @UseGuards(OptionalJwtAuthGuard)
+  getUserFollowersByHandle(
+    @Param('publicHandle') publicHandle: string,
+    @Query() query: CommunityQuery,
+    @Req() request: RequestWithOptionalAuth,
+  ) {
+    return this.communityService.getPublicUserFollowersByHandle(
+      publicHandle,
+      query,
+      request.user?.id,
+    );
+  }
+
+  @Get('users/handle/:publicHandle/following-users')
+  @UseGuards(OptionalJwtAuthGuard)
+  getUserFollowingUsersByHandle(
+    @Param('publicHandle') publicHandle: string,
+    @Query() query: CommunityQuery,
+    @Req() request: RequestWithOptionalAuth,
+  ) {
+    return this.communityService.getPublicUserFollowingUsersByHandle(
+      publicHandle,
+      query,
+      request.user?.id,
+    );
+  }
+
   @Get('me/following')
   @UseGuards(JwtAuthGuard)
   getMyFollowing(@CurrentUser() user: AuthUser) {

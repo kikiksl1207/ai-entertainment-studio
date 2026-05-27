@@ -1834,6 +1834,174 @@ export class CommunityService {
     };
   }
 
+  async getPublicUserFollowers(
+    userId: string,
+    query: CommunityQuery = {},
+    viewerUserId?: string,
+  ) {
+    if (!UUID_PATTERN.test(userId)) {
+      throw new BadRequestException('userId must be a UUID');
+    }
+
+    return this.getPublicUserFollowListByWhere(
+      { id: userId },
+      'followers',
+      query,
+      viewerUserId,
+    );
+  }
+
+  async getPublicUserFollowingUsers(
+    userId: string,
+    query: CommunityQuery = {},
+    viewerUserId?: string,
+  ) {
+    if (!UUID_PATTERN.test(userId)) {
+      throw new BadRequestException('userId must be a UUID');
+    }
+
+    return this.getPublicUserFollowListByWhere(
+      { id: userId },
+      'following-users',
+      query,
+      viewerUserId,
+    );
+  }
+
+  async getPublicUserFollowersByHandle(
+    publicHandle: string,
+    query: CommunityQuery = {},
+    viewerUserId?: string,
+  ) {
+    const normalizedHandle = this.normalizePublicHandle(publicHandle);
+
+    return this.getPublicUserFollowListByWhere(
+      { profile: { is: { publicHandle: normalizedHandle } } },
+      'followers',
+      query,
+      viewerUserId,
+    );
+  }
+
+  async getPublicUserFollowingUsersByHandle(
+    publicHandle: string,
+    query: CommunityQuery = {},
+    viewerUserId?: string,
+  ) {
+    const normalizedHandle = this.normalizePublicHandle(publicHandle);
+
+    return this.getPublicUserFollowListByWhere(
+      { profile: { is: { publicHandle: normalizedHandle } } },
+      'following-users',
+      query,
+      viewerUserId,
+    );
+  }
+
+  private async getPublicUserFollowListByWhere(
+    where: {
+      id?: string;
+      profile?: { is: { publicHandle: string } };
+    },
+    list: 'followers' | 'following-users',
+    query: CommunityQuery,
+    viewerUserId?: string,
+  ) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        ...where,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        profile: {
+          select: {
+            displayName: true,
+            publicHandle: true,
+            avatarAssetId: true,
+            coverAssetId: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    await this.assertProfileVisibleToViewer(user.id, viewerUserId);
+
+    const take = this.take(query.take);
+    const cursor = this.optionalString(query.cursor);
+
+    if (cursor && !UUID_PATTERN.test(cursor)) {
+      throw new BadRequestException('cursor must be a follow UUID');
+    }
+
+    const direction = list === 'followers' ? 'follower' : 'following';
+    const followWhere =
+      list === 'followers'
+        ? {
+            followingUserId: user.id,
+            status: 'active',
+            deletedAt: null,
+            follower: {
+              status: 'active',
+              deletedAt: null,
+            },
+          }
+        : {
+            followerUserId: user.id,
+            status: 'active',
+            deletedAt: null,
+            following: {
+              status: 'active',
+              deletedAt: null,
+            },
+          };
+
+    const [follows, total] = await Promise.all([
+      this.prisma.userFollow.findMany({
+        where: followWhere,
+        include: this.userFollowInclude(direction),
+        orderBy: { createdAt: 'desc' },
+        take,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.userFollow.count({ where: followWhere }),
+    ]);
+    const items = await Promise.all(
+      follows.map((follow) => this.toUserFollowView(follow, direction)),
+    );
+
+    return {
+      ...this.userFollowListResponse(items, follows, total, take),
+      target: await this.toCompactUserView(user),
+      viewer: {
+        ...(await this.userProfileViewerState(user.id, viewerUserId)),
+        canViewList: true,
+      },
+      policy: {
+        projection: 'public_user_follow_summary_v1',
+        visibility: 'public_active_profiles_only',
+        list,
+        hiddenUserRule:
+          'Only active non-deleted users are returned; suspended, deleted, or inactive users are hidden from follow cards.',
+        privateFieldsExcluded: [
+          'email',
+          'phone',
+          'providerIds',
+          'walletAccounts',
+          'walletLedger',
+          'paymentOrders',
+          'privateProfile',
+          'moderationNotes',
+        ],
+      },
+    };
+  }
+
   private async userProfileViewerState(targetUserId: string, viewerUserId?: string) {
     const isAuthenticated = Boolean(viewerUserId);
     const isSelf = Boolean(viewerUserId && viewerUserId === targetUserId);
@@ -2208,7 +2376,6 @@ export class CommunityService {
   private userFollowInclude(direction: 'follower' | 'following') {
     const userSelect = {
       id: true,
-      email: true,
       status: true,
       profile: {
         select: {
