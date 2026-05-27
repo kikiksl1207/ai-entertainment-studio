@@ -49,6 +49,7 @@ function createHarness() {
     },
     artist: {
       findFirst: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     boostProduct: {
       findFirst: jest.fn(),
@@ -280,6 +281,7 @@ describe('BoostsService wallet mutation safety', () => {
 
   it('builds refreshed like and paid-like counts from the server boost ledger', async () => {
     const { service, prisma } = createHarness();
+    prisma.artist.findMany.mockResolvedValue([artist]);
     prisma.artistBoostEvent.findMany.mockResolvedValue([
       {
         artistId: artist.id,
@@ -304,11 +306,45 @@ describe('BoostsService wallet mutation safety', () => {
     expect(prisma.artistBoostEvent.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { campaignId: campaign.id } }),
     );
+    expect(prisma.artist.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: 'active' } }),
+    );
     expect(row.artist).toEqual(artist);
     expect(row.totalFreeLikes.toString()).toBe('1');
     expect(row.totalPaidLikes.toString()).toBe('3');
     expect(row.totalLuminaBoosts.toString()).toBe('3');
     expect(row.totalWeightedScore.toString()).toBe('4');
+  });
+
+  it('keeps active artists with zero likes visible in campaign rankings', async () => {
+    const { service, prisma } = createHarness();
+    const ohHyerin = {
+      id: '55555555-5555-4555-8555-555555555555',
+      slug: 'oh-hyerin',
+      displayName: '오혜린',
+    };
+    prisma.artist.findMany.mockResolvedValue([artist, ohHyerin]);
+    prisma.artistBoostEvent.findMany.mockResolvedValue([
+      {
+        artistId: artist.id,
+        artist,
+        boostType: 'free_like',
+        rawAmount: new Decimal(1),
+        weightedScore: new Decimal(1),
+      },
+    ]);
+
+    const rankings = await service.getRankings(campaign.id);
+
+    expect(rankings).toHaveLength(2);
+    expect(rankings[0]).toMatchObject({
+      rankNo: 1,
+      artist,
+    });
+    expect(rankings[1].artist).toEqual(ohHyerin);
+    expect(rankings[1].totalFreeLikes.toString()).toBe('0');
+    expect(rankings[1].totalPaidLikes.toString()).toBe('0');
+    expect(rankings[1].totalWeightedScore.toString()).toBe('0');
   });
 
   it('requires an idempotency key before a boost-order wallet mutation', async () => {

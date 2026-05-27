@@ -20,7 +20,9 @@ export class PopularVoteService {
       };
     }
 
-    const rankings = await this.buildRankings(campaign.id);
+    const rankings = await this.buildRankings(campaign.id, {
+      includeZeroScoreActiveArtists: true,
+    });
     return {
       campaign,
       leader: rankings[0] ?? null,
@@ -152,8 +154,11 @@ export class PopularVoteService {
     return campaign;
   }
 
-  private async buildRankings(campaignId: string) {
-    return this.buildRankingsFromEvents({ campaignId });
+  private async buildRankings(
+    campaignId: string,
+    options: { includeZeroScoreActiveArtists?: boolean } = {},
+  ) {
+    return this.buildRankingsFromEvents({ campaignId }, options);
   }
 
   private buildRankingsForDateRange(start: Date, end: Date) {
@@ -165,11 +170,23 @@ export class PopularVoteService {
     });
   }
 
-  private async buildRankingsFromEvents(where: Prisma.ArtistBoostEventWhereInput) {
-    const events = await this.prisma.artistBoostEvent.findMany({
-      where,
-      include: { artist: this.artistSelect() },
-    });
+  private async buildRankingsFromEvents(
+    where: Prisma.ArtistBoostEventWhereInput,
+    options: { includeZeroScoreActiveArtists?: boolean } = {},
+  ) {
+    const [events, activeArtists] = await Promise.all([
+      this.prisma.artistBoostEvent.findMany({
+        where,
+        include: { artist: this.artistSelect() },
+      }),
+      options.includeZeroScoreActiveArtists
+        ? this.prisma.artist.findMany({
+            where: { status: 'active' },
+            ...this.artistSelect(),
+            orderBy: [{ sortOrder: 'asc' }, { displayName: 'asc' }],
+          })
+        : Promise.resolve([]),
+    ]);
 
     const rows = new Map<
       string,
@@ -181,6 +198,19 @@ export class PopularVoteService {
         totalWeightedScore: Decimal;
       }
     >();
+
+    const activeArtistOrder = new Map(
+      activeArtists.map((activeArtist, index) => [activeArtist.id, index]),
+    );
+    for (const activeArtist of activeArtists) {
+      rows.set(activeArtist.id, {
+        artist: activeArtist,
+        totalFreeLikes: new Decimal(0),
+        totalPaidLikes: new Decimal(0),
+        totalLuminaBoosts: new Decimal(0),
+        totalWeightedScore: new Decimal(0),
+      });
+    }
 
     for (const event of events) {
       const row = rows.get(event.artistId) ?? {
@@ -205,7 +235,20 @@ export class PopularVoteService {
     }
 
     return [...rows.values()]
-      .sort((left, right) => right.totalWeightedScore.comparedTo(left.totalWeightedScore))
+      .sort((left, right) => {
+        const scoreOrder = right.totalWeightedScore.comparedTo(left.totalWeightedScore);
+        if (scoreOrder !== 0) {
+          return scoreOrder;
+        }
+
+        const leftOrder = activeArtistOrder.get(left.artist.id) ?? Number.MAX_SAFE_INTEGER;
+        const rightOrder = activeArtistOrder.get(right.artist.id) ?? Number.MAX_SAFE_INTEGER;
+        if (leftOrder !== rightOrder) {
+          return leftOrder - rightOrder;
+        }
+
+        return left.artist.displayName.localeCompare(right.artist.displayName, 'ko');
+      })
       .map((row, index) => ({
         rankNo: index + 1,
         ...row,
