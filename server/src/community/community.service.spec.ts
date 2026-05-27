@@ -462,6 +462,40 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
     );
   });
 
+  it('does not expose author email in public feed post projections', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findMany.mockResolvedValue([
+      postView({
+        author: {
+          id: authorId,
+          email: 'PRIVATE_AUTHOR_EMAIL_SHOULD_NOT_LEAK',
+          profile: {
+            displayName: 'Author',
+            publicHandle: 'author',
+            avatarAssetId: null,
+            coverAssetId: null,
+          },
+        },
+      }),
+    ]);
+    const service = serviceWith(prisma);
+
+    const result = await service.getFeed({ take: '1' });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].author).toEqual({
+      id: authorId,
+      profile: {
+        displayName: 'Author',
+        publicHandle: 'author',
+        avatarAssetId: null,
+        coverAssetId: null,
+      },
+    });
+    expect(result[0].author).not.toHaveProperty('email');
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_AUTHOR_EMAIL_SHOULD_NOT_LEAK');
+  });
+
   it('soft-deletes only author-owned posts', async () => {
     const prisma = createPrismaMock();
     prisma.communityPost.findFirst.mockResolvedValue(storedPost());

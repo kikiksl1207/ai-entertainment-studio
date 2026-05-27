@@ -2122,7 +2122,6 @@ export class CommunityService {
       author: {
         select: {
           id: true,
-          email: true,
           profile: {
             select: {
               displayName: true,
@@ -2287,6 +2286,7 @@ export class CommunityService {
 
     return {
       ...post,
+      author: this.toPublicPostAuthor(post.author),
       linkPreview: metadata.linkPreview
         ? this.metadataObject(metadata.linkPreview)
         : null,
@@ -2352,6 +2352,24 @@ export class CommunityService {
           replyRelation: false,
         },
       },
+    };
+  }
+
+  private toPublicPostAuthor(author: any) {
+    if (!author) {
+      return null;
+    }
+
+    return {
+      id: author.id,
+      profile: author.profile
+        ? {
+            displayName: author.profile.displayName ?? null,
+            publicHandle: author.profile.publicHandle ?? null,
+            avatarAssetId: author.profile.avatarAssetId ?? null,
+            coverAssetId: author.profile.coverAssetId ?? null,
+          }
+        : null,
     };
   }
 

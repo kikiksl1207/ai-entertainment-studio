@@ -2514,6 +2514,10 @@ Authorization: Bearer <accessToken>
 - `GET /api/v1/me/lumina-feed` matches the public feed query/response shape, but filters out active `community_hidden_posts` for the current user and posts authored by users in an active block relationship.
 - `mode=following` on `GET /api/v1/me/lumina-feed` returns posts from active followed artists and followed normal users. If the viewer follows nobody, it returns `[]`.
 - Signed-in post rows include follow button hints in `viewer`: `isFollowingArtist`, `isFollowingAuthor`, `canFollowArtist`, `canUnfollowArtist`, `canFollowAuthor`, and `canUnfollowAuthor`. Public `GET /api/v1/lumina-feed` remains viewer-agnostic.
+- Public and signed-in feed post `author` projections expose only routing-safe
+  public profile fields. They must not include `author.email`, phone, social
+  provider ids, wallet/Lumina balances, payment/refund/order rows,
+  settlement/payout state, or admin/moderation notes.
 - `GET /api/v1/lumina-feed/search` searches public published feed posts by text or hashtag and records deduped `feed_search_events` for trending aggregation. Optional bearer auth adds viewer hints to post rows.
 - `GET /api/v1/lumina-feed/search-suggestions` returns grouped search-box suggestions from recent search events, recent post hashtags, active artists, and active user profiles.
 - `GET /api/v1/lumina-feed/trending-searches` returns grouped popular search terms. `language=all|ko|ja|en|zh|unknown`, `type=all|text|hashtag`, and `window=15m|1h|6h|24h|7d` are supported. Use `language=all` plus viewer locale language for the 1차 UI because early per-language search volume can be sparse.
