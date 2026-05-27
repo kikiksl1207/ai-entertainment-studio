@@ -1201,7 +1201,7 @@ async function loadFollowList(type, append) {
   if (_followListCursor) endpoint += `&cursor=${encodeURIComponent(_followListCursor)}`;
 
   try {
-    const res = await apiFetch(endpoint, { auth: isAuth });
+    const res = await apiFetch(endpoint, { auth: isAuth, throwOnError: true });
     const rawItems = Array.isArray(res?.items) ? res.items
       : Array.isArray(res?.users) ? res.users
       : [];
