@@ -1263,6 +1263,31 @@ candidates before mutation routes are enabled.
   transition send/reply/donation stay disabled.
 - Unknown future room statuses fail closed as `safe_status_only`.
 
+Premium chat live QA fixture readiness (#520):
+
+`GET /api/v1/chat/premium-support-contract` exposes
+`liveQaFixtureReadiness` so QA can tell whether the premium room status matrix
+can be safely checked on live without opening payment, support, wallet, refund,
+report, settlement, or payout mutation paths.
+
+- Current status is `blocked_until_room_storage_and_safe_session_fixture` and
+  `liveQaReady=false` because premium room storage/read endpoints are not
+  mounted and there is no approved safe login/session fixture for the room
+  matrix.
+- Required fixture buckets are baseline active room, reported room, admin review
+  room, unanswered refund candidate, near-expiry active room, closed room, and
+  expired room.
+- Once storage exists, fixtures must be dedicated inert read-model rows or
+  admin-prepared QA rows for safe QA accounts. They must not be created through
+  actual payment, support donation, wallet debit/credit, report, refund,
+  settlement, payout, or production customer data flows.
+- Repeated verification must return the existing read-only projection and must
+  not create duplicate wallet ledger, refund, report, moderation, settlement, or
+  payout rows.
+- Session handoff must use normal login or an approved secure QA session source.
+  Raw passwords, tokens, cookies, DB URLs, and raw emails must not be requested
+  or recorded in Notion, Git, logs, or QA reports.
+
 Premium chat artist inbox/count projection contract (#517):
 
 `GET /api/v1/chat/premium-support-contract` exposes

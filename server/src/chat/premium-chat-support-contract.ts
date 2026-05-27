@@ -462,6 +462,101 @@ export const PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX = {
   },
 } as const;
 
+export const PREMIUM_CHAT_LIVE_QA_FIXTURE_READINESS = {
+  version: '2026-05-27.premium-chat-live-qa-fixture-readiness.v1',
+  status: 'blocked_until_room_storage_and_safe_session_fixture',
+  liveQaReady: false,
+  readOnly: true,
+  mutationEnabled: false,
+  usableContractEndpoint: '/api/v1/chat/premium-support-contract',
+  plannedReadEndpoints: {
+    roomList: '/api/v1/chat/premium-rooms',
+    userRoomStatus: '/api/v1/chat/me/premium-rooms/:roomId/status',
+    artistRoomStatus:
+      '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
+  },
+  currentBlockers: [
+    'premium_room_storage_not_implemented',
+    'premium_room_read_endpoints_not_mounted',
+    'safe_login_or_session_fixture_missing',
+  ],
+  requiredFixtureStates: [
+    {
+      qaBucket: 'baseline_active_room',
+      roomStatus: 'active',
+      remainingPeriod: 'more_than_24h',
+      expectedAvailability: PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.active,
+    },
+    {
+      qaBucket: 'reported_room',
+      roomStatus: 'paused_by_report',
+      expectedAvailability:
+        PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.paused_by_report,
+    },
+    {
+      qaBucket: 'admin_review_room',
+      roomStatus: 'admin_review',
+      expectedAvailability:
+        PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.admin_review,
+    },
+    {
+      qaBucket: 'unanswered_refund_candidate',
+      roomStatus: 'refund_pending',
+      expectedAvailability:
+        PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.refund_pending,
+    },
+    {
+      qaBucket: 'near_expiry_room',
+      roomStatus: 'active',
+      remainingPeriod: '24h_or_less',
+      expectedAvailability: PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.active,
+    },
+    {
+      qaBucket: 'closed_room',
+      roomStatus: 'closed_by_artist',
+      expectedAvailability:
+        PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.closed_by_artist,
+    },
+    {
+      qaBucket: 'expired_room',
+      roomStatus: 'expired',
+      expectedAvailability: PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.expired,
+    },
+  ],
+  fixtureCreationPolicy: {
+    allowedMethod:
+      'dedicated inert read-model seed or admin-prepared QA rows after storage exists',
+    actualPaymentMutation: false,
+    supportDonationMutation: false,
+    walletDebitMutation: false,
+    walletCreditMutation: false,
+    reportMutation: false,
+    refundMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    productionCustomerDataAllowed: false,
+  },
+  repeatSafety: {
+    stableFixtureKeysRequired: true,
+    repeatedVerificationMustReturnExistingProjection: true,
+    duplicateWalletLedgerAllowed: false,
+    duplicateRefundAllowed: false,
+    duplicateReportStateMutationAllowed: false,
+  },
+  sessionHandling: {
+    useNormalLoginOrApprovedSecureQaSessionOnly: true,
+    rawPasswordRequestedInNotion: false,
+    rawTokenRecordedInNotion: false,
+    rawCookieRecordedInNotion: false,
+    rawEmailRecordedInNotion: false,
+  },
+  handoff: {
+    nextOwnerAfterFixturePrepared: 'qa',
+    nextCheck:
+      'live room list/detail status matrix can resume only after safe fixture rows and session are available',
+  },
+} as const;
+
 export const PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT = {
   version: '2026-05-25.premium-chat-support-ranking-projection.v1',
   status: 'contract_ready_mutation_blocked',
@@ -2141,6 +2236,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       },
     },
   },
+  liveQaFixtureReadiness: PREMIUM_CHAT_LIVE_QA_FIXTURE_READINESS,
   artistInboxProjection: PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT,
   reportRefundApi: PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi,
   adminReportRefundReadOnly:

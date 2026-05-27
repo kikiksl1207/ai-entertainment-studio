@@ -5209,6 +5209,67 @@ describe('ChatService premium chat support contract', () => {
         canDonate: false,
       },
     });
+    expect(contract.liveQaFixtureReadiness).toMatchObject({
+      status: 'blocked_until_room_storage_and_safe_session_fixture',
+      liveQaReady: false,
+      readOnly: true,
+      mutationEnabled: false,
+      usableContractEndpoint: '/api/v1/chat/premium-support-contract',
+      currentBlockers: [
+        'premium_room_storage_not_implemented',
+        'premium_room_read_endpoints_not_mounted',
+        'safe_login_or_session_fixture_missing',
+      ],
+      fixtureCreationPolicy: {
+        actualPaymentMutation: false,
+        supportDonationMutation: false,
+        walletDebitMutation: false,
+        walletCreditMutation: false,
+        reportMutation: false,
+        refundMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+      repeatSafety: {
+        repeatedVerificationMustReturnExistingProjection: true,
+        duplicateWalletLedgerAllowed: false,
+        duplicateRefundAllowed: false,
+        duplicateReportStateMutationAllowed: false,
+      },
+      sessionHandling: {
+        rawPasswordRequestedInNotion: false,
+        rawTokenRecordedInNotion: false,
+        rawCookieRecordedInNotion: false,
+        rawEmailRecordedInNotion: false,
+      },
+    });
+    expect(
+      contract.liveQaFixtureReadiness.requiredFixtureStates.map(
+        (fixture) => fixture.qaBucket,
+      ),
+    ).toEqual([
+      'baseline_active_room',
+      'reported_room',
+      'admin_review_room',
+      'unanswered_refund_candidate',
+      'near_expiry_room',
+      'closed_room',
+      'expired_room',
+    ]);
+    expect(
+      contract.liveQaFixtureReadiness.requiredFixtureStates.map(
+        (fixture) => fixture.roomStatus,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        'active',
+        'paused_by_report',
+        'admin_review',
+        'refund_pending',
+        'closed_by_artist',
+        'expired',
+      ]),
+    );
     expect(contract.adminReportRefundReadOnly).toMatchObject({
       status: 'planned_disabled',
       readOnly: true,
