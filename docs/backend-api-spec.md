@@ -1212,6 +1212,35 @@ Authorization: Bearer <accessToken>
 - Repeated refund or report status reads must replay the existing projection and
   must not create duplicate refund ledger or moderation rows.
 
+Premium room admin report/refund read-only contract (#516):
+
+`GET /api/v1/chat/premium-support-contract` exposes
+`adminReportRefundReadOnly` as a planned Backstage/operator read contract. The
+planned endpoints remain `enabled=false` and read-only until premium-chat room,
+report, refund decision, and accounting storage exists.
+
+```http
+GET /admin/api/v1/backstage/premium-chat/report-refund-rooms
+GET /admin/api/v1/backstage/premium-chat/report-refund-rooms/:roomId
+Authorization: Bearer <adminAccessToken>
+```
+
+- The list/detail projections are admin-only and read-only. They do not change
+  room status, report state, refund decision, wallet credit/debit, provider
+  refund, accounting ledger, settlement, or payout state.
+- Query/status keys cover `reported`, `blinded`, `suspended`, `admin_review`,
+  `refund_pending`, `refund_limited_70`, `refund_limited_50`, `refunded`,
+  `closed_by_artist`, and `closed_by_operator`.
+- The admin detail projection may show safe refund restriction metadata for
+  user-fault decisions: 70% user refund with 20% company retention and 10%
+  artist compensation, or 50% user refund with 40% company retention and 10%
+  artist compensation. These are display-only until a separate write endpoint is
+  approved.
+- The projection may return stable report/refund reason keys and status label
+  keys, but not raw chat bodies, raw report bodies/reasons, internal admin
+  notes, reporter/counterparty user ids, email, phone, private profile fields,
+  wallet ledger ids, provider refund ids, tokens, cookies, secrets, or DB URLs.
+
 Premium room interaction status matrix (#473):
 
 `GET /api/v1/chat/premium-support-contract` exposes

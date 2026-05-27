@@ -5042,6 +5042,70 @@ describe('ChatService premium chat support contract', () => {
         canDonate: false,
       },
     });
+    expect(contract.adminReportRefundReadOnly).toMatchObject({
+      status: 'planned_disabled',
+      readOnly: true,
+      enabled: false,
+      authRequired: true,
+      adminOnly: true,
+      endpoints: {
+        list: {
+          method: 'GET',
+          path: '/admin/api/v1/backstage/premium-chat/report-refund-rooms',
+          enabled: false,
+          walletMutation: false,
+          refundMutation: false,
+        },
+        detail: {
+          method: 'GET',
+          pathTemplate:
+            '/admin/api/v1/backstage/premium-chat/report-refund-rooms/:roomId',
+          enabled: false,
+          walletMutation: false,
+          refundMutation: false,
+        },
+      },
+      listProjection: {
+        projection: 'premiumRoomAdminReportRefundListItem',
+        rawReportReasonReturned: false,
+        rawChatBodyReturned: false,
+        internalAdminNoteReturned: false,
+        personalContactReturned: false,
+      },
+      detailProjection: {
+        projection: 'premiumRoomAdminReportRefundDetail',
+        refundRestrictionMetadata: {
+          userFault70: {
+            userRefundRatePercent: 70,
+            artistCompensationRatePercent: 10,
+            displayToAdminReadOnly: true,
+            walletCreditMutation: false,
+          },
+          userFault50: {
+            userRefundRatePercent: 50,
+            artistCompensationRatePercent: 10,
+            displayToAdminReadOnly: true,
+            walletCreditMutation: false,
+          },
+        },
+      },
+      privacy: {
+        rawChatBodyReturned: false,
+        rawReportBodyReturned: false,
+        rawReportReasonReturned: false,
+        userEmailReturned: false,
+        userPhoneReturned: false,
+        internalAdminNoteReturned: false,
+      },
+      noMutation: {
+        refundDecision: true,
+        walletCredit: true,
+        walletDebit: true,
+        pgRefund: true,
+        settlement: true,
+        payout: true,
+      },
+    });
     expect(contract.roomStatusRead.interactionStatusMatrix).toMatchObject({
       opened: {
         readMode: 'safe_conversation',
