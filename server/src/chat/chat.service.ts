@@ -3279,6 +3279,8 @@ export class ChatService {
         'openingPrompt.options[].message',
         'emptyState.text',
         'premiumChat.ctaLabel',
+        'premiumChat.transitionCta.characterDetailCtaProjection',
+        'premiumChat.transitionCta.routingSeparation',
         'premiumChat.transitionCta.replyModeCopy.directArtistReplyKo',
         'premiumChat.transitionCta.roomStateReasons',
         'premiumChat.transitionCta.priceSummary',

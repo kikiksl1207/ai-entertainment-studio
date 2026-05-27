@@ -1791,14 +1791,55 @@ describe('ChatService persona and catalog policy', () => {
       ctaLabel: cmsPremiumCta,
       enabled: false,
       transitionCta: {
-        version: '2026-05-26.character-chat-premium-cta-projection.v1',
-        sourceSurface: 'character_chat',
+        version: '2026-05-27.character-chat-premium-routing-product-separation.v1',
+        sourceSurface: 'character_detail',
         targetSurface: 'premium_chat_room',
         enabled: false,
         readOnly: true,
         authRequired: true,
         directArtistReplyRequired: true,
         aiAutoReplyCopyAllowed: false,
+        characterDetailCtaProjection: {
+          aiChatCta: {
+            labelKo: '\uce90\ub9ad\ud130\ucc57',
+            helperKo: 'AI \ub300\ud654 \uc2dc\uc791',
+            hrefTemplate: '/character-chat?slug={artistSlug}',
+            productKind: 'ai_character_chat',
+            responseMode: 'ai_character_reply',
+            ownsStarterPrompts: true,
+            ownsRandomOpeningGreeting: true,
+          },
+          premiumChatCta: {
+            labelKo: '\ud504\ub9ac\ubbf8\uc5c4\ucc57',
+            helperKo: '\ubc29 \uc624\ud508 \uc900\ube44 \uc911',
+            hrefTemplate: null,
+            fallbackHrefTemplate: null,
+            productKind: 'artist_direct_premium_dm',
+            responseMode: 'artist_direct_reply',
+            disabled: true,
+            fallbackToAiChat: false,
+            ownsStarterPrompts: false,
+            ownsRandomOpeningGreeting: false,
+          },
+          rawProductKindAsCopy: false,
+          rawRouteKeyAsCopy: false,
+        },
+        routingSeparation: {
+          characterChatRoute: '/character-chat',
+          characterChatProductKind: 'ai_character_chat',
+          characterChatResponseMode: 'ai_character_reply',
+          characterChatOwnsStarterPrompts: true,
+          characterChatOwnsRandomOpeningGreeting: true,
+          premiumRoomListEndpoint: '/api/v1/chat/premium-rooms',
+          premiumRoomDetailEndpoint: '/api/v1/chat/premium-rooms/:roomId',
+          premiumChatProductKind: 'artist_direct_premium_dm',
+          premiumChatResponseMode: 'artist_direct_reply',
+          premiumChatOwnsStarterPrompts: false,
+          premiumChatOwnsRandomOpeningGreeting: false,
+          premiumUnavailableFallbackToAiChat: false,
+          characterChatCreatesPremiumRoom: false,
+          premiumRoomCreatesAiReply: false,
+        },
         roomOpenCta: {
           enabled: false,
           submitEnabled: false,
@@ -1865,6 +1906,42 @@ describe('ChatService persona and catalog policy', () => {
     expect(visibleTransitionCtaCopy).toContain(
       '\uc544\ud2f0\uc2a4\ud2b8\uac00 \uc9c1\uc811 \ud655\uc778\ud558\uace0 \ub2f5\ud558\ub294',
     );
+    expect(catalog.premiumChat.transitionCta.characterDetailCtaProjection).toMatchObject({
+      aiChatCta: {
+        hrefTemplate: '/character-chat?slug={artistSlug}',
+        productKind: 'ai_character_chat',
+        responseMode: 'ai_character_reply',
+        ownsStarterPrompts: true,
+        ownsRandomOpeningGreeting: true,
+      },
+      premiumChatCta: {
+        hrefTemplate: null,
+        fallbackHrefTemplate: null,
+        productKind: 'artist_direct_premium_dm',
+        responseMode: 'artist_direct_reply',
+        disabled: true,
+        fallbackToAiChat: false,
+        ownsStarterPrompts: false,
+        ownsRandomOpeningGreeting: false,
+      },
+    });
+    const detailCtaProjection =
+      catalog.premiumChat.transitionCta.characterDetailCtaProjection;
+    expect(detailCtaProjection.aiChatCta.helperKo).toContain('AI');
+    expect(
+      [
+        detailCtaProjection.premiumChatCta.labelKo,
+        detailCtaProjection.premiumChatCta.helperKo,
+      ].join(' '),
+    ).not.toMatch(/\bAI\b|auto reply/i);
+    expect(catalog.premiumChat.transitionCta.routingSeparation).toMatchObject({
+      characterChatRoute: '/character-chat',
+      premiumRoomListEndpoint: '/api/v1/chat/premium-rooms',
+      premiumRoomDetailEndpoint: '/api/v1/chat/premium-rooms/:roomId',
+      premiumUnavailableFallbackToAiChat: false,
+      characterChatCreatesPremiumRoom: false,
+      premiumRoomCreatesAiReply: false,
+    });
     expect(catalog.copyContract).toMatchObject({
       version: '2026-05-20.character-chat-copy-cms.v1',
       contentKey: 'character-chat.copy.yoon-serin',
@@ -1888,6 +1965,8 @@ describe('ChatService persona and catalog policy', () => {
         'openingPrompt.options[].message',
         'emptyState.text',
         'premiumChat.ctaLabel',
+        'premiumChat.transitionCta.characterDetailCtaProjection',
+        'premiumChat.transitionCta.routingSeparation',
         'premiumChat.transitionCta.replyModeCopy.directArtistReplyKo',
         'premiumChat.transitionCta.roomStateReasons',
         'premiumChat.transitionCta.priceSummary',
@@ -3608,15 +3687,56 @@ describe('ChatService premium chat support contract', () => {
         messageKey: 'chat.premiumRoom.meter.artistRevenueHint',
       },
       characterChatTransitionCta: {
-        version: '2026-05-26.character-chat-premium-cta-projection.v1',
+        version: '2026-05-27.character-chat-premium-routing-product-separation.v1',
         status: 'contract_ready_submit_blocked',
-        sourceSurface: 'character_chat',
+        sourceSurface: 'character_detail',
         targetSurface: 'premium_chat_room',
         enabled: false,
         readOnly: true,
         authRequired: true,
         directArtistReplyRequired: true,
         aiAutoReplyCopyAllowed: false,
+        characterDetailCtaProjection: {
+          aiChatCta: {
+            labelKo: '\uce90\ub9ad\ud130\ucc57',
+            helperKo: 'AI \ub300\ud654 \uc2dc\uc791',
+            hrefTemplate: '/character-chat?slug={artistSlug}',
+            productKind: 'ai_character_chat',
+            responseMode: 'ai_character_reply',
+            ownsStarterPrompts: true,
+            ownsRandomOpeningGreeting: true,
+          },
+          premiumChatCta: {
+            labelKo: '\ud504\ub9ac\ubbf8\uc5c4\ucc57',
+            helperKo: '\ubc29 \uc624\ud508 \uc900\ube44 \uc911',
+            hrefTemplate: null,
+            fallbackHrefTemplate: null,
+            productKind: 'artist_direct_premium_dm',
+            responseMode: 'artist_direct_reply',
+            disabled: true,
+            fallbackToAiChat: false,
+            ownsStarterPrompts: false,
+            ownsRandomOpeningGreeting: false,
+          },
+          rawProductKindAsCopy: false,
+          rawRouteKeyAsCopy: false,
+        },
+        routingSeparation: {
+          characterChatRoute: '/character-chat',
+          characterChatProductKind: 'ai_character_chat',
+          characterChatResponseMode: 'ai_character_reply',
+          characterChatOwnsStarterPrompts: true,
+          characterChatOwnsRandomOpeningGreeting: true,
+          premiumRoomListEndpoint: '/api/v1/chat/premium-rooms',
+          premiumRoomDetailEndpoint: '/api/v1/chat/premium-rooms/:roomId',
+          premiumChatProductKind: 'artist_direct_premium_dm',
+          premiumChatResponseMode: 'artist_direct_reply',
+          premiumChatOwnsStarterPrompts: false,
+          premiumChatOwnsRandomOpeningGreeting: false,
+          premiumUnavailableFallbackToAiChat: false,
+          characterChatCreatesPremiumRoom: false,
+          premiumRoomCreatesAiReply: false,
+        },
         roomOpenCta: {
           enabled: false,
           submitEnabled: false,
@@ -3945,6 +4065,48 @@ describe('ChatService premium chat support contract', () => {
     expect(visibleTransitionCtaContractCopy).toContain(
       '\ud504\ub9ac\ubbf8\uc5c4\ucc57\uc740 \uc544\ud2f0\uc2a4\ud2b8\uac00 \uc9c1\uc811',
     );
+    expect(
+      contract.productProjection.characterChatTransitionCta
+        .characterDetailCtaProjection,
+    ).toMatchObject({
+      aiChatCta: {
+        hrefTemplate: '/character-chat?slug={artistSlug}',
+        productKind: 'ai_character_chat',
+        responseMode: 'ai_character_reply',
+      },
+      premiumChatCta: {
+        hrefTemplate: null,
+        fallbackHrefTemplate: null,
+        productKind: 'artist_direct_premium_dm',
+        responseMode: 'artist_direct_reply',
+        disabled: true,
+        fallbackToAiChat: false,
+      },
+    });
+    const contractDetailCtaProjection =
+      contract.productProjection.characterChatTransitionCta
+        .characterDetailCtaProjection;
+    expect(contractDetailCtaProjection.aiChatCta.helperKo).toContain('AI');
+    expect(
+      [
+        contractDetailCtaProjection.premiumChatCta.labelKo,
+        contractDetailCtaProjection.premiumChatCta.helperKo,
+      ].join(' '),
+    ).not.toMatch(/\bAI\b|auto reply/i);
+    expect(
+      contract.productProjection.characterChatTransitionCta.routingSeparation,
+    ).toMatchObject({
+      characterChatRoute: '/character-chat',
+      characterChatOwnsStarterPrompts: true,
+      characterChatOwnsRandomOpeningGreeting: true,
+      premiumRoomListEndpoint: '/api/v1/chat/premium-rooms',
+      premiumRoomDetailEndpoint: '/api/v1/chat/premium-rooms/:roomId',
+      premiumChatOwnsStarterPrompts: false,
+      premiumChatOwnsRandomOpeningGreeting: false,
+      premiumUnavailableFallbackToAiChat: false,
+      characterChatCreatesPremiumRoom: false,
+      premiumRoomCreatesAiReply: false,
+    });
     expect(contract.supportRankingProjection).toMatchObject({
       version: '2026-05-25.premium-chat-support-ranking-projection.v1',
       status: 'contract_ready_mutation_blocked',
