@@ -2469,7 +2469,15 @@ Authorization: Bearer <accessToken>
 ```
 
 - `following-artists` rows replace `user` with the existing compact public artist projection and may also return `artists` as the list alias. It must not expose internal artist ownership, settlement, or operator fields.
-- Implementation status: the public follow-list routes above are contract-ready and should not be wired by frontend until the matching controller/service implementation is merged. Existing follow, unfollow, block, unblock, remove-follower, public profile, and My Page follow-list routes are live under the current addendum.
+- Implementation status: public user follower/following-user routes are live for
+  `GET /api/v1/users/:userId/followers`,
+  `GET /api/v1/users/:userId/following-users`,
+  `GET /api/v1/users/handle/:publicHandle/followers`, and
+  `GET /api/v1/users/handle/:publicHandle/following-users`. Public
+  `following-artists` routes remain contract-ready until the matching public
+  artist-follow list implementation is merged. Existing follow, unfollow, block,
+  unblock, remove-follower, public profile, and My Page follow-list routes are
+  live under the current addendum.
 - Public follow-list endpoints accept optional bearer auth. Anonymous callers can read public active profiles; authenticated callers receive viewer hints and block filtering. If the viewer has an active block relationship with the target profile in either direction, the endpoint returns `403 USER_PROFILE_BLOCKED` with `messageKey: "social.profile.blocked"`.
 - Public follow-list item projection is limited to public profile fields: ids needed for routing, display name, public handle/slug, public avatar URL, follow row timestamps, and status. It must not expose email, social provider ids, phone, private bio metadata, wallet/Lumina balances, payment/refund/order rows, settlement/payout state, or admin/moderation notes.
 - `GET /api/v1/users/handle/:publicHandle/profile` is public and returns the same shape as `GET /api/v1/users/:userId/profile`, resolving by the unique `user_profiles.public_handle`.
@@ -2514,6 +2522,10 @@ Authorization: Bearer <accessToken>
 - `GET /api/v1/me/lumina-feed` matches the public feed query/response shape, but filters out active `community_hidden_posts` for the current user and posts authored by users in an active block relationship.
 - `mode=following` on `GET /api/v1/me/lumina-feed` returns posts from active followed artists and followed normal users. If the viewer follows nobody, it returns `[]`.
 - Signed-in post rows include follow button hints in `viewer`: `isFollowingArtist`, `isFollowingAuthor`, `canFollowArtist`, `canUnfollowArtist`, `canFollowAuthor`, and `canUnfollowAuthor`. Public `GET /api/v1/lumina-feed` remains viewer-agnostic.
+- Public and signed-in feed post `author` projections expose only routing-safe
+  public profile fields. They must not include `author.email`, phone, social
+  provider ids, wallet/Lumina balances, payment/refund/order rows,
+  settlement/payout state, or admin/moderation notes.
 - `GET /api/v1/lumina-feed/search` searches public published feed posts by text or hashtag and records deduped `feed_search_events` for trending aggregation. Optional bearer auth adds viewer hints to post rows.
 - `GET /api/v1/lumina-feed/search-suggestions` returns grouped search-box suggestions from recent search events, recent post hashtags, active artists, and active user profiles.
 - `GET /api/v1/lumina-feed/trending-searches` returns grouped popular search terms. `language=all|ko|ja|en|zh|unknown`, `type=all|text|hashtag`, and `window=15m|1h|6h|24h|7d` are supported. Use `language=all` plus viewer locale language for the 1차 UI because early per-language search volume can be sparse.

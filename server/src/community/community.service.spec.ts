@@ -462,6 +462,169 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
     );
   });
 
+  it('does not expose author email in public feed post projections', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findMany.mockResolvedValue([
+      postView({
+        author: {
+          id: authorId,
+          email: 'PRIVATE_AUTHOR_EMAIL_SHOULD_NOT_LEAK',
+          profile: {
+            displayName: 'Author',
+            publicHandle: 'author',
+            avatarAssetId: null,
+            coverAssetId: null,
+          },
+        },
+      }),
+    ]);
+    const service = serviceWith(prisma);
+
+    const result = await service.getFeed({ take: '1' });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].author).toEqual({
+      id: authorId,
+      profile: {
+        displayName: 'Author',
+        publicHandle: 'author',
+        avatarAssetId: null,
+        coverAssetId: null,
+      },
+    });
+    expect(result[0].author).not.toHaveProperty('email');
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_AUTHOR_EMAIL_SHOULD_NOT_LEAK');
+  });
+
+  it('returns public followers by handle without private user fields', async () => {
+    const prisma = createPrismaMock();
+    prisma.user.findFirst.mockResolvedValue({
+      id: authorId,
+      profile: {
+        displayName: 'Author',
+        publicHandle: 'author',
+        avatarAssetId: null,
+        coverAssetId: null,
+      },
+    });
+    prisma.userFollow.findMany.mockResolvedValue([
+      {
+        id: '00000000-0000-4000-8000-000000000601',
+        status: 'active',
+        createdAt,
+        updatedAt: createdAt,
+        follower: {
+          id: otherUserId,
+          email: 'PRIVATE_FOLLOWER_EMAIL_SHOULD_NOT_LEAK',
+          profile: {
+            displayName: 'Follower',
+            publicHandle: 'follower',
+            avatarAssetId: null,
+            coverAssetId: null,
+          },
+        },
+      },
+    ]);
+    prisma.userFollow.count.mockResolvedValue(1);
+    const service = serviceWith(prisma);
+
+    const result = await service.getPublicUserFollowersByHandle('author', { take: '1' });
+
+    expect(prisma.userFollow.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          followingUserId: authorId,
+          status: 'active',
+          deletedAt: null,
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      count: 1,
+      total: 1,
+      target: {
+        id: authorId,
+        displayName: 'Author',
+        publicHandle: 'author',
+      },
+      viewer: {
+        isAuthenticated: false,
+        canViewList: true,
+      },
+      policy: {
+        projection: 'public_user_follow_summary_v1',
+        list: 'followers',
+      },
+    });
+    expect(result.items[0].user).toEqual({
+      id: otherUserId,
+      displayName: 'Follower',
+      publicHandle: 'follower',
+      avatarUrl: null,
+    });
+    expect(result.items[0].user).not.toHaveProperty('email');
+    expect(result.policy.privateFieldsExcluded).toContain('email');
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_FOLLOWER_EMAIL_SHOULD_NOT_LEAK');
+  });
+
+  it('returns public following users by id with the same safe projection', async () => {
+    const prisma = createPrismaMock();
+    prisma.user.findFirst.mockResolvedValue({
+      id: authorId,
+      profile: {
+        displayName: 'Author',
+        publicHandle: 'author',
+        avatarAssetId: null,
+        coverAssetId: null,
+      },
+    });
+    prisma.userFollow.findMany.mockResolvedValue([
+      {
+        id: '00000000-0000-4000-8000-000000000602',
+        status: 'active',
+        createdAt,
+        updatedAt: createdAt,
+        following: {
+          id: otherUserId,
+          email: 'PRIVATE_FOLLOWING_EMAIL_SHOULD_NOT_LEAK',
+          profile: {
+            displayName: 'Following',
+            publicHandle: 'following',
+            avatarAssetId: null,
+            coverAssetId: null,
+          },
+        },
+      },
+    ]);
+    prisma.userFollow.count.mockResolvedValue(1);
+    const service = serviceWith(prisma);
+
+    const result = await service.getPublicUserFollowingUsers(authorId, { take: '1' });
+
+    expect(prisma.userFollow.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          followerUserId: authorId,
+          status: 'active',
+          deletedAt: null,
+        }),
+      }),
+    );
+    expect(result.policy).toMatchObject({
+      projection: 'public_user_follow_summary_v1',
+      list: 'following-users',
+    });
+    expect(result.items[0].user).toEqual({
+      id: otherUserId,
+      displayName: 'Following',
+      publicHandle: 'following',
+      avatarUrl: null,
+    });
+    expect(result.items[0].user).not.toHaveProperty('email');
+    expect(result.policy.privateFieldsExcluded).toContain('email');
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_FOLLOWING_EMAIL_SHOULD_NOT_LEAK');
+  });
+
   it('soft-deletes only author-owned posts', async () => {
     const prisma = createPrismaMock();
     prisma.communityPost.findFirst.mockResolvedValue(storedPost());
