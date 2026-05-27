@@ -681,7 +681,8 @@
   }
 
   function knowledgeUrlStatusLabel(status) {
-    return { pending: "승인 대기", approved: "승인됨", rejected: "반려", archived: "보관", processing: "처리 중" }[status] || "승인 대기";
+    // #547 — processing: "AI 처리 중"으로 명확화. pending/rejected/archived 라벨 유지.
+    return { pending: "승인 대기", approved: "승인됨", rejected: "반려", archived: "보관", processing: "AI 처리 중" }[status] || "승인 대기";
   }
 
   function knowledgeUrlStatusClass(status) {
@@ -730,19 +731,32 @@
       const descTrunc = rawDesc.slice(0, 60) + (rawDesc.length > 60 ? "…" : "");
       const allowRef = item.allowChatRef !== false;
       // #440 — 반려·보관 항목은 "승인 대기"가 아닌 실제 상태에 맞는 문구로 안내.
+      // #547 — processing(AI 처리 중) 상태도 구분. 반려 사유는 tooltip으로 표시.
       const isRejectedOrArchived = item.status === "rejected" || item.status === "archived";
-      const chatLabel = !allowRef ? "미허용" : (item.status === "approved" ? "참고 가능" : isRejectedOrArchived ? "참고 불가" : "승인 대기");
-      const chatClass = !allowRef ? "" : (item.status === "approved" ? "is-good" : isRejectedOrArchived ? "is-error" : "is-warn");
+      const isProcessing = item.status === "processing";
+      const chatLabel = !allowRef ? "미허용"
+        : (item.status === "approved" ? "참고 가능"
+        : isRejectedOrArchived ? "참고 불가"
+        : isProcessing ? "처리 중"
+        : "승인 대기");
+      const chatClass = !allowRef ? ""
+        : (item.status === "approved" ? "is-good"
+        : isRejectedOrArchived ? "is-error"
+        : isProcessing ? "is-warn"
+        : "is-warn");
       const statusLabel = knowledgeUrlStatusLabel(item.status || "pending");
       const statusClass = knowledgeUrlStatusClass(item.status || "pending");
       const typeLabel = knowledgeUrlTypeLabel(item.type || "other");
       const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" }) : "-";
+      // 반려 사유(rejectReason)가 있으면 상태 배지 tooltip으로 표시
+      const rejectReason = escapeHtml(item.rejectReason || item.adminNote || "");
+      const statusBadgeAttr = rejectReason ? (' title="' + rejectReason + '"') : "";
       return "<tr>" +
         "<td><span class=\"badge\">" + escapeHtml(typeLabel) + "</span></td>" +
         "<td><a class=\"knowledge-url-link\" href=\"" + escapeHtml(rawUrl || "#") + "\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"" + escapeHtml(rawUrl) + "\">" + escapeHtml(urlTrunc || "-") + "</a></td>" +
         "<td>" + escapeHtml(descTrunc || "-") + "</td>" +
         "<td><span class=\"badge " + escapeHtml(chatClass) + "\">" + escapeHtml(chatLabel) + "</span></td>" +
-        "<td><span class=\"badge " + escapeHtml(statusClass) + "\">" + escapeHtml(statusLabel) + "</span></td>" +
+        "<td><span class=\"badge " + escapeHtml(statusClass) + "\"" + statusBadgeAttr + ">" + escapeHtml(statusLabel) + "</span></td>" +
         "<td>" + escapeHtml(dateStr) + "</td>" +
       "</tr>";
     }).join("");
@@ -860,6 +874,95 @@
       setKnowledgeUrlState("등록 요청 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", "danger");
     } finally {
       if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "등록 신청"; }
+    }
+  }
+
+  // ── #545 — AI 프리미엄 콘텐츠 요청 상태 UI skeleton ──────────────────────
+  // 8개 처리 상태: submitted / preparing / generating / reviewing /
+  //                ready / info_needed / failed / rejected
+  // provider not configured → 404/501 fail-closed (기능 미개방 중립 안내)
+
+  function aiContentRequestStatusLabel(status) {
+    return ({
+      submitted:   "요청 접수",
+      preparing:   "생성 준비",
+      generating:  "생성 중",
+      reviewing:   "검수 중",
+      ready:       "준비 완료",
+      info_needed: "추가 정보 필요",
+      failed:      "실패",
+      rejected:    "반려"
+    })[status] || "요청 접수";
+  }
+
+  function aiContentRequestStatusClass(status) {
+    return ({
+      submitted:   "is-warn",
+      preparing:   "is-warn",
+      generating:  "is-warn",
+      reviewing:   "is-warn",
+      ready:       "is-good",
+      info_needed: "is-error",
+      failed:      "is-danger",
+      rejected:    "is-error"
+    })[status] || "is-warn";
+  }
+
+  function renderAiContentRequests(items) {
+    const rows = document.getElementById("studioImageRequestRows");
+    if (!rows) return;
+    if (!items.length) {
+      rows.innerHTML = '<tr><td colspan="6">이미지 요청 이력이 없습니다.</td></tr>';
+      return;
+    }
+    rows.innerHTML = items.map(item => {
+      const reqId = escapeHtml(item.requestId || item.id || "-");
+      const artistDisplay = escapeHtml(item.artistName || item.artist?.displayName || item.artist?.slug || "-");
+      const purpose = escapeHtml(item.purpose || item.usagePurpose || "-");
+      const method = escapeHtml(item.method || "운영 검토");
+      const status = String(item.status || "submitted");
+      const statusLabel = aiContentRequestStatusLabel(status);
+      const statusClass = aiContentRequestStatusClass(status);
+      // info_needed/rejected 에는 admin note를 tooltip으로 표시
+      const adminNote = escapeHtml(item.adminNote || item.memo || item.rejectReason || "");
+      const badgeTitle = adminNote ? (' title="' + adminNote + '"') : "";
+      return "<tr>" +
+        "<td>" + reqId + "</td>" +
+        "<td>" + artistDisplay + "</td>" +
+        "<td>" + purpose + "</td>" +
+        "<td>" + method + "</td>" +
+        "<td><span class=\"badge " + statusClass + "\"" + badgeTitle + ">" + escapeHtml(statusLabel) + "</span></td>" +
+        "<td>" + (adminNote || "-") + "</td>" +
+      "</tr>";
+    }).join("");
+  }
+
+  async function loadAiContentRequests() {
+    const auth = readAuth();
+    const rows = document.getElementById("studioImageRequestRows");
+    if (!rows) return;
+    if (!auth?.accessToken && !auth?.refreshToken) {
+      rows.innerHTML = '<tr><td colspan="6">로그인 정보가 없어요. 다시 로그인해주세요.</td></tr>';
+      return;
+    }
+    rows.innerHTML = '<tr><td colspan="6">요청 이력을 불러오는 중입니다.</td></tr>';
+    try {
+      const res = await fetchCreatorStudioApi("/api/v1/me/creator-studio/ai-content-requests");
+      // #545 — 404/501 = provider 미연결·기능 미개방. fail-closed, 사용자 오류 아님.
+      if (res.status === 404 || res.status === 501) {
+        rows.innerHTML = '<tr><td colspan="6">이미지 요청 기능은 운영팀 안내 후 이용할 수 있어요.</td></tr>';
+        return;
+      }
+      if (res.status === 403) {
+        rows.innerHTML = '<tr><td colspan="6">이 기능 사용 권한이 없어요. 운영팀 안내 후 이용할 수 있습니다.</td></tr>';
+        return;
+      }
+      if (!res.ok) throw new Error("load failed");
+      const data = await res.json().catch(() => null);
+      const items = Array.isArray(data) ? data : (data?.items || data?.requests || []);
+      renderAiContentRequests(items);
+    } catch (_) {
+      if (rows) rows.innerHTML = '<tr><td colspan="6">이력을 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</td></tr>';
     }
   }
 
@@ -1045,6 +1148,8 @@
     button.addEventListener("click", () => {
       if (button.disabled) return;
       setActiveSection(button.dataset.section);
+      // #545 — image-lab 탭 클릭 시 요청 이력 lazy-load
+      if (button.dataset.section === "image-lab") loadAiContentRequests();
     });
   });
   document.querySelectorAll("[data-section-jump]").forEach(button => {
