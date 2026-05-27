@@ -94,7 +94,7 @@
       list.innerHTML =
         '<li class="premium-chat-hub-rooms-empty">' +
           '<p>아직 열어둔 프리미엄 채팅방이 없어요.</p>' +
-          '<p class="premium-chat-hub-rooms-empty-note">아티스트 라인업에서 프로필을 열고 "이 아티스트와 대화하기"로 들어가면 채팅방이 만들어져요.</p>' +
+          '<p class="premium-chat-hub-rooms-empty-note">아티스트 프로필의 AI 캐릭터챗으로 먼저 대화를 시작할 수 있어요. 프리미엄챗 방은 서비스 준비 완료 후 열립니다.</p>' +
           '<a class="premium-chat-hub-rooms-empty-cta" href="/characters">아티스트 보러 가기 →</a>' +
         '</li>';
       return;
@@ -154,8 +154,8 @@
         '</span>' +
         '<span class="premium-chat-hub-room-badge ' + statusClass + '">' + statusLabel + '</span>';
       var roomMainHtml = isBlocked
-        ? '<span class="premium-chat-hub-room-main is-blocked" aria-label="' + name + ' 채팅방 — 현재 검토 중">' + roomBodyHtml + '</span>'
-        : '<a class="premium-chat-hub-room-main" href="' + chatHref + '" aria-label="' + name + ' 채팅방 열기">' + roomBodyHtml + '</a>';
+        ? '<span class="premium-chat-hub-room-main is-blocked" aria-label="' + name + ' 프리미엄챗 방 — 현재 검토 중">' + roomBodyHtml + '</span>'
+        : '<a class="premium-chat-hub-room-main" href="' + chatHref + '" aria-label="' + name + ' 프리미엄챗 방 보기">' + roomBodyHtml + '</a>';
 
       return (
         '<li class="premium-chat-hub-room' + (isBlocked ? " is-blocked" : "") + (isExpiringSoon ? " is-expiring" : "") + '">' +
@@ -326,7 +326,7 @@
         : "";
       return (
         '<li class="feed-premium-entry-room">' +
-          '<a class="feed-premium-entry-room-link" href="' + chatHref + '" aria-label="' + name + ' 채팅방 열기">' +
+          '<a class="feed-premium-entry-room-link" href="' + chatHref + '" aria-label="' + name + ' 프리미엄챗 방 보기">' +
             '<span class="feed-premium-entry-room-avatar" aria-hidden="true"' + avatarStyle + '></span>' +
             '<span class="feed-premium-entry-room-name">' + name + '</span>' +
           '</a>' +

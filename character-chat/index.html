@@ -8,7 +8,7 @@
     <script>(function(){if(window.history&&history.replaceState&&location.pathname.length>1&&location.pathname.charAt(location.pathname.length-1)==="/"){history.replaceState(null,"",location.pathname.slice(0,-1)+location.search+location.hash);}})();</script>
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/styles/character-chat.css" />
-    <meta name="description" content="Lumina Stage 아티스트와 1:1 DM처럼 부드럽게 대화를 시작해보세요." />
+    <meta name="description" content="Lumina Stage AI 캐릭터챗에서 아티스트 콘셉트 기반 대화를 가볍게 시작해보세요." />
     <meta name="robots" content="noindex, nofollow" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="캐릭터챗 | Lumina Stage" />
@@ -84,8 +84,8 @@
               <a class="premium-chat-hub-card" href="/chat-rankings?type=donation" aria-label="후원 랭킹으로 이동">
                 <span class="premium-chat-hub-eyebrow">후원 랭킹</span>
                 <strong>확정 후원 합계</strong>
-                <!-- #370 — 사용자 화면 카피에서 내부 용어(row) 제거. 환불·블라인드 처리된 항목 표기로 통일. -->
-                <p>환불·블라인드 처리된 항목은 제외돼요. 좋아요 순위와는 별도로 집계돼요.</p>
+                <!-- #515 — 신고로 공개 제한된 항목을 사용자 친화 문구로 안내. -->
+                <p>환불되었거나 신고로 공개가 제한된 항목은 제외돼요. 좋아요 순위와는 별도로 집계돼요.</p>
                 <span class="premium-chat-hub-cta">후원 랭킹 →</span>
               </a>
             </li>
@@ -194,6 +194,14 @@
             <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22"><circle cx="12" cy="9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5 20c.7-3.6 3.6-5.6 7-5.6s6.3 2 7 5.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
           </a>
         </section>
+
+        <aside class="premium-chat-room-status" id="premiumChatRoomStatus" data-state="pending" role="status" aria-live="polite" hidden>
+          <div class="premium-chat-room-status-copy">
+            <strong id="premiumChatRoomStatusTitle">프리미엄챗 상태 확인 중</strong>
+            <p id="premiumChatRoomStatusBody">방 상태와 후원 가능 여부를 확인하고 있어요.</p>
+          </div>
+          <ul class="premium-chat-room-status-badges" id="premiumChatRoomStatusBadges" aria-label="프리미엄챗 상태 요약"></ul>
+        </aside>
 
         <!-- #216 v2 — 선택 캐릭터 대표 대화 카드 (큰 아바타 + 이름 + 한 줄 소개 + 태그). slug 진입 시 채팅방 상단에 노출. -->
         <section class="dm-featured-peer" id="chatFeaturedPeer" aria-label="지금 대화 중인 아티스트" hidden>

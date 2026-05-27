@@ -135,7 +135,7 @@
     if (state.type === "donation") {
       if (title) title.textContent = "후원 랭킹";
       // #370 — 사용자 화면 카피에서 내부/영문 용어(net Lumina, row) 제거.
-      if (subtitle) subtitle.textContent = "확정된 후원 합계 기준 랭킹입니다. 환불·블라인드 처리된 항목은 제외돼요.";
+      if (subtitle) subtitle.textContent = "확정된 후원 합계 기준 랭킹입니다. 환불되었거나 신고로 공개가 제한된 항목은 제외돼요.";
     } else {
       if (title) title.textContent = "소통 TOP";
       if (subtitle) subtitle.textContent = "방 열기, 대화, 후원 활동을 합산한 아티스트별 활동 점수입니다.";
