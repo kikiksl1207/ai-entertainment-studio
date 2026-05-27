@@ -26,6 +26,7 @@ model User {
   walletAccounts               WalletAccount[]
   videoUnlocks                 UserPremiumVideoUnlock[]
   chatSessions                 ChatSession[]
+  premiumChatRooms             PremiumChatRoom[]
   chatFeatureOrders            ChatFeatureOrder[]
   fanLetters                   FanLetter[]                @relation("FanLetterSender")
   entitlements                 UserEntitlement[]
@@ -309,6 +310,7 @@ model Artist {
   premiumVideos            PremiumVideoProduct[]
   chatPersonas             ChatPersona[]
   chatSessions             ChatSession[]
+  premiumChatRooms         PremiumChatRoom[]
   chatFeatureOrders        ChatFeatureOrder[]
   fanLetters               FanLetter[]
   artistOperators          ArtistOperator[]
@@ -1486,6 +1488,35 @@ model ChatSession {
 
   @@index([userId, artistId, updatedAt], map: "idx_chat_sessions_user_artist")
   @@map("chat_sessions")
+}
+
+model PremiumChatRoom {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId       String    @map("owner_user_id") @db.Uuid
+  artistId          String    @map("artist_id") @db.Uuid
+  tierKey           String    @map("tier_key")
+  status            String    @default("active")
+  amountLumina      Decimal   @default(0) @map("amount_lumina") @db.Decimal(18, 2)
+  remainingUnits    Int?      @map("remaining_units")
+  openedAt          DateTime? @map("opened_at") @db.Timestamptz(6)
+  expiresAt         DateTime? @map("expires_at") @db.Timestamptz(6)
+  lastUserMessageAt DateTime? @map("last_user_message_at") @db.Timestamptz(6)
+  lastArtistReplyAt DateTime? @map("last_artist_reply_at") @db.Timestamptz(6)
+  lastSupportAt     DateTime? @map("last_support_at") @db.Timestamptz(6)
+  reportedAt        DateTime? @map("reported_at") @db.Timestamptz(6)
+  adminReviewAt     DateTime? @map("admin_review_at") @db.Timestamptz(6)
+  refundCandidateAt DateTime? @map("refund_candidate_at") @db.Timestamptz(6)
+  closedAt          DateTime? @map("closed_at") @db.Timestamptz(6)
+  metadata          Json      @default("{}")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  owner             User      @relation(fields: [ownerUserId], references: [id])
+  artist            Artist    @relation(fields: [artistId], references: [id])
+
+  @@index([ownerUserId, status, updatedAt], map: "idx_premium_chat_rooms_owner_status_updated")
+  @@index([artistId, status, updatedAt], map: "idx_premium_chat_rooms_artist_status_updated")
+  @@index([status, expiresAt], map: "idx_premium_chat_rooms_status_expires")
+  @@map("premium_chat_rooms")
 }
 
 model ChatFeatureProduct {

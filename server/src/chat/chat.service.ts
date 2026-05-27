@@ -42,6 +42,39 @@ import {
 const DEFAULT_CURRENCY = 'LUMINA';
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PREMIUM_ROOM_DEFAULT_TAKE = 20;
+const PREMIUM_ROOM_MAX_TAKE = 50;
+const PREMIUM_ROOM_PUBLIC_LIST_STATUSES = ['opened', 'active', 'artist_answered'];
+const PREMIUM_ROOM_READ_STATUSES = [
+  'opened',
+  'active',
+  'artist_answered',
+  'reported',
+  'blind',
+  'blinded',
+  'suspended',
+  'admin_review',
+  'refund_pending',
+  'refunded',
+  'closed',
+  'artist_closed',
+  'expired',
+] as const;
+const PREMIUM_ROOM_SAFE_STATUS_ONLY_STATUSES = [
+  'reported',
+  'blind',
+  'blinded',
+  'suspended',
+  'admin_review',
+  'refund_pending',
+] as const;
+const PREMIUM_ROOM_ARCHIVE_STATUSES = [
+  'refunded',
+  'closed',
+  'artist_closed',
+  'expired',
+] as const;
+const PREMIUM_ROOM_NEAR_EXPIRY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const STARTER_PROMPT_POLICY = {
   showForFirstSession: true,
   hideAfterFirstMessage: true,
@@ -1430,6 +1463,89 @@ export class ChatService {
     return PREMIUM_CHAT_SUPPORT_CONTRACT;
   }
 
+  async getPremiumRoomList(input: {
+    artistSlug?: string;
+    status?: string;
+    take?: number;
+    cursor?: string;
+  }) {
+    const take = this.normalizePremiumRoomTake(input.take);
+    const statusFilter = this.normalizePremiumRoomListStatus(input.status);
+    const cursor = this.normalizeOptionalRoomCursor(input.cursor);
+    const where: Prisma.PremiumChatRoomWhereInput = {
+      status: statusFilter ? statusFilter : { in: PREMIUM_ROOM_PUBLIC_LIST_STATUSES },
+      artist: {
+        status: 'active',
+        ...(input.artistSlug ? { slug: input.artistSlug.trim() } : {}),
+      },
+    };
+
+    const [rooms, total] = await Promise.all([
+      this.prisma.premiumChatRoom.findMany({
+        where,
+        include: this.premiumRoomInclude(),
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+        take,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.premiumChatRoom.count({ where }),
+    ]);
+
+    return {
+      items: rooms.map((room) => this.toPremiumRoomListItem(room)),
+      count: rooms.length,
+      total,
+      nextCursor: rooms.length === take ? rooms[rooms.length - 1]?.id ?? null : null,
+      generatedAt: new Date().toISOString(),
+      policy: this.premiumRoomReadPolicy('public_room_list'),
+    };
+  }
+
+  async getMyPremiumRoomStatus(userId: string, roomId: string) {
+    this.assertPremiumRoomId(roomId);
+    const room = await this.prisma.premiumChatRoom.findFirst({
+      where: {
+        id: roomId,
+        ownerUserId: userId,
+      },
+      include: this.premiumRoomInclude(),
+    });
+
+    if (!room) {
+      throw this.premiumRoomNotFound();
+    }
+
+    return this.toPremiumRoomDetail(room, 'owner_user');
+  }
+
+  async getArtistPremiumRoomStatus(userId: string, roomId: string) {
+    this.assertPremiumRoomId(roomId);
+    const room = await this.prisma.premiumChatRoom.findFirst({
+      where: { id: roomId },
+      include: this.premiumRoomInclude(),
+    });
+
+    if (!room) {
+      throw this.premiumRoomNotFound();
+    }
+
+    const operator = await this.prisma.artistOperator.findFirst({
+      where: {
+        userId,
+        artistId: room.artistId,
+        status: 'active',
+        revokedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!operator) {
+      throw this.premiumRoomNotFound();
+    }
+
+    return this.toPremiumRoomDetail(room, 'artist_operator');
+  }
+
   getArtistUrlKnowledgeContract() {
     return ARTIST_URL_KNOWLEDGE_CONTRACT;
   }
@@ -1895,6 +2011,58 @@ export class ChatService {
     return Math.min(value, CHAT_CONVERSATION_MAX_TAKE);
   }
 
+  private normalizePremiumRoomTake(value: number | undefined) {
+    if (value === undefined) {
+      return PREMIUM_ROOM_DEFAULT_TAKE;
+    }
+
+    if (!Number.isInteger(value) || value < 1) {
+      throw new BadRequestException({
+        code: 'PREMIUM_CHAT_ROOM_TAKE_INVALID',
+        message: 'take must be a positive integer',
+        messageKey: 'chat.premiumRoom.invalidTake',
+      });
+    }
+
+    return Math.min(value, PREMIUM_ROOM_MAX_TAKE);
+  }
+
+  private normalizePremiumRoomListStatus(value: string | undefined) {
+    const normalized = value?.trim();
+
+    if (!normalized || normalized === 'all') {
+      return undefined;
+    }
+
+    if (!PREMIUM_ROOM_PUBLIC_LIST_STATUSES.includes(normalized)) {
+      throw new BadRequestException({
+        code: 'PREMIUM_CHAT_ROOM_STATUS_INVALID',
+        message: 'status is not supported for public premium room list',
+        messageKey: 'chat.premiumRoom.invalidStatus',
+      });
+    }
+
+    return normalized;
+  }
+
+  private normalizeOptionalRoomCursor(value: string | undefined) {
+    const cursor = value?.trim();
+
+    if (!cursor) {
+      return undefined;
+    }
+
+    if (!UUID_V4_PATTERN.test(cursor)) {
+      throw new BadRequestException({
+        code: 'PREMIUM_CHAT_ROOM_CURSOR_INVALID',
+        message: 'cursor must be a room UUID',
+        messageKey: 'chat.premiumRoom.invalidCursor',
+      });
+    }
+
+    return cursor;
+  }
+
   private conversationListWhere(userId: string, box: ChatConversationBox) {
     const where: {
       userId: string;
@@ -1936,6 +2104,286 @@ export class ChatService {
         select: { messages: true },
       },
     } as const;
+  }
+
+  private premiumRoomInclude() {
+    return {
+      artist: {
+        select: {
+          id: true,
+          slug: true,
+          displayName: true,
+        },
+      },
+      owner: {
+        select: {
+          profile: {
+            select: {
+              displayName: true,
+              publicHandle: true,
+            },
+          },
+        },
+      },
+    } as const;
+  }
+
+  private toPremiumRoomListItem(room: any) {
+    const status = this.normalizePremiumRoomStatus(room.status);
+    const availability = this.premiumRoomReadAvailability(status);
+
+    return {
+      roomId: room.id,
+      artist: this.toPremiumRoomArtist(room.artist),
+      tier: {
+        tierKey: room.tierKey,
+        amountLumina: room.amountLumina?.toString?.() ?? String(room.amountLumina),
+        labelKey: `chat.premiumRoom.tier.${room.tierKey}`,
+      },
+      roomStatus: status,
+      statusKey: status,
+      statusLabelKey: this.premiumRoomStatusLabelKey(status),
+      readMode: availability.readMode,
+      openedAt: this.isoStringOrNull(room.openedAt),
+      expiresAt: this.isoStringOrNull(room.expiresAt),
+      remaining: {
+        units: room.remainingUnits ?? null,
+        nearExpiry: this.isPremiumRoomNearExpiry(room.expiresAt),
+      },
+      viewerCta: {
+        enabled: false,
+        reasonKey: 'chat.premiumRoom.readOnlyStorageOnly',
+      },
+      donationAvailability: this.premiumRoomDonationAvailability(status),
+      policy: {
+        projection: 'premium_room_list_item_v1',
+        rawChatBodyReturned: false,
+        walletMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+    };
+  }
+
+  private toPremiumRoomDetail(room: any, viewerRole: 'owner_user' | 'artist_operator') {
+    const status = this.normalizePremiumRoomStatus(room.status);
+    const availability = this.premiumRoomReadAvailability(status);
+    const generatedAt = new Date().toISOString();
+
+    return {
+      room: this.toPremiumRoomListItem(room),
+      premiumRoomStatus: {
+        roomId: room.id,
+        viewerRole,
+        roomStatus: status,
+        statusKey: status,
+        statusLabelKey: this.premiumRoomStatusLabelKey(status),
+        readMode: availability.readMode,
+        generatedAt,
+        timestamps: {
+          openedAt: this.isoStringOrNull(room.openedAt),
+          expiresAt: this.isoStringOrNull(room.expiresAt),
+          lastUserMessageAt: this.isoStringOrNull(room.lastUserMessageAt),
+          lastArtistReplyAt: this.isoStringOrNull(room.lastArtistReplyAt),
+          lastSupportAt: this.isoStringOrNull(room.lastSupportAt),
+          closedAt: this.isoStringOrNull(room.closedAt),
+        },
+        answerState: this.premiumRoomAnswerState(room),
+        nearExpiry: this.isPremiumRoomNearExpiry(room.expiresAt),
+      },
+      premiumRoomRefundStatus: {
+        eligible: status === 'refund_pending',
+        statusKey: status === 'refund_pending' ? 'refund_candidate' : 'not_eligible',
+        reasonKey:
+          status === 'refund_pending'
+            ? 'unanswered_24h_full_refund'
+            : 'chat.premiumRoom.refund.notEligible',
+        refundCandidateAt: this.isoStringOrNull(room.refundCandidateAt),
+        refundMutationEnabled: false,
+        walletCreditMutationEnabled: false,
+      },
+      premiumRoomReportStatus: {
+        reported: Boolean(room.reportedAt) || ['reported', 'blind', 'blinded'].includes(status),
+        adminReview: Boolean(room.adminReviewAt) || status === 'admin_review',
+        reportedAt: this.isoStringOrNull(room.reportedAt),
+        adminReviewAt: this.isoStringOrNull(room.adminReviewAt),
+        reportMutationEnabled: false,
+        rawReportReasonReturned: false,
+      },
+      premiumRoomMutationAvailability: {
+        canSendMessage: false,
+        canArtistReply: false,
+        canDonate: false,
+        canReport: false,
+        canRequestRefund: false,
+        disabledReasonKey: availability.disabledReasonKey,
+        futureAvailability: availability.futureAvailability,
+        walletMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+      counterparty:
+        viewerRole === 'artist_operator'
+          ? {
+              displayName:
+                room.owner?.profile?.displayName ??
+                room.owner?.profile?.publicHandle ??
+                'Lumina User',
+              publicHandle: room.owner?.profile?.publicHandle ?? null,
+            }
+          : null,
+      policy: this.premiumRoomReadPolicy(
+        viewerRole === 'owner_user' ? 'owner_room_status' : 'artist_room_status',
+      ),
+    };
+  }
+
+  private toPremiumRoomArtist(artist: { id: string; slug: string; displayName: string }) {
+    return {
+      id: artist.id,
+      slug: artist.slug,
+      displayName: artist.displayName,
+    };
+  }
+
+  private normalizePremiumRoomStatus(value: string) {
+    return (PREMIUM_ROOM_READ_STATUSES as readonly string[]).includes(value)
+      ? value
+      : 'admin_review';
+  }
+
+  private premiumRoomReadAvailability(status: string) {
+    if ((PREMIUM_ROOM_ARCHIVE_STATUSES as readonly string[]).includes(status)) {
+      return {
+        readMode: 'safe_archive',
+        disabledReasonKey: `chat.premiumRoom.${status}.locked`,
+        futureAvailability: {
+          canSendMessage: false,
+          canArtistReply: false,
+          canDonate: false,
+        },
+      };
+    }
+
+    if ((PREMIUM_ROOM_SAFE_STATUS_ONLY_STATUSES as readonly string[]).includes(status)) {
+      return {
+        readMode: 'safe_status_only',
+        disabledReasonKey: `chat.premiumRoom.${status}.locked`,
+        futureAvailability: {
+          canSendMessage: false,
+          canArtistReply: false,
+          canDonate: false,
+        },
+      };
+    }
+
+    return {
+      readMode: 'safe_conversation',
+      disabledReasonKey: 'chat.premiumRoom.readOnlyStorageOnly',
+      futureAvailability: {
+        canSendMessage: true,
+        canArtistReply: true,
+        canDonate: true,
+      },
+    };
+  }
+
+  private premiumRoomDonationAvailability(status: string) {
+    const availability = this.premiumRoomReadAvailability(status);
+
+    return {
+      enabled: false,
+      allowedByStatus: availability.futureAvailability.canDonate,
+      disabledReasonKey: availability.disabledReasonKey,
+      walletLookupRequired: false,
+    };
+  }
+
+  private premiumRoomAnswerState(room: any) {
+    if (room.lastArtistReplyAt) {
+      return {
+        state: 'replied',
+        stateKey: 'replied',
+        labelKey: 'chat.premiumRoom.answer.replied',
+      };
+    }
+
+    if (room.refundCandidateAt || room.status === 'refund_pending') {
+      return {
+        state: 'overdue_24h',
+        stateKey: 'overdue_24h',
+        labelKey: 'chat.premiumRoom.answer.overdue24h',
+      };
+    }
+
+    return {
+      state: 'needs_reply',
+      stateKey: 'needs_reply',
+      labelKey: 'chat.premiumRoom.answer.needsReply',
+    };
+  }
+
+  private premiumRoomStatusLabelKey(status: string) {
+    return `chat.premiumRoom.status.${status.replace(/_/g, '.')}`;
+  }
+
+  private premiumRoomReadPolicy(surface: string) {
+    return {
+      surface,
+      version: '2026-05-27.premium-chat-room-read-storage.v1',
+      readOnly: true,
+      rawChatBodyReturned: false,
+      rawReportReasonReturned: false,
+      rawAdminNoteReturned: false,
+      rawWalletLedgerIdReturned: false,
+      rawSupportPointLedgerIdReturned: false,
+      rawConversationMeterLedgerIdReturned: false,
+      tokenReturned: false,
+      cookieReturned: false,
+      walletMutation: false,
+      luminaMutation: false,
+      donationMutation: false,
+      reportMutation: false,
+      refundMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    };
+  }
+
+  private assertPremiumRoomId(roomId: string) {
+    if (!UUID_V4_PATTERN.test(roomId)) {
+      throw new BadRequestException({
+        code: 'PREMIUM_CHAT_ROOM_INVALID_ID',
+        message: 'roomId must be a UUID v4',
+        messageKey: 'chat.premiumRoom.invalidId',
+      });
+    }
+  }
+
+  private premiumRoomNotFound() {
+    return new NotFoundException({
+      code: 'PREMIUM_CHAT_ROOM_NOT_FOUND',
+      message: 'Premium chat room not found',
+      messageKey: 'chat.premiumRoom.notFound',
+    });
+  }
+
+  private isPremiumRoomNearExpiry(expiresAt: Date | null | undefined) {
+    if (!expiresAt) {
+      return false;
+    }
+
+    const diff = expiresAt.getTime() - Date.now();
+
+    return diff > 0 && diff <= PREMIUM_ROOM_NEAR_EXPIRY_WINDOW_MS;
+  }
+
+  private isoStringOrNull(value: Date | string | null | undefined) {
+    if (!value) {
+      return null;
+    }
+
+    return value instanceof Date ? value.toISOString() : value;
   }
 
   private async mutateConversationStatus(

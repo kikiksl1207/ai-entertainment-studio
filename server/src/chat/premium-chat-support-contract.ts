@@ -464,21 +464,25 @@ export const PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX = {
 
 export const PREMIUM_CHAT_LIVE_QA_FIXTURE_READINESS = {
   version: '2026-05-27.premium-chat-live-qa-fixture-readiness.v1',
-  status: 'blocked_until_room_storage_and_safe_session_fixture',
+  status: 'blocked_until_safe_session_fixture',
   liveQaReady: false,
   readOnly: true,
   mutationEnabled: false,
   usableContractEndpoint: '/api/v1/chat/premium-support-contract',
-  plannedReadEndpoints: {
+  implementedReadEndpoints: {
     roomList: '/api/v1/chat/premium-rooms',
     userRoomStatus: '/api/v1/chat/me/premium-rooms/:roomId/status',
     artistRoomStatus:
       '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
   },
+  storage: {
+    table: 'premium_chat_rooms',
+    mode: 'read_model_only',
+    writePathEnabled: false,
+  },
   currentBlockers: [
-    'premium_room_storage_not_implemented',
-    'premium_room_read_endpoints_not_mounted',
     'safe_login_or_session_fixture_missing',
+    'qa_fixture_rows_not_prepared',
   ],
   requiredFixtureStates: [
     {
@@ -1017,8 +1021,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         take: { default: 20, max: 50 },
         cursor: 'opaque optional pagination cursor',
       },
-      status: 'planned',
-      enabled: false,
+      status: 'implemented_read_only',
+      enabled: true,
       authRequired: false,
       walletMutation: false,
     },
@@ -1055,8 +1059,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     userRoomStatus: {
       method: 'GET',
       pathTemplate: '/api/v1/chat/me/premium-rooms/:roomId/status',
-      status: 'planned',
-      enabled: false,
+      status: 'implemented_read_only',
+      enabled: true,
       authRequired: true,
       walletMutation: false,
       settlementMutation: false,
@@ -1066,8 +1070,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       method: 'GET',
       pathTemplate:
         '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
-      status: 'planned',
-      enabled: false,
+      status: 'implemented_read_only',
+      enabled: true,
       authRequired: true,
       walletMutation: false,
       settlementMutation: false,
@@ -1246,7 +1250,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     roomList: {
       method: 'GET',
       path: '/api/v1/chat/premium-rooms',
-      enabled: false,
+      enabled: true,
       authRequired: false,
       walletMutation: false,
       settlementMutation: false,
@@ -1474,7 +1478,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     userRoomStatus: {
       method: 'GET',
       pathTemplate: '/api/v1/chat/me/premium-rooms/:roomId/status',
-      enabled: false,
+      enabled: true,
       authRequired: true,
       walletMutation: false,
       settlementMutation: false,
@@ -1543,7 +1547,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       method: 'GET',
       pathTemplate:
         '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
-      enabled: false,
+      enabled: true,
       authRequired: true,
       walletMutation: false,
       settlementMutation: false,

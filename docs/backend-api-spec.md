@@ -1179,8 +1179,10 @@ Premium room status read API contract (#384):
 The following read-only API shapes are exposed through
 `GET /api/v1/chat/premium-support-contract` under
 `apiContracts.userRoomStatus`, `apiContracts.artistRoomStatus`, and
-`roomStatusRead`. They remain `enabled=false` until premium-chat room/report and
-refund storage exists.
+`roomStatusRead`. #532 mounts the owner and artist-operator status endpoints as
+read-only projections backed by the `premium_chat_rooms` read model. Report,
+refund, wallet, settlement, payout, support, and conversation mutations remain
+disabled.
 
 ```http
 GET /api/v1/chat/me/premium-rooms/:roomId/status
@@ -1188,7 +1190,7 @@ GET /api/v1/creator-studio/premium-chat/rooms/:roomId/status
 Authorization: Bearer <accessToken>
 ```
 
-- Both planned endpoints are authenticated, owner-only, read-only projections.
+- Both endpoints are authenticated, owner/operator-only, read-only projections.
 - Owner users may read their own room status, safe refund state, and safe report
   processing state.
 - Artist owners may read rooms opened to their own artist profile, safe report
@@ -1196,10 +1198,11 @@ Authorization: Bearer <accessToken>
 - Unauthenticated access returns `401 auth_required`.
 - Non-owner user or artist access returns `403` or safe `404` without identity
   leakage.
-- Status keys currently covered are `active`, `reported`, `admin_review`,
-  `refund_pending`, `refunded`, `closed`, `expired`, and `suspended`, always
-  paired with stable Korean-copy label keys. Clients must not display raw
-  status enums as the only user-facing copy.
+- Status keys currently covered are `opened`, `active`, `artist_answered`,
+  `reported`, `blind`, `blinded`, `suspended`, `admin_review`,
+  `refund_pending`, `refunded`, `closed`, `artist_closed`, and `expired`,
+  always paired with stable Korean-copy label keys. Clients must not display
+  raw status enums as the only user-facing copy.
 - Response projections are `premiumRoomStatus`, `premiumRoomRefundStatus`,
   `premiumRoomReportStatus`, and `premiumRoomMutationAvailability`.
 - The projections must not include raw chat bodies, raw report reasons,
@@ -1404,10 +1407,10 @@ Premium room projection copy contract (#478):
 Premium room list/detail projection contract (#490):
 
 `GET /api/v1/chat/premium-support-contract` exposes `roomProjection` and the
-planned `premiumRoomDetail` projection for Home/Feed/Studio UI wiring. These
-remain read-only contract shapes; `apiContracts.roomList`,
-`apiContracts.userRoomStatus`, and `apiContracts.artistRoomStatus` are still
-`enabled=false`.
+`premiumRoomDetail` projection for Home/Feed/Studio UI wiring. These remain
+read-only contract shapes; `apiContracts.roomList`,
+`apiContracts.userRoomStatus`, and `apiContracts.artistRoomStatus` are
+`enabled=true` for read-only storage/status verification only.
 
 - The room list response must include only artist-safe fields for artist,
   remaining period, room status, last response status, and donation/support
@@ -1428,6 +1431,56 @@ remain read-only contract shapes; `apiContracts.roomList`,
 - This contract does not enable room open, donation create, wallet debit,
   settlement, payout, support-point writes, conversation-meter writes, or
   report/refund mutation routes.
+
+Premium chat room storage/read endpoint contract (#532):
+
+#532 adds the `premium_chat_rooms` Prisma read model and migration for live
+room list/detail matrix QA. The model is storage-only in this PR: it has no
+service path for payment, support, donation, report, refund, settlement, payout,
+wallet debit, wallet credit, or room-open mutation. It stores safe room
+lifecycle fields such as `owner_user_id`, `artist_id`, `tier_key`, `status`,
+`amount_lumina`, `remaining_units`, `opened_at`, `expires_at`,
+`last_user_message_at`, `last_artist_reply_at`, `last_support_at`,
+`reported_at`, `admin_review_at`, `refund_candidate_at`, `closed_at`, and
+`metadata`.
+
+```http
+GET /api/v1/chat/premium-rooms?artistSlug=:slug&status=:status&take=:take&cursor=:roomId
+GET /api/v1/chat/me/premium-rooms/:roomId/status
+GET /api/v1/creator-studio/premium-chat/rooms/:roomId/status
+Authorization: Bearer <accessToken> # status endpoints only
+```
+
+- Public room list returns `premium_room_list_item_v1` projection with
+  `roomId`, safe `artist` summary, `tier`, `roomStatus`, `statusKey`,
+  `statusLabelKey`, `readMode`, timestamps, remaining/near-expiry state,
+  read-only viewer CTA, donation availability, and read-only policy.
+- List status filters are limited to public list states `opened`, `active`, and
+  `artist_answered`; omitted status returns the same public set.
+- Owner status returns `premiumRoomStatus`, `premiumRoomRefundStatus`,
+  `premiumRoomReportStatus`, `premiumRoomMutationAvailability`, and the
+  read-only policy for the authenticated room owner.
+- Creator Studio status returns the same safe detail projection only when the
+  caller is an active artist operator for the room artist. Unauthorized
+  operator access uses safe not-found behavior to avoid identity leakage.
+- Matrix QA states supported by storage/projection are active baseline,
+  reported, admin review, unanswered refund candidate, near expiry, closed,
+  artist closed, refunded, and expired.
+- Stable error bodies use `code` and `messageKey`: invalid `take` returns
+  `PREMIUM_CHAT_ROOM_TAKE_INVALID` / `chat.premiumRoom.invalidTake`; invalid
+  list status returns `PREMIUM_CHAT_ROOM_STATUS_INVALID` /
+  `chat.premiumRoom.invalidStatus`; invalid cursor returns
+  `PREMIUM_CHAT_ROOM_CURSOR_INVALID` / `chat.premiumRoom.invalidCursor`;
+  invalid room id returns `PREMIUM_CHAT_ROOM_INVALID_ID` /
+  `chat.premiumRoom.invalidId`; missing or unauthorized room returns
+  `PREMIUM_CHAT_ROOM_NOT_FOUND` / `chat.premiumRoom.notFound`.
+- Safe QA fixture/session setup must use approved QA-only fixture rows or local
+  staging data. Do not request or record raw password, token, cookie, email,
+  direct DB URL, object URL, payment id, wallet ledger id, settlement id, or
+  payout id in Notion or docs.
+- Until a later mutation PR exists, QA may verify only read projections and
+  matrix visibility. Any attempt to use this storage as a payment/support/
+  wallet/report/refund/settlement/payout mutation path must fail closed.
 
 Premium chat support message and ranking projection contract (#496):
 

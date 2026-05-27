@@ -10,6 +10,211 @@ import {
   resolvePremiumChatRoomInteractionAvailability,
 } from './premium-chat-support-contract';
 
+const premiumRoomId = '00000000-0000-4000-8000-000000000532';
+const premiumRoomOwnerUserId = '00000000-0000-4000-8000-000000000533';
+const premiumRoomArtistOwnerUserId = '00000000-0000-4000-8000-000000000534';
+const premiumRoomArtistId = '00000000-0000-4000-8000-000000000535';
+const premiumRoomNow = new Date('2026-05-27T00:00:00.000Z');
+
+function premiumRoomFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    id: premiumRoomId,
+    ownerUserId: premiumRoomOwnerUserId,
+    artistId: premiumRoomArtistId,
+    tierKey: 'premium_chat_room_300',
+    status: 'active',
+    amountLumina: { toString: () => '300.00' },
+    remainingUnits: 12,
+    openedAt: premiumRoomNow,
+    expiresAt: new Date('2026-05-28T00:00:00.000Z'),
+    lastUserMessageAt: premiumRoomNow,
+    lastArtistReplyAt: null,
+    lastSupportAt: null,
+    reportedAt: null,
+    adminReviewAt: null,
+    refundCandidateAt: null,
+    closedAt: null,
+    createdAt: premiumRoomNow,
+    updatedAt: premiumRoomNow,
+    metadata: {},
+    artist: {
+      id: premiumRoomArtistId,
+      slug: 'yoon-serin',
+      displayName: 'Yoon Serin',
+    },
+    owner: {
+      profile: {
+        displayName: 'Safe User',
+        publicHandle: 'safe-user',
+      },
+    },
+    ...overrides,
+  };
+}
+
+function premiumRoomReadServiceWith(prismaOverrides: Record<string, unknown> = {}) {
+  const prisma = {
+    premiumChatRoom: {
+      findMany: jest.fn(),
+      count: jest.fn(),
+      findFirst: jest.fn(),
+    },
+    artistOperator: {
+      findFirst: jest.fn(),
+    },
+    walletAccount: {
+      findUnique: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    walletLedger: {
+      create: jest.fn(),
+    },
+    ...prismaOverrides,
+  };
+
+  return {
+    prisma,
+    service: new ChatService(prisma as never, {} as never),
+  };
+}
+
+describe('ChatService premium room read storage endpoints', () => {
+  it('returns public room list projections without wallet or private fields', async () => {
+    const { prisma, service } = premiumRoomReadServiceWith();
+    prisma.premiumChatRoom.findMany.mockResolvedValue([premiumRoomFixture()]);
+    prisma.premiumChatRoom.count.mockResolvedValue(1);
+
+    const result = await service.getPremiumRoomList({
+      artistSlug: 'yoon-serin',
+      take: 20,
+    });
+
+    expect(prisma.premiumChatRoom.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ['opened', 'active', 'artist_answered'] },
+          artist: expect.objectContaining({ slug: 'yoon-serin', status: 'active' }),
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      count: 1,
+      total: 1,
+      items: [
+        {
+          roomId: premiumRoomId,
+          roomStatus: 'active',
+          artist: {
+            slug: 'yoon-serin',
+          },
+          donationAvailability: {
+            enabled: false,
+            walletLookupRequired: false,
+          },
+          policy: {
+            rawChatBodyReturned: false,
+            walletMutation: false,
+            settlementMutation: false,
+            payoutMutation: false,
+          },
+        },
+      ],
+      policy: {
+        readOnly: true,
+        walletMutation: false,
+        donationMutation: false,
+        refundMutation: false,
+      },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/email|phone/);
+    expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('returns owner room status for refund-pending fixture without mutation affordances', async () => {
+    const { prisma, service } = premiumRoomReadServiceWith();
+    prisma.premiumChatRoom.findFirst.mockResolvedValue(
+      premiumRoomFixture({
+        status: 'refund_pending',
+        refundCandidateAt: premiumRoomNow,
+      }),
+    );
+
+    const result = await service.getMyPremiumRoomStatus(
+      premiumRoomOwnerUserId,
+      premiumRoomId,
+    );
+
+    expect(prisma.premiumChatRoom.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: premiumRoomId,
+          ownerUserId: premiumRoomOwnerUserId,
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      premiumRoomStatus: {
+        roomStatus: 'refund_pending',
+        readMode: 'safe_status_only',
+        answerState: {
+          state: 'overdue_24h',
+          labelKey: 'chat.premiumRoom.answer.overdue24h',
+        },
+      },
+      premiumRoomRefundStatus: {
+        eligible: true,
+        refundMutationEnabled: false,
+        walletCreditMutationEnabled: false,
+      },
+      premiumRoomMutationAvailability: {
+        canSendMessage: false,
+        canArtistReply: false,
+        canDonate: false,
+        walletMutationEnabled: false,
+      },
+    });
+    expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('allows artist operator status reads without returning private counterparty data', async () => {
+    const { prisma, service } = premiumRoomReadServiceWith();
+    prisma.premiumChatRoom.findFirst.mockResolvedValue(premiumRoomFixture());
+    prisma.artistOperator.findFirst.mockResolvedValue({ id: 'operator-row' });
+
+    const result = await service.getArtistPremiumRoomStatus(
+      premiumRoomArtistOwnerUserId,
+      premiumRoomId,
+    );
+
+    expect(prisma.artistOperator.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId: premiumRoomArtistOwnerUserId,
+        artistId: premiumRoomArtistId,
+        status: 'active',
+        revokedAt: null,
+      },
+      select: { id: true },
+    });
+    expect(result).toMatchObject({
+      premiumRoomStatus: {
+        viewerRole: 'artist_operator',
+      },
+      counterparty: {
+        displayName: 'Safe User',
+        publicHandle: 'safe-user',
+      },
+      policy: {
+        rawChatBodyReturned: false,
+        rawWalletLedgerIdReturned: false,
+        rawAdminNoteReturned: false,
+      },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/ownerUserId|email|phone/);
+  });
+});
+
 describe('ChatService.getStarterPrompts', () => {
   it('returns readable Korean default starter prompt copy', async () => {
     const prisma = {
@@ -3533,7 +3738,7 @@ describe('ChatService premium chat support contract', () => {
     });
     expect(contract.endpoints.roomList).toMatchObject({
       method: 'GET',
-      enabled: false,
+      enabled: true,
       walletMutation: false,
     });
     expect(contract.endpoints.donationPreview).toMatchObject({
@@ -4235,7 +4440,7 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.endpoints.roomList).toMatchObject({
       method: 'GET',
       path: '/api/v1/chat/premium-rooms',
-      enabled: false,
+      enabled: true,
       authRequired: false,
       walletMutation: false,
     });
@@ -4250,7 +4455,7 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.endpoints.userRoomStatus).toMatchObject({
       method: 'GET',
       pathTemplate: '/api/v1/chat/me/premium-rooms/:roomId/status',
-      enabled: false,
+      enabled: true,
       authRequired: true,
       walletMutation: false,
       settlementMutation: false,
@@ -4260,7 +4465,7 @@ describe('ChatService premium chat support contract', () => {
       method: 'GET',
       pathTemplate:
         '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
-      enabled: false,
+      enabled: true,
       authRequired: true,
       walletMutation: false,
       settlementMutation: false,
@@ -4299,7 +4504,7 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.apiContracts.roomList).toMatchObject({
       method: 'GET',
       path: '/api/v1/chat/premium-rooms',
-      enabled: false,
+      enabled: true,
       authRequired: false,
       walletMutation: false,
       settlementMutation: false,
@@ -4443,7 +4648,7 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.apiContracts.userRoomStatus).toMatchObject({
       method: 'GET',
       pathTemplate: '/api/v1/chat/me/premium-rooms/:roomId/status',
-      enabled: false,
+      enabled: true,
       authRequired: true,
       walletMutation: false,
       settlementMutation: false,
@@ -4509,7 +4714,7 @@ describe('ChatService premium chat support contract', () => {
       method: 'GET',
       pathTemplate:
         '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
-      enabled: false,
+      enabled: true,
       authRequired: true,
       walletMutation: false,
       settlementMutation: false,
@@ -5210,15 +5415,14 @@ describe('ChatService premium chat support contract', () => {
       },
     });
     expect(contract.liveQaFixtureReadiness).toMatchObject({
-      status: 'blocked_until_room_storage_and_safe_session_fixture',
+      status: 'blocked_until_safe_session_fixture',
       liveQaReady: false,
       readOnly: true,
       mutationEnabled: false,
       usableContractEndpoint: '/api/v1/chat/premium-support-contract',
       currentBlockers: [
-        'premium_room_storage_not_implemented',
-        'premium_room_read_endpoints_not_mounted',
         'safe_login_or_session_fixture_missing',
+        'qa_fixture_rows_not_prepared',
       ],
       fixtureCreationPolicy: {
         actualPaymentMutation: false,
