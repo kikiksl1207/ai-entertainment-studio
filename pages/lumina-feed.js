@@ -261,7 +261,7 @@ function renderLuminaFeed() {
       ? artist.publicName
       : (isMineByViewer && me
           ? (me.displayName || me.email?.split("@")[0] || "내 계정")
-          : (post.authorName || (post.postType === "debut_artist_post" ? "데뷔 준비 중인 아티스트" : "익명의 팬")));
+          : (post.authorName || (post.postType === "debut_artist_post" ? "데뷔 준비 중인 아티스트" : "팬")));
     const avatarSrc = artist?.images?.thumb
       || (isMineByViewer && me?.avatarUrl ? me.avatarUrl : post.avatarUrl || "");
     const initial = (authorName || "?").charAt(0);
@@ -361,13 +361,15 @@ function renderLuminaFeed() {
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
               <span>댓글 ${Number(post.replyCount) || 0}</span>
             </button>
-            <!-- 타래 잇기: 작성된 글 아래에 같은 작성자 본인이 이어쓰는 piece. 댓글과 별개 endpoint. -->
-            <button class="feed-action-btn feed-thread-extend-btn" type="button"
+            <!-- 타래 잇기: 본인 글에만 노출 (#531 — viewer.isAuthor || viewer.canEdit 조건) -->
+            ${(post.viewer?.isAuthor || post.viewer?.canEdit)
+              ? `<button class="feed-action-btn feed-thread-extend-btn" type="button"
                     data-feed-thread-extend="${feedEscapeHtml(post.id || "")}"
                     aria-label="이 글에 타래 이어 쓰기">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v14a3 3 0 0 0 3 3h7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/><circle cx="7" cy="4" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/><circle cx="17" cy="21" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>
               <span>타래 잇기</span>
-            </button>
+            </button>`
+              : ""}
             <!-- 리포스트: 원글 reference + 선택 quote body. 단순 복사가 아니라 reference card 유지. -->
             <button class="feed-action-btn feed-repost-btn" type="button"
                     data-feed-repost="${feedEscapeHtml(post.id || "")}"
@@ -1640,7 +1642,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
       ? artist.publicName
       : (isMineByViewer && me
           ? (me.displayName || me.email?.split("@")[0] || "내 계정")
-          : (post.authorName || (post.postType === "debut_artist_post" ? "데뷔 준비 중인 아티스트" : "익명의 팬")));
+          : (post.authorName || (post.postType === "debut_artist_post" ? "데뷔 준비 중인 아티스트" : "팬")));
     var avatarSrc = artist?.images?.thumb
       || (isMineByViewer && me?.avatarUrl ? me.avatarUrl : post.avatarUrl || "");
     var initial = (authorName || "?").charAt(0);
@@ -1709,10 +1711,13 @@ async function runFeedComposeUploadStages(item, onStateChange) {
               '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>' +
               '<span>댓글 ' + (Number(post.replyCount) || 0) + '</span>' +
             '</button>' +
-            '<button class="feed-action-btn feed-thread-extend-btn" type="button" data-feed-thread-extend="' + postIdStr + '" aria-label="이 글에 타래 이어 쓰기">' +
-              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v14a3 3 0 0 0 3 3h7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/><circle cx="7" cy="4" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/><circle cx="17" cy="21" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>' +
-              '<span>타래 잇기</span>' +
-            '</button>' +
+            /* #531 — 타래 잇기: 본인 글에만 노출 */
+            ((post.viewer?.isAuthor || post.viewer?.canEdit)
+              ? '<button class="feed-action-btn feed-thread-extend-btn" type="button" data-feed-thread-extend="' + postIdStr + '" aria-label="이 글에 타래 이어 쓰기">' +
+                  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v14a3 3 0 0 0 3 3h7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/><circle cx="7" cy="4" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/><circle cx="17" cy="21" r="2" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>' +
+                  '<span>타래 잇기</span>' +
+                '</button>'
+              : "") +
             '<button class="feed-action-btn feed-repost-btn" type="button" data-feed-repost="' + postIdStr + '" aria-label="이 글 리포스트하기">' +
               '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v7H9l-2 2V6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 4h9v7l-2-2h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>' +
               '<span>리포스트</span>' +
