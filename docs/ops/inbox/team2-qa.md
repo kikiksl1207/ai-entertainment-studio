@@ -1,6 +1,35 @@
 # Team2 QA Inbox
 
 status: blocked
+task: #534 - premium chat live status matrix QA recheck after latest main
+environment:
+- branch: team2-qa/534-live-matrix-qa
+- main/live basis visible through `/health`: a7c2927315124c8f4dbc1f0715f8cec2eacfcb12.
+- No token, cookie, password, env value, secret, signed URL, raw provider payload, raw response body, DB URL, raw credential, raw email, room id, or private user id was recorded.
+- No fixture prepare/verify/cleanup against live DB, donation, room-open, wallet, refund, report, settlement, payout, payment, or paid mutation was executed.
+
+tested_flows:
+- PASS: runbook still defines the 7 required buckets: baseline active, reported, admin review, unanswered refund candidate, near expiry, closed, expired.
+- PASS: `npm.cmd run qa:premium-chat-live-fixtures` remains dry-run only and prints the 7 planned buckets with no DB connection/write.
+- PASS: prepare without explicit confirm refuses to run.
+- PASS: production-like prepare without `PREMIUM_CHAT_QA_FIXTURE_ALLOW_PRODUCTION=true` refuses before DB work.
+- PASS: live public `GET /api/v1/chat/premium-rooms?take=20` returns HTTP 200/read-only with 2 rows.
+- PASS: live public `GET /api/v1/chat/premium-rooms?status=active&take=20` returns 2 active rows.
+- PASS: one public active row now exposes `remaining.nearExpiry=true`, so the public-list near-expiry projection can be observed.
+- PASS: unauthenticated owner detail, creator/operator detail, and premium support contract endpoints return HTTP 401.
+- BLOCKED: visible public rows are still not tagged as #534 fixture rows, so bucket identity cannot be verified from public read-only output.
+- BLOCKED: public list still does not expose reported/admin_review/refund_pending/closed_by_artist/expired buckets; non-active public status filters return HTTP 400.
+- BLOCKED: approved owner/operator QA session is still not available in this runtime, so owner detail and artist/operator detail matrix cannot be exercised without requesting raw credentials.
+
+actual:
+- Public active list readiness improved because near-expiry is now visible in one active row.
+- Full #534 matrix remains blocked until tagged fixture rows and approved private owner/operator session are prepared through the secure QA runtime.
+
+next_needed:
+- PM Chamo or the secure QA runtime/session owner must run prepare -> verify with approved safe inputs, then hand QR2 only bucket-level references and approved owner/operator session access through the private channel.
+- Do not mark #534 complete or archive it until all 7 buckets and owner/operator detail checks pass and cleanup is verified.
+
+status: blocked
 task: #534 - premium chat live status matrix QA second recheck
 environment:
 - branch: team2-qa/534-live-matrix-qa
