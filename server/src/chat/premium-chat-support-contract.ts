@@ -643,6 +643,18 @@ export const PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT = {
   characterChatTransitionCta: CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT,
   unansweredRefundCandidate: {
     trigger: 'no_artist_answer_after_24h',
+    eligibleFromStatuses: ['opened', 'active'],
+    firstArtistAnswerEvidence: [
+      'room.status=artist_answered',
+      'first_artist_reply_at_present',
+      'hasArtistAnswer=true',
+    ],
+    excludedReasonKeys: [
+      'artist_answered',
+      'report_or_admin_review_not_unanswered',
+      'terminal_status_not_unanswered',
+      'not_yet_24h',
+    ],
     roomStatus: 'refund_pending',
     refundPolicyKey: 'unanswered_24h_full_refund',
     refundStateMeaning: 'refund_candidate_pending_server_decision',
@@ -2189,8 +2201,19 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     unansweredRefundTransition: {
       trigger: 'no artist answer after 24 hours',
       fromStatuses: ['opened', 'active'],
+      firstArtistAnswerEvidence: [
+        'room.status=artist_answered',
+        'first_artist_reply_at_present',
+        'hasArtistAnswer=true',
+      ],
       toStatus: 'refund_pending',
       refundPolicyKey: 'unanswered_24h_full_refund',
+      excludedReasonKeys: [
+        'artist_answered',
+        'report_or_admin_review_not_unanswered',
+        'terminal_status_not_unanswered',
+        'not_yet_24h',
+      ],
       userRefundBps: 10000,
       afterTransitionAvailability:
         PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.refund_pending,

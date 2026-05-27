@@ -9,6 +9,8 @@ import {
   PREMIUM_CHAT_REPORT_REVIEW_REASON_KEYS,
   PREMIUM_CHAT_REPORT_REVIEW_STATUS_KEYS,
   PREMIUM_CHAT_REFUND_REASON_KEYS,
+  PREMIUM_CHAT_UNANSWERED_REFUND_ELIGIBLE_STATUSES,
+  PREMIUM_CHAT_UNANSWERED_REFUND_EXCLUDED_REASON_KEYS,
   PREMIUM_CHAT_ROOM_STATUS_READ_KEYS,
   PREMIUM_CHAT_ROOM_LIFECYCLE_PROJECTION_STATUS_KEYS,
   premiumChatRoomAllowedTierKeysForServerUnlocks,
@@ -278,6 +280,11 @@ describe('premium chat room refund and moderation ledger contract', () => {
   });
 
   it('marks 24h unanswered rooms as refund candidates, not completed refunds', () => {
+    const openedCandidate = resolvePremiumChatRoomUnansweredRefundCandidate({
+      currentStatus: 'opened',
+      hoursSinceOpen: 24,
+      hasArtistAnswer: false,
+    });
     const candidate = resolvePremiumChatRoomUnansweredRefundCandidate({
       currentStatus: 'active',
       hoursSinceOpen: 24,
@@ -293,14 +300,51 @@ describe('premium chat room refund and moderation ledger contract', () => {
       hoursSinceOpen: 48,
       hasArtistAnswer: true,
     });
+    const answeredByStatus = resolvePremiumChatRoomUnansweredRefundCandidate({
+      currentStatus: 'artist_answered',
+      hoursSinceOpen: 48,
+      hasArtistAnswer: false,
+    });
+    const reported = resolvePremiumChatRoomUnansweredRefundCandidate({
+      currentStatus: 'reported',
+      hoursSinceOpen: 48,
+      hasArtistAnswer: false,
+    });
+    const closed = resolvePremiumChatRoomUnansweredRefundCandidate({
+      currentStatus: 'closed',
+      hoursSinceOpen: 48,
+      hasArtistAnswer: false,
+    });
     const duplicate = resolvePremiumChatRoomUnansweredRefundCandidate({
       currentStatus: 'refund_pending',
       hoursSinceOpen: 48,
       hasArtistAnswer: false,
     });
 
+    expect(PREMIUM_CHAT_UNANSWERED_REFUND_ELIGIBLE_STATUSES).toEqual([
+      'opened',
+      'active',
+    ]);
+    expect(PREMIUM_CHAT_UNANSWERED_REFUND_EXCLUDED_REASON_KEYS).toEqual([
+      'artist_answered',
+      'report_or_admin_review_not_unanswered',
+      'terminal_status_not_unanswered',
+      'not_yet_24h',
+    ]);
     expect(PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.unansweredRefundCandidate).toMatchObject({
       afterHours: 24,
+      eligibleFromStatuses: ['opened', 'active'],
+      firstArtistAnswerEvidence: [
+        'room.status=artist_answered',
+        'first_artist_reply_at_present',
+        'hasArtistAnswer=true',
+      ],
+      excludedReasonKeys: [
+        'artist_answered',
+        'report_or_admin_review_not_unanswered',
+        'terminal_status_not_unanswered',
+        'not_yet_24h',
+      ],
       statusKey: 'refund_pending',
       actionKey: 'unanswered_24h_refund_candidate',
       reasonKey: 'unanswered_24h_full_refund',
@@ -323,6 +367,12 @@ describe('premium chat room refund and moderation ledger contract', () => {
       settlementMutationEnabled: false,
       payoutMutationEnabled: false,
     });
+    expect(openedCandidate).toMatchObject({
+      candidate: true,
+      statusKey: 'refund_pending',
+      reasonKey: 'unanswered_24h_full_refund',
+      automaticRefundCredit: false,
+    });
     expect(tooEarly).toMatchObject({
       candidate: false,
       statusKey: 'active',
@@ -333,6 +383,23 @@ describe('premium chat room refund and moderation ledger contract', () => {
       candidate: false,
       statusKey: 'active',
       reasonKey: 'artist_answered',
+    });
+    expect(answeredByStatus).toMatchObject({
+      candidate: false,
+      statusKey: 'active',
+      reasonKey: 'artist_answered',
+    });
+    expect(reported).toMatchObject({
+      candidate: false,
+      statusKey: 'paused_by_report',
+      reasonKey: 'report_or_admin_review_not_unanswered',
+      walletMutationEnabled: false,
+    });
+    expect(closed).toMatchObject({
+      candidate: false,
+      statusKey: 'closed',
+      reasonKey: 'terminal_status_not_unanswered',
+      walletMutationEnabled: false,
     });
     expect(duplicate).toMatchObject({
       candidate: true,

@@ -1019,6 +1019,14 @@ Frontend rules:
   user-fault refund copy must be conditional on server/admin decision; and
   reported/blinded/suspended/admin-review copy must keep message and donation
   actions locked.
+- #539 fixes the unanswered refund candidate contract. Only `opened` or `active`
+  rooms with no server-detected first artist answer become candidates after 24
+  hours. `artist_answered`, report/admin-review, refund, closed, and expired
+  states must not reuse the unanswered copy path. Reason keys are separate:
+  `unanswered_24h_full_refund`, `artist_answered`,
+  `report_or_admin_review_not_unanswered`, `terminal_status_not_unanswered`,
+  and `not_yet_24h`. This remains a candidate state only; frontend must not
+  present a completed refund or enable wallet/settlement/payout actions from it.
 - `apiContracts.myDonationHistory` is an owner-only planned read contract for
   the viewer's donation history. It is disabled, returns safe projection fields
   only, and must not be used to infer wallet, settlement, or payout state.
