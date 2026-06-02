@@ -810,6 +810,73 @@ describe('ChatService dynamic opening greeting cache', () => {
     expect(tx.chatMessage.create).toHaveBeenCalledTimes(30);
   });
 
+  it('varies default fallback opening greetings for sparse character data', async () => {
+    const sparseArtist = {
+      id: '00000000-0000-4000-8000-000000000394',
+      slug: 'sparse-opening-regression',
+      displayName: 'Sparse Artist',
+      publicProfile: null,
+      contentProfile: null,
+    };
+    const plannedSessions = Array.from({ length: 12 }, (_, sessionIndex) => {
+      const suffix = (0x700 + sessionIndex).toString(16).padStart(12, '0');
+
+      return {
+        ...sessionBase,
+        id: `00000000-0000-4000-8000-${suffix}`,
+        artistId: sparseArtist.id,
+        artist: sparseArtist,
+      };
+    });
+    let nextSessionIndex = 0;
+    const tx = txMock();
+    const prisma = {
+      artist: {
+        findFirst: jest.fn().mockResolvedValue({ id: sparseArtist.id }),
+      },
+      chatSession: {
+        create: jest.fn(async () => plannedSessions[nextSessionIndex++]),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: userId,
+          email: null,
+        }),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: false,
+        status: 'provider_disabled',
+        messageKey: 'chat.generation.providerNotConfigured',
+      }),
+      generate: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+    const greetings: string[] = [];
+
+    for (const plannedSession of plannedSessions) {
+      const result = await service.createSession(userId, {
+        artistId: plannedSession.artistId,
+      });
+
+      greetings.push(result.openingGreeting.text);
+      expect(result.openingGreeting.generation.providerCall).toBe(false);
+      expect(result.openingGreeting.cache.scope).toBe('chat_session');
+    }
+
+    expect(greetings).toHaveLength(12);
+    expect(new Set(greetings).size).toBeGreaterThanOrEqual(4);
+    expect(greetings.every((greeting) => greeting === greetings[0])).toBe(false);
+    expect(llmProvider.generate).not.toHaveBeenCalled();
+    expect(tx.chatMessage.create).toHaveBeenCalledTimes(12);
+  });
+
   it('skips provider opening greeting generation when the daily provider guard is exhausted', async () => {
     const session = {
       ...sessionBase,
