@@ -1624,6 +1624,35 @@ The current implementation exposes these shapes through read-only
 donation, and ranking mutations/read models remain disabled until storage,
 ledger, and moderation integration are added.
 
+Premium chat ranking backend projection readiness (#592):
+
+`GET /api/v1/chat/premium-support-contract` exposes
+`rankings.backendProjection` as a disabled backend read-model contract. It is
+for reviewer/QA alignment only and does not enable the public ranking read
+endpoint, donation creation, frontend score submit, or client-triggered refresh.
+
+- Planned read models are `premium_chat_ranking_snapshots`,
+  `premium_chat_support_point_ledger`, `premium_chat_conversation_meter_ledger`,
+  and `premium_chat_rooms`.
+- Communication ranking reads only server-side room-open support points, safe
+  message activity support points, confirmed net donation support points, and
+  safe artist reply activity. The final score formula remains server-side only.
+- Donation ranking reads only confirmed net premium-chat donation support
+  points. It excludes Lumina Pick likes/boosts, room-open rows, message rows,
+  reported/blinded rows, refunded rows, chargeback rows, and cancelled rows.
+- Chat rankings accept only `communication` and `donation`. Like ranking stays
+  on `/api/v1/boost-campaigns/:campaignId/rankings`, and premium-chat support
+  must not feed that lane.
+- Duplicate projection refresh is a server-side replay concern only. It must not
+  create a second mutation, and clients cannot request refresh or submit scores.
+- Ranking projection privacy blocks raw chat bodies, support-message bodies,
+  report reasons, wallet/support/conversation ledger identifiers, raw user
+  identifiers, message identifiers, internal formulas, and private connection
+  material.
+- Current readiness is disabled: ranking endpoint, read-model storage, snapshot
+  job, support-point storage, frontend submit, and donation create are all
+  `false`.
+
 Premium chat support point ledger contract (#363):
 
 - The support-point ledger sub-contract version is
