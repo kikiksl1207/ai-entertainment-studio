@@ -2291,6 +2291,44 @@ AI premium content generation pipeline draft:
 - The draft does not enable live provider calls, wallet/order/settlement
   mutations, paid-like behavior, public publishing, or vendor-specific coupling.
 
+AI premium content request state API skeleton (#591):
+
+- `AI_PREMIUM_CONTENT_STATE_API_CONTRACT.version` is
+  `2026-06-02.ai-premium-content-request-state-api-skeleton.v1` and remains
+  `skeleton_ready_mutation_blocked`.
+- This contract defines image/video/mixed request state only. It does not
+  enable live provider calls, wallet/order mutation, settlement, payout,
+  paid-like behavior, public publishing, or profile/feed equip side effects.
+- Request types are `image_single`, `image_variation`, `image_reference`,
+  `video_clip`, `video_loop`, and `premium_pack`. Output classes are `image`,
+  `video`, and `mixed`.
+- Planned state endpoints remain disabled:
+  - `GET /api/v1/me/ai-premium-content/requests`
+  - `GET /api/v1/ai-premium-content/requests/:requestId`
+  - `GET /admin/api/v1/ai-premium-content/requests`
+  - `GET /admin/api/v1/ai-premium-content/requests/:requestId`
+  - `POST /api/v1/ai-premium-content/requests`
+  - `POST /api/v1/ai-premium-content/requests/:requestId/regenerations`
+  - `PATCH /admin/api/v1/ai-premium-content/requests/:requestId`
+- `creator_image_requests` remains the current image queue bridge candidate.
+  `premium_video_products` remains an unlock catalog, not a generation request
+  queue. Future unified storage requires `ai_premium_content_requests`.
+- Public request state projection separates request status, moderation status,
+  result availability, retry availability, and publish/equip availability.
+- Raw state enums such as `provider_failed` must not be shown directly. Use the
+  Korean fallback map: `draft` = `작성 중`, `submitted` = `요청이 접수됐어요`,
+  `queued` = `생성 준비 중이에요`, `generating` = `콘텐츠를 만들고 있어요`,
+  `awaiting_review` = `검수 중이에요`, and `approved` =
+  `콘텐츠가 준비됐어요`.
+- The server owns request status, moderation status, provider state, cost, result
+  asset ids, context snapshots, and safety gates. Client-submitted status,
+  provider status, cost, result URLs, wallet balance, and publish/equip decisions
+  are not trusted.
+- The projection must not return raw provider payloads, raw prompts, private
+  reference material, signed URLs, sensitive auth material, private connection
+  material, raw emails, wallet ledger ids, settlement internals, or payout
+  internals.
+
 Free-like quota endpoint:
 
 ```http
