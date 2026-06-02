@@ -730,8 +730,7 @@ body.is-booting .feed-list::before {
 
 @media (max-width: 640px) {
   .feed-compose {
-    padding: 12px 12px;
-  }
+    padding: 12px;
   .feed-compose-row {
     grid-template-columns: 32px minmax(0, 1fr);
     gap: 10px;
@@ -786,7 +785,8 @@ body.is-booting .feed-list::before {
 @media (max-width: 640px) {
   .feed-section {
     padding-top: 20px;
-    padding-bottom: 40px;
+    /* #602 — 640px 이하에서 mobile-tabbar(~66px) + safe area 확보. 이전 40px는 탭바에 가림 */
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
   .feed-shell {
     width: min(100% - 20px, 620px);
