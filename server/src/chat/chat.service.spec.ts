@@ -131,6 +131,41 @@ describe('ChatService premium room read storage endpoints', () => {
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
   });
 
+  it('marks active public room list items as near expiry from a fresh expiresAt window', async () => {
+    jest.useFakeTimers().setSystemTime(premiumRoomNow);
+    try {
+      const { prisma, service } = premiumRoomReadServiceWith();
+      prisma.premiumChatRoom.findMany.mockResolvedValue([
+        premiumRoomFixture({
+          expiresAt: new Date(premiumRoomNow.getTime() + 30 * 60 * 1000),
+        }),
+        premiumRoomFixture({
+          id: '00000000-0000-4000-8000-000000000536',
+          expiresAt: new Date(premiumRoomNow.getTime() + 25 * 60 * 60 * 1000),
+        }),
+      ]);
+      prisma.premiumChatRoom.count.mockResolvedValue(2);
+
+      const result = await service.getPremiumRoomList({
+        status: 'active',
+        take: 20,
+      });
+
+      expect(result.items).toEqual([
+        expect.objectContaining({
+          roomStatus: 'active',
+          remaining: expect.objectContaining({ nearExpiry: true }),
+        }),
+        expect.objectContaining({
+          roomStatus: 'active',
+          remaining: expect.objectContaining({ nearExpiry: false }),
+        }),
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('returns owner room status for refund-pending fixture without mutation affordances', async () => {
     const { prisma, service } = premiumRoomReadServiceWith();
     prisma.premiumChatRoom.findFirst.mockResolvedValue(
