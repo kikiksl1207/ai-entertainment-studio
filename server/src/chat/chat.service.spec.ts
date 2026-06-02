@@ -3862,6 +3862,62 @@ describe('ChatService premium chat support contract', () => {
       premiumChatAccountingLedgerMutationEnabled: false,
       productProjectionMutationEnabled: false,
     });
+    expect(contract.backendSkeleton).toMatchObject({
+      version: '2026-05-28.premium-chat-support-backend-skeleton.v1',
+      status: 'skeleton_ready_mutation_blocked',
+      supportUnit: {
+        fixedAmountsLumina: [
+          10,
+          50,
+          100,
+          500,
+          1000,
+          5000,
+          10000,
+          50000,
+        ],
+        customAmount: {
+          supported: true,
+          minLumina: 1,
+          maxLumina: 50000,
+          integerOnly: true,
+        },
+        amountSource: 'server_normalized_premium_chat_support_amount',
+        clientSubmittedScoreTrusted: false,
+      },
+      plannedStorage: {
+        orderTable: 'premium_chat_donation_orders',
+        eventProjectionTable: 'premium_chat_donation_events',
+        supportPointLedgerTable: 'premium_chat_support_point_ledger',
+        rankingReadModel: 'premium_chat_ranking_snapshots',
+        walletLedgerTypeRequired: 'premium_chat_donation',
+      },
+      mutationGate: {
+        donationPreviewEnabled: false,
+        donationCreateEnabled: false,
+        walletMutationEnabled: false,
+        rankingRefreshByClientEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+      rankingSeparation: {
+        likeRankingPath: '/api/v1/boost-campaigns/:campaignId/rankings',
+        communicationRankingPath: '/api/v1/chat/rankings?type=communication',
+        donationRankingPath: '/api/v1/chat/rankings?type=donation',
+        likeRankingReceivesPremiumChatSupport: false,
+        supportMessageAffectsLikeRanking: false,
+        donationRankingBasis: 'confirmed_net_premium_chat_support_only',
+      },
+    });
+    expect(contract.backendSkeleton.validationOrder).toEqual([
+      'auth',
+      'session_ownership',
+      'supportable_room_state',
+      'amount_policy',
+      'idempotency',
+      'wallet_balance',
+      'trust_identity_gate',
+    ]);
     expect(contract.endpoints.contract).toMatchObject({
       method: 'GET',
       path: '/api/v1/chat/premium-support-contract',

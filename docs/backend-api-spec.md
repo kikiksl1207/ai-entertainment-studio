@@ -1537,6 +1537,28 @@ read-only and all donation/wallet/ranking-refresh mutations stay disabled.
   tokens, cookies, DB URLs, wallet ledger ids, support-point ids,
   conversation-meter ids, admin notes, or raw chat bodies.
 
+Premium chat support backend skeleton (#588):
+
+- `GET /api/v1/chat/premium-support-contract` now includes
+  `backendSkeleton.version =
+  2026-05-28.premium-chat-support-backend-skeleton.v1`.
+- The skeleton fixes support units as the existing fixed amounts
+  `10/50/100/500/1000/5000/10000/50000L` plus custom integer support from
+  `1L` to `50000L`. Amount, balance, ranking score, and client-local price are
+  not trusted.
+- Planned storage is named without enabling writes:
+  `premium_chat_donation_orders`, `premium_chat_donation_events`,
+  `premium_chat_support_point_ledger`, and
+  `premium_chat_ranking_snapshots`.
+- The future validation order is auth, session ownership, supportable room
+  state, amount policy, idempotency, wallet balance, and trust/identity gate.
+- Donation preview/create, wallet mutation, support-point ledger mutation,
+  ranking refresh by client, settlement, and payout remain disabled.
+- Ranking lanes stay separated: Lumina Pick likes remain on
+  `/api/v1/boost-campaigns/:campaignId/rankings`, while premium-chat
+  communication and donation lanes remain on planned `/api/v1/chat/rankings`
+  queries. Premium-chat support must not feed like rankings.
+
 Premium room list read-only contract (#372):
 
 ```http

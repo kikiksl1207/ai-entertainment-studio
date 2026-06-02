@@ -1028,6 +1028,53 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     disabledDisplayMessageKo:
       '프리미엄챗 후원은 원장·보안 검증이 끝난 뒤 열릴 예정이에요.',
   },
+  backendSkeleton: {
+    version: '2026-05-28.premium-chat-support-backend-skeleton.v1',
+    status: 'skeleton_ready_mutation_blocked',
+    supportUnit: {
+      fixedAmountsLumina: PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA,
+      customAmount: PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY,
+      amountSource: 'server_normalized_premium_chat_support_amount',
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedBalanceTrusted: false,
+      clientSubmittedScoreTrusted: false,
+    },
+    plannedStorage: {
+      orderTable: 'premium_chat_donation_orders',
+      eventProjectionTable: 'premium_chat_donation_events',
+      supportPointLedgerTable: 'premium_chat_support_point_ledger',
+      rankingReadModel: 'premium_chat_ranking_snapshots',
+      walletLedgerTypeRequired: 'premium_chat_donation',
+    },
+    validationOrder: [
+      'auth',
+      'session_ownership',
+      'supportable_room_state',
+      'amount_policy',
+      'idempotency',
+      'wallet_balance',
+      'trust_identity_gate',
+    ],
+    mutationGate: {
+      donationPreviewEnabled: false,
+      donationCreateEnabled: false,
+      walletMutationEnabled: false,
+      supportPointLedgerMutationEnabled: false,
+      rankingRefreshByClientEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    },
+    rankingSeparation: {
+      likeRankingPath: '/api/v1/boost-campaigns/:campaignId/rankings',
+      communicationRankingPath: '/api/v1/chat/rankings?type=communication',
+      donationRankingPath: '/api/v1/chat/rankings?type=donation',
+      likeRankingReceivesPremiumChatSupport: false,
+      supportMessageAffectsLikeRanking: false,
+      donationRankingBasis: 'confirmed_net_premium_chat_support_only',
+      communicationRankingBasis:
+        'safe_room_open_message_support_and_artist_reply_activity',
+    },
+  },
   endpoints: {
     contract: {
       method: 'GET',
