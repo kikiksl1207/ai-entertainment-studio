@@ -41,6 +41,8 @@ export const PREMIUM_CHAT_CONVERSATION_METER_EVENTS = [
   'room_suspended',
 ] as const;
 
+export const PREMIUM_CHAT_MESSAGE_USAGE_LUMINA_PER_LINE = '0.5' as const;
+
 export const PREMIUM_CHAT_RANKING_TYPES = ['communication', 'donation'] as const;
 export const PREMIUM_CHAT_RANKING_PERIODS = [
   'daily',
@@ -2079,13 +2081,72 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     ],
   },
   conversationMetering: {
-    version: '2026-05-21.premium-chat-conversation-meter.v1',
-    status: 'planned_disabled',
+    version: '2026-05-28.premium-chat-usage-event-skeleton.v1',
+    status: 'skeleton_ready_mutation_blocked',
     unit: 'message_activity_unit',
     mutationEnabled: false,
     walletMutation: false,
     settlementMutation: false,
+    payoutMutation: false,
     clientSubmittedMessageCountTrusted: false,
+    clientSubmittedLineCountTrusted: false,
+    clientSubmittedUsageAmountTrusted: false,
+    usagePricing: {
+      unit: 'visible_message_line',
+      luminaPerLine: PREMIUM_CHAT_MESSAGE_USAGE_LUMINA_PER_LINE,
+      amountSource: 'server_counted_visible_message_lines',
+      decimalScale: 1,
+      clientSubmittedLineCountTrusted: false,
+      clientSubmittedAmountTrusted: false,
+      rawMessageBodyRequiredForProjection: false,
+    },
+    usageEventSkeleton: {
+      endpoint: '/api/v1/chat/sessions/:sessionId/usage-events',
+      enabled: false,
+      submitEnabled: false,
+      authRequired: true,
+      sessionOwnershipRequired: true,
+      roomStateRequired: ['opened', 'active', 'artist_answered'],
+      eventType: 'premium_chat_message_usage',
+      lineUnit: 'visible_message_line',
+      luminaPerLine: PREMIUM_CHAT_MESSAGE_USAGE_LUMINA_PER_LINE,
+      amountFormula: 'serverLineCount * 0.5L',
+      idempotencyKeyPattern: 'premium-chat-message-usage:<messageId>',
+      duplicateEventBehavior:
+        'return_existing_usage_event_without_second_wallet_or_meter_mutation',
+      clientSubmittedUsageAmountTrusted: false,
+      clientSubmittedLineCountTrusted: false,
+      mutationEnabled: false,
+      walletDebitEnabled: false,
+      conversationMeterMutationEnabled: false,
+      supportPointLedgerMutationEnabled: false,
+      rankingRefreshMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      storageRequiredBeforeEnablement: [
+        'premium_chat_usage_events',
+        'premium_chat_conversation_meter_ledger',
+        'wallet_ledger_type_premium_chat_message',
+        'premium_chat_support_point_ledger',
+      ],
+    },
+    validationOrder: [
+      'auth_required',
+      'session_exists_and_owned',
+      'room_state_allows_message_usage',
+      'message_exists_and_visible',
+      'server_line_count_computed',
+      'idempotency_key_valid',
+      'idempotency_fingerprint_match_or_empty',
+      'wallet_active_and_sufficient_for_server_amount',
+    ],
+    noMutationBefore: [
+      'auth_required',
+      'session_exists_and_owned',
+      'room_state_allows_message_usage',
+      'message_exists_and_visible',
+      'idempotency_key_valid',
+    ],
     events: PREMIUM_CHAT_CONVERSATION_METER_EVENTS,
     decrementRules: {
       authority: 'server_visible_message_event',
@@ -2100,7 +2161,9 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       direction: 'debit',
       referenceType: 'chat_message',
       referenceIdSource: 'chat_messages.id',
+      amountLuminaSource: 'serverLineCount * 0.5L',
       requiresStorageMigration: true,
+      enabled: false,
     },
     roomBalance: {
       source: 'premium_chat_rooms.remaining_message_units',

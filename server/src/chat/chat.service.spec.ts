@@ -5284,12 +5284,47 @@ describe('ChatService premium chat support contract', () => {
         'return stable insufficient balance error without order, donation event, ledger, or ranking write',
     });
     expect(contract.conversationMetering).toMatchObject({
-      status: 'planned_disabled',
+      version: '2026-05-28.premium-chat-usage-event-skeleton.v1',
+      status: 'skeleton_ready_mutation_blocked',
       unit: 'message_activity_unit',
       mutationEnabled: false,
       walletMutation: false,
       settlementMutation: false,
+      payoutMutation: false,
       clientSubmittedMessageCountTrusted: false,
+      clientSubmittedLineCountTrusted: false,
+      clientSubmittedUsageAmountTrusted: false,
+      usagePricing: {
+        unit: 'visible_message_line',
+        luminaPerLine: '0.5',
+        amountSource: 'server_counted_visible_message_lines',
+        clientSubmittedLineCountTrusted: false,
+        clientSubmittedAmountTrusted: false,
+        rawMessageBodyRequiredForProjection: false,
+      },
+      usageEventSkeleton: {
+        endpoint: '/api/v1/chat/sessions/:sessionId/usage-events',
+        enabled: false,
+        submitEnabled: false,
+        authRequired: true,
+        sessionOwnershipRequired: true,
+        eventType: 'premium_chat_message_usage',
+        lineUnit: 'visible_message_line',
+        luminaPerLine: '0.5',
+        amountFormula: 'serverLineCount * 0.5L',
+        idempotencyKeyPattern: 'premium-chat-message-usage:<messageId>',
+        duplicateEventBehavior:
+          'return_existing_usage_event_without_second_wallet_or_meter_mutation',
+        clientSubmittedUsageAmountTrusted: false,
+        clientSubmittedLineCountTrusted: false,
+        mutationEnabled: false,
+        walletDebitEnabled: false,
+        conversationMeterMutationEnabled: false,
+        supportPointLedgerMutationEnabled: false,
+        rankingRefreshMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
       decrementRules: {
         authority: 'server_visible_message_event',
         duplicateMessageEventBehavior: 'ignore_without_second_decrement',
@@ -5300,13 +5335,41 @@ describe('ChatService premium chat support contract', () => {
         ledgerType: 'premium_chat_message',
         direction: 'debit',
         referenceType: 'chat_message',
+        amountLuminaSource: 'serverLineCount * 0.5L',
         requiresStorageMigration: true,
+        enabled: false,
       },
       roomBalance: {
         clientSubmittedRemainingUnitsTrusted: false,
         overuseBehavior: 'fail_closed_before_message_acceptance',
       },
     });
+    expect(contract.conversationMetering.validationOrder).toEqual([
+      'auth_required',
+      'session_exists_and_owned',
+      'room_state_allows_message_usage',
+      'message_exists_and_visible',
+      'server_line_count_computed',
+      'idempotency_key_valid',
+      'idempotency_fingerprint_match_or_empty',
+      'wallet_active_and_sufficient_for_server_amount',
+    ]);
+    expect(contract.conversationMetering.noMutationBefore).toEqual([
+      'auth_required',
+      'session_exists_and_owned',
+      'room_state_allows_message_usage',
+      'message_exists_and_visible',
+      'idempotency_key_valid',
+    ]);
+    expect(
+      contract.conversationMetering.usageEventSkeleton
+        .storageRequiredBeforeEnablement,
+    ).toEqual([
+      'premium_chat_usage_events',
+      'premium_chat_conversation_meter_ledger',
+      'wallet_ledger_type_premium_chat_message',
+      'premium_chat_support_point_ledger',
+    ]);
     expect(contract.conversationMetering.events).toEqual([
       'user_message_visible',
       'artist_reply_visible',

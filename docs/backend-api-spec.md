@@ -1650,6 +1650,31 @@ Premium chat support point ledger contract (#363):
   server-side only and must not expose wallet ledger ids, raw user ids, raw
   message ids, raw chat bodies, or report reasons.
 
+Premium chat message usage event skeleton (#589):
+
+- `conversationMetering.version` is
+  `2026-05-28.premium-chat-usage-event-skeleton.v1` and remains
+  `skeleton_ready_mutation_blocked`.
+- The planned usage unit is one server-counted visible message line. The
+  planned amount is `0.5L` per visible line, computed as
+  `serverLineCount * 0.5L`.
+- Planned usage events are shaped under
+  `POST /api/v1/chat/sessions/:sessionId/usage-events`, but this endpoint is
+  disabled. Submit, wallet debit, conversation-meter mutation, support-point
+  ledger mutation, ranking refresh, settlement, and payout are all disabled.
+- Client-submitted line counts, usage amounts, remaining units, wallet balance,
+  and ranking score are not trusted. The server must compute visible message
+  lines and the final usage amount after auth, session ownership, room-state,
+  visible-message, and idempotency checks.
+- Repeated usage events use idempotency key
+  `premium-chat-message-usage:<messageId>` and must return the existing usage
+  event without a second wallet debit, meter mutation, support-point grant, or
+  ranking refresh.
+- Activation still requires storage/migration for `premium_chat_usage_events`,
+  `premium_chat_conversation_meter_ledger`,
+  `wallet_ledger_type_premium_chat_message`, and
+  `premium_chat_support_point_ledger`.
+
 Donation preview error contract:
 
 | Status | Code |
