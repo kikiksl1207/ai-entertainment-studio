@@ -360,6 +360,8 @@ function renderLuminaFeed() {
                     aria-pressed="${post.viewer?.hasLiked ? "true" : "false"}"
                     aria-label="${post.viewer?.hasLiked ? "응원 취소하기" : "응원하기"}">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.5 7.5H22l-6.5 4.7 2.5 7.7L12 17.5l-6 4.4 2.5-7.7L2 9.5h7.5z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              <!-- #562 — 좋아요 버튼에 visible 텍스트 레이블 없어 숫자만 보이는 FAIL 수정 -->
+              <span class="feed-action-btn-label">응원</span>
               <span data-feed-like-count>${Number(post.likeCount) || 0}</span>
             </button>
             <!-- #541 — 댓글 아이콘: 직각 → 라운드 말풍선 (X 직각형 패턴 탈피). 라벨 "댓글" 유지. -->
@@ -1712,6 +1714,8 @@ async function runFeedComposeUploadStages(item, onStateChange) {
             /* #541 — 응원 버튼 (상세뷰): 별 아이콘 + aria-label 교체 */
             '<button class="feed-action-btn feed-like-btn' + (post.viewer?.hasLiked ? " is-liked" : "") + '" type="button" data-feed-like="' + postIdStr + '" aria-pressed="' + (post.viewer?.hasLiked ? "true" : "false") + '" aria-label="' + (post.viewer?.hasLiked ? "응원 취소하기" : "응원하기") + '">' +
               '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.5 7.5H22l-6.5 4.7 2.5 7.7L12 17.5l-6 4.4 2.5-7.7L2 9.5h7.5z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>' +
+              /* #562 — 상세뷰 응원 버튼에도 visible 레이블 추가 */
+              '<span class="feed-action-btn-label">응원</span>' +
               '<span data-feed-like-count>' + (Number(post.likeCount) || 0) + '</span>' +
             '</button>' +
             /* #541 — 댓글 아이콘 (상세뷰): 라운드 말풍선 */

@@ -247,13 +247,15 @@
         <!-- 첫 사용자 배려: 시작 지문 카드 -->
         <div class="chat-starter-card" id="chatStarterCard" data-state="default" hidden role="region" aria-labelledby="chatStarterEyebrow">
           <header class="chat-starter-head">
-            <span class="chat-starter-eyebrow" id="chatStarterEyebrow" data-cms-key="character-chat.starter.eyebrow" data-cms-field="body">처음이라 어색하죠?</span>
+            <!-- #559 — JS 로드 전 초기값. 런타임에 캐릭터별/slug별 문구로 교체됨 -->
+            <span class="chat-starter-eyebrow" id="chatStarterEyebrow" data-cms-key="character-chat.starter.eyebrow" data-cms-field="body">이렇게 시작해보세요</span>
             <button class="chat-starter-dismiss" type="button" data-chat-starter-dismiss aria-label="첫 인사 카드 닫기">×</button>
           </header>
           <p class="chat-starter-prompt" id="chatStarterPrompt" data-cms-key="character-chat.starter.prompt" data-cms-field="body">이렇게 말을 걸어볼까요?</p>
           <div class="chat-starter-options" id="chatStarterOptions" role="group" aria-label="추천 첫 인사 선택"></div>
           <div class="chat-starter-footer">
-            <button class="chat-starter-direct" type="button" data-chat-starter-direct>바로 입력할게요</button>
+            <!-- #559 — "바로 입력할게요" → "직접 입력하기": 동작(클릭 → 입력창 포커스)이 더 명확하게 전달됨 -->
+            <button class="chat-starter-direct" type="button" data-chat-starter-direct>직접 입력하기</button>
             <label class="chat-starter-mute">
               <input type="checkbox" data-chat-starter-mute />
               <span>다시 보지 않기</span>
