@@ -383,6 +383,28 @@ Lumina Station:
 - `GET /api/v1/rewards/activation-progress` returns the signed-in user's cap usage, paid-bonus usage, attendance state, first-charge state, and milestone progress. Planned milestones are display-only until a future grant endpoint is opened.
 - `GET /api/v1/rewards/ledger-policy` returns the fail-closed free Lumina reward ledger skeleton for achievements, titles, birthday, identity completion, attendance, profile, and first-action grants. It is read-only, does not open arbitrary reward grants, and states the 3000L lifetime free promo cap plus non-settlement policy.
 
+Artist URL knowledge audit skeleton:
+
+```http
+GET /api/v1/chat/artist-url-knowledge-contract
+GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
+```
+
+- The admin audit list endpoint is a read-only skeleton guarded by `audit:read`.
+  It returns redacted artist knowledge URL audit event list items only.
+- Query shape: `action`, `targetId`, `artistId`, `take`, and opaque `cursor`.
+- Projection includes event id, action, `targetType = artist_knowledge_url`,
+  target id, actor user id, created timestamp, redacted before/after snapshots,
+  changed fields, and status transition.
+- Snapshots may expose ids, lifecycle status, source type, allow-chat boolean,
+  summary/rejection presence booleans, reviewed timestamp, and archived
+  timestamp.
+- The projection must not return raw submitted URL, raw URL query, canonical URL,
+  artist description text, summary text, rejection reason text, raw page body,
+  raw email, token, cookie, password, provider payload, API key, or DB URL.
+- The read endpoint does not approve, reject, archive, fetch external pages,
+  mutate chat context, call providers, or alter wallet/settlement/payout state.
+
 Identity verification skeleton:
 
 - `GET /api/v1/me/identity-verifications/policy` returns the NICE-first provider
@@ -1537,6 +1559,28 @@ read-only and all donation/wallet/ranking-refresh mutations stay disabled.
   tokens, cookies, DB URLs, wallet ledger ids, support-point ids,
   conversation-meter ids, admin notes, or raw chat bodies.
 
+Premium chat support backend skeleton (#588):
+
+- `GET /api/v1/chat/premium-support-contract` now includes
+  `backendSkeleton.version =
+  2026-05-28.premium-chat-support-backend-skeleton.v1`.
+- The skeleton fixes support units as the existing fixed amounts
+  `10/50/100/500/1000/5000/10000/50000L` plus custom integer support from
+  `1L` to `50000L`. Amount, balance, ranking score, and client-local price are
+  not trusted.
+- Planned storage is named without enabling writes:
+  `premium_chat_donation_orders`, `premium_chat_donation_events`,
+  `premium_chat_support_point_ledger`, and
+  `premium_chat_ranking_snapshots`.
+- The future validation order is auth, session ownership, supportable room
+  state, amount policy, idempotency, wallet balance, and trust/identity gate.
+- Donation preview/create, wallet mutation, support-point ledger mutation,
+  ranking refresh by client, settlement, and payout remain disabled.
+- Ranking lanes stay separated: Lumina Pick likes remain on
+  `/api/v1/boost-campaigns/:campaignId/rankings`, while premium-chat
+  communication and donation lanes remain on planned `/api/v1/chat/rankings`
+  queries. Premium-chat support must not feed like rankings.
+
 Premium room list read-only contract (#372):
 
 ```http
@@ -1623,6 +1667,35 @@ The current implementation exposes these shapes through read-only
 `GET /api/v1/chat/premium-support-contract` under `apiContracts`; the room list,
 donation, and ranking mutations/read models remain disabled until storage,
 ledger, and moderation integration are added.
+
+Premium chat ranking backend projection readiness (#592):
+
+`GET /api/v1/chat/premium-support-contract` exposes
+`rankings.backendProjection` as a disabled backend read-model contract. It is
+for reviewer/QA alignment only and does not enable the public ranking read
+endpoint, donation creation, frontend score submit, or client-triggered refresh.
+
+- Planned read models are `premium_chat_ranking_snapshots`,
+  `premium_chat_support_point_ledger`, `premium_chat_conversation_meter_ledger`,
+  and `premium_chat_rooms`.
+- Communication ranking reads only server-side room-open support points, safe
+  message activity support points, confirmed net donation support points, and
+  safe artist reply activity. The final score formula remains server-side only.
+- Donation ranking reads only confirmed net premium-chat donation support
+  points. It excludes Lumina Pick likes/boosts, room-open rows, message rows,
+  reported/blinded rows, refunded rows, chargeback rows, and cancelled rows.
+- Chat rankings accept only `communication` and `donation`. Like ranking stays
+  on `/api/v1/boost-campaigns/:campaignId/rankings`, and premium-chat support
+  must not feed that lane.
+- Duplicate projection refresh is a server-side replay concern only. It must not
+  create a second mutation, and clients cannot request refresh or submit scores.
+- Ranking projection privacy blocks raw chat bodies, support-message bodies,
+  report reasons, wallet/support/conversation ledger identifiers, raw user
+  identifiers, message identifiers, internal formulas, and private connection
+  material.
+- Current readiness is disabled: ranking endpoint, read-model storage, snapshot
+  job, support-point storage, frontend submit, and donation create are all
+  `false`.
 
 Premium chat support point ledger contract (#363):
 
@@ -2268,6 +2341,44 @@ AI premium content generation pipeline draft:
   cost/usage logs, admin tracking fields, and user-facing status separation.
 - The draft does not enable live provider calls, wallet/order/settlement
   mutations, paid-like behavior, public publishing, or vendor-specific coupling.
+
+AI premium content request state API skeleton (#591):
+
+- `AI_PREMIUM_CONTENT_STATE_API_CONTRACT.version` is
+  `2026-06-02.ai-premium-content-request-state-api-skeleton.v1` and remains
+  `skeleton_ready_mutation_blocked`.
+- This contract defines image/video/mixed request state only. It does not
+  enable live provider calls, wallet/order mutation, settlement, payout,
+  paid-like behavior, public publishing, or profile/feed equip side effects.
+- Request types are `image_single`, `image_variation`, `image_reference`,
+  `video_clip`, `video_loop`, and `premium_pack`. Output classes are `image`,
+  `video`, and `mixed`.
+- Planned state endpoints remain disabled:
+  - `GET /api/v1/me/ai-premium-content/requests`
+  - `GET /api/v1/ai-premium-content/requests/:requestId`
+  - `GET /admin/api/v1/ai-premium-content/requests`
+  - `GET /admin/api/v1/ai-premium-content/requests/:requestId`
+  - `POST /api/v1/ai-premium-content/requests`
+  - `POST /api/v1/ai-premium-content/requests/:requestId/regenerations`
+  - `PATCH /admin/api/v1/ai-premium-content/requests/:requestId`
+- `creator_image_requests` remains the current image queue bridge candidate.
+  `premium_video_products` remains an unlock catalog, not a generation request
+  queue. Future unified storage requires `ai_premium_content_requests`.
+- Public request state projection separates request status, moderation status,
+  result availability, retry availability, and publish/equip availability.
+- Raw state enums such as `provider_failed` must not be shown directly. Use the
+  Korean fallback map: `draft` = `작성 중`, `submitted` = `요청이 접수됐어요`,
+  `queued` = `생성 준비 중이에요`, `generating` = `콘텐츠를 만들고 있어요`,
+  `awaiting_review` = `검수 중이에요`, and `approved` =
+  `콘텐츠가 준비됐어요`.
+- The server owns request status, moderation status, provider state, cost, result
+  asset ids, context snapshots, and safety gates. Client-submitted status,
+  provider status, cost, result URLs, wallet balance, and publish/equip decisions
+  are not trusted.
+- The projection must not return raw provider payloads, raw prompts, private
+  reference material, signed URLs, sensitive auth material, private connection
+  material, raw emails, wallet ledger ids, settlement internals, or payout
+  internals.
 
 Free-like quota endpoint:
 

@@ -1,8 +1,8 @@
 # App And Web Lumina Tamper Defense Checklist
 
-Updated: 2026-05-23
+Updated: 2026-06-02
 Owner: Kaido
-Task: Notion #365, #377, #404
+Task: Notion #365, #377, #404, pm-board #594
 
 This checklist verifies the server-authority rule for modified apps, browser
 console edits, offline replays, and client-side Lumina display manipulation.
@@ -95,6 +95,9 @@ Risk logs and audit projections may record sanitized decision context only:
 
 - Wallet policy test covers all reviewed app/web tamper surfaces with
   `clientEconomicFieldsTrusted=false`.
+- Wallet policy test requires every active wallet mutation surface to declare a
+  server authority source, an idempotency or provider transaction key, and a
+  double-spend guard. Read-only surfaces remain explicitly non-mutating.
 - Wallet policy test covers the #404 threat model, risk log forbidden fields,
   and provider-secret-free minimum test matrix.
 - Wallet paid-action tests cover ignored client economic fields, insufficient

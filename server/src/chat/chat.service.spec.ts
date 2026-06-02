@@ -810,6 +810,73 @@ describe('ChatService dynamic opening greeting cache', () => {
     expect(tx.chatMessage.create).toHaveBeenCalledTimes(30);
   });
 
+  it('varies default fallback opening greetings for sparse character data', async () => {
+    const sparseArtist = {
+      id: '00000000-0000-4000-8000-000000000394',
+      slug: 'sparse-opening-regression',
+      displayName: 'Sparse Artist',
+      publicProfile: null,
+      contentProfile: null,
+    };
+    const plannedSessions = Array.from({ length: 12 }, (_, sessionIndex) => {
+      const suffix = (0x700 + sessionIndex).toString(16).padStart(12, '0');
+
+      return {
+        ...sessionBase,
+        id: `00000000-0000-4000-8000-${suffix}`,
+        artistId: sparseArtist.id,
+        artist: sparseArtist,
+      };
+    });
+    let nextSessionIndex = 0;
+    const tx = txMock();
+    const prisma = {
+      artist: {
+        findFirst: jest.fn().mockResolvedValue({ id: sparseArtist.id }),
+      },
+      chatSession: {
+        create: jest.fn(async () => plannedSessions[nextSessionIndex++]),
+      },
+      chatMessage: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: userId,
+          email: null,
+        }),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue({
+        provider: 'openai',
+        configured: false,
+        status: 'provider_disabled',
+        messageKey: 'chat.generation.providerNotConfigured',
+      }),
+      generate: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+    const greetings: string[] = [];
+
+    for (const plannedSession of plannedSessions) {
+      const result = await service.createSession(userId, {
+        artistId: plannedSession.artistId,
+      });
+
+      greetings.push(result.openingGreeting.text);
+      expect(result.openingGreeting.generation.providerCall).toBe(false);
+      expect(result.openingGreeting.cache.scope).toBe('chat_session');
+    }
+
+    expect(greetings).toHaveLength(12);
+    expect(new Set(greetings).size).toBeGreaterThanOrEqual(4);
+    expect(greetings.every((greeting) => greeting === greetings[0])).toBe(false);
+    expect(llmProvider.generate).not.toHaveBeenCalled();
+    expect(tx.chatMessage.create).toHaveBeenCalledTimes(12);
+  });
+
   it('skips provider opening greeting generation when the daily provider guard is exhausted', async () => {
     const session = {
       ...sessionBase,
@@ -3795,6 +3862,62 @@ describe('ChatService premium chat support contract', () => {
       premiumChatAccountingLedgerMutationEnabled: false,
       productProjectionMutationEnabled: false,
     });
+    expect(contract.backendSkeleton).toMatchObject({
+      version: '2026-05-28.premium-chat-support-backend-skeleton.v1',
+      status: 'skeleton_ready_mutation_blocked',
+      supportUnit: {
+        fixedAmountsLumina: [
+          10,
+          50,
+          100,
+          500,
+          1000,
+          5000,
+          10000,
+          50000,
+        ],
+        customAmount: {
+          supported: true,
+          minLumina: 1,
+          maxLumina: 50000,
+          integerOnly: true,
+        },
+        amountSource: 'server_normalized_premium_chat_support_amount',
+        clientSubmittedScoreTrusted: false,
+      },
+      plannedStorage: {
+        orderTable: 'premium_chat_donation_orders',
+        eventProjectionTable: 'premium_chat_donation_events',
+        supportPointLedgerTable: 'premium_chat_support_point_ledger',
+        rankingReadModel: 'premium_chat_ranking_snapshots',
+        walletLedgerTypeRequired: 'premium_chat_donation',
+      },
+      mutationGate: {
+        donationPreviewEnabled: false,
+        donationCreateEnabled: false,
+        walletMutationEnabled: false,
+        rankingRefreshByClientEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+      rankingSeparation: {
+        likeRankingPath: '/api/v1/boost-campaigns/:campaignId/rankings',
+        communicationRankingPath: '/api/v1/chat/rankings?type=communication',
+        donationRankingPath: '/api/v1/chat/rankings?type=donation',
+        likeRankingReceivesPremiumChatSupport: false,
+        supportMessageAffectsLikeRanking: false,
+        donationRankingBasis: 'confirmed_net_premium_chat_support_only',
+      },
+    });
+    expect(contract.backendSkeleton.validationOrder).toEqual([
+      'auth',
+      'session_ownership',
+      'supportable_room_state',
+      'amount_policy',
+      'idempotency',
+      'wallet_balance',
+      'trust_identity_gate',
+    ]);
     expect(contract.endpoints.contract).toMatchObject({
       method: 'GET',
       path: '/api/v1/chat/premium-support-contract',
@@ -5891,6 +6014,86 @@ describe('ChatService premium chat support contract', () => {
       myDonationHistoryEnabled: false,
       scoreRefreshMutationByClient: false,
       frontendSubmitAllowed: false,
+    });
+    expect(contract.rankings.backendProjection).toMatchObject({
+      version: '2026-06-02.premium-chat-ranking-backend-projection.v1',
+      status: 'projection_contract_ready_read_model_disabled',
+      enabled: false,
+      readEndpointEnabled: false,
+      writeOrRefreshMutationEnabled: false,
+      sourceOfTruth: 'server_projection_from_premium_chat_support_point_ledger',
+      readModels: {
+        rankingSnapshotTable: 'premium_chat_ranking_snapshots',
+        supportPointLedgerTable: 'premium_chat_support_point_ledger',
+        conversationMeterTable: 'premium_chat_conversation_meter_ledger',
+        roomTable: 'premium_chat_rooms',
+      },
+      laneSeparation: {
+        chatRankingTypes: ['communication', 'donation'],
+        noChatLikeAlias: true,
+        likeRankingReceivesPremiumChatSupport: false,
+        luminaPickSourcesExcludedFromChatRankings: ['free_like', 'lumina_boost'],
+      },
+      refreshPolicy: {
+        schedulerOrAdminJobOnly: true,
+        clientRefreshAllowed: false,
+        frontendScoreSubmitAllowed: false,
+        replayExistingSnapshotOnDuplicateRefresh: true,
+        duplicateRefreshCreatesSecondMutation: false,
+      },
+      readiness: {
+        rankingEndpointEnabled: false,
+        readModelStorageReady: false,
+        rankingSnapshotJobReady: false,
+        supportPointLedgerStorageReady: false,
+        frontendSubmitAllowed: false,
+        donationCreateEnabled: false,
+      },
+    });
+    expect(
+      contract.rankings.backendProjection.lanes.communication.sourceLedgerTypes,
+    ).toEqual([
+      'premium_chat_room_open_support_point',
+      'premium_chat_message_activity_support_point',
+      'premium_chat_donation_support_point',
+    ]);
+    expect(
+      contract.rankings.backendProjection.lanes.donation.sourceLedgerTypes,
+    ).toEqual(['premium_chat_donation_support_point']);
+    expect(
+      contract.rankings.backendProjection.lanes.communication.excludes,
+    ).toEqual(
+      expect.arrayContaining([
+        'free_like',
+        'lumina_boost',
+        'reported_rows',
+        'blinded_rows',
+        'refunded_rows',
+        'chargeback_rows',
+      ]),
+    );
+    expect(contract.rankings.backendProjection.lanes.donation.excludes).toEqual(
+      expect.arrayContaining([
+        'free_like',
+        'lumina_boost',
+        'premium_chat_open',
+        'premium_chat_message',
+        'refunded_rows',
+        'chargeback_rows',
+      ]),
+    );
+    expect(contract.rankings.backendProjection.privacy).toMatchObject({
+      rawChatBodyReturned: false,
+      rawSupportMessageReturned: false,
+      rawReportReasonReturned: false,
+      rawWalletLedgerIdReturned: false,
+      rawSupportPointLedgerIdReturned: false,
+      rawConversationMeterLedgerIdReturned: false,
+      rawUserIdReturned: false,
+      messageIdsReturned: false,
+      internalScoreFormulaReturned: false,
+      sensitiveAuthMaterialReturned: false,
+      privateConnectionMaterialReturned: false,
     });
     expect(contract.projections.donationEvent).toMatchObject({
       target: 'chat room system message',

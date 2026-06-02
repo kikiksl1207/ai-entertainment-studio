@@ -626,6 +626,54 @@ describe('premium chat room refund and moderation ledger contract', () => {
     });
   });
 
+  it('keeps user-fault refund restriction ledger entries balanced and separated', () => {
+    const outcomes =
+      PREMIUM_CHAT_ROOM_CONTRACT.refunds.userFaultPartialRefund.outcomes;
+
+    expect(outcomes).toHaveLength(2);
+    for (const outcome of outcomes) {
+      const bpsTotal = outcome.ledgerEntries.reduce(
+        (total, entry) => total + entry.bps,
+        0,
+      );
+      const walletEntries = outcome.ledgerEntries.filter(
+        (entry) => entry.walletLedger,
+      );
+      const accountingEntries = outcome.ledgerEntries.filter(
+        (entry) => !entry.walletLedger,
+      );
+
+      expect(bpsTotal).toBe(10000);
+      expect(walletEntries).toEqual([
+        expect.objectContaining({
+          entryKey: 'user_lumina_refund',
+          ledger: 'wallet_ledger',
+          ledgerType: 'refund',
+          source: 'premium_chat_room_refund',
+          idempotency: 'server_room_refund_key',
+          settlementMutation: false,
+          payoutMutation: false,
+        }),
+      ]);
+      expect(accountingEntries).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            ledgerType: 'premium_chat_room_company_revenue',
+            walletLedger: false,
+            settlementMutation: false,
+            payoutMutation: false,
+          }),
+          expect.objectContaining({
+            ledgerType: 'premium_chat_room_artist_compensation',
+            walletLedger: false,
+            settlementMutation: false,
+            payoutMutation: false,
+          }),
+        ]),
+      );
+    }
+  });
+
   it('separates refund reason keys and artist compensation split conditions', () => {
     expect(PREMIUM_CHAT_REFUND_REASON_KEYS).toEqual([
       'unanswered_24h_full_refund',

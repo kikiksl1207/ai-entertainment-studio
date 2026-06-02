@@ -200,6 +200,24 @@ describe('server-authority wallet policy', () => {
     ).toBe(true);
   });
 
+  it('requires every active wallet mutation surface to declare server authority and double-spend guards', () => {
+    const mutationSurfaces = APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST.filter(
+      (item) => item.mutation,
+    );
+
+    expect(mutationSurfaces.length).toBeGreaterThan(0);
+    for (const surface of mutationSurfaces) {
+      expect(surface.clientEconomicFieldsTrusted).toBe(false);
+      expect(surface.authority.length).toBeGreaterThan(0);
+      expect(surface.idempotencyOrProviderTransactionKey).not.toBe(
+        'not_applicable_read_only',
+      );
+      expect(surface.doubleDebitGuard).toBeTruthy();
+      expect(JSON.stringify(surface)).not.toContain('client balance');
+      expect(JSON.stringify(surface)).not.toContain('client success');
+    }
+  });
+
   it('lists high-risk client economic fields as non-authoritative inputs', () => {
     expect(CLIENT_ECONOMIC_TAMPER_FIELDS).toEqual(
       expect.arrayContaining([
