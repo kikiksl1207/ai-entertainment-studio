@@ -1164,32 +1164,70 @@ export class ChatService {
     runtimePersona: CharacterRuntimePersonaContext,
     sessionId: string,
   ) {
-    const starterMessage = runtimePersona.starterOptions.find(
-      (option) => !option.directInput && option.message.trim(),
-    )?.message;
+    const welcome =
+      this.normalizeOpeningGreetingText(runtimePersona.welcome.text) ??
+      defaultCharacterGreeting('Lumina');
+    const starterMessages = runtimePersona.starterOptions
+      .filter((option) => !option.directInput)
+      .map((option) => this.normalizeOpeningGreetingText(option.message))
+      .filter((message): message is string => Boolean(message))
+      .slice(0, 4);
+    const personaTags = runtimePersona.personaTags
+      .map((tag) => this.normalizeOpeningGreetingText(tag))
+      .filter((tag): tag is string => Boolean(tag))
+      .slice(0, 6);
+    const toneGuide = this.normalizeOpeningGreetingText(runtimePersona.tone.guideKo);
+    const starterMessage =
+      starterMessages[
+        this.openingGreetingVariantIndex(
+          `${sessionId}:starter:${welcome}`,
+          starterMessages.length,
+        )
+      ];
+    const alternateStarterMessage =
+      starterMessages[
+        this.openingGreetingVariantIndex(
+          `${sessionId}:alternate-starter:${welcome}`,
+          starterMessages.length,
+        )
+      ];
     const personaTag =
-      runtimePersona.personaTags[
-        this.sessionVariantIndex(sessionId, Math.max(runtimePersona.personaTags.length, 1))
+      personaTags[
+        this.openingGreetingVariantIndex(
+          `${sessionId}:persona:${welcome}`,
+          personaTags.length,
+        )
       ];
     const candidates = [
-      runtimePersona.welcome.text,
-      starterMessage
-        ? `${starterMessage} ${runtimePersona.welcome.text}`
-        : runtimePersona.welcome.text,
-      runtimePersona.tone.guideKo
-        ? `${runtimePersona.welcome.text} ${runtimePersona.tone.guideKo}`
-        : runtimePersona.welcome.text,
-      personaTag
-        ? `${personaTag}. ${runtimePersona.welcome.text}`
-        : runtimePersona.welcome.text,
+      welcome,
+      starterMessage ? `${starterMessage} ${welcome}` : null,
+      toneGuide ? `${welcome} ${toneGuide}` : null,
+      personaTag ? `${personaTag}. ${welcome}` : null,
+      starterMessage ? `${welcome} ${starterMessage}` : null,
+      personaTag && starterMessage ? `${personaTag}. ${starterMessage}` : null,
+      personaTag && toneGuide ? `${personaTag}. ${toneGuide}` : null,
+      alternateStarterMessage && toneGuide
+        ? `${alternateStarterMessage} ${toneGuide}`
+        : null,
+    ];
+    const uniqueCandidates = [
+      ...new Set(
+        candidates
+          .map((candidate) => this.normalizeOpeningGreetingText(candidate))
+          .filter((candidate): candidate is string => Boolean(candidate)),
+      ),
     ];
     const selected =
-      candidates[this.sessionVariantIndex(sessionId, candidates.length)] ??
-      runtimePersona.welcome.text;
+      uniqueCandidates[
+        this.openingGreetingVariantIndex(
+          `${sessionId}:opening-greeting:${welcome}`,
+          uniqueCandidates.length,
+        )
+      ] ?? welcome;
 
     return (
       this.normalizeOpeningGreetingText(selected) ??
-      this.normalizeOpeningGreetingText(runtimePersona.welcome.text) ??
+      this.normalizeOpeningGreetingText(welcome) ??
       defaultCharacterGreeting('Lumina')
     );
   }
@@ -1350,15 +1388,18 @@ export class ChatService {
     return normalized?.slice(0, CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS) ?? null;
   }
 
-  private sessionVariantIndex(sessionId: string, modulo: number) {
+  private openingGreetingVariantIndex(seed: string, modulo: number) {
     if (modulo <= 1) {
       return 0;
     }
 
-    const lastHex = sessionId.replace(/[^0-9a-f]/gi, '').slice(-1);
-    const parsed = Number.parseInt(lastHex || '0', 16);
+    let hash = 0;
 
-    return Number.isFinite(parsed) ? parsed % modulo : 0;
+    for (let index = 0; index < seed.length; index += 1) {
+      hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+    }
+
+    return hash % modulo;
   }
 
   private openingGreetingVariantSeed(sessionId: string) {
