@@ -2341,6 +2341,21 @@ AI premium content generation pipeline draft:
   cost/usage logs, admin tracking fields, and user-facing status separation.
 - The draft does not enable live provider calls, wallet/order/settlement
   mutations, paid-like behavior, public publishing, or vendor-specific coupling.
+- #597 adds a backend usage ledger guard skeleton at
+  `server/src/creator-image-requests/ai-content-usage-ledger.contract.ts`.
+  It records only provider-neutral usage fields: `requestId`, `providerFamily`,
+  `modelAlias`, `capability`, `attempt`, `regenerationCount`,
+  `estimatedCostMicros`, `actualCostMicros`, `inputUnits`, `outputUnits`,
+  `failureCode`, and server timestamp.
+- Usage summaries may calculate total attempts, failed attempts, failure rate,
+  estimated/actual cost totals, input/output unit totals, and maximum
+  regeneration count. These summaries are reporting guards only.
+- The usage guard must not store or log vendor credentials, raw provider
+  payloads, raw prompts, raw asset bytes, token, cookie, password, API key, or
+  DB URL.
+- AI content usage rows do not mutate wallet, payment order, settlement, payout,
+  revenue-share, or paid-like state. Future duplicate protection should use
+  `ai-content-usage:<requestId>:<attempt>` or an equivalent server-scoped key.
 
 AI premium content request state API skeleton (#591):
 
