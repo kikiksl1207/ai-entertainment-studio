@@ -603,7 +603,8 @@
   function getDmListCharacters() {
     const raw = (window.LuminaStaticData && window.LuminaStaticData.characters) || [];
     return raw
-      .filter(c => c && c.slug && c.status !== "secret" && c.status !== "hidden")
+      // #601 — pending(공개 보류) 캐릭터는 DM 목록에 노출 금지
+      .filter(c => c && c.slug && c.status !== "secret" && c.status !== "hidden" && c.status !== "pending")
       .slice(0, 16);
   }
 

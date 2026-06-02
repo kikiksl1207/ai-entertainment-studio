@@ -201,8 +201,10 @@ function renderCharacterDetail() {
     document.documentElement.style.setProperty("--char-accent-soft", artist.colorAccent + "22");
   }
 
+  // #601 — pending(공개 보류)도 secret과 동일하게 hero/gallery/CTA를 잠금 모드로 처리
+  const isHidden = artist.status === "secret" || artist.status === "pending";
   hero.className = `detail-hero-card ${status.className}`;
-  hero.innerHTML = artist.status === "secret"
+  hero.innerHTML = isHidden
     ? `<div class="detail-hero-secret"><span class="eyebrow">${artist.type}</span><strong>${artist.publicName}</strong><em class="catalog-status-caption">${status.label}</em></div>`
     : `<div class="detail-hero-frame"><img class="detail-hero-image detail-hero-image-${artist.slug}" src="${artist.images.thumb || artist.images.cover}" alt="${artist.publicName}" /></div>`;
 
@@ -276,7 +278,7 @@ function renderCharacterDetail() {
       });
     }
 
-    gallery.innerHTML = artist.status === "secret" ? "" : `
+    gallery.innerHTML = isHidden ? "" : `
       <div id="galleryHeader" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;flex-shrink:0;">
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);">포토 갤러리</span>
@@ -326,14 +328,14 @@ function renderCharacterDetail() {
     const followerText = typeof followerCount === "number"
       ? `<small data-detail-follower-count>팔로워 ${followerCount.toLocaleString("ko-KR")}</small>`
       : `<small data-detail-follower-count></small>`;
-    const followBtn = artist.status === "secret"
+    const followBtn = isHidden
       ? ""
       : `<button class="cta-btn cta-btn-follow" type="button" data-detail-follow="${feedEscapeHtml(artist.slug)}" hidden>
            <span class="cta-btn-icon">+</span>
            <span class="cta-btn-label"><strong data-detail-follow-label>팔로우</strong>${followerText}</span>
          </button>`;
-    cta.innerHTML = artist.status === "secret"
-      ? `<div class="detail-cta-card is-secret"><strong>아직 베일 속에 있는 아티스트입니다</strong><p>첫 공개 순간에 가장 잘 어울리는 장면으로 찾아올게요.</p></div>`
+    cta.innerHTML = isHidden
+      ? `<div class="detail-cta-card is-secret"><strong>${artist.status === "pending" ? "공개 준비 중인 아티스트입니다" : "아직 베일 속에 있는 아티스트입니다"}</strong><p>${artist.status === "pending" ? "조건을 갖추면 캐릭터챗·후원 등 모든 기능이 열릴 예정이에요." : "첫 공개 순간에 가장 잘 어울리는 장면으로 찾아올게요."}</p></div>`
       : `<div class="detail-cta-card">
            <div class="detail-cta-info">
              <strong>${artist.publicName}의 다음 무대를 응원하세요</strong>

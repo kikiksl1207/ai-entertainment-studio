@@ -3250,6 +3250,8 @@ function renderFeedLinkPreview(linkPreview) {
 const statusMeta = {
   public:    { label: "공식 활동 중",  summaryLabel: "활동 중",   className: "is-public"    },
   debut:     { label: "데뷔 예정",     summaryLabel: "곧 공개",   className: "is-debut"     },
+  // #601 — 공개 보류 상태. 이미지/조건 충족 후 public 전환 예정. is-secret 클래스 재사용(CSS 변경 없음).
+  pending:   { label: "공개 준비 중",  summaryLabel: "준비 중",   className: "is-secret"    },
   secret:    { label: "비공개 라인",   summaryLabel: "비공개", className: "is-secret"    },
   candidate: { label: "비공개 라인",   summaryLabel: "비공개", className: "is-secret"    }
 };

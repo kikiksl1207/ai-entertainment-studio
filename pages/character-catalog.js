@@ -2,7 +2,7 @@
 /* ── 렌더링: 캐릭터 카탈로그 ────────────────── */
 function renderCatalogMedia(a) {
   const s = statusMeta[a.status];
-  if (a.status === "secret") {
+  if (a.status === "secret" || a.status === "pending") {
     return `<div class="catalog-media catalog-media-${a.tier} catalog-media-${a.status}">
       <div class="catalog-overlay">
         <span class="eyebrow">${a.type}</span>
@@ -39,7 +39,8 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
   }
 
   // 정렬: 공개 라인업은 운영 순서를 우선하고, 라인업 밖 항목만 같은 그룹 안에서 좋아요 순으로 보조 정렬
-  const statusOrder = { public: 0, debut: 0, candidate: 1, secret: 2 };
+  // #601 — pending: 공개 준비 중. secret/candidate 뒤에 정렬, 목록에는 표시되나 dimmed.
+  const statusOrder = { public: 0, debut: 0, candidate: 1, secret: 2, pending: 3 };
   list = [...list].sort((a, b) => {
     const so = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
     if (so !== 0) return so;
@@ -61,10 +62,10 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
   root.innerHTML = list.map(a => `
     <article class="catalog-card ${statusMeta[a.status].className} clickable-card"
       data-href="/character-detail?slug=${a.slug}"
-      data-secret="${a.status === "secret"}"
+      data-secret="${a.status === "secret" || a.status === "pending"}"
       style="--char-accent: ${a.colorAccent || "#9f8bc7"}">
       ${renderCatalogMedia(a)}
-      ${a.status === "public" ? likeButtonHTML(a.slug, "like-btn-large like-btn-catalog") : ""}
+      ${(a.status === "public" || a.status === "debut") ? likeButtonHTML(a.slug, "like-btn-large like-btn-catalog") : ""}
       <div class="catalog-body">
         <h3 class="catalog-name">${a.publicName}</h3>
         <div class="catalog-meta">
@@ -77,7 +78,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
           <div><dt>브랜드 무드</dt><dd>${a.business}</dd></div>
         </dl>
         <div class="tag-list">${a.tags.map(t => `<span>${t}</span>`).join("")}</div>
-        <a class="text-link ${a.status === "secret" ? "is-dimmed" : ""}" href="/character-detail?slug=${a.slug}">무드 보기</a>
+        <a class="text-link ${(a.status === "secret" || a.status === "pending") ? "is-dimmed" : ""}" href="/character-detail?slug=${a.slug}">무드 보기</a>
       </div>
     </article>`).join("");
 
@@ -87,7 +88,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
     if (tagFilter) parts.push(`태그: <strong>${tagFilter}</strong>`);
     if (filter && filter !== "all") parts.push(`분류: <strong>${filter}</strong>`);
     if (statusFilter && statusFilter !== "all") {
-      const statusLabelMap = { public: "공개 활동 중", candidate: "데뷔 예정", secret: "비공개 라인" };
+      const statusLabelMap = { public: "공개 활동 중", candidate: "데뷔 예정", secret: "비공개 라인", pending: "공개 준비 중" };
       parts.push(`상태: <strong>${statusLabelMap[statusFilter] || statusFilter}</strong>`);
     }
     if (parts.length === 0) {
