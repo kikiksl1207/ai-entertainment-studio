@@ -383,6 +383,28 @@ Lumina Station:
 - `GET /api/v1/rewards/activation-progress` returns the signed-in user's cap usage, paid-bonus usage, attendance state, first-charge state, and milestone progress. Planned milestones are display-only until a future grant endpoint is opened.
 - `GET /api/v1/rewards/ledger-policy` returns the fail-closed free Lumina reward ledger skeleton for achievements, titles, birthday, identity completion, attendance, profile, and first-action grants. It is read-only, does not open arbitrary reward grants, and states the 3000L lifetime free promo cap plus non-settlement policy.
 
+Artist URL knowledge audit skeleton:
+
+```http
+GET /api/v1/chat/artist-url-knowledge-contract
+GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
+```
+
+- The admin audit list endpoint is a read-only skeleton guarded by `audit:read`.
+  It returns redacted artist knowledge URL audit event list items only.
+- Query shape: `action`, `targetId`, `artistId`, `take`, and opaque `cursor`.
+- Projection includes event id, action, `targetType = artist_knowledge_url`,
+  target id, actor user id, created timestamp, redacted before/after snapshots,
+  changed fields, and status transition.
+- Snapshots may expose ids, lifecycle status, source type, allow-chat boolean,
+  summary/rejection presence booleans, reviewed timestamp, and archived
+  timestamp.
+- The projection must not return raw submitted URL, raw URL query, canonical URL,
+  artist description text, summary text, rejection reason text, raw page body,
+  raw email, token, cookie, password, provider payload, API key, or DB URL.
+- The read endpoint does not approve, reject, archive, fetch external pages,
+  mutate chat context, call providers, or alter wallet/settlement/payout state.
+
 Identity verification skeleton:
 
 - `GET /api/v1/me/identity-verifications/policy` returns the NICE-first provider

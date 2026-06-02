@@ -1,5 +1,6 @@
 import {
   ARTIST_URL_KNOWLEDGE_CONTRACT,
+  buildArtistKnowledgeAdminAuditProjection,
   buildArtistKnowledgeAuditPayload,
   buildArtistKnowledgeChatContext,
   isArtistKnowledgeChatEligible,
@@ -47,6 +48,17 @@ describe('artist URL knowledge contract', () => {
       permission: 'artists:write',
       resultingStatus: 'archived',
       chatEligibleAfterArchive: false,
+    });
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts.adminAuditList).toMatchObject({
+      method: 'GET',
+      pathTemplate:
+        '/api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events',
+      permission: 'audit:read',
+      mutation: false,
+      rawUrlReturned: false,
+      rawUrlQueryReturned: false,
+      rawEmailReturned: false,
+      providerPayloadReturned: false,
     });
   });
 
@@ -245,7 +257,9 @@ describe('artist URL knowledge contract', () => {
       metadata: {
         statusTransition: { from: 'pending', to: 'approved' },
         rawUrlStored: false,
+        rawUrlQueryStored: false,
         rawPageBodyStored: false,
+        rawEmailStored: false,
         tokenCookiePasswordStored: false,
         providerPayloadStored: false,
         dbUrlStored: false,
@@ -260,5 +274,85 @@ describe('artist URL knowledge contract', () => {
     expect(payload).not.toContain('secret');
     expect(payload).not.toContain('Raw artist description');
     expect(payload).not.toContain('Raw summary');
+  });
+
+  it('builds redacted admin read-only audit projections', () => {
+    const projection = buildArtistKnowledgeAdminAuditProjection({
+      id: 'audit-1',
+      action: 'artist_knowledge_url.reject',
+      targetType: 'artist_knowledge_url',
+      targetId: 'knowledge-1',
+      actorUserId: 'admin-1',
+      createdAt: '2026-06-02T00:00:00.000Z',
+      beforeData: {
+        contractVersion: '2026-05-24.artist-url-knowledge-audit.v1',
+        id: 'knowledge-1',
+        artistId: 'artist-1',
+        submittedByUserId: 'creator-1',
+        reviewedByUserId: null,
+        status: 'pending',
+        sourceType: 'youtube',
+        allowChatReference: true,
+        summaryPresent: true,
+        rejectionReasonPresent: false,
+        reviewedAt: null,
+        archivedAt: null,
+      },
+      afterData: {
+        contractVersion: '2026-05-24.artist-url-knowledge-audit.v1',
+        id: 'knowledge-1',
+        artistId: 'artist-1',
+        submittedByUserId: 'creator-1',
+        reviewedByUserId: 'admin-1',
+        status: 'rejected',
+        sourceType: 'youtube',
+        allowChatReference: false,
+        summaryPresent: true,
+        rejectionReasonPresent: true,
+        reviewedAt: '2026-06-02T00:00:00.000Z',
+        archivedAt: null,
+      },
+      metadata: {
+        statusTransition: { from: 'pending', to: 'rejected' },
+        changedFields: [
+          'status',
+          'reviewedByUserId',
+          'rawUrl',
+          'providerPayload',
+        ],
+      },
+    });
+
+    expect(projection).toMatchObject({
+      action: 'artist_knowledge_url.reject',
+      targetType: 'artist_knowledge_url',
+      targetId: 'knowledge-1',
+      actorUserId: 'admin-1',
+      beforeData: {
+        status: 'pending',
+        summaryPresent: true,
+      },
+      afterData: {
+        status: 'rejected',
+        reviewedByUserId: 'admin-1',
+        rejectionReasonPresent: true,
+      },
+      metadata: {
+        statusTransition: { from: 'pending', to: 'rejected' },
+        changedFields: ['status', 'reviewedByUserId'],
+        sensitiveDataStored: false,
+        rawUrlStored: false,
+        rawUrlQueryStored: false,
+        rawEmailStored: false,
+        tokenCookiePasswordStored: false,
+        providerPayloadStored: false,
+        dbUrlStored: false,
+      },
+    });
+    const payload = JSON.stringify(projection);
+    expect(payload).not.toContain('https://example.com');
+    expect(payload).not.toContain('secret');
+    expect(payload).not.toContain('Raw summary');
+    expect(payload).not.toContain('Raw rejection reason');
   });
 });
