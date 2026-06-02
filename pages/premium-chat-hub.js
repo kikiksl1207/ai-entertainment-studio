@@ -97,19 +97,58 @@
     return String(value || "active").trim().toLowerCase();
   }
 
+  // #556 — 상태별 세부 라벨 분리: active/paused(신고종류)/refund(부분환불)/closed(종료방식) 각각 구분
   function roomStateFromStatus(room) {
     var statusKey = normalizeStatusKey(room && room.roomStatus);
     var remainingDays = room && room.remainingDays;
     var expiredByTime = remainingDays != null && Number(remainingDays) <= 0;
+
     if (REVIEW_PAUSED_STATUSES[statusKey]) {
-      return { key: "paused", label: "검토 일시정지", detail: "신고·운영 검토 중 · 입장 일시 중단", locked: true };
+      // 신고·검토 상태: 사유별 detail 문구 분리
+      var pausedDetail = {
+        reported:        "신고 접수 · 검토 진행 중",
+        admin_review:    "운영팀 검토 중",
+        blinded:         "콘텐츠 블라인드 처리됨",
+        suspended:       "운영 정책 위반 · 일시 정지",
+        under_review:    "검토 진행 중",
+        blocked:         "입장 차단됨",
+        paused_by_report:"신고로 인한 일시 정지"
+      }[statusKey] || "신고·운영 검토 중 · 입장 일시 중단";
+      return { key: "paused", label: "검토 일시정지", detail: pausedDetail, locked: true };
     }
+
     if (REFUND_STATUSES[statusKey]) {
-      return { key: "refund", label: statusKey === "refunded" ? "환불 완료" : "환불 검토 중", detail: statusKey === "refunded" ? "환불 완료" : "환불 검토 중", locked: true };
+      // 환불 상태: 부분환불(70%/50%) 구분
+      var refundLabel = {
+        refund_review:    "환불 검토 중",
+        refund_pending:   "환불 처리 대기",
+        refund_limited_70:"부분 환불(70%)",
+        refund_limited_50:"부분 환불(50%)",
+        refunded:         "환불 완료"
+      }[statusKey] || "환불 검토 중";
+      var refundDetail = {
+        refund_review:    "환불 요청 검토 중",
+        refund_pending:   "환불 처리 대기 중",
+        refund_limited_70:"이용 기간 고려 70% 환불 처리 중",
+        refund_limited_50:"이용 기간 고려 50% 환불 처리 중",
+        refunded:         "환불 완료"
+      }[statusKey] || "환불 검토 중";
+      return { key: "refund", label: refundLabel, detail: refundDetail, locked: true };
     }
+
     if (CLOSED_STATUSES[statusKey] || expiredByTime) {
-      return { key: "closed", label: statusKey === "expired" || expiredByTime ? "기간 만료" : "종료됨", detail: statusKey === "expired" || expiredByTime ? "기간 만료" : "방 종료", locked: true };
+      // 종료 상태: 만료·아티스트 종료·운영팀 종료 구분
+      var isExpired = statusKey === "expired" || expiredByTime;
+      var closedByArtist = statusKey === "artist_closed" || statusKey === "closed_by_artist";
+      var closedByOperator = statusKey === "closed_by_operator";
+      var closedLabel = isExpired ? "기간 만료" : "종료됨";
+      var closedDetail = isExpired ? "기간 만료"
+        : closedByArtist ? "아티스트가 방을 종료했습니다"
+        : closedByOperator ? "운영팀에 의해 종료되었습니다"
+        : "방이 종료되었습니다";
+      return { key: "closed", label: closedLabel, detail: closedDetail, locked: true };
     }
+
     return { key: "active", label: null, detail: null, locked: false };
   }
 

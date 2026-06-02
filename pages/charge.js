@@ -208,9 +208,13 @@ function renderChargeProductCard(p, isPgPending) {
   const discountAmount = Number(p.discountAmount || 0);
   // #373 보강 — 첫 충전 보너스 projection. 계정당 1회, 기본 루미나 기준 10%, 패키지 보너스에 중복 X.
   // backend가 firstChargeBonusLumina / firstChargeTotalLumina 를 내려주면 카드에 별도 줄로 표시한다.
+  // #558 — bonusAmount(패키지 보너스)가 있는 상품은 정책상 firstCharge와 중복 적용 X.
+  //         backend가 두 값을 모두 보내는 경우에도 UI 에서 "(패키지 보너스와 중복 적용 안 됨)" 안내.
   const firstChargeBonusLumina = Number(p.firstChargeBonusLumina || 0);
   const firstChargeTotalLumina = Number(p.firstChargeTotalLumina || 0);
   const hasFirstChargeBonus = firstChargeBonusLumina > 0;
+  // 패키지 보너스와 첫 충전 보너스 동시 존재 여부 (정책상 발생 X이지만 방어적 처리)
+  const hasBothBonus = hasFirstChargeBonus && bonusAmount > 0;
 
   return `
     <article class="charge-product-card${isBest ? ' is-best' : ''}" data-product-id="${feedEscapeHtml(productId)}">
@@ -225,12 +229,13 @@ function renderChargeProductCard(p, isPgPending) {
           ? `<span class="charge-amount-detail">기본 ${formatChargeLuminaAmount(luminaAmount)}L + 패키지 보너스 ${formatChargeLuminaAmount(bonusAmount)}L</span>`
           : ""}
         ${hasFirstChargeBonus
-          ? `<span class="charge-amount-first-charge" title="계정당 1회, 기본 루미나의 10%만 적용">
+          ? `<span class="charge-amount-first-charge" title="계정당 1회 혜택. 기본 루미나의 10% 추가 지급. 패키지 보너스와 중복 적용 안 됩니다.">
                <span class="charge-first-charge-tag">첫 충전 1회</span>
                + 첫 충전 보너스 ${formatChargeLuminaAmount(firstChargeBonusLumina)}L
                ${firstChargeTotalLumina > 0
                  ? ` → 합계 ${formatChargeLuminaAmount(firstChargeTotalLumina)}L`
                  : ""}
+               ${hasBothBonus ? `<span class="charge-first-charge-note">패키지 보너스와 중복 적용 안 됨</span>` : ""}
              </span>`
           : ""}
       </div>
@@ -243,7 +248,10 @@ function renderChargeProductCard(p, isPgPending) {
         type="button"
         data-charge-buy="${feedEscapeHtml(productId)}"
         ${isPgPending ? 'disabled' : ''}>
-        ${isPgPending ? '결제 안내 대기' : `${formatChargeLuminaAmount(totalLumina)}L 충전하기`}
+        ${isPgPending ? '결제 안내 대기'
+          : hasFirstChargeBonus && firstChargeTotalLumina > 0
+            ? `${formatChargeLuminaAmount(firstChargeTotalLumina)}L 충전하기 (첫 충전 적용)`
+            : `${formatChargeLuminaAmount(totalLumina)}L 충전하기`}
       </button>
     </article>
   `;

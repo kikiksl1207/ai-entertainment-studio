@@ -149,7 +149,8 @@
       setText("chatHeroSummary", "아티스트 프로필에서 대화하기 버튼으로 들어오면 추천 첫 인사를 볼 수 있어요.");
       setHeroAvatar(slug, null);
       // #315 — slug 없는 상태에서는 starter card 도 generic 안내로 복귀
-      setText("chatStarterEyebrow", "처음이라 어색하죠?");
+      // #557 — "캐릭터챗" 맥락 명시하여 프리미엄챗 혼동 방지
+      setText("chatStarterEyebrow", "캐릭터챗에서 이렇게 시작해보세요");
       return;
     }
 
@@ -270,15 +271,20 @@
     wrap.textContent = "";
 
     const visible = buildStarterOptions(options, slug);
+    // #557 — aria-label + title 추가로 접근성·모바일 터치 텍스트 명확화
     visible.forEach((option) => {
       const button = document.createElement("button");
       button.className = "chat-starter-option";
       button.type = "button";
       button.dataset.chatStarterChoice = option.key;
       button.dataset.chatStarterFill = option.message || "";
+      // 보조 기술(스크린 리더)에서 버튼 목적이 명확하게 읽히도록
+      button.setAttribute("aria-label", option.label + " - 이 인사말로 시작하기");
+      if (option.message) button.title = option.message;
 
       const keyEl = document.createElement("span");
       keyEl.className = "chat-starter-option-label";
+      keyEl.setAttribute("aria-hidden", "true");
       keyEl.textContent = option.key;
 
       const textEl = document.createElement("span");
