@@ -220,7 +220,8 @@
         if (!option || out.length >= STARTER_MAX) return;
         const key = option.key || String.fromCharCode(65 + out.length);
         const label = option.label || `선택지 ${key}`;
-        const message = option.message || "";
+        // #559 — message 없으면 label을 fallback으로 사용 (API 응답에 message 누락 시 선택해도 입력창 빈 채로 남는 UX FAIL 방지)
+        const message = option.message || option.label || "";
         out.push({ key, label, message });
         used.add(label);
       });
