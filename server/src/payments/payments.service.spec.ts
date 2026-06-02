@@ -416,6 +416,31 @@ describe('PaymentsService server-authority contract', () => {
     });
   });
 
+  it('does not attempt first-charge bonus on non-first paid Lumina orders', async () => {
+    const { prisma, tx, webhookEvent } = paidWebhookFixture({
+      priorPaidOrderCount: 1,
+    });
+    const { service } = serviceWith(prisma, {
+      verifyAndParseWebhook: jest.fn().mockReturnValue(webhookEvent),
+    });
+
+    const result = await service.handleWebhook('mock', {}, {});
+
+    expect(tx.walletLedger.create).toHaveBeenCalledTimes(1);
+    expect(tx.walletLedger.upsert).not.toHaveBeenCalled();
+    const walletIncrement = tx.walletAccount.update.mock.calls[0][0].data.cachedBalance
+      .increment as Decimal;
+    expect(walletIncrement.toString()).toBe('5800');
+    expect(result).toMatchObject({
+      firstChargeBonusLedger: null,
+      firstChargeBonus: {
+        applied: false,
+        amount: '0',
+        oneTimePerUser: true,
+      },
+    });
+  });
+
   it('does not credit first-charge bonus when the user-scoped bonus key already won a race', async () => {
     const { prisma, tx, webhookEvent } = paidWebhookFixture({
       existingFirstChargeBonusLedger: {
