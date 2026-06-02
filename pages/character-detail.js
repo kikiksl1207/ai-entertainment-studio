@@ -362,8 +362,19 @@ function renderCharacterDetail() {
            </div>
          </div>`;
     // 비동기로 viewer/stats 받아 팔로우 버튼·팔로워 수 갱신
-    if (artist.status !== "secret") {
+    if (!isHidden) {
       fetchArtistDetailViewer(artist.slug);
+    }
+  }
+
+  // #601 — pending(공개 보류) 캐릭터는 채팅 CTA 카드(detailChatSelect)도 잠금 처리.
+  // 이전 구현은 detailCta 영역만 교체해서 채팅 CTA 섹션이 활성 링크로 남는 FAIL 발생.
+  const chatSelect = document.getElementById("detailChatSelect");
+  if (chatSelect) {
+    if (isHidden) {
+      chatSelect.style.display = "none";
+    } else {
+      chatSelect.style.display = "";
     }
   }
 

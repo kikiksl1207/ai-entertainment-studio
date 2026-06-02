@@ -869,9 +869,10 @@
       renderPremiumRoomStatus({
         state: "pending",
         title: loginNeeded ? "로그인 후 방 상태 확인 가능" : "프리미엄챗 상태 확인 지연",
+        // #598 — 비로그인 포함 모든 오류 상태에서 아티스트 직접 답변·AI 아님 명시
         body: loginNeeded
-          ? "내가 열어둔 방의 만료·미답변·검토 상태는 로그인 후 확인할 수 있어요."
-          : "방 상태를 잠시 불러오지 못해 후원은 준비 상태로 유지돼요.",
+          ? "아티스트 직접 답변 유료 채팅이에요. AI 응답이 아닙니다. 내 방의 만료·미답변·검토 상태는 로그인 후 확인할 수 있어요."
+          : "아티스트 직접 답변 유료 채팅이에요. 방 상태를 잠시 불러오지 못해 후원은 준비 상태로 유지돼요.",
         badges: [loginNeeded ? "로그인 필요" : "다시 확인 필요", "후원 준비 중"]
       });
       setDonationActionState(true, "준비", "방 상태 확인 후 후원을 이용할 수 있어요.");
@@ -1307,6 +1308,30 @@
       showListMode();
       bindConversationListEvents();
       await loadConversationList(getConversationBoxFromUrl());
+      return;
+    }
+
+    /* #601 — pending(공개 보류) 캐릭터는 직접 URL 진입 시 채팅방 대신 준비중 안내를 표시.
+       getDmListCharacters에서 이미 제외되지만 URL 직접 접근은 막지 못해 FAIL 재발.
+       로컬 정적 데이터 기준으로만 체크하고, API 응답은 건드리지 않음. */
+    const chars = (window.LuminaStaticData && window.LuminaStaticData.characters) || [];
+    const enteredChar = chars.find(c => c && c.slug === slug) || null;
+    if (enteredChar && enteredChar.status === "pending") {
+      showRoomMode();
+      setText("chatHeroName", enteredChar.name || slug);
+      setText("chatHeroSummary", "공개 준비 중");
+      setHeroAvatar(slug, null);
+      const empty = $("chatEmpty");
+      if (empty) {
+        const para = empty.querySelector("p");
+        if (para) para.textContent = `${enteredChar.name || slug}은(는) 아직 공개 준비 중이에요. 이미지와 프로필 준비가 완료되면 채팅이 열립니다.`;
+        empty.hidden = false;
+      }
+      // starter card 및 입력창 숨김
+      const starterCard = $("chatStarterCard");
+      if (starterCard) starterCard.hidden = true;
+      const inputForm = $("chatInputForm");
+      if (inputForm) inputForm.hidden = true;
       return;
     }
 
