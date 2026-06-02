@@ -21,6 +21,12 @@ settlement rows, payout rows, users, artists, or artist operators.
 | `closed_room` | `closed_by_artist` | Owner/artist detail archive state |
 | `expired_room` | `expired` | Owner/artist detail archive state |
 
+`near_expiry_room` must be generated with an `expires_at` value that is still in
+the future and no more than 24 hours from the QA verification time. If the row
+has already expired, or if `expires_at` is more than 24 hours away, the public
+projection correctly returns `remaining.nearExpiry=false`; refresh the fixture
+instead of treating the active-only filter as failed.
+
 ## Safe Inputs
 
 The operator must obtain these through the approved private QA channel. Do not
