@@ -604,7 +604,8 @@
   function getDmListCharacters() {
     const raw = (window.LuminaStaticData && window.LuminaStaticData.characters) || [];
     return raw
-      .filter(c => c && c.slug && c.status !== "secret" && c.status !== "hidden")
+      // #601 — pending(공개 보류) 캐릭터는 DM 목록에 노출 금지
+      .filter(c => c && c.slug && c.status !== "secret" && c.status !== "hidden" && c.status !== "pending")
       .slice(0, 16);
   }
 
@@ -1307,6 +1308,29 @@
       showListMode();
       bindConversationListEvents();
       await loadConversationList(getConversationBoxFromUrl());
+      return;
+    }
+
+    /* #601 — pending(공개 보류) 캐릭터는 직접 URL 진입 시 채팅방 대신 준비중 안내를 표시.
+       getDmListCharacters에서 이미 제외되지만 URL 직접 접근은 막지 못해 FAIL 재발.
+       로컬 정적 데이터 기준으로만 체크하고, API 응답은 건드리지 않음. */
+    const chars = (window.LuminaStaticData && window.LuminaStaticData.characters) || [];
+    const enteredChar = chars.find(c => c && c.slug === slug) || null;
+    if (enteredChar && enteredChar.status === "pending") {
+      showRoomMode();
+      setText("chatHeroName", enteredChar.name || slug);
+      setText("chatHeroSummary", "공개 준비 중");
+      setHeroAvatar(slug, null);
+      const empty = $("chatEmpty");
+      if (empty) {
+        const para = empty.querySelector("p");
+        if (para) para.textContent = `${enteredChar.name || slug}은(는) 아직 공개 준비 중이에요. 이미지와 프로필 준비가 완료되면 채팅이 열립니다.`;
+        empty.hidden = false;
+      }
+      const starterCard = $("chatStarterCard");
+      if (starterCard) starterCard.hidden = true;
+      const inputForm = $("chatInputForm");
+      if (inputForm) inputForm.hidden = true;
       return;
     }
 
