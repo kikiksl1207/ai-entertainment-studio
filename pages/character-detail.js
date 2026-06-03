@@ -351,13 +351,14 @@ function renderCharacterDetail() {
                   기존 "프리미엄챗" 라벨이 /character-chat(AI챗)으로 연결되어 오인 유발 → AI챗 라벨로 교체.
                   프리미엄챗은 API·화면 준비 전이므로 disabled 상태로 별도 표시. AI챗으로 대체 연결 금지. -->
              <!-- #538 — 설명 문구 강화: AI챗/프리미엄챗 차이 명확화 -->
-             <a class="cta-btn cta-btn-chat cta-btn-link" href="/character-chat?slug=${encodeURIComponent(artist.slug)}" title="AI 아티스트와 바로 대화할 수 있습니다">
+             <!-- #607 — AI 캐릭터챗/프리미엄챗 두 갈래 UX: 유형·유료 여부 명확히 표시 -->
+             <a class="cta-btn cta-btn-chat cta-btn-link" href="/character-chat?slug=${encodeURIComponent(artist.slug)}" title="AI 캐릭터챗: AI가 캐릭터 톤앤매너로 답하는 일반 대화입니다.">
                <span class="cta-btn-icon">💬</span>
-               <span class="cta-btn-label"><strong>캐릭터챗</strong><small>AI 아티스트와 바로 대화</small></span>
+               <span class="cta-btn-label"><strong>AI 캐릭터챗</strong><small>AI가 캐릭터 톤으로 답하는 일반 대화</small></span>
              </a>
-             <button class="cta-btn cta-btn-premium" disabled aria-disabled="true" title="아티스트가 직접 답변하는 프리미엄챗은 준비 중입니다">
+             <button class="cta-btn cta-btn-premium" disabled aria-disabled="true" title="프리미엄챗: 아티스트가 직접 답변하는 유료 채팅이에요. 현재 방 오픈 준비 중입니다.">
                <span class="cta-btn-icon">⭐</span>
-               <span class="cta-btn-label"><strong>프리미엄챗</strong><small>아티스트 직접 답변 · 준비 중</small></span>
+               <span class="cta-btn-label"><strong>프리미엄챗</strong><small>아티스트 직접 답변 · 유료 · 준비 중</small></span>
              </button>
            </div>
          </div>`;
