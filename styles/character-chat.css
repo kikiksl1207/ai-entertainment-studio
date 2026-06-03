@@ -190,6 +190,18 @@
   overflow-wrap: anywhere;
 }
 
+/* #598 — 로그인 여부·방 상태와 무관하게 항상 노출되는 고정 AI 아님 안내 */
+.premium-chat-room-status-ai-notice {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  background: rgba(184, 145, 255, 0.10);
+  border: 1px solid rgba(184, 145, 255, 0.22);
+  border-radius: 6px;
+  color: rgba(220, 210, 240, 0.85);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
 .premium-chat-room-status-badges {
   display: flex;
   flex-wrap: wrap;
