@@ -1328,9 +1328,21 @@
         empty.hidden = false;
       }
       const starterCard = $("chatStarterCard");
-      if (starterCard) starterCard.hidden = true;
+      if (starterCard) {
+        starterCard.hidden = true;
+        starterCard.style.display = "none";
+      }
       const inputForm = $("chatInputForm");
-      if (inputForm) inputForm.hidden = true;
+      if (inputForm) {
+        inputForm.hidden = true;
+        inputForm.style.display = "none";
+      }
+      ["chatRequestSheet", "chatDonationSheet", "donationConfirmBackdrop", "donationConfirmModal"].forEach((id) => {
+        const el = $(id);
+        if (!el) return;
+        el.hidden = true;
+        el.style.display = "none";
+      });
       return;
     }
 
