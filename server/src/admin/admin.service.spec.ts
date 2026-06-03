@@ -201,6 +201,153 @@ describe('AdminService auth action token audit', () => {
   });
 });
 
+describe('AdminService community feed cleanup audit guard', () => {
+  const adminUser = {
+    id: '00000000-0000-4000-8000-000000000609',
+    email: 'admin@example.com',
+  };
+  const postId = '00000000-0000-4000-8000-000000006090';
+  const unsafePostBody =
+    'testtest private customer note and raw personal text that must not enter audit';
+  const unsafeAuthorEmail = 'feed-author@example.com';
+  const unsafeModerationNote = 'raw moderation note with private context';
+  const basePost = {
+    id: postId,
+    status: 'published',
+    visibility: 'public',
+    postType: 'user_post',
+    body: unsafePostBody,
+    authorUserId: '00000000-0000-4000-8000-000000006091',
+    artistId: null,
+    reportCount: 0,
+    publishedAt: new Date('2026-06-03T00:00:00.000Z'),
+    deletedAt: null,
+    createdAt: new Date('2026-06-03T00:00:00.000Z'),
+    updatedAt: new Date('2026-06-03T00:00:00.000Z'),
+    metadata: {},
+    author: {
+      id: '00000000-0000-4000-8000-000000006091',
+      email: unsafeAuthorEmail,
+      status: 'active',
+      profile: {
+        displayName: 'Feed Author',
+        avatarAssetId: null,
+      },
+    },
+    artist: null,
+  };
+
+  function createCommunityAdminService() {
+    const prisma = {
+      communityPost: {
+        findUnique: jest.fn().mockResolvedValue(basePost),
+        update: jest.fn().mockImplementation(({ data }) =>
+          Promise.resolve({
+            ...basePost,
+            ...data,
+            metadata: data.metadata,
+          }),
+        ),
+      },
+      auditEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'audit-609' }),
+      },
+    };
+    const config = { get: jest.fn() };
+    const service = new AdminService(
+      prisma as unknown as PrismaService,
+      config as unknown as ConfigService,
+    );
+
+    return { service, prisma };
+  }
+
+  it('records sanitized audit snapshots when hiding public feed posts', async () => {
+    const { service, prisma } = createCommunityAdminService();
+
+    await service.hideCommunityPost(adminUser as never, postId, {
+      reason: 'qa_fixture_cleanup',
+      note: unsafeModerationNote,
+    });
+
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'community_post.hide',
+          targetType: 'community_post',
+          targetId: postId,
+          beforeData: expect.objectContaining({
+            id: postId,
+            bodyPresent: true,
+            bodyLength: unsafePostBody.length,
+            auditRawBodyStored: false,
+            auditRawEmailStored: false,
+          }),
+          afterData: expect.objectContaining({
+            status: 'hidden',
+            moderation: expect.objectContaining({
+              status: 'hidden',
+              notePresent: true,
+            }),
+            auditRawModerationNoteStored: false,
+          }),
+          metadata: expect.objectContaining({
+            reason: 'qa_fixture_cleanup',
+            notePresent: true,
+            rawBodyStored: false,
+            rawEmailStored: false,
+            rawModerationNoteStored: false,
+            tokenCookiePasswordStored: false,
+            dbUrlStored: false,
+          }),
+        }),
+      }),
+    );
+    const auditPayload = JSON.stringify(prisma.auditEvent.create.mock.calls[0][0]);
+    expect(auditPayload).not.toContain(unsafePostBody);
+    expect(auditPayload).not.toContain(unsafeAuthorEmail);
+    expect(auditPayload).not.toContain(unsafeModerationNote);
+    expect(auditPayload).toContain('fe***@example.com');
+  });
+
+  it('records sanitized audit snapshots when restoring public feed posts', async () => {
+    const { service, prisma } = createCommunityAdminService();
+
+    await service.restoreCommunityPost(adminUser as never, postId, {
+      reason: 'qa_fixture_restored',
+      note: unsafeModerationNote,
+    });
+
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'community_post.restore',
+          beforeData: expect.objectContaining({
+            auditRawBodyStored: false,
+            auditRawEmailStored: false,
+          }),
+          afterData: expect.objectContaining({
+            status: 'published',
+            moderation: expect.objectContaining({
+              status: 'restored',
+              notePresent: true,
+            }),
+          }),
+          metadata: expect.objectContaining({
+            rawBodyStored: false,
+            rawEmailStored: false,
+            rawModerationNoteStored: false,
+          }),
+        }),
+      }),
+    );
+    const auditPayload = JSON.stringify(prisma.auditEvent.create.mock.calls[0][0]);
+    expect(auditPayload).not.toContain(unsafePostBody);
+    expect(auditPayload).not.toContain(unsafeAuthorEmail);
+    expect(auditPayload).not.toContain(unsafeModerationNote);
+  });
+});
+
 describe('AdminService artist knowledge URL operations', () => {
   const adminUser = {
     id: '00000000-0000-4000-8000-000000000900',
