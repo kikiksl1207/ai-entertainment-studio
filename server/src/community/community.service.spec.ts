@@ -466,6 +466,31 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
     );
   });
 
+  it('excludes public feed cleanup guard bodies from public feed projections', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findMany.mockResolvedValue([]);
+    const service = serviceWith(prisma);
+
+    await service.getFeed({});
+
+    expect(prisma.communityPost.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
+          NOT: expect.arrayContaining([
+            { body: { equals: 'test', mode: 'insensitive' } },
+            { body: { contains: 'testtest', mode: 'insensitive' } },
+            { body: { equals: 'sample', mode: 'insensitive' } },
+            { body: { contains: '임시문구' } },
+            { body: { contains: '샘플문구' } },
+          ]),
+        }),
+      }),
+    );
+  });
+
   it('does not expose author email in public feed post projections', async () => {
     const prisma = createPrismaMock();
     prisma.communityPost.findMany.mockResolvedValue([

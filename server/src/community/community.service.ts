@@ -55,6 +55,15 @@ const SEARCH_LANGUAGES = new Set(['ko', 'ja', 'en', 'zh', 'unknown']);
 const TRENDING_LANGUAGE_FILTERS = new Set(['all', 'ko', 'ja', 'en', 'zh', 'unknown']);
 const SEARCH_TYPES = new Set(['text', 'hashtag']);
 const SEARCH_EVENT_DEDUPE_WINDOW_MS = 10 * 60 * 1000;
+const FEED_PUBLIC_CLEANUP_GUARD_NOT: Prisma.CommunityPostWhereInput[] = [
+  { body: { equals: 'test', mode: 'insensitive' } },
+  { body: { contains: 'testtest', mode: 'insensitive' } },
+  { body: { equals: 'sample', mode: 'insensitive' } },
+  { body: { equals: 'fixture', mode: 'insensitive' } },
+  { body: { equals: '테스트' } },
+  { body: { contains: '임시문구' } },
+  { body: { contains: '샘플문구' } },
+];
 
 @Injectable()
 export class CommunityService {
@@ -81,6 +90,7 @@ export class CommunityService {
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
         artist: artistSlug ? { slug: artistSlug, status: 'active' } : undefined,
         artistId: mode === 'artists' ? { not: null } : undefined,
         postType: mode === 'fans' ? 'user_post' : undefined,
@@ -124,6 +134,7 @@ export class CommunityService {
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
         artist: artistSlug ? { slug: artistSlug, status: 'active' } : undefined,
         artistId: mode === 'artists' ? { not: null } : undefined,
         postType: mode === 'fans' ? 'user_post' : undefined,
@@ -406,6 +417,7 @@ export class CommunityService {
           status: 'published',
           visibility: 'public',
           deletedAt: null,
+          ...this.publicFeedCleanupGuardWhere(),
           publishedAt: { gte: since },
           body: { contains: '#' },
         },
@@ -567,6 +579,7 @@ export class CommunityService {
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
       },
       take: this.take(query.take),
       include: this.postInclude(),
@@ -678,6 +691,7 @@ export class CommunityService {
       status: 'published',
       visibility: 'public',
       deletedAt: null,
+      ...this.publicFeedCleanupGuardWhere(),
       metadata: {
         path: ['threadContinuation', 'rootPostId'],
         equals: rootPost.id,
@@ -1814,6 +1828,7 @@ export class CommunityService {
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
       },
       include: this.postInclude(),
       orderBy: { publishedAt: 'desc' },
@@ -3697,6 +3712,7 @@ export class CommunityService {
       status: 'published',
       visibility: 'public',
       deletedAt: null,
+      ...this.publicFeedCleanupGuardWhere(),
     };
 
     if (searchType === 'hashtag') {
@@ -3898,6 +3914,7 @@ export class CommunityService {
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
       },
       select: {
         id: true,
@@ -3924,6 +3941,7 @@ export class CommunityService {
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
       },
       include: this.postInclude(),
     });
@@ -4454,6 +4472,12 @@ export class CommunityService {
     }
 
     return Math.max(1, Math.min(parsed, 50));
+  }
+
+  private publicFeedCleanupGuardWhere(): Prisma.CommunityPostWhereInput {
+    return {
+      NOT: FEED_PUBLIC_CLEANUP_GUARD_NOT,
+    };
   }
 
   private visibility(value: unknown) {
