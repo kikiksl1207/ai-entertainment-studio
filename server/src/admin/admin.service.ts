@@ -5245,8 +5245,9 @@ export class AdminService {
       'community_post.hide',
       'community_post',
       post.id,
-      before,
-      post,
+      this.communityPostAuditSnapshot(before),
+      this.communityPostAuditSnapshot(post),
+      this.communityModerationAuditMetadata(input),
     );
 
     return { ok: true, post };
@@ -5283,8 +5284,9 @@ export class AdminService {
       'community_post.restore',
       'community_post',
       post.id,
-      before,
-      post,
+      this.communityPostAuditSnapshot(before),
+      this.communityPostAuditSnapshot(post),
+      this.communityModerationAuditMetadata(input),
     );
 
     return { ok: true, post };
@@ -7857,6 +7859,71 @@ export class AdminService {
     } satisfies Prisma.CommunityReportInclude;
   }
 
+  private communityPostAuditSnapshot(post: unknown) {
+    const row = this.metadataObject(post);
+    const metadata = this.metadataObject(row.metadata);
+    const moderation = this.metadataObject(metadata.moderation);
+    const author = this.metadataObject(row.author);
+    const artist = this.metadataObject(row.artist);
+
+    return {
+      id: this.stringOrNull(row.id),
+      status: this.stringOrNull(row.status),
+      visibility: this.stringOrNull(row.visibility),
+      postType: this.stringOrNull(row.postType),
+      authorUserId: this.stringOrNull(row.authorUserId),
+      artistId: this.stringOrNull(row.artistId),
+      reportCount: this.numberOrNull(row.reportCount),
+      publishedAt: this.isoOrNull(row.publishedAt),
+      deletedAt: this.isoOrNull(row.deletedAt),
+      bodyPresent: typeof row.body === 'string' && row.body.length > 0,
+      bodyLength: typeof row.body === 'string' ? row.body.length : 0,
+      author: Object.keys(author).length
+        ? {
+            id: this.stringOrNull(author.id),
+            status: this.stringOrNull(author.status),
+            emailMasked: this.maskEmail(this.stringOrNull(author.email)),
+          }
+        : null,
+      artist: Object.keys(artist).length
+        ? {
+            id: this.stringOrNull(artist.id),
+            slug: this.stringOrNull(artist.slug),
+            status: this.stringOrNull(artist.status),
+          }
+        : null,
+      moderation: {
+        status: this.stringOrNull(moderation.status),
+        reason: this.stringOrNull(moderation.reason),
+        notePresent: typeof moderation.note === 'string' && moderation.note.length > 0,
+        hiddenByUserId: this.stringOrNull(moderation.hiddenByUserId),
+        restoredByUserId: this.stringOrNull(moderation.restoredByUserId),
+        hiddenAt: this.stringOrNull(moderation.hiddenAt),
+        restoredAt: this.stringOrNull(moderation.restoredAt),
+      },
+      auditRawBodyStored: false,
+      auditRawEmailStored: false,
+      auditRawModerationNoteStored: false,
+      auditTokenCookiePasswordStored: false,
+      auditDbUrlStored: false,
+    };
+  }
+
+  private communityModerationAuditMetadata(input: AdminPayload) {
+    const note = this.optionalString(input, 'note');
+    const reason = this.optionalString(input, 'reason');
+
+    return {
+      reason: reason ?? null,
+      notePresent: Boolean(note),
+      rawBodyStored: false,
+      rawEmailStored: false,
+      rawModerationNoteStored: false,
+      tokenCookiePasswordStored: false,
+      dbUrlStored: false,
+    };
+  }
+
   private async findCommunityPostForAdmin(postId: string) {
     if (!this.isUuid(postId)) {
       throw new BadRequestException('postId must be a UUID');
@@ -9285,6 +9352,22 @@ export class AdminService {
     return value && typeof value === 'object' && !Array.isArray(value)
       ? (value as AdminPayload)
       : {};
+  }
+
+  private stringOrNull(value: unknown) {
+    return typeof value === 'string' && value.length ? value : null;
+  }
+
+  private numberOrNull(value: unknown) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  private isoOrNull(value: unknown) {
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    return typeof value === 'string' && value.length ? value : null;
   }
 
   private object(input: AdminPayload, key: string) {
