@@ -116,6 +116,69 @@ describe('premium chat room refund and moderation ledger contract', () => {
     });
   });
 
+  it('fixes room open entitlement guard for server tiers and duration before wallet mutation', () => {
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.roomOpen.entitlementGuard).toMatchObject({
+      version: '2026-06-05.premium-chat-room-open-entitlement-guard.v1',
+      defaultTierKey: 'premium_chat_room_300',
+      defaultUnlockedTierKeys: ['premium_chat_room_300'],
+      allowedAmountsLumina: [300, 500, 1000, 3000],
+      maxTierAmountLumina: 3000,
+      tierUnlockSource: 'server_unlocked_tier_keys',
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedFollowerCountTrusted: false,
+      clientSubmittedDurationTrusted: false,
+      walletBalanceSource: 'wallet_accounts.cached_balance',
+      duration: {
+        baseDays: 3,
+        maxTotalDays: 10,
+        artistExtensionMaxAdditionalDays: 7,
+        serverCalculatedExpiryAuthoritative: true,
+      },
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.roomOpen.entitlementGuard.validationOrder).toEqual([
+      'artist_exists',
+      'tier_key_known',
+      'tier_unlocked_by_server',
+      'server_amount_from_tier',
+      'duration_server_clamped',
+      'idempotency_fingerprint',
+      'wallet_cached_balance_gte_server_amount',
+    ]);
+
+    for (const [tierKey, amountLumina] of [
+      ['premium_chat_room_300', 300],
+      ['premium_chat_room_500', 500],
+      ['premium_chat_room_1000', 1000],
+      ['premium_chat_room_3000', 3000],
+    ] as const) {
+      expect(
+        resolvePremiumChatRoomOpenPolicy({
+          tierKey,
+          serverUnlockedTierKeys: [tierKey],
+          clientSubmittedAmountLumina: 1,
+          clientSubmittedFollowerCount: 99999999,
+        }),
+      ).toMatchObject({
+        allowed: true,
+        tierKey,
+        amountLumina,
+        source: 'server_room_open_tier_policy',
+        clientSubmittedAmountTrusted: false,
+        clientSubmittedAmountIgnored: true,
+        clientSubmittedAmountMismatch: true,
+        clientSubmittedFollowerCountTrusted: false,
+        clientSubmittedFollowerCountIgnored: true,
+        walletMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      });
+    }
+  });
+
   it('rejects unknown or above-maximum room tiers with a stable message key before wallet mutation', () => {
     const resolved = resolvePremiumChatRoomOpenPolicy({
       tierKey: 'premium_chat_room_5000',
