@@ -591,8 +591,17 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
       publicHandle: 'follower',
       avatarUrl: null,
     });
+    expect((result.items[0] as any).viewer).toMatchObject({
+      isAuthenticated: false,
+      isFollowing: false,
+      canFollow: false,
+      canUnfollow: false,
+      blockedByMe: false,
+      hasBlockedMe: false,
+    });
     expect(result.items[0].user).not.toHaveProperty('email');
     expect(result.policy.privateFieldsExcluded).toContain('email');
+    expect(result.policy.viewerHints).toContain('blockedByMe');
     expect(JSON.stringify(result)).not.toContain('PRIVATE_FOLLOWER_EMAIL_SHOULD_NOT_LEAK');
   });
 
@@ -649,9 +658,77 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
       publicHandle: 'following',
       avatarUrl: null,
     });
+    expect((result.items[0] as any).viewer).toMatchObject({
+      isAuthenticated: false,
+      isFollowing: false,
+      canFollow: false,
+      canUnfollow: false,
+      blockedByMe: false,
+      hasBlockedMe: false,
+    });
     expect(result.items[0].user).not.toHaveProperty('email');
     expect(result.policy.privateFieldsExcluded).toContain('email');
     expect(JSON.stringify(result)).not.toContain('PRIVATE_FOLLOWING_EMAIL_SHOULD_NOT_LEAK');
+  });
+
+  it('filters blocked public follow-list users for authenticated viewers', async () => {
+    const prisma = createPrismaMock();
+    const blockedListedUserId = '00000000-0000-4000-8000-000000000604';
+    prisma.user.findFirst.mockResolvedValue({
+      id: authorId,
+      profile: {
+        displayName: 'Author',
+        publicHandle: 'author',
+        avatarAssetId: null,
+        coverAssetId: null,
+      },
+    });
+    prisma.userBlock.findMany.mockResolvedValue([
+      {
+        blockerUserId: otherUserId,
+        blockedUserId: blockedListedUserId,
+      },
+    ]);
+    prisma.userFollow.findMany.mockResolvedValue([]);
+    prisma.userFollow.count.mockResolvedValue(0);
+    const service = serviceWith(prisma);
+
+    const result = await service.getPublicUserFollowersByHandle(
+      'author',
+      { take: '1' },
+      otherUserId,
+    );
+
+    expect(prisma.userFollow.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          followingUserId: authorId,
+          followerUserId: { notIn: [blockedListedUserId] },
+          status: 'active',
+          deletedAt: null,
+        }),
+      }),
+    );
+    expect(prisma.userFollow.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        followingUserId: authorId,
+        followerUserId: { notIn: [blockedListedUserId] },
+      }),
+    });
+    expect(result).toMatchObject({
+      count: 0,
+      total: 0,
+      viewer: {
+        isAuthenticated: true,
+        canViewList: true,
+        blockedByMe: false,
+        hasBlockedMe: false,
+      },
+      policy: {
+        blockedUserRule:
+          'Authenticated viewers do not receive list rows for users in an active block relationship; a block relationship with the target profile returns 403.',
+      },
+    });
   });
 
   it('returns public following artists by handle without private artist fields', async () => {
