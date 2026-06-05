@@ -186,12 +186,44 @@ describe('artist URL knowledge contract', () => {
     expect(context.items).toEqual([]);
     expect(context).toMatchObject({
       source: 'approved_artist_knowledge_urls',
+      contextPriority: {
+        order: [
+          'system_safety',
+          'runtime_persona',
+          'tone_and_manner',
+          'opening_greeting_variant',
+          'approved_artist_url_knowledge',
+        ],
+        urlKnowledgePosition: 5,
+        overridesPersona: false,
+        overridesTone: false,
+        overridesOpeningGreeting: false,
+      },
+      fallbackPolicy: {
+        whenNoEligibleKnowledge: 'continue_without_url_knowledge',
+        providerCallBlockedByEmptyKnowledge: false,
+        preserveRuntimePersona: true,
+        preserveToneAndManner: true,
+        preserveOpeningGreetingVariant: true,
+      },
       promptInjectionPolicy: {
         untrustedReferenceTextOnly: true,
         rawUrlIsNeverInstruction: true,
         rawPageBodyStored: false,
         rawPromptStored: false,
       },
+    });
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.chatFallbackPolicy).toMatchObject({
+      noKnowledgeRows: 'continue_without_url_knowledge',
+      noApprovedRows: 'continue_without_url_knowledge',
+      pendingRowsOnly: 'continue_without_url_knowledge',
+      unsafeRowsOnly: 'continue_without_url_knowledge',
+      providerCallBlockedByEmptyKnowledge: false,
+      preservePersona: true,
+      preserveToneAndManner: true,
+      preserveOpeningGreetingVariant: true,
+      rawUnapprovedMaterialsInFallback: false,
+      adminNotesInFallback: false,
     });
   });
 
@@ -252,6 +284,13 @@ describe('artist URL knowledge contract', () => {
       rawPageBodyStored: false,
       rawPromptStored: false,
     });
+    expect(context.contextPriority).toMatchObject({
+      urlKnowledgePosition: 5,
+      overridesPersona: false,
+      overridesTone: false,
+      overridesOpeningGreeting: false,
+    });
+    expect(context.fallbackPolicy.providerCallBlockedByEmptyKnowledge).toBe(false);
     expect(JSON.stringify(context)).not.toContain('watch?v=abc123');
     expect(JSON.stringify(context)).not.toContain('pending-1');
   });
