@@ -4438,10 +4438,14 @@ export class CommunityService {
 
   private feedThreadPolicy() {
     return {
+      relation: 'legacy_manual_thread',
       maxItems: FEED_THREAD_MAX_ITEMS,
       maxCharsPerItem: FEED_THREAD_ITEM_MAX_BODY_CHARS,
       rootIncludedInLimit: true,
       autoSplit: false,
+      canonicalContinuationEndpoint:
+        '/api/v1/lumina-feed/posts/:postId/thread-continuations',
+      manualThreadIsNotContinuation: true,
       rootOnlyEngagement: true,
       likesTarget: 'root',
       commentsTarget: 'root',
@@ -4457,6 +4461,8 @@ export class CommunityService {
     return {
       relation: 'thread_continuation',
       source: 'existing_post',
+      canonicalButtonMeaning: 'append_to_existing_post',
+      existingPostRequired: true,
       rootAuthorOnly: true,
       maxCharsPerItem: FEED_THREAD_CONTINUATION_MAX_BODY_CHARS,
       autoSplit: false,
@@ -4467,6 +4473,7 @@ export class CommunityService {
       deletedRootPolicy: 'not_found',
       hiddenRootPolicy: 'not_found',
       privateRootPolicy: 'not_found',
+      failClosedOnUnavailableRoot: true,
       walletMutation: false,
       luminaMutation: false,
       settlementMutation: false,
@@ -4477,12 +4484,18 @@ export class CommunityService {
   private feedRepostPolicy() {
     return {
       relation: 'repost',
+      simpleRepostRelation: 'repost',
+      quoteRepostRelation: 'quote_repost',
       quoteBodyMaxChars: FEED_POST_MAX_BODY_CHARS,
+      emptyBodyCreates: 'repost',
+      nonEmptyBodyCreates: 'quote_repost',
       sourceVisibility: 'public_only',
       originalReferenceRequired: true,
+      deletedSourcePolicy: 'not_found_before_create',
       originalDeletionPolicy: 'render_tombstone_without_body',
       originalHiddenPolicy: 'hide_embedded_original',
       originalBlockedPolicy: 'hide_embedded_original',
+      shareIsSeparateContract: true,
       walletMutation: false,
       luminaMutation: false,
       settlementMutation: false,
@@ -4507,7 +4520,11 @@ export class CommunityService {
     return {
       relation: 'share',
       sourceVisibility: 'public_only',
+      availableOnOtherUsersPosts: true,
+      authorOwnershipRequired: false,
       publicPathTemplate: '/lumina-feed/posts/:postId',
+      createsFeedRow: false,
+      createsRepost: false,
       shareCountMutation: false,
       walletMutation: false,
       luminaMutation: false,

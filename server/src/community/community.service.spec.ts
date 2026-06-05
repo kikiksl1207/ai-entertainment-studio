@@ -1199,6 +1199,13 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     );
     expect(result.relation).toBe('thread_continuation');
     expect(result.post.threadContinuation.isContinuation).toBe(true);
+    expect(result.policy).toMatchObject({
+      relation: 'thread_continuation',
+      canonicalButtonMeaning: 'append_to_existing_post',
+      existingPostRequired: true,
+      rootAuthorOnly: true,
+      failClosedOnUnavailableRoot: true,
+    });
     expect(result.policy.walletMutation).toBe(false);
     expect(result.policy.luminaMutation).toBe(false);
   });
@@ -1257,6 +1264,12 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     expect(result.relation).toBe('thread_continuation');
     expect(result.items[0].threadContinuation.commentRelation).toBe(false);
     expect(result.items[0].threadContinuation.replyRelation).toBe(false);
+    expect(result.policy).toMatchObject({
+      listEndpoint: '/api/v1/lumina-feed/posts/:postId/thread-continuations',
+      commentRelation: false,
+      replyRelation: false,
+      autoSplit: false,
+    });
   });
 
   it('creates quote reposts for public source posts without wallet or settlement mutation', async () => {
@@ -1299,6 +1312,13 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     expect(result.post.repost.originalPostId).toBe(postId);
     expect(result.post.repost.originalState).toBe('visible');
     expect(result.post.repost.originalPost.body).toBe('Original post');
+    expect(result.policy).toMatchObject({
+      simpleRepostRelation: 'repost',
+      quoteRepostRelation: 'quote_repost',
+      emptyBodyCreates: 'repost',
+      nonEmptyBodyCreates: 'quote_repost',
+      shareIsSeparateContract: true,
+    });
     expect(result.policy.walletMutation).toBe(false);
     expect(result.policy.settlementMutation).toBe(false);
 
@@ -1433,6 +1453,10 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
           countStrategy: 'not_mutated_by_share_contract',
         }),
         policy: expect.objectContaining({
+          availableOnOtherUsersPosts: true,
+          authorOwnershipRequired: false,
+          createsFeedRow: false,
+          createsRepost: false,
           shareCountMutation: false,
           walletMutation: false,
           luminaMutation: false,
