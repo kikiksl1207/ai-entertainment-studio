@@ -579,6 +579,69 @@ describe('AuthService action token flows', () => {
     });
   });
 
+  it('rejects invalid, expired, and used password reset confirms before mutation', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+
+    prisma.userActionToken.findFirst.mockResolvedValueOnce(null);
+    await expect(
+      service.confirmPasswordReset({ token, newPassword: 'password' }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_EXPIRED',
+        messageKey: 'auth.passwordReset.tokenInvalidOrExpired',
+        details: {
+          state: 'invalid',
+          statusKey: 'auth.passwordReset.invalid',
+          rawTokenReturned: false,
+          tokenHashReturned: false,
+        },
+      },
+    });
+
+    prisma.userActionToken.findFirst.mockResolvedValueOnce(
+      activeActionToken({
+        purpose: 'password_reset',
+        expiresAt: new Date('2000-01-01T00:00:00.000Z'),
+      }),
+    );
+    await expect(
+      service.confirmPasswordReset({ token, newPassword: 'password' }),
+    ).rejects.toMatchObject({
+      response: {
+        details: {
+          state: 'expired',
+          statusKey: 'auth.passwordReset.expired',
+          rawTokenReturned: false,
+          tokenHashReturned: false,
+        },
+      },
+    });
+
+    prisma.userActionToken.findFirst.mockResolvedValueOnce(
+      activeActionToken({
+        purpose: 'password_reset',
+        consumedAt: new Date('2026-05-14T00:00:00.000Z'),
+      }),
+    );
+    await expect(
+      service.confirmPasswordReset({ token, newPassword: 'password' }),
+    ).rejects.toMatchObject({
+      response: {
+        details: {
+          state: 'already_used',
+          statusKey: 'auth.passwordReset.already_used',
+          rawTokenReturned: false,
+          tokenHashReturned: false,
+        },
+      },
+    });
+
+    expect(prisma.userActionToken.updateMany).not.toHaveBeenCalled();
+    expect(prisma.userAuthAccount.update).not.toHaveBeenCalled();
+    expect(prisma.userRefreshToken.updateMany).not.toHaveBeenCalled();
+  });
+
   it('rejects password reset when the submitted email does not match the token account', async () => {
     const prisma = createPrismaMock();
     const { service } = serviceWith(prisma);
