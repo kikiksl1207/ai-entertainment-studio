@@ -7064,6 +7064,19 @@ describe('ChatService.generateMessage provider beta', () => {
     expect(request.runtimePersona.knowledgeContext).toMatchObject({
       source: 'approved_artist_knowledge_urls',
       items: [],
+      contextPriority: {
+        urlKnowledgePosition: 5,
+        overridesPersona: false,
+        overridesTone: false,
+        overridesOpeningGreeting: false,
+      },
+      fallbackPolicy: {
+        whenNoEligibleKnowledge: 'continue_without_url_knowledge',
+        providerCallBlockedByEmptyKnowledge: false,
+        preserveRuntimePersona: true,
+        preserveToneAndManner: true,
+        preserveOpeningGreetingVariant: true,
+      },
       promptInjectionPolicy: {
         untrustedReferenceTextOnly: true,
         rawUrlIsNeverInstruction: true,

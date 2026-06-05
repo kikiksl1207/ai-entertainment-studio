@@ -129,9 +129,10 @@ Priority order:
 
 1. platform/system/developer safety instructions
 2. canonical artist profile, persona, speech style, and world setting
-3. active product policy for the chat feature
-4. approved artist URL knowledge summaries
-5. chat history and current user message
+3. tone-and-manner policy and dynamic opening-greeting variant contract
+4. active product policy for the chat feature
+5. approved artist URL knowledge summaries
+6. chat history and current user message
 
 If an approved URL summary conflicts with canonical world setting or safety
 policy, the chat service should prefer canonical profile/worldview and either
@@ -139,6 +140,19 @@ drop that reference from context or phrase it as uncertain external reference.
 Newer approved URL knowledge may inform current events, recent uploads, or
 announcements, but it must not rewrite the artist identity, operator ownership,
 age/safety posture, or platform rules.
+
+## Empty Knowledge Fallback
+
+If an artist has no URL knowledge, only pending/rejected/archived URL knowledge,
+disabled chat references, unsafe safety status, or summaryless rows, character
+chat continues without URL knowledge. Empty URL knowledge must not block the
+provider call, alter persona/tone/opening-greeting variant selection, or inject
+review-only material into the prompt. The fallback source remains the existing
+persona, tone-and-manner, and opening-greeting contracts.
+
+Unapproved URLs, raw private materials, raw page bodies, URL query strings, and
+admin notes must not appear in fallback copy, provider input, or chat response
+metadata.
 
 ## Creator API
 
@@ -258,6 +272,8 @@ The chat service must apply the state gate before provider generation:
   untrusted reference text. It must not change the instruction hierarchy.
 - Raw submitted URLs stay out of provider input. Hostname labels may be used for
   source readability.
+- Empty eligible context returns `items=[]` with
+  `fallbackPolicy.whenNoEligibleKnowledge=continue_without_url_knowledge`.
 
 Provider-required tests should be separate from contract tests. The approved
 state gate, defensive filtering, raw URL redaction, and prompt-injection role

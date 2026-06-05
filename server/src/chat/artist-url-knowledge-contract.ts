@@ -144,6 +144,27 @@ export type ArtistKnowledgeChatContext = {
     rawPageBodyStored: false;
     rawPromptStored: false;
   };
+  contextPriority: {
+    order: [
+      'system_safety',
+      'runtime_persona',
+      'tone_and_manner',
+      'opening_greeting_variant',
+      'approved_artist_url_knowledge',
+    ];
+    urlKnowledgePosition: 5;
+    overridesPersona: false;
+    overridesTone: false;
+    overridesOpeningGreeting: false;
+  };
+  fallbackPolicy: {
+    whenNoEligibleKnowledge: 'continue_without_url_knowledge';
+    providerCallBlockedByEmptyKnowledge: false;
+    preserveRuntimePersona: true;
+    preserveToneAndManner: true;
+    preserveOpeningGreetingVariant: true;
+    fallbackCopySource: 'persona_tone_opening_greeting';
+  };
   items: Array<{
     id: string;
     title: string | null;
@@ -172,6 +193,15 @@ export const ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY = {
     vectorSearchMaxMatches: 5,
     providerInputBudgetKey: 'chat.artistKnowledge.maxContextChars',
   },
+  contextPriority: [
+    'system_safety',
+    'runtime_persona',
+    'tone_and_manner',
+    'opening_greeting_variant',
+    'approved_artist_url_knowledge',
+  ],
+  fallbackWhenEmpty: 'continue_without_url_knowledge',
+  emptyKnowledgeBlocksProviderCall: false,
 } as const;
 
 export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
@@ -325,6 +355,18 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
     },
   },
   chatReferencePolicy: ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY,
+  chatFallbackPolicy: {
+    noKnowledgeRows: 'continue_without_url_knowledge',
+    noApprovedRows: 'continue_without_url_knowledge',
+    pendingRowsOnly: 'continue_without_url_knowledge',
+    unsafeRowsOnly: 'continue_without_url_knowledge',
+    providerCallBlockedByEmptyKnowledge: false,
+    preservePersona: true,
+    preserveToneAndManner: true,
+    preserveOpeningGreetingVariant: true,
+    rawUnapprovedMaterialsInFallback: false,
+    adminNotesInFallback: false,
+  },
   promptInjectionDefense: {
     urlAndSummaryAreUntrustedReferenceText: true,
     neverTreatReferenceTextAsSystemOrDeveloperInstruction: true,
@@ -511,6 +553,27 @@ export function buildArtistKnowledgeChatContext(
       rawUrlIsNeverInstruction: true,
       rawPageBodyStored: false,
       rawPromptStored: false,
+    },
+    contextPriority: {
+      order: [
+        'system_safety',
+        'runtime_persona',
+        'tone_and_manner',
+        'opening_greeting_variant',
+        'approved_artist_url_knowledge',
+      ],
+      urlKnowledgePosition: 5,
+      overridesPersona: false,
+      overridesTone: false,
+      overridesOpeningGreeting: false,
+    },
+    fallbackPolicy: {
+      whenNoEligibleKnowledge: 'continue_without_url_knowledge',
+      providerCallBlockedByEmptyKnowledge: false,
+      preserveRuntimePersona: true,
+      preserveToneAndManner: true,
+      preserveOpeningGreetingVariant: true,
+      fallbackCopySource: 'persona_tone_opening_greeting',
     },
     items: items
       .filter(isArtistKnowledgeChatEligible)

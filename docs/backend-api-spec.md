@@ -402,6 +402,11 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
 - Raw submitted URL is review material, not chat knowledge. Character-chat
   provider context uses a hostname-only source label and bounded approved
   summary, never the raw URL or full page body.
+- #676 fixes the empty-knowledge fallback contract. If there are no eligible URL
+  knowledge rows, character-chat continues with persona, tone-and-manner, and
+  opening-greeting variant context. Empty URL knowledge does not block provider
+  generation and does not expose unapproved URLs, raw private material, or admin
+  notes.
 - The admin audit list endpoint is a read-only skeleton guarded by `audit:read`.
   It returns redacted artist knowledge URL audit event list items only.
 - Query shape: `action`, `targetId`, `artistId`, `take`, and opaque `cursor`.
