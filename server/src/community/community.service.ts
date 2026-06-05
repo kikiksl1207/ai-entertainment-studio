@@ -2005,26 +2005,31 @@ export class CommunityService {
     }
 
     const direction = list === 'followers' ? 'follower' : 'following';
+    const blockedUserIds = viewerUserId
+      ? await this.getBlockedRelationshipUserIds(viewerUserId)
+      : [];
     const followWhere =
       list === 'followers'
-        ? {
+        ? this.clean({
             followingUserId: user.id,
             status: 'active',
             deletedAt: null,
+            followerUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
             follower: {
               status: 'active',
               deletedAt: null,
             },
-          }
-        : {
+          })
+        : this.clean({
             followerUserId: user.id,
             status: 'active',
             deletedAt: null,
+            followingUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
             following: {
               status: 'active',
               deletedAt: null,
             },
-          };
+          });
 
     const [follows, total] = await Promise.all([
       this.prisma.userFollow.findMany({
@@ -2037,7 +2042,9 @@ export class CommunityService {
       this.prisma.userFollow.count({ where: followWhere }),
     ]);
     const items = await Promise.all(
-      follows.map((follow) => this.toUserFollowView(follow, direction)),
+      follows.map((follow) =>
+        this.toUserFollowView(follow, direction, viewerUserId, true),
+      ),
     );
 
     return {
@@ -2053,6 +2060,17 @@ export class CommunityService {
         list,
         hiddenUserRule:
           'Only active non-deleted users are returned; suspended, deleted, or inactive users are hidden from follow cards.',
+        blockedUserRule:
+          'Authenticated viewers do not receive list rows for users in an active block relationship; a block relationship with the target profile returns 403.',
+        viewerHints: [
+          'isAuthenticated',
+          'isSelf',
+          'isFollowing',
+          'canFollow',
+          'canUnfollow',
+          'blockedByMe',
+          'hasBlockedMe',
+        ],
         privateFieldsExcluded: [
           'email',
           'phone',
@@ -2188,15 +2206,37 @@ export class CommunityService {
           },
         })
       : null;
+    const block =
+      viewerUserId && !isSelf
+        ? await this.prisma.userBlock.findFirst({
+            where: {
+              status: 'active',
+              deletedAt: null,
+              OR: [
+                { blockerUserId: viewerUserId, blockedUserId: targetUserId },
+                { blockerUserId: targetUserId, blockedUserId: viewerUserId },
+              ],
+            },
+            select: {
+              blockerUserId: true,
+              blockedUserId: true,
+            },
+          })
+        : null;
     const isFollowing = Boolean(follow?.status === 'active' && !follow.deletedAt);
+    const blockedByMe = Boolean(viewerUserId && block?.blockerUserId === viewerUserId);
+    const hasBlockedMe = Boolean(viewerUserId && block?.blockedUserId === viewerUserId);
+    const isBlocked = blockedByMe || hasBlockedMe;
 
     return {
       isAuthenticated,
       isSelf,
       isFollowing,
-      canFollow: Boolean(viewerUserId && !isSelf && !isFollowing),
-      canUnfollow: Boolean(viewerUserId && !isSelf && isFollowing),
+      canFollow: Boolean(viewerUserId && !isSelf && !isFollowing && !isBlocked),
+      canUnfollow: Boolean(viewerUserId && !isSelf && isFollowing && !isBlocked),
       canEditProfile: isSelf,
+      blockedByMe,
+      hasBlockedMe,
     };
   }
 
@@ -3069,7 +3109,12 @@ export class CommunityService {
     }
   }
 
-  private async toUserFollowView(follow: any, direction: 'follower' | 'following') {
+  private async toUserFollowView(
+    follow: any,
+    direction: 'follower' | 'following',
+    viewerUserId?: string,
+    includeViewer = false,
+  ) {
     const user = follow[direction];
     const avatarAsset = user.profile?.avatarAssetId
       ? await this.prisma.asset.findUnique({
@@ -3078,7 +3123,7 @@ export class CommunityService {
         })
       : null;
 
-    return {
+    const view = {
       id: follow.id,
       status: follow.status,
       followedAt: follow.createdAt,
@@ -3092,6 +3137,15 @@ export class CommunityService {
           ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
           : null,
       },
+    };
+
+    if (!includeViewer) {
+      return view;
+    }
+
+    return {
+      ...view,
+      viewer: await this.userProfileViewerState(user.id, viewerUserId),
     };
   }
 

@@ -2576,6 +2576,16 @@ Authorization: Bearer <accessToken>
         "displayName": "public display name",
         "publicHandle": "public-handle",
         "avatarUrl": "public asset url or null"
+      },
+      "viewer": {
+        "isAuthenticated": true,
+        "isSelf": false,
+        "isFollowing": true,
+        "canFollow": false,
+        "canUnfollow": true,
+        "canEditProfile": false,
+        "blockedByMe": false,
+        "hasBlockedMe": false
       }
     }
   ],
@@ -2590,6 +2600,16 @@ Authorization: Bearer <accessToken>
         "displayName": "public display name",
         "publicHandle": "public-handle",
         "avatarUrl": "public asset url or null"
+      },
+      "viewer": {
+        "isAuthenticated": true,
+        "isSelf": false,
+        "isFollowing": true,
+        "canFollow": false,
+        "canUnfollow": true,
+        "canEditProfile": false,
+        "blockedByMe": false,
+        "hasBlockedMe": false
       }
     }
   ],
@@ -2613,6 +2633,16 @@ Authorization: Bearer <accessToken>
     "projection": "public_user_follow_summary_v1",
     "visibility": "public_active_profiles_only",
     "hiddenUserRule": "Only active non-deleted users and public active artists are returned.",
+    "blockedUserRule": "Authenticated viewers do not receive list rows for users in an active block relationship; a block relationship with the target profile returns 403.",
+    "viewerHints": [
+      "isAuthenticated",
+      "isSelf",
+      "isFollowing",
+      "canFollow",
+      "canUnfollow",
+      "blockedByMe",
+      "hasBlockedMe"
+    ],
     "privateFieldsExcluded": [
       "email",
       "phone",
@@ -2638,7 +2668,8 @@ Authorization: Bearer <accessToken>
   unfollow, block, unblock, remove-follower, public profile, and My Page
   follow-list routes are live under the current addendum.
 - Public follow-list endpoints accept optional bearer auth. Anonymous callers can read public active profiles; authenticated callers receive viewer hints and block filtering. If the viewer has an active block relationship with the target profile in either direction, the endpoint returns `403 USER_PROFILE_BLOCKED` with `messageKey: "social.profile.blocked"`.
-- Public follow-list item projection is limited to public profile fields: ids needed for routing, display name, public handle/slug, public avatar URL, follow row timestamps, and status. It must not expose email, social provider ids, phone, private bio metadata, wallet/Lumina balances, payment/refund/order rows, settlement/payout state, or admin/moderation notes.
+- Public follow-list item projection is limited to public profile fields plus viewer-safe relationship hints: ids needed for routing, display name, public handle/slug, public avatar URL, follow row timestamps, status, `viewer.isFollowing`, `viewer.canFollow`, `viewer.canUnfollow`, `viewer.blockedByMe`, and `viewer.hasBlockedMe`. It must not expose email, social provider ids, phone, private bio metadata, wallet/Lumina balances, payment/refund/order rows, settlement/payout state, or admin/moderation notes.
+- Public follow-list item visibility is fail-closed for active blocks. Authenticated viewers do not receive rows for listed users in an active block relationship with them; if the block relationship is with the target profile itself, the whole list read returns `403 USER_PROFILE_BLOCKED`.
 - `GET /api/v1/users/handle/:publicHandle/profile` is public and returns the same shape as `GET /api/v1/users/:userId/profile`, resolving by the unique `user_profiles.public_handle`.
 - Public user profile responses include `user.coverImageUrl`; render the frontend default cover when it is `null`.
 - Public user profile routes accept optional bearer auth. When present and valid, responses include `viewer.isSelf`, `viewer.isFollowing`, `viewer.canFollow`, `viewer.canUnfollow`, and `viewer.canEditProfile`.
