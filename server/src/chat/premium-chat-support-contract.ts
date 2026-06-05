@@ -1011,8 +1011,8 @@ export const PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT = {
 } as const;
 
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
-  version: '2026-05-25.premium-chat-support-ranking-projection.v1',
-  previousVersion: '2026-05-25.premium-chat-room-list-detail-projection.v1',
+  version: '2026-06-05.premium-chat-support-submit-readiness.v1',
+  previousVersion: '2026-05-25.premium-chat-support-ranking-projection.v1',
   feature: 'premium_chat_support',
   status: 'contract_ready_mutation_blocked',
   policy: {
@@ -1027,6 +1027,49 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     disabledMessageKey: 'chat.donation.contractPending',
     disabledDisplayMessageKo:
       '프리미엄챗 후원은 원장·보안 검증이 끝난 뒤 열릴 예정이에요.',
+  },
+  submitReadiness: {
+    status: 'submit_contract_ready_backend_storage_blocked',
+    fixedAmountsLumina: PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA,
+    customAmount: {
+      ...PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY,
+      labelKey: 'chat.donation.amount.custom',
+      labelKo: '내맘대로 후원',
+    },
+    currentActivation: {
+      donationPreviewEnabled: false,
+      donationCreateEnabled: false,
+      walletDebitEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      supportPointLedgerMutationEnabled: false,
+      rankingRefreshByClientEnabled: false,
+    },
+    rankingSeparation: {
+      likeRankingReceivesPremiumChatSupport: false,
+      communicationRankingReceivesSupportActivity: true,
+      donationRankingReceivesConfirmedNetSupport: true,
+      donationRankingBasis: 'confirmed_net_premium_chat_support_only',
+      likeRankingPath: '/api/v1/boost-campaigns/:campaignId/rankings',
+      communicationRankingPath: '/api/v1/chat/rankings?type=communication',
+      donationRankingPath: '/api/v1/chat/rankings?type=donation',
+    },
+    activationBlockers: [
+      'premium_chat_donation_orders storage migration',
+      'premium_chat_donation_events projection storage',
+      'premium_chat_support_point_ledger storage',
+      'wallet ledger type allowlist migration',
+      'idempotent wallet debit transaction',
+      'ranking read-model refresh worker',
+      'settlement and payout accounting contract',
+    ],
+    sensitiveValuePolicy: {
+      rawTokenRecorded: false,
+      rawCookieRecorded: false,
+      rawDbUrlRecorded: false,
+      rawWalletLedgerIdReturned: false,
+      rawSupportPointLedgerIdReturned: false,
+    },
   },
   backendSkeleton: {
     version: '2026-05-28.premium-chat-support-backend-skeleton.v1',
@@ -1108,7 +1151,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       pathTemplate: '/api/v1/chat/sessions/:sessionId/donations',
       status: 'planned',
       enabled: false,
-      walletMutation: true,
+      walletMutation: false,
+      futureWalletMutationRequired: true,
       requiresIdempotencyKey: true,
     },
     myDonationHistory: {

@@ -3882,10 +3882,10 @@ describe('ChatService premium chat support contract', () => {
     const contract = service.getPremiumSupportContract();
 
     expect(contract.version).toBe(
-      '2026-05-25.premium-chat-support-ranking-projection.v1',
+      '2026-06-05.premium-chat-support-submit-readiness.v1',
     );
     expect(contract.previousVersion).toBe(
-      '2026-05-25.premium-chat-room-list-detail-projection.v1',
+      '2026-05-25.premium-chat-support-ranking-projection.v1',
     );
     expect(contract.status).toBe('contract_ready_mutation_blocked');
     expect(contract.policy).toMatchObject({
@@ -3897,6 +3897,57 @@ describe('ChatService premium chat support contract', () => {
       premiumChatAccountingLedgerMutationEnabled: false,
       productProjectionMutationEnabled: false,
     });
+    expect(contract.submitReadiness).toMatchObject({
+      status: 'submit_contract_ready_backend_storage_blocked',
+      fixedAmountsLumina: [
+        10,
+        50,
+        100,
+        500,
+        1000,
+        5000,
+        10000,
+        50000,
+      ],
+      customAmount: {
+        supported: true,
+        minLumina: 1,
+        maxLumina: 50000,
+        integerOnly: true,
+        labelKo: '내맘대로 후원',
+      },
+      currentActivation: {
+        donationPreviewEnabled: false,
+        donationCreateEnabled: false,
+        walletDebitEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+        supportPointLedgerMutationEnabled: false,
+        rankingRefreshByClientEnabled: false,
+      },
+      rankingSeparation: {
+        likeRankingReceivesPremiumChatSupport: false,
+        communicationRankingReceivesSupportActivity: true,
+        donationRankingReceivesConfirmedNetSupport: true,
+        donationRankingBasis: 'confirmed_net_premium_chat_support_only',
+      },
+      sensitiveValuePolicy: {
+        rawTokenRecorded: false,
+        rawCookieRecorded: false,
+        rawDbUrlRecorded: false,
+        rawWalletLedgerIdReturned: false,
+        rawSupportPointLedgerIdReturned: false,
+      },
+    });
+    expect(contract.submitReadiness.activationBlockers).toEqual(
+      expect.arrayContaining([
+        'premium_chat_donation_orders storage migration',
+        'premium_chat_support_point_ledger storage',
+        'wallet ledger type allowlist migration',
+        'idempotent wallet debit transaction',
+        'ranking read-model refresh worker',
+      ]),
+    );
     expect(contract.backendSkeleton).toMatchObject({
       version: '2026-05-28.premium-chat-support-backend-skeleton.v1',
       status: 'skeleton_ready_mutation_blocked',
@@ -3971,6 +4022,8 @@ describe('ChatService premium chat support contract', () => {
     expect(contract.endpoints.donationCreate).toMatchObject({
       method: 'POST',
       enabled: false,
+      walletMutation: false,
+      futureWalletMutationRequired: true,
       requiresIdempotencyKey: true,
     });
     expect(contract.endpoints.reportSubmit).toMatchObject({

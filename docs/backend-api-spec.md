@@ -1581,6 +1581,31 @@ Premium chat support backend skeleton (#588):
   communication and donation lanes remain on planned `/api/v1/chat/rankings`
   queries. Premium-chat support must not feed like rankings.
 
+Premium chat support submit readiness (#616):
+
+- `GET /api/v1/chat/premium-support-contract` now exposes
+  `submitReadiness` with contract version
+  `2026-06-05.premium-chat-support-submit-readiness.v1`.
+- The allowed fixed support units are `10L`, `50L`, `100L`, `500L`,
+  `1,000L`, `5,000L`, `10,000L`, and `50,000L`. Custom support uses copy key
+  `chat.donation.amount.custom` / Korean fallback `내맘대로 후원`, accepts
+  integer-only `1L` through `50,000L`, and is server-normalized.
+- Current activation remains disabled:
+  `donationPreviewEnabled=false`, `donationCreateEnabled=false`,
+  `walletDebitEnabled=false`, `supportPointLedgerMutationEnabled=false`,
+  `settlementMutationEnabled=false`, `payoutMutationEnabled=false`, and
+  `rankingRefreshByClientEnabled=false`.
+- Ranking lanes stay separated. Lumina Pick/like ranking does not receive
+  premium-chat support. Communication ranking may later consume safe room-open,
+  message, support, and artist reply activity. Donation ranking may later
+  consume confirmed net premium-chat support only.
+- Activation blockers remain storage and accounting work: donation order/event
+  storage, support-point ledger storage, wallet ledger type allowlist,
+  idempotent wallet debit transaction, ranking read-model refresh worker, and
+  settlement/payout accounting contract.
+- The contract must not expose raw token, cookie, DB URL, wallet ledger id, or
+  support-point ledger id.
+
 Premium room list read-only contract (#372):
 
 ```http
