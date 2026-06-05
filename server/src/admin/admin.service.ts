@@ -13,6 +13,7 @@ import { AuthUser } from '../auth/auth.types';
 import {
   ARTIST_URL_KNOWLEDGE_CONTRACT,
   ARTIST_URL_KNOWLEDGE_STATUSES,
+  buildArtistKnowledgeAdminAuditProjection,
   buildArtistKnowledgeAuditPayload,
   isArtistKnowledgeSourceType,
   normalizeArtistKnowledgeSummary,
@@ -5535,6 +5536,88 @@ export class AdminService {
         this.presentBackstageArtistKnowledgeUrl(row),
       ),
       contract: ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts.adminList,
+    };
+  }
+
+  async getBackstageArtistKnowledgeUrlAuditEvents(query: AuditQuery) {
+    const pagination = this.adminPagination(query, 50);
+    const action = this.optionalString(query, 'action');
+    const targetId = this.optionalString(query, 'targetId');
+    const artistId = this.optionalString(query, 'artistId');
+    const supportedActions = ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts
+      .adminAuditList.query.action as readonly string[];
+
+    if (action && !supportedActions.includes(action)) {
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_AUDIT_ACTION_INVALID',
+        'artistKnowledgeUrl.error.auditActionInvalid',
+        '?먮즺 URL 媛먯궗 ?≪뀡 ?꾪꽣瑜??뺤씤??二쇱꽭??',
+        { supportedActions },
+      );
+    }
+
+    if (targetId && !this.isUuid(targetId)) {
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_INVALID_ID',
+        'artistKnowledgeUrl.error.invalidId',
+        '?먮즺 URL ?붿껌 ?뺣낫瑜??뺤씤??二쇱꽭??',
+        { field: 'targetId' },
+      );
+    }
+
+    if (artistId && !this.isUuid(artistId)) {
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_INVALID_ID',
+        'artistKnowledgeUrl.error.invalidId',
+        '?먮즺 URL ?붿껌 ?뺣낫瑜??뺤씤??二쇱꽭??',
+        { field: 'artistId' },
+      );
+    }
+
+    const where: Prisma.AuditEventWhereInput = {
+      targetType: 'artist_knowledge_url',
+      targetId: targetId ?? { not: null },
+      ...(action ? { action } : {}),
+      ...(artistId
+        ? {
+            OR: [
+              { beforeData: { path: ['artistId'], equals: artistId } },
+              { afterData: { path: ['artistId'], equals: artistId } },
+            ],
+          }
+        : {}),
+    };
+    const rows = await this.prisma.auditEvent.findMany({
+      where,
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        id: true,
+        action: true,
+        targetType: true,
+        targetId: true,
+        actorUserId: true,
+        beforeData: true,
+        afterData: true,
+        metadata: true,
+        createdAt: true,
+      },
+    });
+    const paginated = this.paginated(rows, pagination.take);
+
+    return {
+      ...paginated,
+      items: paginated.items.map((event) =>
+        buildArtistKnowledgeAdminAuditProjection({
+          ...event,
+          targetId: event.targetId ?? '',
+          beforeData: event.beforeData as never,
+          afterData: event.afterData as never,
+          metadata: event.metadata as never,
+        }),
+      ),
+      contract: ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts.adminAuditList,
     };
   }
 
