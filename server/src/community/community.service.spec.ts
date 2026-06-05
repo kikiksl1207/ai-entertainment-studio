@@ -29,9 +29,11 @@ function createPrismaMock() {
       update: jest.fn(),
     },
     communityReply: {
+      create: jest.fn(),
       findMany: jest.fn(),
     },
     communityReaction: {
+      create: jest.fn(),
       findUnique: jest.fn().mockResolvedValue(null),
     },
     artistFollow: {
@@ -60,6 +62,9 @@ function createPrismaMock() {
     asset: {
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue(null),
+    },
+    auditEvent: {
+      create: jest.fn().mockResolvedValue({ id: 'audit-row' }),
     },
   };
 
@@ -295,6 +300,106 @@ describe('CommunityService user follow/block mutation contract', () => {
       },
     });
     expect(result.block.user).not.toHaveProperty('email');
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          actorUserId: authorId,
+          actorType: 'user',
+          action: 'community.user_block.activated',
+          targetType: 'user_block',
+          targetId: 'block-row',
+          metadata: expect.objectContaining({
+            rawEmailStored: false,
+            rawTokenStored: false,
+            rawCookieStored: false,
+            rawIpStored: false,
+            walletMutation: false,
+            luminaMutation: false,
+            paymentMutation: false,
+            settlementMutation: false,
+          }),
+        }),
+      }),
+    );
+    const auditPayload = JSON.stringify(prisma.auditEvent.create.mock.calls[0][0]);
+    expect(auditPayload).not.toContain('spam');
+    expect(auditPayload).not.toContain('@');
+    expect(auditPayload).not.toContain('secret-token');
+    expect(auditPayload).not.toContain('session-cookie');
+    expect(auditPayload).not.toContain('password');
+  });
+
+  it('records unblock audit without restoring follows or touching wallet-like state', async () => {
+    const prisma = createPrismaMock();
+    prisma.userBlock.updateMany.mockResolvedValue({ count: 1 });
+    const service = serviceWith(prisma);
+
+    const result = await service.unblockUser(authorId, otherUserId);
+
+    expect(result).toEqual({ ok: true });
+    expect(prisma.userFollow.upsert).not.toHaveBeenCalled();
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          actorUserId: authorId,
+          actorType: 'user',
+          action: 'community.user_block.deleted',
+          targetType: 'user_block',
+          targetId: otherUserId,
+          metadata: expect.objectContaining({
+            rawEmailStored: false,
+            rawTokenStored: false,
+            rawCookieStored: false,
+            rawIpStored: false,
+            walletMutation: false,
+            luminaMutation: false,
+            paymentMutation: false,
+            settlementMutation: false,
+          }),
+        }),
+      }),
+    );
+    const auditPayload = JSON.stringify(prisma.auditEvent.create.mock.calls[0][0]);
+    expect(auditPayload).not.toContain('@');
+    expect(auditPayload).not.toContain('secret-token');
+    expect(auditPayload).not.toContain('session-cookie');
+    expect(auditPayload).not.toContain('password');
+  });
+
+  it('fails closed for feed interactions when either user blocked the other', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Root post' }));
+    prisma.userBlock.findFirst.mockResolvedValue({ id: 'block-row' });
+    const service = serviceWith(prisma);
+
+    await expect(
+      service.createRepost(otherUserId, postId, { body: 'quote' }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'USER_FOLLOW_BLOCKED',
+        messageKey: 'social.follow.blocked',
+      },
+      status: 403,
+    });
+    await expect(
+      service.createReply(otherUserId, postId, { body: 'reply' }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'USER_FOLLOW_BLOCKED',
+        messageKey: 'social.follow.blocked',
+      },
+      status: 403,
+    });
+    await expect(service.likePost(otherUserId, postId)).rejects.toMatchObject({
+      response: {
+        code: 'USER_FOLLOW_BLOCKED',
+        messageKey: 'social.follow.blocked',
+      },
+      status: 403,
+    });
+    expect(prisma.communityPost.create).not.toHaveBeenCalled();
+    expect(prisma.communityReply.create).not.toHaveBeenCalled();
+    expect(prisma.communityReaction.create).not.toHaveBeenCalled();
   });
 });
 

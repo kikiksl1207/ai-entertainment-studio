@@ -760,6 +760,7 @@ export class CommunityService {
   async createRepost(userId: string, postId: string, input: CommunityBody) {
     await this.assertActiveUser(userId);
     const originalPost = await this.findPublicPostWithInclude(postId);
+    await this.assertNoActiveUserBlock(userId, originalPost.authorUserId);
     const quoteBody = this.optionalText(input, 'body', FEED_POST_MAX_BODY_CHARS) ?? '';
     const metadata = {
       ...this.relationInputMetadata(input),
@@ -1069,6 +1070,7 @@ export class CommunityService {
   async createReply(userId: string, postId: string, input: CommunityBody) {
     await this.assertActiveUser(userId);
     const post = await this.findVisiblePost(postId);
+    await this.assertNoActiveUserBlock(userId, post.authorUserId);
     const body = this.text(input, 'body', 1, FEED_REPLY_MAX_BODY_CHARS);
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -1164,6 +1166,7 @@ export class CommunityService {
 
   async likePost(userId: string, postId: string, idempotencyKey?: string) {
     const visiblePost = await this.findVisiblePost(postId);
+    await this.assertNoActiveUserBlock(userId, visiblePost.authorUserId);
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {
@@ -1565,6 +1568,35 @@ export class CommunityService {
         },
       });
 
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: blockerUserId,
+          actorType: 'user',
+          action: 'community.user_block.activated',
+          targetType: 'user_block',
+          targetId: created.id,
+          beforeData: Prisma.JsonNull,
+          afterData: this.toJson({
+            blockerUserId,
+            blockedUserId,
+            status: 'active',
+            reasonStoredOnBlock: Boolean(reason),
+          }),
+          metadata: this.toJson({
+            viewerToTargetFollowRemoved: viewerToTargetFollow.count > 0,
+            targetToViewerFollowRemoved: targetToViewerFollow.count > 0,
+            rawEmailStored: false,
+            rawTokenStored: false,
+            rawCookieStored: false,
+            rawIpStored: false,
+            walletMutation: false,
+            luminaMutation: false,
+            paymentMutation: false,
+            settlementMutation: false,
+          }),
+        },
+      });
+
       return {
         block: created,
         viewerToTargetFollowRemoved: viewerToTargetFollow.count > 0,
@@ -1606,17 +1638,51 @@ export class CommunityService {
       );
     }
 
-    await this.prisma.userBlock.updateMany({
-      where: {
-        blockerUserId,
-        blockedUserId,
-        status: 'active',
-      },
-      data: {
-        status: 'deleted',
-        deletedAt: new Date(),
-        updatedAt: new Date(),
-      },
+    await this.prisma.$transaction(async (tx) => {
+      const deleted = await tx.userBlock.updateMany({
+        where: {
+          blockerUserId,
+          blockedUserId,
+          status: 'active',
+        },
+        data: {
+          status: 'deleted',
+          deletedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      if (deleted.count > 0) {
+        await tx.auditEvent.create({
+          data: {
+            actorUserId: blockerUserId,
+            actorType: 'user',
+            action: 'community.user_block.deleted',
+            targetType: 'user_block',
+            targetId: blockedUserId,
+            beforeData: this.toJson({
+              blockerUserId,
+              blockedUserId,
+              status: 'active',
+            }),
+            afterData: this.toJson({
+              blockerUserId,
+              blockedUserId,
+              status: 'deleted',
+            }),
+            metadata: this.toJson({
+              rawEmailStored: false,
+              rawTokenStored: false,
+              rawCookieStored: false,
+              rawIpStored: false,
+              walletMutation: false,
+              luminaMutation: false,
+              paymentMutation: false,
+              settlementMutation: false,
+            }),
+          },
+        });
+      }
     });
 
     return { ok: true };
