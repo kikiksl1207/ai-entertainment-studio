@@ -4372,6 +4372,7 @@ export class ChatService {
         sourceType: true,
         canonicalUrl: true,
         summary: true,
+        metadata: true,
         allowChatReference: true,
         reviewedAt: true,
         createdAt: true,

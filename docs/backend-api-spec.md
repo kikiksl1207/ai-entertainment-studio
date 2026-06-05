@@ -387,9 +387,21 @@ Artist URL knowledge audit skeleton:
 
 ```http
 GET /api/v1/chat/artist-url-knowledge-contract
+GET /api/v1/me/creator-studio/knowledge-urls
+POST /api/v1/me/creator-studio/knowledge-urls
 GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
 ```
 
+- `artist-url-knowledge` contract version is
+  `2026-06-05.artist-url-knowledge-registration-skeleton.v1`.
+- #619 keeps registration fields separated: optional `title`, safe `source`,
+  lifecycle `approvalStatus`, bounded `summary`, and `safetyStatus`.
+- `safetyStatus` values are `unreviewed`, `needs_review`, `safe`, and `blocked`.
+  Only approved rows with `safetyStatus=safe`, `allowChatReference=true`, and a
+  non-empty summary may enter character-chat context.
+- Raw submitted URL is review material, not chat knowledge. Character-chat
+  provider context uses a hostname-only source label and bounded approved
+  summary, never the raw URL or full page body.
 - The admin audit list endpoint is a read-only skeleton guarded by `audit:read`.
   It returns redacted artist knowledge URL audit event list items only.
 - Query shape: `action`, `targetId`, `artistId`, `take`, and opaque `cursor`.

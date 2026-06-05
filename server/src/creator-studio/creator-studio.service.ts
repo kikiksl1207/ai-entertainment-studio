@@ -12,8 +12,10 @@ import { AuthUser } from '../auth/auth.types';
 import {
   ARTIST_URL_KNOWLEDGE_CONTRACT,
   ARTIST_URL_KNOWLEDGE_STATUSES,
+  artistKnowledgeSafetyStatusFromMetadata,
   buildArtistKnowledgeAuditPayload,
   isArtistKnowledgeSourceType,
+  normalizeArtistKnowledgeTitle,
   normalizeArtistKnowledgeSummary,
 } from '../chat/artist-url-knowledge-contract';
 import { buildPublicAssetUrl } from '../common/asset-url';
@@ -1172,31 +1174,44 @@ export class CreatorStudioService {
     reviewedAt: Date | null;
     archivedAt: Date | null;
   }) {
+    const metadata = this.recordOrEmpty(row.metadata);
+    const status = ARTIST_URL_KNOWLEDGE_STATUSES.includes(row.status as never)
+      ? row.status
+      : 'pending';
+    const safetyStatus = artistKnowledgeSafetyStatusFromMetadata(
+      metadata,
+      status,
+    );
+
     return {
       id: row.id,
       artistId: row.artistId,
       submittedByUserId: row.submittedByUserId,
       reviewedByUserId: row.reviewedByUserId,
       type: row.sourceType,
+      title: normalizeArtistKnowledgeTitle(
+        typeof metadata.title === 'string' ? metadata.title : null,
+      ),
       url: row.url,
       canonicalUrl: row.canonicalUrl,
       description: row.artistDescription,
       summary: row.summary,
       allowChatRef: row.allowChatReference,
-      status: ARTIST_URL_KNOWLEDGE_STATUSES.includes(row.status as never)
-        ? row.status
-        : 'pending',
+      status,
+      approvalStatus: status,
+      safetyStatus,
       rejectionReason: row.rejectionReason,
-      metadata: this.recordOrEmpty(row.metadata),
+      metadata,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       reviewedAt: row.reviewedAt,
       archivedAt: row.archivedAt,
       chatReference: {
         eligible:
-          row.status === 'approved' &&
+          status === 'approved' &&
           row.allowChatReference &&
-          Boolean(row.summary),
+          Boolean(row.summary) &&
+          safetyStatus === 'safe',
         approvedOnly: true,
         rawUrlIncludedInPrompt: false,
       },

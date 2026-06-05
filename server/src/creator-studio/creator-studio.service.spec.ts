@@ -293,6 +293,9 @@ describe('CreatorStudioService artist knowledge URLs', () => {
     expect(result).toMatchObject({
       item: {
         status: 'pending',
+        approvalStatus: 'pending',
+        safetyStatus: 'unreviewed',
+        title: null,
         allowChatRef: true,
         chatReference: {
           eligible: false,

@@ -1,9 +1,9 @@
 # Artist URL Knowledge Chat Contract
 
-Version: `2026-05-22.artist-url-knowledge.v1`
+Version: `2026-06-05.artist-url-knowledge-registration-skeleton.v1`
 
 Updated for Notion #459 safety gate, #462 audit contract, and #540 product
-contract clarification.
+contract clarification, plus workboard #619 registration skeleton separation.
 
 ## Scope
 
@@ -35,6 +35,16 @@ This contract separates three concepts that UI and backend must not merge:
 - `chatEligibility`: derived server decision from status, `allowChatReference`,
   summary presence, safety state, and artist match.
 
+#619 fixes the registration skeleton as separated fields, not one raw URL blob:
+
+- `title`: optional public title from review metadata or future public metadata.
+- `source`: source type plus hostname-only label for safe display/context.
+- `approvalStatus`: canonical lifecycle status.
+- `summary`: bounded reviewer-visible summary, never raw page body.
+- `safetyStatus`: `unreviewed`, `needs_review`, `safe`, or `blocked`.
+- raw submitted URL: stored only for review operations and never sent to the
+  character-chat provider context.
+
 Do not expose future `ingestState` values as lifecycle status aliases. UI may
 localize lifecycle and processing copy, but API status values remain canonical.
 
@@ -65,6 +75,8 @@ Validation baseline:
   as an instruction.
 - Any edit to URL, type, description, or `allowChatRef` reopens the row as
   `pending` and clears review fields.
+- New or edited rows are `safetyStatus=unreviewed` until review metadata marks
+  them `safe`; `needs_review` and `blocked` rows are never chat-eligible.
 
 ## Crawl, Summary, And Tagging Draft
 
