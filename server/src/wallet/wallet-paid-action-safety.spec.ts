@@ -29,8 +29,12 @@ function basePrismaMock() {
       findUnique: jest.fn(),
     },
     userPremiumVideoUnlock: {
+      create: jest.fn(),
       findFirst: jest.fn(),
       findUnique: jest.fn(),
+    },
+    userEntitlement: {
+      create: jest.fn(),
     },
     walletAccount: {
       findUnique: jest.fn(),
@@ -326,6 +330,46 @@ describe('paid wallet action idempotency safety', () => {
       service.unlock(userId, productId, 'premium-1'),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(tx.walletAccount.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('fails closed on premium video insufficient balance before ledger or unlock creation', async () => {
+    const { prisma, tx } = basePrismaMock();
+    const service = new PremiumVideosService(prisma as never);
+    prisma.premiumVideoProduct.findFirst.mockResolvedValue({
+      id: productId,
+      title: 'Video',
+      priceLumina: new Decimal(50),
+    });
+    tx.walletLedger.findUnique.mockResolvedValue(null);
+    tx.userPremiumVideoUnlock.findUnique.mockResolvedValue(null);
+    tx.walletAccount.findUnique.mockResolvedValue({
+      id: 'wallet-1',
+      status: 'active',
+      cachedBalance: new Decimal(20),
+    });
+    tx.walletAccount.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.unlock(userId, productId, 'premium-insufficient-1'),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'WALLET_MUTATION_INSUFFICIENT_BALANCE',
+        messageKey: 'wallet.mutation.insufficientBalance',
+        walletMutation: false,
+        serverAuthority: 'wallet_accounts.cached_balance',
+      },
+    });
+
+    expect(tx.walletAccount.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'wallet-1',
+        cachedBalance: { gte: new Decimal(50) },
+      },
+      data: { cachedBalance: { decrement: new Decimal(50) } },
+    });
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.userPremiumVideoUnlock.create).not.toHaveBeenCalled();
+    expect(tx.userEntitlement.create).not.toHaveBeenCalled();
   });
 
   it('requires idempotency before user gift transfers', async () => {
