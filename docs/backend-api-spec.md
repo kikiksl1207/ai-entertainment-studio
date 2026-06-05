@@ -2447,6 +2447,21 @@ AI premium content request state API skeleton (#591):
   - `POST /api/v1/ai-premium-content/requests/:requestId/regenerations`
   - `PATCH /admin/api/v1/ai-premium-content/requests/:requestId`
 - `creator_image_requests` remains the current image queue bridge candidate.
+
+AI premium content request brief API skeleton (#662):
+
+- `server/src/ai-premium-content/ai-premium-content-state-contract.ts` exports
+  `AI_PREMIUM_CONTENT_BRIEF_API_SKELETON` version
+  `2026-06-05.ai-premium-content-brief-api-skeleton.v1`.
+- The planned endpoint is `POST /api/v1/ai-premium-content/requests`, but it
+  remains `enabled: false`, `submitEnabled: false`, and `mutation: false` until
+  backend implementation and QA explicitly open it.
+- The skeleton tracks only request type, artist slug/server-resolved artist id,
+  sanitized brief shape, server-owned safety status, and server-owned estimated
+  cost fields.
+- Provider calls, wallet debit, order creation, settlement accrual, payout
+  accrual, paid-like mutation, public publish, and profile/feed equip side
+  effects are all blocked by contract.
   `premium_video_products` remains an unlock catalog, not a generation request
   queue. Future unified storage requires `ai_premium_content_requests`.
 - Public request state projection separates request status, moderation status,

@@ -87,6 +87,120 @@ export const AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY = {
   },
 } as const;
 
+export const AI_PREMIUM_CONTENT_SAFETY_STATUSES = [
+  'pending',
+  'needs_review',
+  'blocked',
+  'cleared',
+] as const;
+
+export const AI_PREMIUM_CONTENT_BRIEF_API_SKELETON = {
+  version: '2026-06-05.ai-premium-content-brief-api-skeleton.v1',
+  feature: 'ai_premium_content_request_brief',
+  status: 'skeleton_ready_submit_blocked',
+  method: 'POST',
+  path: '/api/v1/ai-premium-content/requests',
+  enabled: false,
+  submitEnabled: false,
+  mutation: false,
+  authRequired: true,
+  artistOperatorRequired: true,
+  idempotencyRequired: true,
+  providerCallEnabled: false,
+  walletDebitEnabled: false,
+  orderCreateEnabled: false,
+  settlementAccrualEnabled: false,
+  payoutAccrualEnabled: false,
+  paidLikeMutationEnabled: false,
+  publicPublishEnabled: false,
+  trackedFields: {
+    requestType: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+    artistSlug: {
+      required: true,
+      source: 'path_or_body_artist_slug',
+      serverResolvedArtistId: true,
+    },
+    brief: {
+      required: true,
+      maxChars: 2000,
+      storedAsSanitizedExcerptOnlyUntilImplementation: true,
+      rawPrivatePromptReturned: false,
+    },
+    safetyStatus: {
+      allowed: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+      initial: 'pending',
+      serverOwned: true,
+      clientSubmittedTrusted: false,
+    },
+    estimatedCost: {
+      tracked: true,
+      currency: 'provider_internal_or_krw',
+      amountTrustedFromClient: false,
+      walletDebitOnSubmit: false,
+      finalCostComputedLater: true,
+    },
+  },
+  requestBodyShape: {
+    requestType: '<image_single|image_variation|image_reference|video_clip|video_loop|premium_pack>',
+    artistSlug: '<artist slug>',
+    brief: '<sanitized operator brief text>',
+    referenceAssetIds: '<optional safe asset uuid array>',
+  },
+  responseProjection: {
+    request: {
+      id: '<request uuid or readiness placeholder>',
+      requestType: '<request type>',
+      artist: {
+        slug: '<artist slug>',
+        id: '<server resolved artist id>',
+      },
+      status: 'draft',
+      safetyStatus: 'pending',
+      estimatedCost: {
+        amount: null,
+        currency: null,
+        final: false,
+      },
+    },
+    policy: {
+      canSubmit: false,
+      canGenerate: false,
+      canDebitWallet: false,
+      canPublish: false,
+      disabledReasonKey: 'aiPremiumContent.briefSubmit.disabled',
+    },
+  },
+  validationOrder: [
+    'auth_required',
+    'artist_slug_required',
+    'artist_operator_access',
+    'request_type_valid',
+    'brief_required',
+    'brief_length_valid',
+    'reference_assets_safe_if_present',
+    'safety_status_server_owned',
+    'estimated_cost_server_owned',
+    'mutation_gate_closed',
+  ],
+  forbiddenSideEffects: {
+    providerAttempt: false,
+    walletDebit: false,
+    orderCreate: false,
+    settlementAccrual: false,
+    payoutAccrual: false,
+    paidLike: false,
+    publicPublish: false,
+    equipToProfileOrFeed: false,
+  },
+  privacy: {
+    rawProviderPayloadReturned: false,
+    rawPrivatePromptReturned: false,
+    signedUrlsReturned: false,
+    sensitiveAuthMaterialReturned: false,
+    rawEmailReturned: false,
+  },
+} as const;
+
 export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   version: '2026-06-02.ai-premium-content-request-state-api-skeleton.v1',
   feature: 'ai_premium_content_request_state',
@@ -121,6 +235,7 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   statuses: AI_PREMIUM_CONTENT_REQUEST_STATUSES,
   moderationStatuses: AI_PREMIUM_CONTENT_MODERATION_STATUSES,
   requestTypePolicy: AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY,
+  briefApiSkeleton: AI_PREMIUM_CONTENT_BRIEF_API_SKELETON,
   statusCopy: {
     locale: 'ko-KR',
     fallbackMap: AI_PREMIUM_CONTENT_STATUS_COPY_KO,
