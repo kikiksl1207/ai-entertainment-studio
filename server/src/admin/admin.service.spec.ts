@@ -557,6 +557,7 @@ describe('AdminService artist knowledge URL operations', () => {
       },
       auditEvent: {
         create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       ...overrides,
     };
@@ -656,7 +657,7 @@ describe('AdminService artist knowledge URL operations', () => {
     );
   });
 
-  it('returns redacted artist knowledge audit events for audit readers', async () => {
+  it('returns redacted artist knowledge audit events through the dedicated read model', async () => {
     const rawUrl = 'https://artist.example/watch?token=unsafe-url-token';
     const rawSummary = 'Approved raw summary must not be returned.';
     const rawReason = 'Private rejection reason must not be returned.';
@@ -680,6 +681,7 @@ describe('AdminService artist knowledge URL operations', () => {
         reviewedAt: null,
         archivedAt: null,
         url: rawUrl,
+        rawUrl,
         summary: rawSummary,
       },
       afterData: {
@@ -699,7 +701,7 @@ describe('AdminService artist knowledge URL operations', () => {
       },
       metadata: {
         statusTransition: { from: 'pending', to: 'rejected' },
-        changedFields: ['status', 'rawUrl', 'summary', 'rejectionReason'],
+        changedFields: ['status', 'reviewedByUserId', 'rawUrl', 'summary', 'rejectionReason'],
         token: 'unsafe-token',
         cookie: 'unsafe-cookie',
       },
@@ -731,6 +733,7 @@ describe('AdminService artist knowledge URL operations', () => {
             { afterData: { path: ['artistId'], equals: row.artistId } },
           ],
         }),
+        orderBy: [{ createdAt: 'desc' }],
         select: expect.objectContaining({
           beforeData: true,
           afterData: true,
@@ -744,8 +747,13 @@ describe('AdminService artist knowledge URL operations', () => {
           action: 'artist_knowledge_url.reject',
           targetType: 'artist_knowledge_url',
           targetId: row.id,
+          afterData: {
+            status: 'rejected',
+            reviewedByUserId: adminUser.id,
+            rejectionReasonPresent: true,
+          },
           metadata: {
-            changedFields: ['status'],
+            changedFields: ['status', 'reviewedByUserId'],
             sensitiveDataStored: false,
             rawUrlStored: false,
             rawUrlQueryStored: false,
@@ -756,14 +764,19 @@ describe('AdminService artist knowledge URL operations', () => {
           },
         },
       ],
-      contract: {
+      contract: expect.objectContaining({
         permission: 'audit:read',
         mutation: false,
         rawUrlReturned: false,
         rawUrlQueryReturned: false,
         rawEmailReturned: false,
         providerPayloadReturned: false,
-      },
+      }),
+      policy: expect.objectContaining({
+        permission: 'audit:read',
+        mutation: false,
+        rawUrlReturned: false,
+      }),
     });
     const payload = JSON.stringify(result);
     expect(payload).not.toContain(rawUrl);
