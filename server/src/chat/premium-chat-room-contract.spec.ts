@@ -771,6 +771,7 @@ describe('premium chat room refund and moderation ledger contract', () => {
       'artist_closed',
       'expired',
       'reported',
+      'paused_by_report',
       'blind',
       'blinded',
       'suspended',
@@ -942,6 +943,94 @@ describe('premium chat room refund and moderation ledger contract', () => {
       settlementMutation: false,
       payoutMutation: false,
     });
+  });
+
+  it('keeps report submit paused for admin review without raw body or automatic refund mutation', () => {
+    const guard = PREMIUM_CHAT_ROOM_CONTRACT.moderation.reportPauseAuditGuard;
+
+    expect(guard).toMatchObject({
+      version: '2026-06-05.premium-chat-report-pause-audit-guard.v1',
+      reportSubmitResult: {
+        roomStatusKey: 'paused_by_report',
+        reportStatusKey: 'reported',
+        nextReviewStatusKeys: ['blinded', 'suspended', 'admin_review'],
+        userCanSendMessage: false,
+        artistCanReply: false,
+        canDonate: false,
+        communicationRankingEligible: false,
+        donationRankingEligible: false,
+      },
+      publicProjection: {
+        rawChatBodyReturned: false,
+        rawReportReasonReturned: false,
+        rawEvidenceReturned: false,
+        adminNoteReturned: false,
+      },
+      adminReviewProjection: {
+        permissionKeys: ['payments:read', 'community:read'],
+        rawChatBodyReturnedToGeneralApi: false,
+        fullConversationAccessRequiresAdminReviewPermission: true,
+        reportReasonKeyReturned: true,
+        rawReportBodyReturned: false,
+      },
+      automaticMutation: {
+        refund: false,
+        walletLedger: false,
+        premiumChatAccountingLedger: false,
+        settlement: false,
+        payout: false,
+        supportPointLedger: false,
+      },
+    });
+    expect(guard.auditFields).toEqual(
+      expect.arrayContaining([
+        'roomId',
+        'reportId',
+        'reporterUserId',
+        'reportedUserId',
+        'roomStatusKey',
+        'reportStatusKey',
+        'reasonKey',
+        'safeEvidenceHash',
+        'idempotencyKeyHash',
+      ]),
+    );
+    expect(guard.forbiddenAuditFields).toEqual(
+      expect.arrayContaining([
+        'rawChatBody',
+        'rawConversationBody',
+        'rawReportBody',
+        'rawReportReason',
+        'rawEvidence',
+        'token',
+        'cookie',
+        'password',
+        'databaseUrl',
+      ]),
+    );
+    for (const status of ['reported', 'paused_by_report', 'blinded', 'admin_review']) {
+      expect(isPremiumChatRoomMutationBlocked(status)).toBe(true);
+    }
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.statusMapping).toMatchObject({
+      paused_by_report: {
+        canSendMessage: false,
+        canDonate: false,
+      },
+    });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.moderation.reviewStatuses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          statusKey: 'reported',
+          mutationAllowed: false,
+          walletAction: 'none',
+        }),
+        expect.objectContaining({
+          statusKey: 'admin_review',
+          mutationAllowed: false,
+          walletAction: 'none',
+        }),
+      ]),
+    );
   });
 
   it('fixes disabled report and refund limitation API status keys', () => {
