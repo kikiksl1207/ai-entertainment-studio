@@ -18,6 +18,7 @@ import {
   PREMIUM_CHAT_ROOM_CONTRACT,
   PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
   PREMIUM_CHAT_ROOM_REFUND_ACCOUNTING_LEDGER_TYPES,
+  resolvePremiumChatRoomFollowerTierUnlocks,
   resolvePremiumChatRoomLifecycleProjection,
   resolvePremiumChatRoomDurationPolicy,
   resolvePremiumChatMessageChargePolicy,
@@ -177,6 +178,87 @@ describe('premium chat room refund and moderation ledger contract', () => {
         payoutMutationEnabled: false,
       });
     }
+  });
+
+  it('resolves follower tier unlocks from active server follows only', () => {
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.roomOpen.followerTierUnlockContract).toMatchObject({
+      version: '2026-06-05.premium-chat-follower-tier-unlock.v1',
+      sourceOfTruth: 'artist_follows',
+      activeFollowerWhere: {
+        status: 'active',
+        deletedAt: null,
+      },
+      thresholds: [
+        {
+          tierKey: 'premium_chat_room_300',
+          amountLumina: 300,
+          minActiveFollowers: 0,
+        },
+        {
+          tierKey: 'premium_chat_room_500',
+          amountLumina: 500,
+          minActiveFollowers: 1000,
+        },
+        {
+          tierKey: 'premium_chat_room_1000',
+          amountLumina: 1000,
+          minActiveFollowers: 10000,
+        },
+        {
+          tierKey: 'premium_chat_room_3000',
+          amountLumina: 3000,
+          minActiveFollowers: 50000,
+        },
+      ],
+      countIncludesDeletedAccounts: false,
+      clientSubmittedFollowerCountTrusted: false,
+      cachedFollowerCountTrustedForUnlock: false,
+      manualCompanyOverrideEnabled: false,
+      multipleRoomAmountsCanBeOffered: true,
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+
+    expect(resolvePremiumChatRoomFollowerTierUnlocks({ activeFollowerCount: 999 }))
+      .toMatchObject({
+        unlockedTierKeys: ['premium_chat_room_300'],
+      });
+    expect(
+      resolvePremiumChatRoomFollowerTierUnlocks({
+        activeFollowerCount: 1000,
+        clientSubmittedFollowerCount: 50000,
+      }),
+    ).toMatchObject({
+      unlockedTierKeys: ['premium_chat_room_300', 'premium_chat_room_500'],
+      clientSubmittedFollowerCountTrusted: false,
+      clientSubmittedFollowerCountIgnored: true,
+      sourceOfTruth: 'artist_follows',
+      activeFollowerWhere: {
+        status: 'active',
+        deletedAt: null,
+      },
+    });
+    expect(resolvePremiumChatRoomFollowerTierUnlocks({ activeFollowerCount: 10000 }))
+      .toMatchObject({
+        unlockedTierKeys: [
+          'premium_chat_room_300',
+          'premium_chat_room_500',
+          'premium_chat_room_1000',
+        ],
+      });
+    expect(resolvePremiumChatRoomFollowerTierUnlocks({ activeFollowerCount: 50000 }))
+      .toMatchObject({
+        unlockedTierKeys: [
+          'premium_chat_room_300',
+          'premium_chat_room_500',
+          'premium_chat_room_1000',
+          'premium_chat_room_3000',
+        ],
+        multipleRoomAmountsCanBeOffered: true,
+        walletMutationEnabled: false,
+      });
   });
 
   it('rejects unknown or above-maximum room tiers with a stable message key before wallet mutation', () => {
