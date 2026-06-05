@@ -133,6 +133,34 @@ export type ArtistKnowledgeAdminAuditProjection = {
   };
 };
 
+export type ArtistKnowledgeChatHandoffCandidate = {
+  status: string;
+  artistSlug?: string | null;
+  summary?: string | null;
+  safetyStatus?: string | null;
+  metadata?: unknown;
+  allowChatReference: boolean;
+};
+
+export type ArtistKnowledgeChatHandoffProjection = {
+  contractVersion: typeof ARTIST_URL_KNOWLEDGE_CONTRACT_VERSION;
+  target: 'character_chat_context_candidate';
+  handoffReady: boolean;
+  fields: {
+    approvalStatus: 'approved';
+    artistSlug: string;
+    contextSummary: string;
+    safetyFlag: 'safe';
+  };
+  policy: {
+    knowledgeContextOnly: true;
+    siteContentAdminCopy: false;
+    rawUrlReturned: false;
+    rawPrivateMaterialReturned: false;
+    adminNotesReturned: false;
+  };
+};
+
 export type ArtistKnowledgeChatContext = {
   version: typeof ARTIST_URL_KNOWLEDGE_CONTRACT_VERSION;
   source: 'approved_artist_knowledge_urls';
@@ -325,6 +353,34 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
     },
   },
   chatReferencePolicy: ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY,
+  adminToChatHandoff: {
+    source: 'backstage_artist_knowledge_review',
+    target: 'character_chat_context_candidate',
+    requiredFields: [
+      'approvalStatus',
+      'artistSlug',
+      'contextSummary',
+      'safetyFlag',
+    ],
+    approvalStatusRequired: 'approved',
+    safetyFlagRequired: 'safe',
+    allowChatReferenceRequired: true,
+    separatedFromSiteContentAdmin: true,
+    forbiddenFields: [
+      'rawUrl',
+      'canonicalUrl',
+      'rawUrlQuery',
+      'rawPageBody',
+      'privateMaterial',
+      'adminNotes',
+      'siteContentCopy',
+      'token',
+      'cookie',
+      'password',
+      'apiKey',
+      'dbUrl',
+    ],
+  },
   promptInjectionDefense: {
     urlAndSummaryAreUntrustedReferenceText: true,
     neverTreatReferenceTextAsSystemOrDeveloperInstruction: true,
@@ -584,6 +640,49 @@ export function buildArtistKnowledgeAuditPayload(
       tokenCookiePasswordStored: false,
       providerPayloadStored: false,
       dbUrlStored: false,
+    },
+  };
+}
+
+export function buildArtistKnowledgeChatHandoff(
+  row: ArtistKnowledgeChatHandoffCandidate | null | undefined,
+): ArtistKnowledgeChatHandoffProjection | null {
+  if (
+    !row ||
+    !isArtistKnowledgeChatEligible({
+      status: row.status,
+      allowChatReference: row.allowChatReference,
+      summary: row.summary ?? null,
+      safetyStatus: row.safetyStatus,
+      metadata: row.metadata,
+    })
+  ) {
+    return null;
+  }
+
+  const artistSlug = stringOrNull(row.artistSlug);
+  const contextSummary = normalizeArtistKnowledgeSummary(row.summary);
+
+  if (!artistSlug || !contextSummary) {
+    return null;
+  }
+
+  return {
+    contractVersion: ARTIST_URL_KNOWLEDGE_CONTRACT_VERSION,
+    target: 'character_chat_context_candidate',
+    handoffReady: true,
+    fields: {
+      approvalStatus: 'approved',
+      artistSlug,
+      contextSummary,
+      safetyFlag: 'safe',
+    },
+    policy: {
+      knowledgeContextOnly: true,
+      siteContentAdminCopy: false,
+      rawUrlReturned: false,
+      rawPrivateMaterialReturned: false,
+      adminNotesReturned: false,
     },
   };
 }

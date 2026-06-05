@@ -5,6 +5,7 @@ import {
   buildArtistKnowledgeAdminAuditProjection,
   buildArtistKnowledgeAuditPayload,
   buildArtistKnowledgeChatContext,
+  buildArtistKnowledgeChatHandoff,
   isArtistKnowledgeChatEligible,
 } from './artist-url-knowledge-contract';
 
@@ -78,6 +79,20 @@ describe('artist URL knowledge contract', () => {
       rawUrlQueryReturned: false,
       rawEmailReturned: false,
       providerPayloadReturned: false,
+    });
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.adminToChatHandoff).toMatchObject({
+      source: 'backstage_artist_knowledge_review',
+      target: 'character_chat_context_candidate',
+      requiredFields: [
+        'approvalStatus',
+        'artistSlug',
+        'contextSummary',
+        'safetyFlag',
+      ],
+      approvalStatusRequired: 'approved',
+      safetyFlagRequired: 'safe',
+      allowChatReferenceRequired: true,
+      separatedFromSiteContentAdmin: true,
     });
   });
 
@@ -318,6 +333,67 @@ describe('artist URL knowledge contract', () => {
     expect(payload).not.toContain('secret');
     expect(payload).not.toContain('Raw artist description');
     expect(payload).not.toContain('Raw summary');
+  });
+
+  it('builds admin-to-chat handoff with only approved safe knowledge fields', () => {
+    const handoff = buildArtistKnowledgeChatHandoff({
+      status: 'approved',
+      artistSlug: 'yoon-serin',
+      summary: 'Approved context summary for character chat.',
+      safetyStatus: 'safe',
+      allowChatReference: true,
+      metadata: {
+        rawUrl: 'https://example.com/watch?token=secret',
+        adminNotes: 'Internal review note must not leak.',
+        siteContentCopy: 'Unrelated admin copy must not mix in.',
+      },
+    });
+
+    expect(handoff).toEqual({
+      contractVersion: '2026-06-05.artist-url-knowledge-registration-skeleton.v1',
+      target: 'character_chat_context_candidate',
+      handoffReady: true,
+      fields: {
+        approvalStatus: 'approved',
+        artistSlug: 'yoon-serin',
+        contextSummary: 'Approved context summary for character chat.',
+        safetyFlag: 'safe',
+      },
+      policy: {
+        knowledgeContextOnly: true,
+        siteContentAdminCopy: false,
+        rawUrlReturned: false,
+        rawPrivateMaterialReturned: false,
+        adminNotesReturned: false,
+      },
+    });
+    const payload = JSON.stringify(handoff);
+    expect(payload).not.toContain('https://example.com');
+    expect(payload).not.toContain('secret');
+    expect(payload).not.toContain('Internal review note');
+    expect(payload).not.toContain('Unrelated admin copy');
+  });
+
+  it('does not hand off pending, unsafe, disabled, summaryless, or slugless knowledge rows', () => {
+    const base = {
+      status: 'approved',
+      artistSlug: 'yoon-serin',
+      summary: 'Approved context summary.',
+      safetyStatus: 'safe',
+      allowChatReference: true,
+    };
+
+    expect(buildArtistKnowledgeChatHandoff({ ...base, status: 'pending' })).toBeNull();
+    expect(
+      buildArtistKnowledgeChatHandoff({ ...base, safetyStatus: 'needs_review' }),
+    ).toBeNull();
+    expect(
+      buildArtistKnowledgeChatHandoff({ ...base, allowChatReference: false }),
+    ).toBeNull();
+    expect(buildArtistKnowledgeChatHandoff({ ...base, summary: '   ' })).toBeNull();
+    expect(
+      buildArtistKnowledgeChatHandoff({ ...base, artistSlug: null }),
+    ).toBeNull();
   });
 
   it('builds redacted admin read-only audit projections', () => {

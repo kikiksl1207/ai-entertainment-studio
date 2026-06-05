@@ -404,6 +404,12 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   summary, never the raw URL or full page body.
 - The admin audit list endpoint is a read-only skeleton guarded by `audit:read`.
   It returns redacted artist knowledge URL audit event list items only.
+- #677 fixes the admin-to-chat handoff fields. Backstage approval may hand off
+  only `approvalStatus=approved`, `artistSlug`, bounded `contextSummary`, and
+  `safetyFlag=safe` into the character-chat context candidate path. This
+  contract is separate from site-content/admin copy editing and does not expose
+  raw URL, URL query, raw page body, private material, admin notes, token,
+  cookie, password, API key, provider payload, signed/private URL, or DB URL.
 - Query shape: `action`, `targetId`, `artistId`, `take`, and opaque `cursor`.
 - Projection includes event id, action, `targetType = artist_knowledge_url`,
   target id, actor user id, created timestamp, redacted before/after snapshots,
