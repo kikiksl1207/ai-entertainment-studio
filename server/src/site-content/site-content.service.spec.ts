@@ -131,6 +131,30 @@ describe('SiteContentService', () => {
     });
   });
 
+  it('keeps fixed navigation labels outside editable site content', async () => {
+    const { service, prisma } = createService();
+
+    await expect(
+      service.createAdmin(superAdmin, {
+        contentKey: 'navigation.home.label',
+        scope: 'global',
+        title: 'Home',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'SITE_CONTENT_RESERVED_NAVIGATION_KEY',
+        messageKey: 'siteContent.error.reservedNavigationKey',
+        details: expect.objectContaining({
+          contentKey: 'navigation.home.label',
+          editable: false,
+          fixedNavigation: true,
+        }),
+      },
+    });
+    expect(prisma.siteContentEntry.findFirst).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it('records audit metadata without raw body text on create', async () => {
     const { service, prisma } = createService();
     prisma.siteContentEntry.findFirst.mockResolvedValue(null);
@@ -171,6 +195,74 @@ describe('SiteContentService', () => {
         }),
       }),
     );
+  });
+
+  it('separates common and character copy and keeps audit logs key-only', async () => {
+    const { service, prisma } = createService();
+    const tx = {
+      siteContentEntry: {
+        update: jest.fn().mockResolvedValue(
+          entry({
+            scope: 'character',
+            pageKey: 'character-detail',
+            characterSlug: 'seo-yuan',
+            body: 'Updated character line with fan@example.test and token-secret',
+            content: {
+              public_line: 'Updated public line',
+              password_hint: 'must-not-be-audit-body',
+            },
+            version: 3,
+          }),
+        ),
+      },
+      siteContentAuditLog: {
+        create: jest.fn().mockResolvedValue({}),
+      },
+    };
+    prisma.siteContentEntry.findUnique.mockResolvedValue(
+      entry({
+        scope: 'character',
+        pageKey: 'character-detail',
+        characterSlug: 'seo-yuan',
+        body: 'Original character line',
+        content: { public_line: 'Original public line' },
+      }),
+    );
+    prisma.$transaction.mockImplementation((callback) => callback(tx));
+
+    const result = await service.updateAdmin(superAdmin, entry().id, {
+      body: 'Updated character line with fan@example.test and token-secret',
+      content: {
+        public_line: 'Updated public line',
+        password_hint: 'must-not-be-audit-body',
+      },
+    });
+
+    expect(result).toMatchObject({
+      item: {
+        scope: 'character',
+        pageKey: 'character-detail',
+        characterSlug: 'seo-yuan',
+      },
+      policy: expect.objectContaining({
+        commonAndCharacterCopySeparated: true,
+        auditRawPersonalDataStored: false,
+        fixedNavigationKeysEditable: false,
+      }),
+    });
+    const auditCall = tx.siteContentAuditLog.create.mock.calls[0][0];
+    const serializedAudit = JSON.stringify(auditCall.data);
+
+    expect(auditCall.data).toMatchObject({
+      action: 'update',
+      actorUserId: superAdmin.id,
+      metadata: {
+        changedFields: expect.arrayContaining(['bodyLength', 'contentKeys']),
+      },
+    });
+    expect(serializedAudit).not.toContain('fan@example.test');
+    expect(serializedAudit).not.toContain('token-secret');
+    expect(serializedAudit).not.toContain('must-not-be-audit-body');
   });
 
   it('returns a recoverable key-exists error when an archived key is recreated', async () => {

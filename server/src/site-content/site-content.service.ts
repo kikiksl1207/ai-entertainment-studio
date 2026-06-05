@@ -65,6 +65,17 @@ const MAX_CTA_LABEL_LENGTH = 80;
 const MAX_CTA_HREF_LENGTH = 500;
 const MAX_CONTENT_STRING_LENGTH = 5000;
 const ALLOWED_CTA_HOSTS = new Set(['lumina-stage.com', 'www.lumina-stage.com']);
+const RESERVED_NAVIGATION_CONTENT_KEYS = new Set([
+  'home.nav.label',
+  'artists.nav.label',
+  'lumina-pick.nav.label',
+  'navigation.home.label',
+  'navigation.artists.label',
+  'navigation.lumina-pick.label',
+  'main-nav.home.label',
+  'main-nav.artists.label',
+  'main-nav.lumina-pick.label',
+]);
 
 @Injectable()
 export class SiteContentService {
@@ -399,6 +410,7 @@ export class SiteContentService {
       SAFE_KEY_PATTERN,
       160,
     );
+    this.assertEditableContentKey(contentKey);
     const scope = this.scope(input.scope);
     const pageKey = this.optionalSlug(input.pageKey, 'pageKey');
     const characterSlug = this.optionalSlug(input.characterSlug, 'characterSlug');
@@ -537,6 +549,21 @@ export class SiteContentService {
         code: 'SITE_CONTENT_SUPER_ADMIN_REQUIRED',
         message: 'Super admin access is required',
         messageKey: 'siteContent.error.superAdminRequired',
+      });
+    }
+  }
+
+  private assertEditableContentKey(contentKey: string) {
+    if (RESERVED_NAVIGATION_CONTENT_KEYS.has(contentKey)) {
+      throw this.badRequestError({
+        code: 'SITE_CONTENT_RESERVED_NAVIGATION_KEY',
+        message: 'Fixed navigation labels are not editable site content',
+        messageKey: 'siteContent.error.reservedNavigationKey',
+        details: {
+          contentKey,
+          editable: false,
+          fixedNavigation: true,
+        },
       });
     }
   }
@@ -741,8 +768,11 @@ export class SiteContentService {
       rawHtmlAllowed: false,
       publicReadPublishedOnly: true,
       auditRawContentStored: false,
+      auditRawPersonalDataStored: false,
       walletMutationAllowed: false,
       settlementMutationAllowed: false,
+      fixedNavigationKeysEditable: false,
+      commonAndCharacterCopySeparated: true,
       archivedKeyRecoverable: true,
       restoreTargetStatuses: [...VALID_RESTORE_TARGET_STATUSES],
     };
