@@ -1321,11 +1321,41 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     });
     expect(result.policy.walletMutation).toBe(false);
     expect(result.policy.settlementMutation).toBe(false);
+    expect(result.policy).toMatchObject({
+      createSourceStatusPolicy: 'published_public_not_deleted_only',
+      createBlockedRelationshipPolicy: 'reject_before_repost_create',
+      embeddedOriginalProjection: 'safe_public_summary_or_tombstone',
+      rawPrivateMetadataReturned: false,
+      rawOwnerMetadataReturned: false,
+      paidLikeMutation: false,
+    });
 
     await expect(
       service.createRepost(otherUserId, postId, { body: 'q'.repeat(2201) }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.communityPost.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks repost creation across active user blocks before creating a feed row', async () => {
+    const prisma = createPrismaMock();
+    prisma.user.findFirst.mockResolvedValue({ id: otherUserId });
+    prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Original post' }));
+    prisma.userBlock.findFirst.mockResolvedValue({
+      id: 'block-row',
+      blockerUserId: authorId,
+      blockedUserId: otherUserId,
+    });
+    const service = serviceWith(prisma);
+
+    await expect(
+      service.createRepost(otherUserId, postId, { body: 'Blocked quote' }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'USER_FOLLOW_BLOCKED',
+        messageKey: 'social.follow.blocked',
+      },
+    });
+    expect(prisma.communityPost.create).not.toHaveBeenCalled();
   });
 
   it('keeps reply bodies capped at 300 characters', async () => {
@@ -1434,10 +1464,20 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     await expect(
       service.createRepost(otherUserId, postId, { body: 'Cannot reference' }),
     ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.communityPost.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: postId,
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
+        }),
+      }),
+    );
     expect(prisma.communityPost.create).not.toHaveBeenCalled();
   });
 
-  it('returns a share URL contract without mutating feed, wallet, or Lumina state', async () => {
+  it('returns a share URL contract without owner data, feed mutation, wallet, or Lumina state', async () => {
     const prisma = createPrismaMock();
     prisma.communityPost.findFirst.mockResolvedValue(storedPost());
     const service = serviceWith(prisma);
@@ -1457,9 +1497,52 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
           authorOwnershipRequired: false,
           createsFeedRow: false,
           createsRepost: false,
+          privateMetadataReturned: false,
+          rawOwnerMetadataReturned: false,
+          rawAuthorUserIdReturned: false,
           shareCountMutation: false,
           walletMutation: false,
           luminaMutation: false,
+          settlementMutation: false,
+          payoutMutation: false,
+          paidLikeMutation: false,
+        }),
+      }),
+    );
+    expect(JSON.stringify(result.share)).not.toContain(authorId);
+    expect(JSON.stringify(result.policy)).not.toContain(authorId);
+    expect(prisma.communityPost.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: postId,
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
+        }),
+        select: {
+          id: true,
+          authorUserId: true,
+          artistId: true,
+        },
+      }),
+    );
+    expect(prisma.communityPost.create).not.toHaveBeenCalled();
+    expect(prisma.communityPost.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects share contracts for deleted, archived, private, or hidden source posts', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findFirst.mockResolvedValue(null);
+    const service = serviceWith(prisma);
+
+    await expect(service.sharePost(postId)).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.communityPost.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: postId,
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
         }),
       }),
     );
