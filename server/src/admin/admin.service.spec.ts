@@ -1,5 +1,6 @@
 import { BadRequestException, HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminService } from './admin.service';
 
@@ -42,6 +43,161 @@ async function expectHttpError(
 
   throw new Error('Expected promise to reject');
 }
+
+describe('AdminService wallet daily ledger reconcile read model', () => {
+  it('aggregates daily Lumina ledger movement without exposing payment secrets', async () => {
+    const prisma = {
+      walletLedger: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: '00000000-0000-4000-8000-000000000701',
+            walletAccountId: '00000000-0000-4000-8000-000000000601',
+            direction: 'credit',
+            amount: new Decimal(100),
+            ledgerType: 'purchase',
+            referenceType: 'payment_order',
+            referenceId: '00000000-0000-4000-8000-000000000801',
+            idempotencyKey: 'payment-secret-key',
+            memo: 'provider receipt and token must not leak',
+            createdAt: new Date('2026-06-05T01:00:00.000Z'),
+            walletAccount: {
+              id: '00000000-0000-4000-8000-000000000601',
+              userId: '00000000-0000-4000-8000-000000000501',
+              currencyCode: 'LUMINA',
+              status: 'active',
+              cachedBalance: new Decimal(70),
+            },
+          },
+          {
+            id: '00000000-0000-4000-8000-000000000702',
+            walletAccountId: '00000000-0000-4000-8000-000000000601',
+            direction: 'debit',
+            amount: new Decimal(30),
+            ledgerType: 'gift_spend',
+            referenceType: 'gift_order',
+            referenceId: '00000000-0000-4000-8000-000000000802',
+            idempotencyKey: 'gift-secret-key',
+            memo: 'gift memo must not leak',
+            createdAt: new Date('2026-06-05T03:00:00.000Z'),
+            walletAccount: {
+              id: '00000000-0000-4000-8000-000000000601',
+              userId: '00000000-0000-4000-8000-000000000501',
+              currencyCode: 'LUMINA',
+              status: 'active',
+              cachedBalance: new Decimal(70),
+            },
+          },
+        ]),
+      },
+    };
+    const service = new AdminService(
+      prisma as unknown as PrismaService,
+      { get: jest.fn() } as unknown as ConfigService,
+    );
+
+    const result = await service.getBackstageWalletLedgerDailyReconcile({
+      serviceDate: '2026-06-05',
+      userId: '00000000-0000-4000-8000-000000000501',
+    });
+
+    expect(prisma.walletLedger.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          createdAt: {
+            gte: new Date('2026-06-05T00:00:00.000Z'),
+            lt: new Date('2026-06-06T00:00:00.000Z'),
+          },
+          walletAccount: {
+            currencyCode: 'LUMINA',
+            userId: '00000000-0000-4000-8000-000000000501',
+          },
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      serviceDate: '2026-06-05',
+      currencyCode: 'LUMINA',
+      totals: {
+        walletAccountCount: 1,
+        ledgerEntryCount: 2,
+        creditLumina: '100',
+        debitLumina: '30',
+        netLumina: '70',
+      },
+      items: [
+        {
+          walletAccountId: '00000000-0000-4000-8000-000000000601',
+          userId: '00000000-0000-4000-8000-000000000501',
+          cachedBalanceLumina: '70',
+          ledgerEntryCount: 2,
+          creditLumina: '100',
+          debitLumina: '30',
+          netLumina: '70',
+          byLedgerType: expect.arrayContaining([
+            expect.objectContaining({
+              ledgerType: 'purchase',
+              creditLumina: '100',
+            }),
+            expect.objectContaining({
+              ledgerType: 'gift_spend',
+              debitLumina: '30',
+            }),
+          ]),
+          reconciliation: {
+            cachedBalanceSource: 'wallet_accounts.cached_balance',
+            ledgerSource: 'wallet_ledger',
+            currentBalanceSnapshotOnly: true,
+            openingBalanceRequiredForExactDailyBalance: true,
+          },
+        },
+      ],
+      policy: {
+        permission: 'payments:read',
+        mutation: false,
+        sourceOfTruth: 'wallet_ledger',
+        clientDisplayedBalanceTrusted: false,
+        rawPaymentIdentifierReturned: false,
+        rawReceiptReturned: false,
+        providerTokenReturned: false,
+        idempotencyKeyReturned: false,
+        memoReturned: false,
+      },
+    });
+    const payload = JSON.stringify(result);
+    expect(payload).not.toContain('payment-secret-key');
+    expect(payload).not.toContain('gift-secret-key');
+    expect(payload).not.toContain('provider receipt');
+    expect(payload).not.toContain('gift memo');
+    expect(payload).not.toContain('00000000-0000-4000-8000-000000000801');
+  });
+
+  it('rejects invalid wallet daily reconcile filters with stable codes', async () => {
+    const service = new AdminService(
+      { walletLedger: { findMany: jest.fn() } } as unknown as PrismaService,
+      { get: jest.fn() } as unknown as ConfigService,
+    );
+
+    await expectHttpError(
+      service.getBackstageWalletLedgerDailyReconcile({
+        serviceDate: '2026/06/05',
+      }),
+      {
+        code: 'WALLET_DAILY_RECONCILE_INVALID_SERVICE_DATE',
+        messageKey: 'admin.walletDailyReconcile.invalidServiceDate',
+      },
+    );
+    await expectHttpError(
+      service.getBackstageWalletLedgerDailyReconcile({
+        serviceDate: '2026-06-05',
+        currencyCode: 'USD',
+      }),
+      {
+        code: 'WALLET_DAILY_RECONCILE_INVALID_CURRENCY',
+        messageKey: 'admin.walletDailyReconcile.invalidCurrency',
+      },
+    );
+  });
+});
 
 describe('AdminService auth action token audit', () => {
   it('returns masked target and omits sensitive token fields', async () => {

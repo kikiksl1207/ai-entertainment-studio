@@ -280,6 +280,12 @@ export class AdminController {
     return this.adminService.getBackstageSettlement(settlementKey);
   }
 
+  @Get('backstage/operations/wallet-ledger-daily-reconcile')
+  @RequireAdminPermissions('payments:read')
+  getBackstageWalletLedgerDailyReconcile(@Query() query: AuditQuery) {
+    return this.adminService.getBackstageWalletLedgerDailyReconcile(query);
+  }
+
   @Get('admin-roles')
   @RequireAdminPermissions('*')
   getAdminRoles() {

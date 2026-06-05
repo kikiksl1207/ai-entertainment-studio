@@ -3283,6 +3283,184 @@ export class AdminService {
     };
   }
 
+  async getBackstageWalletLedgerDailyReconcile(query: AuditQuery) {
+    const { serviceDate, start, end } = this.walletLedgerDailyWindow(query);
+    const userId = this.optionalString(query, 'userId');
+    const currencyCode = this.optionalString(query, 'currencyCode') ?? 'LUMINA';
+
+    if (userId && !this.isUuid(userId)) {
+      throw this.adminBadRequest(
+        'WALLET_DAILY_RECONCILE_INVALID_USER_ID',
+        'userId must be a UUID',
+        'admin.walletDailyReconcile.invalidUserId',
+      );
+    }
+
+    if (currencyCode !== 'LUMINA') {
+      throw this.adminBadRequest(
+        'WALLET_DAILY_RECONCILE_INVALID_CURRENCY',
+        'currencyCode must be LUMINA',
+        'admin.walletDailyReconcile.invalidCurrency',
+      );
+    }
+
+    const rows = await this.prisma.walletLedger.findMany({
+      where: {
+        createdAt: {
+          gte: start,
+          lt: end,
+        },
+        walletAccount: this.clean({
+          currencyCode,
+          userId,
+        }),
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      include: {
+        walletAccount: {
+          select: {
+            id: true,
+            userId: true,
+            currencyCode: true,
+            status: true,
+            cachedBalance: true,
+          },
+        },
+      },
+    });
+
+    const accounts = new Map<
+      string,
+      {
+        walletAccountId: string;
+        userId: string;
+        currencyCode: string;
+        walletStatus: string;
+        cachedBalanceLumina: Decimal;
+        entryCount: number;
+        creditLumina: Decimal;
+        debitLumina: Decimal;
+        netLumina: Decimal;
+        byLedgerType: Map<
+          string,
+          { entryCount: number; creditLumina: Decimal; debitLumina: Decimal }
+        >;
+      }
+    >();
+    const totals = {
+      entryCount: 0,
+      creditLumina: new Decimal(0),
+      debitLumina: new Decimal(0),
+      netLumina: new Decimal(0),
+    };
+
+    for (const row of rows) {
+      const account =
+        accounts.get(row.walletAccountId) ??
+        {
+          walletAccountId: row.walletAccountId,
+          userId: row.walletAccount.userId,
+          currencyCode: row.walletAccount.currencyCode,
+          walletStatus: row.walletAccount.status,
+          cachedBalanceLumina: row.walletAccount.cachedBalance,
+          entryCount: 0,
+          creditLumina: new Decimal(0),
+          debitLumina: new Decimal(0),
+          netLumina: new Decimal(0),
+          byLedgerType: new Map<
+            string,
+            { entryCount: number; creditLumina: Decimal; debitLumina: Decimal }
+          >(),
+        };
+      const ledgerType =
+        account.byLedgerType.get(row.ledgerType) ??
+        {
+          entryCount: 0,
+          creditLumina: new Decimal(0),
+          debitLumina: new Decimal(0),
+        };
+      const amount = new Decimal(row.amount);
+
+      account.entryCount += 1;
+      ledgerType.entryCount += 1;
+      totals.entryCount += 1;
+
+      if (row.direction === 'credit') {
+        account.creditLumina = account.creditLumina.plus(amount);
+        account.netLumina = account.netLumina.plus(amount);
+        ledgerType.creditLumina = ledgerType.creditLumina.plus(amount);
+        totals.creditLumina = totals.creditLumina.plus(amount);
+        totals.netLumina = totals.netLumina.plus(amount);
+      } else if (row.direction === 'debit') {
+        account.debitLumina = account.debitLumina.plus(amount);
+        account.netLumina = account.netLumina.minus(amount);
+        ledgerType.debitLumina = ledgerType.debitLumina.plus(amount);
+        totals.debitLumina = totals.debitLumina.plus(amount);
+        totals.netLumina = totals.netLumina.minus(amount);
+      }
+
+      account.byLedgerType.set(row.ledgerType, ledgerType);
+      accounts.set(row.walletAccountId, account);
+    }
+
+    const items = [...accounts.values()].map((account) => ({
+      serviceDate,
+      walletAccountId: account.walletAccountId,
+      userId: account.userId,
+      currencyCode: account.currencyCode,
+      walletStatus: account.walletStatus,
+      cachedBalanceLumina: this.decimalText(account.cachedBalanceLumina),
+      ledgerEntryCount: account.entryCount,
+      creditLumina: this.decimalText(account.creditLumina),
+      debitLumina: this.decimalText(account.debitLumina),
+      netLumina: this.decimalText(account.netLumina),
+      byLedgerType: [...account.byLedgerType.entries()].map(([ledgerType, value]) => ({
+        ledgerType,
+        entryCount: value.entryCount,
+        creditLumina: this.decimalText(value.creditLumina),
+        debitLumina: this.decimalText(value.debitLumina),
+        netLumina: this.decimalText(value.creditLumina.minus(value.debitLumina)),
+      })),
+      reconciliation: {
+        cachedBalanceSource: 'wallet_accounts.cached_balance',
+        ledgerSource: 'wallet_ledger',
+        currentBalanceSnapshotOnly: true,
+        openingBalanceRequiredForExactDailyBalance: true,
+      },
+    }));
+
+    return {
+      generatedAt: new Date(),
+      serviceDate,
+      range: {
+        start: start.toISOString(),
+        endExclusive: end.toISOString(),
+      },
+      currencyCode,
+      userId: userId ?? null,
+      totals: {
+        walletAccountCount: items.length,
+        ledgerEntryCount: totals.entryCount,
+        creditLumina: this.decimalText(totals.creditLumina),
+        debitLumina: this.decimalText(totals.debitLumina),
+        netLumina: this.decimalText(totals.netLumina),
+      },
+      items,
+      policy: {
+        permission: 'payments:read',
+        mutation: false,
+        sourceOfTruth: 'wallet_ledger',
+        cachedBalanceSource: 'wallet_accounts.cached_balance',
+        clientDisplayedBalanceTrusted: false,
+        rawPaymentIdentifierReturned: false,
+        rawReceiptReturned: false,
+        providerTokenReturned: false,
+        idempotencyKeyReturned: false,
+        memoReturned: false,
+      },
+    };
+  }
+
   async createAdminUser(user: AuthUser, input: AdminPayload) {
     this.assertSuperAdmin(user);
 
@@ -9334,6 +9512,40 @@ export class AdminService {
 
   private optionalDate(input: AdminPayload, key: string) {
     return input[key] === undefined ? undefined : this.date(input, key);
+  }
+
+  private walletLedgerDailyWindow(input: AdminPayload) {
+    const serviceDate = this.optionalString(input, 'serviceDate') ?? this.todayIsoDate();
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(serviceDate)) {
+      throw this.adminBadRequest(
+        'WALLET_DAILY_RECONCILE_INVALID_SERVICE_DATE',
+        'serviceDate must be YYYY-MM-DD',
+        'admin.walletDailyReconcile.invalidServiceDate',
+      );
+    }
+
+    const start = new Date(`${serviceDate}T00:00:00.000Z`);
+    if (Number.isNaN(start.getTime())) {
+      throw this.adminBadRequest(
+        'WALLET_DAILY_RECONCILE_INVALID_SERVICE_DATE',
+        'serviceDate must be YYYY-MM-DD',
+        'admin.walletDailyReconcile.invalidServiceDate',
+      );
+    }
+
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+
+    return { serviceDate, start, end };
+  }
+
+  private todayIsoDate() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  private decimalText(value: Decimal) {
+    return value.toDecimalPlaces(2).toString();
   }
 
   private optionalBigInt(input: AdminPayload, key: string) {
