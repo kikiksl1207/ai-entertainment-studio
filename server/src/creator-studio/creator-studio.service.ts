@@ -1201,7 +1201,7 @@ export class CreatorStudioService {
       approvalStatus: status,
       safetyStatus,
       rejectionReason: row.rejectionReason,
-      metadata,
+      metadata: this.presentKnowledgeUrlMetadata(metadata),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       reviewedAt: row.reviewedAt,
@@ -1215,6 +1215,18 @@ export class CreatorStudioService {
         approvedOnly: true,
         rawUrlIncludedInPrompt: false,
       },
+    };
+  }
+
+  private presentKnowledgeUrlMetadata(record: Record<string, unknown>) {
+    return {
+      contractVersion:
+        typeof record.contractVersion === 'string' ? record.contractVersion : null,
+      externalFetchPerformed: record.externalFetchPerformed === true,
+      rawPageBodyStored: record.rawPageBodyStored === true,
+      chatReferenceBlocked: record.chatReferenceBlocked === true,
+      internalReviewReasonReturned: false,
+      adminNoteReturned: false,
     };
   }
 
