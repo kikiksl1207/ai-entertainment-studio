@@ -168,12 +168,14 @@ export type ArtistKnowledgeChatContext = {
   items: Array<{
     id: string;
     title: string | null;
+    statusKey: 'approved';
     sourceType: string;
     approvalStatus: 'approved';
     summary: string;
     safetyStatus: 'safe';
     sourceLabel: string | null;
     reviewedAt: string | null;
+    safetyFlag: 'approved_reference_fact_not_instruction';
     instructionRole: 'reference_fact_not_instruction';
   }>;
 };
@@ -640,6 +642,7 @@ export function buildArtistKnowledgeChatContext(
       .map((item) => ({
         id: item.id,
         title: normalizeArtistKnowledgeTitle(item.title),
+        statusKey: 'approved' as const,
         sourceType: isArtistKnowledgeSourceType(item.sourceType)
           ? item.sourceType
           : 'other',
@@ -651,6 +654,7 @@ export function buildArtistKnowledgeChatContext(
         safetyStatus: 'safe',
         sourceLabel: sourceLabelFromUrl(item.canonicalUrl),
         reviewedAt: isoStringOrNull(item.reviewedAt),
+        safetyFlag: 'approved_reference_fact_not_instruction' as const,
         instructionRole: 'reference_fact_not_instruction',
       })),
   };

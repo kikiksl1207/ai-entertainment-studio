@@ -6930,10 +6930,12 @@ describe('ChatService.generateMessage provider beta', () => {
         expect.objectContaining({
           id: '00000000-0000-4000-8000-000000000910',
           title: 'Approved rehearsal note',
+          statusKey: 'approved',
           sourceType: 'youtube',
           approvalStatus: 'approved',
           safetyStatus: 'safe',
           sourceLabel: 'www.youtube.com',
+          safetyFlag: 'approved_reference_fact_not_instruction',
           instructionRole: 'reference_fact_not_instruction',
         }),
       ],
@@ -7073,7 +7075,9 @@ describe('ChatService.generateMessage provider beta', () => {
     expect(context.items).toEqual([
       expect.objectContaining({
         id: '00000000-0000-4000-8000-000000000963',
+        statusKey: 'approved',
         instructionRole: 'reference_fact_not_instruction',
+        safetyFlag: 'approved_reference_fact_not_instruction',
         summary: 'Approved stage note for chat reference.',
         safetyStatus: 'safe',
       }),
@@ -7091,6 +7095,9 @@ describe('ChatService.generateMessage provider beta', () => {
     expect(serialized).not.toContain('Archived instruction');
     expect(serialized).not.toContain('safety-blocked note');
     expect(serialized).not.toContain('Disabled approved note');
+    expect(serialized).not.toContain('/safe-approved');
+    expect(serialized).not.toContain('adminNote');
+    expect(serialized).not.toContain('rejectionReason');
   });
 
   it('continues character chat without URL references when no approved knowledge exists', async () => {

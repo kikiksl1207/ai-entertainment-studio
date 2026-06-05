@@ -316,10 +316,12 @@ describe('artist URL knowledge contract', () => {
       expect.objectContaining({
         id: 'approved-1',
         title: 'Approved rehearsal note',
+        statusKey: 'approved',
         sourceType: 'youtube',
         approvalStatus: 'approved',
         safetyStatus: 'safe',
         sourceLabel: 'www.youtube.com',
+        safetyFlag: 'approved_reference_fact_not_instruction',
         instructionRole: 'reference_fact_not_instruction',
       }),
     ]);
@@ -338,6 +340,7 @@ describe('artist URL knowledge contract', () => {
     expect(context.fallbackPolicy.providerCallBlockedByEmptyKnowledge).toBe(false);
     expect(JSON.stringify(context)).not.toContain('watch?v=abc123');
     expect(JSON.stringify(context)).not.toContain('pending-1');
+    expect(JSON.stringify(context)).not.toContain('https://www.youtube.com');
   });
 
   it('builds URL-redacted audit payloads for creator/admin status transitions', () => {
