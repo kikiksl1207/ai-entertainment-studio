@@ -289,11 +289,11 @@
   color: #fff;
 }
 
-/* 피드 카드 리스트 */
+/* 피드 카드 리스트 — #613 gap 14px로 늘려 카드 밀도 낮춤 */
 .feed-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 body.is-booting .feed-list::before {
   content: "피드를 불러오는 중입니다.";

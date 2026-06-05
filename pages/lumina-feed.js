@@ -330,7 +330,7 @@ function renderLuminaFeed() {
     const repostEmbed = renderFeedRepostSource(post.repost);
 
     return `
-      <article class="feed-post${clickable}${continuationClass}" data-feed-type="${post.postType}" data-feed-post-id="${feedEscapeHtml(post.id || "")}"${cardOpenAttr}${isThreadContinuation ? ' data-feed-continuation-root="' + feedEscapeHtml(continuationRootId) + '"' : ""}>
+      <article class="feed-post${typeKey === "artist" ? " is-artist-post" : typeKey === "debut_artist" ? " is-debut-post" : ""}${clickable}${continuationClass}" data-feed-type="${post.postType}" data-feed-post-id="${feedEscapeHtml(post.id || "")}"${cardOpenAttr}${isThreadContinuation ? ' data-feed-continuation-root="' + feedEscapeHtml(continuationRootId) + '"' : ""}>
         ${continuationConnector}
         <header class="feed-post-head"${authorLink}>
           <div class="feed-post-avatar">
