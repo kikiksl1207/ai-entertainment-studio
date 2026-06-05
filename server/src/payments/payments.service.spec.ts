@@ -352,6 +352,67 @@ describe('PaymentsService server-authority contract', () => {
     expect(JSON.stringify(createArg.rawPayload)).not.toContain('must-not-be-stored');
   });
 
+  it('does not lock first-charge bonus eligibility on failed provider events', async () => {
+    const order = existingOrder();
+    const tx = {
+      paymentTransaction: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000302',
+        }),
+      },
+      paymentOrder: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          ...order,
+          status: 'failed',
+        }),
+        count: jest.fn(),
+      },
+      walletAccount: {
+        upsert: jest.fn(),
+        update: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+        upsert: jest.fn(),
+      },
+    };
+    const prisma = {
+      paymentOrder: {
+        findUnique: jest.fn().mockResolvedValue(order),
+      },
+      $transaction: jest.fn((callback: (client: typeof tx) => unknown) =>
+        callback(tx),
+      ),
+    };
+    const { service } = serviceWith(prisma, {
+      verifyAndParseWebhook: jest.fn().mockReturnValue({
+        orderNo: order.orderNo,
+        providerTransactionId: 'provider-txn-failed-1',
+        status: 'failed',
+        amount: order.amount.toString(),
+      }),
+    });
+
+    const result = await service.handleWebhook('mock', {}, {});
+
+    expect(result).toMatchObject({
+      order: expect.objectContaining({ status: 'failed' }),
+      idempotentReplay: false,
+    });
+    expect(tx.paymentOrder.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'failed' }),
+      }),
+    );
+    expect(tx.paymentOrder.count).not.toHaveBeenCalled();
+    expect(tx.walletAccount.upsert).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.walletLedger.upsert).not.toHaveBeenCalled();
+    expect(tx.walletAccount.update).not.toHaveBeenCalled();
+  });
+
   it('grants repeatable package bonus and one-time first-charge bonus from base Lumina only', async () => {
     const { prisma, tx, webhookEvent } = paidWebhookFixture();
     const { service } = serviceWith(prisma, {
