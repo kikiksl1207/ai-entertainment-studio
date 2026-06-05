@@ -392,6 +392,12 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
 
 - The admin audit list endpoint is a read-only skeleton guarded by `audit:read`.
   It returns redacted artist knowledge URL audit event list items only.
+- #660 character-chat context lookup uses only approved, chat-enabled rows for
+  the session artist. Pending, rejected, archived, disabled, and summaryless URL
+  rows are excluded before provider context is built.
+- Character-chat context projection returns hostname-only source labels and
+  bounded summaries. It must not return raw submitted URLs, raw URL queries,
+  private page bodies, admin notes, tokens, cookies, or passwords.
 - Query shape: `action`, `targetId`, `artistId`, `take`, and opaque `cursor`.
 - Projection includes event id, action, `targetType = artist_knowledge_url`,
   target id, actor user id, created timestamp, redacted before/after snapshots,

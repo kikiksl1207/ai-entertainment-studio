@@ -3,7 +3,7 @@
 Version: `2026-05-22.artist-url-knowledge.v1`
 
 Updated for Notion #459 safety gate, #462 audit contract, and #540 product
-contract clarification.
+contract clarification, plus workboard #660 chat context connection contract.
 
 ## Scope
 
@@ -37,6 +37,21 @@ This contract separates three concepts that UI and backend must not merge:
 
 Do not expose future `ingestState` values as lifecycle status aliases. UI may
 localize lifecycle and processing copy, but API status values remain canonical.
+
+## #660 Chat Context Connection
+
+Character chat context lookup is a read-only candidate query:
+
+- Query scope: `artistId=<session artist id>`, `status=approved`,
+  `allowChatReference=true`.
+- Pending, rejected, archived, disabled, and summaryless rows are excluded before
+  provider context is built.
+- Selected fields are limited to id, artist id, lifecycle status, source type,
+  canonical URL for hostname label, summary, allow-chat flag, and timestamps.
+- Provider context returns hostname-only `sourceLabel`, bounded `summary`, and
+  `instructionRole=reference_fact_not_instruction`.
+- Provider context must not expose raw submitted URL, raw URL query, private page
+  body, admin notes, token, cookie, or password.
 
 ## Registration Shape
 

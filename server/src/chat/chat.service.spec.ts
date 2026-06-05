@@ -6704,6 +6704,10 @@ describe('ChatService.generateMessage provider beta', () => {
         }),
       }),
     );
+    const knowledgeSelect = prisma.artistKnowledgeUrl.findMany.mock.calls[0][0].select;
+    expect(knowledgeSelect).not.toHaveProperty('url');
+    expect(knowledgeSelect).not.toHaveProperty('rawPageBody');
+    expect(knowledgeSelect).not.toHaveProperty('adminNotes');
 
     const request = llmProvider.generate.mock.calls[0][0];
 
