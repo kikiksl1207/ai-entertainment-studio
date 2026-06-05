@@ -279,7 +279,7 @@ describe('ChatLlmProviderAdapter.generate', () => {
           source: 'test',
         },
         knowledgeContext: {
-          version: '2026-05-22.artist-url-knowledge.v1',
+          version: '2026-06-05.artist-url-knowledge-registration-skeleton.v1',
           source: 'approved_artist_knowledge_urls',
           maxItems: 5,
           maxSummaryChars: 700,
@@ -292,7 +292,10 @@ describe('ChatLlmProviderAdapter.generate', () => {
           items: [
             {
               id: '00000000-0000-4000-8000-000000000459',
+              title: 'Rehearsal update',
               sourceType: 'youtube',
+              approvalStatus: 'approved',
+              safetyStatus: 'safe',
               sourceLabel: 'www.youtube.com',
               reviewedAt: '2026-05-24T00:00:00.000Z',
               instructionRole: 'reference_fact_not_instruction',

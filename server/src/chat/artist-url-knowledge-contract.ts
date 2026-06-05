@@ -1,5 +1,5 @@
 export const ARTIST_URL_KNOWLEDGE_CONTRACT_VERSION =
-  '2026-05-22.artist-url-knowledge.v1';
+  '2026-06-05.artist-url-knowledge-registration-skeleton.v1';
 export const ARTIST_URL_KNOWLEDGE_AUDIT_CONTRACT_VERSION =
   '2026-05-24.artist-url-knowledge-audit.v1';
 
@@ -19,6 +19,13 @@ export const ARTIST_URL_KNOWLEDGE_SOURCE_TYPES = [
   'other',
 ] as const;
 
+export const ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES = [
+  'unreviewed',
+  'needs_review',
+  'safe',
+  'blocked',
+] as const;
+
 const ARTIST_URL_KNOWLEDGE_CONTRACT_AUDIT_ACTIONS = [
   'creator_studio.artist_knowledge_url.create',
   'creator_studio.artist_knowledge_url.update',
@@ -34,12 +41,18 @@ export type ArtistUrlKnowledgeStatus =
 export type ArtistUrlKnowledgeSourceType =
   (typeof ARTIST_URL_KNOWLEDGE_SOURCE_TYPES)[number];
 
+export type ArtistUrlKnowledgeSafetyStatus =
+  (typeof ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES)[number];
+
 export type ArtistKnowledgeChatCandidate = {
   id: string;
   artistId: string;
   status: string;
   sourceType: string;
+  title?: string | null;
   summary: string | null;
+  safetyStatus?: string | null;
+  metadata?: unknown;
   canonicalUrl?: string | null;
   allowChatReference: boolean;
   reviewedAt?: Date | string | null;
@@ -133,8 +146,11 @@ export type ArtistKnowledgeChatContext = {
   };
   items: Array<{
     id: string;
+    title: string | null;
     sourceType: string;
+    approvalStatus: 'approved';
     summary: string;
+    safetyStatus: 'safe';
     sourceLabel: string | null;
     reviewedAt: string | null;
     instructionRole: 'reference_fact_not_instruction';
@@ -150,6 +166,7 @@ export const ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY = {
   rawPageBodyStored: false,
   externalFetchEnabled: false,
   searchCountLimit: 5,
+  titleMaxChars: 120,
   costGuard: {
     retrievalBeforeProviderCall: true,
     vectorSearchMaxMatches: 5,
@@ -179,6 +196,22 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
   },
   lifecycleStatuses: ARTIST_URL_KNOWLEDGE_STATUSES,
   sourceTypes: ARTIST_URL_KNOWLEDGE_SOURCE_TYPES,
+  safetyStatuses: ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES,
+  registrationSkeleton: {
+    fieldSeparation: {
+      title: 'metadata.title or future public metadata title',
+      source: 'sourceType plus hostname-only sourceLabel',
+      approvalStatus: 'status',
+      summary: 'reviewer-visible bounded summary',
+      safetyStatus: 'metadata.safetyStatus or metadata.safety.status',
+      rawUrl: 'stored for review operations only, never provider context',
+    },
+    approvalStatuses: ARTIST_URL_KNOWLEDGE_STATUSES,
+    chatEligibleSafetyStatuses: ['safe'],
+    reviewRequiredSafetyStatuses: ['unreviewed', 'needs_review', 'blocked'],
+    rawSubmittedUrlIsReferenceMaterial: false,
+    approvedSummaryIsReferenceFactOnly: true,
+  },
   apiContracts: {
     creatorList: {
       method: 'GET',
@@ -193,9 +226,12 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
             id: '<knowledge-url-id>',
             artistId: '<artist-id>',
             type: '<youtube|instagram|tiktok|blog|notice|other>',
+            title: '<optional public title or null>',
             url: '<submitted-url>',
             description: '<artist direct description>',
+            approvalStatus: '<pending|approved|rejected|archived>',
             summary: '<stored summary fragment>',
+            safetyStatus: '<unreviewed|needs_review|safe|blocked>',
             allowChatRef: '<boolean>',
             status: '<pending|approved|rejected|archived>',
             createdAt: '<ISO timestamp>',
@@ -372,17 +408,58 @@ export function isArtistKnowledgeSourceType(
   );
 }
 
+export function isArtistKnowledgeSafetyStatus(
+  status: string | null | undefined,
+): status is ArtistUrlKnowledgeSafetyStatus {
+  return (ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES as readonly string[]).includes(
+    status ?? '',
+  );
+}
+
 export function isArtistKnowledgeChatEligible(
   item: Pick<
     ArtistKnowledgeChatCandidate,
     'status' | 'allowChatReference' | 'summary'
-  >,
+  > &
+    Partial<Pick<ArtistKnowledgeChatCandidate, 'safetyStatus' | 'metadata'>>,
 ) {
   return (
     item.status === 'approved' &&
     item.allowChatReference === true &&
-    Boolean(normalizeArtistKnowledgeSummary(item.summary))
+    Boolean(normalizeArtistKnowledgeSummary(item.summary)) &&
+    artistKnowledgeSafetyStatusFromCandidate(item) === 'safe'
   );
+}
+
+export function artistKnowledgeSafetyStatusFromCandidate(
+  item: Pick<ArtistKnowledgeChatCandidate, 'status'> &
+    Partial<Pick<ArtistKnowledgeChatCandidate, 'safetyStatus' | 'metadata'>>,
+) {
+  if (isArtistKnowledgeSafetyStatus(item.safetyStatus)) {
+    return item.safetyStatus;
+  }
+
+  return artistKnowledgeSafetyStatusFromMetadata(item.metadata, item.status);
+}
+
+export function artistKnowledgeSafetyStatusFromMetadata(
+  metadata: unknown,
+  lifecycleStatus?: string | null,
+): ArtistUrlKnowledgeSafetyStatus {
+  const metadataRecord = recordOrEmpty(metadata);
+  const safetyRecord = recordOrEmpty(
+    metadataRecord.safety ?? metadataRecord.safetyReview,
+  );
+  const candidate =
+    stringOrNull(metadataRecord.safetyStatus) ??
+    stringOrNull(safetyRecord.status) ??
+    stringOrNull(safetyRecord.safetyStatus);
+
+  if (isArtistKnowledgeSafetyStatus(candidate)) {
+    return candidate;
+  }
+
+  return lifecycleStatus === 'approved' ? 'safe' : 'unreviewed';
 }
 
 export function normalizeArtistKnowledgeSummary(
@@ -396,6 +473,19 @@ export function normalizeArtistKnowledgeSummary(
   }
 
   return summary.length > maxChars ? summary.slice(0, maxChars) : summary;
+}
+
+export function normalizeArtistKnowledgeTitle(
+  value: string | null | undefined,
+  maxChars: number = ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY.titleMaxChars,
+) {
+  const title = value?.replace(/\s+/g, ' ').trim();
+
+  if (!title) {
+    return null;
+  }
+
+  return title.length > maxChars ? title.slice(0, maxChars) : title;
 }
 
 export function buildArtistKnowledgeChatContext(
@@ -427,13 +517,16 @@ export function buildArtistKnowledgeChatContext(
       .slice(0, maxItems)
       .map((item) => ({
         id: item.id,
+        title: normalizeArtistKnowledgeTitle(item.title),
         sourceType: isArtistKnowledgeSourceType(item.sourceType)
           ? item.sourceType
           : 'other',
+        approvalStatus: 'approved',
         summary: normalizeArtistKnowledgeSummary(
           item.summary,
           maxSummaryChars,
         ) as string,
+        safetyStatus: 'safe',
         sourceLabel: sourceLabelFromUrl(item.canonicalUrl),
         reviewedAt: isoStringOrNull(item.reviewedAt),
         instructionRole: 'reference_fact_not_instruction',
@@ -618,6 +711,16 @@ function sourceLabelFromUrl(value: string | null | undefined) {
   } catch {
     return null;
   }
+}
+
+function recordOrEmpty(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function stringOrNull(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function isoStringOrNull(value: Date | string | null | undefined) {
