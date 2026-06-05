@@ -4014,6 +4014,52 @@ describe('ChatService premium chat support contract', () => {
       maxLumina: 50000,
       integerOnly: true,
     });
+    expect(contract.donation.serverAmountGuard).toMatchObject({
+      version: '2026-06-05.premium-chat-donation-amount-guard.v1',
+      fixedAmountsLumina: [
+        10,
+        50,
+        100,
+        500,
+        1000,
+        5000,
+        10000,
+        50000,
+      ],
+      directInput: {
+        supported: true,
+        minLumina: 1,
+        maxLumina: 50000,
+        integerOnly: true,
+      },
+      amountSource: 'server_normalized_premium_chat_support_amount',
+      clientDisplayedAmountTrusted: false,
+      clientSubmittedBalanceTrusted: false,
+      walletBalanceSource: 'wallet_accounts.cached_balance',
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(contract.donation.serverAmountGuard.validationOrder).toEqual([
+      'room_status_allows_support',
+      'amount_integer',
+      'amount_min_max',
+      'fixed_or_direct_input_classification',
+      'idempotency_fingerprint',
+      'wallet_cached_balance_gte_server_amount',
+    ]);
+    for (const fixedAmount of contract.donation.fixedAmountsLumina) {
+      expect(
+        resolvePremiumChatDonationAmountPolicy({ amountLumina: fixedAmount }),
+      ).toMatchObject({
+        allowed: true,
+        amountLumina: fixedAmount,
+        amountKind: 'fixed',
+        walletMutationEnabled: false,
+        clientSubmittedBalanceTrusted: false,
+      });
+    }
     expect(resolvePremiumChatDonationAmountPolicy({ amountLumina: 100 })).toMatchObject({
       allowed: true,
       amountLumina: 100,
@@ -4037,12 +4083,27 @@ describe('ChatService premium chat support contract', () => {
       messageKey: 'chat.donation.amountOutOfRange',
       walletMutationEnabled: false,
     });
+    expect(resolvePremiumChatDonationAmountPolicy({ amountLumina: -10 })).toMatchObject({
+      allowed: false,
+      status: 400,
+      code: 'PREMIUM_CHAT_DONATION_AMOUNT_OUT_OF_RANGE',
+      messageKey: 'chat.donation.amountOutOfRange',
+      walletMutationEnabled: false,
+    });
     expect(resolvePremiumChatDonationAmountPolicy({ amountLumina: 10.5 })).toMatchObject({
       allowed: false,
       status: 400,
       code: 'PREMIUM_CHAT_DONATION_AMOUNT_INVALID',
       messageKey: 'chat.donation.invalidAmount',
       walletMutationEnabled: false,
+    });
+    expect(resolvePremiumChatDonationAmountPolicy({ amountLumina: 'abc' })).toMatchObject({
+      allowed: false,
+      status: 400,
+      code: 'PREMIUM_CHAT_DONATION_AMOUNT_INVALID',
+      messageKey: 'chat.donation.invalidAmount',
+      walletMutationEnabled: false,
+      clientSubmittedBalanceTrusted: false,
     });
     expect(resolvePremiumChatDonationGuardPolicy({
       roomStatus: 'active',
