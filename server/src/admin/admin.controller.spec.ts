@@ -83,3 +83,17 @@ describe('AdminController artist knowledge URL permissions', () => {
     );
   });
 });
+
+describe('AdminController wallet ledger audit permissions', () => {
+  it('keeps wallet ledger audit read model behind payments:read', () => {
+    expect(mountedAdminControllerRoutes()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          method: RequestMethod.GET,
+          path: 'backstage/operations/wallet-ledger-audit',
+          permissions: ['payments:read'],
+        }),
+      ]),
+    );
+  });
+});

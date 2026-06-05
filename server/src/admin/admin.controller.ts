@@ -136,6 +136,12 @@ export class AdminController {
     return this.adminService.getBackstageObjectStorageDiagnostics();
   }
 
+  @Get('backstage/operations/wallet-ledger-audit')
+  @RequireAdminPermissions('payments:read')
+  getBackstageWalletLedgerAudit(@Query() query: AuditQuery) {
+    return this.adminService.getBackstageWalletLedgerAudit(query);
+  }
+
   @Get('backstage/fan-engagement/missions')
   @RequireAdminPermissions('*')
   getBackstageFanMissions(
