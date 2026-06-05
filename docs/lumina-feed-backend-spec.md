@@ -294,6 +294,24 @@ Manual thread rules:
 - Thread create/edit/delete does not mutate wallet, Lumina, settlement, payout,
   order, or paid-like flows.
 
+Repost and quote repost rules:
+
+- `POST /lumina-feed/posts/:postId/reposts` creates a user-owned repost row with
+  `metadata.repost.originalPostId`. Empty `body` is a simple repost; non-empty
+  `body` is a quote repost and uses the 2200-character feed body cap.
+- Repost rows project `post.repost.type` as only `repost` or `quote_repost`, plus
+  `hasQuote`, `quoteBody`, `originalPostId`, original author/artist ids, and a
+  bounded embedded `originalPost` when the source is visible.
+- Repost projection is not a thread/comment/reply relation:
+  `parentPostId: null`, `threadRootPostId: null`, `commentRelation: false`,
+  `replyRelation: false`, and `threadRelation: false`.
+- If the original post becomes deleted, hidden, private, or unavailable because
+  the viewer hid it or has an active block relationship with the original author,
+  `originalState` becomes `unavailable`, `tombstone` is `true`, and
+  `originalPost` is `null`; the original body is not exposed.
+- Repost and quote repost create/read paths do not mutate wallet, Lumina,
+  settlement, payout, order, or paid-like flows.
+
 External link example:
 
 ```json

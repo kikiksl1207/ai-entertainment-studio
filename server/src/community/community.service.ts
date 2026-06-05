@@ -2953,10 +2953,22 @@ export class CommunityService {
       },
     });
 
+    const quoteBody =
+      this.stringFromUnknown(relation.quoteBody) ??
+      this.stringFromUnknown(relation.quoteText) ??
+      null;
+    const type = this.repostRelationType(this.stringFromUnknown(relation.type), quoteBody);
+
     return {
       isRepost: true,
-      type: this.stringFromUnknown(relation.type) ?? 'repost',
+      type,
       relation: 'repost',
+      hasQuote: type === 'quote_repost',
+      parentPostId: null,
+      threadRootPostId: null,
+      commentRelation: false,
+      replyRelation: false,
+      threadRelation: false,
       originalPostId,
       originalAuthorUserId:
         this.stringFromUnknown(relation.originalAuthorUserId) ??
@@ -2966,10 +2978,7 @@ export class CommunityService {
         this.stringFromUnknown(relation.originalArtistId) ??
         originalPost?.artistId ??
         null,
-      quoteBody:
-        this.stringFromUnknown(relation.quoteBody) ??
-        this.stringFromUnknown(relation.quoteText) ??
-        null,
+      quoteBody,
       originalState: originalPost ? 'visible' : 'unavailable',
       tombstone: !originalPost,
       unavailableReason: originalPost ? null : 'viewer_restricted_or_unavailable',
@@ -4418,15 +4427,20 @@ export class CommunityService {
 
   private buildRepostMetadata(originalPost: any, quoteBody: string, now: Date) {
     const timestamp = now.toISOString();
+    const type = quoteBody ? 'quote_repost' : 'repost';
 
     return {
       version: 1,
-      type: quoteBody ? 'quote_repost' : 'repost',
+      type,
       originalPostId: originalPost.id,
       originalAuthorUserId: originalPost.authorUserId,
       originalArtistId: originalPost.artistId ?? null,
       originalPostType: originalPost.postType,
       quoteBody: quoteBody || null,
+      hasQuote: type === 'quote_repost',
+      parentThreadRelation: false,
+      commentRelation: false,
+      replyRelation: false,
       sourceVisibility: 'public',
       originalDeletionPolicy: 'render_tombstone_without_body',
       originalHiddenPolicy: 'hide_embedded_original',
@@ -4477,9 +4491,15 @@ export class CommunityService {
   private feedRepostPolicy() {
     return {
       relation: 'repost',
+      allowedTypes: ['repost', 'quote_repost'],
+      simpleRepostBodyPolicy: 'empty_body',
+      quoteRepostBodyPolicy: 'optional_quote_body',
       quoteBodyMaxChars: FEED_POST_MAX_BODY_CHARS,
       sourceVisibility: 'public_only',
       originalReferenceRequired: true,
+      parentThreadRelation: false,
+      commentRelation: false,
+      replyRelation: false,
       originalDeletionPolicy: 'render_tombstone_without_body',
       originalHiddenPolicy: 'hide_embedded_original',
       originalBlockedPolicy: 'hide_embedded_original',
@@ -4849,6 +4869,14 @@ export class CommunityService {
 
   private stringFromUnknown(value: unknown) {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  }
+
+  private repostRelationType(value: string | undefined, quoteBody: string | null) {
+    if (value === 'quote_repost' || value === 'repost') {
+      return value;
+    }
+
+    return quoteBody ? 'quote_repost' : 'repost';
   }
 
   private userBlockPolicy() {
