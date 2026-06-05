@@ -7,6 +7,28 @@ export const PREMIUM_CHAT_ROOM_DEFAULT_UNLOCKED_TIER_KEYS = [
 export const PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS = 3;
 export const PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS = 10;
 export const PREMIUM_CHAT_ROOM_MAX_TIER_AMOUNT_LUMINA = 3000;
+export const PREMIUM_CHAT_ROOM_FOLLOWER_TIER_UNLOCKS = [
+  {
+    tierKey: 'premium_chat_room_300',
+    amountLumina: 300,
+    minActiveFollowers: 0,
+  },
+  {
+    tierKey: 'premium_chat_room_500',
+    amountLumina: 500,
+    minActiveFollowers: 1000,
+  },
+  {
+    tierKey: 'premium_chat_room_1000',
+    amountLumina: 1000,
+    minActiveFollowers: 10000,
+  },
+  {
+    tierKey: 'premium_chat_room_3000',
+    amountLumina: 3000,
+    minActiveFollowers: 50000,
+  },
+] as const;
 
 export const PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES = [
   'closed',
@@ -282,6 +304,31 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
         'duration_server_clamped',
         'idempotency_fingerprint',
         'wallet_cached_balance_gte_server_amount',
+      ],
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    },
+    followerTierUnlockContract: {
+      version: '2026-06-05.premium-chat-follower-tier-unlock.v1',
+      sourceOfTruth: 'artist_follows',
+      activeFollowerWhere: {
+        status: 'active',
+        deletedAt: null,
+      },
+      thresholds: PREMIUM_CHAT_ROOM_FOLLOWER_TIER_UNLOCKS,
+      countIncludesDeletedAccounts: false,
+      clientSubmittedFollowerCountTrusted: false,
+      cachedFollowerCountTrustedForUnlock: false,
+      manualCompanyOverrideEnabled: false,
+      multipleRoomAmountsCanBeOffered: true,
+      projectionFields: [
+        'tierKey',
+        'amountLumina',
+        'minActiveFollowers',
+        'unlocked',
+        'source',
       ],
       mutationEnabled: false,
       walletMutationEnabled: false,
@@ -1531,6 +1578,46 @@ export function premiumChatRoomAllowedTierKeysForServerUnlocks(
     .forEach((tierKey) => allowed.add(tierKey));
 
   return premiumChatRoomKnownTierKeys().filter((tierKey) => allowed.has(tierKey));
+}
+
+export function resolvePremiumChatRoomFollowerTierUnlocks(input: {
+  activeFollowerCount?: unknown;
+  clientSubmittedFollowerCount?: unknown;
+} = {}) {
+  const activeFollowerCount =
+    typeof input.activeFollowerCount === 'number' &&
+    Number.isInteger(input.activeFollowerCount) &&
+    input.activeFollowerCount > 0
+      ? input.activeFollowerCount
+      : 0;
+  const tiers = PREMIUM_CHAT_ROOM_FOLLOWER_TIER_UNLOCKS.map((tier) => ({
+    ...tier,
+    unlocked: activeFollowerCount >= tier.minActiveFollowers,
+    source: 'server_counted_active_artist_follows',
+  }));
+
+  return {
+    activeFollowerCount,
+    unlockedTierKeys: tiers
+      .filter((tier) => tier.unlocked)
+      .map((tier) => tier.tierKey),
+    tiers,
+    sourceOfTruth: 'artist_follows',
+    activeFollowerWhere: {
+      status: 'active',
+      deletedAt: null,
+    },
+    clientSubmittedFollowerCountTrusted: false,
+    clientSubmittedFollowerCountIgnored:
+      input.clientSubmittedFollowerCount !== undefined,
+    cachedFollowerCountTrustedForUnlock: false,
+    countIncludesDeletedAccounts: false,
+    manualCompanyOverrideEnabled: false,
+    multipleRoomAmountsCanBeOffered: true,
+    walletMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+  } as const;
 }
 
 export function resolvePremiumChatRoomOpenPolicy(input: {
