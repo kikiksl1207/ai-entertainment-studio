@@ -255,6 +255,38 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       walletMutation: true,
       requiresIdempotencyKey: true,
     },
+    entitlementGuard: {
+      version: '2026-06-05.premium-chat-room-open-entitlement-guard.v1',
+      defaultTierKey: PREMIUM_CHAT_ROOM_DEFAULT_TIER_KEY,
+      defaultUnlockedTierKeys: PREMIUM_CHAT_ROOM_DEFAULT_UNLOCKED_TIER_KEYS,
+      allowedAmountsLumina: PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
+      maxTierAmountLumina: PREMIUM_CHAT_ROOM_MAX_TIER_AMOUNT_LUMINA,
+      tierUnlockSource: 'server_unlocked_tier_keys',
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedFollowerCountTrusted: false,
+      clientSubmittedDurationTrusted: false,
+      walletBalanceSource: 'wallet_accounts.cached_balance',
+      duration: {
+        baseDays: PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+        maxTotalDays: PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS,
+        artistExtensionMaxAdditionalDays:
+          PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS - PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+        serverCalculatedExpiryAuthoritative: true,
+      },
+      validationOrder: [
+        'artist_exists',
+        'tier_key_known',
+        'tier_unlocked_by_server',
+        'server_amount_from_tier',
+        'duration_server_clamped',
+        'idempotency_fingerprint',
+        'wallet_cached_balance_gte_server_amount',
+      ],
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    },
     tiers: [
       {
         tierKey: 'premium_chat_room_300',
