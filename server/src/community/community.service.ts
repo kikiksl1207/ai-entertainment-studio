@@ -4492,14 +4492,21 @@ export class CommunityService {
       sourceVisibility: 'public_only',
       originalReferenceRequired: true,
       deletedSourcePolicy: 'not_found_before_create',
+      createSourceStatusPolicy: 'published_public_not_deleted_only',
+      createBlockedRelationshipPolicy: 'reject_before_repost_create',
       originalDeletionPolicy: 'render_tombstone_without_body',
       originalHiddenPolicy: 'hide_embedded_original',
       originalBlockedPolicy: 'hide_embedded_original',
+      embeddedOriginalProjection: 'safe_public_summary_or_tombstone',
+      rawPrivateMetadataReturned: false,
+      rawOwnerMetadataReturned: false,
       shareIsSeparateContract: true,
+      shareCountMutation: false,
       walletMutation: false,
       luminaMutation: false,
       settlementMutation: false,
       payoutMutation: false,
+      paidLikeMutation: false,
     };
   }
 
@@ -4520,9 +4527,13 @@ export class CommunityService {
     return {
       relation: 'share',
       sourceVisibility: 'public_only',
+      sourceStatusPolicy: 'published_public_not_deleted_only',
       availableOnOtherUsersPosts: true,
       authorOwnershipRequired: false,
       publicPathTemplate: '/lumina-feed/posts/:postId',
+      privateMetadataReturned: false,
+      rawOwnerMetadataReturned: false,
+      rawAuthorUserIdReturned: false,
       createsFeedRow: false,
       createsRepost: false,
       shareCountMutation: false,
@@ -4530,6 +4541,7 @@ export class CommunityService {
       luminaMutation: false,
       settlementMutation: false,
       payoutMutation: false,
+      paidLikeMutation: false,
     };
   }
 
