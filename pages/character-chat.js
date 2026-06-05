@@ -1188,6 +1188,145 @@
     }
   }
 
+  /* #627 — 프리미엄챗 후원 바텀시트.
+   * HTML: chatDonationSheet / chatDonationOpen / chatDonationBackdrop
+   * 실제 차감 API 미연결 (walletMutationEnabled false이면 확인 버튼 disabled 유지).
+   * 금액 선택 → 합계 표시 → 확인 버튼 활성화 흐름만 연결. */
+  const DONATION_FIXED_AMOUNTS = [10, 50, 100, 500, 1000, 5000, 10000, 50000];
+
+  function renderDonationFixedAmounts(mutationOpen) {
+    const grid = $("donationFixedAmounts");
+    if (!grid) return;
+    grid.textContent = "";
+    DONATION_FIXED_AMOUNTS.forEach((amount) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "donation-amount";
+      btn.dataset.donationAmount = String(amount);
+      btn.setAttribute("role", "radio");
+      btn.setAttribute("aria-checked", "false");
+      btn.disabled = !mutationOpen;
+      btn.setAttribute("aria-disabled", mutationOpen ? "false" : "true");
+      if (amount >= 10000) btn.dataset.highValue = "1";
+      btn.innerHTML = `<span class="donation-amount-value">${amount.toLocaleString("ko-KR")}</span><span class="donation-amount-unit">L</span>`;
+      grid.append(btn);
+    });
+  }
+
+  function updateDonationSummary(amount) {
+    const summary = $("donationSummary");
+    const label = summary?.querySelector(".donation-summary-amount");
+    if (!label) return;
+    if (!amount || amount < 1) {
+      label.textContent = "금액을 선택하면 합계가 표시됩니다.";
+    } else {
+      label.textContent = `${Number(amount).toLocaleString("ko-KR")}L 후원 예정`;
+    }
+  }
+
+  function bindDonationSheet() {
+    const openBtn = $("chatDonationOpen");
+    const sheet = $("chatDonationSheet");
+    const backdrop = $("chatDonationBackdrop");
+    const confirmBtn = $("donationConfirmBtn");
+    const confirmLabel = $("donationConfirmLabel");
+    const customInput = $("donationCustomAmount");
+    const msgTextarea = $("donationMessage");
+    const msgCounter = $("donationMessageCounter");
+    if (!openBtn || !sheet || !backdrop) return;
+
+    let selectedAmount = 0;
+    // walletMutationEnabled 상태는 setDonationActionState에서 button.disabled로 표현됨
+    const mutationOpen = !openBtn.disabled;
+
+    function openSheet() {
+      sheet.hidden = false;
+      backdrop.hidden = false;
+      document.body.classList.add("is-sheet-open");
+      renderDonationFixedAmounts(mutationOpen);
+      selectedAmount = 0;
+      if (customInput) customInput.value = "";
+      updateDonationSummary(0);
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.setAttribute("aria-disabled", "true");
+        if (confirmLabel) confirmLabel.textContent = mutationOpen ? "금액을 선택해 주세요" : "후원 준비 중";
+      }
+    }
+
+    function closeSheet() {
+      sheet.hidden = true;
+      backdrop.hidden = true;
+      document.body.classList.remove("is-sheet-open");
+    }
+
+    function setSelectedAmount(amount) {
+      selectedAmount = amount;
+      updateDonationSummary(amount);
+      if (confirmBtn && confirmLabel) {
+        const valid = mutationOpen && amount >= 1;
+        confirmBtn.disabled = !valid;
+        confirmBtn.setAttribute("aria-disabled", valid ? "false" : "true");
+        confirmLabel.textContent = valid
+          ? `${Number(amount).toLocaleString("ko-KR")}L 후원하기`
+          : (mutationOpen ? "금액을 선택해 주세요" : "후원 준비 중");
+      }
+    }
+
+    openBtn.addEventListener("click", openSheet);
+    backdrop.addEventListener("click", closeSheet);
+    sheet.querySelectorAll("[data-donation-close]").forEach((el) => {
+      el.addEventListener("click", closeSheet);
+    });
+
+    // 고정 금액 버튼
+    const grid = $("donationFixedAmounts");
+    if (grid) {
+      grid.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-donation-amount]");
+        if (!btn || btn.disabled) return;
+        grid.querySelectorAll("[data-donation-amount]").forEach((b) => {
+          b.setAttribute("aria-checked", "false");
+          b.classList.remove("is-active");
+        });
+        btn.setAttribute("aria-checked", "true");
+        btn.classList.add("is-active");
+        if (customInput) customInput.value = "";
+        setSelectedAmount(Number(btn.dataset.donationAmount));
+      });
+    }
+
+    // 직접 입력
+    if (customInput) {
+      customInput.addEventListener("input", () => {
+        const val = Math.min(Math.max(Math.floor(Number(customInput.value) || 0), 0), 50000);
+        if (grid) grid.querySelectorAll("[data-donation-amount]").forEach((b) => b.setAttribute("aria-checked", "false"));
+        setSelectedAmount(val);
+      });
+    }
+
+    // 메시지 카운터
+    if (msgTextarea && msgCounter) {
+      msgTextarea.addEventListener("input", () => {
+        msgCounter.textContent = `${msgTextarea.value.length} / 200`;
+      });
+    }
+
+    // 확인 버튼 — 결제 API 미연결, 접수 안내만
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", () => {
+        if (!mutationOpen || selectedAmount < 1) return;
+        if (confirmLabel) confirmLabel.textContent = "후원 기능 준비 중이에요 · 곧 열려요";
+        confirmBtn.disabled = true;
+        confirmBtn.setAttribute("aria-disabled", "true");
+      });
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !sheet.hidden) closeSheet();
+    });
+  }
+
   /* 받은 이미지 보관함 시트 (대화 중 받은 이미지만 보관). 결제/주문 호출 없음. */
   function bindInboxSheet() {
     const open = $("chatInboxOpen");
@@ -1356,6 +1495,7 @@
     bindInputAutoGrow();
     bindSubmitGuard();
     bindRequestSheet();
+    bindDonationSheet();
     bindInboxSheet();
     applyCleanModeIfReady();
 
