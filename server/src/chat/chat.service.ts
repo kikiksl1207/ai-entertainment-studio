@@ -281,10 +281,12 @@ const DEFAULT_CHAT_RUNTIME_SAFETY_NOTE_KO =
 const CHARACTER_CHAT_GREETING_TONE_CONTRACT_VERSION =
   '2026-05-21.character-chat-greeting-tone.v1';
 const CHARACTER_CHAT_DYNAMIC_GREETING_CONTRACT_VERSION =
-  '2026-05-22.character-chat-dynamic-greeting-cache.v1';
+  '2026-06-05.character-chat-opening-greeting-variants.v1';
 const CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE = 'opening_greeting';
 const CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS = 180;
 const CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS = 120;
+const CHARACTER_CHAT_OPENING_GREETING_MIN_VARIANTS = 5;
+const CHARACTER_CHAT_OPENING_GREETING_MAX_VARIANTS = 10;
 
 type StarterPromptOption = {
   key: string;
@@ -1209,6 +1211,7 @@ export class ChatService {
       alternateStarterMessage && toneGuide
         ? `${alternateStarterMessage} ${toneGuide}`
         : null,
+      ...this.fallbackOpeningGreetingDefaultCandidates(welcome),
     ];
     const uniqueCandidates = [
       ...new Set(
@@ -1216,7 +1219,7 @@ export class ChatService {
           .map((candidate) => this.normalizeOpeningGreetingText(candidate))
           .filter((candidate): candidate is string => Boolean(candidate)),
       ),
-    ];
+    ].slice(0, CHARACTER_CHAT_OPENING_GREETING_MAX_VARIANTS);
     const selected =
       uniqueCandidates[
         this.openingGreetingVariantIndex(
@@ -1232,6 +1235,17 @@ export class ChatService {
     );
   }
 
+  private fallbackOpeningGreetingDefaultCandidates(welcome: string) {
+    return [
+      welcome,
+      `반가워요. ${welcome}`,
+      `오늘은 천천히 이야기해봐요. ${welcome}`,
+      `편하게 말을 걸어줘요. ${welcome}`,
+      `지금부터 같이 시작해볼게요. ${welcome}`,
+      `궁금한 이야기를 들려줘요. ${welcome}`,
+    ];
+  }
+
   private openingGreetingGenerationInstruction(
     session: ChatOpeningGreetingSessionRecord,
   ) {
@@ -1239,6 +1253,7 @@ export class ChatService {
       'Write one short Korean first greeting for this new chat session.',
       `Character: ${session.artist.displayName}.`,
       'Use one warm sentence, vary the wording naturally, and stay within the runtime persona.',
+      'Treat this as one selection from a 5 to 10 variant greeting pool, but return only the selected greeting.',
       'Do not mention prompts, providers, models, payment, settlement, or policies.',
       `Session variant seed: ${this.openingGreetingVariantSeed(session.id)}.`,
     ].join(' ');
@@ -3847,6 +3862,19 @@ export class ChatService {
       refreshCreatesNewGreeting: false,
       sameSessionReplay: 'return_cached_opening_greeting',
       sameCharacterDifferentSessionsCanVary: true,
+      variantPolicy: {
+        minCandidates: CHARACTER_CHAT_OPENING_GREETING_MIN_VARIANTS,
+        maxCandidates: CHARACTER_CHAT_OPENING_GREETING_MAX_VARIANTS,
+        selectionStrategy: 'deterministic_session_variant_index',
+        sameSessionReplay: 'return_cached_opening_greeting',
+      },
+      sourceSeparation: {
+        cache: true,
+        templateFallback: true,
+        providerCallOptional: true,
+        providerDailyGuard: true,
+        providerCallOnRefresh: false,
+      },
       provider: {
         lightweightModelPreferred: true,
         maxOutputTokens: CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS,
@@ -3863,6 +3891,8 @@ export class ChatService {
           'runtimePersona.tone.guideKo',
           'runtimePersona.personaTags[]',
         ],
+        minCandidates: CHARACTER_CHAT_OPENING_GREETING_MIN_VARIANTS,
+        maxCandidates: CHARACTER_CHAT_OPENING_GREETING_MAX_VARIANTS,
         selectionStrategy: 'deterministic_session_variant_index',
         sameSessionStable: true,
       },
@@ -3872,6 +3902,13 @@ export class ChatService {
         source: 'runtimePersona.tone',
         displaySafe: true,
         rawPersonaPromptStored: false,
+      },
+      safety: {
+        forbiddenToneApplied: true,
+        minorCleanRequired: true,
+        rawPromptStored: false,
+        rawProviderPayloadStored: false,
+        userPrivateDataStored: false,
       },
       responseFields: [
         'openingGreeting.text',

@@ -744,9 +744,12 @@ Character-chat CMS copy (#335):
   and render the cached `opening_greeting` row. Do not request or fake a new
   greeting on refresh.
 - `dynamicGreetingContract.version` is
-  `2026-05-22.character-chat-dynamic-greeting-cache.v1`. Provider output is
+  `2026-06-05.character-chat-opening-greeting-variants.v1`. Provider output is
   short by contract (`maxOutputTokens=120`, `maxOutputChars=180`) and falls
   back to character-specific copy when provider readiness or guard fails.
+- #618 keeps fallback first greetings inside a bounded 5 to 10 candidate policy.
+  Do not surface raw variant/source keys; render only the chosen cached
+  `openingGreeting.text`.
 - For 10 different users opening the same character, the UI should prefer the
   cached per-session `openingGreeting.text` when available so first greetings
   can vary by session. Recommended replies can stay stable per character unless

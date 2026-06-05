@@ -951,8 +951,14 @@ Character-chat dynamic opening greeting cache (#388):
 - The same character can still produce different first greetings across
   different sessions through provider output or deterministic fallback variant
   seed from `chat_sessions.id`.
+- #618 fixes the fallback variant contract at a bounded 5 to 10 display-safe
+  greeting candidates. Sparse character data receives at least five template
+  candidates, while richer persona/starter/tone data can fill the pool up to the
+  ten-candidate cap before deterministic session selection.
 - Provider generation is short and low-cost by contract:
   `maxOutputTokens=120`, `maxOutputChars=180`, lightweight model preferred.
+- Provider generation remains optional and separated from cache/template
+  fallback. Cached reads and refreshes do not create another provider request.
 - If provider readiness, daily guard, or request fails, the backend stores a
   character-specific fallback greeting from site-content copy, artist metadata,
   character fallback, or default copy.
@@ -961,12 +967,15 @@ Character-chat dynamic opening greeting cache (#388):
   first-entry provider candidate, and it remains behind provider readiness,
   daily request/failure guards, one-per-session cache, and short-output limits.
 - `dynamicGreetingContract.version` is
-  `2026-05-22.character-chat-dynamic-greeting-cache.v1` and is exposed on
+  `2026-06-05.character-chat-opening-greeting-variants.v1` and is exposed on
   `GET /api/v1/chat/character-catalog` and
   `GET /api/v1/chat/starter-prompts`.
 - Opening greeting metadata must not store or return raw prompts, provider
   payloads, tokens, API keys, user private data, wallet/order/settlement ids, or
   payout internals.
+- Forbidden-tone and minor-clean standards stay display-only and character
+  scoped: first greetings must avoid real-person contact/relationship/payment
+  prompts and expose only safe tone/persona candidate fields.
 - `openingGreeting.toneCandidate` is display-safe contract data only. Do not
   treat it as an editable system prompt or expose raw metadata keys as user copy.
 
