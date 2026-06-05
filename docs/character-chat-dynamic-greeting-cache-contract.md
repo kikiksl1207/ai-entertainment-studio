@@ -1,9 +1,10 @@
 # Character Chat Dynamic Greeting Cache Contract
 
-Updated: 2026-05-22
+Updated: 2026-06-05
 Owner: Luffy
 Task: Notion #388, #397 regression contract, #402 tone candidate contract, #454
-greeting/recommended-reply diversity contract, #468 random tone selection contract
+greeting/recommended-reply diversity contract, #468 random tone selection contract,
+#618 opening greeting variant contract
 
 This contract makes the first character-chat greeting dynamic per chat session
 without generating a new greeting on every page refresh. It keeps raw prompts,
@@ -30,7 +31,7 @@ response now includes an additive `openingGreeting` projection:
       "reloadCreatesNewGreeting": false
     },
     "generation": {
-      "contractVersion": "2026-05-22.character-chat-dynamic-greeting-cache.v1",
+      "contractVersion": "2026-06-05.character-chat-opening-greeting-variants.v1",
       "providerCall": true,
       "maxOutputChars": 180,
       "maxOutputTokens": 120
@@ -71,6 +72,10 @@ provider requests or two opening-greeting rows for one session.
 - Same session reload: return cached `opening_greeting`.
 - Same character, different sessions: wording can vary through provider output
   or deterministic fallback variant seed from the session id.
+- Fallback keeps a bounded 5 to 10 candidate pool. Sparse character data still
+  receives at least five display-safe template variants before session-based
+  selection, while richer persona/starter/tone data can supply character-specific
+  candidates up to the ten-candidate cap.
 - Fallback variation uses a deterministic session variant index, not a fresh
   random draw on every render. Candidate inputs are character-specific:
   `runtimePersona.welcome.text`, `runtimePersona.starterOptions[].message`,
@@ -92,6 +97,9 @@ provider requests or two opening-greeting rows for one session.
   character-specific fallback greeting.
 - Fallback uses the same character runtime persona source order:
   site-content copy, artist metadata, character fallback, then default copy.
+- Provider generation remains optional. Refreshes and cached reads do not call
+  the provider; provider attempts are separated from cache/template fallback and
+  remain under the daily provider guard.
 
 ## Safety
 
@@ -112,6 +120,11 @@ It does not store or return:
 - user private data
 - raw provider secret
 - wallet/order/settlement/payout ids
+
+Forbidden-tone and minor-clean standards remain part of the display contract:
+first greetings must stay inside the character boundary, avoid real-person
+contact/relationship/payment prompts, and expose only display-safe tone/persona
+candidate fields.
 
 ## Frontend Notes
 
@@ -140,7 +153,8 @@ The backend test fixes:
   fixtures and ten sessions per character, so same-character greetings cannot
   silently regress to one fixed sentence
 - `dynamicGreetingContract.fallback` exposes the candidate inputs and stable
-  deterministic session selection strategy
+  deterministic session selection strategy, including the 5 to 10 bounded
+  candidate policy
 - the opening greeting response and stored metadata carry character-specific
   display-safe tone/persona candidate fields
 - exhausted daily provider guard stores a zero-cost fallback and skips provider

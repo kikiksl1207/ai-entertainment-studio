@@ -574,7 +574,7 @@ describe('ChatService dynamic opening greeting cache', () => {
         reloadCreatesNewGreeting: false,
       },
       generation: {
-        contractVersion: '2026-05-22.character-chat-dynamic-greeting-cache.v1',
+        contractVersion: '2026-06-05.character-chat-opening-greeting-variants.v1',
         providerCall: true,
         maxOutputChars: 180,
         maxOutputTokens: 120,
@@ -953,7 +953,7 @@ describe('ChatService dynamic opening greeting cache', () => {
     }
 
     expect(greetings).toHaveLength(12);
-    expect(new Set(greetings).size).toBeGreaterThanOrEqual(4);
+    expect(new Set(greetings).size).toBeGreaterThanOrEqual(5);
     expect(greetings.every((greeting) => greeting === greetings[0])).toBe(false);
     expect(llmProvider.generate).not.toHaveBeenCalled();
     expect(tx.chatMessage.create).toHaveBeenCalledTimes(12);
@@ -2446,15 +2446,30 @@ describe('ChatService persona and catalog policy', () => {
       ]),
     );
     expect(catalog.dynamicGreetingContract).toMatchObject({
-      version: '2026-05-22.character-chat-dynamic-greeting-cache.v1',
+      version: '2026-06-05.character-chat-opening-greeting-variants.v1',
       characterSlug: 'yoon-serin',
       cacheScope: 'chat_session',
       refreshCreatesNewGreeting: false,
       sameSessionReplay: 'return_cached_opening_greeting',
       sameCharacterDifferentSessionsCanVary: true,
+      variantPolicy: {
+        minCandidates: 5,
+        maxCandidates: 10,
+        selectionStrategy: 'deterministic_session_variant_index',
+        sameSessionReplay: 'return_cached_opening_greeting',
+      },
+      sourceSeparation: {
+        cache: true,
+        templateFallback: true,
+        providerCallOptional: true,
+        providerDailyGuard: true,
+        providerCallOnRefresh: false,
+      },
       fallback: {
         enabled: true,
         sessionVariantSeed: 'chat_sessions.id',
+        minCandidates: 5,
+        maxCandidates: 10,
         selectionStrategy: 'deterministic_session_variant_index',
         sameSessionStable: true,
         candidateInputs: [
@@ -2463,6 +2478,13 @@ describe('ChatService persona and catalog policy', () => {
           'runtimePersona.tone.guideKo',
           'runtimePersona.personaTags[]',
         ],
+      },
+      safety: {
+        forbiddenToneApplied: true,
+        minorCleanRequired: true,
+        rawPromptStored: false,
+        rawProviderPayloadStored: false,
+        userPrivateDataStored: false,
       },
       walletMutation: false,
       orderMutation: false,
