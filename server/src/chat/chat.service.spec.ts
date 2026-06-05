@@ -121,12 +121,59 @@ describe('ChatService premium room read storage endpoints', () => {
       ],
       policy: {
         readOnly: true,
+        visiblePublicStatuses: ['opened', 'active', 'artist_answered'],
+        ownerArtistStatusOnlyStatuses: expect.arrayContaining([
+          'paused_by_report',
+          'refund_pending',
+        ]),
+        archiveStatuses: expect.arrayContaining(['closed_by_artist', 'expired']),
+        publicListExcludesOwnerArtistStates: true,
         walletMutation: false,
         donationMutation: false,
         refundMutation: false,
       },
     });
     expect(JSON.stringify(result)).not.toMatch(/email|phone/);
+    expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects owner-only or archived room statuses on the public room list', async () => {
+    const { prisma, service } = premiumRoomReadServiceWith();
+
+    await expect(
+      service.getPremiumRoomList({ status: 'paused_by_report', take: 20 }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'PREMIUM_CHAT_ROOM_STATUS_INVALID',
+        messageKey: 'chat.premiumRoom.invalidStatus',
+      },
+    });
+    await expect(
+      service.getPremiumRoomList({ status: 'refund_pending', take: 20 }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'PREMIUM_CHAT_ROOM_STATUS_INVALID',
+        messageKey: 'chat.premiumRoom.invalidStatus',
+      },
+    });
+    await expect(
+      service.getPremiumRoomList({ status: 'closed_by_artist', take: 20 }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'PREMIUM_CHAT_ROOM_STATUS_INVALID',
+        messageKey: 'chat.premiumRoom.invalidStatus',
+      },
+    });
+    await expect(
+      service.getPremiumRoomList({ status: 'expired', take: 20 }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'PREMIUM_CHAT_ROOM_STATUS_INVALID',
+        messageKey: 'chat.premiumRoom.invalidStatus',
+      },
+    });
+    expect(prisma.premiumChatRoom.findMany).not.toHaveBeenCalled();
     expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
   });
@@ -5532,7 +5579,7 @@ describe('ChatService premium chat support contract', () => {
       ]),
     );
     expect(contract.roomList).toMatchObject({
-      status: 'planned_disabled',
+      status: 'implemented_read_only',
       endpoint: '/api/v1/chat/premium-rooms',
       visibleStatuses: ['opened', 'active', 'artist_answered'],
       excludedStatuses: [
@@ -5549,6 +5596,17 @@ describe('ChatService premium chat support contract', () => {
         'refunded',
         'admin_review',
       ],
+      visibilityMatrix: {
+        publicListStatuses: ['opened', 'active', 'artist_answered'],
+        ownerArtistStatusOnlyStatuses: expect.arrayContaining([
+          'paused_by_report',
+          'refund_pending',
+          'closed_by_artist',
+          'expired',
+        ]),
+        publicListRejectsOwnerArtistOnlyStatusFilter: true,
+        publicListReturnsReportedRefundOrClosedRooms: false,
+      },
       tierAmountsLumina: [300, 500, 1000, 3000],
       publicFieldsOnly: true,
       requiredProjectionFields: [

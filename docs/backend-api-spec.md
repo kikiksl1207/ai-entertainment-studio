@@ -1605,6 +1605,30 @@ GET /api/v1/chat/premium-rooms?artistSlug=<artist-slug>&take=20
 - Calling the room list must not open a room, create a donation, debit wallet,
   touch settlement, touch payout, or write ledger rows.
 
+Premium chat room status projection split (#617):
+
+- `GET /api/v1/chat/premium-rooms` is an implemented read-only public list. It
+  accepts only public-visible statuses: `opened`, `active`, and
+  `artist_answered`.
+- Public room list status filters for owner/operator states such as
+  `paused_by_report`, `refund_pending`, `closed_by_artist`, or `expired` are
+  rejected with `PREMIUM_CHAT_ROOM_STATUS_INVALID` before any wallet, donation,
+  settlement, payout, or message mutation path can run.
+- Owner/user detail status remains on
+  `GET /api/v1/chat/me/premium-rooms/:roomId/status`; artist/operator detail
+  status remains on
+  `GET /api/v1/creator-studio/premium-chat/rooms/:roomId/status`.
+- Detail projections may show safe status-only/archive states such as
+  `paused_by_report`, `refund_pending`, `closed_by_artist`, and `expired`, but
+  must keep message send, artist reply, donation, refund, wallet, settlement,
+  and payout mutations disabled.
+- Room list and detail policy expose `visiblePublicStatuses`,
+  `ownerArtistStatusOnlyStatuses`, `archiveStatuses`, and
+  `publicListExcludesOwnerArtistStates` so frontend/QA can verify state
+  separation without reading raw chat bodies, raw report reasons, admin notes,
+  wallet ledger ids, support point ledger ids, conversation meter ids, raw user
+  ids, token, cookie, or DB URL.
+
 Donation idempotency:
 
 - The key is accepted from the `Idempotency-Key` header or body

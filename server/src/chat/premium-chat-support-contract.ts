@@ -2209,10 +2209,21 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
   },
   room: PREMIUM_CHAT_ROOM_CONTRACT,
   roomList: {
-    status: 'planned_disabled',
+    status: 'implemented_read_only',
     endpoint: '/api/v1/chat/premium-rooms',
     visibleStatuses: PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES,
     excludedStatuses: PREMIUM_CHAT_ROOM_LIST_EXCLUDED_STATUSES,
+    visibilityMatrix: {
+      publicListStatuses: PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES,
+      ownerArtistStatusOnlyStatuses: PREMIUM_CHAT_ROOM_STATUS_READ_KEYS.filter(
+        (status) =>
+          !PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES.includes(
+            status as (typeof PREMIUM_CHAT_ROOM_LIST_VISIBLE_STATUSES)[number],
+          ),
+      ),
+      publicListRejectsOwnerArtistOnlyStatusFilter: true,
+      publicListReturnsReportedRefundOrClosedRooms: false,
+    },
     tierAmountsLumina: PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
     tierSource: 'room.roomOpen.tiers',
     publicFieldsOnly: true,

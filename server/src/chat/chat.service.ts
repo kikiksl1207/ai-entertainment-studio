@@ -2377,8 +2377,12 @@ export class ChatService {
   private premiumRoomReadPolicy(surface: string) {
     return {
       surface,
-      version: '2026-05-27.premium-chat-room-read-storage.v1',
+      version: '2026-06-05.premium-chat-room-status-projection.v1',
       readOnly: true,
+      visiblePublicStatuses: PREMIUM_ROOM_PUBLIC_LIST_STATUSES,
+      ownerArtistStatusOnlyStatuses: PREMIUM_ROOM_SAFE_STATUS_ONLY_STATUSES,
+      archiveStatuses: PREMIUM_ROOM_ARCHIVE_STATUSES,
+      publicListExcludesOwnerArtistStates: true,
       rawChatBodyReturned: false,
       rawReportReasonReturned: false,
       rawAdminNoteReturned: false,
