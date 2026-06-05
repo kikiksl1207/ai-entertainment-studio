@@ -3746,6 +3746,99 @@ p {
     height: 18px;
   }
 }
+/* ═══════════════════════════════════════════════════
+   #613 — Lumina Stage 피드 카드 차별화 1차 시안
+   목표: "너무 X같이 생겼다" 피드백 해소
+   변화: 아티스트 카드 left-accent + 응원 pill + 아바타 ring
+   ═══════════════════════════════════════════════════ */
+
+/* 아티스트 포스트 — 핑크 left-border + 배경 강화 */
+.feed-post.is-artist-post {
+  border-left: 3px solid rgba(255, 20, 147, 0.55);
+  background: linear-gradient(160deg, rgba(255, 20, 147, 0.065), rgba(159, 139, 199, 0.04));
+}
+.feed-post.is-artist-post:hover {
+  border-left-color: rgba(255, 20, 147, 0.85);
+}
+
+/* 데뷔 준비 포스트 — 앰버 left-border */
+.feed-post.is-debut-post {
+  border-left: 3px solid rgba(255, 180, 80, 0.45);
+  background: linear-gradient(160deg, rgba(255, 180, 80, 0.05), rgba(159, 139, 199, 0.03));
+}
+
+/* 아티스트 아바타 — 핑크 ring으로 강조 (팬 포스트와 시각 구분) */
+.feed-post.is-artist-post .feed-post-avatar {
+  box-shadow: 0 0 0 2px rgba(255, 20, 147, 0.5), 0 0 0 4px rgba(255, 20, 147, 0.12);
+}
+
+/* 응원 버튼 — pill 스타일로 강조 (X의 아이콘 나열에서 탈피) */
+.feed-action-btn.feed-like-btn {
+  padding: 5px 11px;
+  background: rgba(255, 20, 147, 0.06);
+  border: 1px solid rgba(255, 20, 147, 0.18);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 6px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+}
+.feed-action-btn.feed-like-btn:hover:not(:disabled) {
+  background: rgba(255, 20, 147, 0.14);
+  border-color: rgba(255, 20, 147, 0.42);
+  color: #ff7eb9;
+}
+.feed-action-btn.feed-like-btn.is-liked {
+  background: rgba(255, 20, 147, 0.18);
+  border-color: rgba(255, 20, 147, 0.55);
+  color: #ff5fa2;
+}
+.feed-action-btn.feed-like-btn.is-liked svg path {
+  fill: #ff5fa2;
+  stroke: #ff5fa2;
+}
+/* 모바일에서도 pill 유지 */
+@media (max-width: 768px) {
+  .feed-action-btn.feed-like-btn {
+    padding: 7px 13px;
+    font-size: 13px;
+  }
+}
+
+/* 댓글 버튼 — 보라 계열 soft pill */
+.feed-action-btn.feed-comment-btn {
+  padding: 5px 11px;
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  border-radius: 999px;
+  background: rgba(159, 139, 199, 0.05);
+  font-size: 13px;
+  font-weight: 700;
+  gap: 6px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.feed-action-btn.feed-comment-btn:hover:not(:disabled) {
+  background: rgba(159, 139, 199, 0.14);
+  border-color: rgba(159, 139, 199, 0.38);
+  color: #c5b3e8;
+}
+@media (max-width: 768px) {
+  .feed-action-btn.feed-comment-btn {
+    padding: 7px 13px;
+  }
+}
+
+/* 퍼나르기/타래 잇기 — 작게 (보조 액션, X-like 행렬에서 뒤로) */
+.feed-action-btn.feed-repost-btn,
+.feed-action-btn.feed-thread-extend-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  opacity: 0.72;
+}
+.feed-action-btn.feed-repost-btn:hover:not(:disabled),
+.feed-action-btn.feed-thread-extend-btn:hover:not(:disabled) {
+  opacity: 1;
+}
+
 .feed-delete-btn {
   margin-left: auto;
   color: rgba(255, 150, 170, 0.82);
