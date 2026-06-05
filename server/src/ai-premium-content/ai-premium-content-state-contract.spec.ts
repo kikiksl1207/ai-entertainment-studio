@@ -2,12 +2,14 @@ import {
   AI_PREMIUM_CONTENT_BRIEF_API_SKELETON,
   AI_PREMIUM_CONTENT_MODERATION_STATUSES,
   AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
+  AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
   AI_PREMIUM_CONTENT_REQUEST_STATUSES,
   AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY,
   AI_PREMIUM_CONTENT_REQUEST_TYPES,
   AI_PREMIUM_CONTENT_SAFETY_STATUSES,
   AI_PREMIUM_CONTENT_STATE_API_CONTRACT,
   AI_PREMIUM_CONTENT_STATUS_COPY_KO,
+  resolveAiPremiumContentCostPrecheck,
 } from './ai-premium-content-state-contract';
 
 describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
@@ -121,6 +123,14 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       idempotencyRequired: true,
       mutation: false,
     });
+    expect(apiContracts.costPrecheck).toMatchObject({
+      method: 'POST',
+      path: '/api/v1/ai-premium-content/requests/precheck',
+      enabled: false,
+      submitEnabled: false,
+      mutation: false,
+      providerCallEnabled: false,
+    });
     expect(apiContracts.regenerateRequest).toMatchObject({
       method: 'POST',
       enabled: false,
@@ -137,6 +147,32 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     expect(Object.values(mutationGates).every((enabled) => enabled === false)).toBe(
       true,
     );
+  });
+
+  it('defines a disabled cost precheck contract without provider secrets or cash mutation', () => {
+    const { apiContracts, mutationGates } = AI_PREMIUM_CONTENT_STATE_API_CONTRACT;
+    const contractText = JSON.stringify(apiContracts.costPrecheck);
+
+    expect(apiContracts.costPrecheck.response).toMatchObject({
+      code: '<stable precheck code>',
+      messageKey: '<stable localized message key>',
+      allowed: '<boolean>',
+      failurePolicy: AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
+    });
+    expect(apiContracts.costPrecheck.response.modelRoutingCandidates[0]).toEqual({
+      capability: '<server capability alias>',
+      aliasType: 'server_capability_alias',
+      providerKeyReturned: false,
+      modelKeyReturned: false,
+    });
+    expect(apiContracts.costPrecheck.response.estimatedCost).toMatchObject({
+      currency: 'KRW_MICROS',
+      estimateSource: 'server_policy_estimate_not_provider_quote',
+    });
+    expect(Object.values(mutationGates).every((enabled) => enabled === false)).toBe(
+      true,
+    );
+    expect(contractText).not.toMatch(/apiKey|secret|token|password|credential/i);
   });
 
   it('keeps Korean fallback copy separate from raw state enums', () => {
@@ -232,6 +268,106 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     expect(Object.values(skeleton.forbiddenSideEffects).every((enabled) => enabled === false)).toBe(
       true,
     );
+  });
+
+  it('resolves image and video precheck from server policy aliases only', () => {
+    const imagePrecheck = resolveAiPremiumContentCostPrecheck({
+      requestType: 'image_single',
+      artistSlug: 'aria',
+      userEntitled: true,
+      regenerationCount: 1,
+      failureCount: 0,
+    });
+    const videoPrecheck = resolveAiPremiumContentCostPrecheck({
+      requestType: 'video_clip',
+      artistSlug: 'aria',
+      userEntitled: true,
+    });
+
+    expect(imagePrecheck).toMatchObject({
+      allowed: true,
+      precheckOnly: true,
+      code: 'AI_PREMIUM_CONTENT_PRECHECK_READY',
+      messageKey: 'aiPremiumContent.precheck.ready',
+      requestType: 'image_single',
+      artistSlug: 'aria',
+      outputClass: 'image',
+      providerCallEnabled: false,
+      walletMutationEnabled: false,
+      orderMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      paidLikeMutationEnabled: false,
+    });
+    expect(imagePrecheck.modelRoutingCandidates).toEqual([
+      {
+        capability: 'text_to_image',
+        aliasType: 'server_capability_alias',
+        providerKeyReturned: false,
+        modelKeyReturned: false,
+      },
+    ]);
+    expect(imagePrecheck.estimatedCost).toMatchObject({
+      currency: 'KRW_MICROS',
+      estimateSource: 'server_policy_estimate_not_provider_quote',
+    });
+    expect(videoPrecheck).toMatchObject({
+      allowed: true,
+      requestType: 'video_clip',
+      outputClass: 'video',
+      modelRoutingCandidates: [
+        {
+          capability: 'text_to_video',
+        },
+      ],
+    });
+  });
+
+  it('returns stable precheck denial codes before provider or wallet work', () => {
+    expect(
+      resolveAiPremiumContentCostPrecheck({
+        requestType: 'unknown',
+        artistSlug: 'aria',
+        userEntitled: true,
+      }),
+    ).toMatchObject({
+      allowed: false,
+      code: 'AI_PREMIUM_CONTENT_REQUEST_TYPE_INVALID',
+      messageKey: 'aiPremiumContent.precheck.invalidRequestType',
+      httpStatus: 400,
+      providerCallEnabled: false,
+      walletMutationEnabled: false,
+    });
+    expect(
+      resolveAiPremiumContentCostPrecheck({
+        requestType: 'image_single',
+        artistSlug: 'aria',
+        userEntitled: false,
+      }),
+    ).toMatchObject({
+      allowed: false,
+      code: 'AI_PREMIUM_CONTENT_ENTITLEMENT_REQUIRED',
+      messageKey: 'aiPremiumContent.precheck.entitlementRequired',
+      httpStatus: 403,
+      providerCallEnabled: false,
+      walletMutationEnabled: false,
+    });
+    expect(
+      resolveAiPremiumContentCostPrecheck({
+        requestType: 'image_single',
+        artistSlug: 'aria',
+        userEntitled: true,
+        regenerationCount:
+          AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY.maxRegenerationCount,
+      }),
+    ).toMatchObject({
+      allowed: false,
+      code: 'AI_PREMIUM_CONTENT_REGENERATION_LIMIT_REACHED',
+      messageKey: 'aiPremiumContent.precheck.regenerationLimitReached',
+      httpStatus: 409,
+      providerCallEnabled: false,
+      walletMutationEnabled: false,
+    });
   });
 
   it('keeps state projection private and server-authoritative', () => {

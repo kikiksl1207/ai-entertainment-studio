@@ -42,7 +42,7 @@ export const AI_PREMIUM_CONTENT_STATUS_COPY_KO = {
   queued: '생성 준비 중이에요',
   generating: '콘텐츠를 만들고 있어요',
   provider_failed: '생성에 실패했어요',
-  awaiting_review: '검수 중이에요',
+  awaiting_review: '검토 중이에요',
   approved: '콘텐츠가 준비됐어요',
   rejected: '요청이 승인되지 않았어요',
   archived: '보관된 요청이에요',
@@ -201,6 +201,227 @@ export const AI_PREMIUM_CONTENT_BRIEF_API_SKELETON = {
   },
 } as const;
 
+export const AI_PREMIUM_CONTENT_COST_PRECHECK_CONTRACT_VERSION =
+  '2026-06-05.ai-premium-content-cost-precheck.v1';
+
+const AI_PREMIUM_CONTENT_PRECHECK_COST_POLICY = {
+  image: {
+    currency: 'KRW_MICROS',
+    estimatedCostCeilingMicros: 5_000_000,
+    estimateSource: 'server_policy_estimate_not_provider_quote',
+  },
+  video: {
+    currency: 'KRW_MICROS',
+    estimatedCostCeilingMicros: 50_000_000,
+    estimateSource: 'server_policy_estimate_not_provider_quote',
+  },
+  mixed: {
+    currency: 'KRW_MICROS',
+    estimatedCostCeilingMicros: 70_000_000,
+    estimateSource: 'server_policy_estimate_not_provider_quote',
+  },
+} as const;
+
+export const AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY = {
+  maxProviderAttempts: 1,
+  maxRegenerationCount: 2,
+  maxFailureCountBeforeManualReview: 1,
+  providerCallBeforePrecheck: false,
+  regenerationRequiresFreshPrecheck: true,
+} as const;
+
+type AiPremiumContentRequestType =
+  (typeof AI_PREMIUM_CONTENT_REQUEST_TYPES)[number];
+
+type AiPremiumContentOutputClass =
+  (typeof AI_PREMIUM_CONTENT_OUTPUT_CLASSES)[number];
+
+type AiPremiumContentRequestTypePolicy =
+  (typeof AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY)[AiPremiumContentRequestType];
+
+type AiPremiumContentCostPrecheckInput = {
+  requestType?: string | null;
+  artistSlug?: string | null;
+  userEntitled?: boolean | null;
+  regenerationCount?: number | string | null;
+  failureCount?: number | string | null;
+};
+
+const nonNegativeInteger = (value: number | string | null | undefined) => {
+  const parsed =
+    typeof value === 'string' && value.trim() !== ''
+      ? Number(value)
+      : typeof value === 'number'
+        ? value
+        : 0;
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+
+  return Math.floor(parsed);
+};
+
+const isAiPremiumContentRequestType = (
+  value: string | null | undefined,
+): value is AiPremiumContentRequestType =>
+  AI_PREMIUM_CONTENT_REQUEST_TYPES.includes(
+    value as AiPremiumContentRequestType,
+  );
+
+const deniedAiPremiumContentPrecheck = ({
+  code,
+  messageKey,
+  httpStatus,
+  requestType,
+  artistSlug,
+  regenerationCount,
+  failureCount,
+}: {
+  code: string;
+  messageKey: string;
+  httpStatus: 400 | 403 | 409;
+  requestType: string | null;
+  artistSlug: string | null;
+  regenerationCount: number;
+  failureCount: number;
+}) =>
+  ({
+    allowed: false,
+    precheckOnly: true,
+    code,
+    messageKey,
+    httpStatus,
+    requestType,
+    artistSlug,
+    outputClass: null,
+    modelRoutingCandidates: [],
+    estimatedCost: null,
+    failurePolicy: {
+      ...AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
+      regenerationCount,
+      failureCount,
+    },
+    providerCallEnabled: false,
+    walletMutationEnabled: false,
+    orderMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+    paidLikeMutationEnabled: false,
+  }) as const;
+
+const aiPremiumContentPrecheckSuccess = ({
+  requestType,
+  artistSlug,
+  requestPolicy,
+  outputClass,
+  regenerationCount,
+  failureCount,
+}: {
+  requestType: AiPremiumContentRequestType;
+  artistSlug: string | null;
+  requestPolicy: AiPremiumContentRequestTypePolicy;
+  outputClass: AiPremiumContentOutputClass;
+  regenerationCount: number;
+  failureCount: number;
+}) =>
+  ({
+    allowed: true,
+    precheckOnly: true,
+    code: 'AI_PREMIUM_CONTENT_PRECHECK_READY',
+    messageKey: 'aiPremiumContent.precheck.ready',
+    httpStatus: 200,
+    requestType,
+    artistSlug,
+    outputClass,
+    modelRoutingCandidates: [
+      {
+        capability: requestPolicy.defaultCapability,
+        aliasType: 'server_capability_alias',
+        providerKeyReturned: false,
+        modelKeyReturned: false,
+      },
+    ],
+    estimatedCost: AI_PREMIUM_CONTENT_PRECHECK_COST_POLICY[outputClass],
+    failurePolicy: {
+      ...AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
+      regenerationCount,
+      failureCount,
+    },
+    contextSnapshot: {
+      serverOwned: true,
+      artistSlugIncluded: Boolean(artistSlug),
+      rawPromptStored: false,
+      privateReferenceMaterialReturned: false,
+    },
+    providerCallEnabled: false,
+    walletMutationEnabled: false,
+    orderMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+    paidLikeMutationEnabled: false,
+  }) as const;
+
+export const resolveAiPremiumContentCostPrecheck = (
+  input: AiPremiumContentCostPrecheckInput,
+) => {
+  const requestType = input.requestType?.trim() ?? null;
+  const artistSlug = input.artistSlug?.trim() || null;
+  const regenerationCount = nonNegativeInteger(input.regenerationCount);
+  const failureCount = nonNegativeInteger(input.failureCount);
+
+  if (!isAiPremiumContentRequestType(requestType)) {
+    return deniedAiPremiumContentPrecheck({
+      code: 'AI_PREMIUM_CONTENT_REQUEST_TYPE_INVALID',
+      messageKey: 'aiPremiumContent.precheck.invalidRequestType',
+      httpStatus: 400,
+      requestType,
+      artistSlug,
+      regenerationCount,
+      failureCount,
+    });
+  }
+
+  if (input.userEntitled !== true) {
+    return deniedAiPremiumContentPrecheck({
+      code: 'AI_PREMIUM_CONTENT_ENTITLEMENT_REQUIRED',
+      messageKey: 'aiPremiumContent.precheck.entitlementRequired',
+      httpStatus: 403,
+      requestType,
+      artistSlug,
+      regenerationCount,
+      failureCount,
+    });
+  }
+
+  if (
+    regenerationCount >=
+    AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY.maxRegenerationCount
+  ) {
+    return deniedAiPremiumContentPrecheck({
+      code: 'AI_PREMIUM_CONTENT_REGENERATION_LIMIT_REACHED',
+      messageKey: 'aiPremiumContent.precheck.regenerationLimitReached',
+      httpStatus: 409,
+      requestType,
+      artistSlug,
+      regenerationCount,
+      failureCount,
+    });
+  }
+
+  const requestPolicy = AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY[requestType];
+  const outputClass = requestPolicy.outputClass as AiPremiumContentOutputClass;
+
+  return aiPremiumContentPrecheckSuccess({
+    requestType,
+    artistSlug,
+    requestPolicy,
+    outputClass,
+    regenerationCount,
+    failureCount,
+  });
+};
+
 export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   version: '2026-06-02.ai-premium-content-request-state-api-skeleton.v1',
   feature: 'ai_premium_content_request_state',
@@ -299,6 +520,43 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
       submitEnabled: false,
       idempotencyRequired: true,
       mutation: false,
+    },
+    costPrecheck: {
+      method: 'POST',
+      path: '/api/v1/ai-premium-content/requests/precheck',
+      enabled: false,
+      submitEnabled: false,
+      authRequired: true,
+      mutation: false,
+      providerCallEnabled: false,
+      idempotencyRequired: false,
+      request: {
+        requestType: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+        artistSlug: 'required stable artist slug',
+        sourceSurface: ['creator_studio', 'backstage'],
+        regenerationCount: 'server-derived non-negative integer',
+        failureCount: 'server-derived non-negative integer',
+      },
+      response: {
+        code: '<stable precheck code>',
+        messageKey: '<stable localized message key>',
+        allowed: '<boolean>',
+        outputClass: AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
+        modelRoutingCandidates: [
+          {
+            capability: '<server capability alias>',
+            aliasType: 'server_capability_alias',
+            providerKeyReturned: false,
+            modelKeyReturned: false,
+          },
+        ],
+        estimatedCost: {
+          currency: 'KRW_MICROS',
+          estimatedCostCeilingMicros: '<integer policy ceiling>',
+          estimateSource: 'server_policy_estimate_not_provider_quote',
+        },
+        failurePolicy: AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
+      },
     },
     regenerateRequest: {
       method: 'POST',
