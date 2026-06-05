@@ -22,6 +22,7 @@ import {
 } from '../chat/artist-url-knowledge-contract';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
+import { WALLET_LEDGER_SOURCE_CONTRACT } from '../wallet/wallet-server-authority-policy';
 
 type AdminPayload = Record<string, unknown>;
 type AuditQuery = Record<string, string | undefined>;
@@ -354,6 +355,122 @@ export class AdminService {
         confirmUploadEndpoint: 'POST /api/v1/me/assets/:assetId/confirm-upload',
         requiredPutHeader: 'content-type',
         secretsReturned: false,
+      },
+    };
+  }
+
+  async getBackstageWalletLedgerAudit(query: AuditQuery) {
+    const pagination = this.adminPagination(query, 50);
+    const userId = this.optionalString(query, 'userId');
+    const ledgerType = this.optionalString(query, 'ledgerType');
+    const referenceType = this.optionalString(query, 'referenceType');
+    const direction = this.optionalString(query, 'direction');
+
+    if (userId && !this.isUuid(userId)) {
+      throw this.adminBadRequest(
+        'WALLET_LEDGER_AUDIT_INVALID_USER_ID',
+        'userId must be a UUID',
+        'admin.walletLedgerAudit.invalidUserId',
+      );
+    }
+
+    if (direction && !['credit', 'debit'].includes(direction)) {
+      throw this.adminBadRequest(
+        'WALLET_LEDGER_AUDIT_INVALID_DIRECTION',
+        'direction must be credit or debit',
+        'admin.walletLedgerAudit.invalidDirection',
+        { allowed: ['credit', 'debit'] },
+      );
+    }
+
+    const rows = await this.prisma.walletLedger.findMany({
+      where: this.clean({
+        ledgerType,
+        referenceType,
+        direction,
+        walletAccount: userId ? { userId } : undefined,
+      }),
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        id: true,
+        walletAccountId: true,
+        direction: true,
+        amount: true,
+        ledgerType: true,
+        referenceType: true,
+        referenceId: true,
+        createdAt: true,
+        walletAccount: {
+          select: {
+            userId: true,
+            currencyCode: true,
+            status: true,
+            cachedBalance: true,
+          },
+        },
+      },
+    });
+    const paginated = this.paginated(rows, pagination.take);
+    const items = paginated.items.map((row) => this.presentWalletLedgerAuditRow(row));
+    const summary = items.reduce(
+      (acc, item) => {
+        acc.totalAmountLumina = acc.totalAmountLumina.plus(item.amountLumina);
+        acc.byCategory[item.auditCategory] =
+          (acc.byCategory[item.auditCategory] ?? 0) + 1;
+        acc.byLedgerType[item.ledgerType] = (acc.byLedgerType[item.ledgerType] ?? 0) + 1;
+        return acc;
+      },
+      {
+        totalAmountLumina: new Decimal(0),
+        byCategory: {} as Record<string, number>,
+        byLedgerType: {} as Record<string, number>,
+      },
+    );
+
+    return {
+      ...paginated,
+      items,
+      summary: {
+        returnedCount: items.length,
+        totalAmountLumina: summary.totalAmountLumina.toString(),
+        byCategory: summary.byCategory,
+        byLedgerType: summary.byLedgerType,
+      },
+      policy: {
+        permission: 'payments:read',
+        mutation: false,
+        sourceOfTruth: 'wallet_ledger',
+        walletAccountSnapshotSource: 'wallet_accounts.cached_balance',
+        clientDisplayedBalanceTrusted: false,
+        firstChargeBonusLedgerType: 'first_charge_bonus',
+        firstChargeBonusPolicy: 'one_time_user_scoped_10_percent_bonus',
+        packageBonusLedgerMode: 'combined_in_purchase_ledger_amount',
+        packageBonusAuditNote:
+          'High-value package bonuses are included in purchase ledger credit until a dedicated package bonus ledger type is introduced.',
+        premiumChatRefundLedgerTypes: [
+          'refund',
+          'premium_chat_room_company_revenue',
+          'premium_chat_room_artist_compensation',
+        ],
+        paymentTokenReturned: false,
+        rawReceiptReturned: false,
+        providerTransactionIdReturned: false,
+        idempotencyKeyReturned: false,
+        memoReturned: false,
+        personalDataReturned: false,
+        walletMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+        sourceContract: WALLET_LEDGER_SOURCE_CONTRACT.filter((entry) =>
+          [
+            'payment_purchase_credit',
+            'first_charge_bonus',
+            'premium_chat_room_refund',
+            'premium_chat_room_refund_restriction',
+          ].includes(entry.source),
+        ),
       },
     };
   }
@@ -5943,6 +6060,88 @@ export class AdminService {
         rawUrlIncludedInPrompt: false,
       },
     };
+  }
+
+  private presentWalletLedgerAuditRow(row: {
+    id: string;
+    walletAccountId: string;
+    direction: string;
+    amount: Decimal;
+    ledgerType: string;
+    referenceType: string | null;
+    referenceId: string | null;
+    createdAt: Date;
+    walletAccount: {
+      userId: string;
+      currencyCode: string;
+      status: string;
+      cachedBalance: Decimal;
+    };
+  }) {
+    const auditCategory = this.walletLedgerAuditCategory(row);
+
+    return {
+      id: row.id,
+      walletAccountId: row.walletAccountId,
+      userId: row.walletAccount.userId,
+      currencyCode: row.walletAccount.currencyCode,
+      walletStatus: row.walletAccount.status,
+      cachedBalanceLumina: row.walletAccount.cachedBalance.toString(),
+      direction: row.direction,
+      amountLumina: row.amount.toString(),
+      ledgerType: row.ledgerType,
+      referenceType: row.referenceType,
+      referenceId: row.referenceId,
+      auditCategory,
+      serverAuthority: this.walletLedgerServerAuthority(row.ledgerType),
+      createdAt: row.createdAt,
+      sensitiveFields: {
+        memoReturned: false,
+        idempotencyKeyReturned: false,
+        paymentTokenReturned: false,
+        rawReceiptReturned: false,
+        providerTransactionIdReturned: false,
+        personalDataReturned: false,
+      },
+    };
+  }
+
+  private walletLedgerAuditCategory(row: {
+    direction: string;
+    ledgerType: string;
+    referenceType: string | null;
+  }) {
+    if (row.ledgerType === 'first_charge_bonus') {
+      return 'first_charge_bonus_10_percent_once';
+    }
+
+    if (row.ledgerType === 'purchase' && row.referenceType === 'payment_order') {
+      return 'purchase_credit_base_and_package_bonus_combined';
+    }
+
+    if (row.ledgerType === 'refund') {
+      return row.referenceType === 'premium_chat_room'
+        ? 'premium_chat_room_refund_credit'
+        : 'refund_credit';
+    }
+
+    if (row.ledgerType === 'premium_chat_room_company_revenue') {
+      return 'premium_chat_refund_restriction_company_revenue';
+    }
+
+    if (row.ledgerType === 'premium_chat_room_artist_compensation') {
+      return 'premium_chat_refund_restriction_artist_compensation';
+    }
+
+    return `${row.direction}_${row.ledgerType}`;
+  }
+
+  private walletLedgerServerAuthority(ledgerType: string) {
+    const match = WALLET_LEDGER_SOURCE_CONTRACT.find(
+      (entry) => entry.ledgerType === ledgerType,
+    );
+
+    return match?.serverAuthority ?? 'server_wallet_ledger';
   }
 
   private assertArtistKnowledgeUuid(value: string, field: string) {

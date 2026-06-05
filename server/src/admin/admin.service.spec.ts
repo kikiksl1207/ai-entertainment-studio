@@ -504,6 +504,169 @@ describe('AdminService community feed cleanup audit guard', () => {
   });
 });
 
+describe('AdminService wallet ledger audit read model', () => {
+  const userId = '00000000-0000-4000-8000-000000000689';
+  const walletAccount = {
+    userId,
+    currencyCode: 'LUMINA',
+    status: 'active',
+    cachedBalance: new Decimal(12500),
+  };
+  const baseLedger = {
+    id: '00000000-0000-4000-8000-000000006890',
+    walletAccountId: '00000000-0000-4000-8000-000000006891',
+    direction: 'credit',
+    amount: new Decimal(0),
+    ledgerType: 'purchase',
+    referenceType: 'payment_order',
+    referenceId: '00000000-0000-4000-8000-000000006892',
+    createdAt: new Date('2026-06-05T00:00:00.000Z'),
+    walletAccount,
+    memo: 'raw memo must not be returned',
+    idempotencyKey: 'payment:provider:must-not-return',
+  };
+
+  function createWalletLedgerAuditService() {
+    const prisma = {
+      walletLedger: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            ...baseLedger,
+            amount: new Decimal(12000),
+            ledgerType: 'purchase',
+            referenceType: 'payment_order',
+          },
+          {
+            ...baseLedger,
+            id: '00000000-0000-4000-8000-000000006893',
+            amount: new Decimal(500),
+            ledgerType: 'first_charge_bonus',
+            referenceType: 'payment_order',
+            idempotencyKey: 'first_charge_bonus:user-must-not-return',
+          },
+          {
+            ...baseLedger,
+            id: '00000000-0000-4000-8000-000000006894',
+            amount: new Decimal(7000),
+            ledgerType: 'refund',
+            referenceType: 'premium_chat_room',
+          },
+          {
+            ...baseLedger,
+            id: '00000000-0000-4000-8000-000000006895',
+            amount: new Decimal(1000),
+            ledgerType: 'premium_chat_room_artist_compensation',
+            referenceType: 'premium_chat_room_refund_decision',
+          },
+        ]),
+      },
+    };
+    const config = { get: jest.fn() };
+    const service = new AdminService(
+      prisma as unknown as PrismaService,
+      config as unknown as ConfigService,
+    );
+
+    return { service, prisma };
+  }
+
+  it('separates purchase, first charge bonus, and premium chat refund ledger rows without mutation', async () => {
+    const { service, prisma } = createWalletLedgerAuditService();
+
+    const result = await service.getBackstageWalletLedgerAudit({ userId });
+
+    expect(prisma.walletLedger.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          walletAccount: { userId },
+        },
+        select: {
+          id: true,
+          walletAccountId: true,
+          direction: true,
+          amount: true,
+          ledgerType: true,
+          referenceType: true,
+          referenceId: true,
+          createdAt: true,
+          walletAccount: {
+            select: {
+              userId: true,
+              currencyCode: true,
+              status: true,
+              cachedBalance: true,
+            },
+          },
+        },
+      }),
+    );
+    expect(result.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ledgerType: 'purchase',
+          auditCategory: 'purchase_credit_base_and_package_bonus_combined',
+        }),
+        expect.objectContaining({
+          ledgerType: 'first_charge_bonus',
+          auditCategory: 'first_charge_bonus_10_percent_once',
+        }),
+        expect.objectContaining({
+          ledgerType: 'refund',
+          auditCategory: 'premium_chat_room_refund_credit',
+        }),
+        expect.objectContaining({
+          ledgerType: 'premium_chat_room_artist_compensation',
+          auditCategory: 'premium_chat_refund_restriction_artist_compensation',
+        }),
+      ]),
+    );
+    expect(result.policy).toMatchObject({
+      permission: 'payments:read',
+      mutation: false,
+      sourceOfTruth: 'wallet_ledger',
+      clientDisplayedBalanceTrusted: false,
+      firstChargeBonusLedgerType: 'first_charge_bonus',
+      firstChargeBonusPolicy: 'one_time_user_scoped_10_percent_bonus',
+      packageBonusLedgerMode: 'combined_in_purchase_ledger_amount',
+      paymentTokenReturned: false,
+      rawReceiptReturned: false,
+      providerTransactionIdReturned: false,
+      idempotencyKeyReturned: false,
+      memoReturned: false,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(result.summary).toMatchObject({
+      returnedCount: 4,
+      totalAmountLumina: '20500',
+      byCategory: {
+        purchase_credit_base_and_package_bonus_combined: 1,
+        first_charge_bonus_10_percent_once: 1,
+        premium_chat_room_refund_credit: 1,
+        premium_chat_refund_restriction_artist_compensation: 1,
+      },
+    });
+    const payload = JSON.stringify(result);
+    expect(payload).not.toContain('raw memo must not be returned');
+    expect(payload).not.toContain('payment:provider:must-not-return');
+    expect(payload).not.toContain('first_charge_bonus:user-must-not-return');
+  });
+
+  it('returns stable wallet ledger audit validation errors', async () => {
+    const { service } = createWalletLedgerAuditService();
+
+    await expectHttpError(service.getBackstageWalletLedgerAudit({ userId: 'bad-id' }), {
+      code: 'WALLET_LEDGER_AUDIT_INVALID_USER_ID',
+      messageKey: 'admin.walletLedgerAudit.invalidUserId',
+    });
+    await expectHttpError(service.getBackstageWalletLedgerAudit({ direction: 'sideways' }), {
+      code: 'WALLET_LEDGER_AUDIT_INVALID_DIRECTION',
+      messageKey: 'admin.walletLedgerAudit.invalidDirection',
+    });
+  });
+});
+
 describe('AdminService artist knowledge URL operations', () => {
   const adminUser = {
     id: '00000000-0000-4000-8000-000000000900',
