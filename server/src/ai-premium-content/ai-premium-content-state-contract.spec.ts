@@ -1,9 +1,11 @@
 import {
+  AI_PREMIUM_CONTENT_BRIEF_API_SKELETON,
   AI_PREMIUM_CONTENT_MODERATION_STATUSES,
   AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
   AI_PREMIUM_CONTENT_REQUEST_STATUSES,
   AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY,
   AI_PREMIUM_CONTENT_REQUEST_TYPES,
+  AI_PREMIUM_CONTENT_SAFETY_STATUSES,
   AI_PREMIUM_CONTENT_STATE_API_CONTRACT,
   AI_PREMIUM_CONTENT_STATUS_COPY_KO,
 } from './ai-premium-content-state-contract';
@@ -52,6 +54,7 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       'blocked',
       'needs_review',
     ]);
+    expect(contract.briefApiSkeleton).toBe(AI_PREMIUM_CONTENT_BRIEF_API_SKELETON);
   });
 
   it('keeps current image/video queues unchanged while future storage is blocked', () => {
@@ -182,6 +185,53 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       defaultCapability: 'mixed_generation_pack',
       humanReviewRequired: true,
     });
+  });
+
+  it('defines the disabled brief submit skeleton with request type, artist slug, safety, and estimated cost tracking', () => {
+    const skeleton = AI_PREMIUM_CONTENT_BRIEF_API_SKELETON;
+
+    expect(skeleton).toMatchObject({
+      version: '2026-06-05.ai-premium-content-brief-api-skeleton.v1',
+      method: 'POST',
+      path: '/api/v1/ai-premium-content/requests',
+      enabled: false,
+      submitEnabled: false,
+      mutation: false,
+      authRequired: true,
+      artistOperatorRequired: true,
+      providerCallEnabled: false,
+      walletDebitEnabled: false,
+      settlementAccrualEnabled: false,
+      publicPublishEnabled: false,
+    });
+    expect(skeleton.trackedFields.requestType).toEqual(
+      AI_PREMIUM_CONTENT_REQUEST_TYPES,
+    );
+    expect(skeleton.trackedFields.artistSlug).toMatchObject({
+      required: true,
+      serverResolvedArtistId: true,
+    });
+    expect(skeleton.trackedFields.safetyStatus).toMatchObject({
+      allowed: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+      initial: 'pending',
+      serverOwned: true,
+      clientSubmittedTrusted: false,
+    });
+    expect(skeleton.trackedFields.estimatedCost).toMatchObject({
+      tracked: true,
+      amountTrustedFromClient: false,
+      walletDebitOnSubmit: false,
+      finalCostComputedLater: true,
+    });
+    expect(skeleton.responseProjection.policy).toMatchObject({
+      canSubmit: false,
+      canGenerate: false,
+      canDebitWallet: false,
+      canPublish: false,
+    });
+    expect(Object.values(skeleton.forbiddenSideEffects).every((enabled) => enabled === false)).toBe(
+      true,
+    );
   });
 
   it('keeps state projection private and server-authoritative', () => {
