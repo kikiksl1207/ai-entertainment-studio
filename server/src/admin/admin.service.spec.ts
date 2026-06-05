@@ -499,4 +499,121 @@ describe('AdminService artist knowledge URL operations', () => {
       },
     );
   });
+
+  it('returns redacted artist knowledge audit events for audit readers', async () => {
+    const rawUrl = 'https://artist.example/watch?token=unsafe-url-token';
+    const rawSummary = 'Approved raw summary must not be returned.';
+    const rawReason = 'Private rejection reason must not be returned.';
+    const auditRow = {
+      id: '00000000-0000-4000-8000-000000000777',
+      actorUserId: adminUser.id,
+      action: 'artist_knowledge_url.reject',
+      targetType: 'artist_knowledge_url',
+      targetId: row.id,
+      beforeData: {
+        contractVersion: '2026-05-24.artist-url-knowledge-audit.v1',
+        id: row.id,
+        artistId: row.artistId,
+        submittedByUserId: row.submittedByUserId,
+        reviewedByUserId: null,
+        status: 'pending',
+        sourceType: 'youtube',
+        allowChatReference: true,
+        summaryPresent: true,
+        rejectionReasonPresent: false,
+        reviewedAt: null,
+        archivedAt: null,
+        url: rawUrl,
+        summary: rawSummary,
+      },
+      afterData: {
+        contractVersion: '2026-05-24.artist-url-knowledge-audit.v1',
+        id: row.id,
+        artistId: row.artistId,
+        submittedByUserId: row.submittedByUserId,
+        reviewedByUserId: adminUser.id,
+        status: 'rejected',
+        sourceType: 'youtube',
+        allowChatReference: false,
+        summaryPresent: true,
+        rejectionReasonPresent: true,
+        reviewedAt: '2026-05-22T02:00:00.000Z',
+        archivedAt: null,
+        rejectionReason: rawReason,
+      },
+      metadata: {
+        statusTransition: { from: 'pending', to: 'rejected' },
+        changedFields: ['status', 'rawUrl', 'summary', 'rejectionReason'],
+        token: 'unsafe-token',
+        cookie: 'unsafe-cookie',
+      },
+      createdAt: new Date('2026-05-22T02:00:00.000Z'),
+    };
+    const { service, prisma } = createKnowledgeService({
+      auditEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+        findMany: jest.fn().mockResolvedValue([auditRow]),
+      },
+    });
+
+    const result = await service.getBackstageArtistKnowledgeUrlAuditEvents({
+      action: 'artist_knowledge_url.reject',
+      artistId: row.artistId,
+    });
+    const auditEvent = prisma.auditEvent as typeof prisma.auditEvent & {
+      findMany: jest.Mock;
+    };
+
+    expect(auditEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          action: 'artist_knowledge_url.reject',
+          targetType: 'artist_knowledge_url',
+          targetId: { not: null },
+          OR: [
+            { beforeData: { path: ['artistId'], equals: row.artistId } },
+            { afterData: { path: ['artistId'], equals: row.artistId } },
+          ],
+        }),
+        select: expect.objectContaining({
+          beforeData: true,
+          afterData: true,
+          metadata: true,
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      items: [
+        {
+          action: 'artist_knowledge_url.reject',
+          targetType: 'artist_knowledge_url',
+          targetId: row.id,
+          metadata: {
+            changedFields: ['status'],
+            sensitiveDataStored: false,
+            rawUrlStored: false,
+            rawUrlQueryStored: false,
+            rawEmailStored: false,
+            tokenCookiePasswordStored: false,
+            providerPayloadStored: false,
+            dbUrlStored: false,
+          },
+        },
+      ],
+      contract: {
+        permission: 'audit:read',
+        mutation: false,
+        rawUrlReturned: false,
+        rawUrlQueryReturned: false,
+        rawEmailReturned: false,
+        providerPayloadReturned: false,
+      },
+    });
+    const payload = JSON.stringify(result);
+    expect(payload).not.toContain(rawUrl);
+    expect(payload).not.toContain(rawSummary);
+    expect(payload).not.toContain(rawReason);
+    expect(payload).not.toContain('unsafe-token');
+    expect(payload).not.toContain('unsafe-cookie');
+  });
 });

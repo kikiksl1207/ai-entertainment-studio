@@ -106,6 +106,12 @@ export class AdminController {
     );
   }
 
+  @Get('backstage/operations/artist-knowledge-url-audit-events')
+  @RequireAdminPermissions('audit:read')
+  getBackstageArtistKnowledgeUrlAuditEvents(@Query() query: AuditQuery) {
+    return this.adminService.getBackstageArtistKnowledgeUrlAuditEvents(query);
+  }
+
   @Get('backstage/operations/users-overview')
   @RequireAdminPermissions('users:read')
   getBackstageUsersOverview(@Query() query: AuditQuery) {
