@@ -221,6 +221,18 @@ export class SiteContentService {
         details: { id },
       });
     }
+    if (existing.status === 'published') {
+      throw this.badRequestError({
+        code: 'SITE_CONTENT_PUBLISHED_EDIT_REQUIRES_DRAFT',
+        message: 'Published site content cannot be edited before a draft is prepared',
+        messageKey: 'siteContent.error.publishedEditRequiresDraft',
+        details: {
+          id,
+          currentVersion: existing.version,
+          currentStatus: existing.status,
+        },
+      });
+    }
 
     const update = this.updateData(user, input);
     if (!update.changed) {
@@ -651,10 +663,12 @@ export class SiteContentService {
         rawHtmlAllowed: false,
         navigationKeyEditable: false,
         publishRequiresContent: true,
-        canEdit: entry.status !== 'archived',
-        canPublish: entry.status !== 'archived',
+        canEdit: entry.status === 'draft',
+        canPublish: entry.status === 'draft',
         canArchive: entry.status !== 'archived',
         canRestore: entry.status === 'archived',
+        publishedEditRequiresDraft: true,
+        draftVersionRequiredBeforePublish: true,
       },
     };
   }
@@ -773,6 +787,10 @@ export class SiteContentService {
       settlementMutationAllowed: false,
       fixedNavigationKeysEditable: false,
       commonAndCharacterCopySeparated: true,
+      draftEditOnly: true,
+      publishedEditRequiresDraft: true,
+      draftVersionRequiredBeforePublish: true,
+      rollbackSupported: false,
       archivedKeyRecoverable: true,
       restoreTargetStatuses: [...VALID_RESTORE_TARGET_STATUSES],
     };
