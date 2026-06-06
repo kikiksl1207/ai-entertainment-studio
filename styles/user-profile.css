@@ -1755,3 +1755,51 @@
 .user-profile-bio-toggle.is-visible {
   display: inline-block;
 }
+
+/* #628 — 390px에서 프로필 액션 버튼/탭/목록이 오른쪽으로 잘리는 문제 보강.
+   파일 내 중복 정의된 .user-profile-actions/.user-profile-tabs 규칙들과 충돌하지 않도록
+   캐스케이드 마지막에 두어 좁은 화면에서 줄바꿈·축소가 확실히 적용되게 한다. */
+@media (max-width: 480px) {
+  .user-profile-shell {
+    padding: 0 12px;
+    overflow-x: hidden;
+  }
+  .user-profile-head {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "avatar"
+      "meta"
+      "actions";
+  }
+  .user-profile-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    margin-top: 0;
+  }
+  .user-profile-follow-btn,
+  .user-profile-edit-btn {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .user-profile-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .user-profile-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .user-profile-tab {
+    flex: 1 0 auto;
+    min-width: 84px;
+    padding: 12px 10px;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+  .follow-list-modal-card,
+  .block-confirm-modal-card {
+    max-width: calc(100vw - 24px);
+  }
+}
