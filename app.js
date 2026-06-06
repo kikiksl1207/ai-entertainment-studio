@@ -3992,11 +3992,17 @@ async function init() {
   // 루미나 피드 페이지면 임시 샘플 포스트 렌더 + 필터 탭 바인딩
   // 운영 API → samples API → inline 3단 fallback (#022, 차모 fallback API 활용)
   if (document.getElementById("luminaFeedList")) {
-    await loadLuminaFeedData();
+    // #613 — 정적/오프라인 프리뷰에서 API가 응답하지 않으면 await가 무한 대기되어
+    // 카드가 "로딩 상태"로 멈춰 보이는 문제가 있었음. 먼저 빈 상태로 즉시 렌더한 뒤
+    // 데이터 로드는 비차단으로 진행하고 완료되면 다시 그린다 (8초 타임아웃 가드).
+    renderLuminaFeed();
+    const feedLoadTimeout = new Promise(resolve => setTimeout(resolve, 8000));
+    Promise.race([loadLuminaFeedData(), feedLoadTimeout])
+      .catch(() => {})
+      .finally(() => { if (typeof renderLuminaFeed === "function") renderLuminaFeed(); });
     initLuminaFeedSidebar();
     bindLuminaFeedSearch();
     initLuminaFeedDiscovery();
-    renderLuminaFeed();
     bindLuminaFeedTabs();
     bindLuminaFeedExpand();
     bindLuminaFeedDelete();
