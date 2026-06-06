@@ -1300,8 +1300,12 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
           metadata: expect.objectContaining({
             repost: expect.objectContaining({
               type: 'quote_repost',
+              hasQuote: true,
               originalPostId: postId,
               originalAuthorUserId: authorId,
+              parentThreadRelation: false,
+              commentRelation: false,
+              replyRelation: false,
               originalDeletionPolicy: 'render_tombstone_without_body',
             }),
           }),
@@ -1310,13 +1314,27 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     );
     expect(result.relation).toBe('quote_repost');
     expect(result.post.repost.originalPostId).toBe(postId);
+    expect(result.post.repost.type).toBe('quote_repost');
+    expect(result.post.repost.hasQuote).toBe(true);
+    expect(result.post.repost.parentPostId).toBeNull();
+    expect(result.post.repost.threadRootPostId).toBeNull();
+    expect(result.post.repost.commentRelation).toBe(false);
+    expect(result.post.repost.replyRelation).toBe(false);
+    expect(result.post.repost.threadRelation).toBe(false);
     expect(result.post.repost.originalState).toBe('visible');
     expect(result.post.repost.originalPost.body).toBe('Original post');
+    expect(result.post.threadContinuation.isContinuation).toBe(false);
     expect(result.policy).toMatchObject({
+      allowedTypes: ['repost', 'quote_repost'],
       simpleRepostRelation: 'repost',
       quoteRepostRelation: 'quote_repost',
+      simpleRepostBodyPolicy: 'empty_body',
+      quoteRepostBodyPolicy: 'optional_quote_body',
       emptyBodyCreates: 'repost',
       nonEmptyBodyCreates: 'quote_repost',
+      parentThreadRelation: false,
+      commentRelation: false,
+      replyRelation: false,
       shareIsSeparateContract: true,
     });
     expect(result.policy.walletMutation).toBe(false);
@@ -1326,6 +1344,59 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
       service.createRepost(otherUserId, postId, { body: 'q'.repeat(2201) }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.communityPost.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates simple reposts as empty-body repost rows separated from thread parent relations', async () => {
+    const prisma = createPrismaMock();
+    prisma.user.findFirst.mockResolvedValue({ id: otherUserId });
+    prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Original post' }));
+    prisma.communityPost.create.mockImplementation(async (args: any) =>
+      postView({
+        id: repostId,
+        authorUserId: otherUserId,
+        body: args.data.body,
+        metadata: args.data.metadata,
+      }),
+    );
+    const service = serviceWith(prisma);
+
+    const result = await service.createRepost(otherUserId, postId, {});
+
+    expect(prisma.communityPost.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          authorUserId: otherUserId,
+          postType: 'user_post',
+          body: '',
+          metadata: expect.objectContaining({
+            repost: expect.objectContaining({
+              type: 'repost',
+              hasQuote: false,
+              originalPostId: postId,
+              parentThreadRelation: false,
+              commentRelation: false,
+              replyRelation: false,
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(result.relation).toBe('repost');
+    expect(result.post.repost).toEqual(
+      expect.objectContaining({
+        type: 'repost',
+        relation: 'repost',
+        hasQuote: false,
+        parentPostId: null,
+        threadRootPostId: null,
+        commentRelation: false,
+        replyRelation: false,
+        threadRelation: false,
+        quoteBody: null,
+        originalPostId: postId,
+      }),
+    );
+    expect(result.post.threadContinuation.isContinuation).toBe(false);
   });
 
   it('keeps reply bodies capped at 300 characters', async () => {
