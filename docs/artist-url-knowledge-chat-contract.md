@@ -257,6 +257,21 @@ The provider prompt receives at most 5 summary fragments. It receives hostname l
 
 Cost guard: retrieval is capped at 5 rows before the provider call, and each summary fragment is capped at 700 chars.
 
+## Chat Context Connection
+
+Character chat looks up artist URL knowledge only from the approved knowledge URL
+pipeline for the current session artist. The DB query is scoped by
+`artistId=<session artist id>`, `status=approved`, and
+`allowChatReference=true`; the context builder then defensively requires
+`safetyStatus=safe` and a non-empty bounded summary.
+
+The provider context projection includes only display-safe fields: id,
+source type, optional title, bounded summary, hostname-only source label,
+review timestamp, and the reference role marker. It must not select or return
+raw submitted URLs, URL queries, raw page bodies, private bodies, artist
+descriptions, admin notes, tokens, cookies, passwords, API keys, signed/private
+URLs, provider payloads, or DB URLs.
+
 ## #459/#463 Safety Gate
 
 The chat service must apply the state gate before provider generation:
