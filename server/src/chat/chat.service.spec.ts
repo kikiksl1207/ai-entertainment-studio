@@ -6904,6 +6904,16 @@ describe('ChatService.generateMessage provider beta', () => {
         }),
       }),
     );
+    const knowledgeSelect = prisma.artistKnowledgeUrl.findMany.mock.calls[0][0].select;
+
+    expect(knowledgeSelect).not.toHaveProperty('url');
+    expect(knowledgeSelect).not.toHaveProperty('rawUrl');
+    expect(knowledgeSelect).not.toHaveProperty('rawPageBody');
+    expect(knowledgeSelect).not.toHaveProperty('privateBody');
+    expect(knowledgeSelect).not.toHaveProperty('adminNotes');
+    expect(knowledgeSelect).not.toHaveProperty('token');
+    expect(knowledgeSelect).not.toHaveProperty('cookie');
+    expect(knowledgeSelect).not.toHaveProperty('password');
 
     const request = llmProvider.generate.mock.calls[0][0];
 

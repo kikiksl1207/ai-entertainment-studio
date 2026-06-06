@@ -79,6 +79,51 @@ describe('artist URL knowledge contract', () => {
       rawEmailReturned: false,
       providerPayloadReturned: false,
     });
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.chatReferencePolicy).toMatchObject({
+      queryScope: {
+        sourceTable: 'artist_knowledge_urls',
+        artistIdRequired: true,
+        statusFilter: 'approved',
+        allowChatReferenceFilter: true,
+        safetyStatusFilter: 'safe',
+        summaryRequired: true,
+      },
+      forbiddenResponseFields: expect.arrayContaining([
+        'url',
+        'rawUrl',
+        'rawPageBody',
+        'privateBody',
+        'adminNotes',
+        'token',
+        'cookie',
+        'password',
+        'apiKey',
+        'dbUrl',
+      ]),
+    });
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.chatContextConnection).toMatchObject({
+      source: 'approved_artist_knowledge_urls',
+      lookup: {
+        artistIdRequired: true,
+        approvedOnly: true,
+        allowChatReferenceRequired: true,
+        safeSafetyStatusRequired: true,
+        summaryRequired: true,
+        pendingRejectedArchivedExcluded: true,
+      },
+      projection: {
+        hostnameOnlySourceLabel: true,
+        boundedSummaryOnly: true,
+        rawSubmittedUrlReturned: false,
+        rawUrlQueryReturned: false,
+        rawPageBodyReturned: false,
+        privateBodyReturned: false,
+        adminNotesReturned: false,
+        tokenCookiePasswordReturned: false,
+        apiKeyReturned: false,
+        dbUrlReturned: false,
+      },
+    });
   });
 
   it('allows character chat to reference only approved, chat-enabled summaries', () => {

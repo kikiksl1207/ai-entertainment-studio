@@ -289,6 +289,27 @@ describe('ChatLlmProviderAdapter.generate', () => {
             rawPageBodyStored: false,
             rawPromptStored: false,
           },
+          contextPriority: {
+            order: [
+              'system_safety',
+              'runtime_persona',
+              'tone_and_manner',
+              'opening_greeting_variant',
+              'approved_artist_url_knowledge',
+            ],
+            urlKnowledgePosition: 5,
+            overridesPersona: false,
+            overridesTone: false,
+            overridesOpeningGreeting: false,
+          },
+          fallbackPolicy: {
+            whenNoEligibleKnowledge: 'continue_without_url_knowledge',
+            providerCallBlockedByEmptyKnowledge: false,
+            preserveRuntimePersona: true,
+            preserveToneAndManner: true,
+            preserveOpeningGreetingVariant: true,
+            fallbackCopySource: 'persona_tone_opening_greeting',
+          },
           items: [
             {
               id: '00000000-0000-4000-8000-000000000459',

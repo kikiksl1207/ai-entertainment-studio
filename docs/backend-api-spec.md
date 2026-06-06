@@ -402,6 +402,12 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
 - Raw submitted URL is review material, not chat knowledge. Character-chat
   provider context uses a hostname-only source label and bounded approved
   summary, never the raw URL or full page body.
+- #660 fixes the chat context connection shape. The chat service queries only
+  approved, chat-enabled rows for the session artist and selects safe summary
+  fields only. Raw URL, URL query, raw page body, private body, artist
+  description, admin notes, token/cookie/password/API key/provider payload,
+  signed/private URL, and DB URL fields are forbidden from provider context
+  projection.
 - #676 fixes the empty-knowledge fallback contract. If there are no eligible URL
   knowledge rows, character-chat continues with persona, tone-and-manner, and
   opening-greeting variant context. Empty URL knowledge does not block provider
