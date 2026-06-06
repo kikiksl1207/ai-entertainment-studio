@@ -199,6 +199,24 @@ Requires `artists:write`. Requires `reason`, sets `status=rejected`, and blocks 
 
 Requires `artists:write`. Sets `status=archived` and blocks chat reference.
 
+## Admin-To-Chat Handoff
+
+Backstage approval creates a knowledge-context handoff only after the row is
+approved, chat reference is allowed, a bounded summary exists, and the safety
+flag is `safe`.
+
+Allowed handoff fields:
+
+- `approvalStatus`: fixed `approved`.
+- `artistSlug`: the artist route key used to scope character chat context.
+- `contextSummary`: bounded approved summary text.
+- `safetyFlag`: fixed `safe`.
+
+The handoff is knowledge-context only. It must not reuse or depend on
+site-content/admin copy editing. It must not expose raw submitted URL, canonical
+URL, URL query, raw page body, private material, admin notes, raw email, token,
+cookie, password, API key, provider payload, signed/private URL, or DB URL.
+
 ## Audit Contract #462
 
 Creator Studio registration/revision/archive and Backstage review actions write
