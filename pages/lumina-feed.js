@@ -859,6 +859,22 @@ function releaseFeedComposeAssetPreview(asset) {
 }
 
 /* 카드의 이미지 그리드 렌더 (post.assets[].asset.url 기반) */
+function renderFeedPostAssets(assets) {
+  if (!Array.isArray(assets) || assets.length === 0) return "";
+  const list = assets.slice(0, FEED_COMPOSE_MAX_IMAGES);
+  const count = list.length;
+  const items = list
+    .map((entry) => {
+      const url = feedAssetDisplayUrl(entry, "");
+      if (!url) return "";
+      const safeUrl = feedEscapeHtml(url);
+      return `<span class="feed-post-asset-item"><img src="${safeUrl}" alt="" loading="lazy" /></span>`;
+    })
+    .filter(Boolean)
+    .join("");
+  if (!items) return "";
+  return `<div class="feed-post-assets feed-post-assets-${count}">${items}</div>`;
+}
 
 /* 작성창 전체 초기화 — 페이지 진입 시 1회 + 로그인 상태 변화 시 호출 */
 function initFeedCompose() {
