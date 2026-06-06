@@ -333,6 +333,12 @@
                   <button class="text-action" type="button" id="siteContentEditorClose">닫기</button>
                 </header>
                 <p class="section-note" id="siteContentEditorMeta"></p>
+                <!-- #687 — 관리자 문구 수정 skeleton 안내: 고정 내비게이션 문구는 대상 아님 + 모델/캐릭터별 분리 기준 -->
+                <p class="section-note site-content-scope-guide" id="siteContentScopeGuide">
+                  ⓘ 홈 · 아티스트 · 루미나픽 같은 <strong>고정 내비게이션 문구는 이 화면의 수정 대상이 아닙니다</strong>.
+                  이 화면은 모델(<code>modelSlug</code>)별 또는 캐릭터(<code>characterSlug</code>)별로 분리되는 화면 문구만 다룹니다 —
+                  아래 <strong>scope</strong>를 <code>model</code> / <code>character</code>로 선택하고 해당 slug를 입력해 분리 기준을 명확히 하세요.
+                </p>
                 <form class="site-content-form" id="siteContentForm" novalidate>
                   <div class="site-content-form-grid">
                     <label class="is-wide">contentKey
