@@ -180,8 +180,8 @@
     {
       name: "민채온", publicName: "민채온", slug: "min-chaeon",
       gender: "female",
-      // #601 — 이미지 16장 미충족, 공개 보류. 충족 후 "public"으로 전환. (차모 판단 2026-06-02)
-      type: "아티스트", tier: "sub", status: "pending",
+      // #730 — 갤러리 site-selected 14장 반영 완료 확인, "public"으로 전환. (2026-06-08)
+      type: "아티스트", tier: "sub", status: "public",
       role: "피트니스 아이돌",
       artistDescription: "웃을 땐 말랑하지만 무대에 서면 에너지가 달라져요. 귀여움 뒤의 탄탄한 반전을 보여줄게요.",
       summary: "러블리한 얼굴, 건강한 반전 에너지.",
