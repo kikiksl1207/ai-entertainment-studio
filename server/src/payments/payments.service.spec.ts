@@ -1,6 +1,9 @@
 import { ConflictException } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
-import { PaymentsService } from './payments.service';
+import {
+  CHARGE_FIXTURE_PAYMENT_SEPARATION_CONTRACT,
+  PaymentsService,
+} from './payments.service';
 
 const userId = '00000000-0000-4000-8000-000000000001';
 const otherUserId = '00000000-0000-4000-8000-000000000002';
@@ -144,6 +147,47 @@ function paidWebhookFixture(
 }
 
 describe('PaymentsService server-authority contract', () => {
+  it('keeps charge preview fixture state out of real order and wallet authority', () => {
+    expect(CHARGE_FIXTURE_PAYMENT_SEPARATION_CONTRACT).toMatchObject({
+      version: '2026-06-08.charge-fixture-payment-separation.v1',
+      fixtureScope: {
+        allowedSurfaces: ['local_preview_ui', 'storybook_like_preview'],
+        serverAcceptedAsProductSource: false,
+        paymentOrderMutation: false,
+        walletMutation: false,
+        bonusMutation: false,
+        providerCheckoutMutation: false,
+      },
+      realPaymentSourceOfTruth: {
+        productPolicy: 'ACTIVE_CHARGE_PRODUCT_SPECS',
+        productLookup: 'activeChargeProductWhere(luminaProductId)',
+        orderStatusBeforeProviderWebhook: 'pending',
+        walletCreditTrigger: 'verified_provider_paid_webhook_only',
+        firstChargeBonusTrigger: 'verified_first_paid_order_transition_only',
+      },
+      serverAuthority: {
+        clientSubmittedPriceTrusted: false,
+        clientSubmittedLuminaAmountTrusted: false,
+        clientSubmittedBonusAmountTrusted: false,
+        clientSubmittedPaymentStatusTrusted: false,
+        checkoutPreviewCanCreatePaymentOrder: false,
+        checkoutPreviewCanCreateWalletLedger: false,
+      },
+    });
+    expect(
+      CHARGE_FIXTURE_PAYMENT_SEPARATION_CONTRACT.forbiddenFixtureFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'pg_pending',
+        'preview',
+        'fixture',
+        'fixtureProductId',
+        'fixtureStatus',
+        'fixtureWalletBalance',
+      ]),
+    );
+  });
+
   it('creates checkout orders only from active charge-policy price tiers', async () => {
     const product = {
       id: productId,
@@ -179,6 +223,9 @@ describe('PaymentsService server-authority contract', () => {
         luminaAmount: '999999',
         bonusAmount: '999999',
         totalLumina: '999999',
+        status: 'pg_pending',
+        fixture: true,
+        fixtureProductId: otherProductId,
       } as never),
     ).resolves.toMatchObject({
       order,
