@@ -446,6 +446,19 @@ export class AdminService {
         clientDisplayedBalanceTrusted: false,
         firstChargeBonusLedgerType: 'first_charge_bonus',
         firstChargeBonusPolicy: 'one_time_user_scoped_10_percent_bonus',
+        firstChargeBonusAuditGuard: {
+          ledgerType: 'first_charge_bonus',
+          referenceType: 'payment_order',
+          idempotencyKeyPattern: 'first_charge_bonus:<userId>',
+          duplicateReplayBehavior:
+            'wallet_ledger_upsert_replay_without_second_bonus_credit',
+          retrySafe: true,
+          failedProviderEventLocksEligibility: false,
+          accountScope: 'userId',
+          bonusBasis: 'lumina_products.lumina_amount',
+          packageBonusIncluded: false,
+          idempotencyKeyReturned: false,
+        },
         packageBonusLedgerMode: 'combined_in_purchase_ledger_amount',
         packageBonusAuditNote:
           'High-value package bonuses are included in purchase ledger credit until a dedicated package bonus ledger type is introduced.',
