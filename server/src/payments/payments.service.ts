@@ -31,6 +31,41 @@ const PAYMENT_CHARGE_PRODUCT_UNAVAILABLE = {
   walletMutation: false,
 } as const;
 
+export const CHARGE_FIXTURE_PAYMENT_SEPARATION_CONTRACT = {
+  version: '2026-06-08.charge-fixture-payment-separation.v1',
+  fixtureScope: {
+    allowedSurfaces: ['local_preview_ui', 'storybook_like_preview'],
+    serverAcceptedAsProductSource: false,
+    paymentOrderMutation: false,
+    walletMutation: false,
+    bonusMutation: false,
+    providerCheckoutMutation: false,
+  },
+  realPaymentSourceOfTruth: {
+    productPolicy: 'ACTIVE_CHARGE_PRODUCT_SPECS',
+    productLookup: 'activeChargeProductWhere(luminaProductId)',
+    orderStatusBeforeProviderWebhook: 'pending',
+    walletCreditTrigger: 'verified_provider_paid_webhook_only',
+    firstChargeBonusTrigger: 'verified_first_paid_order_transition_only',
+  },
+  forbiddenFixtureFields: [
+    'pg_pending',
+    'preview',
+    'fixture',
+    'fixtureProductId',
+    'fixtureStatus',
+    'fixtureWalletBalance',
+  ],
+  serverAuthority: {
+    clientSubmittedPriceTrusted: false,
+    clientSubmittedLuminaAmountTrusted: false,
+    clientSubmittedBonusAmountTrusted: false,
+    clientSubmittedPaymentStatusTrusted: false,
+    checkoutPreviewCanCreatePaymentOrder: false,
+    checkoutPreviewCanCreateWalletLedger: false,
+  },
+} as const;
+
 @Injectable()
 export class PaymentsService {
   constructor(
