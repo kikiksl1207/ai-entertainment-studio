@@ -125,6 +125,40 @@ describe('artist URL knowledge contract', () => {
         dbUrlReturned: false,
       },
     });
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.chatContextRefresh).toMatchObject({
+      version: '2026-06-08.artist-url-knowledge-chat-context-refresh.v1',
+      target: 'character_chat_context_candidate',
+      refreshMode: 'server_requery_by_artist_id',
+      providerCallDuringRefresh: false,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      statusMatrix: {
+        pending: 'excluded_pending_review',
+        approved: 'eligible_when_safe_chat_enabled_and_summary_present',
+        rejected: 'excluded_rejected',
+        archived: 'excluded_archived',
+      },
+      safetyMatrix: {
+        unreviewed: 'excluded_safety_review',
+        needs_review: 'excluded_safety_review',
+        safe: 'eligible_when_approved_chat_enabled_and_summary_present',
+        blocked: 'excluded_safety_review',
+      },
+      projection: {
+        approvedOnly: true,
+        safeOnly: true,
+        allowChatReferenceRequired: true,
+        summaryRequired: true,
+        rawUrlReturned: false,
+        rawPageBodyReturned: false,
+        privateMaterialReturned: false,
+        adminNotesReturned: false,
+        tokenCookiePasswordReturned: false,
+        apiKeyReturned: false,
+        dbUrlReturned: false,
+      },
+    });
     expect(ARTIST_URL_KNOWLEDGE_CONTRACT.adminToChatHandoff).toMatchObject({
       source: 'backstage_artist_knowledge_review',
       target: 'character_chat_context_candidate',
