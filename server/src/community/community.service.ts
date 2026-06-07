@@ -65,6 +65,61 @@ const FEED_PUBLIC_CLEANUP_GUARD_NOT: Prisma.CommunityPostWhereInput[] = [
   { body: { contains: '샘플문구' } },
 ];
 
+export const USER_SOCIAL_ACCOUNT_CONTRACT = {
+  version: '2026-06-08.user-social-account-contract.v1',
+  profileFollowLists: {
+    endpoints: [
+      'GET /api/v1/users/:userId/followers',
+      'GET /api/v1/users/:userId/following-users',
+      'GET /api/v1/users/handle/:publicHandle/followers',
+      'GET /api/v1/users/handle/:publicHandle/following-users',
+    ],
+    targetVisibilityWhere: {
+      status: 'active',
+      deletedAt: null,
+    },
+    returnedUserWhere: {
+      status: 'active',
+      deletedAt: null,
+    },
+    hiddenStatuses: ['deleted', 'suspended', 'inactive', 'private'],
+    projection: 'public_user_follow_summary_v1',
+    privateFieldsExcluded: [
+      'email',
+      'phone',
+      'providerIds',
+      'walletAccounts',
+      'walletLedger',
+      'paymentOrders',
+      'privateProfile',
+      'moderationNotes',
+    ],
+  },
+  blockEffects: {
+    blockEndpoint: 'POST /api/v1/users/:userId/block',
+    unblockEndpoint: 'DELETE /api/v1/users/:userId/block',
+    removesViewerToTargetFollow: true,
+    removesTargetToViewerFollow: true,
+    refollowBlockedWhileActive: true,
+    blockedProfileListAccess: {
+      status: 403,
+      code: 'USER_PROFILE_BLOCKED',
+      messageKey: 'social.profile.blocked',
+    },
+    hiddenSurfaces: [
+      'feed',
+      'comments',
+      'premium_chat',
+      'support',
+      'user_follow_lists',
+    ],
+    walletMutation: false,
+    luminaMutation: false,
+    paymentMutation: false,
+    settlementMutation: false,
+  },
+} as const;
+
 @Injectable()
 export class CommunityService {
   private readonly logger = new Logger(CommunityService.name);
@@ -2127,7 +2182,7 @@ export class CommunityService {
         canViewList: true,
       },
       policy: {
-        projection: 'public_user_follow_summary_v1',
+        projection: USER_SOCIAL_ACCOUNT_CONTRACT.profileFollowLists.projection,
         visibility: 'public_active_profiles_only',
         list,
         hiddenUserRule:
@@ -2143,16 +2198,8 @@ export class CommunityService {
           'blockedByMe',
           'hasBlockedMe',
         ],
-        privateFieldsExcluded: [
-          'email',
-          'phone',
-          'providerIds',
-          'walletAccounts',
-          'walletLedger',
-          'paymentOrders',
-          'privateProfile',
-          'moderationNotes',
-        ],
+        privateFieldsExcluded:
+          USER_SOCIAL_ACCOUNT_CONTRACT.profileFollowLists.privateFieldsExcluded,
       },
     };
   }
@@ -4923,6 +4970,7 @@ export class CommunityService {
     return {
       relationship: 'user_block',
       scope: 'viewer_target_pair',
+      hiddenSurfaces: USER_SOCIAL_ACCOUNT_CONTRACT.blockEffects.hiddenSurfaces,
       walletMutation: false,
       luminaMutation: false,
       paymentMutation: false,

@@ -3,7 +3,10 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { CommunityService } from './community.service';
+import {
+  CommunityService,
+  USER_SOCIAL_ACCOUNT_CONTRACT,
+} from './community.service';
 
 const authorId = '00000000-0000-4000-8000-000000000101';
 const otherUserId = '00000000-0000-4000-8000-000000000102';
@@ -147,6 +150,68 @@ function threadMetadata(overrides: Record<string, unknown> = {}) {
 describe('CommunityService user follow/block mutation contract', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('publishes the user follow list and block account contract', () => {
+    expect(USER_SOCIAL_ACCOUNT_CONTRACT).toMatchObject({
+      version: '2026-06-08.user-social-account-contract.v1',
+      profileFollowLists: {
+        endpoints: [
+          'GET /api/v1/users/:userId/followers',
+          'GET /api/v1/users/:userId/following-users',
+          'GET /api/v1/users/handle/:publicHandle/followers',
+          'GET /api/v1/users/handle/:publicHandle/following-users',
+        ],
+        targetVisibilityWhere: {
+          status: 'active',
+          deletedAt: null,
+        },
+        returnedUserWhere: {
+          status: 'active',
+          deletedAt: null,
+        },
+        hiddenStatuses: ['deleted', 'suspended', 'inactive', 'private'],
+        projection: 'public_user_follow_summary_v1',
+      },
+      blockEffects: {
+        blockEndpoint: 'POST /api/v1/users/:userId/block',
+        unblockEndpoint: 'DELETE /api/v1/users/:userId/block',
+        removesViewerToTargetFollow: true,
+        removesTargetToViewerFollow: true,
+        refollowBlockedWhileActive: true,
+        hiddenSurfaces: [
+          'feed',
+          'comments',
+          'premium_chat',
+          'support',
+          'user_follow_lists',
+        ],
+        walletMutation: false,
+        luminaMutation: false,
+        paymentMutation: false,
+        settlementMutation: false,
+      },
+    });
+    expect(
+      USER_SOCIAL_ACCOUNT_CONTRACT.profileFollowLists.privateFieldsExcluded,
+    ).toEqual(
+      expect.arrayContaining([
+        'email',
+        'phone',
+        'walletAccounts',
+        'walletLedger',
+        'paymentOrders',
+        'privateProfile',
+        'moderationNotes',
+      ]),
+    );
+    expect(
+      USER_SOCIAL_ACCOUNT_CONTRACT.blockEffects.blockedProfileListAccess,
+    ).toEqual({
+      status: 403,
+      code: 'USER_PROFILE_BLOCKED',
+      messageKey: 'social.profile.blocked',
+    });
   });
 
   it('fails closed when a blocked user tries to follow or refollow', async () => {
