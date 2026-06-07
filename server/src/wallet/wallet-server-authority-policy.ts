@@ -18,6 +18,57 @@ export const SERVER_AUTHORITY_WALLET_POLICY = {
   rawPurchaseTokensLogged: false,
 } as const;
 
+export const WALLET_MUTATION_SURFACE_GUARD_MATRIX = [
+  {
+    surface: 'payment_purchase_credit',
+    direction: 'credit',
+    authority: ['server product table', 'provider verified transaction'],
+    duplicateGuard: 'provider_transaction_id_unique',
+    negativeBalanceGuard: 'not_applicable_credit',
+    ledgerWriteAtomicity: 'payment_order_status_and_wallet_ledger_in_transaction',
+    clientEconomicFieldsTrusted: false,
+  },
+  {
+    surface: 'premium_chat_room_open',
+    direction: 'debit',
+    authority: ['server room tier policy', 'wallet_accounts.cached_balance'],
+    duplicateGuard: 'room_open_idempotency_fingerprint',
+    negativeBalanceGuard: 'atomic_update_many_cached_balance_gte_server_amount',
+    ledgerWriteAtomicity: 'premium_chat_room_and_wallet_ledger_in_transaction',
+    clientEconomicFieldsTrusted: false,
+  },
+  {
+    surface: 'premium_chat_donation',
+    direction: 'debit',
+    authority: ['server normalized donation amount', 'wallet_accounts.cached_balance'],
+    duplicateGuard: 'client_idempotency_key',
+    negativeBalanceGuard: 'atomic_update_many_cached_balance_gte_server_amount',
+    ledgerWriteAtomicity: 'donation_and_wallet_ledger_in_transaction',
+    clientEconomicFieldsTrusted: false,
+  },
+  {
+    surface: 'premium_chat_message_debit',
+    direction: 'debit',
+    authority: [
+      'server visible two-way sentence pair meter',
+      'wallet_accounts.cached_balance',
+    ],
+    duplicateGuard: 'server_message_pair_meter_key',
+    negativeBalanceGuard: 'atomic_update_many_cached_balance_gte_server_amount',
+    ledgerWriteAtomicity: 'meter_window_and_wallet_ledger_in_transaction',
+    clientEconomicFieldsTrusted: false,
+  },
+  {
+    surface: 'premium_chat_room_refund',
+    direction: 'credit',
+    authority: ['server refund policy', 'moderation outcome', 'existing room ledger'],
+    duplicateGuard: 'server_room_refund_key',
+    negativeBalanceGuard: 'not_applicable_credit',
+    ledgerWriteAtomicity: 'refund_status_and_wallet_ledger_in_transaction',
+    clientEconomicFieldsTrusted: false,
+  },
+] as const;
+
 export const CLIENT_ECONOMIC_TAMPER_FIELDS = [
   'balanceLumina',
   'cachedBalance',
