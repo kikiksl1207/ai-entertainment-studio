@@ -108,6 +108,26 @@ export const CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT = {
     characterChatCreatesPremiumRoom: false,
     premiumRoomCreatesAiReply: false,
   },
+  routeStateGuard: {
+    characterChatAllowedRoutes: ['/character-chat'],
+    premiumChatAllowedRoutes: [
+      '/api/v1/chat/premium-rooms',
+      '/api/v1/chat/premium-rooms/:roomId',
+      '/api/v1/chat/me/premium-rooms/:roomId/status',
+      '/api/v1/creator-studio/premium-chat/rooms/:roomId/status',
+    ],
+    premiumChatForbiddenRoutes: ['/character-chat'],
+    characterChatForbiddenProductKinds: ['artist_direct_premium_dm'],
+    premiumChatForbiddenProductKinds: ['ai_character_chat'],
+    characterChatForbiddenResponseModes: ['artist_direct_reply'],
+    premiumChatForbiddenResponseModes: ['ai_character_reply'],
+    premiumChatFallbackToCharacterChat: false,
+    premiumChatUsesCharacterStarterPrompts: false,
+    premiumChatUsesCharacterOpeningGreeting: false,
+    premiumChatGenerationModeAllowed: false,
+    premiumChatProviderCallBeforeArtistReply: false,
+    premiumChatOpenWalletMutationEnabled: false,
+  },
   replyModeCopy: {
     currentChatLabelKo: '\uc77c\ubc18 \uce90\ub9ad\ud130\ucc57',
     targetChatLabelKo:

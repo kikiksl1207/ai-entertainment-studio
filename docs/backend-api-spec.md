@@ -1045,6 +1045,11 @@ Character-chat premium transition CTA contract (#500/#511):
   prompt or random greeting behavior.
 - The visible copy separates normal character chat from artist direct-reply
   premium chat. It must not imply an automatic AI reply for premium chat.
+- #744 adds an explicit route/state guard: premium-chat CTAs must not route to
+  `/character-chat`, must not use `ai_character_chat`/`ai_character_reply`,
+  and must not reuse character starter prompts or opening greetings. Character
+  chat must not create premium rooms, and premium-chat room open remains
+  submit/wallet/provider disabled until the room contract is opened.
 - `roomStateReasons` provides Korean user-facing reasons for available,
   artist-resting, under-review, expired, and unavailable states. Frontend must
   render those Korean messages instead of raw state keys.
