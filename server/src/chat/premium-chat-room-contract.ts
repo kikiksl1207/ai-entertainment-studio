@@ -1285,6 +1285,43 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
           payoutMutation: false,
         },
       },
+      roomPauseRefundAuditChain: {
+        version: '2026-06-08.premium-chat-room-pause-refund-audit-chain.v1',
+        storageRequiredBeforeMutation: [
+          'premium_chat_room_reports',
+          'premium_chat_room_status_events',
+          'premium_chat_room_refund_decisions',
+          'premium_chat_accounting_ledger',
+        ],
+        reportSubmit: {
+          roomStatusKey: 'paused_by_report',
+          reportStatusKey: 'reported',
+          auditAction: 'premium_chat.report.submit',
+          messageMutation: false,
+          donationMutation: false,
+          walletMutation: false,
+          refundMutation: false,
+        },
+        operatorReview: {
+          reviewStatusKeys: ['blinded', 'suspended', 'admin_review'],
+          auditAction: 'premium_chat.report.status_change',
+          rawReportBodyReturned: false,
+          rawAdminNoteReturned: false,
+        },
+        refundDecision: {
+          allowedRoomStatusKeys: [
+            'paused_by_report',
+            'refund_pending',
+            'closed_by_artist',
+            'closed_by_operator',
+          ],
+          auditAction: 'premium_chat.refund.decision_recorded',
+          refundLedgerCreatedOnlyAfterDecision: true,
+          pgRefundMutationEnabled: false,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+      },
       requiredTraceFields: [
         'roomId',
         'artistId',
