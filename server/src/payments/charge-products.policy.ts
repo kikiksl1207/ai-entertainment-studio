@@ -9,6 +9,8 @@ export type ActiveChargeProductSpec = {
   bonusAmount: number;
 };
 
+export type ChargeProductPolicyChannel = 'web' | 'app';
+
 export const ACTIVE_CHARGE_PRODUCT_SPECS = [
   {
     sku: 'LUMINA_100',
@@ -67,6 +69,50 @@ export const ACTIVE_CHARGE_PRODUCT_SKUS = ACTIVE_CHARGE_PRODUCT_SPECS.map(
 export const ACTIVE_CHARGE_PRICE_AMOUNTS_KRW = ACTIVE_CHARGE_PRODUCT_SPECS.map(
   (product) => product.priceAmount,
 );
+
+export const APP_CHARGE_PRODUCT_SPECS = ACTIVE_CHARGE_PRODUCT_SPECS.map(
+  (product) => ({
+    ...product,
+    sku: `APP_${product.sku}`,
+    channel: 'app',
+    feePolicyKey: 'app_store_fee_reflected',
+    providerReceiptRequired: true,
+  }),
+);
+
+export const CHARGE_PRODUCT_POLICY_READ_MODEL = {
+  version: '2026-06-08.charge-sku-policy-read-model.v1',
+  sourceOfTruth: 'server_charge_product_policy',
+  priceCurrency: 'KRW',
+  priceAmountsKrw: ACTIVE_CHARGE_PRICE_AMOUNTS_KRW,
+  packageCountPerChannel: 6,
+  channels: {
+    web: {
+      channel: 'web',
+      feePolicyKey: 'web_pg_fee_reflected',
+      checkoutEndpoint: 'POST /api/v1/payments/checkout',
+      products: ACTIVE_CHARGE_PRODUCT_SPECS,
+      providerReceiptRequired: false,
+    },
+    app: {
+      channel: 'app',
+      feePolicyKey: 'app_store_fee_reflected',
+      fulfillmentEndpoint: 'POST /api/v1/payments/app-store/fulfill',
+      products: APP_CHARGE_PRODUCT_SPECS,
+      providerReceiptRequired: true,
+    },
+  },
+  serverAuthority: {
+    clientSubmittedSkuTrusted: false,
+    clientSubmittedPriceTrusted: false,
+    clientSubmittedLuminaAmountTrusted: false,
+    clientSubmittedBonusAmountTrusted: false,
+    providerReceiptRequiredForApp: true,
+    walletLedgerSourceOfTruth: true,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
 
 export const ACTIVE_CHARGE_PRODUCT_BY_SKU =
   ACTIVE_CHARGE_PRODUCT_SPECS.reduce<Record<string, ActiveChargeProductSpec>>(
