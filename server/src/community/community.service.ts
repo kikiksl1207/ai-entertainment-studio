@@ -792,6 +792,12 @@ export class CommunityService {
     return {
       ok: true,
       postId: post.id,
+      relation: 'share',
+      createsFeedRow: false,
+      repostRelation: false,
+      threadRelation: false,
+      commentRelation: false,
+      replyRelation: false,
       share: this.feedShareContract(post.id),
       policy: this.feedSharePolicy(),
     };
@@ -4546,6 +4552,11 @@ export class CommunityService {
   private feedSharePolicy() {
     return {
       relation: 'share',
+      projection: 'share_contract_only',
+      repostRelation: false,
+      threadRelation: false,
+      commentRelation: false,
+      replyRelation: false,
       sourceVisibility: 'public_only',
       sourceStatusPolicy: 'published_public_not_deleted_only',
       availableOnOtherUsersPosts: true,

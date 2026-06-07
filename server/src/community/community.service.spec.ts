@@ -1559,11 +1559,22 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
       expect.objectContaining({
         ok: true,
         postId,
+        relation: 'share',
+        createsFeedRow: false,
+        repostRelation: false,
+        threadRelation: false,
+        commentRelation: false,
+        replyRelation: false,
         share: expect.objectContaining({
           publicPath: `/lumina-feed/posts/${postId}`,
           countStrategy: 'not_mutated_by_share_contract',
         }),
         policy: expect.objectContaining({
+          projection: 'share_contract_only',
+          repostRelation: false,
+          threadRelation: false,
+          commentRelation: false,
+          replyRelation: false,
           availableOnOtherUsersPosts: true,
           authorOwnershipRequired: false,
           createsFeedRow: false,

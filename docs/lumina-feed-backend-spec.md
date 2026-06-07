@@ -312,6 +312,16 @@ Repost and quote repost rules:
 - Repost and quote repost create/read paths do not mutate wallet, Lumina,
   settlement, payout, order, or paid-like flows.
 
+Share contract rules:
+
+- `POST /lumina-feed/posts/:postId/share` returns a share contract only:
+  `relation: share`, `createsFeedRow: false`, `repostRelation: false`,
+  `threadRelation: false`, `commentRelation: false`, and
+  `replyRelation: false`.
+- Share contracts are separate from repost and quote repost projections. They do
+  not create a repost row, thread continuation, comment, reply, share ledger,
+  wallet, Lumina, settlement, payout, order, or paid-like mutation.
+
 External link example:
 
 ```json
