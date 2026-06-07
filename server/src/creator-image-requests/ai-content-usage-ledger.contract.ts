@@ -16,16 +16,41 @@ export const AI_CONTENT_USAGE_CAPABILITIES = [
   'reference_pack',
 ] as const;
 
+export const AI_CONTENT_USAGE_REQUEST_TYPES = [
+  'image_single',
+  'image_variation',
+  'image_reference',
+  'video_clip',
+  'video_loop',
+  'premium_pack',
+  'unknown',
+] as const;
+
+export const AI_CONTENT_USAGE_SAFETY_STATUSES = [
+  'pending',
+  'needs_review',
+  'blocked',
+  'cleared',
+  'unknown',
+] as const;
+
 export type AiContentUsageProviderFamily =
   (typeof AI_CONTENT_USAGE_PROVIDER_FAMILIES)[number];
 export type AiContentUsageCapability =
   (typeof AI_CONTENT_USAGE_CAPABILITIES)[number];
+export type AiContentUsageRequestType =
+  (typeof AI_CONTENT_USAGE_REQUEST_TYPES)[number];
+export type AiContentUsageSafetyStatus =
+  (typeof AI_CONTENT_USAGE_SAFETY_STATUSES)[number];
 
 export type AiContentUsageLedgerInput = {
   requestId?: string | null;
+  requestType?: string | null;
   providerFamily?: string | null;
   modelAlias?: string | null;
+  modelRouteAlias?: string | null;
   capability?: string | null;
+  safetyStatus?: string | null;
   attempt?: number | string | null;
   regenerationCount?: number | string | null;
   estimatedCostMicros?: number | string | null;
@@ -50,9 +75,12 @@ export const AI_CONTENT_USAGE_LEDGER_GUARD = {
   liveUsageLedgerMutationEnabled: false,
   fields: [
     'requestId',
+    'requestType',
     'providerFamily',
     'modelAlias',
+    'modelRouteAlias',
     'capability',
+    'safetyStatus',
     'attempt',
     'regenerationCount',
     'estimatedCostMicros',
@@ -72,6 +100,23 @@ export const AI_CONTENT_USAGE_LEDGER_GUARD = {
     'totalOutputUnits',
     'maxRegenerationCount',
   ],
+  pipelineLogPolicy: {
+    source: 'ai_middleware_pipeline',
+    providerCallEnabled: false,
+    providerRouteAliasOnly: true,
+    vendorProviderKeyStored: false,
+    vendorModelKeyStored: false,
+    modelRouteAliasPrefix: 'ai_premium_content.',
+    requestTypes: AI_CONTENT_USAGE_REQUEST_TYPES,
+    safetyStatuses: AI_CONTENT_USAGE_SAFETY_STATUSES,
+    requiredBeforeProviderAttempt: [
+      'requestType',
+      'modelRouteAlias',
+      'estimatedCostMicros',
+      'safetyStatus',
+    ],
+    safetyBlockedBehavior: 'log_skeleton_only_without_provider_attempt',
+  },
   sensitiveDataPolicy: {
     vendorCredentialStored: false,
     vendorCredentialLogged: false,
@@ -103,9 +148,12 @@ export function buildAiContentUsageLedgerRow(
   return {
     schemaVersion: AI_CONTENT_USAGE_LEDGER_SCHEMA_VERSION,
     requestId: normalizeText(input.requestId, 80),
+    requestType: normalizeRequestType(input.requestType),
     providerFamily: normalizeProviderFamily(input.providerFamily),
     modelAlias: normalizeText(input.modelAlias, 80),
+    modelRouteAlias: normalizeModelRouteAlias(input.modelRouteAlias),
     capability: normalizeCapability(input.capability),
+    safetyStatus: normalizeSafetyStatus(input.safetyStatus),
     attempt: nonNegativeInteger(input.attempt),
     regenerationCount: nonNegativeInteger(input.regenerationCount),
     estimatedCostMicros: nonNegativeInteger(input.estimatedCostMicros),
@@ -170,6 +218,30 @@ function normalizeCapability(
   return (AI_CONTENT_USAGE_CAPABILITIES as readonly string[]).includes(value ?? '')
     ? (value as AiContentUsageCapability)
     : 'image_generation';
+}
+
+function normalizeRequestType(
+  value: string | null | undefined,
+): AiContentUsageRequestType {
+  return (AI_CONTENT_USAGE_REQUEST_TYPES as readonly string[]).includes(value ?? '')
+    ? (value as AiContentUsageRequestType)
+    : 'unknown';
+}
+
+function normalizeSafetyStatus(
+  value: string | null | undefined,
+): AiContentUsageSafetyStatus {
+  return (AI_CONTENT_USAGE_SAFETY_STATUSES as readonly string[]).includes(
+    value ?? '',
+  )
+    ? (value as AiContentUsageSafetyStatus)
+    : 'unknown';
+}
+
+function normalizeModelRouteAlias(value: string | null | undefined) {
+  const normalized = normalizeText(value, 120);
+
+  return normalized?.startsWith('ai_premium_content.') ? normalized : null;
 }
 
 function normalizeText(value: string | null | undefined, maxLength: number) {
