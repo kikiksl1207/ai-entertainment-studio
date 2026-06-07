@@ -101,7 +101,33 @@ describe('artist URL knowledge contract', () => {
         'apiKey',
         'dbUrl',
       ]),
+      reuseCache: {
+        scope: 'artist_chat_context',
+        cacheKeyPattern: 'artist-url-knowledge:<artistId>:approved-safe-v1',
+        ttlSeconds: 300,
+        maxStaleSecondsOnReadOnlyFallback: 60,
+        reuseEligibility: {
+          status: 'approved',
+          safetyStatus: 'safe',
+          allowChatReference: true,
+          summaryRequired: true,
+        },
+        rawUrlCached: false,
+        rawUrlQueryCached: false,
+        privateNoteCached: false,
+        providerPayloadCached: false,
+      },
     });
+    expect(
+      ARTIST_URL_KNOWLEDGE_CONTRACT.chatReferencePolicy.reuseCache.invalidatedBy,
+    ).toEqual(
+      expect.arrayContaining([
+        'creator_studio.artist_knowledge_url.update',
+        'creator_studio.artist_knowledge_url.archive',
+        'artist_knowledge_url.approve',
+        'artist_knowledge_url.reject',
+      ]),
+    );
     expect(ARTIST_URL_KNOWLEDGE_CONTRACT.chatContextConnection).toMatchObject({
       source: 'approved_artist_knowledge_urls',
       lookup: {

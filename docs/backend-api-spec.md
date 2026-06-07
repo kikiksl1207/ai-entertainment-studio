@@ -427,6 +427,13 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   `allowChatReference=true` and a bounded summary become character-chat context
   candidates. Refresh does not call providers and does not mutate wallet,
   settlement, payout, or paid-like state.
+- #745 fixes the approved URL knowledge reuse/cache contract. Character-chat may
+  reuse only approved, safe, chat-enabled bounded summaries under the cache key
+  `artist-url-knowledge:<artistId>:approved-safe-v1` with `ttlSeconds=300` and
+  at most 60 seconds of read-only stale fallback. Creator create/update/archive
+  and Backstage approve/reject/archive events invalidate the cache. Raw URLs,
+  token-like query strings, private notes, provider payloads, and admin material
+  must not be cached or sent to the provider.
 - The admin audit list endpoint is a read-only skeleton guarded by `audit:read`.
   It returns redacted artist knowledge URL audit event list items only.
 - Query shape: `action`, `targetId`, `artistId`, `take`, and opaque `cursor`.
