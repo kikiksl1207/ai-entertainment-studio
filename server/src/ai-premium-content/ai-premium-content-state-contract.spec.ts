@@ -160,6 +160,7 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       failurePolicy: AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
     });
     expect(apiContracts.costPrecheck.response.modelRoutingCandidates[0]).toEqual({
+      providerRouteAlias: '<server provider route alias>',
       capability: '<server capability alias>',
       aliasType: 'server_capability_alias',
       providerKeyReturned: false,
@@ -208,19 +209,31 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     );
     expect(AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY.image_single).toMatchObject({
       outputClass: 'image',
+      providerRouteAlias: 'ai_premium_content.image.text_to_image',
       defaultCapability: 'text_to_image',
       humanReviewRequired: true,
     });
     expect(AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY.video_clip).toMatchObject({
       outputClass: 'video',
+      providerRouteAlias: 'ai_premium_content.video.text_to_video',
       defaultCapability: 'text_to_video',
       humanReviewRequired: true,
     });
     expect(AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY.premium_pack).toMatchObject({
       outputClass: 'mixed',
+      providerRouteAlias: 'ai_premium_content.mixed.generation_pack',
       defaultCapability: 'mixed_generation_pack',
       humanReviewRequired: true,
     });
+    expect(
+      Object.values(AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY).every(
+        (policy) =>
+          policy.providerRouteAlias.startsWith('ai_premium_content.') &&
+          !/openai|seedance|stable_diffusion|model|vendor/i.test(
+            policy.providerRouteAlias,
+          ),
+      ),
+    ).toBe(true);
   });
 
   it('defines the disabled brief submit skeleton with request type, artist slug, safety, and estimated cost tracking', () => {
@@ -301,6 +314,7 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     });
     expect(imagePrecheck.modelRoutingCandidates).toEqual([
       {
+        providerRouteAlias: 'ai_premium_content.image.text_to_image',
         capability: 'text_to_image',
         aliasType: 'server_capability_alias',
         providerKeyReturned: false,
@@ -317,6 +331,7 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       outputClass: 'video',
       modelRoutingCandidates: [
         {
+          providerRouteAlias: 'ai_premium_content.video.text_to_video',
           capability: 'text_to_video',
         },
       ],
