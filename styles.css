@@ -4963,6 +4963,39 @@ p {
     flex-wrap: nowrap;
     gap: 14px;
   }
+}
+
+/* #732 — 390px 모바일에서 우측 공유/메뉴 액션 잘림 수정.
+   max-width:1120px에서 flex-wrap:nowrap이 적용되어 좁은 화면에서 right 버튼이 클리핑됨.
+   480px 이하에서는 wrap 복구 + 액션 그룹이 전체 폭 안에 자연스럽게 정렬되게 한다. */
+@media (max-width: 480px) {
+  .feed-post-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+    overflow: visible;
+  }
+  .feed-post-actions-left {
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .feed-post-actions-right {
+    gap: 4px;
+    flex-shrink: 0;
+    margin-left: 0;
+  }
+  .feed-action-btn {
+    padding: 5px 7px;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 1120px) {
+  /* placeholder — 위 수정에서 닫힌 블록의 연속 구문 유지용 */
+  .feed-post-action,
+  .feed-post-action-btn {
+    min-width: 0;
+  }
   .feed-post-action,
   .feed-post-action-btn {
     min-width: 0;
