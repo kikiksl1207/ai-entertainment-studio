@@ -193,6 +193,7 @@ My Page contract:
 - `PATCH /api/v1/lumina-feed/posts/:postId` edits the current user's own post body. MVP edit scope is body-only; image replacement/removal is not supported yet.
 - `PATCH /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` and `DELETE /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` are author-only for non-root thread items. Likes, comments, and images remain root-post based.
 - Signed-in `GET /api/v1/me/lumina-feed` post rows include `viewer` and `permissions` hints (`hasLiked`, `isAuthor`, `isFollowingArtist`, `isFollowingAuthor`, `canFollowArtist`, `canUnfollowArtist`, `canFollowAuthor`, `canUnfollowAuthor`, `canEdit`, `canDelete`) for frontend action rendering.
+- #743 fixes the feed follow/block interaction contract: feed reads filter active `user_blocks` relationships in either direction, feed writes such as like, reply, repost, and thread continuation fail closed with `403 USER_FOLLOW_BLOCKED` before community/notification mutation, and premium-chat room/message/donation/status surfaces must check the same relationship before wallet, order, settlement, payout, or paid-like work.
 
 이메일/비밀번호 가입 정책:
 

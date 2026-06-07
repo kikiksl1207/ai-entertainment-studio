@@ -521,6 +521,21 @@ Post hide is idempotent and uses soft delete/reactivation on
 `{ "reason": "..." }`, soft-deletes active follows in both directions, and uses
 soft delete/reactivation on `user_blocks`.
 
+#743 follow/block interaction contract:
+
+- Signed-in feed, liked-post, reply, and thread-continuation reads filter authors
+  in an active `user_blocks` relationship in either direction.
+- Feed writes that touch another user's post, including like, reply, repost, and
+  thread continuation, fail closed with `403 USER_FOLLOW_BLOCKED` before
+  community rows or notifications are created when either side blocked the
+  other.
+- Premium-chat room open, message, donation, and owner status surfaces must check
+  the same server-side relationship source before wallet, order, settlement,
+  payout, or paid-like work begins.
+- Blocked relationship projections must not leak private user fields, raw
+  contact material, wallet identifiers, settlement internals, payout internals,
+  tokens, cookies, passwords, API keys, or DB URLs.
+
 ## Admin Moderation APIs
 
 These endpoints are for the future admin/operations screen. They require admin
