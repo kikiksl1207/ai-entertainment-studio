@@ -819,6 +819,59 @@ describe('premium chat room refund and moderation ledger contract', () => {
     }
   });
 
+  it('publishes the server-authoritative refund split ledger contract', () => {
+    const splitContract = PREMIUM_CHAT_ROOM_CONTRACT.refunds.splitLedgerContract;
+
+    expect(splitContract).toMatchObject({
+      version: '2026-06-08.premium-chat-refund-split-ledger.v1',
+      sourceOfTruth: 'server_refund_policy_and_room_status',
+      grossBps: 10000,
+      walletRefundLedgerType: 'refund',
+      companyRevenueLedgerType: 'premium_chat_room_company_revenue',
+      artistCompensationLedgerType: 'premium_chat_room_artist_compensation',
+      duplicateDecisionGuard: 'premium-chat-room-refund:<roomId>:<reasonKey>',
+      adminDecisionKeyRequired: true,
+      clientSubmittedRefundRateTrusted: false,
+      clientSubmittedArtistShareTrusted: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(splitContract.outcomes).toMatchObject({
+      artistForcedClose: {
+        reasonKey: 'artist_forced_close_full_refund',
+        userRefundBps: 10000,
+        companyRevenueBps: 0,
+        artistCompensationBps: 0,
+        walletLedgerEntries: ['premium_chat_room_refund'],
+        accountingLedgerEntries: [],
+      },
+      userFaultRefund70: {
+        reasonKey: 'user_fault_report_refund_70',
+        refundRestrictionStatusKey: 'refund_limited_70',
+        userRefundBps: 7000,
+        companyRevenueBps: 2000,
+        companyRevenuePercent: 20,
+        artistCompensationBps: 1000,
+        artistCompensationPercent: 10,
+      },
+      userFaultRefund50: {
+        reasonKey: 'operator_sanction_user_fault_refund_50',
+        refundRestrictionStatusKey: 'refund_limited_50',
+        userRefundBps: 5000,
+        companyRevenueBps: 4000,
+        companyRevenuePercent: 40,
+        artistCompensationBps: 1000,
+        artistCompensationPercent: 10,
+      },
+    });
+    expect(
+      splitContract.outcomes.userFaultRefund70.accountingLedgerEntries,
+    ).toEqual(PREMIUM_CHAT_ROOM_REFUND_ACCOUNTING_LEDGER_TYPES.slice(1));
+    expect(
+      splitContract.outcomes.userFaultRefund50.accountingLedgerEntries,
+    ).toEqual(PREMIUM_CHAT_ROOM_REFUND_ACCOUNTING_LEDGER_TYPES.slice(1));
+  });
+
   it('separates refund reason keys and artist compensation split conditions', () => {
     expect(PREMIUM_CHAT_REFUND_REASON_KEYS).toEqual([
       'unanswered_24h_full_refund',
