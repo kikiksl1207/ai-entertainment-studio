@@ -2481,6 +2481,11 @@ AI premium content request brief API skeleton (#662):
 - The skeleton tracks only request type, artist slug/server-resolved artist id,
   sanitized brief shape, server-owned safety status, and server-owned estimated
   cost fields.
+- #711 keeps provider routing abstract through server aliases such as
+  `ai_premium_content.image.text_to_image`. The contract may expose only the
+  route alias and capability alias; it must not expose vendor provider keys,
+  model keys, raw prompts, provider payloads, wallet fields, settlement fields,
+  payout fields, or paid-like mutation state.
 - Provider calls, wallet debit, order creation, settlement accrual, payout
   accrual, paid-like mutation, public publish, and profile/feed equip side
   effects are all blocked by contract.

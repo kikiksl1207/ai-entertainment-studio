@@ -52,36 +52,42 @@ export const AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY = {
   image_single: {
     outputClass: 'image',
     firstSurface: ['creator_studio', 'backstage'],
+    providerRouteAlias: 'ai_premium_content.image.text_to_image',
     defaultCapability: 'text_to_image',
     humanReviewRequired: true,
   },
   image_variation: {
     outputClass: 'image',
     firstSurface: ['creator_studio', 'backstage'],
+    providerRouteAlias: 'ai_premium_content.image.image_to_image',
     defaultCapability: 'image_to_image',
     humanReviewRequired: true,
   },
   image_reference: {
     outputClass: 'image',
     firstSurface: ['creator_studio'],
+    providerRouteAlias: 'ai_premium_content.image.reference_pack',
     defaultCapability: 'text_to_image',
     humanReviewRequired: true,
   },
   video_clip: {
     outputClass: 'video',
     firstSurface: ['backstage'],
+    providerRouteAlias: 'ai_premium_content.video.text_to_video',
     defaultCapability: 'text_to_video',
     humanReviewRequired: true,
   },
   video_loop: {
     outputClass: 'video',
     firstSurface: ['backstage'],
+    providerRouteAlias: 'ai_premium_content.video.image_to_video',
     defaultCapability: 'image_to_video',
     humanReviewRequired: true,
   },
   premium_pack: {
     outputClass: 'mixed',
     firstSurface: ['backstage'],
+    providerRouteAlias: 'ai_premium_content.mixed.generation_pack',
     defaultCapability: 'mixed_generation_pack',
     humanReviewRequired: true,
   },
@@ -336,6 +342,7 @@ const aiPremiumContentPrecheckSuccess = ({
     outputClass,
     modelRoutingCandidates: [
       {
+        providerRouteAlias: requestPolicy.providerRouteAlias,
         capability: requestPolicy.defaultCapability,
         aliasType: 'server_capability_alias',
         providerKeyReturned: false,
@@ -544,6 +551,7 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
         outputClass: AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
         modelRoutingCandidates: [
           {
+            providerRouteAlias: '<server provider route alias>',
             capability: '<server capability alias>',
             aliasType: 'server_capability_alias',
             providerKeyReturned: false,
