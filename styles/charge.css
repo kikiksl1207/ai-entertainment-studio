@@ -665,3 +665,16 @@
   .charge-first-bonus-policy { padding: 12px 14px; }
   .charge-first-bonus-examples li { font-size: 12px; }
 }
+
+/* #721 — 로컬/preview fixture 안내 배너 */
+.charge-fixture-notice {
+  background: rgba(255, 200, 0, 0.12);
+  border: 1px solid rgba(255, 200, 0, 0.35);
+  border-radius: 10px;
+  color: rgba(255, 230, 100, 0.9);
+  font-size: 13px;
+  padding: 10px 16px;
+  margin: 16px auto;
+  max-width: 960px;
+  text-align: center;
+}

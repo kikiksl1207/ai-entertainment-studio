@@ -33,6 +33,23 @@ const CHARGE_PAYMENT_STATUS = Object.freeze({
 const CHARGE_HIDDEN_PRICE_AMOUNTS = new Set([30000, 70000]);
 const CHARGE_VISIBLE_PRICE_ORDER = [1000, 3000, 5000, 10000, 50000, 100000];
 
+// #721 — 로컬/preview 환경에서 로그인 없이 충전 상품 카드와 첫 충전 보너스를 검수할 수 있도록
+// 하는 fixture 데이터. 실결제 mutation과 완전히 분리됨 (payment.status = "pg_pending" 유지해
+// 결제 버튼이 disabled 상태로 렌더됨).
+const CHARGE_PREVIEW_FIXTURE = Object.freeze({
+  wallet: { cachedBalance: 1500, balance: 1500 },
+  policy: { paidLikeUnitPriceLumina: 10 },
+  payment: { status: "pg_pending" }, // disabled 상태 — 실결제 절대 불가
+  products: [
+    { id: "fixture-1000",  name: "스타터",    priceAmount: 1000,  luminaAmount: 100,   bonusAmount: 0,    bonusRate: 0,  firstChargeBonusLumina: 50  },
+    { id: "fixture-3000",  name: "라이트",    priceAmount: 3000,  luminaAmount: 330,   bonusAmount: 30,   bonusRate: 10, firstChargeBonusLumina: 150 },
+    { id: "fixture-5000",  name: "레귤러",    priceAmount: 5000,  luminaAmount: 550,   bonusAmount: 55,   bonusRate: 10, firstChargeBonusLumina: 0   },
+    { id: "fixture-10000", name: "프리미엄",  priceAmount: 10000, luminaAmount: 1200,  bonusAmount: 200,  bonusRate: 20, firstChargeBonusLumina: 0,  isBest: true },
+    { id: "fixture-50000", name: "VIP",       priceAmount: 50000, luminaAmount: 6500,  bonusAmount: 1000, bonusRate: 20, firstChargeBonusLumina: 0   },
+  ],
+  recentOrders: [],
+});
+
 function normalizeChargeProducts(data) {
   const raw = Array.isArray(data?.products) ? data.products : [];
   // 1) 숨김 가격(30,000 / 70,000) 제외
@@ -396,6 +413,20 @@ async function initChargePage() {
   }
 
   if (!isLoggedIn()) {
+    // #721 — 로컬/preview 환경에서는 fixture로 상품 카드 검수 가능하게 함.
+    // payment.status = "pg_pending" 고정이라 결제 버튼은 disabled 유지 — 실결제 없음.
+    const isPreview = (function () {
+      try { var h = window.location.hostname; return h === "localhost" || h === "127.0.0.1" || h === "" || h.endsWith(".local"); } catch (_) { return false; }
+    })();
+    if (isPreview) {
+      if (gate) gate.hidden = true;
+      if (content) content.hidden = false;
+      _chargeStationData = Object.assign({}, CHARGE_PREVIEW_FIXTURE);
+      renderChargePage();
+      const fixtureNotice = document.getElementById("chargeFixtureNotice");
+      if (fixtureNotice) fixtureNotice.hidden = false;
+      return;
+    }
     if (gate) gate.hidden = false;
     if (content) content.hidden = true;
     _chargeStationInitLoadedFor = null;
