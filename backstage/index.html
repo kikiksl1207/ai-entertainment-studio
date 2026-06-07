@@ -180,6 +180,16 @@
               <div><span class="section-kicker">Dashboard</span><h2>오늘 확인할 업무</h2></div>
               <div class="filter-row"><button class="filter-chip is-active" type="button">전체</button><button class="filter-chip" type="button">확인</button><button class="filter-chip" type="button">위험</button></div>
             </div>
+            <!-- #755 — robots/noindex 공개 전환 안내: 운영자가 "검색 차단이 의도된 상태"임을 확인할 수 있도록
+                 대시보드 상단에 정적 안내 배너를 배치. 실제 robots.txt 변경은 이 화면에서 하지 않음.
+                 공개 전환 준비가 완료되면 이 안내 배너와 <meta name="robots"> 태그를 함께 제거한다. -->
+            <p class="section-note ops-noindex-notice" id="opsNoindexNotice" role="status">
+              🔍 <strong>현재 전체 사이트에 noindex · robots 차단이 적용 중</strong>입니다.
+              이것은 정식 공개 전까지 검색엔진에 노출되지 않도록 <em>의도된</em> 설정입니다.
+              공개 전환 시 <code>&lt;meta name="robots"&gt;</code> 태그와 <code>robots.txt</code>를
+              동시에 수정해야 하며, <strong>이 화면에서는 직접 변경하지 않습니다</strong>.
+              변경은 배포 담당자(차모)에게 요청하세요.
+            </p>
             <div class="table-grid">
               <article class="table-card"><header><h3>신청/신고/주문</h3><button class="text-action" type="button">전체 보기</button></header><div class="table-wrap"><table><thead><tr><th>ID</th><th>유형</th><th>대상</th><th>상태</th><th>액션</th></tr></thead><tbody id="overviewQueueRows"></tbody></table></div></article>
               <article class="table-card"><header><h3>미처리 위험 항목</h3><button class="text-action" type="button">위험만 보기</button></header><div class="table-wrap"><table><thead><tr><th>ID</th><th>분류</th><th>사유</th><th>위험도</th><th>액션</th></tr></thead><tbody id="riskRows"></tbody></table></div></article>

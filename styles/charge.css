@@ -678,3 +678,13 @@
   max-width: 960px;
   text-align: center;
 }
+
+/* #752 — 충전 상품 그리드 3열 고정 (≥641px): 5개 상품 기준 4+1 orphan 방지
+   auto-fit minmax(220px,1fr)이 max-width:920px 컨테이너에서 4열이 되어
+   마지막 카드가 단독으로 전폭을 차지하는 문제를 해결한다.
+   ≤640px는 기존 2열/1열 규칙이 유지된다. */
+@media (min-width: 641px) {
+  .charge-product-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
