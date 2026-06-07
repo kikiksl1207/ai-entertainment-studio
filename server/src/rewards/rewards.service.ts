@@ -476,6 +476,17 @@ export class RewardsService {
           capPercent: PAID_BONUS_CAP_RATE * 100,
           ledgerTypes: ['first_charge_bonus'],
           separatedFromFreePromoCap: true,
+          firstChargeBonus: {
+            bonusRate: FIRST_CHARGE_BONUS_RATE,
+            bonusPercent: FIRST_CHARGE_BONUS_RATE * 100,
+            basisField: 'lumina_products.lumina_amount',
+            packageBonusIncluded: false,
+            grantTrigger: 'first_successful_paid_lumina_order_only',
+            failedProviderEventsLockEligibility: false,
+            idempotencyKeyPattern: 'first_charge_bonus:<userId>',
+            duplicateBehavior:
+              'wallet_ledger_upsert_replay_without_second_bonus_credit',
+          },
         },
       },
       ledgerRules: {
@@ -489,6 +500,7 @@ export class RewardsService {
             'referral:<role>:<rewardId>',
             'daily_attendance:<userId>:<YYYY-MM-DD>',
             'activation_quest:<userId>:<code>',
+            'first_charge_bonus:<userId>',
             'birthday_bonus:<identitySubjectHash>:<year>',
             'achievement_reward:<userId>:<code>',
           ],
