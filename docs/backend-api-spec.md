@@ -419,6 +419,13 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   opening-greeting variant context. Empty URL knowledge does not block provider
   generation and does not expose unapproved URLs, raw private material, or admin
   notes.
+- #712 fixes the chat-context refresh contract. Creator create/update/archive and
+  Backstage approve/reject/archive events cause a server-side requery by
+  `artistId`; pending, rejected, archived, `unreviewed`, `needs_review`, and
+  `blocked` rows stay excluded. Only approved safe rows with
+  `allowChatReference=true` and a bounded summary become character-chat context
+  candidates. Refresh does not call providers and does not mutate wallet,
+  settlement, payout, or paid-like state.
 - The admin audit list endpoint is a read-only skeleton guarded by `audit:read`.
   It returns redacted artist knowledge URL audit event list items only.
 - Query shape: `action`, `targetId`, `artistId`, `take`, and opaque `cursor`.

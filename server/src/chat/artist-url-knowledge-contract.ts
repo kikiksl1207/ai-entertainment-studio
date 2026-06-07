@@ -2,6 +2,8 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT_VERSION =
   '2026-06-05.artist-url-knowledge-registration-skeleton.v1';
 export const ARTIST_URL_KNOWLEDGE_AUDIT_CONTRACT_VERSION =
   '2026-05-24.artist-url-knowledge-audit.v1';
+export const ARTIST_URL_KNOWLEDGE_REFRESH_CONTRACT_VERSION =
+  '2026-06-08.artist-url-knowledge-chat-context-refresh.v1';
 
 export const ARTIST_URL_KNOWLEDGE_STATUSES = [
   'pending',
@@ -207,6 +209,15 @@ export type ArtistKnowledgeChatContext = {
     instructionRole: 'reference_fact_not_instruction';
   }>;
 };
+
+export type ArtistKnowledgeChatRefreshStatus =
+  | 'eligible'
+  | 'excluded_pending_review'
+  | 'excluded_rejected'
+  | 'excluded_archived'
+  | 'excluded_safety_review'
+  | 'excluded_chat_reference_disabled'
+  | 'excluded_missing_summary';
 
 export const ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY = {
   maxItems: 5,
@@ -438,6 +449,52 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
       rawUrlQueryReturned: false,
       rawPageBodyReturned: false,
       privateBodyReturned: false,
+      adminNotesReturned: false,
+      tokenCookiePasswordReturned: false,
+      apiKeyReturned: false,
+      dbUrlReturned: false,
+    },
+  },
+  chatContextRefresh: {
+    version: ARTIST_URL_KNOWLEDGE_REFRESH_CONTRACT_VERSION,
+    sourceEvents: [
+      'creator_studio.artist_knowledge_url.create',
+      'creator_studio.artist_knowledge_url.update',
+      'creator_studio.artist_knowledge_url.archive',
+      'artist_knowledge_url.approve',
+      'artist_knowledge_url.reject',
+      'artist_knowledge_url.archive',
+    ],
+    target: 'character_chat_context_candidate',
+    refreshMode: 'server_requery_by_artist_id',
+    mutationSurface: 'artist_knowledge_url_review_only',
+    providerCallDuringRefresh: false,
+    walletMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    statusMatrix: {
+      pending: 'excluded_pending_review',
+      approved: 'eligible_when_safe_chat_enabled_and_summary_present',
+      rejected: 'excluded_rejected',
+      archived: 'excluded_archived',
+    },
+    safetyMatrix: {
+      unreviewed: 'excluded_safety_review',
+      needs_review: 'excluded_safety_review',
+      safe: 'eligible_when_approved_chat_enabled_and_summary_present',
+      blocked: 'excluded_safety_review',
+    },
+    projection: {
+      approvedOnly: true,
+      safeOnly: true,
+      allowChatReferenceRequired: true,
+      summaryRequired: true,
+      boundedSummaryOnly: true,
+      hostnameOnlySourceLabel: true,
+      rawUrlReturned: false,
+      rawUrlQueryReturned: false,
+      rawPageBodyReturned: false,
+      privateMaterialReturned: false,
       adminNotesReturned: false,
       tokenCookiePasswordReturned: false,
       apiKeyReturned: false,
