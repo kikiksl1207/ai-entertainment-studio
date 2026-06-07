@@ -6611,6 +6611,60 @@ describe('ChatService premium chat support contract', () => {
     expect(prisma.chatFeatureOrder.create).not.toHaveBeenCalled();
     expect(prisma.chatMessage.create).not.toHaveBeenCalled();
   });
+
+  it('keeps premium chat donation submit skeleton disabled with separate ranking lanes', () => {
+    const service = new ChatService({} as never, {} as never);
+
+    const contract = service.getPremiumSupportContract();
+
+    expect(contract.submitReadiness.fixedAmountsLumina).toEqual([
+      10,
+      50,
+      100,
+      500,
+      1000,
+      5000,
+      10000,
+      50000,
+    ]);
+    expect(contract.submitReadiness.customAmount).toMatchObject({
+      supported: true,
+      minLumina: 1,
+      maxLumina: 50000,
+      integerOnly: true,
+    });
+    expect(contract.submitReadiness.currentActivation).toMatchObject({
+      donationPreviewEnabled: false,
+      donationCreateEnabled: false,
+      walletDebitEnabled: false,
+      rankingRefreshByClientEnabled: false,
+    });
+    expect(contract.apiContracts.donationCreate).toMatchObject({
+      enabled: false,
+      publicMutationEnabled: false,
+    });
+    expect(contract.donation.idempotency).toMatchObject({
+      required: true,
+      requestFingerprintFields: ['sessionId', 'amountLumina', 'message'],
+      conflictWalletMutation: false,
+    });
+    expect(contract.rankings.like.excludes).toEqual(
+      expect.arrayContaining([
+        'premium_chat_donation',
+        'premium_chat_donation_message',
+      ]),
+    );
+    expect(contract.rankings.communication.path).toBe(
+      '/api/v1/chat/rankings?type=communication',
+    );
+    expect(contract.rankings.donation.path).toBe(
+      '/api/v1/chat/rankings?type=donation',
+    );
+    expect(contract.rankings.apiReadiness).toMatchObject({
+      rankingEndpointEnabled: false,
+      donationCreateEnabled: false,
+    });
+  });
 });
 
 describe('ChatService.generateMessage provider beta', () => {
