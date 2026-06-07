@@ -2446,6 +2446,14 @@ AI premium content generation pipeline draft:
   `modelAlias`, `capability`, `attempt`, `regenerationCount`,
   `estimatedCostMicros`, `actualCostMicros`, `inputUnits`, `outputUnits`,
   `failureCode`, and server timestamp.
+- #746 extends that skeleton for the AI Middleware Pipeline by recording
+  `requestType`, server-owned `modelRouteAlias`, and `safetyStatus` before any
+  future provider attempt. The model route is a server alias such as
+  `ai_premium_content.image.text_to_image`; vendor-specific provider/model
+  identifiers are not part of this log contract.
+- Safety-blocked requests may create only the sanitized skeleton log row and
+  must not continue into provider execution, wallet/order work, settlement,
+  payout, paid-like behavior, or public publishing.
 - Usage summaries may calculate total attempts, failed attempts, failure rate,
   estimated/actual cost totals, input/output unit totals, and maximum
   regeneration count. These summaries are reporting guards only.
