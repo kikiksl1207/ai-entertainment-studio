@@ -118,6 +118,52 @@ export const USER_SOCIAL_ACCOUNT_CONTRACT = {
     paymentMutation: false,
     settlementMutation: false,
   },
+  feedInteractionGuards: {
+    readSurfaces: [
+      'GET /api/v1/me/lumina-feed',
+      'GET /api/v1/me/lumina-feed/liked-posts',
+      'GET /api/v1/lumina-feed/posts/:postId/replies',
+      'GET /api/v1/lumina-feed/posts/:postId/thread-continuations',
+    ],
+    writeSurfaces: [
+      'POST /api/v1/lumina-feed/posts/:postId/likes',
+      'POST /api/v1/lumina-feed/posts/:postId/replies',
+      'POST /api/v1/lumina-feed/posts/:postId/reposts',
+      'POST /api/v1/lumina-feed/posts/:postId/thread-continuations',
+    ],
+    relationshipSource: 'user_blocks',
+    blockedRelationshipDirection: 'either_direction',
+    readProjection: {
+      filterBlockedAuthors: true,
+      filterBlockedReplyAuthors: true,
+      renderRepostSourceTombstoneWhenOriginalAuthorBlocked: true,
+      viewerHintsMustNotLeakBlockedUserPrivateFields: true,
+    },
+    writePolicy: {
+      failBeforeCommunityMutation: true,
+      failBeforeNotificationMutation: true,
+      status: 403,
+      code: 'USER_FOLLOW_BLOCKED',
+      messageKey: 'social.follow.blocked',
+    },
+  },
+  premiumChatRelationshipGuards: {
+    blockedSurfaces: [
+      'POST /api/v1/chat/premium-rooms',
+      'POST /api/v1/chat/premium-rooms/:roomId/messages',
+      'POST /api/v1/chat/premium-rooms/:roomId/donations',
+      'GET /api/v1/chat/me/premium-rooms/:roomId/status',
+    ],
+    relationshipSource: 'user_blocks',
+    blockedRelationshipDirection: 'either_direction',
+    failBeforeWalletMutation: true,
+    failBeforeOrderMutation: true,
+    failBeforeSettlementMutation: true,
+    failBeforePayoutMutation: true,
+    status: 403,
+    code: 'USER_RELATIONSHIP_BLOCKED',
+    messageKey: 'social.relationship.blocked',
+  },
 } as const;
 
 @Injectable()
