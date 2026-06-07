@@ -215,11 +215,24 @@ async function loadLuminaFeedData(scope = "all") {
     console.warn("[Lumina] /lumina-feed 실패:", err && err.status);
   }
 
-  // #379 — 운영 API 실패 시 samples/inline fallback이 실서비스 피드처럼 노출되지 않게 빈 상태로 전환한다.
-  // samples API와 luminaFeedSamplePosts는 더 이상 자동 fallback에 사용하지 않는다 (개발 환경 전용).
-  _luminaFeedItems = [];
-  _luminaFeedSource = "error";
-  console.info("[Lumina] 루미나 피드 운영 API 실패 — 빈 상태로 전환");
+  // #379 — 운영 API 실패 시 실서비스 피드처럼 노출되지 않게 한다.
+  // #613/#686 — 단, localhost/파일/preview 환경(정적 검수 포함)에서는 luminaFeedSamplePosts를
+  //             fallback으로 사용해 카드/액션/이미지 UX를 검수할 수 있게 한다.
+  const _isPreviewEnv = (function () {
+    try {
+      var h = window.location.hostname;
+      return h === "localhost" || h === "127.0.0.1" || h === "" || h.endsWith(".local");
+    } catch (_) { return false; }
+  })();
+  if (_isPreviewEnv && Array.isArray(luminaFeedSamplePosts) && luminaFeedSamplePosts.length) {
+    _luminaFeedItems = luminaFeedSamplePosts.map(normalizeFeedPost);
+    _luminaFeedSource = "preview_fixture";
+    console.info("[Lumina] 운영 API 실패 — 로컬/preview 환경, fixture " + _luminaFeedItems.length + "건으로 대체");
+  } else {
+    _luminaFeedItems = [];
+    _luminaFeedSource = "error";
+    console.info("[Lumina] 루미나 피드 운영 API 실패 — 빈 상태로 전환");
+  }
 }
 
 function renderLuminaFeed() {
