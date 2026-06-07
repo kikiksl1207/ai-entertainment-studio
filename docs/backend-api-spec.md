@@ -984,6 +984,11 @@ Character-chat dynamic opening greeting cache (#388):
   greeting candidates. Sparse character data receives at least five template
   candidates, while richer persona/starter/tone data can fill the pool up to the
   ten-candidate cap before deterministic session selection.
+- #710 keeps first-greeting variants scoped to character-chat sessions. Variant
+  selection uses the session seed, runtime persona tone, persona tags, starter
+  messages, and provider cost guard, while provider-failure fallback remains
+  character-toned and does not expose raw prompts, provider payloads, wallet,
+  settlement, payout, or order fields.
 - Provider generation is short and low-cost by contract:
   `maxOutputTokens=120`, `maxOutputChars=180`, lightweight model preferred.
 - Provider generation remains optional and separated from cache/template
