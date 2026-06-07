@@ -7,6 +7,7 @@ import {
   SERVER_AUTHORITY_WALLET_POLICY,
   WALLET_RISK_LOG_CONTRACT,
   WALLET_LEDGER_SOURCE_CONTRACT,
+  WALLET_MUTATION_SURFACE_GUARD_MATRIX,
   WALLET_MUTATION_GUARD_STEPS,
 } from './wallet-server-authority-policy';
 
@@ -113,6 +114,61 @@ describe('server-authority wallet policy', () => {
         'provider_replay_creates_no_duplicate_credit',
       ]),
     );
+  });
+
+  it('pins payment, donation, premium chat debit, and refund guards to server authority', () => {
+    expect(WALLET_MUTATION_SURFACE_GUARD_MATRIX).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          surface: 'payment_purchase_credit',
+          direction: 'credit',
+          authority: ['server product table', 'provider verified transaction'],
+          duplicateGuard: 'provider_transaction_id_unique',
+          negativeBalanceGuard: 'not_applicable_credit',
+          clientEconomicFieldsTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_room_open',
+          direction: 'debit',
+          duplicateGuard: 'room_open_idempotency_fingerprint',
+          negativeBalanceGuard:
+            'atomic_update_many_cached_balance_gte_server_amount',
+          clientEconomicFieldsTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_donation',
+          direction: 'debit',
+          duplicateGuard: 'client_idempotency_key',
+          negativeBalanceGuard:
+            'atomic_update_many_cached_balance_gte_server_amount',
+          clientEconomicFieldsTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_message_debit',
+          direction: 'debit',
+          duplicateGuard: 'server_message_pair_meter_key',
+          negativeBalanceGuard:
+            'atomic_update_many_cached_balance_gte_server_amount',
+          clientEconomicFieldsTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_room_refund',
+          direction: 'credit',
+          duplicateGuard: 'server_room_refund_key',
+          negativeBalanceGuard: 'not_applicable_credit',
+          clientEconomicFieldsTrusted: false,
+        }),
+      ]),
+    );
+    expect(
+      WALLET_MUTATION_SURFACE_GUARD_MATRIX.every(
+        (surface) =>
+          surface.clientEconomicFieldsTrusted === false &&
+          surface.authority.length > 0 &&
+          surface.duplicateGuard.length > 0 &&
+          surface.ledgerWriteAtomicity.endsWith('_in_transaction'),
+      ),
+    ).toBe(true);
   });
 
   it('keeps local test grants gated and idempotent when non-production enables them', () => {
