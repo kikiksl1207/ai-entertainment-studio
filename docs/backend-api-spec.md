@@ -408,6 +408,12 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   description, admin notes, token/cookie/password/API key/provider payload,
   signed/private URL, and DB URL fields are forbidden from provider context
   projection.
+- #677 fixes the admin-to-chat handoff fields. Backstage approval may hand off
+  only `approvalStatus=approved`, `artistSlug`, bounded `contextSummary`, and
+  `safetyFlag=safe` into the character-chat context candidate path. This
+  contract is separate from site-content/admin copy editing and does not expose
+  raw URL, URL query, raw page body, private material, admin notes, token,
+  cookie, password, API key, provider payload, signed/private URL, or DB URL.
 - #676 fixes the empty-knowledge fallback contract. If there are no eligible URL
   knowledge rows, character-chat continues with persona, tone-and-manner, and
   opening-greeting variant context. Empty URL knowledge does not block provider
