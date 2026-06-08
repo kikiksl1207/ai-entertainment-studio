@@ -4617,6 +4617,18 @@ export class CommunityService {
       originalHiddenPolicy: 'hide_embedded_original',
       originalBlockedPolicy: 'hide_embedded_original',
       embeddedOriginalProjection: 'safe_public_summary_or_tombstone',
+      detailReadModel: {
+        endpoint: 'GET /api/v1/lumina-feed/posts/:postId',
+        quoteBodyField: 'post.repost.quoteBody',
+        originalBodyField: 'post.repost.originalPost.body',
+        tombstoneFields: [
+          'post.repost.originalState',
+          'post.repost.tombstone',
+          'post.repost.unavailableReason',
+        ],
+        quoteBodyPreservedWhenOriginalUnavailable: true,
+        originalBodyReturnedOnlyWhenVisible: true,
+      },
       rawPrivateMetadataReturned: false,
       rawOwnerMetadataReturned: false,
       shareIsSeparateContract: true,

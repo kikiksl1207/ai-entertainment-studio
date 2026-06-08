@@ -309,6 +309,10 @@ Repost and quote repost rules:
   the viewer hid it or has an active block relationship with the original author,
   `originalState` becomes `unavailable`, `tombstone` is `true`, and
   `originalPost` is `null`; the original body is not exposed.
+- Detail reads for a quote repost keep `post.repost.quoteBody` separate from
+  `post.repost.originalPost.body`. The quote body may remain visible on the
+  repost row when the embedded original is tombstoned, but the original body is
+  returned only when the original post is visible to the current viewer.
 - Repost and quote repost create/read paths do not mutate wallet, Lumina,
   settlement, payout, order, or paid-like flows.
 
