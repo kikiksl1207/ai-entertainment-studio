@@ -1387,6 +1387,9 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     expect(result.post.repost.replyRelation).toBe(false);
     expect(result.post.repost.threadRelation).toBe(false);
     expect(result.post.repost.originalState).toBe('visible');
+    expect(result.post.repost.tombstone).toBe(false);
+    expect(result.post.repost.unavailableReason).toBeNull();
+    expect(result.post.repost.quoteBody).toBe(maxQuote);
     expect(result.post.repost.originalPost.body).toBe('Original post');
     expect(result.post.threadContinuation.isContinuation).toBe(false);
     expect(result.policy).toMatchObject({
@@ -1408,6 +1411,13 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
       createSourceStatusPolicy: 'published_public_not_deleted_only',
       createBlockedRelationshipPolicy: 'reject_before_repost_create',
       embeddedOriginalProjection: 'safe_public_summary_or_tombstone',
+      detailReadModel: {
+        endpoint: 'GET /api/v1/lumina-feed/posts/:postId',
+        quoteBodyField: 'post.repost.quoteBody',
+        originalBodyField: 'post.repost.originalPost.body',
+        quoteBodyPreservedWhenOriginalUnavailable: true,
+        originalBodyReturnedOnlyWhenVisible: true,
+      },
       rawPrivateMetadataReturned: false,
       rawOwnerMetadataReturned: false,
       paidLikeMutation: false,
@@ -1544,8 +1554,18 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     );
     expect(result.post.repost.originalState).toBe('unavailable');
     expect(result.post.repost.tombstone).toBe(true);
+    expect(result.post.repost.unavailableReason).toBe(
+      'viewer_restricted_or_unavailable',
+    );
+    expect(result.post.repost.quoteBody).toBe('Quote');
     expect(result.post.repost.originalPost).toBeNull();
     expect(JSON.stringify(result.post.repost)).not.toContain('Original body');
+    expect(result.post.repost.policy.detailReadModel).toMatchObject({
+      quoteBodyField: 'post.repost.quoteBody',
+      originalBodyField: 'post.repost.originalPost.body',
+      quoteBodyPreservedWhenOriginalUnavailable: true,
+      originalBodyReturnedOnlyWhenVisible: true,
+    });
   });
 
   it('renders a tombstone when the repost source author is blocked either direction', async () => {
@@ -1587,6 +1607,10 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     );
     expect(result.post.repost.originalState).toBe('unavailable');
     expect(result.post.repost.tombstone).toBe(true);
+    expect(result.post.repost.unavailableReason).toBe(
+      'viewer_restricted_or_unavailable',
+    );
+    expect(result.post.repost.quoteBody).toBe('Quote');
     expect(result.post.repost.originalPost).toBeNull();
     expect(JSON.stringify(result.post.repost)).not.toContain('Original body');
   });
