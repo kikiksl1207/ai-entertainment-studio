@@ -1,5 +1,6 @@
 import {
   ARTIST_URL_KNOWLEDGE_CONTRACT,
+  ARTIST_URL_KNOWLEDGE_INGEST_STATUSES,
   ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES,
   artistKnowledgeSafetyStatusFromMetadata,
   buildArtistKnowledgeAdminAuditProjection,
@@ -20,6 +21,9 @@ describe('artist URL knowledge contract', () => {
     expect(ARTIST_URL_KNOWLEDGE_CONTRACT.safetyStatuses).toEqual(
       ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES,
     );
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.ingestStatuses).toEqual(
+      ARTIST_URL_KNOWLEDGE_INGEST_STATUSES,
+    );
     expect(ARTIST_URL_KNOWLEDGE_CONTRACT.registrationSkeleton).toMatchObject({
       fieldSeparation: {
         title: expect.any(String),
@@ -34,6 +38,57 @@ describe('artist URL knowledge contract', () => {
       rawSubmittedUrlIsReferenceMaterial: false,
       approvedSummaryIsReferenceFactOnly: true,
     });
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.ingestModeration).toMatchObject({
+      initialOnCreate: {
+        lifecycleStatus: 'pending',
+        safetyStatus: 'unreviewed',
+        ingestStatus: 'submitted',
+        chatEligible: false,
+        providerContextAllowed: false,
+      },
+      aiProcessing: {
+        ingestStatus: 'ai_processing',
+        chatEligible: false,
+        providerContextAllowed: false,
+        providerCallAllowedForChatContext: false,
+      },
+      adminApprove: {
+        lifecycleStatus: 'approved',
+        requiredSafetyStatus: 'safe',
+        summaryRequired: true,
+        allowChatReferenceRequired: true,
+        resultingIngestStatus: 'approved_for_chat',
+        chatEligible: true,
+      },
+      adminReject: {
+        lifecycleStatus: 'rejected',
+        resultingIngestStatus: 'rejected',
+        chatEligible: false,
+      },
+      adminArchive: {
+        lifecycleStatus: 'archived',
+        resultingIngestStatus: 'archived',
+        chatEligible: false,
+      },
+    });
+    expect(
+      ARTIST_URL_KNOWLEDGE_CONTRACT.ingestModeration
+        .forbiddenProviderContextFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'rawUrl',
+        'canonicalUrl',
+        'rawUrlQuery',
+        'privateUrl',
+        'adminNotes',
+        'reviewerNotes',
+        'token',
+        'cookie',
+        'password',
+        'apiKey',
+        'dbUrl',
+      ]),
+    );
     expect(ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts.creatorCreate).toMatchObject({
       method: 'POST',
       pathTemplate: '/api/v1/me/creator-studio/knowledge-urls',
@@ -164,6 +219,7 @@ describe('artist URL knowledge contract', () => {
         approved: 'eligible_when_safe_chat_enabled_and_summary_present',
         rejected: 'excluded_rejected',
         archived: 'excluded_archived',
+        ai_processing: 'excluded_ai_processing',
       },
       safetyMatrix: {
         unreviewed: 'excluded_safety_review',
@@ -383,23 +439,36 @@ describe('artist URL knowledge contract', () => {
           summary: 'Approved social post summary.',
           reviewedAt: new Date('2026-05-21T00:00:00.000Z'),
         },
+        {
+          id: 'processing-1',
+          artistId: 'artist-1',
+          status: 'approved',
+          sourceType: 'notice',
+          canonicalUrl: 'https://example.com/processing',
+          metadata: { ingestModeration: { status: 'ai_processing' } },
+          allowChatReference: true,
+          summary: 'Approved-looking item must stay out while AI processing.',
+          reviewedAt: new Date('2026-05-21T00:00:00.000Z'),
+        },
       ],
-      { maxItems: 1 },
+      { maxItems: 5 },
     );
 
-    expect(context.items).toEqual([
-      expect.objectContaining({
-        id: 'approved-1',
-        title: 'Approved rehearsal note',
-        statusKey: 'approved',
-        sourceType: 'youtube',
-        approvalStatus: 'approved',
-        safetyStatus: 'safe',
-        sourceLabel: 'www.youtube.com',
-        safetyFlag: 'approved_reference_fact_not_instruction',
-        instructionRole: 'reference_fact_not_instruction',
-      }),
-    ]);
+    expect(context.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'approved-1',
+          title: 'Approved rehearsal note',
+          statusKey: 'approved',
+          sourceType: 'youtube',
+          approvalStatus: 'approved',
+          safetyStatus: 'safe',
+          sourceLabel: 'www.youtube.com',
+          safetyFlag: 'approved_reference_fact_not_instruction',
+          instructionRole: 'reference_fact_not_instruction',
+        }),
+      ]),
+    );
     expect(context.promptInjectionPolicy).toMatchObject({
       untrustedReferenceTextOnly: true,
       rawUrlIsNeverInstruction: true,
@@ -415,6 +484,7 @@ describe('artist URL knowledge contract', () => {
     expect(context.fallbackPolicy.providerCallBlockedByEmptyKnowledge).toBe(false);
     expect(JSON.stringify(context)).not.toContain('watch?v=abc123');
     expect(JSON.stringify(context)).not.toContain('pending-1');
+    expect(JSON.stringify(context)).not.toContain('processing-1');
     expect(JSON.stringify(context)).not.toContain('https://www.youtube.com');
   });
 
