@@ -554,6 +554,19 @@ describe('ChatService dynamic opening greeting cache', () => {
           senderType: 'artist',
           messageType: 'opening_greeting',
           modelMetadata: expect.objectContaining({
+            variantPolicy: expect.objectContaining({
+              minCandidates: 5,
+              maxCandidates: 10,
+              seedSource: 'chat_sessions.id',
+              seedStorage: 'derived_suffix_only',
+              cacheScope: 'chat_session',
+              sameSessionReplay: 'return_cached_opening_greeting',
+              sameSessionStable: true,
+              sameCharacterSameUserNewSessionCanVary: true,
+              sameCharacterDifferentUsersCanVary: true,
+              refreshCreatesNewGreeting: false,
+              clientSeedAccepted: false,
+            }),
             toneCandidate: expect.objectContaining({
               contractVersion: '2026-05-21.character-chat-greeting-tone.v1',
               characterSlug: 'yoon-serin',
@@ -578,6 +591,20 @@ describe('ChatService dynamic opening greeting cache', () => {
         providerCall: true,
         maxOutputChars: 180,
         maxOutputTokens: 120,
+        variantPolicy: {
+          minCandidates: 5,
+          maxCandidates: 10,
+          seedSource: 'chat_sessions.id',
+          seedStorage: 'derived_suffix_only',
+          selectionStrategy: 'deterministic_session_variant_index',
+          cacheScope: 'chat_session',
+          sameSessionReplay: 'return_cached_opening_greeting',
+          sameSessionStable: true,
+          sameCharacterSameUserNewSessionCanVary: true,
+          sameCharacterDifferentUsersCanVary: true,
+          refreshCreatesNewGreeting: false,
+          clientSeedAccepted: false,
+        },
       },
       toneCandidate: {
         contractVersion: '2026-05-21.character-chat-greeting-tone.v1',
@@ -689,6 +716,13 @@ describe('ChatService dynamic opening greeting cache', () => {
     expect(first.openingGreeting.text).not.toBe(second.openingGreeting.text);
     expect(first.openingGreeting.generation.providerCall).toBe(false);
     expect(second.openingGreeting.generation.providerCall).toBe(false);
+    expect(first.openingGreeting.generation.variantPolicy).toMatchObject({
+      seedSource: 'chat_sessions.id',
+      cacheScope: 'chat_session',
+      sameSessionStable: true,
+      sameCharacterSameUserNewSessionCanVary: true,
+      clientSeedAccepted: false,
+    });
     expect(tx.chatMessage.create).toHaveBeenCalledTimes(2);
   });
 
@@ -863,6 +897,11 @@ describe('ChatService dynamic opening greeting cache', () => {
       greetingsBySlug.set(plannedSession.artist.slug, current);
       expect(result.openingGreeting.generation.providerCall).toBe(false);
       expect(result.openingGreeting.cache.scope).toBe('chat_session');
+      expect(result.openingGreeting.generation.variantPolicy).toMatchObject({
+        seedSource: 'chat_sessions.id',
+        sameCharacterDifferentUsersCanVary: true,
+        clientSeedAccepted: false,
+      });
       const toneCandidate = result.openingGreeting.toneCandidate;
 
       expect(toneCandidate).toMatchObject({
@@ -2468,8 +2507,14 @@ describe('ChatService persona and catalog policy', () => {
       variantPolicy: {
         minCandidates: 5,
         maxCandidates: 10,
+        seedSource: 'chat_sessions.id',
+        seedStorage: 'derived_suffix_only',
         selectionStrategy: 'deterministic_session_variant_index',
         sameSessionReplay: 'return_cached_opening_greeting',
+        sameSessionStable: true,
+        sameCharacterSameUserNewSessionCanVary: true,
+        sameCharacterDifferentUsersCanVary: true,
+        clientSeedAccepted: false,
       },
       sourceSeparation: {
         cache: true,
