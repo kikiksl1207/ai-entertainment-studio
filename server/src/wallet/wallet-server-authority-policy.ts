@@ -345,6 +345,65 @@ export const WALLET_MUTATION_GUARD_STEPS = {
   ],
 } as const;
 
+export const WALLET_LEDGER_INVARIANT_CONTRACT = {
+  version: '2026-06-08.wallet-ledger-invariant.v1',
+  globalInvariants: {
+    clientEconomicFieldsTrusted: false,
+    walletMutationRequiresLedger: true,
+    ledgerRequiresIdempotencyOrProviderTransaction: true,
+    walletAndLedgerSameTransaction: true,
+    debitRequiresAtomicNonNegativeBalanceUpdate: true,
+    failedValidationCreatesLedger: false,
+    settlementOrPayoutFromClientInput: false,
+  },
+  surfaces: [
+    {
+      surface: 'charge_purchase_credit',
+      direction: 'credit',
+      amountAuthority: 'server_active_charge_product_and_verified_provider_event',
+      duplicateGuard: 'provider_transaction_id_unique',
+      packageBonus: 'included_in_purchase_credit_ledger',
+      firstChargeBonus: 'separate_user_once_first_charge_bonus_ledger',
+      clientSubmittedAmountTrusted: false,
+      failedProviderEventCreatesLedger: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    },
+    {
+      surface: 'first_charge_bonus',
+      direction: 'credit',
+      amountAuthority: 'server_10_percent_of_base_lumina',
+      duplicateGuard: 'first_charge_bonus_user_idempotency_key',
+      packageBonusIncluded: false,
+      clientSubmittedAmountTrusted: false,
+      failedProviderEventCreatesLedger: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    },
+    {
+      surface: 'premium_chat_donation',
+      direction: 'debit',
+      amountAuthority: 'server_normalized_donation_amount',
+      duplicateGuard: 'premium_chat_donation_idempotency_key',
+      negativeBalanceGuard: 'atomic_cached_balance_gte_amount_update',
+      clientSubmittedAmountTrusted: false,
+      insufficientBalanceCreatesLedger: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    },
+    {
+      surface: 'premium_chat_refund_restriction',
+      direction: 'credit',
+      amountAuthority: 'server_admin_or_moderation_refund_policy',
+      duplicateGuard: 'server_admin_decision_key',
+      existingLedgerRequired: true,
+      clientSubmittedRefundRateTrusted: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    },
+  ],
+} as const;
+
 export const APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST = [
   {
     surface: 'wallet_balance',

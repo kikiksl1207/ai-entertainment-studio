@@ -5,6 +5,7 @@ import {
   APP_PURCHASE_VERIFICATION_CONTRACT,
   CLIENT_ECONOMIC_TAMPER_FIELDS,
   SERVER_AUTHORITY_WALLET_POLICY,
+  WALLET_LEDGER_INVARIANT_CONTRACT,
   WALLET_RISK_LOG_CONTRACT,
   WALLET_LEDGER_SOURCE_CONTRACT,
   WALLET_MUTATION_SURFACE_GUARD_MATRIX,
@@ -114,6 +115,57 @@ describe('server-authority wallet policy', () => {
         'provider_replay_creates_no_duplicate_credit',
       ]),
     );
+  });
+
+  it('pins cross-surface wallet ledger invariants for charge, first bonus, donation, and refund restriction', () => {
+    expect(WALLET_LEDGER_INVARIANT_CONTRACT.globalInvariants).toMatchObject({
+      clientEconomicFieldsTrusted: false,
+      walletMutationRequiresLedger: true,
+      ledgerRequiresIdempotencyOrProviderTransaction: true,
+      walletAndLedgerSameTransaction: true,
+      debitRequiresAtomicNonNegativeBalanceUpdate: true,
+      failedValidationCreatesLedger: false,
+      settlementOrPayoutFromClientInput: false,
+    });
+    expect(WALLET_LEDGER_INVARIANT_CONTRACT.surfaces).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          surface: 'charge_purchase_credit',
+          amountAuthority: 'server_active_charge_product_and_verified_provider_event',
+          duplicateGuard: 'provider_transaction_id_unique',
+          clientSubmittedAmountTrusted: false,
+          failedProviderEventCreatesLedger: false,
+        }),
+        expect.objectContaining({
+          surface: 'first_charge_bonus',
+          amountAuthority: 'server_10_percent_of_base_lumina',
+          duplicateGuard: 'first_charge_bonus_user_idempotency_key',
+          packageBonusIncluded: false,
+          clientSubmittedAmountTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_donation',
+          amountAuthority: 'server_normalized_donation_amount',
+          negativeBalanceGuard: 'atomic_cached_balance_gte_amount_update',
+          insufficientBalanceCreatesLedger: false,
+          clientSubmittedAmountTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_refund_restriction',
+          amountAuthority: 'server_admin_or_moderation_refund_policy',
+          duplicateGuard: 'server_admin_decision_key',
+          existingLedgerRequired: true,
+          clientSubmittedRefundRateTrusted: false,
+        }),
+      ]),
+    );
+    expect(
+      WALLET_LEDGER_INVARIANT_CONTRACT.surfaces.every(
+        (surface) =>
+          surface.settlementMutation === false &&
+          surface.payoutMutation === false,
+      ),
+    ).toBe(true);
   });
 
   it('pins payment, donation, premium chat debit, and refund guards to server authority', () => {
