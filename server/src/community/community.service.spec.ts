@@ -1487,6 +1487,29 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
       rawPrivateMetadataReturned: false,
       rawOwnerMetadataReturned: false,
       paidLikeMutation: false,
+      countProjection: {
+        feedCounters: {
+          repostCountIncludes: ['repost', 'quote_repost'],
+          quoteRepostCountField: 'quoteRepostCount',
+          shareCountField: 'shareCount',
+          shareCountMutation: false,
+        },
+        profileCounters: {
+          repostsTabIncludes: ['repost', 'quote_repost'],
+          shareActionsExcluded: true,
+        },
+        notificationCounters: {
+          repostNotificationIncludes: ['repost', 'quote_repost'],
+          shareNotificationMutation: false,
+          shareUnreadCountMutation: false,
+        },
+        blockedRelationshipPolicy: {
+          writePolicy: 'reject_before_repost_create',
+          readProjection: 'hide_or_tombstone_when_blocked',
+          countProjection: 'exclude_blocked_relationship_rows',
+          notificationProjection: 'skip_before_notification_mutation',
+        },
+      },
     });
 
     await expect(
@@ -1723,6 +1746,21 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
         share: expect.objectContaining({
           publicPath: `/lumina-feed/posts/${postId}`,
           countStrategy: 'not_mutated_by_share_contract',
+          countProjection: {
+            feedCounters: {
+              repostCountMutation: false,
+              quoteRepostCountMutation: false,
+              shareCountMutation: false,
+            },
+            profileCounters: {
+              repostsTabMutation: false,
+            },
+            notificationCounters: {
+              createsNotification: false,
+              unreadCountMutation: false,
+            },
+            blockedRelationshipPolicy: 'share_contract_has_no_server_count_or_notification_row',
+          },
         }),
         policy: expect.objectContaining({
           projection: 'share_contract_only',
@@ -1738,6 +1776,21 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
           rawOwnerMetadataReturned: false,
           rawAuthorUserIdReturned: false,
           shareCountMutation: false,
+          countProjection: {
+            feedCounters: {
+              repostCountMutation: false,
+              quoteRepostCountMutation: false,
+              shareCountMutation: false,
+            },
+            profileCounters: {
+              repostsTabMutation: false,
+            },
+            notificationCounters: {
+              createsNotification: false,
+              unreadCountMutation: false,
+            },
+            blockedRelationshipPolicy: 'share_contract_has_no_server_count_or_notification_row',
+          },
           walletMutation: false,
           luminaMutation: false,
           settlementMutation: false,
