@@ -100,6 +100,132 @@ export const AI_PREMIUM_CONTENT_SAFETY_STATUSES = [
   'cleared',
 ] as const;
 
+export const AI_PREMIUM_CONTENT_SAFETY_PRECHECK_STATUSES = [
+  'safe',
+  'review_required',
+  'blocked',
+] as const;
+
+export const AI_PREMIUM_CONTENT_SAFETY_PRECHECK_RISK_CATEGORIES = [
+  'minor',
+  'real_person_similarity',
+  'sexual_content',
+  'copyright',
+  'platform_policy',
+] as const;
+
+type AiPremiumContentSafetyPrecheckStatus =
+  (typeof AI_PREMIUM_CONTENT_SAFETY_PRECHECK_STATUSES)[number];
+
+type AiPremiumContentSafetyRiskCategory =
+  (typeof AI_PREMIUM_CONTENT_SAFETY_PRECHECK_RISK_CATEGORIES)[number];
+
+type AiPremiumContentSafetyPrecheckInput = {
+  minorRisk?: boolean | null;
+  realPersonSimilarityRisk?: boolean | null;
+  sexualContentRisk?: boolean | null;
+  copyrightRisk?: boolean | null;
+  platformPolicyRisk?: boolean | null;
+};
+
+const safetyPrecheckRisk = (
+  category: AiPremiumContentSafetyRiskCategory,
+  severity: AiPremiumContentSafetyPrecheckStatus,
+  messageKey: string,
+) => ({
+  category,
+  severity,
+  messageKey,
+  providerCallBeforeDecision: false,
+});
+
+export const AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT = {
+  version: '2026-06-08.ai-premium-content-safety-precheck.v1',
+  method: 'POST',
+  path: '/api/v1/ai-premium-content/requests/safety-precheck',
+  enabled: false,
+  submitEnabled: false,
+  mutation: false,
+  providerCallEnabled: false,
+  authRequired: true,
+  artistOperatorRequired: true,
+  allowedStatuses: AI_PREMIUM_CONTENT_SAFETY_PRECHECK_STATUSES,
+  riskCategories: AI_PREMIUM_CONTENT_SAFETY_PRECHECK_RISK_CATEGORIES,
+  decisionOrder: [
+    'minor',
+    'sexual_content',
+    'platform_policy',
+    'real_person_similarity',
+    'copyright',
+    'safe',
+  ],
+  statusDecision: {
+    safe: {
+      providerCallAllowedAfterPrecheck: false,
+      requiresHumanReview: false,
+      messageKey: 'aiPremiumContent.safetyPrecheck.safe',
+    },
+    review_required: {
+      providerCallAllowedAfterPrecheck: false,
+      requiresHumanReview: true,
+      messageKey: 'aiPremiumContent.safetyPrecheck.reviewRequired',
+    },
+    blocked: {
+      providerCallAllowedAfterPrecheck: false,
+      requiresHumanReview: false,
+      messageKey: 'aiPremiumContent.safetyPrecheck.blocked',
+    },
+  },
+  riskPolicy: {
+    minor: {
+      status: 'blocked',
+      messageKey: 'aiPremiumContent.safetyPrecheck.minorBlocked',
+    },
+    sexual_content: {
+      status: 'blocked',
+      messageKey: 'aiPremiumContent.safetyPrecheck.sexualBlocked',
+    },
+    platform_policy: {
+      status: 'blocked',
+      messageKey: 'aiPremiumContent.safetyPrecheck.platformBlocked',
+    },
+    real_person_similarity: {
+      status: 'review_required',
+      messageKey: 'aiPremiumContent.safetyPrecheck.realPersonReviewRequired',
+    },
+    copyright: {
+      status: 'review_required',
+      messageKey: 'aiPremiumContent.safetyPrecheck.copyrightReviewRequired',
+    },
+  },
+  responseProjection: {
+    status: '<safe|review_required|blocked>',
+    code: '<stable safety precheck code>',
+    messageKey: '<stable localized message key>',
+    risks: ['<safe risk projection only>'],
+    providerCallEnabled: false,
+    walletMutationEnabled: false,
+  },
+  privacy: {
+    rawPromptReturned: false,
+    referenceAssetBytesReturned: false,
+    providerPayloadReturned: false,
+    realPersonIdentityGuessReturned: false,
+    tokenReturned: false,
+    cookieReturned: false,
+  },
+  noMutation: {
+    providerAttempt: true,
+    imageGeneration: true,
+    videoGeneration: true,
+    walletDebit: true,
+    orderCreate: true,
+    settlementAccrual: true,
+    payoutAccrual: true,
+    paidLike: true,
+  },
+} as const;
+
 export const AI_PREMIUM_CONTENT_BRIEF_API_SKELETON = {
   version: '2026-06-05.ai-premium-content-brief-api-skeleton.v1',
   feature: 'ai_premium_content_request_brief',
@@ -529,6 +655,82 @@ export const resolveAiPremiumContentCostPrecheck = (
   });
 };
 
+export const resolveAiPremiumContentSafetyPrecheck = (
+  input: AiPremiumContentSafetyPrecheckInput,
+) => {
+  const risks = [
+    input.minorRisk
+      ? safetyPrecheckRisk(
+          'minor',
+          'blocked',
+          AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT.riskPolicy.minor.messageKey,
+        )
+      : null,
+    input.sexualContentRisk
+      ? safetyPrecheckRisk(
+          'sexual_content',
+          'blocked',
+          AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT.riskPolicy.sexual_content
+            .messageKey,
+        )
+      : null,
+    input.platformPolicyRisk
+      ? safetyPrecheckRisk(
+          'platform_policy',
+          'blocked',
+          AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT.riskPolicy.platform_policy
+            .messageKey,
+        )
+      : null,
+    input.realPersonSimilarityRisk
+      ? safetyPrecheckRisk(
+          'real_person_similarity',
+          'review_required',
+          AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT.riskPolicy
+            .real_person_similarity.messageKey,
+        )
+      : null,
+    input.copyrightRisk
+      ? safetyPrecheckRisk(
+          'copyright',
+          'review_required',
+          AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT.riskPolicy.copyright
+            .messageKey,
+        )
+      : null,
+  ].filter((risk): risk is NonNullable<typeof risk> => Boolean(risk));
+  const status: AiPremiumContentSafetyPrecheckStatus = risks.some(
+    (risk) => risk.severity === 'blocked',
+  )
+    ? 'blocked'
+    : risks.some((risk) => risk.severity === 'review_required')
+      ? 'review_required'
+      : 'safe';
+  const decision =
+    AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT.statusDecision[status];
+
+  return {
+    status,
+    code:
+      status === 'safe'
+        ? 'AI_PREMIUM_CONTENT_SAFETY_SAFE'
+        : status === 'review_required'
+          ? 'AI_PREMIUM_CONTENT_SAFETY_REVIEW_REQUIRED'
+          : 'AI_PREMIUM_CONTENT_SAFETY_BLOCKED',
+    messageKey: decision.messageKey,
+    risks,
+    providerCallEnabled: false,
+    providerCallBeforeDecision: false,
+    walletMutationEnabled: false,
+    orderMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+    paidLikeMutationEnabled: false,
+    privacy:
+      AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT.privacy,
+  } as const;
+};
+
 export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   version: '2026-06-02.ai-premium-content-request-state-api-skeleton.v1',
   feature: 'ai_premium_content_request_state',
@@ -667,6 +869,7 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
         failurePolicy: AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
       },
     },
+    safetyPrecheck: AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT,
     regenerateRequest: {
       method: 'POST',
       path: '/api/v1/ai-premium-content/requests/:requestId/regenerations',
@@ -811,6 +1014,7 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   ],
   mutationGates: {
     createRequest: false,
+    safetyPrecheck: false,
     regenerateRequest: false,
     providerAttempt: false,
     walletDebit: false,

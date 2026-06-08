@@ -2531,6 +2531,13 @@ AI premium content generation pipeline draft:
 - Safety-blocked requests may create only the sanitized skeleton log row and
   must not continue into provider execution, wallet/order work, settlement,
   payout, paid-like behavior, or public publishing.
+- #851 adds a provider-free safety precheck contract before image/video
+  generation. The precheck resolves `safe`, `review_required`, or `blocked`
+  before any GPT Image, Stable Diffusion, Seedance, OpenAI, or other provider
+  call. Risk categories are minor, real-person similarity, sexual content,
+  copyright, and platform policy. Blocked/review decisions remain server-owned
+  and must not mutate wallet, order, settlement, payout, paid-like, image
+  generation, or video generation state.
 - Usage summaries may calculate total attempts, failed attempts, failure rate,
   estimated/actual cost totals, input/output unit totals, and maximum
   regeneration count. These summaries are reporting guards only.
