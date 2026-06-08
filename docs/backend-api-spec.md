@@ -1821,6 +1821,16 @@ endpoint, donation creation, frontend score submit, or client-triggered refresh.
 - Current readiness is disabled: ranking endpoint, read-model storage, snapshot
   job, support-point storage, frontend submit, and donation create are all
   `false`.
+- #803 adds the daily aggregate contract under
+  `rankings.backendProjection.dailyAggregate`. It aggregates
+  `artist_per_day_per_lane` in `Asia/Seoul` and keeps communication and donation
+  lanes separate. Communication daily aggregates include confirmed room opens,
+  safe visible message activity, confirmed net donation as a weighted factor,
+  and safe artist reply activity. Donation daily aggregates include confirmed
+  net donation only. Cancelled, refunded, chargeback, reported, blinded,
+  suspended, and operator-sanctioned unsafe rows are excluded before aggregate
+  output. Daily aggregate support-point, snapshot, wallet, settlement, and
+  payout mutations remain disabled.
 
 Premium chat support point ledger contract (#363):
 
