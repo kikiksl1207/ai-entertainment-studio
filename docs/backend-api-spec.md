@@ -2540,6 +2540,16 @@ AI premium content request brief API skeleton (#662):
   user-facing safety summaries. Admin projections may additionally show safe
   review summaries, moderation reason keys, cost policy summaries, and generation
   attempt summaries.
+- #801 adds `AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON` as the provider-neutral
+  queue shape for future image, video, and mixed generation requests. It keeps
+  `creator_image_requests` as the current image bridge and
+  `ai_premium_content_requests` as future storage while `enabled`,
+  `storageEnabled`, `providerCallEnabled`, and all paid/public mutation gates
+  remain false. The normalized queue fields are request type, artist slug,
+  server-owned safety status, server-policy estimated cost, and server provider
+  route alias. Vendor provider keys, model keys, raw prompts, provider payloads,
+  signed URLs, sensitive auth material, and database connection material must
+  not be returned or logged by this skeleton.
 - Raw state enums such as `provider_failed` must not be shown directly. Use the
   Korean fallback map: `draft` = `작성 중`, `submitted` = `요청이 접수됐어요`,
   `queued` = `생성 준비 중이에요`, `generating` = `콘텐츠를 만들고 있어요`,

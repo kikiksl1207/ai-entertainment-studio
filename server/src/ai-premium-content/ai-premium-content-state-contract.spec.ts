@@ -3,6 +3,7 @@ import {
   AI_PREMIUM_CONTENT_MODERATION_STATUSES,
   AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
   AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
+  AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON,
   AI_PREMIUM_CONTENT_REQUEST_STATUSES,
   AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY,
   AI_PREMIUM_CONTENT_REQUEST_TYPES,
@@ -57,6 +58,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       'needs_review',
     ]);
     expect(contract.briefApiSkeleton).toBe(AI_PREMIUM_CONTENT_BRIEF_API_SKELETON);
+    expect(contract.requestQueueSkeleton).toBe(
+      AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON,
+    );
   });
 
   it('keeps current image/video queues unchanged while future storage is blocked', () => {
@@ -281,6 +285,77 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     expect(Object.values(skeleton.forbiddenSideEffects).every((enabled) => enabled === false)).toBe(
       true,
     );
+  });
+
+  it('defines a provider-neutral request queue skeleton without opening generation or paid mutations', () => {
+    const skeleton = AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON;
+    const serialized = JSON.stringify(skeleton);
+
+    expect(skeleton).toMatchObject({
+      version: '2026-06-08.ai-premium-content-request-queue-skeleton.v1',
+      feature: 'ai_premium_content_request_queue',
+      status: 'skeleton_ready_mutation_blocked',
+      enabled: false,
+      storageEnabled: false,
+      providerCallEnabled: false,
+      queueMutationEnabled: false,
+      walletMutationEnabled: false,
+      orderMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      paidLikeMutationEnabled: false,
+    });
+    expect(skeleton.currentBridge).toMatchObject({
+      imageQueue: 'creator_image_requests',
+      videoSource: 'premium_video_products_unlock_catalog_only',
+      futureUnifiedTable: 'ai_premium_content_requests',
+      currentLiveMutationChangedByThisContract: false,
+    });
+    expect(skeleton.normalizedFields).toMatchObject({
+      requestType: {
+        allowed: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+        providerSpecificTypeTrusted: false,
+      },
+      artistSlug: {
+        required: true,
+        serverResolvedArtistId: true,
+      },
+      safetyStatus: {
+        allowed: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+        serverOwned: true,
+        initial: 'pending',
+        clientSubmittedTrusted: false,
+      },
+      estimatedCost: {
+        currency: 'KRW_MICROS',
+        source: 'server_policy_estimate_not_provider_quote',
+        amountTrustedFromClient: false,
+        walletDebitOnQueue: false,
+      },
+      providerRouteAlias: {
+        source: 'server_capability_alias',
+        prefix: 'ai_premium_content.',
+        vendorProviderKeyReturned: false,
+        vendorModelKeyReturned: false,
+      },
+    });
+    expect(skeleton.queueItemProjection).toMatchObject({
+      requestType:
+        '<image_single|image_variation|image_reference|video_clip|video_loop|premium_pack>',
+      artistSlug: '<artist slug>',
+      artistId: '<server resolved artist id>',
+      safetyStatus: 'pending',
+      providerRouteAlias: '<server provider route alias>',
+      providerCallEnabled: false,
+    });
+    expect(Object.values(skeleton.forbiddenSideEffects).every((enabled) => enabled === false)).toBe(
+      true,
+    );
+    expect(serialized).not.toMatch(/gpt image|stable diffusion|seedance/i);
+    expect(skeleton.sensitiveDataPolicy).toMatchObject({
+      sensitiveAuthMaterialReturned: false,
+      databaseConnectionMaterialReturned: false,
+    });
   });
 
   it('resolves image and video precheck from server policy aliases only', () => {
