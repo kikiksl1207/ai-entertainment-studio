@@ -8,6 +8,7 @@ import {
   buildArtistKnowledgeChatContext,
   buildArtistKnowledgeChatHandoff,
   isArtistKnowledgeChatEligible,
+  scoreArtistKnowledgeChatCandidate,
 } from './artist-url-knowledge-contract';
 
 describe('artist URL knowledge contract', () => {
@@ -486,6 +487,92 @@ describe('artist URL knowledge contract', () => {
     expect(JSON.stringify(context)).not.toContain('pending-1');
     expect(JSON.stringify(context)).not.toContain('processing-1');
     expect(JSON.stringify(context)).not.toContain('https://www.youtube.com');
+  });
+
+  it('scores and orders only approved safe URL knowledge for prompt context', () => {
+    const freshNotice = {
+      id: 'fresh-notice',
+      artistId: 'artist-1',
+      status: 'approved',
+      sourceType: 'notice',
+      title: 'Fresh notice',
+      canonicalUrl: 'https://example.com/fresh',
+      metadata: { safetyStatus: 'safe' },
+      allowChatReference: true,
+      summary: 'Fresh approved reference summary.',
+      reviewedAt: new Date('2026-06-06T00:00:00.000Z'),
+    };
+    const olderVideo = {
+      id: 'older-video',
+      artistId: 'artist-1',
+      status: 'approved',
+      sourceType: 'youtube',
+      title: 'Older video',
+      canonicalUrl: 'https://example.com/older',
+      metadata: { safetyStatus: 'safe' },
+      allowChatReference: true,
+      summary: 'Older approved reference summary.',
+      reviewedAt: new Date('2026-04-01T00:00:00.000Z'),
+    };
+    const pending = {
+      id: 'pending-row',
+      artistId: 'artist-1',
+      status: 'pending',
+      sourceType: 'notice',
+      canonicalUrl: 'https://example.com/pending-row',
+      metadata: { safetyStatus: 'safe' },
+      allowChatReference: true,
+      summary: 'Pending rows must not be selected.',
+      reviewedAt: new Date('2026-06-07T00:00:00.000Z'),
+    };
+
+    const context = buildArtistKnowledgeChatContext(
+      [olderVideo, pending, freshNotice],
+      { now: '2026-06-08T00:00:00.000Z' },
+    );
+
+    expect(
+      ARTIST_URL_KNOWLEDGE_CONTRACT.chatReferencePolicy.selectionScoring,
+    ).toMatchObject({
+      enabled: true,
+      eligibleRowsOnly: true,
+      sortOrder: ['score_desc', 'reviewed_at_desc', 'id_asc'],
+      excludedBeforeScoring: expect.arrayContaining([
+        'pending',
+        'rejected',
+        'archived',
+        'unsafe',
+        'missing_summary',
+      ]),
+    });
+    expect(scoreArtistKnowledgeChatCandidate(pending).score).toBe(0);
+    expect(scoreArtistKnowledgeChatCandidate(freshNotice, '2026-06-08T00:00:00.000Z')).toMatchObject({
+      freshnessBucket: 'fresh_7d',
+      reasons: expect.arrayContaining([
+        'approved_status',
+        'safe_status',
+        'chat_reference_allowed',
+        'summary_present',
+        'freshness',
+        'source_priority',
+      ]),
+    });
+    expect(context.items.map((item) => item.id)).toEqual([
+      'fresh-notice',
+      'older-video',
+    ]);
+    expect(context.items[0]).toMatchObject({
+      id: 'fresh-notice',
+      selectionScore: expect.any(Number),
+      freshnessBucket: 'fresh_7d',
+      selectionReasons: expect.arrayContaining(['freshness', 'source_priority']),
+      safetyStatus: 'safe',
+      approvalStatus: 'approved',
+    });
+    expect(context.items[0].selectionScore).toBeGreaterThan(
+      context.items[1].selectionScore,
+    );
+    expect(JSON.stringify(context)).not.toContain('pending-row');
   });
 
   it('builds URL-redacted audit payloads for creator/admin status transitions', () => {

@@ -434,6 +434,13 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   and Backstage approve/reject/archive events invalidate the cache. Raw URLs,
   token-like query strings, private notes, provider payloads, and admin material
   must not be cached or sent to the provider.
+- #802 fixes prompt context selection scoring. Scoring runs only after the
+  approved/safe/chat-enabled/summary-present gate. Eligible rows are ordered by
+  score, then review timestamp, then id. The score includes approved status,
+  safe status, chat reference permission, summary presence, review freshness,
+  and source priority. Pending, rejected, archived, processing, unsafe,
+  disabled, and summaryless rows are excluded before scoring and do not enter
+  prompt context.
 - #780 fixes the ingest moderation handoff guard. Rows with
   `ingestStatus=ai_processing` stay excluded from character-chat context until
   review marks them `approved_for_chat`; raw URL query strings, private URLs,
