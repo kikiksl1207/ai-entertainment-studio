@@ -801,6 +801,10 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
           followingUserId: authorId,
           status: 'active',
           deletedAt: null,
+          follower: {
+            status: 'active',
+            deletedAt: null,
+          },
         }),
       }),
     );
@@ -881,6 +885,10 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
           followerUserId: authorId,
           status: 'active',
           deletedAt: null,
+          following: {
+            status: 'active',
+            deletedAt: null,
+          },
         }),
       }),
     );
