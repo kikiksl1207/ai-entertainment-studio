@@ -2232,6 +2232,7 @@ export class ChatService {
         units: room.remainingUnits ?? null,
         nearExpiry: this.isPremiumRoomNearExpiry(room.expiresAt),
       },
+      replySla: this.premiumRoomReplySla(room),
       viewerCta: {
         enabled: false,
         reasonKey: 'chat.premiumRoom.readOnlyStorageOnly',
@@ -2271,6 +2272,7 @@ export class ChatService {
           closedAt: this.isoStringOrNull(room.closedAt),
         },
         answerState: this.premiumRoomAnswerState(room),
+        replySla: this.premiumRoomReplySla(room),
         nearExpiry: this.isPremiumRoomNearExpiry(room.expiresAt),
       },
       premiumRoomRefundStatus: {
@@ -2402,6 +2404,59 @@ export class ChatService {
       state: 'needs_reply',
       stateKey: 'needs_reply',
       labelKey: 'chat.premiumRoom.answer.needsReply',
+    };
+  }
+
+  private premiumRoomReplySla(room: any) {
+    const afterHours = 24;
+    const dueSoonWindowHours = 4;
+    const status = this.normalizePremiumRoomStatus(room.status);
+    const openedAt = room.openedAt instanceof Date ? room.openedAt : null;
+    const deadlineAt = openedAt
+      ? new Date(openedAt.getTime() + afterHours * 60 * 60 * 1000)
+      : null;
+    const hasArtistReply = Boolean(room.lastArtistReplyAt) || status === 'artist_answered';
+    const explicitRefundCandidate =
+      Boolean(room.refundCandidateAt) || status === 'refund_pending';
+    const unansweredEligible =
+      ['opened', 'active'].includes(status) && !hasArtistReply;
+    const msUntilDeadline = deadlineAt ? deadlineAt.getTime() - Date.now() : null;
+    const state = hasArtistReply
+      ? 'replied'
+      : explicitRefundCandidate ||
+          (unansweredEligible && msUntilDeadline !== null && msUntilDeadline <= 0)
+        ? 'overdue_24h'
+        : unansweredEligible &&
+            msUntilDeadline !== null &&
+            msUntilDeadline <= dueSoonWindowHours * 60 * 60 * 1000
+          ? 'due_soon_24h'
+          : 'needs_reply';
+    const labelKeyByState = {
+      needs_reply: 'chat.premiumRoom.answer.needsReply',
+      due_soon_24h: 'chat.premiumRoom.answer.dueSoon24h',
+      overdue_24h: 'chat.premiumRoom.answer.overdue24h',
+      replied: 'chat.premiumRoom.answer.replied',
+    };
+
+    return {
+      afterHours,
+      dueSoonWindowHours,
+      openedAt: this.isoStringOrNull(room.openedAt),
+      deadlineAt: this.isoStringOrNull(deadlineAt),
+      lastArtistReplyAt: this.isoStringOrNull(room.lastArtistReplyAt),
+      state,
+      stateKey: state,
+      labelKey: labelKeyByState[state],
+      unansweredRefundCandidate:
+        state === 'overdue_24h' && (explicitRefundCandidate || unansweredEligible),
+      refundReasonKey:
+        state === 'overdue_24h'
+          ? 'unanswered_24h_full_refund'
+          : 'chat.premiumRoom.refund.notEligible',
+      mutationEnabled: false,
+      notificationMutationEnabled: false,
+      walletMutationEnabled: false,
+      refundMutationEnabled: false,
     };
   }
 

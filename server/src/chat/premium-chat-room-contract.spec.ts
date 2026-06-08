@@ -1584,6 +1584,24 @@ describe('premium chat room refund and moderation ledger contract', () => {
       refund: PREMIUM_CHAT_ADMIN_REFUND_STATE_KEYS,
       query: PREMIUM_CHAT_ADMIN_REPORT_REFUND_QUERY_STATUS_KEYS,
     });
+    expect(adminReadOnly.listProjection.fields).toEqual(
+      expect.arrayContaining(['replySla']),
+    );
+    expect(adminReadOnly.detailProjection.replySla).toMatchObject({
+      source: 'same premiumRoomStatus.replySla projection as owner/artist read',
+      clockSource: 'room.openedAt + 24h',
+      refundCandidateEligibleStatuses: ['opened', 'active'],
+      answeredEvidenceExcludesRefundCandidate: [
+        'room.status=artist_answered',
+        'lastArtistReplyAt_present',
+        'hasArtistAnswer=true',
+      ],
+      notificationMutationEnabled: false,
+      refundMutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
     expect(adminReadOnly.detailProjection.refundRestrictionMetadata).toMatchObject({
       userFault70: {
         statusKey: 'refund_limited_70',
