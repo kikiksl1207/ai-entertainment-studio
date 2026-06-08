@@ -972,6 +972,21 @@ export const PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT = {
     supportMessageCreatesAiReply: false,
     supportMessageCountedSeparately: true,
   },
+  productSeparation: {
+    productKind: 'artist_direct_premium_dm',
+    responseMode: 'artist_direct_reply',
+    sourceTable: 'premium_chat_rooms',
+    listItemProjection: 'artistPremiumRoomInboxItem',
+    artistInboxEndpoint: '/api/v1/creator-studio/premium-chat/rooms',
+    userConversationListEndpoint: '/api/v1/chat/conversations',
+    characterChatProductKind: 'ai_character_chat',
+    characterChatResponseMode: 'ai_character_reply',
+    mixesWithCharacterConversationList: false,
+    usesCharacterChatSessions: false,
+    usesCharacterStarterPrompts: false,
+    createsAiReply: false,
+    ownerUserConversationListFallback: false,
+  },
   access: {
     artistOwner: {
       allowed: true,
