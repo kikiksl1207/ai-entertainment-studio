@@ -71,8 +71,11 @@
 
       <!-- 충전소 본체 (로그인 후) — #217 환경 감지 후 data-env 속성 부여 -->
       <!-- #721 — 로컬/preview 환경 fixture 안내 배너 (실서비스에서는 hidden 유지) -->
+      <!-- #787 — fixture 접근 경로 안내 강화: 로그아웃 상태 + localhost 접속 시 자동 활성 -->
       <div id="chargeFixtureNotice" class="charge-fixture-notice" hidden role="status">
-        ⓘ <strong>미리보기 모드</strong> — 로컬 fixture 데이터입니다. 결제 버튼은 비활성 상태이며 실결제는 절대 실행되지 않습니다.
+        ⓘ <strong>미리보기 모드</strong> — 로컬 fixture 데이터입니다.
+        결제 버튼은 비활성 상태이며 <strong>실결제는 절대 실행되지 않습니다</strong>.
+        <br /><small>접근 방법: <code>localhost</code> 또는 <code>127.0.0.1</code>에서 <strong>로그아웃 상태</strong>로 이 페이지를 열면 fixture가 자동으로 활성화됩니다.</small>
       </div>
       <div id="chargePageContent" data-charge-env="web" hidden>
         <!-- 페이지 hero — 잔액 표시 (#059 카피 1안 적용) -->

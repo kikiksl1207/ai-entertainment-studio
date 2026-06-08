@@ -367,3 +367,17 @@ tr.is-selected td { background: #faf5ff; }
   word-break: keep-all;
   overflow-wrap: break-word;
 }
+
+/* #790 — 모바일에서 배너가 대시보드 콘텐츠를 가리지 않도록 padding/font 조정 */
+@media (max-width: 640px) {
+  .ops-noindex-notice {
+    font-size: 12px;
+    padding: 10px 14px;
+    margin: 0 0 16px;
+    border-radius: 8px;
+    line-height: 1.6;
+  }
+  .ops-noindex-notice code {
+    font-size: 11px;
+  }
+}
