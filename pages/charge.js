@@ -40,12 +40,14 @@ const CHARGE_PREVIEW_FIXTURE = Object.freeze({
   wallet: { cachedBalance: 1500, balance: 1500 },
   policy: { paidLikeUnitPriceLumina: 10 },
   payment: { status: "pg_pending" }, // disabled 상태 — 실결제 절대 불가
+  // #836 — 6종 상품 + firstChargeTotalLumina 보강. 첫충전 보너스는 패키지 보너스 없는 상품만 중복 가능(정책).
   products: [
-    { id: "fixture-1000",  name: "스타터",    priceAmount: 1000,  luminaAmount: 100,   bonusAmount: 0,    bonusRate: 0,  firstChargeBonusLumina: 50  },
-    { id: "fixture-3000",  name: "라이트",    priceAmount: 3000,  luminaAmount: 330,   bonusAmount: 30,   bonusRate: 10, firstChargeBonusLumina: 150 },
-    { id: "fixture-5000",  name: "레귤러",    priceAmount: 5000,  luminaAmount: 550,   bonusAmount: 55,   bonusRate: 10, firstChargeBonusLumina: 0   },
-    { id: "fixture-10000", name: "프리미엄",  priceAmount: 10000, luminaAmount: 1200,  bonusAmount: 200,  bonusRate: 20, firstChargeBonusLumina: 0,  isBest: true },
-    { id: "fixture-50000", name: "VIP",       priceAmount: 50000, luminaAmount: 6500,  bonusAmount: 1000, bonusRate: 20, firstChargeBonusLumina: 0   },
+    { id: "fixture-1000",   name: "스타터",   priceAmount: 1000,   luminaAmount: 100,   bonusAmount: 0,    bonusRate: 0,  firstChargeBonusLumina: 10,   firstChargeTotalLumina: 110  },
+    { id: "fixture-3000",   name: "라이트",   priceAmount: 3000,   luminaAmount: 300,   bonusAmount: 0,    bonusRate: 0,  firstChargeBonusLumina: 30,   firstChargeTotalLumina: 330  },
+    { id: "fixture-5000",   name: "레귤러",   priceAmount: 5000,   luminaAmount: 550,   bonusAmount: 55,   bonusRate: 10, firstChargeBonusLumina: 0                                   },
+    { id: "fixture-10000",  name: "프리미엄", priceAmount: 10000,  luminaAmount: 1200,  bonusAmount: 200,  bonusRate: 20, firstChargeBonusLumina: 0,    isBest: true                 },
+    { id: "fixture-50000",  name: "VIP",      priceAmount: 50000,  luminaAmount: 6500,  bonusAmount: 1000, bonusRate: 20, firstChargeBonusLumina: 0                                   },
+    { id: "fixture-100000", name: "플래티넘", priceAmount: 100000, luminaAmount: 14000, bonusAmount: 4000, bonusRate: 40, firstChargeBonusLumina: 0                                   },
   ],
   recentOrders: [],
 });

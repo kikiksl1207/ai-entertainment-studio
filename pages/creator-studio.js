@@ -686,7 +686,8 @@
   }
 
   function knowledgeUrlStatusClass(status) {
-    return { pending: "is-warn", approved: "is-good", rejected: "is-error", archived: "", processing: "" }[status] || "is-warn";
+    // #837 — processing: 파랑(is-processing), archived: 회색(is-archived) 추가.
+    return { pending: "is-warn", approved: "is-good", rejected: "is-error", archived: "is-archived", processing: "is-processing" }[status] || "is-warn";
   }
 
   function knowledgeUrlTypeLabel(type) {
