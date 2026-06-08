@@ -236,6 +236,106 @@ export const AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY = {
   regenerationRequiresFreshPrecheck: true,
 } as const;
 
+export const AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON = {
+  version: '2026-06-08.ai-premium-content-request-queue-skeleton.v1',
+  feature: 'ai_premium_content_request_queue',
+  status: 'skeleton_ready_mutation_blocked',
+  enabled: false,
+  storageEnabled: false,
+  providerCallEnabled: false,
+  queueMutationEnabled: false,
+  walletMutationEnabled: false,
+  orderMutationEnabled: false,
+  settlementMutationEnabled: false,
+  payoutMutationEnabled: false,
+  paidLikeMutationEnabled: false,
+  currentBridge: {
+    imageQueue: 'creator_image_requests',
+    videoSource: 'premium_video_products_unlock_catalog_only',
+    futureUnifiedTable: 'ai_premium_content_requests',
+    currentLiveMutationChangedByThisContract: false,
+  },
+  normalizedFields: {
+    requestType: {
+      allowed: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+      providerSpecificTypeTrusted: false,
+    },
+    artistSlug: {
+      required: true,
+      serverResolvedArtistId: true,
+    },
+    outputClass: {
+      allowed: AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
+      derivedFromRequestType: true,
+    },
+    safetyStatus: {
+      allowed: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+      serverOwned: true,
+      initial: 'pending',
+      clientSubmittedTrusted: false,
+    },
+    estimatedCost: {
+      currency: 'KRW_MICROS',
+      source: 'server_policy_estimate_not_provider_quote',
+      amountTrustedFromClient: false,
+      walletDebitOnQueue: false,
+    },
+    providerRouteAlias: {
+      source: 'server_capability_alias',
+      prefix: 'ai_premium_content.',
+      vendorProviderKeyReturned: false,
+      vendorModelKeyReturned: false,
+    },
+    regenerationCount: {
+      serverOwned: true,
+      initial: 0,
+    },
+  },
+  queueItemProjection: {
+    id: '<server queue request id>',
+    requestType: '<image_single|image_variation|image_reference|video_clip|video_loop|premium_pack>',
+    artistSlug: '<artist slug>',
+    artistId: '<server resolved artist id>',
+    outputClass: '<image|video|mixed>',
+    status: 'draft',
+    safetyStatus: 'pending',
+    estimatedCost: {
+      currency: 'KRW_MICROS',
+      amountMicros: '<server policy ceiling or null>',
+      final: false,
+    },
+    providerRouteAlias: '<server provider route alias>',
+    providerCallEnabled: false,
+  },
+  lifecycle: {
+    intake: 'create_disabled_until_backend_storage_opens',
+    precheck: 'server_policy_only_without_provider_quote',
+    queue: 'disabled_skeleton_only',
+    providerAttempt: 'blocked_until_provider_router_is_explicitly_enabled',
+    review: 'human_review_required_before_public_use',
+  },
+  forbiddenSideEffects: {
+    liveProviderCall: false,
+    queueRowCreate: false,
+    walletDebit: false,
+    orderCreate: false,
+    settlementAccrual: false,
+    payoutAccrual: false,
+    paidLike: false,
+    publicPublish: false,
+    profileOrFeedEquip: false,
+  },
+  sensitiveDataPolicy: {
+    vendorProviderKeyReturned: false,
+    vendorModelKeyReturned: false,
+    rawProviderPayloadReturned: false,
+    rawPromptReturned: false,
+    signedUrlsReturned: false,
+    sensitiveAuthMaterialReturned: false,
+    databaseConnectionMaterialReturned: false,
+  },
+} as const;
+
 type AiPremiumContentRequestType =
   (typeof AI_PREMIUM_CONTENT_REQUEST_TYPES)[number];
 
@@ -464,6 +564,7 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   moderationStatuses: AI_PREMIUM_CONTENT_MODERATION_STATUSES,
   requestTypePolicy: AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY,
   briefApiSkeleton: AI_PREMIUM_CONTENT_BRIEF_API_SKELETON,
+  requestQueueSkeleton: AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON,
   statusCopy: {
     locale: 'ko-KR',
     fallbackMap: AI_PREMIUM_CONTENT_STATUS_COPY_KO,
