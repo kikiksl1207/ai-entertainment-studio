@@ -1753,6 +1753,9 @@ GET /api/v1/chat/rankings?type=donation&period=weekly&take=20
   `premium_chat_donation`.
 - `GET /api/v1/chat/rankings` accepts only `type=communication` or
   `type=donation`. Do not add a `type=like` alias to the chat ranking lane.
+- #777 requires the response `type` to mirror the requested lane and forbids
+  mixed-lane items. The chat ranking projection must reject or omit `like`,
+  `free_like`, `lumina_pick`, and `boost` as chat ranking types or score sources.
 - Communication ranking uses `premium_chat_open`, `premium_chat_message`,
   `premium_chat_donation`, and artist reply activity as a separate score lane.
 - Donation ranking uses confirmed net `premium_chat_donation` only. Refunded,
