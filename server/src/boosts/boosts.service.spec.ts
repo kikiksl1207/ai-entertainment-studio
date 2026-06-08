@@ -304,7 +304,12 @@ describe('BoostsService wallet mutation safety', () => {
     const [row] = rankings;
 
     expect(prisma.artistBoostEvent.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { campaignId: campaign.id } }),
+      expect.objectContaining({
+        where: {
+          campaignId: campaign.id,
+          artist: { status: 'active' },
+        },
+      }),
     );
     expect(prisma.artist.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: 'active' } }),
@@ -345,6 +350,47 @@ describe('BoostsService wallet mutation safety', () => {
     expect(rankings[1].totalFreeLikes.toString()).toBe('0');
     expect(rankings[1].totalPaidLikes.toString()).toBe('0');
     expect(rankings[1].totalWeightedScore.toString()).toBe('0');
+  });
+
+  it('excludes pending or private artists from public campaign rankings even with legacy events', async () => {
+    const { service, prisma } = createHarness();
+    const pendingArtist = {
+      id: '66666666-6666-4666-8666-666666666666',
+      slug: 'pending-character',
+      displayName: 'Pending Character',
+    };
+    prisma.artist.findMany.mockResolvedValue([artist]);
+    prisma.artistBoostEvent.findMany.mockResolvedValue([
+      {
+        artistId: artist.id,
+        artist,
+        boostType: 'free_like',
+        rawAmount: new Decimal(1),
+        weightedScore: new Decimal(1),
+      },
+      {
+        artistId: pendingArtist.id,
+        artist: pendingArtist,
+        boostType: 'lumina_boost',
+        rawAmount: new Decimal(999),
+        weightedScore: new Decimal(999),
+      },
+    ]);
+
+    const rankings = await service.getRankings(campaign.id);
+
+    expect(prisma.artistBoostEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          campaignId: campaign.id,
+          artist: { status: 'active' },
+        },
+      }),
+    );
+    expect(rankings).toHaveLength(1);
+    expect(rankings[0].artist).toEqual(artist);
+    expect(JSON.stringify(rankings)).not.toContain('pending-character');
+    expect(rankings[0].totalWeightedScore.toString()).toBe('1');
   });
 
   it('requires an idempotency key before a boost-order wallet mutation', async () => {

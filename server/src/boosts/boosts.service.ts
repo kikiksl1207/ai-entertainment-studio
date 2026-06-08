@@ -399,7 +399,10 @@ export class BoostsService {
   async getRankings(campaignId: string) {
     const [events, activeArtists] = await Promise.all([
       this.prisma.artistBoostEvent.findMany({
-        where: { campaignId },
+        where: {
+          campaignId,
+          artist: { status: 'active' },
+        },
         include: {
           artist: {
             select: {
@@ -446,13 +449,11 @@ export class BoostsService {
     }
 
     for (const event of events) {
-      const row = rows.get(event.artistId) ?? {
-        artist: event.artist,
-        totalFreeLikes: new Decimal(0),
-        totalPaidLikes: new Decimal(0),
-        totalLuminaBoosts: new Decimal(0),
-        totalWeightedScore: new Decimal(0),
-      };
+      const row = rows.get(event.artistId);
+
+      if (!row) {
+        continue;
+      }
 
       if (event.boostType === 'free_like') {
         row.totalFreeLikes = row.totalFreeLikes.plus(event.rawAmount);
