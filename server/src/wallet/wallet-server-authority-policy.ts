@@ -404,6 +404,36 @@ export const WALLET_LEDGER_INVARIANT_CONTRACT = {
   ],
 } as const;
 
+export const WALLET_SERVER_ONLY_SPEND_GUARD_CONTRACT = {
+  version: '2026-06-08.wallet-server-only-spend-guard.v1',
+  clientDisplayedBalanceTrusted: false,
+  clientSubmittedLedgerIdTrusted: false,
+  clientSubmittedCachedBalanceTrusted: false,
+  spendRequiresServerWalletAccount: true,
+  spendRequiresServerLedgerWrite: true,
+  spendRequiresAtomicBalanceGuard: true,
+  missingLedgerMeansSpendImpossible: true,
+  blackMarketOrModifiedAppDisplayValueIgnored: true,
+  insufficientBalanceCreatesDomainRecord: false,
+  insufficientBalanceCreatesLedger: false,
+  spendSurfaces: [
+    'gift_order',
+    'boost_paid_like',
+    'premium_video_unlock',
+    'chat_feature_order',
+    'premium_chat_room_open',
+    'premium_chat_message',
+    'premium_chat_donation',
+    'fan_letter',
+    'user_gift_transfer_send',
+  ],
+  requiredServerSources: [
+    'wallet_accounts.cached_balance',
+    'wallet_ledger.idempotency_key',
+    'server_product_or_domain_policy_amount',
+  ],
+} as const;
+
 export const APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST = [
   {
     surface: 'wallet_balance',

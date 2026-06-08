@@ -10,6 +10,7 @@ import {
   WALLET_LEDGER_SOURCE_CONTRACT,
   WALLET_MUTATION_SURFACE_GUARD_MATRIX,
   WALLET_MUTATION_GUARD_STEPS,
+  WALLET_SERVER_ONLY_SPEND_GUARD_CONTRACT,
 } from './wallet-server-authority-policy';
 
 describe('server-authority wallet policy', () => {
@@ -164,6 +165,55 @@ describe('server-authority wallet policy', () => {
         (surface) =>
           surface.settlementMutation === false &&
           surface.payoutMutation === false,
+      ),
+    ).toBe(true);
+  });
+
+  it('pins Lumina spend to server wallet balance and ledger writes, never client display values', () => {
+    expect(WALLET_SERVER_ONLY_SPEND_GUARD_CONTRACT).toMatchObject({
+      clientDisplayedBalanceTrusted: false,
+      clientSubmittedLedgerIdTrusted: false,
+      clientSubmittedCachedBalanceTrusted: false,
+      spendRequiresServerWalletAccount: true,
+      spendRequiresServerLedgerWrite: true,
+      spendRequiresAtomicBalanceGuard: true,
+      missingLedgerMeansSpendImpossible: true,
+      blackMarketOrModifiedAppDisplayValueIgnored: true,
+      insufficientBalanceCreatesDomainRecord: false,
+      insufficientBalanceCreatesLedger: false,
+      requiredServerSources: [
+        'wallet_accounts.cached_balance',
+        'wallet_ledger.idempotency_key',
+        'server_product_or_domain_policy_amount',
+      ],
+    });
+    expect(WALLET_SERVER_ONLY_SPEND_GUARD_CONTRACT.spendSurfaces).toEqual(
+      expect.arrayContaining([
+        'gift_order',
+        'boost_paid_like',
+        'premium_video_unlock',
+        'chat_feature_order',
+        'premium_chat_room_open',
+        'premium_chat_message',
+        'premium_chat_donation',
+        'fan_letter',
+        'user_gift_transfer_send',
+      ]),
+    );
+
+    const debitSources = WALLET_LEDGER_SOURCE_CONTRACT.filter(
+      (source) => source.direction === 'debit',
+    );
+    expect(
+      WALLET_SERVER_ONLY_SPEND_GUARD_CONTRACT.spendSurfaces.every((surface) =>
+        debitSources.some((source) => source.source === surface),
+      ),
+    ).toBe(true);
+    expect(
+      debitSources.every(
+        (source) =>
+          source.serverAuthority.includes('wallet_account_cached_balance') ||
+          source.serverAuthority.includes('server_visible_two_way_sentence_pair_meter'),
       ),
     ).toBe(true);
   });
