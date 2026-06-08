@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
-import { activeChargeProductWhere } from '../payments/charge-products.policy';
+import {
+  APP_CHARGE_PRODUCT_SPECS,
+  activeChargeProductWhere,
+} from '../payments/charge-products.policy';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_CURRENCY = 'LUMINA';
@@ -16,14 +19,13 @@ type ChargeProduct = {
   luminaAmount: Decimal;
   bonusAmount: Decimal;
 };
-const APP_CHARGE_PACKAGES = [
-  { sku: 'APP_LUMINA_70', priceKrw: 1000, luminaAmount: 70 },
-  { sku: 'APP_LUMINA_210', priceKrw: 3000, luminaAmount: 210 },
-  { sku: 'APP_LUMINA_350', priceKrw: 5000, luminaAmount: 350 },
-  { sku: 'APP_LUMINA_700', priceKrw: 10000, luminaAmount: 700 },
-  { sku: 'APP_LUMINA_3750', priceKrw: 50000, luminaAmount: 3750 },
-  { sku: 'APP_LUMINA_8000', priceKrw: 100000, luminaAmount: 8000 },
-] as const;
+const APP_CHARGE_PACKAGES = APP_CHARGE_PRODUCT_SPECS.map((product) => ({
+  sku: product.sku,
+  priceKrw: product.priceAmount,
+  luminaAmount: product.luminaAmount,
+  bonusLumina: product.bonusAmount,
+  totalLumina: product.luminaAmount + product.bonusAmount,
+}));
 const DEFERRED_APP_CHARGE_PACKAGES: ReadonlyArray<{
   priceKrw: number;
   status: 'deferred_after_launch';
@@ -95,8 +97,6 @@ export class LuminaStationService {
         mutationEnabled: false,
         packages: APP_CHARGE_PACKAGES.map((product) => ({
           ...product,
-          bonusLumina: 0,
-          totalLumina: product.luminaAmount,
           labelKo: `${product.priceKrw.toLocaleString('ko-KR')}원 = ${product.luminaAmount.toLocaleString('ko-KR')}L`,
           iapProductId: null,
         })),
