@@ -181,6 +181,14 @@ My Page contract:
 - `PATCH /api/v1/me/settings` accepts any subset of `locale`, `timezone`, `marketingOptIn`, `pushOptIn`, `activityNotifications`, `feedNotifications`, and `emailNotifications`, or the frontend nested shape `{ notifications: { activityNotifications, marketingOptIn, feedNotifications, emailNotifications, pushOptIn } }`. Empty bodies return `400`. Supported `locale` values are `ko-KR`, `ja-JP`, `en-US`, and `zh-CN`.
 - `GET /api/v1/localization/policy` is public and returns localization defaults, supported locales, and the locale detected from `Accept-Language`. Clients should prefer signed-in `settings.locale`, then local storage, then the detected locale, then `ko-KR`.
 - `GET /api/v1/me/notifications?status=all&take=20` returns `{ notifications, unreadCount, nextCursor }`. Notification items include `i18n: { messageKey, titleKey, bodyKey, defaultTitle, defaultBody, params }` so clients can map server-created events to locale dictionaries while keeping stored title/body as fallback text. Feed replies, feed likes, and user follows create notification-center rows; read state is managed with the two PATCH endpoints.
+- #844 adds the feed notification projection contract for future count lanes:
+  feed comments use `feed.reply`, thread continuations use
+  `feed.thread_continuation`, and reposts use `feed.repost`. Their unread count
+  lanes must stay separate, and deleted, hidden, private, missing, or
+  relationship-blocked feed targets are excluded from list/count projections
+  without identity leakage. This contract is read-only and does not create feed
+  posts, comments, reposts, notifications, wallet, settlement, or payout
+  mutations.
 - `POST /api/v1/me/assets/upload-intents` creates image-only upload intents for logged-in users. Confirmed assets can be used as avatar images, profile cover images, or feed post `assetIds`.
 - `GET /api/v1/me/assets` is the signed-in user's image asset library. Query supports `status=all|pending_upload|uploaded|ready`, `lifecycleStatus=active|archived`, `take`, and `cursor`. It returns `{ items, count, hasMore, nextCursor, policy }`.
 - `GET /api/v1/me/assets/:assetId` returns one owned asset plus usage hints. Ownership is checked through `asset.metadata.uploadIntent.createdByUserId`.

@@ -26,6 +26,78 @@ type NotificationTemplate = {
   defaultBody?: string | null;
 };
 
+export const FEED_NOTIFICATION_PROJECTION_CONTRACT = {
+  version: '2026-06-08.feed-thread-comment-repost-notification-projection.v1',
+  readOnly: true,
+  notificationMutationEnabled: false,
+  feedEventTypes: {
+    comment: 'feed.reply',
+    threadContinuation: 'feed.thread_continuation',
+    repost: 'feed.repost',
+  },
+  countLanes: {
+    comment: {
+      type: 'feed.reply',
+      countKey: 'feedCommentUnreadCount',
+      targetType: 'community_post',
+      mixesWithThreadContinuation: false,
+      mixesWithRepost: false,
+    },
+    threadContinuation: {
+      type: 'feed.thread_continuation',
+      countKey: 'feedThreadContinuationUnreadCount',
+      targetType: 'community_post',
+      mixesWithComment: false,
+      mixesWithRepost: false,
+    },
+    repost: {
+      type: 'feed.repost',
+      countKey: 'feedRepostUnreadCount',
+      targetType: 'community_post',
+      mixesWithComment: false,
+      mixesWithThreadContinuation: false,
+    },
+  },
+  failClosedReadFilters: {
+    deletedPost: 'exclude_from_list_and_count',
+    hiddenPost: 'exclude_from_list_and_count',
+    privatePost: 'exclude_from_list_and_count',
+    blockedRelationship: 'exclude_without_identity_leak',
+    missingPost: 'exclude_from_list_and_count',
+  },
+  projectionFields: [
+    'id',
+    'type',
+    'targetType',
+    'targetId',
+    'readAt',
+    'createdAt',
+    'i18n.messageKey',
+    'i18n.titleKey',
+    'i18n.bodyKey',
+    'actor.displayName',
+    'actor.publicHandle',
+  ],
+  privacy: {
+    rawPostBodyReturned: false,
+    rawCommentBodyReturned: false,
+    rawDeletedPostReturned: false,
+    blockedUserPrivateFieldsReturned: false,
+    actorEmailReturned: false,
+    tokenReturned: false,
+    cookieReturned: false,
+  },
+  noMutation: {
+    communityPostCreate: true,
+    communityReplyCreate: true,
+    repostCreate: true,
+    notificationCreate: true,
+    walletMutation: true,
+    settlementMutation: true,
+    payoutMutation: true,
+  },
+} as const;
+
 const NOTIFICATION_STATUSES = new Set(['all', 'read', 'unread']);
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -42,6 +114,20 @@ const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     titleKey: 'notification.feed.like.title',
     defaultTitle: 'New like on your feed post',
     defaultBody: 'Someone liked your feed post.',
+  },
+  'feed.thread_continuation': {
+    messageKey: 'notification.feed.threadContinuation',
+    titleKey: 'notification.feed.threadContinuation.title',
+    bodyKey: 'notification.feed.threadContinuation.body',
+    defaultTitle: 'New thread continuation on your feed post',
+    defaultBody: 'Someone continued a feed thread.',
+  },
+  'feed.repost': {
+    messageKey: 'notification.feed.repost',
+    titleKey: 'notification.feed.repost.title',
+    bodyKey: 'notification.feed.repost.body',
+    defaultTitle: 'New repost on your feed post',
+    defaultBody: 'Someone reposted your feed post.',
   },
   'user.follow': {
     messageKey: 'notification.user.follow',
@@ -71,6 +157,10 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
   ) {}
+
+  getFeedNotificationProjectionContract() {
+    return FEED_NOTIFICATION_PROJECTION_CONTRACT;
+  }
 
   async list(userId: string, query: NotificationQuery) {
     const take = this.take(query.take);
