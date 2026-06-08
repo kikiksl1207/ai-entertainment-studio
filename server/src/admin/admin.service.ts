@@ -230,6 +230,69 @@ export class AdminService {
     private readonly configService: ConfigService,
   ) {}
 
+  getBackstageIndexingReadiness() {
+    const rawPublicIndexingFlag =
+      this.configService.get<string>('PUBLIC_INDEXING_ENABLED') ?? '';
+    const publicIndexingEnabled = ['1', 'true', 'yes', 'enabled'].includes(
+      rawPublicIndexingFlag.trim().toLowerCase(),
+    );
+
+    return {
+      generatedAt: new Date().toISOString(),
+      statusKey: publicIndexingEnabled
+        ? 'indexing.publicReviewRequired'
+        : 'indexing.prelaunchNoindexExpected',
+      publicIndexingEnabled,
+      currentState: publicIndexingEnabled
+        ? 'public_indexing_flag_enabled_review_required'
+        : 'prelaunch_noindex_expected',
+      readModelNeeded: true,
+      repositorySignals: {
+        staticPagesUseNoindexMeta: true,
+        expectedMetaRobotsContent: 'noindex, nofollow',
+        representativeFiles: [
+          'index.html',
+          'lumina-feed.html',
+          'character-detail.html',
+          'creator-studio.html',
+          'backstage.html',
+        ],
+      },
+      launchChecklist: [
+        {
+          key: 'remove_static_noindex_meta',
+          requiredBeforePublicLaunch: true,
+          owner: 'frontend_or_static_site_ops',
+        },
+        {
+          key: 'publish_robots_txt_policy',
+          requiredBeforePublicLaunch: true,
+          owner: 'frontend_or_static_site_ops',
+        },
+        {
+          key: 'verify_canonical_domains',
+          requiredBeforePublicLaunch: true,
+          owner: 'ops',
+        },
+        {
+          key: 'search_console_manual_verification',
+          requiredBeforePublicLaunch: true,
+          owner: 'ops_external',
+        },
+      ],
+      policy: {
+        endpoint: 'GET /admin/api/v1/backstage/operations/indexing-readiness',
+        permission: '*',
+        mutation: false,
+        robotsTxtMutation: false,
+        searchConsoleMutation: false,
+        frontendFileMutation: false,
+        envValueReturned: false,
+        secretsReturned: false,
+      },
+    };
+  }
+
   async getBackstageObjectStorageDiagnostics() {
     const storageProvider =
       this.configService.get<string>('OBJECT_STORAGE_PROVIDER') ?? 'local';

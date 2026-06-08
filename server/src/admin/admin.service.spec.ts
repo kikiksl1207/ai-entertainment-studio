@@ -45,6 +45,54 @@ async function expectHttpError(
 }
 
 describe('AdminService wallet daily ledger reconcile read model', () => {
+  it('returns a read-only robots noindex indexing readiness model without mutating external systems', () => {
+    const config = { get: jest.fn().mockReturnValue(undefined) };
+    const service = new AdminService(
+      {} as unknown as PrismaService,
+      config as unknown as ConfigService,
+    );
+
+    const result = service.getBackstageIndexingReadiness();
+
+    expect(config.get).toHaveBeenCalledWith('PUBLIC_INDEXING_ENABLED');
+    expect(result).toMatchObject({
+      statusKey: 'indexing.prelaunchNoindexExpected',
+      publicIndexingEnabled: false,
+      currentState: 'prelaunch_noindex_expected',
+      readModelNeeded: true,
+      repositorySignals: {
+        staticPagesUseNoindexMeta: true,
+        expectedMetaRobotsContent: 'noindex, nofollow',
+        representativeFiles: expect.arrayContaining([
+          'index.html',
+          'lumina-feed.html',
+          'backstage.html',
+        ]),
+      },
+      policy: {
+        endpoint: 'GET /admin/api/v1/backstage/operations/indexing-readiness',
+        mutation: false,
+        robotsTxtMutation: false,
+        searchConsoleMutation: false,
+        frontendFileMutation: false,
+        envValueReturned: false,
+        secretsReturned: false,
+      },
+    });
+    expect(result.launchChecklist).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'remove_static_noindex_meta',
+          requiredBeforePublicLaunch: true,
+        }),
+        expect.objectContaining({
+          key: 'search_console_manual_verification',
+          owner: 'ops_external',
+        }),
+      ]),
+    );
+  });
+
   it('aggregates daily Lumina ledger movement without exposing payment secrets', async () => {
     const prisma = {
       walletLedger: {
