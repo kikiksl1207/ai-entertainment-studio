@@ -136,6 +136,12 @@ export class AdminController {
     return this.adminService.getBackstageObjectStorageDiagnostics();
   }
 
+  @Get('backstage/operations/indexing-readiness')
+  @RequireAdminPermissions('*')
+  getBackstageIndexingReadiness() {
+    return this.adminService.getBackstageIndexingReadiness();
+  }
+
   @Get('backstage/operations/wallet-ledger-audit')
   @RequireAdminPermissions('payments:read')
   getBackstageWalletLedgerAudit(@Query() query: AuditQuery) {

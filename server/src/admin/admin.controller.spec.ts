@@ -97,3 +97,17 @@ describe('AdminController wallet ledger audit permissions', () => {
     );
   });
 });
+
+describe('AdminController indexing readiness permissions', () => {
+  it('mounts robots noindex readiness as a read-only backstage operations route', () => {
+    expect(mountedAdminControllerRoutes()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          method: RequestMethod.GET,
+          path: 'backstage/operations/indexing-readiness',
+          permissions: ['*'],
+        }),
+      ]),
+    );
+  });
+});
