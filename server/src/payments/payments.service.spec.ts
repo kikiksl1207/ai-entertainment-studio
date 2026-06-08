@@ -2,6 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
   CHARGE_FIXTURE_PAYMENT_SEPARATION_CONTRACT,
+  FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT,
   PaymentsService,
 } from './payments.service';
 
@@ -186,6 +187,23 @@ describe('PaymentsService server-authority contract', () => {
         'fixtureWalletBalance',
       ]),
     );
+  });
+
+  it('documents first-charge bonus idempotency as a server-side wallet contract', () => {
+    expect(FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT).toMatchObject({
+      grantTrigger: 'first_successful_paid_lumina_order_transition_only',
+      idempotencyKeyPattern: 'first_charge_bonus:<userId>',
+      bonusBasis: 'base_lumina_only',
+      packageBonusIncluded: false,
+      clientProvidedAmountAccepted: false,
+      walletAndLedgerSameTransaction: true,
+      duplicateProviderTransactionBehavior: 'idempotent_replay_without_wallet_ledger',
+      alreadyPaidOrderBehavior: 'idempotent_replay_without_wallet_ledger',
+      duplicateBonusKeyBehavior: 'upsert_replay_without_second_bonus_credit',
+      failedProviderEventsLockEligibility: false,
+      settlementEligible: false,
+      cashRefundable: false,
+    });
   });
 
   it('creates checkout orders only from active charge-policy price tiers', async () => {
@@ -632,6 +650,26 @@ describe('PaymentsService server-authority contract', () => {
     expect(tx.paymentTransaction.upsert).not.toHaveBeenCalled();
     expect(tx.walletAccount.upsert).not.toHaveBeenCalled();
     expect(tx.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.walletAccount.update).not.toHaveBeenCalled();
+  });
+
+  it('treats an already-paid order webhook as a replay before wallet or first bonus ledgers', async () => {
+    const { prisma, tx, webhookEvent } = paidWebhookFixture({
+      paidTransitionCount: 0,
+      providerTransactionId: 'provider-txn-paid-late-delivery',
+    });
+    const { service } = serviceWith(prisma, {
+      verifyAndParseWebhook: jest.fn().mockReturnValue(webhookEvent),
+    });
+
+    await expect(service.handleWebhook('mock', {}, {})).resolves.toMatchObject({
+      idempotentReplay: true,
+    });
+    expect(tx.paymentTransaction.upsert).toHaveBeenCalledTimes(1);
+    expect(tx.walletAccount.upsert).not.toHaveBeenCalled();
+    expect(tx.paymentOrder.count).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.walletLedger.upsert).not.toHaveBeenCalled();
     expect(tx.walletAccount.update).not.toHaveBeenCalled();
   });
 });

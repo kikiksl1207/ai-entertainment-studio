@@ -17,6 +17,21 @@ import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 const DEFAULT_CURRENCY = 'LUMINA';
 const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
 const FIRST_CHARGE_BONUS_BASIS = 'base_lumina_only';
+export const FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT = {
+  version: '2026-06-08.first-charge-bonus-idempotency.v1',
+  grantTrigger: 'first_successful_paid_lumina_order_transition_only',
+  idempotencyKeyPattern: 'first_charge_bonus:<userId>',
+  bonusBasis: FIRST_CHARGE_BONUS_BASIS,
+  packageBonusIncluded: false,
+  clientProvidedAmountAccepted: false,
+  walletAndLedgerSameTransaction: true,
+  duplicateProviderTransactionBehavior: 'idempotent_replay_without_wallet_ledger',
+  alreadyPaidOrderBehavior: 'idempotent_replay_without_wallet_ledger',
+  duplicateBonusKeyBehavior: 'upsert_replay_without_second_bonus_credit',
+  failedProviderEventsLockEligibility: false,
+  settlementEligible: false,
+  cashRefundable: false,
+} as const;
 const PAYMENT_ORDER_IDEMPOTENCY_CONFLICT = {
   code: 'PAYMENT_ORDER_IDEMPOTENCY_CONFLICT',
   message: 'payments.order.idempotencyConflict',
