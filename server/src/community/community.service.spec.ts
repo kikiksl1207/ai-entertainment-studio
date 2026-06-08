@@ -211,8 +211,17 @@ describe('CommunityService user follow/block mutation contract', () => {
       premiumChatRelationshipGuards: {
         relationshipSource: 'user_blocks',
         blockedRelationshipDirection: 'either_direction',
+        validationOrder: [
+          'load_room_participants_or_artist_target',
+          'check_user_blocks_either_direction',
+          'reject_before_wallet_order_message_donation_or_report_mutation',
+          'continue_domain_specific_guard',
+        ],
         failBeforeWalletMutation: true,
         failBeforeOrderMutation: true,
+        failBeforeMessageMutation: true,
+        failBeforeDonationMutation: true,
+        failBeforeReportMutation: true,
         failBeforeSettlementMutation: true,
         failBeforePayoutMutation: true,
         status: 403,
@@ -243,7 +252,9 @@ describe('CommunityService user follow/block mutation contract', () => {
     ).toEqual(
       expect.arrayContaining([
         'POST /api/v1/chat/premium-rooms',
+        'POST /api/v1/chat/premium-rooms/:roomId/messages',
         'POST /api/v1/chat/premium-rooms/:roomId/donations',
+        'POST /api/v1/chat/premium-rooms/:roomId/reports',
         'GET /api/v1/chat/me/premium-rooms/:roomId/status',
       ]),
     );
