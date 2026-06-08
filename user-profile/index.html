@@ -77,9 +77,20 @@
               <p class="user-profile-handle" id="userProfileHandle"></p>
               <p class="user-profile-bio" id="userProfileBio" hidden></p>
               <button class="user-profile-bio-toggle" id="userProfileBioToggle" type="button">더 보기</button>
+              <!-- #812 — 팔로워·팔로잉 탭 진입: 숫자 항목을 버튼으로 변경해 모달 직접 진입 가능 -->
               <ul class="user-profile-stats" role="list">
-                <li><strong id="userProfileFollowerCount">…</strong><small>팔로워</small></li>
-                <li><strong id="userProfileFollowingCount">…</strong><small>팔로잉</small></li>
+                <li>
+                  <button class="user-profile-stat-btn" type="button" id="userProfileFollowerBtn"
+                          aria-label="팔로워 목록 보기" data-follow-open="followers">
+                    <strong id="userProfileFollowerCount">…</strong><small>팔로워</small>
+                  </button>
+                </li>
+                <li>
+                  <button class="user-profile-stat-btn" type="button" id="userProfileFollowingBtn"
+                          aria-label="팔로잉 목록 보기" data-follow-open="following">
+                    <strong id="userProfileFollowingCount">…</strong><small>팔로잉</small>
+                  </button>
+                </li>
                 <li><strong id="userProfilePostCount">…</strong><small>글</small></li>
               </ul>
             </div>

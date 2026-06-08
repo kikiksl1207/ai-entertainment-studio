@@ -1803,3 +1803,22 @@
     max-width: calc(100vw - 24px);
   }
 }
+
+/* #812 — 팔로워·팔로잉 stat 버튼: 버튼 기본 스타일 초기화, 기존 li 스타일 유지 */
+.user-profile-stat-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: inherit;
+  text-align: center;
+}
+.user-profile-stat-btn:hover strong {
+  color: #b48cff;
+}
