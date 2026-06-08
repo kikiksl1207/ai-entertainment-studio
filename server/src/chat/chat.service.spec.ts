@@ -2105,6 +2105,109 @@ describe('ChatService persona and catalog policy', () => {
     });
   });
 
+  it('exposes character-chat opening greeting runtime variant selection without request mutations', async () => {
+    const prisma = {
+      artist: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000843',
+          slug: 'variant-runtime-artist',
+          displayName: 'Variant Runtime Artist',
+          publicProfile: {
+            publicMetadata: {
+              chatCatalog: {
+                greetingText: 'Variant runtime greeting',
+                toneGuideKo: 'Keep the tone warm and focused.',
+              },
+              chatStarterPromptSets: [
+                {
+                  id: 'variant-runtime-start',
+                  guideText: 'Start with the runtime variant guide.',
+                  options: [
+                    {
+                      key: 'A',
+                      label: 'Ask about today',
+                      message: 'How should we start today?',
+                    },
+                  ],
+                },
+              ],
+              chatPersonaSeed: {
+                selectedTraitIds: ['warm_listener'],
+                customTraitsKo: ['warm runtime listener'],
+              },
+            },
+            tagline: 'Runtime variant guide',
+            personalityKeywords: ['warm', 'focused'],
+          },
+          contentProfile: {
+            contentTone: 'warm',
+          },
+        }),
+      },
+      walletAccount: {
+        updateMany: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+      },
+      chatMessage: {
+        create: jest.fn(),
+      },
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const prompts = await service.getStarterPrompts({
+      artistSlug: 'variant-runtime-artist',
+    });
+
+    expect(prompts.dynamicGreetingContract).toMatchObject({
+      version: '2026-06-05.character-chat-opening-greeting-variants.v1',
+      characterSlug: 'variant-runtime-artist',
+      runtimeSelection: {
+        productKind: 'character_chat',
+        selectionPoint: 'opening_greeting_create',
+        firstConversationSignal: 'missing_opening_greeting_for_chat_session',
+        firstConversationScope: 'chat_session',
+        existingGreetingBehavior: 'return_cached_opening_greeting',
+        toneCatalogSource: 'runtimePersona.tone',
+        personaCatalogSource: 'runtimePersona.personaTags',
+        starterMessageSource: 'runtimePersona.starterOptions',
+        clientVariantOverrideAccepted: false,
+        userSpecificSessionSeed: true,
+        catalogMutation: false,
+        providerCallRequired: false,
+        providerUsageRecordedOnlyWhenCalled: true,
+        zeroProviderFallbackEstimatedCostKrw: '0.00',
+        walletMutation: false,
+        orderMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+      variantPolicy: {
+        seedSource: 'chat_sessions.id',
+        selectionStrategy: 'deterministic_session_variant_index',
+        sameSessionStable: true,
+        sameCharacterSameUserNewSessionCanVary: true,
+        clientSeedAccepted: false,
+      },
+      toneCandidate: {
+        source: 'runtimePersona.tone',
+        displaySafe: true,
+        rawPersonaPromptStored: false,
+      },
+    });
+    expect(prompts.runtimePersona.tone.guideKo).toBe(
+      'Keep the tone warm and focused.',
+    );
+    expect(prompts.runtimePersona.personaTags).toEqual(
+      expect.arrayContaining(['warm', 'focused', 'warm runtime listener']),
+    );
+    expect(llmProvider.readiness).not.toHaveBeenCalled();
+    expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+  });
+
   it('uses published character chat CMS copy before metadata and keeps the projection read-only', async () => {
     const cmsWelcome = '\uad00\ub9ac\uc790 \uc778\uc0ac';
     const cmsGuide = '\uad00\ub9ac\uc790 \uccab \ub300\ud654 \uac00\uc774\ub4dc';
