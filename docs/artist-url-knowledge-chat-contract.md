@@ -3,7 +3,8 @@
 Version: `2026-06-05.artist-url-knowledge-registration-skeleton.v1`
 
 Updated for Notion #459 safety gate, #462 audit contract, and #540 product
-contract clarification, plus workboard #619 registration skeleton separation.
+contract clarification, plus workboard #619 registration skeleton separation and
+#780 ingest moderation handoff guard.
 
 ## Scope
 
@@ -12,6 +13,11 @@ Artist URL knowledge is limited to URLs submitted directly by an active artist o
 Supported source types are `youtube`, `instagram`, `tiktok`, `blog`, `notice`, and `other`.
 
 Lifecycle states are `pending`, `approved`, `rejected`, and `archived`.
+
+Ingest moderation states are `submitted`, `pending_review`, `ai_processing`,
+`approved_for_chat`, `rejected`, and `archived`. Rows in `ai_processing` are not
+eligible for character-chat provider context even if the lifecycle status is
+already `approved`.
 
 ## #540 Product Contract Clarification
 
@@ -26,6 +32,9 @@ Artist URL knowledge is a controlled reference pipeline:
 5. Character chat may reference only approved, chat-enabled rows with a bounded
    summary. Pending, rejected, archived, disabled, summaryless, or unsafe rows
    fail closed and are invisible to provider context.
+6. AI processing rows fail closed until review marks the row
+   `approved_for_chat`; the provider context may include only bounded summaries
+   and hostname-only source labels.
 
 This contract separates three concepts that UI and backend must not merge:
 
@@ -44,9 +53,14 @@ This contract separates three concepts that UI and backend must not merge:
 - `safetyStatus`: `unreviewed`, `needs_review`, `safe`, or `blocked`.
 - raw submitted URL: stored only for review operations and never sent to the
   character-chat provider context.
+- `ai_processing`: explicitly excluded from character-chat context while ingest
+  workers or moderation are still deriving summaries/safety status.
 
 Do not expose future `ingestState` values as lifecycle status aliases. UI may
 localize lifecycle and processing copy, but API status values remain canonical.
+Raw URL query strings, private URLs, reviewer/admin notes, raw page bodies, and
+provider payloads must not be copied into character-chat provider context,
+fallback copy, audit payloads, or handoff notes.
 
 ## Registration Shape
 

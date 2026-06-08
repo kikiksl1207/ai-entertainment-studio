@@ -28,6 +28,15 @@ export const ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES = [
   'blocked',
 ] as const;
 
+export const ARTIST_URL_KNOWLEDGE_INGEST_STATUSES = [
+  'submitted',
+  'pending_review',
+  'ai_processing',
+  'approved_for_chat',
+  'rejected',
+  'archived',
+] as const;
+
 const ARTIST_URL_KNOWLEDGE_CONTRACT_AUDIT_ACTIONS = [
   'creator_studio.artist_knowledge_url.create',
   'creator_studio.artist_knowledge_url.update',
@@ -45,6 +54,9 @@ export type ArtistUrlKnowledgeSourceType =
 
 export type ArtistUrlKnowledgeSafetyStatus =
   (typeof ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES)[number];
+
+export type ArtistUrlKnowledgeIngestStatus =
+  (typeof ARTIST_URL_KNOWLEDGE_INGEST_STATUSES)[number];
 
 export type ArtistKnowledgeChatCandidate = {
   id: string;
@@ -216,6 +228,7 @@ export type ArtistKnowledgeChatRefreshStatus =
   | 'excluded_rejected'
   | 'excluded_archived'
   | 'excluded_safety_review'
+  | 'excluded_ai_processing'
   | 'excluded_chat_reference_disabled'
   | 'excluded_missing_summary';
 
@@ -326,6 +339,7 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
   lifecycleStatuses: ARTIST_URL_KNOWLEDGE_STATUSES,
   sourceTypes: ARTIST_URL_KNOWLEDGE_SOURCE_TYPES,
   safetyStatuses: ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES,
+  ingestStatuses: ARTIST_URL_KNOWLEDGE_INGEST_STATUSES,
   registrationSkeleton: {
     fieldSeparation: {
       title: 'metadata.title or future public metadata title',
@@ -340,6 +354,56 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
     reviewRequiredSafetyStatuses: ['unreviewed', 'needs_review', 'blocked'],
     rawSubmittedUrlIsReferenceMaterial: false,
     approvedSummaryIsReferenceFactOnly: true,
+  },
+  ingestModeration: {
+    initialOnCreate: {
+      lifecycleStatus: 'pending',
+      safetyStatus: 'unreviewed',
+      ingestStatus: 'submitted',
+      chatEligible: false,
+      providerContextAllowed: false,
+    },
+    aiProcessing: {
+      ingestStatus: 'ai_processing',
+      chatEligible: false,
+      providerContextAllowed: false,
+      providerCallAllowedForChatContext: false,
+    },
+    adminApprove: {
+      lifecycleStatus: 'approved',
+      requiredSafetyStatus: 'safe',
+      summaryRequired: true,
+      allowChatReferenceRequired: true,
+      resultingIngestStatus: 'approved_for_chat',
+      chatEligible: true,
+    },
+    adminReject: {
+      lifecycleStatus: 'rejected',
+      resultingIngestStatus: 'rejected',
+      chatEligible: false,
+      providerContextAllowed: false,
+    },
+    adminArchive: {
+      lifecycleStatus: 'archived',
+      resultingIngestStatus: 'archived',
+      chatEligible: false,
+      providerContextAllowed: false,
+    },
+    forbiddenProviderContextFields: [
+      'rawUrl',
+      'canonicalUrl',
+      'rawUrlQuery',
+      'rawPageBody',
+      'privateUrl',
+      'privateMaterial',
+      'adminNotes',
+      'reviewerNotes',
+      'token',
+      'cookie',
+      'password',
+      'apiKey',
+      'dbUrl',
+    ],
   },
   apiContracts: {
     creatorList: {
@@ -501,6 +565,7 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
       approved: 'eligible_when_safe_chat_enabled_and_summary_present',
       rejected: 'excluded_rejected',
       archived: 'excluded_archived',
+      ai_processing: 'excluded_ai_processing',
     },
     safetyMatrix: {
       unreviewed: 'excluded_safety_review',
@@ -667,8 +732,35 @@ export function isArtistKnowledgeChatEligible(
     item.status === 'approved' &&
     item.allowChatReference === true &&
     Boolean(normalizeArtistKnowledgeSummary(item.summary)) &&
+    !isArtistKnowledgeIngestProcessing(item.metadata) &&
     artistKnowledgeSafetyStatusFromCandidate(item) === 'safe'
   );
+}
+
+export function isArtistKnowledgeIngestProcessing(metadata: unknown) {
+  return artistKnowledgeIngestStatusFromMetadata(metadata) === 'ai_processing';
+}
+
+export function artistKnowledgeIngestStatusFromMetadata(
+  metadata: unknown,
+): ArtistUrlKnowledgeIngestStatus | null {
+  const metadataRecord = recordOrEmpty(metadata);
+  const ingestRecord = recordOrEmpty(
+    metadataRecord.ingestModeration ??
+      metadataRecord.ingest ??
+      metadataRecord.processing,
+  );
+  const candidate =
+    stringOrNull(metadataRecord.ingestStatus) ??
+    stringOrNull(ingestRecord.status) ??
+    stringOrNull(ingestRecord.ingestStatus) ??
+    stringOrNull(ingestRecord.processingStatus);
+
+  return (ARTIST_URL_KNOWLEDGE_INGEST_STATUSES as readonly string[]).includes(
+    candidate ?? '',
+  )
+    ? (candidate as ArtistUrlKnowledgeIngestStatus)
+    : null;
 }
 
 export function artistKnowledgeSafetyStatusFromCandidate(

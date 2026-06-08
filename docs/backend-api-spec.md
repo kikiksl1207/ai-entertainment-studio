@@ -434,6 +434,11 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   and Backstage approve/reject/archive events invalidate the cache. Raw URLs,
   token-like query strings, private notes, provider payloads, and admin material
   must not be cached or sent to the provider.
+- #780 fixes the ingest moderation handoff guard. Rows with
+  `ingestStatus=ai_processing` stay excluded from character-chat context until
+  review marks them `approved_for_chat`; raw URL query strings, private URLs,
+  reviewer/admin notes, raw page bodies, and provider payloads stay out of
+  provider context.
 - The admin audit list endpoint is a read-only skeleton guarded by `audit:read`.
   It returns redacted artist knowledge URL audit event list items only.
 - Query shape: `action`, `targetId`, `artistId`, `take`, and opaque `cursor`.
