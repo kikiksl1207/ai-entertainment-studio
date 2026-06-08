@@ -2529,6 +2529,12 @@ AI premium content request brief API skeleton (#662):
   queue. Future unified storage requires `ai_premium_content_requests`.
 - Public request state projection separates request status, moderation status,
   result availability, retry availability, and publish/equip availability.
+- #779 separates owner and admin projections before the API is enabled. Owner
+  list/detail projections may show user-facing status, moderation status, result
+  availability, retry/publish availability, safe brief/reference previews, and
+  user-facing safety summaries. Admin projections may additionally show safe
+  review summaries, moderation reason keys, cost policy summaries, and generation
+  attempt summaries.
 - Raw state enums such as `provider_failed` must not be shown directly. Use the
   Korean fallback map: `draft` = `작성 중`, `submitted` = `요청이 접수됐어요`,
   `queued` = `생성 준비 중이에요`, `generating` = `콘텐츠를 만들고 있어요`,
@@ -2542,6 +2548,9 @@ AI premium content request brief API skeleton (#662):
   reference material, signed URLs, sensitive auth material, private connection
   material, raw emails, wallet ledger ids, settlement internals, or payout
   internals.
+- Both owner and admin projections must keep provider keys, model keys, raw
+  prompts, raw provider payloads, raw moderation notes, internal cost breakdowns,
+  wallet ledger ids, settlement ids, and payout ids out of response bodies.
 
 Free-like quota endpoint:
 

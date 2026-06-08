@@ -415,4 +415,72 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       rawEmailReturned: false,
     });
   });
+
+  it('separates owner and admin request projections without exposing raw or internal fields', () => {
+    const { surfaces } = AI_PREMIUM_CONTENT_STATE_API_CONTRACT.projection;
+
+    expect(surfaces.owner).toMatchObject({
+      audience: 'request_owner_or_artist_operator',
+      statusCopyRequired: true,
+      rawEnumAsCopy: false,
+      modelKeyReturned: false,
+      rawPromptReturned: false,
+      providerPayloadReturned: false,
+      adminModerationNoteReturned: false,
+      internalCostReturned: false,
+      internalReviewFieldsReturned: false,
+    });
+    expect(surfaces.owner.listFields).toEqual(
+      expect.arrayContaining([
+        'id',
+        'requestType',
+        'artist',
+        'status',
+        'moderationStatus',
+        'resultAvailability',
+        'retryAvailability',
+        'publishAvailability',
+        'timestamps',
+      ]),
+    );
+    expect(surfaces.owner.detailAdditionalFields).toEqual(
+      expect.arrayContaining([
+        'briefSummary',
+        'referenceAssetPreview',
+        'userFacingSafetySummary',
+      ]),
+    );
+    expect(surfaces.admin).toMatchObject({
+      audience: 'admin_assets_read_operator',
+      statusCopyRequired: true,
+      rawEnumAsCopy: false,
+      modelRouteAliasReturned: true,
+      modelKeyReturned: false,
+      rawPromptReturned: false,
+      providerPayloadReturned: false,
+      rawModerationNoteReturned: false,
+      internalCostReturned: false,
+      ownerPrivateContactReturned: false,
+    });
+    expect(surfaces.admin.detailAdditionalFields).toEqual(
+      expect.arrayContaining([
+        'safetyGateSummary',
+        'moderationReasonKey',
+        'costPolicySummary',
+        'generationAttemptSummary',
+      ]),
+    );
+    expect(surfaces.forbiddenEverywhere).toEqual(
+      expect.arrayContaining([
+        'modelKey',
+        'rawPrompt',
+        'providerPayload',
+        'rawModerationNote',
+        'internalCostBreakdown',
+        'walletLedgerId',
+        'settlementId',
+        'payoutId',
+      ]),
+    );
+  });
 });
