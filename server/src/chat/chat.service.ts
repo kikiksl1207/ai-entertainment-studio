@@ -1272,6 +1272,7 @@ export class ChatService {
         estimatedCostKrw: '0.00',
         maxOutputChars: CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS,
         cacheScope: 'chat_session',
+        variantPolicy: this.openingGreetingVariantPolicy(),
         toneCandidate: candidate.toneCandidate,
         rawPromptStored: false,
         rawProviderPayloadStored: false,
@@ -1290,6 +1291,7 @@ export class ChatService {
       maxOutputChars: CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS,
       maxOutputTokens: CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS,
       cacheScope: 'chat_session',
+      variantPolicy: this.openingGreetingVariantPolicy(),
       toneCandidate: candidate.toneCandidate,
       rawPromptStored: false,
       rawProviderPayloadStored: false,
@@ -1345,6 +1347,7 @@ export class ChatService {
         providerCall: options.providerCall,
         maxOutputChars: CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS,
         maxOutputTokens: CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS,
+        variantPolicy: this.openingGreetingVariantPolicy(),
       },
       toneCandidate: this.openingGreetingToneCandidateFromMetadata(modelMetadata),
       safety: {
@@ -1354,6 +1357,23 @@ export class ChatService {
         tokenReturned: false,
         apiKeyReturned: false,
       },
+    };
+  }
+
+  private openingGreetingVariantPolicy() {
+    return {
+      minCandidates: CHARACTER_CHAT_OPENING_GREETING_MIN_VARIANTS,
+      maxCandidates: CHARACTER_CHAT_OPENING_GREETING_MAX_VARIANTS,
+      seedSource: 'chat_sessions.id',
+      seedStorage: 'derived_suffix_only',
+      selectionStrategy: 'deterministic_session_variant_index',
+      cacheScope: 'chat_session',
+      sameSessionReplay: 'return_cached_opening_greeting',
+      sameSessionStable: true,
+      sameCharacterSameUserNewSessionCanVary: true,
+      sameCharacterDifferentUsersCanVary: true,
+      refreshCreatesNewGreeting: false,
+      clientSeedAccepted: false,
     };
   }
 
@@ -3869,8 +3889,14 @@ export class ChatService {
       variantPolicy: {
         minCandidates: CHARACTER_CHAT_OPENING_GREETING_MIN_VARIANTS,
         maxCandidates: CHARACTER_CHAT_OPENING_GREETING_MAX_VARIANTS,
+        seedSource: 'chat_sessions.id',
+        seedStorage: 'derived_suffix_only',
         selectionStrategy: 'deterministic_session_variant_index',
         sameSessionReplay: 'return_cached_opening_greeting',
+        sameSessionStable: true,
+        sameCharacterSameUserNewSessionCanVary: true,
+        sameCharacterDifferentUsersCanVary: true,
+        clientSeedAccepted: false,
       },
       sourceSeparation: {
         cache: true,

@@ -1004,6 +1004,11 @@ Character-chat dynamic opening greeting cache (#388):
   messages, and provider cost guard, while provider-failure fallback remains
   character-toned and does not expose raw prompts, provider payloads, wallet,
   settlement, payout, or order fields.
+- #778 fixes the operational seed/cache policy: variant selection uses
+  `chat_sessions.id` as a derived session seed, never accepts a client-submitted
+  seed, and caches exactly one `opening_greeting` per chat session. Same-session
+  reloads return the cached greeting, while new sessions for the same character
+  can vary for the same user or for different users without provider calls.
 - Provider generation is short and low-cost by contract:
   `maxOutputTokens=120`, `maxOutputChars=180`, lightweight model preferred.
 - Provider generation remains optional and separated from cache/template
