@@ -289,6 +289,12 @@ The provider prompt receives at most 5 summary fragments. It receives hostname l
 
 Cost guard: retrieval is capped at 5 rows before the provider call, and each summary fragment is capped at 700 chars.
 
+Selection scoring runs only after the eligibility gate. Eligible rows are ranked
+by score, then review timestamp, then id. The score includes approved status,
+safe status, chat reference permission, summary presence, review freshness, and
+source priority. Pending, rejected, archived, processing, unsafe, disabled, and
+summaryless rows are excluded before scoring.
+
 ## Chat Context Connection
 
 Character chat looks up artist URL knowledge only from the approved knowledge URL

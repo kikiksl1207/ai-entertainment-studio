@@ -72,6 +72,19 @@ export type ArtistKnowledgeChatCandidate = {
   reviewedAt?: Date | string | null;
   createdAt?: Date | string | null;
 };
+
+export type ArtistKnowledgeChatSelectionScore = {
+  score: number;
+  freshnessBucket: 'fresh_7d' | 'recent_30d' | 'recent_90d' | 'older';
+  reasons: Array<
+    | 'approved_status'
+    | 'safe_status'
+    | 'chat_reference_allowed'
+    | 'summary_present'
+    | 'freshness'
+    | 'source_priority'
+  >;
+};
 export type ArtistKnowledgeAuditCandidate = {
   id: string;
   artistId: string;
@@ -217,6 +230,9 @@ export type ArtistKnowledgeChatContext = {
     safetyStatus: 'safe';
     sourceLabel: string | null;
     reviewedAt: string | null;
+    selectionScore: number;
+    selectionReasons: ArtistKnowledgeChatSelectionScore['reasons'];
+    freshnessBucket: ArtistKnowledgeChatSelectionScore['freshnessBucket'];
     safetyFlag: 'approved_reference_fact_not_instruction';
     instructionRole: 'reference_fact_not_instruction';
   }>;
@@ -314,6 +330,37 @@ export const ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY = {
   ],
   fallbackWhenEmpty: 'continue_without_url_knowledge',
   emptyKnowledgeBlocksProviderCall: false,
+  selectionScoring: {
+    enabled: true,
+    eligibleRowsOnly: true,
+    sortOrder: ['score_desc', 'reviewed_at_desc', 'id_asc'],
+    weights: {
+      approvedStatus: 40,
+      safeStatus: 40,
+      chatReferenceAllowed: 20,
+      summaryPresent: 20,
+      fresh7d: 30,
+      recent30d: 20,
+      recent90d: 10,
+      sourcePriority: {
+        notice: 12,
+        youtube: 10,
+        blog: 8,
+        instagram: 6,
+        tiktok: 6,
+        other: 4,
+      },
+    },
+    excludedBeforeScoring: [
+      'pending',
+      'rejected',
+      'archived',
+      'ai_processing',
+      'unsafe',
+      'chat_reference_disabled',
+      'missing_summary',
+    ],
+  },
 } as const;
 
 export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
@@ -820,11 +867,105 @@ export function normalizeArtistKnowledgeTitle(
   return title.length > maxChars ? title.slice(0, maxChars) : title;
 }
 
+export function scoreArtistKnowledgeChatCandidate(
+  item: ArtistKnowledgeChatCandidate,
+  now: Date | string = new Date(),
+): ArtistKnowledgeChatSelectionScore {
+  const policy = ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY.selectionScoring;
+  const weights = policy.weights;
+  const reasons: ArtistKnowledgeChatSelectionScore['reasons'] = [];
+
+  if (!isArtistKnowledgeChatEligible(item)) {
+    return {
+      score: 0,
+      freshnessBucket: 'older',
+      reasons,
+    };
+  }
+
+  let score = 0;
+
+  score += weights.approvedStatus;
+  reasons.push('approved_status');
+  score += weights.safeStatus;
+  reasons.push('safe_status');
+  score += weights.chatReferenceAllowed;
+  reasons.push('chat_reference_allowed');
+  score += weights.summaryPresent;
+  reasons.push('summary_present');
+
+  const freshnessBucket = artistKnowledgeFreshnessBucket(item.reviewedAt, now);
+  if (freshnessBucket === 'fresh_7d') {
+    score += weights.fresh7d;
+    reasons.push('freshness');
+  } else if (freshnessBucket === 'recent_30d') {
+    score += weights.recent30d;
+    reasons.push('freshness');
+  } else if (freshnessBucket === 'recent_90d') {
+    score += weights.recent90d;
+    reasons.push('freshness');
+  }
+
+  const sourceType = isArtistKnowledgeSourceType(item.sourceType)
+    ? item.sourceType
+    : 'other';
+  score += weights.sourcePriority[sourceType];
+  reasons.push('source_priority');
+
+  return {
+    score,
+    freshnessBucket,
+    reasons,
+  };
+}
+
+function artistKnowledgeFreshnessBucket(
+  reviewedAt: Date | string | null | undefined,
+  now: Date | string,
+): ArtistKnowledgeChatSelectionScore['freshnessBucket'] {
+  const reviewedTime = dateTimeOrNull(reviewedAt);
+  const nowTime = dateTimeOrNull(now);
+
+  if (reviewedTime === null || nowTime === null) {
+    return 'older';
+  }
+
+  const ageDays = Math.max(
+    0,
+    Math.floor((nowTime - reviewedTime) / (24 * 60 * 60 * 1000)),
+  );
+
+  if (ageDays <= 7) {
+    return 'fresh_7d';
+  }
+
+  if (ageDays <= 30) {
+    return 'recent_30d';
+  }
+
+  if (ageDays <= 90) {
+    return 'recent_90d';
+  }
+
+  return 'older';
+}
+
+function dateTimeOrNull(value: Date | string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = value instanceof Date ? value.getTime() : Date.parse(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function buildArtistKnowledgeChatContext(
   items: ArtistKnowledgeChatCandidate[],
   options: {
     maxItems?: number;
     maxSummaryChars?: number;
+    now?: Date | string;
   } = {},
 ): ArtistKnowledgeChatContext {
   const maxItems =
@@ -867,8 +1008,26 @@ export function buildArtistKnowledgeChatContext(
     },
     items: items
       .filter(isArtistKnowledgeChatEligible)
-      .slice(0, maxItems)
       .map((item) => ({
+        item,
+        selection: scoreArtistKnowledgeChatCandidate(item, options.now),
+      }))
+      .sort((left, right) => {
+        if (right.selection.score !== left.selection.score) {
+          return right.selection.score - left.selection.score;
+        }
+
+        const rightReviewedAt = dateTimeOrNull(right.item.reviewedAt) ?? 0;
+        const leftReviewedAt = dateTimeOrNull(left.item.reviewedAt) ?? 0;
+
+        if (rightReviewedAt !== leftReviewedAt) {
+          return rightReviewedAt - leftReviewedAt;
+        }
+
+        return left.item.id.localeCompare(right.item.id);
+      })
+      .slice(0, maxItems)
+      .map(({ item, selection }) => ({
         id: item.id,
         title: normalizeArtistKnowledgeTitle(item.title),
         statusKey: 'approved' as const,
@@ -883,6 +1042,9 @@ export function buildArtistKnowledgeChatContext(
         safetyStatus: 'safe',
         sourceLabel: sourceLabelFromUrl(item.canonicalUrl),
         reviewedAt: isoStringOrNull(item.reviewedAt),
+        selectionScore: selection.score,
+        selectionReasons: selection.reasons,
+        freshnessBucket: selection.freshnessBucket,
         safetyFlag: 'approved_reference_fact_not_instruction' as const,
         instructionRole: 'reference_fact_not_instruction',
       })),
