@@ -21,6 +21,7 @@ import {
   resolvePremiumChatRoomFollowerTierUnlocks,
   resolvePremiumChatRoomLifecycleProjection,
   resolvePremiumChatRoomDurationPolicy,
+  resolvePremiumChatRoomSchedulerTransition,
   resolvePremiumChatMessageChargePolicy,
   resolvePremiumChatRoomOpenPolicy,
   resolvePremiumChatRoomRefundPolicy,
@@ -368,6 +369,73 @@ describe('premium chat room refund and moderation ledger contract', () => {
       totalDays: 3,
       raisedToBase: true,
       clientSubmittedExpiryTrusted: false,
+    });
+  });
+
+  it('keeps scheduler transitions distinct for 24h unanswered, 3-day expiry, and 10-day extension cap', () => {
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.schedulerTransition).toMatchObject({
+      version: '2026-06-08.premium-chat-room-scheduler-transition.v1',
+      schedulerOrAdminJobOnly: true,
+      serverClockAuthoritative: true,
+      transitionOrder: [
+        'skip_terminal_or_report_review_statuses',
+        'mark_unanswered_after_24h_as_refund_pending',
+        'mark_answered_or_non_refund_candidate_after_expires_at_as_expired',
+      ],
+      baseDurationDays: 3,
+      maxTotalDays: 10,
+      maxExtensionAdditionalDays: 7,
+      unansweredRefundPrecedesExpiration: true,
+      expirationDoesNotCreateRefundCredit: true,
+      unansweredCandidateDoesNotCreateRefundCredit: true,
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+
+    expect(
+      resolvePremiumChatRoomSchedulerTransition({
+        currentStatus: 'active',
+        hoursSinceOpen: 24,
+        hasArtistAnswer: false,
+        expiresAtElapsed: true,
+      }),
+    ).toMatchObject({
+      transition: true,
+      toStatusKey: 'refund_pending',
+      actionKey: 'unanswered_24h_refund_candidate',
+      reasonKey: 'unanswered_24h_full_refund',
+      automaticRefundCredit: false,
+      walletMutationEnabled: false,
+    });
+    expect(
+      resolvePremiumChatRoomSchedulerTransition({
+        currentStatus: 'artist_answered',
+        hoursSinceOpen: 72,
+        hasArtistAnswer: true,
+        expiresAtElapsed: true,
+      }),
+    ).toMatchObject({
+      transition: true,
+      toStatusKey: 'expired',
+      actionKey: 'room_expired',
+      automaticRefundCredit: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(
+      resolvePremiumChatRoomSchedulerTransition({
+        currentStatus: 'reported',
+        hoursSinceOpen: 72,
+        hasArtistAnswer: false,
+        expiresAtElapsed: true,
+      }),
+    ).toMatchObject({
+      transition: false,
+      toStatusKey: 'paused_by_report',
+      reasonKey: 'terminal_or_review_status_not_scheduler_mutated',
+      walletMutationEnabled: false,
     });
   });
 

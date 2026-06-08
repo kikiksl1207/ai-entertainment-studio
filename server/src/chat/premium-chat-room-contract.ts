@@ -598,6 +598,32 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       payoutMutationEnabled: false,
       messageKey: 'chat.premiumRoom.expired',
     },
+    schedulerTransition: {
+      version: '2026-06-08.premium-chat-room-scheduler-transition.v1',
+      schedulerOrAdminJobOnly: true,
+      serverClockAuthoritative: true,
+      transitionOrder: [
+        'skip_terminal_or_report_review_statuses',
+        'mark_unanswered_after_24h_as_refund_pending',
+        'mark_answered_or_non_refund_candidate_after_expires_at_as_expired',
+      ],
+      baseDurationDays: PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+      maxTotalDays: PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS,
+      maxExtensionAdditionalDays:
+        PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS - PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+      unansweredRefundPrecedesExpiration: true,
+      expirationDoesNotCreateRefundCredit: true,
+      unansweredCandidateDoesNotCreateRefundCredit: true,
+      statusEventIdempotencyKeys: {
+        expired: 'premium-chat-room-expire:<roomId>:<expiresAtIso>',
+        refundPending:
+          'premium-chat-room-unanswered-refund-candidate:<roomId>:unanswered_24h',
+      },
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    },
     unansweredRefundCandidate: {
       afterHours: 24,
       eligibleFromStatuses: PREMIUM_CHAT_UNANSWERED_REFUND_ELIGIBLE_STATUSES,
@@ -2023,6 +2049,72 @@ export function resolvePremiumChatRoomUnansweredRefundCandidate(input: {
       projection.statusKey === 'active'
         ? 'chat.premiumRoom.active'
         : projection.messageKey,
+  } as const;
+}
+
+export function resolvePremiumChatRoomSchedulerTransition(input: {
+  currentStatus?: string;
+  hasArtistAnswer?: boolean;
+  hoursSinceOpen?: unknown;
+  expiresAtElapsed?: boolean;
+} = {}) {
+  const currentStatus = input.currentStatus ?? 'active';
+  const projection = resolvePremiumChatRoomLifecycleProjection(currentStatus);
+  const unansweredCandidate = resolvePremiumChatRoomUnansweredRefundCandidate({
+    currentStatus,
+    hasArtistAnswer: input.hasArtistAnswer,
+    hoursSinceOpen: input.hoursSinceOpen,
+  });
+
+  if (unansweredCandidate.candidate) {
+    return {
+      transition: true,
+      toStatusKey: 'refund_pending',
+      actionKey: 'unanswered_24h_refund_candidate',
+      reasonKey: 'unanswered_24h_full_refund',
+      statusEventIdempotencyKeyPattern:
+        PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.schedulerTransition
+          .statusEventIdempotencyKeys.refundPending,
+      automaticRefundCredit: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      messageKey: 'chat.premiumRoom.refund.unanswered24h',
+    } as const;
+  }
+
+  const canExpire =
+    input.expiresAtElapsed === true && projection.statusKey === 'active';
+
+  if (canExpire) {
+    return {
+      transition: true,
+      toStatusKey: 'expired',
+      actionKey: 'room_expired',
+      reasonKey: 'room_expired',
+      statusEventIdempotencyKeyPattern:
+        PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.schedulerTransition
+          .statusEventIdempotencyKeys.expired,
+      automaticRefundCredit: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      messageKey: 'chat.premiumRoom.expired',
+    } as const;
+  }
+
+  return {
+    transition: false,
+    toStatusKey: projection.statusKey,
+    reasonKey:
+      projection.statusKey === 'active'
+        ? 'not_due'
+        : 'terminal_or_review_status_not_scheduler_mutated',
+    automaticRefundCredit: false,
+    walletMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+    messageKey: projection.messageKey,
   } as const;
 }
 
