@@ -4643,6 +4643,29 @@ export class CommunityService {
       rawOwnerMetadataReturned: false,
       shareIsSeparateContract: true,
       shareCountMutation: false,
+      countProjection: {
+        feedCounters: {
+          repostCountIncludes: ['repost', 'quote_repost'],
+          quoteRepostCountField: 'quoteRepostCount',
+          shareCountField: 'shareCount',
+          shareCountMutation: false,
+        },
+        profileCounters: {
+          repostsTabIncludes: ['repost', 'quote_repost'],
+          shareActionsExcluded: true,
+        },
+        notificationCounters: {
+          repostNotificationIncludes: ['repost', 'quote_repost'],
+          shareNotificationMutation: false,
+          shareUnreadCountMutation: false,
+        },
+        blockedRelationshipPolicy: {
+          writePolicy: 'reject_before_repost_create',
+          readProjection: 'hide_or_tombstone_when_blocked',
+          countProjection: 'exclude_blocked_relationship_rows',
+          notificationProjection: 'skip_before_notification_mutation',
+        },
+      },
       walletMutation: false,
       luminaMutation: false,
       settlementMutation: false,
@@ -4661,6 +4684,21 @@ export class CommunityService {
       },
       shareCount: null,
       countStrategy: 'not_mutated_by_share_contract',
+      countProjection: {
+        feedCounters: {
+          repostCountMutation: false,
+          quoteRepostCountMutation: false,
+          shareCountMutation: false,
+        },
+        profileCounters: {
+          repostsTabMutation: false,
+        },
+        notificationCounters: {
+          createsNotification: false,
+          unreadCountMutation: false,
+        },
+        blockedRelationshipPolicy: 'share_contract_has_no_server_count_or_notification_row',
+      },
     };
   }
 
@@ -4683,6 +4721,21 @@ export class CommunityService {
       createsFeedRow: false,
       createsRepost: false,
       shareCountMutation: false,
+      countProjection: {
+        feedCounters: {
+          repostCountMutation: false,
+          quoteRepostCountMutation: false,
+          shareCountMutation: false,
+        },
+        profileCounters: {
+          repostsTabMutation: false,
+        },
+        notificationCounters: {
+          createsNotification: false,
+          unreadCountMutation: false,
+        },
+        blockedRelationshipPolicy: 'share_contract_has_no_server_count_or_notification_row',
+      },
       walletMutation: false,
       luminaMutation: false,
       settlementMutation: false,
