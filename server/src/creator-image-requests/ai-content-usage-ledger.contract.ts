@@ -34,6 +34,13 @@ export const AI_CONTENT_USAGE_SAFETY_STATUSES = [
   'unknown',
 ] as const;
 
+export const AI_CONTENT_USAGE_REUSE_STATES = [
+  'none',
+  'cache_hit',
+  'derived_from_previous',
+  'unknown',
+] as const;
+
 export type AiContentUsageProviderFamily =
   (typeof AI_CONTENT_USAGE_PROVIDER_FAMILIES)[number];
 export type AiContentUsageCapability =
@@ -42,6 +49,8 @@ export type AiContentUsageRequestType =
   (typeof AI_CONTENT_USAGE_REQUEST_TYPES)[number];
 export type AiContentUsageSafetyStatus =
   (typeof AI_CONTENT_USAGE_SAFETY_STATUSES)[number];
+export type AiContentUsageReuseState =
+  (typeof AI_CONTENT_USAGE_REUSE_STATES)[number];
 
 export type AiContentUsageLedgerInput = {
   requestId?: string | null;
@@ -53,6 +62,8 @@ export type AiContentUsageLedgerInput = {
   safetyStatus?: string | null;
   attempt?: number | string | null;
   regenerationCount?: number | string | null;
+  reuseState?: string | null;
+  reuseSourceRequestId?: string | null;
   estimatedCostMicros?: number | string | null;
   actualCostMicros?: number | string | null;
   inputUnits?: number | string | null;
@@ -83,6 +94,8 @@ export const AI_CONTENT_USAGE_LEDGER_GUARD = {
     'safetyStatus',
     'attempt',
     'regenerationCount',
+    'reuseState',
+    'reuseSourceRequestId',
     'estimatedCostMicros',
     'actualCostMicros',
     'inputUnits',
@@ -99,6 +112,7 @@ export const AI_CONTENT_USAGE_LEDGER_GUARD = {
     'totalInputUnits',
     'totalOutputUnits',
     'maxRegenerationCount',
+    'reusedAttemptCount',
   ],
   pipelineLogPolicy: {
     source: 'ai_middleware_pipeline',
@@ -114,6 +128,7 @@ export const AI_CONTENT_USAGE_LEDGER_GUARD = {
       'modelRouteAlias',
       'estimatedCostMicros',
       'safetyStatus',
+      'reuseState',
     ],
     safetyBlockedBehavior: 'log_skeleton_only_without_provider_attempt',
   },
@@ -156,6 +171,8 @@ export function buildAiContentUsageLedgerRow(
     safetyStatus: normalizeSafetyStatus(input.safetyStatus),
     attempt: nonNegativeInteger(input.attempt),
     regenerationCount: nonNegativeInteger(input.regenerationCount),
+    reuseState: normalizeReuseState(input.reuseState),
+    reuseSourceRequestId: normalizeText(input.reuseSourceRequestId, 80),
     estimatedCostMicros: nonNegativeInteger(input.estimatedCostMicros),
     actualCostMicros: nonNegativeInteger(input.actualCostMicros),
     inputUnits: nonNegativeInteger(input.inputUnits),
@@ -196,6 +213,7 @@ export function summarizeAiContentUsage(rows: AiContentUsageLedgerRow[]) {
       (max, row) => Math.max(max, row.regenerationCount),
       0,
     ),
+    reusedAttemptCount: rows.filter((row) => row.reuseState !== 'none').length,
     walletMutation: false,
     settlementMutation: false,
     payoutMutation: false,
@@ -235,6 +253,18 @@ function normalizeSafetyStatus(
     value ?? '',
   )
     ? (value as AiContentUsageSafetyStatus)
+    : 'unknown';
+}
+
+function normalizeReuseState(
+  value: string | null | undefined,
+): AiContentUsageReuseState {
+  if (!value) {
+    return 'none';
+  }
+
+  return (AI_CONTENT_USAGE_REUSE_STATES as readonly string[]).includes(value)
+    ? (value as AiContentUsageReuseState)
     : 'unknown';
 }
 
