@@ -5324,3 +5324,25 @@ p {
     right: 0;
   }
 }
+
+/* #794 — 390px 홈·아티스트·충전 화면 우측 텍스트 잘림 수정
+   .page-hero-panel strong(font-size:24px)이 긴 이름("한서율 · 박도아 · 차도현 · 서유안")에서
+   370px shell을 넘어 body overflow-x:hidden에 잘리는 문제.
+   480px 이하에서 panel padding·strong font-size 축소 + word-break 허용으로 해결. */
+@media (max-width: 480px) {
+  .page-hero-panel {
+    padding: 16px;
+  }
+  .page-hero-panel div {
+    padding: 12px 14px;
+  }
+  .page-hero-panel strong {
+    font-size: 17px;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  .page-hero-copy p {
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+}
