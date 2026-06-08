@@ -1021,6 +1021,13 @@ Character-chat dynamic opening greeting cache (#388):
   seed, and caches exactly one `opening_greeting` per chat session. Same-session
   reloads return the cached greeting, while new sessions for the same character
   can vary for the same user or for different users without provider calls.
+- #843 fixes the runtime selection contract: first-greeting variant selection is
+  a character-chat-only operation at `opening_greeting_create`, uses a missing
+  cached `opening_greeting` as the first-conversation signal, reads tone/persona
+  and starter candidates from `runtimePersona`, and records provider usage only
+  when a provider call actually happens. Catalog/starter projections remain
+  read-only and must not mutate chat messages, wallet, order, settlement, or
+  payout state.
 - Provider generation is short and low-cost by contract:
   `maxOutputTokens=120`, `maxOutputChars=180`, lightweight model preferred.
 - Provider generation remains optional and separated from cache/template
