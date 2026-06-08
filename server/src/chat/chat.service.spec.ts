@@ -6847,6 +6847,79 @@ describe('ChatService premium chat support contract', () => {
       donationCreateEnabled: false,
     });
   });
+
+  it('keeps cancelled refunded and sanctioned rows out of the daily premium chat ranking aggregate', () => {
+    const service = new ChatService({} as never, {} as never);
+    const contract = service.getPremiumSupportContract();
+    const dailyAggregate =
+      contract.rankings.backendProjection.dailyAggregate;
+
+    expect(dailyAggregate).toMatchObject({
+      version: '2026-06-08.premium-chat-ranking-daily-aggregate.v1',
+      period: 'daily',
+      timezone: 'Asia/Seoul',
+      status: 'aggregate_contract_ready_mutation_disabled',
+      snapshotGranularity: 'artist_per_day_per_lane',
+      laneSeparationRequired: true,
+      communicationLane: {
+        type: 'communication',
+        includes: [
+          'confirmed_room_open',
+          'safe_visible_message_activity',
+          'confirmed_net_donation',
+          'safe_artist_reply_activity',
+        ],
+        donationAmountMode: 'weighted_factor_not_donation_rank_amount',
+      },
+      donationLane: {
+        type: 'donation',
+        includes: ['confirmed_net_donation'],
+        amountBasis: 'confirmed_net_lumina',
+      },
+      exclusionPolicy: {
+        cancelledRows: 'excluded',
+        refundedRows: 'excluded',
+        chargebackRows: 'excluded',
+        reportedRows: 'excluded_until_admin_safe',
+        blindedRows: 'excluded',
+        suspendedRooms: 'excluded',
+        sanctionedRows: 'excluded_until_operator_safe',
+      },
+      mutationPolicy: {
+        supportPointLedgerMutation: false,
+        rankingSnapshotMutation: false,
+        walletMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+    });
+    expect(dailyAggregate.communicationLane.excludes).toEqual(
+      expect.arrayContaining([
+        'free_like',
+        'lumina_boost',
+        'cancelled_rows',
+        'refunded_rows',
+        'chargeback_rows',
+        'reported_rows',
+        'blinded_rows',
+        'suspended_rooms',
+        'sanctioned_rows_until_operator_safe',
+      ]),
+    );
+    expect(dailyAggregate.donationLane.excludes).toEqual(
+      expect.arrayContaining([
+        'premium_chat_open',
+        'premium_chat_message',
+        'premium_chat_donation_message',
+        'cancelled_rows',
+        'refunded_rows',
+        'chargeback_rows',
+        'sanctioned_rows_until_operator_safe',
+      ]),
+    );
+    expect(dailyAggregate.communicationLane.excludes).toContain('free_like');
+    expect(dailyAggregate.donationLane.excludes).toContain('premium_chat_open');
+  });
 });
 
 describe('ChatService.generateMessage provider beta', () => {
