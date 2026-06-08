@@ -69,6 +69,57 @@ export const WALLET_MUTATION_SURFACE_GUARD_MATRIX = [
   },
 ] as const;
 
+export const PREMIUM_CHAT_REFUND_RESTRICTION_SPLIT_CONTRACT = {
+  policyVersion: '2026-06-08.premium-chat-refund-restriction-split-v1',
+  mutationEnabledByThisContract: false,
+  clientRefundOrSettlementInputTrusted: false,
+  amountBasis: 'server_room_purchase_ledger_amount',
+  decisionAuthority: 'server_moderation_or_admin_refund_decision',
+  duplicateGuard: 'server_admin_decision_key',
+  restrictedUserFaultScenarios: [
+    {
+      scenario: 'user_fault_refund_70_percent',
+      userRefundPercent: 70,
+      artistCompensationPercent: 10,
+      companyRetainedPercent: 20,
+    },
+    {
+      scenario: 'user_fault_refund_50_percent',
+      userRefundPercent: 50,
+      artistCompensationPercent: 10,
+      companyRetainedPercent: 40,
+    },
+  ],
+  requiredLedgerSplits: [
+    {
+      party: 'user',
+      direction: 'credit',
+      ledgerType: 'refund',
+      referenceType: 'premium_chat_room',
+    },
+    {
+      party: 'artist',
+      direction: 'credit',
+      ledgerType: 'premium_chat_room_artist_compensation',
+      referenceType: 'premium_chat_room_refund_decision',
+    },
+    {
+      party: 'company',
+      direction: 'credit',
+      ledgerType: 'premium_chat_room_company_revenue',
+      referenceType: 'premium_chat_room_refund_decision',
+    },
+  ],
+  separatedOutcomeReasons: [
+    'artist_forced_termination',
+    'report_suspension',
+    'admin_sanction',
+  ],
+  walletLedgerRequiredBeforePayout: true,
+  settlementMutationAllowed: false,
+  payoutMutationAllowed: false,
+} as const;
+
 export const CLIENT_ECONOMIC_TAMPER_FIELDS = [
   'balanceLumina',
   'cachedBalance',
