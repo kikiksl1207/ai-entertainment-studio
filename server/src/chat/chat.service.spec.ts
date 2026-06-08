@@ -260,6 +260,71 @@ describe('ChatService premium room read storage endpoints', () => {
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
   });
 
+  it('separates artist reply SLA states from unanswered refund candidates', async () => {
+    jest
+      .useFakeTimers()
+      .setSystemTime(new Date(premiumRoomNow.getTime() + 25 * 60 * 60 * 1000));
+    try {
+      const { prisma, service } = premiumRoomReadServiceWith();
+
+      prisma.premiumChatRoom.findFirst
+        .mockResolvedValueOnce(
+          premiumRoomFixture({
+            status: 'active',
+            openedAt: premiumRoomNow,
+            lastArtistReplyAt: null,
+            refundCandidateAt: null,
+          }),
+        )
+        .mockResolvedValueOnce(
+          premiumRoomFixture({
+            status: 'artist_answered',
+            openedAt: premiumRoomNow,
+            lastArtistReplyAt: new Date(
+              premiumRoomNow.getTime() + 23 * 60 * 60 * 1000,
+            ),
+            refundCandidateAt: null,
+          }),
+        );
+
+      const overdue = await service.getMyPremiumRoomStatus(
+        premiumRoomOwnerUserId,
+        premiumRoomId,
+      );
+      const replied = await service.getMyPremiumRoomStatus(
+        premiumRoomOwnerUserId,
+        premiumRoomId,
+      );
+
+      expect(overdue.premiumRoomStatus.replySla).toMatchObject({
+        afterHours: 24,
+        dueSoonWindowHours: 4,
+        state: 'overdue_24h',
+        stateKey: 'overdue_24h',
+        labelKey: 'chat.premiumRoom.answer.overdue24h',
+        unansweredRefundCandidate: true,
+        refundReasonKey: 'unanswered_24h_full_refund',
+        notificationMutationEnabled: false,
+        refundMutationEnabled: false,
+        walletMutationEnabled: false,
+      });
+      expect(replied.premiumRoomStatus.replySla).toMatchObject({
+        state: 'replied',
+        stateKey: 'replied',
+        labelKey: 'chat.premiumRoom.answer.replied',
+        unansweredRefundCandidate: false,
+        refundReasonKey: 'chat.premiumRoom.refund.notEligible',
+      });
+      expect(replied.premiumRoomStatus.answerState).toMatchObject({
+        state: 'replied',
+      });
+      expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
+      expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('preserves paused-by-report fixture status as a safe status projection', async () => {
     const { prisma, service } = premiumRoomReadServiceWith();
     prisma.premiumChatRoom.findFirst.mockResolvedValue(
@@ -5209,6 +5274,26 @@ describe('ChatService premium chat support contract', () => {
         overdueState: 'overdue_24h',
         repliedState: 'replied',
       },
+      replySlaProjection: {
+        includedInSurfaces: [
+          'owner_status',
+          'artist_inbox',
+          'artist_status',
+          'admin_status',
+        ],
+        clockSource: 'room.openedAt + 24h',
+        afterHours: 24,
+        dueSoonWindowHours: 4,
+        refundCandidateEligibleStatuses: ['opened', 'active'],
+        answeredEvidenceExcludesRefundCandidate: [
+          'room.status=artist_answered',
+          'lastArtistReplyAt_present',
+          'hasArtistAnswer=true',
+        ],
+        notificationMutationEnabled: false,
+        refundMutationEnabled: false,
+        walletMutationEnabled: false,
+      },
       messageKindSeparation: {
         conversationKind: 'conversation',
         supportMessageKind: 'support_message',
@@ -5261,6 +5346,7 @@ describe('ChatService premium chat support contract', () => {
         'roomStatus',
         'answerState',
         'unansweredState',
+        'replySla',
         'lastUserMessageAt',
         'lastArtistReplyAt',
         'lastMessageKind',

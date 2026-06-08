@@ -1420,9 +1420,15 @@ Authorization: Bearer <accessToken>
   and `supportMessages`.
 - Each item exposes only safe projection fields such as `roomId`, `artist`,
   `userSafeDisplay`, `roomStatus`, `answerState`, `unansweredState`,
-  `lastUserMessageAt`, `lastArtistReplyAt`, and `lastMessageKind`.
+  `replySla`, `lastUserMessageAt`, `lastArtistReplyAt`, and `lastMessageKind`.
 - The unanswered SLA uses the same 24-hour no-answer window as the room
   lifecycle contract and a 4-hour due-soon projection window for UI sorting.
+- #799 fixes `replySla` as the shared read-model clock for owner status,
+  artist inbox/status, and admin status views. The clock source is
+  `room.openedAt + 24h`; only `opened` and `active` rooms without artist answer
+  evidence can become `overdue_24h` refund candidates. `artist_answered`,
+  `lastArtistReplyAt`, or `hasArtistAnswer=true` must resolve to `replied` and
+  must not mix with the 24-hour refund-candidate state.
 - Support messages are separated from normal conversation messages. They do not
   create chat replies, answer requirements, or AI replies, and they are counted
   separately from conversation activity.

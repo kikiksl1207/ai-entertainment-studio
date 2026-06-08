@@ -928,6 +928,7 @@ export const PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT = {
       'roomStatus',
       'answerState',
       'unansweredState',
+      'replySla',
       'lastUserMessageAt',
       'lastArtistReplyAt',
       'lastMessageKind',
@@ -963,6 +964,25 @@ export const PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT = {
     dueSoonState: 'due_soon_24h',
     overdueState: 'overdue_24h',
     repliedState: 'replied',
+  },
+  replySlaProjection: {
+    includedInSurfaces: ['owner_status', 'artist_inbox', 'artist_status', 'admin_status'],
+    clockSource: 'room.openedAt + 24h',
+    afterHours:
+      PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.unansweredRefundCandidate
+        .afterHours,
+    dueSoonWindowHours: 4,
+    refundCandidateEligibleStatuses: ['opened', 'active'],
+    answeredEvidenceExcludesRefundCandidate: [
+      'room.status=artist_answered',
+      'lastArtistReplyAt_present',
+      'hasArtistAnswer=true',
+    ],
+    states: ['needs_reply', 'due_soon_24h', 'overdue_24h', 'replied'],
+    statusLabelKeyRequired: true,
+    notificationMutationEnabled: false,
+    refundMutationEnabled: false,
+    walletMutationEnabled: false,
   },
   messageKindSeparation: {
     conversationKind: 'conversation',
@@ -2363,6 +2383,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       afterTransitionAvailability:
         PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.refund_pending,
     },
+    replySlaProjection:
+      PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT.replySlaProjection,
     readOnly: true,
     ownerOnly: true,
     authRequired: true,
