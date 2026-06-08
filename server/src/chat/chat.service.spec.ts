@@ -6286,7 +6286,14 @@ describe('ChatService premium chat support contract', () => {
       laneSeparation: {
         chatRankingTypes: ['communication', 'donation'],
         noChatLikeAlias: true,
+        mixedLaneItemsAllowed: false,
         likeRankingReceivesPremiumChatSupport: false,
+        donationRankingReceivesLikes: false,
+        communicationRankingReceivesLikes: false,
+        donationRankingBasis:
+          'confirmed_net_premium_chat_support_only_after_refund_and_chargeback_filter',
+        communicationRankingBasis:
+          'server_weighted_premium_chat_open_message_support_and_artist_reply_only',
         luminaPickSourcesExcludedFromChatRankings: ['free_like', 'lumina_boost'],
       },
       refreshPolicy: {
@@ -6394,6 +6401,24 @@ describe('ChatService premium chat support contract', () => {
       rawUserIdReturned: false,
       messageIdsReturned: false,
     });
+    expect(contract.apiContracts.rankingsList.projectionGuard).toMatchObject({
+      responseTypeMirrorsQueryType: true,
+      mixedLaneItemsAllowed: false,
+      allowedTypes: ['communication', 'donation'],
+      forbiddenTypes: ['like', 'free_like', 'lumina_pick', 'boost'],
+      likeRankingSourceAllowed: false,
+      clientSubmittedScoreAllowed: false,
+    });
+    expect(
+      contract.apiContracts.rankingsList.projectionGuard.donationLaneSource,
+    ).toBe(
+      'confirmed_net_premium_chat_support_only_after_refund_and_chargeback_filter',
+    );
+    expect(
+      contract.apiContracts.rankingsList.projectionGuard.communicationLaneSource,
+    ).toBe(
+      'server_weighted_premium_chat_open_message_support_and_artist_reply_only',
+    );
     expect(contract.projections.myDonationHistoryItem).toMatchObject({
       donationId: '<premium chat donation public id>',
       sessionId: '<premium chat session id owned by viewer>',

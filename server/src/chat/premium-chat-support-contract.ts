@@ -1975,6 +1975,18 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         nextCursor: '<opaque cursor or null>',
         generatedAt: '<ISO datetime>',
       },
+      projectionGuard: {
+        responseTypeMirrorsQueryType: true,
+        mixedLaneItemsAllowed: false,
+        allowedTypes: PREMIUM_CHAT_RANKING_TYPES,
+        forbiddenTypes: ['like', 'free_like', 'lumina_pick', 'boost'],
+        donationLaneSource:
+          'confirmed_net_premium_chat_support_only_after_refund_and_chargeback_filter',
+        communicationLaneSource:
+          'server_weighted_premium_chat_open_message_support_and_artist_reply_only',
+        likeRankingSourceAllowed: false,
+        clientSubmittedScoreAllowed: false,
+      },
       errorCodes: [
         { status: 401, code: 'auth_required' },
         { status: 400, code: 'invalid_ranking_type' },
@@ -2576,8 +2588,15 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       laneSeparation: {
         chatRankingTypes: PREMIUM_CHAT_RANKING_TYPES,
         noChatLikeAlias: true,
+        mixedLaneItemsAllowed: false,
         likeRankingPath: '/api/v1/boost-campaigns/:campaignId/rankings',
         likeRankingReceivesPremiumChatSupport: false,
+        donationRankingReceivesLikes: false,
+        communicationRankingReceivesLikes: false,
+        donationRankingBasis:
+          'confirmed_net_premium_chat_support_only_after_refund_and_chargeback_filter',
+        communicationRankingBasis:
+          'server_weighted_premium_chat_open_message_support_and_artist_reply_only',
         luminaPickSourcesExcludedFromChatRankings: ['free_like', 'lumina_boost'],
       },
       queryPolicy: {
