@@ -5889,6 +5889,24 @@ describe('ChatService premium chat support contract', () => {
       customAmountHelperKey: 'chat.donation.amount.customHelper',
       lockedRoomDisabledMessageKey: 'chat.donation.blockedRoomState',
     });
+    expect(contract.donation.projectionSeparation).toMatchObject({
+      roomMessageProjection: 'premiumRoomMessageProjection',
+      supportMessageProjection: 'premiumChatSupportMessageProjection',
+      donationEventProjection: 'premiumChatDonationEventProjection',
+      donationLedgerProjection: 'premiumChatDonationLedgerProjection',
+      communicationRankingProjection: 'premiumChatCommunicationRankingProjection',
+      donationRankingProjection: 'premiumChatDonationRankingProjection',
+      roomMessageCreatesSupportMessage: false,
+      supportMessageCreatesRoomMessage: false,
+      donationLedgerCreatesRoomMessage: false,
+      donationEventCreatesAiReply: false,
+      rawSupportMessageBodyReturnedInRanking: false,
+      supportMessageSourceField: 'donation.message',
+      donationLedgerReferenceType: 'premium_chat_donation',
+      communicationRankingReceivesSupportMessage: true,
+      donationRankingReceivesConfirmedNetDonationOnly: true,
+      likeRankingReceivesPremiumChatSupport: false,
+    });
     expect(contract.donation.ledger).toMatchObject({
       donationSource: 'premium_chat_donation',
       direction: 'debit',

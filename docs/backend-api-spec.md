@@ -1653,6 +1653,13 @@ read-only and all donation/wallet/ranking-refresh mutations stay disabled.
 - Support messages may affect only the premium-chat communication/support and
   donation ranking lanes. They must never feed Lumina Pick likes or
   `/api/v1/boost-campaigns/:campaignId/rankings`.
+- #845 fixes projection separation between premium room messages, support
+  messages, donation events/ledger, and ranking lanes. `donation.message` is the
+  support-message source field, but it must not create a normal room message or
+  AI reply. Donation ledger references stay `premium_chat_donation`;
+  communication ranking may later consume safe support-message activity, while
+  donation ranking uses confirmed net donation only. Premium-chat support still
+  never feeds Lumina Pick/boost rankings.
 - Communication ranking copy is summary-only: room open, safe conversation
   activity, support, and artist reply activity may contribute, but clients must
   not show raw scoring formulas or internal source names.
