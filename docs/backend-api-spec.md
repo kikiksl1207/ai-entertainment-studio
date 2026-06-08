@@ -1449,6 +1449,12 @@ Authorization: Bearer <accessToken>
 - Support messages are separated from normal conversation messages. They do not
   create chat replies, answer requirements, or AI replies, and they are counted
   separately from conversation activity.
+- #827 product separation: the artist inbox is
+  `artist_direct_premium_dm` / `artist_direct_reply` from
+  `premium_chat_rooms` and must not reuse `/api/v1/chat/conversations`,
+  character-chat sessions, starter prompts, or AI reply routes. Owner users use
+  `/api/v1/chat/me/premium-rooms/:roomId/status`; the artist inbox never falls
+  back to the user conversation list.
 - Raw room status, answer state, and message-kind enums must not be used as
   user-facing copy. Clients should use label keys or Korean fallback copy.
 - The projection must not expose raw chat bodies, raw support-message bodies,

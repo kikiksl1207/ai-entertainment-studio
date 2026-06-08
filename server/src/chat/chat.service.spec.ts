@@ -5347,6 +5347,21 @@ describe('ChatService premium chat support contract', () => {
         supportMessageCreatesAiReply: false,
         supportMessageCountedSeparately: true,
       },
+      productSeparation: {
+        productKind: 'artist_direct_premium_dm',
+        responseMode: 'artist_direct_reply',
+        sourceTable: 'premium_chat_rooms',
+        listItemProjection: 'artistPremiumRoomInboxItem',
+        artistInboxEndpoint: '/api/v1/creator-studio/premium-chat/rooms',
+        userConversationListEndpoint: '/api/v1/chat/conversations',
+        characterChatProductKind: 'ai_character_chat',
+        characterChatResponseMode: 'ai_character_reply',
+        mixesWithCharacterConversationList: false,
+        usesCharacterChatSessions: false,
+        usesCharacterStarterPrompts: false,
+        createsAiReply: false,
+        ownerUserConversationListFallback: false,
+      },
       privacy: {
         rawChatBodyReturned: false,
         rawSupportMessageReturned: false,
@@ -6792,6 +6807,41 @@ describe('ChatService premium chat support contract', () => {
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
     expect(prisma.chatFeatureOrder.create).not.toHaveBeenCalled();
     expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+  });
+
+  it('keeps artist premium room inbox separate from the user character chat conversation list', () => {
+    const service = new ChatService({} as never, {} as never);
+    const contract = service.getPremiumSupportContract();
+
+    expect(contract.artistInboxProjection.productSeparation).toMatchObject({
+      productKind: 'artist_direct_premium_dm',
+      responseMode: 'artist_direct_reply',
+      sourceTable: 'premium_chat_rooms',
+      artistInboxEndpoint: '/api/v1/creator-studio/premium-chat/rooms',
+      userConversationListEndpoint: '/api/v1/chat/conversations',
+      characterChatProductKind: 'ai_character_chat',
+      characterChatResponseMode: 'ai_character_reply',
+      mixesWithCharacterConversationList: false,
+      usesCharacterChatSessions: false,
+      usesCharacterStarterPrompts: false,
+      createsAiReply: false,
+      ownerUserConversationListFallback: false,
+    });
+    expect(contract.apiContracts.artistRoomInbox.path).toBe(
+      contract.artistInboxProjection.productSeparation.artistInboxEndpoint,
+    );
+    expect(contract.artistInboxProjection.access.ownerUser).toMatchObject({
+      allowed: false,
+      useEndpoint: '/api/v1/chat/me/premium-rooms/:roomId/status',
+    });
+    expect(contract.artistInboxProjection.noMutation).toMatchObject({
+      artistReplyCreate: true,
+      userMessageCreate: true,
+      donationCreate: true,
+      walletDebit: true,
+      settlement: true,
+      payout: true,
+    });
   });
 
   it('keeps premium chat donation submit skeleton disabled with separate ranking lanes', () => {
