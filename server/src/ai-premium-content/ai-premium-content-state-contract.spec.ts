@@ -6,10 +6,14 @@ import {
   AI_PREMIUM_CONTENT_REQUEST_STATUSES,
   AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY,
   AI_PREMIUM_CONTENT_REQUEST_TYPES,
+  AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT,
+  AI_PREMIUM_CONTENT_SAFETY_PRECHECK_RISK_CATEGORIES,
+  AI_PREMIUM_CONTENT_SAFETY_PRECHECK_STATUSES,
   AI_PREMIUM_CONTENT_SAFETY_STATUSES,
   AI_PREMIUM_CONTENT_STATE_API_CONTRACT,
   AI_PREMIUM_CONTENT_STATUS_COPY_KO,
   resolveAiPremiumContentCostPrecheck,
+  resolveAiPremiumContentSafetyPrecheck,
 } from './ai-premium-content-state-contract';
 
 describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
@@ -131,6 +135,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       mutation: false,
       providerCallEnabled: false,
     });
+    expect(apiContracts.safetyPrecheck).toBe(
+      AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT,
+    );
     expect(apiContracts.regenerateRequest).toMatchObject({
       method: 'POST',
       enabled: false,
@@ -147,6 +154,120 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     expect(Object.values(mutationGates).every((enabled) => enabled === false)).toBe(
       true,
     );
+  });
+
+  it('defines provider-free safety precheck statuses and risk categories before generation', () => {
+    const { apiContracts } = AI_PREMIUM_CONTENT_STATE_API_CONTRACT;
+    const contract = apiContracts.safetyPrecheck;
+
+    expect(contract).toMatchObject({
+      version: '2026-06-08.ai-premium-content-safety-precheck.v1',
+      enabled: false,
+      submitEnabled: false,
+      mutation: false,
+      providerCallEnabled: false,
+      allowedStatuses: ['safe', 'review_required', 'blocked'],
+      riskCategories: [
+        'minor',
+        'real_person_similarity',
+        'sexual_content',
+        'copyright',
+        'platform_policy',
+      ],
+      noMutation: {
+        providerAttempt: true,
+        imageGeneration: true,
+        videoGeneration: true,
+        walletDebit: true,
+        settlementAccrual: true,
+        payoutAccrual: true,
+        paidLike: true,
+      },
+    });
+    expect(AI_PREMIUM_CONTENT_SAFETY_PRECHECK_STATUSES).toEqual([
+      'safe',
+      'review_required',
+      'blocked',
+    ]);
+    expect(AI_PREMIUM_CONTENT_SAFETY_PRECHECK_RISK_CATEGORIES).toEqual([
+      'minor',
+      'real_person_similarity',
+      'sexual_content',
+      'copyright',
+      'platform_policy',
+    ]);
+    expect(contract.privacy).toMatchObject({
+      rawPromptReturned: false,
+      referenceAssetBytesReturned: false,
+      providerPayloadReturned: false,
+      realPersonIdentityGuessReturned: false,
+      tokenReturned: false,
+      cookieReturned: false,
+    });
+  });
+
+  it('resolves safe, review-required, and blocked safety precheck decisions before provider calls', () => {
+    const safe = resolveAiPremiumContentSafetyPrecheck({});
+    const reviewRequired = resolveAiPremiumContentSafetyPrecheck({
+      realPersonSimilarityRisk: true,
+      copyrightRisk: true,
+    });
+    const blocked = resolveAiPremiumContentSafetyPrecheck({
+      minorRisk: true,
+      sexualContentRisk: true,
+      platformPolicyRisk: true,
+    });
+
+    expect(safe).toMatchObject({
+      status: 'safe',
+      code: 'AI_PREMIUM_CONTENT_SAFETY_SAFE',
+      messageKey: 'aiPremiumContent.safetyPrecheck.safe',
+      risks: [],
+      providerCallEnabled: false,
+      providerCallBeforeDecision: false,
+      walletMutationEnabled: false,
+    });
+    expect(reviewRequired).toMatchObject({
+      status: 'review_required',
+      code: 'AI_PREMIUM_CONTENT_SAFETY_REVIEW_REQUIRED',
+      messageKey: 'aiPremiumContent.safetyPrecheck.reviewRequired',
+      providerCallEnabled: false,
+      walletMutationEnabled: false,
+      risks: expect.arrayContaining([
+        expect.objectContaining({
+          category: 'real_person_similarity',
+          severity: 'review_required',
+          providerCallBeforeDecision: false,
+        }),
+        expect.objectContaining({
+          category: 'copyright',
+          severity: 'review_required',
+          providerCallBeforeDecision: false,
+        }),
+      ]),
+    });
+    expect(blocked).toMatchObject({
+      status: 'blocked',
+      code: 'AI_PREMIUM_CONTENT_SAFETY_BLOCKED',
+      messageKey: 'aiPremiumContent.safetyPrecheck.blocked',
+      providerCallEnabled: false,
+      walletMutationEnabled: false,
+      orderMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      paidLikeMutationEnabled: false,
+      risks: expect.arrayContaining([
+        expect.objectContaining({ category: 'minor', severity: 'blocked' }),
+        expect.objectContaining({
+          category: 'sexual_content',
+          severity: 'blocked',
+        }),
+        expect.objectContaining({
+          category: 'platform_policy',
+          severity: 'blocked',
+        }),
+      ]),
+    });
   });
 
   it('defines a disabled cost precheck contract without provider secrets or cash mutation', () => {
