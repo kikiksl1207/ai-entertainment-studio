@@ -499,6 +499,58 @@ describe('AuthService action token flows', () => {
     });
   });
 
+  it('blocks social-only password change before password or session mutation', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.userAuthAccount.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.changePassword(userId, {
+        currentPassword: 'SocialOnlyCurrent1',
+        newPassword: 'SocialOnlyNext1',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Email password is not configured for this account',
+      },
+    });
+
+    expect(prisma.userAuthAccount.update).not.toHaveBeenCalled();
+    expect(prisma.userRefreshToken.updateMany).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('projects social-only account method without provider credentials or session secrets', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.user.findFirst.mockResolvedValue({
+      id: userId,
+      email,
+      emailVerifiedAt: new Date('2026-05-15T00:00:00.000Z'),
+      phoneNumber: null,
+      status: 'active',
+      createdAt: new Date('2026-05-15T00:00:00.000Z'),
+      authAccounts: [
+        { provider: 'google', passwordHash: null },
+        { provider: 'naver', passwordHash: null },
+      ],
+      profile: null,
+      settings: null,
+      walletAccounts: [],
+    });
+
+    const projection = await service.getMe(userId);
+
+    expect(projection).toMatchObject({
+      provider: 'google',
+      providers: ['google', 'naver'],
+      hasPassword: false,
+      isSocialOnly: true,
+    });
+    const payload = JSON.stringify(projection);
+    expect(payload).not.toMatch(/passwordHash|providerUserId|accessToken|refreshToken|cookie/i);
+  });
+
   it('inspects password reset tokens without consuming them or returning secrets', async () => {
     const prisma = createPrismaMock();
     const { service } = serviceWith(prisma);
