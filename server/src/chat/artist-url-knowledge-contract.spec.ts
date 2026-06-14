@@ -779,4 +779,114 @@ describe('artist URL knowledge contract', () => {
     expect(payload).not.toContain('Raw summary');
     expect(payload).not.toContain('Raw rejection reason');
   });
+
+  it('keeps artist knowledge approval lifecycle audit projections status-only and secret-free', () => {
+    const transitions = [
+      {
+        action: 'artist_knowledge_url.submit',
+        from: 'pending',
+        to: 'pending',
+        changedFields: ['status', 'rawUrl', 'internalReviewNote'],
+      },
+      {
+        action: 'artist_knowledge_url.approve',
+        from: 'pending',
+        to: 'approved',
+        changedFields: ['status', 'reviewedByUserId', 'providerPayload'],
+      },
+      {
+        action: 'artist_knowledge_url.reject',
+        from: 'pending',
+        to: 'rejected',
+        changedFields: ['status', 'rejectionReason', 'token'],
+      },
+      {
+        action: 'artist_knowledge_url.archive',
+        from: 'rejected',
+        to: 'archived',
+        changedFields: ['status', 'archivedAt', 'cookie'],
+      },
+    ] as const;
+
+    for (const transition of transitions) {
+      const projection = buildArtistKnowledgeAdminAuditProjection({
+        id: `audit-${transition.to}`,
+        action: transition.action,
+        targetType: 'artist_knowledge_url',
+        targetId: 'knowledge-1',
+        actorUserId: 'admin-1',
+        createdAt: '2026-06-02T00:00:00.000Z',
+        beforeData: {
+          contractVersion: '2026-05-24.artist-url-knowledge-audit.v1',
+          id: 'knowledge-1',
+          artistId: 'artist-1',
+          submittedByUserId: 'creator-1',
+          reviewedByUserId: null,
+          status: transition.from,
+          sourceType: 'other',
+          allowChatReference: true,
+          summaryPresent: true,
+          rejectionReasonPresent: false,
+          reviewedAt: null,
+          archivedAt: null,
+          rawUrl: 'https://private.example/path?token=secret',
+          internalReviewNote: 'Internal note must not leak',
+        } as never,
+        afterData: {
+          contractVersion: '2026-05-24.artist-url-knowledge-audit.v1',
+          id: 'knowledge-1',
+          artistId: 'artist-1',
+          submittedByUserId: 'creator-1',
+          reviewedByUserId: 'admin-1',
+          status: transition.to,
+          sourceType: 'other',
+          allowChatReference: transition.to === 'approved',
+          summaryPresent: true,
+          rejectionReasonPresent: transition.to === 'rejected',
+          reviewedAt:
+            transition.to === 'approved' || transition.to === 'rejected'
+              ? '2026-06-02T00:00:00.000Z'
+              : null,
+          archivedAt:
+            transition.to === 'archived'
+              ? '2026-06-02T00:00:00.000Z'
+              : null,
+          providerPayload: { token: 'provider-token' },
+        } as never,
+        metadata: {
+          statusTransition: { from: transition.from, to: transition.to },
+          changedFields: [...transition.changedFields],
+        },
+      });
+
+      expect(projection.metadata.statusTransition).toEqual({
+        from: transition.from,
+        to: transition.to,
+      });
+      expect(projection.metadata.changedFields).toEqual(
+        transition.changedFields.filter((field) =>
+          [
+            'status',
+            'reviewedByUserId',
+            'allowChatReference',
+            'reviewedAt',
+            'archivedAt',
+          ].includes(field),
+        ),
+      );
+      expect(projection.metadata).toMatchObject({
+        sensitiveDataStored: false,
+        rawUrlStored: false,
+        rawUrlQueryStored: false,
+        tokenCookiePasswordStored: false,
+        providerPayloadStored: false,
+      });
+
+      const payload = JSON.stringify(projection);
+      expect(payload).not.toContain('private.example');
+      expect(payload).not.toContain('secret');
+      expect(payload).not.toContain('Internal note');
+      expect(payload).not.toContain('provider-token');
+    }
+  });
 });
