@@ -194,6 +194,30 @@ export const AUTH_QA_ACCOUNT_ACCESS_CONTRACT = {
       'ADMIN_EMAILS bootstrap fallback',
     ],
   },
+  accountSecurity: {
+    passwordReset: {
+      consumesActionTokenOnce: true,
+      updatesEmailPasswordHashOnly: true,
+      revokesActiveRefreshSessions: true,
+      rawTokenReturned: false,
+      passwordReturned: false,
+    },
+    passwordChange: {
+      requiresExistingEmailPasswordHash: true,
+      socialOnlyChangePasswordBlocked: true,
+      successfulChangeRevokesActiveRefreshSessions: true,
+      rawCurrentPasswordLogged: false,
+      rawNewPasswordLogged: false,
+    },
+    socialOnlyProjection: {
+      sourceOfTruth: 'user_auth_accounts',
+      exposesProviderKind: true,
+      exposesHasPasswordBoolean: true,
+      exposesIsSocialOnlyBoolean: true,
+      exposesProviderCredential: false,
+      exposesCookieOrToken: false,
+    },
+  },
   liveAccessSelfCheck: {
     task: '#458',
     script: 'npm run qa:auth-access-self-check',

@@ -92,6 +92,33 @@ describe('auth QA account access contract', () => {
     );
   });
 
+  it('pins account session invalidation and social-only password guard policy', () => {
+    expect(AUTH_QA_ACCOUNT_ACCESS_CONTRACT.accountSecurity).toMatchObject({
+      passwordReset: {
+        consumesActionTokenOnce: true,
+        updatesEmailPasswordHashOnly: true,
+        revokesActiveRefreshSessions: true,
+        rawTokenReturned: false,
+        passwordReturned: false,
+      },
+      passwordChange: {
+        requiresExistingEmailPasswordHash: true,
+        socialOnlyChangePasswordBlocked: true,
+        successfulChangeRevokesActiveRefreshSessions: true,
+        rawCurrentPasswordLogged: false,
+        rawNewPasswordLogged: false,
+      },
+      socialOnlyProjection: {
+        sourceOfTruth: 'user_auth_accounts',
+        exposesProviderKind: true,
+        exposesHasPasswordBoolean: true,
+        exposesIsSocialOnlyBoolean: true,
+        exposesProviderCredential: false,
+        exposesCookieOrToken: false,
+      },
+    });
+  });
+
   it('defines the sanitized live access self-check for QA creator and admin', () => {
     expect(AUTH_QA_ACCOUNT_ACCESS_CONTRACT.liveAccessSelfCheck).toMatchObject({
       task: '#458',
