@@ -508,6 +508,68 @@
   letter-spacing: 0.02em;
 }
 
+/* #754/#765 — AI챗·프리미엄챗 시각 대비 보강
+   두 옵션이 같은 색조로 보이지 않도록 AI챗은 보라 계열, 프리미엄챗은 골드 계열로 구분.
+   is-locked 상태(프리미엄챗 준비 중)에서도 색조 차이가 유지되도록 opacity만 낮춘다. */
+.detail-chat-option.is-ai-chat {
+  background: rgba(130, 100, 255, 0.07);
+  border-color: rgba(130, 100, 255, 0.28);
+}
+.detail-chat-option.is-ai-chat:not(.is-locked):hover {
+  background: rgba(130, 100, 255, 0.14);
+  border-color: rgba(130, 100, 255, 0.48);
+}
+.detail-chat-option.is-ai-chat .detail-chat-option-body strong {
+  color: #c4b0ff;
+}
+.detail-chat-option.is-ai-chat .detail-chat-option-body small {
+  color: rgba(196, 176, 255, 0.65);
+}
+
+.detail-chat-option.is-premium-chat {
+  background: rgba(255, 185, 60, 0.07);
+  border-color: rgba(255, 185, 60, 0.28);
+}
+.detail-chat-option.is-premium-chat.is-locked {
+  opacity: 0.5;
+}
+.detail-chat-option.is-premium-chat .detail-chat-option-body strong {
+  color: #ffd080;
+}
+.detail-chat-option.is-premium-chat .detail-chat-option-body small {
+  color: rgba(255, 208, 128, 0.65);
+}
+.detail-chat-option.is-premium-chat .detail-chat-option-badge {
+  background: rgba(255, 185, 60, 0.1);
+  border-color: rgba(255, 185, 60, 0.3);
+  color: rgba(255, 208, 128, 0.8);
+}
+
+/* #765/#857 — 480px 이하: 1열 카드, 텍스트 겹침 방지 */
+@media (max-width: 480px) {
+  .detail-chat-select {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .detail-chat-option {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  .detail-chat-option-icon {
+    font-size: 20px;
+  }
+  .detail-chat-option-body strong {
+    font-size: 14px;
+  }
+  .detail-chat-option-body small {
+    font-size: 11.5px;
+    white-space: normal;
+  }
+  .detail-chat-option-arrow {
+    display: none;
+  }
+}
+
 .detail-chat-select-note {
   text-align: center;
   margin: 12px auto 0;
