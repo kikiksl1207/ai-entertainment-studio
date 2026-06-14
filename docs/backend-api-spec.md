@@ -1066,6 +1066,17 @@ Character-chat dynamic opening greeting cache (#388):
   prompts and expose only safe tone/persona candidate fields.
 - `openingGreeting.toneCandidate` is display-safe contract data only. Do not
   treat it as an editable system prompt or expose raw metadata keys as user copy.
+- #874 adds `greetingSelectionAnalyticsContract` to
+  `GET /api/v1/chat/character-catalog` and
+  `GET /api/v1/chat/starter-prompts`. It defines the future
+  `character_chat.greeting_option_selected` event as write-blocked for now and
+  allows only safe aggregate dimensions such as character slug, candidate
+  key/index/source, tone/persona tags, locale, and selected date.
+- #874 analytics must not store or return selected message body, full chat
+  transcript, freeform user input, raw persona prompts, raw provider payloads,
+  email, token, cookie, password, API key, or DB URL. Candidate selection does
+  not create chat messages, call providers, create orders, debit wallet/Lumina,
+  or touch settlement/payout state.
 
 Character-chat premium transition CTA contract (#500/#511):
 
