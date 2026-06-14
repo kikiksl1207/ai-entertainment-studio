@@ -287,6 +287,9 @@ Manual thread rules:
   readProjection, policy }`.
 - Feed/detail post rows include `post.thread` with `isThread`, `rootPostId`,
   `itemCount`, `threadCount`, `maxItems`, `previewText`, and ordered `items`.
+- #872 count contract: manual `threadCount` counts only root plus manual thread
+  items. It must not include continuation posts, reposts, shares, replies, or
+  comments.
 - Non-root item edit/delete is author-only. Artist operators must not edit or
   delete another user's thread items.
 - Likes, comments, reports, hides, and images remain root-post based in this
@@ -305,6 +308,11 @@ Repost and quote repost rules:
 - Repost projection is not a thread/comment/reply relation:
   `parentPostId: null`, `threadRootPostId: null`, `commentRelation: false`,
   `replyRelation: false`, and `threadRelation: false`.
+- #872 state contract: simple repost uses `feed_repost` / `repost`, quote
+  repost uses `feed_quote_repost` / `quote_repost`, and both count only toward
+  repost state. They must not mutate manual thread count, continuation count,
+  share count, reply count, wallet, Lumina, settlement, payout, order, or
+  paid-like state.
 - If the original post becomes deleted, hidden, private, or unavailable because
   the viewer hid it or has an active block relationship with the original author,
   `originalState` becomes `unavailable`, `tombstone` is `true`, and
@@ -325,6 +333,9 @@ Share contract rules:
 - Share contracts are separate from repost and quote repost projections. They do
   not create a repost row, thread continuation, comment, reply, share ledger,
   wallet, Lumina, settlement, payout, order, or paid-like mutation.
+- #872 share state uses `feed_share` / `share_contract` with no count target.
+  Deleted, hidden, private, or blocked source posts fail closed as safe
+  not-found/tombstone projections.
 
 External link example:
 

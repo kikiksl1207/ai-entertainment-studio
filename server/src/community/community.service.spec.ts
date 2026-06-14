@@ -1149,6 +1149,13 @@ describe('CommunityService Lumina Feed thread contract', () => {
     expect(result.rootPostId).toBe(postId);
     expect(result.itemCount).toBe(1);
     expect(result.readProjection.isThread).toBe(false);
+    expect(result.readProjection.countIsolation).toMatchObject({
+      threadCountSource: 'manual_thread_items_only',
+      continuationCountIncluded: false,
+      repostCountIncluded: false,
+      shareCountIncluded: false,
+      replyCountIncluded: false,
+    });
     expect(result.policy.walletMutation).toBe(false);
     expect(result.policy.luminaMutation).toBe(false);
     expect(result.policy.settlementMutation).toBe(false);
@@ -1182,6 +1189,13 @@ describe('CommunityService Lumina Feed thread contract', () => {
     expect(result.readProjection.items.map((item: any) => item.position)).toEqual([1, 2]);
     expect(result.readProjection.engagementTarget).toBe('root');
     expect(result.readProjection.imagesTarget).toBe('root');
+    expect(result.policy.countIsolation).toMatchObject({
+      threadCountSource: 'manual_thread_items_only',
+      continuationCountIncluded: false,
+      repostCountIncluded: false,
+      shareCountIncluded: false,
+      replyCountIncluded: false,
+    });
   });
 
   it('rejects eleven pieces and any piece over the 500-character contract before mutation', async () => {
@@ -1335,7 +1349,16 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
       canonicalButtonMeaning: 'append_to_existing_post',
       existingPostRequired: true,
       rootAuthorOnly: true,
+      blockedRootPolicy: 'not_found_before_create',
       failClosedOnUnavailableRoot: true,
+      stateProjection: {
+        actionKey: 'feed_thread_continue',
+        stateKey: 'thread_continuation',
+        countTarget: 'thread_continuation_list',
+        countDoesNotMutateRootThreadCount: true,
+        countDoesNotMutateRepostCount: true,
+        countDoesNotMutateShareCount: true,
+      },
     });
     expect(result.policy.walletMutation).toBe(false);
     expect(result.policy.luminaMutation).toBe(false);
@@ -1395,6 +1418,12 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     expect(result.relation).toBe('thread_continuation');
     expect(result.items[0].threadContinuation.commentRelation).toBe(false);
     expect(result.items[0].threadContinuation.replyRelation).toBe(false);
+    expect(result.items[0].threadContinuation.actionKey).toBe(
+      'feed_thread_continue',
+    );
+    expect(result.items[0].threadContinuation.stateKey).toBe(
+      'thread_continuation',
+    );
     expect(result.policy).toMatchObject({
       listEndpoint: '/api/v1/lumina-feed/posts/:postId/thread-continuations',
       commentRelation: false,
@@ -1452,6 +1481,8 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     expect(result.post.repost.commentRelation).toBe(false);
     expect(result.post.repost.replyRelation).toBe(false);
     expect(result.post.repost.threadRelation).toBe(false);
+    expect(result.post.repost.actionKey).toBe('feed_quote_repost');
+    expect(result.post.repost.stateKey).toBe('quote_repost');
     expect(result.post.repost.originalState).toBe('visible');
     expect(result.post.repost.tombstone).toBe(false);
     expect(result.post.repost.unavailableReason).toBeNull();
@@ -1470,6 +1501,23 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
       commentRelation: false,
       replyRelation: false,
       shareIsSeparateContract: true,
+      stateProjection: {
+        simpleRepostActionKey: 'feed_repost',
+        quoteRepostActionKey: 'feed_quote_repost',
+        simpleRepostStateKey: 'repost',
+        quoteRepostStateKey: 'quote_repost',
+        countTarget: 'repost_count',
+        countDoesNotMutateThreadCount: true,
+        countDoesNotMutateShareCount: true,
+        countDoesNotMutateReplyCount: true,
+      },
+      unavailableSourceFailClosed: {
+        deleted: 'not_found_before_create_or_tombstone_on_read',
+        hidden: 'not_found_before_create_or_tombstone_on_read',
+        private: 'not_found_before_create_or_tombstone_on_read',
+        blocked: 'reject_before_create_or_tombstone_on_read',
+        sourceBodyReturnedWhenUnavailable: false,
+      },
     });
     expect(result.policy.walletMutation).toBe(false);
     expect(result.policy.settlementMutation).toBe(false);
@@ -1563,6 +1611,8 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
         commentRelation: false,
         replyRelation: false,
         threadRelation: false,
+        actionKey: 'feed_repost',
+        stateKey: 'repost',
         quoteBody: null,
         originalPostId: postId,
       }),
@@ -1723,6 +1773,14 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
         share: expect.objectContaining({
           publicPath: `/lumina-feed/posts/${postId}`,
           countStrategy: 'not_mutated_by_share_contract',
+          stateProjection: {
+            actionKey: 'feed_share',
+            stateKey: 'share_contract',
+            countTarget: null,
+            countDoesNotMutateThreadCount: true,
+            countDoesNotMutateRepostCount: true,
+            countDoesNotMutateReplyCount: true,
+          },
         }),
         policy: expect.objectContaining({
           projection: 'share_contract_only',
@@ -1732,6 +1790,20 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
           replyRelation: false,
           availableOnOtherUsersPosts: true,
           authorOwnershipRequired: false,
+          unavailableSourceFailClosed: {
+            deleted: 'not_found',
+            hidden: 'not_found',
+            private: 'not_found',
+            blocked: 'not_found',
+          },
+          stateProjection: {
+            actionKey: 'feed_share',
+            stateKey: 'share_contract',
+            countTarget: null,
+            countDoesNotMutateThreadCount: true,
+            countDoesNotMutateRepostCount: true,
+            countDoesNotMutateReplyCount: true,
+          },
           createsFeedRow: false,
           createsRepost: false,
           privateMetadataReturned: false,
