@@ -2973,6 +2973,13 @@ export class CommunityService {
       likesTarget: 'root',
       commentsTarget: 'root',
       imagesTarget: 'root',
+      countIsolation: {
+        threadCountSource: 'manual_thread_items_only',
+        continuationCountIncluded: false,
+        repostCountIncluded: false,
+        shareCountIncluded: false,
+        replyCountIncluded: false,
+      },
     };
   }
 
@@ -2991,6 +2998,8 @@ export class CommunityService {
       isContinuation: true,
       type: 'thread_continuation',
       relation: 'thread_continuation',
+      actionKey: 'feed_thread_continue',
+      stateKey: 'thread_continuation',
       rootPostId,
       parentPostId: this.stringFromUnknown(relation.parentPostId) ?? rootPostId,
       source: 'existing_post',
@@ -3078,6 +3087,8 @@ export class CommunityService {
       commentRelation: false,
       replyRelation: false,
       threadRelation: false,
+      actionKey: type === 'quote_repost' ? 'feed_quote_repost' : 'feed_repost',
+      stateKey: type,
       originalPostId,
       originalAuthorUserId:
         this.stringFromUnknown(relation.originalAuthorUserId) ??
@@ -4573,6 +4584,13 @@ export class CommunityService {
       likesTarget: 'root',
       commentsTarget: 'root',
       imagesTarget: 'root',
+      countIsolation: {
+        threadCountSource: 'manual_thread_items_only',
+        continuationCountIncluded: false,
+        repostCountIncluded: false,
+        shareCountIncluded: false,
+        replyCountIncluded: false,
+      },
       walletMutation: false,
       luminaMutation: false,
       settlementMutation: false,
@@ -4596,7 +4614,16 @@ export class CommunityService {
       deletedRootPolicy: 'not_found',
       hiddenRootPolicy: 'not_found',
       privateRootPolicy: 'not_found',
+      blockedRootPolicy: 'not_found_before_create',
       failClosedOnUnavailableRoot: true,
+      stateProjection: {
+        actionKey: 'feed_thread_continue',
+        stateKey: 'thread_continuation',
+        countTarget: 'thread_continuation_list',
+        countDoesNotMutateRootThreadCount: true,
+        countDoesNotMutateRepostCount: true,
+        countDoesNotMutateShareCount: true,
+      },
       walletMutation: false,
       luminaMutation: false,
       settlementMutation: false,
@@ -4627,6 +4654,23 @@ export class CommunityService {
       originalHiddenPolicy: 'hide_embedded_original',
       originalBlockedPolicy: 'hide_embedded_original',
       embeddedOriginalProjection: 'safe_public_summary_or_tombstone',
+      stateProjection: {
+        simpleRepostActionKey: 'feed_repost',
+        quoteRepostActionKey: 'feed_quote_repost',
+        simpleRepostStateKey: 'repost',
+        quoteRepostStateKey: 'quote_repost',
+        countTarget: 'repost_count',
+        countDoesNotMutateThreadCount: true,
+        countDoesNotMutateShareCount: true,
+        countDoesNotMutateReplyCount: true,
+      },
+      unavailableSourceFailClosed: {
+        deleted: 'not_found_before_create_or_tombstone_on_read',
+        hidden: 'not_found_before_create_or_tombstone_on_read',
+        private: 'not_found_before_create_or_tombstone_on_read',
+        blocked: 'reject_before_create_or_tombstone_on_read',
+        sourceBodyReturnedWhenUnavailable: false,
+      },
       detailReadModel: {
         endpoint: 'GET /api/v1/lumina-feed/posts/:postId',
         quoteBodyField: 'post.repost.quoteBody',
@@ -4699,6 +4743,14 @@ export class CommunityService {
         },
         blockedRelationshipPolicy: 'share_contract_has_no_server_count_or_notification_row',
       },
+      stateProjection: {
+        actionKey: 'feed_share',
+        stateKey: 'share_contract',
+        countTarget: null,
+        countDoesNotMutateThreadCount: true,
+        countDoesNotMutateRepostCount: true,
+        countDoesNotMutateReplyCount: true,
+      },
     };
   }
 
@@ -4712,8 +4764,22 @@ export class CommunityService {
       replyRelation: false,
       sourceVisibility: 'public_only',
       sourceStatusPolicy: 'published_public_not_deleted_only',
+      unavailableSourceFailClosed: {
+        deleted: 'not_found',
+        hidden: 'not_found',
+        private: 'not_found',
+        blocked: 'not_found',
+      },
       availableOnOtherUsersPosts: true,
       authorOwnershipRequired: false,
+      stateProjection: {
+        actionKey: 'feed_share',
+        stateKey: 'share_contract',
+        countTarget: null,
+        countDoesNotMutateThreadCount: true,
+        countDoesNotMutateRepostCount: true,
+        countDoesNotMutateReplyCount: true,
+      },
       publicPathTemplate: '/lumina-feed/posts/:postId',
       privateMetadataReturned: false,
       rawOwnerMetadataReturned: false,
