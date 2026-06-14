@@ -938,6 +938,44 @@ describe('premium chat room refund and moderation ledger contract', () => {
     }
   });
 
+  it('keeps artist forced close full refund reason separate from user-fault restricted refund reasons', () => {
+    const forcedClose = PREMIUM_CHAT_ROOM_CONTRACT.refunds.artistForcedClose;
+    const userFaultOutcomes =
+      PREMIUM_CHAT_ROOM_CONTRACT.refunds.userFaultPartialRefund.outcomes;
+    const userFaultReasonKeys = userFaultOutcomes.map(
+      (outcome) => outcome.reasonKey,
+    );
+
+    expect(forcedClose.reasonKey).toBe('artist_forced_close_full_refund');
+    expect(forcedClose.userRefundBps).toBe(10000);
+    expect(forcedClose.companyRevenueBps).toBe(0);
+    expect(forcedClose.artistCompensationBps).toBe(0);
+    expect(userFaultReasonKeys).toEqual([
+      'user_fault_report_refund_70',
+      'operator_sanction_user_fault_refund_50',
+    ]);
+    expect(userFaultReasonKeys).not.toContain(forcedClose.reasonKey);
+
+    for (const outcome of userFaultOutcomes) {
+      expect(outcome.userRefundBps).toBeLessThan(10000);
+      expect(outcome.artistCompensationBps).toBe(1000);
+      expect(outcome.ledgerEntries).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            source: 'premium_chat_room_refund',
+            ledgerType: 'refund',
+            walletLedger: true,
+          }),
+          expect.objectContaining({
+            source: 'premium_chat_room_refund_restriction',
+            ledgerType: 'premium_chat_room_artist_compensation',
+            walletLedger: false,
+          }),
+        ]),
+      );
+    }
+  });
+
   it('publishes the server-authoritative refund split ledger contract', () => {
     const splitContract = PREMIUM_CHAT_ROOM_CONTRACT.refunds.splitLedgerContract;
 
