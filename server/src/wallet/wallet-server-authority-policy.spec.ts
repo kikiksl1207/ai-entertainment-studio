@@ -198,11 +198,31 @@ describe('server-authority wallet policy', () => {
           clientSubmittedAmountTrusted: false,
         }),
         expect.objectContaining({
+          surface: 'premium_chat_room_open',
+          amountAuthority: 'server_room_tier_policy',
+          negativeBalanceGuard: 'atomic_cached_balance_gte_amount_update',
+          insufficientBalanceCreatesLedger: false,
+          clientSubmittedAmountTrusted: false,
+          clientSubmittedBalanceTrusted: false,
+          clientSubmittedBonusTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_message_debit',
+          amountAuthority: 'server_visible_two_way_sentence_pair_meter',
+          negativeBalanceGuard: 'atomic_cached_balance_gte_amount_update',
+          insufficientBalanceCreatesLedger: false,
+          clientSubmittedAmountTrusted: false,
+          clientSubmittedBalanceTrusted: false,
+          clientSubmittedBonusTrusted: false,
+        }),
+        expect.objectContaining({
           surface: 'premium_chat_donation',
           amountAuthority: 'server_normalized_donation_amount',
           negativeBalanceGuard: 'atomic_cached_balance_gte_amount_update',
           insufficientBalanceCreatesLedger: false,
           clientSubmittedAmountTrusted: false,
+          clientSubmittedBalanceTrusted: false,
+          clientSubmittedBonusTrusted: false,
         }),
         expect.objectContaining({
           surface: 'premium_chat_refund_restriction',
@@ -269,6 +289,60 @@ describe('server-authority wallet policy', () => {
           source.serverAuthority.includes('server_visible_two_way_sentence_pair_meter'),
       ),
     ).toBe(true);
+  });
+
+  it('ignores client-submitted Lumina balance, debit amount, and bonus values for premium chat debits', () => {
+    const premiumChatDebitSurfaces = WALLET_LEDGER_INVARIANT_CONTRACT.surfaces.filter(
+      (surface) =>
+        [
+          'premium_chat_room_open',
+          'premium_chat_message_debit',
+          'premium_chat_donation',
+        ].includes(surface.surface),
+    ) as Array<{
+      surface: string;
+      direction: string;
+      clientSubmittedAmountTrusted: boolean;
+      clientSubmittedBalanceTrusted: boolean;
+      clientSubmittedBonusTrusted: boolean;
+      negativeBalanceGuard: string;
+      insufficientBalanceCreatesLedger: boolean;
+      settlementMutation: boolean;
+      payoutMutation: boolean;
+    }>;
+
+    expect(premiumChatDebitSurfaces).toHaveLength(3);
+    expect(premiumChatDebitSurfaces).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          surface: 'premium_chat_room_open',
+          amountAuthority: 'server_room_tier_policy',
+          duplicateGuard: 'room_open_idempotency_fingerprint',
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_message_debit',
+          amountAuthority: 'server_visible_two_way_sentence_pair_meter',
+          duplicateGuard: 'server_message_pair_meter_key',
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_donation',
+          amountAuthority: 'server_normalized_donation_amount',
+          duplicateGuard: 'premium_chat_donation_idempotency_key',
+        }),
+      ]),
+    );
+    for (const surface of premiumChatDebitSurfaces) {
+      expect(surface.direction).toBe('debit');
+      expect(surface.clientSubmittedAmountTrusted).toBe(false);
+      expect(surface.clientSubmittedBalanceTrusted).toBe(false);
+      expect(surface.clientSubmittedBonusTrusted).toBe(false);
+      expect(surface.negativeBalanceGuard).toBe(
+        'atomic_cached_balance_gte_amount_update',
+      );
+      expect(surface.insufficientBalanceCreatesLedger).toBe(false);
+      expect(surface.settlementMutation).toBe(false);
+      expect(surface.payoutMutation).toBe(false);
+    }
   });
 
   it('pins payment, donation, premium chat debit, and refund guards to server authority', () => {
