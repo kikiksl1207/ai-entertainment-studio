@@ -2665,6 +2665,68 @@ describe('ChatService persona and catalog policy', () => {
         'forbiddenTone.items',
       ]),
     );
+    expect(catalog.greetingSelectionAnalyticsContract).toMatchObject({
+      version: '2026-06-15.character-chat-greeting-selection-analytics.v1',
+      characterSlug: 'yoon-serin',
+      status: 'contract_ready_event_write_blocked',
+      eventName: 'character_chat.greeting_option_selected',
+      eventWriteEnabled: false,
+      providerCall: false,
+      chatMessageCreate: false,
+      walletMutation: false,
+      orderMutation: false,
+      settlementMutation: false,
+      aggregation: {
+        mode: 'safe_daily_character_candidate_aggregate',
+        safeAggregateOnly: true,
+        userIdReturned: false,
+        rawMessageBodyStored: false,
+        rawPromptStored: false,
+        minBucketSizeBeforeReporting: 5,
+      },
+      privacy: {
+        selectedCopyReturnedInAnalytics: false,
+        rawChatBodyStored: false,
+        rawChatBodyReturned: false,
+        rawPromptStored: false,
+        rawProviderPayloadStored: false,
+        sensitiveAuthMaterialStored: false,
+      },
+    });
+    expect(catalog.greetingSelectionAnalyticsContract.allowedEventFields).toEqual(
+      expect.arrayContaining([
+        'characterSlug',
+        'candidateKey',
+        'candidateIndex',
+        'candidateSource',
+        'toneTags',
+        'selectedAtDate',
+      ]),
+    );
+    expect(catalog.greetingSelectionAnalyticsContract.forbiddenEventFields).toEqual(
+      expect.arrayContaining([
+        'selectedMessageBody',
+        'fullChatTranscript',
+        'freeformUserInput',
+        'rawPersonaPrompt',
+        'rawProviderPayload',
+        'email',
+        'token',
+        'cookie',
+        'password',
+        'apiKey',
+        'dbUrl',
+      ]),
+    );
+    expect(prompts.greetingSelectionAnalyticsContract).toMatchObject({
+      version: '2026-06-15.character-chat-greeting-selection-analytics.v1',
+      characterSlug: 'yoon-serin',
+      sourceCandidatePaths: [
+        'openingPrompt.options[]',
+        'starterOptions[]',
+        'sets[].options[]',
+      ],
+    });
     expect(catalog.dynamicGreetingContract).toMatchObject({
       version: '2026-06-05.character-chat-opening-greeting-variants.v1',
       characterSlug: 'yoon-serin',

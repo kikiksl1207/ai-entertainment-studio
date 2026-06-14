@@ -282,6 +282,8 @@ const CHARACTER_CHAT_GREETING_TONE_CONTRACT_VERSION =
   '2026-05-21.character-chat-greeting-tone.v1';
 const CHARACTER_CHAT_DYNAMIC_GREETING_CONTRACT_VERSION =
   '2026-06-05.character-chat-opening-greeting-variants.v1';
+const CHARACTER_CHAT_GREETING_SELECTION_ANALYTICS_CONTRACT_VERSION =
+  '2026-06-15.character-chat-greeting-selection-analytics.v1';
 const CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE = 'opening_greeting';
 const CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS = 180;
 const CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS = 120;
@@ -916,6 +918,8 @@ export class ChatService {
       policy: CHARACTER_CHAT_CATALOG_POLICY,
       copyContract: this.characterChatCopyContract(artist.slug, cmsCopy),
       greetingToneContract: this.characterChatGreetingToneContract(artist.slug),
+      greetingSelectionAnalyticsContract:
+        this.characterChatGreetingSelectionAnalyticsContract(artist.slug),
       dynamicGreetingContract: this.characterChatDynamicGreetingContract(
         artist.slug,
       ),
@@ -962,6 +966,8 @@ export class ChatService {
       runtimePersona,
       copyContract: this.characterChatCopyContract(artist.slug, cmsCopy),
       greetingToneContract: this.characterChatGreetingToneContract(artist.slug),
+      greetingSelectionAnalyticsContract:
+        this.characterChatGreetingSelectionAnalyticsContract(artist.slug),
       dynamicGreetingContract: this.characterChatDynamicGreetingContract(
         artist.slug,
       ),
@@ -3928,6 +3934,82 @@ export class ChatService {
       walletMutation: false,
       orderMutation: false,
       settlementMutation: false,
+    };
+  }
+
+  private characterChatGreetingSelectionAnalyticsContract(artistSlug: string) {
+    return {
+      version: CHARACTER_CHAT_GREETING_SELECTION_ANALYTICS_CONTRACT_VERSION,
+      characterSlug: artistSlug,
+      status: 'contract_ready_event_write_blocked',
+      eventName: 'character_chat.greeting_option_selected',
+      sourceSurfaces: [
+        'GET /api/v1/chat/character-catalog',
+        'GET /api/v1/chat/starter-prompts',
+      ],
+      sourceCandidatePaths: [
+        'openingPrompt.options[]',
+        'starterOptions[]',
+        'sets[].options[]',
+      ],
+      eventWriteEnabled: false,
+      providerCall: false,
+      chatMessageCreate: false,
+      walletMutation: false,
+      orderMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      allowedEventFields: [
+        'eventName',
+        'characterSlug',
+        'artistId',
+        'candidateKey',
+        'candidateIndex',
+        'candidateSource',
+        'toneTags',
+        'personaTags',
+        'locale',
+        'selectedAtDate',
+      ],
+      forbiddenEventFields: [
+        'selectedMessageBody',
+        'fullChatTranscript',
+        'freeformUserInput',
+        'rawPersonaPrompt',
+        'rawProviderPayload',
+        'email',
+        'token',
+        'cookie',
+        'password',
+        'apiKey',
+        'dbUrl',
+      ],
+      aggregation: {
+        mode: 'safe_daily_character_candidate_aggregate',
+        dimensions: [
+          'characterSlug',
+          'candidateKey',
+          'candidateIndex',
+          'candidateSource',
+          'toneTags',
+          'locale',
+          'selectedAtDate',
+        ],
+        safeAggregateOnly: true,
+        userIdReturned: false,
+        rawMessageBodyStored: false,
+        rawPromptStored: false,
+        minBucketSizeBeforeReporting: 5,
+      },
+      privacy: {
+        selectedCopyReturnedInAnalytics: false,
+        rawChatBodyStored: false,
+        rawChatBodyReturned: false,
+        rawPromptStored: false,
+        rawProviderPayloadStored: false,
+        sensitiveAuthMaterialStored: false,
+        privateConnectionMaterialStored: false,
+      },
     };
   }
 
