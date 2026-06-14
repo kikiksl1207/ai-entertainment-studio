@@ -5685,6 +5685,57 @@ describe('ChatService premium chat support contract', () => {
       customAmountHelperKey: 'chat.donation.amount.customHelper',
       lockedRoomDisabledMessageKey: 'chat.donation.blockedRoomState',
     });
+    expect(contract.donation.supportMessageModeration).toMatchObject({
+      version: '2026-06-15.premium-chat-support-message-moderation.v1',
+      sourceField: 'donation.message',
+      mutationEnabled: false,
+      moderationStatuses: [
+        'safe',
+        'needs_review',
+        'reported',
+        'blinded',
+        'blocked',
+      ],
+      roomMessageProjection: {
+        createsRoomMessage: false,
+        unsafeMessageBodyReturned: false,
+        placeholderMessageKey: 'chat.donation.supportMessage.hidden',
+        reportedOrBlindedMessageVisible: false,
+      },
+      artistInboxProjection: {
+        unsafeMessageBodyReturned: false,
+        moderationStateReturned: true,
+        placeholderMessageKey: 'chat.donation.supportMessage.hidden',
+        reportedRoomStopsArtistReply: true,
+        reportedRoomStopsDonation: true,
+        reportedRoomStopsUserSend: true,
+      },
+      adminReviewProjection: {
+        separatedFromRoomMessages: true,
+        queueKey: 'premium_chat_support_message_moderation',
+        rawMessageBodyReturnedToRoom: false,
+        rawMessageBodyReturnedToArtistInbox: false,
+        operatorDecisionRequiredBeforeResume: true,
+      },
+      reportedRoomSafetyStop: {
+        roomStatus: 'paused_by_report',
+        readMode: 'safe_status_only',
+        userCanSendMessage: false,
+        artistCanReply: false,
+        canDonate: false,
+        donationCreate: false,
+        walletMutation: false,
+        refundMutation: false,
+      },
+      noMutation: {
+        donationCreate: true,
+        reportCreate: true,
+        walletDebit: true,
+        refundCreate: true,
+        settlement: true,
+        payout: true,
+      },
+    });
     expect(contract.donation.ledger).toMatchObject({
       donationSource: 'premium_chat_donation',
       direction: 'debit',

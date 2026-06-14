@@ -1627,6 +1627,15 @@ read-only and all donation/wallet/ranking-refresh mutations stay disabled.
 - Reported, blinded, suspended, admin-review, refund-pending, closed, or
   expired rooms must keep support-message creation disabled before wallet lookup
   or any donation event/order write.
+- #871 fixes support-message moderation separation. Unsafe, reported, blinded,
+  or blocked support-message text must not be promoted into normal room
+  messages. Artist inbox projections show only a safe moderation state or
+  placeholder, while admin review uses a separate review projection. Reported
+  rooms stay in safe status-only pause until operator review resumes or closes
+  the room.
+- The #871 contract remains read-only: it does not enable support submission,
+  report creation, wallet debit, refund, settlement, payout, or admin mutation
+  paths.
 - User-visible support/ranking copy must not contain provider, prompt, ledger,
   mutation, projection, AI auto-reply wording, raw prompt/provider payloads,
   tokens, cookies, DB URLs, wallet ledger ids, support-point ids,
