@@ -1,4 +1,5 @@
 import {
+  ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY,
   ARTIST_URL_KNOWLEDGE_CONTRACT,
   ARTIST_URL_KNOWLEDGE_INGEST_STATUSES,
   ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES,
@@ -482,6 +483,14 @@ describe('artist URL knowledge contract', () => {
       overridesTone: false,
       overridesOpeningGreeting: false,
     });
+    expect(context.contextBridge).toMatchObject({
+      source: 'approved_artist_url_knowledge',
+      target: 'character_chat_provider_context',
+      conflictResolution:
+        'system_safety_and_runtime_persona_win_url_knowledge_becomes_uncertain_reference',
+      pendingRejectedArchivedExcluded: true,
+      providerPayloadAllowsOnlyApprovedSafeSummaries: true,
+    });
     expect(context.fallbackPolicy.providerCallBlockedByEmptyKnowledge).toBe(false);
     expect(JSON.stringify(context)).not.toContain('watch?v=abc123');
     expect(JSON.stringify(context)).not.toContain('pending-1');
@@ -573,6 +582,48 @@ describe('artist URL knowledge contract', () => {
       context.items[1].selectionScore,
     );
     expect(JSON.stringify(context)).not.toContain('pending-row');
+  });
+
+  it('keeps approved URL knowledge as a lower-priority context bridge than persona and tone', () => {
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.chatContextConnection.contextBridge).toMatchObject({
+      source: 'approved_artist_url_knowledge',
+      target: 'character_chat_provider_context',
+      allowedInputs: [
+        'approvalStatus=approved',
+        'safetyStatus=safe',
+        'allowChatReference=true',
+        'bounded summary',
+      ],
+      excludedInputs: expect.arrayContaining([
+        'pending',
+        'rejected',
+        'archived',
+        'ai_processing',
+        'needs_review',
+        'blocked',
+        'missing_summary',
+      ]),
+      conflictResolution:
+        'system_safety_and_runtime_persona_win_url_knowledge_becomes_uncertain_reference',
+      urlKnowledgeMayOverridePersona: false,
+      urlKnowledgeMayOverrideWorldview: false,
+      urlKnowledgeMayOverrideOpeningGreeting: false,
+      providerPayloadAllowsOnlyApprovedSafeSummaries: true,
+    });
+    expect(
+      ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY.contextBridge.priorityBeforeUrlKnowledge,
+    ).toEqual([
+      'system_safety',
+      'runtime_persona',
+      'tone_and_manner',
+      'opening_greeting_variant',
+    ]);
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.chatFallbackPolicy).toMatchObject({
+      noApprovedRows: 'continue_without_url_knowledge',
+      pendingRowsOnly: 'continue_without_url_knowledge',
+      rawUnapprovedMaterialsInFallback: false,
+      adminNotesInFallback: false,
+    });
   });
 
   it('builds URL-redacted audit payloads for creator/admin status transitions', () => {

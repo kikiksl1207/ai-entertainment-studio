@@ -449,6 +449,13 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   and source priority. Pending, rejected, archived, processing, unsafe,
   disabled, and summaryless rows are excluded before scoring and do not enter
   prompt context.
+- #870 fixes the character-chat context bridge contract. Approved URL knowledge
+  enters provider context only as lower-priority untrusted reference facts after
+  system safety, runtime persona, tone-and-manner, and opening-greeting variant.
+  If a URL summary conflicts with character persona or world setting, the
+  persona/tone contract wins and the URL item must be dropped or phrased as
+  uncertain external reference. Pending, rejected, archived, AI-processing,
+  safety-review, blocked, or summaryless rows stay out of provider payloads.
 - #780 fixes the ingest moderation handoff guard. Rows with
   `ingestStatus=ai_processing` stay excluded from character-chat context until
   review marks them `approved_for_chat`; raw URL query strings, private URLs,
