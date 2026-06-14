@@ -199,6 +199,14 @@ export type ArtistKnowledgeChatContext = {
     overridesTone: false;
     overridesOpeningGreeting: false;
   };
+  contextBridge: {
+    source: 'approved_artist_url_knowledge';
+    target: 'character_chat_provider_context';
+    conflictResolution:
+      'system_safety_and_runtime_persona_win_url_knowledge_becomes_uncertain_reference';
+    pendingRejectedArchivedExcluded: true;
+    providerPayloadAllowsOnlyApprovedSafeSummaries: true;
+  };
   fallbackPolicy: {
     whenNoEligibleKnowledge: 'continue_without_url_knowledge';
     providerCallBlockedByEmptyKnowledge: false;
@@ -314,6 +322,24 @@ export const ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY = {
   ],
   fallbackWhenEmpty: 'continue_without_url_knowledge',
   emptyKnowledgeBlocksProviderCall: false,
+  contextBridge: {
+    source: 'approved_artist_url_knowledge',
+    target: 'character_chat_provider_context',
+    allowedInputs: ['approvalStatus=approved', 'safetyStatus=safe', 'allowChatReference=true', 'bounded summary'],
+    excludedInputs: ['pending', 'rejected', 'archived', 'ai_processing', 'needs_review', 'blocked', 'missing_summary'],
+    conflictResolution:
+      'system_safety_and_runtime_persona_win_url_knowledge_becomes_uncertain_reference',
+    priorityBeforeUrlKnowledge: [
+      'system_safety',
+      'runtime_persona',
+      'tone_and_manner',
+      'opening_greeting_variant',
+    ],
+    urlKnowledgeMayOverridePersona: false,
+    urlKnowledgeMayOverrideWorldview: false,
+    urlKnowledgeMayOverrideOpeningGreeting: false,
+    providerPayloadAllowsOnlyApprovedSafeSummaries: true,
+  },
 } as const;
 
 export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
@@ -542,6 +568,7 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
       apiKeyReturned: false,
       dbUrlReturned: false,
     },
+    contextBridge: ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY.contextBridge,
   },
   chatContextRefresh: {
     version: ARTIST_URL_KNOWLEDGE_REFRESH_CONTRACT_VERSION,
@@ -856,6 +883,14 @@ export function buildArtistKnowledgeChatContext(
       overridesPersona: false,
       overridesTone: false,
       overridesOpeningGreeting: false,
+    },
+    contextBridge: {
+      source: 'approved_artist_url_knowledge',
+      target: 'character_chat_provider_context',
+      conflictResolution:
+        'system_safety_and_runtime_persona_win_url_knowledge_becomes_uncertain_reference',
+      pendingRejectedArchivedExcluded: true,
+      providerPayloadAllowsOnlyApprovedSafeSummaries: true,
     },
     fallbackPolicy: {
       whenNoEligibleKnowledge: 'continue_without_url_knowledge',

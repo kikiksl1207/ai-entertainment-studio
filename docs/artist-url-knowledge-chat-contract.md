@@ -155,6 +155,11 @@ Newer approved URL knowledge may inform current events, recent uploads, or
 announcements, but it must not rewrite the artist identity, operator ownership,
 age/safety posture, or platform rules.
 
+#870 context bridge lock: pending, rejected, archived, `ai_processing`,
+`needs_review`, `blocked`, or summaryless rows must not enter provider payloads.
+Approved URL summaries are lower-priority untrusted reference facts and may not
+override runtime persona, tone-and-manner, or opening-greeting variant context.
+
 ## Empty Knowledge Fallback
 
 If an artist has no URL knowledge, only pending/rejected/archived URL knowledge,
