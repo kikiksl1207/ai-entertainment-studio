@@ -42,6 +42,8 @@ describe('AI content usage ledger guard', () => {
         'reuseState',
       ],
       safetyBlockedBehavior: 'log_skeleton_only_without_provider_attempt',
+      reusedResultBehavior:
+        'record cache or derived result without a billable provider attempt or duplicate cost row',
     });
     expect(AI_CONTENT_USAGE_LEDGER_GUARD.fields).toEqual(
       expect.arrayContaining([
@@ -55,6 +57,7 @@ describe('AI content usage ledger guard', () => {
         'regenerationCount',
         'reuseState',
         'reuseSourceRequestId',
+        'providerAttemptBillable',
         'estimatedCostMicros',
         'actualCostMicros',
         'inputUnits',
@@ -101,6 +104,7 @@ describe('AI content usage ledger guard', () => {
       regenerationCount: 1,
       reuseState: 'derived_from_previous',
       reuseSourceRequestId: 'source-request-1',
+      providerAttemptBillable: false,
       estimatedCostMicros: 1200,
       actualCostMicros: 900,
       inputUnits: 8,
@@ -123,6 +127,7 @@ describe('AI content usage ledger guard', () => {
       requestType: 'video_clip',
       modelRouteAlias: 'ai_premium_content.video.text_to_video',
       safetyStatus: 'blocked',
+      reuseState: 'cache_hit',
       estimatedCostMicros: 5000,
       reuseState: 'cache_hit',
     });
@@ -140,6 +145,7 @@ describe('AI content usage ledger guard', () => {
       safetyStatus: 'blocked',
       reuseState: 'cache_hit',
       estimatedCostMicros: 5000,
+      providerAttemptBillable: false,
       walletMutation: false,
       orderMutation: false,
     });
@@ -184,6 +190,54 @@ describe('AI content usage ledger guard', () => {
       totalOutputUnits: 1,
       maxRegenerationCount: 1,
       reusedAttemptCount: 1,
+      billableProviderAttemptCount: 1,
+      avoidedEstimatedCostMicros: 1200,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+  });
+
+  it('keeps reused or derived AI results out of duplicate provider billing totals', () => {
+    const rows = [
+      buildAiContentUsageLedgerRow({
+        requestId: 'image-request-1',
+        requestType: 'image_single',
+        modelRouteAlias: 'ai_premium_content.image.text_to_image',
+        safetyStatus: 'cleared',
+        estimatedCostMicros: 3000,
+      }),
+      buildAiContentUsageLedgerRow({
+        requestId: 'image-request-2',
+        requestType: 'image_variation',
+        modelRouteAlias: 'ai_premium_content.image.text_to_image',
+        safetyStatus: 'cleared',
+        reuseState: 'derived_from_previous',
+        reuseSourceRequestId: 'image-request-1',
+        estimatedCostMicros: 3000,
+      }),
+      buildAiContentUsageLedgerRow({
+        requestId: 'video-request-1',
+        requestType: 'video_clip',
+        modelRouteAlias: 'ai_premium_content.video.text_to_video',
+        safetyStatus: 'cleared',
+        reuseState: 'cache_hit',
+        reuseSourceRequestId: 'image-request-1',
+        estimatedCostMicros: 5000,
+      }),
+    ];
+
+    expect(rows.map((row) => row.providerAttemptBillable)).toEqual([
+      true,
+      false,
+      false,
+    ]);
+    expect(summarizeAiContentUsage(rows)).toMatchObject({
+      totalAttempts: 3,
+      reusedAttemptCount: 2,
+      billableProviderAttemptCount: 1,
+      totalEstimatedCostMicros: 11000,
+      avoidedEstimatedCostMicros: 8000,
       walletMutation: false,
       settlementMutation: false,
       payoutMutation: false,

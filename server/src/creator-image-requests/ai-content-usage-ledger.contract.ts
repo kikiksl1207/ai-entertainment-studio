@@ -96,6 +96,7 @@ export const AI_CONTENT_USAGE_LEDGER_GUARD = {
     'regenerationCount',
     'reuseState',
     'reuseSourceRequestId',
+    'providerAttemptBillable',
     'estimatedCostMicros',
     'actualCostMicros',
     'inputUnits',
@@ -113,6 +114,8 @@ export const AI_CONTENT_USAGE_LEDGER_GUARD = {
     'totalOutputUnits',
     'maxRegenerationCount',
     'reusedAttemptCount',
+    'billableProviderAttemptCount',
+    'avoidedEstimatedCostMicros',
   ],
   pipelineLogPolicy: {
     source: 'ai_middleware_pipeline',
@@ -130,7 +133,10 @@ export const AI_CONTENT_USAGE_LEDGER_GUARD = {
       'safetyStatus',
       'reuseState',
     ],
+    reuseStates: AI_CONTENT_USAGE_REUSE_STATES,
     safetyBlockedBehavior: 'log_skeleton_only_without_provider_attempt',
+    reusedResultBehavior:
+      'record cache or derived result without a billable provider attempt or duplicate cost row',
   },
   sensitiveDataPolicy: {
     vendorCredentialStored: false,
@@ -173,6 +179,7 @@ export function buildAiContentUsageLedgerRow(
     regenerationCount: nonNegativeInteger(input.regenerationCount),
     reuseState: normalizeReuseState(input.reuseState),
     reuseSourceRequestId: normalizeText(input.reuseSourceRequestId, 80),
+    providerAttemptBillable: providerAttemptBillable(input),
     estimatedCostMicros: nonNegativeInteger(input.estimatedCostMicros),
     actualCostMicros: nonNegativeInteger(input.actualCostMicros),
     inputUnits: nonNegativeInteger(input.inputUnits),
@@ -193,6 +200,7 @@ export function buildAiContentUsageLedgerRow(
 export function summarizeAiContentUsage(rows: AiContentUsageLedgerRow[]) {
   const totalAttempts = rows.length;
   const failedAttempts = rows.filter((row) => Boolean(row.failureCode)).length;
+  const reusedRows = rows.filter((row) => row.reuseState !== 'none');
 
   return {
     schemaVersion: AI_CONTENT_USAGE_LEDGER_SCHEMA_VERSION,
@@ -213,7 +221,14 @@ export function summarizeAiContentUsage(rows: AiContentUsageLedgerRow[]) {
       (max, row) => Math.max(max, row.regenerationCount),
       0,
     ),
-    reusedAttemptCount: rows.filter((row) => row.reuseState !== 'none').length,
+    reusedAttemptCount: reusedRows.length,
+    billableProviderAttemptCount: rows.filter(
+      (row) => row.providerAttemptBillable,
+    ).length,
+    avoidedEstimatedCostMicros: reusedRows.reduce(
+      (total, row) => total + row.estimatedCostMicros,
+      0,
+    ),
     walletMutation: false,
     settlementMutation: false,
     payoutMutation: false,
@@ -272,6 +287,14 @@ function normalizeModelRouteAlias(value: string | null | undefined) {
   const normalized = normalizeText(value, 120);
 
   return normalized?.startsWith('ai_premium_content.') ? normalized : null;
+}
+
+function providerAttemptBillable(input: AiContentUsageLedgerInput) {
+  const reuseState = normalizeReuseState(input.reuseState);
+  const safetyStatus = normalizeSafetyStatus(input.safetyStatus);
+
+  return !['cache_hit', 'derived_from_previous'].includes(reuseState) &&
+    safetyStatus !== 'blocked';
 }
 
 function normalizeText(value: string | null | undefined, maxLength: number) {
