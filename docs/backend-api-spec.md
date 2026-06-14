@@ -2579,6 +2579,20 @@ AI premium content request brief API skeleton (#662):
   route alias. Vendor provider keys, model keys, raw prompts, provider payloads,
   signed URLs, sensitive auth material, and database connection material must
   not be returned or logged by this skeleton.
+- #873 adds `CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT` for the future
+  character-chat-to-AI-content request bridge. It is adapter-only and disabled:
+  normal character chat remains `ai_character_chat` / `ai_character_reply`,
+  artist direct premium DM remains `artist_direct_premium_dm` /
+  `artist_direct_reply`, and image/video/mixed content requests remain
+  `ai_premium_content_request` / `async_ai_content_generation_request`.
+- The #873 handoff may carry only a source message reference, server-resolved
+  artist slug, server-classified request type, and sanitized user-intent
+  summary. It must not copy the full chat transcript as a provider prompt or
+  expose raw request enums as user copy.
+- #873 does not enable `POST /api/v1/ai-premium-content/requests`, GPT Image,
+  Stable Diffusion, Seedance, OpenAI/provider calls, wallet/order mutation,
+  settlement, payout, paid-like mutation, notification creation, premium DM room
+  creation, or character-chat AI reply creation.
 - Raw state enums such as `provider_failed` must not be shown directly. Use the
   Korean fallback map: `draft` = `작성 중`, `submitted` = `요청이 접수됐어요`,
   `queued` = `생성 준비 중이에요`, `generating` = `콘텐츠를 만들고 있어요`,

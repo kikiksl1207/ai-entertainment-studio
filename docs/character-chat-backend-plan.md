@@ -414,6 +414,28 @@ If `chatFeatureOrderId` is omitted, the request is treated as basic
 30-second cooldown, daily cap, and low model tier before any live provider is
 enabled.
 
+## Character Chat AI Premium Content Handoff
+
+#873 adds a disabled backend contract for future image/video/premium-pack
+requests that begin from character chat. This is a handoff/readiness contract
+only. It does not submit an AI premium content request and does not call GPT
+Image, Stable Diffusion, Seedance, OpenAI, or any provider.
+
+- Normal character chat stays `ai_character_chat` with
+  `ai_character_reply`.
+- Artist direct premium DM stays `artist_direct_premium_dm` with
+  `artist_direct_reply`.
+- AI image/video/mixed premium content requests stay
+  `ai_premium_content_request` with
+  `async_ai_content_generation_request`.
+- The handoff adapter may carry only a source message reference,
+  server-resolved artist slug, server-classified request type, and sanitized
+  user-intent summary.
+- The handoff must not copy a full chat transcript into a provider prompt and
+  must not expose raw intent/request enums as user-facing copy.
+- Wallet, order, settlement, payout, paid-like, notification, premium DM room,
+  and character-chat AI reply mutations remain disabled by this contract.
+
 ## LLM Adapter Boundary
 
 Current code introduces a `ChatLlmProvider` interface and a fail-closed
