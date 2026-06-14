@@ -1210,8 +1210,10 @@ async function loadFollowList(type, append) {
 
     if (rawItems.length === 0 && !append) {
       if (emptyEl) {
+        // #859 — empty state 부제목 추가
         const label = type === "followers" ? "팔로워가 아직 없어요." : "팔로잉이 아직 없어요.";
-        emptyEl.innerHTML = `<strong>${label}</strong>`;
+        const sub = type === "followers" ? "이 계정을 팔로우한 사람이 없어요." : "아직 팔로우한 계정이 없어요.";
+        emptyEl.innerHTML = `<strong>${label}</strong><p>${sub}</p>`;
         emptyEl.hidden = false;
       }
       if (loadMoreBtn) loadMoreBtn.hidden = true;

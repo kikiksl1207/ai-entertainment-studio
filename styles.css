@@ -5366,3 +5366,16 @@ p {
   border-color: rgba(255, 20, 147, 0.48);
   color: #ff9ecf;
 }
+
+/* #858 — 피드 다중 이미지 grid mobile polish: 2/3/4장 카드 최소 높이 보장 */
+@media (max-width: 480px) {
+  .feed-post-assets-2 .feed-post-asset-item,
+  .feed-post-assets-3 .feed-post-asset-item,
+  .feed-post-assets-4 .feed-post-asset-item {
+    min-height: 120px;
+    max-height: 240px;
+  }
+  .feed-post-assets-3 .feed-post-asset-item:first-child {
+    max-height: 248px;
+  }
+}

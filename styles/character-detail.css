@@ -545,11 +545,15 @@
   color: rgba(255, 208, 128, 0.8);
 }
 
-/* #765 — 390px 텍스트 겹침 방지: option-body small이 잘리지 않도록 줄바꿈 허용 */
+/* #765/#857 — 480px 이하: 1열 카드, 텍스트 겹침 방지 */
 @media (max-width: 480px) {
-  .detail-chat-option {
-    padding: 14px 14px;
+  .detail-chat-select {
+    grid-template-columns: 1fr;
     gap: 10px;
+  }
+  .detail-chat-option {
+    padding: 14px 16px;
+    gap: 12px;
   }
   .detail-chat-option-icon {
     font-size: 20px;
