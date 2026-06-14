@@ -13,6 +13,7 @@ import {
   AI_PREMIUM_CONTENT_SAFETY_STATUSES,
   AI_PREMIUM_CONTENT_STATE_API_CONTRACT,
   AI_PREMIUM_CONTENT_STATUS_COPY_KO,
+  CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT,
   resolveAiPremiumContentCostPrecheck,
   resolveAiPremiumContentSafetyPrecheck,
 } from './ai-premium-content-state-contract';
@@ -62,6 +63,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       'needs_review',
     ]);
     expect(contract.briefApiSkeleton).toBe(AI_PREMIUM_CONTENT_BRIEF_API_SKELETON);
+    expect(contract.characterChatHandoff).toBe(
+      CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT,
+    );
     expect(contract.requestQueueSkeleton).toBe(
       AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON,
     );
@@ -476,6 +480,78 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     expect(skeleton.sensitiveDataPolicy).toMatchObject({
       sensitiveAuthMaterialReturned: false,
       databaseConnectionMaterialReturned: false,
+    });
+  });
+
+  it('keeps character-chat premium content handoff as a disabled adapter-only product flow', () => {
+    const handoff = CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT;
+    const serialized = JSON.stringify(handoff);
+
+    expect(handoff).toMatchObject({
+      version: '2026-06-15.character-chat-ai-premium-content-handoff.v1',
+      status: 'contract_ready_submit_blocked',
+      sourceSurface: 'character_chat',
+      enabled: false,
+      submitEnabled: false,
+      mutation: false,
+      providerCallEnabled: false,
+      walletMutationEnabled: false,
+      orderMutationEnabled: false,
+    });
+    expect(handoff.sourceProductFlow).toMatchObject({
+      productKind: 'ai_character_chat',
+      responseMode: 'ai_character_reply',
+      normalTextMessageContinuesCharacterChat: true,
+      createsPremiumChatRoom: false,
+      createsArtistDirectDm: false,
+    });
+    expect(handoff.targetProductFlow).toMatchObject({
+      productKind: 'ai_premium_content_request',
+      responseMode: 'async_ai_content_generation_request',
+      targetEndpoint: '/api/v1/ai-premium-content/requests',
+      currentStorageEnabled: false,
+      currentSubmitEnabled: false,
+    });
+    expect(handoff.targetProductFlow.requestTypes).toEqual(
+      AI_PREMIUM_CONTENT_REQUEST_TYPES,
+    );
+    expect(handoff.productFlowSeparation).toMatchObject({
+      characterChat: {
+        productKind: 'ai_character_chat',
+        createsAiPremiumContentRequest: false,
+        createsPremiumDmRoom: false,
+      },
+      premiumDirectDm: {
+        productKind: 'artist_direct_premium_dm',
+        createsCharacterChatMessage: false,
+        createsAiPremiumContentRequest: false,
+      },
+      aiPremiumContent: {
+        productKind: 'ai_premium_content_request',
+        ownsImageVideoGenerationRequest: true,
+        createsCharacterChatAiReply: false,
+        createsPremiumDmRoom: false,
+      },
+    });
+    expect(handoff.adapterShape).toMatchObject({
+      adapterOnly: true,
+      sourceMessageIdReferenceOnly: true,
+      requestTypeSource: 'server_classified_content_intent',
+      briefSource: 'sanitized_user_intent_summary',
+      rawChatTranscriptCopied: false,
+      rawUserPromptAsProviderPrompt: false,
+      rawProviderPayloadCopied: false,
+      providerSpecificModelKeyAccepted: false,
+    });
+    expect(Object.values(handoff.forbiddenSideEffects).every((enabled) => enabled === false)).toBe(
+      true,
+    );
+    expect(serialized).not.toMatch(/apiKey|secret|token|password|cookie|dbUrl/i);
+    expect(handoff.responseProjection).toMatchObject({
+      rawIntentEnumAsCopy: false,
+      rawRequestTypeAsCopy: false,
+      providerNameReturned: false,
+      modelNameReturned: false,
     });
   });
 
