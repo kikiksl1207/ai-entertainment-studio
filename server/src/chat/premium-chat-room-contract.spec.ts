@@ -264,6 +264,66 @@ describe('premium chat room refund and moderation ledger contract', () => {
       });
   });
 
+  it('allows only artist-selected tiers unlocked by server follower thresholds', () => {
+    const unlocks = resolvePremiumChatRoomFollowerTierUnlocks({
+      activeFollowerCount: 10000,
+      clientSubmittedFollowerCount: 50000,
+    });
+
+    expect(unlocks).toMatchObject({
+      unlockedTierKeys: [
+        'premium_chat_room_300',
+        'premium_chat_room_500',
+        'premium_chat_room_1000',
+      ],
+      clientSubmittedFollowerCountTrusted: false,
+      clientSubmittedFollowerCountIgnored: true,
+    });
+    expect(
+      resolvePremiumChatRoomOpenPolicy({
+        tierKey: 'premium_chat_room_1000',
+        serverUnlockedTierKeys: unlocks.unlockedTierKeys,
+        clientSubmittedAmountLumina: 1,
+      }),
+    ).toMatchObject({
+      allowed: true,
+      tierKey: 'premium_chat_room_1000',
+      amountLumina: 1000,
+      allowedTierKeys: [
+        'premium_chat_room_300',
+        'premium_chat_room_500',
+        'premium_chat_room_1000',
+      ],
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedAmountMismatch: true,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(
+      resolvePremiumChatRoomOpenPolicy({
+        tierKey: 'premium_chat_room_3000',
+        serverUnlockedTierKeys: unlocks.unlockedTierKeys,
+        clientSubmittedAmountLumina: 3000,
+      }),
+    ).toMatchObject({
+      allowed: false,
+      status: 403,
+      code: 'PREMIUM_CHAT_ROOM_TIER_LOCKED',
+      messageKey: 'chat.premiumRoom.tierLocked',
+      tierKey: 'premium_chat_room_3000',
+      amountLumina: 3000,
+      allowedTierKeys: [
+        'premium_chat_room_300',
+        'premium_chat_room_500',
+        'premium_chat_room_1000',
+      ],
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+  });
+
   it('publishes a fail-closed follower tier price guard before wallet mutation', () => {
     expect(PREMIUM_CHAT_ROOM_CONTRACT.roomOpen.followerTierPriceGuard).toMatchObject({
       version: '2026-06-08.premium-chat-follower-tier-price-guard.v1',
