@@ -491,6 +491,7 @@ describe('AdminService generic audit event read model', () => {
         cookieReturned: false,
         dbUrlReturned: false,
         providerKeyReturned: false,
+        providerCredentialReturned: false,
         rawPromptReturned: false,
         rawEmailReturned: false,
       },
@@ -501,6 +502,104 @@ describe('AdminService generic audit event read model', () => {
     expect(payload).not.toContain('admin@example.com');
     expect(payload).not.toContain('must-not-return');
     expect(payload).not.toContain('postgres://');
+  });
+
+  it('filters account security audit events read-only without returning raw credentials', async () => {
+    const actions = [
+      'auth.login.success',
+      'auth.password_reset.request',
+      'auth.email_verification.confirm',
+      'auth.social.connect',
+      'user.sessions.revoke',
+    ];
+    const prisma = {
+      auditEvent: {
+        findMany: jest.fn().mockResolvedValue(
+          actions.map((action, index) => ({
+            id: `00000000-0000-4000-8000-00000000913${index}`,
+            actorUserId: '00000000-0000-4000-8000-000000009130',
+            actorType: 'user',
+            action,
+            targetType: 'user',
+            targetId: '00000000-0000-4000-8000-000000009131',
+            beforeData: {
+              email: 'account-security@example.com',
+              token: 'token=must-not-return',
+              providerCredential: 'provider-credential=must-not-return',
+            },
+            afterData: {
+              status: 'accepted',
+              password: 'password=must-not-return',
+              cookie: 'cookie=must-not-return',
+            },
+            metadata: {
+              requestId: `req-913-${index}`,
+              sessionId: `session-${index}`,
+              providerCredential: 'provider-credential=must-not-return',
+              rawEmail: 'account-security@example.com',
+            },
+            createdAt: new Date('2026-06-16T00:00:00.000Z'),
+            actorUser: {
+              id: '00000000-0000-4000-8000-000000009130',
+              email: 'operator@example.com',
+              status: 'active',
+            },
+          })),
+        ),
+      },
+    };
+    const service = new AdminService(
+      prisma as unknown as PrismaService,
+      { get: jest.fn() } as unknown as ConfigService,
+    );
+
+    const result = await service.getAuditEvents({
+      action: 'auth.password_reset.request',
+      targetType: 'user',
+    });
+
+    expect(prisma.auditEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          action: 'auth.password_reset.request',
+          targetType: 'user',
+        }),
+      }),
+    );
+    expect(result.items.map((item) => item.action)).toEqual(actions);
+    for (const item of result.items) {
+      expect(item).toMatchObject({
+        targetType: 'user',
+        beforeData: {
+          email: '[redacted]',
+          token: '[redacted]',
+          providerCredential: '[redacted]',
+        },
+        afterData: {
+          status: 'accepted',
+          password: '[redacted]',
+          cookie: '[redacted]',
+        },
+        metadata: {
+          providerCredential: '[redacted]',
+          rawEmail: '[redacted]',
+        },
+        actorUser: {
+          emailMasked: 'op***@example.com',
+        },
+        sensitiveFields: {
+          providerCredentialReturned: false,
+          tokenReturned: false,
+          passwordReturned: false,
+          cookieReturned: false,
+          rawEmailReturned: false,
+        },
+      });
+    }
+    const payload = JSON.stringify(result);
+    expect(payload).not.toContain('account-security@example.com');
+    expect(payload).not.toContain('operator@example.com');
+    expect(payload).not.toContain('must-not-return');
   });
 });
 
