@@ -162,6 +162,27 @@ export const PREMIUM_CHAT_BILLING_LEDGER_EVENT_NAMES = [
   'premium_chat.refund_restriction.artist_compensation.credit',
 ] as const;
 
+export const PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT = {
+  version: '2026-06-15.premium-chat-ledger-precision.v1',
+  amountStorage: 'integer_lumina_subunits',
+  luminaSubunitsPerLumina: 2,
+  minimumBillableUnitLumina: 0.5,
+  decimalAmountStoredInLedger: false,
+  roundingMode: 'reject_non_unit_multiple_before_ledger',
+  roomOpenFeeAmountSource: 'server_room_tier_policy',
+  messagePairAmountSource: 'server_visible_two_way_sentence_pair_meter',
+  duplicateChargeGuard: [
+    'room_open_idempotency_fingerprint',
+    'server_message_pair_meter_key',
+  ],
+  clientSubmittedAmountTrusted: false,
+  clientSubmittedBalanceTrusted: false,
+  clientSubmittedBonusTrusted: false,
+  walletMutationEnabled: false,
+  settlementMutationEnabled: false,
+  payoutMutationEnabled: false,
+} as const;
+
 export const PREMIUM_CHAT_REFUND_REASON_KEYS = [
   'unanswered_24h_full_refund',
   'artist_forced_close_full_refund',
@@ -470,6 +491,7 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       source: 'premium_chat_message',
       ledgerType: 'premium_chat_message',
       direction: 'debit',
+      precision: PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT,
       referenceType: 'premium_chat_message_meter_window',
       unit: {
         userVisibleSentenceCount: 1,
@@ -2217,6 +2239,10 @@ export function resolvePremiumChatMessageChargePolicy(input: {
     artistVisibleSentenceCount,
   );
   const chargeLumina = chargeablePairCount;
+  const precision = resolvePremiumChatLedgerPrecision({
+    serverAmountLumina: chargeLumina,
+    clientSubmittedAmountLumina: input.clientSubmittedChargeLumina,
+  });
   const clientSubmittedChargeLumina =
     typeof input.clientSubmittedChargeLumina === 'number'
       ? input.clientSubmittedChargeLumina
@@ -2234,6 +2260,9 @@ export function resolvePremiumChatMessageChargePolicy(input: {
     artistVisibleSentenceCount,
     chargeablePairCount,
     chargeLumina,
+    chargeLedgerUnits: precision.serverAmountLedgerUnits,
+    ledgerUnitScale: precision.luminaSubunitsPerLumina,
+    ledgerAmountStorage: precision.amountStorage,
     unpairedUserSentenceCount:
       userVisibleSentenceCount - chargeablePairCount,
     unpairedArtistSentenceCount:
@@ -2252,6 +2281,46 @@ export function resolvePremiumChatMessageChargePolicy(input: {
       clientSubmittedChargeLumina !== chargeLumina,
     rawMessageBodyRequired: false,
     messageKey: 'chat.premiumRoom.messageChargePolicy',
+  } as const;
+}
+
+export function resolvePremiumChatLedgerPrecision(input: {
+  serverAmountLumina?: unknown;
+  clientSubmittedAmountLumina?: unknown;
+}) {
+  const serverAmountLumina = nonNegativeNumber(input.serverAmountLumina);
+  const serverAmountLedgerUnits =
+    serverAmountLumina * PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT.luminaSubunitsPerLumina;
+  const serverAmountValid =
+    Number.isInteger(serverAmountLedgerUnits) && serverAmountLumina >= 0;
+  const clientSubmittedAmountLumina =
+    typeof input.clientSubmittedAmountLumina === 'number'
+      ? input.clientSubmittedAmountLumina
+      : typeof input.clientSubmittedAmountLumina === 'string'
+        ? Number(input.clientSubmittedAmountLumina)
+        : null;
+
+  return {
+    amountStorage: PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT.amountStorage,
+    luminaSubunitsPerLumina:
+      PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT.luminaSubunitsPerLumina,
+    minimumBillableUnitLumina:
+      PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT.minimumBillableUnitLumina,
+    serverAmountLumina,
+    serverAmountLedgerUnits: serverAmountValid ? serverAmountLedgerUnits : null,
+    serverAmountValid,
+    decimalAmountStoredInLedger: false,
+    roundingMode: PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT.roundingMode,
+    clientSubmittedAmountTrusted: false,
+    clientSubmittedAmountIgnored:
+      input.clientSubmittedAmountLumina !== undefined,
+    clientSubmittedAmountMismatch:
+      clientSubmittedAmountLumina !== null &&
+      Number.isFinite(clientSubmittedAmountLumina) &&
+      clientSubmittedAmountLumina !== serverAmountLumina,
+    walletMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
   } as const;
 }
 
