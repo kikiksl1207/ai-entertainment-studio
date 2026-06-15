@@ -3791,7 +3791,113 @@ export class AdminService {
         },
       },
       })
-      .then((rows) => this.paginated(rows, pagination.take));
+      .then((rows) =>
+        this.paginated(
+          rows.map((row) => this.presentAuditEventReadModel(row)),
+          pagination.take,
+        ),
+      );
+  }
+
+  private presentAuditEventReadModel(row: {
+    id: string;
+    actorUserId: string | null;
+    actorType: string;
+    action: string;
+    targetType: string;
+    targetId: string | null;
+    beforeData: unknown;
+    afterData: unknown;
+    metadata: unknown;
+    createdAt: Date;
+    actorUser?: { id: string; email: string | null; status: string } | null;
+  }) {
+    return {
+      id: row.id,
+      actorUserId: row.actorUserId,
+      actorType: row.actorType,
+      action: row.action,
+      targetType: row.targetType,
+      targetId: row.targetId,
+      beforeData: this.redactAuditReadModelValue(row.beforeData),
+      afterData: this.redactAuditReadModelValue(row.afterData),
+      metadata: this.redactAuditReadModelValue(row.metadata),
+      createdAt: row.createdAt,
+      actorUser: row.actorUser
+        ? {
+            id: row.actorUser.id,
+            emailMasked: this.maskEmail(row.actorUser.email),
+            status: row.actorUser.status,
+          }
+        : null,
+      sensitiveFields: {
+        tokenReturned: false,
+        passwordReturned: false,
+        cookieReturned: false,
+        dbUrlReturned: false,
+        providerKeyReturned: false,
+        rawPromptReturned: false,
+        rawEmailReturned: false,
+      },
+    };
+  }
+
+  private redactAuditReadModelValue(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.redactAuditReadModelValue(item));
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([key, nested]) => [
+          key,
+          this.isSensitiveAuditReadModelKey(key)
+            ? '[redacted]'
+            : this.redactAuditReadModelValue(nested),
+        ]),
+      );
+    }
+
+    if (typeof value === 'string' && this.auditReadModelStringLooksSensitive(value)) {
+      return '[redacted]';
+    }
+
+    return value;
+  }
+
+  private isSensitiveAuditReadModelKey(key: string) {
+    const normalized = key.toLowerCase();
+
+    if (normalized.includes('masked')) {
+      return false;
+    }
+
+    return [
+      'token',
+      'password',
+      'cookie',
+      'secret',
+      'apikey',
+      'api_key',
+      'providerkey',
+      'provider_key',
+      'dburl',
+      'db_url',
+      'databaseurl',
+      'database_url',
+      'rawprompt',
+      'raw_prompt',
+      'prompt',
+      'rawemail',
+      'raw_email',
+      'email',
+    ].some((part) => normalized.includes(part));
+  }
+
+  private auditReadModelStringLooksSensitive(value: string) {
+    return /postgres(?:ql)?:\/\//i.test(value) ||
+      /bearer\s+[a-z0-9._-]+/i.test(value) ||
+      /(password|cookie|token|api[_-]?key|secret)\s*[:=]/i.test(value);
   }
 
   async getAuthActionTokens(query: AuditQuery) {
