@@ -518,7 +518,12 @@
         submitLabel.textContent = `요청 접수됨 · ${meta.name} (${meta.price})`;
         submit.disabled = true;
         submit.setAttribute("aria-disabled", "true");
-        // 본 메시지를 사용자의 DM 흐름에도 시스템 안내 버블로 띄울 수 있도록
+        const confirmEl = document.getElementById("chatRequestConfirm");
+        const confirmLabel = document.getElementById("chatRequestConfirmLabel");
+        if (confirmEl) {
+          if (confirmLabel) confirmLabel.textContent = `요청 접수됨 · ${meta.name} (${meta.price})`;
+          confirmEl.hidden = false;
+        }
         // 추후 백엔드 image-request 엔드포인트 확정 시 여기서 호출하면 됨.
       });
     }

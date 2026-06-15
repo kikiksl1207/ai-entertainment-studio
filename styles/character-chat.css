@@ -536,6 +536,15 @@
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/* #891 — 390px 이하: 첫 인사 푸터 항목이 겹치지 않도록 세로 쌓기 */
+@media (max-width: 390px) {
+  .chat-starter-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
 .chat-starter-direct {
   border: 0;
   background: transparent;
@@ -1008,6 +1017,36 @@
 .dm-request-notes li strong {
   color: rgba(255, 200, 220, 0.9);
   font-weight: 700;
+}
+
+/* #892 — 요청 제출 후 확인 배너 */
+.dm-request-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0 4px;
+  padding: 12px 14px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: 10px;
+}
+.dm-request-confirm-icon {
+  font-size: 18px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+.dm-request-confirm strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #4ade80;
+  margin-bottom: 3px;
+}
+.dm-request-confirm p {
+  font-size: 12px;
+  color: rgba(180, 255, 200, 0.75);
+  margin: 0;
+  line-height: 1.5;
 }
 
 .dm-sheet-foot {

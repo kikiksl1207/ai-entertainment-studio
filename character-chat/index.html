@@ -373,6 +373,15 @@
         </ul>
       </div>
 
+      <!-- #892 — 제출 후 확인 배너 (기본 hidden, JS에서 show) -->
+      <div class="dm-request-confirm" id="chatRequestConfirm" hidden aria-live="polite">
+        <span class="dm-request-confirm-icon" aria-hidden="true">✅</span>
+        <div>
+          <strong id="chatRequestConfirmLabel">요청 접수됨</strong>
+          <p>운영 검수 → 제작 → 보관함 도착 순서로 진행돼요. 준비되면 알려드려요.</p>
+        </div>
+      </div>
+
       <footer class="dm-sheet-foot">
         <button type="button" class="dm-sheet-secondary" data-request-close>닫기</button>
         <button type="button" class="dm-sheet-primary" id="chatRequestSubmit" disabled aria-disabled="true">

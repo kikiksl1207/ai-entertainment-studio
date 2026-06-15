@@ -5379,3 +5379,8 @@ p {
     max-height: 248px;
   }
 }
+
+/* #890 — 프리미엄챗 방 상태 배지: paused/refund/closed 상태 구분 */
+.premium-chat-hub-room-badge.is-warn { background: rgba(251,191,36,0.18); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+.premium-chat-hub-room-badge.is-refund { background: rgba(249,115,22,0.15); color: #fb923c; border: 1px solid rgba(249,115,22,0.3); }
+.premium-chat-hub-room-badge.is-closed { background: rgba(150,150,170,0.12); color: rgba(200,200,220,0.65); border: 1px solid rgba(150,150,170,0.2); }

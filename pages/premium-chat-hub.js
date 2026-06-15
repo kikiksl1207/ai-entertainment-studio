@@ -200,6 +200,9 @@
       var statusLabel = roomState.label || (mutationOpen ? "후원 가능" : "후원 준비 중");
       var statusClass = roomState.key === "active"
         ? (mutationOpen ? "is-ready" : "is-locked")
+        : roomState.key === "paused" ? "is-warn"
+        : roomState.key === "refund" ? "is-refund"
+        : roomState.key === "closed" ? "is-closed"
         : "is-locked";
 
       // 상태 배지 목록
