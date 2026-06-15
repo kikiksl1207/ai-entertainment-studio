@@ -718,6 +718,85 @@ type AiPremiumContentCostPrecheckInput = {
   failureCount?: number | string | null;
 };
 
+type AiPremiumContentProviderGuardInput = {
+  providerRouteAlias?: string | null;
+  estimatedCostMicros?: number | string | null;
+  requestCostCapMicros?: number | string | null;
+  paidRequest?: boolean | null;
+  safetyStatus?: string | null;
+  attempt?: number | string | null;
+  failureCode?: string | null;
+};
+
+export const AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT = {
+  version: '2026-06-16.ai-premium-content-provider-cost-timeout-guard.v1',
+  status: 'contract_ready_provider_disabled',
+  providerAttemptEnabled: false,
+  providerRouteAliasOnly: true,
+  providerSpecificModelNameTrusted: false,
+  requestCostCap: {
+    currency: 'KRW_MICROS',
+    source: 'server_request_policy_cap',
+    clientSubmittedCostTrusted: false,
+    failClosedBeforeProviderCall: true,
+  },
+  providerRoutes: [
+    {
+      providerRouteAlias: 'ai_premium_content.image.text_to_image',
+      costClass: 'standard',
+      estimatedCostCeilingMicros: 5_000_000,
+      paidRequestRequired: false,
+    },
+    {
+      providerRouteAlias: 'ai_premium_content.video.text_to_video',
+      costClass: 'high',
+      estimatedCostCeilingMicros: 50_000_000,
+      paidRequestRequired: true,
+    },
+    {
+      providerRouteAlias: 'ai_premium_content.mixed.generation_pack',
+      costClass: 'high',
+      estimatedCostCeilingMicros: 70_000_000,
+      paidRequestRequired: true,
+    },
+  ],
+  timeoutPolicy: {
+    providerTimeoutMs: 30_000,
+    connectTimeoutMs: 5_000,
+    timeoutStatusKey: 'provider_failed',
+    timeoutCode: 'AI_PREMIUM_CONTENT_PROVIDER_TIMEOUT',
+    timeoutBillable: false,
+  },
+  retryPolicy: {
+    maxAttempts: 1,
+    retryOn: ['provider_timeout', 'provider_transient_failure'],
+    retryRequiresFreshCostGuard: true,
+    retryAfterSafetyBlocked: false,
+    duplicateProviderCostRow: false,
+  },
+  billingPolicy: {
+    successOnlyBillable: true,
+    safetyBlockedBillable: false,
+    timeoutBillable: false,
+    providerFailedBillable: false,
+    moderationRejectedBillable: false,
+    walletMutationEnabled: false,
+    orderMutationEnabled: false,
+  },
+  failureStatusMapping: {
+    costCapExceeded: 'failed',
+    timeout: 'failed',
+    providerFailed: 'failed',
+    safetyBlocked: 'blocked',
+  },
+  privacy: {
+    providerPayloadReturned: false,
+    providerKeyReturned: false,
+    modelKeyReturned: false,
+    rawPromptReturned: false,
+  },
+} as const;
+
 const nonNegativeInteger = (value: number | string | null | undefined) => {
   const parsed =
     typeof value === 'string' && value.trim() !== ''
@@ -739,6 +818,13 @@ const isAiPremiumContentRequestType = (
   AI_PREMIUM_CONTENT_REQUEST_TYPES.includes(
     value as AiPremiumContentRequestType,
   );
+
+const normalizeSafetyStatus = (value: string | null | undefined) =>
+  AI_PREMIUM_CONTENT_SAFETY_STATUSES.includes(
+    value as (typeof AI_PREMIUM_CONTENT_SAFETY_STATUSES)[number],
+  )
+    ? (value as (typeof AI_PREMIUM_CONTENT_SAFETY_STATUSES)[number])
+    : 'unknown';
 
 const deniedAiPremiumContentPrecheck = ({
   code,
@@ -894,6 +980,112 @@ export const resolveAiPremiumContentCostPrecheck = (
   });
 };
 
+export const resolveAiPremiumContentProviderGuard = (
+  input: AiPremiumContentProviderGuardInput,
+) => {
+  const route =
+    AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT.providerRoutes.find(
+      (candidate) => candidate.providerRouteAlias === input.providerRouteAlias,
+    ) ?? null;
+  const estimatedCostMicros = nonNegativeInteger(input.estimatedCostMicros);
+  const requestCostCapMicros = nonNegativeInteger(input.requestCostCapMicros);
+  const attempt = nonNegativeInteger(input.attempt);
+  const safetyStatus = normalizeSafetyStatus(input.safetyStatus);
+  const failureCode = input.failureCode?.trim() || null;
+  const costCapExceeded =
+    requestCostCapMicros > 0 && estimatedCostMicros > requestCostCapMicros;
+  const retryExhausted =
+    attempt >= AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT.retryPolicy.maxAttempts;
+
+  if (safetyStatus === 'blocked') {
+    return providerGuardDecision({
+      allowed: false,
+      code: 'AI_PREMIUM_CONTENT_SAFETY_BLOCKED',
+      reasonKey: 'aiPremiumContent.providerGuard.safetyBlocked',
+      statusKey:
+        AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT.failureStatusMapping
+          .safetyBlocked,
+      estimatedCostMicros,
+      requestCostCapMicros,
+      billable: false,
+      retryAllowed: false,
+    });
+  }
+
+  if (!route) {
+    return providerGuardDecision({
+      allowed: false,
+      code: 'AI_PREMIUM_CONTENT_PROVIDER_ROUTE_INVALID',
+      reasonKey: 'aiPremiumContent.providerGuard.invalidRoute',
+      statusKey: 'failed',
+      estimatedCostMicros,
+      requestCostCapMicros,
+      billable: false,
+      retryAllowed: false,
+    });
+  }
+
+  if (route.paidRequestRequired && input.paidRequest !== true) {
+    return providerGuardDecision({
+      allowed: false,
+      code: 'AI_PREMIUM_CONTENT_PAID_REQUEST_REQUIRED',
+      reasonKey: 'aiPremiumContent.providerGuard.paidRequestRequired',
+      statusKey: 'failed',
+      estimatedCostMicros,
+      requestCostCapMicros,
+      billable: false,
+      retryAllowed: false,
+    });
+  }
+
+  if (costCapExceeded) {
+    return providerGuardDecision({
+      allowed: false,
+      code: 'AI_PREMIUM_CONTENT_COST_CAP_EXCEEDED',
+      reasonKey: 'aiPremiumContent.providerGuard.costCapExceeded',
+      statusKey:
+        AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT.failureStatusMapping
+          .costCapExceeded,
+      estimatedCostMicros,
+      requestCostCapMicros,
+      billable: false,
+      retryAllowed: false,
+    });
+  }
+
+  if (failureCode === 'provider_timeout' || failureCode === 'provider_failed') {
+    return providerGuardDecision({
+      allowed: false,
+      code:
+        failureCode === 'provider_timeout'
+          ? AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT.timeoutPolicy.timeoutCode
+          : 'AI_PREMIUM_CONTENT_PROVIDER_FAILED',
+      reasonKey: `aiPremiumContent.providerGuard.${failureCode}`,
+      statusKey: 'failed',
+      estimatedCostMicros,
+      requestCostCapMicros,
+      billable: false,
+      retryAllowed:
+        failureCode === 'provider_timeout' &&
+        !retryExhausted &&
+        AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT.retryPolicy.retryOn.includes(
+          failureCode,
+        ),
+    });
+  }
+
+  return providerGuardDecision({
+    allowed: true,
+    code: 'AI_PREMIUM_CONTENT_PROVIDER_ATTEMPT_ALLOWED',
+    reasonKey: 'aiPremiumContent.providerGuard.allowed',
+    statusKey: 'queued',
+    estimatedCostMicros,
+    requestCostCapMicros,
+    billable: false,
+    retryAllowed: false,
+  });
+};
+
 export const resolveAiPremiumContentSafetyPrecheck = (
   input: AiPremiumContentSafetyPrecheckInput,
 ) => {
@@ -969,6 +1161,44 @@ export const resolveAiPremiumContentSafetyPrecheck = (
       AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT.privacy,
   } as const;
 };
+
+const providerGuardDecision = ({
+  allowed,
+  code,
+  reasonKey,
+  statusKey,
+  estimatedCostMicros,
+  requestCostCapMicros,
+  billable,
+  retryAllowed,
+}: {
+  allowed: boolean;
+  code: string;
+  reasonKey: string;
+  statusKey: string;
+  estimatedCostMicros: number;
+  requestCostCapMicros: number;
+  billable: boolean;
+  retryAllowed: boolean;
+}) =>
+  ({
+    allowed,
+    code,
+    messageKey: reasonKey,
+    statusKey,
+    estimatedCostMicros,
+    requestCostCapMicros,
+    providerTimeoutMs:
+      AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT.timeoutPolicy.providerTimeoutMs,
+    billable,
+    retryAllowed,
+    providerAttemptEnabled:
+      AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT.providerAttemptEnabled,
+    walletMutationEnabled: false,
+    orderMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+  }) as const;
 
 export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   version: '2026-06-02.ai-premium-content-request-state-api-skeleton.v1',
