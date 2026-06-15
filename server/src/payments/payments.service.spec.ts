@@ -201,6 +201,17 @@ describe('PaymentsService server-authority contract', () => {
       packageBonusLedgerType: 'purchase',
       firstChargeBonusLedgerType: 'first_charge_bonus',
       firstChargeBonusReferenceType: 'payment_order',
+      uniquenessScope: ['userId', 'first_charge_bonus'],
+      replaySources: [
+        'provider_transaction_duplicate',
+        'paid_order_callback_retry',
+        'wallet_ledger_upsert_race',
+      ],
+      packageBonusSeparation: {
+        packageBonusIncludedInPurchaseLedger: true,
+        firstChargeBonusStoredInPurchaseLedger: false,
+        highValuePackageBonusRowsSharedWithFirstCharge: false,
+      },
       clientProvidedAmountAccepted: false,
       walletAndLedgerSameTransaction: true,
       duplicateProviderTransactionBehavior: 'idempotent_replay_without_wallet_ledger',
