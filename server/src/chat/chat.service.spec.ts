@@ -1,4 +1,7 @@
-import { ChatService } from './chat.service';
+import {
+  CHAT_CONVERSATION_READ_SEPARATION_CONTRACT,
+  ChatService,
+} from './chat.service';
 import { ChatLlmProviderRequestError } from './llm-provider.adapter';
 import {
   CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT,
@@ -224,6 +227,14 @@ describe('ChatService premium room read storage endpoints', () => {
       items: [
         {
           viewerRole: 'owner_user',
+          product: {
+            sourceTable: 'premium_chat_rooms',
+            productType: 'artist_direct_premium_dm',
+            billingType: 'premium_room_lumina',
+            respondentType: 'artist_direct_reply',
+            excludesSourceTables: ['chat_sessions'],
+            characterConversationListFallback: false,
+          },
           roomStatus: 'paused_by_report',
           readMode: 'safe_status_only',
           ownerListState: {
@@ -249,6 +260,15 @@ describe('ChatService premium room read storage endpoints', () => {
         surface: 'owner_room_list',
         readModel: 'premium_room_owner_list_read_model',
         readOnly: true,
+        productSeparation: {
+          endpoint: '/api/v1/chat/me/premium-rooms',
+          sourceTable: 'premium_chat_rooms',
+          productType: 'artist_direct_premium_dm',
+          billingType: 'premium_room_lumina',
+          respondentType: 'artist_direct_reply',
+          excludesSourceTables: ['chat_sessions'],
+          characterConversationListFallback: false,
+        },
         publicListExcludesOwnerArtistStates: true,
         rawChatBodyReturned: false,
         donationMutation: false,
@@ -1430,6 +1450,50 @@ describe('ChatService.getConversationList', () => {
     llmProvider.readiness.mockReset();
   });
 
+  it('publishes character and premium chat conversation read separation contract', () => {
+    expect(CHAT_CONVERSATION_READ_SEPARATION_CONTRACT).toMatchObject({
+      version: '2026-06-16.chat-conversation-read-separation.v1',
+      status: 'read_model_contract_only',
+      surfaces: {
+        characterConversationList: {
+          endpoint: '/api/v1/chat/conversations',
+          sourceTable: 'chat_sessions',
+          productType: 'ai_character_chat',
+          billingType: 'free_character_conversation',
+          respondentType: 'ai_character_reply',
+          excludesSourceTables: ['premium_chat_rooms'],
+          premiumRoomFallback: false,
+        },
+        premiumOwnerRoomList: {
+          endpoint: '/api/v1/chat/me/premium-rooms',
+          sourceTable: 'premium_chat_rooms',
+          productType: 'artist_direct_premium_dm',
+          billingType: 'premium_room_lumina',
+          respondentType: 'artist_direct_reply',
+          excludesSourceTables: ['chat_sessions'],
+          characterConversationListFallback: false,
+        },
+        premiumRoomDetail: {
+          endpoint: '/api/v1/chat/me/premium-rooms/:roomId/status',
+          sourceTable: 'premium_chat_rooms',
+          productType: 'artist_direct_premium_dm',
+          billingType: 'premium_room_lumina',
+          respondentType: 'artist_direct_reply',
+          excludesSourceTables: ['chat_sessions'],
+          characterConversationListFallback: false,
+        },
+      },
+      noMutation: {
+        messageSend: true,
+        llmProviderCall: true,
+        premiumRoomOpen: true,
+        walletDebit: true,
+        settlement: true,
+        payout: true,
+      },
+    });
+  });
+
   it('returns owner-only recent conversation summaries without LLM or wallet mutation', async () => {
     const prisma = {
       chatSession: {
@@ -1516,6 +1580,15 @@ describe('ChatService.getConversationList', () => {
         archiveStatus: 'archived',
         allStatuses: ['active', 'archived'],
       },
+      productSeparation: {
+        endpoint: '/api/v1/chat/conversations',
+        sourceTable: 'chat_sessions',
+        productType: 'ai_character_chat',
+        billingType: 'free_character_conversation',
+        respondentType: 'ai_character_reply',
+        excludesSourceTables: ['premium_chat_rooms'],
+        premiumRoomFallback: false,
+      },
       itemShapeContract: {
         itemsAlwaysArray: true,
         emptyItemsAllowed: true,
@@ -1561,6 +1634,13 @@ describe('ChatService.getConversationList', () => {
     expect(result.items[0]).toMatchObject({
       id: '00000000-0000-4000-8000-000000000271',
       box: 'recent',
+      product: {
+        sourceTable: 'chat_sessions',
+        productType: 'ai_character_chat',
+        billingType: 'free_character_conversation',
+        respondentType: 'ai_character_reply',
+        premiumRoomFallback: false,
+      },
       artist: {
         slug: 'yoon-serin',
         displayName: 'Yoon Serin',

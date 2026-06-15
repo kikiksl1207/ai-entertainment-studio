@@ -636,6 +636,17 @@ the LLM provider, creating feature orders, debiting wallet, or touching
 settlement state. Query `box=recent` returns active sessions, `box=archive`
 returns archived sessions, and `box=all` returns both. Response:
 
+#909 adds the `CHAT_CONVERSATION_READ_SEPARATION_CONTRACT` read contract so
+free AI character-chat conversations and paid premium-chat rooms cannot share a
+list/detail source. `/api/v1/chat/conversations` reads only `chat_sessions` with
+`productType: "ai_character_chat"`, `billingType:
+"free_character_conversation"`, and `respondentType: "ai_character_reply"`.
+Premium room lists/details read only `premium_chat_rooms` with `productType:
+"artist_direct_premium_dm"`, `billingType: "premium_room_lumina"`, and
+`respondentType: "artist_direct_reply"`. Neither surface falls back to the
+other, and this contract adds no message send, provider call, premium room open,
+wallet, settlement, or payout mutation.
+
 ```json
 {
   "readOnly": true,
