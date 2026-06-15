@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import {
   CommunityService,
+  LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT,
   USER_SOCIAL_ACCOUNT_CONTRACT,
 } from './community.service';
 
@@ -1392,6 +1393,67 @@ describe('CommunityService Lumina Feed thread contract', () => {
 describe('CommunityService Lumina Feed thread continuation, repost, and share contract', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('publishes separated thread continuation repost and share count projection contract', () => {
+    expect(LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT).toMatchObject({
+      version: '2026-06-15.lumina-feed-thread-repost-count-projection.v1',
+      status: 'read_model_contract_only',
+      threadContinuation: {
+        relation: 'thread_continuation',
+        actionKey: 'feed_thread_continue',
+        stateKey: 'thread_continuation',
+        childPostFlow: 'existing_post_child_post',
+        rootAuthorOnly: true,
+        autoLongTextSplit: false,
+        countField: 'threadContinuationCount',
+        countSource: 'community_posts.metadata.threadContinuation.rootPostId',
+        excludedFrom: [
+          'manualThreadCount',
+          'repostCount',
+          'shareCount',
+          'replyCount',
+          'commentCount',
+        ],
+      },
+      repost: {
+        allowedTypes: ['repost', 'quote_repost'],
+        originalReferenceField: 'metadata.repost.originalPostId',
+        quoteBodyField: 'body',
+        originalPostProjectionField: 'post.repost.originalPost',
+        countField: 'repostCount',
+        countSource: 'community_posts.metadata.repost.originalPostId',
+        profileTabIncludes: ['repost', 'quote_repost'],
+        notificationType: 'feed.repost',
+        excludedFrom: [
+          'manualThreadCount',
+          'threadContinuationCount',
+          'shareCount',
+          'replyCount',
+          'commentCount',
+        ],
+      },
+      share: {
+        relation: 'share',
+        actionKey: 'feed_share',
+        stateKey: 'share_contract',
+        createsFeedRow: false,
+        countTarget: null,
+        shareUrlProjectionOnly: true,
+        notificationMutation: false,
+        unreadCountMutation: false,
+      },
+      blockedRelationshipPolicy: {
+        writePolicy: 'reject_before_feed_or_notification_mutation',
+        readAndCountProjection:
+          'exclude_or_tombstone_blocked_relationship_rows',
+      },
+    });
+    expect(
+      Object.values(
+        LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
   });
 
   it('creates a thread continuation under an existing author-owned public post', async () => {
