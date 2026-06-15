@@ -32,6 +32,20 @@ export class PremiumChatRoomsReadController {
     });
   }
 
+  @Get('chat/me/premium-rooms')
+  @UseGuards(JwtAuthGuard)
+  getMyPremiumRooms(
+    @CurrentUser() user: AuthUser,
+    @Query() query: PremiumRoomListQuery,
+  ) {
+    return this.chatService.getMyPremiumRoomList(user.id, {
+      artistSlug: query.artistSlug,
+      status: query.status,
+      take: this.optionalPositiveInt(query.take),
+      cursor: query.cursor,
+    });
+  }
+
   @Get('chat/me/premium-rooms/:roomId/status')
   @UseGuards(JwtAuthGuard)
   getMyPremiumRoomStatus(

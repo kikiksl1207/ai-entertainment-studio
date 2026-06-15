@@ -1583,6 +1583,48 @@ export class ChatService {
     };
   }
 
+  async getMyPremiumRoomList(
+    userId: string,
+    input: {
+      artistSlug?: string;
+      status?: string;
+      take?: number;
+      cursor?: string;
+    },
+  ) {
+    const take = this.normalizePremiumRoomTake(input.take);
+    const statusFilter = this.normalizePremiumRoomOwnerListStatus(input.status);
+    const cursor = this.normalizeOptionalRoomCursor(input.cursor);
+    const where: Prisma.PremiumChatRoomWhereInput = {
+      ownerUserId: userId,
+      status: statusFilter ? statusFilter : { in: [...PREMIUM_ROOM_READ_STATUSES] },
+      artist: {
+        status: 'active',
+        ...(input.artistSlug ? { slug: input.artistSlug.trim() } : {}),
+      },
+    };
+
+    const [rooms, total] = await Promise.all([
+      this.prisma.premiumChatRoom.findMany({
+        where,
+        include: this.premiumRoomInclude(),
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+        take,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.premiumChatRoom.count({ where }),
+    ]);
+
+    return {
+      items: rooms.map((room) => this.toPremiumRoomOwnerListItem(room)),
+      count: rooms.length,
+      total,
+      nextCursor: rooms.length === take ? rooms[rooms.length - 1]?.id ?? null : null,
+      generatedAt: new Date().toISOString(),
+      policy: this.premiumRoomReadPolicy('owner_room_list'),
+    };
+  }
+
   async getMyPremiumRoomStatus(userId: string, roomId: string) {
     this.assertPremiumRoomId(roomId);
     const room = await this.prisma.premiumChatRoom.findFirst({
@@ -2127,6 +2169,24 @@ export class ChatService {
     return normalized;
   }
 
+  private normalizePremiumRoomOwnerListStatus(value: string | undefined) {
+    const normalized = value?.trim();
+
+    if (!normalized || normalized === 'all') {
+      return undefined;
+    }
+
+    if (!(PREMIUM_ROOM_READ_STATUSES as readonly string[]).includes(normalized)) {
+      throw new BadRequestException({
+        code: 'PREMIUM_CHAT_ROOM_STATUS_INVALID',
+        message: 'status is not supported for owner premium room list',
+        messageKey: 'chat.premiumRoom.invalidStatus',
+      });
+    }
+
+    return normalized;
+  }
+
   private normalizeOptionalRoomCursor(value: string | undefined) {
     const cursor = value?.trim();
 
@@ -2244,6 +2304,34 @@ export class ChatService {
         walletMutation: false,
         settlementMutation: false,
         payoutMutation: false,
+      },
+    };
+  }
+
+  private toPremiumRoomOwnerListItem(room: any) {
+    const item = this.toPremiumRoomListItem(room);
+
+    return {
+      ...item,
+      viewerRole: 'owner_user',
+      ownerListState: {
+        projection: 'premium_room_owner_list_item_v1',
+        detailEndpoint: '/api/v1/chat/me/premium-rooms/:roomId/status',
+        readMode: item.readMode,
+        failClosedStatuses: [
+          'paused_by_report',
+          'admin_review',
+          'refund_pending',
+          'closed_by_artist',
+          'expired',
+        ],
+        characterConversationListFallback: false,
+      },
+      policy: {
+        ...item.policy,
+        projection: 'premium_room_owner_list_item_v1',
+        ownerOnly: true,
+        characterConversationListFallback: false,
       },
     };
   }
@@ -2465,9 +2553,19 @@ export class ChatService {
   }
 
   private premiumRoomReadPolicy(surface: string) {
+    const readModelBySurface = {
+      public_room_list: 'premium_room_public_list_read_model',
+      owner_room_list: 'premium_room_owner_list_read_model',
+      owner_room_status: 'premium_room_owner_detail_read_model',
+      artist_room_status: 'premium_room_artist_detail_read_model',
+    } as const;
+
     return {
       surface,
       version: '2026-06-05.premium-chat-room-status-projection.v1',
+      readModel:
+        readModelBySurface[surface as keyof typeof readModelBySurface] ??
+        'premium_room_unknown_read_model',
       readOnly: true,
       visiblePublicStatuses: PREMIUM_ROOM_PUBLIC_LIST_STATUSES,
       ownerArtistStatusOnlyStatuses: PREMIUM_ROOM_SAFE_STATUS_ONLY_STATUSES,
