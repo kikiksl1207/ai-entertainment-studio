@@ -27,6 +27,16 @@ export const AI_PREMIUM_CONTENT_REQUEST_STATUSES = [
   'archived',
 ] as const;
 
+export const AI_PREMIUM_CONTENT_CREATE_STATUS_API_STATUSES = [
+  'pending',
+  'safety_review',
+  'blocked',
+  'queued',
+  'generating',
+  'ready',
+  'failed',
+] as const;
+
 export const AI_PREMIUM_CONTENT_MODERATION_STATUSES = [
   'pending',
   'cleared',
@@ -574,6 +584,123 @@ export const AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON = {
   },
 } as const;
 
+export const AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON = {
+  version: '2026-06-15.ai-premium-content-create-status-api-skeleton.v1',
+  feature: 'ai_premium_content_create_status_api',
+  status: 'skeleton_ready_submit_blocked',
+  enabled: false,
+  submitEnabled: false,
+  mutation: false,
+  authRequired: true,
+  artistOperatorRequired: true,
+  idempotencyRequired: true,
+  endpoints: {
+    createRequest: {
+      method: 'POST',
+      path: '/api/v1/ai-premium-content/requests',
+      enabled: false,
+      submitEnabled: false,
+      mutation: false,
+    },
+    requestStatus: {
+      method: 'GET',
+      path: '/api/v1/ai-premium-content/requests/:requestId/status',
+      enabled: false,
+      mutation: false,
+      ownerOrArtistOperatorOnly: true,
+    },
+  },
+  acceptedRequestTypes: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+  canonicalStatuses: AI_PREMIUM_CONTENT_CREATE_STATUS_API_STATUSES,
+  createRequestShape: {
+    requestType: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+    artistSlug: {
+      required: true,
+      serverResolvedArtistId: true,
+    },
+    userIntentSummary: {
+      required: true,
+      maxChars: 1000,
+      sanitizedServerSide: true,
+      rawPromptReturned: false,
+    },
+    referenceAssetIds: {
+      optional: true,
+      serverOwnedSafetyCheck: true,
+      signedUrlReturned: false,
+    },
+  },
+  serverOwnedFields: {
+    requestId: true,
+    requestType: true,
+    artistSlug: true,
+    userIntentSummary: true,
+    safetyStatus: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+    providerRouteAlias: {
+      source: 'server_capability_alias',
+      allowedPrefix: 'ai_premium_content.',
+      vendorProviderKeyReturned: false,
+      vendorModelKeyReturned: false,
+    },
+    estimatedCost: {
+      currency: 'KRW_MICROS',
+      source: 'server_policy_estimate_not_provider_quote',
+      amountTrustedFromClient: false,
+      walletDebitOnCreate: false,
+    },
+  },
+  statusProjection: {
+    status: AI_PREMIUM_CONTENT_CREATE_STATUS_API_STATUSES,
+    statusMessageKey: '<stable localized message key>',
+    rawStatusAsCopy: false,
+    rawProviderStatusReturned: false,
+    safetyStatus: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+    providerRouteAlias: '<server route alias only>',
+    estimatedCost: {
+      currency: 'KRW_MICROS',
+      estimatedCostCeilingMicros: '<integer policy ceiling>',
+      final: false,
+    },
+    result: {
+      assetIds: [],
+      publicUrlsReturnedBeforeReview: false,
+      signedUrlsReturned: false,
+    },
+  },
+  statusMapping: {
+    pending: ['draft', 'submitted', 'needs_more_info'],
+    safety_review: ['awaiting_review'],
+    blocked: ['safety_blocked', 'rejected'],
+    queued: ['queued'],
+    generating: ['generating'],
+    ready: ['approved'],
+    failed: ['provider_failed', 'archived'],
+  },
+  noSideEffects: {
+    providerCall: true,
+    imageGeneration: true,
+    videoGeneration: true,
+    roomOpen: true,
+    walletDebit: true,
+    orderCreate: true,
+    settlementAccrual: true,
+    payoutAccrual: true,
+    paidLike: true,
+    profileEquip: true,
+    feedPublish: true,
+  },
+  privacy: {
+    rawPromptReturned: false,
+    rawProviderPayloadReturned: false,
+    vendorProviderKeyReturned: false,
+    vendorModelKeyReturned: false,
+    signedUrlsReturned: false,
+    sensitiveAuthMaterialReturned: false,
+    privateConnectionMaterialReturned: false,
+    rawEmailReturned: false,
+  },
+} as const;
+
 type AiPremiumContentRequestType =
   (typeof AI_PREMIUM_CONTENT_REQUEST_TYPES)[number];
 
@@ -880,6 +1007,7 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   briefApiSkeleton: AI_PREMIUM_CONTENT_BRIEF_API_SKELETON,
   characterChatHandoff: CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT,
   requestQueueSkeleton: AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON,
+  createStatusApiSkeleton: AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
   statusCopy: {
     locale: 'ko-KR',
     fallbackMap: AI_PREMIUM_CONTENT_STATUS_COPY_KO,
