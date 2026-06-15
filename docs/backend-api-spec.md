@@ -2832,6 +2832,13 @@ Authorization: Bearer <accessToken>
   - `GET /api/v1/users/handle/:publicHandle/followers?take=20&cursor=<followId>`
   - `GET /api/v1/users/handle/:publicHandle/following-users?take=20&cursor=<followId>`
   - `GET /api/v1/users/handle/:publicHandle/following-artists?take=20&cursor=<followId>`
+- Public profile stats use the same authenticated viewer block filter as the
+  follow-list read model. If the viewer has an active `user_blocks` relationship
+  with a follower/following user in either direction, that row is excluded from
+  `stats.followerCount`, `stats.followingCount`, `stats.followers`, and
+  `stats.followingUsers`. A block relationship with the target profile itself
+  still fails closed with `403 USER_PROFILE_BLOCKED`; empty follow lists return
+  `{ items: [], count: 0, total: 0, nextCursor: null }`.
 - Public user follow-list responses use the existing My Page pagination contract and add a safe target/viewer/policy envelope:
 
 ```json
