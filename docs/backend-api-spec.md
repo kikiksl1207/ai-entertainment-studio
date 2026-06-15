@@ -2720,6 +2720,15 @@ AI premium content request brief API skeleton (#662):
   `video_generation_primary`, and `mixed_generation_pack`, plus
   `ai_premium_content.*` route aliases. Vendor/provider/model names remain
   non-contract implementation details.
+- #907 adds the future result archive read projection at
+  `GET /api/v1/me/ai-premium-content/results`. It remains disabled and
+  read-only, but defines one owner-facing archive for image, video, and mixed
+  AI premium content results.
+- The #907 archive item separates completed, reviewing, blocked, failed, and
+  regeneratable states from raw enums and uses stable copy keys. It may expose
+  safe result asset ids and a user-facing price label, but not original provider
+  result URLs, signed URLs, raw prompts, provider payloads, internal cost
+  breakdowns, settlement cost, payout cost, or wallet/order mutation state.
 - #883 does not enable GPT Image, Stable Diffusion, Seedance, OpenAI/provider
   calls, image/video generation, wallet debit, order creation, settlement,
   payout, paid-like mutation, profile equip, or feed publish side effects.
