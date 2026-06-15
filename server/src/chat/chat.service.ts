@@ -535,6 +535,7 @@ const CHAT_CONVERSATION_ITEM_REQUIRED_FIELDS = [
   'id',
   'box',
   'status',
+  'product',
   'artist',
   'persona',
   'messageCount',
@@ -547,6 +548,62 @@ const CHAT_CONVERSATION_ITEM_REQUIRED_FIELDS = [
   'createdAt',
   'readState',
 ] as const;
+export const CHAT_CONVERSATION_READ_SEPARATION_CONTRACT = {
+  version: '2026-06-16.chat-conversation-read-separation.v1',
+  status: 'read_model_contract_only',
+  surfaces: {
+    characterConversationList: {
+      endpoint: '/api/v1/chat/conversations',
+      sourceTable: 'chat_sessions',
+      sourceIdField: 'chat_sessions.id',
+      productType: 'ai_character_chat',
+      billingType: 'free_character_conversation',
+      respondentType: 'ai_character_reply',
+      readModel: 'character_conversation_list_read_model',
+      excludesSourceTables: ['premium_chat_rooms'],
+      premiumRoomFallback: false,
+    },
+    premiumOwnerRoomList: {
+      endpoint: '/api/v1/chat/me/premium-rooms',
+      sourceTable: 'premium_chat_rooms',
+      sourceIdField: 'premium_chat_rooms.id',
+      productType: 'artist_direct_premium_dm',
+      billingType: 'premium_room_lumina',
+      respondentType: 'artist_direct_reply',
+      readModel: 'premium_room_owner_list_read_model',
+      excludesSourceTables: ['chat_sessions'],
+      characterConversationListFallback: false,
+    },
+    premiumRoomRead: {
+      sourceTable: 'premium_chat_rooms',
+      sourceIdField: 'premium_chat_rooms.id',
+      productType: 'artist_direct_premium_dm',
+      billingType: 'premium_room_lumina',
+      respondentType: 'artist_direct_reply',
+      excludesSourceTables: ['chat_sessions'],
+      characterConversationListFallback: false,
+    },
+    premiumRoomDetail: {
+      endpoint: '/api/v1/chat/me/premium-rooms/:roomId/status',
+      sourceTable: 'premium_chat_rooms',
+      sourceIdField: 'premium_chat_rooms.id',
+      productType: 'artist_direct_premium_dm',
+      billingType: 'premium_room_lumina',
+      respondentType: 'artist_direct_reply',
+      readModel: 'premium_room_owner_detail_read_model',
+      excludesSourceTables: ['chat_sessions'],
+      characterConversationListFallback: false,
+    },
+  },
+  noMutation: {
+    messageSend: true,
+    llmProviderCall: true,
+    premiumRoomOpen: true,
+    walletDebit: true,
+    settlement: true,
+    payout: true,
+  },
+} as const;
 const CHARACTER_CHAT_COPY_CMS_VERSION = '2026-05-20.character-chat-copy-cms.v1';
 const CHARACTER_CHAT_COPY_CMS_SCOPE = 'character';
 const CHARACTER_CHAT_COPY_CMS_PAGE_KEY = 'character-chat';
@@ -695,6 +752,9 @@ export class ChatService {
         archiveStatus: 'archived',
         allStatuses: ['active', 'archived'],
       },
+      productSeparation:
+        CHAT_CONVERSATION_READ_SEPARATION_CONTRACT.surfaces
+          .characterConversationList,
       itemShapeContract: {
         requiredFields: [...CHAT_CONVERSATION_ITEM_REQUIRED_FIELDS],
         itemsAlwaysArray: true,
@@ -2282,6 +2342,8 @@ export class ChatService {
 
     return {
       roomId: room.id,
+      product:
+        CHAT_CONVERSATION_READ_SEPARATION_CONTRACT.surfaces.premiumRoomRead,
       artist: this.toPremiumRoomArtist(room.artist),
       tier: {
         tierKey: room.tierKey,
@@ -2577,6 +2639,13 @@ export class ChatService {
       ownerArtistStatusOnlyStatuses: PREMIUM_ROOM_SAFE_STATUS_ONLY_STATUSES,
       archiveStatuses: PREMIUM_ROOM_ARCHIVE_STATUSES,
       publicListExcludesOwnerArtistStates: true,
+      productSeparation:
+        surface === 'owner_room_status' || surface === 'artist_room_status'
+          ? CHAT_CONVERSATION_READ_SEPARATION_CONTRACT.surfaces.premiumRoomDetail
+          : surface === 'owner_room_list'
+            ? CHAT_CONVERSATION_READ_SEPARATION_CONTRACT.surfaces
+                .premiumOwnerRoomList
+            : null,
       rawChatBodyReturned: false,
       rawReportReasonReturned: false,
       rawAdminNoteReturned: false,
@@ -2710,6 +2779,9 @@ export class ChatService {
       id: session.id,
       box: session.status === 'archived' ? 'archive' : 'recent',
       status: session.status,
+      product:
+        CHAT_CONVERSATION_READ_SEPARATION_CONTRACT.surfaces
+          .characterConversationList,
       artist: session.artist,
       persona: session.chatPersona
         ? {
