@@ -1050,6 +1050,16 @@ Character-chat dynamic opening greeting cache (#388):
   when a provider call actually happens. Catalog/starter projections remain
   read-only and must not mutate chat messages, wallet, order, settlement, or
   payout state.
+- #897 adds `dynamicGreetingContract.selectionContract` for the first-greeting
+  variant server contract. Selection uses runtime welcome/starter/tone/persona
+  and forbidden-tone catalog inputs, with a user/session-scoped deterministic
+  seed based on `chat_sessions.id`. The same session stays stable, while a new
+  session may vary without accepting a client seed.
+- The #897 safety boundary requires the selected greeting to stay within
+  character settings, forbidden tone, and minor-clean rules. It explicitly
+  blocks real-person relationship, external contact, and external payment
+  prompts. Provider generation, message send, wallet, order, settlement, and
+  payout mutations remain unavailable for this contract.
 - Provider generation is short and low-cost by contract:
   `maxOutputTokens=120`, `maxOutputChars=180`, lightweight model preferred.
 - Provider generation remains optional and separated from cache/template
