@@ -4,7 +4,8 @@ Version: `2026-06-05.artist-url-knowledge-registration-skeleton.v1`
 
 Updated for Notion #459 safety gate, #462 audit contract, and #540 product
 contract clarification, plus workboard #619 registration skeleton separation and
-#780 ingest moderation handoff guard.
+#780 ingest moderation handoff guard, plus #884 chat-context refresh queue
+guard.
 
 ## Scope
 
@@ -18,6 +19,14 @@ Ingest moderation states are `submitted`, `pending_review`, `ai_processing`,
 `approved_for_chat`, `rejected`, and `archived`. Rows in `ai_processing` are not
 eligible for character-chat provider context even if the lifecycle status is
 already `approved`.
+
+Refresh queue contract: approval, rejection, or archive events may schedule a
+future server-side refresh key for the artist, but the worker is disabled in this
+contract. A refresh may only requery approved, safe, chat-enabled rows with a
+bounded summary for the same artist. Pending, review, archived, blocked,
+disabled, summaryless, or `ai_processing` rows stay excluded. Refresh does not
+fetch external URLs, call a provider, create chat messages, or touch wallet,
+settlement, or payout state.
 
 ## #540 Product Contract Clarification
 

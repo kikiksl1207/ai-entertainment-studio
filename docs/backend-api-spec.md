@@ -456,6 +456,13 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   persona/tone contract wins and the URL item must be dropped or phrased as
   uncertain external reference. Pending, rejected, archived, AI-processing,
   safety-review, blocked, or summaryless rows stay out of provider payloads.
+- #884 adds the future chat-context refresh queue contract. Approval, rejection,
+  or archive events may enqueue a deduped server refresh key for the artist, but
+  the worker remains disabled and may only requery approved/safe/chat-enabled
+  bounded summaries for the same artist. Pending, review, archived, blocked,
+  disabled, summaryless, or AI-processing rows remain excluded. The refresh
+  queue must not fetch external URLs, call a provider, create chat messages, or
+  touch wallet, settlement, or payout state.
 - #780 fixes the ingest moderation handoff guard. Rows with
   `ingestStatus=ai_processing` stay excluded from character-chat context until
   review marks them `approved_for_chat`; raw URL query strings, private URLs,
