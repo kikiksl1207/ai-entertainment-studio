@@ -599,6 +599,55 @@ describe('server-authority wallet policy', () => {
     ).toBe(true);
   });
 
+  it('fails closed when client Lumina balance, support amount, or room cost differs from server ledger authority', () => {
+    const protectedSurfaces = APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST.filter(
+      (item) =>
+        ['wallet_balance', 'premium_chat_room_and_support'].includes(
+          item.surface,
+        ),
+    );
+
+    expect(protectedSurfaces).toHaveLength(2);
+    expect(CLIENT_ECONOMIC_TAMPER_FIELDS).toEqual(
+      expect.arrayContaining(['balanceLumina', 'cachedBalance', 'amountLumina', 'priceLumina']),
+    );
+    expect(protectedSurfaces).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          surface: 'wallet_balance',
+          mutation: false,
+          clientEconomicFieldsTrusted: false,
+          authority: ['wallet_accounts.cached_balance'],
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_room_and_support',
+          clientEconomicFieldsTrusted: false,
+          rejectedOrIgnoredFields: CLIENT_ECONOMIC_TAMPER_FIELDS,
+          authority: [
+            'server premium chat room/support policy',
+            'wallet_accounts.cached_balance',
+          ],
+          doubleDebitGuard:
+            'mutation_blocked_until_room_or_donation_storage_exists_then_idempotency_fingerprint_and_atomic_cached_balance_gte_amount',
+        }),
+      ]),
+    );
+    expect(WALLET_RACE_CONDITION_GUARD_CONTRACT).toMatchObject({
+      debitOperation: 'atomic_update_many_cached_balance_gte_server_amount',
+      ledgerWriteOrder: 'after_atomic_debit_success_only',
+      idempotencyMismatchBehavior: 'stable_conflict_before_wallet_lookup',
+      insufficientBalanceBehavior:
+        'stable_insufficient_balance_without_domain_or_ledger_write',
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedBalanceTrusted: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(WALLET_RACE_CONDITION_GUARD_CONTRACT.debitSurfaces).toEqual(
+      expect.arrayContaining(['premium_chat_room_open', 'premium_chat_donation']),
+    );
+  });
+
   it('keeps risk logs useful without storing raw secrets or provider payloads', () => {
     expect(WALLET_RISK_LOG_CONTRACT.requiredFields).toEqual(
       expect.arrayContaining([
