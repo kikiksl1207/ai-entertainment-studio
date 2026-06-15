@@ -23,7 +23,14 @@ const token = 'a'.repeat(40);
 type PrismaMock = {
   user: {
     findFirst: jest.Mock;
+    findUnique: jest.Mock;
+    create: jest.Mock;
     update: jest.Mock;
+  };
+  userProfile: {
+    findFirst: jest.Mock;
+    findUnique: jest.Mock;
+    create: jest.Mock;
   };
   userActionToken: {
     updateMany: jest.Mock;
@@ -32,6 +39,7 @@ type PrismaMock = {
     update: jest.Mock;
   };
   userAuthAccount: {
+    create: jest.Mock;
     findUnique: jest.Mock;
     findFirst: jest.Mock;
     update: jest.Mock;
@@ -42,6 +50,12 @@ type PrismaMock = {
   userIdentityVerification: {
     findUnique: jest.Mock;
     upsert: jest.Mock;
+  };
+  userReferralCode: {
+    updateMany: jest.Mock;
+  };
+  auditEvent: {
+    create: jest.Mock;
   };
   $transaction: jest.Mock;
 };
@@ -54,7 +68,14 @@ function createPrismaMock(): PrismaMock {
   const prisma: PrismaMock = {
     user: {
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
       update: jest.fn(),
+    },
+    userProfile: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      findUnique: jest.fn(),
+      create: jest.fn(),
     },
     userActionToken: {
       updateMany: jest.fn(),
@@ -63,6 +84,7 @@ function createPrismaMock(): PrismaMock {
       update: jest.fn(),
     },
     userAuthAccount: {
+      create: jest.fn(),
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
@@ -74,6 +96,12 @@ function createPrismaMock(): PrismaMock {
       findUnique: jest.fn(),
       upsert: jest.fn(),
     },
+    userReferralCode: {
+      updateMany: jest.fn(),
+    },
+    auditEvent: {
+      create: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
   prisma.$transaction.mockImplementation(
@@ -84,7 +112,11 @@ function createPrismaMock(): PrismaMock {
   return prisma;
 }
 
-function serviceWith(prisma: PrismaMock, configValues: Record<string, string> = {}) {
+function serviceWith(
+  prisma: PrismaMock,
+  configValues: Record<string, string> = {},
+  socialAuth: Record<string, unknown> = {},
+) {
   const config = {
     get: jest.fn((key: string) =>
       key === 'NODE_ENV' ? 'test' : configValues[key],
@@ -107,7 +139,7 @@ function serviceWith(prisma: PrismaMock, configValues: Record<string, string> = 
       prisma as never,
       {} as never,
       config as never,
-      {} as never,
+      socialAuth as never,
       delivery as never,
     ),
     delivery,
@@ -549,6 +581,140 @@ describe('AuthService action token flows', () => {
     });
     const payload = JSON.stringify(projection);
     expect(payload).not.toMatch(/passwordHash|providerUserId|accessToken|refreshToken|cookie/i);
+  });
+
+  it('deletes accounts by revoking sessions and all outstanding action tokens', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    const deletedAt = new Date('2026-06-15T00:00:00.000Z');
+    prisma.user.findFirst.mockResolvedValue({
+      id: userId,
+      email,
+      status: 'active',
+      deletedAt: null,
+      authAccounts: [],
+    });
+    prisma.user.update.mockResolvedValue({
+      id: userId,
+      email,
+      status: 'deleted',
+      deletedAt,
+      updatedAt: deletedAt,
+    });
+    prisma.userRefreshToken.updateMany.mockResolvedValue({ count: 2 });
+    prisma.userActionToken.updateMany.mockResolvedValue({ count: 3 });
+    prisma.userReferralCode.updateMany.mockResolvedValue({ count: 1 });
+    prisma.auditEvent.create.mockResolvedValue({ id: 'audit-1' });
+    prisma.$transaction.mockImplementationOnce(
+      async (operations: Array<Promise<unknown>>) => Promise.all(operations),
+    );
+
+    await expect(
+      service.deleteAccount(userId, {
+        reason: 'safe account closure reason',
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      revokedSessionCount: 2,
+      user: {
+        id: userId,
+        status: 'deleted',
+      },
+    });
+
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: userId },
+        data: expect.objectContaining({
+          status: 'deleted',
+          deletedAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(prisma.userRefreshToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: expect.any(Date),
+      },
+    });
+    expect(prisma.userActionToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId,
+        consumedAt: null,
+      },
+      data: {
+        consumedAt: expect.any(Date),
+      },
+    });
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'user.self_delete',
+          targetType: 'user',
+          targetId: userId,
+        }),
+      }),
+    );
+  });
+
+  it('rejects deleted email and social accounts before issuing sessions or relinking providers', async () => {
+    const prisma = createPrismaMock();
+    const socialAuth = {
+      verifyProfile: jest.fn().mockResolvedValue({
+        provider: 'google',
+        providerUserId: 'google-deleted-user',
+        email,
+        emailVerified: true,
+      }),
+    };
+    const { service } = serviceWith(prisma, {}, socialAuth);
+    const deletedUser = {
+      id: userId,
+      email,
+      status: 'deleted',
+      deletedAt: new Date('2026-06-15T00:00:00.000Z'),
+    };
+
+    prisma.userAuthAccount.findUnique
+      .mockResolvedValueOnce({
+        id: 'email-auth-account',
+        userId,
+        passwordHash: 'hash',
+        user: deletedUser,
+      })
+      .mockResolvedValueOnce({
+        id: 'social-auth-account',
+        userId,
+        provider: 'google',
+        providerUserId: 'google-deleted-user',
+        user: deletedUser,
+      });
+
+    await expect(
+      service.login({ email, password: 'Password123' }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Invalid email or password',
+      },
+    });
+    await expect(
+      service.socialLogin({
+        provider: 'google',
+        token: 'provider-token',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'User is not active.',
+      },
+    });
+
+    expect(prisma.userAuthAccount.update).not.toHaveBeenCalled();
+    expect(prisma.user.create).not.toHaveBeenCalled();
+    expect(prisma.userAuthAccount.create).not.toHaveBeenCalled();
+    expect(prisma.userRefreshToken.updateMany).not.toHaveBeenCalled();
   });
 
   it('inspects password reset tokens without consuming them or returning secrets', async () => {
