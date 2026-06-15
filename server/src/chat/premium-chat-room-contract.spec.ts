@@ -441,6 +441,57 @@ describe('premium chat room refund and moderation ledger contract', () => {
     });
   });
 
+  it('keeps duration, unanswered refund candidate, and expiry states distinct for public and owner lists', () => {
+    const active = resolvePremiumChatRoomLifecycleProjection('active');
+    const unanswered = resolvePremiumChatRoomUnansweredRefundCandidate({
+      currentStatus: 'active',
+      hoursSinceOpen: 24,
+      hasArtistAnswer: false,
+    });
+    const expired = resolvePremiumChatRoomSchedulerTransition({
+      currentStatus: 'artist_answered',
+      hoursSinceOpen: 72,
+      hasArtistAnswer: true,
+      expiresAtElapsed: true,
+    });
+    const extension = resolvePremiumChatRoomDurationPolicy({
+      requestedTotalDays: 10,
+    });
+
+    expect(active).toMatchObject({
+      statusKey: 'active',
+      canSendMessage: true,
+      canDonate: true,
+      messageKey: 'chat.premiumRoom.active',
+    });
+    expect(unanswered).toMatchObject({
+      candidate: true,
+      statusKey: 'refund_pending',
+      actionKey: 'unanswered_24h_refund_candidate',
+      reasonKey: 'unanswered_24h_full_refund',
+      candidateOnly: true,
+      automaticRefundCredit: false,
+      walletMutationEnabled: false,
+    });
+    expect(expired).toMatchObject({
+      transition: true,
+      toStatusKey: 'expired',
+      actionKey: 'room_expired',
+      reasonKey: 'room_expired',
+      automaticRefundCredit: false,
+      settlementMutationEnabled: false,
+    });
+    expect(extension).toMatchObject({
+      totalDays: 10,
+      maxTotalDays: 10,
+      serverCalculatedExpiryAuthoritative: true,
+      clientSubmittedDurationTrusted: false,
+    });
+    expect(
+      new Set([active.statusKey, unanswered.statusKey, expired.toStatusKey]).size,
+    ).toBe(3);
+  });
+
   it('fixes room open and expiry as server-authoritative projections without live mutation', () => {
     expect(PREMIUM_CHAT_ROOM_LIFECYCLE_PROJECTION_STATUS_KEYS).toEqual([
       'active',
