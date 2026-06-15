@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import {
   CommunityService,
+  LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT,
   LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT,
   USER_SOCIAL_ACCOUNT_CONTRACT,
 } from './community.service';
@@ -1452,6 +1453,81 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     expect(
       Object.values(
         LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('publishes separated repost quote repost and share permission guard contract', () => {
+    expect(LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT).toMatchObject({
+      version: '2026-06-16.lumina-feed-repost-permission-guard.v1',
+      status: 'guard_contract_only',
+      endpoints: {
+        repost: 'POST /api/v1/lumina-feed/posts/:postId/reposts',
+        quoteRepost: 'POST /api/v1/lumina-feed/posts/:postId/reposts',
+        share: 'POST /api/v1/lumina-feed/posts/:postId/share',
+      },
+      actions: {
+        repost: {
+          relation: 'repost',
+          actionKey: 'feed_repost',
+          stateKey: 'repost',
+          createsFeedRow: true,
+          quoteBodyAllowed: false,
+          originalReferenceField: 'metadata.repost.originalPostId',
+          countTarget: 'repost_count',
+        },
+        quoteRepost: {
+          relation: 'quote_repost',
+          actionKey: 'feed_quote_repost',
+          stateKey: 'quote_repost',
+          createsFeedRow: true,
+          quoteBodyAllowed: true,
+          quoteBodyMaxChars: 2200,
+          quoteBodyProjectionField: 'post.repost.quoteBody',
+          originalBodyProjectionField: 'post.repost.originalPost.body',
+          countTarget: 'repost_count',
+        },
+        share: {
+          relation: 'share',
+          actionKey: 'feed_share',
+          stateKey: 'share_contract',
+          createsFeedRow: false,
+          shareUrlProjectionOnly: true,
+          repostRelation: false,
+          threadRelation: false,
+          commentRelation: false,
+          replyRelation: false,
+          countTarget: null,
+        },
+      },
+      failClosedSourcePolicy: {
+        missingSource: { status: 404, code: 'FEED_POST_NOT_FOUND' },
+        deletedSource: { status: 404, code: 'FEED_POST_NOT_FOUND' },
+        hiddenSource: { status: 404, code: 'FEED_POST_NOT_FOUND' },
+        privateSource: { status: 404, code: 'FEED_POST_NOT_FOUND' },
+        moderationReviewSource: {
+          status: 404,
+          code: 'FEED_POST_NOT_FOUND',
+        },
+        blockedRelationship: { status: 403, code: 'USER_FOLLOW_BLOCKED' },
+        readProjectionWhenSourceLaterUnavailable:
+          'tombstone_without_original_body',
+      },
+    });
+    expect(
+      LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT.validationOrder,
+    ).toEqual([
+      'require_authenticated_viewer_for_repost_or_quote_repost',
+      'validate_source_post_id',
+      'load_public_published_source_post',
+      'reject_deleted_hidden_private_or_moderation_review_source',
+      'check_user_blocks_either_direction',
+      'validate_quote_body_when_present',
+      'return_relation_specific_projection',
+    ]);
+    expect(
+      Object.values(
+        LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT.mutationPolicy,
       ).every((enabled) => enabled === false),
     ).toBe(true);
   });
