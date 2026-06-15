@@ -30,10 +30,12 @@ function createPrismaMock() {
       findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
     },
     communityReply: {
       create: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
     },
     communityReaction: {
       create: jest.fn(),
@@ -172,6 +174,23 @@ describe('CommunityService user follow/block mutation contract', () => {
         },
         hiddenStatuses: ['deleted', 'suspended', 'inactive', 'private'],
         projection: 'public_user_follow_summary_v1',
+        profileCountProjection: {
+          followerRowsBlockedByViewerExcluded: true,
+          followingRowsBlockedByViewerExcluded: true,
+          blockedRelationshipDirection: 'either_direction',
+          emptyProjection: {
+            items: [],
+            count: 0,
+            total: 0,
+            nextCursor: null,
+          },
+          errorProjection: {
+            blockedTargetStatus: 403,
+            blockedTargetCode: 'USER_PROFILE_BLOCKED',
+            notFoundCode: 'USER_NOT_FOUND',
+            invalidCursorCode: 'INVALID_CURSOR',
+          },
+        },
       },
       blockEffects: {
         blockEndpoint: 'POST /api/v1/users/:userId/block',
@@ -758,6 +777,65 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
       },
     });
     expect(result[0].author).not.toHaveProperty('email');
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_AUTHOR_EMAIL_SHOULD_NOT_LEAK');
+  });
+
+  it('excludes blocked follower rows from public profile count projections', async () => {
+    const prisma = createPrismaMock();
+    const blockedListedUserId = '00000000-0000-4000-8000-000000000604';
+    prisma.user.findFirst.mockResolvedValue({
+      id: authorId,
+      email: 'PRIVATE_AUTHOR_EMAIL_SHOULD_NOT_LEAK',
+      createdAt,
+      profile: {
+        displayName: 'Author',
+        publicHandle: 'author',
+        avatarAssetId: null,
+        coverAssetId: null,
+        bio: 'Public bio',
+      },
+    });
+    prisma.userBlock.findMany.mockResolvedValue([
+      {
+        blockerUserId: otherUserId,
+        blockedUserId: blockedListedUserId,
+      },
+    ]);
+    prisma.userFollow.count.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    prisma.artistFollow.count.mockResolvedValue(3);
+    prisma.communityPost.count.mockResolvedValue(4);
+    prisma.communityReply.count.mockResolvedValue(5);
+    prisma.communityPost.findMany.mockResolvedValue([]);
+    const service = serviceWith(prisma);
+
+    const result = await service.getPublicUserProfileByHandle('author', otherUserId);
+
+    expect(prisma.userFollow.count).toHaveBeenNthCalledWith(1, {
+      where: expect.objectContaining({
+        followingUserId: authorId,
+        followerUserId: { notIn: [blockedListedUserId] },
+        status: 'active',
+        deletedAt: null,
+      }),
+    });
+    expect(prisma.userFollow.count).toHaveBeenNthCalledWith(2, {
+      where: expect.objectContaining({
+        followerUserId: authorId,
+        followingUserId: { notIn: [blockedListedUserId] },
+        status: 'active',
+        deletedAt: null,
+      }),
+    });
+    expect(result.stats).toMatchObject({
+      followerCount: 1,
+      followingCount: 2,
+      followingArtistCount: 3,
+    });
+    expect(result.policy.countProjection).toMatchObject({
+      followerRowsBlockedByViewerExcluded: true,
+      followingRowsBlockedByViewerExcluded: true,
+      blockedRelationshipDirection: 'either_direction',
+    });
     expect(JSON.stringify(result)).not.toContain('PRIVATE_AUTHOR_EMAIL_SHOULD_NOT_LEAK');
   });
 

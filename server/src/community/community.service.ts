@@ -84,6 +84,23 @@ export const USER_SOCIAL_ACCOUNT_CONTRACT = {
     },
     hiddenStatuses: ['deleted', 'suspended', 'inactive', 'private'],
     projection: 'public_user_follow_summary_v1',
+    profileCountProjection: {
+      followerRowsBlockedByViewerExcluded: true,
+      followingRowsBlockedByViewerExcluded: true,
+      blockedRelationshipDirection: 'either_direction',
+      emptyProjection: {
+        items: [],
+        count: 0,
+        total: 0,
+        nextCursor: null,
+      },
+      errorProjection: {
+        blockedTargetStatus: 403,
+        blockedTargetCode: 'USER_PROFILE_BLOCKED',
+        notFoundCode: 'USER_NOT_FOUND',
+        invalidCursorCode: 'INVALID_CURSOR',
+      },
+    },
     privateFieldsExcluded: [
       'email',
       'phone',
@@ -1889,6 +1906,21 @@ export class CommunityService {
     }
 
     await this.assertProfileVisibleToViewer(user.id, viewerUserId);
+    const blockedUserIds = viewerUserId
+      ? await this.getBlockedRelationshipUserIds(viewerUserId)
+      : [];
+    const followerCountWhere = this.clean({
+      followingUserId: user.id,
+      status: 'active',
+      deletedAt: null,
+      followerUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
+    });
+    const followingUserCountWhere = this.clean({
+      followerUserId: user.id,
+      status: 'active',
+      deletedAt: null,
+      followingUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
+    });
 
     const [
       followers,
@@ -1899,10 +1931,10 @@ export class CommunityService {
       recentPosts,
     ] = await Promise.all([
       this.prisma.userFollow.count({
-        where: { followingUserId: user.id, status: 'active', deletedAt: null },
+        where: followerCountWhere,
       }),
       this.prisma.userFollow.count({
-        where: { followerUserId: user.id, status: 'active', deletedAt: null },
+        where: followingUserCountWhere,
       }),
       this.prisma.artistFollow.count({
         where: { userId: user.id, status: 'active', deletedAt: null },
@@ -1958,6 +1990,11 @@ export class CommunityService {
         followEndpoint: 'POST /api/v1/users/:userId/follow',
         unfollowEndpoint: 'DELETE /api/v1/users/:userId/follow',
         editProfileEndpoint: 'PATCH /api/v1/me/profile',
+        countProjection: {
+          followerRowsBlockedByViewerExcluded: true,
+          followingRowsBlockedByViewerExcluded: true,
+          blockedRelationshipDirection: 'either_direction',
+        },
       },
       recentPosts: await Promise.all(
         recentPosts.map((post) => this.toPostView(post, viewerUserId)),
