@@ -1940,6 +1940,20 @@ endpoint, donation creation, frontend score submit, or client-triggered refresh.
   suspended, and operator-sanctioned unsafe rows are excluded before aggregate
   output. Daily aggregate support-point, snapshot, wallet, settlement, and
   payout mutations remain disabled.
+- #896 adds `rankings.backendProjection.responseProjection` as the read-model
+  shape for future chat ranking responses. It allows only `communication` and
+  `donation`, fixes the window fields to `type/startsAt/endsAt/timezone` in
+  `Asia/Seoul`, and keeps mixed-lane items disabled.
+- The #896 response projection separates rank sources:
+  communication reads `premium_chat_support_point_ledger.communication_lane`,
+  while donation reads `premium_chat_support_point_ledger.donation_lane`.
+  Ranking windows come from
+  `premium_chat_ranking_snapshots.window_start_end_asia_seoul`.
+- Ranking items expose only `type`, `rankNo`, decimal string `score`,
+  `scoreLabelKey`, a safe artist projection, and a safe viewer summary. Artist
+  owner, settlement, payout, user raw identifier, support history, payment
+  state, score submit, support-point write, snapshot write, wallet, settlement,
+  and payout mutations remain unavailable.
 
 Premium chat support point ledger contract (#363):
 
