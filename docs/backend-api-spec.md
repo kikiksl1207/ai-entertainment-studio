@@ -1685,6 +1685,13 @@ Authorization: Bearer <accessToken> # owner/artist endpoints only
   `premium_room_owner_list_read_model`; owner detail is
   `premium_room_owner_detail_read_model`; artist detail is
   `premium_room_artist_detail_read_model`.
+- #905 adds `roomProjection.tierRoomProjection` so public room list, owner room
+  list, and artist management list use the same `premiumRoomTierProjection`
+  shape. The only valid room tiers remain 300L, 500L, 1,000L, and 3,000L.
+- 500L, 1,000L, and 3,000L availability is split into server-counted follower
+  unlock gates and artist-selectable state. Client-submitted follower counts,
+  local prices, balances, or paid amounts are not trusted. The projection does
+  not open rooms, debit wallet, or change settlement/payout state.
 
 Premium chat support message and ranking projection contract (#496):
 

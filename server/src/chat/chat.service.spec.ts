@@ -4506,6 +4506,70 @@ describe('ChatService premium chat support contract', () => {
       'wallet_balance',
       'trust_identity_gate',
     ]);
+    expect(contract.roomProjection.tierRoomProjection).toMatchObject({
+      version: '2026-06-16.premium-chat-tier-room-projection.v1',
+      projectionKey: 'premiumRoomTierProjection',
+      surfaces: {
+        publicRoomList: {
+          endpoint: '/api/v1/chat/premium-rooms',
+          projectionKey: 'premiumRoomTierProjection',
+        },
+        ownerRoomList: {
+          endpoint: '/api/v1/chat/me/premium-rooms',
+          projectionKey: 'premiumRoomTierProjection',
+        },
+        artistManagementList: {
+          endpoint: '/api/v1/creator-studio/premium-chat/rooms',
+          projectionKey: 'premiumRoomTierProjection',
+        },
+      },
+      allowedAmountsLumina: [300, 500, 1000, 3000],
+      followerUnlockPolicy: {
+        source: 'server_counted_active_artist_follows',
+        defaultTierKey: 'premium_chat_room_300',
+        clientSubmittedFollowerCountTrusted: false,
+        cachedFollowerCountTrustedForUnlock: false,
+      },
+      artistSelectionPolicy: {
+        artistSelectableStateSeparatedFromFollowerUnlock: true,
+        selectableField: 'artistSelectable',
+        lockedReasonKeyField: 'lockedReasonKey',
+        serverSelectedTierOnly: true,
+      },
+      projectionFields: [
+        'tierKey',
+        'amountLumina',
+        'initialArtistEligible',
+        'maxTier',
+        'unlockGate',
+        'artistSelectable',
+        'lockedReasonKey',
+      ],
+      noMutation: {
+        roomOpen: true,
+        walletDebit: true,
+        settlement: true,
+        payout: true,
+      },
+    });
+    expect(contract.roomProjection.tierRoomProjection.allowedTiers).toEqual([
+      expect.objectContaining({
+        tierKey: 'premium_chat_room_300',
+        amountLumina: 300,
+      }),
+      expect.objectContaining({
+        tierKey: 'premium_chat_room_500',
+        amountLumina: 500,
+      }),
+      expect.objectContaining({
+        tierKey: 'premium_chat_room_1000',
+        amountLumina: 1000,
+      }),
+      expect.objectContaining({
+        tierKey: 'premium_chat_room_3000',
+        amountLumina: 3000,
+      }),
+    ]);
     expect(contract.endpoints.contract).toMatchObject({
       method: 'GET',
       path: '/api/v1/chat/premium-support-contract',
