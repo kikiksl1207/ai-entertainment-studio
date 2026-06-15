@@ -1050,6 +1050,65 @@ describe('premium chat room refund and moderation ledger contract', () => {
     }
   });
 
+  it('keeps refund API outcomes and ledger resolver splits balanced at 10000 bps', () => {
+    const outcomeByReason = new Map<string, typeof PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.refundOutcomes[number]>(
+      PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.refundOutcomes.map((outcome) => [
+        outcome.refundReasonKey,
+        outcome,
+      ]),
+    );
+
+    for (const { policyKey, reasonKey } of [
+      {
+        policyKey: 'artist_forced_close_full_refund',
+        reasonKey: 'artist_forced_close_full_refund',
+      },
+      {
+        policyKey: 'user_fault_refund_70',
+        reasonKey: 'user_fault_report_refund_70',
+      },
+      {
+        policyKey: 'user_fault_refund_50',
+        reasonKey: 'operator_sanction_user_fault_refund_50',
+      },
+    ] as const) {
+      const resolved = resolvePremiumChatRoomRefundPolicy({
+        policyKey,
+        clientSubmittedRefundBps: 10000,
+        clientSubmittedArtistShareBps: 10000,
+      });
+      const apiOutcome = outcomeByReason.get(reasonKey);
+
+      if (!resolved.allowed) {
+        throw new Error(`Expected refund policy to be allowed: ${policyKey}`);
+      }
+      expect(resolved).toMatchObject({
+        allowed: true,
+        clientSubmittedRefundRateTrusted: false,
+        clientSubmittedArtistShareTrusted: false,
+        walletMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      });
+      expect(apiOutcome).toBeTruthy();
+      expect(apiOutcome).toMatchObject({
+        refundRateBps: resolved.userRefundBps,
+        artistCompensationBps: resolved.artistCompensationBps,
+      });
+      expect(
+        (apiOutcome as { companyRevenueBps?: number } | undefined)
+          ?.companyRevenueBps ?? 0,
+      ).toBe(
+        resolved.companyRevenueBps,
+      );
+      expect(
+        resolved.userRefundBps +
+          resolved.companyRevenueBps +
+          resolved.artistCompensationBps,
+      ).toBe(10000);
+    }
+  });
+
   it('publishes the server-authoritative refund split ledger contract', () => {
     const splitContract = PREMIUM_CHAT_ROOM_CONTRACT.refunds.splitLedgerContract;
 
