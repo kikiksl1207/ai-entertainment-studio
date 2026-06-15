@@ -1,5 +1,7 @@
 import {
   AI_PREMIUM_CONTENT_BRIEF_API_SKELETON,
+  AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
+  AI_PREMIUM_CONTENT_CREATE_STATUS_API_STATUSES,
   AI_PREMIUM_CONTENT_MODERATION_STATUSES,
   AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
   AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
@@ -68,6 +70,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     );
     expect(contract.requestQueueSkeleton).toBe(
       AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON,
+    );
+    expect(contract.createStatusApiSkeleton).toBe(
+      AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
     );
   });
 
@@ -480,6 +485,105 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     expect(skeleton.sensitiveDataPolicy).toMatchObject({
       sensitiveAuthMaterialReturned: false,
       databaseConnectionMaterialReturned: false,
+    });
+  });
+
+  it('defines a disabled create/status API skeleton with canonical lifecycle states', () => {
+    const skeleton = AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON;
+
+    expect(AI_PREMIUM_CONTENT_CREATE_STATUS_API_STATUSES).toEqual([
+      'pending',
+      'safety_review',
+      'blocked',
+      'queued',
+      'generating',
+      'ready',
+      'failed',
+    ]);
+    expect(skeleton).toMatchObject({
+      version: '2026-06-15.ai-premium-content-create-status-api-skeleton.v1',
+      status: 'skeleton_ready_submit_blocked',
+      enabled: false,
+      submitEnabled: false,
+      mutation: false,
+      authRequired: true,
+      artistOperatorRequired: true,
+      idempotencyRequired: true,
+      endpoints: {
+        createRequest: {
+          method: 'POST',
+          path: '/api/v1/ai-premium-content/requests',
+          enabled: false,
+          submitEnabled: false,
+          mutation: false,
+        },
+        requestStatus: {
+          method: 'GET',
+          path: '/api/v1/ai-premium-content/requests/:requestId/status',
+          enabled: false,
+          mutation: false,
+          ownerOrArtistOperatorOnly: true,
+        },
+      },
+      createRequestShape: {
+        requestType: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+        artistSlug: {
+          required: true,
+          serverResolvedArtistId: true,
+        },
+        userIntentSummary: {
+          required: true,
+          maxChars: 1000,
+          sanitizedServerSide: true,
+          rawPromptReturned: false,
+        },
+      },
+      serverOwnedFields: {
+        requestType: true,
+        artistSlug: true,
+        userIntentSummary: true,
+        safetyStatus: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+      },
+      statusProjection: {
+        status: AI_PREMIUM_CONTENT_CREATE_STATUS_API_STATUSES,
+        rawStatusAsCopy: false,
+        rawProviderStatusReturned: false,
+        safetyStatus: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+      },
+      statusMapping: {
+        pending: ['draft', 'submitted', 'needs_more_info'],
+        safety_review: ['awaiting_review'],
+        blocked: ['safety_blocked', 'rejected'],
+        queued: ['queued'],
+        generating: ['generating'],
+        ready: ['approved'],
+        failed: ['provider_failed', 'archived'],
+      },
+    });
+    expect(skeleton.serverOwnedFields.providerRouteAlias).toMatchObject({
+      source: 'server_capability_alias',
+      allowedPrefix: 'ai_premium_content.',
+      vendorProviderKeyReturned: false,
+      vendorModelKeyReturned: false,
+    });
+    expect(skeleton.serverOwnedFields.estimatedCost).toMatchObject({
+      currency: 'KRW_MICROS',
+      source: 'server_policy_estimate_not_provider_quote',
+      amountTrustedFromClient: false,
+      walletDebitOnCreate: false,
+    });
+    expect(Object.values(skeleton.noSideEffects).every((blocked) => blocked)).toBe(
+      true,
+    );
+    expect(skeleton.privacy).toMatchObject({
+      rawPromptReturned: false,
+      rawProviderPayloadReturned: false,
+      vendorProviderKeyReturned: false,
+      vendorModelKeyReturned: false,
+      signedUrlsReturned: false,
+      sensitiveAuthMaterialReturned: false,
+      privateConnectionMaterialReturned: false,
+      rawEmailReturned: false,
     });
   });
 

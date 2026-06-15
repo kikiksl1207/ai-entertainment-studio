@@ -2656,6 +2656,20 @@ AI premium content request brief API skeleton (#662):
   route alias. Vendor provider keys, model keys, raw prompts, provider payloads,
   signed URLs, sensitive auth material, and database connection material must
   not be returned or logged by this skeleton.
+- #883 adds `AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON` for the future
+  create/status API surface. It keeps `POST /api/v1/ai-premium-content/requests`
+  and `GET /api/v1/ai-premium-content/requests/:requestId/status` disabled with
+  `enabled=false`, `submitEnabled=false`, and `mutation=false`. The canonical
+  status projection for this surface is `pending`, `safety_review`, `blocked`,
+  `queued`, `generating`, `ready`, and `failed`.
+- The #883 create shape is provider-neutral and stores request type, artist
+  slug, sanitized user intent summary, server-owned safety status, server
+  provider route alias, and server-policy estimated cost. Client-submitted
+  provider status, model/vendor ids, cost, wallet balance, result URLs, and
+  publish/equip decisions are not trusted.
+- #883 does not enable GPT Image, Stable Diffusion, Seedance, OpenAI/provider
+  calls, image/video generation, wallet debit, order creation, settlement,
+  payout, paid-like mutation, profile equip, or feed publish side effects.
 - #873 adds `CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT` for the future
   character-chat-to-AI-content request bridge. It is adapter-only and disabled:
   normal character chat remains `ai_character_chat` / `ai_character_reply`,
