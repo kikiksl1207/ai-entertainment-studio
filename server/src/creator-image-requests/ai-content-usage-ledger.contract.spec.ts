@@ -127,7 +127,6 @@ describe('AI content usage ledger guard', () => {
       requestType: 'video_clip',
       modelRouteAlias: 'ai_premium_content.video.text_to_video',
       safetyStatus: 'blocked',
-      reuseState: 'cache_hit',
       estimatedCostMicros: 5000,
       reuseState: 'cache_hit',
     });
