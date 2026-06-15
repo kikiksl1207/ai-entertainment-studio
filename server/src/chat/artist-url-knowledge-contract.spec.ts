@@ -286,6 +286,59 @@ describe('artist URL knowledge contract', () => {
           privateConnectionMaterialReturned: false,
         },
       },
+      freshnessReadModel: {
+        version:
+          '2026-06-16.artist-url-knowledge-refresh-freshness-read-model.v1',
+        endpoint: '/api/v1/chat/artists/:artistId/url-knowledge/freshness',
+        enabled: false,
+        readOnly: true,
+        providerCall: false,
+        externalFetch: false,
+        approvalMutation: false,
+        statusBuckets: {
+          approvedForChat: {
+            rowStatus: 'approved',
+            ingestStatus: 'approved_for_chat',
+            entersCharacterChatContext: true,
+          },
+          processing: {
+            ingestStatus: 'ai_processing',
+            entersCharacterChatContext: false,
+          },
+          failed: {
+            ingestStatus: 'failed',
+            entersCharacterChatContext: false,
+          },
+          archived: {
+            rowStatus: 'archived',
+            ingestStatus: 'archived',
+            entersCharacterChatContext: false,
+          },
+          pendingReview: {
+            rowStatus: 'pending',
+            ingestStatus: 'pending_review',
+            entersCharacterChatContext: false,
+          },
+        },
+        contextEligibility: {
+          approvedOnly: true,
+          safeOnly: true,
+          allowChatReferenceRequired: true,
+          summaryRequired: true,
+          aiProcessingExcluded: true,
+          failedExcluded: true,
+          archivedExcluded: true,
+        },
+        cacheKeyPattern: 'artist-url-knowledge:<artistId>:approved-safe-v1',
+        privacy: {
+          boundedSummaryOnly: true,
+          rawUrlReturned: false,
+          rawUrlQueryReturned: false,
+          rawPageBodyReturned: false,
+          reviewerMaterialReturned: false,
+          providerPayloadReturned: false,
+        },
+      },
     });
     expect(ARTIST_URL_KNOWLEDGE_CONTRACT.adminToChatHandoff).toMatchObject({
       source: 'backstage_artist_knowledge_review',

@@ -463,6 +463,16 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   disabled, summaryless, or AI-processing rows remain excluded. The refresh
   queue must not fetch external URLs, call a provider, create chat messages, or
   touch wallet, settlement, or payout state.
+- #906 adds `chatContextRefresh.freshnessReadModel` for the future read-only
+  freshness API: `GET /api/v1/chat/artists/:artistId/url-knowledge/freshness`.
+  It separates approved-for-chat, processing, failed, archived, and pending
+  review buckets so UI/QA can see whether approved URL knowledge has entered the
+  character-chat context candidate path.
+- The #906 read model remains disabled and read-only. Only approved, safe,
+  chat-enabled rows with a bounded summary are eligible for context; processing,
+  failed, archived, pending, unsafe, disabled, and summaryless rows stay out.
+  It does not crawl URLs, call providers, approve/reject/archive rows, mutate
+  chat context, or touch wallet, settlement, or payout state.
 - #780 fixes the ingest moderation handoff guard. Rows with
   `ingestStatus=ai_processing` stay excluded from character-chat context until
   review marks them `approved_for_chat`; raw URL query strings, private URLs,
