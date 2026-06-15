@@ -110,6 +110,30 @@ export const AI_PREMIUM_CONTENT_SAFETY_STATUSES = [
   'cleared',
 ] as const;
 
+export const AI_PREMIUM_CONTENT_ROUTING_STATUSES = [
+  'not_routed',
+  'route_selected',
+  'queued',
+  'provider_blocked',
+  'provider_failed',
+] as const;
+
+export const AI_PREMIUM_CONTENT_RESULT_STATUSES = [
+  'not_ready',
+  'awaiting_review',
+  'approved',
+  'blocked',
+  'failed',
+  'archived',
+] as const;
+
+export const AI_PREMIUM_CONTENT_PROVIDER_ADAPTER_KEYS = [
+  'image_generation_primary',
+  'image_generation_diffusion',
+  'video_generation_primary',
+  'mixed_generation_pack',
+] as const;
+
 export const AI_PREMIUM_CONTENT_SAFETY_PRECHECK_STATUSES = [
   'safe',
   'review_required',
@@ -612,6 +636,23 @@ export const AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON = {
   },
   acceptedRequestTypes: AI_PREMIUM_CONTENT_REQUEST_TYPES,
   canonicalStatuses: AI_PREMIUM_CONTENT_CREATE_STATUS_API_STATUSES,
+  canonicalStatusAxes: {
+    requestType: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+    safetyStatus: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+    routingStatus: AI_PREMIUM_CONTENT_ROUTING_STATUSES,
+    resultStatus: AI_PREMIUM_CONTENT_RESULT_STATUSES,
+    rawEnumAsUserCopy: false,
+    statusMessageKeyRequired: true,
+  },
+  providerRouting: {
+    adapterKeys: AI_PREMIUM_CONTENT_PROVIDER_ADAPTER_KEYS,
+    routeAliasPrefix: 'ai_premium_content.',
+    selectedByServer: true,
+    clientProviderChoiceTrusted: false,
+    vendorProviderNameReturned: false,
+    vendorModelNameReturned: false,
+    outputClassRoutedFromRequestType: true,
+  },
   createRequestShape: {
     requestType: AI_PREMIUM_CONTENT_REQUEST_TYPES,
     artistSlug: {
@@ -636,6 +677,8 @@ export const AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON = {
     artistSlug: true,
     userIntentSummary: true,
     safetyStatus: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+    routingStatus: AI_PREMIUM_CONTENT_ROUTING_STATUSES,
+    resultStatus: AI_PREMIUM_CONTENT_RESULT_STATUSES,
     providerRouteAlias: {
       source: 'server_capability_alias',
       allowedPrefix: 'ai_premium_content.',
@@ -655,6 +698,8 @@ export const AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON = {
     rawStatusAsCopy: false,
     rawProviderStatusReturned: false,
     safetyStatus: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+    routingStatus: AI_PREMIUM_CONTENT_ROUTING_STATUSES,
+    resultStatus: AI_PREMIUM_CONTENT_RESULT_STATUSES,
     providerRouteAlias: '<server route alias only>',
     estimatedCost: {
       currency: 'KRW_MICROS',

@@ -2711,6 +2711,15 @@ AI premium content request brief API skeleton (#662):
   provider route alias, and server-policy estimated cost. Client-submitted
   provider status, model/vendor ids, cost, wallet balance, result URLs, and
   publish/equip decisions are not trusted.
+- #898 extends the create/status skeleton with separate canonical status axes:
+  request type, safety status, routing status, and result status. Raw enum
+  values are not user copy; responses must use stable localized message keys.
+- #898 keeps image, video, and mixed premium content under one request status
+  model. Provider routing is server-selected through adapter keys such as
+  `image_generation_primary`, `image_generation_diffusion`,
+  `video_generation_primary`, and `mixed_generation_pack`, plus
+  `ai_premium_content.*` route aliases. Vendor/provider/model names remain
+  non-contract implementation details.
 - #883 does not enable GPT Image, Stable Diffusion, Seedance, OpenAI/provider
   calls, image/video generation, wallet debit, order creation, settlement,
   payout, paid-like mutation, profile equip, or feed publish side effects.
