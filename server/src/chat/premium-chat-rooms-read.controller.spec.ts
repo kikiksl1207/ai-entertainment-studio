@@ -51,6 +51,10 @@ describe('PremiumChatRoomsReadController', () => {
         }),
         expect.objectContaining({
           method: RequestMethod.GET,
+          path: 'chat/me/premium-rooms',
+        }),
+        expect.objectContaining({
+          method: RequestMethod.GET,
           path: 'chat/me/premium-rooms/:roomId/status',
         }),
         expect.objectContaining({
@@ -78,5 +82,27 @@ describe('PremiumChatRoomsReadController', () => {
         },
       });
     }
+  });
+
+  it('delegates my premium room list as an authenticated read-only list', () => {
+    const getMyPremiumRoomList = jest.fn();
+    const controller = new PremiumChatRoomsReadController({
+      getMyPremiumRoomList,
+    } as never);
+
+    controller.getMyPremiumRooms(
+      { id: '00000000-0000-4000-8000-000000000001' } as never,
+      { status: 'paused_by_report', take: '10' },
+    );
+
+    expect(getMyPremiumRoomList).toHaveBeenCalledWith(
+      '00000000-0000-4000-8000-000000000001',
+      {
+        artistSlug: undefined,
+        status: 'paused_by_report',
+        take: 10,
+        cursor: undefined,
+      },
+    );
   });
 });

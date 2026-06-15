@@ -1615,9 +1615,10 @@ lifecycle fields such as `owner_user_id`, `artist_id`, `tier_key`, `status`,
 
 ```http
 GET /api/v1/chat/premium-rooms?artistSlug=:slug&status=:status&take=:take&cursor=:roomId
+GET /api/v1/chat/me/premium-rooms?artistSlug=:slug&status=:status&take=:take&cursor=:roomId
 GET /api/v1/chat/me/premium-rooms/:roomId/status
 GET /api/v1/creator-studio/premium-chat/rooms/:roomId/status
-Authorization: Bearer <accessToken> # status endpoints only
+Authorization: Bearer <accessToken> # owner/artist endpoints only
 ```
 
 - Public room list returns `premium_room_list_item_v1` projection with
@@ -1626,6 +1627,12 @@ Authorization: Bearer <accessToken> # status endpoints only
   read-only viewer CTA, donation availability, and read-only policy.
 - List status filters are limited to public list states `opened`, `active`, and
   `artist_answered`; omitted status returns the same public set.
+- #880 adds the owner room list skeleton at `GET /api/v1/chat/me/premium-rooms`.
+  It is authenticated and owner-only, uses
+  `premium_room_owner_list_read_model`, and may include safe detail states such
+  as `active`, `paused_by_report`, `admin_review`, `refund_pending`,
+  `closed_by_artist`, and `expired`. It must not fall back to the character-chat
+  conversation list or return `chat_sessions` rows.
 - Owner status returns `premiumRoomStatus`, `premiumRoomRefundStatus`,
   `premiumRoomReportStatus`, `premiumRoomMutationAvailability`, and the
   read-only policy for the authenticated room owner.
@@ -1657,6 +1664,12 @@ Authorization: Bearer <accessToken> # status endpoints only
 - Until a later mutation PR exists, QA may verify only read projections and
   matrix visibility. Any attempt to use this storage as a payment/support/
   wallet/report/refund/settlement/payout mutation path must fail closed.
+- #880 keeps premium room public list, owner room list, owner detail, and artist
+  detail as separate read models. Public list is
+  `premium_room_public_list_read_model`; owner list is
+  `premium_room_owner_list_read_model`; owner detail is
+  `premium_room_owner_detail_read_model`; artist detail is
+  `premium_room_artist_detail_read_model`.
 
 Premium chat support message and ranking projection contract (#496):
 

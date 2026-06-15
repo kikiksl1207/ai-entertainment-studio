@@ -62,6 +62,9 @@ function premiumRoomReadServiceWith(prismaOverrides: Record<string, unknown> = {
     artistOperator: {
       findFirst: jest.fn(),
     },
+    chatSession: {
+      findMany: jest.fn(),
+    },
     walletAccount: {
       findUnique: jest.fn(),
       updateMany: jest.fn(),
@@ -176,6 +179,109 @@ describe('ChatService premium room read storage endpoints', () => {
     expect(prisma.premiumChatRoom.findMany).not.toHaveBeenCalled();
     expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('returns owner premium room list as a separate read model from character conversations', async () => {
+    const { prisma, service } = premiumRoomReadServiceWith();
+    prisma.premiumChatRoom.findMany.mockResolvedValue([
+      premiumRoomFixture({
+        status: 'paused_by_report',
+        reportedAt: premiumRoomNow,
+      }),
+      premiumRoomFixture({
+        id: '00000000-0000-4000-8000-000000000536',
+        status: 'expired',
+      }),
+    ]);
+    prisma.premiumChatRoom.count.mockResolvedValue(2);
+
+    const result = await service.getMyPremiumRoomList(premiumRoomOwnerUserId, {
+      status: 'all',
+      take: 20,
+    });
+
+    expect(prisma.premiumChatRoom.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          ownerUserId: premiumRoomOwnerUserId,
+          status: {
+            in: expect.arrayContaining([
+              'active',
+              'paused_by_report',
+              'admin_review',
+              'refund_pending',
+              'closed_by_artist',
+              'expired',
+            ]),
+          },
+          artist: { status: 'active' },
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      count: 2,
+      total: 2,
+      items: [
+        {
+          viewerRole: 'owner_user',
+          roomStatus: 'paused_by_report',
+          readMode: 'safe_status_only',
+          ownerListState: {
+            projection: 'premium_room_owner_list_item_v1',
+            detailEndpoint: '/api/v1/chat/me/premium-rooms/:roomId/status',
+            characterConversationListFallback: false,
+          },
+          policy: {
+            projection: 'premium_room_owner_list_item_v1',
+            ownerOnly: true,
+            characterConversationListFallback: false,
+            rawChatBodyReturned: false,
+            walletMutation: false,
+          },
+        },
+        {
+          viewerRole: 'owner_user',
+          roomStatus: 'expired',
+          readMode: 'safe_archive',
+        },
+      ],
+      policy: {
+        surface: 'owner_room_list',
+        readModel: 'premium_room_owner_list_read_model',
+        readOnly: true,
+        publicListExcludesOwnerArtistStates: true,
+        rawChatBodyReturned: false,
+        donationMutation: false,
+        refundMutation: false,
+      },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/chatSession|ownerUserId/);
+    expect(prisma.chatSession.findMany).not.toHaveBeenCalled();
+    expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('allows owner room list filtering for safe detail statuses only in owner read model', async () => {
+    const { prisma, service } = premiumRoomReadServiceWith();
+    prisma.premiumChatRoom.findMany.mockResolvedValue([
+      premiumRoomFixture({ status: 'admin_review' }),
+    ]);
+    prisma.premiumChatRoom.count.mockResolvedValue(1);
+
+    await service.getMyPremiumRoomList(premiumRoomOwnerUserId, {
+      status: 'admin_review',
+      take: 20,
+    });
+
+    expect(prisma.premiumChatRoom.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          ownerUserId: premiumRoomOwnerUserId,
+          status: 'admin_review',
+        }),
+      }),
+    );
+    expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
   });
 
   it('marks active public room list items as near expiry from a fresh expiresAt window', async () => {
