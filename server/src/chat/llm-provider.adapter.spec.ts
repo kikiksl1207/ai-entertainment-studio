@@ -302,6 +302,14 @@ describe('ChatLlmProviderAdapter.generate', () => {
             overridesTone: false,
             overridesOpeningGreeting: false,
           },
+          contextBridge: {
+            source: 'approved_artist_url_knowledge',
+            target: 'character_chat_provider_context',
+            conflictResolution:
+              'system_safety_and_runtime_persona_win_url_knowledge_becomes_uncertain_reference',
+            pendingRejectedArchivedExcluded: true,
+            providerPayloadAllowsOnlyApprovedSafeSummaries: true,
+          },
           fallbackPolicy: {
             whenNoEligibleKnowledge: 'continue_without_url_knowledge',
             providerCallBlockedByEmptyKnowledge: false,
@@ -320,6 +328,9 @@ describe('ChatLlmProviderAdapter.generate', () => {
               safetyStatus: 'safe',
               sourceLabel: 'www.youtube.com',
               reviewedAt: '2026-05-24T00:00:00.000Z',
+              selectionScore: 120,
+              selectionReasons: ['freshness', 'source_priority'],
+              freshnessBucket: 'fresh_7d',
               safetyFlag: 'approved_reference_fact_not_instruction',
               instructionRole: 'reference_fact_not_instruction',
               summary:

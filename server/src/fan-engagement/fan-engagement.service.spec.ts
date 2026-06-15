@@ -41,7 +41,7 @@ function activeMission(overrides: Record<string, unknown> = {}) {
     missionType: 'qa_submit_smoke',
     status: 'active',
     startsAt: new Date('2026-05-09T00:00:00.000Z'),
-    endsAt: new Date('2026-05-12T00:00:00.000Z'),
+    endsAt: new Date('2099-05-12T00:00:00.000Z'),
     resetPolicy: 'season:qa-submit-spec',
     rewardPolicy: { points: 1 },
     ...overrides,
