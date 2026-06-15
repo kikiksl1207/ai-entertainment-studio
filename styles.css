@@ -3757,6 +3757,25 @@ p {
   border-left: 3px solid rgba(255, 20, 147, 0.55);
   background: linear-gradient(160deg, rgba(255, 20, 147, 0.065), rgba(159, 139, 199, 0.04));
 }
+
+/* #890 premium chat room status badge variants */
+.premium-chat-hub-room-badge.is-warn {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.premium-chat-hub-room-badge.is-refund {
+  background: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.premium-chat-hub-room-badge.is-closed {
+  background: rgba(150, 150, 170, 0.12);
+  color: rgba(200, 200, 220, 0.65);
+  border: 1px solid rgba(150, 150, 170, 0.2);
+}
 .feed-post.is-artist-post:hover {
   border-left-color: rgba(255, 20, 147, 0.85);
 }
