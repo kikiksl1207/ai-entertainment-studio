@@ -6,6 +6,7 @@ import {
   AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
   AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
   AI_PREMIUM_CONTENT_PROVIDER_ADAPTER_KEYS,
+  AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT,
   AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON,
   AI_PREMIUM_CONTENT_REQUEST_STATUSES,
   AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY,
@@ -20,6 +21,7 @@ import {
   AI_PREMIUM_CONTENT_STATUS_COPY_KO,
   CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT,
   resolveAiPremiumContentCostPrecheck,
+  resolveAiPremiumContentProviderGuard,
   resolveAiPremiumContentSafetyPrecheck,
 } from './ai-premium-content-state-contract';
 
@@ -735,6 +737,116 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
           capability: 'text_to_video',
         },
       ],
+    });
+  });
+
+  it('guards provider attempts with request cost caps, timeout policy, and non-billable failures', () => {
+    expect(AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT).toMatchObject({
+      version: '2026-06-16.ai-premium-content-provider-cost-timeout-guard.v1',
+      status: 'contract_ready_provider_disabled',
+      providerAttemptEnabled: false,
+      providerRouteAliasOnly: true,
+      providerSpecificModelNameTrusted: false,
+      requestCostCap: {
+        currency: 'KRW_MICROS',
+        source: 'server_request_policy_cap',
+        clientSubmittedCostTrusted: false,
+        failClosedBeforeProviderCall: true,
+      },
+      timeoutPolicy: {
+        providerTimeoutMs: 30000,
+        connectTimeoutMs: 5000,
+        timeoutStatusKey: 'provider_failed',
+        timeoutCode: 'AI_PREMIUM_CONTENT_PROVIDER_TIMEOUT',
+        timeoutBillable: false,
+      },
+      retryPolicy: {
+        maxAttempts: 1,
+        retryRequiresFreshCostGuard: true,
+        retryAfterSafetyBlocked: false,
+        duplicateProviderCostRow: false,
+      },
+      billingPolicy: {
+        successOnlyBillable: true,
+        safetyBlockedBillable: false,
+        timeoutBillable: false,
+        providerFailedBillable: false,
+        moderationRejectedBillable: false,
+        walletMutationEnabled: false,
+        orderMutationEnabled: false,
+      },
+    });
+    expect(AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT.providerRoutes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          providerRouteAlias: 'ai_premium_content.video.text_to_video',
+          costClass: 'high',
+          paidRequestRequired: true,
+        }),
+      ]),
+    );
+    expect(
+      resolveAiPremiumContentProviderGuard({
+        providerRouteAlias: 'ai_premium_content.video.text_to_video',
+        estimatedCostMicros: 40_000_000,
+        requestCostCapMicros: 50_000_000,
+        paidRequest: false,
+        safetyStatus: 'cleared',
+      }),
+    ).toMatchObject({
+      allowed: false,
+      code: 'AI_PREMIUM_CONTENT_PAID_REQUEST_REQUIRED',
+      billable: false,
+      providerAttemptEnabled: false,
+      walletMutationEnabled: false,
+    });
+    expect(
+      resolveAiPremiumContentProviderGuard({
+        providerRouteAlias: 'ai_premium_content.image.text_to_image',
+        estimatedCostMicros: 6_000_000,
+        requestCostCapMicros: 5_000_000,
+        paidRequest: true,
+        safetyStatus: 'cleared',
+      }),
+    ).toMatchObject({
+      allowed: false,
+      code: 'AI_PREMIUM_CONTENT_COST_CAP_EXCEEDED',
+      statusKey: 'failed',
+      billable: false,
+      retryAllowed: false,
+    });
+    expect(
+      resolveAiPremiumContentProviderGuard({
+        providerRouteAlias: 'ai_premium_content.image.text_to_image',
+        estimatedCostMicros: 3_000_000,
+        requestCostCapMicros: 5_000_000,
+        paidRequest: true,
+        safetyStatus: 'cleared',
+        failureCode: 'provider_timeout',
+        attempt: 1,
+      }),
+    ).toMatchObject({
+      allowed: false,
+      code: 'AI_PREMIUM_CONTENT_PROVIDER_TIMEOUT',
+      statusKey: 'failed',
+      billable: false,
+      retryAllowed: false,
+      providerTimeoutMs: 30000,
+    });
+    expect(
+      resolveAiPremiumContentProviderGuard({
+        providerRouteAlias: 'ai_premium_content.image.text_to_image',
+        estimatedCostMicros: 3_000_000,
+        requestCostCapMicros: 5_000_000,
+        paidRequest: true,
+        safetyStatus: 'blocked',
+      }),
+    ).toMatchObject({
+      allowed: false,
+      code: 'AI_PREMIUM_CONTENT_SAFETY_BLOCKED',
+      statusKey: 'blocked',
+      billable: false,
+      retryAllowed: false,
     });
   });
 
