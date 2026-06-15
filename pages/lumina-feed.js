@@ -389,7 +389,8 @@ function renderLuminaFeed() {
             <!-- #541 — 댓글 아이콘: 직각 → 라운드 말풍선 (X 직각형 패턴 탈피). 라벨 "댓글" 유지. -->
             <button class="feed-action-btn feed-comment-btn" type="button" data-feed-comment="${feedEscapeHtml(post.id || "")}" aria-label="댓글 보기">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 4V6z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
-              <span>댓글 ${Number(post.replyCount) || 0}</span>
+              <span class="feed-action-btn-label">댓글</span>
+              <span>${Number(post.replyCount) || 0}</span>
             </button>
             <!-- 타래 잇기: 본인 글에만 노출 (#531 — viewer.isAuthor || viewer.canEdit 조건) -->
             ${(post.viewer?.isAuthor || post.viewer?.canEdit)
@@ -1759,7 +1760,8 @@ async function runFeedComposeUploadStages(item, onStateChange) {
             /* #541 — 댓글 아이콘 (상세뷰): 라운드 말풍선 */
             '<button class="feed-action-btn feed-comment-btn" type="button" data-feed-comment="' + postIdStr + '" aria-label="댓글 보기">' +
               '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 4V6z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>' +
-              '<span>댓글 ' + (Number(post.replyCount) || 0) + '</span>' +
+              '<span class="feed-action-btn-label">댓글</span>' +
+              '<span>' + (Number(post.replyCount) || 0) + '</span>' +
             '</button>' +
             /* #531 — 타래 잇기: 본인 글에만 노출 */
             ((post.viewer?.isAuthor || post.viewer?.canEdit)
