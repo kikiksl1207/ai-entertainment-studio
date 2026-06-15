@@ -1,6 +1,7 @@
 import {
   PREMIUM_CHAT_REPORT_REFUND_API_STATUS_KEYS,
   PREMIUM_CHAT_ROOM_CONTRACT,
+  PREMIUM_CHAT_ROOM_FOLLOWER_TIER_UNLOCKS,
   PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
 } from './premium-chat-room-contract';
 
@@ -1485,6 +1486,60 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       disabledMessageKeyField: 'disabledMessageKey',
       rawInternalReasonReturned: false,
       rawEnumCopyReturned: false,
+    },
+    tierRoomProjection: {
+      version: '2026-06-16.premium-chat-tier-room-projection.v1',
+      projectionKey: 'premiumRoomTierProjection',
+      surfaces: {
+        publicRoomList: {
+          endpoint: '/api/v1/chat/premium-rooms',
+          projectionKey: 'premiumRoomTierProjection',
+        },
+        ownerRoomList: {
+          endpoint: '/api/v1/chat/me/premium-rooms',
+          projectionKey: 'premiumRoomTierProjection',
+        },
+        artistManagementList: {
+          endpoint: '/api/v1/creator-studio/premium-chat/rooms',
+          projectionKey: 'premiumRoomTierProjection',
+        },
+      },
+      allowedAmountsLumina: PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
+      allowedTiers: PREMIUM_CHAT_ROOM_CONTRACT.roomOpen.tiers.map((tier) => ({
+        tierKey: tier.tierKey,
+        amountLumina: tier.amountLumina,
+        initialArtistEligible: tier.initialArtistEligible,
+        maxTier: tier.maxTier,
+        unlockGate: tier.unlockGate,
+      })),
+      followerUnlockPolicy: {
+        source: 'server_counted_active_artist_follows',
+        gates: PREMIUM_CHAT_ROOM_FOLLOWER_TIER_UNLOCKS,
+        defaultTierKey: 'premium_chat_room_300',
+        clientSubmittedFollowerCountTrusted: false,
+        cachedFollowerCountTrustedForUnlock: false,
+      },
+      artistSelectionPolicy: {
+        artistSelectableStateSeparatedFromFollowerUnlock: true,
+        selectableField: 'artistSelectable',
+        lockedReasonKeyField: 'lockedReasonKey',
+        serverSelectedTierOnly: true,
+      },
+      projectionFields: [
+        'tierKey',
+        'amountLumina',
+        'initialArtistEligible',
+        'maxTier',
+        'unlockGate',
+        'artistSelectable',
+        'lockedReasonKey',
+      ],
+      noMutation: {
+        roomOpen: true,
+        walletDebit: true,
+        settlement: true,
+        payout: true,
+      },
     },
     forbiddenUserCopyTerms: [
       'provider',
