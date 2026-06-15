@@ -7313,6 +7313,70 @@ describe('ChatService premium chat support contract', () => {
     });
   });
 
+  it('exposes premium chat support message request backend skeleton without enabling mutation', () => {
+    const service = new ChatService({} as never, {} as never);
+
+    const contract = service.getPremiumSupportContract();
+    const supportMessageRequest =
+      contract.backendSkeleton.supportMessageRequest;
+
+    expect(supportMessageRequest).toMatchObject({
+      version:
+        '2026-06-15.premium-chat-support-message-backend-skeleton.v1',
+      status: 'contract_skeleton_only_mutation_blocked',
+      endpoint: {
+        method: 'POST',
+        pathTemplate:
+          '/api/v1/chat/premium-rooms/:roomId/support-messages',
+        enabled: false,
+        publicMutationEnabled: false,
+        authRequired: true,
+      },
+      message: {
+        optional: true,
+        maxChars: 200,
+        createsAiReply: false,
+        createsRoomMessage: false,
+        requiresModerationProjection: true,
+      },
+      eventType: 'premium_chat_support_message_requested',
+    });
+    expect(supportMessageRequest.supportUnit.fixedAmountsLumina).toEqual([
+      10,
+      50,
+      100,
+      500,
+      1000,
+      5000,
+      10000,
+      50000,
+    ]);
+    expect(supportMessageRequest.supportUnit.customAmount).toMatchObject({
+      supported: true,
+      minLumina: 1,
+      maxLumina: 50000,
+      integerOnly: true,
+    });
+    expect(supportMessageRequest.projectionKeys).toMatchObject({
+      supportMessage: 'premiumChatSupportMessageProjection',
+      donationEvent: 'premiumChatDonationEventProjection',
+      communicationRanking: 'premiumChatCommunicationRankingProjection',
+      donationRanking: 'premiumChatDonationRankingProjection',
+      likeRanking: null,
+    });
+    expect(supportMessageRequest.rankingSeparation).toMatchObject({
+      likeRankingReceivesSupportMessage: false,
+      communicationRankingReceivesSafeSupportActivity: true,
+      donationRankingReceivesConfirmedNetSupport: true,
+    });
+    expect(Object.values(supportMessageRequest.noMutation)).toEqual(
+      expect.arrayContaining([true]),
+    );
+    expect(Object.values(supportMessageRequest.noMutation)).not.toContain(
+      false,
+    );
+  });
+
   it('keeps cancelled refunded and sanctioned rows out of the daily premium chat ranking aggregate', () => {
     const service = new ChatService({} as never, {} as never);
     const contract = service.getPremiumSupportContract();

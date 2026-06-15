@@ -1211,6 +1211,56 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       communicationRankingBasis:
         'safe_room_open_message_support_and_artist_reply_activity',
     },
+    supportMessageRequest: {
+      version:
+        '2026-06-15.premium-chat-support-message-backend-skeleton.v1',
+      status: 'contract_skeleton_only_mutation_blocked',
+      endpoint: {
+        method: 'POST',
+        pathTemplate:
+          '/api/v1/chat/premium-rooms/:roomId/support-messages',
+        enabled: false,
+        publicMutationEnabled: false,
+        authRequired: true,
+      },
+      supportUnit: {
+        fixedAmountsLumina: PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA,
+        customAmount: PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY,
+        amountSource: 'server_normalized_premium_chat_support_amount',
+        clientSubmittedAmountTrusted: false,
+      },
+      message: {
+        optional: true,
+        maxChars: 200,
+        createsAiReply: false,
+        createsRoomMessage: false,
+        requiresModerationProjection: true,
+      },
+      eventType: 'premium_chat_support_message_requested',
+      projectionKeys: {
+        supportMessage: 'premiumChatSupportMessageProjection',
+        donationEvent: 'premiumChatDonationEventProjection',
+        communicationRanking:
+          'premiumChatCommunicationRankingProjection',
+        donationRanking: 'premiumChatDonationRankingProjection',
+        likeRanking: null,
+      },
+      rankingSeparation: {
+        likeRankingReceivesSupportMessage: false,
+        communicationRankingReceivesSafeSupportActivity: true,
+        donationRankingReceivesConfirmedNetSupport: true,
+      },
+      noMutation: {
+        supportMessageWrite: true,
+        donationOrderWrite: true,
+        donationEventWrite: true,
+        walletDebit: true,
+        walletCredit: true,
+        settlement: true,
+        payout: true,
+        rankingRefresh: true,
+      },
+    },
   },
   endpoints: {
     contract: {

@@ -1749,6 +1749,19 @@ Premium chat support backend skeleton (#588):
   `/api/v1/boost-campaigns/:campaignId/rankings`, while premium-chat
   communication and donation lanes remain on planned `/api/v1/chat/rankings`
   queries. Premium-chat support must not feed like rankings.
+- #895 adds `backendSkeleton.supportMessageRequest` for the future in-room
+  support message request contract. The planned endpoint remains disabled and
+  uses the existing fixed support units `10/50/100/500/1000/5000/10000/50000L`
+  plus custom integer support from `1L` to `50000L`.
+- The support message skeleton separates event and projection keys:
+  `premium_chat_support_message_requested`,
+  `premiumChatSupportMessageProjection`,
+  `premiumChatCommunicationRankingProjection`, and
+  `premiumChatDonationRankingProjection`. It does not feed Lumina Pick like
+  rankings.
+- The #895 skeleton is contract-only. It does not write support messages,
+  donation orders/events, wallet movement, settlement, payout, or ranking
+  refreshes.
 
 Premium chat support submit readiness (#616):
 
