@@ -5,6 +5,7 @@ import {
   FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT,
   PaymentsService,
 } from './payments.service';
+import { ACTIVE_CHARGE_PRODUCT_SPECS } from './charge-products.policy';
 
 const userId = '00000000-0000-4000-8000-000000000001';
 const otherUserId = '00000000-0000-4000-8000-000000000002';
@@ -191,10 +192,15 @@ describe('PaymentsService server-authority contract', () => {
 
   it('documents first-charge bonus idempotency as a server-side wallet contract', () => {
     expect(FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT).toMatchObject({
+      canonicalChargePackageCount: 6,
       grantTrigger: 'first_successful_paid_lumina_order_transition_only',
       idempotencyKeyPattern: 'first_charge_bonus:<userId>',
       bonusBasis: 'base_lumina_only',
+      bonusRate: '10_percent',
       packageBonusIncluded: false,
+      packageBonusLedgerType: 'purchase',
+      firstChargeBonusLedgerType: 'first_charge_bonus',
+      firstChargeBonusReferenceType: 'payment_order',
       clientProvidedAmountAccepted: false,
       walletAndLedgerSameTransaction: true,
       duplicateProviderTransactionBehavior: 'idempotent_replay_without_wallet_ledger',
@@ -204,6 +210,62 @@ describe('PaymentsService server-authority contract', () => {
       settlementEligible: false,
       cashRefundable: false,
     });
+  });
+
+  it('applies first-charge 10 percent once across all six canonical packages without mixing package bonus ledger reasons', async () => {
+    expect(ACTIVE_CHARGE_PRODUCT_SPECS).toHaveLength(6);
+
+    for (const product of ACTIVE_CHARGE_PRODUCT_SPECS) {
+      const { prisma, tx, webhookEvent } = paidWebhookFixture({
+        providerTransactionId: `provider-txn-${product.sku}`,
+        order: {
+          amount: new Decimal(product.priceAmount),
+          luminaProduct: {
+            id: productId,
+            sku: product.sku,
+            name: product.name,
+            luminaAmount: new Decimal(product.luminaAmount),
+            bonusAmount: new Decimal(product.bonusAmount),
+            priceAmount: new Decimal(product.priceAmount),
+            priceCurrency: product.priceCurrency,
+            status: 'active',
+          },
+        },
+      });
+      const { service } = serviceWith(prisma, {
+        verifyAndParseWebhook: jest.fn().mockReturnValue(webhookEvent),
+      });
+
+      await expect(service.handleWebhook('mock', {}, {})).resolves.toMatchObject({
+        firstChargeBonus: {
+          applied: true,
+          amount: new Decimal(product.luminaAmount).mul('0.1').toString(),
+          basis: 'base_lumina_only',
+          packageBonusIncluded: false,
+          oneTimePerUser: true,
+        },
+      });
+
+      const purchaseLedger = tx.walletLedger.create.mock.calls[0][0].data;
+      const firstChargeBonusLedger = tx.walletLedger.upsert.mock.calls[0][0].create;
+      const expectedPurchaseCredit = new Decimal(product.luminaAmount).plus(
+        product.bonusAmount,
+      );
+      const expectedFirstChargeBonus = new Decimal(product.luminaAmount).mul('0.1');
+
+      expect(purchaseLedger.ledgerType).toBe('purchase');
+      expect((purchaseLedger.amount as Decimal).toString()).toBe(
+        expectedPurchaseCredit.toString(),
+      );
+      expect(firstChargeBonusLedger.ledgerType).toBe('first_charge_bonus');
+      expect(firstChargeBonusLedger.referenceType).toBe('payment_order');
+      expect(firstChargeBonusLedger.idempotencyKey).toBe(
+        `first_charge_bonus:${userId}`,
+      );
+      expect((firstChargeBonusLedger.amount as Decimal).toString()).toBe(
+        expectedFirstChargeBonus.toString(),
+      );
+    }
   });
 
   it('creates checkout orders only from active charge-policy price tiers', async () => {

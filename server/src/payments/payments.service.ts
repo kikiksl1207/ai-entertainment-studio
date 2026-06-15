@@ -19,10 +19,15 @@ const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
 const FIRST_CHARGE_BONUS_BASIS = 'base_lumina_only';
 export const FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT = {
   version: '2026-06-08.first-charge-bonus-idempotency.v1',
+  canonicalChargePackageCount: 6,
   grantTrigger: 'first_successful_paid_lumina_order_transition_only',
   idempotencyKeyPattern: 'first_charge_bonus:<userId>',
   bonusBasis: FIRST_CHARGE_BONUS_BASIS,
+  bonusRate: '10_percent',
   packageBonusIncluded: false,
+  packageBonusLedgerType: 'purchase',
+  firstChargeBonusLedgerType: 'first_charge_bonus',
+  firstChargeBonusReferenceType: 'payment_order',
   clientProvidedAmountAccepted: false,
   walletAndLedgerSameTransaction: true,
   duplicateProviderTransactionBehavior: 'idempotent_replay_without_wallet_ledger',
