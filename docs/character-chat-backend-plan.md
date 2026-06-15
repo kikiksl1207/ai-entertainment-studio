@@ -425,6 +425,12 @@ Image, Stable Diffusion, Seedance, OpenAI, or any provider.
   `ai_character_reply`.
 - Artist direct premium DM stays `artist_direct_premium_dm` with
   `artist_direct_reply`.
+- #881 locks the product-flow guard for artist detail CTA QA. The disabled
+  premium-chat CTA keeps `disabledReasonKey =
+  premium_chat_room_open_contract_pending`, does not fall back to
+  `/character-chat`, and must not create a normal character-chat conversation.
+  This guard is read-only and does not open premium rooms, submit payments,
+  debit wallets, call providers, or touch settlement/payout state.
 - AI image/video/mixed premium content requests stay
   `ai_premium_content_request` with
   `async_ai_content_generation_request`.

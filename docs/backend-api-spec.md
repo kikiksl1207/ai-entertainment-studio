@@ -1107,6 +1107,14 @@ Character-chat premium transition CTA contract (#500/#511):
   and must not reuse character starter prompts or opening greetings. Character
   chat must not create premium rooms, and premium-chat room open remains
   submit/wallet/provider disabled until the room contract is opened.
+- #881 adds `productFlowGuard` to make the split auditable before UI/API QA:
+  character chat is the only flow that can create an AI character
+  conversation, while the premium chat CTA is an artist-direct DM flow with
+  `disabled=true`, `disabledReasonKey =
+  premium_chat_room_open_contract_pending`, and no room-open submit.
+  Entering from an artist detail premium CTA must not create a character-chat
+  conversation, must not fall back to `/character-chat`, and must not trigger
+  provider, room-open, payment, wallet, settlement, or payout side effects.
 - `roomStateReasons` provides Korean user-facing reasons for available,
   artist-resting, under-review, expired, and unavailable states. Frontend must
   render those Korean messages instead of raw state keys.
