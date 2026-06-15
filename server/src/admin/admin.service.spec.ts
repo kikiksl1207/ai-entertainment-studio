@@ -405,6 +405,105 @@ describe('AdminService auth action token audit', () => {
   });
 });
 
+describe('AdminService generic audit event read model', () => {
+  it('redacts sensitive before/after/metadata fields while preserving safe trace fields', async () => {
+    const prisma = {
+      auditEvent: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: '00000000-0000-4000-8000-000000008890',
+            actorUserId: '00000000-0000-4000-8000-000000008891',
+            actorType: 'admin',
+            action: 'auth.password_reset.request',
+            targetType: 'user',
+            targetId: '00000000-0000-4000-8000-000000008892',
+            beforeData: {
+              rawEmail: 'raw-user@example.com',
+              token: 'token=must-not-return',
+              nested: {
+                password: 'password=must-not-return',
+              },
+            },
+            afterData: {
+              status: 'accepted',
+              cookie: 'cookie=must-not-return',
+              rawPrompt: 'raw prompt must not return',
+            },
+            metadata: {
+              endpointPath: '/api/v1/auth/password-resets',
+              requestId: 'req-889',
+              providerKey: 'provider-key=must-not-return',
+              dbUrl: 'postgres://must-not-return',
+            },
+            createdAt: new Date('2026-06-15T00:00:00.000Z'),
+            actorUser: {
+              id: '00000000-0000-4000-8000-000000008891',
+              email: 'admin@example.com',
+              status: 'active',
+            },
+          },
+        ]),
+      },
+    };
+    const service = new AdminService(
+      prisma as unknown as PrismaService,
+      { get: jest.fn() } as unknown as ConfigService,
+    );
+
+    const result = await service.getAuditEvents({ take: '10' });
+
+    expect(prisma.auditEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          actorUser: {
+            select: { id: true, email: true, status: true },
+          },
+        },
+      }),
+    );
+    expect(result.items[0]).toMatchObject({
+      actorUser: {
+        id: '00000000-0000-4000-8000-000000008891',
+        emailMasked: 'ad***@example.com',
+        status: 'active',
+      },
+      beforeData: {
+        rawEmail: '[redacted]',
+        token: '[redacted]',
+        nested: {
+          password: '[redacted]',
+        },
+      },
+      afterData: {
+        status: 'accepted',
+        cookie: '[redacted]',
+        rawPrompt: '[redacted]',
+      },
+      metadata: {
+        endpointPath: '/api/v1/auth/password-resets',
+        requestId: 'req-889',
+        providerKey: '[redacted]',
+        dbUrl: '[redacted]',
+      },
+      sensitiveFields: {
+        tokenReturned: false,
+        passwordReturned: false,
+        cookieReturned: false,
+        dbUrlReturned: false,
+        providerKeyReturned: false,
+        rawPromptReturned: false,
+        rawEmailReturned: false,
+      },
+    });
+
+    const payload = JSON.stringify(result);
+    expect(payload).not.toContain('raw-user@example.com');
+    expect(payload).not.toContain('admin@example.com');
+    expect(payload).not.toContain('must-not-return');
+    expect(payload).not.toContain('postgres://');
+  });
+});
+
 describe('AdminService community feed cleanup audit guard', () => {
   const adminUser = {
     id: '00000000-0000-4000-8000-000000000609',
