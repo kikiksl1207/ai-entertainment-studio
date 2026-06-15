@@ -6211,6 +6211,41 @@ describe('ChatService premium chat support contract', () => {
       insufficientBalanceBehavior:
         'return stable insufficient balance error without order, donation event, ledger, or ranking write',
     });
+    expect(contract.donation.refundSettlementSplitGuard).toMatchObject({
+      version: '2026-06-16.premium-chat-donation-refund-settlement-split.v1',
+      roomOpenLedgerType: 'premium_chat_open',
+      donationLedgerType: 'premium_chat_donation',
+      roomRefundReferenceType: 'premium_chat_room_refund_decision',
+      donationRefundReferenceType: 'premium_chat_donation',
+      roomRefundAmountBasis: 'server_room_purchase_ledger_amount',
+      donationRefundAmountBasis: 'confirmed_net_premium_chat_donation',
+      donationIncludedInRoomRefundSplit: false,
+      roomOpenIncludedInDonationRefund: false,
+      duplicateArtistCompensationFromDonation: false,
+      duplicateCompanyRevenueFromDonation: false,
+      userFaultRefundRestrictionAppliesToDonationLedger: false,
+      artistForcedCloseAutoRefundsDonation: false,
+      operatorSanctionAutoRefundsDonation: false,
+      donationChargebackHandledByDonationOrder: true,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      walletMutationEnabled: false,
+      idempotency: {
+        roomRefundKey: 'server_room_refund_key',
+        donationRefundKey: 'premium_chat_donation_refund_key',
+        roomAndDonationKeysShareNamespace: false,
+      },
+    });
+    expect(contract.donation.refundSettlementSplitGuard.traceFields).toEqual(
+      expect.arrayContaining([
+        'roomId',
+        'donationId',
+        'roomRefundDecisionId',
+        'donationRefundDecisionId',
+        'ledgerType',
+        'referenceType',
+      ]),
+    );
     expect(contract.conversationMetering).toMatchObject({
       status: 'planned_disabled',
       unit: 'message_activity_unit',
