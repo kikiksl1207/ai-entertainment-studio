@@ -578,8 +578,48 @@ describe('AuthService action token flows', () => {
       providers: ['google', 'naver'],
       hasPassword: false,
       isSocialOnly: true,
+      emailVerification: {
+        status: 'verified',
+        required: false,
+        messageKey: 'auth.emailVerification.verified',
+      },
     });
     const payload = JSON.stringify(projection);
+    expect(payload).not.toMatch(/passwordHash|providerUserId|accessToken|refreshToken|cookie/i);
+    expect(payload).not.toMatch(/passwordResetCta|resetPasswordCta|forgotPasswordCta/i);
+  });
+
+  it('projects email-password account method separately from social-only settings copy', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.user.findFirst.mockResolvedValue({
+      id: userId,
+      email,
+      emailVerifiedAt: new Date('2026-05-15T00:00:00.000Z'),
+      phoneNumber: null,
+      status: 'active',
+      createdAt: new Date('2026-05-15T00:00:00.000Z'),
+      authAccounts: [{ provider: 'email', passwordHash: 'hash' }],
+      profile: null,
+      settings: null,
+      walletAccounts: [],
+    });
+
+    const projection = await service.getMe(userId);
+
+    expect(projection).toMatchObject({
+      provider: 'email',
+      providers: ['email'],
+      hasPassword: true,
+      isSocialOnly: false,
+      emailVerification: {
+        status: 'verified',
+        required: false,
+        messageKey: 'auth.emailVerification.verified',
+      },
+    });
+    const payload = JSON.stringify(projection);
+    expect(payload).not.toMatch(/social[-_ ]only/i);
     expect(payload).not.toMatch(/passwordHash|providerUserId|accessToken|refreshToken|cookie/i);
   });
 
