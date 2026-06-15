@@ -680,3 +680,25 @@
   border-color: rgba(120, 230, 160, 0.55);
   color: #7be4a3;
 }
+
+/* #833 — 대화 방법 선택 카드 타입 태그 (무료/유료) */
+.detail-chat-type-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+  margin-left: 5px;
+}
+.detail-chat-type-tag.is-free {
+  background: rgba(130, 100, 255, 0.15);
+  color: #c4b0ff;
+  border: 1px solid rgba(130, 100, 255, 0.28);
+}
+.detail-chat-type-tag.is-paid {
+  background: rgba(255, 185, 60, 0.12);
+  color: #ffd080;
+  border: 1px solid rgba(255, 185, 60, 0.28);
+}

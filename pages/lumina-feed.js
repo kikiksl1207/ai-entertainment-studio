@@ -357,6 +357,15 @@ function renderLuminaFeed() {
           </div>
           ${followButton}
         </header>
+        ${/* #834 — 팬덤형 카드: 팬 포스트가 특정 아티스트와 연결되어 있으면 아티스트 태그 표시 */
+          (!artist && post.artistSlug && post.postType === "fan_post")
+          ? (() => {
+              const tagArtist = getCharacterBySlug(post.artistSlug);
+              return tagArtist
+                ? `<a class="feed-post-artist-tag" href="/character-detail?slug=${feedEscapeHtml(post.artistSlug)}" aria-label="${feedEscapeHtml(tagArtist.publicName)} 프로필로 이동">✦ ${feedEscapeHtml(tagArtist.publicName)}</a>`
+                : "";
+            })()
+          : ""}
         <p class="feed-post-body">${feedEscapeHtml(post.body)}</p>
         <button class="feed-post-expand-btn" type="button" aria-expanded="false">더 보기</button>
         ${repostEmbed}
