@@ -3,6 +3,7 @@ import {
   PREMIUM_CHAT_ADMIN_REPORT_REFUND_QUERY_STATUS_KEYS,
   isPremiumChatRoomMutationBlocked,
   PREMIUM_CHAT_BILLING_LEDGER_EVENT_NAMES,
+  PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT,
   PREMIUM_CHAT_LEDGER_TRACE_FIELDS,
   PREMIUM_CHAT_REPORT_REFUND_API_ACTION_KEYS,
   PREMIUM_CHAT_REPORT_REFUND_API_STATUS_KEYS,
@@ -23,6 +24,7 @@ import {
   resolvePremiumChatRoomDurationPolicy,
   resolvePremiumChatRoomSchedulerTransition,
   resolvePremiumChatMessageChargePolicy,
+  resolvePremiumChatLedgerPrecision,
   resolvePremiumChatRoomOpenPolicy,
   resolvePremiumChatRoomRefundPolicy,
   resolvePremiumChatRoomUnansweredRefundCandidate,
@@ -690,6 +692,9 @@ describe('premium chat room refund and moderation ledger contract', () => {
       artistVisibleSentenceCount: 1,
       chargeablePairCount: 1,
       chargeLumina: 1,
+      chargeLedgerUnits: 2,
+      ledgerUnitScale: 2,
+      ledgerAmountStorage: 'integer_lumina_subunits',
       unpairedUserSentenceCount: 2,
       unpairedArtistSentenceCount: 0,
       fractionalLuminaAllowed: false,
@@ -721,6 +726,75 @@ describe('premium chat room refund and moderation ledger contract', () => {
         chargeablePairsFormula:
           'min(serverVisibleUserSentenceCount, serverVisibleArtistSentenceCount)',
       },
+      precision: {
+        amountStorage: 'integer_lumina_subunits',
+        luminaSubunitsPerLumina: 2,
+        minimumBillableUnitLumina: 0.5,
+        decimalAmountStoredInLedger: false,
+        roundingMode: 'reject_non_unit_multiple_before_ledger',
+        clientSubmittedAmountTrusted: false,
+      },
+    });
+  });
+
+  it('stores premium chat debit amounts as integer ledger subunits without rounding client amounts', () => {
+    expect(PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT).toMatchObject({
+      amountStorage: 'integer_lumina_subunits',
+      luminaSubunitsPerLumina: 2,
+      minimumBillableUnitLumina: 0.5,
+      decimalAmountStoredInLedger: false,
+      roundingMode: 'reject_non_unit_multiple_before_ledger',
+      duplicateChargeGuard: [
+        'room_open_idempotency_fingerprint',
+        'server_message_pair_meter_key',
+      ],
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedBalanceTrusted: false,
+      clientSubmittedBonusTrusted: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+
+    expect(
+      resolvePremiumChatLedgerPrecision({
+        serverAmountLumina: 1,
+        clientSubmittedAmountLumina: 99.5,
+      }),
+    ).toMatchObject({
+      serverAmountLumina: 1,
+      serverAmountLedgerUnits: 2,
+      serverAmountValid: true,
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedAmountIgnored: true,
+      clientSubmittedAmountMismatch: true,
+      decimalAmountStoredInLedger: false,
+    });
+    expect(
+      resolvePremiumChatLedgerPrecision({
+        serverAmountLumina: 0.5,
+      }),
+    ).toMatchObject({
+      serverAmountLedgerUnits: 1,
+      serverAmountValid: true,
+    });
+    expect(
+      resolvePremiumChatLedgerPrecision({
+        serverAmountLumina: 0.25,
+      }),
+    ).toMatchObject({
+      serverAmountLedgerUnits: null,
+      serverAmountValid: false,
+      roundingMode: 'reject_non_unit_multiple_before_ledger',
+      walletMutationEnabled: false,
+    });
+    expect(
+      resolvePremiumChatLedgerPrecision({
+        serverAmountLumina: 300,
+      }),
+    ).toMatchObject({
+      serverAmountLedgerUnits: 600,
+      serverAmountValid: true,
     });
   });
 
