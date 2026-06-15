@@ -3116,6 +3116,19 @@ Authorization: Bearer <accessToken>
   from the original post projection. Share remains a URL/Web Share projection
   with `countTarget: null`; it creates no feed row, notification row, unread
   count, wallet, Lumina, settlement, payout, order, or paid-like mutation.
+- #908 exports `LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT` to keep simple
+  repost, quote repost, and share URL guards separate. Repost uses
+  `feed_repost`/`repost`, quote repost uses `feed_quote_repost`/`quote_repost`,
+  and share uses `feed_share`/`share_contract` with `createsFeedRow: false`.
+  Guard order is auth for repost or quote repost, source id validation, public
+  published source lookup, deleted/hidden/private/moderation-review rejection,
+  block relationship check in either direction, quote body validation, then the
+  relation-specific projection. Missing, deleted, hidden, private, or
+  moderation-review sources fail closed as safe not-found; active blocks fail
+  closed with `USER_FOLLOW_BLOCKED`; later unavailable originals render as a
+  tombstone without exposing the original body. The contract adds no real post,
+  repost, share, notification, wallet, Lumina, settlement, payout, order, or
+  paid-like mutation.
 - `DELETE /api/v1/lumina-feed/posts/:postId` soft-deletes the current user's own root post. Deleting the root hides the full thread from feed lists.
 - `DELETE /api/v1/lumina-feed/replies/:replyId` soft-deletes the current user's own reply. Artist operators can delete replies on operated artist posts.
 - Hidden posts use soft delete/reactivation with unique `(user_id, post_id)`.
