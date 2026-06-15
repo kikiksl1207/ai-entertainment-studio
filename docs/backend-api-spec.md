@@ -3059,6 +3059,17 @@ Authorization: Bearer <accessToken>
 - Use `POST /api/v1/lumina-feed/posts/:postId/share` to request the public share contract for a public published post, including another user's post. It returns `relation: "share"`, `createsFeedRow: false`, `repostRelation: false`, `threadRelation: false`, `commentRelation: false`, `replyRelation: false`, `share.publicPath`, `share.webShare`, and `share.countStrategy: "not_mutated_by_share_contract"`. It does not require author ownership and does not create a repost, feed row, share ledger, wallet, Lumina, settlement, payout, order, or paid-like mutation.
 - #800 count projection: repost and quote repost are the only rows included in repost/profile repost counters and repost notifications. The share contract remains a read-only URL projection and does not mutate repost count, quote repost count, share count, profile repost tabs, notification rows, or unread notification counters. Blocked relationships fail closed before repost creation/notification mutation and blocked relationship rows are excluded or tombstoned in read/count projections.
 - #872 state contract: share uses `actionKey: "feed_share"` / `stateKey: "share_contract"` with `countTarget: null`. Deleted, hidden, private, or blocked source posts fail closed as safe not-found/tombstone projections, and share does not mutate thread, repost, reply, wallet, Lumina, settlement, payout, order, or paid-like state.
+- #899 exports `LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT` as the
+  backend read-model contract for these lanes. Thread continuation is an
+  existing-post child post flow with count source
+  `community_posts.metadata.threadContinuation.rootPostId`; it is not automatic
+  long-text splitting and is excluded from manual thread, repost, share, reply,
+  and comment counts.
+- #899 keeps repost and quote repost counters tied only to
+  `community_posts.metadata.repost.originalPostId`, with quote text separate
+  from the original post projection. Share remains a URL/Web Share projection
+  with `countTarget: null`; it creates no feed row, notification row, unread
+  count, wallet, Lumina, settlement, payout, order, or paid-like mutation.
 - `DELETE /api/v1/lumina-feed/posts/:postId` soft-deletes the current user's own root post. Deleting the root hides the full thread from feed lists.
 - `DELETE /api/v1/lumina-feed/replies/:replyId` soft-deletes the current user's own reply. Artist operators can delete replies on operated artist posts.
 - Hidden posts use soft delete/reactivation with unique `(user_id, post_id)`.

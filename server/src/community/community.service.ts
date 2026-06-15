@@ -193,6 +193,83 @@ export const USER_SOCIAL_ACCOUNT_CONTRACT = {
   },
 } as const;
 
+export const LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT = {
+  version: '2026-06-15.lumina-feed-thread-repost-count-projection.v1',
+  status: 'read_model_contract_only',
+  threadContinuation: {
+    relation: 'thread_continuation',
+    actionKey: 'feed_thread_continue',
+    stateKey: 'thread_continuation',
+    childPostFlow: 'existing_post_child_post',
+    rootAuthorOnly: true,
+    autoLongTextSplit: false,
+    listEndpoint: '/api/v1/lumina-feed/posts/:postId/thread-continuations',
+    createEndpoint: '/api/v1/lumina-feed/posts/:postId/thread-continuations',
+    countField: 'threadContinuationCount',
+    countSource: 'community_posts.metadata.threadContinuation.rootPostId',
+    excludedFrom: [
+      'manualThreadCount',
+      'repostCount',
+      'shareCount',
+      'replyCount',
+      'commentCount',
+    ],
+  },
+  repost: {
+    allowedTypes: ['repost', 'quote_repost'],
+    actionKeys: {
+      repost: 'feed_repost',
+      quoteRepost: 'feed_quote_repost',
+    },
+    stateKeys: {
+      repost: 'repost',
+      quoteRepost: 'quote_repost',
+    },
+    originalReferenceField: 'metadata.repost.originalPostId',
+    quoteBodyField: 'body',
+    originalPostProjectionField: 'post.repost.originalPost',
+    countField: 'repostCount',
+    countSource: 'community_posts.metadata.repost.originalPostId',
+    profileTabIncludes: ['repost', 'quote_repost'],
+    notificationType: 'feed.repost',
+    excludedFrom: [
+      'manualThreadCount',
+      'threadContinuationCount',
+      'shareCount',
+      'replyCount',
+      'commentCount',
+    ],
+  },
+  share: {
+    relation: 'share',
+    actionKey: 'feed_share',
+    stateKey: 'share_contract',
+    createsFeedRow: false,
+    countTarget: null,
+    shareUrlProjectionOnly: true,
+    repostRelation: false,
+    threadRelation: false,
+    notificationMutation: false,
+    unreadCountMutation: false,
+  },
+  blockedRelationshipPolicy: {
+    writePolicy: 'reject_before_feed_or_notification_mutation',
+    readAndCountProjection: 'exclude_or_tombstone_blocked_relationship_rows',
+  },
+  mutationPolicy: {
+    contractAddsPostCreate: false,
+    contractAddsRepostCreate: false,
+    contractAddsShareCreate: false,
+    contractAddsNotificationCreate: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    orderMutation: false,
+    paidLikeMutation: false,
+  },
+} as const;
+
 @Injectable()
 export class CommunityService {
   private readonly logger = new Logger(CommunityService.name);
