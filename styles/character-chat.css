@@ -2331,3 +2331,129 @@ select.dm-field-input option {
   .premium-chat-plan-list::-webkit-scrollbar { display: none; }
   .premium-chat-plans { padding: 14px 12px 10px; }
 }
+
+/* #918 — 후원 CTA 확인 단계 표시 & 허브 랭킹 구분선 */
+.donation-step-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 10px 0 14px;
+  padding: 8px 12px;
+  background: rgba(236, 72, 153, 0.06);
+  border: 1px solid rgba(236, 72, 153, 0.18);
+  border-radius: 8px;
+  font-size: 12px;
+  color: rgba(240, 238, 248, 0.65);
+}
+.donation-step-bar .ds-step {
+  flex: 1;
+  text-align: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.donation-step-bar .ds-step.is-active {
+  background: rgba(236, 72, 153, 0.15);
+  color: #f9a8d4;
+  font-weight: 700;
+}
+.donation-step-bar .ds-arrow {
+  color: rgba(200, 180, 230, 0.35);
+  font-size: 10px;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+.premium-chat-hub-ranking-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(180, 170, 210, 0.55);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.premium-chat-hub-ranking-divider::before,
+.premium-chat-hub-ranking-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(180, 170, 210, 0.15);
+}
+
+/* #919 — AI 요청 상태 흐름 */
+.dm-request-status-flow {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 8px;
+}
+.dm-request-status-flow-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(200, 195, 240, 0.55);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0 0 8px;
+}
+.dm-request-status-steps {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.dm-request-status-steps::-webkit-scrollbar { display: none; }
+.dm-request-status-step {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11.5px;
+  color: rgba(200, 195, 240, 0.45);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dm-request-status-step .step-label {
+  padding: 3px 7px;
+  border-radius: 5px;
+  border: 1px solid rgba(100, 90, 150, 0.2);
+}
+.dm-request-status-step.is-active .step-label {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.38);
+  color: #a5b4fc;
+  font-weight: 700;
+}
+.dm-request-status-step.is-done .step-label {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.25);
+}
+.dm-request-status-step.is-warn .step-label {
+  color: #fb923c;
+  border-color: rgba(251, 146, 60, 0.3);
+}
+.dm-request-status-step .step-arrow {
+  color: rgba(150, 140, 200, 0.25);
+  font-size: 10px;
+}
+.dm-request-status-alts {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.dm-request-status-alt {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(100, 90, 150, 0.2);
+  color: rgba(200, 195, 240, 0.5);
+}
+.dm-request-status-alt.is-warn { border-color: rgba(251, 146, 60, 0.3); color: #fb923c; }
+.dm-request-status-alt.is-error { border-color: rgba(239, 68, 68, 0.3); color: #f87171; }
+.dm-request-status-alt.is-retry { border-color: rgba(34, 197, 94, 0.25); color: #4ade80; }

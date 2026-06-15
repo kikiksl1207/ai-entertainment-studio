@@ -65,6 +65,7 @@
             <!-- #343 — 좋아요/소통/후원이 어디서 집계되는지 한 줄로 정리해 가독성을 높임. -->
             <p>좋아요 응원, 소통 활동, 후원은 서로 다른 화면에서 따로 집계돼요.</p>
           </header>
+          <!-- #918 — 좋아요 순위는 별도 섹션으로 분리, 프리미엄챗 집계와 섞이지 않도록 구분선 추가 -->
           <ul class="premium-chat-hub-cards" role="list">
             <li>
               <a class="premium-chat-hub-card" href="/lumina-pick" aria-label="좋아요 응원 랭킹으로 이동">
@@ -74,6 +75,9 @@
                 <span class="premium-chat-hub-cta">루미나 픽 →</span>
               </a>
             </li>
+          </ul>
+          <div class="premium-chat-hub-ranking-divider" aria-hidden="true">프리미엄챗 활동 집계</div>
+          <ul class="premium-chat-hub-cards" role="list">
             <li>
               <a class="premium-chat-hub-card" href="/chat-rankings?type=communication" aria-label="소통 TOP 랭킹으로 이동">
                 <span class="premium-chat-hub-eyebrow">소통 TOP</span>
@@ -326,6 +330,32 @@
       </header>
 
       <div class="dm-sheet-body">
+        <!-- #919 — 요청 상태 흐름: 이미지·영상이 같은 파이프라인으로 처리됨을 보여줌 -->
+        <div class="dm-request-status-flow" aria-label="요청 처리 흐름">
+          <p class="dm-request-status-flow-title">요청 처리 흐름</p>
+          <div class="dm-request-status-steps" role="list">
+            <div class="dm-request-status-step" role="listitem">
+              <span class="step-label">접수</span>
+              <span class="step-arrow" aria-hidden="true">›</span>
+            </div>
+            <div class="dm-request-status-step" role="listitem">
+              <span class="step-label">검수중</span>
+              <span class="step-arrow" aria-hidden="true">›</span>
+            </div>
+            <div class="dm-request-status-step" role="listitem">
+              <span class="step-label">제작중</span>
+              <span class="step-arrow" aria-hidden="true">›</span>
+            </div>
+            <div class="dm-request-status-step is-done" role="listitem">
+              <span class="step-label">완료</span>
+            </div>
+          </div>
+          <div class="dm-request-status-alts" aria-label="예외 상태">
+            <span class="dm-request-status-alt is-warn">차단</span>
+            <span class="dm-request-status-alt is-error">실패</span>
+            <span class="dm-request-status-alt is-retry">재생성 가능</span>
+          </div>
+        </div>
         <!-- 가격 티어 카드 (기본 30L / 고급 100L / 영상 300L) -->
         <div class="dm-tier-grid" id="chatRequestTiers" role="radiogroup" aria-label="요청 타입 선택">
           <button type="button" class="dm-tier" role="radio" aria-checked="false" data-request-tier="image_basic">
@@ -423,6 +453,14 @@
       </header>
 
       <div class="dm-sheet-body">
+        <!-- #918 — 후원 단계 표시: 선택 → 확인 → 완료 -->
+        <div class="donation-step-bar" id="donationStepBar" aria-label="후원 단계">
+          <span class="ds-step is-active" id="donationStep1">금액 선택</span>
+          <span class="ds-arrow" aria-hidden="true">›</span>
+          <span class="ds-step" id="donationStep2">내용 확인</span>
+          <span class="ds-arrow" aria-hidden="true">›</span>
+          <span class="ds-step" id="donationStep3">후원 완료</span>
+        </div>
         <div class="donation-status" id="donationStatusBanner" data-state="loading" aria-live="polite">
           <strong class="donation-status-label">상태 확인 중</strong>
           <p class="donation-status-text">후원 정책을 불러오는 중이에요.</p>
