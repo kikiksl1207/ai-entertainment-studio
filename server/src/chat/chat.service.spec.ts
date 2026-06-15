@@ -6883,6 +6883,67 @@ describe('ChatService premium chat support contract', () => {
     expect(
       contract.rankings.backendProjection.lanes.donation.sourceLedgerTypes,
     ).toEqual(['premium_chat_donation_support_point']);
+    expect(contract.rankings.backendProjection.responseProjection).toMatchObject(
+      {
+        version:
+          '2026-06-15.premium-chat-ranking-response-projection.v1',
+        status: 'read_model_contract_only_disabled',
+        allowedTypes: ['communication', 'donation'],
+        window: {
+          allowed: ['daily', 'weekly', 'monthly', 'all'],
+          timezone: 'Asia/Seoul',
+          fields: ['type', 'startsAt', 'endsAt', 'timezone'],
+        },
+        item: {
+          fields: [
+            'type',
+            'rankNo',
+            'score',
+            'scoreLabelKey',
+            'artist',
+            'viewer',
+          ],
+          rankSource: {
+            communication:
+              'premium_chat_support_point_ledger.communication_lane',
+            donation: 'premium_chat_support_point_ledger.donation_lane',
+          },
+          rankWindowSource:
+            'premium_chat_ranking_snapshots.window_start_end_asia_seoul',
+          mixedTypeItemAllowed: false,
+        },
+        artistProjection: {
+          fields: [
+            'artistSlug',
+            'displayName',
+            'avatarUrl',
+            'profileUrl',
+            'publicTierKey',
+          ],
+          ownerAccountReturned: false,
+          settlementFieldsReturned: false,
+          payoutFieldsReturned: false,
+        },
+        viewerProjection: {
+          fields: [
+            'viewerRankNo',
+            'viewerScoreLabelKey',
+            'viewerParticipated',
+          ],
+          rawUserIdReturned: false,
+          supportHistoryReturned: false,
+          paymentStateReturned: false,
+        },
+        mutationPolicy: {
+          scoreSubmitAllowed: false,
+          supportPointWriteAllowed: false,
+          rankingSnapshotWriteAllowed: false,
+          walletMutationAllowed: false,
+          settlementMutationAllowed: false,
+          payoutMutationAllowed: false,
+        },
+      },
+    );
     expect(
       contract.rankings.backendProjection.lanes.communication.excludes,
     ).toEqual(
