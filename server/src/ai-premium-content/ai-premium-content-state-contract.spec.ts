@@ -883,4 +883,71 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       ]),
     );
   });
+
+  it('defines a disabled unified result archive read projection without internal cost exposure', () => {
+    const contract = AI_PREMIUM_CONTENT_STATE_API_CONTRACT;
+
+    expect(contract.apiContracts.myResultArchive).toMatchObject({
+      method: 'GET',
+      path: '/api/v1/me/ai-premium-content/results',
+      enabled: false,
+      authRequired: true,
+      ownerOnly: true,
+      query: {
+        requestType: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+        outputClass: AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
+        resultStatus: AI_PREMIUM_CONTENT_RESULT_STATUSES,
+        take: { default: 30, max: 100 },
+        cursor: 'opaque result archive cursor',
+      },
+      mutation: false,
+    });
+    expect(contract.projection.surfaces.resultArchive).toMatchObject({
+      audience: 'request_owner_or_artist_operator',
+      endpoint: '/api/v1/me/ai-premium-content/results',
+      projection: 'aiPremiumContentResultArchiveItem',
+      groupsImageVideoAndMixedTogether: true,
+      statusBuckets: {
+        completed: ['approved'],
+        reviewing: ['awaiting_review'],
+        blocked: ['blocked', 'rejected'],
+        failed: ['provider_failed', 'failed'],
+        regeneratable: ['provider_failed', 'rejected'],
+      },
+      resultAvailability: {
+        imageAndVideoAssetIdsAllowed: true,
+        publicOriginalUrlsReturned: false,
+        signedUrlsReturned: false,
+        providerResultUrlsReturned: false,
+      },
+      regenerationAvailability: {
+        canRegenerateField: 'canRegenerate',
+        disabledReasonKeyField: 'disabledReasonKey',
+        providerCallOnRead: false,
+        walletMutationOnRead: false,
+      },
+      costPrivacy: {
+        userFacingPriceLabelAllowed: true,
+        internalCostBreakdownReturned: false,
+        providerCostReturned: false,
+        settlementCostReturned: false,
+        payoutCostReturned: false,
+      },
+      rawEnumAsCopy: false,
+      rawPromptReturned: false,
+      providerPayloadReturned: false,
+      mutation: false,
+    });
+    expect(contract.projection.surfaces.resultArchive.listFields).toEqual(
+      expect.arrayContaining([
+        'requestType',
+        'outputClass',
+        'status',
+        'safetyStatus',
+        'resultStatus',
+        'resultAvailability',
+        'regenerationAvailability',
+      ]),
+    );
+  });
 });
