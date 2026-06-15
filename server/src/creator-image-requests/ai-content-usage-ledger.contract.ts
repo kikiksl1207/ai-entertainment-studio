@@ -79,6 +79,23 @@ export type AiContentUsageLedgerRow = ReturnType<
   typeof buildAiContentUsageLedgerRow
 >;
 
+export type AdminAiContentAuditReadModelInput = {
+  requestId?: string | null;
+  rows?: AiContentUsageLedgerRow[];
+  safetyReviewStatusKey?: string | null;
+  premiumChatRoomId?: string | null;
+  premiumChatDonationLedgerType?: string | null;
+  premiumChatRefundLedgerType?: string | null;
+  refundRestrictionLedgerTypes?: readonly string[] | null;
+  rawPrompt?: unknown;
+  providerPayload?: unknown;
+  credential?: unknown;
+  token?: unknown;
+  dbUrl?: unknown;
+  privateUrlQuery?: unknown;
+  internalReviewNote?: unknown;
+};
+
 export const AI_CONTENT_USAGE_LEDGER_GUARD = {
   schemaVersion: AI_CONTENT_USAGE_LEDGER_SCHEMA_VERSION,
   status: 'skeleton_guard_only',
@@ -163,6 +180,73 @@ export const AI_CONTENT_USAGE_LEDGER_GUARD = {
   },
 } as const;
 
+export const AI_CONTENT_ADMIN_AUDIT_READ_MODEL_CONTRACT = {
+  version: '2026-06-15.ai-content-admin-audit-read-model.v1',
+  status: 'contract_ready_read_only',
+  readOnly: true,
+  providerCallEnabled: false,
+  walletMutationEnabled: false,
+  settlementMutationEnabled: false,
+  payoutMutationEnabled: false,
+  requiredTraceFields: [
+    'requestId',
+    'capability',
+    'providerAlias',
+    'modelAlias',
+    'safetyReviewStatusKey',
+    'generationAttemptSummary',
+    'costSummary',
+    'premiumChatLedgerSummary',
+  ],
+  costSummaryFields: [
+    'totalAttempts',
+    'failedAttempts',
+    'failureRate',
+    'totalEstimatedCostMicros',
+    'totalActualCostMicros',
+    'maxRegenerationCount',
+    'reusedAttemptCount',
+    'billableProviderAttemptCount',
+    'avoidedEstimatedCostMicros',
+  ],
+  premiumChatTraceFields: [
+    'roomId',
+    'donationLedgerType',
+    'refundLedgerType',
+    'refundRestrictionLedgerTypes',
+  ],
+  forbiddenFields: [
+    'rawPrompt',
+    'providerPayload',
+    'credential',
+    'token',
+    'cookie',
+    'password',
+    'dbUrl',
+    'privateUrlQuery',
+    'internalReviewNote',
+    'signedUrl',
+    'walletLedgerId',
+    'settlementId',
+    'payoutId',
+  ],
+  privacy: {
+    rawPromptReturned: false,
+    providerPayloadReturned: false,
+    credentialReturned: false,
+    tokenCookiePasswordReturned: false,
+    dbUrlReturned: false,
+    privateUrlQueryReturned: false,
+    internalReviewNoteReturned: false,
+  },
+  mutationPolicy: {
+    providerCall: false,
+    walletMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
+
 export function buildAiContentUsageLedgerRow(
   input: AiContentUsageLedgerInput = {},
 ) {
@@ -194,6 +278,43 @@ export function buildAiContentUsageLedgerRow(
     orderMutation: false,
     settlementMutation: false,
     payoutMutation: false,
+  } as const;
+}
+
+export function buildAdminAiContentAuditReadModel(
+  input: AdminAiContentAuditReadModelInput = {},
+) {
+  const rows = input.rows ?? [];
+  const latestRow = rows[rows.length - 1] ?? buildAiContentUsageLedgerRow();
+  const costSummary = summarizeAiContentUsage(rows);
+
+  return {
+    schemaVersion: AI_CONTENT_ADMIN_AUDIT_READ_MODEL_CONTRACT.version,
+    requestId: normalizeText(input.requestId, 80) ?? latestRow.requestId,
+    capability: latestRow.capability,
+    providerAlias: latestRow.providerFamily,
+    modelAlias: latestRow.modelRouteAlias ?? latestRow.modelAlias,
+    safetyReviewStatusKey:
+      normalizeText(input.safetyReviewStatusKey, 120) ?? latestRow.safetyStatus,
+    generationAttemptSummary: {
+      totalAttempts: costSummary.totalAttempts,
+      failedAttempts: costSummary.failedAttempts,
+      failureRate: costSummary.failureRate,
+      maxRegenerationCount: costSummary.maxRegenerationCount,
+      reusedAttemptCount: costSummary.reusedAttemptCount,
+      billableProviderAttemptCount: costSummary.billableProviderAttemptCount,
+    },
+    costSummary,
+    premiumChatLedgerSummary: {
+      roomId: normalizeText(input.premiumChatRoomId, 80),
+      donationLedgerType: normalizeText(input.premiumChatDonationLedgerType, 80),
+      refundLedgerType: normalizeText(input.premiumChatRefundLedgerType, 80),
+      refundRestrictionLedgerTypes: (input.refundRestrictionLedgerTypes ?? [])
+        .map((ledgerType) => normalizeText(ledgerType, 80))
+        .filter((ledgerType): ledgerType is string => Boolean(ledgerType)),
+    },
+    privacy: AI_CONTENT_ADMIN_AUDIT_READ_MODEL_CONTRACT.privacy,
+    mutationPolicy: AI_CONTENT_ADMIN_AUDIT_READ_MODEL_CONTRACT.mutationPolicy,
   } as const;
 }
 

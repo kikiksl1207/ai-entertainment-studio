@@ -1,5 +1,7 @@
 import {
+  AI_CONTENT_ADMIN_AUDIT_READ_MODEL_CONTRACT,
   AI_CONTENT_USAGE_LEDGER_GUARD,
+  buildAdminAiContentAuditReadModel,
   buildAiContentUsageLedgerRow,
   summarizeAiContentUsage,
 } from './ai-content-usage-ledger.contract';
@@ -241,5 +243,119 @@ describe('AI content usage ledger guard', () => {
       settlementMutation: false,
       payoutMutation: false,
     });
+  });
+
+  it('builds an admin cost and safety audit read model without private provider material', () => {
+    const rows = [
+      buildAiContentUsageLedgerRow({
+        requestId: 'request-audit-1',
+        requestType: 'image_single',
+        providerFamily: 'openai',
+        modelRouteAlias: 'ai_premium_content.image.text_to_image',
+        capability: 'image_generation',
+        safetyStatus: 'needs_review',
+        estimatedCostMicros: 3000,
+        actualCostMicros: 1200,
+      }),
+      buildAiContentUsageLedgerRow({
+        requestId: 'request-audit-1',
+        requestType: 'image_variation',
+        providerFamily: 'openai',
+        modelRouteAlias: 'ai_premium_content.image.image_to_image',
+        capability: 'image_edit',
+        safetyStatus: 'blocked',
+        attempt: 2,
+        regenerationCount: 1,
+        failureCode: 'safety_blocked',
+        estimatedCostMicros: 3500,
+        actualCostMicros: 0,
+      }),
+    ];
+
+    const projection = buildAdminAiContentAuditReadModel({
+      requestId: 'request-audit-1',
+      rows,
+      safetyReviewStatusKey: 'aiPremiumContent.safety.blocked',
+      premiumChatRoomId: 'room-1',
+      premiumChatDonationLedgerType: 'premium_chat_donation',
+      premiumChatRefundLedgerType: 'premium_chat_refund',
+      refundRestrictionLedgerTypes: [
+        'premium_chat_refund_restriction_70',
+        'premium_chat_refund_restriction_50',
+      ],
+      rawPrompt: 'SHOULD_NOT_LEAK',
+      providerPayload: { unsafe: 'SHOULD_NOT_LEAK' },
+      credential: 'SHOULD_NOT_LEAK',
+      token: 'SHOULD_NOT_LEAK',
+      dbUrl: 'SHOULD_NOT_LEAK',
+      privateUrlQuery: 'SHOULD_NOT_LEAK',
+      internalReviewNote: 'SHOULD_NOT_LEAK',
+    });
+
+    expect(AI_CONTENT_ADMIN_AUDIT_READ_MODEL_CONTRACT).toMatchObject({
+      readOnly: true,
+      providerCallEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      privacy: {
+        rawPromptReturned: false,
+        providerPayloadReturned: false,
+        credentialReturned: false,
+        tokenCookiePasswordReturned: false,
+        dbUrlReturned: false,
+        privateUrlQueryReturned: false,
+        internalReviewNoteReturned: false,
+      },
+    });
+    expect(projection).toMatchObject({
+      requestId: 'request-audit-1',
+      capability: 'image_edit',
+      providerAlias: 'openai',
+      modelAlias: 'ai_premium_content.image.image_to_image',
+      safetyReviewStatusKey: 'aiPremiumContent.safety.blocked',
+      generationAttemptSummary: {
+        totalAttempts: 2,
+        failedAttempts: 1,
+        failureRate: 0.5,
+        maxRegenerationCount: 1,
+        reusedAttemptCount: 0,
+        billableProviderAttemptCount: 1,
+      },
+      costSummary: {
+        totalEstimatedCostMicros: 6500,
+        totalActualCostMicros: 1200,
+        walletMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+      premiumChatLedgerSummary: {
+        roomId: 'room-1',
+        donationLedgerType: 'premium_chat_donation',
+        refundLedgerType: 'premium_chat_refund',
+        refundRestrictionLedgerTypes: [
+          'premium_chat_refund_restriction_70',
+          'premium_chat_refund_restriction_50',
+        ],
+      },
+      mutationPolicy: {
+        providerCall: false,
+        walletMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+    });
+    expect(AI_CONTENT_ADMIN_AUDIT_READ_MODEL_CONTRACT.forbiddenFields).toEqual(
+      expect.arrayContaining([
+        'rawPrompt',
+        'providerPayload',
+        'credential',
+        'token',
+        'dbUrl',
+        'privateUrlQuery',
+        'internalReviewNote',
+      ]),
+    );
+    expect(JSON.stringify(projection)).not.toContain('SHOULD_NOT_LEAK');
   });
 });
