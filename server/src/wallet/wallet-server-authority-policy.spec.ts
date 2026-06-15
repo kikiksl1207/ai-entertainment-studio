@@ -11,6 +11,7 @@ import {
   WALLET_LEDGER_SOURCE_CONTRACT,
   WALLET_MUTATION_SURFACE_GUARD_MATRIX,
   WALLET_MUTATION_GUARD_STEPS,
+  WALLET_RACE_CONDITION_GUARD_CONTRACT,
   WALLET_SERVER_ONLY_SPEND_GUARD_CONTRACT,
 } from './wallet-server-authority-policy';
 
@@ -169,6 +170,49 @@ describe('server-authority wallet policy', () => {
         'provider_replay_creates_no_duplicate_credit',
       ]),
     );
+  });
+
+  it('pins concurrent wallet spend race guards across premium chat and AI content orders', () => {
+    expect(WALLET_RACE_CONDITION_GUARD_CONTRACT).toMatchObject({
+      concurrentSpendAuthority: 'wallet_accounts.cached_balance',
+      debitOperation: 'atomic_update_many_cached_balance_gte_server_amount',
+      ledgerWriteOrder: 'after_atomic_debit_success_only',
+      domainRecordWriteOrder: 'same_transaction_after_atomic_debit_success',
+      repeatedCallbackBehavior:
+        'return_existing_projection_without_duplicate_ledger',
+      idempotencyMismatchBehavior: 'stable_conflict_before_wallet_lookup',
+      insufficientBalanceBehavior:
+        'stable_insufficient_balance_without_domain_or_ledger_write',
+      failedValidationCreatesLedger: false,
+      pendingCreatesSpendLedger: false,
+      rolledBackCountsTowardBalance: false,
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedBalanceTrusted: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(WALLET_RACE_CONDITION_GUARD_CONTRACT.debitSurfaces).toEqual(
+      expect.arrayContaining([
+        'premium_chat_room_open',
+        'premium_chat_message_debit',
+        'premium_chat_donation',
+        'chat_feature_order',
+      ]),
+    );
+    expect(WALLET_RACE_CONDITION_GUARD_CONTRACT.duplicateRequestGuard).toEqual(
+      expect.arrayContaining([
+        'user_scoped_idempotency_key',
+        'server_message_pair_meter_key',
+        'provider_transaction_id',
+      ]),
+    );
+    expect(
+      WALLET_RACE_CONDITION_GUARD_CONTRACT.statusProjectionConsistency,
+    ).toMatchObject({
+      pending: 'not_counted_as_available_balance_until_committed',
+      failed: 'not_counted_as_spend_or_credit',
+      rolled_back: 'shown_as_reversal_pair_or_excluded_from_net_balance',
+    });
   });
 
   it('pins cross-surface wallet ledger invariants for charge, first bonus, donation, and refund restriction', () => {

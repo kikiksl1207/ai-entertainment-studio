@@ -396,6 +396,42 @@ export const WALLET_MUTATION_GUARD_STEPS = {
   ],
 } as const;
 
+export const WALLET_RACE_CONDITION_GUARD_CONTRACT = {
+  version: '2026-06-15.wallet-race-condition-guard.v1',
+  debitSurfaces: [
+    'premium_chat_room_open',
+    'premium_chat_message_debit',
+    'premium_chat_donation',
+    'chat_feature_order',
+  ],
+  concurrentSpendAuthority: 'wallet_accounts.cached_balance',
+  debitOperation: 'atomic_update_many_cached_balance_gte_server_amount',
+  ledgerWriteOrder: 'after_atomic_debit_success_only',
+  domainRecordWriteOrder: 'same_transaction_after_atomic_debit_success',
+  duplicateRequestGuard: [
+    'user_scoped_idempotency_key',
+    'server_message_pair_meter_key',
+    'provider_transaction_id',
+  ],
+  repeatedCallbackBehavior: 'return_existing_projection_without_duplicate_ledger',
+  idempotencyMismatchBehavior: 'stable_conflict_before_wallet_lookup',
+  insufficientBalanceBehavior:
+    'stable_insufficient_balance_without_domain_or_ledger_write',
+  failedValidationCreatesLedger: false,
+  pendingCreatesSpendLedger: false,
+  rolledBackCountsTowardBalance: false,
+  userAndAdminBalanceProjectionSource: 'wallet_accounts.cached_balance_plus_wallet_ledger',
+  statusProjectionConsistency: {
+    pending: 'not_counted_as_available_balance_until_committed',
+    failed: 'not_counted_as_spend_or_credit',
+    rolled_back: 'shown_as_reversal_pair_or_excluded_from_net_balance',
+  },
+  clientSubmittedAmountTrusted: false,
+  clientSubmittedBalanceTrusted: false,
+  settlementMutation: false,
+  payoutMutation: false,
+} as const;
+
 export const WALLET_LEDGER_INVARIANT_CONTRACT = {
   version: '2026-06-08.wallet-ledger-invariant.v1',
   globalInvariants: {
