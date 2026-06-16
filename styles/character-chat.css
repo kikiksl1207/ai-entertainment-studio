@@ -2590,7 +2590,6 @@ select.dm-field-input option {
     max-width: 72vw;
   }
 }
-
 /* #958 — 모바일 카톡형 image bubble: 아티스트(좌)/유저(우) 정렬 + 선택 캡션을 한 대화 단위로 */
 .dm-bubble-artist.dm-bubble-image .dm-bubble-img { margin-right: auto; }
 .dm-bubble-user.dm-bubble-image .dm-bubble-img { margin-left: auto; }
