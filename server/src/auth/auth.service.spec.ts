@@ -783,6 +783,15 @@ describe('AuthService action token flows', () => {
         tokenHashReturned: false,
         fullEmailReturned: false,
         passwordReturned: false,
+        emailPrefill: {
+          source: 'user_action_tokens.targetEmailMasked',
+          mode: 'masked_only',
+          rawEmailReturned: false,
+          invalidOrExpiredTokenEmailReturned: false,
+          confirmWithoutEmailInput: true,
+          clientEditableEmailRequired: false,
+          tokenOrCookieUsedAsPrefillValue: false,
+        },
         confirmEndpoint: {
           method: 'POST',
           path: '/api/v1/auth/password-resets/confirm',
@@ -809,6 +818,11 @@ describe('AuthService action token flows', () => {
         rawTokenReturned: false,
         tokenHashReturned: false,
         fullEmailReturned: false,
+        emailPrefill: {
+          mode: 'masked_only',
+          rawEmailReturned: false,
+          invalidOrExpiredTokenEmailReturned: false,
+        },
       },
     });
 
