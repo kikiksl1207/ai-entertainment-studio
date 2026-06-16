@@ -2395,6 +2395,32 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       artistForcedCloseAutoRefundsDonation: false,
       operatorSanctionAutoRefundsDonation: false,
       donationChargebackHandledByDonationOrder: true,
+      readModelConsistency: {
+        walletDebitBasis: 'confirmed_premium_chat_donation_ledger_debit',
+        artistSettlementPendingBasis:
+          'confirmed_net_premium_chat_donation_after_refund_or_chargeback',
+        companyRevenueBasis:
+          'confirmed_net_premium_chat_donation_after_refund_or_chargeback',
+        donationRankingBasis: 'confirmed_net_premium_chat_support_only',
+        communicationRankingBasis:
+          'safe_room_open_message_support_and_artist_reply_activity',
+        supportMessageAmountBasis: 'server-normalized donation amount',
+        rankingUsesGrossDonationAmount: false,
+        settlementUsesGrossDonationAmount: false,
+        refundedDonationExcludedFromRanking: true,
+        chargebackDonationExcludedFromRanking: true,
+        roomRefundRestrictionSplitAppliesToDonation: false,
+        refundLimited70RoomSplit: {
+          userRefundBps: 7000,
+          companyRevenueBps: 2000,
+          artistCompensationBps: 1000,
+        },
+        refundLimited50RoomSplit: {
+          userRefundBps: 5000,
+          companyRevenueBps: 4000,
+          artistCompensationBps: 1000,
+        },
+      },
       settlementMutationEnabled: false,
       payoutMutationEnabled: false,
       walletMutationEnabled: false,
