@@ -278,6 +278,29 @@ describe('CommunityService user follow/block mutation contract', () => {
           profileCountsUseSameFilterAsLists: true,
           viewerHintsMustNotLeakBlockedUserPrivateFields: true,
         },
+        liveFixtureSeedGuard: {
+          version: '2026-06-17.feed-follower-block-live-fixture-seed.v1',
+          status: 'qa_runbook_contract_only',
+          enabledByDefault: false,
+          productionAutoSeed: false,
+          liveMutationByContract: false,
+          allowedEnvironments: ['local', 'staging'],
+          forbiddenEnvironments: ['production'],
+          runId: {
+            required: true,
+            format: 'qa-follow-block-YYYYMMDD-runN',
+            persistedOnRows: true,
+            cleanupScope: 'run_id_only',
+          },
+          safety: {
+            realUserFollowMutation: false,
+            realUserBlockMutation: false,
+            walletMutation: false,
+            luminaMutation: false,
+            settlementMutation: false,
+            payoutMutation: false,
+          },
+        },
       },
       feedInteractionGuards: {
         relationshipSource: 'user_blocks',
@@ -366,6 +389,97 @@ describe('CommunityService user follow/block mutation contract', () => {
       code: 'USER_PROFILE_BLOCKED',
       messageKey: 'social.profile.blocked',
     });
+  });
+
+  it('keeps live follower/block fixture seeding scoped to disposable QA rows', () => {
+    const guard =
+      USER_SOCIAL_ACCOUNT_CONTRACT.followerBlockProjectionGuard
+        .liveFixtureSeedGuard;
+
+    expect(guard.disposableUsers).toEqual([
+      expect.objectContaining({
+        alias: 'qa_viewer',
+        realUserAllowed: false,
+      }),
+      expect.objectContaining({
+        alias: 'qa_profile_owner',
+        realUserAllowed: false,
+      }),
+      expect.objectContaining({
+        alias: 'qa_follower',
+        realUserAllowed: false,
+      }),
+      expect.objectContaining({
+        alias: 'qa_blocked_follower',
+        realUserAllowed: false,
+      }),
+    ]);
+    expect(guard.fixtureRows).toEqual([
+      expect.objectContaining({
+        model: 'user_follows',
+        purpose: 'profile_owner_has_visible_follower',
+        sourceAlias: 'qa_follower',
+        targetAlias: 'qa_profile_owner',
+        status: 'active',
+        runIdRequired: true,
+      }),
+      expect.objectContaining({
+        model: 'user_follows',
+        purpose: 'profile_owner_has_blocked_follower_fixture',
+        sourceAlias: 'qa_blocked_follower',
+        targetAlias: 'qa_profile_owner',
+        status: 'active',
+        runIdRequired: true,
+      }),
+      expect.objectContaining({
+        model: 'user_blocks',
+        purpose: 'viewer_blocks_blocked_follower_for_list_filter_smoke',
+        sourceAlias: 'qa_viewer',
+        targetAlias: 'qa_blocked_follower',
+        status: 'active',
+        runIdRequired: true,
+      }),
+    ]);
+    expect(guard.visibilityChecks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          endpoint: 'GET /api/v1/users/:userId/followers',
+          expected: 'visible_follower_returned_blocked_follower_excluded',
+        }),
+        expect.objectContaining({
+          endpoint: 'GET /api/v1/users/:userId/following-users',
+          expected: 'only_active_public_rows_with_block_filter',
+        }),
+        expect.objectContaining({
+          endpoint: 'POST /api/v1/users/:userId/block',
+          expected: 'viewer_owned_block_ux_only_no_real_user_target',
+        }),
+      ]),
+    );
+    expect(guard.allowedReportFields).toEqual(
+      expect.arrayContaining([
+        'runId',
+        'userAlias',
+        'safeUserId',
+        'rowModel',
+        'rowId',
+        'httpStatus',
+        'stableCode',
+        'messageKey',
+      ]),
+    );
+    expect(guard.forbiddenReportFields).toEqual(
+      expect.arrayContaining([
+        'raw email',
+        'password',
+        'access token',
+        'cookie',
+        'database url',
+      ]),
+    );
+    expect(JSON.stringify(guard)).not.toMatch(
+      /@|postgres:\/\/|mysql:\/\/|Bearer\s+|eyJ|AKIA|BEGIN PRIVATE KEY/i,
+    );
   });
 
   it('fails closed when a blocked user tries to follow or refollow', async () => {
