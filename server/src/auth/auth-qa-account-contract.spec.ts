@@ -100,6 +100,17 @@ describe('auth QA account access contract', () => {
         revokesActiveRefreshSessions: true,
         rawTokenReturned: false,
         passwordReturned: false,
+        emailPrefill: {
+          source: 'GET /api/v1/auth/password-resets/inspect',
+          value: 'masked_email_only',
+          rawEmailReturned: false,
+          rawTokenReturned: false,
+          tokenHashReturned: false,
+          passwordReturned: false,
+          cookieReturned: false,
+          confirmWithoutEmailInput: true,
+          invalidOrExpiredTokenEmailReturned: false,
+        },
       },
       passwordChange: {
         requiresExistingEmailPasswordHash: true,
