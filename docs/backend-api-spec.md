@@ -1849,6 +1849,15 @@ GET /api/v1/chat/premium-rooms?artistSlug=<artist-slug>&take=20
   payloads, raw chat bodies, or raw user ids.
 - Calling the room list must not open a room, create a donation, debit wallet,
   touch settlement, touch payout, or write ledger rows.
+- #948 adds the planned premium chat message read projection under
+  `apiContracts.premiumRoomMessages` and `projections.premiumRoomMessageItem`.
+  Image messages in the room conversation flow expose only safe message fields:
+  message id, sender role/display fields, createdAt, image asset id, safe
+  thumbnail URL, dimensions, and moderation status/key. Original private object
+  URLs, signed URLs, storage keys, raw asset metadata, raw chat bodies, wallet
+  ledger ids, support-point ids, conversation-meter ids, and private user ids
+  must not be returned. This does not enable image upload, message send,
+  payment, wallet, settlement, payout, or donation mutation.
 
 Premium chat room status projection split (#617):
 
