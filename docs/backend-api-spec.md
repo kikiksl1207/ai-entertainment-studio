@@ -1469,6 +1469,19 @@ candidates before mutation routes are enabled.
   second refund, wallet ledger, settlement, payout, or status-event mutation.
 - Unknown future room statuses fail closed as `safe_status_only`.
 
+Premium chat hub status matrix projection (#933):
+
+`GET /api/v1/chat/premium-support-contract` exposes
+`hubStatusMatrixProjection` for `/premium-chat-hub` read wiring. The hub matrix
+covers `active`, `paused_by_report`, `admin_review`, `refund_pending`,
+`closed_by_artist`, and `expired`. Public room cards read only
+`/api/v1/chat/premium-rooms` public-list projection and expose only public CTA
+state; owner cards read `/api/v1/chat/me/premium-rooms`; artist management cards
+read `/api/v1/creator-studio/premium-chat/rooms`. Owner CTA, artist-management
+CTA, and public CTA sources must not be mixed across these surfaces. The hub
+projection is read-only and does not open rooms, submit reports, create refunds,
+process payment, debit wallet, settlement, or payout mutation.
+
 Premium chat live QA fixture readiness (#520):
 
 `GET /api/v1/chat/premium-support-contract` exposes

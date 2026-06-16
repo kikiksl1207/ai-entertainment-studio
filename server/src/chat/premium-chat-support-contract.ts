@@ -632,6 +632,133 @@ export const PREMIUM_CHAT_LIVE_QA_FIXTURE_READINESS = {
   },
 } as const;
 
+export const PREMIUM_CHAT_HUB_STATUS_MATRIX_PROJECTION = {
+  version: '2026-06-16.premium-chat-hub-status-matrix-projection.v1',
+  status: 'read_model_contract_only',
+  surface: '/premium-chat-hub',
+  source: 'premium_chat_rooms_read_model',
+  statusKeys: [
+    'active',
+    'paused_by_report',
+    'admin_review',
+    'refund_pending',
+    'closed_by_artist',
+    'expired',
+  ],
+  surfaces: {
+    publicList: {
+      endpoint: '/api/v1/chat/premium-rooms',
+      projection: 'premium_room_public_list_read_model',
+      viewerRole: 'public',
+      allowedStatusKeys: ['active'],
+      excludedStatusKeys: [
+        'paused_by_report',
+        'admin_review',
+        'refund_pending',
+        'closed_by_artist',
+        'expired',
+      ],
+      ctaSource: 'public_preview_cta',
+      ownerCtaReturned: false,
+      artistManagementCtaReturned: false,
+    },
+    ownerList: {
+      endpoint: '/api/v1/chat/me/premium-rooms',
+      projection: 'premium_room_owner_list_read_model',
+      viewerRole: 'owner_user',
+      allowedStatusKeys: [
+        'active',
+        'paused_by_report',
+        'admin_review',
+        'refund_pending',
+        'closed_by_artist',
+        'expired',
+      ],
+      ctaSource: 'owner_room_cta',
+      publicCtaReturned: false,
+      artistManagementCtaReturned: false,
+    },
+    artistManagementList: {
+      endpoint: '/api/v1/creator-studio/premium-chat/rooms',
+      projection: 'premium_room_artist_management_read_model',
+      viewerRole: 'artist_operator',
+      allowedStatusKeys: [
+        'active',
+        'paused_by_report',
+        'admin_review',
+        'refund_pending',
+        'closed_by_artist',
+        'expired',
+      ],
+      ctaSource: 'artist_management_cta',
+      publicCtaReturned: false,
+      ownerCtaReturned: false,
+    },
+  },
+  statusMatrix: {
+    active: {
+      readMode: PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.active.readMode,
+      ownerCta: 'open_room_detail',
+      artistManagementCta: 'reply_or_view_room',
+      publicCta: 'view_public_room',
+      mutationEnabled: false,
+    },
+    paused_by_report: {
+      readMode:
+        PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.paused_by_report.readMode,
+      ownerCta: 'view_report_status',
+      artistManagementCta: 'view_report_status',
+      publicCta: null,
+      mutationEnabled: false,
+    },
+    admin_review: {
+      readMode: PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.admin_review.readMode,
+      ownerCta: 'view_admin_review_status',
+      artistManagementCta: 'view_admin_review_status',
+      publicCta: null,
+      mutationEnabled: false,
+    },
+    refund_pending: {
+      readMode:
+        PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.refund_pending.readMode,
+      ownerCta: 'view_refund_status',
+      artistManagementCta: 'view_refund_status',
+      publicCta: null,
+      mutationEnabled: false,
+    },
+    closed_by_artist: {
+      readMode:
+        PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.closed_by_artist.readMode,
+      ownerCta: 'view_closed_room',
+      artistManagementCta: 'view_closed_room',
+      publicCta: null,
+      mutationEnabled: false,
+    },
+    expired: {
+      readMode: PREMIUM_CHAT_ROOM_INTERACTION_STATUS_MATRIX.expired.readMode,
+      ownerCta: 'view_expired_room',
+      artistManagementCta: 'view_expired_room',
+      publicCta: null,
+      mutationEnabled: false,
+    },
+  },
+  copySafety: {
+    rawStatusAsCopy: false,
+    rawEnumCopyReturned: false,
+    internalReasonReturned: false,
+    stableLabelKeyRequired: true,
+  },
+  noMutation: {
+    roomOpen: true,
+    reportSubmit: true,
+    refundCreate: true,
+    payment: true,
+    walletDebit: true,
+    settlement: true,
+    payout: true,
+  },
+} as const;
+
 export const PREMIUM_CHAT_PRODUCT_PROJECTION_CONTRACT = {
   version: '2026-05-25.premium-chat-support-ranking-projection.v1',
   status: 'contract_ready_mutation_blocked',
@@ -2736,6 +2863,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     },
   },
   liveQaFixtureReadiness: PREMIUM_CHAT_LIVE_QA_FIXTURE_READINESS,
+  hubStatusMatrixProjection: PREMIUM_CHAT_HUB_STATUS_MATRIX_PROJECTION,
   artistInboxProjection: PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT,
   reportRefundApi: PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi,
   adminReportRefundReadOnly:
