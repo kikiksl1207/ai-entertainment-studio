@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import {
   CommunityService,
+  LUMINA_FEED_MULTI_IMAGE_ATTACHMENT_CONTRACT,
   LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT,
   LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT,
   USER_SOCIAL_ACCOUNT_CONTRACT,
@@ -1460,6 +1461,68 @@ describe('CommunityService Lumina Feed thread contract', () => {
 describe('CommunityService Lumina Feed thread continuation, repost, and share contract', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('publishes multi-image attachment metadata contract without overflow badge', () => {
+    expect(LUMINA_FEED_MULTI_IMAGE_ATTACHMENT_CONTRACT).toMatchObject({
+      version: '2026-06-16.lumina-feed-multi-image-attachment-metadata.v1',
+      status: 'projection_contract_only',
+      maxImages: 4,
+      supportedCounts: [1, 2, 3, 4],
+      overflowBadgeRequired: false,
+      overflowBadgePolicy: {
+        maxUploadCountEqualsMaxDisplayCount: true,
+        plusNRequired: false,
+      },
+      requestPolicy: {
+        field: 'assetIds',
+        maxItems: 4,
+        uniqueOnly: true,
+        existingPublicImageAssetsOnly: true,
+        archivedAssetsAllowed: false,
+        videoAssetsAllowed: false,
+      },
+      projection: {
+        field: 'post.assets',
+        role: 'attachment',
+        orderField: 'sortOrder',
+        metadataFields: expect.arrayContaining([
+          'id',
+          'role',
+          'sortOrder',
+          'asset.id',
+          'asset.assetType',
+          'asset.mimeType',
+          'asset.width',
+          'asset.height',
+          'asset.url',
+          'asset.displayUrl',
+          'asset.thumbnailUrl',
+        ]),
+        countMetadata: {
+          assetCountField: 'assetCount',
+          layoutCountSource: 'post.assets.length',
+          supportedLayoutCounts: [2, 3, 4],
+          overflowCount: 0,
+        },
+      },
+      privacy: {
+        storageKeyReturned: false,
+        storageProviderReturned: false,
+        rawAssetMetadataReturned: false,
+        privateOriginalUrlReturned: false,
+        signedUploadUrlReturned: false,
+      },
+      mutationPolicy: {
+        contractAddsImageUpload: false,
+        contractAddsFeedCreate: false,
+        contractAddsRepostMutation: false,
+        walletMutation: false,
+        luminaMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+    });
   });
 
   it('publishes separated thread continuation repost and share count projection contract', () => {

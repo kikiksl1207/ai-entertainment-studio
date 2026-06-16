@@ -347,6 +347,67 @@ export const LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT = {
   },
 } as const;
 
+export const LUMINA_FEED_MULTI_IMAGE_ATTACHMENT_CONTRACT = {
+  version: '2026-06-16.lumina-feed-multi-image-attachment-metadata.v1',
+  status: 'projection_contract_only',
+  maxImages: FEED_POST_MAX_IMAGES,
+  supportedCounts: [1, 2, 3, 4],
+  overflowBadgeRequired: false,
+  overflowBadgePolicy: {
+    maxUploadCountEqualsMaxDisplayCount: true,
+    plusNRequired: false,
+    reason: 'feed image uploads are capped at four assets',
+  },
+  requestPolicy: {
+    field: 'assetIds',
+    maxItems: FEED_POST_MAX_IMAGES,
+    uniqueOnly: true,
+    existingPublicImageAssetsOnly: true,
+    archivedAssetsAllowed: false,
+    videoAssetsAllowed: false,
+  },
+  projection: {
+    field: 'post.assets',
+    role: 'attachment',
+    orderField: 'sortOrder',
+    metadataFields: [
+      'id',
+      'role',
+      'sortOrder',
+      'asset.id',
+      'asset.assetType',
+      'asset.mimeType',
+      'asset.width',
+      'asset.height',
+      'asset.url',
+      'asset.displayUrl',
+      'asset.thumbnailUrl',
+    ],
+    countMetadata: {
+      assetCountField: 'assetCount',
+      layoutCountSource: 'post.assets.length',
+      supportedLayoutCounts: [2, 3, 4],
+      overflowCount: 0,
+    },
+  },
+  privacy: {
+    storageKeyReturned: false,
+    storageProviderReturned: false,
+    rawAssetMetadataReturned: false,
+    privateOriginalUrlReturned: false,
+    signedUploadUrlReturned: false,
+  },
+  mutationPolicy: {
+    contractAddsImageUpload: false,
+    contractAddsFeedCreate: false,
+    contractAddsRepostMutation: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
+
 export const LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT = {
   version: '2026-06-16.lumina-feed-repost-permission-guard.v1',
   status: 'guard_contract_only',
