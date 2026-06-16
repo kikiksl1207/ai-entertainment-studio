@@ -124,6 +124,44 @@
             <!-- #474 — "원장·보안 검증" 내부 용어 제거, 서비스 톤으로 교체 -->
             <p class="premium-chat-hub-rooms-foot">방 오픈은 서비스 준비 완료 후 활성화돼요. 지금은 아티스트 프로필과 채팅방 진입만 가능해요.</p>
           </section>
+
+          <!-- #922 — 방 상태 표시 안내(샘플 matrix).
+               실제 방 목록은 서비스 준비 전이라 비어 있어 상태 구분을 라이브에서 볼 수 없으므로,
+               active / 신고 일시정지 / 관리자 검토 / 환불 대기 / 종료 / 만료 6개 상태가
+               각각 어떤 배지·문구로 보이는지 항상 노출되는 예시로 둔다.
+               배지 class는 renderRooms()의 실제 statusClass와 동일(is-ready/is-warn/is-refund/is-closed). -->
+          <section class="premium-chat-hub-state-matrix" aria-label="방 상태 표시 안내">
+            <header class="premium-chat-hub-state-matrix-head">
+              <h3>방 상태 표시 안내</h3>
+              <p>방마다 아래처럼 상태가 다르게 보여요. 실제 방이 열리면 같은 표시가 적용돼요.</p>
+            </header>
+            <ul class="premium-chat-hub-state-list" role="list">
+              <li class="premium-chat-hub-state-row">
+                <span class="premium-chat-hub-room-badge is-ready">이용 중</span>
+                <span class="premium-chat-hub-state-desc">입장과 대화가 가능한 정상 상태예요.</span>
+              </li>
+              <li class="premium-chat-hub-state-row">
+                <span class="premium-chat-hub-room-badge is-warn">검토 일시정지</span>
+                <span class="premium-chat-hub-state-desc">신고가 접수되어 검토하는 동안 입장이 잠시 멈춰요.</span>
+              </li>
+              <li class="premium-chat-hub-state-row">
+                <span class="premium-chat-hub-room-badge is-warn">검토 일시정지</span>
+                <span class="premium-chat-hub-state-desc">운영팀 검토 중인 방이에요. 검토가 끝나면 다시 열려요.</span>
+              </li>
+              <li class="premium-chat-hub-state-row">
+                <span class="premium-chat-hub-room-badge is-refund">환불 처리 대기</span>
+                <span class="premium-chat-hub-state-desc">환불을 검토·처리하는 동안 입장이 제한돼요.</span>
+              </li>
+              <li class="premium-chat-hub-state-row">
+                <span class="premium-chat-hub-room-badge is-closed">종료됨</span>
+                <span class="premium-chat-hub-state-desc">아티스트가 방을 종료했어요. 새 대화는 받지 않아요.</span>
+              </li>
+              <li class="premium-chat-hub-state-row">
+                <span class="premium-chat-hub-room-badge is-closed">기간 만료</span>
+                <span class="premium-chat-hub-state-desc">이용 기간이 끝난 방이에요. 다시 열어 이어갈 수 있어요.</span>
+              </li>
+            </ul>
+          </section>
         </section>
 
         <!-- #396 — 프리미엄챗 방 플랜 선택
