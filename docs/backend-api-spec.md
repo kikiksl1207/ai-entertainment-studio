@@ -1154,6 +1154,15 @@ Character-chat premium transition CTA contract (#500/#511):
   Entering from an artist detail premium CTA must not create a character-chat
   conversation, must not fall back to `/character-chat`, and must not trigger
   provider, room-open, payment, wallet, settlement, or payout side effects.
+- #950 adds `chatEntryAvailabilityProjection` for the character detail surface.
+  It separates AI character chat, premium chat, support, and follow availability
+  in one read projection. AI character chat may route to
+  `/character-chat?slug={artistSlug}`; premium chat remains disabled with no
+  href/fallback while room-open is contract-pending; support remains disabled
+  unless a premium room can exist; follow uses the existing artist viewer/follow
+  hints. Disabled premium chat must not fallback to AI chat, open a paid room,
+  send a message, create payment, debit wallet, touch settlement, or touch
+  payout.
 - `roomStateReasons` provides Korean user-facing reasons for available,
   artist-resting, under-review, expired, and unavailable states. Frontend must
   render those Korean messages instead of raw state keys.
