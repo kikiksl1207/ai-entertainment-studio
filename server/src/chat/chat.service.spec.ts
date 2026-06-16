@@ -7806,6 +7806,70 @@ describe('ChatService premium chat support contract', () => {
     );
   });
 
+  it('publishes premium chat image message projections without private asset URLs', () => {
+    const service = new ChatService({} as never, {} as never);
+
+    const contract = service.getPremiumSupportContract();
+
+    expect(contract.apiContracts.premiumRoomMessages).toMatchObject({
+      method: 'GET',
+      pathTemplate: '/api/v1/chat/premium-rooms/:roomId/messages',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      paymentMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      response: {
+        items: ['premiumRoomMessageItem projection'],
+        nextCursor: '<opaque cursor or null>',
+        generatedAt: '<ISO datetime>',
+      },
+      imageAttachmentPolicy: {
+        assetIdReturned: true,
+        senderReturned: true,
+        createdAtReturned: true,
+        safeThumbnailReturned: true,
+        moderationStatusReturned: true,
+        originalPrivateUrlReturned: false,
+        storageKeyReturned: false,
+        signedUrlReturned: false,
+      },
+      noMutation: {
+        imageUpload: true,
+        messageSend: true,
+        wallet: true,
+        payment: true,
+        settlement: true,
+        payout: true,
+      },
+    });
+    expect(contract.projections.premiumRoomMessageItem).toMatchObject({
+      messageType: '<text|image|system|support_message>',
+      sender: {
+        role: '<user|artist|system>',
+        rawUserIdReturned: false,
+        ownerAccountReturned: false,
+      },
+      imageAttachment: {
+        assetId: '<image asset id or null>',
+        thumbnailUrl: '<safe thumbnail url or null>',
+        moderationStatus: '<pending|cleared|blocked|needs_review|null>',
+        originalPrivateUrlReturned: false,
+        signedUrlReturned: false,
+        storageKeyReturned: false,
+        rawMetadataReturned: false,
+      },
+      createdAt: '<ISO datetime>',
+      privacy: {
+        rawChatBodyReturned: false,
+        originalPrivateUrlReturned: false,
+        signedUrlReturned: false,
+        storageKeyReturned: false,
+      },
+    });
+  });
+
   it('keeps cancelled refunded and sanctioned rows out of the daily premium chat ranking aggregate', () => {
     const service = new ChatService({} as never, {} as never);
     const contract = service.getPremiumSupportContract();
