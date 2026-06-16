@@ -240,6 +240,37 @@ export const AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT = {
     providerCallEnabled: false,
     walletMutationEnabled: false,
   },
+  auditDecisionProjection: {
+    actionKey: 'ai_premium_content.safety_decision',
+    statuses: ['approved', 'reviewing', 'blocked', 'failed'],
+    safetyStatusMapping: {
+      safe: 'approved',
+      review_required: 'reviewing',
+      blocked: 'blocked',
+      provider_failed: 'failed',
+    },
+    riskCategories: AI_PREMIUM_CONTENT_SAFETY_PRECHECK_RISK_CATEGORIES,
+    userCopy: {
+      messageKeyOnly: true,
+      rawEnumAsCopy: false,
+      internalAdminNoteReturned: false,
+    },
+    adminAudit: {
+      adminNoteSeparatedFromUserCopy: true,
+      adminNoteReturnedToUser: false,
+      rawPromptReturned: false,
+      providerPayloadReturned: false,
+      tokenReturned: false,
+      cookieReturned: false,
+    },
+    noMutation: {
+      providerCall: true,
+      walletDebit: true,
+      orderCreate: true,
+      settlementAccrual: true,
+      payoutAccrual: true,
+    },
+  },
   privacy: {
     rawPromptReturned: false,
     referenceAssetBytesReturned: false,
@@ -1384,6 +1415,9 @@ export const resolveAiPremiumContentSafetyPrecheck = (
       : 'safe';
   const decision =
     AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT.statusDecision[status];
+  const auditDecisionStatus =
+    AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT.auditDecisionProjection
+      .safetyStatusMapping[status];
 
   return {
     status,
@@ -1402,6 +1436,20 @@ export const resolveAiPremiumContentSafetyPrecheck = (
     settlementMutationEnabled: false,
     payoutMutationEnabled: false,
     paidLikeMutationEnabled: false,
+    auditDecision: {
+      actionKey:
+        AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT.auditDecisionProjection
+          .actionKey,
+      statusKey: auditDecisionStatus,
+      userMessageKey: decision.messageKey,
+      riskCategoryKeys: risks.map((risk) => risk.category),
+      userCopyAndAdminNoteSeparated: true,
+      adminNoteReturnedToUser: false,
+      rawPromptReturned: false,
+      providerPayloadReturned: false,
+      tokenReturned: false,
+      cookieReturned: false,
+    },
     privacy:
       AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT.privacy,
   } as const;
