@@ -9,6 +9,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  ACTIVE_CHARGE_PRODUCT_SPECS,
   activeChargeProductWhere,
   isActiveChargeProduct,
 } from './charge-products.policy';
@@ -17,6 +18,50 @@ import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 const DEFAULT_CURRENCY = 'LUMINA';
 const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
 const FIRST_CHARGE_BONUS_BASIS = 'base_lumina_only';
+
+export const FIRST_CHARGE_BONUS_READ_ONLY_AUDIT_PROJECTION = {
+  version: '2026-06-17.first-charge-bonus-read-only-audit-projection.v1',
+  status: 'read_only_projection_contract',
+  mutation: false,
+  paymentProviderCall: false,
+  walletCredit: false,
+  bonusGrant: false,
+  sourceOfTruth: {
+    products: 'ACTIVE_CHARGE_PRODUCT_SPECS',
+    baseLuminaAmount: 'lumina_products.lumina_amount',
+    packageBonusLumina: 'lumina_products.bonus_amount',
+    firstChargeBonusRateBps: 1000,
+    firstChargeBonusBasis: FIRST_CHARGE_BONUS_BASIS,
+  },
+  serverAuthority: {
+    clientSubmittedPriceTrusted: false,
+    clientSubmittedLuminaAmountTrusted: false,
+    clientSubmittedBonusAmountTrusted: false,
+    clientSubmittedFirstChargeBonusTrusted: false,
+    packageBonusAndFirstChargeShareLedgerType: false,
+    packageBonusAndFirstChargeShareAuditRow: false,
+  },
+  products: ACTIVE_CHARGE_PRODUCT_SPECS.map((product) => {
+    const firstChargeBonusLumina = product.luminaAmount / 10;
+    const repeatChargeCreditLumina =
+      product.luminaAmount + product.bonusAmount;
+    return {
+      sku: product.sku,
+      priceAmountKrw: product.priceAmount,
+      baseLuminaAmount: product.luminaAmount,
+      packageBonusLumina: product.bonusAmount,
+      firstChargeBonusLumina,
+      repeatChargeCreditLumina,
+      firstChargeTotalCreditLumina:
+        repeatChargeCreditLumina + firstChargeBonusLumina,
+      ledgerTypes: {
+        packageCredit: 'purchase',
+        firstChargeBonus: 'first_charge_bonus',
+      },
+    };
+  }),
+} as const;
+
 export const FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT = {
   version: '2026-06-08.first-charge-bonus-idempotency.v1',
   canonicalChargePackageCount: 6,
@@ -74,6 +119,7 @@ export const FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT = {
   failedProviderEventsLockEligibility: false,
   settlementEligible: false,
   cashRefundable: false,
+  readOnlyAuditProjection: FIRST_CHARGE_BONUS_READ_ONLY_AUDIT_PROJECTION,
 } as const;
 const PAYMENT_ORDER_IDEMPOTENCY_CONFLICT = {
   code: 'PAYMENT_ORDER_IDEMPOTENCY_CONFLICT',
