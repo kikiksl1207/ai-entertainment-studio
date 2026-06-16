@@ -17,6 +17,7 @@ import {
   AI_PREMIUM_CONTENT_SAFETY_PRECHECK_STATUSES,
   AI_PREMIUM_CONTENT_SAFETY_STATUSES,
   AI_PREMIUM_CONTENT_STATE_API_CONTRACT,
+  AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
   AI_PREMIUM_CONTENT_STATUS_COPY_KO,
   CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT,
   resolveAiPremiumContentCostPrecheck,
@@ -76,6 +77,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     );
     expect(contract.createStatusApiSkeleton).toBe(
       AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
+    );
+    expect(contract.statusPreviewFixture).toBe(
+      AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
     );
   });
 
@@ -609,6 +613,58 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       privateConnectionMaterialReturned: false,
       rawEmailReturned: false,
     });
+  });
+
+  it('defines a public read-only status preview fixture without provider or wallet work', () => {
+    const fixture = AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT;
+
+    expect(fixture).toMatchObject({
+      version: '2026-06-16.ai-premium-content-status-preview-fixture.v1',
+      status: 'read_only_fixture_contract',
+      enabled: false,
+      authRequired: false,
+      mutation: false,
+      endpoint: {
+        method: 'GET',
+        path: '/api/v1/ai-premium-content/status-preview-fixture',
+        enabled: false,
+        authRequired: false,
+        mutation: false,
+      },
+      responseProjection: {
+        previewOnly: true,
+        statusSheetSurface: 'qa_status_preview',
+        locale: 'ko-KR',
+        rawStatusAsCopy: false,
+        rawEnumAsCopy: false,
+        rawProviderStatusReturned: false,
+        providerPayloadReturned: false,
+        signedUrlsReturned: false,
+        rawPromptReturned: false,
+      },
+    });
+    expect(fixture.fixtureStates.map((state) => state.key)).toEqual([
+      'reviewing',
+      'generating',
+      'completed',
+      'blocked',
+      'failed',
+      'regeneratable',
+    ]);
+    expect(fixture.fixtureStates.map((state) => state.labelKo)).toEqual([
+      '검수 중',
+      '제작 중',
+      '완료',
+      '차단',
+      '실패',
+      '재생성 가능',
+    ]);
+    expect(
+      fixture.fixtureStates.every((state) => state.rawEnumAsCopy === false),
+    ).toBe(true);
+    expect(Object.values(fixture.noSideEffects).every((blocked) => blocked)).toBe(
+      true,
+    );
   });
 
   it('keeps character-chat premium content handoff as a disabled adapter-only product flow', () => {
