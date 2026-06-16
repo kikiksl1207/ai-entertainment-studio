@@ -2320,6 +2320,15 @@ GET /api/v1/popular-vote/hall-of-fame/monthly-picks?year=2026
 GET /api/v1/popular-vote/hall-of-fame/year-champion?year=2026
 ```
 
+- #937 fixes the public artist ranking projection rule across like, vote,
+  premium-chat donation, and premium-chat communication lanes. Ranking
+  projections include artists only after they are public `active` characters,
+  including already-public characters such as Oh Hyerin and gallery-ready
+  characters after they are promoted to active public release. Pending, hidden,
+  archived, and deleted artists are excluded before ranking output, even if
+  legacy ranking events exist. This rule does not execute like, vote, support,
+  wallet, settlement, payout, or paid-like mutation.
+
 Admin operation endpoint:
 
 ```http
