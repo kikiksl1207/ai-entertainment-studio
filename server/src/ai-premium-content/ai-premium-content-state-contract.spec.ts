@@ -206,6 +206,29 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
         payoutAccrual: true,
         paidLike: true,
       },
+      auditDecisionProjection: {
+        actionKey: 'ai_premium_content.safety_decision',
+        statuses: ['approved', 'reviewing', 'blocked', 'failed'],
+        safetyStatusMapping: {
+          safe: 'approved',
+          review_required: 'reviewing',
+          blocked: 'blocked',
+          provider_failed: 'failed',
+        },
+        userCopy: {
+          messageKeyOnly: true,
+          rawEnumAsCopy: false,
+          internalAdminNoteReturned: false,
+        },
+        adminAudit: {
+          adminNoteSeparatedFromUserCopy: true,
+          adminNoteReturnedToUser: false,
+          rawPromptReturned: false,
+          providerPayloadReturned: false,
+          tokenReturned: false,
+          cookieReturned: false,
+        },
+      },
     });
     expect(AI_PREMIUM_CONTENT_SAFETY_PRECHECK_STATUSES).toEqual([
       'safe',
@@ -249,6 +272,14 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       providerCallEnabled: false,
       providerCallBeforeDecision: false,
       walletMutationEnabled: false,
+      auditDecision: {
+        actionKey: 'ai_premium_content.safety_decision',
+        statusKey: 'approved',
+        userMessageKey: 'aiPremiumContent.safetyPrecheck.safe',
+        riskCategoryKeys: [],
+        userCopyAndAdminNoteSeparated: true,
+        adminNoteReturnedToUser: false,
+      },
     });
     expect(reviewRequired).toMatchObject({
       status: 'review_required',
@@ -256,6 +287,14 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       messageKey: 'aiPremiumContent.safetyPrecheck.reviewRequired',
       providerCallEnabled: false,
       walletMutationEnabled: false,
+      auditDecision: {
+        statusKey: 'reviewing',
+        userMessageKey: 'aiPremiumContent.safetyPrecheck.reviewRequired',
+        userCopyAndAdminNoteSeparated: true,
+        adminNoteReturnedToUser: false,
+        rawPromptReturned: false,
+        providerPayloadReturned: false,
+      },
       risks: expect.arrayContaining([
         expect.objectContaining({
           category: 'real_person_similarity',
@@ -279,6 +318,17 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       settlementMutationEnabled: false,
       payoutMutationEnabled: false,
       paidLikeMutationEnabled: false,
+      auditDecision: {
+        statusKey: 'blocked',
+        userMessageKey: 'aiPremiumContent.safetyPrecheck.blocked',
+        riskCategoryKeys: ['minor', 'sexual_content', 'platform_policy'],
+        userCopyAndAdminNoteSeparated: true,
+        adminNoteReturnedToUser: false,
+        rawPromptReturned: false,
+        providerPayloadReturned: false,
+        tokenReturned: false,
+        cookieReturned: false,
+      },
       risks: expect.arrayContaining([
         expect.objectContaining({ category: 'minor', severity: 'blocked' }),
         expect.objectContaining({
