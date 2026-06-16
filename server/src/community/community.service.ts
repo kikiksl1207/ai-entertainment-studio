@@ -591,6 +591,88 @@ export const LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT = {
   },
 } as const;
 
+export const LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT = {
+  version: '2026-06-17.lumina-feed-quote-repost-content-read-model.v1',
+  status: 'read_model_contract_only',
+  sourceContract: 'LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT',
+  projection: {
+    field: 'post.repost',
+    allowedTypes: ['repost', 'quote_repost'],
+    simpleRepost: {
+      type: 'repost',
+      hasQuote: false,
+      quoteBodyField: 'post.repost.quoteBody',
+      quoteBodyValue: null,
+      originalPostProjectionField: 'post.repost.originalPost',
+    },
+    quoteRepost: {
+      type: 'quote_repost',
+      hasQuote: true,
+      quoteBodyField: 'post.repost.quoteBody',
+      originalPostProjectionField: 'post.repost.originalPost',
+      originalBodyField: 'post.repost.originalPost.body',
+      quoteBodyDoesNotOverwriteOriginalBody: true,
+      quoteBodyPreservedWhenOriginalUnavailable: true,
+    },
+    relationshipFlags: {
+      parentPostId: null,
+      threadRootPostId: null,
+      commentRelation: false,
+      replyRelation: false,
+      threadRelation: false,
+    },
+    preservedOriginalIdentifiers: [
+      'post.repost.originalPostId',
+      'post.repost.originalAuthorUserId',
+      'post.repost.originalArtistId',
+    ],
+  },
+  unavailableOriginalPolicy: {
+    appliesTo: [
+      'missing',
+      'deleted',
+      'hidden',
+      'private',
+      'moderation_review',
+      'viewer_hidden',
+      'blocked_relationship',
+    ],
+    projection: {
+      originalState: 'unavailable',
+      tombstone: true,
+      unavailableReason: 'viewer_restricted_or_unavailable',
+      originalPost: null,
+    },
+    safeTombstoneOnly: true,
+    quoteBodyMayRemainVisible: true,
+    originalBodyReturned: false,
+  },
+  privacy: {
+    originalPrivateBodyReturned: false,
+    originalDraftBodyReturned: false,
+    originalModerationNotesReturned: false,
+    originalReportStateReturned: false,
+    originalInternalMetadataReturned: false,
+    originalOwnerEmailReturned: false,
+    originalWalletOrLedgerReturned: false,
+    rawEnumUiCopyRequired: false,
+  },
+  mutationPolicy: {
+    contractAddsPostCreate: false,
+    contractAddsRepostCreate: false,
+    contractAddsQuoteRepostCreate: false,
+    contractAddsNotificationCreate: false,
+    contractAddsUnreadCountMutation: false,
+    contractAddsShareMutation: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    orderMutation: false,
+    paidLikeMutation: false,
+  },
+} as const;
+
 @Injectable()
 export class CommunityService {
   private readonly logger = new Logger(CommunityService.name);
