@@ -2770,6 +2770,16 @@ AI premium content request brief API skeleton (#662):
   safe result asset ids and a user-facing price label, but not original provider
   result URLs, signed URLs, raw prompts, provider payloads, internal cost
   breakdowns, settlement cost, payout cost, or wallet/order mutation state.
+- #934 adds `AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT` for a future
+  public, read-only QA status sheet preview at
+  `GET /api/v1/ai-premium-content/status-preview-fixture`. It remains
+  `enabled=false`, `authRequired=false`, and `mutation=false`; fixture states
+  cover Korean display copy for reviewing, generating, completed, blocked,
+  failed, and regeneratable. Raw request/result/provider enums are never user
+  copy, provider payloads/prompts/signed URLs are not returned, and the preview
+  must not create requests, call GPT Image, Stable Diffusion, Seedance,
+  OpenAI/provider routes, debit wallet, create orders, settlement, payout,
+  paid-like, or publish/equip content.
 - #883 does not enable GPT Image, Stable Diffusion, Seedance, OpenAI/provider
   calls, image/video generation, wallet debit, order creation, settlement,
   payout, paid-like mutation, profile equip, or feed publish side effects.
