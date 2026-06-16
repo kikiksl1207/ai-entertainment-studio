@@ -1101,6 +1101,69 @@ describe('premium chat room refund and moderation ledger contract', () => {
     }
   });
 
+  it('keeps artist force close refund separate from normal close, user fault, and operator sanction splits', () => {
+    const normalClose = resolvePremiumChatRoomLifecycleProjection('artist_closed');
+    const artistForcedClose = resolvePremiumChatRoomRefundPolicy({
+      policyKey: 'artist_forced_close_full_refund',
+    });
+    const userFault70 = resolvePremiumChatRoomRefundPolicy({
+      policyKey: 'user_fault_refund_70',
+    });
+    const userFault50 = resolvePremiumChatRoomRefundPolicy({
+      policyKey: 'user_fault_refund_50',
+    });
+
+    expect(normalClose).toMatchObject({
+      statusKey: 'closed_by_artist',
+      reasonKey: 'artist_closed_room',
+      canSendMessage: false,
+      canDonate: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(artistForcedClose).toMatchObject({
+      policyKey: 'artist_forced_close_full_refund',
+      userRefundBps: 10000,
+      companyRevenueBps: 0,
+      artistCompensationBps: 0,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(userFault70).toMatchObject({
+      policyKey: 'user_fault_refund_70',
+      userRefundBps: 7000,
+      companyRevenueBps: 2000,
+      artistCompensationBps: 1000,
+      ledgerEntries: expect.arrayContaining([
+        expect.objectContaining({ ledgerType: 'refund', walletLedger: true }),
+        expect.objectContaining({
+          ledgerType: 'premium_chat_room_company_revenue',
+          settlementMutation: false,
+        }),
+        expect.objectContaining({
+          ledgerType: 'premium_chat_room_artist_compensation',
+          payoutMutation: false,
+        }),
+      ]),
+    });
+    expect(userFault50).toMatchObject({
+      policyKey: 'user_fault_refund_50',
+      userRefundBps: 5000,
+      companyRevenueBps: 4000,
+      artistCompensationBps: 1000,
+    });
+    expect(
+      PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.projections.artistForceCloseAccepted,
+    ).toMatchObject({
+      actionKey: 'artist_force_close',
+      roomStatusKey: 'refund_pending',
+      closeStatusKey: 'closed_by_artist',
+      refundReasonKey: 'artist_forced_close_full_refund',
+    });
+  });
+
   it('keeps refund API outcomes and ledger resolver splits balanced at 10000 bps', () => {
     const outcomeByReason = new Map<string, typeof PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.refundOutcomes[number]>(
       PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.refundOutcomes.map((outcome) => [
