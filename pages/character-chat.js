@@ -434,6 +434,51 @@
     });
   }
 
+  /* #918 — 카톡형 + 액션 메뉴 토글.
+   * 보관함/새 요청/후원 버튼은 기존 id(chatInboxOpen/chatRequestOpen/chatDonationOpen)를
+   * 그대로 유지하므로 각 시트 열기 핸들러는 변경 없이 동작한다.
+   * 여기서는 + 버튼으로 메뉴 열고 닫기, 바깥 클릭/ESC/항목 선택 시 닫기만 담당한다. */
+  function bindActionMenu() {
+    const toggle = $("chatPlusToggle");
+    const menu = $("chatActionMenu");
+    if (!toggle || !menu) return;
+
+    function closeMenu() {
+      if (menu.hidden) return;
+      menu.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+    }
+    function openMenu() {
+      menu.hidden = false;
+      toggle.setAttribute("aria-expanded", "true");
+    }
+
+    toggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (menu.hidden) openMenu();
+      else closeMenu();
+    });
+
+    // 항목 선택 시 메뉴는 닫고, 각 항목의 시트 열기 핸들러는 그대로 동작
+    menu.addEventListener("click", (event) => {
+      const item = event.target.closest(".dm-action-menu-item");
+      if (!item || item.disabled) return;
+      closeMenu();
+    });
+
+    // 바깥 클릭으로 닫기
+    document.addEventListener("click", (event) => {
+      if (menu.hidden) return;
+      if (menu.contains(event.target) || toggle.contains(event.target)) return;
+      closeMenu();
+    });
+
+    // ESC 로 닫기
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeMenu();
+    });
+  }
+
   /* 이미지/영상 요청 바텀시트 ─ 결제/주문 API 호출 금지.
    * #216, #217 기준: 결제 시스템 준비 전에는 예약 요청서만 받는 stub 흐름.
    * 선택한 tier 는 추후 백엔드 product SKU 매핑 시점에 다시 연결한다.
@@ -1488,6 +1533,7 @@
     bindStarterCardEvents();
     bindInputAutoGrow();
     bindSubmitGuard();
+    bindActionMenu();
     bindRequestSheet();
     bindDonationSheet();
     bindInboxSheet();

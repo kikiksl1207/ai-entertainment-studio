@@ -274,25 +274,41 @@
 
         <!-- DM 입력 도크: 액션 + 입력창 + 보내기 -->
         <form class="dm-dock" id="chatInputForm" aria-label="대화 입력" novalidate>
-          <!-- 좌측 액션: 갤러리(무료) / 이미지 요청(유료) / 영상 요청(유료) 분리 -->
-          <div class="dm-dock-actions" role="group" aria-label="추가 액션">
-            <!-- #216 v2 — 갤러리 액션: 공개 갤러리 링크 X. 받은 이미지 보관함 시트로 진입. -->
-            <button type="button" class="dm-action dm-action-gallery" id="chatInboxOpen" aria-haspopup="dialog" aria-controls="chatInboxSheet" title="받은 이미지 보관함 (무료)">
-              <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><rect x="3.5" y="4.5" width="17" height="14" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9" cy="10" r="1.7" fill="currentColor"/><path d="M4.2 17.4l4.6-4.2 3.2 2.8 3.4-3.2 4.1 4.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-              <span class="dm-action-label">보관함</span>
-              <span class="dm-action-tag dm-action-tag-free">무료</span>
+          <!-- #918 — 카톡형 + 액션 메뉴: 입력바는 메시지 중심으로 두고
+               보관함·새 요청·이모티콘·후원은 + 버튼 안의 액션 메뉴로 접는다.
+               모바일에서 후원 버튼이 항상 노출되어 입력창을 밀던 문제 해소.
+               기존 버튼 id(chatInboxOpen/chatRequestOpen/chatDonationOpen)는 유지하여
+               시트 열기 핸들러가 그대로 동작하게 한다. -->
+          <div class="dm-dock-plus">
+            <button type="button" class="dm-plus-btn" id="chatPlusToggle" aria-haspopup="true" aria-expanded="false" aria-controls="chatActionMenu" title="첨부·후원 메뉴">
+              <svg class="dm-plus-icon" viewBox="0 0 24 24" aria-hidden="true" width="22" height="22"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <span class="sr-only">첨부 및 후원 메뉴 열기</span>
             </button>
-            <button type="button" class="dm-action dm-action-request" id="chatRequestOpen" aria-haspopup="dialog" aria-controls="chatRequestSheet" title="스타에게 새 이미지·영상 부탁하기 (유료)">
-              <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path d="M12 4v16M4 12h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
-              <span class="dm-action-label">새 요청</span>
-              <span class="dm-action-tag dm-action-tag-paid">유료</span>
-            </button>
-            <!-- #329 — 프리미엄챗 후원 액션. POST 차감은 #328 계약상 비활성, sheet에서 read-only 미리보기만 가능. -->
-            <button type="button" class="dm-action dm-action-donate" id="chatDonationOpen" aria-haspopup="dialog" aria-controls="chatDonationSheet" title="스타에게 후원하기">
-              <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path d="M12 20.5c-3.6-2.4-7.5-5.4-7.5-9.4 0-2.6 2-4.6 4.6-4.6 1.6 0 2.7.7 3.4 1.7.7-1 1.8-1.7 3.4-1.7 2.6 0 4.6 2 4.6 4.6 0 4-3.9 7-7.5 9.4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-              <span class="dm-action-label">후원</span>
-              <span class="dm-action-tag dm-action-tag-paid">유료</span>
-            </button>
+            <div class="dm-action-menu" id="chatActionMenu" role="menu" aria-label="첨부 및 후원 액션" hidden>
+              <!-- #216 v2 — 받은 이미지 보관함 시트 진입 -->
+              <button type="button" class="dm-action-menu-item" id="chatInboxOpen" role="menuitem" aria-haspopup="dialog" aria-controls="chatInboxSheet">
+                <span class="dm-action-menu-icon"><svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><rect x="3.5" y="4.5" width="17" height="14" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9" cy="10" r="1.7" fill="currentColor"/><path d="M4.2 17.4l4.6-4.2 3.2 2.8 3.4-3.2 4.1 4.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+                <span class="dm-action-menu-text"><strong>보관함</strong><small>받은 이미지 보기</small></span>
+                <span class="dm-action-tag dm-action-tag-free">무료</span>
+              </button>
+              <button type="button" class="dm-action-menu-item" id="chatRequestOpen" role="menuitem" aria-haspopup="dialog" aria-controls="chatRequestSheet">
+                <span class="dm-action-menu-icon"><svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path d="M12 4v16M4 12h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></span>
+                <span class="dm-action-menu-text"><strong>새 요청</strong><small>이미지·영상 부탁하기</small></span>
+                <span class="dm-action-tag dm-action-tag-paid">유료</span>
+              </button>
+              <!-- 이모티콘: 기능 준비 중 (mutation 없음) -->
+              <button type="button" class="dm-action-menu-item is-soon" disabled aria-disabled="true">
+                <span class="dm-action-menu-icon"><svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/><path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+                <span class="dm-action-menu-text"><strong>이모티콘</strong><small>곧 열려요</small></span>
+                <span class="dm-action-tag dm-action-tag-soon">준비중</span>
+              </button>
+              <!-- #329 — 프리미엄챗 후원 액션. POST 차감은 #328 계약상 비활성, sheet에서 read-only 미리보기만 가능. -->
+              <button type="button" class="dm-action-menu-item is-donate" id="chatDonationOpen" role="menuitem" aria-haspopup="dialog" aria-controls="chatDonationSheet">
+                <span class="dm-action-menu-icon"><svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path d="M12 20.5c-3.6-2.4-7.5-5.4-7.5-9.4 0-2.6 2-4.6 4.6-4.6 1.6 0 2.7.7 3.4 1.7.7-1 1.8-1.7 3.4-1.7 2.6 0 4.6 2 4.6 4.6 0 4-3.9 7-7.5 9.4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></span>
+                <span class="dm-action-menu-text"><strong>후원하기</strong><small>10L~50,000L · 확인 후 진행</small></span>
+                <span class="dm-action-tag dm-action-tag-paid">유료</span>
+              </button>
+            </div>
           </div>
 
           <div class="dm-input-wrap">
