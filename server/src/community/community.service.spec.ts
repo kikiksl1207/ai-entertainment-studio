@@ -211,6 +211,40 @@ describe('CommunityService user follow/block mutation contract', () => {
         paymentMutation: false,
         settlementMutation: false,
       },
+      followerBlockProjectionGuard: {
+        version: '2026-06-16.feed-follower-block-projection-guard.v1',
+        source: 'user_blocks',
+        activeBlockWhere: {
+          status: 'active',
+          deletedAt: null,
+          direction: 'either_direction',
+        },
+        surfaces: {
+          feed: expect.arrayContaining([
+            'GET /api/v1/me/lumina-feed',
+            'GET /api/v1/users/:userId/posts',
+            'GET /api/v1/users/handle/:publicHandle/posts',
+          ]),
+          profile: [
+            'GET /api/v1/users/:userId',
+            'GET /api/v1/users/handle/:publicHandle',
+          ],
+          followLists: [
+            'GET /api/v1/users/:userId/followers',
+            'GET /api/v1/users/:userId/following-users',
+            'GET /api/v1/users/handle/:publicHandle/followers',
+            'GET /api/v1/users/handle/:publicHandle/following-users',
+          ],
+        },
+        projectionPolicy: {
+          targetProfileBlocked: 'fail_closed_403_USER_PROFILE_BLOCKED',
+          feedRowsByBlockedUsers: 'exclude_before_pagination_and_count',
+          followerRowsByBlockedUsers: 'exclude_before_pagination_and_count',
+          followingRowsByBlockedUsers: 'exclude_before_pagination_and_count',
+          profileCountsUseSameFilterAsLists: true,
+          viewerHintsMustNotLeakBlockedUserPrivateFields: true,
+        },
+      },
       feedInteractionGuards: {
         relationshipSource: 'user_blocks',
         blockedRelationshipDirection: 'either_direction',
