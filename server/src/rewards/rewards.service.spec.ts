@@ -19,6 +19,15 @@ describe('RewardsService paid bonus ledger policy', () => {
             idempotencyKeyPattern: 'first_charge_bonus:<userId>',
             duplicateBehavior:
               'wallet_ledger_upsert_replay_without_second_bonus_credit',
+            auditReadModel: {
+              packageBonusField: 'lumina_products.bonus_amount',
+              packageBonusLedgerType: 'purchase',
+              firstChargeBonusLedgerType: 'first_charge_bonus',
+              firstChargeBonusBasisField: 'lumina_products.lumina_amount',
+              firstChargeBonusRateBps: 1000,
+              packageBonusAndFirstChargeShareAuditRow: false,
+              packageBonusAndFirstChargeShareLedgerType: false,
+            },
           },
         },
       },
