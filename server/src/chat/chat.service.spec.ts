@@ -6453,6 +6453,104 @@ describe('ChatService premium chat support contract', () => {
         canDonate: false,
       },
     });
+    expect(contract.hubStatusMatrixProjection).toMatchObject({
+      version: '2026-06-16.premium-chat-hub-status-matrix-projection.v1',
+      status: 'read_model_contract_only',
+      surface: '/premium-chat-hub',
+      source: 'premium_chat_rooms_read_model',
+      statusKeys: [
+        'active',
+        'paused_by_report',
+        'admin_review',
+        'refund_pending',
+        'closed_by_artist',
+        'expired',
+      ],
+      surfaces: {
+        publicList: {
+          endpoint: '/api/v1/chat/premium-rooms',
+          projection: 'premium_room_public_list_read_model',
+          allowedStatusKeys: ['active'],
+          ownerCtaReturned: false,
+          artistManagementCtaReturned: false,
+        },
+        ownerList: {
+          endpoint: '/api/v1/chat/me/premium-rooms',
+          projection: 'premium_room_owner_list_read_model',
+          allowedStatusKeys: expect.arrayContaining([
+            'active',
+            'paused_by_report',
+            'admin_review',
+            'refund_pending',
+            'closed_by_artist',
+            'expired',
+          ]),
+          publicCtaReturned: false,
+          artistManagementCtaReturned: false,
+        },
+        artistManagementList: {
+          endpoint: '/api/v1/creator-studio/premium-chat/rooms',
+          projection: 'premium_room_artist_management_read_model',
+          allowedStatusKeys: expect.arrayContaining([
+            'active',
+            'paused_by_report',
+            'admin_review',
+            'refund_pending',
+            'closed_by_artist',
+            'expired',
+          ]),
+          publicCtaReturned: false,
+          ownerCtaReturned: false,
+        },
+      },
+      noMutation: {
+        roomOpen: true,
+        reportSubmit: true,
+        refundCreate: true,
+        payment: true,
+        walletDebit: true,
+        settlement: true,
+        payout: true,
+      },
+    });
+    expect(contract.hubStatusMatrixProjection.statusMatrix).toMatchObject({
+      active: {
+        readMode: 'safe_conversation',
+        ownerCta: 'open_room_detail',
+        artistManagementCta: 'reply_or_view_room',
+        publicCta: 'view_public_room',
+      },
+      paused_by_report: {
+        readMode: 'safe_status_only',
+        ownerCta: 'view_report_status',
+        artistManagementCta: 'view_report_status',
+        publicCta: null,
+      },
+      admin_review: {
+        readMode: 'safe_status_only',
+        ownerCta: 'view_admin_review_status',
+        artistManagementCta: 'view_admin_review_status',
+        publicCta: null,
+      },
+      refund_pending: {
+        readMode: 'safe_status_only',
+        ownerCta: 'view_refund_status',
+        artistManagementCta: 'view_refund_status',
+        publicCta: null,
+      },
+      closed_by_artist: {
+        readMode: 'safe_archive',
+        ownerCta: 'view_closed_room',
+        artistManagementCta: 'view_closed_room',
+        publicCta: null,
+      },
+      expired: {
+        readMode: 'safe_archive',
+        ownerCta: 'view_expired_room',
+        artistManagementCta: 'view_expired_room',
+        publicCta: null,
+      },
+    });
     expect(contract.liveQaFixtureReadiness).toMatchObject({
       status: 'blocked_until_safe_session_fixture',
       liveQaReady: false,
