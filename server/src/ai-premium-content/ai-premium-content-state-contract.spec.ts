@@ -494,6 +494,43 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       providerRouteAlias: '<server provider route alias>',
       providerCallEnabled: false,
     });
+    expect(skeleton.middlewarePipelineLedger).toMatchObject({
+      version: '2026-06-17.ai-premium-content-middleware-routing-ledger.v1',
+      table: 'future_ai_premium_content_request_events',
+      mutationEnabled: false,
+      providerCallEnabled: false,
+      walletMutationEnabled: false,
+      requestTypes: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+      artistContext: {
+        source: 'server_resolved_artist_profile_and_safe_context',
+        rawPrivateProfileReturned: false,
+        rawPromptReturned: false,
+      },
+      modelRoute: {
+        source: 'server_capability_alias',
+        providerSpecificNameReturned: false,
+        providerCredentialReturned: false,
+      },
+      resultAssetStatus: {
+        allowed: ['none', 'pending', 'processing', 'ready', 'failed', 'blocked'],
+        signedUrlsReturned: false,
+        storageKeyReturned: false,
+      },
+      retryPolicy: {
+        retryCountServerOwned: true,
+        retryRequiresFreshSafetyAndCostPrecheck: true,
+        retryAfterSafetyBlocked: false,
+      },
+    });
+    expect(skeleton.middlewarePipelineLedger.trackedFields).toEqual([
+      'requestType',
+      'artistContext',
+      'providerRouteAlias',
+      'safetyStatus',
+      'estimatedCost',
+      'retryCount',
+      'resultAssetStatus',
+    ]);
     expect(Object.values(skeleton.forbiddenSideEffects).every((enabled) => enabled === false)).toBe(
       true,
     );

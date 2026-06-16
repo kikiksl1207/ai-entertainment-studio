@@ -607,6 +607,43 @@ export const AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON = {
     providerAttempt: 'blocked_until_provider_router_is_explicitly_enabled',
     review: 'human_review_required_before_public_use',
   },
+  middlewarePipelineLedger: {
+    version: '2026-06-17.ai-premium-content-middleware-routing-ledger.v1',
+    table: 'future_ai_premium_content_request_events',
+    mutationEnabled: false,
+    providerCallEnabled: false,
+    walletMutationEnabled: false,
+    requestTypes: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+    trackedFields: [
+      'requestType',
+      'artistContext',
+      'providerRouteAlias',
+      'safetyStatus',
+      'estimatedCost',
+      'retryCount',
+      'resultAssetStatus',
+    ],
+    artistContext: {
+      source: 'server_resolved_artist_profile_and_safe_context',
+      rawPrivateProfileReturned: false,
+      rawPromptReturned: false,
+    },
+    modelRoute: {
+      source: 'server_capability_alias',
+      providerSpecificNameReturned: false,
+      providerCredentialReturned: false,
+    },
+    resultAssetStatus: {
+      allowed: ['none', 'pending', 'processing', 'ready', 'failed', 'blocked'],
+      signedUrlsReturned: false,
+      storageKeyReturned: false,
+    },
+    retryPolicy: {
+      retryCountServerOwned: true,
+      retryRequiresFreshSafetyAndCostPrecheck: true,
+      retryAfterSafetyBlocked: false,
+    },
+  },
   forbiddenSideEffects: {
     liveProviderCall: false,
     queueRowCreate: false,
