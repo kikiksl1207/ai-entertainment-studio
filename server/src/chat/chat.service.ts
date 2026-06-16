@@ -1440,6 +1440,17 @@ export class ChatService {
       sameCharacterDifferentUsersCanVary: true,
       refreshCreatesNewGreeting: false,
       clientSeedAccepted: false,
+      conversationRecord: {
+        recordTable: 'chat_messages',
+        recordMessageType: CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE,
+        recordScope: 'chat_session',
+        selectionPersistedWithGreeting: true,
+        sameConversationReturnsSameRecord: true,
+        differentConversationCanSelectDifferentVariant: true,
+        rawSeedReturned: false,
+        rawPromptStored: false,
+        rawProviderPayloadStored: false,
+      },
     };
   }
 
@@ -4204,6 +4215,17 @@ export class ChatService {
         sameCharacterSameUserNewSessionCanVary: true,
         sameCharacterDifferentUsersCanVary: true,
         clientSeedAccepted: false,
+        conversationRecord: {
+          recordTable: 'chat_messages',
+          recordMessageType: CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE,
+          recordScope: 'chat_session',
+          selectionPersistedWithGreeting: true,
+          sameConversationReturnsSameRecord: true,
+          differentConversationCanSelectDifferentVariant: true,
+          rawSeedReturned: false,
+          rawPromptStored: false,
+          rawProviderPayloadStored: false,
+        },
       },
       sourceSeparation: {
         cache: true,
@@ -4295,6 +4317,17 @@ export class ChatService {
           settlementMutation: false,
           payoutMutation: false,
         },
+        persistence: {
+          recordTable: 'chat_messages',
+          recordMessageType: CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE,
+          recordScope: 'chat_session',
+          generatedOnMissingOpeningGreeting: true,
+          sameConversationReturnsSameRecord: true,
+          selectedTextStoredAsOpeningGreetingBody: true,
+          rawSeedReturned: false,
+          rawPromptStored: false,
+          rawProviderPayloadStored: false,
+        },
       },
       safety: {
         forbiddenToneApplied: true,
@@ -4308,6 +4341,7 @@ export class ChatService {
         'openingGreeting.cache.scope',
         'openingGreeting.cache.hit',
         'openingGreeting.generation.providerCall',
+        'openingGreeting.generation.variantPolicy.conversationRecord',
         'openingGreeting.toneCandidate.guideKo',
         'openingGreeting.toneCandidate.toneTags',
         'openingGreeting.toneCandidate.personaTags',

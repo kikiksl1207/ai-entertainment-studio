@@ -757,6 +757,17 @@ describe('ChatService dynamic opening greeting cache', () => {
               sameCharacterDifferentUsersCanVary: true,
               refreshCreatesNewGreeting: false,
               clientSeedAccepted: false,
+              conversationRecord: {
+                recordTable: 'chat_messages',
+                recordMessageType: 'opening_greeting',
+                recordScope: 'chat_session',
+                selectionPersistedWithGreeting: true,
+                sameConversationReturnsSameRecord: true,
+                differentConversationCanSelectDifferentVariant: true,
+                rawSeedReturned: false,
+                rawPromptStored: false,
+                rawProviderPayloadStored: false,
+              },
             }),
             toneCandidate: expect.objectContaining({
               contractVersion: '2026-05-21.character-chat-greeting-tone.v1',
@@ -795,6 +806,17 @@ describe('ChatService dynamic opening greeting cache', () => {
           sameCharacterDifferentUsersCanVary: true,
           refreshCreatesNewGreeting: false,
           clientSeedAccepted: false,
+          conversationRecord: {
+            recordTable: 'chat_messages',
+            recordMessageType: 'opening_greeting',
+            recordScope: 'chat_session',
+            selectionPersistedWithGreeting: true,
+            sameConversationReturnsSameRecord: true,
+            differentConversationCanSelectDifferentVariant: true,
+            rawSeedReturned: false,
+            rawPromptStored: false,
+            rawProviderPayloadStored: false,
+          },
         },
       },
       toneCandidate: {
@@ -913,6 +935,15 @@ describe('ChatService dynamic opening greeting cache', () => {
       sameSessionStable: true,
       sameCharacterSameUserNewSessionCanVary: true,
       clientSeedAccepted: false,
+      conversationRecord: {
+        recordTable: 'chat_messages',
+        recordMessageType: 'opening_greeting',
+        recordScope: 'chat_session',
+        selectionPersistedWithGreeting: true,
+        sameConversationReturnsSameRecord: true,
+        differentConversationCanSelectDifferentVariant: true,
+        rawSeedReturned: false,
+      },
     });
     expect(tx.chatMessage.create).toHaveBeenCalledTimes(2);
   });
@@ -1092,6 +1123,15 @@ describe('ChatService dynamic opening greeting cache', () => {
         seedSource: 'chat_sessions.id',
         sameCharacterDifferentUsersCanVary: true,
         clientSeedAccepted: false,
+        conversationRecord: {
+          recordTable: 'chat_messages',
+          recordMessageType: 'opening_greeting',
+          recordScope: 'chat_session',
+          selectionPersistedWithGreeting: true,
+          sameConversationReturnsSameRecord: true,
+          differentConversationCanSelectDifferentVariant: true,
+          rawSeedReturned: false,
+        },
       });
       const toneCandidate = result.openingGreeting.toneCandidate;
 
@@ -2440,6 +2480,15 @@ describe('ChatService persona and catalog policy', () => {
         sameSessionStable: true,
         sameCharacterSameUserNewSessionCanVary: true,
         clientSeedAccepted: false,
+        conversationRecord: {
+          recordTable: 'chat_messages',
+          recordMessageType: 'opening_greeting',
+          recordScope: 'chat_session',
+          selectionPersistedWithGreeting: true,
+          sameConversationReturnsSameRecord: true,
+          differentConversationCanSelectDifferentVariant: true,
+          rawSeedReturned: false,
+        },
       },
       toneCandidate: {
         source: 'runtimePersona.tone',
@@ -2480,6 +2529,17 @@ describe('ChatService persona and catalog policy', () => {
           orderMutation: false,
           settlementMutation: false,
           payoutMutation: false,
+        },
+        persistence: {
+          recordTable: 'chat_messages',
+          recordMessageType: 'opening_greeting',
+          recordScope: 'chat_session',
+          generatedOnMissingOpeningGreeting: true,
+          sameConversationReturnsSameRecord: true,
+          selectedTextStoredAsOpeningGreetingBody: true,
+          rawSeedReturned: false,
+          rawPromptStored: false,
+          rawProviderPayloadStored: false,
         },
       },
     });

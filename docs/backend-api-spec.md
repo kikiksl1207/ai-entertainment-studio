@@ -1082,6 +1082,14 @@ Character-chat dynamic opening greeting cache (#388):
   blocks real-person relationship, external contact, and external payment
   prompts. Provider generation, message send, wallet, order, settlement, and
   payout mutations remain unavailable for this contract.
+- #968 fixes the conversation-level record contract for opening greeting
+  variants. The selected first-greeting text is persisted only as the
+  `opening_greeting` message body for that `chat_session`, and
+  `openingGreeting.generation.variantPolicy.conversationRecord` exposes only
+  safe policy fields: record table, message type, scope, replay behavior, and
+  raw seed/prompt/provider-payload exclusion flags. The raw seed, prompt,
+  provider payload, wallet, Lumina, settlement, payout, and order fields are not
+  returned.
 - Provider generation is short and low-cost by contract:
   `maxOutputTokens=120`, `maxOutputChars=180`, lightweight model preferred.
 - Provider generation remains optional and separated from cache/template

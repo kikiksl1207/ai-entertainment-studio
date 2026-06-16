@@ -141,6 +141,13 @@ candidate fields.
   deterministic_session_variant_index`, `sessionVariantSeed =
   chat_sessions.id`, and `sameSessionStable = true`.
 - Do not display raw source/metadata enum values as user copy.
+- #968 conversation record contract: first-greeting variant selection is recorded
+  with the created `opening_greeting` message in `chat_messages`, scoped to the
+  `chat_session`. The response exposes only safe policy metadata under
+  `openingGreeting.generation.variantPolicy.conversationRecord`: record table,
+  message type, scope, same-conversation replay behavior, and raw seed/prompt/
+  provider-payload exclusion flags. The raw session seed, raw prompt, provider
+  payload, wallet, settlement, payout, and order fields must not be returned.
 
 ## Test Baseline
 
@@ -164,4 +171,7 @@ The backend test fixes:
 - provider request errors store a fallback greeting instead of throwing
 - same character can produce different fallback greetings for different session
   ids
+- opening greeting variant metadata records the conversation-level persistence
+  contract without returning raw seeds, prompts, provider payloads, wallet,
+  settlement, payout, or order fields
 - raw prompt/provider payload/user private data flags remain false
