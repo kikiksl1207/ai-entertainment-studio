@@ -1905,6 +1905,17 @@ GET /api/v1/chat/premium-rooms?artistSlug=<artist-slug>&take=20
   settlement, payout, or ledger rows. The support action must open a
   confirmation/preview step first; wallet mutation before confirmation remains
   disabled.
+- #970 adds the planned premium chat message send skeleton under
+  `apiContracts.premiumRoomMessageSend` and
+  `projections.premiumRoomMessageSendSkeleton`. The future endpoint is
+  `POST /api/v1/chat/premium-rooms/:roomId/messages` with explicit
+  `messageKind=text|image`, idempotency, room-state, report/blind guard, and
+  image-asset validation ordering. Image send uses an existing confirmed image
+  asset id and does not upload inside the send endpoint. Text/image messages are
+  separated from support/donation messages and report/blind state flows. This
+  skeleton remains disabled and does not create messages, upload images, create
+  support/donation/report rows, notify users, debit wallet, touch payment,
+  settlement, or payout state.
 
 Premium chat room status projection split (#617):
 
