@@ -3233,6 +3233,17 @@ Authorization: Bearer <accessToken>
   tombstone without exposing the original body. The contract adds no real post,
   repost, share, notification, wallet, Lumina, settlement, payout, order, or
   paid-like mutation.
+- #971 exports `LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT` for the
+  X-style quote repost card read model. The quote text stays in
+  `post.repost.quoteBody`, while the original card stays in
+  `post.repost.originalPost`; quote text never overwrites
+  `post.repost.originalPost.body`. If the original is missing, deleted, hidden,
+  private, moderation-review only, viewer-hidden, or blocked by relationship,
+  reads return a safe tombstone with `originalPost: null`,
+  `originalState: "unavailable"`, and no original/private body or internal
+  metadata. This is projection/API contract only and adds no repost create,
+  quote repost create, notification, unread count, share, wallet, Lumina,
+  settlement, payout, order, or paid-like mutation.
 - `DELETE /api/v1/lumina-feed/posts/:postId` soft-deletes the current user's own root post. Deleting the root hides the full thread from feed lists.
 - `DELETE /api/v1/lumina-feed/replies/:replyId` soft-deletes the current user's own reply. Artist operators can delete replies on operated artist posts.
 - Hidden posts use soft delete/reactivation with unique `(user_id, post_id)`.

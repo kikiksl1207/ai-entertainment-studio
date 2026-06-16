@@ -6,6 +6,7 @@ import {
 import {
   CommunityService,
   LUMINA_FEED_MULTI_IMAGE_ATTACHMENT_CONTRACT,
+  LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT,
   LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT,
   LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT,
   USER_SOCIAL_ACCOUNT_CONTRACT,
@@ -1657,6 +1658,81 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     expect(
       Object.values(
         LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('publishes quote repost content read model without source-body leakage', () => {
+    expect(LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT).toMatchObject({
+      version: '2026-06-17.lumina-feed-quote-repost-content-read-model.v1',
+      status: 'read_model_contract_only',
+      sourceContract: 'LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT',
+      projection: {
+        field: 'post.repost',
+        allowedTypes: ['repost', 'quote_repost'],
+        simpleRepost: {
+          type: 'repost',
+          hasQuote: false,
+          quoteBodyField: 'post.repost.quoteBody',
+          quoteBodyValue: null,
+          originalPostProjectionField: 'post.repost.originalPost',
+        },
+        quoteRepost: {
+          type: 'quote_repost',
+          hasQuote: true,
+          quoteBodyField: 'post.repost.quoteBody',
+          originalPostProjectionField: 'post.repost.originalPost',
+          originalBodyField: 'post.repost.originalPost.body',
+          quoteBodyDoesNotOverwriteOriginalBody: true,
+          quoteBodyPreservedWhenOriginalUnavailable: true,
+        },
+        relationshipFlags: {
+          parentPostId: null,
+          threadRootPostId: null,
+          commentRelation: false,
+          replyRelation: false,
+          threadRelation: false,
+        },
+        preservedOriginalIdentifiers: [
+          'post.repost.originalPostId',
+          'post.repost.originalAuthorUserId',
+          'post.repost.originalArtistId',
+        ],
+      },
+      unavailableOriginalPolicy: {
+        appliesTo: [
+          'missing',
+          'deleted',
+          'hidden',
+          'private',
+          'moderation_review',
+          'viewer_hidden',
+          'blocked_relationship',
+        ],
+        projection: {
+          originalState: 'unavailable',
+          tombstone: true,
+          unavailableReason: 'viewer_restricted_or_unavailable',
+          originalPost: null,
+        },
+        safeTombstoneOnly: true,
+        quoteBodyMayRemainVisible: true,
+        originalBodyReturned: false,
+      },
+      privacy: {
+        originalPrivateBodyReturned: false,
+        originalDraftBodyReturned: false,
+        originalModerationNotesReturned: false,
+        originalReportStateReturned: false,
+        originalInternalMetadataReturned: false,
+        originalOwnerEmailReturned: false,
+        originalWalletOrLedgerReturned: false,
+        rawEnumUiCopyRequired: false,
+      },
+    });
+    expect(
+      Object.values(
+        LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT.mutationPolicy,
       ).every((enabled) => enabled === false),
     ).toBe(true);
   });
