@@ -2927,6 +2927,15 @@ Authorization: Bearer <accessToken>
   `stats.followingUsers`. A block relationship with the target profile itself
   still fails closed with `403 USER_PROFILE_BLOCKED`; empty follow lists return
   `{ items: [], count: 0, total: 0, nextCursor: null }`.
+- #935 fixes the public user follow-list projection contract as
+  `USER_SOCIAL_ACCOUNT_CONTRACT.profileFollowLists.publicListProjection`.
+  Follower and following-user endpoints by id or handle must use the same
+  visibility filter for list rows and counts: active target profile,
+  non-deleted follow row, active non-deleted source/target users, and no active
+  block relationship in either direction for authenticated viewers. Deleted,
+  suspended, inactive, or private users are hidden before counting so `items`,
+  `count`, `total`, and profile stats do not drift. The projection is read-only
+  and does not run follow, unfollow, or block mutations.
 - Public user follow-list responses use the existing My Page pagination contract and add a safe target/viewer/policy envelope:
 
 ```json
