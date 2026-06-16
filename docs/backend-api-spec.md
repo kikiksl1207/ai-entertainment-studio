@@ -1849,6 +1849,15 @@ GET /api/v1/chat/premium-rooms?artistSlug=<artist-slug>&take=20
   payloads, raw chat bodies, or raw user ids.
 - Calling the room list must not open a room, create a donation, debit wallet,
   touch settlement, touch payout, or write ledger rows.
+- #949 adds the planned premium chat `+` action menu capability projection under
+  `productProjection.plusActionMenu` and `apiContracts.plusActionMenu`. The
+  input bar actions are separated as image attachment, emoticon, and support
+  capabilities with stable label/capability keys; raw action keys must not be
+  used as user copy. Selecting an action is read-only and does not upload an
+  image, send an emoticon, create support, debit wallet, touch payment,
+  settlement, payout, or ledger rows. The support action must open a
+  confirmation/preview step first; wallet mutation before confirmation remains
+  disabled.
 
 Premium chat room status projection split (#617):
 

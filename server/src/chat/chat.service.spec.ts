@@ -7653,6 +7653,81 @@ describe('ChatService premium chat support contract', () => {
     );
   });
 
+  it('publishes separated premium chat plus action menu capabilities without wallet mutation', () => {
+    const service = new ChatService({} as never, {} as never);
+
+    const contract = service.getPremiumSupportContract();
+
+    expect(contract.productProjection.plusActionMenu).toMatchObject({
+      version: '2026-06-16.premium-chat-plus-action-menu.v1',
+      surface: 'premium_chat_room_input_bar',
+      actions: {
+        imageAttachment: {
+          actionKey: 'image_attachment',
+          capabilityKey: 'premium_chat.image_attachment',
+          enabled: false,
+          requiresUploadIntent: true,
+          uploadMutationEnabled: false,
+          messageSendMutationEnabled: false,
+          walletMutationEnabled: false,
+        },
+        emoticon: {
+          actionKey: 'emoticon',
+          capabilityKey: 'premium_chat.emoticon',
+          enabled: false,
+          catalogReadEnabled: false,
+          messageSendMutationEnabled: false,
+          walletMutationEnabled: false,
+        },
+        support: {
+          actionKey: 'support',
+          capabilityKey: 'premium_chat.support',
+          enabled: false,
+          opensConfirmationFirst: true,
+          confirmationRequiredBeforeWalletMutation: true,
+          walletMutationBeforeConfirmation: false,
+          donationCreateEnabled: false,
+        },
+      },
+      copySafety: {
+        rawActionKeyAsCopy: false,
+        rawCapabilityKeyAsCopy: false,
+        disabledReasonKeyRequired: true,
+      },
+      noMutation: {
+        imageUpload: true,
+        emoticonSend: true,
+        supportCreate: true,
+        wallet: true,
+        payment: true,
+        settlement: true,
+        payout: true,
+      },
+    });
+    expect(contract.apiContracts.plusActionMenu).toMatchObject({
+      method: 'GET',
+      pathTemplate: '/api/v1/chat/premium-rooms/:roomId/plus-actions',
+      status: 'contract_ready_mutation_blocked',
+      enabled: false,
+      authRequired: true,
+      walletMutation: false,
+      paymentMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      response: {
+        menu: 'productProjection.plusActionMenu',
+        actions: ['image_attachment', 'emoticon', 'support'],
+      },
+      mutationPolicy: {
+        actionSelectionCreatesMutation: false,
+        supportActionRequiresConfirmationBeforeWallet: true,
+        imageAttachmentUploadEnabled: false,
+        emoticonSendEnabled: false,
+        supportCreateEnabled: false,
+      },
+    });
+  });
+
   it('keeps cancelled refunded and sanctioned rows out of the daily premium chat ranking aggregate', () => {
     const service = new ChatService({} as never, {} as never);
     const contract = service.getPremiumSupportContract();
