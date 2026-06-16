@@ -1699,6 +1699,72 @@ describe('premium chat room refund and moderation ledger contract', () => {
     });
   });
 
+  it('keeps reported rooms paused until admin review or refund decision without message, donation, or refund mutation', () => {
+    const chain =
+      PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.auditGuard
+        .roomPauseRefundAuditChain;
+
+    expect(chain).toMatchObject({
+      reportSubmit: {
+        roomStatusKey: 'paused_by_report',
+        reportStatusKey: 'reported',
+        messageMutation: false,
+        donationMutation: false,
+        walletMutation: false,
+        refundMutation: false,
+      },
+      operatorReview: {
+        reviewStatusKeys: ['blinded', 'suspended', 'admin_review'],
+        rawReportBodyReturned: false,
+        rawAdminNoteReturned: false,
+      },
+      refundDecision: {
+        allowedRoomStatusKeys: [
+          'paused_by_report',
+          'refund_pending',
+          'closed_by_artist',
+          'closed_by_operator',
+        ],
+        refundLedgerCreatedOnlyAfterDecision: true,
+        pgRefundMutationEnabled: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+    });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.statusMapping).toMatchObject({
+      paused_by_report: {
+        lifecycleStatuses: [
+          'reported',
+          'blinded',
+          'blind',
+          'suspended',
+          'admin_review',
+        ],
+        canSendMessage: false,
+        canDonate: false,
+      },
+      refund_pending: {
+        lifecycleStatuses: ['refund_pending'],
+        canSendMessage: false,
+        canDonate: false,
+      },
+    });
+    expect(resolvePremiumChatRoomLifecycleProjection('reported')).toMatchObject({
+      statusKey: 'paused_by_report',
+      canSendMessage: false,
+      canDonate: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(resolvePremiumChatRoomLifecycleProjection('admin_review')).toMatchObject({
+      statusKey: 'paused_by_report',
+      canSendMessage: false,
+      canDonate: false,
+      walletMutationEnabled: false,
+    });
+  });
+
   it('defines admin report and refund read-only list/detail projections', () => {
     const adminReadOnly = PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.adminReadOnly;
 
