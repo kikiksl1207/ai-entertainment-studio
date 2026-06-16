@@ -5652,6 +5652,18 @@ describe('ChatService premium chat support contract', () => {
       replayRequiresSameFingerprint: true,
       conflictWalletMutation: false,
       requestFingerprintFields: ['sessionId', 'amountLumina', 'message'],
+      doubleSubmitGuard: {
+        sameKeySameBody:
+          'return_existing_order_and_projection_without_second_debit',
+        sameKeyDifferentBody:
+          '409_PREMIUM_CHAT_DONATION_IDEMPOTENCY_CONFLICT_before_wallet_lookup',
+        walletDebitOnReplay: false,
+        walletLedgerCreateOnReplay: false,
+        supportPointGrantOnReplay: false,
+        communicationRankingIncrementOnReplay: false,
+        donationRankingIncrementOnReplay: false,
+        replayProjectionSource: 'premium_chat_donation_orders',
+      },
     });
     expect(contract.apiContracts.donationCreate.response.order).toMatchObject({
       status: 'confirmed',
@@ -6205,6 +6217,15 @@ describe('ChatService premium chat support contract', () => {
         conflictReplay: '409 before wallet lookup',
         conflictCode: 'PREMIUM_CHAT_DONATION_IDEMPOTENCY_CONFLICT',
         conflictWalletMutation: false,
+        replayMutationGuard: {
+          walletDebit: false,
+          walletLedgerCreate: false,
+          premiumChatDonationOrderCreate: false,
+          premiumChatDonationEventCreate: false,
+          supportPointLedgerCreate: false,
+          communicationRankingIncrement: false,
+          donationRankingIncrement: false,
+        },
         atomicBalanceGuard: 'cached_balance >= server_amount',
         insufficientBalanceBehavior:
           'no premium_chat_donation order/event/ledger/support-point/ranking write',
