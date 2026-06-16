@@ -2620,6 +2620,36 @@ select.dm-field-input option {
   .dm-bubble-image .dm-bubble-img { max-height: 320px; }
 }
 
+/* #958 — 모바일 카톡형 image bubble: 아티스트(좌)/유저(우) 정렬 + 선택 캡션을 한 대화 단위로 */
+.dm-bubble-artist.dm-bubble-image .dm-bubble-img { margin-right: auto; }
+.dm-bubble-user.dm-bubble-image .dm-bubble-img { margin-left: auto; }
+.dm-bubble-image .dm-bubble-caption {
+  margin: 4px 0 0;
+  padding: 7px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  max-width: min(240px, 64vw);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.dm-bubble-artist.dm-bubble-image .dm-bubble-caption {
+  background: rgba(155, 124, 247, 0.14);
+  color: rgba(245, 240, 255, 0.96);
+  border-bottom-left-radius: 6px;
+}
+.dm-bubble-user.dm-bubble-image .dm-bubble-caption {
+  margin-left: auto;
+  background: linear-gradient(135deg, #ff4fc3 0%, #c459f0 60%, #9b7cf7 100%);
+  color: #fff;
+  border-bottom-right-radius: 6px;
+}
+@media (max-width: 767px) {
+  .dm-bubble-image .dm-bubble-caption { max-width: 72vw; }
+  /* 모바일에서 이미지가 큰 카드/갤러리처럼 화면을 꽉 채우지 않도록 높이 상한 */
+  .dm-bubble-image .dm-bubble-img { max-height: 320px; }
+}
+
 /* #922 — 방 상태 표시 안내 (샘플 matrix): 6개 상태를 항상 보이게 */
 .premium-chat-hub-state-matrix {
   margin-top: 14px;
