@@ -508,6 +508,27 @@ export const AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY = {
   regenerationRequiresFreshPrecheck: true,
 } as const;
 
+export const AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY = {
+  costCapGuard: {
+    capSource: 'server_route_cost_policy',
+    providerQuoteTrusted: false,
+    clientSubmittedCapTrusted: false,
+    providerCallBeforeCapCheck: false,
+    walletMutationBeforeCapCheck: false,
+    overCapBehavior:
+      'stable_precheck_denial_without_provider_call_or_wallet_mutation',
+  },
+  walletPrecheck: {
+    balanceSource: 'wallet_accounts.cached_balance',
+    requiredAmountSource: 'server_price_policy',
+    clientSubmittedBalanceTrusted: false,
+    providerCallBeforeWalletPrecheck: false,
+    walletDebitOnPrecheck: false,
+    insufficientBalanceBehavior:
+      'stable_precheck_denial_without_provider_call_or_wallet_mutation',
+  },
+} as const;
+
 export const AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON = {
   version: '2026-06-08.ai-premium-content-request-queue-skeleton.v1',
   feature: 'ai_premium_content_request_queue',
@@ -761,6 +782,10 @@ type AiPremiumContentCostPrecheckInput = {
   userEntitled?: boolean | null;
   regenerationCount?: number | string | null;
   failureCount?: number | string | null;
+  requestCostCapMicros?: number | string | null;
+  paidRequest?: boolean | null;
+  walletBalanceLumina?: number | string | null;
+  requiredLumina?: number | string | null;
 };
 
 type AiPremiumContentProviderGuardInput = {
@@ -857,6 +882,21 @@ const nonNegativeInteger = (value: number | string | null | undefined) => {
   return Math.floor(parsed);
 };
 
+const nonNegativeNumber = (value: number | string | null | undefined) => {
+  const parsed =
+    typeof value === 'string' && value.trim() !== ''
+      ? Number(value)
+      : typeof value === 'number'
+        ? value
+        : 0;
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+
+  return parsed;
+};
+
 const isAiPremiumContentRequestType = (
   value: string | null | undefined,
 ): value is AiPremiumContentRequestType =>
@@ -879,6 +919,9 @@ const deniedAiPremiumContentPrecheck = ({
   artistSlug,
   regenerationCount,
   failureCount,
+  outputClass = null,
+  estimatedCost = null,
+  walletPrecheck = null,
 }: {
   code: string;
   messageKey: string;
@@ -887,6 +930,15 @@ const deniedAiPremiumContentPrecheck = ({
   artistSlug: string | null;
   regenerationCount: number;
   failureCount: number;
+  outputClass?: AiPremiumContentOutputClass | null;
+  estimatedCost?:
+    | (typeof AI_PREMIUM_CONTENT_PRECHECK_COST_POLICY)[AiPremiumContentOutputClass]
+    | null;
+  walletPrecheck?: {
+    paidRequest: boolean;
+    requiredLumina: number;
+    balanceChecked: boolean;
+  } | null;
 }) =>
   ({
     allowed: false,
@@ -896,9 +948,13 @@ const deniedAiPremiumContentPrecheck = ({
     httpStatus,
     requestType,
     artistSlug,
-    outputClass: null,
+    outputClass,
     modelRoutingCandidates: [],
-    estimatedCost: null,
+    estimatedCost,
+    costCapGuard: AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY.costCapGuard,
+    walletPrecheck:
+      walletPrecheck ??
+      AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY.walletPrecheck,
     failurePolicy: {
       ...AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
       regenerationCount,
@@ -946,6 +1002,13 @@ const aiPremiumContentPrecheckSuccess = ({
       },
     ],
     estimatedCost: AI_PREMIUM_CONTENT_PRECHECK_COST_POLICY[outputClass],
+    costCapGuard: AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY.costCapGuard,
+    walletPrecheck: {
+      ...AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY.walletPrecheck,
+      paidRequest: false,
+      requiredLumina: 0,
+      balanceChecked: false,
+    },
     failurePolicy: {
       ...AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
       regenerationCount,
@@ -1014,6 +1077,48 @@ export const resolveAiPremiumContentCostPrecheck = (
 
   const requestPolicy = AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY[requestType];
   const outputClass = requestPolicy.outputClass as AiPremiumContentOutputClass;
+  const estimatedCost = AI_PREMIUM_CONTENT_PRECHECK_COST_POLICY[outputClass];
+  const requestCostCapMicros = nonNegativeInteger(input.requestCostCapMicros);
+
+  if (
+    requestCostCapMicros > 0 &&
+    estimatedCost.estimatedCostCeilingMicros > requestCostCapMicros
+  ) {
+    return deniedAiPremiumContentPrecheck({
+      code: 'AI_PREMIUM_CONTENT_COST_CAP_EXCEEDED',
+      messageKey: 'aiPremiumContent.precheck.costCapExceeded',
+      httpStatus: 409,
+      requestType,
+      artistSlug,
+      regenerationCount,
+      failureCount,
+      outputClass,
+      estimatedCost,
+    });
+  }
+
+  const paidRequest = input.paidRequest === true;
+  const requiredLumina = nonNegativeNumber(input.requiredLumina);
+  const walletBalanceLumina = nonNegativeNumber(input.walletBalanceLumina);
+
+  if (paidRequest && requiredLumina > 0 && walletBalanceLumina < requiredLumina) {
+    return deniedAiPremiumContentPrecheck({
+      code: 'AI_PREMIUM_CONTENT_WALLET_PRECHECK_INSUFFICIENT',
+      messageKey: 'aiPremiumContent.precheck.insufficientBalance',
+      httpStatus: 409,
+      requestType,
+      artistSlug,
+      regenerationCount,
+      failureCount,
+      outputClass,
+      estimatedCost,
+      walletPrecheck: {
+        paidRequest: true,
+        requiredLumina,
+        balanceChecked: true,
+      },
+    });
+  }
 
   return aiPremiumContentPrecheckSuccess({
     requestType,
@@ -1397,6 +1502,10 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
           estimatedCostCeilingMicros: '<integer policy ceiling>',
           estimateSource: 'server_policy_estimate_not_provider_quote',
         },
+        costCapGuard:
+          AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY.costCapGuard,
+        walletPrecheck:
+          AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY.walletPrecheck,
         failurePolicy: AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
       },
     },

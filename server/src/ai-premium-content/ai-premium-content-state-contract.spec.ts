@@ -2,6 +2,7 @@ import {
   AI_PREMIUM_CONTENT_BRIEF_API_SKELETON,
   AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
   AI_PREMIUM_CONTENT_CREATE_STATUS_API_STATUSES,
+  AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY,
   AI_PREMIUM_CONTENT_MODERATION_STATUSES,
   AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
   AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
@@ -309,6 +310,12 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       currency: 'KRW_MICROS',
       estimateSource: 'server_policy_estimate_not_provider_quote',
     });
+    expect(apiContracts.costPrecheck.response.costCapGuard).toEqual(
+      AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY.costCapGuard,
+    );
+    expect(apiContracts.costPrecheck.response.walletPrecheck).toEqual(
+      AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY.walletPrecheck,
+    );
     expect(Object.values(mutationGates).every((enabled) => enabled === false)).toBe(
       true,
     );
@@ -727,6 +734,18 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       currency: 'KRW_MICROS',
       estimateSource: 'server_policy_estimate_not_provider_quote',
     });
+    expect(imagePrecheck.costCapGuard).toMatchObject({
+      capSource: 'server_route_cost_policy',
+      providerQuoteTrusted: false,
+      providerCallBeforeCapCheck: false,
+      walletMutationBeforeCapCheck: false,
+    });
+    expect(imagePrecheck.walletPrecheck).toMatchObject({
+      balanceSource: 'wallet_accounts.cached_balance',
+      clientSubmittedBalanceTrusted: false,
+      providerCallBeforeWalletPrecheck: false,
+      walletDebitOnPrecheck: false,
+    });
     expect(videoPrecheck).toMatchObject({
       allowed: true,
       requestType: 'video_clip',
@@ -847,6 +866,58 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       statusKey: 'blocked',
       billable: false,
       retryAllowed: false,
+    });
+  });
+
+  it('denies cost cap and wallet precheck failures before provider or debit work', () => {
+    expect(
+      resolveAiPremiumContentCostPrecheck({
+        requestType: 'video_clip',
+        artistSlug: 'aria',
+        userEntitled: true,
+        requestCostCapMicros: 1,
+      }),
+    ).toMatchObject({
+      allowed: false,
+      code: 'AI_PREMIUM_CONTENT_COST_CAP_EXCEEDED',
+      messageKey: 'aiPremiumContent.precheck.costCapExceeded',
+      httpStatus: 409,
+      outputClass: 'video',
+      costCapGuard: {
+        providerQuoteTrusted: false,
+        providerCallBeforeCapCheck: false,
+        walletMutationBeforeCapCheck: false,
+      },
+      providerCallEnabled: false,
+      walletMutationEnabled: false,
+      orderMutationEnabled: false,
+    });
+
+    expect(
+      resolveAiPremiumContentCostPrecheck({
+        requestType: 'image_single',
+        artistSlug: 'aria',
+        userEntitled: true,
+        paidRequest: true,
+        requiredLumina: 50,
+        walletBalanceLumina: 10,
+      }),
+    ).toMatchObject({
+      allowed: false,
+      code: 'AI_PREMIUM_CONTENT_WALLET_PRECHECK_INSUFFICIENT',
+      messageKey: 'aiPremiumContent.precheck.insufficientBalance',
+      httpStatus: 409,
+      outputClass: 'image',
+      walletPrecheck: {
+        paidRequest: true,
+        requiredLumina: 50,
+        balanceChecked: true,
+      },
+      providerCallEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      paidLikeMutationEnabled: false,
     });
   });
 
