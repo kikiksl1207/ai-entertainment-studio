@@ -6,6 +6,33 @@ import { PrismaService } from '../prisma/prisma.service';
 
 type PopularVoteQuery = Record<string, string | undefined>;
 
+export const PUBLIC_ARTIST_RANKING_PROJECTION_CONTRACT = {
+  version: '2026-06-16.public-artist-ranking-projection.v1',
+  includedArtistStatus: 'active',
+  includedPublicCharacters: [
+    'already_public_active_character',
+    'gallery_ready_then_active_character',
+  ],
+  excludedArtistStatuses: ['pending', 'hidden', 'archived', 'deleted'],
+  surfaces: {
+    like: '/api/v1/boost-campaigns/:campaignId/rankings',
+    vote: [
+      '/api/v1/popular-vote/main-pick',
+      '/api/v1/popular-vote/hall-of-fame/year-champion',
+    ],
+    support: '/api/v1/chat/rankings?type=donation',
+    communication: '/api/v1/chat/rankings?type=communication',
+  },
+  mutationPolicy: {
+    likeMutation: false,
+    voteMutation: false,
+    supportMutation: false,
+    walletMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
+
 @Injectable()
 export class PopularVoteService {
   constructor(private readonly prisma: PrismaService) {}
@@ -176,16 +203,21 @@ export class PopularVoteService {
   ) {
     const [events, activeArtists] = await Promise.all([
       this.prisma.artistBoostEvent.findMany({
-        where,
+        where: {
+          ...where,
+          artist: {
+            status: PUBLIC_ARTIST_RANKING_PROJECTION_CONTRACT.includedArtistStatus,
+          },
+        },
         include: { artist: this.artistSelect() },
       }),
-      options.includeZeroScoreActiveArtists
-        ? this.prisma.artist.findMany({
-            where: { status: 'active' },
-            ...this.artistSelect(),
-            orderBy: [{ sortOrder: 'asc' }, { displayName: 'asc' }],
-          })
-        : Promise.resolve([]),
+      this.prisma.artist.findMany({
+        where: {
+          status: PUBLIC_ARTIST_RANKING_PROJECTION_CONTRACT.includedArtistStatus,
+        },
+        ...this.artistSelect(),
+        orderBy: [{ sortOrder: 'asc' }, { displayName: 'asc' }],
+      }),
     ]);
 
     const rows = new Map<
@@ -202,17 +234,23 @@ export class PopularVoteService {
     const activeArtistOrder = new Map(
       activeArtists.map((activeArtist, index) => [activeArtist.id, index]),
     );
-    for (const activeArtist of activeArtists) {
-      rows.set(activeArtist.id, {
-        artist: activeArtist,
-        totalFreeLikes: new Decimal(0),
-        totalPaidLikes: new Decimal(0),
-        totalLuminaBoosts: new Decimal(0),
-        totalWeightedScore: new Decimal(0),
-      });
+    if (options.includeZeroScoreActiveArtists) {
+      for (const activeArtist of activeArtists) {
+        rows.set(activeArtist.id, {
+          artist: activeArtist,
+          totalFreeLikes: new Decimal(0),
+          totalPaidLikes: new Decimal(0),
+          totalLuminaBoosts: new Decimal(0),
+          totalWeightedScore: new Decimal(0),
+        });
+      }
     }
 
     for (const event of events) {
+      if (!activeArtistOrder.has(event.artistId)) {
+        continue;
+      }
+
       const row = rows.get(event.artistId) ?? {
         artist: event.artist,
         totalFreeLikes: new Decimal(0),

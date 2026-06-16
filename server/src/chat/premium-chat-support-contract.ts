@@ -3074,6 +3074,14 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
             'profileUrl',
             'publicTierKey',
           ],
+          eligibility: {
+            includedArtistStatus: 'active',
+            includedPublicCharacters: [
+              'already_public_active_character',
+              'gallery_ready_then_active_character',
+            ],
+            excludedArtistStatuses: ['pending', 'hidden', 'archived', 'deleted'],
+          },
           ownerAccountReturned: false,
           settlementFieldsReturned: false,
           payoutFieldsReturned: false,
