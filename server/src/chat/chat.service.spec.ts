@@ -7870,6 +7870,115 @@ describe('ChatService premium chat support contract', () => {
     });
   });
 
+  it('publishes premium chat image message send API skeleton without enabling mutation', () => {
+    const service = new ChatService({} as never, {} as never);
+
+    const contract = service.getPremiumSupportContract();
+
+    expect(contract.apiContracts.premiumRoomMessageSend).toMatchObject({
+      method: 'POST',
+      pathTemplate: '/api/v1/chat/premium-rooms/:roomId/messages',
+      status: 'skeleton_only_mutation_blocked',
+      enabled: false,
+      authRequired: true,
+      idempotencyRequired: true,
+      request: {
+        body: {
+          messageKind: '<text|image>',
+          text: '<required only for text message, max 1000 chars>',
+          assetId: '<required only for image message, confirmed image asset id>',
+          idempotencyKey: '<required stable client generated key>',
+        },
+      },
+      validationOrder: [
+        'auth',
+        'room_participant',
+        'room_state_sendable',
+        'report_blind_suspension_guard',
+        'message_kind',
+        'text_or_image_payload',
+        'image_asset_ownership_and_status',
+        'idempotency',
+      ],
+      flowSeparation: {
+        textMessageKind: 'text',
+        imageMessageKind: 'image',
+        supportMessageEndpoint:
+          '/api/v1/chat/premium-rooms/:roomId/support-messages',
+        donationFlowSeparated: true,
+        reportAndBlindFlowSeparated: true,
+        reportEndpoint:
+          '/api/v1/chat/premium-rooms/:roomId/report-refund-requests',
+        blindStateBlocksSend: true,
+        aiAutoReplyCreated: false,
+      },
+      imageAttachmentPolicy: {
+        uploadIntentEndpoint: '/api/v1/me/assets/upload-intents',
+        sendEndpointDoesUpload: false,
+        confirmedImageAssetRequired: true,
+        existingPublicOrOwnedAssetOnly: true,
+        videoAssetsAllowed: false,
+        originalPrivateUrlReturned: false,
+        signedUrlReturned: false,
+        storageKeyReturned: false,
+        rawAssetMetadataReturned: false,
+      },
+      response: {
+        accepted: false,
+        projection: 'premiumRoomMessageSendSkeleton',
+      },
+      noMutation: {
+        messageCreate: true,
+        imageUpload: true,
+        supportCreate: true,
+        donationCreate: true,
+        reportCreate: true,
+        blindStateChange: true,
+        notificationCreate: true,
+        wallet: true,
+        payment: true,
+        settlement: true,
+        payout: true,
+      },
+    });
+    expect(contract.projections.premiumRoomMessageSendSkeleton).toMatchObject({
+      target: 'premium room message send response',
+      enabled: false,
+      accepted: false,
+      messageKinds: ['text', 'image'],
+      separatedKinds: {
+        supportMessage: 'premium_chat_support_message',
+        donationEvent: 'premium_chat_donation',
+        reportOrBlindState: 'premium_chat_moderation',
+      },
+      responseShape: {
+        ok: false,
+        messageKey: 'chat.premiumRoom.messageSend.disabled',
+        disabledReasonKey: 'premium_chat_message_send_contract_pending',
+        messageItem: null,
+      },
+      imageAttachment: {
+        uploadHandledByAssetIntentEndpoint: true,
+        originalPrivateUrlReturned: false,
+        signedUrlReturned: false,
+        storageKeyReturned: false,
+        rawAssetMetadataReturned: false,
+      },
+      noMutation: {
+        messageCreate: true,
+        supportCreate: true,
+        donationCreate: true,
+        reportCreate: true,
+        blindStateChange: true,
+        notificationCreate: true,
+        wallet: true,
+        payment: true,
+        settlement: true,
+        payout: true,
+      },
+    });
+  });
+
   it('publishes separated premium chat plus action menu capabilities without wallet mutation', () => {
     const service = new ChatService({} as never, {} as never);
 
