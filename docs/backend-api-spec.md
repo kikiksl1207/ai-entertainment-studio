@@ -1332,6 +1332,19 @@ GET /api/v1/chat/me/premium-donations?period=monthly&status=confirmed&take=20
 - Communication ranking remains a separate server-weighted lane for room open,
   safe visible message activity, confirmed net donation, and safe artist reply
   activity.
+- #972 exports
+  `PREMIUM_CHAT_COMMUNICATION_DONATION_RANKING_READ_MODEL_CONTRACT` as a
+  disabled read-model contract for premium-chat rankings. The communication
+  lane uses confirmed room opens, safe visible message activity, confirmed net
+  donation as a weighted factor, and safe artist reply activity; the donation
+  lane uses only confirmed net premium-chat donation after refund or chargeback
+  filtering. Both lanes exclude free likes, Lumina boosts, reported/blinded
+  rows, refunded or chargeback rows, cancelled donation rows, suspended rooms,
+  and admin-review rows until operator-safe. The response must use label and
+  summary keys, must not expose raw chat/support bodies, report reasons, wallet
+  ledger ids, support-point ledger ids, message ids, raw user ids, or internal
+  score formulas, and must not alias premium-chat rankings to Lumina Pick/boost
+  rankings.
 - My donation history is owner-only and disabled. It returns safe donation
   projection fields plus filtered summary totals only. Other-user access must be
   safe 404 or 403 without identity leakage.

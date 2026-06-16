@@ -5,6 +5,7 @@ import {
 import { ChatLlmProviderRequestError } from './llm-provider.adapter';
 import {
   CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT,
+  PREMIUM_CHAT_COMMUNICATION_DONATION_RANKING_READ_MODEL_CONTRACT,
   PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT,
   PREMIUM_CHAT_DONATION_DISABLED_REASON_BY_STATUS,
   PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES,
@@ -7344,6 +7345,82 @@ describe('ChatService premium chat support contract', () => {
       scoreRefreshMutationByClient: false,
       frontendSubmitAllowed: false,
     });
+    expect(contract.rankings.readModelSeparation).toBe(
+      PREMIUM_CHAT_COMMUNICATION_DONATION_RANKING_READ_MODEL_CONTRACT,
+    );
+    expect(
+      PREMIUM_CHAT_COMMUNICATION_DONATION_RANKING_READ_MODEL_CONTRACT,
+    ).toMatchObject({
+      version:
+        '2026-06-17.premium-chat-communication-donation-ranking-read-model.v1',
+      status: 'read_model_contract_only_disabled',
+      enabled: false,
+      laneSeparation: {
+        allowedTypes: ['communication', 'donation'],
+        forbiddenTypeAliases: ['like', 'free_like', 'lumina_pick', 'boost'],
+        likeRankingPath: '/api/v1/boost-campaigns/:campaignId/rankings',
+        likeRankingReceivesPremiumChatActivity: false,
+        premiumChatRankingReceivesLikes: false,
+        mixedLaneItemsAllowed: false,
+        clientSubmittedScoreAllowed: false,
+        clientRefreshAllowed: false,
+      },
+      communicationLane: {
+        type: 'communication',
+        endpoint: '/api/v1/chat/rankings?type=communication',
+        sourceEvents: [
+          'confirmed_room_open',
+          'safe_visible_message_activity',
+          'confirmed_net_donation',
+          'safe_artist_reply_activity',
+        ],
+        sourceLedgers: [
+          'premium_chat_room_open_support_point',
+          'premium_chat_message_activity_support_point',
+          'premium_chat_donation_support_point',
+        ],
+        donationAmountMode: 'weighted_factor_not_donation_rank_amount',
+        scoreFormulaReturned: false,
+        summaryKey: 'chat.rankings.communication.summary',
+      },
+      donationLane: {
+        type: 'donation',
+        endpoint: '/api/v1/chat/rankings?type=donation',
+        sourceEvents: ['confirmed_net_donation'],
+        sourceLedgers: ['premium_chat_donation_support_point'],
+        amountBasis:
+          'confirmed_net_premium_chat_donation_after_refund_or_chargeback',
+        excludesCommunicationEvents: true,
+        rawSupportMessageReturned: false,
+        summaryKey: 'chat.rankings.donation.summary',
+      },
+      exclusionPolicy: {
+        reportedRows: 'excluded_until_admin_safe',
+        blindedRows: 'excluded',
+        refundedRows: 'excluded',
+        chargebackRows: 'excluded',
+        cancelledRows: 'excluded',
+        suspendedRooms: 'excluded',
+        adminReviewRooms: 'excluded_until_admin_safe',
+      },
+      privacy: {
+        rawChatBodyReturned: false,
+        rawSupportMessageReturned: false,
+        rawReportReasonReturned: false,
+        rawWalletLedgerIdReturned: false,
+        rawSupportPointLedgerIdReturned: false,
+        rawConversationMeterLedgerIdReturned: false,
+        rawUserIdReturned: false,
+        messageIdsReturned: false,
+        internalScoreFormulaReturned: false,
+      },
+    });
+    expect(
+      Object.values(
+        PREMIUM_CHAT_COMMUNICATION_DONATION_RANKING_READ_MODEL_CONTRACT
+          .mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
     expect(contract.rankings.backendProjection).toMatchObject({
       version: '2026-06-02.premium-chat-ranking-backend-projection.v1',
       status: 'projection_contract_ready_read_model_disabled',
