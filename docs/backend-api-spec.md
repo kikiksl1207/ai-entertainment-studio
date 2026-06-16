@@ -2996,6 +2996,13 @@ Authorization: Bearer <accessToken>
   suspended, inactive, or private users are hidden before counting so `items`,
   `count`, `total`, and profile stats do not drift. The projection is read-only
   and does not run follow, unfollow, or block mutations.
+- #936 adds `USER_SOCIAL_ACCOUNT_CONTRACT.followerBlockProjectionGuard` so
+  blocking a follower uses one fail-closed read policy across feed, profile, and
+  follow-list projections. Active `user_blocks` rows in either direction hide
+  blocked users' feed rows and follower/following rows before pagination and
+  count, and direct profile reads fail with `USER_PROFILE_BLOCKED`. Viewer hints
+  must not leak blocked users' private fields. This guard does not add block,
+  follow, unfollow, feed, wallet, Lumina, settlement, or payout mutation.
 - Public user follow-list responses use the existing My Page pagination contract and add a safe target/viewer/policy envelope:
 
 ```json
