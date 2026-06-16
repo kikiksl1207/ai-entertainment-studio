@@ -121,6 +121,22 @@ describe('auth QA account access contract', () => {
         exposesProviderCredential: false,
         exposesCookieOrToken: false,
       },
+      sessionRevokeAuditProjection: {
+        sourceOfTruth: 'user_refresh_tokens.revokedAt',
+        passwordResetRevokesActiveSessions: true,
+        passwordResetActionKey: 'auth.password_reset.session_revoke',
+        adminRevokeActionKey: 'admin.user.sessions.revoke',
+        readModel: 'admin audit event read model',
+        readOnlyProjection: true,
+        rawRefreshTokenReturned: false,
+        refreshTokenHashReturned: false,
+        sessionCookieReturned: false,
+        passwordReturned: false,
+        rawEmailReturned: false,
+        providerCredentialReturned: false,
+        actorEmailMasked: true,
+        requestIdAllowed: true,
+      },
     });
   });
 

@@ -3882,6 +3882,8 @@ export class AdminService {
       'api_key',
       'providerkey',
       'provider_key',
+      'providercredential',
+      'provider_credential',
       'credential',
       'dburl',
       'db_url',
