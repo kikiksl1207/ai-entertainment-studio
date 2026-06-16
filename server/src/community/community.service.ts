@@ -88,6 +88,8 @@ export const USER_SOCIAL_ACCOUNT_CONTRACT = {
       followerRowsBlockedByViewerExcluded: true,
       followingRowsBlockedByViewerExcluded: true,
       blockedRelationshipDirection: 'either_direction',
+      countAndListUseSameVisibilityWhere: true,
+      hiddenRowsExcludedBeforeCount: true,
       emptyProjection: {
         items: [],
         count: 0,
@@ -100,6 +102,36 @@ export const USER_SOCIAL_ACCOUNT_CONTRACT = {
         notFoundCode: 'USER_NOT_FOUND',
         invalidCursorCode: 'INVALID_CURSOR',
       },
+    },
+    publicListProjection: {
+      version: '2026-06-16.public-user-follow-list-projection.v1',
+      surfaces: {
+        followers: [
+          'GET /api/v1/users/:userId/followers',
+          'GET /api/v1/users/handle/:publicHandle/followers',
+        ],
+        followingUsers: [
+          'GET /api/v1/users/:userId/following-users',
+          'GET /api/v1/users/handle/:publicHandle/following-users',
+        ],
+      },
+      targetProfileRequired: {
+        status: 'active',
+        deletedAt: null,
+        blockedByViewer: false,
+      },
+      returnedFollowRowsWhere: {
+        followDeletedAt: null,
+        sourceUserStatus: 'active',
+        targetUserStatus: 'active',
+        userDeletedAt: null,
+        activeBlockEitherDirection: false,
+      },
+      hiddenUserStatuses: ['deleted', 'suspended', 'inactive', 'private'],
+      countSource: 'same_where_as_items_after_hidden_and_block_filters',
+      cursorField: 'user_follows.id',
+      viewerHintsSafeOnly: true,
+      mutation: false,
     },
     privateFieldsExcluded: [
       'email',
