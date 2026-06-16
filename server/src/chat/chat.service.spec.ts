@@ -6333,6 +6333,40 @@ describe('ChatService premium chat support contract', () => {
       customAmountHelperKey: 'chat.donation.amount.customHelper',
       lockedRoomDisabledMessageKey: 'chat.donation.blockedRoomState',
     });
+    expect(contract.donation.plusMenuDonationPolicy).toMatchObject({
+      version: '2026-06-17.premium-chat-plus-donation-tier-authority.v1',
+      sourceSurface: 'premium_chat_plus_menu',
+      fixedAmountsLumina: [10, 50, 100, 500, 1000, 5000, 10000, 50000],
+      directInput: {
+        supported: true,
+        minLumina: 1,
+        maxLumina: 50000,
+        integerOnly: true,
+      },
+      tierSource: 'server_donation_tier_allowlist',
+      clientDisplayedTierTrusted: false,
+      clientSubmittedAmountTrusted: false,
+      customInputCreatesAdHocTier: false,
+      customInputUsesServerMinMaxIntegerPolicy: true,
+      amountNormalization: 'server_integer_lumina',
+      rankingReadModelGuard: {
+        likeRankingSourceAllowed: false,
+        communicationRankingSource:
+          'safe_room_open_message_support_and_artist_reply_activity',
+        donationRankingSource: 'confirmed_net_premium_chat_donation',
+        donationRankingReceivesLikes: false,
+        communicationRankingReceivesLikes: false,
+        refundedDonationExcluded: true,
+        chargebackDonationExcluded: true,
+      },
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(contract.donation.plusMenuDonationPolicy.stableErrorCodes).toEqual([
+      'PREMIUM_CHAT_DONATION_AMOUNT_INVALID',
+      'PREMIUM_CHAT_DONATION_AMOUNT_OUT_OF_RANGE',
+    ]);
     expect(contract.donation.projectionSeparation).toMatchObject({
       roomMessageProjection: 'premiumRoomMessageProjection',
       supportMessageProjection: 'premiumChatSupportMessageProjection',
