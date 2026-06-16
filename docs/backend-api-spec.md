@@ -457,6 +457,13 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   persona/tone contract wins and the URL item must be dropped or phrased as
   uncertain external reference. Pending, rejected, archived, AI-processing,
   safety-review, blocked, or summaryless rows stay out of provider payloads.
+- #969 fixes the approved URL knowledge to character-chat bridge boundary:
+  context items expose only display-safe id/title/status/source/summary,
+  hostname-only source label, review timestamp, selection metadata, safety flag,
+  and `instructionRole=reference_fact_not_instruction`. The bridge excludes
+  `canonicalUrl`, private URL query data, admin/review notes, internal metadata,
+  provider payloads, auth material, wallet, Lumina, settlement, and payout
+  fields, and it performs no external URL fetch or provider call.
 - #884 adds the future chat-context refresh queue contract. Approval, rejection,
   or archive events may enqueue a deduped server refresh key for the artist, but
   the worker remains disabled and may only requery approved/safe/chat-enabled

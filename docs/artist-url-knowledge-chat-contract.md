@@ -324,6 +324,17 @@ raw submitted URLs, URL queries, raw page bodies, private bodies, artist
 descriptions, admin notes, tokens, cookies, passwords, API keys, signed/private
 URLs, provider payloads, or DB URLs.
 
+#969 chat context bridge lock: the bridge from approved artist URL knowledge to
+character chat exposes only the bounded context item fields needed by the
+provider adapter: id, title, status key, source type, approved summary,
+hostname-only source label, review timestamp, selection metadata, safety flag,
+and `instructionRole=reference_fact_not_instruction`. It explicitly excludes
+`canonicalUrl`, private query strings, raw URL fields, raw page/private bodies,
+artist descriptions, admin notes, review notes, internal metadata, provider
+payloads, tokens, cookies, passwords, API keys, and DB URLs. The bridge is
+read-only: it does not fetch external URLs, call the provider, create chat
+messages, or mutate wallet, Lumina, settlement, or payout state.
+
 ## #459/#463 Safety Gate
 
 The chat service must apply the state gate before provider generation:

@@ -183,8 +183,11 @@ export type ArtistKnowledgeChatHandoffProjection = {
     knowledgeContextOnly: true;
     siteContentAdminCopy: false;
     rawUrlReturned: false;
+    privateQueryReturned: false;
     rawPrivateMaterialReturned: false;
     adminNotesReturned: false;
+    reviewNoteReturned: false;
+    metadataReturned: false;
   };
 };
 
@@ -219,6 +222,24 @@ export type ArtistKnowledgeChatContext = {
       'system_safety_and_runtime_persona_win_url_knowledge_becomes_uncertain_reference';
     pendingRejectedArchivedExcluded: true;
     providerPayloadAllowsOnlyApprovedSafeSummaries: true;
+    allowedContextFields: string[];
+    forbiddenContextFields: string[];
+    lifecycleGate: {
+      approvedOnly: true;
+      safeOnly: true;
+      allowChatReferenceRequired: true;
+      boundedSummaryRequired: true;
+      pendingRejectedArchivedExcluded: true;
+    };
+    noSideEffects: {
+      externalUrlFetch: true;
+      providerCall: true;
+      chatMessageCreate: true;
+      walletMutation: true;
+      luminaMutation: true;
+      settlementMutation: true;
+      payoutMutation: true;
+    };
   };
   fallbackPolicy: {
     whenNoEligibleKnowledge: 'continue_without_url_knowledge';
@@ -374,6 +395,57 @@ export const ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY = {
     target: 'character_chat_provider_context',
     allowedInputs: ['approvalStatus=approved', 'safetyStatus=safe', 'allowChatReference=true', 'bounded summary'],
     excludedInputs: ['pending', 'rejected', 'archived', 'ai_processing', 'needs_review', 'blocked', 'missing_summary'],
+    allowedContextFields: [
+      'id',
+      'title',
+      'statusKey',
+      'sourceType',
+      'approvalStatus',
+      'summary',
+      'safetyStatus',
+      'sourceLabel',
+      'reviewedAt',
+      'selectionScore',
+      'selectionReasons',
+      'freshnessBucket',
+      'safetyFlag',
+      'instructionRole',
+    ],
+    forbiddenContextFields: [
+      'url',
+      'rawUrl',
+      'rawUrlQuery',
+      'canonicalUrl',
+      'privateBody',
+      'rawPageBody',
+      'artistDescription',
+      'adminNotes',
+      'reviewNote',
+      'internalReviewNote',
+      'metadata',
+      'providerPayload',
+      'token',
+      'cookie',
+      'password',
+      'apiKey',
+      'dbUrl',
+    ],
+    lifecycleGate: {
+      approvedOnly: true,
+      safeOnly: true,
+      allowChatReferenceRequired: true,
+      boundedSummaryRequired: true,
+      pendingRejectedArchivedExcluded: true,
+    },
+    noSideEffects: {
+      externalUrlFetch: true,
+      providerCall: true,
+      chatMessageCreate: true,
+      walletMutation: true,
+      luminaMutation: true,
+      settlementMutation: true,
+      payoutMutation: true,
+    },
     conflictResolution:
       'system_safety_and_runtime_persona_win_url_knowledge_becomes_uncertain_reference',
     priorityBeforeUrlKnowledge: [
@@ -1145,6 +1217,18 @@ export function buildArtistKnowledgeChatContext(
         'system_safety_and_runtime_persona_win_url_knowledge_becomes_uncertain_reference',
       pendingRejectedArchivedExcluded: true,
       providerPayloadAllowsOnlyApprovedSafeSummaries: true,
+      allowedContextFields: [
+        ...ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY.contextBridge
+          .allowedContextFields,
+      ],
+      forbiddenContextFields: [
+        ...ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY.contextBridge
+          .forbiddenContextFields,
+      ],
+      lifecycleGate:
+        ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY.contextBridge.lifecycleGate,
+      noSideEffects:
+        ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY.contextBridge.noSideEffects,
     },
     fallbackPolicy: {
       whenNoEligibleKnowledge: 'continue_without_url_knowledge',
@@ -1290,8 +1374,11 @@ export function buildArtistKnowledgeChatHandoff(
       knowledgeContextOnly: true,
       siteContentAdminCopy: false,
       rawUrlReturned: false,
+      privateQueryReturned: false,
       rawPrivateMaterialReturned: false,
       adminNotesReturned: false,
+      reviewNoteReturned: false,
+      metadataReturned: false,
     },
   };
 }
