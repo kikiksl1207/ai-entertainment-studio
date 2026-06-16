@@ -5411,6 +5411,65 @@ describe('ChatService premium chat support contract', () => {
         fallbackToAiChat: false,
       },
     });
+    expect(
+      contract.productProjection.characterChatTransitionCta
+        .chatEntryAvailabilityProjection,
+    ).toMatchObject({
+      version: '2026-06-16.character-detail-chat-entry-availability.v1',
+      surface: 'character_detail',
+      entries: {
+        aiCharacterChat: {
+          entryKey: 'ai_character_chat',
+          productKind: 'ai_character_chat',
+          responseMode: 'ai_character_reply',
+          route: '/character-chat?slug={artistSlug}',
+          enabled: true,
+          createsPremiumRoom: false,
+          opensPaidRoom: false,
+          walletMutation: false,
+        },
+        premiumChat: {
+          entryKey: 'premium_chat',
+          productKind: 'artist_direct_premium_dm',
+          responseMode: 'artist_direct_reply',
+          route: null,
+          enabled: false,
+          fallbackToAiChat: false,
+          createsCharacterChat: false,
+          opensPaidRoom: false,
+          walletMutation: false,
+        },
+        support: {
+          entryKey: 'support',
+          enabled: false,
+          requiresPremiumRoom: true,
+          opensDonationSheet: false,
+          walletMutation: false,
+        },
+        follow: {
+          entryKey: 'follow',
+          source: 'artist.viewer',
+          usesExistingArtistFollowEndpoints: true,
+          walletMutation: false,
+        },
+      },
+      separationPolicy: {
+        premiumDisabledMustNotFallbackToAiChat: true,
+        premiumDisabledMustNotOpenPaidRoom: true,
+        supportMustNotOpenWalletFlowWithoutPremiumRoom: true,
+        followMustRemainSocialActionOnly: true,
+        rawEntryKeyAsCopy: false,
+        rawProductKindAsCopy: false,
+      },
+      noMutation: {
+        premiumRoomOpen: true,
+        messageSend: true,
+        payment: true,
+        wallet: true,
+        settlement: true,
+        payout: true,
+      },
+    });
     const contractDetailCtaProjection =
       contract.productProjection.characterChatTransitionCta
         .characterDetailCtaProjection;
