@@ -2278,6 +2278,54 @@ describe('premium chat room refund and moderation ledger contract', () => {
       tokenCookieSecretDbUrlLogged: false,
       signedUrlLogged: false,
     });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.imageAttachmentPolicy).toMatchObject({
+      version: '2026-06-17.premium-chat-image-attachment-projection.v1',
+      enabled: false,
+      uploadMutationEnabled: false,
+      messageMutationEnabled: false,
+      walletMutationEnabled: false,
+      allowedAssetType: 'image',
+      responseProjection: {
+        assetId: '<uuid>',
+        safeThumbnailUrl: '<public asset proxy thumbnail URL>',
+        displayUrl: '<public asset proxy display URL>',
+        width: '<number|null>',
+        height: '<number|null>',
+        fileSizeBytes: '<decimal string|null>',
+        moderationStatus: '<pending|safe|needs_review|blocked>',
+      },
+      originalPrivateUrlReturned: false,
+      storageKeyReturned: false,
+      signedUrlReturned: false,
+      rawMetadataReturned: false,
+      walletLedgerIdReturned: false,
+    });
+    expect(
+      PREMIUM_CHAT_ROOM_CONTRACT.imageAttachmentPolicy.requiredResponseFields,
+    ).toEqual([
+      'assetId',
+      'safeThumbnailUrl',
+      'displayUrl',
+      'width',
+      'height',
+      'fileSizeBytes',
+      'moderationStatus',
+    ]);
+    expect(
+      PREMIUM_CHAT_ROOM_CONTRACT.imageAttachmentPolicy.forbiddenResponseFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'originalPrivateUrl',
+        'storageKey',
+        'signedUrl',
+        'rawMetadata',
+        'walletLedgerId',
+        'token',
+        'cookie',
+        'password',
+        'databaseUrl',
+      ]),
+    );
     expect(PREMIUM_CHAT_ROOM_CONTRACT.responsePolicy).toMatchObject({
       publicReasonOnly: true,
       publicReasonFields: ['reasonKey', 'messageKey', 'labels'],
