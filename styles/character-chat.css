@@ -2599,3 +2599,57 @@ select.dm-field-input option {
     max-width: 72vw;
   }
 }
+
+/* #922 — 방 상태 표시 안내 (샘플 matrix): 6개 상태를 항상 보이게 */
+.premium-chat-hub-state-matrix {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(180, 150, 255, 0.12);
+  border-radius: 12px;
+}
+.premium-chat-hub-state-matrix-head h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: rgba(245, 240, 255, 0.9);
+}
+.premium-chat-hub-state-matrix-head p {
+  margin: 3px 0 10px;
+  font-size: 11.5px;
+  color: rgba(220, 210, 240, 0.5);
+  line-height: 1.5;
+}
+.premium-chat-hub-state-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.premium-chat-hub-state-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.premium-chat-hub-state-row .premium-chat-hub-room-badge {
+  justify-self: start;
+}
+.premium-chat-hub-state-desc {
+  font-size: 12px;
+  color: rgba(225, 218, 245, 0.66);
+  line-height: 1.45;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  .premium-chat-hub-state-row {
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 8px;
+  }
+  .premium-chat-hub-state-desc {
+    font-size: 11.5px;
+  }
+}
