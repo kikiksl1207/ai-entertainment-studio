@@ -3,6 +3,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import {
   CHARGE_FIXTURE_PAYMENT_SEPARATION_CONTRACT,
   FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT,
+  FIRST_CHARGE_BONUS_READ_ONLY_AUDIT_PROJECTION,
   PaymentsService,
 } from './payments.service';
 import { ACTIVE_CHARGE_PRODUCT_SPECS } from './charge-products.policy';
@@ -247,6 +248,70 @@ describe('PaymentsService server-authority contract', () => {
       failedProviderEventsLockEligibility: false,
       settlementEligible: false,
       cashRefundable: false,
+      readOnlyAuditProjection: FIRST_CHARGE_BONUS_READ_ONLY_AUDIT_PROJECTION,
+    });
+  });
+
+  it('publishes first-charge bonus read-only audit projection for all charge packages', () => {
+    const projection = FIRST_CHARGE_BONUS_READ_ONLY_AUDIT_PROJECTION;
+
+    expect(projection).toMatchObject({
+      status: 'read_only_projection_contract',
+      mutation: false,
+      paymentProviderCall: false,
+      walletCredit: false,
+      bonusGrant: false,
+      sourceOfTruth: {
+        products: 'ACTIVE_CHARGE_PRODUCT_SPECS',
+        baseLuminaAmount: 'lumina_products.lumina_amount',
+        packageBonusLumina: 'lumina_products.bonus_amount',
+        firstChargeBonusRateBps: 1000,
+        firstChargeBonusBasis: 'base_lumina_only',
+      },
+      serverAuthority: {
+        clientSubmittedPriceTrusted: false,
+        clientSubmittedLuminaAmountTrusted: false,
+        clientSubmittedBonusAmountTrusted: false,
+        clientSubmittedFirstChargeBonusTrusted: false,
+        packageBonusAndFirstChargeShareLedgerType: false,
+        packageBonusAndFirstChargeShareAuditRow: false,
+      },
+    });
+    expect(projection.products.map((product) => product.priceAmountKrw)).toEqual([
+      1000, 3000, 5000, 10000, 50000, 100000,
+    ]);
+    expect(projection.products).toHaveLength(6);
+    expect(projection.products).toEqual(
+      ACTIVE_CHARGE_PRODUCT_SPECS.map((product) =>
+        expect.objectContaining({
+          sku: product.sku,
+          priceAmountKrw: product.priceAmount,
+          baseLuminaAmount: product.luminaAmount,
+          packageBonusLumina: product.bonusAmount,
+          firstChargeBonusLumina: product.luminaAmount / 10,
+          repeatChargeCreditLumina: product.luminaAmount + product.bonusAmount,
+          firstChargeTotalCreditLumina:
+            product.luminaAmount + product.bonusAmount + product.luminaAmount / 10,
+          ledgerTypes: {
+            packageCredit: 'purchase',
+            firstChargeBonus: 'first_charge_bonus',
+          },
+        }),
+      ),
+    );
+    expect(projection.products.find((product) => product.priceAmountKrw === 50000)).toMatchObject({
+      baseLuminaAmount: 5000,
+      packageBonusLumina: 800,
+      firstChargeBonusLumina: 500,
+      repeatChargeCreditLumina: 5800,
+      firstChargeTotalCreditLumina: 6300,
+    });
+    expect(projection.products.find((product) => product.priceAmountKrw === 100000)).toMatchObject({
+      baseLuminaAmount: 10000,
+      packageBonusLumina: 2000,
+      firstChargeBonusLumina: 1000,
+      repeatChargeCreditLumina: 12000,
+      firstChargeTotalCreditLumina: 13000,
     });
   });
 
