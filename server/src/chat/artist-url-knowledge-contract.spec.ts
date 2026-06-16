@@ -643,13 +643,47 @@ describe('artist URL knowledge contract', () => {
       enabled: true,
       eligibleRowsOnly: true,
       sortOrder: ['score_desc', 'reviewed_at_desc', 'id_asc'],
+      freshnessTimestamp: 'reviewedAt',
+      missingFreshnessTimestampBucket: 'older',
+      unreviewedRowsCannotGainFreshness: true,
       excludedBeforeScoring: expect.arrayContaining([
         'pending',
         'rejected',
         'archived',
+        'ai_processing',
         'unsafe',
+        'chat_reference_disabled',
         'missing_summary',
       ]),
+    });
+    expect(
+      ARTIST_URL_KNOWLEDGE_CONTRACT.chatReferencePolicy.selectionGate,
+    ).toMatchObject({
+      phase: 'read_only_character_chat_context_selection',
+      runsBeforeProviderGeneration: true,
+      allowedLifecycleStatuses: ['approved'],
+      excludedLifecycleStatuses: ['pending', 'rejected', 'archived'],
+      excludedIngestStatuses: expect.arrayContaining([
+        'submitted',
+        'pending_review',
+        'ai_processing',
+        'rejected',
+        'archived',
+      ]),
+      requiredSafetyStatus: 'safe',
+      allowChatReferenceRequired: true,
+      boundedSummaryRequired: true,
+      artistScopeRequired: true,
+      maxSelectedRows: 5,
+      noSideEffects: {
+        externalUrlFetch: true,
+        providerCall: true,
+        chatMessageCreate: true,
+        walletMutation: true,
+        luminaMutation: true,
+        settlementMutation: true,
+        payoutMutation: true,
+      },
     });
     expect(scoreArtistKnowledgeChatCandidate(pending).score).toBe(0);
     expect(scoreArtistKnowledgeChatCandidate(freshNotice, '2026-06-08T00:00:00.000Z')).toMatchObject({
@@ -679,6 +713,82 @@ describe('artist URL knowledge contract', () => {
       context.items[1].selectionScore,
     );
     expect(JSON.stringify(context)).not.toContain('pending-row');
+  });
+
+  it('does not let fresh rejected or archived URL knowledge enter character chat context', () => {
+    const approvedMissingReviewedAt = {
+      id: 'approved-no-reviewed-at',
+      artistId: 'artist-1',
+      status: 'approved',
+      sourceType: 'notice',
+      title: 'Approved missing reviewedAt',
+      canonicalUrl: 'https://example.com/approved',
+      metadata: { safetyStatus: 'safe' },
+      allowChatReference: true,
+      summary: 'Approved safe summary without freshness timestamp.',
+    };
+    const rejectedFresh = {
+      id: 'rejected-fresh',
+      artistId: 'artist-1',
+      status: 'rejected',
+      sourceType: 'notice',
+      canonicalUrl: 'https://example.com/rejected',
+      metadata: { safetyStatus: 'safe' },
+      allowChatReference: true,
+      summary: 'Rejected material must not enter context.',
+      reviewedAt: new Date('2026-06-08T00:00:00.000Z'),
+    };
+    const archivedFresh = {
+      id: 'archived-fresh',
+      artistId: 'artist-1',
+      status: 'archived',
+      sourceType: 'notice',
+      canonicalUrl: 'https://example.com/archived',
+      metadata: { safetyStatus: 'safe' },
+      allowChatReference: true,
+      summary: 'Archived material must not enter context.',
+      reviewedAt: new Date('2026-06-08T00:00:00.000Z'),
+    };
+    const processingApproved = {
+      id: 'processing-approved',
+      artistId: 'artist-1',
+      status: 'approved',
+      sourceType: 'notice',
+      canonicalUrl: 'https://example.com/processing',
+      metadata: { safetyStatus: 'safe', ingestStatus: 'ai_processing' },
+      allowChatReference: true,
+      summary: 'Processing material must not enter context.',
+      reviewedAt: new Date('2026-06-08T00:00:00.000Z'),
+    };
+
+    const context = buildArtistKnowledgeChatContext(
+      [
+        rejectedFresh,
+        archivedFresh,
+        processingApproved,
+        approvedMissingReviewedAt,
+      ],
+      { now: '2026-06-08T00:00:00.000Z' },
+    );
+
+    expect(scoreArtistKnowledgeChatCandidate(rejectedFresh).score).toBe(0);
+    expect(scoreArtistKnowledgeChatCandidate(archivedFresh).score).toBe(0);
+    expect(scoreArtistKnowledgeChatCandidate(processingApproved).score).toBe(0);
+    expect(
+      scoreArtistKnowledgeChatCandidate(
+        approvedMissingReviewedAt,
+        '2026-06-08T00:00:00.000Z',
+      ),
+    ).toMatchObject({
+      freshnessBucket: 'older',
+      reasons: expect.not.arrayContaining(['freshness']),
+    });
+    expect(context.items.map((item) => item.id)).toEqual([
+      'approved-no-reviewed-at',
+    ]);
+    expect(JSON.stringify(context)).not.toContain('rejected-fresh');
+    expect(JSON.stringify(context)).not.toContain('archived-fresh');
+    expect(JSON.stringify(context)).not.toContain('processing-approved');
   });
 
   it('keeps approved URL knowledge as a lower-priority context bridge than persona and tone', () => {

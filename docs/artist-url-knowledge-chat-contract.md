@@ -309,6 +309,14 @@ safe status, chat reference permission, summary presence, review freshness, and
 source priority. Pending, rejected, archived, processing, unsafe, disabled, and
 summaryless rows are excluded before scoring.
 
+#952 context selection readiness: freshness is based on `reviewedAt` only after
+the row passes the approved/safe/chat-enabled/summary eligibility gate. Missing
+freshness timestamps fall into the `older` bucket, and pending, rejected,
+archived, or `ai_processing` rows cannot gain score from a recent timestamp.
+This phase is read-only context selection: it does not fetch external URLs, call
+the chat provider, create chat messages, or mutate wallet, Lumina, settlement,
+or payout state.
+
 ## Chat Context Connection
 
 Character chat looks up artist URL knowledge only from the approved knowledge URL
