@@ -50,6 +50,88 @@ export const PREMIUM_CHAT_RANKING_PERIODS = [
   'all',
 ] as const;
 
+export const PREMIUM_CHAT_COMMUNICATION_DONATION_RANKING_READ_MODEL_CONTRACT = {
+  version: '2026-06-17.premium-chat-communication-donation-ranking-read-model.v1',
+  status: 'read_model_contract_only_disabled',
+  endpoint: '/api/v1/chat/rankings',
+  enabled: false,
+  laneSeparation: {
+    allowedTypes: PREMIUM_CHAT_RANKING_TYPES,
+    forbiddenTypeAliases: ['like', 'free_like', 'lumina_pick', 'boost'],
+    likeRankingPath: '/api/v1/boost-campaigns/:campaignId/rankings',
+    likeRankingReceivesPremiumChatActivity: false,
+    premiumChatRankingReceivesLikes: false,
+    mixedLaneItemsAllowed: false,
+    clientSubmittedScoreAllowed: false,
+    clientRefreshAllowed: false,
+  },
+  communicationLane: {
+    type: 'communication',
+    endpoint: '/api/v1/chat/rankings?type=communication',
+    sourceEvents: [
+      'confirmed_room_open',
+      'safe_visible_message_activity',
+      'confirmed_net_donation',
+      'safe_artist_reply_activity',
+    ],
+    sourceLedgers: [
+      'premium_chat_room_open_support_point',
+      'premium_chat_message_activity_support_point',
+      'premium_chat_donation_support_point',
+    ],
+    donationAmountMode: 'weighted_factor_not_donation_rank_amount',
+    scoreFormulaReturned: false,
+    summaryKey: 'chat.rankings.communication.summary',
+  },
+  donationLane: {
+    type: 'donation',
+    endpoint: '/api/v1/chat/rankings?type=donation',
+    sourceEvents: ['confirmed_net_donation'],
+    sourceLedgers: ['premium_chat_donation_support_point'],
+    amountBasis: 'confirmed_net_premium_chat_donation_after_refund_or_chargeback',
+    excludesCommunicationEvents: true,
+    rawSupportMessageReturned: false,
+    summaryKey: 'chat.rankings.donation.summary',
+  },
+  exclusionPolicy: {
+    reportedRows: 'excluded_until_admin_safe',
+    blindedRows: 'excluded',
+    refundedRows: 'excluded',
+    chargebackRows: 'excluded',
+    cancelledRows: 'excluded',
+    suspendedRooms: 'excluded',
+    adminReviewRooms: 'excluded_until_admin_safe',
+  },
+  privacy: {
+    rawChatBodyReturned: false,
+    rawSupportMessageReturned: false,
+    rawReportReasonReturned: false,
+    rawWalletLedgerIdReturned: false,
+    rawSupportPointLedgerIdReturned: false,
+    rawConversationMeterLedgerIdReturned: false,
+    rawUserIdReturned: false,
+    messageIdsReturned: false,
+    internalScoreFormulaReturned: false,
+  },
+  mutationPolicy: {
+    rankingEndpointEnabled: false,
+    rankingSnapshotWriteAllowed: false,
+    supportPointLedgerWriteAllowed: false,
+    donationCreateAllowed: false,
+    scoreSubmitAllowed: false,
+    scoreRefreshByClientAllowed: false,
+    roomOpenMutation: false,
+    messageMutation: false,
+    supportMutation: false,
+    refundMutation: false,
+    reportMutation: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
+
 export const PREMIUM_CHAT_DONATION_HISTORY_STATUSES = [
   'confirmed',
   'refunded',
@@ -3040,6 +3122,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
   adminReportRefundReadOnly:
     PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.adminReadOnly,
   rankings: {
+    readModelSeparation:
+      PREMIUM_CHAT_COMMUNICATION_DONATION_RANKING_READ_MODEL_CONTRACT,
     like: {
       path: '/api/v1/boost-campaigns/:campaignId/rankings',
       includes: ['free_like', 'lumina_boost'],
