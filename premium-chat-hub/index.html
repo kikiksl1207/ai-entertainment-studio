@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>프리미엄챗 허브 — Lumina Stage</title>
+    <link rel="canonical" href="https://www.lumina-stage.com/character-chat" />
+    <meta name="robots" content="noindex, nofollow" />
+    <!-- #922/#954 — /premium-chat-hub 직접 진입 404 해소.
+         프리미엄챗 허브는 /character-chat 의 slug 없는 리스트 모드(showListMode)에
+         위치하며 방 상태 matrix·랭킹·가능 아티스트 목록이 거기서 렌더된다.
+         별도 허브 페이지를 중복 생성하지 않고 clean URL(/character-chat)로 redirect.
+         query/hash 보존. (#320 redirect 패턴 준수) -->
+    <script>
+      (function () {
+        var qs = window.location.search || "";
+        var hash = window.location.hash || "";
+        window.location.replace("/character-chat" + qs + hash);
+      })();
+    </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0; url=/character-chat" />
+    </noscript>
+  </head>
+  <body>
+    <p style="font-family:system-ui,sans-serif;padding:24px;color:#333;">프리미엄챗 허브(/character-chat)로 이동 중입니다…
+      <a href="/character-chat">바로 가기</a>
+    </p>
+  </body>
+</html>
