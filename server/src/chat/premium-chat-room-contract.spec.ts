@@ -786,6 +786,47 @@ describe('premium chat room refund and moderation ledger contract', () => {
     });
   });
 
+  it('does not promote report review, artist close, or expired rooms to 24h unanswered refund candidates', () => {
+    const blockedStatuses = [
+      'reported',
+      'paused_by_report',
+      'admin_review',
+      'artist_closed',
+      'closed_by_artist',
+      'expired',
+    ];
+
+    for (const currentStatus of blockedStatuses) {
+      const candidate = resolvePremiumChatRoomUnansweredRefundCandidate({
+        currentStatus,
+        hoursSinceOpen: 72,
+        hasArtistAnswer: false,
+      });
+      const transition = resolvePremiumChatRoomSchedulerTransition({
+        currentStatus,
+        hoursSinceOpen: 72,
+        hasArtistAnswer: false,
+        expiresAtElapsed: true,
+      });
+
+      expect(candidate).toMatchObject({
+        candidate: false,
+        walletMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      });
+      expect(candidate.reasonKey).not.toBe('unanswered_24h_full_refund');
+      expect(transition).toMatchObject({
+        transition: false,
+        automaticRefundCredit: false,
+        walletMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      });
+      expect(transition.toStatusKey).not.toBe('refund_pending');
+    }
+  });
+
   it('charges visible two-way message pairs as integer Lumina without half-pair debits', () => {
     const resolved = resolvePremiumChatMessageChargePolicy({
       userVisibleSentenceCount: 3,
