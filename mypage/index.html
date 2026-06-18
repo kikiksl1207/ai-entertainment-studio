@@ -187,7 +187,7 @@
                 </div>
                 <div class="mypage-title-chips" id="mypageTitleChips" role="list" aria-label="칭호 미리보기"></div>
                 <div class="mypage-title-empty" id="mypageTitleEmpty" hidden>아직 이 조건에 맞는 칭호가 없어요.</div>
-                <p class="mypage-title-foot" id="mypageTitleFoot">대표 칭호 설정은 곧 열려요. 활동을 쌓아두면 가장 잘 어울리는 한 줄을 추천해 드릴게요.</p>
+                <p class="mypage-title-foot" id="mypageTitleFoot">대표 칭호는 활동을 쌓으면 가장 잘 어울리는 한 줄을 추천해 드려요.</p>
               </section>
             </section>
 
@@ -1004,11 +1004,11 @@
         // #501 — API endpoint 미준비(HTTP 501 Not Implemented) 상태.
         // "신청 전"(empty)으로 오해하지 않도록 별도 "서비스 준비 중" 문구와 disabled 처리.
         function applyDebutApiNotReady() {
-          setText("mypageDebutStatus", "서비스 준비 중");
+          setText("mypageDebutStatus", "조회 예정");
           const sb = $("mypageDebutStatus"); if (sb) sb.setAttribute("data-debut-status", "not-ready");
           const ts = $("mypageDebutTimestamps"); if (ts) ts.hidden = true;
-          setText("mypageDebutTitle", "신청 상태 조회를 준비하고 있어요");
-          setText("mypageDebutDescription", "데뷔 신청 상태 조회 서비스가 준비 중이에요. 잠시 후 다시 확인해 주세요.");
+          setText("mypageDebutTitle", "신청 상태 조회는 아직 열리지 않았어요");
+          setText("mypageDebutDescription", "데뷔 신청 상태 조회는 아직 열리지 않았어요. 잠시 후 다시 확인해 주세요.");
           setText("mypageDebutNextAction", "데뷔 신청은 데뷔하기 화면에서 언제든 가능해요. 상태 조회는 서비스가 열리면 이곳에 바로 표시돼요.");
           renderDebutPublicNotice("");
           renderDebutSteps("loading");

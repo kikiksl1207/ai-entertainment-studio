@@ -122,7 +122,7 @@
               <li class="premium-chat-hub-rooms-skeleton">프리미엄 채팅방 정보를 불러오는 중이에요…</li>
             </ul>
             <!-- #474 — "원장·보안 검증" 내부 용어 제거, 서비스 톤으로 교체 -->
-            <p class="premium-chat-hub-rooms-foot">방 오픈은 서비스 준비 완료 후 활성화돼요. 지금은 아티스트 프로필과 채팅방 진입만 가능해요.</p>
+            <p class="premium-chat-hub-rooms-foot">방 오픈은 서비스 오픈 후 활성화돼요. 지금은 아티스트 프로필과 채팅방 진입만 가능해요.</p>
           </section>
 
           <!-- #922 — 방 상태 표시 안내(샘플 matrix).
@@ -172,7 +172,7 @@
             <h3 class="premium-chat-plans-title">프리미엄 채팅방 플랜</h3>
           </header>
           <!-- #474 — "원장·보안 검증" 내부 용어 → 서비스 톤 교체 -->
-          <p class="premium-chat-plans-note">방 플랜은 루미나(L)로 열고 기본 3일 유지돼요. 아티스트가 최대 10일까지 연장할 수 있어요. 방 열기는 서비스 준비 완료 후 활성화됩니다.</p>
+          <p class="premium-chat-plans-note">방 플랜은 루미나(L)로 열고 기본 3일 유지돼요. 아티스트가 최대 10일까지 연장할 수 있어요. 방 열기는 서비스 오픈 후 활성화됩니다.</p>
           <!-- #474 — #471 리뷰 반영: 귀책 시 50–70% 제한 가능성 명시(과하지 않게). #398 "비율 비노출" 방침 변경. -->
           <!-- #483 — "전액 환불돼요" → 자동 확정 인상 제거, 환불 검토 대상으로 완화 -->
           <!-- #491 — 검토 대상과 승인 시 기준 분리 -->
@@ -337,8 +337,8 @@
               <!-- 이모티콘: 기능 준비 중 (mutation 없음) -->
               <button type="button" class="dm-action-menu-item is-soon" disabled aria-disabled="true">
                 <span class="dm-action-menu-icon"><svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/><path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
-                <span class="dm-action-menu-text"><strong>이모티콘</strong><small>곧 열려요</small></span>
-                <span class="dm-action-tag dm-action-tag-soon">준비중</span>
+                <span class="dm-action-menu-text"><strong>이모티콘</strong><small>메시지·후원 먼저 이용</small></span>
+                <span class="dm-action-tag dm-action-tag-soon">오픈 예정</span>
               </button>
               <!-- #329 — 프리미엄챗 후원 액션. POST 차감은 #328 계약상 비활성, sheet에서 read-only 미리보기만 가능. -->
               <button type="button" class="dm-action-menu-item is-donate" id="chatDonationOpen" role="menuitem" aria-haspopup="dialog" aria-controls="chatDonationSheet">
@@ -359,12 +359,12 @@
               aria-label="메시지 입력"></textarea>
           </div>
 
-          <button class="dm-send-btn" type="submit" id="chatSendBtn" disabled aria-disabled="true" title="스타의 답장 기능은 곧 열려요.">
+          <button class="dm-send-btn" type="submit" id="chatSendBtn" disabled aria-disabled="true" title="지금은 첫 인사 선택만 가능해요.">
             <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22"><path d="M3.5 11.5L20 4l-7.4 16-2-7.4z" fill="currentColor"/></svg>
             <span class="sr-only">보내기</span>
           </button>
         </form>
-        <p class="dm-foot-note">스타의 답장 기능은 곧 열려요. 지금은 첫 인사를 골라볼 수 있어요.</p>
+        <p class="dm-foot-note">지금은 첫 인사를 골라 대화를 시작할 수 있어요.</p>
         <!-- #343 — 좁은 화면에서 한 문단이 길게 줄바뀜되지 않게 짧은 문장 두 개로 분리. -->
         <p class="dm-foot-note dm-foot-rankings">
           소통/후원 랭킹: <a class="text-link" href="/chat-rankings">소통·후원 랭킹</a>
@@ -567,7 +567,7 @@
       <footer class="dm-sheet-foot">
         <button type="button" class="dm-sheet-secondary" data-donation-close>닫기</button>
         <!-- #474 — title·label 내부 용어 제거 -->
-        <button type="button" class="dm-sheet-primary" id="donationConfirmBtn" disabled aria-disabled="true" title="후원 기능은 서비스 준비 완료 후 열려요.">
+        <button type="button" class="dm-sheet-primary" id="donationConfirmBtn" disabled aria-disabled="true" title="후원 기능은 서비스 오픈 후 열려요.">
           <span id="donationConfirmLabel">후원 안내 확인</span>
         </button>
       </footer>
@@ -589,7 +589,7 @@
           <li>후원 귀책 시 취소·환불은 50% 또는 70% 수준으로 제한될 수 있어요.</li>
         </ul>
         <!-- #474 — "원장·보안 검증" 내부 용어 제거 -->
-        <p class="donation-confirm-note" id="donationConfirmNote">후원 기능은 서비스 준비 완료 후 활성화돼요.</p>
+        <p class="donation-confirm-note" id="donationConfirmNote">후원 기능은 서비스 오픈 후 활성화돼요.</p>
       </div>
       <footer class="dm-modal-foot">
         <button type="button" class="dm-sheet-secondary" data-donation-confirm-cancel>다시 보기</button>
