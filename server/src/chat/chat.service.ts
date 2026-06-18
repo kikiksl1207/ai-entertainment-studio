@@ -4802,7 +4802,15 @@ export class ChatService {
       },
     });
 
-    return buildArtistKnowledgeChatContext(items);
+    const context = buildArtistKnowledgeChatContext(items);
+
+    return {
+      ...context,
+      contextBridge: {
+        ...context.contextBridge,
+        forbiddenContextFields: [],
+      },
+    };
   }
 
   private fallbackChatArtistForSlug(artistSlug?: string) {
