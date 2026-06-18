@@ -1226,6 +1226,15 @@ Character-chat dynamic opening greeting cache (#388):
   raw seed/prompt/provider-payload exclusion flags. The raw seed, prompt,
   provider payload, wallet, Lumina, settlement, payout, and order fields are not
   returned.
+- #1012 adds `dynamicGreetingContract.perSessionVariantReadModel` to make the
+  per-user/per-session variant boundary explicit. A character-chat session gets
+  exactly one opening greeting; the same session replays the cached greeting,
+  while a new session for the same character/user or a different user may select
+  a different variant from persona, tone tag, forbidden-tone, welcome, and
+  `chat_sessions.id` inputs. The boundary keeps provider generation optional,
+  applies persona/tone/forbidden rules, caps output at 120 tokens and 180
+  characters, and does not create wallet, order, settlement, payout, or extra
+  message-send mutations.
 - Provider generation is short and low-cost by contract:
   `maxOutputTokens=120`, `maxOutputChars=180`, lightweight model preferred.
 - Provider generation remains optional and separated from cache/template
