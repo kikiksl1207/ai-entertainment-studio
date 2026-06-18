@@ -593,6 +593,16 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   `canonicalUrl`, private URL query data, admin/review notes, internal metadata,
   provider payloads, auth material, wallet, Lumina, settlement, and payout
   fields, and it performs no external URL fetch or provider call.
+- #1016 exports `ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION` for the
+  approval lifecycle read model. It separates `pending`, `approved`, `rejected`,
+  and `archived` status rows from character-chat eligibility. Only approved
+  rows with `allowChatReference=true`, a bounded summary, `safetyStatus=safe`,
+  and no `ai_processing` ingest state can become chat context candidates.
+  Pending, rejected, archived, unsafe, disabled, processing, and summaryless
+  rows stay status-only and excluded from provider context. The projection does
+  not crawl external URLs, train providers, generate chat responses, create chat
+  messages, approve/reject/archive rows, or mutate wallet, Lumina, settlement,
+  payout, or paid-like state.
 - #884 adds the future chat-context refresh queue contract. Approval, rejection,
   or archive events may enqueue a deduped server refresh key for the artist, but
   the worker remains disabled and may only requery approved/safe/chat-enabled

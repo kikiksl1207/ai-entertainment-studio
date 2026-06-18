@@ -491,6 +491,93 @@ export const ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY = {
   },
 } as const;
 
+export const ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION = {
+  version: '2026-06-18.artist-url-knowledge-approval-state-projection.v1',
+  status: 'read_model_contract_only',
+  sourceTable: 'artist_knowledge_urls',
+  lifecycleStates: ARTIST_URL_KNOWLEDGE_STATUSES,
+  projectionFields: [
+    'id',
+    'artistId',
+    'status',
+    'approvalStatus',
+    'safetyStatus',
+    'allowChatReference',
+    'summaryPresent',
+    'reviewedAt',
+    'archivedAt',
+    'chatEligibility',
+  ],
+  stateMatrix: {
+    pending: {
+      approvalStatus: 'pending',
+      chatEligible: false,
+      providerContextAllowed: false,
+      queueBucket: 'pending_review',
+      uiStateKey: 'artistUrlKnowledge.pendingReview',
+    },
+    approved: {
+      approvalStatus: 'approved',
+      chatEligibleWhen: [
+        'allowChatReference=true',
+        'summaryPresent=true',
+        'safetyStatus=safe',
+        'ingestStatus!=ai_processing',
+      ],
+      providerContextAllowedWhenEligible: true,
+      queueBucket: 'approved_for_chat',
+      uiStateKey: 'artistUrlKnowledge.approved',
+    },
+    rejected: {
+      approvalStatus: 'rejected',
+      chatEligible: false,
+      providerContextAllowed: false,
+      queueBucket: 'rejected',
+      uiStateKey: 'artistUrlKnowledge.rejected',
+    },
+    archived: {
+      approvalStatus: 'archived',
+      chatEligible: false,
+      providerContextAllowed: false,
+      queueBucket: 'archived',
+      uiStateKey: 'artistUrlKnowledge.archived',
+    },
+  },
+  chatEligibilityGate: {
+    approvedOnly: true,
+    safetyStatusRequired: 'safe',
+    allowChatReferenceRequired: true,
+    boundedSummaryRequired: true,
+    aiProcessingExcluded: true,
+    artistScopeRequired: true,
+    pendingRejectedArchivedExcluded: true,
+  },
+  noMutationPolicy: {
+    externalUrlCrawl: false,
+    providerTraining: false,
+    providerCall: false,
+    chatResponseGeneration: false,
+    chatMessageCreate: false,
+    approvalMutation: false,
+    archiveMutation: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+  privacy: {
+    rawSubmittedUrlReturned: false,
+    rawUrlQueryReturned: false,
+    rawPageBodyReturned: false,
+    adminNotesReturned: false,
+    reviewNoteReturned: false,
+    providerPayloadReturned: false,
+    tokenCookiePasswordReturned: false,
+    apiKeyReturned: false,
+    dbUrlReturned: false,
+  },
+} as const;
+
 export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
   version: ARTIST_URL_KNOWLEDGE_CONTRACT_VERSION,
   feature: 'artist_url_knowledge',
@@ -515,6 +602,7 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
   sourceTypes: ARTIST_URL_KNOWLEDGE_SOURCE_TYPES,
   safetyStatuses: ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES,
   ingestStatuses: ARTIST_URL_KNOWLEDGE_INGEST_STATUSES,
+  approvalStateProjection: ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION,
   registrationSkeleton: {
     fieldSeparation: {
       title: 'metadata.title or future public metadata title',

@@ -1,4 +1,5 @@
 import {
+  ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION,
   ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY,
   ARTIST_URL_KNOWLEDGE_CONTRACT,
   ARTIST_URL_KNOWLEDGE_INGEST_STATUSES,
@@ -25,6 +26,9 @@ describe('artist URL knowledge contract', () => {
     );
     expect(ARTIST_URL_KNOWLEDGE_CONTRACT.ingestStatuses).toEqual(
       ARTIST_URL_KNOWLEDGE_INGEST_STATUSES,
+    );
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.approvalStateProjection).toBe(
+      ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION,
     );
     expect(ARTIST_URL_KNOWLEDGE_CONTRACT.registrationSkeleton).toMatchObject({
       fieldSeparation: {
@@ -354,6 +358,71 @@ describe('artist URL knowledge contract', () => {
       allowChatReferenceRequired: true,
       separatedFromSiteContentAdmin: true,
     });
+  });
+
+  it('publishes approval state projection with approved-only chat eligibility', () => {
+    expect(ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION).toMatchObject({
+      version: '2026-06-18.artist-url-knowledge-approval-state-projection.v1',
+      status: 'read_model_contract_only',
+      sourceTable: 'artist_knowledge_urls',
+      lifecycleStates: ['pending', 'approved', 'rejected', 'archived'],
+      stateMatrix: {
+        pending: {
+          approvalStatus: 'pending',
+          chatEligible: false,
+          providerContextAllowed: false,
+          queueBucket: 'pending_review',
+        },
+        approved: {
+          approvalStatus: 'approved',
+          chatEligibleWhen: [
+            'allowChatReference=true',
+            'summaryPresent=true',
+            'safetyStatus=safe',
+            'ingestStatus!=ai_processing',
+          ],
+          providerContextAllowedWhenEligible: true,
+          queueBucket: 'approved_for_chat',
+        },
+        rejected: {
+          approvalStatus: 'rejected',
+          chatEligible: false,
+          providerContextAllowed: false,
+          queueBucket: 'rejected',
+        },
+        archived: {
+          approvalStatus: 'archived',
+          chatEligible: false,
+          providerContextAllowed: false,
+          queueBucket: 'archived',
+        },
+      },
+      chatEligibilityGate: {
+        approvedOnly: true,
+        safetyStatusRequired: 'safe',
+        allowChatReferenceRequired: true,
+        boundedSummaryRequired: true,
+        aiProcessingExcluded: true,
+        artistScopeRequired: true,
+        pendingRejectedArchivedExcluded: true,
+      },
+      privacy: {
+        rawSubmittedUrlReturned: false,
+        rawUrlQueryReturned: false,
+        rawPageBodyReturned: false,
+        adminNotesReturned: false,
+        reviewNoteReturned: false,
+        providerPayloadReturned: false,
+        tokenCookiePasswordReturned: false,
+        apiKeyReturned: false,
+        dbUrlReturned: false,
+      },
+    });
+    expect(
+      Object.values(
+        ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION.noMutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
   });
 
   it('allows character chat to reference only approved, chat-enabled summaries', () => {

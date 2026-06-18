@@ -5,7 +5,7 @@ Version: `2026-06-05.artist-url-knowledge-registration-skeleton.v1`
 Updated for Notion #459 safety gate, #462 audit contract, and #540 product
 contract clarification, plus workboard #619 registration skeleton separation and
 #780 ingest moderation handoff guard, plus #884 chat-context refresh queue
-guard.
+guard and #1016 approval state projection.
 
 ## Scope
 
@@ -27,6 +27,16 @@ bounded summary for the same artist. Pending, review, archived, blocked,
 disabled, summaryless, or `ai_processing` rows stay excluded. Refresh does not
 fetch external URLs, call a provider, create chat messages, or touch wallet,
 settlement, or payout state.
+
+Approval state projection (#1016): the read model exposes `pending`,
+`approved`, `rejected`, and `archived` as lifecycle statuses. Only `approved`
+rows may become character-chat context, and even approved rows are eligible only
+when `allowChatReference=true`, a bounded summary is present,
+`safetyStatus=safe`, and ingest is not `ai_processing`. Pending, rejected, and
+archived rows remain visible only as status projections and never enter provider
+context. This projection does not crawl external URLs, train providers, generate
+chat responses, create chat messages, approve/reject/archive rows, or mutate
+wallet, Lumina, settlement, or payout state.
 
 ## #540 Product Contract Clarification
 
