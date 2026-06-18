@@ -14,6 +14,7 @@ import {
   AI_PREMIUM_CONTENT_REQUEST_STATUSES,
   AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY,
   AI_PREMIUM_CONTENT_REQUEST_TYPES,
+  AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
   AI_PREMIUM_CONTENT_RESULT_STATUSES,
   AI_PREMIUM_CONTENT_ROUTING_STATUSES,
   AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT,
@@ -91,6 +92,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     );
     expect(contract.statusPreviewFixture).toBe(
       AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
+    );
+    expect(contract.resultAssetReuseAuditProjection).toBe(
+      AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
     );
   });
 
@@ -1432,6 +1436,8 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       rawPromptReturned: false,
       providerPayloadReturned: false,
       mutation: false,
+      resultAssetReuseAudit:
+        AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
     });
     expect(contract.projection.surfaces.resultArchive.listFields).toEqual(
       expect.arrayContaining([
@@ -1444,5 +1450,80 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
         'regenerationAvailability',
       ]),
     );
+  });
+
+  it('defines a read-only result asset reuse audit projection without overclaiming generation freshness', () => {
+    const projection = AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION;
+
+    expect(projection).toMatchObject({
+      version: '2026-06-19.ai-premium-content-result-asset-reuse-audit.v1',
+      feature: 'ai_premium_content_result_asset_reuse_audit_projection',
+      status: 'read_model_contract_only',
+      enabled: false,
+      mutationEnabled: false,
+      providerCallEnabled: false,
+      fileUploadEnabled: false,
+      paymentMutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      sourceOfTruth: {
+        generatedAssetTable: 'future_ai_premium_content_result_assets',
+        requestTable: 'future_ai_premium_content_requests',
+        artistScope: 'server_resolved_artist_id',
+        rawEmbeddingReturned: false,
+      },
+      reuseCandidatePolicy: {
+        artistScopedOnly: true,
+        crossArtistReuseAllowed: false,
+        userPrivatePromptSimilarityReturned: false,
+        reuseRequiresHumanOrServerPolicyApproval: true,
+        clientCanForceReuse: false,
+        newGenerationClaimWhenReused: false,
+      },
+      userFacingDisclosure: {
+        stableKeyRequired: true,
+        displayDisclosureKey: 'aiPremiumContent.result.reuseDisclosure',
+        mustNotClaimFreshGenerationWhenReused: true,
+        rawInternalReasonReturned: false,
+      },
+      costControl: {
+        intendedUse: 'cost_reduction_audit_only',
+        providerCallAvoidedMetricAllowed: true,
+        providerCostReturnedToUser: false,
+        walletCreditOrDebitAllowed: false,
+      },
+    });
+    expect(projection.projectionFields).toEqual(
+      expect.arrayContaining([
+        'artistId',
+        'sourceResultAssetId',
+        'candidateResultAssetId',
+        'reuseCandidateScoreBucket',
+        'reuseDecisionKey',
+        'displayDisclosureKey',
+      ]),
+    );
+    expect(projection.scoreBuckets).toEqual([
+      'none',
+      'low',
+      'medium',
+      'high',
+      'exact_policy_match',
+    ]);
+    expect(projection.reuseDecisionKeys).toEqual([
+      'new_generation_required',
+      'reuse_candidate_review',
+      'reuse_allowed_with_disclosure',
+      'reuse_rejected',
+    ]);
+    expect(projection.privacy).toMatchObject({
+      rawPromptReturned: false,
+      rawReferenceAssetReturned: false,
+      rawEmbeddingReturned: false,
+      providerPayloadReturned: false,
+      signedUrlReturned: false,
+      storageKeyReturned: false,
+    });
   });
 });

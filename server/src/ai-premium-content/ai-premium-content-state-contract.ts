@@ -1702,6 +1702,77 @@ const providerGuardDecision = ({
     payoutMutationEnabled: false,
   }) as const;
 
+export const AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION = {
+  version: '2026-06-19.ai-premium-content-result-asset-reuse-audit.v1',
+  feature: 'ai_premium_content_result_asset_reuse_audit_projection',
+  status: 'read_model_contract_only',
+  enabled: false,
+  mutationEnabled: false,
+  providerCallEnabled: false,
+  fileUploadEnabled: false,
+  paymentMutationEnabled: false,
+  walletMutationEnabled: false,
+  settlementMutationEnabled: false,
+  payoutMutationEnabled: false,
+  sourceOfTruth: {
+    generatedAssetTable: 'future_ai_premium_content_result_assets',
+    requestTable: 'future_ai_premium_content_requests',
+    artistScope: 'server_resolved_artist_id',
+    similaritySignalSource: 'server_asset_fingerprint_or_embedding_summary',
+    rawEmbeddingReturned: false,
+  },
+  reuseCandidatePolicy: {
+    artistScopedOnly: true,
+    crossArtistReuseAllowed: false,
+    userPrivatePromptSimilarityReturned: false,
+    reuseRequiresHumanOrServerPolicyApproval: true,
+    clientCanForceReuse: false,
+    newGenerationClaimWhenReused: false,
+  },
+  projectionFields: [
+    'artistId',
+    'sourceRequestId',
+    'sourceResultAssetId',
+    'candidateRequestId',
+    'candidateResultAssetId',
+    'outputClass',
+    'requestType',
+    'reuseCandidateScoreBucket',
+    'reuseDecisionKey',
+    'displayDisclosureKey',
+    'createdAt',
+  ],
+  scoreBuckets: ['none', 'low', 'medium', 'high', 'exact_policy_match'],
+  reuseDecisionKeys: [
+    'new_generation_required',
+    'reuse_candidate_review',
+    'reuse_allowed_with_disclosure',
+    'reuse_rejected',
+  ],
+  userFacingDisclosure: {
+    stableKeyRequired: true,
+    displayDisclosureKey: 'aiPremiumContent.result.reuseDisclosure',
+    mustNotClaimFreshGenerationWhenReused: true,
+    rawInternalReasonReturned: false,
+  },
+  costControl: {
+    intendedUse: 'cost_reduction_audit_only',
+    providerCallAvoidedMetricAllowed: true,
+    providerCostReturnedToUser: false,
+    walletCreditOrDebitAllowed: false,
+  },
+  privacy: {
+    rawPromptReturned: false,
+    rawReferenceAssetReturned: false,
+    rawEmbeddingReturned: false,
+    providerPayloadReturned: false,
+    signedUrlReturned: false,
+    storageKeyReturned: false,
+    tokenReturned: false,
+    cookieReturned: false,
+  },
+} as const;
+
 export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   version: '2026-06-02.ai-premium-content-request-state-api-skeleton.v1',
   feature: 'ai_premium_content_request_state',
@@ -1743,6 +1814,8 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   modelRoutingApiSkeleton: AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON,
   createStatusApiSkeleton: AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
   statusPreviewFixture: AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
+  resultAssetReuseAuditProjection:
+    AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
   statusCopy: {
     locale: 'ko-KR',
     fallbackMap: AI_PREMIUM_CONTENT_STATUS_COPY_KO,
@@ -2034,6 +2107,8 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
         rawPromptReturned: false,
         providerPayloadReturned: false,
         mutation: false,
+        resultAssetReuseAudit:
+          AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
       },
       forbiddenEverywhere: [
         'providerKey',
