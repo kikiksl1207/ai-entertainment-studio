@@ -235,6 +235,61 @@ export const STORY_STAGE_SESSION_RETENTION_POLICY_CONTRACT = {
   },
 } as const;
 
+export const STORY_STAGE_AUTHOR_INTERRUPTION_REFUND_PENALTY_READ_MODEL = {
+  version: '2026-06-18.story-stage-author-interruption-refund-penalty.v1',
+  status: 'read_model_contract_only',
+  readModel: 'story_author_interruption_refund_penalty_preview',
+  triggerPolicy: {
+    events: ['long_hiatus', 'author_discontinued'],
+    longHiatusThresholdSource: 'story_stage_policy.author_inactivity_days',
+    authorDiscontinuedSource: 'story_packs.publication_status',
+    manualOperatorReviewRequired: true,
+  },
+  refundCandidatePolicy: {
+    completedChaptersRefundEligible: false,
+    completedChaptersReason: 'reader_already_completed_chapter',
+    incompleteStartedChaptersPartialRefundCandidate: true,
+    unpublishedPurchasedChaptersPartialRefundCandidate: true,
+    futureSeasonChaptersCandidate: true,
+    refundAmountSource: 'server_calculated_unconsumed_chapter_value_lumina',
+    clientSubmittedRefundAmountTrusted: false,
+  },
+  settlementPenaltyPreview: {
+    penaltyAppliesTo: 'future_unsettled_story_author_share_only',
+    alreadySettledPayoutsReopened: false,
+    authorRateChangeMutation: false,
+    payoutHoldMutation: false,
+    requiresOperatorDecision: true,
+  },
+  projectionFields: [
+    'storyPackId',
+    'storySeasonId',
+    'affectedChapterIds',
+    'completedChapterIdsExcluded',
+    'partialRefundCandidateChapterIds',
+    'estimatedRefundLumina',
+    'authorPenaltyPreview',
+    'reviewRequired',
+  ],
+  responsePolicy: {
+    stableCodeRequired: true,
+    messageKeyRequired: true,
+    rawUserFacingEnglishCopy: false,
+    privateAuthorNotesReturned: false,
+    userPaymentCredentialReturned: false,
+  },
+  mutationPolicy: {
+    contractAddsRefundEndpoint: false,
+    refundMutation: false,
+    walletCredit: false,
+    walletDebit: false,
+    walletLedgerMutation: false,
+    settlementRateMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
+
 export const STORY_STAGE_CONTRACT = {
   version: '2026-06-18.story-stage-contract.v1',
   freePrologueEntitlementGuard: STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD,
@@ -242,4 +297,6 @@ export const STORY_STAGE_CONTRACT = {
   aiArtistSettlementSplitSkeleton:
     STORY_STAGE_AI_ARTIST_SETTLEMENT_SPLIT_SKELETON,
   sessionRetentionPolicy: STORY_STAGE_SESSION_RETENTION_POLICY_CONTRACT,
+  authorInterruptionRefundPenaltyReadModel:
+    STORY_STAGE_AUTHOR_INTERRUPTION_REFUND_PENALTY_READ_MODEL,
 } as const;

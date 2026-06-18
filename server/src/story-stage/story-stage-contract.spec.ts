@@ -1,5 +1,6 @@
 import {
   STORY_STAGE_AI_ARTIST_SETTLEMENT_SPLIT_SKELETON,
+  STORY_STAGE_AUTHOR_INTERRUPTION_REFUND_PENALTY_READ_MODEL,
   STORY_STAGE_CONTRACT,
   STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD,
   STORY_STAGE_PURCHASE_LEDGER_SKELETON,
@@ -222,5 +223,59 @@ describe('Story Stage contract skeleton', () => {
         payoutMutation: false,
       },
     });
+  });
+
+  it('models author interruption refund and settlement penalty without mutations', () => {
+    const readModel = STORY_STAGE_AUTHOR_INTERRUPTION_REFUND_PENALTY_READ_MODEL;
+
+    expect(STORY_STAGE_CONTRACT.authorInterruptionRefundPenaltyReadModel).toBe(
+      readModel,
+    );
+    expect(readModel).toMatchObject({
+      version: '2026-06-18.story-stage-author-interruption-refund-penalty.v1',
+      status: 'read_model_contract_only',
+      readModel: 'story_author_interruption_refund_penalty_preview',
+      triggerPolicy: {
+        events: ['long_hiatus', 'author_discontinued'],
+        longHiatusThresholdSource: 'story_stage_policy.author_inactivity_days',
+        authorDiscontinuedSource: 'story_packs.publication_status',
+        manualOperatorReviewRequired: true,
+      },
+      refundCandidatePolicy: {
+        completedChaptersRefundEligible: false,
+        completedChaptersReason: 'reader_already_completed_chapter',
+        incompleteStartedChaptersPartialRefundCandidate: true,
+        unpublishedPurchasedChaptersPartialRefundCandidate: true,
+        futureSeasonChaptersCandidate: true,
+        refundAmountSource: 'server_calculated_unconsumed_chapter_value_lumina',
+        clientSubmittedRefundAmountTrusted: false,
+      },
+      settlementPenaltyPreview: {
+        penaltyAppliesTo: 'future_unsettled_story_author_share_only',
+        alreadySettledPayoutsReopened: false,
+        authorRateChangeMutation: false,
+        payoutHoldMutation: false,
+        requiresOperatorDecision: true,
+      },
+      mutationPolicy: {
+        contractAddsRefundEndpoint: false,
+        refundMutation: false,
+        walletCredit: false,
+        walletDebit: false,
+        walletLedgerMutation: false,
+        settlementRateMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+    });
+    expect(readModel.projectionFields).toEqual(
+      expect.arrayContaining([
+        'completedChapterIdsExcluded',
+        'partialRefundCandidateChapterIds',
+        'estimatedRefundLumina',
+        'authorPenaltyPreview',
+        'reviewRequired',
+      ]),
+    );
   });
 });
