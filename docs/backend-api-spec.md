@@ -2856,6 +2856,26 @@ AI premium content request brief API skeleton (#662):
   must not create requests, call GPT Image, Stable Diffusion, Seedance,
   OpenAI/provider routes, debit wallet, create orders, settlement, payout,
   paid-like, or publish/equip content.
+- #1030 adds
+  `AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON` for future
+  owner-facing read status at `GET /api/v1/me/ai-premium-content/requests`,
+  `GET /api/v1/ai-premium-content/requests/:requestId`, and
+  `GET /api/v1/me/ai-premium-content/results`. It remains
+  `enabled=false`, `readOnly=true`, and `mutation=false`.
+- The #1030 user-facing status buckets are received, reviewing, producing,
+  completed, blocked, failed, and regeneratable. Responses must use stable
+  localized keys plus Korean fallback copy such as "접수되었어요",
+  "검수 중이에요", "제작 중이에요", "완료되었어요", "진행할 수 없어요",
+  "제작에 실패했어요", and "재생성을 요청할 수 있어요"; raw enums or
+  English keys such as `active`, `accepted`, `provider_failed`, or
+  `not_started` must not be shown as UI copy.
+- #1030 is projection-only. It must not return provider internal state, raw
+  prompts, provider payloads, safety payloads, internal/provider cost values,
+  signed URLs, wallet ledger ids, settlement ids, payout ids, or sensitive auth
+  material. It also does not enable GPT Image, Stable Diffusion, Seedance,
+  OpenAI/provider calls, request creation, regeneration submission, payment,
+  wallet, settlement, payout, paid-like, feed publish, or profile equip
+  mutation.
 - #883 does not enable GPT Image, Stable Diffusion, Seedance, OpenAI/provider
   calls, image/video generation, wallet debit, order creation, settlement,
   payout, paid-like mutation, profile equip, or feed publish side effects.
