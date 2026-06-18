@@ -2,6 +2,7 @@ import {
   AI_PREMIUM_CONTENT_BRIEF_API_SKELETON,
   AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
   AI_PREMIUM_CONTENT_CREATE_STATUS_API_STATUSES,
+  AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
   AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY,
   AI_PREMIUM_CONTENT_MODERATION_STATUSES,
   AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
@@ -77,6 +78,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     );
     expect(contract.requestQueueSkeleton).toBe(
       AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON,
+    );
+    expect(contract.costRetryReadModel).toBe(
+      AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
     );
     expect(contract.createStatusApiSkeleton).toBe(
       AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
@@ -581,6 +585,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       'retryCount',
       'resultAssetStatus',
     ]);
+    expect(skeleton.costRetryReadModel).toBe(
+      AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
+    );
     expect(Object.values(skeleton.forbiddenSideEffects).every((enabled) => enabled === false)).toBe(
       true,
     );
@@ -589,6 +596,86 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       sensitiveAuthMaterialReturned: false,
       databaseConnectionMaterialReturned: false,
     });
+  });
+
+  it('defines a provider-agnostic cost and retry read model without paid mutations', () => {
+    const readModel = AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON;
+    const serialized = JSON.stringify(readModel);
+
+    expect(readModel).toMatchObject({
+      version: '2026-06-18.ai-premium-content-cost-retry-read-model.v1',
+      feature: 'ai_premium_content_cost_retry_read_model',
+      status: 'read_model_contract_only',
+      enabled: false,
+      mutationEnabled: false,
+      providerCallEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      paidLikeMutationEnabled: false,
+      sourceLedger: {
+        table: 'future_ai_premium_content_request_events',
+        providerSpecificTableRequired: false,
+        rawProviderPayloadStoredInReadModel: false,
+      },
+      providerAgnosticFields: {
+        requestType: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+        outputClass: AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
+        providerRouteAlias: '<server capability route alias>',
+        modelRouteClass: '<server capability class>',
+        providerNameReturned: false,
+        modelNameReturned: false,
+        providerCredentialReturned: false,
+      },
+      costFields: {
+        estimateSource: 'server_policy_estimate_not_provider_quote',
+        estimatedCostCurrency: 'KRW_MICROS',
+        finalProviderCostReturned: false,
+        walletLedgerIdReturned: false,
+      },
+      retryPolicy: {
+        maxRetryCountSource: 'server_policy',
+        retryCountServerOwned: true,
+        retryRequiresFreshSafetyAndCostCheck: true,
+        retryAfterSafetyBlocked: false,
+        providerRouteMayChangeByServer: true,
+        clientCanForceRetry: false,
+      },
+    });
+    expect(readModel.failureAndRetryFields.lastFailureClass).toEqual([
+      'none',
+      'safety_blocked',
+      'provider_timeout',
+      'provider_rate_limited',
+      'provider_generation_failed',
+      'asset_upload_failed',
+      'moderation_failed',
+    ]);
+    expect(readModel.projection).toMatchObject({
+      requestId: '<request uuid>',
+      providerRouteAlias: '<server route alias only>',
+      modelRouteClass: '<server capability class>',
+      estimatedCost: {
+        currency: 'KRW_MICROS',
+        estimateSource: 'server_policy_estimate_not_provider_quote',
+      },
+      retryCount: '<integer>',
+      lastFailureClass: '<stable failure class>',
+    });
+    expect(
+      Object.values(readModel.forbiddenSideEffects).every(
+        (enabled) => enabled === false,
+      ),
+    ).toBe(true);
+    expect(readModel.sensitiveDataPolicy).toMatchObject({
+      providerCredentialReturned: false,
+      rawPromptReturned: false,
+      rawProviderPayloadReturned: false,
+      rawProviderErrorReturned: false,
+      signedUrlReturned: false,
+      storageKeyReturned: false,
+    });
+    expect(serialized).not.toMatch(/gpt image|stable diffusion|seedance/i);
   });
 
   it('defines a disabled create/status API skeleton with canonical lifecycle states', () => {
