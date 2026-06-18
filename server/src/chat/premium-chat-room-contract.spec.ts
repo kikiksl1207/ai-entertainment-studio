@@ -1340,7 +1340,57 @@ describe('premium chat room refund and moderation ledger contract', () => {
       clientSubmittedArtistShareTrusted: false,
       settlementMutationEnabled: false,
       payoutMutationEnabled: false,
+      readModel: {
+        version: '2026-06-19.premium-chat-restricted-refund-read-model.v1',
+        status: 'read_model_contract_only',
+        table: 'future_premium_chat_refund_restriction_accounting_view',
+        sourceLedgerGroup: 'premiumChatLedgerGroupId',
+        sourceOfTruth: 'server_refund_policy_and_room_status',
+        lanesSeparated: true,
+        userRefundLane: {
+          ledgerType: 'refund',
+          direction: 'credit',
+          source: 'premium_chat_room_refund',
+          walletLedger: true,
+          settlementCandidate: false,
+          payoutCandidate: false,
+        },
+        companyRevenueLane: {
+          ledgerType: 'premium_chat_room_company_revenue',
+          direction: 'credit',
+          source: 'premium_chat_room_refund_restriction',
+          walletLedger: false,
+          settlementCandidate: false,
+          payoutCandidate: false,
+        },
+        artistCompensationLane: {
+          ledgerType: 'premium_chat_room_artist_compensation',
+          direction: 'credit',
+          source: 'premium_chat_room_refund_restriction',
+          artistCompensationBps: 1000,
+          walletLedger: false,
+          settlementCandidate: false,
+          payoutCandidate: false,
+        },
+        walletMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
     });
+    expect(splitContract.readModel.projectionFields).toEqual(
+      expect.arrayContaining([
+        'userRefundLumina',
+        'companyRevenueLumina',
+        'artistCompensationLumina',
+        'ledgerEventName',
+        'ledgerType',
+      ]),
+    );
+    expect(splitContract.readModel.forbiddenMergedFields).toEqual([
+      'userRefundAndCompanyRevenueCombined',
+      'companyRevenueAndArtistCompensationCombined',
+      'walletSettlementSharedAmount',
+    ]);
     expect(splitContract.outcomes).toMatchObject({
       artistForcedClose: {
         reasonKey: 'artist_forced_close_full_refund',
