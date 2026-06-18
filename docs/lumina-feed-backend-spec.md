@@ -302,6 +302,12 @@ Repost and quote repost rules:
 - `POST /lumina-feed/posts/:postId/reposts` creates a user-owned repost row with
   `metadata.repost.originalPostId`. Empty `body` is a simple repost; non-empty
   `body` is a quote repost and uses the 2200-character feed body cap.
+- #1032 quote body validation policy: trim `body` before validation; empty or
+  whitespace-only body creates `repost`; non-empty body creates `quote_repost`;
+  over 2200 characters returns a validation error before creating a feed row.
+  Missing, deleted, hidden, private, reported/moderation-review, viewer-hidden,
+  or blocked source posts are safe not-found/tombstone cases and must not expose
+  the original body.
 - Repost rows project `post.repost.type` as only `repost` or `quote_repost`, plus
   `hasQuote`, `quoteBody`, `originalPostId`, original author/artist ids, and a
   bounded embedded `originalPost` when the source is visible.
