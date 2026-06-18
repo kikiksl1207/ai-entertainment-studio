@@ -3268,6 +3268,17 @@ Authorization: Bearer <accessToken>
   from the original post projection. Share remains a URL/Web Share projection
   with `countTarget: null`; it creates no feed row, notification row, unread
   count, wallet, Lumina, settlement, payout, order, or paid-like mutation.
+- #1015 exports `LUMINA_FEED_THREAD_REPOST_SHARE_PM_PROJECTION_CONTRACT` as a
+  follow-up read-model boundary for PM wording. Thread continuation means
+  "append after publish" against an already-created root post; it is not a long
+  draft composer, automatic text split, or legacy manual thread authoring flow.
+  Repost means bringing the original post into the viewer-owned feed context,
+  with quote text stored separately from the original body and with no thread,
+  comment, reply, or share relation. Share remains a read action for public
+  share URL/Web Share projection, including another user's post; it requires no
+  author ownership and creates no feed row, repost row, share ledger,
+  notification, unread count, wallet, Lumina, settlement, payout, order, or
+  paid-like mutation.
 - #908 exports `LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT` to keep simple
   repost, quote repost, and share URL guards separate. Repost uses
   `feed_repost`/`repost`, quote repost uses `feed_quote_repost`/`quote_repost`,
