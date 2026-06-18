@@ -155,6 +155,31 @@ GET /api/v1/story-sessions/:sessionId/choices
   generate image/video assets, create notifications, touch settlement, or touch
   payout.
 
+### Story Stage Choices and Timeline
+
+Story choice and major-event timeline read model (#989):
+
+`STORY_CHOICE_TIMELINE_READ_MODEL_CONTRACT` defines a disabled read-model
+contract for session choices and major timeline events. It does not submit a
+choice, mutate story state, call an AI provider, write notifications, or touch
+wallet/Lumina/payment/settlement/payout.
+
+- Choice projections default to three choices and may expand to five only when
+  scene complexity requires it. Clients cannot submit a replacement choice set.
+- Choice rows expose display-safe fields under `story.choices[]`, including
+  `choiceNo`, `titleKey`, `body`, `choiceType`, `availability`,
+  `disabledReasonKey`, `scenePresence`, and `expectedTimelineEffect`; raw model
+  prompts and provider payloads are never returned.
+- When the user is present in the scene, choices may include direct
+  intervention such as dialogue, physical action, investigation, travel, or
+  waiting. When the user is nearby, choices are limited to delayed/limited
+  intervention. When the user is far away, the scene is exposed through
+  letters, rumors, reports, waiting, or travel rather than direct intervention.
+- Major events are projected under `story.timeline.majorEvents[]` with
+  display-safe event kind, chapter number, player knowledge state, and story
+  time fields. Unknown future/private spoiler bodies and author notes remain
+  hidden.
+
 ## User APIs
 
 ### Auth / Me
