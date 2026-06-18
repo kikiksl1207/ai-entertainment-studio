@@ -183,10 +183,63 @@ export const STORY_STAGE_AI_ARTIST_SETTLEMENT_SPLIT_SKELETON = {
   },
 } as const;
 
+export const STORY_STAGE_SESSION_RETENTION_POLICY_CONTRACT = {
+  version: '2026-06-18.story-stage-session-retention-policy.v1',
+  status: 'contract_only',
+  endpoints: {
+    continueSession: 'GET /api/v1/me/story-stage/sessions/:sessionId/continue',
+    sessionList: 'GET /api/v1/me/story-stage/sessions',
+  },
+  sessionStatuses: ['active', 'paused', 'archived_inactive'],
+  archivePolicy: {
+    inactivityDays: 30,
+    clockSource: 'server_time',
+    trigger: 'no_user_progress_for_30_days',
+    action: 'mark_session_archived_inactive',
+    hardDeleteSession: false,
+    deleteChoices: false,
+    deleteProgress: false,
+  },
+  purchaseHistoryPolicy: {
+    purchaseHistoryRetained: true,
+    chapterEntitlementsRetained: true,
+    seasonEntitlementsRetained: true,
+    archivedSessionCancelsPurchase: false,
+    archivedSessionRefundsPurchase: false,
+    restoreRequiresNewPurchase: false,
+  },
+  copyAndStatusPolicy: {
+    rawStatusAsCopy: false,
+    rawUserFacingEnglishCopy: false,
+    titleKey: 'storyStage.session.archive.title',
+    bodyKey: 'storyStage.session.archive.body',
+    ctaKey: 'storyStage.session.archive.continueCta',
+    statusKey: 'storyStage.session.status.archivedInactive',
+    copyMustExplainPurchaseHistoryRetained: true,
+  },
+  mutationPolicy: {
+    contractAddsArchiveJob: false,
+    userProgressMutation: false,
+    hardDeleteMutation: false,
+    purchaseCancellationMutation: false,
+    walletMutation: false,
+    refundMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+  responsePolicy: {
+    stableCodeRequired: true,
+    messageKeyRequired: true,
+    purchaseHistoryReturnedAsOwnerOnly: true,
+    privateAuthorNotesReturned: false,
+  },
+} as const;
+
 export const STORY_STAGE_CONTRACT = {
   version: '2026-06-18.story-stage-contract.v1',
   freePrologueEntitlementGuard: STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD,
   purchaseLedgerSkeleton: STORY_STAGE_PURCHASE_LEDGER_SKELETON,
   aiArtistSettlementSplitSkeleton:
     STORY_STAGE_AI_ARTIST_SETTLEMENT_SPLIT_SKELETON,
+  sessionRetentionPolicy: STORY_STAGE_SESSION_RETENTION_POLICY_CONTRACT,
 } as const;
