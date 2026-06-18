@@ -620,6 +620,25 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   failed, archived, pending, unsafe, disabled, and summaryless rows stay out.
   It does not crawl URLs, call providers, approve/reject/archive rows, mutate
   chat context, or touch wallet, settlement, or payout state.
+- #1031 adds
+  `ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_CANDIDATE_API_SKELETON` for the future
+  read-only candidate endpoint
+  `GET /api/v1/chat/artists/:artistId/url-knowledge/context-candidates`. It
+  remains `enabled=false` and `mutation=false`.
+- The #1031 candidate endpoint is scoped to the current chat session artist and
+  may return only `status=approved`, `allowChatReference=true`,
+  `safetyStatus=safe`, bounded-summary rows. `submitted`, `pending_review`,
+  `ai_processing`, `rejected`, and `archived` ingest states are excluded before
+  scoring or projection.
+- The #1031 response projection may expose display-safe id, title, status key,
+  source type, approved summary, hostname-only source label, review timestamp,
+  selection metadata, `safetyFlag=approved_reference_fact_not_instruction`, and
+  `instructionRole=reference_fact_not_instruction`. It must not expose raw or
+  canonical URLs, URL query strings, raw page bodies, private bodies, artist
+  descriptions, admin/review notes, metadata, provider payloads, auth material,
+  API keys, or DB URLs. The endpoint must not fetch external URLs, train/call a
+  provider, generate chat replies, create chat messages, approve/reject/archive
+  rows, or mutate wallet, Lumina, settlement, or payout state.
 - #780 fixes the ingest moderation handoff guard. Rows with
   `ingestStatus=ai_processing` stay excluded from character-chat context until
   review marks them `approved_for_chat`; raw URL query strings, private URLs,
