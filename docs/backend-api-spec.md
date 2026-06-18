@@ -225,6 +225,27 @@ provider or story mutation path.
   timeline state, create notifications, debit wallet/Lumina, or touch
   payment/settlement/payout.
 
+### Story Stage Comments Ratings and Reader Badge
+
+Story comments, ratings, and completed-reader projection (#992):
+
+`STORY_REVIEW_READER_PROJECTION_CONTRACT` defines disabled projections for
+story-pack comments/ratings, chapter comments/ratings, and completed-reader
+badges. It does not create comments, ratings, reports, notifications, payment,
+wallet/Lumina, settlement, or payout rows.
+
+- Story-pack comments and ratings are limited to paid or otherwise entitled
+  readers. Chapter comments and ratings are limited to readers entitled to that
+  chapter.
+- Ratings use a 1-5 integer scale and allow one rating per user per scope in
+  the future write contract. The current contract keeps rating mutation
+  disabled.
+- Completed-reader badge is display-only. It means the viewer completed every
+  currently published readable chapter and may appear on comments/ratings, but
+  it is not payment authority and does not expose raw read history.
+- Comment/rating projections must not expose raw user email, payment ledger id,
+  raw read history, raw report reason, or moderation notes.
+
 ## User APIs
 
 ### Auth / Me
