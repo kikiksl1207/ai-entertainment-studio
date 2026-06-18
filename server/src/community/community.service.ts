@@ -147,6 +147,67 @@ export const USER_SOCIAL_ACCOUNT_CONTRACT = {
   blockEffects: {
     blockEndpoint: 'POST /api/v1/users/:userId/block',
     unblockEndpoint: 'DELETE /api/v1/users/:userId/block',
+    serverActionContract: {
+      version: '2026-06-19.feed-user-block-server-action.v1',
+      status: 'contract_only_existing_endpoint',
+      actionSurfaces: ['feed_post_menu', 'feed_mini_profile', 'profile_more_menu'],
+      endpoints: {
+        blockByUserId: 'POST /api/v1/users/:userId/block',
+        blockByHandle: 'POST /api/v1/users/handle/:publicHandle/block',
+        unblockByUserId: 'DELETE /api/v1/users/:userId/block',
+        unblockByHandle: 'DELETE /api/v1/users/handle/:publicHandle/block',
+      },
+      mutationOpenedByThisContract: false,
+      authRequired: true,
+      targetResolution: {
+        byUserId: 'active_user_uuid',
+        byPublicHandle: 'active_public_handle',
+        deletedSuspendedOrInactiveTarget: 'USER_NOT_FOUND',
+        selfBlockCode: 'CANNOT_BLOCK_SELF',
+      },
+      validationOrder: [
+        'auth_required',
+        'target_identifier_valid',
+        'target_user_active',
+        'reject_self_block',
+        'upsert_active_user_block',
+        'soft_delete_follow_rows_both_directions',
+        'return_safe_projection',
+      ],
+      stableResponses: {
+        blocked: {
+          status: 200,
+          code: 'USER_BLOCKED',
+          messageKey: 'social.block.created',
+        },
+        alreadyBlocked: {
+          status: 200,
+          code: 'USER_BLOCKED',
+          messageKey: 'social.block.alreadyCreated',
+        },
+        unblocked: {
+          status: 200,
+          code: 'USER_UNBLOCKED',
+          messageKey: 'social.block.removed',
+        },
+        targetNotFound: {
+          status: 404,
+          code: 'USER_NOT_FOUND',
+          messageKey: 'social.user.notFound',
+        },
+        selfBlock: {
+          status: 400,
+          code: 'CANNOT_BLOCK_SELF',
+          messageKey: 'social.block.selfNotAllowed',
+        },
+      },
+      safeProjection: {
+        targetUserFields: ['id', 'displayName', 'publicHandle', 'avatarUrl'],
+        privateFieldsReturned: false,
+        blockReasonReturnedToTarget: false,
+        walletFieldsReturned: false,
+      },
+    },
     removesViewerToTargetFollow: true,
     removesTargetToViewerFollow: true,
     refollowBlockedWhileActive: true,
@@ -394,7 +455,15 @@ export const USER_SOCIAL_ACCOUNT_CONTRACT = {
     readProjection: {
       filterBlockedAuthors: true,
       filterBlockedReplyAuthors: true,
+      filterBlockedCommentAuthors: true,
+      excludeBlockedRepostAuthors: true,
       renderRepostSourceTombstoneWhenOriginalAuthorBlocked: true,
+      postCardActionState: {
+        blockActionAvailableWhenAuthenticated: true,
+        blockActionHiddenForSelf: true,
+        blockStateKey: '<none|viewer_blocked_author|author_blocked_viewer>',
+        rawBlockReasonReturned: false,
+      },
       viewerHintsMustNotLeakBlockedUserPrivateFields: true,
     },
     writePolicy: {

@@ -232,6 +232,45 @@ describe('CommunityService user follow/block mutation contract', () => {
       blockEffects: {
         blockEndpoint: 'POST /api/v1/users/:userId/block',
         unblockEndpoint: 'DELETE /api/v1/users/:userId/block',
+        serverActionContract: {
+          version: '2026-06-19.feed-user-block-server-action.v1',
+          status: 'contract_only_existing_endpoint',
+          actionSurfaces: [
+            'feed_post_menu',
+            'feed_mini_profile',
+            'profile_more_menu',
+          ],
+          mutationOpenedByThisContract: false,
+          authRequired: true,
+          targetResolution: {
+            byUserId: 'active_user_uuid',
+            byPublicHandle: 'active_public_handle',
+            deletedSuspendedOrInactiveTarget: 'USER_NOT_FOUND',
+            selfBlockCode: 'CANNOT_BLOCK_SELF',
+          },
+          stableResponses: {
+            blocked: {
+              status: 200,
+              code: 'USER_BLOCKED',
+              messageKey: 'social.block.created',
+            },
+            alreadyBlocked: {
+              status: 200,
+              code: 'USER_BLOCKED',
+              messageKey: 'social.block.alreadyCreated',
+            },
+            targetNotFound: {
+              status: 404,
+              code: 'USER_NOT_FOUND',
+              messageKey: 'social.user.notFound',
+            },
+            selfBlock: {
+              status: 400,
+              code: 'CANNOT_BLOCK_SELF',
+              messageKey: 'social.block.selfNotAllowed',
+            },
+          },
+        },
         removesViewerToTargetFollow: true,
         removesTargetToViewerFollow: true,
         refollowBlockedWhileActive: true,
@@ -321,7 +360,15 @@ describe('CommunityService user follow/block mutation contract', () => {
         readProjection: {
           filterBlockedAuthors: true,
           filterBlockedReplyAuthors: true,
+          filterBlockedCommentAuthors: true,
+          excludeBlockedRepostAuthors: true,
           renderRepostSourceTombstoneWhenOriginalAuthorBlocked: true,
+          postCardActionState: {
+            blockActionAvailableWhenAuthenticated: true,
+            blockActionHiddenForSelf: true,
+            blockStateKey: '<none|viewer_blocked_author|author_blocked_viewer>',
+            rawBlockReasonReturned: false,
+          },
           viewerHintsMustNotLeakBlockedUserPrivateFields: true,
         },
         writePolicy: {
