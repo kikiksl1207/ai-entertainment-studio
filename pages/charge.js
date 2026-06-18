@@ -52,6 +52,18 @@ const CHARGE_PREVIEW_FIXTURE = Object.freeze({
   recentOrders: [],
 });
 
+// #957/#979 — 비로그인 사용자에게도 충전 상품/첫 충전 보너스 copy를 read-only로 노출하기 위한
+// 미리보기 데이터. 잔액(wallet)은 보여주지 않고(로그인 후 확인), 결제 버튼은 handleChargeBuy가
+// 로그인 모달로 유도하므로 과금 mutation은 발생하지 않는다. 상품은 #836 기준 canonical 6종.
+const CHARGE_LOGGED_OUT_PREVIEW = Object.freeze({
+  loggedOutPreview: true,
+  wallet: null,
+  policy: CHARGE_PREVIEW_FIXTURE.policy,
+  payment: { status: "pg_pending" }, // 결제 버튼 disabled 유지
+  products: CHARGE_PREVIEW_FIXTURE.products,
+  recentOrders: [],
+});
+
 function normalizeChargeProducts(data) {
   const raw = Array.isArray(data?.products) ? data.products : [];
   // 1) 숨김 가격(30,000 / 70,000) 제외
@@ -168,9 +180,13 @@ function renderChargePage() {
     return;
   }
 
-  // 1. 잔액
-  const balance = data.wallet?.cachedBalance ?? data.wallet?.balance ?? 0;
-  if (balanceEl) balanceEl.textContent = formatChargeLuminaAmount(balance);
+  // 1. 잔액 (#957/#979 — 비로그인 미리보기는 잔액을 노출하지 않고 로그인 안내)
+  if (data.loggedOutPreview) {
+    if (balanceEl) balanceEl.textContent = "로그인 후 확인";
+  } else {
+    const balance = data.wallet?.cachedBalance ?? data.wallet?.balance ?? 0;
+    if (balanceEl) balanceEl.textContent = formatChargeLuminaAmount(balance);
+  }
 
   // 2. 정책 힌트
   if (policyHintEl) {
@@ -186,7 +202,9 @@ function renderChargePage() {
   // 4. 마지막 주문 표시
   const recentOrders = Array.isArray(data.recentOrders) ? data.recentOrders : [];
   if (lastOrderEl) {
-    if (recentOrders.length > 0) {
+    if (data.loggedOutPreview) {
+      lastOrderEl.textContent = "로그인 후 확인";
+    } else if (recentOrders.length > 0) {
       const last = recentOrders[0];
       const date = last.paidAt || last.createdAt;
       lastOrderEl.textContent = date ? formatRelativeDate(date) : "최근 충전 없음";
@@ -207,7 +225,9 @@ function renderChargePage() {
 
   // 6. 최근 충전 내역
   if (ordersList) {
-    if (recentOrders.length === 0) {
+    if (data.loggedOutPreview) {
+      ordersList.innerHTML = `<div class="charge-empty">로그인하면 충전 이력을 확인할 수 있어요.</div>`;
+    } else if (recentOrders.length === 0) {
       ordersList.innerHTML = `<div class="charge-empty">아직 충전 이력이 없어요. 첫 충전이 곧 시작됩니다.</div>`;
     } else {
       ordersList.innerHTML = recentOrders.map(renderChargeOrderRow).join("");
@@ -429,8 +449,22 @@ async function initChargePage() {
       if (fixtureNotice) fixtureNotice.hidden = false;
       return;
     }
-    if (gate) gate.hidden = false;
-    if (content) content.hidden = true;
+    // #957/#979 — 비로그인 production에서도 충전 상품/첫 충전 보너스 copy를 read-only 미리보기로 노출.
+    // 잔액·이력은 "로그인 후 확인"으로 표시하고, 결제 버튼은 handleChargeBuy가 로그인 모달로 유도(과금 mutation 없음).
+    if (gate) gate.hidden = true;
+    if (content) content.hidden = false;
+    _chargeStationData = Object.assign({}, CHARGE_LOGGED_OUT_PREVIEW);
+    renderChargePage();
+    const loggedOutNotice = document.getElementById("chargeFixtureNotice");
+    if (loggedOutNotice) {
+      loggedOutNotice.innerHTML = 'ⓘ <strong>미리보기</strong> — 충전 상품과 첫 충전 보너스를 먼저 확인해보세요. <strong>실제 충전은 로그인 후</strong> 이용할 수 있어요. <a href="#" id="chargePreviewLoginLink" class="text-link">로그인하기</a>';
+      loggedOutNotice.hidden = false;
+      const loginLink = document.getElementById("chargePreviewLoginLink");
+      if (loginLink && !loginLink._bound) {
+        loginLink._bound = true;
+        loginLink.addEventListener("click", function (e) { e.preventDefault(); openAuthModal?.("login"); });
+      }
+    }
     _chargeStationInitLoadedFor = null;
     return;
   }
