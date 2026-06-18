@@ -8,6 +8,7 @@ import {
   LUMINA_FEED_MULTI_IMAGE_ATTACHMENT_CONTRACT,
   LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT,
   LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT,
+  LUMINA_FEED_THREAD_REPOST_SHARE_PM_PROJECTION_CONTRACT,
   LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT,
   USER_SOCIAL_ACCOUNT_CONTRACT,
 } from './community.service';
@@ -1763,6 +1764,57 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     expect(
       Object.values(
         LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('publishes PM thread repost and share projection boundaries without new mutations', () => {
+    expect(
+      LUMINA_FEED_THREAD_REPOST_SHARE_PM_PROJECTION_CONTRACT,
+    ).toMatchObject({
+      version: '2026-06-18.lumina-feed-thread-repost-share-pm-projection.v1',
+      status: 'read_model_contract_only',
+      threadContinuation: {
+        pmMeaning: 'append_after_publish',
+        relation: 'thread_continuation',
+        sourcePostAlreadyExists: true,
+        rootAuthorOnly: true,
+        autoLongDraftSplit: false,
+        draftComposerMode: false,
+        legacyManualThreadComposer: false,
+        longTextWorkaround: false,
+        countTarget: 'thread_continuation_list',
+      },
+      repost: {
+        pmMeaning: 'bring_original_post_into_my_feed_context',
+        allowedTypes: ['repost', 'quote_repost'],
+        createsFeedRow: true,
+        viewerOwnedContext: true,
+        originalReferenceField: 'metadata.repost.originalPostId',
+        quoteBodyDoesNotOverwriteOriginalBody: true,
+        threadRelation: false,
+        commentRelation: false,
+        replyRelation: false,
+        countTarget: 'repost_count',
+        shareRelation: false,
+      },
+      share: {
+        pmMeaning: 'read_action_share_url_contract',
+        relation: 'share',
+        actionKey: 'feed_share',
+        stateKey: 'share_contract',
+        authorOwnershipRequired: false,
+        otherUserPostAllowed: true,
+        createsFeedRow: false,
+        createsRepost: false,
+        createsShareLedger: false,
+        createsNotification: false,
+        countTarget: null,
+      },
+    });
+    expect(
+      Object.values(
+        LUMINA_FEED_THREAD_REPOST_SHARE_PM_PROJECTION_CONTRACT.mutationPolicy,
       ).every((enabled) => enabled === false),
     ).toBe(true);
   });
