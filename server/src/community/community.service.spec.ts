@@ -293,6 +293,17 @@ describe('CommunityService user follow/block mutation contract', () => {
             persistedOnRows: true,
             cleanupScope: 'run_id_only',
           },
+          executionRunbook: {
+            status: 'manual_operator_runbook_only',
+            productionAutoSeed: false,
+            publicApiEndpointAdded: false,
+            confirmationRequired: true,
+            confirmKey: 'QA_FEED_FOLLOW_BLOCK_FIXTURE_CONFIRM',
+            confirmValue: 'PREPARE_QA_FOLLOW_BLOCK_FIXTURE',
+          },
+          qaSmokeHandoff: {
+            nextOwner: 'qa2',
+          },
           safety: {
             realUserFollowMutation: false,
             realUserBlockMutation: false,
@@ -455,6 +466,61 @@ describe('CommunityService user follow/block mutation contract', () => {
           endpoint: 'POST /api/v1/users/:userId/block',
           expected: 'viewer_owned_block_ux_only_no_real_user_target',
         }),
+      ]),
+    );
+    expect(guard.executionRunbook).toMatchObject({
+      status: 'manual_operator_runbook_only',
+      productionAutoSeed: false,
+      allowedOperatorPath:
+        'private_staging_or_local_db_operation_or_future_admin_fixture_tool',
+      publicApiEndpointAdded: false,
+      confirmationRequired: true,
+      confirmKey: 'QA_FEED_FOLLOW_BLOCK_FIXTURE_CONFIRM',
+      confirmValue: 'PREPARE_QA_FOLLOW_BLOCK_FIXTURE',
+      requiredInputs: [
+        'runId',
+        'qa_viewer_user_id',
+        'qa_profile_owner_user_id',
+        'qa_follower_user_id',
+        'qa_blocked_follower_user_id',
+      ],
+      cleanupPolicy: {
+        cleanupByRunIdOnly: true,
+        hardDelete: false,
+        restoreRealUserRelationships: false,
+        leaveAuditTrail: true,
+      },
+    });
+    expect(guard.executionRunbook.preflightChecks).toEqual(
+      expect.arrayContaining([
+        'all_users_are_disposable_qa_users',
+        'no_user_alias_points_to_real_customer_account',
+        'run_id_is_unique_and_recorded_on_fixture_metadata',
+        'existing_real_follow_or_block_rows_are_not_modified',
+      ]),
+    );
+    expect(guard.qaSmokeHandoff).toMatchObject({
+      nextOwner: 'qa2',
+      expectedLiveChecks: [
+        'public_profile_follower_count_at_least_one',
+        'followers_modal_shows_disposable_follower_row',
+        'logged_in_qa_viewer_can_find_block_entrypoint_for_follower',
+        'blocked_follower_row_is_hidden_or_tombstoned_after_block',
+      ],
+      blockedIfMissing: [
+        'private_qa_viewer_session',
+        'disposable_qa_users',
+        'operator_db_access',
+      ],
+    });
+    expect(guard.qaSmokeHandoff.allowedOutput).toEqual(
+      expect.arrayContaining([
+        'runId',
+        'publicProfileHandle',
+        'safeProfileOwnerUserId',
+        'safeFollowerRowId',
+        'safeBlockRowId',
+        'expectedFollowerCountAtLeast',
       ]),
     );
     expect(guard.allowedReportFields).toEqual(
