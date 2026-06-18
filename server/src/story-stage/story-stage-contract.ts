@@ -65,7 +65,69 @@ export const STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD = {
   },
 } as const;
 
+export const STORY_STAGE_PURCHASE_LEDGER_SKELETON = {
+  version: '2026-06-18.story-stage-purchase-ledger-skeleton.v1',
+  status: 'contract_only',
+  purchaseTypes: ['chapter_single', 'season_bundle'],
+  ledgerSourceOfTruth: 'story_purchase_ledger',
+  productAuthority: {
+    chapterPriceSource: 'story_chapters.server_price_lumina',
+    seasonPriceSource: 'story_seasons.server_bundle_price_lumina',
+    clientSubmittedPriceTrusted: false,
+    clientSubmittedPurchaseTypeTrusted: false,
+  },
+  chapterSingle: {
+    purchaseType: 'chapter_single',
+    entitlementType: 'story_chapter_access',
+    referenceType: 'story_chapter',
+    idempotencyScope: ['userId', 'chapterId', 'purchaseType'],
+    grants: ['chapter_read_access', 'choice_access_within_chapter'],
+  },
+  seasonBundle: {
+    purchaseType: 'season_bundle',
+    entitlementType: 'story_season_access',
+    referenceType: 'story_season',
+    idempotencyScope: ['userId', 'seasonId', 'purchaseType'],
+    grants: ['published_chapters_in_season', 'future_chapters_when_published'],
+  },
+  choicePolicy: {
+    choiceLevelBilling: false,
+    choicesIncludedInChapterPrice: true,
+    choicePriceFieldAllowed: false,
+    premiumChoiceSurchargeAllowed: false,
+    ledgerLinePerChoice: false,
+  },
+  ledgerLineShape: {
+    id: 'storyPurchaseLedger.id',
+    userId: 'users.id',
+    purchaseType: 'chapter_single|season_bundle',
+    referenceId: 'story_chapter.id|story_season.id',
+    amountLumina: 'server_calculated_integer_lumina',
+    currency: 'LUMINA',
+    status: 'pending|granted|voided',
+    idempotencyKey: 'story_stage:<purchaseType>:<userId>:<referenceId>',
+  },
+  mutationPolicy: {
+    contractAddsEndpoint: false,
+    paymentProviderCall: false,
+    walletCredit: false,
+    walletDebit: false,
+    walletLedgerMutation: false,
+    refundMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+  responsePolicy: {
+    stableCodeRequired: true,
+    messageKeyRequired: true,
+    rawUserFacingEnglishCopy: false,
+    walletLedgerIdReturned: false,
+    paymentTransactionIdReturned: false,
+  },
+} as const;
+
 export const STORY_STAGE_CONTRACT = {
   version: '2026-06-18.story-stage-contract.v1',
   freePrologueEntitlementGuard: STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD,
+  purchaseLedgerSkeleton: STORY_STAGE_PURCHASE_LEDGER_SKELETON,
 } as const;

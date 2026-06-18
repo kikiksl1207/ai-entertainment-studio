@@ -1,6 +1,7 @@
 import {
   STORY_STAGE_CONTRACT,
   STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD,
+  STORY_STAGE_PURCHASE_LEDGER_SKELETON,
 } from './story-stage-contract';
 
 describe('Story Stage contract skeleton', () => {
@@ -64,5 +65,58 @@ describe('Story Stage contract skeleton', () => {
         }),
       ]),
     );
+  });
+
+  it('separates chapter and season purchase ledger skeletons without choice-level billing', () => {
+    const skeleton = STORY_STAGE_PURCHASE_LEDGER_SKELETON;
+
+    expect(STORY_STAGE_CONTRACT.purchaseLedgerSkeleton).toBe(skeleton);
+    expect(skeleton).toMatchObject({
+      version: '2026-06-18.story-stage-purchase-ledger-skeleton.v1',
+      status: 'contract_only',
+      purchaseTypes: ['chapter_single', 'season_bundle'],
+      ledgerSourceOfTruth: 'story_purchase_ledger',
+      productAuthority: {
+        chapterPriceSource: 'story_chapters.server_price_lumina',
+        seasonPriceSource: 'story_seasons.server_bundle_price_lumina',
+        clientSubmittedPriceTrusted: false,
+        clientSubmittedPurchaseTypeTrusted: false,
+      },
+      chapterSingle: {
+        purchaseType: 'chapter_single',
+        entitlementType: 'story_chapter_access',
+        referenceType: 'story_chapter',
+        idempotencyScope: ['userId', 'chapterId', 'purchaseType'],
+        grants: ['chapter_read_access', 'choice_access_within_chapter'],
+      },
+      seasonBundle: {
+        purchaseType: 'season_bundle',
+        entitlementType: 'story_season_access',
+        referenceType: 'story_season',
+        idempotencyScope: ['userId', 'seasonId', 'purchaseType'],
+      },
+      choicePolicy: {
+        choiceLevelBilling: false,
+        choicesIncludedInChapterPrice: true,
+        choicePriceFieldAllowed: false,
+        premiumChoiceSurchargeAllowed: false,
+        ledgerLinePerChoice: false,
+      },
+      mutationPolicy: {
+        contractAddsEndpoint: false,
+        paymentProviderCall: false,
+        walletCredit: false,
+        walletDebit: false,
+        walletLedgerMutation: false,
+        refundMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+    });
+    expect(skeleton.ledgerLineShape).toMatchObject({
+      purchaseType: 'chapter_single|season_bundle',
+      amountLumina: 'server_calculated_integer_lumina',
+      idempotencyKey: 'story_stage:<purchaseType>:<userId>:<referenceId>',
+    });
   });
 });
