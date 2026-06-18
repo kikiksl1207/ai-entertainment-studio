@@ -5531,6 +5531,60 @@ describe('ChatService premium chat support contract', () => {
         payout: true,
       },
     });
+    expect(
+      contract.productProjection.characterChatTransitionCta
+        .characterDetailChatChoiceStateProjection,
+    ).toMatchObject({
+      version: '2026-06-19.character-detail-chat-choice-state-projection.v1',
+      status: 'read_model_contract_only',
+      surface: 'character_detail',
+      entries: {
+        aiCharacterChat: {
+          entryKey: 'ai_character_chat',
+          productKind: 'ai_character_chat',
+          responseMode: 'ai_character_reply',
+          available: true,
+          route: '/character-chat?slug={artistSlug}',
+          ctaLabelKey: 'characterDetail.chat.ai.cta',
+          priceCopyKey: 'characterDetail.chat.ai.price.freeOrPolicy',
+          durationCopyKey: 'characterDetail.chat.ai.duration.openEnded',
+          respondentCopyKey: 'characterDetail.chat.ai.respondent.aiCharacter',
+          createsCharacterChat: true,
+          opensPremiumRoom: false,
+          paymentRequiredBeforeEntry: false,
+        },
+        premiumArtistChat: {
+          entryKey: 'premium_artist_chat',
+          productKind: 'artist_direct_premium_dm',
+          responseMode: 'artist_direct_reply',
+          available: false,
+          route: null,
+          disabledReasonKey: 'premium_chat_room_open_contract_pending',
+          ctaLabelKey: 'characterDetail.chat.premium.cta',
+          priceCopyKey: 'characterDetail.chat.premium.price.serverTierSummary',
+          durationCopyKey: 'characterDetail.chat.premium.duration.serverPolicy',
+          respondentCopyKey:
+            'characterDetail.chat.premium.respondent.artistDirect',
+          createsCharacterChat: false,
+          opensPremiumRoom: false,
+          paymentRequiredBeforeEntry: true,
+        },
+      },
+      copyPolicy: {
+        rawProductKindAsCopy: false,
+        rawResponseModeAsCopy: false,
+        rawEnumStatusAsCopy: false,
+        aiReplyCopyMustStayOnAiEntry: true,
+        artistDirectReplyCopyMustStayOnPremiumEntry: true,
+        priceAndDurationUseServerKeysOnly: true,
+      },
+    });
+    expect(
+      Object.values(
+        contract.productProjection.characterChatTransitionCta
+          .characterDetailChatChoiceStateProjection.noMutation,
+      ).every((blocked) => blocked === true),
+    ).toBe(true);
     const contractDetailCtaProjection =
       contract.productProjection.characterChatTransitionCta
         .characterDetailCtaProjection;
