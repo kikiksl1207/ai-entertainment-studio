@@ -3,6 +3,7 @@ import {
   STORY_STAGE_CONTRACT,
   STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD,
   STORY_STAGE_PURCHASE_LEDGER_SKELETON,
+  STORY_STAGE_SESSION_RETENTION_POLICY_CONTRACT,
 } from './story-stage-contract';
 
 describe('Story Stage contract skeleton', () => {
@@ -174,5 +175,52 @@ describe('Story Stage contract skeleton', () => {
         'platformRemainderLumina',
       ]),
     );
+  });
+
+  it('keeps continue-session retention separate from purchase history', () => {
+    const policy = STORY_STAGE_SESSION_RETENTION_POLICY_CONTRACT;
+
+    expect(STORY_STAGE_CONTRACT.sessionRetentionPolicy).toBe(policy);
+    expect(policy).toMatchObject({
+      version: '2026-06-18.story-stage-session-retention-policy.v1',
+      status: 'contract_only',
+      sessionStatuses: ['active', 'paused', 'archived_inactive'],
+      archivePolicy: {
+        inactivityDays: 30,
+        clockSource: 'server_time',
+        trigger: 'no_user_progress_for_30_days',
+        action: 'mark_session_archived_inactive',
+        hardDeleteSession: false,
+        deleteChoices: false,
+        deleteProgress: false,
+      },
+      purchaseHistoryPolicy: {
+        purchaseHistoryRetained: true,
+        chapterEntitlementsRetained: true,
+        seasonEntitlementsRetained: true,
+        archivedSessionCancelsPurchase: false,
+        archivedSessionRefundsPurchase: false,
+        restoreRequiresNewPurchase: false,
+      },
+      copyAndStatusPolicy: {
+        rawStatusAsCopy: false,
+        rawUserFacingEnglishCopy: false,
+        titleKey: 'storyStage.session.archive.title',
+        bodyKey: 'storyStage.session.archive.body',
+        ctaKey: 'storyStage.session.archive.continueCta',
+        statusKey: 'storyStage.session.status.archivedInactive',
+        copyMustExplainPurchaseHistoryRetained: true,
+      },
+      mutationPolicy: {
+        contractAddsArchiveJob: false,
+        userProgressMutation: false,
+        hardDeleteMutation: false,
+        purchaseCancellationMutation: false,
+        walletMutation: false,
+        refundMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+    });
   });
 });
