@@ -24,6 +24,7 @@ import {
   AI_PREMIUM_CONTENT_STATE_API_CONTRACT,
   AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
   AI_PREMIUM_CONTENT_STATUS_COPY_KO,
+  AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON,
   CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT,
   resolveAiPremiumContentCostPrecheck,
   resolveAiPremiumContentProviderGuard,
@@ -95,6 +96,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     );
     expect(contract.resultAssetReuseAuditProjection).toBe(
       AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
+    );
+    expect(contract.userFacingRequestStatusApiSkeleton).toBe(
+      AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON,
     );
   });
 
@@ -934,6 +938,126 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     expect(Object.values(fixture.noSideEffects).every((blocked) => blocked)).toBe(
       true,
     );
+  });
+
+  it('defines a disabled user-facing request status API skeleton without raw or internal exposure', () => {
+    const contract = AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON;
+
+    expect(contract).toMatchObject({
+      version:
+        '2026-06-19.ai-premium-content-user-facing-request-status-api-skeleton.v1',
+      status: 'skeleton_ready_read_only_mutation_blocked',
+      readOnly: true,
+      enabled: false,
+      providerCallEnabled: false,
+      mutation: false,
+    });
+    expect(contract.endpoints).toMatchObject({
+      requestList: {
+        method: 'GET',
+        path: '/api/v1/me/ai-premium-content/requests',
+        enabled: false,
+        authRequired: true,
+        ownerOnly: true,
+        mutation: false,
+      },
+      requestDetail: {
+        method: 'GET',
+        path: '/api/v1/ai-premium-content/requests/:requestId',
+        enabled: false,
+        authRequired: true,
+        ownerOrArtistOperatorOnly: true,
+        mutation: false,
+      },
+      resultArchive: {
+        method: 'GET',
+        path: '/api/v1/me/ai-premium-content/results',
+        enabled: false,
+        authRequired: true,
+        ownerOnly: true,
+        mutation: false,
+      },
+    });
+    expect(contract.userFacingStatusBuckets).toMatchObject({
+      received: {
+        requestStatuses: ['draft', 'submitted', 'needs_more_info'],
+        statusKey: 'received',
+        labelKey: 'aiPremiumContent.status.received',
+      },
+      reviewing: {
+        requestStatuses: ['awaiting_review'],
+        moderationStatuses: ['pending', 'needs_review'],
+        statusKey: 'reviewing',
+        labelKey: 'aiPremiumContent.status.reviewing',
+      },
+      producing: {
+        requestStatuses: ['queued', 'generating'],
+        statusKey: 'producing',
+        labelKey: 'aiPremiumContent.status.producing',
+      },
+      completed: {
+        requestStatuses: ['approved'],
+        resultStatuses: ['approved'],
+        statusKey: 'completed',
+        labelKey: 'aiPremiumContent.status.completed',
+      },
+      blocked: {
+        requestStatuses: ['safety_blocked', 'rejected'],
+        moderationStatuses: ['blocked'],
+        resultStatuses: ['blocked'],
+        statusKey: 'blocked',
+        labelKey: 'aiPremiumContent.status.blocked',
+      },
+      failed: {
+        requestStatuses: ['provider_failed'],
+        resultStatuses: ['failed'],
+        statusKey: 'failed',
+        labelKey: 'aiPremiumContent.status.failed',
+      },
+      regeneratable: {
+        requestStatuses: ['provider_failed', 'rejected'],
+        resultStatuses: ['failed', 'blocked'],
+        statusKey: 'regeneratable',
+        labelKey: 'aiPremiumContent.status.regeneratable',
+        derivedFrom: 'retryAvailability.canRegenerate',
+        providerCallOnRead: false,
+        walletMutationOnRead: false,
+      },
+    });
+    expect(contract.responseProjection.item.userFacingStatus).toMatchObject({
+      fallbackCopyLocale: 'ko-KR',
+      rawEnumAsCopy: false,
+      rawProviderStatusAsCopy: false,
+    });
+    expect(contract.rawCopyPolicy).toMatchObject({
+      locale: 'ko-KR',
+      copyLabelsFirst: true,
+      titleKeyFallbackAllowed: true,
+      ctaKeyFallbackAllowed: true,
+      statusKeyFallbackAllowed: true,
+      rawEnumAsCopy: false,
+      rawEnglishKeyAsCopy: false,
+      rawProviderStatusAsCopy: false,
+    });
+    expect(contract.privacy).toMatchObject({
+      providerInternalStatusReturned: false,
+      providerRouteAliasReturned: false,
+      providerKeyReturned: false,
+      modelKeyReturned: false,
+      rawPromptReturned: false,
+      providerPayloadReturned: false,
+      safetyPayloadReturned: false,
+      internalCostReturned: false,
+      providerCostReturned: false,
+      walletLedgerIdReturned: false,
+      settlementIdReturned: false,
+      payoutIdReturned: false,
+      signedUrlsReturned: false,
+      sensitiveAuthMaterialReturned: false,
+    });
+    expect(
+      Object.values(contract.mutationGates).every((enabled) => enabled === false),
+    ).toBe(true);
   });
 
   it('keeps character-chat premium content handoff as a disabled adapter-only product flow', () => {
