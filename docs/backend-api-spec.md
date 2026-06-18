@@ -1342,6 +1342,17 @@ Character-chat premium transition CTA contract (#500/#511):
 - `priceSummary` is summary-only copy for room-open/support display. It must not
   expose internal formulas, ledgers, provider payloads, prompts, tokens, or
   settlement/payout internals.
+- #1029 adds
+  `characterDetailChatChoiceStateProjection` for the character detail chat
+  selector. It exposes separate entries for AI character chat and artist-direct
+  premium chat with explicit `productKind`, `responseMode`, availability, route,
+  CTA label key, price copy key, duration copy key, and respondent copy key. AI
+  chat may create an AI character-chat conversation through
+  `/character-chat?slug={artistSlug}`. Premium artist chat remains disabled
+  while room-open is pending, must not fall back to AI chat, and must use
+  server-owned price/duration copy keys. The projection does not open premium
+  rooms, send messages, call providers, create payments/orders, or mutate
+  wallet, settlement, or payout state.
 - The same CTA contract is also referenced from
   `GET /api/v1/chat/premium-support-contract` as
   `productProjection.characterChatTransitionCta` so product QA can verify the
