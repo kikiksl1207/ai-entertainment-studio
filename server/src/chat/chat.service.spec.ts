@@ -2543,6 +2543,40 @@ describe('ChatService persona and catalog policy', () => {
           rawProviderPayloadStored: false,
         },
       },
+      perSessionVariantReadModel: {
+        version:
+          '2026-06-18.character-chat-opening-greeting-per-session-variant.v1',
+        scope: 'user_character_chat_session',
+        oneGreetingPerSession: true,
+        sameSessionReplay: 'return_cached_opening_greeting',
+        sameCharacterSameUserNewSessionCanVary: true,
+        sameCharacterDifferentUsersCanVary: true,
+        candidateSelectionInputs: [
+          'runtimePersona.welcome.text',
+          'runtimePersona.tone.guideKo',
+          'runtimePersona.personaTags[]',
+          'runtimePersona.forbiddenTone[]',
+          'chat_sessions.id',
+        ],
+        safetyAndCostBoundary: {
+          mustApplyCharacterPersona: true,
+          mustApplyToneTags: true,
+          mustApplyForbiddenTone: true,
+          providerRequired: false,
+          maxOutputTokens: 120,
+          maxOutputChars: 180,
+          walletMutation: false,
+          orderMutation: false,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+        privacy: {
+          rawSeedReturned: false,
+          rawPromptStored: false,
+          rawProviderPayloadStored: false,
+          userPrivateProfileReturned: false,
+        },
+      },
     });
     expect(prompts.runtimePersona.tone.guideKo).toBe(
       'Keep the tone warm and focused.',
