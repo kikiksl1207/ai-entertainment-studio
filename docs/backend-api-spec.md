@@ -117,6 +117,44 @@ GET /api/v1/unlock-campaigns
 - 메인에 걸릴 캐릭터 조회
 - 회사 차원의 특별 해금 이벤트 조회
 
+### Story Stage
+
+Story stage backend contract skeleton (#988):
+
+The exported `STORY_STAGE_PACK_CHAPTER_SESSION_CONTRACT` defines disabled
+backend contract shapes for StoryPack, StoryChapter, StorySession, and
+StoryChoice. This is not a live API implementation and keeps
+`enabled=false`/`publicMutationEnabled=false` until storage, entitlement, and QA
+fixtures are ready.
+
+Planned endpoints:
+
+```http
+GET /api/v1/story-packs
+GET /api/v1/story-packs/:packSlug
+GET /api/v1/story-packs/:packSlug/chapters/:chapterNo
+POST /api/v1/story-packs/:packSlug/sessions
+GET /api/v1/story-sessions/:sessionId/choices
+```
+
+- StoryPack pricing modes are `free`, `paid`, and `mixed`; lifecycle statuses
+  separate `serializing`, `completed`, `hiatus`, and `season_ended`.
+- StoryChapter pricing modes are `free` and `paid`. Locked paid chapters may
+  expose only preview fields such as chapter number, title, summary,
+  `pricingMode`, `priceLumina`, and `locked`; chapter body stays hidden until
+  entitlement is confirmed.
+- StorySession creation is future-authenticated and idempotent, scoped by
+  user, pack slug, and client idempotency key. Replays with the same
+  fingerprint return the same projection; changed fingerprints conflict before
+  any mutation.
+- StoryChoice projections default to three choices and may expand to five.
+  Choice types are display-safe action categories only and do not expose raw
+  model prompts or provider payloads.
+- This skeleton does not create payment orders, debit wallet/Lumina, grant
+  entitlements, create story sessions, submit choices, call AI providers,
+  generate image/video assets, create notifications, touch settlement, or touch
+  payout.
+
 ## User APIs
 
 ### Auth / Me
