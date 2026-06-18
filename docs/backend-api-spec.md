@@ -201,6 +201,30 @@ wallet/Lumina, or touch settlement/payout.
 - The projection must not expose raw persona prompts, raw world bible text,
   provider payloads, private artist notes, or admin memos.
 
+### Story Stage Direct Action Validation
+
+Story direct action validation policy (#991):
+
+`STORY_DIRECT_ACTION_VALIDATION_CONTRACT` defines a disabled validation
+skeleton for user-entered direct story actions. It validates text shape,
+timeline continuity, reachable location, world rules, age/safety policy,
+author-forbidden outcomes, and character persona integrity before any future
+provider or story mutation path.
+
+- Direct action input is plain text, trimmed, 1-500 characters, and rejected
+  when empty after trim.
+- Fail-closed categories include impossible time jumps, remote intervention
+  without an in-world channel, world-rule breaking powers/items, adult sexual
+  content, graphic exploitation, self-harm instruction, protected-class hate,
+  author-forbidden outcomes, and character/persona-breaking control.
+- Rejected responses expose only safe `code`, `messageKey`,
+  `safeSuggestionKey`, and `retryAllowed`; raw internal reasons, safety
+  classifier payloads, author private rules, prompts, provider payloads, and
+  admin memos are not returned.
+- This skeleton does not call providers, store direct actions, mutate story or
+  timeline state, create notifications, debit wallet/Lumina, or touch
+  payment/settlement/payout.
+
 ## User APIs
 
 ### Auth / Me
