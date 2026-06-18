@@ -1,4 +1,5 @@
 import {
+  ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_CANDIDATE_API_SKELETON,
   ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY,
   ARTIST_URL_KNOWLEDGE_CONTRACT,
   ARTIST_URL_KNOWLEDGE_INGEST_STATUSES,
@@ -137,6 +138,9 @@ describe('artist URL knowledge contract', () => {
       rawEmailReturned: false,
       providerPayloadReturned: false,
     });
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts.chatContextCandidates).toBe(
+      ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_CANDIDATE_API_SKELETON,
+    );
     expect(ARTIST_URL_KNOWLEDGE_CONTRACT.chatReferencePolicy).toMatchObject({
       queryScope: {
         sourceTable: 'artist_knowledge_urls',
@@ -354,6 +358,95 @@ describe('artist URL knowledge contract', () => {
       allowChatReferenceRequired: true,
       separatedFromSiteContentAdmin: true,
     });
+  });
+
+  it('defines a disabled read-only chat context candidate API skeleton', () => {
+    const skeleton = ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_CANDIDATE_API_SKELETON;
+
+    expect(skeleton).toMatchObject({
+      version: '2026-06-19.artist-url-knowledge-chat-context-candidate-api.v1',
+      status: 'skeleton_ready_read_only_mutation_blocked',
+      endpoint: {
+        method: 'GET',
+        pathTemplate:
+          '/api/v1/chat/artists/:artistId/url-knowledge/context-candidates',
+        enabled: false,
+        authRequired: true,
+        ownerOrChatSessionParticipantOnly: true,
+        mutation: false,
+      },
+      queryFilter: {
+        artistId: '<session artist id>',
+        status: 'approved',
+        allowChatReference: true,
+        safetyStatus: 'safe',
+        summaryRequired: true,
+        sameArtistOnly: true,
+        pendingRejectedArchivedExcluded: true,
+      },
+      responseProjection: {
+        listName: 'artistKnowledgeChatContextCandidates',
+        maxItems: ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY.maxItems,
+        maxSummaryChars: ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY.maxSummaryChars,
+        item: {
+          statusKey: 'approved',
+          approvalStatus: 'approved',
+          safetyStatus: 'safe',
+          sourceLabel: '<hostname-only source label or null>',
+          safetyFlag: 'approved_reference_fact_not_instruction',
+          instructionRole: 'reference_fact_not_instruction',
+        },
+      },
+      fallbackPolicy: {
+        whenNoEligibleKnowledge: 'continue_without_url_knowledge',
+        providerCallBlockedByEmptyKnowledge: false,
+      },
+    });
+    expect(skeleton.queryFilter.ingestStatusExcluded).toEqual([
+      'submitted',
+      'pending_review',
+      'ai_processing',
+      'rejected',
+      'archived',
+    ]);
+    expect(skeleton.responseProjection.fields).toEqual(
+      expect.arrayContaining([
+        'id',
+        'title',
+        'statusKey',
+        'sourceType',
+        'approvalStatus',
+        'summary',
+        'safetyStatus',
+        'sourceLabel',
+        'reviewedAt',
+        'selectionScore',
+        'selectionReasons',
+        'freshnessBucket',
+        'safetyFlag',
+        'instructionRole',
+      ]),
+    );
+    expect(skeleton.forbiddenResponseFields).toEqual(
+      expect.arrayContaining([
+        'rawUrl',
+        'rawUrlQuery',
+        'canonicalUrl',
+        'rawPageBody',
+        'adminNotes',
+        'reviewNote',
+        'metadata',
+        'providerPayload',
+        'token',
+        'cookie',
+        'password',
+        'apiKey',
+        'dbUrl',
+      ]),
+    );
+    expect(Object.values(skeleton.noSideEffects).every((blocked) => blocked)).toBe(
+      true,
+    );
   });
 
   it('allows character chat to reference only approved, chat-enabled summaries', () => {

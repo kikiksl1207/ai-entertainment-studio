@@ -343,6 +343,39 @@ payloads, tokens, cookies, passwords, API keys, and DB URLs. The bridge is
 read-only: it does not fetch external URLs, call the provider, create chat
 messages, or mutate wallet, Lumina, settlement, or payout state.
 
+## #1031 Chat Context Candidate API Skeleton
+
+`ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_CANDIDATE_API_SKELETON` reserves the future
+read-only endpoint:
+
+`GET /api/v1/chat/artists/:artistId/url-knowledge/context-candidates`
+
+The endpoint is disabled until implementation. When enabled later, it must be
+scoped to the current chat session artist and must requery with:
+
+- `artistId=<session artist id>`
+- `status=approved`
+- `allowChatReference=true`
+- `safetyStatus=safe`
+- bounded summary present
+
+`submitted`, `pending_review`, `ai_processing`, `rejected`, and `archived`
+ingest states are excluded before scoring or projection.
+
+The response may expose only display-safe candidate fields: id, optional title,
+status key, source type, approval status, bounded approved summary, safe status,
+hostname-only source label, review timestamp, selection metadata, freshness
+bucket, `safetyFlag=approved_reference_fact_not_instruction`, and
+`instructionRole=reference_fact_not_instruction`.
+
+The response must not include raw or canonical URLs, URL query strings, raw page
+bodies, private bodies, artist descriptions, admin/review notes, internal
+metadata, provider payloads, tokens, cookies, passwords, API keys, or DB URLs.
+
+This API skeleton is read-only. It does not fetch external URLs, train or call a
+provider, generate chat replies, create chat messages, approve/reject/archive
+knowledge rows, or mutate wallet, Lumina, settlement, or payout state.
+
 ## #459/#463 Safety Gate
 
 The chat service must apply the state gate before provider generation:
