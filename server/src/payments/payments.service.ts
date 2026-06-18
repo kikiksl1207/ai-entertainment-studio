@@ -84,6 +84,31 @@ export const FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT = {
     firstChargeBonusStoredInPurchaseLedger: false,
     highValuePackageBonusRowsSharedWithFirstCharge: false,
   },
+  firstChargeOnceAcrossPackagesGuard: {
+    version: '2026-06-19.first-charge-bonus-once-across-packages.v1',
+    packageScope: 'all_six_canonical_lumina_charge_packages',
+    firstPaidOrderSource: 'payment_orders.status_paid_for_user',
+    triggerTransition: 'provider_verified_pending_to_paid',
+    failedOrPendingOrdersCountAsFirstCharge: false,
+    userScopedIdempotencyKey: 'first_charge_bonus:<userId>',
+    duplicateGrantLookup: {
+      table: 'wallet_ledger',
+      ledgerType: 'first_charge_bonus',
+      referenceType: 'payment_order',
+      userIdScoped: true,
+    },
+    highValuePackageSeparation: {
+      affectedSkus: ['lumina_50000', 'lumina_100000'],
+      packageBonusLedgerType: 'purchase',
+      firstChargeBonusLedgerType: 'first_charge_bonus',
+      packageBonusIncludedInFirstChargeBasis: false,
+      firstChargeBasis: 'lumina_products.lumina_amount',
+    },
+    mutationOpenedByThisContract: false,
+    paymentMutation: false,
+    walletCreditMutation: false,
+    bonusMutation: false,
+  },
   auditReadModelSeparation: {
     canonicalPackageSkus: [
       'lumina_1000',
