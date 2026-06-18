@@ -180,6 +180,27 @@ wallet/Lumina/payment/settlement/payout.
   time fields. Unknown future/private spoiler bodies and author notes remain
   hidden.
 
+### Story Stage AI Companion Context
+
+Story AI companion context boundary (#990):
+
+`STORY_AI_COMPANION_CONTEXT_BOUNDARY_CONTRACT` defines a disabled context
+boundary for bringing AI artists into story sessions. It is not a provider
+execution path and does not create chat messages, mutate story state, debit
+wallet/Lumina, or touch settlement/payout.
+
+- A story session may select up to five companion artists, but each scene may
+  use only two to three active speakers. Remaining companions must be projected
+  as cameo, background, or offscreen references.
+- Context is layered in priority order: world canon, current scene state,
+  approved artist persona/tone profile, then player state. Player choices and
+  companion dialogue cannot override world canon or the current scene objective.
+- Active speakers may speak and influence choice text. Cameo companions may
+  speak briefly but cannot solve the scene. Background/offscreen companions do
+  not drive choices.
+- The projection must not expose raw persona prompts, raw world bible text,
+  provider payloads, private artist notes, or admin memos.
+
 ## User APIs
 
 ### Auth / Me
