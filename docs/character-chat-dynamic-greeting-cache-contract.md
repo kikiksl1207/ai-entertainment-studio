@@ -4,7 +4,7 @@ Updated: 2026-06-05
 Owner: Luffy
 Task: Notion #388, #397 regression contract, #402 tone candidate contract, #454
 greeting/recommended-reply diversity contract, #468 random tone selection contract,
-#618 opening greeting variant contract
+#618 opening greeting variant contract, workboard #1028 runtime handoff contract
 
 This contract makes the first character-chat greeting dynamic per chat session
 without generating a new greeting on every page refresh. It keeps raw prompts,
@@ -100,6 +100,28 @@ provider requests or two opening-greeting rows for one session.
 - Provider generation remains optional. Refreshes and cached reads do not call
   the provider; provider attempts are separated from cache/template fallback and
   remain under the daily provider guard.
+
+## Runtime Handoff Skeleton (#1028)
+
+`dynamicGreetingContract.runtimeHandoff` is an API skeleton for frontend and QA
+handoff. It does not add provider calls or message writes by itself.
+
+- Session create surface: `POST /api/v1/chat/sessions`.
+- Message replay surface: `GET /api/v1/chat/sessions/:sessionId/messages`.
+- Response field: `openingGreeting`.
+- Same-session replay first checks
+  `chat_messages.messageType=opening_greeting` in the same `chat_session` and
+  returns the cached row without a new greeting or provider call.
+- New sessions use `chat_sessions.id` as the server-derived seed. Client seeds
+  are not accepted, raw seeds are not returned, and the same character/user can
+  receive a different display-safe first greeting in a new session.
+- Fallback selection is deterministic per session and uses the same source order:
+  site-content, artist metadata, character fallback, then default copy.
+- Cost controls stay explicit: provider readiness, daily provider guard,
+  `maxOutputTokens=120`, `maxOutputChars=180`, and zero-cost fallback.
+- The skeleton does not add message-send mutation, wallet/order/settlement/payout
+  mutation, raw prompt storage, provider payload return, token return, API key
+  return, or user-private-data return.
 
 ## Safety
 

@@ -1084,6 +1084,16 @@ Character-chat dynamic opening greeting cache (#388):
   and forbidden-tone catalog inputs, with a user/session-scoped deterministic
   seed based on `chat_sessions.id`. The same session stays stable, while a new
   session may vary without accepting a client seed.
+- #1028 adds `dynamicGreetingContract.runtimeHandoff` as the user-facing API
+  skeleton for first-greeting variant handoff. `POST /api/v1/chat/sessions`
+  exposes `openingGreeting`, while
+  `GET /api/v1/chat/sessions/:sessionId/messages` replays the cached
+  `opening_greeting` row for the same session without another provider call.
+  New sessions use server-derived `chat_sessions.id` variation; client seeds and
+  raw seeds are rejected/hidden. Fallback remains deterministic and zero-cost,
+  while provider attempts stay behind readiness, daily provider guard,
+  `maxOutputTokens=120`, and `maxOutputChars=180`. This skeleton does not add
+  provider calls, message sends, wallet, order, settlement, or payout mutation.
 - The #897 safety boundary requires the selected greeting to stay within
   character settings, forbidden tone, and minor-clean rules. It explicitly
   blocks real-person relationship, external contact, and external payment

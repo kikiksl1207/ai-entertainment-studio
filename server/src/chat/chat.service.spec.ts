@@ -2543,7 +2543,58 @@ describe('ChatService persona and catalog policy', () => {
           rawProviderPayloadStored: false,
         },
       },
+      runtimeHandoff: {
+        version:
+          '2026-06-19.character-chat-opening-greeting-runtime-handoff.v1',
+        status: 'api_skeleton_only',
+        endpoints: {
+          sessionCreate: 'POST /api/v1/chat/sessions',
+          messageRead: 'GET /api/v1/chat/sessions/:sessionId/messages',
+        },
+        responseField: 'openingGreeting',
+        sameSessionReplay: {
+          cacheLookup: 'chat_messages.messageType=opening_greeting',
+          cacheScope: 'chat_session',
+          behavior: 'return_cached_opening_greeting',
+          createsNewGreeting: false,
+          providerCall: false,
+        },
+        newSessionVariation: {
+          seedSource: 'chat_sessions.id',
+          clientSeedAccepted: false,
+          sameCharacterSameUserNewSessionCanVary: true,
+          differentUserSessionCanVary: true,
+          rawSeedReturned: false,
+        },
+        fallbackPath: {
+          deterministicSessionVariant: true,
+          providerFailureStoresFallback: true,
+          zeroProviderCost: true,
+        },
+        costControl: {
+          providerReadinessRequired: true,
+          dailyProviderGuardRequired: true,
+          maxOutputTokens: 120,
+          maxOutputChars: 180,
+          providerUsageRecordedOnlyWhenCalled: true,
+          zeroProviderFallbackEstimatedCostKrw: '0.00',
+        },
+        privacy: {
+          rawPromptReturned: false,
+          rawPromptStored: false,
+          rawProviderPayloadReturned: false,
+          rawProviderPayloadStored: false,
+          tokenReturned: false,
+          apiKeyReturned: false,
+          userPrivateDataReturned: false,
+        },
+      },
     });
+    expect(
+      Object.values(
+        prompts.dynamicGreetingContract.runtimeHandoff.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
     expect(prompts.runtimePersona.tone.guideKo).toBe(
       'Keep the tone warm and focused.',
     );
