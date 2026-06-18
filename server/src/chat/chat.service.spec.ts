@@ -10,6 +10,7 @@ import {
   PREMIUM_CHAT_DONATION_LEDGER_IDEMPOTENCY_SKELETON,
   PREMIUM_CHAT_DONATION_DISABLED_REASON_BY_STATUS,
   PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES,
+  PREMIUM_CHAT_UNANSWERED_REFUND_STATUS_PROJECTION,
   resolvePremiumChatDonationAmountPolicy,
   resolvePremiumChatDonationGuardPolicy,
   resolvePremiumChatRoomInteractionAvailability,
@@ -7915,6 +7916,73 @@ describe('ChatService premium chat support contract', () => {
         internalAdminNoteReturned: false,
       },
     });
+    expect(contract.unansweredRefundStatusProjection).toBe(
+      PREMIUM_CHAT_UNANSWERED_REFUND_STATUS_PROJECTION,
+    );
+    expect(PREMIUM_CHAT_UNANSWERED_REFUND_STATUS_PROJECTION).toMatchObject({
+      version: '2026-06-18.premium-chat-unanswered-refund-status-projection.v1',
+      status: 'read_model_contract_only',
+      enabled: false,
+      trigger: {
+        roomOpenedStatus: ['opened', 'active'],
+        noArtistAnswerWindowHours: 24,
+        artistAnswerEvidence: [
+          'first_artist_reply_at_present',
+          'hasArtistAnswer=true',
+          'room.status=artist_answered',
+        ],
+        unansweredCandidateStatus: 'refund_pending',
+        unansweredReasonKey: 'unanswered_24h_full_refund',
+        actionKey: 'unanswered_24h_refund_candidate',
+      },
+      refundOutcomes: {
+        unanswered24h: {
+          state: 'pending',
+          refundRatePercent: 100,
+          artistCompensationRatePercent: 0,
+          completedRefund: false,
+          walletCreditMutation: false,
+        },
+        userFaultLimited70: {
+          state: 'refund_limited_70',
+          refundRatePercent: 70,
+          companyRetentionRatePercent: 20,
+          artistCompensationRatePercent: 10,
+          statusOnly: true,
+        },
+        userFaultLimited50: {
+          state: 'refund_limited_50',
+          refundRatePercent: 50,
+          companyRetentionRatePercent: 40,
+          artistCompensationRatePercent: 10,
+          statusOnly: true,
+        },
+      },
+      privacy: {
+        rawChatBodyReturned: false,
+        rawReportReasonReturned: false,
+        walletLedgerIdReturned: false,
+        providerRefundIdReturned: false,
+        internalAdminNoteReturned: false,
+      },
+    });
+    expect(
+      PREMIUM_CHAT_UNANSWERED_REFUND_STATUS_PROJECTION.excludedStates,
+    ).toEqual(
+      expect.arrayContaining([
+        'artist_answered',
+        'reported',
+        'admin_review',
+        'refund_pending',
+        'refunded',
+        'expired',
+      ]),
+    );
+    expect(
+      Object.values(
+        PREMIUM_CHAT_UNANSWERED_REFUND_STATUS_PROJECTION.noMutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
     expect(contract.projections.premiumRoomReportStatus).toMatchObject({
       state: '<none|reported|blinded|suspended|admin_review|resolved>',
       labelKey: '<stable Korean-copy key>',

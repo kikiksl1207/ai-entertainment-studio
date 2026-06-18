@@ -1644,6 +1644,16 @@ candidates before mutation routes are enabled.
   repeated candidate evaluation replays the existing safe projection without a
   second refund, wallet ledger, settlement, payout, or status-event mutation.
 - Unknown future room statuses fail closed as `safe_status_only`.
+- #1014 adds `PREMIUM_CHAT_UNANSWERED_REFUND_STATUS_PROJECTION` for the 24-hour
+  no-artist-answer read model. Active/opened rooms with no artist answer after
+  24 hours can project `refund_pending` with reason
+  `unanswered_24h_full_refund`, but this remains a candidate state and never a
+  completed refund. User-fault/report/sanction paths stay separate:
+  `refund_limited_70` means 70% user refund, 20% company retention, and 10%
+  artist compensation; `refund_limited_50` means 50% user refund, 40% company
+  retention, and 10% artist compensation. The projection returns status and
+  rate keys only and does not create refunds, wallet credits/debits, accounting
+  ledger rows, settlement, payout, notifications, or room status mutation.
 
 Premium chat hub status matrix projection (#933):
 
