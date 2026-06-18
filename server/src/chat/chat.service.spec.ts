@@ -7,6 +7,7 @@ import {
   CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT,
   PREMIUM_CHAT_COMMUNICATION_DONATION_RANKING_READ_MODEL_CONTRACT,
   PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT,
+  PREMIUM_CHAT_DONATION_LEDGER_IDEMPOTENCY_SKELETON,
   PREMIUM_CHAT_DONATION_DISABLED_REASON_BY_STATUS,
   PREMIUM_CHAT_DONATION_ROOM_BLOCKED_STATUSES,
   resolvePremiumChatDonationAmountPolicy,
@@ -6487,6 +6488,73 @@ describe('ChatService premium chat support contract', () => {
       'PREMIUM_CHAT_DONATION_AMOUNT_INVALID',
       'PREMIUM_CHAT_DONATION_AMOUNT_OUT_OF_RANGE',
     ]);
+    expect(contract.donation.ledgerIdempotencySkeleton).toBe(
+      PREMIUM_CHAT_DONATION_LEDGER_IDEMPOTENCY_SKELETON,
+    );
+    expect(contract.donation.ledgerIdempotencySkeleton).toMatchObject({
+      version: '2026-06-18.premium-chat-donation-ledger-idempotency.v1',
+      status: 'contract_only_mutation_disabled',
+      sourceSurface: 'premium_chat_plus_menu',
+      allowedAmountsLumina: [10, 50, 100, 500, 1000, 5000, 10000, 50000],
+      directInput: {
+        supported: true,
+        minLumina: 1,
+        maxLumina: 50000,
+        integerOnly: true,
+      },
+      donationLedger: {
+        domainRecord: 'premium_chat_donations',
+        walletLedgerType: 'premium_chat_donation',
+        supportPointLedgerType: 'premium_chat_donation_support_point',
+        referenceType: 'premium_chat_donation',
+        amountSource: 'server_normalized_integer_lumina',
+      },
+      idempotency: {
+        required: true,
+        clientKeyRequired: true,
+        scope: ['userId', 'roomId', 'idempotencyKey'],
+        fingerprintFields: [
+          'roomId',
+          'artistId',
+          'amountLumina',
+          'messageHash',
+          'sourceSurface',
+        ],
+        mismatchBehavior: {
+          status: 409,
+          code: 'PREMIUM_CHAT_DONATION_IDEMPOTENCY_MISMATCH',
+          messageKey: 'chat.donation.idempotencyMismatch',
+          walletMutation: false,
+          supportPointLedgerMutation: false,
+        },
+        missingKeyBehavior: {
+          status: 400,
+          code: 'PREMIUM_CHAT_DONATION_IDEMPOTENCY_REQUIRED',
+          messageKey: 'chat.donation.idempotencyRequired',
+          walletMutation: false,
+          supportPointLedgerMutation: false,
+        },
+      },
+      rankingProjection: {
+        donationEventProjection: 'premiumChatDonationEventProjection',
+        supportPointLedgerProjection: 'premiumChatDonationLedgerProjection',
+        communicationLaneReceives: ['confirmed_net_donation_weighted_factor'],
+        donationLaneReceives: ['confirmed_net_donation_amount'],
+        likeRankingReceivesDonation: false,
+        excludesAfterRefundChargebackOrCancel: true,
+        rawSupportMessageReturnedInRanking: false,
+      },
+      mutationPolicy: {
+        donationCreateEnabled: false,
+        walletDebitEnabled: false,
+        walletCreditEnabled: false,
+        walletLedgerWriteEnabled: false,
+        supportPointLedgerWriteEnabled: false,
+        rankingSnapshotWriteEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+    });
     expect(contract.donation.projectionSeparation).toMatchObject({
       roomMessageProjection: 'premiumRoomMessageProjection',
       supportMessageProjection: 'premiumChatSupportMessageProjection',
