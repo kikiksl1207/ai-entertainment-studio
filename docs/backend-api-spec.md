@@ -2975,6 +2975,16 @@ AI premium content request brief API skeleton (#662):
   `video_generation_primary`, and `mixed_generation_pack`, plus
   `ai_premium_content.*` route aliases. Vendor/provider/model names remain
   non-contract implementation details.
+- #1013 adds `AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON` for the future
+  middleware route selection surface
+  `POST /api/v1/ai-premium-content/requests/model-routing`. It separates
+  request type, server-resolved artist context, server-owned safety state,
+  selected route alias/adapter family, and server cost policy. The skeleton is
+  disabled and must not call GPT Image, Stable Diffusion, Seedance, OpenAI, or
+  any provider; it also must not create queue/request rows, debit wallet/Lumina,
+  create payment orders, or touch settlement/payout. Selected vendor model ids,
+  provider payloads, raw prompts, safety payloads, and provider secrets are not
+  returned.
 - #907 adds the future result archive read projection at
   `GET /api/v1/me/ai-premium-content/results`. It remains disabled and
   read-only, but defines one owner-facing archive for image, video, and mixed

@@ -936,6 +936,77 @@ export const AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON = {
   },
 } as const;
 
+export const AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON = {
+  version: '2026-06-18.ai-premium-content-model-routing-api-skeleton.v1',
+  method: 'POST',
+  path: '/api/v1/ai-premium-content/requests/model-routing',
+  status: 'skeleton_ready_mutation_blocked',
+  enabled: false,
+  authRequired: true,
+  artistOperatorRequired: true,
+  providerCallEnabled: false,
+  queueMutationEnabled: false,
+  walletMutationEnabled: false,
+  request: {
+    requestType: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+    artistContext: {
+      artistSlugRequired: true,
+      serverResolvedArtistId: true,
+      clientSubmittedArtistIdTrusted: false,
+      personaContextSource: 'approved_artist_profile_projection',
+    },
+    safetyState: {
+      allowed: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+      source: 'server_safety_precheck_projection',
+      clientSubmittedSafetyTrusted: false,
+    },
+    costPolicy: {
+      source: 'server_route_cost_policy',
+      clientSubmittedCostTrusted: false,
+      providerQuoteTrusted: false,
+    },
+  },
+  routingDecision: {
+    selectedOutputClassSource: 'request_type_policy',
+    selectedRouteAliasSource: 'request_type_policy.providerRouteAlias',
+    selectedAdapterKeys: AI_PREMIUM_CONTENT_PROVIDER_ADAPTER_KEYS,
+    selectedModelKeyReturned: false,
+    vendorModelKeyReturned: false,
+    providerPayloadReturned: false,
+  },
+  validationOrder: [
+    'require_auth',
+    'require_artist_operator',
+    'validate_request_type',
+    'resolve_artist_context',
+    'load_server_safety_state',
+    'check_server_cost_policy',
+    'select_route_alias_without_provider_call',
+    'return_routing_projection_without_mutation',
+  ],
+  noMutationPolicy: {
+    gptImageCall: false,
+    stableDiffusionCall: false,
+    seedanceCall: false,
+    openAiProviderCall: false,
+    providerCall: false,
+    queueCreate: false,
+    requestCreate: false,
+    walletDebit: false,
+    luminaDebit: false,
+    paymentOrderCreate: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+  privacy: {
+    rawPromptReturned: false,
+    rawProviderPayloadReturned: false,
+    rawSafetyPayloadReturned: false,
+    providerSecretReturned: false,
+    vendorModelIdentifierReturned: false,
+  },
+} as const;
+
 export const AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT = {
   version: '2026-06-16.ai-premium-content-status-preview-fixture.v1',
   feature: 'ai_premium_content_status_preview_fixture',
@@ -1669,6 +1740,7 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   characterChatHandoff: CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT,
   requestQueueSkeleton: AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON,
   costRetryReadModel: AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
+  modelRoutingApiSkeleton: AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON,
   createStatusApiSkeleton: AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
   statusPreviewFixture: AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
   statusCopy: {

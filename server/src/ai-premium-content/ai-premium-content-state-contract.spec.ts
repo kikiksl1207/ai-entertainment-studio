@@ -5,6 +5,7 @@ import {
   AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
   AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY,
   AI_PREMIUM_CONTENT_MODERATION_STATUSES,
+  AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON,
   AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
   AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
   AI_PREMIUM_CONTENT_PROVIDER_ADAPTER_KEYS,
@@ -82,12 +83,93 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     expect(contract.costRetryReadModel).toBe(
       AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
     );
+    expect(contract.modelRoutingApiSkeleton).toBe(
+      AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON,
+    );
     expect(contract.createStatusApiSkeleton).toBe(
       AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
     );
     expect(contract.statusPreviewFixture).toBe(
       AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
     );
+  });
+
+  it('defines a disabled common image video model routing API skeleton', () => {
+    expect(AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON).toMatchObject({
+      version: '2026-06-18.ai-premium-content-model-routing-api-skeleton.v1',
+      method: 'POST',
+      path: '/api/v1/ai-premium-content/requests/model-routing',
+      status: 'skeleton_ready_mutation_blocked',
+      enabled: false,
+      authRequired: true,
+      artistOperatorRequired: true,
+      providerCallEnabled: false,
+      queueMutationEnabled: false,
+      walletMutationEnabled: false,
+      request: {
+        requestType: [
+          'image_single',
+          'image_variation',
+          'image_reference',
+          'video_clip',
+          'video_loop',
+          'premium_pack',
+        ],
+        artistContext: {
+          artistSlugRequired: true,
+          serverResolvedArtistId: true,
+          clientSubmittedArtistIdTrusted: false,
+          personaContextSource: 'approved_artist_profile_projection',
+        },
+        safetyState: {
+          allowed: ['pending', 'needs_review', 'blocked', 'cleared'],
+          source: 'server_safety_precheck_projection',
+          clientSubmittedSafetyTrusted: false,
+        },
+        costPolicy: {
+          source: 'server_route_cost_policy',
+          clientSubmittedCostTrusted: false,
+          providerQuoteTrusted: false,
+        },
+      },
+      routingDecision: {
+        selectedOutputClassSource: 'request_type_policy',
+        selectedRouteAliasSource: 'request_type_policy.providerRouteAlias',
+        selectedAdapterKeys: [
+          'image_generation_primary',
+          'image_generation_diffusion',
+          'video_generation_primary',
+          'mixed_generation_pack',
+        ],
+        selectedModelKeyReturned: false,
+        vendorModelKeyReturned: false,
+        providerPayloadReturned: false,
+      },
+      privacy: {
+        rawPromptReturned: false,
+        rawProviderPayloadReturned: false,
+        rawSafetyPayloadReturned: false,
+        providerSecretReturned: false,
+        vendorModelIdentifierReturned: false,
+      },
+    });
+    expect(
+      AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON.validationOrder,
+    ).toEqual([
+      'require_auth',
+      'require_artist_operator',
+      'validate_request_type',
+      'resolve_artist_context',
+      'load_server_safety_state',
+      'check_server_cost_policy',
+      'select_route_alias_without_provider_call',
+      'return_routing_projection_without_mutation',
+    ]);
+    expect(
+      Object.values(
+        AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON.noMutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
   });
 
   it('keeps current image/video queues unchanged while future storage is blocked', () => {
