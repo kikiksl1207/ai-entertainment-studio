@@ -1,4 +1,5 @@
 import {
+  STORY_STAGE_AI_ARTIST_SETTLEMENT_SPLIT_SKELETON,
   STORY_STAGE_CONTRACT,
   STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD,
   STORY_STAGE_PURCHASE_LEDGER_SKELETON,
@@ -118,5 +119,60 @@ describe('Story Stage contract skeleton', () => {
       amountLumina: 'server_calculated_integer_lumina',
       idempotencyKey: 'story_stage:<purchaseType>:<userId>:<referenceId>',
     });
+  });
+
+  it('defines AI artist companion settlement split as a read-only skeleton', () => {
+    const skeleton = STORY_STAGE_AI_ARTIST_SETTLEMENT_SPLIT_SKELETON;
+
+    expect(STORY_STAGE_CONTRACT.aiArtistSettlementSplitSkeleton).toBe(skeleton);
+    expect(skeleton).toMatchObject({
+      version: '2026-06-18.story-stage-ai-artist-settlement-split.v1',
+      status: 'read_model_skeleton_only',
+      readModel: 'story_stage_settlement_preview',
+      aiArtistParticipation: {
+        appliesWhenAiArtistCompanionPresent: true,
+        aiParticipationCostRateBps: 5000,
+        aiCreatorSettlementRateBps: 5000,
+        sourceAmount: 'gross_story_purchase_amount_lumina',
+        settlementBucket: 'ai_creator_participation_cost',
+      },
+      storyAuthorSettlement: {
+        remainingBasisAfterAiCost: true,
+        maxAuthorSettlementRateBps: 5000,
+        sourceAmount: 'gross_minus_ai_participation_cost',
+        settlementBucket: 'story_author_share',
+      },
+      mutationPolicy: {
+        contractAddsSettlementEndpoint: false,
+        settlementMutation: false,
+        payoutMutation: false,
+        walletMutation: false,
+        walletLedgerMutation: false,
+        paymentMutation: false,
+      },
+      responsePolicy: {
+        readOnly: true,
+        stableCodeRequired: true,
+        messageKeyRequired: true,
+        rawUserFacingEnglishCopy: false,
+        privateUserIdentifierReturned: false,
+      },
+    });
+    expect(skeleton.splitOrder).toEqual([
+      'load_granted_story_purchase',
+      'detect_ai_artist_companion_participation',
+      'reserve_ai_participation_cost_first',
+      'calculate_story_author_share_from_remaining_basis',
+      'publish_read_only_preview_without_mutation',
+    ]);
+    expect(skeleton.projectionFields).toEqual(
+      expect.arrayContaining([
+        'grossAmountLumina',
+        'aiParticipationCostLumina',
+        'storyAuthorBasisLumina',
+        'storyAuthorMaxShareLumina',
+        'platformRemainderLumina',
+      ]),
+    );
   });
 });
