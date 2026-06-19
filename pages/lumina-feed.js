@@ -418,6 +418,15 @@ function renderLuminaFeed() {
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 9l5-5m0 0v4m0-4h-4M10 15l-5 5m0 0v-4m0 4h4" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 4l-7 7M5 20l7-7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/></svg>
               <span class="feed-action-btn-label">공유</span>
             </button>
+            ${(!isMineByViewer && (post.authorPublicHandle || post.authorUserId))
+              ? `<button class="feed-action-btn feed-block-btn" type="button"
+                    data-feed-block="${feedEscapeHtml(post.authorPublicHandle || String(post.authorUserId))}"
+                    data-feed-block-name="${feedEscapeHtml(authorName)}"
+                    aria-label="이 사용자 차단" title="이 사용자 차단">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 6l12 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              <span class="feed-action-btn-label">차단</span>
+            </button>`
+              : ""}
             ${editButton}
             ${deleteButton}
           </div>
@@ -1780,6 +1789,12 @@ async function runFeedComposeUploadStages(item, onStateChange) {
             '<button class="feed-action-btn feed-share-btn" type="button" data-feed-share="' + postIdStr + '" aria-label="이 글 공유하기" title="이 글 공유하기">' +
               '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.2" stroke="currentColor" fill="none" stroke-width="1.6"/><circle cx="6" cy="12" r="2.2" stroke="currentColor" fill="none" stroke-width="1.6"/><circle cx="18" cy="19" r="2.2" stroke="currentColor" fill="none" stroke-width="1.6"/><line x1="8.1" y1="10.9" x2="15.9" y2="6.1" stroke="currentColor" stroke-width="1.6"/><line x1="8.1" y1="13.1" x2="15.9" y2="17.9" stroke="currentColor" stroke-width="1.6"/></svg>' +
             '</button>' +
+            ((!isMineByViewer && (post.authorPublicHandle || post.authorUserId))
+              ? '<button class="feed-action-btn feed-block-btn" type="button" data-feed-block="' + feedEscapeHtml(post.authorPublicHandle || String(post.authorUserId)) + '" data-feed-block-name="' + feedEscapeHtml(authorName) + '" aria-label="이 사용자 차단" title="이 사용자 차단">' +
+                '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 6l12 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' +
+                '<span class="feed-action-btn-label">차단</span>' +
+              '</button>'
+              : '') +
             editButton + deleteButton +
           '</div>' +
         '</footer>' +
@@ -2286,6 +2301,14 @@ async function runFeedComposeUploadStages(item, onStateChange) {
         e.preventDefault();
         var sInfo = findPostFromCard(shareBtn);
         handleFeedShare(sInfo);
+        return;
+      }
+      var blockBtn = e.target.closest("[data-feed-block]");
+      if (blockBtn) {
+        e.preventDefault();
+        // #1018 — 사용자 차단 진입점. 실제 block mutation은 #1023 서버 계약 확정 전까지 실행하지 않음.
+        var blockName = blockBtn.getAttribute("data-feed-block-name") || "이 사용자";
+        window.alert(blockName + " 님을 차단하면 이 사용자의 글과 댓글이 내 피드와 팔로잉 목록에서 보이지 않아요.");
         return;
       }
     });
