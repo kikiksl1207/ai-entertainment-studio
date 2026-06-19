@@ -279,6 +279,7 @@ describe('Story Stage contract skeleton', () => {
       ]),
     );
   });
+});
 
 describe('Story stage pack chapter session contract skeleton', () => {
   it('publishes StoryPack StoryChapter StorySession and StoryChoice skeletons without enabling mutations', () => {
