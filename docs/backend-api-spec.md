@@ -639,6 +639,15 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   API keys, or DB URLs. The endpoint must not fetch external URLs, train/call a
   provider, generate chat replies, create chat messages, approve/reject/archive
   rows, or mutate wallet, Lumina, settlement, or payout state.
+- #1047 mounts `GET /api/v1/chat/artist-url-knowledge-preview-fixture` as a
+  public read-only preview for live QA when creator/operator sessions are not
+  available. It returns inert pending, approved, rejected, archived,
+  approved-but-chat-disabled, and approved-but-summary-missing examples so QA
+  can verify that only approved, safe, `allowChatReference=true`,
+  bounded-summary rows become character-chat context candidates. The preview
+  does not crawl external URLs, train or call providers, generate chat replies,
+  mutate approval/archive rows, or touch wallet, settlement, payout, tokens,
+  cookies, raw emails, raw page bodies, provider payloads, or DB URLs.
 - #780 fixes the ingest moderation handoff guard. Rows with
   `ingestStatus=ai_processing` stay excluded from character-chat context until
   review marks them `approved_for_chat`; raw URL query strings, private URLs,
