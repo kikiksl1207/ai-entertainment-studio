@@ -1,6 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
+  CHARGE_PACKAGE_ADMIN_READ_ONLY_AUDIT_GUARD,
   CHARGE_FIXTURE_PAYMENT_SEPARATION_CONTRACT,
   FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT,
   FIRST_CHARGE_BONUS_READ_ONLY_AUDIT_PROJECTION,
@@ -301,6 +302,7 @@ describe('PaymentsService server-authority contract', () => {
         packageBonusAndFirstChargeShareLedgerType: false,
         packageBonusAndFirstChargeShareAuditRow: false,
       },
+      adminReadOnlyAuditGuard: CHARGE_PACKAGE_ADMIN_READ_ONLY_AUDIT_GUARD,
     });
     expect(projection.products.map((product) => product.priceAmountKrw)).toEqual([
       1000, 3000, 5000, 10000, 50000, 100000,
@@ -338,6 +340,81 @@ describe('PaymentsService server-authority contract', () => {
       repeatChargeCreditLumina: 12000,
       firstChargeTotalCreditLumina: 13000,
     });
+  });
+
+  it('guards admin charge package audit as super-admin read-only without payment or wallet side effects', () => {
+    const guard = CHARGE_PACKAGE_ADMIN_READ_ONLY_AUDIT_GUARD;
+
+    expect(guard).toMatchObject({
+      status: 'read_only_audit_contract',
+      endpoint: 'GET /api/v1/admin/payments/charge-packages/audit',
+      requiredRole: 'super_admin',
+      requiredPermission: 'payments:read',
+      mutation: false,
+      paymentOrderCreate: false,
+      paymentProviderCall: false,
+      walletCredit: false,
+      bonusGrant: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      packageScope: {
+        canonicalPackageCount: 6,
+        sourceOfTruth: 'ACTIVE_CHARGE_PRODUCT_SPECS',
+        clientSubmittedProductTrusted: false,
+        clientSubmittedAmountTrusted: false,
+      },
+      firstChargeAudit: {
+        grantLimit: 'once_per_user_across_all_six_packages',
+        idempotencyKeyPattern: 'first_charge_bonus:<userId>',
+        duplicateGrantBehavior: 'show_existing_ledger_without_second_bonus',
+        packageBonusSeparatedFromFirstCharge: true,
+        highValuePackageBonusSkus: ['LUMINA_5800', 'LUMINA_12000'],
+        firstChargeBasis: 'base_lumina_only',
+        firstChargeRateBps: 1000,
+      },
+      forbiddenSideEffects: {
+        paymentOrderCreate: false,
+        providerCheckout: false,
+        walletCredit: false,
+        bonusGrant: false,
+        settlement: false,
+        payout: false,
+      },
+      errorResponses: {
+        forbidden: {
+          code: 'PAYMENT_ADMIN_AUDIT_FORBIDDEN',
+          messageKey: 'payments.adminAudit.forbidden',
+        },
+        unavailable: {
+          code: 'PAYMENT_ADMIN_AUDIT_UNAVAILABLE',
+          messageKey: 'payments.adminAudit.unavailable',
+        },
+      },
+      privacy: {
+        rawEmailReturned: false,
+        providerTransactionIdReturned: false,
+        paymentCredentialReturned: false,
+        tokenReturned: false,
+        cookieReturned: false,
+      },
+    });
+    expect(guard.packageScope.skus).toEqual(
+      ACTIVE_CHARGE_PRODUCT_SPECS.map((product) => product.sku),
+    );
+    expect(guard.packageScope.priceAmountsKrw).toEqual([
+      1000, 3000, 5000, 10000, 50000, 100000,
+    ]);
+    expect(guard.projectionFields).toEqual(
+      expect.arrayContaining([
+        'sku',
+        'priceAmountKrw',
+        'baseLuminaAmount',
+        'packageBonusLumina',
+        'firstChargeBonusLumina',
+        'firstChargeEligibilityState',
+        'duplicateFirstChargeGrantState',
+      ]),
+    );
   });
 
   it('applies first-charge 10 percent once across all six canonical packages without mixing package bonus ledger reasons', async () => {
