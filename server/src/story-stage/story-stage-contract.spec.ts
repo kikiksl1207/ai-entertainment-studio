@@ -258,6 +258,31 @@ describe('Story Stage contract skeleton', () => {
         payoutHoldMutation: false,
         requiresOperatorDecision: true,
       },
+      readOnlyAuditGuard: {
+        version: '2026-06-22.story-refund-penalty-read-only-audit-guard.v1',
+        status: 'read_model_contract_only',
+        conflictPolicy: 'separate_refund_candidates_from_author_penalty_preview',
+        chapterBuckets: {
+          completed: {
+            refundEligible: false,
+            authorPenaltyApplies: false,
+            settlementRateLocked: true,
+            reasonKey: 'reader_already_completed_chapter',
+          },
+          incompleteStarted: {
+            refundEligible: true,
+            authorPenaltyApplies: false,
+            settlementRateLocked: false,
+            reasonKey: 'unconsumed_started_chapter',
+          },
+          discontinuedFuture: {
+            refundEligible: true,
+            authorPenaltyApplies: true,
+            settlementRateLocked: false,
+            reasonKey: 'author_discontinued_future_chapter',
+          },
+        },
+      },
       mutationPolicy: {
         contractAddsRefundEndpoint: false,
         refundMutation: false,
@@ -278,6 +303,20 @@ describe('Story Stage contract skeleton', () => {
         'reviewRequired',
       ]),
     );
+    expect(readModel.readOnlyAuditGuard.auditProjectionFields).toEqual([
+      'chapterBucket',
+      'refundCandidateState',
+      'authorPenaltyState',
+      'settlementRateLocked',
+      'refundMutationAllowed',
+      'settlementMutationAllowed',
+      'payoutMutationAllowed',
+    ]);
+    expect(readModel.readOnlyAuditGuard.forbiddenMergedStates).toEqual([
+      'completed_chapter_refund_and_penalty_same_row',
+      'wallet_refund_and_settlement_rate_update_same_action',
+      'payout_hold_and_user_refund_credit_same_action',
+    ]);
   });
 });
 
