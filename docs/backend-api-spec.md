@@ -3064,6 +3064,14 @@ AI premium content request brief API skeleton (#662):
   must not create requests, call GPT Image, Stable Diffusion, Seedance,
   OpenAI/provider routes, debit wallet, create orders, settlement, payout,
   paid-like, or publish/equip content.
+- #1044 mounts the #934 status preview fixture route as a read-only,
+  unauthenticated QA projection so no-provider live smoke can receive a stable
+  200 response instead of a missing route. The response exposes Korean display
+  labels and message keys only, keeps raw enum values out of UI copy, and
+  reports provider, prompt, safety payload, signed URL, internal cost, request,
+  wallet, order, settlement, payout, paid-like, and publish/equip side effects
+  as disabled. This does not enable submit, generation, provider routing, or
+  owner-facing status APIs.
 - #1030 adds
   `AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON` for future
   owner-facing read status at `GET /api/v1/me/ai-premium-content/requests`,
