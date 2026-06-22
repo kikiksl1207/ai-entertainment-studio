@@ -10,6 +10,7 @@ import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ChatService } from './chat.service';
+import { buildPremiumChatRefundStatusPreviewFixture } from './premium-chat-refund-status-preview-fixture';
 
 type PremiumRoomListQuery = {
   artistSlug?: string;
@@ -21,6 +22,11 @@ type PremiumRoomListQuery = {
 @Controller()
 export class PremiumChatRoomsReadController {
   constructor(private readonly chatService: ChatService) {}
+
+  @Get('chat/premium-rooms/refund-status-preview-fixture')
+  getPremiumRoomRefundStatusPreviewFixture() {
+    return buildPremiumChatRefundStatusPreviewFixture();
+  }
 
   @Get('chat/premium-rooms')
   getPremiumRooms(@Query() query: PremiumRoomListQuery) {

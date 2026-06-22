@@ -1747,6 +1747,16 @@ report, settlement, or payout mutation paths.
   admin-prepared QA rows for safe QA accounts. They must not be created through
   actual payment, support donation, wallet debit/credit, report, refund,
   settlement, payout, or production customer data flows.
+- #1045 mounts
+  `GET /api/v1/chat/premium-rooms/refund-status-preview-fixture` as an
+  unauthenticated read-only preview for live QA when safe room rows or sessions
+  are unavailable. It returns inert examples for 24-hour unanswered 100% refund
+  candidate, 70% limited refund with 10% artist compensation, 50% limited refund
+  with 10% artist compensation, and artist-forced-close 100% refund. The
+  endpoint does not create rooms, reports, refunds, wallet ledger rows,
+  settlement, payout, donation/support rows, or payment mutations, and does not
+  expose raw chat bodies, raw report reasons, wallet ledger ids, provider refund
+  ids, tokens, cookies, secrets, or DB URLs.
 - Repeated verification must return the existing read-only projection and must
   not create duplicate wallet ledger, refund, report, moderation, settlement, or
   payout rows.

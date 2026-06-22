@@ -47,6 +47,10 @@ describe('PremiumChatRoomsReadController', () => {
       expect.arrayContaining([
         expect.objectContaining({
           method: RequestMethod.GET,
+          path: 'chat/premium-rooms/refund-status-preview-fixture',
+        }),
+        expect.objectContaining({
+          method: RequestMethod.GET,
           path: 'chat/premium-rooms',
         }),
         expect.objectContaining({
@@ -64,6 +68,73 @@ describe('PremiumChatRoomsReadController', () => {
       ]),
     );
     expect(routes.some((route) => route.method !== RequestMethod.GET)).toBe(false);
+  });
+
+  it('returns a public read-only refund status preview fixture without mutations', () => {
+    const controller = new PremiumChatRoomsReadController({} as never);
+    const response = controller.getPremiumRoomRefundStatusPreviewFixture();
+
+    expect(response).toMatchObject({
+      feature: 'premium_chat_refund_status_preview_fixture',
+      status: 'read_only_fixture_ready',
+      readOnly: true,
+      authRequired: false,
+      endpoint: {
+        method: 'GET',
+        path: '/api/v1/chat/premium-rooms/refund-status-preview-fixture',
+        mounted: true,
+      },
+      noMutation: {
+        messageMutation: false,
+        supportDonationMutation: false,
+        walletDebitMutation: false,
+        walletCreditMutation: false,
+        refundMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+      privacy: {
+        rawChatBodyReturned: false,
+        rawReportReasonReturned: false,
+        rawWalletLedgerIdReturned: false,
+        providerRefundIdReturned: false,
+        tokenCookieSecretDbUrlReturned: false,
+      },
+    });
+    expect(response.items.map((item) => item.qaBucket)).toEqual([
+      'unanswered_24h_refund_candidate',
+      'refund_limited_70_artist_10',
+      'refund_limited_50_artist_10',
+      'artist_forced_close_full_refund',
+    ]);
+    expect(response.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          refundStatus: expect.objectContaining({
+            refundRatePercent: 70,
+            artistCompensationRatePercent: 10,
+          }),
+        }),
+        expect.objectContaining({
+          refundStatus: expect.objectContaining({
+            refundRatePercent: 50,
+            artistCompensationRatePercent: 10,
+          }),
+        }),
+      ]),
+    );
+    expect(
+      response.items.every((item) =>
+        Object.values(item.noMutation).every((enabled) => enabled === false),
+      ),
+    ).toBe(true);
+    expect(
+      response.items.every(
+        (item) =>
+          item.copySafety.rawStatusAsCopy === false &&
+          item.copySafety.rawEnumCopyReturned === false,
+      ),
+    ).toBe(true);
   });
 
   it('returns stable error metadata for invalid list take values', () => {
