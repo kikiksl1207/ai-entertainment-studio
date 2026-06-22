@@ -3084,6 +3084,14 @@ AI premium content request brief API skeleton (#662):
   OpenAI/provider calls, request creation, regeneration submission, payment,
   wallet, settlement, payout, paid-like, feed publish, or profile equip
   mutation.
+- #1053 adds `AI_PREMIUM_CONTENT_VIDEO_CONSENT_EXCEPTION_CONTRACT` for the
+  video-only cost-consent exception state. It remains disabled/read-only and
+  does not submit requests, call providers, create payment orders, debit wallet,
+  or touch settlement/payout. If a user declines video cost consent, video
+  results stay hidden while existing text/image request flow and safe previews
+  continue; the whole request is not cancelled by this state. UI copy must use
+  Korean fallback labels such as "영상 제작 비용 동의가 필요해요" and
+  "영상 제작은 진행하지 않아요" rather than raw state/provider enums.
 - #883 does not enable GPT Image, Stable Diffusion, Seedance, OpenAI/provider
   calls, image/video generation, wallet debit, order creation, settlement,
   payout, paid-like mutation, profile equip, or feed publish side effects.
