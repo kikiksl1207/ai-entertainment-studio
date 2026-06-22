@@ -372,6 +372,25 @@ describe('CommunityService user follow/block mutation contract', () => {
           },
           viewerHintsMustNotLeakBlockedUserPrivateFields: true,
         },
+        projectionRegressionGuard: {
+          version: '2026-06-22.feed-block-projection-regression-guard.v1',
+          status: 'contract_only_no_new_mutation',
+          source: 'user_blocks',
+          relationshipDirection: 'either_direction',
+          blockActionEntryPoint: {
+            surfaces: ['feed_post_menu', 'feed_mini_profile'],
+            serverEndpoint: 'POST /api/v1/users/:userId/block',
+            projectionOnlyByThisContract: true,
+          },
+          mutationPolicy: {
+            followMutation: false,
+            unfollowMutation: false,
+            blockMutationExecutedByRegressionGuard: false,
+            walletMutation: false,
+            luminaMutation: false,
+            settlementMutation: false,
+          },
+        },
         writePolicy: {
           failBeforeCommunityMutation: true,
           failBeforeNotificationMutation: true,
@@ -419,6 +438,34 @@ describe('CommunityService user follow/block mutation contract', () => {
         'POST /api/v1/lumina-feed/posts/:postId/reposts',
       ]),
     );
+    expect(
+      USER_SOCIAL_ACCOUNT_CONTRACT.feedInteractionGuards
+        .projectionRegressionGuard.scenarios,
+    ).toEqual([
+      expect.objectContaining({
+        surface: 'feed_list',
+        expected: 'blocked_author_rows_excluded_before_pagination_and_count',
+      }),
+      expect.objectContaining({
+        surface: 'comments',
+        expected:
+          'blocked_reply_author_rows_excluded_before_pagination_and_count',
+      }),
+      expect.objectContaining({
+        surface: 'reposts',
+        expected: 'blocked_original_author_renders_tombstone_without_body',
+      }),
+      expect.objectContaining({
+        surface: 'followers',
+        expected:
+          'blocked_follower_rows_excluded_before_pagination_and_count',
+      }),
+      expect.objectContaining({
+        surface: 'following',
+        expected:
+          'blocked_following_rows_excluded_before_pagination_and_count',
+      }),
+    ]);
     expect(
       USER_SOCIAL_ACCOUNT_CONTRACT.premiumChatRelationshipGuards.blockedSurfaces,
     ).toEqual(

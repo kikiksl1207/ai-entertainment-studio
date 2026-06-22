@@ -466,6 +466,58 @@ export const USER_SOCIAL_ACCOUNT_CONTRACT = {
       },
       viewerHintsMustNotLeakBlockedUserPrivateFields: true,
     },
+    projectionRegressionGuard: {
+      version: '2026-06-22.feed-block-projection-regression-guard.v1',
+      status: 'contract_only_no_new_mutation',
+      source: 'user_blocks',
+      relationshipDirection: 'either_direction',
+      scenarios: [
+        {
+          surface: 'feed_list',
+          endpoints: ['GET /api/v1/me/lumina-feed'],
+          expected: 'blocked_author_rows_excluded_before_pagination_and_count',
+        },
+        {
+          surface: 'comments',
+          endpoints: ['GET /api/v1/lumina-feed/posts/:postId/replies'],
+          expected: 'blocked_reply_author_rows_excluded_before_pagination_and_count',
+        },
+        {
+          surface: 'reposts',
+          endpoints: ['GET /api/v1/lumina-feed/posts/:postId'],
+          expected: 'blocked_original_author_renders_tombstone_without_body',
+        },
+        {
+          surface: 'followers',
+          endpoints: [
+            'GET /api/v1/users/:userId/followers',
+            'GET /api/v1/users/handle/:publicHandle/followers',
+          ],
+          expected: 'blocked_follower_rows_excluded_before_pagination_and_count',
+        },
+        {
+          surface: 'following',
+          endpoints: [
+            'GET /api/v1/users/:userId/following-users',
+            'GET /api/v1/users/handle/:publicHandle/following-users',
+          ],
+          expected: 'blocked_following_rows_excluded_before_pagination_and_count',
+        },
+      ],
+      blockActionEntryPoint: {
+        surfaces: ['feed_post_menu', 'feed_mini_profile'],
+        serverEndpoint: 'POST /api/v1/users/:userId/block',
+        projectionOnlyByThisContract: true,
+      },
+      mutationPolicy: {
+        followMutation: false,
+        unfollowMutation: false,
+        blockMutationExecutedByRegressionGuard: false,
+        walletMutation: false,
+        luminaMutation: false,
+        settlementMutation: false,
+      },
+    },
     writePolicy: {
       failBeforeCommunityMutation: true,
       failBeforeNotificationMutation: true,
