@@ -19,6 +19,77 @@ const DEFAULT_CURRENCY = 'LUMINA';
 const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
 const FIRST_CHARGE_BONUS_BASIS = 'base_lumina_only';
 
+export const CHARGE_PACKAGE_ADMIN_READ_ONLY_AUDIT_GUARD = {
+  version: '2026-06-22.charge-package-admin-read-only-audit-guard.v1',
+  status: 'read_only_audit_contract',
+  endpoint: 'GET /api/v1/admin/payments/charge-packages/audit',
+  requiredRole: 'super_admin',
+  requiredPermission: 'payments:read',
+  mutation: false,
+  paymentOrderCreate: false,
+  paymentProviderCall: false,
+  walletCredit: false,
+  bonusGrant: false,
+  settlementMutation: false,
+  payoutMutation: false,
+  packageScope: {
+    canonicalPackageCount: 6,
+    sourceOfTruth: 'ACTIVE_CHARGE_PRODUCT_SPECS',
+    skus: ACTIVE_CHARGE_PRODUCT_SPECS.map((product) => product.sku),
+    priceAmountsKrw: ACTIVE_CHARGE_PRODUCT_SPECS.map(
+      (product) => product.priceAmount,
+    ),
+    clientSubmittedProductTrusted: false,
+    clientSubmittedAmountTrusted: false,
+  },
+  firstChargeAudit: {
+    grantLimit: 'once_per_user_across_all_six_packages',
+    idempotencyKeyPattern: 'first_charge_bonus:<userId>',
+    duplicateGrantBehavior: 'show_existing_ledger_without_second_bonus',
+    packageBonusSeparatedFromFirstCharge: true,
+    highValuePackageBonusSkus: ['LUMINA_5800', 'LUMINA_12000'],
+    firstChargeBasis: FIRST_CHARGE_BONUS_BASIS,
+    firstChargeRateBps: 1000,
+  },
+  projectionFields: [
+    'sku',
+    'priceAmountKrw',
+    'baseLuminaAmount',
+    'packageBonusLumina',
+    'firstChargeBonusLumina',
+    'repeatChargeCreditLumina',
+    'firstChargeTotalCreditLumina',
+    'ledgerTypes',
+    'firstChargeEligibilityState',
+    'duplicateFirstChargeGrantState',
+  ],
+  forbiddenSideEffects: {
+    paymentOrderCreate: false,
+    providerCheckout: false,
+    walletCredit: false,
+    bonusGrant: false,
+    settlement: false,
+    payout: false,
+  },
+  errorResponses: {
+    forbidden: {
+      code: 'PAYMENT_ADMIN_AUDIT_FORBIDDEN',
+      messageKey: 'payments.adminAudit.forbidden',
+    },
+    unavailable: {
+      code: 'PAYMENT_ADMIN_AUDIT_UNAVAILABLE',
+      messageKey: 'payments.adminAudit.unavailable',
+    },
+  },
+  privacy: {
+    rawEmailReturned: false,
+    providerTransactionIdReturned: false,
+    paymentCredentialReturned: false,
+    tokenReturned: false,
+    cookieReturned: false,
+  },
+} as const;
+
 export const FIRST_CHARGE_BONUS_READ_ONLY_AUDIT_PROJECTION = {
   version: '2026-06-17.first-charge-bonus-read-only-audit-projection.v1',
   status: 'read_only_projection_contract',
@@ -41,6 +112,7 @@ export const FIRST_CHARGE_BONUS_READ_ONLY_AUDIT_PROJECTION = {
     packageBonusAndFirstChargeShareLedgerType: false,
     packageBonusAndFirstChargeShareAuditRow: false,
   },
+  adminReadOnlyAuditGuard: CHARGE_PACKAGE_ADMIN_READ_ONLY_AUDIT_GUARD,
   products: ACTIVE_CHARGE_PRODUCT_SPECS.map((product) => {
     const firstChargeBonusLumina = product.luminaAmount / 10;
     const repeatChargeCreditLumina =
