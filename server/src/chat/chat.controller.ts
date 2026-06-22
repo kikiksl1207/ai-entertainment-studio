@@ -12,6 +12,7 @@ import {
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { buildArtistUrlKnowledgePreviewFixture } from './artist-url-knowledge-preview-fixture';
 import { ChatService } from './chat.service';
 
 type CreateSessionBody = {
@@ -189,6 +190,11 @@ export class ChatController {
   @Get('chat/artist-url-knowledge-contract')
   getArtistUrlKnowledgeContract() {
     return this.chatService.getArtistUrlKnowledgeContract();
+  }
+
+  @Get('chat/artist-url-knowledge-preview-fixture')
+  getArtistUrlKnowledgePreviewFixture() {
+    return buildArtistUrlKnowledgePreviewFixture();
   }
 
   @Post('chat-feature-orders/preview')
