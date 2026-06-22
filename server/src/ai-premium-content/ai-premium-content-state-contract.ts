@@ -1102,6 +1102,106 @@ export const AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT = {
   },
 } as const;
 
+export const AI_PREMIUM_CONTENT_VIDEO_CONSENT_EXCEPTION_CONTRACT = {
+  version: '2026-06-22.ai-premium-content-video-consent-exception.v1',
+  feature: 'ai_premium_content_video_consent_exception',
+  status: 'contract_ready_submit_blocked',
+  enabled: false,
+  readOnly: true,
+  mutation: false,
+  providerCallEnabled: false,
+  paymentMutationEnabled: false,
+  walletMutationEnabled: false,
+  settlementMutationEnabled: false,
+  payoutMutationEnabled: false,
+  scope: {
+    appliesToOutputClasses: ['video', 'mixed'],
+    doesNotApplyToOutputClasses: ['image'],
+    existingTextAndImageFlowContinues: true,
+    videoResultHiddenWhenConsentDeclined: true,
+  },
+  states: [
+    {
+      stateKey: 'video_consent_not_required',
+      appliesToOutputClass: 'image',
+      videoResultVisible: false,
+      existingTextAndImageFlowContinues: true,
+      ctaKey: 'aiPremiumContent.videoConsent.notRequired',
+      labelKo: '영상 동의가 필요하지 않아요',
+      rawEnumAsCopy: false,
+    },
+    {
+      stateKey: 'video_consent_required',
+      appliesToOutputClass: 'video',
+      videoResultVisible: false,
+      existingTextAndImageFlowContinues: true,
+      ctaKey: 'aiPremiumContent.videoConsent.reviewCost',
+      labelKo: '영상 제작 비용 동의가 필요해요',
+      rawEnumAsCopy: false,
+    },
+    {
+      stateKey: 'video_consent_accepted',
+      appliesToOutputClass: 'video',
+      videoResultVisible: true,
+      existingTextAndImageFlowContinues: true,
+      ctaKey: 'aiPremiumContent.videoConsent.accepted',
+      labelKo: '영상 제작 비용 동의 완료',
+      rawEnumAsCopy: false,
+    },
+    {
+      stateKey: 'video_consent_declined',
+      appliesToOutputClass: 'video',
+      videoResultVisible: false,
+      existingTextAndImageFlowContinues: true,
+      ctaKey: 'aiPremiumContent.videoConsent.declined',
+      labelKo: '영상 제작은 진행하지 않아요',
+      helperKo:
+        '영상 비용 동의를 거절해도 기존 텍스트와 이미지 흐름은 계속 확인할 수 있어요.',
+      rawEnumAsCopy: false,
+    },
+  ],
+  declinePolicy: {
+    hidesVideoResult: true,
+    deletesTextResult: false,
+    deletesImageResult: false,
+    cancelsWholeRequest: false,
+    fallbackToImageOnlyAllowed: true,
+    rawProviderFailureAsCopy: false,
+  },
+  copyPolicy: {
+    locale: 'ko-KR',
+    rawEnumAsCopy: false,
+    rawProviderStatusAsCopy: false,
+    neutralFallbackCopy: '확인 중',
+    requiredFallbacks: {
+      reviewCost: '영상 제작 비용을 확인해 주세요',
+      accept: '동의하고 진행',
+      decline: '영상 없이 계속',
+      declined: '영상 제작은 진행하지 않아요',
+    },
+  },
+  noSideEffects: {
+    providerCall: true,
+    videoGeneration: true,
+    imageGeneration: true,
+    requestMutation: true,
+    paymentOrderCreate: true,
+    walletDebit: true,
+    settlementAccrual: true,
+    payoutAccrual: true,
+    paidLike: true,
+    publicPublish: true,
+  },
+  privacy: {
+    rawPromptReturned: false,
+    providerPayloadReturned: false,
+    safetyPayloadReturned: false,
+    internalCostReturned: false,
+    providerCostReturned: false,
+    tokenCookieSecretDbUrlReturned: false,
+  },
+} as const;
+
 type AiPremiumContentRequestType =
   (typeof AI_PREMIUM_CONTENT_REQUEST_TYPES)[number];
 
@@ -1973,6 +2073,8 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   modelRoutingApiSkeleton: AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON,
   createStatusApiSkeleton: AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
   statusPreviewFixture: AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
+  videoConsentException:
+    AI_PREMIUM_CONTENT_VIDEO_CONSENT_EXCEPTION_CONTRACT,
   resultAssetReuseAuditProjection:
     AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
   userFacingRequestStatusApiSkeleton:

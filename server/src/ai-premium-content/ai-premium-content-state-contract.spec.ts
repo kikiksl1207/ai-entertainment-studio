@@ -25,6 +25,7 @@ import {
   AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
   AI_PREMIUM_CONTENT_STATUS_COPY_KO,
   AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON,
+  AI_PREMIUM_CONTENT_VIDEO_CONSENT_EXCEPTION_CONTRACT,
   CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT,
   resolveAiPremiumContentCostPrecheck,
   resolveAiPremiumContentProviderGuard,
@@ -93,6 +94,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     );
     expect(contract.statusPreviewFixture).toBe(
       AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
+    );
+    expect(contract.videoConsentException).toBe(
+      AI_PREMIUM_CONTENT_VIDEO_CONSENT_EXCEPTION_CONTRACT,
     );
     expect(contract.resultAssetReuseAuditProjection).toBe(
       AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
@@ -936,6 +940,66 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       fixture.fixtureStates.every((state) => state.rawEnumAsCopy === false),
     ).toBe(true);
     expect(Object.values(fixture.noSideEffects).every((blocked) => blocked)).toBe(
+      true,
+    );
+  });
+
+  it('defines a video-only consent exception without breaking text or image flow', () => {
+    const contract = AI_PREMIUM_CONTENT_VIDEO_CONSENT_EXCEPTION_CONTRACT;
+
+    expect(contract).toMatchObject({
+      version: '2026-06-22.ai-premium-content-video-consent-exception.v1',
+      status: 'contract_ready_submit_blocked',
+      enabled: false,
+      readOnly: true,
+      mutation: false,
+      providerCallEnabled: false,
+      paymentMutationEnabled: false,
+      walletMutationEnabled: false,
+      scope: {
+        appliesToOutputClasses: ['video', 'mixed'],
+        doesNotApplyToOutputClasses: ['image'],
+        existingTextAndImageFlowContinues: true,
+        videoResultHiddenWhenConsentDeclined: true,
+      },
+      declinePolicy: {
+        hidesVideoResult: true,
+        deletesTextResult: false,
+        deletesImageResult: false,
+        cancelsWholeRequest: false,
+        fallbackToImageOnlyAllowed: true,
+      },
+      copyPolicy: {
+        locale: 'ko-KR',
+        rawEnumAsCopy: false,
+        rawProviderStatusAsCopy: false,
+        neutralFallbackCopy: '확인 중',
+      },
+      privacy: {
+        rawPromptReturned: false,
+        providerPayloadReturned: false,
+        safetyPayloadReturned: false,
+        internalCostReturned: false,
+        tokenCookieSecretDbUrlReturned: false,
+      },
+    });
+    expect(contract.states.map((state) => state.stateKey)).toEqual([
+      'video_consent_not_required',
+      'video_consent_required',
+      'video_consent_accepted',
+      'video_consent_declined',
+    ]);
+    expect(
+      contract.states.every((state) => state.rawEnumAsCopy === false),
+    ).toBe(true);
+    expect(
+      contract.states.find((state) => state.stateKey === 'video_consent_declined'),
+    ).toMatchObject({
+      videoResultVisible: false,
+      existingTextAndImageFlowContinues: true,
+      labelKo: '영상 제작은 진행하지 않아요',
+    });
+    expect(Object.values(contract.noSideEffects).every((blocked) => blocked)).toBe(
       true,
     );
   });
