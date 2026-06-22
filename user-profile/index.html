@@ -68,6 +68,9 @@
                   <span data-detail-follow-label>팔로우</span>
                 </button>
                 <a class="user-profile-edit-btn" id="userProfileEditBtn" href="#" data-open-edit-modal hidden>프로필 편집</a>
+                <!-- #1055 — 사용자 차단 진입점. 실제 block mutation은 #1023 서버 계약/main 반영 전까지 미실행. -->
+                <button class="user-profile-block-btn" id="userProfileBlockBtn" type="button" data-user-block hidden
+                        style="background:none;border:0;color:rgba(255,120,140,0.9);font:inherit;font-size:12.5px;cursor:pointer;padding:6px 8px;">이 사용자 차단</button>
               </div>
             </div>
 

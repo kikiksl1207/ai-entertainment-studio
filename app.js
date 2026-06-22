@@ -4085,6 +4085,9 @@ function initScrollReveal() {
             <span data-mini-follow-label data-i18n="miniProfile.follow">팔로우</span>
           </button>
           <a class="mini-profile-detail-btn" id="miniProfileDetailBtn" href="#" data-i18n="miniProfile.detail">상세 프로필 보기 →</a>
+          <!-- #1055 — 사용자 차단 진입점. 실제 block mutation은 #1023 서버 계약/main 반영 전까지 미실행. -->
+          <button class="mini-profile-block-btn" id="miniProfileBlockBtn" type="button" data-mini-block hidden
+                  style="background:none;border:0;color:rgba(255,120,140,0.9);font:inherit;font-size:12.5px;cursor:pointer;padding:6px 4px;text-align:center;">이 사용자 차단</button>
         </div>
       </div>
     </div>
@@ -4095,6 +4098,12 @@ function initScrollReveal() {
 document.addEventListener("click", e => {
   if (e.target.closest("[data-mini-profile-close]")) {
     closeMiniProfileModal();
+  }
+  // #1055 — 미니 프로필 차단 진입점: 효과 안내만, 실제 block POST는 #1023 서버 계약 전까지 미실행.
+  const miniBlockTrigger = e.target.closest("[data-mini-block]");
+  if (miniBlockTrigger) {
+    const blockName = miniBlockTrigger.dataset.blockName || "이 사용자";
+    window.alert(blockName + " 님을 차단하면 이 사용자의 글과 댓글이 내 피드와 팔로잉 목록에서 보이지 않아요.");
   }
 });
 document.addEventListener("keydown", e => {
@@ -4169,6 +4178,17 @@ function openMiniProfileModal(profileData) {
       detailBtn.href = "#";
     }
     detailBtn.textContent = viewer.isSelf ? "내 프로필 보기 →" : "상세 프로필 보기 →";
+  }
+
+  // #1055 — 사용자 차단 진입점 (본인이면 숨김)
+  const miniBlockBtn = document.getElementById("miniProfileBlockBtn");
+  if (miniBlockBtn) {
+    if (viewer.isSelf) {
+      miniBlockBtn.hidden = true;
+    } else {
+      miniBlockBtn.hidden = false;
+      miniBlockBtn.dataset.blockName = user.displayName || "이 사용자";
+    }
   }
 
   // 모달 열기

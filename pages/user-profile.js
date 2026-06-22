@@ -828,9 +828,12 @@ function renderUserProfileCard(data) {
   // 본인 판단: viewer.isSelf 또는 viewer.canEditProfile 또는 (로그인 사용자 id == 프로필 user id) 중 하나라도 true면 본인
   const myUserId = (typeof getAuth === "function") ? (getAuth()?.user?.id || getAuth()?.user?.userId) : null;
   const isSelf = !!(viewer.isSelf || viewer.canEditProfile || (myUserId && user.id && String(myUserId) === String(user.id)));
+  // #1055 — 사용자 차단 진입점 (남의 프로필에만 노출)
+  const blockBtn = document.getElementById("userProfileBlockBtn");
   if (isSelf) {
     if (editBtn)   { editBtn.hidden = false;  editBtn.style.display = ""; }
     if (followBtn) { followBtn.hidden = true; followBtn.style.display = "none"; }
+    if (blockBtn)  { blockBtn.hidden = true;  blockBtn.style.display = "none"; }
     // 본인 프로필이면 "좋아요" 탭 노출 (다른 사람에겐 안 보임)
     const likesTab = document.querySelector(".user-profile-tab-likes");
     if (likesTab) { likesTab.hidden = false; likesTab.style.display = ""; }
@@ -841,6 +844,11 @@ function renderUserProfileCard(data) {
       followBtn.style.display = "";
       followBtn.dataset.userId = user.id || "";
       applyUserProfileFollowState(viewer);
+    }
+    if (blockBtn) {
+      blockBtn.hidden = false;
+      blockBtn.style.display = "";
+      blockBtn.dataset.blockName = user.displayName || user.name || "이 사용자";
     }
     // 좋아요 탭 강제 숨김 (다른 사람 프로필)
     const likesTab = document.querySelector(".user-profile-tab-likes");
@@ -871,6 +879,16 @@ function applyUserProfileFollowState(viewer) {
 }
 
 function bindUserProfileFollow() {
+  // #1055 — 사용자 차단 진입점: 효과 안내만, 실제 block POST는 #1023 서버 계약/main 반영 전까지 미실행.
+  const blockBtn = document.getElementById("userProfileBlockBtn");
+  if (blockBtn && !blockBtn._bound) {
+    blockBtn._bound = true;
+    blockBtn.addEventListener("click", e => {
+      e.preventDefault();
+      const name = blockBtn.dataset.blockName || "이 사용자";
+      window.alert(name + " 님을 차단하면 이 사용자의 글과 댓글이 내 피드와 팔로잉 목록에서 보이지 않아요.");
+    });
+  }
   const btn = document.getElementById("userProfileFollowBtn");
   if (!btn || btn._bound) return;
   btn._bound = true;
