@@ -123,6 +123,34 @@ handoff. It does not add provider calls or message writes by itself.
   mutation, raw prompt storage, provider payload return, token return, API key
   return, or user-private-data return.
 
+## Read-only Session Preview Fixture (#1043)
+
+`dynamicGreetingContract.readOnlySessionPreviewFixture` reserves a disabled QA
+preview surface:
+
+`GET /api/v1/chat/opening-greeting/session-preview-fixture`
+
+It exists so live smoke can compare same-session replay and new-session variant
+behavior without asking for account credentials and without creating live chat
+sessions or messages.
+
+- Same-session replay scenario uses a fixture session key twice and expects the
+  same opening greeting text, cache scope `chat_session`, cache hit after the
+  first read, no new greeting, and no provider call.
+- New-session variant scenario compares two fixture session keys for the same
+  character/user. It may show different display-safe greetings from the
+  deterministic session seed, but does not accept or return a client/raw seed.
+- Different-character boundary scenario confirms the character slug and tone
+  candidate stay scoped so one character's fallback copy is not reused as
+  another character's first greeting.
+- Projection fields are display-safe only: character slug, fixture session key,
+  opening greeting text/cache/generation policy booleans, and tone candidate
+  character slug.
+- The fixture must not return raw session ids, raw seeds, raw prompts, provider
+  payloads, tokens, cookies, passwords, API keys, DB URLs, or user private data.
+- The fixture is read-only and does not create sessions, create messages, call a
+  provider, send messages, or mutate wallet, order, settlement, or payout state.
+
 ## Safety
 
 The opening greeting metadata records only safe operational facts:

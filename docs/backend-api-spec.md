@@ -1252,6 +1252,17 @@ Character-chat dynamic opening greeting cache (#388):
   while provider attempts stay behind readiness, daily provider guard,
   `maxOutputTokens=120`, and `maxOutputChars=180`. This skeleton does not add
   provider calls, message sends, wallet, order, settlement, or payout mutation.
+- #1043 adds `dynamicGreetingContract.readOnlySessionPreviewFixture` for a
+  disabled QA preview surface:
+  `GET /api/v1/chat/opening-greeting/session-preview-fixture`. It lets QA
+  compare same-session replay, new-session variant, and different-character
+  boundary behavior without requesting account credentials and without creating
+  live sessions or messages. The fixture may expose display-safe opening
+  greeting text, fixture session key, cache booleans, provider-call=false, and
+  safe variant policy flags only. It must not return raw session ids, raw seeds,
+  raw prompts, provider payloads, tokens, cookies, passwords, API keys, DB URLs,
+  or user private data, and it must not call a provider, send messages, create
+  sessions/messages, or mutate wallet, order, settlement, or payout state.
 - The #897 safety boundary requires the selected greeting to stay within
   character settings, forbidden tone, and minor-clean rules. It explicitly
   blocks real-person relationship, external contact, and external payment

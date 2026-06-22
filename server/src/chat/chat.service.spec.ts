@@ -2634,12 +2634,75 @@ describe('ChatService persona and catalog policy', () => {
           userPrivateDataReturned: false,
         },
       },
+      readOnlySessionPreviewFixture: {
+        version:
+          '2026-06-22.character-chat-opening-greeting-session-preview-fixture.v1',
+        status: 'read_only_preview_contract',
+        endpoint: 'GET /api/v1/chat/opening-greeting/session-preview-fixture',
+        enabled: false,
+        authRequired: false,
+        fixtureOnly: true,
+        scenarios: {
+          sameSessionReplay: {
+            sessionKey: 'fixture-session-a',
+            repeatedReads: 2,
+            expectedTextStable: true,
+            expectedCacheHitAfterFirstRead: true,
+            createsNewGreeting: false,
+            providerCall: false,
+          },
+          newSessionVariant: {
+            sessionKeys: ['fixture-session-a', 'fixture-session-b'],
+            sameCharacter: true,
+            sameUser: true,
+            mayVaryBySessionSeed: true,
+            clientSeedAccepted: false,
+            rawSeedReturned: false,
+            providerCall: false,
+          },
+          differentCharacterBoundary: {
+            characterSlugCompared: true,
+            characterToneMustRemainScoped: true,
+            fallbackCopySharedAcrossCharacters: false,
+          },
+        },
+        projection: {
+          rawSessionIdReturned: false,
+          rawSeedReturned: false,
+          rawPromptReturned: false,
+          rawProviderPayloadReturned: false,
+          tokenReturned: false,
+          cookieReturned: false,
+          passwordReturned: false,
+          apiKeyReturned: false,
+          dbUrlReturned: false,
+          userPrivateDataReturned: false,
+        },
+      },
     });
     expect(
       Object.values(
         prompts.dynamicGreetingContract.runtimeHandoff.mutationPolicy,
       ).every((enabled) => enabled === false),
     ).toBe(true);
+    expect(
+      Object.values(
+        prompts.dynamicGreetingContract.readOnlySessionPreviewFixture
+          .mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+    expect(
+      prompts.dynamicGreetingContract.readOnlySessionPreviewFixture.projection
+        .fields,
+    ).toEqual(
+      expect.arrayContaining([
+        'openingGreeting.text',
+        'openingGreeting.cache.hit',
+        'openingGreeting.generation.providerCall',
+        'openingGreeting.generation.variantPolicy.sameSessionStable',
+        'openingGreeting.generation.variantPolicy.sameCharacterSameUserNewSessionCanVary',
+      ]),
+    );
     expect(prompts.runtimePersona.tone.guideKo).toBe(
       'Keep the tone warm and focused.',
     );
