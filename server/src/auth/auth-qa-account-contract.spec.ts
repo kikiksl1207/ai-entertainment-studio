@@ -200,6 +200,67 @@ describe('auth QA account access contract', () => {
     );
   });
 
+  it('defines QA session fixture auth boundary without exposing credentials', () => {
+    const boundary = AUTH_QA_ACCOUNT_ACCESS_CONTRACT.qaSessionFixtureAuthBoundary;
+
+    expect(boundary).toMatchObject({
+      version: '2026-06-22.qa-session-fixture-auth-boundary.v1',
+      status: 'contract_only_no_session_minting',
+      fixtureAccessMode: 'read_only',
+      sessionMintingByThisContract: false,
+      productionAutoProvision: false,
+      allowedPrincipals: [
+        {
+          key: 'disposable_qa_owner',
+          requiredUserStatus: 'active',
+          realUserAllowed: false,
+          allowedScopes: ['own_qa_fixture_read'],
+        },
+        {
+          key: 'disposable_qa_operator',
+          requiredUserStatus: 'active',
+          realUserAllowed: false,
+          requiredAccess: ['artist_operator_active_or_admin_read_permission'],
+          allowedScopes: ['qa_fixture_read', 'qa_fixture_visibility_check'],
+        },
+      ],
+      forbiddenMixing: {
+        generalUserSessionCanReadFixture: false,
+        fixtureSessionCanMutateRealUserData: false,
+        fixtureRowsVisibleWithoutRunId: false,
+        fixtureRowsVisibleToUnapprovedPrincipal: false,
+      },
+    });
+    expect(boundary.boundaryChecks).toEqual([
+      'authenticate_existing_session_or_private_credential_fixture',
+      'resolve_disposable_qa_user_by_run_id',
+      'reject_real_user_or_missing_run_id',
+      'require_read_only_fixture_scope',
+      'return_sanitized_fixture_projection',
+    ]);
+    expect(boundary.allowedOutput).toEqual(
+      expect.arrayContaining([
+        'runId',
+        'qaPrincipalKey',
+        'safeUserId',
+        'stable code/messageKey',
+        'readOnly boolean',
+      ]),
+    );
+    expect(boundary.forbiddenOutput).toEqual(
+      expect.arrayContaining([
+        'raw email',
+        'password',
+        'access token',
+        'refresh token',
+        'cookie',
+        'database url',
+        'raw session id',
+        'environment value',
+      ]),
+    );
+  });
+
   it('keeps secrets out of the QA account handoff contract', () => {
     const payload = JSON.stringify(AUTH_QA_ACCOUNT_ACCESS_CONTRACT);
 
