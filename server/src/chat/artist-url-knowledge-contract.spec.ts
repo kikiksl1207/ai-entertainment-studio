@@ -145,6 +145,53 @@ describe('artist URL knowledge contract', () => {
     expect(ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts.chatContextCandidates).toBe(
       ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_CANDIDATE_API_SKELETON,
     );
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.readOnlyFixtureGuard).toMatchObject({
+      version: '2026-06-22.creator-operator-read-only-fixture-guard.v1',
+      status: 'qa_fixture_contract_only',
+      surfaces: ['creator_studio', 'backstage_operations'],
+      fixtureAccessMode: 'read_only',
+      productionAutoSeed: false,
+      mutationOpenedByThisContract: false,
+      runId: {
+        required: true,
+        format: 'qa-artist-knowledge-readonly-YYYYMMDD-runN',
+        storedOnFixtureMetadata: true,
+        cleanupScope: 'run_id_only',
+      },
+      visibleStatuses: ['pending', 'approved', 'rejected', 'archived'],
+      projectionPolicy: {
+        rawUrlAllowedOnlyIfAlreadyPublicSubmittedUrl: true,
+        rawEmailReturned: false,
+        tokenCookiePasswordReturned: false,
+        providerPayloadReturned: false,
+        providerTrainingAllowed: false,
+        providerCallAllowed: false,
+      },
+    });
+    expect(
+      ARTIST_URL_KNOWLEDGE_CONTRACT.readOnlyFixtureGuard.allowedPrincipals,
+    ).toEqual([
+      expect.objectContaining({
+        key: 'disposable_creator_operator',
+        realUserAllowed: false,
+        allowedSurface: 'creator_studio',
+      }),
+      expect.objectContaining({
+        key: 'disposable_backstage_operator',
+        realUserAllowed: false,
+        allowedSurface: 'backstage_operations',
+      }),
+    ]);
+    expect(
+      ARTIST_URL_KNOWLEDGE_CONTRACT.readOnlyFixtureGuard.forbiddenMutations,
+    ).toEqual([
+      'approve_artist_knowledge_url',
+      'reject_artist_knowledge_url',
+      'archive_artist_knowledge_url',
+      'crawl_or_refresh_url',
+      'provider_training',
+      'provider_context_write',
+    ]);
     expect(ARTIST_URL_KNOWLEDGE_CONTRACT.chatReferencePolicy).toMatchObject({
       queryScope: {
         sourceTable: 'artist_knowledge_urls',
