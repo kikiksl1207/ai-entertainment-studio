@@ -2309,6 +2309,84 @@ describe('premium chat room refund and moderation ledger contract', () => {
     );
   });
 
+  it('defines report refund retention as a read-only projection without wallet, settlement, or payout mutation', () => {
+    const readModel =
+      PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.retentionReadModel;
+
+    expect(readModel).toMatchObject({
+      version:
+        '2026-06-23.premium-chat-report-refund-retention-read-model.v1',
+      status: 'read_model_contract_only',
+      enabled: false,
+      readOnly: true,
+      table: 'future_premium_chat_report_refund_retention_view',
+    });
+    expect(readModel.actorFaultLanes).toMatchObject({
+      userFault: {
+        allowedRestrictionStatusKeys: ['refund_limited_70', 'refund_limited_50'],
+        walletDebitMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+      artistForcedClose: {
+        refundReasonKey: 'artist_forced_close_full_refund',
+        userRefundBps: 10000,
+        artistCompensationBps: 0,
+      },
+      operatorSanction: {
+        allowedRestrictionStatusKeys: ['refund_limited_70', 'refund_limited_50'],
+        rawAdminNoteReturned: false,
+      },
+    });
+    expect(readModel.retentionOutcomes).toMatchObject({
+      userFault70: {
+        refundReasonKey: 'user_fault_report_refund_70',
+        refundRestrictionStatusKey: 'refund_limited_70',
+        userRefundBps: 7000,
+        companyRevenueBps: 2000,
+        artistCompensationBps: 1000,
+        artistCompensationRatePercent: 10,
+      },
+      userFault50: {
+        refundReasonKey: 'operator_sanction_user_fault_refund_50',
+        refundRestrictionStatusKey: 'refund_limited_50',
+        userRefundBps: 5000,
+        companyRevenueBps: 4000,
+        artistCompensationBps: 1000,
+        artistCompensationRatePercent: 10,
+      },
+    });
+    expect(readModel.projectionFields).toEqual(
+      expect.arrayContaining([
+        'actorFaultLaneKey',
+        'refundRestrictionStatusKey',
+        'companyRevenueLumina',
+        'artistCompensationLumina',
+        'idempotencyKeyHash',
+      ]),
+    );
+    expect(readModel.stateSeparation).toMatchObject({
+      reportStateSeparate: true,
+      roomLifecycleStateSeparate: true,
+      refundDecisionStateSeparate: true,
+      walletLedgerStateSeparate: true,
+      settlementStateSeparate: true,
+      payoutStateSeparate: true,
+    });
+    expect(
+      Object.values(readModel.mutationPolicy).every(
+        (enabled) => enabled === false,
+      ),
+    ).toBe(true);
+    expect(readModel.privacy).toMatchObject({
+      rawChatBodyReturned: false,
+      rawReportBodyReturned: false,
+      rawReportReasonReturned: false,
+      rawAdminNoteReturned: false,
+      tokenCookieSecretDbUrlLogged: false,
+    });
+  });
+
   it('keeps sensitive values and live mutations out of the contract', () => {
     expect(PREMIUM_CHAT_ROOM_CONTRACT.policy).toMatchObject({
       walletMutationEnabled: false,
