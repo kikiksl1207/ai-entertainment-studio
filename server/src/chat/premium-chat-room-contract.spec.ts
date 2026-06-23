@@ -2398,6 +2398,123 @@ describe('premium chat room refund and moderation ledger contract', () => {
     expect(publicPayload).not.toContain('rawUserEmail');
   });
 
+  it('defines premium chat image messages as asset-id projections without upload, wallet, or report mutations', () => {
+    const imageMessage = PREMIUM_CHAT_ROOM_CONTRACT.imageMessage;
+
+    expect(imageMessage).toMatchObject({
+      version: '2026-06-23.premium-chat-image-message-contract.v1',
+      status: 'contract_only_mutation_disabled',
+      messageKind: 'image',
+      sourceSurface: 'premium_chat_room',
+      uploadPipeline: {
+        uploadIntentEndpoint: 'POST /api/v1/me/assets/upload-intent',
+        confirmUploadEndpoint: 'POST /api/v1/me/assets/:assetId/confirm-upload',
+        acceptedAssetType: 'image',
+        messageSubmitAcceptsAssetIdOnly: true,
+        messageSubmitAcceptsRawFileBytes: false,
+        messageSubmitAcceptsObjectUrl: false,
+        originalStorageKeyTrustedFromClient: false,
+        signedUrlTrustedFromClient: false,
+      },
+      accessControl: {
+        ownerUserCanSend: true,
+        artistOperatorCanSend: true,
+        nonOwnerCanSend: false,
+        unauthenticatedCanSend: false,
+        roomMustBeActive: true,
+        reportedOrBlindedRoomCanSend: false,
+        senderMustOwnOrBeGrantedAsset: true,
+      },
+      projection: {
+        messageType: 'image',
+        publicDeliverySource: 'GET /api/v1/assets/public/:assetId/:variant',
+        originalPrivateUrlReturned: false,
+        signedUrlReturned: false,
+        storageKeyReturned: false,
+        rawAssetMetadataReturned: false,
+        rawImageAnalysisReturned: false,
+      },
+      moderation: {
+        statusKeys: ['pending', 'safe', 'needs_review', 'blocked'],
+        reportCreatesBlindCandidate: true,
+        reportedImageDisplayedAs: 'blocked_placeholder',
+        blindMessageKey: 'chat.premiumRoom.image.blinded',
+        safeThumbnailHiddenWhenBlocked: true,
+        lightboxDisabledWhenBlocked: true,
+        rawReportReasonReturned: false,
+        rawAdminNoteReturned: false,
+      },
+      separationPolicy: {
+        textMessageMeteringSeparate: true,
+        imageMessageDoesNotCreateDonation: true,
+        supportMessageSeparate: true,
+        reportStateSeparate: true,
+        refundStateSeparate: true,
+      },
+      mutationPolicy: {
+        messageCreateEnabled: false,
+        uploadMutationEnabledByThisContract: false,
+        walletMutationEnabled: false,
+        paymentMutationEnabled: false,
+        donationMutationEnabled: false,
+        supportPointMutationEnabled: false,
+        reportMutationEnabledByThisContract: false,
+        blindStateMutationEnabledByThisContract: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+      privacy: {
+        rawChatBodyReturned: false,
+        originalPrivateUrlReturned: false,
+        signedUrlReturned: false,
+        storageKeyReturned: false,
+        rawAssetMetadataReturned: false,
+        rawReportReasonReturned: false,
+        rawAdminNoteReturned: false,
+        tokenCookieSecretDbUrlLogged: false,
+      },
+    });
+    expect(imageMessage.projection.requiredFields).toEqual(
+      expect.arrayContaining([
+        'messageId',
+        'roomId',
+        'senderRole',
+        'assetId',
+        'thumbnailUrl',
+        'displayUrl',
+        'moderationStatusKey',
+      ]),
+    );
+    expect(imageMessage.projection.stableCopyKeys).toEqual({
+      altKey: 'chat.premiumRoom.image.alt',
+      pendingKey: 'chat.premiumRoom.image.pendingReview',
+      blockedKey: 'chat.premiumRoom.image.blocked',
+      unavailableKey: 'chat.premiumRoom.image.unavailable',
+    });
+    expect(imageMessage.errorResponses).toMatchObject({
+      assetRequired: {
+        status: 400,
+        code: 'PREMIUM_CHAT_IMAGE_ASSET_REQUIRED',
+        messageKey: 'chat.premiumRoom.image.assetRequired',
+      },
+      assetForbidden: {
+        status: 403,
+        code: 'PREMIUM_CHAT_IMAGE_ASSET_FORBIDDEN',
+        messageKey: 'chat.premiumRoom.image.assetForbidden',
+      },
+      roomLocked: {
+        status: 409,
+        code: 'PREMIUM_CHAT_IMAGE_ROOM_LOCKED',
+        messageKey: 'chat.premiumRoom.image.roomLocked',
+      },
+      blockedByModeration: {
+        status: 409,
+        code: 'PREMIUM_CHAT_IMAGE_BLOCKED',
+        messageKey: 'chat.premiumRoom.image.blocked',
+      },
+    });
+  });
+
   it('keeps user, artist, and non-owner access separated without opening mutations', () => {
     expect(premiumChatRoomAccessForRole('ownerUser')).toMatchObject({
       allowed: true,
