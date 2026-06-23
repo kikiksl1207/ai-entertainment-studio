@@ -198,6 +198,13 @@ candidate fields.
   message type, scope, same-conversation replay behavior, and raw seed/prompt/
   provider-payload exclusion flags. The raw session seed, raw prompt, provider
   payload, wallet, settlement, payout, and order fields must not be returned.
+- #1070 same-character variant policy: the same character may select a different
+  display-safe opening greeting for a new user or a new chat session, but the
+  same session must replay the cached `opening_greeting`. The policy is exposed
+  only as safe metadata under
+  `openingGreeting.generation.variantPolicy.sameCharacterVariantPolicy` and
+  `dynamicGreetingContract.variantPolicy.sameCharacterVariantPolicy`; raw seeds,
+  raw prompts, provider payloads, and payment-related fields stay hidden.
 
 ## Test Baseline
 
@@ -221,6 +228,9 @@ The backend test fixes:
 - provider request errors store a fallback greeting instead of throwing
 - same character can produce different fallback greetings for different session
   ids
+- same-character variant policy allows new-user/new-session variation while
+  requiring same-session replay and hiding raw seed/prompt/provider payload
+  details
 - opening greeting variant metadata records the conversation-level persistence
   contract without returning raw seeds, prompts, provider payloads, wallet,
   settlement, payout, or order fields

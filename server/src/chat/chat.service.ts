@@ -1440,6 +1440,8 @@ export class ChatService {
       sameCharacterDifferentUsersCanVary: true,
       refreshCreatesNewGreeting: false,
       clientSeedAccepted: false,
+      sameCharacterVariantPolicy:
+        this.sameCharacterOpeningGreetingVariantPolicy(),
       conversationRecord: {
         recordTable: 'chat_messages',
         recordMessageType: CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE,
@@ -1451,6 +1453,27 @@ export class ChatService {
         rawPromptStored: false,
         rawProviderPayloadStored: false,
       },
+    };
+  }
+
+  private sameCharacterOpeningGreetingVariantPolicy() {
+    return {
+      characterScope: 'same_character',
+      newUserMaySelectDifferentVariant: true,
+      newSessionMaySelectDifferentVariant: true,
+      sameSessionReplayRequired: true,
+      selectionScope: 'chat_session',
+      sessionSeedSource: 'chat_sessions.id',
+      clientSubmittedSeedAccepted: false,
+      rawSeedReturned: false,
+      rawPromptReturned: false,
+      providerPayloadReturned: false,
+      providerCallRequired: false,
+      messageSendMutation: false,
+      walletMutation: false,
+      orderMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
     };
   }
 
@@ -4215,6 +4238,8 @@ export class ChatService {
         sameCharacterSameUserNewSessionCanVary: true,
         sameCharacterDifferentUsersCanVary: true,
         clientSeedAccepted: false,
+        sameCharacterVariantPolicy:
+          this.sameCharacterOpeningGreetingVariantPolicy(),
         conversationRecord: {
           recordTable: 'chat_messages',
           recordMessageType: CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE,
