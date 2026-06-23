@@ -86,6 +86,10 @@ describe('ChatController premium chat fail-closed routes', () => {
           method: RequestMethod.GET,
           path: 'chat/artist-url-knowledge-preview-fixture',
         }),
+        expect.objectContaining({
+          method: RequestMethod.GET,
+          path: 'chat/opening-greeting/session-preview-fixture',
+        }),
       ]),
     );
   });
@@ -143,6 +147,65 @@ describe('ChatController premium chat fail-closed routes', () => {
     expect(
       response.items.every((item) =>
         Object.values(item.noMutation).every((enabled) => enabled === false),
+      ),
+    ).toBe(true);
+  });
+
+  it('returns the opening greeting session preview fixture without mutation affordances', () => {
+    const controller = new ChatController({} as never);
+    const response = controller.getOpeningGreetingSessionPreviewFixture();
+    const sameSessionReads = response.scenarios.sameSessionReplay.repeatedReads;
+    const newSessionReads = response.scenarios.newSessionVariant.sessions;
+
+    expect(response).toMatchObject({
+      feature: 'character_chat_opening_greeting_session_preview_fixture',
+      status: 'read_only_fixture_ready',
+      readOnly: true,
+      authRequired: false,
+      fixtureOnly: true,
+      endpoint: {
+        method: 'GET',
+        path: '/api/v1/chat/opening-greeting/session-preview-fixture',
+        mounted: true,
+      },
+      noMutation: {
+        createSession: false,
+        createMessage: false,
+        providerCall: false,
+        walletMutation: false,
+        orderMutation: false,
+        settlementMutation: false,
+      },
+      privacy: {
+        rawSessionIdReturned: false,
+        rawSeedReturned: false,
+        rawPromptReturned: false,
+        rawProviderPayloadReturned: false,
+        tokenReturned: false,
+        cookieReturned: false,
+        passwordReturned: false,
+        apiKeyReturned: false,
+        dbUrlReturned: false,
+      },
+    });
+    expect(sameSessionReads).toHaveLength(2);
+    expect(sameSessionReads[0].sessionKey).toBe('fixture-session-a');
+    expect(sameSessionReads[1].sessionKey).toBe('fixture-session-a');
+    expect(sameSessionReads[0].openingGreeting.text).toBe(
+      sameSessionReads[1].openingGreeting.text,
+    );
+    expect(sameSessionReads[0].openingGreeting.cache.hit).toBe(false);
+    expect(sameSessionReads[1].openingGreeting.cache.hit).toBe(true);
+    expect(newSessionReads.map((read) => read.sessionKey)).toEqual([
+      'fixture-session-a',
+      'fixture-session-b',
+    ]);
+    expect(newSessionReads[0].openingGreeting.text).not.toBe(
+      newSessionReads[1].openingGreeting.text,
+    );
+    expect(
+      [...sameSessionReads, ...newSessionReads].every(
+        (read) => read.openingGreeting.generation.providerCall === false,
       ),
     ).toBe(true);
   });
