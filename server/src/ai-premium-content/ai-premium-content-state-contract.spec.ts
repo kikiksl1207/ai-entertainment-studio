@@ -21,6 +21,7 @@ import {
   AI_PREMIUM_CONTENT_SAFETY_PRECHECK_CONTRACT,
   AI_PREMIUM_CONTENT_SAFETY_PRECHECK_RISK_CATEGORIES,
   AI_PREMIUM_CONTENT_SAFETY_PRECHECK_STATUSES,
+  AI_PREMIUM_CONTENT_SAFETY_MODERATION_QUEUE_SKELETON,
   AI_PREMIUM_CONTENT_SAFETY_STATUSES,
   AI_PREMIUM_CONTENT_STATE_API_CONTRACT,
   AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
@@ -390,6 +391,51 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       idempotencyRequiredForReviewDecisions: true,
     });
     expect(Object.values(mutationGates).every((enabled) => enabled === false)).toBe(
+      true,
+    );
+  });
+
+  it('defines a provider-agnostic safety moderation queue skeleton without generation or paid side effects', () => {
+    const contract =
+      AI_PREMIUM_CONTENT_STATE_API_CONTRACT.safetyModerationQueueSkeleton;
+
+    expect(contract).toBe(AI_PREMIUM_CONTENT_SAFETY_MODERATION_QUEUE_SKELETON);
+    expect(contract).toMatchObject({
+      version: '2026-06-23.ai-content-safety-moderation-queue-skeleton.v1',
+      status: 'skeleton_ready_mutation_blocked',
+      queueEnabled: false,
+      providerAgnostic: true,
+      providerCallEnabled: false,
+      imageGenerationEnabled: false,
+      videoGenerationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      sourceRequestClasses: ['image', 'video', 'mixed'],
+      reviewStateFields: {
+        moderationStatus: '<pending|needs_review|cleared|blocked>',
+        adminReviewStatus: '<unassigned|in_review|cleared|blocked|escalated>',
+        decisionReasonKey: '<stable localized reason key or null>',
+      },
+      riskFields: {
+        minor: { field: 'minorRisk' },
+        realPersonSimilarity: {
+          field: 'realPersonSimilarityRisk',
+          identityGuessReturnedToUser: false,
+        },
+        sexualContent: { field: 'sexualContentRisk' },
+        copyright: { field: 'copyrightRisk' },
+      },
+      adminProjection: {
+        enabled: false,
+        mutationEnabled: false,
+        rawPromptReturned: false,
+        providerPayloadReturned: false,
+        signedUrlsReturned: false,
+        privateReferenceBytesReturned: false,
+      },
+    });
+    expect(Object.values(contract.mutationGates).every((enabled) => !enabled)).toBe(
       true,
     );
   });
