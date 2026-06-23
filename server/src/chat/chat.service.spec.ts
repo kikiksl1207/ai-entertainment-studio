@@ -5746,6 +5746,50 @@ describe('ChatService premium chat support contract', () => {
     });
     expect(
       contract.productProjection.characterChatTransitionCta
+        .characterDetailRoutingContract,
+    ).toMatchObject({
+      version: '2026-06-23.character-detail-chat-routing-separation.v1',
+      surface: 'character_detail',
+      source: {
+        page: 'character_detail',
+        artistSlugParam: 'artistSlug',
+        ctaSourceField: 'chatEntryAvailabilityProjection.entries',
+      },
+      destinations: {
+        characterChat: {
+          entryKey: 'ai_character_chat',
+          productKind: 'ai_character_chat',
+          responseMode: 'ai_character_reply',
+          destinationPathTemplate: '/character-chat?slug={artistSlug}',
+          enabled: true,
+          premiumAvailabilityState: 'not_applicable',
+          disabledReasonKey: null,
+        },
+        premiumChat: {
+          entryKey: 'premium_chat',
+          productKind: 'artist_direct_premium_dm',
+          responseMode: 'artist_direct_reply',
+          destinationPathTemplate: null,
+          enabled: false,
+          premiumAvailabilityState: 'room_open_contract_pending',
+          disabledReasonKey: 'premium_chat_room_open_contract_pending',
+        },
+      },
+      guard: {
+        premiumCtaFallbackToCharacterChat: false,
+        premiumCtaCreatesCharacterChat: false,
+        premiumCtaCreatesPremiumRoom: false,
+        providerCallEnabled: false,
+        paymentMutationEnabled: false,
+        walletMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+        rawRouteKeyAsCopy: false,
+        rawAvailabilityStateAsCopy: false,
+      },
+    });
+    expect(
+      contract.productProjection.characterChatTransitionCta
         .characterDetailChatChoiceStateProjection,
     ).toMatchObject({
       version: '2026-06-19.character-detail-chat-choice-state-projection.v1',

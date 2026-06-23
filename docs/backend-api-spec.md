@@ -1390,6 +1390,14 @@ Character-chat premium transition CTA contract (#500/#511):
   hints. Disabled premium chat must not fallback to AI chat, open a paid room,
   send a message, create payment, debit wallet, touch settlement, or touch
   payout.
+- #1078 adds `characterDetailRoutingContract` as the stable routing table for
+  the same surface. `destinations.characterChat` is the only enabled destination
+  with `/character-chat?slug={artistSlug}` and remains `ai_character_chat` /
+  `ai_character_reply`. `destinations.premiumChat` remains disabled with
+  `destinationPathTemplate=null`,
+  `premiumAvailabilityState="room_open_contract_pending"`, and
+  `disabledReasonKey="premium_chat_room_open_contract_pending"`. These state
+  keys are contract values only and must not be rendered as raw UI copy.
 - `roomStateReasons` provides Korean user-facing reasons for available,
   artist-resting, under-review, expired, and unavailable states. Frontend must
   render those Korean messages instead of raw state keys.
