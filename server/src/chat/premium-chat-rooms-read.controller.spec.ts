@@ -51,6 +51,10 @@ describe('PremiumChatRoomsReadController', () => {
         }),
         expect.objectContaining({
           method: RequestMethod.GET,
+          path: 'chat/artist-url-knowledge-preview-fixture',
+        }),
+        expect.objectContaining({
+          method: RequestMethod.GET,
           path: 'chat/premium-rooms',
         }),
         expect.objectContaining({
@@ -133,6 +137,63 @@ describe('PremiumChatRoomsReadController', () => {
         (item) =>
           item.copySafety.rawStatusAsCopy === false &&
           item.copySafety.rawEnumCopyReturned === false,
+      ),
+    ).toBe(true);
+  });
+
+  it('returns public artist URL knowledge preview states without mutations', () => {
+    const controller = new PremiumChatRoomsReadController({} as never);
+    const response = controller.getArtistUrlKnowledgePreviewFixture();
+
+    expect(response).toMatchObject({
+      feature: 'artist_url_knowledge_preview_fixture',
+      status: 'read_only_fixture_ready',
+      readOnly: true,
+      authRequired: false,
+      endpoint: {
+        method: 'GET',
+        path: '/api/v1/chat/artist-url-knowledge-preview-fixture',
+        mounted: true,
+      },
+      noMutation: {
+        urlCrawl: false,
+        providerTraining: false,
+        providerCall: false,
+        chatResponseGeneration: false,
+        approvalMutation: false,
+      },
+      privacy: {
+        rawUrlReturned: false,
+        rawPageBodyReturned: false,
+        tokenCookiePasswordReturned: false,
+        providerPayloadReturned: false,
+        dbUrlReturned: false,
+      },
+    });
+    expect(response.items.map((item) => item.qaBucket)).toEqual([
+      'pending_review',
+      'approved_safe_chat_candidate',
+      'rejected',
+      'archived',
+      'approved_chat_reference_disabled',
+      'approved_bounded_summary_missing',
+    ]);
+    expect(
+      response.items.find((item) => item.qaBucket === 'approved_safe_chat_candidate')
+        ?.chatContextCandidate,
+    ).toMatchObject({
+      eligible: true,
+      handoffReady: true,
+      ineligibleReasonKeys: [],
+    });
+    expect(
+      response.items
+        .filter((item) => item.qaBucket !== 'approved_safe_chat_candidate')
+        .every((item) => item.chatContextCandidate.eligible === false),
+    ).toBe(true);
+    expect(
+      response.items.every((item) =>
+        Object.values(item.noMutation).every((enabled) => enabled === false),
       ),
     ).toBe(true);
   });
