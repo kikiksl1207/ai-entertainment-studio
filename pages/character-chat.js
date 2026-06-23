@@ -357,6 +357,13 @@
       return null;
     }
 
+    if (!chatAuthToken()) {
+      // Keep the read-only preview usable for logged-out visitors. Calling the
+      // authenticated starter endpoint without a token opens the global auth
+      // modal, which blocks the mobile + action menu before the user taps it.
+      return null;
+    }
+
     try {
       return await apiFetch(
         `/api/v1/chat/starter-prompts?artistSlug=${encodeURIComponent(slug)}`,
@@ -444,16 +451,19 @@
     if (!toggle || !menu) return;
 
     function closeMenu() {
-      if (menu.hidden) return;
+      if (menu.hidden && menu.hasAttribute("hidden")) return;
       menu.hidden = true;
+      menu.setAttribute("hidden", "");
       toggle.setAttribute("aria-expanded", "false");
     }
     function openMenu() {
       menu.hidden = false;
+      menu.removeAttribute("hidden");
       toggle.setAttribute("aria-expanded", "true");
     }
 
     toggle.addEventListener("click", (event) => {
+      event.preventDefault();
       event.stopPropagation();
       if (menu.hidden) openMenu();
       else closeMenu();
