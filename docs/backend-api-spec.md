@@ -2276,6 +2276,14 @@ endpoint, donation creation, frontend score submit, or client-triggered refresh.
 - Current readiness is disabled: ranking endpoint, read-model storage, snapshot
   job, support-point storage, frontend submit, and donation create are all
   `false`.
+- #1079 adds `donation.supportMessageLedgerSkeleton` for the future premium-chat
+  support-message ledger. It fixes server-normalized donation amount tiers,
+  safe donor display policy, communication/donation ranking ledger lanes, an
+  artist-share read-model placeholder, and a no-settlement placeholder. It does
+  not create donation rows, debit or credit wallet/Lumina, write support-point
+  ledgers, write settlement or payout queues, or expose raw donor ids, raw
+  contact fields, wallet balances, settlement ledger ids, payout ledger ids, or
+  support-message bodies in rankings.
 - #803 adds the daily aggregate contract under
   `rankings.backendProjection.dailyAggregate`. It aggregates
   `artist_per_day_per_lane` in `Asia/Seoul` and keeps communication and donation
