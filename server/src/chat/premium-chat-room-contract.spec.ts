@@ -2349,6 +2349,57 @@ describe('premium chat room refund and moderation ledger contract', () => {
       signedUrlReturned: false,
       rawMetadataReturned: false,
       walletLedgerIdReturned: false,
+      storageGuard: {
+        assetUsage: 'premium_chat_image_message',
+        derivativeVariantsRequired: ['thumbnail', 'display'],
+        originalVisibility: 'owner_and_admin_only',
+        thumbnailVisibility: 'room_participants_until_report_or_block',
+        displayVisibility: 'room_participants_until_report_or_block',
+        originalUrlReturnedToClient: false,
+        directStorageUrlReturned: false,
+        signedUrlLogged: false,
+        storageKeyLogged: false,
+        mutationOpenedByThisContract: false,
+      },
+      visibilityByModerationStatus: {
+        pending: {
+          thumbnailVisible: true,
+          originalVisible: false,
+          lightboxEnabled: false,
+        },
+        safe: {
+          thumbnailVisible: true,
+          originalVisible: false,
+          lightboxEnabled: true,
+        },
+        needs_review: {
+          thumbnailVisible: false,
+          originalVisible: false,
+          lightboxEnabled: false,
+        },
+        blocked: {
+          thumbnailVisible: false,
+          originalVisible: false,
+          lightboxEnabled: false,
+        },
+      },
+      reportBlindGuard: {
+        reportStatusKeys: [
+          'reported',
+          'paused_by_report',
+          'blinded',
+          'admin_review',
+        ],
+        imageProjectionMode: 'blind_placeholder_until_admin_cleared',
+        thumbnailVisibleAfterReport: false,
+        displayVisibleAfterReport: false,
+        originalVisibleAfterReport: false,
+        lightboxEnabledAfterReport: false,
+        reportMutationOpenedByThisContract: false,
+        walletMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
     });
     expect(
       PREMIUM_CHAT_ROOM_CONTRACT.imageAttachmentPolicy.requiredResponseFields,
