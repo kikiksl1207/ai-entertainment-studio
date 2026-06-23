@@ -9,6 +9,40 @@ export const STORY_AI_COMPANION_CONTEXT_BOUNDARY_CONTRACT = {
     providerCallEnabled: false,
     storyMutationEnabled: false,
   },
+  participationBudget: {
+    version: '2026-06-23.story-ai-companion-budget-guard.v1',
+    targetMaxParticipantsIncludingPlayer: 6,
+    playerIncluded: true,
+    maxAiCompanionsPerSession: 5,
+    freePrologue: {
+      maxAiCompanions: 1,
+      allowedModes: ['solo_player', 'one_ai_companion'],
+      companionAddCostLumina: 0,
+      companionSwapCostLumina: 0,
+      paidExpansionAllowed: false,
+    },
+    paidStory: {
+      maxAiCompanions: 5,
+      companionAddCostPolicy: 'server_story_product_policy_required',
+      companionSwapCostPolicy: 'server_story_product_policy_required',
+      freeCompanionCarryOverAllowed: true,
+      clientSubmittedCostAccepted: false,
+    },
+    contextBudgetGuard: {
+      maxActiveSpeakersPerScene: 3,
+      maxBackgroundCompanionsSummarized: 2,
+      downgradeOverflowCompanionsTo: ['cameo', 'background', 'offscreen_reference'],
+      providerContextOverflowBehavior: 'summarize_or_exclude_before_provider',
+      rawPromptBudgetReturned: false,
+    },
+    noMutationPolicy: {
+      paymentMutation: false,
+      walletMutation: false,
+      luminaMutation: false,
+      storyProgressMutation: false,
+      providerCall: false,
+    },
+  },
   contextLayers: {
     world: {
       priority: 1,
