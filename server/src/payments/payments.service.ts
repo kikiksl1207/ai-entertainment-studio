@@ -50,6 +50,20 @@ export const CHARGE_PACKAGE_ADMIN_READ_ONLY_AUDIT_GUARD = {
     highValuePackageBonusSkus: ['LUMINA_5800', 'LUMINA_12000'],
     firstChargeBasis: FIRST_CHARGE_BONUS_BASIS,
     firstChargeRateBps: 1000,
+    eligibilityScope: {
+      packageSkus: ACTIVE_CHARGE_PRODUCT_SPECS.map((product) => product.sku),
+      firstPaidOrderLookup:
+        'payment_orders where user_id matches, status paid, canonical charge product',
+      failedPendingOrCanceledOrdersIgnored: true,
+      userScopedDuplicateKeySharedAcrossPackages: true,
+    },
+    packageBonusSeparationAudit: {
+      packageBonusLedgerType: 'purchase',
+      firstChargeBonusLedgerType: 'first_charge_bonus',
+      firstChargeBonusBasisExcludesPackageBonus: true,
+      highValuePackageBonusSkus: ['LUMINA_5800', 'LUMINA_12000'],
+      highValuePackageBonusNeverCreatesFirstChargeEligibility: true,
+    },
   },
   projectionFields: [
     'sku',
@@ -180,6 +194,13 @@ export const FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT = {
     paymentMutation: false,
     walletCreditMutation: false,
     bonusMutation: false,
+    readOnlyAuditChecks: [
+      'all_six_canonical_packages_share_one_user_scoped_bonus_key',
+      'first_paid_order_only_counts_after_provider_verified_paid_transition',
+      'package_bonus_purchase_ledger_is_not_first_charge_bonus_ledger',
+      'high_value_package_bonus_not_included_in_first_charge_basis',
+      'duplicate_bonus_key_returns_existing_projection_without_second_credit',
+    ],
   },
   auditReadModelSeparation: {
     canonicalPackageSkus: [
