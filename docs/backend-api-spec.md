@@ -3588,6 +3588,14 @@ Authorization: Bearer <accessToken>
   metadata. This is projection/API contract only and adds no repost create,
   quote repost create, notification, unread count, share, wallet, Lumina,
   settlement, payout, order, or paid-like mutation.
+- #1080 exports `LUMINA_FEED_REPOST_SHARE_DISPLAY_PROJECTION_CONTRACT` for feed
+  card display. Repost/quote repost display uses `post.repost.originalPostId`
+  for the original reference, keeps the viewer's quote in
+  `post.repost.quoteBody`, counts only `repost` and `quote_repost` rows in
+  `repostCount`, and renders missing/deleted/hidden/private/viewer-hidden/
+  blocked originals as tombstones without original body or private author
+  fields. Share remains `share_contract` URL/Web Share projection only with
+  `shareCount=null` and `countStrategy="not_mutated_by_share_contract"`.
 - `DELETE /api/v1/lumina-feed/posts/:postId` soft-deletes the current user's own root post. Deleting the root hides the full thread from feed lists.
 - `DELETE /api/v1/lumina-feed/replies/:replyId` soft-deletes the current user's own reply. Artist operators can delete replies on operated artist posts.
 - Hidden posts use soft delete/reactivation with unique `(user_id, post_id)`.
