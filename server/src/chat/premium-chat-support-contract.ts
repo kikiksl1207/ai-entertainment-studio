@@ -1662,6 +1662,53 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     disabledDisplayMessageKo:
       '프리미엄챗 후원은 원장·보안 검증이 끝난 뒤 열릴 예정이에요.',
   },
+  artistDirectReplyContract: {
+    version: '2026-06-23.premium-chat-artist-direct-reply.v1',
+    status: 'backend_contract_only_message_send_disabled',
+    roomType: {
+      productType: 'artist_direct_premium_dm',
+      billingType: 'premium_room_lumina',
+      respondentType: 'artist_direct_reply',
+      sourceTable: 'premium_chat_rooms',
+      separateFromCharacterChat: true,
+      characterChatFallbackAllowed: false,
+    },
+    participantRoles: {
+      ownerUserRole: 'premium_room_owner_user',
+      artistResponderRole: 'artist_operator_responder',
+      aiResponderRoleAllowed: false,
+      providerResponderAllowed: false,
+    },
+    artistReplyState: {
+      unansweredState: 'needs_artist_reply',
+      answeredState: 'artist_answered',
+      firstReplyEvidence: [
+        'room.status=artist_answered',
+        'first_artist_reply_at_present',
+        'last_artist_reply_at_present',
+      ],
+      replyMutationEnabled: false,
+      messageSendMutationEnabled: false,
+    },
+    userVisibleCopyKeys: {
+      roomTitleKey: 'chat.premiumRoom.artistDirect.title',
+      roomGuidanceKey: 'chat.premiumRoom.artistDirect.guidance',
+      waitingReplyKey: 'chat.premiumRoom.artistDirect.waitingReply',
+      answeredKey: 'chat.premiumRoom.artistDirect.answered',
+      notAiChatKey: 'chat.premiumRoom.artistDirect.notAiChat',
+    },
+    separationPolicy: {
+      characterChatConversationTable: 'chat_sessions',
+      premiumRoomTable: 'premium_chat_rooms',
+      usesCharacterStarterPrompts: false,
+      usesCharacterOpeningGreeting: false,
+      providerCallEnabled: false,
+      roomOpenMutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    },
+  },
   submitReadiness: {
     status: 'submit_contract_ready_backend_storage_blocked',
     fixedAmountsLumina: PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA,
