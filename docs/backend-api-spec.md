@@ -661,6 +661,18 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   does not crawl external URLs, train or call providers, generate chat replies,
   mutate approval/archive rows, or touch wallet, settlement, payout, tokens,
   cookies, raw emails, raw page bodies, provider payloads, or DB URLs.
+- #1097 adds `ARTIST_URL_KNOWLEDGE_INGESTION_STATUS_CONTRACT` to separate URL
+  review material, approval lifecycle, chat-context handoff, and safe failure
+  reasons. The raw submitted URL remains review material only and cannot enter
+  character-chat/provider context. `status` controls approval, `metadata.ingest`
+  controls submitted/pending/processing/approved-for-chat/rejected/failed/
+  archived visibility, and `context_ready` is derived only when the row is
+  approved, safe, `allowChatReference=true`, has a bounded summary, and belongs
+  to the same artist. Failure reasons are safe reason keys only; raw exceptions,
+  raw page bodies, provider payloads, tokens, cookies, passwords, API keys, DB
+  URLs, wallet, settlement, and payout data stay hidden. The contract does not
+  fetch external URLs, train/call providers, generate chat replies, create chat
+  messages, approve/reject/archive rows, or mutate wallet/settlement/payout.
 - #780 fixes the ingest moderation handoff guard. Rows with
   `ingestStatus=ai_processing` stay excluded from character-chat context until
   review marks them `approved_for_chat`; raw URL query strings, private URLs,
