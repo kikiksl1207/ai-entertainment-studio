@@ -2032,6 +2032,96 @@ export const AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON = {
   },
 } as const;
 
+export const AI_PREMIUM_CONTENT_SAFETY_MODERATION_QUEUE_SKELETON = {
+  version: '2026-06-23.ai-content-safety-moderation-queue-skeleton.v1',
+  feature: 'ai_content_safety_moderation_queue',
+  status: 'skeleton_ready_mutation_blocked',
+  queueEnabled: false,
+  providerAgnostic: true,
+  providerCallEnabled: false,
+  imageGenerationEnabled: false,
+  videoGenerationEnabled: false,
+  paymentMutationEnabled: false,
+  walletMutationEnabled: false,
+  settlementMutationEnabled: false,
+  payoutMutationEnabled: false,
+  sourceRequestClasses: ['image', 'video', 'mixed'],
+  reviewStateFields: {
+    queueItemId: '<uuid>',
+    requestId: '<ai premium content request uuid>',
+    outputClass: '<image|video|mixed>',
+    moderationStatus: '<pending|needs_review|cleared|blocked>',
+    adminReviewStatus: '<unassigned|in_review|cleared|blocked|escalated>',
+    assignedReviewerId: '<admin user uuid or null>',
+    decisionReasonKey: '<stable localized reason key or null>',
+    createdAt: '<ISO datetime>',
+    updatedAt: '<ISO datetime>',
+  },
+  riskFields: {
+    minor: {
+      field: 'minorRisk',
+      source: 'server_safety_precheck_or_admin_review',
+      allowedValues: ['none', 'suspected', 'confirmed', 'blocked'],
+    },
+    realPersonSimilarity: {
+      field: 'realPersonSimilarityRisk',
+      source: 'server_safety_precheck_or_admin_review',
+      allowedValues: ['none', 'suspected', 'confirmed', 'blocked'],
+      identityGuessReturnedToUser: false,
+    },
+    sexualContent: {
+      field: 'sexualContentRisk',
+      source: 'server_safety_precheck_or_admin_review',
+      allowedValues: ['none', 'suggestive', 'explicit', 'blocked'],
+    },
+    copyright: {
+      field: 'copyrightRisk',
+      source: 'server_safety_precheck_or_admin_review',
+      allowedValues: ['none', 'suspected', 'confirmed', 'blocked'],
+    },
+  },
+  queueOrdering: [
+    'blocked_minor_or_explicit_content_first',
+    'real_person_similarity_review_required',
+    'copyright_review_required',
+    'admin_manual_review_oldest_first',
+  ],
+  adminProjection: {
+    listEndpoint: '/admin/api/v1/ai-premium-content/safety-moderation-queue',
+    detailEndpoint:
+      '/admin/api/v1/ai-premium-content/safety-moderation-queue/:queueItemId',
+    enabled: false,
+    superAdminOrAssetsModeratorRequired: true,
+    mutationEnabled: false,
+    returnedFields: [
+      'queueItemId',
+      'requestId',
+      'outputClass',
+      'moderationStatus',
+      'adminReviewStatus',
+      'riskSummary',
+      'decisionReasonKey',
+      'timestamps',
+    ],
+    rawPromptReturned: false,
+    providerPayloadReturned: false,
+    signedUrlsReturned: false,
+    privateReferenceBytesReturned: false,
+  },
+  mutationGates: {
+    queueInsert: false,
+    adminDecision: false,
+    providerAttempt: false,
+    imageGeneration: false,
+    videoGeneration: false,
+    walletDebit: false,
+    orderCreate: false,
+    settlementAccrual: false,
+    payoutAccrual: false,
+    paidLike: false,
+  },
+} as const;
+
 export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   version: '2026-06-02.ai-premium-content-request-state-api-skeleton.v1',
   feature: 'ai_premium_content_request_state',
@@ -2075,6 +2165,8 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   statusPreviewFixture: AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
   videoConsentException:
     AI_PREMIUM_CONTENT_VIDEO_CONSENT_EXCEPTION_CONTRACT,
+  safetyModerationQueueSkeleton:
+    AI_PREMIUM_CONTENT_SAFETY_MODERATION_QUEUE_SKELETON,
   resultAssetReuseAuditProjection:
     AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
   userFacingRequestStatusApiSkeleton:
