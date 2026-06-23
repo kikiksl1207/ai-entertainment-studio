@@ -676,7 +676,7 @@ function applyUserProfileTabFilter() {
     if (emptyEl) {
       emptyEl.hidden = false;
       emptyEl.style.display = "";
-      emptyEl.innerHTML = `<strong>숏폼은 곧 공개돼요.</strong><p>준비되는 대로 이곳에 모아볼 수 있게 할게요.</p>`;
+      emptyEl.innerHTML = `<strong>숏폼은 공개 예정이에요.</strong><p>공개되면 이곳에 모아볼 수 있어요.</p>`;
     }
     if (loadMoreBtn) { loadMoreBtn.hidden = true; loadMoreBtn.style.display = "none"; }
     return;
@@ -1255,7 +1255,7 @@ async function loadFollowList(type, append) {
       let msg = "목록을 불러오지 못했어요.";
       let sub = "잠시 후 다시 시도해 주세요.";
       if (err?.status === 404 || err?.status === 501) {
-        msg = "이 목록은 아직 준비 중이에요.";
+        msg = "이 목록은 아직 제공되지 않아요.";
         sub = "조금만 기다려 주세요.";
       } else if (err?.status === 403) {
         msg = "이 프로필의 목록을 볼 수 없어요.";
@@ -1302,7 +1302,7 @@ function renderFollowListItem(item, type) {
                 data-follow-block-user="${esc(userId)}"
                 data-follow-block-name="${esc(displayName)}">차단</button>
         <button class="follow-list-remove-btn" type="button" disabled
-                title="팔로워 제거는 준비 중이에요.">제거</button>
+                title="팔로워 제거는 아직 제공되지 않아요.">제거</button>
       </div>`;
   }
 

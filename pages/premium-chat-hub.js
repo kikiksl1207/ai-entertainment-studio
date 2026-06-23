@@ -197,7 +197,7 @@
       var roomState = roomStateFromStatus(room);
       var isBlocked = !!roomState.locked;
       var isExpiringSoon = room.remainingDays != null && room.remainingDays > 0 && room.remainingDays <= 3;
-      var statusLabel = roomState.label || (mutationOpen ? "후원 가능" : "후원 준비 중");
+      var statusLabel = roomState.label || (mutationOpen ? "후원 가능" : "후원 오픈 예정");
       var statusClass = roomState.key === "active"
         ? (mutationOpen ? "is-ready" : "is-locked")
         : roomState.key === "paused" ? "is-warn"
@@ -229,7 +229,7 @@
 
       // #518 — 후원 버튼: 전역 잠금(mutationOpen) + per-room 차단(blocked) 모두 확인
       var donateDisabled = !mutationOpen || isBlocked;
-      var donateBtnLabel = isBlocked ? "후원 일시 중단" : (mutationOpen ? "후원하기" : "후원 준비 중");
+      var donateBtnLabel = isBlocked ? "후원 일시 중단" : (mutationOpen ? "후원하기" : "후원 오픈 예정");
       var donateBtnDisabled = donateDisabled
         ? ' disabled aria-disabled="true" title="' + (isBlocked ? "현재 방 상태에서는 후원할 수 없어요." : "후원 기능은 서비스 준비 완료 후 열려요.") + '"'
         : ' aria-disabled="false"';
@@ -386,7 +386,7 @@
     }
     var items = (convRes.data && (convRes.data.items || convRes.data.data?.items)) || [];
     var rooms = items.map(normalizeConversation).filter(function (r) { return r.slug || r.name; });
-    setState(mutationOpen ? "준비 완료" : "후원 준비 중 · 보기만 가능");
+    setState(mutationOpen ? "준비 완료" : "후원 오픈 예정 · 보기만 가능");
     renderRooms(rooms.slice(0, 6), mutationOpen);
     loadAvailableArtists(mutationOpen); // #469 — 가능 아티스트 목록 병렬 로드
   }

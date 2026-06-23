@@ -335,7 +335,7 @@ function renderCharacterDetail() {
            <span class="cta-btn-label"><strong data-detail-follow-label>팔로우</strong>${followerText}</span>
          </button>`;
     cta.innerHTML = isHidden
-      ? `<div class="detail-cta-card is-secret"><strong>${artist.status === "pending" ? "공개 준비 중인 아티스트입니다" : "아직 베일 속에 있는 아티스트입니다"}</strong><p>${artist.status === "pending" ? "조건을 갖추면 캐릭터챗·후원 등 모든 기능이 열릴 예정이에요." : "첫 공개 순간에 가장 잘 어울리는 장면으로 찾아올게요."}</p></div>`
+      ? `<div class="detail-cta-card is-secret"><strong>${artist.status === "pending" ? "공개 예정 아티스트입니다" : "아직 베일 속에 있는 아티스트입니다"}</strong><p>${artist.status === "pending" ? "조건을 갖추면 캐릭터챗·후원 등 모든 기능이 열려요." : "첫 공개 순간에 가장 잘 어울리는 장면으로 찾아올게요."}</p></div>`
       : `<div class="detail-cta-card">
            <div class="detail-cta-info">
              <strong>${artist.publicName}의 다음 무대를 응원하세요</strong>
@@ -345,7 +345,7 @@ function renderCharacterDetail() {
              ${followBtn}
              <button class="cta-btn cta-btn-support" disabled>
                <span class="cta-btn-icon">💜</span>
-               <span class="cta-btn-label"><strong>후원하기</strong><small>곧 공개</small></span>
+               <span class="cta-btn-label"><strong>후원하기</strong><small>오픈 예정</small></span>
              </button>
              <!-- #500 — 캐릭터챗(AI)·프리미엄챗(아티스트 직접) 진입점 분리.
                   기존 "프리미엄챗" 라벨이 /character-chat(AI챗)으로 연결되어 오인 유발 → AI챗 라벨로 교체.
@@ -356,9 +356,9 @@ function renderCharacterDetail() {
                <span class="cta-btn-icon">💬</span>
                <span class="cta-btn-label"><strong>AI 캐릭터챗</strong><small>AI가 캐릭터 톤으로 답하는 일반 대화</small></span>
              </a>
-             <button class="cta-btn cta-btn-premium" disabled aria-disabled="true" title="프리미엄챗: 아티스트가 직접 답변하는 유료 채팅이에요. 현재 방 오픈 준비 중입니다.">
+             <button class="cta-btn cta-btn-premium" disabled aria-disabled="true" title="프리미엄챗: 아티스트가 직접 답변하는 유료 채팅이에요. 방 오픈 시 이용할 수 있어요.">
                <span class="cta-btn-icon">⭐</span>
-               <span class="cta-btn-label"><strong>프리미엄챗</strong><small>아티스트 직접 답변 · 유료 · 준비 중</small></span>
+               <span class="cta-btn-label"><strong>프리미엄챗</strong><small>아티스트 직접 답변 · 유료 · 오픈 예정</small></span>
              </button>
            </div>
          </div>`;

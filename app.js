@@ -1128,7 +1128,7 @@ async function handleSocialLogin(provider) {
   if (provider === "apple") {
     return handleAppleLogin();
   }
-  alert(`${provider} 로그인은 곧 추가됩니다!`);
+  alert(`${provider} 로그인은 아직 지원되지 않아요. 지금은 이메일로 입장해 주세요.`);
 }
 
 /* ── 카카오 로그인 (SDK 골격) ─────────────────
@@ -1169,7 +1169,7 @@ function initKakaoSDK() {
 
 async function handleKakaoLogin() {
   if (!KAKAO_JS_KEY) {
-    alert("카카오 로그인은 곧 열릴 예정입니다.\n지금은 이메일로 먼저 입장해주세요.");
+    alert("카카오 로그인은 아직 지원되지 않아요.\n지금은 이메일로 입장해 주세요.");
     return;
   }
   try {
@@ -1247,7 +1247,7 @@ const NAVER_CLIENT_ID = "WEXZ2Cn3Ff8pIEdTkDfR"; // Naver Developers Client ID
 
 async function handleNaverLogin() {
   if (!NAVER_CLIENT_ID) {
-    alert("네이버 로그인은 곧 열릴 예정입니다.\n지금은 이메일로 먼저 입장해주세요.");
+    alert("네이버 로그인은 아직 지원되지 않아요.\n지금은 이메일로 입장해 주세요.");
     return;
   }
   // CSRF 방지용 state 토큰
@@ -3249,9 +3249,9 @@ function renderFeedLinkPreview(linkPreview) {
 
 const statusMeta = {
   public:    { label: "공식 활동 중",  summaryLabel: "활동 중",   className: "is-public"    },
-  debut:     { label: "데뷔 예정",     summaryLabel: "곧 공개",   className: "is-debut"     },
+  debut:     { label: "데뷔 예정",     summaryLabel: "공개 예정", className: "is-debut"     },
   // #601 — 공개 보류 상태. 이미지/조건 충족 후 public 전환 예정. is-secret 클래스 재사용(CSS 변경 없음).
-  pending:   { label: "공개 준비 중",  summaryLabel: "준비 중",   className: "is-secret"    },
+  pending:   { label: "공개 예정",     summaryLabel: "공개 예정", className: "is-secret"    },
   secret:    { label: "비공개 라인",   summaryLabel: "비공개", className: "is-secret"    },
   candidate: { label: "비공개 라인",   summaryLabel: "비공개", className: "is-secret"    }
 };

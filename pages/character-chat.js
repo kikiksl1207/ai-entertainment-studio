@@ -208,7 +208,7 @@
     const displayName = artist?.displayName || artist?.name || tone?.name || "";
     const status = tone?.statusLine || "활동 중";
     const namePrefix = displayName ? `${displayName} · ` : "";
-    para.textContent = `${namePrefix}${status}. 곧 한 마디 건네드릴게요.`;
+    para.textContent = `${namePrefix}${status}. 먼저 첫 인사를 건네보세요.`;
   }
 
   function buildStarterOptions(serverOptions, slug) {
@@ -740,7 +740,7 @@
     button.classList.toggle("is-disabled", !!locked);
     button.setAttribute("aria-disabled", locked ? "true" : "false");
     button.setAttribute("aria-describedby", "premiumChatRoomStatus");
-    button.title = reason || (locked ? "후원 기능은 서비스 준비 완료 후 열려요." : "스타에게 후원하기");
+    button.title = reason || (locked ? "후원 기능은 서비스 오픈 후 열려요." : "스타에게 후원하기");
     const tag = button.querySelector(".dm-action-tag");
     if (tag) tag.textContent = tagText || (locked ? "준비" : "유료");
   }
@@ -865,7 +865,7 @@
         badges
       };
     }
-    badges.push(mutationOpen ? "후원 가능" : "후원 준비 중");
+    badges.push(mutationOpen ? "후원 가능" : "후원 오픈 예정");
     badges.push("프로필 보기 가능");
     return {
       state: remainingDays != null && remainingDays <= 3 ? "expiring" : "active",
@@ -874,7 +874,7 @@
       title: "프리미엄챗 상태",
       body: mutationOpen
         ? "아티스트 직접 답변 유료 채팅이에요. AI 응답이 아닙니다. 후원은 선택 금액 확인 뒤 진행할 수 있어요."
-        : "아티스트 직접 답변 유료 채팅이에요. AI 응답이 아닙니다. 후원은 서비스 준비 완료 후 활성화돼요.",
+        : "아티스트 직접 답변 유료 채팅이에요. AI 응답이 아닙니다. 후원은 서비스 오픈 후 활성화돼요.",
       badges
     };
   }
@@ -904,11 +904,11 @@
       if (!item) {
         renderPremiumRoomStatus({
           state: "pending",
-          title: "프리미엄챗 준비 중",
+          title: "프리미엄챗 오픈 예정",
           body: "프리미엄챗은 아티스트 직접 답변 유료 채팅이에요. AI 응답이 아닙니다. 이 아티스트의 열린 방을 찾지 못했어요.",
-          badges: ["AI 캐릭터챗 진입 가능", mutationOpen ? "후원 가능" : "후원 준비 중"]
+          badges: ["AI 캐릭터챗 진입 가능", mutationOpen ? "후원 가능" : "후원 오픈 예정"]
         });
-        setDonationActionState(!mutationOpen, mutationOpen ? "유료" : "준비", mutationOpen ? "스타에게 후원하기" : "후원 기능은 서비스 준비 완료 후 열려요.");
+        setDonationActionState(!mutationOpen, mutationOpen ? "유료" : "준비", mutationOpen ? "스타에게 후원하기" : "후원 기능은 서비스 오픈 후 열려요.");
         return;
       }
       const view = roomStatusPresentation(item, mutationOpen);
@@ -923,7 +923,7 @@
         body: loginNeeded
           ? "아티스트 직접 답변 유료 채팅이에요. AI 응답이 아닙니다. 내 방의 만료·미답변·검토 상태는 로그인 후 확인할 수 있어요."
           : "아티스트 직접 답변 유료 채팅이에요. 방 상태를 잠시 불러오지 못해 후원은 준비 상태로 유지돼요.",
-        badges: [loginNeeded ? "로그인 필요" : "다시 확인 필요", "후원 준비 중"]
+        badges: [loginNeeded ? "로그인 필요" : "다시 확인 필요", "후원 오픈 예정"]
       });
       setDonationActionState(true, "준비", "방 상태 확인 후 후원을 이용할 수 있어요.");
     }
@@ -1300,7 +1300,7 @@
       if (confirmBtn) {
         confirmBtn.disabled = true;
         confirmBtn.setAttribute("aria-disabled", "true");
-        if (confirmLabel) confirmLabel.textContent = mutationOpen ? "금액을 선택해 주세요" : "후원 준비 중";
+        if (confirmLabel) confirmLabel.textContent = mutationOpen ? "금액을 선택해 주세요" : "후원 오픈 예정";
       }
     }
 
@@ -1319,7 +1319,7 @@
         confirmBtn.setAttribute("aria-disabled", valid ? "false" : "true");
         confirmLabel.textContent = valid
           ? `${Number(amount).toLocaleString("ko-KR")}L 후원하기`
-          : (mutationOpen ? "금액을 선택해 주세요" : "후원 준비 중");
+          : (mutationOpen ? "금액을 선택해 주세요" : "후원 오픈 예정");
       }
     }
 
@@ -1366,7 +1366,7 @@
     if (confirmBtn) {
       confirmBtn.addEventListener("click", () => {
         if (!mutationOpen || selectedAmount < 1) return;
-        if (confirmLabel) confirmLabel.textContent = "후원 기능 준비 중이에요 · 곧 열려요";
+        if (confirmLabel) confirmLabel.textContent = "후원 기능은 서비스 오픈 후 이용할 수 있어요";
         confirmBtn.disabled = true;
         confirmBtn.setAttribute("aria-disabled", "true");
       });
@@ -1508,12 +1508,12 @@
     if (enteredChar && enteredChar.status === "pending") {
       showRoomMode();
       setText("chatHeroName", enteredChar.name || slug);
-      setText("chatHeroSummary", "공개 준비 중");
+      setText("chatHeroSummary", "공개 예정");
       setHeroAvatar(slug, null);
       const empty = $("chatEmpty");
       if (empty) {
         const para = empty.querySelector("p");
-        if (para) para.textContent = `${enteredChar.name || slug}은(는) 아직 공개 준비 중이에요. 이미지와 프로필 준비가 완료되면 채팅이 열립니다.`;
+        if (para) para.textContent = `${enteredChar.name || slug}은(는) 아직 공개 전이에요. 이미지와 프로필이 공개되면 채팅이 열려요.`;
         empty.hidden = false;
       }
       // starter card 및 입력창 숨김
