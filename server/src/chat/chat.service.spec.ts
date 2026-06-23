@@ -8361,6 +8361,55 @@ describe('ChatService premium chat support contract', () => {
     });
   });
 
+  it('keeps premium chat artist direct replies as a separate disabled backend contract', () => {
+    const service = new ChatService({} as never, {} as never);
+    const contract = service.getPremiumSupportContract();
+
+    expect(contract.artistDirectReplyContract.roomType).toMatchObject({
+      productType: 'artist_direct_premium_dm',
+      billingType: 'premium_room_lumina',
+      respondentType: 'artist_direct_reply',
+      sourceTable: 'premium_chat_rooms',
+      separateFromCharacterChat: true,
+      characterChatFallbackAllowed: false,
+    });
+    expect(contract.artistDirectReplyContract.participantRoles).toMatchObject({
+      ownerUserRole: 'premium_room_owner_user',
+      artistResponderRole: 'artist_operator_responder',
+      aiResponderRoleAllowed: false,
+      providerResponderAllowed: false,
+    });
+    expect(contract.artistDirectReplyContract.artistReplyState).toMatchObject({
+      unansweredState: 'needs_artist_reply',
+      answeredState: 'artist_answered',
+      firstReplyEvidence: expect.arrayContaining([
+        'room.status=artist_answered',
+        'first_artist_reply_at_present',
+        'last_artist_reply_at_present',
+      ]),
+      replyMutationEnabled: false,
+      messageSendMutationEnabled: false,
+    });
+    expect(contract.artistDirectReplyContract.userVisibleCopyKeys).toMatchObject({
+      roomTitleKey: 'chat.premiumRoom.artistDirect.title',
+      roomGuidanceKey: 'chat.premiumRoom.artistDirect.guidance',
+      waitingReplyKey: 'chat.premiumRoom.artistDirect.waitingReply',
+      answeredKey: 'chat.premiumRoom.artistDirect.answered',
+      notAiChatKey: 'chat.premiumRoom.artistDirect.notAiChat',
+    });
+    expect(contract.artistDirectReplyContract.separationPolicy).toMatchObject({
+      characterChatConversationTable: 'chat_sessions',
+      premiumRoomTable: 'premium_chat_rooms',
+      usesCharacterStarterPrompts: false,
+      usesCharacterOpeningGreeting: false,
+      providerCallEnabled: false,
+      roomOpenMutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+  });
+
   it('keeps premium chat donation submit skeleton disabled with separate ranking lanes', () => {
     const service = new ChatService({} as never, {} as never);
 

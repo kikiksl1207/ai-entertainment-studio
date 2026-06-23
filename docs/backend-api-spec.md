@@ -1838,6 +1838,14 @@ Authorization: Bearer <accessToken>
   character-chat sessions, starter prompts, or AI reply routes. Owner users use
   `/api/v1/chat/me/premium-rooms/:roomId/status`; the artist inbox never falls
   back to the user conversation list.
+- #1077 artist direct-reply contract keeps the premium room type, participant
+  roles, artist reply states, and user-visible copy keys separate from
+  character chat. The room remains `premium_chat_rooms` /
+  `artist_direct_premium_dm` / `artist_direct_reply`; user participants are
+  owner users, responder participants are artist operators, and AI/provider
+  responder roles are not allowed. `needs_artist_reply` and `artist_answered`
+  are state keys only; clients must use `chat.premiumRoom.artistDirect.*` copy
+  keys or Korean fallback copy instead of showing raw enums.
 - Raw room status, answer state, and message-kind enums must not be used as
   user-facing copy. Clients should use label keys or Korean fallback copy.
 - The projection must not expose raw chat bodies, raw support-message bodies,
