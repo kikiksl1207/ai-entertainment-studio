@@ -183,6 +183,81 @@ export const STORY_STAGE_AI_ARTIST_SETTLEMENT_SPLIT_SKELETON = {
   },
 } as const;
 
+export const STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT = {
+  version: '2026-06-23.story-stage-author-revenue-read-model.v1',
+  status: 'read_model_contract_only',
+  readModel: 'story_author_revenue_preview',
+  sourceLedgers: {
+    chapterPurchaseLedger: 'story_purchase_ledger.chapter_single',
+    seasonBundleLedger: 'story_purchase_ledger.season_bundle',
+    entitlementLedger: 'user_entitlements.story_chapter_or_season_access',
+    aiArtistParticipation: 'story_sessions.ai_artist_id',
+  },
+  revenueBuckets: {
+    chapterGrossRevenue: {
+      source: 'granted_chapter_single_purchase',
+      amountField: 'chapterGrossLumina',
+      refundAdjusted: true,
+    },
+    seasonDiscountAllocation: {
+      source: 'season_bundle_allocated_per_chapter',
+      amountField: 'seasonDiscountLumina',
+      discountIsSeparateFromRefund: true,
+    },
+    aiArtistParticipationCost: {
+      source: 'ai_artist_companion_participation',
+      amountField: 'aiParticipationCostLumina',
+      deductedBeforeAuthorShare: true,
+    },
+    storyAuthorShare: {
+      source: 'chapter_net_after_discount_refund_and_ai_participation',
+      amountField: 'authorShareLumina',
+      payoutEligible: false,
+    },
+  },
+  projectionFields: [
+    'storyPackId',
+    'storySeasonId',
+    'chapterId',
+    'chapterNo',
+    'authorUserId',
+    'chapterGrossLumina',
+    'seasonDiscountLumina',
+    'refundAdjustedLumina',
+    'aiArtistId',
+    'aiParticipationCostLumina',
+    'authorShareBasisLumina',
+    'authorShareLumina',
+    'payoutEligible',
+  ],
+  separationPolicy: {
+    chapterRevenueAndSeasonDiscountSameField: false,
+    aiArtistParticipationIncludedInAuthorShare: false,
+    authorShareIncludesUnsettledOnly: true,
+    clientSubmittedRevenueTrusted: false,
+    clientSubmittedDiscountTrusted: false,
+    clientSubmittedShareTrusted: false,
+  },
+  noMutationPolicy: {
+    contractAddsEndpoint: false,
+    paymentMutation: false,
+    refundMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    walletMutation: false,
+    walletLedgerMutation: false,
+  },
+  responsePolicy: {
+    readOnly: true,
+    stableCodeRequired: true,
+    messageKeyRequired: true,
+    rawUserFacingEnglishCopy: false,
+    privateReaderIdentifierReturned: false,
+    payoutAccountReturned: false,
+    internalFormulaReturned: false,
+  },
+} as const;
+
 export const STORY_STAGE_SESSION_RETENTION_POLICY_CONTRACT = {
   version: '2026-06-18.story-stage-session-retention-policy.v1',
   status: 'contract_only',
@@ -335,6 +410,7 @@ export const STORY_STAGE_CONTRACT = {
   purchaseLedgerSkeleton: STORY_STAGE_PURCHASE_LEDGER_SKELETON,
   aiArtistSettlementSplitSkeleton:
     STORY_STAGE_AI_ARTIST_SETTLEMENT_SPLIT_SKELETON,
+  authorRevenueReadModel: STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT,
   sessionRetentionPolicy: STORY_STAGE_SESSION_RETENTION_POLICY_CONTRACT,
   authorInterruptionRefundPenaltyReadModel:
     STORY_STAGE_AUTHOR_INTERRUPTION_REFUND_PENALTY_READ_MODEL,

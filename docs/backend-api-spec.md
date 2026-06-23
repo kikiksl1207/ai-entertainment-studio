@@ -154,6 +154,12 @@ GET /api/v1/story-sessions/:sessionId/choices
   entitlements, create story sessions, submit choices, call AI providers,
   generate image/video assets, create notifications, touch settlement, or touch
   payout.
+- #1081 adds `STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT` for read-only
+  author revenue preview. It separates chapter gross revenue, season bundle
+  discount allocation, AI artist companion participation cost, and story author
+  share into distinct buckets. The projection is not payout authority, trusts no
+  client-submitted revenue/discount/share values, and does not create payment,
+  refund, wallet, settlement, or payout mutations.
 
 ### Story Stage Choices and Timeline
 
