@@ -198,6 +198,13 @@ wallet/Lumina, or touch settlement/payout.
 - Active speakers may speak and influence choice text. Cameo companions may
   speak briefly but cannot solve the scene. Background/offscreen companions do
   not drive choices.
+- #1073 adds `participationBudget`: the target session budget is the player plus
+  up to five AI companion artists. Free prologue mode allows solo play or one AI
+  companion only, with no paid expansion. Paid story mode may allow up to five
+  AI companions, but add/swap cost must come from server story product policy;
+  client-submitted cost is never accepted. Overflow companions must be
+  summarized or downgraded to cameo/background/offscreen reference before any
+  provider context is composed.
 - The projection must not expose raw persona prompts, raw world bible text,
   provider payloads, private artist notes, or admin memos.
 
