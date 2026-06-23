@@ -1249,6 +1249,28 @@ export const AI_PREMIUM_CONTENT_VIDEO_CONSENT_EXCEPTION_CONTRACT = {
     existingTextAndImageFlowContinues: true,
     videoResultHiddenWhenConsentDeclined: true,
   },
+  stateApi: {
+    method: 'GET',
+    pathTemplate:
+      '/api/v1/ai-premium-content/requests/:requestId/video-consent-state',
+    enabled: false,
+    readOnly: true,
+    ownerOnly: true,
+    responseFields: [
+      'requestId',
+      'outputClass',
+      'stateKey',
+      'labelKo',
+      'helperKo',
+      'ctaKey',
+      'videoResultVisible',
+      'textResultVisible',
+      'imageResultVisible',
+      'requestContinues',
+    ],
+    rawEnumAsCopy: false,
+    submitEndpointEnabled: false,
+  },
   states: [
     {
       stateKey: 'video_consent_not_required',
