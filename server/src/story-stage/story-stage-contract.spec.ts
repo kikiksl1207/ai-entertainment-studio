@@ -224,6 +224,36 @@ describe('Story Stage contract skeleton', () => {
         clientSubmittedDiscountTrusted: false,
         clientSubmittedShareTrusted: false,
       },
+      allocationSkeleton: {
+        version: '2026-06-23.story-author-revenue-bucket-allocation.v1',
+        chapterRevenue: {
+          bucket: 'chapter_direct_revenue',
+          source: 'completed_chapter_single_purchase',
+          grossField: 'chapterGrossLumina',
+          refundAdjustmentField: 'refundAdjustedLumina',
+          seasonBundleRevenueIncluded: false,
+        },
+        seasonRevenue: {
+          bucket: 'season_bundle_allocated_revenue',
+          source: 'completed_season_bundle_purchase_allocated_per_chapter',
+          allocatedField: 'seasonAllocatedGrossLumina',
+          discountField: 'seasonDiscountLumina',
+          chapterDirectRevenueIncluded: false,
+        },
+        aiCompanionCost: {
+          bucket: 'ai_character_companion_participation_cost',
+          source: 'story_session_companion_roster_confirmed_by_server',
+          amountField: 'aiParticipationCostLumina',
+          deductedBeforeAuthorShare: true,
+          providerCostPayloadReturned: false,
+        },
+        authorPreview: {
+          basisField: 'authorShareBasisLumina',
+          previewField: 'authorShareLumina',
+          finalSettlementAuthority: false,
+          payoutEligible: false,
+        },
+      },
       noMutationPolicy: {
         contractAddsEndpoint: false,
         paymentMutation: false,
@@ -251,6 +281,14 @@ describe('Story Stage contract skeleton', () => {
         'payoutEligible',
       ]),
     );
+    expect(readModel.allocationSkeleton.calculationOrder).toEqual([
+      'load_completed_chapter_purchase_revenue',
+      'allocate_completed_season_bundle_revenue_to_chapter',
+      'subtract_refund_or_chargeback_adjustment',
+      'reserve_ai_character_companion_participation_cost',
+      'calculate_story_author_share_preview',
+      'return_read_only_projection_without_settlement_or_payout_mutation',
+    ]);
   });
 
   it('keeps continue-session retention separate from purchase history', () => {
