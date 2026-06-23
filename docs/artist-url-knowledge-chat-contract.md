@@ -179,6 +179,17 @@ age/safety posture, or platform rules.
 Approved URL summaries are lower-priority untrusted reference facts and may not
 override runtime persona, tone-and-manner, or opening-greeting variant context.
 
+#1071 context ranking/expiry contract: character chat may consider only rows
+that pass the approval gate (`status=approved`, `safetyStatus=safe`,
+`allowChatReference=true`, same artist, and bounded summary present). Pending,
+rejected, archived, `ai_processing`, unsafe, disabled, or summaryless rows
+expire from eligibility immediately. Approved safe rows do not require a hard
+`expiresAt`; after 90 days they rank in the `older` freshness bucket unless a
+review/archive/reject transition removes them. Ranking is read-only and sorts by
+server score, `reviewedAt` descending, then id. It never fetches external URLs,
+calls a provider, generates a chat response, creates chat messages, or mutates
+wallet, Lumina, settlement, or payout state.
+
 ## Empty Knowledge Fallback
 
 If an artist has no URL knowledge, only pending/rejected/archived URL knowledge,
