@@ -1007,6 +1007,135 @@ export const AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON = {
   },
 } as const;
 
+export const AI_PREMIUM_CONTENT_MIDDLEWARE_ROUTING_SKELETON = {
+  version: '2026-06-23.ai-content-middleware-routing-skeleton.v1',
+  status: 'skeleton_ready_mutation_blocked',
+  pipelineName: 'ai_middleware_pipeline',
+  enabled: false,
+  providerAgnostic: true,
+  acceptedRequestTypes: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+  outputClasses: AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
+  routingInputs: {
+    requestType: {
+      source: 'client_request_validated_against_server_allowlist',
+      clientSubmittedTrustedAfterValidation: false,
+    },
+    characterContext: {
+      source: 'server_resolved_character_or_artist_context',
+      rawPromptReturned: false,
+      providerPayloadReturned: false,
+    },
+    safetyState: {
+      source: 'server_safety_precheck_projection',
+      allowedStatuses: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+      providerCallBeforeSafetyClear: false,
+    },
+    costControl: {
+      source: 'server_cost_policy_and_budget_guard',
+      clientSubmittedCostTrusted: false,
+      providerQuoteTrusted: false,
+      walletDebitBeforeFinalApproval: false,
+    },
+    resultStorage: {
+      stateSource: 'ai_premium_content_request_result_projection',
+      rawProviderUrlReturned: false,
+      signedUrlReturned: false,
+      publicAssetProxyRequired: true,
+    },
+  },
+  routeMap: {
+    image_single: {
+      outputClass: 'image',
+      routeAlias: 'ai_premium_content.image.text_to_image',
+      capability: 'text_to_image',
+    },
+    image_variation: {
+      outputClass: 'image',
+      routeAlias: 'ai_premium_content.image.image_to_image',
+      capability: 'image_to_image',
+    },
+    image_reference: {
+      outputClass: 'image',
+      routeAlias: 'ai_premium_content.image.reference_pack',
+      capability: 'text_to_image',
+    },
+    video_clip: {
+      outputClass: 'video',
+      routeAlias: 'ai_premium_content.video.text_to_video',
+      capability: 'text_to_video',
+      requiresExplicitVideoConsent: true,
+    },
+    video_loop: {
+      outputClass: 'video',
+      routeAlias: 'ai_premium_content.video.image_to_video',
+      capability: 'image_to_video',
+      requiresExplicitVideoConsent: true,
+    },
+    premium_pack: {
+      outputClass: 'mixed',
+      routeAlias: 'ai_premium_content.mixed.generation_pack',
+      capability: 'mixed_generation_pack',
+      requiresExplicitVideoConsentWhenVideoIncluded: true,
+    },
+  },
+  validationOrder: [
+    'require_authenticated_request_owner_or_artist_operator',
+    'validate_request_type_against_server_allowlist',
+    'resolve_character_or_artist_context_on_server',
+    'run_safety_precheck_without_provider_call',
+    'run_cost_precheck_without_wallet_mutation',
+    'select_provider_agnostic_route_alias',
+    'create_or_project_request_state_without_provider_call',
+    'return_skeleton_projection_without_payment_or_wallet_mutation',
+  ],
+  failureResponses: {
+    invalidRequestType: {
+      status: 400,
+      code: 'AI_CONTENT_REQUEST_TYPE_INVALID',
+      messageKey: 'aiPremiumContent.error.invalidRequestType',
+    },
+    safetyBlocked: {
+      status: 409,
+      code: 'AI_CONTENT_SAFETY_BLOCKED',
+      messageKey: 'aiPremiumContent.error.safetyBlocked',
+    },
+    costBlocked: {
+      status: 409,
+      code: 'AI_CONTENT_COST_BLOCKED',
+      messageKey: 'aiPremiumContent.error.costBlocked',
+    },
+    videoConsentRequired: {
+      status: 409,
+      code: 'AI_CONTENT_VIDEO_CONSENT_REQUIRED',
+      messageKey: 'aiPremiumContent.error.videoConsentRequired',
+    },
+  },
+  noMutationPolicy: {
+    providerCall: false,
+    gptImageCall: false,
+    stableDiffusionCall: false,
+    seedanceCall: false,
+    openAiCall: false,
+    walletDebit: false,
+    walletCredit: false,
+    paymentOrderCreate: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    publicFeedPublish: false,
+    profileEquip: false,
+  },
+  privacy: {
+    rawPromptReturned: false,
+    rawProviderPayloadReturned: false,
+    providerSecretReturned: false,
+    vendorModelIdentifierReturned: false,
+    safetyPayloadReturned: false,
+    internalCostReturned: false,
+    providerCostReturned: false,
+    tokenCookieSecretDbUrlLogged: false,
+  },
+} as const;
+
 export const AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT = {
   version: '2026-06-16.ai-premium-content-status-preview-fixture.v1',
   feature: 'ai_premium_content_status_preview_fixture',
@@ -2071,6 +2200,8 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   requestQueueSkeleton: AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON,
   costRetryReadModel: AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
   modelRoutingApiSkeleton: AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON,
+  middlewareRoutingSkeleton:
+    AI_PREMIUM_CONTENT_MIDDLEWARE_ROUTING_SKELETON,
   createStatusApiSkeleton: AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
   statusPreviewFixture: AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
   videoConsentException:
