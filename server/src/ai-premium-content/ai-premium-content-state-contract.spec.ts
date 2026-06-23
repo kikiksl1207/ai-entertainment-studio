@@ -962,6 +962,16 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
         existingTextAndImageFlowContinues: true,
         videoResultHiddenWhenConsentDeclined: true,
       },
+      stateApi: {
+        method: 'GET',
+        pathTemplate:
+          '/api/v1/ai-premium-content/requests/:requestId/video-consent-state',
+        enabled: false,
+        readOnly: true,
+        ownerOnly: true,
+        rawEnumAsCopy: false,
+        submitEndpointEnabled: false,
+      },
       declinePolicy: {
         hidesVideoResult: true,
         deletesTextResult: false,
@@ -974,6 +984,12 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
         rawEnumAsCopy: false,
         rawProviderStatusAsCopy: false,
         neutralFallbackCopy: '확인 중',
+        requiredFallbacks: {
+          reviewCost: '영상 제작 비용을 확인해 주세요',
+          accept: '동의하고 진행',
+          decline: '영상 없이 계속',
+          declined: '영상 제작은 진행하지 않아요',
+        },
       },
       privacy: {
         rawPromptReturned: false,
@@ -998,7 +1014,17 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       videoResultVisible: false,
       existingTextAndImageFlowContinues: true,
       labelKo: '영상 제작은 진행하지 않아요',
+      helperKo:
+        '영상 비용 동의를 거절해도 기존 텍스트와 이미지 흐름은 계속 확인할 수 있어요.',
     });
+    expect(contract.stateApi.responseFields).toEqual(
+      expect.arrayContaining([
+        'videoResultVisible',
+        'textResultVisible',
+        'imageResultVisible',
+        'requestContinues',
+      ]),
+    );
     expect(Object.values(contract.noSideEffects).every((blocked) => blocked)).toBe(
       true,
     );

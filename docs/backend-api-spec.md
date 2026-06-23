@@ -3129,7 +3129,10 @@ AI premium content request brief API skeleton (#662):
   results stay hidden while existing text/image request flow and safe previews
   continue; the whole request is not cancelled by this state. UI copy must use
   Korean fallback labels such as "영상 제작 비용 동의가 필요해요" and
-  "영상 제작은 진행하지 않아요" rather than raw state/provider enums.
+  "영상 제작은 진행하지 않아요" rather than raw state/provider enums. The
+  disabled read-only state API exposes only safe UI fields, including
+  `videoResultVisible`, `textResultVisible`, `imageResultVisible`, and
+  `requestContinues`.
 - #883 does not enable GPT Image, Stable Diffusion, Seedance, OpenAI/provider
   calls, image/video generation, wallet debit, order creation, settlement,
   payout, paid-like mutation, profile equip, or feed publish side effects.
