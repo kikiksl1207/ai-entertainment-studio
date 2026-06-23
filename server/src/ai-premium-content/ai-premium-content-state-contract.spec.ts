@@ -3,6 +3,7 @@ import {
   AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
   AI_PREMIUM_CONTENT_CREATE_STATUS_API_STATUSES,
   AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
+  AI_PREMIUM_CONTENT_COST_USAGE_AUDIT_PROJECTION,
   AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY,
   AI_PREMIUM_CONTENT_MODERATION_STATUSES,
   AI_PREMIUM_CONTENT_MIDDLEWARE_ROUTING_SKELETON,
@@ -87,6 +88,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     );
     expect(contract.costRetryReadModel).toBe(
       AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
+    );
+    expect(contract.costUsageAuditProjection).toBe(
+      AI_PREMIUM_CONTENT_COST_USAGE_AUDIT_PROJECTION,
     );
     expect(contract.modelRoutingApiSkeleton).toBe(
       AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON,
@@ -221,6 +225,63 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       internalCostReturned: false,
       providerCostReturned: false,
       tokenCookieSecretDbUrlLogged: false,
+    });
+  });
+
+  it('defines a provider-agnostic cost usage audit projection without provider or wallet mutations', () => {
+    const contract =
+      AI_PREMIUM_CONTENT_STATE_API_CONTRACT.costUsageAuditProjection;
+
+    expect(contract).toBe(AI_PREMIUM_CONTENT_COST_USAGE_AUDIT_PROJECTION);
+    expect(contract).toMatchObject({
+      version: '2026-06-23.ai-content-cost-usage-audit-projection.v1',
+      status: 'read_model_contract_only',
+      enabled: false,
+      readOnly: true,
+      providerAgnostic: true,
+      providerCallEnabled: false,
+      paymentMutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      paidLikeMutationEnabled: false,
+    });
+    expect(contract.supportedProviderFamilies).toEqual([
+      'gpt_image',
+      'stable_diffusion',
+      'seedance',
+      'provider_alias',
+    ]);
+    expect(contract.projectionFields).toEqual(
+      expect.arrayContaining([
+        'requestId',
+        'estimatedCostMicros',
+        'attemptCount',
+        'failureRateBps',
+        'regenerationCount',
+      ]),
+    );
+    expect(contract.modelUsage).toMatchObject({
+      providerKeyReturned: false,
+      modelKeyReturned: false,
+      rawProviderPayloadReturned: false,
+    });
+    expect(contract.estimatedCost).toMatchObject({
+      estimateSource: 'server_policy_estimate_not_provider_quote',
+      providerCostReturned: false,
+      walletDebit: false,
+      walletCredit: false,
+    });
+    expect(
+      Object.values(contract.mutationGates).every((enabled) => enabled === false),
+    ).toBe(true);
+    expect(contract.privacy).toMatchObject({
+      rawProviderPayloadReturned: false,
+      providerCredentialReturned: false,
+      rawProviderErrorReturned: false,
+      tokenReturned: false,
+      cookieReturned: false,
+      envValueReturned: false,
     });
   });
 
