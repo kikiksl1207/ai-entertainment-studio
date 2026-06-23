@@ -3663,6 +3663,16 @@ Authorization: Bearer <accessToken>
   blocked originals as tombstones without original body or private author
   fields. Share remains `share_contract` URL/Web Share projection only with
   `shareCount=null` and `countStrategy="not_mutated_by_share_contract"`.
+- #1100 exports `LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT` as the canonical
+  quote projection contract. Quote repost creates a viewer-owned feed context
+  with `post.repost.quoteBody` kept separate from
+  `post.repost.originalPost.body`; simple repost keeps `quoteBody=null`.
+  Missing, deleted, hidden, private, reported, moderation-review,
+  viewer-hidden, or blocked original posts render as an unavailable tombstone
+  and must not expose the original body. Share stays a separate
+  `share_contract` read projection and never creates a repost row, feed row,
+  notification, count mutation, wallet/Lumina, settlement, payout, order, or
+  paid-like mutation.
 - `DELETE /api/v1/lumina-feed/posts/:postId` soft-deletes the current user's own root post. Deleting the root hides the full thread from feed lists.
 - `DELETE /api/v1/lumina-feed/replies/:replyId` soft-deletes the current user's own reply. Artist operators can delete replies on operated artist posts.
 - Hidden posts use soft delete/reactivation with unique `(user_id, post_id)`.
