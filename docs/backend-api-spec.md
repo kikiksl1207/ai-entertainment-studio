@@ -160,6 +160,13 @@ GET /api/v1/story-sessions/:sessionId/choices
   share into distinct buckets. The projection is not payout authority, trusts no
   client-submitted revenue/discount/share values, and does not create payment,
   refund, wallet, settlement, or payout mutations.
+- #1117 adds the author revenue bucket allocation skeleton. Calculation order is
+  completed chapter purchase revenue, season bundle revenue allocated per
+  chapter, refund/chargeback adjustment, AI character companion participation
+  cost reserve, then story author share preview. Chapter direct revenue, season
+  allocation, AI companion cost, and author preview fields remain separate and
+  do not expose provider cost payloads or create settlement, payout, wallet, or
+  payment mutation.
 
 ### Story Stage Choices and Timeline
 
