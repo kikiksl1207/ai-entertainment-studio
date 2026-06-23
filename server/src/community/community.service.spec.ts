@@ -7,6 +7,7 @@ import {
   CommunityService,
   LUMINA_FEED_MULTI_IMAGE_ATTACHMENT_CONTRACT,
   LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT,
+  LUMINA_FEED_REPOST_SHARE_DISPLAY_PROJECTION_CONTRACT,
   LUMINA_FEED_REPOST_QUOTE_BODY_VALIDATION_POLICY,
   LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT,
   LUMINA_FEED_THREAD_REPOST_SHARE_PM_PROJECTION_CONTRACT,
@@ -1910,6 +1911,71 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     expect(
       Object.values(
         LUMINA_FEED_THREAD_REPOST_SHARE_PM_PROJECTION_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('publishes repost and share display projection boundaries without count or wallet mutations', () => {
+    expect(LUMINA_FEED_REPOST_SHARE_DISPLAY_PROJECTION_CONTRACT).toMatchObject({
+      version: '2026-06-23.lumina-feed-repost-share-display-projection.v1',
+      status: 'read_model_contract_only',
+      surface: 'lumina_feed_post_card',
+      repostDisplay: {
+        field: 'post.repost',
+        relation: 'repost',
+        allowedTypes: ['repost', 'quote_repost'],
+        originalReference: {
+          idField: 'post.repost.originalPostId',
+          authorUserIdField: 'post.repost.originalAuthorUserId',
+          artistIdField: 'post.repost.originalArtistId',
+          embeddedPostField: 'post.repost.originalPost',
+        },
+        viewerComment: {
+          quoteBodyField: 'post.repost.quoteBody',
+          simpleRepostValue: null,
+          quoteRepostMayRemainVisibleWhenOriginalTombstoned: true,
+          quoteBodyDoesNotOverwriteOriginalBody: true,
+        },
+        countPolicy: {
+          countField: 'repostCount',
+          countSource: 'community_posts.metadata.repost.originalPostId',
+          includes: ['repost', 'quote_repost'],
+          excludes: ['thread_continuation', 'share_contract', 'reply', 'comment'],
+        },
+        unavailableOriginalDisplay: {
+          states: [
+            'missing',
+            'deleted',
+            'hidden',
+            'private',
+            'viewer_hidden',
+            'blocked_relationship',
+          ],
+          originalState: 'unavailable',
+          tombstone: true,
+          unavailableReason: 'viewer_restricted_or_unavailable',
+          originalPost: null,
+          originalBodyReturned: false,
+          privateAuthorFieldsReturned: false,
+        },
+      },
+      shareDisplay: {
+        relation: 'share',
+        actionKey: 'feed_share',
+        stateKey: 'share_contract',
+        shareUrlProjectionOnly: true,
+        createsFeedRow: false,
+        repostRelation: false,
+        threadRelation: false,
+        commentRelation: false,
+        replyRelation: false,
+        shareCount: null,
+        countStrategy: 'not_mutated_by_share_contract',
+      },
+    });
+    expect(
+      Object.values(
+        LUMINA_FEED_REPOST_SHARE_DISPLAY_PROJECTION_CONTRACT.mutationPolicy,
       ).every((enabled) => enabled === false),
     ).toBe(true);
   });
