@@ -8506,6 +8506,68 @@ describe('ChatService premium chat support contract', () => {
       rankingEndpointEnabled: false,
       donationCreateEnabled: false,
     });
+    expect(contract.donation.supportMessageLedgerSkeleton).toMatchObject({
+      version: '2026-06-23.premium-chat-support-message-ledger-skeleton.v1',
+      status: 'contract_only_mutation_disabled',
+      domainRecord: 'premium_chat_support_messages',
+      donationAmountTiers: {
+        fixedAmountsLumina: [
+          10,
+          50,
+          100,
+          500,
+          1000,
+          5000,
+          10000,
+          50000,
+        ],
+        customAmount: {
+          supported: true,
+          minLumina: 1,
+          maxLumina: 50000,
+          integerOnly: true,
+        },
+        amountSource: 'server_normalized_integer_lumina',
+        clientSubmittedTierTrusted: false,
+        clientSubmittedAmountTrusted: false,
+      },
+      donorDisplayPolicy: {
+        displayNameSource: 'safe_public_profile_display_name',
+        anonymousDisplayAllowed: true,
+        anonymousDisplayKey: 'chat.donation.donor.anonymous',
+        rawUserIdReturned: false,
+        rawEmailReturned: false,
+        rawPhoneReturned: false,
+        walletBalanceReturned: false,
+      },
+      rankingLedger: {
+        supportPointLedgerType: 'premium_chat_donation_support_point',
+        communicationLaneReceives: 'safe_support_message_activity',
+        donationLaneReceives: 'confirmed_net_premium_chat_donation',
+        likeRankingReceivesSupportMessage: false,
+        likeRankingReceivesDonation: false,
+        rawSupportMessageReturnedInRankings: false,
+      },
+      artistShareReadModel: {
+        projection: 'premiumChatSupportArtistShareReadModel',
+        amountBasis:
+          'confirmed_net_premium_chat_donation_after_refund_or_chargeback',
+        status: 'read_model_placeholder_only',
+        artistShareAmountReturned: false,
+        artistShareFormulaReturned: false,
+        settlementLedgerIdReturned: false,
+        payoutLedgerIdReturned: false,
+        messageKey: 'chat.donation.artistShare.pending',
+      },
+      noSettlementPlaceholder: {
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+        walletCreditEnabled: false,
+        artistBalanceMutationEnabled: false,
+        settlementQueueWriteEnabled: false,
+        payoutQueueWriteEnabled: false,
+      },
+    });
   });
 
   it('exposes premium chat support message request backend skeleton without enabling mutation', () => {
