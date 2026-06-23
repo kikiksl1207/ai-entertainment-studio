@@ -385,9 +385,33 @@ export const USER_SOCIAL_ACCOUNT_CONTRACT = {
       },
       qaSmokeHandoff: {
         nextOwner: 'qa2',
+        publicHandleReadiness: {
+          required: true,
+          ownerAlias: 'qa_profile_owner',
+          allowedHandlePattern: 'qa-follow-block-<YYYYMMDD>-run<N>',
+          statusField: 'fixture_status',
+          pathField: 'public_profile_path',
+          profilePathTemplate: '/user-profile?handle=:publicHandle',
+          followersPathTemplate:
+            '/api/v1/users/handle/:publicHandle/followers',
+          followingPathTemplate:
+            '/api/v1/users/handle/:publicHandle/following-users',
+          forbiddenValues: [
+            'raw_email',
+            'password',
+            'access_token',
+            'refresh_token',
+            'cookie',
+            'database_url',
+          ],
+        },
         allowedOutput: [
           'runId',
           'publicProfileHandle',
+          'fixtureStatus',
+          'publicProfilePath',
+          'followersApiPath',
+          'followingApiPath',
           'safeProfileOwnerUserId',
           'safeFollowerRowId',
           'safeBlockRowId',
@@ -413,6 +437,8 @@ export const USER_SOCIAL_ACCOUNT_CONTRACT = {
         'rowModel',
         'rowId',
         'status',
+        'publicHandle',
+        'path',
         'visibilityCheck',
         'httpStatus',
         'stableCode',

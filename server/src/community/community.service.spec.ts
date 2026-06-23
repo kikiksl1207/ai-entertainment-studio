@@ -344,6 +344,34 @@ describe('CommunityService user follow/block mutation contract', () => {
           },
           qaSmokeHandoff: {
             nextOwner: 'qa2',
+            publicHandleReadiness: {
+              required: true,
+              ownerAlias: 'qa_profile_owner',
+              allowedHandlePattern: 'qa-follow-block-<YYYYMMDD>-run<N>',
+              statusField: 'fixture_status',
+              pathField: 'public_profile_path',
+              profilePathTemplate: '/user-profile?handle=:publicHandle',
+              followersPathTemplate:
+                '/api/v1/users/handle/:publicHandle/followers',
+              followingPathTemplate:
+                '/api/v1/users/handle/:publicHandle/following-users',
+              forbiddenValues: [
+                'raw_email',
+                'password',
+                'access_token',
+                'refresh_token',
+                'cookie',
+                'database_url',
+              ],
+            },
+            allowedOutput: expect.arrayContaining([
+              'runId',
+              'publicProfileHandle',
+              'fixtureStatus',
+              'publicProfilePath',
+              'followersApiPath',
+              'followingApiPath',
+            ]),
           },
           safety: {
             realUserFollowMutation: false,
