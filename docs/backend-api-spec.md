@@ -1553,6 +1553,16 @@ GET /api/v1/chat/me/premium-donations?period=monthly&status=confirmed&take=20
   ledger ids, support-point ledger ids, message ids, raw user ids, or internal
   score formulas, and must not alias premium-chat rankings to Lumina Pick/boost
   rankings.
+- #1072 fixes the support amount projection for ranking contracts. Confirmed
+  net donations from fixed presets `10/50/100/500/1000/5000/10000/50000L` and
+  server-normalized direct input from `1L` through `50000L` may feed only the
+  premium-chat communication lane as a weighted support factor and the donation
+  lane as confirmed net donation. Gross donation amounts, refunded/chargeback/
+  cancelled rows, reported/blinded/suspended/admin-review rows, room-open rows,
+  message rows, free likes, and Lumina boosts are excluded from donation
+  ranking. This remains a disabled read-model contract and does not create
+  support, wallet, settlement, payout, ranking snapshot, or client score-refresh
+  mutation.
 - My donation history is owner-only and disabled. It returns safe donation
   projection fields plus filtered summary totals only. Other-user access must be
   safe 404 or 403 without identity leakage.
