@@ -438,42 +438,48 @@
    * 보관함/새 요청/후원 버튼은 기존 id(chatInboxOpen/chatRequestOpen/chatDonationOpen)를
    * 그대로 유지하므로 각 시트 열기 핸들러는 변경 없이 동작한다.
    * 여기서는 + 버튼으로 메뉴 열고 닫기, 바깥 클릭/ESC/항목 선택 시 닫기만 담당한다. */
+  /* #918/#1088 — 카톡형 + 액션 메뉴 토글.
+   * live에서 "+ 클릭해도 메뉴가 안 열림(hidden 유지)" 재발 방지를 위해 document 이벤트 위임으로 바인딩한다.
+   * 직접 element 바인딩은 init 시점에 dock이 아직 없거나 재렌더되면 핸들러가 사라져 실패할 수 있다.
+   * 위임은 바인딩 시점/재렌더와 무관하게 동작하고 중복 바인딩도 막는다.
+   * hidden 속성 + is-open class를 함께 토글해 [hidden]/specificity 충돌에도 확실히 표시한다. */
   function bindActionMenu() {
-    const toggle = $("chatPlusToggle");
-    const menu = $("chatActionMenu");
-    if (!toggle || !menu) return;
+    if (document._chatActionMenuBound) return; // 위임은 1회면 충분
+    document._chatActionMenuBound = true;
 
     function closeMenu() {
-      if (menu.hidden) return;
+      const menu = $("chatActionMenu");
+      const toggle = $("chatPlusToggle");
+      if (!menu || menu.hidden) return;
       menu.hidden = true;
-      toggle.setAttribute("aria-expanded", "false");
+      menu.classList.remove("is-open");
+      if (toggle) toggle.setAttribute("aria-expanded", "false");
     }
     function openMenu() {
+      const menu = $("chatActionMenu");
+      const toggle = $("chatPlusToggle");
+      if (!menu) return;
       menu.hidden = false;
-      toggle.setAttribute("aria-expanded", "true");
+      menu.classList.add("is-open");
+      if (toggle) toggle.setAttribute("aria-expanded", "true");
     }
 
-    toggle.addEventListener("click", (event) => {
-      event.stopPropagation();
-      if (menu.hidden) openMenu();
-      else closeMenu();
-    });
-
-    // 항목 선택 시 메뉴는 닫고, 각 항목의 시트 열기 핸들러는 그대로 동작
-    menu.addEventListener("click", (event) => {
-      const item = event.target.closest(".dm-action-menu-item");
-      if (!item || item.disabled) return;
-      closeMenu();
-    });
-
-    // 바깥 클릭으로 닫기
     document.addEventListener("click", (event) => {
-      if (menu.hidden) return;
-      if (menu.contains(event.target) || toggle.contains(event.target)) return;
-      closeMenu();
+      // + 버튼(또는 내부 svg) 클릭 → 토글
+      if (event.target.closest("#chatPlusToggle")) {
+        const menu = $("chatActionMenu");
+        if (menu && menu.hidden) openMenu();
+        else closeMenu();
+        return;
+      }
+      // 메뉴 항목 선택 → 메뉴 닫기(각 항목의 시트 열기 핸들러는 그대로 동작)
+      const item = event.target.closest(".dm-action-menu-item");
+      if (item && !item.disabled) { closeMenu(); return; }
+      // 메뉴 바깥 클릭 → 닫기
+      const openEl = $("chatActionMenu");
+      if (openEl && !openEl.hidden && !event.target.closest("#chatActionMenu")) closeMenu();
     });
 
-    // ESC 로 닫기
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") closeMenu();
     });

@@ -2492,6 +2492,8 @@ select.dm-field-input option {
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
 }
 .dm-action-menu[hidden] { display: none; }
+/* #1088 — is-open class를 함께 써서 [hidden] 제거 후 확실히 표시(specificity/!important 충돌 방지) */
+.dm-action-menu.is-open { display: flex; }
 
 .dm-action-menu-item {
   display: flex;
