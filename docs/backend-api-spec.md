@@ -1309,6 +1309,15 @@ Character-chat dynamic opening greeting cache (#388):
   returns raw seeds, raw prompts, provider payloads, or wallet/order/settlement/
   payout data. It also keeps provider calls optional and does not open message
   send mutation.
+- #1096 adds `dynamicGreetingContract.rotationContract` to prevent a global
+  fixed first-greeting sentence across all users. Rotation is scoped to the
+  character/user/chat-session boundary, draws from a character-scoped 5 to 10
+  candidate pool, and uses `chat_sessions.id` as the server-side deterministic
+  conversation seed. The same session still replays the cached
+  `opening_greeting`; new sessions or different users may rotate. The contract
+  does not accept client rotation overrides, does not expose/store raw seed or
+  raw prompt data, and does not add provider, message-send, wallet, order,
+  settlement, or payout mutation.
 - Provider generation is short and low-cost by contract:
   `maxOutputTokens=120`, `maxOutputChars=180`, lightweight model preferred.
 - Provider generation remains optional and separated from cache/template

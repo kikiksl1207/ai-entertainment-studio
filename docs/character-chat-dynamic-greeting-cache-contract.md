@@ -4,7 +4,8 @@ Updated: 2026-06-05
 Owner: Luffy
 Task: Notion #388, #397 regression contract, #402 tone candidate contract, #454
 greeting/recommended-reply diversity contract, #468 random tone selection contract,
-#618 opening greeting variant contract, workboard #1028 runtime handoff contract
+#618 opening greeting variant contract, workboard #1028 runtime handoff contract,
+workboard #1096 variant rotation contract
 
 This contract makes the first character-chat greeting dynamic per chat session
 without generating a new greeting on every page refresh. It keeps raw prompts,
@@ -72,6 +73,10 @@ provider requests or two opening-greeting rows for one session.
 - Same session reload: return cached `opening_greeting`.
 - Same character, different sessions: wording can vary through provider output
   or deterministic fallback variant seed from the session id.
+- Variant rotation is scoped to the character/user/chat-session boundary, not a
+  global random sentence. The same session must replay the cached
+  `opening_greeting`, while a new session or a different user may select another
+  display-safe greeting from that character's pool.
 - Fallback keeps a bounded 5 to 10 candidate pool. Sparse character data still
   receives at least five display-safe template variants before session-based
   selection, while richer persona/starter/tone data can supply character-specific
@@ -205,6 +210,13 @@ candidate fields.
   `openingGreeting.generation.variantPolicy.sameCharacterVariantPolicy` and
   `dynamicGreetingContract.variantPolicy.sameCharacterVariantPolicy`; raw seeds,
   raw prompts, provider payloads, and payment-related fields stay hidden.
+- #1096 rotation contract: `dynamicGreetingContract.rotationContract` fixes the
+  anti-global-fixed-sentence policy for frontend/QA. Rotation uses
+  `chat_sessions.id` as the deterministic user conversation seed, draws from a
+  character-scoped 5 to 10 candidate pool, rejects client rotation overrides,
+  and keeps raw seed/raw prompt/provider payload/payment fields hidden. This is a
+  read/projection contract only and does not add provider calls, message-send
+  mutation, wallet, order, settlement, or payout mutation.
 
 ## Test Baseline
 
@@ -231,6 +243,9 @@ The backend test fixes:
 - same-character variant policy allows new-user/new-session variation while
   requiring same-session replay and hiding raw seed/prompt/provider payload
   details
+- rotation contract prevents a global fixed first-greeting sentence by keeping
+  the candidate pool character-scoped, the conversation seed server-derived, and
+  mutation/provider/payment effects disabled
 - opening greeting variant metadata records the conversation-level persistence
   contract without returning raw seeds, prompts, provider payloads, wallet,
   settlement, payout, or order fields
