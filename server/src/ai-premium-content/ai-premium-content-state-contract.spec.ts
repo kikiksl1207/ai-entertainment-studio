@@ -5,6 +5,7 @@ import {
   AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
   AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY,
   AI_PREMIUM_CONTENT_MODERATION_STATUSES,
+  AI_PREMIUM_CONTENT_MIDDLEWARE_ROUTING_SKELETON,
   AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON,
   AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
   AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
@@ -89,6 +90,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     expect(contract.modelRoutingApiSkeleton).toBe(
       AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON,
     );
+    expect(contract.middlewareRoutingSkeleton).toBe(
+      AI_PREMIUM_CONTENT_MIDDLEWARE_ROUTING_SKELETON,
+    );
     expect(contract.createStatusApiSkeleton).toBe(
       AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
     );
@@ -104,6 +108,119 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     expect(contract.userFacingRequestStatusApiSkeleton).toBe(
       AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON,
     );
+  });
+
+  it('defines a provider-agnostic AI middleware routing skeleton without provider, wallet, or publish mutations', () => {
+    const skeleton = AI_PREMIUM_CONTENT_MIDDLEWARE_ROUTING_SKELETON;
+
+    expect(skeleton).toMatchObject({
+      version: '2026-06-23.ai-content-middleware-routing-skeleton.v1',
+      status: 'skeleton_ready_mutation_blocked',
+      pipelineName: 'ai_middleware_pipeline',
+      enabled: false,
+      providerAgnostic: true,
+      routingInputs: {
+        requestType: {
+          source: 'client_request_validated_against_server_allowlist',
+          clientSubmittedTrustedAfterValidation: false,
+        },
+        characterContext: {
+          source: 'server_resolved_character_or_artist_context',
+          rawPromptReturned: false,
+          providerPayloadReturned: false,
+        },
+        safetyState: {
+          source: 'server_safety_precheck_projection',
+          allowedStatuses: [
+            'pending',
+            'needs_review',
+            'blocked',
+            'cleared',
+          ],
+          providerCallBeforeSafetyClear: false,
+        },
+        costControl: {
+          source: 'server_cost_policy_and_budget_guard',
+          clientSubmittedCostTrusted: false,
+          providerQuoteTrusted: false,
+          walletDebitBeforeFinalApproval: false,
+        },
+        resultStorage: {
+          stateSource: 'ai_premium_content_request_result_projection',
+          rawProviderUrlReturned: false,
+          signedUrlReturned: false,
+          publicAssetProxyRequired: true,
+        },
+      },
+      routeMap: {
+        image_single: {
+          outputClass: 'image',
+          routeAlias: 'ai_premium_content.image.text_to_image',
+          capability: 'text_to_image',
+        },
+        video_clip: {
+          outputClass: 'video',
+          routeAlias: 'ai_premium_content.video.text_to_video',
+          capability: 'text_to_video',
+          requiresExplicitVideoConsent: true,
+        },
+        premium_pack: {
+          outputClass: 'mixed',
+          routeAlias: 'ai_premium_content.mixed.generation_pack',
+          capability: 'mixed_generation_pack',
+          requiresExplicitVideoConsentWhenVideoIncluded: true,
+        },
+      },
+      failureResponses: {
+        invalidRequestType: {
+          status: 400,
+          code: 'AI_CONTENT_REQUEST_TYPE_INVALID',
+          messageKey: 'aiPremiumContent.error.invalidRequestType',
+        },
+        safetyBlocked: {
+          status: 409,
+          code: 'AI_CONTENT_SAFETY_BLOCKED',
+          messageKey: 'aiPremiumContent.error.safetyBlocked',
+        },
+        costBlocked: {
+          status: 409,
+          code: 'AI_CONTENT_COST_BLOCKED',
+          messageKey: 'aiPremiumContent.error.costBlocked',
+        },
+        videoConsentRequired: {
+          status: 409,
+          code: 'AI_CONTENT_VIDEO_CONSENT_REQUIRED',
+          messageKey: 'aiPremiumContent.error.videoConsentRequired',
+        },
+      },
+    });
+    expect(skeleton.acceptedRequestTypes).toBe(AI_PREMIUM_CONTENT_REQUEST_TYPES);
+    expect(skeleton.outputClasses).toBe(AI_PREMIUM_CONTENT_OUTPUT_CLASSES);
+    expect(skeleton.validationOrder).toEqual([
+      'require_authenticated_request_owner_or_artist_operator',
+      'validate_request_type_against_server_allowlist',
+      'resolve_character_or_artist_context_on_server',
+      'run_safety_precheck_without_provider_call',
+      'run_cost_precheck_without_wallet_mutation',
+      'select_provider_agnostic_route_alias',
+      'create_or_project_request_state_without_provider_call',
+      'return_skeleton_projection_without_payment_or_wallet_mutation',
+    ]);
+    expect(
+      Object.values(skeleton.noMutationPolicy).every(
+        (enabled) => enabled === false,
+      ),
+    ).toBe(true);
+    expect(skeleton.privacy).toMatchObject({
+      rawPromptReturned: false,
+      rawProviderPayloadReturned: false,
+      providerSecretReturned: false,
+      vendorModelIdentifierReturned: false,
+      safetyPayloadReturned: false,
+      internalCostReturned: false,
+      providerCostReturned: false,
+      tokenCookieSecretDbUrlLogged: false,
+    });
   });
 
   it('defines a disabled common image video model routing API skeleton', () => {
