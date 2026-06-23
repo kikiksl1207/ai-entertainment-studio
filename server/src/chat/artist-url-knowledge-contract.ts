@@ -34,6 +34,7 @@ export const ARTIST_URL_KNOWLEDGE_INGEST_STATUSES = [
   'ai_processing',
   'approved_for_chat',
   'rejected',
+  'failed',
   'archived',
 ] as const;
 
@@ -641,6 +642,146 @@ export const ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION = {
   },
 } as const;
 
+export const ARTIST_URL_KNOWLEDGE_INGESTION_STATUS_CONTRACT = {
+  version: '2026-06-23.artist-url-knowledge-ingestion-status.v1',
+  status: 'read_model_contract_only',
+  sourceTable: 'artist_knowledge_urls',
+  purpose:
+    'separate submitted URL review material, approval lifecycle, chat context handoff, and safe failure reasons',
+  fieldSeparation: {
+    rawSubmittedUrl: {
+      storageScope: 'review_material_only',
+      creatorEchoAllowed: true,
+      chatContextAllowed: false,
+      providerContextAllowed: false,
+      publicProjectionAllowed: false,
+    },
+    approvalStatus: {
+      sourceField: 'artist_knowledge_urls.status',
+      values: ARTIST_URL_KNOWLEDGE_STATUSES,
+      controlsReviewQueue: true,
+      controlsChatContextEligibility: true,
+    },
+    ingestStatus: {
+      sourceField: 'metadata.ingest.status',
+      values: ARTIST_URL_KNOWLEDGE_INGEST_STATUSES,
+      controlsProcessingVisibility: true,
+      rawProviderStatusExposed: false,
+    },
+    chatContextStatus: {
+      derivedFrom: [
+        'status',
+        'allowChatReference',
+        'summaryPresent',
+        'safetyStatus',
+        'metadata.ingest.status',
+      ],
+      eligibleValue: 'context_ready',
+      ineligibleValue: 'context_excluded',
+      rawPrivateContentReturned: false,
+    },
+    failureReason: {
+      sourceField: 'metadata.ingest.failureReasonKey',
+      safeReasonKeysOnly: true,
+      rawExceptionReturned: false,
+      rawProviderPayloadReturned: false,
+      rawPageBodyReturned: false,
+    },
+  },
+  statusMatrix: {
+    submitted: {
+      approvalStatus: 'pending',
+      ingestStatus: 'submitted',
+      chatContextStatus: 'context_excluded',
+      failureReasonRequired: false,
+      displayBucket: 'submitted_for_review',
+    },
+    pendingReview: {
+      approvalStatus: 'pending',
+      ingestStatus: 'pending_review',
+      chatContextStatus: 'context_excluded',
+      failureReasonRequired: false,
+      displayBucket: 'pending_review',
+    },
+    aiProcessing: {
+      approvalStatus: 'pending',
+      ingestStatus: 'ai_processing',
+      chatContextStatus: 'context_excluded',
+      failureReasonRequired: false,
+      displayBucket: 'checking',
+    },
+    approvedForChat: {
+      approvalStatus: 'approved',
+      ingestStatus: 'approved_for_chat',
+      chatContextStatus: 'context_ready',
+      requires: [
+        'allowChatReference=true',
+        'summaryPresent=true',
+        'safetyStatus=safe',
+      ],
+      failureReasonRequired: false,
+      displayBucket: 'approved_for_chat',
+    },
+    rejected: {
+      approvalStatus: 'rejected',
+      ingestStatus: 'rejected',
+      chatContextStatus: 'context_excluded',
+      failureReasonRequired: true,
+      displayBucket: 'rejected',
+    },
+    failed: {
+      approvalStatus: 'pending',
+      ingestStatus: 'failed',
+      chatContextStatus: 'context_excluded',
+      failureReasonRequired: true,
+      displayBucket: 'failed_needs_review',
+    },
+    archived: {
+      approvalStatus: 'archived',
+      ingestStatus: 'archived',
+      chatContextStatus: 'context_excluded',
+      failureReasonRequired: false,
+      displayBucket: 'archived',
+    },
+  },
+  contextEligibilityGate: {
+    approvedOnly: true,
+    ingestStatusRequired: 'approved_for_chat',
+    safetyStatusRequired: 'safe',
+    allowChatReferenceRequired: true,
+    boundedSummaryRequired: true,
+    sameArtistOnly: true,
+  },
+  forbiddenResponseFields: [
+    'rawUrl',
+    'canonicalUrl',
+    'rawUrlQuery',
+    'rawPageBody',
+    'privateBody',
+    'adminNotes',
+    'reviewNote',
+    'rawFailureException',
+    'providerPayload',
+    'token',
+    'cookie',
+    'password',
+    'apiKey',
+    'dbUrl',
+  ],
+  noMutationPolicy: {
+    externalUrlFetch: false,
+    providerTraining: false,
+    providerCall: false,
+    chatResponseGeneration: false,
+    chatMessageCreate: false,
+    approvalMutation: false,
+    archiveMutation: false,
+    walletMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
+
 export const ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_CANDIDATE_API_SKELETON = {
   version: '2026-06-19.artist-url-knowledge-chat-context-candidate-api.v1',
   status: 'skeleton_ready_read_only_mutation_blocked',
@@ -776,6 +917,7 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
   safetyStatuses: ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES,
   ingestStatuses: ARTIST_URL_KNOWLEDGE_INGEST_STATUSES,
   approvalStateProjection: ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION,
+  ingestionStatusContract: ARTIST_URL_KNOWLEDGE_INGESTION_STATUS_CONTRACT,
   registrationSkeleton: {
     fieldSeparation: {
       title: 'metadata.title or future public metadata title',

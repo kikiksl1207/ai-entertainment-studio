@@ -3,6 +3,7 @@ import {
   ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_CANDIDATE_API_SKELETON,
   ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY,
   ARTIST_URL_KNOWLEDGE_CONTRACT,
+  ARTIST_URL_KNOWLEDGE_INGESTION_STATUS_CONTRACT,
   ARTIST_URL_KNOWLEDGE_INGEST_STATUSES,
   ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES,
   artistKnowledgeSafetyStatusFromMetadata,
@@ -30,6 +31,9 @@ describe('artist URL knowledge contract', () => {
     );
     expect(ARTIST_URL_KNOWLEDGE_CONTRACT.approvalStateProjection).toBe(
       ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION,
+    );
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.ingestionStatusContract).toBe(
+      ARTIST_URL_KNOWLEDGE_INGESTION_STATUS_CONTRACT,
     );
     expect(ARTIST_URL_KNOWLEDGE_CONTRACT.registrationSkeleton).toMatchObject({
       fieldSeparation: {
@@ -409,6 +413,99 @@ describe('artist URL knowledge contract', () => {
       allowChatReferenceRequired: true,
       separatedFromSiteContentAdmin: true,
     });
+  });
+
+  it('separates URL ingestion status from approval, chat context, and failure reasons', () => {
+    expect(ARTIST_URL_KNOWLEDGE_INGESTION_STATUS_CONTRACT).toMatchObject({
+      version: '2026-06-23.artist-url-knowledge-ingestion-status.v1',
+      status: 'read_model_contract_only',
+      fieldSeparation: {
+        rawSubmittedUrl: {
+          storageScope: 'review_material_only',
+          chatContextAllowed: false,
+          providerContextAllowed: false,
+          publicProjectionAllowed: false,
+        },
+        approvalStatus: {
+          sourceField: 'artist_knowledge_urls.status',
+          values: ['pending', 'approved', 'rejected', 'archived'],
+          controlsReviewQueue: true,
+          controlsChatContextEligibility: true,
+        },
+        ingestStatus: {
+          sourceField: 'metadata.ingest.status',
+          values: [
+            'submitted',
+            'pending_review',
+            'ai_processing',
+            'approved_for_chat',
+            'rejected',
+            'failed',
+            'archived',
+          ],
+          rawProviderStatusExposed: false,
+        },
+        chatContextStatus: {
+          eligibleValue: 'context_ready',
+          ineligibleValue: 'context_excluded',
+          rawPrivateContentReturned: false,
+        },
+        failureReason: {
+          safeReasonKeysOnly: true,
+          rawExceptionReturned: false,
+          rawProviderPayloadReturned: false,
+          rawPageBodyReturned: false,
+        },
+      },
+      statusMatrix: {
+        approvedForChat: {
+          approvalStatus: 'approved',
+          ingestStatus: 'approved_for_chat',
+          chatContextStatus: 'context_ready',
+          requires: [
+            'allowChatReference=true',
+            'summaryPresent=true',
+            'safetyStatus=safe',
+          ],
+        },
+        failed: {
+          approvalStatus: 'pending',
+          ingestStatus: 'failed',
+          chatContextStatus: 'context_excluded',
+          failureReasonRequired: true,
+        },
+        rejected: {
+          approvalStatus: 'rejected',
+          ingestStatus: 'rejected',
+          chatContextStatus: 'context_excluded',
+          failureReasonRequired: true,
+        },
+      },
+      contextEligibilityGate: {
+        approvedOnly: true,
+        ingestStatusRequired: 'approved_for_chat',
+        safetyStatusRequired: 'safe',
+        allowChatReferenceRequired: true,
+        boundedSummaryRequired: true,
+        sameArtistOnly: true,
+      },
+      forbiddenResponseFields: expect.arrayContaining([
+        'rawUrl',
+        'rawPageBody',
+        'rawFailureException',
+        'providerPayload',
+        'token',
+        'cookie',
+        'password',
+        'apiKey',
+        'dbUrl',
+      ]),
+    });
+    expect(
+      Object.values(
+        ARTIST_URL_KNOWLEDGE_INGESTION_STATUS_CONTRACT.noMutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
   });
 
   it('publishes approval state projection with approved-only chat eligibility', () => {
