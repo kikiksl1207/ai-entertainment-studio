@@ -9,7 +9,9 @@ import {
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { buildArtistUrlKnowledgePreviewFixture } from './artist-url-knowledge-preview-fixture';
 import { ChatService } from './chat.service';
+import { buildOpeningGreetingSessionPreviewFixture } from './opening-greeting-session-preview-fixture';
 import { buildPremiumChatRefundStatusPreviewFixture } from './premium-chat-refund-status-preview-fixture';
 
 type PremiumRoomListQuery = {
@@ -26,6 +28,16 @@ export class PremiumChatRoomsReadController {
   @Get('chat/premium-rooms/refund-status-preview-fixture')
   getPremiumRoomRefundStatusPreviewFixture() {
     return buildPremiumChatRefundStatusPreviewFixture();
+  }
+
+  @Get('chat/artist-url-knowledge-preview-fixture')
+  getArtistUrlKnowledgePreviewFixture() {
+    return buildArtistUrlKnowledgePreviewFixture();
+  }
+
+  @Get('chat/opening-greeting/session-preview-fixture')
+  getOpeningGreetingSessionPreviewFixture() {
+    return buildOpeningGreetingSessionPreviewFixture();
   }
 
   @Get('chat/premium-rooms')
