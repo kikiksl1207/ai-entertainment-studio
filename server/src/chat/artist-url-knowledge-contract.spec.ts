@@ -885,6 +885,70 @@ describe('artist URL knowledge contract', () => {
         payoutMutation: true,
       },
     });
+    expect(
+      ARTIST_URL_KNOWLEDGE_CONTRACT.chatContextConnection.selectionContract,
+    ).toMatchObject({
+      version: '2026-06-23.artist-url-knowledge-context-ranking-expiry.v1',
+      target: 'character_chat_context_candidate',
+      status: 'contract_only_read_model',
+      approvalGate: {
+        approvedOnly: true,
+        safeOnly: true,
+        allowChatReferenceRequired: true,
+        boundedSummaryRequired: true,
+        sameArtistOnly: true,
+        pendingRejectedArchivedExcluded: true,
+        aiProcessingExcluded: true,
+      },
+      expiryPolicy: {
+        reviewedAtSource: 'reviewedAt',
+        hardExpiresAtField: null,
+        hardExpiryRequired: false,
+        staleAfterDays: 90,
+        staleRowsRemainEligibleWhenApprovedSafeAndSummarized: true,
+        staleRowsRankAs: 'older',
+        missingReviewedAtBucket: 'older',
+        rejectedArchivedOrAiProcessingExpiresEligibilityImmediately: true,
+        refreshDoesNotFetchExternalUrl: true,
+      },
+      ranking: {
+        scoreInputs: expect.arrayContaining([
+          'approved_status',
+          'safe_status',
+          'allowChatReference=true',
+          'bounded_summary_present',
+          'reviewedAt freshness bucket',
+          'sourceType priority',
+        ]),
+        sortOrder: ['score_desc', 'reviewed_at_desc', 'id_asc'],
+        maxSelectedRows: 5,
+        lowerPriorityThan: [
+          'system_safety',
+          'runtime_persona',
+          'tone_and_manner',
+          'opening_greeting_variant',
+        ],
+      },
+      mutationPolicy: {
+        externalUrlFetch: false,
+        providerCall: false,
+        chatResponseGeneration: false,
+        chatMessageCreate: false,
+        walletMutation: false,
+        luminaMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+      privacy: {
+        boundedSummaryOnly: true,
+        hostnameOnlySourceLabel: true,
+        rawUrlReturned: false,
+        rawUrlQueryReturned: false,
+        rawPageBodyReturned: false,
+        adminNotesReturned: false,
+        providerPayloadReturned: false,
+      },
+    });
     expect(scoreArtistKnowledgeChatCandidate(pending).score).toBe(0);
     expect(scoreArtistKnowledgeChatCandidate(freshNotice, '2026-06-08T00:00:00.000Z')).toMatchObject({
       freshnessBucket: 'fresh_7d',
