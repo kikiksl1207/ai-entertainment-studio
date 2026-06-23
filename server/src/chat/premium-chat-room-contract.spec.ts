@@ -18,6 +18,7 @@ import {
   premiumChatRoomAccessForRole,
   PREMIUM_CHAT_ROOM_CONTRACT,
   PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
+  PREMIUM_CHAT_ROOM_PARTICIPANT_PROJECTION_CONTRACT,
   PREMIUM_CHAT_ROOM_REFUND_ACCOUNTING_LEDGER_TYPES,
   resolvePremiumChatRoomFollowerTierUnlocks,
   resolvePremiumChatRoomLifecycleProjection,
@@ -2632,6 +2633,107 @@ describe('premium chat room refund and moderation ledger contract', () => {
         code: 'PREMIUM_CHAT_IMAGE_BLOCKED',
         messageKey: 'chat.premiumRoom.image.blocked',
       },
+    });
+  });
+
+  it('separates room participant projections without mixing artist direct reply and AI character chat', () => {
+    const participantProjection =
+      PREMIUM_CHAT_ROOM_CONTRACT.participantProjection;
+
+    expect(participantProjection).toBe(
+      PREMIUM_CHAT_ROOM_PARTICIPANT_PROJECTION_CONTRACT,
+    );
+    expect(participantProjection).toMatchObject({
+      version: '2026-06-23.premium-chat-room-participant-projection.v1',
+      sourceTable: 'premium_chat_rooms',
+      roomType: 'artist_direct_premium_dm',
+      responseMode: 'artist_direct_reply',
+      roomTypeSeparation: {
+        premiumRoomTypeFixed: 'artist_direct_premium_dm',
+        participantRoleFixed: true,
+        aiCharacterChatFallbackAllowed: false,
+        characterChatSessionIdReturned: false,
+        providerResponderReturned: false,
+      },
+      participantRoles: {
+        publicViewer: {
+          roleKey: 'public_viewer',
+          projection: 'premium_room_public_list_read_model',
+          canSeeMessageBody: false,
+          canMutateRoom: false,
+        },
+        ownerUser: {
+          roleKey: 'owner_user',
+          projection: 'premium_room_owner_detail_read_model',
+          ownershipSource: 'premium_chat_rooms.owner_user_id',
+          canSeeRefundAndReportStatus: true,
+          canSeeOperatorReviewFields: false,
+          canMutateRoom: false,
+        },
+        artistOperator: {
+          roleKey: 'artist_operator',
+          projection: 'premium_room_artist_detail_read_model',
+          ownershipSource: 'artist_operators.active_for_room_artist',
+          canSeeReplySla: true,
+          canSeeOwnerPrivateContact: false,
+          canMutateRoom: false,
+        },
+        reviewOperator: {
+          roleKey: 'review_operator',
+          projection: 'premium_room_admin_review_detail_read_model',
+          rawMessageBodyProjection: 'redacted_or_safe_hash_only',
+          canSeePrivateUserContact: false,
+          canMutateRoom: false,
+        },
+      },
+    });
+    expect(participantProjection.projectionFieldsBySurface.publicList).toEqual(
+      expect.arrayContaining([
+        'roomId',
+        'artist',
+        'tier',
+        'roomStatus',
+        'readMode',
+      ]),
+    );
+    expect(participantProjection.projectionFieldsBySurface.ownerDetail).toEqual(
+      expect.arrayContaining([
+        'refundStatus',
+        'reportStatus',
+        'mutationAvailability',
+      ]),
+    );
+    expect(
+      participantProjection.projectionFieldsBySurface.artistDetail,
+    ).toEqual(expect.arrayContaining(['requester', 'replyState', 'replySla']));
+    expect(
+      participantProjection.projectionFieldsBySurface.reviewOperatorDetail,
+    ).toEqual(
+      expect.arrayContaining([
+        'reportStatus',
+        'refundDecisionState',
+        'redactedMessagePreview',
+      ]),
+    );
+    expect(participantProjection.noMutation).toMatchObject({
+      messageSend: true,
+      artistDirectReply: true,
+      aiCharacterReply: true,
+      donation: true,
+      walletDebit: true,
+      walletCredit: true,
+      refund: true,
+      settlement: true,
+      payout: true,
+      operatorDecision: true,
+    });
+    expect(participantProjection.privacy).toMatchObject({
+      rawChatBodyReturned: false,
+      rawSupportMessageReturned: false,
+      rawReportReasonReturned: false,
+      rawAdminNoteReturned: false,
+      rawProviderPayloadReturned: false,
+      tokenCookieSecretDbUrlLogged: false,
     });
   });
 

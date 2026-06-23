@@ -1860,6 +1860,18 @@ Authorization: Bearer <accessToken>
   responder roles are not allowed. `needs_artist_reply` and `artist_answered`
   are state keys only; clients must use `chat.premiumRoom.artistDirect.*` copy
   keys or Korean fallback copy instead of showing raw enums.
+- #1098 participant projection contract separates room list/detail visibility
+  by viewer role. Public list readers see only safe artist/tier/status/read CTA
+  fields. Owner users see their own room, safe artist summary, report/refund
+  state, and mutation availability. Artist operators see requester safe summary,
+  reply state/SLA, and artist action availability for artists they operate.
+  Review operators see admin-safe moderation/refund state with redacted message
+  preview only. Unauthorized owner/artist access must return 403 or safe 404
+  without leaking room identity.
+- #1098 also fixes `roomType=artist_direct_premium_dm`,
+  `responseMode=artist_direct_reply`, and participant roles so premium rooms do
+  not fall back to character-chat sessions, starter prompts, provider
+  responders, or AI auto-reply lanes.
 - Raw room status, answer state, and message-kind enums must not be used as
   user-facing copy. Clients should use label keys or Korean fallback copy.
 - The projection must not expose raw chat bodies, raw support-message bodies,
@@ -2042,6 +2054,12 @@ Authorization: Bearer <accessToken> # owner/artist endpoints only
   `premium_room_owner_list_read_model`; owner detail is
   `premium_room_owner_detail_read_model`; artist detail is
   `premium_room_artist_detail_read_model`.
+- #1098 adds `participantProjection` to the support contract as a read-only
+  projection split for public, owner, artist-operator, and review-operator
+  surfaces. It does not enable user message send, artist direct reply,
+  character-chat AI reply, support message creation, donation, room open,
+  wallet credit/debit, payment, refund, settlement, payout, or operator
+  decision mutation.
 - #905 adds `roomProjection.tierRoomProjection` so public room list, owner room
   list, and artist management list use the same `premiumRoomTierProjection`
   shape. The only valid room tiers remain 300L, 500L, 1,000L, and 3,000L.
