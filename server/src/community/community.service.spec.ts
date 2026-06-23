@@ -7,6 +7,7 @@ import {
   CommunityService,
   LUMINA_FEED_MULTI_IMAGE_ATTACHMENT_CONTRACT,
   LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT,
+  LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT,
   LUMINA_FEED_REPOST_SHARE_DISPLAY_PROJECTION_CONTRACT,
   LUMINA_FEED_REPOST_QUOTE_BODY_VALIDATION_POLICY,
   LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT,
@@ -2004,6 +2005,100 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     expect(
       Object.values(
         LUMINA_FEED_REPOST_SHARE_DISPLAY_PROJECTION_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('publishes canonical quote repost projection with original tombstone and share separation', () => {
+    expect(LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT).toMatchObject({
+      version: '2026-06-23.lumina-feed-repost-quote-projection.v1',
+      status: 'read_model_contract_only',
+      endpoint: 'POST /api/v1/lumina-feed/posts/:postId/reposts',
+      quoteProjection: {
+        relation: 'quote_repost',
+        actionKey: 'feed_quote_repost',
+        stateKey: 'quote_repost',
+        createsViewerOwnedFeedRow: true,
+        originalReferenceField: 'metadata.repost.originalPostId',
+        quoteBodyField: 'post.repost.quoteBody',
+        originalPostField: 'post.repost.originalPost',
+        quoteBodyDoesNotOverwriteOriginalBody: true,
+        quoteBodyMayRemainVisibleWhenOriginalTombstoned: true,
+        originalBodyReturnedOnlyWhenVisibleToViewer: true,
+      },
+      simpleRepostProjection: {
+        relation: 'repost',
+        actionKey: 'feed_repost',
+        stateKey: 'repost',
+        quoteBody: null,
+        originalReferenceField: 'metadata.repost.originalPostId',
+        originalPostField: 'post.repost.originalPost',
+      },
+      relationSeparation: {
+        shareRelation: false,
+        threadRelation: false,
+        manualThreadRelation: false,
+        threadContinuationRelation: false,
+        commentRelation: false,
+        replyRelation: false,
+        parentPostId: null,
+        threadRootPostId: null,
+      },
+      originalVisibilityPolicy: {
+        visibleStates: ['published_public_visible_to_viewer'],
+        tombstoneProjection: {
+          originalState: 'unavailable',
+          tombstone: true,
+          unavailableReason: 'viewer_restricted_or_unavailable',
+          originalPost: null,
+          originalBodyReturned: false,
+          privateAuthorFieldsReturned: false,
+        },
+        blockedRelationshipDirection: 'either_direction',
+        safeNotFoundBeforeCreate: true,
+      },
+      countPolicy: {
+        repostCountField: 'repostCount',
+        quoteRepostIncludedInRepostCount: true,
+        countSource: 'community_posts.metadata.repost.originalPostId',
+      },
+      shareSeparation: {
+        endpoint: 'POST /api/v1/lumina-feed/posts/:postId/share',
+        relation: 'share',
+        actionKey: 'feed_share',
+        stateKey: 'share_contract',
+        createsFeedRow: false,
+        createsRepostRow: false,
+        createsNotification: false,
+        countTarget: null,
+      },
+    });
+    expect(
+      LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT.originalVisibilityPolicy
+        .tombstoneStates,
+    ).toEqual([
+      'missing',
+      'deleted',
+      'hidden',
+      'private',
+      'reported',
+      'moderation_review',
+      'viewer_hidden',
+      'blocked_relationship',
+    ]);
+    expect(
+      LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT.countPolicy
+        .excludedRelations,
+    ).toEqual([
+      'share_contract',
+      'thread_continuation',
+      'manual_thread',
+      'comment',
+      'reply',
+    ]);
+    expect(
+      Object.values(
+        LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT.mutationPolicy,
       ).every((enabled) => enabled === false),
     ).toBe(true);
   });
