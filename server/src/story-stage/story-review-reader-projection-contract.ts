@@ -26,6 +26,67 @@ export const STORY_REVIEW_READER_PROJECTION_CONTRACT = {
     rawSpoilerBodyReturnedToNonReader: false,
     rawModerationPayloadReturned: false,
   },
+  purchasedReaderWriteReadiness: {
+    version: '2026-06-23.story-comment-rating-purchased-reader-contract.v1',
+    status: 'contract_only_mutation_disabled',
+    authRequiredForWrite: true,
+    eligibility: {
+      storyPack: {
+        source: [
+          'user_entitlements.story_pack_access.confirmed',
+          'user_entitlements.story_season_access.confirmed',
+          'story_purchase_ledger.completed_pack_or_season_purchase',
+        ],
+        paidOrGrantedReaderOnly: true,
+        authorSelfReviewAllowed: false,
+      },
+      storyChapter: {
+        source: [
+          'user_entitlements.story_chapter_access.confirmed',
+          'user_entitlements.story_season_access.confirmed',
+          'story_chapter_read_progress.entitled_reader',
+        ],
+        chapterEntitledReaderOnly: true,
+        lockedOrPreviewOnlyChapterCanWrite: false,
+      },
+    },
+    validationOrder: [
+      'authenticate_viewer',
+      'load_story_pack_or_chapter',
+      'reject_author_self_review_for_own_work',
+      'check_confirmed_purchase_or_entitlement',
+      'validate_comment_body_or_rating_value',
+      'attach_completed_reader_badge_projection',
+      'return_disabled_submit_projection_without_mutation',
+    ],
+    errorResponses: {
+      authRequired: {
+        status: 401,
+        code: 'STORY_REVIEW_AUTH_REQUIRED',
+        messageKey: 'story.review.authRequired',
+      },
+      entitlementRequired: {
+        status: 403,
+        code: 'STORY_REVIEW_ENTITLEMENT_REQUIRED',
+        messageKey: 'story.review.entitlementRequired',
+      },
+      invalidCommentBody: {
+        status: 400,
+        code: 'STORY_REVIEW_COMMENT_INVALID',
+        messageKey: 'story.review.commentInvalid',
+      },
+      invalidRating: {
+        status: 400,
+        code: 'STORY_REVIEW_RATING_INVALID',
+        messageKey: 'story.review.ratingInvalid',
+      },
+    },
+    mutationEnabled: false,
+    commentCreateEnabled: false,
+    ratingUpsertEnabled: false,
+    paymentMutationEnabled: false,
+    entitlementGrantMutationEnabled: false,
+  },
   ratingPolicy: {
     packRatings: {
       path: '/api/v1/story-packs/:packSlug/ratings',
@@ -54,6 +115,30 @@ export const STORY_REVIEW_READER_PROJECTION_CONTRACT = {
     displayedOnComments: true,
     displayedOnRatings: true,
     rawReadHistoryReturned: false,
+  },
+  readProjectionSeparation: {
+    version: '2026-06-23.story-comment-rating-read-scope-separation.v1',
+    publicPackThread: {
+      endpoint: 'GET /api/v1/story-packs/:packSlug/comments',
+      scope: 'story_pack',
+      includesChapterNo: false,
+      includesCompletedReaderBadge: true,
+      spoilerBodyRequiresEntitlement: true,
+    },
+    publicChapterThread: {
+      endpoint: 'GET /api/v1/story-packs/:packSlug/chapters/:chapterNo/comments',
+      scope: 'story_chapter',
+      includesChapterNo: true,
+      includesCompletedReaderBadge: true,
+      spoilerBodyRequiresChapterEntitlement: true,
+    },
+    ratingSummary: {
+      packEndpoint: 'GET /api/v1/story-packs/:packSlug/ratings',
+      chapterEndpoint:
+        'GET /api/v1/story-packs/:packSlug/chapters/:chapterNo/ratings',
+      viewerOwnRatingReturnedOnlyToViewer: true,
+      anonymousAggregateOnlyForPublic: true,
+    },
   },
   authorReadProjection: {
     version: '2026-06-23.story-author-review-reader-read-projection.v1',
@@ -89,6 +174,13 @@ export const STORY_REVIEW_READER_PROJECTION_CONTRACT = {
       readerListReturned: false,
       rawReadHistoryReturned: false,
       paymentAuthority: false,
+    },
+    scopeSeparation: {
+      packAggregate: 'own_story_pack_all_comments_and_ratings',
+      chapterBreakdown: 'own_story_pack_chapter_comments_and_ratings',
+      authorOnly: true,
+      publicReaderDetailReturned: false,
+      paymentLedgerDetailReturned: false,
     },
     privacy: {
       readerUserIdReturned: false,

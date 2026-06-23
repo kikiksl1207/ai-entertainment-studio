@@ -250,6 +250,20 @@ wallet/Lumina, settlement, or payout rows.
 - Story-pack comments and ratings are limited to paid or otherwise entitled
   readers. Chapter comments and ratings are limited to readers entitled to that
   chapter.
+- #1099 fixes future submit readiness as auth + confirmed purchase/entitlement
+  only. Pack-level comments/ratings require a confirmed pack, season, or paid
+  reader entitlement; chapter-level comments/ratings require entitlement to that
+  chapter. Authors cannot self-review their own work through this contract, and
+  locked or preview-only chapters cannot accept comment/rating submissions.
+- #1099 keeps all-pack threads, chapter threads, and rating summaries as
+  separate read scopes. Pack threads do not pretend to be chapter comments;
+  chapter threads include chapter context; public rating aggregates stay
+  anonymous while `viewer.rating` is returned only to that viewer.
+- #1099 lets authors read only their own story-pack review summary: pack
+  aggregates, chapter breakdown, safe comment previews, rating buckets, and
+  completed-reader counts. It must not expose reader lists, reader user ids,
+  payment ledger detail, entitlement ids, raw read history, moderation notes, or
+  raw report reasons.
 - Ratings use a 1-5 integer scale and allow one rating per user per scope in
   the future write contract. The current contract keeps rating mutation
   disabled.
