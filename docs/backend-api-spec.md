@@ -1274,6 +1274,14 @@ Character-chat dynamic opening greeting cache (#388):
   applies persona/tone/forbidden rules, caps output at 120 tokens and 180
   characters, and does not create wallet, order, settlement, payout, or extra
   message-send mutations.
+- #1070 adds `dynamicGreetingContract.variantPolicy.sameCharacterVariantPolicy`
+  and mirrors it on `openingGreeting.generation.variantPolicy`. The same
+  character may show a different display-safe greeting variant for a new user or
+  a new chat session, but the same session must replay the cached
+  `opening_greeting`. The policy never accepts a client-submitted seed and never
+  returns raw seeds, raw prompts, provider payloads, or wallet/order/settlement/
+  payout data. It also keeps provider calls optional and does not open message
+  send mutation.
 - Provider generation is short and low-cost by contract:
   `maxOutputTokens=120`, `maxOutputChars=180`, lightweight model preferred.
 - Provider generation remains optional and separated from cache/template
