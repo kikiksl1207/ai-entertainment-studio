@@ -375,6 +375,75 @@ describe('premium chat room refund and moderation ledger contract', () => {
     });
   });
 
+  it('publishes creator tier availability as a read-only contract separate from room open mutation', () => {
+    const availability =
+      PREMIUM_CHAT_ROOM_CONTRACT.roomOpen.creatorTierAvailabilityContract;
+
+    expect(availability).toMatchObject({
+      version: '2026-06-23.premium-chat-creator-tier-availability.v1',
+      status: 'read_model_contract_ready_mutation_blocked',
+      endpoint: 'GET /api/v1/me/creator-studio/premium-chat/tier-availability',
+      enabled: false,
+      readOnly: true,
+      sourceOfTruth: {
+        activeFollowerCount: 'artist_follows.active.non_deleted',
+        artistSelectableTierKeys: 'server_unlocked_tier_keys',
+        tierAmountsLumina: [300, 500, 1000, 3000],
+        durationPolicy: 'server_premium_chat_room_duration_policy',
+      },
+      tiers: [
+        {
+          tierKey: 'premium_chat_room_300',
+          amountLumina: 300,
+          minActiveFollowers: 0,
+          selectableWhenUnlocked: true,
+        },
+        {
+          tierKey: 'premium_chat_room_500',
+          amountLumina: 500,
+          minActiveFollowers: 1000,
+          selectableWhenUnlocked: true,
+        },
+        {
+          tierKey: 'premium_chat_room_1000',
+          amountLumina: 1000,
+          minActiveFollowers: 10000,
+          selectableWhenUnlocked: true,
+        },
+        {
+          tierKey: 'premium_chat_room_3000',
+          amountLumina: 3000,
+          minActiveFollowers: 50000,
+          selectableWhenUnlocked: true,
+        },
+      ],
+      duration: {
+        baseDays: 3,
+        maxTotalDays: 10,
+        maxExtensionAdditionalDays: 7,
+        extensionStateKeys: [
+          'base_duration',
+          'artist_extension_available',
+          'max_duration_reached',
+        ],
+        clientSubmittedDurationTrusted: false,
+        serverCalculatedExpiryAuthoritative: true,
+      },
+      projection: {
+        activeFollowerCountReturned: true,
+        unlockedTierKeysReturned: true,
+        selectableTierKeysReturned: true,
+        lockedTierReasonKey: 'chat.premiumRoom.tierLocked',
+        extensionLimitMessageKey: 'chat.premiumRoom.extensionLimit',
+        rawFollowerRowsReturned: false,
+        walletBalanceReturned: false,
+      },
+    });
+    expect(Object.values(availability.mutationGates).every((enabled) => !enabled)).toBe(
+      true,
+    );
+  });
+
   it('rejects unknown or above-maximum room tiers with a stable message key before wallet mutation', () => {
     const resolved = resolvePremiumChatRoomOpenPolicy({
       tierKey: 'premium_chat_room_5000',

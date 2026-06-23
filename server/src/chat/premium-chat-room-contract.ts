@@ -505,6 +505,55 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       settlementMutationEnabled: false,
       payoutMutationEnabled: false,
     },
+    creatorTierAvailabilityContract: {
+      version: '2026-06-23.premium-chat-creator-tier-availability.v1',
+      status: 'read_model_contract_ready_mutation_blocked',
+      endpoint: 'GET /api/v1/me/creator-studio/premium-chat/tier-availability',
+      enabled: false,
+      readOnly: true,
+      sourceOfTruth: {
+        activeFollowerCount: 'artist_follows.active.non_deleted',
+        artistSelectableTierKeys: 'server_unlocked_tier_keys',
+        tierAmountsLumina: PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
+        durationPolicy: 'server_premium_chat_room_duration_policy',
+      },
+      tiers: PREMIUM_CHAT_ROOM_FOLLOWER_TIER_UNLOCKS.map((tier) => ({
+        tierKey: tier.tierKey,
+        amountLumina: tier.amountLumina,
+        minActiveFollowers: tier.minActiveFollowers,
+        selectableWhenUnlocked: true,
+      })),
+      duration: {
+        baseDays: PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+        maxTotalDays: PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS,
+        maxExtensionAdditionalDays:
+          PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS - PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+        extensionStateKeys: [
+          'base_duration',
+          'artist_extension_available',
+          'max_duration_reached',
+        ],
+        clientSubmittedDurationTrusted: false,
+        serverCalculatedExpiryAuthoritative: true,
+      },
+      projection: {
+        activeFollowerCountReturned: true,
+        unlockedTierKeysReturned: true,
+        selectableTierKeysReturned: true,
+        lockedTierReasonKey: 'chat.premiumRoom.tierLocked',
+        extensionLimitMessageKey: 'chat.premiumRoom.extensionLimit',
+        rawFollowerRowsReturned: false,
+        walletBalanceReturned: false,
+      },
+      mutationGates: {
+        roomOpen: false,
+        roomExtension: false,
+        payment: false,
+        walletDebit: false,
+        settlement: false,
+        payout: false,
+      },
+    },
     tiers: [
       {
         tierKey: 'premium_chat_room_300',
