@@ -177,7 +177,7 @@
       list.innerHTML =
         '<li class="premium-chat-hub-rooms-empty">' +
           '<p>아직 열어둔 프리미엄 채팅방이 없어요.</p>' +
-          '<p class="premium-chat-hub-rooms-empty-note">아티스트 프로필의 AI 캐릭터챗으로 먼저 대화를 시작할 수 있어요. 프리미엄챗 방은 서비스 준비 완료 후 열립니다.</p>' +
+          '<p class="premium-chat-hub-rooms-empty-note">아티스트 프로필의 AI 캐릭터챗으로 먼저 대화를 시작할 수 있어요. 프리미엄챗 방은 서비스 오픈 후 열립니다.</p>' +
           '<a class="premium-chat-hub-rooms-empty-cta" href="/characters">아티스트 보러 가기 →</a>' +
         '</li>';
       return;
@@ -231,7 +231,7 @@
       var donateDisabled = !mutationOpen || isBlocked;
       var donateBtnLabel = isBlocked ? "후원 일시 중단" : (mutationOpen ? "후원하기" : "후원 오픈 예정");
       var donateBtnDisabled = donateDisabled
-        ? ' disabled aria-disabled="true" title="' + (isBlocked ? "현재 방 상태에서는 후원할 수 없어요." : "후원 기능은 서비스 준비 완료 후 열려요.") + '"'
+        ? ' disabled aria-disabled="true" title="' + (isBlocked ? "현재 방 상태에서는 후원할 수 없어요." : "후원 기능은 서비스 오픈 후 열려요.") + '"'
         : ' aria-disabled="false"';
       var donateBtnCls = "premium-chat-hub-room-donate-btn" + (donateDisabled ? " is-locked" : "");
 
@@ -327,7 +327,7 @@
     if (stateEl) stateEl.textContent = "준비 중"; // #474 내부 용어 제거
     list.innerHTML =
       '<li class="premium-chat-available-artists-empty">' +
-        '<p>프리미엄챗 가능 아티스트는 서비스 준비 완료 후 공개돼요.</p>' +
+        '<p>프리미엄챗 가능 아티스트는 서비스 오픈 후 공개돼요.</p>' +
         '<a class="premium-chat-available-artists-cta" href="/characters">아티스트 라인업 보기 →</a>' +
       '</li>';
   }
@@ -386,7 +386,7 @@
     }
     var items = (convRes.data && (convRes.data.items || convRes.data.data?.items)) || [];
     var rooms = items.map(normalizeConversation).filter(function (r) { return r.slug || r.name; });
-    setState(mutationOpen ? "준비 완료" : "후원 오픈 예정 · 보기만 가능");
+    setState(mutationOpen ? "이용 가능" : "후원 오픈 예정 · 보기만 가능");
     renderRooms(rooms.slice(0, 6), mutationOpen);
     loadAvailableArtists(mutationOpen); // #469 — 가능 아티스트 목록 병렬 로드
   }
