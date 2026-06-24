@@ -324,7 +324,7 @@
     }
 
     // 3) 404/501 — 엔드포인트 미개방 (contract: planned 상태)
-    if (stateEl) stateEl.textContent = "준비 중"; // #474 내부 용어 제거
+    if (stateEl) stateEl.textContent = "오픈 예정"; // #474 내부 용어 제거
     list.innerHTML =
       '<li class="premium-chat-available-artists-empty">' +
         '<p>프리미엄챗 가능 아티스트는 서비스 오픈 후 공개돼요.</p>' +
@@ -379,7 +379,7 @@
       return;
     }
     if (convRes.error) {
-      setState(mutationOpen ? "데이터 로드 실패" : "서비스 준비 중"); // #474 내부 용어 제거
+      setState(mutationOpen ? "데이터 로드 실패" : "서비스 오픈 예정"); // #474 내부 용어 제거
       renderRooms([], mutationOpen);
       loadAvailableArtists(mutationOpen); // #469 — 방 목록 실패여도 아티스트 목록은 시도
       return;
