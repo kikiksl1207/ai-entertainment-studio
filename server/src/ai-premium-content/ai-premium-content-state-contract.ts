@@ -2375,6 +2375,94 @@ export const AI_PREMIUM_CONTENT_SAFETY_MODERATION_QUEUE_SKELETON = {
   },
 } as const;
 
+export const AI_PREMIUM_CONTENT_SAFETY_STATE_AUDIT_PROJECTION = {
+  version: '2026-06-24.ai-content-safety-state-audit-projection.v1',
+  feature: 'ai_premium_content_safety_state_audit_projection',
+  status: 'read_model_contract_only',
+  enabled: false,
+  readOnly: true,
+  providerAgnostic: true,
+  providerCallEnabled: false,
+  moderationDecisionMutationEnabled: false,
+  paymentMutationEnabled: false,
+  walletMutationEnabled: false,
+  settlementMutationEnabled: false,
+  payoutMutationEnabled: false,
+  sourceOfTruth: {
+    requestTable: 'future_ai_premium_content_requests',
+    safetyPrecheckProjection: 'server_safety_precheck_projection',
+    moderationQueue:
+      'future_ai_premium_content_safety_moderation_queue',
+    adminDecisionEvents:
+      'future_ai_premium_content_safety_decision_events',
+    rawPromptStoredInProjection: false,
+    rawProviderPayloadStoredInProjection: false,
+  },
+  projectionFields: [
+    'requestId',
+    'requestType',
+    'outputClass',
+    'safetyStatusKey',
+    'moderationStatusKey',
+    'adminReviewStatusKey',
+    'riskCategoryKeys',
+    'decisionReasonKey',
+    'reviewRequired',
+    'blocked',
+    'lastDecisionAt',
+    'updatedAt',
+  ],
+  stateSources: {
+    safetyStatusKey: AI_PREMIUM_CONTENT_SAFETY_STATUSES,
+    safetyPrecheckStatus: AI_PREMIUM_CONTENT_SAFETY_PRECHECK_STATUSES,
+    riskCategoryKeys: AI_PREMIUM_CONTENT_SAFETY_PRECHECK_RISK_CATEGORIES,
+    moderationQueue:
+      AI_PREMIUM_CONTENT_SAFETY_MODERATION_QUEUE_SKELETON.reviewStateFields,
+    clientSubmittedSafetyTrusted: false,
+    providerSubmittedSafetyTrusted: false,
+  },
+  adminReadModel: {
+    listEndpoint:
+      '/admin/api/v1/ai-premium-content/safety-state-audit',
+    detailEndpoint:
+      '/admin/api/v1/ai-premium-content/safety-state-audit/:requestId',
+    enabled: false,
+    superAdminOrAssetsModeratorRequired: true,
+    mutationEnabled: false,
+    stableKeysOnly: true,
+    rawEnumAsCopy: false,
+    rawPromptReturned: false,
+    providerPayloadReturned: false,
+    tokenReturned: false,
+    apiKeyReturned: false,
+    privateNoteReturned: false,
+  },
+  privacy: {
+    rawPromptReturned: false,
+    rawProviderPayloadReturned: false,
+    rawSafetyPayloadReturned: false,
+    rawAdminPrivateNoteReturned: false,
+    privateReferenceBytesReturned: false,
+    signedUrlReturned: false,
+    storageKeyReturned: false,
+    tokenReturned: false,
+    apiKeyReturned: false,
+    cookieReturned: false,
+  },
+  mutationGates: {
+    providerAttempt: false,
+    imageGeneration: false,
+    videoGeneration: false,
+    queueInsert: false,
+    adminDecision: false,
+    walletDebit: false,
+    orderCreate: false,
+    settlementAccrual: false,
+    payoutAccrual: false,
+    paidLike: false,
+  },
+} as const;
+
 export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   version: '2026-06-02.ai-premium-content-request-state-api-skeleton.v1',
   feature: 'ai_premium_content_request_state',
@@ -2423,6 +2511,8 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
     AI_PREMIUM_CONTENT_VIDEO_CONSENT_EXCEPTION_CONTRACT,
   safetyModerationQueueSkeleton:
     AI_PREMIUM_CONTENT_SAFETY_MODERATION_QUEUE_SKELETON,
+  safetyStateAuditProjection:
+    AI_PREMIUM_CONTENT_SAFETY_STATE_AUDIT_PROJECTION,
   resultAssetReuseAuditProjection:
     AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
   userFacingRequestStatusApiSkeleton:
