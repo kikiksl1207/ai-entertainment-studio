@@ -362,6 +362,23 @@ describe('Story Stage contract skeleton', () => {
         statusKey: 'storyStage.session.status.archivedInactive',
         copyMustExplainPurchaseHistoryRetained: true,
       },
+      inactivityExpirationBackendGuard: {
+        version: '2026-06-24.story-inactivity-expiration-backend-guard.v1',
+        status: 'read_model_contract_only',
+        readOnly: true,
+        inactivityThresholdDays: 30,
+        serverClockAuthoritative: true,
+        candidateStatusFrom: ['active', 'paused'],
+        expiredStatusKey: 'archived_inactive',
+        retentionPolicy: {
+          hardDeleteSession: false,
+          deleteChoices: false,
+          deleteProgress: false,
+          cancelPurchase: false,
+          revokeChapterEntitlement: false,
+          revokeSeasonEntitlement: false,
+        },
+      },
       mutationPolicy: {
         contractAddsArchiveJob: false,
         userProgressMutation: false,
@@ -373,6 +390,18 @@ describe('Story Stage contract skeleton', () => {
         payoutMutation: false,
       },
     });
+    expect(policy.inactivityExpirationBackendGuard.decisionOrder).toEqual([
+      'load_owner_session',
+      'calculate_inactive_days_from_last_progress_at',
+      'mark_candidate_when_inactive_days_gte_30',
+      'return_read_model_without_session_delete',
+      'preserve_purchase_and_entitlement_history',
+    ]);
+    expect(
+      Object.values(
+        policy.inactivityExpirationBackendGuard.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
   });
 
   it('models author interruption refund and settlement penalty without mutations', () => {
