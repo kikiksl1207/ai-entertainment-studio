@@ -585,8 +585,10 @@ describe('Story stage pack chapter session contract skeleton', () => {
   });
 
   it('keeps paid chapter body locked until entitlement and hides private backend material', () => {
+    const storyChapter = STORY_STAGE_PACK_CHAPTER_SESSION_CONTRACT.storyChapter;
+
     expect(
-      STORY_STAGE_PACK_CHAPTER_SESSION_CONTRACT.storyChapter.paidAccessPolicy,
+      storyChapter.paidAccessPolicy,
     ).toMatchObject({
       previewFieldsForLockedPaidChapter: [
         'id',
@@ -599,6 +601,54 @@ describe('Story stage pack chapter session contract skeleton', () => {
       ],
       lockedBodyReturned: false,
     });
+    expect(storyChapter.paidEntitlementServerGuard).toMatchObject({
+      version: '2026-06-24.story-paid-chapter-entitlement-server-guard.v1',
+      status: 'read_model_contract_only',
+      readOnly: true,
+      sourceOfTruth: {
+        chapterEntitlement: 'user_entitlements.story_chapter_access',
+        seasonEntitlement: 'user_entitlements.story_season_access',
+        purchaseLedger: 'story_purchase_ledger.granted',
+      },
+      entitlementScopes: {
+        chapterSingle: {
+          entitlementType: 'story_chapter_access',
+          grantsBodyAccessTo: 'exact_chapter_only',
+        },
+        seasonBundle: {
+          entitlementType: 'story_season_access',
+          grantsBodyAccessTo: 'published_chapters_in_season',
+        },
+      },
+      clientTrustPolicy: {
+        clientSubmittedPurchasedTrusted: false,
+        clientSubmittedEntitlementTrusted: false,
+        clientSubmittedWalletBalanceTrusted: false,
+        clientSubmittedPriceTrusted: false,
+      },
+      responsePolicy: {
+        lockedBodyReturned: false,
+        entitlementIdReturnedToReader: false,
+        purchaseLedgerIdReturned: false,
+        walletLedgerIdReturned: false,
+        stableMessageKeyRequired: true,
+        lockedMessageKey: 'storyStage.chapter.locked',
+      },
+    });
+    expect(storyChapter.paidEntitlementServerGuard.serverDecisionOrder).toEqual([
+      'load_chapter_by_pack_slug_and_chapter_no',
+      'return_body_when_chapter_is_free',
+      'require_authenticated_reader_for_paid_chapter_body',
+      'load_user_chapter_entitlement',
+      'load_user_season_entitlement_for_chapter',
+      'verify_purchase_ledger_status_granted',
+      'return_locked_preview_when_entitlement_missing',
+    ]);
+    expect(
+      Object.values(
+        storyChapter.paidEntitlementServerGuard.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
     expect(STORY_STAGE_PACK_CHAPTER_SESSION_CONTRACT.privacy).toMatchObject({
       rawUserEmailReturned: false,
       rawPaymentLedgerIdReturned: false,
