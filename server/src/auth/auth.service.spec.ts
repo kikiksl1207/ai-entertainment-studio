@@ -2,6 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
+import { AUTH_SESSION_INVALIDATION_CONTRACT } from './auth-session-invalidation-contract';
 import {
   ChangePasswordDto,
   ConfirmPasswordResetDto,
@@ -529,6 +530,57 @@ describe('AuthService action token flows', () => {
       },
       data: { revokedAt: expect.any(Date) },
     });
+  });
+
+  it('keeps password reset session invalidation server-authoritative and secret-free', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.userActionToken.findFirst.mockResolvedValue(
+      activeActionToken({ purpose: 'password_reset' }),
+    );
+    prisma.userAuthAccount.findFirst.mockResolvedValue({
+      id: '00000000-0000-4000-8000-000000000201',
+      providerUserId: email,
+      passwordHash: 'old-hash',
+    });
+    prisma.userActionToken.updateMany.mockResolvedValue({ count: 1 });
+    prisma.userRefreshToken.updateMany.mockResolvedValue({ count: 3 });
+
+    const result = await service.confirmPasswordReset({
+      token,
+      newPassword: 'Newpass1',
+    });
+
+    expect(AUTH_SESSION_INVALIDATION_CONTRACT.passwordResetConfirm.sessionInvalidation).toMatchObject({
+      revokesRefreshTokens: true,
+      scope: 'all active sessions for token.userId',
+      where: {
+        userIdSource: 'token.userId',
+        revokedAt: null,
+      },
+      accessTokenExpiryOnlyFallbackAllowed: false,
+    });
+    expect(prisma.userRefreshToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId,
+        revokedAt: null,
+      },
+      data: { revokedAt: expect.any(Date) },
+    });
+    expect(AUTH_SESSION_INVALIDATION_CONTRACT.passwordResetConfirm.untrustedClientFields).toEqual(
+      expect.arrayContaining(['refreshToken', 'sessionId', 'cookie', 'userId']),
+    );
+    expect(AUTH_SESSION_INVALIDATION_CONTRACT.passwordResetConfirm.responsePolicy).toMatchObject({
+      returnsAccessToken: false,
+      returnsRefreshToken: false,
+      returnsCookie: false,
+      returnsSessionSecret: false,
+      returnsPasswordHash: false,
+      returnsResetTokenHash: false,
+    });
+    expect(JSON.stringify(result)).not.toMatch(
+      /accessToken|refreshToken|cookie|sessionSecret|passwordHash|tokenHash/i,
+    );
   });
 
   it('blocks social-only password change before password or session mutation', async () => {
