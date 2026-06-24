@@ -1333,6 +1333,40 @@ describe('premium chat room refund and moderation ledger contract', () => {
       closeStatusKey: 'closed_by_artist',
       refundReasonKey: 'artist_forced_close_full_refund',
     });
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.reportRefundApi.forcedCloseRefundGuard).toMatchObject({
+      version: '2026-06-24.premium-chat-forced-close-refund-guard.v1',
+      status: 'read_model_contract_only',
+      readOnly: true,
+      artistForcedClose: {
+        actionKey: 'artist_force_close',
+        refundReasonKey: 'artist_forced_close_full_refund',
+        userRefundBps: 10000,
+        companyRevenueBps: 0,
+        artistCompensationBps: 0,
+        userFaultRestrictionAllowed: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+      userFaultRestriction: {
+        actionKey: 'operator_sanction_close',
+        allowedRefundRestrictionStatusKeys: [
+          'refund_limited_70',
+          'refund_limited_50',
+        ],
+        artistCompensationBps: 1000,
+        clientSubmittedRefundRateTrusted: false,
+        clientSubmittedArtistShareTrusted: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+      separationPolicy: {
+        artistForcedCloseUsesUserFaultRestriction: false,
+        artistForcedCloseCreatesArtistCompensation: false,
+        userFaultRestrictionCreatesArtistCompensation: true,
+        walletRefundLedgerSeparateFromArtistCompensationLedger: true,
+        settlementAndPayoutRemainReadOnly: true,
+      },
+    });
   });
 
   it('keeps refund API outcomes and ledger resolver splits balanced at 10000 bps', () => {
