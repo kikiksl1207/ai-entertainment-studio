@@ -2632,6 +2632,20 @@ describe('premium chat room refund and moderation ledger contract', () => {
         rawAssetMetadataReturned: false,
         rawImageAnalysisReturned: false,
       },
+      storageGuard: {
+        assetLookupSource: 'user_assets.assetId',
+        assetUsageRequired: 'premium_chat_image_message',
+        senderOwnershipSource: 'server_user_asset_owner_or_grant',
+        clientSubmittedStorageKeyTrusted: false,
+        clientSubmittedObjectUrlTrusted: false,
+        clientSubmittedSignedUrlTrusted: false,
+        responseUrlSource: 'public_asset_proxy_variant_url',
+        allowedResponseUrlFields: ['thumbnailUrl', 'displayUrl'],
+        privateOriginalReadableByMessageResponse: false,
+        signedUrlGeneratedForMessageResponse: false,
+        storageKeyLogged: false,
+        signedUrlLogged: false,
+      },
       moderation: {
         statusKeys: ['pending', 'safe', 'needs_review', 'blocked'],
         reportCreatesBlindCandidate: true,
@@ -2689,6 +2703,15 @@ describe('premium chat room refund and moderation ledger contract', () => {
       blockedKey: 'chat.premiumRoom.image.blocked',
       unavailableKey: 'chat.premiumRoom.image.unavailable',
     });
+    expect(imageMessage.storageGuard.forbiddenResponseUrlFields).toEqual(
+      expect.arrayContaining([
+        'originalPrivateUrl',
+        'signedUrl',
+        'directStorageUrl',
+        'objectUrl',
+        'storageKey',
+      ]),
+    );
     expect(imageMessage.errorResponses).toMatchObject({
       assetRequired: {
         status: 400,
