@@ -23,6 +23,7 @@ import {
   AI_PREMIUM_CONTENT_SAFETY_PRECHECK_RISK_CATEGORIES,
   AI_PREMIUM_CONTENT_SAFETY_PRECHECK_STATUSES,
   AI_PREMIUM_CONTENT_SAFETY_MODERATION_QUEUE_SKELETON,
+  AI_PREMIUM_CONTENT_SAFETY_STATE_AUDIT_PROJECTION,
   AI_PREMIUM_CONTENT_SAFETY_STATUSES,
   AI_PREMIUM_CONTENT_STATE_API_CONTRACT,
   AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
@@ -106,6 +107,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     );
     expect(contract.videoConsentException).toBe(
       AI_PREMIUM_CONTENT_VIDEO_CONSENT_EXCEPTION_CONTRACT,
+    );
+    expect(contract.safetyStateAuditProjection).toBe(
+      AI_PREMIUM_CONTENT_SAFETY_STATE_AUDIT_PROJECTION,
     );
     expect(contract.resultAssetReuseAuditProjection).toBe(
       AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
@@ -495,6 +499,63 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
         signedUrlsReturned: false,
         privateReferenceBytesReturned: false,
       },
+    });
+    expect(Object.values(contract.mutationGates).every((enabled) => !enabled)).toBe(
+      true,
+    );
+  });
+
+  it('defines a read-only safety state audit projection without raw prompt or provider payload exposure', () => {
+    const contract =
+      AI_PREMIUM_CONTENT_STATE_API_CONTRACT.safetyStateAuditProjection;
+
+    expect(contract).toBe(AI_PREMIUM_CONTENT_SAFETY_STATE_AUDIT_PROJECTION);
+    expect(contract).toMatchObject({
+      version: '2026-06-24.ai-content-safety-state-audit-projection.v1',
+      status: 'read_model_contract_only',
+      enabled: false,
+      readOnly: true,
+      providerAgnostic: true,
+      providerCallEnabled: false,
+      moderationDecisionMutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      sourceOfTruth: {
+        safetyPrecheckProjection: 'server_safety_precheck_projection',
+        rawPromptStoredInProjection: false,
+        rawProviderPayloadStoredInProjection: false,
+      },
+      adminReadModel: {
+        enabled: false,
+        mutationEnabled: false,
+        stableKeysOnly: true,
+        rawEnumAsCopy: false,
+        rawPromptReturned: false,
+        providerPayloadReturned: false,
+        tokenReturned: false,
+        apiKeyReturned: false,
+        privateNoteReturned: false,
+      },
+    });
+    expect(contract.projectionFields).toEqual(
+      expect.arrayContaining([
+        'requestId',
+        'safetyStatusKey',
+        'moderationStatusKey',
+        'adminReviewStatusKey',
+        'riskCategoryKeys',
+        'decisionReasonKey',
+      ]),
+    );
+    expect(contract.privacy).toMatchObject({
+      rawPromptReturned: false,
+      rawProviderPayloadReturned: false,
+      rawSafetyPayloadReturned: false,
+      rawAdminPrivateNoteReturned: false,
+      tokenReturned: false,
+      apiKeyReturned: false,
+      cookieReturned: false,
     });
     expect(Object.values(contract.mutationGates).every((enabled) => !enabled)).toBe(
       true,
