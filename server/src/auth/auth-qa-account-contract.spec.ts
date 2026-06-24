@@ -151,6 +151,59 @@ describe('auth QA account access contract', () => {
     });
   });
 
+  it('keeps disposable QA accounts inside owner-only backend boundaries', () => {
+    expect(AUTH_QA_ACCOUNT_ACCESS_CONTRACT.disposableQaAccountOwnershipBoundary).toMatchObject({
+      status: 'contract_only_no_production_mutation',
+      accountClassification: {
+        realUserAllowed: false,
+        productionAutoProvision: false,
+        requiresQaRunId: true,
+        requiresDisposableLabel: true,
+      },
+      ownerOnlyApiGuard: {
+        authority: 'authenticated currentUser.id',
+        allowedUserIdSource: 'server session principal only',
+        whereClauseRequired: {
+          ownerUserId: 'currentUser.id',
+          deletedAt: null,
+        },
+        crossUserFixtureReadAllowed: false,
+        realUserDataVisibleToDisposableAccount: false,
+        disposableDataVisibleToRealUser: false,
+      },
+      mutationPolicy: {
+        productionUserMutation: false,
+        ownerOnlyWriteSmoke: false,
+        accountDeletion: false,
+        passwordReset: false,
+        sessionMinting: false,
+        walletLedgerMutation: false,
+        settlementOrPayoutMutation: false,
+      },
+      safeOutputPolicy: {
+        recordFixtureLabel: true,
+        recordMaskedStableUserRef: true,
+        recordRawEmail: false,
+        recordPassword: false,
+        recordToken: false,
+        recordCookie: false,
+        recordRawUuid: false,
+        recordDatabaseUrl: false,
+      },
+    });
+    expect(
+      AUTH_QA_ACCOUNT_ACCESS_CONTRACT.disposableQaAccountOwnershipBoundary.ownerOnlyApiGuard
+        .forbiddenUserIdSources,
+    ).toEqual(
+      expect.arrayContaining([
+        'request body userId',
+        'query userId',
+        'fixture label supplied by client',
+        'masked UUID copied from QA notes',
+      ]),
+    );
+  });
+
   it('defines the sanitized live access self-check for QA creator and admin', () => {
     expect(AUTH_QA_ACCOUNT_ACCESS_CONTRACT.liveAccessSelfCheck).toMatchObject({
       task: '#458',
