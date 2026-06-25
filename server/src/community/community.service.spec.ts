@@ -9,6 +9,7 @@ import {
   LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT,
   LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT,
   LUMINA_FEED_REPOST_SHARE_DISPLAY_PROJECTION_CONTRACT,
+  LUMINA_FEED_REPOST_TOMBSTONE_READ_PROJECTION_CONTRACT,
   LUMINA_FEED_REPOST_QUOTE_BODY_VALIDATION_POLICY,
   LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT,
   LUMINA_FEED_THREAD_REPOST_SHARE_PM_PROJECTION_CONTRACT,
@@ -2100,6 +2101,59 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
       Object.values(
         LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT.mutationPolicy,
       ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('publishes repost tombstone read projection without source body or count mutation', () => {
+    const contract = LUMINA_FEED_REPOST_TOMBSTONE_READ_PROJECTION_CONTRACT;
+
+    expect(contract).toMatchObject({
+      version: '2026-06-25.lumina-feed-repost-tombstone-read-projection.v1',
+      status: 'read_model_contract_only',
+      surfaces: ['feed_list', 'post_detail', 'user_profile_posts', 'reposts_tab'],
+      sourceRelations: ['repost', 'quote_repost'],
+      sourceReferenceField: 'metadata.repost.originalPostId',
+      tombstoneWhenOriginalState: [
+        'missing',
+        'deleted',
+        'hidden',
+        'private',
+        'viewer_hidden',
+        'blocked_relationship',
+      ],
+      projection: {
+        field: 'post.repost',
+        originalState: 'unavailable',
+        tombstone: true,
+        unavailableReason: 'viewer_restricted_or_unavailable',
+        originalPost: null,
+        originalBodyReturned: false,
+        originalAssetsReturned: false,
+        originalAuthorPrivateFieldsReturned: false,
+        quoteBodyMayRemainVisible: true,
+        quoteBodyField: 'post.repost.quoteBody',
+        simpleRepostQuoteBody: null,
+      },
+      listAndDetailPolicy: {
+        sameProjectionForListAndDetail: true,
+        deletedOriginalExcludedFromOriginalPostProjection: true,
+        blockedOriginalExcludedFromOriginalPostProjection: true,
+        safeNotFoundAllowedForDirectOriginalLookup: true,
+        repostRowMayRemainVisibleWithTombstone: true,
+      },
+      countPolicy: {
+        repostCountField: 'repostCount',
+        repostCountIncludes: ['repost', 'quote_repost'],
+        shareCountStrategy: 'not_mutated_by_share_contract',
+        tombstoneReadDoesNotMutateRepostCount: true,
+        tombstoneReadDoesNotMutateShareCount: true,
+        tombstoneReadDoesNotMutateNotificationCount: true,
+      },
+    });
+    expect(
+      Object.values(contract.mutationPolicy).every(
+        (enabled) => enabled === false,
+      ),
     ).toBe(true);
   });
 
