@@ -207,6 +207,8 @@ describe('PremiumChatRoomsReadController', () => {
     const response = controller.getOpeningGreetingSessionPreviewFixture();
     const sameSessionReads = response.scenarios.sameSessionReplay.repeatedReads;
     const newSessionReads = response.scenarios.newSessionVariant.sessions;
+    const boundaryReads =
+      response.scenarios.differentCharacterBoundary.comparisons;
 
     expect(response).toMatchObject({
       feature: 'character_chat_opening_greeting_session_preview_fixture',
@@ -254,8 +256,31 @@ describe('PremiumChatRoomsReadController', () => {
     expect(newSessionReads[0].openingGreeting.text).not.toBe(
       newSessionReads[1].openingGreeting.text,
     );
+    expect(boundaryReads.map((read) => read.characterSlug)).toEqual([
+      'yoon-serin',
+      'seo-yuan',
+    ]);
+    expect(boundaryReads[0].openingGreeting.text).not.toBe(
+      boundaryReads[1].openingGreeting.text,
+    );
     expect(
-      [...sameSessionReads, ...newSessionReads].every(
+      boundaryReads.every(
+        (read) =>
+          read.openingGreeting.toneCandidate.characterSlug ===
+          read.characterSlug,
+      ),
+    ).toBe(true);
+    expect(
+      response.scenarios.differentCharacterBoundary,
+    ).toMatchObject({
+      expectedCharacterSlugsDifferent: true,
+      expectedTextDifferent: true,
+      characterToneMustRemainScoped: true,
+      fallbackCopySharedAcrossCharacters: false,
+      providerCall: false,
+    });
+    expect(
+      [...sameSessionReads, ...newSessionReads, ...boundaryReads].every(
         (read) => read.openingGreeting.generation.providerCall === false,
       ),
     ).toBe(true);

@@ -1318,6 +1318,10 @@ Character-chat dynamic opening greeting cache (#388):
   raw prompts, provider payloads, tokens, cookies, passwords, API keys, DB URLs,
   or user private data, and it must not call a provider, send messages, create
   sessions/messages, or mutate wallet, order, settlement, or payout state.
+  The live fixture response must include `sameSessionReplay`,
+  `newSessionVariant`, and `differentCharacterBoundary` scenarios so QA can
+  verify cache replay, same-character session variation, and character-scoped
+  tone boundaries from one read-only endpoint.
 - The #897 safety boundary requires the selected greeting to stay within
   character settings, forbidden tone, and minor-clean rules. It explicitly
   blocks real-person relationship, external contact, and external payment
