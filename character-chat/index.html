@@ -410,6 +410,14 @@
             <span class="dm-request-status-alt is-retry">재생성 가능</span>
           </div>
         </div>
+        <!-- #1091 — AI 생성 provider 미연결 empty state: 깨진 화면이 아니라 "예약 접수" 흐름임을 명확히 안내 -->
+        <div class="dm-request-empty-note" role="note">
+          <span class="dm-request-empty-icon" aria-hidden="true">🗓️</span>
+          <div>
+            <strong>지금은 예약 요청만 받아요</strong>
+            <p>AI 생성 기능이 열리면 남겨주신 요청서가 순서대로 제작에 들어가요. 지금 골라두면 준비됐을 때 먼저 안내해 드려요.</p>
+          </div>
+        </div>
         <!-- 가격 티어 카드 (기본 30L / 고급 100L / 영상 300L) -->
         <div class="dm-tier-grid" id="chatRequestTiers" role="radiogroup" aria-label="요청 타입 선택">
           <button type="button" class="dm-tier" role="radio" aria-checked="false" data-request-tier="image_basic">
@@ -454,6 +462,8 @@
           <li>유료 요청은 결제 시스템 준비 후 차감됩니다. 지금은 <strong>예약 요청서</strong>만 접수돼요.</li>
           <li>모든 새 이미지·영상은 운영 검수 이후 제작에 들어가요. 결제하자마자 바로 받아보실 수는 없어요.</li>
           <li>성인물 · 실존 인물 사칭 · 위험 · 혐오 표현 요청은 제작이 거절될 수 있어요.</li>
+          <!-- #1091 — 영상은 이미지와 비용/동의 흐름 분리 -->
+          <li class="dm-request-note-video">짧은 영상은 이미지보다 제작 비용이 커서, <strong>영상 요청에만 추가 비용 동의 단계</strong>가 따로 있어요. 이미지 요청에는 적용되지 않아요.</li>
         </ul>
       </div>
 

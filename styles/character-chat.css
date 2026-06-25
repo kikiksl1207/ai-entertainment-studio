@@ -2669,3 +2669,34 @@ select.dm-field-input option {
     font-size: 11.5px;
   }
 }
+
+/* #1091 — AI 콘텐츠 요청 no-provider empty state 안내 */
+.dm-request-empty-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 11px 13px;
+  background: rgba(99, 102, 241, 0.07);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 10px;
+}
+.dm-request-empty-icon { font-size: 18px; line-height: 1.4; flex-shrink: 0; }
+.dm-request-empty-note strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #c4b0ff;
+  margin-bottom: 3px;
+}
+.dm-request-empty-note p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(220, 210, 240, 0.66);
+}
+/* #1091 — 영상 비용/동의 분리 강조 */
+.dm-request-note-video {
+  color: rgba(255, 200, 150, 0.8);
+}
+.dm-request-note-video strong { color: #ffd080; }
