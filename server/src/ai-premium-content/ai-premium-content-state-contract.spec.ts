@@ -3,6 +3,7 @@ import {
   AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
   AI_PREMIUM_CONTENT_CREATE_STATUS_API_STATUSES,
   AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
+  AI_PREMIUM_CONTENT_COST_ESTIMATE_PROJECTION_CONTRACT,
   AI_PREMIUM_CONTENT_COST_USAGE_AUDIT_PROJECTION,
   AI_PREMIUM_CONTENT_COST_WALLET_PRECHECK_POLICY,
   AI_PREMIUM_CONTENT_MODERATION_STATUSES,
@@ -88,6 +89,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     );
     expect(contract.costRetryReadModel).toBe(
       AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
+    );
+    expect(contract.costEstimateProjection).toBe(
+      AI_PREMIUM_CONTENT_COST_ESTIMATE_PROJECTION_CONTRACT,
     );
     expect(contract.costUsageAuditProjection).toBe(
       AI_PREMIUM_CONTENT_COST_USAGE_AUDIT_PROJECTION,
@@ -993,6 +997,74 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       signedUrlReturned: false,
       storageKeyReturned: false,
     });
+    expect(serialized).not.toMatch(/gpt image|stable diffusion|seedance/i);
+  });
+
+  it('defines a read-only cost estimate projection for route, paid state, and video consent', () => {
+    const projection = AI_PREMIUM_CONTENT_COST_ESTIMATE_PROJECTION_CONTRACT;
+    const serialized = JSON.stringify(projection);
+
+    expect(projection).toMatchObject({
+      version: '2026-06-25.ai-content-cost-estimate-projection.v1',
+      feature: 'ai_premium_content_cost_estimate_projection',
+      status: 'read_model_contract_only',
+      enabled: false,
+      readOnly: true,
+      providerAgnostic: true,
+      providerCallEnabled: false,
+      paymentMutationEnabled: false,
+      walletMutationEnabled: false,
+      orderMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      sourceOfTruth: {
+        requestTypePolicy: 'AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY',
+        modelRouteSource: 'server_capability_route_alias',
+        costSource: 'server_policy_estimate_not_provider_quote',
+        paidStateSource: 'server_product_policy_and_wallet_precheck_projection',
+        videoConsentSource: 'explicit_user_video_addon_consent_projection',
+        clientSubmittedCostTrusted: false,
+        providerQuoteTrusted: false,
+      },
+      freePaidPolicy: {
+        freeImageRequestAllowed: true,
+        videoOrMixedRequiresPaidRequest: true,
+        requiredLuminaSource: 'server_product_policy',
+        clientSubmittedRequiredLuminaTrusted: false,
+        walletDebitOnEstimate: false,
+      },
+      videoConsentPolicy: {
+        appliesToOutputClasses: ['video', 'mixed'],
+        requiredBeforeGeneration: true,
+        rawConsentTextReturned: false,
+        providerCallBeforeConsent: false,
+      },
+      routeProjection: {
+        requestTypes: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+        outputClasses: AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
+        providerRouteAliasPrefix: 'ai_premium_content.',
+        providerSpecificNameReturned: false,
+        modelSpecificNameReturned: false,
+        providerPayloadReturned: false,
+      },
+    });
+    expect(projection.projectionFields).toEqual([
+      'requestType',
+      'outputClass',
+      'modelRouteClass',
+      'providerRouteAlias',
+      'estimateSource',
+      'estimatedCostMicros',
+      'paidRequest',
+      'requiredLumina',
+      'videoConsentStateKey',
+      'ctaMessageKey',
+    ]);
+    expect(
+      Object.values(projection.noMutationPolicy).every(
+        (enabled) => enabled === false,
+      ),
+    ).toBe(true);
     expect(serialized).not.toMatch(/gpt image|stable diffusion|seedance/i);
   });
 
