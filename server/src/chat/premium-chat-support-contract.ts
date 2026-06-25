@@ -2157,6 +2157,17 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     version: '2026-05-25.premium-chat-support-ranking-projection.v1',
     status: 'contract_ready_mutation_blocked',
     enabled: false,
+    amountReadModelAuthority: {
+      fixedAmountsLumina: PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA,
+      customAmountPolicy: PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY,
+      amountSource:
+        'server_normalized_confirmed_net_premium_chat_donation_after_refund_or_chargeback',
+      displayOnly: true,
+      clientSubmittedRankingAmountTrusted: false,
+      walletBalanceUsedForProjection: false,
+      settlementAmountReturned: false,
+      payoutAmountReturned: false,
+    },
     supportMessage: {
       amountDisplay: {
         fixedAmountLabelKey: 'chat.donation.amount.fixed',
@@ -2172,6 +2183,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       like: {
         path: '/api/v1/boost-campaigns/:campaignId/rankings',
         receivesPremiumChatSupport: false,
+        receivesPremiumChatDonationAmount: false,
+        receivesPremiumChatCommunicationScore: false,
       },
       communication: {
         path: '/api/v1/chat/rankings?type=communication',
@@ -2180,6 +2193,9 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         roomOpenMayContribute: true,
         conversationMayContribute: true,
         supportMayContribute: true,
+        supportAmountMode: 'weighted_factor_not_like_or_donation_rank_amount',
+        likeEventsMayContribute: false,
+        luminaBoostsMayContribute: false,
         rawFormulaReturned: false,
       },
       donation: {
@@ -2187,6 +2203,13 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
         userVisibleSummaryKey: 'chat.rankings.donation.summary',
         scoreDetailMode: 'summary_only',
         confirmedNetSupportOnly: true,
+        amountBasis:
+          'server_normalized_confirmed_net_premium_chat_donation_after_refund_or_chargeback',
+        fixedAndCustomAmountsAllowed: true,
+        likeEventsMayContribute: false,
+        luminaBoostsMayContribute: false,
+        roomOpenMayContribute: false,
+        messageActivityMayContribute: false,
         rawSupportMessageReturned: false,
       },
     },
@@ -2200,6 +2223,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       donationCreate: true,
       walletDebit: true,
       rankingRefresh: true,
+      supportPointLedger: true,
+      rankingSnapshot: true,
       settlement: true,
       payout: true,
     },

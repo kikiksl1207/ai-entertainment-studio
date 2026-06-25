@@ -1638,6 +1638,15 @@ GET /api/v1/chat/me/premium-donations?period=monthly&status=confirmed&take=20
   ranking. This remains a disabled read-model contract and does not create
   support, wallet, settlement, payout, ranking snapshot, or client score-refresh
   mutation.
+- #1133 keeps the premium-chat support ranking projection separated from like
+  rankings. The support contract exposes display-only amount authority for the
+  fixed `10/50/100/500/1000/5000/10000/50000L` presets and server-normalized
+  custom `1L`-`50000L` support, but client-submitted ranking amounts, wallet
+  balance, settlement amount, and payout amount are not projection authority.
+  Communication ranking may use confirmed support only as a weighted factor,
+  donation ranking uses confirmed net support amount only, and neither lane may
+  consume Lumina Pick likes or Lumina boosts. Ranking refresh, support-point
+  ledger writes, wallet, settlement, and payout mutation remain disabled.
 - My donation history is owner-only and disabled. It returns safe donation
   projection fields plus filtered summary totals only. Other-user access must be
   safe 404 or 403 without identity leakage.
