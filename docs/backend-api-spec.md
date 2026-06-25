@@ -3211,6 +3211,15 @@ AI premium content request brief API skeleton (#662):
   create payment orders, or touch settlement/payout. Selected vendor model ids,
   provider payloads, raw prompts, safety payloads, and provider secrets are not
   returned.
+- #1135 adds `AI_PREMIUM_CONTENT_COST_ESTIMATE_PROJECTION_CONTRACT` as a
+  disabled read-only projection for request cost UI wiring. It combines request
+  type, output class, route alias/class, server-policy estimated cost,
+  free/paid request state, required Lumina preview, and video consent state into
+  one provider-agnostic projection. Provider/model vendor names, provider
+  quotes, raw provider payloads, and client-submitted cost or required Lumina
+  are not authority. Video and mixed output require explicit video consent before
+  generation, and estimate reads must not call providers, create requests/orders,
+  debit wallet/Lumina, or touch settlement/payout.
 - #907 adds the future result archive read projection at
   `GET /api/v1/me/ai-premium-content/results`. It remains disabled and
   read-only, but defines one owner-facing archive for image, video, and mixed
