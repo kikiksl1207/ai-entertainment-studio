@@ -1227,6 +1227,63 @@ export const LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT = {
   },
 } as const;
 
+export const LUMINA_FEED_REPOST_TOMBSTONE_READ_PROJECTION_CONTRACT = {
+  version: '2026-06-25.lumina-feed-repost-tombstone-read-projection.v1',
+  status: 'read_model_contract_only',
+  surfaces: ['feed_list', 'post_detail', 'user_profile_posts', 'reposts_tab'],
+  sourceRelations: ['repost', 'quote_repost'],
+  sourceReferenceField: 'metadata.repost.originalPostId',
+  tombstoneWhenOriginalState: [
+    'missing',
+    'deleted',
+    'hidden',
+    'private',
+    'viewer_hidden',
+    'blocked_relationship',
+  ],
+  projection: {
+    field: 'post.repost',
+    originalState: 'unavailable',
+    tombstone: true,
+    unavailableReason: 'viewer_restricted_or_unavailable',
+    originalPost: null,
+    originalBodyReturned: false,
+    originalAssetsReturned: false,
+    originalAuthorPrivateFieldsReturned: false,
+    quoteBodyMayRemainVisible: true,
+    quoteBodyField: 'post.repost.quoteBody',
+    simpleRepostQuoteBody: null,
+  },
+  listAndDetailPolicy: {
+    sameProjectionForListAndDetail: true,
+    deletedOriginalExcludedFromOriginalPostProjection: true,
+    blockedOriginalExcludedFromOriginalPostProjection: true,
+    safeNotFoundAllowedForDirectOriginalLookup: true,
+    repostRowMayRemainVisibleWithTombstone: true,
+  },
+  countPolicy: {
+    repostCountField: 'repostCount',
+    repostCountIncludes: ['repost', 'quote_repost'],
+    shareCountStrategy: 'not_mutated_by_share_contract',
+    tombstoneReadDoesNotMutateRepostCount: true,
+    tombstoneReadDoesNotMutateShareCount: true,
+    tombstoneReadDoesNotMutateNotificationCount: true,
+  },
+  mutationPolicy: {
+    postCreate: false,
+    postDelete: false,
+    repostCreate: false,
+    repostDelete: false,
+    shareCreate: false,
+    countMutation: false,
+    notificationMutation: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
+
 @Injectable()
 export class CommunityService {
   private readonly logger = new Logger(CommunityService.name);

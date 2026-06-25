@@ -3718,6 +3718,14 @@ Authorization: Bearer <accessToken>
   blocked originals as tombstones without original body or private author
   fields. Share remains `share_contract` URL/Web Share projection only with
   `shareCount=null` and `countStrategy="not_mutated_by_share_contract"`.
+- #1136 exports `LUMINA_FEED_REPOST_TOMBSTONE_READ_PROJECTION_CONTRACT` for
+  list, detail, user-profile post, and repost-tab reads after an original post
+  becomes missing, deleted, hidden, private, viewer-hidden, or blocked by
+  relationship. Repost and quote repost rows may remain visible with
+  `post.repost.tombstone` and `originalPost=null`; quote text may remain
+  visible, but the original body, original assets, and private author fields are
+  not returned. Tombstone reads do not mutate repost count, share count,
+  notification count, wallet, Lumina, settlement, or payout state.
 - #1100 exports `LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT` as the canonical
   quote projection contract. Quote repost creates a viewer-owned feed context
   with `post.repost.quoteBody` kept separate from
