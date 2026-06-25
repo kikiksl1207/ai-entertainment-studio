@@ -218,6 +218,14 @@ wallet/Lumina, or touch settlement/payout.
   client-submitted cost is never accepted. Overflow companions must be
   summarized or downgraded to cameo/background/offscreen reference before any
   provider context is composed.
+- #1134 adds `participationBudget.readModelSelectionProjection`: free prologue
+  selection remains capped at one AI companion with no paid expansion, while
+  paid story selection may show up to five AI companions. Add/swap cost is a
+  server story product policy preview only, client-submitted cost is not
+  trusted, and companion changes must preserve existing chapter and season
+  entitlements. The previous chapter roster remains immutable, the next chapter
+  uses the latest confirmed roster, and selection submit, payment, refund,
+  wallet, settlement, payout, and story-progress mutation remain disabled.
 - The projection must not expose raw persona prompts, raw world bible text,
   provider payloads, private artist notes, or admin memos.
 
