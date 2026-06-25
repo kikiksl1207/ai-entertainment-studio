@@ -30,6 +30,12 @@ import {
   resolvePremiumChatRoomRefundPolicy,
   resolvePremiumChatRoomUnansweredRefundCandidate,
 } from './premium-chat-room-contract';
+import {
+  PREMIUM_CHAT_COMMUNICATION_DONATION_RANKING_READ_MODEL_CONTRACT,
+  PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA,
+  PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY,
+  PREMIUM_CHAT_SUPPORT_CONTRACT,
+} from './premium-chat-support-contract';
 
 describe('premium chat room refund and moderation ledger contract', () => {
   it('keeps initial artists on the 300L tier until the server unlocks higher tiers', () => {
@@ -2905,6 +2911,78 @@ describe('premium chat room refund and moderation ledger contract', () => {
       status: 401,
       code: 'auth_required',
       response: 'global_auth_mapping',
+    });
+  });
+});
+
+describe('premium chat support ranking projection contract', () => {
+  it('keeps support and donation rankings separate from like rankings without mutation', () => {
+    const projection = PREMIUM_CHAT_SUPPORT_CONTRACT.supportRankingProjection;
+    const readModel =
+      PREMIUM_CHAT_COMMUNICATION_DONATION_RANKING_READ_MODEL_CONTRACT;
+
+    expect(projection.enabled).toBe(false);
+    expect(projection.amountReadModelAuthority).toMatchObject({
+      fixedAmountsLumina: PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA,
+      customAmountPolicy: PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY,
+      amountSource:
+        'server_normalized_confirmed_net_premium_chat_donation_after_refund_or_chargeback',
+      displayOnly: true,
+      clientSubmittedRankingAmountTrusted: false,
+      walletBalanceUsedForProjection: false,
+      settlementAmountReturned: false,
+      payoutAmountReturned: false,
+    });
+    expect(projection.rankingLanes.like).toMatchObject({
+      path: '/api/v1/boost-campaigns/:campaignId/rankings',
+      receivesPremiumChatSupport: false,
+      receivesPremiumChatDonationAmount: false,
+      receivesPremiumChatCommunicationScore: false,
+    });
+    expect(projection.rankingLanes.communication).toMatchObject({
+      path: '/api/v1/chat/rankings?type=communication',
+      supportAmountMode: 'weighted_factor_not_like_or_donation_rank_amount',
+      likeEventsMayContribute: false,
+      luminaBoostsMayContribute: false,
+      rawFormulaReturned: false,
+    });
+    expect(projection.rankingLanes.donation).toMatchObject({
+      path: '/api/v1/chat/rankings?type=donation',
+      confirmedNetSupportOnly: true,
+      amountBasis:
+        'server_normalized_confirmed_net_premium_chat_donation_after_refund_or_chargeback',
+      fixedAndCustomAmountsAllowed: true,
+      likeEventsMayContribute: false,
+      luminaBoostsMayContribute: false,
+      roomOpenMayContribute: false,
+      messageActivityMayContribute: false,
+      rawSupportMessageReturned: false,
+    });
+    expect(projection.noMutation).toMatchObject({
+      donationCreate: true,
+      walletDebit: true,
+      rankingRefresh: true,
+      supportPointLedger: true,
+      rankingSnapshot: true,
+      settlement: true,
+      payout: true,
+    });
+    expect(readModel.laneSeparation).toMatchObject({
+      allowedTypes: ['communication', 'donation'],
+      forbiddenTypeAliases: ['like', 'free_like', 'lumina_pick', 'boost'],
+      likeRankingReceivesPremiumChatActivity: false,
+      premiumChatRankingReceivesLikes: false,
+      mixedLaneItemsAllowed: false,
+      clientSubmittedScoreAllowed: false,
+      clientRefreshAllowed: false,
+    });
+    expect(readModel.donationLane).toMatchObject({
+      acceptedFixedAmountsLumina: PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA,
+      customAmountPolicy: PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY,
+      directInputIncludedWhenServerNormalized: true,
+      grossDonationAmountUsed: false,
+      excludesCommunicationEvents: true,
+      rawSupportMessageReturned: false,
     });
   });
 });
