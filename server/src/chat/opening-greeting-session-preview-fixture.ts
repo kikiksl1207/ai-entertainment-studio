@@ -149,6 +149,41 @@ export function buildOpeningGreetingSessionPreviewFixture() {
         rawSeedReturned: false,
         providerCall: false,
       },
+      differentCharacterBoundary: {
+        labelKey:
+          'characterChat.openingGreeting.preview.differentCharacterBoundary',
+        comparisons: [
+          {
+            characterSlug: 'yoon-serin',
+            sessionKey: 'fixture-session-boundary-serin',
+            openingGreeting: openingGreeting(
+              'Serin keeps this boundary fixture soft and observant.',
+              {
+                cacheHit: false,
+                characterSlug: 'yoon-serin',
+                variantKey: 'fixture-boundary-serin',
+              },
+            ),
+          },
+          {
+            characterSlug: 'seo-yuan',
+            sessionKey: 'fixture-session-boundary-yuan',
+            openingGreeting: openingGreeting(
+              'Yuan opens this boundary fixture with a crisp, confident greeting.',
+              {
+                cacheHit: false,
+                characterSlug: 'seo-yuan',
+                variantKey: 'fixture-boundary-yuan',
+              },
+            ),
+          },
+        ],
+        expectedCharacterSlugsDifferent: true,
+        expectedTextDifferent: true,
+        characterToneMustRemainScoped: true,
+        fallbackCopySharedAcrossCharacters: false,
+        providerCall: false,
+      },
     },
     noMutation: noMutationPolicy,
     privacy: privacyPolicy,
