@@ -68,8 +68,8 @@
       const isMale = a.gender === "male";
       const silhouetteClass = isMale ? "silhouette-male" : "silhouette-female";
       const silhouetteLabel = isMale ? "HIDDEN<br>STAGE" : "NEW<br>STAGE";
-      // #362 — "공개 준비 중" 반복 줄임. 실서비스 톤: "곧 공개될 라인업".
-      const silhouetteText = isMale ? "곧 공개될 남성 아티스트 라인업" : "곧 공개될 여성 아티스트 라인업";
+      // #362/#980 — "곧/준비 중" 내부어 제거. 실서비스 톤: "공개 예정 라인업".
+      const silhouetteText = isMale ? "공개 예정 남성 아티스트 라인업" : "공개 예정 여성 아티스트 라인업";
 
       return `
       <article class="debut-card clickable-card" data-href="/character-detail?slug=${a.slug}"

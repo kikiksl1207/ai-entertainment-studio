@@ -151,11 +151,11 @@ function feedAuthorTypeLabel(authorTypeEnum) {
   return ({
     "ai_artist": "루미나 아티스트",
     "fan": "팬",
-    "debut_artist": "데뷔 준비",
+    "debut_artist": "데뷔 예정",
     "AI 아티스트": "루미나 아티스트",
     "아티스트": "루미나 아티스트",
     "팬": "팬",
-    "데뷔 준비": "데뷔 준비"
+    "데뷔 준비": "데뷔 예정"
   })[authorTypeEnum] || "팬";
 }
 
@@ -279,7 +279,7 @@ function renderLuminaFeed() {
       ? artist.publicName
       : (isMineByViewer && me
           ? (me.displayName || me.email?.split("@")[0] || "내 계정")
-          : (post.authorName || (post.postType === "debut_artist_post" ? "데뷔 준비 중인 아티스트" : "팬")));
+          : (post.authorName || (post.postType === "debut_artist_post" ? "데뷔 예정 아티스트" : "팬")));
     const avatarSrc = artist?.images?.thumb
       || (isMineByViewer && me?.avatarUrl ? me.avatarUrl : post.avatarUrl || "");
     const initial = (authorName || "?").charAt(0);
@@ -1598,7 +1598,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
       offlineErr.stage = "intent";
       throw offlineErr;
     }
-    setFeedComposeMessage(`${item.fileName} 업로드 준비 중… (${sizeLabel} / ${FEED_COMPOSE_MAX_IMAGE_MB}MB)`, "info");
+    setFeedComposeMessage(`${item.fileName} 업로드 처리 중… (${sizeLabel} / ${FEED_COMPOSE_MAX_IMAGE_MB}MB)`, "info");
 
     // 1. intent 생성
     const intent = await apiFetch("/api/v1/me/assets/upload-intents", {
@@ -1698,7 +1698,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
       ? artist.publicName
       : (isMineByViewer && me
           ? (me.displayName || me.email?.split("@")[0] || "내 계정")
-          : (post.authorName || (post.postType === "debut_artist_post" ? "데뷔 준비 중인 아티스트" : "팬")));
+          : (post.authorName || (post.postType === "debut_artist_post" ? "데뷔 예정 아티스트" : "팬")));
     var avatarSrc = artist?.images?.thumb
       || (isMineByViewer && me?.avatarUrl ? me.avatarUrl : post.avatarUrl || "");
     var initial = (authorName || "?").charAt(0);

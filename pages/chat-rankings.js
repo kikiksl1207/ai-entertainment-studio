@@ -159,7 +159,7 @@
       if (title) title.textContent = "로그인하면 랭킹을 볼 수 있어요";
       if (body) body.textContent = "프리미엄챗 소통/후원 랭킹은 로그인한 팬에게만 공개돼요. 먼저 로그인해 주세요.";
     } else if (reason === "disabled") {
-      setStateLabel("서비스 준비 중"); // #474 내부 용어 제거
+      setStateLabel("서비스 오픈 예정"); // #474/#980 내부 용어 제거
       // #484 — API의 disabledDisplayMessageKo 제거. 내부어 노출 방지를 위해 고정 문구 사용.
       if (title) title.textContent = "랭킹 데이터를 모으는 중이에요";
       if (body) body.textContent = state.type === "donation"

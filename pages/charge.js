@@ -228,7 +228,7 @@ function renderChargePage() {
     if (data.loggedOutPreview) {
       ordersList.innerHTML = `<div class="charge-empty">로그인하면 충전 이력을 확인할 수 있어요.</div>`;
     } else if (recentOrders.length === 0) {
-      ordersList.innerHTML = `<div class="charge-empty">아직 충전 이력이 없어요. 첫 충전이 곧 시작됩니다.</div>`;
+      ordersList.innerHTML = `<div class="charge-empty">아직 충전 이력이 없어요. 첫 충전을 시작해 보세요.</div>`;
     } else {
       ordersList.innerHTML = recentOrders.map(renderChargeOrderRow).join("");
     }

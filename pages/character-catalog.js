@@ -88,7 +88,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
     if (tagFilter) parts.push(`태그: <strong>${tagFilter}</strong>`);
     if (filter && filter !== "all") parts.push(`분류: <strong>${filter}</strong>`);
     if (statusFilter && statusFilter !== "all") {
-      const statusLabelMap = { public: "공개 활동 중", candidate: "데뷔 예정", secret: "비공개 라인", pending: "공개 준비 중" };
+      const statusLabelMap = { public: "공개 활동 중", candidate: "데뷔 예정", secret: "비공개 라인", pending: "공개 예정" };
       parts.push(`상태: <strong>${statusLabelMap[statusFilter] || statusFilter}</strong>`);
     }
     if (parts.length === 0) {
