@@ -2,6 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
+import { AUTH_PASSWORD_RESET_TOKEN_AUDIT_CONTRACT } from './auth-password-reset-token-audit-contract';
 import { AUTH_SESSION_INVALIDATION_CONTRACT } from './auth-session-invalidation-contract';
 import {
   ChangePasswordDto,
@@ -862,6 +863,24 @@ describe('AuthService action token flows', () => {
     const { service } = serviceWith(prisma);
     prisma.userActionToken.findFirst.mockResolvedValueOnce(null);
 
+    expect(AUTH_PASSWORD_RESET_TOKEN_AUDIT_CONTRACT.inspectPolicy).toMatchObject({
+      readOnly: true,
+      consumesToken: false,
+      invalidOrExpiredTokenEmailReturned: false,
+      fullEmailReturned: false,
+      maskedEmailOnlyWhenValid: true,
+      tokenOrCookieUsedAsPrefillValue: false,
+    });
+    expect(AUTH_PASSWORD_RESET_TOKEN_AUDIT_CONTRACT.responsePolicy).toMatchObject({
+      rawTokenReturned: false,
+      tokenHashReturned: false,
+      rawEmailReturned: false,
+      passwordReturned: false,
+      cookieReturned: false,
+      apiKeyReturned: false,
+      databaseUrlReturned: false,
+    });
+
     await expect(service.inspectPasswordReset({ token })).resolves.toMatchObject({
       status: 'invalid',
       canReset: false,
@@ -906,6 +925,26 @@ describe('AuthService action token flows', () => {
   it('rejects invalid, expired, and used password reset confirms before mutation', async () => {
     const prisma = createPrismaMock();
     const { service } = serviceWith(prisma);
+
+    expect(AUTH_PASSWORD_RESET_TOKEN_AUDIT_CONTRACT.invalidStates).toEqual([
+      'invalid',
+      'expired',
+      'already_used',
+    ]);
+    expect(AUTH_PASSWORD_RESET_TOKEN_AUDIT_CONTRACT.responsePolicy).toMatchObject({
+      code: 'AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_EXPIRED',
+      messageKey: 'auth.passwordReset.tokenInvalidOrExpired',
+      statusKeyPrefix: 'auth.passwordReset.',
+      rawTokenReturned: false,
+      tokenHashReturned: false,
+    });
+    expect(AUTH_PASSWORD_RESET_TOKEN_AUDIT_CONTRACT.confirmFailurePolicy).toMatchObject({
+      validatesTokenBeforePasswordMutation: true,
+      invalidExpiredOrUsedMutatesToken: false,
+      invalidExpiredOrUsedUpdatesPassword: false,
+      invalidExpiredOrUsedRevokesSessions: false,
+      invalidExpiredOrUsedSendsEmail: false,
+    });
 
     prisma.userActionToken.findFirst.mockResolvedValueOnce(null);
     await expect(
