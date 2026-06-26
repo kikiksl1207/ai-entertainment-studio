@@ -2,6 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
+import { AUTH_EMAIL_VERIFICATION_THROTTLE_CONTRACT } from './auth-email-verification-throttle-contract';
 import { AUTH_SESSION_INVALIDATION_CONTRACT } from './auth-session-invalidation-contract';
 import {
   ChangePasswordDto,
@@ -359,12 +360,47 @@ describe('AuthService action token flows', () => {
         serverEnforcedCooldownSeconds: 60,
         duplicatePendingTokenPolicy:
           'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+        cooldownResponseDisclosure: 'neutral_request_accepted',
+        rawTokenReturned: false,
+        tokenHashReturned: false,
       },
       debug: undefined,
     });
 
+    expect(AUTH_EMAIL_VERIFICATION_THROTTLE_CONTRACT.throttle).toMatchObject({
+      serverEnforced: true,
+      windowSeconds: 60,
+      duplicatePendingTokenPolicy:
+        'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+      cooldownDisclosure: 'neutral_request_accepted',
+      duringCooldown: {
+        createNewToken: false,
+        consumeOlderTokens: false,
+        sendEmail: false,
+        returnDebugToken: false,
+      },
+    });
+    expect(AUTH_EMAIL_VERIFICATION_THROTTLE_CONTRACT.responsePolicy).toMatchObject({
+      neutralResponse: true,
+      revealsAccountExistence: false,
+      revealsEmailVerifiedState: false,
+      rawTokenReturned: false,
+      tokenHashReturned: false,
+      rawEmailReturned: false,
+    });
+    expect(prisma.userActionToken.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId,
+        purpose: 'email_verification',
+        consumedAt: null,
+        expiresAt: { gt: expect.any(Date) },
+        createdAt: { gte: expect.any(Date) },
+      },
+      select: { id: true },
+    });
     expect(prisma.userActionToken.create).not.toHaveBeenCalled();
     expect(prisma.userActionToken.updateMany).not.toHaveBeenCalled();
+    expect(prisma.userActionToken.update).not.toHaveBeenCalled();
     expect(delivery.sendActionEmail).not.toHaveBeenCalled();
     expect(delivery.requestStatus).toHaveBeenCalledTimes(1);
   });
