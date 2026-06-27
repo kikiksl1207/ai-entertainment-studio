@@ -2110,6 +2110,14 @@ Authorization: Bearer <accessToken> # owner/artist endpoints only
   as `active`, `paused_by_report`, `admin_review`, `refund_pending`,
   `closed_by_artist`, and `expired`. It must not fall back to the character-chat
   conversation list or return `chat_sessions` rows.
+- #1215 adds `PREMIUM_CHAT_ROOM_ACCESS_PROJECTION_CONTRACT` for the signed-in
+  user's opened premium-room access list/detail projection. It exposes room id,
+  safe artist summary, `artist.profileHref`, stable room status label keys,
+  unread count, and safe latest-message summary only. It is owner-only, returns
+  safe 403/404 for non-owners, and does not expose private chat body, raw user
+  contact, wallet/payment ledger ids, refund reasons, or artist internal memos.
+  The projection does not open rooms, send messages, debit wallet, create
+  payments, create refunds, or touch settlement/payout state.
 - Owner status returns `premiumRoomStatus`, `premiumRoomRefundStatus`,
   `premiumRoomReportStatus`, `premiumRoomMutationAvailability`, and the
   read-only policy for the authenticated room owner.
