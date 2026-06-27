@@ -1189,6 +1189,32 @@ function bindFollowListModal() {
   });
 }
 
+// #1233 — 팔로워/팔로잉 관계 화면 read-only fixture.
+// live API/백엔드 없이도 SNS형 목록 + (본인 팔로워 목록의) 차단 진입점을 시각 확인할 수 있게,
+// preview/검수(localhost) 또는 ?followfixture=1 플래그에서 샘플 목록을 렌더한다.
+// 실제 follow/block mutation·네트워크 호출은 발생하지 않는다(플래그 없으면 일반 사용자 영향 없음).
+const FOLLOW_LIST_FIXTURE = {
+  followers: [
+    { id: "fx-flw-1", displayName: "루미나_민지", publicHandle: "minji_stage" },
+    { id: "fx-flw-2", displayName: "무대앞_해든", publicHandle: "haedeun_front" },
+    { id: "fx-flw-3", displayName: "조용한_관객", publicHandle: "quiet_seat" },
+    { id: "fx-flw-4", displayName: "서랍속_별", publicHandle: "star_in_drawer" },
+    { id: "fx-flw-5", displayName: "오늘의_픽러", publicHandle: "todays_picker" },
+  ],
+  following: [
+    { id: "fx-flg-1", displayName: "윤세린", publicHandle: "yoon_serin" },
+    { id: "fx-flg-2", displayName: "한서율", publicHandle: "han_seoyul" },
+    { id: "fx-flg-3", displayName: "박도아", publicHandle: "park_doa" },
+  ],
+};
+function followListUsesFixture() {
+  try {
+    const h = window.location.hostname;
+    if (h === "localhost" || h === "127.0.0.1" || h === "" || h.endsWith(".local")) return true;
+    return /[?&]followfixture=1(?:&|$)/.test(window.location.search || "");
+  } catch (_) { return false; }
+}
+
 // ── API 호출 & 목록 렌더 ──
 async function loadFollowList(type, append) {
   const itemsEl = document.getElementById("followListItems");
@@ -1200,6 +1226,24 @@ async function loadFollowList(type, append) {
     itemsEl.innerHTML = `<div class="follow-list-loading">불러오는 중…</div>`;
     if (emptyEl) { emptyEl.hidden = true; emptyEl.innerHTML = ""; }
     if (loadMoreBtn) loadMoreBtn.hidden = true;
+  }
+
+  // #1233 — read-only fixture: live API 대신 샘플 목록을 렌더하고 종료(mutation/네트워크 없음).
+  if (followListUsesFixture()) {
+    const sample = FOLLOW_LIST_FIXTURE[type] || [];
+    if (sample.length === 0) {
+      itemsEl.innerHTML = "";
+      if (emptyEl) {
+        emptyEl.innerHTML = `<strong>${type === "followers" ? "팔로워가 아직 없어요." : "팔로잉이 아직 없어요."}</strong>`;
+        emptyEl.hidden = false;
+      }
+    } else {
+      itemsEl.innerHTML = sample.map(u => renderFollowListItem({ user: u }, type)).join("");
+    }
+    _followListCursor = null;
+    if (loadMoreBtn) loadMoreBtn.hidden = true;
+    if (typeof bindFollowListBlockAction === "function") bindFollowListBlockAction();
+    return;
   }
 
   const isAuth = typeof isLoggedIn === "function" && isLoggedIn();
