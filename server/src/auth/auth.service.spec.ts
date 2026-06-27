@@ -3,6 +3,7 @@ import { validate } from 'class-validator';
 import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
 import { AUTH_EMAIL_VERIFICATION_THROTTLE_CONTRACT } from './auth-email-verification-throttle-contract';
+import { AUTH_PASSWORD_RESET_ABUSE_GUARD_CONTRACT } from './auth-password-reset-abuse-guard-contract';
 import { AUTH_SESSION_INVALIDATION_CONTRACT } from './auth-session-invalidation-contract';
 import {
   ChangePasswordDto,
@@ -1105,12 +1106,44 @@ describe('AuthService action token flows', () => {
         serverEnforcedCooldownSeconds: 60,
         duplicatePendingTokenPolicy:
           'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+        cooldownResponseDisclosure: 'neutral_request_accepted',
+        rawTokenReturned: false,
+        tokenHashReturned: false,
       },
       debug: undefined,
     });
 
+    expect(AUTH_PASSWORD_RESET_ABUSE_GUARD_CONTRACT.responsePolicy).toMatchObject({
+      neutralResponse: true,
+      messageKey: 'auth.passwordReset.requestAccepted',
+      revealsAccountExistence: false,
+      revealsPasswordConfigured: false,
+      rawEmailReturned: false,
+      rawTokenReturned: false,
+      tokenHashReturned: false,
+      passwordReturned: false,
+    });
+    expect(AUTH_PASSWORD_RESET_ABUSE_GUARD_CONTRACT.cooldown).toMatchObject({
+      serverEnforced: true,
+      windowSeconds: 60,
+      source: 'user_action_tokens.createdAt',
+      duplicatePendingTokenPolicy:
+        'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+      repeatedRequestCreatesNewToken: false,
+      repeatedRequestConsumesPreviousToken: false,
+      repeatedRequestSendsEmail: false,
+      repeatedRequestReturnsDebugToken: false,
+    });
+    expect(AUTH_PASSWORD_RESET_ABUSE_GUARD_CONTRACT.auditSeparation).toMatchObject({
+      deliveryStatusStoredOnActionToken: true,
+      deliveryAttemptedAtStored: true,
+      providerRawResponseStored: false,
+      adminReadModelUsesMaskedEmail: true,
+      rawMailBodyReturned: false,
+    });
     expect(prisma.userActionToken.create).not.toHaveBeenCalled();
     expect(prisma.userActionToken.updateMany).not.toHaveBeenCalled();
+    expect(prisma.userActionToken.update).not.toHaveBeenCalled();
     expect(delivery.sendActionEmail).not.toHaveBeenCalled();
     expect(delivery.requestStatus).toHaveBeenCalledTimes(1);
   });

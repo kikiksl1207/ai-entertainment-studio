@@ -1,0 +1,40 @@
+export const AUTH_PASSWORD_RESET_ABUSE_GUARD_CONTRACT = {
+  version: '2026-06-27.password-reset-abuse-guard.v1',
+  endpoint: 'POST /api/v1/auth/password-resets',
+  purpose: 'password_reset',
+  responsePolicy: {
+    neutralResponse: true,
+    messageKey: 'auth.passwordReset.requestAccepted',
+    revealsAccountExistence: false,
+    revealsPasswordConfigured: false,
+    rawEmailReturned: false,
+    rawTokenReturned: false,
+    tokenHashReturned: false,
+    passwordReturned: false,
+  },
+  cooldown: {
+    serverEnforced: true,
+    windowSeconds: 60,
+    source: 'user_action_tokens.createdAt',
+    duplicatePendingTokenPolicy:
+      'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+    repeatedRequestCreatesNewToken: false,
+    repeatedRequestConsumesPreviousToken: false,
+    repeatedRequestSendsEmail: false,
+    repeatedRequestReturnsDebugToken: false,
+  },
+  auditSeparation: {
+    deliveryStatusStoredOnActionToken: true,
+    deliveryAttemptedAtStored: true,
+    providerRawResponseStored: false,
+    adminReadModelUsesMaskedEmail: true,
+    rawMailBodyReturned: false,
+  },
+  mutationPolicy: {
+    requestCanCreateTokenOutsideCooldown: true,
+    requestChangesPassword: false,
+    requestRevokesSessions: false,
+    requestMutatesWallet: false,
+    requestMutatesSettlementOrPayout: false,
+  },
+} as const;
