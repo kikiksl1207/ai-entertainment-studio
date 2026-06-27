@@ -7961,6 +7961,30 @@ describe('ChatService premium chat support contract', () => {
     expect(
       contract.rankings.backendProjection.lanes.donation.sourceLedgerTypes,
     ).toEqual(['premium_chat_donation_support_point']);
+    expect(
+      contract.rankings.donation.supportRankingProjection,
+    ).toMatchObject({
+      lane: 'donation',
+      rankScoreSource:
+        'confirmed_net_premium_chat_donation_support_point_only',
+      likeRankScoreAccepted: false,
+      communicationScoreAccepted: false,
+      clientSubmittedScoreAccepted: false,
+      refundedOrChargebackRowsExcludedBeforeRank: true,
+      duplicateSnapshotRefreshCreatesMutation: false,
+    });
+    expect(
+      contract.rankings.backendProjection.lanes.donation
+        .supportRankingProjection,
+    ).toMatchObject({
+      lane: 'donation',
+      rankScoreSource:
+        'confirmed_net_premium_chat_donation_support_point_only',
+      likeRankScoreAccepted: false,
+      communicationScoreAccepted: false,
+      clientSubmittedScoreAccepted: false,
+      duplicateSnapshotRefreshCreatesMutation: false,
+    });
     expect(contract.rankings.backendProjection.responseProjection).toMatchObject(
       {
         version:
@@ -8116,6 +8140,14 @@ describe('ChatService premium chat support contract', () => {
       forbiddenTypes: ['like', 'free_like', 'lumina_pick', 'boost'],
       likeRankingSourceAllowed: false,
       clientSubmittedScoreAllowed: false,
+      supportRankingProjection: {
+        donationLaneRankSource:
+          'confirmed_net_premium_chat_donation_support_point_only',
+        likeLaneSourceAllowed: false,
+        communicationScoreSourceAllowed: false,
+        clientScoreSourceAllowed: false,
+        rawDonationLedgerReturned: false,
+      },
     });
     expect(
       contract.apiContracts.rankingsList.projectionGuard.donationLaneSource,
@@ -8127,6 +8159,16 @@ describe('ChatService premium chat support contract', () => {
     ).toBe(
       'server_weighted_premium_chat_open_message_support_and_artist_reply_only',
     );
+    expect(
+      contract.apiContracts.rankingsList.sourceFilters.donation
+        .supportRankingProjection,
+    ).toMatchObject({
+      rankScoreSource:
+        'confirmed_net_premium_chat_donation_support_point_only',
+      likesExcluded: true,
+      communicationActivityExcluded: true,
+      clientScoreExcluded: true,
+    });
     expect(contract.projections.myDonationHistoryItem).toMatchObject({
       donationId: '<premium chat donation public id>',
       sessionId: '<premium chat session id owned by viewer>',
