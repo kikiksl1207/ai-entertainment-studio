@@ -640,6 +640,38 @@ export const LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT = {
     notificationMutation: false,
     unreadCountMutation: false,
   },
+  projectionBuckets: {
+    threadContinuation: {
+      rowType: 'community_post_child',
+      sourceField: 'metadata.threadContinuation.rootPostId',
+      projectionField: 'post.threadContinuation',
+      listSurface: 'thread_continuations_only',
+      mixedWithRepostOrShare: false,
+    },
+    repost: {
+      rowType: 'viewer_owned_repost_post',
+      sourceField: 'metadata.repost.originalPostId',
+      projectionField: 'post.repost',
+      quoteBodyReturned: false,
+      mixedWithThreadOrShare: false,
+    },
+    quoteRepost: {
+      rowType: 'viewer_owned_quote_repost_post',
+      sourceField: 'metadata.repost.originalPostId',
+      projectionField: 'post.repost',
+      quoteBodyField: 'post.repost.quoteBody',
+      originalBodyField: 'post.repost.originalPost.body',
+      quoteBodySeparateFromOriginalBody: true,
+      mixedWithThreadOrShare: false,
+    },
+    share: {
+      rowType: 'no_feed_row',
+      projectionField: 'share',
+      createsFeedRow: false,
+      countTarget: null,
+      mixedWithThreadOrRepost: false,
+    },
+  },
   blockedRelationshipPolicy: {
     writePolicy: 'reject_before_feed_or_notification_mutation',
     readAndCountProjection: 'exclude_or_tombstone_blocked_relationship_rows',
@@ -1164,6 +1196,10 @@ export const LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT = {
     replyRelation: false,
     parentPostId: null,
     threadRootPostId: null,
+    continuationSourceField: null,
+    repostSourceField: 'metadata.repost.originalPostId',
+    quoteBodySeparateFromOriginalBody: true,
+    shareCreatesFeedRow: false,
   },
   originalVisibilityPolicy: {
     visibleStates: ['published_public_visible_to_viewer'],
@@ -1260,6 +1296,8 @@ export const LUMINA_FEED_REPOST_TOMBSTONE_READ_PROJECTION_CONTRACT = {
     blockedOriginalExcludedFromOriginalPostProjection: true,
     safeNotFoundAllowedForDirectOriginalLookup: true,
     repostRowMayRemainVisibleWithTombstone: true,
+    directOriginalLookupCanReturnSafe404: true,
+    originalBodyNeverReturnedWhenTombstoned: true,
   },
   countPolicy: {
     repostCountField: 'repostCount',

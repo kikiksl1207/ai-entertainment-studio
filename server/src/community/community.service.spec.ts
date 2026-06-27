@@ -1886,6 +1886,38 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
         readAndCountProjection:
           'exclude_or_tombstone_blocked_relationship_rows',
       },
+      projectionBuckets: {
+        threadContinuation: {
+          rowType: 'community_post_child',
+          sourceField: 'metadata.threadContinuation.rootPostId',
+          projectionField: 'post.threadContinuation',
+          listSurface: 'thread_continuations_only',
+          mixedWithRepostOrShare: false,
+        },
+        repost: {
+          rowType: 'viewer_owned_repost_post',
+          sourceField: 'metadata.repost.originalPostId',
+          projectionField: 'post.repost',
+          quoteBodyReturned: false,
+          mixedWithThreadOrShare: false,
+        },
+        quoteRepost: {
+          rowType: 'viewer_owned_quote_repost_post',
+          sourceField: 'metadata.repost.originalPostId',
+          projectionField: 'post.repost',
+          quoteBodyField: 'post.repost.quoteBody',
+          originalBodyField: 'post.repost.originalPost.body',
+          quoteBodySeparateFromOriginalBody: true,
+          mixedWithThreadOrShare: false,
+        },
+        share: {
+          rowType: 'no_feed_row',
+          projectionField: 'share',
+          createsFeedRow: false,
+          countTarget: null,
+          mixedWithThreadOrRepost: false,
+        },
+      },
     });
     expect(
       Object.values(
@@ -2044,6 +2076,10 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
         replyRelation: false,
         parentPostId: null,
         threadRootPostId: null,
+        continuationSourceField: null,
+        repostSourceField: 'metadata.repost.originalPostId',
+        quoteBodySeparateFromOriginalBody: true,
+        shareCreatesFeedRow: false,
       },
       originalVisibilityPolicy: {
         visibleStates: ['published_public_visible_to_viewer'],
@@ -2140,6 +2176,8 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
         blockedOriginalExcludedFromOriginalPostProjection: true,
         safeNotFoundAllowedForDirectOriginalLookup: true,
         repostRowMayRemainVisibleWithTombstone: true,
+        directOriginalLookupCanReturnSafe404: true,
+        originalBodyNeverReturnedWhenTombstoned: true,
       },
       countPolicy: {
         repostCountField: 'repostCount',

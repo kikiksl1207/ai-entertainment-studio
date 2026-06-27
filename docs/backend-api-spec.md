@@ -3777,6 +3777,16 @@ Authorization: Bearer <accessToken>
   `share_contract` read projection and never creates a repost row, feed row,
   notification, count mutation, wallet/Lumina, settlement, payout, order, or
   paid-like mutation.
+- #1168 tightens the backend projection buckets for thread continuation,
+  simple repost, quote repost, and share. Thread continuation reads from
+  `metadata.threadContinuation.rootPostId` and renders only in the continuation
+  list, while repost and quote repost read from
+  `metadata.repost.originalPostId` under `post.repost`. Quote body remains
+  separate from the embedded original body, share remains a no-feed-row URL/Web
+  Share projection, and tombstoned originals can return safe 404 or
+  `originalPost=null` without exposing the original body/assets/private author
+  fields. This adds no post, repost, share, notification, wallet, Lumina,
+  settlement, payout, order, or paid-like mutation.
 - `DELETE /api/v1/lumina-feed/posts/:postId` soft-deletes the current user's own root post. Deleting the root hides the full thread from feed lists.
 - `DELETE /api/v1/lumina-feed/replies/:replyId` soft-deletes the current user's own reply. Artist operators can delete replies on operated artist posts.
 - Hidden posts use soft delete/reactivation with unique `(user_id, post_id)`.
