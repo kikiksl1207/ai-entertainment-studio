@@ -18,6 +18,7 @@ import {
   premiumChatRoomAccessForRole,
   PREMIUM_CHAT_ROOM_CONTRACT,
   PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES,
+  PREMIUM_CHAT_ROOM_ACCESS_PROJECTION_CONTRACT,
   PREMIUM_CHAT_ROOM_PARTICIPANT_PROJECTION_CONTRACT,
   PREMIUM_CHAT_ROOM_REFUND_ACCOUNTING_LEDGER_TYPES,
   resolvePremiumChatRoomFollowerTierUnlocks,
@@ -2874,6 +2875,74 @@ describe('premium chat room refund and moderation ledger contract', () => {
       rawReportReasonReturned: false,
       rawAdminNoteReturned: false,
       rawProviderPayloadReturned: false,
+      tokenCookieSecretDbUrlLogged: false,
+    });
+  });
+
+  it('publishes owner room access projection with artist profile links and no room-open mutation', () => {
+    const projection = PREMIUM_CHAT_ROOM_CONTRACT.roomAccessProjection;
+
+    expect(projection).toBe(PREMIUM_CHAT_ROOM_ACCESS_PROJECTION_CONTRACT);
+    expect(projection).toMatchObject({
+      version: '2026-06-28.premium-chat-room-access-projection.v1',
+      status: 'read_model_contract_ready_mutation_blocked',
+      readModel: 'premium_chat_room_access_projection',
+      endpoints: {
+        ownerRoomList: 'GET /api/v1/chat/me/premium-rooms',
+        ownerRoomDetail: 'GET /api/v1/chat/me/premium-rooms/:roomId/status',
+      },
+      accessControl: {
+        authRequired: true,
+        ownershipSource: 'premium_chat_rooms.owner_user_id',
+        unauthenticatedStatus: 401,
+        nonOwnerResponse: '403_or_safe_404_without_identity_leak',
+        privateChatBodyReturned: false,
+        counterpartyPrivateIdReturned: false,
+      },
+      artistProfileLink: {
+        hrefTemplate: '/character-detail.html?slug={artistSlug}',
+        slugSource: 'artists.slug',
+        fallbackToCharacterChat: false,
+        rawArtistInternalMemoReturned: false,
+      },
+      copyPolicy: {
+        rawStatusAsCopy: false,
+        statusLabelKeyRequired: true,
+        emptyStateKey: 'chat.premiumRoom.access.empty',
+      },
+    });
+    expect(projection.projectionFields).toEqual(
+      expect.arrayContaining([
+        'roomId',
+        'artist.slug',
+        'artist.profileHref',
+        'roomStatus.statusKey',
+        'roomStatus.labelKey',
+        'unreadCount',
+        'safeLatestMessageSummary',
+        'cta.artistProfileHref',
+      ]),
+    );
+    expect(Object.values(projection.stateSeparation)).toEqual(
+      expect.arrayContaining([true, false]),
+    );
+    expect(projection.stateSeparation).toMatchObject({
+      roomAccessProjectionOnly: true,
+      roomOpenMutation: false,
+      messageSendMutation: false,
+      paymentMutation: false,
+      walletMutation: false,
+      refundMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(projection.privacy).toMatchObject({
+      rawChatBodyReturned: false,
+      rawUserEmailReturned: false,
+      rawUserPhoneReturned: false,
+      rawWalletLedgerIdReturned: false,
+      rawPaymentLedgerIdReturned: false,
+      rawRefundReasonReturned: false,
       tokenCookieSecretDbUrlLogged: false,
     });
   });
