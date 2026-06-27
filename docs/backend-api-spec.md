@@ -3274,6 +3274,17 @@ AI premium content request brief API skeleton (#662):
   OpenAI/provider calls, request creation, regeneration submission, payment,
   wallet, settlement, payout, paid-like, feed publish, or profile equip
   mutation.
+- #1170 adds `AI_PREMIUM_CONTENT_REUSE_COST_CACHE_SKELETON` for provider-
+  agnostic reuse/cost cache readiness. Cache keys are server-derived from
+  request fingerprint, artist scope, output class, and policy version; clients
+  cannot force cache hit or regeneration. Cache hits may avoid provider calls
+  only when server/human policy allows reuse and must disclose reuse instead of
+  claiming a fresh generation. Cost projection exposes only safe buckets such
+  as estimated cost bucket, failure-rate bucket, and regeneration count; raw
+  prompts, provider payloads, provider costs, internal cost micros, provider
+  credentials, cache keys, tokens, cookies, API keys, and DB URLs are not
+  returned. This remains read-only and does not enable provider, wallet, order,
+  settlement, payout, request submit, or regeneration mutation.
 - #1053 adds `AI_PREMIUM_CONTENT_VIDEO_CONSENT_EXCEPTION_CONTRACT` for the
   video-only cost-consent exception state. It remains disabled/read-only and
   does not submit requests, call providers, create payment orders, debit wallet,

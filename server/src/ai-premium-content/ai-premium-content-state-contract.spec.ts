@@ -17,6 +17,7 @@ import {
   AI_PREMIUM_CONTENT_REQUEST_STATUSES,
   AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY,
   AI_PREMIUM_CONTENT_REQUEST_TYPES,
+  AI_PREMIUM_CONTENT_REUSE_COST_CACHE_SKELETON,
   AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
   AI_PREMIUM_CONTENT_RESULT_STATUSES,
   AI_PREMIUM_CONTENT_ROUTING_STATUSES,
@@ -2096,5 +2097,83 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       signedUrlReturned: false,
       storageKeyReturned: false,
     });
+  });
+
+  it('defines a provider-agnostic reuse and cost cache skeleton without provider or wallet mutation', () => {
+    const skeleton = AI_PREMIUM_CONTENT_REUSE_COST_CACHE_SKELETON;
+
+    expect(AI_PREMIUM_CONTENT_STATE_API_CONTRACT.reuseCostCacheSkeleton).toBe(
+      skeleton,
+    );
+    expect(skeleton).toMatchObject({
+      version: '2026-06-27.ai-premium-content-reuse-cost-cache-skeleton.v1',
+      feature: 'ai_premium_content_reuse_cost_cache_skeleton',
+      status: 'read_model_contract_only',
+      providerAgnostic: true,
+      enabled: false,
+      mutationEnabled: false,
+      providerCallEnabled: false,
+      walletMutationEnabled: false,
+      orderMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      cacheScope: {
+        cacheKeySource:
+          'server_request_fingerprint_artist_scope_output_class_policy_version',
+        artistScopedOnly: true,
+        crossArtistReuseAllowed: false,
+        userPrivatePromptHashReturned: false,
+        rawProviderRequestReturned: false,
+      },
+      cachePolicy: {
+        staleWhileRevalidateAllowed: false,
+        cacheHitMayAvoidProviderCall: true,
+        cacheHitMustDiscloseReuse: true,
+        clientCanForceCacheHit: false,
+        clientCanForceRegeneration: false,
+      },
+      costProjection: {
+        estimatedCostBucketField: 'estimatedCostBucket',
+        providerCostReturned: false,
+        internalCostMicrosReturned: false,
+        userFacingPriceReturned: true,
+        costCapSource: 'server_policy_cost_cap',
+        failureRateBucketReturned: true,
+        regenerationCountReturned: true,
+      },
+      reuseDecision: {
+        requiresServerOrHumanApproval: true,
+        reusedResultMustNotClaimFreshGeneration: true,
+      },
+      privacy: {
+        rawPromptReturned: false,
+        rawReferenceAssetReturned: false,
+        rawProviderPayloadReturned: false,
+        providerCredentialReturned: false,
+        providerCostReturned: false,
+        internalCostMicrosReturned: false,
+        cacheKeyReturned: false,
+        tokenReturned: false,
+        cookieReturned: false,
+        apiKeyReturned: false,
+        dbUrlReturned: false,
+      },
+    });
+    expect(skeleton.reuseDecision.decisionKeys).toEqual([
+      'cache_miss_generate_required',
+      'cache_hit_reuse_allowed',
+      'reuse_candidate_review',
+      'cache_hit_reuse_rejected',
+    ]);
+    expect(skeleton.projectionFields).toEqual(
+      expect.arrayContaining([
+        'cacheDecisionKey',
+        'reuseDecisionKey',
+        'estimatedCostBucket',
+        'failureRateBucket',
+        'regenerationCount',
+        'displayDisclosureKey',
+      ]),
+    );
   });
 });

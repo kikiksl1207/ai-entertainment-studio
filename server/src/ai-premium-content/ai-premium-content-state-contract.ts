@@ -2199,6 +2199,81 @@ export const AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION = {
   },
 } as const;
 
+export const AI_PREMIUM_CONTENT_REUSE_COST_CACHE_SKELETON = {
+  version: '2026-06-27.ai-premium-content-reuse-cost-cache-skeleton.v1',
+  feature: 'ai_premium_content_reuse_cost_cache_skeleton',
+  status: 'read_model_contract_only',
+  providerAgnostic: true,
+  enabled: false,
+  mutationEnabled: false,
+  providerCallEnabled: false,
+  walletMutationEnabled: false,
+  orderMutationEnabled: false,
+  settlementMutationEnabled: false,
+  payoutMutationEnabled: false,
+  cacheScope: {
+    cacheKeySource:
+      'server_request_fingerprint_artist_scope_output_class_policy_version',
+    artistScopedOnly: true,
+    crossArtistReuseAllowed: false,
+    userPrivatePromptHashReturned: false,
+    rawProviderRequestReturned: false,
+  },
+  cachePolicy: {
+    ttlSeconds: 604800,
+    staleWhileRevalidateAllowed: false,
+    cacheHitMayAvoidProviderCall: true,
+    cacheHitMustDiscloseReuse: true,
+    clientCanForceCacheHit: false,
+    clientCanForceRegeneration: false,
+  },
+  costProjection: {
+    estimatedCostBucketField: 'estimatedCostBucket',
+    providerCostReturned: false,
+    internalCostMicrosReturned: false,
+    userFacingPriceReturned: true,
+    costCapSource: 'server_policy_cost_cap',
+    failureRateBucketReturned: true,
+    regenerationCountReturned: true,
+  },
+  reuseDecision: {
+    decisionKeys: [
+      'cache_miss_generate_required',
+      'cache_hit_reuse_allowed',
+      'reuse_candidate_review',
+      'cache_hit_reuse_rejected',
+    ],
+    requiresServerOrHumanApproval: true,
+    reusedResultMustNotClaimFreshGeneration: true,
+  },
+  projectionFields: [
+    'requestId',
+    'requestType',
+    'outputClass',
+    'artistId',
+    'cacheDecisionKey',
+    'reuseDecisionKey',
+    'estimatedCostBucket',
+    'failureRateBucket',
+    'regenerationCount',
+    'displayDisclosureKey',
+    'createdAt',
+  ],
+  privacy: {
+    rawPromptReturned: false,
+    rawReferenceAssetReturned: false,
+    rawProviderPayloadReturned: false,
+    providerCredentialReturned: false,
+    providerCostReturned: false,
+    internalCostMicrosReturned: false,
+    cacheKeyReturned: false,
+    tokenReturned: false,
+    cookieReturned: false,
+    apiKeyReturned: false,
+    dbUrlReturned: false,
+  },
+} as const;
+
 export const AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON = {
   version:
     '2026-06-19.ai-premium-content-user-facing-request-status-api-skeleton.v1',
@@ -2589,6 +2664,7 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
     AI_PREMIUM_CONTENT_SAFETY_STATE_AUDIT_PROJECTION,
   resultAssetReuseAuditProjection:
     AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
+  reuseCostCacheSkeleton: AI_PREMIUM_CONTENT_REUSE_COST_CACHE_SKELETON,
   userFacingRequestStatusApiSkeleton:
     AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON,
   statusCopy: {
