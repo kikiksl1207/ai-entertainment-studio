@@ -1,0 +1,43 @@
+export const ADMIN_AUTH_EMAIL_VERIFICATION_COOLDOWN_CONTRACT = {
+  version: '2026-06-27.admin-email-verification-cooldown.v1',
+  endpoint: 'GET /api/v1/admin/api/v1/auth/action-tokens',
+  purpose: 'email_verification',
+  projection: {
+    readOnly: true,
+    sourceOfTruth: 'user_action_tokens',
+    filters: ['purpose', 'status', 'deliveryStatus', 'deliveryProvider', 'userId'],
+    cooldownSource: 'user_action_tokens.createdAt',
+    requestCooldownSeconds: 60,
+    duplicatePendingTokenPolicy:
+      'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+    cooldownDuplicateRequestsCreateNewRow: false,
+  },
+  visibleFields: {
+    purpose: true,
+    status: true,
+    statusKey: true,
+    deliveryStatus: true,
+    deliveryStatusKey: true,
+    targetEmailMasked: true,
+    userStatus: true,
+    emailVerified: true,
+    deliveryAuditTimestamps: true,
+  },
+  forbiddenFields: {
+    rawEmail: false,
+    rawToken: false,
+    tokenHash: false,
+    mailBody: false,
+    providerRawResponse: false,
+    cookie: false,
+    apiKey: false,
+    databaseUrl: false,
+  },
+  mutationPolicy: {
+    createsToken: false,
+    sendsEmail: false,
+    changesUser: false,
+    consumesToken: false,
+    updatesDelivery: false,
+  },
+} as const;
