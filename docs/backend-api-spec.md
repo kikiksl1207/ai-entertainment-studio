@@ -1360,6 +1360,13 @@ Character-chat dynamic opening greeting cache (#388):
   returns raw seeds, raw prompts, provider payloads, or wallet/order/settlement/
   payout data. It also keeps provider calls optional and does not open message
   send mutation.
+- #1166 tightens the read model for the opening greeting preview fixture. The
+  fixture exposes a display-safe `variantPolicy.readModel` and
+  `toneCandidate` scope that must stay locked to the requested character slug.
+  Different-character boundary reads must not reuse cross-character fallback
+  copy or persona scope, and the response still does not return raw prompts,
+  provider payloads, seeds, tokens, cookies, passwords, API keys, DB URLs, or
+  wallet/order/settlement/payout data.
 - #1096 adds `dynamicGreetingContract.rotationContract` to prevent a global
   fixed first-greeting sentence across all users. Rotation is scoped to the
   character/user/chat-session boundary, draws from a character-scoped 5 to 10
