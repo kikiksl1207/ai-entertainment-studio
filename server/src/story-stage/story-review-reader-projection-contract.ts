@@ -116,6 +116,17 @@ export const STORY_REVIEW_READER_PROJECTION_CONTRACT = {
     displayedOnRatings: true,
     rawReadHistoryReturned: false,
   },
+  completedReaderBadgeDisplay: {
+    projectionField: 'readerBadges.completedReader',
+    labelKey: 'story.readerBadge.completed.label',
+    descriptionKey: 'story.readerBadge.completed.description',
+    iconKey: 'completed_reader',
+    visibleOn: ['comment_item', 'rating_item', 'author_review_summary'],
+    evidenceReturnedAsBooleanOnly: true,
+    rawChapterProgressReturned: false,
+    rawEntitlementIdReturned: false,
+    paymentAuthority: false,
+  },
   readProjectionSeparation: {
     version: '2026-06-23.story-comment-rating-read-scope-separation.v1',
     publicPackThread: {
@@ -209,6 +220,8 @@ export const STORY_REVIEW_READER_PROJECTION_CONTRACT = {
       'author.displayName',
       'author.publicHandle',
       'readerBadges',
+      'readerBadges.completedReader.labelKey',
+      'readerBadges.completedReader.iconKey',
       'createdAt',
       'viewer.canEdit',
       'viewer.canDelete',
