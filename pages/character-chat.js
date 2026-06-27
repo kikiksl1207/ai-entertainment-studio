@@ -196,7 +196,10 @@
   function chatIsPreviewEnv() {
     try {
       const h = window.location.hostname;
-      return h === "localhost" || h === "127.0.0.1" || h === "" || h.endsWith(".local");
+      if (h === "localhost" || h === "127.0.0.1" || h === "" || h.endsWith(".local")) return true;
+      // #1162/#1181 — live/배포 환경에서도 QA가 이미지 말풍선 흐름을 read-only로 확인할 수 있도록
+      // ?imagefixture=1 플래그가 있을 때만 노출한다. 플래그 없는 일반 사용자에게는 영향이 없다.
+      return /[?&]imagefixture=1(?:&|$)/.test(window.location.search || "");
     } catch (_) { return false; }
   }
 
