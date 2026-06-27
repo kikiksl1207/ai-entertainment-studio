@@ -2436,6 +2436,14 @@ endpoint, donation creation, frontend score submit, or client-triggered refresh.
   owner, settlement, payout, user raw identifier, support history, payment
   state, score submit, support-point write, snapshot write, wallet, settlement,
   and payout mutations remain unavailable.
+- #1167 tightens the support ranking backend projection authority. The
+  `donation` lane rank score source is fixed to confirmed net premium-chat
+  donation support points only. Like ranking scores, communication activity
+  scores, and client-submitted scores are rejected by the contract, refunded or
+  chargeback rows are excluded before ranking, duplicate snapshot refresh is
+  replay-only, and raw donation ledger rows remain hidden. This does not enable
+  the ranking endpoint, support submission, wallet, settlement, payout, or
+  ranking refresh mutation.
 
 Premium chat support point ledger contract (#363):
 

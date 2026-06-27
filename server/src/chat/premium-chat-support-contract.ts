@@ -3086,6 +3086,14 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
           'server_weighted_premium_chat_open_message_support_and_artist_reply_only',
         likeRankingSourceAllowed: false,
         clientSubmittedScoreAllowed: false,
+        supportRankingProjection: {
+          donationLaneRankSource:
+            'confirmed_net_premium_chat_donation_support_point_only',
+          likeLaneSourceAllowed: false,
+          communicationScoreSourceAllowed: false,
+          clientScoreSourceAllowed: false,
+          rawDonationLedgerReturned: false,
+        },
       },
       errorCodes: [
         { status: 401, code: 'auth_required' },
@@ -3138,6 +3146,13 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
             summaryKey: 'chat.rankings.donation.summary',
             detailMode: 'summary_only',
             rawSupportMessageReturned: false,
+          },
+          supportRankingProjection: {
+            rankScoreSource:
+              'confirmed_net_premium_chat_donation_support_point_only',
+            likesExcluded: true,
+            communicationActivityExcluded: true,
+            clientScoreExcluded: true,
           },
         },
       },
@@ -3837,6 +3852,16 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       scoreInputs: ['premium_chat_donation'],
       sourceLedgerTypes: ['premium_chat_donation_support_point'],
       amountBasis: 'confirmed_net_lumina',
+      supportRankingProjection: {
+        lane: 'donation',
+        rankScoreSource:
+          'confirmed_net_premium_chat_donation_support_point_only',
+        likeRankScoreAccepted: false,
+        communicationScoreAccepted: false,
+        clientSubmittedScoreAccepted: false,
+        refundedOrChargebackRowsExcludedBeforeRank: true,
+        duplicateSnapshotRefreshCreatesMutation: false,
+      },
       userVisibleSummaryKey: 'chat.rankings.donation.summary',
       detailMode: 'summary_only',
       supportMessagePolicy:
@@ -3903,6 +3928,15 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
           sourceLedgerTypes: ['premium_chat_donation_support_point'],
           sourceEvents: ['confirmed_net_donation'],
           amountBasis: 'confirmed_net_lumina',
+          supportRankingProjection: {
+            lane: 'donation',
+            rankScoreSource:
+              'confirmed_net_premium_chat_donation_support_point_only',
+            likeRankScoreAccepted: false,
+            communicationScoreAccepted: false,
+            clientSubmittedScoreAccepted: false,
+            duplicateSnapshotRefreshCreatesMutation: false,
+          },
           excludes: [
             'free_like',
             'lumina_boost',
