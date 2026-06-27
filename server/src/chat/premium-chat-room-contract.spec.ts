@@ -12,6 +12,7 @@ import {
   PREMIUM_CHAT_REFUND_REASON_KEYS,
   PREMIUM_CHAT_UNANSWERED_REFUND_ELIGIBLE_STATUSES,
   PREMIUM_CHAT_UNANSWERED_REFUND_EXCLUDED_REASON_KEYS,
+  PREMIUM_CHAT_UNREAD_UNANSWERED_REFUND_CANDIDATE_PROJECTION_CONTRACT,
   PREMIUM_CHAT_ROOM_STATUS_READ_KEYS,
   PREMIUM_CHAT_ROOM_LIFECYCLE_PROJECTION_STATUS_KEYS,
   premiumChatRoomAllowedTierKeysForServerUnlocks,
@@ -859,6 +860,75 @@ describe('premium chat room refund and moderation ledger contract', () => {
       duplicateCandidate: true,
       statusKey: 'refund_pending',
       automaticRefundCredit: false,
+    });
+  });
+
+  it('publishes unread unanswered refund candidate as read-only projection only', () => {
+    const projection =
+      PREMIUM_CHAT_ROOM_CONTRACT.unreadUnansweredRefundCandidateProjection;
+
+    expect(projection).toBe(
+      PREMIUM_CHAT_UNREAD_UNANSWERED_REFUND_CANDIDATE_PROJECTION_CONTRACT,
+    );
+    expect(projection).toMatchObject({
+      version: '2026-06-28.premium-chat-unread-unanswered-refund-candidate.v1',
+      status: 'read_model_contract_ready_mutation_blocked',
+      readModel: 'premium_chat_unanswered_refund_candidate_projection',
+      endpoint:
+        'GET /api/v1/chat/me/premium-rooms/:roomId/unanswered-refund-candidate',
+      candidateClock: {
+        source: 'server_time',
+        startsAtField: 'premium_chat_rooms.opened_at',
+        thresholdHours: 24,
+        clientSubmittedElapsedTimeTrusted: false,
+      },
+      eligibility: {
+        eligibleStatuses: PREMIUM_CHAT_UNANSWERED_REFUND_ELIGIBLE_STATUSES,
+        excludedReasonKeys: PREMIUM_CHAT_UNANSWERED_REFUND_EXCLUDED_REASON_KEYS,
+        requiresNoArtistAnswer: true,
+        existingCandidateReturnsSameProjection: true,
+        reportOrAdminReviewExcluded: true,
+      },
+      readState: {
+        unreadUserMessageCountSource:
+          'server_counted_user_messages_after_last_artist_reply',
+        privateMessageBodyReturned: false,
+        rawMessageIdsReturned: false,
+        rawParticipantIdsReturned: false,
+      },
+    });
+    expect(projection.projectionFields).toEqual(
+      expect.arrayContaining([
+        'roomId',
+        'candidate',
+        'duplicateCandidate',
+        'actionKey',
+        'reasonKey',
+        'thresholdHours',
+        'unreadUserMessageCount',
+        'lastArtistReplyAt',
+        'messageKey',
+      ]),
+    );
+    expect(projection.mutationPolicy).toMatchObject({
+      candidateOnly: true,
+      automaticRefundCredit: false,
+      refundMutation: false,
+      walletCredit: false,
+      walletDebit: false,
+      walletLedgerMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      messageMutation: false,
+    });
+    expect(projection.privacy).toMatchObject({
+      rawChatBodyReturned: false,
+      rawReportReasonReturned: false,
+      rawAdminNoteReturned: false,
+      rawRefundDecisionReturned: false,
+      rawWalletLedgerIdReturned: false,
+      rawPaymentLedgerIdReturned: false,
+      tokenCookieSecretDbUrlLogged: false,
     });
   });
 

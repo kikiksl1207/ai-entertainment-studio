@@ -2110,6 +2110,17 @@ Authorization: Bearer <accessToken> # owner/artist endpoints only
   as `active`, `paused_by_report`, `admin_review`, `refund_pending`,
   `closed_by_artist`, and `expired`. It must not fall back to the character-chat
   conversation list or return `chat_sessions` rows.
+- #1216 adds
+  `PREMIUM_CHAT_UNREAD_UNANSWERED_REFUND_CANDIDATE_PROJECTION_CONTRACT` for
+  owner-only read checks of unread 24h unanswered refund candidates at
+  `GET /api/v1/chat/me/premium-rooms/:roomId/unanswered-refund-candidate`.
+  The projection uses server time from `premium_chat_rooms.opened_at`, requires
+  no artist answer, exposes unread count and stable candidate/action/reason
+  keys only, and returns existing candidates without duplicate mutation. It
+  never returns private chat bodies, raw message ids, participant ids, report
+  reasons, admin notes, wallet/payment ledger ids, or refund decisions. It does
+  not create refunds, credit/debit wallet, mutate wallet ledgers, settlement,
+  payout, or messages.
 - Owner status returns `premiumRoomStatus`, `premiumRoomRefundStatus`,
   `premiumRoomReportStatus`, `premiumRoomMutationAvailability`, and the
   read-only policy for the authenticated room owner.

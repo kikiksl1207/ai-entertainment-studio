@@ -96,6 +96,73 @@ export const PREMIUM_CHAT_UNANSWERED_REFUND_EXCLUDED_REASON_KEYS = [
   'not_yet_24h',
 ] as const;
 
+export const PREMIUM_CHAT_UNREAD_UNANSWERED_REFUND_CANDIDATE_PROJECTION_CONTRACT = {
+  version: '2026-06-28.premium-chat-unread-unanswered-refund-candidate.v1',
+  status: 'read_model_contract_ready_mutation_blocked',
+  readModel: 'premium_chat_unanswered_refund_candidate_projection',
+  endpoint:
+    'GET /api/v1/chat/me/premium-rooms/:roomId/unanswered-refund-candidate',
+  sourceTables: {
+    rooms: 'premium_chat_rooms',
+    messages: 'premium_chat_messages',
+    reports: 'premium_chat_room_reports',
+    refunds: 'premium_chat_room_refund_decisions',
+  },
+  candidateClock: {
+    source: 'server_time',
+    startsAtField: 'premium_chat_rooms.opened_at',
+    thresholdHours: 24,
+    clientSubmittedElapsedTimeTrusted: false,
+  },
+  eligibility: {
+    eligibleStatuses: PREMIUM_CHAT_UNANSWERED_REFUND_ELIGIBLE_STATUSES,
+    excludedReasonKeys: PREMIUM_CHAT_UNANSWERED_REFUND_EXCLUDED_REASON_KEYS,
+    requiresNoArtistAnswer: true,
+    existingCandidateReturnsSameProjection: true,
+    reportOrAdminReviewExcluded: true,
+  },
+  projectionFields: [
+    'roomId',
+    'statusKey',
+    'candidate',
+    'duplicateCandidate',
+    'actionKey',
+    'reasonKey',
+    'thresholdHours',
+    'hoursSinceOpen',
+    'unreadUserMessageCount',
+    'lastUserMessageAt',
+    'lastArtistReplyAt',
+    'messageKey',
+  ],
+  readState: {
+    unreadUserMessageCountSource: 'server_counted_user_messages_after_last_artist_reply',
+    privateMessageBodyReturned: false,
+    rawMessageIdsReturned: false,
+    rawParticipantIdsReturned: false,
+  },
+  mutationPolicy: {
+    candidateOnly: true,
+    automaticRefundCredit: false,
+    refundMutation: false,
+    walletCredit: false,
+    walletDebit: false,
+    walletLedgerMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    messageMutation: false,
+  },
+  privacy: {
+    rawChatBodyReturned: false,
+    rawReportReasonReturned: false,
+    rawAdminNoteReturned: false,
+    rawRefundDecisionReturned: false,
+    rawWalletLedgerIdReturned: false,
+    rawPaymentLedgerIdReturned: false,
+    tokenCookieSecretDbUrlLogged: false,
+  },
+} as const;
+
 export const PREMIUM_CHAT_ROOM_STATUS_READ_KEYS = [
   'active',
   'paused_by_report',
@@ -2373,6 +2440,8 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
   },
   imageMessage: PREMIUM_CHAT_IMAGE_MESSAGE_CONTRACT,
   participantProjection: PREMIUM_CHAT_ROOM_PARTICIPANT_PROJECTION_CONTRACT,
+  unreadUnansweredRefundCandidateProjection:
+    PREMIUM_CHAT_UNREAD_UNANSWERED_REFUND_CANDIDATE_PROJECTION_CONTRACT,
   responsePolicy: {
     stableKeysOnlyForUserFacingCopy: true,
     rawEnumUserCopyAllowed: false,
