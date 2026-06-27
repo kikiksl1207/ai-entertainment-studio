@@ -2301,6 +2301,15 @@ GET /api/v1/chat/premium-rooms?artistSlug=<artist-slug>&take=20
   skeleton remains disabled and does not create messages, upload images, create
   support/donation/report rows, notify users, debit wallet, touch payment,
   settlement, or payout state.
+- #1203 tightens the premium-chat image message read projection for chat-bubble
+  UI wiring. `GET /api/v1/chat/premium-rooms/:roomId/messages` may expose only
+  safe image fields such as asset id, safe display URL, safe thumbnail URL,
+  moderation status key, blocked placeholder key, sender, created time, and
+  bubble direction (`sent`, `received`, or `system`). Blocked or review-pending
+  images must render as a placeholder instead of returning private/original
+  URLs. The projection must not return storage keys, signed URLs, raw metadata,
+  raw asset URLs, wallet/payment/settlement/payout fields, or enable image
+  upload/message send/support/donation/report mutation.
 
 Premium chat room status projection split (#617):
 
