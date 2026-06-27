@@ -190,6 +190,35 @@
     const mm = String(now.getMinutes()).padStart(2, "0");
     setText("chatWelcomeTime", `${hh}:${mm}`);
     bubble.hidden = false;
+    injectSampleImageThread(slug, artist);
+  }
+
+  function chatIsPreviewEnv() {
+    try {
+      const h = window.location.hostname;
+      return h === "localhost" || h === "127.0.0.1" || h === "" || h.endsWith(".local");
+    } catch (_) { return false; }
+  }
+
+  /* #1162/#1181/#1190 — 검수용 카톡형 이미지 말풍선 read-only 샘플 대화.
+     #chatThread는 운영 JS가 채우지 않는 빈 컨테이너라, preview/검수 env(localhost 등)에서만 1회
+     샘플을 주입해 이미지 말풍선(아티스트 좌·유저 우) + 캡션 흐름을 시각 확인할 수 있게 한다.
+     실제 전송/이미지 요청/mutation/네트워크 호출은 발생하지 않는다(운영 host에서는 미주입). */
+  function injectSampleImageThread(slug, artist) {
+    if (!chatIsPreviewEnv()) return;
+    const thread = $("chatThread");
+    if (!thread || thread.dataset.sampleInjected === "1") return;
+    thread.dataset.sampleInjected = "1";
+    const now = new Date();
+    const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const img = (artist && artist.images && (artist.images.cover || artist.images.thumb)) || `/assets/characters/${slug}/cover.png`;
+    const name = (artist && (artist.publicName || artist.name)) || "아티스트";
+    const safe = (s) => String(s).replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    thread.insertAdjacentHTML("beforeend", `
+      <li class="dm-bubble dm-bubble-user"><div class="dm-bubble-body"><p class="dm-bubble-text">오늘 무대 사진 한 장만 보여줄 수 있어요?</p><span class="dm-bubble-time">${time}</span></div></li>
+      <li class="dm-bubble dm-bubble-artist dm-bubble-image"><div class="dm-bubble-avatar" aria-hidden="true"></div><div class="dm-bubble-body"><img class="dm-bubble-img" src="${safe(img)}" alt="${safe(name)} 무대 사진 샘플" onerror="this.style.display='none'" /><p class="dm-bubble-caption">리허설 끝나고 한 컷 찍었어요. 조명이 예뻐서요.</p><span class="dm-bubble-time">${time}</span></div></li>
+      <li class="dm-bubble dm-bubble-artist"><div class="dm-bubble-avatar" aria-hidden="true"></div><div class="dm-bubble-body"><p class="dm-bubble-text">보내줘서 고마워요. 이런 순간이 오래 기억에 남아요.</p><span class="dm-bubble-time">${time}</span></div></li>
+    `);
   }
 
   /* #315 — chatEmpty 영역도 캐릭터별 정적 fallback 으로 메시지 차별화.
