@@ -18,6 +18,7 @@ import {
   AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY,
   AI_PREMIUM_CONTENT_REQUEST_TYPES,
   AI_PREMIUM_CONTENT_REUSE_COST_CACHE_SKELETON,
+  AI_PREMIUM_CONTENT_ARTIST_CONTEXT_READ_MODEL,
   AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
   AI_PREMIUM_CONTENT_RESULT_STATUSES,
   AI_PREMIUM_CONTENT_ROUTING_STATUSES,
@@ -118,6 +119,9 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     );
     expect(contract.resultAssetReuseAuditProjection).toBe(
       AI_PREMIUM_CONTENT_RESULT_ASSET_REUSE_AUDIT_PROJECTION,
+    );
+    expect(contract.artistContextReadModel).toBe(
+      AI_PREMIUM_CONTENT_ARTIST_CONTEXT_READ_MODEL,
     );
     expect(contract.userFacingRequestStatusApiSkeleton).toBe(
       AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON,
@@ -234,6 +238,85 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       internalCostReturned: false,
       providerCostReturned: false,
       tokenCookieSecretDbUrlLogged: false,
+    });
+  });
+
+  it('defines a provider-agnostic artist context read model without generation side effects', () => {
+    const readModel = AI_PREMIUM_CONTENT_ARTIST_CONTEXT_READ_MODEL;
+
+    expect(AI_PREMIUM_CONTENT_STATE_API_CONTRACT.artistContextReadModel).toBe(
+      readModel,
+    );
+    expect(readModel).toMatchObject({
+      version: '2026-06-28.ai-premium-content-artist-context-read-model.v1',
+      status: 'read_model_contract_only',
+      enabled: false,
+      readOnly: true,
+      providerAgnostic: true,
+      providerCallEnabled: false,
+      imageGenerationEnabled: false,
+      videoGenerationEnabled: false,
+      walletMutationEnabled: false,
+      orderMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      endpoint: {
+        method: 'GET',
+        path: '/api/v1/ai-premium-content/artists/:artistSlug/context',
+        enabled: false,
+        authRequired: true,
+        ownerOrArtistOperatorOnly: true,
+        mutation: false,
+      },
+      providerContextBoundary: {
+        returnsProviderReadyContext: false,
+        providerSpecificPromptReturned: false,
+        providerSpecificModelKeyReturned: false,
+        rawPromptReturned: false,
+        rawProviderPayloadReturned: false,
+        privateArtistNotesReturned: false,
+        adminMemoReturned: false,
+      },
+      safetyBoundary: {
+        minorCleanRequired: true,
+        realPersonSimilarityGuardRequired: true,
+        copyrightGuardRequired: true,
+        sexualContentGuardRequired: true,
+        platformPolicyGuardRequired: true,
+        safetyPrecheckRequiredBeforeGeneration: true,
+      },
+      copyPolicy: {
+        rawEnumAsCopy: false,
+        stableKeyRequired: true,
+        neutralFallbackKey: 'aiPremiumContent.artistContext.checking',
+      },
+    });
+    expect(readModel.projectionFields).toEqual(
+      expect.arrayContaining([
+        'artist.slug',
+        'artist.displayName',
+        'worldSetting.summaryKey',
+        'styleGuide.visualToneKeys',
+        'forbiddenExpressionKeys',
+        'safetyRuleKeys',
+        'allowedRequestTypes',
+        'providerRouteAliases',
+      ]),
+    );
+    expect(Object.values(readModel.mutationGates).every((enabled) => !enabled)).toBe(
+      true,
+    );
+    expect(readModel.privacy).toMatchObject({
+      rawPromptReturned: false,
+      rawProviderPayloadReturned: false,
+      rawSafetyPayloadReturned: false,
+      privateArtistNotesReturned: false,
+      internalStylePromptReturned: false,
+      signedUrlsReturned: false,
+      tokenReturned: false,
+      cookieReturned: false,
+      apiKeyReturned: false,
+      dbUrlReturned: false,
     });
   });
 
