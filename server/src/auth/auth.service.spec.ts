@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
 import { AUTH_EMAIL_VERIFICATION_THROTTLE_CONTRACT } from './auth-email-verification-throttle-contract';
 import { AUTH_SESSION_INVALIDATION_CONTRACT } from './auth-session-invalidation-contract';
+import { AUTH_SOCIAL_LOGIN_COLLISION_CONTRACT } from './auth-social-login-collision-contract';
 import {
   ChangePasswordDto,
   ConfirmPasswordResetDto,
@@ -843,6 +844,50 @@ describe('AuthService action token flows', () => {
     expect(prisma.user.create).not.toHaveBeenCalled();
     expect(prisma.userAuthAccount.create).not.toHaveBeenCalled();
     expect(prisma.userRefreshToken.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('does not merge social login into an existing email account when provider email is unverified', async () => {
+    const prisma = createPrismaMock();
+    const socialAuth = {
+      verifyProfile: jest.fn().mockResolvedValue({
+        provider: 'google',
+        providerUserId: 'google-unverified-email-user',
+        email,
+        emailVerified: false,
+      }),
+    };
+    const { service } = serviceWith(prisma, {}, socialAuth);
+    prisma.userAuthAccount.findUnique.mockResolvedValue(null);
+    prisma.user.create.mockRejectedValue(new Error('stop after collision guard'));
+
+    await expect(
+      service.socialLogin({
+        provider: 'google',
+        token: 'provider-token',
+      }),
+    ).rejects.toThrow('stop after collision guard');
+
+    expect(AUTH_SOCIAL_LOGIN_COLLISION_CONTRACT.collisionGuard).toMatchObject({
+      unverifiedProviderEmailCanMergeExistingUser: false,
+      clientSubmittedEmailCanMergeExistingUser: false,
+      differentProviderSameEmailRequiresProviderVerifiedEmail: true,
+      existingUserMustBeActive: true,
+      providerAccountCreatedInServerTransaction: true,
+    });
+    expect(AUTH_SOCIAL_LOGIN_COLLISION_CONTRACT.blockedOrSeparatedCases.unverifiedEmail).toMatchObject({
+      lookupExistingUserByEmail: false,
+      attachProviderToExistingEmailUser: false,
+      createPasswordOrEmailCredential: false,
+    });
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(prisma.user.create).toHaveBeenCalledWith({
+      data: {
+        email: null,
+        emailVerifiedAt: null,
+        status: 'active',
+      },
+    });
+    expect(prisma.userAuthAccount.update).not.toHaveBeenCalled();
   });
 
   it('inspects password reset tokens without consuming them or returning secrets', async () => {
