@@ -167,6 +167,14 @@ GET /api/v1/story-sessions/:sessionId/choices
   allocation, AI companion cost, and author preview fields remain separate and
   do not expose provider cost payloads or create settlement, payout, wallet, or
   payment mutation.
+- #1187 adds `STORY_STAGE_AUTHOR_SETTLEMENT_REFUND_READ_MODEL` for the author-
+  scoped settlement/refund preview. It separates granted story revenue,
+  refund/chargeback adjustment, AI companion cost, author share basis, and
+  author share preview into distinct fields. The read model is author-only,
+  may return 403 or safe 404 for non-owners, and must not expose buyer ids,
+  payment ledger ids, wallet ledger ids, raw refund reasons, private author
+  notes, or admin memos. It does not create settlement, payout, refund, wallet,
+  or wallet-ledger mutations.
 
 ### Story Stage Choices and Timeline
 

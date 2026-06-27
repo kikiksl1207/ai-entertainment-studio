@@ -516,6 +516,84 @@ export const STORY_STAGE_AUTHOR_INTERRUPTION_REFUND_PENALTY_READ_MODEL = {
   },
 } as const;
 
+export const STORY_STAGE_AUTHOR_SETTLEMENT_REFUND_READ_MODEL = {
+  version: '2026-06-27.story-author-settlement-refund-read-model.v1',
+  status: 'read_model_contract_only',
+  readModel: 'story_author_settlement_refund_preview',
+  endpoint: 'GET /api/v1/creator-studio/story-packs/:packId/settlement-refunds',
+  ownerScope: {
+    authorOnly: true,
+    backstageRequiresPermission: 'story:settlement:read',
+    nonOwnerResponse: '403_or_404_without_identity_leak',
+  },
+  sourceLedgers: {
+    purchaseLedger: 'story_purchase_ledger.granted',
+    refundLedger: 'story_purchase_ledger.refunded_or_chargeback',
+    entitlementLedger: 'user_entitlements.story_chapter_or_season_access',
+    authorRevenuePreview: 'story_author_revenue_preview',
+  },
+  buckets: {
+    grossStoryRevenue: {
+      source: 'granted_chapter_or_season_purchase',
+      amountField: 'grossLumina',
+    },
+    refundAdjustment: {
+      source: 'refunded_or_chargeback_purchase_rows',
+      amountField: 'refundAdjustedLumina',
+      deductedBeforeAuthorShare: true,
+    },
+    aiCompanionCost: {
+      source: 'server_confirmed_ai_companion_participation',
+      amountField: 'aiCompanionCostLumina',
+      deductedBeforeAuthorShare: true,
+    },
+    authorSharePreview: {
+      source: 'gross_minus_refund_and_ai_companion_cost',
+      amountField: 'authorSharePreviewLumina',
+      payoutEligible: false,
+    },
+  },
+  projectionFields: [
+    'storyPackId',
+    'storySeasonId',
+    'chapterId',
+    'period',
+    'grossLumina',
+    'refundAdjustedLumina',
+    'aiCompanionCostLumina',
+    'authorShareBasisLumina',
+    'authorSharePreviewLumina',
+    'payoutEligible',
+    'messageKey',
+  ],
+  separationPolicy: {
+    grossAndRefundSameField: false,
+    refundAdjustmentCanIncreaseAuthorShare: false,
+    aiCompanionCostIncludedInAuthorShare: false,
+    payoutMutationFromRead: false,
+    clientSubmittedRevenueTrusted: false,
+    clientSubmittedRefundTrusted: false,
+    clientSubmittedShareTrusted: false,
+  },
+  privacy: {
+    rawBuyerUserIdReturned: false,
+    rawPaymentLedgerIdReturned: false,
+    rawWalletLedgerIdReturned: false,
+    rawRefundReasonReturned: false,
+    privateAuthorNotesReturned: false,
+    adminMemoReturned: false,
+  },
+  mutationPolicy: {
+    contractAddsEndpoint: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    refundMutation: false,
+    walletCredit: false,
+    walletDebit: false,
+    walletLedgerMutation: false,
+  },
+} as const;
+
 export const STORY_STAGE_CONTRACT = {
   version: '2026-06-18.story-stage-contract.v1',
   freePrologueEntitlementGuard: STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD,
@@ -526,6 +604,8 @@ export const STORY_STAGE_CONTRACT = {
   sessionRetentionPolicy: STORY_STAGE_SESSION_RETENTION_POLICY_CONTRACT,
   authorInterruptionRefundPenaltyReadModel:
     STORY_STAGE_AUTHOR_INTERRUPTION_REFUND_PENALTY_READ_MODEL,
+  authorSettlementRefundReadModel:
+    STORY_STAGE_AUTHOR_SETTLEMENT_REFUND_READ_MODEL,
 } as const;
 
 export const STORY_STAGE_PACK_CHAPTER_SESSION_CONTRACT = {
