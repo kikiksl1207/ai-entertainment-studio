@@ -357,6 +357,13 @@
       return null;
     }
 
+    if (!chatAuthToken()) {
+      // Keep the read-only preview usable for logged-out visitors. Calling the
+      // authenticated starter endpoint without a token opens the global auth
+      // modal, which blocks the mobile + action menu before the user taps it.
+      return null;
+    }
+
     try {
       return await apiFetch(
         `/api/v1/chat/starter-prompts?artistSlug=${encodeURIComponent(slug)}`,

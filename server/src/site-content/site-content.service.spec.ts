@@ -29,7 +29,7 @@ function entry(overrides: Record<string, unknown> = {}) {
     characterSlug: null,
     modelSlug: null,
     locale: 'ko-KR',
-    title: '아티스트 소개',
+    title: '?꾪떚?ㅽ듃 ?뚭컻',
     body: null,
     ctaLabel: null,
     ctaHref: null,
@@ -85,7 +85,7 @@ describe('SiteContentService', () => {
     expect(result.content['artists.hero.title']).toMatchObject({
       contentKey: 'artists.hero.title',
       status: 'published',
-      title: '아티스트 소개',
+      title: '?꾪떚?ㅽ듃 ?뚭컻',
     });
     expect(result.policy).toMatchObject({
       publishedOnly: true,
@@ -131,6 +131,30 @@ describe('SiteContentService', () => {
     });
   });
 
+  it('keeps fixed navigation labels outside editable site content', async () => {
+    const { service, prisma } = createService();
+
+    await expect(
+      service.createAdmin(superAdmin, {
+        contentKey: 'navigation.home.label',
+        scope: 'global',
+        title: 'Home',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'SITE_CONTENT_RESERVED_NAVIGATION_KEY',
+        messageKey: 'siteContent.error.reservedNavigationKey',
+        details: expect.objectContaining({
+          contentKey: 'navigation.home.label',
+          editable: false,
+          fixedNavigation: true,
+        }),
+      },
+    });
+    expect(prisma.siteContentEntry.findFirst).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it('records audit metadata without raw body text on create', async () => {
     const { service, prisma } = createService();
     prisma.siteContentEntry.findFirst.mockResolvedValue(null);
@@ -140,7 +164,7 @@ describe('SiteContentService', () => {
           entry({
             status: 'draft',
             version: 1,
-            body: '운영자가 수정하는 공개 안내문입니다.',
+            body: '?댁쁺?먭? ?섏젙?섎뒗 怨듦컻 ?덈궡臾몄엯?덈떎.',
             publishedAt: null,
             publishedByUserId: null,
           }),
@@ -156,7 +180,7 @@ describe('SiteContentService', () => {
       contentKey: 'artists.hero.body',
       scope: 'page',
       pageKey: 'artists',
-      body: '운영자가 수정하는 공개 안내문입니다.',
+      body: '?댁쁺?먭? ?섏젙?섎뒗 怨듦컻 ?덈궡臾몄엯?덈떎.',
     });
 
     expect(tx.siteContentAuditLog.create).toHaveBeenCalledWith(
@@ -165,12 +189,172 @@ describe('SiteContentService', () => {
           action: 'create',
           before: {},
           after: expect.not.objectContaining({
-            body: '운영자가 수정하는 공개 안내문입니다.',
+            body: '?댁쁺?먭? ?섏젙?섎뒗 怨듦컻 ?덈궡臾몄엯?덈떎.',
           }),
           metadata: expect.any(Object),
         }),
       }),
     );
+  });
+
+  it('separates common and character copy and keeps audit logs key-only', async () => {
+    const { service, prisma } = createService();
+    const tx = {
+      siteContentEntry: {
+        update: jest.fn().mockResolvedValue(
+          entry({
+            scope: 'character',
+            pageKey: 'character-detail',
+            characterSlug: 'seo-yuan',
+            body: 'Updated character line with fan@example.test and token-secret',
+            content: {
+              public_line: 'Updated public line',
+              password_hint: 'must-not-be-audit-body',
+            },
+            version: 3,
+          }),
+        ),
+      },
+      siteContentAuditLog: {
+        create: jest.fn().mockResolvedValue({}),
+      },
+    };
+    prisma.siteContentEntry.findUnique.mockResolvedValue(
+      entry({
+        status: 'draft',
+        scope: 'character',
+        pageKey: 'character-detail',
+        characterSlug: 'seo-yuan',
+        body: 'Original character line',
+        content: { public_line: 'Original public line' },
+      }),
+    );
+    prisma.$transaction.mockImplementation((callback) => callback(tx));
+
+    const result = await service.updateAdmin(superAdmin, entry().id, {
+      body: 'Updated character line with fan@example.test and token-secret',
+      content: {
+        public_line: 'Updated public line',
+        password_hint: 'must-not-be-audit-body',
+      },
+    });
+
+    expect(result).toMatchObject({
+      item: {
+        scope: 'character',
+        pageKey: 'character-detail',
+        characterSlug: 'seo-yuan',
+      },
+      policy: expect.objectContaining({
+        commonAndCharacterCopySeparated: true,
+        auditRawPersonalDataStored: false,
+        fixedNavigationKeysEditable: false,
+        draftEditOnly: true,
+      }),
+    });
+    const auditCall = tx.siteContentAuditLog.create.mock.calls[0][0];
+    const serializedAudit = JSON.stringify(auditCall.data);
+
+    expect(auditCall.data).toMatchObject({
+      action: 'update',
+      actorUserId: superAdmin.id,
+      metadata: {
+        changedFields: expect.arrayContaining(['bodyLength', 'contentKeys']),
+      },
+    });
+    expect(serializedAudit).not.toContain('fan@example.test');
+    expect(serializedAudit).not.toContain('token-secret');
+    expect(serializedAudit).not.toContain('must-not-be-audit-body');
+  });
+
+  it('fails closed when editing published content before a draft is prepared', async () => {
+    const { service, prisma } = createService();
+    const published = entry({ status: 'published', version: 4 });
+    prisma.siteContentEntry.findUnique.mockResolvedValue(published);
+
+    await expect(
+      service.updateAdmin(superAdmin, published.id, {
+        body: 'Publish 전에는 live 문구가 바뀌면 안 됩니다.',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'SITE_CONTENT_PUBLISHED_EDIT_REQUIRES_DRAFT',
+        messageKey: 'siteContent.error.publishedEditRequiresDraft',
+        details: expect.objectContaining({
+          currentStatus: 'published',
+          currentVersion: 4,
+        }),
+      },
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('updates draft content with a version increment and audit before publish', async () => {
+    const { service, prisma } = createService();
+    const draft = entry({
+      status: 'draft',
+      version: 4,
+      publishedAt: null,
+      publishedByUserId: null,
+    });
+    const updatedDraft = entry({
+      status: 'draft',
+      version: 5,
+      body: '새 draft 문구',
+      publishedAt: null,
+      publishedByUserId: null,
+    });
+    const tx = {
+      siteContentEntry: {
+        update: jest.fn().mockResolvedValue(updatedDraft),
+      },
+      siteContentAuditLog: {
+        create: jest.fn().mockResolvedValue({}),
+      },
+    };
+    prisma.siteContentEntry.findUnique.mockResolvedValue(draft);
+    prisma.$transaction.mockImplementation((callback) => callback(tx));
+
+    const result = await service.updateAdmin(superAdmin, draft.id, {
+      body: '새 draft 문구',
+    });
+
+    expect(tx.siteContentEntry.update).toHaveBeenCalledWith({
+      where: { id: draft.id },
+      data: expect.objectContaining({
+        body: '새 draft 문구',
+        updatedByUserId: superAdmin.id,
+        version: { increment: 1 },
+      }),
+    });
+    expect(tx.siteContentAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'update',
+          before: expect.objectContaining({ version: 4, status: 'draft' }),
+          after: expect.objectContaining({ version: 5, status: 'draft' }),
+          metadata: expect.objectContaining({
+            changedFields: expect.arrayContaining(['version', 'bodyLength']),
+          }),
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      item: {
+        status: 'draft',
+        version: 5,
+        policy: expect.objectContaining({
+          canEdit: true,
+          canPublish: true,
+          publishedEditRequiresDraft: true,
+          draftVersionRequiredBeforePublish: true,
+        }),
+      },
+      policy: expect.objectContaining({
+        draftEditOnly: true,
+        publishedEditRequiresDraft: true,
+      }),
+    });
   });
 
   it('returns a recoverable key-exists error when an archived key is recreated', async () => {
@@ -269,10 +453,13 @@ describe('SiteContentService', () => {
           canRestore: false,
           canEdit: true,
           canPublish: true,
+          publishedEditRequiresDraft: true,
+          draftVersionRequiredBeforePublish: true,
         }),
       },
       policy: expect.objectContaining({
         archivedKeyRecoverable: true,
+        draftEditOnly: true,
       }),
     });
 

@@ -293,6 +293,9 @@ describe('CreatorStudioService artist knowledge URLs', () => {
     expect(result).toMatchObject({
       item: {
         status: 'pending',
+        approvalStatus: 'pending',
+        safetyStatus: 'unreviewed',
+        title: null,
         allowChatRef: true,
         chatReference: {
           eligible: false,
@@ -419,5 +422,45 @@ describe('CreatorStudioService artist knowledge URLs', () => {
         }),
       }),
     );
+  });
+
+  it('does not return admin-only metadata in creator knowledge URL projections', async () => {
+    const archived = {
+      ...row,
+      status: 'archived',
+      metadata: {
+        contractVersion: '2026-05-22.artist-url-knowledge.v1',
+        archivedReason: 'Internal admin archive note',
+        adminNote: 'Internal admin note',
+        token: 'must-not-leak',
+        externalFetchPerformed: false,
+        rawPageBodyStored: false,
+        chatReferenceBlocked: true,
+      },
+      archivedAt: new Date('2026-05-22T02:00:00.000Z'),
+    };
+    const { service } = serviceWithKnowledgePrisma({
+      artistKnowledgeUrl: {
+        findMany: jest.fn().mockResolvedValue([archived]),
+      },
+    });
+
+    const result = await service.getKnowledgeUrls(userId, { artistId });
+
+    expect(result.items[0]).toMatchObject({
+      status: 'archived',
+      metadata: {
+        contractVersion: '2026-05-22.artist-url-knowledge.v1',
+        externalFetchPerformed: false,
+        rawPageBodyStored: false,
+        chatReferenceBlocked: true,
+        internalReviewReasonReturned: false,
+        adminNoteReturned: false,
+      },
+    });
+    const payload = JSON.stringify(result);
+    expect(payload).not.toContain('Internal admin archive note');
+    expect(payload).not.toContain('Internal admin note');
+    expect(payload).not.toContain('must-not-leak');
   });
 });

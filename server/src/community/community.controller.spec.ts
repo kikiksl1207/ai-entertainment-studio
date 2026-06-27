@@ -1,6 +1,11 @@
 import 'reflect-metadata';
 import { RequestMethod } from '@nestjs/common';
-import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import {
+  GUARDS_METADATA,
+  METHOD_METADATA,
+  PATH_METADATA,
+} from '@nestjs/common/constants';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CommunityController } from './community.controller';
 
 type ControllerRoute = {
@@ -50,6 +55,50 @@ describe('CommunityController public follow list routes', () => {
         expect.objectContaining({
           method: RequestMethod.GET,
           path: 'users/handle/:publicHandle/following-artists',
+        }),
+      ]),
+    );
+  });
+});
+
+describe('CommunityController user block routes', () => {
+  it('keeps block and unblock mounted as normal authenticated user routes', () => {
+    const blockHandlers = [
+      'blockUser',
+      'blockUserByHandle',
+      'unblockUser',
+      'unblockUserByHandle',
+    ];
+
+    for (const handlerName of blockHandlers) {
+      const handler = CommunityController.prototype[
+        handlerName as keyof CommunityController
+      ] as unknown as object;
+      const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as unknown[];
+
+      expect(guards).toContain(JwtAuthGuard);
+      expect(guards.map((guard) => (guard as { name?: string }).name)).not.toEqual(
+        expect.arrayContaining(['AdminAuthGuard', 'AdminPermissionGuard']),
+      );
+    }
+
+    expect(mountedCommunityRoutes()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          method: RequestMethod.POST,
+          path: 'users/:userId/block',
+        }),
+        expect.objectContaining({
+          method: RequestMethod.POST,
+          path: 'users/handle/:publicHandle/block',
+        }),
+        expect.objectContaining({
+          method: RequestMethod.DELETE,
+          path: 'users/:userId/block',
+        }),
+        expect.objectContaining({
+          method: RequestMethod.DELETE,
+          path: 'users/handle/:publicHandle/block',
         }),
       ]),
     );

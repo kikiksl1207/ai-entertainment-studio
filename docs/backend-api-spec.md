@@ -117,6 +117,177 @@ GET /api/v1/unlock-campaigns
 - 메인에 걸릴 캐릭터 조회
 - 회사 차원의 특별 해금 이벤트 조회
 
+### Story Stage
+
+Story stage backend contract skeleton (#988):
+
+The exported `STORY_STAGE_PACK_CHAPTER_SESSION_CONTRACT` defines disabled
+backend contract shapes for StoryPack, StoryChapter, StorySession, and
+StoryChoice. This is not a live API implementation and keeps
+`enabled=false`/`publicMutationEnabled=false` until storage, entitlement, and QA
+fixtures are ready.
+
+Planned endpoints:
+
+```http
+GET /api/v1/story-packs
+GET /api/v1/story-packs/:packSlug
+GET /api/v1/story-packs/:packSlug/chapters/:chapterNo
+POST /api/v1/story-packs/:packSlug/sessions
+GET /api/v1/story-sessions/:sessionId/choices
+```
+
+- StoryPack pricing modes are `free`, `paid`, and `mixed`; lifecycle statuses
+  separate `serializing`, `completed`, `hiatus`, and `season_ended`.
+- StoryChapter pricing modes are `free` and `paid`. Locked paid chapters may
+  expose only preview fields such as chapter number, title, summary,
+  `pricingMode`, `priceLumina`, and `locked`; chapter body stays hidden until
+  entitlement is confirmed.
+- StorySession creation is future-authenticated and idempotent, scoped by
+  user, pack slug, and client idempotency key. Replays with the same
+  fingerprint return the same projection; changed fingerprints conflict before
+  any mutation.
+- StoryChoice projections default to three choices and may expand to five.
+  Choice types are display-safe action categories only and do not expose raw
+  model prompts or provider payloads.
+- This skeleton does not create payment orders, debit wallet/Lumina, grant
+  entitlements, create story sessions, submit choices, call AI providers,
+  generate image/video assets, create notifications, touch settlement, or touch
+  payout.
+- #1081 adds `STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT` for read-only
+  author revenue preview. It separates chapter gross revenue, season bundle
+  discount allocation, AI artist companion participation cost, and story author
+  share into distinct buckets. The projection is not payout authority, trusts no
+  client-submitted revenue/discount/share values, and does not create payment,
+  refund, wallet, settlement, or payout mutations.
+- #1117 adds the author revenue bucket allocation skeleton. Calculation order is
+  completed chapter purchase revenue, season bundle revenue allocated per
+  chapter, refund/chargeback adjustment, AI character companion participation
+  cost reserve, then story author share preview. Chapter direct revenue, season
+  allocation, AI companion cost, and author preview fields remain separate and
+  do not expose provider cost payloads or create settlement, payout, wallet, or
+  payment mutation.
+
+### Story Stage Choices and Timeline
+
+Story choice and major-event timeline read model (#989):
+
+`STORY_CHOICE_TIMELINE_READ_MODEL_CONTRACT` defines a disabled read-model
+contract for session choices and major timeline events. It does not submit a
+choice, mutate story state, call an AI provider, write notifications, or touch
+wallet/Lumina/payment/settlement/payout.
+
+- Choice projections default to three choices and may expand to five only when
+  scene complexity requires it. Clients cannot submit a replacement choice set.
+- Choice rows expose display-safe fields under `story.choices[]`, including
+  `choiceNo`, `titleKey`, `body`, `choiceType`, `availability`,
+  `disabledReasonKey`, `scenePresence`, and `expectedTimelineEffect`; raw model
+  prompts and provider payloads are never returned.
+- When the user is present in the scene, choices may include direct
+  intervention such as dialogue, physical action, investigation, travel, or
+  waiting. When the user is nearby, choices are limited to delayed/limited
+  intervention. When the user is far away, the scene is exposed through
+  letters, rumors, reports, waiting, or travel rather than direct intervention.
+- Major events are projected under `story.timeline.majorEvents[]` with
+  display-safe event kind, chapter number, player knowledge state, and story
+  time fields. Unknown future/private spoiler bodies and author notes remain
+  hidden.
+
+### Story Stage AI Companion Context
+
+Story AI companion context boundary (#990):
+
+`STORY_AI_COMPANION_CONTEXT_BOUNDARY_CONTRACT` defines a disabled context
+boundary for bringing AI artists into story sessions. It is not a provider
+execution path and does not create chat messages, mutate story state, debit
+wallet/Lumina, or touch settlement/payout.
+
+- A story session may select up to five companion artists, but each scene may
+  use only two to three active speakers. Remaining companions must be projected
+  as cameo, background, or offscreen references.
+- Context is layered in priority order: world canon, current scene state,
+  approved artist persona/tone profile, then player state. Player choices and
+  companion dialogue cannot override world canon or the current scene objective.
+- Active speakers may speak and influence choice text. Cameo companions may
+  speak briefly but cannot solve the scene. Background/offscreen companions do
+  not drive choices.
+- #1073 adds `participationBudget`: the target session budget is the player plus
+  up to five AI companion artists. Free prologue mode allows solo play or one AI
+  companion only, with no paid expansion. Paid story mode may allow up to five
+  AI companions, but add/swap cost must come from server story product policy;
+  client-submitted cost is never accepted. Overflow companions must be
+  summarized or downgraded to cameo/background/offscreen reference before any
+  provider context is composed.
+- #1134 adds `participationBudget.readModelSelectionProjection`: free prologue
+  selection remains capped at one AI companion with no paid expansion, while
+  paid story selection may show up to five AI companions. Add/swap cost is a
+  server story product policy preview only, client-submitted cost is not
+  trusted, and companion changes must preserve existing chapter and season
+  entitlements. The previous chapter roster remains immutable, the next chapter
+  uses the latest confirmed roster, and selection submit, payment, refund,
+  wallet, settlement, payout, and story-progress mutation remain disabled.
+- The projection must not expose raw persona prompts, raw world bible text,
+  provider payloads, private artist notes, or admin memos.
+
+### Story Stage Direct Action Validation
+
+Story direct action validation policy (#991):
+
+`STORY_DIRECT_ACTION_VALIDATION_CONTRACT` defines a disabled validation
+skeleton for user-entered direct story actions. It validates text shape,
+timeline continuity, reachable location, world rules, age/safety policy,
+author-forbidden outcomes, and character persona integrity before any future
+provider or story mutation path.
+
+- Direct action input is plain text, trimmed, 1-500 characters, and rejected
+  when empty after trim.
+- Fail-closed categories include impossible time jumps, remote intervention
+  without an in-world channel, world-rule breaking powers/items, adult sexual
+  content, graphic exploitation, self-harm instruction, protected-class hate,
+  author-forbidden outcomes, and character/persona-breaking control.
+- Rejected responses expose only safe `code`, `messageKey`,
+  `safeSuggestionKey`, and `retryAllowed`; raw internal reasons, safety
+  classifier payloads, author private rules, prompts, provider payloads, and
+  admin memos are not returned.
+- This skeleton does not call providers, store direct actions, mutate story or
+  timeline state, create notifications, debit wallet/Lumina, or touch
+  payment/settlement/payout.
+
+### Story Stage Comments Ratings and Reader Badge
+
+Story comments, ratings, and completed-reader projection (#992):
+
+`STORY_REVIEW_READER_PROJECTION_CONTRACT` defines disabled projections for
+story-pack comments/ratings, chapter comments/ratings, and completed-reader
+badges. It does not create comments, ratings, reports, notifications, payment,
+wallet/Lumina, settlement, or payout rows.
+
+- Story-pack comments and ratings are limited to paid or otherwise entitled
+  readers. Chapter comments and ratings are limited to readers entitled to that
+  chapter.
+- #1099 fixes future submit readiness as auth + confirmed purchase/entitlement
+  only. Pack-level comments/ratings require a confirmed pack, season, or paid
+  reader entitlement; chapter-level comments/ratings require entitlement to that
+  chapter. Authors cannot self-review their own work through this contract, and
+  locked or preview-only chapters cannot accept comment/rating submissions.
+- #1099 keeps all-pack threads, chapter threads, and rating summaries as
+  separate read scopes. Pack threads do not pretend to be chapter comments;
+  chapter threads include chapter context; public rating aggregates stay
+  anonymous while `viewer.rating` is returned only to that viewer.
+- #1099 lets authors read only their own story-pack review summary: pack
+  aggregates, chapter breakdown, safe comment previews, rating buckets, and
+  completed-reader counts. It must not expose reader lists, reader user ids,
+  payment ledger detail, entitlement ids, raw read history, moderation notes, or
+  raw report reasons.
+- Ratings use a 1-5 integer scale and allow one rating per user per scope in
+  the future write contract. The current contract keeps rating mutation
+  disabled.
+- Completed-reader badge is display-only. It means the viewer completed every
+  currently published readable chapter and may appear on comments/ratings, but
+  it is not payment authority and does not expose raw read history.
+- Comment/rating projections must not expose raw user email, payment ledger id,
+  raw read history, raw report reason, or moderation notes.
+
 ## User APIs
 
 ### Auth / Me
@@ -181,18 +352,28 @@ My Page contract:
 - `PATCH /api/v1/me/settings` accepts any subset of `locale`, `timezone`, `marketingOptIn`, `pushOptIn`, `activityNotifications`, `feedNotifications`, and `emailNotifications`, or the frontend nested shape `{ notifications: { activityNotifications, marketingOptIn, feedNotifications, emailNotifications, pushOptIn } }`. Empty bodies return `400`. Supported `locale` values are `ko-KR`, `ja-JP`, `en-US`, and `zh-CN`.
 - `GET /api/v1/localization/policy` is public and returns localization defaults, supported locales, and the locale detected from `Accept-Language`. Clients should prefer signed-in `settings.locale`, then local storage, then the detected locale, then `ko-KR`.
 - `GET /api/v1/me/notifications?status=all&take=20` returns `{ notifications, unreadCount, nextCursor }`. Notification items include `i18n: { messageKey, titleKey, bodyKey, defaultTitle, defaultBody, params }` so clients can map server-created events to locale dictionaries while keeping stored title/body as fallback text. Feed replies, feed likes, and user follows create notification-center rows; read state is managed with the two PATCH endpoints.
+- #844 adds the feed notification projection contract for future count lanes:
+  feed comments use `feed.reply`, thread continuations use
+  `feed.thread_continuation`, and reposts use `feed.repost`. Their unread count
+  lanes must stay separate, and deleted, hidden, private, missing, or
+  relationship-blocked feed targets are excluded from list/count projections
+  without identity leakage. This contract is read-only and does not create feed
+  posts, comments, reposts, notifications, wallet, settlement, or payout
+  mutations.
 - `POST /api/v1/me/assets/upload-intents` creates image-only upload intents for logged-in users. Confirmed assets can be used as avatar images, profile cover images, or feed post `assetIds`.
 - `GET /api/v1/me/assets` is the signed-in user's image asset library. Query supports `status=all|pending_upload|uploaded|ready`, `lifecycleStatus=active|archived`, `take`, and `cursor`. It returns `{ items, count, hasMore, nextCursor, policy }`.
 - `GET /api/v1/me/assets/:assetId` returns one owned asset plus usage hints. Ownership is checked through `asset.metadata.uploadIntent.createdByUserId`.
 - `POST /api/v1/me/assets/:assetId/archive` marks the owned asset as archived in metadata without deleting object storage. It blocks active avatar, active profile cover, published feed, and creator-image request usage unless `{ "force": true }` is explicitly sent.
 - `POST /api/v1/me/assets/:assetId/restore` returns an owned archived asset to active.
 - `POST /api/v1/lumina-feed/posts` accepts optional `assetIds` with up to 4 existing public image asset UUIDs. The response exposes linked images through post `assets[]` with public URLs.
+- #951 exports `LUMINA_FEED_MULTI_IMAGE_ATTACHMENT_CONTRACT` for feed multi-image attachment metadata. Two, three, and four image layouts use `post.assets` sorted by `sortOrder`, and each item exposes only safe attachment metadata: link id, role, sort order, asset id/type/mime/dimensions, display/public URL, and thumbnail URL. Because upload/create remains capped at 4 images, a `+N` overflow badge is not required and overflow count is `0`. This contract does not add image upload, feed create, repost, wallet, Lumina, settlement, or payout mutation.
 - `POST /api/v1/lumina-feed/posts/thread` creates a legacy manual Lumina Feed multi-piece post. Canonical "이어쓰기" uses `POST /api/v1/lumina-feed/posts/:postId/thread-continuations` against an existing post instead.
 - `GET /api/v1/lumina-feed/posts/:postId/thread-continuations` and `POST /api/v1/lumina-feed/posts/:postId/thread-continuations` keep continuation posts separate from normal comments/replies. Continuation create is login-required and root-author only.
 - `POST /api/v1/lumina-feed/posts/:postId/reposts` creates a user-owned repost or quote repost with an original post reference. `POST /api/v1/lumina-feed/posts/:postId/share` returns a share URL/Web Share contract only and does not mutate wallet, Lumina, settlement, payout, order, or paid-like state.
 - `PATCH /api/v1/lumina-feed/posts/:postId` edits the current user's own post body. MVP edit scope is body-only; image replacement/removal is not supported yet.
 - `PATCH /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` and `DELETE /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` are author-only for non-root thread items. Likes, comments, and images remain root-post based.
 - Signed-in `GET /api/v1/me/lumina-feed` post rows include `viewer` and `permissions` hints (`hasLiked`, `isAuthor`, `isFollowingArtist`, `isFollowingAuthor`, `canFollowArtist`, `canUnfollowArtist`, `canFollowAuthor`, `canUnfollowAuthor`, `canEdit`, `canDelete`) for frontend action rendering.
+- #743 fixes the feed follow/block interaction contract: feed reads filter active `user_blocks` relationships in either direction, feed writes such as like, reply, repost, and thread continuation fail closed with `403 USER_FOLLOW_BLOCKED` before community/notification mutation, and premium-chat room/message/donation/status surfaces must check the same relationship before wallet, order, settlement, payout, or paid-like work.
 
 이메일/비밀번호 가입 정책:
 
@@ -383,6 +564,164 @@ Lumina Station:
 - `GET /api/v1/rewards/activation-progress` returns the signed-in user's cap usage, paid-bonus usage, attendance state, first-charge state, and milestone progress. Planned milestones are display-only until a future grant endpoint is opened.
 - `GET /api/v1/rewards/ledger-policy` returns the fail-closed free Lumina reward ledger skeleton for achievements, titles, birthday, identity completion, attendance, profile, and first-action grants. It is read-only, does not open arbitrary reward grants, and states the 3000L lifetime free promo cap plus non-settlement policy.
 
+Artist URL knowledge audit skeleton:
+
+```http
+GET /api/v1/chat/artist-url-knowledge-contract
+GET /api/v1/me/creator-studio/knowledge-urls
+POST /api/v1/me/creator-studio/knowledge-urls
+GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
+```
+
+- `artist-url-knowledge` contract version is
+  `2026-06-05.artist-url-knowledge-registration-skeleton.v1`.
+- #619 keeps registration fields separated: optional `title`, safe `source`,
+  lifecycle `approvalStatus`, bounded `summary`, and `safetyStatus`.
+- `safetyStatus` values are `unreviewed`, `needs_review`, `safe`, and `blocked`.
+  Only approved rows with `safetyStatus=safe`, `allowChatReference=true`, and a
+  non-empty summary may enter character-chat context.
+- Raw submitted URL is review material, not chat knowledge. Character-chat
+  provider context uses a hostname-only source label and bounded approved
+  summary, never the raw URL or full page body.
+- #660 fixes the chat context connection shape. The chat service queries only
+  approved, chat-enabled rows for the session artist and selects safe summary
+  fields only. Raw URL, URL query, raw page body, private body, artist
+  description, admin notes, token/cookie/password/API key/provider payload,
+  signed/private URL, and DB URL fields are forbidden from provider context
+  projection.
+- #677 fixes the admin-to-chat handoff fields. Backstage approval may hand off
+  only `approvalStatus=approved`, `artistSlug`, bounded `contextSummary`, and
+  `safetyFlag=safe` into the character-chat context candidate path. This
+  contract is separate from site-content/admin copy editing and does not expose
+  raw URL, URL query, raw page body, private material, admin notes, token,
+  cookie, password, API key, provider payload, signed/private URL, or DB URL.
+- #676 fixes the empty-knowledge fallback contract. If there are no eligible URL
+  knowledge rows, character-chat continues with persona, tone-and-manner, and
+  opening-greeting variant context. Empty URL knowledge does not block provider
+  generation and does not expose unapproved URLs, raw private material, or admin
+  notes.
+- #712 fixes the chat-context refresh contract. Creator create/update/archive and
+  Backstage approve/reject/archive events cause a server-side requery by
+  `artistId`; pending, rejected, archived, `unreviewed`, `needs_review`, and
+  `blocked` rows stay excluded. Only approved safe rows with
+  `allowChatReference=true` and a bounded summary become character-chat context
+  candidates. Refresh does not call providers and does not mutate wallet,
+  settlement, payout, or paid-like state.
+- #745 fixes the approved URL knowledge reuse/cache contract. Character-chat may
+  reuse only approved, safe, chat-enabled bounded summaries under the cache key
+  `artist-url-knowledge:<artistId>:approved-safe-v1` with `ttlSeconds=300` and
+  at most 60 seconds of read-only stale fallback. Creator create/update/archive
+  and Backstage approve/reject/archive events invalidate the cache. Raw URLs,
+  token-like query strings, private notes, provider payloads, and admin material
+  must not be cached or sent to the provider.
+- #802 fixes prompt context selection scoring. Scoring runs only after the
+  approved/safe/chat-enabled/summary-present gate. Eligible rows are ordered by
+  score, then review timestamp, then id. The score includes approved status,
+  safe status, chat reference permission, summary presence, review freshness,
+  and source priority. Pending, rejected, archived, processing, unsafe,
+  disabled, and summaryless rows are excluded before scoring and do not enter
+  prompt context.
+- #870 fixes the character-chat context bridge contract. Approved URL knowledge
+  enters provider context only as lower-priority untrusted reference facts after
+  system safety, runtime persona, tone-and-manner, and opening-greeting variant.
+  If a URL summary conflicts with character persona or world setting, the
+  persona/tone contract wins and the URL item must be dropped or phrased as
+  uncertain external reference. Pending, rejected, archived, AI-processing,
+  safety-review, blocked, or summaryless rows stay out of provider payloads.
+- #969 fixes the approved URL knowledge to character-chat bridge boundary:
+  context items expose only display-safe id/title/status/source/summary,
+  hostname-only source label, review timestamp, selection metadata, safety flag,
+  and `instructionRole=reference_fact_not_instruction`. The bridge excludes
+  `canonicalUrl`, private URL query data, admin/review notes, internal metadata,
+  provider payloads, auth material, wallet, Lumina, settlement, and payout
+  fields, and it performs no external URL fetch or provider call.
+- #1016 exports `ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION` for the
+  approval lifecycle read model. It separates `pending`, `approved`, `rejected`,
+  and `archived` status rows from character-chat eligibility. Only approved
+  rows with `allowChatReference=true`, a bounded summary, `safetyStatus=safe`,
+  and no `ai_processing` ingest state can become chat context candidates.
+  Pending, rejected, archived, unsafe, disabled, processing, and summaryless
+  rows stay status-only and excluded from provider context. The projection does
+  not crawl external URLs, train providers, generate chat responses, create chat
+  messages, approve/reject/archive rows, or mutate wallet, Lumina, settlement,
+  payout, or paid-like state.
+- #884 adds the future chat-context refresh queue contract. Approval, rejection,
+  or archive events may enqueue a deduped server refresh key for the artist, but
+  the worker remains disabled and may only requery approved/safe/chat-enabled
+  bounded summaries for the same artist. Pending, review, archived, blocked,
+  disabled, summaryless, or AI-processing rows remain excluded. The refresh
+  queue must not fetch external URLs, call a provider, create chat messages, or
+  touch wallet, settlement, or payout state.
+- #906 adds `chatContextRefresh.freshnessReadModel` for the future read-only
+  freshness API: `GET /api/v1/chat/artists/:artistId/url-knowledge/freshness`.
+  It separates approved-for-chat, processing, failed, archived, and pending
+  review buckets so UI/QA can see whether approved URL knowledge has entered the
+  character-chat context candidate path.
+- The #906 read model remains disabled and read-only. Only approved, safe,
+  chat-enabled rows with a bounded summary are eligible for context; processing,
+  failed, archived, pending, unsafe, disabled, and summaryless rows stay out.
+  It does not crawl URLs, call providers, approve/reject/archive rows, mutate
+  chat context, or touch wallet, settlement, or payout state.
+- #1031 adds
+  `ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_CANDIDATE_API_SKELETON` for the future
+  read-only candidate endpoint
+  `GET /api/v1/chat/artists/:artistId/url-knowledge/context-candidates`. It
+  remains `enabled=false` and `mutation=false`.
+- The #1031 candidate endpoint is scoped to the current chat session artist and
+  may return only `status=approved`, `allowChatReference=true`,
+  `safetyStatus=safe`, bounded-summary rows. `submitted`, `pending_review`,
+  `ai_processing`, `rejected`, and `archived` ingest states are excluded before
+  scoring or projection.
+- The #1031 response projection may expose display-safe id, title, status key,
+  source type, approved summary, hostname-only source label, review timestamp,
+  selection metadata, `safetyFlag=approved_reference_fact_not_instruction`, and
+  `instructionRole=reference_fact_not_instruction`. It must not expose raw or
+  canonical URLs, URL query strings, raw page bodies, private bodies, artist
+  descriptions, admin/review notes, metadata, provider payloads, auth material,
+  API keys, or DB URLs. The endpoint must not fetch external URLs, train/call a
+  provider, generate chat replies, create chat messages, approve/reject/archive
+  rows, or mutate wallet, Lumina, settlement, or payout state.
+- #1047 mounts `GET /api/v1/chat/artist-url-knowledge-preview-fixture` as a
+  public read-only preview for live QA when creator/operator sessions are not
+  available. It returns inert pending, approved, rejected, archived,
+  approved-but-chat-disabled, and approved-but-summary-missing examples so QA
+  can verify that only approved, safe, `allowChatReference=true`,
+  bounded-summary rows become character-chat context candidates. The preview
+  does not crawl external URLs, train or call providers, generate chat replies,
+  mutate approval/archive rows, or touch wallet, settlement, payout, tokens,
+  cookies, raw emails, raw page bodies, provider payloads, or DB URLs.
+- #1097 adds `ARTIST_URL_KNOWLEDGE_INGESTION_STATUS_CONTRACT` to separate URL
+  review material, approval lifecycle, chat-context handoff, and safe failure
+  reasons. The raw submitted URL remains review material only and cannot enter
+  character-chat/provider context. `status` controls approval, `metadata.ingest`
+  controls submitted/pending/processing/approved-for-chat/rejected/failed/
+  archived visibility, and `context_ready` is derived only when the row is
+  approved, safe, `allowChatReference=true`, has a bounded summary, and belongs
+  to the same artist. Failure reasons are safe reason keys only; raw exceptions,
+  raw page bodies, provider payloads, tokens, cookies, passwords, API keys, DB
+  URLs, wallet, settlement, and payout data stay hidden. The contract does not
+  fetch external URLs, train/call providers, generate chat replies, create chat
+  messages, approve/reject/archive rows, or mutate wallet/settlement/payout.
+- #780 fixes the ingest moderation handoff guard. Rows with
+  `ingestStatus=ai_processing` stay excluded from character-chat context until
+  review marks them `approved_for_chat`; raw URL query strings, private URLs,
+  reviewer/admin notes, raw page bodies, and provider payloads stay out of
+  provider context.
+- The admin audit list endpoint is a read-only skeleton guarded by `audit:read`.
+  It returns redacted artist knowledge URL audit event list items only.
+- Query shape: `action`, `targetId`, `artistId`, `take`, and opaque `cursor`.
+- Projection includes event id, action, `targetType = artist_knowledge_url`,
+  target id, actor user id, created timestamp, redacted before/after snapshots,
+  changed fields, and status transition.
+- Snapshots may expose ids, lifecycle status, source type, allow-chat boolean,
+  summary/rejection presence booleans, reviewed timestamp, and archived
+  timestamp.
+- The projection must not return raw submitted URL, raw URL query, canonical URL,
+  artist description text, summary text, rejection reason text, raw page body,
+  raw email, token, cookie, password, provider payload, API key, or DB URL.
+- The read endpoint does not approve, reject, archive, fetch external pages,
+  mutate chat context, call providers, or alter wallet/settlement/payout state.
+
 Identity verification skeleton:
 
 - `GET /api/v1/me/identity-verifications/policy` returns the NICE-first provider
@@ -535,6 +874,17 @@ recent conversation and archive surfaces without creating chat messages, calling
 the LLM provider, creating feature orders, debiting wallet, or touching
 settlement state. Query `box=recent` returns active sessions, `box=archive`
 returns archived sessions, and `box=all` returns both. Response:
+
+#909 adds the `CHAT_CONVERSATION_READ_SEPARATION_CONTRACT` read contract so
+free AI character-chat conversations and paid premium-chat rooms cannot share a
+list/detail source. `/api/v1/chat/conversations` reads only `chat_sessions` with
+`productType: "ai_character_chat"`, `billingType:
+"free_character_conversation"`, and `respondentType: "ai_character_reply"`.
+Premium room lists/details read only `premium_chat_rooms` with `productType:
+"artist_direct_premium_dm"`, `billingType: "premium_room_lumina"`, and
+`respondentType: "artist_direct_reply"`. Neither surface falls back to the
+other, and this contract adds no message send, provider call, premium room open,
+wallet, settlement, or payout mutation.
 
 ```json
 {
@@ -929,8 +1279,107 @@ Character-chat dynamic opening greeting cache (#388):
 - The same character can still produce different first greetings across
   different sessions through provider output or deterministic fallback variant
   seed from `chat_sessions.id`.
+- #618 fixes the fallback variant contract at a bounded 5 to 10 display-safe
+  greeting candidates. Sparse character data receives at least five template
+  candidates, while richer persona/starter/tone data can fill the pool up to the
+  ten-candidate cap before deterministic session selection.
+- #710 keeps first-greeting variants scoped to character-chat sessions. Variant
+  selection uses the session seed, runtime persona tone, persona tags, starter
+  messages, and provider cost guard, while provider-failure fallback remains
+  character-toned and does not expose raw prompts, provider payloads, wallet,
+  settlement, payout, or order fields.
+- #778 fixes the operational seed/cache policy: variant selection uses
+  `chat_sessions.id` as a derived session seed, never accepts a client-submitted
+  seed, and caches exactly one `opening_greeting` per chat session. Same-session
+  reloads return the cached greeting, while new sessions for the same character
+  can vary for the same user or for different users without provider calls.
+- #843 fixes the runtime selection contract: first-greeting variant selection is
+  a character-chat-only operation at `opening_greeting_create`, uses a missing
+  cached `opening_greeting` as the first-conversation signal, reads tone/persona
+  and starter candidates from `runtimePersona`, and records provider usage only
+  when a provider call actually happens. Catalog/starter projections remain
+  read-only and must not mutate chat messages, wallet, order, settlement, or
+  payout state.
+- #897 adds `dynamicGreetingContract.selectionContract` for the first-greeting
+  variant server contract. Selection uses runtime welcome/starter/tone/persona
+  and forbidden-tone catalog inputs, with a user/session-scoped deterministic
+  seed based on `chat_sessions.id`. The same session stays stable, while a new
+  session may vary without accepting a client seed.
+- #1028 adds `dynamicGreetingContract.runtimeHandoff` as the user-facing API
+  skeleton for first-greeting variant handoff. `POST /api/v1/chat/sessions`
+  exposes `openingGreeting`, while
+  `GET /api/v1/chat/sessions/:sessionId/messages` replays the cached
+  `opening_greeting` row for the same session without another provider call.
+  New sessions use server-derived `chat_sessions.id` variation; client seeds and
+  raw seeds are rejected/hidden. Fallback remains deterministic and zero-cost,
+  while provider attempts stay behind readiness, daily provider guard,
+  `maxOutputTokens=120`, and `maxOutputChars=180`. This skeleton does not add
+  provider calls, message sends, wallet, order, settlement, or payout mutation.
+- #1043 adds `dynamicGreetingContract.readOnlySessionPreviewFixture` for a
+  disabled QA preview surface:
+  `GET /api/v1/chat/opening-greeting/session-preview-fixture`. It lets QA
+  compare same-session replay, new-session variant, and different-character
+  boundary behavior without requesting account credentials and without creating
+  live sessions or messages. The fixture may expose display-safe opening
+  greeting text, fixture session key, cache booleans, provider-call=false, and
+  safe variant policy flags only. It must not return raw session ids, raw seeds,
+  raw prompts, provider payloads, tokens, cookies, passwords, API keys, DB URLs,
+  or user private data, and it must not call a provider, send messages, create
+  sessions/messages, or mutate wallet, order, settlement, or payout state.
+  The live fixture response must include `sameSessionReplay`,
+  `newSessionVariant`, and `differentCharacterBoundary` scenarios so QA can
+  verify cache replay, same-character session variation, and character-scoped
+  tone boundaries from one read-only endpoint.
+- The #897 safety boundary requires the selected greeting to stay within
+  character settings, forbidden tone, and minor-clean rules. It explicitly
+  blocks real-person relationship, external contact, and external payment
+  prompts. Provider generation, message send, wallet, order, settlement, and
+  payout mutations remain unavailable for this contract.
+- #968 fixes the conversation-level record contract for opening greeting
+  variants. The selected first-greeting text is persisted only as the
+  `opening_greeting` message body for that `chat_session`, and
+  `openingGreeting.generation.variantPolicy.conversationRecord` exposes only
+  safe policy fields: record table, message type, scope, replay behavior, and
+  raw seed/prompt/provider-payload exclusion flags. The raw seed, prompt,
+  provider payload, wallet, Lumina, settlement, payout, and order fields are not
+  returned.
+- #1012 adds `dynamicGreetingContract.perSessionVariantReadModel` to make the
+  per-user/per-session variant boundary explicit. A character-chat session gets
+  exactly one opening greeting; the same session replays the cached greeting,
+  while a new session for the same character/user or a different user may select
+  a different variant from persona, tone tag, forbidden-tone, welcome, and
+  `chat_sessions.id` inputs. The boundary keeps provider generation optional,
+  applies persona/tone/forbidden rules, caps output at 120 tokens and 180
+  characters, and does not create wallet, order, settlement, payout, or extra
+  message-send mutations.
+- #1070 adds `dynamicGreetingContract.variantPolicy.sameCharacterVariantPolicy`
+  and mirrors it on `openingGreeting.generation.variantPolicy`. The same
+  character may show a different display-safe greeting variant for a new user or
+  a new chat session, but the same session must replay the cached
+  `opening_greeting`. The policy never accepts a client-submitted seed and never
+  returns raw seeds, raw prompts, provider payloads, or wallet/order/settlement/
+  payout data. It also keeps provider calls optional and does not open message
+  send mutation.
+- #1166 tightens the read model for the opening greeting preview fixture. The
+  fixture exposes a display-safe `variantPolicy.readModel` and
+  `toneCandidate` scope that must stay locked to the requested character slug.
+  Different-character boundary reads must not reuse cross-character fallback
+  copy or persona scope, and the response still does not return raw prompts,
+  provider payloads, seeds, tokens, cookies, passwords, API keys, DB URLs, or
+  wallet/order/settlement/payout data.
+- #1096 adds `dynamicGreetingContract.rotationContract` to prevent a global
+  fixed first-greeting sentence across all users. Rotation is scoped to the
+  character/user/chat-session boundary, draws from a character-scoped 5 to 10
+  candidate pool, and uses `chat_sessions.id` as the server-side deterministic
+  conversation seed. The same session still replays the cached
+  `opening_greeting`; new sessions or different users may rotate. The contract
+  does not accept client rotation overrides, does not expose/store raw seed or
+  raw prompt data, and does not add provider, message-send, wallet, order,
+  settlement, or payout mutation.
 - Provider generation is short and low-cost by contract:
   `maxOutputTokens=120`, `maxOutputChars=180`, lightweight model preferred.
+- Provider generation remains optional and separated from cache/template
+  fallback. Cached reads and refreshes do not create another provider request.
 - If provider readiness, daily guard, or request fails, the backend stores a
   character-specific fallback greeting from site-content copy, artist metadata,
   character fallback, or default copy.
@@ -939,14 +1388,28 @@ Character-chat dynamic opening greeting cache (#388):
   first-entry provider candidate, and it remains behind provider readiness,
   daily request/failure guards, one-per-session cache, and short-output limits.
 - `dynamicGreetingContract.version` is
-  `2026-05-22.character-chat-dynamic-greeting-cache.v1` and is exposed on
+  `2026-06-05.character-chat-opening-greeting-variants.v1` and is exposed on
   `GET /api/v1/chat/character-catalog` and
   `GET /api/v1/chat/starter-prompts`.
 - Opening greeting metadata must not store or return raw prompts, provider
   payloads, tokens, API keys, user private data, wallet/order/settlement ids, or
   payout internals.
+- Forbidden-tone and minor-clean standards stay display-only and character
+  scoped: first greetings must avoid real-person contact/relationship/payment
+  prompts and expose only safe tone/persona candidate fields.
 - `openingGreeting.toneCandidate` is display-safe contract data only. Do not
   treat it as an editable system prompt or expose raw metadata keys as user copy.
+- #874 adds `greetingSelectionAnalyticsContract` to
+  `GET /api/v1/chat/character-catalog` and
+  `GET /api/v1/chat/starter-prompts`. It defines the future
+  `character_chat.greeting_option_selected` event as write-blocked for now and
+  allows only safe aggregate dimensions such as character slug, candidate
+  key/index/source, tone/persona tags, locale, and selected date.
+- #874 analytics must not store or return selected message body, full chat
+  transcript, freeform user input, raw persona prompts, raw provider payloads,
+  email, token, cookie, password, API key, or DB URL. Candidate selection does
+  not create chat messages, call providers, create orders, debit wallet/Lumina,
+  or touch settlement/payout state.
 
 Character-chat premium transition CTA contract (#500/#511):
 
@@ -972,12 +1435,53 @@ Character-chat premium transition CTA contract (#500/#511):
   prompt or random greeting behavior.
 - The visible copy separates normal character chat from artist direct-reply
   premium chat. It must not imply an automatic AI reply for premium chat.
+- #744 adds an explicit route/state guard: premium-chat CTAs must not route to
+  `/character-chat`, must not use `ai_character_chat`/`ai_character_reply`,
+  and must not reuse character starter prompts or opening greetings. Character
+  chat must not create premium rooms, and premium-chat room open remains
+  submit/wallet/provider disabled until the room contract is opened.
+- #881 adds `productFlowGuard` to make the split auditable before UI/API QA:
+  character chat is the only flow that can create an AI character
+  conversation, while the premium chat CTA is an artist-direct DM flow with
+  `disabled=true`, `disabledReasonKey =
+  premium_chat_room_open_contract_pending`, and no room-open submit.
+  Entering from an artist detail premium CTA must not create a character-chat
+  conversation, must not fall back to `/character-chat`, and must not trigger
+  provider, room-open, payment, wallet, settlement, or payout side effects.
+- #950 adds `chatEntryAvailabilityProjection` for the character detail surface.
+  It separates AI character chat, premium chat, support, and follow availability
+  in one read projection. AI character chat may route to
+  `/character-chat?slug={artistSlug}`; premium chat remains disabled with no
+  href/fallback while room-open is contract-pending; support remains disabled
+  unless a premium room can exist; follow uses the existing artist viewer/follow
+  hints. Disabled premium chat must not fallback to AI chat, open a paid room,
+  send a message, create payment, debit wallet, touch settlement, or touch
+  payout.
+- #1078 adds `characterDetailRoutingContract` as the stable routing table for
+  the same surface. `destinations.characterChat` is the only enabled destination
+  with `/character-chat?slug={artistSlug}` and remains `ai_character_chat` /
+  `ai_character_reply`. `destinations.premiumChat` remains disabled with
+  `destinationPathTemplate=null`,
+  `premiumAvailabilityState="room_open_contract_pending"`, and
+  `disabledReasonKey="premium_chat_room_open_contract_pending"`. These state
+  keys are contract values only and must not be rendered as raw UI copy.
 - `roomStateReasons` provides Korean user-facing reasons for available,
   artist-resting, under-review, expired, and unavailable states. Frontend must
   render those Korean messages instead of raw state keys.
 - `priceSummary` is summary-only copy for room-open/support display. It must not
   expose internal formulas, ledgers, provider payloads, prompts, tokens, or
   settlement/payout internals.
+- #1029 adds
+  `characterDetailChatChoiceStateProjection` for the character detail chat
+  selector. It exposes separate entries for AI character chat and artist-direct
+  premium chat with explicit `productKind`, `responseMode`, availability, route,
+  CTA label key, price copy key, duration copy key, and respondent copy key. AI
+  chat may create an AI character-chat conversation through
+  `/character-chat?slug={artistSlug}`. Premium artist chat remains disabled
+  while room-open is pending, must not fall back to AI chat, and must use
+  server-owned price/duration copy keys. The projection does not open premium
+  rooms, send messages, call providers, create payments/orders, or mutate
+  wallet, settlement, or payout state.
 - The same CTA contract is also referenced from
   `GET /api/v1/chat/premium-support-contract` as
   `productProjection.characterChatTransitionCta` so product QA can verify the
@@ -1126,6 +1630,38 @@ GET /api/v1/chat/me/premium-donations?period=monthly&status=confirmed&take=20
 - Communication ranking remains a separate server-weighted lane for room open,
   safe visible message activity, confirmed net donation, and safe artist reply
   activity.
+- #972 exports
+  `PREMIUM_CHAT_COMMUNICATION_DONATION_RANKING_READ_MODEL_CONTRACT` as a
+  disabled read-model contract for premium-chat rankings. The communication
+  lane uses confirmed room opens, safe visible message activity, confirmed net
+  donation as a weighted factor, and safe artist reply activity; the donation
+  lane uses only confirmed net premium-chat donation after refund or chargeback
+  filtering. Both lanes exclude free likes, Lumina boosts, reported/blinded
+  rows, refunded or chargeback rows, cancelled donation rows, suspended rooms,
+  and admin-review rows until operator-safe. The response must use label and
+  summary keys, must not expose raw chat/support bodies, report reasons, wallet
+  ledger ids, support-point ledger ids, message ids, raw user ids, or internal
+  score formulas, and must not alias premium-chat rankings to Lumina Pick/boost
+  rankings.
+- #1072 fixes the support amount projection for ranking contracts. Confirmed
+  net donations from fixed presets `10/50/100/500/1000/5000/10000/50000L` and
+  server-normalized direct input from `1L` through `50000L` may feed only the
+  premium-chat communication lane as a weighted support factor and the donation
+  lane as confirmed net donation. Gross donation amounts, refunded/chargeback/
+  cancelled rows, reported/blinded/suspended/admin-review rows, room-open rows,
+  message rows, free likes, and Lumina boosts are excluded from donation
+  ranking. This remains a disabled read-model contract and does not create
+  support, wallet, settlement, payout, ranking snapshot, or client score-refresh
+  mutation.
+- #1133 keeps the premium-chat support ranking projection separated from like
+  rankings. The support contract exposes display-only amount authority for the
+  fixed `10/50/100/500/1000/5000/10000/50000L` presets and server-normalized
+  custom `1L`-`50000L` support, but client-submitted ranking amounts, wallet
+  balance, settlement amount, and payout amount are not projection authority.
+  Communication ranking may use confirmed support only as a weighted factor,
+  donation ranking uses confirmed net support amount only, and neither lane may
+  consume Lumina Pick likes or Lumina boosts. Ranking refresh, support-point
+  ledger writes, wallet, settlement, and payout mutation remain disabled.
 - My donation history is owner-only and disabled. It returns safe donation
   projection fields plus filtered summary totals only. Other-user access must be
   safe 404 or 403 without identity leakage.
@@ -1287,6 +1823,29 @@ candidates before mutation routes are enabled.
   repeated candidate evaluation replays the existing safe projection without a
   second refund, wallet ledger, settlement, payout, or status-event mutation.
 - Unknown future room statuses fail closed as `safe_status_only`.
+- #1014 adds `PREMIUM_CHAT_UNANSWERED_REFUND_STATUS_PROJECTION` for the 24-hour
+  no-artist-answer read model. Active/opened rooms with no artist answer after
+  24 hours can project `refund_pending` with reason
+  `unanswered_24h_full_refund`, but this remains a candidate state and never a
+  completed refund. User-fault/report/sanction paths stay separate:
+  `refund_limited_70` means 70% user refund, 20% company retention, and 10%
+  artist compensation; `refund_limited_50` means 50% user refund, 40% company
+  retention, and 10% artist compensation. The projection returns status and
+  rate keys only and does not create refunds, wallet credits/debits, accounting
+  ledger rows, settlement, payout, notifications, or room status mutation.
+
+Premium chat hub status matrix projection (#933):
+
+`GET /api/v1/chat/premium-support-contract` exposes
+`hubStatusMatrixProjection` for `/premium-chat-hub` read wiring. The hub matrix
+covers `active`, `paused_by_report`, `admin_review`, `refund_pending`,
+`closed_by_artist`, and `expired`. Public room cards read only
+`/api/v1/chat/premium-rooms` public-list projection and expose only public CTA
+state; owner cards read `/api/v1/chat/me/premium-rooms`; artist management cards
+read `/api/v1/creator-studio/premium-chat/rooms`. Owner CTA, artist-management
+CTA, and public CTA sources must not be mixed across these surfaces. The hub
+projection is read-only and does not open rooms, submit reports, create refunds,
+process payment, debit wallet, settlement, or payout mutation.
 
 Premium chat live QA fixture readiness (#520):
 
@@ -1306,6 +1865,16 @@ report, settlement, or payout mutation paths.
   admin-prepared QA rows for safe QA accounts. They must not be created through
   actual payment, support donation, wallet debit/credit, report, refund,
   settlement, payout, or production customer data flows.
+- #1045 mounts
+  `GET /api/v1/chat/premium-rooms/refund-status-preview-fixture` as an
+  unauthenticated read-only preview for live QA when safe room rows or sessions
+  are unavailable. It returns inert examples for 24-hour unanswered 100% refund
+  candidate, 70% limited refund with 10% artist compensation, 50% limited refund
+  with 10% artist compensation, and artist-forced-close 100% refund. The
+  endpoint does not create rooms, reports, refunds, wallet ledger rows,
+  settlement, payout, donation/support rows, or payment mutations, and does not
+  expose raw chat bodies, raw report reasons, wallet ledger ids, provider refund
+  ids, tokens, cookies, secrets, or DB URLs.
 - Repeated verification must return the existing read-only projection and must
   not create duplicate wallet ledger, refund, report, moderation, settlement, or
   payout rows.
@@ -1335,12 +1904,44 @@ Authorization: Bearer <accessToken>
   and `supportMessages`.
 - Each item exposes only safe projection fields such as `roomId`, `artist`,
   `userSafeDisplay`, `roomStatus`, `answerState`, `unansweredState`,
-  `lastUserMessageAt`, `lastArtistReplyAt`, and `lastMessageKind`.
+  `replySla`, `lastUserMessageAt`, `lastArtistReplyAt`, and `lastMessageKind`.
 - The unanswered SLA uses the same 24-hour no-answer window as the room
   lifecycle contract and a 4-hour due-soon projection window for UI sorting.
+- #799 fixes `replySla` as the shared read-model clock for owner status,
+  artist inbox/status, and admin status views. The clock source is
+  `room.openedAt + 24h`; only `opened` and `active` rooms without artist answer
+  evidence can become `overdue_24h` refund candidates. `artist_answered`,
+  `lastArtistReplyAt`, or `hasArtistAnswer=true` must resolve to `replied` and
+  must not mix with the 24-hour refund-candidate state.
 - Support messages are separated from normal conversation messages. They do not
   create chat replies, answer requirements, or AI replies, and they are counted
   separately from conversation activity.
+- #827 product separation: the artist inbox is
+  `artist_direct_premium_dm` / `artist_direct_reply` from
+  `premium_chat_rooms` and must not reuse `/api/v1/chat/conversations`,
+  character-chat sessions, starter prompts, or AI reply routes. Owner users use
+  `/api/v1/chat/me/premium-rooms/:roomId/status`; the artist inbox never falls
+  back to the user conversation list.
+- #1077 artist direct-reply contract keeps the premium room type, participant
+  roles, artist reply states, and user-visible copy keys separate from
+  character chat. The room remains `premium_chat_rooms` /
+  `artist_direct_premium_dm` / `artist_direct_reply`; user participants are
+  owner users, responder participants are artist operators, and AI/provider
+  responder roles are not allowed. `needs_artist_reply` and `artist_answered`
+  are state keys only; clients must use `chat.premiumRoom.artistDirect.*` copy
+  keys or Korean fallback copy instead of showing raw enums.
+- #1098 participant projection contract separates room list/detail visibility
+  by viewer role. Public list readers see only safe artist/tier/status/read CTA
+  fields. Owner users see their own room, safe artist summary, report/refund
+  state, and mutation availability. Artist operators see requester safe summary,
+  reply state/SLA, and artist action availability for artists they operate.
+  Review operators see admin-safe moderation/refund state with redacted message
+  preview only. Unauthorized owner/artist access must return 403 or safe 404
+  without leaking room identity.
+- #1098 also fixes `roomType=artist_direct_premium_dm`,
+  `responseMode=artist_direct_reply`, and participant roles so premium rooms do
+  not fall back to character-chat sessions, starter prompts, provider
+  responders, or AI auto-reply lanes.
 - Raw room status, answer state, and message-kind enums must not be used as
   user-facing copy. Clients should use label keys or Korean fallback copy.
 - The projection must not expose raw chat bodies, raw support-message bodies,
@@ -1468,9 +2069,10 @@ lifecycle fields such as `owner_user_id`, `artist_id`, `tier_key`, `status`,
 
 ```http
 GET /api/v1/chat/premium-rooms?artistSlug=:slug&status=:status&take=:take&cursor=:roomId
+GET /api/v1/chat/me/premium-rooms?artistSlug=:slug&status=:status&take=:take&cursor=:roomId
 GET /api/v1/chat/me/premium-rooms/:roomId/status
 GET /api/v1/creator-studio/premium-chat/rooms/:roomId/status
-Authorization: Bearer <accessToken> # status endpoints only
+Authorization: Bearer <accessToken> # owner/artist endpoints only
 ```
 
 - Public room list returns `premium_room_list_item_v1` projection with
@@ -1479,6 +2081,12 @@ Authorization: Bearer <accessToken> # status endpoints only
   read-only viewer CTA, donation availability, and read-only policy.
 - List status filters are limited to public list states `opened`, `active`, and
   `artist_answered`; omitted status returns the same public set.
+- #880 adds the owner room list skeleton at `GET /api/v1/chat/me/premium-rooms`.
+  It is authenticated and owner-only, uses
+  `premium_room_owner_list_read_model`, and may include safe detail states such
+  as `active`, `paused_by_report`, `admin_review`, `refund_pending`,
+  `closed_by_artist`, and `expired`. It must not fall back to the character-chat
+  conversation list or return `chat_sessions` rows.
 - Owner status returns `premiumRoomStatus`, `premiumRoomRefundStatus`,
   `premiumRoomReportStatus`, `premiumRoomMutationAvailability`, and the
   read-only policy for the authenticated room owner.
@@ -1510,6 +2118,25 @@ Authorization: Bearer <accessToken> # status endpoints only
 - Until a later mutation PR exists, QA may verify only read projections and
   matrix visibility. Any attempt to use this storage as a payment/support/
   wallet/report/refund/settlement/payout mutation path must fail closed.
+- #880 keeps premium room public list, owner room list, owner detail, and artist
+  detail as separate read models. Public list is
+  `premium_room_public_list_read_model`; owner list is
+  `premium_room_owner_list_read_model`; owner detail is
+  `premium_room_owner_detail_read_model`; artist detail is
+  `premium_room_artist_detail_read_model`.
+- #1098 adds `participantProjection` to the support contract as a read-only
+  projection split for public, owner, artist-operator, and review-operator
+  surfaces. It does not enable user message send, artist direct reply,
+  character-chat AI reply, support message creation, donation, room open,
+  wallet credit/debit, payment, refund, settlement, payout, or operator
+  decision mutation.
+- #905 adds `roomProjection.tierRoomProjection` so public room list, owner room
+  list, and artist management list use the same `premiumRoomTierProjection`
+  shape. The only valid room tiers remain 300L, 500L, 1,000L, and 3,000L.
+- 500L, 1,000L, and 3,000L availability is split into server-counted follower
+  unlock gates and artist-selectable state. Client-submitted follower counts,
+  local prices, balances, or paid amounts are not trusted. The projection does
+  not open rooms, debit wallet, or change settlement/payout state.
 
 Premium chat support message and ranking projection contract (#496):
 
@@ -1524,6 +2151,13 @@ read-only and all donation/wallet/ranking-refresh mutations stay disabled.
 - Support messages may affect only the premium-chat communication/support and
   donation ranking lanes. They must never feed Lumina Pick likes or
   `/api/v1/boost-campaigns/:campaignId/rankings`.
+- #845 fixes projection separation between premium room messages, support
+  messages, donation events/ledger, and ranking lanes. `donation.message` is the
+  support-message source field, but it must not create a normal room message or
+  AI reply. Donation ledger references stay `premium_chat_donation`;
+  communication ranking may later consume safe support-message activity, while
+  donation ranking uses confirmed net donation only. Premium-chat support still
+  never feeds Lumina Pick/boost rankings.
 - Communication ranking copy is summary-only: room open, safe conversation
   activity, support, and artist reply activity may contribute, but clients must
   not show raw scoring formulas or internal source names.
@@ -1532,10 +2166,79 @@ read-only and all donation/wallet/ranking-refresh mutations stay disabled.
 - Reported, blinded, suspended, admin-review, refund-pending, closed, or
   expired rooms must keep support-message creation disabled before wallet lookup
   or any donation event/order write.
+- #871 fixes support-message moderation separation. Unsafe, reported, blinded,
+  or blocked support-message text must not be promoted into normal room
+  messages. Artist inbox projections show only a safe moderation state or
+  placeholder, while admin review uses a separate review projection. Reported
+  rooms stay in safe status-only pause until operator review resumes or closes
+  the room.
+- The #871 contract remains read-only: it does not enable support submission,
+  report creation, wallet debit, refund, settlement, payout, or admin mutation
+  paths.
 - User-visible support/ranking copy must not contain provider, prompt, ledger,
   mutation, projection, AI auto-reply wording, raw prompt/provider payloads,
   tokens, cookies, DB URLs, wallet ledger ids, support-point ids,
   conversation-meter ids, admin notes, or raw chat bodies.
+
+Premium chat support backend skeleton (#588):
+
+- `GET /api/v1/chat/premium-support-contract` now includes
+  `backendSkeleton.version =
+  2026-05-28.premium-chat-support-backend-skeleton.v1`.
+- The skeleton fixes support units as the existing fixed amounts
+  `10/50/100/500/1000/5000/10000/50000L` plus custom integer support from
+  `1L` to `50000L`. Amount, balance, ranking score, and client-local price are
+  not trusted.
+- Planned storage is named without enabling writes:
+  `premium_chat_donation_orders`, `premium_chat_donation_events`,
+  `premium_chat_support_point_ledger`, and
+  `premium_chat_ranking_snapshots`.
+- The future validation order is auth, session ownership, supportable room
+  state, amount policy, idempotency, wallet balance, and trust/identity gate.
+- Donation preview/create, wallet mutation, support-point ledger mutation,
+  ranking refresh by client, settlement, and payout remain disabled.
+- Ranking lanes stay separated: Lumina Pick likes remain on
+  `/api/v1/boost-campaigns/:campaignId/rankings`, while premium-chat
+  communication and donation lanes remain on planned `/api/v1/chat/rankings`
+  queries. Premium-chat support must not feed like rankings.
+- #895 adds `backendSkeleton.supportMessageRequest` for the future in-room
+  support message request contract. The planned endpoint remains disabled and
+  uses the existing fixed support units `10/50/100/500/1000/5000/10000/50000L`
+  plus custom integer support from `1L` to `50000L`.
+- The support message skeleton separates event and projection keys:
+  `premium_chat_support_message_requested`,
+  `premiumChatSupportMessageProjection`,
+  `premiumChatCommunicationRankingProjection`, and
+  `premiumChatDonationRankingProjection`. It does not feed Lumina Pick like
+  rankings.
+- The #895 skeleton is contract-only. It does not write support messages,
+  donation orders/events, wallet movement, settlement, payout, or ranking
+  refreshes.
+
+Premium chat support submit readiness (#616):
+
+- `GET /api/v1/chat/premium-support-contract` now exposes
+  `submitReadiness` with contract version
+  `2026-06-05.premium-chat-support-submit-readiness.v1`.
+- The allowed fixed support units are `10L`, `50L`, `100L`, `500L`,
+  `1,000L`, `5,000L`, `10,000L`, and `50,000L`. Custom support uses copy key
+  `chat.donation.amount.custom` / Korean fallback `내맘대로 후원`, accepts
+  integer-only `1L` through `50,000L`, and is server-normalized.
+- Current activation remains disabled:
+  `donationPreviewEnabled=false`, `donationCreateEnabled=false`,
+  `walletDebitEnabled=false`, `supportPointLedgerMutationEnabled=false`,
+  `settlementMutationEnabled=false`, `payoutMutationEnabled=false`, and
+  `rankingRefreshByClientEnabled=false`.
+- Ranking lanes stay separated. Lumina Pick/like ranking does not receive
+  premium-chat support. Communication ranking may later consume safe room-open,
+  message, support, and artist reply activity. Donation ranking may later
+  consume confirmed net premium-chat support only.
+- Activation blockers remain storage and accounting work: donation order/event
+  storage, support-point ledger storage, wallet ledger type allowlist,
+  idempotent wallet debit transaction, ranking read-model refresh worker, and
+  settlement/payout accounting contract.
+- The contract must not expose raw token, cookie, DB URL, wallet ledger id, or
+  support-point ledger id.
 
 Premium room list read-only contract (#372):
 
@@ -1560,6 +2263,59 @@ GET /api/v1/chat/premium-rooms?artistSlug=<artist-slug>&take=20
   payloads, raw chat bodies, or raw user ids.
 - Calling the room list must not open a room, create a donation, debit wallet,
   touch settlement, touch payout, or write ledger rows.
+- #948 adds the planned premium chat message read projection under
+  `apiContracts.premiumRoomMessages` and `projections.premiumRoomMessageItem`.
+  Image messages in the room conversation flow expose only safe message fields:
+  message id, sender role/display fields, createdAt, image asset id, safe
+  thumbnail URL, dimensions, and moderation status/key. Original private object
+  URLs, signed URLs, storage keys, raw asset metadata, raw chat bodies, wallet
+  ledger ids, support-point ids, conversation-meter ids, and private user ids
+  must not be returned. This does not enable image upload, message send,
+  payment, wallet, settlement, payout, or donation mutation.
+- #949 adds the planned premium chat `+` action menu capability projection under
+  `productProjection.plusActionMenu` and `apiContracts.plusActionMenu`. The
+  input bar actions are separated as image attachment, emoticon, and support
+  capabilities with stable label/capability keys; raw action keys must not be
+  used as user copy. Selecting an action is read-only and does not upload an
+  image, send an emoticon, create support, debit wallet, touch payment,
+  settlement, payout, or ledger rows. The support action must open a
+  confirmation/preview step first; wallet mutation before confirmation remains
+  disabled.
+- #970 adds the planned premium chat message send skeleton under
+  `apiContracts.premiumRoomMessageSend` and
+  `projections.premiumRoomMessageSendSkeleton`. The future endpoint is
+  `POST /api/v1/chat/premium-rooms/:roomId/messages` with explicit
+  `messageKind=text|image`, idempotency, room-state, report/blind guard, and
+  image-asset validation ordering. Image send uses an existing confirmed image
+  asset id and does not upload inside the send endpoint. Text/image messages are
+  separated from support/donation messages and report/blind state flows. This
+  skeleton remains disabled and does not create messages, upload images, create
+  support/donation/report rows, notify users, debit wallet, touch payment,
+  settlement, or payout state.
+
+Premium chat room status projection split (#617):
+
+- `GET /api/v1/chat/premium-rooms` is an implemented read-only public list. It
+  accepts only public-visible statuses: `opened`, `active`, and
+  `artist_answered`.
+- Public room list status filters for owner/operator states such as
+  `paused_by_report`, `refund_pending`, `closed_by_artist`, or `expired` are
+  rejected with `PREMIUM_CHAT_ROOM_STATUS_INVALID` before any wallet, donation,
+  settlement, payout, or message mutation path can run.
+- Owner/user detail status remains on
+  `GET /api/v1/chat/me/premium-rooms/:roomId/status`; artist/operator detail
+  status remains on
+  `GET /api/v1/creator-studio/premium-chat/rooms/:roomId/status`.
+- Detail projections may show safe status-only/archive states such as
+  `paused_by_report`, `refund_pending`, `closed_by_artist`, and `expired`, but
+  must keep message send, artist reply, donation, refund, wallet, settlement,
+  and payout mutations disabled.
+- Room list and detail policy expose `visiblePublicStatuses`,
+  `ownerArtistStatusOnlyStatuses`, `archiveStatuses`, and
+  `publicListExcludesOwnerArtistStates` so frontend/QA can verify state
+  separation without reading raw chat bodies, raw report reasons, admin notes,
+  wallet ledger ids, support point ledger ids, conversation meter ids, raw user
+  ids, token, cookie, or DB URL.
 
 Donation idempotency:
 
@@ -1597,6 +2353,9 @@ GET /api/v1/chat/rankings?type=donation&period=weekly&take=20
   `premium_chat_donation`.
 - `GET /api/v1/chat/rankings` accepts only `type=communication` or
   `type=donation`. Do not add a `type=like` alias to the chat ranking lane.
+- #777 requires the response `type` to mirror the requested lane and forbids
+  mixed-lane items. The chat ranking projection must reject or omit `like`,
+  `free_like`, `lumina_pick`, and `boost` as chat ranking types or score sources.
 - Communication ranking uses `premium_chat_open`, `premium_chat_message`,
   `premium_chat_donation`, and artist reply activity as a separate score lane.
 - Donation ranking uses confirmed net `premium_chat_donation` only. Refunded,
@@ -1623,6 +2382,67 @@ The current implementation exposes these shapes through read-only
 `GET /api/v1/chat/premium-support-contract` under `apiContracts`; the room list,
 donation, and ranking mutations/read models remain disabled until storage,
 ledger, and moderation integration are added.
+
+Premium chat ranking backend projection readiness (#592):
+
+`GET /api/v1/chat/premium-support-contract` exposes
+`rankings.backendProjection` as a disabled backend read-model contract. It is
+for reviewer/QA alignment only and does not enable the public ranking read
+endpoint, donation creation, frontend score submit, or client-triggered refresh.
+
+- Planned read models are `premium_chat_ranking_snapshots`,
+  `premium_chat_support_point_ledger`, `premium_chat_conversation_meter_ledger`,
+  and `premium_chat_rooms`.
+- Communication ranking reads only server-side room-open support points, safe
+  message activity support points, confirmed net donation support points, and
+  safe artist reply activity. The final score formula remains server-side only.
+- Donation ranking reads only confirmed net premium-chat donation support
+  points. It excludes Lumina Pick likes/boosts, room-open rows, message rows,
+  reported/blinded rows, refunded rows, chargeback rows, and cancelled rows.
+- Chat rankings accept only `communication` and `donation`. Like ranking stays
+  on `/api/v1/boost-campaigns/:campaignId/rankings`, and premium-chat support
+  must not feed that lane.
+- Duplicate projection refresh is a server-side replay concern only. It must not
+  create a second mutation, and clients cannot request refresh or submit scores.
+- Ranking projection privacy blocks raw chat bodies, support-message bodies,
+  report reasons, wallet/support/conversation ledger identifiers, raw user
+  identifiers, message identifiers, internal formulas, and private connection
+  material.
+- Current readiness is disabled: ranking endpoint, read-model storage, snapshot
+  job, support-point storage, frontend submit, and donation create are all
+  `false`.
+- #1079 adds `donation.supportMessageLedgerSkeleton` for the future premium-chat
+  support-message ledger. It fixes server-normalized donation amount tiers,
+  safe donor display policy, communication/donation ranking ledger lanes, an
+  artist-share read-model placeholder, and a no-settlement placeholder. It does
+  not create donation rows, debit or credit wallet/Lumina, write support-point
+  ledgers, write settlement or payout queues, or expose raw donor ids, raw
+  contact fields, wallet balances, settlement ledger ids, payout ledger ids, or
+  support-message bodies in rankings.
+- #803 adds the daily aggregate contract under
+  `rankings.backendProjection.dailyAggregate`. It aggregates
+  `artist_per_day_per_lane` in `Asia/Seoul` and keeps communication and donation
+  lanes separate. Communication daily aggregates include confirmed room opens,
+  safe visible message activity, confirmed net donation as a weighted factor,
+  and safe artist reply activity. Donation daily aggregates include confirmed
+  net donation only. Cancelled, refunded, chargeback, reported, blinded,
+  suspended, and operator-sanctioned unsafe rows are excluded before aggregate
+  output. Daily aggregate support-point, snapshot, wallet, settlement, and
+  payout mutations remain disabled.
+- #896 adds `rankings.backendProjection.responseProjection` as the read-model
+  shape for future chat ranking responses. It allows only `communication` and
+  `donation`, fixes the window fields to `type/startsAt/endsAt/timezone` in
+  `Asia/Seoul`, and keeps mixed-lane items disabled.
+- The #896 response projection separates rank sources:
+  communication reads `premium_chat_support_point_ledger.communication_lane`,
+  while donation reads `premium_chat_support_point_ledger.donation_lane`.
+  Ranking windows come from
+  `premium_chat_ranking_snapshots.window_start_end_asia_seoul`.
+- Ranking items expose only `type`, `rankNo`, decimal string `score`,
+  `scoreLabelKey`, a safe artist projection, and a safe viewer summary. Artist
+  owner, settlement, payout, user raw identifier, support history, payment
+  state, score submit, support-point write, snapshot write, wallet, settlement,
+  and payout mutations remain unavailable.
 
 Premium chat support point ledger contract (#363):
 
@@ -1979,6 +2799,15 @@ GET /api/v1/popular-vote/hall-of-fame/monthly-picks?year=2026
 GET /api/v1/popular-vote/hall-of-fame/year-champion?year=2026
 ```
 
+- #937 fixes the public artist ranking projection rule across like, vote,
+  premium-chat donation, and premium-chat communication lanes. Ranking
+  projections include artists only after they are public `active` characters,
+  including already-public characters such as Oh Hyerin and gallery-ready
+  characters after they are promoted to active public release. Pending, hidden,
+  archived, and deleted artists are excluded before ranking output, even if
+  legacy ranking events exist. This rule does not execute like, vote, support,
+  wallet, settlement, payout, or paid-like mutation.
+
 Admin operation endpoint:
 
 ```http
@@ -2268,6 +3097,227 @@ AI premium content generation pipeline draft:
   cost/usage logs, admin tracking fields, and user-facing status separation.
 - The draft does not enable live provider calls, wallet/order/settlement
   mutations, paid-like behavior, public publishing, or vendor-specific coupling.
+- #597 adds a backend usage ledger guard skeleton at
+  `server/src/creator-image-requests/ai-content-usage-ledger.contract.ts`.
+  It records only provider-neutral usage fields: `requestId`, `providerFamily`,
+  `modelAlias`, `capability`, `attempt`, `regenerationCount`,
+  `estimatedCostMicros`, `actualCostMicros`, `inputUnits`, `outputUnits`,
+  `failureCode`, and server timestamp.
+- #746 extends that skeleton for the AI Middleware Pipeline by recording
+  `requestType`, server-owned `modelRouteAlias`, and `safetyStatus` before any
+  future provider attempt. The model route is a server alias such as
+  `ai_premium_content.image.text_to_image`; vendor-specific provider/model
+  identifiers are not part of this log contract.
+- Safety-blocked requests may create only the sanitized skeleton log row and
+  must not continue into provider execution, wallet/order work, settlement,
+  payout, paid-like behavior, or public publishing.
+- #851 adds a provider-free safety precheck contract before image/video
+  generation. The precheck resolves `safe`, `review_required`, or `blocked`
+  before any GPT Image, Stable Diffusion, Seedance, OpenAI, or other provider
+  call. Risk categories are minor, real-person similarity, sexual content,
+  copyright, and platform policy. Blocked/review decisions remain server-owned
+  and must not mutate wallet, order, settlement, payout, paid-like, image
+  generation, or video generation state.
+- Usage summaries may calculate total attempts, failed attempts, failure rate,
+  estimated/actual cost totals, input/output unit totals, and maximum
+  regeneration count. These summaries are reporting guards only.
+- The usage guard must not store or log vendor credentials, raw provider
+  payloads, raw prompts, raw asset bytes, token, cookie, password, API key, or
+  DB URL.
+- AI content usage rows do not mutate wallet, payment order, settlement, payout,
+  revenue-share, or paid-like state. Future duplicate protection should use
+  `ai-content-usage:<requestId>:<attempt>` or an equivalent server-scoped key.
+
+AI premium content request state API skeleton (#591):
+
+- `AI_PREMIUM_CONTENT_STATE_API_CONTRACT.version` is
+  `2026-06-02.ai-premium-content-request-state-api-skeleton.v1` and remains
+  `skeleton_ready_mutation_blocked`.
+- This contract defines image/video/mixed request state only. It does not
+  enable live provider calls, wallet/order mutation, settlement, payout,
+  paid-like behavior, public publishing, or profile/feed equip side effects.
+- Request types are `image_single`, `image_variation`, `image_reference`,
+  `video_clip`, `video_loop`, and `premium_pack`. Output classes are `image`,
+  `video`, and `mixed`.
+- Planned state endpoints remain disabled:
+  - `GET /api/v1/me/ai-premium-content/requests`
+  - `GET /api/v1/ai-premium-content/requests/:requestId`
+  - `GET /admin/api/v1/ai-premium-content/requests`
+  - `GET /admin/api/v1/ai-premium-content/requests/:requestId`
+  - `POST /api/v1/ai-premium-content/requests`
+  - `POST /api/v1/ai-premium-content/requests/:requestId/regenerations`
+  - `PATCH /admin/api/v1/ai-premium-content/requests/:requestId`
+- `creator_image_requests` remains the current image queue bridge candidate.
+
+AI premium content request brief API skeleton (#662):
+
+- `server/src/ai-premium-content/ai-premium-content-state-contract.ts` exports
+  `AI_PREMIUM_CONTENT_BRIEF_API_SKELETON` version
+  `2026-06-05.ai-premium-content-brief-api-skeleton.v1`.
+- The planned endpoint is `POST /api/v1/ai-premium-content/requests`, but it
+  remains `enabled: false`, `submitEnabled: false`, and `mutation: false` until
+  backend implementation and QA explicitly open it.
+- The skeleton tracks only request type, artist slug/server-resolved artist id,
+  sanitized brief shape, server-owned safety status, and server-owned estimated
+  cost fields.
+- #711 keeps provider routing abstract through server aliases such as
+  `ai_premium_content.image.text_to_image`. The contract may expose only the
+  route alias and capability alias; it must not expose vendor provider keys,
+  model keys, raw prompts, provider payloads, wallet fields, settlement fields,
+  payout fields, or paid-like mutation state.
+- Provider calls, wallet debit, order creation, settlement accrual, payout
+  accrual, paid-like mutation, public publish, and profile/feed equip side
+  effects are all blocked by contract.
+  `premium_video_products` remains an unlock catalog, not a generation request
+  queue. Future unified storage requires `ai_premium_content_requests`.
+- Public request state projection separates request status, moderation status,
+  result availability, retry availability, and publish/equip availability.
+- #779 separates owner and admin projections before the API is enabled. Owner
+  list/detail projections may show user-facing status, moderation status, result
+  availability, retry/publish availability, safe brief/reference previews, and
+  user-facing safety summaries. Admin projections may additionally show safe
+  review summaries, moderation reason keys, cost policy summaries, and generation
+  attempt summaries.
+- #801 adds `AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON` as the provider-neutral
+  queue shape for future image, video, and mixed generation requests. It keeps
+  `creator_image_requests` as the current image bridge and
+  `ai_premium_content_requests` as future storage while `enabled`,
+  `storageEnabled`, `providerCallEnabled`, and all paid/public mutation gates
+  remain false. The normalized queue fields are request type, artist slug,
+  server-owned safety status, server-policy estimated cost, and server provider
+  route alias. Vendor provider keys, model keys, raw prompts, provider payloads,
+  signed URLs, sensitive auth material, and database connection material must
+  not be returned or logged by this skeleton.
+- #883 adds `AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON` for the future
+  create/status API surface. It keeps `POST /api/v1/ai-premium-content/requests`
+  and `GET /api/v1/ai-premium-content/requests/:requestId/status` disabled with
+  `enabled=false`, `submitEnabled=false`, and `mutation=false`. The canonical
+  status projection for this surface is `pending`, `safety_review`, `blocked`,
+  `queued`, `generating`, `ready`, and `failed`.
+- The #883 create shape is provider-neutral and stores request type, artist
+  slug, sanitized user intent summary, server-owned safety status, server
+  provider route alias, and server-policy estimated cost. Client-submitted
+  provider status, model/vendor ids, cost, wallet balance, result URLs, and
+  publish/equip decisions are not trusted.
+- #898 extends the create/status skeleton with separate canonical status axes:
+  request type, safety status, routing status, and result status. Raw enum
+  values are not user copy; responses must use stable localized message keys.
+- #898 keeps image, video, and mixed premium content under one request status
+  model. Provider routing is server-selected through adapter keys such as
+  `image_generation_primary`, `image_generation_diffusion`,
+  `video_generation_primary`, and `mixed_generation_pack`, plus
+  `ai_premium_content.*` route aliases. Vendor/provider/model names remain
+  non-contract implementation details.
+- #1013 adds `AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON` for the future
+  middleware route selection surface
+  `POST /api/v1/ai-premium-content/requests/model-routing`. It separates
+  request type, server-resolved artist context, server-owned safety state,
+  selected route alias/adapter family, and server cost policy. The skeleton is
+  disabled and must not call GPT Image, Stable Diffusion, Seedance, OpenAI, or
+  any provider; it also must not create queue/request rows, debit wallet/Lumina,
+  create payment orders, or touch settlement/payout. Selected vendor model ids,
+  provider payloads, raw prompts, safety payloads, and provider secrets are not
+  returned.
+- #1135 adds `AI_PREMIUM_CONTENT_COST_ESTIMATE_PROJECTION_CONTRACT` as a
+  disabled read-only projection for request cost UI wiring. It combines request
+  type, output class, route alias/class, server-policy estimated cost,
+  free/paid request state, required Lumina preview, and video consent state into
+  one provider-agnostic projection. Provider/model vendor names, provider
+  quotes, raw provider payloads, and client-submitted cost or required Lumina
+  are not authority. Video and mixed output require explicit video consent before
+  generation, and estimate reads must not call providers, create requests/orders,
+  debit wallet/Lumina, or touch settlement/payout.
+- #907 adds the future result archive read projection at
+  `GET /api/v1/me/ai-premium-content/results`. It remains disabled and
+  read-only, but defines one owner-facing archive for image, video, and mixed
+  AI premium content results.
+- The #907 archive item separates completed, reviewing, blocked, failed, and
+  regeneratable states from raw enums and uses stable copy keys. It may expose
+  safe result asset ids and a user-facing price label, but not original provider
+  result URLs, signed URLs, raw prompts, provider payloads, internal cost
+  breakdowns, settlement cost, payout cost, or wallet/order mutation state.
+- #934 adds `AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT` for a future
+  public, read-only QA status sheet preview at
+  `GET /api/v1/ai-premium-content/status-preview-fixture`. It remains
+  `enabled=false`, `authRequired=false`, and `mutation=false`; fixture states
+  cover Korean display copy for reviewing, generating, completed, blocked,
+  failed, and regeneratable. Raw request/result/provider enums are never user
+  copy, provider payloads/prompts/signed URLs are not returned, and the preview
+  must not create requests, call GPT Image, Stable Diffusion, Seedance,
+  OpenAI/provider routes, debit wallet, create orders, settlement, payout,
+  paid-like, or publish/equip content.
+- #1044 mounts the #934 status preview fixture route as a read-only,
+  unauthenticated QA projection so no-provider live smoke can receive a stable
+  200 response instead of a missing route. The response exposes Korean display
+  labels and message keys only, keeps raw enum values out of UI copy, and
+  reports provider, prompt, safety payload, signed URL, internal cost, request,
+  wallet, order, settlement, payout, paid-like, and publish/equip side effects
+  as disabled. This does not enable submit, generation, provider routing, or
+  owner-facing status APIs.
+- #1030 adds
+  `AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON` for future
+  owner-facing read status at `GET /api/v1/me/ai-premium-content/requests`,
+  `GET /api/v1/ai-premium-content/requests/:requestId`, and
+  `GET /api/v1/me/ai-premium-content/results`. It remains
+  `enabled=false`, `readOnly=true`, and `mutation=false`.
+- The #1030 user-facing status buckets are received, reviewing, producing,
+  completed, blocked, failed, and regeneratable. Responses must use stable
+  localized keys plus Korean fallback copy such as "접수되었어요",
+  "검수 중이에요", "제작 중이에요", "완료되었어요", "진행할 수 없어요",
+  "제작에 실패했어요", and "재생성을 요청할 수 있어요"; raw enums or
+  English keys such as `active`, `accepted`, `provider_failed`, or
+  `not_started` must not be shown as UI copy.
+- #1030 is projection-only. It must not return provider internal state, raw
+  prompts, provider payloads, safety payloads, internal/provider cost values,
+  signed URLs, wallet ledger ids, settlement ids, payout ids, or sensitive auth
+  material. It also does not enable GPT Image, Stable Diffusion, Seedance,
+  OpenAI/provider calls, request creation, regeneration submission, payment,
+  wallet, settlement, payout, paid-like, feed publish, or profile equip
+  mutation.
+- #1053 adds `AI_PREMIUM_CONTENT_VIDEO_CONSENT_EXCEPTION_CONTRACT` for the
+  video-only cost-consent exception state. It remains disabled/read-only and
+  does not submit requests, call providers, create payment orders, debit wallet,
+  or touch settlement/payout. If a user declines video cost consent, video
+  results stay hidden while existing text/image request flow and safe previews
+  continue; the whole request is not cancelled by this state. UI copy must use
+  Korean fallback labels such as "영상 제작 비용 동의가 필요해요" and
+  "영상 제작은 진행하지 않아요" rather than raw state/provider enums. The
+  disabled read-only state API exposes only safe UI fields, including
+  `videoResultVisible`, `textResultVisible`, `imageResultVisible`, and
+  `requestContinues`.
+- #883 does not enable GPT Image, Stable Diffusion, Seedance, OpenAI/provider
+  calls, image/video generation, wallet debit, order creation, settlement,
+  payout, paid-like mutation, profile equip, or feed publish side effects.
+- #873 adds `CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT` for the future
+  character-chat-to-AI-content request bridge. It is adapter-only and disabled:
+  normal character chat remains `ai_character_chat` / `ai_character_reply`,
+  artist direct premium DM remains `artist_direct_premium_dm` /
+  `artist_direct_reply`, and image/video/mixed content requests remain
+  `ai_premium_content_request` / `async_ai_content_generation_request`.
+- The #873 handoff may carry only a source message reference, server-resolved
+  artist slug, server-classified request type, and sanitized user-intent
+  summary. It must not copy the full chat transcript as a provider prompt or
+  expose raw request enums as user copy.
+- #873 does not enable `POST /api/v1/ai-premium-content/requests`, GPT Image,
+  Stable Diffusion, Seedance, OpenAI/provider calls, wallet/order mutation,
+  settlement, payout, paid-like mutation, notification creation, premium DM room
+  creation, or character-chat AI reply creation.
+- Raw state enums such as `provider_failed` must not be shown directly. Use the
+  Korean fallback map: `draft` = `작성 중`, `submitted` = `요청이 접수됐어요`,
+  `queued` = `생성 준비 중이에요`, `generating` = `콘텐츠를 만들고 있어요`,
+  `awaiting_review` = `검수 중이에요`, and `approved` =
+  `콘텐츠가 준비됐어요`.
+- The server owns request status, moderation status, provider state, cost, result
+  asset ids, context snapshots, and safety gates. Client-submitted status,
+  provider status, cost, result URLs, wallet balance, and publish/equip decisions
+  are not trusted.
+- The projection must not return raw provider payloads, raw prompts, private
+  reference material, signed URLs, sensitive auth material, private connection
+  material, raw emails, wallet ledger ids, settlement internals, or payout
+  internals.
+- Both owner and admin projections must keep provider keys, model keys, raw
+  prompts, raw provider payloads, raw moderation notes, internal cost breakdowns,
+  wallet ledger ids, settlement ids, and payout ids out of response bodies.
 
 Free-like quota endpoint:
 
@@ -2435,6 +3485,29 @@ Authorization: Bearer <accessToken>
   - `GET /api/v1/users/handle/:publicHandle/followers?take=20&cursor=<followId>`
   - `GET /api/v1/users/handle/:publicHandle/following-users?take=20&cursor=<followId>`
   - `GET /api/v1/users/handle/:publicHandle/following-artists?take=20&cursor=<followId>`
+- Public profile stats use the same authenticated viewer block filter as the
+  follow-list read model. If the viewer has an active `user_blocks` relationship
+  with a follower/following user in either direction, that row is excluded from
+  `stats.followerCount`, `stats.followingCount`, `stats.followers`, and
+  `stats.followingUsers`. A block relationship with the target profile itself
+  still fails closed with `403 USER_PROFILE_BLOCKED`; empty follow lists return
+  `{ items: [], count: 0, total: 0, nextCursor: null }`.
+- #935 fixes the public user follow-list projection contract as
+  `USER_SOCIAL_ACCOUNT_CONTRACT.profileFollowLists.publicListProjection`.
+  Follower and following-user endpoints by id or handle must use the same
+  visibility filter for list rows and counts: active target profile,
+  non-deleted follow row, active non-deleted source/target users, and no active
+  block relationship in either direction for authenticated viewers. Deleted,
+  suspended, inactive, or private users are hidden before counting so `items`,
+  `count`, `total`, and profile stats do not drift. The projection is read-only
+  and does not run follow, unfollow, or block mutations.
+- #936 adds `USER_SOCIAL_ACCOUNT_CONTRACT.followerBlockProjectionGuard` so
+  blocking a follower uses one fail-closed read policy across feed, profile, and
+  follow-list projections. Active `user_blocks` rows in either direction hide
+  blocked users' feed rows and follower/following rows before pagination and
+  count, and direct profile reads fail with `USER_PROFILE_BLOCKED`. Viewer hints
+  must not leak blocked users' private fields. This guard does not add block,
+  follow, unfollow, feed, wallet, Lumina, settlement, or payout mutation.
 - Public user follow-list responses use the existing My Page pagination contract and add a safe target/viewer/policy envelope:
 
 ```json
@@ -2450,6 +3523,16 @@ Authorization: Bearer <accessToken>
         "displayName": "public display name",
         "publicHandle": "public-handle",
         "avatarUrl": "public asset url or null"
+      },
+      "viewer": {
+        "isAuthenticated": true,
+        "isSelf": false,
+        "isFollowing": true,
+        "canFollow": false,
+        "canUnfollow": true,
+        "canEditProfile": false,
+        "blockedByMe": false,
+        "hasBlockedMe": false
       }
     }
   ],
@@ -2464,6 +3547,16 @@ Authorization: Bearer <accessToken>
         "displayName": "public display name",
         "publicHandle": "public-handle",
         "avatarUrl": "public asset url or null"
+      },
+      "viewer": {
+        "isAuthenticated": true,
+        "isSelf": false,
+        "isFollowing": true,
+        "canFollow": false,
+        "canUnfollow": true,
+        "canEditProfile": false,
+        "blockedByMe": false,
+        "hasBlockedMe": false
       }
     }
   ],
@@ -2487,6 +3580,16 @@ Authorization: Bearer <accessToken>
     "projection": "public_user_follow_summary_v1",
     "visibility": "public_active_profiles_only",
     "hiddenUserRule": "Only active non-deleted users and public active artists are returned.",
+    "blockedUserRule": "Authenticated viewers do not receive list rows for users in an active block relationship; a block relationship with the target profile returns 403.",
+    "viewerHints": [
+      "isAuthenticated",
+      "isSelf",
+      "isFollowing",
+      "canFollow",
+      "canUnfollow",
+      "blockedByMe",
+      "hasBlockedMe"
+    ],
     "privateFieldsExcluded": [
       "email",
       "phone",
@@ -2512,7 +3615,8 @@ Authorization: Bearer <accessToken>
   unfollow, block, unblock, remove-follower, public profile, and My Page
   follow-list routes are live under the current addendum.
 - Public follow-list endpoints accept optional bearer auth. Anonymous callers can read public active profiles; authenticated callers receive viewer hints and block filtering. If the viewer has an active block relationship with the target profile in either direction, the endpoint returns `403 USER_PROFILE_BLOCKED` with `messageKey: "social.profile.blocked"`.
-- Public follow-list item projection is limited to public profile fields: ids needed for routing, display name, public handle/slug, public avatar URL, follow row timestamps, and status. It must not expose email, social provider ids, phone, private bio metadata, wallet/Lumina balances, payment/refund/order rows, settlement/payout state, or admin/moderation notes.
+- Public follow-list item projection is limited to public profile fields plus viewer-safe relationship hints: ids needed for routing, display name, public handle/slug, public avatar URL, follow row timestamps, status, `viewer.isFollowing`, `viewer.canFollow`, `viewer.canUnfollow`, `viewer.blockedByMe`, and `viewer.hasBlockedMe`. It must not expose email, social provider ids, phone, private bio metadata, wallet/Lumina balances, payment/refund/order rows, settlement/payout state, or admin/moderation notes.
+- Public follow-list item visibility is fail-closed for active blocks. Authenticated viewers do not receive rows for listed users in an active block relationship with them; if the block relationship is with the target profile itself, the whole list read returns `403 USER_PROFILE_BLOCKED`.
 - `GET /api/v1/users/handle/:publicHandle/profile` is public and returns the same shape as `GET /api/v1/users/:userId/profile`, resolving by the unique `user_profiles.public_handle`.
 - Public user profile responses include `user.coverImageUrl`; render the frontend default cover when it is `null`.
 - Public user profile routes accept optional bearer auth. When present and valid, responses include `viewer.isSelf`, `viewer.isFollowing`, `viewer.canFollow`, `viewer.canUnfollow`, and `viewer.canEditProfile`.
@@ -2572,11 +3676,99 @@ Authorization: Bearer <accessToken>
 - `DELETE /api/v1/lumina-feed/posts/:postId/thread-items/:itemId` soft-deletes a non-root thread item for the root author only and is idempotent after the item is already deleted.
 - Thread likes, comments, reports, hides, and image assets remain root-post based in this phase. There is no wallet, Lumina, settlement, payout, or order mutation in thread create/edit/delete.
 - Canonical feed "이어쓰기" is `thread_continuation`, not automatic long-text splitting. Use `POST /api/v1/lumina-feed/posts/:postId/thread-continuations` to add a new continuation post under an existing public published root post. The caller must be the root post author; non-authors receive `403`, and missing/deleted/private roots are safe `404`.
+- #620 contract note: the canonical continuation button means "append to an already-created post." It is not the legacy manual multi-piece thread composer and it never auto-splits an overlong draft.
 - Thread continuation body is required and limited to 500 characters. The created post is a normal `community_posts` row with `metadata.threadContinuation`: `{ type: "thread_continuation", rootPostId, parentPostId, source: "existing_post", displayPlacement: "under_root_post", commentRelation: false, replyRelation: false, autoSplit: false }`.
 - `GET /api/v1/lumina-feed/posts/:postId/thread-continuations?take=20&cursor=<postId>` lists continuation posts only. It does not return normal comments/replies. Rows include `post.threadContinuation` so the UI can place them under the root post without confusing them with reply/comment projections.
-- Use `POST /api/v1/lumina-feed/posts/:postId/reposts` for repost and quote repost. It requires login, accepts optional `{ "body": "quote text, max 2200 chars" }`, creates a user-owned public repost row, and preserves `metadata.repost.originalPostId` plus original author/artist ids. Hidden/deleted/private source posts return safe `404`.
-- Repost rows include `post.repost`: `{ isRepost, type, originalPostId, originalAuthorUserId, originalArtistId, originalState, tombstone, unavailableReason, originalPost, policy }`. If the original becomes deleted/hidden/private/blocked, or the current viewer has hidden the original or has an active block relationship with the original author, render the embedded original as unavailable/tombstone and do not expose the original body.
-- Use `POST /api/v1/lumina-feed/posts/:postId/share` to request the public share contract for a public published post. It returns `share.publicPath`, `share.webShare`, and `share.countStrategy: "not_mutated_by_share_contract"`. It does not create a feed row, share ledger, wallet, Lumina, settlement, payout, order, or paid-like mutation.
+- #872 state contract: thread continuation uses `actionKey: "feed_thread_continue"` and `stateKey: "thread_continuation"`. Its count target is the continuation list, not the root manual `threadCount`, repost count, share count, or reply count.
+- Use `POST /api/v1/lumina-feed/posts/:postId/reposts` for repost and quote repost. It requires login, accepts optional `{ "body": "quote text, max 2200 chars" }`, creates a user-owned public repost row, and preserves `metadata.repost.originalPostId` plus original author/artist ids. Empty body creates `repost`; non-empty body creates `quote_repost`. Hidden/deleted/private source posts return safe `404`.
+- Repost rows include `post.repost`: `{ isRepost, type, hasQuote, parentPostId, threadRootPostId, commentRelation, replyRelation, threadRelation, originalPostId, originalAuthorUserId, originalArtistId, quoteBody, originalState, tombstone, unavailableReason, originalPost, policy }`. Repost projection must not be treated as a thread/comment/reply relation. If the original becomes deleted/hidden/private/blocked, or the current viewer has hidden the original or has an active block relationship with the original author, render the embedded original as unavailable/tombstone and do not expose the original body. Quote repost detail reads keep `post.repost.quoteBody` separate from `post.repost.originalPost.body`; the quote body may remain visible while the original is tombstoned, but the original body is returned only when the original is visible to the viewer.
+- #1032 fixes the quote body validation policy for reposts. The backend trims
+  `body` before validation, allows empty or whitespace-only body as a simple
+  `repost`, treats non-empty body as `quote_repost`, and caps quote body at
+  2200 characters. Over-limit body returns a validation error before creating a
+  feed row. Missing, deleted, hidden, private, reported/moderation-review,
+  viewer-hidden, or blocked source posts are safe not-found/tombstone cases and
+  must not expose the original body. Repost/quote repost projection stays
+  separate from thread, continuation, comment, reply, and share projections.
+  Share remains a read-only URL/Web Share contract and does not create feed
+  rows, notifications, repost counts, wallet, Lumina, settlement, payout, order,
+  or paid-like state.
+- #872 state contract: simple repost uses `actionKey: "feed_repost"` / `stateKey: "repost"` and quote repost uses `actionKey: "feed_quote_repost"` / `stateKey: "quote_repost"`. Repost count is separate from manual thread count, continuation list count, share count, and reply/comment count.
+- Use `POST /api/v1/lumina-feed/posts/:postId/share` to request the public share contract for a public published post, including another user's post. It returns `relation: "share"`, `createsFeedRow: false`, `repostRelation: false`, `threadRelation: false`, `commentRelation: false`, `replyRelation: false`, `share.publicPath`, `share.webShare`, and `share.countStrategy: "not_mutated_by_share_contract"`. It does not require author ownership and does not create a repost, feed row, share ledger, wallet, Lumina, settlement, payout, order, or paid-like mutation.
+- #800 count projection: repost and quote repost are the only rows included in repost/profile repost counters and repost notifications. The share contract remains a read-only URL projection and does not mutate repost count, quote repost count, share count, profile repost tabs, notification rows, or unread notification counters. Blocked relationships fail closed before repost creation/notification mutation and blocked relationship rows are excluded or tombstoned in read/count projections.
+- #872 state contract: share uses `actionKey: "feed_share"` / `stateKey: "share_contract"` with `countTarget: null`. Deleted, hidden, private, or blocked source posts fail closed as safe not-found/tombstone projections, and share does not mutate thread, repost, reply, wallet, Lumina, settlement, payout, order, or paid-like state.
+- #899 exports `LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT` as the
+  backend read-model contract for these lanes. Thread continuation is an
+  existing-post child post flow with count source
+  `community_posts.metadata.threadContinuation.rootPostId`; it is not automatic
+  long-text splitting and is excluded from manual thread, repost, share, reply,
+  and comment counts.
+- #899 keeps repost and quote repost counters tied only to
+  `community_posts.metadata.repost.originalPostId`, with quote text separate
+  from the original post projection. Share remains a URL/Web Share projection
+  with `countTarget: null`; it creates no feed row, notification row, unread
+  count, wallet, Lumina, settlement, payout, order, or paid-like mutation.
+- #1015 exports `LUMINA_FEED_THREAD_REPOST_SHARE_PM_PROJECTION_CONTRACT` as a
+  follow-up read-model boundary for PM wording. Thread continuation means
+  "append after publish" against an already-created root post; it is not a long
+  draft composer, automatic text split, or legacy manual thread authoring flow.
+  Repost means bringing the original post into the viewer-owned feed context,
+  with quote text stored separately from the original body and with no thread,
+  comment, reply, or share relation. Share remains a read action for public
+  share URL/Web Share projection, including another user's post; it requires no
+  author ownership and creates no feed row, repost row, share ledger,
+  notification, unread count, wallet, Lumina, settlement, payout, order, or
+  paid-like mutation.
+- #908 exports `LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT` to keep simple
+  repost, quote repost, and share URL guards separate. Repost uses
+  `feed_repost`/`repost`, quote repost uses `feed_quote_repost`/`quote_repost`,
+  and share uses `feed_share`/`share_contract` with `createsFeedRow: false`.
+  Guard order is auth for repost or quote repost, source id validation, public
+  published source lookup, deleted/hidden/private/moderation-review rejection,
+  block relationship check in either direction, quote body validation, then the
+  relation-specific projection. Missing, deleted, hidden, private, or
+  moderation-review sources fail closed as safe not-found; active blocks fail
+  closed with `USER_FOLLOW_BLOCKED`; later unavailable originals render as a
+  tombstone without exposing the original body. The contract adds no real post,
+  repost, share, notification, wallet, Lumina, settlement, payout, order, or
+  paid-like mutation.
+- #971 exports `LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT` for the
+  X-style quote repost card read model. The quote text stays in
+  `post.repost.quoteBody`, while the original card stays in
+  `post.repost.originalPost`; quote text never overwrites
+  `post.repost.originalPost.body`. If the original is missing, deleted, hidden,
+  private, moderation-review only, viewer-hidden, or blocked by relationship,
+  reads return a safe tombstone with `originalPost: null`,
+  `originalState: "unavailable"`, and no original/private body or internal
+  metadata. This is projection/API contract only and adds no repost create,
+  quote repost create, notification, unread count, share, wallet, Lumina,
+  settlement, payout, order, or paid-like mutation.
+- #1080 exports `LUMINA_FEED_REPOST_SHARE_DISPLAY_PROJECTION_CONTRACT` for feed
+  card display. Repost/quote repost display uses `post.repost.originalPostId`
+  for the original reference, keeps the viewer's quote in
+  `post.repost.quoteBody`, counts only `repost` and `quote_repost` rows in
+  `repostCount`, and renders missing/deleted/hidden/private/viewer-hidden/
+  blocked originals as tombstones without original body or private author
+  fields. Share remains `share_contract` URL/Web Share projection only with
+  `shareCount=null` and `countStrategy="not_mutated_by_share_contract"`.
+- #1136 exports `LUMINA_FEED_REPOST_TOMBSTONE_READ_PROJECTION_CONTRACT` for
+  list, detail, user-profile post, and repost-tab reads after an original post
+  becomes missing, deleted, hidden, private, viewer-hidden, or blocked by
+  relationship. Repost and quote repost rows may remain visible with
+  `post.repost.tombstone` and `originalPost=null`; quote text may remain
+  visible, but the original body, original assets, and private author fields are
+  not returned. Tombstone reads do not mutate repost count, share count,
+  notification count, wallet, Lumina, settlement, or payout state.
+- #1100 exports `LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT` as the canonical
+  quote projection contract. Quote repost creates a viewer-owned feed context
+  with `post.repost.quoteBody` kept separate from
+  `post.repost.originalPost.body`; simple repost keeps `quoteBody=null`.
+  Missing, deleted, hidden, private, reported, moderation-review,
+  viewer-hidden, or blocked original posts render as an unavailable tombstone
+  and must not expose the original body. Share stays a separate
+  `share_contract` read projection and never creates a repost row, feed row,
+  notification, count mutation, wallet/Lumina, settlement, payout, order, or
+  paid-like mutation.
 - `DELETE /api/v1/lumina-feed/posts/:postId` soft-deletes the current user's own root post. Deleting the root hides the full thread from feed lists.
 - `DELETE /api/v1/lumina-feed/replies/:replyId` soft-deletes the current user's own reply. Artist operators can delete replies on operated artist posts.
 - Hidden posts use soft delete/reactivation with unique `(user_id, post_id)`.

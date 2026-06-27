@@ -65,6 +65,17 @@ const MAX_CTA_LABEL_LENGTH = 80;
 const MAX_CTA_HREF_LENGTH = 500;
 const MAX_CONTENT_STRING_LENGTH = 5000;
 const ALLOWED_CTA_HOSTS = new Set(['lumina-stage.com', 'www.lumina-stage.com']);
+const RESERVED_NAVIGATION_CONTENT_KEYS = new Set([
+  'home.nav.label',
+  'artists.nav.label',
+  'lumina-pick.nav.label',
+  'navigation.home.label',
+  'navigation.artists.label',
+  'navigation.lumina-pick.label',
+  'main-nav.home.label',
+  'main-nav.artists.label',
+  'main-nav.lumina-pick.label',
+]);
 
 @Injectable()
 export class SiteContentService {
@@ -208,6 +219,18 @@ export class SiteContentService {
         message: 'Archived site content cannot be edited',
         messageKey: 'siteContent.error.archived',
         details: { id },
+      });
+    }
+    if (existing.status === 'published') {
+      throw this.badRequestError({
+        code: 'SITE_CONTENT_PUBLISHED_EDIT_REQUIRES_DRAFT',
+        message: 'Published site content cannot be edited before a draft is prepared',
+        messageKey: 'siteContent.error.publishedEditRequiresDraft',
+        details: {
+          id,
+          currentVersion: existing.version,
+          currentStatus: existing.status,
+        },
       });
     }
 
@@ -399,6 +422,7 @@ export class SiteContentService {
       SAFE_KEY_PATTERN,
       160,
     );
+    this.assertEditableContentKey(contentKey);
     const scope = this.scope(input.scope);
     const pageKey = this.optionalSlug(input.pageKey, 'pageKey');
     const characterSlug = this.optionalSlug(input.characterSlug, 'characterSlug');
@@ -541,6 +565,21 @@ export class SiteContentService {
     }
   }
 
+  private assertEditableContentKey(contentKey: string) {
+    if (RESERVED_NAVIGATION_CONTENT_KEYS.has(contentKey)) {
+      throw this.badRequestError({
+        code: 'SITE_CONTENT_RESERVED_NAVIGATION_KEY',
+        message: 'Fixed navigation labels are not editable site content',
+        messageKey: 'siteContent.error.reservedNavigationKey',
+        details: {
+          contentKey,
+          editable: false,
+          fixedNavigation: true,
+        },
+      });
+    }
+  }
+
   private assertPublishable(entry: SiteContentEntryRecord) {
     if (entry.status === 'archived') {
       throw this.badRequestError({
@@ -624,10 +663,12 @@ export class SiteContentService {
         rawHtmlAllowed: false,
         navigationKeyEditable: false,
         publishRequiresContent: true,
-        canEdit: entry.status !== 'archived',
-        canPublish: entry.status !== 'archived',
+        canEdit: entry.status === 'draft',
+        canPublish: entry.status === 'draft',
         canArchive: entry.status !== 'archived',
         canRestore: entry.status === 'archived',
+        publishedEditRequiresDraft: true,
+        draftVersionRequiredBeforePublish: true,
       },
     };
   }
@@ -741,8 +782,15 @@ export class SiteContentService {
       rawHtmlAllowed: false,
       publicReadPublishedOnly: true,
       auditRawContentStored: false,
+      auditRawPersonalDataStored: false,
       walletMutationAllowed: false,
       settlementMutationAllowed: false,
+      fixedNavigationKeysEditable: false,
+      commonAndCharacterCopySeparated: true,
+      draftEditOnly: true,
+      publishedEditRequiresDraft: true,
+      draftVersionRequiredBeforePublish: true,
+      rollbackSupported: false,
       archivedKeyRecoverable: true,
       restoreTargetStatuses: [...VALID_RESTORE_TARGET_STATUSES],
     };

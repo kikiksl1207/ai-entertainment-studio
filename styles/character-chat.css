@@ -605,6 +605,14 @@
   z-index: 10;
 }
 
+.dm-dock[hidden],
+.chat-starter-card[hidden],
+.dm-sheet[hidden],
+.dm-modal[hidden],
+.dm-modal-backdrop[hidden] {
+  display: none !important;
+}
+
 .dm-dock-actions {
   display: inline-flex;
   align-items: center;

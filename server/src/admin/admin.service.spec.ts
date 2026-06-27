@@ -1,6 +1,8 @@
 import { BadRequestException, HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
+import { ADMIN_AUTH_EMAIL_VERIFICATION_COOLDOWN_CONTRACT } from './admin-auth-email-verification-cooldown-contract';
 import { AdminService } from './admin.service';
 
 type PrismaMock = {
@@ -42,6 +44,209 @@ async function expectHttpError(
 
   throw new Error('Expected promise to reject');
 }
+
+describe('AdminService wallet daily ledger reconcile read model', () => {
+  it('returns a read-only robots noindex indexing readiness model without mutating external systems', () => {
+    const config = { get: jest.fn().mockReturnValue(undefined) };
+    const service = new AdminService(
+      {} as unknown as PrismaService,
+      config as unknown as ConfigService,
+    );
+
+    const result = service.getBackstageIndexingReadiness();
+
+    expect(config.get).toHaveBeenCalledWith('PUBLIC_INDEXING_ENABLED');
+    expect(result).toMatchObject({
+      statusKey: 'indexing.prelaunchNoindexExpected',
+      publicIndexingEnabled: false,
+      currentState: 'prelaunch_noindex_expected',
+      readModelNeeded: true,
+      repositorySignals: {
+        staticPagesUseNoindexMeta: true,
+        expectedMetaRobotsContent: 'noindex, nofollow',
+        representativeFiles: expect.arrayContaining([
+          'index.html',
+          'lumina-feed.html',
+          'backstage.html',
+        ]),
+      },
+      policy: {
+        endpoint: 'GET /admin/api/v1/backstage/operations/indexing-readiness',
+        mutation: false,
+        robotsTxtMutation: false,
+        searchConsoleMutation: false,
+        frontendFileMutation: false,
+        envValueReturned: false,
+        secretsReturned: false,
+      },
+    });
+    expect(result.launchChecklist).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'remove_static_noindex_meta',
+          requiredBeforePublicLaunch: true,
+        }),
+        expect.objectContaining({
+          key: 'search_console_manual_verification',
+          owner: 'ops_external',
+        }),
+      ]),
+    );
+  });
+
+  it('aggregates daily Lumina ledger movement without exposing payment secrets', async () => {
+    const prisma = {
+      walletLedger: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: '00000000-0000-4000-8000-000000000701',
+            walletAccountId: '00000000-0000-4000-8000-000000000601',
+            direction: 'credit',
+            amount: new Decimal(100),
+            ledgerType: 'purchase',
+            referenceType: 'payment_order',
+            referenceId: '00000000-0000-4000-8000-000000000801',
+            idempotencyKey: 'payment-secret-key',
+            memo: 'provider receipt and token must not leak',
+            createdAt: new Date('2026-06-05T01:00:00.000Z'),
+            walletAccount: {
+              id: '00000000-0000-4000-8000-000000000601',
+              userId: '00000000-0000-4000-8000-000000000501',
+              currencyCode: 'LUMINA',
+              status: 'active',
+              cachedBalance: new Decimal(70),
+            },
+          },
+          {
+            id: '00000000-0000-4000-8000-000000000702',
+            walletAccountId: '00000000-0000-4000-8000-000000000601',
+            direction: 'debit',
+            amount: new Decimal(30),
+            ledgerType: 'gift_spend',
+            referenceType: 'gift_order',
+            referenceId: '00000000-0000-4000-8000-000000000802',
+            idempotencyKey: 'gift-secret-key',
+            memo: 'gift memo must not leak',
+            createdAt: new Date('2026-06-05T03:00:00.000Z'),
+            walletAccount: {
+              id: '00000000-0000-4000-8000-000000000601',
+              userId: '00000000-0000-4000-8000-000000000501',
+              currencyCode: 'LUMINA',
+              status: 'active',
+              cachedBalance: new Decimal(70),
+            },
+          },
+        ]),
+      },
+    };
+    const service = new AdminService(
+      prisma as unknown as PrismaService,
+      { get: jest.fn() } as unknown as ConfigService,
+    );
+
+    const result = await service.getBackstageWalletLedgerDailyReconcile({
+      serviceDate: '2026-06-05',
+      userId: '00000000-0000-4000-8000-000000000501',
+    });
+
+    expect(prisma.walletLedger.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          createdAt: {
+            gte: new Date('2026-06-05T00:00:00.000Z'),
+            lt: new Date('2026-06-06T00:00:00.000Z'),
+          },
+          walletAccount: {
+            currencyCode: 'LUMINA',
+            userId: '00000000-0000-4000-8000-000000000501',
+          },
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      serviceDate: '2026-06-05',
+      currencyCode: 'LUMINA',
+      totals: {
+        walletAccountCount: 1,
+        ledgerEntryCount: 2,
+        creditLumina: '100',
+        debitLumina: '30',
+        netLumina: '70',
+      },
+      items: [
+        {
+          walletAccountId: '00000000-0000-4000-8000-000000000601',
+          userId: '00000000-0000-4000-8000-000000000501',
+          cachedBalanceLumina: '70',
+          ledgerEntryCount: 2,
+          creditLumina: '100',
+          debitLumina: '30',
+          netLumina: '70',
+          byLedgerType: expect.arrayContaining([
+            expect.objectContaining({
+              ledgerType: 'purchase',
+              creditLumina: '100',
+            }),
+            expect.objectContaining({
+              ledgerType: 'gift_spend',
+              debitLumina: '30',
+            }),
+          ]),
+          reconciliation: {
+            cachedBalanceSource: 'wallet_accounts.cached_balance',
+            ledgerSource: 'wallet_ledger',
+            currentBalanceSnapshotOnly: true,
+            openingBalanceRequiredForExactDailyBalance: true,
+          },
+        },
+      ],
+      policy: {
+        permission: 'payments:read',
+        mutation: false,
+        sourceOfTruth: 'wallet_ledger',
+        clientDisplayedBalanceTrusted: false,
+        rawPaymentIdentifierReturned: false,
+        rawReceiptReturned: false,
+        providerTokenReturned: false,
+        idempotencyKeyReturned: false,
+        memoReturned: false,
+      },
+    });
+    const payload = JSON.stringify(result);
+    expect(payload).not.toContain('payment-secret-key');
+    expect(payload).not.toContain('gift-secret-key');
+    expect(payload).not.toContain('provider receipt');
+    expect(payload).not.toContain('gift memo');
+    expect(payload).not.toContain('00000000-0000-4000-8000-000000000801');
+  });
+
+  it('rejects invalid wallet daily reconcile filters with stable codes', async () => {
+    const service = new AdminService(
+      { walletLedger: { findMany: jest.fn() } } as unknown as PrismaService,
+      { get: jest.fn() } as unknown as ConfigService,
+    );
+
+    await expectHttpError(
+      service.getBackstageWalletLedgerDailyReconcile({
+        serviceDate: '2026/06/05',
+      }),
+      {
+        code: 'WALLET_DAILY_RECONCILE_INVALID_SERVICE_DATE',
+        messageKey: 'admin.walletDailyReconcile.invalidServiceDate',
+      },
+    );
+    await expectHttpError(
+      service.getBackstageWalletLedgerDailyReconcile({
+        serviceDate: '2026-06-05',
+        currencyCode: 'USD',
+      }),
+      {
+        code: 'WALLET_DAILY_RECONCILE_INVALID_CURRENCY',
+        messageKey: 'admin.walletDailyReconcile.invalidCurrency',
+      },
+    );
+  });
+});
 
 describe('AdminService auth action token audit', () => {
   it('returns masked target and omits sensitive token fields', async () => {
@@ -138,6 +343,32 @@ describe('AdminService auth action token audit', () => {
         'reuse_recent_pending_token_within_cooldown_else_consume_previous',
       cooldownDuplicateRequestsCreateNewRow: false,
     });
+    expect(ADMIN_AUTH_EMAIL_VERIFICATION_COOLDOWN_CONTRACT.projection).toMatchObject({
+      readOnly: true,
+      sourceOfTruth: 'user_action_tokens',
+      cooldownSource: 'user_action_tokens.createdAt',
+      requestCooldownSeconds: 60,
+      duplicatePendingTokenPolicy:
+        'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+      cooldownDuplicateRequestsCreateNewRow: false,
+    });
+    expect(ADMIN_AUTH_EMAIL_VERIFICATION_COOLDOWN_CONTRACT.forbiddenFields).toMatchObject({
+      rawEmail: false,
+      rawToken: false,
+      tokenHash: false,
+      mailBody: false,
+      providerRawResponse: false,
+      cookie: false,
+      apiKey: false,
+      databaseUrl: false,
+    });
+    expect(ADMIN_AUTH_EMAIL_VERIFICATION_COOLDOWN_CONTRACT.mutationPolicy).toMatchObject({
+      createsToken: false,
+      sendsEmail: false,
+      changesUser: false,
+      consumesToken: false,
+      updatesDelivery: false,
+    });
     expect(JSON.stringify(result)).not.toContain('hash-value-must-not-leak');
     expect(JSON.stringify(result)).not.toContain('qa@example.com');
   });
@@ -201,6 +432,541 @@ describe('AdminService auth action token audit', () => {
   });
 });
 
+describe('AdminService generic audit event read model', () => {
+  it('redacts sensitive before/after/metadata fields while preserving safe trace fields', async () => {
+    const prisma = {
+      auditEvent: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: '00000000-0000-4000-8000-000000008890',
+            actorUserId: '00000000-0000-4000-8000-000000008891',
+            actorType: 'admin',
+            action: 'auth.password_reset.request',
+            targetType: 'user',
+            targetId: '00000000-0000-4000-8000-000000008892',
+            beforeData: {
+              rawEmail: 'raw-user@example.com',
+              token: 'token=must-not-return',
+              nested: {
+                password: 'password=must-not-return',
+              },
+            },
+            afterData: {
+              status: 'accepted',
+              cookie: 'cookie=must-not-return',
+              rawPrompt: 'raw prompt must not return',
+            },
+            metadata: {
+              endpointPath: '/api/v1/auth/password-resets',
+              requestId: 'req-889',
+              providerKey: 'provider-key=must-not-return',
+              providerCredential: 'provider-credential=must-not-return',
+              credential: 'credential=must-not-return',
+              dbUrl: 'postgres://must-not-return',
+            },
+            createdAt: new Date('2026-06-15T00:00:00.000Z'),
+            actorUser: {
+              id: '00000000-0000-4000-8000-000000008891',
+              email: 'admin@example.com',
+              status: 'active',
+            },
+          },
+        ]),
+      },
+    };
+    const service = new AdminService(
+      prisma as unknown as PrismaService,
+      { get: jest.fn() } as unknown as ConfigService,
+    );
+
+    const result = await service.getAuditEvents({ take: '10' });
+
+    expect(prisma.auditEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          actorUser: {
+            select: { id: true, email: true, status: true },
+          },
+        },
+      }),
+    );
+    expect(result.items[0]).toMatchObject({
+      actorUser: {
+        id: '00000000-0000-4000-8000-000000008891',
+        emailMasked: 'ad***@example.com',
+        status: 'active',
+      },
+      beforeData: {
+        rawEmail: '[redacted]',
+        token: '[redacted]',
+        nested: {
+          password: '[redacted]',
+        },
+      },
+      afterData: {
+        status: 'accepted',
+        cookie: '[redacted]',
+        rawPrompt: '[redacted]',
+      },
+      metadata: {
+        endpointPath: '/api/v1/auth/password-resets',
+        requestId: 'req-889',
+        providerKey: '[redacted]',
+        providerCredential: '[redacted]',
+        credential: '[redacted]',
+        dbUrl: '[redacted]',
+      },
+      sensitiveFields: {
+        tokenReturned: false,
+        passwordReturned: false,
+        cookieReturned: false,
+        dbUrlReturned: false,
+        providerKeyReturned: false,
+        providerCredentialReturned: false,
+        rawPromptReturned: false,
+        rawEmailReturned: false,
+      },
+    });
+
+    const payload = JSON.stringify(result);
+    expect(payload).not.toContain('raw-user@example.com');
+    expect(payload).not.toContain('admin@example.com');
+    expect(payload).not.toContain('must-not-return');
+    expect(payload).not.toContain('postgres://');
+  });
+
+  it('filters account security audit events read-only without returning raw credentials', async () => {
+    const actions = [
+      'auth.login.success',
+      'auth.password_reset.request',
+      'auth.email_verification.confirm',
+      'auth.social.connect',
+      'user.sessions.revoke',
+    ];
+    const prisma = {
+      auditEvent: {
+        findMany: jest.fn().mockResolvedValue(
+          actions.map((action, index) => ({
+            id: `00000000-0000-4000-8000-00000000913${index}`,
+            actorUserId: '00000000-0000-4000-8000-000000009130',
+            actorType: 'user',
+            action,
+            targetType: 'user',
+            targetId: '00000000-0000-4000-8000-000000009131',
+            beforeData: {
+              email: 'account-security@example.com',
+              token: 'token=must-not-return',
+              providerCredential: 'provider-credential=must-not-return',
+            },
+            afterData: {
+              status: 'accepted',
+              password: 'password=must-not-return',
+              cookie: 'cookie=must-not-return',
+            },
+            metadata: {
+              requestId: `req-913-${index}`,
+              sessionId: `session-${index}`,
+              providerCredential: 'provider-credential=must-not-return',
+              rawEmail: 'account-security@example.com',
+            },
+            createdAt: new Date('2026-06-16T00:00:00.000Z'),
+            actorUser: {
+              id: '00000000-0000-4000-8000-000000009130',
+              email: 'operator@example.com',
+              status: 'active',
+            },
+          })),
+        ),
+      },
+    };
+    const service = new AdminService(
+      prisma as unknown as PrismaService,
+      { get: jest.fn() } as unknown as ConfigService,
+    );
+
+    const result = await service.getAuditEvents({
+      action: 'auth.password_reset.request',
+      targetType: 'user',
+    });
+
+    expect(prisma.auditEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          action: 'auth.password_reset.request',
+          targetType: 'user',
+        }),
+      }),
+    );
+    expect(result.items.map((item) => item.action)).toEqual(actions);
+    for (const item of result.items) {
+      expect(item).toMatchObject({
+        targetType: 'user',
+        beforeData: {
+          email: '[redacted]',
+          token: '[redacted]',
+          providerCredential: '[redacted]',
+        },
+        afterData: {
+          status: 'accepted',
+          password: '[redacted]',
+          cookie: '[redacted]',
+        },
+        metadata: {
+          providerCredential: '[redacted]',
+          rawEmail: '[redacted]',
+        },
+        actorUser: {
+          emailMasked: 'op***@example.com',
+        },
+        sensitiveFields: {
+          providerCredentialReturned: false,
+          tokenReturned: false,
+          passwordReturned: false,
+          cookieReturned: false,
+          rawEmailReturned: false,
+        },
+      });
+    }
+    const payload = JSON.stringify(result);
+    expect(payload).not.toContain('account-security@example.com');
+    expect(payload).not.toContain('operator@example.com');
+    expect(payload).not.toContain('must-not-return');
+  });
+});
+
+describe('AdminService community feed cleanup audit guard', () => {
+  const adminUser = {
+    id: '00000000-0000-4000-8000-000000000609',
+    email: 'admin@example.com',
+  };
+  const postId = '00000000-0000-4000-8000-000000006090';
+  const unsafePostBody =
+    'testtest private customer note and raw personal text that must not enter audit';
+  const unsafeAuthorEmail = 'feed-author@example.com';
+  const unsafeModerationNote = 'raw moderation note with private context';
+  const basePost = {
+    id: postId,
+    status: 'published',
+    visibility: 'public',
+    postType: 'user_post',
+    body: unsafePostBody,
+    authorUserId: '00000000-0000-4000-8000-000000006091',
+    artistId: null,
+    reportCount: 0,
+    publishedAt: new Date('2026-06-03T00:00:00.000Z'),
+    deletedAt: null,
+    createdAt: new Date('2026-06-03T00:00:00.000Z'),
+    updatedAt: new Date('2026-06-03T00:00:00.000Z'),
+    metadata: {},
+    author: {
+      id: '00000000-0000-4000-8000-000000006091',
+      email: unsafeAuthorEmail,
+      status: 'active',
+      profile: {
+        displayName: 'Feed Author',
+        avatarAssetId: null,
+      },
+    },
+    artist: null,
+  };
+
+  function createCommunityAdminService() {
+    const prisma = {
+      communityPost: {
+        findUnique: jest.fn().mockResolvedValue(basePost),
+        update: jest.fn().mockImplementation(({ data }) =>
+          Promise.resolve({
+            ...basePost,
+            ...data,
+            metadata: data.metadata,
+          }),
+        ),
+      },
+      auditEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'audit-609' }),
+      },
+    };
+    const config = { get: jest.fn() };
+    const service = new AdminService(
+      prisma as unknown as PrismaService,
+      config as unknown as ConfigService,
+    );
+
+    return { service, prisma };
+  }
+
+  it('records sanitized audit snapshots when hiding public feed posts', async () => {
+    const { service, prisma } = createCommunityAdminService();
+
+    await service.hideCommunityPost(adminUser as never, postId, {
+      reason: 'qa_fixture_cleanup',
+      note: unsafeModerationNote,
+    });
+
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'community_post.hide',
+          targetType: 'community_post',
+          targetId: postId,
+          beforeData: expect.objectContaining({
+            id: postId,
+            bodyPresent: true,
+            bodyLength: unsafePostBody.length,
+            auditRawBodyStored: false,
+            auditRawEmailStored: false,
+          }),
+          afterData: expect.objectContaining({
+            status: 'hidden',
+            moderation: expect.objectContaining({
+              status: 'hidden',
+              notePresent: true,
+            }),
+            auditRawModerationNoteStored: false,
+          }),
+          metadata: expect.objectContaining({
+            reason: 'qa_fixture_cleanup',
+            notePresent: true,
+            rawBodyStored: false,
+            rawEmailStored: false,
+            rawModerationNoteStored: false,
+            tokenCookiePasswordStored: false,
+            dbUrlStored: false,
+          }),
+        }),
+      }),
+    );
+    const auditPayload = JSON.stringify(prisma.auditEvent.create.mock.calls[0][0]);
+    expect(auditPayload).not.toContain(unsafePostBody);
+    expect(auditPayload).not.toContain(unsafeAuthorEmail);
+    expect(auditPayload).not.toContain(unsafeModerationNote);
+    expect(auditPayload).toContain('fe***@example.com');
+  });
+
+  it('records sanitized audit snapshots when restoring public feed posts', async () => {
+    const { service, prisma } = createCommunityAdminService();
+
+    await service.restoreCommunityPost(adminUser as never, postId, {
+      reason: 'qa_fixture_restored',
+      note: unsafeModerationNote,
+    });
+
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'community_post.restore',
+          beforeData: expect.objectContaining({
+            auditRawBodyStored: false,
+            auditRawEmailStored: false,
+          }),
+          afterData: expect.objectContaining({
+            status: 'published',
+            moderation: expect.objectContaining({
+              status: 'restored',
+              notePresent: true,
+            }),
+          }),
+          metadata: expect.objectContaining({
+            rawBodyStored: false,
+            rawEmailStored: false,
+            rawModerationNoteStored: false,
+          }),
+        }),
+      }),
+    );
+    const auditPayload = JSON.stringify(prisma.auditEvent.create.mock.calls[0][0]);
+    expect(auditPayload).not.toContain(unsafePostBody);
+    expect(auditPayload).not.toContain(unsafeAuthorEmail);
+    expect(auditPayload).not.toContain(unsafeModerationNote);
+  });
+});
+
+describe('AdminService wallet ledger audit read model', () => {
+  const userId = '00000000-0000-4000-8000-000000000689';
+  const walletAccount = {
+    userId,
+    currencyCode: 'LUMINA',
+    status: 'active',
+    cachedBalance: new Decimal(12500),
+  };
+  const baseLedger = {
+    id: '00000000-0000-4000-8000-000000006890',
+    walletAccountId: '00000000-0000-4000-8000-000000006891',
+    direction: 'credit',
+    amount: new Decimal(0),
+    ledgerType: 'purchase',
+    referenceType: 'payment_order',
+    referenceId: '00000000-0000-4000-8000-000000006892',
+    createdAt: new Date('2026-06-05T00:00:00.000Z'),
+    walletAccount,
+    memo: 'raw memo must not be returned',
+    idempotencyKey: 'payment:provider:must-not-return',
+  };
+
+  function createWalletLedgerAuditService() {
+    const prisma = {
+      walletLedger: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            ...baseLedger,
+            amount: new Decimal(12000),
+            ledgerType: 'purchase',
+            referenceType: 'payment_order',
+          },
+          {
+            ...baseLedger,
+            id: '00000000-0000-4000-8000-000000006893',
+            amount: new Decimal(500),
+            ledgerType: 'first_charge_bonus',
+            referenceType: 'payment_order',
+            idempotencyKey: 'first_charge_bonus:user-must-not-return',
+          },
+          {
+            ...baseLedger,
+            id: '00000000-0000-4000-8000-000000006894',
+            amount: new Decimal(7000),
+            ledgerType: 'refund',
+            referenceType: 'premium_chat_room',
+          },
+          {
+            ...baseLedger,
+            id: '00000000-0000-4000-8000-000000006895',
+            amount: new Decimal(1000),
+            ledgerType: 'premium_chat_room_artist_compensation',
+            referenceType: 'premium_chat_room_refund_decision',
+          },
+        ]),
+      },
+    };
+    const config = { get: jest.fn() };
+    const service = new AdminService(
+      prisma as unknown as PrismaService,
+      config as unknown as ConfigService,
+    );
+
+    return { service, prisma };
+  }
+
+  it('separates purchase, first charge bonus, and premium chat refund ledger rows without mutation', async () => {
+    const { service, prisma } = createWalletLedgerAuditService();
+
+    const result = await service.getBackstageWalletLedgerAudit({ userId });
+
+    expect(prisma.walletLedger.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          walletAccount: { userId },
+        },
+        select: {
+          id: true,
+          walletAccountId: true,
+          direction: true,
+          amount: true,
+          ledgerType: true,
+          referenceType: true,
+          referenceId: true,
+          createdAt: true,
+          walletAccount: {
+            select: {
+              userId: true,
+              currencyCode: true,
+              status: true,
+              cachedBalance: true,
+            },
+          },
+        },
+      }),
+    );
+    expect(result.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ledgerType: 'purchase',
+          auditCategory: 'purchase_credit_base_and_package_bonus_combined',
+        }),
+        expect.objectContaining({
+          ledgerType: 'first_charge_bonus',
+          auditCategory: 'first_charge_bonus_10_percent_once',
+        }),
+        expect.objectContaining({
+          ledgerType: 'refund',
+          auditCategory: 'premium_chat_room_refund_credit',
+        }),
+        expect.objectContaining({
+          ledgerType: 'premium_chat_room_artist_compensation',
+          auditCategory: 'premium_chat_refund_restriction_artist_compensation',
+        }),
+      ]),
+    );
+    expect(result.policy).toMatchObject({
+      permission: 'payments:read',
+      mutation: false,
+      sourceOfTruth: 'wallet_ledger',
+      clientDisplayedBalanceTrusted: false,
+      firstChargeBonusLedgerType: 'first_charge_bonus',
+      firstChargeBonusPolicy: 'one_time_user_scoped_10_percent_bonus',
+      firstChargeBonusAuditGuard: {
+        ledgerType: 'first_charge_bonus',
+        referenceType: 'payment_order',
+        idempotencyKeyPattern: 'first_charge_bonus:<userId>',
+        duplicateReplayBehavior:
+          'wallet_ledger_upsert_replay_without_second_bonus_credit',
+        retrySafe: true,
+        failedProviderEventLocksEligibility: false,
+        accountScope: 'userId',
+        bonusBasis: 'lumina_products.lumina_amount',
+        packageBonusIncluded: false,
+        eligibleChargePackageCount: 6,
+        eligibleChargeSkus: [
+          'LUMINA_100',
+          'LUMINA_300',
+          'LUMINA_500',
+          'LUMINA_1200',
+          'LUMINA_5800',
+          'LUMINA_12000',
+        ],
+        projectionSeparatesPackageBonus: true,
+        idempotencyKeyReturned: false,
+      },
+      packageBonusLedgerMode: 'combined_in_purchase_ledger_amount',
+      paymentTokenReturned: false,
+      rawReceiptReturned: false,
+      providerTransactionIdReturned: false,
+      idempotencyKeyReturned: false,
+      memoReturned: false,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(result.summary).toMatchObject({
+      returnedCount: 4,
+      totalAmountLumina: '20500',
+      byCategory: {
+        purchase_credit_base_and_package_bonus_combined: 1,
+        first_charge_bonus_10_percent_once: 1,
+        premium_chat_room_refund_credit: 1,
+        premium_chat_refund_restriction_artist_compensation: 1,
+      },
+    });
+    const payload = JSON.stringify(result);
+    expect(payload).not.toContain('raw memo must not be returned');
+    expect(payload).not.toContain('payment:provider:must-not-return');
+    expect(payload).not.toContain('first_charge_bonus:user-must-not-return');
+  });
+
+  it('returns stable wallet ledger audit validation errors', async () => {
+    const { service } = createWalletLedgerAuditService();
+
+    await expectHttpError(service.getBackstageWalletLedgerAudit({ userId: 'bad-id' }), {
+      code: 'WALLET_LEDGER_AUDIT_INVALID_USER_ID',
+      messageKey: 'admin.walletLedgerAudit.invalidUserId',
+    });
+    await expectHttpError(service.getBackstageWalletLedgerAudit({ direction: 'sideways' }), {
+      code: 'WALLET_LEDGER_AUDIT_INVALID_DIRECTION',
+      messageKey: 'admin.walletLedgerAudit.invalidDirection',
+    });
+  });
+});
+
 describe('AdminService artist knowledge URL operations', () => {
   const adminUser = {
     id: '00000000-0000-4000-8000-000000000900',
@@ -254,6 +1020,7 @@ describe('AdminService artist knowledge URL operations', () => {
       },
       auditEvent: {
         create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       ...overrides,
     };
@@ -351,5 +1118,134 @@ describe('AdminService artist knowledge URL operations', () => {
         messageKey: 'artistKnowledgeUrl.error.rejectionReasonRequired',
       },
     );
+  });
+
+  it('returns redacted artist knowledge audit events through the dedicated read model', async () => {
+    const rawUrl = 'https://artist.example/watch?token=unsafe-url-token';
+    const rawSummary = 'Approved raw summary must not be returned.';
+    const rawReason = 'Private rejection reason must not be returned.';
+    const auditRow = {
+      id: '00000000-0000-4000-8000-000000000777',
+      actorUserId: adminUser.id,
+      action: 'artist_knowledge_url.reject',
+      targetType: 'artist_knowledge_url',
+      targetId: row.id,
+      beforeData: {
+        contractVersion: '2026-05-24.artist-url-knowledge-audit.v1',
+        id: row.id,
+        artistId: row.artistId,
+        submittedByUserId: row.submittedByUserId,
+        reviewedByUserId: null,
+        status: 'pending',
+        sourceType: 'youtube',
+        allowChatReference: true,
+        summaryPresent: true,
+        rejectionReasonPresent: false,
+        reviewedAt: null,
+        archivedAt: null,
+        url: rawUrl,
+        rawUrl,
+        summary: rawSummary,
+      },
+      afterData: {
+        contractVersion: '2026-05-24.artist-url-knowledge-audit.v1',
+        id: row.id,
+        artistId: row.artistId,
+        submittedByUserId: row.submittedByUserId,
+        reviewedByUserId: adminUser.id,
+        status: 'rejected',
+        sourceType: 'youtube',
+        allowChatReference: false,
+        summaryPresent: true,
+        rejectionReasonPresent: true,
+        reviewedAt: '2026-05-22T02:00:00.000Z',
+        archivedAt: null,
+        rejectionReason: rawReason,
+      },
+      metadata: {
+        statusTransition: { from: 'pending', to: 'rejected' },
+        changedFields: ['status', 'reviewedByUserId', 'rawUrl', 'summary', 'rejectionReason'],
+        token: 'unsafe-token',
+        cookie: 'unsafe-cookie',
+      },
+      createdAt: new Date('2026-05-22T02:00:00.000Z'),
+    };
+    const { service, prisma } = createKnowledgeService({
+      auditEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+        findMany: jest.fn().mockResolvedValue([auditRow]),
+      },
+    });
+
+    const result = await service.getBackstageArtistKnowledgeUrlAuditEvents({
+      action: 'artist_knowledge_url.reject',
+      artistId: row.artistId,
+    });
+    const auditEvent = prisma.auditEvent as typeof prisma.auditEvent & {
+      findMany: jest.Mock;
+    };
+
+    expect(auditEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          action: 'artist_knowledge_url.reject',
+          targetType: 'artist_knowledge_url',
+          targetId: { not: null },
+          OR: [
+            { beforeData: { path: ['artistId'], equals: row.artistId } },
+            { afterData: { path: ['artistId'], equals: row.artistId } },
+          ],
+        }),
+        orderBy: [{ createdAt: 'desc' }],
+        select: expect.objectContaining({
+          beforeData: true,
+          afterData: true,
+          metadata: true,
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      items: [
+        {
+          action: 'artist_knowledge_url.reject',
+          targetType: 'artist_knowledge_url',
+          targetId: row.id,
+          afterData: {
+            status: 'rejected',
+            reviewedByUserId: adminUser.id,
+            rejectionReasonPresent: true,
+          },
+          metadata: {
+            changedFields: ['status', 'reviewedByUserId'],
+            sensitiveDataStored: false,
+            rawUrlStored: false,
+            rawUrlQueryStored: false,
+            rawEmailStored: false,
+            tokenCookiePasswordStored: false,
+            providerPayloadStored: false,
+            dbUrlStored: false,
+          },
+        },
+      ],
+      contract: expect.objectContaining({
+        permission: 'audit:read',
+        mutation: false,
+        rawUrlReturned: false,
+        rawUrlQueryReturned: false,
+        rawEmailReturned: false,
+        providerPayloadReturned: false,
+      }),
+      policy: expect.objectContaining({
+        permission: 'audit:read',
+        mutation: false,
+        rawUrlReturned: false,
+      }),
+    });
+    const payload = JSON.stringify(result);
+    expect(payload).not.toContain(rawUrl);
+    expect(payload).not.toContain(rawSummary);
+    expect(payload).not.toContain(rawReason);
+    expect(payload).not.toContain('unsafe-token');
+    expect(payload).not.toContain('unsafe-cookie');
   });
 });

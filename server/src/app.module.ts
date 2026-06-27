@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminModule } from './admin/admin.module';
+import { AiPremiumContentModule } from './ai-premium-content/ai-premium-content.module';
 import { UserAssetsModule } from './assets/user-assets.module';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
@@ -48,6 +49,7 @@ import { WalletModule } from './wallet/wallet.module';
     UserAssetsModule,
     AuthModule,
     AdminModule,
+    AiPremiumContentModule,
     ArtistsModule,
     ShortformsModule,
     WalletModule,

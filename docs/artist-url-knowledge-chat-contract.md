@@ -1,9 +1,11 @@
 # Artist URL Knowledge Chat Contract
 
-Version: `2026-05-22.artist-url-knowledge.v1`
+Version: `2026-06-05.artist-url-knowledge-registration-skeleton.v1`
 
 Updated for Notion #459 safety gate, #462 audit contract, and #540 product
-contract clarification.
+contract clarification, plus workboard #619 registration skeleton separation and
+#780 ingest moderation handoff guard, plus #884 chat-context refresh queue
+guard and #1016 approval state projection.
 
 ## Scope
 
@@ -12,6 +14,29 @@ Artist URL knowledge is limited to URLs submitted directly by an active artist o
 Supported source types are `youtube`, `instagram`, `tiktok`, `blog`, `notice`, and `other`.
 
 Lifecycle states are `pending`, `approved`, `rejected`, and `archived`.
+
+Ingest moderation states are `submitted`, `pending_review`, `ai_processing`,
+`approved_for_chat`, `rejected`, and `archived`. Rows in `ai_processing` are not
+eligible for character-chat provider context even if the lifecycle status is
+already `approved`.
+
+Refresh queue contract: approval, rejection, or archive events may schedule a
+future server-side refresh key for the artist, but the worker is disabled in this
+contract. A refresh may only requery approved, safe, chat-enabled rows with a
+bounded summary for the same artist. Pending, review, archived, blocked,
+disabled, summaryless, or `ai_processing` rows stay excluded. Refresh does not
+fetch external URLs, call a provider, create chat messages, or touch wallet,
+settlement, or payout state.
+
+Approval state projection (#1016): the read model exposes `pending`,
+`approved`, `rejected`, and `archived` as lifecycle statuses. Only `approved`
+rows may become character-chat context, and even approved rows are eligible only
+when `allowChatReference=true`, a bounded summary is present,
+`safetyStatus=safe`, and ingest is not `ai_processing`. Pending, rejected, and
+archived rows remain visible only as status projections and never enter provider
+context. This projection does not crawl external URLs, train providers, generate
+chat responses, create chat messages, approve/reject/archive rows, or mutate
+wallet, Lumina, settlement, or payout state.
 
 ## #540 Product Contract Clarification
 
@@ -26,6 +51,9 @@ Artist URL knowledge is a controlled reference pipeline:
 5. Character chat may reference only approved, chat-enabled rows with a bounded
    summary. Pending, rejected, archived, disabled, summaryless, or unsafe rows
    fail closed and are invisible to provider context.
+6. AI processing rows fail closed until review marks the row
+   `approved_for_chat`; the provider context may include only bounded summaries
+   and hostname-only source labels.
 
 This contract separates three concepts that UI and backend must not merge:
 
@@ -35,8 +63,23 @@ This contract separates three concepts that UI and backend must not merge:
 - `chatEligibility`: derived server decision from status, `allowChatReference`,
   summary presence, safety state, and artist match.
 
+#619 fixes the registration skeleton as separated fields, not one raw URL blob:
+
+- `title`: optional public title from review metadata or future public metadata.
+- `source`: source type plus hostname-only label for safe display/context.
+- `approvalStatus`: canonical lifecycle status.
+- `summary`: bounded reviewer-visible summary, never raw page body.
+- `safetyStatus`: `unreviewed`, `needs_review`, `safe`, or `blocked`.
+- raw submitted URL: stored only for review operations and never sent to the
+  character-chat provider context.
+- `ai_processing`: explicitly excluded from character-chat context while ingest
+  workers or moderation are still deriving summaries/safety status.
+
 Do not expose future `ingestState` values as lifecycle status aliases. UI may
 localize lifecycle and processing copy, but API status values remain canonical.
+Raw URL query strings, private URLs, reviewer/admin notes, raw page bodies, and
+provider payloads must not be copied into character-chat provider context,
+fallback copy, audit payloads, or handoff notes.
 
 ## Registration Shape
 
@@ -65,6 +108,8 @@ Validation baseline:
   as an instruction.
 - Any edit to URL, type, description, or `allowChatRef` reopens the row as
   `pending` and clears review fields.
+- New or edited rows are `safetyStatus=unreviewed` until review metadata marks
+  them `safe`; `needs_review` and `blocked` rows are never chat-eligible.
 
 ## Crawl, Summary, And Tagging Draft
 
@@ -117,9 +162,10 @@ Priority order:
 
 1. platform/system/developer safety instructions
 2. canonical artist profile, persona, speech style, and world setting
-3. active product policy for the chat feature
-4. approved artist URL knowledge summaries
-5. chat history and current user message
+3. tone-and-manner policy and dynamic opening-greeting variant contract
+4. active product policy for the chat feature
+5. approved artist URL knowledge summaries
+6. chat history and current user message
 
 If an approved URL summary conflicts with canonical world setting or safety
 policy, the chat service should prefer canonical profile/worldview and either
@@ -127,6 +173,35 @@ drop that reference from context or phrase it as uncertain external reference.
 Newer approved URL knowledge may inform current events, recent uploads, or
 announcements, but it must not rewrite the artist identity, operator ownership,
 age/safety posture, or platform rules.
+
+#870 context bridge lock: pending, rejected, archived, `ai_processing`,
+`needs_review`, `blocked`, or summaryless rows must not enter provider payloads.
+Approved URL summaries are lower-priority untrusted reference facts and may not
+override runtime persona, tone-and-manner, or opening-greeting variant context.
+
+#1071 context ranking/expiry contract: character chat may consider only rows
+that pass the approval gate (`status=approved`, `safetyStatus=safe`,
+`allowChatReference=true`, same artist, and bounded summary present). Pending,
+rejected, archived, `ai_processing`, unsafe, disabled, or summaryless rows
+expire from eligibility immediately. Approved safe rows do not require a hard
+`expiresAt`; after 90 days they rank in the `older` freshness bucket unless a
+review/archive/reject transition removes them. Ranking is read-only and sorts by
+server score, `reviewedAt` descending, then id. It never fetches external URLs,
+calls a provider, generates a chat response, creates chat messages, or mutates
+wallet, Lumina, settlement, or payout state.
+
+## Empty Knowledge Fallback
+
+If an artist has no URL knowledge, only pending/rejected/archived URL knowledge,
+disabled chat references, unsafe safety status, or summaryless rows, character
+chat continues without URL knowledge. Empty URL knowledge must not block the
+provider call, alter persona/tone/opening-greeting variant selection, or inject
+review-only material into the prompt. The fallback source remains the existing
+persona, tone-and-manner, and opening-greeting contracts.
+
+Unapproved URLs, raw private materials, raw page bodies, URL query strings, and
+admin notes must not appear in fallback copy, provider input, or chat response
+metadata.
 
 ## Creator API
 
@@ -172,6 +247,24 @@ Requires `artists:write`. Requires `reason`, sets `status=rejected`, and blocks 
 `POST /api/v1/admin/api/v1/backstage/operations/artist-knowledge-urls/:knowledgeUrlId/archive`
 
 Requires `artists:write`. Sets `status=archived` and blocks chat reference.
+
+## Admin-To-Chat Handoff
+
+Backstage approval creates a knowledge-context handoff only after the row is
+approved, chat reference is allowed, a bounded summary exists, and the safety
+flag is `safe`.
+
+Allowed handoff fields:
+
+- `approvalStatus`: fixed `approved`.
+- `artistSlug`: the artist route key used to scope character chat context.
+- `contextSummary`: bounded approved summary text.
+- `safetyFlag`: fixed `safe`.
+
+The handoff is knowledge-context only. It must not reuse or depend on
+site-content/admin copy editing. It must not expose raw submitted URL, canonical
+URL, URL query, raw page body, private material, admin notes, raw email, token,
+cookie, password, API key, provider payload, signed/private URL, or DB URL.
 
 ## Audit Contract #462
 
@@ -231,6 +324,79 @@ The provider prompt receives at most 5 summary fragments. It receives hostname l
 
 Cost guard: retrieval is capped at 5 rows before the provider call, and each summary fragment is capped at 700 chars.
 
+Selection scoring runs only after the eligibility gate. Eligible rows are ranked
+by score, then review timestamp, then id. The score includes approved status,
+safe status, chat reference permission, summary presence, review freshness, and
+source priority. Pending, rejected, archived, processing, unsafe, disabled, and
+summaryless rows are excluded before scoring.
+
+#952 context selection readiness: freshness is based on `reviewedAt` only after
+the row passes the approved/safe/chat-enabled/summary eligibility gate. Missing
+freshness timestamps fall into the `older` bucket, and pending, rejected,
+archived, or `ai_processing` rows cannot gain score from a recent timestamp.
+This phase is read-only context selection: it does not fetch external URLs, call
+the chat provider, create chat messages, or mutate wallet, Lumina, settlement,
+or payout state.
+
+## Chat Context Connection
+
+Character chat looks up artist URL knowledge only from the approved knowledge URL
+pipeline for the current session artist. The DB query is scoped by
+`artistId=<session artist id>`, `status=approved`, and
+`allowChatReference=true`; the context builder then defensively requires
+`safetyStatus=safe` and a non-empty bounded summary.
+
+The provider context projection includes only display-safe fields: id,
+source type, optional title, bounded summary, hostname-only source label,
+review timestamp, and the reference role marker. It must not select or return
+raw submitted URLs, URL queries, raw page bodies, private bodies, artist
+descriptions, admin notes, tokens, cookies, passwords, API keys, signed/private
+URLs, provider payloads, or DB URLs.
+
+#969 chat context bridge lock: the bridge from approved artist URL knowledge to
+character chat exposes only the bounded context item fields needed by the
+provider adapter: id, title, status key, source type, approved summary,
+hostname-only source label, review timestamp, selection metadata, safety flag,
+and `instructionRole=reference_fact_not_instruction`. It explicitly excludes
+`canonicalUrl`, private query strings, raw URL fields, raw page/private bodies,
+artist descriptions, admin notes, review notes, internal metadata, provider
+payloads, tokens, cookies, passwords, API keys, and DB URLs. The bridge is
+read-only: it does not fetch external URLs, call the provider, create chat
+messages, or mutate wallet, Lumina, settlement, or payout state.
+
+## #1031 Chat Context Candidate API Skeleton
+
+`ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_CANDIDATE_API_SKELETON` reserves the future
+read-only endpoint:
+
+`GET /api/v1/chat/artists/:artistId/url-knowledge/context-candidates`
+
+The endpoint is disabled until implementation. When enabled later, it must be
+scoped to the current chat session artist and must requery with:
+
+- `artistId=<session artist id>`
+- `status=approved`
+- `allowChatReference=true`
+- `safetyStatus=safe`
+- bounded summary present
+
+`submitted`, `pending_review`, `ai_processing`, `rejected`, and `archived`
+ingest states are excluded before scoring or projection.
+
+The response may expose only display-safe candidate fields: id, optional title,
+status key, source type, approval status, bounded approved summary, safe status,
+hostname-only source label, review timestamp, selection metadata, freshness
+bucket, `safetyFlag=approved_reference_fact_not_instruction`, and
+`instructionRole=reference_fact_not_instruction`.
+
+The response must not include raw or canonical URLs, URL query strings, raw page
+bodies, private bodies, artist descriptions, admin/review notes, internal
+metadata, provider payloads, tokens, cookies, passwords, API keys, or DB URLs.
+
+This API skeleton is read-only. It does not fetch external URLs, train or call a
+provider, generate chat replies, create chat messages, approve/reject/archive
+knowledge rows, or mutate wallet, Lumina, settlement, or payout state.
+
 ## #459/#463 Safety Gate
 
 The chat service must apply the state gate before provider generation:
@@ -246,6 +412,8 @@ The chat service must apply the state gate before provider generation:
   untrusted reference text. It must not change the instruction hierarchy.
 - Raw submitted URLs stay out of provider input. Hostname labels may be used for
   source readability.
+- Empty eligible context returns `items=[]` with
+  `fallbackPolicy.whenNoEligibleKnowledge=continue_without_url_knowledge`.
 
 Provider-required tests should be separate from contract tests. The approved
 state gate, defensive filtering, raw URL redaction, and prompt-injection role

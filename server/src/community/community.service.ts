@@ -55,6 +55,1234 @@ const SEARCH_LANGUAGES = new Set(['ko', 'ja', 'en', 'zh', 'unknown']);
 const TRENDING_LANGUAGE_FILTERS = new Set(['all', 'ko', 'ja', 'en', 'zh', 'unknown']);
 const SEARCH_TYPES = new Set(['text', 'hashtag']);
 const SEARCH_EVENT_DEDUPE_WINDOW_MS = 10 * 60 * 1000;
+const FEED_PUBLIC_CLEANUP_GUARD_NOT: Prisma.CommunityPostWhereInput[] = [
+  { body: { equals: 'test', mode: 'insensitive' } },
+  { body: { contains: 'testtest', mode: 'insensitive' } },
+  { body: { equals: 'sample', mode: 'insensitive' } },
+  { body: { equals: 'fixture', mode: 'insensitive' } },
+  { body: { equals: '테스트' } },
+  { body: { contains: '임시문구' } },
+  { body: { contains: '샘플문구' } },
+];
+
+export const USER_SOCIAL_ACCOUNT_CONTRACT = {
+  version: '2026-06-08.user-social-account-contract.v1',
+  profileFollowLists: {
+    endpoints: [
+      'GET /api/v1/users/:userId/followers',
+      'GET /api/v1/users/:userId/following-users',
+      'GET /api/v1/users/handle/:publicHandle/followers',
+      'GET /api/v1/users/handle/:publicHandle/following-users',
+    ],
+    targetVisibilityWhere: {
+      status: 'active',
+      deletedAt: null,
+    },
+    returnedUserWhere: {
+      status: 'active',
+      deletedAt: null,
+    },
+    hiddenStatuses: ['deleted', 'suspended', 'inactive', 'private'],
+    projection: 'public_user_follow_summary_v1',
+    profileCountProjection: {
+      followerRowsBlockedByViewerExcluded: true,
+      followingRowsBlockedByViewerExcluded: true,
+      blockedRelationshipDirection: 'either_direction',
+      countAndListUseSameVisibilityWhere: true,
+      hiddenRowsExcludedBeforeCount: true,
+      emptyProjection: {
+        items: [],
+        count: 0,
+        total: 0,
+        nextCursor: null,
+      },
+      errorProjection: {
+        blockedTargetStatus: 403,
+        blockedTargetCode: 'USER_PROFILE_BLOCKED',
+        notFoundCode: 'USER_NOT_FOUND',
+        invalidCursorCode: 'INVALID_CURSOR',
+      },
+    },
+    publicListProjection: {
+      version: '2026-06-16.public-user-follow-list-projection.v1',
+      surfaces: {
+        followers: [
+          'GET /api/v1/users/:userId/followers',
+          'GET /api/v1/users/handle/:publicHandle/followers',
+        ],
+        followingUsers: [
+          'GET /api/v1/users/:userId/following-users',
+          'GET /api/v1/users/handle/:publicHandle/following-users',
+        ],
+      },
+      targetProfileRequired: {
+        status: 'active',
+        deletedAt: null,
+        blockedByViewer: false,
+      },
+      returnedFollowRowsWhere: {
+        followDeletedAt: null,
+        sourceUserStatus: 'active',
+        targetUserStatus: 'active',
+        userDeletedAt: null,
+        activeBlockEitherDirection: false,
+      },
+      hiddenUserStatuses: ['deleted', 'suspended', 'inactive', 'private'],
+      countSource: 'same_where_as_items_after_hidden_and_block_filters',
+      cursorField: 'user_follows.id',
+      viewerHintsSafeOnly: true,
+      mutation: false,
+    },
+    privateFieldsExcluded: [
+      'email',
+      'phone',
+      'providerIds',
+      'walletAccounts',
+      'walletLedger',
+      'paymentOrders',
+      'privateProfile',
+      'moderationNotes',
+    ],
+  },
+  blockEffects: {
+    blockEndpoint: 'POST /api/v1/users/:userId/block',
+    unblockEndpoint: 'DELETE /api/v1/users/:userId/block',
+    serverActionContract: {
+      version: '2026-06-19.feed-user-block-server-action.v1',
+      status: 'contract_only_existing_endpoint',
+      actionSurfaces: ['feed_post_menu', 'feed_mini_profile', 'profile_more_menu'],
+      endpoints: {
+        blockByUserId: 'POST /api/v1/users/:userId/block',
+        blockByHandle: 'POST /api/v1/users/handle/:publicHandle/block',
+        unblockByUserId: 'DELETE /api/v1/users/:userId/block',
+        unblockByHandle: 'DELETE /api/v1/users/handle/:publicHandle/block',
+      },
+      mutationOpenedByThisContract: false,
+      authRequired: true,
+      targetResolution: {
+        byUserId: 'active_user_uuid',
+        byPublicHandle: 'active_public_handle',
+        deletedSuspendedOrInactiveTarget: 'USER_NOT_FOUND',
+        selfBlockCode: 'CANNOT_BLOCK_SELF',
+      },
+      validationOrder: [
+        'auth_required',
+        'target_identifier_valid',
+        'target_user_active',
+        'reject_self_block',
+        'upsert_active_user_block',
+        'soft_delete_follow_rows_both_directions',
+        'return_safe_projection',
+      ],
+      stableResponses: {
+        blocked: {
+          status: 200,
+          code: 'USER_BLOCKED',
+          messageKey: 'social.block.created',
+        },
+        alreadyBlocked: {
+          status: 200,
+          code: 'USER_BLOCKED',
+          messageKey: 'social.block.alreadyCreated',
+        },
+        unblocked: {
+          status: 200,
+          code: 'USER_UNBLOCKED',
+          messageKey: 'social.block.removed',
+        },
+        targetNotFound: {
+          status: 404,
+          code: 'USER_NOT_FOUND',
+          messageKey: 'social.user.notFound',
+        },
+        selfBlock: {
+          status: 400,
+          code: 'CANNOT_BLOCK_SELF',
+          messageKey: 'social.block.selfNotAllowed',
+        },
+      },
+      safeProjection: {
+        targetUserFields: ['id', 'displayName', 'publicHandle', 'avatarUrl'],
+        privateFieldsReturned: false,
+        blockReasonReturnedToTarget: false,
+        walletFieldsReturned: false,
+      },
+    },
+    removesViewerToTargetFollow: true,
+    removesTargetToViewerFollow: true,
+    refollowBlockedWhileActive: true,
+    blockedProfileListAccess: {
+      status: 403,
+      code: 'USER_PROFILE_BLOCKED',
+      messageKey: 'social.profile.blocked',
+    },
+    hiddenSurfaces: [
+      'feed',
+      'comments',
+      'premium_chat',
+      'support',
+      'user_follow_lists',
+    ],
+    walletMutation: false,
+    luminaMutation: false,
+    paymentMutation: false,
+    settlementMutation: false,
+  },
+  followerBlockProjectionGuard: {
+    version: '2026-06-16.feed-follower-block-projection-guard.v1',
+    source: 'user_blocks',
+    activeBlockWhere: {
+      status: 'active',
+      deletedAt: null,
+      direction: 'either_direction',
+    },
+    surfaces: {
+      feed: [
+        'GET /api/v1/me/lumina-feed',
+        'GET /api/v1/me/lumina-feed/liked-posts',
+        'GET /api/v1/users/:userId/posts',
+        'GET /api/v1/users/handle/:publicHandle/posts',
+      ],
+      profile: [
+        'GET /api/v1/users/:userId',
+        'GET /api/v1/users/handle/:publicHandle',
+      ],
+      followLists: [
+        'GET /api/v1/users/:userId/followers',
+        'GET /api/v1/users/:userId/following-users',
+        'GET /api/v1/users/handle/:publicHandle/followers',
+        'GET /api/v1/users/handle/:publicHandle/following-users',
+      ],
+    },
+    projectionPolicy: {
+      targetProfileBlocked: 'fail_closed_403_USER_PROFILE_BLOCKED',
+      feedRowsByBlockedUsers: 'exclude_before_pagination_and_count',
+      followerRowsByBlockedUsers: 'exclude_before_pagination_and_count',
+      followingRowsByBlockedUsers: 'exclude_before_pagination_and_count',
+      profileCountsUseSameFilterAsLists: true,
+      viewerHintsMustNotLeakBlockedUserPrivateFields: true,
+    },
+    mutationPolicy: {
+      contractAddsBlockMutation: false,
+      followMutation: false,
+      unfollowMutation: false,
+      feedMutation: false,
+      walletMutation: false,
+      luminaMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    },
+    liveFixtureSeedGuard: {
+      version: '2026-06-17.feed-follower-block-live-fixture-seed.v1',
+      status: 'qa_runbook_contract_only',
+      enabledByDefault: false,
+      productionAutoSeed: false,
+      liveMutationByContract: false,
+      allowedEnvironments: ['local', 'staging'],
+      forbiddenEnvironments: ['production'],
+      runId: {
+        required: true,
+        format: 'qa-follow-block-YYYYMMDD-runN',
+        persistedOnRows: true,
+        cleanupScope: 'run_id_only',
+      },
+      disposableUsers: [
+        {
+          alias: 'qa_viewer',
+          role: 'logged_in_viewer_running_block_ux',
+          realUserAllowed: false,
+        },
+        {
+          alias: 'qa_profile_owner',
+          role: 'public_profile_with_follow_lists',
+          realUserAllowed: false,
+        },
+        {
+          alias: 'qa_follower',
+          role: 'visible_follower_row',
+          realUserAllowed: false,
+        },
+        {
+          alias: 'qa_blocked_follower',
+          role: 'blocked_follower_row_hidden_from_viewer',
+          realUserAllowed: false,
+        },
+      ],
+      fixtureRows: [
+        {
+          model: 'user_follows',
+          purpose: 'profile_owner_has_visible_follower',
+          sourceAlias: 'qa_follower',
+          targetAlias: 'qa_profile_owner',
+          status: 'active',
+          runIdRequired: true,
+        },
+        {
+          model: 'user_follows',
+          purpose: 'profile_owner_has_blocked_follower_fixture',
+          sourceAlias: 'qa_blocked_follower',
+          targetAlias: 'qa_profile_owner',
+          status: 'active',
+          runIdRequired: true,
+        },
+        {
+          model: 'user_blocks',
+          purpose: 'viewer_blocks_blocked_follower_for_list_filter_smoke',
+          sourceAlias: 'qa_viewer',
+          targetAlias: 'qa_blocked_follower',
+          status: 'active',
+          runIdRequired: true,
+        },
+      ],
+      visibilityChecks: [
+        {
+          endpoint: 'GET /api/v1/users/:userId/followers',
+          expected: 'visible_follower_returned_blocked_follower_excluded',
+        },
+        {
+          endpoint: 'GET /api/v1/users/:userId/following-users',
+          expected: 'only_active_public_rows_with_block_filter',
+        },
+        {
+          endpoint: 'POST /api/v1/users/:userId/block',
+          expected: 'viewer_owned_block_ux_only_no_real_user_target',
+        },
+      ],
+      executionRunbook: {
+        status: 'manual_operator_runbook_only',
+        productionAutoSeed: false,
+        allowedOperatorPath:
+          'private_staging_or_local_db_operation_or_future_admin_fixture_tool',
+        publicApiEndpointAdded: false,
+        confirmationRequired: true,
+        confirmKey: 'QA_FEED_FOLLOW_BLOCK_FIXTURE_CONFIRM',
+        confirmValue: 'PREPARE_QA_FOLLOW_BLOCK_FIXTURE',
+        requiredInputs: [
+          'runId',
+          'qa_viewer_user_id',
+          'qa_profile_owner_user_id',
+          'qa_follower_user_id',
+          'qa_blocked_follower_user_id',
+        ],
+        preflightChecks: [
+          'all_users_are_disposable_qa_users',
+          'no_user_alias_points_to_real_customer_account',
+          'run_id_is_unique_and_recorded_on_fixture_metadata',
+          'public_profile_owner_has_active_public_profile',
+          'existing_real_follow_or_block_rows_are_not_modified',
+        ],
+        fixtureWrites: [
+          'create_or_reactivate_user_follows_visible_follower_row',
+          'create_or_reactivate_user_follows_blocked_follower_row',
+          'create_or_reactivate_user_blocks_viewer_to_blocked_follower_row',
+        ],
+        cleanupPolicy: {
+          cleanupByRunIdOnly: true,
+          hardDelete: false,
+          restoreRealUserRelationships: false,
+          leaveAuditTrail: true,
+        },
+      },
+      qaSmokeHandoff: {
+        nextOwner: 'qa2',
+        publicHandleReadiness: {
+          required: true,
+          ownerAlias: 'qa_profile_owner',
+          allowedHandlePattern: 'qa-follow-block-<YYYYMMDD>-run<N>',
+          statusField: 'fixture_status',
+          pathField: 'public_profile_path',
+          profilePathTemplate: '/user-profile?handle=:publicHandle',
+          followersPathTemplate:
+            '/api/v1/users/handle/:publicHandle/followers',
+          followingPathTemplate:
+            '/api/v1/users/handle/:publicHandle/following-users',
+          forbiddenValues: [
+            'raw_email',
+            'password',
+            'access_token',
+            'refresh_token',
+            'cookie',
+            'database_url',
+          ],
+        },
+        allowedOutput: [
+          'runId',
+          'publicProfileHandle',
+          'fixtureStatus',
+          'publicProfilePath',
+          'followersApiPath',
+          'followingApiPath',
+          'safeProfileOwnerUserId',
+          'safeFollowerRowId',
+          'safeBlockRowId',
+          'expectedFollowerCountAtLeast',
+          'visibilityCheckResult',
+        ],
+        expectedLiveChecks: [
+          'public_profile_follower_count_at_least_one',
+          'followers_modal_shows_disposable_follower_row',
+          'logged_in_qa_viewer_can_find_block_entrypoint_for_follower',
+          'blocked_follower_row_is_hidden_or_tombstoned_after_block',
+        ],
+        blockedIfMissing: [
+          'private_qa_viewer_session',
+          'disposable_qa_users',
+          'operator_db_access',
+        ],
+      },
+      allowedReportFields: [
+        'runId',
+        'userAlias',
+        'safeUserId',
+        'rowModel',
+        'rowId',
+        'status',
+        'publicHandle',
+        'path',
+        'visibilityCheck',
+        'httpStatus',
+        'stableCode',
+        'messageKey',
+      ],
+      forbiddenReportFields: [
+        'raw email',
+        'password',
+        'access token',
+        'refresh token',
+        'cookie',
+        'database url',
+        'provider credential',
+      ],
+      safety: {
+        realUserFollowMutation: false,
+        realUserBlockMutation: false,
+        walletMutation: false,
+        luminaMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+    },
+  },
+  feedInteractionGuards: {
+    readSurfaces: [
+      'GET /api/v1/me/lumina-feed',
+      'GET /api/v1/me/lumina-feed/liked-posts',
+      'GET /api/v1/lumina-feed/posts/:postId/replies',
+      'GET /api/v1/lumina-feed/posts/:postId/thread-continuations',
+    ],
+    writeSurfaces: [
+      'POST /api/v1/lumina-feed/posts/:postId/likes',
+      'POST /api/v1/lumina-feed/posts/:postId/replies',
+      'POST /api/v1/lumina-feed/posts/:postId/reposts',
+      'POST /api/v1/lumina-feed/posts/:postId/thread-continuations',
+    ],
+    relationshipSource: 'user_blocks',
+    blockedRelationshipDirection: 'either_direction',
+    readProjection: {
+      filterBlockedAuthors: true,
+      filterBlockedReplyAuthors: true,
+      filterBlockedCommentAuthors: true,
+      excludeBlockedRepostAuthors: true,
+      renderRepostSourceTombstoneWhenOriginalAuthorBlocked: true,
+      postCardActionState: {
+        blockActionAvailableWhenAuthenticated: true,
+        blockActionHiddenForSelf: true,
+        blockStateKey: '<none|viewer_blocked_author|author_blocked_viewer>',
+        rawBlockReasonReturned: false,
+      },
+      viewerHintsMustNotLeakBlockedUserPrivateFields: true,
+    },
+    projectionRegressionGuard: {
+      version: '2026-06-22.feed-block-projection-regression-guard.v1',
+      status: 'contract_only_no_new_mutation',
+      source: 'user_blocks',
+      relationshipDirection: 'either_direction',
+      scenarios: [
+        {
+          surface: 'feed_list',
+          endpoints: ['GET /api/v1/me/lumina-feed'],
+          expected: 'blocked_author_rows_excluded_before_pagination_and_count',
+        },
+        {
+          surface: 'comments',
+          endpoints: ['GET /api/v1/lumina-feed/posts/:postId/replies'],
+          expected: 'blocked_reply_author_rows_excluded_before_pagination_and_count',
+        },
+        {
+          surface: 'reposts',
+          endpoints: ['GET /api/v1/lumina-feed/posts/:postId'],
+          expected: 'blocked_original_author_renders_tombstone_without_body',
+        },
+        {
+          surface: 'followers',
+          endpoints: [
+            'GET /api/v1/users/:userId/followers',
+            'GET /api/v1/users/handle/:publicHandle/followers',
+          ],
+          expected: 'blocked_follower_rows_excluded_before_pagination_and_count',
+        },
+        {
+          surface: 'following',
+          endpoints: [
+            'GET /api/v1/users/:userId/following-users',
+            'GET /api/v1/users/handle/:publicHandle/following-users',
+          ],
+          expected: 'blocked_following_rows_excluded_before_pagination_and_count',
+        },
+      ],
+      blockActionEntryPoint: {
+        surfaces: ['feed_post_menu', 'feed_mini_profile'],
+        serverEndpoint: 'POST /api/v1/users/:userId/block',
+        projectionOnlyByThisContract: true,
+      },
+      mutationPolicy: {
+        followMutation: false,
+        unfollowMutation: false,
+        blockMutationExecutedByRegressionGuard: false,
+        walletMutation: false,
+        luminaMutation: false,
+        settlementMutation: false,
+      },
+    },
+    writePolicy: {
+      failBeforeCommunityMutation: true,
+      failBeforeNotificationMutation: true,
+      status: 403,
+      code: 'USER_FOLLOW_BLOCKED',
+      messageKey: 'social.follow.blocked',
+    },
+  },
+  premiumChatRelationshipGuards: {
+    blockedSurfaces: [
+      'POST /api/v1/chat/premium-rooms',
+      'POST /api/v1/chat/premium-rooms/:roomId/messages',
+      'POST /api/v1/chat/premium-rooms/:roomId/donations',
+      'POST /api/v1/chat/premium-rooms/:roomId/reports',
+      'GET /api/v1/chat/me/premium-rooms/:roomId/status',
+    ],
+    relationshipSource: 'user_blocks',
+    blockedRelationshipDirection: 'either_direction',
+    validationOrder: [
+      'load_room_participants_or_artist_target',
+      'check_user_blocks_either_direction',
+      'reject_before_wallet_order_message_donation_or_report_mutation',
+      'continue_domain_specific_guard',
+    ],
+    failBeforeWalletMutation: true,
+    failBeforeOrderMutation: true,
+    failBeforeMessageMutation: true,
+    failBeforeDonationMutation: true,
+    failBeforeReportMutation: true,
+    failBeforeSettlementMutation: true,
+    failBeforePayoutMutation: true,
+    status: 403,
+    code: 'USER_RELATIONSHIP_BLOCKED',
+    messageKey: 'social.relationship.blocked',
+  },
+} as const;
+
+export const LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT = {
+  version: '2026-06-15.lumina-feed-thread-repost-count-projection.v1',
+  status: 'read_model_contract_only',
+  threadContinuation: {
+    relation: 'thread_continuation',
+    actionKey: 'feed_thread_continue',
+    stateKey: 'thread_continuation',
+    childPostFlow: 'existing_post_child_post',
+    rootAuthorOnly: true,
+    autoLongTextSplit: false,
+    listEndpoint: '/api/v1/lumina-feed/posts/:postId/thread-continuations',
+    createEndpoint: '/api/v1/lumina-feed/posts/:postId/thread-continuations',
+    countField: 'threadContinuationCount',
+    countSource: 'community_posts.metadata.threadContinuation.rootPostId',
+    excludedFrom: [
+      'manualThreadCount',
+      'repostCount',
+      'shareCount',
+      'replyCount',
+      'commentCount',
+    ],
+  },
+  repost: {
+    allowedTypes: ['repost', 'quote_repost'],
+    actionKeys: {
+      repost: 'feed_repost',
+      quoteRepost: 'feed_quote_repost',
+    },
+    stateKeys: {
+      repost: 'repost',
+      quoteRepost: 'quote_repost',
+    },
+    originalReferenceField: 'metadata.repost.originalPostId',
+    quoteBodyField: 'body',
+    originalPostProjectionField: 'post.repost.originalPost',
+    countField: 'repostCount',
+    countSource: 'community_posts.metadata.repost.originalPostId',
+    profileTabIncludes: ['repost', 'quote_repost'],
+    notificationType: 'feed.repost',
+    excludedFrom: [
+      'manualThreadCount',
+      'threadContinuationCount',
+      'shareCount',
+      'replyCount',
+      'commentCount',
+    ],
+  },
+  share: {
+    relation: 'share',
+    actionKey: 'feed_share',
+    stateKey: 'share_contract',
+    createsFeedRow: false,
+    countTarget: null,
+    shareUrlProjectionOnly: true,
+    repostRelation: false,
+    threadRelation: false,
+    notificationMutation: false,
+    unreadCountMutation: false,
+  },
+  blockedRelationshipPolicy: {
+    writePolicy: 'reject_before_feed_or_notification_mutation',
+    readAndCountProjection: 'exclude_or_tombstone_blocked_relationship_rows',
+  },
+  mutationPolicy: {
+    contractAddsPostCreate: false,
+    contractAddsRepostCreate: false,
+    contractAddsShareCreate: false,
+    contractAddsNotificationCreate: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    orderMutation: false,
+    paidLikeMutation: false,
+  },
+} as const;
+
+export const LUMINA_FEED_MULTI_IMAGE_ATTACHMENT_CONTRACT = {
+  version: '2026-06-16.lumina-feed-multi-image-attachment-metadata.v1',
+  status: 'projection_contract_only',
+  maxImages: FEED_POST_MAX_IMAGES,
+  supportedCounts: [1, 2, 3, 4],
+  overflowBadgeRequired: false,
+  overflowBadgePolicy: {
+    maxUploadCountEqualsMaxDisplayCount: true,
+    plusNRequired: false,
+    reason: 'feed image uploads are capped at four assets',
+  },
+  requestPolicy: {
+    field: 'assetIds',
+    maxItems: FEED_POST_MAX_IMAGES,
+    uniqueOnly: true,
+    existingPublicImageAssetsOnly: true,
+    archivedAssetsAllowed: false,
+    videoAssetsAllowed: false,
+  },
+  projection: {
+    field: 'post.assets',
+    role: 'attachment',
+    orderField: 'sortOrder',
+    metadataFields: [
+      'id',
+      'role',
+      'sortOrder',
+      'asset.id',
+      'asset.assetType',
+      'asset.mimeType',
+      'asset.width',
+      'asset.height',
+      'asset.url',
+      'asset.displayUrl',
+      'asset.thumbnailUrl',
+    ],
+    countMetadata: {
+      assetCountField: 'assetCount',
+      layoutCountSource: 'post.assets.length',
+      supportedLayoutCounts: [2, 3, 4],
+      overflowCount: 0,
+    },
+  },
+  privacy: {
+    storageKeyReturned: false,
+    storageProviderReturned: false,
+    rawAssetMetadataReturned: false,
+    privateOriginalUrlReturned: false,
+    signedUploadUrlReturned: false,
+  },
+  mutationPolicy: {
+    contractAddsImageUpload: false,
+    contractAddsFeedCreate: false,
+    contractAddsRepostMutation: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
+
+export const LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT = {
+  version: '2026-06-16.lumina-feed-repost-permission-guard.v1',
+  status: 'guard_contract_only',
+  endpoints: {
+    repost: 'POST /api/v1/lumina-feed/posts/:postId/reposts',
+    quoteRepost: 'POST /api/v1/lumina-feed/posts/:postId/reposts',
+    share: 'POST /api/v1/lumina-feed/posts/:postId/share',
+  },
+  actions: {
+    repost: {
+      relation: 'repost',
+      actionKey: 'feed_repost',
+      stateKey: 'repost',
+      createsFeedRow: true,
+      quoteBodyAllowed: false,
+      originalReferenceField: 'metadata.repost.originalPostId',
+      countTarget: 'repost_count',
+    },
+    quoteRepost: {
+      relation: 'quote_repost',
+      actionKey: 'feed_quote_repost',
+      stateKey: 'quote_repost',
+      createsFeedRow: true,
+      quoteBodyAllowed: true,
+      quoteBodyMaxChars: FEED_POST_MAX_BODY_CHARS,
+      originalReferenceField: 'metadata.repost.originalPostId',
+      quoteBodyProjectionField: 'post.repost.quoteBody',
+      originalBodyProjectionField: 'post.repost.originalPost.body',
+      countTarget: 'repost_count',
+    },
+    share: {
+      relation: 'share',
+      actionKey: 'feed_share',
+      stateKey: 'share_contract',
+      createsFeedRow: false,
+      shareUrlProjectionOnly: true,
+      repostRelation: false,
+      threadRelation: false,
+      commentRelation: false,
+      replyRelation: false,
+      countTarget: null,
+    },
+  },
+  validationOrder: [
+    'require_authenticated_viewer_for_repost_or_quote_repost',
+    'validate_source_post_id',
+    'load_public_published_source_post',
+    'reject_deleted_hidden_private_or_moderation_review_source',
+    'check_user_blocks_either_direction',
+    'validate_quote_body_when_present',
+    'return_relation_specific_projection',
+  ],
+  failClosedSourcePolicy: {
+    missingSource: { status: 404, code: 'FEED_POST_NOT_FOUND' },
+    deletedSource: { status: 404, code: 'FEED_POST_NOT_FOUND' },
+    hiddenSource: { status: 404, code: 'FEED_POST_NOT_FOUND' },
+    privateSource: { status: 404, code: 'FEED_POST_NOT_FOUND' },
+    moderationReviewSource: { status: 404, code: 'FEED_POST_NOT_FOUND' },
+    blockedRelationship: { status: 403, code: 'USER_FOLLOW_BLOCKED' },
+    readProjectionWhenSourceLaterUnavailable: 'tombstone_without_original_body',
+  },
+  mutationPolicy: {
+    contractAddsPostCreate: false,
+    contractAddsRepostCreate: false,
+    contractAddsShareCreate: false,
+    contractAddsNotificationCreate: false,
+    shareCreatesFeedRow: false,
+    shareCreatesNotification: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    orderMutation: false,
+    paidLikeMutation: false,
+  },
+} as const;
+
+export const LUMINA_FEED_REPOST_QUOTE_BODY_VALIDATION_POLICY = {
+  version: '2026-06-19.lumina-feed-repost-quote-body-validation-policy.v1',
+  status: 'policy_contract_only',
+  endpoint: 'POST /api/v1/lumina-feed/posts/:postId/reposts',
+  sourceContract: 'LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT',
+  input: {
+    bodyField: 'body',
+    trimBeforeValidation: true,
+    maxChars: FEED_POST_MAX_BODY_CHARS,
+    emptyBodyCreates: 'repost',
+    nonEmptyBodyCreates: 'quote_repost',
+    whitespaceOnlyBodyCreates: 'repost',
+    bodyRequiredForSimpleRepost: false,
+    bodyRequiredForQuoteRepost: true,
+  },
+  validation: {
+    loginRequired: true,
+    sourcePostIdRequired: true,
+    sourceMustBePublicPublished: true,
+    sourceUnavailableBeforeCreate: 'safe_not_found',
+    blockedRelationshipBeforeCreate: 'USER_FOLLOW_BLOCKED',
+    overMaxBodyStatus: 400,
+    overMaxBodyCode: 'FEED_BODY_TOO_LONG',
+    invalidBodyStatus: 400,
+    validationOrder: [
+      'require_authenticated_viewer',
+      'validate_source_post_id',
+      'load_public_published_source_post',
+      'reject_deleted_hidden_private_reported_or_blocked_source',
+      'validate_quote_body_when_present',
+      'create_repost_or_quote_repost_row',
+    ],
+  },
+  projection: {
+    quoteBodyField: 'post.repost.quoteBody',
+    originalReferenceField: 'metadata.repost.originalPostId',
+    originalBodyField: 'post.repost.originalPost.body',
+    relationFields: {
+      parentPostId: null,
+      threadRootPostId: null,
+      commentRelation: false,
+      replyRelation: false,
+      threadRelation: false,
+    },
+    unavailableSourceStates: [
+      'missing',
+      'deleted',
+      'hidden',
+      'private',
+      'reported',
+      'moderation_review',
+      'blocked_relationship',
+      'viewer_hidden',
+    ],
+    unavailableProjection: {
+      originalState: 'unavailable',
+      tombstone: true,
+      unavailableReason: 'viewer_restricted_or_unavailable',
+      originalPost: null,
+      originalBodyReturned: false,
+      quoteBodyMayRemainVisible: true,
+    },
+  },
+  shareSeparation: {
+    shareEndpoint: 'POST /api/v1/lumina-feed/posts/:postId/share',
+    shareCreatesFeedRow: false,
+    shareCreatesRepostRow: false,
+    shareCreatesNotification: false,
+    shareCountMutation: false,
+  },
+  noSideEffects: {
+    threadCreate: true,
+    commentCreate: true,
+    replyCreate: true,
+    shareCreate: true,
+    notificationCreate: true,
+    walletMutation: true,
+    luminaMutation: true,
+    settlementMutation: true,
+    payoutMutation: true,
+    orderMutation: true,
+    paidLikeMutation: true,
+  },
+} as const;
+
+export const LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT = {
+  version: '2026-06-17.lumina-feed-quote-repost-content-read-model.v1',
+  status: 'read_model_contract_only',
+  sourceContract: 'LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT',
+  projection: {
+    field: 'post.repost',
+    allowedTypes: ['repost', 'quote_repost'],
+    simpleRepost: {
+      type: 'repost',
+      hasQuote: false,
+      quoteBodyField: 'post.repost.quoteBody',
+      quoteBodyValue: null,
+      originalPostProjectionField: 'post.repost.originalPost',
+    },
+    quoteRepost: {
+      type: 'quote_repost',
+      hasQuote: true,
+      quoteBodyField: 'post.repost.quoteBody',
+      originalPostProjectionField: 'post.repost.originalPost',
+      originalBodyField: 'post.repost.originalPost.body',
+      quoteBodyDoesNotOverwriteOriginalBody: true,
+      quoteBodyPreservedWhenOriginalUnavailable: true,
+    },
+    relationshipFlags: {
+      parentPostId: null,
+      threadRootPostId: null,
+      commentRelation: false,
+      replyRelation: false,
+      threadRelation: false,
+    },
+    preservedOriginalIdentifiers: [
+      'post.repost.originalPostId',
+      'post.repost.originalAuthorUserId',
+      'post.repost.originalArtistId',
+    ],
+  },
+  unavailableOriginalPolicy: {
+    appliesTo: [
+      'missing',
+      'deleted',
+      'hidden',
+      'private',
+      'moderation_review',
+      'viewer_hidden',
+      'blocked_relationship',
+    ],
+    projection: {
+      originalState: 'unavailable',
+      tombstone: true,
+      unavailableReason: 'viewer_restricted_or_unavailable',
+      originalPost: null,
+    },
+    safeTombstoneOnly: true,
+    quoteBodyMayRemainVisible: true,
+    originalBodyReturned: false,
+  },
+  privacy: {
+    originalPrivateBodyReturned: false,
+    originalDraftBodyReturned: false,
+    originalModerationNotesReturned: false,
+    originalReportStateReturned: false,
+    originalInternalMetadataReturned: false,
+    originalOwnerEmailReturned: false,
+    originalWalletOrLedgerReturned: false,
+    rawEnumUiCopyRequired: false,
+  },
+  mutationPolicy: {
+    contractAddsPostCreate: false,
+    contractAddsRepostCreate: false,
+    contractAddsQuoteRepostCreate: false,
+    contractAddsNotificationCreate: false,
+    contractAddsUnreadCountMutation: false,
+    contractAddsShareMutation: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    orderMutation: false,
+    paidLikeMutation: false,
+  },
+} as const;
+
+export const LUMINA_FEED_THREAD_REPOST_SHARE_PM_PROJECTION_CONTRACT = {
+  version: '2026-06-18.lumina-feed-thread-repost-share-pm-projection.v1',
+  status: 'read_model_contract_only',
+  sourceContracts: [
+    'LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT',
+    'LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT',
+    'LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT',
+  ],
+  threadContinuation: {
+    pmMeaning: 'append_after_publish',
+    relation: 'thread_continuation',
+    actionKey: 'feed_thread_continue',
+    stateKey: 'thread_continuation',
+    createEndpoint: '/api/v1/lumina-feed/posts/:postId/thread-continuations',
+    listEndpoint: '/api/v1/lumina-feed/posts/:postId/thread-continuations',
+    sourcePostAlreadyExists: true,
+    rootAuthorOnly: true,
+    autoLongDraftSplit: false,
+    draftComposerMode: false,
+    legacyManualThreadComposer: false,
+    longTextWorkaround: false,
+    countTarget: 'thread_continuation_list',
+    excludedFrom: [
+      'manualThreadCount',
+      'repostCount',
+      'shareCount',
+      'replyCount',
+      'commentCount',
+    ],
+  },
+  repost: {
+    pmMeaning: 'bring_original_post_into_my_feed_context',
+    endpoint: '/api/v1/lumina-feed/posts/:postId/reposts',
+    allowedTypes: ['repost', 'quote_repost'],
+    createsFeedRow: true,
+    viewerOwnedContext: true,
+    originalReferenceField: 'metadata.repost.originalPostId',
+    originalPostProjectionField: 'post.repost.originalPost',
+    quoteBodyProjectionField: 'post.repost.quoteBody',
+    quoteBodyDoesNotOverwriteOriginalBody: true,
+    threadRelation: false,
+    commentRelation: false,
+    replyRelation: false,
+    countTarget: 'repost_count',
+    shareRelation: false,
+  },
+  share: {
+    pmMeaning: 'read_action_share_url_contract',
+    endpoint: '/api/v1/lumina-feed/posts/:postId/share',
+    relation: 'share',
+    actionKey: 'feed_share',
+    stateKey: 'share_contract',
+    authorOwnershipRequired: false,
+    otherUserPostAllowed: true,
+    createsFeedRow: false,
+    createsRepost: false,
+    createsShareLedger: false,
+    createsNotification: false,
+    shareUrlProjectionOnly: true,
+    countTarget: null,
+  },
+  failClosedSourcePolicy: {
+    deletedSource: 'safe_not_found_or_tombstone',
+    hiddenSource: 'safe_not_found_or_tombstone',
+    privateSource: 'safe_not_found_or_tombstone',
+    blockedRelationship: 'safe_not_found_or_tombstone',
+  },
+  mutationPolicy: {
+    contractAddsThreadContinuationCreate: false,
+    contractAddsRepostCreate: false,
+    contractAddsQuoteRepostCreate: false,
+    contractAddsShareCreate: false,
+    contractAddsFeedRowCreate: false,
+    contractAddsNotificationCreate: false,
+    contractAddsUnreadCountMutation: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    orderMutation: false,
+    paidLikeMutation: false,
+  },
+} as const;
+
+export const LUMINA_FEED_REPOST_SHARE_DISPLAY_PROJECTION_CONTRACT = {
+  version: '2026-06-23.lumina-feed-repost-share-display-projection.v1',
+  status: 'read_model_contract_only',
+  surface: 'lumina_feed_post_card',
+  sourceContracts: [
+    'LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT',
+    'LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT',
+    'LUMINA_FEED_THREAD_REPOST_SHARE_PM_PROJECTION_CONTRACT',
+  ],
+  repostDisplay: {
+    field: 'post.repost',
+    relation: 'repost',
+    allowedTypes: ['repost', 'quote_repost'],
+    originalReference: {
+      idField: 'post.repost.originalPostId',
+      authorUserIdField: 'post.repost.originalAuthorUserId',
+      artistIdField: 'post.repost.originalArtistId',
+      embeddedPostField: 'post.repost.originalPost',
+    },
+    viewerComment: {
+      quoteBodyField: 'post.repost.quoteBody',
+      simpleRepostValue: null,
+      quoteRepostMayRemainVisibleWhenOriginalTombstoned: true,
+      quoteBodyDoesNotOverwriteOriginalBody: true,
+    },
+    countPolicy: {
+      countField: 'repostCount',
+      countSource: 'community_posts.metadata.repost.originalPostId',
+      includes: ['repost', 'quote_repost'],
+      excludes: ['thread_continuation', 'share_contract', 'reply', 'comment'],
+    },
+    unavailableOriginalDisplay: {
+      states: [
+        'missing',
+        'deleted',
+        'hidden',
+        'private',
+        'viewer_hidden',
+        'blocked_relationship',
+      ],
+      originalState: 'unavailable',
+      tombstone: true,
+      unavailableReason: 'viewer_restricted_or_unavailable',
+      originalPost: null,
+      originalBodyReturned: false,
+      privateAuthorFieldsReturned: false,
+    },
+  },
+  shareDisplay: {
+    relation: 'share',
+    actionKey: 'feed_share',
+    stateKey: 'share_contract',
+    field: 'share',
+    shareUrlProjectionOnly: true,
+    createsFeedRow: false,
+    repostRelation: false,
+    threadRelation: false,
+    commentRelation: false,
+    replyRelation: false,
+    shareCount: null,
+    countStrategy: 'not_mutated_by_share_contract',
+  },
+  mutationPolicy: {
+    contractAddsRepostCreate: false,
+    contractAddsQuoteRepostCreate: false,
+    contractAddsShareCreate: false,
+    contractAddsFeedRowCreate: false,
+    contractAddsNotificationCreate: false,
+    contractAddsCountMutation: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    orderMutation: false,
+    paidLikeMutation: false,
+  },
+} as const;
+
+export const LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT = {
+  version: '2026-06-23.lumina-feed-repost-quote-projection.v1',
+  status: 'read_model_contract_only',
+  sourceContracts: [
+    'LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT',
+    'LUMINA_FEED_REPOST_QUOTE_BODY_VALIDATION_POLICY',
+    'LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT',
+    'LUMINA_FEED_REPOST_SHARE_DISPLAY_PROJECTION_CONTRACT',
+  ],
+  endpoint: 'POST /api/v1/lumina-feed/posts/:postId/reposts',
+  quoteProjection: {
+    relation: 'quote_repost',
+    actionKey: 'feed_quote_repost',
+    stateKey: 'quote_repost',
+    createsViewerOwnedFeedRow: true,
+    originalReferenceField: 'metadata.repost.originalPostId',
+    quoteBodyField: 'post.repost.quoteBody',
+    originalPostField: 'post.repost.originalPost',
+    quoteBodyDoesNotOverwriteOriginalBody: true,
+    quoteBodyMayRemainVisibleWhenOriginalTombstoned: true,
+    originalBodyReturnedOnlyWhenVisibleToViewer: true,
+  },
+  simpleRepostProjection: {
+    relation: 'repost',
+    actionKey: 'feed_repost',
+    stateKey: 'repost',
+    quoteBody: null,
+    originalReferenceField: 'metadata.repost.originalPostId',
+    originalPostField: 'post.repost.originalPost',
+  },
+  relationSeparation: {
+    shareRelation: false,
+    threadRelation: false,
+    manualThreadRelation: false,
+    threadContinuationRelation: false,
+    commentRelation: false,
+    replyRelation: false,
+    parentPostId: null,
+    threadRootPostId: null,
+  },
+  originalVisibilityPolicy: {
+    visibleStates: ['published_public_visible_to_viewer'],
+    tombstoneStates: [
+      'missing',
+      'deleted',
+      'hidden',
+      'private',
+      'reported',
+      'moderation_review',
+      'viewer_hidden',
+      'blocked_relationship',
+    ],
+    tombstoneProjection: {
+      originalState: 'unavailable',
+      tombstone: true,
+      unavailableReason: 'viewer_restricted_or_unavailable',
+      originalPost: null,
+      originalBodyReturned: false,
+      privateAuthorFieldsReturned: false,
+    },
+    blockedRelationshipDirection: 'either_direction',
+    safeNotFoundBeforeCreate: true,
+  },
+  countPolicy: {
+    repostCountField: 'repostCount',
+    quoteRepostIncludedInRepostCount: true,
+    countSource: 'community_posts.metadata.repost.originalPostId',
+    excludedRelations: [
+      'share_contract',
+      'thread_continuation',
+      'manual_thread',
+      'comment',
+      'reply',
+    ],
+  },
+  shareSeparation: {
+    endpoint: 'POST /api/v1/lumina-feed/posts/:postId/share',
+    relation: 'share',
+    actionKey: 'feed_share',
+    stateKey: 'share_contract',
+    createsFeedRow: false,
+    createsRepostRow: false,
+    createsNotification: false,
+    countTarget: null,
+  },
+  mutationPolicy: {
+    contractAddsPostCreate: false,
+    contractAddsRepostCreate: false,
+    contractAddsQuoteRepostCreate: false,
+    contractAddsShareCreate: false,
+    contractAddsDelete: false,
+    contractAddsNotificationCreate: false,
+    contractAddsCountMutation: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    orderMutation: false,
+    paidLikeMutation: false,
+  },
+} as const;
+
+export const LUMINA_FEED_REPOST_TOMBSTONE_READ_PROJECTION_CONTRACT = {
+  version: '2026-06-25.lumina-feed-repost-tombstone-read-projection.v1',
+  status: 'read_model_contract_only',
+  surfaces: ['feed_list', 'post_detail', 'user_profile_posts', 'reposts_tab'],
+  sourceRelations: ['repost', 'quote_repost'],
+  sourceReferenceField: 'metadata.repost.originalPostId',
+  tombstoneWhenOriginalState: [
+    'missing',
+    'deleted',
+    'hidden',
+    'private',
+    'viewer_hidden',
+    'blocked_relationship',
+  ],
+  projection: {
+    field: 'post.repost',
+    originalState: 'unavailable',
+    tombstone: true,
+    unavailableReason: 'viewer_restricted_or_unavailable',
+    originalPost: null,
+    originalBodyReturned: false,
+    originalAssetsReturned: false,
+    originalAuthorPrivateFieldsReturned: false,
+    quoteBodyMayRemainVisible: true,
+    quoteBodyField: 'post.repost.quoteBody',
+    simpleRepostQuoteBody: null,
+  },
+  listAndDetailPolicy: {
+    sameProjectionForListAndDetail: true,
+    deletedOriginalExcludedFromOriginalPostProjection: true,
+    blockedOriginalExcludedFromOriginalPostProjection: true,
+    safeNotFoundAllowedForDirectOriginalLookup: true,
+    repostRowMayRemainVisibleWithTombstone: true,
+  },
+  countPolicy: {
+    repostCountField: 'repostCount',
+    repostCountIncludes: ['repost', 'quote_repost'],
+    shareCountStrategy: 'not_mutated_by_share_contract',
+    tombstoneReadDoesNotMutateRepostCount: true,
+    tombstoneReadDoesNotMutateShareCount: true,
+    tombstoneReadDoesNotMutateNotificationCount: true,
+  },
+  mutationPolicy: {
+    postCreate: false,
+    postDelete: false,
+    repostCreate: false,
+    repostDelete: false,
+    shareCreate: false,
+    countMutation: false,
+    notificationMutation: false,
+    walletMutation: false,
+    luminaMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
 
 @Injectable()
 export class CommunityService {
@@ -81,6 +1309,7 @@ export class CommunityService {
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
         artist: artistSlug ? { slug: artistSlug, status: 'active' } : undefined,
         artistId: mode === 'artists' ? { not: null } : undefined,
         postType: mode === 'fans' ? 'user_post' : undefined,
@@ -124,6 +1353,7 @@ export class CommunityService {
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
         artist: artistSlug ? { slug: artistSlug, status: 'active' } : undefined,
         artistId: mode === 'artists' ? { not: null } : undefined,
         postType: mode === 'fans' ? 'user_post' : undefined,
@@ -406,6 +1636,7 @@ export class CommunityService {
           status: 'published',
           visibility: 'public',
           deletedAt: null,
+          ...this.publicFeedCleanupGuardWhere(),
           publishedAt: { gte: since },
           body: { contains: '#' },
         },
@@ -567,6 +1798,7 @@ export class CommunityService {
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
       },
       take: this.take(query.take),
       include: this.postInclude(),
@@ -678,6 +1910,7 @@ export class CommunityService {
       status: 'published',
       visibility: 'public',
       deletedAt: null,
+      ...this.publicFeedCleanupGuardWhere(),
       metadata: {
         path: ['threadContinuation', 'rootPostId'],
         equals: rootPost.id,
@@ -746,6 +1979,7 @@ export class CommunityService {
   async createRepost(userId: string, postId: string, input: CommunityBody) {
     await this.assertActiveUser(userId);
     const originalPost = await this.findPublicPostWithInclude(postId);
+    await this.assertNoActiveUserBlock(userId, originalPost.authorUserId);
     const quoteBody = this.optionalText(input, 'body', FEED_POST_MAX_BODY_CHARS) ?? '';
     const metadata = {
       ...this.relationInputMetadata(input),
@@ -777,6 +2011,12 @@ export class CommunityService {
     return {
       ok: true,
       postId: post.id,
+      relation: 'share',
+      createsFeedRow: false,
+      repostRelation: false,
+      threadRelation: false,
+      commentRelation: false,
+      replyRelation: false,
       share: this.feedShareContract(post.id),
       policy: this.feedSharePolicy(),
     };
@@ -1055,6 +2295,7 @@ export class CommunityService {
   async createReply(userId: string, postId: string, input: CommunityBody) {
     await this.assertActiveUser(userId);
     const post = await this.findVisiblePost(postId);
+    await this.assertNoActiveUserBlock(userId, post.authorUserId);
     const body = this.text(input, 'body', 1, FEED_REPLY_MAX_BODY_CHARS);
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -1150,6 +2391,7 @@ export class CommunityService {
 
   async likePost(userId: string, postId: string, idempotencyKey?: string) {
     const visiblePost = await this.findVisiblePost(postId);
+    await this.assertNoActiveUserBlock(userId, visiblePost.authorUserId);
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {
@@ -1551,6 +2793,35 @@ export class CommunityService {
         },
       });
 
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: blockerUserId,
+          actorType: 'user',
+          action: 'community.user_block.activated',
+          targetType: 'user_block',
+          targetId: created.id,
+          beforeData: Prisma.JsonNull,
+          afterData: this.toJson({
+            blockerUserId,
+            blockedUserId,
+            status: 'active',
+            reasonStoredOnBlock: Boolean(reason),
+          }),
+          metadata: this.toJson({
+            viewerToTargetFollowRemoved: viewerToTargetFollow.count > 0,
+            targetToViewerFollowRemoved: targetToViewerFollow.count > 0,
+            rawEmailStored: false,
+            rawTokenStored: false,
+            rawCookieStored: false,
+            rawIpStored: false,
+            walletMutation: false,
+            luminaMutation: false,
+            paymentMutation: false,
+            settlementMutation: false,
+          }),
+        },
+      });
+
       return {
         block: created,
         viewerToTargetFollowRemoved: viewerToTargetFollow.count > 0,
@@ -1592,17 +2863,51 @@ export class CommunityService {
       );
     }
 
-    await this.prisma.userBlock.updateMany({
-      where: {
-        blockerUserId,
-        blockedUserId,
-        status: 'active',
-      },
-      data: {
-        status: 'deleted',
-        deletedAt: new Date(),
-        updatedAt: new Date(),
-      },
+    await this.prisma.$transaction(async (tx) => {
+      const deleted = await tx.userBlock.updateMany({
+        where: {
+          blockerUserId,
+          blockedUserId,
+          status: 'active',
+        },
+        data: {
+          status: 'deleted',
+          deletedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      if (deleted.count > 0) {
+        await tx.auditEvent.create({
+          data: {
+            actorUserId: blockerUserId,
+            actorType: 'user',
+            action: 'community.user_block.deleted',
+            targetType: 'user_block',
+            targetId: blockedUserId,
+            beforeData: this.toJson({
+              blockerUserId,
+              blockedUserId,
+              status: 'active',
+            }),
+            afterData: this.toJson({
+              blockerUserId,
+              blockedUserId,
+              status: 'deleted',
+            }),
+            metadata: this.toJson({
+              rawEmailStored: false,
+              rawTokenStored: false,
+              rawCookieStored: false,
+              rawIpStored: false,
+              walletMutation: false,
+              luminaMutation: false,
+              paymentMutation: false,
+              settlementMutation: false,
+            }),
+          },
+        });
+      }
     });
 
     return { ok: true };
@@ -1692,6 +2997,21 @@ export class CommunityService {
     }
 
     await this.assertProfileVisibleToViewer(user.id, viewerUserId);
+    const blockedUserIds = viewerUserId
+      ? await this.getBlockedRelationshipUserIds(viewerUserId)
+      : [];
+    const followerCountWhere = this.clean({
+      followingUserId: user.id,
+      status: 'active',
+      deletedAt: null,
+      followerUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
+    });
+    const followingUserCountWhere = this.clean({
+      followerUserId: user.id,
+      status: 'active',
+      deletedAt: null,
+      followingUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
+    });
 
     const [
       followers,
@@ -1702,10 +3022,10 @@ export class CommunityService {
       recentPosts,
     ] = await Promise.all([
       this.prisma.userFollow.count({
-        where: { followingUserId: user.id, status: 'active', deletedAt: null },
+        where: followerCountWhere,
       }),
       this.prisma.userFollow.count({
-        where: { followerUserId: user.id, status: 'active', deletedAt: null },
+        where: followingUserCountWhere,
       }),
       this.prisma.artistFollow.count({
         where: { userId: user.id, status: 'active', deletedAt: null },
@@ -1761,6 +3081,11 @@ export class CommunityService {
         followEndpoint: 'POST /api/v1/users/:userId/follow',
         unfollowEndpoint: 'DELETE /api/v1/users/:userId/follow',
         editProfileEndpoint: 'PATCH /api/v1/me/profile',
+        countProjection: {
+          followerRowsBlockedByViewerExcluded: true,
+          followingRowsBlockedByViewerExcluded: true,
+          blockedRelationshipDirection: 'either_direction',
+        },
       },
       recentPosts: await Promise.all(
         recentPosts.map((post) => this.toPostView(post, viewerUserId)),
@@ -1814,6 +3139,7 @@ export class CommunityService {
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
       },
       include: this.postInclude(),
       orderBy: { publishedAt: 'desc' },
@@ -1990,26 +3316,31 @@ export class CommunityService {
     }
 
     const direction = list === 'followers' ? 'follower' : 'following';
+    const blockedUserIds = viewerUserId
+      ? await this.getBlockedRelationshipUserIds(viewerUserId)
+      : [];
     const followWhere =
       list === 'followers'
-        ? {
+        ? this.clean({
             followingUserId: user.id,
             status: 'active',
             deletedAt: null,
+            followerUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
             follower: {
               status: 'active',
               deletedAt: null,
             },
-          }
-        : {
+          })
+        : this.clean({
             followerUserId: user.id,
             status: 'active',
             deletedAt: null,
+            followingUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
             following: {
               status: 'active',
               deletedAt: null,
             },
-          };
+          });
 
     const [follows, total] = await Promise.all([
       this.prisma.userFollow.findMany({
@@ -2022,7 +3353,9 @@ export class CommunityService {
       this.prisma.userFollow.count({ where: followWhere }),
     ]);
     const items = await Promise.all(
-      follows.map((follow) => this.toUserFollowView(follow, direction)),
+      follows.map((follow) =>
+        this.toUserFollowView(follow, direction, viewerUserId, true),
+      ),
     );
 
     return {
@@ -2033,21 +3366,24 @@ export class CommunityService {
         canViewList: true,
       },
       policy: {
-        projection: 'public_user_follow_summary_v1',
+        projection: USER_SOCIAL_ACCOUNT_CONTRACT.profileFollowLists.projection,
         visibility: 'public_active_profiles_only',
         list,
         hiddenUserRule:
           'Only active non-deleted users are returned; suspended, deleted, or inactive users are hidden from follow cards.',
-        privateFieldsExcluded: [
-          'email',
-          'phone',
-          'providerIds',
-          'walletAccounts',
-          'walletLedger',
-          'paymentOrders',
-          'privateProfile',
-          'moderationNotes',
+        blockedUserRule:
+          'Authenticated viewers do not receive list rows for users in an active block relationship; a block relationship with the target profile returns 403.',
+        viewerHints: [
+          'isAuthenticated',
+          'isSelf',
+          'isFollowing',
+          'canFollow',
+          'canUnfollow',
+          'blockedByMe',
+          'hasBlockedMe',
         ],
+        privateFieldsExcluded:
+          USER_SOCIAL_ACCOUNT_CONTRACT.profileFollowLists.privateFieldsExcluded,
       },
     };
   }
@@ -2173,15 +3509,37 @@ export class CommunityService {
           },
         })
       : null;
+    const block =
+      viewerUserId && !isSelf
+        ? await this.prisma.userBlock.findFirst({
+            where: {
+              status: 'active',
+              deletedAt: null,
+              OR: [
+                { blockerUserId: viewerUserId, blockedUserId: targetUserId },
+                { blockerUserId: targetUserId, blockedUserId: viewerUserId },
+              ],
+            },
+            select: {
+              blockerUserId: true,
+              blockedUserId: true,
+            },
+          })
+        : null;
     const isFollowing = Boolean(follow?.status === 'active' && !follow.deletedAt);
+    const blockedByMe = Boolean(viewerUserId && block?.blockerUserId === viewerUserId);
+    const hasBlockedMe = Boolean(viewerUserId && block?.blockedUserId === viewerUserId);
+    const isBlocked = blockedByMe || hasBlockedMe;
 
     return {
       isAuthenticated,
       isSelf,
       isFollowing,
-      canFollow: Boolean(viewerUserId && !isSelf && !isFollowing),
-      canUnfollow: Boolean(viewerUserId && !isSelf && isFollowing),
+      canFollow: Boolean(viewerUserId && !isSelf && !isFollowing && !isBlocked),
+      canUnfollow: Boolean(viewerUserId && !isSelf && isFollowing && !isBlocked),
       canEditProfile: isSelf,
+      blockedByMe,
+      hasBlockedMe,
     };
   }
 
@@ -2743,6 +4101,13 @@ export class CommunityService {
       likesTarget: 'root',
       commentsTarget: 'root',
       imagesTarget: 'root',
+      countIsolation: {
+        threadCountSource: 'manual_thread_items_only',
+        continuationCountIncluded: false,
+        repostCountIncluded: false,
+        shareCountIncluded: false,
+        replyCountIncluded: false,
+      },
     };
   }
 
@@ -2761,6 +4126,8 @@ export class CommunityService {
       isContinuation: true,
       type: 'thread_continuation',
       relation: 'thread_continuation',
+      actionKey: 'feed_thread_continue',
+      stateKey: 'thread_continuation',
       rootPostId,
       parentPostId: this.stringFromUnknown(relation.parentPostId) ?? rootPostId,
       source: 'existing_post',
@@ -2832,10 +4199,24 @@ export class CommunityService {
       },
     });
 
+    const quoteBody =
+      this.stringFromUnknown(relation.quoteBody) ??
+      this.stringFromUnknown(relation.quoteText) ??
+      null;
+    const type = this.repostRelationType(this.stringFromUnknown(relation.type), quoteBody);
+
     return {
       isRepost: true,
-      type: this.stringFromUnknown(relation.type) ?? 'repost',
+      type,
       relation: 'repost',
+      hasQuote: type === 'quote_repost',
+      parentPostId: null,
+      threadRootPostId: null,
+      commentRelation: false,
+      replyRelation: false,
+      threadRelation: false,
+      actionKey: type === 'quote_repost' ? 'feed_quote_repost' : 'feed_repost',
+      stateKey: type,
       originalPostId,
       originalAuthorUserId:
         this.stringFromUnknown(relation.originalAuthorUserId) ??
@@ -2845,10 +4226,7 @@ export class CommunityService {
         this.stringFromUnknown(relation.originalArtistId) ??
         originalPost?.artistId ??
         null,
-      quoteBody:
-        this.stringFromUnknown(relation.quoteBody) ??
-        this.stringFromUnknown(relation.quoteText) ??
-        null,
+      quoteBody,
       originalState: originalPost ? 'visible' : 'unavailable',
       tombstone: !originalPost,
       unavailableReason: originalPost ? null : 'viewer_restricted_or_unavailable',
@@ -3054,7 +4432,12 @@ export class CommunityService {
     }
   }
 
-  private async toUserFollowView(follow: any, direction: 'follower' | 'following') {
+  private async toUserFollowView(
+    follow: any,
+    direction: 'follower' | 'following',
+    viewerUserId?: string,
+    includeViewer = false,
+  ) {
     const user = follow[direction];
     const avatarAsset = user.profile?.avatarAssetId
       ? await this.prisma.asset.findUnique({
@@ -3063,7 +4446,7 @@ export class CommunityService {
         })
       : null;
 
-    return {
+    const view = {
       id: follow.id,
       status: follow.status,
       followedAt: follow.createdAt,
@@ -3077,6 +4460,15 @@ export class CommunityService {
           ? buildPublicAssetUrl(this.configService, avatarAsset.storageKey)
           : null,
       },
+    };
+
+    if (!includeViewer) {
+      return view;
+    }
+
+    return {
+      ...view,
+      viewer: await this.userProfileViewerState(user.id, viewerUserId),
     };
   }
 
@@ -3697,6 +5089,7 @@ export class CommunityService {
       status: 'published',
       visibility: 'public',
       deletedAt: null,
+      ...this.publicFeedCleanupGuardWhere(),
     };
 
     if (searchType === 'hashtag') {
@@ -3898,6 +5291,7 @@ export class CommunityService {
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
       },
       select: {
         id: true,
@@ -3924,6 +5318,7 @@ export class CommunityService {
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
       },
       include: this.postInclude(),
     });
@@ -4280,15 +5675,20 @@ export class CommunityService {
 
   private buildRepostMetadata(originalPost: any, quoteBody: string, now: Date) {
     const timestamp = now.toISOString();
+    const type = quoteBody ? 'quote_repost' : 'repost';
 
     return {
       version: 1,
-      type: quoteBody ? 'quote_repost' : 'repost',
+      type,
       originalPostId: originalPost.id,
       originalAuthorUserId: originalPost.authorUserId,
       originalArtistId: originalPost.artistId ?? null,
       originalPostType: originalPost.postType,
       quoteBody: quoteBody || null,
+      hasQuote: type === 'quote_repost',
+      parentThreadRelation: false,
+      commentRelation: false,
+      replyRelation: false,
       sourceVisibility: 'public',
       originalDeletionPolicy: 'render_tombstone_without_body',
       originalHiddenPolicy: 'hide_embedded_original',
@@ -4300,14 +5700,25 @@ export class CommunityService {
 
   private feedThreadPolicy() {
     return {
+      relation: 'legacy_manual_thread',
       maxItems: FEED_THREAD_MAX_ITEMS,
       maxCharsPerItem: FEED_THREAD_ITEM_MAX_BODY_CHARS,
       rootIncludedInLimit: true,
       autoSplit: false,
+      canonicalContinuationEndpoint:
+        '/api/v1/lumina-feed/posts/:postId/thread-continuations',
+      manualThreadIsNotContinuation: true,
       rootOnlyEngagement: true,
       likesTarget: 'root',
       commentsTarget: 'root',
       imagesTarget: 'root',
+      countIsolation: {
+        threadCountSource: 'manual_thread_items_only',
+        continuationCountIncluded: false,
+        repostCountIncluded: false,
+        shareCountIncluded: false,
+        replyCountIncluded: false,
+      },
       walletMutation: false,
       luminaMutation: false,
       settlementMutation: false,
@@ -4319,6 +5730,8 @@ export class CommunityService {
     return {
       relation: 'thread_continuation',
       source: 'existing_post',
+      canonicalButtonMeaning: 'append_to_existing_post',
+      existingPostRequired: true,
       rootAuthorOnly: true,
       maxCharsPerItem: FEED_THREAD_CONTINUATION_MAX_BODY_CHARS,
       autoSplit: false,
@@ -4329,6 +5742,16 @@ export class CommunityService {
       deletedRootPolicy: 'not_found',
       hiddenRootPolicy: 'not_found',
       privateRootPolicy: 'not_found',
+      blockedRootPolicy: 'not_found_before_create',
+      failClosedOnUnavailableRoot: true,
+      stateProjection: {
+        actionKey: 'feed_thread_continue',
+        stateKey: 'thread_continuation',
+        countTarget: 'thread_continuation_list',
+        countDoesNotMutateRootThreadCount: true,
+        countDoesNotMutateRepostCount: true,
+        countDoesNotMutateShareCount: true,
+      },
       walletMutation: false,
       luminaMutation: false,
       settlementMutation: false,
@@ -4339,16 +5762,87 @@ export class CommunityService {
   private feedRepostPolicy() {
     return {
       relation: 'repost',
+      allowedTypes: ['repost', 'quote_repost'],
+      simpleRepostRelation: 'repost',
+      quoteRepostRelation: 'quote_repost',
+      simpleRepostBodyPolicy: 'empty_body',
+      quoteRepostBodyPolicy: 'optional_quote_body',
       quoteBodyMaxChars: FEED_POST_MAX_BODY_CHARS,
+      emptyBodyCreates: 'repost',
+      nonEmptyBodyCreates: 'quote_repost',
       sourceVisibility: 'public_only',
       originalReferenceRequired: true,
+      parentThreadRelation: false,
+      commentRelation: false,
+      replyRelation: false,
+      deletedSourcePolicy: 'not_found_before_create',
+      createSourceStatusPolicy: 'published_public_not_deleted_only',
+      createBlockedRelationshipPolicy: 'reject_before_repost_create',
       originalDeletionPolicy: 'render_tombstone_without_body',
       originalHiddenPolicy: 'hide_embedded_original',
       originalBlockedPolicy: 'hide_embedded_original',
+      embeddedOriginalProjection: 'safe_public_summary_or_tombstone',
+      stateProjection: {
+        simpleRepostActionKey: 'feed_repost',
+        quoteRepostActionKey: 'feed_quote_repost',
+        simpleRepostStateKey: 'repost',
+        quoteRepostStateKey: 'quote_repost',
+        countTarget: 'repost_count',
+        countDoesNotMutateThreadCount: true,
+        countDoesNotMutateShareCount: true,
+        countDoesNotMutateReplyCount: true,
+      },
+      unavailableSourceFailClosed: {
+        deleted: 'not_found_before_create_or_tombstone_on_read',
+        hidden: 'not_found_before_create_or_tombstone_on_read',
+        private: 'not_found_before_create_or_tombstone_on_read',
+        blocked: 'reject_before_create_or_tombstone_on_read',
+        sourceBodyReturnedWhenUnavailable: false,
+      },
+      detailReadModel: {
+        endpoint: 'GET /api/v1/lumina-feed/posts/:postId',
+        quoteBodyField: 'post.repost.quoteBody',
+        originalBodyField: 'post.repost.originalPost.body',
+        tombstoneFields: [
+          'post.repost.originalState',
+          'post.repost.tombstone',
+          'post.repost.unavailableReason',
+        ],
+        quoteBodyPreservedWhenOriginalUnavailable: true,
+        originalBodyReturnedOnlyWhenVisible: true,
+      },
+      rawPrivateMetadataReturned: false,
+      rawOwnerMetadataReturned: false,
+      shareIsSeparateContract: true,
+      shareCountMutation: false,
+      countProjection: {
+        feedCounters: {
+          repostCountIncludes: ['repost', 'quote_repost'],
+          quoteRepostCountField: 'quoteRepostCount',
+          shareCountField: 'shareCount',
+          shareCountMutation: false,
+        },
+        profileCounters: {
+          repostsTabIncludes: ['repost', 'quote_repost'],
+          shareActionsExcluded: true,
+        },
+        notificationCounters: {
+          repostNotificationIncludes: ['repost', 'quote_repost'],
+          shareNotificationMutation: false,
+          shareUnreadCountMutation: false,
+        },
+        blockedRelationshipPolicy: {
+          writePolicy: 'reject_before_repost_create',
+          readProjection: 'hide_or_tombstone_when_blocked',
+          countProjection: 'exclude_blocked_relationship_rows',
+          notificationProjection: 'skip_before_notification_mutation',
+        },
+      },
       walletMutation: false,
       luminaMutation: false,
       settlementMutation: false,
       payoutMutation: false,
+      paidLikeMutation: false,
     };
   }
 
@@ -4362,19 +5856,85 @@ export class CommunityService {
       },
       shareCount: null,
       countStrategy: 'not_mutated_by_share_contract',
+      countProjection: {
+        feedCounters: {
+          repostCountMutation: false,
+          quoteRepostCountMutation: false,
+          shareCountMutation: false,
+        },
+        profileCounters: {
+          repostsTabMutation: false,
+        },
+        notificationCounters: {
+          createsNotification: false,
+          unreadCountMutation: false,
+        },
+        blockedRelationshipPolicy: 'share_contract_has_no_server_count_or_notification_row',
+      },
+      stateProjection: {
+        actionKey: 'feed_share',
+        stateKey: 'share_contract',
+        countTarget: null,
+        countDoesNotMutateThreadCount: true,
+        countDoesNotMutateRepostCount: true,
+        countDoesNotMutateReplyCount: true,
+      },
     };
   }
 
   private feedSharePolicy() {
     return {
       relation: 'share',
+      projection: 'share_contract_only',
+      repostRelation: false,
+      threadRelation: false,
+      commentRelation: false,
+      replyRelation: false,
       sourceVisibility: 'public_only',
+      sourceStatusPolicy: 'published_public_not_deleted_only',
+      unavailableSourceFailClosed: {
+        deleted: 'not_found',
+        hidden: 'not_found',
+        private: 'not_found',
+        blocked: 'not_found',
+      },
+      availableOnOtherUsersPosts: true,
+      authorOwnershipRequired: false,
+      stateProjection: {
+        actionKey: 'feed_share',
+        stateKey: 'share_contract',
+        countTarget: null,
+        countDoesNotMutateThreadCount: true,
+        countDoesNotMutateRepostCount: true,
+        countDoesNotMutateReplyCount: true,
+      },
       publicPathTemplate: '/lumina-feed/posts/:postId',
+      privateMetadataReturned: false,
+      rawOwnerMetadataReturned: false,
+      rawAuthorUserIdReturned: false,
+      createsFeedRow: false,
+      createsRepost: false,
       shareCountMutation: false,
+      countProjection: {
+        feedCounters: {
+          repostCountMutation: false,
+          quoteRepostCountMutation: false,
+          shareCountMutation: false,
+        },
+        profileCounters: {
+          repostsTabMutation: false,
+        },
+        notificationCounters: {
+          createsNotification: false,
+          unreadCountMutation: false,
+        },
+        blockedRelationshipPolicy: 'share_contract_has_no_server_count_or_notification_row',
+      },
       walletMutation: false,
       luminaMutation: false,
       settlementMutation: false,
       payoutMutation: false,
+      paidLikeMutation: false,
     };
   }
 
@@ -4454,6 +6014,12 @@ export class CommunityService {
     }
 
     return Math.max(1, Math.min(parsed, 50));
+  }
+
+  private publicFeedCleanupGuardWhere(): Prisma.CommunityPostWhereInput {
+    return {
+      NOT: FEED_PUBLIC_CLEANUP_GUARD_NOT,
+    };
   }
 
   private visibility(value: unknown) {
@@ -4707,10 +6273,19 @@ export class CommunityService {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 
+  private repostRelationType(value: string | undefined, quoteBody: string | null) {
+    if (value === 'quote_repost' || value === 'repost') {
+      return value;
+    }
+
+    return quoteBody ? 'quote_repost' : 'repost';
+  }
+
   private userBlockPolicy() {
     return {
       relationship: 'user_block',
       scope: 'viewer_target_pair',
+      hiddenSurfaces: USER_SOCIAL_ACCOUNT_CONTRACT.blockEffects.hiddenSurfaces,
       walletMutation: false,
       luminaMutation: false,
       paymentMutation: false,

@@ -1,8 +1,8 @@
 # Premium Chat Room Ledger Contract
 
-Updated: 2026-05-25
+Updated: 2026-06-02
 Owner: Kaido
-Task: Notion #331, #383, #389, #395, #467, #472, #477, #485, #489
+Task: Notion #331, #383, #389, #395, #467, #472, #477, #485, #489, pm-board #595
 
 This contract fixes the backend authority rules for premium chat room opening,
 artist closure, report/blind handling, and refund outcomes. It does not open a
@@ -147,6 +147,11 @@ balance writes no room, order, or ledger row.
   does not create settlement, payout, or revenue-share mutation.
 - Duplicate refund attempts must reuse the original refund projection and must
   not create a second credit ledger.
+- Refund restriction ledgers must balance to 100% of the gross room Lumina. The
+  only wallet ledger row in a user-fault restricted refund is the user Lumina
+  refund; company retention and artist compensation are non-wallet accounting
+  rows with settlement and payout mutation disabled until a later reviewed
+  revenue workflow.
 
 Reason keys:
 

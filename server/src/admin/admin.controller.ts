@@ -106,6 +106,12 @@ export class AdminController {
     );
   }
 
+  @Get('backstage/operations/artist-knowledge-url-audit-events')
+  @RequireAdminPermissions('audit:read')
+  getBackstageArtistKnowledgeUrlAuditEvents(@Query() query: AuditQuery) {
+    return this.adminService.getBackstageArtistKnowledgeUrlAuditEvents(query);
+  }
+
   @Get('backstage/operations/users-overview')
   @RequireAdminPermissions('users:read')
   getBackstageUsersOverview(@Query() query: AuditQuery) {
@@ -128,6 +134,18 @@ export class AdminController {
   @RequireAdminPermissions('*')
   getBackstageObjectStorageDiagnostics() {
     return this.adminService.getBackstageObjectStorageDiagnostics();
+  }
+
+  @Get('backstage/operations/indexing-readiness')
+  @RequireAdminPermissions('*')
+  getBackstageIndexingReadiness() {
+    return this.adminService.getBackstageIndexingReadiness();
+  }
+
+  @Get('backstage/operations/wallet-ledger-audit')
+  @RequireAdminPermissions('payments:read')
+  getBackstageWalletLedgerAudit(@Query() query: AuditQuery) {
+    return this.adminService.getBackstageWalletLedgerAudit(query);
   }
 
   @Get('backstage/fan-engagement/missions')
@@ -278,6 +296,12 @@ export class AdminController {
   @RequireAdminPermissions('payments:read')
   getBackstageSettlement(@Param('settlementKey') settlementKey: string) {
     return this.adminService.getBackstageSettlement(settlementKey);
+  }
+
+  @Get('backstage/operations/wallet-ledger-daily-reconcile')
+  @RequireAdminPermissions('payments:read')
+  getBackstageWalletLedgerDailyReconcile(@Query() query: AuditQuery) {
+    return this.adminService.getBackstageWalletLedgerDailyReconcile(query);
   }
 
   @Get('admin-roles')

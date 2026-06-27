@@ -74,12 +74,48 @@ describe('LuminaStationService.getChargePolicy', () => {
       },
     });
     expect(policy.appCharge.packages).toEqual([
-      expect.objectContaining({ priceKrw: 1000, luminaAmount: 70 }),
-      expect.objectContaining({ priceKrw: 3000, luminaAmount: 210 }),
-      expect.objectContaining({ priceKrw: 5000, luminaAmount: 350 }),
-      expect.objectContaining({ priceKrw: 10000, luminaAmount: 700 }),
-      expect.objectContaining({ priceKrw: 50000, luminaAmount: 3750 }),
-      expect.objectContaining({ priceKrw: 100000, luminaAmount: 8000 }),
+      expect.objectContaining({
+        sku: 'APP_LUMINA_100',
+        priceKrw: 1000,
+        luminaAmount: 100,
+        bonusLumina: 0,
+        totalLumina: 100,
+      }),
+      expect.objectContaining({
+        sku: 'APP_LUMINA_300',
+        priceKrw: 3000,
+        luminaAmount: 300,
+        bonusLumina: 0,
+        totalLumina: 300,
+      }),
+      expect.objectContaining({
+        sku: 'APP_LUMINA_500',
+        priceKrw: 5000,
+        luminaAmount: 500,
+        bonusLumina: 0,
+        totalLumina: 500,
+      }),
+      expect.objectContaining({
+        sku: 'APP_LUMINA_1000',
+        priceKrw: 10000,
+        luminaAmount: 1000,
+        bonusLumina: 0,
+        totalLumina: 1000,
+      }),
+      expect.objectContaining({
+        sku: 'APP_LUMINA_5800',
+        priceKrw: 50000,
+        luminaAmount: 5000,
+        bonusLumina: 800,
+        totalLumina: 5800,
+      }),
+      expect.objectContaining({
+        sku: 'APP_LUMINA_12000',
+        priceKrw: 100000,
+        luminaAmount: 10000,
+        bonusLumina: 2000,
+        totalLumina: 12000,
+      }),
     ]);
     expect(policy.appCharge.packages).toHaveLength(6);
     expect(policy.appCharge.packages).not.toEqual(

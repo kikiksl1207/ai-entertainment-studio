@@ -1,6 +1,13 @@
 import { ConflictException } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
-import { PaymentsService } from './payments.service';
+import {
+  CHARGE_PACKAGE_ADMIN_READ_ONLY_AUDIT_GUARD,
+  CHARGE_FIXTURE_PAYMENT_SEPARATION_CONTRACT,
+  FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT,
+  FIRST_CHARGE_BONUS_READ_ONLY_AUDIT_PROJECTION,
+  PaymentsService,
+} from './payments.service';
+import { ACTIVE_CHARGE_PRODUCT_SPECS } from './charge-products.policy';
 
 const userId = '00000000-0000-4000-8000-000000000001';
 const otherUserId = '00000000-0000-4000-8000-000000000002';
@@ -144,6 +151,350 @@ function paidWebhookFixture(
 }
 
 describe('PaymentsService server-authority contract', () => {
+  it('keeps charge preview fixture state out of real order and wallet authority', () => {
+    expect(CHARGE_FIXTURE_PAYMENT_SEPARATION_CONTRACT).toMatchObject({
+      version: '2026-06-08.charge-fixture-payment-separation.v1',
+      fixtureScope: {
+        allowedSurfaces: ['local_preview_ui', 'storybook_like_preview'],
+        serverAcceptedAsProductSource: false,
+        paymentOrderMutation: false,
+        walletMutation: false,
+        bonusMutation: false,
+        providerCheckoutMutation: false,
+      },
+      realPaymentSourceOfTruth: {
+        productPolicy: 'ACTIVE_CHARGE_PRODUCT_SPECS',
+        productLookup: 'activeChargeProductWhere(luminaProductId)',
+        orderStatusBeforeProviderWebhook: 'pending',
+        walletCreditTrigger: 'verified_provider_paid_webhook_only',
+        firstChargeBonusTrigger: 'verified_first_paid_order_transition_only',
+      },
+      serverAuthority: {
+        clientSubmittedPriceTrusted: false,
+        clientSubmittedLuminaAmountTrusted: false,
+        clientSubmittedBonusAmountTrusted: false,
+        clientSubmittedPaymentStatusTrusted: false,
+        checkoutPreviewCanCreatePaymentOrder: false,
+        checkoutPreviewCanCreateWalletLedger: false,
+      },
+    });
+    expect(
+      CHARGE_FIXTURE_PAYMENT_SEPARATION_CONTRACT.forbiddenFixtureFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'pg_pending',
+        'preview',
+        'fixture',
+        'fixtureProductId',
+        'fixtureStatus',
+        'fixtureWalletBalance',
+      ]),
+    );
+  });
+
+  it('documents first-charge bonus idempotency as a server-side wallet contract', () => {
+    expect(FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT).toMatchObject({
+      canonicalChargePackageCount: 6,
+      grantTrigger: 'first_successful_paid_lumina_order_transition_only',
+      idempotencyKeyPattern: 'first_charge_bonus:<userId>',
+      bonusBasis: 'base_lumina_only',
+      bonusRate: '10_percent',
+      packageBonusIncluded: false,
+      packageBonusLedgerType: 'purchase',
+      firstChargeBonusLedgerType: 'first_charge_bonus',
+      firstChargeBonusReferenceType: 'payment_order',
+      uniquenessScope: ['userId', 'first_charge_bonus'],
+      replaySources: [
+        'provider_transaction_duplicate',
+        'paid_order_callback_retry',
+        'wallet_ledger_upsert_race',
+      ],
+      packageBonusSeparation: {
+        packageBonusIncludedInPurchaseLedger: true,
+        firstChargeBonusStoredInPurchaseLedger: false,
+        highValuePackageBonusRowsSharedWithFirstCharge: false,
+      },
+      firstChargeOnceAcrossPackagesGuard: {
+        version: '2026-06-19.first-charge-bonus-once-across-packages.v1',
+        packageScope: 'all_six_canonical_lumina_charge_packages',
+        firstPaidOrderSource: 'payment_orders.status_paid_for_user',
+        triggerTransition: 'provider_verified_pending_to_paid',
+        failedOrPendingOrdersCountAsFirstCharge: false,
+        userScopedIdempotencyKey: 'first_charge_bonus:<userId>',
+        duplicateGrantLookup: {
+          table: 'wallet_ledger',
+          ledgerType: 'first_charge_bonus',
+          referenceType: 'payment_order',
+          userIdScoped: true,
+        },
+        highValuePackageSeparation: {
+          affectedSkus: ['lumina_50000', 'lumina_100000'],
+          packageBonusLedgerType: 'purchase',
+          firstChargeBonusLedgerType: 'first_charge_bonus',
+          packageBonusIncludedInFirstChargeBasis: false,
+          firstChargeBasis: 'lumina_products.lumina_amount',
+        },
+        mutationOpenedByThisContract: false,
+        paymentMutation: false,
+        walletCreditMutation: false,
+        bonusMutation: false,
+      },
+      auditReadModelSeparation: {
+        canonicalPackageSkus: [
+          'lumina_1000',
+          'lumina_3000',
+          'lumina_5000',
+          'lumina_10000',
+          'lumina_50000',
+          'lumina_100000',
+        ],
+        packageBonusField: 'lumina_products.bonus_amount',
+        packageBonusLedgerType: 'purchase',
+        firstChargeBonusLedgerType: 'first_charge_bonus',
+        firstChargeBonusBasisField: 'lumina_products.lumina_amount',
+        firstChargeBonusRateBps: 1000,
+        packageBonusAndFirstChargeShareAuditRow: false,
+        packageBonusAndFirstChargeShareLedgerType: false,
+        highValuePackageBonusRowsSharedWithFirstCharge: false,
+        auditTraceFields: expect.arrayContaining([
+          'paymentOrderId',
+          'luminaProductSku',
+          'baseLuminaAmount',
+          'packageBonusLumina',
+          'firstChargeBonusLumina',
+          'walletLedgerType',
+          'walletLedgerIdempotencyKey',
+        ]),
+      },
+      clientProvidedAmountAccepted: false,
+      walletAndLedgerSameTransaction: true,
+      duplicateProviderTransactionBehavior: 'idempotent_replay_without_wallet_ledger',
+      alreadyPaidOrderBehavior: 'idempotent_replay_without_wallet_ledger',
+      duplicateBonusKeyBehavior: 'upsert_replay_without_second_bonus_credit',
+      failedProviderEventsLockEligibility: false,
+      settlementEligible: false,
+      cashRefundable: false,
+      readOnlyAuditProjection: FIRST_CHARGE_BONUS_READ_ONLY_AUDIT_PROJECTION,
+    });
+  });
+
+  it('publishes first-charge bonus read-only audit projection for all charge packages', () => {
+    const projection = FIRST_CHARGE_BONUS_READ_ONLY_AUDIT_PROJECTION;
+
+    expect(projection).toMatchObject({
+      status: 'read_only_projection_contract',
+      mutation: false,
+      paymentProviderCall: false,
+      walletCredit: false,
+      bonusGrant: false,
+      sourceOfTruth: {
+        products: 'ACTIVE_CHARGE_PRODUCT_SPECS',
+        baseLuminaAmount: 'lumina_products.lumina_amount',
+        packageBonusLumina: 'lumina_products.bonus_amount',
+        firstChargeBonusRateBps: 1000,
+        firstChargeBonusBasis: 'base_lumina_only',
+      },
+      serverAuthority: {
+        clientSubmittedPriceTrusted: false,
+        clientSubmittedLuminaAmountTrusted: false,
+        clientSubmittedBonusAmountTrusted: false,
+        clientSubmittedFirstChargeBonusTrusted: false,
+        packageBonusAndFirstChargeShareLedgerType: false,
+        packageBonusAndFirstChargeShareAuditRow: false,
+      },
+      adminReadOnlyAuditGuard: CHARGE_PACKAGE_ADMIN_READ_ONLY_AUDIT_GUARD,
+    });
+    expect(projection.products.map((product) => product.priceAmountKrw)).toEqual([
+      1000, 3000, 5000, 10000, 50000, 100000,
+    ]);
+    expect(projection.products).toHaveLength(6);
+    expect(projection.products).toEqual(
+      ACTIVE_CHARGE_PRODUCT_SPECS.map((product) =>
+        expect.objectContaining({
+          sku: product.sku,
+          priceAmountKrw: product.priceAmount,
+          baseLuminaAmount: product.luminaAmount,
+          packageBonusLumina: product.bonusAmount,
+          firstChargeBonusLumina: product.luminaAmount / 10,
+          repeatChargeCreditLumina: product.luminaAmount + product.bonusAmount,
+          firstChargeTotalCreditLumina:
+            product.luminaAmount + product.bonusAmount + product.luminaAmount / 10,
+          ledgerTypes: {
+            packageCredit: 'purchase',
+            firstChargeBonus: 'first_charge_bonus',
+          },
+        }),
+      ),
+    );
+    expect(projection.products.find((product) => product.priceAmountKrw === 50000)).toMatchObject({
+      baseLuminaAmount: 5000,
+      packageBonusLumina: 800,
+      firstChargeBonusLumina: 500,
+      repeatChargeCreditLumina: 5800,
+      firstChargeTotalCreditLumina: 6300,
+    });
+    expect(projection.products.find((product) => product.priceAmountKrw === 100000)).toMatchObject({
+      baseLuminaAmount: 10000,
+      packageBonusLumina: 2000,
+      firstChargeBonusLumina: 1000,
+      repeatChargeCreditLumina: 12000,
+      firstChargeTotalCreditLumina: 13000,
+    });
+  });
+
+  it('guards admin charge package audit as super-admin read-only without payment or wallet side effects', () => {
+    const guard = CHARGE_PACKAGE_ADMIN_READ_ONLY_AUDIT_GUARD;
+
+    expect(guard).toMatchObject({
+      status: 'read_only_audit_contract',
+      endpoint: 'GET /api/v1/admin/payments/charge-packages/audit',
+      requiredRole: 'super_admin',
+      requiredPermission: 'payments:read',
+      mutation: false,
+      paymentOrderCreate: false,
+      paymentProviderCall: false,
+      walletCredit: false,
+      bonusGrant: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      packageScope: {
+        canonicalPackageCount: 6,
+        sourceOfTruth: 'ACTIVE_CHARGE_PRODUCT_SPECS',
+        clientSubmittedProductTrusted: false,
+        clientSubmittedAmountTrusted: false,
+      },
+      firstChargeAudit: {
+        grantLimit: 'once_per_user_across_all_six_packages',
+        idempotencyKeyPattern: 'first_charge_bonus:<userId>',
+        duplicateGrantBehavior: 'show_existing_ledger_without_second_bonus',
+        packageBonusSeparatedFromFirstCharge: true,
+        highValuePackageBonusSkus: ['LUMINA_5800', 'LUMINA_12000'],
+        firstChargeBasis: 'base_lumina_only',
+        firstChargeRateBps: 1000,
+        eligibilityScope: {
+          packageSkus: ACTIVE_CHARGE_PRODUCT_SPECS.map((product) => product.sku),
+          failedPendingOrCanceledOrdersIgnored: true,
+          userScopedDuplicateKeySharedAcrossPackages: true,
+        },
+        packageBonusSeparationAudit: {
+          packageBonusLedgerType: 'purchase',
+          firstChargeBonusLedgerType: 'first_charge_bonus',
+          firstChargeBonusBasisExcludesPackageBonus: true,
+          highValuePackageBonusSkus: ['LUMINA_5800', 'LUMINA_12000'],
+          highValuePackageBonusNeverCreatesFirstChargeEligibility: true,
+        },
+      },
+      forbiddenSideEffects: {
+        paymentOrderCreate: false,
+        providerCheckout: false,
+        walletCredit: false,
+        bonusGrant: false,
+        settlement: false,
+        payout: false,
+      },
+      errorResponses: {
+        forbidden: {
+          code: 'PAYMENT_ADMIN_AUDIT_FORBIDDEN',
+          messageKey: 'payments.adminAudit.forbidden',
+        },
+        unavailable: {
+          code: 'PAYMENT_ADMIN_AUDIT_UNAVAILABLE',
+          messageKey: 'payments.adminAudit.unavailable',
+        },
+      },
+      privacy: {
+        rawEmailReturned: false,
+        providerTransactionIdReturned: false,
+        paymentCredentialReturned: false,
+        tokenReturned: false,
+        cookieReturned: false,
+      },
+    });
+    expect(guard.packageScope.skus).toEqual(
+      ACTIVE_CHARGE_PRODUCT_SPECS.map((product) => product.sku),
+    );
+    expect(guard.packageScope.priceAmountsKrw).toEqual([
+      1000, 3000, 5000, 10000, 50000, 100000,
+    ]);
+    expect(guard.projectionFields).toEqual(
+      expect.arrayContaining([
+        'sku',
+        'priceAmountKrw',
+        'baseLuminaAmount',
+        'packageBonusLumina',
+        'firstChargeBonusLumina',
+        'firstChargeEligibilityState',
+        'duplicateFirstChargeGrantState',
+      ]),
+    );
+  });
+
+  it('applies first-charge 10 percent once across all six canonical packages without mixing package bonus ledger reasons', async () => {
+    expect(ACTIVE_CHARGE_PRODUCT_SPECS).toHaveLength(6);
+    expect(
+      FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT.firstChargeOnceAcrossPackagesGuard
+        .readOnlyAuditChecks,
+    ).toEqual([
+      'all_six_canonical_packages_share_one_user_scoped_bonus_key',
+      'first_paid_order_only_counts_after_provider_verified_paid_transition',
+      'package_bonus_purchase_ledger_is_not_first_charge_bonus_ledger',
+      'high_value_package_bonus_not_included_in_first_charge_basis',
+      'duplicate_bonus_key_returns_existing_projection_without_second_credit',
+    ]);
+
+    for (const product of ACTIVE_CHARGE_PRODUCT_SPECS) {
+      const { prisma, tx, webhookEvent } = paidWebhookFixture({
+        providerTransactionId: `provider-txn-${product.sku}`,
+        order: {
+          amount: new Decimal(product.priceAmount),
+          luminaProduct: {
+            id: productId,
+            sku: product.sku,
+            name: product.name,
+            luminaAmount: new Decimal(product.luminaAmount),
+            bonusAmount: new Decimal(product.bonusAmount),
+            priceAmount: new Decimal(product.priceAmount),
+            priceCurrency: product.priceCurrency,
+            status: 'active',
+          },
+        },
+      });
+      const { service } = serviceWith(prisma, {
+        verifyAndParseWebhook: jest.fn().mockReturnValue(webhookEvent),
+      });
+
+      await expect(service.handleWebhook('mock', {}, {})).resolves.toMatchObject({
+        firstChargeBonus: {
+          applied: true,
+          amount: new Decimal(product.luminaAmount).mul('0.1').toString(),
+          basis: 'base_lumina_only',
+          packageBonusIncluded: false,
+          oneTimePerUser: true,
+        },
+      });
+
+      const purchaseLedger = tx.walletLedger.create.mock.calls[0][0].data;
+      const firstChargeBonusLedger = tx.walletLedger.upsert.mock.calls[0][0].create;
+      const expectedPurchaseCredit = new Decimal(product.luminaAmount).plus(
+        product.bonusAmount,
+      );
+      const expectedFirstChargeBonus = new Decimal(product.luminaAmount).mul('0.1');
+
+      expect(purchaseLedger.ledgerType).toBe('purchase');
+      expect((purchaseLedger.amount as Decimal).toString()).toBe(
+        expectedPurchaseCredit.toString(),
+      );
+      expect(firstChargeBonusLedger.ledgerType).toBe('first_charge_bonus');
+      expect(firstChargeBonusLedger.referenceType).toBe('payment_order');
+      expect(firstChargeBonusLedger.idempotencyKey).toBe(
+        `first_charge_bonus:${userId}`,
+      );
+      expect((firstChargeBonusLedger.amount as Decimal).toString()).toBe(
+        expectedFirstChargeBonus.toString(),
+      );
+    }
+  });
+
   it('creates checkout orders only from active charge-policy price tiers', async () => {
     const product = {
       id: productId,
@@ -179,6 +530,9 @@ describe('PaymentsService server-authority contract', () => {
         luminaAmount: '999999',
         bonusAmount: '999999',
         totalLumina: '999999',
+        status: 'pg_pending',
+        fixture: true,
+        fixtureProductId: otherProductId,
       } as never),
     ).resolves.toMatchObject({
       order,
@@ -352,6 +706,67 @@ describe('PaymentsService server-authority contract', () => {
     expect(JSON.stringify(createArg.rawPayload)).not.toContain('must-not-be-stored');
   });
 
+  it('does not lock first-charge bonus eligibility on failed provider events', async () => {
+    const order = existingOrder();
+    const tx = {
+      paymentTransaction: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn().mockResolvedValue({
+          id: '00000000-0000-4000-8000-000000000302',
+        }),
+      },
+      paymentOrder: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          ...order,
+          status: 'failed',
+        }),
+        count: jest.fn(),
+      },
+      walletAccount: {
+        upsert: jest.fn(),
+        update: jest.fn(),
+      },
+      walletLedger: {
+        create: jest.fn(),
+        upsert: jest.fn(),
+      },
+    };
+    const prisma = {
+      paymentOrder: {
+        findUnique: jest.fn().mockResolvedValue(order),
+      },
+      $transaction: jest.fn((callback: (client: typeof tx) => unknown) =>
+        callback(tx),
+      ),
+    };
+    const { service } = serviceWith(prisma, {
+      verifyAndParseWebhook: jest.fn().mockReturnValue({
+        orderNo: order.orderNo,
+        providerTransactionId: 'provider-txn-failed-1',
+        status: 'failed',
+        amount: order.amount.toString(),
+      }),
+    });
+
+    const result = await service.handleWebhook('mock', {}, {});
+
+    expect(result).toMatchObject({
+      order: expect.objectContaining({ status: 'failed' }),
+      idempotentReplay: false,
+    });
+    expect(tx.paymentOrder.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'failed' }),
+      }),
+    );
+    expect(tx.paymentOrder.count).not.toHaveBeenCalled();
+    expect(tx.walletAccount.upsert).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.walletLedger.upsert).not.toHaveBeenCalled();
+    expect(tx.walletAccount.update).not.toHaveBeenCalled();
+  });
+
   it('grants repeatable package bonus and one-time first-charge bonus from base Lumina only', async () => {
     const { prisma, tx, webhookEvent } = paidWebhookFixture();
     const { service } = serviceWith(prisma, {
@@ -412,6 +827,31 @@ describe('PaymentsService server-authority contract', () => {
         amount: '0',
         basis: 'base_lumina_only',
         packageBonusIncluded: false,
+      },
+    });
+  });
+
+  it('does not attempt first-charge bonus on non-first paid Lumina orders', async () => {
+    const { prisma, tx, webhookEvent } = paidWebhookFixture({
+      priorPaidOrderCount: 1,
+    });
+    const { service } = serviceWith(prisma, {
+      verifyAndParseWebhook: jest.fn().mockReturnValue(webhookEvent),
+    });
+
+    const result = await service.handleWebhook('mock', {}, {});
+
+    expect(tx.walletLedger.create).toHaveBeenCalledTimes(1);
+    expect(tx.walletLedger.upsert).not.toHaveBeenCalled();
+    const walletIncrement = tx.walletAccount.update.mock.calls[0][0].data.cachedBalance
+      .increment as Decimal;
+    expect(walletIncrement.toString()).toBe('5800');
+    expect(result).toMatchObject({
+      firstChargeBonusLedger: null,
+      firstChargeBonus: {
+        applied: false,
+        amount: '0',
+        oneTimePerUser: true,
       },
     });
   });
@@ -499,6 +939,26 @@ describe('PaymentsService server-authority contract', () => {
     expect(tx.paymentTransaction.upsert).not.toHaveBeenCalled();
     expect(tx.walletAccount.upsert).not.toHaveBeenCalled();
     expect(tx.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.walletAccount.update).not.toHaveBeenCalled();
+  });
+
+  it('treats an already-paid order webhook as a replay before wallet or first bonus ledgers', async () => {
+    const { prisma, tx, webhookEvent } = paidWebhookFixture({
+      paidTransitionCount: 0,
+      providerTransactionId: 'provider-txn-paid-late-delivery',
+    });
+    const { service } = serviceWith(prisma, {
+      verifyAndParseWebhook: jest.fn().mockReturnValue(webhookEvent),
+    });
+
+    await expect(service.handleWebhook('mock', {}, {})).resolves.toMatchObject({
+      idempotentReplay: true,
+    });
+    expect(tx.paymentTransaction.upsert).toHaveBeenCalledTimes(1);
+    expect(tx.walletAccount.upsert).not.toHaveBeenCalled();
+    expect(tx.paymentOrder.count).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.walletLedger.upsert).not.toHaveBeenCalled();
     expect(tx.walletAccount.update).not.toHaveBeenCalled();
   });
 });

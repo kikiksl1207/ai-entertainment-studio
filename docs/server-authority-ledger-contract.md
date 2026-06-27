@@ -81,6 +81,16 @@ signed URLs, or provider secrets.
 | Admin wallet adjustment | credit/debit | `admin_wallet_adjustment` | super-admin audited operation | server batch key |
 | Local test grant | credit | `event_grant` | non-production env gate + server amount | required client idempotency key |
 
+First charge bonus is not client-authoritative and is not a package SKU field.
+The server derives it during verified payment fulfillment only when the user has
+no prior paid Lumina order. The amount is 10% of
+`lumina_products.lumina_amount`, excludes `lumina_products.bonus_amount`, and is
+recorded as a separate `wallet_ledger` credit with `ledgerType =
+first_charge_bonus`. The once-per-account guard is the unique
+`wallet_ledger.idempotency_key = first_charge_bonus:<userId>`; concurrent first
+paid-order races and provider webhook retries must not create or credit a
+second first-charge bonus ledger.
+
 `premium_chat_donation` is reserved as the ledger/source name for future
 premium chat donations. It must follow the same debit rules as other paid
 actions before any UI is opened. Donation amount is server-normalized from the

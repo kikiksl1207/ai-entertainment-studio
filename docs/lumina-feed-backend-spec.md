@@ -287,12 +287,61 @@ Manual thread rules:
   readProjection, policy }`.
 - Feed/detail post rows include `post.thread` with `isThread`, `rootPostId`,
   `itemCount`, `threadCount`, `maxItems`, `previewText`, and ordered `items`.
+- #872 count contract: manual `threadCount` counts only root plus manual thread
+  items. It must not include continuation posts, reposts, shares, replies, or
+  comments.
 - Non-root item edit/delete is author-only. Artist operators must not edit or
   delete another user's thread items.
 - Likes, comments, reports, hides, and images remain root-post based in this
   phase.
 - Thread create/edit/delete does not mutate wallet, Lumina, settlement, payout,
   order, or paid-like flows.
+
+Repost and quote repost rules:
+
+- `POST /lumina-feed/posts/:postId/reposts` creates a user-owned repost row with
+  `metadata.repost.originalPostId`. Empty `body` is a simple repost; non-empty
+  `body` is a quote repost and uses the 2200-character feed body cap.
+- #1032 quote body validation policy: trim `body` before validation; empty or
+  whitespace-only body creates `repost`; non-empty body creates `quote_repost`;
+  over 2200 characters returns a validation error before creating a feed row.
+  Missing, deleted, hidden, private, reported/moderation-review, viewer-hidden,
+  or blocked source posts are safe not-found/tombstone cases and must not expose
+  the original body.
+- Repost rows project `post.repost.type` as only `repost` or `quote_repost`, plus
+  `hasQuote`, `quoteBody`, `originalPostId`, original author/artist ids, and a
+  bounded embedded `originalPost` when the source is visible.
+- Repost projection is not a thread/comment/reply relation:
+  `parentPostId: null`, `threadRootPostId: null`, `commentRelation: false`,
+  `replyRelation: false`, and `threadRelation: false`.
+- #872 state contract: simple repost uses `feed_repost` / `repost`, quote
+  repost uses `feed_quote_repost` / `quote_repost`, and both count only toward
+  repost state. They must not mutate manual thread count, continuation count,
+  share count, reply count, wallet, Lumina, settlement, payout, order, or
+  paid-like state.
+- If the original post becomes deleted, hidden, private, or unavailable because
+  the viewer hid it or has an active block relationship with the original author,
+  `originalState` becomes `unavailable`, `tombstone` is `true`, and
+  `originalPost` is `null`; the original body is not exposed.
+- Detail reads for a quote repost keep `post.repost.quoteBody` separate from
+  `post.repost.originalPost.body`. The quote body may remain visible on the
+  repost row when the embedded original is tombstoned, but the original body is
+  returned only when the original post is visible to the current viewer.
+- Repost and quote repost create/read paths do not mutate wallet, Lumina,
+  settlement, payout, order, or paid-like flows.
+
+Share contract rules:
+
+- `POST /lumina-feed/posts/:postId/share` returns a share contract only:
+  `relation: share`, `createsFeedRow: false`, `repostRelation: false`,
+  `threadRelation: false`, `commentRelation: false`, and
+  `replyRelation: false`.
+- Share contracts are separate from repost and quote repost projections. They do
+  not create a repost row, thread continuation, comment, reply, share ledger,
+  wallet, Lumina, settlement, payout, order, or paid-like mutation.
+- #872 share state uses `feed_share` / `share_contract` with no count target.
+  Deleted, hidden, private, or blocked source posts fail closed as safe
+  not-found/tombstone projections.
 
 External link example:
 
@@ -492,6 +541,21 @@ Post hide is idempotent and uses soft delete/reactivation on
 `community_hidden_posts`. Blocking rejects self-block, optionally accepts
 `{ "reason": "..." }`, soft-deletes active follows in both directions, and uses
 soft delete/reactivation on `user_blocks`.
+
+#743 follow/block interaction contract:
+
+- Signed-in feed, liked-post, reply, and thread-continuation reads filter authors
+  in an active `user_blocks` relationship in either direction.
+- Feed writes that touch another user's post, including like, reply, repost, and
+  thread continuation, fail closed with `403 USER_FOLLOW_BLOCKED` before
+  community rows or notifications are created when either side blocked the
+  other.
+- Premium-chat room open, message, donation, and owner status surfaces must check
+  the same server-side relationship source before wallet, order, settlement,
+  payout, or paid-like work begins.
+- Blocked relationship projections must not leak private user fields, raw
+  contact material, wallet identifiers, settlement internals, payout internals,
+  tokens, cookies, passwords, API keys, or DB URLs.
 
 ## Admin Moderation APIs
 

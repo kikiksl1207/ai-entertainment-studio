@@ -4,10 +4,15 @@ import {
   APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST,
   APP_PURCHASE_VERIFICATION_CONTRACT,
   CLIENT_ECONOMIC_TAMPER_FIELDS,
+  PREMIUM_CHAT_REFUND_RESTRICTION_SPLIT_CONTRACT,
   SERVER_AUTHORITY_WALLET_POLICY,
+  WALLET_LEDGER_INVARIANT_CONTRACT,
   WALLET_RISK_LOG_CONTRACT,
   WALLET_LEDGER_SOURCE_CONTRACT,
+  WALLET_MUTATION_SURFACE_GUARD_MATRIX,
   WALLET_MUTATION_GUARD_STEPS,
+  WALLET_RACE_CONDITION_GUARD_CONTRACT,
+  WALLET_SERVER_ONLY_SPEND_GUARD_CONTRACT,
 } from './wallet-server-authority-policy';
 
 describe('server-authority wallet policy', () => {
@@ -86,6 +91,58 @@ describe('server-authority wallet policy', () => {
     );
   });
 
+  it('pins premium chat restricted refund splits without payout or settlement mutation', () => {
+    expect(PREMIUM_CHAT_REFUND_RESTRICTION_SPLIT_CONTRACT).toMatchObject({
+      mutationEnabledByThisContract: false,
+      clientRefundOrSettlementInputTrusted: false,
+      amountBasis: 'server_room_purchase_ledger_amount',
+      decisionAuthority: 'server_moderation_or_admin_refund_decision',
+      duplicateGuard: 'server_admin_decision_key',
+      restrictedUserFaultScenarios: [
+        {
+          scenario: 'user_fault_refund_70_percent',
+          userRefundPercent: 70,
+          artistCompensationPercent: 10,
+          companyRetainedPercent: 20,
+        },
+        {
+          scenario: 'user_fault_refund_50_percent',
+          userRefundPercent: 50,
+          artistCompensationPercent: 10,
+          companyRetainedPercent: 40,
+        },
+      ],
+      requiredLedgerSplits: [
+        {
+          party: 'user',
+          direction: 'credit',
+          ledgerType: 'refund',
+          referenceType: 'premium_chat_room',
+        },
+        {
+          party: 'artist',
+          direction: 'credit',
+          ledgerType: 'premium_chat_room_artist_compensation',
+          referenceType: 'premium_chat_room_refund_decision',
+        },
+        {
+          party: 'company',
+          direction: 'credit',
+          ledgerType: 'premium_chat_room_company_revenue',
+          referenceType: 'premium_chat_room_refund_decision',
+        },
+      ],
+      separatedOutcomeReasons: [
+        'artist_forced_termination',
+        'report_suspension',
+        'admin_sanction',
+      ],
+      walletLedgerRequiredBeforePayout: true,
+      settlementMutationAllowed: false,
+      payoutMutationAllowed: false,
+    });
+  });
+
   it('requires idempotency or provider transaction keys for every ledger source', () => {
     expect(
       WALLET_LEDGER_SOURCE_CONTRACT.every((source) => source.idempotency.length > 0),
@@ -113,6 +170,278 @@ describe('server-authority wallet policy', () => {
         'provider_replay_creates_no_duplicate_credit',
       ]),
     );
+  });
+
+  it('pins concurrent wallet spend race guards across premium chat and AI content orders', () => {
+    expect(WALLET_RACE_CONDITION_GUARD_CONTRACT).toMatchObject({
+      concurrentSpendAuthority: 'wallet_accounts.cached_balance',
+      debitOperation: 'atomic_update_many_cached_balance_gte_server_amount',
+      ledgerWriteOrder: 'after_atomic_debit_success_only',
+      domainRecordWriteOrder: 'same_transaction_after_atomic_debit_success',
+      repeatedCallbackBehavior:
+        'return_existing_projection_without_duplicate_ledger',
+      idempotencyMismatchBehavior: 'stable_conflict_before_wallet_lookup',
+      insufficientBalanceBehavior:
+        'stable_insufficient_balance_without_domain_or_ledger_write',
+      failedValidationCreatesLedger: false,
+      pendingCreatesSpendLedger: false,
+      rolledBackCountsTowardBalance: false,
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedBalanceTrusted: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(WALLET_RACE_CONDITION_GUARD_CONTRACT.debitSurfaces).toEqual(
+      expect.arrayContaining([
+        'premium_chat_room_open',
+        'premium_chat_message_debit',
+        'premium_chat_donation',
+        'chat_feature_order',
+      ]),
+    );
+    expect(WALLET_RACE_CONDITION_GUARD_CONTRACT.duplicateRequestGuard).toEqual(
+      expect.arrayContaining([
+        'user_scoped_idempotency_key',
+        'server_message_pair_meter_key',
+        'provider_transaction_id',
+      ]),
+    );
+    expect(
+      WALLET_RACE_CONDITION_GUARD_CONTRACT.statusProjectionConsistency,
+    ).toMatchObject({
+      pending: 'not_counted_as_available_balance_until_committed',
+      failed: 'not_counted_as_spend_or_credit',
+      rolled_back: 'shown_as_reversal_pair_or_excluded_from_net_balance',
+    });
+  });
+
+  it('pins cross-surface wallet ledger invariants for charge, first bonus, donation, and refund restriction', () => {
+    expect(WALLET_LEDGER_INVARIANT_CONTRACT.globalInvariants).toMatchObject({
+      clientEconomicFieldsTrusted: false,
+      walletMutationRequiresLedger: true,
+      ledgerRequiresIdempotencyOrProviderTransaction: true,
+      walletAndLedgerSameTransaction: true,
+      debitRequiresAtomicNonNegativeBalanceUpdate: true,
+      failedValidationCreatesLedger: false,
+      settlementOrPayoutFromClientInput: false,
+    });
+    expect(WALLET_LEDGER_INVARIANT_CONTRACT.surfaces).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          surface: 'charge_purchase_credit',
+          amountAuthority: 'server_active_charge_product_and_verified_provider_event',
+          duplicateGuard: 'provider_transaction_id_unique',
+          clientSubmittedAmountTrusted: false,
+          failedProviderEventCreatesLedger: false,
+        }),
+        expect.objectContaining({
+          surface: 'first_charge_bonus',
+          amountAuthority: 'server_10_percent_of_base_lumina',
+          duplicateGuard: 'first_charge_bonus_user_idempotency_key',
+          packageBonusIncluded: false,
+          clientSubmittedAmountTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_room_open',
+          amountAuthority: 'server_room_tier_policy',
+          negativeBalanceGuard: 'atomic_cached_balance_gte_amount_update',
+          insufficientBalanceCreatesLedger: false,
+          clientSubmittedAmountTrusted: false,
+          clientSubmittedBalanceTrusted: false,
+          clientSubmittedBonusTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_message_debit',
+          amountAuthority: 'server_visible_two_way_sentence_pair_meter',
+          negativeBalanceGuard: 'atomic_cached_balance_gte_amount_update',
+          insufficientBalanceCreatesLedger: false,
+          clientSubmittedAmountTrusted: false,
+          clientSubmittedBalanceTrusted: false,
+          clientSubmittedBonusTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_donation',
+          amountAuthority: 'server_normalized_donation_amount',
+          negativeBalanceGuard: 'atomic_cached_balance_gte_amount_update',
+          insufficientBalanceCreatesLedger: false,
+          clientSubmittedAmountTrusted: false,
+          clientSubmittedBalanceTrusted: false,
+          clientSubmittedBonusTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_refund_restriction',
+          amountAuthority: 'server_admin_or_moderation_refund_policy',
+          duplicateGuard: 'server_admin_decision_key',
+          existingLedgerRequired: true,
+          clientSubmittedRefundRateTrusted: false,
+        }),
+      ]),
+    );
+    expect(
+      WALLET_LEDGER_INVARIANT_CONTRACT.surfaces.every(
+        (surface) =>
+          surface.settlementMutation === false &&
+          surface.payoutMutation === false,
+      ),
+    ).toBe(true);
+  });
+
+  it('pins Lumina spend to server wallet balance and ledger writes, never client display values', () => {
+    expect(WALLET_SERVER_ONLY_SPEND_GUARD_CONTRACT).toMatchObject({
+      clientDisplayedBalanceTrusted: false,
+      clientSubmittedLedgerIdTrusted: false,
+      clientSubmittedCachedBalanceTrusted: false,
+      spendRequiresServerWalletAccount: true,
+      spendRequiresServerLedgerWrite: true,
+      spendRequiresAtomicBalanceGuard: true,
+      missingLedgerMeansSpendImpossible: true,
+      blackMarketOrModifiedAppDisplayValueIgnored: true,
+      insufficientBalanceCreatesDomainRecord: false,
+      insufficientBalanceCreatesLedger: false,
+      requiredServerSources: [
+        'wallet_accounts.cached_balance',
+        'wallet_ledger.idempotency_key',
+        'server_product_or_domain_policy_amount',
+      ],
+    });
+    expect(WALLET_SERVER_ONLY_SPEND_GUARD_CONTRACT.spendSurfaces).toEqual(
+      expect.arrayContaining([
+        'gift_order',
+        'boost_paid_like',
+        'premium_video_unlock',
+        'chat_feature_order',
+        'premium_chat_room_open',
+        'premium_chat_message',
+        'premium_chat_donation',
+        'fan_letter',
+        'user_gift_transfer_send',
+      ]),
+    );
+
+    const debitSources = WALLET_LEDGER_SOURCE_CONTRACT.filter(
+      (source) => source.direction === 'debit',
+    );
+    expect(
+      WALLET_SERVER_ONLY_SPEND_GUARD_CONTRACT.spendSurfaces.every((surface) =>
+        debitSources.some((source) => source.source === surface),
+      ),
+    ).toBe(true);
+    expect(
+      debitSources.every(
+        (source) =>
+          source.serverAuthority.includes('wallet_account_cached_balance') ||
+          source.serverAuthority.includes('server_visible_two_way_sentence_pair_meter'),
+      ),
+    ).toBe(true);
+  });
+
+  it('ignores client-submitted Lumina balance, debit amount, and bonus values for premium chat debits', () => {
+    const premiumChatDebitSurfaces = WALLET_LEDGER_INVARIANT_CONTRACT.surfaces.filter(
+      (surface) =>
+        [
+          'premium_chat_room_open',
+          'premium_chat_message_debit',
+          'premium_chat_donation',
+        ].includes(surface.surface),
+    ) as Array<{
+      surface: string;
+      direction: string;
+      clientSubmittedAmountTrusted: boolean;
+      clientSubmittedBalanceTrusted: boolean;
+      clientSubmittedBonusTrusted: boolean;
+      negativeBalanceGuard: string;
+      insufficientBalanceCreatesLedger: boolean;
+      settlementMutation: boolean;
+      payoutMutation: boolean;
+    }>;
+
+    expect(premiumChatDebitSurfaces).toHaveLength(3);
+    expect(premiumChatDebitSurfaces).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          surface: 'premium_chat_room_open',
+          amountAuthority: 'server_room_tier_policy',
+          duplicateGuard: 'room_open_idempotency_fingerprint',
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_message_debit',
+          amountAuthority: 'server_visible_two_way_sentence_pair_meter',
+          duplicateGuard: 'server_message_pair_meter_key',
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_donation',
+          amountAuthority: 'server_normalized_donation_amount',
+          duplicateGuard: 'premium_chat_donation_idempotency_key',
+        }),
+      ]),
+    );
+    for (const surface of premiumChatDebitSurfaces) {
+      expect(surface.direction).toBe('debit');
+      expect(surface.clientSubmittedAmountTrusted).toBe(false);
+      expect(surface.clientSubmittedBalanceTrusted).toBe(false);
+      expect(surface.clientSubmittedBonusTrusted).toBe(false);
+      expect(surface.negativeBalanceGuard).toBe(
+        'atomic_cached_balance_gte_amount_update',
+      );
+      expect(surface.insufficientBalanceCreatesLedger).toBe(false);
+      expect(surface.settlementMutation).toBe(false);
+      expect(surface.payoutMutation).toBe(false);
+    }
+  });
+
+  it('pins payment, donation, premium chat debit, and refund guards to server authority', () => {
+    expect(WALLET_MUTATION_SURFACE_GUARD_MATRIX).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          surface: 'payment_purchase_credit',
+          direction: 'credit',
+          authority: ['server product table', 'provider verified transaction'],
+          duplicateGuard: 'provider_transaction_id_unique',
+          negativeBalanceGuard: 'not_applicable_credit',
+          clientEconomicFieldsTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_room_open',
+          direction: 'debit',
+          duplicateGuard: 'room_open_idempotency_fingerprint',
+          negativeBalanceGuard:
+            'atomic_update_many_cached_balance_gte_server_amount',
+          clientEconomicFieldsTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_donation',
+          direction: 'debit',
+          duplicateGuard: 'client_idempotency_key',
+          negativeBalanceGuard:
+            'atomic_update_many_cached_balance_gte_server_amount',
+          clientEconomicFieldsTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_message_debit',
+          direction: 'debit',
+          duplicateGuard: 'server_message_pair_meter_key',
+          negativeBalanceGuard:
+            'atomic_update_many_cached_balance_gte_server_amount',
+          clientEconomicFieldsTrusted: false,
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_room_refund',
+          direction: 'credit',
+          duplicateGuard: 'server_room_refund_key',
+          negativeBalanceGuard: 'not_applicable_credit',
+          clientEconomicFieldsTrusted: false,
+        }),
+      ]),
+    );
+    expect(
+      WALLET_MUTATION_SURFACE_GUARD_MATRIX.every(
+        (surface) =>
+          surface.clientEconomicFieldsTrusted === false &&
+          surface.authority.length > 0 &&
+          surface.duplicateGuard.length > 0 &&
+          surface.ledgerWriteAtomicity.endsWith('_in_transaction'),
+      ),
+    ).toBe(true);
   });
 
   it('keeps local test grants gated and idempotent when non-production enables them', () => {
@@ -200,6 +529,24 @@ describe('server-authority wallet policy', () => {
     ).toBe(true);
   });
 
+  it('requires every active wallet mutation surface to declare server authority and double-spend guards', () => {
+    const mutationSurfaces = APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST.filter(
+      (item) => item.mutation,
+    );
+
+    expect(mutationSurfaces.length).toBeGreaterThan(0);
+    for (const surface of mutationSurfaces) {
+      expect(surface.clientEconomicFieldsTrusted).toBe(false);
+      expect(surface.authority.length).toBeGreaterThan(0);
+      expect(surface.idempotencyOrProviderTransactionKey).not.toBe(
+        'not_applicable_read_only',
+      );
+      expect(surface.doubleDebitGuard).toBeTruthy();
+      expect(JSON.stringify(surface)).not.toContain('client balance');
+      expect(JSON.stringify(surface)).not.toContain('client success');
+    }
+  });
+
   it('lists high-risk client economic fields as non-authoritative inputs', () => {
     expect(CLIENT_ECONOMIC_TAMPER_FIELDS).toEqual(
       expect.arrayContaining([
@@ -250,6 +597,55 @@ describe('server-authority wallet policy', () => {
           threat.walletMutationAllowedFromClientProof === false,
       ),
     ).toBe(true);
+  });
+
+  it('fails closed when client Lumina balance, support amount, or room cost differs from server ledger authority', () => {
+    const protectedSurfaces = APP_WEB_LUMINA_TAMPER_DEFENSE_CHECKLIST.filter(
+      (item) =>
+        ['wallet_balance', 'premium_chat_room_and_support'].includes(
+          item.surface,
+        ),
+    );
+
+    expect(protectedSurfaces).toHaveLength(2);
+    expect(CLIENT_ECONOMIC_TAMPER_FIELDS).toEqual(
+      expect.arrayContaining(['balanceLumina', 'cachedBalance', 'amountLumina', 'priceLumina']),
+    );
+    expect(protectedSurfaces).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          surface: 'wallet_balance',
+          mutation: false,
+          clientEconomicFieldsTrusted: false,
+          authority: ['wallet_accounts.cached_balance'],
+        }),
+        expect.objectContaining({
+          surface: 'premium_chat_room_and_support',
+          clientEconomicFieldsTrusted: false,
+          rejectedOrIgnoredFields: CLIENT_ECONOMIC_TAMPER_FIELDS,
+          authority: [
+            'server premium chat room/support policy',
+            'wallet_accounts.cached_balance',
+          ],
+          doubleDebitGuard:
+            'mutation_blocked_until_room_or_donation_storage_exists_then_idempotency_fingerprint_and_atomic_cached_balance_gte_amount',
+        }),
+      ]),
+    );
+    expect(WALLET_RACE_CONDITION_GUARD_CONTRACT).toMatchObject({
+      debitOperation: 'atomic_update_many_cached_balance_gte_server_amount',
+      ledgerWriteOrder: 'after_atomic_debit_success_only',
+      idempotencyMismatchBehavior: 'stable_conflict_before_wallet_lookup',
+      insufficientBalanceBehavior:
+        'stable_insufficient_balance_without_domain_or_ledger_write',
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedBalanceTrusted: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
+    expect(WALLET_RACE_CONDITION_GUARD_CONTRACT.debitSurfaces).toEqual(
+      expect.arrayContaining(['premium_chat_room_open', 'premium_chat_donation']),
+    );
   });
 
   it('keeps risk logs useful without storing raw secrets or provider payloads', () => {

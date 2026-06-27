@@ -11,14 +11,18 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { createHash, createHmac, randomUUID } from 'crypto';
 import { AuthUser } from '../auth/auth.types';
 import {
+  ARTIST_URL_KNOWLEDGE_AUDIT_CONTRACT_VERSION,
   ARTIST_URL_KNOWLEDGE_CONTRACT,
   ARTIST_URL_KNOWLEDGE_STATUSES,
+  type ArtistKnowledgeAdminAuditEventCandidate,
+  buildArtistKnowledgeAdminAuditProjection,
   buildArtistKnowledgeAuditPayload,
   isArtistKnowledgeSourceType,
   normalizeArtistKnowledgeSummary,
 } from '../chat/artist-url-knowledge-contract';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
+import { WALLET_LEDGER_SOURCE_CONTRACT } from '../wallet/wallet-server-authority-policy';
 
 type AdminPayload = Record<string, unknown>;
 type AuditQuery = Record<string, string | undefined>;
@@ -217,7 +221,7 @@ const WALLET_ADJUSTMENT_REASONS = new Set([
   'qa_test',
   'manual_correction',
 ]);
-const WALLET_ADJUSTMENT_PLACEHOLDER_NOTES = new Set(['백스테이지 운영 처리']);
+const WALLET_ADJUSTMENT_PLACEHOLDER_NOTES = new Set(['백스?�이지 ?�영 처리']);
 
 @Injectable()
 export class AdminService {
@@ -225,6 +229,69 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
   ) {}
+
+  getBackstageIndexingReadiness() {
+    const rawPublicIndexingFlag =
+      this.configService.get<string>('PUBLIC_INDEXING_ENABLED') ?? '';
+    const publicIndexingEnabled = ['1', 'true', 'yes', 'enabled'].includes(
+      rawPublicIndexingFlag.trim().toLowerCase(),
+    );
+
+    return {
+      generatedAt: new Date().toISOString(),
+      statusKey: publicIndexingEnabled
+        ? 'indexing.publicReviewRequired'
+        : 'indexing.prelaunchNoindexExpected',
+      publicIndexingEnabled,
+      currentState: publicIndexingEnabled
+        ? 'public_indexing_flag_enabled_review_required'
+        : 'prelaunch_noindex_expected',
+      readModelNeeded: true,
+      repositorySignals: {
+        staticPagesUseNoindexMeta: true,
+        expectedMetaRobotsContent: 'noindex, nofollow',
+        representativeFiles: [
+          'index.html',
+          'lumina-feed.html',
+          'character-detail.html',
+          'creator-studio.html',
+          'backstage.html',
+        ],
+      },
+      launchChecklist: [
+        {
+          key: 'remove_static_noindex_meta',
+          requiredBeforePublicLaunch: true,
+          owner: 'frontend_or_static_site_ops',
+        },
+        {
+          key: 'publish_robots_txt_policy',
+          requiredBeforePublicLaunch: true,
+          owner: 'frontend_or_static_site_ops',
+        },
+        {
+          key: 'verify_canonical_domains',
+          requiredBeforePublicLaunch: true,
+          owner: 'ops',
+        },
+        {
+          key: 'search_console_manual_verification',
+          requiredBeforePublicLaunch: true,
+          owner: 'ops_external',
+        },
+      ],
+      policy: {
+        endpoint: 'GET /admin/api/v1/backstage/operations/indexing-readiness',
+        permission: '*',
+        mutation: false,
+        robotsTxtMutation: false,
+        searchConsoleMutation: false,
+        frontendFileMutation: false,
+        envValueReturned: false,
+        secretsReturned: false,
+      },
+    };
+  }
 
   async getBackstageObjectStorageDiagnostics() {
     const storageProvider =
@@ -351,6 +418,145 @@ export class AdminService {
         confirmUploadEndpoint: 'POST /api/v1/me/assets/:assetId/confirm-upload',
         requiredPutHeader: 'content-type',
         secretsReturned: false,
+      },
+    };
+  }
+
+  async getBackstageWalletLedgerAudit(query: AuditQuery) {
+    const pagination = this.adminPagination(query, 50);
+    const userId = this.optionalString(query, 'userId');
+    const ledgerType = this.optionalString(query, 'ledgerType');
+    const referenceType = this.optionalString(query, 'referenceType');
+    const direction = this.optionalString(query, 'direction');
+
+    if (userId && !this.isUuid(userId)) {
+      throw this.adminBadRequest(
+        'WALLET_LEDGER_AUDIT_INVALID_USER_ID',
+        'userId must be a UUID',
+        'admin.walletLedgerAudit.invalidUserId',
+      );
+    }
+
+    if (direction && !['credit', 'debit'].includes(direction)) {
+      throw this.adminBadRequest(
+        'WALLET_LEDGER_AUDIT_INVALID_DIRECTION',
+        'direction must be credit or debit',
+        'admin.walletLedgerAudit.invalidDirection',
+        { allowed: ['credit', 'debit'] },
+      );
+    }
+
+    const rows = await this.prisma.walletLedger.findMany({
+      where: this.clean({
+        ledgerType,
+        referenceType,
+        direction,
+        walletAccount: userId ? { userId } : undefined,
+      }),
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        id: true,
+        walletAccountId: true,
+        direction: true,
+        amount: true,
+        ledgerType: true,
+        referenceType: true,
+        referenceId: true,
+        createdAt: true,
+        walletAccount: {
+          select: {
+            userId: true,
+            currencyCode: true,
+            status: true,
+            cachedBalance: true,
+          },
+        },
+      },
+    });
+    const paginated = this.paginated(rows, pagination.take);
+    const items = paginated.items.map((row) => this.presentWalletLedgerAuditRow(row));
+    const summary = items.reduce(
+      (acc, item) => {
+        acc.totalAmountLumina = acc.totalAmountLumina.plus(item.amountLumina);
+        acc.byCategory[item.auditCategory] =
+          (acc.byCategory[item.auditCategory] ?? 0) + 1;
+        acc.byLedgerType[item.ledgerType] = (acc.byLedgerType[item.ledgerType] ?? 0) + 1;
+        return acc;
+      },
+      {
+        totalAmountLumina: new Decimal(0),
+        byCategory: {} as Record<string, number>,
+        byLedgerType: {} as Record<string, number>,
+      },
+    );
+
+    return {
+      ...paginated,
+      items,
+      summary: {
+        returnedCount: items.length,
+        totalAmountLumina: summary.totalAmountLumina.toString(),
+        byCategory: summary.byCategory,
+        byLedgerType: summary.byLedgerType,
+      },
+      policy: {
+        permission: 'payments:read',
+        mutation: false,
+        sourceOfTruth: 'wallet_ledger',
+        walletAccountSnapshotSource: 'wallet_accounts.cached_balance',
+        clientDisplayedBalanceTrusted: false,
+        firstChargeBonusLedgerType: 'first_charge_bonus',
+        firstChargeBonusPolicy: 'one_time_user_scoped_10_percent_bonus',
+        firstChargeBonusAuditGuard: {
+          ledgerType: 'first_charge_bonus',
+          referenceType: 'payment_order',
+          idempotencyKeyPattern: 'first_charge_bonus:<userId>',
+          duplicateReplayBehavior:
+            'wallet_ledger_upsert_replay_without_second_bonus_credit',
+          retrySafe: true,
+          failedProviderEventLocksEligibility: false,
+          accountScope: 'userId',
+          bonusBasis: 'lumina_products.lumina_amount',
+          packageBonusIncluded: false,
+          eligibleChargePackageCount: 6,
+          eligibleChargeSkus: [
+            'LUMINA_100',
+            'LUMINA_300',
+            'LUMINA_500',
+            'LUMINA_1200',
+            'LUMINA_5800',
+            'LUMINA_12000',
+          ],
+          projectionSeparatesPackageBonus: true,
+          idempotencyKeyReturned: false,
+        },
+        packageBonusLedgerMode: 'combined_in_purchase_ledger_amount',
+        packageBonusAuditNote:
+          'High-value package bonuses are included in purchase ledger credit until a dedicated package bonus ledger type is introduced.',
+        premiumChatRefundLedgerTypes: [
+          'refund',
+          'premium_chat_room_company_revenue',
+          'premium_chat_room_artist_compensation',
+        ],
+        paymentTokenReturned: false,
+        rawReceiptReturned: false,
+        providerTransactionIdReturned: false,
+        idempotencyKeyReturned: false,
+        memoReturned: false,
+        personalDataReturned: false,
+        walletMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+        sourceContract: WALLET_LEDGER_SOURCE_CONTRACT.filter((entry) =>
+          [
+            'payment_purchase_credit',
+            'first_charge_bonus',
+            'premium_chat_room_refund',
+            'premium_chat_room_refund_restriction',
+          ].includes(entry.source),
+        ),
       },
     };
   }
@@ -3283,6 +3489,184 @@ export class AdminService {
     };
   }
 
+  async getBackstageWalletLedgerDailyReconcile(query: AuditQuery) {
+    const { serviceDate, start, end } = this.walletLedgerDailyWindow(query);
+    const userId = this.optionalString(query, 'userId');
+    const currencyCode = this.optionalString(query, 'currencyCode') ?? 'LUMINA';
+
+    if (userId && !this.isUuid(userId)) {
+      throw this.adminBadRequest(
+        'WALLET_DAILY_RECONCILE_INVALID_USER_ID',
+        'userId must be a UUID',
+        'admin.walletDailyReconcile.invalidUserId',
+      );
+    }
+
+    if (currencyCode !== 'LUMINA') {
+      throw this.adminBadRequest(
+        'WALLET_DAILY_RECONCILE_INVALID_CURRENCY',
+        'currencyCode must be LUMINA',
+        'admin.walletDailyReconcile.invalidCurrency',
+      );
+    }
+
+    const rows = await this.prisma.walletLedger.findMany({
+      where: {
+        createdAt: {
+          gte: start,
+          lt: end,
+        },
+        walletAccount: this.clean({
+          currencyCode,
+          userId,
+        }),
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      include: {
+        walletAccount: {
+          select: {
+            id: true,
+            userId: true,
+            currencyCode: true,
+            status: true,
+            cachedBalance: true,
+          },
+        },
+      },
+    });
+
+    const accounts = new Map<
+      string,
+      {
+        walletAccountId: string;
+        userId: string;
+        currencyCode: string;
+        walletStatus: string;
+        cachedBalanceLumina: Decimal;
+        entryCount: number;
+        creditLumina: Decimal;
+        debitLumina: Decimal;
+        netLumina: Decimal;
+        byLedgerType: Map<
+          string,
+          { entryCount: number; creditLumina: Decimal; debitLumina: Decimal }
+        >;
+      }
+    >();
+    const totals = {
+      entryCount: 0,
+      creditLumina: new Decimal(0),
+      debitLumina: new Decimal(0),
+      netLumina: new Decimal(0),
+    };
+
+    for (const row of rows) {
+      const account =
+        accounts.get(row.walletAccountId) ??
+        {
+          walletAccountId: row.walletAccountId,
+          userId: row.walletAccount.userId,
+          currencyCode: row.walletAccount.currencyCode,
+          walletStatus: row.walletAccount.status,
+          cachedBalanceLumina: row.walletAccount.cachedBalance,
+          entryCount: 0,
+          creditLumina: new Decimal(0),
+          debitLumina: new Decimal(0),
+          netLumina: new Decimal(0),
+          byLedgerType: new Map<
+            string,
+            { entryCount: number; creditLumina: Decimal; debitLumina: Decimal }
+          >(),
+        };
+      const ledgerType =
+        account.byLedgerType.get(row.ledgerType) ??
+        {
+          entryCount: 0,
+          creditLumina: new Decimal(0),
+          debitLumina: new Decimal(0),
+        };
+      const amount = new Decimal(row.amount);
+
+      account.entryCount += 1;
+      ledgerType.entryCount += 1;
+      totals.entryCount += 1;
+
+      if (row.direction === 'credit') {
+        account.creditLumina = account.creditLumina.plus(amount);
+        account.netLumina = account.netLumina.plus(amount);
+        ledgerType.creditLumina = ledgerType.creditLumina.plus(amount);
+        totals.creditLumina = totals.creditLumina.plus(amount);
+        totals.netLumina = totals.netLumina.plus(amount);
+      } else if (row.direction === 'debit') {
+        account.debitLumina = account.debitLumina.plus(amount);
+        account.netLumina = account.netLumina.minus(amount);
+        ledgerType.debitLumina = ledgerType.debitLumina.plus(amount);
+        totals.debitLumina = totals.debitLumina.plus(amount);
+        totals.netLumina = totals.netLumina.minus(amount);
+      }
+
+      account.byLedgerType.set(row.ledgerType, ledgerType);
+      accounts.set(row.walletAccountId, account);
+    }
+
+    const items = [...accounts.values()].map((account) => ({
+      serviceDate,
+      walletAccountId: account.walletAccountId,
+      userId: account.userId,
+      currencyCode: account.currencyCode,
+      walletStatus: account.walletStatus,
+      cachedBalanceLumina: this.decimalText(account.cachedBalanceLumina),
+      ledgerEntryCount: account.entryCount,
+      creditLumina: this.decimalText(account.creditLumina),
+      debitLumina: this.decimalText(account.debitLumina),
+      netLumina: this.decimalText(account.netLumina),
+      byLedgerType: [...account.byLedgerType.entries()].map(([ledgerType, value]) => ({
+        ledgerType,
+        entryCount: value.entryCount,
+        creditLumina: this.decimalText(value.creditLumina),
+        debitLumina: this.decimalText(value.debitLumina),
+        netLumina: this.decimalText(value.creditLumina.minus(value.debitLumina)),
+      })),
+      reconciliation: {
+        cachedBalanceSource: 'wallet_accounts.cached_balance',
+        ledgerSource: 'wallet_ledger',
+        currentBalanceSnapshotOnly: true,
+        openingBalanceRequiredForExactDailyBalance: true,
+      },
+    }));
+
+    return {
+      generatedAt: new Date(),
+      serviceDate,
+      range: {
+        start: start.toISOString(),
+        endExclusive: end.toISOString(),
+      },
+      currencyCode,
+      userId: userId ?? null,
+      totals: {
+        walletAccountCount: items.length,
+        ledgerEntryCount: totals.entryCount,
+        creditLumina: this.decimalText(totals.creditLumina),
+        debitLumina: this.decimalText(totals.debitLumina),
+        netLumina: this.decimalText(totals.netLumina),
+      },
+      items,
+      policy: {
+        permission: 'payments:read',
+        mutation: false,
+        sourceOfTruth: 'wallet_ledger',
+        cachedBalanceSource: 'wallet_accounts.cached_balance',
+        clientDisplayedBalanceTrusted: false,
+        rawPaymentIdentifierReturned: false,
+        rawReceiptReturned: false,
+        providerTokenReturned: false,
+        idempotencyKeyReturned: false,
+        memoReturned: false,
+      },
+    };
+  }
+
   async createAdminUser(user: AuthUser, input: AdminPayload) {
     this.assertSuperAdmin(user);
 
@@ -3407,7 +3791,117 @@ export class AdminService {
         },
       },
       })
-      .then((rows) => this.paginated(rows, pagination.take));
+      .then((rows) =>
+        this.paginated(
+          rows.map((row) => this.presentAuditEventReadModel(row)),
+          pagination.take,
+        ),
+      );
+  }
+
+  private presentAuditEventReadModel(row: {
+    id: string;
+    actorUserId: string | null;
+    actorType: string;
+    action: string;
+    targetType: string;
+    targetId: string | null;
+    beforeData: unknown;
+    afterData: unknown;
+    metadata: unknown;
+    createdAt: Date;
+    actorUser?: { id: string; email: string | null; status: string } | null;
+  }) {
+    return {
+      id: row.id,
+      actorUserId: row.actorUserId,
+      actorType: row.actorType,
+      action: row.action,
+      targetType: row.targetType,
+      targetId: row.targetId,
+      beforeData: this.redactAuditReadModelValue(row.beforeData),
+      afterData: this.redactAuditReadModelValue(row.afterData),
+      metadata: this.redactAuditReadModelValue(row.metadata),
+      createdAt: row.createdAt,
+      actorUser: row.actorUser
+        ? {
+            id: row.actorUser.id,
+            emailMasked: this.maskEmail(row.actorUser.email),
+            status: row.actorUser.status,
+          }
+        : null,
+      sensitiveFields: {
+        tokenReturned: false,
+        passwordReturned: false,
+        cookieReturned: false,
+        dbUrlReturned: false,
+        providerKeyReturned: false,
+        providerCredentialReturned: false,
+        rawPromptReturned: false,
+        rawEmailReturned: false,
+      },
+    };
+  }
+
+  private redactAuditReadModelValue(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.redactAuditReadModelValue(item));
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([key, nested]) => [
+          key,
+          this.isSensitiveAuditReadModelKey(key)
+            ? '[redacted]'
+            : this.redactAuditReadModelValue(nested),
+        ]),
+      );
+    }
+
+    if (typeof value === 'string' && this.auditReadModelStringLooksSensitive(value)) {
+      return '[redacted]';
+    }
+
+    return value;
+  }
+
+  private isSensitiveAuditReadModelKey(key: string) {
+    const normalized = key.toLowerCase();
+
+    if (normalized.includes('masked')) {
+      return false;
+    }
+
+    return [
+      'token',
+      'password',
+      'cookie',
+      'secret',
+      'apikey',
+      'api_key',
+      'providerkey',
+      'provider_key',
+      'providercredential',
+      'provider_credential',
+      'credential',
+      'dburl',
+      'db_url',
+      'databaseurl',
+      'database_url',
+      'rawprompt',
+      'raw_prompt',
+      'prompt',
+      'rawemail',
+      'raw_email',
+      'email',
+    ].some((part) => normalized.includes(part));
+  }
+
+  private auditReadModelStringLooksSensitive(value: string) {
+    return /postgres(?:ql)?:\/\//i.test(value) ||
+      /bearer\s+[a-z0-9._-]+/i.test(value) ||
+      /(password|cookie|token|api[_-]?key|secret)\s*[:=]/i.test(value);
   }
 
   async getAuthActionTokens(query: AuditQuery) {
@@ -5245,8 +5739,9 @@ export class AdminService {
       'community_post.hide',
       'community_post',
       post.id,
-      before,
-      post,
+      this.communityPostAuditSnapshot(before),
+      this.communityPostAuditSnapshot(post),
+      this.communityModerationAuditMetadata(input),
     );
 
     return { ok: true, post };
@@ -5283,8 +5778,9 @@ export class AdminService {
       'community_post.restore',
       'community_post',
       post.id,
-      before,
-      post,
+      this.communityPostAuditSnapshot(before),
+      this.communityPostAuditSnapshot(post),
+      this.communityModerationAuditMetadata(input),
     );
 
     return { ok: true, post };
@@ -5299,7 +5795,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_INVALID_ID',
         'artistKnowledgeUrl.error.invalidId',
-        '자료 URL 요청 정보를 확인해 주세요.',
+        '?�료 URL ?�청 ?�보�??�인??주세??',
         { field: 'artistId' },
       );
     }
@@ -5311,7 +5807,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_STATUS_INVALID',
         'artistKnowledgeUrl.error.statusInvalid',
-        '자료 URL 상태 필터를 확인해 주세요.',
+        '?�료 URL ?�태 ?�터�??�인??주세??',
         { supportedStatuses: ARTIST_URL_KNOWLEDGE_STATUSES },
       );
     }
@@ -5358,6 +5854,114 @@ export class AdminService {
     };
   }
 
+  async getBackstageArtistKnowledgeUrlAuditEvents(query: AuditQuery) {
+    const pagination = this.adminPagination(query, 50);
+    const action = this.optionalString(query, 'action');
+    const targetId = this.optionalString(query, 'targetId');
+    const artistId = this.optionalString(query, 'artistId');
+    const supportedActions = ARTIST_URL_KNOWLEDGE_CONTRACT.auditContract
+      .actions as readonly string[];
+
+    if (action && !supportedActions.includes(action)) {
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_AUDIT_ACTION_INVALID',
+        'artistKnowledgeUrl.error.auditActionInvalid',
+        '?�?�� URL 媛먯�???��??꾪꽣???뺤씤??二쇱�??',
+        { supportedActions },
+      );
+    }
+
+    if (targetId && !this.isUuid(targetId)) {
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_INVALID_ID',
+        'artistKnowledgeUrl.error.invalidId',
+        '?�?�� URL ?붿껌 ?뺣낫???뺤씤??二쇱�??',
+        { field: 'targetId' },
+      );
+    }
+
+    if (artistId && !this.isUuid(artistId)) {
+      this.throwArtistKnowledgeBadRequest(
+        'ARTIST_KNOWLEDGE_URL_INVALID_ID',
+        'artistKnowledgeUrl.error.invalidId',
+        '?�?�� URL ?붿껌 ?뺣낫???뺤씤??二쇱�??',
+        { field: 'artistId' },
+      );
+    }
+
+    const where: Prisma.AuditEventWhereInput = {
+      targetType: 'artist_knowledge_url',
+      targetId: targetId ?? { not: null },
+      ...(action ? { action } : {}),
+      ...(artistId
+        ? {
+            OR: [
+              { beforeData: { path: ['artistId'], equals: artistId } },
+              { afterData: { path: ['artistId'], equals: artistId } },
+            ],
+          }
+        : {}),
+    };
+    const rows = await this.prisma.auditEvent.findMany({
+      where,
+      take: pagination.takeForQuery,
+      ...pagination.cursorArgs,
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        id: true,
+        action: true,
+        targetType: true,
+        targetId: true,
+        actorUserId: true,
+        beforeData: true,
+        afterData: true,
+        metadata: true,
+        createdAt: true,
+      },
+    });
+    const paginated = this.paginated(rows, pagination.take);
+
+    return {
+      ...paginated,
+      items: paginated.items.map((event) =>
+        buildArtistKnowledgeAdminAuditProjection({
+          id: event.id,
+          action: event.action,
+          targetType: event.targetType,
+          targetId: event.targetId ?? '',
+          actorUserId: event.actorUserId,
+          createdAt: event.createdAt,
+          beforeData: this.artistKnowledgeAuditSnapshotOrNull(event.beforeData),
+          afterData: this.artistKnowledgeAuditSnapshotOrNull(event.afterData),
+          metadata: this.metadataObject(
+            event.metadata,
+          ) as ArtistKnowledgeAdminAuditEventCandidate['metadata'],
+        }),
+      ),
+      contract: ARTIST_URL_KNOWLEDGE_CONTRACT.apiContracts.adminAuditList,
+      policy: {
+        permission: 'audit:read',
+        mutation: false,
+        contractVersion: ARTIST_URL_KNOWLEDGE_AUDIT_CONTRACT_VERSION,
+        rawUrlReturned: false,
+        rawUrlQueryReturned: false,
+        rawEmailReturned: false,
+        tokenCookiePasswordReturned: false,
+        providerPayloadReturned: false,
+      },
+    };
+  }
+
+  private artistKnowledgeAuditSnapshotOrNull(value: Prisma.JsonValue) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+
+    return this.metadataObject(
+      value,
+    ) as ArtistKnowledgeAdminAuditEventCandidate['beforeData'];
+  }
+
   async approveBackstageArtistKnowledgeUrl(
     user: AuthUser,
     knowledgeUrlId: string,
@@ -5375,7 +5979,7 @@ export class AdminService {
     if (existing.status === 'archived') {
       throw new ConflictException({
         code: 'ARTIST_KNOWLEDGE_URL_ARCHIVED',
-        message: '보관된 자료 URL은 승인할 수 없습니다.',
+        message: '보�????�료 URL?� ?�인?????�습?�다.',
         messageKey: 'artistKnowledgeUrl.error.archived',
       });
     }
@@ -5388,7 +5992,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_SUMMARY_REQUIRED',
         'artistKnowledgeUrl.error.summaryRequired',
-        '승인하려면 요약 설명이 필요합니다.',
+        '?�인?�려�??�약 ?�명???�요?�니??',
       );
     }
 
@@ -5457,7 +6061,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_REJECTION_REASON_REQUIRED',
         'artistKnowledgeUrl.error.rejectionReasonRequired',
-        '반려하려면 사유를 입력해 주세요.',
+        '반려?�려�??�유�??�력??주세??',
       );
     }
     const existing = await this.prisma.artistKnowledgeUrl.findUnique({
@@ -5471,7 +6075,7 @@ export class AdminService {
     if (existing.status === 'archived') {
       throw new ConflictException({
         code: 'ARTIST_KNOWLEDGE_URL_ARCHIVED',
-        message: '보관된 자료 URL은 반려할 수 없습니다.',
+        message: '보�????�료 URL?� 반려?????�습?�다.',
         messageKey: 'artistKnowledgeUrl.error.archived',
       });
     }
@@ -5654,12 +6258,94 @@ export class AdminService {
     };
   }
 
+  private presentWalletLedgerAuditRow(row: {
+    id: string;
+    walletAccountId: string;
+    direction: string;
+    amount: Decimal;
+    ledgerType: string;
+    referenceType: string | null;
+    referenceId: string | null;
+    createdAt: Date;
+    walletAccount: {
+      userId: string;
+      currencyCode: string;
+      status: string;
+      cachedBalance: Decimal;
+    };
+  }) {
+    const auditCategory = this.walletLedgerAuditCategory(row);
+
+    return {
+      id: row.id,
+      walletAccountId: row.walletAccountId,
+      userId: row.walletAccount.userId,
+      currencyCode: row.walletAccount.currencyCode,
+      walletStatus: row.walletAccount.status,
+      cachedBalanceLumina: row.walletAccount.cachedBalance.toString(),
+      direction: row.direction,
+      amountLumina: row.amount.toString(),
+      ledgerType: row.ledgerType,
+      referenceType: row.referenceType,
+      referenceId: row.referenceId,
+      auditCategory,
+      serverAuthority: this.walletLedgerServerAuthority(row.ledgerType),
+      createdAt: row.createdAt,
+      sensitiveFields: {
+        memoReturned: false,
+        idempotencyKeyReturned: false,
+        paymentTokenReturned: false,
+        rawReceiptReturned: false,
+        providerTransactionIdReturned: false,
+        personalDataReturned: false,
+      },
+    };
+  }
+
+  private walletLedgerAuditCategory(row: {
+    direction: string;
+    ledgerType: string;
+    referenceType: string | null;
+  }) {
+    if (row.ledgerType === 'first_charge_bonus') {
+      return 'first_charge_bonus_10_percent_once';
+    }
+
+    if (row.ledgerType === 'purchase' && row.referenceType === 'payment_order') {
+      return 'purchase_credit_base_and_package_bonus_combined';
+    }
+
+    if (row.ledgerType === 'refund') {
+      return row.referenceType === 'premium_chat_room'
+        ? 'premium_chat_room_refund_credit'
+        : 'refund_credit';
+    }
+
+    if (row.ledgerType === 'premium_chat_room_company_revenue') {
+      return 'premium_chat_refund_restriction_company_revenue';
+    }
+
+    if (row.ledgerType === 'premium_chat_room_artist_compensation') {
+      return 'premium_chat_refund_restriction_artist_compensation';
+    }
+
+    return `${row.direction}_${row.ledgerType}`;
+  }
+
+  private walletLedgerServerAuthority(ledgerType: string) {
+    const match = WALLET_LEDGER_SOURCE_CONTRACT.find(
+      (entry) => entry.ledgerType === ledgerType,
+    );
+
+    return match?.serverAuthority ?? 'server_wallet_ledger';
+  }
+
   private assertArtistKnowledgeUuid(value: string, field: string) {
     if (!this.isUuid(value)) {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_INVALID_ID',
         'artistKnowledgeUrl.error.invalidId',
-        '자료 URL 요청 정보를 확인해 주세요.',
+        '?�료 URL ?�청 ?�보�??�인??주세??',
         { field },
       );
     }
@@ -5668,7 +6354,7 @@ export class AdminService {
   private throwArtistKnowledgeNotFound(): never {
     throw new NotFoundException({
       code: 'ARTIST_KNOWLEDGE_URL_NOT_FOUND',
-      message: '자료 URL을 찾을 수 없습니다.',
+      message: '?�료 URL??찾을 ???�습?�다.',
       messageKey: 'artistKnowledgeUrl.error.notFound',
     });
   }
@@ -5823,19 +6509,19 @@ export class AdminService {
 
   private aiContentNextAction(key: string) {
     const labels: Record<string, string> = {
-      public_profile: '아티스트 공개 소개/태그라인을 보강합니다.',
-      visual_profile: '비주얼 키워드 또는 스타일 노트를 보강합니다.',
-      content_profile: '콘텐츠 톤앤매너 또는 운영 노트를 보강합니다.',
-      cover_asset: '커버/히어로 슬롯 이미지를 연결합니다.',
-      thumbnail_asset: '썸네일/프로필 슬롯 이미지를 연결합니다.',
-      gallery_assets: '갤러리 슬롯 이미지를 1장 이상 연결합니다.',
-      shortforms: '공개 또는 준비 중 숏폼을 1개 이상 등록합니다.',
-      chat_persona: '캐릭터챗용 persona 초안을 준비합니다.',
+      public_profile: '?�티?�트 공개 ?�개/?�그?�인??보강?�니??',
+      visual_profile: '비주???�워???�는 ?��????�트�?보강?�니??',
+      content_profile: '콘텐�??�앤매너 ?�는 ?�영 ?�트�?보강?�니??',
+      cover_asset: '커버/?�어�??�롯 ?��?지�??�결?�니??',
+      thumbnail_asset: '?�네???�로???�롯 ?��?지�??�결?�니??',
+      gallery_assets: '갤러�??�롯 ?��?지�?1???�상 ?�결?�니??',
+      shortforms: '공개 ?�는 준�?�??�폼??1�??�상 ?�록?�니??',
+      chat_persona: '캐릭?�챗??persona 초안??준비합?�다.',
     };
 
     return {
       key,
-      label: labels[key] ?? '운영자가 상태를 확인합니다.',
+      label: labels[key] ?? '?�영?��? ?�태�??�인?�니??',
     };
   }
 
@@ -6230,7 +6916,7 @@ export class AdminService {
     return {
       generatedAt: new Date(),
       target: {
-        label: '1차 오픈 최소 조건',
+        label: '1�??�픈 최소 조건',
         minimumCategoryScore: 80,
         minimumOverallScore: 80,
       },
@@ -7857,6 +8543,71 @@ export class AdminService {
     } satisfies Prisma.CommunityReportInclude;
   }
 
+  private communityPostAuditSnapshot(post: unknown) {
+    const row = this.metadataObject(post);
+    const metadata = this.metadataObject(row.metadata);
+    const moderation = this.metadataObject(metadata.moderation);
+    const author = this.metadataObject(row.author);
+    const artist = this.metadataObject(row.artist);
+
+    return {
+      id: this.stringOrNull(row.id),
+      status: this.stringOrNull(row.status),
+      visibility: this.stringOrNull(row.visibility),
+      postType: this.stringOrNull(row.postType),
+      authorUserId: this.stringOrNull(row.authorUserId),
+      artistId: this.stringOrNull(row.artistId),
+      reportCount: this.numberOrNull(row.reportCount),
+      publishedAt: this.isoOrNull(row.publishedAt),
+      deletedAt: this.isoOrNull(row.deletedAt),
+      bodyPresent: typeof row.body === 'string' && row.body.length > 0,
+      bodyLength: typeof row.body === 'string' ? row.body.length : 0,
+      author: Object.keys(author).length
+        ? {
+            id: this.stringOrNull(author.id),
+            status: this.stringOrNull(author.status),
+            emailMasked: this.maskEmail(this.stringOrNull(author.email)),
+          }
+        : null,
+      artist: Object.keys(artist).length
+        ? {
+            id: this.stringOrNull(artist.id),
+            slug: this.stringOrNull(artist.slug),
+            status: this.stringOrNull(artist.status),
+          }
+        : null,
+      moderation: {
+        status: this.stringOrNull(moderation.status),
+        reason: this.stringOrNull(moderation.reason),
+        notePresent: typeof moderation.note === 'string' && moderation.note.length > 0,
+        hiddenByUserId: this.stringOrNull(moderation.hiddenByUserId),
+        restoredByUserId: this.stringOrNull(moderation.restoredByUserId),
+        hiddenAt: this.stringOrNull(moderation.hiddenAt),
+        restoredAt: this.stringOrNull(moderation.restoredAt),
+      },
+      auditRawBodyStored: false,
+      auditRawEmailStored: false,
+      auditRawModerationNoteStored: false,
+      auditTokenCookiePasswordStored: false,
+      auditDbUrlStored: false,
+    };
+  }
+
+  private communityModerationAuditMetadata(input: AdminPayload) {
+    const note = this.optionalString(input, 'note');
+    const reason = this.optionalString(input, 'reason');
+
+    return {
+      reason: reason ?? null,
+      notePresent: Boolean(note),
+      rawBodyStored: false,
+      rawEmailStored: false,
+      rawModerationNoteStored: false,
+      tokenCookiePasswordStored: false,
+      dbUrlStored: false,
+    };
+  }
+
   private async findCommunityPostForAdmin(postId: string) {
     if (!this.isUuid(postId)) {
       throw new BadRequestException('postId must be a UUID');
@@ -9269,6 +10020,40 @@ export class AdminService {
     return input[key] === undefined ? undefined : this.date(input, key);
   }
 
+  private walletLedgerDailyWindow(input: AdminPayload) {
+    const serviceDate = this.optionalString(input, 'serviceDate') ?? this.todayIsoDate();
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(serviceDate)) {
+      throw this.adminBadRequest(
+        'WALLET_DAILY_RECONCILE_INVALID_SERVICE_DATE',
+        'serviceDate must be YYYY-MM-DD',
+        'admin.walletDailyReconcile.invalidServiceDate',
+      );
+    }
+
+    const start = new Date(`${serviceDate}T00:00:00.000Z`);
+    if (Number.isNaN(start.getTime())) {
+      throw this.adminBadRequest(
+        'WALLET_DAILY_RECONCILE_INVALID_SERVICE_DATE',
+        'serviceDate must be YYYY-MM-DD',
+        'admin.walletDailyReconcile.invalidServiceDate',
+      );
+    }
+
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+
+    return { serviceDate, start, end };
+  }
+
+  private todayIsoDate() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  private decimalText(value: Decimal) {
+    return value.toDecimalPlaces(2).toString();
+  }
+
   private optionalBigInt(input: AdminPayload, key: string) {
     return input[key] === undefined ? undefined : BigInt(String(input[key]));
   }
@@ -9285,6 +10070,22 @@ export class AdminService {
     return value && typeof value === 'object' && !Array.isArray(value)
       ? (value as AdminPayload)
       : {};
+  }
+
+  private stringOrNull(value: unknown) {
+    return typeof value === 'string' && value.length ? value : null;
+  }
+
+  private numberOrNull(value: unknown) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  private isoOrNull(value: unknown) {
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    return typeof value === 'string' && value.length ? value : null;
   }
 
   private object(input: AdminPayload, key: string) {

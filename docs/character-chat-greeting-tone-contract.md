@@ -95,6 +95,28 @@ snapshot contains public tone guide/tags and persona tags only. It must not
 store raw persona prompts, provider payloads, tokens, keys, or user private
 data.
 
+## Greeting Selection Analytics Contract (#874)
+
+`GET /api/v1/chat/character-catalog` and
+`GET /api/v1/chat/starter-prompts` expose
+`greetingSelectionAnalyticsContract` so frontend/QA can wire future selection
+analytics without guessing the safe payload.
+
+- Event name: `character_chat.greeting_option_selected`.
+- Current status: `contract_ready_event_write_blocked`; this PR does not open
+  an analytics write endpoint.
+- Allowed event fields are limited to routing and aggregate dimensions:
+  `characterSlug`, server artist id, candidate key/index/source, display-safe
+  tone/persona tags, locale, and selected date.
+- Forbidden event fields include selected message body, full chat transcript,
+  freeform user input, raw persona prompt, raw provider payload, email, token,
+  cookie, password, API key, and DB URL.
+- Reporting must use safe daily character/candidate aggregates. Buckets below
+  the minimum reporting size stay hidden.
+- Selecting a recommended greeting candidate must not create a chat message,
+  call a provider, create an order, debit wallet/Lumina, touch settlement, or
+  touch payout.
+
 ## Clean Mode And Tone Guardrails (#454)
 
 Character-specific copy can be warm or playful, but it must stay display-safe:

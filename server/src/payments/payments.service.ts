@@ -9,6 +9,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  ACTIVE_CHARGE_PRODUCT_SPECS,
   activeChargeProductWhere,
   isActiveChargeProduct,
 } from './charge-products.policy';
@@ -17,6 +18,227 @@ import { PaymentProviderRegistry } from './providers/payment-provider.registry';
 const DEFAULT_CURRENCY = 'LUMINA';
 const FIRST_CHARGE_BONUS_RATE = new Decimal('0.1');
 const FIRST_CHARGE_BONUS_BASIS = 'base_lumina_only';
+
+export const CHARGE_PACKAGE_ADMIN_READ_ONLY_AUDIT_GUARD = {
+  version: '2026-06-22.charge-package-admin-read-only-audit-guard.v1',
+  status: 'read_only_audit_contract',
+  endpoint: 'GET /api/v1/admin/payments/charge-packages/audit',
+  requiredRole: 'super_admin',
+  requiredPermission: 'payments:read',
+  mutation: false,
+  paymentOrderCreate: false,
+  paymentProviderCall: false,
+  walletCredit: false,
+  bonusGrant: false,
+  settlementMutation: false,
+  payoutMutation: false,
+  packageScope: {
+    canonicalPackageCount: 6,
+    sourceOfTruth: 'ACTIVE_CHARGE_PRODUCT_SPECS',
+    skus: ACTIVE_CHARGE_PRODUCT_SPECS.map((product) => product.sku),
+    priceAmountsKrw: ACTIVE_CHARGE_PRODUCT_SPECS.map(
+      (product) => product.priceAmount,
+    ),
+    clientSubmittedProductTrusted: false,
+    clientSubmittedAmountTrusted: false,
+  },
+  firstChargeAudit: {
+    grantLimit: 'once_per_user_across_all_six_packages',
+    idempotencyKeyPattern: 'first_charge_bonus:<userId>',
+    duplicateGrantBehavior: 'show_existing_ledger_without_second_bonus',
+    packageBonusSeparatedFromFirstCharge: true,
+    highValuePackageBonusSkus: ['LUMINA_5800', 'LUMINA_12000'],
+    firstChargeBasis: FIRST_CHARGE_BONUS_BASIS,
+    firstChargeRateBps: 1000,
+    eligibilityScope: {
+      packageSkus: ACTIVE_CHARGE_PRODUCT_SPECS.map((product) => product.sku),
+      firstPaidOrderLookup:
+        'payment_orders where user_id matches, status paid, canonical charge product',
+      failedPendingOrCanceledOrdersIgnored: true,
+      userScopedDuplicateKeySharedAcrossPackages: true,
+    },
+    packageBonusSeparationAudit: {
+      packageBonusLedgerType: 'purchase',
+      firstChargeBonusLedgerType: 'first_charge_bonus',
+      firstChargeBonusBasisExcludesPackageBonus: true,
+      highValuePackageBonusSkus: ['LUMINA_5800', 'LUMINA_12000'],
+      highValuePackageBonusNeverCreatesFirstChargeEligibility: true,
+    },
+  },
+  projectionFields: [
+    'sku',
+    'priceAmountKrw',
+    'baseLuminaAmount',
+    'packageBonusLumina',
+    'firstChargeBonusLumina',
+    'repeatChargeCreditLumina',
+    'firstChargeTotalCreditLumina',
+    'ledgerTypes',
+    'firstChargeEligibilityState',
+    'duplicateFirstChargeGrantState',
+  ],
+  forbiddenSideEffects: {
+    paymentOrderCreate: false,
+    providerCheckout: false,
+    walletCredit: false,
+    bonusGrant: false,
+    settlement: false,
+    payout: false,
+  },
+  errorResponses: {
+    forbidden: {
+      code: 'PAYMENT_ADMIN_AUDIT_FORBIDDEN',
+      messageKey: 'payments.adminAudit.forbidden',
+    },
+    unavailable: {
+      code: 'PAYMENT_ADMIN_AUDIT_UNAVAILABLE',
+      messageKey: 'payments.adminAudit.unavailable',
+    },
+  },
+  privacy: {
+    rawEmailReturned: false,
+    providerTransactionIdReturned: false,
+    paymentCredentialReturned: false,
+    tokenReturned: false,
+    cookieReturned: false,
+  },
+} as const;
+
+export const FIRST_CHARGE_BONUS_READ_ONLY_AUDIT_PROJECTION = {
+  version: '2026-06-17.first-charge-bonus-read-only-audit-projection.v1',
+  status: 'read_only_projection_contract',
+  mutation: false,
+  paymentProviderCall: false,
+  walletCredit: false,
+  bonusGrant: false,
+  sourceOfTruth: {
+    products: 'ACTIVE_CHARGE_PRODUCT_SPECS',
+    baseLuminaAmount: 'lumina_products.lumina_amount',
+    packageBonusLumina: 'lumina_products.bonus_amount',
+    firstChargeBonusRateBps: 1000,
+    firstChargeBonusBasis: FIRST_CHARGE_BONUS_BASIS,
+  },
+  serverAuthority: {
+    clientSubmittedPriceTrusted: false,
+    clientSubmittedLuminaAmountTrusted: false,
+    clientSubmittedBonusAmountTrusted: false,
+    clientSubmittedFirstChargeBonusTrusted: false,
+    packageBonusAndFirstChargeShareLedgerType: false,
+    packageBonusAndFirstChargeShareAuditRow: false,
+  },
+  adminReadOnlyAuditGuard: CHARGE_PACKAGE_ADMIN_READ_ONLY_AUDIT_GUARD,
+  products: ACTIVE_CHARGE_PRODUCT_SPECS.map((product) => {
+    const firstChargeBonusLumina = product.luminaAmount / 10;
+    const repeatChargeCreditLumina =
+      product.luminaAmount + product.bonusAmount;
+    return {
+      sku: product.sku,
+      priceAmountKrw: product.priceAmount,
+      baseLuminaAmount: product.luminaAmount,
+      packageBonusLumina: product.bonusAmount,
+      firstChargeBonusLumina,
+      repeatChargeCreditLumina,
+      firstChargeTotalCreditLumina:
+        repeatChargeCreditLumina + firstChargeBonusLumina,
+      ledgerTypes: {
+        packageCredit: 'purchase',
+        firstChargeBonus: 'first_charge_bonus',
+      },
+    };
+  }),
+} as const;
+
+export const FIRST_CHARGE_BONUS_IDEMPOTENCY_CONTRACT = {
+  version: '2026-06-08.first-charge-bonus-idempotency.v1',
+  canonicalChargePackageCount: 6,
+  grantTrigger: 'first_successful_paid_lumina_order_transition_only',
+  idempotencyKeyPattern: 'first_charge_bonus:<userId>',
+  bonusBasis: FIRST_CHARGE_BONUS_BASIS,
+  bonusRate: '10_percent',
+  packageBonusIncluded: false,
+  packageBonusLedgerType: 'purchase',
+  firstChargeBonusLedgerType: 'first_charge_bonus',
+  firstChargeBonusReferenceType: 'payment_order',
+  uniquenessScope: ['userId', 'first_charge_bonus'],
+  replaySources: [
+    'provider_transaction_duplicate',
+    'paid_order_callback_retry',
+    'wallet_ledger_upsert_race',
+  ],
+  packageBonusSeparation: {
+    packageBonusIncludedInPurchaseLedger: true,
+    firstChargeBonusStoredInPurchaseLedger: false,
+    highValuePackageBonusRowsSharedWithFirstCharge: false,
+  },
+  firstChargeOnceAcrossPackagesGuard: {
+    version: '2026-06-19.first-charge-bonus-once-across-packages.v1',
+    packageScope: 'all_six_canonical_lumina_charge_packages',
+    firstPaidOrderSource: 'payment_orders.status_paid_for_user',
+    triggerTransition: 'provider_verified_pending_to_paid',
+    failedOrPendingOrdersCountAsFirstCharge: false,
+    userScopedIdempotencyKey: 'first_charge_bonus:<userId>',
+    duplicateGrantLookup: {
+      table: 'wallet_ledger',
+      ledgerType: 'first_charge_bonus',
+      referenceType: 'payment_order',
+      userIdScoped: true,
+    },
+    highValuePackageSeparation: {
+      affectedSkus: ['lumina_50000', 'lumina_100000'],
+      packageBonusLedgerType: 'purchase',
+      firstChargeBonusLedgerType: 'first_charge_bonus',
+      packageBonusIncludedInFirstChargeBasis: false,
+      firstChargeBasis: 'lumina_products.lumina_amount',
+    },
+    mutationOpenedByThisContract: false,
+    paymentMutation: false,
+    walletCreditMutation: false,
+    bonusMutation: false,
+    readOnlyAuditChecks: [
+      'all_six_canonical_packages_share_one_user_scoped_bonus_key',
+      'first_paid_order_only_counts_after_provider_verified_paid_transition',
+      'package_bonus_purchase_ledger_is_not_first_charge_bonus_ledger',
+      'high_value_package_bonus_not_included_in_first_charge_basis',
+      'duplicate_bonus_key_returns_existing_projection_without_second_credit',
+    ],
+  },
+  auditReadModelSeparation: {
+    canonicalPackageSkus: [
+      'lumina_1000',
+      'lumina_3000',
+      'lumina_5000',
+      'lumina_10000',
+      'lumina_50000',
+      'lumina_100000',
+    ],
+    packageBonusField: 'lumina_products.bonus_amount',
+    packageBonusLedgerType: 'purchase',
+    firstChargeBonusLedgerType: 'first_charge_bonus',
+    firstChargeBonusBasisField: 'lumina_products.lumina_amount',
+    firstChargeBonusRateBps: 1000,
+    packageBonusAndFirstChargeShareAuditRow: false,
+    packageBonusAndFirstChargeShareLedgerType: false,
+    highValuePackageBonusRowsSharedWithFirstCharge: false,
+    auditTraceFields: [
+      'paymentOrderId',
+      'luminaProductSku',
+      'baseLuminaAmount',
+      'packageBonusLumina',
+      'firstChargeBonusLumina',
+      'walletLedgerType',
+      'walletLedgerIdempotencyKey',
+    ],
+  },
+  clientProvidedAmountAccepted: false,
+  walletAndLedgerSameTransaction: true,
+  duplicateProviderTransactionBehavior: 'idempotent_replay_without_wallet_ledger',
+  alreadyPaidOrderBehavior: 'idempotent_replay_without_wallet_ledger',
+  duplicateBonusKeyBehavior: 'upsert_replay_without_second_bonus_credit',
+  failedProviderEventsLockEligibility: false,
+  settlementEligible: false,
+  cashRefundable: false,
+  readOnlyAuditProjection: FIRST_CHARGE_BONUS_READ_ONLY_AUDIT_PROJECTION,
+} as const;
 const PAYMENT_ORDER_IDEMPOTENCY_CONFLICT = {
   code: 'PAYMENT_ORDER_IDEMPOTENCY_CONFLICT',
   message: 'payments.order.idempotencyConflict',
@@ -29,6 +251,41 @@ const PAYMENT_CHARGE_PRODUCT_UNAVAILABLE = {
   messageKey: 'payments.order.chargeProductUnavailable',
   paymentOrderMutation: false,
   walletMutation: false,
+} as const;
+
+export const CHARGE_FIXTURE_PAYMENT_SEPARATION_CONTRACT = {
+  version: '2026-06-08.charge-fixture-payment-separation.v1',
+  fixtureScope: {
+    allowedSurfaces: ['local_preview_ui', 'storybook_like_preview'],
+    serverAcceptedAsProductSource: false,
+    paymentOrderMutation: false,
+    walletMutation: false,
+    bonusMutation: false,
+    providerCheckoutMutation: false,
+  },
+  realPaymentSourceOfTruth: {
+    productPolicy: 'ACTIVE_CHARGE_PRODUCT_SPECS',
+    productLookup: 'activeChargeProductWhere(luminaProductId)',
+    orderStatusBeforeProviderWebhook: 'pending',
+    walletCreditTrigger: 'verified_provider_paid_webhook_only',
+    firstChargeBonusTrigger: 'verified_first_paid_order_transition_only',
+  },
+  forbiddenFixtureFields: [
+    'pg_pending',
+    'preview',
+    'fixture',
+    'fixtureProductId',
+    'fixtureStatus',
+    'fixtureWalletBalance',
+  ],
+  serverAuthority: {
+    clientSubmittedPriceTrusted: false,
+    clientSubmittedLuminaAmountTrusted: false,
+    clientSubmittedBonusAmountTrusted: false,
+    clientSubmittedPaymentStatusTrusted: false,
+    checkoutPreviewCanCreatePaymentOrder: false,
+    checkoutPreviewCanCreateWalletLedger: false,
+  },
 } as const;
 
 @Injectable()

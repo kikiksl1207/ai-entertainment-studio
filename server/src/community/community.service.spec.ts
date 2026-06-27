@@ -3,7 +3,19 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { CommunityService } from './community.service';
+import {
+  CommunityService,
+  LUMINA_FEED_MULTI_IMAGE_ATTACHMENT_CONTRACT,
+  LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT,
+  LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT,
+  LUMINA_FEED_REPOST_SHARE_DISPLAY_PROJECTION_CONTRACT,
+  LUMINA_FEED_REPOST_TOMBSTONE_READ_PROJECTION_CONTRACT,
+  LUMINA_FEED_REPOST_QUOTE_BODY_VALIDATION_POLICY,
+  LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT,
+  LUMINA_FEED_THREAD_REPOST_SHARE_PM_PROJECTION_CONTRACT,
+  LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT,
+  USER_SOCIAL_ACCOUNT_CONTRACT,
+} from './community.service';
 
 const authorId = '00000000-0000-4000-8000-000000000101';
 const otherUserId = '00000000-0000-4000-8000-000000000102';
@@ -27,11 +39,15 @@ function createPrismaMock() {
       findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
     },
     communityReply: {
+      create: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
     },
     communityReaction: {
+      create: jest.fn(),
       findUnique: jest.fn().mockResolvedValue(null),
     },
     artistFollow: {
@@ -60,6 +76,9 @@ function createPrismaMock() {
     asset: {
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue(null),
+    },
+    auditEvent: {
+      create: jest.fn().mockResolvedValue({ id: 'audit-row' }),
     },
   };
 
@@ -142,6 +161,519 @@ function threadMetadata(overrides: Record<string, unknown> = {}) {
 describe('CommunityService user follow/block mutation contract', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('publishes the user follow list and block account contract', () => {
+    expect(USER_SOCIAL_ACCOUNT_CONTRACT).toMatchObject({
+      version: '2026-06-08.user-social-account-contract.v1',
+      profileFollowLists: {
+        endpoints: [
+          'GET /api/v1/users/:userId/followers',
+          'GET /api/v1/users/:userId/following-users',
+          'GET /api/v1/users/handle/:publicHandle/followers',
+          'GET /api/v1/users/handle/:publicHandle/following-users',
+        ],
+        targetVisibilityWhere: {
+          status: 'active',
+          deletedAt: null,
+        },
+        returnedUserWhere: {
+          status: 'active',
+          deletedAt: null,
+        },
+        hiddenStatuses: ['deleted', 'suspended', 'inactive', 'private'],
+        projection: 'public_user_follow_summary_v1',
+        profileCountProjection: {
+          followerRowsBlockedByViewerExcluded: true,
+          followingRowsBlockedByViewerExcluded: true,
+          blockedRelationshipDirection: 'either_direction',
+          countAndListUseSameVisibilityWhere: true,
+          hiddenRowsExcludedBeforeCount: true,
+          emptyProjection: {
+            items: [],
+            count: 0,
+            total: 0,
+            nextCursor: null,
+          },
+          errorProjection: {
+            blockedTargetStatus: 403,
+            blockedTargetCode: 'USER_PROFILE_BLOCKED',
+            notFoundCode: 'USER_NOT_FOUND',
+            invalidCursorCode: 'INVALID_CURSOR',
+          },
+        },
+        publicListProjection: {
+          version: '2026-06-16.public-user-follow-list-projection.v1',
+          surfaces: {
+            followers: [
+              'GET /api/v1/users/:userId/followers',
+              'GET /api/v1/users/handle/:publicHandle/followers',
+            ],
+            followingUsers: [
+              'GET /api/v1/users/:userId/following-users',
+              'GET /api/v1/users/handle/:publicHandle/following-users',
+            ],
+          },
+          targetProfileRequired: {
+            status: 'active',
+            deletedAt: null,
+            blockedByViewer: false,
+          },
+          returnedFollowRowsWhere: {
+            followDeletedAt: null,
+            sourceUserStatus: 'active',
+            targetUserStatus: 'active',
+            userDeletedAt: null,
+            activeBlockEitherDirection: false,
+          },
+          hiddenUserStatuses: ['deleted', 'suspended', 'inactive', 'private'],
+          countSource: 'same_where_as_items_after_hidden_and_block_filters',
+          cursorField: 'user_follows.id',
+          viewerHintsSafeOnly: true,
+          mutation: false,
+        },
+      },
+      blockEffects: {
+        blockEndpoint: 'POST /api/v1/users/:userId/block',
+        unblockEndpoint: 'DELETE /api/v1/users/:userId/block',
+        serverActionContract: {
+          version: '2026-06-19.feed-user-block-server-action.v1',
+          status: 'contract_only_existing_endpoint',
+          actionSurfaces: [
+            'feed_post_menu',
+            'feed_mini_profile',
+            'profile_more_menu',
+          ],
+          mutationOpenedByThisContract: false,
+          authRequired: true,
+          targetResolution: {
+            byUserId: 'active_user_uuid',
+            byPublicHandle: 'active_public_handle',
+            deletedSuspendedOrInactiveTarget: 'USER_NOT_FOUND',
+            selfBlockCode: 'CANNOT_BLOCK_SELF',
+          },
+          stableResponses: {
+            blocked: {
+              status: 200,
+              code: 'USER_BLOCKED',
+              messageKey: 'social.block.created',
+            },
+            alreadyBlocked: {
+              status: 200,
+              code: 'USER_BLOCKED',
+              messageKey: 'social.block.alreadyCreated',
+            },
+            targetNotFound: {
+              status: 404,
+              code: 'USER_NOT_FOUND',
+              messageKey: 'social.user.notFound',
+            },
+            selfBlock: {
+              status: 400,
+              code: 'CANNOT_BLOCK_SELF',
+              messageKey: 'social.block.selfNotAllowed',
+            },
+          },
+        },
+        removesViewerToTargetFollow: true,
+        removesTargetToViewerFollow: true,
+        refollowBlockedWhileActive: true,
+        hiddenSurfaces: [
+          'feed',
+          'comments',
+          'premium_chat',
+          'support',
+          'user_follow_lists',
+        ],
+        walletMutation: false,
+        luminaMutation: false,
+        paymentMutation: false,
+        settlementMutation: false,
+      },
+      followerBlockProjectionGuard: {
+        version: '2026-06-16.feed-follower-block-projection-guard.v1',
+        source: 'user_blocks',
+        activeBlockWhere: {
+          status: 'active',
+          deletedAt: null,
+          direction: 'either_direction',
+        },
+        surfaces: {
+          feed: expect.arrayContaining([
+            'GET /api/v1/me/lumina-feed',
+            'GET /api/v1/users/:userId/posts',
+            'GET /api/v1/users/handle/:publicHandle/posts',
+          ]),
+          profile: [
+            'GET /api/v1/users/:userId',
+            'GET /api/v1/users/handle/:publicHandle',
+          ],
+          followLists: [
+            'GET /api/v1/users/:userId/followers',
+            'GET /api/v1/users/:userId/following-users',
+            'GET /api/v1/users/handle/:publicHandle/followers',
+            'GET /api/v1/users/handle/:publicHandle/following-users',
+          ],
+        },
+        projectionPolicy: {
+          targetProfileBlocked: 'fail_closed_403_USER_PROFILE_BLOCKED',
+          feedRowsByBlockedUsers: 'exclude_before_pagination_and_count',
+          followerRowsByBlockedUsers: 'exclude_before_pagination_and_count',
+          followingRowsByBlockedUsers: 'exclude_before_pagination_and_count',
+          profileCountsUseSameFilterAsLists: true,
+          viewerHintsMustNotLeakBlockedUserPrivateFields: true,
+        },
+        liveFixtureSeedGuard: {
+          version: '2026-06-17.feed-follower-block-live-fixture-seed.v1',
+          status: 'qa_runbook_contract_only',
+          enabledByDefault: false,
+          productionAutoSeed: false,
+          liveMutationByContract: false,
+          allowedEnvironments: ['local', 'staging'],
+          forbiddenEnvironments: ['production'],
+          runId: {
+            required: true,
+            format: 'qa-follow-block-YYYYMMDD-runN',
+            persistedOnRows: true,
+            cleanupScope: 'run_id_only',
+          },
+          executionRunbook: {
+            status: 'manual_operator_runbook_only',
+            productionAutoSeed: false,
+            publicApiEndpointAdded: false,
+            confirmationRequired: true,
+            confirmKey: 'QA_FEED_FOLLOW_BLOCK_FIXTURE_CONFIRM',
+            confirmValue: 'PREPARE_QA_FOLLOW_BLOCK_FIXTURE',
+          },
+          qaSmokeHandoff: {
+            nextOwner: 'qa2',
+            publicHandleReadiness: {
+              required: true,
+              ownerAlias: 'qa_profile_owner',
+              allowedHandlePattern: 'qa-follow-block-<YYYYMMDD>-run<N>',
+              statusField: 'fixture_status',
+              pathField: 'public_profile_path',
+              profilePathTemplate: '/user-profile?handle=:publicHandle',
+              followersPathTemplate:
+                '/api/v1/users/handle/:publicHandle/followers',
+              followingPathTemplate:
+                '/api/v1/users/handle/:publicHandle/following-users',
+              forbiddenValues: [
+                'raw_email',
+                'password',
+                'access_token',
+                'refresh_token',
+                'cookie',
+                'database_url',
+              ],
+            },
+            allowedOutput: expect.arrayContaining([
+              'runId',
+              'publicProfileHandle',
+              'fixtureStatus',
+              'publicProfilePath',
+              'followersApiPath',
+              'followingApiPath',
+            ]),
+          },
+          safety: {
+            realUserFollowMutation: false,
+            realUserBlockMutation: false,
+            walletMutation: false,
+            luminaMutation: false,
+            settlementMutation: false,
+            payoutMutation: false,
+          },
+        },
+      },
+      feedInteractionGuards: {
+        relationshipSource: 'user_blocks',
+        blockedRelationshipDirection: 'either_direction',
+        readProjection: {
+          filterBlockedAuthors: true,
+          filterBlockedReplyAuthors: true,
+          filterBlockedCommentAuthors: true,
+          excludeBlockedRepostAuthors: true,
+          renderRepostSourceTombstoneWhenOriginalAuthorBlocked: true,
+          postCardActionState: {
+            blockActionAvailableWhenAuthenticated: true,
+            blockActionHiddenForSelf: true,
+            blockStateKey: '<none|viewer_blocked_author|author_blocked_viewer>',
+            rawBlockReasonReturned: false,
+          },
+          viewerHintsMustNotLeakBlockedUserPrivateFields: true,
+        },
+        projectionRegressionGuard: {
+          version: '2026-06-22.feed-block-projection-regression-guard.v1',
+          status: 'contract_only_no_new_mutation',
+          source: 'user_blocks',
+          relationshipDirection: 'either_direction',
+          blockActionEntryPoint: {
+            surfaces: ['feed_post_menu', 'feed_mini_profile'],
+            serverEndpoint: 'POST /api/v1/users/:userId/block',
+            projectionOnlyByThisContract: true,
+          },
+          mutationPolicy: {
+            followMutation: false,
+            unfollowMutation: false,
+            blockMutationExecutedByRegressionGuard: false,
+            walletMutation: false,
+            luminaMutation: false,
+            settlementMutation: false,
+          },
+        },
+        writePolicy: {
+          failBeforeCommunityMutation: true,
+          failBeforeNotificationMutation: true,
+          status: 403,
+          code: 'USER_FOLLOW_BLOCKED',
+          messageKey: 'social.follow.blocked',
+        },
+      },
+      premiumChatRelationshipGuards: {
+        relationshipSource: 'user_blocks',
+        blockedRelationshipDirection: 'either_direction',
+        validationOrder: [
+          'load_room_participants_or_artist_target',
+          'check_user_blocks_either_direction',
+          'reject_before_wallet_order_message_donation_or_report_mutation',
+          'continue_domain_specific_guard',
+        ],
+        failBeforeWalletMutation: true,
+        failBeforeOrderMutation: true,
+        failBeforeMessageMutation: true,
+        failBeforeDonationMutation: true,
+        failBeforeReportMutation: true,
+        failBeforeSettlementMutation: true,
+        failBeforePayoutMutation: true,
+        status: 403,
+        code: 'USER_RELATIONSHIP_BLOCKED',
+        messageKey: 'social.relationship.blocked',
+      },
+    });
+    expect(
+      USER_SOCIAL_ACCOUNT_CONTRACT.feedInteractionGuards.readSurfaces,
+    ).toEqual(
+      expect.arrayContaining([
+        'GET /api/v1/me/lumina-feed',
+        'GET /api/v1/me/lumina-feed/liked-posts',
+        'GET /api/v1/lumina-feed/posts/:postId/replies',
+      ]),
+    );
+    expect(
+      USER_SOCIAL_ACCOUNT_CONTRACT.feedInteractionGuards.writeSurfaces,
+    ).toEqual(
+      expect.arrayContaining([
+        'POST /api/v1/lumina-feed/posts/:postId/likes',
+        'POST /api/v1/lumina-feed/posts/:postId/replies',
+        'POST /api/v1/lumina-feed/posts/:postId/reposts',
+      ]),
+    );
+    expect(
+      USER_SOCIAL_ACCOUNT_CONTRACT.feedInteractionGuards
+        .projectionRegressionGuard.scenarios,
+    ).toEqual([
+      expect.objectContaining({
+        surface: 'feed_list',
+        expected: 'blocked_author_rows_excluded_before_pagination_and_count',
+      }),
+      expect.objectContaining({
+        surface: 'comments',
+        expected:
+          'blocked_reply_author_rows_excluded_before_pagination_and_count',
+      }),
+      expect.objectContaining({
+        surface: 'reposts',
+        expected: 'blocked_original_author_renders_tombstone_without_body',
+      }),
+      expect.objectContaining({
+        surface: 'followers',
+        expected:
+          'blocked_follower_rows_excluded_before_pagination_and_count',
+      }),
+      expect.objectContaining({
+        surface: 'following',
+        expected:
+          'blocked_following_rows_excluded_before_pagination_and_count',
+      }),
+    ]);
+    expect(
+      USER_SOCIAL_ACCOUNT_CONTRACT.premiumChatRelationshipGuards.blockedSurfaces,
+    ).toEqual(
+      expect.arrayContaining([
+        'POST /api/v1/chat/premium-rooms',
+        'POST /api/v1/chat/premium-rooms/:roomId/messages',
+        'POST /api/v1/chat/premium-rooms/:roomId/donations',
+        'POST /api/v1/chat/premium-rooms/:roomId/reports',
+        'GET /api/v1/chat/me/premium-rooms/:roomId/status',
+      ]),
+    );
+    expect(
+      USER_SOCIAL_ACCOUNT_CONTRACT.profileFollowLists.privateFieldsExcluded,
+    ).toEqual(
+      expect.arrayContaining([
+        'email',
+        'phone',
+        'walletAccounts',
+        'walletLedger',
+        'paymentOrders',
+        'privateProfile',
+        'moderationNotes',
+      ]),
+    );
+    expect(
+      USER_SOCIAL_ACCOUNT_CONTRACT.blockEffects.blockedProfileListAccess,
+    ).toEqual({
+      status: 403,
+      code: 'USER_PROFILE_BLOCKED',
+      messageKey: 'social.profile.blocked',
+    });
+  });
+
+  it('keeps live follower/block fixture seeding scoped to disposable QA rows', () => {
+    const guard =
+      USER_SOCIAL_ACCOUNT_CONTRACT.followerBlockProjectionGuard
+        .liveFixtureSeedGuard;
+
+    expect(guard.disposableUsers).toEqual([
+      expect.objectContaining({
+        alias: 'qa_viewer',
+        realUserAllowed: false,
+      }),
+      expect.objectContaining({
+        alias: 'qa_profile_owner',
+        realUserAllowed: false,
+      }),
+      expect.objectContaining({
+        alias: 'qa_follower',
+        realUserAllowed: false,
+      }),
+      expect.objectContaining({
+        alias: 'qa_blocked_follower',
+        realUserAllowed: false,
+      }),
+    ]);
+    expect(guard.fixtureRows).toEqual([
+      expect.objectContaining({
+        model: 'user_follows',
+        purpose: 'profile_owner_has_visible_follower',
+        sourceAlias: 'qa_follower',
+        targetAlias: 'qa_profile_owner',
+        status: 'active',
+        runIdRequired: true,
+      }),
+      expect.objectContaining({
+        model: 'user_follows',
+        purpose: 'profile_owner_has_blocked_follower_fixture',
+        sourceAlias: 'qa_blocked_follower',
+        targetAlias: 'qa_profile_owner',
+        status: 'active',
+        runIdRequired: true,
+      }),
+      expect.objectContaining({
+        model: 'user_blocks',
+        purpose: 'viewer_blocks_blocked_follower_for_list_filter_smoke',
+        sourceAlias: 'qa_viewer',
+        targetAlias: 'qa_blocked_follower',
+        status: 'active',
+        runIdRequired: true,
+      }),
+    ]);
+    expect(guard.visibilityChecks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          endpoint: 'GET /api/v1/users/:userId/followers',
+          expected: 'visible_follower_returned_blocked_follower_excluded',
+        }),
+        expect.objectContaining({
+          endpoint: 'GET /api/v1/users/:userId/following-users',
+          expected: 'only_active_public_rows_with_block_filter',
+        }),
+        expect.objectContaining({
+          endpoint: 'POST /api/v1/users/:userId/block',
+          expected: 'viewer_owned_block_ux_only_no_real_user_target',
+        }),
+      ]),
+    );
+    expect(guard.executionRunbook).toMatchObject({
+      status: 'manual_operator_runbook_only',
+      productionAutoSeed: false,
+      allowedOperatorPath:
+        'private_staging_or_local_db_operation_or_future_admin_fixture_tool',
+      publicApiEndpointAdded: false,
+      confirmationRequired: true,
+      confirmKey: 'QA_FEED_FOLLOW_BLOCK_FIXTURE_CONFIRM',
+      confirmValue: 'PREPARE_QA_FOLLOW_BLOCK_FIXTURE',
+      requiredInputs: [
+        'runId',
+        'qa_viewer_user_id',
+        'qa_profile_owner_user_id',
+        'qa_follower_user_id',
+        'qa_blocked_follower_user_id',
+      ],
+      cleanupPolicy: {
+        cleanupByRunIdOnly: true,
+        hardDelete: false,
+        restoreRealUserRelationships: false,
+        leaveAuditTrail: true,
+      },
+    });
+    expect(guard.executionRunbook.preflightChecks).toEqual(
+      expect.arrayContaining([
+        'all_users_are_disposable_qa_users',
+        'no_user_alias_points_to_real_customer_account',
+        'run_id_is_unique_and_recorded_on_fixture_metadata',
+        'existing_real_follow_or_block_rows_are_not_modified',
+      ]),
+    );
+    expect(guard.qaSmokeHandoff).toMatchObject({
+      nextOwner: 'qa2',
+      expectedLiveChecks: [
+        'public_profile_follower_count_at_least_one',
+        'followers_modal_shows_disposable_follower_row',
+        'logged_in_qa_viewer_can_find_block_entrypoint_for_follower',
+        'blocked_follower_row_is_hidden_or_tombstoned_after_block',
+      ],
+      blockedIfMissing: [
+        'private_qa_viewer_session',
+        'disposable_qa_users',
+        'operator_db_access',
+      ],
+    });
+    expect(guard.qaSmokeHandoff.allowedOutput).toEqual(
+      expect.arrayContaining([
+        'runId',
+        'publicProfileHandle',
+        'safeProfileOwnerUserId',
+        'safeFollowerRowId',
+        'safeBlockRowId',
+        'expectedFollowerCountAtLeast',
+      ]),
+    );
+    expect(guard.allowedReportFields).toEqual(
+      expect.arrayContaining([
+        'runId',
+        'userAlias',
+        'safeUserId',
+        'rowModel',
+        'rowId',
+        'httpStatus',
+        'stableCode',
+        'messageKey',
+      ]),
+    );
+    expect(guard.forbiddenReportFields).toEqual(
+      expect.arrayContaining([
+        'raw email',
+        'password',
+        'access token',
+        'cookie',
+        'database url',
+      ]),
+    );
+    expect(JSON.stringify(guard)).not.toMatch(
+      /@|postgres:\/\/|mysql:\/\/|Bearer\s+|eyJ|AKIA|BEGIN PRIVATE KEY/i,
+    );
   });
 
   it('fails closed when a blocked user tries to follow or refollow', async () => {
@@ -295,6 +827,106 @@ describe('CommunityService user follow/block mutation contract', () => {
       },
     });
     expect(result.block.user).not.toHaveProperty('email');
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          actorUserId: authorId,
+          actorType: 'user',
+          action: 'community.user_block.activated',
+          targetType: 'user_block',
+          targetId: 'block-row',
+          metadata: expect.objectContaining({
+            rawEmailStored: false,
+            rawTokenStored: false,
+            rawCookieStored: false,
+            rawIpStored: false,
+            walletMutation: false,
+            luminaMutation: false,
+            paymentMutation: false,
+            settlementMutation: false,
+          }),
+        }),
+      }),
+    );
+    const auditPayload = JSON.stringify(prisma.auditEvent.create.mock.calls[0][0]);
+    expect(auditPayload).not.toContain('spam');
+    expect(auditPayload).not.toContain('@');
+    expect(auditPayload).not.toContain('secret-token');
+    expect(auditPayload).not.toContain('session-cookie');
+    expect(auditPayload).not.toContain('password');
+  });
+
+  it('records unblock audit without restoring follows or touching wallet-like state', async () => {
+    const prisma = createPrismaMock();
+    prisma.userBlock.updateMany.mockResolvedValue({ count: 1 });
+    const service = serviceWith(prisma);
+
+    const result = await service.unblockUser(authorId, otherUserId);
+
+    expect(result).toEqual({ ok: true });
+    expect(prisma.userFollow.upsert).not.toHaveBeenCalled();
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          actorUserId: authorId,
+          actorType: 'user',
+          action: 'community.user_block.deleted',
+          targetType: 'user_block',
+          targetId: otherUserId,
+          metadata: expect.objectContaining({
+            rawEmailStored: false,
+            rawTokenStored: false,
+            rawCookieStored: false,
+            rawIpStored: false,
+            walletMutation: false,
+            luminaMutation: false,
+            paymentMutation: false,
+            settlementMutation: false,
+          }),
+        }),
+      }),
+    );
+    const auditPayload = JSON.stringify(prisma.auditEvent.create.mock.calls[0][0]);
+    expect(auditPayload).not.toContain('@');
+    expect(auditPayload).not.toContain('secret-token');
+    expect(auditPayload).not.toContain('session-cookie');
+    expect(auditPayload).not.toContain('password');
+  });
+
+  it('fails closed for feed interactions when either user blocked the other', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Root post' }));
+    prisma.userBlock.findFirst.mockResolvedValue({ id: 'block-row' });
+    const service = serviceWith(prisma);
+
+    await expect(
+      service.createRepost(otherUserId, postId, { body: 'quote' }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'USER_FOLLOW_BLOCKED',
+        messageKey: 'social.follow.blocked',
+      },
+      status: 403,
+    });
+    await expect(
+      service.createReply(otherUserId, postId, { body: 'reply' }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'USER_FOLLOW_BLOCKED',
+        messageKey: 'social.follow.blocked',
+      },
+      status: 403,
+    });
+    await expect(service.likePost(otherUserId, postId)).rejects.toMatchObject({
+      response: {
+        code: 'USER_FOLLOW_BLOCKED',
+        messageKey: 'social.follow.blocked',
+      },
+      status: 403,
+    });
+    expect(prisma.communityPost.create).not.toHaveBeenCalled();
+    expect(prisma.communityReply.create).not.toHaveBeenCalled();
+    expect(prisma.communityReaction.create).not.toHaveBeenCalled();
   });
 });
 
@@ -466,6 +1098,31 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
     );
   });
 
+  it('excludes public feed cleanup guard bodies from public feed projections', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findMany.mockResolvedValue([]);
+    const service = serviceWith(prisma);
+
+    await service.getFeed({});
+
+    expect(prisma.communityPost.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
+          NOT: expect.arrayContaining([
+            { body: { equals: 'test', mode: 'insensitive' } },
+            { body: { contains: 'testtest', mode: 'insensitive' } },
+            { body: { equals: 'sample', mode: 'insensitive' } },
+            { body: { contains: '임시문구' } },
+            { body: { contains: '샘플문구' } },
+          ]),
+        }),
+      }),
+    );
+  });
+
   it('does not expose author email in public feed post projections', async () => {
     const prisma = createPrismaMock();
     prisma.communityPost.findMany.mockResolvedValue([
@@ -497,6 +1154,65 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
       },
     });
     expect(result[0].author).not.toHaveProperty('email');
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_AUTHOR_EMAIL_SHOULD_NOT_LEAK');
+  });
+
+  it('excludes blocked follower rows from public profile count projections', async () => {
+    const prisma = createPrismaMock();
+    const blockedListedUserId = '00000000-0000-4000-8000-000000000604';
+    prisma.user.findFirst.mockResolvedValue({
+      id: authorId,
+      email: 'PRIVATE_AUTHOR_EMAIL_SHOULD_NOT_LEAK',
+      createdAt,
+      profile: {
+        displayName: 'Author',
+        publicHandle: 'author',
+        avatarAssetId: null,
+        coverAssetId: null,
+        bio: 'Public bio',
+      },
+    });
+    prisma.userBlock.findMany.mockResolvedValue([
+      {
+        blockerUserId: otherUserId,
+        blockedUserId: blockedListedUserId,
+      },
+    ]);
+    prisma.userFollow.count.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    prisma.artistFollow.count.mockResolvedValue(3);
+    prisma.communityPost.count.mockResolvedValue(4);
+    prisma.communityReply.count.mockResolvedValue(5);
+    prisma.communityPost.findMany.mockResolvedValue([]);
+    const service = serviceWith(prisma);
+
+    const result = await service.getPublicUserProfileByHandle('author', otherUserId);
+
+    expect(prisma.userFollow.count).toHaveBeenNthCalledWith(1, {
+      where: expect.objectContaining({
+        followingUserId: authorId,
+        followerUserId: { notIn: [blockedListedUserId] },
+        status: 'active',
+        deletedAt: null,
+      }),
+    });
+    expect(prisma.userFollow.count).toHaveBeenNthCalledWith(2, {
+      where: expect.objectContaining({
+        followerUserId: authorId,
+        followingUserId: { notIn: [blockedListedUserId] },
+        status: 'active',
+        deletedAt: null,
+      }),
+    });
+    expect(result.stats).toMatchObject({
+      followerCount: 1,
+      followingCount: 2,
+      followingArtistCount: 3,
+    });
+    expect(result.policy.countProjection).toMatchObject({
+      followerRowsBlockedByViewerExcluded: true,
+      followingRowsBlockedByViewerExcluded: true,
+      blockedRelationshipDirection: 'either_direction',
+    });
     expect(JSON.stringify(result)).not.toContain('PRIVATE_AUTHOR_EMAIL_SHOULD_NOT_LEAK');
   });
 
@@ -540,6 +1256,10 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
           followingUserId: authorId,
           status: 'active',
           deletedAt: null,
+          follower: {
+            status: 'active',
+            deletedAt: null,
+          },
         }),
       }),
     );
@@ -566,8 +1286,17 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
       publicHandle: 'follower',
       avatarUrl: null,
     });
+    expect((result.items[0] as any).viewer).toMatchObject({
+      isAuthenticated: false,
+      isFollowing: false,
+      canFollow: false,
+      canUnfollow: false,
+      blockedByMe: false,
+      hasBlockedMe: false,
+    });
     expect(result.items[0].user).not.toHaveProperty('email');
     expect(result.policy.privateFieldsExcluded).toContain('email');
+    expect(result.policy.viewerHints).toContain('blockedByMe');
     expect(JSON.stringify(result)).not.toContain('PRIVATE_FOLLOWER_EMAIL_SHOULD_NOT_LEAK');
   });
 
@@ -611,6 +1340,10 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
           followerUserId: authorId,
           status: 'active',
           deletedAt: null,
+          following: {
+            status: 'active',
+            deletedAt: null,
+          },
         }),
       }),
     );
@@ -624,9 +1357,77 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
       publicHandle: 'following',
       avatarUrl: null,
     });
+    expect((result.items[0] as any).viewer).toMatchObject({
+      isAuthenticated: false,
+      isFollowing: false,
+      canFollow: false,
+      canUnfollow: false,
+      blockedByMe: false,
+      hasBlockedMe: false,
+    });
     expect(result.items[0].user).not.toHaveProperty('email');
     expect(result.policy.privateFieldsExcluded).toContain('email');
     expect(JSON.stringify(result)).not.toContain('PRIVATE_FOLLOWING_EMAIL_SHOULD_NOT_LEAK');
+  });
+
+  it('filters blocked public follow-list users for authenticated viewers', async () => {
+    const prisma = createPrismaMock();
+    const blockedListedUserId = '00000000-0000-4000-8000-000000000604';
+    prisma.user.findFirst.mockResolvedValue({
+      id: authorId,
+      profile: {
+        displayName: 'Author',
+        publicHandle: 'author',
+        avatarAssetId: null,
+        coverAssetId: null,
+      },
+    });
+    prisma.userBlock.findMany.mockResolvedValue([
+      {
+        blockerUserId: otherUserId,
+        blockedUserId: blockedListedUserId,
+      },
+    ]);
+    prisma.userFollow.findMany.mockResolvedValue([]);
+    prisma.userFollow.count.mockResolvedValue(0);
+    const service = serviceWith(prisma);
+
+    const result = await service.getPublicUserFollowersByHandle(
+      'author',
+      { take: '1' },
+      otherUserId,
+    );
+
+    expect(prisma.userFollow.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          followingUserId: authorId,
+          followerUserId: { notIn: [blockedListedUserId] },
+          status: 'active',
+          deletedAt: null,
+        }),
+      }),
+    );
+    expect(prisma.userFollow.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        followingUserId: authorId,
+        followerUserId: { notIn: [blockedListedUserId] },
+      }),
+    });
+    expect(result).toMatchObject({
+      count: 0,
+      total: 0,
+      viewer: {
+        isAuthenticated: true,
+        canViewList: true,
+        blockedByMe: false,
+        hasBlockedMe: false,
+      },
+      policy: {
+        blockedUserRule:
+          'Authenticated viewers do not receive list rows for users in an active block relationship; a block relationship with the target profile returns 403.',
+      },
+    });
   });
 
   it('returns public following artists by handle without private artist fields', async () => {
@@ -811,6 +1612,13 @@ describe('CommunityService Lumina Feed thread contract', () => {
     expect(result.rootPostId).toBe(postId);
     expect(result.itemCount).toBe(1);
     expect(result.readProjection.isThread).toBe(false);
+    expect(result.readProjection.countIsolation).toMatchObject({
+      threadCountSource: 'manual_thread_items_only',
+      continuationCountIncluded: false,
+      repostCountIncluded: false,
+      shareCountIncluded: false,
+      replyCountIncluded: false,
+    });
     expect(result.policy.walletMutation).toBe(false);
     expect(result.policy.luminaMutation).toBe(false);
     expect(result.policy.settlementMutation).toBe(false);
@@ -844,6 +1652,13 @@ describe('CommunityService Lumina Feed thread contract', () => {
     expect(result.readProjection.items.map((item: any) => item.position)).toEqual([1, 2]);
     expect(result.readProjection.engagementTarget).toBe('root');
     expect(result.readProjection.imagesTarget).toBe('root');
+    expect(result.policy.countIsolation).toMatchObject({
+      threadCountSource: 'manual_thread_items_only',
+      continuationCountIncluded: false,
+      repostCountIncluded: false,
+      shareCountIncluded: false,
+      replyCountIncluded: false,
+    });
   });
 
   it('rejects eleven pieces and any piece over the 500-character contract before mutation', async () => {
@@ -956,6 +1771,627 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     jest.clearAllMocks();
   });
 
+  it('publishes multi-image attachment metadata contract without overflow badge', () => {
+    expect(LUMINA_FEED_MULTI_IMAGE_ATTACHMENT_CONTRACT).toMatchObject({
+      version: '2026-06-16.lumina-feed-multi-image-attachment-metadata.v1',
+      status: 'projection_contract_only',
+      maxImages: 4,
+      supportedCounts: [1, 2, 3, 4],
+      overflowBadgeRequired: false,
+      overflowBadgePolicy: {
+        maxUploadCountEqualsMaxDisplayCount: true,
+        plusNRequired: false,
+      },
+      requestPolicy: {
+        field: 'assetIds',
+        maxItems: 4,
+        uniqueOnly: true,
+        existingPublicImageAssetsOnly: true,
+        archivedAssetsAllowed: false,
+        videoAssetsAllowed: false,
+      },
+      projection: {
+        field: 'post.assets',
+        role: 'attachment',
+        orderField: 'sortOrder',
+        metadataFields: expect.arrayContaining([
+          'id',
+          'role',
+          'sortOrder',
+          'asset.id',
+          'asset.assetType',
+          'asset.mimeType',
+          'asset.width',
+          'asset.height',
+          'asset.url',
+          'asset.displayUrl',
+          'asset.thumbnailUrl',
+        ]),
+        countMetadata: {
+          assetCountField: 'assetCount',
+          layoutCountSource: 'post.assets.length',
+          supportedLayoutCounts: [2, 3, 4],
+          overflowCount: 0,
+        },
+      },
+      privacy: {
+        storageKeyReturned: false,
+        storageProviderReturned: false,
+        rawAssetMetadataReturned: false,
+        privateOriginalUrlReturned: false,
+        signedUploadUrlReturned: false,
+      },
+      mutationPolicy: {
+        contractAddsImageUpload: false,
+        contractAddsFeedCreate: false,
+        contractAddsRepostMutation: false,
+        walletMutation: false,
+        luminaMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+    });
+  });
+
+  it('publishes separated thread continuation repost and share count projection contract', () => {
+    expect(LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT).toMatchObject({
+      version: '2026-06-15.lumina-feed-thread-repost-count-projection.v1',
+      status: 'read_model_contract_only',
+      threadContinuation: {
+        relation: 'thread_continuation',
+        actionKey: 'feed_thread_continue',
+        stateKey: 'thread_continuation',
+        childPostFlow: 'existing_post_child_post',
+        rootAuthorOnly: true,
+        autoLongTextSplit: false,
+        countField: 'threadContinuationCount',
+        countSource: 'community_posts.metadata.threadContinuation.rootPostId',
+        excludedFrom: [
+          'manualThreadCount',
+          'repostCount',
+          'shareCount',
+          'replyCount',
+          'commentCount',
+        ],
+      },
+      repost: {
+        allowedTypes: ['repost', 'quote_repost'],
+        originalReferenceField: 'metadata.repost.originalPostId',
+        quoteBodyField: 'body',
+        originalPostProjectionField: 'post.repost.originalPost',
+        countField: 'repostCount',
+        countSource: 'community_posts.metadata.repost.originalPostId',
+        profileTabIncludes: ['repost', 'quote_repost'],
+        notificationType: 'feed.repost',
+        excludedFrom: [
+          'manualThreadCount',
+          'threadContinuationCount',
+          'shareCount',
+          'replyCount',
+          'commentCount',
+        ],
+      },
+      share: {
+        relation: 'share',
+        actionKey: 'feed_share',
+        stateKey: 'share_contract',
+        createsFeedRow: false,
+        countTarget: null,
+        shareUrlProjectionOnly: true,
+        notificationMutation: false,
+        unreadCountMutation: false,
+      },
+      blockedRelationshipPolicy: {
+        writePolicy: 'reject_before_feed_or_notification_mutation',
+        readAndCountProjection:
+          'exclude_or_tombstone_blocked_relationship_rows',
+      },
+    });
+    expect(
+      Object.values(
+        LUMINA_FEED_THREAD_REPOST_COUNT_PROJECTION_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('publishes PM thread repost and share projection boundaries without new mutations', () => {
+    expect(
+      LUMINA_FEED_THREAD_REPOST_SHARE_PM_PROJECTION_CONTRACT,
+    ).toMatchObject({
+      version: '2026-06-18.lumina-feed-thread-repost-share-pm-projection.v1',
+      status: 'read_model_contract_only',
+      threadContinuation: {
+        pmMeaning: 'append_after_publish',
+        relation: 'thread_continuation',
+        sourcePostAlreadyExists: true,
+        rootAuthorOnly: true,
+        autoLongDraftSplit: false,
+        draftComposerMode: false,
+        legacyManualThreadComposer: false,
+        longTextWorkaround: false,
+        countTarget: 'thread_continuation_list',
+      },
+      repost: {
+        pmMeaning: 'bring_original_post_into_my_feed_context',
+        allowedTypes: ['repost', 'quote_repost'],
+        createsFeedRow: true,
+        viewerOwnedContext: true,
+        originalReferenceField: 'metadata.repost.originalPostId',
+        quoteBodyDoesNotOverwriteOriginalBody: true,
+        threadRelation: false,
+        commentRelation: false,
+        replyRelation: false,
+        countTarget: 'repost_count',
+        shareRelation: false,
+      },
+      share: {
+        pmMeaning: 'read_action_share_url_contract',
+        relation: 'share',
+        actionKey: 'feed_share',
+        stateKey: 'share_contract',
+        authorOwnershipRequired: false,
+        otherUserPostAllowed: true,
+        createsFeedRow: false,
+        createsRepost: false,
+        createsShareLedger: false,
+        createsNotification: false,
+        countTarget: null,
+      },
+    });
+    expect(
+      Object.values(
+        LUMINA_FEED_THREAD_REPOST_SHARE_PM_PROJECTION_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('publishes repost and share display projection boundaries without count or wallet mutations', () => {
+    expect(LUMINA_FEED_REPOST_SHARE_DISPLAY_PROJECTION_CONTRACT).toMatchObject({
+      version: '2026-06-23.lumina-feed-repost-share-display-projection.v1',
+      status: 'read_model_contract_only',
+      surface: 'lumina_feed_post_card',
+      repostDisplay: {
+        field: 'post.repost',
+        relation: 'repost',
+        allowedTypes: ['repost', 'quote_repost'],
+        originalReference: {
+          idField: 'post.repost.originalPostId',
+          authorUserIdField: 'post.repost.originalAuthorUserId',
+          artistIdField: 'post.repost.originalArtistId',
+          embeddedPostField: 'post.repost.originalPost',
+        },
+        viewerComment: {
+          quoteBodyField: 'post.repost.quoteBody',
+          simpleRepostValue: null,
+          quoteRepostMayRemainVisibleWhenOriginalTombstoned: true,
+          quoteBodyDoesNotOverwriteOriginalBody: true,
+        },
+        countPolicy: {
+          countField: 'repostCount',
+          countSource: 'community_posts.metadata.repost.originalPostId',
+          includes: ['repost', 'quote_repost'],
+          excludes: ['thread_continuation', 'share_contract', 'reply', 'comment'],
+        },
+        unavailableOriginalDisplay: {
+          states: [
+            'missing',
+            'deleted',
+            'hidden',
+            'private',
+            'viewer_hidden',
+            'blocked_relationship',
+          ],
+          originalState: 'unavailable',
+          tombstone: true,
+          unavailableReason: 'viewer_restricted_or_unavailable',
+          originalPost: null,
+          originalBodyReturned: false,
+          privateAuthorFieldsReturned: false,
+        },
+      },
+      shareDisplay: {
+        relation: 'share',
+        actionKey: 'feed_share',
+        stateKey: 'share_contract',
+        shareUrlProjectionOnly: true,
+        createsFeedRow: false,
+        repostRelation: false,
+        threadRelation: false,
+        commentRelation: false,
+        replyRelation: false,
+        shareCount: null,
+        countStrategy: 'not_mutated_by_share_contract',
+      },
+    });
+    expect(
+      Object.values(
+        LUMINA_FEED_REPOST_SHARE_DISPLAY_PROJECTION_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('publishes canonical quote repost projection with original tombstone and share separation', () => {
+    expect(LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT).toMatchObject({
+      version: '2026-06-23.lumina-feed-repost-quote-projection.v1',
+      status: 'read_model_contract_only',
+      endpoint: 'POST /api/v1/lumina-feed/posts/:postId/reposts',
+      quoteProjection: {
+        relation: 'quote_repost',
+        actionKey: 'feed_quote_repost',
+        stateKey: 'quote_repost',
+        createsViewerOwnedFeedRow: true,
+        originalReferenceField: 'metadata.repost.originalPostId',
+        quoteBodyField: 'post.repost.quoteBody',
+        originalPostField: 'post.repost.originalPost',
+        quoteBodyDoesNotOverwriteOriginalBody: true,
+        quoteBodyMayRemainVisibleWhenOriginalTombstoned: true,
+        originalBodyReturnedOnlyWhenVisibleToViewer: true,
+      },
+      simpleRepostProjection: {
+        relation: 'repost',
+        actionKey: 'feed_repost',
+        stateKey: 'repost',
+        quoteBody: null,
+        originalReferenceField: 'metadata.repost.originalPostId',
+        originalPostField: 'post.repost.originalPost',
+      },
+      relationSeparation: {
+        shareRelation: false,
+        threadRelation: false,
+        manualThreadRelation: false,
+        threadContinuationRelation: false,
+        commentRelation: false,
+        replyRelation: false,
+        parentPostId: null,
+        threadRootPostId: null,
+      },
+      originalVisibilityPolicy: {
+        visibleStates: ['published_public_visible_to_viewer'],
+        tombstoneProjection: {
+          originalState: 'unavailable',
+          tombstone: true,
+          unavailableReason: 'viewer_restricted_or_unavailable',
+          originalPost: null,
+          originalBodyReturned: false,
+          privateAuthorFieldsReturned: false,
+        },
+        blockedRelationshipDirection: 'either_direction',
+        safeNotFoundBeforeCreate: true,
+      },
+      countPolicy: {
+        repostCountField: 'repostCount',
+        quoteRepostIncludedInRepostCount: true,
+        countSource: 'community_posts.metadata.repost.originalPostId',
+      },
+      shareSeparation: {
+        endpoint: 'POST /api/v1/lumina-feed/posts/:postId/share',
+        relation: 'share',
+        actionKey: 'feed_share',
+        stateKey: 'share_contract',
+        createsFeedRow: false,
+        createsRepostRow: false,
+        createsNotification: false,
+        countTarget: null,
+      },
+    });
+    expect(
+      LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT.originalVisibilityPolicy
+        .tombstoneStates,
+    ).toEqual([
+      'missing',
+      'deleted',
+      'hidden',
+      'private',
+      'reported',
+      'moderation_review',
+      'viewer_hidden',
+      'blocked_relationship',
+    ]);
+    expect(
+      LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT.countPolicy
+        .excludedRelations,
+    ).toEqual([
+      'share_contract',
+      'thread_continuation',
+      'manual_thread',
+      'comment',
+      'reply',
+    ]);
+    expect(
+      Object.values(
+        LUMINA_FEED_REPOST_QUOTE_PROJECTION_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('publishes repost tombstone read projection without source body or count mutation', () => {
+    const contract = LUMINA_FEED_REPOST_TOMBSTONE_READ_PROJECTION_CONTRACT;
+
+    expect(contract).toMatchObject({
+      version: '2026-06-25.lumina-feed-repost-tombstone-read-projection.v1',
+      status: 'read_model_contract_only',
+      surfaces: ['feed_list', 'post_detail', 'user_profile_posts', 'reposts_tab'],
+      sourceRelations: ['repost', 'quote_repost'],
+      sourceReferenceField: 'metadata.repost.originalPostId',
+      tombstoneWhenOriginalState: [
+        'missing',
+        'deleted',
+        'hidden',
+        'private',
+        'viewer_hidden',
+        'blocked_relationship',
+      ],
+      projection: {
+        field: 'post.repost',
+        originalState: 'unavailable',
+        tombstone: true,
+        unavailableReason: 'viewer_restricted_or_unavailable',
+        originalPost: null,
+        originalBodyReturned: false,
+        originalAssetsReturned: false,
+        originalAuthorPrivateFieldsReturned: false,
+        quoteBodyMayRemainVisible: true,
+        quoteBodyField: 'post.repost.quoteBody',
+        simpleRepostQuoteBody: null,
+      },
+      listAndDetailPolicy: {
+        sameProjectionForListAndDetail: true,
+        deletedOriginalExcludedFromOriginalPostProjection: true,
+        blockedOriginalExcludedFromOriginalPostProjection: true,
+        safeNotFoundAllowedForDirectOriginalLookup: true,
+        repostRowMayRemainVisibleWithTombstone: true,
+      },
+      countPolicy: {
+        repostCountField: 'repostCount',
+        repostCountIncludes: ['repost', 'quote_repost'],
+        shareCountStrategy: 'not_mutated_by_share_contract',
+        tombstoneReadDoesNotMutateRepostCount: true,
+        tombstoneReadDoesNotMutateShareCount: true,
+        tombstoneReadDoesNotMutateNotificationCount: true,
+      },
+    });
+    expect(
+      Object.values(contract.mutationPolicy).every(
+        (enabled) => enabled === false,
+      ),
+    ).toBe(true);
+  });
+
+  it('publishes separated repost quote repost and share permission guard contract', () => {
+    expect(LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT).toMatchObject({
+      version: '2026-06-16.lumina-feed-repost-permission-guard.v1',
+      status: 'guard_contract_only',
+      endpoints: {
+        repost: 'POST /api/v1/lumina-feed/posts/:postId/reposts',
+        quoteRepost: 'POST /api/v1/lumina-feed/posts/:postId/reposts',
+        share: 'POST /api/v1/lumina-feed/posts/:postId/share',
+      },
+      actions: {
+        repost: {
+          relation: 'repost',
+          actionKey: 'feed_repost',
+          stateKey: 'repost',
+          createsFeedRow: true,
+          quoteBodyAllowed: false,
+          originalReferenceField: 'metadata.repost.originalPostId',
+          countTarget: 'repost_count',
+        },
+        quoteRepost: {
+          relation: 'quote_repost',
+          actionKey: 'feed_quote_repost',
+          stateKey: 'quote_repost',
+          createsFeedRow: true,
+          quoteBodyAllowed: true,
+          quoteBodyMaxChars: 2200,
+          quoteBodyProjectionField: 'post.repost.quoteBody',
+          originalBodyProjectionField: 'post.repost.originalPost.body',
+          countTarget: 'repost_count',
+        },
+        share: {
+          relation: 'share',
+          actionKey: 'feed_share',
+          stateKey: 'share_contract',
+          createsFeedRow: false,
+          shareUrlProjectionOnly: true,
+          repostRelation: false,
+          threadRelation: false,
+          commentRelation: false,
+          replyRelation: false,
+          countTarget: null,
+        },
+      },
+      failClosedSourcePolicy: {
+        missingSource: { status: 404, code: 'FEED_POST_NOT_FOUND' },
+        deletedSource: { status: 404, code: 'FEED_POST_NOT_FOUND' },
+        hiddenSource: { status: 404, code: 'FEED_POST_NOT_FOUND' },
+        privateSource: { status: 404, code: 'FEED_POST_NOT_FOUND' },
+        moderationReviewSource: {
+          status: 404,
+          code: 'FEED_POST_NOT_FOUND',
+        },
+        blockedRelationship: { status: 403, code: 'USER_FOLLOW_BLOCKED' },
+        readProjectionWhenSourceLaterUnavailable:
+          'tombstone_without_original_body',
+      },
+    });
+    expect(
+      LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT.validationOrder,
+    ).toEqual([
+      'require_authenticated_viewer_for_repost_or_quote_repost',
+      'validate_source_post_id',
+      'load_public_published_source_post',
+      'reject_deleted_hidden_private_or_moderation_review_source',
+      'check_user_blocks_either_direction',
+      'validate_quote_body_when_present',
+      'return_relation_specific_projection',
+    ]);
+    expect(
+      Object.values(
+        LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('publishes quote body validation policy for reposts without share or thread side effects', () => {
+    expect(LUMINA_FEED_REPOST_QUOTE_BODY_VALIDATION_POLICY).toMatchObject({
+      version: '2026-06-19.lumina-feed-repost-quote-body-validation-policy.v1',
+      status: 'policy_contract_only',
+      endpoint: 'POST /api/v1/lumina-feed/posts/:postId/reposts',
+      sourceContract: 'LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT',
+      input: {
+        bodyField: 'body',
+        trimBeforeValidation: true,
+        maxChars: 2200,
+        emptyBodyCreates: 'repost',
+        nonEmptyBodyCreates: 'quote_repost',
+        whitespaceOnlyBodyCreates: 'repost',
+        bodyRequiredForSimpleRepost: false,
+        bodyRequiredForQuoteRepost: true,
+      },
+      validation: {
+        loginRequired: true,
+        sourcePostIdRequired: true,
+        sourceMustBePublicPublished: true,
+        sourceUnavailableBeforeCreate: 'safe_not_found',
+        blockedRelationshipBeforeCreate: 'USER_FOLLOW_BLOCKED',
+        overMaxBodyStatus: 400,
+        overMaxBodyCode: 'FEED_BODY_TOO_LONG',
+        invalidBodyStatus: 400,
+      },
+      projection: {
+        quoteBodyField: 'post.repost.quoteBody',
+        originalReferenceField: 'metadata.repost.originalPostId',
+        originalBodyField: 'post.repost.originalPost.body',
+        relationFields: {
+          parentPostId: null,
+          threadRootPostId: null,
+          commentRelation: false,
+          replyRelation: false,
+          threadRelation: false,
+        },
+        unavailableProjection: {
+          originalState: 'unavailable',
+          tombstone: true,
+          unavailableReason: 'viewer_restricted_or_unavailable',
+          originalPost: null,
+          originalBodyReturned: false,
+          quoteBodyMayRemainVisible: true,
+        },
+      },
+      shareSeparation: {
+        shareEndpoint: 'POST /api/v1/lumina-feed/posts/:postId/share',
+        shareCreatesFeedRow: false,
+        shareCreatesRepostRow: false,
+        shareCreatesNotification: false,
+        shareCountMutation: false,
+      },
+    });
+    expect(
+      LUMINA_FEED_REPOST_QUOTE_BODY_VALIDATION_POLICY.validation
+        .validationOrder,
+    ).toEqual([
+      'require_authenticated_viewer',
+      'validate_source_post_id',
+      'load_public_published_source_post',
+      'reject_deleted_hidden_private_reported_or_blocked_source',
+      'validate_quote_body_when_present',
+      'create_repost_or_quote_repost_row',
+    ]);
+    expect(
+      LUMINA_FEED_REPOST_QUOTE_BODY_VALIDATION_POLICY.projection
+        .unavailableSourceStates,
+    ).toEqual([
+      'missing',
+      'deleted',
+      'hidden',
+      'private',
+      'reported',
+      'moderation_review',
+      'blocked_relationship',
+      'viewer_hidden',
+    ]);
+    expect(
+      Object.values(
+        LUMINA_FEED_REPOST_QUOTE_BODY_VALIDATION_POLICY.noSideEffects,
+      ).every((blocked) => blocked),
+    ).toBe(true);
+  });
+
+  it('publishes quote repost content read model without source-body leakage', () => {
+    expect(LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT).toMatchObject({
+      version: '2026-06-17.lumina-feed-quote-repost-content-read-model.v1',
+      status: 'read_model_contract_only',
+      sourceContract: 'LUMINA_FEED_REPOST_PERMISSION_GUARD_CONTRACT',
+      projection: {
+        field: 'post.repost',
+        allowedTypes: ['repost', 'quote_repost'],
+        simpleRepost: {
+          type: 'repost',
+          hasQuote: false,
+          quoteBodyField: 'post.repost.quoteBody',
+          quoteBodyValue: null,
+          originalPostProjectionField: 'post.repost.originalPost',
+        },
+        quoteRepost: {
+          type: 'quote_repost',
+          hasQuote: true,
+          quoteBodyField: 'post.repost.quoteBody',
+          originalPostProjectionField: 'post.repost.originalPost',
+          originalBodyField: 'post.repost.originalPost.body',
+          quoteBodyDoesNotOverwriteOriginalBody: true,
+          quoteBodyPreservedWhenOriginalUnavailable: true,
+        },
+        relationshipFlags: {
+          parentPostId: null,
+          threadRootPostId: null,
+          commentRelation: false,
+          replyRelation: false,
+          threadRelation: false,
+        },
+        preservedOriginalIdentifiers: [
+          'post.repost.originalPostId',
+          'post.repost.originalAuthorUserId',
+          'post.repost.originalArtistId',
+        ],
+      },
+      unavailableOriginalPolicy: {
+        appliesTo: [
+          'missing',
+          'deleted',
+          'hidden',
+          'private',
+          'moderation_review',
+          'viewer_hidden',
+          'blocked_relationship',
+        ],
+        projection: {
+          originalState: 'unavailable',
+          tombstone: true,
+          unavailableReason: 'viewer_restricted_or_unavailable',
+          originalPost: null,
+        },
+        safeTombstoneOnly: true,
+        quoteBodyMayRemainVisible: true,
+        originalBodyReturned: false,
+      },
+      privacy: {
+        originalPrivateBodyReturned: false,
+        originalDraftBodyReturned: false,
+        originalModerationNotesReturned: false,
+        originalReportStateReturned: false,
+        originalInternalMetadataReturned: false,
+        originalOwnerEmailReturned: false,
+        originalWalletOrLedgerReturned: false,
+        rawEnumUiCopyRequired: false,
+      },
+    });
+    expect(
+      Object.values(
+        LUMINA_FEED_QUOTE_REPOST_CONTENT_READ_MODEL_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
   it('creates a thread continuation under an existing author-owned public post', async () => {
     const prisma = createPrismaMock();
     prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Root post' }));
@@ -992,6 +2428,22 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     );
     expect(result.relation).toBe('thread_continuation');
     expect(result.post.threadContinuation.isContinuation).toBe(true);
+    expect(result.policy).toMatchObject({
+      relation: 'thread_continuation',
+      canonicalButtonMeaning: 'append_to_existing_post',
+      existingPostRequired: true,
+      rootAuthorOnly: true,
+      blockedRootPolicy: 'not_found_before_create',
+      failClosedOnUnavailableRoot: true,
+      stateProjection: {
+        actionKey: 'feed_thread_continue',
+        stateKey: 'thread_continuation',
+        countTarget: 'thread_continuation_list',
+        countDoesNotMutateRootThreadCount: true,
+        countDoesNotMutateRepostCount: true,
+        countDoesNotMutateShareCount: true,
+      },
+    });
     expect(result.policy.walletMutation).toBe(false);
     expect(result.policy.luminaMutation).toBe(false);
   });
@@ -1050,6 +2502,18 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     expect(result.relation).toBe('thread_continuation');
     expect(result.items[0].threadContinuation.commentRelation).toBe(false);
     expect(result.items[0].threadContinuation.replyRelation).toBe(false);
+    expect(result.items[0].threadContinuation.actionKey).toBe(
+      'feed_thread_continue',
+    );
+    expect(result.items[0].threadContinuation.stateKey).toBe(
+      'thread_continuation',
+    );
+    expect(result.policy).toMatchObject({
+      listEndpoint: '/api/v1/lumina-feed/posts/:postId/thread-continuations',
+      commentRelation: false,
+      replyRelation: false,
+      autoSplit: false,
+    });
   });
 
   it('creates quote reposts for public source posts without wallet or settlement mutation', async () => {
@@ -1080,8 +2544,12 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
           metadata: expect.objectContaining({
             repost: expect.objectContaining({
               type: 'quote_repost',
+              hasQuote: true,
               originalPostId: postId,
               originalAuthorUserId: authorId,
+              parentThreadRelation: false,
+              commentRelation: false,
+              replyRelation: false,
               originalDeletionPolicy: 'render_tombstone_without_body',
             }),
           }),
@@ -1090,15 +2558,173 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     );
     expect(result.relation).toBe('quote_repost');
     expect(result.post.repost.originalPostId).toBe(postId);
+    expect(result.post.repost.type).toBe('quote_repost');
+    expect(result.post.repost.hasQuote).toBe(true);
+    expect(result.post.repost.parentPostId).toBeNull();
+    expect(result.post.repost.threadRootPostId).toBeNull();
+    expect(result.post.repost.commentRelation).toBe(false);
+    expect(result.post.repost.replyRelation).toBe(false);
+    expect(result.post.repost.threadRelation).toBe(false);
+    expect(result.post.repost.actionKey).toBe('feed_quote_repost');
+    expect(result.post.repost.stateKey).toBe('quote_repost');
     expect(result.post.repost.originalState).toBe('visible');
+    expect(result.post.repost.tombstone).toBe(false);
+    expect(result.post.repost.unavailableReason).toBeNull();
+    expect(result.post.repost.quoteBody).toBe(maxQuote);
     expect(result.post.repost.originalPost.body).toBe('Original post');
+    expect(result.post.threadContinuation.isContinuation).toBe(false);
+    expect(result.policy).toMatchObject({
+      allowedTypes: ['repost', 'quote_repost'],
+      simpleRepostRelation: 'repost',
+      quoteRepostRelation: 'quote_repost',
+      simpleRepostBodyPolicy: 'empty_body',
+      quoteRepostBodyPolicy: 'optional_quote_body',
+      emptyBodyCreates: 'repost',
+      nonEmptyBodyCreates: 'quote_repost',
+      parentThreadRelation: false,
+      commentRelation: false,
+      replyRelation: false,
+      shareIsSeparateContract: true,
+      stateProjection: {
+        simpleRepostActionKey: 'feed_repost',
+        quoteRepostActionKey: 'feed_quote_repost',
+        simpleRepostStateKey: 'repost',
+        quoteRepostStateKey: 'quote_repost',
+        countTarget: 'repost_count',
+        countDoesNotMutateThreadCount: true,
+        countDoesNotMutateShareCount: true,
+        countDoesNotMutateReplyCount: true,
+      },
+      unavailableSourceFailClosed: {
+        deleted: 'not_found_before_create_or_tombstone_on_read',
+        hidden: 'not_found_before_create_or_tombstone_on_read',
+        private: 'not_found_before_create_or_tombstone_on_read',
+        blocked: 'reject_before_create_or_tombstone_on_read',
+        sourceBodyReturnedWhenUnavailable: false,
+      },
+    });
     expect(result.policy.walletMutation).toBe(false);
     expect(result.policy.settlementMutation).toBe(false);
+    expect(result.policy).toMatchObject({
+      createSourceStatusPolicy: 'published_public_not_deleted_only',
+      createBlockedRelationshipPolicy: 'reject_before_repost_create',
+      embeddedOriginalProjection: 'safe_public_summary_or_tombstone',
+      detailReadModel: {
+        endpoint: 'GET /api/v1/lumina-feed/posts/:postId',
+        quoteBodyField: 'post.repost.quoteBody',
+        originalBodyField: 'post.repost.originalPost.body',
+        quoteBodyPreservedWhenOriginalUnavailable: true,
+        originalBodyReturnedOnlyWhenVisible: true,
+      },
+      rawPrivateMetadataReturned: false,
+      rawOwnerMetadataReturned: false,
+      paidLikeMutation: false,
+      countProjection: {
+        feedCounters: {
+          repostCountIncludes: ['repost', 'quote_repost'],
+          quoteRepostCountField: 'quoteRepostCount',
+          shareCountField: 'shareCount',
+          shareCountMutation: false,
+        },
+        profileCounters: {
+          repostsTabIncludes: ['repost', 'quote_repost'],
+          shareActionsExcluded: true,
+        },
+        notificationCounters: {
+          repostNotificationIncludes: ['repost', 'quote_repost'],
+          shareNotificationMutation: false,
+          shareUnreadCountMutation: false,
+        },
+        blockedRelationshipPolicy: {
+          writePolicy: 'reject_before_repost_create',
+          readProjection: 'hide_or_tombstone_when_blocked',
+          countProjection: 'exclude_blocked_relationship_rows',
+          notificationProjection: 'skip_before_notification_mutation',
+        },
+      },
+    });
 
     await expect(
       service.createRepost(otherUserId, postId, { body: 'q'.repeat(2201) }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.communityPost.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks repost creation across active user blocks before creating a feed row', async () => {
+    const prisma = createPrismaMock();
+    prisma.user.findFirst.mockResolvedValue({ id: otherUserId });
+    prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Original post' }));
+    prisma.userBlock.findFirst.mockResolvedValue({
+      id: 'block-row',
+      blockerUserId: authorId,
+      blockedUserId: otherUserId,
+    });
+    const service = serviceWith(prisma);
+
+    await expect(
+      service.createRepost(otherUserId, postId, { body: 'Blocked quote' }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'USER_FOLLOW_BLOCKED',
+        messageKey: 'social.follow.blocked',
+      },
+    });
+    expect(prisma.communityPost.create).not.toHaveBeenCalled();
+  });
+
+  it('creates simple reposts as empty-body repost rows separated from thread parent relations', async () => {
+    const prisma = createPrismaMock();
+    prisma.user.findFirst.mockResolvedValue({ id: otherUserId });
+    prisma.communityPost.findFirst.mockResolvedValue(postView({ body: 'Original post' }));
+    prisma.communityPost.create.mockImplementation(async (args: any) =>
+      postView({
+        id: repostId,
+        authorUserId: otherUserId,
+        body: args.data.body,
+        metadata: args.data.metadata,
+      }),
+    );
+    const service = serviceWith(prisma);
+
+    const result = await service.createRepost(otherUserId, postId, {});
+
+    expect(prisma.communityPost.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          authorUserId: otherUserId,
+          postType: 'user_post',
+          body: '',
+          metadata: expect.objectContaining({
+            repost: expect.objectContaining({
+              type: 'repost',
+              hasQuote: false,
+              originalPostId: postId,
+              parentThreadRelation: false,
+              commentRelation: false,
+              replyRelation: false,
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(result.relation).toBe('repost');
+    expect(result.post.repost).toEqual(
+      expect.objectContaining({
+        type: 'repost',
+        relation: 'repost',
+        hasQuote: false,
+        parentPostId: null,
+        threadRootPostId: null,
+        commentRelation: false,
+        replyRelation: false,
+        threadRelation: false,
+        actionKey: 'feed_repost',
+        stateKey: 'repost',
+        quoteBody: null,
+        originalPostId: postId,
+      }),
+    );
+    expect(result.post.threadContinuation.isContinuation).toBe(false);
   });
 
   it('keeps reply bodies capped at 300 characters', async () => {
@@ -1151,8 +2777,18 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     );
     expect(result.post.repost.originalState).toBe('unavailable');
     expect(result.post.repost.tombstone).toBe(true);
+    expect(result.post.repost.unavailableReason).toBe(
+      'viewer_restricted_or_unavailable',
+    );
+    expect(result.post.repost.quoteBody).toBe('Quote');
     expect(result.post.repost.originalPost).toBeNull();
     expect(JSON.stringify(result.post.repost)).not.toContain('Original body');
+    expect(result.post.repost.policy.detailReadModel).toMatchObject({
+      quoteBodyField: 'post.repost.quoteBody',
+      originalBodyField: 'post.repost.originalPost.body',
+      quoteBodyPreservedWhenOriginalUnavailable: true,
+      originalBodyReturnedOnlyWhenVisible: true,
+    });
   });
 
   it('renders a tombstone when the repost source author is blocked either direction', async () => {
@@ -1194,6 +2830,10 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     );
     expect(result.post.repost.originalState).toBe('unavailable');
     expect(result.post.repost.tombstone).toBe(true);
+    expect(result.post.repost.unavailableReason).toBe(
+      'viewer_restricted_or_unavailable',
+    );
+    expect(result.post.repost.quoteBody).toBe('Quote');
     expect(result.post.repost.originalPost).toBeNull();
     expect(JSON.stringify(result.post.repost)).not.toContain('Original body');
   });
@@ -1207,10 +2847,20 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
     await expect(
       service.createRepost(otherUserId, postId, { body: 'Cannot reference' }),
     ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.communityPost.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: postId,
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
+        }),
+      }),
+    );
     expect(prisma.communityPost.create).not.toHaveBeenCalled();
   });
 
-  it('returns a share URL contract without mutating feed, wallet, or Lumina state', async () => {
+  it('returns a share URL contract without owner data, feed mutation, wallet, or Lumina state', async () => {
     const prisma = createPrismaMock();
     prisma.communityPost.findFirst.mockResolvedValue(storedPost());
     const service = serviceWith(prisma);
@@ -1221,14 +2871,124 @@ describe('CommunityService Lumina Feed thread continuation, repost, and share co
       expect.objectContaining({
         ok: true,
         postId,
+        relation: 'share',
+        createsFeedRow: false,
+        repostRelation: false,
+        threadRelation: false,
+        commentRelation: false,
+        replyRelation: false,
         share: expect.objectContaining({
           publicPath: `/lumina-feed/posts/${postId}`,
           countStrategy: 'not_mutated_by_share_contract',
+          countProjection: {
+            feedCounters: {
+              repostCountMutation: false,
+              quoteRepostCountMutation: false,
+              shareCountMutation: false,
+            },
+            profileCounters: {
+              repostsTabMutation: false,
+            },
+            notificationCounters: {
+              createsNotification: false,
+              unreadCountMutation: false,
+            },
+            blockedRelationshipPolicy: 'share_contract_has_no_server_count_or_notification_row',
+          },
+          stateProjection: {
+            actionKey: 'feed_share',
+            stateKey: 'share_contract',
+            countTarget: null,
+            countDoesNotMutateThreadCount: true,
+            countDoesNotMutateRepostCount: true,
+            countDoesNotMutateReplyCount: true,
+          },
         }),
         policy: expect.objectContaining({
+          projection: 'share_contract_only',
+          repostRelation: false,
+          threadRelation: false,
+          commentRelation: false,
+          replyRelation: false,
+          availableOnOtherUsersPosts: true,
+          authorOwnershipRequired: false,
+          unavailableSourceFailClosed: {
+            deleted: 'not_found',
+            hidden: 'not_found',
+            private: 'not_found',
+            blocked: 'not_found',
+          },
+          stateProjection: {
+            actionKey: 'feed_share',
+            stateKey: 'share_contract',
+            countTarget: null,
+            countDoesNotMutateThreadCount: true,
+            countDoesNotMutateRepostCount: true,
+            countDoesNotMutateReplyCount: true,
+          },
+          createsFeedRow: false,
+          createsRepost: false,
+          privateMetadataReturned: false,
+          rawOwnerMetadataReturned: false,
+          rawAuthorUserIdReturned: false,
           shareCountMutation: false,
+          countProjection: {
+            feedCounters: {
+              repostCountMutation: false,
+              quoteRepostCountMutation: false,
+              shareCountMutation: false,
+            },
+            profileCounters: {
+              repostsTabMutation: false,
+            },
+            notificationCounters: {
+              createsNotification: false,
+              unreadCountMutation: false,
+            },
+            blockedRelationshipPolicy: 'share_contract_has_no_server_count_or_notification_row',
+          },
           walletMutation: false,
           luminaMutation: false,
+          settlementMutation: false,
+          payoutMutation: false,
+          paidLikeMutation: false,
+        }),
+      }),
+    );
+    expect(JSON.stringify(result.share)).not.toContain(authorId);
+    expect(JSON.stringify(result.policy)).not.toContain(authorId);
+    expect(prisma.communityPost.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: postId,
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
+        }),
+        select: {
+          id: true,
+          authorUserId: true,
+          artistId: true,
+        },
+      }),
+    );
+    expect(prisma.communityPost.create).not.toHaveBeenCalled();
+    expect(prisma.communityPost.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects share contracts for deleted, archived, private, or hidden source posts', async () => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findFirst.mockResolvedValue(null);
+    const service = serviceWith(prisma);
+
+    await expect(service.sharePost(postId)).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.communityPost.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: postId,
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
         }),
       }),
     );

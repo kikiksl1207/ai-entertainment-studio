@@ -92,6 +92,118 @@ describe('auth QA account access contract', () => {
     );
   });
 
+  it('pins account session invalidation and social-only password guard policy', () => {
+    expect(AUTH_QA_ACCOUNT_ACCESS_CONTRACT.accountSecurity).toMatchObject({
+      passwordReset: {
+        consumesActionTokenOnce: true,
+        updatesEmailPasswordHashOnly: true,
+        revokesActiveRefreshSessions: true,
+        rawTokenReturned: false,
+        passwordReturned: false,
+        emailPrefill: {
+          source: 'GET /api/v1/auth/password-resets/inspect',
+          value: 'masked_email_only',
+          rawEmailReturned: false,
+          rawTokenReturned: false,
+          tokenHashReturned: false,
+          passwordReturned: false,
+          cookieReturned: false,
+          confirmWithoutEmailInput: true,
+          invalidOrExpiredTokenEmailReturned: false,
+        },
+      },
+      passwordChange: {
+        requiresExistingEmailPasswordHash: true,
+        socialOnlyChangePasswordBlocked: true,
+        successfulChangeRevokesActiveRefreshSessions: true,
+        rawCurrentPasswordLogged: false,
+        rawNewPasswordLogged: false,
+      },
+      socialOnlyProjection: {
+        sourceOfTruth: 'user_auth_accounts',
+        myPageSettingsProjectionSource: 'GET /api/v1/me',
+        emailPasswordProjectionSource: 'user_auth_accounts.passwordHash',
+        exposesProviderKind: true,
+        exposesHasPasswordBoolean: true,
+        exposesIsSocialOnlyBoolean: true,
+        passwordResetCtaAllowed: false,
+        passwordSetupSurfaceAllowed: true,
+        rawStatusCopyReturned: false,
+        exposesProviderCredential: false,
+        exposesCookieOrToken: false,
+      },
+      sessionRevokeAuditProjection: {
+        sourceOfTruth: 'user_refresh_tokens.revokedAt',
+        passwordResetRevokesActiveSessions: true,
+        passwordResetActionKey: 'auth.password_reset.session_revoke',
+        adminRevokeActionKey: 'admin.user.sessions.revoke',
+        readModel: 'admin audit event read model',
+        readOnlyProjection: true,
+        rawRefreshTokenReturned: false,
+        refreshTokenHashReturned: false,
+        sessionCookieReturned: false,
+        passwordReturned: false,
+        rawEmailReturned: false,
+        providerCredentialReturned: false,
+        actorEmailMasked: true,
+        requestIdAllowed: true,
+      },
+    });
+  });
+
+  it('keeps disposable QA accounts inside owner-only backend boundaries', () => {
+    expect(AUTH_QA_ACCOUNT_ACCESS_CONTRACT.disposableQaAccountOwnershipBoundary).toMatchObject({
+      status: 'contract_only_no_production_mutation',
+      accountClassification: {
+        realUserAllowed: false,
+        productionAutoProvision: false,
+        requiresQaRunId: true,
+        requiresDisposableLabel: true,
+      },
+      ownerOnlyApiGuard: {
+        authority: 'authenticated currentUser.id',
+        allowedUserIdSource: 'server session principal only',
+        whereClauseRequired: {
+          ownerUserId: 'currentUser.id',
+          deletedAt: null,
+        },
+        crossUserFixtureReadAllowed: false,
+        realUserDataVisibleToDisposableAccount: false,
+        disposableDataVisibleToRealUser: false,
+      },
+      mutationPolicy: {
+        productionUserMutation: false,
+        ownerOnlyWriteSmoke: false,
+        accountDeletion: false,
+        passwordReset: false,
+        sessionMinting: false,
+        walletLedgerMutation: false,
+        settlementOrPayoutMutation: false,
+      },
+      safeOutputPolicy: {
+        recordFixtureLabel: true,
+        recordMaskedStableUserRef: true,
+        recordRawEmail: false,
+        recordPassword: false,
+        recordToken: false,
+        recordCookie: false,
+        recordRawUuid: false,
+        recordDatabaseUrl: false,
+      },
+    });
+    expect(
+      AUTH_QA_ACCOUNT_ACCESS_CONTRACT.disposableQaAccountOwnershipBoundary.ownerOnlyApiGuard
+        .forbiddenUserIdSources,
+    ).toEqual(
+      expect.arrayContaining([
+        'request body userId',
+        'query userId',
+        'fixture label supplied by client',
+        'masked UUID copied from QA notes',
+      ]),
+    );
+  });
+
   it('defines the sanitized live access self-check for QA creator and admin', () => {
     expect(AUTH_QA_ACCOUNT_ACCESS_CONTRACT.liveAccessSelfCheck).toMatchObject({
       task: '#458',
@@ -136,6 +248,67 @@ describe('auth QA account access contract', () => {
         'access token',
         'cookie',
         'raw response body',
+        'environment value',
+      ]),
+    );
+  });
+
+  it('defines QA session fixture auth boundary without exposing credentials', () => {
+    const boundary = AUTH_QA_ACCOUNT_ACCESS_CONTRACT.qaSessionFixtureAuthBoundary;
+
+    expect(boundary).toMatchObject({
+      version: '2026-06-22.qa-session-fixture-auth-boundary.v1',
+      status: 'contract_only_no_session_minting',
+      fixtureAccessMode: 'read_only',
+      sessionMintingByThisContract: false,
+      productionAutoProvision: false,
+      allowedPrincipals: [
+        {
+          key: 'disposable_qa_owner',
+          requiredUserStatus: 'active',
+          realUserAllowed: false,
+          allowedScopes: ['own_qa_fixture_read'],
+        },
+        {
+          key: 'disposable_qa_operator',
+          requiredUserStatus: 'active',
+          realUserAllowed: false,
+          requiredAccess: ['artist_operator_active_or_admin_read_permission'],
+          allowedScopes: ['qa_fixture_read', 'qa_fixture_visibility_check'],
+        },
+      ],
+      forbiddenMixing: {
+        generalUserSessionCanReadFixture: false,
+        fixtureSessionCanMutateRealUserData: false,
+        fixtureRowsVisibleWithoutRunId: false,
+        fixtureRowsVisibleToUnapprovedPrincipal: false,
+      },
+    });
+    expect(boundary.boundaryChecks).toEqual([
+      'authenticate_existing_session_or_private_credential_fixture',
+      'resolve_disposable_qa_user_by_run_id',
+      'reject_real_user_or_missing_run_id',
+      'require_read_only_fixture_scope',
+      'return_sanitized_fixture_projection',
+    ]);
+    expect(boundary.allowedOutput).toEqual(
+      expect.arrayContaining([
+        'runId',
+        'qaPrincipalKey',
+        'safeUserId',
+        'stable code/messageKey',
+        'readOnly boolean',
+      ]),
+    );
+    expect(boundary.forbiddenOutput).toEqual(
+      expect.arrayContaining([
+        'raw email',
+        'password',
+        'access token',
+        'refresh token',
+        'cookie',
+        'database url',
+        'raw session id',
         'environment value',
       ]),
     );

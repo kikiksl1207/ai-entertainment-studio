@@ -266,6 +266,17 @@ GET /admin/api/v1/ai-premium-content/requests/:requestId
 PATCH /admin/api/v1/ai-premium-content/requests/:requestId
 ```
 
+Brief submit skeleton (#662):
+
+- `POST /api/v1/ai-premium-content/requests` remains a disabled skeleton:
+  `enabled: false`, `submitEnabled: false`, and `mutation: false`.
+- Tracked request fields are request type, artist slug/server-resolved artist id,
+  sanitized brief shape, server-owned safety status, and server-owned estimated
+  cost.
+- Provider calls, wallet debit, order creation, settlement accrual, payout
+  accrual, paid-like mutation, public publish, and profile/feed equip side
+  effects stay closed.
+
 Create request response:
 
 ```json

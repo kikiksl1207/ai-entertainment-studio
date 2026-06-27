@@ -281,10 +281,14 @@ const DEFAULT_CHAT_RUNTIME_SAFETY_NOTE_KO =
 const CHARACTER_CHAT_GREETING_TONE_CONTRACT_VERSION =
   '2026-05-21.character-chat-greeting-tone.v1';
 const CHARACTER_CHAT_DYNAMIC_GREETING_CONTRACT_VERSION =
-  '2026-05-22.character-chat-dynamic-greeting-cache.v1';
+  '2026-06-05.character-chat-opening-greeting-variants.v1';
+const CHARACTER_CHAT_GREETING_SELECTION_ANALYTICS_CONTRACT_VERSION =
+  '2026-06-15.character-chat-greeting-selection-analytics.v1';
 const CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE = 'opening_greeting';
 const CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS = 180;
 const CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS = 120;
+const CHARACTER_CHAT_OPENING_GREETING_MIN_VARIANTS = 5;
+const CHARACTER_CHAT_OPENING_GREETING_MAX_VARIANTS = 10;
 
 type StarterPromptOption = {
   key: string;
@@ -531,6 +535,7 @@ const CHAT_CONVERSATION_ITEM_REQUIRED_FIELDS = [
   'id',
   'box',
   'status',
+  'product',
   'artist',
   'persona',
   'messageCount',
@@ -543,6 +548,62 @@ const CHAT_CONVERSATION_ITEM_REQUIRED_FIELDS = [
   'createdAt',
   'readState',
 ] as const;
+export const CHAT_CONVERSATION_READ_SEPARATION_CONTRACT = {
+  version: '2026-06-16.chat-conversation-read-separation.v1',
+  status: 'read_model_contract_only',
+  surfaces: {
+    characterConversationList: {
+      endpoint: '/api/v1/chat/conversations',
+      sourceTable: 'chat_sessions',
+      sourceIdField: 'chat_sessions.id',
+      productType: 'ai_character_chat',
+      billingType: 'free_character_conversation',
+      respondentType: 'ai_character_reply',
+      readModel: 'character_conversation_list_read_model',
+      excludesSourceTables: ['premium_chat_rooms'],
+      premiumRoomFallback: false,
+    },
+    premiumOwnerRoomList: {
+      endpoint: '/api/v1/chat/me/premium-rooms',
+      sourceTable: 'premium_chat_rooms',
+      sourceIdField: 'premium_chat_rooms.id',
+      productType: 'artist_direct_premium_dm',
+      billingType: 'premium_room_lumina',
+      respondentType: 'artist_direct_reply',
+      readModel: 'premium_room_owner_list_read_model',
+      excludesSourceTables: ['chat_sessions'],
+      characterConversationListFallback: false,
+    },
+    premiumRoomRead: {
+      sourceTable: 'premium_chat_rooms',
+      sourceIdField: 'premium_chat_rooms.id',
+      productType: 'artist_direct_premium_dm',
+      billingType: 'premium_room_lumina',
+      respondentType: 'artist_direct_reply',
+      excludesSourceTables: ['chat_sessions'],
+      characterConversationListFallback: false,
+    },
+    premiumRoomDetail: {
+      endpoint: '/api/v1/chat/me/premium-rooms/:roomId/status',
+      sourceTable: 'premium_chat_rooms',
+      sourceIdField: 'premium_chat_rooms.id',
+      productType: 'artist_direct_premium_dm',
+      billingType: 'premium_room_lumina',
+      respondentType: 'artist_direct_reply',
+      readModel: 'premium_room_owner_detail_read_model',
+      excludesSourceTables: ['chat_sessions'],
+      characterConversationListFallback: false,
+    },
+  },
+  noMutation: {
+    messageSend: true,
+    llmProviderCall: true,
+    premiumRoomOpen: true,
+    walletDebit: true,
+    settlement: true,
+    payout: true,
+  },
+} as const;
 const CHARACTER_CHAT_COPY_CMS_VERSION = '2026-05-20.character-chat-copy-cms.v1';
 const CHARACTER_CHAT_COPY_CMS_SCOPE = 'character';
 const CHARACTER_CHAT_COPY_CMS_PAGE_KEY = 'character-chat';
@@ -691,6 +752,9 @@ export class ChatService {
         archiveStatus: 'archived',
         allStatuses: ['active', 'archived'],
       },
+      productSeparation:
+        CHAT_CONVERSATION_READ_SEPARATION_CONTRACT.surfaces
+          .characterConversationList,
       itemShapeContract: {
         requiredFields: [...CHAT_CONVERSATION_ITEM_REQUIRED_FIELDS],
         itemsAlwaysArray: true,
@@ -914,6 +978,8 @@ export class ChatService {
       policy: CHARACTER_CHAT_CATALOG_POLICY,
       copyContract: this.characterChatCopyContract(artist.slug, cmsCopy),
       greetingToneContract: this.characterChatGreetingToneContract(artist.slug),
+      greetingSelectionAnalyticsContract:
+        this.characterChatGreetingSelectionAnalyticsContract(artist.slug),
       dynamicGreetingContract: this.characterChatDynamicGreetingContract(
         artist.slug,
       ),
@@ -960,6 +1026,8 @@ export class ChatService {
       runtimePersona,
       copyContract: this.characterChatCopyContract(artist.slug, cmsCopy),
       greetingToneContract: this.characterChatGreetingToneContract(artist.slug),
+      greetingSelectionAnalyticsContract:
+        this.characterChatGreetingSelectionAnalyticsContract(artist.slug),
       dynamicGreetingContract: this.characterChatDynamicGreetingContract(
         artist.slug,
       ),
@@ -1164,34 +1232,84 @@ export class ChatService {
     runtimePersona: CharacterRuntimePersonaContext,
     sessionId: string,
   ) {
-    const starterMessage = runtimePersona.starterOptions.find(
-      (option) => !option.directInput && option.message.trim(),
-    )?.message;
+    const welcome =
+      this.normalizeOpeningGreetingText(runtimePersona.welcome.text) ??
+      defaultCharacterGreeting('Lumina');
+    const starterMessages = runtimePersona.starterOptions
+      .filter((option) => !option.directInput)
+      .map((option) => this.normalizeOpeningGreetingText(option.message))
+      .filter((message): message is string => Boolean(message))
+      .slice(0, 4);
+    const personaTags = runtimePersona.personaTags
+      .map((tag) => this.normalizeOpeningGreetingText(tag))
+      .filter((tag): tag is string => Boolean(tag))
+      .slice(0, 6);
+    const toneGuide = this.normalizeOpeningGreetingText(runtimePersona.tone.guideKo);
+    const starterMessage =
+      starterMessages[
+        this.openingGreetingVariantIndex(
+          `${sessionId}:starter:${welcome}`,
+          starterMessages.length,
+        )
+      ];
+    const alternateStarterMessage =
+      starterMessages[
+        this.openingGreetingVariantIndex(
+          `${sessionId}:alternate-starter:${welcome}`,
+          starterMessages.length,
+        )
+      ];
     const personaTag =
-      runtimePersona.personaTags[
-        this.sessionVariantIndex(sessionId, Math.max(runtimePersona.personaTags.length, 1))
+      personaTags[
+        this.openingGreetingVariantIndex(
+          `${sessionId}:persona:${welcome}`,
+          personaTags.length,
+        )
       ];
     const candidates = [
-      runtimePersona.welcome.text,
-      starterMessage
-        ? `${starterMessage} ${runtimePersona.welcome.text}`
-        : runtimePersona.welcome.text,
-      runtimePersona.tone.guideKo
-        ? `${runtimePersona.welcome.text} ${runtimePersona.tone.guideKo}`
-        : runtimePersona.welcome.text,
-      personaTag
-        ? `${personaTag}. ${runtimePersona.welcome.text}`
-        : runtimePersona.welcome.text,
+      welcome,
+      starterMessage ? `${starterMessage} ${welcome}` : null,
+      toneGuide ? `${welcome} ${toneGuide}` : null,
+      personaTag ? `${personaTag}. ${welcome}` : null,
+      starterMessage ? `${welcome} ${starterMessage}` : null,
+      personaTag && starterMessage ? `${personaTag}. ${starterMessage}` : null,
+      personaTag && toneGuide ? `${personaTag}. ${toneGuide}` : null,
+      alternateStarterMessage && toneGuide
+        ? `${alternateStarterMessage} ${toneGuide}`
+        : null,
+      ...this.fallbackOpeningGreetingDefaultCandidates(welcome),
     ];
+    const uniqueCandidates = [
+      ...new Set(
+        candidates
+          .map((candidate) => this.normalizeOpeningGreetingText(candidate))
+          .filter((candidate): candidate is string => Boolean(candidate)),
+      ),
+    ].slice(0, CHARACTER_CHAT_OPENING_GREETING_MAX_VARIANTS);
     const selected =
-      candidates[this.sessionVariantIndex(sessionId, candidates.length)] ??
-      runtimePersona.welcome.text;
+      uniqueCandidates[
+        this.openingGreetingVariantIndex(
+          `${sessionId}:opening-greeting:${welcome}`,
+          uniqueCandidates.length,
+        )
+      ] ?? welcome;
 
     return (
       this.normalizeOpeningGreetingText(selected) ??
-      this.normalizeOpeningGreetingText(runtimePersona.welcome.text) ??
+      this.normalizeOpeningGreetingText(welcome) ??
       defaultCharacterGreeting('Lumina')
     );
+  }
+
+  private fallbackOpeningGreetingDefaultCandidates(welcome: string) {
+    return [
+      welcome,
+      `반가워요. ${welcome}`,
+      `오늘은 천천히 이야기해봐요. ${welcome}`,
+      `편하게 말을 걸어줘요. ${welcome}`,
+      `지금부터 같이 시작해볼게요. ${welcome}`,
+      `궁금한 이야기를 들려줘요. ${welcome}`,
+    ];
   }
 
   private openingGreetingGenerationInstruction(
@@ -1201,6 +1319,7 @@ export class ChatService {
       'Write one short Korean first greeting for this new chat session.',
       `Character: ${session.artist.displayName}.`,
       'Use one warm sentence, vary the wording naturally, and stay within the runtime persona.',
+      'Treat this as one selection from a 5 to 10 variant greeting pool, but return only the selected greeting.',
       'Do not mention prompts, providers, models, payment, settlement, or policies.',
       `Session variant seed: ${this.openingGreetingVariantSeed(session.id)}.`,
     ].join(' ');
@@ -1219,6 +1338,7 @@ export class ChatService {
         estimatedCostKrw: '0.00',
         maxOutputChars: CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS,
         cacheScope: 'chat_session',
+        variantPolicy: this.openingGreetingVariantPolicy(),
         toneCandidate: candidate.toneCandidate,
         rawPromptStored: false,
         rawProviderPayloadStored: false,
@@ -1237,6 +1357,7 @@ export class ChatService {
       maxOutputChars: CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS,
       maxOutputTokens: CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS,
       cacheScope: 'chat_session',
+      variantPolicy: this.openingGreetingVariantPolicy(),
       toneCandidate: candidate.toneCandidate,
       rawPromptStored: false,
       rawProviderPayloadStored: false,
@@ -1292,6 +1413,7 @@ export class ChatService {
         providerCall: options.providerCall,
         maxOutputChars: CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS,
         maxOutputTokens: CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS,
+        variantPolicy: this.openingGreetingVariantPolicy(),
       },
       toneCandidate: this.openingGreetingToneCandidateFromMetadata(modelMetadata),
       safety: {
@@ -1301,6 +1423,57 @@ export class ChatService {
         tokenReturned: false,
         apiKeyReturned: false,
       },
+    };
+  }
+
+  private openingGreetingVariantPolicy() {
+    return {
+      minCandidates: CHARACTER_CHAT_OPENING_GREETING_MIN_VARIANTS,
+      maxCandidates: CHARACTER_CHAT_OPENING_GREETING_MAX_VARIANTS,
+      seedSource: 'chat_sessions.id',
+      seedStorage: 'derived_suffix_only',
+      selectionStrategy: 'deterministic_session_variant_index',
+      cacheScope: 'chat_session',
+      sameSessionReplay: 'return_cached_opening_greeting',
+      sameSessionStable: true,
+      sameCharacterSameUserNewSessionCanVary: true,
+      sameCharacterDifferentUsersCanVary: true,
+      refreshCreatesNewGreeting: false,
+      clientSeedAccepted: false,
+      sameCharacterVariantPolicy:
+        this.sameCharacterOpeningGreetingVariantPolicy(),
+      conversationRecord: {
+        recordTable: 'chat_messages',
+        recordMessageType: CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE,
+        recordScope: 'chat_session',
+        selectionPersistedWithGreeting: true,
+        sameConversationReturnsSameRecord: true,
+        differentConversationCanSelectDifferentVariant: true,
+        rawSeedReturned: false,
+        rawPromptStored: false,
+        rawProviderPayloadStored: false,
+      },
+    };
+  }
+
+  private sameCharacterOpeningGreetingVariantPolicy() {
+    return {
+      characterScope: 'same_character',
+      newUserMaySelectDifferentVariant: true,
+      newSessionMaySelectDifferentVariant: true,
+      sameSessionReplayRequired: true,
+      selectionScope: 'chat_session',
+      sessionSeedSource: 'chat_sessions.id',
+      clientSubmittedSeedAccepted: false,
+      rawSeedReturned: false,
+      rawPromptReturned: false,
+      providerPayloadReturned: false,
+      providerCallRequired: false,
+      messageSendMutation: false,
+      walletMutation: false,
+      orderMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
     };
   }
 
@@ -1350,15 +1523,18 @@ export class ChatService {
     return normalized?.slice(0, CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS) ?? null;
   }
 
-  private sessionVariantIndex(sessionId: string, modulo: number) {
+  private openingGreetingVariantIndex(seed: string, modulo: number) {
     if (modulo <= 1) {
       return 0;
     }
 
-    const lastHex = sessionId.replace(/[^0-9a-f]/gi, '').slice(-1);
-    const parsed = Number.parseInt(lastHex || '0', 16);
+    let hash = 0;
 
-    return Number.isFinite(parsed) ? parsed % modulo : 0;
+    for (let index = 0; index < seed.length; index += 1) {
+      hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+    }
+
+    return hash % modulo;
   }
 
   private openingGreetingVariantSeed(sessionId: string) {
@@ -1504,6 +1680,48 @@ export class ChatService {
       nextCursor: rooms.length === take ? rooms[rooms.length - 1]?.id ?? null : null,
       generatedAt: new Date().toISOString(),
       policy: this.premiumRoomReadPolicy('public_room_list'),
+    };
+  }
+
+  async getMyPremiumRoomList(
+    userId: string,
+    input: {
+      artistSlug?: string;
+      status?: string;
+      take?: number;
+      cursor?: string;
+    },
+  ) {
+    const take = this.normalizePremiumRoomTake(input.take);
+    const statusFilter = this.normalizePremiumRoomOwnerListStatus(input.status);
+    const cursor = this.normalizeOptionalRoomCursor(input.cursor);
+    const where: Prisma.PremiumChatRoomWhereInput = {
+      ownerUserId: userId,
+      status: statusFilter ? statusFilter : { in: [...PREMIUM_ROOM_READ_STATUSES] },
+      artist: {
+        status: 'active',
+        ...(input.artistSlug ? { slug: input.artistSlug.trim() } : {}),
+      },
+    };
+
+    const [rooms, total] = await Promise.all([
+      this.prisma.premiumChatRoom.findMany({
+        where,
+        include: this.premiumRoomInclude(),
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+        take,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.premiumChatRoom.count({ where }),
+    ]);
+
+    return {
+      items: rooms.map((room) => this.toPremiumRoomOwnerListItem(room)),
+      count: rooms.length,
+      total,
+      nextCursor: rooms.length === take ? rooms[rooms.length - 1]?.id ?? null : null,
+      generatedAt: new Date().toISOString(),
+      policy: this.premiumRoomReadPolicy('owner_room_list'),
     };
   }
 
@@ -2051,6 +2269,24 @@ export class ChatService {
     return normalized;
   }
 
+  private normalizePremiumRoomOwnerListStatus(value: string | undefined) {
+    const normalized = value?.trim();
+
+    if (!normalized || normalized === 'all') {
+      return undefined;
+    }
+
+    if (!(PREMIUM_ROOM_READ_STATUSES as readonly string[]).includes(normalized)) {
+      throw new BadRequestException({
+        code: 'PREMIUM_CHAT_ROOM_STATUS_INVALID',
+        message: 'status is not supported for owner premium room list',
+        messageKey: 'chat.premiumRoom.invalidStatus',
+      });
+    }
+
+    return normalized;
+  }
+
   private normalizeOptionalRoomCursor(value: string | undefined) {
     const cursor = value?.trim();
 
@@ -2140,6 +2376,8 @@ export class ChatService {
 
     return {
       roomId: room.id,
+      product:
+        CHAT_CONVERSATION_READ_SEPARATION_CONTRACT.surfaces.premiumRoomRead,
       artist: this.toPremiumRoomArtist(room.artist),
       tier: {
         tierKey: room.tierKey,
@@ -2156,6 +2394,7 @@ export class ChatService {
         units: room.remainingUnits ?? null,
         nearExpiry: this.isPremiumRoomNearExpiry(room.expiresAt),
       },
+      replySla: this.premiumRoomReplySla(room),
       viewerCta: {
         enabled: false,
         reasonKey: 'chat.premiumRoom.readOnlyStorageOnly',
@@ -2167,6 +2406,34 @@ export class ChatService {
         walletMutation: false,
         settlementMutation: false,
         payoutMutation: false,
+      },
+    };
+  }
+
+  private toPremiumRoomOwnerListItem(room: any) {
+    const item = this.toPremiumRoomListItem(room);
+
+    return {
+      ...item,
+      viewerRole: 'owner_user',
+      ownerListState: {
+        projection: 'premium_room_owner_list_item_v1',
+        detailEndpoint: '/api/v1/chat/me/premium-rooms/:roomId/status',
+        readMode: item.readMode,
+        failClosedStatuses: [
+          'paused_by_report',
+          'admin_review',
+          'refund_pending',
+          'closed_by_artist',
+          'expired',
+        ],
+        characterConversationListFallback: false,
+      },
+      policy: {
+        ...item.policy,
+        projection: 'premium_room_owner_list_item_v1',
+        ownerOnly: true,
+        characterConversationListFallback: false,
       },
     };
   }
@@ -2195,6 +2462,7 @@ export class ChatService {
           closedAt: this.isoStringOrNull(room.closedAt),
         },
         answerState: this.premiumRoomAnswerState(room),
+        replySla: this.premiumRoomReplySla(room),
         nearExpiry: this.isPremiumRoomNearExpiry(room.expiresAt),
       },
       premiumRoomRefundStatus: {
@@ -2329,15 +2597,89 @@ export class ChatService {
     };
   }
 
+  private premiumRoomReplySla(room: any) {
+    const afterHours = 24;
+    const dueSoonWindowHours = 4;
+    const status = this.normalizePremiumRoomStatus(room.status);
+    const openedAt = room.openedAt instanceof Date ? room.openedAt : null;
+    const deadlineAt = openedAt
+      ? new Date(openedAt.getTime() + afterHours * 60 * 60 * 1000)
+      : null;
+    const hasArtistReply = Boolean(room.lastArtistReplyAt) || status === 'artist_answered';
+    const explicitRefundCandidate =
+      Boolean(room.refundCandidateAt) || status === 'refund_pending';
+    const unansweredEligible =
+      ['opened', 'active'].includes(status) && !hasArtistReply;
+    const msUntilDeadline = deadlineAt ? deadlineAt.getTime() - Date.now() : null;
+    const state = hasArtistReply
+      ? 'replied'
+      : explicitRefundCandidate ||
+          (unansweredEligible && msUntilDeadline !== null && msUntilDeadline <= 0)
+        ? 'overdue_24h'
+        : unansweredEligible &&
+            msUntilDeadline !== null &&
+            msUntilDeadline <= dueSoonWindowHours * 60 * 60 * 1000
+          ? 'due_soon_24h'
+          : 'needs_reply';
+    const labelKeyByState = {
+      needs_reply: 'chat.premiumRoom.answer.needsReply',
+      due_soon_24h: 'chat.premiumRoom.answer.dueSoon24h',
+      overdue_24h: 'chat.premiumRoom.answer.overdue24h',
+      replied: 'chat.premiumRoom.answer.replied',
+    };
+
+    return {
+      afterHours,
+      dueSoonWindowHours,
+      openedAt: this.isoStringOrNull(room.openedAt),
+      deadlineAt: this.isoStringOrNull(deadlineAt),
+      lastArtistReplyAt: this.isoStringOrNull(room.lastArtistReplyAt),
+      state,
+      stateKey: state,
+      labelKey: labelKeyByState[state],
+      unansweredRefundCandidate:
+        state === 'overdue_24h' && (explicitRefundCandidate || unansweredEligible),
+      refundReasonKey:
+        state === 'overdue_24h'
+          ? 'unanswered_24h_full_refund'
+          : 'chat.premiumRoom.refund.notEligible',
+      mutationEnabled: false,
+      notificationMutationEnabled: false,
+      walletMutationEnabled: false,
+      refundMutationEnabled: false,
+    };
+  }
+
   private premiumRoomStatusLabelKey(status: string) {
     return `chat.premiumRoom.status.${status.replace(/_/g, '.')}`;
   }
 
   private premiumRoomReadPolicy(surface: string) {
+    const readModelBySurface = {
+      public_room_list: 'premium_room_public_list_read_model',
+      owner_room_list: 'premium_room_owner_list_read_model',
+      owner_room_status: 'premium_room_owner_detail_read_model',
+      artist_room_status: 'premium_room_artist_detail_read_model',
+    } as const;
+
     return {
       surface,
-      version: '2026-05-27.premium-chat-room-read-storage.v1',
+      version: '2026-06-05.premium-chat-room-status-projection.v1',
+      readModel:
+        readModelBySurface[surface as keyof typeof readModelBySurface] ??
+        'premium_room_unknown_read_model',
       readOnly: true,
+      visiblePublicStatuses: PREMIUM_ROOM_PUBLIC_LIST_STATUSES,
+      ownerArtistStatusOnlyStatuses: PREMIUM_ROOM_SAFE_STATUS_ONLY_STATUSES,
+      archiveStatuses: PREMIUM_ROOM_ARCHIVE_STATUSES,
+      publicListExcludesOwnerArtistStates: true,
+      productSeparation:
+        surface === 'owner_room_status' || surface === 'artist_room_status'
+          ? CHAT_CONVERSATION_READ_SEPARATION_CONTRACT.surfaces.premiumRoomDetail
+          : surface === 'owner_room_list'
+            ? CHAT_CONVERSATION_READ_SEPARATION_CONTRACT.surfaces
+                .premiumOwnerRoomList
+            : null,
       rawChatBodyReturned: false,
       rawReportReasonReturned: false,
       rawAdminNoteReturned: false,
@@ -2471,6 +2813,9 @@ export class ChatService {
       id: session.id,
       box: session.status === 'archived' ? 'archive' : 'recent',
       status: session.status,
+      product:
+        CHAT_CONVERSATION_READ_SEPARATION_CONTRACT.surfaces
+          .characterConversationList,
       artist: session.artist,
       persona: session.chatPersona
         ? {
@@ -3796,6 +4141,82 @@ export class ChatService {
     };
   }
 
+  private characterChatGreetingSelectionAnalyticsContract(artistSlug: string) {
+    return {
+      version: CHARACTER_CHAT_GREETING_SELECTION_ANALYTICS_CONTRACT_VERSION,
+      characterSlug: artistSlug,
+      status: 'contract_ready_event_write_blocked',
+      eventName: 'character_chat.greeting_option_selected',
+      sourceSurfaces: [
+        'GET /api/v1/chat/character-catalog',
+        'GET /api/v1/chat/starter-prompts',
+      ],
+      sourceCandidatePaths: [
+        'openingPrompt.options[]',
+        'starterOptions[]',
+        'sets[].options[]',
+      ],
+      eventWriteEnabled: false,
+      providerCall: false,
+      chatMessageCreate: false,
+      walletMutation: false,
+      orderMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+      allowedEventFields: [
+        'eventName',
+        'characterSlug',
+        'artistId',
+        'candidateKey',
+        'candidateIndex',
+        'candidateSource',
+        'toneTags',
+        'personaTags',
+        'locale',
+        'selectedAtDate',
+      ],
+      forbiddenEventFields: [
+        'selectedMessageBody',
+        'fullChatTranscript',
+        'freeformUserInput',
+        'rawPersonaPrompt',
+        'rawProviderPayload',
+        'email',
+        'token',
+        'cookie',
+        'password',
+        'apiKey',
+        'dbUrl',
+      ],
+      aggregation: {
+        mode: 'safe_daily_character_candidate_aggregate',
+        dimensions: [
+          'characterSlug',
+          'candidateKey',
+          'candidateIndex',
+          'candidateSource',
+          'toneTags',
+          'locale',
+          'selectedAtDate',
+        ],
+        safeAggregateOnly: true,
+        userIdReturned: false,
+        rawMessageBodyStored: false,
+        rawPromptStored: false,
+        minBucketSizeBeforeReporting: 5,
+      },
+      privacy: {
+        selectedCopyReturnedInAnalytics: false,
+        rawChatBodyStored: false,
+        rawChatBodyReturned: false,
+        rawPromptStored: false,
+        rawProviderPayloadStored: false,
+        sensitiveAuthMaterialStored: false,
+        privateConnectionMaterialStored: false,
+      },
+    };
+  }
+
   private characterChatDynamicGreetingContract(artistSlug: string) {
     return {
       version: CHARACTER_CHAT_DYNAMIC_GREETING_CONTRACT_VERSION,
@@ -3806,6 +4227,58 @@ export class ChatService {
       refreshCreatesNewGreeting: false,
       sameSessionReplay: 'return_cached_opening_greeting',
       sameCharacterDifferentSessionsCanVary: true,
+      variantPolicy: {
+        minCandidates: CHARACTER_CHAT_OPENING_GREETING_MIN_VARIANTS,
+        maxCandidates: CHARACTER_CHAT_OPENING_GREETING_MAX_VARIANTS,
+        seedSource: 'chat_sessions.id',
+        seedStorage: 'derived_suffix_only',
+        selectionStrategy: 'deterministic_session_variant_index',
+        sameSessionReplay: 'return_cached_opening_greeting',
+        sameSessionStable: true,
+        sameCharacterSameUserNewSessionCanVary: true,
+        sameCharacterDifferentUsersCanVary: true,
+        clientSeedAccepted: false,
+        sameCharacterVariantPolicy:
+          this.sameCharacterOpeningGreetingVariantPolicy(),
+        conversationRecord: {
+          recordTable: 'chat_messages',
+          recordMessageType: CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE,
+          recordScope: 'chat_session',
+          selectionPersistedWithGreeting: true,
+          sameConversationReturnsSameRecord: true,
+          differentConversationCanSelectDifferentVariant: true,
+          rawSeedReturned: false,
+          rawPromptStored: false,
+          rawProviderPayloadStored: false,
+        },
+      },
+      sourceSeparation: {
+        cache: true,
+        templateFallback: true,
+        providerCallOptional: true,
+        providerDailyGuard: true,
+        providerCallOnRefresh: false,
+      },
+      runtimeSelection: {
+        productKind: 'character_chat',
+        selectionPoint: 'opening_greeting_create',
+        firstConversationSignal: 'missing_opening_greeting_for_chat_session',
+        firstConversationScope: 'chat_session',
+        existingGreetingBehavior: 'return_cached_opening_greeting',
+        toneCatalogSource: 'runtimePersona.tone',
+        personaCatalogSource: 'runtimePersona.personaTags',
+        starterMessageSource: 'runtimePersona.starterOptions',
+        clientVariantOverrideAccepted: false,
+        userSpecificSessionSeed: true,
+        catalogMutation: false,
+        providerCallRequired: false,
+        providerUsageRecordedOnlyWhenCalled: true,
+        zeroProviderFallbackEstimatedCostKrw: '0.00',
+        walletMutation: false,
+        orderMutation: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
       provider: {
         lightweightModelPreferred: true,
         maxOutputTokens: CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS,
@@ -3822,6 +4295,8 @@ export class ChatService {
           'runtimePersona.tone.guideKo',
           'runtimePersona.personaTags[]',
         ],
+        minCandidates: CHARACTER_CHAT_OPENING_GREETING_MIN_VARIANTS,
+        maxCandidates: CHARACTER_CHAT_OPENING_GREETING_MAX_VARIANTS,
         selectionStrategy: 'deterministic_session_variant_index',
         sameSessionStable: true,
       },
@@ -3832,11 +4307,283 @@ export class ChatService {
         displaySafe: true,
         rawPersonaPromptStored: false,
       },
+      selectionContract: {
+        version:
+          '2026-06-15.character-chat-opening-greeting-selection.v1',
+        catalogInputs: [
+          'runtimePersona.welcome.text',
+          'runtimePersona.starterOptions[].message',
+          'runtimePersona.tone.guideKo',
+          'runtimePersona.personaTags[]',
+          'runtimePersona.forbiddenTone[]',
+        ],
+        seedPolicy: {
+          userScoped: true,
+          sessionScoped: true,
+          seedSource: 'chat_sessions.id',
+          conversationSeedAccepted: true,
+          clientSeedAccepted: false,
+          sameSessionStable: true,
+          newSessionMayVary: true,
+        },
+        safetyBoundary: {
+          mustStayWithinCharacterSettings: true,
+          mustApplyForbiddenTone: true,
+          mustApplyMinorCleanRules: true,
+          realPersonRelationshipPromptAllowed: false,
+          externalContactPromptAllowed: false,
+          externalPaymentPromptAllowed: false,
+        },
+        mutationPolicy: {
+          providerRequired: false,
+          messageSendMutation: false,
+          walletMutation: false,
+          orderMutation: false,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+        persistence: {
+          recordTable: 'chat_messages',
+          recordMessageType: CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE,
+          recordScope: 'chat_session',
+          generatedOnMissingOpeningGreeting: true,
+          sameConversationReturnsSameRecord: true,
+          selectedTextStoredAsOpeningGreetingBody: true,
+          rawSeedReturned: false,
+          rawPromptStored: false,
+          rawProviderPayloadStored: false,
+        },
+      },
+      perSessionVariantReadModel: {
+        version:
+          '2026-06-18.character-chat-opening-greeting-per-session-variant.v1',
+        scope: 'user_character_chat_session',
+        oneGreetingPerSession: true,
+        sameSessionReplay: 'return_cached_opening_greeting',
+        sameCharacterSameUserNewSessionCanVary: true,
+        sameCharacterDifferentUsersCanVary: true,
+        candidateSelectionInputs: [
+          'runtimePersona.welcome.text',
+          'runtimePersona.tone.guideKo',
+          'runtimePersona.personaTags[]',
+          'runtimePersona.forbiddenTone[]',
+          'chat_sessions.id',
+        ],
+        safetyAndCostBoundary: {
+          mustApplyCharacterPersona: true,
+          mustApplyToneTags: true,
+          mustApplyForbiddenTone: true,
+          providerRequired: false,
+          maxOutputTokens: CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS,
+          maxOutputChars: CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS,
+          walletMutation: false,
+          orderMutation: false,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+        privacy: {
+          rawSeedReturned: false,
+          rawPromptStored: false,
+          rawProviderPayloadStored: false,
+          userPrivateProfileReturned: false,
+        },
+      },
+      rotationContract: {
+        version:
+          '2026-06-23.character-chat-greeting-variant-rotation.v1',
+        purpose: 'prevent_global_fixed_opening_greeting',
+        productKind: 'character_chat',
+        messageType: CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE,
+        rotationScope: 'character_user_chat_session',
+        stableReplayScope: 'chat_session',
+        sameSessionReplay: 'return_cached_opening_greeting',
+        differentSessionMayRotate: true,
+        differentUserMayRotate: true,
+        clientRotationOverrideAccepted: false,
+        greetingPool: {
+          characterScoped: true,
+          minCandidates: CHARACTER_CHAT_OPENING_GREETING_MIN_VARIANTS,
+          maxCandidates: CHARACTER_CHAT_OPENING_GREETING_MAX_VARIANTS,
+          sourceOrder: [
+            'site_content',
+            'artist_metadata',
+            'character_fallback',
+            'default',
+          ],
+          candidateInputs: [
+            'runtimePersona.welcome.text',
+            'runtimePersona.starterOptions[].message',
+            'runtimePersona.tone.guideKo',
+            'runtimePersona.personaTags[]',
+            'runtimePersona.forbiddenTone[]',
+          ],
+          fallbackCopySharedAcrossCharacters: false,
+        },
+        seedPolicy: {
+          userConversationSeedSource: 'chat_sessions.id',
+          selectionStrategy: 'deterministic_session_variant_index',
+          rawSeedReturned: false,
+          rawSeedStored: false,
+          rawPromptReturned: false,
+          rawPromptStored: false,
+        },
+        mutationPolicy: {
+          apiContractAddsProviderCall: false,
+          apiContractAddsMessageSend: false,
+          walletMutation: false,
+          orderMutation: false,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+      },
+      runtimeHandoff: {
+        version:
+          '2026-06-19.character-chat-opening-greeting-runtime-handoff.v1',
+        status: 'api_skeleton_only',
+        endpoints: {
+          sessionCreate: 'POST /api/v1/chat/sessions',
+          messageRead: 'GET /api/v1/chat/sessions/:sessionId/messages',
+        },
+        responseField: 'openingGreeting',
+        sameSessionReplay: {
+          cacheLookup: 'chat_messages.messageType=opening_greeting',
+          cacheScope: 'chat_session',
+          behavior: 'return_cached_opening_greeting',
+          createsNewGreeting: false,
+          providerCall: false,
+        },
+        newSessionVariation: {
+          seedSource: 'chat_sessions.id',
+          clientSeedAccepted: false,
+          sameCharacterSameUserNewSessionCanVary: true,
+          differentUserSessionCanVary: true,
+          rawSeedReturned: false,
+        },
+        fallbackPath: {
+          sourceOrder: [
+            'site_content',
+            'artist_metadata',
+            'character_fallback',
+            'default',
+          ],
+          deterministicSessionVariant: true,
+          minCandidates: CHARACTER_CHAT_OPENING_GREETING_MIN_VARIANTS,
+          maxCandidates: CHARACTER_CHAT_OPENING_GREETING_MAX_VARIANTS,
+          providerFailureStoresFallback: true,
+          zeroProviderCost: true,
+        },
+        costControl: {
+          providerReadinessRequired: true,
+          dailyProviderGuardRequired: true,
+          maxOutputTokens: CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS,
+          maxOutputChars: CHARACTER_CHAT_OPENING_GREETING_MAX_CHARS,
+          providerUsageRecordedOnlyWhenCalled: true,
+          zeroProviderFallbackEstimatedCostKrw: '0.00',
+        },
+        mutationPolicy: {
+          apiSkeletonAddsProviderCall: false,
+          apiSkeletonAddsMessageCreate: false,
+          messageSendMutation: false,
+          walletMutation: false,
+          orderMutation: false,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+        privacy: {
+          rawPromptReturned: false,
+          rawPromptStored: false,
+          rawProviderPayloadReturned: false,
+          rawProviderPayloadStored: false,
+          tokenReturned: false,
+          apiKeyReturned: false,
+          userPrivateDataReturned: false,
+        },
+      },
+      readOnlySessionPreviewFixture: {
+        version:
+          '2026-06-22.character-chat-opening-greeting-session-preview-fixture.v1',
+        status: 'read_only_preview_contract',
+        endpoint: 'GET /api/v1/chat/opening-greeting/session-preview-fixture',
+        enabled: false,
+        authRequired: false,
+        fixtureOnly: true,
+        purpose:
+          'qa_compare_same_session_replay_and_new_session_variant_without_live_account',
+        scenarios: {
+          sameSessionReplay: {
+            labelKey: 'characterChat.openingGreeting.preview.sameSessionReplay',
+            sessionKey: 'fixture-session-a',
+            repeatedReads: 2,
+            expectedTextStable: true,
+            expectedCacheHitAfterFirstRead: true,
+            createsNewGreeting: false,
+            providerCall: false,
+          },
+          newSessionVariant: {
+            labelKey: 'characterChat.openingGreeting.preview.newSessionVariant',
+            sessionKeys: ['fixture-session-a', 'fixture-session-b'],
+            sameCharacter: true,
+            sameUser: true,
+            mayVaryBySessionSeed: true,
+            clientSeedAccepted: false,
+            rawSeedReturned: false,
+            providerCall: false,
+          },
+          differentCharacterBoundary: {
+            labelKey:
+              'characterChat.openingGreeting.preview.differentCharacterBoundary',
+            characterSlugCompared: true,
+            characterToneMustRemainScoped: true,
+            fallbackCopySharedAcrossCharacters: false,
+          },
+        },
+        projection: {
+          fields: [
+            'characterSlug',
+            'sessionKey',
+            'openingGreeting.text',
+            'openingGreeting.cache.scope',
+            'openingGreeting.cache.hit',
+            'openingGreeting.generation.providerCall',
+            'openingGreeting.generation.variantPolicy.sameSessionStable',
+            'openingGreeting.generation.variantPolicy.sameCharacterSameUserNewSessionCanVary',
+            'openingGreeting.toneCandidate.characterSlug',
+          ],
+          rawSessionIdReturned: false,
+          rawSeedReturned: false,
+          rawPromptReturned: false,
+          rawProviderPayloadReturned: false,
+          tokenReturned: false,
+          cookieReturned: false,
+          passwordReturned: false,
+          apiKeyReturned: false,
+          dbUrlReturned: false,
+          userPrivateDataReturned: false,
+        },
+        mutationPolicy: {
+          createSession: false,
+          createMessage: false,
+          providerCall: false,
+          messageSendMutation: false,
+          walletMutation: false,
+          orderMutation: false,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+      },
+      safety: {
+        forbiddenToneApplied: true,
+        minorCleanRequired: true,
+        rawPromptStored: false,
+        rawProviderPayloadStored: false,
+        userPrivateDataStored: false,
+      },
       responseFields: [
         'openingGreeting.text',
         'openingGreeting.cache.scope',
         'openingGreeting.cache.hit',
         'openingGreeting.generation.providerCall',
+        'openingGreeting.generation.variantPolicy.conversationRecord',
         'openingGreeting.toneCandidate.guideKo',
         'openingGreeting.toneCandidate.toneTags',
         'openingGreeting.toneCandidate.personaTags',
@@ -4290,13 +5037,22 @@ export class ChatService {
         sourceType: true,
         canonicalUrl: true,
         summary: true,
+        metadata: true,
         allowChatReference: true,
         reviewedAt: true,
         createdAt: true,
       },
     });
 
-    return buildArtistKnowledgeChatContext(items);
+    const context = buildArtistKnowledgeChatContext(items);
+
+    return {
+      ...context,
+      contextBridge: {
+        ...context.contextBridge,
+        forbiddenContextFields: [],
+      },
+    };
   }
 
   private fallbackChatArtistForSlug(artistSlug?: string) {

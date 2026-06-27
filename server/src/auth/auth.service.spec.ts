@@ -2,6 +2,10 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
+import { AUTH_EMAIL_VERIFICATION_THROTTLE_CONTRACT } from './auth-email-verification-throttle-contract';
+import { AUTH_PASSWORD_RESET_ABUSE_GUARD_CONTRACT } from './auth-password-reset-abuse-guard-contract';
+import { AUTH_SESSION_INVALIDATION_CONTRACT } from './auth-session-invalidation-contract';
+import { AUTH_SOCIAL_LOGIN_COLLISION_CONTRACT } from './auth-social-login-collision-contract';
 import {
   ChangePasswordDto,
   ConfirmPasswordResetDto,
@@ -23,7 +27,14 @@ const token = 'a'.repeat(40);
 type PrismaMock = {
   user: {
     findFirst: jest.Mock;
+    findUnique: jest.Mock;
+    create: jest.Mock;
     update: jest.Mock;
+  };
+  userProfile: {
+    findFirst: jest.Mock;
+    findUnique: jest.Mock;
+    create: jest.Mock;
   };
   userActionToken: {
     updateMany: jest.Mock;
@@ -32,6 +43,7 @@ type PrismaMock = {
     update: jest.Mock;
   };
   userAuthAccount: {
+    create: jest.Mock;
     findUnique: jest.Mock;
     findFirst: jest.Mock;
     update: jest.Mock;
@@ -42,6 +54,12 @@ type PrismaMock = {
   userIdentityVerification: {
     findUnique: jest.Mock;
     upsert: jest.Mock;
+  };
+  userReferralCode: {
+    updateMany: jest.Mock;
+  };
+  auditEvent: {
+    create: jest.Mock;
   };
   $transaction: jest.Mock;
 };
@@ -54,7 +72,14 @@ function createPrismaMock(): PrismaMock {
   const prisma: PrismaMock = {
     user: {
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
       update: jest.fn(),
+    },
+    userProfile: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      findUnique: jest.fn(),
+      create: jest.fn(),
     },
     userActionToken: {
       updateMany: jest.fn(),
@@ -63,6 +88,7 @@ function createPrismaMock(): PrismaMock {
       update: jest.fn(),
     },
     userAuthAccount: {
+      create: jest.fn(),
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
@@ -74,6 +100,12 @@ function createPrismaMock(): PrismaMock {
       findUnique: jest.fn(),
       upsert: jest.fn(),
     },
+    userReferralCode: {
+      updateMany: jest.fn(),
+    },
+    auditEvent: {
+      create: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
   prisma.$transaction.mockImplementation(
@@ -84,7 +116,11 @@ function createPrismaMock(): PrismaMock {
   return prisma;
 }
 
-function serviceWith(prisma: PrismaMock, configValues: Record<string, string> = {}) {
+function serviceWith(
+  prisma: PrismaMock,
+  configValues: Record<string, string> = {},
+  socialAuth: Record<string, unknown> = {},
+) {
   const config = {
     get: jest.fn((key: string) =>
       key === 'NODE_ENV' ? 'test' : configValues[key],
@@ -107,7 +143,7 @@ function serviceWith(prisma: PrismaMock, configValues: Record<string, string> = 
       prisma as never,
       {} as never,
       config as never,
-      {} as never,
+      socialAuth as never,
       delivery as never,
     ),
     delivery,
@@ -326,12 +362,47 @@ describe('AuthService action token flows', () => {
         serverEnforcedCooldownSeconds: 60,
         duplicatePendingTokenPolicy:
           'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+        cooldownResponseDisclosure: 'neutral_request_accepted',
+        rawTokenReturned: false,
+        tokenHashReturned: false,
       },
       debug: undefined,
     });
 
+    expect(AUTH_EMAIL_VERIFICATION_THROTTLE_CONTRACT.throttle).toMatchObject({
+      serverEnforced: true,
+      windowSeconds: 60,
+      duplicatePendingTokenPolicy:
+        'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+      cooldownDisclosure: 'neutral_request_accepted',
+      duringCooldown: {
+        createNewToken: false,
+        consumeOlderTokens: false,
+        sendEmail: false,
+        returnDebugToken: false,
+      },
+    });
+    expect(AUTH_EMAIL_VERIFICATION_THROTTLE_CONTRACT.responsePolicy).toMatchObject({
+      neutralResponse: true,
+      revealsAccountExistence: false,
+      revealsEmailVerifiedState: false,
+      rawTokenReturned: false,
+      tokenHashReturned: false,
+      rawEmailReturned: false,
+    });
+    expect(prisma.userActionToken.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId,
+        purpose: 'email_verification',
+        consumedAt: null,
+        expiresAt: { gt: expect.any(Date) },
+        createdAt: { gte: expect.any(Date) },
+      },
+      select: { id: true },
+    });
     expect(prisma.userActionToken.create).not.toHaveBeenCalled();
     expect(prisma.userActionToken.updateMany).not.toHaveBeenCalled();
+    expect(prisma.userActionToken.update).not.toHaveBeenCalled();
     expect(delivery.sendActionEmail).not.toHaveBeenCalled();
     expect(delivery.requestStatus).toHaveBeenCalledTimes(1);
   });
@@ -499,6 +570,327 @@ describe('AuthService action token flows', () => {
     });
   });
 
+  it('keeps password reset session invalidation server-authoritative and secret-free', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.userActionToken.findFirst.mockResolvedValue(
+      activeActionToken({ purpose: 'password_reset' }),
+    );
+    prisma.userAuthAccount.findFirst.mockResolvedValue({
+      id: '00000000-0000-4000-8000-000000000201',
+      providerUserId: email,
+      passwordHash: 'old-hash',
+    });
+    prisma.userActionToken.updateMany.mockResolvedValue({ count: 1 });
+    prisma.userRefreshToken.updateMany.mockResolvedValue({ count: 3 });
+
+    const result = await service.confirmPasswordReset({
+      token,
+      newPassword: 'Newpass1',
+    });
+
+    expect(AUTH_SESSION_INVALIDATION_CONTRACT.passwordResetConfirm.sessionInvalidation).toMatchObject({
+      revokesRefreshTokens: true,
+      scope: 'all active sessions for token.userId',
+      where: {
+        userIdSource: 'token.userId',
+        revokedAt: null,
+      },
+      accessTokenExpiryOnlyFallbackAllowed: false,
+    });
+    expect(prisma.userRefreshToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId,
+        revokedAt: null,
+      },
+      data: { revokedAt: expect.any(Date) },
+    });
+    expect(AUTH_SESSION_INVALIDATION_CONTRACT.passwordResetConfirm.untrustedClientFields).toEqual(
+      expect.arrayContaining(['refreshToken', 'sessionId', 'cookie', 'userId']),
+    );
+    expect(AUTH_SESSION_INVALIDATION_CONTRACT.passwordResetConfirm.responsePolicy).toMatchObject({
+      returnsAccessToken: false,
+      returnsRefreshToken: false,
+      returnsCookie: false,
+      returnsSessionSecret: false,
+      returnsPasswordHash: false,
+      returnsResetTokenHash: false,
+    });
+    expect(JSON.stringify(result)).not.toMatch(
+      /accessToken|refreshToken|cookie|sessionSecret|passwordHash|tokenHash/i,
+    );
+  });
+
+  it('blocks social-only password change before password or session mutation', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.userAuthAccount.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.changePassword(userId, {
+        currentPassword: 'SocialOnlyCurrent1',
+        newPassword: 'SocialOnlyNext1',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Email password is not configured for this account',
+      },
+    });
+
+    expect(prisma.userAuthAccount.update).not.toHaveBeenCalled();
+    expect(prisma.userRefreshToken.updateMany).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('projects social-only account method without provider credentials or session secrets', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.user.findFirst.mockResolvedValue({
+      id: userId,
+      email,
+      emailVerifiedAt: new Date('2026-05-15T00:00:00.000Z'),
+      phoneNumber: null,
+      status: 'active',
+      createdAt: new Date('2026-05-15T00:00:00.000Z'),
+      authAccounts: [
+        { provider: 'google', passwordHash: null },
+        { provider: 'naver', passwordHash: null },
+      ],
+      profile: null,
+      settings: null,
+      walletAccounts: [],
+    });
+
+    const projection = await service.getMe(userId);
+
+    expect(projection).toMatchObject({
+      provider: 'google',
+      providers: ['google', 'naver'],
+      hasPassword: false,
+      isSocialOnly: true,
+      emailVerification: {
+        status: 'verified',
+        required: false,
+        messageKey: 'auth.emailVerification.verified',
+      },
+    });
+    const payload = JSON.stringify(projection);
+    expect(payload).not.toMatch(/passwordHash|providerUserId|accessToken|refreshToken|cookie/i);
+    expect(payload).not.toMatch(/passwordResetCta|resetPasswordCta|forgotPasswordCta/i);
+  });
+
+  it('projects email-password account method separately from social-only settings copy', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    prisma.user.findFirst.mockResolvedValue({
+      id: userId,
+      email,
+      emailVerifiedAt: new Date('2026-05-15T00:00:00.000Z'),
+      phoneNumber: null,
+      status: 'active',
+      createdAt: new Date('2026-05-15T00:00:00.000Z'),
+      authAccounts: [{ provider: 'email', passwordHash: 'hash' }],
+      profile: null,
+      settings: null,
+      walletAccounts: [],
+    });
+
+    const projection = await service.getMe(userId);
+
+    expect(projection).toMatchObject({
+      provider: 'email',
+      providers: ['email'],
+      hasPassword: true,
+      isSocialOnly: false,
+      emailVerification: {
+        status: 'verified',
+        required: false,
+        messageKey: 'auth.emailVerification.verified',
+      },
+    });
+    const payload = JSON.stringify(projection);
+    expect(payload).not.toMatch(/social[-_ ]only/i);
+    expect(payload).not.toMatch(/passwordHash|providerUserId|accessToken|refreshToken|cookie/i);
+  });
+
+  it('deletes accounts by revoking sessions and all outstanding action tokens', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+    const deletedAt = new Date('2026-06-15T00:00:00.000Z');
+    prisma.user.findFirst.mockResolvedValue({
+      id: userId,
+      email,
+      status: 'active',
+      deletedAt: null,
+      authAccounts: [],
+    });
+    prisma.user.update.mockResolvedValue({
+      id: userId,
+      email,
+      status: 'deleted',
+      deletedAt,
+      updatedAt: deletedAt,
+    });
+    prisma.userRefreshToken.updateMany.mockResolvedValue({ count: 2 });
+    prisma.userActionToken.updateMany.mockResolvedValue({ count: 3 });
+    prisma.userReferralCode.updateMany.mockResolvedValue({ count: 1 });
+    prisma.auditEvent.create.mockResolvedValue({ id: 'audit-1' });
+    prisma.$transaction.mockImplementationOnce(
+      async (operations: Array<Promise<unknown>>) => Promise.all(operations),
+    );
+
+    await expect(
+      service.deleteAccount(userId, {
+        reason: 'safe account closure reason',
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      revokedSessionCount: 2,
+      user: {
+        id: userId,
+        status: 'deleted',
+      },
+    });
+
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: userId },
+        data: expect.objectContaining({
+          status: 'deleted',
+          deletedAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(prisma.userRefreshToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: expect.any(Date),
+      },
+    });
+    expect(prisma.userActionToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId,
+        consumedAt: null,
+      },
+      data: {
+        consumedAt: expect.any(Date),
+      },
+    });
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'user.self_delete',
+          targetType: 'user',
+          targetId: userId,
+        }),
+      }),
+    );
+  });
+
+  it('rejects deleted email and social accounts before issuing sessions or relinking providers', async () => {
+    const prisma = createPrismaMock();
+    const socialAuth = {
+      verifyProfile: jest.fn().mockResolvedValue({
+        provider: 'google',
+        providerUserId: 'google-deleted-user',
+        email,
+        emailVerified: true,
+      }),
+    };
+    const { service } = serviceWith(prisma, {}, socialAuth);
+    const deletedUser = {
+      id: userId,
+      email,
+      status: 'deleted',
+      deletedAt: new Date('2026-06-15T00:00:00.000Z'),
+    };
+
+    prisma.userAuthAccount.findUnique
+      .mockResolvedValueOnce({
+        id: 'email-auth-account',
+        userId,
+        passwordHash: 'hash',
+        user: deletedUser,
+      })
+      .mockResolvedValueOnce({
+        id: 'social-auth-account',
+        userId,
+        provider: 'google',
+        providerUserId: 'google-deleted-user',
+        user: deletedUser,
+      });
+
+    await expect(
+      service.login({ email, password: 'Password123' }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Invalid email or password',
+      },
+    });
+    await expect(
+      service.socialLogin({
+        provider: 'google',
+        token: 'provider-token',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'User is not active.',
+      },
+    });
+
+    expect(prisma.userAuthAccount.update).not.toHaveBeenCalled();
+    expect(prisma.user.create).not.toHaveBeenCalled();
+    expect(prisma.userAuthAccount.create).not.toHaveBeenCalled();
+    expect(prisma.userRefreshToken.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('does not merge social login into an existing email account when provider email is unverified', async () => {
+    const prisma = createPrismaMock();
+    const socialAuth = {
+      verifyProfile: jest.fn().mockResolvedValue({
+        provider: 'google',
+        providerUserId: 'google-unverified-email-user',
+        email,
+        emailVerified: false,
+      }),
+    };
+    const { service } = serviceWith(prisma, {}, socialAuth);
+    prisma.userAuthAccount.findUnique.mockResolvedValue(null);
+    prisma.user.create.mockRejectedValue(new Error('stop after collision guard'));
+
+    await expect(
+      service.socialLogin({
+        provider: 'google',
+        token: 'provider-token',
+      }),
+    ).rejects.toThrow('stop after collision guard');
+
+    expect(AUTH_SOCIAL_LOGIN_COLLISION_CONTRACT.collisionGuard).toMatchObject({
+      unverifiedProviderEmailCanMergeExistingUser: false,
+      clientSubmittedEmailCanMergeExistingUser: false,
+      differentProviderSameEmailRequiresProviderVerifiedEmail: true,
+      existingUserMustBeActive: true,
+      providerAccountCreatedInServerTransaction: true,
+    });
+    expect(AUTH_SOCIAL_LOGIN_COLLISION_CONTRACT.blockedOrSeparatedCases.unverifiedEmail).toMatchObject({
+      lookupExistingUserByEmail: false,
+      attachProviderToExistingEmailUser: false,
+      createPasswordOrEmailCredential: false,
+    });
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(prisma.user.create).toHaveBeenCalledWith({
+      data: {
+        email: null,
+        emailVerifiedAt: null,
+        status: 'active',
+      },
+    });
+    expect(prisma.userAuthAccount.update).not.toHaveBeenCalled();
+  });
+
   it('inspects password reset tokens without consuming them or returning secrets', async () => {
     const prisma = createPrismaMock();
     const { service } = serviceWith(prisma);
@@ -525,6 +917,15 @@ describe('AuthService action token flows', () => {
         tokenHashReturned: false,
         fullEmailReturned: false,
         passwordReturned: false,
+        emailPrefill: {
+          source: 'user_action_tokens.targetEmailMasked',
+          mode: 'masked_only',
+          rawEmailReturned: false,
+          invalidOrExpiredTokenEmailReturned: false,
+          confirmWithoutEmailInput: true,
+          clientEditableEmailRequired: false,
+          tokenOrCookieUsedAsPrefillValue: false,
+        },
         confirmEndpoint: {
           method: 'POST',
           path: '/api/v1/auth/password-resets/confirm',
@@ -551,6 +952,11 @@ describe('AuthService action token flows', () => {
         rawTokenReturned: false,
         tokenHashReturned: false,
         fullEmailReturned: false,
+        emailPrefill: {
+          mode: 'masked_only',
+          rawEmailReturned: false,
+          invalidOrExpiredTokenEmailReturned: false,
+        },
       },
     });
 
@@ -577,6 +983,69 @@ describe('AuthService action token flows', () => {
       canReset: false,
       email: { masked: null, returned: 'not_returned' },
     });
+  });
+
+  it('rejects invalid, expired, and used password reset confirms before mutation', async () => {
+    const prisma = createPrismaMock();
+    const { service } = serviceWith(prisma);
+
+    prisma.userActionToken.findFirst.mockResolvedValueOnce(null);
+    await expect(
+      service.confirmPasswordReset({ token, newPassword: 'password' }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_EXPIRED',
+        messageKey: 'auth.passwordReset.tokenInvalidOrExpired',
+        details: {
+          state: 'invalid',
+          statusKey: 'auth.passwordReset.invalid',
+          rawTokenReturned: false,
+          tokenHashReturned: false,
+        },
+      },
+    });
+
+    prisma.userActionToken.findFirst.mockResolvedValueOnce(
+      activeActionToken({
+        purpose: 'password_reset',
+        expiresAt: new Date('2000-01-01T00:00:00.000Z'),
+      }),
+    );
+    await expect(
+      service.confirmPasswordReset({ token, newPassword: 'password' }),
+    ).rejects.toMatchObject({
+      response: {
+        details: {
+          state: 'expired',
+          statusKey: 'auth.passwordReset.expired',
+          rawTokenReturned: false,
+          tokenHashReturned: false,
+        },
+      },
+    });
+
+    prisma.userActionToken.findFirst.mockResolvedValueOnce(
+      activeActionToken({
+        purpose: 'password_reset',
+        consumedAt: new Date('2026-05-14T00:00:00.000Z'),
+      }),
+    );
+    await expect(
+      service.confirmPasswordReset({ token, newPassword: 'password' }),
+    ).rejects.toMatchObject({
+      response: {
+        details: {
+          state: 'already_used',
+          statusKey: 'auth.passwordReset.already_used',
+          rawTokenReturned: false,
+          tokenHashReturned: false,
+        },
+      },
+    });
+
+    expect(prisma.userActionToken.updateMany).not.toHaveBeenCalled();
+    expect(prisma.userAuthAccount.update).not.toHaveBeenCalled();
+    expect(prisma.userRefreshToken.updateMany).not.toHaveBeenCalled();
   });
 
   it('rejects password reset when the submitted email does not match the token account', async () => {
@@ -682,12 +1151,44 @@ describe('AuthService action token flows', () => {
         serverEnforcedCooldownSeconds: 60,
         duplicatePendingTokenPolicy:
           'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+        cooldownResponseDisclosure: 'neutral_request_accepted',
+        rawTokenReturned: false,
+        tokenHashReturned: false,
       },
       debug: undefined,
     });
 
+    expect(AUTH_PASSWORD_RESET_ABUSE_GUARD_CONTRACT.responsePolicy).toMatchObject({
+      neutralResponse: true,
+      messageKey: 'auth.passwordReset.requestAccepted',
+      revealsAccountExistence: false,
+      revealsPasswordConfigured: false,
+      rawEmailReturned: false,
+      rawTokenReturned: false,
+      tokenHashReturned: false,
+      passwordReturned: false,
+    });
+    expect(AUTH_PASSWORD_RESET_ABUSE_GUARD_CONTRACT.cooldown).toMatchObject({
+      serverEnforced: true,
+      windowSeconds: 60,
+      source: 'user_action_tokens.createdAt',
+      duplicatePendingTokenPolicy:
+        'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+      repeatedRequestCreatesNewToken: false,
+      repeatedRequestConsumesPreviousToken: false,
+      repeatedRequestSendsEmail: false,
+      repeatedRequestReturnsDebugToken: false,
+    });
+    expect(AUTH_PASSWORD_RESET_ABUSE_GUARD_CONTRACT.auditSeparation).toMatchObject({
+      deliveryStatusStoredOnActionToken: true,
+      deliveryAttemptedAtStored: true,
+      providerRawResponseStored: false,
+      adminReadModelUsesMaskedEmail: true,
+      rawMailBodyReturned: false,
+    });
     expect(prisma.userActionToken.create).not.toHaveBeenCalled();
     expect(prisma.userActionToken.updateMany).not.toHaveBeenCalled();
+    expect(prisma.userActionToken.update).not.toHaveBeenCalled();
     expect(delivery.sendActionEmail).not.toHaveBeenCalled();
     expect(delivery.requestStatus).toHaveBeenCalledTimes(1);
   });

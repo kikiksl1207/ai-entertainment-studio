@@ -7,12 +7,35 @@ export const PREMIUM_CHAT_ROOM_DEFAULT_UNLOCKED_TIER_KEYS = [
 export const PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS = 3;
 export const PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS = 10;
 export const PREMIUM_CHAT_ROOM_MAX_TIER_AMOUNT_LUMINA = 3000;
+export const PREMIUM_CHAT_ROOM_FOLLOWER_TIER_UNLOCKS = [
+  {
+    tierKey: 'premium_chat_room_300',
+    amountLumina: 300,
+    minActiveFollowers: 0,
+  },
+  {
+    tierKey: 'premium_chat_room_500',
+    amountLumina: 500,
+    minActiveFollowers: 1000,
+  },
+  {
+    tierKey: 'premium_chat_room_1000',
+    amountLumina: 1000,
+    minActiveFollowers: 10000,
+  },
+  {
+    tierKey: 'premium_chat_room_3000',
+    amountLumina: 3000,
+    minActiveFollowers: 50000,
+  },
+] as const;
 
 export const PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES = [
   'closed',
   'artist_closed',
   'expired',
   'reported',
+  'paused_by_report',
   'blind',
   'blinded',
   'suspended',
@@ -139,6 +162,27 @@ export const PREMIUM_CHAT_BILLING_LEDGER_EVENT_NAMES = [
   'premium_chat.refund_restriction.artist_compensation.credit',
 ] as const;
 
+export const PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT = {
+  version: '2026-06-15.premium-chat-ledger-precision.v1',
+  amountStorage: 'integer_lumina_subunits',
+  luminaSubunitsPerLumina: 2,
+  minimumBillableUnitLumina: 0.5,
+  decimalAmountStoredInLedger: false,
+  roundingMode: 'reject_non_unit_multiple_before_ledger',
+  roomOpenFeeAmountSource: 'server_room_tier_policy',
+  messagePairAmountSource: 'server_visible_two_way_sentence_pair_meter',
+  duplicateChargeGuard: [
+    'room_open_idempotency_fingerprint',
+    'server_message_pair_meter_key',
+  ],
+  clientSubmittedAmountTrusted: false,
+  clientSubmittedBalanceTrusted: false,
+  clientSubmittedBonusTrusted: false,
+  walletMutationEnabled: false,
+  settlementMutationEnabled: false,
+  payoutMutationEnabled: false,
+} as const;
+
 export const PREMIUM_CHAT_REFUND_REASON_KEYS = [
   'unanswered_24h_full_refund',
   'artist_forced_close_full_refund',
@@ -219,11 +263,315 @@ export const PREMIUM_CHAT_ROOM_ACCESS_CONTROL = {
 
 export type PremiumChatRoomAccessRole = keyof typeof PREMIUM_CHAT_ROOM_ACCESS_CONTROL;
 
+export const PREMIUM_CHAT_IMAGE_MESSAGE_CONTRACT = {
+  version: '2026-06-23.premium-chat-image-message-contract.v1',
+  status: 'contract_only_mutation_disabled',
+  messageKind: 'image',
+  sourceSurface: 'premium_chat_room',
+  uploadPipeline: {
+    uploadIntentEndpoint: 'POST /api/v1/me/assets/upload-intent',
+    confirmUploadEndpoint: 'POST /api/v1/me/assets/:assetId/confirm-upload',
+    acceptedAssetType: 'image',
+    messageSubmitAcceptsAssetIdOnly: true,
+    messageSubmitAcceptsRawFileBytes: false,
+    messageSubmitAcceptsObjectUrl: false,
+    originalStorageKeyTrustedFromClient: false,
+    signedUrlTrustedFromClient: false,
+  },
+  accessControl: {
+    ownerUserCanSend: true,
+    artistOperatorCanSend: true,
+    nonOwnerCanSend: false,
+    unauthenticatedCanSend: false,
+    roomMustBeActive: true,
+    reportedOrBlindedRoomCanSend: false,
+    senderMustOwnOrBeGrantedAsset: true,
+  },
+  projection: {
+    messageType: 'image',
+    requiredFields: [
+      'messageId',
+      'roomId',
+      'senderRole',
+      'assetId',
+      'thumbnailUrl',
+      'displayUrl',
+      'width',
+      'height',
+      'fileSizeBytes',
+      'moderationStatusKey',
+      'createdAt',
+    ],
+    stableCopyKeys: {
+      altKey: 'chat.premiumRoom.image.alt',
+      pendingKey: 'chat.premiumRoom.image.pendingReview',
+      blockedKey: 'chat.premiumRoom.image.blocked',
+      unavailableKey: 'chat.premiumRoom.image.unavailable',
+    },
+    publicDeliverySource: 'GET /api/v1/assets/public/:assetId/:variant',
+    originalPrivateUrlReturned: false,
+    signedUrlReturned: false,
+    storageKeyReturned: false,
+    rawAssetMetadataReturned: false,
+    rawImageAnalysisReturned: false,
+  },
+  storageGuard: {
+    assetLookupSource: 'user_assets.assetId',
+    assetUsageRequired: 'premium_chat_image_message',
+    senderOwnershipSource: 'server_user_asset_owner_or_grant',
+    clientSubmittedStorageKeyTrusted: false,
+    clientSubmittedObjectUrlTrusted: false,
+    clientSubmittedSignedUrlTrusted: false,
+    responseUrlSource: 'public_asset_proxy_variant_url',
+    allowedResponseUrlFields: ['thumbnailUrl', 'displayUrl'],
+    forbiddenResponseUrlFields: [
+      'originalPrivateUrl',
+      'signedUrl',
+      'directStorageUrl',
+      'objectUrl',
+      'storageKey',
+    ],
+    privateOriginalReadableByMessageResponse: false,
+    signedUrlGeneratedForMessageResponse: false,
+    storageKeyLogged: false,
+    signedUrlLogged: false,
+  },
+  moderation: {
+    statusKeys: ['pending', 'safe', 'needs_review', 'blocked'],
+    reportCreatesBlindCandidate: true,
+    reportedImageDisplayedAs: 'blocked_placeholder',
+    blindMessageKey: 'chat.premiumRoom.image.blinded',
+    safeThumbnailHiddenWhenBlocked: true,
+    lightboxDisabledWhenBlocked: true,
+    rawReportReasonReturned: false,
+    rawAdminNoteReturned: false,
+  },
+  separationPolicy: {
+    textMessageMeteringSeparate: true,
+    imageMessageDoesNotCreateDonation: true,
+    supportMessageSeparate: true,
+    reportStateSeparate: true,
+    refundStateSeparate: true,
+  },
+  errorResponses: {
+    assetRequired: {
+      status: 400,
+      code: 'PREMIUM_CHAT_IMAGE_ASSET_REQUIRED',
+      messageKey: 'chat.premiumRoom.image.assetRequired',
+    },
+    assetForbidden: {
+      status: 403,
+      code: 'PREMIUM_CHAT_IMAGE_ASSET_FORBIDDEN',
+      messageKey: 'chat.premiumRoom.image.assetForbidden',
+    },
+    roomLocked: {
+      status: 409,
+      code: 'PREMIUM_CHAT_IMAGE_ROOM_LOCKED',
+      messageKey: 'chat.premiumRoom.image.roomLocked',
+    },
+    blockedByModeration: {
+      status: 409,
+      code: 'PREMIUM_CHAT_IMAGE_BLOCKED',
+      messageKey: 'chat.premiumRoom.image.blocked',
+    },
+  },
+  mutationPolicy: {
+    messageCreateEnabled: false,
+    uploadMutationEnabledByThisContract: false,
+    walletMutationEnabled: false,
+    paymentMutationEnabled: false,
+    donationMutationEnabled: false,
+    supportPointMutationEnabled: false,
+    reportMutationEnabledByThisContract: false,
+    blindStateMutationEnabledByThisContract: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+  },
+  privacy: {
+    rawChatBodyReturned: false,
+    originalPrivateUrlReturned: false,
+    signedUrlReturned: false,
+    storageKeyReturned: false,
+    rawAssetMetadataReturned: false,
+    rawReportReasonReturned: false,
+    rawAdminNoteReturned: false,
+    tokenCookieSecretDbUrlLogged: false,
+  },
+} as const;
+
 export function isPremiumChatRoomMutationBlocked(status: string) {
   return (PREMIUM_CHAT_ROOM_MUTATION_BLOCKED_STATES as readonly string[]).includes(
     status,
   );
 }
+
+export const PREMIUM_CHAT_ROOM_PARTICIPANT_PROJECTION_CONTRACT = {
+  version: '2026-06-23.premium-chat-room-participant-projection.v1',
+  status: 'read_model_contract_ready_mutation_blocked',
+  sourceTable: 'premium_chat_rooms',
+  roomType: 'artist_direct_premium_dm',
+  responseMode: 'artist_direct_reply',
+  characterChatRoomType: 'character_chat_session',
+  roomTypeSeparation: {
+    premiumRoomTypeFixed: 'artist_direct_premium_dm',
+    participantRoleFixed: true,
+    aiCharacterChatFallbackAllowed: false,
+    characterChatSessionIdReturned: false,
+    starterPromptReturned: false,
+    providerResponderReturned: false,
+  },
+  endpoints: {
+    publicList: 'GET /api/v1/chat/premium-rooms',
+    ownerList: 'GET /api/v1/chat/me/premium-rooms',
+    ownerDetail: 'GET /api/v1/chat/me/premium-rooms/:roomId/status',
+    artistDetail:
+      'GET /api/v1/creator-studio/premium-chat/rooms/:roomId/status',
+    adminReviewDetail:
+      'GET /admin/api/v1/backstage/premium-chat/rooms/:roomId/review',
+  },
+  participantRoles: {
+    publicViewer: {
+      authRequired: false,
+      roleKey: 'public_viewer',
+      projection: 'premium_room_public_list_read_model',
+      canSeeMessageBody: false,
+      canSeeCounterpartyPrivateId: false,
+      canSeeOperatorReviewFields: false,
+      canMutateRoom: false,
+    },
+    ownerUser: {
+      authRequired: true,
+      roleKey: 'owner_user',
+      projection: 'premium_room_owner_detail_read_model',
+      ownershipSource: 'premium_chat_rooms.owner_user_id',
+      canSeeOwnRoomId: true,
+      canSeeArtistSafeSummary: true,
+      canSeeRefundAndReportStatus: true,
+      canSeeArtistInternalMemo: false,
+      canSeeOperatorReviewFields: false,
+      canMutateRoom: false,
+    },
+    artistOperator: {
+      authRequired: true,
+      roleKey: 'artist_operator',
+      projection: 'premium_room_artist_detail_read_model',
+      ownershipSource: 'artist_operators.active_for_room_artist',
+      canSeeRequesterSafeSummary: true,
+      canSeeReplySla: true,
+      canSeeAdminReviewDecision: false,
+      canSeeOwnerPrivateContact: false,
+      canSeeWalletLedgerId: false,
+      canMutateRoom: false,
+    },
+    reviewOperator: {
+      authRequired: true,
+      roleKey: 'review_operator',
+      projection: 'premium_room_admin_review_detail_read_model',
+      ownershipSource: 'admin_or_backstage_review_permission',
+      canSeeModerationStatus: true,
+      canSeeRefundDecisionState: true,
+      canSeeSafeReasonKeys: true,
+      rawMessageBodyProjection: 'redacted_or_safe_hash_only',
+      canSeePrivateUserContact: false,
+      canSeeWalletLedgerId: false,
+      canMutateRoom: false,
+    },
+  },
+  projectionFieldsBySurface: {
+    publicList: [
+      'roomId',
+      'artist',
+      'tier',
+      'roomStatus',
+      'statusKey',
+      'statusLabelKey',
+      'readMode',
+      'openedAt',
+      'expiresAt',
+      'replySla',
+      'viewerCta',
+    ],
+    ownerList: [
+      'roomId',
+      'artist',
+      'tier',
+      'roomStatus',
+      'refundStatus',
+      'reportStatus',
+      'remainingUnits',
+      'openedAt',
+      'expiresAt',
+      'lastArtistReplyAt',
+      'mutationAvailability',
+    ],
+    ownerDetail: [
+      'roomId',
+      'artist',
+      'tier',
+      'roomStatus',
+      'refundStatus',
+      'reportStatus',
+      'replySla',
+      'mutationAvailability',
+      'safeMessageSummary',
+    ],
+    artistDetail: [
+      'roomId',
+      'requester',
+      'artist',
+      'tier',
+      'roomStatus',
+      'replyState',
+      'replySla',
+      'safeMessageSummary',
+      'forceCloseAvailability',
+    ],
+    reviewOperatorDetail: [
+      'roomId',
+      'artist',
+      'tier',
+      'roomStatus',
+      'reportStatus',
+      'refundDecisionState',
+      'safeReasonKey',
+      'redactedMessagePreview',
+      'operatorActionAvailability',
+    ],
+  },
+  accessPolicy: {
+    unauthenticatedOwnerEndpointStatus: 401,
+    unauthorizedOwnerOrArtistStatus: '403_or_safe_404_without_identity_leak',
+    missingRoomStatus: 404,
+    invalidRoomIdStatus: 400,
+    rawCounterpartyIdReturned: false,
+    rawUserEmailReturned: false,
+    rawUserPhoneReturned: false,
+    privateProfileReturned: false,
+  },
+  noMutation: {
+    messageSend: true,
+    artistDirectReply: true,
+    aiCharacterReply: true,
+    supportMessage: true,
+    donation: true,
+    roomOpen: true,
+    walletDebit: true,
+    walletCredit: true,
+    payment: true,
+    refund: true,
+    settlement: true,
+    payout: true,
+    operatorDecision: true,
+  },
+  privacy: {
+    rawChatBodyReturned: false,
+    rawSupportMessageReturned: false,
+    rawReportReasonReturned: false,
+    rawAdminNoteReturned: false,
+    rawProviderPayloadReturned: false,
+    tokenCookieSecretDbUrlLogged: false,
+  },
+} as const;
 
 export const PREMIUM_CHAT_ROOM_CONTRACT = {
   version: '2026-05-25.premium-chat-report-refund-api.v1',
@@ -254,6 +602,146 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       enabled: false,
       walletMutation: true,
       requiresIdempotencyKey: true,
+    },
+    entitlementGuard: {
+      version: '2026-06-05.premium-chat-room-open-entitlement-guard.v1',
+      defaultTierKey: PREMIUM_CHAT_ROOM_DEFAULT_TIER_KEY,
+      defaultUnlockedTierKeys: PREMIUM_CHAT_ROOM_DEFAULT_UNLOCKED_TIER_KEYS,
+      allowedAmountsLumina: PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
+      maxTierAmountLumina: PREMIUM_CHAT_ROOM_MAX_TIER_AMOUNT_LUMINA,
+      tierUnlockSource: 'server_unlocked_tier_keys',
+      clientSubmittedAmountTrusted: false,
+      clientSubmittedFollowerCountTrusted: false,
+      clientSubmittedDurationTrusted: false,
+      walletBalanceSource: 'wallet_accounts.cached_balance',
+      duration: {
+        baseDays: PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+        maxTotalDays: PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS,
+        artistExtensionMaxAdditionalDays:
+          PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS - PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+        serverCalculatedExpiryAuthoritative: true,
+      },
+      validationOrder: [
+        'artist_exists',
+        'tier_key_known',
+        'tier_unlocked_by_server',
+        'server_amount_from_tier',
+        'duration_server_clamped',
+        'idempotency_fingerprint',
+        'wallet_cached_balance_gte_server_amount',
+      ],
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    },
+    followerTierUnlockContract: {
+      version: '2026-06-05.premium-chat-follower-tier-unlock.v1',
+      sourceOfTruth: 'artist_follows',
+      activeFollowerWhere: {
+        status: 'active',
+        deletedAt: null,
+      },
+      thresholds: PREMIUM_CHAT_ROOM_FOLLOWER_TIER_UNLOCKS,
+      countIncludesDeletedAccounts: false,
+      clientSubmittedFollowerCountTrusted: false,
+      cachedFollowerCountTrustedForUnlock: false,
+      manualCompanyOverrideEnabled: false,
+      multipleRoomAmountsCanBeOffered: true,
+      projectionFields: [
+        'tierKey',
+        'amountLumina',
+        'minActiveFollowers',
+        'unlocked',
+        'source',
+      ],
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    },
+    followerTierPriceGuard: {
+      version: '2026-06-08.premium-chat-follower-tier-price-guard.v1',
+      baseTierKey: PREMIUM_CHAT_ROOM_DEFAULT_TIER_KEY,
+      baseAmountLumina: 300,
+      maxTierAmountLumina: PREMIUM_CHAT_ROOM_MAX_TIER_AMOUNT_LUMINA,
+      serverCountSource: 'artist_follows.active.non_deleted',
+      serverUnlockedTierKeySource: 'server_counted_active_artist_follows',
+      allowedTierAmountsLumina: PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
+      failClosedBeforeWalletMutation: true,
+      artistSubmittedTierTrusted: false,
+      artistSubmittedAmountTrusted: false,
+      clientSubmittedFollowerCountTrusted: false,
+      validationOrder: [
+        'tier_key_known',
+        'artist_active_follower_count_loaded',
+        'tier_unlocked_by_server',
+        'server_amount_from_tier',
+        'wallet_cached_balance_gte_server_amount',
+      ],
+      lockedTierError: {
+        status: 403,
+        code: 'PREMIUM_CHAT_ROOM_TIER_LOCKED',
+        messageKey: 'chat.premiumRoom.tierLocked',
+      },
+      invalidTierError: {
+        status: 400,
+        code: 'PREMIUM_CHAT_ROOM_TIER_INVALID',
+        messageKey: 'chat.premiumRoom.invalidTier',
+      },
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    },
+    creatorTierAvailabilityContract: {
+      version: '2026-06-23.premium-chat-creator-tier-availability.v1',
+      status: 'read_model_contract_ready_mutation_blocked',
+      endpoint: 'GET /api/v1/me/creator-studio/premium-chat/tier-availability',
+      enabled: false,
+      readOnly: true,
+      sourceOfTruth: {
+        activeFollowerCount: 'artist_follows.active.non_deleted',
+        artistSelectableTierKeys: 'server_unlocked_tier_keys',
+        tierAmountsLumina: PREMIUM_CHAT_ROOM_OPEN_AMOUNTS_LUMINA,
+        durationPolicy: 'server_premium_chat_room_duration_policy',
+      },
+      tiers: PREMIUM_CHAT_ROOM_FOLLOWER_TIER_UNLOCKS.map((tier) => ({
+        tierKey: tier.tierKey,
+        amountLumina: tier.amountLumina,
+        minActiveFollowers: tier.minActiveFollowers,
+        selectableWhenUnlocked: true,
+      })),
+      duration: {
+        baseDays: PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+        maxTotalDays: PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS,
+        maxExtensionAdditionalDays:
+          PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS - PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+        extensionStateKeys: [
+          'base_duration',
+          'artist_extension_available',
+          'max_duration_reached',
+        ],
+        clientSubmittedDurationTrusted: false,
+        serverCalculatedExpiryAuthoritative: true,
+      },
+      projection: {
+        activeFollowerCountReturned: true,
+        unlockedTierKeysReturned: true,
+        selectableTierKeysReturned: true,
+        lockedTierReasonKey: 'chat.premiumRoom.tierLocked',
+        extensionLimitMessageKey: 'chat.premiumRoom.extensionLimit',
+        rawFollowerRowsReturned: false,
+        walletBalanceReturned: false,
+      },
+      mutationGates: {
+        roomOpen: false,
+        roomExtension: false,
+        payment: false,
+        walletDebit: false,
+        settlement: false,
+        payout: false,
+      },
     },
     tiers: [
       {
@@ -356,6 +844,7 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       source: 'premium_chat_message',
       ledgerType: 'premium_chat_message',
       direction: 'debit',
+      precision: PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT,
       referenceType: 'premium_chat_message_meter_window',
       unit: {
         userVisibleSentenceCount: 1,
@@ -483,6 +972,32 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
       settlementMutationEnabled: false,
       payoutMutationEnabled: false,
       messageKey: 'chat.premiumRoom.expired',
+    },
+    schedulerTransition: {
+      version: '2026-06-08.premium-chat-room-scheduler-transition.v1',
+      schedulerOrAdminJobOnly: true,
+      serverClockAuthoritative: true,
+      transitionOrder: [
+        'skip_terminal_or_report_review_statuses',
+        'mark_unanswered_after_24h_as_refund_pending',
+        'mark_answered_or_non_refund_candidate_after_expires_at_as_expired',
+      ],
+      baseDurationDays: PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+      maxTotalDays: PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS,
+      maxExtensionAdditionalDays:
+        PREMIUM_CHAT_ROOM_MAX_DURATION_DAYS - PREMIUM_CHAT_ROOM_BASE_DURATION_DAYS,
+      unansweredRefundPrecedesExpiration: true,
+      expirationDoesNotCreateRefundCredit: true,
+      unansweredCandidateDoesNotCreateRefundCredit: true,
+      statusEventIdempotencyKeys: {
+        expired: 'premium-chat-room-expire:<roomId>:<expiresAtIso>',
+        refundPending:
+          'premium-chat-room-unanswered-refund-candidate:<roomId>:unanswered_24h',
+      },
+      mutationEnabled: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
     },
     unansweredRefundCandidate: {
       afterHours: 24,
@@ -755,6 +1270,113 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
         },
       ],
     },
+    splitLedgerContract: {
+      version: '2026-06-08.premium-chat-refund-split-ledger.v1',
+      sourceOfTruth: 'server_refund_policy_and_room_status',
+      grossBps: 10000,
+      walletRefundLedgerType: 'refund',
+      companyRevenueLedgerType: 'premium_chat_room_company_revenue',
+      artistCompensationLedgerType: 'premium_chat_room_artist_compensation',
+      duplicateDecisionGuard: 'premium-chat-room-refund:<roomId>:<reasonKey>',
+      adminDecisionKeyRequired: true,
+      clientSubmittedRefundRateTrusted: false,
+      clientSubmittedArtistShareTrusted: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      readModel: {
+        version: '2026-06-19.premium-chat-restricted-refund-read-model.v1',
+        status: 'read_model_contract_only',
+        table: 'future_premium_chat_refund_restriction_accounting_view',
+        sourceLedgerGroup: 'premiumChatLedgerGroupId',
+        sourceOfTruth: 'server_refund_policy_and_room_status',
+        lanesSeparated: true,
+        userRefundLane: {
+          ledgerType: 'refund',
+          direction: 'credit',
+          source: 'premium_chat_room_refund',
+          walletLedger: true,
+          settlementCandidate: false,
+          payoutCandidate: false,
+        },
+        companyRevenueLane: {
+          ledgerType: 'premium_chat_room_company_revenue',
+          direction: 'credit',
+          source: 'premium_chat_room_refund_restriction',
+          walletLedger: false,
+          settlementCandidate: false,
+          payoutCandidate: false,
+        },
+        artistCompensationLane: {
+          ledgerType: 'premium_chat_room_artist_compensation',
+          direction: 'credit',
+          source: 'premium_chat_room_refund_restriction',
+          artistCompensationBps: 1000,
+          walletLedger: false,
+          settlementCandidate: false,
+          payoutCandidate: false,
+        },
+        projectionFields: [
+          'roomId',
+          'artistId',
+          'userId',
+          'refundReasonKey',
+          'refundRestrictionStatusKey',
+          'grossLumina',
+          'userRefundLumina',
+          'companyRevenueLumina',
+          'artistCompensationLumina',
+          'ledgerEventName',
+          'ledgerType',
+          'idempotencyKeyHash',
+        ],
+        forbiddenMergedFields: [
+          'userRefundAndCompanyRevenueCombined',
+          'companyRevenueAndArtistCompensationCombined',
+          'walletSettlementSharedAmount',
+        ],
+        walletMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+      outcomes: {
+        artistForcedClose: {
+          reasonKey: 'artist_forced_close_full_refund',
+          userRefundBps: 10000,
+          companyRevenueBps: 0,
+          artistCompensationBps: 0,
+          walletLedgerEntries: ['premium_chat_room_refund'],
+          accountingLedgerEntries: [],
+        },
+        userFaultRefund70: {
+          reasonKey: 'user_fault_report_refund_70',
+          refundRestrictionStatusKey: 'refund_limited_70',
+          userRefundBps: 7000,
+          companyRevenueBps: 2000,
+          companyRevenuePercent: 20,
+          artistCompensationBps: 1000,
+          artistCompensationPercent: 10,
+          walletLedgerEntries: ['premium_chat_room_refund'],
+          accountingLedgerEntries: [
+            'premium_chat_room_company_revenue',
+            'premium_chat_room_artist_compensation',
+          ],
+        },
+        userFaultRefund50: {
+          reasonKey: 'operator_sanction_user_fault_refund_50',
+          refundRestrictionStatusKey: 'refund_limited_50',
+          userRefundBps: 5000,
+          companyRevenueBps: 4000,
+          companyRevenuePercent: 40,
+          artistCompensationBps: 1000,
+          artistCompensationPercent: 10,
+          walletLedgerEntries: ['premium_chat_room_refund'],
+          accountingLedgerEntries: [
+            'premium_chat_room_company_revenue',
+            'premium_chat_room_artist_compensation',
+          ],
+        },
+      },
+    },
     duplicateRefundProtection: {
       walletLedgerKeyPattern: 'premium-chat-room-refund:<roomId>:<reasonKey>',
       adminDecisionKeyRequired: true,
@@ -951,6 +1573,63 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     walletActionBeforeAdminDecision: 'none',
     mutationGuard: 'fail_closed_before_wallet_or_message_mutation',
     messageKey: 'chat.premiumRoom.report.processing',
+    reportPauseAuditGuard: {
+      version: '2026-06-05.premium-chat-report-pause-audit-guard.v1',
+      reportSubmitResult: {
+        roomStatusKey: 'paused_by_report',
+        reportStatusKey: 'reported',
+        nextReviewStatusKeys: ['blinded', 'suspended', 'admin_review'],
+        userCanSendMessage: false,
+        artistCanReply: false,
+        canDonate: false,
+        communicationRankingEligible: false,
+        donationRankingEligible: false,
+      },
+      publicProjection: {
+        statusKeySource: 'messageKey',
+        rawChatBodyReturned: false,
+        rawReportReasonReturned: false,
+        rawEvidenceReturned: false,
+        adminNoteReturned: false,
+      },
+      adminReviewProjection: {
+        permissionKeys: ['payments:read', 'community:read'],
+        rawChatBodyReturnedToGeneralApi: false,
+        fullConversationAccessRequiresAdminReviewPermission: true,
+        reportReasonKeyReturned: true,
+        rawReportBodyReturned: false,
+      },
+      automaticMutation: {
+        refund: false,
+        walletLedger: false,
+        premiumChatAccountingLedger: false,
+        settlement: false,
+        payout: false,
+        supportPointLedger: false,
+      },
+      auditFields: [
+        'roomId',
+        'reportId',
+        'reporterUserId',
+        'reportedUserId',
+        'roomStatusKey',
+        'reportStatusKey',
+        'reasonKey',
+        'safeEvidenceHash',
+        'idempotencyKeyHash',
+      ],
+      forbiddenAuditFields: [
+        'rawChatBody',
+        'rawConversationBody',
+        'rawReportBody',
+        'rawReportReason',
+        'rawEvidence',
+        'token',
+        'cookie',
+        'password',
+        'databaseUrl',
+      ],
+    },
   },
   reportRefundApi: {
     version: '2026-05-25.premium-chat-report-refund-api.v1',
@@ -1040,6 +1719,135 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
         payoutMutation: false,
       },
     },
+    auditGuard: {
+      version: '2026-06-05.premium-chat-refund-audit-guard.v1',
+      mutationEnabled: false,
+      actions: [
+        'premium_chat.report.submit',
+        'premium_chat.report.status_change',
+        'premium_chat.refund.unanswered_24h_candidate',
+        'premium_chat.refund.artist_forced_close',
+        'premium_chat.refund.operator_sanction_close',
+        'premium_chat.refund.decision_recorded',
+      ],
+      statusTransitions: {
+        reportSubmit: {
+          roomStatusKey: 'paused_by_report',
+          reportStatusKey: 'reported',
+          walletMutation: false,
+          refundMutation: false,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+        unanswered24h: {
+          roomStatusKey: 'refund_pending',
+          refundReasonKey: 'unanswered_24h_full_refund',
+          walletMutation: 'server_refund_after_policy_decision_only',
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+        artistForcedClose: {
+          roomStatusKey: 'refund_pending',
+          closeStatusKey: 'closed_by_artist',
+          refundReasonKey: 'artist_forced_close_full_refund',
+          artistCompensationBps: 0,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+        userFault70: {
+          roomStatusKey: 'closed_by_operator',
+          refundRestrictionStatusKey: 'refund_limited_70',
+          refundReasonKey: 'user_fault_report_refund_70',
+          userRefundBps: 7000,
+          companyRevenueBps: 2000,
+          artistCompensationBps: 1000,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+        userFault50: {
+          roomStatusKey: 'closed_by_operator',
+          refundRestrictionStatusKey: 'refund_limited_50',
+          refundReasonKey: 'operator_sanction_user_fault_refund_50',
+          userRefundBps: 5000,
+          companyRevenueBps: 4000,
+          artistCompensationBps: 1000,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+      },
+      roomPauseRefundAuditChain: {
+        version: '2026-06-08.premium-chat-room-pause-refund-audit-chain.v1',
+        storageRequiredBeforeMutation: [
+          'premium_chat_room_reports',
+          'premium_chat_room_status_events',
+          'premium_chat_room_refund_decisions',
+          'premium_chat_accounting_ledger',
+        ],
+        reportSubmit: {
+          roomStatusKey: 'paused_by_report',
+          reportStatusKey: 'reported',
+          auditAction: 'premium_chat.report.submit',
+          messageMutation: false,
+          donationMutation: false,
+          walletMutation: false,
+          refundMutation: false,
+        },
+        operatorReview: {
+          reviewStatusKeys: ['blinded', 'suspended', 'admin_review'],
+          auditAction: 'premium_chat.report.status_change',
+          rawReportBodyReturned: false,
+          rawAdminNoteReturned: false,
+        },
+        refundDecision: {
+          allowedRoomStatusKeys: [
+            'paused_by_report',
+            'refund_pending',
+            'closed_by_artist',
+            'closed_by_operator',
+          ],
+          auditAction: 'premium_chat.refund.decision_recorded',
+          refundLedgerCreatedOnlyAfterDecision: true,
+          pgRefundMutationEnabled: false,
+          settlementMutation: false,
+          payoutMutation: false,
+        },
+      },
+      requiredTraceFields: [
+        'roomId',
+        'artistId',
+        'actorUserId',
+        'actionKey',
+        'roomStatusKey',
+        'refundReasonKey',
+        'refundRestrictionStatusKey',
+        'refundPolicyKey',
+        'reportDecisionId',
+        'idempotencyKeyHash',
+      ],
+      forbiddenAuditFields: [
+        'rawChatBody',
+        'rawReportBody',
+        'rawReportReason',
+        'rawAdminNote',
+        'rawWalletLedgerId',
+        'providerRefundId',
+        'paymentReceipt',
+        'token',
+        'cookie',
+        'password',
+        'secret',
+        'databaseUrl',
+      ],
+      walletLedgerMutation: 'refund_credit_only_after_policy_decision',
+      accountingLedgerSeparation: {
+        refundCreditLedgerType: 'refund',
+        companyRevenueLedgerType: 'premium_chat_room_company_revenue',
+        artistCompensationLedgerType: 'premium_chat_room_artist_compensation',
+        restrictedRevenueSplitWalletLedger: false,
+        settlementMutation: false,
+        payoutMutation: false,
+      },
+    },
     idempotency: {
       acceptedFrom: ['Idempotency-Key header', 'body.idempotencyKey'],
       rawIdempotencyKeyLogged: false,
@@ -1108,6 +1916,7 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
           'status',
           'report',
           'refund',
+          'replySla',
           'lastStatusEventAt',
           'createdAt',
           'updatedAt',
@@ -1126,6 +1935,21 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
         room: 'premiumRoomStatus admin-safe projection',
         report: 'premiumRoomReportStatus admin-safe projection',
         refund: 'premiumRoomRefundStatus admin-safe projection',
+        replySla: {
+          source: 'same premiumRoomStatus.replySla projection as owner/artist read',
+          clockSource: 'room.openedAt + 24h',
+          refundCandidateEligibleStatuses: ['opened', 'active'],
+          answeredEvidenceExcludesRefundCandidate: [
+            'room.status=artist_answered',
+            'lastArtistReplyAt_present',
+            'hasArtistAnswer=true',
+          ],
+          notificationMutationEnabled: false,
+          refundMutationEnabled: false,
+          walletMutationEnabled: false,
+          settlementMutationEnabled: false,
+          payoutMutationEnabled: false,
+        },
         moderationTimeline: {
           statusEventsReturned: true,
           statusEventKeysOnly: true,
@@ -1198,6 +2022,145 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
         accountingLedger: true,
         settlement: true,
         payout: true,
+      },
+    },
+    retentionReadModel: {
+      version: '2026-06-23.premium-chat-report-refund-retention-read-model.v1',
+      status: 'read_model_contract_only',
+      enabled: false,
+      readOnly: true,
+      table: 'future_premium_chat_report_refund_retention_view',
+      sourceOfTruth: [
+        'premium_chat_rooms',
+        'premium_chat_room_reports',
+        'premium_chat_room_refund_decisions',
+        'premium_chat_accounting_ledger',
+      ],
+      actorFaultLanes: {
+        userFault: {
+          source: 'user_report_or_operator_sanction_decision',
+          allowedRestrictionStatusKeys: ['refund_limited_70', 'refund_limited_50'],
+          walletDebitMutationEnabled: false,
+          settlementMutationEnabled: false,
+          payoutMutationEnabled: false,
+        },
+        artistForcedClose: {
+          source: 'artist_force_close_decision',
+          refundReasonKey: 'artist_forced_close_full_refund',
+          userRefundBps: 10000,
+          artistCompensationBps: 0,
+          settlementMutationEnabled: false,
+          payoutMutationEnabled: false,
+        },
+        operatorSanction: {
+          source: 'operator_sanction_close_decision',
+          allowedRestrictionStatusKeys: ['refund_limited_70', 'refund_limited_50'],
+          rawAdminNoteReturned: false,
+          settlementMutationEnabled: false,
+          payoutMutationEnabled: false,
+        },
+      },
+      retentionOutcomes: {
+        userFault70: {
+          refundReasonKey: 'user_fault_report_refund_70',
+          refundRestrictionStatusKey: 'refund_limited_70',
+          userRefundBps: 7000,
+          companyRevenueBps: 2000,
+          artistCompensationBps: 1000,
+          artistCompensationRatePercent: 10,
+          walletRefundLedgerType: 'refund',
+          companyRevenueLedgerType: 'premium_chat_room_company_revenue',
+          artistCompensationLedgerType: 'premium_chat_room_artist_compensation',
+        },
+        userFault50: {
+          refundReasonKey: 'operator_sanction_user_fault_refund_50',
+          refundRestrictionStatusKey: 'refund_limited_50',
+          userRefundBps: 5000,
+          companyRevenueBps: 4000,
+          artistCompensationBps: 1000,
+          artistCompensationRatePercent: 10,
+          walletRefundLedgerType: 'refund',
+          companyRevenueLedgerType: 'premium_chat_room_company_revenue',
+          artistCompensationLedgerType: 'premium_chat_room_artist_compensation',
+        },
+      },
+      projectionFields: [
+        'roomId',
+        'artistId',
+        'userId',
+        'actorFaultLaneKey',
+        'roomStatusKey',
+        'reportStatusKey',
+        'refundReasonKey',
+        'refundRestrictionStatusKey',
+        'grossLumina',
+        'userRefundLumina',
+        'companyRevenueLumina',
+        'artistCompensationLumina',
+        'reportDecisionId',
+        'idempotencyKeyHash',
+        'createdAt',
+        'updatedAt',
+      ],
+      stateSeparation: {
+        reportStateSeparate: true,
+        roomLifecycleStateSeparate: true,
+        refundDecisionStateSeparate: true,
+        walletLedgerStateSeparate: true,
+        settlementStateSeparate: true,
+        payoutStateSeparate: true,
+      },
+      mutationPolicy: {
+        reportMutationEnabled: false,
+        refundDecisionMutationEnabled: false,
+        walletCreditMutationEnabled: false,
+        walletDebitMutationEnabled: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+      privacy: {
+        rawChatBodyReturned: false,
+        rawReportBodyReturned: false,
+        rawReportReasonReturned: false,
+        rawAdminNoteReturned: false,
+        rawWalletLedgerIdReturned: false,
+        providerRefundIdReturned: false,
+        tokenCookieSecretDbUrlLogged: false,
+      },
+    },
+    forcedCloseRefundGuard: {
+      version: '2026-06-24.premium-chat-forced-close-refund-guard.v1',
+      status: 'read_model_contract_only',
+      readOnly: true,
+      artistForcedClose: {
+        actionKey: 'artist_force_close',
+        refundReasonKey: 'artist_forced_close_full_refund',
+        userRefundBps: 10000,
+        companyRevenueBps: 0,
+        artistCompensationBps: 0,
+        userFaultRestrictionAllowed: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+      userFaultRestriction: {
+        actionKey: 'operator_sanction_close',
+        allowedRefundRestrictionStatusKeys: [
+          'refund_limited_70',
+          'refund_limited_50',
+        ],
+        artistCompensationBps: 1000,
+        artistCompensationSource: 'non_refunded_portion',
+        clientSubmittedRefundRateTrusted: false,
+        clientSubmittedArtistShareTrusted: false,
+        settlementMutationEnabled: false,
+        payoutMutationEnabled: false,
+      },
+      separationPolicy: {
+        artistForcedCloseUsesUserFaultRestriction: false,
+        artistForcedCloseCreatesArtistCompensation: false,
+        userFaultRestrictionCreatesArtistCompensation: true,
+        walletRefundLedgerSeparateFromArtistCompensationLedger: true,
+        settlementAndPayoutRemainReadOnly: true,
       },
     },
     projections: {
@@ -1309,6 +2272,107 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     tokenCookieSecretDbUrlLogged: false,
     signedUrlLogged: false,
   },
+  imageAttachmentPolicy: {
+    version: '2026-06-17.premium-chat-image-attachment-projection.v1',
+    enabled: false,
+    uploadMutationEnabled: false,
+    messageMutationEnabled: false,
+    walletMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+    allowedAssetType: 'image',
+    responseProjection: {
+      assetId: '<uuid>',
+      safeThumbnailUrl: '<public asset proxy thumbnail URL>',
+      displayUrl: '<public asset proxy display URL>',
+      width: '<number|null>',
+      height: '<number|null>',
+      fileSizeBytes: '<decimal string|null>',
+      moderationStatus: '<pending|safe|needs_review|blocked>',
+    },
+    requiredResponseFields: [
+      'assetId',
+      'safeThumbnailUrl',
+      'displayUrl',
+      'width',
+      'height',
+      'fileSizeBytes',
+      'moderationStatus',
+    ],
+    forbiddenResponseFields: [
+      'originalPrivateUrl',
+      'storageKey',
+      'signedUrl',
+      'rawMetadata',
+      'walletLedgerId',
+      'token',
+      'cookie',
+      'password',
+      'databaseUrl',
+    ],
+    deliverySource: 'GET /api/v1/assets/public/:assetId/:variant',
+    storageGuard: {
+      assetTable: 'user_assets',
+      assetUsage: 'premium_chat_image_message',
+      originalStorageRequired: true,
+      derivativeVariantsRequired: ['thumbnail', 'display'],
+      originalVisibility: 'owner_and_admin_only',
+      thumbnailVisibility: 'room_participants_until_report_or_block',
+      displayVisibility: 'room_participants_until_report_or_block',
+      originalUrlReturnedToClient: false,
+      directStorageUrlReturned: false,
+      signedUrlLogged: false,
+      storageKeyLogged: false,
+      mutationOpenedByThisContract: false,
+    },
+    visibilityByModerationStatus: {
+      pending: {
+        thumbnailVisible: true,
+        originalVisible: false,
+        lightboxEnabled: false,
+        statusKey: 'pending',
+      },
+      safe: {
+        thumbnailVisible: true,
+        originalVisible: false,
+        lightboxEnabled: true,
+        statusKey: 'safe',
+      },
+      needs_review: {
+        thumbnailVisible: false,
+        originalVisible: false,
+        lightboxEnabled: false,
+        statusKey: 'needs_review',
+      },
+      blocked: {
+        thumbnailVisible: false,
+        originalVisible: false,
+        lightboxEnabled: false,
+        statusKey: 'blocked',
+      },
+    },
+    reportBlindGuard: {
+      reportStatusKeys: ['reported', 'paused_by_report', 'blinded', 'admin_review'],
+      imageProjectionMode: 'blind_placeholder_until_admin_cleared',
+      thumbnailVisibleAfterReport: false,
+      displayVisibleAfterReport: false,
+      originalVisibleAfterReport: false,
+      lightboxEnabledAfterReport: false,
+      userMessageKey: 'chat.premiumRoom.image.blinded',
+      artistMessageKey: 'chat.premiumRoom.image.blinded',
+      reportMutationOpenedByThisContract: false,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    },
+    originalPrivateUrlReturned: false,
+    storageKeyReturned: false,
+    signedUrlReturned: false,
+    rawMetadataReturned: false,
+    walletLedgerIdReturned: false,
+  },
+  imageMessage: PREMIUM_CHAT_IMAGE_MESSAGE_CONTRACT,
+  participantProjection: PREMIUM_CHAT_ROOM_PARTICIPANT_PROJECTION_CONTRACT,
   responsePolicy: {
     stableKeysOnlyForUserFacingCopy: true,
     rawEnumUserCopyAllowed: false,
@@ -1349,6 +2413,46 @@ export function premiumChatRoomAllowedTierKeysForServerUnlocks(
     .forEach((tierKey) => allowed.add(tierKey));
 
   return premiumChatRoomKnownTierKeys().filter((tierKey) => allowed.has(tierKey));
+}
+
+export function resolvePremiumChatRoomFollowerTierUnlocks(input: {
+  activeFollowerCount?: unknown;
+  clientSubmittedFollowerCount?: unknown;
+} = {}) {
+  const activeFollowerCount =
+    typeof input.activeFollowerCount === 'number' &&
+    Number.isInteger(input.activeFollowerCount) &&
+    input.activeFollowerCount > 0
+      ? input.activeFollowerCount
+      : 0;
+  const tiers = PREMIUM_CHAT_ROOM_FOLLOWER_TIER_UNLOCKS.map((tier) => ({
+    ...tier,
+    unlocked: activeFollowerCount >= tier.minActiveFollowers,
+    source: 'server_counted_active_artist_follows',
+  }));
+
+  return {
+    activeFollowerCount,
+    unlockedTierKeys: tiers
+      .filter((tier) => tier.unlocked)
+      .map((tier) => tier.tierKey),
+    tiers,
+    sourceOfTruth: 'artist_follows',
+    activeFollowerWhere: {
+      status: 'active',
+      deletedAt: null,
+    },
+    clientSubmittedFollowerCountTrusted: false,
+    clientSubmittedFollowerCountIgnored:
+      input.clientSubmittedFollowerCount !== undefined,
+    cachedFollowerCountTrustedForUnlock: false,
+    countIncludesDeletedAccounts: false,
+    manualCompanyOverrideEnabled: false,
+    multipleRoomAmountsCanBeOffered: true,
+    walletMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+  } as const;
 }
 
 export function resolvePremiumChatRoomOpenPolicy(input: {
@@ -1634,6 +2738,72 @@ export function resolvePremiumChatRoomUnansweredRefundCandidate(input: {
   } as const;
 }
 
+export function resolvePremiumChatRoomSchedulerTransition(input: {
+  currentStatus?: string;
+  hasArtistAnswer?: boolean;
+  hoursSinceOpen?: unknown;
+  expiresAtElapsed?: boolean;
+} = {}) {
+  const currentStatus = input.currentStatus ?? 'active';
+  const projection = resolvePremiumChatRoomLifecycleProjection(currentStatus);
+  const unansweredCandidate = resolvePremiumChatRoomUnansweredRefundCandidate({
+    currentStatus,
+    hasArtistAnswer: input.hasArtistAnswer,
+    hoursSinceOpen: input.hoursSinceOpen,
+  });
+
+  if (unansweredCandidate.candidate) {
+    return {
+      transition: true,
+      toStatusKey: 'refund_pending',
+      actionKey: 'unanswered_24h_refund_candidate',
+      reasonKey: 'unanswered_24h_full_refund',
+      statusEventIdempotencyKeyPattern:
+        PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.schedulerTransition
+          .statusEventIdempotencyKeys.refundPending,
+      automaticRefundCredit: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      messageKey: 'chat.premiumRoom.refund.unanswered24h',
+    } as const;
+  }
+
+  const canExpire =
+    input.expiresAtElapsed === true && projection.statusKey === 'active';
+
+  if (canExpire) {
+    return {
+      transition: true,
+      toStatusKey: 'expired',
+      actionKey: 'room_expired',
+      reasonKey: 'room_expired',
+      statusEventIdempotencyKeyPattern:
+        PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle.schedulerTransition
+          .statusEventIdempotencyKeys.expired,
+      automaticRefundCredit: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+      messageKey: 'chat.premiumRoom.expired',
+    } as const;
+  }
+
+  return {
+    transition: false,
+    toStatusKey: projection.statusKey,
+    reasonKey:
+      projection.statusKey === 'active'
+        ? 'not_due'
+        : 'terminal_or_review_status_not_scheduler_mutated',
+    automaticRefundCredit: false,
+    walletMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
+    messageKey: projection.messageKey,
+  } as const;
+}
+
 export function resolvePremiumChatRoomRefundPolicy(input: {
   policyKey: string;
   clientSubmittedRefundBps?: unknown;
@@ -1717,6 +2887,10 @@ export function resolvePremiumChatMessageChargePolicy(input: {
     artistVisibleSentenceCount,
   );
   const chargeLumina = chargeablePairCount;
+  const precision = resolvePremiumChatLedgerPrecision({
+    serverAmountLumina: chargeLumina,
+    clientSubmittedAmountLumina: input.clientSubmittedChargeLumina,
+  });
   const clientSubmittedChargeLumina =
     typeof input.clientSubmittedChargeLumina === 'number'
       ? input.clientSubmittedChargeLumina
@@ -1734,6 +2908,9 @@ export function resolvePremiumChatMessageChargePolicy(input: {
     artistVisibleSentenceCount,
     chargeablePairCount,
     chargeLumina,
+    chargeLedgerUnits: precision.serverAmountLedgerUnits,
+    ledgerUnitScale: precision.luminaSubunitsPerLumina,
+    ledgerAmountStorage: precision.amountStorage,
     unpairedUserSentenceCount:
       userVisibleSentenceCount - chargeablePairCount,
     unpairedArtistSentenceCount:
@@ -1752,6 +2929,46 @@ export function resolvePremiumChatMessageChargePolicy(input: {
       clientSubmittedChargeLumina !== chargeLumina,
     rawMessageBodyRequired: false,
     messageKey: 'chat.premiumRoom.messageChargePolicy',
+  } as const;
+}
+
+export function resolvePremiumChatLedgerPrecision(input: {
+  serverAmountLumina?: unknown;
+  clientSubmittedAmountLumina?: unknown;
+}) {
+  const serverAmountLumina = nonNegativeNumber(input.serverAmountLumina);
+  const serverAmountLedgerUnits =
+    serverAmountLumina * PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT.luminaSubunitsPerLumina;
+  const serverAmountValid =
+    Number.isInteger(serverAmountLedgerUnits) && serverAmountLumina >= 0;
+  const clientSubmittedAmountLumina =
+    typeof input.clientSubmittedAmountLumina === 'number'
+      ? input.clientSubmittedAmountLumina
+      : typeof input.clientSubmittedAmountLumina === 'string'
+        ? Number(input.clientSubmittedAmountLumina)
+        : null;
+
+  return {
+    amountStorage: PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT.amountStorage,
+    luminaSubunitsPerLumina:
+      PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT.luminaSubunitsPerLumina,
+    minimumBillableUnitLumina:
+      PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT.minimumBillableUnitLumina,
+    serverAmountLumina,
+    serverAmountLedgerUnits: serverAmountValid ? serverAmountLedgerUnits : null,
+    serverAmountValid,
+    decimalAmountStoredInLedger: false,
+    roundingMode: PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT.roundingMode,
+    clientSubmittedAmountTrusted: false,
+    clientSubmittedAmountIgnored:
+      input.clientSubmittedAmountLumina !== undefined,
+    clientSubmittedAmountMismatch:
+      clientSubmittedAmountLumina !== null &&
+      Number.isFinite(clientSubmittedAmountLumina) &&
+      clientSubmittedAmountLumina !== serverAmountLumina,
+    walletMutationEnabled: false,
+    settlementMutationEnabled: false,
+    payoutMutationEnabled: false,
   } as const;
 }
 

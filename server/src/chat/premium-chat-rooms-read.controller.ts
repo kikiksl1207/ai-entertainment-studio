@@ -9,7 +9,10 @@ import {
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { buildArtistUrlKnowledgePreviewFixture } from './artist-url-knowledge-preview-fixture';
 import { ChatService } from './chat.service';
+import { buildOpeningGreetingSessionPreviewFixture } from './opening-greeting-session-preview-fixture';
+import { buildPremiumChatRefundStatusPreviewFixture } from './premium-chat-refund-status-preview-fixture';
 
 type PremiumRoomListQuery = {
   artistSlug?: string;
@@ -22,9 +25,38 @@ type PremiumRoomListQuery = {
 export class PremiumChatRoomsReadController {
   constructor(private readonly chatService: ChatService) {}
 
+  @Get('chat/premium-rooms/refund-status-preview-fixture')
+  getPremiumRoomRefundStatusPreviewFixture() {
+    return buildPremiumChatRefundStatusPreviewFixture();
+  }
+
+  @Get('chat/artist-url-knowledge-preview-fixture')
+  getArtistUrlKnowledgePreviewFixture() {
+    return buildArtistUrlKnowledgePreviewFixture();
+  }
+
+  @Get('chat/opening-greeting/session-preview-fixture')
+  getOpeningGreetingSessionPreviewFixture() {
+    return buildOpeningGreetingSessionPreviewFixture();
+  }
+
   @Get('chat/premium-rooms')
   getPremiumRooms(@Query() query: PremiumRoomListQuery) {
     return this.chatService.getPremiumRoomList({
+      artistSlug: query.artistSlug,
+      status: query.status,
+      take: this.optionalPositiveInt(query.take),
+      cursor: query.cursor,
+    });
+  }
+
+  @Get('chat/me/premium-rooms')
+  @UseGuards(JwtAuthGuard)
+  getMyPremiumRooms(
+    @CurrentUser() user: AuthUser,
+    @Query() query: PremiumRoomListQuery,
+  ) {
+    return this.chatService.getMyPremiumRoomList(user.id, {
       artistSlug: query.artistSlug,
       status: query.status,
       take: this.optionalPositiveInt(query.take),
