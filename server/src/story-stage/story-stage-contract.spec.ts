@@ -2,6 +2,7 @@ import {
   STORY_STAGE_AI_ARTIST_SETTLEMENT_SPLIT_SKELETON,
   STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT,
   STORY_STAGE_AUTHOR_INTERRUPTION_REFUND_PENALTY_READ_MODEL,
+  STORY_STAGE_COMPANION_BILLING_PROJECTION_CONTRACT,
   STORY_STAGE_CONTRACT,
   STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD,
   STORY_STAGE_PACK_CHAPTER_SESSION_CONTRACT,
@@ -176,6 +177,82 @@ describe('Story Stage contract skeleton', () => {
         'storyAuthorBasisLumina',
         'storyAuthorMaxShareLumina',
         'platformRemainderLumina',
+      ]),
+    );
+  });
+
+  it('separates story entry and AI companion roster billing as read-only preview', () => {
+    const projection = STORY_STAGE_COMPANION_BILLING_PROJECTION_CONTRACT;
+
+    expect(STORY_STAGE_CONTRACT.companionBillingProjection).toBe(projection);
+    expect(projection).toMatchObject({
+      version: '2026-06-27.story-companion-billing-projection.v1',
+      status: 'read_model_contract_only',
+      readModel: 'story_companion_billing_preview',
+      storyEntryCharge: {
+        source: 'story_purchase_ledger.chapter_single_or_season_bundle',
+        amountField: 'storyEntryCostLumina',
+        alreadyEntitledAmountLumina: 0,
+        clientSubmittedEntryCostTrusted: false,
+      },
+      companionRosterPolicy: {
+        freePrologue: {
+          maxAiCompanions: 1,
+          paidExpansionAllowed: false,
+          companionCostLumina: 0,
+        },
+        paidStory: {
+          maxAiCompanions: 5,
+          firstCompanionFree: true,
+          paidCompanionSlots: 4,
+          addOrSwapCostSource: 'server_story_product_policy',
+          clientSubmittedCompanionCostTrusted: false,
+        },
+      },
+      costSeparation: {
+        storyEntryAndCompanionCostSameField: false,
+        storyEntryCostField: 'storyEntryCostLumina',
+        companionCostField: 'companionRosterCostLumina',
+        doubleChargeAllowed: false,
+      },
+      rosterChangeStates: {
+        add: {
+          action: 'add_companion',
+          costSource: 'server_story_product_policy',
+          preservesChapterEntitlement: true,
+        },
+        swap: {
+          action: 'swap_companion',
+          costSource: 'server_story_product_policy',
+          preservesChapterEntitlement: true,
+        },
+        leave: {
+          action: 'leave_companion',
+          costLumina: 0,
+          refundPreviewOnly: true,
+          preservesPurchasedStoryAccess: true,
+        },
+      },
+      privacy: {
+        rawPaymentLedgerIdReturned: false,
+        rawWalletLedgerIdReturned: false,
+        privateArtistNotesReturned: false,
+        providerPromptReturned: false,
+      },
+    });
+    expect(
+      Object.values(projection.mutationPolicy).every(
+        (enabled) => enabled === false,
+      ),
+    ).toBe(true);
+    expect(projection.projectionFields).toEqual(
+      expect.arrayContaining([
+        'storyEntryCostLumina',
+        'companionRosterCostLumina',
+        'freeCompanionCount',
+        'paidCompanionCount',
+        'totalPreviewLumina',
+        'rosterChangeState',
       ]),
     );
   });

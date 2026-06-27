@@ -228,6 +228,15 @@ wallet/Lumina, or touch settlement/payout.
   wallet, settlement, payout, and story-progress mutation remain disabled.
 - The projection must not expose raw persona prompts, raw world bible text,
   provider payloads, private artist notes, or admin memos.
+- #1169 exports `STORY_STAGE_COMPANION_BILLING_PROJECTION_CONTRACT` as the
+  backend read model for story entry cost vs AI companion roster cost. Free
+  prologue allows at most one AI companion with no paid expansion; paid story
+  mode may show up to five AI companions with the first companion free and
+  add/swap cost sourced only from server story product policy. Leaving a
+  companion costs `0L` and preserves purchased story access. Story entry cost,
+  companion roster cost, free companion count, paid companion count, and total
+  preview remain separate fields. This does not create story purchase, story
+  progress, companion roster, wallet, settlement, payout, or provider mutation.
 
 ### Story Stage Direct Action Validation
 
