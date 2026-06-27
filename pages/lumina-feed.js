@@ -39,6 +39,31 @@ const luminaFeedSamplePosts = [
   { id: 30, postType: "fan_post",          artistSlug: null,          authorType: "팬",            body: "여기 피드는 그냥 소식창이 아니라 무대가 만들어지는 과정을 보는 느낌이면 좋겠다. 그래서 더 자주 들어올 듯." }
 ];
 
+/* #1174/#1182/#1202 — preview/fixture 검수용 작성자 신원 보강.
+   팬·데뷔 샘플 글에 read-only authorPublicHandle/authorUserId/authorName + 팔로잉 상태를 부여해
+   차단 진입점·작성자 프로필(팔로워/팔로잉) 라우팅·팔로우 버튼이 화면에 노출되도록 한다.
+   아티스트 글(artist_post)은 artistSlug로 신원이 해결되므로 그대로 둔다.
+   순수 시각 검수용 더미 데이터이며 실제 네트워크/mutation은 발생하지 않는다. */
+const FEED_FIXTURE_FAN_NAMES = ["루미나_민지", "무대앞_해든", "조용한_관객", "서랍속_별", "오늘의_픽러", "팬클럽_여울"];
+function enrichSampleFeedAuthor(post, i) {
+  if (!post || post.postType === "artist_post") return post;
+  if (post.authorPublicHandle || post.authorUserId) return post;
+  const isDebut = post.postType === "debut_artist_post";
+  const id = Number(post.id) || i;
+  const name = isDebut ? ("데뷔준비_" + String.fromCharCode(65 + (i % 6))) : FEED_FIXTURE_FAN_NAMES[i % FEED_FIXTURE_FAN_NAMES.length];
+  const follows = (i % 3 === 0); // 일부는 이미 팔로잉 상태 — 팔로워/팔로잉 관계 fixture
+  return Object.assign({}, post, {
+    authorName: post.authorName || name,
+    authorPublicHandle: (isDebut ? "debut" : "fan") + (1001 + id),
+    authorUserId: 90000 + id,
+    viewer: Object.assign({}, post.viewer, {
+      isFollowingAuthor: follows,
+      canFollowAuthor: !follows,
+      canUnfollowAuthor: follows,
+    }),
+  });
+}
+
 /* ── 렌더: 루미나 피드 (lumina-feed.html) ──
    #luminaFeedList 컨테이너에 카드 세로 리스트 출력. 다른 페이지면 no-op.
    #022 적용: 운영 API → samples API → inline 3단 fallback.
@@ -225,7 +250,7 @@ async function loadLuminaFeedData(scope = "all") {
     } catch (_) { return false; }
   })();
   if (_isPreviewEnv && Array.isArray(luminaFeedSamplePosts) && luminaFeedSamplePosts.length) {
-    _luminaFeedItems = luminaFeedSamplePosts.map(normalizeFeedPost);
+    _luminaFeedItems = luminaFeedSamplePosts.map(enrichSampleFeedAuthor).map(normalizeFeedPost);
     _luminaFeedSource = "preview_fixture";
     console.info("[Lumina] 운영 API 실패 — 로컬/preview 환경, fixture " + _luminaFeedItems.length + "건으로 대체");
   } else {
