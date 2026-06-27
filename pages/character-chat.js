@@ -217,7 +217,8 @@
     thread.insertAdjacentHTML("beforeend", `
       <li class="dm-bubble dm-bubble-user"><div class="dm-bubble-body"><p class="dm-bubble-text">오늘 무대 사진 한 장만 보여줄 수 있어요?</p><span class="dm-bubble-time">${time}</span></div></li>
       <li class="dm-bubble dm-bubble-artist dm-bubble-image"><div class="dm-bubble-avatar" aria-hidden="true"></div><div class="dm-bubble-body"><img class="dm-bubble-img" src="${safe(img)}" alt="${safe(name)} 무대 사진 샘플" onerror="this.style.display='none'" /><p class="dm-bubble-caption">리허설 끝나고 한 컷 찍었어요. 조명이 예뻐서요.</p><span class="dm-bubble-time">${time}</span></div></li>
-      <li class="dm-bubble dm-bubble-artist"><div class="dm-bubble-avatar" aria-hidden="true"></div><div class="dm-bubble-body"><p class="dm-bubble-text">보내줘서 고마워요. 이런 순간이 오래 기억에 남아요.</p><span class="dm-bubble-time">${time}</span></div></li>
+      <li class="dm-bubble dm-bubble-user dm-bubble-image"><div class="dm-bubble-body"><img class="dm-bubble-img" src="${safe(img)}" alt="팬이 보낸 응원 사진 샘플" onerror="this.style.display='none'" /><span class="dm-bubble-time">${time}</span></div></li>
+      <li class="dm-bubble dm-bubble-artist"><div class="dm-bubble-avatar" aria-hidden="true"></div><div class="dm-bubble-body"><p class="dm-bubble-text">사진 고마워요. 이런 순간이 오래 기억에 남아요.</p><span class="dm-bubble-time">${time}</span></div></li>
     `);
   }
 
