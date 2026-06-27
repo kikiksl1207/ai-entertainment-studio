@@ -1899,15 +1899,32 @@ body.is-feed-repost-open { overflow: hidden; }
 .feed-repost-counter[data-state="warn"]   { color: #ffc97a; }
 .feed-repost-counter[data-state="danger"] { color: #ff6b6b; font-weight: 600; }
 
-/* ── #447 — 390px 카드 액션바 폴리싱 ──────────────────────────────────────────
-   390px (≤420px) 에서 left-group 버튼 4개 + 공유가 338px 안에 들어오지 않아
-   줄바꿈이 발생하는 문제 수정.
-   타래 잇기·리포스트는 아이콘+aria-label 유지, 라벨 span만 숨김. (공유처럼) */
-@media (max-width: 420px) {
-  .feed-post-actions { gap: 8px; }
-  .feed-post-actions-left { gap: 8px; }
+/* ── #1089/#1145 — 모바일(≤480px) 컴팩트 액션바 ────────────────────────────────
+   기존(#447/#732): 응원·댓글이 텍스트 라벨을 유지해 left 그룹이 넓어지고,
+   right 그룹(공유/수정/삭제)이 통째로 둘째 줄로 밀려 공유·퍼나르기가
+   "한눈에" 안 보이는 FAIL.
+   수정: left/right 그룹을 display:contents 로 풀어 7개 버튼을 부모의
+   space-between 한 줄에 고르게 흘리고, 모든 텍스트 라벨을 숨겨 아이콘+카운트만
+   남긴다. 응원/댓글 숫자, 퍼나르기·공유 아이콘이 한 줄에서 바로 보인다.
+   다중 이미지 4장 그리드·타래 시각선은 변경하지 않는다. */
+@media (max-width: 480px) {
+  .feed-post-actions {
+    gap: 4px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    justify-content: space-between;
+  }
+  /* 그룹 박스를 해제해 모든 액션을 부모 flex 의 직접 자식으로 흘린다. */
+  .feed-post-actions-left,
+  .feed-post-actions-right { display: contents; }
+  /* 텍스트 라벨 전부 숨김 — 아이콘과 숫자 카운트만 노출 (X/스레드형 컴팩트). */
+  .feed-post-actions .feed-action-btn-label,
   .feed-action-btn.feed-thread-extend-btn span,
   .feed-action-btn.feed-repost-btn span { display: none; }
+  /* 아이콘 버튼 패딩 축소로 한 줄 확보. 수정/삭제는 짧은 텍스트 유지하되 압축. */
+  .feed-post-actions .feed-action-btn { padding: 6px 7px; gap: 4px; }
+  .feed-post-actions .feed-edit-btn,
+  .feed-post-actions .feed-delete-btn { padding: 6px 7px; font-size: 12px; }
 }
 
 /* ── #415 — 수정 모달 카운터 ── */
