@@ -3,6 +3,7 @@ import {
   STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT,
   STORY_STAGE_AUTHOR_INTERRUPTION_REFUND_PENALTY_READ_MODEL,
   STORY_STAGE_COMPANION_BILLING_PROJECTION_CONTRACT,
+  STORY_STAGE_AUTHOR_SETTLEMENT_REFUND_READ_MODEL,
   STORY_STAGE_CONTRACT,
   STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD,
   STORY_STAGE_PACK_CHAPTER_SESSION_CONTRACT,
@@ -572,6 +573,82 @@ describe('Story Stage contract skeleton', () => {
       'wallet_refund_and_settlement_rate_update_same_action',
       'payout_hold_and_user_refund_credit_same_action',
     ]);
+  });
+
+  it('separates story author settlement and refund read model buckets without payout mutation', () => {
+    const readModel = STORY_STAGE_AUTHOR_SETTLEMENT_REFUND_READ_MODEL;
+
+    expect(STORY_STAGE_CONTRACT.authorSettlementRefundReadModel).toBe(readModel);
+    expect(readModel).toMatchObject({
+      version: '2026-06-27.story-author-settlement-refund-read-model.v1',
+      status: 'read_model_contract_only',
+      readModel: 'story_author_settlement_refund_preview',
+      endpoint:
+        'GET /api/v1/creator-studio/story-packs/:packId/settlement-refunds',
+      ownerScope: {
+        authorOnly: true,
+        backstageRequiresPermission: 'story:settlement:read',
+        nonOwnerResponse: '403_or_404_without_identity_leak',
+      },
+      sourceLedgers: {
+        purchaseLedger: 'story_purchase_ledger.granted',
+        refundLedger: 'story_purchase_ledger.refunded_or_chargeback',
+        entitlementLedger: 'user_entitlements.story_chapter_or_season_access',
+        authorRevenuePreview: 'story_author_revenue_preview',
+      },
+      buckets: {
+        grossStoryRevenue: {
+          source: 'granted_chapter_or_season_purchase',
+          amountField: 'grossLumina',
+        },
+        refundAdjustment: {
+          source: 'refunded_or_chargeback_purchase_rows',
+          amountField: 'refundAdjustedLumina',
+          deductedBeforeAuthorShare: true,
+        },
+        aiCompanionCost: {
+          source: 'server_confirmed_ai_companion_participation',
+          amountField: 'aiCompanionCostLumina',
+          deductedBeforeAuthorShare: true,
+        },
+        authorSharePreview: {
+          source: 'gross_minus_refund_and_ai_companion_cost',
+          amountField: 'authorSharePreviewLumina',
+          payoutEligible: false,
+        },
+      },
+      separationPolicy: {
+        grossAndRefundSameField: false,
+        refundAdjustmentCanIncreaseAuthorShare: false,
+        aiCompanionCostIncludedInAuthorShare: false,
+        payoutMutationFromRead: false,
+        clientSubmittedRevenueTrusted: false,
+        clientSubmittedRefundTrusted: false,
+        clientSubmittedShareTrusted: false,
+      },
+      privacy: {
+        rawBuyerUserIdReturned: false,
+        rawPaymentLedgerIdReturned: false,
+        rawWalletLedgerIdReturned: false,
+        rawRefundReasonReturned: false,
+        privateAuthorNotesReturned: false,
+        adminMemoReturned: false,
+      },
+    });
+    expect(
+      Object.values(readModel.mutationPolicy).every(
+        (enabled) => enabled === false,
+      ),
+    ).toBe(true);
+    expect(readModel.projectionFields).toEqual(
+      expect.arrayContaining([
+        'grossLumina',
+        'refundAdjustedLumina',
+        'aiCompanionCostLumina',
+        'authorSharePreviewLumina',
+        'payoutEligible',
+      ]),
+    );
   });
 });
 
