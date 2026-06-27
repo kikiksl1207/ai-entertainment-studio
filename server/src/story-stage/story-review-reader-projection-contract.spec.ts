@@ -67,6 +67,19 @@ describe('Story review reader projection contract', () => {
       rawReadHistoryReturned: false,
     });
     expect(
+      STORY_REVIEW_READER_PROJECTION_CONTRACT.completedReaderBadgeDisplay,
+    ).toMatchObject({
+      projectionField: 'readerBadges.completedReader',
+      labelKey: 'story.readerBadge.completed.label',
+      descriptionKey: 'story.readerBadge.completed.description',
+      iconKey: 'completed_reader',
+      visibleOn: ['comment_item', 'rating_item', 'author_review_summary'],
+      evidenceReturnedAsBooleanOnly: true,
+      rawChapterProgressReturned: false,
+      rawEntitlementIdReturned: false,
+      paymentAuthority: false,
+    });
+    expect(
       STORY_REVIEW_READER_PROJECTION_CONTRACT.validationOrder,
     ).toEqual([
       'load_public_story_pack_or_chapter',
@@ -223,6 +236,14 @@ describe('Story review reader projection contract', () => {
       'safeCommentPreviews',
       'ratingBuckets',
     ]);
+    expect(
+      STORY_REVIEW_READER_PROJECTION_CONTRACT.projectionFields.commentItem,
+    ).toEqual(
+      expect.arrayContaining([
+        'readerBadges.completedReader.labelKey',
+        'readerBadges.completedReader.iconKey',
+      ]),
+    );
     expect(
       Object.values(authorRead.noMutationPolicy).every(
         (enabled) => enabled === false,

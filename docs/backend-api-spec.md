@@ -296,6 +296,12 @@ wallet/Lumina, settlement, or payout rows.
   it is not payment authority and does not expose raw read history.
 - Comment/rating projections must not expose raw user email, payment ledger id,
   raw read history, raw report reason, or moderation notes.
+- #1204 adds a display-safe completed-reader badge projection. Comment/rating
+  items may expose `readerBadges.completedReader` with stable label,
+  description, and icon keys only. Badge evidence is boolean-only; raw chapter
+  progress, entitlement ids, payment ledger ids, and reader private data are
+  not returned. The badge remains display-only and does not create comments,
+  ratings, badge grants, notifications, wallet, settlement, or payout mutation.
 
 ## User APIs
 
