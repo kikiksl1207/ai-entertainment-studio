@@ -3,6 +3,7 @@ import {
   STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT,
   STORY_STAGE_AUTHOR_INTERRUPTION_REFUND_PENALTY_READ_MODEL,
   STORY_STAGE_COMPANION_BILLING_PROJECTION_CONTRACT,
+  STORY_STAGE_COMPANION_SWAP_COST_PROJECTION_CONTRACT,
   STORY_STAGE_AUTHOR_SETTLEMENT_REFUND_READ_MODEL,
   STORY_STAGE_CONTRACT,
   STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD,
@@ -256,6 +257,79 @@ describe('Story Stage contract skeleton', () => {
         'rosterChangeState',
       ]),
     );
+  });
+
+  it('separates companion swap cost preview from story entry and mutations', () => {
+    const projection = STORY_STAGE_COMPANION_SWAP_COST_PROJECTION_CONTRACT;
+
+    expect(STORY_STAGE_CONTRACT.companionSwapCostProjection).toBe(projection);
+    expect(projection).toMatchObject({
+      version: '2026-06-28.story-companion-swap-cost-projection.v1',
+      status: 'read_model_contract_only',
+      readModel: 'story_companion_swap_cost_preview',
+      sourceOfTruth: {
+        currentRoster: 'story_session_companions.confirmed',
+        storyPolicy: 'server_story_product_policy',
+        entitlements: 'user_entitlements.story_chapter_or_season_access',
+      },
+      actionStates: {
+        keep: {
+          action: 'keep_existing_companion',
+          costLumina: 0,
+          preservesCurrentContext: true,
+          refundPreview: false,
+        },
+        add: {
+          action: 'add_companion',
+          costSource: 'server_story_product_policy',
+          preservesPurchasedStoryAccess: true,
+        },
+        swap: {
+          action: 'swap_companion',
+          costSource: 'server_story_product_policy',
+          previousCompanionContextArchived: true,
+          preservesPurchasedStoryAccess: true,
+        },
+        leave: {
+          action: 'leave_companion',
+          costLumina: 0,
+          refundPreviewOnly: true,
+          preservesPurchasedStoryAccess: true,
+        },
+      },
+      separationPolicy: {
+        storyEntryCostSeparate: true,
+        companionChangeCostSeparate: true,
+        clientSubmittedCompanionCostTrusted: false,
+        clientSubmittedRosterTrusted: false,
+        leaveDoesNotRefundWallet: true,
+        keepDoesNotCreateLedger: true,
+        swapDoesNotRevokePurchasedStoryAccess: true,
+      },
+    });
+    expect(projection.projectionFields).toEqual(
+      expect.arrayContaining([
+        'storySessionId',
+        'currentCompanionArtistId',
+        'targetCompanionArtistId',
+        'actionState',
+        'companionChangeCostLumina',
+        'totalPreviewLumina',
+        'messageKey',
+      ]),
+    );
+    expect(
+      Object.values(projection.mutationPolicy).every(
+        (enabled) => enabled === false,
+      ),
+    ).toBe(true);
+    expect(projection.privacy).toMatchObject({
+      rawPaymentLedgerIdReturned: false,
+      rawWalletLedgerIdReturned: false,
+      privateArtistNotesReturned: false,
+      providerPromptReturned: false,
+      adminMemoReturned: false,
+    });
   });
 
   it('separates author revenue read model buckets from AI participation and payout mutation', () => {

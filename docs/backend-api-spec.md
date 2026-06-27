@@ -245,6 +245,15 @@ wallet/Lumina, or touch settlement/payout.
   companion roster cost, free companion count, paid companion count, and total
   preview remain separate fields. This does not create story purchase, story
   progress, companion roster, wallet, settlement, payout, or provider mutation.
+- #1218 adds `STORY_STAGE_COMPANION_SWAP_COST_PROJECTION_CONTRACT` for
+  companion change preview states after a story session exists. It separates
+  `keep_existing_companion`, `add_companion`, `swap_companion`, and
+  `leave_companion`, keeps companion-change cost separate from story entry
+  cost, treats client-submitted roster/cost as untrusted, and preserves
+  purchased story/chapter/season access. Leaving does not refund wallet, keeping
+  does not create a ledger, and swapping does not revoke existing entitlements.
+  The read model does not mutate companion roster, story progress,
+  entitlement, payment, wallet, settlement, payout, or provider state.
 
 ### Story Stage Direct Action Validation
 
