@@ -276,7 +276,7 @@
                   <span class="button-secondary" id="mypageDebutContactWait" role="status" aria-live="polite" hidden style="opacity:.55;cursor:default;pointer-events:none;">운영팀 연락 대기</span>
                 </div>
                 <div class="mypage-debut-next">
-                  <p id="mypageDebutNextAction">신청서를 제출하면 접수 완료, 검토 중, 보완 요청, 연락 준비 중 상태를 이곳에서 확인할 수 있어요.</p>
+                  <p id="mypageDebutNextAction">신청서를 제출하면 접수 완료, 검토 중, 보완 요청, 연락 예정 상태를 이곳에서 확인할 수 있어요.</p>
                   <ol class="mypage-debut-steps" id="mypageDebutSteps" aria-label="데뷔 신청 진행 단계"></ol>
                 </div>
               </div>
@@ -840,7 +840,7 @@
         }
         // #345/#350 — 사용자용 fallback 라벨. backend의 application.statusLabelKo가 있으면 그 값을 우선 쓰고
         // (applyDebutApplication 참고), 응답이 없을 때만 이 fallback이 노출된다.
-        // #350 spec — approved는 `연락 준비 중`, rejected는 `심사 종료`, needs_more_info는 `보완 요청` 톤으로 정리.
+        // #350 spec — approved는 `연락 예정`, rejected는 `심사 종료`, needs_more_info는 `보완 요청` 톤으로 정리.
         // 사용자가 화면 라벨만 보고 데뷔 확정/최종 거절로 오해하지 않도록 톤다운한다.
         function debutLabel(status) {
           return {
@@ -848,8 +848,8 @@
             reviewing: "검토 중",
             under_review: "검토 중",
             needs_more_info: "보완 요청",
-            approved_for_contact: "연락 준비 중",
-            approved: "연락 준비 중",
+            approved_for_contact: "연락 예정",
+            approved: "연락 예정",
             rejected: "심사 종료",
             withdrawn: "철회 완료",
             canceled: "신청 취소",
