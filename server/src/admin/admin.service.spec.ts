@@ -2,6 +2,7 @@ import { BadRequestException, HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
+import { ADMIN_AUTH_EMAIL_VERIFICATION_COOLDOWN_CONTRACT } from './admin-auth-email-verification-cooldown-contract';
 import { AdminService } from './admin.service';
 
 type PrismaMock = {
@@ -341,6 +342,32 @@ describe('AdminService auth action token audit', () => {
       duplicatePendingTokenPolicy:
         'reuse_recent_pending_token_within_cooldown_else_consume_previous',
       cooldownDuplicateRequestsCreateNewRow: false,
+    });
+    expect(ADMIN_AUTH_EMAIL_VERIFICATION_COOLDOWN_CONTRACT.projection).toMatchObject({
+      readOnly: true,
+      sourceOfTruth: 'user_action_tokens',
+      cooldownSource: 'user_action_tokens.createdAt',
+      requestCooldownSeconds: 60,
+      duplicatePendingTokenPolicy:
+        'reuse_recent_pending_token_within_cooldown_else_consume_previous',
+      cooldownDuplicateRequestsCreateNewRow: false,
+    });
+    expect(ADMIN_AUTH_EMAIL_VERIFICATION_COOLDOWN_CONTRACT.forbiddenFields).toMatchObject({
+      rawEmail: false,
+      rawToken: false,
+      tokenHash: false,
+      mailBody: false,
+      providerRawResponse: false,
+      cookie: false,
+      apiKey: false,
+      databaseUrl: false,
+    });
+    expect(ADMIN_AUTH_EMAIL_VERIFICATION_COOLDOWN_CONTRACT.mutationPolicy).toMatchObject({
+      createsToken: false,
+      sendsEmail: false,
+      changesUser: false,
+      consumesToken: false,
+      updatesDelivery: false,
     });
     expect(JSON.stringify(result)).not.toContain('hash-value-must-not-leak');
     expect(JSON.stringify(result)).not.toContain('qa@example.com');
