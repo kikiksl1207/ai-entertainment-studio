@@ -601,6 +601,89 @@ export const STORY_STAGE_COMPANION_BILLING_PROJECTION_CONTRACT = {
   },
 } as const;
 
+export const STORY_STAGE_COMPANION_SWAP_COST_PROJECTION_CONTRACT = {
+  version: '2026-06-28.story-companion-swap-cost-projection.v1',
+  status: 'read_model_contract_only',
+  readModel: 'story_companion_swap_cost_preview',
+  surfaces: [
+    'story_session_roster_preview',
+    'story_session_companion_change_preview',
+  ],
+  sourceOfTruth: {
+    session: 'story_sessions',
+    currentRoster: 'story_session_companions.confirmed',
+    storyPolicy: 'server_story_product_policy',
+    entitlements: 'user_entitlements.story_chapter_or_season_access',
+  },
+  actionStates: {
+    keep: {
+      action: 'keep_existing_companion',
+      costLumina: 0,
+      preservesCurrentContext: true,
+      refundPreview: false,
+    },
+    add: {
+      action: 'add_companion',
+      costSource: 'server_story_product_policy',
+      preservesPurchasedStoryAccess: true,
+    },
+    swap: {
+      action: 'swap_companion',
+      costSource: 'server_story_product_policy',
+      previousCompanionContextArchived: true,
+      preservesPurchasedStoryAccess: true,
+    },
+    leave: {
+      action: 'leave_companion',
+      costLumina: 0,
+      refundPreviewOnly: true,
+      preservesPurchasedStoryAccess: true,
+    },
+  },
+  projectionFields: [
+    'storySessionId',
+    'storyPackId',
+    'currentChapterId',
+    'currentCompanionArtistId',
+    'targetCompanionArtistId',
+    'actionState',
+    'freeCompanionCount',
+    'paidCompanionCount',
+    'companionChangeCostLumina',
+    'totalPreviewLumina',
+    'messageKey',
+  ],
+  separationPolicy: {
+    storyEntryCostSeparate: true,
+    companionChangeCostSeparate: true,
+    clientSubmittedCompanionCostTrusted: false,
+    clientSubmittedRosterTrusted: false,
+    leaveDoesNotRefundWallet: true,
+    keepDoesNotCreateLedger: true,
+    swapDoesNotRevokePurchasedStoryAccess: true,
+  },
+  mutationPolicy: {
+    contractAddsEndpoint: false,
+    companionRosterMutation: false,
+    storyProgressMutation: false,
+    entitlementMutation: false,
+    walletDebit: false,
+    walletCredit: false,
+    walletLedgerMutation: false,
+    paymentMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+    providerCall: false,
+  },
+  privacy: {
+    rawPaymentLedgerIdReturned: false,
+    rawWalletLedgerIdReturned: false,
+    privateArtistNotesReturned: false,
+    providerPromptReturned: false,
+    adminMemoReturned: false,
+  },
+} as const;
+
 export const STORY_STAGE_AUTHOR_SETTLEMENT_REFUND_READ_MODEL = {
   version: '2026-06-27.story-author-settlement-refund-read-model.v1',
   status: 'read_model_contract_only',
@@ -687,6 +770,8 @@ export const STORY_STAGE_CONTRACT = {
     STORY_STAGE_AI_ARTIST_SETTLEMENT_SPLIT_SKELETON,
   authorRevenueReadModel: STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT,
   companionBillingProjection: STORY_STAGE_COMPANION_BILLING_PROJECTION_CONTRACT,
+  companionSwapCostProjection:
+    STORY_STAGE_COMPANION_SWAP_COST_PROJECTION_CONTRACT,
   sessionRetentionPolicy: STORY_STAGE_SESSION_RETENTION_POLICY_CONTRACT,
   authorInterruptionRefundPenaltyReadModel:
     STORY_STAGE_AUTHOR_INTERRUPTION_REFUND_PENALTY_READ_MODEL,
