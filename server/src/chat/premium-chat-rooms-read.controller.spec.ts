@@ -271,11 +271,33 @@ describe('PremiumChatRoomsReadController', () => {
       ),
     ).toBe(true);
     expect(
+      boundaryReads.every(
+        (read) =>
+          read.openingGreeting.generation.variantPolicy.readModel
+            .characterSlug === read.characterSlug,
+      ),
+    ).toBe(true);
+    expect(
+      boundaryReads.every(
+        (read) =>
+          read.openingGreeting.generation.variantPolicy.readModel
+            .personaScope === 'character_slug_locked' &&
+          read.openingGreeting.generation.variantPolicy.readModel
+            .crossCharacterFallbackReuseAllowed === false &&
+          read.openingGreeting.toneCandidate.personaScope ===
+            'character_slug_locked' &&
+          read.openingGreeting.toneCandidate.crossCharacterReuseAllowed ===
+            false,
+      ),
+    ).toBe(true);
+    expect(
       response.scenarios.differentCharacterBoundary,
     ).toMatchObject({
       expectedCharacterSlugsDifferent: true,
       expectedTextDifferent: true,
       characterToneMustRemainScoped: true,
+      readModelCharacterSlugMustMatchReadCharacterSlug: true,
+      personaScopeMustRemainCharacterLocked: true,
       fallbackCopySharedAcrossCharacters: false,
       providerCall: false,
     });
