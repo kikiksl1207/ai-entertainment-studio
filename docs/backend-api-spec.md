@@ -569,6 +569,17 @@ Lumina Station:
 - Creator request policy prices are gallery view 0L, basic image 30L, premium
   image 100L, and short video 300L. Short video copy is 3-5 seconds, one
   character, one concept.
+- #1217 adds `AI_PREMIUM_CONTENT_ARTIST_CONTEXT_READ_MODEL` for safe
+  provider-agnostic artist context reads before image/video request wiring. The
+  disabled read endpoint shape is
+  `GET /api/v1/ai-premium-content/artists/:artistSlug/context`; it may expose
+  safe artist display fields, world/style/safety/forbidden-expression keys,
+  allowed request types, and provider route aliases only. It must not return
+  provider-ready prompts, provider payloads, model keys, private artist notes,
+  admin memos, signed URLs, tokens, cookies, API keys, DB URLs, or raw safety
+  payloads. It does not create requests, call OpenAI/GPT Image/Stable
+  Diffusion/Seedance providers, debit wallet, create orders, or touch
+  settlement/payout/paid-like state.
 - `GET /api/v1/lumina-station?take=5` is an authenticated charge-screen bootstrap endpoint.
 - It returns the user's Lumina wallet, active six-tier `lumina_products`, recent `payment_orders`, payment provider status, and client display policy. Only canonical server products matching SKU, KRW price, base Lumina, package bonus, and KRW currency are returned; 20,000 KRW, 30,000 KRW, and same-price tampered active rows are filtered out.
 - It does not create a payment order and does not grant Lumina.
