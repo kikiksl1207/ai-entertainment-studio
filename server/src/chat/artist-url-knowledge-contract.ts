@@ -692,6 +692,47 @@ export const ARTIST_URL_KNOWLEDGE_CHAT_APPROVAL_STATE_CONTRACT = {
   },
 } as const;
 
+export const ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_GUARD_CONTRACT = {
+  version: '2026-06-28.artist-url-knowledge-chat-context-guard.v1',
+  status: 'guard_contract_read_only_no_mutation',
+  guardFunction: 'isArtistKnowledgeChatEligible',
+  allowedOnlyWhen: [
+    'status=approved',
+    'allowChatReference=true',
+    'summaryPresent=true',
+    'safetyStatus=safe_or_missing_legacy_safe',
+    'artistScopeMatchesChatArtist',
+  ],
+  alwaysExcluded: [
+    'status=pending',
+    'status=rejected',
+    'status=archived',
+    'allowChatReference=false',
+    'summaryMissing',
+    'safetyStatus=blocked',
+    'safetyStatus=needs_review',
+    'ingestStatus=ai_processing',
+  ],
+  providerContextPolicy: {
+    approvedSummaryAsReferenceFactOnly: true,
+    rawUrlAsInstruction: false,
+    rawPageBodyReturned: false,
+    adminNotesReturned: false,
+    providerPayloadReturned: false,
+  },
+  noMutation: {
+    externalUrlFetch: true,
+    llmCall: true,
+    vectorStorageMutation: true,
+    chatMessageCreate: true,
+    approvalMutation: true,
+    archiveMutation: true,
+    walletMutation: true,
+    settlement: true,
+    payout: true,
+  },
+} as const;
+
 export const ARTIST_URL_KNOWLEDGE_INGESTION_STATUS_CONTRACT = {
   version: '2026-06-23.artist-url-knowledge-ingestion-status.v1',
   status: 'read_model_contract_only',
@@ -969,6 +1010,8 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
   approvalStateProjection: ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION,
   characterChatApprovalStateContract:
     ARTIST_URL_KNOWLEDGE_CHAT_APPROVAL_STATE_CONTRACT,
+  characterChatContextGuard:
+    ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_GUARD_CONTRACT,
   ingestionStatusContract: ARTIST_URL_KNOWLEDGE_INGESTION_STATUS_CONTRACT,
   registrationSkeleton: {
     fieldSeparation: {
