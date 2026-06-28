@@ -462,6 +462,12 @@ function renderLuminaFeed() {
                     aria-label="이 사용자 차단" title="이 사용자 차단">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 6l12 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
               <span class="feed-action-btn-label">차단</span>
+            </button>
+            <button class="feed-action-btn feed-report-btn" type="button" aria-disabled="true" disabled
+                    data-feed-report="${feedEscapeHtml(post.id || "")}"
+                    aria-label="이 글 신고" title="신고 접수는 운영 확인을 거쳐 처리돼요">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4h12l-2 4 2 4H5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>
+              <span class="feed-action-btn-label">신고</span>
             </button>`
               : ""}
             ${editButton}
