@@ -3247,6 +3247,15 @@ AI premium content request state API skeleton (#591):
   - `POST /api/v1/ai-premium-content/requests/:requestId/regenerations`
   - `PATCH /admin/api/v1/ai-premium-content/requests/:requestId`
 - `creator_image_requests` remains the current image queue bridge candidate.
+- #1269 adds `AI_PREMIUM_CONTENT_QUEUE_READ_MODEL_CONTRACT` for disabled
+  user-owned queue reads. It may expose request type, output class, request
+  status, safety/moderation status, reuse status, artist display fields,
+  server policy estimated cost, and timestamps only. It must not expose raw
+  prompt, provider payload, API key, provider credentials, internal cost
+  breakdowns, raw reference assets, signed URLs, storage keys, or private user
+  email. Reading the queue must not create requests, write queue rows, call
+  image/video providers, mutate wallet/order, settlement, payout, or paid-like
+  state.
 
 AI premium content request brief API skeleton (#662):
 

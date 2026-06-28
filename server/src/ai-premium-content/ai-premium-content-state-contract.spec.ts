@@ -13,6 +13,7 @@ import {
   AI_PREMIUM_CONTENT_PRECHECK_FAILURE_POLICY,
   AI_PREMIUM_CONTENT_PROVIDER_ADAPTER_KEYS,
   AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT,
+  AI_PREMIUM_CONTENT_QUEUE_READ_MODEL_CONTRACT,
   AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON,
   AI_PREMIUM_CONTENT_REQUEST_STATUSES,
   AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY,
@@ -40,6 +41,27 @@ import {
 } from './ai-premium-content-state-contract';
 
 describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
+  it('exposes a queue read model without raw prompt or provider payload leakage', () => {
+    const contract = AI_PREMIUM_CONTENT_QUEUE_READ_MODEL_CONTRACT;
+
+    expect(AI_PREMIUM_CONTENT_STATE_API_CONTRACT.queueReadModel).toBe(
+      contract,
+    );
+    expect(contract.endpoints.userQueue.method).toBe('GET');
+    expect(contract.costProjection.source).toBe(
+      'server_policy_estimate_not_provider_quote',
+    );
+    expect(contract.safetyProjection.rawPromptReturned).toBe(false);
+    expect(contract.reuseProjection.signedUrlReturned).toBe(false);
+    expect(contract.privacy.rawPromptReturned).toBe(false);
+    expect(contract.privacy.providerPayloadReturned).toBe(false);
+    expect(contract.privacy.apiKeyReturned).toBe(false);
+    expect(contract.noMutation.providerCall).toBe(true);
+    expect(contract.noMutation.imageGenerationCall).toBe(true);
+    expect(contract.noMutation.videoGenerationCall).toBe(true);
+    expect(contract.noMutation.walletMutation).toBe(true);
+  });
+
   it('defines a disabled image/video common request state API skeleton', () => {
     const contract = AI_PREMIUM_CONTENT_STATE_API_CONTRACT;
 
