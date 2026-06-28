@@ -1189,6 +1189,66 @@ export const AI_PREMIUM_CONTENT_QUEUE_READ_MODEL_CONTRACT = {
   },
 } as const;
 
+export const AI_PREMIUM_CONTENT_QUEUE_STATUS_API_SKELETON = {
+  version: '2026-06-28.ai-premium-content-queue-status-api-skeleton.v1',
+  status: 'api_skeleton_read_only_mutation_disabled',
+  endpoints: {
+    queueList: {
+      method: 'GET',
+      path: '/api/v1/ai-premium-content/me/requests',
+      enabled: false,
+      authRequired: true,
+      ownerUserOnly: true,
+    },
+    queueItemStatus: {
+      method: 'GET',
+      path: '/api/v1/ai-premium-content/me/requests/:requestId/status',
+      enabled: false,
+      authRequired: true,
+      ownerUserOnly: true,
+    },
+  },
+  statusFields: [
+    'requestId',
+    'requestType',
+    'outputClass',
+    'status',
+    'safetyStatus',
+    'moderationStatus',
+    'reuseStatus',
+    'estimatedCost',
+    'statusMessageKey',
+    'updatedAt',
+  ],
+  queuePipeline: {
+    middlewarePipeline: 'ai_premium_content_unified_queue',
+    providerAgnostic: true,
+    requestTypes: AI_PREMIUM_CONTENT_REQUEST_TYPES,
+    outputClasses: AI_PREMIUM_CONTENT_OUTPUT_CLASSES,
+    statuses: AI_PREMIUM_CONTENT_REQUEST_STATUSES,
+  },
+  hiddenFields: {
+    rawPrompt: true,
+    providerPayload: true,
+    apiKey: true,
+    internalCostBreakdown: true,
+    providerCost: true,
+    signedUrl: true,
+    storageKey: true,
+  },
+  noMutation: {
+    requestCreate: true,
+    queueWrite: true,
+    providerCall: true,
+    imageGenerationCall: true,
+    videoGenerationCall: true,
+    walletMutation: true,
+    orderMutation: true,
+    settlement: true,
+    payout: true,
+  },
+} as const;
+
 export const AI_PREMIUM_CONTENT_MODEL_ROUTING_API_SKELETON = {
   version: '2026-06-18.ai-premium-content-model-routing-api-skeleton.v1',
   method: 'POST',
@@ -2820,6 +2880,7 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
   characterChatHandoff: CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT,
   requestQueueSkeleton: AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON,
   queueReadModel: AI_PREMIUM_CONTENT_QUEUE_READ_MODEL_CONTRACT,
+  queueStatusApiSkeleton: AI_PREMIUM_CONTENT_QUEUE_STATUS_API_SKELETON,
   costRetryReadModel: AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
   costEstimateProjection: AI_PREMIUM_CONTENT_COST_ESTIMATE_PROJECTION_CONTRACT,
   costUsageAuditProjection: AI_PREMIUM_CONTENT_COST_USAGE_AUDIT_PROJECTION,
