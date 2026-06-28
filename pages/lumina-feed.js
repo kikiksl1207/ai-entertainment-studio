@@ -185,8 +185,20 @@ function feedAuthorTypeLabel(authorTypeEnum) {
 }
 
 /* ── 데이터 로더: 운영 API → samples → inline 3단 fallback (#022) ── */
+// #1274 — ?feedfixture=1 플래그면 (live/배포 포함) 샘플 피드를 강제 노출해 카드 밀도·타래·리포스트·
+// 공유·다중 이미지·작성자 프로필/팔로워·차단 진입점을 read-only로 확인할 수 있게 한다.
+// 플래그가 없으면 일반 사용자/실서비스 피드에는 전혀 영향이 없고, post/follow/block mutation도 없다.
+function feedFixtureForced() {
+  try { return /[?&]feedfixture=1(?:&|$)/.test(window.location.search || ""); }
+  catch (_) { return false; }
+}
 async function loadLuminaFeedData(scope = "all") {
   _luminaFeedScope = scope;
+  if (feedFixtureForced() && Array.isArray(luminaFeedSamplePosts) && luminaFeedSamplePosts.length) {
+    _luminaFeedItems = luminaFeedSamplePosts.map(enrichSampleFeedAuthor).map(normalizeFeedPost);
+    _luminaFeedSource = "fixture_flag";
+    return;
+  }
   if (scope === "following") {
     if (typeof isLoggedIn === "function" && !isLoggedIn()) {
       _luminaFeedItems = [];
