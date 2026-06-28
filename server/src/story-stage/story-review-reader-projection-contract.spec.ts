@@ -1,6 +1,30 @@
-import { STORY_REVIEW_READER_PROJECTION_CONTRACT } from './story-review-reader-projection-contract';
+import {
+  STORY_REVIEW_READER_PROJECTION_CONTRACT,
+  STORY_REVIEW_SURFACE_API_CONTRACT,
+} from './story-review-reader-projection-contract';
 
 describe('Story review reader projection contract', () => {
+  it('exposes story comment and rating surfaces as read-only contract metadata', () => {
+    const contract = STORY_REVIEW_SURFACE_API_CONTRACT;
+
+    expect(STORY_REVIEW_READER_PROJECTION_CONTRACT.surfaceApiContract).toBe(
+      contract,
+    );
+    expect(contract.endpoints.packComments.scope).toBe('story_pack');
+    expect(contract.endpoints.chapterComments.scope).toBe('story_chapter');
+    expect(contract.writeEligibility.storyPack).toBe(
+      'confirmed_paid_or_granted_pack_reader_only',
+    );
+    expect(contract.writeEligibility.storyChapter).toBe(
+      'confirmed_chapter_entitled_reader_only',
+    );
+    expect(contract.completedReaderBadge.booleanOnly).toBe(true);
+    expect(contract.privacy.rawPaymentLedgerIdReturned).toBe(false);
+    expect(contract.noMutation.commentCreate).toBe(true);
+    expect(contract.noMutation.ratingUpsert).toBe(true);
+    expect(contract.noMutation.storyProgressMutation).toBe(true);
+  });
+
   it('publishes story comment rating and completed reader badge projections without mutation', () => {
     expect(STORY_REVIEW_READER_PROJECTION_CONTRACT).toMatchObject({
       version: '2026-06-18.story-review-reader-projection.v1',

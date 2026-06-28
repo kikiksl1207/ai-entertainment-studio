@@ -319,6 +319,13 @@ wallet/Lumina, settlement, or payout rows.
   progress, entitlement ids, payment ledger ids, and reader private data are
   not returned. The badge remains display-only and does not create comments,
   ratings, badge grants, notifications, wallet, settlement, or payout mutation.
+- #1268 adds `STORY_REVIEW_SURFACE_API_CONTRACT` to pin the public surface
+  endpoints for pack comments, chapter comments, pack ratings, and chapter
+  ratings. Future writes remain limited to authenticated confirmed paid/granted
+  readers for the relevant pack or chapter; preview-only readers and authors
+  self-reviewing their own work are not eligible. Completed-reader badge output
+  stays boolean-only, and the surface must not expose payment ledger ids,
+  entitlement ids, raw read history, private email, or moderation notes.
 
 ## User APIs
 
