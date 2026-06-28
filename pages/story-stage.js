@@ -32,6 +32,19 @@ const STORY_FIXTURE = Object.freeze({
     perClipLumina: 60,
     note: "장면을 영상으로 만들 때만 드는 선택 비용이에요. 챕터 구매와 별개이고, 만들지 않으면 청구되지 않아요.",
   },
+  // #1250 — 댓글/평점/완독자 read-only fixture. 댓글은 결제자 기준, 완독은 완독자 표기.
+  reactions: {
+    chapters: [
+      { no: 1, rating: 4.7, readers: 312, comments: 48 },
+      { no: 2, rating: 4.5, readers: 268, comments: 33 },
+      { no: 3, rating: 4.8, readers: 241, comments: 51 },
+    ],
+    storyComments: [
+      { author: "별빛_수아", paid: true, completed: true, text: "프롤로그만 보려다 시즌까지 갔어요. 무대 뒤 이야기가 이렇게 따뜻할 줄은 몰랐네요." },
+      { author: "조용한_관객", paid: true, completed: false, text: "챕터마다 톤이 달라서 좋아요. 아직 다 못 봤지만 다음 시즌도 기다릴게요." },
+      { author: "오늘의_픽러", paid: true, completed: true, text: "완독하고 나니 캐릭터가 더 좋아졌어요. 마지막 장면은 영상으로도 남겨두고 싶다." },
+    ],
+  },
 });
 
 function lumina(n) {
@@ -148,6 +161,38 @@ function renderStoryStage() {
           <button class="story-cta story-cta-extra" type="button" aria-disabled="true" data-story-preview="video">영상 만들기 (미리보기)</button>
         </div>
         <p class="story-note-extra">${f.video.note}</p>
+      </div>
+    </section>
+
+    <!-- 5) #1250 — 댓글/평점/완독자 read-only surface. 챕터 평점·완독자와 스토리 전체 댓글(결제자)을 구분. -->
+    <section class="story-section" aria-labelledby="storyReactTitle">
+      <div class="story-section-head">
+        <span class="story-eyebrow story-eyebrow-react">반응 · 읽은 사람</span>
+        <h2 id="storyReactTitle">이야기 반응</h2>
+      </div>
+      <ul class="story-chapter-react-list">
+        ${f.reactions.chapters.map(r => `
+          <li class="story-chapter-react">
+            <span class="story-chapter-no">CH.${r.no}</span>
+            <div class="story-react-meta">
+              <span class="story-rating" aria-label="평점 ${r.rating}점">★ ${r.rating.toFixed(1)}</span>
+              <span class="story-read-badge">완독 ${r.readers.toLocaleString("ko-KR")}명</span>
+              <span class="story-react-count">댓글 ${r.comments}</span>
+            </div>
+          </li>`).join("")}
+      </ul>
+      <div class="story-comments">
+        <p class="story-comments-head">스토리 전체 댓글 <span class="story-muted">· 구매한 분만 남길 수 있어요</span></p>
+        ${f.reactions.storyComments.map(cm => `
+          <div class="story-comment">
+            <div class="story-comment-top">
+              <strong class="story-comment-author">${cm.author}</strong>
+              ${cm.paid ? `<span class="story-buyer-badge">결제자</span>` : ""}
+              ${cm.completed ? `<span class="story-read-badge is-done">완독</span>` : ""}
+            </div>
+            <p class="story-comment-text">${cm.text}</p>
+          </div>`).join("")}
+        <button class="story-cta story-cta-extra" type="button" aria-disabled="true" data-story-preview="comment">댓글 남기기 (구매 후 가능 · 미리보기)</button>
       </div>
     </section>
   `;
