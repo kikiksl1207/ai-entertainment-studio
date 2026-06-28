@@ -642,6 +642,56 @@ export const ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION = {
   },
 } as const;
 
+export const ARTIST_URL_KNOWLEDGE_CHAT_APPROVAL_STATE_CONTRACT = {
+  version: '2026-06-28.artist-url-knowledge-chat-approval-state.v1',
+  status: 'read_model_contract_only_no_context_mutation',
+  sourceProjection: ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION,
+  chatContextAdmission: {
+    pending: 'excluded_from_character_chat_context',
+    approved: 'eligible_only_when_safe_summary_and_allowChatReference_true',
+    rejected: 'excluded_from_character_chat_context',
+    archived: 'excluded_from_character_chat_context',
+  },
+  requiredForApprovedContext: [
+    'status=approved',
+    'safetyStatus=safe',
+    'allowChatReference=true',
+    'summaryPresent=true',
+    'artistScopeMatchesChatArtist',
+  ],
+  blockedFromContext: [
+    'status=pending',
+    'status=rejected',
+    'status=archived',
+    'ingestStatus=ai_processing',
+    'safetyStatus=unreviewed',
+    'safetyStatus=needs_review',
+    'safetyStatus=blocked',
+    'missing_summary',
+  ],
+  noSideEffects: {
+    externalUrlFetch: true,
+    llmCall: true,
+    vectorStorageMutation: true,
+    chatMessageCreate: true,
+    approvalMutation: true,
+    archiveMutation: true,
+    walletMutation: true,
+    settlementMutation: true,
+    payoutMutation: true,
+  },
+  privacy: {
+    rawSubmittedUrlReturned: false,
+    rawPageBodyReturned: false,
+    rawPromptReturned: false,
+    providerPayloadReturned: false,
+    adminNotesReturned: false,
+    tokenCookiePasswordReturned: false,
+    apiKeyReturned: false,
+    dbUrlReturned: false,
+  },
+} as const;
+
 export const ARTIST_URL_KNOWLEDGE_INGESTION_STATUS_CONTRACT = {
   version: '2026-06-23.artist-url-knowledge-ingestion-status.v1',
   status: 'read_model_contract_only',
@@ -917,6 +967,8 @@ export const ARTIST_URL_KNOWLEDGE_CONTRACT = {
   safetyStatuses: ARTIST_URL_KNOWLEDGE_SAFETY_STATUSES,
   ingestStatuses: ARTIST_URL_KNOWLEDGE_INGEST_STATUSES,
   approvalStateProjection: ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION,
+  characterChatApprovalStateContract:
+    ARTIST_URL_KNOWLEDGE_CHAT_APPROVAL_STATE_CONTRACT,
   ingestionStatusContract: ARTIST_URL_KNOWLEDGE_INGESTION_STATUS_CONTRACT,
   registrationSkeleton: {
     fieldSeparation: {
