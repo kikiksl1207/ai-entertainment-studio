@@ -1,5 +1,9 @@
 const CONFIRM_VALUE = 'CREATE_FOLLOWER_BLOCK_QA_FIXTURE';
 const HANDLE_PREFIX = 'qa-fb-';
+const FIXTURE_STATUS = {
+  dryRun: 'dry_run_preview_only',
+  confirmed: 'confirmed_ready',
+};
 
 function env(name) {
   return process.env[name]?.trim() || '';
@@ -27,11 +31,11 @@ function assertQaHandle(handle) {
   }
 }
 
-function handoff(runId, targetHandle, followerHandle) {
+function handoff(runId, targetHandle, followerHandle, fixtureStatus) {
   const encodedTarget = encodeURIComponent(targetHandle);
   return {
     runId,
-    fixtureStatus: 'ready_after_confirmed_script_run',
+    fixtureStatus,
     publicProfileHandle: targetHandle,
     publicProfilePath: `/user-profile?handle=${encodedTarget}`,
     publicProfileApiPath: `/api/v1/users/handle/${encodedTarget}/profile`,
@@ -42,6 +46,7 @@ function handoff(runId, targetHandle, followerHandle) {
     notes: [
       'Record only this handoff object in PM/QA notes.',
       'Do not record raw email, password, token, cookie, API key, or DB URL.',
+      'dry_run_preview_only is not PASS evidence for live/backend QA.',
       'Use read-only GET paths for QA unless a separately approved safe session is available.',
     ],
   };
@@ -94,7 +99,12 @@ async function main() {
   const dryRun = env('FOLLOWER_BLOCK_QA_FIXTURE_DRY_RUN') !== 'false';
   const targetHandle = handleFor('target', runId);
   const followerHandle = handleFor('follower', runId);
-  const result = handoff(runId, targetHandle, followerHandle);
+  const result = handoff(
+    runId,
+    targetHandle,
+    followerHandle,
+    dryRun ? FIXTURE_STATUS.dryRun : FIXTURE_STATUS.confirmed,
+  );
 
   if (dryRun) {
     console.log(JSON.stringify({ dryRun: true, ...result }, null, 2));
