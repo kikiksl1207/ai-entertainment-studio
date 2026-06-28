@@ -922,6 +922,45 @@ describe('premium chat room refund and moderation ledger contract', () => {
     }
   });
 
+  it('keeps the current-main unanswered refund candidate projection merge-safe', () => {
+    const projection = PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle
+      .unansweredRefundCandidate;
+    const candidate = resolvePremiumChatRoomUnansweredRefundCandidate({
+      currentStatus: 'active',
+      hoursSinceOpen: projection.afterHours,
+      hasArtistAnswer: false,
+    });
+    const duplicate = resolvePremiumChatRoomUnansweredRefundCandidate({
+      currentStatus: projection.statusKey,
+      hoursSinceOpen: projection.afterHours + 1,
+      hasArtistAnswer: false,
+      alreadyCandidate: true,
+    });
+
+    expect(projection).toMatchObject({
+      statusKey: 'refund_pending',
+      actionKey: 'unanswered_24h_refund_candidate',
+      reasonKey: 'unanswered_24h_full_refund',
+      candidateOnly: true,
+      automaticRefundCredit: false,
+      walletAction: 'server_refund_after_policy_decision_only',
+    });
+    expect(candidate).toMatchObject({
+      candidate: true,
+      duplicateCandidate: false,
+      automaticRefundCredit: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(duplicate).toMatchObject({
+      candidate: true,
+      duplicateCandidate: true,
+      automaticRefundCredit: false,
+      walletMutationEnabled: false,
+    });
+  });
+
   it('charges visible two-way message pairs as integer Lumina without half-pair debits', () => {
     const resolved = resolvePremiumChatMessageChargePolicy({
       userVisibleSentenceCount: 3,

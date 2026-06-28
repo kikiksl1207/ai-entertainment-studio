@@ -1906,6 +1906,11 @@ candidates before mutation routes are enabled.
   repeated candidate evaluation replays the existing safe projection without a
   second refund, wallet ledger, settlement, payout, or status-event mutation.
 - Unknown future room statuses fail closed as `safe_status_only`.
+- #1216 rework on current main keeps this projection merge-safe after the
+  room-access reflection. The active/opened, no-artist-answer path can become a
+  `refund_pending` candidate, but duplicate evaluation returns the same
+  candidate projection and still does not execute refund, wallet, settlement,
+  payout, message, or room mutation.
 - #1014 adds `PREMIUM_CHAT_UNANSWERED_REFUND_STATUS_PROJECTION` for the 24-hour
   no-artist-answer read model. Active/opened rooms with no artist answer after
   24 hours can project `refund_pending` with reason
