@@ -668,6 +668,14 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   not crawl external URLs, train providers, generate chat responses, create chat
   messages, approve/reject/archive rows, or mutate wallet, Lumina, settlement,
   payout, or paid-like state.
+- #1270 adds `ARTIST_URL_KNOWLEDGE_CHAT_APPROVAL_STATE_CONTRACT` as the
+  character-chat-facing approval state gate. Pending, rejected, archived,
+  AI-processing, unreviewed, needs-review, blocked, and missing-summary rows are
+  explicitly blocked from context. Approved rows are eligible only when they are
+  safe, `allowChatReference=true`, summary-present, and scoped to the chat
+  artist. The read model does not fetch external URLs, call an LLM/provider,
+  write vector storage, create chat messages, mutate approval/archive state, or
+  touch wallet, settlement, or payout.
 - #884 adds the future chat-context refresh queue contract. Approval, rejection,
   or archive events may enqueue a deduped server refresh key for the artist, but
   the worker remains disabled and may only requery approved/safe/chat-enabled

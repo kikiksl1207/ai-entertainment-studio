@@ -1,5 +1,6 @@
 import {
   ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION,
+  ARTIST_URL_KNOWLEDGE_CHAT_APPROVAL_STATE_CONTRACT,
   ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_CANDIDATE_API_SKELETON,
   ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY,
   ARTIST_URL_KNOWLEDGE_CONTRACT,
@@ -571,6 +572,47 @@ describe('artist URL knowledge contract', () => {
         ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION.noMutationPolicy,
       ).every((enabled) => enabled === false),
     ).toBe(true);
+  });
+
+  it('keeps pending rejected and archived URL knowledge out of character chat context', () => {
+    const contract = ARTIST_URL_KNOWLEDGE_CHAT_APPROVAL_STATE_CONTRACT;
+
+    expect(
+      ARTIST_URL_KNOWLEDGE_CONTRACT.characterChatApprovalStateContract,
+    ).toBe(contract);
+    expect(contract.sourceProjection).toBe(
+      ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION,
+    );
+    expect(contract.chatContextAdmission.pending).toBe(
+      'excluded_from_character_chat_context',
+    );
+    expect(contract.chatContextAdmission.rejected).toBe(
+      'excluded_from_character_chat_context',
+    );
+    expect(contract.chatContextAdmission.archived).toBe(
+      'excluded_from_character_chat_context',
+    );
+    expect(contract.requiredForApprovedContext).toEqual(
+      expect.arrayContaining([
+        'status=approved',
+        'safetyStatus=safe',
+        'allowChatReference=true',
+        'summaryPresent=true',
+      ]),
+    );
+    expect(contract.blockedFromContext).toEqual(
+      expect.arrayContaining([
+        'status=pending',
+        'status=rejected',
+        'status=archived',
+        'ingestStatus=ai_processing',
+      ]),
+    );
+    expect(contract.noSideEffects.externalUrlFetch).toBe(true);
+    expect(contract.noSideEffects.llmCall).toBe(true);
+    expect(contract.noSideEffects.vectorStorageMutation).toBe(true);
+    expect(contract.privacy.providerPayloadReturned).toBe(false);
+    expect(contract.privacy.apiKeyReturned).toBe(false);
   });
 
   it('defines a disabled read-only chat context candidate API skeleton', () => {
