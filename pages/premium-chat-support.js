@@ -19,7 +19,7 @@
     policy: {
       authRequired: true,
       walletMutationEnabled: false,
-      disabledDisplayMessageKo: "프리미엄챗 후원은 서비스 준비가 완료된 뒤 열릴 예정이에요." // #474 내부 용어 제거
+      disabledDisplayMessageKo: "후원 기능을 준비하고 있어요. 열리면 바로 알려드릴게요. 지금은 금액과 정책만 미리 볼 수 있어요." // #1341 locked preview copy
     },
     donation: {
       fixedAmountsLumina: [10, 50, 100, 500, 1000, 5000, 10000, 50000],
@@ -250,20 +250,20 @@
     banner.dataset.state = unauth ? "unauth" : disabled ? "disabled" : "ready";
     var label, body;
     if (unauth) {
-      label = "로그인이 필요해요";
-      body = "후원 정책은 로그인한 팬에게만 공개돼요. 로그인 후 다시 시도해 주세요.";
+      label = "후원 준비 중";
+      body = "로그인하면 후원 가능 여부를 확인할 수 있어요. 지금은 금액과 정책만 미리 볼 수 있어요.";
     } else if (disabled) {
-      // #379/#394 — 실서비스 톤. 결제 오픈 일정 안내 예정 뉘앙스.
-      // #484 — API 값 무시, FALLBACK 고정 (API가 내부어 포함 가능).
-      label = "후원 가능 시점 안내 대기";
+      // #1341 — disabled 이유를 짧게 보이고, read-only 금액/정책 preview는 열어 둔다.
+      // API 값 무시, FALLBACK 고정 (API가 내부어 포함 가능).
+      label = "후원 준비 중";
       body = FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
     } else {
       label = "후원 가능";
       body = "고액 후원은 본인확인이 끝난 계정만 진행할 수 있어요.";
     }
     banner.innerHTML =
-      '<strong class="donation-status-label">' + label + "</strong>" +
-      '<p class="donation-status-text">' + body + "</p>";
+      '<strong class="donation-status-label" data-i18n="' + (disabled ? "chat.donation.locked.label" : unauth ? "chat.donation.unauth.label" : "chat.donation.ready.label") + '">' + label + "</strong>" +
+      '<p class="donation-status-text" data-i18n="' + (disabled ? "chat.donation.locked.text" : unauth ? "chat.donation.unauth.text" : "chat.donation.ready.text") + '">' + body + "</p>";
   }
 
   function renderPolicyInfo(contract) {
@@ -382,11 +382,10 @@
     var openBtn = $("chatDonationOpen");
     if (openBtn && !openBtn.dataset.bound) {
       openBtn.dataset.bound = "1";
+      openBtn.disabled = false;
+      openBtn.setAttribute("aria-disabled", "false");
       openBtn.addEventListener("click", function (event) {
-        if (openBtn.disabled || openBtn.getAttribute("aria-disabled") === "true") {
-          event.preventDefault();
-          return;
-        }
+        event.preventDefault();
         openSheet();
       });
     }

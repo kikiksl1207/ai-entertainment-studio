@@ -9,6 +9,62 @@
    - 팔로우는 #148 endpoint 사용 (POST/DELETE /api/v1/users/:userId/follow), #153 응답으로 stats/viewer 갱신 */
 let _userProfileData = null;
 let _userProfilePostsCursor = null;
+
+const FEED_PROFILE_FIXTURE_FAN_NAMES = ["루미나_민지", "무대앞_해든", "조용한_관객", "서랍속_별", "오늘의_픽러", "팬클럽_여울"];
+
+function buildFeedProfileFixture(handle, userId) {
+  if (!followListUsesFixture()) return null;
+  const normalizedHandle = String(handle || "").trim();
+  const match = normalizedHandle.match(/^(fan|debut)(\d+)$/i);
+  if (!match && !userId) return null;
+  const kind = match ? match[1].toLowerCase() : "fan";
+  const numericId = Number(match ? match[2] : userId) || 0;
+  const displayName = kind === "debut"
+    ? "데뷔준비_" + String.fromCharCode(65 + (numericId % 6))
+    : FEED_PROFILE_FIXTURE_FAN_NAMES[numericId % FEED_PROFILE_FIXTURE_FAN_NAMES.length];
+  const publicHandle = normalizedHandle || (kind + numericId);
+  return {
+    user: {
+      id: userId || ("fixture-" + publicHandle),
+      displayName,
+      publicHandle,
+      bio: "루미나 피드 모바일 QA용 공개 프로필입니다. 팔로워/팔로잉 관계 화면과 차단 진입점을 read-only로 확인합니다.",
+      avatarUrl: "",
+      coverImageUrl: ""
+    },
+    stats: {
+      followerCount: 5,
+      followingCount: 3,
+      postCount: 0
+    },
+    viewer: {
+      isSelf: false,
+      isFollowing: false,
+      canFollow: true,
+      canUnfollow: false
+    },
+    source: "feed-profile-fixture"
+  };
+}
+
+function renderFeedProfileFixture(fixture) {
+  _userProfileData = fixture;
+  renderUserProfileCard(fixture);
+  bindUserProfileFollow();
+  const section = document.getElementById("userProfilePostsSection");
+  const list = document.getElementById("userProfilePostList");
+  const emptyEl = document.getElementById("userProfilePostsEmpty");
+  if (section) { section.hidden = false; section.style.display = ""; }
+  if (list) list.innerHTML = "";
+  if (emptyEl) { emptyEl.hidden = false; emptyEl.style.display = ""; }
+  bindUserProfileTabs();
+  bindProfileEditModal();
+  bindFollowListStatClick();
+  bindFollowListModal();
+  bindFollowListBlockAction();
+  bindBlockConfirmModal();
+}
+
 async function initUserProfilePage() {
   // 진입 시 모든 빈 상태/에러 카드 강제 hidden — HTML hidden 속성이 CSS·i18n에 덮이지 않도록 명시 처리
   ["userProfileEmpty", "userProfileBlocked", "userProfilePostsEmpty", "userProfilePostsSection", "userProfileLoadMore"].forEach(id => {
@@ -39,6 +95,11 @@ async function initUserProfilePage() {
   try {
     const res = await apiFetch(profileEndpoint, { auth: isAuth });
     if (!res?.user) {
+      const fixture = buildFeedProfileFixture(handle, userId);
+      if (fixture) {
+        renderFeedProfileFixture(fixture);
+        return;
+      }
       showUserProfileNotFound();
       return;
     }
@@ -51,6 +112,11 @@ async function initUserProfilePage() {
       showUserProfileBlocked();
     } else {
       console.warn("[#152 user-profile] 프로필 조회 실패:", err?.status, err?.message);
+      const fixture = buildFeedProfileFixture(handle, userId);
+      if (fixture) {
+        renderFeedProfileFixture(fixture);
+        return;
+      }
       showUserProfileNotFound();
     }
     return;

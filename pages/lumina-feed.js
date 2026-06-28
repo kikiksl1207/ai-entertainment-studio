@@ -308,7 +308,8 @@ function renderLuminaFeed() {
   }
 
   root.innerHTML = visibleList.map(post => {
-    const artist = post.artistSlug ? getCharacterBySlug(post.artistSlug) : null;
+    const isArtistAuthoredPost = post.postType === "artist_post" || post.authorType === "ai_artist";
+    const artist = isArtistAuthoredPost && post.artistSlug ? getCharacterBySlug(post.artistSlug) : null;
     // 본인 글이면 작성자명/아바타를 본인 정보로 강제 (백엔드가 익명/마스킹으로 내려도 본인엔 본인 닉네임)
     const me = (typeof getAuth === "function") ? getAuth()?.user : null;
     const isMineByViewer = !!post.viewer?.isAuthor;
@@ -341,13 +342,18 @@ function renderLuminaFeed() {
     // 아티스트 글: 카드 전체 clickable로 이미 character-detail.html 이동 처리됨
     // 본인 글: viewer.isAuthor + me.id로 본인 user-profile 라우팅 (백엔드가 authorPublicHandle 안 내려도 동작)
     // 다른 사람 글: authorPublicHandle 또는 authorUserId가 있을 때만 라우팅 (없으면 클릭 비활성화)
-    let authorLink = "";
-    if (!artist) {
+    let authorHref = "";
+    let authorProfileAttrs = "";
+    if (artist) {
+      authorHref = `/character-detail?slug=${encodeURIComponent(artist.slug)}`;
+      authorProfileAttrs = ` data-user-profile-link="${feedEscapeHtml(authorHref)}"`;
+    } else {
       if (isMineByViewer && me?.id) {
         const target = me.publicHandle
           ? `/user-profile?handle=${encodeURIComponent(me.publicHandle)}`
           : `/user-profile?id=${encodeURIComponent(String(me.id))}`;
-        authorLink = buildMiniProfileAuthorAttrs({
+        authorHref = target;
+        authorProfileAttrs = buildMiniProfileAuthorAttrs({
           target,
           handle: me.publicHandle,
           userId: me.id
@@ -356,14 +362,29 @@ function renderLuminaFeed() {
         const target = post.authorPublicHandle
           ? `/user-profile?handle=${encodeURIComponent(post.authorPublicHandle)}`
           : `/user-profile?id=${encodeURIComponent(String(post.authorUserId))}`;
-        authorLink = buildMiniProfileAuthorAttrs({
+        authorHref = target;
+        authorProfileAttrs = buildMiniProfileAuthorAttrs({
           target,
           handle: post.authorPublicHandle,
           userId: post.authorUserId
         });
       }
-      // 위 둘 다 안 맞으면 authorLink는 "" → 작성자 영역 클릭 비활성화 (헛클릭 방지)
+      // 위 둘 다 안 맞으면 authorHref는 "" → 작성자 영역 클릭 비활성화 (헛클릭 방지)
     }
+    const authorInnerHtml = `
+          <div class="feed-post-avatar">
+            ${avatarSrc
+              ? `<img src="${feedEscapeHtml(avatarSrc)}" alt="${feedEscapeHtml(authorName)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="feed-post-avatar-fallback" style="display:none;">${feedEscapeHtml(initial)}</span>`
+              : `<span class="feed-post-avatar-fallback">${feedEscapeHtml(initial)}</span>`}
+          </div>
+          <div class="feed-post-meta">
+            <strong class="feed-post-author">${feedEscapeHtml(authorName)}</strong>
+            <span class="feed-post-type feed-post-type-${typeKey}">${typeLabel}</span>
+          </div>
+          ${authorHref ? '<span class="feed-author-go" aria-hidden="true">›</span>' : ""}`;
+    const authorHeaderHtml = authorHref
+      ? `<a class="feed-author-link" href="${feedEscapeHtml(authorHref)}"${authorProfileAttrs} data-i18n-aria="feed.author.openProfile" aria-label="${feedEscapeHtml(authorName)} 프로필 보기">${authorInnerHtml}</a>`
+      : `<div class="feed-author-link is-static" aria-label="${feedEscapeHtml(authorName)}">${authorInnerHtml}</div>`;
 
     // #358 — thread continuation 시각화: X-style 좌측 세로 연결선 + 들여쓰기, "이어쓴 글" 배지.
     const isThreadContinuation = !!(post.threadContinuation && (post.threadContinuation.isContinuation || post.threadContinuation.rootPostId));
@@ -382,16 +403,8 @@ function renderLuminaFeed() {
     return `
       <article class="feed-post${typeKey === "artist" ? " is-artist-post" : typeKey === "debut_artist" ? " is-debut-post" : ""}${clickable}${continuationClass}" data-feed-type="${post.postType}" data-feed-post-id="${feedEscapeHtml(post.id || "")}"${cardOpenAttr}${isThreadContinuation ? ' data-feed-continuation-root="' + feedEscapeHtml(continuationRootId) + '"' : ""}>
         ${continuationConnector}
-        <header class="feed-post-head"${authorLink}>
-          <div class="feed-post-avatar">
-            ${avatarSrc
-              ? `<img src="${feedEscapeHtml(avatarSrc)}" alt="${feedEscapeHtml(authorName)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" /><span class="feed-post-avatar-fallback" style="display:none;">${feedEscapeHtml(initial)}</span>`
-              : `<span class="feed-post-avatar-fallback">${feedEscapeHtml(initial)}</span>`}
-          </div>
-          <div class="feed-post-meta">
-            <strong class="feed-post-author">${feedEscapeHtml(authorName)}</strong>
-            <span class="feed-post-type feed-post-type-${typeKey}">${typeLabel}</span>
-          </div>
+        <header class="feed-post-head">
+          ${authorHeaderHtml}
           ${followButton}
         </header>
         ${/* #834 — 팬덤형 카드: 팬 포스트가 특정 아티스트와 연결되어 있으면 아티스트 태그 표시 */
@@ -1727,7 +1740,8 @@ async function runFeedComposeUploadStages(item, onStateChange) {
   }
 
   function buildFeedDetailHTML(post) {
-    var artist = (typeof getCharacterBySlug === "function" && post.artistSlug)
+    var isArtistAuthoredPost = post.postType === "artist_post" || post.authorType === "ai_artist";
+    var artist = (typeof getCharacterBySlug === "function" && isArtistAuthoredPost && post.artistSlug)
       ? getCharacterBySlug(post.artistSlug) : null;
     var me = (typeof getAuth === "function") ? getAuth()?.user : null;
     var isMineByViewer = !!post.viewer?.isAuthor;
@@ -1744,21 +1758,25 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     var postIdStr = feedEscapeHtml(post.id || "");
 
     // 작성자 헤더 클릭 → 프로필/캐릭터 상세 이동
-    var authorLink = "";
+    var authorHref = "";
+    var authorProfileAttrs = "";
     if (artist) {
-      authorLink = ' data-user-profile-link="' + feedEscapeHtml("/character-detail?slug=" + artist.slug) + '" style="cursor:pointer;"';
+      authorHref = "/character-detail?slug=" + encodeURIComponent(artist.slug);
+      authorProfileAttrs = ' data-user-profile-link="' + feedEscapeHtml(authorHref) + '"';
     } else if (isMineByViewer && me?.id) {
       var target = me.publicHandle
         ? "/user-profile?handle=" + encodeURIComponent(me.publicHandle)
         : "/user-profile?id=" + encodeURIComponent(String(me.id));
-      authorLink = (typeof buildMiniProfileAuthorAttrs === "function")
+      authorHref = target;
+      authorProfileAttrs = (typeof buildMiniProfileAuthorAttrs === "function")
         ? buildMiniProfileAuthorAttrs({ target: target, handle: me.publicHandle, userId: me.id })
         : "";
     } else if (post.authorPublicHandle || post.authorUserId) {
       var target2 = post.authorPublicHandle
         ? "/user-profile?handle=" + encodeURIComponent(post.authorPublicHandle)
         : "/user-profile?id=" + encodeURIComponent(String(post.authorUserId));
-      authorLink = (typeof buildMiniProfileAuthorAttrs === "function")
+      authorHref = target2;
+      authorProfileAttrs = (typeof buildMiniProfileAuthorAttrs === "function")
         ? buildMiniProfileAuthorAttrs({ target: target2, handle: post.authorPublicHandle, userId: post.authorUserId })
         : "";
     }
@@ -1767,6 +1785,16 @@ async function runFeedComposeUploadStages(item, onStateChange) {
       ? '<img src="' + feedEscapeHtml(avatarSrc) + '" alt="' + feedEscapeHtml(authorName) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'" />' +
         '<span class="feed-post-avatar-fallback" style="display:none;">' + feedEscapeHtml(initial) + '</span>'
       : '<span class="feed-post-avatar-fallback">' + feedEscapeHtml(initial) + '</span>';
+    var authorInnerHtml =
+      '<div class="feed-post-avatar">' + avatarHtml + '</div>' +
+      '<div class="feed-post-meta">' +
+        '<strong class="feed-post-author">' + feedEscapeHtml(authorName) + '</strong>' +
+        '<span class="feed-post-type feed-post-type-' + feedEscapeHtml(typeKey) + '">' + feedEscapeHtml(typeLabel) + '</span>' +
+      '</div>' +
+      (authorHref ? '<span class="feed-author-go" aria-hidden="true">›</span>' : '');
+    var authorHeaderHtml = authorHref
+      ? '<a class="feed-author-link" href="' + feedEscapeHtml(authorHref) + '"' + authorProfileAttrs + ' data-i18n-aria="feed.author.openProfile" aria-label="' + feedEscapeHtml(authorName) + ' 프로필 보기">' + authorInnerHtml + '</a>'
+      : '<div class="feed-author-link is-static" aria-label="' + feedEscapeHtml(authorName) + '">' + authorInnerHtml + '</div>';
 
     var repostEmbed  = (typeof renderFeedRepostSource     === "function") ? renderFeedRepostSource(post.repost) : "";
     var threadBadge  = (typeof renderFeedPostThreadBadge  === "function") ? renderFeedPostThreadBadge(post) : "";
@@ -1782,12 +1810,8 @@ async function runFeedComposeUploadStages(item, onStateChange) {
         '<button class="feed-detail-back-btn" type="button" id="feedDetailBackBtn">← 피드로 돌아가기</button>' +
       '</div>' +
       '<article class="feed-post feed-detail-post" data-feed-type="' + feedEscapeHtml(post.postType || "fan_post") + '" data-feed-post-id="' + postIdStr + '">' +
-        '<header class="feed-post-head"' + authorLink + '>' +
-          '<div class="feed-post-avatar">' + avatarHtml + '</div>' +
-          '<div class="feed-post-meta">' +
-            '<strong class="feed-post-author">' + feedEscapeHtml(authorName) + '</strong>' +
-            '<span class="feed-post-type feed-post-type-' + feedEscapeHtml(typeKey) + '">' + feedEscapeHtml(typeLabel) + '</span>' +
-          '</div>' +
+        '<header class="feed-post-head">' +
+          authorHeaderHtml +
         '</header>' +
         '<p class="feed-post-body">' + feedEscapeHtml(post.body || "") + '</p>' +
         repostEmbed +

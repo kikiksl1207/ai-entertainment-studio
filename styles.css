@@ -3613,6 +3613,35 @@ p {
   margin-bottom: 10px;
 }
 
+.feed-author-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 44px;
+  min-width: 0;
+  flex: 1;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.feed-author-link.is-static {
+  cursor: default;
+}
+
+.feed-author-link:not(.is-static):hover .feed-post-author {
+  color: #ff7eb9;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.feed-author-go {
+  flex: 0 0 auto;
+  color: rgba(220, 210, 240, 0.48);
+  font-size: 18px;
+  line-height: 1;
+}
+
 .feed-post-avatar {
   width: 38px;
   height: 38px;

@@ -547,6 +547,15 @@
     let activeTier = null;
     let submitted = false;
 
+    function setRequestStep(step) {
+      const confirmEl = document.getElementById("chatRequestConfirm");
+      if (!confirmEl) return;
+      const done = step === "done";
+      confirmEl.hidden = !done;
+      confirmEl.setAttribute("aria-hidden", done ? "false" : "true");
+      sheet.dataset.step = step;
+    }
+
     function updateSubmitState() {
       if (!submit || !submitLabel) return;
       if (!activeTier) {
@@ -569,6 +578,7 @@
       document.body.classList.add("is-sheet-open");
       submitted = false;
       activeTier = null;
+      setRequestStep("form");
       tierGrid?.querySelectorAll("[data-request-tier]").forEach((btn) => {
         btn.setAttribute("aria-checked", "false");
       });
@@ -596,6 +606,7 @@
           el.setAttribute("aria-checked", el === btn ? "true" : "false");
         });
         submitted = false;
+        setRequestStep("form");
         updateSubmitState();
       });
     }
@@ -613,7 +624,7 @@
         const confirmLabel = document.getElementById("chatRequestConfirmLabel");
         if (confirmEl) {
           if (confirmLabel) confirmLabel.textContent = `요청 접수됨 · ${meta.name} (${meta.price})`;
-          confirmEl.hidden = false;
+          setRequestStep("done");
         }
         // 추후 백엔드 image-request 엔드포인트 확정 시 여기서 호출하면 됨.
       });
@@ -782,13 +793,24 @@
   function setDonationActionState(locked, tagText, reason) {
     const button = $("chatDonationOpen");
     if (!button) return;
-    button.disabled = !!locked;
+    button.disabled = false;
+    button.dataset.donationLocked = locked ? "true" : "false";
     button.classList.toggle("is-disabled", !!locked);
-    button.setAttribute("aria-disabled", locked ? "true" : "false");
+    button.setAttribute("aria-disabled", "false");
     button.setAttribute("aria-describedby", "premiumChatRoomStatus");
-    button.title = reason || (locked ? "후원 기능은 서비스 오픈 후 열려요." : "스타에게 후원하기");
+    button.title = reason || (locked ? "후원 준비 중이에요. 곧 열려요." : "스타에게 후원하기");
+    const hint = $("chatDonationHint");
+    if (hint) {
+      hint.textContent = locked ? "후원 준비 중 · 곧 열려요" : "10L~50,000L · 확인 후 진행";
+      hint.setAttribute("data-i18n", locked ? "chat.donation.lockedHint" : "chat.donation.rangeHint");
+    }
     const tag = button.querySelector(".dm-action-tag");
-    if (tag) tag.textContent = tagText || (locked ? "준비" : "유료");
+    if (tag) {
+      tag.textContent = locked ? "준비중" : (tagText || "유료");
+      tag.classList.toggle("dm-action-tag-soon", !!locked);
+      tag.classList.toggle("dm-action-tag-paid", !locked);
+      tag.setAttribute("data-i18n", locked ? "common.tag.soon" : "common.tag.paid");
+    }
   }
 
   function renderPremiumRoomStatus({ state = "pending", title, body, badges = [] } = {}) {
@@ -1581,7 +1603,6 @@
     bindSubmitGuard();
     bindActionMenu();
     bindRequestSheet();
-    bindDonationSheet();
     bindInboxSheet();
     applyCleanModeIfReady();
 
