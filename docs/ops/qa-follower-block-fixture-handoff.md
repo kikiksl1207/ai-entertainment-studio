@@ -9,10 +9,17 @@ without touching normal user data.
 - Do not run against production unless PM/Ops explicitly approves the QA-only
   fixture run.
 - Do not record raw email, password, token, cookie, API key, or DB URL.
-- Record only `runId`, `publicProfileHandle`, `publicProfilePath`,
-  `publicProfileApiPath`, `followersApiPath`, `followingApiPath`, and
-  `blockApiPath`.
+- Record only non-secret handoff fields: `runId`, `dryRun`,
+  `fixtureStatus`, `publicProfileHandle`, `publicProfilePath`,
+  `publicProfileApiPath`, `followersApiPath`, `followingApiPath`,
+  `blockApiPath`, and `followerPublicHandle`.
+- Use `fixtureStatus=dry_run_preview_only` only as a shape check. It is not
+  PASS evidence for #1256.
+- Use `fixtureStatus=confirmed_ready` as the only confirmed-run readiness
+  status QR can consume.
 - The script refuses to touch public handles outside the `qa-fb-` prefix.
+- The `qa-fb-` prefix is reserved for approved disposable fixture rows only;
+  normal user signup or profile handle changes must not allocate that namespace.
 - The script creates or reactivates only disposable QA users and one active
   `user_follows` row for the generated run id.
 - It does not create blocks, posts, wallet ledger rows, Lumina entries,
@@ -29,6 +36,8 @@ npm.cmd run qa:follower-block-fixture
 ```
 
 The output is the public handoff shape QR can expect after a confirmed run.
+Dry-run output must show `dryRun: true` and
+`fixtureStatus: "dry_run_preview_only"`.
 
 ## Confirmed fixture run
 
@@ -43,6 +52,13 @@ npm.cmd run qa:follower-block-fixture
 ```
 
 Record only the returned non-secret handoff fields.
+Confirmed output must show `dryRun: false` and
+`fixtureStatus: "confirmed_ready"`.
+
+If the approved environment is not available, do not ask for passwords or
+private connection strings. Leave one required action: run the confirmed command
+above in an approved staging/local/QA DB environment and return only the
+non-secret handoff fields.
 
 ## QR read-only checks
 

@@ -333,7 +333,7 @@ describe('CommunityService user follow/block mutation contract', () => {
           forbiddenEnvironments: ['production'],
           runId: {
             required: true,
-            format: 'qa-follow-block-YYYYMMDD-runN',
+            format: 'qa-YYYYMMDD-runN',
             persistedOnRows: true,
             cleanupScope: 'run_id_only',
           },
@@ -342,17 +342,17 @@ describe('CommunityService user follow/block mutation contract', () => {
             productionAutoSeed: false,
             publicApiEndpointAdded: false,
             confirmationRequired: true,
-            confirmKey: 'QA_FEED_FOLLOW_BLOCK_FIXTURE_CONFIRM',
-            confirmValue: 'PREPARE_QA_FOLLOW_BLOCK_FIXTURE',
+            confirmKey: 'FOLLOWER_BLOCK_QA_FIXTURE_CONFIRM',
+            confirmValue: 'CREATE_FOLLOWER_BLOCK_QA_FIXTURE',
           },
           qaSmokeHandoff: {
             nextOwner: 'qa2',
             publicHandleReadiness: {
               required: true,
               ownerAlias: 'qa_profile_owner',
-              allowedHandlePattern: 'qa-follow-block-<YYYYMMDD>-run<N>',
-              statusField: 'fixture_status',
-              pathField: 'public_profile_path',
+              allowedHandlePattern: 'qa-fb-qa-<YYYYMMDD>-run<N>-target',
+              statusField: 'fixtureStatus',
+              pathField: 'publicProfilePath',
               profilePathTemplate: '/user-profile?handle=:publicHandle',
               followersPathTemplate:
                 '/api/v1/users/handle/:publicHandle/followers',
@@ -537,19 +537,11 @@ describe('CommunityService user follow/block mutation contract', () => {
 
     expect(guard.disposableUsers).toEqual([
       expect.objectContaining({
-        alias: 'qa_viewer',
-        realUserAllowed: false,
-      }),
-      expect.objectContaining({
         alias: 'qa_profile_owner',
         realUserAllowed: false,
       }),
       expect.objectContaining({
         alias: 'qa_follower',
-        realUserAllowed: false,
-      }),
-      expect.objectContaining({
-        alias: 'qa_blocked_follower',
         realUserAllowed: false,
       }),
     ]);
@@ -562,28 +554,12 @@ describe('CommunityService user follow/block mutation contract', () => {
         status: 'active',
         runIdRequired: true,
       }),
-      expect.objectContaining({
-        model: 'user_follows',
-        purpose: 'profile_owner_has_blocked_follower_fixture',
-        sourceAlias: 'qa_blocked_follower',
-        targetAlias: 'qa_profile_owner',
-        status: 'active',
-        runIdRequired: true,
-      }),
-      expect.objectContaining({
-        model: 'user_blocks',
-        purpose: 'viewer_blocks_blocked_follower_for_list_filter_smoke',
-        sourceAlias: 'qa_viewer',
-        targetAlias: 'qa_blocked_follower',
-        status: 'active',
-        runIdRequired: true,
-      }),
     ]);
     expect(guard.visibilityChecks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           endpoint: 'GET /api/v1/users/:userId/followers',
-          expected: 'visible_follower_returned_blocked_follower_excluded',
+          expected: 'visible_follower_returned',
         }),
         expect.objectContaining({
           endpoint: 'GET /api/v1/users/:userId/following-users',
@@ -591,7 +567,7 @@ describe('CommunityService user follow/block mutation contract', () => {
         }),
         expect.objectContaining({
           endpoint: 'POST /api/v1/users/:userId/block',
-          expected: 'viewer_owned_block_ux_only_no_real_user_target',
+          expected: 'path_handoff_only_no_live_mutation_without_safe_session',
         }),
       ]),
     );
@@ -602,14 +578,12 @@ describe('CommunityService user follow/block mutation contract', () => {
         'private_staging_or_local_db_operation_or_future_admin_fixture_tool',
       publicApiEndpointAdded: false,
       confirmationRequired: true,
-      confirmKey: 'QA_FEED_FOLLOW_BLOCK_FIXTURE_CONFIRM',
-      confirmValue: 'PREPARE_QA_FOLLOW_BLOCK_FIXTURE',
+      confirmKey: 'FOLLOWER_BLOCK_QA_FIXTURE_CONFIRM',
+      confirmValue: 'CREATE_FOLLOWER_BLOCK_QA_FIXTURE',
       requiredInputs: [
-        'runId',
-        'qa_viewer_user_id',
-        'qa_profile_owner_user_id',
-        'qa_follower_user_id',
-        'qa_blocked_follower_user_id',
+        'FOLLOWER_BLOCK_QA_RUN_ID',
+        'FOLLOWER_BLOCK_QA_FIXTURE_DRY_RUN=false',
+        'FOLLOWER_BLOCK_QA_FIXTURE_CONFIRM',
       ],
       cleanupPolicy: {
         cleanupByRunIdOnly: true,
@@ -622,7 +596,8 @@ describe('CommunityService user follow/block mutation contract', () => {
       expect.arrayContaining([
         'all_users_are_disposable_qa_users',
         'no_user_alias_points_to_real_customer_account',
-        'run_id_is_unique_and_recorded_on_fixture_metadata',
+        'run_id_matches_qa_yyyymmdd_run_number',
+        'public_handles_start_with_qa_fb_prefix',
         'existing_real_follow_or_block_rows_are_not_modified',
       ]),
     );
@@ -631,23 +606,27 @@ describe('CommunityService user follow/block mutation contract', () => {
       expectedLiveChecks: [
         'public_profile_follower_count_at_least_one',
         'followers_modal_shows_disposable_follower_row',
-        'logged_in_qa_viewer_can_find_block_entrypoint_for_follower',
-        'blocked_follower_row_is_hidden_or_tombstoned_after_block',
+        'following_users_endpoint_returns_200',
+        'block_entrypoint_path_is_available_without_live_block_mutation',
       ],
       blockedIfMissing: [
-        'private_qa_viewer_session',
         'disposable_qa_users',
         'operator_db_access',
+        'confirmed_ready_fixture_status',
       ],
     });
     expect(guard.qaSmokeHandoff.allowedOutput).toEqual(
       expect.arrayContaining([
         'runId',
+        'dryRun',
+        'fixtureStatus',
         'publicProfileHandle',
-        'safeProfileOwnerUserId',
-        'safeFollowerRowId',
-        'safeBlockRowId',
-        'expectedFollowerCountAtLeast',
+        'publicProfilePath',
+        'publicProfileApiPath',
+        'followersApiPath',
+        'followingApiPath',
+        'blockApiPath',
+        'followerPublicHandle',
       ]),
     );
     expect(guard.allowedReportFields).toEqual(
