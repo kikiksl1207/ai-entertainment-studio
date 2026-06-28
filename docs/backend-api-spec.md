@@ -2509,6 +2509,14 @@ Premium chat support point ledger contract (#363):
   `premium_chat_donation_support_point`. The final score formula stays
   server-side only and must not expose wallet ledger ids, raw user ids, raw
   message ids, raw chat bodies, or report reasons.
+- #1266 adds the disabled support ledger read projection contract
+  `PREMIUM_CHAT_SUPPORT_LEDGER_PROJECTION_CONTRACT`. It separates room support
+  summaries from donation ranking input, uses confirmed net premium-chat support
+  only, and keeps like/boost rankings out of the donation lane. The projection
+  hides raw donation order ids, wallet ledger ids, support point ledger ids,
+  raw support messages, private user identifiers, and provider payloads.
+  Donation creation, support point writes, wallet debit/credit, ranking snapshot
+  writes, settlement, and payout remain disabled.
 
 Donation preview error contract:
 

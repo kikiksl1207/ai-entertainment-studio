@@ -1790,6 +1790,87 @@ export const PREMIUM_CHAT_ARTIST_INBOX_PROJECTION_CONTRACT = {
   },
 } as const;
 
+export const PREMIUM_CHAT_SUPPORT_LEDGER_PROJECTION_CONTRACT = {
+  version: '2026-06-28.premium-chat-support-ledger-projection.v1',
+  status: 'read_model_contract_only_mutation_disabled',
+  endpoints: {
+    roomSupportLedgerSummary: {
+      method: 'GET',
+      path: '/api/v1/chat/me/premium-rooms/:roomId/support-ledger-summary',
+      enabled: false,
+      authRequired: true,
+      ownerUserOnly: true,
+      artistOwnerSummaryPath:
+        '/api/v1/creator-studio/premium-chat/rooms/:roomId/support-ledger-summary',
+    },
+    artistSupportRankingInput: {
+      method: 'GET',
+      path: '/api/v1/chat/rankings?type=donation',
+      enabled: false,
+      source: 'confirmed_net_premium_chat_support_projection_only',
+    },
+  },
+  sourceLedgers: {
+    donationOrder: 'premium_chat_donation_orders',
+    donationEventProjection: 'premium_chat_donation_events',
+    supportPointLedger: 'premium_chat_support_point_ledger',
+    walletLedgerType: 'premium_chat_donation',
+    communicationLedgerTypes: [
+      'premium_chat_room_open_support_point',
+      'premium_chat_message_activity_support_point',
+      'premium_chat_donation_support_point',
+    ],
+  },
+  projectionFields: {
+    roomSummary: [
+      'roomId',
+      'artistSlug',
+      'ownerDisplayName',
+      'supportStatus',
+      'confirmedNetSupportLumina',
+      'refundedSupportLumina',
+      'supportMessageCount',
+      'lastSupportAt',
+      'rankingIncluded',
+    ],
+    rankingInput: [
+      'artistSlug',
+      'period',
+      'confirmedNetSupportLumina',
+      'supporterCount',
+      'lastAggregatedAt',
+    ],
+  },
+  rankingSeparation: {
+    donationRankingBasis: 'confirmed_net_premium_chat_support_only',
+    communicationRankingReceivesDonationAsWeightedFactor: true,
+    donationRankingReceivesRoomOpenOrMessageActivity: false,
+    likeRankingReceivesSupport: false,
+    boostRankingReceivesSupport: false,
+    clientSubmittedScoreTrusted: false,
+    clientRefreshAllowed: false,
+  },
+  privacy: {
+    rawDonationOrderIdReturned: false,
+    rawWalletLedgerIdReturned: false,
+    rawSupportPointLedgerIdReturned: false,
+    rawConversationMeterLedgerIdReturned: false,
+    rawSupportMessageReturned: false,
+    rawUserIdReturned: false,
+    rawUserEmailReturned: false,
+    rawPaymentProviderPayloadReturned: false,
+  },
+  noMutation: {
+    donationCreate: true,
+    supportPointLedgerWrite: true,
+    walletDebit: true,
+    walletCredit: true,
+    rankingSnapshotWrite: true,
+    settlement: true,
+    payout: true,
+  },
+} as const;
+
 export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
   version: '2026-06-05.premium-chat-support-submit-readiness.v1',
   previousVersion: '2026-05-25.premium-chat-support-ranking-projection.v1',
@@ -1995,6 +2076,8 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
       },
     },
   },
+  ledgerProjection:
+    PREMIUM_CHAT_SUPPORT_LEDGER_PROJECTION_CONTRACT,
   endpoints: {
     contract: {
       method: 'GET',
