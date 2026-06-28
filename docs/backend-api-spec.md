@@ -1614,6 +1614,15 @@ Authorization: Bearer <accessToken>
 Idempotency-Key: <client-generated-key>
 ```
 
+#1285 adds `PREMIUM_CHAT_SUPPORT_CREATE_API_SKELETON` for the planned
+premium-room support create path. It accepts fixed 10L through 50,000L tiers and
+server-normalized custom integer Lumina within the same 1L-50,000L policy, plus
+an optional support message and an idempotency key. The skeleton remains
+`enabled=false`: it must not create donation orders, support messages, wallet
+debits/credits, support-point ledgers, ranking snapshots, settlement, or payout
+rows, and it must not expose raw wallet/support ledger ids or private auth
+material.
+
 Create body contract:
 
 ```json
