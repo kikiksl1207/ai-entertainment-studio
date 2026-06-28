@@ -191,6 +191,68 @@ export const PREMIUM_CHAT_REFUND_REASON_KEYS = [
   'operator_sanction_artist_fault_full_refund',
 ] as const;
 
+export const PREMIUM_CHAT_ROOM_REFUND_STATUS_READ_MODEL_CONTRACT = {
+  version: '2026-06-28.premium-chat-room-refund-status-read-model.v1',
+  status: 'read_model_contract_only_mutation_disabled',
+  endpoint: {
+    method: 'GET',
+    path: '/api/v1/chat/me/premium-rooms/:roomId/status',
+    enabled: true,
+    authRequired: true,
+    ownerUserOnly: true,
+  },
+  stateSeparation: {
+    active: 'room_can_continue_without_refund_candidate',
+    closedByArtist: 'artist_forced_close_full_refund_policy',
+    refundPending: 'candidate_or_admin_review_waiting_for_refund_decision',
+    userFaultRefundLimited70: 'user_fault_report_policy_70_percent_refund',
+    userFaultRefundLimited50: 'operator_sanction_policy_50_percent_refund',
+    refunded: 'terminal_refund_completed_projection',
+  },
+  calculatedFields: {
+    unansweredRefundAfterHours: 24,
+    artistForcedCloseUserRefundBps: 10000,
+    artistForcedCloseArtistCompensationBps: 1000,
+    userFaultAllowedRefundBps: [7000, 5000],
+    artistTenPercentExceptionBps: 1000,
+    clientSubmittedRefundRateTrusted: false,
+    clientSubmittedArtistShareTrusted: false,
+  },
+  projectionFields: [
+    'roomId',
+    'statusKey',
+    'reasonKey',
+    'actionKey',
+    'messageKey',
+    'refundPolicyKey',
+    'userRefundBps',
+    'companyRevenueBps',
+    'artistCompensationBps',
+    'candidate',
+    'duplicateCandidate',
+    'thresholdHours',
+    'hoursSinceOpen',
+  ],
+  privacy: {
+    rawChatBodyReturned: false,
+    rawSupportMessageReturned: false,
+    rawReportReasonReturned: false,
+    rawAdminNoteReturned: false,
+    rawWalletLedgerIdReturned: false,
+    rawAccountingLedgerIdReturned: false,
+    rawUserEmailReturned: false,
+  },
+  noMutation: {
+    refundCreate: true,
+    walletDebit: true,
+    walletCredit: true,
+    settlement: true,
+    payout: true,
+    roomStatusWrite: true,
+    ledgerWrite: true,
+  },
+} as const;
+
 export const PREMIUM_CHAT_LEDGER_TRACE_FIELDS = [
   'premiumChatLedgerGroupId',
   'flowType',
@@ -669,6 +731,8 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
     clientSubmittedSettlementShareTrusted: false,
     disabledMessageKey: 'chat.premiumRoom.contractPending',
   },
+  refundStatusReadModel:
+    PREMIUM_CHAT_ROOM_REFUND_STATUS_READ_MODEL_CONTRACT,
   roomOpen: {
     endpoint: {
       method: 'POST',

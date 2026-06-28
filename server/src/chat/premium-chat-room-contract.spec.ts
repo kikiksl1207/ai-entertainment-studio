@@ -21,6 +21,7 @@ import {
   PREMIUM_CHAT_ROOM_ACCESS_PROJECTION_CONTRACT,
   PREMIUM_CHAT_ROOM_PARTICIPANT_PROJECTION_CONTRACT,
   PREMIUM_CHAT_ROOM_REFUND_ACCOUNTING_LEDGER_TYPES,
+  PREMIUM_CHAT_ROOM_REFUND_STATUS_READ_MODEL_CONTRACT,
   resolvePremiumChatRoomFollowerTierUnlocks,
   resolvePremiumChatRoomLifecycleProjection,
   resolvePremiumChatRoomDurationPolicy,
@@ -39,6 +40,23 @@ import {
 } from './premium-chat-support-contract';
 
 describe('premium chat room refund and moderation ledger contract', () => {
+  it('exposes a read-only room refund status projection without mutations', () => {
+    const contract = PREMIUM_CHAT_ROOM_REFUND_STATUS_READ_MODEL_CONTRACT;
+
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.refundStatusReadModel).toBe(contract);
+    expect(contract.calculatedFields.userFaultAllowedRefundBps).toEqual([
+      7000,
+      5000,
+    ]);
+    expect(contract.calculatedFields.artistTenPercentExceptionBps).toBe(1000);
+    expect(contract.privacy.rawWalletLedgerIdReturned).toBe(false);
+    expect(contract.privacy.rawAdminNoteReturned).toBe(false);
+    expect(contract.noMutation.refundCreate).toBe(true);
+    expect(contract.noMutation.walletCredit).toBe(true);
+    expect(contract.noMutation.settlement).toBe(true);
+    expect(contract.noMutation.payout).toBe(true);
+  });
+
   it('keeps initial artists on the 300L tier until the server unlocks higher tiers', () => {
     const resolved = resolvePremiumChatRoomOpenPolicy({
       tierKey: 'premium_chat_room_500',

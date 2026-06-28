@@ -1568,6 +1568,22 @@ the contract for copy, button layout, and disabled-state wiring, but must keep
 room-open and donation submit disabled until the server exposes the planned
 create endpoints as enabled.
 
+Premium chat room refund status read model (#1267):
+
+- `PREMIUM_CHAT_ROOM_REFUND_STATUS_READ_MODEL_CONTRACT` exposes disabled
+  contract metadata for `GET /api/v1/chat/me/premium-rooms/:roomId/status`.
+- The projection separates active, `closed_by_artist`, `refund_pending`,
+  70% user-fault limitation, 50% operator-sanction limitation, and terminal
+  refunded states for UI/API QA without writing room status or refund rows.
+- Calculated policy fields are display/read-model only: unanswered refund
+  threshold is 24 hours, artist forced close returns 100% to the user, the
+  artist exception compensation field is 10%, and user-fault limitations are
+  70% or 50% user refund basis.
+- The projection must not expose raw chat body, support message, report reason,
+  admin note, wallet/accounting ledger ids, or private user email. Refund,
+  wallet debit/credit, settlement, payout, room status write, and ledger write
+  mutations remain disabled.
+
 Fixed support amounts:
 
 ```json
