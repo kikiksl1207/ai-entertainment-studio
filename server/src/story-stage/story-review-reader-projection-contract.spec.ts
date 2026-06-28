@@ -1,5 +1,6 @@
 import {
   STORY_REVIEW_READER_PROJECTION_CONTRACT,
+  STORY_REVIEW_API_SKELETON_CONTRACT,
   STORY_REVIEW_SURFACE_API_CONTRACT,
 } from './story-review-reader-projection-contract';
 
@@ -23,6 +24,23 @@ describe('Story review reader projection contract', () => {
     expect(contract.noMutation.commentCreate).toBe(true);
     expect(contract.noMutation.ratingUpsert).toBe(true);
     expect(contract.noMutation.storyProgressMutation).toBe(true);
+  });
+
+  it('publishes a disabled story comment and rating API skeleton', () => {
+    const contract = STORY_REVIEW_API_SKELETON_CONTRACT;
+
+    expect(STORY_REVIEW_READER_PROJECTION_CONTRACT.apiSkeletonContract).toBe(
+      contract,
+    );
+    expect(contract.writeGate.enabled).toBe(false);
+    expect(contract.writeGate.paidOrGrantedReaderRequired).toBe(true);
+    expect(contract.completedReaderBadge.booleanEvidenceOnly).toBe(true);
+    expect(contract.validation.ratingScale).toEqual({ min: 1, max: 5, step: 1 });
+    expect(contract.noMutation.commentCreate).toBe(true);
+    expect(contract.noMutation.ratingUpsert).toBe(true);
+    expect(contract.noMutation.paymentMutation).toBe(true);
+    expect(contract.privacy.rawPaymentLedgerIdReturned).toBe(false);
+    expect(contract.privacy.rawReadHistoryReturned).toBe(false);
   });
 
   it('publishes story comment rating and completed reader badge projections without mutation', () => {
