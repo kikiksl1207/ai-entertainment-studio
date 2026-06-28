@@ -703,6 +703,14 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   artist. The read model does not fetch external URLs, call an LLM/provider,
   write vector storage, create chat messages, mutate approval/archive state, or
   touch wallet, settlement, or payout.
+- #1289 adds `ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_GUARD_CONTRACT`, aligned with
+  `isArtistKnowledgeChatEligible`. Character chat context may admit only
+  approved, chat-reference-enabled, summary-present, safe, same-artist rows.
+  Pending, rejected, archived, disabled, summaryless, blocked, needs-review, or
+  AI-processing rows are always excluded. The guard treats approved summaries as
+  reference facts only and does not fetch external URLs, call an LLM/provider,
+  write vector storage, create chat messages, or mutate approval/archive,
+  wallet, settlement, or payout state.
 - #884 adds the future chat-context refresh queue contract. Approval, rejection,
   or archive events may enqueue a deduped server refresh key for the artist, but
   the worker remains disabled and may only requery approved/safe/chat-enabled
