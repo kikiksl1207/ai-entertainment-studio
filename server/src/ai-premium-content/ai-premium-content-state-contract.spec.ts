@@ -14,6 +14,7 @@ import {
   AI_PREMIUM_CONTENT_PROVIDER_ADAPTER_KEYS,
   AI_PREMIUM_CONTENT_PROVIDER_GUARD_CONTRACT,
   AI_PREMIUM_CONTENT_QUEUE_READ_MODEL_CONTRACT,
+  AI_PREMIUM_CONTENT_QUEUE_STATUS_API_SKELETON,
   AI_PREMIUM_CONTENT_REQUEST_QUEUE_SKELETON,
   AI_PREMIUM_CONTENT_REQUEST_STATUSES,
   AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY,
@@ -56,6 +57,24 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     expect(contract.privacy.rawPromptReturned).toBe(false);
     expect(contract.privacy.providerPayloadReturned).toBe(false);
     expect(contract.privacy.apiKeyReturned).toBe(false);
+    expect(contract.noMutation.providerCall).toBe(true);
+    expect(contract.noMutation.imageGenerationCall).toBe(true);
+    expect(contract.noMutation.videoGenerationCall).toBe(true);
+    expect(contract.noMutation.walletMutation).toBe(true);
+  });
+
+  it('exposes a read-only queue status API skeleton without provider or cost internals', () => {
+    const contract = AI_PREMIUM_CONTENT_QUEUE_STATUS_API_SKELETON;
+
+    expect(AI_PREMIUM_CONTENT_STATE_API_CONTRACT.queueStatusApiSkeleton).toBe(
+      contract,
+    );
+    expect(contract.endpoints.queueItemStatus.method).toBe('GET');
+    expect(contract.queuePipeline.providerAgnostic).toBe(true);
+    expect(contract.hiddenFields.rawPrompt).toBe(true);
+    expect(contract.hiddenFields.providerPayload).toBe(true);
+    expect(contract.hiddenFields.apiKey).toBe(true);
+    expect(contract.hiddenFields.internalCostBreakdown).toBe(true);
     expect(contract.noMutation.providerCall).toBe(true);
     expect(contract.noMutation.imageGenerationCall).toBe(true);
     expect(contract.noMutation.videoGenerationCall).toBe(true);

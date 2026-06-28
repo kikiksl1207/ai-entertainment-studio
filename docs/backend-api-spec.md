@@ -3290,6 +3290,13 @@ AI premium content request state API skeleton (#591):
   email. Reading the queue must not create requests, write queue rows, call
   image/video providers, mutate wallet/order, settlement, payout, or paid-like
   state.
+- #1288 adds `AI_PREMIUM_CONTENT_QUEUE_STATUS_API_SKELETON` for read-only queue
+  list/status endpoints under the AI middleware pipeline. The response surface
+  is limited to request/status/safety/reuse/estimated-cost keys and display
+  message keys. Raw prompt, provider payload, API key, internal/provider cost,
+  signed URL, and storage key fields remain hidden, and reading status must not
+  create queue rows, call image/video providers, or mutate wallet/order,
+  settlement, or payout state.
 
 AI premium content request brief API skeleton (#662):
 
