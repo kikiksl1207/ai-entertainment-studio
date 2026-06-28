@@ -326,6 +326,12 @@ wallet/Lumina, settlement, or payout rows.
   self-reviewing their own work are not eligible. Completed-reader badge output
   stays boolean-only, and the surface must not expose payment ledger ids,
   entitlement ids, raw read history, private email, or moderation notes.
+- #1287 adds `STORY_REVIEW_API_SKELETON_CONTRACT` for the read-only API surface
+  and future submit routes. Comment create and rating upsert remain disabled;
+  future writes require auth plus confirmed pack/chapter entitlement, reject
+  author self-review, keep the completed-reader badge boolean-only, and must not
+  expose payment ledger ids, entitlement ids, raw read progress, private email,
+  or moderation notes.
 
 ## User APIs
 
