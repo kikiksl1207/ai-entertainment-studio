@@ -1,6 +1,7 @@
 import {
   PREMIUM_CHAT_ADMIN_REFUND_STATE_KEYS,
   PREMIUM_CHAT_ADMIN_REPORT_REFUND_QUERY_STATUS_KEYS,
+  PREMIUM_CHAT_ARTIST_REPLY_WAIT_READ_MODEL_CONTRACT,
   isPremiumChatRoomMutationBlocked,
   PREMIUM_CHAT_BILLING_LEDGER_EVENT_NAMES,
   PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT,
@@ -53,6 +54,25 @@ describe('premium chat room refund and moderation ledger contract', () => {
     expect(contract.privacy.rawAdminNoteReturned).toBe(false);
     expect(contract.noMutation.refundCreate).toBe(true);
     expect(contract.noMutation.walletCredit).toBe(true);
+    expect(contract.noMutation.settlement).toBe(true);
+    expect(contract.noMutation.payout).toBe(true);
+  });
+
+  it('exposes artist reply wait and 24h unanswered state as read-only projection', () => {
+    const contract = PREMIUM_CHAT_ARTIST_REPLY_WAIT_READ_MODEL_CONTRACT;
+
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.artistReplyWaitReadModel).toBe(
+      contract,
+    );
+    expect(contract.clock.unansweredAfterHours).toBe(24);
+    expect(contract.states.unansweredRefundCandidate).toBe(
+      'unanswered_24h_refund_candidate',
+    );
+    expect(contract.refundSeparation.candidateIsNotRefundExecution).toBe(true);
+    expect(contract.privacy.rawChatBodyReturned).toBe(false);
+    expect(contract.privacy.rawWalletLedgerIdReturned).toBe(false);
+    expect(contract.noMutation.refundCreate).toBe(true);
+    expect(contract.noMutation.roomStatusWrite).toBe(true);
     expect(contract.noMutation.settlement).toBe(true);
     expect(contract.noMutation.payout).toBe(true);
   });
