@@ -45,6 +45,8 @@ const STORY_FIXTURE = Object.freeze({
       { author: "오늘의_픽러", paid: true, completed: true, text: "완독하고 나니 캐릭터가 더 좋아졌어요. 마지막 장면은 영상으로도 남겨두고 싶다." },
     ],
   },
+  // #1291 — 연재 상태(연재중/완결) 표기. 완결이면 status:"완결".
+  serialization: { status: "연재중", chaptersOut: 3, chaptersTotal: 8 },
 });
 
 function lumina(n) {
@@ -169,6 +171,11 @@ function renderStoryStage() {
       <div class="story-section-head">
         <span class="story-eyebrow story-eyebrow-react">반응 · 읽은 사람</span>
         <h2 id="storyReactTitle">이야기 반응</h2>
+      </div>
+      <div class="story-serial-status">
+        <span class="story-serial-badge${f.serialization.status === "완결" ? " is-done" : ""}">${f.serialization.status}</span>
+        <span class="story-serial-progress">${f.serialization.chaptersOut}/${f.serialization.chaptersTotal}화 공개</span>
+        <span class="story-muted">· 댓글·평점은 구매(결제)한 분 기준으로 남겨요.</span>
       </div>
       <ul class="story-chapter-react-list">
         ${f.reactions.chapters.map(r => `
