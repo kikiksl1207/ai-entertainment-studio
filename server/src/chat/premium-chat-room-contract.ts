@@ -253,6 +253,69 @@ export const PREMIUM_CHAT_ROOM_REFUND_STATUS_READ_MODEL_CONTRACT = {
   },
 } as const;
 
+export const PREMIUM_CHAT_ARTIST_REPLY_WAIT_READ_MODEL_CONTRACT = {
+  version: '2026-06-28.premium-chat-artist-reply-wait-read-model.v1',
+  status: 'read_model_contract_only_mutation_disabled',
+  endpoint: {
+    method: 'GET',
+    path: '/api/v1/chat/me/premium-rooms/:roomId/reply-status',
+    enabled: false,
+    authRequired: true,
+    ownerUserOnly: true,
+  },
+  states: {
+    waitingArtistReply: 'needs_artist_reply_before_24h',
+    dueSoon: 'needs_artist_reply_due_soon',
+    unansweredRefundCandidate: 'unanswered_24h_refund_candidate',
+    artistAnswered: 'artist_answered_no_unanswered_refund_candidate',
+    closedByArtist: 'artist_force_closed_full_refund_policy',
+  },
+  clock: {
+    source: 'server_room_opened_at',
+    unansweredAfterHours:
+      PREMIUM_CHAT_ROOM_REFUND_STATUS_READ_MODEL_CONTRACT.calculatedFields
+        .unansweredRefundAfterHours,
+    dueSoonWindowHours: 4,
+    clientSubmittedClockTrusted: false,
+  },
+  evidenceFields: [
+    'roomId',
+    'openedAt',
+    'hoursSinceOpen',
+    'lastArtistReplyAt',
+    'hasArtistAnswer',
+    'statusKey',
+    'replyStateKey',
+    'refundCandidate',
+    'messageKey',
+  ],
+  refundSeparation: {
+    candidateStatusKey: 'refund_pending',
+    candidateReasonKey: 'unanswered_24h_full_refund',
+    candidateIsNotRefundExecution: true,
+    artistForceCloseReasonKey: 'artist_forced_close_full_refund',
+    refundStatusReadModel:
+      'PREMIUM_CHAT_ROOM_REFUND_STATUS_READ_MODEL_CONTRACT',
+  },
+  privacy: {
+    rawChatBodyReturned: false,
+    rawSupportMessageReturned: false,
+    rawAdminNoteReturned: false,
+    rawReportReasonReturned: false,
+    rawWalletLedgerIdReturned: false,
+    rawUserEmailReturned: false,
+  },
+  noMutation: {
+    artistReplyCreate: true,
+    refundCreate: true,
+    walletDebit: true,
+    walletCredit: true,
+    roomStatusWrite: true,
+    settlement: true,
+    payout: true,
+  },
+} as const;
+
 export const PREMIUM_CHAT_LEDGER_TRACE_FIELDS = [
   'premiumChatLedgerGroupId',
   'flowType',
@@ -733,6 +796,8 @@ export const PREMIUM_CHAT_ROOM_CONTRACT = {
   },
   refundStatusReadModel:
     PREMIUM_CHAT_ROOM_REFUND_STATUS_READ_MODEL_CONTRACT,
+  artistReplyWaitReadModel:
+    PREMIUM_CHAT_ARTIST_REPLY_WAIT_READ_MODEL_CONTRACT,
   roomOpen: {
     endpoint: {
       method: 'POST',

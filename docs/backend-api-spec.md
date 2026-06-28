@@ -1598,6 +1598,12 @@ Premium chat room refund status read model (#1267):
   admin note, wallet/accounting ledger ids, or private user email. Refund,
   wallet debit/credit, settlement, payout, room status write, and ledger write
   mutations remain disabled.
+- #1286 adds `PREMIUM_CHAT_ARTIST_REPLY_WAIT_READ_MODEL_CONTRACT` for the
+  owner-facing reply status projection. It separates waiting-for-artist,
+  due-soon, 24-hour unanswered refund candidate, artist-answered, and
+  artist-force-closed states. The 24-hour candidate is a read model signal, not
+  refund execution, and it must not create refunds, write room status, mutate
+  wallet/settlement/payout, or expose raw chat/support/admin/report material.
 
 Fixed support amounts:
 
