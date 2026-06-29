@@ -650,16 +650,22 @@
 
   .story-scene-stage {
     max-height: none;
-    aspect-ratio: 4 / 5;
+    height: min(348px, 88vw);
+    aspect-ratio: auto;
   }
 
   .scene-char {
     max-width: 70%;
-    height: 76%;
+    bottom: 112px;
+    height: calc(100% - 128px);
+  }
+
+  .scene-char[data-layer="midground"] {
+    height: calc(100% - 140px);
   }
 
   .scene-char[data-layer="foreground"] {
-    height: 82%;
+    height: calc(100% - 112px);
   }
 
   .scene-text-overlay {
