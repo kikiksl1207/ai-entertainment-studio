@@ -1,7 +1,42 @@
 import {
   PREMIUM_CHAT_SUPPORT_CONTRACT,
+  PREMIUM_CHAT_SUPPORT_CREATE_API_SKELETON,
   PREMIUM_CHAT_SUPPORT_LEDGER_PROJECTION_CONTRACT,
 } from './premium-chat-support-contract';
+
+describe('PREMIUM_CHAT_SUPPORT_CREATE_API_SKELETON', () => {
+  it('exposes a disabled support create API skeleton with server-owned amount policy', () => {
+    const contract = PREMIUM_CHAT_SUPPORT_CREATE_API_SKELETON;
+
+    expect(PREMIUM_CHAT_SUPPORT_CONTRACT.supportCreateApiSkeleton).toBe(
+      contract,
+    );
+    expect(contract.endpoint.method).toBe('POST');
+    expect(contract.endpoint.enabled).toBe(false);
+    expect(contract.endpoint.requiresIdempotencyKey).toBe(true);
+    expect(contract.requestBody.amountLumina.customAmount.maxLumina).toBe(
+      50000,
+    );
+    expect(contract.requestBody.amountLumina.clientSubmittedAmountTrusted).toBe(
+      false,
+    );
+    expect(contract.responseProjection.likeRankingReceivesSupport).toBe(false);
+  });
+
+  it('keeps support create skeleton free of wallet and settlement mutations', () => {
+    const { noMutation, privacy } = PREMIUM_CHAT_SUPPORT_CREATE_API_SKELETON;
+
+    expect(noMutation.donationOrderCreate).toBe(true);
+    expect(noMutation.walletDebit).toBe(true);
+    expect(noMutation.walletCredit).toBe(true);
+    expect(noMutation.supportPointLedgerWrite).toBe(true);
+    expect(noMutation.settlement).toBe(true);
+    expect(noMutation.payout).toBe(true);
+    expect(privacy.rawWalletLedgerIdReturned).toBe(false);
+    expect(privacy.apiKeyReturned).toBe(false);
+    expect(privacy.dbUrlReturned).toBe(false);
+  });
+});
 
 describe('PREMIUM_CHAT_SUPPORT_LEDGER_PROJECTION_CONTRACT', () => {
   it('is exposed from the premium chat support contract', () => {

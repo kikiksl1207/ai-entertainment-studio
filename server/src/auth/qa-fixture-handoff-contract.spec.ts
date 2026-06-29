@@ -5,12 +5,15 @@ describe('QA fixture handoff contract', () => {
     expect(QA_FIXTURE_HANDOFF_CONTRACT.allowedOutput).toEqual(
       expect.arrayContaining([
         'runId',
+        'dryRun',
         'fixtureStatus',
         'publicProfileHandle',
         'publicProfilePath',
+        'publicProfileApiPath',
         'followersApiPath',
         'followingApiPath',
         'blockApiPath',
+        'followerPublicHandle',
         'stable code/messageKey',
         'nextOwner routing key',
       ]),
@@ -29,6 +32,22 @@ describe('QA fixture handoff contract', () => {
         'environment value',
       ]),
     );
+    expect(QA_FIXTURE_HANDOFF_CONTRACT.fixtureStatusValues).toEqual({
+      dryRun: 'dry_run_preview_only',
+      confirmedReady: 'confirmed_ready',
+    });
+    expect(
+      QA_FIXTURE_HANDOFF_CONTRACT.allowedOutput.join(' '),
+    ).not.toMatch(/raw email|password|token|cookie|API key|database URL/i);
+  });
+
+  it('requires confirmed-ready status before QR consumes a fixture handoff', () => {
+    expect(QA_FIXTURE_HANDOFF_CONTRACT.handoffRules).toMatchObject({
+      confirmedRunRequiresApprovedEnvironment: true,
+      dryRunOutputIsNotLivePassEvidence: true,
+      confirmedReadyStatusRequiredForQr: true,
+      recordOnlyNonSecretHandoffFields: true,
+    });
   });
 
   it('keeps confirmed runs approved and isolated from real users or paid systems', () => {
@@ -37,6 +56,7 @@ describe('QA fixture handoff contract', () => {
       realUserFixtureMixing: false,
       confirmedRunRequiresApprovedEnvironment: true,
       dryRunOutputIsNotLivePassEvidence: true,
+      confirmedReadyStatusRequiredForQr: true,
       recordOnlyNonSecretHandoffFields: true,
       nextOwnerRequired: true,
     });

@@ -2,6 +2,7 @@ export const QA_FIXTURE_HANDOFF_CONTRACT = {
   version: '2026-06-28.qa-fixture-handoff.v1',
   allowedOutput: [
     'runId',
+    'dryRun',
     'fixtureStatus',
     'publicProfileHandle',
     'publicProfilePath',
@@ -15,6 +16,10 @@ export const QA_FIXTURE_HANDOFF_CONTRACT = {
     'safe boolean flags',
     'nextOwner routing key',
   ],
+  fixtureStatusValues: {
+    dryRun: 'dry_run_preview_only',
+    confirmedReady: 'confirmed_ready',
+  },
   conditionallyAllowedOutput: {
     qaOnlyRowId: 'only for disposable QA rows and only when needed for cleanup',
     qaOnlyRowStatus: 'active/inactive/deleted status only',
@@ -38,6 +43,7 @@ export const QA_FIXTURE_HANDOFF_CONTRACT = {
     realUserFixtureMixing: false,
     confirmedRunRequiresApprovedEnvironment: true,
     dryRunOutputIsNotLivePassEvidence: true,
+    confirmedReadyStatusRequiredForQr: true,
     recordOnlyNonSecretHandoffFields: true,
     nextOwnerRequired: true,
   },

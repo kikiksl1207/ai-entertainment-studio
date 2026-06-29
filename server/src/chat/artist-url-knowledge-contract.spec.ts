@@ -1,6 +1,7 @@
 import {
   ARTIST_URL_KNOWLEDGE_APPROVAL_STATE_PROJECTION,
   ARTIST_URL_KNOWLEDGE_CHAT_APPROVAL_STATE_CONTRACT,
+  ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_GUARD_CONTRACT,
   ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_CANDIDATE_API_SKELETON,
   ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY,
   ARTIST_URL_KNOWLEDGE_CONTRACT,
@@ -613,6 +614,36 @@ describe('artist URL knowledge contract', () => {
     expect(contract.noSideEffects.vectorStorageMutation).toBe(true);
     expect(contract.privacy.providerPayloadReturned).toBe(false);
     expect(contract.privacy.apiKeyReturned).toBe(false);
+  });
+
+  it('publishes a character chat context guard contract aligned with eligibility checks', () => {
+    const contract = ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_GUARD_CONTRACT;
+
+    expect(ARTIST_URL_KNOWLEDGE_CONTRACT.characterChatContextGuard).toBe(
+      contract,
+    );
+    expect(contract.guardFunction).toBe('isArtistKnowledgeChatEligible');
+    expect(contract.allowedOnlyWhen).toEqual(
+      expect.arrayContaining([
+        'status=approved',
+        'allowChatReference=true',
+        'summaryPresent=true',
+      ]),
+    );
+    expect(contract.alwaysExcluded).toEqual(
+      expect.arrayContaining([
+        'status=pending',
+        'status=rejected',
+        'status=archived',
+        'allowChatReference=false',
+        'summaryMissing',
+      ]),
+    );
+    expect(contract.providerContextPolicy.rawUrlAsInstruction).toBe(false);
+    expect(contract.providerContextPolicy.providerPayloadReturned).toBe(false);
+    expect(contract.noMutation.externalUrlFetch).toBe(true);
+    expect(contract.noMutation.llmCall).toBe(true);
+    expect(contract.noMutation.vectorStorageMutation).toBe(true);
   });
 
   it('defines a disabled read-only chat context candidate API skeleton', () => {

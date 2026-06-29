@@ -1,6 +1,7 @@
 import {
   PREMIUM_CHAT_ADMIN_REFUND_STATE_KEYS,
   PREMIUM_CHAT_ADMIN_REPORT_REFUND_QUERY_STATUS_KEYS,
+  PREMIUM_CHAT_ARTIST_REPLY_WAIT_READ_MODEL_CONTRACT,
   isPremiumChatRoomMutationBlocked,
   PREMIUM_CHAT_BILLING_LEDGER_EVENT_NAMES,
   PREMIUM_CHAT_LEDGER_PRECISION_CONTRACT,
@@ -53,6 +54,25 @@ describe('premium chat room refund and moderation ledger contract', () => {
     expect(contract.privacy.rawAdminNoteReturned).toBe(false);
     expect(contract.noMutation.refundCreate).toBe(true);
     expect(contract.noMutation.walletCredit).toBe(true);
+    expect(contract.noMutation.settlement).toBe(true);
+    expect(contract.noMutation.payout).toBe(true);
+  });
+
+  it('exposes artist reply wait and 24h unanswered state as read-only projection', () => {
+    const contract = PREMIUM_CHAT_ARTIST_REPLY_WAIT_READ_MODEL_CONTRACT;
+
+    expect(PREMIUM_CHAT_ROOM_CONTRACT.artistReplyWaitReadModel).toBe(
+      contract,
+    );
+    expect(contract.clock.unansweredAfterHours).toBe(24);
+    expect(contract.states.unansweredRefundCandidate).toBe(
+      'unanswered_24h_refund_candidate',
+    );
+    expect(contract.refundSeparation.candidateIsNotRefundExecution).toBe(true);
+    expect(contract.privacy.rawChatBodyReturned).toBe(false);
+    expect(contract.privacy.rawWalletLedgerIdReturned).toBe(false);
+    expect(contract.noMutation.refundCreate).toBe(true);
+    expect(contract.noMutation.roomStatusWrite).toBe(true);
     expect(contract.noMutation.settlement).toBe(true);
     expect(contract.noMutation.payout).toBe(true);
   });
@@ -920,6 +940,45 @@ describe('premium chat room refund and moderation ledger contract', () => {
       });
       expect(transition.toStatusKey).not.toBe('refund_pending');
     }
+  });
+
+  it('keeps the current-main unanswered refund candidate projection merge-safe', () => {
+    const projection = PREMIUM_CHAT_ROOM_CONTRACT.roomLifecycle
+      .unansweredRefundCandidate;
+    const candidate = resolvePremiumChatRoomUnansweredRefundCandidate({
+      currentStatus: 'active',
+      hoursSinceOpen: projection.afterHours,
+      hasArtistAnswer: false,
+    });
+    const duplicate = resolvePremiumChatRoomUnansweredRefundCandidate({
+      currentStatus: projection.statusKey,
+      hoursSinceOpen: projection.afterHours + 1,
+      hasArtistAnswer: false,
+      alreadyCandidate: true,
+    });
+
+    expect(projection).toMatchObject({
+      statusKey: 'refund_pending',
+      actionKey: 'unanswered_24h_refund_candidate',
+      reasonKey: 'unanswered_24h_full_refund',
+      candidateOnly: true,
+      automaticRefundCredit: false,
+      walletAction: 'server_refund_after_policy_decision_only',
+    });
+    expect(candidate).toMatchObject({
+      candidate: true,
+      duplicateCandidate: false,
+      automaticRefundCredit: false,
+      walletMutationEnabled: false,
+      settlementMutationEnabled: false,
+      payoutMutationEnabled: false,
+    });
+    expect(duplicate).toMatchObject({
+      candidate: true,
+      duplicateCandidate: true,
+      automaticRefundCredit: false,
+      walletMutationEnabled: false,
+    });
   });
 
   it('charges visible two-way message pairs as integer Lumina without half-pair debits', () => {

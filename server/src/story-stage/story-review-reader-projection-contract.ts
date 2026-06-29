@@ -61,6 +61,62 @@ export const STORY_REVIEW_SURFACE_API_CONTRACT = {
   },
 } as const;
 
+export const STORY_REVIEW_API_SKELETON_CONTRACT = {
+  version: '2026-06-28.story-review-api-skeleton.v1',
+  status: 'api_skeleton_mutation_disabled',
+  endpoints: {
+    packCommentList: 'GET /api/v1/story-packs/:packSlug/comments',
+    chapterCommentList:
+      'GET /api/v1/story-packs/:packSlug/chapters/:chapterNo/comments',
+    packRatingSummary: 'GET /api/v1/story-packs/:packSlug/ratings',
+    chapterRatingSummary:
+      'GET /api/v1/story-packs/:packSlug/chapters/:chapterNo/ratings',
+    futurePackCommentCreate:
+      'POST /api/v1/story-packs/:packSlug/comments',
+    futureChapterCommentCreate:
+      'POST /api/v1/story-packs/:packSlug/chapters/:chapterNo/comments',
+    futurePackRatingUpsert:
+      'PUT /api/v1/story-packs/:packSlug/ratings/me',
+    futureChapterRatingUpsert:
+      'PUT /api/v1/story-packs/:packSlug/chapters/:chapterNo/ratings/me',
+  },
+  writeGate: {
+    enabled: false,
+    authRequired: true,
+    paidOrGrantedReaderRequired: true,
+    chapterEntitlementRequiredForChapterScope: true,
+    authorSelfReviewAllowed: false,
+    clientSubmittedPaymentStateTrusted: false,
+  },
+  completedReaderBadge: {
+    projectionField: 'readerBadges.completedReader',
+    booleanEvidenceOnly: true,
+    rawReadProgressReturned: false,
+    paymentAuthority: false,
+  },
+  validation: {
+    commentMaxChars: 500,
+    ratingScale: { min: 1, max: 5, step: 1 },
+    oneRatingPerUserPerScope: true,
+  },
+  noMutation: {
+    commentCreate: true,
+    ratingUpsert: true,
+    storyProgressWrite: true,
+    paymentMutation: true,
+    walletMutation: true,
+    settlement: true,
+    payout: true,
+  },
+  privacy: {
+    rawPaymentLedgerIdReturned: false,
+    rawEntitlementIdReturned: false,
+    rawReadHistoryReturned: false,
+    rawUserEmailReturned: false,
+    moderationNotesReturned: false,
+  },
+} as const;
+
 export const STORY_REVIEW_READER_PROJECTION_CONTRACT = {
   version: '2026-06-18.story-review-reader-projection.v1',
   status: 'projection_contract_only',
@@ -191,6 +247,7 @@ export const STORY_REVIEW_READER_PROJECTION_CONTRACT = {
     paymentAuthority: false,
   },
   surfaceApiContract: STORY_REVIEW_SURFACE_API_CONTRACT,
+  apiSkeletonContract: STORY_REVIEW_API_SKELETON_CONTRACT,
   readProjectionSeparation: {
     version: '2026-06-23.story-comment-rating-read-scope-separation.v1',
     publicPackThread: {

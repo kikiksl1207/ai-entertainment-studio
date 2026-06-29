@@ -326,6 +326,12 @@ wallet/Lumina, settlement, or payout rows.
   self-reviewing their own work are not eligible. Completed-reader badge output
   stays boolean-only, and the surface must not expose payment ledger ids,
   entitlement ids, raw read history, private email, or moderation notes.
+- #1287 adds `STORY_REVIEW_API_SKELETON_CONTRACT` for the read-only API surface
+  and future submit routes. Comment create and rating upsert remain disabled;
+  future writes require auth plus confirmed pack/chapter entitlement, reject
+  author self-review, keep the completed-reader badge boolean-only, and must not
+  expose payment ledger ids, entitlement ids, raw read progress, private email,
+  or moderation notes.
 
 ## User APIs
 
@@ -703,6 +709,14 @@ GET /api/v1/admin/api/v1/backstage/operations/artist-knowledge-url-audit-events
   artist. The read model does not fetch external URLs, call an LLM/provider,
   write vector storage, create chat messages, mutate approval/archive state, or
   touch wallet, settlement, or payout.
+- #1289 adds `ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_GUARD_CONTRACT`, aligned with
+  `isArtistKnowledgeChatEligible`. Character chat context may admit only
+  approved, chat-reference-enabled, summary-present, safe, same-artist rows.
+  Pending, rejected, archived, disabled, summaryless, blocked, needs-review, or
+  AI-processing rows are always excluded. The guard treats approved summaries as
+  reference facts only and does not fetch external URLs, call an LLM/provider,
+  write vector storage, create chat messages, or mutate approval/archive,
+  wallet, settlement, or payout state.
 - #884 adds the future chat-context refresh queue contract. Approval, rejection,
   or archive events may enqueue a deduped server refresh key for the artist, but
   the worker remains disabled and may only requery approved/safe/chat-enabled
@@ -1598,6 +1612,12 @@ Premium chat room refund status read model (#1267):
   admin note, wallet/accounting ledger ids, or private user email. Refund,
   wallet debit/credit, settlement, payout, room status write, and ledger write
   mutations remain disabled.
+- #1286 adds `PREMIUM_CHAT_ARTIST_REPLY_WAIT_READ_MODEL_CONTRACT` for the
+  owner-facing reply status projection. It separates waiting-for-artist,
+  due-soon, 24-hour unanswered refund candidate, artist-answered, and
+  artist-force-closed states. The 24-hour candidate is a read model signal, not
+  refund execution, and it must not create refunds, write room status, mutate
+  wallet/settlement/payout, or expose raw chat/support/admin/report material.
 
 Fixed support amounts:
 
@@ -1613,6 +1633,15 @@ POST /api/v1/chat/sessions/:sessionId/donations
 Authorization: Bearer <accessToken>
 Idempotency-Key: <client-generated-key>
 ```
+
+#1285 adds `PREMIUM_CHAT_SUPPORT_CREATE_API_SKELETON` for the planned
+premium-room support create path. It accepts fixed 10L through 50,000L tiers and
+server-normalized custom integer Lumina within the same 1L-50,000L policy, plus
+an optional support message and an idempotency key. The skeleton remains
+`enabled=false`: it must not create donation orders, support messages, wallet
+debits/credits, support-point ledgers, ranking snapshots, settlement, or payout
+rows, and it must not expose raw wallet/support ledger ids or private auth
+material.
 
 Create body contract:
 
@@ -1897,6 +1926,11 @@ candidates before mutation routes are enabled.
   repeated candidate evaluation replays the existing safe projection without a
   second refund, wallet ledger, settlement, payout, or status-event mutation.
 - Unknown future room statuses fail closed as `safe_status_only`.
+- #1216 rework on current main keeps this projection merge-safe after the
+  room-access reflection. The active/opened, no-artist-answer path can become a
+  `refund_pending` candidate, but duplicate evaluation returns the same
+  candidate projection and still does not execute refund, wallet, settlement,
+  payout, message, or room mutation.
 - #1014 adds `PREMIUM_CHAT_UNANSWERED_REFUND_STATUS_PROJECTION` for the 24-hour
   no-artist-answer read model. Active/opened rooms with no artist answer after
   24 hours can project `refund_pending` with reason
@@ -3264,6 +3298,13 @@ AI premium content request state API skeleton (#591):
   email. Reading the queue must not create requests, write queue rows, call
   image/video providers, mutate wallet/order, settlement, payout, or paid-like
   state.
+- #1288 adds `AI_PREMIUM_CONTENT_QUEUE_STATUS_API_SKELETON` for read-only queue
+  list/status endpoints under the AI middleware pipeline. The response surface
+  is limited to request/status/safety/reuse/estimated-cost keys and display
+  message keys. Raw prompt, provider payload, API key, internal/provider cost,
+  signed URL, and storage key fields remain hidden, and reading status must not
+  create queue rows, call image/video providers, or mutate wallet/order,
+  settlement, or payout state.
 
 AI premium content request brief API skeleton (#662):
 

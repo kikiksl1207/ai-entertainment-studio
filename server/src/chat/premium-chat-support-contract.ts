@@ -218,6 +218,71 @@ export const PREMIUM_CHAT_DONATION_LEDGER_IDEMPOTENCY_SKELETON = {
   },
 } as const;
 
+export const PREMIUM_CHAT_SUPPORT_CREATE_API_SKELETON = {
+  version: '2026-06-28.premium-chat-support-create-api-skeleton.v1',
+  status: 'skeleton_ready_mutation_blocked',
+  endpoint: {
+    method: 'POST',
+    path: '/api/v1/chat/premium-rooms/:roomId/support-messages',
+    enabled: false,
+    authRequired: true,
+    roomOwnerOnly: true,
+    requiresIdempotencyKey: true,
+  },
+  requestBody: {
+    amountLumina: {
+      fixedAmountsLumina: PREMIUM_CHAT_DONATION_AMOUNTS_LUMINA,
+      customAmount: PREMIUM_CHAT_DONATION_CUSTOM_AMOUNT_POLICY,
+      integerOnly: true,
+      clientSubmittedAmountTrusted: false,
+    },
+    message: {
+      optional: true,
+      maxChars: 200,
+      createsRoomMessage: false,
+      createsAiReply: false,
+    },
+    idempotencyKey: {
+      acceptedFrom: ['Idempotency-Key header', 'body.idempotencyKey'],
+      required: true,
+    },
+  },
+  validationOrder: [
+    'authenticate_user',
+    'load_room_owner_artist_and_status',
+    'reject_blocked_or_terminal_room',
+    'normalize_amount_from_server_policy',
+    'validate_optional_support_message',
+    'validate_idempotency_before_wallet_lookup',
+    'return_disabled_projection_without_mutation',
+  ],
+  responseProjection: {
+    status: 'disabled_contract_projection',
+    amountSource: 'server_normalized_integer_lumina',
+    rankingLane: 'premium_chat_donation_only_when_future_confirmed',
+    likeRankingReceivesSupport: false,
+    rawSupportMessageReturnedInRankings: false,
+  },
+  noMutation: {
+    donationOrderCreate: true,
+    supportMessageCreate: true,
+    walletDebit: true,
+    walletCredit: true,
+    supportPointLedgerWrite: true,
+    rankingSnapshotWrite: true,
+    settlement: true,
+    payout: true,
+  },
+  privacy: {
+    rawWalletLedgerIdReturned: false,
+    rawSupportPointLedgerIdReturned: false,
+    rawUserEmailReturned: false,
+    tokenCookiePasswordReturned: false,
+    apiKeyReturned: false,
+    dbUrlReturned: false,
+  },
+} as const;
+
 export const PREMIUM_CHAT_DONATION_HISTORY_STATUSES = [
   'confirmed',
   'refunded',
@@ -1889,6 +1954,7 @@ export const PREMIUM_CHAT_SUPPORT_CONTRACT = {
     disabledDisplayMessageKo:
       '프리미엄챗 후원은 원장·보안 검증이 끝난 뒤 열릴 예정이에요.',
   },
+  supportCreateApiSkeleton: PREMIUM_CHAT_SUPPORT_CREATE_API_SKELETON,
   artistDirectReplyContract: {
     version: '2026-06-23.premium-chat-artist-direct-reply.v1',
     status: 'backend_contract_only_message_send_disabled',
