@@ -762,6 +762,111 @@ export const STORY_STAGE_AUTHOR_SETTLEMENT_REFUND_READ_MODEL = {
   },
 } as const;
 
+export const STORY_SCENE_ASSET_READ_MODEL_CONTRACT = {
+  version: '2026-06-29.story-scene-asset-read-model.v1',
+  status: 'read_model_contract_only',
+  readModel: 'story_scene_asset_projection',
+  endpoints: {
+    sessionSceneList: {
+      method: 'GET',
+      path: '/api/v1/story-sessions/:sessionId/scenes',
+      enabled: false,
+      authRequired: true,
+      response: 'StorySceneAssetProjection[]',
+    },
+    currentScene: {
+      method: 'GET',
+      path: '/api/v1/story-sessions/:sessionId/current-scene',
+      enabled: false,
+      authRequired: true,
+      response: 'StorySceneAssetProjection',
+    },
+  },
+  sourceOfTruth: {
+    sceneText: 'story_session_scenes.safe_text_projection',
+    backgroundAsset: 'story_scene_assets.public_background_asset',
+    backgroundPromptKey: 'story_scene_asset_prompt_keys.public_key',
+    characterAsset: 'story_scene_character_assets.public_character_asset',
+    fallbackKey: 'story_scene_asset_fallback_keys.public_i18n_key',
+  },
+  projectionFields: [
+    'sceneId',
+    'sceneText',
+    'backgroundAsset',
+    'backgroundPromptKey',
+    'backgroundState',
+    'characters',
+    'fallbackKey',
+  ],
+  backgroundAsset: {
+    assetIdField: 'assetId',
+    publicUrlField: 'url',
+    labelKeyField: 'labelKey',
+    allowedStates: ['ready', 'loading', 'missing', 'fallback'],
+    storageKeyReturned: false,
+    signedUrlReturned: false,
+    providerAssetIdReturned: false,
+  },
+  characters: {
+    maxVisibleCharactersPerScene: 4,
+    fields: [
+      'characterId',
+      'artistSlug',
+      'displayNameKey',
+      'assetId',
+      'characterPose',
+      'characterLayer',
+      'entranceState',
+    ],
+    allowedPoses: ['neutral', 'speaking', 'listening', 'alert', 'leaving'],
+    allowedLayers: ['background', 'midground', 'foreground', 'offscreen'],
+    storageKeyReturned: false,
+    privatePersonaReturned: false,
+  },
+  fallbackPolicy: {
+    fallbackKeyRequired: true,
+    fallbackKeySeparateFromScreenCopy: true,
+    rawPromptAsFallbackCopyAllowed: false,
+    supportedLocaleKeys: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
+    defaultFallbackKey: 'storyStage.scene.assetFallback.default',
+  },
+  validationOrder: [
+    'authenticate_session_owner_or_entitled_reader',
+    'load_story_session_scene_projection',
+    'map_background_asset_to_public_projection',
+    'map_character_assets_to_public_projection',
+    'apply_fallback_key_when_asset_missing_or_loading',
+    'return_scene_asset_projection_without_mutation',
+  ],
+  privacy: {
+    rawPromptReturned: false,
+    providerPayloadReturned: false,
+    internalCostReturned: false,
+    privateUserInputReturned: false,
+    rawModelResponseReturned: false,
+    privateAuthorNotesReturned: false,
+    adminMemoReturned: false,
+    storageKeyReturned: false,
+    signedUrlReturned: false,
+  },
+  mutationPolicy: {
+    contractAddsEndpoint: false,
+    providerCall: false,
+    imageGeneration: false,
+    videoGeneration: false,
+    assetCreate: false,
+    assetUploadIntentCreate: false,
+    storyProgressMutation: false,
+    storySceneWrite: false,
+    paymentMutation: false,
+    walletDebit: false,
+    walletCredit: false,
+    walletLedgerMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
+
 export const STORY_STAGE_CONTRACT = {
   version: '2026-06-18.story-stage-contract.v1',
   freePrologueEntitlementGuard: STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD,
@@ -777,6 +882,7 @@ export const STORY_STAGE_CONTRACT = {
     STORY_STAGE_AUTHOR_INTERRUPTION_REFUND_PENALTY_READ_MODEL,
   authorSettlementRefundReadModel:
     STORY_STAGE_AUTHOR_SETTLEMENT_REFUND_READ_MODEL,
+  sceneAssetReadModel: STORY_SCENE_ASSET_READ_MODEL_CONTRACT,
 } as const;
 
 export const STORY_STAGE_PACK_CHAPTER_SESSION_CONTRACT = {

@@ -10,6 +10,7 @@ import {
   STORY_STAGE_PACK_CHAPTER_SESSION_CONTRACT,
   STORY_STAGE_PURCHASE_LEDGER_SKELETON,
   STORY_STAGE_SESSION_RETENTION_POLICY_CONTRACT,
+  STORY_SCENE_ASSET_READ_MODEL_CONTRACT,
 } from './story-stage-contract';
 
 describe('Story Stage contract skeleton', () => {
@@ -723,6 +724,88 @@ describe('Story Stage contract skeleton', () => {
         'payoutEligible',
       ]),
     );
+  });
+
+  it('publishes scene asset projection fields without raw prompts or provider mutations', () => {
+    const readModel = STORY_SCENE_ASSET_READ_MODEL_CONTRACT;
+
+    expect(STORY_STAGE_CONTRACT.sceneAssetReadModel).toBe(readModel);
+    expect(readModel).toMatchObject({
+      version: '2026-06-29.story-scene-asset-read-model.v1',
+      status: 'read_model_contract_only',
+      readModel: 'story_scene_asset_projection',
+      endpoints: {
+        sessionSceneList: {
+          method: 'GET',
+          path: '/api/v1/story-sessions/:sessionId/scenes',
+          enabled: false,
+          authRequired: true,
+        },
+        currentScene: {
+          method: 'GET',
+          path: '/api/v1/story-sessions/:sessionId/current-scene',
+          enabled: false,
+          authRequired: true,
+        },
+      },
+      backgroundAsset: {
+        allowedStates: ['ready', 'loading', 'missing', 'fallback'],
+        storageKeyReturned: false,
+        signedUrlReturned: false,
+        providerAssetIdReturned: false,
+      },
+      characters: {
+        maxVisibleCharactersPerScene: 4,
+        allowedPoses: ['neutral', 'speaking', 'listening', 'alert', 'leaving'],
+        allowedLayers: ['background', 'midground', 'foreground', 'offscreen'],
+        storageKeyReturned: false,
+        privatePersonaReturned: false,
+      },
+      fallbackPolicy: {
+        fallbackKeyRequired: true,
+        fallbackKeySeparateFromScreenCopy: true,
+        rawPromptAsFallbackCopyAllowed: false,
+        supportedLocaleKeys: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
+      },
+      privacy: {
+        rawPromptReturned: false,
+        providerPayloadReturned: false,
+        internalCostReturned: false,
+        privateUserInputReturned: false,
+        rawModelResponseReturned: false,
+        privateAuthorNotesReturned: false,
+        adminMemoReturned: false,
+      },
+    });
+    expect(readModel.projectionFields).toEqual([
+      'sceneId',
+      'sceneText',
+      'backgroundAsset',
+      'backgroundPromptKey',
+      'backgroundState',
+      'characters',
+      'fallbackKey',
+    ]);
+    expect(readModel.characters.fields).toEqual(
+      expect.arrayContaining([
+        'characterPose',
+        'characterLayer',
+        'entranceState',
+      ]),
+    );
+    expect(readModel.validationOrder).toEqual([
+      'authenticate_session_owner_or_entitled_reader',
+      'load_story_session_scene_projection',
+      'map_background_asset_to_public_projection',
+      'map_character_assets_to_public_projection',
+      'apply_fallback_key_when_asset_missing_or_loading',
+      'return_scene_asset_projection_without_mutation',
+    ]);
+    expect(
+      Object.values(readModel.mutationPolicy).every(
+        (enabled) => enabled === false,
+      ),
+    ).toBe(true);
   });
 });
 
