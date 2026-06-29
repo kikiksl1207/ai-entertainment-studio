@@ -135,6 +135,8 @@ GET /api/v1/story-packs/:packSlug
 GET /api/v1/story-packs/:packSlug/chapters/:chapterNo
 POST /api/v1/story-packs/:packSlug/sessions
 GET /api/v1/story-sessions/:sessionId/choices
+GET /api/v1/story-sessions/:sessionId/scenes
+GET /api/v1/story-sessions/:sessionId/current-scene
 ```
 
 - StoryPack pricing modes are `free`, `paid`, and `mixed`; lifecycle statuses
@@ -154,6 +156,17 @@ GET /api/v1/story-sessions/:sessionId/choices
   entitlements, create story sessions, submit choices, call AI providers,
   generate image/video assets, create notifications, touch settlement, or touch
   payout.
+- #1355 adds `STORY_SCENE_ASSET_READ_MODEL_CONTRACT` for scene-level visual
+  metadata. Scene responses may expose only display-safe `sceneId`,
+  `sceneText`, `backgroundAsset`, `backgroundPromptKey`, `backgroundState`,
+  `characters[]`, `characterPose`, `characterLayer`, and `fallbackKey` fields.
+  `fallbackKey` stays separate from screen copy and must be representable for
+  `ko`, `en`, `ja`, `zh-Hans`, and `zh-Hant`. The read model does not expose
+  raw prompts, provider payloads, internal cost, private user input, storage
+  keys, signed URLs, private persona text, author notes, or admin memos. It does
+  not call providers, generate image/video assets, create upload intents, write
+  story progress/scenes, debit or credit wallet, create wallet ledgers, or touch
+  payment, settlement, or payout state.
 - #1081 adds `STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT` for read-only
   author revenue preview. It separates chapter gross revenue, season bundle
   discount allocation, AI artist companion participation cost, and story author
