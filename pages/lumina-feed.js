@@ -83,6 +83,23 @@ let _luminaFeedSearchSeq = 0;
 
 let _feedDetailOpen = false;
 
+function buildFeedAuthorRelationLinks(handle) {
+  if (!handle) return "";
+  var rawHandle = String(handle || "").trim();
+  if (!rawHandle) return "";
+  var hrefBase = "/user-profile?handle=" + encodeURIComponent(rawHandle);
+  var safeHandle = feedEscapeHtml(rawHandle);
+  var followersHref = feedEscapeHtml(hrefBase + "#followers");
+  var followingHref = feedEscapeHtml(hrefBase + "#following");
+  return (
+    '<div class="feed-author-relation" data-feed-author-handle="' + safeHandle + '">' +
+      '<a class="feed-relation-link" href="' + followersHref + '" data-i18n="feed.relation.followers">팔로워</a>' +
+      '<span class="feed-relation-separator" aria-hidden="true">·</span>' +
+      '<a class="feed-relation-link" href="' + followingHref + '" data-i18n="feed.relation.following">팔로잉</a>' +
+    '</div>'
+  );
+}
+
 function feedLocaleToLanguage(locale = _currentLocale) {
   const prefix = String(locale || "").toLowerCase().split("-")[0];
   return ({ ko: "ko", ja: "ja", en: "en", zh: "zh" })[prefix] || "all";
@@ -385,6 +402,10 @@ function renderLuminaFeed() {
     const authorHeaderHtml = authorHref
       ? `<a class="feed-author-link" href="${feedEscapeHtml(authorHref)}"${authorProfileAttrs} data-i18n-aria="feed.author.openProfile" aria-label="${feedEscapeHtml(authorName)} 프로필 보기">${authorInnerHtml}</a>`
       : `<div class="feed-author-link is-static" aria-label="${feedEscapeHtml(authorName)}">${authorInnerHtml}</div>`;
+    const authorRelationHandle = !artist
+      ? (isMineByViewer && me?.publicHandle ? me.publicHandle : post.authorPublicHandle)
+      : "";
+    const authorRelationHtml = buildFeedAuthorRelationLinks(authorRelationHandle);
 
     // #358 — thread continuation 시각화: X-style 좌측 세로 연결선 + 들여쓰기, "이어쓴 글" 배지.
     const isThreadContinuation = !!(post.threadContinuation && (post.threadContinuation.isContinuation || post.threadContinuation.rootPostId));
@@ -404,7 +425,10 @@ function renderLuminaFeed() {
       <article class="feed-post${typeKey === "artist" ? " is-artist-post" : typeKey === "debut_artist" ? " is-debut-post" : ""}${clickable}${continuationClass}" data-feed-type="${post.postType}" data-feed-post-id="${feedEscapeHtml(post.id || "")}"${cardOpenAttr}${isThreadContinuation ? ' data-feed-continuation-root="' + feedEscapeHtml(continuationRootId) + '"' : ""}>
         ${continuationConnector}
         <header class="feed-post-head">
-          ${authorHeaderHtml}
+          <div class="feed-author-stack">
+            ${authorHeaderHtml}
+            ${authorRelationHtml}
+          </div>
           ${followButton}
         </header>
         ${/* #834 — 팬덤형 카드: 팬 포스트가 특정 아티스트와 연결되어 있으면 아티스트 태그 표시 */
@@ -484,6 +508,10 @@ function renderLuminaFeed() {
       </article>
     `;
   }).join("");
+
+  if (window.luminaI18n && typeof window.luminaI18n.apply === "function") {
+    window.luminaI18n.apply(root);
+  }
 
   // 카드 본문이 line-clamp(6줄)에 의해 잘렸는지 감지 → has-overflow 부여
   // .has-overflow일 때만 CSS가 더보기 버튼을 노출
@@ -1795,6 +1823,10 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     var authorHeaderHtml = authorHref
       ? '<a class="feed-author-link" href="' + feedEscapeHtml(authorHref) + '"' + authorProfileAttrs + ' data-i18n-aria="feed.author.openProfile" aria-label="' + feedEscapeHtml(authorName) + ' 프로필 보기">' + authorInnerHtml + '</a>'
       : '<div class="feed-author-link is-static" aria-label="' + feedEscapeHtml(authorName) + '">' + authorInnerHtml + '</div>';
+    var authorRelationHandle = !artist
+      ? (isMineByViewer && me?.publicHandle ? me.publicHandle : post.authorPublicHandle)
+      : "";
+    var authorRelationHtml = buildFeedAuthorRelationLinks(authorRelationHandle);
 
     var repostEmbed  = (typeof renderFeedRepostSource     === "function") ? renderFeedRepostSource(post.repost) : "";
     var threadBadge  = (typeof renderFeedPostThreadBadge  === "function") ? renderFeedPostThreadBadge(post) : "";
@@ -1811,7 +1843,10 @@ async function runFeedComposeUploadStages(item, onStateChange) {
       '</div>' +
       '<article class="feed-post feed-detail-post" data-feed-type="' + feedEscapeHtml(post.postType || "fan_post") + '" data-feed-post-id="' + postIdStr + '">' +
         '<header class="feed-post-head">' +
-          authorHeaderHtml +
+          '<div class="feed-author-stack">' +
+            authorHeaderHtml +
+            authorRelationHtml +
+          '</div>' +
         '</header>' +
         '<p class="feed-post-body">' + feedEscapeHtml(post.body || "") + '</p>' +
         repostEmbed +
@@ -1914,6 +1949,9 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     }
 
     detailEl.innerHTML = buildFeedDetailHTML(post);
+    if (window.luminaI18n && typeof window.luminaI18n.apply === "function") {
+      window.luminaI18n.apply(detailEl);
+    }
     var backBtn = detailEl.querySelector("#feedDetailBackBtn");
     if (backBtn) backBtn.addEventListener("click", function () { closeFeedPostDetail(); });
   }

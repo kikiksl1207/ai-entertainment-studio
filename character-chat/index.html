@@ -381,7 +381,7 @@
               <!-- #329 — 프리미엄챗 후원 액션. POST 차감은 #328 계약상 비활성, sheet에서 read-only 미리보기만 가능. -->
               <button type="button" class="dm-action-menu-item is-donate" id="chatDonationOpen" role="menuitem" aria-haspopup="dialog" aria-controls="chatDonationSheet" data-donation-locked="false">
                 <span class="dm-action-menu-icon"><svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path d="M12 20.5c-3.6-2.4-7.5-5.4-7.5-9.4 0-2.6 2-4.6 4.6-4.6 1.6 0 2.7.7 3.4 1.7.7-1 1.8-1.7 3.4-1.7 2.6 0 4.6 2 4.6 4.6 0 4-3.9 7-7.5 9.4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></span>
-                <span class="dm-action-menu-text"><strong data-i18n="chat.donation.title">후원하기</strong><small id="chatDonationHint" data-i18n="chat.donation.rangeHint">10L~50,000L · 확인 후 진행</small></span>
+                <span class="dm-action-menu-text"><strong id="chatDonationTitle" data-i18n="chat.donation.title">후원하기</strong><small id="chatDonationHint" data-i18n="chat.donation.rangeHint">10L~50,000L · 확인 후 진행</small></span>
                 <span class="dm-action-tag dm-action-tag-paid" id="chatDonationTag" data-i18n="common.tag.paid">유료</span>
               </button>
             </div>
@@ -506,7 +506,7 @@
       </div>
 
       <!-- #892 — 제출 후 확인 배너 (기본 hidden, JS에서 show) -->
-      <div class="dm-request-confirm" id="chatRequestConfirm" hidden aria-live="polite">
+      <div class="dm-request-confirm" id="chatRequestConfirm" hidden aria-hidden="true" aria-live="polite">
         <span class="dm-request-confirm-icon" aria-hidden="true">✅</span>
         <div>
           <strong id="chatRequestConfirmLabel">요청 접수됨</strong>

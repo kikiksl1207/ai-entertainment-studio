@@ -264,6 +264,9 @@
     banner.innerHTML =
       '<strong class="donation-status-label" data-i18n="' + (disabled ? "chat.donation.locked.label" : unauth ? "chat.donation.unauth.label" : "chat.donation.ready.label") + '">' + label + "</strong>" +
       '<p class="donation-status-text" data-i18n="' + (disabled ? "chat.donation.locked.text" : unauth ? "chat.donation.unauth.text" : "chat.donation.ready.text") + '">' + body + "</p>";
+    if (window.luminaI18n && typeof window.luminaI18n.apply === "function") {
+      window.luminaI18n.apply(banner);
+    }
   }
 
   function renderPolicyInfo(contract) {
