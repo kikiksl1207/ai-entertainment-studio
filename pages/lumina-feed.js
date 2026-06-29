@@ -83,14 +83,36 @@ let _luminaFeedSearchSeq = 0;
 
 let _feedDetailOpen = false;
 
+function isFeedFixtureAuthorHandle(handle) {
+  return /^(fan|debut)\d+$/i.test(String(handle || "").trim());
+}
+
+function feedShouldPreserveFollowFixture(handle) {
+  if (!isFeedFixtureAuthorHandle(handle)) return false;
+  try {
+    var params = new URLSearchParams(window.location.search || "");
+    return params.get("feedfixture") === "1" || params.get("followfixture") === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function buildFeedAuthorProfileHref(handle, hash) {
+  var rawHandle = String(handle || "").trim();
+  if (!rawHandle) return "";
+  var params = new URLSearchParams();
+  params.set("handle", rawHandle);
+  if (feedShouldPreserveFollowFixture(rawHandle)) params.set("followfixture", "1");
+  return "/user-profile?" + params.toString() + (hash ? "#" + hash : "");
+}
+
 function buildFeedAuthorRelationLinks(handle) {
   if (!handle) return "";
   var rawHandle = String(handle || "").trim();
   if (!rawHandle) return "";
-  var hrefBase = "/user-profile?handle=" + encodeURIComponent(rawHandle);
   var safeHandle = feedEscapeHtml(rawHandle);
-  var followersHref = feedEscapeHtml(hrefBase + "#followers");
-  var followingHref = feedEscapeHtml(hrefBase + "#following");
+  var followersHref = feedEscapeHtml(buildFeedAuthorProfileHref(rawHandle, "followers"));
+  var followingHref = feedEscapeHtml(buildFeedAuthorProfileHref(rawHandle, "following"));
   return (
     '<div class="feed-author-relation" data-feed-author-handle="' + safeHandle + '">' +
       '<a class="feed-relation-link" href="' + followersHref + '" data-i18n="feed.relation.followers">팔로워</a>' +
@@ -377,7 +399,7 @@ function renderLuminaFeed() {
         });
       } else if (post.authorPublicHandle || post.authorUserId) {
         const target = post.authorPublicHandle
-          ? `/user-profile?handle=${encodeURIComponent(post.authorPublicHandle)}`
+          ? buildFeedAuthorProfileHref(post.authorPublicHandle)
           : `/user-profile?id=${encodeURIComponent(String(post.authorUserId))}`;
         authorHref = target;
         authorProfileAttrs = buildMiniProfileAuthorAttrs({
@@ -1801,7 +1823,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
         : "";
     } else if (post.authorPublicHandle || post.authorUserId) {
       var target2 = post.authorPublicHandle
-        ? "/user-profile?handle=" + encodeURIComponent(post.authorPublicHandle)
+        ? buildFeedAuthorProfileHref(post.authorPublicHandle)
         : "/user-profile?id=" + encodeURIComponent(String(post.authorUserId));
       authorHref = target2;
       authorProfileAttrs = (typeof buildMiniProfileAuthorAttrs === "function")
