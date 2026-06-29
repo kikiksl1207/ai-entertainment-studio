@@ -471,6 +471,118 @@ const I18N_DICT = {
     "ja-JP": "メールを送信できませんでした。少し時間を置いてもう一度お試しください。",
     "en-US": "We couldn't send the email. Please try again shortly.",
     "zh-CN": "邮件发送失败,请稍后重试。"
+  },
+  "chat.donation.title": {
+    "ko-KR": "후원하기",
+    "ja-JP": "応援する",
+    "en-US": "Support",
+    "zh-CN": "打赏",
+    "zh-Hant": "打賞"
+  },
+  "chat.donation.rangeHint": {
+    "ko-KR": "10L~50,000L · 확인 후 진행",
+    "ja-JP": "10L〜50,000L · 確認後に進む",
+    "en-US": "10L-50,000L · Review first",
+    "zh-CN": "10L~50,000L · 确认后继续",
+    "zh-Hant": "10L~50,000L · 確認後繼續"
+  },
+  "chat.donation.lockedHint": {
+    "ko-KR": "후원 준비 중 · 곧 열려요",
+    "ja-JP": "応援機能は準備中",
+    "en-US": "Support opening soon",
+    "zh-CN": "打赏功能准备中",
+    "zh-Hant": "打賞功能準備中"
+  },
+  "chat.donation.loading.label": {
+    "ko-KR": "상태 확인 중",
+    "ja-JP": "状態を確認中",
+    "en-US": "Checking status",
+    "zh-CN": "正在确认状态",
+    "zh-Hant": "正在確認狀態"
+  },
+  "chat.donation.loading.text": {
+    "ko-KR": "후원 정책을 불러오는 중이에요.",
+    "ja-JP": "応援ポリシーを読み込んでいます。",
+    "en-US": "Loading support policy.",
+    "zh-CN": "正在加载打赏政策。",
+    "zh-Hant": "正在載入打賞政策。"
+  },
+  "chat.donation.locked.label": {
+    "ko-KR": "후원 준비 중",
+    "ja-JP": "応援機能は準備中",
+    "en-US": "Support is preparing",
+    "zh-CN": "打赏功能准备中",
+    "zh-Hant": "打賞功能準備中"
+  },
+  "chat.donation.locked.text": {
+    "ko-KR": "후원 기능은 준비하고 있어요. 열리면 바로 알려드릴게요. 지금은 금액과 정책만 미리 볼 수 있어요.",
+    "ja-JP": "応援機能は準備中です。公開時にお知らせします。今は金額とポリシーのみ確認できます。",
+    "en-US": "Support is being prepared. We'll let you know when it opens. For now, you can preview amounts and policy only.",
+    "zh-CN": "打赏功能正在准备中。开放后会通知你。现在只能预览金额和政策。",
+    "zh-Hant": "打賞功能正在準備中。開放後會通知你。現在只能預覽金額與政策。"
+  },
+  "chat.donation.unauth.label": {
+    "ko-KR": "후원 준비 중",
+    "ja-JP": "応援機能は準備中",
+    "en-US": "Support is preparing",
+    "zh-CN": "打赏功能准备中",
+    "zh-Hant": "打賞功能準備中"
+  },
+  "chat.donation.unauth.text": {
+    "ko-KR": "로그인하면 후원 가능 여부를 확인할 수 있어요. 지금은 금액과 정책만 미리 볼 수 있어요.",
+    "ja-JP": "ログインすると応援可否を確認できます。今は金額とポリシーのみ確認できます。",
+    "en-US": "Log in to check whether support is available. For now, you can preview amounts and policy only.",
+    "zh-CN": "登录后可确认是否能打赏。现在只能预览金额和政策。",
+    "zh-Hant": "登入後可確認是否能打賞。現在只能預覽金額與政策。"
+  },
+  "chat.donation.ready.label": {
+    "ko-KR": "후원 가능",
+    "ja-JP": "応援できます",
+    "en-US": "Support available",
+    "zh-CN": "可以打赏",
+    "zh-Hant": "可以打賞"
+  },
+  "chat.donation.ready.text": {
+    "ko-KR": "고액 후원은 본인확인이 끝난 계정만 진행할 수 있어요.",
+    "ja-JP": "高額応援は本人確認済みのアカウントのみ進行できます。",
+    "en-US": "High-value support is available only for identity-verified accounts.",
+    "zh-CN": "高额打赏仅限已完成身份确认的账号。",
+    "zh-Hant": "高額打賞僅限已完成身分確認的帳號。"
+  },
+  "common.tag.paid": {
+    "ko-KR": "유료",
+    "ja-JP": "有料",
+    "en-US": "Paid",
+    "zh-CN": "付费",
+    "zh-Hant": "付費"
+  },
+  "common.tag.soon": {
+    "ko-KR": "준비중",
+    "ja-JP": "準備中",
+    "en-US": "Soon",
+    "zh-CN": "准备中",
+    "zh-Hant": "準備中"
+  },
+  "feed.relation.followers": {
+    "ko-KR": "팔로워",
+    "ja-JP": "フォロワー",
+    "en-US": "Followers",
+    "zh-CN": "粉丝",
+    "zh-Hant": "粉絲"
+  },
+  "feed.relation.following": {
+    "ko-KR": "팔로잉",
+    "ja-JP": "フォロー中",
+    "en-US": "Following",
+    "zh-CN": "正在关注",
+    "zh-Hant": "正在關注"
+  },
+  "feed.author.openProfile": {
+    "ko-KR": "프로필 보기",
+    "ja-JP": "プロフィールを見る",
+    "en-US": "Open profile",
+    "zh-CN": "查看个人主页",
+    "zh-Hant": "查看個人主頁"
   }
 };
 
