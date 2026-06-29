@@ -182,9 +182,27 @@ function getAccessToken() { return getAuth()?.accessToken || null; }
    - 비로그인 → localStorage만
    - 사전: 에밀리 #064 핵심 키 + nav/footer/auth 추가
    ══════════════════════════════════════════════ */
-const I18N_LOCALES = ["ko-KR", "ja-JP", "en-US", "zh-CN"];
+const I18N_LOCALES = ["ko-KR", "ja-JP", "en-US", "zh-CN", "zh-Hant"];
 const I18N_FALLBACK = "ko-KR";
 const I18N_STORAGE_KEY = "lumina_locale";
+const I18N_LOCALE_ALIASES = {
+  ko: "ko-KR",
+  en: "en-US",
+  ja: "ja-JP",
+  "zh-Hans": "zh-CN",
+  "zh-Hant": "zh-Hant",
+  "zh-TW": "zh-Hant",
+  "zh-HK": "zh-Hant",
+  "zh-MO": "zh-Hant"
+};
+
+function normalizeLocale(locale) {
+  const value = String(locale || "");
+  if (I18N_LOCALES.includes(value)) return value;
+  if (I18N_LOCALE_ALIASES[value]) return I18N_LOCALE_ALIASES[value];
+  const base = value.split("-")[0];
+  return I18N_LOCALE_ALIASES[base] || value;
+}
 
 // 사전 — 에밀리 #064 톤/용어집 + 클라우드 추가 nav/footer/auth
 const I18N_DICT = {
@@ -583,6 +601,90 @@ const I18N_DICT = {
     "en-US": "Open profile",
     "zh-CN": "查看个人主页",
     "zh-Hant": "查看個人主頁"
+  },
+  "feed.report.label": {
+    "ko-KR": "신고",
+    "ja-JP": "通報",
+    "en-US": "Report",
+    "zh-CN": "举报",
+    "zh-Hant": "檢舉"
+  },
+  "feed.report.soon": {
+    "ko-KR": "이 글 신고 (준비 중)",
+    "ja-JP": "この投稿を通報（準備中）",
+    "en-US": "Report this post (soon)",
+    "zh-CN": "举报这篇帖子（准备中）",
+    "zh-Hant": "檢舉這篇貼文（準備中）"
+  },
+  "storyStage.scene.assetFallback.default": {
+    "ko-KR": "장면 연출을 준비 중이에요.",
+    "ja-JP": "シーン演出を準備中です。",
+    "en-US": "Preparing scene visuals.",
+    "zh-CN": "正在准备场景演出。",
+    "zh-Hant": "正在準備場景演出。"
+  },
+  "storyStage.scene.background.loading": {
+    "ko-KR": "배경을 불러오는 중이에요.",
+    "ja-JP": "背景を読み込み中です。",
+    "en-US": "Loading background.",
+    "zh-CN": "正在加载背景。",
+    "zh-Hant": "正在載入背景。"
+  },
+  "storyStage.scene.background.missing": {
+    "ko-KR": "기본 배경으로 장면을 이어갈게요.",
+    "ja-JP": "基本の背景で続けます。",
+    "en-US": "Using default background.",
+    "zh-CN": "使用默认背景继续。",
+    "zh-Hant": "使用預設背景繼續。"
+  },
+  "storyStage.scene.background.altDefault": {
+    "ko-KR": "스토리 기본 배경",
+    "ja-JP": "ストーリー基本背景",
+    "en-US": "Default background",
+    "zh-CN": "故事默认背景",
+    "zh-Hant": "故事預設背景"
+  },
+  "storyStage.scene.character.loading": {
+    "ko-KR": "캐릭터를 불러오는 중이에요.",
+    "ja-JP": "キャラクターを読み込み中です。",
+    "en-US": "Loading character.",
+    "zh-CN": "正在加载角色。",
+    "zh-Hant": "正在載入角色。"
+  },
+  "storyStage.scene.character.missing": {
+    "ko-KR": "캐릭터 없이 장면을 이어갈게요.",
+    "ja-JP": "キャラクターなしで続けます。",
+    "en-US": "No character in this scene.",
+    "zh-CN": "本场景没有角色。",
+    "zh-Hant": "本場景沒有角色。"
+  },
+  "storyStage.scene.character.altDefault": {
+    "ko-KR": "캐릭터 기본 이미지",
+    "ja-JP": "キャラクター基本画像",
+    "en-US": "Default character",
+    "zh-CN": "角色默认图片",
+    "zh-Hant": "角色預設圖片"
+  },
+  "storyStage.scene.visual.unavailable": {
+    "ko-KR": "장면 연출을 불러오지 못했어요.",
+    "ja-JP": "シーン演出を読み込めませんでした。",
+    "en-US": "Scene could not load.",
+    "zh-CN": "无法加载场景演出。",
+    "zh-Hant": "無法載入場景演出。"
+  },
+  "storyStage.scene.preview.prev": {
+    "ko-KR": "이전 장면",
+    "ja-JP": "前のシーン",
+    "en-US": "Previous scene",
+    "zh-CN": "上一场景",
+    "zh-Hant": "上一場景"
+  },
+  "storyStage.scene.preview.next": {
+    "ko-KR": "다음 장면",
+    "ja-JP": "次のシーン",
+    "en-US": "Next scene",
+    "zh-CN": "下一场景",
+    "zh-Hant": "下一場景"
   }
 };
 
@@ -601,7 +703,8 @@ function detectLocale() {
   // localStorage 우선 (사용자가 직접 변경한 적 있는 경우)
   try {
     const stored = localStorage.getItem(I18N_STORAGE_KEY);
-    if (stored && I18N_LOCALES.includes(stored)) return stored;
+    const normalizedStored = normalizeLocale(stored);
+    if (stored && I18N_LOCALES.includes(normalizedStored)) return normalizedStored;
   } catch (_) { /* localStorage 막힌 환경 무시 */ }
 
   // navigator.language(s) — 정확 매칭 → prefix 매칭
@@ -611,7 +714,8 @@ function detectLocale() {
     if (Array.isArray(navigator.languages)) langs.push(...navigator.languages);
   }
   for (const l of langs) {
-    if (I18N_LOCALES.includes(l)) return l;
+    const normalized = normalizeLocale(l);
+    if (I18N_LOCALES.includes(normalized)) return normalized;
     const prefix = (l || "").split("-")[0];
     const match = I18N_LOCALES.find(x => x.startsWith(prefix + "-"));
     if (match) return match;
@@ -644,14 +748,23 @@ function applyI18n(root) {
       if (attr && key) el.setAttribute(attr, t(key));
     });
   });
+  scope.querySelectorAll("[data-i18n-aria]").forEach(el => {
+    const key = el.dataset.i18nAria;
+    if (key) el.setAttribute("aria-label", t(key));
+  });
+  scope.querySelectorAll("[data-i18n-alt]").forEach(el => {
+    const key = el.dataset.i18nAlt;
+    if (key) el.setAttribute("alt", t(key));
+  });
 }
 
 /** locale 변경 — UI 즉시 갱신 + localStorage 저장 + 로그인 시 서버 동기화 */
 async function setLocale(locale) {
-  if (!I18N_LOCALES.includes(locale)) return;
-  _currentLocale = locale;
-  if (typeof document !== "undefined") document.documentElement.lang = locale;
-  try { localStorage.setItem(I18N_STORAGE_KEY, locale); } catch (_) {}
+  const normalizedLocale = normalizeLocale(locale);
+  if (!I18N_LOCALES.includes(normalizedLocale)) return;
+  _currentLocale = normalizedLocale;
+  if (typeof document !== "undefined") document.documentElement.lang = normalizedLocale;
+  try { localStorage.setItem(I18N_STORAGE_KEY, normalizedLocale); } catch (_) {}
   applyI18n();
   // 로그인 사용자만 서버 저장 (실패해도 로컬 적용 유지)
   if (isLoggedIn()) {
@@ -659,7 +772,7 @@ async function setLocale(locale) {
       await apiFetch("/api/v1/me/settings", {
         method: "PATCH",
         auth: true,
-        body: { locale }
+        body: { locale: normalizedLocale }
       });
     } catch (err) {
       console.warn("[Lumina] PATCH /me/settings locale 저장 실패:", err);
@@ -674,7 +787,7 @@ async function initI18n() {
   if (isLoggedIn()) {
     try {
       const res = await apiFetch("/api/v1/me/settings", { auth: true });
-      const serverLocale = res?.settings?.locale || res?.locale;
+      const serverLocale = normalizeLocale(res?.settings?.locale || res?.locale);
       if (serverLocale && I18N_LOCALES.includes(serverLocale)) {
         resolved = serverLocale;
         try { localStorage.setItem(I18N_STORAGE_KEY, serverLocale); } catch (_) {}

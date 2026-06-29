@@ -3786,6 +3786,14 @@ p {
   color: rgba(220, 210, 240, 0.4);
   cursor: not-allowed;
 }
+.feed-report-btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (max-width: 480px) {
+  .feed-action-btn.feed-report-btn .feed-action-btn-label { display: none; }
+  .feed-action-btn.feed-report-btn { padding: 6px; }
+}
 /* #137 Phase A — 좋아요 활성 상태 (브랜드 핑크) */
 .feed-action-btn.feed-like-btn.is-liked {
   color: #ff5fa2;
