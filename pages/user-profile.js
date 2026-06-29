@@ -13,6 +13,7 @@ let _userProfilePostsCursor = null;
 const FEED_PROFILE_FIXTURE_FAN_NAMES = ["루미나_민지", "무대앞_해든", "조용한_관객", "서랍속_별", "오늘의_픽러", "팬클럽_여울"];
 
 const FOLLOW_PROFILE_FIXTURE_DEFAULT_HANDLE = "qa-fb-qa-20260629-run1-target";
+const FEED_PROFILE_FIXTURE_HANDLE_RE = /^(fan|debut)\d+$/i;
 
 function userProfileUsesFollowFixture(params = new URLSearchParams(window.location.search || "")) {
   try {
@@ -28,6 +29,24 @@ function normalizeFixtureHandle(value) {
     .toLowerCase()
     .replace(/^@/, "");
   return raw || FOLLOW_PROFILE_FIXTURE_DEFAULT_HANDLE;
+}
+
+function getFollowHashType() {
+  const hash = String(window.location.hash || "").replace(/^#/, "").toLowerCase();
+  if (hash === "followers" || hash === "following") return hash;
+  return null;
+}
+
+function openFollowListModalFromHash() {
+  const type = getFollowHashType();
+  if (!type) return;
+  requestAnimationFrame(() => {
+    const opener = document.querySelector(`[data-follow-open="${type}"]`);
+    if (opener && typeof opener.focus === "function") {
+      try { opener.focus({ preventScroll: true }); } catch (_) { opener.focus(); }
+    }
+    openFollowListModal(type);
+  });
 }
 
 function buildFollowProfileFixture(params) {
@@ -89,9 +108,9 @@ function renderFollowProfileFixturePosts() {
 }
 
 function buildFeedProfileFixture(handle, userId) {
-  if (!followListUsesFixture()) return null;
   const normalizedHandle = String(handle || "").trim();
-  const match = normalizedHandle.match(/^(fan|debut)(\d+)$/i);
+  const match = normalizedHandle.match(FEED_PROFILE_FIXTURE_HANDLE_RE);
+  if (!followListUsesFixture() && !match) return null;
   if (!match && !userId) return null;
   const kind = match ? match[1].toLowerCase() : "fan";
   const numericId = Number(match ? match[2] : userId) || 0;
@@ -100,6 +119,11 @@ function buildFeedProfileFixture(handle, userId) {
     : FEED_PROFILE_FIXTURE_FAN_NAMES[numericId % FEED_PROFILE_FIXTURE_FAN_NAMES.length];
   const publicHandle = normalizedHandle || (kind + numericId);
   return {
+    fixture: {
+      source: "feed-profile-fallback",
+      readOnly: true,
+      fixtureStatus: "feed_profile_fixture_preview_only",
+    },
     user: {
       id: userId || ("fixture-" + publicHandle),
       displayName,
@@ -139,6 +163,7 @@ function renderFeedProfileFixture(fixture) {
   bindFollowListModal();
   bindFollowListBlockAction();
   bindBlockConfirmModal();
+  openFollowListModalFromHash();
 }
 
 async function initUserProfilePage() {
@@ -163,6 +188,7 @@ async function initUserProfilePage() {
     bindFollowListStatClick();
     bindFollowListModal();
     bindBlockConfirmModal();
+    openFollowListModalFromHash();
     return;
   }
 
@@ -246,6 +272,7 @@ async function initUserProfilePage() {
   bindFollowListModal();
   bindFollowListBlockAction();
   bindBlockConfirmModal();
+  openFollowListModalFromHash();
 }
 
 let _userProfileActiveTab = "posts";
@@ -1375,6 +1402,8 @@ const FOLLOW_LIST_FIXTURE = {
 };
 function followListUsesFixture() {
   try {
+    if (_userProfileData?.fixture?.readOnly) return true;
+    if (_userProfileData?.source === "feed-profile-fixture") return true;
     const h = window.location.hostname;
     if (h === "localhost" || h === "127.0.0.1" || h === "" || h.endsWith(".local")) return true;
     return /[?&]followfixture=1(?:&|$)/.test(window.location.search || "");
