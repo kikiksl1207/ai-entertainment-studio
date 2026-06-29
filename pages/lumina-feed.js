@@ -100,6 +100,18 @@ function buildFeedAuthorRelationLinks(handle) {
   );
 }
 
+function buildFeedReportButton(postId) {
+  return (
+    '<button class="feed-action-btn feed-report-btn" type="button" ' +
+      'data-feed-report="' + feedEscapeHtml(postId || "") + '" disabled aria-disabled="true" ' +
+      'aria-label="이 글 신고 (준비 중)" title="이 글 신고 (준비 중)" ' +
+      'data-i18n-aria="feed.report.soon" data-i18n-attr="title:feed.report.soon">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4h10l-1.5 3L15 10H7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>' +
+      '<span class="feed-action-btn-label" data-i18n="feed.report.label">신고</span>' +
+    '</button>'
+  );
+}
+
 function feedLocaleToLanguage(locale = _currentLocale) {
   const prefix = String(locale || "").toLowerCase().split("-")[0];
   return ({ ko: "ko", ja: "ja", en: "en", zh: "zh" })[prefix] || "all";
@@ -500,6 +512,9 @@ function renderLuminaFeed() {
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 6l12 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
               <span class="feed-action-btn-label">차단</span>
             </button>`
+              : ""}
+            ${(!isMineByViewer && (post.authorPublicHandle || post.authorUserId))
+              ? buildFeedReportButton(post.id || "")
               : ""}
             ${editButton}
             ${deleteButton}
@@ -1891,6 +1906,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
                 '<span class="feed-action-btn-label">차단</span>' +
               '</button>'
               : '') +
+            ((!isMineByViewer && (post.authorPublicHandle || post.authorUserId)) ? buildFeedReportButton(post.id || "") : '') +
             editButton + deleteButton +
           '</div>' +
         '</footer>' +
