@@ -1,3 +1,24 @@
+import {
+  STORY_SCENE_BACKGROUND_STATE_RESOLVER_CONTRACT,
+  STORY_SCENE_CHARACTER_LAYER_READ_MODEL_CONTRACT,
+  STORY_SCENE_FIXTURE_API_CONTRACT,
+  STORY_SCENE_PROVIDER_GUARD_CONTRACT,
+  STORY_SCENE_READ_MODEL_CONTRACT,
+} from './story-scene-read-model';
+
+export {
+  findStorySceneProviderGuardViolations,
+  getStorySceneFixtureReadModel,
+  listStorySceneFixtureReadModels,
+  projectStorySceneReadModel,
+  resolveStorySceneBackgroundState,
+  STORY_SCENE_BACKGROUND_STATE_RESOLVER_CONTRACT,
+  STORY_SCENE_CHARACTER_LAYER_READ_MODEL_CONTRACT,
+  STORY_SCENE_FIXTURE_API_CONTRACT,
+  STORY_SCENE_PROVIDER_GUARD_CONTRACT,
+  STORY_SCENE_READ_MODEL_CONTRACT,
+} from './story-scene-read-model';
+
 export const STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD = {
   version: '2026-06-18.story-stage-free-prologue-entitlement-guard.v1',
   status: 'contract_only',
@@ -781,6 +802,7 @@ export const STORY_SCENE_ASSET_READ_MODEL_CONTRACT = {
       authRequired: true,
       response: 'StorySceneAssetProjection',
     },
+    fixtureSceneList: STORY_SCENE_FIXTURE_API_CONTRACT.endpoint,
   },
   sourceOfTruth: {
     sceneText: 'story_session_scenes.safe_text_projection',
@@ -823,6 +845,7 @@ export const STORY_SCENE_ASSET_READ_MODEL_CONTRACT = {
     storageKeyReturned: false,
     privatePersonaReturned: false,
   },
+  characterLayerReadModel: STORY_SCENE_CHARACTER_LAYER_READ_MODEL_CONTRACT,
   fallbackPolicy: {
     fallbackKeyRequired: true,
     fallbackKeySeparateFromScreenCopy: true,
@@ -830,6 +853,9 @@ export const STORY_SCENE_ASSET_READ_MODEL_CONTRACT = {
     supportedLocaleKeys: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
     defaultFallbackKey: 'storyStage.scene.assetFallback.default',
   },
+  backgroundStateResolver: STORY_SCENE_BACKGROUND_STATE_RESOLVER_CONTRACT,
+  fixtureApi: STORY_SCENE_FIXTURE_API_CONTRACT,
+  providerGuard: STORY_SCENE_PROVIDER_GUARD_CONTRACT,
   validationOrder: [
     'authenticate_session_owner_or_entitled_reader',
     'load_story_session_scene_projection',
@@ -883,6 +909,7 @@ export const STORY_STAGE_CONTRACT = {
   authorSettlementRefundReadModel:
     STORY_STAGE_AUTHOR_SETTLEMENT_REFUND_READ_MODEL,
   sceneAssetReadModel: STORY_SCENE_ASSET_READ_MODEL_CONTRACT,
+  storySceneReadModel: STORY_SCENE_READ_MODEL_CONTRACT,
 } as const;
 
 export const STORY_STAGE_PACK_CHAPTER_SESSION_CONTRACT = {

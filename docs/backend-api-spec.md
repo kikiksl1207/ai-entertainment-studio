@@ -167,6 +167,19 @@ GET /api/v1/story-sessions/:sessionId/current-scene
   not call providers, generate image/video assets, create upload intents, write
   story progress/scenes, debit or credit wallet, create wallet ledgers, or touch
   payment, settlement, or payout state.
+- #1363-#1367 add `STORY_SCENE_READ_MODEL_CONTRACT` plus a fixture contract for
+  `GET /api/v1/story-sessions/fixtures/story-scene-preview/scenes`. The route is
+  still disabled as a live API, but the fixture flag is
+  `storySceneFixturePreview` and the exported fixture list contains three safe
+  scene projections: a ready background with characters, a ready characterless
+  scene, and a fallback-background scene. The background resolver returns a
+  public default asset plus `fallbackKey` for missing/loading failures, the
+  character layer projection returns ordered `characters[]` or an empty array,
+  and the provider guard rejects raw prompts, provider payloads, provider URLs,
+  storage keys, signed URLs, internal cost, private user input/persona data,
+  tokens, passwords, cookies, and API keys. This contract does not call
+  providers, generate assets, mutate story progress/scenes, debit or credit
+  wallet, create wallet ledgers, or touch payment, settlement, or payout state.
 - #1081 adds `STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT` for read-only
   author revenue preview. It separates chapter gross revenue, season bundle
   discount allocation, AI artist companion participation cost, and story author
