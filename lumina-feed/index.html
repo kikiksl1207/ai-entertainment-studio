@@ -48,7 +48,7 @@
           <a href="/characters" data-i18n="nav.artists">아티스트</a>
           <a href="/lumina-pick" data-i18n="nav.luminaPick">루미나 픽</a>
           <a href="/lumina-feed" data-i18n="nav.luminaFeed">루미나 피드</a>
-          <a href="/shortform" data-i18n="nav.shortform">숏폼</a>
+          <a href="/story-stage" data-i18n="nav.story">???</a>
         </nav>
         <a class="debut-cta-mobile" href="/debut" data-i18n="cta.debut">데뷔하기</a>
         <div class="header-auth">
@@ -87,6 +87,10 @@
           </aside>
 
           <div class="feed-main-column">
+            <nav class="feed-surface-tabs" role="tablist" aria-label="피드 surface">
+              <button class="feed-surface-tab is-active" type="button" role="tab" data-feed-surface="posts" aria-selected="true" data-i18n="feed.tab.posts">피드</button>
+              <button class="feed-surface-tab" type="button" role="tab" data-feed-surface="shorts" aria-selected="false" data-i18n="feed.shorts.tab">쇼츠</button>
+            </nav>
             <header class="feed-page-head">
               <p class="feed-page-eyebrow">Lumina Feed</p>
               <div class="feed-tabs" role="tablist" aria-label="피드 필터">
@@ -214,6 +218,12 @@
             <a class="feed-compose-guest-cta" href="#" data-action="login">로그인하기</a>
           </section>
 
+            <section class="feed-shorts-surface" data-feed-shorts-surface hidden aria-labelledby="feedShortsHeading">
+              <h2 class="feed-shorts-heading" id="feedShortsHeading" data-i18n="feed.shorts.heading">피드 속 쇼츠</h2>
+              <div class="feed-shorts-grid" data-feed-shorts-grid></div>
+              <p class="feed-shorts-empty" data-feed-shorts-empty hidden data-i18n="feed.shorts.empty">아직 볼 쇼츠가 없어요.</p>
+              <p class="feed-shorts-loading" data-feed-shorts-loading hidden data-i18n="feed.shorts.loading">쇼츠를 불러오는 중이에요.</p>
+            </section>
             <div class="feed-list" id="luminaFeedList" aria-live="polite"></div>
             <!-- #411 — 글 상세 보기 패널. JS가 .is-detail-open 부여 시 활성화. -->
             <div id="feedPostDetail" class="feed-post-detail" hidden aria-label="글 상세 보기"></div>
@@ -307,6 +317,7 @@
     </footer>
 
     <script src="/data/characters.js"></script>
+    <script src="/data/shortforms.js"></script>
     <script src="/pages/lumina-feed.js"></script>
     <script src="/pages/premium-chat-hub.js"></script>
     <script src="/app.js"></script>
@@ -328,9 +339,9 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
         <span data-i18n="tab.feed">피드</span>
       </a>
-      <a href="/shortform" class="mobile-tab" data-tab-key="shortform">
+      <a href="/story-stage" class="mobile-tab" data-tab-key="story">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M10 9v6l5-3z" fill="currentColor"/></svg>
-        <span data-i18n="tab.shortform">숏폼</span>
+        <span data-i18n="tab.story">???</span>
       </a>
     </nav>
   </body>

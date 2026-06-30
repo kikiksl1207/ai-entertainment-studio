@@ -109,6 +109,13 @@
       "zh-CN": "下一场景",
       "zh-Hant": "下一場景",
     },
+    "storyStage.scene.retry": {
+      "ko-KR": "다시 시도",
+      "ja-JP": "再試行",
+      "en-US": "Retry",
+      "zh-CN": "重试",
+      "zh-Hant": "重試",
+    },
   });
 
   const STORY_SCENE_FALLBACKS = [
@@ -291,6 +298,9 @@
     const chars = stage.querySelector("[data-scene-characters]");
     const text = stage.querySelector("[data-scene-text]");
     const status = stage.querySelector("[data-scene-visual-status]");
+    const fallback = stage.querySelector("[data-scene-fallback]");
+    const fallbackCopy = stage.querySelector("[data-scene-fallback-copy]");
+    const fallbackRetry = stage.querySelector("[data-scene-retry]");
 
     if (bgWrap) bgWrap.dataset.bgState = hasBackground ? "ready" : "fallback";
     if (bgImg) {
@@ -332,6 +342,20 @@
         status.removeAttribute("data-i18n");
       }
     }
+    if (fallback) {
+      const showFallback = !hasBackground || (visibleCharacters.length > 0 && characterWithAsset.length === 0);
+      fallback.hidden = !showFallback;
+      fallback.dataset.bgState = hasBackground ? "ready" : "fallback";
+      if (fallbackCopy) {
+        const fallbackKey = statusKey || activeScene.fallbackKey || "storyStage.scene.assetFallback.default";
+        fallbackCopy.textContent = storyT(fallbackKey);
+        fallbackCopy.dataset.i18n = fallbackKey;
+      }
+      if (fallbackRetry) {
+        fallbackRetry.textContent = storyT("storyStage.scene.retry");
+        fallbackRetry.dataset.i18n = "storyStage.scene.retry";
+      }
+    }
 
     const count = document.querySelector("[data-scene-count]");
     if (count) count.textContent = (_storySceneIndex + 1) + " / " + _storyScenes.length;
@@ -354,6 +378,10 @@
             <p class="scene-text" data-scene-text></p>
           </div>
           <p class="scene-visual-status" data-scene-visual-status role="status" hidden></p>
+          <div class="scene-fallback" data-scene-fallback data-bg-state="missing" hidden>
+            <p class="scene-fallback-copy" data-scene-fallback-copy data-i18n="storyStage.scene.background.missing">기본 배경으로 장면을 이어갈게요.</p>
+            <button class="scene-retry" type="button" data-scene-retry data-i18n="storyStage.scene.retry">다시 시도</button>
+          </div>
         </section>
         <nav class="scene-preview-nav" data-fixture-only ${fixtureMode ? "" : "hidden"}>
           <button type="button" data-scene-prev data-i18n="storyStage.scene.preview.prev">이전 장면</button>
@@ -529,6 +557,10 @@
       if (event.target.closest("[data-scene-next]")) {
         _storySceneIndex = (_storySceneIndex + 1) % _storyScenes.length;
         renderStoryScene(_storyScenes[_storySceneIndex]);
+        return;
+      }
+      if (event.target.closest("[data-scene-retry]")) {
+        renderStoryScene(_storyScenes[_storySceneIndex] || STORY_SCENE_FALLBACKS[0]);
         return;
       }
 
