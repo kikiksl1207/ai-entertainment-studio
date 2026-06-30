@@ -28,6 +28,73 @@
     return document.getElementById(id);
   }
 
+  let activeSheetFocus = null;
+
+  function sheetFocusable(sheet) {
+    return Array.from(sheet.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+      .filter((el) => !el.disabled && !el.hidden && el.offsetParent !== null);
+  }
+
+  function setSheetBackgroundInert(active) {
+    document.querySelectorAll("body > header, body > main, body > footer, body > .mobile-tabbar").forEach((el) => {
+      if (active) {
+        el.setAttribute("aria-hidden", "true");
+        if ("inert" in el) el.inert = true;
+        else el.dataset.sheetInert = "true";
+      } else {
+        el.removeAttribute("aria-hidden");
+        if ("inert" in el) el.inert = false;
+        delete el.dataset.sheetInert;
+      }
+    });
+  }
+
+  function openManagedSheet(sheet, backdrop, trigger, closeFn) {
+    if (!sheet || !backdrop) return;
+    sheet.hidden = false;
+    backdrop.hidden = false;
+    document.body.classList.add("is-sheet-open");
+    setSheetBackgroundInert(true);
+    activeSheetFocus = { sheet, trigger, closeFn };
+    requestAnimationFrame(() => {
+      const first = sheet.querySelector(".dm-sheet-close") || sheetFocusable(sheet)[0];
+      if (first && typeof first.focus === "function") first.focus({ preventScroll: true });
+    });
+  }
+
+  function closeManagedSheet(sheet, backdrop) {
+    if (sheet) sheet.hidden = true;
+    if (backdrop) backdrop.hidden = true;
+    document.body.classList.remove("is-sheet-open");
+    setSheetBackgroundInert(false);
+    const trigger = activeSheetFocus && activeSheetFocus.trigger;
+    activeSheetFocus = null;
+    if (trigger && typeof trigger.focus === "function") {
+      requestAnimationFrame(() => trigger.focus({ preventScroll: true }));
+    }
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (!activeSheetFocus || !activeSheetFocus.sheet || activeSheetFocus.sheet.hidden) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      activeSheetFocus.closeFn?.();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusables = sheetFocusable(activeSheetFocus.sheet);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+
   function getArtistSlug() {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -573,9 +640,7 @@
     }
 
     function openSheet() {
-      sheet.hidden = false;
-      backdrop.hidden = false;
-      document.body.classList.add("is-sheet-open");
+      openManagedSheet(sheet, backdrop, openBtn, closeSheet);
       submitted = false;
       activeTier = null;
       setRequestStep("form");
@@ -586,9 +651,7 @@
     }
 
     function closeSheet() {
-      sheet.hidden = true;
-      backdrop.hidden = true;
-      document.body.classList.remove("is-sheet-open");
+      closeManagedSheet(sheet, backdrop);
     }
 
     openBtn.addEventListener("click", openSheet);
@@ -1366,9 +1429,7 @@
     const mutationOpen = !openBtn.disabled;
 
     function openSheet() {
-      sheet.hidden = false;
-      backdrop.hidden = false;
-      document.body.classList.add("is-sheet-open");
+      openManagedSheet(sheet, backdrop, openBtn, closeSheet);
       renderDonationFixedAmounts(mutationOpen);
       selectedAmount = 0;
       if (customInput) customInput.value = "";
@@ -1381,9 +1442,7 @@
     }
 
     function closeSheet() {
-      sheet.hidden = true;
-      backdrop.hidden = true;
-      document.body.classList.remove("is-sheet-open");
+      closeManagedSheet(sheet, backdrop);
     }
 
     function setSelectedAmount(amount) {
@@ -1460,9 +1519,7 @@
     const backdrop = $("chatInboxBackdrop");
     if (!open || !sheet || !backdrop) return;
     function openSheet() {
-      sheet.hidden = false;
-      backdrop.hidden = false;
-      document.body.classList.add("is-sheet-open");
+      openManagedSheet(sheet, backdrop, open, closeSheet);
       // 보관함의 "공식 갤러리는 아티스트 상세에서" 안내 링크에 현재 slug 연결
       const link = $("chatInboxArtistGalleryLink");
       const slug = getArtistSlug();
@@ -1471,9 +1528,7 @@
       }
     }
     function closeSheet() {
-      sheet.hidden = true;
-      backdrop.hidden = true;
-      document.body.classList.remove("is-sheet-open");
+      closeManagedSheet(sheet, backdrop);
     }
     open.addEventListener("click", openSheet);
     backdrop.addEventListener("click", closeSheet);

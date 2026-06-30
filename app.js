@@ -211,7 +211,9 @@ const I18N_DICT = {
   "nav.artists": { "ko-KR": "아티스트", "ja-JP": "アーティスト", "en-US": "Artists", "zh-CN": "艺人" },
   "nav.luminaPick": { "ko-KR": "루미나 픽", "ja-JP": "ルミナピック", "en-US": "Lumina Pick", "zh-CN": "Lumina Pick" },
   "nav.luminaFeed": { "ko-KR": "루미나 피드", "ja-JP": "ルミナフィード", "en-US": "Lumina Feed", "zh-CN": "Lumina Feed" },
-  "nav.shortform": { "ko-KR": "숏폼", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频" },
+  "nav.shortform": { "ko-KR": "숏폼", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
+  "nav.story": { "ko-KR": "스토리", "ja-JP": "ストーリー", "en-US": "Story", "zh-CN": "故事", "zh-Hant": "故事" },
+  "nav.feedShorts": { "ko-KR": "쇼츠", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
   "nav.debut": { "ko-KR": "데뷔하기", "ja-JP": "デビュー申請", "en-US": "Debut", "zh-CN": "出道申请" },
   "nav.mypage": { "ko-KR": "마이페이지", "ja-JP": "マイページ", "en-US": "My Page", "zh-CN": "我的主页" },
   // ── 헤더 auth ──
@@ -229,7 +231,8 @@ const I18N_DICT = {
   "tab.artists": { "ko-KR": "아티스트", "ja-JP": "アーティスト", "en-US": "Artists", "zh-CN": "艺人" },
   "tab.pick": { "ko-KR": "루미나 픽", "ja-JP": "ルミナピック", "en-US": "Lumina Pick", "zh-CN": "Lumina Pick" },
   "tab.feed": { "ko-KR": "피드", "ja-JP": "フィード", "en-US": "Feed", "zh-CN": "动态" },
-  "tab.shortform": { "ko-KR": "숏폼", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频" },
+  "tab.shortform": { "ko-KR": "숏폼", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
+  "tab.story": { "ko-KR": "스토리", "ja-JP": "物語", "en-US": "Story", "zh-CN": "故事", "zh-Hant": "故事" },
   // ── 푸터 ──
   "footer.artistRoster": { "ko-KR": "아티스트 라인업", "ja-JP": "アーティスト一覧", "en-US": "Artist Roster", "zh-CN": "艺人阵容" },
   "footer.terms": { "ko-KR": "이용약관", "ja-JP": "利用規約", "en-US": "Terms of Service", "zh-CN": "服务条款" },
@@ -616,6 +619,62 @@ const I18N_DICT = {
     "zh-CN": "举报这篇帖子（准备中）",
     "zh-Hant": "檢舉這篇貼文（準備中）"
   },
+  "feed.tab.posts": {
+    "ko-KR": "피드",
+    "ja-JP": "フィード",
+    "en-US": "Feed",
+    "zh-CN": "动态",
+    "zh-Hant": "動態"
+  },
+  "feed.shorts.tab": {
+    "ko-KR": "쇼츠",
+    "ja-JP": "ショート",
+    "en-US": "Shorts",
+    "zh-CN": "短视频",
+    "zh-Hant": "短影音"
+  },
+  "feed.shorts.heading": {
+    "ko-KR": "피드 속 쇼츠",
+    "ja-JP": "フィード内ショート",
+    "en-US": "Shorts in Feed",
+    "zh-CN": "动态里的短视频",
+    "zh-Hant": "動態裡的短影音"
+  },
+  "feed.shorts.empty": {
+    "ko-KR": "아직 볼 쇼츠가 없어요.",
+    "ja-JP": "まだショートはありません。",
+    "en-US": "No shorts yet.",
+    "zh-CN": "暂时没有短视频。",
+    "zh-Hant": "暫時沒有短影音。"
+  },
+  "feed.shorts.loading": {
+    "ko-KR": "쇼츠를 불러오는 중이에요.",
+    "ja-JP": "ショートを読み込み中です。",
+    "en-US": "Loading shorts.",
+    "zh-CN": "正在加载短视频。",
+    "zh-Hant": "正在載入短影音。"
+  },
+  "shortform.redirect.notice": {
+    "ko-KR": "쇼츠는 루미나 피드에서 볼 수 있어요.",
+    "ja-JP": "ショートはルミナフィードで見られます。",
+    "en-US": "Shorts are now in Lumina Feed.",
+    "zh-CN": "短视频现在可在 Lumina Feed 中查看。",
+    "zh-Hant": "短影音現在可在 Lumina Feed 中查看。"
+  },
+  "story.route.notice": {
+    "ko-KR": "장면형 스토리로 이동",
+    "ja-JP": "シーン型ストーリーへ",
+    "en-US": "Open scene stories",
+    "zh-CN": "前往场景故事",
+    "zh-Hant": "前往場景故事"
+  },
+  "story.route.fallback": {
+    "ko-KR": "스토리를 불러오는 중이에요.",
+    "ja-JP": "ストーリーを読み込み中です。",
+    "en-US": "Loading story.",
+    "zh-CN": "正在加载故事。",
+    "zh-Hant": "正在載入故事。"
+  },
   "storyStage.scene.assetFallback.default": {
     "ko-KR": "장면 연출을 준비 중이에요.",
     "ja-JP": "シーン演出を準備中です。",
@@ -685,6 +744,13 @@ const I18N_DICT = {
     "en-US": "Next scene",
     "zh-CN": "下一场景",
     "zh-Hant": "下一場景"
+  },
+  "storyStage.scene.retry": {
+    "ko-KR": "다시 시도",
+    "ja-JP": "再試行",
+    "en-US": "Retry",
+    "zh-CN": "重试",
+    "zh-Hant": "重試"
   }
 };
 
@@ -2252,6 +2318,7 @@ function activateCurrentNavItem() {
     return segment;
   };
   const filename = normalize(path);
+  const activeTabKey = filename === "story-stage" ? "story" : filename;
   let activeLink = null;
 
   // 상단 nav (데스크톱 + 769px 이상)
@@ -2276,7 +2343,7 @@ function activateCurrentNavItem() {
   // data-tab-key는 파일명. 데뷔하기는 헤더 우측 CTA로 분리되어 탭바에 없음.
   document.querySelectorAll(".mobile-tab").forEach(tab => {
     const tabKey = (tab.dataset.tabKey || "").toLowerCase();
-    tab.classList.toggle("is-active", tabKey === filename);
+    tab.classList.toggle("is-active", tabKey === activeTabKey);
   });
 }
 
@@ -4220,6 +4287,8 @@ async function init() {
     // #613 — 정적/오프라인 프리뷰에서 API가 응답하지 않으면 await가 무한 대기되어
     // 카드가 "로딩 상태"로 멈춰 보이는 문제가 있었음. 먼저 빈 상태로 즉시 렌더한 뒤
     // 데이터 로드는 비차단으로 진행하고 완료되면 다시 그린다 (8초 타임아웃 가드).
+    if (typeof bindFeedSurfaceTabs === "function") bindFeedSurfaceTabs();
+    if (typeof initFeedSurfaceFromURL === "function") initFeedSurfaceFromURL();
     renderLuminaFeed();
     const feedLoadTimeout = new Promise(resolve => setTimeout(resolve, 8000));
     Promise.race([loadLuminaFeedData(), feedLoadTimeout])
@@ -4486,3 +4555,14 @@ bindMiniProfileFollow();
 init().catch(err => {
   console.error("[Lumina] init failed:", err);
 }).finally(markAppReady);
+
+function syncLateNavigationUI() {
+  window.luminaI18n?.apply?.(document.body);
+  activateCurrentNavItem();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", syncLateNavigationUI, { once: true });
+} else {
+  requestAnimationFrame(syncLateNavigationUI);
+}

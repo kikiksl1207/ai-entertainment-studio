@@ -810,6 +810,10 @@
   animation: dmSheetIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.dm-sheet:not([hidden]) {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
 @keyframes dmSheetIn {
   from {
     transform: translate(-50%, 12%);
@@ -1103,7 +1107,8 @@
   box-shadow: 0 6px 22px rgba(255, 79, 195, 0.38);
 }
 
-.dm-sheet-primary[disabled] {
+.dm-sheet-primary[disabled],
+.dm-sheet-primary[aria-disabled="true"] {
   opacity: 0.5;
   cursor: not-allowed;
   box-shadow: none;

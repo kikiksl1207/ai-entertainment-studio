@@ -4,23 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>이동 중… — Lumina Stage</title>
-    <link rel="canonical" href="https://www.lumina-stage.com/shortform" />
+    <link rel="canonical" href="https://www.lumina-stage.com/lumina-feed" />
     <meta name="robots" content="noindex, nofollow" />
-    <!-- #320 — 기존 .html 진입을 clean URL(/shortform)로 최종 redirect. query/hash 보존. -->
+    <!-- Legacy .html entry now routes to the Lumina Feed shorts surface. -->
     <script>
       (function () {
         var qs = window.location.search || "";
         var hash = window.location.hash || "";
-        window.location.replace("/shortform" + qs + hash);
+        var target = "/lumina-feed";
+        var glue = qs ? qs + "&surface=shorts" : "?surface=shorts";
+        window.location.replace(target + glue + hash);
       })();
     </script>
     <noscript>
-      <meta http-equiv="refresh" content="0; url=/shortform" />
+      <meta http-equiv="refresh" content="0; url=/lumina-feed?surface=shorts" />
     </noscript>
   </head>
   <body>
-    <p style="font-family:system-ui,sans-serif;padding:24px;color:#333;">새 주소(/shortform)로 이동 중입니다…
-      <a href="/shortform">바로 가기</a>
+    <p style="font-family:system-ui,sans-serif;padding:24px;color:#333;">쇼츠는 루미나 피드에서 볼 수 있어요.
+      <a href="/lumina-feed?surface=shorts">바로 가기</a>
     </p>
   </body>
 </html>

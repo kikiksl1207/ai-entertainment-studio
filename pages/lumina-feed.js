@@ -83,6 +83,8 @@ let _luminaFeedSearchSeq = 0;
 
 let _feedDetailOpen = false;
 
+let _feedSurface = "posts";
+
 function isFeedFixtureAuthorHandle(handle) {
   return /^(fan|debut)\d+$/i.test(String(handle || "").trim());
 }
@@ -137,6 +139,100 @@ function buildFeedReportButton(postId) {
 function feedLocaleToLanguage(locale = _currentLocale) {
   const prefix = String(locale || "").toLowerCase().split("-")[0];
   return ({ ko: "ko", ja: "ja", en: "en", zh: "zh" })[prefix] || "all";
+}
+
+function feedT(key, fallback) {
+  if (window.luminaI18n && typeof window.luminaI18n.t === "function") {
+    const value = window.luminaI18n.t(key);
+    if (value && value !== key) return value;
+  }
+  return fallback || key;
+}
+
+function feedNormalizeAssetUrl(url) {
+  const value = String(url || "").trim();
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value) || value.startsWith("/")) return value;
+  return "/" + value.replace(/^\.?\//, "");
+}
+
+function getFeedShortformItems() {
+  const data = window.LuminaStaticData && Array.isArray(window.LuminaStaticData.shortformsLocal)
+    ? window.LuminaStaticData.shortformsLocal
+    : [];
+  return data.slice(0, 12);
+}
+
+function renderFeedShortsSurface() {
+  const surface = document.querySelector("[data-feed-shorts-surface]");
+  const grid = document.querySelector("[data-feed-shorts-grid]");
+  const empty = document.querySelector("[data-feed-shorts-empty]");
+  const loading = document.querySelector("[data-feed-shorts-loading]");
+  if (!surface || !grid) return;
+  const items = getFeedShortformItems();
+  if (loading) loading.hidden = true;
+  if (empty) empty.hidden = items.length > 0;
+  grid.innerHTML = items.map(function (item) {
+    const artist = typeof getCharacterByName === "function" ? getCharacterByName(item.artist) : null;
+    const slug = artist && artist.slug ? artist.slug : "";
+    const img = feedNormalizeAssetUrl(item.image || artist?.images?.thumb || artist?.images?.cover || "");
+    const href = slug ? "/character-detail?slug=" + encodeURIComponent(slug) : "/characters";
+    return (
+      '<article class="feed-shorts-card clickable-card" data-href="' + feedEscapeHtml(href) + '">' +
+        '<div class="feed-shorts-thumb"' + (img ? ' style="background-image:linear-gradient(180deg, rgba(8,5,18,0.08), rgba(8,5,18,0.34)), url(\'' + feedEscapeHtml(img) + '\')"' : "") + '>' +
+          '<span class="feed-shorts-metric">' + feedEscapeHtml(item.metric || "") + '</span>' +
+        '</div>' +
+        '<div class="feed-shorts-card-body">' +
+          '<span class="feed-shorts-artist">' + feedEscapeHtml(item.artist || "") + '</span>' +
+          '<strong class="feed-shorts-title">' + feedEscapeHtml(item.title || feedT("feed.shorts.tab", "쇼츠")) + '</strong>' +
+          '<p class="feed-shorts-copy">' + feedEscapeHtml(item.hubTone || item.mainTone || item.tone || "") + '</p>' +
+        '</div>' +
+      '</article>'
+    );
+  }).join("");
+  window.luminaI18n?.apply?.(surface);
+}
+
+function setFeedSurface(surface, opts) {
+  const next = surface === "shorts" ? "shorts" : "posts";
+  _feedSurface = next;
+  const mainColumn = document.querySelector(".feed-main-column");
+  if (mainColumn) mainColumn.classList.toggle("is-shorts-surface", next === "shorts");
+  document.querySelectorAll("[data-feed-surface]").forEach(function (tab) {
+    const active = tab.getAttribute("data-feed-surface") === next;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  const shortsSurface = document.querySelector("[data-feed-shorts-surface]");
+  if (shortsSurface) shortsSurface.hidden = next !== "shorts";
+  if (next === "shorts") renderFeedShortsSurface();
+  if (!opts || opts.push !== false) {
+    const url = new URL(window.location.href);
+    if (next === "shorts") url.searchParams.set("surface", "shorts");
+    else url.searchParams.delete("surface");
+    history.replaceState(history.state || null, "", url.pathname + url.search + url.hash);
+  }
+}
+
+function bindFeedSurfaceTabs() {
+  const tabs = document.querySelectorAll("[data-feed-surface]");
+  if (!tabs.length) return;
+  tabs.forEach(function (tab) {
+    if (tab.dataset.surfaceBound) return;
+    tab.dataset.surfaceBound = "1";
+    tab.addEventListener("click", function () {
+      setFeedSurface(tab.getAttribute("data-feed-surface") || "posts");
+    });
+  });
+}
+
+function initFeedSurfaceFromURL() {
+  let surface = "posts";
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    if (params.get("surface") === "shorts") surface = "shorts";
+  } catch (_) { /* no-op */ }
+  setFeedSurface(surface, { push: false });
 }
 
 // #358 — repost 원글 reference card 렌더. originalPost가 있으면 임베드, tombstone이면 안전 안내.
@@ -2031,6 +2127,9 @@ async function runFeedComposeUploadStages(item, onStateChange) {
   window.initLuminaFeedDiscovery = initLuminaFeedDiscovery;
   window.renderLuminaFeed = renderLuminaFeed;
   window.bindLuminaFeedTabs = bindLuminaFeedTabs;
+  window.bindFeedSurfaceTabs = bindFeedSurfaceTabs;
+  window.initFeedSurfaceFromURL = initFeedSurfaceFromURL;
+  window.renderFeedShortsSurface = renderFeedShortsSurface;
   window.bindLuminaFeedFollow = bindLuminaFeedFollow;
   window.initFeedCompose = initFeedCompose;
   window.openFeedPostDetail = openFeedPostDetail;

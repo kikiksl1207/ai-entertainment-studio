@@ -48,4 +48,27 @@ function renderShortformHub() {
 
 window.renderShortforms = renderShortforms;
 window.renderShortformHub = renderShortformHub;
+function initShortformRedirectNotice() {
+  const hub = document.getElementById("shortformHub");
+  if (!hub || hub.dataset.redirectNoticeReady) return;
+  hub.dataset.redirectNoticeReady = "1";
+  const target = "/lumina-feed?surface=shorts";
+  hub.insertAdjacentHTML("beforebegin",
+    '<div class="shortform-redirect-notice" role="status" aria-live="polite">' +
+      '<p data-i18n="shortform.redirect.notice">쇼츠는 루미나 피드에서 볼 수 있어요.</p>' +
+      '<a class="text-link" href="' + target + '" data-i18n="feed.shorts.tab">쇼츠</a>' +
+    '</div>'
+  );
+  window.luminaI18n?.apply?.(hub.parentElement || document.body);
+  window.setTimeout(function () {
+    if (window.location.pathname.replace(/\/$/, "") === "/shortform") {
+      window.location.replace(target);
+    }
+  }, 900);
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initShortformRedirectNotice);
+} else {
+  initShortformRedirectNotice();
+}
 })();
