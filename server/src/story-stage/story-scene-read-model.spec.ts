@@ -1,16 +1,23 @@
 import {
   findStorySceneProviderGuardViolations,
+  buildStorySceneAssetFallbackErrorEnvelope,
   getStorySceneFixtureReadModel,
   listStorySceneFixtureReadModels,
   resolveStorySceneBackgroundState,
+  resolveStorySceneCharacterVisibility,
   STORY_SCENE_ALLOWED_BACKGROUND_ASSET_FIELDS,
   STORY_SCENE_ALLOWED_CHARACTER_FIELDS,
   STORY_SCENE_ALLOWED_RESPONSE_FIELDS,
+  STORY_SCENE_ASSET_FALLBACK_ERROR_ENVELOPE_CONTRACT,
   STORY_SCENE_BACKGROUND_STATE_RESOLVER_CONTRACT,
   STORY_SCENE_CHARACTER_LAYER_ORDER,
   STORY_SCENE_CHARACTER_LAYER_READ_MODEL_CONTRACT,
+  STORY_SCENE_CHARACTER_VISIBILITY_RESOLVER_CONTRACT,
+  STORY_SCENE_CHOICE_PROGRESS_WRITE_GUARD_CONTRACT,
+  STORY_SCENE_CURRENT_SCENE_ENDPOINT_DELTA_CONTRACT,
   STORY_SCENE_DEFAULT_FALLBACK_KEY,
   STORY_SCENE_FIXTURE_API_CONTRACT,
+  STORY_SCENE_FIXTURE_LOCALE_FIELD_CONTRACT,
   STORY_SCENE_PROVIDER_GUARD_CONTRACT,
   STORY_SCENE_READ_MODEL_CONTRACT,
 } from './story-scene-read-model';
@@ -33,6 +40,9 @@ describe('Story scene read model fixtures', () => {
       authRequired: false,
       fixtureFlag: 'storySceneFixturePreview',
     });
+    expect(STORY_SCENE_FIXTURE_API_CONTRACT.localeFields).toBe(
+      STORY_SCENE_FIXTURE_LOCALE_FIELD_CONTRACT,
+    );
     expect(fixtures).toHaveLength(3);
 
     for (const fixture of fixtures) {
@@ -126,6 +136,16 @@ describe('Story scene read model fixtures', () => {
         [...STORY_SCENE_ALLOWED_CHARACTER_FIELDS].sort(),
       );
     }
+    expect(bridge?.characters.map((character) => character.visibility)).toEqual([
+      'visible',
+      'offscreen',
+    ]);
+    expect(
+      resolveStorySceneCharacterVisibility({
+        characterLayer: 'foreground',
+        entranceState: 'absent',
+      }),
+    ).toBe('hidden');
   });
 
   it('guards future provider expansion from leaking provider or private fields', () => {
@@ -158,6 +178,106 @@ describe('Story scene read model fixtures', () => {
       Object.values(STORY_SCENE_PROVIDER_GUARD_CONTRACT.mutationPolicy).every(
         (enabled) => enabled === false,
       ),
+    ).toBe(true);
+  });
+
+  it('defines current-scene endpoint delta with the same safe read model fields', () => {
+    expect(STORY_SCENE_READ_MODEL_CONTRACT.currentSceneEndpointDelta).toBe(
+      STORY_SCENE_CURRENT_SCENE_ENDPOINT_DELTA_CONTRACT,
+    );
+    expect(STORY_SCENE_CURRENT_SCENE_ENDPOINT_DELTA_CONTRACT.endpoint).toMatchObject(
+      {
+        method: 'GET',
+        path: '/api/v1/story-sessions/:sessionId/current-scene',
+        enabled: false,
+        authRequired: true,
+      },
+    );
+    expect(
+      STORY_SCENE_CURRENT_SCENE_ENDPOINT_DELTA_CONTRACT.allowedResponseFields,
+    ).toBe(STORY_SCENE_ALLOWED_RESPONSE_FIELDS);
+    expect(
+      Object.values(
+        STORY_SCENE_CURRENT_SCENE_ENDPOINT_DELTA_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('keeps future choice and progress writes behind a disabled no-mutation guard', () => {
+    expect(STORY_SCENE_READ_MODEL_CONTRACT.choiceProgressWriteGuard).toBe(
+      STORY_SCENE_CHOICE_PROGRESS_WRITE_GUARD_CONTRACT,
+    );
+    expect(
+      STORY_SCENE_CHOICE_PROGRESS_WRITE_GUARD_CONTRACT.previewFixtureMode,
+    ).toMatchObject({
+      readOnly: true,
+      acceptsChoiceSubmit: false,
+      advancesProgress: false,
+      failureMessageKey: 'storyStage.scene.choice.readOnlyPreview',
+    });
+    expect(
+      Object.values(
+        STORY_SCENE_CHOICE_PROGRESS_WRITE_GUARD_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('publishes fixture locale key fields without translated bodies or provider copy', () => {
+    expect(STORY_SCENE_READ_MODEL_CONTRACT.fixtureLocaleFields).toBe(
+      STORY_SCENE_FIXTURE_LOCALE_FIELD_CONTRACT,
+    );
+    expect(
+      STORY_SCENE_FIXTURE_LOCALE_FIELD_CONTRACT.supportedLocaleSlots,
+    ).toEqual(['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant']);
+    expect(
+      STORY_SCENE_FIXTURE_LOCALE_FIELD_CONTRACT.fixtureFieldsUsingI18nKeys,
+    ).toEqual(
+      expect.arrayContaining([
+        'sceneText',
+        'backgroundAsset.labelKey',
+        'characters[].displayNameKey',
+        'fallbackKey',
+      ]),
+    );
+    expect(STORY_SCENE_FIXTURE_LOCALE_FIELD_CONTRACT.copyPolicy).toMatchObject({
+      fullTranslatedCopyInFixture: false,
+      publicKeyPreferred: true,
+      rawProviderPromptAllowedAsCopy: false,
+    });
+  });
+
+  it('contracts character visibility resolver and asset fallback error envelope', () => {
+    expect(STORY_SCENE_READ_MODEL_CONTRACT.characterVisibilityResolver).toBe(
+      STORY_SCENE_CHARACTER_VISIBILITY_RESOLVER_CONTRACT,
+    );
+    expect(STORY_SCENE_CHARACTER_VISIBILITY_RESOLVER_CONTRACT.states).toEqual([
+      'visible',
+      'offscreen',
+      'hidden',
+    ]);
+    expect(
+      STORY_SCENE_CHARACTER_VISIBILITY_RESOLVER_CONTRACT.emptySceneBehavior
+        .returnsEmptyCharactersArray,
+    ).toBe(true);
+
+    expect(STORY_SCENE_READ_MODEL_CONTRACT.assetFallbackErrorEnvelope).toBe(
+      STORY_SCENE_ASSET_FALLBACK_ERROR_ENVELOPE_CONTRACT,
+    );
+    const envelope = buildStorySceneAssetFallbackErrorEnvelope({
+      code: 'STORY_SCENE_BACKGROUND_ASSET_UNAVAILABLE',
+    });
+    expect(Object.keys(envelope).sort()).toEqual(
+      ['code', 'fallbackKey', 'retryable', 'shortLabelKey'].sort(),
+    );
+    expect(envelope).toMatchObject({
+      code: 'STORY_SCENE_BACKGROUND_ASSET_UNAVAILABLE',
+      fallbackKey: STORY_SCENE_DEFAULT_FALLBACK_KEY,
+      retryable: false,
+    });
+    expect(
+      Object.values(
+        STORY_SCENE_ASSET_FALLBACK_ERROR_ENVELOPE_CONTRACT.privacy,
+      ).every((returned) => returned === false),
     ).toBe(true);
   });
 });

@@ -42,6 +42,15 @@ export const STORY_SCENE_CHARACTER_ENTRANCE_STATES = [
 export type StorySceneCharacterEntranceState =
   (typeof STORY_SCENE_CHARACTER_ENTRANCE_STATES)[number];
 
+export const STORY_SCENE_CHARACTER_VISIBILITY_STATES = [
+  'visible',
+  'offscreen',
+  'hidden',
+] as const;
+
+export type StorySceneCharacterVisibility =
+  (typeof STORY_SCENE_CHARACTER_VISIBILITY_STATES)[number];
+
 export interface StoryScenePublicBackgroundAsset {
   assetId: string;
   url: string;
@@ -55,6 +64,7 @@ export interface StorySceneCharacterProjection {
   assetId: string;
   characterPose: StorySceneCharacterPose;
   characterLayer: StorySceneCharacterLayer;
+  visibility: StorySceneCharacterVisibility;
   entranceState: StorySceneCharacterEntranceState;
 }
 
@@ -121,6 +131,7 @@ export const STORY_SCENE_ALLOWED_CHARACTER_FIELDS = [
   'assetId',
   'characterPose',
   'characterLayer',
+  'visibility',
   'entranceState',
 ] as const;
 
@@ -165,6 +176,7 @@ const STORY_SCENE_FIXTURE_SOURCES: readonly StorySceneFixtureSource[] = [
         assetId: 'fixture-character-mira-coat',
         characterPose: 'speaking',
         characterLayer: 'foreground',
+        visibility: 'visible',
         entranceState: 'entering',
       },
     ],
@@ -196,6 +208,7 @@ const STORY_SCENE_FIXTURE_SOURCES: readonly StorySceneFixtureSource[] = [
         assetId: 'fixture-character-ren-alert',
         characterPose: 'alert',
         characterLayer: 'midground',
+        visibility: 'visible',
         entranceState: 'present',
       },
       {
@@ -205,6 +218,7 @@ const STORY_SCENE_FIXTURE_SOURCES: readonly StorySceneFixtureSource[] = [
         assetId: 'fixture-character-sol-offscreen',
         characterPose: 'listening',
         characterLayer: 'offscreen',
+        visibility: 'offscreen',
         entranceState: 'absent',
       },
     ],
@@ -231,8 +245,26 @@ function copyCharacter(
     assetId: character.assetId,
     characterPose: character.characterPose,
     characterLayer: character.characterLayer,
+    visibility: resolveStorySceneCharacterVisibility(character),
     entranceState: character.entranceState,
   };
+}
+
+export function resolveStorySceneCharacterVisibility(
+  character: Pick<
+    StorySceneCharacterProjection,
+    'characterLayer' | 'entranceState'
+  >,
+): StorySceneCharacterVisibility {
+  if (character.characterLayer === 'offscreen') {
+    return 'offscreen';
+  }
+
+  if (character.entranceState === 'absent') {
+    return 'hidden';
+  }
+
+  return 'visible';
 }
 
 export function resolveStorySceneBackgroundState(input: {
@@ -316,6 +348,190 @@ export function getStorySceneFixtureReadModel(
     (scene) => scene.sceneId === sceneId,
   );
 }
+
+export const STORY_SCENE_CURRENT_SCENE_ENDPOINT_DELTA_CONTRACT = {
+  version: '2026-06-30.story-scene-current-scene-endpoint-delta.v1',
+  status: 'read_endpoint_delta_contract',
+  endpoint: {
+    method: 'GET',
+    path: '/api/v1/story-sessions/:sessionId/current-scene',
+    enabled: false,
+    authRequired: true,
+    response: 'StorySceneReadModel',
+  },
+  allowedResponseFields: STORY_SCENE_ALLOWED_RESPONSE_FIELDS,
+  allowedBackgroundAssetFields: STORY_SCENE_ALLOWED_BACKGROUND_ASSET_FIELDS,
+  allowedCharacterFields: STORY_SCENE_ALLOWED_CHARACTER_FIELDS,
+  sourceCompatibility: {
+    sharesProjectionWithSceneList: true,
+    fixtureProjectionReusable: true,
+    sceneAssetContractCompatible: true,
+  },
+  privacy: {
+    rawPromptReturned: false,
+    providerPayloadReturned: false,
+    internalCostReturned: false,
+    privateUserInputReturned: false,
+    storageKeyReturned: false,
+    signedUrlReturned: false,
+  },
+  mutationPolicy: {
+    providerCall: false,
+    storyProgressMutation: false,
+    storySceneWrite: false,
+    paymentMutation: false,
+    walletMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
+
+export const STORY_SCENE_CHOICE_PROGRESS_WRITE_GUARD_CONTRACT = {
+  version: '2026-06-30.story-scene-choice-progress-write-guard.v1',
+  status: 'write_guard_skeleton_only',
+  guardedFutureEndpoints: {
+    submitChoice: {
+      method: 'POST',
+      path: '/api/v1/story-sessions/:sessionId/scenes/:sceneId/choices',
+      enabled: false,
+    },
+    advanceProgress: {
+      method: 'POST',
+      path: '/api/v1/story-sessions/:sessionId/progress',
+      enabled: false,
+    },
+  },
+  previewFixtureMode: {
+    readOnly: true,
+    acceptsChoiceSubmit: false,
+    advancesProgress: false,
+    failureMessageKey: 'storyStage.scene.choice.readOnlyPreview',
+  },
+  authorizationRequiredBeforeWrite: [
+    'authenticated_session_owner',
+    'confirmed_story_entitlement',
+    'scene_belongs_to_session',
+    'server_resolved_choice_id',
+  ],
+  blockedWithoutExplicitAuthority: {
+    providerCall: true,
+    storyProgressMutation: true,
+    storySceneWrite: true,
+    paymentMutation: true,
+    walletMutation: true,
+  },
+  mutationPolicy: {
+    providerCall: false,
+    storyProgressMutation: false,
+    storySceneWrite: false,
+    paymentMutation: false,
+    walletMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
+
+export const STORY_SCENE_FIXTURE_LOCALE_FIELD_CONTRACT = {
+  version: '2026-06-30.story-scene-fixture-locale-fields.v1',
+  status: 'fixture_locale_key_contract',
+  supportedLocaleSlots: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
+  fixtureFieldsUsingI18nKeys: [
+    'sceneText',
+    'backgroundAsset.labelKey',
+    'backgroundPromptKey',
+    'characters[].displayNameKey',
+    'fallbackKey',
+    'assetFallbackError.shortLabelKey',
+  ],
+  copyPolicy: {
+    fullTranslatedCopyInFixture: false,
+    publicKeyPreferred: true,
+    rawProviderPromptAllowedAsCopy: false,
+    privateAuthorNoteAllowedAsCopy: false,
+  },
+} as const;
+
+export const STORY_SCENE_CHARACTER_VISIBILITY_RESOLVER_CONTRACT = {
+  version: '2026-06-30.story-scene-character-visibility-resolver.v1',
+  status: 'read_only_resolver_contract',
+  states: STORY_SCENE_CHARACTER_VISIBILITY_STATES,
+  inputFields: ['characterLayer', 'entranceState'],
+  outputField: 'characters[].visibility',
+  emptySceneBehavior: {
+    returnsEmptyCharactersArray: true,
+    notAnError: true,
+  },
+  mobileLayerOrder: STORY_SCENE_CHARACTER_LAYER_ORDER,
+  mobileSafetyPolicy: {
+    foregroundCanOverlapSceneArt: true,
+    characterMayCoverChoiceButtons: false,
+    characterMayCoverBottomNav: false,
+    textAndChoicePriorityAboveDecorativeCharacters: true,
+  },
+  mutationPolicy: {
+    providerCall: false,
+    characterGeneration: false,
+    assetUploadIntentCreate: false,
+    assetCreate: false,
+    paymentMutation: false,
+    walletMutation: false,
+  },
+} as const;
+
+export const STORY_SCENE_ASSET_FALLBACK_ERROR_CODES = [
+  'STORY_SCENE_BACKGROUND_ASSET_UNAVAILABLE',
+  'STORY_SCENE_CHARACTER_ASSET_UNAVAILABLE',
+  'STORY_SCENE_ASSET_LOADING',
+] as const;
+
+export type StorySceneAssetFallbackErrorCode =
+  (typeof STORY_SCENE_ASSET_FALLBACK_ERROR_CODES)[number];
+
+export interface StorySceneAssetFallbackErrorEnvelope {
+  code: StorySceneAssetFallbackErrorCode;
+  fallbackKey: string;
+  shortLabelKey: string;
+  retryable: boolean;
+}
+
+export function buildStorySceneAssetFallbackErrorEnvelope(input: {
+  code: StorySceneAssetFallbackErrorCode;
+  fallbackKey?: string;
+  shortLabelKey?: string;
+  retryable?: boolean;
+}): StorySceneAssetFallbackErrorEnvelope {
+  return {
+    code: input.code,
+    fallbackKey: input.fallbackKey ?? STORY_SCENE_DEFAULT_FALLBACK_KEY,
+    shortLabelKey:
+      input.shortLabelKey ?? 'storyStage.scene.assetFallback.shortLabel',
+    retryable: input.retryable ?? input.code === 'STORY_SCENE_ASSET_LOADING',
+  };
+}
+
+export const STORY_SCENE_ASSET_FALLBACK_ERROR_ENVELOPE_CONTRACT = {
+  version: '2026-06-30.story-scene-asset-fallback-error-envelope.v1',
+  status: 'public_error_envelope_contract',
+  allowedFields: ['code', 'fallbackKey', 'shortLabelKey', 'retryable'],
+  allowedCodes: STORY_SCENE_ASSET_FALLBACK_ERROR_CODES,
+  privacy: {
+    providerRawErrorReturned: false,
+    signedUrlReturned: false,
+    storageKeyReturned: false,
+    privateUserInputReturned: false,
+    internalCostReturned: false,
+    rawStackReturned: false,
+  },
+  mutationPolicy: {
+    providerCall: false,
+    assetUploadIntentCreate: false,
+    assetCreate: false,
+    paymentMutation: false,
+    walletMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+} as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -427,6 +643,7 @@ export const STORY_SCENE_FIXTURE_API_CONTRACT = {
     privatePromptAllowed: false,
     providerPayloadAllowed: false,
   },
+  localeFields: STORY_SCENE_FIXTURE_LOCALE_FIELD_CONTRACT,
   handoffConsumers: ['cloud', 'viewer', 'qa2'],
 } as const;
 
@@ -476,6 +693,13 @@ export const STORY_SCENE_READ_MODEL_CONTRACT = {
   characterFields: STORY_SCENE_ALLOWED_CHARACTER_FIELDS,
   backgroundStateResolver: STORY_SCENE_BACKGROUND_STATE_RESOLVER_CONTRACT,
   characterLayerReadModel: STORY_SCENE_CHARACTER_LAYER_READ_MODEL_CONTRACT,
+  currentSceneEndpointDelta: STORY_SCENE_CURRENT_SCENE_ENDPOINT_DELTA_CONTRACT,
+  choiceProgressWriteGuard: STORY_SCENE_CHOICE_PROGRESS_WRITE_GUARD_CONTRACT,
+  fixtureLocaleFields: STORY_SCENE_FIXTURE_LOCALE_FIELD_CONTRACT,
+  characterVisibilityResolver:
+    STORY_SCENE_CHARACTER_VISIBILITY_RESOLVER_CONTRACT,
+  assetFallbackErrorEnvelope:
+    STORY_SCENE_ASSET_FALLBACK_ERROR_ENVELOPE_CONTRACT,
   fixtureApiContract: STORY_SCENE_FIXTURE_API_CONTRACT,
   providerGuardContract: STORY_SCENE_PROVIDER_GUARD_CONTRACT,
   fixtures: {
