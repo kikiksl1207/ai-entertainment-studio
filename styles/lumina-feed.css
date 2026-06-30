@@ -2057,6 +2057,15 @@ body.is-feed-repost-open { overflow: hidden; }
     gap: 6px;
   }
 
+  .feed-shorts-thumb {
+    aspect-ratio: 9 / 12;
+  }
+
+  .feed-shorts-card-body {
+    gap: 4px;
+    padding: 9px;
+  }
+
   .feed-post-actions {
     gap: 4px;
     flex-wrap: wrap;
