@@ -704,6 +704,12 @@ function initLuminaFeedSidebar() {
   }
   panel.querySelectorAll("[data-feed-side-link]").forEach(link => {
     const key = link.dataset.feedSideLink || "profile";
+    if (key === "shortform") {
+      link.href = "/lumina-feed?surface=shorts";
+      link.textContent = feedT("nav.feedShorts", "쇼츠");
+      link.setAttribute("data-i18n", "nav.feedShorts");
+      return;
+    }
     link.href = key === "profile"
       ? profileUrl
       : `${profileUrl}${profileUrl.includes("?") ? "&" : "?"}tab=${encodeURIComponent(key)}`;
