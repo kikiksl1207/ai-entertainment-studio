@@ -180,6 +180,21 @@ GET /api/v1/story-sessions/:sessionId/current-scene
   tokens, passwords, cookies, and API keys. This contract does not call
   providers, generate assets, mutate story progress/scenes, debit or credit
   wallet, create wallet ledgers, or touch payment, settlement, or payout state.
+- #1386-#1390 extend the same contract with `current-scene` endpoint delta,
+  disabled scene choice/progress write guard, fixture locale key fields,
+  character visibility resolver, and public asset fallback error envelope. The
+  allowed read surface remains scene id/text, public background asset label/key,
+  `backgroundState`, `characters[]` with pose/layer/visibility/entrance state,
+  and `fallbackKey`. Preview/fixture mode is read-only; choice/progress writes,
+  provider calls, asset generation/upload, payment, wallet, settlement, and
+  payout mutations stay disabled. Fallback errors expose only `code`,
+  `fallbackKey`, `shortLabelKey`, and `retryable`, never raw provider errors,
+  signed URLs, storage keys, private input, stack traces, or internal cost.
+- #1415 adds `STORY_SHORTS_ROUTE_RELOCATION_CONTRACT`. Story is canonical at
+  `/story-stage` and is explicitly not `/character-chat`. The global shortform
+  nav/mobile tab slot should become Story, while shorts are absorbed into
+  `/lumina-feed?surface=shorts`; legacy `/shortform` may remain a temporary
+  compatibility or redirect path with canonical target `/lumina-feed`.
 - #1081 adds `STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT` for read-only
   author revenue preview. It separates chapter gross revenue, season bundle
   discount allocation, AI artist companion participation cost, and story author
