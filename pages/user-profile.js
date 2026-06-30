@@ -37,16 +37,38 @@ function getFollowHashType() {
   return null;
 }
 
-function openFollowListModalFromHash() {
+function openFollowListModalFromHash(attempt = 0) {
   const type = getFollowHashType();
   if (!type) return;
-  requestAnimationFrame(() => {
+  const openFromHash = () => {
+    const modal = document.getElementById("followListModal");
     const opener = document.querySelector(`[data-follow-open="${type}"]`);
+    if ((!modal || !opener || !_userProfileData?.user) && attempt < 5) {
+      setTimeout(() => openFollowListModalFromHash(attempt + 1), 120);
+      return;
+    }
+    if (!modal) return;
     if (opener && typeof opener.focus === "function") {
       try { opener.focus({ preventScroll: true }); } catch (_) { opener.focus(); }
     }
     openFollowListModal(type);
-  });
+    if (attempt < 2) {
+      setTimeout(() => {
+        const activeModal = document.getElementById("followListModal");
+        const activeTab = activeModal?.querySelector(`[data-follow-tab="${type}"]`);
+        const isOpen = activeModal && !activeModal.hidden && activeModal.getAttribute("aria-hidden") === "false";
+        const isCorrectTab = activeTab?.getAttribute("aria-selected") === "true";
+        if (getFollowHashType() === type && (!isOpen || !isCorrectTab)) {
+          openFollowListModalFromHash(attempt + 1);
+        }
+      }, 240);
+    }
+  };
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(openFromHash);
+  } else {
+    setTimeout(openFromHash, 0);
+  }
 }
 
 function buildFollowProfileFixture(params) {
