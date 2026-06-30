@@ -195,6 +195,15 @@ GET /api/v1/story-sessions/:sessionId/current-scene
   nav/mobile tab slot should become Story, while shorts are absorbed into
   `/lumina-feed?surface=shorts`; legacy `/shortform` may remain a temporary
   compatibility or redirect path with canonical target `/lumina-feed`.
+- #1427-#1431 extend the Story/Shorts route contract with runtime i18n,
+  embedded feed shorts data, legacy `/shortform` compatibility, active-state
+  route test cases, and read-only route analytics. `/story-stage` may read
+  `window.luminaI18n.getLocale/t/apply` but must not mutate locale state.
+  `/lumina-feed?surface=shorts` reuses `GET /api/v1/shortforms` or
+  `window.LuminaStaticData.shortformsLocal` as read-only data. Route analytics
+  may record only event name, route, surface, and locale; it must not include
+  user tokens, raw email, DB ids, cookies, API keys, provider payloads, payment
+  order ids, wallet ledger ids, or story progress ids.
 - #1081 adds `STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT` for read-only
   author revenue preview. It separates chapter gross revenue, season bundle
   discount allocation, AI artist companion participation cost, and story author
