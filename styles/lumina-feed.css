@@ -144,13 +144,20 @@
 }
 
 .feed-shorts-empty,
-.feed-shorts-loading {
+.feed-shorts-loading,
+.feed-shorts-error {
   margin: 0;
   padding: 18px;
   border: 1px solid rgba(159, 139, 199, 0.14);
   border-radius: 8px;
   color: rgba(220, 210, 240, 0.72);
   text-align: center;
+}
+
+.feed-shorts-error {
+  border-color: rgba(244, 63, 94, 0.28);
+  background: rgba(244, 63, 94, 0.08);
+  color: #ffb4be;
 }
 
 .feed-side-panel {

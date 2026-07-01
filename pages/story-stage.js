@@ -192,7 +192,7 @@
   }
 
   function storyLocale() {
-    const locale = window.luminaI18n?.getLocale?.();
+    const locale = window.luminaI18n?.getRegionalLocale?.() || window.luminaI18n?.getLocale?.();
     if (locale) return locale;
     return document.documentElement.lang || "ko-KR";
   }
@@ -392,6 +392,80 @@
     `;
   }
 
+  function renderSetupShell() {
+    return `
+      <section class="story-section story-setup-section" aria-labelledby="storySetupTitle">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-free">Personal + AI</span>
+          <h2 id="storySetupTitle" data-i18n="storyStage.setup.heading">나 + AI 동반 설정</h2>
+        </div>
+        <div class="story-setup-grid">
+          <article class="story-setup-item">
+            <strong data-i18n="storyStage.setup.profile">대화 프로필</strong>
+            <p data-i18n="storyStage.setup.note">무료 프롤로그는 나 또는 AI 아티스트 1명과 시작해요.</p>
+          </article>
+          <article class="story-setup-item">
+            <strong data-i18n="storyStage.setup.start">시작 설정</strong>
+            <p data-i18n="storyStage.tutorial.status">프롤로그를 준비 중이에요.</p>
+          </article>
+          <article class="story-setup-item">
+            <strong data-i18n="storyStage.setup.companion">동반 AI</strong>
+            <p data-i18n="storyStage.player.status">배경 위에 대화와 선택지를 겹치지 않게 보여줘요.</p>
+          </article>
+          <article class="story-setup-item">
+            <strong data-i18n="storyStage.setup.visibility">공개 범위</strong>
+            <p>Private preview</p>
+          </article>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderPlayerShell() {
+    return `
+      <section class="story-section story-player-section" aria-labelledby="storyPlayerTitle">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-scene">Immersive MVP</span>
+          <h2 id="storyPlayerTitle" data-i18n="storyStage.player.heading">장면 속에서 대화하기</h2>
+        </div>
+        <div class="story-player-shell" aria-label="몰입형 스토리 플레이어 미리보기">
+          <div class="story-player-bg" role="img" aria-label="스토리 장면 배경"></div>
+          <img class="story-player-character" src="/assets/characters/cha-dohyun/reference-final-03.png" alt="캐릭터 기본 이미지" data-i18n-alt="storyStage.scene.character.altDefault" loading="lazy" decoding="async" />
+          <div class="story-player-overlay">
+            <p class="story-player-status" data-i18n="storyStage.player.status">배경 위에 대화와 선택지를 겹치지 않게 보여줘요.</p>
+            <div class="story-player-chat" role="log" aria-live="polite">
+              <p class="story-player-bubble is-ai" data-i18n="storyStage.player.aiLine">조명이 바뀌었어요. 다음 선택을 같이 골라볼까요?</p>
+            </div>
+            <div class="story-player-choices" role="group" aria-label="스토리 선택지">
+              <button type="button" data-i18n="storyStage.player.choice.focus" aria-disabled="true">무대 쪽으로 다가간다</button>
+              <button type="button" data-i18n="storyStage.player.choice.listen" aria-disabled="true">잠시 더 지켜본다</button>
+            </div>
+            <label class="story-player-input">
+              <span data-i18n="storyStage.player.userPlaceholder">내 반응을 짧게 남기기</span>
+              <input type="text" disabled aria-disabled="true" data-i18n-attr="placeholder:storyStage.player.userPlaceholder" placeholder="내 반응을 짧게 남기기" />
+            </label>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTutorialShell() {
+    return `
+      <section class="story-section story-tutorial-section" aria-labelledby="storyTutorialTitle">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-react">Tutorial</span>
+          <h2 id="storyTutorialTitle" data-i18n="storyStage.tutorial.title">임진왜란: 난중일기 프롤로그</h2>
+        </div>
+        <article class="story-card story-tutorial-card">
+          <p class="story-card-summary" data-i18n="storyStage.tutorial.short">첫 무료 장면에서 바다와 기록의 긴장을 따라가요.</p>
+          <p class="story-muted" data-i18n="storyStage.tutorial.detail">역사 기록의 결을 살린 짧은 프롤로그예요. 외부 번역문이나 특정 게임 문구를 쓰지 않고, Lumina의 장면형 선택 흐름으로 시작합니다.</p>
+          <button class="story-cta story-cta-free" type="button" aria-disabled="true" data-i18n="storyStage.tutorial.cta">무료 프롤로그 보기</button>
+        </article>
+      </section>
+    `;
+  }
+
   function renderStoryStage() {
     const root = document.getElementById("storyStageRoot");
     if (!root) return;
@@ -415,6 +489,12 @@
       </div>
 
       ${renderScenePreviewShell(fixtureMode)}
+
+      ${renderPlayerShell()}
+
+      ${renderSetupShell()}
+
+      ${renderTutorialShell()}
 
       <section class="story-section" aria-labelledby="storyPrologueTitle">
         <div class="story-section-head">

@@ -195,6 +195,13 @@ const I18N_LOCALE_ALIASES = {
   "zh-HK": "zh-Hant",
   "zh-MO": "zh-Hant"
 };
+const I18N_PUBLIC_LOCALE_MAP = {
+  "ko-KR": "ko",
+  "en-US": "en",
+  "ja-JP": "ja",
+  "zh-CN": "zh-Hans",
+  "zh-Hant": "zh-Hant"
+};
 
 function normalizeLocale(locale) {
   const value = String(locale || "");
@@ -202,6 +209,11 @@ function normalizeLocale(locale) {
   if (I18N_LOCALE_ALIASES[value]) return I18N_LOCALE_ALIASES[value];
   const base = value.split("-")[0];
   return I18N_LOCALE_ALIASES[base] || value;
+}
+
+function publicLocale(locale) {
+  const normalized = normalizeLocale(locale);
+  return I18N_PUBLIC_LOCALE_MAP[normalized] || "ko";
 }
 
 // 사전 — 에밀리 #064 톤/용어집 + 클라우드 추가 nav/footer/auth
@@ -654,6 +666,13 @@ const I18N_DICT = {
     "zh-CN": "正在加载短视频。",
     "zh-Hant": "正在載入短影音。"
   },
+  "feed.shorts.error": {
+    "ko-KR": "쇼츠를 불러오지 못했어요.",
+    "ja-JP": "ショートを読み込めませんでした。",
+    "en-US": "Could not load shorts.",
+    "zh-CN": "无法加载短视频。",
+    "zh-Hant": "無法載入短影音。"
+  },
   "shortform.redirect.notice": {
     "ko-KR": "쇼츠는 루미나 피드에서 볼 수 있어요.",
     "ja-JP": "ショートはルミナフィードで見られます。",
@@ -751,6 +770,132 @@ const I18N_DICT = {
     "en-US": "Retry",
     "zh-CN": "重试",
     "zh-Hant": "重試"
+  },
+  "storyStage.player.heading": {
+    "ko-KR": "장면 속에서 대화하기",
+    "ja-JP": "シーン内で会話",
+    "en-US": "Chat inside the scene",
+    "zh-CN": "在场景中对话",
+    "zh-Hant": "在場景中對話"
+  },
+  "storyStage.player.status": {
+    "ko-KR": "배경 위에 대화와 선택지를 겹치지 않게 보여줘요.",
+    "ja-JP": "背景の上で会話と選択肢を読みやすく表示します。",
+    "en-US": "Dialogue and choices stay readable over the scene.",
+    "zh-CN": "对话和选项会清晰显示在场景上。",
+    "zh-Hant": "對話和選項會清楚顯示在場景上。"
+  },
+  "storyStage.player.aiLine": {
+    "ko-KR": "조명이 바뀌었어요. 다음 선택을 같이 골라볼까요?",
+    "ja-JP": "照明が変わりました。次の選択を一緒に選びましょうか？",
+    "en-US": "The lights changed. Shall we choose the next move together?",
+    "zh-CN": "灯光变了。要一起选择下一步吗？",
+    "zh-Hant": "燈光變了。要一起選下一步嗎？"
+  },
+  "storyStage.player.userPlaceholder": {
+    "ko-KR": "내 반응을 짧게 남기기",
+    "ja-JP": "自分の反応を短く残す",
+    "en-US": "Add a short reaction",
+    "zh-CN": "留下简短回应",
+    "zh-Hant": "留下簡短回應"
+  },
+  "storyStage.player.choice.focus": {
+    "ko-KR": "무대 쪽으로 다가간다",
+    "ja-JP": "ステージへ近づく",
+    "en-US": "Step toward the stage",
+    "zh-CN": "走向舞台",
+    "zh-Hant": "走向舞台"
+  },
+  "storyStage.player.choice.listen": {
+    "ko-KR": "잠시 더 지켜본다",
+    "ja-JP": "もう少し見守る",
+    "en-US": "Watch a little longer",
+    "zh-CN": "再观察一会儿",
+    "zh-Hant": "再觀察一會兒"
+  },
+  "storyStage.setup.heading": {
+    "ko-KR": "나 + AI 동반 설정",
+    "ja-JP": "自分 + AI同行設定",
+    "en-US": "Me + AI companion setup",
+    "zh-CN": "我 + AI 同行设置",
+    "zh-Hant": "我 + AI 同行設定"
+  },
+  "storyStage.setup.profile": {
+    "ko-KR": "대화 프로필",
+    "ja-JP": "会話プロフィール",
+    "en-US": "Chat profile",
+    "zh-CN": "对话资料",
+    "zh-Hant": "對話資料"
+  },
+  "storyStage.setup.start": {
+    "ko-KR": "시작 설정",
+    "ja-JP": "開始設定",
+    "en-US": "Start setup",
+    "zh-CN": "开始设置",
+    "zh-Hant": "開始設定"
+  },
+  "storyStage.setup.companion": {
+    "ko-KR": "동반 AI",
+    "ja-JP": "同行AI",
+    "en-US": "AI companion",
+    "zh-CN": "同行 AI",
+    "zh-Hant": "同行 AI"
+  },
+  "storyStage.setup.visibility": {
+    "ko-KR": "공개 범위",
+    "ja-JP": "公開範囲",
+    "en-US": "Visibility",
+    "zh-CN": "公开范围",
+    "zh-Hant": "公開範圍"
+  },
+  "storyStage.setup.cta": {
+    "ko-KR": "프롤로그 시작",
+    "ja-JP": "プロローグ開始",
+    "en-US": "Start prologue",
+    "zh-CN": "开始序章",
+    "zh-Hant": "開始序章"
+  },
+  "storyStage.setup.note": {
+    "ko-KR": "무료 프롤로그는 나 또는 AI 아티스트 1명과 시작해요.",
+    "ja-JP": "無料プロローグは自分またはAIアーティスト1名と始めます。",
+    "en-US": "The free prologue starts with you or one AI artist.",
+    "zh-CN": "免费序章可由你或一位 AI 艺人同行开始。",
+    "zh-Hant": "免費序章可由你或一位 AI 藝人同行開始。"
+  },
+  "storyStage.tutorial.title": {
+    "ko-KR": "임진왜란: 난중일기 프롤로그",
+    "ja-JP": "壬辰倭乱：乱中日記プロローグ",
+    "en-US": "Imjin War: Nanjung Diary Prologue",
+    "zh-CN": "壬辰战争：乱中日记序章",
+    "zh-Hant": "壬辰戰爭：亂中日記序章"
+  },
+  "storyStage.tutorial.short": {
+    "ko-KR": "첫 무료 장면에서 바다와 기록의 긴장을 따라가요.",
+    "ja-JP": "最初の無料シーンで海と記録の緊張をたどります。",
+    "en-US": "Follow the tension of sea and record in the first free scene.",
+    "zh-CN": "在首个免费场景中追随海与记录的紧张感。",
+    "zh-Hant": "在首個免費場景中跟隨海與記錄的張力。"
+  },
+  "storyStage.tutorial.detail": {
+    "ko-KR": "역사 기록의 결을 살린 짧은 프롤로그예요. 외부 번역문이나 특정 게임 문구를 쓰지 않고, Lumina의 장면형 선택 흐름으로 시작합니다.",
+    "ja-JP": "歴史記録の質感を生かした短いプロローグです。外部翻訳や特定ゲーム風の文句ではなく、Luminaのシーン選択で始まります。",
+    "en-US": "A short prologue inspired by historical records, written in Lumina's own scene-choice style without borrowed wording.",
+    "zh-CN": "这是保留历史记录质感的短序章，不使用外部译文或特定游戏式表达，以 Lumina 的场景选择流程开始。",
+    "zh-Hant": "這是保留歷史紀錄質感的短序章，不使用外部譯文或特定遊戲式表述，以 Lumina 的場景選擇流程開始。"
+  },
+  "storyStage.tutorial.cta": {
+    "ko-KR": "무료 프롤로그 보기",
+    "ja-JP": "無料プロローグを見る",
+    "en-US": "Open free prologue",
+    "zh-CN": "查看免费序章",
+    "zh-Hant": "查看免費序章"
+  },
+  "storyStage.tutorial.status": {
+    "ko-KR": "프롤로그를 준비 중이에요.",
+    "ja-JP": "プロローグを準備中です。",
+    "en-US": "Preparing the prologue.",
+    "zh-CN": "正在准备序章。",
+    "zh-Hant": "正在準備序章。"
   }
 };
 
@@ -758,7 +903,7 @@ let _currentLocale = I18N_FALLBACK;
 
 /** 사전에 정의된 키를 현재 locale로 변환. 키가 없으면 키 자체 반환. */
 function t(key, locale) {
-  const useLocale = locale || _currentLocale;
+  const useLocale = locale ? normalizeLocale(locale) : _currentLocale;
   const entry = I18N_DICT[key];
   if (!entry) return key;
   return entry[useLocale] || entry[I18N_FALLBACK] || key;
@@ -870,9 +1015,12 @@ if (typeof window !== "undefined") {
   window.luminaI18n = {
     t,
     setLocale,
-    getLocale: () => _currentLocale,
+    getLocale: () => publicLocale(_currentLocale),
+    getRegionalLocale: () => _currentLocale,
+    toRegionalLocale: normalizeLocale,
     apply: applyI18n,
-    LOCALES: I18N_LOCALES
+    LOCALES: Object.freeze(["ko", "en", "ja", "zh-Hans", "zh-Hant"]),
+    REGIONAL_LOCALES: I18N_LOCALES
   };
 }
 
