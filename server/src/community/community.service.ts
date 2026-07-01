@@ -396,7 +396,7 @@ export const USER_SOCIAL_ACCOUNT_CONTRACT = {
           'public_profile_follower_count_at_least_one',
           'followers_modal_shows_disposable_follower_row',
           'following_users_endpoint_returns_200',
-          'block_entrypoint_path_is_available_without_live_block_mutation',
+          'blockApiPath_GET_returns_read_only_preview_without_live_block_mutation',
         ],
         blockedIfMissing: [
           'disposable_qa_users',
@@ -2864,6 +2864,97 @@ export class CommunityService {
     const blockedUserId = await this.resolveActiveUserIdByHandle(publicHandle);
 
     return this.blockUser(blockerUserId, blockedUserId, input);
+  }
+
+  async getUserBlockPreviewByHandle(publicHandle: string, viewerUserId?: string) {
+    const normalizedHandle = this.normalizePublicHandle(publicHandle);
+    const user = await this.prisma.user.findFirst({
+      where: {
+        status: 'active',
+        deletedAt: null,
+        profile: { is: { publicHandle: normalizedHandle } },
+      },
+      select: {
+        id: true,
+        profile: {
+          select: {
+            displayName: true,
+            publicHandle: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw this.socialNotFound(
+        'USER_NOT_FOUND',
+        'social.user.notFound',
+        'User not found',
+      );
+    }
+
+    const isSelf = Boolean(viewerUserId && viewerUserId === user.id);
+    const block =
+      viewerUserId && !isSelf
+        ? await this.prisma.userBlock.findFirst({
+            where: {
+              status: 'active',
+              deletedAt: null,
+              OR: [
+                { blockerUserId: viewerUserId, blockedUserId: user.id },
+                { blockerUserId: user.id, blockedUserId: viewerUserId },
+              ],
+            },
+            select: {
+              blockerUserId: true,
+              blockedUserId: true,
+            },
+          })
+        : null;
+
+    const blockState = !viewerUserId
+      ? 'anonymous'
+      : isSelf
+        ? 'self'
+        : block?.blockerUserId === viewerUserId
+          ? 'viewer_blocked_target'
+          : block?.blockedUserId === viewerUserId
+            ? 'target_blocked_viewer'
+            : 'none';
+
+    return {
+      ok: true,
+      readOnly: true,
+      mutationExecuted: false,
+      target: {
+        publicHandle: user.profile?.publicHandle ?? normalizedHandle,
+        displayName: user.profile?.displayName ?? user.profile?.publicHandle ?? null,
+      },
+      viewer: {
+        isAuthenticated: Boolean(viewerUserId),
+        isSelf,
+        blockState,
+      },
+      action: {
+        canPreview: true,
+        mutationRequiresAuth: true,
+        mutationMethod: 'POST',
+        mutationPath: `/api/v1/users/handle/${encodeURIComponent(
+          user.profile?.publicHandle ?? normalizedHandle,
+        )}/block`,
+      },
+      qaSmoke: {
+        runbookField: 'blockApiPath',
+        status: 'block_preview_ready',
+        allowedReportFields: [
+          'HTTP status',
+          'target.publicHandle',
+          'viewer.blockState',
+          'qaSmoke.status',
+        ],
+      },
+      policy: this.userBlockPolicy(),
+    };
   }
 
   async unblockUser(blockerUserId: string, blockedUserId: string) {

@@ -310,6 +310,18 @@ export class CommunityController {
     return this.communityService.blockUserByHandle(user.id, publicHandle, body);
   }
 
+  @Get('users/handle/:publicHandle/block')
+  @UseGuards(OptionalJwtAuthGuard)
+  getUserBlockPreviewByHandle(
+    @Param('publicHandle') publicHandle: string,
+    @Req() request: RequestWithOptionalAuth,
+  ) {
+    return this.communityService.getUserBlockPreviewByHandle(
+      publicHandle,
+      request.user?.id,
+    );
+  }
+
   @Delete('users/:userId/block')
   @UseGuards(JwtAuthGuard)
   unblockUser(@CurrentUser() user: AuthUser, @Param('userId') userId: string) {
