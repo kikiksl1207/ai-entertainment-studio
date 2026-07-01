@@ -229,6 +229,23 @@ GET /api/v1/story-sessions/:sessionId/current-scene
   completion/comment/rating projections. Sensitive fields such as tokens,
   passwords, cookies, API keys, raw email, DB URLs, provider payloads, storage
   keys, signed URLs, payment order ids, and wallet ledger ids are rejected.
+- #1478 and #1499-#1502 add `STORY_MANUSCRIPT_PIPELINE_CONTRACT`. Chat play
+  scene support keeps current scene id, public background asset/state,
+  background prompt key, characters, pose, entrance state, and fallback key in
+  sync with chat turns and choices while rejecting raw prompts, provider
+  payloads, storage keys, signed URLs, and private notes. Writer handoff now
+  expects a long prose manuscript with parser-ready branch, scene, background,
+  and cast markers instead of a game design document or choice spreadsheet
+  first. Branch markers ingest into a scene/choice/merge graph where branches
+  may briefly diverge and rejoin common scenes; choices express personality,
+  strategy, relationship, or risk rather than trivia answers. Scene extraction
+  separates narration, dialogue, background hints, characters, entrance/exit
+  state, and fallback keys. Public-source story boundaries allow public-domain
+  history/myth/classic material but forbid modern game, webtoon, anime, drama,
+  brand, logo, and modern translation unique expression; uncertain topics,
+  living/recent translations, and later derivative settings require PM review.
+  The bundle is read-only and creates no provider, asset upload/create, story
+  write/progress, payment, wallet, settlement, or payout mutation.
 - #1081 adds `STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT` for read-only
   author revenue preview. It separates chapter gross revenue, season bundle
   discount allocation, AI artist companion participation cost, and story author
