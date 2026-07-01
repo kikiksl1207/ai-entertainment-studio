@@ -373,6 +373,10 @@
     padding: 14px 0 calc(84px + env(safe-area-inset-bottom, 0px));
   }
 
+  .su-grid + .su-grid {
+    margin-top: calc(116px + env(safe-area-inset-bottom, 0px));
+  }
+
   .su-header {
     top: 64px;
     flex-wrap: wrap;
