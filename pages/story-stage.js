@@ -664,19 +664,23 @@
           </button>`).join("")
       : `<p class="story-muted">공개 아티스트가 준비되면 동반 캐릭터로 선택할 수 있어요.</p>`;
 
+    const firstScenePreview = fixtureMode ? renderScenePreviewShell(fixtureMode) : renderDiscoveryShell();
+    const laterScenePreview = fixtureMode ? renderDiscoveryShell() : renderScenePreviewShell(fixtureMode);
+    const localeQa = renderLocaleQaShell();
+
     root.innerHTML = `
       <div class="story-preview-banner" role="note">
         <strong>${storyLocalT("storyStage.preview.notice.title")}</strong>
         <span>${storyLocalT("storyStage.preview.notice.body")}</span>
       </div>
 
-      ${renderLocaleQaShell()}
+      ${fixtureMode ? firstScenePreview : localeQa}
 
-      ${fixtureMode ? renderScenePreviewShell(fixtureMode) : renderDiscoveryShell()}
+      ${fixtureMode ? localeQa : firstScenePreview}
 
       ${renderDetailShell()}
 
-      ${fixtureMode ? renderDiscoveryShell() : renderScenePreviewShell(fixtureMode)}
+      ${laterScenePreview}
 
       ${renderPlayerShell()}
 
