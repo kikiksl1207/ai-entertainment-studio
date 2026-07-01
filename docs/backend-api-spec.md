@@ -251,11 +251,16 @@ GET /api/v1/story-sessions/:sessionId/current-scene
   choices, backgrounds, characters, endings, and review status; keeps all
   intake endpoints disabled as skeleton contracts; and treats the PM board as
   the authority while external workspace page content is not persisted. It also
-  defines manuscript-first scene/branch/background/cast/ending markers, writer
-  primary/sub ending types, explicitly labeled AI fallback endings, stable
-  import/export ids that do not depend on Notion page or block ids, draft to
-  publish-ready review states with blocker keys, and a ko/en/ja/zh-Hans/zh-Hant
-  i18n key package with short mobile copy limits. The bundle is contract-only
+  defines manuscript-first scene/branch/background/cast/ending markers, a
+  10,000-character part target, 10-part default short-drama shape, 2,000
+  character branch-summary limit, writer primary/sub ending types, explicitly
+  labeled AI fallback endings, stable import/export ids that do not depend on
+  Notion page or block ids, draft to publish-ready review states with blocker
+  keys, and a ko/en/ja/zh-Hans/zh-Hant i18n key package with short mobile copy
+  limits. Choice DTOs must carry distinct next-scene/body/result deltas across
+  relationship, risk, item, information, or ending-condition axes before any
+  later merge; all choices sharing the same next scene, body, and result is a
+  validation failure. The bundle is contract-only
   and performs no upload write, migration write, publish, provider, payment,
   wallet, settlement, or payout mutation.
 - #1081 adds `STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT` for read-only

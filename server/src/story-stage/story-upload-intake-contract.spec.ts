@@ -42,13 +42,53 @@ describe('Story upload intake contract bundle', () => {
         externalPageContentPersisted: false,
       },
       dtoFieldGroups: STORY_UPLOAD_SAFE_DTO_FIELD_GROUPS,
+      partDefaults: {
+        partTextLengthTarget: 10_000,
+        branchSummaryLengthLimit: 2_000,
+        defaultShortPlayPartCount: 10,
+        branchSummaryMayReplaceManuscriptBody: false,
+      },
       requiredSeparation: {
         workInfoSeparateFromScenes: true,
         choicesSeparateFromSceneText: true,
+        choiceResultDeltasSeparateFromNextScene: true,
         endingTypeSeparateFromReviewStatus: true,
         reviewStatusSeparateFromPublishMutation: true,
       },
     });
+    expect(STORY_UPLOAD_SAFE_DTO_FIELD_GROUPS.work).toEqual(
+      expect.arrayContaining([
+        'partIndex',
+        'partCount',
+        'partTextLengthTarget',
+        'branchSummaryLengthLimit',
+      ]),
+    );
+    expect(STORY_UPLOAD_SAFE_DTO_FIELD_GROUPS.choices).toEqual(
+      expect.arrayContaining([
+        'choiceBodyKey',
+        'resultDeltaKeys',
+        'relationshipDeltaKey',
+        'riskDeltaKey',
+        'itemDeltaKey',
+        'informationDeltaKey',
+        'endingConditionKey',
+      ]),
+    );
+    expect(STORY_UPLOAD_INTAKE_API_CONTRACT.branchChoiceResultAxes).toEqual([
+      'relationship',
+      'risk',
+      'item',
+      'information',
+      'ending_condition',
+    ]);
+    expect(STORY_UPLOAD_INTAKE_API_CONTRACT.validationFailureConditions).toEqual(
+      expect.arrayContaining([
+        'branch_summary_replaces_manuscript_body',
+        'branch_summary_over_length_limit',
+        'all_choices_share_same_next_scene_body_and_result',
+      ]),
+    );
     expect(
       Object.values(STORY_UPLOAD_INTAKE_API_CONTRACT.endpoints).every(
         (endpoint) => endpoint.enabled === false,
@@ -74,10 +114,30 @@ describe('Story upload intake contract bundle', () => {
     expect(WRITER_MANUSCRIPT_SCENE_CHOICE_ENDING_SCHEMA).toMatchObject({
       status: 'schema_contract_only',
       manuscriptFirst: true,
+      partStructure: {
+        partTextLengthTarget: 10_000,
+        defaultShortPlayPartCount: 10,
+        singlePartApproxCharacters: 10_000,
+      },
+      branchSummaryPolicy: {
+        maxCharactersPerBranch: 2_000,
+        mayReplaceManuscriptBody: false,
+      },
       sceneChoiceRules: {
         multipleChoicesPerSceneAllowed: true,
+        treeRootBranchingIsDefault: true,
         choiceCanTargetNextScene: true,
+        choiceCanHaveDistinctBody: true,
+        choiceResultDifferenceRequired: true,
+        choiceResultDifferenceRequiredBeforeMerge: true,
         choiceCanRejoinCommonScene: true,
+        resultDifferenceAxes: [
+          'relationship',
+          'risk',
+          'item',
+          'information',
+          'ending_condition',
+        ],
         choiceOnlyGameDesignUploadIsDefault: false,
       },
     });
@@ -119,6 +179,8 @@ describe('Story upload intake contract bundle', () => {
         'choice_only_game_design_uploaded_as_primary',
         'ending_type_missing',
         'ai_fallback_ending_unlabeled',
+        'branch_summary_replaces_manuscript_body',
+        'all_choices_share_same_next_scene_body_and_result',
       ]),
     );
   });
