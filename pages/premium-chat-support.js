@@ -40,6 +40,8 @@
     customAmount: null,
     message: "",
     pendingConfirmAmount: null,
+    sheetTrigger: null,
+    escBound: false,
     ready: false
   };
 
@@ -301,13 +303,24 @@
     if (counter) counter.textContent = state.message.length + " / " + max;
   }
 
-  function openSheet() {
+  function focusDonationSheet(sheet) {
+    var first = sheet && (sheet.querySelector("[data-donation-close]") || sheet.querySelector("button, [href], input, select, textarea"));
+    if (first && typeof first.focus === "function") {
+      requestAnimationFrame(function () { first.focus({ preventScroll: true }); });
+    }
+  }
+
+  function openSheet(triggerEl) {
     var sheet = $("chatDonationSheet");
     var backdrop = $("chatDonationBackdrop");
     if (!sheet || !backdrop) return;
+    state.sheetTrigger = triggerEl && typeof triggerEl.focus === "function" ? triggerEl : document.activeElement;
     backdrop.hidden = false;
     sheet.hidden = false;
+    sheet.setAttribute("role", "dialog");
+    sheet.setAttribute("aria-modal", "true");
     document.body.classList.add("is-donation-open");
+    focusDonationSheet(sheet);
     // 시트가 처음 열린 시점에 한 번 더 contract 새로고침 (token 획득 가능성).
     void initialize();
   }
@@ -318,6 +331,13 @@
     if (sheet) sheet.hidden = true;
     if (backdrop) backdrop.hidden = true;
     document.body.classList.remove("is-donation-open");
+    var trigger = state.sheetTrigger;
+    state.sheetTrigger = null;
+    var fallbackTrigger = $("chatPlusToggle");
+    var target = trigger && trigger.offsetParent !== null ? trigger : fallbackTrigger;
+    if (target && typeof target.focus === "function") {
+      requestAnimationFrame(function () { target.focus({ preventScroll: true }); });
+    }
   }
 
   function openConfirm(amount) {
@@ -389,7 +409,7 @@
       openBtn.setAttribute("aria-disabled", "false");
       openBtn.addEventListener("click", function (event) {
         event.preventDefault();
-        openSheet();
+        openSheet(openBtn);
       });
     }
     document.querySelectorAll("[data-donation-close]").forEach(function (el) {
@@ -431,6 +451,16 @@
     if (modalBackdrop && !modalBackdrop.dataset.bound) {
       modalBackdrop.dataset.bound = "1";
       modalBackdrop.addEventListener("click", closeConfirm);
+    }
+    if (!state.escBound) {
+      state.escBound = true;
+      document.addEventListener("keydown", function (event) {
+        var sheet = $("chatDonationSheet");
+        if (event.key === "Escape" && sheet && !sheet.hidden) {
+          event.preventDefault();
+          closeSheet();
+        }
+      });
     }
   }
 

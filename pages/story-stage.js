@@ -116,11 +116,71 @@
       "zh-CN": "重试",
       "zh-Hant": "重試",
     },
+    "storyStage.scene.fixture.01": {
+      "ko-KR": "첫 리허설 조명이 켜지고, 도현이 무대 중앙으로 걸어 나옵니다.",
+      "ja-JP": "最初のリハーサル照明が灯り、ドヒョンがステージ中央へ歩き出します。",
+      "en-US": "The first rehearsal light turns on, and Dohyun walks to center stage.",
+      "zh-CN": "第一次排练灯亮起，道贤走向舞台中央。",
+      "zh-Hant": "第一次排練燈亮起，道賢走向舞台中央。",
+    },
+    "storyStage.scene.fixture.02": {
+      "ko-KR": "객석 불빛만 남은 장면입니다. 캐릭터 없이 감정의 여백을 보여줍니다.",
+      "ja-JP": "客席の灯りだけが残るシーンです。キャラクターなしで余韻を見せます。",
+      "en-US": "Only the audience lights remain, leaving room for the emotion without a character.",
+      "zh-CN": "只剩观众席的灯光，没有角色也保留情绪的余白。",
+      "zh-Hant": "只剩觀眾席的燈光，沒有角色也保留情緒的餘白。",
+    },
+    "storyStage.scene.fixture.03": {
+      "ko-KR": "배경 에셋이 아직 준비되지 않아도 기본 장면으로 이야기를 이어갑니다.",
+      "ja-JP": "背景アセットが未準備でも、基本シーンで物語を続けます。",
+      "en-US": "If a background asset is not ready, the story continues with the default scene.",
+      "zh-CN": "即使背景素材尚未准备好，也会用默认场景继续故事。",
+      "zh-Hant": "即使背景素材尚未準備好，也會用預設場景繼續故事。",
+    },
   });
+
+  const STORY_LOCALES = [
+    { code: "ko", label: "KO" },
+    { code: "en", label: "EN" },
+    { code: "ja", label: "JA" },
+    { code: "zh-Hans", label: "简" },
+    { code: "zh-Hant", label: "繁" },
+  ];
+
+  const STORY_DISCOVERY_ITEMS = [
+    {
+      id: "imjin",
+      titleKey: "storyStage.discovery.card.imjin.title",
+      summaryKey: "storyStage.discovery.card.imjin.summary",
+      statusKey: "storyStage.discovery.status.free",
+      tags: ["History", "Tutorial"],
+      metric: "4.8 · 1.2k",
+      image: "/assets/brand/lumina-stage-banner.png",
+    },
+    {
+      id: "stage",
+      titleKey: "storyStage.discovery.card.stage.title",
+      summaryKey: "storyStage.discovery.card.stage.summary",
+      statusKey: "storyStage.discovery.status.ready",
+      tags: ["Stage", "AI"],
+      metric: "4.7 · 840",
+      image: "/assets/characters/cha-dohyun/reference-final-03.png",
+    },
+    {
+      id: "myth",
+      titleKey: "storyStage.discovery.card.myth.title",
+      summaryKey: "storyStage.discovery.card.myth.summary",
+      statusKey: "storyStage.discovery.status.ready",
+      tags: ["Myth", "Safe"],
+      metric: "4.6 · 620",
+      image: "/assets/characters/choi-seojin/cover.png",
+    },
+  ];
 
   const STORY_SCENE_FALLBACKS = [
     {
       sceneId: "fixture-scene-01",
+      sceneTextKey: "storyStage.scene.fixture.01",
       sceneText: "첫 리허설 조명이 켜지고, 도현이 무대 중앙으로 걸어 나옵니다.",
       backgroundState: "ready",
       backgroundAsset: {
@@ -144,6 +204,7 @@
     },
     {
       sceneId: "fixture-scene-02",
+      sceneTextKey: "storyStage.scene.fixture.02",
       sceneText: "객석 불빛만 남은 장면입니다. 캐릭터 없이 감정의 여백을 보여줍니다.",
       backgroundState: "ready",
       backgroundAsset: {
@@ -156,6 +217,7 @@
     },
     {
       sceneId: "fixture-scene-03",
+      sceneTextKey: "storyStage.scene.fixture.03",
       sceneText: "배경 에셋이 아직 준비되지 않아도 기본 장면으로 이야기를 이어갑니다.",
       backgroundState: "fallback",
       backgroundAsset: null,
@@ -237,6 +299,7 @@
     const characters = Array.isArray(safeScene.characters) ? safeScene.characters : [];
     return {
       sceneId: String(safeScene.sceneId || safeScene.id || "scene-" + (index + 1)),
+      sceneTextKey: safeScene.sceneTextKey ? String(safeScene.sceneTextKey) : "",
       sceneText: String(safeScene.sceneText || safeScene.text || ""),
       backgroundState: String(safeScene.backgroundState || (bg?.url ? "ready" : "fallback")),
       backgroundAsset: bg,
@@ -330,7 +393,7 @@
       }).join("");
     }
 
-    if (text) text.textContent = activeScene.sceneText;
+    if (text) text.textContent = activeScene.sceneTextKey ? storyT(activeScene.sceneTextKey) : activeScene.sceneText;
     if (status) {
       if (statusKey) {
         status.hidden = false;
@@ -389,6 +452,91 @@
           <button type="button" data-scene-next data-i18n="storyStage.scene.preview.next">다음 장면</button>
         </nav>
       </section>
+    `;
+  }
+
+  function renderLocaleQaShell() {
+    return `
+      <section class="story-section story-locale-section" aria-labelledby="storyLocaleTitle">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-extra">i18n</span>
+          <h2 id="storyLocaleTitle" data-i18n="storyStage.locale.heading">언어 QA</h2>
+        </div>
+        <div class="story-locale-panel">
+          <p data-i18n="storyStage.locale.note">스토리 화면 문구를 5개 언어로 즉시 전환해 길이와 줄바꿈을 확인해요.</p>
+          <div class="story-locale-buttons" role="group" aria-label="Story locale QA">
+            ${STORY_LOCALES.map(locale => `
+              <button type="button" data-story-locale="${locale.code}" aria-pressed="false">${locale.label}</button>
+            `).join("")}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderDiscoveryShell() {
+    const filters = [
+      "storyStage.discovery.filter.recommended",
+      "storyStage.discovery.filter.taste",
+      "storyStage.discovery.filter.new",
+      "storyStage.discovery.filter.ranking",
+      "storyStage.discovery.filter.today",
+      "storyStage.discovery.filter.genre",
+    ];
+    return `
+      <section class="story-section story-discovery-section" aria-labelledby="storyDiscoveryTitle">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-free">Discovery</span>
+          <h2 id="storyDiscoveryTitle" data-i18n="storyStage.discovery.heading">스토리 찾기</h2>
+        </div>
+        <div class="story-filter-row" role="list" aria-label="Story filters">
+          ${filters.map((key, index) => `
+            <button type="button" class="story-filter-chip${index === 0 ? " is-active" : ""}" data-i18n="${key}" aria-pressed="${index === 0 ? "true" : "false"}">${storyT(key)}</button>
+          `).join("")}
+        </div>
+        <div class="story-discovery-grid">
+          ${STORY_DISCOVERY_ITEMS.map(item => `
+            <article class="story-discovery-card" data-story-detail="${escapeHtml(item.id)}" tabindex="0" role="button" aria-label="${escapeHtml(storyT(item.titleKey))}">
+              <div class="story-discovery-cover" style="background-image: linear-gradient(180deg, rgba(8,5,18,0.04), rgba(8,5,18,0.52)), url('${escapeHtml(item.image)}')"></div>
+              <div class="story-discovery-body">
+                <span class="story-discovery-status" data-i18n="${item.statusKey}">${storyT(item.statusKey)}</span>
+                <h3 data-i18n="${item.titleKey}">${storyT(item.titleKey)}</h3>
+                <p data-i18n="${item.summaryKey}">${storyT(item.summaryKey)}</p>
+                <div class="story-discovery-meta">
+                  <span>${escapeHtml(item.metric)}</span>
+                  <span>${item.tags.map(escapeHtml).join(" · ")}</span>
+                </div>
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderDetailShell() {
+    return `
+      <section class="story-detail-sheet" data-story-detail-sheet hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="storyDetailTitle">
+        <button class="story-detail-close" type="button" data-story-detail-close data-i18n-aria="storyStage.detail.close" aria-label="닫기">×</button>
+        <div class="story-detail-cover" aria-hidden="true"></div>
+        <div class="story-detail-body">
+          <span class="story-eyebrow story-eyebrow-scene" data-i18n="storyStage.detail.heading">스토리 상세</span>
+          <h2 id="storyDetailTitle" data-i18n="storyStage.discovery.card.imjin.title">임진왜란: 난중일기 프롤로그</h2>
+          <p data-i18n="storyStage.discovery.card.imjin.summary">전장의 기록 사이로 들어가 첫 선택을 해요.</p>
+          <dl class="story-detail-list">
+            <div><dt data-i18n="storyStage.detail.creator">AI 아티스트</dt><dd>Cha Dohyun</dd></div>
+            <div><dt data-i18n="storyStage.detail.profile">대화 프로필</dt><dd data-i18n="storyStage.setup.note">무료 프롤로그는 나 또는 AI 아티스트 1명과 시작해요.</dd></div>
+            <div><dt data-i18n="storyStage.detail.prologue">프롤로그 미리보기</dt><dd data-i18n="storyStage.tutorial.detail">역사 기록의 결을 살린 짧은 프롤로그예요. 외부 번역문이나 특정 게임 문구를 쓰지 않고, Lumina의 장면형 선택 흐름으로 시작합니다.</dd></div>
+            <div><dt data-i18n="storyStage.detail.similar">비슷한 스토리</dt><dd data-i18n="storyStage.discovery.card.stage.title">첫 무대의 떨림</dd></div>
+          </dl>
+          <div class="story-detail-actions">
+            <button class="story-cta story-cta-free" type="button" aria-disabled="true" data-i18n="storyStage.detail.cta.free">무료 프롤로그 시작</button>
+            <button class="story-cta story-cta-extra" type="button" aria-disabled="true" data-i18n="storyStage.detail.cta.continue">이어하기</button>
+            <button class="story-cta story-cta-paid" type="button" aria-disabled="true" data-i18n="storyStage.detail.cta.locked">구매 필요</button>
+          </div>
+        </div>
+      </section>
+      <div class="story-detail-backdrop" data-story-detail-backdrop hidden></div>
     `;
   }
 
@@ -488,7 +636,13 @@
         <span>실제 결제, 정식 스토리 진행, provider 생성은 실행하지 않습니다.</span>
       </div>
 
-      ${renderScenePreviewShell(fixtureMode)}
+      ${renderLocaleQaShell()}
+
+      ${fixtureMode ? renderScenePreviewShell(fixtureMode) : renderDiscoveryShell()}
+
+      ${renderDetailShell()}
+
+      ${fixtureMode ? renderDiscoveryShell() : renderScenePreviewShell(fixtureMode)}
 
       ${renderPlayerShell()}
 
@@ -644,12 +798,78 @@
         return;
       }
 
+      const localeButton = event.target.closest("[data-story-locale]");
+      if (localeButton) {
+        const nextLocale = localeButton.dataset.storyLocale;
+        root.querySelectorAll("[data-story-locale]").forEach(button => {
+          button.setAttribute("aria-pressed", button === localeButton ? "true" : "false");
+        });
+        Promise.resolve(window.luminaI18n?.setLocale?.(nextLocale)).finally(() => {
+          window.luminaI18n?.apply?.(root);
+          renderStoryScene(_storyScenes[_storySceneIndex] || STORY_SCENE_FALLBACKS[0]);
+        });
+        return;
+      }
+
+      const detailCard = event.target.closest("[data-story-detail]");
+      if (detailCard) {
+        event.preventDefault();
+        openStoryDetail(root, detailCard.dataset.storyDetail);
+        return;
+      }
+
+      if (event.target.closest("[data-story-detail-close]") || event.target.closest("[data-story-detail-backdrop]")) {
+        event.preventDefault();
+        closeStoryDetail(root);
+        return;
+      }
+
       const cta = event.target.closest("[data-story-preview]");
       if (cta) {
         event.preventDefault();
         showStoryPreviewToast();
       }
     });
+
+    root.addEventListener("keydown", (event) => {
+      const card = event.target.closest("[data-story-detail]");
+      if (card && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        openStoryDetail(root, card.dataset.storyDetail);
+      }
+      if (event.key === "Escape") closeStoryDetail(root);
+    });
+  }
+
+  function openStoryDetail(root, itemId) {
+    const sheet = root.querySelector("[data-story-detail-sheet]");
+    const backdrop = root.querySelector("[data-story-detail-backdrop]");
+    if (!sheet || !backdrop) return;
+    const item = STORY_DISCOVERY_ITEMS.find(story => story.id === itemId) || STORY_DISCOVERY_ITEMS[0];
+    const title = sheet.querySelector("#storyDetailTitle");
+    const cover = sheet.querySelector(".story-detail-cover");
+    if (title) {
+      title.dataset.i18n = item.titleKey;
+      title.textContent = storyT(item.titleKey);
+    }
+    if (cover) {
+      cover.style.backgroundImage = "linear-gradient(180deg, rgba(8,5,18,0.04), rgba(8,5,18,0.62)), url('" + item.image + "')";
+    }
+    sheet.hidden = false;
+    sheet.setAttribute("aria-hidden", "false");
+    backdrop.hidden = false;
+    window.luminaI18n?.apply?.(sheet);
+    requestAnimationFrame(() => sheet.querySelector("[data-story-detail-close]")?.focus({ preventScroll: true }));
+  }
+
+  function closeStoryDetail(root) {
+    const sheet = root.querySelector("[data-story-detail-sheet]");
+    const backdrop = root.querySelector("[data-story-detail-backdrop]");
+    if (sheet) {
+      sheet.hidden = true;
+      sheet.setAttribute("aria-hidden", "true");
+    }
+    if (backdrop) backdrop.hidden = true;
   }
 
   let _storyToastTimer = null;

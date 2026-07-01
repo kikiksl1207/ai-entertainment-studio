@@ -69,8 +69,10 @@
     setSheetBackgroundInert(false);
     const trigger = activeSheetFocus && activeSheetFocus.trigger;
     activeSheetFocus = null;
-    if (trigger && typeof trigger.focus === "function") {
-      requestAnimationFrame(() => trigger.focus({ preventScroll: true }));
+    const fallbackTrigger = document.getElementById("chatPlusToggle");
+    const target = trigger && trigger.offsetParent !== null ? trigger : fallbackTrigger;
+    if (target && typeof target.focus === "function") {
+      requestAnimationFrame(() => target.focus({ preventScroll: true }));
     }
   }
 
