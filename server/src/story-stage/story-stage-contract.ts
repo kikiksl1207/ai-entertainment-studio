@@ -36,6 +36,9 @@ import {
   STORY_MANUSCRIPT_PIPELINE_CONTRACT,
   WRITER_MANUSCRIPT_HANDOFF_FORMAT_CONTRACT,
 } from './story-manuscript-ingestion-contract';
+import {
+  STORY_UPLOAD_BACKEND_GUARD_CONTRACT,
+} from './story-upload-guard-contract';
 
 export {
   buildStorySceneAssetFallbackErrorEnvelope,
@@ -90,6 +93,17 @@ export {
   STORY_MANUSCRIPT_PIPELINE_CONTRACT,
   WRITER_MANUSCRIPT_HANDOFF_FORMAT_CONTRACT,
 } from './story-manuscript-ingestion-contract';
+export {
+  findStoryUploadSensitiveFieldViolations,
+  STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT,
+  STORY_HIATUS_PENALTY_PENDING_VALUES_GUARD_CONTRACT,
+  STORY_UPLOAD_BACKEND_GUARD_CONTRACT,
+  STORY_UPLOAD_ENDING_TYPES,
+  STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT,
+  STORY_UPLOAD_GUARD_FORBIDDEN_FIELDS,
+  STORY_UPLOAD_INTAKE_STORAGE_GUARD_CONTRACT,
+  STORY_UPLOAD_PUBLIC_SOURCE_SAFETY_GUARD_CONTRACT,
+} from './story-upload-guard-contract';
 
 export const STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD = {
   version: '2026-06-18.story-stage-free-prologue-entitlement-guard.v1',
@@ -1015,6 +1029,7 @@ export const STORY_STAGE_CONTRACT = {
   publicSourceStoryCopyrightBoundary:
     PUBLIC_SOURCE_STORY_COPYRIGHT_BOUNDARY_CONTRACT,
   storyManuscriptPipeline: STORY_MANUSCRIPT_PIPELINE_CONTRACT,
+  storyUploadBackendGuard: STORY_UPLOAD_BACKEND_GUARD_CONTRACT,
 } as const;
 
 export const STORY_STAGE_PACK_CHAPTER_SESSION_CONTRACT = {
