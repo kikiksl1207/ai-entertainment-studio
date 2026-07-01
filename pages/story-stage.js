@@ -116,6 +116,34 @@
       "zh-CN": "重试",
       "zh-Hant": "重試",
     },
+    "storyStage.preview.notice.title": {
+      "ko-KR": "미리보기 화면",
+      "ja-JP": "プレビュー画面",
+      "en-US": "Preview screen",
+      "zh-CN": "预览画面",
+      "zh-Hant": "預覽畫面",
+    },
+    "storyStage.preview.notice.body": {
+      "ko-KR": "이 화면은 저장되지 않는 읽기 전용 미리보기예요.",
+      "ja-JP": "この画面は保存されない読み取り専用プレビューです。",
+      "en-US": "This is a read-only preview and nothing is saved.",
+      "zh-CN": "这是不会保存内容的只读预览。",
+      "zh-Hant": "這是不會儲存內容的唯讀預覽。",
+    },
+    "storyStage.setup.visibility.private": {
+      "ko-KR": "나만 보는 미리보기",
+      "ja-JP": "自分だけのプレビュー",
+      "en-US": "Private preview",
+      "zh-CN": "仅自己可见的预览",
+      "zh-Hant": "僅自己可見的預覽",
+    },
+    "storyStage.setup.eyebrow": {
+      "ko-KR": "나 + AI",
+      "ja-JP": "自分 + AI",
+      "en-US": "Me + AI",
+      "zh-CN": "我 + AI",
+      "zh-Hant": "我 + AI",
+    },
     "storyStage.scene.fixture.01": {
       "ko-KR": "첫 리허설 조명이 켜지고, 도현이 무대 중앙으로 걸어 나옵니다.",
       "ja-JP": "最初のリハーサル照明が灯り、ドヒョンがステージ中央へ歩き出します。",
@@ -265,6 +293,12 @@
     const locale = storyLocale();
     const entry = STORY_SCENE_COPY[key];
     return entry?.[locale] || entry?.["ko-KR"] || key;
+  }
+
+  function storyLocalT(key) {
+    const locale = storyLocale();
+    const entry = STORY_SCENE_COPY[key];
+    return entry?.[locale] || entry?.["ko-KR"] || storyT(key);
   }
 
   function companionOptions() {
@@ -544,7 +578,7 @@
     return `
       <section class="story-section story-setup-section" aria-labelledby="storySetupTitle">
         <div class="story-section-head">
-          <span class="story-eyebrow story-eyebrow-free">Personal + AI</span>
+          <span class="story-eyebrow story-eyebrow-free">${storyLocalT("storyStage.setup.eyebrow")}</span>
           <h2 id="storySetupTitle" data-i18n="storyStage.setup.heading">나 + AI 동반 설정</h2>
         </div>
         <div class="story-setup-grid">
@@ -562,7 +596,7 @@
           </article>
           <article class="story-setup-item">
             <strong data-i18n="storyStage.setup.visibility">공개 범위</strong>
-            <p>Private preview</p>
+            <p>${storyLocalT("storyStage.setup.visibility.private")}</p>
           </article>
         </div>
       </section>
@@ -632,8 +666,8 @@
 
     root.innerHTML = `
       <div class="story-preview-banner" role="note">
-        <strong>미리보기 화면</strong>
-        <span>실제 결제, 정식 스토리 진행, provider 생성은 실행하지 않습니다.</span>
+        <strong>${storyLocalT("storyStage.preview.notice.title")}</strong>
+        <span>${storyLocalT("storyStage.preview.notice.body")}</span>
       </div>
 
       ${renderLocaleQaShell()}
