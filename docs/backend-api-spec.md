@@ -246,6 +246,18 @@ GET /api/v1/story-sessions/:sessionId/current-scene
   living/recent translations, and later derivative settings require PM review.
   The bundle is read-only and creates no provider, asset upload/create, story
   write/progress, payment, wallet, settlement, or payout mutation.
+- #1522-#1526 add `STORY_UPLOAD_CONTRACT_BUNDLE` for the future story upload
+  intake handoff. The bundle separates safe DTO groups for work info, scenes,
+  choices, backgrounds, characters, endings, and review status; keeps all
+  intake endpoints disabled as skeleton contracts; and treats the PM board as
+  the authority while external workspace page content is not persisted. It also
+  defines manuscript-first scene/branch/background/cast/ending markers, writer
+  primary/sub ending types, explicitly labeled AI fallback endings, stable
+  import/export ids that do not depend on Notion page or block ids, draft to
+  publish-ready review states with blocker keys, and a ko/en/ja/zh-Hans/zh-Hant
+  i18n key package with short mobile copy limits. The bundle is contract-only
+  and performs no upload write, migration write, publish, provider, payment,
+  wallet, settlement, or payout mutation.
 - #1081 adds `STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT` for read-only
   author revenue preview. It separates chapter gross revenue, season bundle
   discount allocation, AI artist companion participation cost, and story author
