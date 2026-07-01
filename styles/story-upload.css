@@ -318,6 +318,48 @@
   font-weight: 800;
 }
 
+.su-branch-tree {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.su-branch-card {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(212, 255, 95, 0.14);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.su-branch-card strong,
+.su-branch-card span,
+.su-branch-card em {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.su-branch-card strong {
+  color: var(--ink, #f0eef8);
+  font-size: 13px;
+}
+
+.su-branch-card span,
+.su-branch-card em {
+  color: rgba(240, 238, 248, 0.68);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.su-branch-card em {
+  color: #e6ff98;
+  font-style: normal;
+  font-weight: 800;
+}
+
 .su-import-wrap {
   overflow: hidden;
 }
@@ -363,6 +405,10 @@
 
 @media (max-width: 760px) {
   .su-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .su-branch-tree {
     grid-template-columns: 1fr;
   }
 }
