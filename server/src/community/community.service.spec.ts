@@ -607,7 +607,7 @@ describe('CommunityService user follow/block mutation contract', () => {
         'public_profile_follower_count_at_least_one',
         'followers_modal_shows_disposable_follower_row',
         'following_users_endpoint_returns_200',
-        'block_entrypoint_path_is_available_without_live_block_mutation',
+        'blockApiPath_GET_returns_read_only_preview_without_live_block_mutation',
       ],
       blockedIfMissing: [
         'disposable_qa_users',
@@ -653,6 +653,47 @@ describe('CommunityService user follow/block mutation contract', () => {
     expect(JSON.stringify(guard)).not.toMatch(
       /@|postgres:\/\/|mysql:\/\/|Bearer\s+|eyJ|AKIA|BEGIN PRIVATE KEY/i,
     );
+  });
+
+  it('returns a public block preview by handle without raw private ids or mutation', async () => {
+    const prisma = createPrismaMock();
+    prisma.user.findFirst.mockResolvedValueOnce({
+      id: otherUserId,
+      profile: {
+        displayName: 'QA fixture target',
+        publicHandle: 'qa-fb-qa-20260701-run1-target',
+      },
+    });
+    prisma.userBlock.findFirst.mockResolvedValueOnce(null);
+    const service = serviceWith(prisma);
+
+    const result = await service.getUserBlockPreviewByHandle(
+      'qa-fb-qa-20260701-run1-target',
+      authorId,
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      readOnly: true,
+      mutationExecuted: false,
+      target: {
+        publicHandle: 'qa-fb-qa-20260701-run1-target',
+      },
+      viewer: {
+        isAuthenticated: true,
+        isSelf: false,
+        blockState: 'none',
+      },
+      qaSmoke: {
+        runbookField: 'blockApiPath',
+        status: 'block_preview_ready',
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain(authorId);
+    expect(JSON.stringify(result)).not.toContain(otherUserId);
+    expect(prisma.userBlock.findFirst).toHaveBeenCalledTimes(1);
+    expect(prisma.userBlock.upsert).not.toHaveBeenCalled();
+    expect(prisma.userFollow.updateMany).not.toHaveBeenCalled();
   });
 
   it('fails closed when a blocked user tries to follow or refollow', async () => {

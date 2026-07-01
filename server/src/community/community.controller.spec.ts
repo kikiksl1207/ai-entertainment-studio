@@ -6,6 +6,7 @@ import {
   PATH_METADATA,
 } from '@nestjs/common/constants';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { CommunityController } from './community.controller';
 
 type ControllerRoute = {
@@ -98,6 +99,23 @@ describe('CommunityController user block routes', () => {
         }),
         expect.objectContaining({
           method: RequestMethod.DELETE,
+          path: 'users/handle/:publicHandle/block',
+        }),
+      ]),
+    );
+  });
+
+  it('mounts handle block preview as a read-only optional-auth route', () => {
+    const handler = CommunityController.prototype
+      .getUserBlockPreviewByHandle as unknown as object;
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as unknown[];
+
+    expect(guards).toContain(OptionalJwtAuthGuard);
+    expect(guards).not.toContain(JwtAuthGuard);
+    expect(mountedCommunityRoutes()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          method: RequestMethod.GET,
           path: 'users/handle/:publicHandle/block',
         }),
       ]),
