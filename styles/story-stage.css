@@ -1257,3 +1257,37 @@
     width: 100%;
   }
 }
+
+@media (max-width: 400px) {
+  .story-stage-root {
+    gap: 8px;
+  }
+
+  .story-preview-banner {
+    gap: 6px;
+    padding: 8px 12px;
+  }
+
+  .story-scene-stage {
+    height: min(208px, 42vh);
+    min-height: 200px;
+  }
+
+  .scene-preview-nav {
+    margin-top: 8px;
+    margin-bottom: 0;
+  }
+
+  .story-locale-section .story-section-head {
+    margin-bottom: 6px;
+  }
+
+  .story-locale-panel {
+    gap: 0;
+    padding: 8px 12px;
+  }
+
+  .story-locale-panel p {
+    display: none;
+  }
+}
