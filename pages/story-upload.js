@@ -385,16 +385,95 @@
     },
   };
 
+  const QA_COPY = {
+    ko: {
+      planTitle: "파트/분기 기준",
+      partLength: "1파트 약 10,000자",
+      branchSummary: "분기 설명/요약 2,000자 이내",
+      partCount: "10파트 기본 단편극",
+      branchTitle: "나무뿌리형 분기 결과",
+      branchNote: "선택별 관계, 위험, 아이템, 정보, 엔딩 조건을 분리해 재합류 전 차이를 남겨요.",
+      importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
+      choices: [
+        { label: "A", text: "기록을 먼저 확인한다", next: "S05", result: "정보 + 신뢰 상승", rejoin: "S09 재합류" },
+        { label: "B", text: "전령을 따라간다", next: "S06", result: "위험 + 아이템 획득", rejoin: "S09 재합류" },
+        { label: "C", text: "해안으로 우회한다", next: "S07", result: "관계 변화 + AI fallback 조건", rejoin: "E-AI 후보" },
+      ],
+      endings: ["E-MAIN · 작가 기본 엔딩", "E-SUB · 작가 서브 엔딩", "E-AI · AI fallback 엔딩"],
+    },
+    en: {
+      planTitle: "Part and branch rules",
+      partLength: "About 10,000 characters per part",
+      branchSummary: "Branch summary stays within 2,000 characters",
+      partCount: "10 parts form the default short play",
+      branchTitle: "Root-style branch outcomes",
+      branchNote: "Each choice keeps relation, risk, item, info, and ending-condition changes before any rejoin.",
+      importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
+      choices: [
+        { label: "A", text: "Check the record first", next: "S05", result: "Info + trust up", rejoin: "Rejoins at S09" },
+        { label: "B", text: "Follow the messenger", next: "S06", result: "Risk + item gained", rejoin: "Rejoins at S09" },
+        { label: "C", text: "Detour to the shore", next: "S07", result: "Relation shift + AI fallback condition", rejoin: "E-AI candidate" },
+      ],
+      endings: ["E-MAIN · Author main ending", "E-SUB · Author sub ending", "E-AI · AI fallback ending"],
+    },
+    ja: {
+      planTitle: "パート/分岐基準",
+      partLength: "1パート約10,000字",
+      branchSummary: "分岐説明/要約は2,000字以内",
+      partCount: "10パートが基本短編劇",
+      branchTitle: "木の根型の分岐結果",
+      branchNote: "再合流前に、選択ごとの関係、危険、アイテム、情報、終了条件の差を残します。",
+      importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
+      choices: [
+        { label: "A", text: "記録を先に確認する", next: "S05", result: "情報 + 信頼上昇", rejoin: "S09で再合流" },
+        { label: "B", text: "伝令について行く", next: "S06", result: "危険 + アイテム取得", rejoin: "S09で再合流" },
+        { label: "C", text: "海岸へ迂回する", next: "S07", result: "関係変化 + AI fallback条件", rejoin: "E-AI候補" },
+      ],
+      endings: ["E-MAIN · 作家基本終了", "E-SUB · 作家サブ終了", "E-AI · AI fallback終了"],
+    },
+    "zh-Hans": {
+      planTitle: "分部/分支标准",
+      partLength: "每部分约10,000字",
+      branchSummary: "分支说明/摘要控制在2,000字内",
+      partCount: "10部分为默认短剧",
+      branchTitle: "树根型分支结果",
+      branchNote: "即使之后再汇合，也保留各选项的关系、风险、道具、信息和结局条件差异。",
+      importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
+      choices: [
+        { label: "A", text: "先确认记录", next: "S05", result: "信息 + 信任提升", rejoin: "S09再汇合" },
+        { label: "B", text: "跟随传令", next: "S06", result: "风险 + 获得道具", rejoin: "S09再汇合" },
+        { label: "C", text: "绕到海岸", next: "S07", result: "关系变化 + AI fallback条件", rejoin: "E-AI候选" },
+      ],
+      endings: ["E-MAIN · 作者主线结局", "E-SUB · 作者支线结局", "E-AI · AI fallback结局"],
+    },
+    "zh-Hant": {
+      planTitle: "分部/分支標準",
+      partLength: "每部分約10,000字",
+      branchSummary: "分支說明/摘要控制在2,000字內",
+      partCount: "10部分為預設短劇",
+      branchTitle: "樹根型分支結果",
+      branchNote: "即使之後再匯合，也保留各選項的關係、風險、道具、資訊和結局條件差異。",
+      importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
+      choices: [
+        { label: "A", text: "先確認記錄", next: "S05", result: "資訊 + 信任提升", rejoin: "S09再匯合" },
+        { label: "B", text: "跟隨傳令", next: "S06", result: "風險 + 獲得道具", rejoin: "S09再匯合" },
+        { label: "C", text: "繞到海岸", next: "S07", result: "關係變化 + AI fallback條件", rejoin: "E-AI候選" },
+      ],
+      endings: ["E-MAIN · 作者主線結局", "E-SUB · 作者支線結局", "E-AI · AI fallback結局"],
+    },
+  };
+
   const sampleScenes = [
     { id: "S01", title: "기록의 방", state: "pm_review" },
     { id: "S02", title: "첫 분기", state: "locale_ready" },
     { id: "S03", title: "공통 장면", state: "qa_ready" },
+    { id: "S09", title: "재합류 장면", state: "qa_ready" },
   ];
 
   const importRows = [
-    { scene: "S01", branch: "B01", ending: "-", background: "OK", cast: "OK", state: "ok" },
-    { scene: "S02", branch: "B02", ending: "E-A", background: "missing", cast: "OK", state: "missing" },
-    { scene: "S03", branch: "B03", ending: "E-AI", background: "OK", cast: "missing", state: "pm" },
+    { scene: "S01", branch: "ROOT", ending: "author_main", part: "10", summary: "<= 2,000", state: "ok" },
+    { scene: "S05", branch: "B-A", ending: "author_sub", part: "10", summary: "<= 2,000", state: "ok" },
+    { scene: "S07", branch: "B-C", ending: "ai_fallback", part: "10", summary: "<= 2,000", state: "pm" },
   ];
 
   const localeMap = {
@@ -419,6 +498,7 @@
 
   function renderUploadWorkspace(localeCode) {
     const locale = UI[localeCode] || UI.ko;
+    const qa = QA_COPY[localeCode] || QA_COPY.ko;
     document.documentElement.lang = localeMap[localeCode] || "ko-KR";
 
     root.innerHTML = `
@@ -441,6 +521,8 @@
               ${field(locale.labels.genre, locale.sample.genre)}
               ${field(locale.labels.free, locale.sample.free)}
               ${field(locale.labels.minimum, locale.sample.minimum)}
+              ${field(qa.planTitle, `${qa.partLength} · ${qa.partCount}`)}
+              ${field(locale.labels.choices, qa.branchSummary)}
             </ul>
           </div>
           <div class="su-panel su-review-status" data-status="locale_ready">
@@ -463,14 +545,12 @@
             <div class="su-ending-summary">
               <span class="su-ending-badge" data-ending="author_main">${escapeHtml(locale.ending.authorMain)}</span>
               <span class="su-ending-badge" data-ending="author_sub">${escapeHtml(locale.ending.authorSub)}</span>
-              <span class="su-ending-badge" data-ending="ai">AI · ${escapeHtml(locale.ending.ai)}</span>
+              <span class="su-ending-badge" data-ending="ai">AI fallback · ${escapeHtml(locale.ending.ai)}</span>
             </div>
             <details class="su-ending-list">
-              <summary>${escapeHtml(locale.ending.subCount)} <b>7</b></summary>
+              <summary>${escapeHtml(locale.ending.subCount)} <b>${qa.endings.length}</b></summary>
               <ul>
-                <li>E-S1 · ${escapeHtml(locale.ending.authorSub)}</li>
-                <li>E-S2 · ${escapeHtml(locale.ending.authorSub)}</li>
-                <li>E-AI · ${escapeHtml(locale.ending.ai)}</li>
+                ${qa.endings.map((ending) => `<li>${escapeHtml(ending)}</li>`).join("")}
               </ul>
             </details>
           </div>
@@ -496,8 +576,7 @@
             </details>
             <label class="su-field"><span>${escapeHtml(locale.labels.body)}</span><textarea name="body" rows="8" class="su-body" readonly>${escapeHtml(locale.sample.body)}</textarea></label>
             <div class="su-choices" aria-label="${escapeHtml(locale.labels.choices)}">
-              <div class="su-choice-row"><input value="A" readonly /><input value="기록을 먼저 확인한다" readonly /><input value="S05" readonly /></div>
-              <div class="su-choice-row"><input value="B" readonly /><input value="전령을 따라간다" readonly /><input value="S06" readonly /></div>
+              ${qa.choices.map((choice) => `<div class="su-choice-row"><input value="${escapeHtml(choice.label)}" readonly /><input value="${escapeHtml(choice.text)}" readonly /><input value="${escapeHtml(choice.next)}" readonly /></div>`).join("")}
               <button class="su-action" type="button" disabled aria-disabled="true">${escapeHtml(locale.labels.addChoice)}</button>
             </div>
             <div class="su-row">
@@ -509,18 +588,32 @@
         </section>
 
         <section class="su-section">
+          <h2>${escapeHtml(qa.branchTitle)}</h2>
+          <p class="su-muted">${escapeHtml(qa.branchNote)}</p>
+          <div class="su-branch-tree">
+            ${qa.choices.map((choice) => `
+              <article class="su-branch-card">
+                <strong>${escapeHtml(choice.label)} · ${escapeHtml(choice.next)}</strong>
+                <span>${escapeHtml(choice.result)}</span>
+                <em>${escapeHtml(choice.rejoin)}</em>
+              </article>
+            `).join("")}
+          </div>
+        </section>
+
+        <section class="su-section">
           <h2>${escapeHtml(locale.import)}</h2>
           <div class="su-import-wrap">
             <table class="su-import-preview">
-              <thead><tr>${locale.importHead.map((head) => `<th>${escapeHtml(head)}</th>`).join("")}</tr></thead>
+              <thead><tr>${qa.importHead.map((head) => `<th>${escapeHtml(head)}</th>`).join("")}</tr></thead>
               <tbody>
                 ${importRows.map((row) => `
                   <tr>
                     <td>${escapeHtml(row.scene)}</td>
                     <td>${escapeHtml(row.branch)}</td>
                     <td>${escapeHtml(row.ending)}</td>
-                    <td>${row.background === "missing" ? `<span class="su-miss">${escapeHtml(locale.importState.missing)}</span>` : escapeHtml(row.background)}</td>
-                    <td>${row.cast === "missing" ? `<span class="su-miss">${escapeHtml(locale.importState.missing)}</span>` : escapeHtml(row.cast)}</td>
+                    <td>${escapeHtml(row.part)}</td>
+                    <td>${escapeHtml(row.summary)}</td>
                     <td>${escapeHtml(locale.importState[row.state])}</td>
                   </tr>
                 `).join("")}
