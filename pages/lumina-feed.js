@@ -163,14 +163,32 @@ function getFeedShortformItems() {
   return data.slice(0, 12);
 }
 
+function feedShortsErrorFixtureEnabled() {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    return params.get("shortsErrorFixture") === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
 function renderFeedShortsSurface() {
   const surface = document.querySelector("[data-feed-shorts-surface]");
   const grid = document.querySelector("[data-feed-shorts-grid]");
   const empty = document.querySelector("[data-feed-shorts-empty]");
   const loading = document.querySelector("[data-feed-shorts-loading]");
+  const error = document.querySelector("[data-feed-shorts-error]");
   if (!surface || !grid) return;
-  const items = getFeedShortformItems();
   if (loading) loading.hidden = true;
+  if (empty) empty.hidden = true;
+  if (error) error.hidden = true;
+  if (feedShortsErrorFixtureEnabled()) {
+    grid.innerHTML = "";
+    if (error) error.hidden = false;
+    window.luminaI18n?.apply?.(surface);
+    return;
+  }
+  const items = getFeedShortformItems();
   if (empty) empty.hidden = items.length > 0;
   grid.innerHTML = items.map(function (item) {
     const artist = typeof getCharacterByName === "function" ? getCharacterByName(item.artist) : null;
@@ -704,6 +722,12 @@ function initLuminaFeedSidebar() {
   }
   panel.querySelectorAll("[data-feed-side-link]").forEach(link => {
     const key = link.dataset.feedSideLink || "profile";
+    if (key === "shortform") {
+      link.href = "/lumina-feed?surface=shorts";
+      link.textContent = feedT("nav.feedShorts", "쇼츠");
+      link.setAttribute("data-i18n", "nav.feedShorts");
+      return;
+    }
     link.href = key === "profile"
       ? profileUrl
       : `${profileUrl}${profileUrl.includes("?") ? "&" : "?"}tab=${encodeURIComponent(key)}`;

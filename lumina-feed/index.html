@@ -81,7 +81,7 @@
               <a href="/mypage" data-feed-side-link="profile">내꺼 보러가기</a>
               <a href="/mypage" data-feed-side-link="posts">게시물</a>
               <a href="/mypage" data-feed-side-link="media">사진</a>
-              <a href="/mypage" data-feed-side-link="shortform">숏폼</a>
+              <a href="/lumina-feed?surface=shorts" data-feed-side-link="shortform" data-i18n="nav.feedShorts">쇼츠</a>
               <a href="/mypage" data-feed-side-link="likes">좋아요</a>
             </nav>
           </aside>
@@ -223,6 +223,7 @@
               <div class="feed-shorts-grid" data-feed-shorts-grid></div>
               <p class="feed-shorts-empty" data-feed-shorts-empty hidden data-i18n="feed.shorts.empty">아직 볼 쇼츠가 없어요.</p>
               <p class="feed-shorts-loading" data-feed-shorts-loading hidden data-i18n="feed.shorts.loading">쇼츠를 불러오는 중이에요.</p>
+              <p class="feed-shorts-error" data-feed-shorts-error hidden data-i18n="feed.shorts.error">쇼츠를 불러오지 못했어요.</p>
             </section>
             <div class="feed-list" id="luminaFeedList" aria-live="polite"></div>
             <!-- #411 — 글 상세 보기 패널. JS가 .is-detail-open 부여 시 활성화. -->
