@@ -3,10 +3,13 @@ import {
   findStoryShortsAnalyticsPayloadViolations,
   GLOBAL_NAV_STORY_TAB_ACTIVE_STATE_TEST_SKELETON,
   LUMINA_FEED_SHORTFORM_EMBEDDED_DATA_CONTRACT,
+  LUMINA_FEED_SHORTS_SURFACE_FALLBACK_CONTRACT,
   SHORTFORM_LEGACY_ROUTE_COMPATIBILITY_CONTRACT,
+  STORY_ROUTE_RELOCATION_DIFF_AUDIT_CONTRACT,
   STORY_SHORTS_ROUTE_ANALYTICS_CONTRACT,
   STORY_SHORTS_ROUTE_RELOCATION_CONTRACT,
   STORY_STAGE_I18N_RUNTIME_EXPOSURE_CONTRACT,
+  STORY_STAGE_MOBILE_SAFE_AREA_CONTRACT,
 } from './story-route-relocation-contract';
 
 describe('Story and shorts route relocation contract', () => {
@@ -82,11 +85,17 @@ describe('Story and shorts route relocation contract', () => {
     expect(STORY_STAGE_I18N_RUNTIME_EXPOSURE_CONTRACT.runtimeGlobal).toMatchObject(
       {
         name: 'window.luminaI18n',
-        requiredMethods: ['getLocale', 't', 'apply'],
+        requiredMethods: ['getLocale', 'setLocale', 't', 'apply'],
+        requiredConstants: ['LOCALES'],
         storyStageMayRead: true,
         storyStageMayMutateLocale: false,
+        storyStageLocaleSwitchMayCallSetLocale: true,
       },
     );
+    expect(STORY_STAGE_I18N_RUNTIME_EXPOSURE_CONTRACT.runtimeApi).toMatchObject({
+      LOCALES: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
+      setLocaleRejectsUnsupportedLocale: true,
+    });
     expect(
       STORY_STAGE_I18N_RUNTIME_EXPOSURE_CONTRACT.regionalTagMapping,
     ).toMatchObject({
@@ -104,10 +113,39 @@ describe('Story and shorts route relocation contract', () => {
       missingTranslationUsesUserSafeFallback: true,
     });
     expect(
+      STORY_STAGE_I18N_RUNTIME_EXPOSURE_CONTRACT.copyCoverage,
+    ).toMatchObject({
+      koHardcodedStatusCopyAllowed: false,
+      koHardcodedFallbackCopyAllowed: false,
+      koHardcodedNavCopyAllowed: false,
+    });
+    expect(
       Object.values(
         STORY_STAGE_I18N_RUNTIME_EXPOSURE_CONTRACT.mutationPolicy,
       ).every((enabled) => enabled === false),
     ).toBe(true);
+  });
+
+  it('publishes Story Stage mobile safe-area rect rules for scene QA', () => {
+    expect(STORY_STAGE_CONTRACT.storyStageMobileSafeArea).toBe(
+      STORY_STAGE_MOBILE_SAFE_AREA_CONTRACT,
+    );
+    expect(
+      STORY_SHORTS_ROUTE_RELOCATION_CONTRACT.runtimeContracts
+        .storyStageMobileSafeArea,
+    ).toBe(STORY_STAGE_MOBILE_SAFE_AREA_CONTRACT);
+    expect(STORY_STAGE_MOBILE_SAFE_AREA_CONTRACT.viewport).toMatchObject({
+      primaryMobileWidth: '390-400px',
+      safeAreaInsetSource: 'env(safe-area-inset-bottom)',
+    });
+    expect(STORY_STAGE_MOBILE_SAFE_AREA_CONTRACT.sceneRectCases).toHaveLength(3);
+    expect(STORY_STAGE_MOBILE_SAFE_AREA_CONTRACT.rectExpectations).toMatchObject(
+      {
+        textMustNotOverlapPreviewNav: true,
+        previewNavMustNotOverlapBottomTabbar: true,
+        characterLayerMayNotCoverChoiceOrNavControls: true,
+      },
+    );
   });
 
   it('defines Lumina Feed embedded shorts data as read-only reusable shortform data', () => {
@@ -115,10 +153,33 @@ describe('Story and shorts route relocation contract', () => {
       STORY_SHORTS_ROUTE_RELOCATION_CONTRACT.runtimeContracts
         .luminaFeedShortformEmbeddedData,
     ).toBe(LUMINA_FEED_SHORTFORM_EMBEDDED_DATA_CONTRACT);
+    expect(STORY_STAGE_CONTRACT.luminaFeedShortsSurfaceFallback).toBe(
+      LUMINA_FEED_SHORTS_SURFACE_FALLBACK_CONTRACT,
+    );
+    expect(
+      STORY_SHORTS_ROUTE_RELOCATION_CONTRACT.runtimeContracts
+        .luminaFeedShortsSurfaceFallback,
+    ).toBe(LUMINA_FEED_SHORTS_SURFACE_FALLBACK_CONTRACT);
     expect(LUMINA_FEED_SHORTFORM_EMBEDDED_DATA_CONTRACT.surface).toMatchObject({
       route: '/lumina-feed',
       query: 'surface=shorts',
       reusesExistingShortformData: true,
+    });
+    expect(LUMINA_FEED_SHORTFORM_EMBEDDED_DATA_CONTRACT.fallbackContract).toBe(
+      LUMINA_FEED_SHORTS_SURFACE_FALLBACK_CONTRACT,
+    );
+    expect(
+      LUMINA_FEED_SHORTS_SURFACE_FALLBACK_CONTRACT.fallbackStates,
+    ).toMatchObject({
+      loading: { messageKey: 'feed.shorts.loading' },
+      empty: { messageKey: 'feed.shorts.empty' },
+      error: { messageKey: 'feed.shorts.error' },
+    });
+    expect(
+      LUMINA_FEED_SHORTS_SURFACE_FALLBACK_CONTRACT.i18nPolicy,
+    ).toMatchObject({
+      supportedLocaleSlots: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
+      rawKeyVisible: false,
     });
     expect(LUMINA_FEED_SHORTFORM_EMBEDDED_DATA_CONTRACT.sourcePriority).toEqual([
       'GET /api/v1/shortforms',
@@ -152,6 +213,14 @@ describe('Story and shorts route relocation contract', () => {
       characterChatPath: '/character-chat',
       storyMustNotResolveToCharacterChat: true,
       legacyShortformMustNotActivateStoryTab: true,
+    });
+    expect(
+      SHORTFORM_LEGACY_ROUTE_COMPATIBILITY_CONTRACT.redirectNoLoopPolicy,
+    ).toMatchObject({
+      doNotRedirectWhenAlreadyAtCanonicalTarget: true,
+      useHistoryReplaceForClientRedirect: true,
+      maxRedirectsPerNavigation: 1,
+      backButtonReturnsToPreviousNonLegacyRoute: true,
     });
   });
 
@@ -222,5 +291,37 @@ describe('Story and shorts route relocation contract', () => {
         (enabled) => enabled === false,
       ),
     ).toBe(true);
+  });
+
+  it('defines the route relocation diff audit checklist for main reflection', () => {
+    expect(STORY_STAGE_CONTRACT.routeRelocationDiffAudit).toBe(
+      STORY_ROUTE_RELOCATION_DIFF_AUDIT_CONTRACT,
+    );
+    expect(
+      STORY_SHORTS_ROUTE_RELOCATION_CONTRACT.runtimeContracts
+        .routeRelocationDiffAudit,
+    ).toBe(STORY_ROUTE_RELOCATION_DIFF_AUDIT_CONTRACT);
+    expect(STORY_ROUTE_RELOCATION_DIFF_AUDIT_CONTRACT.routeCases).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ route: '/story-stage' }),
+        expect.objectContaining({ route: '/lumina-feed?surface=shorts' }),
+        expect.objectContaining({ route: '/shortform', noLoopRequired: true }),
+        expect.objectContaining({
+          route: '/character-chat',
+          storyRouteMustStaySeparate: true,
+        }),
+      ]),
+    );
+    expect(STORY_ROUTE_RELOCATION_DIFF_AUDIT_CONTRACT.checklist).toMatchObject({
+      mobileWidth: '390-400px',
+      localeSlots: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
+      noMutationRequired: true,
+    });
+    expect(STORY_ROUTE_RELOCATION_DIFF_AUDIT_CONTRACT.failConditions).toEqual(
+      expect.arrayContaining([
+        'shortform_redirect_loop',
+        'payment_wallet_story_progress_or_provider_mutation',
+      ]),
+    );
   });
 });

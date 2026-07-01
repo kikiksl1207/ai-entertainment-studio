@@ -14,23 +14,53 @@ export const STORY_ROUTE_REGIONAL_LOCALE_TAGS = {
   'zh-Hant': 'zh-Hant',
 } as const;
 
+export const STORY_STAGE_RUNTIME_COPY_KEY_GROUPS = {
+  nav: ['nav.storyStage', 'tab.storyStage'],
+  status: [
+    'storyStage.status.loading',
+    'storyStage.status.ready',
+    'storyStage.status.unavailable',
+  ],
+  fallback: [
+    'storyStage.scene.assetFallback.default',
+    'storyStage.scene.assetFallback.shortLabel',
+    'storyStage.prologue.unavailable',
+  ],
+} as const;
+
 export const STORY_STAGE_I18N_RUNTIME_EXPOSURE_CONTRACT = {
-  version: '2026-06-30.story-stage-i18n-runtime-exposure.v1',
+  version: '2026-07-01.story-stage-i18n-runtime-exposure.v2',
   status: 'runtime_contract_only',
   runtimeGlobal: {
     name: 'window.luminaI18n',
-    requiredMethods: ['getLocale', 't', 'apply'],
+    requiredMethods: ['getLocale', 'setLocale', 't', 'apply'],
+    requiredConstants: ['LOCALES'],
     storyStageMayRead: true,
     storyStageMayMutateLocale: false,
+    storyStageLocaleSwitchMayCallSetLocale: true,
+  },
+  runtimeApi: {
+    LOCALES: STORY_ROUTE_SUPPORTED_LOCALE_SLOTS,
+    getLocaleReturns: STORY_ROUTE_SUPPORTED_LOCALE_SLOTS,
+    setLocaleAccepts: STORY_ROUTE_SUPPORTED_LOCALE_SLOTS,
+    setLocaleRejectsUnsupportedLocale: true,
+    regionalTagMapping: STORY_ROUTE_REGIONAL_LOCALE_TAGS,
   },
   localeSlots: STORY_ROUTE_SUPPORTED_LOCALE_SLOTS,
   regionalTagMapping: STORY_ROUTE_REGIONAL_LOCALE_TAGS,
   lookupOrder: [
     'window.luminaI18n.t',
+    'window.luminaI18n.LOCALES',
     'story_stage_page_copy_bundle',
     'document.documentElement.lang',
     'ko-KR',
   ],
+  copyCoverage: {
+    requiredKeyGroups: STORY_STAGE_RUNTIME_COPY_KEY_GROUPS,
+    koHardcodedStatusCopyAllowed: false,
+    koHardcodedFallbackCopyAllowed: false,
+    koHardcodedNavCopyAllowed: false,
+  },
   rawKeyExposurePolicy: {
     sceneCopyMayRenderRawKey: false,
     fallbackCopyMayRenderRawKey: false,
@@ -47,6 +77,120 @@ export const STORY_STAGE_I18N_RUNTIME_EXPOSURE_CONTRACT = {
     storySceneWrite: false,
     paymentMutation: false,
     walletMutation: false,
+  },
+} as const;
+
+export const STORY_STAGE_MOBILE_SAFE_AREA_CONTRACT = {
+  version: '2026-07-01.story-stage-mobile-safe-area.v1',
+  status: 'responsive_contract_only',
+  viewport: {
+    primaryMobileWidth: '390-400px',
+    orientation: 'portrait',
+    safeAreaInsetSource: 'env(safe-area-inset-bottom)',
+  },
+  sceneRectCases: [
+    {
+      sceneOrdinal: 1,
+      textBlock: 'story-scene-text',
+      previewNav: 'story-scene-prev-next-nav',
+      bottomTabbar: 'mobile-tabbar',
+    },
+    {
+      sceneOrdinal: 2,
+      textBlock: 'story-scene-text',
+      previewNav: 'story-scene-prev-next-nav',
+      bottomTabbar: 'mobile-tabbar',
+    },
+    {
+      sceneOrdinal: 3,
+      textBlock: 'story-scene-text',
+      previewNav: 'story-scene-prev-next-nav',
+      bottomTabbar: 'mobile-tabbar',
+    },
+  ],
+  rectExpectations: {
+    sceneStageMustContainBackground: true,
+    textMustNotOverlapPreviewNav: true,
+    previewNavMustNotOverlapBottomTabbar: true,
+    textMustRemainReadableAboveBottomTabbar: true,
+    characterLayerMayNotCoverChoiceOrNavControls: true,
+  },
+  spacingGuidance: {
+    minTextToNavGapPx: 12,
+    minNavToTabbarGapPx: 16,
+    minStageInlinePaddingPx: 16,
+    bottomPaddingFormula: 'tabbarHeight + safeAreaInsetBottom + 16px',
+    choiceOverlayMaxHeight: '40vh',
+  },
+  qaMeasurementPolicy: {
+    captureSceneOrdinals: [1, 2, 3],
+    failOnAnyNegativeRectGap: true,
+    failOnHorizontalOverflow: true,
+    failOnRawI18nKey: true,
+  },
+  mutationPolicy: {
+    providerCall: false,
+    storyProgressMutation: false,
+    storySceneWrite: false,
+    paymentMutation: false,
+    walletMutation: false,
+  },
+} as const;
+
+export const LUMINA_FEED_SHORTS_SURFACE_FALLBACK_CONTRACT = {
+  version: '2026-07-01.lumina-feed-shorts-surface-fallback.v1',
+  status: 'read_only_surface_fallback_contract',
+  surface: {
+    route: '/lumina-feed',
+    query: 'surface=shorts',
+    readOnly: true,
+  },
+  fallbackStates: {
+    loading: {
+      state: 'loading',
+      messageKey: 'feed.shorts.loading',
+      skeletonAllowed: true,
+    },
+    empty: {
+      state: 'empty',
+      messageKey: 'feed.shorts.empty',
+      primaryCtaKey: 'feed.shorts.discoverCta',
+    },
+    error: {
+      state: 'error',
+      messageKey: 'feed.shorts.error',
+      retryCtaKey: 'feed.shorts.retry',
+    },
+  },
+  failureRules: {
+    missingShortformDataUsesEmptyState: true,
+    apiFailureUsesErrorState: true,
+    slowApiUsesLoadingStateBeforeError: true,
+    composerAndPostStateIgnoredForShortsFallback: true,
+  },
+  i18nPolicy: {
+    requiredKeys: [
+      'feed.shorts.loading',
+      'feed.shorts.empty',
+      'feed.shorts.error',
+      'feed.shorts.retry',
+    ],
+    supportedLocaleSlots: STORY_ROUTE_SUPPORTED_LOCALE_SLOTS,
+    rawKeyVisible: false,
+  },
+  mobileOverflowPolicy: {
+    primaryMobileWidth: '390-400px',
+    cardsMayWrap: true,
+    horizontalScrollRequired: false,
+    composerOverlapAllowed: false,
+  },
+  mutationPolicy: {
+    feedPostMutation: false,
+    likeMutation: false,
+    followMutation: false,
+    blockMutation: false,
+    reportMutation: false,
+    paymentMutation: false,
   },
 } as const;
 
@@ -80,6 +224,7 @@ export const LUMINA_FEED_SHORTFORM_EMBEDDED_DATA_CONTRACT = {
     shortformCardsDoNotRequireGlobalTab: true,
     primaryMobileWidth: '390-400px',
   },
+  fallbackContract: LUMINA_FEED_SHORTS_SURFACE_FALLBACK_CONTRACT,
   privacy: {
     rawStorageKeyReturned: false,
     signedUrlReturned: false,
@@ -109,6 +254,16 @@ export const SHORTFORM_LEGACY_ROUTE_COMPATIBILITY_CONTRACT = {
   legacyRoute: '/shortform',
   canonicalTarget: '/lumina-feed?surface=shorts',
   preserveQueryAndHash: true,
+  redirectNoLoopPolicy: {
+    normalizeTrailingSlashBeforeCompare: true,
+    doNotRedirectWhenAlreadyAtCanonicalTarget: true,
+    useHistoryReplaceForClientRedirect: true,
+    maxRedirectsPerNavigation: 1,
+    backButtonReturnsToPreviousNonLegacyRoute: true,
+    preserveQueryAndHash: true,
+    storyStageRouteExcluded: true,
+    characterChatRouteExcluded: true,
+  },
   seoPolicy: {
     canonicalHref: '/lumina-feed',
     noindexLegacyDuringTransition: true,
@@ -126,6 +281,55 @@ export const SHORTFORM_LEGACY_ROUTE_COMPATIBILITY_CONTRACT = {
     paymentMutation: false,
     feedPostMutation: false,
   },
+} as const;
+
+export const STORY_ROUTE_RELOCATION_DIFF_AUDIT_CONTRACT = {
+  version: '2026-07-01.story-route-relocation-diff-audit.v1',
+  status: 'qa_audit_checklist_contract',
+  auditSource: {
+    expectedContract: 'STORY_SHORTS_ROUTE_RELOCATION_CONTRACT',
+    targetBranch: 'main_after_route_reflection',
+    diffRequiresHumanReview: true,
+  },
+  routeCases: [
+    {
+      route: '/story-stage',
+      expectedActiveTab: 'story',
+      expectedCanonical: '/story-stage',
+    },
+    {
+      route: '/lumina-feed?surface=shorts',
+      expectedActiveTab: 'lumina-feed',
+      expectedSurface: 'shorts',
+    },
+    {
+      route: '/shortform',
+      expectedActiveTab: 'lumina-feed',
+      expectedTarget: '/lumina-feed?surface=shorts',
+      noLoopRequired: true,
+    },
+    {
+      route: '/character-chat',
+      expectedActiveTab: 'character-chat',
+      storyRouteMustStaySeparate: true,
+    },
+  ],
+  checklist: {
+    mobileWidth: '390-400px',
+    localeSlots: STORY_ROUTE_SUPPORTED_LOCALE_SLOTS,
+    noRawI18nKey: true,
+    noMutationRequired: true,
+    includesDesktopAndMobileNav: true,
+  },
+  failConditions: [
+    'story_stage_resolves_to_character_chat',
+    'shortform_redirect_loop',
+    'feed_shorts_surface_posts_or_likes',
+    'mobile_tab_overlaps_story_stage_controls',
+    'raw_i18n_key_visible',
+    'payment_wallet_story_progress_or_provider_mutation',
+  ],
+  handoffConsumers: ['qa1', 'viewer', 'zoro'],
 } as const;
 
 export const GLOBAL_NAV_STORY_TAB_ACTIVE_STATE_TEST_SKELETON = {
@@ -275,13 +479,17 @@ export const STORY_SHORTS_ROUTE_RELOCATION_CONTRACT = {
   },
   runtimeContracts: {
     storyStageI18n: STORY_STAGE_I18N_RUNTIME_EXPOSURE_CONTRACT,
+    storyStageMobileSafeArea: STORY_STAGE_MOBILE_SAFE_AREA_CONTRACT,
     luminaFeedShortformEmbeddedData:
       LUMINA_FEED_SHORTFORM_EMBEDDED_DATA_CONTRACT,
+    luminaFeedShortsSurfaceFallback:
+      LUMINA_FEED_SHORTS_SURFACE_FALLBACK_CONTRACT,
     shortformLegacyRouteCompatibility:
       SHORTFORM_LEGACY_ROUTE_COMPATIBILITY_CONTRACT,
     globalNavStoryTabActiveState:
       GLOBAL_NAV_STORY_TAB_ACTIVE_STATE_TEST_SKELETON,
     readOnlyAnalytics: STORY_SHORTS_ROUTE_ANALYTICS_CONTRACT,
+    routeRelocationDiffAudit: STORY_ROUTE_RELOCATION_DIFF_AUDIT_CONTRACT,
   },
   mutationPolicy: {
     providerCall: false,

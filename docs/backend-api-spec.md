@@ -197,13 +197,38 @@ GET /api/v1/story-sessions/:sessionId/current-scene
   compatibility or redirect path with canonical target `/lumina-feed`.
 - #1427-#1431 extend the Story/Shorts route contract with runtime i18n,
   embedded feed shorts data, legacy `/shortform` compatibility, active-state
-  route test cases, and read-only route analytics. `/story-stage` may read
-  `window.luminaI18n.getLocale/t/apply` but must not mutate locale state.
+  route test cases, and read-only route analytics. `/story-stage` scene render
+  may read `window.luminaI18n.getLocale/t/apply`; explicit user locale switch
+  handoff is covered by the later `setLocale` contract and must not happen as a
+  hidden scene side effect.
   `/lumina-feed?surface=shorts` reuses `GET /api/v1/shortforms` or
   `window.LuminaStaticData.shortformsLocal` as read-only data. Route analytics
   may record only event name, route, surface, and locale; it must not include
   user tokens, raw email, DB ids, cookies, API keys, provider payloads, payment
   order ids, wallet ledger ids, or story progress ids.
+- #1443-#1447 extend the route contract with the implementation handoff for
+  `window.luminaI18n.LOCALES/getLocale/setLocale/t/apply`, Story Stage mobile
+  safe-area rect checks for scene 1-3 at 390-400px, read-only
+  `/lumina-feed?surface=shorts` loading/empty/error fallback states, legacy
+  `/shortform` no-loop redirect/back-button rules, and a route relocation diff
+  audit checklist for `/story-stage`, `/lumina-feed?surface=shorts`,
+  `/shortform`, and `/character-chat`. The contract still forbids provider,
+  story progress/write, feed post/like/follow/block/report, payment, wallet,
+  settlement, and payout mutations.
+- #1473, #1474, #1476, and #1479 add
+  `STORY_IMMERSIVE_EXPERIENCE_CONTRACT`. `/story-stage` starts with a discovery
+  surface using recommended/taste match/new/ranking/start-today/genre filters
+  and safe card fields. Story detail uses desktop modal or mobile sheet states
+  for free prologue, continue, and purchase-required CTAs without double-charge
+  signals. The immersive player read model requires scene id/text, public
+  background asset/state, characters, chat turns, choices, speaker, and next
+  scene hint, with three default choices and up to five choices. The first
+  tutorial candidate is represented by the
+  `imjin-war-nanjung-ilgi-prologue` slug as a Lumina-original, third-party
+  participant free prologue with one AI artist companion and read-only
+  completion/comment/rating projections. Sensitive fields such as tokens,
+  passwords, cookies, API keys, raw email, DB URLs, provider payloads, storage
+  keys, signed URLs, payment order ids, and wallet ledger ids are rejected.
 - #1081 adds `STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT` for read-only
   author revenue preview. It separates chapter gross revenue, season bundle
   discount allocation, AI artist companion participation cost, and story author
