@@ -2065,12 +2065,21 @@ body.is-feed-repost-open { overflow: hidden; }
   }
 
   .feed-shorts-thumb {
-    aspect-ratio: 9 / 12;
+    aspect-ratio: 9 / 10;
   }
 
   .feed-shorts-card-body {
     gap: 4px;
-    padding: 9px;
+    padding: 8px;
+  }
+
+  .feed-shorts-copy {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  .feed-main-column.is-shorts-surface {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   }
 
   .feed-post-actions {

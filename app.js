@@ -896,6 +896,188 @@ const I18N_DICT = {
     "en-US": "Preparing the prologue.",
     "zh-CN": "正在准备序章。",
     "zh-Hant": "正在準備序章。"
+  },
+  "storyStage.locale.heading": {
+    "ko-KR": "언어 QA",
+    "ja-JP": "言語QA",
+    "en-US": "Locale QA",
+    "zh-CN": "语言 QA",
+    "zh-Hant": "語言 QA"
+  },
+  "storyStage.locale.note": {
+    "ko-KR": "스토리 화면 문구를 5개 언어로 즉시 전환해 길이와 줄바꿈을 확인해요.",
+    "ja-JP": "ストーリー画面の文言を5言語に切り替え、長さと改行を確認します。",
+    "en-US": "Switch story copy across five locales to check length and wrapping.",
+    "zh-CN": "即时切换五种语言，检查故事文案长度和换行。",
+    "zh-Hant": "即時切換五種語言，檢查故事文案長度與換行。"
+  },
+  "storyStage.discovery.heading": {
+    "ko-KR": "스토리 찾기",
+    "ja-JP": "ストーリーを探す",
+    "en-US": "Find a Story",
+    "zh-CN": "发现故事",
+    "zh-Hant": "探索故事"
+  },
+  "storyStage.discovery.filter.recommended": {
+    "ko-KR": "추천",
+    "ja-JP": "おすすめ",
+    "en-US": "Recommended",
+    "zh-CN": "推荐",
+    "zh-Hant": "推薦"
+  },
+  "storyStage.discovery.filter.taste": {
+    "ko-KR": "취향저격",
+    "ja-JP": "好みに合う",
+    "en-US": "For You",
+    "zh-CN": "符合喜好",
+    "zh-Hant": "符合喜好"
+  },
+  "storyStage.discovery.filter.new": {
+    "ko-KR": "신규",
+    "ja-JP": "新着",
+    "en-US": "New",
+    "zh-CN": "新上线",
+    "zh-Hant": "新上線"
+  },
+  "storyStage.discovery.filter.ranking": {
+    "ko-KR": "랭킹",
+    "ja-JP": "ランキング",
+    "en-US": "Ranking",
+    "zh-CN": "排行",
+    "zh-Hant": "排行"
+  },
+  "storyStage.discovery.filter.today": {
+    "ko-KR": "오늘 시작",
+    "ja-JP": "今日開始",
+    "en-US": "Start Today",
+    "zh-CN": "今日开始",
+    "zh-Hant": "今日開始"
+  },
+  "storyStage.discovery.filter.genre": {
+    "ko-KR": "장르",
+    "ja-JP": "ジャンル",
+    "en-US": "Genre",
+    "zh-CN": "类型",
+    "zh-Hant": "類型"
+  },
+  "storyStage.discovery.status.free": {
+    "ko-KR": "무료 프롤로그",
+    "ja-JP": "無料プロローグ",
+    "en-US": "Free prologue",
+    "zh-CN": "免费序章",
+    "zh-Hant": "免費序章"
+  },
+  "storyStage.discovery.status.ready": {
+    "ko-KR": "바로 시작",
+    "ja-JP": "すぐ開始",
+    "en-US": "Ready to start",
+    "zh-CN": "可立即开始",
+    "zh-Hant": "可立即開始"
+  },
+  "storyStage.discovery.card.imjin.title": {
+    "ko-KR": "임진왜란: 난중일기 프롤로그",
+    "ja-JP": "壬辰倭乱：乱中日記プロローグ",
+    "en-US": "Imjin War: Nanjung Diary Prologue",
+    "zh-CN": "壬辰战争：乱中日记序章",
+    "zh-Hant": "壬辰戰爭：亂中日記序章"
+  },
+  "storyStage.discovery.card.imjin.summary": {
+    "ko-KR": "전장의 기록 사이로 들어가 첫 선택을 해요.",
+    "ja-JP": "戦場の記録に入り、最初の選択をします。",
+    "en-US": "Step into wartime records and make the first choice.",
+    "zh-CN": "进入战时记录，做出第一个选择。",
+    "zh-Hant": "進入戰時紀錄，做出第一個選擇。"
+  },
+  "storyStage.discovery.card.stage.title": {
+    "ko-KR": "첫 무대의 떨림",
+    "ja-JP": "初舞台の鼓動",
+    "en-US": "First Stage Pulse",
+    "zh-CN": "初舞台的心跳",
+    "zh-Hant": "初舞台的心跳"
+  },
+  "storyStage.discovery.card.stage.summary": {
+    "ko-KR": "리허설 조명 아래에서 AI 동반자와 장면을 고릅니다.",
+    "ja-JP": "リハーサルの照明下でAI同行者とシーンを選びます。",
+    "en-US": "Choose scenes with an AI companion under rehearsal lights.",
+    "zh-CN": "在排练灯光下与 AI 同行者选择场景。",
+    "zh-Hant": "在排練燈光下與 AI 同行者選擇場景。"
+  },
+  "storyStage.discovery.card.myth.title": {
+    "ko-KR": "신화의 문턱",
+    "ja-JP": "神話の入口",
+    "en-US": "Mythic Threshold",
+    "zh-CN": "神话门槛",
+    "zh-Hant": "神話門檻"
+  },
+  "storyStage.discovery.card.myth.summary": {
+    "ko-KR": "낯선 신화 속에서 안전한 선택 흐름을 미리 봅니다.",
+    "ja-JP": "未知の神話で安全な選択フローを確認します。",
+    "en-US": "Preview a safe choice flow inside an unfamiliar myth.",
+    "zh-CN": "在陌生神话中预览安全选择流程。",
+    "zh-Hant": "在陌生神話中預覽安全選擇流程。"
+  },
+  "storyStage.detail.heading": {
+    "ko-KR": "스토리 상세",
+    "ja-JP": "ストーリー詳細",
+    "en-US": "Story Details",
+    "zh-CN": "故事详情",
+    "zh-Hant": "故事詳情"
+  },
+  "storyStage.detail.creator": {
+    "ko-KR": "AI 아티스트",
+    "ja-JP": "AIアーティスト",
+    "en-US": "AI artist",
+    "zh-CN": "AI 艺人",
+    "zh-Hant": "AI 藝人"
+  },
+  "storyStage.detail.profile": {
+    "ko-KR": "대화 프로필",
+    "ja-JP": "会話プロフィール",
+    "en-US": "Chat profile",
+    "zh-CN": "对话资料",
+    "zh-Hant": "對話資料"
+  },
+  "storyStage.detail.prologue": {
+    "ko-KR": "프롤로그 미리보기",
+    "ja-JP": "プロローグプレビュー",
+    "en-US": "Prologue preview",
+    "zh-CN": "序章预览",
+    "zh-Hant": "序章預覽"
+  },
+  "storyStage.detail.similar": {
+    "ko-KR": "비슷한 스토리",
+    "ja-JP": "似ているストーリー",
+    "en-US": "Similar stories",
+    "zh-CN": "相似故事",
+    "zh-Hant": "相似故事"
+  },
+  "storyStage.detail.cta.free": {
+    "ko-KR": "무료 프롤로그 시작",
+    "ja-JP": "無料プロローグ開始",
+    "en-US": "Start free prologue",
+    "zh-CN": "开始免费序章",
+    "zh-Hant": "開始免費序章"
+  },
+  "storyStage.detail.cta.continue": {
+    "ko-KR": "이어하기",
+    "ja-JP": "続きから",
+    "en-US": "Continue",
+    "zh-CN": "继续",
+    "zh-Hant": "繼續"
+  },
+  "storyStage.detail.cta.locked": {
+    "ko-KR": "구매 필요",
+    "ja-JP": "購入が必要",
+    "en-US": "Purchase needed",
+    "zh-CN": "需要购买",
+    "zh-Hant": "需要購買"
+  },
+  "storyStage.detail.close": {
+    "ko-KR": "닫기",
+    "ja-JP": "閉じる",
+    "en-US": "Close",
+    "zh-CN": "关闭",
+    "zh-Hant": "關閉"
   }
 };
 
