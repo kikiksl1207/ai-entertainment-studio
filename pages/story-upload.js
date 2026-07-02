@@ -393,13 +393,28 @@
       partCount: "10파트 기본 단편극",
       branchTitle: "나무뿌리형 분기 결과",
       branchNote: "선택별 관계, 위험, 아이템, 정보, 엔딩 조건을 분리해 재합류 전 차이를 남겨요.",
+      onboardingTitle: "작가 업로드 안내",
+      onboardingBody: "긴 본문 원고를 먼저 쓰고, 분기점만 선택지로 표시해요.",
+      onboardingSteps: ["본문 원고", "분기점", "장면 연결"],
+      referenceTitle: "PM/QA reference",
+      referenceNote: "검수자가 확인하는 읽기 전용 위치예요. 서비스 CTA가 아니며 저장하지 않아요.",
+      referenceLinks: [
+        { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
+        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "Scene preview", href: "/story-stage?sceneFixture=1" },
+      ],
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
-        { label: "A", text: "기록을 먼저 확인한다", next: "S05", result: "정보 + 신뢰 상승", rejoin: "S09 재합류" },
-        { label: "B", text: "전령을 따라간다", next: "S06", result: "위험 + 아이템 획득", rejoin: "S09 재합류" },
-        { label: "C", text: "해안으로 우회한다", next: "S07", result: "관계 변화 + AI fallback 조건", rejoin: "E-AI 후보" },
+        { label: "A", tone: "info", text: "기록을 먼저 확인한다", next: "S05", result: "정보 + 신뢰 상승", rejoin: "S09 재합류", tags: ["정보", "신뢰"] },
+        { label: "B", tone: "risk", text: "전령을 따라간다", next: "S06", result: "위험 + 아이템 획득", rejoin: "S09 재합류", tags: ["위험", "아이템"] },
+        { label: "C", tone: "ending", text: "해안으로 우회한다", next: "S07", result: "관계 변화 + AI fallback 조건", rejoin: "E-AI 후보", tags: ["관계", "엔딩"] },
       ],
       endings: ["E-MAIN · 작가 기본 엔딩", "E-SUB · 작가 서브 엔딩", "E-AI · AI fallback 엔딩"],
+      endingCards: [
+        { type: "author_main", title: "작가 기본 엔딩", body: "작가가 지정한 중심 루트의 결말이에요." },
+        { type: "author_sub", title: "작가 서브 엔딩", body: "작가가 별도로 준비한 선택 루트 결말이에요." },
+        { type: "ai", title: "AI fallback 엔딩", body: "작가 엔딩이 없는 보조 분기에서만 임시로 이어져요." },
+      ],
     },
     en: {
       planTitle: "Part and branch rules",
@@ -408,13 +423,28 @@
       partCount: "10 parts form the default short play",
       branchTitle: "Root-style branch outcomes",
       branchNote: "Each choice keeps relation, risk, item, info, and ending-condition changes before any rejoin.",
+      onboardingTitle: "Writer upload guide",
+      onboardingBody: "Write the long manuscript first, then mark only the branch points as choices.",
+      onboardingSteps: ["Manuscript", "Branch points", "Scene links"],
+      referenceTitle: "PM/QA reference",
+      referenceNote: "Read-only checkpoints for reviewers. These are not service CTAs and nothing is saved.",
+      referenceLinks: [
+        { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
+        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "Scene preview", href: "/story-stage?sceneFixture=1" },
+      ],
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
-        { label: "A", text: "Check the record first", next: "S05", result: "Info + trust up", rejoin: "Rejoins at S09" },
-        { label: "B", text: "Follow the messenger", next: "S06", result: "Risk + item gained", rejoin: "Rejoins at S09" },
-        { label: "C", text: "Detour to the shore", next: "S07", result: "Relation shift + AI fallback condition", rejoin: "E-AI candidate" },
+        { label: "A", tone: "info", text: "Check the record first", next: "S05", result: "Info + trust up", rejoin: "Rejoins at S09", tags: ["Info", "Trust"] },
+        { label: "B", tone: "risk", text: "Follow the messenger", next: "S06", result: "Risk + item gained", rejoin: "Rejoins at S09", tags: ["Risk", "Item"] },
+        { label: "C", tone: "ending", text: "Detour to the shore", next: "S07", result: "Relation shift + AI fallback condition", rejoin: "E-AI candidate", tags: ["Relation", "Ending"] },
       ],
       endings: ["E-MAIN · Author main ending", "E-SUB · Author sub ending", "E-AI · AI fallback ending"],
+      endingCards: [
+        { type: "author_main", title: "Author main ending", body: "The writer's primary route ending." },
+        { type: "author_sub", title: "Author sub ending", body: "A writer-prepared ending for a side route." },
+        { type: "ai", title: "AI fallback ending", body: "A helper ending only for branches without writer endings." },
+      ],
     },
     ja: {
       planTitle: "パート/分岐基準",
@@ -423,13 +453,28 @@
       partCount: "10パートが基本短編劇",
       branchTitle: "木の根型の分岐結果",
       branchNote: "再合流前に、選択ごとの関係、危険、アイテム、情報、終了条件の差を残します。",
+      onboardingTitle: "作家アップロード案内",
+      onboardingBody: "長い本文原稿を先に書き、分岐点だけを選択肢として示します。",
+      onboardingSteps: ["本文原稿", "分岐点", "シーン接続"],
+      referenceTitle: "PM/QA reference",
+      referenceNote: "検収担当者向けの読み取り専用位置です。サービスCTAではなく保存もしません。",
+      referenceLinks: [
+        { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
+        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "Scene preview", href: "/story-stage?sceneFixture=1" },
+      ],
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
-        { label: "A", text: "記録を先に確認する", next: "S05", result: "情報 + 信頼上昇", rejoin: "S09で再合流" },
-        { label: "B", text: "伝令について行く", next: "S06", result: "危険 + アイテム取得", rejoin: "S09で再合流" },
-        { label: "C", text: "海岸へ迂回する", next: "S07", result: "関係変化 + AI fallback条件", rejoin: "E-AI候補" },
+        { label: "A", tone: "info", text: "記録を先に確認する", next: "S05", result: "情報 + 信頼上昇", rejoin: "S09で再合流", tags: ["情報", "信頼"] },
+        { label: "B", tone: "risk", text: "伝令について行く", next: "S06", result: "危険 + アイテム取得", rejoin: "S09で再合流", tags: ["危険", "アイテム"] },
+        { label: "C", tone: "ending", text: "海岸へ迂回する", next: "S07", result: "関係変化 + AI fallback条件", rejoin: "E-AI候補", tags: ["関係", "終了"] },
       ],
       endings: ["E-MAIN · 作家基本終了", "E-SUB · 作家サブ終了", "E-AI · AI fallback終了"],
+      endingCards: [
+        { type: "author_main", title: "作家基本終了", body: "作家が指定した中心ルートの結末です。" },
+        { type: "author_sub", title: "作家サブ終了", body: "作家が別途用意した選択ルートの結末です。" },
+        { type: "ai", title: "AI fallback終了", body: "作家終了がない補助分岐でだけ一時的に続きます。" },
+      ],
     },
     "zh-Hans": {
       planTitle: "分部/分支标准",
@@ -438,13 +483,28 @@
       partCount: "10部分为默认短剧",
       branchTitle: "树根型分支结果",
       branchNote: "即使之后再汇合，也保留各选项的关系、风险、道具、信息和结局条件差异。",
+      onboardingTitle: "作者上传指引",
+      onboardingBody: "先写长篇正文稿，再只把分支点标为选项。",
+      onboardingSteps: ["正文稿", "分支点", "场景连接"],
+      referenceTitle: "PM/QA reference",
+      referenceNote: "供检收人员查看的只读位置。不是服务CTA，也不会保存。",
+      referenceLinks: [
+        { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
+        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "Scene preview", href: "/story-stage?sceneFixture=1" },
+      ],
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
-        { label: "A", text: "先确认记录", next: "S05", result: "信息 + 信任提升", rejoin: "S09再汇合" },
-        { label: "B", text: "跟随传令", next: "S06", result: "风险 + 获得道具", rejoin: "S09再汇合" },
-        { label: "C", text: "绕到海岸", next: "S07", result: "关系变化 + AI fallback条件", rejoin: "E-AI候选" },
+        { label: "A", tone: "info", text: "先确认记录", next: "S05", result: "信息 + 信任提升", rejoin: "S09再汇合", tags: ["信息", "信任"] },
+        { label: "B", tone: "risk", text: "跟随传令", next: "S06", result: "风险 + 获得道具", rejoin: "S09再汇合", tags: ["风险", "道具"] },
+        { label: "C", tone: "ending", text: "绕到海岸", next: "S07", result: "关系变化 + AI fallback条件", rejoin: "E-AI候选", tags: ["关系", "结局"] },
       ],
       endings: ["E-MAIN · 作者主线结局", "E-SUB · 作者支线结局", "E-AI · AI fallback结局"],
+      endingCards: [
+        { type: "author_main", title: "作者主线结局", body: "作者指定的主路线结局。" },
+        { type: "author_sub", title: "作者支线结局", body: "作者另外准备的选择路线结局。" },
+        { type: "ai", title: "AI fallback结局", body: "只在没有作者结局的辅助分支中临时衔接。" },
+      ],
     },
     "zh-Hant": {
       planTitle: "分部/分支標準",
@@ -453,13 +513,28 @@
       partCount: "10部分為預設短劇",
       branchTitle: "樹根型分支結果",
       branchNote: "即使之後再匯合，也保留各選項的關係、風險、道具、資訊和結局條件差異。",
+      onboardingTitle: "作者上傳指引",
+      onboardingBody: "先寫長篇正文稿，再只把分支點標為選項。",
+      onboardingSteps: ["正文稿", "分支點", "場景連接"],
+      referenceTitle: "PM/QA reference",
+      referenceNote: "供檢收人員查看的唯讀位置。不是服務CTA，也不會儲存。",
+      referenceLinks: [
+        { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
+        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "Scene preview", href: "/story-stage?sceneFixture=1" },
+      ],
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
-        { label: "A", text: "先確認記錄", next: "S05", result: "資訊 + 信任提升", rejoin: "S09再匯合" },
-        { label: "B", text: "跟隨傳令", next: "S06", result: "風險 + 獲得道具", rejoin: "S09再匯合" },
-        { label: "C", text: "繞到海岸", next: "S07", result: "關係變化 + AI fallback條件", rejoin: "E-AI候選" },
+        { label: "A", tone: "info", text: "先確認記錄", next: "S05", result: "資訊 + 信任提升", rejoin: "S09再匯合", tags: ["資訊", "信任"] },
+        { label: "B", tone: "risk", text: "跟隨傳令", next: "S06", result: "風險 + 獲得道具", rejoin: "S09再匯合", tags: ["風險", "道具"] },
+        { label: "C", tone: "ending", text: "繞到海岸", next: "S07", result: "關係變化 + AI fallback條件", rejoin: "E-AI候選", tags: ["關係", "結局"] },
       ],
       endings: ["E-MAIN · 作者主線結局", "E-SUB · 作者支線結局", "E-AI · AI fallback結局"],
+      endingCards: [
+        { type: "author_main", title: "作者主線結局", body: "作者指定的主路線結局。" },
+        { type: "author_sub", title: "作者支線結局", body: "作者另外準備的選擇路線結局。" },
+        { type: "ai", title: "AI fallback結局", body: "只在沒有作者結局的輔助分支中臨時銜接。" },
+      ],
     },
   };
 
@@ -496,6 +571,34 @@
     return `<li><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></li>`;
   }
 
+  function renderAuthorGuide(qa) {
+    return `
+      <div class="su-author-guide">
+        <div>
+          <h3>${escapeHtml(qa.onboardingTitle)}</h3>
+          <p>${escapeHtml(qa.onboardingBody)}</p>
+        </div>
+        <ol>
+          ${qa.onboardingSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
+        </ol>
+      </div>
+    `;
+  }
+
+  function renderReferencePanel(qa) {
+    return `
+      <aside class="su-reference-panel" aria-label="${escapeHtml(qa.referenceTitle)}">
+        <div>
+          <h2>${escapeHtml(qa.referenceTitle)}</h2>
+          <p>${escapeHtml(qa.referenceNote)}</p>
+        </div>
+        <nav>
+          ${qa.referenceLinks.map((link) => `<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`).join("")}
+        </nav>
+      </aside>
+    `;
+  }
+
   function renderUploadWorkspace(localeCode) {
     const locale = UI[localeCode] || UI.ko;
     const qa = QA_COPY[localeCode] || QA_COPY.ko;
@@ -524,6 +627,7 @@
               ${field(qa.planTitle, `${qa.partLength} · ${qa.partCount}`)}
               ${field(locale.labels.choices, qa.branchSummary)}
             </ul>
+            ${renderAuthorGuide(qa)}
           </div>
           <div class="su-panel su-review-status" data-status="locale_ready">
             <h2>${escapeHtml(locale.statusTitle)}</h2>
@@ -542,10 +646,13 @@
           </div>
           <div class="su-section">
             <h2>${escapeHtml(locale.endings)}</h2>
-            <div class="su-ending-summary">
-              <span class="su-ending-badge" data-ending="author_main">${escapeHtml(locale.ending.authorMain)}</span>
-              <span class="su-ending-badge" data-ending="author_sub">${escapeHtml(locale.ending.authorSub)}</span>
-              <span class="su-ending-badge" data-ending="ai">AI fallback · ${escapeHtml(locale.ending.ai)}</span>
+            <div class="su-ending-summary su-ending-cards">
+              ${qa.endingCards.map((ending) => `
+                <article class="su-ending-card" data-ending="${escapeHtml(ending.type)}">
+                  <span class="su-ending-badge" data-ending="${escapeHtml(ending.type)}">${escapeHtml(ending.title)}</span>
+                  <p>${escapeHtml(ending.body)}</p>
+                </article>
+              `).join("")}
             </div>
             <details class="su-ending-list">
               <summary>${escapeHtml(locale.ending.subCount)} <b>${qa.endings.length}</b></summary>
@@ -592,14 +699,21 @@
           <p class="su-muted">${escapeHtml(qa.branchNote)}</p>
           <div class="su-branch-tree">
             ${qa.choices.map((choice) => `
-              <article class="su-branch-card">
-                <strong>${escapeHtml(choice.label)} · ${escapeHtml(choice.next)}</strong>
+              <article class="su-branch-card" data-branch-tone="${escapeHtml(choice.tone)}">
+                <div class="su-branch-head">
+                  <b>${escapeHtml(choice.label)}</b>
+                  <strong>${escapeHtml(choice.next)}</strong>
+                </div>
+                <p>${escapeHtml(choice.text)}</p>
                 <span>${escapeHtml(choice.result)}</span>
+                <div class="su-branch-tags">${choice.tags.map((tag) => `<small>${escapeHtml(tag)}</small>`).join("")}</div>
                 <em>${escapeHtml(choice.rejoin)}</em>
               </article>
             `).join("")}
           </div>
         </section>
+
+        ${renderReferencePanel(qa)}
 
         <section class="su-section">
           <h2>${escapeHtml(locale.import)}</h2>
