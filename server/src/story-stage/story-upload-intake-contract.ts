@@ -408,6 +408,147 @@ export function findStoryUploadIntakeSensitiveFieldViolations(
   });
 }
 
+export const STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT = {
+  version: '2026-07-03.story-upload-implementation-fixture.v1',
+  status: 'read_only_fixture_contract',
+  branchDivergence: {
+    branchPointId: 'B-ROOT-01',
+    choices: [
+      {
+        choiceId: 'choice-a-record',
+        labelKey: 'storyUpload.choice.recordFirst',
+        nextSceneId: 'S05',
+        sceneSummaryKey: 'storyUpload.scene.recordArchive.summary',
+        resultDeltaKeys: [
+          'storyUpload.delta.infoGained',
+          'storyUpload.delta.trustUp',
+        ],
+        endingRouteId: 'E-SUB-01',
+        backgroundId: 'bg-war-room-map',
+        rejoinSceneId: 'S09',
+      },
+      {
+        choiceId: 'choice-b-messenger',
+        labelKey: 'storyUpload.choice.followMessenger',
+        nextSceneId: 'S06',
+        sceneSummaryKey: 'storyUpload.scene.messengerRisk.summary',
+        resultDeltaKeys: [
+          'storyUpload.delta.riskRaised',
+          'storyUpload.delta.itemGained',
+        ],
+        endingRouteId: 'E-SUB-02',
+        backgroundId: 'bg-harbor-night',
+        rejoinSceneId: 'S09',
+      },
+      {
+        choiceId: 'choice-c-shore',
+        labelKey: 'storyUpload.choice.shoreDetour',
+        nextSceneId: 'S07',
+        sceneSummaryKey: 'storyUpload.scene.shoreDetour.summary',
+        resultDeltaKeys: [
+          'storyUpload.delta.relationshipShift',
+          'storyUpload.delta.aiFallbackCondition',
+        ],
+        endingRouteId: 'E-AI-01',
+        backgroundId: 'bg-fog-shore',
+        rejoinSceneId: null,
+      },
+    ],
+    failWhenOnlyNextSceneDiffers: true,
+    resultDiffRequiredBeforeRejoin: true,
+  },
+  authorLengthGuide: {
+    partTextLengthTarget: 10_000,
+    branchSummaryLengthLimit: 2_000,
+    defaultShortPlayPartCount: 10,
+    manuscriptBodyRequired: true,
+    choiceTableOnlyAllowed: false,
+    i18nKeys: [
+      'storyUpload.guide.partLength',
+      'storyUpload.guide.branchSummary',
+      'storyUpload.guide.manuscriptFirst',
+    ],
+  },
+  endingRouting: {
+    routes: [
+      {
+        endingId: 'E-MAIN-01',
+        endingType: 'writer_primary_ending',
+        requiredWriterRoute: true,
+        allowedWhenWriterEndingMissing: false,
+        badgeKey: 'storyUpload.ending.writerPrimary',
+      },
+      {
+        endingId: 'E-SUB-01',
+        endingType: 'writer_sub_ending',
+        requiredWriterRoute: true,
+        minWriterSubEndingCount: 2,
+        maxWriterSubEndingCount: 10,
+        allowedWhenWriterEndingMissing: false,
+        badgeKey: 'storyUpload.ending.writerSub',
+      },
+      {
+        endingId: 'E-AI-01',
+        endingType: 'ai_fallback_ending',
+        requiredWriterRoute: false,
+        allowedWhenWriterEndingMissing: true,
+        mayOverrideWriterEnding: false,
+        badgeKey: 'storyUpload.ending.aiFallback',
+      },
+    ],
+  },
+  sceneBackgroundStates: [
+    {
+      sceneId: 'S05',
+      backgroundId: 'bg-war-room-map',
+      backgroundState: 'ready',
+      backgroundKey: 'storyUpload.background.warRoomMap',
+      characterOptional: true,
+    },
+    {
+      sceneId: 'S06',
+      backgroundId: 'bg-harbor-night',
+      backgroundState: 'ready',
+      backgroundKey: 'storyUpload.background.harborNight',
+      characterOptional: true,
+    },
+    {
+      sceneId: 'S07',
+      backgroundId: 'bg-fog-shore',
+      backgroundState: 'ready',
+      backgroundKey: 'storyUpload.background.fogShore',
+      characterOptional: true,
+    },
+  ],
+  importExportValidation: {
+    requiredFields: [
+      'partIndex',
+      'sceneId',
+      'branchId',
+      'choiceId',
+      'endingId',
+      'endingType',
+      'backgroundId',
+      'branchSummaryLength',
+    ],
+    writerFacingMessageKeys: [
+      'storyUpload.validation.missingPart',
+      'storyUpload.validation.missingBranchResult',
+      'storyUpload.validation.branchSummaryTooLong',
+      'storyUpload.validation.aiFallbackNeedsWriterMissingBranch',
+      'storyUpload.validation.backgroundRequired',
+    ],
+    fixturePath: '/story-upload?fixture=implementation',
+    mutationPolicy: {
+      importWrite: false,
+      exportWrite: false,
+      storyWrite: false,
+      providerCall: false,
+      paymentMutation: false,
+    },
+  },
+} as const;
+
 export const STORY_UPLOAD_CONTRACT_BUNDLE = {
   version: '2026-07-01.story-upload-contract-bundle.v1',
   status: 'contract_bundle_only',
@@ -417,6 +558,7 @@ export const STORY_UPLOAD_CONTRACT_BUNDLE = {
   importExportMigration: STORY_UPLOAD_IMPORT_EXPORT_MIGRATION_CONTRACT,
   reviewWorkflow: STORY_UPLOAD_REVIEW_WORKFLOW_CONTRACT,
   i18nHandoffKeyPackage: STORY_UPLOAD_I18N_HANDOFF_KEY_PACKAGE,
+  implementationFixture: STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT,
   sensitiveFieldGuard: {
     forbiddenFields: STORY_UPLOAD_INTAKE_FORBIDDEN_FIELDS,
     rawEmailAllowed: false,

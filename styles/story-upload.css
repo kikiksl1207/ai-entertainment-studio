@@ -337,6 +337,8 @@
 
 .su-branch-card strong,
 .su-branch-card span,
+.su-branch-card small,
+.su-branch-card dd,
 .su-branch-card em {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -348,10 +350,38 @@
 }
 
 .su-branch-card span,
+.su-branch-card small,
+.su-branch-card dd,
 .su-branch-card em {
   color: rgba(240, 238, 248, 0.68);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.su-branch-card small {
+  color: rgba(240, 238, 248, 0.78);
+}
+
+.su-branch-card dl {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+
+.su-branch-card dl div {
+  display: grid;
+  gap: 1px;
+}
+
+.su-branch-card dt {
+  color: rgba(240, 238, 248, 0.5);
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.su-branch-card dd {
+  margin: 0;
 }
 
 .su-branch-card em {
@@ -383,6 +413,45 @@
   font-size: 12px;
 }
 
+.su-author-guide-grid,
+.su-validation-list {
+  display: grid;
+  gap: 8px;
+}
+
+.su-author-guide-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.su-author-guide-grid div,
+.su-validation-list article {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(240, 238, 248, 0.1);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.su-author-guide-grid span,
+.su-validation-list strong {
+  color: #e6ff98;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.su-author-guide-grid strong,
+.su-validation-list span,
+.su-validation-list em {
+  min-width: 0;
+  color: rgba(240, 238, 248, 0.72);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .su-miss {
   background: #fdecec;
   color: #a93535;
@@ -409,6 +478,10 @@
   }
 
   .su-branch-tree {
+    grid-template-columns: 1fr;
+  }
+
+  .su-author-guide-grid {
     grid-template-columns: 1fr;
   }
 }

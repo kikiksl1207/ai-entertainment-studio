@@ -263,6 +263,16 @@ GET /api/v1/story-sessions/:sessionId/current-scene
   validation failure. The bundle is contract-only
   and performs no upload write, migration write, publish, provider, payment,
   wallet, settlement, or payout mutation.
+- #1582-#1586 add `STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT` as the
+  read-only implementation fixture for Story Stage and Story Upload surfaces.
+  It exposes A/B/C branch choices with distinct scene summaries, state deltas,
+  backgrounds, rejoin rules, and ending routes; the author length guide fixes
+  10,000 characters per part, 2,000 characters per branch summary, and a
+  10-part default short play; ending routing separates writer primary, writer
+  sub, and AI fallback paths; and import/export validation lists writer-facing
+  missing-field messages for part, branch result, ending route, and background.
+  The fixture stays read-only and does not create story writes, import/export
+  writes, provider calls, payment, wallet, settlement, or payout mutations.
 - #1081 adds `STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT` for read-only
   author revenue preview. It separates chapter gross revenue, season bundle
   discount allocation, AI artist companion participation cost, and story author

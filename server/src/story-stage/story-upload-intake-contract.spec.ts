@@ -3,6 +3,7 @@ import {
   findStoryUploadIntakeSensitiveFieldViolations,
   STORY_UPLOAD_CONTRACT_BUNDLE,
   STORY_UPLOAD_I18N_HANDOFF_KEY_PACKAGE,
+  STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT,
   STORY_UPLOAD_INTAKE_ENDING_TYPES,
   STORY_UPLOAD_IMPORT_EXPORT_MIGRATION_CONTRACT,
   STORY_UPLOAD_INTAKE_API_CONTRACT,
@@ -28,6 +29,9 @@ describe('Story upload intake contract bundle', () => {
     );
     expect(STORY_STAGE_CONTRACT.storyUploadI18nHandoffKeyPackage).toBe(
       STORY_UPLOAD_I18N_HANDOFF_KEY_PACKAGE,
+    );
+    expect(STORY_STAGE_CONTRACT.storyUploadImplementationFixture).toBe(
+      STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT,
     );
     expect(STORY_STAGE_CONTRACT.storyUploadContractBundle).toBe(
       STORY_UPLOAD_CONTRACT_BUNDLE,
@@ -323,5 +327,84 @@ describe('Story upload intake contract bundle', () => {
       'provider.providerPayload.storageKey',
       'billing.settlementInternalValue',
     ]);
+  });
+
+  it('defines #1582-#1586 implementation fixture rules without live mutations', () => {
+    expect(
+      STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT.branchDivergence.choices,
+    ).toHaveLength(3);
+    expect(
+      STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT.branchDivergence.choices.map(
+        (choice) => choice.nextSceneId,
+      ),
+    ).toEqual(['S05', 'S06', 'S07']);
+    expect(
+      STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT.branchDivergence.choices,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          choiceId: 'choice-c-shore',
+          endingRouteId: 'E-AI-01',
+          backgroundId: 'bg-fog-shore',
+        }),
+      ]),
+    );
+    expect(
+      STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT.branchDivergence,
+    ).toMatchObject({
+      failWhenOnlyNextSceneDiffers: true,
+      resultDiffRequiredBeforeRejoin: true,
+    });
+    expect(STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT.authorLengthGuide).toMatchObject({
+      partTextLengthTarget: 10_000,
+      branchSummaryLengthLimit: 2_000,
+      defaultShortPlayPartCount: 10,
+      manuscriptBodyRequired: true,
+      choiceTableOnlyAllowed: false,
+    });
+    expect(
+      STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT.endingRouting.routes,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          endingType: 'writer_primary_ending',
+          allowedWhenWriterEndingMissing: false,
+        }),
+        expect.objectContaining({
+          endingType: 'writer_sub_ending',
+          minWriterSubEndingCount: 2,
+          maxWriterSubEndingCount: 10,
+        }),
+        expect.objectContaining({
+          endingType: 'ai_fallback_ending',
+          allowedWhenWriterEndingMissing: true,
+          mayOverrideWriterEnding: false,
+        }),
+      ]),
+    );
+    expect(
+      STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT.sceneBackgroundStates.map(
+        (scene) => scene.backgroundState,
+      ),
+    ).toEqual(['ready', 'ready', 'ready']);
+    expect(
+      STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT.importExportValidation
+        .requiredFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'partIndex',
+        'sceneId',
+        'branchId',
+        'endingId',
+        'endingType',
+        'backgroundId',
+      ]),
+    );
+    expect(
+      Object.values(
+        STORY_UPLOAD_IMPLEMENTATION_FIXTURE_CONTRACT.importExportValidation
+          .mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
   });
 });

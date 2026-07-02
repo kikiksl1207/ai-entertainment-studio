@@ -946,6 +946,74 @@
   transform: translateX(-50%) translateY(0);
 }
 
+.story-branch-implementation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.story-branch-implementation-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  border-radius: 8px;
+  background: rgba(14, 11, 24, 0.52);
+}
+
+.story-branch-implementation-card strong,
+.story-branch-implementation-card span,
+.story-branch-implementation-card p,
+.story-branch-implementation-card dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.story-branch-implementation-card strong {
+  color: var(--ink, #f0eef8);
+  font-size: 14px;
+}
+
+.story-branch-implementation-card span {
+  color: #d4ff5f;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.story-branch-implementation-card p {
+  margin: 0;
+  color: rgba(230, 222, 246, 0.78);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.story-branch-implementation-card dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.story-branch-implementation-card dl div {
+  display: grid;
+  gap: 2px;
+}
+
+.story-branch-implementation-card dt {
+  color: rgba(230, 222, 246, 0.54);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.story-branch-implementation-card dd {
+  margin: 0;
+  color: rgba(230, 222, 246, 0.82);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .story-chapter-react {
   display: flex;
   align-items: center;
@@ -1205,6 +1273,10 @@
 
   .story-player-choices button {
     width: 100%;
+  }
+
+  .story-branch-implementation-grid {
+    grid-template-columns: 1fr;
   }
 
   .story-setup-grid {

@@ -476,6 +476,56 @@
     { scene: "S07", branch: "B-C", ending: "ai_fallback", part: "10", summary: "<= 2,000", state: "pm" },
   ];
 
+  const choiceImplementationMeta = {
+    A: {
+      sceneSummary: "Archive map body, clue-first route",
+      background: "bg-war-room-map",
+      endingRoute: "E-SUB-01",
+      stateDelta: "infoGained + trustUp",
+    },
+    B: {
+      sceneSummary: "Harbor pursuit body, risk route",
+      background: "bg-harbor-night",
+      endingRoute: "E-SUB-02",
+      stateDelta: "riskRaised + itemGained",
+    },
+    C: {
+      sceneSummary: "Fog shore body, unresolved route",
+      background: "bg-fog-shore",
+      endingRoute: "E-AI-01",
+      stateDelta: "relationshipShift + aiFallbackCondition",
+    },
+  };
+
+  const authorGuideRows = [
+    { label: "Part target", value: "1 part ~= 10,000 characters" },
+    { label: "Branch summary", value: "<= 2,000 characters; cannot replace manuscript body" },
+    { label: "Default short play", value: "10 parts with long prose first" },
+  ];
+
+  const validationRows = [
+    {
+      field: "partIndex",
+      expected: "1-10",
+      message: "Add the part number before import/export.",
+    },
+    {
+      field: "branchResult",
+      expected: "A/B/C have distinct body and result deltas",
+      message: "Each choice needs a different scene body or state change.",
+    },
+    {
+      field: "endingRoute",
+      expected: "writer main/sub or AI fallback with writer-missing branch",
+      message: "AI fallback is allowed only when writer route is missing.",
+    },
+    {
+      field: "backgroundId",
+      expected: "one background per scene",
+      message: "Select a background state before QA ready.",
+    },
+  ];
+
   const localeMap = {
     ko: "ko-KR",
     en: "en-US",
@@ -523,6 +573,8 @@
               ${field(locale.labels.minimum, locale.sample.minimum)}
               ${field(qa.planTitle, `${qa.partLength} · ${qa.partCount}`)}
               ${field(locale.labels.choices, qa.branchSummary)}
+              ${field("Author guide", "Long manuscript first; choices only mark branch points")}
+              ${field("Validation", "Part, branch, ending, and background fields checked before import/export")}
             </ul>
           </div>
           <div class="su-panel su-review-status" data-status="locale_ready">
@@ -591,13 +643,29 @@
           <h2>${escapeHtml(qa.branchTitle)}</h2>
           <p class="su-muted">${escapeHtml(qa.branchNote)}</p>
           <div class="su-branch-tree">
-            ${qa.choices.map((choice) => `
-              <article class="su-branch-card">
-                <strong>${escapeHtml(choice.label)} · ${escapeHtml(choice.next)}</strong>
-                <span>${escapeHtml(choice.result)}</span>
-                <em>${escapeHtml(choice.rejoin)}</em>
-              </article>
-            `).join("")}
+            ${qa.choices.map((choice) => {
+              const meta = choiceImplementationMeta[choice.label] || {};
+              return `
+                <article class="su-branch-card" data-ending-route="${escapeHtml(meta.endingRoute || "")}">
+                  <strong>${escapeHtml(choice.label)} · ${escapeHtml(choice.next)}</strong>
+                  <span>${escapeHtml(choice.result)}</span>
+                  <small>${escapeHtml(meta.sceneSummary || "")}</small>
+                  <dl>
+                    <div><dt>State</dt><dd>${escapeHtml(meta.stateDelta || "")}</dd></div>
+                    <div><dt>Ending</dt><dd>${escapeHtml(meta.endingRoute || "")}</dd></div>
+                    <div><dt>Background</dt><dd>${escapeHtml(meta.background || "")}</dd></div>
+                  </dl>
+                  <em>${escapeHtml(choice.rejoin)}</em>
+                </article>
+              `;
+            }).join("")}
+          </div>
+        </section>
+
+        <section class="su-section su-author-guide" aria-label="Author length guide">
+          <h2>Author length guide</h2>
+          <div class="su-author-guide-grid">
+            ${authorGuideRows.map((row) => `<div><span>${escapeHtml(row.label)}</span><strong>${escapeHtml(row.value)}</strong></div>`).join("")}
           </div>
         </section>
 
@@ -623,6 +691,15 @@
           <ul class="su-import-flags">
             ${locale.importFlags.map((flag) => `<li>${escapeHtml(flag)}</li>`).join("")}
           </ul>
+          <div class="su-validation-list" aria-label="Import export validation">
+            ${validationRows.map((row) => `
+              <article>
+                <strong>${escapeHtml(row.field)}</strong>
+                <span>${escapeHtml(row.expected)}</span>
+                <em>${escapeHtml(row.message)}</em>
+              </article>
+            `).join("")}
+          </div>
           <button type="button" class="su-import-save" disabled aria-disabled="true">${escapeHtml(locale.importSave)}</button>
         </section>
       </div>

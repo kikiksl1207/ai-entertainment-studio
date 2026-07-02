@@ -265,6 +265,45 @@
     },
   ];
 
+  const STORY_BRANCH_IMPLEMENTATION_FIXTURE = [
+    {
+      label: "A",
+      choiceKey: "storyUpload.choice.recordFirst",
+      nextSceneId: "S05",
+      sceneTitle: "Archive map room",
+      bodySummary: "The player checks the record first and unlocks a safer clue path.",
+      stateDelta: "infoGained + trustUp",
+      endingRoute: "E-SUB-01",
+      endingType: "writer_sub_ending",
+      backgroundState: "bg-war-room-map",
+      rejoin: "S09",
+    },
+    {
+      label: "B",
+      choiceKey: "storyUpload.choice.followMessenger",
+      nextSceneId: "S06",
+      sceneTitle: "Night harbor pursuit",
+      bodySummary: "The player follows the messenger and takes a higher-risk item route.",
+      stateDelta: "riskRaised + itemGained",
+      endingRoute: "E-SUB-02",
+      endingType: "writer_sub_ending",
+      backgroundState: "bg-harbor-night",
+      rejoin: "S09",
+    },
+    {
+      label: "C",
+      choiceKey: "storyUpload.choice.shoreDetour",
+      nextSceneId: "S07",
+      sceneTitle: "Fog shore detour",
+      bodySummary: "The player detours to the shore and enters an unresolved branch.",
+      stateDelta: "relationshipShift + aiFallbackCondition",
+      endingRoute: "E-AI-01",
+      endingType: "ai_fallback_ending",
+      backgroundState: "bg-fog-shore",
+      rejoin: "No rejoin before fallback review",
+    },
+  ];
+
   let _storyScenes = STORY_SCENE_FALLBACKS.slice();
   let _storySceneIndex = 0;
 
@@ -632,6 +671,33 @@
     `;
   }
 
+  function renderBranchImplementationShell() {
+    return `
+      <section class="story-section story-branch-implementation" aria-labelledby="storyBranchImplementationTitle">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-scene">Branch fixture</span>
+          <h2 id="storyBranchImplementationTitle">A/B/C branch result states</h2>
+        </div>
+        <p class="story-muted">Same branch point, three different scene bodies, state deltas, backgrounds, and ending routes. Rejoin is allowed only after the choice result remains visible.</p>
+        <div class="story-branch-implementation-grid">
+          ${STORY_BRANCH_IMPLEMENTATION_FIXTURE.map((choice) => `
+            <article class="story-branch-implementation-card" data-choice="${escapeHtml(choice.label)}" data-ending-route="${escapeHtml(choice.endingRoute)}">
+              <strong>${escapeHtml(choice.label)} · ${escapeHtml(choice.nextSceneId)}</strong>
+              <span>${escapeHtml(choice.sceneTitle)}</span>
+              <p>${escapeHtml(choice.bodySummary)}</p>
+              <dl>
+                <div><dt>State</dt><dd>${escapeHtml(choice.stateDelta)}</dd></div>
+                <div><dt>Ending</dt><dd>${escapeHtml(choice.endingType)} · ${escapeHtml(choice.endingRoute)}</dd></div>
+                <div><dt>Background</dt><dd>${escapeHtml(choice.backgroundState)}</dd></div>
+                <div><dt>Rejoin</dt><dd>${escapeHtml(choice.rejoin)}</dd></div>
+              </dl>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
   function renderTutorialShell() {
     return `
       <section class="story-section story-tutorial-section" aria-labelledby="storyTutorialTitle">
@@ -683,6 +749,8 @@
       ${laterScenePreview}
 
       ${renderPlayerShell()}
+
+      ${renderBranchImplementationShell()}
 
       ${renderSetupShell()}
 
