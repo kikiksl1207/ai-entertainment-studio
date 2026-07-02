@@ -471,9 +471,9 @@
   ];
 
   const importRows = [
-    { scene: "S01", branch: "ROOT", ending: "author_main", part: "10", summary: "<= 2,000", state: "ok" },
-    { scene: "S05", branch: "B-A", ending: "author_sub", part: "10", summary: "<= 2,000", state: "ok" },
-    { scene: "S07", branch: "B-C", ending: "ai_fallback", part: "10", summary: "<= 2,000", state: "pm" },
+    { scene: "S01", branch: "ROOT", ending: "author_main", part: "10", summary: "<= 2,000", state: "ok", writerEndingConfigured: true },
+    { scene: "S05", branch: "B-A", ending: "author_sub", part: "10", summary: "<= 2,000", state: "ok", writerEndingConfigured: true },
+    { scene: "S07", branch: "B-C", ending: "ai_fallback", part: "10", summary: "<= 2,000", state: "pm", writerEndingConfigured: false },
   ];
 
   const choiceImplementationMeta = {
@@ -481,20 +481,44 @@
       sceneSummary: "Archive map body, clue-first route",
       background: "bg-war-room-map",
       endingRoute: "E-SUB-01",
+      endingType: "author_sub",
+      writerEndingConfigured: true,
+      aiFallbackPolicy: "writer route wins",
+      providerGeneratedAtIntake: false,
       stateDelta: "infoGained + trustUp",
     },
     B: {
       sceneSummary: "Harbor pursuit body, risk route",
       background: "bg-harbor-night",
       endingRoute: "E-SUB-02",
+      endingType: "author_sub",
+      writerEndingConfigured: true,
+      aiFallbackPolicy: "writer route wins",
+      providerGeneratedAtIntake: false,
       stateDelta: "riskRaised + itemGained",
     },
     C: {
       sceneSummary: "Fog shore body, unresolved route",
       background: "bg-fog-shore",
       endingRoute: "E-AI-01",
+      endingType: "ai_fallback",
+      writerEndingConfigured: false,
+      aiFallbackPolicy: "writer ending missing only",
+      providerGeneratedAtIntake: false,
       stateDelta: "relationshipShift + aiFallbackCondition",
     },
+  };
+
+  const endingDisplayLabels = {
+    author_main: "Writer main ending",
+    author_sub: "Writer sub ending",
+    ai_fallback: "AI fallback ending",
+  };
+
+  const endingPolicyLabels = {
+    author_main: "Writer route configured; AI cannot override",
+    author_sub: "Writer route configured; AI cannot override",
+    ai_fallback: "Allowed only when the writer ending is missing",
   };
 
   const authorGuideRows = [
@@ -546,6 +570,14 @@
     return `<li><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></li>`;
   }
 
+  function endingLabel(type) {
+    return endingDisplayLabels[type] || "Ending route pending";
+  }
+
+  function endingPolicy(type) {
+    return endingPolicyLabels[type] || "Route policy pending";
+  }
+
   function renderUploadWorkspace(localeCode) {
     const locale = UI[localeCode] || UI.ko;
     const qa = QA_COPY[localeCode] || QA_COPY.ko;
@@ -595,9 +627,9 @@
           <div class="su-section">
             <h2>${escapeHtml(locale.endings)}</h2>
             <div class="su-ending-summary">
-              <span class="su-ending-badge" data-ending="author_main">${escapeHtml(locale.ending.authorMain)}</span>
-              <span class="su-ending-badge" data-ending="author_sub">${escapeHtml(locale.ending.authorSub)}</span>
-              <span class="su-ending-badge" data-ending="ai">AI fallback · ${escapeHtml(locale.ending.ai)}</span>
+              <span class="su-ending-badge" data-ending="author_main" data-writer-ending-configured="true" data-ai-fallback-policy="writer-route-wins" data-provider-generated-at-intake="false">${escapeHtml(locale.ending.authorMain)}</span>
+              <span class="su-ending-badge" data-ending="author_sub" data-writer-ending-configured="true" data-ai-fallback-policy="writer-route-wins" data-provider-generated-at-intake="false">${escapeHtml(locale.ending.authorSub)}</span>
+              <span class="su-ending-badge" data-ending="ai" data-writer-ending-configured="false" data-ai-fallback-policy="writer-ending-missing-only" data-provider-generated-at-intake="false">AI fallback · ${escapeHtml(locale.ending.ai)}</span>
             </div>
             <details class="su-ending-list">
               <summary>${escapeHtml(locale.ending.subCount)} <b>${qa.endings.length}</b></summary>
@@ -646,13 +678,21 @@
             ${qa.choices.map((choice) => {
               const meta = choiceImplementationMeta[choice.label] || {};
               return `
-                <article class="su-branch-card" data-ending-route="${escapeHtml(meta.endingRoute || "")}">
+                <article
+                  class="su-branch-card"
+                  data-ending-route="${escapeHtml(meta.endingRoute || "")}"
+                  data-ending-type="${escapeHtml(meta.endingType || "")}"
+                  data-writer-ending-configured="${meta.writerEndingConfigured === true ? "true" : "false"}"
+                  data-ai-fallback-policy="${escapeHtml(meta.aiFallbackPolicy || "")}"
+                  data-provider-generated-at-intake="${meta.providerGeneratedAtIntake === true ? "true" : "false"}"
+                >
                   <strong>${escapeHtml(choice.label)} · ${escapeHtml(choice.next)}</strong>
                   <span>${escapeHtml(choice.result)}</span>
                   <small>${escapeHtml(meta.sceneSummary || "")}</small>
                   <dl>
                     <div><dt>State</dt><dd>${escapeHtml(meta.stateDelta || "")}</dd></div>
-                    <div><dt>Ending</dt><dd>${escapeHtml(meta.endingRoute || "")}</dd></div>
+                    <div><dt>Ending</dt><dd>${escapeHtml(endingLabel(meta.endingType))} · ${escapeHtml(meta.endingRoute || "")}</dd></div>
+                    <div><dt>Policy</dt><dd>${escapeHtml(endingPolicy(meta.endingType))}</dd></div>
                     <div><dt>Background</dt><dd>${escapeHtml(meta.background || "")}</dd></div>
                   </dl>
                   <em>${escapeHtml(choice.rejoin)}</em>
@@ -676,10 +716,15 @@
               <thead><tr>${qa.importHead.map((head) => `<th>${escapeHtml(head)}</th>`).join("")}</tr></thead>
               <tbody>
                 ${importRows.map((row) => `
-                  <tr>
+                  <tr
+                    data-ending-type="${escapeHtml(row.ending)}"
+                    data-writer-ending-configured="${row.writerEndingConfigured === true ? "true" : "false"}"
+                    data-ai-fallback-policy="${escapeHtml(row.ending === "ai_fallback" ? "writer-ending-missing-only" : "writer-route-wins")}"
+                    data-provider-generated-at-intake="false"
+                  >
                     <td>${escapeHtml(row.scene)}</td>
                     <td>${escapeHtml(row.branch)}</td>
-                    <td>${escapeHtml(row.ending)}</td>
+                    <td>${escapeHtml(endingLabel(row.ending))}</td>
                     <td>${escapeHtml(row.part)}</td>
                     <td>${escapeHtml(row.summary)}</td>
                     <td>${escapeHtml(locale.importState[row.state])}</td>
