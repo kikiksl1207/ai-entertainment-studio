@@ -318,6 +318,28 @@
   font-weight: 800;
 }
 
+.su-ai-fallback-evidence {
+  display: grid;
+  grid-template-columns: minmax(116px, max-content) minmax(0, 1fr);
+  gap: 6px 10px;
+  margin: 12px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(240, 238, 248, 0.82);
+  font-size: 0.84rem;
+}
+
+.su-ai-fallback-evidence dt {
+  color: rgba(255, 255, 255, 0.58);
+  font-weight: 800;
+}
+
+.su-ai-fallback-evidence dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .su-branch-tree {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
