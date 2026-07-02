@@ -1,12 +1,17 @@
 import {
   findStoryUploadSensitiveFieldViolations,
+  STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT,
   STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT,
+  STORY_ENDING_OWNERSHIP_GUARD_CONTRACT,
   STORY_HIATUS_PENALTY_PENDING_VALUES_GUARD_CONTRACT,
+  STORY_IMPORT_EXPORT_SCHEMA_VERSION_GUARD_CONTRACT,
+  STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT,
   STORY_STAGE_CONTRACT,
   STORY_UPLOAD_BACKEND_GUARD_CONTRACT,
   STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT,
   STORY_UPLOAD_INTAKE_STORAGE_GUARD_CONTRACT,
   STORY_UPLOAD_PUBLIC_SOURCE_SAFETY_GUARD_CONTRACT,
+  STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT,
 } from './story-stage-contract';
 
 describe('Story upload backend guard contracts', () => {
@@ -22,6 +27,13 @@ describe('Story upload backend guard contracts', () => {
       hiatusPenaltyPendingValuesGuard:
         STORY_HIATUS_PENALTY_PENDING_VALUES_GUARD_CONTRACT,
       fixturePrivacyGuard: STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT,
+      branchGraphCycleGuard: STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT,
+      endingOwnershipGuard: STORY_ENDING_OWNERSHIP_GUARD_CONTRACT,
+      sceneAssetReferenceGuard: STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT,
+      reviewStateTransitionGuard:
+        STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT,
+      importExportSchemaVersionGuard:
+        STORY_IMPORT_EXPORT_SCHEMA_VERSION_GUARD_CONTRACT,
     });
     expect(
       Object.values(STORY_UPLOAD_BACKEND_GUARD_CONTRACT.mutationPolicy).every(
@@ -167,17 +179,177 @@ describe('Story upload backend guard contracts', () => {
           rawEmail: 'not-allowed',
           rawAccountId: 'not-allowed',
         },
-        scene: {
-          providerPayload: { rawPrompt: 'not-allowed' },
-          storageKey: 'not-allowed',
-        },
-      }),
+      scene: {
+        providerPayload: { rawPrompt: 'not-allowed' },
+        privateStoragePath: 'not-allowed',
+        storageKey: 'not-allowed',
+      },
+    }),
     ).toEqual([
       'author.rawEmail',
       'author.rawAccountId',
       'scene.providerPayload',
       'scene.providerPayload.rawPrompt',
+      'scene.privateStoragePath',
       'scene.storageKey',
     ]);
+  });
+
+  it('guards branch graphs against unreachable scenes and unsafe cycles for #1603', () => {
+    expect(STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT.graphModel).toMatchObject({
+      rootSceneRequired: true,
+      rejoinAllowed: true,
+      rejoinRequiresPreRejoinDifference: true,
+      terminalEndingSceneRequiredForEveryReachablePath: true,
+    });
+    expect(
+      STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT.traversalProjectionFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'rootSceneId',
+        'sceneId',
+        'choiceId',
+        'nextSceneId',
+        'reachableFromRoot',
+        'cycleGroupId',
+      ]),
+    );
+    expect(STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT.failureConditions).toEqual(
+      expect.arrayContaining([
+        'unreachable_scene_from_root',
+        'cycle_without_terminal_escape',
+        'all_choices_immediately_rejoin_same_scene_body_and_result',
+        'rejoin_without_pre_rejoin_result_difference',
+      ]),
+    );
+  });
+
+  it('keeps ending ownership from mixing writer and AI fallback sources for #1604', () => {
+    expect(STORY_ENDING_OWNERSHIP_GUARD_CONTRACT.ownerSourceMap).toMatchObject({
+      author_main: 'writer_declared_primary_ending',
+      author_sub: 'writer_declared_optional_sub_ending',
+      ai_fallback: 'server_marked_unresolved_branch_fallback',
+    });
+    expect(STORY_ENDING_OWNERSHIP_GUARD_CONTRACT.aiFallbackRules).toMatchObject({
+      requiresAuthorUnsetBranchEvidence: true,
+      mayAttachToAuthorOwnedEndingRoute: false,
+      mayReplaceAuthorEnding: false,
+      savedAsAuthorEnding: false,
+      providerPayloadExported: false,
+    });
+    expect(STORY_ENDING_OWNERSHIP_GUARD_CONTRACT.failureConditions).toEqual(
+      expect.arrayContaining([
+        'ai_fallback_without_author_unset_branch_evidence',
+        'ai_fallback_saved_with_author_owner_source',
+        'ending_type_owner_source_mismatch',
+      ]),
+    );
+  });
+
+  it('allows only public scene asset references for #1605', () => {
+    expect(
+      STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT.allowedPublicReferenceFields,
+    ).toEqual(
+      expect.arrayContaining(['assetId', 'publicPath', 'status', 'fallbackKey']),
+    );
+    expect(
+      STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT.forbiddenFixtureFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'signedUrl',
+        'privateStoragePath',
+        'storageKey',
+        'providerPayload',
+        'internalAccountId',
+      ]),
+    );
+    expect(
+      findStoryUploadSensitiveFieldViolations({
+        asset: {
+          publicPath: '/assets/story/public-background.png',
+          status: 'ready',
+          signedUrl: 'not-allowed',
+          internalAccountId: 'not-allowed',
+        },
+      }),
+    ).toEqual(['asset.signedUrl', 'asset.internalAccountId']);
+  });
+
+  it('requires safe review state transitions before publish-ready for #1606', () => {
+    expect(STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.statuses).toEqual([
+      'draft',
+      'pm_review',
+      'needs_revision',
+      'locale_ready',
+      'qa_ready',
+      'publish_ready',
+      'blocked',
+    ]);
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.allowedTransitions,
+    ).toContainEqual(['qa_ready', 'publish_ready']);
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.transitionGates
+        .publishReady,
+    ).toMatchObject({
+      from: 'qa_ready',
+      requiresQaPass: true,
+      requiresNoBlockerReason: true,
+    });
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.transitionGates
+        .blocked,
+    ).toMatchObject({
+      requiresBlockerReasonKey: true,
+      allowedReasonKeyPrefix: 'storyUpload.blocker.',
+    });
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.failureConditions,
+    ).toEqual(
+      expect.arrayContaining([
+        'publish_ready_without_qa_pass',
+        'blocked_without_blocker_reason_key',
+      ]),
+    );
+  });
+
+  it('tracks import/export schema version and legacy handling for #1607', () => {
+    expect(
+      STORY_IMPORT_EXPORT_SCHEMA_VERSION_GUARD_CONTRACT.requiredTopLevelFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'schemaVersion',
+        'parts',
+        'scenes',
+        'branches',
+        'endings',
+        'backgrounds',
+      ]),
+    );
+    expect(
+      STORY_IMPORT_EXPORT_SCHEMA_VERSION_GUARD_CONTRACT.requiredNestedFields,
+    ).toMatchObject({
+      scenes: expect.arrayContaining(['sceneId', 'backgroundRef']),
+      endings: expect.arrayContaining(['endingType', 'ownerSource']),
+      backgrounds: expect.arrayContaining(['publicPath', 'status']),
+    });
+    expect(
+      STORY_IMPORT_EXPORT_SCHEMA_VERSION_GUARD_CONTRACT.importCompatibility,
+    ).toMatchObject({
+      missingSchemaVersion: {
+        action: 'block_import_until_manual_mapping',
+      },
+      legacyV1MissingBackgroundRef: {
+        action: 'normalize_to_missing_background_fallback',
+      },
+      legacyV1MissingEndingOwner: {
+        action: 'block_publish_ready_until_owner_source_resolved',
+      },
+    });
+    expect(
+      Object.values(
+        STORY_IMPORT_EXPORT_SCHEMA_VERSION_GUARD_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
   });
 });
