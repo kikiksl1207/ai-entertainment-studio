@@ -644,6 +644,32 @@
     margin-top: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 
+  .su-author-guide {
+    gap: 5px;
+    margin-top: 8px;
+    padding: 9px 10px;
+  }
+
+  .su-author-guide h3 {
+    margin-bottom: 0;
+    font-size: 13px;
+    line-height: 1.15;
+  }
+
+  .su-author-guide p {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .su-author-guide ol {
+    gap: 4px;
+  }
+
+  .su-author-guide li {
+    padding: 4px 7px;
+    font-size: 11px;
+  }
+
   .su-choice-row {
     grid-template-columns: 42px minmax(0, 1fr);
   }

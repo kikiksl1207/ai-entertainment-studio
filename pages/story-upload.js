@@ -424,7 +424,7 @@
       branchTitle: "Root-style branch outcomes",
       branchNote: "Each choice keeps relation, risk, item, info, and ending-condition changes before any rejoin.",
       onboardingTitle: "Writer upload guide",
-      onboardingBody: "Write the long manuscript first, then mark only the branch points as choices.",
+      onboardingBody: "Draft the long manuscript; mark only branch points.",
       onboardingSteps: ["Manuscript", "Branch points", "Scene links"],
       referenceTitle: "PM/QA reference",
       referenceNote: "Read-only checkpoints for reviewers. These are not service CTAs and nothing is saved.",
@@ -454,7 +454,7 @@
       branchTitle: "木の根型の分岐結果",
       branchNote: "再合流前に、選択ごとの関係、危険、アイテム、情報、終了条件の差を残します。",
       onboardingTitle: "作家アップロード案内",
-      onboardingBody: "長い本文原稿を先に書き、分岐点だけを選択肢として示します。",
+      onboardingBody: "長い本文原稿を書き、分岐点だけ選択肢にします。",
       onboardingSteps: ["本文原稿", "分岐点", "シーン接続"],
       referenceTitle: "PM/QA reference",
       referenceNote: "検収担当者向けの読み取り専用位置です。サービスCTAではなく保存もしません。",
@@ -560,6 +560,57 @@
     providerGeneratedAtIntake: "false",
   };
 
+  const AI_FALLBACK_COPY = {
+    ko: {
+      title: "AI fallback 근거",
+      condition: "작가 엔딩이 없는 분기에서만 보조로 이어져요.",
+      branchLabel: "분기 근거",
+      branchText: "B-C 분기는 작가 엔딩 미설정 상태예요.",
+      providerLabel: "생성 상태",
+      providerText: "가져오기 미리보기에서는 AI/provider를 실행하지 않아요.",
+    },
+    en: {
+      title: "AI fallback evidence",
+      condition: "Only helps branches where the writer has no ending.",
+      branchLabel: "Branch evidence",
+      branchText: "Branch B-C has no writer ending configured.",
+      providerLabel: "Generation state",
+      providerText: "No AI/provider generation runs in this import preview.",
+    },
+    ja: {
+      title: "AI fallback根拠",
+      condition: "作家終了が未設定の分岐だけを補助します。",
+      branchLabel: "分岐根拠",
+      branchText: "B-C分岐には作家終了が設定されていません。",
+      providerLabel: "生成状態",
+      providerText: "この取込プレビューではAI/provider生成を実行しません。",
+    },
+    "zh-Hans": {
+      title: "AI fallback依据",
+      condition: "只辅助没有作者结局的分支。",
+      branchLabel: "分支依据",
+      branchText: "B-C分支未配置作者结局。",
+      providerLabel: "生成状态",
+      providerText: "导入预览不会运行AI/provider生成。",
+    },
+    "zh-Hant": {
+      title: "AI fallback依據",
+      condition: "只輔助沒有作者結局的分支。",
+      branchLabel: "分支依據",
+      branchText: "B-C分支未配置作者結局。",
+      providerLabel: "生成狀態",
+      providerText: "匯入預覽不會執行AI/provider生成。",
+    },
+  };
+
+  const ENDING_LABELS = {
+    ko: { author_main: "작가 기본 엔딩", author_sub: "작가 서브 엔딩", ai_fallback: "AI fallback 엔딩" },
+    en: { author_main: "Author main ending", author_sub: "Author sub ending", ai_fallback: "AI fallback ending" },
+    ja: { author_main: "作家基本終了", author_sub: "作家サブ終了", ai_fallback: "AI fallback終了" },
+    "zh-Hans": { author_main: "作者主线结局", author_sub: "作者支线结局", ai_fallback: "AI fallback结局" },
+    "zh-Hant": { author_main: "作者主線結局", author_sub: "作者支線結局", ai_fallback: "AI fallback結局" },
+  };
+
   const localeMap = {
     ko: "ko-KR",
     en: "en-US",
@@ -608,9 +659,14 @@
     `;
   }
 
+  function endingLabel(localeCode, value) {
+    return (ENDING_LABELS[localeCode] || ENDING_LABELS.ko)[value] || value;
+  }
+
   function renderUploadWorkspace(localeCode) {
     const locale = UI[localeCode] || UI.ko;
     const qa = QA_COPY[localeCode] || QA_COPY.ko;
+    const fallbackCopy = AI_FALLBACK_COPY[localeCode] || AI_FALLBACK_COPY.ko;
     document.documentElement.lang = localeMap[localeCode] || "ko-KR";
 
     root.innerHTML = `
@@ -673,12 +729,12 @@
                 data-ending="${escapeHtml(aiFallbackEvidence.ending)}"
                 data-ai-fallback-policy="writer-ending-missing-only"
                 data-writer-ending-configured="false">
-              <dt>AI fallback condition</dt>
-              <dd>Allowed only when the writer has not configured an ending for this branch.</dd>
-              <dt>Branch evidence</dt>
-              <dd>${escapeHtml(aiFallbackEvidence.branch)} · ${escapeHtml(aiFallbackEvidence.policy)} · ${escapeHtml(aiFallbackEvidence.fallbackReasonKey)}</dd>
-              <dt>Provider generation</dt>
-              <dd>${escapeHtml(aiFallbackEvidence.providerGeneratedAtIntake)}</dd>
+              <dt>${escapeHtml(fallbackCopy.title)}</dt>
+              <dd>${escapeHtml(fallbackCopy.condition)}</dd>
+              <dt>${escapeHtml(fallbackCopy.branchLabel)}</dt>
+              <dd>${escapeHtml(fallbackCopy.branchText)}</dd>
+              <dt>${escapeHtml(fallbackCopy.providerLabel)}</dt>
+              <dd>${escapeHtml(fallbackCopy.providerText)}</dd>
             </dl>
           </div>
         </section>
@@ -745,7 +801,7 @@
                   <tr>
                     <td>${escapeHtml(row.scene)}</td>
                     <td>${escapeHtml(row.branch)}</td>
-                    <td>${escapeHtml(row.ending)}</td>
+                    <td data-ending-type="${escapeHtml(row.ending)}">${escapeHtml(endingLabel(localeCode, row.ending))}</td>
                     <td>${escapeHtml(row.part)}</td>
                     <td>${escapeHtml(row.summary)}</td>
                     <td>${escapeHtml(locale.importState[row.state])}</td>
