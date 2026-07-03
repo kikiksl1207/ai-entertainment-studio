@@ -389,6 +389,8 @@
       label: "A",
       tone: "info",
       next: "S05",
+      backgroundId: "bg-war-room-map",
+      backgroundState: "ready",
       titleKey: "storyStage.branch.a.title",
       outcomeKey: "storyStage.branch.a.outcome",
       rejoinKey: "storyStage.branch.a.rejoin",
@@ -398,6 +400,8 @@
       label: "B",
       tone: "risk",
       next: "S06",
+      backgroundId: "bg-harbor-night",
+      backgroundState: "ready",
       titleKey: "storyStage.branch.b.title",
       outcomeKey: "storyStage.branch.b.outcome",
       rejoinKey: "storyStage.branch.b.rejoin",
@@ -407,6 +411,8 @@
       label: "C",
       tone: "ending",
       next: "S07",
+      backgroundId: "bg-fog-shore",
+      backgroundState: "ready",
       titleKey: "storyStage.branch.c.title",
       outcomeKey: "storyStage.branch.c.outcome",
       rejoinKey: "storyStage.branch.c.rejoin",
@@ -658,7 +664,11 @@
         <p class="story-muted story-branch-note" data-story-local-i18n="storyStage.branch.note">${storyLocalT("storyStage.branch.note")}</p>
         <div class="story-branch-grid">
           ${STORY_BRANCH_FIXTURE.map((branch) => `
-            <article class="story-branch-card" data-branch-tone="${escapeHtml(branch.tone)}">
+            <article class="story-branch-card"
+                data-branch-tone="${escapeHtml(branch.tone)}"
+                data-next-scene="${escapeHtml(branch.next)}"
+                data-background-id="${escapeHtml(branch.backgroundId)}"
+                data-background-state="${escapeHtml(branch.backgroundState)}">
               <div class="story-branch-card-head">
                 <b>${escapeHtml(branch.label)}</b>
                 <strong>${escapeHtml(branch.next)}</strong>
@@ -668,6 +678,14 @@
               <div class="story-branch-tags">
                 ${branch.tagKeys.map((key) => `<span data-story-local-i18n="${escapeHtml(key)}">${storyLocalT(key)}</span>`).join("")}
               </div>
+              <dl class="story-branch-background" aria-label="Branch background evidence">
+                <dt>Scene</dt>
+                <dd>${escapeHtml(branch.next)}</dd>
+                <dt>Background ID</dt>
+                <dd>${escapeHtml(branch.backgroundId)}</dd>
+                <dt>State</dt>
+                <dd>${escapeHtml(branch.backgroundState)}</dd>
+              </dl>
               <em data-story-local-i18n="${escapeHtml(branch.rejoinKey)}">${storyLocalT(branch.rejoinKey)}</em>
             </article>
           `).join("")}

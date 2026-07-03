@@ -804,6 +804,36 @@
   line-height: 1.4;
 }
 
+.story-branch-background {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 5px 8px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid rgba(159, 139, 199, 0.16);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.story-branch-background dt,
+.story-branch-background dd {
+  min-width: 0;
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.story-branch-background dt {
+  color: rgba(214, 202, 235, 0.68);
+  font-weight: 800;
+}
+
+.story-branch-background dd {
+  color: #f0eef8;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
 .story-card {
   padding: 18px;
   border: 1px solid rgba(159, 139, 199, 0.18);

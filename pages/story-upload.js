@@ -731,8 +731,8 @@
             <h2>${escapeHtml(locale.endings)}</h2>
             <div class="su-ending-summary su-ending-cards">
               ${qa.endingCards.map((ending) => `
-                <article class="su-ending-card" data-ending="${escapeHtml(ending.type)}">
-                  <span class="su-ending-badge" data-ending="${escapeHtml(ending.type)}">${escapeHtml(ending.title)}</span>
+                <article class="su-ending-card" data-ending="${escapeHtml(ending.type)}" data-provider-generated-at-intake="${escapeHtml(aiFallbackEvidence.providerGeneratedAtIntake)}">
+                  <span class="su-ending-badge" data-ending="${escapeHtml(ending.type)}" data-provider-generated-at-intake="${escapeHtml(aiFallbackEvidence.providerGeneratedAtIntake)}">${escapeHtml(ending.title)}</span>
                   <p>${escapeHtml(ending.body)}</p>
                 </article>
               `).join("")}
@@ -746,7 +746,8 @@
             <dl class="su-ai-fallback-evidence"
                 data-ending="${escapeHtml(aiFallbackEvidence.ending)}"
                 data-ai-fallback-policy="writer-ending-missing-only"
-                data-writer-ending-configured="false">
+                data-writer-ending-configured="false"
+                data-provider-generated-at-intake="${escapeHtml(aiFallbackEvidence.providerGeneratedAtIntake)}">
               <dt>${escapeHtml(qa.aiFallbackEvidence.title)}</dt>
               <dd>${escapeHtml(qa.aiFallbackEvidence.conditionText)}</dd>
               <dt>${escapeHtml(qa.aiFallbackEvidence.branchLabel)}</dt>
@@ -816,10 +817,10 @@
               <thead><tr>${qa.importHead.map((head) => `<th>${escapeHtml(head)}</th>`).join("")}</tr></thead>
               <tbody>
                 ${importRows.map((row) => `
-                  <tr>
+                  <tr data-provider-generated-at-intake="${escapeHtml(aiFallbackEvidence.providerGeneratedAtIntake)}">
                     <td>${escapeHtml(row.scene)}</td>
                     <td>${escapeHtml(row.branch)}</td>
-                    <td data-ending-type="${escapeHtml(row.ending)}">${escapeHtml(endingLabel(qa, row.ending))}</td>
+                    <td data-ending-type="${escapeHtml(row.ending)}" data-provider-generated-at-intake="${escapeHtml(aiFallbackEvidence.providerGeneratedAtIntake)}">${escapeHtml(endingLabel(qa, row.ending))}</td>
                     <td>${escapeHtml(row.part)}</td>
                     <td>${escapeHtml(row.summary)}</td>
                     <td>${escapeHtml(locale.importState[row.state])}</td>
