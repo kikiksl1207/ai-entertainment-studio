@@ -424,7 +424,18 @@
       stateDelta: "infoGained + trustUp",
       endingRoute: "E-SUB-01",
       endingType: "writer_sub_ending",
+      backgroundId: "bg-war-room-map",
       backgroundState: "bg-war-room-map",
+      backgroundAssetUrl: "/assets/brand/lumina-stage-banner.png",
+      characterAssetId: "character.cha-dohyun.reference-final-03",
+      characterAssetLabel: "Cha Dohyun guide pose",
+      characterImage: "/assets/characters/cha-dohyun/reference-final-03.png",
+      eventSummary: "Record clue opens the map-room path.",
+      relationSummary: "Messenger trust rises before rejoin.",
+      riskSummary: "Low risk, safer evidence route.",
+      infoSummary: "Hidden archive clue unlocked.",
+      endingCandidate: "Author sub ending E-SUB-01",
+      chatLine: "The record room lights up. The safer clue path is open.",
       rejoin: "S09",
     },
     {
@@ -436,7 +447,18 @@
       stateDelta: "riskRaised + itemGained",
       endingRoute: "E-SUB-02",
       endingType: "writer_sub_ending",
+      backgroundId: "bg-harbor-night",
       backgroundState: "bg-harbor-night",
+      backgroundAssetUrl: "/assets/characters/cha-dohyun/cover.png",
+      characterAssetId: "character.cha-dohyun.reference-final-08",
+      characterAssetLabel: "Cha Dohyun pursuit pose",
+      characterImage: "/assets/characters/cha-dohyun/reference-final-08.png",
+      eventSummary: "Messenger chase moves the scene to the harbor.",
+      relationSummary: "Trust is unstable but active.",
+      riskSummary: "High risk, item route gained.",
+      infoSummary: "Sealed map item acquired.",
+      endingCandidate: "Author sub ending E-SUB-02",
+      chatLine: "The harbor wind cuts in. Following them raises the risk.",
       rejoin: "S09",
     },
     {
@@ -448,7 +470,18 @@
       stateDelta: "relationshipShift + aiFallbackCondition",
       endingRoute: "E-AI-01",
       endingType: "ai_fallback_ending",
+      backgroundId: "bg-fog-shore",
       backgroundState: "bg-fog-shore",
+      backgroundAssetUrl: "/assets/characters/choi-seojin/cover.png",
+      characterAssetId: "none",
+      characterAssetLabel: "No character in this branch",
+      characterImage: "",
+      eventSummary: "The detour splits away before the rejoin.",
+      relationSummary: "Relationship shifts without a writer ending.",
+      riskSummary: "Medium risk, unresolved route.",
+      infoSummary: "Missing author ending is visible.",
+      endingCandidate: "AI fallback candidate E-AI-01",
+      chatLine: "The shore goes quiet. This branch needs fallback review.",
       rejoin: "No rejoin before fallback review",
     },
   ];
@@ -481,6 +514,20 @@
     const locale = storyLocale();
     const entry = STORY_SCENE_COPY[key];
     return entry?.[locale] || entry?.["ko-KR"] || key;
+  }
+
+  function routeHandoffHref(storyId, entry) {
+    return "/story-stage?storyId=" + encodeURIComponent(storyId || "imjin") + "&entry=" + encodeURIComponent(entry || "card");
+  }
+
+  function branchChoice(label) {
+    return STORY_BRANCH_IMPLEMENTATION_FIXTURE.find((choice) => choice.label === label) || STORY_BRANCH_IMPLEMENTATION_FIXTURE[0];
+  }
+
+  function branchBackgroundStyle(choice) {
+    const safeChoice = choice || STORY_BRANCH_IMPLEMENTATION_FIXTURE[0];
+    const url = safeChoice.backgroundAssetUrl || "/assets/brand/lumina-stage-banner.png";
+    return "linear-gradient(180deg, rgba(8, 5, 18, 0.04), rgba(8, 5, 18, 0.62)), url('" + escapeHtml(url) + "')";
   }
 
   function storyLocalT(key) {
@@ -756,7 +803,7 @@
         </div>
         <div class="story-discovery-grid">
           ${STORY_DISCOVERY_ITEMS.map(item => `
-            <article class="story-discovery-card" data-story-detail="${escapeHtml(item.id)}" tabindex="0" role="button" aria-label="${escapeHtml(storyT(item.titleKey))}">
+            <article class="story-discovery-card" data-story-detail="${escapeHtml(item.id)}" data-story-id="${escapeHtml(item.id)}" tabindex="0" role="button" aria-label="${escapeHtml(storyT(item.titleKey))}">
               <div class="story-discovery-cover" style="background-image: linear-gradient(180deg, rgba(8,5,18,0.04), rgba(8,5,18,0.52)), url('${escapeHtml(item.image)}')"></div>
               <div class="story-discovery-body">
                 <span class="story-discovery-status" data-i18n="${item.statusKey}">${storyT(item.statusKey)}</span>
@@ -765,6 +812,13 @@
                 <div class="story-discovery-meta">
                   <span>${escapeHtml(item.metric)}</span>
                   <span>${item.tags.map(escapeHtml).join(" · ")}</span>
+                </div>
+                <div class="story-discovery-actions">
+                  <a class="story-cta story-cta-free story-route-link"
+                     href="${escapeHtml(routeHandoffHref(item.id, "card"))}"
+                     data-story-route-handoff="card"
+                     data-story-id="${escapeHtml(item.id)}">Start</a>
+                  <button class="story-detail-open" type="button" data-story-detail-open="${escapeHtml(item.id)}">Detail</button>
                 </div>
               </div>
             </article>
@@ -788,11 +842,12 @@
             <div><dt data-i18n="storyStage.detail.profile">대화 프로필</dt><dd data-i18n="storyStage.setup.note">무료 프롤로그는 나 또는 AI 아티스트 1명과 시작해요.</dd></div>
             <div><dt data-i18n="storyStage.detail.prologue">프롤로그 미리보기</dt><dd data-i18n="storyStage.tutorial.detail">역사 기록의 결을 살린 짧은 프롤로그예요. 외부 번역문이나 특정 게임 문구를 쓰지 않고, Lumina의 장면형 선택 흐름으로 시작합니다.</dd></div>
             <div><dt data-i18n="storyStage.detail.similar">비슷한 스토리</dt><dd data-i18n="storyStage.discovery.card.stage.title">첫 무대의 떨림</dd></div>
+            <div><dt>Route</dt><dd data-story-detail-route>${escapeHtml(routeHandoffHref("imjin", "detail"))}</dd></div>
           </dl>
           <div class="story-detail-actions">
-            <button class="story-cta story-cta-free" type="button" aria-disabled="true" data-i18n="storyStage.detail.cta.free">무료 프롤로그 시작</button>
-            <button class="story-cta story-cta-extra" type="button" aria-disabled="true" data-i18n="storyStage.detail.cta.continue">이어하기</button>
-            <button class="story-cta story-cta-paid" type="button" aria-disabled="true" data-i18n="storyStage.detail.cta.locked">구매 필요</button>
+            <a class="story-cta story-cta-free story-route-link" href="${escapeHtml(routeHandoffHref("imjin", "detail"))}" data-story-route-handoff="detail-start" data-story-detail-start data-i18n="storyStage.detail.cta.free">무료 프롤로그 시작</a>
+            <a class="story-cta story-cta-extra story-route-link" href="${escapeHtml(routeHandoffHref("imjin", "continue"))}" data-story-route-handoff="detail-continue" data-story-detail-continue data-i18n="storyStage.detail.cta.continue">이어하기</a>
+            <a class="story-cta story-cta-paid story-route-link" href="${escapeHtml(routeHandoffHref("imjin", "locked-preview"))}" data-story-route-handoff="detail-locked" data-story-detail-locked data-i18n="storyStage.detail.cta.locked">구매 필요</a>
           </div>
         </div>
       </section>
@@ -830,23 +885,37 @@
   }
 
   function renderPlayerShell() {
+    const activeChoice = STORY_BRANCH_IMPLEMENTATION_FIXTURE[0];
     return `
       <section class="story-section story-player-section" aria-labelledby="storyPlayerTitle">
         <div class="story-section-head">
           <span class="story-eyebrow story-eyebrow-scene">Immersive MVP</span>
           <h2 id="storyPlayerTitle" data-i18n="storyStage.player.heading">장면 속에서 대화하기</h2>
         </div>
-        <div class="story-player-shell" aria-label="몰입형 스토리 플레이어 미리보기">
-          <div class="story-player-bg" role="img" aria-label="스토리 장면 배경"></div>
-          <img class="story-player-character" src="/assets/characters/cha-dohyun/reference-final-03.png" alt="캐릭터 기본 이미지" data-i18n-alt="storyStage.scene.character.altDefault" loading="lazy" decoding="async" />
+        <div class="story-player-shell"
+             aria-label="몰입형 스토리 플레이어 미리보기"
+             data-story-mode-chat-shell="true"
+             data-active-choice="${escapeHtml(activeChoice.label)}"
+             data-scene-id="${escapeHtml(activeChoice.nextSceneId)}"
+             data-background-id="${escapeHtml(activeChoice.backgroundId)}"
+             data-character-asset-id="${escapeHtml(activeChoice.characterAssetId)}">
+          <div class="story-player-bg" role="img" aria-label="스토리 장면 배경" data-story-player-bg style="background-image: ${branchBackgroundStyle(activeChoice)}"></div>
+          <img class="story-player-character" src="${escapeHtml(activeChoice.characterImage)}" alt="${escapeHtml(activeChoice.characterAssetLabel)}" data-story-player-character data-i18n-alt="storyStage.scene.character.altDefault" loading="lazy" decoding="async" />
+          <div class="story-player-scene-pill" data-story-player-scene>${escapeHtml(activeChoice.nextSceneId)} · ${escapeHtml(activeChoice.backgroundId)}</div>
           <div class="story-player-overlay">
             <p class="story-player-status" data-i18n="storyStage.player.status">배경 위에 대화와 선택지를 겹치지 않게 보여줘요.</p>
             <div class="story-player-chat" role="log" aria-live="polite">
-              <p class="story-player-bubble is-ai" data-i18n="storyStage.player.aiLine">조명이 바뀌었어요. 다음 선택을 같이 골라볼까요?</p>
+              <p class="story-player-bubble is-ai" data-story-player-bubble>${escapeHtml(activeChoice.chatLine)}</p>
             </div>
             <div class="story-player-choices" role="group" aria-label="스토리 선택지">
-              <button type="button" data-i18n="storyStage.player.choice.focus" aria-disabled="true">무대 쪽으로 다가간다</button>
-              <button type="button" data-i18n="storyStage.player.choice.listen" aria-disabled="true">잠시 더 지켜본다</button>
+              ${STORY_BRANCH_IMPLEMENTATION_FIXTURE.map((choice, index) => `
+                <button type="button"
+                        data-story-player-choice="${escapeHtml(choice.label)}"
+                        aria-pressed="${index === 0 ? "true" : "false"}"
+                        class="${index === 0 ? "is-active" : ""}">
+                  ${escapeHtml(choice.label)} · ${escapeHtml(choice.nextSceneId)}
+                </button>
+              `).join("")}
             </div>
             <label class="story-player-input">
               <span data-i18n="storyStage.player.userPlaceholder">내 반응을 짧게 남기기</span>
@@ -859,6 +928,7 @@
   }
 
   function renderBranchImplementationShell() {
+    const activeChoice = STORY_BRANCH_IMPLEMENTATION_FIXTURE[0];
     return `
       <section class="story-section story-branch-implementation" aria-labelledby="storyBranchImplementationTitle" data-story-stage-fixture-preview="1">
         <div class="story-section-head">
@@ -866,6 +936,35 @@
           <h2 id="storyBranchImplementationTitle">A/B/C branch result states</h2>
         </div>
         <p class="story-muted">Same branch point, three different scene bodies, state deltas, backgrounds, and ending routes. Rejoin is allowed only after the choice result remains visible.</p>
+        <div class="story-branch-nav" role="group" aria-label="Branch result preview">
+          ${STORY_BRANCH_IMPLEMENTATION_FIXTURE.map((choice, index) => `
+            <button type="button"
+                    data-story-branch-choice="${escapeHtml(choice.label)}"
+                    aria-pressed="${index === 0 ? "true" : "false"}"
+                    class="${index === 0 ? "is-active" : ""}">
+              ${escapeHtml(choice.label)} · ${escapeHtml(choice.nextSceneId)}
+            </button>
+          `).join("")}
+        </div>
+        <article class="story-choice-result"
+                 data-story-choice-result
+                 data-active-choice="${escapeHtml(activeChoice.label)}"
+                 data-scene-id="${escapeHtml(activeChoice.nextSceneId)}"
+                 data-background-id="${escapeHtml(activeChoice.backgroundId)}">
+          <div class="story-choice-result-bg" data-choice-result-bg style="background-image: ${branchBackgroundStyle(activeChoice)}"></div>
+          <div class="story-choice-result-body">
+            <strong data-choice-result-scene>${escapeHtml(activeChoice.label)} · ${escapeHtml(activeChoice.nextSceneId)} · ${escapeHtml(activeChoice.sceneTitle)}</strong>
+            <p data-choice-result-summary>${escapeHtml(activeChoice.bodySummary)}</p>
+            <dl class="story-choice-summary">
+              <div><dt>Event</dt><dd data-choice-result-event>${escapeHtml(activeChoice.eventSummary)}</dd></div>
+              <div><dt>Relation</dt><dd data-choice-result-relation>${escapeHtml(activeChoice.relationSummary)}</dd></div>
+              <div><dt>Risk</dt><dd data-choice-result-risk>${escapeHtml(activeChoice.riskSummary)}</dd></div>
+              <div><dt>Info</dt><dd data-choice-result-info>${escapeHtml(activeChoice.infoSummary)}</dd></div>
+              <div><dt>Ending</dt><dd data-choice-result-ending>${escapeHtml(activeChoice.endingCandidate)}</dd></div>
+              <div><dt>Rejoin</dt><dd data-choice-result-rejoin>${escapeHtml(activeChoice.rejoin)}</dd></div>
+            </dl>
+          </div>
+        </article>
         <div class="story-branch-implementation-grid">
           ${STORY_BRANCH_IMPLEMENTATION_FIXTURE.map((choice) => `
             <article
@@ -874,7 +973,9 @@
               data-choice="${escapeHtml(choice.label)}"
               data-next-scene="${escapeHtml(choice.nextSceneId)}"
               data-ending-route="${escapeHtml(choice.endingRoute)}"
+              data-background-id="${escapeHtml(choice.backgroundId)}"
               data-background-state="${escapeHtml(choice.backgroundState)}"
+              data-character-asset-id="${escapeHtml(choice.characterAssetId)}"
             >
               <strong>${escapeHtml(choice.label)} · ${escapeHtml(choice.nextSceneId)}</strong>
               <span>${escapeHtml(choice.sceneTitle)}</span>
@@ -882,7 +983,8 @@
               <dl>
                 <div><dt>State</dt><dd>${escapeHtml(choice.stateDelta)}</dd></div>
                 <div><dt>Ending</dt><dd>${escapeHtml(choice.endingType)} · ${escapeHtml(choice.endingRoute)}</dd></div>
-                <div><dt>Background</dt><dd>${escapeHtml(choice.backgroundState)}</dd></div>
+                <div><dt>Background</dt><dd>${escapeHtml(choice.backgroundId)} · ${escapeHtml(choice.backgroundState)}</dd></div>
+                <div><dt>Result</dt><dd>${escapeHtml(choice.eventSummary)}</dd></div>
                 <div><dt>Rejoin</dt><dd>${escapeHtml(choice.rejoin)}</dd></div>
               </dl>
             </article>
@@ -972,7 +1074,7 @@
             </div>
             <p class="story-muted story-companion-hint">동반은 최대 ${f.prologue.companionMax}명까지 선택할 수 있어요.</p>
           </div>
-          <button class="story-cta story-cta-free" type="button" aria-disabled="true" data-story-preview="prologue">무료로 시작 (미리보기)</button>
+          <a class="story-cta story-cta-free story-route-link" href="${escapeHtml(routeHandoffHref("imjin", "prologue"))}" data-story-route-handoff="prologue-start" data-story-id="imjin">무료로 시작 (미리보기)</a>
         </div>
       </section>
 
@@ -1061,6 +1163,7 @@
 
     bindStoryPreview(root);
     applyStoryLocalCopy(root);
+    setStoryBranchChoice(root, "A");
     loadScenePreviewFixtures().then(scenes => {
       _storyScenes = scenes.map(normalizeScene);
       _storySceneIndex = 0;
@@ -1069,11 +1172,84 @@
     window.luminaI18n?.apply?.(root);
   }
 
+  function setStoryBranchChoice(root, label) {
+    const choice = branchChoice(label);
+    if (!root || !choice) return;
+    root.querySelectorAll("[data-story-branch-choice], [data-story-player-choice]").forEach((button) => {
+      const buttonLabel = button.dataset.storyBranchChoice || button.dataset.storyPlayerChoice;
+      const active = buttonLabel === choice.label;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    root.querySelectorAll("[data-story-branch-fixture-card]").forEach((card) => {
+      card.classList.toggle("is-active", card.dataset.choice === choice.label);
+    });
+
+    const shell = root.querySelector("[data-story-mode-chat-shell]");
+    if (shell) {
+      shell.dataset.activeChoice = choice.label;
+      shell.dataset.sceneId = choice.nextSceneId;
+      shell.dataset.backgroundId = choice.backgroundId;
+      shell.dataset.characterAssetId = choice.characterAssetId;
+    }
+    const playerBg = root.querySelector("[data-story-player-bg]");
+    if (playerBg) playerBg.style.backgroundImage = branchBackgroundStyle(choice);
+    const playerScene = root.querySelector("[data-story-player-scene]");
+    if (playerScene) playerScene.textContent = choice.nextSceneId + " · " + choice.backgroundId;
+    const playerBubble = root.querySelector("[data-story-player-bubble]");
+    if (playerBubble) playerBubble.textContent = choice.chatLine;
+    const playerCharacter = root.querySelector("[data-story-player-character]");
+    if (playerCharacter) {
+      if (choice.characterImage) {
+        playerCharacter.hidden = false;
+        playerCharacter.src = choice.characterImage;
+        playerCharacter.alt = choice.characterAssetLabel;
+      } else {
+        playerCharacter.hidden = true;
+        playerCharacter.removeAttribute("src");
+        playerCharacter.alt = choice.characterAssetLabel;
+      }
+      playerCharacter.dataset.characterAssetId = choice.characterAssetId;
+    }
+
+    const result = root.querySelector("[data-story-choice-result]");
+    if (result) {
+      result.dataset.activeChoice = choice.label;
+      result.dataset.sceneId = choice.nextSceneId;
+      result.dataset.backgroundId = choice.backgroundId;
+    }
+    const resultBg = root.querySelector("[data-choice-result-bg]");
+    if (resultBg) resultBg.style.backgroundImage = branchBackgroundStyle(choice);
+    const slots = [
+      ["[data-choice-result-scene]", choice.label + " · " + choice.nextSceneId + " · " + choice.sceneTitle],
+      ["[data-choice-result-summary]", choice.bodySummary],
+      ["[data-choice-result-event]", choice.eventSummary],
+      ["[data-choice-result-relation]", choice.relationSummary],
+      ["[data-choice-result-risk]", choice.riskSummary],
+      ["[data-choice-result-info]", choice.infoSummary],
+      ["[data-choice-result-ending]", choice.endingCandidate],
+      ["[data-choice-result-rejoin]", choice.rejoin],
+    ];
+    slots.forEach(([selector, value]) => {
+      const node = root.querySelector(selector);
+      if (node) node.textContent = value;
+    });
+  }
+
   function bindStoryPreview(root) {
     if (root._storyPreviewBound) return;
     root._storyPreviewBound = true;
 
     root.addEventListener("click", (event) => {
+      if (event.target.closest("[data-story-route-handoff]")) return;
+
+      const branchButton = event.target.closest("[data-story-branch-choice], [data-story-player-choice]");
+      if (branchButton) {
+        event.preventDefault();
+        setStoryBranchChoice(root, branchButton.dataset.storyBranchChoice || branchButton.dataset.storyPlayerChoice);
+        return;
+      }
+
       const chip = event.target.closest(".story-companion-chip");
       if (chip) {
         const group = chip.closest(".story-companion-chips");
@@ -1122,6 +1298,13 @@
         return;
       }
 
+      const detailButton = event.target.closest("[data-story-detail-open]");
+      if (detailButton) {
+        event.preventDefault();
+        openStoryDetail(root, detailButton.dataset.storyDetailOpen);
+        return;
+      }
+
       if (event.target.closest("[data-story-detail-close]") || event.target.closest("[data-story-detail-backdrop]")) {
         event.preventDefault();
         closeStoryDetail(root);
@@ -1158,6 +1341,23 @@
     }
     if (cover) {
       cover.style.backgroundImage = "linear-gradient(180deg, rgba(8,5,18,0.04), rgba(8,5,18,0.62)), url('" + item.image + "')";
+    }
+    const routeNode = sheet.querySelector("[data-story-detail-route]");
+    if (routeNode) routeNode.textContent = routeHandoffHref(item.id, "detail");
+    const startLink = sheet.querySelector("[data-story-detail-start]");
+    if (startLink) {
+      startLink.href = routeHandoffHref(item.id, "detail");
+      startLink.dataset.storyId = item.id;
+    }
+    const continueLink = sheet.querySelector("[data-story-detail-continue]");
+    if (continueLink) {
+      continueLink.href = routeHandoffHref(item.id, "continue");
+      continueLink.dataset.storyId = item.id;
+    }
+    const lockedLink = sheet.querySelector("[data-story-detail-locked]");
+    if (lockedLink) {
+      lockedLink.href = routeHandoffHref(item.id, "locked-preview");
+      lockedLink.dataset.storyId = item.id;
     }
     sheet.hidden = false;
     sheet.setAttribute("aria-hidden", "false");

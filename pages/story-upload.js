@@ -640,6 +640,26 @@
     providerGeneratedAtIntake: aiFallbackEvidence.providerGeneratedAtIntake,
   };
 
+  const AUTHOR_PREVIEW_FIXTURE = {
+    partLength: "10000",
+    branchSummaryLimit: "2000",
+    shortDramaParts: "10",
+    endings: [
+      { label: "Author main", count: "1", state: "configured" },
+      { label: "Author sub", count: "2", state: "configured" },
+      { label: "AI fallback", count: "1", state: "missing-writer-ending-only" },
+    ],
+    backgrounds: [
+      { scene: "S05", assetId: "bg-war-room-map", label: "Archive map room" },
+      { scene: "S06", assetId: "bg-harbor-night", label: "Night harbor pursuit" },
+      { scene: "S07", assetId: "bg-fog-shore", label: "Fog shore detour" },
+    ],
+    characters: [
+      { assetId: "character.cha-dohyun.reference-final-03", label: "Cha Dohyun guide pose" },
+      { assetId: "none", label: "No character required for S07" },
+    ],
+  };
+
   const localeMap = {
     ko: "ko-KR",
     en: "en-US",
@@ -727,6 +747,56 @@
             <span class="su-status-pill">${escapeHtml(locale.status.locale_ready)}</span>
             <p class="su-status-hint">${escapeHtml(locale.statusHint.locale_ready)}</p>
             <div class="su-status-handoff">${locale.handoff.map((item) => `<span class="su-chip">${escapeHtml(item)}</span>`).join("")}</div>
+          </div>
+        </section>
+
+        <section class="su-section su-author-preview-panel"
+                 data-author-upload-preview-panel="true"
+                 data-part-length="${escapeHtml(AUTHOR_PREVIEW_FIXTURE.partLength)}"
+                 data-branch-summary-limit="${escapeHtml(AUTHOR_PREVIEW_FIXTURE.branchSummaryLimit)}"
+                 data-short-drama-parts="${escapeHtml(AUTHOR_PREVIEW_FIXTURE.shortDramaParts)}">
+          <div class="su-author-preview-head">
+            <h2>Writer preview panel</h2>
+            <p>${escapeHtml(qa.partLength)} · ${escapeHtml(qa.branchSummary)} · ${escapeHtml(qa.partCount)}</p>
+          </div>
+          <div class="su-preview-grid">
+            <article class="su-preview-card" data-preview-kind="length">
+              <strong>Draft rules</strong>
+              <dl>
+                <div><dt>Part</dt><dd>${escapeHtml(AUTHOR_PREVIEW_FIXTURE.partLength)} chars</dd></div>
+                <div><dt>Branch</dt><dd>${escapeHtml(AUTHOR_PREVIEW_FIXTURE.branchSummaryLimit)} chars max</dd></div>
+                <div><dt>Short drama</dt><dd>${escapeHtml(AUTHOR_PREVIEW_FIXTURE.shortDramaParts)} parts</dd></div>
+              </dl>
+            </article>
+            <article class="su-preview-card" data-preview-kind="ending">
+              <strong>Ending setup</strong>
+              <ul>
+                ${AUTHOR_PREVIEW_FIXTURE.endings.map((ending) => `
+                  <li data-ending-state="${escapeHtml(ending.state)}">
+                    <span>${escapeHtml(ending.label)}</span>
+                    <b>${escapeHtml(ending.count)}</b>
+                    <em>${escapeHtml(ending.state)}</em>
+                  </li>
+                `).join("")}
+              </ul>
+            </article>
+            <article class="su-preview-card" data-preview-kind="safe-assets">
+              <strong>Safe scene assets</strong>
+              <dl>
+                ${AUTHOR_PREVIEW_FIXTURE.backgrounds.map((asset) => `
+                  <div data-safe-background-id="${escapeHtml(asset.assetId)}">
+                    <dt>${escapeHtml(asset.scene)}</dt>
+                    <dd>${escapeHtml(asset.assetId)} · ${escapeHtml(asset.label)}</dd>
+                  </div>
+                `).join("")}
+                ${AUTHOR_PREVIEW_FIXTURE.characters.map((asset) => `
+                  <div data-safe-character-id="${escapeHtml(asset.assetId)}">
+                    <dt>Character</dt>
+                    <dd>${escapeHtml(asset.assetId)} · ${escapeHtml(asset.label)}</dd>
+                  </div>
+                `).join("")}
+              </dl>
+            </article>
           </div>
         </section>
 
