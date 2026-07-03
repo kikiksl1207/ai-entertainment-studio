@@ -390,6 +390,8 @@
     const statusKey = sceneStatusI18nKey(activeScene);
 
     stage.dataset.sceneId = activeScene.sceneId;
+    stage.dataset.bgState = hasBackground ? "ready" : "fallback";
+    stage.dataset.hasCharacters = characterWithAsset.length > 0 ? "true" : "false";
     const bgWrap = stage.querySelector("[data-scene-bg]");
     const bgImg = stage.querySelector("[data-scene-bg-img]");
     const chars = stage.querySelector("[data-scene-characters]");
