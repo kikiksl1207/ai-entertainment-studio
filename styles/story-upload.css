@@ -618,6 +618,10 @@
     justify-content: flex-start;
   }
 
+  .su-review-status {
+    margin-top: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+
   .su-choice-row {
     grid-template-columns: 42px minmax(0, 1fr);
   }
