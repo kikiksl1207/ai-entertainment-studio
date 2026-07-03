@@ -399,14 +399,16 @@
   grid-template-columns: minmax(116px, max-content) minmax(0, 1fr);
   gap: 6px 10px;
   margin: 12px 0 0;
-  padding: 10px 0 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 10px;
+  border: 1px solid rgba(255, 180, 120, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 180, 120, 0.06);
   color: rgba(240, 238, 248, 0.82);
   font-size: 0.84rem;
 }
 
 .su-ai-fallback-evidence dt {
-  color: rgba(255, 255, 255, 0.58);
+  color: #ffd0a0;
   font-weight: 800;
 }
 
@@ -644,6 +646,32 @@
     margin-top: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 
+  .su-author-guide {
+    gap: 5px;
+    margin-top: 8px;
+    padding: 9px 10px;
+  }
+
+  .su-author-guide h3 {
+    margin-bottom: 0;
+    font-size: 13px;
+    line-height: 1.15;
+  }
+
+  .su-author-guide p {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .su-author-guide ol {
+    gap: 4px;
+  }
+
+  .su-author-guide li {
+    padding: 4px 7px;
+    font-size: 11px;
+  }
+
   .su-choice-row {
     grid-template-columns: 42px minmax(0, 1fr);
   }
@@ -659,6 +687,10 @@
   .su-import-preview {
     min-width: 640px;
     white-space: nowrap;
+  }
+
+  .su-ai-fallback-evidence {
+    grid-template-columns: 1fr;
   }
 
   .su-meta-list li,
