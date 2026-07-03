@@ -647,6 +647,53 @@ export const STORY_SCENE_FIXTURE_API_CONTRACT = {
   handoffConsumers: ['cloud', 'viewer', 'qa2'],
 } as const;
 
+export const STORY_STAGE_LIVE_FIXTURE_EXPOSURE_GUARD_CONTRACT = {
+  version: '2026-07-03.story-stage-live-fixture-exposure-guard.v1',
+  status: 'live_route_read_model_guard_only',
+  route: {
+    path: '/story-stage',
+    queryFlag: 'storySceneFixturePreview=1',
+    expectedSectionAttribute: 'data-story-stage-fixture-preview',
+    expectedCardAttribute: 'data-story-branch-fixture-card',
+  },
+  requiredChoiceCards: [
+    {
+      choice: 'A',
+      nextSceneId: 'S05',
+      stateDelta: 'infoGained + trustUp',
+      endingRoute: 'E-SUB-01',
+      backgroundState: 'bg-war-room-map',
+    },
+    {
+      choice: 'B',
+      nextSceneId: 'S06',
+      stateDelta: 'riskRaised + itemGained',
+      endingRoute: 'E-SUB-02',
+      backgroundState: 'bg-harbor-night',
+    },
+    {
+      choice: 'C',
+      nextSceneId: 'S07',
+      stateDelta: 'relationshipShift + aiFallbackCondition',
+      endingRoute: 'E-AI-01',
+      backgroundState: 'bg-fog-shore',
+    },
+  ],
+  failureConditions: [
+    'live_fixture_route_returns_zero_branch_cards',
+    'choice_card_missing_next_scene_id',
+    'choice_card_missing_state_delta',
+    'choice_card_missing_background_state',
+    'fixture_flag_not_visible_in_dom',
+  ],
+  mutationPolicy: {
+    providerCall: false,
+    storyWrite: false,
+    storyProgressMutation: false,
+    paymentMutation: false,
+  },
+} as const;
+
 export const STORY_SCENE_PROVIDER_GUARD_CONTRACT = {
   version: '2026-06-29.story-scene-provider-guard.v1',
   status: 'provider_expansion_guard_contract',
@@ -701,6 +748,7 @@ export const STORY_SCENE_READ_MODEL_CONTRACT = {
   assetFallbackErrorEnvelope:
     STORY_SCENE_ASSET_FALLBACK_ERROR_ENVELOPE_CONTRACT,
   fixtureApiContract: STORY_SCENE_FIXTURE_API_CONTRACT,
+  liveFixtureExposureGuard: STORY_STAGE_LIVE_FIXTURE_EXPOSURE_GUARD_CONTRACT,
   providerGuardContract: STORY_SCENE_PROVIDER_GUARD_CONTRACT,
   fixtures: {
     count: STORY_SCENE_FIXTURE_READ_MODELS.length,
