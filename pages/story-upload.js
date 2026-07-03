@@ -557,6 +557,7 @@
     policy: "writer-ending-missing-only",
     writerEndingConfigured: "false",
     fallbackReasonKey: "storyUpload.ending.aiFallback.writerMissing",
+    fallbackReasonLabel: "Writer ending is missing for this branch",
     providerGeneratedAtIntake: "false",
   };
 
@@ -726,7 +727,7 @@
               <dt>AI fallback condition</dt>
               <dd>writer ending missing only · allowed only when the writer has not configured an ending for this branch.</dd>
               <dt>Branch evidence</dt>
-              <dd>${escapeHtml(aiFallbackEvidence.branch)} · ${escapeHtml(aiFallbackEvidence.policy)} · ${escapeHtml(aiFallbackEvidence.fallbackReasonKey)}</dd>
+              <dd>${escapeHtml(aiFallbackEvidence.branch)} · ${escapeHtml(aiFallbackEvidence.policy)} · ${escapeHtml(aiFallbackEvidence.fallbackReasonLabel)}</dd>
               <dt>Provider generation</dt>
               <dd>${escapeHtml(aiFallbackEvidence.providerGeneratedAtIntake)}</dd>
             </dl>
@@ -739,9 +740,9 @@
                 data-writer-ending-configured="${escapeHtml(endingValidationEvidence.writerEndingConfigured)}"
                 data-provider-generated-at-intake="${escapeHtml(endingValidationEvidence.providerGeneratedAtIntake)}">
               <dt>Author ending count</dt>
-              <dd>author_main exact ${escapeHtml(endingValidationEvidence.authorMainCount)} · author_sub ${escapeHtml(endingValidationEvidence.authorSubMin)}-${escapeHtml(endingValidationEvidence.authorSubMax)} when provided</dd>
+              <dd>Writer main ending exact ${escapeHtml(endingValidationEvidence.authorMainCount)} · writer sub ending ${escapeHtml(endingValidationEvidence.authorSubMin)}-${escapeHtml(endingValidationEvidence.authorSubMax)} when provided</dd>
               <dt>AI fallback evidence</dt>
-              <dd>${escapeHtml(endingValidationEvidence.aiFallbackPolicy)} · writerEndingConfigured=${escapeHtml(endingValidationEvidence.writerEndingConfigured)} · providerGeneratedAtIntake=${escapeHtml(endingValidationEvidence.providerGeneratedAtIntake)}</dd>
+              <dd>${escapeHtml(endingValidationEvidence.aiFallbackPolicy)} · writer ending configured=${escapeHtml(endingValidationEvidence.writerEndingConfigured)} · provider generated at intake=${escapeHtml(endingValidationEvidence.providerGeneratedAtIntake)}</dd>
             </dl>
           </div>
         </section>

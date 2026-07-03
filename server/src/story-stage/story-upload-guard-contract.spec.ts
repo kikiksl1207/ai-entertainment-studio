@@ -543,6 +543,33 @@ describe('Story upload backend guard contracts', () => {
       authorSubMin: '2',
       authorSubMax: '10',
     });
+    expect(
+      STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT
+        .publicEvidenceLabels,
+    ).toMatchObject({
+      fallbackReason: 'Writer ending is missing for this branch',
+      authorMainCount: 'Writer main ending exact 1',
+      authorSubRange: 'writer sub ending 2-10 when provided',
+    });
+    expect(
+      STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT
+        .visibleTextMustNotContain,
+    ).toEqual(
+      expect.arrayContaining([
+        'storyUpload.ending.aiFallback.writerMissing',
+        'author_main',
+        'author_sub',
+        'ai_fallback',
+      ]),
+    );
+    expect(
+      STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT.failureConditions,
+    ).toEqual(
+      expect.arrayContaining([
+        'raw_ai_fallback_reason_key_visible',
+        'raw_ending_enum_visible_in_evidence',
+      ]),
+    );
   });
 
   it('guards import preview public labels for #1610', () => {

@@ -625,11 +625,24 @@ export const STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT = {
     authorSubMin: '2',
     authorSubMax: '10',
   },
+  publicEvidenceLabels: {
+    fallbackReason: 'Writer ending is missing for this branch',
+    authorMainCount: 'Writer main ending exact 1',
+    authorSubRange: 'writer sub ending 2-10 when provided',
+  },
+  visibleTextMustNotContain: [
+    'storyUpload.ending.aiFallback.writerMissing',
+    'author_main',
+    'author_sub',
+    'ai_fallback',
+  ],
   failureConditions: [
     'live_ai_fallback_evidence_missing',
     'writer_ending_configured_not_false_for_ai_fallback',
     'provider_generated_at_intake_not_false',
     'author_count_evidence_missing',
+    'raw_ai_fallback_reason_key_visible',
+    'raw_ending_enum_visible_in_evidence',
     'ai_fallback_visible_as_author_owned_ending',
   ],
   mutationPolicy: {
