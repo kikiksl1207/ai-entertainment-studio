@@ -546,9 +546,9 @@
   ];
 
   const importRows = [
-    { scene: "S01", branch: "ROOT", ending: "author_main", part: "10", summary: "<= 2,000", state: "ok" },
-    { scene: "S05", branch: "B-A", ending: "author_sub", part: "10", summary: "<= 2,000", state: "ok" },
-    { scene: "S07", branch: "B-C", ending: "ai_fallback", part: "10", summary: "<= 2,000", state: "pm" },
+    { scene: "S01", branch: "ROOT", ending: "author_main", part: "10", summary: "<= 2,000", state: "ok", writerEndingConfigured: true },
+    { scene: "S05", branch: "B-A", ending: "author_sub", part: "10", summary: "<= 2,000", state: "ok", writerEndingConfigured: true },
+    { scene: "S07", branch: "B-C", ending: "ai_fallback", part: "10", summary: "<= 2,000", state: "pm", writerEndingConfigured: false },
   ];
 
   const aiFallbackEvidence = {
@@ -558,6 +558,20 @@
     writerEndingConfigured: "false",
     fallbackReasonKey: "storyUpload.ending.aiFallback.writerMissing",
     providerGeneratedAtIntake: "false",
+  };
+
+  const endingDisplayLabels = {
+    author_main: "Writer main ending",
+    author_sub: "Writer sub ending",
+    ai_fallback: "AI fallback ending",
+    ai: "AI fallback ending",
+  };
+
+  const endingPolicyLabels = {
+    author_main: "writer-route-wins",
+    author_sub: "writer-route-wins",
+    ai_fallback: "writer-ending-missing-only",
+    ai: "writer-ending-missing-only",
   };
 
   const localeMap = {
@@ -578,6 +592,18 @@
 
   function field(label, value) {
     return `<li><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></li>`;
+  }
+
+  function endingLabel(type) {
+    return endingDisplayLabels[type] || "Ending route pending";
+  }
+
+  function endingPolicy(type) {
+    return endingPolicyLabels[type] || "writer-route-pending";
+  }
+
+  function writerEndingConfigured(type) {
+    return type === "ai" || type === "ai_fallback" ? "false" : "true";
   }
 
   function renderAuthorGuide(qa) {
@@ -657,8 +683,20 @@
             <h2>${escapeHtml(locale.endings)}</h2>
             <div class="su-ending-summary su-ending-cards">
               ${qa.endingCards.map((ending) => `
-                <article class="su-ending-card" data-ending="${escapeHtml(ending.type)}">
-                  <span class="su-ending-badge" data-ending="${escapeHtml(ending.type)}">${escapeHtml(ending.title)}</span>
+                <article
+                  class="su-ending-card"
+                  data-ending="${escapeHtml(ending.type)}"
+                  data-ai-fallback-policy="${escapeHtml(endingPolicy(ending.type))}"
+                  data-writer-ending-configured="${writerEndingConfigured(ending.type)}"
+                  data-provider-generated-at-intake="false"
+                >
+                  <span
+                    class="su-ending-badge"
+                    data-ending="${escapeHtml(ending.type)}"
+                    data-ai-fallback-policy="${escapeHtml(endingPolicy(ending.type))}"
+                    data-writer-ending-configured="${writerEndingConfigured(ending.type)}"
+                    data-provider-generated-at-intake="false"
+                  >${escapeHtml(ending.title)}</span>
                   <p>${escapeHtml(ending.body)}</p>
                 </article>
               `).join("")}
@@ -672,7 +710,8 @@
             <dl class="su-ai-fallback-evidence"
                 data-ending="${escapeHtml(aiFallbackEvidence.ending)}"
                 data-ai-fallback-policy="writer-ending-missing-only"
-                data-writer-ending-configured="false">
+                data-writer-ending-configured="false"
+                data-provider-generated-at-intake="false">
               <dt>AI fallback condition</dt>
               <dd>Allowed only when the writer has not configured an ending for this branch.</dd>
               <dt>Branch evidence</dt>
@@ -742,10 +781,15 @@
               <thead><tr>${qa.importHead.map((head) => `<th>${escapeHtml(head)}</th>`).join("")}</tr></thead>
               <tbody>
                 ${importRows.map((row) => `
-                  <tr>
+                  <tr
+                    data-ending-type="${escapeHtml(row.ending)}"
+                    data-ai-fallback-policy="${escapeHtml(endingPolicy(row.ending))}"
+                    data-writer-ending-configured="${row.writerEndingConfigured === true ? "true" : "false"}"
+                    data-provider-generated-at-intake="false"
+                  >
                     <td>${escapeHtml(row.scene)}</td>
                     <td>${escapeHtml(row.branch)}</td>
-                    <td>${escapeHtml(row.ending)}</td>
+                    <td>${escapeHtml(endingLabel(row.ending))}</td>
                     <td>${escapeHtml(row.part)}</td>
                     <td>${escapeHtml(row.summary)}</td>
                     <td>${escapeHtml(locale.importState[row.state])}</td>
