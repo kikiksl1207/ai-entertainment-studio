@@ -394,7 +394,8 @@
   font-weight: 800;
 }
 
-.su-ai-fallback-evidence {
+.su-ai-fallback-evidence,
+.su-ending-validation-evidence {
   display: grid;
   grid-template-columns: minmax(116px, max-content) minmax(0, 1fr);
   gap: 6px 10px;
@@ -412,7 +413,13 @@
   font-weight: 800;
 }
 
-.su-ai-fallback-evidence dd {
+.su-ending-validation-evidence dt {
+  color: rgba(255, 255, 255, 0.58);
+  font-weight: 800;
+}
+
+.su-ai-fallback-evidence dd,
+.su-ending-validation-evidence dd {
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;

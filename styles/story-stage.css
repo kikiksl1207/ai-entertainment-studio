@@ -490,6 +490,75 @@
   gap: 10px;
 }
 
+.story-branch-implementation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.story-branch-implementation-card {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(129, 140, 248, 0.2);
+  border-radius: 8px;
+  background: rgba(12, 13, 28, 0.68);
+}
+
+.story-branch-implementation-card strong,
+.story-branch-implementation-card span,
+.story-branch-implementation-card p,
+.story-branch-implementation-card dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.story-branch-implementation-card strong {
+  color: #dbe3ff;
+  font-size: 14px;
+}
+
+.story-branch-implementation-card span {
+  color: var(--ink, #f0eef8);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.story-branch-implementation-card p {
+  margin: 0;
+  color: rgba(230, 222, 246, 0.76);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.story-branch-implementation-card dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.story-branch-implementation-card dl div {
+  display: grid;
+  grid-template-columns: minmax(78px, max-content) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.story-branch-implementation-card dt {
+  color: rgba(230, 222, 246, 0.54);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.story-branch-implementation-card dd {
+  margin: 0;
+  color: rgba(240, 238, 248, 0.86);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .scene-bg,
 .scene-characters {
   position: absolute;
@@ -1201,7 +1270,8 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .story-branch-grid {
+  .story-branch-grid,
+  .story-branch-implementation-grid {
     grid-template-columns: 1fr;
   }
 }
