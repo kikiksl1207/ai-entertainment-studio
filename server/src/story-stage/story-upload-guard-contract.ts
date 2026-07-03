@@ -77,6 +77,19 @@ export const STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT = {
     allowedOnlyWhenWriterBranchMissing: true,
     mayReplaceAuthorEnding: false,
     source: 'server_marked_unresolved_branch_fallback',
+    requiredAuthorUnsetEvidence: {
+      branchIdField: 'branchId',
+      writerEndingConfiguredField: 'writerEndingConfigured',
+      writerEndingConfiguredRequiredValue: false,
+      fallbackReasonKey: 'storyUpload.ending.aiFallback.writerMissing',
+      providerGeneratedAtIntake: false,
+    },
+    publicFixtureState: {
+      endingType: 'ai_fallback',
+      authorConfiguredEndingId: null,
+      fallbackAllowedOnlyBecauseWriterEndingMissing: true,
+      mutationExecuted: false,
+    },
   },
   displaySeparation: {
     authorMainLabelKey: 'storyUpload.ending.authorMain',
@@ -84,6 +97,104 @@ export const STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT = {
     aiFallbackLabelKey: 'storyUpload.ending.aiFallback',
     aiFallbackMustNotUseAuthorBadge: true,
   },
+  validationFailureConditions: [
+    'ai_fallback_without_author_unset_branch_evidence',
+    'ai_fallback_saved_as_author_ending',
+    'author_main_count_not_exactly_one',
+    'author_sub_count_outside_2_to_10_when_present',
+  ],
+  mutationPolicy: {
+    providerGeneration: false,
+    storyWrite: false,
+    publishMutation: false,
+  },
+} as const;
+
+export const STORY_BRANCH_RESULT_STATE_BACKEND_GUARD_CONTRACT = {
+  version: '2026-07-02.story-branch-result-state-backend-guard.v1',
+  status: 'read_model_contract_only',
+  resultDifferenceAxes: [
+    'event',
+    'relationship',
+    'risk',
+    'item',
+    'information',
+    'ending_condition',
+  ],
+  requiredChoiceEvidenceFields: [
+    'choiceId',
+    'nextSceneId',
+    'choiceBodyKey',
+    'resultDeltaKeys',
+    'resultStateKey',
+  ],
+  failureConditions: [
+    'all_choices_share_same_next_scene_body_and_result',
+    'choice_missing_result_state_key',
+    'rejoin_without_pre_rejoin_difference',
+  ],
+  rejoinPolicy: {
+    rejoinAllowed: true,
+    differenceBeforeRejoinRequired: true,
+    minimumDifferentAxesBeforeRejoin: 1,
+  },
+  mutationPolicy: {
+    storyWrite: false,
+    storyProgressMutation: false,
+    providerCall: false,
+    paymentMutation: false,
+  },
+} as const;
+
+export const STORY_PART_LENGTH_POLICY_CONTRACT = {
+  version: '2026-07-02.story-part-length-policy.v1',
+  status: 'read_model_contract_only',
+  partTextCharactersTarget: 10_000,
+  branchSummaryCharactersMax: 2_000,
+  defaultShortPlayPartCount: 10,
+  defaultShortPlayUnit: 'ten_part_short_drama',
+  fieldSeparation: {
+    manuscriptBodyField: 'partBodyKey',
+    branchSummaryField: 'branchSummaryKey',
+    branchSummaryMayReplaceManuscriptBody: false,
+  },
+  mobileStatusKeys: [
+    'storyUpload.length.partTarget',
+    'storyUpload.length.branchSummaryLimit',
+    'storyUpload.length.tenPartShortDrama',
+  ],
+  mutationPolicy: {
+    storyWrite: false,
+    providerCall: false,
+    paymentMutation: false,
+  },
+} as const;
+
+export const AUTHOR_SUB_ENDING_COUNT_VALIDATION_GUARD_CONTRACT = {
+  version: '2026-07-02.author-sub-ending-count-validation-guard.v1',
+  status: 'validation_contract_only',
+  authorMain: {
+    required: true,
+    exactCount: 1,
+  },
+  authorSub: {
+    required: false,
+    minWhenProvided: 2,
+    maxWhenProvided: 10,
+  },
+  aiFallback: {
+    allowedOnlyWhenWriterBranchMissing: true,
+    writerAuthored: false,
+    providerGenerationAtValidation: false,
+  },
+  validationOrder: [
+    'count_author_main_endings',
+    'count_author_sub_endings_when_present',
+    'verify_ai_fallback_has_author_unset_branch_evidence',
+    'reject_ai_fallback_if_saved_or_labeled_as_author_ending',
+  ],
+  failureConditions:
+    STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT.validationFailureConditions,
   mutationPolicy: {
     providerGeneration: false,
     storyWrite: false,
@@ -160,6 +271,34 @@ export const STORY_HIATUS_PENALTY_PENDING_VALUES_GUARD_CONTRACT = {
     settlementMutation: false,
     refundMutation: false,
     walletMutation: false,
+    payoutMutation: false,
+    paymentMutation: false,
+  },
+} as const;
+
+export const STORY_UPLOAD_PENDING_DECISION_AUDIT_GUARD_CONTRACT = {
+  version: '2026-07-02.story-upload-pending-decision-audit-guard.v1',
+  status: 'audit_read_model_contract_only',
+  pendingDecisionKeys:
+    STORY_HIATUS_PENALTY_PENDING_VALUES_GUARD_CONTRACT.pendingDecisionKeys,
+  auditProjectionFields: [
+    'decisionKey',
+    'status',
+    'ownerRole',
+    'reviewStatusKey',
+    'updatedAt',
+  ],
+  allowedStatusKeys: ['pending_pm_decision', 'approved', 'rejected'],
+  forbiddenDefaulting: {
+    longHiatusDayThreshold: true,
+    firstWarningDay: true,
+    settlementRateReductionSteps: true,
+    partialRefundFormula: true,
+  },
+  mutationPolicy: {
+    refundMutation: false,
+    walletMutation: false,
+    settlementMutation: false,
     payoutMutation: false,
     paymentMutation: false,
   },
@@ -259,9 +398,15 @@ export const STORY_UPLOAD_BACKEND_GUARD_CONTRACT = {
   status: 'contract_bundle_only',
   intakeStorageGuard: STORY_UPLOAD_INTAKE_STORAGE_GUARD_CONTRACT,
   endingTypePolicy: STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT,
+  branchResultStateGuard: STORY_BRANCH_RESULT_STATE_BACKEND_GUARD_CONTRACT,
+  partLengthPolicy: STORY_PART_LENGTH_POLICY_CONTRACT,
+  authorSubEndingCountValidation:
+    AUTHOR_SUB_ENDING_COUNT_VALIDATION_GUARD_CONTRACT,
   publicSourceSafetyGuard: STORY_UPLOAD_PUBLIC_SOURCE_SAFETY_GUARD_CONTRACT,
   hiatusPenaltyPendingValuesGuard:
     STORY_HIATUS_PENALTY_PENDING_VALUES_GUARD_CONTRACT,
+  pendingDecisionAuditGuard:
+    STORY_UPLOAD_PENDING_DECISION_AUDIT_GUARD_CONTRACT,
   fixturePrivacyGuard: STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT,
   sensitiveFieldGuard: {
     forbiddenFields: STORY_UPLOAD_GUARD_FORBIDDEN_FIELDS,

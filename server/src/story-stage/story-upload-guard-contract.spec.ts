@@ -1,11 +1,15 @@
 import {
+  AUTHOR_SUB_ENDING_COUNT_VALIDATION_GUARD_CONTRACT,
   findStoryUploadSensitiveFieldViolations,
+  STORY_BRANCH_RESULT_STATE_BACKEND_GUARD_CONTRACT,
   STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT,
   STORY_HIATUS_PENALTY_PENDING_VALUES_GUARD_CONTRACT,
+  STORY_PART_LENGTH_POLICY_CONTRACT,
   STORY_STAGE_CONTRACT,
   STORY_UPLOAD_BACKEND_GUARD_CONTRACT,
   STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT,
   STORY_UPLOAD_INTAKE_STORAGE_GUARD_CONTRACT,
+  STORY_UPLOAD_PENDING_DECISION_AUDIT_GUARD_CONTRACT,
   STORY_UPLOAD_PUBLIC_SOURCE_SAFETY_GUARD_CONTRACT,
 } from './story-stage-contract';
 
@@ -18,9 +22,15 @@ describe('Story upload backend guard contracts', () => {
       status: 'contract_bundle_only',
       intakeStorageGuard: STORY_UPLOAD_INTAKE_STORAGE_GUARD_CONTRACT,
       endingTypePolicy: STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT,
+      branchResultStateGuard: STORY_BRANCH_RESULT_STATE_BACKEND_GUARD_CONTRACT,
+      partLengthPolicy: STORY_PART_LENGTH_POLICY_CONTRACT,
+      authorSubEndingCountValidation:
+        AUTHOR_SUB_ENDING_COUNT_VALIDATION_GUARD_CONTRACT,
       publicSourceSafetyGuard: STORY_UPLOAD_PUBLIC_SOURCE_SAFETY_GUARD_CONTRACT,
       hiatusPenaltyPendingValuesGuard:
         STORY_HIATUS_PENALTY_PENDING_VALUES_GUARD_CONTRACT,
+      pendingDecisionAuditGuard:
+        STORY_UPLOAD_PENDING_DECISION_AUDIT_GUARD_CONTRACT,
       fixturePrivacyGuard: STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT,
     });
     expect(
@@ -81,11 +91,116 @@ describe('Story upload backend guard contracts', () => {
     expect(STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT.aiFallback).toMatchObject({
       allowedOnlyWhenWriterBranchMissing: true,
       mayReplaceAuthorEnding: false,
+      requiredAuthorUnsetEvidence: {
+        branchIdField: 'branchId',
+        writerEndingConfiguredField: 'writerEndingConfigured',
+        writerEndingConfiguredRequiredValue: false,
+        fallbackReasonKey: 'storyUpload.ending.aiFallback.writerMissing',
+        providerGeneratedAtIntake: false,
+      },
+      publicFixtureState: {
+        endingType: 'ai_fallback',
+        authorConfiguredEndingId: null,
+        fallbackAllowedOnlyBecauseWriterEndingMissing: true,
+        mutationExecuted: false,
+      },
     });
     expect(
       STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT.displaySeparation
         .aiFallbackMustNotUseAuthorBadge,
     ).toBe(true);
+    expect(
+      STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT.validationFailureConditions,
+    ).toEqual(
+      expect.arrayContaining([
+        'ai_fallback_without_author_unset_branch_evidence',
+        'ai_fallback_saved_as_author_ending',
+        'author_sub_count_outside_2_to_10_when_present',
+      ]),
+    );
+  });
+
+  it('requires branch result state differences before choices rejoin', () => {
+    expect(
+      STORY_BRANCH_RESULT_STATE_BACKEND_GUARD_CONTRACT.resultDifferenceAxes,
+    ).toEqual([
+      'event',
+      'relationship',
+      'risk',
+      'item',
+      'information',
+      'ending_condition',
+    ]);
+    expect(
+      STORY_BRANCH_RESULT_STATE_BACKEND_GUARD_CONTRACT
+        .requiredChoiceEvidenceFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'choiceId',
+        'nextSceneId',
+        'choiceBodyKey',
+        'resultDeltaKeys',
+        'resultStateKey',
+      ]),
+    );
+    expect(
+      STORY_BRANCH_RESULT_STATE_BACKEND_GUARD_CONTRACT.failureConditions,
+    ).toEqual(
+      expect.arrayContaining([
+        'all_choices_share_same_next_scene_body_and_result',
+        'rejoin_without_pre_rejoin_difference',
+      ]),
+    );
+    expect(
+      STORY_BRANCH_RESULT_STATE_BACKEND_GUARD_CONTRACT.rejoinPolicy,
+    ).toMatchObject({
+      rejoinAllowed: true,
+      differenceBeforeRejoinRequired: true,
+      minimumDifferentAxesBeforeRejoin: 1,
+    });
+  });
+
+  it('keeps part length and branch summary limits as separate read-model fields', () => {
+    expect(STORY_PART_LENGTH_POLICY_CONTRACT).toMatchObject({
+      partTextCharactersTarget: 10_000,
+      branchSummaryCharactersMax: 2_000,
+      defaultShortPlayPartCount: 10,
+      defaultShortPlayUnit: 'ten_part_short_drama',
+      fieldSeparation: {
+        manuscriptBodyField: 'partBodyKey',
+        branchSummaryField: 'branchSummaryKey',
+        branchSummaryMayReplaceManuscriptBody: false,
+      },
+    });
+    expect(STORY_PART_LENGTH_POLICY_CONTRACT.mobileStatusKeys).toEqual([
+      'storyUpload.length.partTarget',
+      'storyUpload.length.branchSummaryLimit',
+      'storyUpload.length.tenPartShortDrama',
+    ]);
+  });
+
+  it('validates author main/sub ending counts without provider generation', () => {
+    expect(AUTHOR_SUB_ENDING_COUNT_VALIDATION_GUARD_CONTRACT).toMatchObject({
+      authorMain: { required: true, exactCount: 1 },
+      authorSub: {
+        required: false,
+        minWhenProvided: 2,
+        maxWhenProvided: 10,
+      },
+      aiFallback: {
+        allowedOnlyWhenWriterBranchMissing: true,
+        writerAuthored: false,
+        providerGenerationAtValidation: false,
+      },
+    });
+    expect(
+      AUTHOR_SUB_ENDING_COUNT_VALIDATION_GUARD_CONTRACT.validationOrder,
+    ).toEqual([
+      'count_author_main_endings',
+      'count_author_sub_endings_when_present',
+      'verify_ai_fallback_has_author_unset_branch_evidence',
+      'reject_ai_fallback_if_saved_or_labeled_as_author_ending',
+    ]);
   });
 
   it('requires PM review flags for public-source uncertainty and modern references', () => {
@@ -142,6 +257,24 @@ describe('Story upload backend guard contracts', () => {
       alreadyCompletedChapterRateLocked: true,
       retroactivePenaltyOnCompletedChapters: false,
       settledOrPayoutRowsRewritten: false,
+    });
+    expect(STORY_UPLOAD_PENDING_DECISION_AUDIT_GUARD_CONTRACT).toMatchObject({
+      pendingDecisionKeys:
+        STORY_HIATUS_PENALTY_PENDING_VALUES_GUARD_CONTRACT.pendingDecisionKeys,
+      auditProjectionFields: [
+        'decisionKey',
+        'status',
+        'ownerRole',
+        'reviewStatusKey',
+        'updatedAt',
+      ],
+      allowedStatusKeys: ['pending_pm_decision', 'approved', 'rejected'],
+      forbiddenDefaulting: {
+        longHiatusDayThreshold: true,
+        firstWarningDay: true,
+        settlementRateReductionSteps: true,
+        partialRefundFormula: true,
+      },
     });
   });
 

@@ -551,6 +551,15 @@
     { scene: "S07", branch: "B-C", ending: "ai_fallback", part: "10", summary: "<= 2,000", state: "pm" },
   ];
 
+  const aiFallbackEvidence = {
+    branch: "B-C",
+    ending: "ai_fallback",
+    policy: "writer_ending_missing_only",
+    writerEndingConfigured: "false",
+    fallbackReasonKey: "storyUpload.ending.aiFallback.writerMissing",
+    providerGeneratedAtIntake: "false",
+  };
+
   const localeMap = {
     ko: "ko-KR",
     en: "en-US",
@@ -660,6 +669,17 @@
                 ${qa.endings.map((ending) => `<li>${escapeHtml(ending)}</li>`).join("")}
               </ul>
             </details>
+            <dl class="su-ai-fallback-evidence"
+                data-ending="${escapeHtml(aiFallbackEvidence.ending)}"
+                data-ai-fallback-policy="writer-ending-missing-only"
+                data-writer-ending-configured="false">
+              <dt>AI fallback condition</dt>
+              <dd>Allowed only when the writer has not configured an ending for this branch.</dd>
+              <dt>Branch evidence</dt>
+              <dd>${escapeHtml(aiFallbackEvidence.branch)} · ${escapeHtml(aiFallbackEvidence.policy)} · ${escapeHtml(aiFallbackEvidence.fallbackReasonKey)}</dd>
+              <dt>Provider generation</dt>
+              <dd>${escapeHtml(aiFallbackEvidence.providerGeneratedAtIntake)}</dd>
+            </dl>
           </div>
         </section>
 
