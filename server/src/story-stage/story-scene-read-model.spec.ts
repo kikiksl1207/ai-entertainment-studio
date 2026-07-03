@@ -20,6 +20,7 @@ import {
   STORY_SCENE_FIXTURE_LOCALE_FIELD_CONTRACT,
   STORY_SCENE_PROVIDER_GUARD_CONTRACT,
   STORY_SCENE_READ_MODEL_CONTRACT,
+  STORY_STAGE_LIVE_FIXTURE_EXPOSURE_GUARD_CONTRACT,
 } from './story-scene-read-model';
 import { STORY_STAGE_CONTRACT } from './story-stage-contract';
 
@@ -56,6 +57,50 @@ describe('Story scene read model fixtures', () => {
         findStorySceneProviderGuardViolations(fixture),
       ).toHaveLength(0);
     }
+  });
+
+  it('guards live story-stage fixture cards for #1608 without mutations', () => {
+    expect(STORY_SCENE_READ_MODEL_CONTRACT.liveFixtureExposureGuard).toBe(
+      STORY_STAGE_LIVE_FIXTURE_EXPOSURE_GUARD_CONTRACT,
+    );
+    expect(STORY_STAGE_LIVE_FIXTURE_EXPOSURE_GUARD_CONTRACT.route).toMatchObject({
+      path: '/story-stage',
+      queryFlag: 'storySceneFixturePreview=1',
+      expectedSectionAttribute: 'data-story-stage-fixture-preview',
+      expectedCardAttribute: 'data-story-branch-fixture-card',
+    });
+    expect(
+      STORY_STAGE_LIVE_FIXTURE_EXPOSURE_GUARD_CONTRACT.requiredChoiceCards,
+    ).toEqual([
+      expect.objectContaining({
+        choice: 'A',
+        nextSceneId: 'S05',
+        backgroundState: 'bg-war-room-map',
+      }),
+      expect.objectContaining({
+        choice: 'B',
+        nextSceneId: 'S06',
+        backgroundState: 'bg-harbor-night',
+      }),
+      expect.objectContaining({
+        choice: 'C',
+        nextSceneId: 'S07',
+        backgroundState: 'bg-fog-shore',
+      }),
+    ]);
+    expect(
+      STORY_STAGE_LIVE_FIXTURE_EXPOSURE_GUARD_CONTRACT.failureConditions,
+    ).toEqual(
+      expect.arrayContaining([
+        'live_fixture_route_returns_zero_branch_cards',
+        'fixture_flag_not_visible_in_dom',
+      ]),
+    );
+    expect(
+      Object.values(
+        STORY_STAGE_LIVE_FIXTURE_EXPOSURE_GUARD_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
   });
 
   it('covers ready, characterless, and fallback scene combinations', () => {

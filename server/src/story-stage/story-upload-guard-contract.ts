@@ -1,4 +1,8 @@
 import { STORY_ROUTE_SUPPORTED_LOCALE_SLOTS } from './story-route-relocation-contract';
+import {
+  STORY_UPLOAD_IMPORT_EXPORT_MIGRATION_CONTRACT,
+  STORY_UPLOAD_REVIEW_STATUSES,
+} from './story-upload-intake-contract';
 
 export const STORY_UPLOAD_ENDING_TYPES = [
   'author_main',
@@ -84,6 +88,11 @@ export const STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT = {
       fallbackReasonKey: 'storyUpload.ending.aiFallback.writerMissing',
       providerGeneratedAtIntake: false,
     },
+    publicDomEvidenceAttributes: [
+      'data-ai-fallback-policy',
+      'data-writer-ending-configured',
+      'data-provider-generated-at-intake',
+    ],
     publicFixtureState: {
       endingType: 'ai_fallback',
       authorConfiguredEndingId: null,
@@ -186,6 +195,18 @@ export const AUTHOR_SUB_ENDING_COUNT_VALIDATION_GUARD_CONTRACT = {
     allowedOnlyWhenWriterBranchMissing: true,
     writerAuthored: false,
     providerGenerationAtValidation: false,
+  },
+  publicFixtureEvidence: {
+    authorMainCountAttribute: 'data-author-main-count',
+    authorMainExpectedCount: 1,
+    authorSubCountAttribute: 'data-author-sub-count',
+    authorSubMinAttribute: 'data-author-sub-min',
+    authorSubMaxAttribute: 'data-author-sub-max',
+    authorSubMin: 2,
+    authorSubMax: 10,
+    aiFallbackPolicyAttribute: 'data-ai-fallback-policy',
+    writerEndingConfiguredAttribute: 'data-writer-ending-configured',
+    providerGeneratedAtIntakeAttribute: 'data-provider-generated-at-intake',
   },
   validationOrder: [
     'count_author_main_endings',
@@ -345,6 +366,321 @@ export const STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT = {
   },
 } as const;
 
+export const STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT = {
+  version: '2026-07-03.story-branch-graph-cycle-guard.v1',
+  status: 'read_model_contract_only',
+  graphModel: {
+    rootSceneRequired: true,
+    treeRootBranchingIsDefault: true,
+    rejoinAllowed: true,
+    rejoinRequiresPreRejoinDifference: true,
+    terminalEndingSceneRequiredForEveryReachablePath: true,
+  },
+  traversalProjectionFields: [
+    'storyUploadId',
+    'rootSceneId',
+    'sceneId',
+    'choiceId',
+    'nextSceneId',
+    'mergeTargetSceneId',
+    'resultStateKey',
+    'resultDeltaKeys',
+    'reachableFromRoot',
+    'cycleGroupId',
+  ],
+  resultDifferenceAxes: [
+    'event',
+    'relationship',
+    'risk',
+    'item',
+    'information',
+    'ending_condition',
+  ],
+  failureConditions: [
+    'unreachable_scene_from_root',
+    'cycle_without_terminal_escape',
+    'self_loop_without_progress_or_terminal_condition',
+    'branch_without_next_scene_or_merge_target',
+    'all_choices_immediately_rejoin_same_scene_body_and_result',
+    'rejoin_without_pre_rejoin_result_difference',
+  ],
+  mutationPolicy: {
+    storyWrite: false,
+    progressWrite: false,
+    providerCall: false,
+    paymentMutation: false,
+  },
+} as const;
+
+export const STORY_ENDING_OWNERSHIP_GUARD_CONTRACT = {
+  version: '2026-07-03.story-ending-ownership-guard.v1',
+  status: 'ownership_guard_contract_only',
+  endingTypes: STORY_UPLOAD_ENDING_TYPES,
+  ownershipProjectionFields: [
+    'endingId',
+    'endingType',
+    'ownerSource',
+    'writerEndingConfigured',
+    'authorUnsetBranchEvidenceKey',
+    'providerGeneratedAtIntake',
+    'labelKey',
+  ],
+  ownerSourceMap: {
+    author_main: 'writer_declared_primary_ending',
+    author_sub: 'writer_declared_optional_sub_ending',
+    ai_fallback: 'server_marked_unresolved_branch_fallback',
+  },
+  aiFallbackRules: {
+    requiresAuthorUnsetBranchEvidence: true,
+    mayAttachToAuthorOwnedEndingRoute: false,
+    mayReplaceAuthorEnding: false,
+    savedAsAuthorEnding: false,
+    providerPayloadExported: false,
+  },
+  failureConditions: [
+    'ai_fallback_without_author_unset_branch_evidence',
+    'ai_fallback_saved_with_author_owner_source',
+    'author_ending_route_contains_ai_fallback_override',
+    'ending_type_owner_source_mismatch',
+    'provider_payload_exported_for_ending',
+  ],
+  mutationPolicy: {
+    providerGeneration: false,
+    storyWrite: false,
+    publishMutation: false,
+    paymentMutation: false,
+  },
+} as const;
+
+export const STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT = {
+  version: '2026-07-03.story-scene-asset-reference-guard.v1',
+  status: 'public_reference_guard_contract_only',
+  allowedPublicReferenceFields: [
+    'assetId',
+    'publicPath',
+    'status',
+    'fallbackKey',
+    'labelKey',
+    'width',
+    'height',
+  ],
+  allowedStatuses: ['ready', 'loading', 'missing', 'fallback', 'blocked'],
+  sceneProjectionFields: [
+    'sceneId',
+    'backgroundRef',
+    'characterAssetRefs',
+    'assetStatusKey',
+    'fallbackKey',
+  ],
+  forbiddenFixtureFields: [
+    'signedUrl',
+    'privateStoragePath',
+    'storageKey',
+    'providerPayload',
+    'rawProviderPayload',
+    'internalAccountId',
+    'rawAccountId',
+    'rawEmail',
+  ],
+  failureConditions: [
+    'signed_url_exported',
+    'private_storage_path_exported',
+    'provider_payload_exported',
+    'internal_account_id_exported',
+    'asset_reference_missing_public_path_or_status',
+  ],
+  mutationPolicy: {
+    imageGeneration: false,
+    uploadIntentCreate: false,
+    assetUpload: false,
+    providerCall: false,
+    storyWrite: false,
+  },
+} as const;
+
+export const STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT = {
+  version: '2026-07-03.story-upload-review-state-transition-guard.v1',
+  status: 'workflow_transition_guard_contract_only',
+  statuses: STORY_UPLOAD_REVIEW_STATUSES,
+  allowedTransitions: [
+    ['draft', 'pm_review'],
+    ['pm_review', 'needs_revision'],
+    ['pm_review', 'locale_ready'],
+    ['pm_review', 'blocked'],
+    ['needs_revision', 'pm_review'],
+    ['locale_ready', 'qa_ready'],
+    ['qa_ready', 'publish_ready'],
+    ['blocked', 'pm_review'],
+  ],
+  transitionGates: {
+    publishReady: {
+      from: 'qa_ready',
+      requiresQaPass: true,
+      requiresNoBlockerReason: true,
+      messageKey: 'storyUpload.review.publishReadyRequiresQaPass',
+    },
+    blocked: {
+      requiresBlockerReasonKey: true,
+      allowedReasonKeyPrefix: 'storyUpload.blocker.',
+      messageKey: 'storyUpload.review.blockedReasonRequired',
+    },
+    localeReady: {
+      requiresI18nKeyPackage: true,
+      rawCopyAsStatusAllowed: false,
+    },
+  },
+  failureConditions: [
+    'publish_ready_without_qa_pass',
+    'publish_ready_from_non_qa_ready_state',
+    'blocked_without_blocker_reason_key',
+    'unknown_review_status_key',
+    'raw_status_copy_returned_to_client',
+  ],
+  mutationPolicy: {
+    publishMutation: false,
+    providerCall: false,
+    paymentMutation: false,
+    walletMutation: false,
+  },
+} as const;
+
+export const STORY_IMPORT_EXPORT_SCHEMA_VERSION_GUARD_CONTRACT = {
+  version: '2026-07-03.story-import-export-schema-version-guard.v1',
+  status: 'schema_version_guard_contract_only',
+  currentSchemaVersion: '2026-07-03.story-upload-import-export.v2',
+  requiredTopLevelFields: [
+    'schemaVersion',
+    'work',
+    'parts',
+    'scenes',
+    'branches',
+    'endings',
+    'backgrounds',
+    'review',
+  ],
+  requiredNestedFields: {
+    parts: ['partId', 'partIndex', 'partBodyKey'],
+    scenes: ['sceneId', 'partId', 'bodyKey', 'backgroundRef'],
+    branches: ['branchId', 'choiceId', 'sourceSceneId', 'nextSceneId'],
+    endings: ['endingId', 'endingType', 'ownerSource', 'labelKey'],
+    backgrounds: ['backgroundId', 'publicPath', 'status', 'fallbackKey'],
+  },
+  exportAllowlist:
+    STORY_UPLOAD_IMPORT_EXPORT_MIGRATION_CONTRACT.exportFieldAllowlist,
+  importCompatibility: {
+    missingSchemaVersion: {
+      action: 'block_import_until_manual_mapping',
+      blockedFields: ['branches', 'endings', 'backgrounds'],
+    },
+    legacyV1MissingBackgroundRef: {
+      action: 'normalize_to_missing_background_fallback',
+      normalizedFields: ['backgroundRef', 'fallbackKey', 'status'],
+    },
+    legacyV1MissingEndingOwner: {
+      action: 'block_publish_ready_until_owner_source_resolved',
+      blockedFields: ['endingType', 'ownerSource'],
+    },
+  },
+  failureConditions: [
+    'schema_version_missing',
+    'required_story_slice_missing',
+    'legacy_schema_imported_without_compatibility_action',
+    'ending_owner_source_missing_after_import',
+    'background_public_reference_missing_after_import',
+  ],
+  mutationPolicy: {
+    migrationWrite: false,
+    uploadWrite: false,
+    importWrite: false,
+    publishMutation: false,
+    paymentMutation: false,
+    walletMutation: false,
+  },
+} as const;
+
+export const STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT = {
+  version: '2026-07-03.story-upload-live-ai-fallback-evidence-guard.v1',
+  status: 'live_dom_read_model_guard_only',
+  route: {
+    path: '/story-upload',
+    expectedEvidenceSelector: '.su-ai-fallback-evidence',
+    expectedValidationSelector: '.su-ending-validation-evidence',
+  },
+  requiredDomAttributes: [
+    'data-ai-fallback-policy',
+    'data-writer-ending-configured',
+    'data-provider-generated-at-intake',
+  ],
+  requiredValues: {
+    aiFallbackPolicy: 'writer-ending-missing-only',
+    writerEndingConfigured: 'false',
+    providerGeneratedAtIntake: 'false',
+  },
+  authorCountEvidence: {
+    authorMainCountAttribute: 'data-author-main-count',
+    authorMainExpectedCount: '1',
+    authorSubCountAttribute: 'data-author-sub-count',
+    authorSubMinAttribute: 'data-author-sub-min',
+    authorSubMaxAttribute: 'data-author-sub-max',
+    authorSubMin: '2',
+    authorSubMax: '10',
+  },
+  failureConditions: [
+    'live_ai_fallback_evidence_missing',
+    'writer_ending_configured_not_false_for_ai_fallback',
+    'provider_generated_at_intake_not_false',
+    'author_count_evidence_missing',
+    'ai_fallback_visible_as_author_owned_ending',
+  ],
+  mutationPolicy: {
+    providerGeneration: false,
+    storyWrite: false,
+    importWrite: false,
+    publishMutation: false,
+    paymentMutation: false,
+  },
+} as const;
+
+export const STORY_IMPORT_PREVIEW_PUBLIC_LABEL_GUARD_CONTRACT = {
+  version: '2026-07-03.story-import-preview-public-label-guard.v1',
+  status: 'public_label_guard_contract_only',
+  route: {
+    path: '/story-upload',
+    tableSelector: '.su-import-preview',
+    rowRawValueAttribute: 'data-ending-type',
+  },
+  publicEndingLabels: {
+    author_main: 'Writer main ending',
+    author_sub: 'Writer sub ending',
+    ai_fallback: 'AI fallback ending',
+  },
+  internalValuesAllowedOnlyInAttributes: [
+    'author_main',
+    'author_sub',
+    'ai_fallback',
+  ],
+  visibleTextMustNotContain: [
+    'author_main',
+    'author_sub',
+    'ai_fallback',
+    'writer_primary_ending',
+    'writer_sub_ending',
+    'ai_fallback_ending',
+  ],
+  failureConditions: [
+    'raw_ending_enum_visible_in_import_preview',
+    'public_ending_label_missing',
+    'raw_i18n_key_visible_in_import_preview',
+  ],
+  mutationPolicy: {
+    importWrite: false,
+    storyWrite: false,
+    publishMutation: false,
+    providerCall: false,
+    paymentMutation: false,
+  },
+} as const;
+
 export const STORY_UPLOAD_GUARD_FORBIDDEN_FIELDS = [
   'token',
   'password',
@@ -355,9 +691,12 @@ export const STORY_UPLOAD_GUARD_FORBIDDEN_FIELDS = [
   'rawAccountId',
   'rawEmail',
   'providerPayload',
+  'rawProviderPayload',
   'rawPrompt',
   'storageKey',
+  'privateStoragePath',
   'signedUrl',
+  'internalAccountId',
   'paymentOrderId',
   'walletLedgerId',
 ] as const;
@@ -408,6 +747,17 @@ export const STORY_UPLOAD_BACKEND_GUARD_CONTRACT = {
   pendingDecisionAuditGuard:
     STORY_UPLOAD_PENDING_DECISION_AUDIT_GUARD_CONTRACT,
   fixturePrivacyGuard: STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT,
+  branchGraphCycleGuard: STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT,
+  endingOwnershipGuard: STORY_ENDING_OWNERSHIP_GUARD_CONTRACT,
+  sceneAssetReferenceGuard: STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT,
+  reviewStateTransitionGuard:
+    STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT,
+  importExportSchemaVersionGuard:
+    STORY_IMPORT_EXPORT_SCHEMA_VERSION_GUARD_CONTRACT,
+  liveAiFallbackEvidenceGuard:
+    STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT,
+  importPreviewPublicLabelGuard:
+    STORY_IMPORT_PREVIEW_PUBLIC_LABEL_GUARD_CONTRACT,
   sensitiveFieldGuard: {
     forbiddenFields: STORY_UPLOAD_GUARD_FORBIDDEN_FIELDS,
     rawAccountFieldsAllowed: false,
