@@ -554,10 +554,20 @@
   const aiFallbackEvidence = {
     branch: "B-C",
     ending: "ai_fallback",
-    policy: "writer_ending_missing_only",
+    policy: "writer-ending-missing-only",
     writerEndingConfigured: "false",
     fallbackReasonKey: "storyUpload.ending.aiFallback.writerMissing",
     providerGeneratedAtIntake: "false",
+  };
+
+  const endingValidationEvidence = {
+    authorMainCount: "1",
+    authorSubCount: "2",
+    authorSubMin: "2",
+    authorSubMax: "10",
+    aiFallbackPolicy: aiFallbackEvidence.policy,
+    writerEndingConfigured: aiFallbackEvidence.writerEndingConfigured,
+    providerGeneratedAtIntake: aiFallbackEvidence.providerGeneratedAtIntake,
   };
 
   const localeMap = {
@@ -672,13 +682,27 @@
             <dl class="su-ai-fallback-evidence"
                 data-ending="${escapeHtml(aiFallbackEvidence.ending)}"
                 data-ai-fallback-policy="writer-ending-missing-only"
-                data-writer-ending-configured="false">
+                data-writer-ending-configured="false"
+                data-provider-generated-at-intake="false">
               <dt>AI fallback condition</dt>
-              <dd>Allowed only when the writer has not configured an ending for this branch.</dd>
+              <dd>writer ending missing only · allowed only when the writer has not configured an ending for this branch.</dd>
               <dt>Branch evidence</dt>
               <dd>${escapeHtml(aiFallbackEvidence.branch)} · ${escapeHtml(aiFallbackEvidence.policy)} · ${escapeHtml(aiFallbackEvidence.fallbackReasonKey)}</dd>
               <dt>Provider generation</dt>
               <dd>${escapeHtml(aiFallbackEvidence.providerGeneratedAtIntake)}</dd>
+            </dl>
+            <dl class="su-ending-validation-evidence"
+                data-author-main-count="${escapeHtml(endingValidationEvidence.authorMainCount)}"
+                data-author-sub-count="${escapeHtml(endingValidationEvidence.authorSubCount)}"
+                data-author-sub-min="${escapeHtml(endingValidationEvidence.authorSubMin)}"
+                data-author-sub-max="${escapeHtml(endingValidationEvidence.authorSubMax)}"
+                data-ai-fallback-policy="${escapeHtml(endingValidationEvidence.aiFallbackPolicy)}"
+                data-writer-ending-configured="${escapeHtml(endingValidationEvidence.writerEndingConfigured)}"
+                data-provider-generated-at-intake="${escapeHtml(endingValidationEvidence.providerGeneratedAtIntake)}">
+              <dt>Author ending count</dt>
+              <dd>author_main exact ${escapeHtml(endingValidationEvidence.authorMainCount)} · author_sub ${escapeHtml(endingValidationEvidence.authorSubMin)}-${escapeHtml(endingValidationEvidence.authorSubMax)} when provided</dd>
+              <dt>AI fallback evidence</dt>
+              <dd>${escapeHtml(endingValidationEvidence.aiFallbackPolicy)} · writerEndingConfigured=${escapeHtml(endingValidationEvidence.writerEndingConfigured)} · providerGeneratedAtIntake=${escapeHtml(endingValidationEvidence.providerGeneratedAtIntake)}</dd>
             </dl>
           </div>
         </section>

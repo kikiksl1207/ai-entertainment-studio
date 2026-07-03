@@ -106,6 +106,14 @@ describe('Story upload backend guard contracts', () => {
       },
     });
     expect(
+      STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT.aiFallback
+        .publicDomEvidenceAttributes,
+    ).toEqual([
+      'data-ai-fallback-policy',
+      'data-writer-ending-configured',
+      'data-provider-generated-at-intake',
+    ]);
+    expect(
       STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT.displaySeparation
         .aiFallbackMustNotUseAuthorBadge,
     ).toBe(true);
@@ -191,6 +199,18 @@ describe('Story upload backend guard contracts', () => {
         allowedOnlyWhenWriterBranchMissing: true,
         writerAuthored: false,
         providerGenerationAtValidation: false,
+      },
+      publicFixtureEvidence: {
+        authorMainCountAttribute: 'data-author-main-count',
+        authorMainExpectedCount: 1,
+        authorSubCountAttribute: 'data-author-sub-count',
+        authorSubMinAttribute: 'data-author-sub-min',
+        authorSubMaxAttribute: 'data-author-sub-max',
+        authorSubMin: 2,
+        authorSubMax: 10,
+        aiFallbackPolicyAttribute: 'data-ai-fallback-policy',
+        writerEndingConfiguredAttribute: 'data-writer-ending-configured',
+        providerGeneratedAtIntakeAttribute: 'data-provider-generated-at-intake',
       },
     });
     expect(
