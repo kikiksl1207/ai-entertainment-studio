@@ -401,8 +401,22 @@
       referenceLinks: [
         { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
         { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
-        { label: "Scene preview", href: "/story-stage?sceneFixture=1" },
+        { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
       ],
+      aiFallbackEvidence: {
+        title: "AI fallback 근거",
+        conditionLabel: "허용 조건",
+        conditionText: "작가 엔딩이 없는 분기에서만 보조로 이어져요.",
+        branchLabel: "분기 근거",
+        branchText: "B-C 분기는 작가 엔딩 미설정 상태예요.",
+        providerLabel: "생성 상태",
+        providerText: "가져오기 미리보기에서는 AI/provider를 실행하지 않아요.",
+      },
+      endingLabels: {
+        author_main: "작가 기본 엔딩",
+        author_sub: "작가 서브 엔딩",
+        ai_fallback: "AI fallback 엔딩",
+      },
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
         { label: "A", tone: "info", text: "기록을 먼저 확인한다", next: "S05", result: "정보 + 신뢰 상승", rejoin: "S09 재합류", tags: ["정보", "신뢰"] },
@@ -424,15 +438,29 @@
       branchTitle: "Root-style branch outcomes",
       branchNote: "Each choice keeps relation, risk, item, info, and ending-condition changes before any rejoin.",
       onboardingTitle: "Writer upload guide",
-      onboardingBody: "Write the long manuscript first, then mark only the branch points as choices.",
+      onboardingBody: "Draft the long manuscript; mark only branch points.",
       onboardingSteps: ["Manuscript", "Branch points", "Scene links"],
       referenceTitle: "PM/QA reference",
       referenceNote: "Read-only checkpoints for reviewers. These are not service CTAs and nothing is saved.",
       referenceLinks: [
         { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
         { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
-        { label: "Scene preview", href: "/story-stage?sceneFixture=1" },
+        { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
       ],
+      aiFallbackEvidence: {
+        title: "AI fallback evidence",
+        conditionLabel: "Allowed when",
+        conditionText: "Only helps branches where the writer has not configured an ending.",
+        branchLabel: "Branch evidence",
+        branchText: "Branch B-C has no writer ending configured.",
+        providerLabel: "Generation state",
+        providerText: "No AI/provider generation runs in this import preview.",
+      },
+      endingLabels: {
+        author_main: "Author main ending",
+        author_sub: "Author sub ending",
+        ai_fallback: "AI fallback ending",
+      },
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
         { label: "A", tone: "info", text: "Check the record first", next: "S05", result: "Info + trust up", rejoin: "Rejoins at S09", tags: ["Info", "Trust"] },
@@ -454,15 +482,29 @@
       branchTitle: "木の根型の分岐結果",
       branchNote: "再合流前に、選択ごとの関係、危険、アイテム、情報、終了条件の差を残します。",
       onboardingTitle: "作家アップロード案内",
-      onboardingBody: "長い本文原稿を先に書き、分岐点だけを選択肢として示します。",
+      onboardingBody: "長い本文原稿を書き、分岐点だけ選択肢にします。",
       onboardingSteps: ["本文原稿", "分岐点", "シーン接続"],
       referenceTitle: "PM/QA reference",
       referenceNote: "検収担当者向けの読み取り専用位置です。サービスCTAではなく保存もしません。",
       referenceLinks: [
         { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
         { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
-        { label: "Scene preview", href: "/story-stage?sceneFixture=1" },
+        { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
       ],
+      aiFallbackEvidence: {
+        title: "AI fallback根拠",
+        conditionLabel: "許可条件",
+        conditionText: "作家終了が未設定の分岐だけを補助します。",
+        branchLabel: "分岐根拠",
+        branchText: "B-C分岐には作家終了が設定されていません。",
+        providerLabel: "生成状態",
+        providerText: "この取込プレビューではAI/provider生成を実行しません。",
+      },
+      endingLabels: {
+        author_main: "作家基本終了",
+        author_sub: "作家サブ終了",
+        ai_fallback: "AI fallback終了",
+      },
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
         { label: "A", tone: "info", text: "記録を先に確認する", next: "S05", result: "情報 + 信頼上昇", rejoin: "S09で再合流", tags: ["情報", "信頼"] },
@@ -491,8 +533,22 @@
       referenceLinks: [
         { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
         { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
-        { label: "Scene preview", href: "/story-stage?sceneFixture=1" },
+        { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
       ],
+      aiFallbackEvidence: {
+        title: "AI fallback依据",
+        conditionLabel: "允许条件",
+        conditionText: "只辅助没有作者结局的分支。",
+        branchLabel: "分支依据",
+        branchText: "B-C分支未配置作者结局。",
+        providerLabel: "生成状态",
+        providerText: "导入预览不会运行AI/provider生成。",
+      },
+      endingLabels: {
+        author_main: "作者主线结局",
+        author_sub: "作者支线结局",
+        ai_fallback: "AI fallback结局",
+      },
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
         { label: "A", tone: "info", text: "先确认记录", next: "S05", result: "信息 + 信任提升", rejoin: "S09再汇合", tags: ["信息", "信任"] },
@@ -521,8 +577,22 @@
       referenceLinks: [
         { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
         { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
-        { label: "Scene preview", href: "/story-stage?sceneFixture=1" },
+        { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
       ],
+      aiFallbackEvidence: {
+        title: "AI fallback依據",
+        conditionLabel: "允許條件",
+        conditionText: "只輔助沒有作者結局的分支。",
+        branchLabel: "分支依據",
+        branchText: "B-C分支未配置作者結局。",
+        providerLabel: "生成狀態",
+        providerText: "匯入預覽不會執行AI/provider生成。",
+      },
+      endingLabels: {
+        author_main: "作者主線結局",
+        author_sub: "作者支線結局",
+        ai_fallback: "AI fallback結局",
+      },
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
         { label: "A", tone: "info", text: "先確認記錄", next: "S05", result: "資訊 + 信任提升", rejoin: "S09再匯合", tags: ["資訊", "信任"] },
@@ -608,6 +678,10 @@
     `;
   }
 
+  function endingLabel(qa, value) {
+    return qa.endingLabels?.[value] || value;
+  }
+
   function renderUploadWorkspace(localeCode) {
     const locale = UI[localeCode] || UI.ko;
     const qa = QA_COPY[localeCode] || QA_COPY.ko;
@@ -673,12 +747,12 @@
                 data-ending="${escapeHtml(aiFallbackEvidence.ending)}"
                 data-ai-fallback-policy="writer-ending-missing-only"
                 data-writer-ending-configured="false">
-              <dt>AI fallback condition</dt>
-              <dd>Allowed only when the writer has not configured an ending for this branch.</dd>
-              <dt>Branch evidence</dt>
-              <dd>${escapeHtml(aiFallbackEvidence.branch)} · ${escapeHtml(aiFallbackEvidence.policy)} · ${escapeHtml(aiFallbackEvidence.fallbackReasonKey)}</dd>
-              <dt>Provider generation</dt>
-              <dd>${escapeHtml(aiFallbackEvidence.providerGeneratedAtIntake)}</dd>
+              <dt>${escapeHtml(qa.aiFallbackEvidence.title)}</dt>
+              <dd>${escapeHtml(qa.aiFallbackEvidence.conditionText)}</dd>
+              <dt>${escapeHtml(qa.aiFallbackEvidence.branchLabel)}</dt>
+              <dd>${escapeHtml(qa.aiFallbackEvidence.branchText)}</dd>
+              <dt>${escapeHtml(qa.aiFallbackEvidence.providerLabel)}</dt>
+              <dd>${escapeHtml(qa.aiFallbackEvidence.providerText)}</dd>
             </dl>
           </div>
         </section>
@@ -745,7 +819,7 @@
                   <tr>
                     <td>${escapeHtml(row.scene)}</td>
                     <td>${escapeHtml(row.branch)}</td>
-                    <td>${escapeHtml(row.ending)}</td>
+                    <td data-ending-type="${escapeHtml(row.ending)}">${escapeHtml(endingLabel(qa, row.ending))}</td>
                     <td>${escapeHtml(row.part)}</td>
                     <td>${escapeHtml(row.summary)}</td>
                     <td>${escapeHtml(locale.importState[row.state])}</td>

@@ -703,6 +703,107 @@
   text-align: center;
 }
 
+.story-branch-section {
+  background:
+    linear-gradient(180deg, rgba(14, 11, 24, 0.48), rgba(14, 11, 24, 0.24)),
+    rgba(159, 139, 199, 0.04);
+}
+
+.story-branch-note {
+  margin-top: -4px;
+}
+
+.story-branch-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.story-branch-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(159, 139, 199, 0.2);
+  border-radius: 8px;
+  background: rgba(8, 5, 18, 0.58);
+}
+
+.story-branch-card[data-branch-tone="info"] {
+  border-color: rgba(99, 179, 255, 0.3);
+}
+
+.story-branch-card[data-branch-tone="risk"] {
+  border-color: rgba(251, 191, 36, 0.34);
+}
+
+.story-branch-card[data-branch-tone="ending"] {
+  border-color: rgba(255, 126, 185, 0.34);
+}
+
+.story-branch-card-head,
+.story-branch-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.story-branch-card-head {
+  justify-content: space-between;
+}
+
+.story-branch-card-head b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(129, 140, 248, 0.18);
+  color: #d5dcff;
+}
+
+.story-branch-card-head strong,
+.story-branch-card h3,
+.story-branch-card p,
+.story-branch-card em,
+.story-branch-tags span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.story-branch-card h3 {
+  margin: 0;
+  color: var(--ink, #f0eef8);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.story-branch-card p {
+  margin: 0;
+  color: rgba(230, 222, 246, 0.82);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.story-branch-tags span {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(240, 238, 248, 0.82);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.story-branch-card em {
+  color: #e6ff98;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
 .story-card {
   padding: 18px;
   border: 1px solid rgba(159, 139, 199, 0.18);
@@ -1098,6 +1199,10 @@
 
   .story-discovery-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .story-branch-grid {
+    grid-template-columns: 1fr;
   }
 }
 

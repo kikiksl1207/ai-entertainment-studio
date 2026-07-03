@@ -165,6 +165,125 @@
       "zh-CN": "即使背景素材尚未准备好，也会用默认场景继续故事。",
       "zh-Hant": "即使背景素材尚未準備好，也會用預設場景繼續故事。",
     },
+    "storyStage.branch.title": {
+      "ko-KR": "분기 결과 카드",
+      "ja-JP": "分岐結果カード",
+      "en-US": "Branch result cards",
+      "zh-CN": "分支结果卡",
+      "zh-Hant": "分支結果卡",
+    },
+    "storyStage.branch.note": {
+      "ko-KR": "재합류 전까지 사건, 관계, 위험, 정보, 아이템, 엔딩 조건 차이를 남겨요.",
+      "ja-JP": "再合流前まで事件、関係、危険、情報、アイテム、終了条件の差を残します。",
+      "en-US": "Each choice keeps event, relation, risk, info, item, and ending-condition differences before rejoining.",
+      "zh-CN": "再汇合前保留事件、关系、风险、信息、道具和结局条件差异。",
+      "zh-Hant": "再匯合前保留事件、關係、風險、資訊、道具和結局條件差異。",
+    },
+    "storyStage.branch.a.title": {
+      "ko-KR": "기록을 먼저 확인",
+      "ja-JP": "記録を先に確認",
+      "en-US": "Check the record first",
+      "zh-CN": "先确认记录",
+      "zh-Hant": "先確認記錄",
+    },
+    "storyStage.branch.a.outcome": {
+      "ko-KR": "숨은 정보가 열리고 전령의 신뢰가 올라가요.",
+      "ja-JP": "隠れた情報が開き、伝令の信頼が上がります。",
+      "en-US": "Hidden information opens and the messenger trusts you more.",
+      "zh-CN": "隐藏信息开启，传令对你的信任提升。",
+      "zh-Hant": "隱藏資訊開啟，傳令對你的信任提升。",
+    },
+    "storyStage.branch.a.rejoin": {
+      "ko-KR": "S09 재합류 · 정보 조건 유지",
+      "ja-JP": "S09で再合流 · 情報条件を維持",
+      "en-US": "Rejoins at S09 · info condition kept",
+      "zh-CN": "S09再汇合 · 保留信息条件",
+      "zh-Hant": "S09再匯合 · 保留資訊條件",
+    },
+    "storyStage.branch.b.title": {
+      "ko-KR": "전령을 따라 이동",
+      "ja-JP": "伝令について移動",
+      "en-US": "Follow the messenger",
+      "zh-CN": "跟随传令移动",
+      "zh-Hant": "跟隨傳令移動",
+    },
+    "storyStage.branch.b.outcome": {
+      "ko-KR": "위험도가 오르지만 봉인된 지도를 얻어요.",
+      "ja-JP": "危険度は上がりますが、封じられた地図を得ます。",
+      "en-US": "Risk rises, but you gain the sealed map item.",
+      "zh-CN": "风险上升，但获得封存地图道具。",
+      "zh-Hant": "風險上升，但獲得封存地圖道具。",
+    },
+    "storyStage.branch.b.rejoin": {
+      "ko-KR": "S09 재합류 · 아이템 조건 유지",
+      "ja-JP": "S09で再合流 · アイテム条件を維持",
+      "en-US": "Rejoins at S09 · item condition kept",
+      "zh-CN": "S09再汇合 · 保留道具条件",
+      "zh-Hant": "S09再匯合 · 保留道具條件",
+    },
+    "storyStage.branch.c.title": {
+      "ko-KR": "해안으로 우회",
+      "ja-JP": "海岸へ迂回",
+      "en-US": "Detour to the shore",
+      "zh-CN": "绕到海岸",
+      "zh-Hant": "繞到海岸",
+    },
+    "storyStage.branch.c.outcome": {
+      "ko-KR": "관계가 흔들리고 작가 엔딩이 없을 때만 AI fallback 후보가 돼요.",
+      "ja-JP": "関係が揺れ、作家終了がない場合だけAI fallback候補になります。",
+      "en-US": "The relation shifts, and AI fallback is only a candidate when no writer ending exists.",
+      "zh-CN": "关系变化，只有没有作者结局时才成为AI fallback候选。",
+      "zh-Hant": "關係變化，只有沒有作者結局時才成為AI fallback候選。",
+    },
+    "storyStage.branch.c.rejoin": {
+      "ko-KR": "E-AI 후보 · 보조 엔딩 조건",
+      "ja-JP": "E-AI候補 · 補助終了条件",
+      "en-US": "E-AI candidate · helper ending condition",
+      "zh-CN": "E-AI候选 · 辅助结局条件",
+      "zh-Hant": "E-AI候選 · 輔助結局條件",
+    },
+    "storyStage.branch.tag.event": {
+      "ko-KR": "사건",
+      "ja-JP": "事件",
+      "en-US": "Event",
+      "zh-CN": "事件",
+      "zh-Hant": "事件",
+    },
+    "storyStage.branch.tag.relation": {
+      "ko-KR": "관계",
+      "ja-JP": "関係",
+      "en-US": "Relation",
+      "zh-CN": "关系",
+      "zh-Hant": "關係",
+    },
+    "storyStage.branch.tag.risk": {
+      "ko-KR": "위험",
+      "ja-JP": "危険",
+      "en-US": "Risk",
+      "zh-CN": "风险",
+      "zh-Hant": "風險",
+    },
+    "storyStage.branch.tag.info": {
+      "ko-KR": "정보",
+      "ja-JP": "情報",
+      "en-US": "Info",
+      "zh-CN": "信息",
+      "zh-Hant": "資訊",
+    },
+    "storyStage.branch.tag.item": {
+      "ko-KR": "아이템",
+      "ja-JP": "アイテム",
+      "en-US": "Item",
+      "zh-CN": "道具",
+      "zh-Hant": "道具",
+    },
+    "storyStage.branch.tag.ending": {
+      "ko-KR": "엔딩 조건",
+      "ja-JP": "終了条件",
+      "en-US": "Ending condition",
+      "zh-CN": "结局条件",
+      "zh-Hant": "結局條件",
+    },
   });
 
   const STORY_LOCALES = [
@@ -265,6 +384,36 @@
     },
   ];
 
+  const STORY_BRANCH_FIXTURE = [
+    {
+      label: "A",
+      tone: "info",
+      next: "S05",
+      titleKey: "storyStage.branch.a.title",
+      outcomeKey: "storyStage.branch.a.outcome",
+      rejoinKey: "storyStage.branch.a.rejoin",
+      tagKeys: ["storyStage.branch.tag.event", "storyStage.branch.tag.info", "storyStage.branch.tag.relation"],
+    },
+    {
+      label: "B",
+      tone: "risk",
+      next: "S06",
+      titleKey: "storyStage.branch.b.title",
+      outcomeKey: "storyStage.branch.b.outcome",
+      rejoinKey: "storyStage.branch.b.rejoin",
+      tagKeys: ["storyStage.branch.tag.event", "storyStage.branch.tag.risk", "storyStage.branch.tag.item"],
+    },
+    {
+      label: "C",
+      tone: "ending",
+      next: "S07",
+      titleKey: "storyStage.branch.c.title",
+      outcomeKey: "storyStage.branch.c.outcome",
+      rejoinKey: "storyStage.branch.c.rejoin",
+      tagKeys: ["storyStage.branch.tag.relation", "storyStage.branch.tag.risk", "storyStage.branch.tag.ending"],
+    },
+  ];
+
   let _storyScenes = STORY_SCENE_FALLBACKS.slice();
   let _storySceneIndex = 0;
 
@@ -299,6 +448,14 @@
     const locale = storyLocale();
     const entry = STORY_SCENE_COPY[key];
     return entry?.[locale] || entry?.["ko-KR"] || storyT(key);
+  }
+
+  function applyStoryLocalCopy(scope) {
+    const root = scope || document;
+    root.querySelectorAll("[data-story-local-i18n]").forEach((node) => {
+      const key = node.getAttribute("data-story-local-i18n");
+      node.textContent = storyLocalT(key);
+    });
   }
 
   function companionOptions() {
@@ -491,6 +648,34 @@
     `;
   }
 
+  function renderBranchFixtureShell() {
+    return `
+      <section class="story-section story-branch-section" aria-labelledby="storyBranchTitle">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-scene">Branch</span>
+          <h2 id="storyBranchTitle" data-story-local-i18n="storyStage.branch.title">${storyLocalT("storyStage.branch.title")}</h2>
+        </div>
+        <p class="story-muted story-branch-note" data-story-local-i18n="storyStage.branch.note">${storyLocalT("storyStage.branch.note")}</p>
+        <div class="story-branch-grid">
+          ${STORY_BRANCH_FIXTURE.map((branch) => `
+            <article class="story-branch-card" data-branch-tone="${escapeHtml(branch.tone)}">
+              <div class="story-branch-card-head">
+                <b>${escapeHtml(branch.label)}</b>
+                <strong>${escapeHtml(branch.next)}</strong>
+              </div>
+              <h3 data-story-local-i18n="${escapeHtml(branch.titleKey)}">${storyLocalT(branch.titleKey)}</h3>
+              <p data-story-local-i18n="${escapeHtml(branch.outcomeKey)}">${storyLocalT(branch.outcomeKey)}</p>
+              <div class="story-branch-tags">
+                ${branch.tagKeys.map((key) => `<span data-story-local-i18n="${escapeHtml(key)}">${storyLocalT(key)}</span>`).join("")}
+              </div>
+              <em data-story-local-i18n="${escapeHtml(branch.rejoinKey)}">${storyLocalT(branch.rejoinKey)}</em>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
   function renderLocaleQaShell() {
     return `
       <section class="story-section story-locale-section" aria-labelledby="storyLocaleTitle">
@@ -678,6 +863,8 @@
 
       ${fixtureMode ? firstScenePreview : localeQa}
 
+      ${fixtureMode ? renderBranchFixtureShell() : ""}
+
       ${fixtureMode ? localeQa : firstScenePreview}
 
       ${renderDetailShell()}
@@ -798,6 +985,7 @@
     `;
 
     bindStoryPreview(root);
+    applyStoryLocalCopy(root);
     loadScenePreviewFixtures().then(scenes => {
       _storyScenes = scenes.map(normalizeScene);
       _storySceneIndex = 0;
@@ -846,6 +1034,7 @@
         });
         Promise.resolve(window.luminaI18n?.setLocale?.(nextLocale)).finally(() => {
           window.luminaI18n?.apply?.(root);
+          applyStoryLocalCopy(root);
           renderStoryScene(_storyScenes[_storySceneIndex] || STORY_SCENE_FALLBACKS[0]);
         });
         return;
