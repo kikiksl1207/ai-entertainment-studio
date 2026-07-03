@@ -412,6 +412,47 @@ export const STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT = {
   },
 } as const;
 
+export const STORY_BRANCH_GRAPH_READ_MODEL_CONTRACT = {
+  version: '2026-07-03.story-branch-graph-read-model.v1',
+  status: 'read_model_contract_only',
+  requiredNodeFields: [
+    'sceneId',
+    'choiceId',
+    'nextSceneId',
+    'rejoinGroup',
+    'endingCandidate',
+    'writerConfigured',
+  ],
+  branchingPolicy: {
+    treeLikeBranchingDefault: true,
+    allChoicesMayShareNextSceneOnlyWithExplicitRejoin: true,
+    rejoinGroupRequiredForSharedNextScene: true,
+    optionalLaterRejoinNodesSupported: true,
+    resultDifferenceRequiredBeforeRejoin: true,
+  },
+  localeFixturePolicy: {
+    slots: STORY_ROUTE_SUPPORTED_LOCALE_SLOTS,
+    labelFieldsUseLocaleKeys: true,
+    rawI18nKeyVisibleInFixture: false,
+    mobileFixtureRequired: true,
+  },
+  validationFailureConditions: [
+    'scene_id_missing',
+    'choice_id_missing',
+    'next_scene_id_missing_without_terminal_ending',
+    'shared_next_scene_without_rejoin_group',
+    'rejoin_group_without_pre_rejoin_difference',
+    'ending_candidate_missing_for_terminal_scene',
+    'writer_configured_state_missing',
+  ],
+  mutationPolicy: {
+    storyWrite: false,
+    progressWrite: false,
+    providerCall: false,
+    paymentMutation: false,
+  },
+} as const;
+
 export const STORY_ENDING_OWNERSHIP_GUARD_CONTRACT = {
   version: '2026-07-03.story-ending-ownership-guard.v1',
   status: 'ownership_guard_contract_only',
@@ -443,6 +484,45 @@ export const STORY_ENDING_OWNERSHIP_GUARD_CONTRACT = {
     'author_ending_route_contains_ai_fallback_override',
     'ending_type_owner_source_mismatch',
     'provider_payload_exported_for_ending',
+  ],
+  mutationPolicy: {
+    providerGeneration: false,
+    storyWrite: false,
+    publishMutation: false,
+    paymentMutation: false,
+  },
+} as const;
+
+export const STORY_ENDING_OWNERSHIP_PERSISTENCE_CONTRACT = {
+  version: '2026-07-03.story-ending-ownership-persistence.v1',
+  status: 'persistence_contract_only',
+  persistenceFields: [
+    'endingId',
+    'endingType',
+    'ownerSource',
+    'writerConfigured',
+    'authorEndingId',
+    'labelKey',
+  ],
+  writerEndingRules: {
+    authorMainExactCount: 1,
+    authorSubMinWhenProvided: 2,
+    authorSubMaxWhenProvided: 10,
+    aiFallbackAllowedOnlyWhenWriterUnset: true,
+    aiFallbackMayPersistAsAuthorEnding: false,
+  },
+  visibleLabelPolicy: {
+    localeSlots: STORY_ROUTE_SUPPORTED_LOCALE_SLOTS,
+    visibleLabelsUseLocaleText: true,
+    rawEnumAsVisibleText: false,
+    labelKeyRequired: true,
+  },
+  validationFailureConditions: [
+    'author_main_count_not_exactly_one',
+    'author_sub_count_outside_2_to_10_when_present',
+    'ai_fallback_without_writer_unset_branch',
+    'ai_fallback_persisted_as_author_owned_ending',
+    'raw_ending_enum_visible_to_reader',
   ],
   mutationPolicy: {
     providerGeneration: false,
@@ -498,6 +578,45 @@ export const STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT = {
   },
 } as const;
 
+export const STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT = {
+  version: '2026-07-03.story-scene-background-asset-metadata-guard.v1',
+  status: 'safe_public_metadata_contract_only',
+  allowedPublicMetadataFields: [
+    'assetId',
+    'altKey',
+    'localeLabel',
+    'sceneUse',
+  ],
+  sceneUseValues: ['background', 'character', 'prop', 'fallback'],
+  localeLabelPolicy: {
+    slots: STORY_ROUTE_SUPPORTED_LOCALE_SLOTS,
+    altKeyRequired: true,
+    localeLabelRequired: true,
+    rawI18nKeyVisible: false,
+  },
+  mobileQaFixtureIds: [
+    'story-scene-bg-fixture-mobile-ready',
+    'story-scene-bg-fixture-mobile-loading',
+    'story-scene-bg-fixture-mobile-fallback',
+  ],
+  forbiddenPublicMetadataFields: [
+    'rawPrompt',
+    'localPath',
+    'providerPayload',
+    'privateBucketUrl',
+    'signedUrl',
+    'storageKey',
+    'rawEmail',
+  ],
+  mutationPolicy: {
+    imageGeneration: false,
+    uploadIntentCreate: false,
+    assetUpload: false,
+    publishMutation: false,
+    providerCall: false,
+  },
+} as const;
+
 export const STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT = {
   version: '2026-07-03.story-upload-review-state-transition-guard.v1',
   status: 'workflow_transition_guard_contract_only',
@@ -541,6 +660,89 @@ export const STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT = {
     providerCall: false,
     paymentMutation: false,
     walletMutation: false,
+  },
+} as const;
+
+export const STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT = {
+  version: '2026-07-03.story-upload-draft-length-validator.v1',
+  status: 'validator_contract_only',
+  thresholds: {
+    partTargetCharacters: 10_000,
+    branchSummaryMaxCharacters: 2_000,
+    shortDramaPartCount: 10,
+  },
+  validationStates: {
+    ok: {
+      blocksSubmit: false,
+      messageKey: 'storyUpload.length.ok',
+    },
+    warning: {
+      blocksSubmit: false,
+      messageKey: 'storyUpload.length.warning',
+    },
+    hardBlock: {
+      blocksSubmit: true,
+      messageKey: 'storyUpload.length.hardBlock',
+    },
+  },
+  warningVersusHardBlockSeparated: true,
+  mobileFixtureValues: {
+    primaryWidth: '390-400px',
+    nearPartTargetCharacters: 9_800,
+    overBranchSummaryCharacters: 2_001,
+    shortDramaParts: 10,
+  },
+  copyPolicy: {
+    writerFacingMessagesUseI18nKeys: true,
+    localeSlots: STORY_ROUTE_SUPPORTED_LOCALE_SLOTS,
+    rawManuscriptStoredInFixture: false,
+    realManuscriptRecorded: false,
+  },
+  mutationPolicy: {
+    storyWrite: false,
+    uploadWrite: false,
+    providerCall: false,
+    publishMutation: false,
+    paymentMutation: false,
+  },
+} as const;
+
+export const STORY_SERIALIZATION_PENALTY_POLICY_SKELETON = {
+  version: '2026-07-03.story-serialization-penalty-policy-skeleton.v1',
+  status: 'disabled_policy_skeleton_only',
+  policyStates: ['draft', 'reviewRequired', 'disabled'],
+  policySubjects: [
+    'hiatus',
+    'discontinued_serialization',
+    'missing_ending',
+  ],
+  liveEnforcement: {
+    enabled: false,
+    requiresPmConfirmation: true,
+    defaultState: 'disabled',
+    readerRefundMutationEnabled: false,
+    authorPenaltyMutationEnabled: false,
+  },
+  localeKeyStructure: {
+    titleKeyPrefix: 'storyPenalty.policy.',
+    bodyKeyPrefix: 'storyPenalty.policy.',
+    localeSlots: STORY_ROUTE_SUPPORTED_LOCALE_SLOTS,
+    rawPolicyCopyVisible: false,
+  },
+  dataAccessPolicy: {
+    queryTargetAccounts: false,
+    recordTargetAccounts: false,
+    paymentDataReturned: false,
+    walletDataReturned: false,
+    secretDataReturned: false,
+  },
+  mutationPolicy: {
+    settlementMutation: false,
+    refundMutation: false,
+    walletMutation: false,
+    payoutMutation: false,
+    paymentMutation: false,
+    storyWrite: false,
   },
 } as const;
 
@@ -747,11 +949,19 @@ export const STORY_UPLOAD_BACKEND_GUARD_CONTRACT = {
   pendingDecisionAuditGuard:
     STORY_UPLOAD_PENDING_DECISION_AUDIT_GUARD_CONTRACT,
   fixturePrivacyGuard: STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT,
+  branchGraphReadModel: STORY_BRANCH_GRAPH_READ_MODEL_CONTRACT,
   branchGraphCycleGuard: STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT,
   endingOwnershipGuard: STORY_ENDING_OWNERSHIP_GUARD_CONTRACT,
+  endingOwnershipPersistence:
+    STORY_ENDING_OWNERSHIP_PERSISTENCE_CONTRACT,
   sceneAssetReferenceGuard: STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT,
+  sceneBackgroundAssetMetadataGuard:
+    STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT,
   reviewStateTransitionGuard:
     STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT,
+  draftLengthValidator: STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT,
+  serializationPenaltyPolicySkeleton:
+    STORY_SERIALIZATION_PENALTY_POLICY_SKELETON,
   importExportSchemaVersionGuard:
     STORY_IMPORT_EXPORT_SCHEMA_VERSION_GUARD_CONTRACT,
   liveAiFallbackEvidenceGuard:

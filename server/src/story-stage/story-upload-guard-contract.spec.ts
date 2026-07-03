@@ -1,17 +1,22 @@
 import {
   AUTHOR_SUB_ENDING_COUNT_VALIDATION_GUARD_CONTRACT,
   findStoryUploadSensitiveFieldViolations,
+  STORY_BRANCH_GRAPH_READ_MODEL_CONTRACT,
   STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT,
   STORY_BRANCH_RESULT_STATE_BACKEND_GUARD_CONTRACT,
   STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT,
   STORY_ENDING_OWNERSHIP_GUARD_CONTRACT,
+  STORY_ENDING_OWNERSHIP_PERSISTENCE_CONTRACT,
   STORY_HIATUS_PENALTY_PENDING_VALUES_GUARD_CONTRACT,
   STORY_IMPORT_PREVIEW_PUBLIC_LABEL_GUARD_CONTRACT,
   STORY_IMPORT_EXPORT_SCHEMA_VERSION_GUARD_CONTRACT,
   STORY_PART_LENGTH_POLICY_CONTRACT,
+  STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT,
   STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT,
+  STORY_SERIALIZATION_PENALTY_POLICY_SKELETON,
   STORY_STAGE_CONTRACT,
   STORY_UPLOAD_BACKEND_GUARD_CONTRACT,
+  STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT,
   STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT,
   STORY_UPLOAD_INTAKE_STORAGE_GUARD_CONTRACT,
   STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT,
@@ -39,11 +44,19 @@ describe('Story upload backend guard contracts', () => {
       pendingDecisionAuditGuard:
         STORY_UPLOAD_PENDING_DECISION_AUDIT_GUARD_CONTRACT,
       fixturePrivacyGuard: STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT,
+      branchGraphReadModel: STORY_BRANCH_GRAPH_READ_MODEL_CONTRACT,
       branchGraphCycleGuard: STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT,
       endingOwnershipGuard: STORY_ENDING_OWNERSHIP_GUARD_CONTRACT,
+      endingOwnershipPersistence:
+        STORY_ENDING_OWNERSHIP_PERSISTENCE_CONTRACT,
       sceneAssetReferenceGuard: STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT,
+      sceneBackgroundAssetMetadataGuard:
+        STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT,
       reviewStateTransitionGuard:
         STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT,
+      draftLengthValidator: STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT,
+      serializationPenaltyPolicySkeleton:
+        STORY_SERIALIZATION_PENALTY_POLICY_SKELETON,
       importExportSchemaVersionGuard:
         STORY_IMPORT_EXPORT_SCHEMA_VERSION_GUARD_CONTRACT,
       liveAiFallbackEvidenceGuard:
@@ -383,6 +396,35 @@ describe('Story upload backend guard contracts', () => {
     );
   });
 
+  it('defines branch graph read model fields and explicit rejoin for #1626', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.branchGraphReadModel,
+    ).toBe(STORY_BRANCH_GRAPH_READ_MODEL_CONTRACT);
+    expect(
+      STORY_BRANCH_GRAPH_READ_MODEL_CONTRACT.requiredNodeFields,
+    ).toEqual([
+      'sceneId',
+      'choiceId',
+      'nextSceneId',
+      'rejoinGroup',
+      'endingCandidate',
+      'writerConfigured',
+    ]);
+    expect(STORY_BRANCH_GRAPH_READ_MODEL_CONTRACT.branchingPolicy).toMatchObject({
+      treeLikeBranchingDefault: true,
+      allChoicesMayShareNextSceneOnlyWithExplicitRejoin: true,
+      rejoinGroupRequiredForSharedNextScene: true,
+      optionalLaterRejoinNodesSupported: true,
+      resultDifferenceRequiredBeforeRejoin: true,
+    });
+    expect(STORY_BRANCH_GRAPH_READ_MODEL_CONTRACT.localeFixturePolicy).toEqual({
+      slots: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
+      labelFieldsUseLocaleKeys: true,
+      rawI18nKeyVisibleInFixture: false,
+      mobileFixtureRequired: true,
+    });
+  });
+
   it('keeps ending ownership from mixing writer and AI fallback sources for #1604', () => {
     expect(STORY_ENDING_OWNERSHIP_GUARD_CONTRACT.ownerSourceMap).toMatchObject({
       author_main: 'writer_declared_primary_ending',
@@ -401,6 +443,38 @@ describe('Story upload backend guard contracts', () => {
         'ai_fallback_without_author_unset_branch_evidence',
         'ai_fallback_saved_with_author_owner_source',
         'ending_type_owner_source_mismatch',
+      ]),
+    );
+  });
+
+  it('persists author ending ownership separately from AI fallback for #1628', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.endingOwnershipPersistence,
+    ).toBe(STORY_ENDING_OWNERSHIP_PERSISTENCE_CONTRACT);
+    expect(
+      STORY_ENDING_OWNERSHIP_PERSISTENCE_CONTRACT.writerEndingRules,
+    ).toMatchObject({
+      authorMainExactCount: 1,
+      authorSubMinWhenProvided: 2,
+      authorSubMaxWhenProvided: 10,
+      aiFallbackAllowedOnlyWhenWriterUnset: true,
+      aiFallbackMayPersistAsAuthorEnding: false,
+    });
+    expect(
+      STORY_ENDING_OWNERSHIP_PERSISTENCE_CONTRACT.visibleLabelPolicy,
+    ).toEqual({
+      localeSlots: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
+      visibleLabelsUseLocaleText: true,
+      rawEnumAsVisibleText: false,
+      labelKeyRequired: true,
+    });
+    expect(
+      STORY_ENDING_OWNERSHIP_PERSISTENCE_CONTRACT.validationFailureConditions,
+    ).toEqual(
+      expect.arrayContaining([
+        'ai_fallback_without_writer_unset_branch',
+        'ai_fallback_persisted_as_author_owned_ending',
+        'raw_ending_enum_visible_to_reader',
       ]),
     );
   });
@@ -432,6 +506,100 @@ describe('Story upload backend guard contracts', () => {
         },
       }),
     ).toEqual(['asset.signedUrl', 'asset.internalAccountId']);
+  });
+
+  it('exposes only safe public background asset metadata for #1627', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.sceneBackgroundAssetMetadataGuard,
+    ).toBe(STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT);
+    expect(
+      STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT
+        .allowedPublicMetadataFields,
+    ).toEqual(['assetId', 'altKey', 'localeLabel', 'sceneUse']);
+    expect(
+      STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT.localeLabelPolicy,
+    ).toMatchObject({
+      slots: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
+      altKeyRequired: true,
+      localeLabelRequired: true,
+      rawI18nKeyVisible: false,
+    });
+    expect(
+      STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT
+        .forbiddenPublicMetadataFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'rawPrompt',
+        'localPath',
+        'providerPayload',
+        'privateBucketUrl',
+        'signedUrl',
+        'storageKey',
+      ]),
+    );
+    expect(
+      Object.values(
+        STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('separates draft length warnings and hard blocks for #1629', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.draftLengthValidator,
+    ).toBe(STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT);
+    expect(STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT.thresholds).toEqual({
+      partTargetCharacters: 10_000,
+      branchSummaryMaxCharacters: 2_000,
+      shortDramaPartCount: 10,
+    });
+    expect(
+      STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT.validationStates,
+    ).toMatchObject({
+      ok: { blocksSubmit: false },
+      warning: { blocksSubmit: false },
+      hardBlock: { blocksSubmit: true },
+    });
+    expect(STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT.copyPolicy).toEqual({
+      writerFacingMessagesUseI18nKeys: true,
+      localeSlots: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
+      rawManuscriptStoredInFixture: false,
+      realManuscriptRecorded: false,
+    });
+  });
+
+  it('keeps serialization penalties disabled until PM confirmation for #1630', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.serializationPenaltyPolicySkeleton,
+    ).toBe(STORY_SERIALIZATION_PENALTY_POLICY_SKELETON);
+    expect(STORY_SERIALIZATION_PENALTY_POLICY_SKELETON).toMatchObject({
+      status: 'disabled_policy_skeleton_only',
+      policyStates: ['draft', 'reviewRequired', 'disabled'],
+      policySubjects: [
+        'hiatus',
+        'discontinued_serialization',
+        'missing_ending',
+      ],
+      liveEnforcement: {
+        enabled: false,
+        requiresPmConfirmation: true,
+        defaultState: 'disabled',
+        readerRefundMutationEnabled: false,
+        authorPenaltyMutationEnabled: false,
+      },
+      dataAccessPolicy: {
+        queryTargetAccounts: false,
+        recordTargetAccounts: false,
+        paymentDataReturned: false,
+        walletDataReturned: false,
+        secretDataReturned: false,
+      },
+    });
+    expect(
+      Object.values(
+        STORY_SERIALIZATION_PENALTY_POLICY_SKELETON.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
   });
 
   it('requires safe review state transitions before publish-ready for #1606', () => {
