@@ -404,11 +404,11 @@
         { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
-        title: "AI fallback 근거",
+        title: "AI 보조 결말 안내",
         conditionLabel: "허용 조건",
-        conditionText: "작가 엔딩이 없는 분기에서만 보조로 이어져요.",
-        branchLabel: "분기 근거",
-        branchText: "B-C 분기는 작가 엔딩 미설정 상태예요.",
+        conditionText: "작가 결말이 없는 분기에서만 보조 결말로 표시돼요.",
+        branchLabel: "분기 상태",
+        branchText: "B-C 분기는 작가 결말이 아직 설정되지 않았어요.",
         providerLabel: "생성 상태",
         providerText: "가져오기 미리보기에서는 AI/provider를 실행하지 않아요.",
       },
@@ -448,13 +448,13 @@
         { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
-        title: "AI fallback evidence",
+        title: "Fallback ending note",
         conditionLabel: "Allowed when",
-        conditionText: "Only helps branches where the writer has not configured an ending.",
-        branchLabel: "Branch evidence",
+        conditionText: "Shown only for branches without a writer ending.",
+        branchLabel: "Branch status",
         branchText: "Branch B-C has no writer ending configured.",
-        providerLabel: "Generation state",
-        providerText: "No AI/provider generation runs in this import preview.",
+        providerLabel: "Preview generation",
+        providerText: "This import preview does not run AI/provider output.",
       },
       endingLabels: {
         author_main: "Author main ending",
@@ -465,7 +465,7 @@
       choices: [
         { label: "A", tone: "info", text: "Check the record first", next: "S05", result: "Info + trust up", rejoin: "Rejoins at S09", tags: ["Info", "Trust"] },
         { label: "B", tone: "risk", text: "Follow the messenger", next: "S06", result: "Risk + item gained", rejoin: "Rejoins at S09", tags: ["Risk", "Item"] },
-        { label: "C", tone: "ending", text: "Detour to the shore", next: "S07", result: "Relation shift + AI fallback condition", rejoin: "E-AI candidate", tags: ["Relation", "Ending"] },
+        { label: "C", tone: "ending", text: "Detour to the shore", next: "S07", result: "Relation shift + fallback rule", rejoin: "E-AI candidate", tags: ["Relation", "Ending"] },
       ],
       endings: ["E-MAIN · Author main ending", "E-SUB · Author sub ending", "E-AI · AI fallback ending"],
       endingCards: [
@@ -492,11 +492,11 @@
         { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
-        title: "AI fallback根拠",
+        title: "補助エンディング案内",
         conditionLabel: "許可条件",
-        conditionText: "作家終了が未設定の分岐だけを補助します。",
-        branchLabel: "分岐根拠",
-        branchText: "B-C分岐には作家終了が設定されていません。",
+        conditionText: "作家のエンディングがない分岐だけに表示されます。",
+        branchLabel: "分岐状態",
+        branchText: "B-C分岐には作家エンディングがまだ設定されていません。",
         providerLabel: "生成状態",
         providerText: "この取込プレビューではAI/provider生成を実行しません。",
       },
@@ -536,13 +536,13 @@
         { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
-        title: "AI fallback依据",
+        title: "辅助结局说明",
         conditionLabel: "允许条件",
-        conditionText: "只辅助没有作者结局的分支。",
-        branchLabel: "分支依据",
-        branchText: "B-C分支未配置作者结局。",
+        conditionText: "仅在没有作者结局的分支显示。",
+        branchLabel: "分支状态",
+        branchText: "B-C 分支尚未设置作者结局。",
         providerLabel: "生成状态",
-        providerText: "导入预览不会运行AI/provider生成。",
+        providerText: "此预览不会运行 AI/provider 生成。",
       },
       endingLabels: {
         author_main: "作者主线结局",
@@ -580,13 +580,13 @@
         { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
-        title: "AI fallback依據",
+        title: "輔助結局說明",
         conditionLabel: "允許條件",
-        conditionText: "只輔助沒有作者結局的分支。",
-        branchLabel: "分支依據",
-        branchText: "B-C分支未配置作者結局。",
+        conditionText: "僅在沒有作者結局的分支顯示。",
+        branchLabel: "分支狀態",
+        branchText: "B-C 分支尚未設定作者結局。",
         providerLabel: "生成狀態",
-        providerText: "匯入預覽不會執行AI/provider生成。",
+        providerText: "此預覽不會執行 AI/provider 生成。",
       },
       endingLabels: {
         author_main: "作者主線結局",
@@ -626,7 +626,7 @@
     ending: "ai_fallback",
     policy: "writer_ending_missing_only",
     writerEndingConfigured: "false",
-    fallbackReasonKey: "storyUpload.ending.aiFallback.writerMissing",
+    fallbackReason: "writer_ending_missing",
     providerGeneratedAtIntake: "false",
   };
 
@@ -757,8 +757,8 @@
                 data-ending="${escapeHtml(aiFallbackEvidence.ending)}"
                 data-ai-fallback-policy="writer-ending-missing-only"
                 data-writer-ending-configured="false"
-                data-provider-generated-at-intake="false"
-                data-fallback-reason-key="${escapeHtml(aiFallbackEvidence.fallbackReasonKey)}">
+                data-provider-generated-at-intake="${escapeHtml(aiFallbackEvidence.providerGeneratedAtIntake)}"
+                data-fallback-reason-key="${escapeHtml(aiFallbackEvidence.fallbackReason)}">
               <dt>${escapeHtml(qa.aiFallbackEvidence.title)}</dt>
               <dd>${escapeHtml(qa.aiFallbackEvidence.conditionText)}</dd>
               <dt>${escapeHtml(qa.aiFallbackEvidence.branchLabel)}</dt>
