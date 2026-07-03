@@ -316,6 +316,40 @@ describe('Story upload backend guard contracts', () => {
     });
   });
 
+  it('keeps review penalty enforcement disabled until PM decides for #1653', () => {
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.followupPolicy,
+    ).toMatchObject({
+      penaltyPolicyEnforcement: 'disabled_until_pm_decision',
+      publishReadyBypassAllowed: false,
+      blockedReasonKeyPreserved: true,
+      notificationMutation: false,
+    });
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.followupPolicy
+        .penaltyDecisionSource,
+    ).toEqual(
+      STORY_HIATUS_PENALTY_PENDING_VALUES_GUARD_CONTRACT.pendingDecisionKeys,
+    );
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.failureConditions,
+    ).toEqual(
+      expect.arrayContaining([
+        'publish_ready_without_qa_pass',
+        'blocked_reason_key_dropped',
+        'penalty_policy_enabled_before_pm_decision',
+      ]),
+    );
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.mutationPolicy,
+    ).toMatchObject({
+      publishMutation: false,
+      paymentMutation: false,
+      walletMutation: false,
+      notificationMutation: false,
+    });
+  });
+
   it('keeps story upload fixtures separate and rejects sensitive fields', () => {
     expect(STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT.fixtureNamespace).toMatchObject({
       prefix: 'story-upload-fixture-',
@@ -383,6 +417,47 @@ describe('Story upload backend guard contracts', () => {
     );
   });
 
+  it('guards branch graph fixture divergence before explicit rejoin for #1651', () => {
+    expect(
+      STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT.fixtureRegressionPolicy,
+    ).toMatchObject({
+      choiceResultDivergenceRequiredBeforeRejoin: true,
+      identicalImmediateSceneBodyAndResultRejected: true,
+    });
+    expect(
+      STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT.fixtureRegressionPolicy
+        .explicitRejoinGroupAllowedWhen,
+    ).toEqual(
+      expect.arrayContaining([
+        'choice_paths_have_distinct_result_state_key',
+        'choice_paths_have_distinct_result_delta_keys',
+        'choice_paths_have_distinct_pre_rejoin_scene_id',
+      ]),
+    );
+    expect(
+      STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT.fixtureRegressionPolicy
+        .rejoinGroupEvidenceFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'rejoinGroupId',
+        'preRejoinSceneId',
+        'resultStateKey',
+        'resultDeltaKeys',
+      ]),
+    );
+    expect(STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT.failureConditions).toEqual(
+      expect.arrayContaining([
+        'all_choices_immediately_rejoin_same_scene_body_and_result',
+        'explicit_rejoin_group_without_distinct_prior_state',
+      ]),
+    );
+    expect(
+      Object.values(STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT.mutationPolicy).every(
+        (enabled) => enabled === false,
+      ),
+    ).toBe(true);
+  });
+
   it('keeps ending ownership from mixing writer and AI fallback sources for #1604', () => {
     expect(STORY_ENDING_OWNERSHIP_GUARD_CONTRACT.ownerSourceMap).toMatchObject({
       author_main: 'writer_declared_primary_ending',
@@ -432,6 +507,62 @@ describe('Story upload backend guard contracts', () => {
         },
       }),
     ).toEqual(['asset.signedUrl', 'asset.internalAccountId']);
+  });
+
+  it('guards public scene asset privacy fields for #1652', () => {
+    expect(
+      STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT.publicResponseAllowlist,
+    ).toEqual(
+      expect.arrayContaining([
+        'assetId',
+        'altKey',
+        'localeLabelKey',
+        'sceneUse',
+      ]),
+    );
+    expect(
+      STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT.forbiddenFixtureFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'rawPrompt',
+        'localAbsolutePath',
+        'privateUrl',
+        'privateBucketUrl',
+        'providerPayload',
+        'token',
+        'apiKey',
+      ]),
+    );
+    expect(
+      STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT.staticVerificationNotes,
+    ).toEqual(
+      expect.arrayContaining([
+        'scan_public_scene_response_fields',
+        'confirm_no_generation_or_upload_mutation',
+      ]),
+    );
+    expect(
+      findStoryUploadSensitiveFieldViolations({
+        asset: {
+          assetId: 'fixture-background-safe',
+          altKey: 'storyStage.asset.alt.rainAlley',
+          rawPrompt: 'not-allowed',
+          privateUrl: 'not-allowed',
+          token: 'not-allowed',
+          providerPayload: { apiKey: 'not-allowed' },
+        },
+      }),
+    ).toEqual([
+      'asset.rawPrompt',
+      'asset.privateUrl',
+      'asset.token',
+      'asset.providerPayload',
+      'asset.providerPayload.apiKey',
+    ]);
+    expect(
+      Object.values(STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT.mutationPolicy)
+        .every((enabled) => enabled === false),
+    ).toBe(true);
   });
 
   it('requires safe review state transitions before publish-ready for #1606', () => {
@@ -543,6 +674,46 @@ describe('Story upload backend guard contracts', () => {
       authorSubMin: '2',
       authorSubMax: '10',
     });
+  });
+
+  it('keeps AI fallback backend evidence aligned after rebase for #1650', () => {
+    expect(
+      STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT
+        .backendRebaseEvidenceGuard,
+    ).toMatchObject({
+      sourceVerificationOnly: true,
+      qaReturnOwner: 'qr1_static_qa',
+      recordsSecretsOrAccountData: false,
+    });
+    expect(
+      STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT
+        .backendRebaseEvidenceGuard.requiredContractFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'providerGeneratedAtIntake',
+        'writerEndingConfigured',
+        'authorMainCount',
+        'authorSubCount',
+      ]),
+    );
+    expect(
+      STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT.requiredValues,
+    ).toMatchObject({
+      writerEndingConfigured: 'false',
+      providerGeneratedAtIntake: 'false',
+    });
+    expect(
+      STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT
+        .authorCountEvidence,
+    ).toMatchObject({
+      authorMainCountAttribute: 'data-author-main-count',
+      authorSubCountAttribute: 'data-author-sub-count',
+    });
+    expect(
+      STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT.failureConditions,
+    ).toEqual(
+      expect.arrayContaining(['backend_rebase_evidence_field_missing']),
+    );
   });
 
   it('guards import preview public labels for #1610', () => {
