@@ -453,6 +453,42 @@ export const STORY_BRANCH_GRAPH_READ_MODEL_CONTRACT = {
   },
 } as const;
 
+export const STORY_BRANCH_GRAPH_IMPORT_SCHEMA_CONTRACT = {
+  version: '2026-07-04.story-branch-graph-import-schema.v1',
+  status: 'schema_contract_only',
+  schemaSlices: {
+    manuscript: ['partId', 'partIndex', 'partBodyKey', 'partTargetCharacters'],
+    scenes: ['sceneId', 'partId', 'sceneOrder', 'bodyKey'],
+    choices: ['choiceId', 'sceneId', 'choiceBodyKey', 'nextSceneId'],
+    rejoins: ['rejoinGroup', 'sourceChoiceIds', 'targetSceneId'],
+    endings: ['endingCandidate', 'endingSceneId', 'writerConfigured'],
+  },
+  lengthDefaults: {
+    partBodyApproxCharacters: 10_000,
+    branchSummaryMaxCharacters: 2_000,
+    shortDramaPartCount: 10,
+  },
+  convergencePolicy: {
+    immediateSameSceneSameResultDefaultFail: true,
+    explicitRejoinGroupRequired: true,
+    resultDifferenceRequiredBeforeRejoin: true,
+  },
+  validationFailureConditions: [
+    'choice_missing_next_scene',
+    'rejoin_group_missing_for_shared_target',
+    'all_choices_share_same_scene_and_result',
+    'branch_summary_exceeds_limit',
+    'part_body_missing_for_manuscript_import',
+  ],
+  mutationPolicy: {
+    uploadWrite: false,
+    importWrite: false,
+    storyWrite: false,
+    providerCall: false,
+    paymentMutation: false,
+  },
+} as const;
+
 export const STORY_ENDING_OWNERSHIP_GUARD_CONTRACT = {
   version: '2026-07-03.story-ending-ownership-guard.v1',
   status: 'ownership_guard_contract_only',
@@ -527,6 +563,54 @@ export const STORY_ENDING_OWNERSHIP_PERSISTENCE_CONTRACT = {
   mutationPolicy: {
     providerGeneration: false,
     storyWrite: false,
+    publishMutation: false,
+    paymentMutation: false,
+  },
+} as const;
+
+export const STORY_ENDING_TREE_TRAVERSAL_CONTRACT = {
+  version: '2026-07-04.story-ending-tree-traversal.v1',
+  status: 'traversal_contract_only',
+  endingRules: {
+    authorMainExactCount: 1,
+    authorSubMinWhenProvided: 2,
+    authorSubMaxWhenProvided: 10,
+    aiEndingAllowedOnlyWhenWriterUnset: true,
+  },
+  traversalStateFields: [
+    'sceneId',
+    'choiceId',
+    'nextSceneId',
+    'eventDeltaKey',
+    'relationDeltaKey',
+    'riskDeltaKey',
+    'infoDeltaKey',
+    'backgroundDeltaKey',
+    'endingCandidate',
+  ],
+  divergencePolicy: {
+    distinctChoicePathRequiresDistinctState: true,
+    rejoinRequiresDistinctPriorState: true,
+    requiredDifferenceAxes: [
+      'event',
+      'relation',
+      'risk',
+      'info',
+      'background',
+    ],
+  },
+  validationFailureConditions: [
+    'author_main_count_not_exactly_one',
+    'author_sub_count_outside_2_to_10_when_present',
+    'ai_ending_without_writer_unset_branch',
+    'choice_paths_have_no_distinct_result_state',
+    'rejoin_without_distinct_prior_state',
+  ],
+  mutationPolicy: {
+    aiProviderCall: false,
+    storyProgressWrite: false,
+    storyWrite: false,
+    importWrite: false,
     publishMutation: false,
     paymentMutation: false,
   },
@@ -617,6 +701,40 @@ export const STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT = {
   },
 } as const;
 
+export const STORY_SCENE_BACKGROUND_MANIFEST_READ_MODEL_CONTRACT = {
+  version: '2026-07-04.story-scene-background-manifest-read-model.v1',
+  status: 'read_model_skeleton_only',
+  manifestFields: [
+    'sceneId',
+    'backgroundId',
+    'backgroundState',
+    'characterIds',
+    'assetId',
+    'altKey',
+    'localeLabel',
+    'sceneUse',
+  ],
+  safePublicFieldPolicy: {
+    allowedOnly: ['assetId', 'altKey', 'localeLabel', 'sceneUse'],
+    providerPayloadReturned: false,
+    privateStoragePathReturned: false,
+    rawPromptReturned: false,
+  },
+  mobileQaMarkers: {
+    route: '/story-stage',
+    primaryWidth: '390-400px',
+    markerAttribute: 'data-story-scene-manifest-fixture',
+    backgroundChangeMarkerRequired: true,
+  },
+  mutationPolicy: {
+    imageGeneration: false,
+    providerCall: false,
+    storyWrite: false,
+    uploadWrite: false,
+    paymentMutation: false,
+  },
+} as const;
+
 export const STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT = {
   version: '2026-07-03.story-upload-review-state-transition-guard.v1',
   status: 'workflow_transition_guard_contract_only',
@@ -704,6 +822,75 @@ export const STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT = {
     providerCall: false,
     publishMutation: false,
     paymentMutation: false,
+  },
+} as const;
+
+export const STORY_UPLOAD_PARSER_LENGTH_ANALYZER_CONTRACT = {
+  version: '2026-07-04.story-upload-parser-length-analyzer.v1',
+  status: 'analyzer_contract_only',
+  analyzerInputs: [
+    'partBodyCharacters',
+    'branchSummaryCharacters',
+    'partCount',
+    'locale',
+  ],
+  thresholds: {
+    partBodyApproxCharacters: 10_000,
+    branchSummaryMaxCharacters: 2_000,
+    shortDramaPartCount: 10,
+  },
+  analyzerStates: ['ok', 'reviewRequired'],
+  reviewReasonKeys: [
+    'storyUpload.parser.partLengthReviewRequired',
+    'storyUpload.parser.branchSummaryReviewRequired',
+    'storyUpload.parser.shortDramaPartCountReviewRequired',
+  ],
+  publishBlockingPolicy: {
+    analyzerDirectlyBlocksPublish: false,
+    returnsReviewRequiredReasonOnly: true,
+  },
+  i18nPolicy: {
+    localeSlots: STORY_ROUTE_SUPPORTED_LOCALE_SLOTS,
+    messageKeysRequired: true,
+    rawAnalyzerMessageVisible: false,
+  },
+  mutationPolicy: {
+    uploadWrite: false,
+    importWrite: false,
+    publishMutation: false,
+    providerCall: false,
+    paymentMutation: false,
+  },
+} as const;
+
+export const STORY_PROGRESS_SAFE_MOCK_CONTRACT = {
+  version: '2026-07-04.story-progress-safe-mock.v1',
+  status: 'read_only_mock_contract_only',
+  mockStateFields: [
+    'mockProgressId',
+    'sceneId',
+    'choiceId',
+    'summaryKey',
+    'inputPlaceholderKey',
+    'resultStateKey',
+  ],
+  privacyPolicy: {
+    accountIdentifierRecorded: false,
+    sessionIdentifierRecorded: false,
+    rawEmailRecorded: false,
+    credentialMaterialRecorded: false,
+  },
+  mobileQaHooks: {
+    primaryWidth: '390-400px',
+    summarySelector: '[data-story-progress-summary]',
+    inputSelector: '[data-story-progress-input]',
+    overlapMustBeFalse: true,
+  },
+  mutationPolicy: {
+    storyWrite: false,
+    progressSave: false,
+    paymentMutation: false,
+    walletMutation: false,
   },
 } as const;
 
@@ -963,16 +1150,22 @@ export const STORY_UPLOAD_BACKEND_GUARD_CONTRACT = {
     STORY_UPLOAD_PENDING_DECISION_AUDIT_GUARD_CONTRACT,
   fixturePrivacyGuard: STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT,
   branchGraphReadModel: STORY_BRANCH_GRAPH_READ_MODEL_CONTRACT,
+  branchGraphImportSchema: STORY_BRANCH_GRAPH_IMPORT_SCHEMA_CONTRACT,
   branchGraphCycleGuard: STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT,
   endingOwnershipGuard: STORY_ENDING_OWNERSHIP_GUARD_CONTRACT,
   endingOwnershipPersistence:
     STORY_ENDING_OWNERSHIP_PERSISTENCE_CONTRACT,
+  endingTreeTraversal: STORY_ENDING_TREE_TRAVERSAL_CONTRACT,
   sceneAssetReferenceGuard: STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT,
   sceneBackgroundAssetMetadataGuard:
     STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT,
+  sceneBackgroundManifestReadModel:
+    STORY_SCENE_BACKGROUND_MANIFEST_READ_MODEL_CONTRACT,
   reviewStateTransitionGuard:
     STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT,
   draftLengthValidator: STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT,
+  parserLengthAnalyzer: STORY_UPLOAD_PARSER_LENGTH_ANALYZER_CONTRACT,
+  progressSafeMock: STORY_PROGRESS_SAFE_MOCK_CONTRACT,
   serializationPenaltyPolicySkeleton:
     STORY_SERIALIZATION_PENALTY_POLICY_SKELETON,
   importExportSchemaVersionGuard:

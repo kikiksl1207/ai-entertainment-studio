@@ -1,22 +1,27 @@
 import {
   AUTHOR_SUB_ENDING_COUNT_VALIDATION_GUARD_CONTRACT,
   findStoryUploadSensitiveFieldViolations,
+  STORY_BRANCH_GRAPH_IMPORT_SCHEMA_CONTRACT,
   STORY_BRANCH_GRAPH_READ_MODEL_CONTRACT,
   STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT,
   STORY_BRANCH_RESULT_STATE_BACKEND_GUARD_CONTRACT,
   STORY_ENDING_TYPE_BACKEND_POLICY_CONTRACT,
   STORY_ENDING_OWNERSHIP_GUARD_CONTRACT,
   STORY_ENDING_OWNERSHIP_PERSISTENCE_CONTRACT,
+  STORY_ENDING_TREE_TRAVERSAL_CONTRACT,
   STORY_HIATUS_PENALTY_PENDING_VALUES_GUARD_CONTRACT,
   STORY_IMPORT_PREVIEW_PUBLIC_LABEL_GUARD_CONTRACT,
   STORY_IMPORT_EXPORT_SCHEMA_VERSION_GUARD_CONTRACT,
   STORY_PART_LENGTH_POLICY_CONTRACT,
+  STORY_PROGRESS_SAFE_MOCK_CONTRACT,
   STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT,
+  STORY_SCENE_BACKGROUND_MANIFEST_READ_MODEL_CONTRACT,
   STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT,
   STORY_SERIALIZATION_PENALTY_POLICY_SKELETON,
   STORY_STAGE_CONTRACT,
   STORY_UPLOAD_BACKEND_GUARD_CONTRACT,
   STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT,
+  STORY_UPLOAD_PARSER_LENGTH_ANALYZER_CONTRACT,
   STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT,
   STORY_UPLOAD_INTAKE_STORAGE_GUARD_CONTRACT,
   STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT,
@@ -45,16 +50,22 @@ describe('Story upload backend guard contracts', () => {
         STORY_UPLOAD_PENDING_DECISION_AUDIT_GUARD_CONTRACT,
       fixturePrivacyGuard: STORY_UPLOAD_FIXTURE_PRIVACY_GUARD_CONTRACT,
       branchGraphReadModel: STORY_BRANCH_GRAPH_READ_MODEL_CONTRACT,
+      branchGraphImportSchema: STORY_BRANCH_GRAPH_IMPORT_SCHEMA_CONTRACT,
       branchGraphCycleGuard: STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT,
       endingOwnershipGuard: STORY_ENDING_OWNERSHIP_GUARD_CONTRACT,
       endingOwnershipPersistence:
         STORY_ENDING_OWNERSHIP_PERSISTENCE_CONTRACT,
+      endingTreeTraversal: STORY_ENDING_TREE_TRAVERSAL_CONTRACT,
       sceneAssetReferenceGuard: STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT,
       sceneBackgroundAssetMetadataGuard:
         STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT,
+      sceneBackgroundManifestReadModel:
+        STORY_SCENE_BACKGROUND_MANIFEST_READ_MODEL_CONTRACT,
       reviewStateTransitionGuard:
         STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT,
       draftLengthValidator: STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT,
+      parserLengthAnalyzer: STORY_UPLOAD_PARSER_LENGTH_ANALYZER_CONTRACT,
+      progressSafeMock: STORY_PROGRESS_SAFE_MOCK_CONTRACT,
       serializationPenaltyPolicySkeleton:
         STORY_SERIALIZATION_PENALTY_POLICY_SKELETON,
       importExportSchemaVersionGuard:
@@ -425,6 +436,44 @@ describe('Story upload backend guard contracts', () => {
     });
   });
 
+  it('defines the branch graph import schema for #1658', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.branchGraphImportSchema,
+    ).toBe(STORY_BRANCH_GRAPH_IMPORT_SCHEMA_CONTRACT);
+    expect(STORY_BRANCH_GRAPH_IMPORT_SCHEMA_CONTRACT.schemaSlices).toMatchObject({
+      manuscript: expect.arrayContaining([
+        'partBodyKey',
+        'partTargetCharacters',
+      ]),
+      choices: expect.arrayContaining([
+        'choiceBodyKey',
+        'nextSceneId',
+      ]),
+      rejoins: expect.arrayContaining([
+        'rejoinGroup',
+        'targetSceneId',
+      ]),
+      endings: expect.arrayContaining([
+        'endingCandidate',
+        'writerConfigured',
+      ]),
+    });
+    expect(
+      STORY_BRANCH_GRAPH_IMPORT_SCHEMA_CONTRACT.lengthDefaults,
+    ).toEqual({
+      partBodyApproxCharacters: 10_000,
+      branchSummaryMaxCharacters: 2_000,
+      shortDramaPartCount: 10,
+    });
+    expect(
+      STORY_BRANCH_GRAPH_IMPORT_SCHEMA_CONTRACT.convergencePolicy,
+    ).toMatchObject({
+      immediateSameSceneSameResultDefaultFail: true,
+      explicitRejoinGroupRequired: true,
+      resultDifferenceRequiredBeforeRejoin: true,
+    });
+  });
+
   it('keeps ending ownership from mixing writer and AI fallback sources for #1604', () => {
     expect(STORY_ENDING_OWNERSHIP_GUARD_CONTRACT.ownerSourceMap).toMatchObject({
       author_main: 'writer_declared_primary_ending',
@@ -477,6 +526,41 @@ describe('Story upload backend guard contracts', () => {
         'raw_ending_enum_visible_to_reader',
       ]),
     );
+  });
+
+  it('defines ending tree traversal without provider or progress mutation for #1660', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.endingTreeTraversal,
+    ).toBe(STORY_ENDING_TREE_TRAVERSAL_CONTRACT);
+    expect(STORY_ENDING_TREE_TRAVERSAL_CONTRACT.endingRules).toMatchObject({
+      authorMainExactCount: 1,
+      authorSubMinWhenProvided: 2,
+      authorSubMaxWhenProvided: 10,
+      aiEndingAllowedOnlyWhenWriterUnset: true,
+    });
+    expect(
+      STORY_ENDING_TREE_TRAVERSAL_CONTRACT.traversalStateFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'eventDeltaKey',
+        'relationDeltaKey',
+        'riskDeltaKey',
+        'infoDeltaKey',
+        'backgroundDeltaKey',
+        'endingCandidate',
+      ]),
+    );
+    expect(
+      STORY_ENDING_TREE_TRAVERSAL_CONTRACT.divergencePolicy,
+    ).toMatchObject({
+      distinctChoicePathRequiresDistinctState: true,
+      rejoinRequiresDistinctPriorState: true,
+    });
+    expect(
+      Object.values(
+        STORY_ENDING_TREE_TRAVERSAL_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
   });
 
   it('allows only public scene asset references for #1605', () => {
@@ -544,6 +628,42 @@ describe('Story upload backend guard contracts', () => {
     ).toBe(true);
   });
 
+  it('defines the scene background manifest read model for #1659', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.sceneBackgroundManifestReadModel,
+    ).toBe(STORY_SCENE_BACKGROUND_MANIFEST_READ_MODEL_CONTRACT);
+    expect(
+      STORY_SCENE_BACKGROUND_MANIFEST_READ_MODEL_CONTRACT.manifestFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'sceneId',
+        'backgroundId',
+        'backgroundState',
+        'characterIds',
+        'assetId',
+        'altKey',
+        'localeLabel',
+        'sceneUse',
+      ]),
+    );
+    expect(
+      STORY_SCENE_BACKGROUND_MANIFEST_READ_MODEL_CONTRACT
+        .safePublicFieldPolicy,
+    ).toMatchObject({
+      allowedOnly: ['assetId', 'altKey', 'localeLabel', 'sceneUse'],
+      providerPayloadReturned: false,
+      privateStoragePathReturned: false,
+      rawPromptReturned: false,
+    });
+    expect(
+      STORY_SCENE_BACKGROUND_MANIFEST_READ_MODEL_CONTRACT.mobileQaMarkers,
+    ).toMatchObject({
+      route: '/story-stage',
+      primaryWidth: '390-400px',
+      backgroundChangeMarkerRequired: true,
+    });
+  });
+
   it('separates draft length warnings and hard blocks for #1629', () => {
     expect(
       STORY_UPLOAD_BACKEND_GUARD_CONTRACT.draftLengthValidator,
@@ -566,6 +686,62 @@ describe('Story upload backend guard contracts', () => {
       rawManuscriptStoredInFixture: false,
       realManuscriptRecorded: false,
     });
+  });
+
+  it('defines parser length analyzer review reasons for #1662', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.parserLengthAnalyzer,
+    ).toBe(STORY_UPLOAD_PARSER_LENGTH_ANALYZER_CONTRACT);
+    expect(STORY_UPLOAD_PARSER_LENGTH_ANALYZER_CONTRACT.thresholds).toEqual({
+      partBodyApproxCharacters: 10_000,
+      branchSummaryMaxCharacters: 2_000,
+      shortDramaPartCount: 10,
+    });
+    expect(
+      STORY_UPLOAD_PARSER_LENGTH_ANALYZER_CONTRACT.analyzerStates,
+    ).toEqual(['ok', 'reviewRequired']);
+    expect(
+      STORY_UPLOAD_PARSER_LENGTH_ANALYZER_CONTRACT.publishBlockingPolicy,
+    ).toEqual({
+      analyzerDirectlyBlocksPublish: false,
+      returnsReviewRequiredReasonOnly: true,
+    });
+    expect(STORY_UPLOAD_PARSER_LENGTH_ANALYZER_CONTRACT.i18nPolicy).toEqual({
+      localeSlots: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
+      messageKeysRequired: true,
+      rawAnalyzerMessageVisible: false,
+    });
+  });
+
+  it('keeps progress mocks read-only with mobile QA hooks for #1661', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.progressSafeMock,
+    ).toBe(STORY_PROGRESS_SAFE_MOCK_CONTRACT);
+    expect(STORY_PROGRESS_SAFE_MOCK_CONTRACT.mockStateFields).toEqual(
+      expect.arrayContaining([
+        'mockProgressId',
+        'sceneId',
+        'choiceId',
+        'summaryKey',
+        'inputPlaceholderKey',
+        'resultStateKey',
+      ]),
+    );
+    expect(STORY_PROGRESS_SAFE_MOCK_CONTRACT.privacyPolicy).toMatchObject({
+      accountIdentifierRecorded: false,
+      sessionIdentifierRecorded: false,
+      rawEmailRecorded: false,
+      credentialMaterialRecorded: false,
+    });
+    expect(STORY_PROGRESS_SAFE_MOCK_CONTRACT.mobileQaHooks).toMatchObject({
+      primaryWidth: '390-400px',
+      overlapMustBeFalse: true,
+    });
+    expect(
+      Object.values(STORY_PROGRESS_SAFE_MOCK_CONTRACT.mutationPolicy).every(
+        (enabled) => enabled === false,
+      ),
+    ).toBe(true);
   });
 
   it('keeps serialization penalties disabled until PM confirmation for #1630', () => {
