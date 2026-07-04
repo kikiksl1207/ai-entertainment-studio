@@ -966,7 +966,10 @@
     const localeQa = fixtureMode ? renderLocaleQaShell() : "";
 
     root.innerHTML = `
-      <div class="story-preview-banner" role="note">
+      <div class="story-preview-banner"
+           role="note"
+           data-story-stage-public-build-marker="story-stage-public-2026-07-04"
+           data-reflection-status="public">
         <strong>${storyLocalT("storyStage.preview.notice.title")}</strong>
         <span>${storyLocalT("storyStage.preview.notice.body")}</span>
       </div>
