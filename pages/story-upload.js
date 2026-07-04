@@ -640,6 +640,26 @@
     providerGeneratedAtIntake: aiFallbackEvidence.providerGeneratedAtIntake,
   };
 
+  const AUTHOR_PREVIEW_FIXTURE = {
+    partLength: "10000",
+    branchSummaryLimit: "2000",
+    shortDramaParts: "10",
+    endings: [
+      { label: "작가 기본 결말", count: "1", state: "configured", stateLabel: "설정됨" },
+      { label: "작가 보조 결말", count: "2", state: "configured", stateLabel: "설정됨" },
+      { label: "AI 보조 결말", count: "1", state: "missing-writer-ending-only", stateLabel: "작가 결말이 없을 때만 사용" },
+    ],
+    backgrounds: [
+      { scene: "S05", assetId: "bg-war-room-map", label: "작전 지도실" },
+      { scene: "S06", assetId: "bg-harbor-night", label: "밤 항구 추적" },
+      { scene: "S07", assetId: "bg-fog-shore", label: "안개 해안 우회" },
+    ],
+    characters: [
+      { assetId: "character.cha-dohyun.reference-final-03", label: "차도현 안내 컷" },
+      { assetId: "none", label: "S07은 캐릭터 없이 진행 가능" },
+    ],
+  };
+
   const localeMap = {
     ko: "ko-KR",
     en: "en-US",
@@ -727,6 +747,56 @@
             <span class="su-status-pill">${escapeHtml(locale.status.locale_ready)}</span>
             <p class="su-status-hint">${escapeHtml(locale.statusHint.locale_ready)}</p>
             <div class="su-status-handoff">${locale.handoff.map((item) => `<span class="su-chip">${escapeHtml(item)}</span>`).join("")}</div>
+          </div>
+        </section>
+
+        <section class="su-section su-author-preview-panel"
+                 data-author-upload-preview-panel="true"
+                 data-part-length="${escapeHtml(AUTHOR_PREVIEW_FIXTURE.partLength)}"
+                 data-branch-summary-limit="${escapeHtml(AUTHOR_PREVIEW_FIXTURE.branchSummaryLimit)}"
+                 data-short-drama-parts="${escapeHtml(AUTHOR_PREVIEW_FIXTURE.shortDramaParts)}">
+          <div class="su-author-preview-head">
+            <h2>작가 업로드 미리보기</h2>
+            <p>원고 분량, 분기 요약, 결말 후보를 저장 없이 확인합니다.</p>
+          </div>
+          <div class="su-preview-grid">
+            <article class="su-preview-card" data-preview-kind="length">
+              <strong>원고 기준</strong>
+              <dl>
+                <div><dt>파트 분량</dt><dd>약 10,000자</dd></div>
+                <div><dt>분기 요약</dt><dd>최대 2,000자</dd></div>
+                <div><dt>기본 구성</dt><dd>10파트 단편극</dd></div>
+              </dl>
+            </article>
+            <article class="su-preview-card" data-preview-kind="ending">
+              <strong>결말 설정</strong>
+              <ul>
+                ${AUTHOR_PREVIEW_FIXTURE.endings.map((ending) => `
+                  <li data-ending-state="${escapeHtml(ending.state)}">
+                    <span>${escapeHtml(ending.label)}</span>
+                    <b>${escapeHtml(ending.count)}</b>
+                    <em>${escapeHtml(ending.stateLabel)}</em>
+                  </li>
+                `).join("")}
+              </ul>
+            </article>
+            <article class="su-preview-card" data-preview-kind="safe-assets">
+              <strong>공개 가능한 장면 자료</strong>
+              <dl>
+                ${AUTHOR_PREVIEW_FIXTURE.backgrounds.map((asset) => `
+                  <div data-safe-background-id="${escapeHtml(asset.assetId)}">
+                    <dt>${escapeHtml(asset.scene)}</dt>
+                    <dd>${escapeHtml(asset.label)}</dd>
+                  </div>
+                `).join("")}
+                ${AUTHOR_PREVIEW_FIXTURE.characters.map((asset) => `
+                  <div data-safe-character-id="${escapeHtml(asset.assetId)}">
+                    <dt>캐릭터</dt>
+                    <dd>${escapeHtml(asset.label)}</dd>
+                  </div>
+                `).join("")}
+              </dl>
+            </article>
           </div>
         </section>
 
