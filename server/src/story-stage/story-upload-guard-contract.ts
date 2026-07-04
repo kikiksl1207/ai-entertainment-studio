@@ -648,10 +648,21 @@ export const STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT = {
       rawCopyAsStatusAllowed: false,
     },
   },
+  followupPolicy: {
+    penaltyPolicyEnforcement: 'disabled_until_pm_decision',
+    penaltyPolicySkeletonStatus: 'disabled_policy_skeleton_only',
+    penaltyLiveEnforcementEnabled: false,
+    pmConfirmationRequiredBeforePenalty: true,
+    publishReadyBypassAllowed: false,
+    blockedReasonKeyPreserved: true,
+    notificationMutation: false,
+  },
   failureConditions: [
     'publish_ready_without_qa_pass',
     'publish_ready_from_non_qa_ready_state',
     'blocked_without_blocker_reason_key',
+    'blocked_reason_key_dropped',
+    'penalty_policy_enabled_before_pm_decision',
     'unknown_review_status_key',
     'raw_status_copy_returned_to_client',
   ],
@@ -660,6 +671,7 @@ export const STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT = {
     providerCall: false,
     paymentMutation: false,
     walletMutation: false,
+    notificationMutation: false,
   },
 } as const;
 
