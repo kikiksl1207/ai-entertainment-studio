@@ -743,12 +743,12 @@
     return `
       <section class="story-section story-locale-section" aria-labelledby="storyLocaleTitle">
         <div class="story-section-head">
-          <span class="story-eyebrow story-eyebrow-extra">i18n</span>
-          <h2 id="storyLocaleTitle" data-i18n="storyStage.locale.heading">언어 QA</h2>
+          <span class="story-eyebrow story-eyebrow-extra" data-i18n="storyStage.locale.eyebrow">언어</span>
+          <h2 id="storyLocaleTitle" data-i18n="storyStage.locale.heading">언어 선택</h2>
         </div>
         <div class="story-locale-panel">
-          <p data-i18n="storyStage.locale.note">스토리 화면 문구를 5개 언어로 즉시 전환해 길이와 줄바꿈을 확인해요.</p>
-          <div class="story-locale-buttons" role="group" aria-label="Story locale QA">
+          <p data-i18n="storyStage.locale.note">스토리 화면 문구를 원하는 언어로 바꿔 읽어보세요.</p>
+          <div class="story-locale-buttons" role="group" aria-label="Story language selector">
             ${STORY_LOCALES.map(locale => `
               <button type="button" data-story-locale="${locale.code}" aria-pressed="false">${locale.label}</button>
             `).join("")}

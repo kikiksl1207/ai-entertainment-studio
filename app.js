@@ -898,18 +898,25 @@ const I18N_DICT = {
     "zh-Hant": "正在準備序章。"
   },
   "storyStage.locale.heading": {
-    "ko-KR": "언어 QA",
-    "ja-JP": "言語QA",
-    "en-US": "Locale QA",
-    "zh-CN": "语言 QA",
-    "zh-Hant": "語言 QA"
+    "ko-KR": "언어 선택",
+    "ja-JP": "言語選択",
+    "en-US": "Language",
+    "zh-CN": "语言选择",
+    "zh-Hant": "語言選擇"
+  },
+  "storyStage.locale.eyebrow": {
+    "ko-KR": "언어",
+    "ja-JP": "言語",
+    "en-US": "Language",
+    "zh-CN": "语言",
+    "zh-Hant": "語言"
   },
   "storyStage.locale.note": {
-    "ko-KR": "스토리 화면 문구를 5개 언어로 즉시 전환해 길이와 줄바꿈을 확인해요.",
-    "ja-JP": "ストーリー画面の文言を5言語に切り替え、長さと改行を確認します。",
-    "en-US": "Switch story copy across five locales to check length and wrapping.",
-    "zh-CN": "即时切换五种语言，检查故事文案长度和换行。",
-    "zh-Hant": "即時切換五種語言，檢查故事文案長度與換行。"
+    "ko-KR": "스토리 화면 문구를 원하는 언어로 바꿔 읽어보세요.",
+    "ja-JP": "ストーリー画面の文言を好きな言語で読めます。",
+    "en-US": "Read the story screen in your preferred language.",
+    "zh-CN": "将故事画面文字切换为你想阅读的语言。",
+    "zh-Hant": "將故事畫面文字切換為你想閱讀的語言。"
   },
   "storyStage.discovery.heading": {
     "ko-KR": "스토리 찾기",
