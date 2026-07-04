@@ -602,6 +602,43 @@ describe('Story upload backend guard contracts', () => {
     ).toBe(true);
   });
 
+  it('keeps review policy followup gated before live enforcement for #1653', () => {
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.followupPolicy,
+    ).toMatchObject({
+      penaltyPolicyEnforcement: 'disabled_until_pm_decision',
+      penaltyPolicySkeletonStatus: 'disabled_policy_skeleton_only',
+      penaltyLiveEnforcementEnabled: false,
+      pmConfirmationRequiredBeforePenalty: true,
+      publishReadyBypassAllowed: false,
+      blockedReasonKeyPreserved: true,
+      notificationMutation: false,
+    });
+    expect(
+      STORY_SERIALIZATION_PENALTY_POLICY_SKELETON.liveEnforcement,
+    ).toMatchObject({
+      enabled: false,
+      requiresPmConfirmation: true,
+    });
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.failureConditions,
+    ).toEqual(
+      expect.arrayContaining([
+        'publish_ready_without_qa_pass',
+        'blocked_reason_key_dropped',
+        'penalty_policy_enabled_before_pm_decision',
+      ]),
+    );
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.mutationPolicy,
+    ).toMatchObject({
+      publishMutation: false,
+      paymentMutation: false,
+      walletMutation: false,
+      notificationMutation: false,
+    });
+  });
+
   it('requires safe review state transitions before publish-ready for #1606', () => {
     expect(STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.statuses).toEqual([
       'draft',
