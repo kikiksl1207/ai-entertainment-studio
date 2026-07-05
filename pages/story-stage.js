@@ -284,6 +284,83 @@
       "zh-CN": "结局条件",
       "zh-Hant": "結局條件",
     },
+    "storyStage.detail.ending.heading": {
+      "ko-KR": "결말 흐름",
+      "ja-JP": "エンディングの流れ",
+      "en-US": "Ending paths",
+      "zh-CN": "结局走向",
+      "zh-Hant": "結局走向",
+    },
+    "storyStage.detail.ending.note": {
+      "ko-KR": "작가가 확정한 결말과 AI 보조 후보를 구분해 보여줘요.",
+      "ja-JP": "作者が確定した結末とAI補助候補を分けて表示します。",
+      "en-US": "Shows writer-confirmed endings separately from AI-assisted candidates.",
+      "zh-CN": "区分显示作者确认的结局和 AI 辅助候选。",
+      "zh-Hant": "區分顯示作者確認的結局和 AI 輔助候選。",
+    },
+    "storyStage.detail.ending.writerPrimary.title": {
+      "ko-KR": "작가 기본 결말",
+      "ja-JP": "作者の基本結末",
+      "en-US": "Writer main ending",
+      "zh-CN": "作者主结局",
+      "zh-Hant": "作者主結局",
+    },
+    "storyStage.detail.ending.writerPrimary.status": {
+      "ko-KR": "기본 경로",
+      "ja-JP": "基本ルート",
+      "en-US": "Main path",
+      "zh-CN": "主路径",
+      "zh-Hant": "主路徑",
+    },
+    "storyStage.detail.ending.writerPrimary.body": {
+      "ko-KR": "작가가 먼저 확정한 대표 결말로 안내합니다.",
+      "ja-JP": "作者が先に確定した代表結末へ案内します。",
+      "en-US": "Leads to the representative ending confirmed by the writer.",
+      "zh-CN": "引导至作者优先确认的代表结局。",
+      "zh-Hant": "引導至作者優先確認的代表結局。",
+    },
+    "storyStage.detail.ending.writerSub.title": {
+      "ko-KR": "작가 보조 결말",
+      "ja-JP": "作者の補助結末",
+      "en-US": "Writer side ending",
+      "zh-CN": "作者支线结局",
+      "zh-Hant": "作者支線結局",
+    },
+    "storyStage.detail.ending.writerSub.status": {
+      "ko-KR": "선택 조건",
+      "ja-JP": "選択条件",
+      "en-US": "Choice condition",
+      "zh-CN": "选择条件",
+      "zh-Hant": "選擇條件",
+    },
+    "storyStage.detail.ending.writerSub.body": {
+      "ko-KR": "특정 선택이 맞으면 작가가 준비한 다른 결말이 열립니다.",
+      "ja-JP": "特定の選択が合うと作者が用意した別の結末が開きます。",
+      "en-US": "Opens another writer-prepared ending when choices match.",
+      "zh-CN": "当选择符合条件时开启作者准备的另一个结局。",
+      "zh-Hant": "當選擇符合條件時開啟作者準備的另一個結局。",
+    },
+    "storyStage.detail.ending.aiFallback.title": {
+      "ko-KR": "AI 보조 결말",
+      "ja-JP": "AI補助結末",
+      "en-US": "AI-assisted ending",
+      "zh-CN": "AI 辅助结局",
+      "zh-Hant": "AI 輔助結局",
+    },
+    "storyStage.detail.ending.aiFallback.status": {
+      "ko-KR": "작가 결말 없음",
+      "ja-JP": "作者結末なし",
+      "en-US": "No writer ending",
+      "zh-CN": "无作者结局",
+      "zh-Hant": "無作者結局",
+    },
+    "storyStage.detail.ending.aiFallback.body": {
+      "ko-KR": "작가 결말이 없을 때만 보조 후보로 검토합니다.",
+      "ja-JP": "作者の結末がない場合のみ補助候補として検討します。",
+      "en-US": "Reviewed only as a helper candidate when no writer ending exists.",
+      "zh-CN": "仅在没有作者结局时作为辅助候选审核。",
+      "zh-Hant": "僅在沒有作者結局時作為輔助候選審核。",
+    },
   });
 
   const STORY_LOCALES = [
@@ -546,6 +623,27 @@
     },
   ];
 
+  const STORY_DETAIL_ENDING_COPY = Object.freeze([
+    {
+      tone: "writer-primary",
+      titleKey: "storyStage.detail.ending.writerPrimary.title",
+      statusKey: "storyStage.detail.ending.writerPrimary.status",
+      bodyKey: "storyStage.detail.ending.writerPrimary.body",
+    },
+    {
+      tone: "writer-sub",
+      titleKey: "storyStage.detail.ending.writerSub.title",
+      statusKey: "storyStage.detail.ending.writerSub.status",
+      bodyKey: "storyStage.detail.ending.writerSub.body",
+    },
+    {
+      tone: "ai-helper",
+      titleKey: "storyStage.detail.ending.aiFallback.title",
+      statusKey: "storyStage.detail.ending.aiFallback.status",
+      bodyKey: "storyStage.detail.ending.aiFallback.body",
+    },
+  ]);
+
   let _storyScenes = STORY_SCENE_FALLBACKS.slice();
   let _storySceneIndex = 0;
 
@@ -588,6 +686,26 @@
     const safeChoice = choice || STORY_BRANCH_IMPLEMENTATION_FIXTURE[0];
     const url = safeChoice.backgroundAssetUrl || "/assets/brand/lumina-stage-banner.png";
     return "linear-gradient(180deg, rgba(8, 5, 18, 0.04), rgba(8, 5, 18, 0.62)), url('" + escapeHtml(url) + "')";
+  }
+
+  function renderDetailEndingCopy() {
+    return `
+      <section class="story-detail-ending-copy" aria-labelledby="storyDetailEndingTitle">
+        <div class="story-detail-ending-head">
+          <h3 id="storyDetailEndingTitle" data-story-local-i18n="storyStage.detail.ending.heading">${storyLocalT("storyStage.detail.ending.heading")}</h3>
+          <p data-story-local-i18n="storyStage.detail.ending.note">${storyLocalT("storyStage.detail.ending.note")}</p>
+        </div>
+        <div class="story-detail-ending-grid">
+          ${STORY_DETAIL_ENDING_COPY.map((item) => `
+            <article class="story-detail-ending-card" data-ending-copy-tone="${escapeHtml(item.tone)}">
+              <strong data-story-local-i18n="${escapeHtml(item.titleKey)}">${storyLocalT(item.titleKey)}</strong>
+              <span data-story-local-i18n="${escapeHtml(item.statusKey)}">${storyLocalT(item.statusKey)}</span>
+              <p data-story-local-i18n="${escapeHtml(item.bodyKey)}">${storyLocalT(item.bodyKey)}</p>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    `;
   }
 
   function storyLocalT(key) {
@@ -897,6 +1015,7 @@
           <span class="story-eyebrow story-eyebrow-scene" data-i18n="storyStage.detail.heading">스토리 상세</span>
           <h2 id="storyDetailTitle" data-i18n="storyStage.discovery.card.imjin.title">임진왜란: 난중일기 프롤로그</h2>
           <p data-story-detail-summary data-i18n="storyStage.discovery.card.imjin.summary">전장의 기록 사이로 들어가 첫 선택을 해요.</p>
+          ${renderDetailEndingCopy()}
           <div class="story-detail-chip-row" data-story-detail-tags>
             <span>History</span>
             <span>Tutorial</span>
