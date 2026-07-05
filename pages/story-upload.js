@@ -15,7 +15,7 @@
   const UI = {
     ko: {
       title: "작품 업로드",
-      eyebrow: "Story upload",
+      eyebrow: "스토리 업로드",
       meta: "작품 기본 정보",
       scenes: "장면 목록",
       endings: "엔딩 요약",
@@ -163,7 +163,7 @@
     },
     ja: {
       title: "作品アップロード",
-      eyebrow: "Story upload",
+      eyebrow: "ストーリーアップロード",
       meta: "作品基本情報",
       scenes: "シーン一覧",
       endings: "エンディング要約",
@@ -237,7 +237,7 @@
     },
     "zh-Hans": {
       title: "作品上传",
-      eyebrow: "Story upload",
+      eyebrow: "故事上传",
       meta: "作品信息",
       scenes: "场景列表",
       endings: "结局摘要",
@@ -311,7 +311,7 @@
     },
     "zh-Hant": {
       title: "作品上傳",
-      eyebrow: "Story upload",
+      eyebrow: "故事上傳",
       meta: "作品資訊",
       scenes: "場景列表",
       endings: "結局摘要",
@@ -396,12 +396,12 @@
       onboardingTitle: "작가 업로드 안내",
       onboardingBody: "긴 본문 원고를 먼저 쓰고, 분기점만 선택지로 표시해요.",
       onboardingSteps: ["본문 원고", "분기점", "장면 연결"],
-      referenceTitle: "PM/QA reference",
+      referenceTitle: "검수 참고 링크",
       referenceNote: "검수자가 확인하는 읽기 전용 위치예요. 서비스 CTA가 아니며 저장하지 않아요.",
       referenceLinks: [
-        { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
-        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
-        { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
+        { label: "오늘의 보드", href: "/story-upload?cloudQa=pm-daily" },
+        { label: "업로드 미리보기", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "장면 미리보기", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
         title: "AI 보조 결말 안내",
@@ -440,11 +440,11 @@
       onboardingTitle: "Writer upload guide",
       onboardingBody: "Draft the long manuscript; mark only branch points.",
       onboardingSteps: ["Manuscript", "Branch points", "Scene links"],
-      referenceTitle: "PM/QA reference",
+      referenceTitle: "Review links",
       referenceNote: "Read-only checkpoints for reviewers. These are not service CTAs and nothing is saved.",
       referenceLinks: [
         { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
-        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "Upload preview", href: "/story-upload?cloudQa=upload-panel" },
         { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
@@ -484,12 +484,12 @@
       onboardingTitle: "作家アップロード案内",
       onboardingBody: "長い本文原稿を書き、分岐点だけ選択肢にします。",
       onboardingSteps: ["本文原稿", "分岐点", "シーン接続"],
-      referenceTitle: "PM/QA reference",
+      referenceTitle: "レビュー用リンク",
       referenceNote: "検収担当者向けの読み取り専用位置です。サービスCTAではなく保存もしません。",
       referenceLinks: [
-        { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
-        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
-        { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
+        { label: "今日のボード", href: "/story-upload?cloudQa=pm-daily" },
+        { label: "アップロードプレビュー", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "シーンプレビュー", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
         title: "補助エンディング案内",
@@ -505,7 +505,7 @@
         author_sub: "作家サブ終了",
         ai_fallback: "AI補助終了",
       },
-      importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
+      importHead: ["シーン", "分岐", "終了種別", "パート数", "分岐要約上限", "状態"],
       choices: [
         { label: "A", tone: "info", text: "記録を先に確認する", next: "S05", result: "情報 + 信頼上昇", rejoin: "S09で再合流", tags: ["情報", "信頼"] },
         { label: "B", tone: "risk", text: "伝令について行く", next: "S06", result: "危険 + アイテム取得", rejoin: "S09で再合流", tags: ["危険", "アイテム"] },
@@ -528,12 +528,12 @@
       onboardingTitle: "作者上传指引",
       onboardingBody: "先写长篇正文稿，再只把分支点标为选项。",
       onboardingSteps: ["正文稿", "分支点", "场景连接"],
-      referenceTitle: "PM/QA reference",
+      referenceTitle: "审核参考链接",
       referenceNote: "供检收人员查看的只读位置。不是服务CTA，也不会保存。",
       referenceLinks: [
-        { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
-        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
-        { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
+        { label: "今日看板", href: "/story-upload?cloudQa=pm-daily" },
+        { label: "上传预览", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "场景预览", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
         title: "辅助结局说明",
@@ -549,7 +549,7 @@
         author_sub: "作者支线结局",
         ai_fallback: "AI辅助结局",
       },
-      importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
+      importHead: ["场景", "分支", "结局类型", "部分数", "分支摘要上限", "状态"],
       choices: [
         { label: "A", tone: "info", text: "先确认记录", next: "S05", result: "信息 + 信任提升", rejoin: "S09再汇合", tags: ["信息", "信任"] },
         { label: "B", tone: "risk", text: "跟随传令", next: "S06", result: "风险 + 获得道具", rejoin: "S09再汇合", tags: ["风险", "道具"] },
@@ -572,12 +572,12 @@
       onboardingTitle: "作者上傳指引",
       onboardingBody: "先寫長篇正文稿，再只把分支點標為選項。",
       onboardingSteps: ["正文稿", "分支點", "場景連接"],
-      referenceTitle: "PM/QA reference",
+      referenceTitle: "審核參考連結",
       referenceNote: "供檢收人員查看的唯讀位置。不是服務CTA，也不會儲存。",
       referenceLinks: [
-        { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
-        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
-        { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
+        { label: "今日看板", href: "/story-upload?cloudQa=pm-daily" },
+        { label: "上傳預覽", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "場景預覽", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
         title: "輔助結局說明",
@@ -593,7 +593,7 @@
         author_sub: "作者支線結局",
         ai_fallback: "AI輔助結局",
       },
-      importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
+      importHead: ["場景", "分支", "結局類型", "部分數", "分支摘要上限", "狀態"],
       choices: [
         { label: "A", tone: "info", text: "先確認記錄", next: "S05", result: "資訊 + 信任提升", rejoin: "S09再匯合", tags: ["資訊", "信任"] },
         { label: "B", tone: "risk", text: "跟隨傳令", next: "S06", result: "風險 + 獲得道具", rejoin: "S09再匯合", tags: ["風險", "道具"] },
