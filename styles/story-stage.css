@@ -672,6 +672,131 @@
   line-height: 1.35;
 }
 
+.story-ending-mini-map {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(129, 140, 248, 0.22);
+  border-radius: 8px;
+  background: rgba(12, 13, 28, 0.68);
+}
+
+.story-ending-mini-map-head {
+  display: grid;
+  gap: 4px;
+}
+
+.story-ending-mini-map-head span {
+  color: rgba(196, 176, 255, 0.86);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.story-ending-mini-map-head h3 {
+  margin: 0;
+  color: var(--ink, #f0eef8);
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.story-ending-mini-map-head p {
+  margin: 0;
+  color: rgba(230, 222, 246, 0.72);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.story-ending-map-lanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.story-ending-map-lane {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(159, 139, 199, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.story-ending-map-lane[data-ending-map-kind="main"] {
+  border-color: rgba(16, 185, 129, 0.26);
+}
+
+.story-ending-map-lane[data-ending-map-kind="sub"] {
+  border-color: rgba(129, 140, 248, 0.28);
+}
+
+.story-ending-map-lane[data-ending-map-kind="ai"] {
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
+.story-ending-map-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.story-ending-map-copy span,
+.story-ending-map-lane em {
+  justify-self: start;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(159, 139, 199, 0.1);
+  color: rgba(240, 238, 248, 0.78);
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.story-ending-map-copy strong {
+  color: rgba(240, 238, 248, 0.94);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.story-ending-map-copy p {
+  margin: 0;
+  color: rgba(230, 222, 246, 0.72);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.story-ending-map-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.story-ending-map-flow span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 6px 7px;
+  border-radius: 6px;
+  background: rgba(8, 5, 18, 0.45);
+  color: rgba(240, 238, 248, 0.84);
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.story-ending-map-flow i {
+  display: block;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(230, 255, 152, 0.56);
+}
+
 .story-branch-implementation-card {
   display: grid;
   gap: 9px;
@@ -1458,6 +1583,7 @@
   }
 
   .story-branch-grid,
+  .story-ending-map-lanes,
   .story-branch-implementation-grid {
     grid-template-columns: 1fr;
   }

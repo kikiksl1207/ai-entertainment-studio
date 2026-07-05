@@ -236,11 +236,11 @@
       "zh-Hant": "關係變化，只有沒有作者結局時才成為AI輔助結局候選。",
     },
     "storyStage.branch.c.rejoin": {
-      "ko-KR": "E-AI 후보 · 보조 엔딩 조건",
-      "ja-JP": "E-AI候補 · 補助終了条件",
-      "en-US": "E-AI candidate · helper ending condition",
-      "zh-CN": "E-AI候选 · 辅助结局条件",
-      "zh-Hant": "E-AI候選 · 輔助結局條件",
+      "ko-KR": "AI 보조 결말 후보 · 작가 결말이 없을 때만",
+      "ja-JP": "AI補助終了候補 · 作家終了がない場合のみ",
+      "en-US": "AI-assisted ending candidate · only when no writer ending exists",
+      "zh-CN": "AI辅助结局候选 · 仅在没有作者结局时",
+      "zh-Hant": "AI輔助結局候選 · 僅在沒有作者結局時",
     },
     "storyStage.branch.tag.event": {
       "ko-KR": "사건",
@@ -403,7 +403,7 @@
     {
       label: "A",
       tone: "info",
-      next: "S05",
+      next: "기록 경로",
       titleKey: "storyStage.branch.a.title",
       outcomeKey: "storyStage.branch.a.outcome",
       rejoinKey: "storyStage.branch.a.rejoin",
@@ -412,7 +412,7 @@
     {
       label: "B",
       tone: "risk",
-      next: "S06",
+      next: "항구 경로",
       titleKey: "storyStage.branch.b.title",
       outcomeKey: "storyStage.branch.b.outcome",
       rejoinKey: "storyStage.branch.b.rejoin",
@@ -421,7 +421,7 @@
     {
       label: "C",
       tone: "ending",
-      next: "S07",
+      next: "해안 경로",
       titleKey: "storyStage.branch.c.title",
       outcomeKey: "storyStage.branch.c.outcome",
       rejoinKey: "storyStage.branch.c.rejoin",
@@ -546,6 +546,36 @@
     },
   ];
 
+  const STORY_ENDING_MINI_MAP = [
+    {
+      tone: "main",
+      title: "작가 기본 엔딩",
+      routeLabel: "공통 루트",
+      summary: "작가가 지정한 중심 결말입니다. 기본 흐름을 따라가면 이 결말을 먼저 확인합니다.",
+      from: "프롤로그",
+      to: "기본 결말",
+      note: "작가 확정",
+    },
+    {
+      tone: "sub",
+      title: "작가 서브 엔딩",
+      routeLabel: "선택 A/B",
+      summary: "선택으로 갈라진 루트에 작가가 따로 준비한 결말입니다.",
+      from: "분기 선택",
+      to: "보조 결말",
+      note: "선택 루트",
+    },
+    {
+      tone: "ai",
+      title: "AI 보조 결말",
+      routeLabel: "작가 결말 없음",
+      summary: "작가 결말이 없는 분기에서만 임시 후보로 안내합니다.",
+      from: "미해결 분기",
+      to: "보조 후보",
+      note: "검수 필요",
+    },
+  ];
+
   let _storyScenes = STORY_SCENE_FALLBACKS.slice();
   let _storySceneIndex = 0;
 
@@ -588,6 +618,13 @@
     const safeChoice = choice || STORY_BRANCH_IMPLEMENTATION_FIXTURE[0];
     const url = safeChoice.backgroundAssetUrl || "/assets/brand/lumina-stage-banner.png";
     return "linear-gradient(180deg, rgba(8, 5, 18, 0.04), rgba(8, 5, 18, 0.62)), url('" + escapeHtml(url) + "')";
+  }
+
+  function publicEndingLabel(choice) {
+    const type = String(choice?.endingType || "");
+    if (type === "ai_fallback_ending") return "AI 보조 결말 후보";
+    if (type === "writer_sub_ending") return "작가 서브 엔딩 후보";
+    return "작가 기본 엔딩";
   }
 
   function storyLocalT(key) {
@@ -1029,11 +1066,37 @@
               <div><dt>관계</dt><dd data-choice-result-relation>${escapeHtml(activeChoice.relationLabel)}</dd></div>
               <div><dt>위험</dt><dd data-choice-result-risk>${escapeHtml(activeChoice.riskLabel)}</dd></div>
               <div><dt>정보</dt><dd data-choice-result-info>${escapeHtml(activeChoice.infoLabel)}</dd></div>
-              <div><dt>결말 후보</dt><dd data-choice-result-ending>${escapeHtml(activeChoice.endingCandidateLabel)}</dd></div>
+              <div><dt>결말 후보</dt><dd data-choice-result-ending>${escapeHtml(publicEndingLabel(activeChoice))}</dd></div>
               <div><dt>합류</dt><dd data-choice-result-rejoin>${escapeHtml(activeChoice.rejoinLabel)}</dd></div>
             </dl>
           </div>
         </article>
+        <section class="story-ending-mini-map"
+                 data-story-ending-mini-map="true"
+                 aria-labelledby="storyEndingMiniMapTitle">
+          <div class="story-ending-mini-map-head">
+            <span>Ending map</span>
+            <h3 id="storyEndingMiniMapTitle">결말 미니맵</h3>
+            <p>작가 기본/서브/AI 보조 결말이 어디에서 갈라지는지 한눈에 확인합니다.</p>
+          </div>
+          <ol class="story-ending-map-lanes">
+            ${STORY_ENDING_MINI_MAP.map((ending) => `
+              <li class="story-ending-map-lane" data-ending-map-kind="${escapeHtml(ending.tone)}">
+                <div class="story-ending-map-copy">
+                  <span>${escapeHtml(ending.routeLabel)}</span>
+                  <strong>${escapeHtml(ending.title)}</strong>
+                  <p>${escapeHtml(ending.summary)}</p>
+                </div>
+                <div class="story-ending-map-flow" aria-label="${escapeHtml(ending.from + "에서 " + ending.to + "로 이어짐")}">
+                  <span>${escapeHtml(ending.from)}</span>
+                  <i aria-hidden="true"></i>
+                  <span>${escapeHtml(ending.to)}</span>
+                </div>
+                <em>${escapeHtml(ending.note)}</em>
+              </li>
+            `).join("")}
+          </ol>
+        </section>
         <div class="story-branch-implementation-grid">
           ${STORY_BRANCH_IMPLEMENTATION_FIXTURE.map((choice) => `
             <article
@@ -1053,7 +1116,7 @@
               <p>${escapeHtml(choice.bodySummaryLabel)}</p>
               <dl>
                 <div><dt>변화</dt><dd>${escapeHtml(choice.stateLabel)}</dd></div>
-                <div><dt>결말 후보</dt><dd>${escapeHtml(choice.endingLabel)} · ${escapeHtml(choice.endingRoute)}</dd></div>
+                <div><dt>결말 후보</dt><dd>${escapeHtml(publicEndingLabel(choice))}</dd></div>
                 <div><dt>배경</dt><dd>${escapeHtml(choice.backgroundLabel)}</dd></div>
                 <div><dt>결과</dt><dd>${escapeHtml(choice.eventLabel)}</dd></div>
                 <div><dt>합류</dt><dd>${escapeHtml(choice.rejoinLabel)}</dd></div>
@@ -1298,7 +1361,7 @@
       ["[data-choice-result-relation]", choice.relationLabel],
       ["[data-choice-result-risk]", choice.riskLabel],
       ["[data-choice-result-info]", choice.infoLabel],
-      ["[data-choice-result-ending]", choice.endingCandidateLabel],
+      ["[data-choice-result-ending]", publicEndingLabel(choice)],
       ["[data-choice-result-rejoin]", choice.rejoinLabel],
     ];
     slots.forEach(([selector, value]) => {
