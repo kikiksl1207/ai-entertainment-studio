@@ -1,28 +1,30 @@
 (function initStoryStagePage() {
   "use strict";
 
+  const rootId = "storyStageRoot";
+
   const STORY_FIXTURE = Object.freeze({
     prologue: {
-      title: "무료 프롤로그",
-      summary: "계정당 1회, 본인 또는 동반 캐릭터 한 명과 함께 첫 이야기를 무료로 열어볼 수 있어요.",
-      runtime: "약 10분 분량",
+      title: "임진왜란: 난중일기 프롤로그",
+      summary: "전장의 기록 사이로 들어가 첫 선택을 고르는 무료 프롤로그입니다.",
+      runtime: "약 10분",
       freePerAccount: 1,
       companionMax: 1,
     },
     chapters: [
-      { no: 1, title: "첫 무대의 떨림", priceLumina: 120, summary: "데뷔 직전, 무대 뒤에서 시작되는 첫 장면." },
-      { no: 2, title: "흔들리는 스포트라이트", priceLumina: 150, summary: "예상치 못한 사고로 달라지는 선택." },
-      { no: 3, title: "다시, 처음처럼", priceLumina: 150, summary: "무너진 자리에서 다시 서로를 마주하는 순간." },
+      { no: 1, title: "첫 무대의 떨림", priceLumina: 120, summary: "전령이 남긴 기록을 따라 첫 분기점에 도착합니다." },
+      { no: 2, title: "흔들리는 항구", priceLumina: 150, summary: "위험을 감수할지, 안전한 단서를 먼저 볼지 결정합니다." },
+      { no: 3, title: "다시 합류하는 길", priceLumina: 150, summary: "선택의 흔적을 남긴 채 공통 장면으로 돌아옵니다." },
     ],
     season: {
-      title: "시즌 1 · 데뷔의 계절",
+      title: "시즌 1 · 전장의 계절",
       chapterCount: 8,
       bundlePriceLumina: 880,
       singleSumLumina: 1120,
     },
     video: {
       perClipLumina: 60,
-      note: "장면을 영상으로 만들 때만 드는 선택 비용이에요. 챕터 구매와 별개이고, 만들지 않으면 청구되지 않아요.",
+      note: "장면을 영상으로 만들 때만 선택 비용을 확인합니다. 여기서는 결제나 생성 요청을 실행하지 않습니다.",
     },
     reactions: {
       chapters: [
@@ -31,262 +33,113 @@
         { no: 3, rating: 4.8, readers: 241, comments: 51 },
       ],
       storyComments: [
-        { author: "별빛_수아", paid: true, completed: true, text: "프롤로그만 보려다 시즌까지 갔어요. 장면마다 분위기가 달라서 몰입돼요." },
-        { author: "조용한 관객", paid: true, completed: false, text: "챕터마다 선택지가 달라지는 게 좋아요. 다음 장면을 기다리게 돼요." },
-        { author: "오늘의러너", paid: true, completed: true, text: "캐릭터가 없는 장면도 배경이 바뀌니까 흐름이 끊기지 않았어요." },
+        { author: "별빛_서아", paid: true, completed: true, text: "프롤로그만 보려고 했는데 장면마다 분위기가 달라 계속 읽게 돼요." },
+        { author: "조용한 관객", paid: true, completed: false, text: "선택지가 결과에 영향을 주는 느낌이 분명해서 다음 장면이 기다려져요." },
+        { author: "오늘의러너", paid: true, completed: true, text: "캐릭터가 없는 장면도 배경과 문구가 자연스럽게 이어져 좋았습니다." },
       ],
     },
   });
 
-  const STORY_SCENE_COPY = Object.freeze({
-    "storyStage.scene.assetFallback.default": {
-      "ko-KR": "장면 연출을 준비 중이에요.",
-      "ja-JP": "シーン演出を準備中です。",
-      "en-US": "Preparing scene visuals.",
-      "zh-CN": "正在准备场景演出。",
-      "zh-Hant": "正在準備場景演出。",
+  const FALLBACK_COPY = Object.freeze({
+    ko: {
+      previewTitle: "미리보기 화면",
+      previewBody: "읽기 전용 미리보기입니다. 저장, 결제, 생성 요청은 실행하지 않습니다.",
+      sceneEyebrow: "Scene visual",
+      sceneTitle: "장면 연출 미리보기",
+      sceneLabel: "스토리 장면",
+      sceneReady: "장면을 준비했습니다.",
+      scenePreparing: "장면 연출을 준비하고 있어요.",
+      bgLoading: "배경을 불러오는 중입니다.",
+      bgMissing: "기본 배경으로 장면을 이어갈게요.",
+      charMissing: "캐릭터 없이 감정 흐름을 보여줍니다.",
+      retry: "다시 확인",
+      prev: "이전 장면",
+      next: "다음 장면",
+      localeTitle: "언어 선택",
+      localeNote: "번역이 비어 있어도 화면에는 자연스러운 기본 문구가 표시됩니다.",
+      discoveryTitle: "스토리 찾기",
+      emptyTitle: "조건에 맞는 스토리가 아직 없어요.",
+      emptyBody: "필터를 넓히거나 무료 프롤로그에서 먼저 분위기를 확인해 보세요.",
+      emptyCta: "추천 스토리 보기",
+      detailHeading: "스토리 상세",
+      close: "닫기",
+      creator: "AI 아티스트",
+      profile: "대화 프로필",
+      settings: "시작 설정",
+      updates: "업데이트",
+      prologuePreview: "프롤로그 미리보기",
+      similar: "비슷한 스토리",
+      endingGuide: "결말 구분",
+      startFree: "무료 프롤로그 시작",
+      continueStory: "이어하기",
+      locked: "구매 필요",
+      setupTitle: "나 + AI 동반 설정",
+      playerTitle: "장면 속에서 대화하기",
+      playerStatus: "배경, 대화, 선택지가 겹치지 않게 이어집니다.",
+      inputPlaceholder: "내 반응을 짧게 남기기",
+      choiceTitle: "선택 결과 미리보기",
+      choiceNote: "선택 후 장면, 관계, 위험, 정보, 결말 후보가 달라질 수 있습니다.",
+      event: "사건",
+      relation: "관계",
+      risk: "위험",
+      info: "정보",
+      endingCandidate: "결말 후보",
+      rejoin: "합류",
+      tutorialShort: "첫 무료 장면에서 바다와 기록의 긴장을 따라갑니다.",
+      tutorialDetail: "역사 기록의 결을 살린 짧은 프롤로그입니다. Lumina의 장면형 선택 흐름으로 시작합니다.",
+      tutorialCta: "무료 프롤로그 보기",
     },
-    "storyStage.scene.background.loading": {
-      "ko-KR": "배경을 불러오는 중이에요.",
-      "ja-JP": "背景を読み込み中です。",
-      "en-US": "Loading background.",
-      "zh-CN": "正在加载背景。",
-      "zh-Hant": "正在載入背景。",
-    },
-    "storyStage.scene.background.missing": {
-      "ko-KR": "기본 배경으로 장면을 이어갈게요.",
-      "ja-JP": "基本の背景で続けます。",
-      "en-US": "Using default background.",
-      "zh-CN": "使用默认背景继续。",
-      "zh-Hant": "使用預設背景繼續。",
-    },
-    "storyStage.scene.background.altDefault": {
-      "ko-KR": "스토리 기본 배경",
-      "ja-JP": "ストーリー基本背景",
-      "en-US": "Default background",
-      "zh-CN": "故事默认背景",
-      "zh-Hant": "故事預設背景",
-    },
-    "storyStage.scene.character.loading": {
-      "ko-KR": "캐릭터를 불러오는 중이에요.",
-      "ja-JP": "キャラクターを読み込み中です。",
-      "en-US": "Loading character.",
-      "zh-CN": "正在加载角色。",
-      "zh-Hant": "正在載入角色。",
-    },
-    "storyStage.scene.character.missing": {
-      "ko-KR": "캐릭터 없이 장면을 이어갈게요.",
-      "ja-JP": "キャラクターなしで続けます。",
-      "en-US": "No character in this scene.",
-      "zh-CN": "本场景没有角色。",
-      "zh-Hant": "本場景沒有角色。",
-    },
-    "storyStage.scene.character.altDefault": {
-      "ko-KR": "캐릭터 기본 이미지",
-      "ja-JP": "キャラクター基本画像",
-      "en-US": "Default character",
-      "zh-CN": "角色默认图片",
-      "zh-Hant": "角色預設圖片",
-    },
-    "storyStage.scene.visual.unavailable": {
-      "ko-KR": "장면 연출을 불러오지 못했어요.",
-      "ja-JP": "シーン演出を読み込めませんでした。",
-      "en-US": "Scene could not load.",
-      "zh-CN": "无法加载场景演出。",
-      "zh-Hant": "無法載入場景演出。",
-    },
-    "storyStage.scene.preview.prev": {
-      "ko-KR": "이전 장면",
-      "ja-JP": "前のシーン",
-      "en-US": "Previous scene",
-      "zh-CN": "上一场景",
-      "zh-Hant": "上一場景",
-    },
-    "storyStage.scene.preview.next": {
-      "ko-KR": "다음 장면",
-      "ja-JP": "次のシーン",
-      "en-US": "Next scene",
-      "zh-CN": "下一场景",
-      "zh-Hant": "下一場景",
-    },
-    "storyStage.scene.retry": {
-      "ko-KR": "다시 시도",
-      "ja-JP": "再試行",
-      "en-US": "Retry",
-      "zh-CN": "重试",
-      "zh-Hant": "重試",
-    },
-    "storyStage.preview.notice.title": {
-      "ko-KR": "미리보기 화면",
-      "ja-JP": "プレビュー画面",
-      "en-US": "Preview screen",
-      "zh-CN": "预览画面",
-      "zh-Hant": "預覽畫面",
-    },
-    "storyStage.preview.notice.body": {
-      "ko-KR": "이 화면은 저장되지 않는 읽기 전용 미리보기예요.",
-      "ja-JP": "この画面は保存されない読み取り専用プレビューです。",
-      "en-US": "This is a read-only preview and nothing is saved.",
-      "zh-CN": "这是不会保存内容的只读预览。",
-      "zh-Hant": "這是不會儲存內容的唯讀預覽。",
-    },
-    "storyStage.setup.visibility.private": {
-      "ko-KR": "나만 보는 미리보기",
-      "ja-JP": "自分だけのプレビュー",
-      "en-US": "Private preview",
-      "zh-CN": "仅自己可见的预览",
-      "zh-Hant": "僅自己可見的預覽",
-    },
-    "storyStage.setup.eyebrow": {
-      "ko-KR": "나 + AI",
-      "ja-JP": "自分 + AI",
-      "en-US": "Me + AI",
-      "zh-CN": "我 + AI",
-      "zh-Hant": "我 + AI",
-    },
-    "storyStage.scene.fixture.01": {
-      "ko-KR": "첫 리허설 조명이 켜지고, 도현이 무대 중앙으로 걸어 나옵니다.",
-      "ja-JP": "最初のリハーサル照明が灯り、ドヒョンがステージ中央へ歩き出します。",
-      "en-US": "The first rehearsal light turns on, and Dohyun walks to center stage.",
-      "zh-CN": "第一次排练灯亮起，道贤走向舞台中央。",
-      "zh-Hant": "第一次排練燈亮起，道賢走向舞台中央。",
-    },
-    "storyStage.scene.fixture.02": {
-      "ko-KR": "객석 불빛만 남은 장면입니다. 캐릭터 없이 감정의 여백을 보여줍니다.",
-      "ja-JP": "客席の灯りだけが残るシーンです。キャラクターなしで余韻を見せます。",
-      "en-US": "Only the audience lights remain, leaving room for the emotion without a character.",
-      "zh-CN": "只剩观众席的灯光，没有角色也保留情绪的余白。",
-      "zh-Hant": "只剩觀眾席的燈光，沒有角色也保留情緒的餘白。",
-    },
-    "storyStage.scene.fixture.03": {
-      "ko-KR": "배경 에셋이 아직 준비되지 않아도 기본 장면으로 이야기를 이어갑니다.",
-      "ja-JP": "背景アセットが未準備でも、基本シーンで物語を続けます。",
-      "en-US": "If a background asset is not ready, the story continues with the default scene.",
-      "zh-CN": "即使背景素材尚未准备好，也会用默认场景继续故事。",
-      "zh-Hant": "即使背景素材尚未準備好，也會用預設場景繼續故事。",
-    },
-    "storyStage.branch.title": {
-      "ko-KR": "분기 결과 카드",
-      "ja-JP": "分岐結果カード",
-      "en-US": "Branch result cards",
-      "zh-CN": "分支结果卡",
-      "zh-Hant": "分支結果卡",
-    },
-    "storyStage.branch.note": {
-      "ko-KR": "재합류 전까지 사건, 관계, 위험, 정보, 아이템, 엔딩 조건 차이를 남겨요.",
-      "ja-JP": "再合流前まで事件、関係、危険、情報、アイテム、終了条件の差を残します。",
-      "en-US": "Each choice keeps event, relation, risk, info, item, and ending-condition differences before rejoining.",
-      "zh-CN": "再汇合前保留事件、关系、风险、信息、道具和结局条件差异。",
-      "zh-Hant": "再匯合前保留事件、關係、風險、資訊、道具和結局條件差異。",
-    },
-    "storyStage.branch.a.title": {
-      "ko-KR": "기록을 먼저 확인",
-      "ja-JP": "記録を先に確認",
-      "en-US": "Check the record first",
-      "zh-CN": "先确认记录",
-      "zh-Hant": "先確認記錄",
-    },
-    "storyStage.branch.a.outcome": {
-      "ko-KR": "숨은 정보가 열리고 전령의 신뢰가 올라가요.",
-      "ja-JP": "隠れた情報が開き、伝令の信頼が上がります。",
-      "en-US": "Hidden information opens and the messenger trusts you more.",
-      "zh-CN": "隐藏信息开启，传令对你的信任提升。",
-      "zh-Hant": "隱藏資訊開啟，傳令對你的信任提升。",
-    },
-    "storyStage.branch.a.rejoin": {
-      "ko-KR": "S09 재합류 · 정보 조건 유지",
-      "ja-JP": "S09で再合流 · 情報条件を維持",
-      "en-US": "Rejoins at S09 · info condition kept",
-      "zh-CN": "S09再汇合 · 保留信息条件",
-      "zh-Hant": "S09再匯合 · 保留資訊條件",
-    },
-    "storyStage.branch.b.title": {
-      "ko-KR": "전령을 따라 이동",
-      "ja-JP": "伝令について移動",
-      "en-US": "Follow the messenger",
-      "zh-CN": "跟随传令移动",
-      "zh-Hant": "跟隨傳令移動",
-    },
-    "storyStage.branch.b.outcome": {
-      "ko-KR": "위험도가 오르지만 봉인된 지도를 얻어요.",
-      "ja-JP": "危険度は上がりますが、封じられた地図を得ます。",
-      "en-US": "Risk rises, but you gain the sealed map item.",
-      "zh-CN": "风险上升，但获得封存地图道具。",
-      "zh-Hant": "風險上升，但獲得封存地圖道具。",
-    },
-    "storyStage.branch.b.rejoin": {
-      "ko-KR": "S09 재합류 · 아이템 조건 유지",
-      "ja-JP": "S09で再合流 · アイテム条件を維持",
-      "en-US": "Rejoins at S09 · item condition kept",
-      "zh-CN": "S09再汇合 · 保留道具条件",
-      "zh-Hant": "S09再匯合 · 保留道具條件",
-    },
-    "storyStage.branch.c.title": {
-      "ko-KR": "해안으로 우회",
-      "ja-JP": "海岸へ迂回",
-      "en-US": "Detour to the shore",
-      "zh-CN": "绕到海岸",
-      "zh-Hant": "繞到海岸",
-    },
-    "storyStage.branch.c.outcome": {
-      "ko-KR": "관계가 흔들리고 작가 결말이 없을 때만 AI 보조 결말 후보가 돼요.",
-      "ja-JP": "関係が揺れ、作家終了がない場合だけAI補助終了候補になります。",
-      "en-US": "The relation shifts, and an AI-assisted ending is only a candidate when no writer ending exists.",
-      "zh-CN": "关系变化，只有没有作者结局时才成为AI辅助结局候选。",
-      "zh-Hant": "關係變化，只有沒有作者結局時才成為AI輔助結局候選。",
-    },
-    "storyStage.branch.c.rejoin": {
-      "ko-KR": "E-AI 후보 · 보조 엔딩 조건",
-      "ja-JP": "E-AI候補 · 補助終了条件",
-      "en-US": "E-AI candidate · helper ending condition",
-      "zh-CN": "E-AI候选 · 辅助结局条件",
-      "zh-Hant": "E-AI候選 · 輔助結局條件",
-    },
-    "storyStage.branch.tag.event": {
-      "ko-KR": "사건",
-      "ja-JP": "事件",
-      "en-US": "Event",
-      "zh-CN": "事件",
-      "zh-Hant": "事件",
-    },
-    "storyStage.branch.tag.relation": {
-      "ko-KR": "관계",
-      "ja-JP": "関係",
-      "en-US": "Relation",
-      "zh-CN": "关系",
-      "zh-Hant": "關係",
-    },
-    "storyStage.branch.tag.risk": {
-      "ko-KR": "위험",
-      "ja-JP": "危険",
-      "en-US": "Risk",
-      "zh-CN": "风险",
-      "zh-Hant": "風險",
-    },
-    "storyStage.branch.tag.info": {
-      "ko-KR": "정보",
-      "ja-JP": "情報",
-      "en-US": "Info",
-      "zh-CN": "信息",
-      "zh-Hant": "資訊",
-    },
-    "storyStage.branch.tag.item": {
-      "ko-KR": "아이템",
-      "ja-JP": "アイテム",
-      "en-US": "Item",
-      "zh-CN": "道具",
-      "zh-Hant": "道具",
-    },
-    "storyStage.branch.tag.ending": {
-      "ko-KR": "엔딩 조건",
-      "ja-JP": "終了条件",
-      "en-US": "Ending condition",
-      "zh-CN": "结局条件",
-      "zh-Hant": "結局條件",
+    en: {
+      previewTitle: "Preview screen",
+      previewBody: "This read-only preview does not save, charge, or run generation.",
+      sceneEyebrow: "Scene visual",
+      sceneTitle: "Scene preview",
+      sceneLabel: "Story scene",
+      sceneReady: "Scene is ready.",
+      scenePreparing: "Preparing scene visuals.",
+      bgLoading: "Loading background.",
+      bgMissing: "Continuing with a default background.",
+      charMissing: "Showing the emotional beat without a character.",
+      retry: "Check again",
+      prev: "Previous scene",
+      next: "Next scene",
+      localeTitle: "Language",
+      localeNote: "If a translation is missing, the screen falls back to natural default copy.",
+      discoveryTitle: "Find a story",
+      emptyTitle: "No stories match this view yet.",
+      emptyBody: "Widen the filter or start with a free prologue.",
+      emptyCta: "Show recommended",
+      detailHeading: "Story detail",
+      close: "Close",
+      creator: "AI artist",
+      profile: "Chat profile",
+      settings: "Start settings",
+      updates: "Updates",
+      prologuePreview: "Prologue preview",
+      similar: "Similar story",
+      endingGuide: "Ending types",
+      startFree: "Start free prologue",
+      continueStory: "Continue",
+      locked: "Purchase needed",
+      setupTitle: "Me + AI companion",
+      playerTitle: "Chat inside the scene",
+      playerStatus: "Background, dialogue, and choices stay readable.",
+      inputPlaceholder: "Leave a short reaction",
+      choiceTitle: "Choice outcome preview",
+      choiceNote: "A choice can change the next scene, relation, risk, info, and ending candidate.",
+      event: "Event",
+      relation: "Relation",
+      risk: "Risk",
+      info: "Info",
+      endingCandidate: "Ending candidate",
+      rejoin: "Rejoin",
+      tutorialShort: "Follow the tension between sea and records in the first free scene.",
+      tutorialDetail: "A short prologue shaped around historical records and Lumina choice flow.",
+      tutorialCta: "View free prologue",
     },
   });
 
-  const STORY_LOCALES = [
+  const LOCALES = [
     { code: "ko", label: "KO" },
     { code: "en", label: "EN" },
     { code: "ja", label: "JA" },
@@ -297,261 +150,173 @@
   const STORY_DISCOVERY_ITEMS = [
     {
       id: "imjin",
-      titleKey: "storyStage.discovery.card.imjin.title",
-      summaryKey: "storyStage.discovery.card.imjin.summary",
-      statusKey: "storyStage.discovery.status.free",
+      title: "임진왜란: 난중일기 프롤로그",
+      summary: "전장의 기록 사이로 들어가 첫 선택을 고릅니다.",
+      status: "무료 프롤로그",
       tags: ["History", "Tutorial"],
       metric: "4.8 · 1.2k",
-      startLabel: "무료 프롤로그 시작",
       startSetting: "무료 프롤로그 · 동반 AI 1명 · 비공개 미리보기",
-      updateText: "최근 장면/선택지 검수 완료",
+      updateText: "최근 장면과 선택지 검수 완료",
       creator: "Cha Dohyun",
-      similarTitleKey: "storyStage.discovery.card.stage.title",
+      similarTitle: "첫 무대의 떨림",
       image: "/assets/brand/lumina-stage-banner.png",
     },
     {
       id: "stage",
-      titleKey: "storyStage.discovery.card.stage.title",
-      summaryKey: "storyStage.discovery.card.stage.summary",
-      statusKey: "storyStage.discovery.status.ready",
+      title: "첫 무대의 떨림",
+      summary: "공연 전야의 감정을 따라가며 장면을 선택합니다.",
+      status: "준비됨",
       tags: ["Stage", "AI"],
       metric: "4.7 · 840",
-      startLabel: "장면 미리보기",
-      startSetting: "무료 시작 · 나 또는 AI 1명 · 저장 없는 preview",
-      updateText: "신규 무대 배경 QA 완료",
+      startSetting: "무료 시작 · 나 또는 AI 1명 · 저장 없는 미리보기",
+      updateText: "무대 배경과 하단 CTA 검수 완료",
       creator: "Cha Dohyun",
-      similarTitleKey: "storyStage.discovery.card.imjin.title",
+      similarTitle: "임진왜란: 난중일기 프롤로그",
       image: "/assets/characters/cha-dohyun/reference-final-03.png",
     },
     {
       id: "myth",
-      titleKey: "storyStage.discovery.card.myth.title",
-      summaryKey: "storyStage.discovery.card.myth.summary",
-      statusKey: "storyStage.discovery.status.ready",
+      title: "달빛 숲의 약속",
+      summary: "신화풍 숲에서 안전한 선택 흐름을 먼저 확인합니다.",
+      status: "미리보기",
       tags: ["Myth", "Safe"],
       metric: "4.6 · 620",
-      startLabel: "안전 미리보기",
       startSetting: "읽기 전용 · 동반 AI 1명 · 구매 없음",
-      updateText: "민감값/원문 노출 점검 완료",
+      updateText: "민감한 표현 검수 완료",
       creator: "Choi Seojin",
-      similarTitleKey: "storyStage.discovery.card.imjin.title",
+      similarTitle: "첫 무대의 떨림",
       image: "/assets/characters/choi-seojin/cover.png",
     },
   ];
 
   const STORY_SCENE_FALLBACKS = [
     {
-      sceneId: "fixture-scene-01",
-      sceneTextKey: "storyStage.scene.fixture.01",
-      sceneText: "첫 리허설 조명이 켜지고, 도현이 무대 중앙으로 걸어 나옵니다.",
+      sceneId: "scene-01",
+      sceneText: "첫 리허설 조명이 켜지고, 차도현이 무대 중앙으로 걸어 나옵니다.",
       backgroundState: "ready",
-      backgroundAsset: {
-        assetId: "scene.background.rehearsal",
-        url: "/assets/brand/lumina-stage-banner.png",
-        labelKey: "storyStage.scene.background.altDefault",
-      },
-      fallbackKey: "storyStage.scene.assetFallback.default",
+      backgroundAsset: { url: "/assets/brand/lumina-stage-banner.png", label: "리허설 무대" },
+      fallbackType: "ready",
       characters: [
         {
           characterId: "cha-dohyun",
-          artistSlug: "cha-dohyun",
-          displayNameKey: "storyStage.scene.character.altDefault",
           assetId: "character.cha-dohyun.reference",
           url: "/assets/characters/cha-dohyun/reference-final-03.png",
+          label: "차도현",
           characterPose: "neutral",
           characterLayer: "foreground",
-          entranceState: "entered",
         },
       ],
     },
     {
-      sceneId: "fixture-scene-02",
-      sceneTextKey: "storyStage.scene.fixture.02",
+      sceneId: "scene-02",
       sceneText: "객석 불빛만 남은 장면입니다. 캐릭터 없이 감정의 여백을 보여줍니다.",
       backgroundState: "ready",
-      backgroundAsset: {
-        assetId: "scene.background.quiet-stage",
-        url: "/assets/characters/choi-seojin/cover.png",
-        labelKey: "storyStage.scene.background.altDefault",
-      },
-      fallbackKey: "storyStage.scene.character.missing",
+      backgroundAsset: { url: "/assets/characters/choi-seojin/cover.png", label: "조용한 객석" },
+      fallbackType: "character",
       characters: [],
     },
     {
-      sceneId: "fixture-scene-03",
-      sceneTextKey: "storyStage.scene.fixture.03",
-      sceneText: "배경 에셋이 아직 준비되지 않아도 기본 장면으로 이야기를 이어갑니다.",
+      sceneId: "scene-03",
+      sceneText: "배경 자료가 아직 준비되지 않아 기본 장면으로 이야기를 이어갑니다.",
       backgroundState: "fallback",
       backgroundAsset: null,
-      fallbackKey: "storyStage.scene.background.missing",
+      fallbackType: "background",
       characters: [
         {
           characterId: "choi-seojin",
-          artistSlug: "choi-seojin",
-          displayNameKey: "storyStage.scene.character.altDefault",
           assetId: "character.choi-seojin.placeholder",
           url: "/assets/characters/choi-seojin/thumb.png",
+          label: "최서진",
           characterPose: "listening",
           characterLayer: "midground",
-          entranceState: "entered",
         },
       ],
     },
   ];
 
-  const STORY_BRANCH_FIXTURE = [
+  const BRANCH_CHOICES = [
     {
       label: "A",
       tone: "info",
-      next: "S05",
-      titleKey: "storyStage.branch.a.title",
-      outcomeKey: "storyStage.branch.a.outcome",
-      rejoinKey: "storyStage.branch.a.rejoin",
-      tagKeys: ["storyStage.branch.tag.event", "storyStage.branch.tag.info", "storyStage.branch.tag.relation"],
+      title: "기록을 먼저 확인",
+      userSceneLabel: "기록 보관실",
+      bodySummary: "숨은 단서를 확인해 더 안전한 경로로 이동합니다.",
+      eventLabel: "기록 단서가 열립니다.",
+      relationLabel: "전령의 신뢰가 높아집니다.",
+      riskLabel: "낮은 위험으로 증거를 확인합니다.",
+      infoLabel: "숨은 문서 단서를 얻습니다.",
+      stateLabel: "정보 획득 · 신뢰 상승",
+      endingLabel: "작가 보조 결말 후보",
+      endingType: "writer_sub_ending",
+      endingRoute: "E-SUB-01",
+      rejoinLabel: "공통 장면에서 다시 합류",
+      backgroundLabel: "작전 지도실",
+      backgroundId: "bg-war-room-map",
+      backgroundState: "ready",
+      backgroundAssetUrl: "/assets/brand/lumina-stage-banner.png",
+      characterAssetId: "character.cha-dohyun.reference-final-03",
+      characterAssetLabel: "차도현 안내 컷",
+      characterImage: "/assets/characters/cha-dohyun/reference-final-03.png",
+      chatLine: "기록 보관실에 불이 들어오고 더 안전한 단서 경로가 열립니다.",
     },
     {
       label: "B",
       tone: "risk",
-      next: "S06",
-      titleKey: "storyStage.branch.b.title",
-      outcomeKey: "storyStage.branch.b.outcome",
-      rejoinKey: "storyStage.branch.b.rejoin",
-      tagKeys: ["storyStage.branch.tag.event", "storyStage.branch.tag.risk", "storyStage.branch.tag.item"],
+      title: "전령을 따라 이동",
+      userSceneLabel: "밤 항구 추적",
+      bodySummary: "위험은 커지지만 봉인된 지도를 얻는 경로입니다.",
+      eventLabel: "전령을 따라 항구로 이동합니다.",
+      relationLabel: "신뢰는 흔들리지만 관계는 이어집니다.",
+      riskLabel: "위험이 커지고 아이템을 얻습니다.",
+      infoLabel: "봉인된 지도 단서를 확보합니다.",
+      stateLabel: "위험 증가 · 아이템 획득",
+      endingLabel: "작가 보조 결말 후보",
+      endingType: "writer_sub_ending",
+      endingRoute: "E-SUB-02",
+      rejoinLabel: "공통 장면에서 다시 합류",
+      backgroundLabel: "밤 항구",
+      backgroundId: "bg-harbor-night",
+      backgroundState: "ready",
+      backgroundAssetUrl: "/assets/characters/cha-dohyun/cover.png",
+      characterAssetId: "character.cha-dohyun.reference-final-08",
+      characterAssetLabel: "차도현 추적 컷",
+      characterImage: "/assets/characters/cha-dohyun/reference-final-08.png",
+      chatLine: "항구 바람이 거세지고, 추적 선택의 위험이 커집니다.",
     },
     {
       label: "C",
       tone: "ending",
-      next: "S07",
-      titleKey: "storyStage.branch.c.title",
-      outcomeKey: "storyStage.branch.c.outcome",
-      rejoinKey: "storyStage.branch.c.rejoin",
-      tagKeys: ["storyStage.branch.tag.relation", "storyStage.branch.tag.risk", "storyStage.branch.tag.ending"],
+      title: "해안으로 우회",
+      userSceneLabel: "안개 해안",
+      bodySummary: "작가 결말이 없는 분기라 AI 보조 결말 후보만 안내합니다.",
+      eventLabel: "우회로가 합류 전 갈라집니다.",
+      relationLabel: "관계의 흐름이 새 방향으로 바뀝니다.",
+      riskLabel: "중간 위험의 미해결 경로입니다.",
+      infoLabel: "작가 결말 확인이 필요한 분기입니다.",
+      stateLabel: "관계 변화 · 보조 결말 조건",
+      endingLabel: "AI 보조 결말 후보",
+      endingType: "ai_fallback_ending",
+      endingRoute: "E-AI-01",
+      rejoinLabel: "보조 결말 검수 후 합류 여부 결정",
+      backgroundLabel: "안개 해안",
+      backgroundId: "bg-fog-shore",
+      backgroundState: "ready",
+      backgroundAssetUrl: "/assets/characters/choi-seojin/cover.png",
+      characterAssetId: "none",
+      characterAssetLabel: "캐릭터 없음",
+      characterImage: "",
+      chatLine: "해안이 조용해지고 이 분기는 보조 결말 검수가 필요합니다.",
     },
   ];
 
-  const STORY_BRANCH_IMPLEMENTATION_FIXTURE = [
-    {
-      label: "A",
-      choiceKey: "storyUpload.choice.recordFirst",
-      nextSceneId: "S05",
-      sceneTitle: "Archive map room",
-      bodySummary: "The player checks the record first and unlocks a safer clue path.",
-      bodySummaryLabel: "기록을 먼저 확인해 더 안전한 단서 경로를 엽니다.",
-      stateDelta: "infoGained + trustUp",
-      stateLabel: "정보 확보 · 신뢰 상승",
-      endingRoute: "E-SUB-01",
-      endingType: "writer_sub_ending",
-      endingLabel: "작가 서브 엔딩",
-      backgroundId: "bg-war-room-map",
-      backgroundState: "bg-war-room-map",
-      backgroundAssetUrl: "/assets/brand/lumina-stage-banner.png",
-      characterAssetId: "character.cha-dohyun.reference-final-03",
-      characterAssetLabel: "Cha Dohyun guide pose",
-      characterImage: "/assets/characters/cha-dohyun/reference-final-03.png",
-      userSceneLabel: "기록 보관실",
-      stateLabel: "정보 확보 · 신뢰 상승",
-      endingLabel: "작가 서브 엔딩",
-      backgroundLabel: "작전 지도실",
-      rejoinLabel: "S09에서 합류",
-      eventSummary: "Record clue opens the map-room path.",
-      eventLabel: "기록 단서가 열립니다.",
-      relationSummary: "Messenger trust rises before rejoin.",
-      relationLabel: "전령의 신뢰가 높아집니다.",
-      riskSummary: "Low risk, safer evidence route.",
-      riskLabel: "낮은 위험으로 증거를 확인합니다.",
-      infoSummary: "Hidden archive clue unlocked.",
-      infoLabel: "숨은 보관실 단서를 얻습니다.",
-      endingCandidate: "Author sub ending E-SUB-01",
-      endingCandidateLabel: "작가가 준비한 보조 결말 후보 E-SUB-01",
-      chatLine: "The record room lights up. The safer clue path is open.",
-      chatLineLabel: "기록 보관실에 불이 들어오고 안전한 단서 경로가 열립니다.",
-      rejoin: "S09",
-      rejoinLabel: "S09에서 합류",
-    },
-    {
-      label: "B",
-      choiceKey: "storyUpload.choice.followMessenger",
-      nextSceneId: "S06",
-      sceneTitle: "Night harbor pursuit",
-      bodySummary: "The player follows the messenger and takes a higher-risk item route.",
-      bodySummaryLabel: "전령을 따라가며 더 위험하지만 아이템을 얻는 경로로 이동합니다.",
-      stateDelta: "riskRaised + itemGained",
-      stateLabel: "위험 상승 · 아이템 확보",
-      endingRoute: "E-SUB-02",
-      endingType: "writer_sub_ending",
-      endingLabel: "작가 서브 엔딩",
-      backgroundId: "bg-harbor-night",
-      backgroundState: "bg-harbor-night",
-      backgroundAssetUrl: "/assets/characters/cha-dohyun/cover.png",
-      characterAssetId: "character.cha-dohyun.reference-final-08",
-      characterAssetLabel: "Cha Dohyun pursuit pose",
-      characterImage: "/assets/characters/cha-dohyun/reference-final-08.png",
-      userSceneLabel: "밤 항구 추적",
-      stateLabel: "위험 상승 · 아이템 확보",
-      endingLabel: "작가 서브 엔딩",
-      backgroundLabel: "밤 항구",
-      rejoinLabel: "S09에서 합류",
-      eventSummary: "Messenger chase moves the scene to the harbor.",
-      eventLabel: "전령을 따라 항구로 이동합니다.",
-      relationSummary: "Trust is unstable but active.",
-      relationLabel: "신뢰가 흔들리지만 관계는 이어집니다.",
-      riskSummary: "High risk, item route gained.",
-      riskLabel: "위험이 커지고 봉인된 지도를 얻습니다.",
-      infoSummary: "Sealed map item acquired.",
-      infoLabel: "봉인된 지도 아이템을 확보합니다.",
-      endingCandidate: "Author sub ending E-SUB-02",
-      endingCandidateLabel: "작가가 준비한 보조 결말 후보 E-SUB-02",
-      chatLine: "The harbor wind cuts in. Following them raises the risk.",
-      chatLineLabel: "항구 바람이 거세지고 추적 선택의 위험이 커집니다.",
-      rejoin: "S09",
-      rejoinLabel: "S09에서 합류",
-    },
-    {
-      label: "C",
-      choiceKey: "storyUpload.choice.shoreDetour",
-      nextSceneId: "S07",
-      sceneTitle: "Fog shore detour",
-      bodySummary: "The player detours to the shore and enters an unresolved branch.",
-      bodySummaryLabel: "해안으로 우회해 아직 결말 검토가 필요한 분기로 들어갑니다.",
-      stateDelta: "relationshipShift + aiFallbackCondition",
-      stateLabel: "관계 변화 · AI 후보 조건",
-      endingRoute: "E-AI-01",
-      endingType: "ai_fallback_ending",
-      endingLabel: "AI 보조 결말",
-      backgroundId: "bg-fog-shore",
-      backgroundState: "bg-fog-shore",
-      backgroundAssetUrl: "/assets/characters/choi-seojin/cover.png",
-      characterAssetId: "none",
-      characterAssetLabel: "No character in this branch",
-      characterImage: "",
-      userSceneLabel: "안개 낀 해안 우회",
-      stateLabel: "관계 변화 · 보조 결말 검토",
-      endingLabel: "AI 보조 결말",
-      backgroundLabel: "안개 해안",
-      rejoinLabel: "보조 결말 검토 전 합류 없음",
-      eventSummary: "The detour splits away before the rejoin.",
-      eventLabel: "우회로가 합류 전에 갈라집니다.",
-      relationSummary: "Relationship shifts without a writer ending.",
-      relationLabel: "작가 결말이 없어 관계 흐름이 바뀝니다.",
-      riskSummary: "Medium risk, unresolved route.",
-      riskLabel: "중간 위험의 미해결 경로입니다.",
-      infoSummary: "Missing author ending is visible.",
-      infoLabel: "작가 결말이 없는 분기임을 확인합니다.",
-      endingCandidate: "AI 보조 결말 후보 E-AI-01",
-      endingCandidateLabel: "작가 결말이 없을 때만 쓰는 보조 결말 후보 E-AI-01",
-      chatLine: "The shore goes quiet. This branch needs helper ending review.",
-      chatLineLabel: "해안이 조용해지고 이 분기는 보조 결말 검토가 필요합니다.",
-      rejoin: "No rejoin before helper ending review",
-      rejoinLabel: "보조 결말 검토 전 합류 없음",
-    },
+  const ENDING_GUIDE = [
+    { type: "author-main", title: "작가 기본 결말", body: "작가가 지정한 중심 루트의 결말입니다." },
+    { type: "author-sub", title: "작가 보조 결말", body: "분기 루트를 위해 작가가 별도로 준비한 결말입니다." },
+    { type: "ai-assisted", title: "AI 보조 결말", body: "작가 결말이 없는 분기에서만 후보로 표시합니다." },
   ];
 
   let _storyScenes = STORY_SCENE_FALLBACKS.slice();
   let _storySceneIndex = 0;
-
-  function lumina(n) {
-    return (Number(n) || 0).toLocaleString("ko-KR") + " L";
-  }
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -562,55 +327,22 @@
       .replace(/'/g, "&#39;");
   }
 
-  function storyLocale() {
-    const locale = window.luminaI18n?.getRegionalLocale?.() || window.luminaI18n?.getLocale?.();
-    if (locale) return locale;
-    return document.documentElement.lang || "ko-KR";
+  function lumina(n) {
+    return (Number(n) || 0).toLocaleString("ko-KR") + " L";
   }
 
-  function storyT(key) {
-    const liveValue = window.luminaI18n?.t?.(key);
-    if (liveValue && liveValue !== key) return liveValue;
-    const locale = storyLocale();
-    const entry = STORY_SCENE_COPY[key];
-    return entry?.[locale] || entry?.["ko-KR"] || key;
+  function storyLocale() {
+    const locale = window.luminaI18n?.getLocale?.() || window.luminaI18n?.getRegionalLocale?.() || document.documentElement.lang || "ko";
+    if (String(locale).startsWith("ko")) return "ko";
+    return "en";
+  }
+
+  function copy() {
+    return FALLBACK_COPY[storyLocale()] || FALLBACK_COPY.ko;
   }
 
   function routeHandoffHref(storyId, entry) {
     return "/story-stage?storyId=" + encodeURIComponent(storyId || "imjin") + "&entry=" + encodeURIComponent(entry || "card");
-  }
-
-  function branchChoice(label) {
-    return STORY_BRANCH_IMPLEMENTATION_FIXTURE.find((choice) => choice.label === label) || STORY_BRANCH_IMPLEMENTATION_FIXTURE[0];
-  }
-
-  function branchBackgroundStyle(choice) {
-    const safeChoice = choice || STORY_BRANCH_IMPLEMENTATION_FIXTURE[0];
-    const url = safeChoice.backgroundAssetUrl || "/assets/brand/lumina-stage-banner.png";
-    return "linear-gradient(180deg, rgba(8, 5, 18, 0.04), rgba(8, 5, 18, 0.62)), url('" + escapeHtml(url) + "')";
-  }
-
-  function storyLocalT(key) {
-    const locale = storyLocale();
-    const entry = STORY_SCENE_COPY[key];
-    return entry?.[locale] || entry?.["ko-KR"] || storyT(key);
-  }
-
-  function applyStoryLocalCopy(scope) {
-    const root = scope || document;
-    root.querySelectorAll("[data-story-local-i18n]").forEach((node) => {
-      const key = node.getAttribute("data-story-local-i18n");
-      node.textContent = storyLocalT(key);
-    });
-  }
-
-  function companionOptions() {
-    const data = window.LuminaStaticData || null;
-    const all = data && Array.isArray(data.characters) ? data.characters : [];
-    return all
-      .filter(a => a && (a.status === "public" || a.status === "debut"))
-      .slice(0, 6)
-      .map(a => ({ slug: a.slug, name: a.publicName || a.name || a.slug }));
   }
 
   function isFixturePreview() {
@@ -636,20 +368,17 @@
     const characters = Array.isArray(safeScene.characters) ? safeScene.characters : [];
     return {
       sceneId: String(safeScene.sceneId || safeScene.id || "scene-" + (index + 1)),
-      sceneTextKey: safeScene.sceneTextKey ? String(safeScene.sceneTextKey) : "",
-      sceneText: String(safeScene.sceneText || safeScene.text || ""),
+      sceneText: String(safeScene.sceneText || safeScene.text || STORY_SCENE_FALLBACKS[index % STORY_SCENE_FALLBACKS.length]?.sceneText || copy().scenePreparing),
       backgroundState: String(safeScene.backgroundState || (bg?.url ? "ready" : "fallback")),
       backgroundAsset: bg,
-      fallbackKey: String(safeScene.fallbackKey || "storyStage.scene.assetFallback.default"),
+      fallbackType: String(safeScene.fallbackType || (!bg?.url ? "background" : "ready")),
       characters: characters.slice(0, 4).map((character, i) => ({
         characterId: String(character.characterId || character.id || "character-" + i),
-        artistSlug: String(character.artistSlug || ""),
-        displayNameKey: String(character.displayNameKey || "storyStage.scene.character.altDefault"),
         assetId: String(character.assetId || ""),
         url: normalizeAssetUrl(character.url || character.publicUrl || character.assetUrl),
+        label: String(character.label || character.displayName || "등장 캐릭터"),
         characterPose: String(character.characterPose || character.pose || "neutral"),
         characterLayer: String(character.characterLayer || character.layer || "midground"),
-        entranceState: String(character.entranceState || "entered"),
       })),
     };
   }
@@ -658,43 +387,50 @@
     if (!isFixturePreview()) return STORY_SCENE_FALLBACKS.slice();
     try {
       const path = "/api/v1/story-sessions/fixtures/story-scene-preview/scenes";
-      let response = null;
-      if (typeof window.apiFetch === "function") {
-        response = await window.apiFetch(path, { throwOnError: true });
-      } else {
-        const res = await fetch(path, { credentials: "omit" });
-        if (res.ok) response = await res.json();
-      }
+      const res = await fetch(path, { credentials: "omit" });
+      if (!res.ok) return STORY_SCENE_FALLBACKS.slice();
+      const response = await res.json();
       const scenes = Array.isArray(response) ? response : response?.scenes;
       if (Array.isArray(scenes) && scenes.length) return scenes.map(normalizeScene);
     } catch (_) {
-      // Fixture preview must stay usable even before the backend branch is reflected on main.
+      return STORY_SCENE_FALLBACKS.slice();
     }
     return STORY_SCENE_FALLBACKS.slice();
   }
 
-  function sceneStatusI18nKey(scene) {
-    const bgState = String(scene?.backgroundState || "");
-    if (bgState === "loading") return "storyStage.scene.background.loading";
-    if (bgState === "missing" || bgState === "fallback") return "storyStage.scene.background.missing";
-    if (!scene?.characters || scene.characters.length === 0) return "storyStage.scene.character.missing";
+  function branchChoice(label) {
+    return BRANCH_CHOICES.find((choice) => choice.label === label) || BRANCH_CHOICES[0];
+  }
+
+  function branchBackgroundStyle(choice) {
+    const safeChoice = choice || BRANCH_CHOICES[0];
+    const url = safeChoice.backgroundAssetUrl || "/assets/brand/lumina-stage-banner.png";
+    return "linear-gradient(180deg, rgba(8, 5, 18, 0.04), rgba(8, 5, 18, 0.62)), url('" + escapeHtml(url) + "')";
+  }
+
+  function sceneStatusText(scene, hasBackground, hasCharacters) {
+    const t = copy();
+    if (scene.backgroundState === "loading") return t.bgLoading;
+    if (!hasBackground) return t.bgMissing;
+    if (!hasCharacters) return t.charMissing;
     return "";
   }
 
   function renderStoryScene(scene) {
     const stage = document.querySelector("[data-story-scene-stage]");
     if (!stage) return;
-
+    const t = copy();
     const activeScene = normalizeScene(scene || STORY_SCENE_FALLBACKS[0], 0);
     const bg = activeScene.backgroundAsset;
-    const hasBackground = bg && bg.url && activeScene.backgroundState === "ready";
-    const visibleCharacters = activeScene.characters.filter(c => c.characterLayer !== "offscreen");
-    const characterWithAsset = visibleCharacters.filter(c => c.url);
-    const statusKey = sceneStatusI18nKey(activeScene);
+    const hasBackground = !!(bg && bg.url && activeScene.backgroundState === "ready");
+    const visibleCharacters = activeScene.characters.filter((character) => character.characterLayer !== "offscreen");
+    const characterWithAsset = visibleCharacters.filter((character) => character.url);
+    const statusText = sceneStatusText(activeScene, hasBackground, characterWithAsset.length > 0);
 
     stage.dataset.sceneId = activeScene.sceneId;
     stage.dataset.bgState = hasBackground ? "ready" : "fallback";
     stage.dataset.hasCharacters = characterWithAsset.length > 0 ? "true" : "false";
+
     const bgWrap = stage.querySelector("[data-scene-bg]");
     const bgImg = stage.querySelector("[data-scene-bg-img]");
     const chars = stage.querySelector("[data-scene-characters]");
@@ -713,10 +449,8 @@
         bgImg.hidden = true;
         bgImg.removeAttribute("src");
       }
-      bgImg.alt = storyT(bg?.labelKey || "storyStage.scene.background.altDefault");
-      bgImg.setAttribute("data-i18n-alt", bg?.labelKey || "storyStage.scene.background.altDefault");
+      bgImg.alt = bg?.label || t.sceneLabel;
     }
-
     if (chars) {
       chars.innerHTML = characterWithAsset.map((character, index) => {
         const side = index % 2 === 0 ? "left" : "right";
@@ -725,55 +459,37 @@
           'data-layer="' + escapeHtml(character.characterLayer) + '" ' +
           'data-pose="' + escapeHtml(character.characterPose) + '" ' +
           'data-side="' + side + '" ' +
-          'alt="' + escapeHtml(storyT(character.displayNameKey || "storyStage.scene.character.altDefault")) + '" ' +
-          'data-i18n-alt="' + escapeHtml(character.displayNameKey || "storyStage.scene.character.altDefault") + '" ' +
-          'loading="lazy" decoding="async" />'
+          'alt="' + escapeHtml(character.label) + '" loading="lazy" decoding="async" />'
         );
       }).join("");
     }
-
-    if (text) text.textContent = activeScene.sceneTextKey ? storyT(activeScene.sceneTextKey) : activeScene.sceneText;
+    if (text) text.textContent = activeScene.sceneText;
     if (status) {
-      if (statusKey) {
-        status.hidden = false;
-        status.textContent = storyT(statusKey);
-        status.dataset.i18n = statusKey;
-      } else {
-        status.hidden = true;
-        status.textContent = "";
-        status.removeAttribute("data-i18n");
-      }
+      status.hidden = !statusText;
+      status.textContent = statusText;
     }
     if (fallback) {
       const showFallback = !hasBackground || (visibleCharacters.length > 0 && characterWithAsset.length === 0);
       fallback.hidden = !showFallback;
       fallback.dataset.bgState = hasBackground ? "ready" : "fallback";
-      if (fallbackCopy) {
-        const fallbackKey = statusKey || activeScene.fallbackKey || "storyStage.scene.assetFallback.default";
-        fallbackCopy.textContent = storyT(fallbackKey);
-        fallbackCopy.dataset.i18n = fallbackKey;
-      }
-      if (fallbackRetry) {
-        fallbackRetry.textContent = storyT("storyStage.scene.retry");
-        fallbackRetry.dataset.i18n = "storyStage.scene.retry";
-      }
+      if (fallbackCopy) fallbackCopy.textContent = statusText || t.scenePreparing;
+      if (fallbackRetry) fallbackRetry.textContent = t.retry;
     }
-
     const count = document.querySelector("[data-scene-count]");
     if (count) count.textContent = (_storySceneIndex + 1) + " / " + _storyScenes.length;
-    window.luminaI18n?.apply?.(stage);
   }
 
   function renderScenePreviewShell(fixtureMode) {
+    const t = copy();
     return `
       <section class="story-section story-scene-section" aria-labelledby="storySceneTitle">
         <div class="story-section-head">
-          <span class="story-eyebrow story-eyebrow-scene">Scene Visual</span>
-          <h2 id="storySceneTitle">장면 연출 미리보기</h2>
+          <span class="story-eyebrow story-eyebrow-scene">${escapeHtml(t.sceneEyebrow)}</span>
+          <h2 id="storySceneTitle">${escapeHtml(t.sceneTitle)}</h2>
         </div>
-        <section class="story-scene-stage" data-story-scene-stage data-scene-id="" aria-label="스토리 장면" aria-live="polite">
+        <section class="story-scene-stage" data-story-scene-stage data-scene-id="" aria-label="${escapeHtml(t.sceneLabel)}" aria-live="polite">
           <div class="scene-bg" data-scene-bg data-bg-state="ready">
-            <img class="scene-bg-img" alt="" data-scene-bg-img data-i18n-alt="storyStage.scene.background.altDefault" />
+            <img class="scene-bg-img" alt="" data-scene-bg-img />
           </div>
           <div class="scene-characters" data-scene-characters></div>
           <div class="scene-text-overlay">
@@ -781,94 +497,56 @@
           </div>
           <p class="scene-visual-status" data-scene-visual-status role="status" hidden></p>
           <div class="scene-fallback" data-scene-fallback data-bg-state="missing" hidden>
-            <p class="scene-fallback-copy" data-scene-fallback-copy data-i18n="storyStage.scene.background.missing">기본 배경으로 장면을 이어갈게요.</p>
-            <button class="scene-retry" type="button" data-scene-retry data-i18n="storyStage.scene.retry">다시 시도</button>
+            <p class="scene-fallback-copy" data-scene-fallback-copy>${escapeHtml(t.bgMissing)}</p>
+            <button class="scene-retry" type="button" data-scene-retry>${escapeHtml(t.retry)}</button>
           </div>
         </section>
         <nav class="scene-preview-nav" data-fixture-only ${fixtureMode ? "" : "hidden"}>
-          <button type="button" data-scene-prev data-i18n="storyStage.scene.preview.prev">이전 장면</button>
+          <button type="button" data-scene-prev>${escapeHtml(t.prev)}</button>
           <span class="scene-preview-count" data-scene-count>1 / 3</span>
-          <button type="button" data-scene-next data-i18n="storyStage.scene.preview.next">다음 장면</button>
+          <button type="button" data-scene-next>${escapeHtml(t.next)}</button>
         </nav>
       </section>
     `;
   }
 
-  function renderBranchFixtureShell() {
-    return `
-      <section class="story-section story-branch-section" aria-labelledby="storyBranchTitle">
-        <div class="story-section-head">
-          <span class="story-eyebrow story-eyebrow-scene">Branch</span>
-          <h2 id="storyBranchTitle" data-story-local-i18n="storyStage.branch.title">${storyLocalT("storyStage.branch.title")}</h2>
-        </div>
-        <p class="story-muted story-branch-note" data-story-local-i18n="storyStage.branch.note">${storyLocalT("storyStage.branch.note")}</p>
-        <div class="story-branch-grid">
-          ${STORY_BRANCH_FIXTURE.map((branch) => `
-            <article class="story-branch-card" data-branch-tone="${escapeHtml(branch.tone)}">
-              <div class="story-branch-card-head">
-                <b>${escapeHtml(branch.label)}</b>
-                <strong>${escapeHtml(branch.next)}</strong>
-              </div>
-              <h3 data-story-local-i18n="${escapeHtml(branch.titleKey)}">${storyLocalT(branch.titleKey)}</h3>
-              <p data-story-local-i18n="${escapeHtml(branch.outcomeKey)}">${storyLocalT(branch.outcomeKey)}</p>
-              <div class="story-branch-tags">
-                ${branch.tagKeys.map((key) => `<span data-story-local-i18n="${escapeHtml(key)}">${storyLocalT(key)}</span>`).join("")}
-              </div>
-              <em data-story-local-i18n="${escapeHtml(branch.rejoinKey)}">${storyLocalT(branch.rejoinKey)}</em>
-            </article>
-          `).join("")}
-        </div>
-      </section>
-    `;
-  }
-
-  function renderLocaleQaShell() {
-    return `
-      <section class="story-section story-locale-section" aria-labelledby="storyLocaleTitle">
-        <div class="story-section-head">
-          <span class="story-eyebrow story-eyebrow-extra" data-i18n="storyStage.locale.eyebrow">언어</span>
-          <h2 id="storyLocaleTitle" data-i18n="storyStage.locale.heading">언어 선택</h2>
-        </div>
-        <div class="story-locale-panel">
-          <p data-i18n="storyStage.locale.note">스토리 화면 문구를 원하는 언어로 바꿔 읽어보세요.</p>
-          <div class="story-locale-buttons" role="group" aria-label="Story language selector">
-            ${STORY_LOCALES.map(locale => `
-              <button type="button" data-story-locale="${locale.code}" aria-pressed="false">${locale.label}</button>
-            `).join("")}
-          </div>
-        </div>
-      </section>
-    `;
-  }
-
   function renderDiscoveryShell() {
+    const t = copy();
     const filters = [
-      "storyStage.discovery.filter.recommended",
-      "storyStage.discovery.filter.taste",
-      "storyStage.discovery.filter.new",
-      "storyStage.discovery.filter.ranking",
-      "storyStage.discovery.filter.today",
-      "storyStage.discovery.filter.genre",
+      { key: "recommended", label: "추천" },
+      { key: "taste", label: "취향" },
+      { key: "new", label: "신작" },
+      { key: "ranking", label: "랭킹" },
+      { key: "today-empty", label: "오늘" },
+      { key: "genre", label: "장르" },
     ];
     return `
       <section class="story-section story-discovery-section" aria-labelledby="storyDiscoveryTitle">
         <div class="story-section-head">
           <span class="story-eyebrow story-eyebrow-free">Discovery</span>
-          <h2 id="storyDiscoveryTitle" data-i18n="storyStage.discovery.heading">스토리 찾기</h2>
+          <h2 id="storyDiscoveryTitle">${escapeHtml(t.discoveryTitle)}</h2>
         </div>
         <div class="story-filter-row" role="list" aria-label="Story filters">
-          ${filters.map((key, index) => `
-            <button type="button" class="story-filter-chip${index === 0 ? " is-active" : ""}" data-i18n="${key}" aria-pressed="${index === 0 ? "true" : "false"}">${storyT(key)}</button>
+          ${filters.map((filter, index) => `
+            <button type="button"
+                    class="story-filter-chip${index === 0 ? " is-active" : ""}"
+                    data-story-filter="${escapeHtml(filter.key)}"
+                    aria-pressed="${index === 0 ? "true" : "false"}">${escapeHtml(filter.label)}</button>
           `).join("")}
         </div>
-        <div class="story-discovery-grid">
-          ${STORY_DISCOVERY_ITEMS.map(item => `
-            <article class="story-discovery-card" data-story-detail="${escapeHtml(item.id)}" data-story-id="${escapeHtml(item.id)}" tabindex="0" role="button" aria-label="${escapeHtml(storyT(item.titleKey))}">
+        <div class="story-discovery-empty" data-story-discovery-empty hidden>
+          <strong>${escapeHtml(t.emptyTitle)}</strong>
+          <p>${escapeHtml(t.emptyBody)}</p>
+          <button type="button" class="story-cta story-cta-free" data-story-reset-filter>${escapeHtml(t.emptyCta)}</button>
+        </div>
+        <div class="story-discovery-grid" data-story-discovery-grid>
+          ${STORY_DISCOVERY_ITEMS.map((item) => `
+            <article class="story-discovery-card" data-story-detail="${escapeHtml(item.id)}" data-story-id="${escapeHtml(item.id)}" tabindex="0" role="button" aria-label="${escapeHtml(item.title)}">
               <div class="story-discovery-cover" style="background-image: linear-gradient(180deg, rgba(8,5,18,0.04), rgba(8,5,18,0.52)), url('${escapeHtml(item.image)}')"></div>
               <div class="story-discovery-body">
-                <span class="story-discovery-status" data-i18n="${item.statusKey}">${storyT(item.statusKey)}</span>
-                <h3 data-i18n="${item.titleKey}">${storyT(item.titleKey)}</h3>
-                <p data-i18n="${item.summaryKey}">${storyT(item.summaryKey)}</p>
+                <span class="story-discovery-status">${escapeHtml(item.status)}</span>
+                <h3>${escapeHtml(item.title)}</h3>
+                <p>${escapeHtml(item.summary)}</p>
                 <div class="story-discovery-meta">
                   <span>${escapeHtml(item.metric)}</span>
                   <span>${item.tags.map(escapeHtml).join(" · ")}</span>
@@ -877,7 +555,7 @@
                   <a class="story-cta story-cta-free story-route-link"
                      href="${escapeHtml(routeHandoffHref(item.id, "card"))}"
                      data-story-route-handoff="card"
-                     data-story-id="${escapeHtml(item.id)}">무료 프롤로그 시작</a>
+                     data-story-id="${escapeHtml(item.id)}">${escapeHtml(t.startFree)}</a>
                   <button class="story-detail-open" type="button" data-story-detail-open="${escapeHtml(item.id)}">상세 보기</button>
                 </div>
               </div>
@@ -889,34 +567,40 @@
   }
 
   function renderDetailShell() {
+    const t = copy();
     return `
       <section class="story-detail-sheet" data-story-detail-sheet hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="storyDetailTitle">
-        <button class="story-detail-close" type="button" data-story-detail-close data-i18n-aria="storyStage.detail.close" aria-label="닫기">×</button>
+        <button class="story-detail-close" type="button" data-story-detail-close aria-label="${escapeHtml(t.close)}">×</button>
         <div class="story-detail-cover" aria-hidden="true"></div>
         <div class="story-detail-body">
-          <span class="story-eyebrow story-eyebrow-scene" data-i18n="storyStage.detail.heading">스토리 상세</span>
-          <h2 id="storyDetailTitle" data-i18n="storyStage.discovery.card.imjin.title">임진왜란: 난중일기 프롤로그</h2>
-          <p data-story-detail-summary data-i18n="storyStage.discovery.card.imjin.summary">전장의 기록 사이로 들어가 첫 선택을 해요.</p>
-          <div class="story-detail-chip-row" data-story-detail-tags>
-            <span>History</span>
-            <span>Tutorial</span>
-          </div>
-          <div class="story-detail-stat-row" data-story-detail-stats>
-            <span>4.8</span>
-            <span>1.2k readers</span>
-          </div>
+          <span class="story-eyebrow story-eyebrow-scene">${escapeHtml(t.detailHeading)}</span>
+          <h2 id="storyDetailTitle">임진왜란: 난중일기 프롤로그</h2>
+          <p data-story-detail-summary>전장의 기록 사이로 들어가 첫 선택을 고릅니다.</p>
+          <div class="story-detail-chip-row" data-story-detail-tags></div>
+          <div class="story-detail-stat-row" data-story-detail-stats></div>
           <dl class="story-detail-list">
-            <div><dt data-i18n="storyStage.detail.creator">AI 아티스트</dt><dd data-story-detail-creator>Cha Dohyun</dd></div>
-            <div><dt data-i18n="storyStage.detail.profile">대화 프로필</dt><dd data-i18n="storyStage.setup.note">무료 프롤로그는 나 또는 AI 아티스트 1명과 시작해요.</dd></div>
-            <div><dt>시작 설정</dt><dd data-story-detail-settings>무료 프롤로그 · 동반 AI 1명 · 비공개 미리보기</dd></div>
-            <div><dt>업데이트</dt><dd data-story-detail-updates>최근 장면/선택지 검수 완료</dd></div>
-            <div><dt data-i18n="storyStage.detail.prologue">프롤로그 미리보기</dt><dd data-i18n="storyStage.tutorial.detail">역사 기록의 결을 살린 짧은 프롤로그예요. 외부 번역문이나 특정 게임 문구를 쓰지 않고, Lumina의 장면형 선택 흐름으로 시작합니다.</dd></div>
-            <div><dt data-i18n="storyStage.detail.similar">비슷한 스토리</dt><dd data-story-detail-similar data-i18n="storyStage.discovery.card.stage.title">첫 무대의 떨림</dd></div>
+            <div><dt>${escapeHtml(t.creator)}</dt><dd data-story-detail-creator>Cha Dohyun</dd></div>
+            <div><dt>${escapeHtml(t.profile)}</dt><dd>무료 프롤로그는 나 또는 AI 아티스트 1명과 시작합니다.</dd></div>
+            <div><dt>${escapeHtml(t.settings)}</dt><dd data-story-detail-settings>무료 프롤로그 · 동반 AI 1명 · 비공개 미리보기</dd></div>
+            <div><dt>${escapeHtml(t.updates)}</dt><dd data-story-detail-updates>최근 장면과 선택지 검수 완료</dd></div>
+            <div><dt>${escapeHtml(t.prologuePreview)}</dt><dd>${escapeHtml(t.tutorialDetail)}</dd></div>
+            <div><dt>${escapeHtml(t.similar)}</dt><dd data-story-detail-similar>첫 무대의 떨림</dd></div>
           </dl>
+          <section class="story-detail-ending-copy" aria-label="${escapeHtml(t.endingGuide)}">
+            <h3>${escapeHtml(t.endingGuide)}</h3>
+            <div class="story-detail-ending-grid">
+              ${ENDING_GUIDE.map((ending) => `
+                <article data-ending-copy="${escapeHtml(ending.type)}">
+                  <strong>${escapeHtml(ending.title)}</strong>
+                  <p>${escapeHtml(ending.body)}</p>
+                </article>
+              `).join("")}
+            </div>
+          </section>
           <div class="story-detail-actions">
-            <a class="story-cta story-cta-free story-route-link" href="${escapeHtml(routeHandoffHref("imjin", "detail"))}" data-story-route-handoff="detail-start" data-story-detail-start data-i18n="storyStage.detail.cta.free">무료 프롤로그 시작</a>
-            <a class="story-cta story-cta-extra story-route-link" href="${escapeHtml(routeHandoffHref("imjin", "continue"))}" data-story-route-handoff="detail-continue" data-story-detail-continue data-i18n="storyStage.detail.cta.continue">이어하기</a>
-            <a class="story-cta story-cta-paid story-route-link" href="${escapeHtml(routeHandoffHref("imjin", "locked-preview"))}" data-story-route-handoff="detail-locked" data-story-detail-locked data-i18n="storyStage.detail.cta.locked">구매 필요</a>
+            <a class="story-cta story-cta-free story-route-link" href="${escapeHtml(routeHandoffHref("imjin", "detail"))}" data-story-route-handoff="detail-start" data-story-detail-start>${escapeHtml(t.startFree)}</a>
+            <a class="story-cta story-cta-extra story-route-link" href="${escapeHtml(routeHandoffHref("imjin", "continue"))}" data-story-route-handoff="detail-continue" data-story-detail-continue>${escapeHtml(t.continueStory)}</a>
+            <a class="story-cta story-cta-paid story-route-link" href="${escapeHtml(routeHandoffHref("imjin", "locked-preview"))}" data-story-route-handoff="detail-locked" data-story-detail-locked>${escapeHtml(t.locked)}</a>
           </div>
         </div>
       </section>
@@ -925,70 +609,61 @@
   }
 
   function renderSetupShell() {
+    const t = copy();
     return `
       <section class="story-section story-setup-section" aria-labelledby="storySetupTitle">
         <div class="story-section-head">
-          <span class="story-eyebrow story-eyebrow-free">${storyLocalT("storyStage.setup.eyebrow")}</span>
-          <h2 id="storySetupTitle" data-i18n="storyStage.setup.heading">나 + AI 동반 설정</h2>
+          <span class="story-eyebrow story-eyebrow-free">Me + AI</span>
+          <h2 id="storySetupTitle">${escapeHtml(t.setupTitle)}</h2>
         </div>
         <div class="story-setup-grid">
-          <article class="story-setup-item">
-            <strong data-i18n="storyStage.setup.profile">대화 프로필</strong>
-            <p data-i18n="storyStage.setup.note">무료 프롤로그는 나 또는 AI 아티스트 1명과 시작해요.</p>
-          </article>
-          <article class="story-setup-item">
-            <strong data-i18n="storyStage.setup.start">시작 설정</strong>
-            <p data-i18n="storyStage.tutorial.status">프롤로그를 준비 중이에요.</p>
-          </article>
-          <article class="story-setup-item">
-            <strong data-i18n="storyStage.setup.companion">동반 AI</strong>
-            <p data-i18n="storyStage.player.status">배경 위에 대화와 선택지를 겹치지 않게 보여줘요.</p>
-          </article>
-          <article class="story-setup-item">
-            <strong data-i18n="storyStage.setup.visibility">공개 범위</strong>
-            <p>${storyLocalT("storyStage.setup.visibility.private")}</p>
-          </article>
+          <article class="story-setup-item"><strong>${escapeHtml(t.profile)}</strong><p>나 또는 AI 아티스트 1명과 무료 프롤로그를 시작합니다.</p></article>
+          <article class="story-setup-item"><strong>${escapeHtml(t.settings)}</strong><p>프롤로그를 읽기 전용 미리보기로 준비합니다.</p></article>
+          <article class="story-setup-item"><strong>동반 AI</strong><p>${escapeHtml(t.playerStatus)}</p></article>
+          <article class="story-setup-item"><strong>공개 범위</strong><p>나만 보는 비공개 미리보기</p></article>
         </div>
       </section>
     `;
   }
 
   function renderPlayerShell() {
-    const activeChoice = STORY_BRANCH_IMPLEMENTATION_FIXTURE[0];
+    const t = copy();
+    const activeChoice = BRANCH_CHOICES[0];
     return `
       <section class="story-section story-player-section" aria-labelledby="storyPlayerTitle">
         <div class="story-section-head">
           <span class="story-eyebrow story-eyebrow-scene">Immersive MVP</span>
-          <h2 id="storyPlayerTitle" data-i18n="storyStage.player.heading">장면 속에서 대화하기</h2>
+          <h2 id="storyPlayerTitle">${escapeHtml(t.playerTitle)}</h2>
         </div>
         <div class="story-player-shell"
              aria-label="몰입형 스토리 플레이어 미리보기"
              data-story-mode-chat-shell="true"
              data-active-choice="${escapeHtml(activeChoice.label)}"
-             data-scene-id="${escapeHtml(activeChoice.nextSceneId)}"
+             data-scene-id="${escapeHtml(activeChoice.userSceneLabel)}"
              data-background-id="${escapeHtml(activeChoice.backgroundId)}"
              data-character-asset-id="${escapeHtml(activeChoice.characterAssetId)}">
           <div class="story-player-bg" role="img" aria-label="스토리 장면 배경" data-story-player-bg style="background-image: ${branchBackgroundStyle(activeChoice)}"></div>
-          <img class="story-player-character" src="${escapeHtml(activeChoice.characterImage)}" alt="${escapeHtml(activeChoice.characterAssetLabel)}" data-story-player-character data-i18n-alt="storyStage.scene.character.altDefault" loading="lazy" decoding="async" />
+          <img class="story-player-character" src="${escapeHtml(activeChoice.characterImage)}" alt="${escapeHtml(activeChoice.characterAssetLabel)}" data-story-player-character loading="lazy" decoding="async" />
           <div class="story-player-scene-pill" data-story-player-scene>${escapeHtml(activeChoice.userSceneLabel)} · ${escapeHtml(activeChoice.backgroundLabel)}</div>
           <div class="story-player-overlay">
-            <p class="story-player-status" data-i18n="storyStage.player.status">배경 위에 대화와 선택지를 겹치지 않게 보여줘요.</p>
+            <p class="story-player-status">${escapeHtml(t.playerStatus)}</p>
             <div class="story-player-chat" role="log" aria-live="polite">
-              <p class="story-player-bubble is-ai" data-story-player-bubble>${escapeHtml(activeChoice.chatLineLabel)}</p>
+              <p class="story-player-bubble is-ai" data-story-player-bubble>${escapeHtml(activeChoice.chatLine)}</p>
             </div>
             <div class="story-player-choices" role="group" aria-label="스토리 선택지">
-              ${STORY_BRANCH_IMPLEMENTATION_FIXTURE.map((choice, index) => `
+              ${BRANCH_CHOICES.map((choice, index) => `
                 <button type="button"
                         data-story-player-choice="${escapeHtml(choice.label)}"
                         aria-pressed="${index === 0 ? "true" : "false"}"
                         class="${index === 0 ? "is-active" : ""}">
-                  ${escapeHtml(choice.label)} · ${escapeHtml(choice.userSceneLabel)}
+                  <span>${escapeHtml(choice.label)}</span>
+                  <strong>${escapeHtml(choice.title)}</strong>
                 </button>
               `).join("")}
             </div>
             <label class="story-player-input">
-              <span data-i18n="storyStage.player.userPlaceholder">내 반응을 짧게 남기기</span>
-              <input type="text" disabled aria-disabled="true" data-i18n-attr="placeholder:storyStage.player.userPlaceholder" placeholder="내 반응을 짧게 남기기" />
+              <span>${escapeHtml(t.inputPlaceholder)}</span>
+              <input type="text" disabled aria-disabled="true" placeholder="${escapeHtml(t.inputPlaceholder)}" />
             </label>
           </div>
         </div>
@@ -997,64 +672,64 @@
   }
 
   function renderBranchImplementationShell() {
-    const activeChoice = STORY_BRANCH_IMPLEMENTATION_FIXTURE[0];
+    const t = copy();
+    const activeChoice = BRANCH_CHOICES[0];
     return `
       <section class="story-section story-branch-implementation" aria-labelledby="storyBranchImplementationTitle" data-story-stage-fixture-preview="1">
         <div class="story-section-head">
           <span class="story-eyebrow story-eyebrow-scene">선택 결과</span>
-          <h2 id="storyBranchImplementationTitle">A/B/C 선택 결과 미리보기</h2>
+          <h2 id="storyBranchImplementationTitle">${escapeHtml(t.choiceTitle)}</h2>
         </div>
-        <p class="story-muted">같은 분기점에서도 장면, 관계, 위험도, 정보, 결말 후보가 다르게 이어지는지 확인합니다.</p>
+        <p class="story-muted">${escapeHtml(t.choiceNote)}</p>
         <div class="story-branch-nav" role="group" aria-label="선택 결과 미리보기">
-          ${STORY_BRANCH_IMPLEMENTATION_FIXTURE.map((choice, index) => `
+          ${BRANCH_CHOICES.map((choice, index) => `
             <button type="button"
                     data-story-branch-choice="${escapeHtml(choice.label)}"
                     aria-pressed="${index === 0 ? "true" : "false"}"
                     class="${index === 0 ? "is-active" : ""}">
-              ${escapeHtml(choice.label)} · ${escapeHtml(choice.userSceneLabel)}
+              <span>${escapeHtml(choice.label)}</span>
+              <strong>${escapeHtml(choice.title)}</strong>
             </button>
           `).join("")}
         </div>
         <article class="story-choice-result"
                  data-story-choice-result
                  data-active-choice="${escapeHtml(activeChoice.label)}"
-                 data-scene-id="${escapeHtml(activeChoice.nextSceneId)}"
+                 data-scene-id="${escapeHtml(activeChoice.userSceneLabel)}"
                  data-background-id="${escapeHtml(activeChoice.backgroundId)}">
           <div class="story-choice-result-bg" data-choice-result-bg style="background-image: ${branchBackgroundStyle(activeChoice)}"></div>
           <div class="story-choice-result-body">
-            <strong data-choice-result-scene>${escapeHtml(activeChoice.label)} · ${escapeHtml(activeChoice.userSceneLabel)}</strong>
-            <p data-choice-result-summary>${escapeHtml(activeChoice.bodySummaryLabel)}</p>
+            <strong data-choice-result-scene>${escapeHtml(activeChoice.title)} · ${escapeHtml(activeChoice.userSceneLabel)}</strong>
+            <p data-choice-result-summary>${escapeHtml(activeChoice.bodySummary)}</p>
             <dl class="story-choice-summary">
-              <div><dt>사건</dt><dd data-choice-result-event>${escapeHtml(activeChoice.eventLabel)}</dd></div>
-              <div><dt>관계</dt><dd data-choice-result-relation>${escapeHtml(activeChoice.relationLabel)}</dd></div>
-              <div><dt>위험</dt><dd data-choice-result-risk>${escapeHtml(activeChoice.riskLabel)}</dd></div>
-              <div><dt>정보</dt><dd data-choice-result-info>${escapeHtml(activeChoice.infoLabel)}</dd></div>
-              <div><dt>결말 후보</dt><dd data-choice-result-ending>${escapeHtml(activeChoice.endingCandidateLabel)}</dd></div>
-              <div><dt>합류</dt><dd data-choice-result-rejoin>${escapeHtml(activeChoice.rejoinLabel)}</dd></div>
+              <div><dt>${escapeHtml(t.event)}</dt><dd data-choice-result-event>${escapeHtml(activeChoice.eventLabel)}</dd></div>
+              <div><dt>${escapeHtml(t.relation)}</dt><dd data-choice-result-relation>${escapeHtml(activeChoice.relationLabel)}</dd></div>
+              <div><dt>${escapeHtml(t.risk)}</dt><dd data-choice-result-risk>${escapeHtml(activeChoice.riskLabel)}</dd></div>
+              <div><dt>${escapeHtml(t.info)}</dt><dd data-choice-result-info>${escapeHtml(activeChoice.infoLabel)}</dd></div>
+              <div><dt>${escapeHtml(t.endingCandidate)}</dt><dd data-choice-result-ending>${escapeHtml(activeChoice.endingLabel)}</dd></div>
+              <div><dt>${escapeHtml(t.rejoin)}</dt><dd data-choice-result-rejoin>${escapeHtml(activeChoice.rejoinLabel)}</dd></div>
             </dl>
           </div>
         </article>
         <div class="story-branch-implementation-grid">
-          ${STORY_BRANCH_IMPLEMENTATION_FIXTURE.map((choice) => `
+          ${BRANCH_CHOICES.map((choice) => `
             <article
               class="story-branch-implementation-card"
               data-story-branch-fixture-card="true"
               data-choice="${escapeHtml(choice.label)}"
-              data-next-scene="${escapeHtml(choice.nextSceneId)}"
-              data-state-delta="${escapeHtml(choice.stateDelta)}"
+              data-next-scene="${escapeHtml(choice.userSceneLabel)}"
+              data-state-delta="${escapeHtml(choice.stateLabel)}"
               data-ending-type="${escapeHtml(choice.endingType)}"
               data-ending-route="${escapeHtml(choice.endingRoute)}"
               data-background-id="${escapeHtml(choice.backgroundId)}"
               data-background-state="${escapeHtml(choice.backgroundState)}"
-              data-character-asset-id="${escapeHtml(choice.characterAssetId)}"
-            >
-              <strong>선택 ${escapeHtml(choice.label)} · ${escapeHtml(choice.userSceneLabel)}</strong>
+              data-character-asset-id="${escapeHtml(choice.characterAssetId)}">
+              <strong>선택 ${escapeHtml(choice.label)} · ${escapeHtml(choice.title)}</strong>
               <span>${escapeHtml(choice.backgroundLabel)}</span>
-              <p>${escapeHtml(choice.bodySummaryLabel)}</p>
+              <p>${escapeHtml(choice.bodySummary)}</p>
               <dl>
                 <div><dt>변화</dt><dd>${escapeHtml(choice.stateLabel)}</dd></div>
-                <div><dt>결말 후보</dt><dd>${escapeHtml(choice.endingLabel)} · ${escapeHtml(choice.endingRoute)}</dd></div>
-                <div><dt>배경</dt><dd>${escapeHtml(choice.backgroundLabel)}</dd></div>
+                <div><dt>결말 후보</dt><dd>${escapeHtml(choice.endingLabel)}</dd></div>
                 <div><dt>결과</dt><dd>${escapeHtml(choice.eventLabel)}</dd></div>
                 <div><dt>합류</dt><dd>${escapeHtml(choice.rejoinLabel)}</dd></div>
               </dl>
@@ -1066,63 +741,45 @@
   }
 
   function renderTutorialShell() {
+    const t = copy();
     return `
       <section class="story-section story-tutorial-section" aria-labelledby="storyTutorialTitle">
         <div class="story-section-head">
           <span class="story-eyebrow story-eyebrow-react">Tutorial</span>
-          <h2 id="storyTutorialTitle" data-i18n="storyStage.tutorial.title">임진왜란: 난중일기 프롤로그</h2>
+          <h2 id="storyTutorialTitle">임진왜란: 난중일기 프롤로그</h2>
         </div>
         <article class="story-card story-tutorial-card">
-          <p class="story-card-summary" data-i18n="storyStage.tutorial.short">첫 무료 장면에서 바다와 기록의 긴장을 따라가요.</p>
-          <p class="story-muted" data-i18n="storyStage.tutorial.detail">역사 기록의 결을 살린 짧은 프롤로그예요. 외부 번역문이나 특정 게임 문구를 쓰지 않고, Lumina의 장면형 선택 흐름으로 시작합니다.</p>
-          <button class="story-cta story-cta-free" type="button" aria-disabled="true" data-i18n="storyStage.tutorial.cta">무료 프롤로그 보기</button>
+          <p class="story-card-summary">${escapeHtml(t.tutorialShort)}</p>
+          <p class="story-muted">${escapeHtml(t.tutorialDetail)}</p>
+          <button class="story-cta story-cta-free" type="button" aria-disabled="true">${escapeHtml(t.tutorialCta)}</button>
         </article>
       </section>
     `;
   }
 
   function renderStoryStage() {
-    const root = document.getElementById("storyStageRoot");
+    const root = document.getElementById(rootId);
     if (!root) return;
-
+    const t = copy();
     const f = STORY_FIXTURE;
     const fixtureMode = isFixturePreview();
-    const companions = companionOptions();
     const seasonSaving = Math.max(0, f.season.singleSumLumina - f.season.bundlePriceLumina);
-    const companionChips = companions.length
-      ? companions.map((c, i) => `
-          <button class="story-companion-chip${i === 0 ? " is-selected" : ""}" type="button"
-                  aria-pressed="${i === 0 ? "true" : "false"}" data-story-companion="${escapeHtml(c.slug)}">
-            ${escapeHtml(c.name)}
-          </button>`).join("")
-      : `<p class="story-muted">공개 아티스트가 준비되면 동반 캐릭터로 선택할 수 있어요.</p>`;
-
     const firstScenePreview = fixtureMode ? renderScenePreviewShell(fixtureMode) : renderDiscoveryShell();
     const laterScenePreview = fixtureMode ? renderDiscoveryShell() : renderScenePreviewShell(fixtureMode);
-    const localeQa = fixtureMode ? renderLocaleQaShell() : "";
 
     root.innerHTML = `
       <div class="story-preview-banner" role="note">
-        <strong>${storyLocalT("storyStage.preview.notice.title")}</strong>
-        <span>${storyLocalT("storyStage.preview.notice.body")}</span>
+        <strong>${escapeHtml(t.previewTitle)}</strong>
+        <span>${escapeHtml(t.previewBody)}</span>
       </div>
 
       ${firstScenePreview}
-
-      ${fixtureMode ? renderBranchFixtureShell() : ""}
-
-      ${localeQa}
-
+      ${fixtureMode ? renderLocaleShell() : ""}
       ${renderDetailShell()}
-
       ${laterScenePreview}
-
       ${renderPlayerShell()}
-
       ${renderBranchImplementationShell()}
-
       ${renderSetupShell()}
-
       ${renderTutorialShell()}
 
       <section class="story-section" aria-labelledby="storyPrologueTitle">
@@ -1141,11 +798,12 @@
             <p class="story-companion-label">함께할 캐릭터 · 본인 또는 동반 1명</p>
             <div class="story-companion-chips" role="group" aria-label="동반 캐릭터 선택">
               <button class="story-companion-chip is-self is-selected" type="button" aria-pressed="true" data-story-companion="self">나</button>
-              ${companionChips}
+              <button class="story-companion-chip" type="button" aria-pressed="false" data-story-companion="cha-dohyun">Cha Dohyun</button>
+              <button class="story-companion-chip" type="button" aria-pressed="false" data-story-companion="choi-seojin">Choi Seojin</button>
             </div>
-            <p class="story-muted story-companion-hint">동반은 최대 ${f.prologue.companionMax}명까지 선택할 수 있어요.</p>
+            <p class="story-muted story-companion-hint">동반은 최대 ${f.prologue.companionMax}명까지 선택할 수 있습니다.</p>
           </div>
-          <a class="story-cta story-cta-free story-route-link" href="${escapeHtml(routeHandoffHref("imjin", "prologue"))}" data-story-route-handoff="prologue-start" data-story-id="imjin">무료로 시작 (미리보기)</a>
+          <a class="story-cta story-cta-free story-route-link" href="${escapeHtml(routeHandoffHref("imjin", "prologue"))}" data-story-route-handoff="prologue-start" data-story-id="imjin">무료로 시작</a>
         </div>
       </section>
 
@@ -1155,18 +813,19 @@
           <h2 id="storyChaptersTitle">이어지는 챕터</h2>
         </div>
         <ul class="story-chapter-list">
-          ${f.chapters.map(c => `
+          ${f.chapters.map((chapter) => `
             <li class="story-chapter-item">
-              <span class="story-chapter-no">CH.${c.no}</span>
+              <span class="story-chapter-no">CH.${chapter.no}</span>
               <div class="story-chapter-body">
-                <strong class="story-chapter-title">${escapeHtml(c.title)}</strong>
-                <p class="story-chapter-summary">${escapeHtml(c.summary)}</p>
+                <strong class="story-chapter-title">${escapeHtml(chapter.title)}</strong>
+                <p class="story-chapter-summary">${escapeHtml(chapter.summary)}</p>
               </div>
               <div class="story-chapter-buy">
-                <span class="story-price">${lumina(c.priceLumina)}</span>
-                <button class="story-cta story-cta-paid" type="button" aria-disabled="true" data-story-preview="chapter-${c.no}">구매 (미리보기)</button>
+                <span class="story-price">${lumina(chapter.priceLumina)}</span>
+                <button class="story-cta story-cta-paid" type="button" aria-disabled="true" data-story-preview="chapter-${chapter.no}">구매 미리보기</button>
               </div>
-            </li>`).join("")}
+            </li>
+          `).join("")}
         </ul>
       </section>
 
@@ -1176,13 +835,13 @@
           <h2 id="storySeasonTitle">${escapeHtml(f.season.title)}</h2>
         </div>
         <div class="story-card story-card-season">
-          <p class="story-card-summary">챕터 ${f.season.chapterCount}편을 한 번에. 이미 구매한 챕터가 있으면 그만큼 제외하고 결제해요.</p>
+          <p class="story-card-summary">챕터 ${f.season.chapterCount}개를 한 번에 이어 봅니다. 이미 구매한 챕터는 결제 전 제외됩니다.</p>
           <div class="story-season-price">
             <span class="story-price story-price-lg">${lumina(f.season.bundlePriceLumina)}</span>
             <span class="story-price-strike">${lumina(f.season.singleSumLumina)}</span>
             ${seasonSaving > 0 ? `<span class="story-save-pill">${lumina(seasonSaving)} 절약</span>` : ""}
           </div>
-          <button class="story-cta story-cta-paid" type="button" aria-disabled="true" data-story-preview="season">시즌 구매 (미리보기)</button>
+          <button class="story-cta story-cta-paid" type="button" aria-disabled="true" data-story-preview="season">시즌 구매 미리보기</button>
         </div>
       </section>
 
@@ -1194,7 +853,7 @@
         <div class="story-card story-card-video">
           <div class="story-video-row">
             <span class="story-price">${lumina(f.video.perClipLumina)} <small>/ 1개</small></span>
-            <button class="story-cta story-cta-extra" type="button" aria-disabled="true" data-story-preview="video">영상 만들기 (미리보기)</button>
+            <button class="story-cta story-cta-extra" type="button" aria-disabled="true" data-story-preview="video">영상 만들기 미리보기</button>
           </div>
           <p class="story-note-extra">${escapeHtml(f.video.note)}</p>
         </div>
@@ -1206,41 +865,59 @@
           <h2 id="storyReactTitle">이야기 반응</h2>
         </div>
         <ul class="story-chapter-react-list">
-          ${f.reactions.chapters.map(r => `
+          ${f.reactions.chapters.map((reaction) => `
             <li class="story-chapter-react">
-              <span class="story-chapter-no">CH.${r.no}</span>
+              <span class="story-chapter-no">CH.${reaction.no}</span>
               <div class="story-react-meta">
-                <span class="story-rating" aria-label="평점 ${r.rating}점">★ ${r.rating.toFixed(1)}</span>
-                <span class="story-read-badge">완독 ${r.readers.toLocaleString("ko-KR")}명</span>
-                <span class="story-react-count">댓글 ${r.comments}</span>
+                <span class="story-rating" aria-label="평점 ${reaction.rating}점">★ ${reaction.rating.toFixed(1)}</span>
+                <span class="story-read-badge">완독 ${reaction.readers.toLocaleString("ko-KR")}명</span>
+                <span class="story-react-count">댓글 ${reaction.comments}</span>
               </div>
-            </li>`).join("")}
+            </li>
+          `).join("")}
         </ul>
         <div class="story-comments">
-          <p class="story-comments-head">스토리 전체 댓글 <span class="story-muted">· 구매한 사람만 남길 수 있어요</span></p>
-          ${f.reactions.storyComments.map(cm => `
+          <p class="story-comments-head">스토리 전체 댓글 <span class="story-muted">· 구매한 사람만 남길 수 있습니다</span></p>
+          ${f.reactions.storyComments.map((comment) => `
             <div class="story-comment">
               <div class="story-comment-top">
-                <strong class="story-comment-author">${escapeHtml(cm.author)}</strong>
-                ${cm.paid ? `<span class="story-buyer-badge">결제함</span>` : ""}
-                ${cm.completed ? `<span class="story-read-badge is-done">완독</span>` : ""}
+                <strong class="story-comment-author">${escapeHtml(comment.author)}</strong>
+                ${comment.paid ? `<span class="story-buyer-badge">구매자</span>` : ""}
+                ${comment.completed ? `<span class="story-read-badge is-done">완독</span>` : ""}
               </div>
-              <p class="story-comment-text">${escapeHtml(cm.text)}</p>
-            </div>`).join("")}
-          <button class="story-cta story-cta-extra" type="button" aria-disabled="true" data-story-preview="comment">댓글 남기기 (구매 후 가능 · 미리보기)</button>
+              <p class="story-comment-text">${escapeHtml(comment.text)}</p>
+            </div>
+          `).join("")}
+          <button class="story-cta story-cta-extra" type="button" aria-disabled="true" data-story-preview="comment">댓글 남기기 미리보기</button>
         </div>
       </section>
     `;
 
     bindStoryPreview(root);
-    applyStoryLocalCopy(root);
     setStoryBranchChoice(root, "A");
-    loadScenePreviewFixtures().then(scenes => {
+    loadScenePreviewFixtures().then((scenes) => {
       _storyScenes = scenes.map(normalizeScene);
       _storySceneIndex = 0;
       renderStoryScene(_storyScenes[0]);
     });
-    window.luminaI18n?.apply?.(root);
+  }
+
+  function renderLocaleShell() {
+    const t = copy();
+    return `
+      <section class="story-section story-locale-section" aria-labelledby="storyLocaleTitle">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-extra">언어</span>
+          <h2 id="storyLocaleTitle">${escapeHtml(t.localeTitle)}</h2>
+        </div>
+        <div class="story-locale-panel">
+          <p>${escapeHtml(t.localeNote)}</p>
+          <div class="story-locale-buttons" role="group" aria-label="Story language selector">
+            ${LOCALES.map((locale) => `<button type="button" data-story-locale="${locale.code}" aria-pressed="false">${locale.label}</button>`).join("")}
+          </div>
+        </div>
+      </section>
+    `;
   }
 
   function setStoryBranchChoice(root, label) {
@@ -1259,7 +936,7 @@
     const shell = root.querySelector("[data-story-mode-chat-shell]");
     if (shell) {
       shell.dataset.activeChoice = choice.label;
-      shell.dataset.sceneId = choice.nextSceneId;
+      shell.dataset.sceneId = choice.userSceneLabel;
       shell.dataset.backgroundId = choice.backgroundId;
       shell.dataset.characterAssetId = choice.characterAssetId;
     }
@@ -1268,37 +945,36 @@
     const playerScene = root.querySelector("[data-story-player-scene]");
     if (playerScene) playerScene.textContent = choice.userSceneLabel + " · " + choice.backgroundLabel;
     const playerBubble = root.querySelector("[data-story-player-bubble]");
-    if (playerBubble) playerBubble.textContent = choice.chatLineLabel;
+    if (playerBubble) playerBubble.textContent = choice.chatLine;
     const playerCharacter = root.querySelector("[data-story-player-character]");
     if (playerCharacter) {
       if (choice.characterImage) {
         playerCharacter.hidden = false;
         playerCharacter.src = choice.characterImage;
-        playerCharacter.alt = choice.characterAssetLabel;
       } else {
         playerCharacter.hidden = true;
         playerCharacter.removeAttribute("src");
-        playerCharacter.alt = choice.characterAssetLabel;
       }
+      playerCharacter.alt = choice.characterAssetLabel;
       playerCharacter.dataset.characterAssetId = choice.characterAssetId;
     }
 
     const result = root.querySelector("[data-story-choice-result]");
     if (result) {
       result.dataset.activeChoice = choice.label;
-      result.dataset.sceneId = choice.nextSceneId;
+      result.dataset.sceneId = choice.userSceneLabel;
       result.dataset.backgroundId = choice.backgroundId;
     }
     const resultBg = root.querySelector("[data-choice-result-bg]");
     if (resultBg) resultBg.style.backgroundImage = branchBackgroundStyle(choice);
     const slots = [
-      ["[data-choice-result-scene]", choice.label + " · " + choice.userSceneLabel],
-      ["[data-choice-result-summary]", choice.bodySummaryLabel],
+      ["[data-choice-result-scene]", choice.title + " · " + choice.userSceneLabel],
+      ["[data-choice-result-summary]", choice.bodySummary],
       ["[data-choice-result-event]", choice.eventLabel],
       ["[data-choice-result-relation]", choice.relationLabel],
       ["[data-choice-result-risk]", choice.riskLabel],
       ["[data-choice-result-info]", choice.infoLabel],
-      ["[data-choice-result-ending]", choice.endingCandidateLabel],
+      ["[data-choice-result-ending]", choice.endingLabel],
       ["[data-choice-result-rejoin]", choice.rejoinLabel],
     ];
     slots.forEach(([selector, value]) => {
@@ -1307,13 +983,18 @@
     });
   }
 
+  function setDiscoveryEmpty(root, isEmpty) {
+    const grid = root.querySelector("[data-story-discovery-grid]");
+    const empty = root.querySelector("[data-story-discovery-empty]");
+    if (grid) grid.hidden = isEmpty;
+    if (empty) empty.hidden = !isEmpty;
+  }
+
   function bindStoryPreview(root) {
     if (root._storyPreviewBound) return;
     root._storyPreviewBound = true;
 
     root.addEventListener("click", (event) => {
-      if (event.target.closest("[data-story-route-handoff]")) return;
-
       const branchButton = event.target.closest("[data-story-branch-choice], [data-story-player-choice]");
       if (branchButton) {
         event.preventDefault();
@@ -1324,9 +1005,9 @@
       const chip = event.target.closest(".story-companion-chip");
       if (chip) {
         const group = chip.closest(".story-companion-chips");
-        if (group) group.querySelectorAll(".story-companion-chip").forEach(c => {
-          c.classList.remove("is-selected");
-          c.setAttribute("aria-pressed", "false");
+        if (group) group.querySelectorAll(".story-companion-chip").forEach((button) => {
+          button.classList.remove("is-selected");
+          button.setAttribute("aria-pressed", "false");
         });
         chip.classList.add("is-selected");
         chip.setAttribute("aria-pressed", "true");
@@ -1350,37 +1031,29 @@
 
       const localeButton = event.target.closest("[data-story-locale]");
       if (localeButton) {
-        const nextLocale = localeButton.dataset.storyLocale;
-        root.querySelectorAll("[data-story-locale]").forEach(button => {
+        root.querySelectorAll("[data-story-locale]").forEach((button) => {
           button.setAttribute("aria-pressed", button === localeButton ? "true" : "false");
         });
-        Promise.resolve(window.luminaI18n?.setLocale?.(nextLocale)).finally(() => {
-          window.luminaI18n?.apply?.(root);
-          applyStoryLocalCopy(root);
-          renderStoryScene(_storyScenes[_storySceneIndex] || STORY_SCENE_FALLBACKS[0]);
-        });
+        document.documentElement.lang = localeButton.dataset.storyLocale || "ko";
+        renderStoryStage();
         return;
       }
 
       const filterChip = event.target.closest(".story-filter-chip");
       if (filterChip) {
         const row = filterChip.closest(".story-filter-row");
-        if (row) row.querySelectorAll(".story-filter-chip").forEach(button => {
+        if (row) row.querySelectorAll(".story-filter-chip").forEach((button) => {
           const active = button === filterChip;
           button.classList.toggle("is-active", active);
           button.setAttribute("aria-pressed", active ? "true" : "false");
         });
+        setDiscoveryEmpty(root, filterChip.dataset.storyFilter === "today-empty");
         return;
       }
 
-      if (event.target.closest("[data-story-route-handoff]")) {
-        return;
-      }
-
-      const detailCard = event.target.closest("[data-story-detail]");
-      if (detailCard) {
-        event.preventDefault();
-        openStoryDetail(root, detailCard.dataset.storyDetail);
+      if (event.target.closest("[data-story-reset-filter]")) {
+        const first = root.querySelector("[data-story-filter='recommended']");
+        first?.click();
         return;
       }
 
@@ -1391,16 +1064,16 @@
         return;
       }
 
-      if (event.target.closest("[data-story-detail-close]") || event.target.closest("[data-story-detail-backdrop]")) {
+      const detailCard = event.target.closest("[data-story-detail]");
+      if (detailCard) {
         event.preventDefault();
-        closeStoryDetail(root);
+        openStoryDetail(root, detailCard.dataset.storyDetail);
         return;
       }
 
-      const cta = event.target.closest("[data-story-preview]");
-      if (cta) {
+      if (event.target.closest("[data-story-detail-close]") || event.target.closest("[data-story-detail-backdrop]")) {
         event.preventDefault();
-        showStoryPreviewToast();
+        closeStoryDetail(root);
       }
     });
 
@@ -1418,7 +1091,7 @@
     const sheet = root.querySelector("[data-story-detail-sheet]");
     const backdrop = root.querySelector("[data-story-detail-backdrop]");
     if (!sheet || !backdrop) return;
-    const item = STORY_DISCOVERY_ITEMS.find(story => story.id === itemId) || STORY_DISCOVERY_ITEMS[0];
+    const item = STORY_DISCOVERY_ITEMS.find((story) => story.id === itemId) || STORY_DISCOVERY_ITEMS[0];
     const title = sheet.querySelector("#storyDetailTitle");
     const cover = sheet.querySelector(".story-detail-cover");
     const summary = sheet.querySelector("[data-story-detail-summary]");
@@ -1428,33 +1101,17 @@
     const settings = sheet.querySelector("[data-story-detail-settings]");
     const updates = sheet.querySelector("[data-story-detail-updates]");
     const similar = sheet.querySelector("[data-story-detail-similar]");
-    if (title) {
-      title.dataset.i18n = item.titleKey;
-      title.textContent = storyT(item.titleKey);
-    }
-    if (summary) {
-      summary.dataset.i18n = item.summaryKey;
-      summary.textContent = storyT(item.summaryKey);
-    }
-    if (tags) {
-      tags.innerHTML = item.tags.map(tag => `<span>${escapeHtml(tag)}</span>`).join("");
-    }
-    if (stats) {
-      const pieces = String(item.metric || "").split("·").map(piece => piece.trim()).filter(Boolean);
-      stats.innerHTML = (pieces.length ? pieces : [item.metric || "Preview"]).map(piece => `<span>${escapeHtml(piece)}</span>`).join("");
-    }
+
+    if (title) title.textContent = item.title;
+    if (summary) summary.textContent = item.summary;
+    if (tags) tags.innerHTML = item.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("");
+    if (stats) stats.innerHTML = String(item.metric || "Preview").split("·").map((piece) => `<span>${escapeHtml(piece.trim())}</span>`).join("");
     if (creator) creator.textContent = item.creator || "Lumina AI";
     if (settings) settings.textContent = item.startSetting || "읽기 전용 미리보기";
     if (updates) updates.textContent = item.updateText || "최근 QA 완료";
-    if (similar) {
-      similar.dataset.i18n = item.similarTitleKey || "storyStage.discovery.card.imjin.title";
-      similar.textContent = storyT(similar.dataset.i18n);
-    }
-    if (cover) {
-      cover.style.backgroundImage = "linear-gradient(180deg, rgba(8,5,18,0.04), rgba(8,5,18,0.62)), url('" + item.image + "')";
-    }
-    const routeNode = sheet.querySelector("[data-story-detail-route]");
-    if (routeNode) routeNode.textContent = routeHandoffHref(item.id, "detail");
+    if (similar) similar.textContent = item.similarTitle || STORY_DISCOVERY_ITEMS[0].title;
+    if (cover) cover.style.backgroundImage = "linear-gradient(180deg, rgba(8,5,18,0.04), rgba(8,5,18,0.62)), url('" + item.image + "')";
+
     const startLink = sheet.querySelector("[data-story-detail-start]");
     if (startLink) {
       startLink.href = routeHandoffHref(item.id, "detail");
@@ -1473,7 +1130,6 @@
     sheet.hidden = false;
     sheet.setAttribute("aria-hidden", "false");
     backdrop.hidden = false;
-    window.luminaI18n?.apply?.(sheet);
     requestAnimationFrame(() => sheet.querySelector("[data-story-detail-close]")?.focus({ preventScroll: true }));
   }
 
@@ -1487,22 +1143,6 @@
     if (backdrop) backdrop.hidden = true;
   }
 
-  let _storyToastTimer = null;
-  function showStoryPreviewToast() {
-    let toast = document.getElementById("storyPreviewToast");
-    if (!toast) {
-      toast = document.createElement("div");
-      toast.id = "storyPreviewToast";
-      toast.className = "story-toast";
-      toast.setAttribute("role", "status");
-      document.body.appendChild(toast);
-    }
-    toast.textContent = "미리보기 화면에서는 결제, 정식 진행, 생성 요청을 실행하지 않습니다.";
-    toast.classList.add("is-visible");
-    clearTimeout(_storyToastTimer);
-    _storyToastTimer = setTimeout(() => toast.classList.remove("is-visible"), 2600);
-  }
-
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", renderStoryStage);
   } else {
@@ -1511,5 +1151,4 @@
 
   window.renderStoryStage = renderStoryStage;
   window.renderStoryScene = renderStoryScene;
-  window.sceneStatusI18nKey = sceneStatusI18nKey;
 })();
