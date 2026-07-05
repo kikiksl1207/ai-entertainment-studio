@@ -394,6 +394,92 @@
   font-weight: 800;
 }
 
+.su-author-preview-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.su-author-preview-head {
+  display: grid;
+  gap: 4px;
+}
+
+.su-author-preview-head h2,
+.su-author-preview-head p {
+  margin: 0;
+}
+
+.su-author-preview-head p {
+  color: rgba(240, 238, 248, 0.68);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.su-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.su-preview-card {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(159, 139, 199, 0.18);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.su-preview-card strong {
+  color: #f0eef8;
+  font-size: 13.5px;
+}
+
+.su-preview-card dl,
+.su-preview-card ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.su-preview-card dl div,
+.su-preview-card li {
+  display: grid;
+  grid-template-columns: minmax(72px, max-content) minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+.su-preview-card dt,
+.su-preview-card li span {
+  color: rgba(240, 238, 248, 0.58);
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+.su-preview-card dd,
+.su-preview-card li em {
+  min-width: 0;
+  margin: 0;
+  color: rgba(240, 238, 248, 0.82);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.su-preview-card li b {
+  justify-self: end;
+  color: #e6ff98;
+  font-size: 12px;
+}
+
 .su-ai-fallback-evidence,
 .su-ending-validation-evidence {
   display: grid;
@@ -616,6 +702,7 @@
   }
 
   .su-ending-cards,
+  .su-preview-grid,
   .su-reference-panel {
     grid-template-columns: 1fr;
   }
@@ -698,6 +785,16 @@
 
   .su-ai-fallback-evidence {
     grid-template-columns: 1fr;
+  }
+
+  .su-preview-card dl div,
+  .su-preview-card li {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .su-preview-card li b {
+    justify-self: start;
   }
 
   .su-meta-list li,

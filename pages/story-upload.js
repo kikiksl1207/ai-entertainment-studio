@@ -415,19 +415,19 @@
       endingLabels: {
         author_main: "작가 기본 엔딩",
         author_sub: "작가 서브 엔딩",
-        ai_fallback: "AI fallback 엔딩",
+        ai_fallback: "AI 보조 결말",
       },
-      importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
+      importHead: ["장면", "분기", "결말", "파트 수", "분기 요약 제한", "상태"],
       choices: [
         { label: "A", tone: "info", text: "기록을 먼저 확인한다", next: "S05", result: "정보 + 신뢰 상승", rejoin: "S09 재합류", tags: ["정보", "신뢰"] },
         { label: "B", tone: "risk", text: "전령을 따라간다", next: "S06", result: "위험 + 아이템 획득", rejoin: "S09 재합류", tags: ["위험", "아이템"] },
-        { label: "C", tone: "ending", text: "해안으로 우회한다", next: "S07", result: "관계 변화 + AI fallback 조건", rejoin: "E-AI 후보", tags: ["관계", "엔딩"] },
+        { label: "C", tone: "ending", text: "해안으로 우회한다", next: "S07", result: "관계 변화 + 보조 결말 조건", rejoin: "E-AI 후보", tags: ["관계", "엔딩"] },
       ],
-      endings: ["E-MAIN · 작가 기본 엔딩", "E-SUB · 작가 서브 엔딩", "E-AI · AI fallback 엔딩"],
+      endings: ["E-MAIN · 작가 기본 엔딩", "E-SUB · 작가 서브 엔딩", "E-AI · AI 보조 결말"],
       endingCards: [
         { type: "author_main", title: "작가 기본 엔딩", body: "작가가 지정한 중심 루트의 결말이에요." },
         { type: "author_sub", title: "작가 서브 엔딩", body: "작가가 별도로 준비한 선택 루트 결말이에요." },
-        { type: "ai", title: "AI fallback 엔딩", body: "작가 엔딩이 없는 보조 분기에서만 임시로 이어져요." },
+        { type: "ai", title: "AI 보조 결말", body: "작가 엔딩이 없는 보조 분기에서만 임시로 이어져요." },
       ],
     },
     en: {
@@ -457,21 +457,21 @@
         providerText: "This import preview does not run AI/provider output.",
       },
       endingLabels: {
-        author_main: "Author main ending",
-        author_sub: "Author sub ending",
-        ai_fallback: "AI fallback ending",
+        author_main: "Writer primary ending",
+        author_sub: "Writer side ending",
+        ai_fallback: "AI-assisted ending",
       },
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
         { label: "A", tone: "info", text: "Check the record first", next: "S05", result: "Info + trust up", rejoin: "Rejoins at S09", tags: ["Info", "Trust"] },
         { label: "B", tone: "risk", text: "Follow the messenger", next: "S06", result: "Risk + item gained", rejoin: "Rejoins at S09", tags: ["Risk", "Item"] },
-        { label: "C", tone: "ending", text: "Detour to the shore", next: "S07", result: "Relation shift + fallback rule", rejoin: "E-AI candidate", tags: ["Relation", "Ending"] },
+        { label: "C", tone: "ending", text: "Detour to the shore", next: "S07", result: "Relation shift + helper ending rule", rejoin: "E-AI candidate", tags: ["Relation", "Ending"] },
       ],
-      endings: ["E-MAIN · Author main ending", "E-SUB · Author sub ending", "E-AI · AI fallback ending"],
+      endings: ["E-MAIN · Writer primary ending", "E-SUB · Writer side ending", "E-AI · AI-assisted ending"],
       endingCards: [
-        { type: "author_main", title: "Author main ending", body: "The writer's primary route ending." },
-        { type: "author_sub", title: "Author sub ending", body: "A writer-prepared ending for a side route." },
-        { type: "ai", title: "AI fallback ending", body: "A helper ending only for branches without writer endings." },
+        { type: "author_main", title: "Writer primary ending", body: "The writer's primary route ending." },
+        { type: "author_sub", title: "Writer side ending", body: "A writer-prepared ending for a side route." },
+        { type: "ai", title: "AI-assisted ending", body: "A helper ending only for branches without writer endings." },
       ],
     },
     ja: {
@@ -503,19 +503,19 @@
       endingLabels: {
         author_main: "作家基本終了",
         author_sub: "作家サブ終了",
-        ai_fallback: "AI fallback終了",
+        ai_fallback: "AI補助終了",
       },
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
         { label: "A", tone: "info", text: "記録を先に確認する", next: "S05", result: "情報 + 信頼上昇", rejoin: "S09で再合流", tags: ["情報", "信頼"] },
         { label: "B", tone: "risk", text: "伝令について行く", next: "S06", result: "危険 + アイテム取得", rejoin: "S09で再合流", tags: ["危険", "アイテム"] },
-        { label: "C", tone: "ending", text: "海岸へ迂回する", next: "S07", result: "関係変化 + AI fallback条件", rejoin: "E-AI候補", tags: ["関係", "終了"] },
+        { label: "C", tone: "ending", text: "海岸へ迂回する", next: "S07", result: "関係変化 + 補助終了条件", rejoin: "E-AI候補", tags: ["関係", "終了"] },
       ],
-      endings: ["E-MAIN · 作家基本終了", "E-SUB · 作家サブ終了", "E-AI · AI fallback終了"],
+      endings: ["E-MAIN · 作家基本終了", "E-SUB · 作家サブ終了", "E-AI · AI補助終了"],
       endingCards: [
         { type: "author_main", title: "作家基本終了", body: "作家が指定した中心ルートの結末です。" },
         { type: "author_sub", title: "作家サブ終了", body: "作家が別途用意した選択ルートの結末です。" },
-        { type: "ai", title: "AI fallback終了", body: "作家終了がない補助分岐でだけ一時的に続きます。" },
+        { type: "ai", title: "AI補助終了", body: "作家終了がない補助分岐でだけ一時的に続きます。" },
       ],
     },
     "zh-Hans": {
@@ -547,19 +547,19 @@
       endingLabels: {
         author_main: "作者主线结局",
         author_sub: "作者支线结局",
-        ai_fallback: "AI fallback结局",
+        ai_fallback: "AI辅助结局",
       },
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
         { label: "A", tone: "info", text: "先确认记录", next: "S05", result: "信息 + 信任提升", rejoin: "S09再汇合", tags: ["信息", "信任"] },
         { label: "B", tone: "risk", text: "跟随传令", next: "S06", result: "风险 + 获得道具", rejoin: "S09再汇合", tags: ["风险", "道具"] },
-        { label: "C", tone: "ending", text: "绕到海岸", next: "S07", result: "关系变化 + AI fallback条件", rejoin: "E-AI候选", tags: ["关系", "结局"] },
+        { label: "C", tone: "ending", text: "绕到海岸", next: "S07", result: "关系变化 + 辅助结局条件", rejoin: "E-AI候选", tags: ["关系", "结局"] },
       ],
-      endings: ["E-MAIN · 作者主线结局", "E-SUB · 作者支线结局", "E-AI · AI fallback结局"],
+      endings: ["E-MAIN · 作者主线结局", "E-SUB · 作者支线结局", "E-AI · AI辅助结局"],
       endingCards: [
         { type: "author_main", title: "作者主线结局", body: "作者指定的主路线结局。" },
         { type: "author_sub", title: "作者支线结局", body: "作者另外准备的选择路线结局。" },
-        { type: "ai", title: "AI fallback结局", body: "只在没有作者结局的辅助分支中临时衔接。" },
+        { type: "ai", title: "AI辅助结局", body: "只在没有作者结局的辅助分支中临时衔接。" },
       ],
     },
     "zh-Hant": {
@@ -591,19 +591,19 @@
       endingLabels: {
         author_main: "作者主線結局",
         author_sub: "作者支線結局",
-        ai_fallback: "AI fallback結局",
+        ai_fallback: "AI輔助結局",
       },
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
         { label: "A", tone: "info", text: "先確認記錄", next: "S05", result: "資訊 + 信任提升", rejoin: "S09再匯合", tags: ["資訊", "信任"] },
         { label: "B", tone: "risk", text: "跟隨傳令", next: "S06", result: "風險 + 獲得道具", rejoin: "S09再匯合", tags: ["風險", "道具"] },
-        { label: "C", tone: "ending", text: "繞到海岸", next: "S07", result: "關係變化 + AI fallback條件", rejoin: "E-AI候選", tags: ["關係", "結局"] },
+        { label: "C", tone: "ending", text: "繞到海岸", next: "S07", result: "關係變化 + 輔助結局條件", rejoin: "E-AI候選", tags: ["關係", "結局"] },
       ],
-      endings: ["E-MAIN · 作者主線結局", "E-SUB · 作者支線結局", "E-AI · AI fallback結局"],
+      endings: ["E-MAIN · 作者主線結局", "E-SUB · 作者支線結局", "E-AI · AI輔助結局"],
       endingCards: [
         { type: "author_main", title: "作者主線結局", body: "作者指定的主路線結局。" },
         { type: "author_sub", title: "作者支線結局", body: "作者另外準備的選擇路線結局。" },
-        { type: "ai", title: "AI fallback結局", body: "只在沒有作者結局的輔助分支中臨時銜接。" },
+        { type: "ai", title: "AI輔助結局", body: "只在沒有作者結局的輔助分支中臨時銜接。" },
       ],
     },
   };
@@ -638,6 +638,26 @@
     aiFallbackPolicy: "writer-ending-missing-only",
     writerEndingConfigured: aiFallbackEvidence.writerEndingConfigured,
     providerGeneratedAtIntake: aiFallbackEvidence.providerGeneratedAtIntake,
+  };
+
+  const AUTHOR_PREVIEW_FIXTURE = {
+    partLength: "10000",
+    branchSummaryLimit: "2000",
+    shortDramaParts: "10",
+    endings: [
+      { label: "작가 기본 결말", count: "1", state: "configured", stateLabel: "설정됨" },
+      { label: "작가 보조 결말", count: "2", state: "configured", stateLabel: "설정됨" },
+      { label: "AI 보조 결말", count: "1", state: "missing-writer-ending-only", stateLabel: "작가 결말이 없을 때만 사용" },
+    ],
+    backgrounds: [
+      { scene: "S05", assetId: "bg-war-room-map", label: "작전 지도실" },
+      { scene: "S06", assetId: "bg-harbor-night", label: "밤 항구 추적" },
+      { scene: "S07", assetId: "bg-fog-shore", label: "안개 해안 우회" },
+    ],
+    characters: [
+      { assetId: "character.cha-dohyun.reference-final-03", label: "차도현 안내 컷" },
+      { assetId: "none", label: "S07은 캐릭터 없이 진행 가능" },
+    ],
   };
 
   const localeMap = {
@@ -730,6 +750,56 @@
           </div>
         </section>
 
+        <section class="su-section su-author-preview-panel"
+                 data-author-upload-preview-panel="true"
+                 data-part-length="${escapeHtml(AUTHOR_PREVIEW_FIXTURE.partLength)}"
+                 data-branch-summary-limit="${escapeHtml(AUTHOR_PREVIEW_FIXTURE.branchSummaryLimit)}"
+                 data-short-drama-parts="${escapeHtml(AUTHOR_PREVIEW_FIXTURE.shortDramaParts)}">
+          <div class="su-author-preview-head">
+            <h2>작가 업로드 미리보기</h2>
+            <p>원고 분량, 분기 요약, 결말 후보를 저장 없이 확인합니다.</p>
+          </div>
+          <div class="su-preview-grid">
+            <article class="su-preview-card" data-preview-kind="length">
+              <strong>원고 기준</strong>
+              <dl>
+                <div><dt>파트 분량</dt><dd>약 10,000자</dd></div>
+                <div><dt>분기 요약</dt><dd>최대 2,000자</dd></div>
+                <div><dt>기본 구성</dt><dd>10파트 단편극</dd></div>
+              </dl>
+            </article>
+            <article class="su-preview-card" data-preview-kind="ending">
+              <strong>결말 설정</strong>
+              <ul>
+                ${AUTHOR_PREVIEW_FIXTURE.endings.map((ending) => `
+                  <li data-ending-state="${escapeHtml(ending.state)}">
+                    <span>${escapeHtml(ending.label)}</span>
+                    <b>${escapeHtml(ending.count)}</b>
+                    <em>${escapeHtml(ending.stateLabel)}</em>
+                  </li>
+                `).join("")}
+              </ul>
+            </article>
+            <article class="su-preview-card" data-preview-kind="safe-assets">
+              <strong>공개 가능한 장면 자료</strong>
+              <dl>
+                ${AUTHOR_PREVIEW_FIXTURE.backgrounds.map((asset) => `
+                  <div data-safe-background-id="${escapeHtml(asset.assetId)}">
+                    <dt>${escapeHtml(asset.scene)}</dt>
+                    <dd>${escapeHtml(asset.label)}</dd>
+                  </div>
+                `).join("")}
+                ${AUTHOR_PREVIEW_FIXTURE.characters.map((asset) => `
+                  <div data-safe-character-id="${escapeHtml(asset.assetId)}">
+                    <dt>캐릭터</dt>
+                    <dd>${escapeHtml(asset.label)}</dd>
+                  </div>
+                `).join("")}
+              </dl>
+            </article>
+          </div>
+        </section>
+
         <section class="su-grid">
           <div class="su-section">
             <h2>${escapeHtml(locale.scenes)}</h2>
@@ -774,10 +844,10 @@
                 data-ai-fallback-policy="${escapeHtml(endingValidationEvidence.aiFallbackPolicy)}"
                 data-writer-ending-configured="${escapeHtml(endingValidationEvidence.writerEndingConfigured)}"
                 data-provider-generated-at-intake="${escapeHtml(endingValidationEvidence.providerGeneratedAtIntake)}">
-              <dt>Author ending count</dt>
-              <dd>Writer main ending exact ${escapeHtml(endingValidationEvidence.authorMainCount)} · writer sub ending ${escapeHtml(endingValidationEvidence.authorSubMin)}-${escapeHtml(endingValidationEvidence.authorSubMax)} when provided</dd>
-              <dt>AI fallback evidence</dt>
-              <dd>${escapeHtml(endingValidationEvidence.aiFallbackPolicy)} · writer ending configured=${escapeHtml(endingValidationEvidence.writerEndingConfigured)} · provider generated at intake=${escapeHtml(endingValidationEvidence.providerGeneratedAtIntake)}</dd>
+              <dt>작가 결말 기준</dt>
+              <dd>기본 결말 ${escapeHtml(endingValidationEvidence.authorMainCount)}개 · 보조 결말은 필요 시 ${escapeHtml(endingValidationEvidence.authorSubMin)}-${escapeHtml(endingValidationEvidence.authorSubMax)}개까지 확인합니다.</dd>
+              <dt>AI 보조 결말 기준</dt>
+              <dd>작가 결말이 없는 분기에서만 표시하고, 업로드 미리보기에서는 생성 요청을 실행하지 않습니다.</dd>
             </dl>
           </div>
         </section>
