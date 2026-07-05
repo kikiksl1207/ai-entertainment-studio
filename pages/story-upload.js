@@ -698,7 +698,12 @@
     document.documentElement.lang = localeMap[localeCode] || "ko-KR";
 
     root.innerHTML = `
-      <div class="su-shell">
+      <div class="su-shell"
+           data-story-upload-public-build-marker="story-upload-public-2026-07-04"
+           data-reflection-status="public"
+           data-part-length-target="10000"
+           data-branch-summary-limit="2000"
+           data-short-drama-part-count="10">
         <header class="su-header">
           <div class="su-title-group">
             <p class="su-eyebrow">${escapeHtml(locale.eyebrow)}</p>
@@ -789,14 +794,20 @@
               <label class="su-field"><span>${escapeHtml(locale.labels.sceneId)}</span><input name="sceneId" value="S04" readonly /></label>
               <label class="su-field"><span>${escapeHtml(locale.labels.sceneTitle)}</span><input name="sceneTitle" value="새 분기 장면" readonly /></label>
             </div>
-            <details open>
+            <details open
+                     data-public-asset-id="scene.background.upload-preview"
+                     data-public-asset-label="storyUpload.preview.background"
+                     data-scene-use="background">
               <summary>${escapeHtml(locale.labels.background)}</summary>
               <div>
                 <textarea name="background" rows="2" readonly>${escapeHtml(locale.sample.background)}</textarea>
                 <input name="bgImageMemo" value="${escapeHtml(locale.sample.bgMemo)}" readonly />
               </div>
             </details>
-            <details>
+            <details
+              data-public-asset-id="character.upload-preview.cast"
+              data-public-asset-label="storyUpload.preview.cast"
+              data-scene-use="character">
               <summary>${escapeHtml(locale.labels.cast)}</summary>
               <div><input value="이순신, 기록관, 전령" readonly /></div>
             </details>
