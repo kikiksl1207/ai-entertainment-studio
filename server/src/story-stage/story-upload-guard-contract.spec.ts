@@ -442,6 +442,44 @@ describe('Story upload backend guard contracts', () => {
     });
   });
 
+  it('guards branch graph fixtures from identical rejoin regressions for #1651', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.branchGraphCycleGuard,
+    ).toBe(STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT);
+    expect(
+      STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT.fixtureRegressionPolicy,
+    ).toMatchObject({
+      choiceResultDivergenceRequiredBeforeRejoin: true,
+      identicalImmediateSceneBodyAndResultRejected: true,
+      explicitRejoinGroupAllowedOnlyWithDistinctPriorState: true,
+      sourceVerificationOnly: true,
+    });
+    expect(
+      STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT.fixtureRegressionPolicy
+        .rejoinGroupEvidenceFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'rejoinGroupId',
+        'preRejoinSceneId',
+        'resultStateKey',
+        'resultDeltaKeys',
+      ]),
+    );
+    expect(
+      STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT.failureConditions,
+    ).toEqual(
+      expect.arrayContaining([
+        'all_choices_immediately_rejoin_same_scene_body_and_result',
+        'explicit_rejoin_group_without_distinct_prior_state',
+      ]),
+    );
+    expect(
+      Object.values(
+        STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
   it('defines the branch graph import schema for #1658', () => {
     expect(
       STORY_UPLOAD_BACKEND_GUARD_CONTRACT.branchGraphImportSchema,
@@ -596,6 +634,59 @@ describe('Story upload backend guard contracts', () => {
         },
       }),
     ).toEqual(['asset.signedUrl', 'asset.internalAccountId']);
+  });
+
+  it('keeps scene asset public response fields allowlisted for #1652', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.sceneAssetReferenceGuard,
+    ).toBe(STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT);
+    expect(
+      STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT.publicResponseAllowlist,
+    ).toEqual([
+      'assetId',
+      'altKey',
+      'localeLabelKey',
+      'sceneUse',
+      'status',
+      'fallbackKey',
+    ]);
+    expect(
+      STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT.forbiddenFixtureFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'rawPrompt',
+        'localAbsolutePath',
+        'privateUrl',
+        'privateBucketUrl',
+        'providerPayload',
+        'token',
+        'apiKey',
+      ]),
+    );
+    expect(
+      STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT.staticVerificationNotes,
+    ).toEqual(
+      expect.arrayContaining([
+        'scan_public_scene_response_fields',
+        'scan_background_and_character_asset_projection_fields',
+        'confirm_no_generation_or_upload_mutation',
+      ]),
+    );
+    expect(
+      findStoryUploadSensitiveFieldViolations({
+        sceneAsset: {
+          assetId: 'scene.public.safe',
+          altKey: 'storyScene.asset.safe.alt',
+          localAbsolutePath: 'not-allowed',
+          privateUrl: 'not-allowed',
+          token: 'not-allowed',
+        },
+      }),
+    ).toEqual([
+      'sceneAsset.localAbsolutePath',
+      'sceneAsset.privateUrl',
+      'sceneAsset.token',
+    ]);
   });
 
   it('exposes only safe public background asset metadata for #1627', () => {
@@ -1118,6 +1209,28 @@ describe('Story upload backend guard contracts', () => {
         'author_sub',
         'ai_fallback',
       ]),
+    );
+  });
+
+  it('keeps live fallback backend rebase evidence fields for #1650', () => {
+    expect(
+      STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT
+        .backendRebaseEvidenceGuard,
+    ).toEqual({
+      requiredContractFields: [
+        'providerGeneratedAtIntake',
+        'writerEndingConfigured',
+        'authorMainCount',
+        'authorSubCount',
+      ],
+      sourceVerificationOnly: true,
+      qaReturnOwner: 'qr1_static_qa',
+      recordsSecretsOrAccountData: false,
+    });
+    expect(
+      STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT.failureConditions,
+    ).toEqual(
+      expect.arrayContaining(['backend_rebase_evidence_field_missing']),
     );
   });
 

@@ -396,6 +396,23 @@ export const STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT = {
     'information',
     'ending_condition',
   ],
+  fixtureRegressionPolicy: {
+    choiceResultDivergenceRequiredBeforeRejoin: true,
+    identicalImmediateSceneBodyAndResultRejected: true,
+    explicitRejoinGroupAllowedOnlyWithDistinctPriorState: true,
+    sourceVerificationOnly: true,
+    rejoinGroupEvidenceFields: [
+      'rejoinGroupId',
+      'preRejoinSceneId',
+      'resultStateKey',
+      'resultDeltaKeys',
+    ],
+    allowedDistinctPriorStateSignals: [
+      'distinct_result_state_key',
+      'distinct_result_delta_keys',
+      'distinct_pre_rejoin_scene_id',
+    ],
+  },
   failureConditions: [
     'unreachable_scene_from_root',
     'cycle_without_terminal_escape',
@@ -403,6 +420,7 @@ export const STORY_BRANCH_GRAPH_CYCLE_GUARD_CONTRACT = {
     'branch_without_next_scene_or_merge_target',
     'all_choices_immediately_rejoin_same_scene_body_and_result',
     'rejoin_without_pre_rejoin_result_difference',
+    'explicit_rejoin_group_without_distinct_prior_state',
   ],
   mutationPolicy: {
     storyWrite: false,
@@ -628,6 +646,14 @@ export const STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT = {
     'width',
     'height',
   ],
+  publicResponseAllowlist: [
+    'assetId',
+    'altKey',
+    'localeLabelKey',
+    'sceneUse',
+    'status',
+    'fallbackKey',
+  ],
   allowedStatuses: ['ready', 'loading', 'missing', 'fallback', 'blocked'],
   sceneProjectionFields: [
     'sceneId',
@@ -645,6 +671,18 @@ export const STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT = {
     'internalAccountId',
     'rawAccountId',
     'rawEmail',
+    'rawPrompt',
+    'localPath',
+    'localAbsolutePath',
+    'privateUrl',
+    'privateBucketUrl',
+    'token',
+    'apiKey',
+  ],
+  staticVerificationNotes: [
+    'scan_public_scene_response_fields',
+    'scan_background_and_character_asset_projection_fields',
+    'confirm_no_generation_or_upload_mutation',
   ],
   failureConditions: [
     'signed_url_exported',
@@ -652,6 +690,10 @@ export const STORY_SCENE_ASSET_REFERENCE_GUARD_CONTRACT = {
     'provider_payload_exported',
     'internal_account_id_exported',
     'asset_reference_missing_public_path_or_status',
+    'raw_prompt_exported',
+    'local_absolute_path_exported',
+    'private_url_exported',
+    'token_or_api_key_exported',
   ],
   mutationPolicy: {
     imageGeneration: false,
@@ -1144,6 +1186,17 @@ export const STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT = {
     rawI18nKeyVisible: false,
     rawEndingEnumVisible: false,
   },
+  backendRebaseEvidenceGuard: {
+    requiredContractFields: [
+      'providerGeneratedAtIntake',
+      'writerEndingConfigured',
+      'authorMainCount',
+      'authorSubCount',
+    ],
+    sourceVerificationOnly: true,
+    qaReturnOwner: 'qr1_static_qa',
+    recordsSecretsOrAccountData: false,
+  },
   visibleTextMustNotContain: [
     'storyUpload.ending.aiFallback.writerMissing',
     'author_main',
@@ -1159,6 +1212,7 @@ export const STORY_UPLOAD_LIVE_AI_FALLBACK_EVIDENCE_GUARD_CONTRACT = {
     'raw_ending_enum_visible_in_evidence',
     'ai_fallback_visible_as_author_owned_ending',
     'ai_fallback_rebase_evidence_missing',
+    'backend_rebase_evidence_field_missing',
   ],
   mutationPolicy: {
     providerGeneration: false,
@@ -1223,6 +1277,10 @@ export const STORY_UPLOAD_GUARD_FORBIDDEN_FIELDS = [
   'rawPrompt',
   'storageKey',
   'privateStoragePath',
+  'localPath',
+  'localAbsolutePath',
+  'privateUrl',
+  'privateBucketUrl',
   'signedUrl',
   'internalAccountId',
   'paymentOrderId',
