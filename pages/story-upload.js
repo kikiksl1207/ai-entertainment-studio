@@ -25,16 +25,16 @@
       status: {
         draft: "작성 중",
         needs_revision: "수정 필요",
-        pm_review: "PM 검수",
+        pm_review: "구조 검토",
         locale_ready: "다국어 준비",
-        qa_ready: "QA 준비",
+        qa_ready: "화면 확인",
         publish_ready: "발행 준비",
         blocked: "막힘",
       },
       statusHint: {
         draft: "작가가 원고와 장면 정보를 정리 중이에요.",
         needs_revision: "수정 요청을 확인하고 장면 정보를 보완해요.",
-        pm_review: "PM이 저작권과 구조를 확인 중이에요.",
+        pm_review: "저작권과 이야기 구조를 확인 중이에요.",
         locale_ready: "다국어 문구와 길이를 확인해요.",
         qa_ready: "모바일 화면과 버튼 폭을 확인해요.",
         publish_ready: "발행 전 최종 확인만 남았어요.",
@@ -69,12 +69,12 @@
         ok: "확인됨",
         missing: "누락",
         copyright: "저작권 확인",
-        pm: "PM 확인",
+        pm: "검토 필요",
       },
       importFlags: [
         "배경/등장 누락 항목이 있어요.",
         "저작권 확인이 필요해요.",
-        "PM 확인이 필요해요.",
+        "구조 확인이 필요해요.",
       ],
       importSave: "가져오기 (준비 중)",
       sample: {
@@ -85,6 +85,26 @@
         background: "전장 기록 사이로 낮은 북소리가 들려요.",
         bgMemo: "촛불, 종이 지도, 낮은 연기",
         body: "긴 본문 원고를 먼저 붙여 넣고, 분기점과 이어질 장면을 아래 선택지로 정리해요.",
+        sceneTitle: "새 분기 장면",
+        cast: "이순신, 기록관, 전령",
+      },
+      preview: {
+        title: "작가 업로드 미리보기",
+        body: "원고 분량, 분기 요약, 결말 후보를 저장 없이 확인합니다.",
+        manuscriptRules: "원고 기준",
+        partLengthLabel: "파트 분량",
+        branchSummaryLabel: "분기 요약",
+        baseFormatLabel: "기본 구성",
+        partLengthValue: "약 10,000자",
+        branchSummaryValue: "최대 2,000자",
+        baseFormatValue: "10파트 단편극",
+        endingSetup: "결말 설정",
+        publicMaterials: "공개 가능한 장면 자료",
+        character: "캐릭터",
+        endingCriteriaTitle: "작가 결말 기준",
+        endingCriteriaBody: "기본 결말 {main}개 · 보조 결말은 필요 시 {min}-{max}개까지 확인합니다.",
+        aiCriteriaTitle: "AI 보조 결말 기준",
+        aiCriteriaBody: "작가 결말이 없는 분기에서만 표시하고, 업로드 미리보기에서는 생성 요청을 실행하지 않습니다.",
       },
     },
     en: {
@@ -99,16 +119,16 @@
       status: {
         draft: "Draft",
         needs_revision: "Revise",
-        pm_review: "PM review",
+        pm_review: "Structure review",
         locale_ready: "Locale ready",
-        qa_ready: "QA ready",
+        qa_ready: "Screen check",
         publish_ready: "Ready",
         blocked: "Blocked",
       },
       statusHint: {
         draft: "The writer is preparing manuscript and scene notes.",
         needs_revision: "Review requested changes before the next pass.",
-        pm_review: "PM is checking copyright and structure.",
+        pm_review: "Copyright and story structure are being checked.",
         locale_ready: "Localized copy and text length are being checked.",
         qa_ready: "Mobile screens and button widths are being checked.",
         publish_ready: "Only final confirmation remains.",
@@ -143,12 +163,12 @@
         ok: "Checked",
         missing: "Missing",
         copyright: "Copyright",
-        pm: "PM check",
+        pm: "Needs review",
       },
       importFlags: [
         "Some background or cast fields are missing.",
         "Copyright review is required.",
-        "PM confirmation is required.",
+        "Structure review is required.",
       ],
       importSave: "Import (soon)",
       sample: {
@@ -159,6 +179,26 @@
         background: "A low drumbeat moves through wartime records.",
         bgMemo: "Candlelight, paper map, low smoke",
         body: "Paste the long manuscript first, then organize branch points and next scenes as choices.",
+        sceneTitle: "New branch scene",
+        cast: "Yi Sun-sin, archivist, messenger",
+      },
+      preview: {
+        title: "Writer Upload Preview",
+        body: "Check manuscript length, branch summaries, and ending candidates without saving.",
+        manuscriptRules: "Manuscript rules",
+        partLengthLabel: "Part length",
+        branchSummaryLabel: "Branch summary",
+        baseFormatLabel: "Base format",
+        partLengthValue: "About 10,000 characters",
+        branchSummaryValue: "Up to 2,000 characters",
+        baseFormatValue: "10-part short play",
+        endingSetup: "Ending setup",
+        publicMaterials: "Public scene materials",
+        character: "Character",
+        endingCriteriaTitle: "Writer ending rules",
+        endingCriteriaBody: "{main} primary ending · {min}-{max} side endings when needed.",
+        aiCriteriaTitle: "AI-assisted ending rules",
+        aiCriteriaBody: "Shown only for branches without writer endings. Preview never runs generation requests.",
       },
     },
     ja: {
@@ -173,16 +213,16 @@
       status: {
         draft: "作成中",
         needs_revision: "修正必要",
-        pm_review: "PM確認",
+        pm_review: "構成確認",
         locale_ready: "多言語準備",
-        qa_ready: "QA準備",
+        qa_ready: "画面確認",
         publish_ready: "公開準備",
         blocked: "停止中",
       },
       statusHint: {
         draft: "作家が原稿とシーン情報を整理しています。",
         needs_revision: "修正依頼を確認して補完します。",
-        pm_review: "PMが著作権と構成を確認しています。",
+        pm_review: "著作権と構成を確認しています。",
         locale_ready: "多言語文言と長さを確認しています。",
         qa_ready: "モバイル画面とボタン幅を確認しています。",
         publish_ready: "公開前の最終確認だけが残っています。",
@@ -217,12 +257,12 @@
         ok: "確認済み",
         missing: "不足",
         copyright: "権利確認",
-        pm: "PM確認",
+        pm: "確認必要",
       },
       importFlags: [
         "背景または登場人物に不足があります。",
         "著作権確認が必要です。",
-        "PM確認が必要です。",
+        "構成確認が必要です。",
       ],
       importSave: "取り込み（準備中）",
       sample: {
@@ -233,6 +273,26 @@
         background: "戦記の間に低い太鼓の音が響きます。",
         bgMemo: "ろうそく、紙の地図、薄い煙",
         body: "長い本文原稿を先に入れ、分岐点と次のシーンを選択肢で整理します。",
+        sceneTitle: "新しい分岐シーン",
+        cast: "李舜臣、記録官、伝令",
+      },
+      preview: {
+        title: "作家アップロードプレビュー",
+        body: "原稿分量、分岐要約、終了候補を保存せず確認します。",
+        manuscriptRules: "原稿基準",
+        partLengthLabel: "パート分量",
+        branchSummaryLabel: "分岐要約",
+        baseFormatLabel: "基本構成",
+        partLengthValue: "約10,000字",
+        branchSummaryValue: "最大2,000字",
+        baseFormatValue: "10パート短編劇",
+        endingSetup: "終了設定",
+        publicMaterials: "公開可能なシーン素材",
+        character: "キャラクター",
+        endingCriteriaTitle: "作家終了基準",
+        endingCriteriaBody: "基本終了{main}件・補助終了は必要に応じて{min}-{max}件まで確認します。",
+        aiCriteriaTitle: "AI補助終了基準",
+        aiCriteriaBody: "作家終了がない分岐だけに表示し、プレビューでは生成リクエストを実行しません。",
       },
     },
     "zh-Hans": {
@@ -247,16 +307,16 @@
       status: {
         draft: "编写中",
         needs_revision: "需修改",
-        pm_review: "PM审核",
+        pm_review: "结构审核",
         locale_ready: "多语言准备",
-        qa_ready: "QA准备",
+        qa_ready: "画面确认",
         publish_ready: "待发布",
         blocked: "受阻",
       },
       statusHint: {
         draft: "作者正在整理稿件和场景信息。",
         needs_revision: "请确认修改请求并补充信息。",
-        pm_review: "PM正在确认版权和结构。",
+        pm_review: "正在确认版权和故事结构。",
         locale_ready: "正在确认多语言文案和长度。",
         qa_ready: "正在确认移动端画面和按钮宽度。",
         publish_ready: "只剩发布前最终确认。",
@@ -291,12 +351,12 @@
         ok: "已确认",
         missing: "缺失",
         copyright: "版权确认",
-        pm: "PM确认",
+        pm: "需审核",
       },
       importFlags: [
         "存在背景或登场角色缺失项。",
         "需要进行版权确认。",
-        "需要PM确认。",
+        "需要结构确认。",
       ],
       importSave: "导入（准备中）",
       sample: {
@@ -307,6 +367,26 @@
         background: "战时记录之间传来低沉鼓声。",
         bgMemo: "烛光、纸地图、低烟",
         body: "先粘贴长篇正文稿，再用选项整理分支点和后续场景。",
+        sceneTitle: "新分支场景",
+        cast: "李舜臣、记录官、传令",
+      },
+      preview: {
+        title: "作者上传预览",
+        body: "无需保存即可确认稿件长度、分支摘要和结局候选。",
+        manuscriptRules: "稿件标准",
+        partLengthLabel: "部分长度",
+        branchSummaryLabel: "分支摘要",
+        baseFormatLabel: "基础结构",
+        partLengthValue: "约10,000字",
+        branchSummaryValue: "最多2,000字",
+        baseFormatValue: "10部分短剧",
+        endingSetup: "结局设置",
+        publicMaterials: "可公开场景素材",
+        character: "角色",
+        endingCriteriaTitle: "作者结局标准",
+        endingCriteriaBody: "主线结局{main}个；支线结局按需确认{min}-{max}个。",
+        aiCriteriaTitle: "AI辅助结局标准",
+        aiCriteriaBody: "仅在没有作者结局的分支显示；预览不会执行生成请求。",
       },
     },
     "zh-Hant": {
@@ -321,16 +401,16 @@
       status: {
         draft: "撰寫中",
         needs_revision: "需修改",
-        pm_review: "PM審核",
+        pm_review: "結構審核",
         locale_ready: "多語準備",
-        qa_ready: "QA準備",
+        qa_ready: "畫面確認",
         publish_ready: "待發布",
         blocked: "受阻",
       },
       statusHint: {
         draft: "作者正在整理稿件與場景資訊。",
         needs_revision: "請確認修改要求並補充資訊。",
-        pm_review: "PM正在確認版權與結構。",
+        pm_review: "正在確認版權與故事結構。",
         locale_ready: "正在確認多語文案與長度。",
         qa_ready: "正在確認行動版畫面與按鈕寬度。",
         publish_ready: "只剩發布前最終確認。",
@@ -365,12 +445,12 @@
         ok: "已確認",
         missing: "缺失",
         copyright: "版權確認",
-        pm: "PM確認",
+        pm: "需審核",
       },
       importFlags: [
         "存在背景或登場角色缺失項。",
         "需要進行版權確認。",
-        "需要PM確認。",
+        "需要結構確認。",
       ],
       importSave: "匯入（準備中）",
       sample: {
@@ -381,6 +461,26 @@
         background: "戰時記錄之間傳來低沉鼓聲。",
         bgMemo: "燭光、紙地圖、低煙",
         body: "先貼上長篇正文稿，再用選項整理分支點與後續場景。",
+        sceneTitle: "新分支場景",
+        cast: "李舜臣、記錄官、傳令",
+      },
+      preview: {
+        title: "作者上傳預覽",
+        body: "無需儲存即可確認稿件長度、分支摘要和結局候選。",
+        manuscriptRules: "稿件標準",
+        partLengthLabel: "部分長度",
+        branchSummaryLabel: "分支摘要",
+        baseFormatLabel: "基礎結構",
+        partLengthValue: "約10,000字",
+        branchSummaryValue: "最多2,000字",
+        baseFormatValue: "10部分短劇",
+        endingSetup: "結局設定",
+        publicMaterials: "可公開場景素材",
+        character: "角色",
+        endingCriteriaTitle: "作者結局標準",
+        endingCriteriaBody: "主線結局{main}個；支線結局按需確認{min}-{max}個。",
+        aiCriteriaTitle: "AI輔助結局標準",
+        aiCriteriaBody: "僅在沒有作者結局的分支顯示；預覽不會執行生成請求。",
       },
     },
   };
@@ -609,10 +709,10 @@
   };
 
   const sampleScenes = [
-    { id: "S01", title: "기록의 방", state: "pm_review" },
-    { id: "S02", title: "첫 분기", state: "locale_ready" },
-    { id: "S03", title: "공통 장면", state: "qa_ready" },
-    { id: "S09", title: "재합류 장면", state: "qa_ready" },
+    { id: "S01", title: { ko: "기록의 방", en: "Archive room", ja: "記録の部屋", "zh-Hans": "记录室", "zh-Hant": "記錄室" }, state: "pm_review" },
+    { id: "S02", title: { ko: "첫 분기", en: "First branch", ja: "最初の分岐", "zh-Hans": "第一个分支", "zh-Hant": "第一個分支" }, state: "locale_ready" },
+    { id: "S03", title: { ko: "공통 장면", en: "Shared scene", ja: "共通シーン", "zh-Hans": "共用场景", "zh-Hant": "共用場景" }, state: "qa_ready" },
+    { id: "S09", title: { ko: "재합류 장면", en: "Rejoin scene", ja: "再合流シーン", "zh-Hans": "再汇合场景", "zh-Hant": "再匯合場景" }, state: "qa_ready" },
   ];
 
   const importRows = [
@@ -645,18 +745,33 @@
     branchSummaryLimit: "2000",
     shortDramaParts: "10",
     endings: [
-      { label: "작가 기본 결말", count: "1", state: "configured", stateLabel: "설정됨" },
-      { label: "작가 보조 결말", count: "2", state: "configured", stateLabel: "설정됨" },
-      { label: "AI 보조 결말", count: "1", state: "missing-writer-ending-only", stateLabel: "작가 결말이 없을 때만 사용" },
+      {
+        label: { ko: "작가 기본 결말", en: "Writer primary ending", ja: "作家基本終了", "zh-Hans": "作者主线结局", "zh-Hant": "作者主線結局" },
+        count: "1",
+        state: "configured",
+        stateLabel: { ko: "설정됨", en: "Set", ja: "設定済み", "zh-Hans": "已设置", "zh-Hant": "已設定" },
+      },
+      {
+        label: { ko: "작가 보조 결말", en: "Writer side ending", ja: "作家補助終了", "zh-Hans": "作者支线结局", "zh-Hant": "作者支線結局" },
+        count: "2",
+        state: "configured",
+        stateLabel: { ko: "설정됨", en: "Set", ja: "設定済み", "zh-Hans": "已设置", "zh-Hant": "已設定" },
+      },
+      {
+        label: { ko: "AI 보조 결말", en: "AI-assisted ending", ja: "AI補助終了", "zh-Hans": "AI辅助结局", "zh-Hant": "AI輔助結局" },
+        count: "1",
+        state: "missing-writer-ending-only",
+        stateLabel: { ko: "작가 결말이 없을 때만 사용", en: "Only without writer ending", ja: "作家終了がない時のみ", "zh-Hans": "仅无作者结局时使用", "zh-Hant": "僅無作者結局時使用" },
+      },
     ],
     backgrounds: [
-      { scene: "S05", assetId: "bg-war-room-map", label: "작전 지도실" },
-      { scene: "S06", assetId: "bg-harbor-night", label: "밤 항구 추적" },
-      { scene: "S07", assetId: "bg-fog-shore", label: "안개 해안 우회" },
+      { scene: "S05", assetId: "bg-war-room-map", label: { ko: "작전 지도실", en: "War map room", ja: "作戦地図室", "zh-Hans": "作战地图室", "zh-Hant": "作戰地圖室" } },
+      { scene: "S06", assetId: "bg-harbor-night", label: { ko: "밤 항구 추적", en: "Night harbor pursuit", ja: "夜の港追跡", "zh-Hans": "夜间港口追踪", "zh-Hant": "夜間港口追蹤" } },
+      { scene: "S07", assetId: "bg-fog-shore", label: { ko: "안개 해안 우회", en: "Foggy shore detour", ja: "霧の海岸迂回", "zh-Hans": "雾中海岸绕行", "zh-Hant": "霧中海岸繞行" } },
     ],
     characters: [
-      { assetId: "character.cha-dohyun.reference-final-03", label: "차도현 안내 컷" },
-      { assetId: "none", label: "S07은 캐릭터 없이 진행 가능" },
+      { assetId: "character.cha-dohyun.reference-final-03", label: { ko: "차도현 안내 컷", en: "Cha Dohyun guide cut", ja: "チャ・ドヒョン案内カット", "zh-Hans": "车道贤引导图", "zh-Hant": "車道賢引導圖" } },
+      { assetId: "none", label: { ko: "S07은 캐릭터 없이 진행 가능", en: "S07 can proceed without a character", ja: "S07はキャラクターなしで進行可", "zh-Hans": "S07可无角色进行", "zh-Hant": "S07可無角色進行" } },
     ],
   };
 
@@ -674,6 +789,17 @@
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  }
+
+  function localText(value, localeCode) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return value[localeCode] || value.ko || value.en || "";
+    }
+    return value;
+  }
+
+  function fillPreviewTemplate(template, values) {
+    return String(template || "").replace(/\{(main|min|max)\}/g, (_, key) => values[key] || "");
   }
 
   function field(label, value) {
@@ -715,6 +841,12 @@
   function renderUploadWorkspace(localeCode) {
     const locale = UI[localeCode] || UI.ko;
     const qa = QA_COPY[localeCode] || QA_COPY.ko;
+    const preview = locale.preview || UI.ko.preview;
+    const endingRuleValues = {
+      main: endingValidationEvidence.authorMainCount,
+      min: endingValidationEvidence.authorSubMin,
+      max: endingValidationEvidence.authorSubMax,
+    };
     document.documentElement.lang = localeMap[localeCode] || "ko-KR";
 
     root.innerHTML = `
@@ -761,43 +893,43 @@
                  data-branch-summary-limit="${escapeHtml(AUTHOR_PREVIEW_FIXTURE.branchSummaryLimit)}"
                  data-short-drama-parts="${escapeHtml(AUTHOR_PREVIEW_FIXTURE.shortDramaParts)}">
           <div class="su-author-preview-head">
-            <h2>작가 업로드 미리보기</h2>
-            <p>원고 분량, 분기 요약, 결말 후보를 저장 없이 확인합니다.</p>
+            <h2>${escapeHtml(preview.title)}</h2>
+            <p>${escapeHtml(preview.body)}</p>
           </div>
           <div class="su-preview-grid">
             <article class="su-preview-card" data-preview-kind="length">
-              <strong>원고 기준</strong>
+              <strong>${escapeHtml(preview.manuscriptRules)}</strong>
               <dl>
-                <div><dt>파트 분량</dt><dd>약 10,000자</dd></div>
-                <div><dt>분기 요약</dt><dd>최대 2,000자</dd></div>
-                <div><dt>기본 구성</dt><dd>10파트 단편극</dd></div>
+                <div><dt>${escapeHtml(preview.partLengthLabel)}</dt><dd>${escapeHtml(preview.partLengthValue)}</dd></div>
+                <div><dt>${escapeHtml(preview.branchSummaryLabel)}</dt><dd>${escapeHtml(preview.branchSummaryValue)}</dd></div>
+                <div><dt>${escapeHtml(preview.baseFormatLabel)}</dt><dd>${escapeHtml(preview.baseFormatValue)}</dd></div>
               </dl>
             </article>
             <article class="su-preview-card" data-preview-kind="ending">
-              <strong>결말 설정</strong>
+              <strong>${escapeHtml(preview.endingSetup)}</strong>
               <ul>
                 ${AUTHOR_PREVIEW_FIXTURE.endings.map((ending) => `
                   <li data-ending-state="${escapeHtml(ending.state)}">
-                    <span>${escapeHtml(ending.label)}</span>
+                    <span>${escapeHtml(localText(ending.label, localeCode))}</span>
                     <b>${escapeHtml(ending.count)}</b>
-                    <em>${escapeHtml(ending.stateLabel)}</em>
+                    <em>${escapeHtml(localText(ending.stateLabel, localeCode))}</em>
                   </li>
                 `).join("")}
               </ul>
             </article>
             <article class="su-preview-card" data-preview-kind="safe-assets">
-              <strong>공개 가능한 장면 자료</strong>
+              <strong>${escapeHtml(preview.publicMaterials)}</strong>
               <dl>
                 ${AUTHOR_PREVIEW_FIXTURE.backgrounds.map((asset) => `
                   <div data-safe-background-id="${escapeHtml(asset.assetId)}">
                     <dt>${escapeHtml(asset.scene)}</dt>
-                    <dd>${escapeHtml(asset.label)}</dd>
+                    <dd>${escapeHtml(localText(asset.label, localeCode))}</dd>
                   </div>
                 `).join("")}
                 ${AUTHOR_PREVIEW_FIXTURE.characters.map((asset) => `
                   <div data-safe-character-id="${escapeHtml(asset.assetId)}">
-                    <dt>캐릭터</dt>
-                    <dd>${escapeHtml(asset.label)}</dd>
+                    <dt>${escapeHtml(preview.character)}</dt>
+                    <dd>${escapeHtml(localText(asset.label, localeCode))}</dd>
                   </div>
                 `).join("")}
               </dl>
@@ -809,7 +941,7 @@
           <div class="su-section">
             <h2>${escapeHtml(locale.scenes)}</h2>
             <ul class="su-scene-list">
-              ${sampleScenes.map((scene) => `<li class="su-scene-item"><span>${escapeHtml(scene.id)}</span><strong>${escapeHtml(scene.title)} · ${escapeHtml(locale.status[scene.state])}</strong></li>`).join("")}
+              ${sampleScenes.map((scene) => `<li class="su-scene-item"><span>${escapeHtml(scene.id)}</span><strong>${escapeHtml(localText(scene.title, localeCode))} · ${escapeHtml(locale.status[scene.state])}</strong></li>`).join("")}
             </ul>
           </div>
           <div class="su-section">
@@ -849,10 +981,10 @@
                 data-ai-fallback-policy="${escapeHtml(endingValidationEvidence.aiFallbackPolicy)}"
                 data-writer-ending-configured="${escapeHtml(endingValidationEvidence.writerEndingConfigured)}"
                 data-provider-generated-at-intake="${escapeHtml(endingValidationEvidence.providerGeneratedAtIntake)}">
-              <dt>작가 결말 기준</dt>
-              <dd>기본 결말 ${escapeHtml(endingValidationEvidence.authorMainCount)}개 · 보조 결말은 필요 시 ${escapeHtml(endingValidationEvidence.authorSubMin)}-${escapeHtml(endingValidationEvidence.authorSubMax)}개까지 확인합니다.</dd>
-              <dt>AI 보조 결말 기준</dt>
-              <dd>작가 결말이 없는 분기에서만 표시하고, 업로드 미리보기에서는 생성 요청을 실행하지 않습니다.</dd>
+              <dt>${escapeHtml(preview.endingCriteriaTitle)}</dt>
+              <dd>${escapeHtml(fillPreviewTemplate(preview.endingCriteriaBody, endingRuleValues))}</dd>
+              <dt>${escapeHtml(preview.aiCriteriaTitle)}</dt>
+              <dd>${escapeHtml(preview.aiCriteriaBody)}</dd>
             </dl>
           </div>
         </section>
@@ -862,7 +994,7 @@
           <form class="su-scene-form" aria-label="Scene upload preview form">
             <div class="su-row">
               <label class="su-field"><span>${escapeHtml(locale.labels.sceneId)}</span><input name="sceneId" value="S04" readonly /></label>
-              <label class="su-field"><span>${escapeHtml(locale.labels.sceneTitle)}</span><input name="sceneTitle" value="새 분기 장면" readonly /></label>
+              <label class="su-field"><span>${escapeHtml(locale.labels.sceneTitle)}</span><input name="sceneTitle" value="${escapeHtml(locale.sample.sceneTitle)}" readonly /></label>
             </div>
             <details open
                      data-public-asset-id="scene.background.upload-preview"
@@ -879,7 +1011,7 @@
               data-public-asset-label="storyUpload.preview.cast"
               data-scene-use="character">
               <summary>${escapeHtml(locale.labels.cast)}</summary>
-              <div><input value="이순신, 기록관, 전령" readonly /></div>
+              <div><input value="${escapeHtml(locale.sample.cast)}" readonly /></div>
             </details>
             <label class="su-field"><span>${escapeHtml(locale.labels.body)}</span><textarea name="body" rows="8" class="su-body" readonly>${escapeHtml(locale.sample.body)}</textarea></label>
             <div class="su-choices" aria-label="${escapeHtml(locale.labels.choices)}">
