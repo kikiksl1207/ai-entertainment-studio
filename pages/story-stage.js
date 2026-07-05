@@ -546,6 +546,79 @@
     },
   ];
 
+  const STORY_STAGE_BRIDGE_COPY = {
+    titleManifest: {
+      "ko-KR": "배경 manifest",
+      "ja-JP": "背景マニフェスト",
+      "en-US": "Background manifest",
+      "zh-CN": "背景清单",
+      "zh-Hant": "背景清單",
+    },
+    noteManifest: {
+      "ko-KR": "장면별 공개 배경과 캐릭터 라벨만 연결합니다.",
+      "ja-JP": "シーンごとの公開背景とキャラクターラベルだけをつなぎます。",
+      "en-US": "Only public scene background and character labels are bridged.",
+      "zh-CN": "只连接每个场景的公开背景和角色标签。",
+      "zh-Hant": "只連接每個場景的公開背景和角色標籤。",
+    },
+    titleEndingMap: {
+      "ko-KR": "엔딩 mini-map",
+      "ja-JP": "エンディングミニマップ",
+      "en-US": "Ending mini-map",
+      "zh-CN": "结局小地图",
+      "zh-Hant": "結局小地圖",
+    },
+    noteEndingMap: {
+      "ko-KR": "선택 결과와 합류 여부를 짧게 요약합니다.",
+      "ja-JP": "選択結果と合流可否を短くまとめます。",
+      "en-US": "Choice results and rejoin states are summarized.",
+      "zh-CN": "简要显示选择结果和汇合状态。",
+      "zh-Hant": "簡要顯示選擇結果和匯合狀態。",
+    },
+    titleLocale: {
+      "ko-KR": "locale bridge",
+      "ja-JP": "locale bridge",
+      "en-US": "locale bridge",
+      "zh-CN": "locale bridge",
+      "zh-Hant": "locale bridge",
+    },
+    noteLocale: {
+      "ko-KR": "번역이 비어도 화면에는 기본 문구를 보여줍니다.",
+      "ja-JP": "翻訳が空でも画面には基本文を表示します。",
+      "en-US": "If a translation is missing, the screen keeps readable fallback copy.",
+      "zh-CN": "翻译缺失时，画面仍显示可读的默认文案。",
+      "zh-Hant": "翻譯缺失時，畫面仍顯示可讀的預設文案。",
+    },
+    assetLabel: {
+      "ko-KR": "공개 에셋",
+      "ja-JP": "公開アセット",
+      "en-US": "Public asset",
+      "zh-CN": "公开素材",
+      "zh-Hant": "公開素材",
+    },
+    endingLabel: {
+      "ko-KR": "결말 후보",
+      "ja-JP": "結末候補",
+      "en-US": "Ending candidate",
+      "zh-CN": "结局候选",
+      "zh-Hant": "結局候選",
+    },
+    rejoinLabel: {
+      "ko-KR": "합류",
+      "ja-JP": "合流",
+      "en-US": "Rejoin",
+      "zh-CN": "汇合",
+      "zh-Hant": "匯合",
+    },
+    copySlots: {
+      "ko-KR": ["배경 라벨", "선택 결과", "결말 요약", "fallback 문구"],
+      "ja-JP": ["背景ラベル", "選択結果", "結末要約", "fallback 文"],
+      "en-US": ["Background label", "Choice result", "Ending summary", "Fallback copy"],
+      "zh-CN": ["背景标签", "选择结果", "结局摘要", "fallback 文案"],
+      "zh-Hant": ["背景標籤", "選擇結果", "結局摘要", "fallback 文案"],
+    },
+  };
+
   let _storyScenes = STORY_SCENE_FALLBACKS.slice();
   let _storySceneIndex = 0;
 
@@ -594,6 +667,18 @@
     const locale = storyLocale();
     const entry = STORY_SCENE_COPY[key];
     return entry?.[locale] || entry?.["ko-KR"] || storyT(key);
+  }
+
+  function storyBridgeText(name) {
+    const locale = storyLocale();
+    const entry = STORY_STAGE_BRIDGE_COPY[name];
+    return entry?.[locale] || entry?.["ko-KR"] || entry?.["en-US"] || name;
+  }
+
+  function storyBridgeList(name) {
+    const locale = storyLocale();
+    const entry = STORY_STAGE_BRIDGE_COPY[name];
+    return entry?.[locale] || entry?.["ko-KR"] || entry?.["en-US"] || [];
   }
 
   function applyStoryLocalCopy(scope) {
@@ -818,6 +903,75 @@
             </article>
           `).join("")}
         </div>
+      </section>
+    `;
+  }
+
+  function renderBackgroundManifestBridgeShell() {
+    return `
+      <section class="story-section story-bridge-section" aria-labelledby="storyManifestBridgeTitle" data-story-background-manifest-bridge="true">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-scene">Bridge</span>
+          <h2 id="storyManifestBridgeTitle">${escapeHtml(storyBridgeText("titleManifest"))}</h2>
+        </div>
+        <p class="story-muted">${escapeHtml(storyBridgeText("noteManifest"))}</p>
+        <div class="story-bridge-grid">
+          ${STORY_BRANCH_IMPLEMENTATION_FIXTURE.map((choice) => `
+            <article class="story-bridge-card"
+                     data-story-scene-manifest-fixture="true"
+                     data-safe-scene-id="${escapeHtml(choice.nextSceneId)}"
+                     data-safe-asset-id="${escapeHtml(choice.backgroundId)}"
+                     data-scene-use="background">
+              <strong>${escapeHtml(choice.userSceneLabel)}</strong>
+              <dl>
+                <div><dt>${escapeHtml(storyBridgeText("assetLabel"))}</dt><dd>${escapeHtml(choice.backgroundLabel)}</dd></div>
+                <div><dt>State</dt><dd>${escapeHtml(choice.backgroundState ? "ready" : "fallback")}</dd></div>
+                <div><dt>Character</dt><dd>${escapeHtml(choice.characterAssetLabel)}</dd></div>
+              </dl>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderEndingMiniMapBridgeShell() {
+    return `
+      <section class="story-section story-bridge-section" aria-labelledby="storyEndingMiniMapTitle" data-story-ending-minimap-bridge="true">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-extra">Bridge</span>
+          <h2 id="storyEndingMiniMapTitle">${escapeHtml(storyBridgeText("titleEndingMap"))}</h2>
+        </div>
+        <p class="story-muted">${escapeHtml(storyBridgeText("noteEndingMap"))}</p>
+        <div class="story-minimap-list">
+          ${STORY_BRANCH_IMPLEMENTATION_FIXTURE.map((choice) => `
+            <details class="story-minimap-item" ${choice.label === "A" ? "open" : ""} data-ending-route-preview="true">
+              <summary><b>${escapeHtml(choice.label)}</b><span>${escapeHtml(choice.userSceneLabel)}</span></summary>
+              <dl>
+                <div><dt>${escapeHtml(storyBridgeText("endingLabel"))}</dt><dd>${escapeHtml(choice.endingLabel)}</dd></div>
+                <div><dt>${escapeHtml(storyBridgeText("rejoinLabel"))}</dt><dd>${escapeHtml(choice.rejoinLabel)}</dd></div>
+                <div><dt>Result</dt><dd>${escapeHtml(choice.stateLabel)}</dd></div>
+              </dl>
+            </details>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderLocaleKeyBridgeShell() {
+    return `
+      <section class="story-section story-bridge-section" aria-labelledby="storyLocaleBridgeTitle" data-story-locale-bridge="true">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-extra">Bridge</span>
+          <h2 id="storyLocaleBridgeTitle">${escapeHtml(storyBridgeText("titleLocale"))}</h2>
+        </div>
+        <p class="story-muted">${escapeHtml(storyBridgeText("noteLocale"))}</p>
+        <ul class="story-locale-bridge-list">
+          ${storyBridgeList("copySlots").map((slot, index) => `
+            <li data-copy-slot="${index + 1}">${escapeHtml(slot)}</li>
+          `).join("")}
+        </ul>
       </section>
     `;
   }
@@ -1120,6 +1274,12 @@
       ${renderPlayerShell()}
 
       ${renderBranchImplementationShell()}
+
+      ${renderBackgroundManifestBridgeShell()}
+
+      ${renderEndingMiniMapBridgeShell()}
+
+      ${renderLocaleKeyBridgeShell()}
 
       ${renderSetupShell()}
 

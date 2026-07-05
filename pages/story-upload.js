@@ -660,6 +660,64 @@
     ],
   };
 
+  const UPLOAD_BRIDGE_COPY = {
+    ko: {
+      graphTitle: "분기 import preview",
+      graphNote: "선택지별 다음 장면과 합류, 결말 경로를 읽기 전용으로 요약합니다.",
+      parserTitle: "parser review summary",
+      parserNote: "기준 초과는 바로 차단하지 않고 검토 필요 사유로만 보여줍니다.",
+      nextScene: "다음 장면",
+      route: "경로",
+      review: "검토",
+      counts: ["파트 10개", "분기 3개", "엔딩 후보 3개"],
+      reasons: ["파트 본문 약 10,000자", "분기 설명 2,000자 이내", "10파트 단편극 구조"],
+    },
+    en: {
+      graphTitle: "Branch import preview",
+      graphNote: "Next scenes, rejoins, and ending routes are summarized read-only.",
+      parserTitle: "Parser review summary",
+      parserNote: "Out-of-range values return review reasons instead of blocking publish directly.",
+      nextScene: "Next scene",
+      route: "Route",
+      review: "Review",
+      counts: ["10 parts", "3 branches", "3 ending candidates"],
+      reasons: ["About 10,000 characters per part", "Branch summary within 2,000 characters", "10-part short-drama structure"],
+    },
+    ja: {
+      graphTitle: "分岐 import preview",
+      graphNote: "次のシーン、合流、結末ルートを読み取り専用で要約します。",
+      parserTitle: "parser review summary",
+      parserNote: "基準外の値は直接ブロックせず、確認理由として表示します。",
+      nextScene: "次のシーン",
+      route: "ルート",
+      review: "確認",
+      counts: ["10パート", "3分岐", "3結末候補"],
+      reasons: ["1パート約10,000字", "分岐説明は2,000字以内", "10パート短編劇構成"],
+    },
+    "zh-Hans": {
+      graphTitle: "分支 import preview",
+      graphNote: "只读汇总下一场景、汇合和结局路线。",
+      parserTitle: "parser review summary",
+      parserNote: "超出标准时只返回需审核原因，不直接阻止发布。",
+      nextScene: "下一场景",
+      route: "路线",
+      review: "审核",
+      counts: ["10部分", "3个分支", "3个结局候选"],
+      reasons: ["每部分约10,000字", "分支说明不超过2,000字", "10部分短剧结构"],
+    },
+    "zh-Hant": {
+      graphTitle: "分支 import preview",
+      graphNote: "唯讀彙總下一場景、匯合和結局路線。",
+      parserTitle: "parser review summary",
+      parserNote: "超出標準時只回傳需審核原因，不直接阻止發布。",
+      nextScene: "下一場景",
+      route: "路線",
+      review: "審核",
+      counts: ["10部分", "3個分支", "3個結局候選"],
+      reasons: ["每部分約10,000字", "分支說明不超過2,000字", "10部分短劇結構"],
+    },
+  };
+
   const localeMap = {
     ko: "ko-KR",
     en: "en-US",
@@ -712,9 +770,53 @@
     return qa.endingLabels?.[value] || value;
   }
 
+  function renderGraphPreviewBridge(qa, copy) {
+    return `
+      <section class="su-section su-bridge-section" data-branch-graph-preview-bridge="true">
+        <h2>${escapeHtml(copy.graphTitle)}</h2>
+        <p class="su-muted">${escapeHtml(copy.graphNote)}</p>
+        <div class="su-bridge-grid">
+          ${qa.choices.map((choice) => `
+            <article class="su-bridge-card" data-branch-tone="${escapeHtml(choice.tone)}" data-safe-branch-label="${escapeHtml(choice.label)}">
+              <div class="su-bridge-head"><b>${escapeHtml(choice.label)}</b><strong>${escapeHtml(choice.text)}</strong></div>
+              <dl>
+                <div><dt>${escapeHtml(copy.nextScene)}</dt><dd>${escapeHtml(choice.next)}</dd></div>
+                <div><dt>${escapeHtml(copy.route)}</dt><dd>${escapeHtml(choice.rejoin)}</dd></div>
+                <div><dt>${escapeHtml(copy.review)}</dt><dd>${escapeHtml(choice.result)}</dd></div>
+              </dl>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderParserReviewSummary(copy, qa) {
+    const endingCount = qa.endings.length;
+    return `
+      <section class="su-section su-parser-summary" data-parser-review-summary="true">
+        <div class="su-parser-head">
+          <h2>${escapeHtml(copy.parserTitle)}</h2>
+          <p class="su-muted">${escapeHtml(copy.parserNote)}</p>
+        </div>
+        <div class="su-parser-counts">
+          ${copy.counts.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+          <span>${escapeHtml(String(endingCount))}</span>
+        </div>
+        <details class="su-parser-reasons" open>
+          <summary>${escapeHtml(copy.review)}</summary>
+          <ul>
+            ${copy.reasons.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+          </ul>
+        </details>
+      </section>
+    `;
+  }
+
   function renderUploadWorkspace(localeCode) {
     const locale = UI[localeCode] || UI.ko;
     const qa = QA_COPY[localeCode] || QA_COPY.ko;
+    const bridgeCopy = UPLOAD_BRIDGE_COPY[localeCode] || UPLOAD_BRIDGE_COPY.ko;
     document.documentElement.lang = localeMap[localeCode] || "ko-KR";
 
     root.innerHTML = `
@@ -799,6 +901,8 @@
             </article>
           </div>
         </section>
+
+        ${renderParserReviewSummary(bridgeCopy, qa)}
 
         <section class="su-grid">
           <div class="su-section">
@@ -901,6 +1005,8 @@
             `).join("")}
           </div>
         </section>
+
+        ${renderGraphPreviewBridge(qa, bridgeCopy)}
 
         ${renderReferencePanel(qa)}
 
