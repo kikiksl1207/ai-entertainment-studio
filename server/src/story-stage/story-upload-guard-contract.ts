@@ -777,6 +777,57 @@ export const STORY_SCENE_BACKGROUND_MANIFEST_READ_MODEL_CONTRACT = {
   },
 } as const;
 
+export const STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT = {
+  version: '2026-07-05.story-live-asset-version-stamp-source-qa.v1',
+  status: 'source_static_marker_guard_only',
+  sourceFiles: ['pages/story-stage.js', 'pages/story-upload.js'],
+  requiredPublicMarkers: {
+    storyStage: {
+      selector: '.story-preview-banner',
+      markerAttribute: 'data-story-stage-public-build-marker',
+      publicBuildId: 'story-stage-public-2026-07-05',
+      reflectionStatusAttribute: 'data-reflection-status',
+      reflectionStatus: 'public',
+    },
+    storyUpload: {
+      selector: '.su-shell',
+      markerAttribute: 'data-story-upload-public-build-marker',
+      publicBuildId: 'story-upload-public-2026-07-05',
+      reflectionStatusAttribute: 'data-reflection-status',
+      reflectionStatus: 'public',
+    },
+  },
+  markerPolicy: {
+    visibleToUsers: false,
+    safeIfExposed: true,
+    cacheBustEvidenceOnly: true,
+    sourceLocalPassLiveFailEvidenceSeparated: true,
+  },
+  forbiddenMarkerFields: [
+    'token',
+    'password',
+    'cookie',
+    'apiKey',
+    'dbUrl',
+    'rawEmail',
+    'providerPayload',
+    'localPath',
+  ],
+  failureConditions: [
+    'public_build_marker_missing',
+    'reflection_status_marker_missing',
+    'secret_or_private_field_in_public_marker',
+    'source_local_pass_live_fail_evidence_missing',
+  ],
+  mutationPolicy: {
+    providerCall: false,
+    assetUpload: false,
+    storyWrite: false,
+    deployMutation: false,
+    paymentMutation: false,
+  },
+} as const;
+
 export const STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT = {
   version: '2026-07-03.story-upload-review-state-transition-guard.v1',
   status: 'workflow_transition_guard_contract_only',
@@ -815,13 +866,25 @@ export const STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT = {
     pmConfirmationRequiredBeforePenalty: true,
     publishReadyBypassAllowed: false,
     blockedReasonKeyPreserved: true,
+    publicCopyMustNotExposeReasonKey: true,
+    notificationMutation: false,
+  },
+  publishReadyReviewGate: {
+    requiresQaPass: true,
+    blockedStatesRequireReasonKey: ['reviewRequired', 'blocked'],
+    rawReasonKeyVisibleInPublicCopy: false,
+    penaltyMutation: false,
+    paymentMutation: false,
+    walletMutation: false,
     notificationMutation: false,
   },
   failureConditions: [
     'publish_ready_without_qa_pass',
+    'publish_ready_bypassed_without_qa_pass',
     'publish_ready_from_non_qa_ready_state',
     'blocked_without_blocker_reason_key',
     'blocked_reason_key_dropped',
+    'raw_blocked_reason_key_visible',
     'penalty_policy_enabled_before_pm_decision',
     'unknown_review_status_key',
     'raw_status_copy_returned_to_client',
@@ -829,6 +892,7 @@ export const STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT = {
   mutationPolicy: {
     publishMutation: false,
     providerCall: false,
+    penaltyMutation: false,
     paymentMutation: false,
     walletMutation: false,
     notificationMutation: false,
@@ -1231,6 +1295,7 @@ export const STORY_UPLOAD_BACKEND_GUARD_CONTRACT = {
     STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT,
   sceneBackgroundManifestReadModel:
     STORY_SCENE_BACKGROUND_MANIFEST_READ_MODEL_CONTRACT,
+  liveAssetVersionStampGuard: STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT,
   reviewStateTransitionGuard:
     STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT,
   draftLengthValidator: STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT,

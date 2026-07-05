@@ -12,6 +12,7 @@ import {
   STORY_HIATUS_PENALTY_PENDING_VALUES_GUARD_CONTRACT,
   STORY_IMPORT_PREVIEW_PUBLIC_LABEL_GUARD_CONTRACT,
   STORY_IMPORT_EXPORT_SCHEMA_VERSION_GUARD_CONTRACT,
+  STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT,
   STORY_PART_LENGTH_POLICY_CONTRACT,
   STORY_PROGRESS_SAFE_MOCK_CONTRACT,
   STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT,
@@ -61,6 +62,7 @@ describe('Story upload backend guard contracts', () => {
         STORY_SCENE_BACKGROUND_ASSET_METADATA_GUARD_CONTRACT,
       sceneBackgroundManifestReadModel:
         STORY_SCENE_BACKGROUND_MANIFEST_READ_MODEL_CONTRACT,
+      liveAssetVersionStampGuard: STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT,
       reviewStateTransitionGuard:
         STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT,
       draftLengthValidator: STORY_UPLOAD_DRAFT_LENGTH_VALIDATOR_CONTRACT,
@@ -879,6 +881,7 @@ describe('Story upload backend guard contracts', () => {
       pmConfirmationRequiredBeforePenalty: true,
       publishReadyBypassAllowed: false,
       blockedReasonKeyPreserved: true,
+      publicCopyMustNotExposeReasonKey: true,
       notificationMutation: false,
     });
     expect(
@@ -892,7 +895,9 @@ describe('Story upload backend guard contracts', () => {
     ).toEqual(
       expect.arrayContaining([
         'publish_ready_without_qa_pass',
+        'publish_ready_bypassed_without_qa_pass',
         'blocked_reason_key_dropped',
+        'raw_blocked_reason_key_visible',
         'penalty_policy_enabled_before_pm_decision',
       ]),
     );
@@ -900,10 +905,79 @@ describe('Story upload backend guard contracts', () => {
       STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.mutationPolicy,
     ).toMatchObject({
       publishMutation: false,
+      penaltyMutation: false,
       paymentMutation: false,
       walletMutation: false,
       notificationMutation: false,
     });
+  });
+
+  it('guards live asset marker source QA evidence for #1697', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.liveAssetVersionStampGuard,
+    ).toBe(STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT);
+    expect(
+      STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT.requiredPublicMarkers,
+    ).toMatchObject({
+      storyStage: {
+        markerAttribute: 'data-story-stage-public-build-marker',
+        publicBuildId: 'story-stage-public-2026-07-05',
+        reflectionStatus: 'public',
+      },
+      storyUpload: {
+        markerAttribute: 'data-story-upload-public-build-marker',
+        publicBuildId: 'story-upload-public-2026-07-05',
+        reflectionStatus: 'public',
+      },
+    });
+    expect(STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT.markerPolicy).toMatchObject({
+      visibleToUsers: false,
+      safeIfExposed: true,
+      sourceLocalPassLiveFailEvidenceSeparated: true,
+    });
+    expect(
+      STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT.forbiddenMarkerFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'token',
+        'password',
+        'cookie',
+        'apiKey',
+        'dbUrl',
+        'rawEmail',
+        'providerPayload',
+        'localPath',
+      ]),
+    );
+    expect(
+      Object.values(
+        STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('keeps publish-ready review source QA evidence for #1698', () => {
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT
+        .publishReadyReviewGate,
+    ).toMatchObject({
+      requiresQaPass: true,
+      blockedStatesRequireReasonKey: ['reviewRequired', 'blocked'],
+      rawReasonKeyVisibleInPublicCopy: false,
+      penaltyMutation: false,
+      paymentMutation: false,
+      walletMutation: false,
+      notificationMutation: false,
+    });
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.failureConditions,
+    ).toEqual(
+      expect.arrayContaining([
+        'publish_ready_without_qa_pass',
+        'publish_ready_bypassed_without_qa_pass',
+        'raw_blocked_reason_key_visible',
+      ]),
+    );
   });
 
   it('requires safe review state transitions before publish-ready for #1606', () => {

@@ -718,7 +718,9 @@
     document.documentElement.lang = localeMap[localeCode] || "ko-KR";
 
     root.innerHTML = `
-      <div class="su-shell">
+      <div class="su-shell"
+           data-story-upload-public-build-marker="story-upload-public-2026-07-05"
+           data-reflection-status="public">
         <header class="su-header">
           <div class="su-title-group">
             <p class="su-eyebrow">${escapeHtml(locale.eyebrow)}</p>
