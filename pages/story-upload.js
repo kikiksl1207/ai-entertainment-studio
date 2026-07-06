@@ -105,6 +105,10 @@
         endingCriteriaBody: "기본 결말 {main}개 · 보조 결말은 필요 시 {min}-{max}개까지 확인합니다.",
         aiCriteriaTitle: "AI 보조 결말 기준",
         aiCriteriaBody: "작가 결말이 없는 분기에서만 표시하고, 업로드 미리보기에서는 생성 요청을 실행하지 않습니다.",
+        mainRouteBadgeTitle: "작가 공식 메인 루트",
+        mainRouteBadgeBody: "대표 결말 1개를 AI 초안과 분리해 먼저 고정합니다.",
+        mainRouteBadgeMeta: "공개 미리보기에는 route 문자열 대신 사용자용 이름만 보여줍니다.",
+        routeInputValue: "작가 기본 결말",
       },
     },
     en: {
@@ -199,6 +203,10 @@
         endingCriteriaBody: "{main} primary ending · {min}-{max} side endings when needed.",
         aiCriteriaTitle: "AI-assisted ending rules",
         aiCriteriaBody: "Shown only for branches without writer endings. Preview never runs generation requests.",
+        mainRouteBadgeTitle: "Writer official main route",
+        mainRouteBadgeBody: "One representative ending is fixed separately from AI drafts.",
+        mainRouteBadgeMeta: "The public preview shows a friendly name instead of a route string.",
+        routeInputValue: "Writer main ending",
       },
     },
     ja: {
@@ -293,6 +301,10 @@
         endingCriteriaBody: "基本終了{main}件・補助終了は必要に応じて{min}-{max}件まで確認します。",
         aiCriteriaTitle: "AI補助終了基準",
         aiCriteriaBody: "作家終了がない分岐だけに表示し、プレビューでは生成リクエストを実行しません。",
+        mainRouteBadgeTitle: "作家公式メインルート",
+        mainRouteBadgeBody: "代表終了1件をAI下書きと分けて先に固定します。",
+        mainRouteBadgeMeta: "公開プレビューにはルート文字列ではなくユーザー向け名だけを表示します。",
+        routeInputValue: "作家基本終了",
       },
     },
     "zh-Hans": {
@@ -387,6 +399,10 @@
         endingCriteriaBody: "主线结局{main}个；支线结局按需确认{min}-{max}个。",
         aiCriteriaTitle: "AI辅助结局标准",
         aiCriteriaBody: "仅在没有作者结局的分支显示；预览不会执行生成请求。",
+        mainRouteBadgeTitle: "作者官方主路线",
+        mainRouteBadgeBody: "先固定 1 个代表结局，并与 AI 草稿分开。",
+        mainRouteBadgeMeta: "公开预览只显示用户可读名称，不显示路线字符串。",
+        routeInputValue: "作者主线结局",
       },
     },
     "zh-Hant": {
@@ -481,6 +497,10 @@
         endingCriteriaBody: "主線結局{main}個；支線結局按需確認{min}-{max}個。",
         aiCriteriaTitle: "AI輔助結局標準",
         aiCriteriaBody: "僅在沒有作者結局的分支顯示；預覽不會執行生成請求。",
+        mainRouteBadgeTitle: "作者官方主路線",
+        mainRouteBadgeBody: "先固定 1 個代表結局，並與 AI 草稿分開。",
+        mainRouteBadgeMeta: "公開預覽只顯示使用者可讀名稱，不顯示路線字串。",
+        routeInputValue: "作者主線結局",
       },
     },
   };
@@ -521,9 +541,9 @@
       choices: [
         { label: "A", tone: "info", text: "기록을 먼저 확인한다", next: "S05", result: "정보 + 신뢰 상승", rejoin: "S09 재합류", tags: ["정보", "신뢰"] },
         { label: "B", tone: "risk", text: "전령을 따라간다", next: "S06", result: "위험 + 아이템 획득", rejoin: "S09 재합류", tags: ["위험", "아이템"] },
-        { label: "C", tone: "ending", text: "해안으로 우회한다", next: "S07", result: "관계 변화 + 보조 결말 조건", rejoin: "E-AI 후보", tags: ["관계", "엔딩"] },
+        { label: "C", tone: "ending", text: "해안으로 우회한다", next: "S07", result: "관계 변화 + 보조 결말 조건", rejoin: "AI 보조 결말 후보", tags: ["관계", "엔딩"] },
       ],
-      endings: ["E-MAIN · 작가 기본 엔딩", "E-SUB · 작가 서브 엔딩", "E-AI · AI 보조 결말"],
+      endings: ["작가 기본 엔딩", "작가 서브 엔딩", "AI 보조 결말"],
       endingCards: [
         { type: "author_main", title: "작가 기본 엔딩", body: "작가가 지정한 중심 루트의 결말이에요." },
         { type: "author_sub", title: "작가 서브 엔딩", body: "작가가 별도로 준비한 선택 루트 결말이에요." },
@@ -565,9 +585,9 @@
       choices: [
         { label: "A", tone: "info", text: "Check the record first", next: "S05", result: "Info + trust up", rejoin: "Rejoins at S09", tags: ["Info", "Trust"] },
         { label: "B", tone: "risk", text: "Follow the messenger", next: "S06", result: "Risk + item gained", rejoin: "Rejoins at S09", tags: ["Risk", "Item"] },
-        { label: "C", tone: "ending", text: "Detour to the shore", next: "S07", result: "Relation shift + helper ending rule", rejoin: "E-AI candidate", tags: ["Relation", "Ending"] },
+        { label: "C", tone: "ending", text: "Detour to the shore", next: "S07", result: "Relation shift + helper ending rule", rejoin: "AI-assisted ending candidate", tags: ["Relation", "Ending"] },
       ],
-      endings: ["E-MAIN · Writer primary ending", "E-SUB · Writer side ending", "E-AI · AI-assisted ending"],
+      endings: ["Writer primary ending", "Writer side ending", "AI-assisted ending"],
       endingCards: [
         { type: "author_main", title: "Writer primary ending", body: "The writer's primary route ending." },
         { type: "author_sub", title: "Writer side ending", body: "A writer-prepared ending for a side route." },
@@ -609,9 +629,9 @@
       choices: [
         { label: "A", tone: "info", text: "記録を先に確認する", next: "S05", result: "情報 + 信頼上昇", rejoin: "S09で再合流", tags: ["情報", "信頼"] },
         { label: "B", tone: "risk", text: "伝令について行く", next: "S06", result: "危険 + アイテム取得", rejoin: "S09で再合流", tags: ["危険", "アイテム"] },
-        { label: "C", tone: "ending", text: "海岸へ迂回する", next: "S07", result: "関係変化 + 補助終了条件", rejoin: "E-AI候補", tags: ["関係", "終了"] },
+        { label: "C", tone: "ending", text: "海岸へ迂回する", next: "S07", result: "関係変化 + 補助終了条件", rejoin: "AI補助終了候補", tags: ["関係", "終了"] },
       ],
-      endings: ["E-MAIN · 作家基本終了", "E-SUB · 作家サブ終了", "E-AI · AI補助終了"],
+      endings: ["作家基本終了", "作家サブ終了", "AI補助終了"],
       endingCards: [
         { type: "author_main", title: "作家基本終了", body: "作家が指定した中心ルートの結末です。" },
         { type: "author_sub", title: "作家サブ終了", body: "作家が別途用意した選択ルートの結末です。" },
@@ -653,9 +673,9 @@
       choices: [
         { label: "A", tone: "info", text: "先确认记录", next: "S05", result: "信息 + 信任提升", rejoin: "S09再汇合", tags: ["信息", "信任"] },
         { label: "B", tone: "risk", text: "跟随传令", next: "S06", result: "风险 + 获得道具", rejoin: "S09再汇合", tags: ["风险", "道具"] },
-        { label: "C", tone: "ending", text: "绕到海岸", next: "S07", result: "关系变化 + 辅助结局条件", rejoin: "E-AI候选", tags: ["关系", "结局"] },
+        { label: "C", tone: "ending", text: "绕到海岸", next: "S07", result: "关系变化 + 辅助结局条件", rejoin: "AI辅助结局候选", tags: ["关系", "结局"] },
       ],
-      endings: ["E-MAIN · 作者主线结局", "E-SUB · 作者支线结局", "E-AI · AI辅助结局"],
+      endings: ["作者主线结局", "作者支线结局", "AI辅助结局"],
       endingCards: [
         { type: "author_main", title: "作者主线结局", body: "作者指定的主路线结局。" },
         { type: "author_sub", title: "作者支线结局", body: "作者另外准备的选择路线结局。" },
@@ -697,9 +717,9 @@
       choices: [
         { label: "A", tone: "info", text: "先確認記錄", next: "S05", result: "資訊 + 信任提升", rejoin: "S09再匯合", tags: ["資訊", "信任"] },
         { label: "B", tone: "risk", text: "跟隨傳令", next: "S06", result: "風險 + 獲得道具", rejoin: "S09再匯合", tags: ["風險", "道具"] },
-        { label: "C", tone: "ending", text: "繞到海岸", next: "S07", result: "關係變化 + 輔助結局條件", rejoin: "E-AI候選", tags: ["關係", "結局"] },
+        { label: "C", tone: "ending", text: "繞到海岸", next: "S07", result: "關係變化 + 輔助結局條件", rejoin: "AI輔助結局候選", tags: ["關係", "結局"] },
       ],
-      endings: ["E-MAIN · 作者主線結局", "E-SUB · 作者支線結局", "E-AI · AI輔助結局"],
+      endings: ["作者主線結局", "作者支線結局", "AI輔助結局"],
       endingCards: [
         { type: "author_main", title: "作者主線結局", body: "作者指定的主路線結局。" },
         { type: "author_sub", title: "作者支線結局", body: "作者另外準備的選擇路線結局。" },
@@ -917,6 +937,12 @@
                 `).join("")}
               </ul>
             </article>
+            <article class="su-main-route-badge" data-creator-main-route-badge="true">
+              <span>${escapeHtml(preview.mainRouteBadgeTitle)}</span>
+              <strong>${escapeHtml(preview.routeInputValue)}</strong>
+              <p>${escapeHtml(preview.mainRouteBadgeBody)}</p>
+              <em>${escapeHtml(preview.mainRouteBadgeMeta)}</em>
+            </article>
             <article class="su-preview-card" data-preview-kind="safe-assets">
               <strong>${escapeHtml(preview.publicMaterials)}</strong>
               <dl>
@@ -1020,7 +1046,7 @@
             </div>
             <div class="su-row">
               <label class="su-field"><span>${escapeHtml(locale.labels.nextScene)}</span><input name="nextScene" value="S05" readonly /></label>
-              <label class="su-field"><span>${escapeHtml(locale.labels.endingLink)}</span><input value="E-S1" readonly /></label>
+              <label class="su-field"><span>${escapeHtml(locale.labels.endingLink)}</span><input value="${escapeHtml(preview.routeInputValue)}" readonly /></label>
             </div>
             <button type="button" class="su-save" disabled aria-disabled="true">${escapeHtml(locale.labels.saveSoon)}</button>
           </form>

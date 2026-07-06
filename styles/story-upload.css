@@ -433,6 +433,56 @@
   background: rgba(0, 0, 0, 0.16);
 }
 
+.su-main-route-badge {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(212, 255, 95, 0.24);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(212, 255, 95, 0.08), rgba(8, 5, 18, 0.28));
+}
+
+.su-main-route-badge span,
+.su-main-route-badge strong,
+.su-main-route-badge p,
+.su-main-route-badge em {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.su-main-route-badge span {
+  justify-self: start;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(212, 255, 95, 0.14);
+  color: #e6ff98;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.su-main-route-badge strong {
+  color: var(--ink, #f0eef8);
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.su-main-route-badge p {
+  color: rgba(240, 238, 248, 0.74);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.su-main-route-badge em {
+  color: rgba(212, 255, 95, 0.78);
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
 .su-preview-card strong {
   color: #f0eef8;
   font-size: 13.5px;
