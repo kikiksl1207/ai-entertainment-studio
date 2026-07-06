@@ -576,6 +576,103 @@
     },
   ];
 
+  const STORY_RUNTIME_BRIDGE_COPY = {
+    "ko-KR": {
+      stateTitle: "75파트 상태 브리지",
+      stateBody: "선택지 3개가 점수 대신 사용자용 상태 요약으로 누적됩니다.",
+      endingTitle: "엔딩 문단 조립 브리지",
+      endingBody: "큰 엔딩 타입과 평가/구조/기록/동행 후일담을 같은 구조로 조합합니다.",
+      aiTitle: "런타임 AI 요약 브리지",
+      aiBody: "전체 원고 대신 현재 파트 요약, 직전 선택, 상태 요약만 연결합니다.",
+      bucket: "상태 묶음",
+      progress: "진행도",
+      guard: "가드",
+      paragraph: "문단",
+      mode: "연결 모드",
+    },
+    "en-US": {
+      stateTitle: "75-part state bridge",
+      stateBody: "Three choices accumulate as reader-facing state summaries instead of raw scores.",
+      endingTitle: "Modular ending assembly bridge",
+      endingBody: "Combine the major ending type with evaluation, rescue, record truth, and companion epilogue blocks.",
+      aiTitle: "Runtime AI summary bridge",
+      aiBody: "Pass only the current part summary, previous choice, and state summary instead of the full manuscript.",
+      bucket: "State bucket",
+      progress: "Progress",
+      guard: "Guard",
+      paragraph: "Paragraph",
+      mode: "Connection mode",
+    },
+    "ja-JP": {
+      stateTitle: "75パート状態ブリッジ",
+      stateBody: "3つの選択肢を生スコアではなく読者向け状態要約として蓄積します。",
+      endingTitle: "モジュール式終了組み立てブリッジ",
+      endingBody: "大きな終了タイプと評価、救助、記録の真実、同行者後日談を同じ構造で組み合わせます。",
+      aiTitle: "ランタイムAI要約ブリッジ",
+      aiBody: "全文ではなく現在パート要約、直前選択、状態要約だけを渡します。",
+      bucket: "状態グループ",
+      progress: "進行度",
+      guard: "ガード",
+      paragraph: "段落",
+      mode: "接続モード",
+    },
+    "zh-CN": {
+      stateTitle: "75部分状态桥接",
+      stateBody: "三个选择会累计为面向读者的状态摘要，而不是原始分数。",
+      endingTitle: "模块化结局组装桥接",
+      endingBody: "把主要结局类型、评价、救援、记录真相和同行者后日谈组合为同一结构。",
+      aiTitle: "运行时AI摘要桥接",
+      aiBody: "只传当前部分摘要、上一个选择和状态摘要，而不是完整稿件。",
+      bucket: "状态组",
+      progress: "进度",
+      guard: "保护",
+      paragraph: "段落",
+      mode: "连接模式",
+    },
+    "zh-Hant": {
+      stateTitle: "75部分狀態橋接",
+      stateBody: "三個選擇會累計為面向讀者的狀態摘要，而不是原始分數。",
+      endingTitle: "模組化結局組裝橋接",
+      endingBody: "把主要結局類型、評價、救援、記錄真相和同行者後日談組合為同一結構。",
+      aiTitle: "執行時AI摘要橋接",
+      aiBody: "只傳目前部分摘要、上一個選擇和狀態摘要，而不是完整稿件。",
+      bucket: "狀態組",
+      progress: "進度",
+      guard: "保護",
+      paragraph: "段落",
+      mode: "連接模式",
+    },
+  };
+
+  const FREE_STORY_STATE_BRIDGE_FIXTURE = {
+    books: 5,
+    parts: 75,
+    choiceCount: 3,
+    routeModel: "state bucket",
+    progressLabel: "Book 1 / Part 12 of 75",
+    buckets: [
+      { label: "Trust-led route", summary: "Record confidence and companion trust are high." },
+      { label: "Danger route", summary: "Danger is rising, but the item path is open." },
+      { label: "Truth-led route", summary: "Hidden record clues are ready for ending review." },
+    ],
+  };
+
+  const MODULAR_ENDING_ASSEMBLY_FIXTURE = [
+    { label: "Major ending", body: "Writer route ending stays first." },
+    { label: "Yi evaluation", body: "Evaluation paragraph reflects the reader-facing state summary." },
+    { label: "Civilian rescue", body: "Rescue paragraph changes by the safe route summary." },
+    { label: "Record truth", body: "Truth paragraph uses discovered public clues only." },
+    { label: "Companion epilogue", body: "Companion follow-up is assembled as a short afterword." },
+  ];
+
+  const RUNTIME_AI_SUMMARY_BRIDGE_FIXTURE = {
+    currentPartSummary: "The fleet waits before the next foggy shore choice.",
+    previousChoice: "The reader checked the record before moving.",
+    stateSummary: "Trust-led route with low danger and one public clue.",
+    budgetLabel: "Short connector only",
+    outputGuard: "No free chat or long-form generation",
+  };
+
   let _storyScenes = STORY_SCENE_FALLBACKS.slice();
   let _storySceneIndex = 0;
 
@@ -631,6 +728,11 @@
     const locale = storyLocale();
     const entry = STORY_SCENE_COPY[key];
     return entry?.[locale] || entry?.["ko-KR"] || storyT(key);
+  }
+
+  function runtimeBridgeCopy() {
+    const locale = storyLocale();
+    return STORY_RUNTIME_BRIDGE_COPY[locale] || STORY_RUNTIME_BRIDGE_COPY["ko-KR"];
   }
 
   function applyStoryLocalCopy(scope) {
@@ -1128,6 +1230,93 @@
     `;
   }
 
+  function renderFreeStoryStateBridgeShell() {
+    const copy = runtimeBridgeCopy();
+    const state = FREE_STORY_STATE_BRIDGE_FIXTURE;
+    return `
+      <section class="story-section story-bridge-section"
+               aria-labelledby="storyStateBridgeTitle"
+               data-free-story-state-bridge="true"
+               data-choice-count="${escapeHtml(state.choiceCount)}"
+               data-book-count="${escapeHtml(state.books)}"
+               data-part-count="${escapeHtml(state.parts)}"
+               data-route-model="bucket">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-scene">${escapeHtml(copy.progress)}</span>
+          <h2 id="storyStateBridgeTitle">${escapeHtml(copy.stateTitle)}</h2>
+        </div>
+        <p class="story-muted">${escapeHtml(copy.stateBody)}</p>
+        <div class="story-bridge-grid">
+          <article class="story-bridge-card">
+            <span>${escapeHtml(copy.progress)}</span>
+            <strong>${escapeHtml(state.progressLabel)}</strong>
+            <p>5 books / 75 parts / 3 choices</p>
+          </article>
+          ${state.buckets.map((bucket) => `
+            <article class="story-bridge-card">
+              <span>${escapeHtml(copy.bucket)}</span>
+              <strong>${escapeHtml(bucket.label)}</strong>
+              <p>${escapeHtml(bucket.summary)}</p>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderModularEndingAssemblyBridgeShell() {
+    const copy = runtimeBridgeCopy();
+    return `
+      <section class="story-section story-bridge-section"
+               aria-labelledby="storyEndingAssemblyTitle"
+               data-modular-ending-assembly-bridge="true"
+               data-ai-ending-generation="polish-only"
+               data-provider-requested="false">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-extra">${escapeHtml(copy.paragraph)}</span>
+          <h2 id="storyEndingAssemblyTitle">${escapeHtml(copy.endingTitle)}</h2>
+        </div>
+        <p class="story-muted">${escapeHtml(copy.endingBody)}</p>
+        <div class="story-ending-assembly-list">
+          ${MODULAR_ENDING_ASSEMBLY_FIXTURE.map((block, index) => `
+            <article class="story-ending-assembly-item">
+              <b>${index + 1}</b>
+              <div>
+                <strong>${escapeHtml(block.label)}</strong>
+                <p>${escapeHtml(block.body)}</p>
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderRuntimeAiPromptSummaryBridgeShell() {
+    const copy = runtimeBridgeCopy();
+    const runtime = RUNTIME_AI_SUMMARY_BRIDGE_FIXTURE;
+    return `
+      <section class="story-section story-bridge-section"
+               aria-labelledby="storyRuntimeAiTitle"
+               data-runtime-ai-prompt-summary-bridge="true"
+               data-full-manuscript-attached="false"
+               data-free-chat-enabled="false"
+               data-provider-requested="false">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-react">AI</span>
+          <h2 id="storyRuntimeAiTitle">${escapeHtml(copy.aiTitle)}</h2>
+        </div>
+        <p class="story-muted">${escapeHtml(copy.aiBody)}</p>
+        <dl class="story-runtime-summary">
+          <div><dt>${escapeHtml(copy.paragraph)}</dt><dd>${escapeHtml(runtime.currentPartSummary)}</dd></div>
+          <div><dt>${escapeHtml(copy.bucket)}</dt><dd>${escapeHtml(runtime.stateSummary)}</dd></div>
+          <div><dt>${escapeHtml(copy.mode)}</dt><dd>${escapeHtml(runtime.previousChoice)}</dd></div>
+          <div><dt>${escapeHtml(copy.guard)}</dt><dd>${escapeHtml(runtime.budgetLabel)} · ${escapeHtml(runtime.outputGuard)}</dd></div>
+        </dl>
+      </section>
+    `;
+  }
+
   function renderTutorialShell() {
     return `
       <section class="story-section story-tutorial-section" aria-labelledby="storyTutorialTitle">
@@ -1185,6 +1374,12 @@
       ${renderPlayerShell()}
 
       ${renderBranchImplementationShell()}
+
+      ${renderFreeStoryStateBridgeShell()}
+
+      ${renderModularEndingAssemblyBridgeShell()}
+
+      ${renderRuntimeAiPromptSummaryBridgeShell()}
 
       ${renderSetupShell()}
 

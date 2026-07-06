@@ -775,6 +775,99 @@
     ],
   };
 
+  const CREATOR_BRIDGE_COPY = {
+    ko: {
+      analyzerTitle: "작가 원고 분석 브리지",
+      analyzerBody: "파트 분량, 분기 밀도, 메인 루트, 엔딩 후보, 문체 카드를 저장 없이 확인합니다.",
+      scaleTitle: "작품 규모 메타데이터",
+      scaleBody: "무료 5권/75파트와 장편 150파트급 작품의 제작 체크리스트를 분리합니다.",
+      candidateOnly: "AI 대량 루트는 참고 후보",
+      officialRoute: "작가 메인 루트",
+      endingCandidate: "엔딩 후보",
+      styleCard: "문체 카드",
+      checklist: "검수 체크리스트",
+      noMutation: "읽기 전용 미리보기",
+      units: { parts: "파트", books: "권", chars: "자" },
+    },
+    en: {
+      analyzerTitle: "Creator manuscript analyzer bridge",
+      analyzerBody: "Preview part length, branch density, main route, ending candidates, and style cards without saving.",
+      scaleTitle: "Story scale metadata",
+      scaleBody: "Split production checklists for free 5-book/75-part stories and 150-part long-form works.",
+      candidateOnly: "AI bulk routes stay as reference candidates",
+      officialRoute: "Writer main route",
+      endingCandidate: "Ending candidate",
+      styleCard: "Style card",
+      checklist: "Review checklist",
+      noMutation: "Read-only preview",
+      units: { parts: "parts", books: "books", chars: "chars" },
+    },
+    ja: {
+      analyzerTitle: "作者原稿分析ブリッジ",
+      analyzerBody: "パート分量、分岐密度、メインルート、終了候補、文体カードを保存せず確認します。",
+      scaleTitle: "作品規模メタデータ",
+      scaleBody: "無料5巻/75パートと長編150パート級の制作チェックリストを分けます。",
+      candidateOnly: "AI大量ルートは参考候補",
+      officialRoute: "作者メインルート",
+      endingCandidate: "終了候補",
+      styleCard: "文体カード",
+      checklist: "確認チェックリスト",
+      noMutation: "読み取り専用プレビュー",
+      units: { parts: "パート", books: "巻", chars: "字" },
+    },
+    "zh-Hans": {
+      analyzerTitle: "作者稿件分析桥接",
+      analyzerBody: "不保存即可预览篇幅、分支密度、主路线、结局候选和文风卡。",
+      scaleTitle: "作品规模元数据",
+      scaleBody: "区分免费5卷/75部分和150部分长篇作品的制作检查表。",
+      candidateOnly: "AI批量路线仅作参考候选",
+      officialRoute: "作者主路线",
+      endingCandidate: "结局候选",
+      styleCard: "文风卡",
+      checklist: "审核检查表",
+      noMutation: "只读预览",
+      units: { parts: "部分", books: "卷", chars: "字" },
+    },
+    "zh-Hant": {
+      analyzerTitle: "作者稿件分析橋接",
+      analyzerBody: "不儲存即可預覽篇幅、分支密度、主路線、結局候選和文風卡。",
+      scaleTitle: "作品規模中繼資料",
+      scaleBody: "區分免費5卷/75部分和150部分長篇作品的製作檢查表。",
+      candidateOnly: "AI批量路線僅作參考候選",
+      officialRoute: "作者主路線",
+      endingCandidate: "結局候選",
+      styleCard: "文風卡",
+      checklist: "審核檢查表",
+      noMutation: "唯讀預覽",
+      units: { parts: "部分", books: "卷", chars: "字" },
+    },
+  };
+
+  const CREATOR_ANALYZER_BRIDGE_FIXTURE = {
+    partLengthLabel: "10,000",
+    branchDensityLabel: "3 choices per part",
+    mainRouteLabel: "Writer-confirmed spine route",
+    endingCandidateLabel: "1 main + 2 side + 1 helper candidate",
+    styleCards: ["historical tension", "short choice rhythm", "reader-safe summary"],
+  };
+
+  const STORY_SCALE_METADATA_BRIDGE_FIXTURE = [
+    {
+      scaleLabel: "Free 5 books / 75 parts",
+      books: 5,
+      parts: 75,
+      partChars: "10,000",
+      checklist: ["state bucket review", "ending type review", "mobile pacing review"],
+    },
+    {
+      scaleLabel: "Long-form myth / 150 parts",
+      books: 10,
+      parts: 150,
+      partChars: "10,000",
+      checklist: ["volume outline review", "route summary review", "serialization QA"],
+    },
+  ];
+
   const localeMap = {
     ko: "ko-KR",
     en: "en-US",
@@ -817,6 +910,79 @@
           ${qa.onboardingSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
         </ol>
       </div>
+    `;
+  }
+
+  function creatorBridgeCopy(localeCode) {
+    return CREATOR_BRIDGE_COPY[localeCode] || CREATOR_BRIDGE_COPY.ko;
+  }
+
+  function renderCreatorAnalyzerBridge(localeCode) {
+    const copy = creatorBridgeCopy(localeCode);
+    const analyzer = CREATOR_ANALYZER_BRIDGE_FIXTURE;
+    return `
+      <section class="su-section su-bridge-section"
+               data-creator-story-analyzer-bridge="true"
+               data-ai-bulk-routes-official="false"
+               data-provider-requested="false">
+        <div class="su-bridge-head">
+          <div>
+            <h2>${escapeHtml(copy.analyzerTitle)}</h2>
+            <p>${escapeHtml(copy.analyzerBody)}</p>
+          </div>
+          <span>${escapeHtml(copy.noMutation)}</span>
+        </div>
+        <div class="su-bridge-grid">
+          <article class="su-bridge-card">
+            <span>${escapeHtml(copy.units.parts)}</span>
+            <strong>${escapeHtml(analyzer.partLengthLabel)}</strong>
+            <p>${escapeHtml(analyzer.branchDensityLabel)}</p>
+          </article>
+          <article class="su-bridge-card">
+            <span>${escapeHtml(copy.officialRoute)}</span>
+            <strong>${escapeHtml(analyzer.mainRouteLabel)}</strong>
+            <p>${escapeHtml(copy.candidateOnly)}</p>
+          </article>
+          <article class="su-bridge-card">
+            <span>${escapeHtml(copy.endingCandidate)}</span>
+            <strong>${escapeHtml(analyzer.endingCandidateLabel)}</strong>
+            <p>${escapeHtml(copy.styleCard)}: ${analyzer.styleCards.map(escapeHtml).join(" / ")}</p>
+          </article>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderStoryScaleMetadataBridge(localeCode) {
+    const copy = creatorBridgeCopy(localeCode);
+    return `
+      <section class="su-section su-bridge-section"
+               data-story-scale-metadata-bridge="true"
+               data-part-char-target="10000"
+               data-volume-part-target="15">
+        <div class="su-bridge-head">
+          <div>
+            <h2>${escapeHtml(copy.scaleTitle)}</h2>
+            <p>${escapeHtml(copy.scaleBody)}</p>
+          </div>
+          <span>${escapeHtml(copy.checklist)}</span>
+        </div>
+        <div class="su-scale-grid">
+          ${STORY_SCALE_METADATA_BRIDGE_FIXTURE.map((scale) => `
+            <article class="su-scale-card">
+              <strong>${escapeHtml(scale.scaleLabel)}</strong>
+              <dl>
+                <div><dt>${escapeHtml(copy.units.books)}</dt><dd>${escapeHtml(scale.books)}</dd></div>
+                <div><dt>${escapeHtml(copy.units.parts)}</dt><dd>${escapeHtml(scale.parts)}</dd></div>
+                <div><dt>${escapeHtml(copy.units.chars)}</dt><dd>${escapeHtml(scale.partChars)}</dd></div>
+              </dl>
+              <ul>
+                ${scale.checklist.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+              </ul>
+            </article>
+          `).join("")}
+        </div>
+      </section>
     `;
   }
 
@@ -936,6 +1102,9 @@
             </article>
           </div>
         </section>
+
+        ${renderCreatorAnalyzerBridge(localeCode)}
+        ${renderStoryScaleMetadataBridge(localeCode)}
 
         <section class="su-grid">
           <div class="su-section">
