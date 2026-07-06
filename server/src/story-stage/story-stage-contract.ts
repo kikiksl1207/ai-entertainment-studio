@@ -1137,9 +1137,31 @@ export const FREE_CHOICE_AI_RESPONSE_BUDGET_GUARD_CONTRACT = {
     maxConnectorCallsPerPart: 1,
     providerCallDuringContractWork: false,
   },
+  runtimeCostGuard: {
+    tokenBudget: {
+      promptInputs: [
+        'currentPartSummary',
+        'previousChoice',
+        'stateSummary',
+      ],
+      full75PartManuscriptAttached: false,
+      maxOutputCharacters: 800,
+    },
+    freeChoiceAiResponseBudget: {
+      maxConnectorCallsPerPart: 1,
+      outputCharacters: '300-800',
+      freeChatEnabled: false,
+      longBodyRegenerationAllowed: false,
+    },
+    endingGenerationLimit: {
+      finalEndingMaxCalls: 1,
+      nonEndingAiGenerationAllowed: false,
+    },
+  },
   mutationPolicy: {
     providerCall: false,
     paymentMutation: false,
+    accountMutation: false,
     storyWrite: false,
     progressWrite: false,
   },
