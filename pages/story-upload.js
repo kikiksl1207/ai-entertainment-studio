@@ -15,7 +15,7 @@
   const UI = {
     ko: {
       title: "작품 업로드",
-      eyebrow: "Story upload",
+      eyebrow: "스토리 업로드",
       meta: "작품 기본 정보",
       scenes: "장면 목록",
       endings: "엔딩 요약",
@@ -35,12 +35,12 @@
         draft: "작가가 원고와 장면 정보를 정리 중이에요.",
         needs_revision: "수정 요청을 확인하고 장면 정보를 보완해요.",
         pm_review: "PM이 저작권과 구조를 확인 중이에요.",
-        locale_ready: "에밀리가 다국어 문구와 길이를 확인해요.",
-        qa_ready: "뷰어와 큐알이 모바일 화면을 확인해요.",
+        locale_ready: "다국어 문구와 길이를 확인해요.",
+        qa_ready: "모바일 화면과 버튼 폭을 확인해요.",
         publish_ready: "발행 전 최종 확인만 남았어요.",
         blocked: "막힌 사유를 확인해야 다음 단계로 갈 수 있어요.",
       },
-      handoff: ["에밀리 다국어", "뷰어 visual", "큐알 QA"],
+      handoff: ["문구 길이 확인", "모바일 화면 확인", "공개 전 최종 점검"],
       labels: {
         storyTitle: "제목",
         genre: "장르",
@@ -109,12 +109,12 @@
         draft: "The writer is preparing manuscript and scene notes.",
         needs_revision: "Review requested changes before the next pass.",
         pm_review: "PM is checking copyright and structure.",
-        locale_ready: "Emily checks localized copy and text length.",
-        qa_ready: "Viewer and QA check mobile screens.",
+        locale_ready: "Localized copy and text length are being checked.",
+        qa_ready: "Mobile screens and button widths are being checked.",
         publish_ready: "Only final confirmation remains.",
         blocked: "Resolve the blocking reason before moving on.",
       },
-      handoff: ["Emily locale", "Viewer visual", "QA mobile"],
+      handoff: ["Copy length check", "Mobile screen check", "Final pre-publish check"],
       labels: {
         storyTitle: "Title",
         genre: "Genre",
@@ -163,7 +163,7 @@
     },
     ja: {
       title: "作品アップロード",
-      eyebrow: "Story upload",
+      eyebrow: "ストーリーアップロード",
       meta: "作品基本情報",
       scenes: "シーン一覧",
       endings: "エンディング要約",
@@ -183,12 +183,12 @@
         draft: "作家が原稿とシーン情報を整理しています。",
         needs_revision: "修正依頼を確認して補完します。",
         pm_review: "PMが著作権と構成を確認しています。",
-        locale_ready: "エミリーが多言語文言と長さを確認します。",
-        qa_ready: "ビューアとQAがモバイル画面を確認します。",
+        locale_ready: "多言語文言と長さを確認しています。",
+        qa_ready: "モバイル画面とボタン幅を確認しています。",
         publish_ready: "公開前の最終確認だけが残っています。",
         blocked: "停止理由の確認が必要です。",
       },
-      handoff: ["エミリー多言語", "ビューア確認", "QA確認"],
+      handoff: ["文言の長さ確認", "モバイル画面確認", "公開前の最終確認"],
       labels: {
         storyTitle: "タイトル",
         genre: "ジャンル",
@@ -237,7 +237,7 @@
     },
     "zh-Hans": {
       title: "作品上传",
-      eyebrow: "Story upload",
+      eyebrow: "故事上传",
       meta: "作品信息",
       scenes: "场景列表",
       endings: "结局摘要",
@@ -257,12 +257,12 @@
         draft: "作者正在整理稿件和场景信息。",
         needs_revision: "请确认修改请求并补充信息。",
         pm_review: "PM正在确认版权和结构。",
-        locale_ready: "Emily确认多语言文案和长度。",
-        qa_ready: "Viewer和QA确认移动端画面。",
+        locale_ready: "正在确认多语言文案和长度。",
+        qa_ready: "正在确认移动端画面和按钮宽度。",
         publish_ready: "只剩发布前最终确认。",
         blocked: "需要先确认阻塞原因。",
       },
-      handoff: ["Emily多语言", "Viewer视觉", "QA移动端"],
+      handoff: ["文案长度确认", "移动端画面确认", "发布前最终确认"],
       labels: {
         storyTitle: "标题",
         genre: "类型",
@@ -311,7 +311,7 @@
     },
     "zh-Hant": {
       title: "作品上傳",
-      eyebrow: "Story upload",
+      eyebrow: "故事上傳",
       meta: "作品資訊",
       scenes: "場景列表",
       endings: "結局摘要",
@@ -331,12 +331,12 @@
         draft: "作者正在整理稿件與場景資訊。",
         needs_revision: "請確認修改要求並補充資訊。",
         pm_review: "PM正在確認版權與結構。",
-        locale_ready: "Emily確認多語文案與長度。",
-        qa_ready: "Viewer與QA確認行動版畫面。",
+        locale_ready: "正在確認多語文案與長度。",
+        qa_ready: "正在確認行動版畫面與按鈕寬度。",
         publish_ready: "只剩發布前最終確認。",
         blocked: "需要先確認阻塞原因。",
       },
-      handoff: ["Emily多語", "Viewer視覺", "QA行動版"],
+      handoff: ["文案長度確認", "行動版畫面確認", "發布前最終確認"],
       labels: {
         storyTitle: "標題",
         genre: "類型",
@@ -396,12 +396,12 @@
       onboardingTitle: "작가 업로드 안내",
       onboardingBody: "긴 본문 원고를 먼저 쓰고, 분기점만 선택지로 표시해요.",
       onboardingSteps: ["본문 원고", "분기점", "장면 연결"],
-      referenceTitle: "PM/QA reference",
+      referenceTitle: "검수 참고 링크",
       referenceNote: "검수자가 확인하는 읽기 전용 위치예요. 서비스 CTA가 아니며 저장하지 않아요.",
       referenceLinks: [
-        { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
-        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
-        { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
+        { label: "오늘의 보드", href: "/story-upload?cloudQa=pm-daily" },
+        { label: "업로드 미리보기", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "장면 미리보기", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
         title: "AI 보조 결말 안내",
@@ -440,11 +440,11 @@
       onboardingTitle: "Writer upload guide",
       onboardingBody: "Draft the long manuscript; mark only branch points.",
       onboardingSteps: ["Manuscript", "Branch points", "Scene links"],
-      referenceTitle: "PM/QA reference",
+      referenceTitle: "Review links",
       referenceNote: "Read-only checkpoints for reviewers. These are not service CTAs and nothing is saved.",
       referenceLinks: [
         { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
-        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "Upload preview", href: "/story-upload?cloudQa=upload-panel" },
         { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
@@ -484,12 +484,12 @@
       onboardingTitle: "作家アップロード案内",
       onboardingBody: "長い本文原稿を書き、分岐点だけ選択肢にします。",
       onboardingSteps: ["本文原稿", "分岐点", "シーン接続"],
-      referenceTitle: "PM/QA reference",
+      referenceTitle: "レビュー用リンク",
       referenceNote: "検収担当者向けの読み取り専用位置です。サービスCTAではなく保存もしません。",
       referenceLinks: [
-        { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
-        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
-        { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
+        { label: "今日のボード", href: "/story-upload?cloudQa=pm-daily" },
+        { label: "アップロードプレビュー", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "シーンプレビュー", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
         title: "補助エンディング案内",
@@ -505,7 +505,7 @@
         author_sub: "作家サブ終了",
         ai_fallback: "AI補助終了",
       },
-      importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
+      importHead: ["シーン", "分岐", "終了種別", "パート数", "分岐要約上限", "状態"],
       choices: [
         { label: "A", tone: "info", text: "記録を先に確認する", next: "S05", result: "情報 + 信頼上昇", rejoin: "S09で再合流", tags: ["情報", "信頼"] },
         { label: "B", tone: "risk", text: "伝令について行く", next: "S06", result: "危険 + アイテム取得", rejoin: "S09で再合流", tags: ["危険", "アイテム"] },
@@ -528,12 +528,12 @@
       onboardingTitle: "作者上传指引",
       onboardingBody: "先写长篇正文稿，再只把分支点标为选项。",
       onboardingSteps: ["正文稿", "分支点", "场景连接"],
-      referenceTitle: "PM/QA reference",
+      referenceTitle: "审核参考链接",
       referenceNote: "供检收人员查看的只读位置。不是服务CTA，也不会保存。",
       referenceLinks: [
-        { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
-        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
-        { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
+        { label: "今日看板", href: "/story-upload?cloudQa=pm-daily" },
+        { label: "上传预览", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "场景预览", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
         title: "辅助结局说明",
@@ -549,7 +549,7 @@
         author_sub: "作者支线结局",
         ai_fallback: "AI辅助结局",
       },
-      importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
+      importHead: ["场景", "分支", "结局类型", "部分数", "分支摘要上限", "状态"],
       choices: [
         { label: "A", tone: "info", text: "先确认记录", next: "S05", result: "信息 + 信任提升", rejoin: "S09再汇合", tags: ["信息", "信任"] },
         { label: "B", tone: "risk", text: "跟随传令", next: "S06", result: "风险 + 获得道具", rejoin: "S09再汇合", tags: ["风险", "道具"] },
@@ -572,12 +572,12 @@
       onboardingTitle: "作者上傳指引",
       onboardingBody: "先寫長篇正文稿，再只把分支點標為選項。",
       onboardingSteps: ["正文稿", "分支點", "場景連接"],
-      referenceTitle: "PM/QA reference",
+      referenceTitle: "審核參考連結",
       referenceNote: "供檢收人員查看的唯讀位置。不是服務CTA，也不會儲存。",
       referenceLinks: [
-        { label: "Daily board", href: "/story-upload?cloudQa=pm-daily" },
-        { label: "Story upload", href: "/story-upload?cloudQa=upload-panel" },
-        { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
+        { label: "今日看板", href: "/story-upload?cloudQa=pm-daily" },
+        { label: "上傳預覽", href: "/story-upload?cloudQa=upload-panel" },
+        { label: "場景預覽", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
         title: "輔助結局說明",
@@ -593,7 +593,7 @@
         author_sub: "作者支線結局",
         ai_fallback: "AI輔助結局",
       },
-      importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
+      importHead: ["場景", "分支", "結局類型", "部分數", "分支摘要上限", "狀態"],
       choices: [
         { label: "A", tone: "info", text: "先確認記錄", next: "S05", result: "資訊 + 信任提升", rejoin: "S09再匯合", tags: ["資訊", "信任"] },
         { label: "B", tone: "risk", text: "跟隨傳令", next: "S06", result: "風險 + 獲得道具", rejoin: "S09再匯合", tags: ["風險", "道具"] },
@@ -720,7 +720,10 @@
     root.innerHTML = `
       <div class="su-shell"
            data-story-upload-public-build-marker="story-upload-public-2026-07-05"
-           data-reflection-status="public">
+           data-reflection-status="public"
+           data-part-length-target="10000"
+           data-branch-summary-limit="2000"
+           data-short-drama-part-count="10">
         <header class="su-header">
           <div class="su-title-group">
             <p class="su-eyebrow">${escapeHtml(locale.eyebrow)}</p>
@@ -861,14 +864,20 @@
               <label class="su-field"><span>${escapeHtml(locale.labels.sceneId)}</span><input name="sceneId" value="S04" readonly /></label>
               <label class="su-field"><span>${escapeHtml(locale.labels.sceneTitle)}</span><input name="sceneTitle" value="새 분기 장면" readonly /></label>
             </div>
-            <details open>
+            <details open
+                     data-public-asset-id="scene.background.upload-preview"
+                     data-public-asset-label="storyUpload.preview.background"
+                     data-scene-use="background">
               <summary>${escapeHtml(locale.labels.background)}</summary>
               <div>
                 <textarea name="background" rows="2" readonly>${escapeHtml(locale.sample.background)}</textarea>
                 <input name="bgImageMemo" value="${escapeHtml(locale.sample.bgMemo)}" readonly />
               </div>
             </details>
-            <details>
+            <details
+              data-public-asset-id="character.upload-preview.cast"
+              data-public-asset-label="storyUpload.preview.cast"
+              data-scene-use="character">
               <summary>${escapeHtml(locale.labels.cast)}</summary>
               <div><input value="이순신, 기록관, 전령" readonly /></div>
             </details>
