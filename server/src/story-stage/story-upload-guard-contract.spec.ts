@@ -978,7 +978,9 @@ describe('Story upload backend guard contracts', () => {
     ).toEqual(
       expect.arrayContaining([
         'publish_ready_without_qa_pass',
+        'publish_ready_bypassed_without_qa_pass',
         'blocked_reason_key_dropped',
+        'raw_blocked_reason_key_visible',
         'penalty_policy_enabled_before_pm_decision',
       ]),
     );
@@ -986,10 +988,79 @@ describe('Story upload backend guard contracts', () => {
       STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.mutationPolicy,
     ).toMatchObject({
       publishMutation: false,
+      penaltyMutation: false,
       paymentMutation: false,
       walletMutation: false,
       notificationMutation: false,
     });
+  });
+
+  it('guards live asset marker source QA evidence for #1697', () => {
+    expect(
+      STORY_UPLOAD_BACKEND_GUARD_CONTRACT.liveAssetVersionStampGuard,
+    ).toBe(STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT);
+    expect(
+      STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT.requiredPublicMarkerDetails,
+    ).toMatchObject({
+      storyStage: {
+        markerAttribute: 'data-story-stage-public-build-marker',
+        publicBuildId: 'story-stage-public-2026-07-05',
+        reflectionStatus: 'public',
+      },
+      storyUpload: {
+        markerAttribute: 'data-story-upload-public-build-marker',
+        publicBuildId: 'story-upload-public-2026-07-05',
+        reflectionStatus: 'public',
+      },
+    });
+    expect(STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT.markerPolicy).toMatchObject({
+      visibleToUsers: false,
+      safeIfExposed: true,
+      sourceLocalPassLiveFailEvidenceSeparated: true,
+    });
+    expect(
+      STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT.forbiddenMarkerFields,
+    ).toEqual(
+      expect.arrayContaining([
+        'token',
+        'password',
+        'cookie',
+        'apiKey',
+        'dbUrl',
+        'rawEmail',
+        'providerPayload',
+        'localPath',
+      ]),
+    );
+    expect(
+      Object.values(
+        STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT.mutationPolicy,
+      ).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('keeps publish-ready review source QA evidence for #1698', () => {
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT
+        .publishReadyReviewGate,
+    ).toMatchObject({
+      requiresQaPass: true,
+      blockedStatesRequireReasonKey: ['reviewRequired', 'blocked'],
+      rawReasonKeyVisibleInPublicCopy: false,
+      penaltyMutation: false,
+      paymentMutation: false,
+      walletMutation: false,
+      notificationMutation: false,
+    });
+    expect(
+      STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT.failureConditions,
+    ).toEqual(
+      expect.arrayContaining([
+        'publish_ready_without_qa_pass',
+        'publish_ready_bypassed_without_qa_pass',
+        'raw_blocked_reason_key_visible',
+      ]),
+    );
   });
 
   it('keeps blocked-state review followups disabled until PM decision for #1657', () => {

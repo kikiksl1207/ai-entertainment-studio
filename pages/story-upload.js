@@ -851,7 +851,7 @@
 
     root.innerHTML = `
       <div class="su-shell"
-           data-story-upload-public-build-marker="story-upload-public-2026-07-04"
+           data-story-upload-public-build-marker="story-upload-public-2026-07-05"
            data-reflection-status="public"
            data-part-length-target="10000"
            data-branch-summary-limit="2000"

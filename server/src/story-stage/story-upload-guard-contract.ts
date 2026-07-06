@@ -829,9 +829,11 @@ export const STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT = {
   },
   failureConditions: [
     'publish_ready_without_qa_pass',
+    'publish_ready_bypassed_without_qa_pass',
     'publish_ready_from_non_qa_ready_state',
     'blocked_without_blocker_reason_key',
     'blocked_reason_key_dropped',
+    'raw_blocked_reason_key_visible',
     'penalty_policy_enabled_before_pm_decision',
     'publish_ready_bypassed_without_qa_pass',
     'raw_blocked_reason_key_visible',
@@ -841,6 +843,7 @@ export const STORY_UPLOAD_REVIEW_STATE_TRANSITION_GUARD_CONTRACT = {
   mutationPolicy: {
     publishMutation: false,
     providerCall: false,
+    penaltyMutation: false,
     paymentMutation: false,
     walletMutation: false,
     notificationMutation: false,
@@ -1060,11 +1063,33 @@ export const STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT = {
     storyStage: 'data-story-stage-public-build-marker',
     storyUpload: 'data-story-upload-public-build-marker',
   },
+  requiredPublicMarkerDetails: {
+    storyStage: {
+      selector: '.story-preview-banner',
+      markerAttribute: 'data-story-stage-public-build-marker',
+      publicBuildId: 'story-stage-public-2026-07-05',
+      reflectionStatusAttribute: 'data-reflection-status',
+      reflectionStatus: 'public',
+    },
+    storyUpload: {
+      selector: '.su-shell',
+      markerAttribute: 'data-story-upload-public-build-marker',
+      publicBuildId: 'story-upload-public-2026-07-05',
+      reflectionStatusAttribute: 'data-reflection-status',
+      reflectionStatus: 'public',
+    },
+  },
   allowedMarkerFields: [
     'surface',
     'publicBuildId',
     'reflectionStatus',
   ],
+  markerPolicy: {
+    visibleToUsers: false,
+    safeIfExposed: true,
+    cacheBustEvidenceOnly: true,
+    sourceLocalPassLiveFailEvidenceSeparated: true,
+  },
   forbiddenMarkerFields: [
     'token',
     'password',
@@ -1074,6 +1099,13 @@ export const STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT = {
     'branchSecret',
     'rawEmail',
     'providerPayload',
+    'localPath',
+  ],
+  failureConditions: [
+    'public_build_marker_missing',
+    'reflection_status_marker_missing',
+    'secret_or_private_field_in_public_marker',
+    'source_local_pass_live_fail_evidence_missing',
   ],
   copyPolicy: {
     visibleToUsers: false,
@@ -1084,6 +1116,7 @@ export const STORY_LIVE_ASSET_VERSION_STAMP_GUARD_CONTRACT = {
     storyWrite: false,
     providerCall: false,
     assetUpload: false,
+    deployMutation: false,
     paymentMutation: false,
     accountMutation: false,
   },
