@@ -1031,6 +1031,120 @@ export const STORY_SCENE_ASSET_READ_MODEL_CONTRACT = {
   },
 } as const;
 
+export const FREE_STORY_STATE_ACCUMULATOR_CONTRACT = {
+  version: '2026-07-06.free-story-state-accumulator.v1',
+  status: 'source_static_contract_only',
+  storyScope: {
+    pricingMode: 'free',
+    targetPartCount: 75,
+    choicesPerPart: 3,
+    routeExplosionAllowed: false,
+    stateValueAccumulationRequired: true,
+  },
+  stateKeys: [
+    'yiSunshinTrust',
+    'tacticalContribution',
+    'civilianRescue',
+    'recordTruth',
+    'politicalRisk',
+    'troopLoss',
+    'legacyRecordImpact',
+  ],
+  convergencePolicy: {
+    macroRouteConvergenceAllowed: true,
+    stateSummaryRequiredAfterConvergence: true,
+    epiloguePersonalizationUsesAccumulatedState: true,
+    identicalRouteWithoutStateDeltaFails: true,
+  },
+  evidenceKeys: [
+    'choiceId',
+    'partNo',
+    'stateDeltaKey',
+    'stateSummaryKey',
+    'endingPersonalizationBasisKey',
+  ],
+  mutationPolicy: {
+    storyWrite: false,
+    providerCall: false,
+    paymentMutation: false,
+    freeChatMutation: false,
+  },
+} as const;
+
+export const FREE_ENDING_PERSONALIZATION_COST_GUARD_CONTRACT = {
+  version: '2026-07-06.free-ending-personalization-cost-guard.v1',
+  status: 'source_static_cost_guard_only',
+  baseFlowPolicy: {
+    partBodySource: 'static',
+    choiceResultSource: 'static_or_budgeted_connector',
+    finalEndingAiGenerationAllowed: true,
+    finalEndingAiGenerationMaxCalls: 1,
+    nonEndingAiGenerationAllowed: false,
+  },
+  allowedEndingPromptInputs: [
+    'accumulatedStateSummary',
+    'finalChoiceId',
+    'macroEndingType',
+    'companionStateSummary',
+  ],
+  forbiddenEndingPromptInputs: [
+    'full75PartManuscript',
+    'rawUserAccountData',
+    'rawEmail',
+    'providerPayload',
+    'paymentData',
+  ],
+  costTargetKrwPerUser: {
+    min: 5,
+    max: 30,
+    intendedModelTiers: ['mini', 'nano'],
+    evidenceKey: 'freeEndingPersonalizationCostKrwEstimate',
+  },
+  mutationPolicy: {
+    storyWrite: false,
+    providerCall: false,
+    paymentMutation: false,
+    walletMutation: false,
+  },
+} as const;
+
+export const FREE_CHOICE_AI_RESPONSE_BUDGET_GUARD_CONTRACT = {
+  version: '2026-07-06.free-choice-ai-response-budget-guard.v1',
+  status: 'source_static_budget_guard_only',
+  connectorPolicy: {
+    trigger: 'after_part_choice',
+    minCharacters: 300,
+    maxCharacters: 800,
+    allowedOutputSlices: ['shortResult', 'emotionBeat', 'stateDeltaSummary'],
+    freeChatAllowed: false,
+    longBodyRegenerationAllowed: false,
+    fullPreviousManuscriptContextAllowed: false,
+  },
+  blockedContextInputs: [
+    'freeChatThread',
+    'tenThousandCharacterBodyRegeneration',
+    'fullPreviousManuscript',
+    'rawPrompt',
+    'providerPayload',
+  ],
+  costEvidenceKeys: [
+    'choiceConnectorCallCount',
+    'choiceConnectorTokenEstimate',
+    'freeStoryCompletionCostEstimate',
+  ],
+  budgetEnvelope: {
+    maxPartsTracked: 75,
+    maxConnectorCallsPerPart: 1,
+    providerCallDuringContractWork: false,
+  },
+  mutationPolicy: {
+    providerCall: false,
+    paymentMutation: false,
+    storyWrite: false,
+    progressWrite: false,
+  },
+} as const;
+
 export const STORY_STAGE_CONTRACT = {
   version: '2026-06-18.story-stage-contract.v1',
   freePrologueEntitlementGuard: STORY_STAGE_FREE_PROLOGUE_ENTITLEMENT_GUARD,
@@ -1048,6 +1162,11 @@ export const STORY_STAGE_CONTRACT = {
     STORY_STAGE_AUTHOR_SETTLEMENT_REFUND_READ_MODEL,
   sceneAssetReadModel: STORY_SCENE_ASSET_READ_MODEL_CONTRACT,
   storySceneReadModel: STORY_SCENE_READ_MODEL_CONTRACT,
+  freeStoryStateAccumulator: FREE_STORY_STATE_ACCUMULATOR_CONTRACT,
+  freeEndingPersonalizationCostGuard:
+    FREE_ENDING_PERSONALIZATION_COST_GUARD_CONTRACT,
+  freeChoiceAiResponseBudgetGuard:
+    FREE_CHOICE_AI_RESPONSE_BUDGET_GUARD_CONTRACT,
   storyShortsRouteRelocation: STORY_SHORTS_ROUTE_RELOCATION_CONTRACT,
   storyStageI18nRuntimeExposure: STORY_STAGE_I18N_RUNTIME_EXPOSURE_CONTRACT,
   storyStageMobileSafeArea: STORY_STAGE_MOBILE_SAFE_AREA_CONTRACT,

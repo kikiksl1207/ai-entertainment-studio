@@ -1,4 +1,7 @@
 import {
+  FREE_CHOICE_AI_RESPONSE_BUDGET_GUARD_CONTRACT,
+  FREE_ENDING_PERSONALIZATION_COST_GUARD_CONTRACT,
+  FREE_STORY_STATE_ACCUMULATOR_CONTRACT,
   STORY_STAGE_AI_ARTIST_SETTLEMENT_SPLIT_SKELETON,
   STORY_STAGE_AUTHOR_REVENUE_READ_MODEL_CONTRACT,
   STORY_STAGE_AUTHOR_INTERRUPTION_REFUND_PENALTY_READ_MODEL,
@@ -805,6 +808,123 @@ describe('Story Stage contract skeleton', () => {
       Object.values(readModel.mutationPolicy).every(
         (enabled) => enabled === false,
       ),
+    ).toBe(true);
+  });
+
+  it('accumulates free story choice state without route explosion for #1707', () => {
+    const contract = FREE_STORY_STATE_ACCUMULATOR_CONTRACT;
+
+    expect(STORY_STAGE_CONTRACT.freeStoryStateAccumulator).toBe(contract);
+    expect(contract.storyScope).toMatchObject({
+      pricingMode: 'free',
+      targetPartCount: 75,
+      choicesPerPart: 3,
+      routeExplosionAllowed: false,
+      stateValueAccumulationRequired: true,
+    });
+    expect(contract.stateKeys).toEqual(
+      expect.arrayContaining([
+        'yiSunshinTrust',
+        'tacticalContribution',
+        'civilianRescue',
+        'recordTruth',
+        'politicalRisk',
+        'troopLoss',
+        'legacyRecordImpact',
+      ]),
+    );
+    expect(contract.convergencePolicy).toMatchObject({
+      macroRouteConvergenceAllowed: true,
+      stateSummaryRequiredAfterConvergence: true,
+      epiloguePersonalizationUsesAccumulatedState: true,
+      identicalRouteWithoutStateDeltaFails: true,
+    });
+    expect(contract.evidenceKeys).toEqual(
+      expect.arrayContaining([
+        'choiceId',
+        'partNo',
+        'stateDeltaKey',
+        'stateSummaryKey',
+        'endingPersonalizationBasisKey',
+      ]),
+    );
+    expect(
+      Object.values(contract.mutationPolicy).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('limits free ending personalization to one budgeted ending call for #1708', () => {
+    const contract = FREE_ENDING_PERSONALIZATION_COST_GUARD_CONTRACT;
+
+    expect(STORY_STAGE_CONTRACT.freeEndingPersonalizationCostGuard).toBe(contract);
+    expect(contract.baseFlowPolicy).toMatchObject({
+      partBodySource: 'static',
+      finalEndingAiGenerationAllowed: true,
+      finalEndingAiGenerationMaxCalls: 1,
+      nonEndingAiGenerationAllowed: false,
+    });
+    expect(contract.allowedEndingPromptInputs).toEqual([
+      'accumulatedStateSummary',
+      'finalChoiceId',
+      'macroEndingType',
+      'companionStateSummary',
+    ]);
+    expect(contract.forbiddenEndingPromptInputs).toEqual(
+      expect.arrayContaining([
+        'full75PartManuscript',
+        'rawUserAccountData',
+        'rawEmail',
+        'providerPayload',
+        'paymentData',
+      ]),
+    );
+    expect(contract.costTargetKrwPerUser).toMatchObject({
+      min: 5,
+      max: 30,
+      intendedModelTiers: ['mini', 'nano'],
+      evidenceKey: 'freeEndingPersonalizationCostKrwEstimate',
+    });
+    expect(
+      Object.values(contract.mutationPolicy).every((enabled) => enabled === false),
+    ).toBe(true);
+  });
+
+  it('keeps free choice AI connector responses within a small budget for #1709', () => {
+    const contract = FREE_CHOICE_AI_RESPONSE_BUDGET_GUARD_CONTRACT;
+
+    expect(STORY_STAGE_CONTRACT.freeChoiceAiResponseBudgetGuard).toBe(contract);
+    expect(contract.connectorPolicy).toMatchObject({
+      trigger: 'after_part_choice',
+      minCharacters: 300,
+      maxCharacters: 800,
+      allowedOutputSlices: ['shortResult', 'emotionBeat', 'stateDeltaSummary'],
+      freeChatAllowed: false,
+      longBodyRegenerationAllowed: false,
+      fullPreviousManuscriptContextAllowed: false,
+    });
+    expect(contract.blockedContextInputs).toEqual(
+      expect.arrayContaining([
+        'freeChatThread',
+        'tenThousandCharacterBodyRegeneration',
+        'fullPreviousManuscript',
+        'rawPrompt',
+        'providerPayload',
+      ]),
+    );
+    expect(contract.costEvidenceKeys).toEqual(
+      expect.arrayContaining([
+        'choiceConnectorCallCount',
+        'choiceConnectorTokenEstimate',
+        'freeStoryCompletionCostEstimate',
+      ]),
+    );
+    expect(contract.budgetEnvelope).toMatchObject({
+      maxPartsTracked: 75,
+      maxConnectorCallsPerPart: 1,
+      providerCallDuringContractWork: false,
+    });
+    expect(
+      Object.values(contract.mutationPolicy).every((enabled) => enabled === false),
     ).toBe(true);
   });
 });
