@@ -284,6 +284,27 @@
       "zh-CN": "结局条件",
       "zh-Hant": "結局條件",
     },
+    "storyStage.discovery.empty.title": {
+      "ko-KR": "조건에 맞는 스토리가 아직 없어요.",
+      "ja-JP": "条件に合うストーリーはまだありません。",
+      "en-US": "No stories match this view yet.",
+      "zh-CN": "还没有符合条件的故事。",
+      "zh-Hant": "還沒有符合條件的故事。",
+    },
+    "storyStage.discovery.empty.body": {
+      "ko-KR": "필터를 넓히거나 무료 프롤로그에서 먼저 분위기를 확인해 보세요.",
+      "ja-JP": "フィルターを広げるか、無料プロローグから雰囲気を確認してください。",
+      "en-US": "Widen the filter or start with a free prologue.",
+      "zh-CN": "放宽筛选，或先从免费序章确认氛围。",
+      "zh-Hant": "放寬篩選，或先從免費序章確認氛圍。",
+    },
+    "storyStage.discovery.empty.cta": {
+      "ko-KR": "추천 스토리 보기",
+      "ja-JP": "おすすめを見る",
+      "en-US": "Show recommended",
+      "zh-CN": "查看推荐故事",
+      "zh-Hant": "查看推薦故事",
+    },
   });
 
   const STORY_LOCALES = [
@@ -461,8 +482,8 @@
       riskLabel: "낮은 위험으로 증거를 확인합니다.",
       infoSummary: "Hidden archive clue unlocked.",
       infoLabel: "숨은 보관실 단서를 얻습니다.",
-      endingCandidate: "Author sub ending E-SUB-01",
-      endingCandidateLabel: "작가가 준비한 보조 결말 후보 E-SUB-01",
+      endingCandidate: "Author side ending",
+      endingCandidateLabel: "작가가 준비한 보조 결말 후보",
       chatLine: "The record room lights up. The safer clue path is open.",
       chatLineLabel: "기록 보관실에 불이 들어오고 안전한 단서 경로가 열립니다.",
       rejoin: "S09",
@@ -499,8 +520,8 @@
       riskLabel: "위험이 커지고 봉인된 지도를 얻습니다.",
       infoSummary: "Sealed map item acquired.",
       infoLabel: "봉인된 지도 아이템을 확보합니다.",
-      endingCandidate: "Author sub ending E-SUB-02",
-      endingCandidateLabel: "작가가 준비한 보조 결말 후보 E-SUB-02",
+      endingCandidate: "Author side ending",
+      endingCandidateLabel: "작가가 준비한 보조 결말 후보",
       chatLine: "The harbor wind cuts in. Following them raises the risk.",
       chatLineLabel: "항구 바람이 거세지고 추적 선택의 위험이 커집니다.",
       rejoin: "S09",
@@ -537,8 +558,8 @@
       riskLabel: "중간 위험의 미해결 경로입니다.",
       infoSummary: "Missing author ending is visible.",
       infoLabel: "작가 결말이 없는 분기임을 확인합니다.",
-      endingCandidate: "AI 보조 결말 후보 E-AI-01",
-      endingCandidateLabel: "작가 결말이 없을 때만 쓰는 보조 결말 후보 E-AI-01",
+      endingCandidate: "AI-assisted ending candidate",
+      endingCandidateLabel: "작가 결말이 없을 때만 쓰는 보조 결말 후보",
       chatLine: "The shore goes quiet. This branch needs helper ending review.",
       chatLineLabel: "해안이 조용해지고 이 분기는 보조 결말 검토가 필요합니다.",
       rejoin: "No rejoin before helper ending review",
@@ -575,6 +596,47 @@
       note: "검수 필요",
     },
   ];
+
+  const FREE_STORY_STATE_LABELS = Object.freeze([
+    { key: "tactic", label: { "ko-KR": "전술", "en-US": "Tactics", "ja-JP": "戦術", "zh-CN": "战术", "zh-Hant": "戰術" }, body: { "ko-KR": "정면 돌파보다 기록을 확인하고 안전한 길을 고르는 성향이 쌓이고 있어요.", "en-US": "Your run is leaning toward checking records and choosing safer routes.", "ja-JP": "記録を確認し安全な道を選ぶ傾向が積み上がっています。", "zh-CN": "你的路线正在累积确认记录并选择安全路径的倾向。", "zh-Hant": "你的路線正在累積確認記錄並選擇安全路徑的傾向。" } },
+    { key: "civil", label: { "ko-KR": "민간", "en-US": "Civilians", "ja-JP": "民間", "zh-CN": "民众", "zh-Hant": "民眾" }, body: { "ko-KR": "피해를 줄이는 선택이 많아 마을의 지지가 안정적으로 남아 있습니다.", "en-US": "Choices that reduce harm keep village support steady.", "ja-JP": "被害を抑える選択で村の支持が安定しています。", "zh-CN": "减少损害的选择让村落支持保持稳定。", "zh-Hant": "減少損害的選擇讓村落支持保持穩定。" } },
+    { key: "record", label: { "ko-KR": "기록", "en-US": "Records", "ja-JP": "記録", "zh-CN": "记录", "zh-Hant": "記錄" }, body: { "ko-KR": "남긴 증언과 단서가 후반부 평가 문단의 근거가 됩니다.", "en-US": "Testimony and clues become the basis for later evaluation text.", "ja-JP": "残した証言と手掛かりが後半の評価文の根拠になります。", "zh-CN": "留下的证言和线索会成为后段评价的依据。", "zh-Hant": "留下的證言和線索會成為後段評價的依據。" } },
+    { key: "politics", label: { "ko-KR": "정치", "en-US": "Court", "ja-JP": "政治", "zh-CN": "朝堂", "zh-Hant": "朝堂" }, body: { "ko-KR": "권력자와의 거리는 신중하지만, 보고 흐름은 끊기지 않았습니다.", "en-US": "Distance from officials is careful, while reports still move forward.", "ja-JP": "権力者との距離は慎重ですが、報告は続いています。", "zh-CN": "与权力者保持谨慎距离，但汇报没有中断。", "zh-Hant": "與權力者保持謹慎距離，但回報沒有中斷。" } },
+    { key: "trust", label: { "ko-KR": "신뢰", "en-US": "Trust", "ja-JP": "信頼", "zh-CN": "信任", "zh-Hant": "信任" }, body: { "ko-KR": "동행 캐릭터가 더 많은 정보를 먼저 말해줄 만큼 신뢰가 올라갔습니다.", "en-US": "Your companion trusts you enough to share more information first.", "ja-JP": "同行者が先に情報を話すほど信頼が上がりました。", "zh-CN": "同行角色已经信任到会先说出更多信息。", "zh-Hant": "同行角色已經信任到會先說出更多資訊。" } },
+  ]);
+
+  const FREE_STORY_CHOICE_RESULTS = Object.freeze([
+    {
+      label: "A",
+      title: { "ko-KR": "기록을 먼저 확인한다", "en-US": "Check the record first", "ja-JP": "記録を先に確認する", "zh-CN": "先确认记录", "zh-Hant": "先確認記錄" },
+      bridge: {
+        "ko-KR": "낡은 장부의 끝장을 넘기자 누락된 전령 이름과 비어 있던 보급 길이 한 줄로 이어집니다. 이 선택은 전투를 바로 밀어붙이지 않고 증거를 모아 위험을 낮추는 흐름으로 남아요. 동행 캐릭터는 당신이 놓치지 않은 기록을 믿고 다음 장면에서 먼저 말을 꺼냅니다. 항구로 가는 길은 조금 늦어지지만 민간 피해를 줄일 실마리가 생기고, 후반부에는 이 판단이 평가 문단의 근거가 됩니다. 지금까지 쌓인 전술, 민간, 기록, 신뢰 성향도 함께 갱신되어 같은 큰 결말 안에서도 후일담의 어조가 달라집니다. 이어지는 장면은 짧은 연결부로만 열리며, 긴 자유 대화나 원고 재생성 없이 관계와 정보 변화만 정리합니다.",
+        "en-US": "When you turn the last page of the ledger, the missing messenger name connects to the quiet supply route. This choice keeps the run evidence-first instead of charging into battle. Your companion trusts the record you caught and speaks first in the next scene. The bridge stays short and only summarizes relation and information changes.",
+        "ja-JP": "古い帳簿の最後をめくると、抜けていた伝令の名と補給路がつながります。戦闘を急がず証拠を集める選択として残り、同行者は記録を信じて次の場面で先に話します。",
+        "zh-CN": "翻到旧账册的最后一页，缺失的传令姓名和补给路线连成一线。这个选择不会立刻推进战斗，而是留下收集证据、降低风险的走向。",
+        "zh-Hant": "翻到舊帳冊的最後一頁，缺失的傳令姓名和補給路線連成一線。這個選擇不會立刻推進戰鬥，而是留下收集證據、降低風險的走向。"
+      },
+      changes: [
+        { label: { "ko-KR": "관계", "en-US": "Trust" }, value: { "ko-KR": "전령이 먼저 단서를 공유", "en-US": "Messenger shares first" } },
+        { label: { "ko-KR": "위험", "en-US": "Risk" }, value: { "ko-KR": "무리한 돌입을 피함", "en-US": "Avoids a rush" } },
+        { label: { "ko-KR": "기록", "en-US": "Record" }, value: { "ko-KR": "누락 증언 확보", "en-US": "Missing testimony kept" } },
+      ],
+    },
+  ]);
+
+  const PERSONALIZED_ENDING_RESULT = Object.freeze({
+    type: { "ko-KR": "작가 기본 결말", "en-US": "Writer main ending", "ja-JP": "作家基本終了", "zh-CN": "作者主线结局", "zh-Hant": "作者主線結局" },
+    title: { "ko-KR": "기록을 지킨 항로", "en-US": "The route that kept the record", "ja-JP": "記録を守った航路", "zh-CN": "守住记录的航路", "zh-Hant": "守住記錄的航路" },
+    evaluation: { "ko-KR": "이순신은 성급한 승리보다 증거와 사람을 함께 지킨 선택을 높게 평가합니다.", "en-US": "Yi Sun-sin values the choice that protected evidence and people over a hasty victory.", "ja-JP": "李舜臣は急いだ勝利より証拠と人を守った選択を評価します。", "zh-CN": "李舜臣评价你守住证据与人的选择高于急躁的胜利。", "zh-Hant": "李舜臣評價你守住證據與人的選擇高於急躁的勝利。" },
+    record: { "ko-KR": "후대 기록에는 작은 보급로를 확인한 판단이 전투 전야의 균형을 바꾼 장면으로 남습니다.", "en-US": "Later records remember the supply-route check as the moment that shifted the eve of battle.", "ja-JP": "後代の記録には補給路確認が戦い前夜を変えた場面として残ります。", "zh-CN": "后世记录会把补给路确认写成改变战前夜的场面。", "zh-Hant": "後世記錄會把補給路確認寫成改變戰前夜的場面。" },
+    companion: { "ko-KR": "전령은 마지막까지 같은 편에 서서 다음 이야기에 남길 증언을 정리합니다.", "en-US": "The messenger stays with you and prepares testimony for the next story.", "ja-JP": "伝令は最後まで味方に立ち、次の物語へ証言を整えます。", "zh-CN": "传令会站在你这边，整理留给下一段故事的证言。", "zh-Hant": "傳令會站在你這邊，整理留給下一段故事的證言。" },
+  });
+
+  const STORY_ENDING_SHARE_COPY = Object.freeze({
+    title: { "ko-KR": "나는 기록을 지킨 항로를 봤다", "en-US": "I reached the route that kept the record", "ja-JP": "記録を守った航路に到達", "zh-CN": "我看见了守住记录的航路", "zh-Hant": "我看見了守住記錄的航路" },
+    alias: { "ko-KR": "침착한 기록관", "en-US": "Calm archivist", "ja-JP": "静かな記録官", "zh-CN": "冷静记录官", "zh-Hant": "冷靜記錄官" },
+    body: { "ko-KR": "전술보다 기록을 먼저 택해 동행의 신뢰와 후대의 평가가 함께 달라진 엔딩입니다.", "en-US": "An ending where choosing records before tactics changes companion trust and later evaluation.", "ja-JP": "戦術より記録を先に選び、信頼と後代評価が変わる結末です。", "zh-CN": "先选择记录而非战术，让同伴信任和后世评价改变的结局。", "zh-Hant": "先選擇記錄而非戰術，讓同伴信任和後世評價改變的結局。" },
+  });
 
   let _storyScenes = STORY_SCENE_FALLBACKS.slice();
   let _storySceneIndex = 0;
@@ -631,6 +693,12 @@
     const locale = storyLocale();
     const entry = STORY_SCENE_COPY[key];
     return entry?.[locale] || entry?.["ko-KR"] || storyT(key);
+  }
+
+  function storyCopy(value) {
+    if (!value || typeof value !== "object") return String(value ?? "");
+    const locale = storyLocale();
+    return value[locale] || value["ko-KR"] || value["en-US"] || value.ko || "";
   }
 
   function applyStoryLocalCopy(scope) {
@@ -880,12 +948,12 @@
 
   function renderDiscoveryShell() {
     const filters = [
-      "storyStage.discovery.filter.recommended",
-      "storyStage.discovery.filter.taste",
-      "storyStage.discovery.filter.new",
-      "storyStage.discovery.filter.ranking",
-      "storyStage.discovery.filter.today",
-      "storyStage.discovery.filter.genre",
+      { key: "recommended", i18n: "storyStage.discovery.filter.recommended" },
+      { key: "taste", i18n: "storyStage.discovery.filter.taste" },
+      { key: "new", i18n: "storyStage.discovery.filter.new" },
+      { key: "ranking", i18n: "storyStage.discovery.filter.ranking" },
+      { key: "today-empty", i18n: "storyStage.discovery.filter.today" },
+      { key: "genre", i18n: "storyStage.discovery.filter.genre" },
     ];
     return `
       <section class="story-section story-discovery-section" aria-labelledby="storyDiscoveryTitle">
@@ -894,11 +962,20 @@
           <h2 id="storyDiscoveryTitle" data-i18n="storyStage.discovery.heading">스토리 찾기</h2>
         </div>
         <div class="story-filter-row" role="list" aria-label="Story filters">
-          ${filters.map((key, index) => `
-            <button type="button" class="story-filter-chip${index === 0 ? " is-active" : ""}" data-i18n="${key}" aria-pressed="${index === 0 ? "true" : "false"}">${storyT(key)}</button>
+          ${filters.map((filter, index) => `
+            <button type="button"
+                    class="story-filter-chip${index === 0 ? " is-active" : ""}"
+                    data-story-filter="${escapeHtml(filter.key)}"
+                    data-i18n="${escapeHtml(filter.i18n)}"
+                    aria-pressed="${index === 0 ? "true" : "false"}">${storyT(filter.i18n)}</button>
           `).join("")}
         </div>
-        <div class="story-discovery-grid">
+        <div class="story-discovery-empty" data-story-discovery-empty hidden>
+          <strong data-story-local-i18n="storyStage.discovery.empty.title">${storyLocalT("storyStage.discovery.empty.title")}</strong>
+          <p data-story-local-i18n="storyStage.discovery.empty.body">${storyLocalT("storyStage.discovery.empty.body")}</p>
+          <button type="button" class="story-cta story-cta-free" data-story-reset-filter data-story-local-i18n="storyStage.discovery.empty.cta">${storyLocalT("storyStage.discovery.empty.cta")}</button>
+        </div>
+        <div class="story-discovery-grid" data-story-discovery-grid>
           ${STORY_DISCOVERY_ITEMS.map(item => `
             <article class="story-discovery-card" data-story-detail="${escapeHtml(item.id)}" data-story-id="${escapeHtml(item.id)}" tabindex="0" role="button" aria-label="${escapeHtml(storyT(item.titleKey))}">
               <div class="story-discovery-cover" style="background-image: linear-gradient(180deg, rgba(8,5,18,0.04), rgba(8,5,18,0.52)), url('${escapeHtml(item.image)}')"></div>
@@ -1128,6 +1205,74 @@
     `;
   }
 
+  function renderFreeStoryOutcomeShell() {
+    const result = FREE_STORY_CHOICE_RESULTS[0];
+    return `
+      <section class="story-section story-free-outcome-section" aria-labelledby="storyFreeOutcomeTitle">
+        <div class="story-section-head">
+          <span class="story-eyebrow story-eyebrow-free">Free 75-part run</span>
+          <h2 id="storyFreeOutcomeTitle">선택 후 이어지는 변화</h2>
+        </div>
+        <article class="story-free-choice-result" data-free-story-choice-result>
+          <div class="story-free-choice-head">
+            <span>선택 ${escapeHtml(result.label)}</span>
+            <strong>${escapeHtml(storyCopy(result.title))}</strong>
+          </div>
+          <p data-free-connection-copy>${escapeHtml(storyCopy(result.bridge))}</p>
+          <dl class="story-free-change-list">
+            ${result.changes.map((item) => `
+              <div>
+                <dt>${escapeHtml(storyCopy(item.label))}</dt>
+                <dd>${escapeHtml(storyCopy(item.value))}</dd>
+              </div>
+            `).join("")}
+          </dl>
+        </article>
+
+        <details class="story-free-progress-summary" data-free-story-progress-summary open>
+          <summary>
+            <span>진행 성향 요약</span>
+            <b>읽는 흐름을 방해하지 않는 접힘 요약</b>
+          </summary>
+          <div class="story-free-state-grid">
+            ${FREE_STORY_STATE_LABELS.map((item) => `
+              <article data-state-kind="${escapeHtml(item.key)}">
+                <strong>${escapeHtml(storyCopy(item.label))}</strong>
+                <p>${escapeHtml(storyCopy(item.body))}</p>
+              </article>
+            `).join("")}
+          </div>
+        </details>
+
+        <article class="story-ending-result-sheet" data-personalized-ending-result-sheet>
+          <div class="story-official-route-badge" data-creator-main-route-badge>
+            <span>작가 공식 메인 루트</span>
+            <strong>AI 초안과 분리된 대표 결말</strong>
+          </div>
+          <div class="story-ending-result-head">
+            <span>${escapeHtml(storyCopy(PERSONALIZED_ENDING_RESULT.type))}</span>
+            <h3>${escapeHtml(storyCopy(PERSONALIZED_ENDING_RESULT.title))}</h3>
+          </div>
+          <dl class="story-ending-result-list">
+            <div><dt>이순신 평가</dt><dd>${escapeHtml(storyCopy(PERSONALIZED_ENDING_RESULT.evaluation))}</dd></div>
+            <div><dt>후대 기록</dt><dd>${escapeHtml(storyCopy(PERSONALIZED_ENDING_RESULT.record))}</dd></div>
+            <div><dt>동행 후일담</dt><dd>${escapeHtml(storyCopy(PERSONALIZED_ENDING_RESULT.companion))}</dd></div>
+          </dl>
+        </article>
+
+        <article class="story-ending-share-card" data-story-ending-share-card>
+          <div>
+            <span>공유 카드</span>
+            <h3>${escapeHtml(storyCopy(STORY_ENDING_SHARE_COPY.title))}</h3>
+            <b>${escapeHtml(storyCopy(STORY_ENDING_SHARE_COPY.alias))}</b>
+          </div>
+          <p>${escapeHtml(storyCopy(STORY_ENDING_SHARE_COPY.body))}</p>
+          <button type="button" class="story-cta story-cta-extra" aria-disabled="true">공유 이미지 준비 중</button>
+        </article>
+      </section>
+    `;
+  }
+
   function renderTutorialShell() {
     return `
       <section class="story-section story-tutorial-section" aria-labelledby="storyTutorialTitle">
@@ -1185,6 +1330,8 @@
       ${renderPlayerShell()}
 
       ${renderBranchImplementationShell()}
+
+      ${renderFreeStoryOutcomeShell()}
 
       ${renderSetupShell()}
 
@@ -1372,6 +1519,13 @@
     });
   }
 
+  function setDiscoveryEmpty(root, isEmpty) {
+    const grid = root.querySelector("[data-story-discovery-grid]");
+    const empty = root.querySelector("[data-story-discovery-empty]");
+    if (grid) grid.hidden = isEmpty;
+    if (empty) empty.hidden = !isEmpty;
+  }
+
   function bindStoryPreview(root) {
     if (root._storyPreviewBound) return;
     root._storyPreviewBound = true;
@@ -1435,6 +1589,13 @@
           button.classList.toggle("is-active", active);
           button.setAttribute("aria-pressed", active ? "true" : "false");
         });
+        setDiscoveryEmpty(root, filterChip.dataset.storyFilter === "today-empty");
+        return;
+      }
+
+      if (event.target.closest("[data-story-reset-filter]")) {
+        const recommended = root.querySelector("[data-story-filter='recommended']");
+        recommended?.click();
         return;
       }
 
