@@ -539,9 +539,9 @@
       },
       importHead: ["장면", "분기", "결말", "파트 수", "분기 요약 제한", "상태"],
       choices: [
-        { label: "A", tone: "info", text: "기록을 먼저 확인한다", next: "S05", result: "정보 + 신뢰 상승", rejoin: "S09 재합류", tags: ["정보", "신뢰"] },
-        { label: "B", tone: "risk", text: "전령을 따라간다", next: "S06", result: "위험 + 아이템 획득", rejoin: "S09 재합류", tags: ["위험", "아이템"] },
-        { label: "C", tone: "ending", text: "해안으로 우회한다", next: "S07", result: "관계 변화 + 보조 결말 조건", rejoin: "AI 보조 결말 후보", tags: ["관계", "엔딩"] },
+        { label: "A", tone: "info", text: "기록을 먼저 확인한다", next: "기록 보관실", result: "정보 + 신뢰 상승", rejoin: "후반 합류 장면", tags: ["정보", "신뢰"] },
+        { label: "B", tone: "risk", text: "전령을 따라간다", next: "밤 항구 추적", result: "위험 + 아이템 획득", rejoin: "후반 합류 장면", tags: ["위험", "아이템"] },
+        { label: "C", tone: "ending", text: "해안으로 우회한다", next: "안개 해안 우회", result: "관계 변화 + 보조 결말 조건", rejoin: "AI 보조 결말 후보", tags: ["관계", "엔딩"] },
       ],
       endings: ["작가 기본 엔딩", "작가 서브 엔딩", "AI 보조 결말"],
       endingCards: [
@@ -583,9 +583,9 @@
       },
       importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
       choices: [
-        { label: "A", tone: "info", text: "Check the record first", next: "S05", result: "Info + trust up", rejoin: "Rejoins at S09", tags: ["Info", "Trust"] },
-        { label: "B", tone: "risk", text: "Follow the messenger", next: "S06", result: "Risk + item gained", rejoin: "Rejoins at S09", tags: ["Risk", "Item"] },
-        { label: "C", tone: "ending", text: "Detour to the shore", next: "S07", result: "Relation shift + helper ending rule", rejoin: "AI-assisted ending candidate", tags: ["Relation", "Ending"] },
+        { label: "A", tone: "info", text: "Check the record first", next: "Archive room", result: "Info + trust up", rejoin: "Later rejoin scene", tags: ["Info", "Trust"] },
+        { label: "B", tone: "risk", text: "Follow the messenger", next: "Night harbor pursuit", result: "Risk + item gained", rejoin: "Later rejoin scene", tags: ["Risk", "Item"] },
+        { label: "C", tone: "ending", text: "Detour to the shore", next: "Foggy shore detour", result: "Relation shift + helper ending rule", rejoin: "AI-assisted ending candidate", tags: ["Relation", "Ending"] },
       ],
       endings: ["Writer primary ending", "Writer side ending", "AI-assisted ending"],
       endingCards: [
@@ -627,9 +627,9 @@
       },
       importHead: ["シーン", "分岐", "終了種別", "パート数", "分岐要約上限", "状態"],
       choices: [
-        { label: "A", tone: "info", text: "記録を先に確認する", next: "S05", result: "情報 + 信頼上昇", rejoin: "S09で再合流", tags: ["情報", "信頼"] },
-        { label: "B", tone: "risk", text: "伝令について行く", next: "S06", result: "危険 + アイテム取得", rejoin: "S09で再合流", tags: ["危険", "アイテム"] },
-        { label: "C", tone: "ending", text: "海岸へ迂回する", next: "S07", result: "関係変化 + 補助終了条件", rejoin: "AI補助終了候補", tags: ["関係", "終了"] },
+        { label: "A", tone: "info", text: "記録を先に確認する", next: "記録の部屋", result: "情報 + 信頼上昇", rejoin: "後半の再合流場面", tags: ["情報", "信頼"] },
+        { label: "B", tone: "risk", text: "伝令について行く", next: "夜の港追跡", result: "危険 + アイテム取得", rejoin: "後半の再合流場面", tags: ["危険", "アイテム"] },
+        { label: "C", tone: "ending", text: "海岸へ迂回する", next: "霧の海岸迂回", result: "関係変化 + 補助終了条件", rejoin: "AI補助終了候補", tags: ["関係", "終了"] },
       ],
       endings: ["作家基本終了", "作家サブ終了", "AI補助終了"],
       endingCards: [
@@ -671,9 +671,9 @@
       },
       importHead: ["场景", "分支", "结局类型", "部分数", "分支摘要上限", "状态"],
       choices: [
-        { label: "A", tone: "info", text: "先确认记录", next: "S05", result: "信息 + 信任提升", rejoin: "S09再汇合", tags: ["信息", "信任"] },
-        { label: "B", tone: "risk", text: "跟随传令", next: "S06", result: "风险 + 获得道具", rejoin: "S09再汇合", tags: ["风险", "道具"] },
-        { label: "C", tone: "ending", text: "绕到海岸", next: "S07", result: "关系变化 + 辅助结局条件", rejoin: "AI辅助结局候选", tags: ["关系", "结局"] },
+        { label: "A", tone: "info", text: "先确认记录", next: "记录室", result: "信息 + 信任提升", rejoin: "后段汇合场景", tags: ["信息", "信任"] },
+        { label: "B", tone: "risk", text: "跟随传令", next: "夜间港口追踪", result: "风险 + 获得道具", rejoin: "后段汇合场景", tags: ["风险", "道具"] },
+        { label: "C", tone: "ending", text: "绕到海岸", next: "雾中海岸绕行", result: "关系变化 + 辅助结局条件", rejoin: "AI辅助结局候选", tags: ["关系", "结局"] },
       ],
       endings: ["作者主线结局", "作者支线结局", "AI辅助结局"],
       endingCards: [
@@ -715,9 +715,9 @@
       },
       importHead: ["場景", "分支", "結局類型", "部分數", "分支摘要上限", "狀態"],
       choices: [
-        { label: "A", tone: "info", text: "先確認記錄", next: "S05", result: "資訊 + 信任提升", rejoin: "S09再匯合", tags: ["資訊", "信任"] },
-        { label: "B", tone: "risk", text: "跟隨傳令", next: "S06", result: "風險 + 獲得道具", rejoin: "S09再匯合", tags: ["風險", "道具"] },
-        { label: "C", tone: "ending", text: "繞到海岸", next: "S07", result: "關係變化 + 輔助結局條件", rejoin: "AI輔助結局候選", tags: ["關係", "結局"] },
+        { label: "A", tone: "info", text: "先確認記錄", next: "記錄室", result: "資訊 + 信任提升", rejoin: "後段匯合場景", tags: ["資訊", "信任"] },
+        { label: "B", tone: "risk", text: "跟隨傳令", next: "夜間港口追蹤", result: "風險 + 獲得道具", rejoin: "後段匯合場景", tags: ["風險", "道具"] },
+        { label: "C", tone: "ending", text: "繞到海岸", next: "霧中海岸繞行", result: "關係變化 + 輔助結局條件", rejoin: "AI輔助結局候選", tags: ["關係", "結局"] },
       ],
       endings: ["作者主線結局", "作者支線結局", "AI輔助結局"],
       endingCards: [
@@ -736,9 +736,36 @@
   ];
 
   const importRows = [
-    { scene: "S01", branch: "ROOT", ending: "author_main", part: "10", summary: "<= 2,000", state: "ok" },
-    { scene: "S05", branch: "B-A", ending: "author_sub", part: "10", summary: "<= 2,000", state: "ok" },
-    { scene: "S07", branch: "B-C", ending: "ai_fallback", part: "10", summary: "<= 2,000", state: "pm" },
+    {
+      scene: "S01",
+      sceneLabel: { ko: "기록의 방", en: "Archive room", ja: "記録の部屋", "zh-Hans": "记录室", "zh-Hant": "記錄室" },
+      branch: "ROOT",
+      branchLabel: { ko: "기본 흐름", en: "Main flow", ja: "基本フロー", "zh-Hans": "主流程", "zh-Hant": "主流程" },
+      ending: "author_main",
+      part: "10",
+      summary: "<= 2,000",
+      state: "ok",
+    },
+    {
+      scene: "S05",
+      sceneLabel: { ko: "기록 보관실", en: "Archive map room", ja: "記録保管室", "zh-Hans": "档案地图室", "zh-Hant": "檔案地圖室" },
+      branch: "B-A",
+      branchLabel: { ko: "기록 선택 분기", en: "Record-choice branch", ja: "記録選択分岐", "zh-Hans": "记录选择分支", "zh-Hant": "記錄選擇分支" },
+      ending: "author_sub",
+      part: "10",
+      summary: "<= 2,000",
+      state: "ok",
+    },
+    {
+      scene: "S07",
+      sceneLabel: { ko: "안개 해안 우회", en: "Foggy shore detour", ja: "霧の海岸迂回", "zh-Hans": "雾中海岸绕行", "zh-Hant": "霧中海岸繞行" },
+      branch: "B-C",
+      branchLabel: { ko: "해안 우회 분기", en: "Shore-detour branch", ja: "海岸迂回分岐", "zh-Hans": "海岸绕行分支", "zh-Hant": "海岸繞行分支" },
+      ending: "ai_fallback",
+      part: "10",
+      summary: "<= 2,000",
+      state: "pm",
+    },
   ];
 
   const aiFallbackEvidence = {
@@ -791,7 +818,7 @@
     ],
     characters: [
       { assetId: "character.cha-dohyun.reference-final-03", label: { ko: "차도현 안내 컷", en: "Cha Dohyun guide cut", ja: "チャ・ドヒョン案内カット", "zh-Hans": "车道贤引导图", "zh-Hant": "車道賢引導圖" } },
-      { assetId: "none", label: { ko: "S07은 캐릭터 없이 진행 가능", en: "S07 can proceed without a character", ja: "S07はキャラクターなしで進行可", "zh-Hans": "S07可无角色进行", "zh-Hant": "S07可無角色進行" } },
+      { assetId: "none", label: { ko: "해안 우회는 캐릭터 없이 진행 가능", en: "The shore detour can proceed without a character", ja: "海岸迂回はキャラクターなしで進行可", "zh-Hans": "海岸绕行可无角色进行", "zh-Hant": "海岸繞行可無角色進行" } },
     ],
   };
 
@@ -856,6 +883,10 @@
 
   function endingLabel(qa, value) {
     return qa.endingLabels?.[value] || value;
+  }
+
+  function publicSceneLabel(scene, localeCode) {
+    return localText(scene?.title, localeCode) || scene?.id || "";
   }
 
   function renderUploadWorkspace(localeCode) {
@@ -948,7 +979,7 @@
               <dl>
                 ${AUTHOR_PREVIEW_FIXTURE.backgrounds.map((asset) => `
                   <div data-safe-background-id="${escapeHtml(asset.assetId)}">
-                    <dt>${escapeHtml(asset.scene)}</dt>
+                    <dt>${escapeHtml(locale.labels.background)}</dt>
                     <dd>${escapeHtml(localText(asset.label, localeCode))}</dd>
                   </div>
                 `).join("")}
@@ -967,7 +998,7 @@
           <div class="su-section">
             <h2>${escapeHtml(locale.scenes)}</h2>
             <ul class="su-scene-list">
-              ${sampleScenes.map((scene) => `<li class="su-scene-item"><span>${escapeHtml(scene.id)}</span><strong>${escapeHtml(localText(scene.title, localeCode))} · ${escapeHtml(locale.status[scene.state])}</strong></li>`).join("")}
+              ${sampleScenes.map((scene) => `<li class="su-scene-item"><span>${escapeHtml(publicSceneLabel(scene, localeCode))}</span><strong>${escapeHtml(localText(scene.title, localeCode))} · ${escapeHtml(locale.status[scene.state])}</strong></li>`).join("")}
             </ul>
           </div>
           <div class="su-section">
@@ -1045,7 +1076,7 @@
               <button class="su-action" type="button" disabled aria-disabled="true">${escapeHtml(locale.labels.addChoice)}</button>
             </div>
             <div class="su-row">
-              <label class="su-field"><span>${escapeHtml(locale.labels.nextScene)}</span><input name="nextScene" value="S05" readonly /></label>
+              <label class="su-field"><span>${escapeHtml(locale.labels.nextScene)}</span><input name="nextScene" value="${escapeHtml(qa.choices[0]?.next || "")}" readonly /></label>
               <label class="su-field"><span>${escapeHtml(locale.labels.endingLink)}</span><input value="${escapeHtml(preview.routeInputValue)}" readonly /></label>
             </div>
             <button type="button" class="su-save" disabled aria-disabled="true">${escapeHtml(locale.labels.saveSoon)}</button>
@@ -1086,8 +1117,8 @@
                     data-writer-ending-configured="${row.ending === "ai_fallback" ? "false" : "true"}"
                     data-provider-generated-at-intake="false"
                   >
-                    <td>${escapeHtml(row.scene)}</td>
-                    <td>${escapeHtml(row.branch)}</td>
+                    <td>${escapeHtml(localText(row.sceneLabel, localeCode))}</td>
+                    <td>${escapeHtml(localText(row.branchLabel, localeCode))}</td>
                     <td data-ending-type="${escapeHtml(row.ending)}">${escapeHtml(endingLabel(qa, row.ending))}</td>
                     <td>${escapeHtml(row.part)}</td>
                     <td>${escapeHtml(row.summary)}</td>
