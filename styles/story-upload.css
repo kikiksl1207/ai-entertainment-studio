@@ -736,6 +736,103 @@
   font-size: 13px;
 }
 
+.su-bridge-section {
+  display: grid;
+  gap: 14px;
+}
+
+.su-bridge-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.su-bridge-head h2 {
+  margin: 0 0 4px;
+}
+
+.su-bridge-head p {
+  margin: 0;
+  color: rgba(240, 238, 248, 0.68);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.su-bridge-head span {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border: 1px solid rgba(240, 238, 248, 0.14);
+  border-radius: 8px;
+  color: #e6ff98;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.su-bridge-grid,
+.su-scale-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.su-scale-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.su-bridge-card,
+.su-scale-card {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(240, 238, 248, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.su-bridge-card span,
+.su-scale-card dt {
+  color: rgba(240, 238, 248, 0.62);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.su-bridge-card strong,
+.su-scale-card strong {
+  display: block;
+  margin: 6px 0;
+  color: var(--ink, #f0eef8);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.su-bridge-card p,
+.su-scale-card li {
+  margin: 0;
+  color: rgba(240, 238, 248, 0.7);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.su-scale-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+
+.su-scale-card dd {
+  margin: 2px 0 0;
+  color: var(--ink, #f0eef8);
+  font-weight: 800;
+}
+
+.su-scale-card ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+}
+
 @media (min-width: 481px) {
   .su-row {
     grid-template-columns: 1fr 1fr;
@@ -753,6 +850,8 @@
 
   .su-ending-cards,
   .su-preview-grid,
+  .su-bridge-grid,
+  .su-scale-grid,
   .su-reference-panel {
     grid-template-columns: 1fr;
   }
@@ -831,6 +930,18 @@
   .su-import-preview {
     min-width: 640px;
     white-space: nowrap;
+  }
+
+  .su-bridge-head {
+    display: grid;
+  }
+
+  .su-bridge-head span {
+    justify-self: start;
+  }
+
+  .su-scale-card dl {
+    grid-template-columns: 1fr;
   }
 
   .su-ai-fallback-evidence {
