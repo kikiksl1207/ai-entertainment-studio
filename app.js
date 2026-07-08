@@ -80,7 +80,7 @@ async function refreshAuthOnce() {
   if (_refreshInFlight) return _refreshInFlight;
 
   const auth = getAuth();
-  const refreshToken = auth?.refreshToken;
+  const refreshToken = getRefreshToken(auth);
   if (!refreshToken) {
     notifyAuthExpired();
     return null;
@@ -173,6 +173,9 @@ function setAuth(auth) {
 function clearAuth() { setAuth(null); }
 function isLoggedIn() { return !!(getAuth()?.accessToken); }
 function getAccessToken() { return getAuth()?.accessToken || null; }
+function getRefreshToken(auth = getAuth()) {
+  return auth?.refreshToken || auth?.refresh_token || auth?.tokens?.refreshToken || auth?.tokens?.refresh_token || null;
+}
 
 /* ══════════════════════════════════════════════
    #064 — i18n 1차 골격 (4개 언어, 2026-05-03)
@@ -1292,7 +1295,10 @@ async function authRegister(email, password, displayName, referralCode) {
   return data;
 }
 async function authLogout() {
-  try { await apiFetch("/api/v1/auth/logout", { method: "POST", auth: true }); } catch {}
+  const refreshToken = getRefreshToken();
+  const options = { method: "POST", auth: true };
+  if (refreshToken) options.body = { refreshToken };
+  try { await apiFetch("/api/v1/auth/logout", options); } catch {}
   clearAuth();
   updateAuthUI();
   if (typeof initMypagePage === "function") initMypagePage();

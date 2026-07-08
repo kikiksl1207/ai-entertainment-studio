@@ -622,6 +622,50 @@ describe('AuthService action token flows', () => {
     );
   });
 
+  it('pins logout refresh-token revoke and protected API invalidation contracts', () => {
+    expect(AUTH_SESSION_INVALIDATION_CONTRACT.logoutRefreshToken).toMatchObject({
+      endpoint: 'POST /api/v1/auth/logout',
+      frontendContract: {
+        sendsRefreshTokenBodyWhenPresent: true,
+        clearsLocalAuthAfterAttempt: true,
+      },
+      backendContract: {
+        idempotent: true,
+        missingOrInvalidRefreshTokenReturnsOk: true,
+        verifiesTokenType: 'refresh',
+        revocationWhere: {
+          tokenIdSource: 'verified refresh token payload tokenId',
+          tokenHashSource: 'server sha256 of submitted refresh token',
+          revokedAt: null,
+        },
+        clientSessionIdTrusted: false,
+        currentAccessTokenAloneRevokesRefreshToken: false,
+      },
+      responsePolicy: {
+        returnsOkOnly: true,
+        returnsAccessToken: false,
+        returnsRefreshToken: false,
+        returnsCookie: false,
+        returnsSessionSecret: false,
+        returnsTokenHash: false,
+      },
+    });
+    expect(AUTH_SESSION_INVALIDATION_CONTRACT.refreshRotation).toMatchObject({
+      endpoint: 'POST /api/v1/auth/refresh',
+      oldTokenReuse: {
+        accepted: false,
+        expectedStatus: 401,
+        walletMutation: false,
+        accountMutationExceptRevocation: false,
+      },
+    });
+    expect(AUTH_SESSION_INVALIDATION_CONTRACT.protectedAfterLogout).toMatchObject({
+      endpoints: ['GET /api/v1/me', 'GET /api/v1/me/trust'],
+      expectedStatusWithoutValidAccessToken: 401,
+      refreshRetryAfterRevokedRefreshToken: false,
+    });
+  });
+
   it('blocks social-only password change before password or session mutation', async () => {
     const prisma = createPrismaMock();
     const { service } = serviceWith(prisma);
