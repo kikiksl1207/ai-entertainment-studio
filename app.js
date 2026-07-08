@@ -229,15 +229,50 @@ const I18N_DICT = {
   "nav.debut": { "ko-KR": "데뷔하기", "ja-JP": "デビュー申請", "en-US": "Debut", "zh-CN": "出道申请" },
   "nav.mypage": { "ko-KR": "마이페이지", "ja-JP": "マイページ", "en-US": "My Page", "zh-CN": "我的主页" },
   // ── 헤더 auth ──
-  "auth.login": { "ko-KR": "로그인", "ja-JP": "ログイン", "en-US": "Log in", "zh-CN": "登录" },
-  "auth.signup": { "ko-KR": "회원가입", "ja-JP": "新規登録", "en-US": "Sign up", "zh-CN": "注册" },
-  "auth.logout": { "ko-KR": "로그아웃", "ja-JP": "ログアウト", "en-US": "Log out", "zh-CN": "退出登录" },
+  "auth.login": { "ko-KR": "로그인", "ja-JP": "ログイン", "en-US": "Log in", "zh-CN": "登录", "zh-Hant": "登入" },
+  "auth.signup": { "ko-KR": "회원가입", "ja-JP": "新規登録", "en-US": "Sign up", "zh-CN": "注册", "zh-Hant": "註冊" },
+  "auth.logout": { "ko-KR": "로그아웃", "ja-JP": "ログアウト", "en-US": "Log out", "zh-CN": "退出登录", "zh-Hant": "登出" },
   "auth.loginRequired": {
     "ko-KR": "로그인 후 이용할 수 있어요.",
     "ja-JP": "ログイン後にご利用いただけます。",
     "en-US": "Please log in to continue.",
-    "zh-CN": "请登录后继续使用。"
+    "zh-CN": "请登录后继续使用。",
+    "zh-Hant": "請登入後繼續使用。"
   },
+  "auth.modal.close": { "ko-KR": "닫기", "ja-JP": "閉じる", "en-US": "Close", "zh-CN": "关闭", "zh-Hant": "關閉" },
+  "auth.modal.login.title": { "ko-KR": "다시 만나서 반가워요", "ja-JP": "また会えてうれしいです", "en-US": "Welcome back", "zh-CN": "欢迎回来", "zh-Hant": "歡迎回來" },
+  "auth.modal.login.subtitle": { "ko-KR": "Lumina Stage에 입장하세요", "ja-JP": "Lumina Stageに入場してください", "en-US": "Enter Lumina Stage", "zh-CN": "进入 Lumina Stage", "zh-Hant": "進入 Lumina Stage" },
+  "auth.modal.forgot.title": { "ko-KR": "비밀번호 재설정", "ja-JP": "パスワード再設定", "en-US": "Reset password", "zh-CN": "重设密码", "zh-Hant": "重設密碼" },
+  "auth.modal.forgot.subtitle": { "ko-KR": "가입한 이메일을 입력하면 재설정 안내 메일을 보내드려요.", "ja-JP": "登録したメールを入力すると再設定案内を送ります。", "en-US": "Enter your account email and we will send reset instructions.", "zh-CN": "输入注册邮箱后，我们会发送重设说明。", "zh-Hant": "輸入註冊信箱後，我們會寄送重設說明。" },
+  "auth.modal.success.title": { "ko-KR": "가입이 완료됐어요", "ja-JP": "登録が完了しました", "en-US": "Your account is ready", "zh-CN": "注册已完成", "zh-Hant": "註冊已完成" },
+  "auth.modal.success.subtitle": { "ko-KR": "입력한 이메일로 인증 메일을 보냈어요. 메일함에서 인증을 마치면 Lumina Stage를 더 안전하게 이용할 수 있어요.", "ja-JP": "入力したメールに認証メールを送りました。認証するとより安全に利用できます。", "en-US": "We sent a verification email. Verify it to use Lumina Stage more safely.", "zh-CN": "我们已发送验证邮件。完成验证后可更安全地使用 Lumina Stage。", "zh-Hant": "我們已寄出驗證信。完成驗證後可更安全地使用 Lumina Stage。" },
+  "auth.modal.success.emailHint": { "ko-KR": "받은 메일이 안 보이면 스팸·프로모션함도 한 번 확인해 보세요.", "ja-JP": "届かない場合は迷惑メールやプロモーションも確認してください。", "en-US": "If you do not see it, check spam or promotions too.", "zh-CN": "如果没有看到邮件，也请检查垃圾邮件或促销分类。", "zh-Hant": "如果沒有看到信件，也請檢查垃圾信或促銷分類。" },
+  "auth.modal.register.title": { "ko-KR": "Lumina Stage 가입", "ja-JP": "Lumina Stage登録", "en-US": "Create your Lumina Stage account", "zh-CN": "注册 Lumina Stage", "zh-Hant": "註冊 Lumina Stage" },
+  "auth.modal.register.subtitle": { "ko-KR": "팬으로서 좋아요와 응원을 보내세요", "ja-JP": "ファンとしていいねや応援を送れます", "en-US": "Send likes and support as a fan", "zh-CN": "以粉丝身份发送喜欢和支持", "zh-Hant": "以粉絲身份送出喜歡與支持" },
+  "auth.modal.email": { "ko-KR": "이메일", "ja-JP": "メール", "en-US": "Email", "zh-CN": "邮箱", "zh-Hant": "信箱" },
+  "auth.modal.email.placeholder": { "ko-KR": "이메일 입력", "ja-JP": "メールを入力", "en-US": "Enter email", "zh-CN": "输入邮箱", "zh-Hant": "輸入信箱" },
+  "auth.modal.password": { "ko-KR": "비밀번호", "ja-JP": "パスワード", "en-US": "Password", "zh-CN": "密码", "zh-Hant": "密碼" },
+  "auth.modal.passwordMin": { "ko-KR": "비밀번호 (8자 이상)", "ja-JP": "パスワード（8文字以上）", "en-US": "Password (8+ characters)", "zh-CN": "密码（至少 8 个字符）", "zh-Hant": "密碼（至少 8 個字元）" },
+  "auth.modal.nickname": { "ko-KR": "닉네임", "ja-JP": "ニックネーム", "en-US": "Nickname", "zh-CN": "昵称", "zh-Hant": "暱稱" },
+  "auth.modal.referral": { "ko-KR": "추천인 코드", "ja-JP": "紹介コード", "en-US": "Referral code", "zh-CN": "推荐码", "zh-Hant": "推薦碼" },
+  "auth.modal.optional": { "ko-KR": "(선택)", "ja-JP": "（任意）", "en-US": "(optional)", "zh-CN": "（可选）", "zh-Hant": "（選填）" },
+  "auth.modal.nickname.placeholder": { "ko-KR": "비워두면 기본 닉네임이 자동 부여돼요", "ja-JP": "空欄なら基本ニックネームを自動設定します", "en-US": "Leave blank to use a default nickname", "zh-CN": "留空会自动分配默认昵称", "zh-Hant": "留空會自動分配預設暱稱" },
+  "auth.modal.nickname.helper": { "ko-KR": "이메일이나 실명은 공개 닉네임으로 사용하지 않아요. 계정 설정에서 언제든 바꿀 수 있어요.", "ja-JP": "メールや本名は公開ニックネームに使いません。設定でいつでも変更できます。", "en-US": "Email and real names are not used as public nicknames. You can change it later.", "zh-CN": "邮箱或真实姓名不会作为公开昵称，可稍后在设置中修改。", "zh-Hant": "信箱或真實姓名不會作為公開暱稱，可稍後在設定中修改。" },
+  "auth.modal.referral.placeholder": { "ko-KR": "예: ABC12345", "ja-JP": "例: ABC12345", "en-US": "Example: ABC12345", "zh-CN": "例如：ABC12345", "zh-Hant": "例如：ABC12345" },
+  "auth.modal.login.submit": { "ko-KR": "로그인", "ja-JP": "ログイン", "en-US": "Log in", "zh-CN": "登录", "zh-Hant": "登入" },
+  "auth.modal.register.submit": { "ko-KR": "가입하기", "ja-JP": "登録する", "en-US": "Sign up", "zh-CN": "注册", "zh-Hant": "註冊" },
+  "auth.modal.forgot.submit": { "ko-KR": "재설정 메일 보내기", "ja-JP": "再設定メールを送る", "en-US": "Send reset email", "zh-CN": "发送重设邮件", "zh-Hant": "寄送重設信" },
+  "auth.modal.resend": { "ko-KR": "인증 메일 다시 받기", "ja-JP": "認証メールを再送", "en-US": "Resend verification email", "zh-CN": "重新发送验证邮件", "zh-Hant": "重新寄送驗證信" },
+  "auth.modal.forgot.link": { "ko-KR": "비밀번호를 잊으셨나요?", "ja-JP": "パスワードを忘れましたか？", "en-US": "Forgot your password?", "zh-CN": "忘记密码？", "zh-Hant": "忘記密碼？" },
+  "auth.modal.backToLogin": { "ko-KR": "로그인으로 돌아가기", "ja-JP": "ログインへ戻る", "en-US": "Back to log in", "zh-CN": "返回登录", "zh-Hant": "返回登入" },
+  "auth.modal.firstTime": { "ko-KR": "처음이신가요?", "ja-JP": "初めてですか？", "en-US": "New here?", "zh-CN": "第一次来？", "zh-Hant": "第一次來？" },
+  "auth.modal.hasAccount": { "ko-KR": "이미 계정이 있으신가요?", "ja-JP": "すでにアカウントがありますか？", "en-US": "Already have an account?", "zh-CN": "已有账号？", "zh-Hant": "已有帳號？" },
+  "auth.modal.or": { "ko-KR": "또는", "ja-JP": "または", "en-US": "or", "zh-CN": "或", "zh-Hant": "或" },
+  "auth.modal.terms.prefix": { "ko-KR": "", "ja-JP": "", "en-US": "I agree to the ", "zh-CN": "我同意", "zh-Hant": "我同意" },
+  "auth.modal.terms.terms": { "ko-KR": "이용약관", "ja-JP": "利用規約", "en-US": "Terms", "zh-CN": "使用条款", "zh-Hant": "使用條款" },
+  "auth.modal.terms.and": { "ko-KR": "과", "ja-JP": "と", "en-US": " and ", "zh-CN": "和", "zh-Hant": "和" },
+  "auth.modal.terms.privacy": { "ko-KR": "개인정보처리방침", "ja-JP": "プライバシーポリシー", "en-US": "Privacy Policy", "zh-CN": "隐私政策", "zh-Hant": "隱私權政策" },
+  "auth.modal.terms.suffix": { "ko-KR": "에 동의합니다.", "ja-JP": "に同意します。", "en-US": ".", "zh-CN": "。", "zh-Hant": "。" },
   // ── 모바일 하단 탭바 ──
   "tab.home": { "ko-KR": "홈", "ja-JP": "ホーム", "en-US": "Home", "zh-CN": "首页" },
   "tab.artists": { "ko-KR": "아티스트", "ja-JP": "アーティスト", "en-US": "Artists", "zh-CN": "艺人" },
@@ -1331,89 +1366,91 @@ function createAuthModal() {
   modal.id = "authModal";
   modal.className = "auth-modal-overlay";
   modal.innerHTML = `
-    <div class="auth-modal" role="dialog" aria-modal="true">
-      <button class="auth-modal-close" aria-label="닫기">✕</button>
+    <div class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+      <button class="auth-modal-close" aria-label="닫기" data-i18n-aria="auth.modal.close">✕</button>
       <div class="auth-modal-tabs">
-        <button class="auth-modal-tab is-active" data-tab="login" type="button">로그인</button>
-        <button class="auth-modal-tab" data-tab="register" type="button">회원가입</button>
+        <button class="auth-modal-tab is-active" data-tab="login" type="button" data-i18n="auth.login">로그인</button>
+        <button class="auth-modal-tab" data-tab="register" type="button" data-i18n="auth.signup">회원가입</button>
       </div>
       <form class="auth-modal-form" data-form="login" novalidate>
-        <h2>다시 만나서 반가워요</h2>
-        <p class="auth-modal-subtitle">Lumina Stage에 입장하세요</p>
+        <h2 id="authModalTitle" data-i18n="auth.modal.login.title">다시 만나서 반가워요</h2>
+        <p class="auth-modal-subtitle" data-i18n="auth.modal.login.subtitle">Lumina Stage에 입장하세요</p>
         <div class="auth-modal-error" data-error hidden></div>
-        <label class="auth-modal-field"><span>이메일</span>
-          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
-        <label class="auth-modal-field"><span>비밀번호</span>
+        <label class="auth-modal-field"><span data-i18n="auth.modal.email">이메일</span>
+          <input type="email" name="email" required autocomplete="email" placeholder="이메일 입력" data-i18n-attr="placeholder:auth.modal.email.placeholder" /></label>
+        <label class="auth-modal-field"><span data-i18n="auth.modal.password">비밀번호</span>
           <input type="password" name="password" required autocomplete="current-password" /></label>
-        <button type="submit" class="auth-modal-submit">로그인</button>
+        <button type="submit" class="auth-modal-submit" data-i18n="auth.modal.login.submit">로그인</button>
         <p class="auth-modal-meta">
-          <button type="button" class="auth-modal-link" data-switch="forgot">비밀번호를 잊으셨나요?</button>
+          <button type="button" class="auth-modal-link" data-switch="forgot" data-i18n="auth.modal.forgot.link">비밀번호를 잊으셨나요?</button>
         </p>
       </form>
 
       <form class="auth-modal-form" data-form="forgot" novalidate hidden>
-        <h2>비밀번호 재설정</h2>
-        <p class="auth-modal-subtitle">가입한 이메일을 입력하면 재설정 안내 메일을 보내드려요.</p>
+        <h2 data-i18n="auth.modal.forgot.title">비밀번호 재설정</h2>
+        <p class="auth-modal-subtitle" data-i18n="auth.modal.forgot.subtitle">가입한 이메일을 입력하면 재설정 안내 메일을 보내드려요.</p>
         <div class="auth-modal-error" data-error hidden></div>
         <div class="auth-modal-info" data-info hidden></div>
-        <label class="auth-modal-field"><span>이메일</span>
-          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
-        <button type="submit" class="auth-modal-submit">재설정 메일 보내기</button>
+        <label class="auth-modal-field"><span data-i18n="auth.modal.email">이메일</span>
+          <input type="email" name="email" required autocomplete="email" placeholder="이메일 입력" data-i18n-attr="placeholder:auth.modal.email.placeholder" /></label>
+        <button type="submit" class="auth-modal-submit" data-i18n="auth.modal.forgot.submit">재설정 메일 보내기</button>
         <p class="auth-modal-meta">
-          <button type="button" class="auth-modal-link" data-switch="login">로그인으로 돌아가기</button>
+          <button type="button" class="auth-modal-link" data-switch="login" data-i18n="auth.modal.backToLogin">로그인으로 돌아가기</button>
         </p>
       </form>
 
       <div class="auth-modal-form auth-modal-success-panel" data-form="signupSuccess" hidden>
-        <h2>가입이 완료됐어요</h2>
-        <p class="auth-modal-subtitle">입력한 이메일로 인증 메일을 보냈어요. 메일함에서 인증을 마치면 Lumina Stage를 더 안전하게 이용할 수 있어요.</p>
+        <h2 data-i18n="auth.modal.success.title">가입이 완료됐어요</h2>
+        <p class="auth-modal-subtitle" data-i18n="auth.modal.success.subtitle">입력한 이메일로 인증 메일을 보냈어요. 메일함에서 인증을 마치면 Lumina Stage를 더 안전하게 이용할 수 있어요.</p>
         <p class="auth-modal-email-line" data-signup-email-line hidden>
-          <small>받은 메일이 안 보이면 스팸·프로모션함도 한 번 확인해 보세요.</small>
+          <small data-i18n="auth.modal.success.emailHint">받은 메일이 안 보이면 스팸·프로모션함도 한 번 확인해 보세요.</small>
         </p>
         <div class="auth-modal-error" data-error hidden></div>
         <div class="auth-modal-info" data-info hidden></div>
-        <button type="button" class="auth-modal-submit" data-action="resend-verification">인증 메일 다시 받기</button>
+        <button type="button" class="auth-modal-submit" data-action="resend-verification" data-i18n="auth.modal.resend">인증 메일 다시 받기</button>
         <p class="auth-modal-meta">
-          <button type="button" class="auth-modal-link" data-action="close-modal">닫기</button>
+          <button type="button" class="auth-modal-link" data-action="close-modal" data-i18n="auth.modal.close">닫기</button>
         </p>
       </div>
 
       <form class="auth-modal-form" data-form="register" novalidate hidden>
-        <h2>Lumina Stage 가입</h2>
-        <p class="auth-modal-subtitle">팬으로서 좋아요와 응원을 보내세요</p>
+        <h2 data-i18n="auth.modal.register.title">Lumina Stage 가입</h2>
+        <p class="auth-modal-subtitle" data-i18n="auth.modal.register.subtitle">팬으로서 좋아요와 응원을 보내세요</p>
         <div class="auth-modal-error" data-error hidden></div>
-        <label class="auth-modal-field"><span>이메일</span>
-          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
-        <label class="auth-modal-field"><span>닉네임 <small style="color:rgba(255,255,255,0.4);font-weight:400;">(선택)</small></span>
-          <input type="text" name="displayName" autocomplete="nickname" placeholder="비워두면 기본 닉네임이 자동 부여돼요" />
-          <small style="color:rgba(255,255,255,0.45);font-size:11.5px;margin-top:4px;display:block;">이메일이나 실명은 공개 닉네임으로 사용하지 않아요. 계정 설정에서 언제든 바꿀 수 있어요.</small></label>
-        <label class="auth-modal-field"><span>비밀번호 (8자 이상)</span>
+        <label class="auth-modal-field"><span data-i18n="auth.modal.email">이메일</span>
+          <input type="email" name="email" required autocomplete="email" placeholder="이메일 입력" data-i18n-attr="placeholder:auth.modal.email.placeholder" /></label>
+        <label class="auth-modal-field"><span><span data-i18n="auth.modal.nickname">닉네임</span> <small class="auth-modal-optional" data-i18n="auth.modal.optional">(선택)</small></span>
+          <input type="text" name="displayName" autocomplete="nickname" placeholder="비워두면 기본 닉네임이 자동 부여돼요" data-i18n-attr="placeholder:auth.modal.nickname.placeholder" />
+          <small class="auth-modal-helper" data-i18n="auth.modal.nickname.helper">이메일이나 실명은 공개 닉네임으로 사용하지 않아요. 계정 설정에서 언제든 바꿀 수 있어요.</small></label>
+        <label class="auth-modal-field"><span data-i18n="auth.modal.passwordMin">비밀번호 (8자 이상)</span>
           <input type="password" name="password" required minlength="8" autocomplete="new-password" /></label>
-        <label class="auth-modal-field"><span>추천인 코드 <small style="color:rgba(255,255,255,0.4);font-weight:400;">(선택)</small></span>
-          <input type="text" name="referralCode" autocomplete="off" placeholder="예: ABC12345" maxlength="20" /></label>
+        <label class="auth-modal-field"><span><span data-i18n="auth.modal.referral">추천인 코드</span> <small class="auth-modal-optional" data-i18n="auth.modal.optional">(선택)</small></span>
+          <input type="text" name="referralCode" autocomplete="off" placeholder="예: ABC12345" maxlength="20" data-i18n-attr="placeholder:auth.modal.referral.placeholder" /></label>
         <label class="auth-modal-consent">
           <input type="checkbox" name="termsConsent" required />
           <span>
-            <a href="/terms" target="_blank" rel="noopener">이용약관</a>과
-            <a href="/privacy" target="_blank" rel="noopener">개인정보처리방침</a>에 동의합니다.
+            <span data-i18n="auth.modal.terms.prefix"></span>
+            <a href="/terms" target="_blank" rel="noopener" data-i18n="auth.modal.terms.terms">이용약관</a><span data-i18n="auth.modal.terms.and">과</span>
+            <a href="/privacy" target="_blank" rel="noopener" data-i18n="auth.modal.terms.privacy">개인정보처리방침</a><span data-i18n="auth.modal.terms.suffix">에 동의합니다.</span>
           </span>
         </label>
-        <button type="submit" class="auth-modal-submit">가입하기</button>
+        <button type="submit" class="auth-modal-submit" data-i18n="auth.modal.register.submit">가입하기</button>
       </form>
 
       <!-- 공통 소셜 로그인 영역 (활성화된 provider 자동 표시) -->
       <div class="auth-modal-social-section" id="authSocialSection" hidden>
-        <div class="auth-modal-divider"><span>또는</span></div>
+        <div class="auth-modal-divider"><span data-i18n="auth.modal.or">또는</span></div>
         <div class="auth-modal-social" id="authSocialButtons"></div>
       </div>
 
       <!-- 탭별 푸터 -->
-      <p class="auth-modal-foot" data-foot="login">처음이신가요?
-        <button type="button" class="auth-modal-switch" data-switch="register">회원가입</button></p>
-      <p class="auth-modal-foot" data-foot="register" hidden>이미 계정이 있으신가요?
-        <button type="button" class="auth-modal-switch" data-switch="login">로그인</button></p>
+      <p class="auth-modal-foot" data-foot="login"><span data-i18n="auth.modal.firstTime">처음이신가요?</span>
+        <button type="button" class="auth-modal-switch" data-switch="register" data-i18n="auth.signup">회원가입</button></p>
+      <p class="auth-modal-foot" data-foot="register" hidden><span data-i18n="auth.modal.hasAccount">이미 계정이 있으신가요?</span>
+        <button type="button" class="auth-modal-switch" data-switch="login" data-i18n="auth.login">로그인</button></p>
     </div>`;
   document.body.appendChild(modal);
+  applyI18n(modal);
   bindAuthModalEvents(modal);
 }
 
