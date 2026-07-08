@@ -380,7 +380,7 @@ function openProfileEditModal() {
   // 본인 프로필 필수 검증
   const me = (typeof getAuth === "function") ? getAuth()?.user : null;
   if (!me) {
-    if (typeof openAuthModal === "function") openAuthModal("login");
+    if (typeof openAuthModal === "function") openAuthModal("login", { returnTo: { href: window.location.pathname, label: "프로필 설정 이어가기" } });
     return;
   }
   // 현재 user 정보로 초기값 채우기
@@ -1075,7 +1075,7 @@ function applyUserProfileFollowState(viewer) {
   if (viewer?.isFollowing || viewer?.canUnfollow) {
     btn.classList.add("is-following");
     btn.dataset.following = "1";
-    if (label) label.textContent = "팔로잉 해제";
+    if (label) label.textContent = "팔로우 취소";
   } else {
     btn.classList.remove("is-following");
     btn.dataset.following = "0";
@@ -1101,7 +1101,11 @@ function bindUserProfileFollow() {
     e.preventDefault();
     if (btn.dataset.busy === "1") return;
     if (typeof getAccessToken === "function" && !getAccessToken()) {
-      alert("로그인 후 팔로우할 수 있어요.");
+      if (typeof openAuthModal === "function") {
+        openAuthModal("login", { returnTo: { href: window.location.pathname, label: "프로필 팔로우 이어가기" } });
+      } else {
+        alert("로그인 후 팔로우할 수 있어요.");
+      }
       return;
     }
     const userId = btn.dataset.userId;
@@ -1112,7 +1116,7 @@ function bindUserProfileFollow() {
     btn.classList.toggle("is-following", !wasFollowing);
     btn.dataset.following = wasFollowing ? "0" : "1";
     const label = btn.querySelector("[data-detail-follow-label]");
-    if (label) label.textContent = wasFollowing ? "팔로우" : "팔로잉 해제";
+    if (label) label.textContent = wasFollowing ? "팔로우" : "팔로우 취소";
     try {
       const res = await apiFetch(`/api/v1/users/${encodeURIComponent(userId)}/follow`, {
         method: wasFollowing ? "DELETE" : "POST",
@@ -1129,7 +1133,7 @@ function bindUserProfileFollow() {
       // 롤백
       btn.classList.toggle("is-following", wasFollowing);
       btn.dataset.following = wasFollowing ? "1" : "0";
-      if (label) label.textContent = wasFollowing ? "팔로잉 해제" : "팔로우";
+      if (label) label.textContent = wasFollowing ? "팔로우 취소" : "팔로우";
       console.warn("[#152 user follow] 실패", { status: err?.status, body: err?.body });
       alert(err?.message || "팔로우 처리에 실패했어요.");
     } finally {

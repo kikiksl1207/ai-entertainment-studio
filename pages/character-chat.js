@@ -1341,7 +1341,7 @@
         : "이미 반영된 상태예요.");
     } catch (error) {
       if (error?.status === 401 || error?.status === 403) {
-        if (typeof openAuthModal === "function") openAuthModal("login");
+        if (typeof openAuthModal === "function") openAuthModal("login", { returnTo: { href: window.location.pathname, label: "캐릭터 채팅 이어가기" } });
         setConversationStatus("로그인이 필요해요. 다시 로그인한 뒤 시도해주세요.");
       } else if (error?.status === 404) {
         setConversationStatus("대화를 찾을 수 없거나 접근 권한이 없어요.");

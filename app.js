@@ -151,7 +151,7 @@ function notifyAuthExpired() {
   try { window.dispatchEvent(new CustomEvent("lumina:auth-expired")); } catch {}
   // 로그인 모달 자동 오픈 (있으면)
   if (typeof openAuthModal === "function") {
-    try { openAuthModal("login"); } catch {}
+    try { openAuthModal("login", { returnTo: currentAuthReturn() }); } catch {}
   }
 }
 
@@ -229,15 +229,50 @@ const I18N_DICT = {
   "nav.debut": { "ko-KR": "데뷔하기", "ja-JP": "デビュー申請", "en-US": "Debut", "zh-CN": "出道申请" },
   "nav.mypage": { "ko-KR": "마이페이지", "ja-JP": "マイページ", "en-US": "My Page", "zh-CN": "我的主页" },
   // ── 헤더 auth ──
-  "auth.login": { "ko-KR": "로그인", "ja-JP": "ログイン", "en-US": "Log in", "zh-CN": "登录" },
-  "auth.signup": { "ko-KR": "회원가입", "ja-JP": "新規登録", "en-US": "Sign up", "zh-CN": "注册" },
-  "auth.logout": { "ko-KR": "로그아웃", "ja-JP": "ログアウト", "en-US": "Log out", "zh-CN": "退出登录" },
+  "auth.login": { "ko-KR": "로그인", "ja-JP": "ログイン", "en-US": "Log in", "zh-CN": "登录", "zh-Hant": "登入" },
+  "auth.signup": { "ko-KR": "회원가입", "ja-JP": "新規登録", "en-US": "Sign up", "zh-CN": "注册", "zh-Hant": "註冊" },
+  "auth.logout": { "ko-KR": "로그아웃", "ja-JP": "ログアウト", "en-US": "Log out", "zh-CN": "退出登录", "zh-Hant": "登出" },
   "auth.loginRequired": {
     "ko-KR": "로그인 후 이용할 수 있어요.",
     "ja-JP": "ログイン後にご利用いただけます。",
     "en-US": "Please log in to continue.",
-    "zh-CN": "请登录后继续使用。"
+    "zh-CN": "请登录后继续使用。",
+    "zh-Hant": "請登入後繼續使用。"
   },
+  "auth.modal.close": { "ko-KR": "닫기", "ja-JP": "閉じる", "en-US": "Close", "zh-CN": "关闭", "zh-Hant": "關閉" },
+  "auth.modal.login.title": { "ko-KR": "다시 만나서 반가워요", "ja-JP": "また会えてうれしいです", "en-US": "Welcome back", "zh-CN": "欢迎回来", "zh-Hant": "歡迎回來" },
+  "auth.modal.login.subtitle": { "ko-KR": "Lumina Stage에 입장하세요", "ja-JP": "Lumina Stageに入場してください", "en-US": "Enter Lumina Stage", "zh-CN": "进入 Lumina Stage", "zh-Hant": "進入 Lumina Stage" },
+  "auth.modal.forgot.title": { "ko-KR": "비밀번호 재설정", "ja-JP": "パスワード再設定", "en-US": "Reset password", "zh-CN": "重设密码", "zh-Hant": "重設密碼" },
+  "auth.modal.forgot.subtitle": { "ko-KR": "가입한 이메일을 입력하면 재설정 안내 메일을 보내드려요.", "ja-JP": "登録したメールを入力すると再設定案内を送ります。", "en-US": "Enter your account email and we will send reset instructions.", "zh-CN": "输入注册邮箱后，我们会发送重设说明。", "zh-Hant": "輸入註冊信箱後，我們會寄送重設說明。" },
+  "auth.modal.success.title": { "ko-KR": "가입이 완료됐어요", "ja-JP": "登録が完了しました", "en-US": "Your account is ready", "zh-CN": "注册已完成", "zh-Hant": "註冊已完成" },
+  "auth.modal.success.subtitle": { "ko-KR": "입력한 이메일로 인증 메일을 보냈어요. 메일함에서 인증을 마치면 Lumina Stage를 더 안전하게 이용할 수 있어요.", "ja-JP": "入力したメールに認証メールを送りました。認証するとより安全に利用できます。", "en-US": "We sent a verification email. Verify it to use Lumina Stage more safely.", "zh-CN": "我们已发送验证邮件。完成验证后可更安全地使用 Lumina Stage。", "zh-Hant": "我們已寄出驗證信。完成驗證後可更安全地使用 Lumina Stage。" },
+  "auth.modal.success.emailHint": { "ko-KR": "받은 메일이 안 보이면 스팸·프로모션함도 한 번 확인해 보세요.", "ja-JP": "届かない場合は迷惑メールやプロモーションも確認してください。", "en-US": "If you do not see it, check spam or promotions too.", "zh-CN": "如果没有看到邮件，也请检查垃圾邮件或促销分类。", "zh-Hant": "如果沒有看到信件，也請檢查垃圾信或促銷分類。" },
+  "auth.modal.register.title": { "ko-KR": "Lumina Stage 가입", "ja-JP": "Lumina Stage登録", "en-US": "Create your Lumina Stage account", "zh-CN": "注册 Lumina Stage", "zh-Hant": "註冊 Lumina Stage" },
+  "auth.modal.register.subtitle": { "ko-KR": "팬으로서 좋아요와 응원을 보내세요", "ja-JP": "ファンとしていいねや応援を送れます", "en-US": "Send likes and support as a fan", "zh-CN": "以粉丝身份发送喜欢和支持", "zh-Hant": "以粉絲身份送出喜歡與支持" },
+  "auth.modal.email": { "ko-KR": "이메일", "ja-JP": "メール", "en-US": "Email", "zh-CN": "邮箱", "zh-Hant": "信箱" },
+  "auth.modal.password": { "ko-KR": "비밀번호", "ja-JP": "パスワード", "en-US": "Password", "zh-CN": "密码", "zh-Hant": "密碼" },
+  "auth.modal.passwordMin": { "ko-KR": "비밀번호 (8자 이상)", "ja-JP": "パスワード（8文字以上）", "en-US": "Password (8+ characters)", "zh-CN": "密码（至少 8 个字符）", "zh-Hant": "密碼（至少 8 個字元）" },
+  "auth.modal.nickname": { "ko-KR": "닉네임", "ja-JP": "ニックネーム", "en-US": "Nickname", "zh-CN": "昵称", "zh-Hant": "暱稱" },
+  "auth.modal.referral": { "ko-KR": "추천인 코드", "ja-JP": "紹介コード", "en-US": "Referral code", "zh-CN": "推荐码", "zh-Hant": "推薦碼" },
+  "auth.modal.optional": { "ko-KR": "(선택)", "ja-JP": "（任意）", "en-US": "(optional)", "zh-CN": "（可选）", "zh-Hant": "（選填）" },
+  "auth.modal.nickname.placeholder": { "ko-KR": "비워두면 기본 닉네임이 자동 부여돼요", "ja-JP": "空欄なら基本ニックネームを自動設定します", "en-US": "Leave blank to use a default nickname", "zh-CN": "留空会自动分配默认昵称", "zh-Hant": "留空會自動分配預設暱稱" },
+  "auth.modal.nickname.helper": { "ko-KR": "이메일이나 실명은 공개 닉네임으로 사용하지 않아요. 계정 설정에서 언제든 바꿀 수 있어요.", "ja-JP": "メールや本名は公開ニックネームに使いません。設定でいつでも変更できます。", "en-US": "Email and real names are not used as public nicknames. You can change it later.", "zh-CN": "邮箱或真实姓名不会作为公开昵称，可稍后在设置中修改。", "zh-Hant": "信箱或真實姓名不會作為公開暱稱，可稍後在設定中修改。" },
+  "auth.modal.referral.placeholder": { "ko-KR": "예: ABC12345", "ja-JP": "例: ABC12345", "en-US": "Example: ABC12345", "zh-CN": "例如：ABC12345", "zh-Hant": "例如：ABC12345" },
+  "auth.modal.login.submit": { "ko-KR": "로그인", "ja-JP": "ログイン", "en-US": "Log in", "zh-CN": "登录", "zh-Hant": "登入" },
+  "auth.modal.register.submit": { "ko-KR": "가입하기", "ja-JP": "登録する", "en-US": "Sign up", "zh-CN": "注册", "zh-Hant": "註冊" },
+  "auth.modal.forgot.submit": { "ko-KR": "재설정 메일 보내기", "ja-JP": "再設定メールを送る", "en-US": "Send reset email", "zh-CN": "发送重设邮件", "zh-Hant": "寄送重設信" },
+  "auth.modal.resend": { "ko-KR": "인증 메일 다시 받기", "ja-JP": "認証メールを再送", "en-US": "Resend verification email", "zh-CN": "重新发送验证邮件", "zh-Hant": "重新寄送驗證信" },
+  "auth.modal.forgot.link": { "ko-KR": "비밀번호를 잊으셨나요?", "ja-JP": "パスワードを忘れましたか？", "en-US": "Forgot your password?", "zh-CN": "忘记密码？", "zh-Hant": "忘記密碼？" },
+  "auth.modal.backToLogin": { "ko-KR": "로그인으로 돌아가기", "ja-JP": "ログインへ戻る", "en-US": "Back to log in", "zh-CN": "返回登录", "zh-Hant": "返回登入" },
+  "auth.modal.firstTime": { "ko-KR": "처음이신가요?", "ja-JP": "初めてですか？", "en-US": "New here?", "zh-CN": "第一次来？", "zh-Hant": "第一次來？" },
+  "auth.modal.hasAccount": { "ko-KR": "이미 계정이 있으신가요?", "ja-JP": "すでにアカウントがありますか？", "en-US": "Already have an account?", "zh-CN": "已有账号？", "zh-Hant": "已有帳號？" },
+  "auth.modal.or": { "ko-KR": "또는", "ja-JP": "または", "en-US": "or", "zh-CN": "或", "zh-Hant": "或" },
+  "auth.modal.terms.prefix": { "ko-KR": "", "ja-JP": "", "en-US": "I agree to the ", "zh-CN": "我同意", "zh-Hant": "我同意" },
+  "auth.modal.terms.terms": { "ko-KR": "이용약관", "ja-JP": "利用規約", "en-US": "Terms", "zh-CN": "使用条款", "zh-Hant": "使用條款" },
+  "auth.modal.terms.and": { "ko-KR": "과", "ja-JP": "と", "en-US": " and ", "zh-CN": "和", "zh-Hant": "和" },
+  "auth.modal.terms.privacy": { "ko-KR": "개인정보처리방침", "ja-JP": "プライバシーポリシー", "en-US": "Privacy Policy", "zh-CN": "隐私政策", "zh-Hant": "隱私權政策" },
+  "auth.modal.terms.suffix": { "ko-KR": "에 동의합니다.", "ja-JP": "に同意します。", "en-US": ".", "zh-CN": "。", "zh-Hant": "。" },
+  "auth.modal.return.prefix": { "ko-KR": "로그인 후 이어갈 작업", "ja-JP": "ログイン後に続ける操作", "en-US": "Continue after login", "zh-CN": "登录后继续", "zh-Hant": "登入後繼續" },
   // ── 모바일 하단 탭바 ──
   "tab.home": { "ko-KR": "홈", "ja-JP": "ホーム", "en-US": "Home", "zh-CN": "首页" },
   "tab.artists": { "ko-KR": "아티스트", "ja-JP": "アーティスト", "en-US": "Artists", "zh-CN": "艺人" },
@@ -1316,104 +1351,193 @@ function applyAuthResponse(data, providerName = "백엔드") {
     return false;
   }
   setAuth({ accessToken, refreshToken, user });
+  const returnIntent = _authReturnIntent;
   closeAuthModal();
   updateAuthUI();
   if (typeof initMypagePage === "function") initMypagePage();
   loadWallet(); // 로그인/회원가입 직후 잔액 로드
+  completeAuthReturnIntent(returnIntent);
   console.info(`[Lumina] ${providerName} 로그인 성공`, { who: user?.displayName || maskEmail(user?.email) || "(unknown)" });
   return true;
 }
 
 /* ── 인증 모달 (로그인/회원가입) ─────────────── */
+let _authReturnIntent = null;
+
+const AUTH_RETURN_LABELS = {
+  "/story-stage": { "ko-KR": "스토리 이어보기", "ja-JP": "ストーリーを続ける", "en-US": "Continue story", "zh-CN": "继续故事", "zh-Hant": "繼續故事" },
+  "/story-upload": { "ko-KR": "작가 업로드 이어가기", "ja-JP": "作家アップロードを続ける", "en-US": "Continue writer upload", "zh-CN": "继续作者上传", "zh-Hant": "繼續作者上傳" },
+  "/premium-chat": { "ko-KR": "프리미엄 채팅 이어가기", "ja-JP": "プレミアムチャットを続ける", "en-US": "Continue premium chat", "zh-CN": "继续高级聊天", "zh-Hant": "繼續進階聊天" },
+  "/character-chat": { "ko-KR": "캐릭터 채팅 이어가기", "ja-JP": "キャラクターチャットを続ける", "en-US": "Continue character chat", "zh-CN": "继续角色聊天", "zh-Hant": "繼續角色聊天" },
+  "/lumina-feed": { "ko-KR": "피드 활동 이어가기", "ja-JP": "フィード操作を続ける", "en-US": "Continue feed action", "zh-CN": "继续动态操作", "zh-Hant": "繼續動態操作" },
+  "/debut": { "ko-KR": "데뷔 신청 이어가기", "ja-JP": "デビュー申請を続ける", "en-US": "Continue debut request", "zh-CN": "继续出道申请", "zh-Hant": "繼續出道申請" },
+  "/creator-studio": { "ko-KR": "크리에이터 스튜디오로 돌아가기", "ja-JP": "クリエイタースタジオへ戻る", "en-US": "Return to creator studio", "zh-CN": "返回创作者工作室", "zh-Hant": "返回創作者工作室" }
+};
+
+function authReturnLabelForPath(pathname) {
+  const path = String(pathname || "").replace(/\/index\.html$/, "/").replace(/\.html$/, "");
+  const labels = AUTH_RETURN_LABELS[path] || AUTH_RETURN_LABELS[path.replace(/\/$/, "")];
+  if (labels) return labels[_currentLocale] || labels[I18N_FALLBACK] || Object.values(labels)[0];
+  return {
+    "ko-KR": "이전 화면으로 돌아가기",
+    "ja-JP": "前の画面へ戻る",
+    "en-US": "Return to previous screen",
+    "zh-CN": "返回上一页",
+    "zh-Hant": "返回上一頁"
+  }[_currentLocale] || "이전 화면으로 돌아가기";
+}
+
+function isSensitiveReturnLabel(label) {
+  const value = String(label || "");
+  return /https?:\/\//i.test(value)
+    || /[?&](token|password|cookie|key|email|redirect|url)=/i.test(value)
+    || /@/.test(value);
+}
+
+function normalizeAuthReturnIntent(returnTo) {
+  if (!returnTo) return null;
+  const input = typeof returnTo === "object" ? returnTo : { href: returnTo };
+  let href = "";
+  try {
+    const base = window.location.origin || "https://lumina.local";
+    const url = new URL(input.href || window.location.pathname || "/", base);
+    if (url.origin !== base) return null;
+    href = url.pathname || "/";
+  } catch (_) {
+    href = window.location?.pathname || "/";
+  }
+  const rawLabel = String(input.label || "").trim();
+  const label = rawLabel && !isSensitiveReturnLabel(rawLabel)
+    ? rawLabel.slice(0, 40)
+    : authReturnLabelForPath(href);
+  return { href, label };
+}
+
+function currentAuthReturn(label) {
+  return normalizeAuthReturnIntent({ href: window.location?.pathname || "/", label });
+}
+
+function updateAuthReturnNotice(modal) {
+  const root = modal || document.getElementById("authModal");
+  if (!root) return;
+  const notice = root.querySelector("[data-auth-return]");
+  const label = root.querySelector("[data-auth-return-label]");
+  if (!notice || !label) return;
+  if (_authReturnIntent?.label) {
+    label.textContent = _authReturnIntent.label;
+    notice.hidden = false;
+  } else {
+    label.textContent = "";
+    notice.hidden = true;
+  }
+}
+
+function completeAuthReturnIntent(intent) {
+  const pending = intent || _authReturnIntent;
+  _authReturnIntent = null;
+  updateAuthReturnNotice();
+  if (!pending?.href || !window.location) return;
+  if (window.location.pathname.replace(/\/$/, "") === pending.href.replace(/\/$/, "")) return;
+  setTimeout(() => {
+    window.location.assign(pending.href);
+  }, 80);
+}
+
 function createAuthModal() {
   if (document.getElementById("authModal")) return;
   const modal = document.createElement("div");
   modal.id = "authModal";
   modal.className = "auth-modal-overlay";
   modal.innerHTML = `
-    <div class="auth-modal" role="dialog" aria-modal="true">
-      <button class="auth-modal-close" aria-label="닫기">✕</button>
+    <div class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+      <button class="auth-modal-close" aria-label="닫기" data-i18n-aria="auth.modal.close">✕</button>
+      <p class="auth-modal-return" data-auth-return hidden>
+        <span data-i18n="auth.modal.return.prefix">로그인 후 이어갈 작업</span>
+        <strong data-auth-return-label></strong>
+      </p>
       <div class="auth-modal-tabs">
-        <button class="auth-modal-tab is-active" data-tab="login" type="button">로그인</button>
-        <button class="auth-modal-tab" data-tab="register" type="button">회원가입</button>
+        <button class="auth-modal-tab is-active" data-tab="login" type="button" data-i18n="auth.login">로그인</button>
+        <button class="auth-modal-tab" data-tab="register" type="button" data-i18n="auth.signup">회원가입</button>
       </div>
       <form class="auth-modal-form" data-form="login" novalidate>
-        <h2>다시 만나서 반가워요</h2>
-        <p class="auth-modal-subtitle">Lumina Stage에 입장하세요</p>
+        <h2 id="authModalTitle" data-i18n="auth.modal.login.title">다시 만나서 반가워요</h2>
+        <p class="auth-modal-subtitle" data-i18n="auth.modal.login.subtitle">Lumina Stage에 입장하세요</p>
         <div class="auth-modal-error" data-error hidden></div>
-        <label class="auth-modal-field"><span>이메일</span>
+        <label class="auth-modal-field"><span data-i18n="auth.modal.email">이메일</span>
           <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
-        <label class="auth-modal-field"><span>비밀번호</span>
+        <label class="auth-modal-field"><span data-i18n="auth.modal.password">비밀번호</span>
           <input type="password" name="password" required autocomplete="current-password" /></label>
-        <button type="submit" class="auth-modal-submit">로그인</button>
+        <button type="submit" class="auth-modal-submit" data-i18n="auth.modal.login.submit">로그인</button>
         <p class="auth-modal-meta">
-          <button type="button" class="auth-modal-link" data-switch="forgot">비밀번호를 잊으셨나요?</button>
+          <button type="button" class="auth-modal-link" data-switch="forgot" data-i18n="auth.modal.forgot.link">비밀번호를 잊으셨나요?</button>
         </p>
       </form>
 
       <form class="auth-modal-form" data-form="forgot" novalidate hidden>
-        <h2>비밀번호 재설정</h2>
-        <p class="auth-modal-subtitle">가입한 이메일을 입력하면 재설정 안내 메일을 보내드려요.</p>
+        <h2 data-i18n="auth.modal.forgot.title">비밀번호 재설정</h2>
+        <p class="auth-modal-subtitle" data-i18n="auth.modal.forgot.subtitle">가입한 이메일을 입력하면 재설정 안내 메일을 보내드려요.</p>
         <div class="auth-modal-error" data-error hidden></div>
         <div class="auth-modal-info" data-info hidden></div>
-        <label class="auth-modal-field"><span>이메일</span>
+        <label class="auth-modal-field"><span data-i18n="auth.modal.email">이메일</span>
           <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
-        <button type="submit" class="auth-modal-submit">재설정 메일 보내기</button>
+        <button type="submit" class="auth-modal-submit" data-i18n="auth.modal.forgot.submit">재설정 메일 보내기</button>
         <p class="auth-modal-meta">
-          <button type="button" class="auth-modal-link" data-switch="login">로그인으로 돌아가기</button>
+          <button type="button" class="auth-modal-link" data-switch="login" data-i18n="auth.modal.backToLogin">로그인으로 돌아가기</button>
         </p>
       </form>
 
       <div class="auth-modal-form auth-modal-success-panel" data-form="signupSuccess" hidden>
-        <h2>가입이 완료됐어요</h2>
-        <p class="auth-modal-subtitle">입력한 이메일로 인증 메일을 보냈어요. 메일함에서 인증을 마치면 Lumina Stage를 더 안전하게 이용할 수 있어요.</p>
+        <h2 data-i18n="auth.modal.success.title">가입이 완료됐어요</h2>
+        <p class="auth-modal-subtitle" data-i18n="auth.modal.success.subtitle">입력한 이메일로 인증 메일을 보냈어요. 메일함에서 인증을 마치면 Lumina Stage를 더 안전하게 이용할 수 있어요.</p>
         <p class="auth-modal-email-line" data-signup-email-line hidden>
-          <small>받은 메일이 안 보이면 스팸·프로모션함도 한 번 확인해 보세요.</small>
+          <small data-i18n="auth.modal.success.emailHint">받은 메일이 안 보이면 스팸·프로모션함도 한 번 확인해 보세요.</small>
         </p>
         <div class="auth-modal-error" data-error hidden></div>
         <div class="auth-modal-info" data-info hidden></div>
-        <button type="button" class="auth-modal-submit" data-action="resend-verification">인증 메일 다시 받기</button>
+        <button type="button" class="auth-modal-submit" data-action="resend-verification" data-i18n="auth.modal.resend">인증 메일 다시 받기</button>
         <p class="auth-modal-meta">
-          <button type="button" class="auth-modal-link" data-action="close-modal">닫기</button>
+          <button type="button" class="auth-modal-link" data-action="close-modal" data-i18n="auth.modal.close">닫기</button>
         </p>
       </div>
 
       <form class="auth-modal-form" data-form="register" novalidate hidden>
-        <h2>Lumina Stage 가입</h2>
-        <p class="auth-modal-subtitle">팬으로서 좋아요와 응원을 보내세요</p>
+        <h2 data-i18n="auth.modal.register.title">Lumina Stage 가입</h2>
+        <p class="auth-modal-subtitle" data-i18n="auth.modal.register.subtitle">팬으로서 좋아요와 응원을 보내세요</p>
         <div class="auth-modal-error" data-error hidden></div>
-        <label class="auth-modal-field"><span>이메일</span>
+        <label class="auth-modal-field"><span data-i18n="auth.modal.email">이메일</span>
           <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
-        <label class="auth-modal-field"><span>닉네임 <small style="color:rgba(255,255,255,0.4);font-weight:400;">(선택)</small></span>
-          <input type="text" name="displayName" autocomplete="nickname" placeholder="비워두면 기본 닉네임이 자동 부여돼요" />
-          <small style="color:rgba(255,255,255,0.45);font-size:11.5px;margin-top:4px;display:block;">이메일이나 실명은 공개 닉네임으로 사용하지 않아요. 계정 설정에서 언제든 바꿀 수 있어요.</small></label>
-        <label class="auth-modal-field"><span>비밀번호 (8자 이상)</span>
+        <label class="auth-modal-field"><span><span data-i18n="auth.modal.nickname">닉네임</span> <small class="auth-modal-optional" data-i18n="auth.modal.optional">(선택)</small></span>
+          <input type="text" name="displayName" autocomplete="nickname" placeholder="비워두면 기본 닉네임이 자동 부여돼요" data-i18n-attr="placeholder:auth.modal.nickname.placeholder" />
+          <small class="auth-modal-helper" data-i18n="auth.modal.nickname.helper">이메일이나 실명은 공개 닉네임으로 사용하지 않아요. 계정 설정에서 언제든 바꿀 수 있어요.</small></label>
+        <label class="auth-modal-field"><span data-i18n="auth.modal.passwordMin">비밀번호 (8자 이상)</span>
           <input type="password" name="password" required minlength="8" autocomplete="new-password" /></label>
-        <label class="auth-modal-field"><span>추천인 코드 <small style="color:rgba(255,255,255,0.4);font-weight:400;">(선택)</small></span>
-          <input type="text" name="referralCode" autocomplete="off" placeholder="예: ABC12345" maxlength="20" /></label>
+        <label class="auth-modal-field"><span><span data-i18n="auth.modal.referral">추천인 코드</span> <small class="auth-modal-optional" data-i18n="auth.modal.optional">(선택)</small></span>
+          <input type="text" name="referralCode" autocomplete="off" placeholder="예: ABC12345" maxlength="20" data-i18n-attr="placeholder:auth.modal.referral.placeholder" /></label>
         <label class="auth-modal-consent">
           <input type="checkbox" name="termsConsent" required />
           <span>
-            <a href="/terms" target="_blank" rel="noopener">이용약관</a>과
-            <a href="/privacy" target="_blank" rel="noopener">개인정보처리방침</a>에 동의합니다.
+            <span data-i18n="auth.modal.terms.prefix"></span>
+            <a href="/terms" target="_blank" rel="noopener" data-i18n="auth.modal.terms.terms">이용약관</a><span data-i18n="auth.modal.terms.and">과</span>
+            <a href="/privacy" target="_blank" rel="noopener" data-i18n="auth.modal.terms.privacy">개인정보처리방침</a><span data-i18n="auth.modal.terms.suffix">에 동의합니다.</span>
           </span>
         </label>
-        <button type="submit" class="auth-modal-submit">가입하기</button>
+        <button type="submit" class="auth-modal-submit" data-i18n="auth.modal.register.submit">가입하기</button>
       </form>
 
       <!-- 공통 소셜 로그인 영역 (활성화된 provider 자동 표시) -->
       <div class="auth-modal-social-section" id="authSocialSection" hidden>
-        <div class="auth-modal-divider"><span>또는</span></div>
+        <div class="auth-modal-divider"><span data-i18n="auth.modal.or">또는</span></div>
         <div class="auth-modal-social" id="authSocialButtons"></div>
       </div>
 
       <!-- 탭별 푸터 -->
-      <p class="auth-modal-foot" data-foot="login">처음이신가요?
-        <button type="button" class="auth-modal-switch" data-switch="register">회원가입</button></p>
-      <p class="auth-modal-foot" data-foot="register" hidden>이미 계정이 있으신가요?
-        <button type="button" class="auth-modal-switch" data-switch="login">로그인</button></p>
+      <p class="auth-modal-foot" data-foot="login"><span data-i18n="auth.modal.firstTime">처음이신가요?</span>
+        <button type="button" class="auth-modal-switch" data-switch="register" data-i18n="auth.signup">회원가입</button></p>
+      <p class="auth-modal-foot" data-foot="register" hidden><span data-i18n="auth.modal.hasAccount">이미 계정이 있으신가요?</span>
+        <button type="button" class="auth-modal-switch" data-switch="login" data-i18n="auth.login">로그인</button></p>
     </div>`;
   document.body.appendChild(modal);
+  applyI18n(modal);
   bindAuthModalEvents(modal);
 }
 
@@ -1558,9 +1682,11 @@ async function handleAuthSubmit(form, mode) {
       form.reset();
       return;
     }
+    const returnIntent = _authReturnIntent;
     closeAuthModal();
     updateAuthUI();
     if (typeof initMypagePage === "function") initMypagePage();
+    completeAuthReturnIntent(returnIntent);
     form.reset();
   } catch (err) {
     const msg = getAuthSubmitErrorMessage(err, mode);
@@ -1615,9 +1741,15 @@ function translateValidationError(field, message) {
   return `${fieldKo}: ${message}`;
 }
 
-function openAuthModal(tab = "login") {
+function openAuthModal(tab = "login", options = {}) {
+  if (tab && typeof tab === "object") {
+    options = tab;
+    tab = options.tab || "login";
+  }
   createAuthModal();
   const modal = document.getElementById("authModal");
+  _authReturnIntent = normalizeAuthReturnIntent(options?.returnTo || null);
+  updateAuthReturnNotice(modal);
   switchAuthTab(tab);
   modal.classList.add("is-open");
   document.body.style.overflow = "hidden";
@@ -2171,7 +2303,7 @@ async function handleLike(slug, btnEl) {
     return;
   }
   if (!isLoggedIn()) {
-    openAuthModal("login");
+    openAuthModal("login", { returnTo: currentAuthReturn("루미나 픽 응원") });
     return;
   }
   if (_userLikedSlugs.has(slug)) {
@@ -2233,7 +2365,7 @@ async function handleLike(slug, btnEl) {
     } else if (err.status === 401) {
       clearAuth();
       updateAuthUI();
-      openAuthModal("login");
+      openAuthModal("login", { returnTo: currentAuthReturn("루미나 픽 응원") });
     } else if (err.status === 404 && /active boost campaign not found/i.test(msg)) {
       alert("진행 중인 좋아요 캠페인이 없어요.\n잠시 후 다시 시도해주세요.");
     } else if (err.status === 400 && /active artist not found/i.test(msg)) {
@@ -2278,7 +2410,7 @@ async function openPaidLikeModal(slug) {
     return;
   }
   if (!isLoggedIn()) {
-    openAuthModal("login");
+    openAuthModal("login", { returnTo: currentAuthReturn("추가 응원") });
     return;
   }
   const artist = getCharacterBySlug(slug) || _artists.find(a => a.slug === slug);
@@ -3231,7 +3363,9 @@ function bindLuminaFeedDelete() {
     const link = e.target.closest("[data-user-profile-link]");
     if (!link) return;
     // 안에 있는 버튼들(좋아요·수정·삭제·팔로우 등) 클릭은 무시
-    if (e.target.closest("button, a")) return;
+    if (e.target.closest("button, [role='button'], input, select, textarea")) return;
+    const nestedAnchor = e.target.closest("a");
+    if (nestedAnchor && nestedAnchor !== link) return;
     e.preventDefault();
     e.stopPropagation();
     if (link.dataset.profileBusy === "1") return;
@@ -3566,7 +3700,7 @@ function bindLuminaFeedComment() {
     if (!form) return;
     e.preventDefault();
     if (typeof getAccessToken === "function" && !getAccessToken()) {
-      if (typeof openAuthModal === "function") openAuthModal("login");
+      if (typeof openAuthModal === "function") openAuthModal("login", { returnTo: currentAuthReturn("피드 댓글 작성") });
       return;
     }
     const postId = form.dataset.postId;
@@ -4844,9 +4978,9 @@ function applyMiniProfileFollowState(viewer) {
   followBtn.classList.toggle("is-following", isFollowing);
   followBtn.dataset.following = isFollowing ? "1" : "0";
   followBtn.setAttribute("aria-pressed", isFollowing ? "true" : "false");
-  followBtn.setAttribute("aria-label", isFollowing ? "팔로잉 해제" : "팔로우");
-  followBtn.title = isFollowing ? "팔로잉 해제" : "팔로우";
-  if (followLabel) followLabel.textContent = isFollowing ? "팔로잉 해제" : "팔로우";
+  followBtn.setAttribute("aria-label", isFollowing ? "팔로우 취소" : "팔로우");
+  followBtn.title = isFollowing ? "팔로우 취소" : "팔로우";
+  if (followLabel) followLabel.textContent = isFollowing ? "팔로우 취소" : "팔로우";
 }
 
 function bindMiniProfileFollow() {
@@ -4858,7 +4992,11 @@ function bindMiniProfileFollow() {
     e.preventDefault();
     if (btn.dataset.busy === "1") return;
     if (typeof getAccessToken === "function" && !getAccessToken()) {
-      alert("로그인 후 팔로우할 수 있어요.");
+      if (typeof openAuthModal === "function") {
+        openAuthModal("login", { returnTo: { href: window.location.pathname, label: "피드 프로필 팔로우" } });
+      } else {
+        alert("로그인 후 팔로우할 수 있어요.");
+      }
       return;
     }
     const userId = btn.dataset.userId;

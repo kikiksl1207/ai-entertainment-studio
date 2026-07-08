@@ -366,7 +366,8 @@ td { color: var(--text); }
   border: 0;
 }
 .modal-summary .modal-form-grid label { display: grid; }
-.modal-summary .modal-form-grid label.is-wide { grid-column: 1 / -1; }
+.modal-summary .modal-form-grid label.is-wide,
+.modal-summary .modal-form-grid .is-wide { grid-column: 1 / -1; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .studio-toast {
   position: fixed;
@@ -414,6 +415,38 @@ td { color: var(--text); }
 .settlement-profile-card span { color: var(--muted); font-size: 12px; font-weight: 950; }
 .settlement-profile-card strong { font-size: 18px; overflow-wrap: anywhere; }
 .settlement-profile-card small { color: var(--muted); line-height: 1.5; }
+
+.settlement-conversion-gate-map {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px;
+}
+
+.settlement-conversion-gate-map article,
+.studio-modal-safe-note {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(94, 232, 168, 0.16);
+  border-radius: 10px;
+  background: rgba(94, 232, 168, 0.06);
+  color: rgba(232, 255, 246, 0.84);
+}
+
+.settlement-conversion-gate-map strong {
+  display: block;
+  color: #a7f3d0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.settlement-conversion-gate-map p,
+.studio-modal-safe-note {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
 
 /* #219 — 출금 예상액 분리 카드 (받은 루미나 / 정산 반영 / 정산 예정금 / 원천징수 / 실수령) */
 .payout-breakdown {
@@ -574,7 +607,7 @@ td { color: var(--text); }
   .studio-topbar, .panel-header, .table-card header { flex-direction: column; }
   /* #464 — 안내 블록 모바일 세로 정렬: 제목·본문 가로 나열 → 세로 스택 */
   .notice { flex-direction: column; gap: 8px; }
-  .studio-nav, .metric-grid, .media-grid, .form-grid, .account-mode, .studio-mini-grid, .studio-check-item, .requirement-item, .settlement-profile-grid { grid-template-columns: 1fr; }
+  .studio-nav, .metric-grid, .media-grid, .form-grid, .account-mode, .studio-mini-grid, .studio-check-item, .requirement-item, .settlement-profile-grid, .settlement-conversion-gate-map { grid-template-columns: 1fr; }
   .studio-shell, .studio-main, .studio-section, .panel, .table-card, .artist-list, .artist-card, .table-wrap { min-width: 0; max-width: 100%; }
   .table-wrap { width: 100%; }
   .artist-card { grid-template-columns: 70px 1fr; }
