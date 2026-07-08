@@ -2,6 +2,7 @@ import {
   AI_PREMIUM_CONTENT_BRIEF_API_SKELETON,
   AI_PREMIUM_CONTENT_CREATE_STATUS_API_SKELETON,
   AI_PREMIUM_CONTENT_CREATE_STATUS_API_STATUSES,
+  AI_PREMIUM_CONTENT_COPY_LOCALES,
   AI_PREMIUM_CONTENT_COST_RETRY_READ_MODEL_SKELETON,
   AI_PREMIUM_CONTENT_COST_ESTIMATE_PROJECTION_CONTRACT,
   AI_PREMIUM_CONTENT_COST_USAGE_AUDIT_PROJECTION,
@@ -32,7 +33,9 @@ import {
   AI_PREMIUM_CONTENT_SAFETY_STATUSES,
   AI_PREMIUM_CONTENT_STATE_API_CONTRACT,
   AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
+  AI_PREMIUM_CONTENT_STATUS_COPY_I18N,
   AI_PREMIUM_CONTENT_STATUS_COPY_KO,
+  AI_PREMIUM_CONTENT_PRECHECK_COPY_I18N,
   AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON,
   AI_PREMIUM_CONTENT_VIDEO_CONSENT_EXCEPTION_CONTRACT,
   CHARACTER_CHAT_AI_PREMIUM_CONTENT_HANDOFF_CONTRACT,
@@ -894,12 +897,29 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
     expect(Object.keys(AI_PREMIUM_CONTENT_STATUS_COPY_KO)).toEqual(
       AI_PREMIUM_CONTENT_REQUEST_STATUSES,
     );
+    expect(Object.keys(AI_PREMIUM_CONTENT_STATUS_COPY_I18N)).toEqual(
+      AI_PREMIUM_CONTENT_REQUEST_STATUSES,
+    );
+    expect(
+      Object.values(AI_PREMIUM_CONTENT_STATUS_COPY_I18N).every((copy) =>
+        AI_PREMIUM_CONTENT_COPY_LOCALES.every((locale) => copy[locale]),
+      ),
+    ).toBe(true);
     expect(contract.statusCopy).toMatchObject({
       locale: 'ko-KR',
+      locales: AI_PREMIUM_CONTENT_COPY_LOCALES,
+      localizedMap: AI_PREMIUM_CONTENT_STATUS_COPY_I18N,
+      precheckMap: AI_PREMIUM_CONTENT_PRECHECK_COPY_I18N,
       rawEnumAsCopy: false,
       rawProviderStatusAsCopy: false,
       neutralFallbackCopy: '상태를 확인 중이에요',
     });
+    expect(contract.statusCopy.localizedMap.provider_failed.en).toBe(
+      'Creation failed',
+    );
+    expect(contract.statusCopy.neutralFallbackCopyI18n.en).toBe(
+      'Checking status',
+    );
     expect(AI_PREMIUM_CONTENT_STATUS_COPY_KO.provider_failed).toBe(
       '생성에 실패했어요',
     );
@@ -1394,6 +1414,7 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
         previewOnly: true,
         statusSheetSurface: 'qa_status_preview',
         locale: 'ko-KR',
+        locales: AI_PREMIUM_CONTENT_COPY_LOCALES,
         rawStatusAsCopy: false,
         rawEnumAsCopy: false,
         rawProviderStatusReturned: false,
@@ -1418,6 +1439,13 @@ describe('AI_PREMIUM_CONTENT_STATE_API_CONTRACT', () => {
       '실패',
       '재생성 가능',
     ]);
+    expect(fixture.fixtureStates[0].labels.en).toBe('Under review');
+    expect(fixture.fixtureStates[4].labels.en).toBe('Creation failed');
+    expect(
+      fixture.fixtureStates.every((state) =>
+        AI_PREMIUM_CONTENT_COPY_LOCALES.every((locale) => state.labels[locale]),
+      ),
+    ).toBe(true);
     expect(
       fixture.fixtureStates.every((state) => state.rawEnumAsCopy === false),
     ).toBe(true);

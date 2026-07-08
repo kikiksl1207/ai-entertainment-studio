@@ -138,12 +138,13 @@
         <div class="roster-body">
           <div class="roster-meta">
             <span class="eyebrow">${a.type}</span>
-            <span class="status-badge status-badge-${a.status}">${statusMeta[a.status].label}</span>
+            <span class="status-badge status-badge-${a.status}" data-i18n="${statusMeta[a.status].labelKey || ""}">${statusMeta[a.status].label}</span>
           </div>
           <p>${artistToneCopy(a)}</p>
           <a class="text-link ${a.status === "secret" ? "is-dimmed" : ""}" href="/character-detail?slug=${a.slug}">무드 보기</a>
         </div>
       </article>`).join("");
+    window.luminaI18n?.apply?.(root);
   }
 
   window.renderMainArtists = renderMainArtists;

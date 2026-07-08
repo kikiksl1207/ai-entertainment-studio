@@ -5,7 +5,10 @@ import {
   AiPremiumContentController,
   buildAiPremiumContentStatusPreviewFixture,
 } from './ai-premium-content.controller';
-import { AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT } from './ai-premium-content-state-contract';
+import {
+  AI_PREMIUM_CONTENT_COPY_LOCALES,
+  AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT,
+} from './ai-premium-content-state-contract';
 
 describe('AiPremiumContentController', () => {
   it('mounts the public status preview fixture as a read-only GET route', () => {
@@ -42,6 +45,7 @@ describe('AiPremiumContentController', () => {
       projection: {
         previewOnly: true,
         locale: 'ko-KR',
+        locales: AI_PREMIUM_CONTENT_COPY_LOCALES,
         rawEnumAsCopy: false,
         providerPayloadReturned: false,
         signedUrlsReturned: false,
@@ -64,6 +68,13 @@ describe('AiPremiumContentController', () => {
       '실패',
       '재생성 가능',
     ]);
+    expect(response.items[0].labels.en).toBe('Under review');
+    expect(response.items[4].labels.en).toBe('Creation failed');
+    expect(
+      response.items.every((item) =>
+        AI_PREMIUM_CONTENT_COPY_LOCALES.every((locale) => item.labels[locale]),
+      ),
+    ).toBe(true);
     expect(response.items.every((item) => item.rawEnumAsCopy === false)).toBe(
       true,
     );

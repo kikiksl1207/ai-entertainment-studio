@@ -30,6 +30,7 @@ export const buildAiPremiumContentStatusPreviewFixture = () => ({
       key: state.key,
       displayStatus: state.displayStatus,
       labelKo: state.labelKo,
+      labels: state.labels,
       messageKey: state.messageKey,
       regenerateCtaEnabled:
         'regenerateCtaEnabled' in state ? state.regenerateCtaEnabled : false,

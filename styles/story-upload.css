@@ -859,6 +859,16 @@
   .su-reference-panel nav {
     justify-content: flex-start;
   }
+
+  .su-import-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .su-import-preview {
+    min-width: 560px;
+  }
 }
 
 @media (max-width: 400px) {
@@ -928,7 +938,7 @@
   }
 
   .su-import-preview {
-    min-width: 640px;
+    min-width: 540px;
     white-space: nowrap;
   }
 

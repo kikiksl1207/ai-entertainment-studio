@@ -1,5 +1,12 @@
 (function initCharacterCatalogPage() {
 /* ── 렌더링: 캐릭터 카탈로그 ────────────────── */
+function catalogStatusCopy(status, type = "label") {
+  const s = statusMeta[status] || {};
+  const key = type === "summary" ? s.summaryKey : s.labelKey;
+  const fallback = type === "summary" ? s.summaryLabel : s.label;
+  return window.luminaI18n?.t?.(key) || fallback || status;
+}
+
 function renderCatalogMedia(a) {
   const s = statusMeta[a.status];
   if (a.status === "secret" || a.status === "pending") {
@@ -7,12 +14,12 @@ function renderCatalogMedia(a) {
       <div class="catalog-overlay">
         <span class="eyebrow">${a.type}</span>
         <strong>${a.publicName}</strong>
-        <em class="catalog-status-caption">${s.summaryLabel}</em>
+        <em class="catalog-status-caption" data-i18n="${s.summaryKey || ""}">${catalogStatusCopy(a.status, "summary")}</em>
       </div></div>`;
   }
   return `<div class="catalog-media catalog-media-${a.tier} catalog-media-${a.status}">
     <img class="catalog-image catalog-image-${a.slug}" src="${a.images.thumb || a.images.cover}" alt="${a.publicName}" onerror="this.style.display='none'" />
-    <div class="catalog-overlay"><em class="catalog-status-caption">${s.summaryLabel}</em></div>
+    <div class="catalog-overlay"><em class="catalog-status-caption" data-i18n="${s.summaryKey || ""}">${catalogStatusCopy(a.status, "summary")}</em></div>
   </div>`;
 }
 
@@ -69,7 +76,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
       <div class="catalog-body">
         <h3 class="catalog-name">${a.publicName}</h3>
         <div class="catalog-meta">
-          <span>${statusMeta[a.status].label}</span>
+          <span data-i18n="${statusMeta[a.status].labelKey || ""}">${catalogStatusCopy(a.status)}</span>
           <span>${tierLabel[a.tier] || a.tier}</span>
         </div>
         <p class="catalog-summary">${artistToneCopy(a)}</p>
@@ -88,8 +95,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
     if (tagFilter) parts.push(`태그: <strong>${tagFilter}</strong>`);
     if (filter && filter !== "all") parts.push(`분류: <strong>${filter}</strong>`);
     if (statusFilter && statusFilter !== "all") {
-      const statusLabelMap = { public: "공개 활동 중", candidate: "데뷔 예정", secret: "비공개 라인", pending: "공개 예정" };
-      parts.push(`상태: <strong>${statusLabelMap[statusFilter] || statusFilter}</strong>`);
+      parts.push(`상태: <strong>${catalogStatusCopy(statusFilter)}</strong>`);
     }
     if (parts.length === 0) {
       note.innerHTML = "";
@@ -98,6 +104,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
         (tagFilter ? `<a href="/characters" class="text-link">필터 해제</a>` : "");
     }
   }
+  window.luminaI18n?.apply?.(root);
 }
 
 function bindCharacterFilters() {

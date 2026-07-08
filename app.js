@@ -273,6 +273,27 @@ const I18N_DICT = {
   "auth.modal.terms.privacy": { "ko-KR": "개인정보처리방침", "ja-JP": "プライバシーポリシー", "en-US": "Privacy Policy", "zh-CN": "隐私政策", "zh-Hant": "隱私權政策" },
   "auth.modal.terms.suffix": { "ko-KR": "에 동의합니다.", "ja-JP": "に同意します。", "en-US": ".", "zh-CN": "。", "zh-Hant": "。" },
   "auth.modal.return.prefix": { "ko-KR": "로그인 후 이어갈 작업", "ja-JP": "ログイン後に続ける操作", "en-US": "Continue after login", "zh-CN": "登录后继续", "zh-Hant": "登入後繼續" },
+  "auth.bridge.preview.title": { "ko-KR": "미리보기는 유지돼요", "ja-JP": "プレビューは維持されます", "en-US": "Preview stays available", "zh-CN": "预览仍可查看", "zh-Hant": "預覽仍可查看" },
+  "auth.bridge.preview.body": { "ko-KR": "저장·제출 같은 작업만 로그인 후 이어집니다.", "ja-JP": "保存や送信などの操作だけログイン後に続きます。", "en-US": "Only save and submit actions continue after login.", "zh-CN": "仅保存、提交等操作需登录后继续。", "zh-Hant": "僅儲存、送出等操作需登入後繼續。" },
+  "auth.bridge.account.title": { "ko-KR": "계정 상태 안내", "ja-JP": "アカウント状態案内", "en-US": "Account state guidance", "zh-CN": "账号状态提示", "zh-Hant": "帳號狀態提示" },
+  "auth.bridge.account.body": { "ko-KR": "인증, 소셜 전용, 본인확인 상태는 공개 가능한 안내만 보여줘요.", "ja-JP": "認証、ソーシャル専用、本人確認状態は公開可能な案内だけ表示します。", "en-US": "Verification, social-only, and identity states show public-safe guidance only.", "zh-CN": "验证、仅社交、身份状态仅显示公开安全提示。", "zh-Hant": "驗證、僅社群、身分狀態僅顯示公開安全提示。" },
+  "auth.bridge.social.title": { "ko-KR": "이메일 로그인 대안", "ja-JP": "メールログイン代替", "en-US": "Email login fallback", "zh-CN": "邮箱登录备选", "zh-Hant": "電子郵件登入備選" },
+  "auth.bridge.social.body": { "ko-KR": "소셜 연결이 불안정하면 이메일 로그인으로 계속 진행해 주세요.", "ja-JP": "ソーシャル接続が不安定な場合はメールログインで続行してください。", "en-US": "If social sign-in is unavailable, continue with email login.", "zh-CN": "社交登录不可用时，请使用邮箱登录继续。", "zh-Hant": "社群登入不可用時，請使用電子郵件登入繼續。" },
+  "character.status.public.label": { "ko-KR": "공식 활동 중", "ja-JP": "公式活動中", "en-US": "Officially active", "zh-CN": "官方活动中", "zh-Hant": "官方活動中" },
+  "character.status.public.summary": { "ko-KR": "활동 중", "ja-JP": "活動中", "en-US": "Active", "zh-CN": "活动中", "zh-Hant": "活動中" },
+  "character.status.debut.label": { "ko-KR": "데뷔 예정", "ja-JP": "デビュー予定", "en-US": "Debut planned", "zh-CN": "即将出道", "zh-Hant": "即將出道" },
+  "character.status.debut.summary": { "ko-KR": "공개 예정", "ja-JP": "公開予定", "en-US": "Coming soon", "zh-CN": "即将公开", "zh-Hant": "即將公開" },
+  "character.status.pending.label": { "ko-KR": "공개 예정", "ja-JP": "公開予定", "en-US": "Preparing release", "zh-CN": "准备公开", "zh-Hant": "準備公開" },
+  "character.status.pending.summary": { "ko-KR": "공개 예정", "ja-JP": "公開予定", "en-US": "Coming soon", "zh-CN": "即将公开", "zh-Hant": "即將公開" },
+  "character.status.private.label": { "ko-KR": "비공개 라인", "ja-JP": "非公開ライン", "en-US": "Private lineup", "zh-CN": "非公开阵容", "zh-Hant": "非公開陣容" },
+  "character.status.private.summary": { "ko-KR": "비공개", "ja-JP": "非公開", "en-US": "Private", "zh-CN": "非公开", "zh-Hant": "非公開" },
+  "character.status.candidate.label": { "ko-KR": "비공개 라인", "ja-JP": "非公開ライン", "en-US": "Private lineup", "zh-CN": "非公开阵容", "zh-Hant": "非公開陣容" },
+  "character.status.candidate.summary": { "ko-KR": "비공개", "ja-JP": "非公開", "en-US": "Private", "zh-CN": "非公开", "zh-Hant": "非公開" },
+  "feed.follow.action": { "ko-KR": "팔로우", "ja-JP": "フォロー", "en-US": "Follow", "zh-CN": "关注", "zh-Hant": "追蹤" },
+  "feed.follow.cancel": { "ko-KR": "팔로우 취소", "ja-JP": "フォロー解除", "en-US": "Unfollow", "zh-CN": "取消关注", "zh-Hant": "取消追蹤" },
+  "miniProfile.loading": { "ko-KR": "로딩 중…", "ja-JP": "読み込み中…", "en-US": "Loading…", "zh-CN": "加载中…", "zh-Hant": "載入中…" },
+  "miniProfile.detail": { "ko-KR": "상세 프로필 보기 →", "ja-JP": "詳細プロフィールを見る →", "en-US": "View full profile →", "zh-CN": "查看详细资料 →", "zh-Hant": "查看詳細資料 →" },
+  "miniProfile.detail.self": { "ko-KR": "내 프로필 보기 →", "ja-JP": "自分のプロフィールを見る →", "en-US": "View my profile →", "zh-CN": "查看我的资料 →", "zh-Hant": "查看我的資料 →" },
   // ── 모바일 하단 탭바 ──
   "tab.home": { "ko-KR": "홈", "ja-JP": "ホーム", "en-US": "Home", "zh-CN": "首页" },
   "tab.artists": { "ko-KR": "아티스트", "ja-JP": "アーティスト", "en-US": "Artists", "zh-CN": "艺人" },
@@ -1455,6 +1476,23 @@ function createAuthModal() {
         <span data-i18n="auth.modal.return.prefix">로그인 후 이어갈 작업</span>
         <strong data-auth-return-label></strong>
       </p>
+      <div class="auth-bridge-panel"
+           data-auth-protected-entry-bridge="true"
+           data-auth-account-state-projection="true"
+           data-auth-social-provider-fallback="true">
+        <article>
+          <strong data-i18n="auth.bridge.preview.title">미리보기는 유지돼요</strong>
+          <p data-i18n="auth.bridge.preview.body">저장·제출 같은 작업만 로그인 후 이어집니다.</p>
+        </article>
+        <article>
+          <strong data-i18n="auth.bridge.account.title">계정 상태 안내</strong>
+          <p data-i18n="auth.bridge.account.body">인증, 소셜 전용, 본인확인 상태는 공개 가능한 안내만 보여줘요.</p>
+        </article>
+        <article>
+          <strong data-i18n="auth.bridge.social.title">이메일 로그인 대안</strong>
+          <p data-i18n="auth.bridge.social.body">소셜 연결이 불안정하면 이메일 로그인으로 계속 진행해 주세요.</p>
+        </article>
+      </div>
       <div class="auth-modal-tabs">
         <button class="auth-modal-tab is-active" data-tab="login" type="button" data-i18n="auth.login">로그인</button>
         <button class="auth-modal-tab" data-tab="register" type="button" data-i18n="auth.signup">회원가입</button>
@@ -4011,12 +4049,12 @@ function renderFeedLinkPreview(linkPreview) {
 }
 
 const statusMeta = {
-  public:    { label: "공식 활동 중",  summaryLabel: "활동 중",   className: "is-public"    },
-  debut:     { label: "데뷔 예정",     summaryLabel: "공개 예정", className: "is-debut"     },
+  public:    { label: "공식 활동 중",  labelKey: "character.status.public.label",  summaryLabel: "활동 중",   summaryKey: "character.status.public.summary",  className: "is-public"    },
+  debut:     { label: "데뷔 예정",     labelKey: "character.status.debut.label",   summaryLabel: "공개 예정", summaryKey: "character.status.debut.summary",   className: "is-debut"     },
   // #601 — 공개 보류 상태. 이미지/조건 충족 후 public 전환 예정. is-secret 클래스 재사용(CSS 변경 없음).
-  pending:   { label: "공개 예정",     summaryLabel: "공개 예정", className: "is-secret"    },
-  secret:    { label: "비공개 라인",   summaryLabel: "비공개", className: "is-secret"    },
-  candidate: { label: "비공개 라인",   summaryLabel: "비공개", className: "is-secret"    }
+  pending:   { label: "공개 예정",     labelKey: "character.status.pending.label", summaryLabel: "공개 예정", summaryKey: "character.status.pending.summary", className: "is-secret"    },
+  secret:    { label: "비공개 라인",   labelKey: "character.status.private.label", summaryLabel: "비공개", summaryKey: "character.status.private.summary", className: "is-secret"    },
+  candidate: { label: "비공개 라인",   labelKey: "character.status.candidate.label", summaryLabel: "비공개", summaryKey: "character.status.candidate.summary", className: "is-secret"    }
 };
 
 /* ── 숏폼 데이터 (로컬 fallback) ────────────── */
@@ -4847,7 +4885,7 @@ function initScrollReveal() {
         </div>
         <div class="mini-profile-actions">
           <button class="mini-profile-follow-btn" id="miniProfileFollowBtn" type="button" data-mini-follow hidden>
-            <span data-mini-follow-label data-i18n="miniProfile.follow">팔로우</span>
+            <span data-mini-follow-label data-i18n="feed.follow.action">팔로우</span>
           </button>
           <a class="mini-profile-detail-btn" id="miniProfileDetailBtn" href="#" data-i18n="miniProfile.detail">상세 프로필 보기 →</a>
           <!-- #1055 — 사용자 차단 진입점. 실제 block mutation은 #1023 서버 계약/main 반영 전까지 미실행. -->
@@ -4942,7 +4980,9 @@ function openMiniProfileModal(profileData) {
     } else {
       detailBtn.href = "#";
     }
-    detailBtn.textContent = viewer.isSelf ? "내 프로필 보기 →" : "상세 프로필 보기 →";
+    const detailKey = viewer.isSelf ? "miniProfile.detail.self" : "miniProfile.detail";
+    detailBtn.dataset.i18n = detailKey;
+    detailBtn.textContent = t(detailKey);
   }
 
   // #1055 — 사용자 차단 진입점 (본인이면 숨김)
@@ -4975,12 +5015,17 @@ function applyMiniProfileFollowState(viewer) {
   if (!followBtn) return;
   const followLabel = followBtn.querySelector("[data-mini-follow-label]");
   const isFollowing = !!(viewer?.isFollowing || viewer?.canUnfollow);
+  const key = isFollowing ? "feed.follow.cancel" : "feed.follow.action";
+  const label = t(key);
   followBtn.classList.toggle("is-following", isFollowing);
   followBtn.dataset.following = isFollowing ? "1" : "0";
   followBtn.setAttribute("aria-pressed", isFollowing ? "true" : "false");
-  followBtn.setAttribute("aria-label", isFollowing ? "팔로우 취소" : "팔로우");
-  followBtn.title = isFollowing ? "팔로우 취소" : "팔로우";
-  if (followLabel) followLabel.textContent = isFollowing ? "팔로우 취소" : "팔로우";
+  followBtn.setAttribute("aria-label", label);
+  followBtn.title = label;
+  if (followLabel) {
+    followLabel.dataset.i18n = key;
+    followLabel.textContent = label;
+  }
 }
 
 function bindMiniProfileFollow() {
