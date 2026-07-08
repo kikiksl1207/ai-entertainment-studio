@@ -84,8 +84,8 @@ export class AuthController {
 
   @Post('logout')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  logout(@Body() body: RefreshDto) {
-    return this.authService.logout(body.refreshToken);
+  logout(@Body() body?: Partial<RefreshDto>) {
+    return this.authService.logout(body?.refreshToken ?? '');
   }
 
   @Post('email-verifications')

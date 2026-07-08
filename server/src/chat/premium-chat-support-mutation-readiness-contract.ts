@@ -1,0 +1,41 @@
+export const PREMIUM_CHAT_SUPPORT_MUTATION_READINESS_CONTRACT = {
+  version: '2026-07-08.premium-chat-support-mutation-readiness.v1',
+  feature: 'premium_chat_support_mutation',
+  currentStatus: 'readiness_contract_only',
+  readOnlySurfacesReady: [
+    'GET /api/v1/chat/premium-support-contract',
+    'premium chat support preview page',
+    'support ranking and ledger projection contracts',
+  ],
+  mutationEndpoint: {
+    method: 'POST',
+    path: '/api/v1/chat/premium-rooms/:roomId/support-messages',
+    publicRouteEnabled: false,
+    requiresIdempotencyKey: true,
+    serverAmountAuthority: 'server_normalized_premium_chat_support_amount',
+    clientSubmittedAmountTrusted: false,
+  },
+  requiredBeforeEnablement: [
+    'wallet debit ledger and premium support domain record same transaction',
+    'support point ledger write idempotency',
+    'room status supportability check',
+    'message moderation placeholder policy',
+    'refund and chargeback exclusion from support ranking',
+  ],
+  noMutationUntilEnabled: {
+    walletDebit: true,
+    walletCredit: true,
+    donationOrderCreate: true,
+    supportPointLedgerWrite: true,
+    settlement: true,
+    payout: true,
+    likeRankingWrite: true,
+  },
+  responsePolicy: {
+    returnsRawWalletLedgerId: false,
+    returnsRawSupportPointLedgerId: false,
+    returnsRawEmail: false,
+    returnsToken: false,
+    returnsCookie: false,
+  },
+} as const;

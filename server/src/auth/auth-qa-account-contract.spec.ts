@@ -69,6 +69,11 @@ describe('auth QA account access contract', () => {
       chat: false,
       logs: false,
     });
+    expect(AUTH_QA_ACCOUNT_ACCESS_CONTRACT.credentialSource.missingRequiredSlotBlock).toMatchObject({
+      blockedBy: 'safe QA credential source needed',
+      passwordRequestAllowed: false,
+      rawCredentialRecordAllowed: false,
+    });
     expect(AUTH_QA_ACCOUNT_ACCESS_CONTRACT.credentialSource.requiredSlotGroups).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
