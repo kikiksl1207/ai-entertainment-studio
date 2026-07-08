@@ -462,7 +462,7 @@
       stateLabel: "정보 확보 · 신뢰 상승",
       endingRoute: "E-SUB-01",
       endingType: "writer_sub_ending",
-      endingLabel: "작가 서브 엔딩",
+      endingLabel: "작가 보조 결말 후보",
       backgroundId: "bg-war-room-map",
       backgroundState: "bg-war-room-map",
       backgroundAssetUrl: "/assets/brand/lumina-stage-banner.png",
@@ -471,7 +471,7 @@
       characterImage: "/assets/characters/cha-dohyun/reference-final-03.png",
       userSceneLabel: "기록 보관실",
       stateLabel: "정보 확보 · 신뢰 상승",
-      endingLabel: "작가 서브 엔딩",
+      endingLabel: "작가 보조 결말 후보",
       backgroundLabel: "작전 지도실",
       rejoinLabel: "다음 장면으로 이어짐",
       eventSummary: "Record clue opens the map-room path.",
@@ -500,7 +500,7 @@
       stateLabel: "위험 상승 · 아이템 확보",
       endingRoute: "E-SUB-02",
       endingType: "writer_sub_ending",
-      endingLabel: "작가 서브 엔딩",
+      endingLabel: "작가 보조 결말 후보",
       backgroundId: "bg-harbor-night",
       backgroundState: "bg-harbor-night",
       backgroundAssetUrl: "/assets/characters/cha-dohyun/cover.png",
@@ -509,7 +509,7 @@
       characterImage: "/assets/characters/cha-dohyun/reference-final-08.png",
       userSceneLabel: "밤 항구 추적",
       stateLabel: "위험 상승 · 아이템 확보",
-      endingLabel: "작가 서브 엔딩",
+      endingLabel: "작가 보조 결말 후보",
       backgroundLabel: "밤 항구",
       rejoinLabel: "다음 장면으로 이어짐",
       eventSummary: "Messenger chase moves the scene to the harbor.",
@@ -579,7 +579,7 @@
     },
     {
       tone: "sub",
-      title: "작가 서브 엔딩",
+      title: "작가 보조 엔딩",
       routeLabel: "선택 A/B",
       summary: "선택으로 갈라진 루트에 작가가 따로 준비한 결말입니다.",
       from: "분기 선택",
@@ -1289,6 +1289,7 @@
               data-choice="${escapeHtml(choice.label)}"
               data-next-scene="${escapeHtml(choice.nextSceneId)}"
               data-state-delta="${escapeHtml(choice.stateDelta)}"
+              data-ending-type="${escapeHtml(choice.endingType)}"
               data-ending-label="${escapeHtml(publicEndingLabel(choice))}"
               data-background-id="${escapeHtml(choice.backgroundId)}"
               data-background-state="${escapeHtml(choice.backgroundState)}"
