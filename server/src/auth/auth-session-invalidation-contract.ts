@@ -1,5 +1,66 @@
 export const AUTH_SESSION_INVALIDATION_CONTRACT = {
-  version: '2026-06-24.auth-session-invalidation.v1',
+  version: '2026-07-08.auth-session-invalidation.v2',
+  logoutRefreshToken: {
+    endpoint: 'POST /api/v1/auth/logout',
+    frontendContract: {
+      source: 'local auth storage refresh token',
+      sendsRefreshTokenBodyWhenPresent: true,
+      authorizationHeaderAllowedForAccessSessionHint: true,
+      clearsLocalAuthAfterAttempt: true,
+    },
+    backendContract: {
+      idempotent: true,
+      missingOrInvalidRefreshTokenReturnsOk: true,
+      verifiesTokenType: 'refresh',
+      revocationWhere: {
+        tokenIdSource: 'verified refresh token payload tokenId',
+        tokenHashSource: 'server sha256 of submitted refresh token',
+        revokedAt: null,
+      },
+      clientSessionIdTrusted: false,
+      currentAccessTokenAloneRevokesRefreshToken: false,
+    },
+    responsePolicy: {
+      returnsOkOnly: true,
+      returnsAccessToken: false,
+      returnsRefreshToken: false,
+      returnsCookie: false,
+      returnsSessionSecret: false,
+      returnsTokenHash: false,
+    },
+  },
+  refreshRotation: {
+    endpoint: 'POST /api/v1/auth/refresh',
+    requestBody: ['refreshToken'],
+    mutationOrder: [
+      'verify refresh jwt signature',
+      'require tokenType refresh and tracked tokenId',
+      'load active user',
+      'load stored user_refresh_tokens row',
+      'reject revoked expired mismatched hash or wrong owner',
+      'revoke previous refresh token row',
+      'issue replacement access and refresh tokens',
+    ],
+    oldTokenReuse: {
+      accepted: false,
+      expectedStatus: 401,
+      walletMutation: false,
+      accountMutationExceptRevocation: false,
+    },
+    responsePolicy: {
+      returnsAccessToken: true,
+      returnsRefreshToken: true,
+      returnsCookie: false,
+      returnsTokenHash: false,
+      returnsRawSessionId: false,
+    },
+  },
+  protectedAfterLogout: {
+    expectedClientState: 'local auth cleared after logout attempt',
+    endpoints: ['GET /api/v1/me', 'GET /api/v1/me/trust'],
+    expectedStatusWithoutValidAccessToken: 401,
+    refreshRetryAfterRevokedRefreshToken: false,
+  },
   passwordResetConfirm: {
     endpoint: 'POST /api/v1/auth/password-resets/confirm',
     trigger: 'successful password reset confirmation',

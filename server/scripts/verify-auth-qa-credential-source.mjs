@@ -3,6 +3,11 @@ import { existsSync, readFileSync } from 'node:fs';
 const SCRIPT_NAME = 'scripts/verify-auth-qa-credential-source.mjs';
 const CONFIRM_VALUE = 'VERIFY_AUTH_QA_CREDENTIAL_SOURCE';
 const TASK_ID = '#344';
+const MISSING_PRIVATE_CREDENTIAL_BLOCK = {
+  blockedBy: 'safe QA credential source needed',
+  nextAction:
+    'Populate the missing slot names in a private local credential source, then rerun this verifier.',
+};
 
 const REQUIRED_SLOT_GROUPS = [
   {
@@ -85,6 +90,7 @@ if (groupReady(REQUIRED_SLOT_GROUPS[0].slots)) {
     blocked: true,
     reason: 'missing_required_private_slots',
     missingSlots: missingSlots(REQUIRED_SLOT_GROUPS[0].slots),
+    ...MISSING_PRIVATE_CREDENTIAL_BLOCK,
   });
 }
 
@@ -100,6 +106,7 @@ if (socialApiReady() && config.allowSocialApiLogin) {
       : 'missing_required_private_slots',
     missingSlots: missingSlots(REQUIRED_SLOT_GROUPS[1].slots),
     apiAutomationReady: socialApiReady(),
+    ...(groupReady(REQUIRED_SLOT_GROUPS[1].slots) ? {} : MISSING_PRIVATE_CREDENTIAL_BLOCK),
     note:
       'Manual provider credentials are checked only for presence. API social login is skipped unless AUTH_QA_ALLOW_SOCIAL_API_LOGIN=true.',
   });
@@ -122,6 +129,7 @@ function buildReadiness() {
         ready: groupReady(group.slots),
         presentSlots: presentSlots(group.slots),
         missingSlots: missingSlots(group.slots),
+        ...(groupReady(group.slots) ? {} : MISSING_PRIVATE_CREDENTIAL_BLOCK),
       },
     ]),
   );
@@ -132,6 +140,7 @@ function buildReadiness() {
         ready: groupReady(group.slots),
         presentSlots: presentSlots(group.slots),
         missingSlots: missingSlots(group.slots),
+        ...(groupReady(group.slots) ? {} : MISSING_PRIVATE_CREDENTIAL_BLOCK),
       },
     ]),
   );
