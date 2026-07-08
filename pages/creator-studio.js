@@ -546,13 +546,13 @@
 
   function conversionStatusLabel(status) {
     const labels = {
-      requested: "확인 대기",
-      approved: "승인됨",
-      credited: "반영 완료",
+      requested: "요청됨 · 승인 필요",
+      approved: "승인됨 · 지갑 반영 대기",
+      credited: "지갑 반영 완료",
       rejected: "반려",
       canceled: "취소"
     };
-    return labels[status] || "확인 대기";
+    return labels[status] || "요청됨 · 승인 필요";
   }
 
   function renderSettlementConversions(items = []) {
@@ -561,7 +561,7 @@
     if (!rows) return;
     if (!items.length) {
       rows.innerHTML = '<tr><td colspan="5">아직 접수된 정산금 충전 신청이 없습니다.</td></tr>';
-      if (state) state.textContent = "정산금 충전 신청은 승인 후에만 지갑에 반영됩니다.";
+      if (state) state.textContent = "정산금 충전 신청은 요청됨 상태로 접수되며 승인 후에만 지갑에 반영됩니다.";
       return;
     }
     rows.innerHTML = items.map(item => {
@@ -569,7 +569,7 @@
       const lumina = Number(item.requestedLumina || Math.floor(amount / 10));
       return "<tr><td>" + escapeHtml(item.settlementKey || "-") + "</td><td>" + formatKrw(amount) + "</td><td>" + formatNumber(lumina) + "L</td><td><span class=\"badge is-warn\">" + escapeHtml(conversionStatusLabel(item.status || "requested")) + "</span></td><td>" + escapeHtml(item.note || "-") + "</td></tr>";
     }).join("");
-    if (state) state.textContent = "표시된 신청은 관리자/회계 확인 대기 흐름입니다. 승인 전 지갑 잔액은 늘어나지 않습니다.";
+    if (state) state.textContent = "표시된 신청은 요청됨/승인 필요 흐름입니다. 승인 전 지갑 잔액은 늘어나지 않습니다.";
   }
 
   function renderSettlement(data) {
@@ -1037,9 +1037,10 @@
     openStudioModal({
       type: "CHARGE REQUEST",
       title: "정산금으로 충전",
-      message: "정산금으로 충전은 요청만 접수됩니다. 관리자/회계 확인 후 루미나가 지급되며, 즉시 지갑에 반영되지 않습니다. 1 Lumina = 10원 기준입니다.",
+      message: "정산금으로 충전은 요청만 접수됩니다. 상태는 요청됨/승인 필요로 시작하며, 관리자/회계 확인 후에만 루미나가 지급됩니다. 즉시 지갑에 반영되지 않습니다. 1 Lumina = 10원 기준입니다.",
       summaryHtml:
         '<div class="modal-form-grid">' +
+          '<p class="studio-modal-safe-note is-wide">settlementKey는 정산 미리보기에서 자동 선택됩니다. 아티스트 slug를 직접 입력하지 않습니다.</p>' +
           '<label class="is-wide"><span>대상 정산</span><select id="studioConversionSettlement">' +
             options.map(item => '<option value="' + escapeHtml(item.key) + '" data-available="' + escapeHtml(item.available) + '">' + escapeHtml(item.name + " · 가능 " + formatKrw(item.available)) + '</option>').join("") +
           '</select></label>' +

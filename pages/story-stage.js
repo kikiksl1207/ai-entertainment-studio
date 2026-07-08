@@ -194,11 +194,11 @@
       "zh-Hant": "隱藏資訊開啟，傳令對你的信任提升。",
     },
     "storyStage.branch.a.rejoin": {
-      "ko-KR": "S09 재합류 · 정보 조건 유지",
-      "ja-JP": "S09で再合流 · 情報条件を維持",
-      "en-US": "Rejoins at S09 · info condition kept",
-      "zh-CN": "S09再汇合 · 保留信息条件",
-      "zh-Hant": "S09再匯合 · 保留資訊條件",
+      "ko-KR": "후반 합류 장면 · 정보 조건 유지",
+      "ja-JP": "後半の再合流場面 · 情報条件を維持",
+      "en-US": "Later rejoin scene · info condition kept",
+      "zh-CN": "后段汇合场景 · 保留信息条件",
+      "zh-Hant": "後段匯合場景 · 保留資訊條件",
     },
     "storyStage.branch.b.title": {
       "ko-KR": "전령을 따라 이동",
@@ -215,11 +215,11 @@
       "zh-Hant": "風險上升，但獲得封存地圖道具。",
     },
     "storyStage.branch.b.rejoin": {
-      "ko-KR": "S09 재합류 · 아이템 조건 유지",
-      "ja-JP": "S09で再合流 · アイテム条件を維持",
-      "en-US": "Rejoins at S09 · item condition kept",
-      "zh-CN": "S09再汇合 · 保留道具条件",
-      "zh-Hant": "S09再匯合 · 保留道具條件",
+      "ko-KR": "후반 합류 장면 · 아이템 조건 유지",
+      "ja-JP": "後半の再合流場面 · アイテム条件を維持",
+      "en-US": "Later rejoin scene · item condition kept",
+      "zh-CN": "后段汇合场景 · 保留道具条件",
+      "zh-Hant": "後段匯合場景 · 保留道具條件",
     },
     "storyStage.branch.c.title": {
       "ko-KR": "해안으로 우회",
@@ -473,7 +473,7 @@
       stateLabel: "정보 확보 · 신뢰 상승",
       endingLabel: "작가 서브 엔딩",
       backgroundLabel: "작전 지도실",
-      rejoinLabel: "S09에서 합류",
+      rejoinLabel: "다음 장면으로 이어짐",
       eventSummary: "Record clue opens the map-room path.",
       eventLabel: "기록 단서가 열립니다.",
       relationSummary: "Messenger trust rises before rejoin.",
@@ -483,11 +483,11 @@
       infoSummary: "Hidden archive clue unlocked.",
       infoLabel: "숨은 보관실 단서를 얻습니다.",
       endingCandidate: "Author side ending",
-      endingCandidateLabel: "작가가 준비한 보조 결말 후보",
+      endingCandidateLabel: "작가 보조 결말 후보",
       chatLine: "The record room lights up. The safer clue path is open.",
       chatLineLabel: "기록 보관실에 불이 들어오고 안전한 단서 경로가 열립니다.",
-      rejoin: "S09",
-      rejoinLabel: "S09에서 합류",
+      rejoin: "later-rejoin",
+      rejoinLabel: "다음 장면으로 이어짐",
     },
     {
       label: "B",
@@ -511,7 +511,7 @@
       stateLabel: "위험 상승 · 아이템 확보",
       endingLabel: "작가 서브 엔딩",
       backgroundLabel: "밤 항구",
-      rejoinLabel: "S09에서 합류",
+      rejoinLabel: "다음 장면으로 이어짐",
       eventSummary: "Messenger chase moves the scene to the harbor.",
       eventLabel: "전령을 따라 항구로 이동합니다.",
       relationSummary: "Trust is unstable but active.",
@@ -521,11 +521,11 @@
       infoSummary: "Sealed map item acquired.",
       infoLabel: "봉인된 지도 아이템을 확보합니다.",
       endingCandidate: "Author side ending",
-      endingCandidateLabel: "작가가 준비한 보조 결말 후보",
+      endingCandidateLabel: "작가 보조 결말 후보",
       chatLine: "The harbor wind cuts in. Following them raises the risk.",
       chatLineLabel: "항구 바람이 거세지고 추적 선택의 위험이 커집니다.",
-      rejoin: "S09",
-      rejoinLabel: "S09에서 합류",
+      rejoin: "later-rejoin",
+      rejoinLabel: "다음 장면으로 이어짐",
     },
     {
       label: "C",
@@ -535,10 +535,10 @@
       bodySummary: "The player detours to the shore and enters an unresolved branch.",
       bodySummaryLabel: "해안으로 우회해 아직 결말 검토가 필요한 분기로 들어갑니다.",
       stateDelta: "relationshipShift + aiFallbackCondition",
-      stateLabel: "관계 변화 · AI 후보 조건",
+      stateLabel: "관계 변화 · AI 초안 검토",
       endingRoute: "E-AI-01",
       endingType: "ai_fallback_ending",
-      endingLabel: "AI 보조 결말",
+      endingLabel: "AI 초안 후보",
       backgroundId: "bg-fog-shore",
       backgroundState: "bg-fog-shore",
       backgroundAssetUrl: "/assets/characters/choi-seojin/cover.png",
@@ -546,10 +546,10 @@
       characterAssetLabel: "No character in this branch",
       characterImage: "",
       userSceneLabel: "안개 낀 해안 우회",
-      stateLabel: "관계 변화 · 보조 결말 검토",
-      endingLabel: "AI 보조 결말",
+      stateLabel: "관계 변화 · AI 초안 검토",
+      endingLabel: "AI 초안 후보",
       backgroundLabel: "안개 해안",
-      rejoinLabel: "보조 결말 검토 전 합류 없음",
+      rejoinLabel: "검수 후 다음 장면으로 이어짐",
       eventSummary: "The detour splits away before the rejoin.",
       eventLabel: "우회로가 합류 전에 갈라집니다.",
       relationSummary: "Relationship shifts without a writer ending.",
@@ -559,11 +559,11 @@
       infoSummary: "Missing author ending is visible.",
       infoLabel: "작가 결말이 없는 분기임을 확인합니다.",
       endingCandidate: "AI-assisted ending candidate",
-      endingCandidateLabel: "작가 결말이 없을 때만 쓰는 보조 결말 후보",
+      endingCandidateLabel: "AI 보조 결말 후보",
       chatLine: "The shore goes quiet. This branch needs helper ending review.",
       chatLineLabel: "해안이 조용해지고 이 분기는 보조 결말 검토가 필요합니다.",
       rejoin: "No rejoin before helper ending review",
-      rejoinLabel: "보조 결말 검토 전 합류 없음",
+      rejoinLabel: "검수 후 다음 장면으로 이어짐",
     },
   ];
 
@@ -781,8 +781,13 @@
   function publicEndingLabel(choice) {
     const type = String(choice?.endingType || "");
     if (type === "ai_fallback_ending") return "AI 보조 결말 후보";
-    if (type === "writer_sub_ending") return "작가 서브 엔딩 후보";
-    return "작가 기본 엔딩";
+    if (type === "writer_sub_ending") return "작가 보조 결말 후보";
+    return "작가 기본 결말";
+  }
+
+  function playerBridgeCopy(choice) {
+    if (choice?.bridge) return storyCopy(choice.bridge);
+    return storyCopy(FREE_STORY_CHOICE_RESULTS[0]?.bridge);
   }
 
   function storyLocalT(key) {
@@ -1190,6 +1195,7 @@
             <p class="story-player-status" data-i18n="storyStage.player.status">배경 위에 대화와 선택지를 겹치지 않게 보여줘요.</p>
             <div class="story-player-chat" role="log" aria-live="polite">
               <p class="story-player-bubble is-ai" data-story-player-bubble>${escapeHtml(activeChoice.chatLineLabel)}</p>
+              <p class="story-player-bridge" data-story-player-bridge>${escapeHtml(playerBridgeCopy(activeChoice))}</p>
             </div>
             <div class="story-player-choices" role="group" aria-label="스토리 선택지">
               ${STORY_BRANCH_IMPLEMENTATION_FIXTURE.map((choice, index) => `
@@ -1283,8 +1289,7 @@
               data-choice="${escapeHtml(choice.label)}"
               data-next-scene="${escapeHtml(choice.nextSceneId)}"
               data-state-delta="${escapeHtml(choice.stateDelta)}"
-              data-ending-type="${escapeHtml(choice.endingType)}"
-              data-ending-route="${escapeHtml(choice.endingRoute)}"
+              data-ending-label="${escapeHtml(publicEndingLabel(choice))}"
               data-background-id="${escapeHtml(choice.backgroundId)}"
               data-background-state="${escapeHtml(choice.backgroundState)}"
               data-character-asset-id="${escapeHtml(choice.characterAssetId)}"
@@ -1674,6 +1679,8 @@
     if (playerScene) playerScene.textContent = choice.userSceneLabel + " · " + choice.backgroundLabel;
     const playerBubble = root.querySelector("[data-story-player-bubble]");
     if (playerBubble) playerBubble.textContent = choice.chatLineLabel;
+    const playerBridge = root.querySelector("[data-story-player-bridge]");
+    if (playerBridge) playerBridge.textContent = playerBridgeCopy(choice);
     const playerCharacter = root.querySelector("[data-story-player-character]");
     if (playerCharacter) {
       if (choice.characterImage) {

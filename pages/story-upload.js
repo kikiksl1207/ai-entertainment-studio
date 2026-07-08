@@ -60,9 +60,9 @@
       },
       ending: {
         authorMain: "작가 기본",
-        authorSub: "작가 서브",
-        ai: "AI 엔딩",
-        subCount: "서브 엔딩",
+        authorSub: "작가 보조",
+        ai: "AI 초안",
+        subCount: "보조 엔딩",
       },
       importHead: ["장면", "분기", "엔딩", "배경", "등장", "상태"],
       importState: {
@@ -103,7 +103,7 @@
         character: "캐릭터",
         endingCriteriaTitle: "작가 결말 기준",
         endingCriteriaBody: "기본 결말 {main}개 · 보조 결말은 필요 시 {min}-{max}개까지 확인합니다.",
-        aiCriteriaTitle: "AI 보조 결말 기준",
+        aiCriteriaTitle: "AI 초안 후보 기준",
         aiCriteriaBody: "작가 결말이 없는 분기에서만 표시하고, 업로드 미리보기에서는 생성 요청을 실행하지 않습니다.",
         mainRouteBadgeTitle: "작가 공식 메인 루트",
         mainRouteBadgeBody: "대표 결말 1개를 AI 초안과 분리해 먼저 고정합니다.",
@@ -144,7 +144,7 @@
         genre: "Genre",
         free: "Free status",
         minimum: "Minimum",
-        sceneId: "Scene ID",
+        sceneId: "Scene",
         sceneTitle: "Scene title",
         background: "Background",
         bgMemo: "Image note",
@@ -201,7 +201,7 @@
         character: "Character",
         endingCriteriaTitle: "Writer ending rules",
         endingCriteriaBody: "{main} primary ending · {min}-{max} side endings when needed.",
-        aiCriteriaTitle: "AI-assisted ending rules",
+        aiCriteriaTitle: "AI draft candidate rules",
         aiCriteriaBody: "Shown only for branches without writer endings. Preview never runs generation requests.",
         mainRouteBadgeTitle: "Writer official main route",
         mainRouteBadgeBody: "One representative ending is fixed separately from AI drafts.",
@@ -299,7 +299,7 @@
         character: "キャラクター",
         endingCriteriaTitle: "作家終了基準",
         endingCriteriaBody: "基本終了{main}件・補助終了は必要に応じて{min}-{max}件まで確認します。",
-        aiCriteriaTitle: "AI補助終了基準",
+        aiCriteriaTitle: "AI下書き候補基準",
         aiCriteriaBody: "作家終了がない分岐だけに表示し、プレビューでは生成リクエストを実行しません。",
         mainRouteBadgeTitle: "作家公式メインルート",
         mainRouteBadgeBody: "代表終了1件をAI下書きと分けて先に固定します。",
@@ -397,7 +397,7 @@
         character: "角色",
         endingCriteriaTitle: "作者结局标准",
         endingCriteriaBody: "主线结局{main}个；支线结局按需确认{min}-{max}个。",
-        aiCriteriaTitle: "AI辅助结局标准",
+        aiCriteriaTitle: "AI 草稿候选标准",
         aiCriteriaBody: "仅在没有作者结局的分支显示；预览不会执行生成请求。",
         mainRouteBadgeTitle: "作者官方主路线",
         mainRouteBadgeBody: "先固定 1 个代表结局，并与 AI 草稿分开。",
@@ -495,7 +495,7 @@
         character: "角色",
         endingCriteriaTitle: "作者結局標準",
         endingCriteriaBody: "主線結局{main}個；支線結局按需確認{min}-{max}個。",
-        aiCriteriaTitle: "AI輔助結局標準",
+        aiCriteriaTitle: "AI 草稿候選標準",
         aiCriteriaBody: "僅在沒有作者結局的分支顯示；預覽不會執行生成請求。",
         mainRouteBadgeTitle: "作者官方主路線",
         mainRouteBadgeBody: "先固定 1 個代表結局，並與 AI 草稿分開。",
@@ -524,30 +524,30 @@
         { label: "장면 미리보기", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
-        title: "AI 보조 결말 안내",
+        title: "AI 초안 후보 안내",
         conditionLabel: "허용 조건",
-        conditionText: "작가 결말이 없는 분기에서만 보조 결말로 표시돼요.",
+        conditionText: "작가 결말이 없는 분기에서만 보류 후보로 표시돼요.",
         branchLabel: "분기 상태",
-        branchText: "B-C 분기는 작가 결말이 아직 설정되지 않았어요.",
-        providerLabel: "생성 상태",
-        providerText: "가져오기 미리보기에서는 AI/provider를 실행하지 않아요.",
+        branchText: "해안 우회 분기는 작가 결말이 아직 설정되지 않았어요.",
+        providerLabel: "초안 상태",
+        providerText: "가져오기 미리보기에서는 자동 생성을 실행하지 않아요.",
       },
       endingLabels: {
         author_main: "작가 기본 엔딩",
-        author_sub: "작가 서브 엔딩",
-        ai_fallback: "AI 보조 결말",
+        author_sub: "작가 보조 엔딩",
+        ai_fallback: "AI 초안 후보",
       },
       importHead: ["장면", "분기", "결말", "파트 수", "분기 요약 제한", "상태"],
       choices: [
-        { label: "A", tone: "info", text: "기록을 먼저 확인한다", next: "S05", result: "정보 + 신뢰 상승", rejoin: "S09 재합류", tags: ["정보", "신뢰"] },
-        { label: "B", tone: "risk", text: "전령을 따라간다", next: "S06", result: "위험 + 아이템 획득", rejoin: "S09 재합류", tags: ["위험", "아이템"] },
-        { label: "C", tone: "ending", text: "해안으로 우회한다", next: "S07", result: "관계 변화 + 보조 결말 조건", rejoin: "AI 보조 결말 후보", tags: ["관계", "엔딩"] },
+        { label: "A", tone: "info", text: "기록을 먼저 확인한다", next: "기록 보관실", result: "정보 + 신뢰 상승", rejoin: "후반 합류 장면", tags: ["정보", "신뢰"] },
+        { label: "B", tone: "risk", text: "전령을 따라간다", next: "밤 항구 추적", result: "위험 + 아이템 획득", rejoin: "후반 합류 장면", tags: ["위험", "아이템"] },
+        { label: "C", tone: "ending", text: "해안으로 우회한다", next: "안개 해안 우회", result: "관계 변화 + 보류 후보 조건", rejoin: "AI 초안 후보", tags: ["관계", "보류"] },
       ],
-      endings: ["작가 기본 엔딩", "작가 서브 엔딩", "AI 보조 결말"],
+      endings: ["작가 기본 엔딩", "작가 보조 엔딩", "AI 초안 후보"],
       endingCards: [
         { type: "author_main", title: "작가 기본 엔딩", body: "작가가 지정한 중심 루트의 결말이에요." },
-        { type: "author_sub", title: "작가 서브 엔딩", body: "작가가 별도로 준비한 선택 루트 결말이에요." },
-        { type: "ai", title: "AI 보조 결말", body: "작가 엔딩이 없는 보조 분기에서만 임시로 이어져요." },
+        { type: "author_sub", title: "작가 보조 엔딩", body: "작가가 별도로 준비한 선택 루트 결말이에요." },
+        { type: "ai", title: "AI 초안 후보", body: "작가 엔딩이 없는 분기에서만 보류 후보로 보여요. 공식 결말처럼 보이지 않게 검수 대기 상태를 유지합니다." },
       ],
     },
     en: {
@@ -568,30 +568,30 @@
         { label: "Scene preview", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
-        title: "Fallback ending note",
+        title: "AI draft candidate note",
         conditionLabel: "Allowed when",
-        conditionText: "Shown only for branches without a writer ending.",
+        conditionText: "Shown as a pending candidate only when a branch has no writer ending.",
         branchLabel: "Branch status",
-        branchText: "Branch B-C has no writer ending configured.",
-        providerLabel: "Preview generation",
-        providerText: "This import preview does not run AI/provider output.",
+        branchText: "The shore-detour branch has no writer ending configured yet.",
+        providerLabel: "Draft status",
+        providerText: "This import preview does not run automatic generation.",
       },
       endingLabels: {
         author_main: "Writer primary ending",
         author_sub: "Writer side ending",
-        ai_fallback: "AI-assisted ending",
+        ai_fallback: "AI draft candidate",
       },
-      importHead: ["Scene ID", "Branch ID", "Ending type", "Part count", "Branch summary limit", "State"],
+      importHead: ["Scene", "Branch", "Ending", "Part count", "Branch summary limit", "State"],
       choices: [
-        { label: "A", tone: "info", text: "Check the record first", next: "S05", result: "Info + trust up", rejoin: "Rejoins at S09", tags: ["Info", "Trust"] },
-        { label: "B", tone: "risk", text: "Follow the messenger", next: "S06", result: "Risk + item gained", rejoin: "Rejoins at S09", tags: ["Risk", "Item"] },
-        { label: "C", tone: "ending", text: "Detour to the shore", next: "S07", result: "Relation shift + helper ending rule", rejoin: "AI-assisted ending candidate", tags: ["Relation", "Ending"] },
+        { label: "A", tone: "info", text: "Check the record first", next: "Archive room", result: "Info + trust up", rejoin: "Later rejoin scene", tags: ["Info", "Trust"] },
+        { label: "B", tone: "risk", text: "Follow the messenger", next: "Night harbor pursuit", result: "Risk + item gained", rejoin: "Later rejoin scene", tags: ["Risk", "Item"] },
+        { label: "C", tone: "ending", text: "Detour to the shore", next: "Foggy shore detour", result: "Relation shift + pending draft rule", rejoin: "AI draft candidate", tags: ["Relation", "Pending"] },
       ],
-      endings: ["Writer primary ending", "Writer side ending", "AI-assisted ending"],
+      endings: ["Writer primary ending", "Writer side ending", "AI draft candidate"],
       endingCards: [
         { type: "author_main", title: "Writer primary ending", body: "The writer's primary route ending." },
         { type: "author_sub", title: "Writer side ending", body: "A writer-prepared ending for a side route." },
-        { type: "ai", title: "AI-assisted ending", body: "A helper ending only for branches without writer endings." },
+        { type: "ai", title: "AI draft candidate", body: "A pending draft candidate shown only for branches without writer endings, never as an official ending." },
       ],
     },
     ja: {
@@ -612,30 +612,30 @@
         { label: "シーンプレビュー", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
-        title: "補助エンディング案内",
+        title: "AI下書き候補の案内",
         conditionLabel: "許可条件",
-        conditionText: "作家のエンディングがない分岐だけに表示されます。",
+        conditionText: "作家のエンディングがない分岐だけ保留候補として表示されます。",
         branchLabel: "分岐状態",
-        branchText: "B-C分岐には作家エンディングがまだ設定されていません。",
-        providerLabel: "生成状態",
-        providerText: "この取込プレビューではAI/provider生成を実行しません。",
+        branchText: "海岸迂回分岐には作家エンディングがまだ設定されていません。",
+        providerLabel: "下書き状態",
+        providerText: "この取込プレビューでは自動生成を実行しません。",
       },
       endingLabels: {
         author_main: "作家基本終了",
         author_sub: "作家サブ終了",
-        ai_fallback: "AI補助終了",
+        ai_fallback: "AI下書き候補",
       },
       importHead: ["シーン", "分岐", "終了種別", "パート数", "分岐要約上限", "状態"],
       choices: [
-        { label: "A", tone: "info", text: "記録を先に確認する", next: "S05", result: "情報 + 信頼上昇", rejoin: "S09で再合流", tags: ["情報", "信頼"] },
-        { label: "B", tone: "risk", text: "伝令について行く", next: "S06", result: "危険 + アイテム取得", rejoin: "S09で再合流", tags: ["危険", "アイテム"] },
-        { label: "C", tone: "ending", text: "海岸へ迂回する", next: "S07", result: "関係変化 + 補助終了条件", rejoin: "AI補助終了候補", tags: ["関係", "終了"] },
+        { label: "A", tone: "info", text: "記録を先に確認する", next: "記録の部屋", result: "情報 + 信頼上昇", rejoin: "後半の再合流場面", tags: ["情報", "信頼"] },
+        { label: "B", tone: "risk", text: "伝令について行く", next: "夜の港追跡", result: "危険 + アイテム取得", rejoin: "後半の再合流場面", tags: ["危険", "アイテム"] },
+        { label: "C", tone: "ending", text: "海岸へ迂回する", next: "霧の海岸迂回", result: "関係変化 + 保留候補条件", rejoin: "AI下書き候補", tags: ["関係", "保留"] },
       ],
-      endings: ["作家基本終了", "作家サブ終了", "AI補助終了"],
+      endings: ["作家基本終了", "作家サブ終了", "AI下書き候補"],
       endingCards: [
         { type: "author_main", title: "作家基本終了", body: "作家が指定した中心ルートの結末です。" },
         { type: "author_sub", title: "作家サブ終了", body: "作家が別途用意した選択ルートの結末です。" },
-        { type: "ai", title: "AI補助終了", body: "作家終了がない補助分岐でだけ一時的に続きます。" },
+        { type: "ai", title: "AI下書き候補", body: "作家終了がない分岐だけに保留候補として表示され、公式終了には見せません。" },
       ],
     },
     "zh-Hans": {
@@ -656,30 +656,30 @@
         { label: "场景预览", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
-        title: "辅助结局说明",
+        title: "AI 草稿候选说明",
         conditionLabel: "允许条件",
-        conditionText: "仅在没有作者结局的分支显示。",
+        conditionText: "仅在没有作者结局的分支以待定候选显示。",
         branchLabel: "分支状态",
-        branchText: "B-C 分支尚未设置作者结局。",
-        providerLabel: "生成状态",
-        providerText: "此预览不会运行 AI/provider 生成。",
+        branchText: "海岸绕行分支尚未设置作者结局。",
+        providerLabel: "草稿状态",
+        providerText: "此预览不会运行自动生成。",
       },
       endingLabels: {
         author_main: "作者主线结局",
         author_sub: "作者支线结局",
-        ai_fallback: "AI辅助结局",
+        ai_fallback: "AI 草稿候选",
       },
       importHead: ["场景", "分支", "结局类型", "部分数", "分支摘要上限", "状态"],
       choices: [
-        { label: "A", tone: "info", text: "先确认记录", next: "S05", result: "信息 + 信任提升", rejoin: "S09再汇合", tags: ["信息", "信任"] },
-        { label: "B", tone: "risk", text: "跟随传令", next: "S06", result: "风险 + 获得道具", rejoin: "S09再汇合", tags: ["风险", "道具"] },
-        { label: "C", tone: "ending", text: "绕到海岸", next: "S07", result: "关系变化 + 辅助结局条件", rejoin: "AI辅助结局候选", tags: ["关系", "结局"] },
+        { label: "A", tone: "info", text: "先确认记录", next: "记录室", result: "信息 + 信任提升", rejoin: "后段汇合场景", tags: ["信息", "信任"] },
+        { label: "B", tone: "risk", text: "跟随传令", next: "夜间港口追踪", result: "风险 + 获得道具", rejoin: "后段汇合场景", tags: ["风险", "道具"] },
+        { label: "C", tone: "ending", text: "绕到海岸", next: "雾中海岸绕行", result: "关系变化 + 待定候选条件", rejoin: "AI 草稿候选", tags: ["关系", "待定"] },
       ],
-      endings: ["作者主线结局", "作者支线结局", "AI辅助结局"],
+      endings: ["作者主线结局", "作者支线结局", "AI 草稿候选"],
       endingCards: [
         { type: "author_main", title: "作者主线结局", body: "作者指定的主路线结局。" },
         { type: "author_sub", title: "作者支线结局", body: "作者另外准备的选择路线结局。" },
-        { type: "ai", title: "AI辅助结局", body: "只在没有作者结局的辅助分支中临时衔接。" },
+        { type: "ai", title: "AI 草稿候选", body: "只在没有作者结局的分支中作为待定候选显示，不会显示成正式结局。" },
       ],
     },
     "zh-Hant": {
@@ -700,30 +700,30 @@
         { label: "場景預覽", href: "/story-stage?storySceneFixturePreview=1" },
       ],
       aiFallbackEvidence: {
-        title: "輔助結局說明",
+        title: "AI 草稿候選說明",
         conditionLabel: "允許條件",
-        conditionText: "僅在沒有作者結局的分支顯示。",
+        conditionText: "僅在沒有作者結局的分支以待定候選顯示。",
         branchLabel: "分支狀態",
-        branchText: "B-C 分支尚未設定作者結局。",
-        providerLabel: "生成狀態",
-        providerText: "此預覽不會執行 AI/provider 生成。",
+        branchText: "海岸繞行分支尚未設定作者結局。",
+        providerLabel: "草稿狀態",
+        providerText: "此預覽不會執行自動生成。",
       },
       endingLabels: {
         author_main: "作者主線結局",
         author_sub: "作者支線結局",
-        ai_fallback: "AI輔助結局",
+        ai_fallback: "AI 草稿候選",
       },
       importHead: ["場景", "分支", "結局類型", "部分數", "分支摘要上限", "狀態"],
       choices: [
-        { label: "A", tone: "info", text: "先確認記錄", next: "S05", result: "資訊 + 信任提升", rejoin: "S09再匯合", tags: ["資訊", "信任"] },
-        { label: "B", tone: "risk", text: "跟隨傳令", next: "S06", result: "風險 + 獲得道具", rejoin: "S09再匯合", tags: ["風險", "道具"] },
-        { label: "C", tone: "ending", text: "繞到海岸", next: "S07", result: "關係變化 + 輔助結局條件", rejoin: "AI輔助結局候選", tags: ["關係", "結局"] },
+        { label: "A", tone: "info", text: "先確認記錄", next: "記錄室", result: "資訊 + 信任提升", rejoin: "後段匯合場景", tags: ["資訊", "信任"] },
+        { label: "B", tone: "risk", text: "跟隨傳令", next: "夜間港口追蹤", result: "風險 + 獲得道具", rejoin: "後段匯合場景", tags: ["風險", "道具"] },
+        { label: "C", tone: "ending", text: "繞到海岸", next: "霧中海岸繞行", result: "關係變化 + 待定候選條件", rejoin: "AI 草稿候選", tags: ["關係", "待定"] },
       ],
-      endings: ["作者主線結局", "作者支線結局", "AI輔助結局"],
+      endings: ["作者主線結局", "作者支線結局", "AI 草稿候選"],
       endingCards: [
         { type: "author_main", title: "作者主線結局", body: "作者指定的主路線結局。" },
         { type: "author_sub", title: "作者支線結局", body: "作者另外準備的選擇路線結局。" },
-        { type: "ai", title: "AI輔助結局", body: "只在沒有作者結局的輔助分支中臨時銜接。" },
+        { type: "ai", title: "AI 草稿候選", body: "只在沒有作者結局的分支中作為待定候選顯示，不會顯示成正式結局。" },
       ],
     },
   };
@@ -736,9 +736,36 @@
   ];
 
   const importRows = [
-    { scene: "S01", branch: "ROOT", ending: "author_main", part: "10", summary: "<= 2,000", state: "ok" },
-    { scene: "S05", branch: "B-A", ending: "author_sub", part: "10", summary: "<= 2,000", state: "ok" },
-    { scene: "S07", branch: "B-C", ending: "ai_fallback", part: "10", summary: "<= 2,000", state: "pm" },
+    {
+      scene: "S01",
+      sceneLabel: { ko: "기록의 방", en: "Archive room", ja: "記録の部屋", "zh-Hans": "记录室", "zh-Hant": "記錄室" },
+      branch: "ROOT",
+      branchLabel: { ko: "기본 흐름", en: "Main flow", ja: "基本フロー", "zh-Hans": "主流程", "zh-Hant": "主流程" },
+      ending: "author_main",
+      part: "10",
+      summary: "<= 2,000",
+      state: "ok",
+    },
+    {
+      scene: "S05",
+      sceneLabel: { ko: "기록 보관실", en: "Archive map room", ja: "記録保管室", "zh-Hans": "档案地图室", "zh-Hant": "檔案地圖室" },
+      branch: "B-A",
+      branchLabel: { ko: "기록 선택 분기", en: "Record-choice branch", ja: "記録選択分岐", "zh-Hans": "记录选择分支", "zh-Hant": "記錄選擇分支" },
+      ending: "author_sub",
+      part: "10",
+      summary: "<= 2,000",
+      state: "ok",
+    },
+    {
+      scene: "S07",
+      sceneLabel: { ko: "안개 해안 우회", en: "Foggy shore detour", ja: "霧の海岸迂回", "zh-Hans": "雾中海岸绕行", "zh-Hant": "霧中海岸繞行" },
+      branch: "B-C",
+      branchLabel: { ko: "해안 우회 분기", en: "Shore-detour branch", ja: "海岸迂回分岐", "zh-Hans": "海岸绕行分支", "zh-Hant": "海岸繞行分支" },
+      ending: "ai_fallback",
+      part: "10",
+      summary: "<= 2,000",
+      state: "pm",
+    },
   ];
 
   const aiFallbackEvidence = {
@@ -778,7 +805,7 @@
         stateLabel: { ko: "설정됨", en: "Set", ja: "設定済み", "zh-Hans": "已设置", "zh-Hant": "已設定" },
       },
       {
-        label: { ko: "AI 보조 결말", en: "AI-assisted ending", ja: "AI補助終了", "zh-Hans": "AI辅助结局", "zh-Hant": "AI輔助結局" },
+        label: { ko: "AI 초안 후보", en: "AI draft candidate", ja: "AI下書き候補", "zh-Hans": "AI 草稿候选", "zh-Hant": "AI 草稿候選" },
         count: "1",
         state: "missing-writer-ending-only",
         stateLabel: { ko: "작가 결말이 없을 때만 사용", en: "Only without writer ending", ja: "作家終了がない時のみ", "zh-Hans": "仅无作者结局时使用", "zh-Hant": "僅無作者結局時使用" },
@@ -791,7 +818,7 @@
     ],
     characters: [
       { assetId: "character.cha-dohyun.reference-final-03", label: { ko: "차도현 안내 컷", en: "Cha Dohyun guide cut", ja: "チャ・ドヒョン案内カット", "zh-Hans": "车道贤引导图", "zh-Hant": "車道賢引導圖" } },
-      { assetId: "none", label: { ko: "S07은 캐릭터 없이 진행 가능", en: "S07 can proceed without a character", ja: "S07はキャラクターなしで進行可", "zh-Hans": "S07可无角色进行", "zh-Hant": "S07可無角色進行" } },
+      { assetId: "none", label: { ko: "해안 우회는 캐릭터 없이 진행 가능", en: "The shore detour can proceed without a character", ja: "海岸迂回はキャラクターなしで進行可", "zh-Hans": "海岸绕行可无角色进行", "zh-Hant": "海岸繞行可無角色進行" } },
     ],
   };
 
@@ -1024,6 +1051,10 @@
     return qa.endingLabels?.[value] || value;
   }
 
+  function publicSceneLabel(scene, localeCode) {
+    return localText(scene?.title, localeCode) || scene?.id || "";
+  }
+
   function renderUploadWorkspace(localeCode) {
     const locale = UI[localeCode] || UI.ko;
     const qa = QA_COPY[localeCode] || QA_COPY.ko;
@@ -1114,7 +1145,7 @@
               <dl>
                 ${AUTHOR_PREVIEW_FIXTURE.backgrounds.map((asset) => `
                   <div data-safe-background-id="${escapeHtml(asset.assetId)}">
-                    <dt>${escapeHtml(asset.scene)}</dt>
+                    <dt>${escapeHtml(locale.labels.background)}</dt>
                     <dd>${escapeHtml(localText(asset.label, localeCode))}</dd>
                   </div>
                 `).join("")}
@@ -1136,7 +1167,7 @@
           <div class="su-section">
             <h2>${escapeHtml(locale.scenes)}</h2>
             <ul class="su-scene-list">
-              ${sampleScenes.map((scene) => `<li class="su-scene-item"><span>${escapeHtml(scene.id)}</span><strong>${escapeHtml(localText(scene.title, localeCode))} · ${escapeHtml(locale.status[scene.state])}</strong></li>`).join("")}
+              ${sampleScenes.map((scene) => `<li class="su-scene-item"><span>${escapeHtml(publicSceneLabel(scene, localeCode))}</span><strong>${escapeHtml(localText(scene.title, localeCode))} · ${escapeHtml(locale.status[scene.state])}</strong></li>`).join("")}
             </ul>
           </div>
           <div class="su-section">
@@ -1214,7 +1245,7 @@
               <button class="su-action" type="button" disabled aria-disabled="true">${escapeHtml(locale.labels.addChoice)}</button>
             </div>
             <div class="su-row">
-              <label class="su-field"><span>${escapeHtml(locale.labels.nextScene)}</span><input name="nextScene" value="S05" readonly /></label>
+              <label class="su-field"><span>${escapeHtml(locale.labels.nextScene)}</span><input name="nextScene" value="${escapeHtml(qa.choices[0]?.next || "")}" readonly /></label>
               <label class="su-field"><span>${escapeHtml(locale.labels.endingLink)}</span><input value="${escapeHtml(preview.routeInputValue)}" readonly /></label>
             </div>
             <button type="button" class="su-save" disabled aria-disabled="true">${escapeHtml(locale.labels.saveSoon)}</button>
@@ -1255,8 +1286,8 @@
                     data-writer-ending-configured="${row.ending === "ai_fallback" ? "false" : "true"}"
                     data-provider-generated-at-intake="false"
                   >
-                    <td>${escapeHtml(row.scene)}</td>
-                    <td>${escapeHtml(row.branch)}</td>
+                    <td>${escapeHtml(localText(row.sceneLabel, localeCode))}</td>
+                    <td>${escapeHtml(localText(row.branchLabel, localeCode))}</td>
                     <td data-ending-type="${escapeHtml(row.ending)}">${escapeHtml(endingLabel(qa, row.ending))}</td>
                     <td>${escapeHtml(row.part)}</td>
                     <td>${escapeHtml(row.summary)}</td>

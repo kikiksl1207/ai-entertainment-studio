@@ -7,6 +7,28 @@
   const neutral = fallbackCopy.neutral || {};
   const submitCopy = fallbackCopy.submit || {};
   const copyPack = fallbackCopy.copyPackV1 || {};
+  const fanEngagementPhaseGateMap = [
+    {
+      phase: "read_only_teaser",
+      title: "읽기 전용 티저",
+      body: "홈 미션은 GET 결과와 fallback empty/error만 표시합니다."
+    },
+    {
+      phase: "login_required",
+      title: "로그인 필요",
+      body: "참여가 필요한 CTA는 로그인 전 안내 상태로만 노출합니다."
+    },
+    {
+      phase: "mutation_locked",
+      title: "제출/투표 잠금",
+      body: "submit, vote, proposal mutation은 안전 검수 전까지 열지 않습니다."
+    },
+    {
+      phase: "safe_qa_missing",
+      title: "QA 누락 안전 상태",
+      body: "데이터가 없거나 실패하면 비활성 empty/error 상태로 분리합니다."
+    }
+  ];
 
   const homeMissionFixture = {
     generatedAt: "2026-05-10T00:00:00.000Z",
@@ -185,10 +207,12 @@
 
   function missionStateCopy(mission, uiState, ctaFallback) {
     const defaultCta = ctaFallback || submitCopy.cta || neutral.cta || "참여하기";
+    const actionType = String(mission?.action?.type || mission?.missionType || "");
+    const mutationLocked = ["mission_participation", "concept_vote", "vote_concept", "fan_proposal"].includes(actionType);
     const map = {
       default: {
-        cta: defaultCta,
-        status: participationLabel(mission?.participation)
+        cta: mutationLocked ? "검수 후 참여 열림" : defaultCta,
+        status: mutationLocked ? "읽기 전용 티저 · 제출/투표는 잠금" : participationLabel(mission?.participation)
       },
       completed: {
         cta: submitCopy.accepted || "참여 완료",
@@ -206,6 +230,26 @@
       }
     };
     return map[uiState] || map.default;
+  }
+
+  function missionPhaseGate(mission, uiState) {
+    if (uiState === "login_required") return "login_required";
+    if (uiState === "error") return "safe_qa_missing";
+    if (uiState === "default" && mission?.action?.requiresAuth) return "mutation_locked";
+    return "read_only_teaser";
+  }
+
+  function renderPhaseGateMap() {
+    return `
+      <section class="fan-phase-gate-map" data-fan-engagement-phase-gate-map="true" aria-label="팬 참여 단계 게이트">
+        ${fanEngagementPhaseGateMap.map(item => `
+          <article data-phase="${escapeHtml(item.phase)}">
+            <strong>${escapeHtml(item.title)}</strong>
+            <p>${escapeHtml(item.body)}</p>
+          </article>
+        `).join("")}
+      </section>
+    `;
   }
 
   function missionOptions(mission) {
@@ -287,7 +331,8 @@
 
   function renderStateMessage(root, message, state) {
     root.dataset.state = state;
-    root.innerHTML = `<div class="fan-mission-empty" data-state="${escapeHtml(state)}">${escapeHtml(message)}</div>`;
+    const map = state === "loading" ? "" : renderPhaseGateMap();
+    root.innerHTML = map + `<div class="fan-mission-empty" data-state="${escapeHtml(state)}">${escapeHtml(message)}</div>`;
   }
 
   function renderMissionCard(mission) {
@@ -301,10 +346,11 @@
     const reward = rewardLabel(mission?.rewardPreview);
     const uiState = missionUiState(mission);
     const stateCopy = missionStateCopy(mission, uiState, cta);
+    const phaseGate = missionPhaseGate(mission, uiState);
     const missionBody = renderMissionBody(mission, uiState);
 
     return `
-      <article class="fan-mission-card is-${escapeHtml(uiState)}" data-mission-id="${escapeHtml(mission?.id)}" data-ui-state="${escapeHtml(uiState)}">
+      <article class="fan-mission-card is-${escapeHtml(uiState)}" data-mission-id="${escapeHtml(mission?.id)}" data-ui-state="${escapeHtml(uiState)}" data-phase-gate="${escapeHtml(phaseGate)}">
         <div class="fan-mission-card-head">
           <span class="fan-mission-type">${escapeHtml(type)}</span>
           <span class="fan-mission-status">${escapeHtml(status)}</span>
@@ -317,14 +363,14 @@
           <span>${escapeHtml(stateCopy.status)}</span>
           <span>${escapeHtml(reward)}</span>
         </div>
-        <button class="fan-mission-cta" type="button" disabled>${escapeHtml(stateCopy.cta)}</button>
+        <button class="fan-mission-cta" type="button" disabled aria-disabled="true">${escapeHtml(stateCopy.cta)}</button>
       </article>
     `;
   }
 
   function renderMissionList(root, missions, state) {
     root.dataset.state = state;
-    root.innerHTML = missions.map(renderMissionCard).join("");
+    root.innerHTML = renderPhaseGateMap() + missions.map(renderMissionCard).join("");
   }
 
   async function renderHomeMissionTeaser() {

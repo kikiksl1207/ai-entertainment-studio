@@ -124,6 +124,29 @@ function buildFeedAuthorRelationLinks(handle) {
   );
 }
 
+function feedFollowButtonLabel(isFollowing) {
+  return isFollowing ? "팔로우 취소" : "팔로우";
+}
+
+function buildFeedFollowButton(post, artist, isMineByViewer) {
+  if (isMineByViewer) return "";
+  const viewer = post?.viewer || {};
+  const isFollowing = Boolean(viewer.isFollowingAuthor || viewer.isFollowingArtist);
+  const canShowUserFollow = !artist && (post?.authorUserId || post?.authorPublicHandle);
+  const artistFollowId = artist?.id || post?.artistId || "";
+  const canShowArtistFollow = Boolean(artist && artistFollowId);
+  if (!canShowUserFollow && !canShowArtistFollow) return "";
+  const idAttr = canShowArtistFollow
+    ? `data-feed-follow-artist="${feedEscapeHtml(artistFollowId)}"`
+    : `data-feed-follow-user="${feedEscapeHtml(post.authorUserId || post.authorPublicHandle)}"`;
+  const label = feedFollowButtonLabel(isFollowing);
+  return (
+    `<button class="feed-follow-btn${isFollowing ? " is-following" : ""}" type="button" ${idAttr} ` +
+    `data-following="${isFollowing ? "1" : "0"}" aria-pressed="${isFollowing ? "true" : "false"}" ` +
+    `aria-label="${feedEscapeHtml(label)}">${feedEscapeHtml(label)}</button>`
+  );
+}
+
 function buildFeedReportButton(postId) {
   return (
     '<button class="feed-action-btn feed-report-btn" type="button" ' +
@@ -501,7 +524,7 @@ function renderLuminaFeed() {
     const editButton = post.viewer?.canEdit && post.id
       ? `<button class="feed-action-btn feed-edit-btn" type="button" data-feed-edit="${feedEscapeHtml(post.id)}" aria-label="게시글 수정">수정</button>`
       : "";
-    const followButton = "";
+    const followButton = buildFeedFollowButton(post, artist, isMineByViewer);
 
     // #152 — 작성자 영역 클릭 시 라우팅
     // 아티스트 글: 카드 전체 clickable로 이미 character-detail.html 이동 처리됨
@@ -860,7 +883,11 @@ function bindLuminaFeedFollow() {
     e.stopPropagation();
     if (btn.dataset.busy === "1") return;
     if (typeof getAccessToken === "function" && !getAccessToken()) {
-      alert("로그인하면 팔로우할 수 있어요.");
+      if (typeof openAuthModal === "function") {
+        openAuthModal("login", { returnTo: { href: window.location.pathname, label: "피드 팔로우 이어가기" } });
+      } else {
+        alert("로그인하면 팔로우할 수 있어요.");
+      }
       return;
     }
     const isArtist = !!btn.dataset.feedFollowArtist;
@@ -874,7 +901,9 @@ function bindLuminaFeedFollow() {
     // 낙관적 토글
     btn.classList.toggle("is-following", !wasFollowing);
     btn.dataset.following = wasFollowing ? "0" : "1";
-    btn.textContent = wasFollowing ? "팔로우" : "팔로잉 해제";
+    btn.setAttribute("aria-pressed", wasFollowing ? "false" : "true");
+    btn.textContent = feedFollowButtonLabel(!wasFollowing);
+    btn.setAttribute("aria-label", feedFollowButtonLabel(!wasFollowing));
     try {
       await apiFetch(endpoint, {
         method: wasFollowing ? "DELETE" : "POST",
@@ -889,13 +918,17 @@ function bindLuminaFeedFollow() {
       ).forEach(b => {
         b.classList.toggle("is-following", !wasFollowing);
         b.dataset.following = wasFollowing ? "0" : "1";
-        b.textContent = wasFollowing ? "팔로우" : "팔로잉 해제";
+        b.setAttribute("aria-pressed", wasFollowing ? "false" : "true");
+        b.textContent = feedFollowButtonLabel(!wasFollowing);
+        b.setAttribute("aria-label", feedFollowButtonLabel(!wasFollowing));
       });
     } catch (err) {
       // 롤백
       btn.classList.toggle("is-following", wasFollowing);
       btn.dataset.following = wasFollowing ? "1" : "0";
-      btn.textContent = wasFollowing ? "팔로잉 해제" : "팔로우";
+      btn.setAttribute("aria-pressed", wasFollowing ? "true" : "false");
+      btn.textContent = feedFollowButtonLabel(wasFollowing);
+      btn.setAttribute("aria-label", feedFollowButtonLabel(wasFollowing));
       console.warn("[#145 follow] 실패", { status: err?.status, body: err?.body });
       alert(err?.message || "팔로우 처리에 실패했어요.");
     } finally {

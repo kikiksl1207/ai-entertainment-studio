@@ -554,7 +554,7 @@
   color: #ff5a7a;
 }
 .user-profile-follow-btn.is-following:hover [data-detail-follow-label]::before {
-  content: "팔로잉 해제";
+  content: "팔로우 취소";
   position: absolute;
   background: inherit;
   padding: inherit;

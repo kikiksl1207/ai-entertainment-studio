@@ -79,7 +79,7 @@ function bindMypageAvatarUpload() {
 
   btn.addEventListener("click", () => {
     if (!isLoggedIn()) {
-      openAuthModal?.("login");
+      openAuthModal?.("login", { returnTo: { href: window.location.pathname, label: "마이페이지 이미지 업로드" } });
       return;
     }
     input.click();
@@ -476,7 +476,7 @@ async function initMypagePage() {
   });
 
   document.querySelectorAll("[data-mypage-login]").forEach(btn => {
-    btn.onclick = () => openAuthModal("login");
+    btn.onclick = () => openAuthModal("login", { returnTo: { href: window.location.pathname, label: "마이페이지 이어가기" } });
   });
   document.querySelectorAll("[data-mypage-signup]").forEach(btn => {
     btn.onclick = () => openAuthModal("register");

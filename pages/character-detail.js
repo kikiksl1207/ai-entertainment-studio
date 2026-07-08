@@ -71,9 +71,9 @@ function applyArtistDetailViewer(data) {
     if (v.isFollowing || v.canUnfollow) {
       btn.classList.add("is-following");
       const label = btn.querySelector("[data-detail-follow-label]");
-      if (label) label.textContent = "팔로잉 해제";
-      btn.setAttribute("aria-label", "팔로잉 해제");
-      btn.title = "팔로잉 해제";
+      if (label) label.textContent = "팔로우 취소";
+      btn.setAttribute("aria-label", "팔로우 취소");
+      btn.title = "팔로우 취소";
       btn.dataset.following = "1";
     } else {
       btn.classList.remove("is-following");
@@ -99,7 +99,11 @@ function bindArtistDetailFollow() {
     e.stopPropagation();
     if (btn.dataset.busy === "1") return;
     if (typeof getAccessToken === "function" && !getAccessToken()) {
-      alert("로그인하면 팔로우할 수 있어요.");
+      if (typeof openAuthModal === "function") {
+        openAuthModal("login", { returnTo: { href: window.location.pathname, label: "아티스트 팔로우 이어가기" } });
+      } else {
+        alert("로그인하면 팔로우할 수 있어요.");
+      }
       return;
     }
     const artistId = btn.dataset.artistId;
@@ -113,9 +117,9 @@ function bindArtistDetailFollow() {
     btn.classList.toggle("is-following", !wasFollowing);
     btn.dataset.following = wasFollowing ? "0" : "1";
     const label = btn.querySelector("[data-detail-follow-label]");
-    if (label) label.textContent = wasFollowing ? "팔로우" : "팔로잉 해제";
-    btn.setAttribute("aria-label", wasFollowing ? "팔로우" : "팔로잉 해제");
-    btn.title = wasFollowing ? "팔로우" : "팔로잉 해제";
+    if (label) label.textContent = wasFollowing ? "팔로우" : "팔로우 취소";
+    btn.setAttribute("aria-label", wasFollowing ? "팔로우" : "팔로우 취소");
+    btn.title = wasFollowing ? "팔로우" : "팔로우 취소";
     // 팔로워 수 즉시 +1/-1
     const countEl = btn.querySelector("[data-detail-follower-count]");
     if (countEl) {
@@ -140,17 +144,17 @@ function bindArtistDetailFollow() {
         const isFollowing = res.viewer.isFollowing || res.viewer.canUnfollow;
         btn.classList.toggle("is-following", !!isFollowing);
         btn.dataset.following = isFollowing ? "1" : "0";
-        if (label) label.textContent = isFollowing ? "팔로잉 해제" : "팔로우";
-        btn.setAttribute("aria-label", isFollowing ? "팔로잉 해제" : "팔로우");
-        btn.title = isFollowing ? "팔로잉 해제" : "팔로우";
+        if (label) label.textContent = isFollowing ? "팔로우 취소" : "팔로우";
+        btn.setAttribute("aria-label", isFollowing ? "팔로우 취소" : "팔로우");
+        btn.title = isFollowing ? "팔로우 취소" : "팔로우";
       }
     } catch (err) {
       // 롤백
       btn.classList.toggle("is-following", wasFollowing);
       btn.dataset.following = wasFollowing ? "1" : "0";
-      if (label) label.textContent = wasFollowing ? "팔로잉 해제" : "팔로우";
-      btn.setAttribute("aria-label", wasFollowing ? "팔로잉 해제" : "팔로우");
-      btn.title = wasFollowing ? "팔로잉 해제" : "팔로우";
+      if (label) label.textContent = wasFollowing ? "팔로우 취소" : "팔로우";
+      btn.setAttribute("aria-label", wasFollowing ? "팔로우 취소" : "팔로우");
+      btn.title = wasFollowing ? "팔로우 취소" : "팔로우";
       console.warn("[#150 detail follow] 실패", { status: err?.status, body: err?.body });
       alert(err?.message || "팔로우 처리에 실패했어요.");
       // 팔로워 수 원복

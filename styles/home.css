@@ -310,6 +310,37 @@
   gap: 14px;
 }
 
+.fan-phase-gate-map {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fan-phase-gate-map article {
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid rgba(190, 175, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.fan-phase-gate-map strong {
+  display: block;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+.fan-phase-gate-map p {
+  margin: 4px 0 0;
+  color: rgba(222, 214, 242, 0.66);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .fan-mission-card {
   min-height: 220px;
   padding: 20px;
@@ -983,6 +1014,10 @@
 
   .fan-mission-teaser {
     grid-template-columns: 1fr;
+  }
+
+  .fan-phase-gate-map {
+    grid-template-columns: 1fr 1fr;
   }
 
   .fan-mission-card {
