@@ -147,6 +147,49 @@ export const AUTH_ACCOUNT_STATE_PROJECTION_BRIDGE = {
   },
 } as const;
 
+export const AUTH_SAFE_VISUAL_FIXTURE_CONTRACT = {
+  version: '2026-07-09.auth-safe-visual-fixture.v1',
+  actionTokenLanding: {
+    tokenRequiredForFixture: false,
+    publicPaths: [
+      '/verify-email?fixture=success',
+      '/verify-email?fixture=expired',
+      '/verify-email?fixture=request-again',
+      '/reset-password?fixture=save-password',
+      '/reset-password?fixture=success',
+      '/reset-password?fixture=expired',
+      '/reset-password?fixture=request-again',
+    ],
+    states: ['success', 'expired', 'request-again', 'save-password'],
+    mutationAllowed: false,
+    forbiddenQueryKeys: ['token', 'email', 'password', 'providerId', 'userId'],
+  },
+  accountStateVisual: {
+    tokenRequiredForFixture: false,
+    publicPaths: [
+      '/mypage?accountfixture=verified',
+      '/mypage?accountfixture=unverified',
+      '/mypage?accountfixture=social-only',
+      '/mypage?accountfixture=no-password',
+      '/mypage?accountfixture=identity-pending',
+    ],
+    states: ['verified', 'unverified', 'social-only', 'no-password', 'identity-pending'],
+    socialOnlyPasswordResetVisible: false,
+    passwordSetupGuidanceRequiredForSocialOnly: true,
+    mutationAllowed: false,
+  },
+  privacy: {
+    rawEmailReturned: false,
+    providerIdReturned: false,
+    internalUserIdReturned: false,
+    sessionTokenReturned: false,
+    resetTokenReturned: false,
+    cookieReturned: false,
+    databaseUrlReturned: false,
+    apiKeyReturned: false,
+  },
+} as const;
+
 export const AUTH_SOCIAL_PROVIDER_FALLBACK_BRIDGE = {
   version: '2026-07-08.auth-social-provider-fallback-bridge.v1',
   readModel: 'public_social_provider_fallback_projection',

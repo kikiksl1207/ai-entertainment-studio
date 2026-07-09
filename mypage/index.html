@@ -625,7 +625,150 @@
             "'": "&#39;"
           }[char]));
         }
+        const SAFE_ACCOUNT_STATE_FIXTURES = {
+          verified: {
+            title: "인증이 완료된 계정",
+            body: "이메일 인증과 비밀번호 설정이 완료되어 기본 안내가 안정적으로 보이는 상태입니다.",
+            user: {
+              displayName: "안전 검수 계정",
+              emailPublicLabel: "이메일 비공개",
+              publicAccountLabel: "공개 검수 계정",
+              emailVerified: true,
+              hasPassword: true,
+              isSocialOnly: false,
+              identityStatusLabel: "본인확인 불필요",
+              recommendedActionLabel: "계속 이용"
+            }
+          },
+          unverified: {
+            title: "이메일 인증이 필요한 계정",
+            body: "개인 이메일 주소를 표시하지 않고 인증 필요 안내와 재발송 버튼 배치를 확인하는 상태입니다.",
+            user: {
+              displayName: "인증 대기 계정",
+              emailPublicLabel: "이메일 비공개",
+              publicAccountLabel: "공개 검수 계정",
+              emailVerified: false,
+              hasPassword: true,
+              isSocialOnly: false,
+              identityStatusLabel: "본인확인 불필요",
+              recommendedActionLabel: "이메일 인증"
+            }
+          },
+          "social-only": {
+            title: "소셜 로그인 전용 계정",
+            body: "비밀번호 재설정이 아니라 비밀번호 설정 안내로 보이는지 확인하는 상태입니다.",
+            user: {
+              displayName: "소셜 전용 계정",
+              emailPublicLabel: "이메일 비공개",
+              publicAccountLabel: "공개 검수 계정",
+              emailVerified: true,
+              hasPassword: false,
+              isSocialOnly: true,
+              provider: "google",
+              identityStatusLabel: "본인확인 불필요",
+              recommendedActionLabel: "소셜 계정에서 비밀번호 관리"
+            }
+          },
+          "no-password": {
+            title: "비밀번호 설정이 필요한 계정",
+            body: "이메일 계정이지만 아직 비밀번호가 없는 상태의 안내와 CTA를 확인합니다.",
+            user: {
+              displayName: "설정 대기 계정",
+              emailPublicLabel: "이메일 비공개",
+              publicAccountLabel: "공개 검수 계정",
+              emailVerified: true,
+              hasPassword: false,
+              isSocialOnly: false,
+              identityStatusLabel: "본인확인 불필요",
+              recommendedActionLabel: "비밀번호 설정"
+            }
+          },
+          "identity-pending": {
+            title: "본인확인 대기 계정",
+            body: "데뷔, 프리미엄, 정산 전 본인확인 안내가 다른 계정 안내와 겹치지 않는지 확인합니다.",
+            user: {
+              displayName: "본인확인 대기 계정",
+              emailPublicLabel: "이메일 비공개",
+              publicAccountLabel: "공개 검수 계정",
+              emailVerified: true,
+              hasPassword: true,
+              isSocialOnly: false,
+              identityVerification: { status: "pending" },
+              identityStatusLabel: "본인확인 대기",
+              recommendedActionLabel: "본인확인 안내 확인"
+            }
+          }
+        };
+
+        function getSafeAccountStateFixture() {
+          const params = new URLSearchParams(location.search);
+          const raw = (params.get("accountfixture") || params.get("accountFixture") || "").trim().toLowerCase();
+          const key = { verified_email: "verified", unverified_email: "unverified", social_only: "social-only", no_password: "no-password", identity_pending: "identity-pending" }[raw] || raw;
+          const fixture = SAFE_ACCOUNT_STATE_FIXTURES[key];
+          if (!fixture) return null;
+          const user = {
+            ...fixture.user,
+            safeAccountFixture: true,
+            accountFixtureState: key
+          };
+          return {
+            safeAccountFixture: true,
+            fixtureKey: key,
+            fixtureTitle: fixture.title,
+            fixtureBody: fixture.body,
+            user,
+            wallet: { cachedBalance: 0, lumina: { balance: 0 }, stella: { displayAmount: 0 } },
+            activity: { followingArtists: [], followingArtistsCount: 0 },
+            recentLedger: [],
+            recentActivities: [],
+            recentPaymentOrders: [],
+            debut: { latestApplication: null }
+          };
+        }
+
+        function ensureAccountFixtureBanner() {
+          const content = document.querySelector(".mypage-content");
+          if (!content) return null;
+          let banner = document.getElementById("mypageAccountFixtureBanner");
+          if (!banner) {
+            banner = document.createElement("section");
+            banner.id = "mypageAccountFixtureBanner";
+            banner.className = "mypage-account-fixture-banner";
+            content.insertBefore(banner, content.firstChild);
+          }
+          return banner;
+        }
+
+        function renderAccountFixtureBanner(summary) {
+          const banner = ensureAccountFixtureBanner();
+          if (!banner) return;
+          if (!summary?.safeAccountFixture) {
+            banner.hidden = true;
+            banner.innerHTML = "";
+            return;
+          }
+          const user = summary.user || {};
+          banner.hidden = false;
+          banner.dataset.accountStateFixture = "true";
+          banner.dataset.fixtureState = summary.fixtureKey || "";
+          banner.dataset.emailVerified = String(user.emailVerified === true);
+          banner.dataset.socialOnly = String(user.isSocialOnly === true);
+          banner.dataset.hasPassword = String(user.hasPassword === true);
+          banner.innerHTML = "<span>ACCOUNT STATE</span><strong>" +
+            escapeHtml(summary.fixtureTitle || "계정 상태 확인") +
+            "</strong><p>" +
+            escapeHtml(summary.fixtureBody || "") +
+            "</p><dl><div><dt>이메일</dt><dd>" +
+            escapeHtml(user.emailVerified ? "인증 완료" : "인증 필요") +
+            "</dd></div><div><dt>비밀번호</dt><dd>" +
+            escapeHtml(user.isSocialOnly ? "소셜 계정에서 관리" : (user.hasPassword ? "설정 완료" : "설정 필요")) +
+            "</dd></div><div><dt>본인확인</dt><dd>" +
+            escapeHtml(user.identityStatusLabel || "해당 없음") +
+            "</dd></div></dl>";
+        }
+
         function getSocialAccountId(user) {
+          if (user?.publicAccountLabel) return user.publicAccountLabel;
           const social = user.socialAccount || user.socialProfile || user.oauthAccount || user.providerAccount || {};
           const provider = user.provider || social.provider || user.socialProvider || "";
           const id = social.providerUserId || social.providerId || social.socialId || user.providerUserId || user.socialId || user.externalId;
@@ -1169,14 +1312,16 @@
           const wallet = summary.wallet || {};
           const activity = summary.activity || {};
           const latest = summary.debut?.latestApplication || null;
-          const displayName = user.displayName || user.email?.split("@")[0] || "내 계정";
+          const displayName = user.displayName || user.emailPublicLabel || user.email?.split("@")[0] || "내 계정";
+          const emailDisplay = user.emailPublicLabel || user.email || "이메일 정보 없음";
 
           setText("mypageUserName", displayName);
-          setText("mypageUserEmail", user.email || "이메일 정보 없음");
+          setText("mypageUserEmail", emailDisplay);
           setProfilePreview(user, displayName);
           setValue("mypageProfileId", getSocialAccountId(user));
-          setValue("mypageProfileEmail", user.email || "-");
+          setValue("mypageProfileEmail", emailDisplay);
           setValue("mypageNickname", user.displayName || "");
+          renderAccountFixtureBanner(summary);
           // #248 — 프로필 탭의 비밀번호 진입 안내 / security 탭 안내 / 대체 행동 버튼 동시 갱신
           const isSocialOnly = !!user.isSocialOnly;
           const hasPassword = !!user.hasPassword;
@@ -1233,6 +1378,7 @@
           if (changeBtn) {
             changeBtn.hidden = isSocialOnly;
             changeBtn.disabled = isSocialOnly;
+            if (!isSocialOnly) changeBtn.textContent = hasPassword ? "비밀번호 변경" : "비밀번호 설정";
           }
           const resetBtn = $("mypageSendResetEmail");
           if (resetBtn) {
@@ -1313,6 +1459,11 @@
         }
 
         async function loadMypageSummary() {
+          const safeFixture = getSafeAccountStateFixture();
+          if (safeFixture) {
+            applySummary(safeFixture);
+            return;
+          }
           if (typeof apiFetch !== "function" || typeof isLoggedIn !== "function" || !isLoggedIn()) return;
           // #266 — fetch 시작 직후 loading 상태로 전환. 두 fetch 가 동시에 실패하면 error 표시.
           applyDebutLoading();
@@ -1544,6 +1695,33 @@
           if (!title || !body) return;
           if (note) { note.hidden = true; note.textContent = ""; }
           const email = user?.email || "";
+          if (user?.safeAccountFixture && typeof user.emailVerified === "boolean") {
+            const verified = user.emailVerified === true;
+            if (badge) {
+              badge.hidden = false;
+              badge.textContent = verified ? "인증 완료" : "인증 필요";
+              badge.dataset.state = verified ? "ok" : "warn";
+            }
+            if (verified) {
+              title.textContent = "이메일 인증이 완료된 상태예요";
+              body.textContent = "안전한 검수 상태에서 인증 완료 안내를 확인하고 있어요. 개인 이메일 주소는 표시하지 않습니다.";
+              if (resendBtn) { resendBtn.hidden = true; resendBtn.disabled = true; resendBtn.dataset.email = ""; }
+            } else {
+              title.textContent = "이메일 인증이 아직 필요해요";
+              body.textContent = "인증 메일 재발송 영역을 확인하는 안전한 검수 상태입니다. 메일 발송이나 계정 조회는 실행하지 않습니다.";
+              if (resendBtn) {
+                resendBtn.hidden = false;
+                resendBtn.disabled = true;
+                resendBtn.textContent = "인증 메일 다시 받기";
+                resendBtn.dataset.email = "";
+              }
+              if (note) {
+                note.textContent = "검수용 fixture라 메일은 발송하지 않습니다.";
+                note.hidden = false;
+              }
+            }
+            return;
+          }
           if (!email) {
             if (badge) badge.hidden = true;
             title.textContent = "이메일 정보를 찾을 수 없어요";
@@ -1722,7 +1900,8 @@
         // 수행해 외부 스크립트 의존을 끊는다. 동일 토글을 두 번 호출해도 idempotent.
         function syncMypageAuthGate() {
           try {
-            const loggedIn = typeof isLoggedIn === "function" ? isLoggedIn() : false;
+            const fixtureVisible = !!getSafeAccountStateFixture();
+            const loggedIn = fixtureVisible || (typeof isLoggedIn === "function" ? isLoggedIn() : false);
             document.querySelectorAll("[data-auth-required]").forEach(el => {
               el.hidden = !loggedIn;
             });
