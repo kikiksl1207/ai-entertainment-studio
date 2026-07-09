@@ -253,6 +253,7 @@ const I18N_DICT = {
   "auth.modal.register.title": { "ko-KR": "Lumina Stage 가입", "ja-JP": "Lumina Stage登録", "en-US": "Create your Lumina Stage account", "zh-CN": "注册 Lumina Stage", "zh-Hant": "註冊 Lumina Stage" },
   "auth.modal.register.subtitle": { "ko-KR": "팬으로서 좋아요와 응원을 보내세요", "ja-JP": "ファンとしていいねや応援を送れます", "en-US": "Send likes and support as a fan", "zh-CN": "以粉丝身份发送喜欢和支持", "zh-Hant": "以粉絲身份送出喜歡與支持" },
   "auth.modal.email": { "ko-KR": "이메일", "ja-JP": "メール", "en-US": "Email", "zh-CN": "邮箱", "zh-Hant": "信箱" },
+  "auth.modal.email.placeholder": { "ko-KR": "이메일 입력", "ja-JP": "メールを入力", "en-US": "Enter email", "zh-CN": "输入邮箱", "zh-Hant": "輸入信箱" },
   "auth.modal.password": { "ko-KR": "비밀번호", "ja-JP": "パスワード", "en-US": "Password", "zh-CN": "密码", "zh-Hant": "密碼" },
   "auth.modal.passwordMin": { "ko-KR": "비밀번호 (8자 이상)", "ja-JP": "パスワード（8文字以上）", "en-US": "Password (8+ characters)", "zh-CN": "密码（至少 8 个字符）", "zh-Hant": "密碼（至少 8 個字元）" },
   "auth.modal.nickname": { "ko-KR": "닉네임", "ja-JP": "ニックネーム", "en-US": "Nickname", "zh-CN": "昵称", "zh-Hant": "暱稱" },
@@ -1133,7 +1134,13 @@ function t(key, locale) {
   const useLocale = locale ? normalizeLocale(locale) : _currentLocale;
   const entry = I18N_DICT[key];
   if (!entry) return key;
-  return entry[useLocale] || entry[I18N_FALLBACK] || key;
+  if (Object.prototype.hasOwnProperty.call(entry, useLocale)) {
+    return entry[useLocale];
+  }
+  if (Object.prototype.hasOwnProperty.call(entry, I18N_FALLBACK)) {
+    return entry[I18N_FALLBACK];
+  }
+  return key;
 }
 
 /** locale 자동 감지: localStorage > navigator.language > ko-KR */
@@ -1470,7 +1477,7 @@ function createAuthModal() {
         <p class="auth-modal-subtitle" data-i18n="auth.modal.login.subtitle">Lumina Stage에 입장하세요</p>
         <div class="auth-modal-error" data-error hidden></div>
         <label class="auth-modal-field"><span data-i18n="auth.modal.email">이메일</span>
-          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
+          <input type="email" name="email" required autocomplete="email" placeholder="이메일 입력" data-i18n-attr="placeholder:auth.modal.email.placeholder" /></label>
         <label class="auth-modal-field"><span data-i18n="auth.modal.password">비밀번호</span>
           <input type="password" name="password" required autocomplete="current-password" /></label>
         <button type="submit" class="auth-modal-submit" data-i18n="auth.modal.login.submit">로그인</button>
@@ -1485,7 +1492,7 @@ function createAuthModal() {
         <div class="auth-modal-error" data-error hidden></div>
         <div class="auth-modal-info" data-info hidden></div>
         <label class="auth-modal-field"><span data-i18n="auth.modal.email">이메일</span>
-          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
+          <input type="email" name="email" required autocomplete="email" placeholder="이메일 입력" data-i18n-attr="placeholder:auth.modal.email.placeholder" /></label>
         <button type="submit" class="auth-modal-submit" data-i18n="auth.modal.forgot.submit">재설정 메일 보내기</button>
         <p class="auth-modal-meta">
           <button type="button" class="auth-modal-link" data-switch="login" data-i18n="auth.modal.backToLogin">로그인으로 돌아가기</button>
@@ -1511,7 +1518,7 @@ function createAuthModal() {
         <p class="auth-modal-subtitle" data-i18n="auth.modal.register.subtitle">팬으로서 좋아요와 응원을 보내세요</p>
         <div class="auth-modal-error" data-error hidden></div>
         <label class="auth-modal-field"><span data-i18n="auth.modal.email">이메일</span>
-          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
+          <input type="email" name="email" required autocomplete="email" placeholder="이메일 입력" data-i18n-attr="placeholder:auth.modal.email.placeholder" /></label>
         <label class="auth-modal-field"><span><span data-i18n="auth.modal.nickname">닉네임</span> <small class="auth-modal-optional" data-i18n="auth.modal.optional">(선택)</small></span>
           <input type="text" name="displayName" autocomplete="nickname" placeholder="비워두면 기본 닉네임이 자동 부여돼요" data-i18n-attr="placeholder:auth.modal.nickname.placeholder" />
           <small class="auth-modal-helper" data-i18n="auth.modal.nickname.helper">이메일이나 실명은 공개 닉네임으로 사용하지 않아요. 계정 설정에서 언제든 바꿀 수 있어요.</small></label>
