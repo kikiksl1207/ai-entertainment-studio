@@ -10,23 +10,23 @@
   const fanEngagementPhaseGateMap = [
     {
       phase: "read_only_teaser",
-      title: "읽기 전용 티저",
-      body: "홈 미션은 GET 결과와 fallback empty/error만 표시합니다."
+      title: "오늘의 참여 미리보기",
+      body: "홈에서 오늘 열릴 미션과 참여 가능 상태만 미리 보여줘요."
     },
     {
       phase: "login_required",
       title: "로그인 필요",
-      body: "참여가 필요한 CTA는 로그인 전 안내 상태로만 노출합니다."
+      body: "로그인하면 참여 버튼이 활성화돼요."
     },
     {
       phase: "mutation_locked",
-      title: "제출/투표 잠금",
-      body: "submit, vote, proposal mutation은 안전 검수 전까지 열지 않습니다."
+      title: "참여 준비 중",
+      body: "제출·투표·제안은 안전한 참여 환경이 준비되면 열려요."
     },
     {
       phase: "safe_qa_missing",
-      title: "QA 누락 안전 상태",
-      body: "데이터가 없거나 실패하면 비활성 empty/error 상태로 분리합니다."
+      title: "참여 안내 준비 중",
+      body: "데이터를 불러오지 못하면 빈 상태와 재시도 안내를 분리해 보여줘요."
     }
   ];
 
@@ -211,8 +211,8 @@
     const mutationLocked = ["mission_participation", "concept_vote", "vote_concept", "fan_proposal"].includes(actionType);
     const map = {
       default: {
-        cta: mutationLocked ? "검수 후 참여 열림" : defaultCta,
-        status: mutationLocked ? "읽기 전용 티저 · 제출/투표는 잠금" : participationLabel(mission?.participation)
+        cta: mutationLocked ? "참여 준비 중" : defaultCta,
+        status: mutationLocked ? "미리보기 상태 · 곧 참여할 수 있어요" : participationLabel(mission?.participation)
       },
       completed: {
         cta: submitCopy.accepted || "참여 완료",
