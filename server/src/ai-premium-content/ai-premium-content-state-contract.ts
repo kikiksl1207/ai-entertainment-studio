@@ -44,6 +44,14 @@ export const AI_PREMIUM_CONTENT_MODERATION_STATUSES = [
   'needs_review',
 ] as const;
 
+export const AI_PREMIUM_CONTENT_COPY_LOCALES = [
+  'ko',
+  'en',
+  'ja',
+  'zh-Hans',
+  'zh-Hant',
+] as const;
+
 export const AI_PREMIUM_CONTENT_STATUS_COPY_KO = {
   draft: '작성 중',
   submitted: '요청이 접수됐어요',
@@ -56,6 +64,116 @@ export const AI_PREMIUM_CONTENT_STATUS_COPY_KO = {
   approved: '콘텐츠가 준비됐어요',
   rejected: '요청이 승인되지 않았어요',
   archived: '보관된 요청이에요',
+} as const;
+
+const AI_PREMIUM_CONTENT_RECEIVED_COPY = {
+  ko: '접수됐어요',
+  en: 'Received',
+  ja: '受付済み',
+  'zh-Hans': '已收到',
+  'zh-Hant': '已收到',
+} as const;
+
+const AI_PREMIUM_CONTENT_REVIEWING_COPY = {
+  ko: '검토 중이에요',
+  en: 'Under review',
+  ja: '確認中です',
+  'zh-Hans': '审核中',
+  'zh-Hant': '審核中',
+} as const;
+
+const AI_PREMIUM_CONTENT_CREATING_COPY = {
+  ko: '제작 중이에요',
+  en: 'Creating',
+  ja: '制作中です',
+  'zh-Hans': '制作中',
+  'zh-Hant': '製作中',
+} as const;
+
+const AI_PREMIUM_CONTENT_READY_COPY = {
+  ko: '준비됐어요',
+  en: 'Ready',
+  ja: '準備できました',
+  'zh-Hans': '已就绪',
+  'zh-Hant': '已就緒',
+} as const;
+
+const AI_PREMIUM_CONTENT_BLOCKED_COPY = {
+  ko: '진행할 수 없어요',
+  en: 'Cannot continue',
+  ja: '続行できません',
+  'zh-Hans': '无法继续',
+  'zh-Hant': '無法繼續',
+} as const;
+
+const AI_PREMIUM_CONTENT_FAILED_COPY = {
+  ko: '제작에 실패했어요',
+  en: 'Creation failed',
+  ja: '制作に失敗しました',
+  'zh-Hans': '制作失败',
+  'zh-Hant': '製作失敗',
+} as const;
+
+const AI_PREMIUM_CONTENT_ARCHIVED_COPY = {
+  ko: '보관된 요청이에요',
+  en: 'Archived',
+  ja: '保管済み',
+  'zh-Hans': '已归档',
+  'zh-Hant': '已封存',
+} as const;
+
+export const AI_PREMIUM_CONTENT_STATUS_COPY_I18N = {
+  draft: AI_PREMIUM_CONTENT_RECEIVED_COPY,
+  submitted: AI_PREMIUM_CONTENT_RECEIVED_COPY,
+  safety_blocked: AI_PREMIUM_CONTENT_BLOCKED_COPY,
+  needs_more_info: AI_PREMIUM_CONTENT_RECEIVED_COPY,
+  queued: AI_PREMIUM_CONTENT_CREATING_COPY,
+  generating: AI_PREMIUM_CONTENT_CREATING_COPY,
+  provider_failed: AI_PREMIUM_CONTENT_FAILED_COPY,
+  awaiting_review: AI_PREMIUM_CONTENT_REVIEWING_COPY,
+  approved: AI_PREMIUM_CONTENT_READY_COPY,
+  rejected: AI_PREMIUM_CONTENT_BLOCKED_COPY,
+  archived: AI_PREMIUM_CONTENT_ARCHIVED_COPY,
+} as const;
+
+export const AI_PREMIUM_CONTENT_NEUTRAL_FALLBACK_COPY_I18N = {
+  ko: '상태를 확인 중이에요',
+  en: 'Checking status',
+  ja: '状態を確認中です',
+  'zh-Hans': '正在确认状态',
+  'zh-Hant': '正在確認狀態',
+} as const;
+
+export const AI_PREMIUM_CONTENT_PRECHECK_COPY_I18N = {
+  safe: {
+    ko: '사전 확인을 통과했어요',
+    en: 'Precheck passed',
+    ja: '事前確認を通過しました',
+    'zh-Hans': '预检查已通过',
+    'zh-Hant': '預檢查已通過',
+  },
+  review_required: {
+    ko: '운영자 확인이 필요해요',
+    en: 'Review required',
+    ja: '運営確認が必要です',
+    'zh-Hans': '需要人工审核',
+    'zh-Hant': '需要人工審核',
+  },
+  blocked: {
+    ko: '안전 기준 때문에 진행할 수 없어요',
+    en: 'Blocked by safety policy',
+    ja: '安全基準により続行できません',
+    'zh-Hans': '因安全政策无法继续',
+    'zh-Hant': '因安全政策無法繼續',
+  },
+} as const;
+
+const AI_PREMIUM_CONTENT_REGENERATABLE_COPY = {
+  ko: '다시 요청할 수 있어요',
+  en: 'You can request again',
+  ja: '再リクエストできます',
+  'zh-Hans': '可再次请求',
+  'zh-Hant': '可再次要求',
 } as const;
 
 export const AI_PREMIUM_CONTENT_REQUEST_TYPE_POLICY = {
@@ -1469,6 +1587,7 @@ export const AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT = {
       requestStatus: 'awaiting_review',
       displayStatus: 'reviewing',
       labelKo: '검수 중',
+      labels: AI_PREMIUM_CONTENT_STATUS_COPY_I18N.awaiting_review,
       messageKey: 'aiPremiumContent.preview.reviewing',
       rawEnumAsCopy: false,
     },
@@ -1477,6 +1596,7 @@ export const AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT = {
       requestStatus: 'generating',
       displayStatus: 'generating',
       labelKo: '제작 중',
+      labels: AI_PREMIUM_CONTENT_STATUS_COPY_I18N.generating,
       messageKey: 'aiPremiumContent.preview.generating',
       rawEnumAsCopy: false,
     },
@@ -1486,6 +1606,7 @@ export const AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT = {
       resultStatus: 'approved',
       displayStatus: 'completed',
       labelKo: '완료',
+      labels: AI_PREMIUM_CONTENT_STATUS_COPY_I18N.approved,
       messageKey: 'aiPremiumContent.preview.completed',
       rawEnumAsCopy: false,
     },
@@ -1495,6 +1616,7 @@ export const AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT = {
       resultStatus: 'blocked',
       displayStatus: 'blocked',
       labelKo: '차단',
+      labels: AI_PREMIUM_CONTENT_STATUS_COPY_I18N.safety_blocked,
       messageKey: 'aiPremiumContent.preview.blocked',
       rawEnumAsCopy: false,
     },
@@ -1504,6 +1626,7 @@ export const AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT = {
       resultStatus: 'failed',
       displayStatus: 'failed',
       labelKo: '실패',
+      labels: AI_PREMIUM_CONTENT_STATUS_COPY_I18N.provider_failed,
       messageKey: 'aiPremiumContent.preview.failed',
       rawEnumAsCopy: false,
     },
@@ -1513,6 +1636,7 @@ export const AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT = {
       resultStatus: 'failed',
       displayStatus: 'regeneratable',
       labelKo: '재생성 가능',
+      labels: AI_PREMIUM_CONTENT_REGENERATABLE_COPY,
       messageKey: 'aiPremiumContent.preview.regeneratable',
       regenerateCtaEnabled: false,
       rawEnumAsCopy: false,
@@ -1523,6 +1647,7 @@ export const AI_PREMIUM_CONTENT_STATUS_PREVIEW_FIXTURE_CONTRACT = {
     itemsAlwaysArray: true,
     statusSheetSurface: 'qa_status_preview',
     locale: 'ko-KR',
+    locales: AI_PREMIUM_CONTENT_COPY_LOCALES,
     rawStatusAsCopy: false,
     rawEnumAsCopy: false,
     rawProviderStatusReturned: false,
@@ -2903,10 +3028,14 @@ export const AI_PREMIUM_CONTENT_STATE_API_CONTRACT = {
     AI_PREMIUM_CONTENT_USER_FACING_REQUEST_STATUS_API_SKELETON,
   statusCopy: {
     locale: 'ko-KR',
+    locales: AI_PREMIUM_CONTENT_COPY_LOCALES,
     fallbackMap: AI_PREMIUM_CONTENT_STATUS_COPY_KO,
+    localizedMap: AI_PREMIUM_CONTENT_STATUS_COPY_I18N,
+    precheckMap: AI_PREMIUM_CONTENT_PRECHECK_COPY_I18N,
     rawEnumAsCopy: false,
     rawProviderStatusAsCopy: false,
     neutralFallbackCopy: '상태를 확인 중이에요',
+    neutralFallbackCopyI18n: AI_PREMIUM_CONTENT_NEUTRAL_FALLBACK_COPY_I18N,
   },
   apiContracts: {
     myRequestList: {

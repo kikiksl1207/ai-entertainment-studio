@@ -549,7 +549,7 @@
       stateLabel: "관계 변화 · AI 초안 검토",
       endingLabel: "AI 초안 후보",
       backgroundLabel: "안개 해안",
-      rejoinLabel: "검수 후 다음 장면으로 이어짐",
+      rejoinLabel: "다음 장면으로 이어짐",
       eventSummary: "The detour splits away before the rejoin.",
       eventLabel: "우회로가 합류 전에 갈라집니다.",
       relationSummary: "Relationship shifts without a writer ending.",
@@ -563,7 +563,7 @@
       chatLine: "The shore goes quiet. This branch needs helper ending review.",
       chatLineLabel: "해안이 조용해지고 이 분기는 보조 결말 검토가 필요합니다.",
       rejoin: "No rejoin before helper ending review",
-      rejoinLabel: "검수 후 다음 장면으로 이어짐",
+      rejoinLabel: "다음 장면으로 이어짐",
     },
   ];
 

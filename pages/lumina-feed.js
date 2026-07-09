@@ -125,7 +125,11 @@ function buildFeedAuthorRelationLinks(handle) {
 }
 
 function feedFollowButtonLabel(isFollowing) {
-  return isFollowing ? "팔로우 취소" : "팔로우";
+  return feedT(feedFollowButtonKey(isFollowing), isFollowing ? "팔로우 취소" : "팔로우");
+}
+
+function feedFollowButtonKey(isFollowing) {
+  return isFollowing ? "feed.follow.cancel" : "feed.follow.action";
 }
 
 function buildFeedFollowButton(post, artist, isMineByViewer) {
@@ -143,7 +147,8 @@ function buildFeedFollowButton(post, artist, isMineByViewer) {
   return (
     `<button class="feed-follow-btn${isFollowing ? " is-following" : ""}" type="button" ${idAttr} ` +
     `data-following="${isFollowing ? "1" : "0"}" aria-pressed="${isFollowing ? "true" : "false"}" ` +
-    `aria-label="${feedEscapeHtml(label)}">${feedEscapeHtml(label)}</button>`
+    `aria-label="${feedEscapeHtml(label)}" data-i18n="${feedFollowButtonKey(isFollowing)}" ` +
+    `data-i18n-aria="${feedFollowButtonKey(isFollowing)}">${feedEscapeHtml(label)}</button>`
   );
 }
 
@@ -873,6 +878,19 @@ async function initLuminaFeedDiscovery() {
    - 아티스트: POST/DELETE /api/v1/artists/:artistId/follow
    - 유저: POST/DELETE /api/v1/users/:userId/follow
    - 응답에 followerCount 미포함이라 낙관적 토글만 (재조회는 다음 페이지 진입 시) */
+function syncFeedFollowButton(btn, isFollowing) {
+  if (!btn) return;
+  const label = feedFollowButtonLabel(isFollowing);
+  const key = feedFollowButtonKey(isFollowing);
+  btn.classList.toggle("is-following", isFollowing);
+  btn.dataset.following = isFollowing ? "1" : "0";
+  btn.setAttribute("aria-pressed", isFollowing ? "true" : "false");
+  btn.setAttribute("aria-label", label);
+  btn.setAttribute("data-i18n", key);
+  btn.setAttribute("data-i18n-aria", key);
+  btn.textContent = label;
+}
+
 function bindLuminaFeedFollow() {
   if (document._feedFollowBound) return;
   document._feedFollowBound = true;
@@ -899,11 +917,7 @@ function bindLuminaFeedFollow() {
       : `/api/v1/users/${encodeURIComponent(id)}/follow`;
     btn.dataset.busy = "1";
     // 낙관적 토글
-    btn.classList.toggle("is-following", !wasFollowing);
-    btn.dataset.following = wasFollowing ? "0" : "1";
-    btn.setAttribute("aria-pressed", wasFollowing ? "false" : "true");
-    btn.textContent = feedFollowButtonLabel(!wasFollowing);
-    btn.setAttribute("aria-label", feedFollowButtonLabel(!wasFollowing));
+    syncFeedFollowButton(btn, !wasFollowing);
     try {
       await apiFetch(endpoint, {
         method: wasFollowing ? "DELETE" : "POST",
@@ -916,19 +930,11 @@ function bindLuminaFeedFollow() {
           ? `[data-feed-follow-artist="${id}"]`
           : `[data-feed-follow-user="${id}"]`
       ).forEach(b => {
-        b.classList.toggle("is-following", !wasFollowing);
-        b.dataset.following = wasFollowing ? "0" : "1";
-        b.setAttribute("aria-pressed", wasFollowing ? "false" : "true");
-        b.textContent = feedFollowButtonLabel(!wasFollowing);
-        b.setAttribute("aria-label", feedFollowButtonLabel(!wasFollowing));
+        syncFeedFollowButton(b, !wasFollowing);
       });
     } catch (err) {
       // 롤백
-      btn.classList.toggle("is-following", wasFollowing);
-      btn.dataset.following = wasFollowing ? "1" : "0";
-      btn.setAttribute("aria-pressed", wasFollowing ? "true" : "false");
-      btn.textContent = feedFollowButtonLabel(wasFollowing);
-      btn.setAttribute("aria-label", feedFollowButtonLabel(wasFollowing));
+      syncFeedFollowButton(btn, wasFollowing);
       console.warn("[#145 follow] 실패", { status: err?.status, body: err?.body });
       alert(err?.message || "팔로우 처리에 실패했어요.");
     } finally {

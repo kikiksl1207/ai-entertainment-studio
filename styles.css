@@ -1927,6 +1927,32 @@ p {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+.auth-bridge-panel {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.auth-bridge-panel article {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(196, 176, 240, 0.16);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+}
+.auth-bridge-panel strong {
+  display: block;
+  color: rgba(255,255,255,0.84);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.auth-bridge-panel p {
+  margin: 3px 0 0;
+  color: rgba(255,255,255,0.56);
+  font-size: 11.5px;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
 .auth-modal-error {
   background: rgba(255, 80, 80, 0.12);
   border: 1px solid rgba(255, 80, 80, 0.3);
@@ -2066,6 +2092,37 @@ p {
 }
 .auth-modal-success-panel .auth-modal-subtitle {
   margin-bottom: 14px;
+}
+
+@media (max-width: 480px) {
+  .auth-modal-overlay {
+    align-items: flex-start;
+    overflow-y: auto;
+    padding: 12px 12px calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .auth-modal {
+    width: 100%;
+    max-height: calc(100dvh - 124px - env(safe-area-inset-bottom, 0px));
+    padding: 32px 18px 22px;
+    border-radius: 18px;
+  }
+
+  .auth-modal-tabs {
+    margin-bottom: 18px;
+  }
+
+  .auth-modal-form h2 {
+    font-size: 20px;
+  }
+
+  .auth-modal-subtitle {
+    margin-bottom: 16px;
+  }
+
+  .auth-modal-field {
+    margin-bottom: 11px;
+  }
 }
 
 /* ══════════════════════════════════════

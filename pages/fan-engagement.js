@@ -331,8 +331,7 @@
 
   function renderStateMessage(root, message, state) {
     root.dataset.state = state;
-    const map = state === "loading" ? "" : renderPhaseGateMap();
-    root.innerHTML = map + `<div class="fan-mission-empty" data-state="${escapeHtml(state)}">${escapeHtml(message)}</div>`;
+    root.innerHTML = renderPhaseGateMap() + `<div class="fan-mission-empty" data-state="${escapeHtml(state)}">${escapeHtml(message)}</div>`;
   }
 
   function renderMissionCard(mission) {
