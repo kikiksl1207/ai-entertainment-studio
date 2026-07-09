@@ -40,4 +40,53 @@ describe('debut auth account gap contract', () => {
       messageKey: 'debut.applicant.adultConfirmationRequired',
     });
   });
+
+  it('documents the debut identity provider gap without requiring credentials in QA notes', () => {
+    expect(DEBUT_AUTH_ACCOUNT_GAP_CONTRACT.identityProviderGapCheck).toMatchObject({
+      currentMvpProvider: 'phone_number_mvp_or_self_declaration',
+      realProviderCallbacksConnected: false,
+      realProviderSignatureVerificationConnected: false,
+      debutSubmitPolicy: {
+        authRequired: true,
+        emailVerificationHardGate: false,
+        identityProviderHardGate: false,
+        adultSelfDeclarationRequired: true,
+        verifiedMinorBlocked: true,
+      },
+      blockedLiveQa: {
+        blockedBy: 'identity provider credentials/callbacks needed',
+        passwordRequestAllowed: false,
+        providerSecretRecordAllowed: false,
+        rawPiiRecordAllowed: false,
+      },
+    });
+    expect(
+      DEBUT_AUTH_ACCOUNT_GAP_CONTRACT.identityProviderGapCheck.providerCandidates,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: 'nice',
+          status: 'credentials_and_callbacks_required',
+          blocksDebutSubmitToday: false,
+        }),
+        expect.objectContaining({
+          provider: 'ipin',
+          status: 'not_connected',
+          blocksDebutSubmitToday: false,
+        }),
+      ]),
+    );
+    expect(
+      DEBUT_AUTH_ACCOUNT_GAP_CONTRACT.identityProviderGapCheck.safeOutputPolicy,
+    ).toMatchObject({
+      recordProviderStatus: true,
+      recordStableCodeMessageKey: true,
+      recordRawName: false,
+      recordRawBirthdate: false,
+      recordRawPhone: false,
+      recordToken: false,
+      recordCookie: false,
+      recordProviderPayload: false,
+    });
+  });
 });

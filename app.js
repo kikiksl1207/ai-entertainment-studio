@@ -1751,6 +1751,38 @@ async function handleAuthSubmit(form, mode) {
 
 const AUTH_REFERRAL_CODE_ERROR_MESSAGE = "추천인 코드가 올바르지 않아요. 코드를 확인하거나 비워두고 가입해 주세요.";
 
+const AUTH_PUBLIC_ERROR_COPY = {
+  AUTH_INVALID_CREDENTIALS: "\ub85c\uadf8\uc778 \uc815\ubcf4\ub97c \ub2e4\uc2dc \ud655\uc778\ud574 \uc8fc\uc138\uc694.",
+  "auth.login.invalidCredentials": "\ub85c\uadf8\uc778 \uc815\ubcf4\ub97c \ub2e4\uc2dc \ud655\uc778\ud574 \uc8fc\uc138\uc694.",
+  AUTH_EMAIL_ALREADY_EXISTS: "\uc774\ubbf8 \uac00\uc785\ub41c \uc774\uba54\uc77c\uc785\ub2c8\ub2e4.",
+  "auth.register.emailAlreadyExists": "\uc774\ubbf8 \uac00\uc785\ub41c \uc774\uba54\uc77c\uc785\ub2c8\ub2e4.",
+  AUTH_EMAIL_VERIFICATION_REQUIRED: "\uc774\uba54\uc77c \uc778\uc99d \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
+  "auth.emailVerification.required": "\uc774\uba54\uc77c \uc778\uc99d \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
+  AUTH_PASSWORD_RESET_TOKEN_INVALID_OR_EXPIRED: "\uc7ac\uc124\uc815 \ub9c1\ud06c\uac00 \ub9cc\ub8cc\ub418\uc5c8\uc5b4\uc694. \ub2e4\uc2dc \uc694\uccad\ud574 \uc8fc\uc138\uc694.",
+  "auth.passwordReset.tokenInvalidOrExpired": "\uc7ac\uc124\uc815 \ub9c1\ud06c\uac00 \ub9cc\ub8cc\ub418\uc5c8\uc5b4\uc694. \ub2e4\uc2dc \uc694\uccad\ud574 \uc8fc\uc138\uc694.",
+  AUTH_RATE_LIMITED: "\uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.",
+  "auth.rateLimited": "\uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694."
+};
+
+function normalizedAuthPublicErrorCopy(err, mode) {
+  const candidates = [
+    err.body?.code,
+    err.body?.messageKey,
+    err.body?.error?.code,
+    err.body?.error?.messageKey
+  ].filter(Boolean);
+
+  for (const key of candidates) {
+    if (AUTH_PUBLIC_ERROR_COPY[key]) return AUTH_PUBLIC_ERROR_COPY[key];
+  }
+
+  const rawMessage = `${err.message || ""} ${err.body?.error?.message || ""}`;
+  if (mode === "login" && (err.status === 401 || /invalid credentials/i.test(rawMessage))) {
+    return AUTH_PUBLIC_ERROR_COPY.AUTH_INVALID_CREDENTIALS;
+  }
+  return null;
+}
+
 function getAuthSubmitErrorMessage(err, mode) {
   const details = err.body?.error?.details;
   if (Array.isArray(details) && details.length > 0) {
@@ -1767,6 +1799,14 @@ function getAuthSubmitErrorMessage(err, mode) {
 
   if (mode === "register" && isReferralCodeError(`${errorCode} ${rawMessage}`)) {
     return AUTH_REFERRAL_CODE_ERROR_MESSAGE;
+  }
+  const publicCopy = normalizedAuthPublicErrorCopy(err, mode);
+  if (publicCopy) return publicCopy;
+  if (mode === "login") {
+    return "\ub85c\uadf8\uc778\uc5d0 \uc2e4\ud328\ud588\uc5b4\uc694. \uc815\ubcf4\ub97c \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.";
+  }
+  if (mode === "register") {
+    return "\uac00\uc785\uc744 \uc644\ub8cc\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \uc785\ub825\uac12\uc744 \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.";
   }
 
   return rawMessage || (mode === "login" ? "로그인에 실패했습니다." : "가입에 실패했습니다.");
@@ -1789,7 +1829,7 @@ function translateValidationError(field, message) {
   if (/should not be empty/i.test(message))               return `${fieldKo}을(를) 입력해주세요.`;
   if (/must be a string/i.test(message))                  return `${fieldKo} 형식이 잘못되었습니다.`;
   if (/already.*exist|duplicate/i.test(message))          return `${fieldKo}: 이미 사용 중입니다.`;
-  return `${fieldKo}: ${message}`;
+  return `${fieldKo}: \uc785\ub825\uac12\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.`;
 }
 
 function openAuthModal(tab = "login", options = {}) {

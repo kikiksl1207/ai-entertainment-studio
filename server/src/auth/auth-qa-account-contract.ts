@@ -15,6 +15,13 @@ export const AUTH_QA_ACCOUNT_ACCESS_CONTRACT = {
   ],
   credentialSource: {
     storage: 'private_credential_source_only',
+    missingRequiredSlotBlock: {
+      blockedBy: 'safe QA credential source needed',
+      nextAction:
+        'Populate required QA slots in a private local credential source, then rerun npm run qa:auth-credential-source.',
+      passwordRequestAllowed: false,
+      rawCredentialRecordAllowed: false,
+    },
     rawValuePolicy: {
       git: false,
       notion: false,
