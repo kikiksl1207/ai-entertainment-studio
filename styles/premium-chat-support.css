@@ -1,0 +1,113 @@
+.premium-chat-support-page {
+  color: #f5f0ff;
+}
+
+.premium-support-main {
+  width: min(100% - 32px, 720px);
+  margin: 0 auto;
+  padding: 96px 0 calc(104px + env(safe-area-inset-bottom, 0px));
+}
+
+.premium-support-head {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.premium-support-eyebrow {
+  margin: 0;
+  color: #f9a8d4;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.premium-support-head h1 {
+  margin: 0;
+  color: #fff;
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.premium-support-head p {
+  margin: 0;
+  color: rgba(245, 240, 255, 0.72);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.premium-support-link {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid rgba(244, 114, 182, 0.35);
+  border-radius: 999px;
+  background: rgba(244, 114, 182, 0.1);
+  color: #f9a8d4;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.premium-support-panel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(180, 150, 255, 0.14);
+  border-radius: 16px;
+  background: rgba(20, 14, 36, 0.64);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
+}
+
+.premium-support-panel fieldset {
+  min-width: 0;
+}
+
+.premium-support-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.premium-support-actions .dm-sheet-secondary,
+.premium-support-actions .dm-sheet-primary {
+  min-height: 40px;
+  text-decoration: none;
+}
+
+.premium-chat-support-page .site-footer {
+  background: rgba(8, 4, 18, 0.62);
+}
+
+@media (max-width: 480px) {
+  .premium-support-main {
+    width: min(100% - 24px, 720px);
+    padding-top: 84px;
+  }
+
+  .premium-support-head h1 {
+    font-size: 24px;
+  }
+
+  .premium-support-panel {
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .premium-support-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .premium-support-actions .dm-sheet-secondary,
+  .premium-support-actions .dm-sheet-primary {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}

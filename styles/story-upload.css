@@ -989,3 +989,69 @@
     overflow-wrap: anywhere;
   }
 }
+
+@media (max-width: 480px) {
+  .su-import-wrap {
+    overflow-x: visible;
+  }
+
+  .su-import-preview {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+    white-space: normal;
+  }
+
+  .su-import-preview thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .su-import-preview tbody,
+  .su-import-preview tr,
+  .su-import-preview td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .su-import-preview tr {
+    padding: 10px 12px;
+    border: 1px solid rgba(240, 238, 248, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  .su-import-preview td {
+    display: grid;
+    grid-template-columns: minmax(70px, 30%) minmax(0, 1fr);
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .su-import-preview td::before {
+    color: rgba(240, 238, 248, 0.6);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .su-import-preview td:nth-child(1)::before { content: "장면"; }
+  .su-import-preview td:nth-child(2)::before { content: "분기"; }
+  .su-import-preview td:nth-child(3)::before { content: "결말"; }
+  .su-import-preview td:nth-child(4)::before { content: "파트"; }
+  .su-import-preview td:nth-child(5)::before { content: "요약"; }
+  .su-import-preview td:nth-child(6)::before { content: "상태"; }
+}
