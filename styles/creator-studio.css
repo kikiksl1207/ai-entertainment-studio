@@ -139,6 +139,32 @@ a { color: inherit; text-decoration: none; }
   font-size: 14px;
   line-height: 1.6;
 }
+.studio-gate-settlement-preview {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.studio-gate-settlement-preview article {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(94, 232, 168, 0.16);
+  border-radius: 8px;
+  background: rgba(94, 232, 168, 0.06);
+  color: rgba(232, 255, 246, 0.84);
+}
+.studio-gate-settlement-preview strong {
+  display: block;
+  color: #a7f3d0;
+  font-size: 12px;
+  font-weight: 800;
+}
+.studio-gate-settlement-preview p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
 .studio-gate-card nav {
   display: flex;
   flex-wrap: wrap;

@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>프리미엄챗 후원 안내 | Lumina Stage</title>
+    <link rel="canonical" href="https://www.lumina-stage.com/premium-chat-support" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      body {
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 20% 0%, rgba(255, 126, 185, 0.18), transparent 32rem),
+          linear-gradient(180deg, #120b24 0%, #080711 100%);
+        color: #f7f2ff;
+      }
+      .support-route {
+        width: min(960px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 56px 0 calc(112px + env(safe-area-inset-bottom, 0px));
+      }
+      .support-route h1 {
+        margin: 0 0 8px;
+        font-size: clamp(28px, 6vw, 48px);
+        line-height: 1.05;
+        letter-spacing: 0;
+      }
+      .support-route-lead {
+        max-width: 680px;
+        margin: 0 0 24px;
+        color: rgba(240, 232, 255, 0.74);
+        line-height: 1.65;
+      }
+      .support-preview-panel {
+        display: grid;
+        gap: 18px;
+        padding: 20px;
+        border: 1px solid rgba(180, 150, 255, 0.18);
+        border-radius: 8px;
+        background: rgba(16, 12, 31, 0.78);
+      }
+      .donation-status-banner,
+      .donation-summary {
+        padding: 14px 16px;
+        border: 1px solid rgba(255, 201, 122, 0.28);
+        border-radius: 8px;
+        background: rgba(255, 201, 122, 0.08);
+      }
+      .donation-status-banner strong,
+      .donation-summary strong {
+        display: block;
+        color: #ffd38b;
+      }
+      .donation-status-banner p,
+      .donation-summary span {
+        margin: 6px 0 0;
+        color: rgba(245, 232, 205, 0.82);
+        line-height: 1.5;
+      }
+      .donation-amount-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .donation-amount {
+        min-height: 48px;
+        border: 1px solid rgba(255, 126, 185, 0.28);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.04);
+        color: #fff;
+        font: inherit;
+        font-weight: 800;
+      }
+      .donation-amount.is-active {
+        border-color: rgba(255, 126, 185, 0.78);
+        background: rgba(255, 126, 185, 0.14);
+      }
+      .support-form-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 220px) 1fr;
+        gap: 12px;
+      }
+      .support-form-grid label {
+        display: grid;
+        gap: 8px;
+        color: rgba(240, 232, 255, 0.78);
+        font-weight: 700;
+      }
+      .support-form-grid input,
+      .support-form-grid textarea {
+        width: 100%;
+        border: 1px solid rgba(180, 150, 255, 0.22);
+        border-radius: 8px;
+        background: rgba(8, 7, 17, 0.72);
+        color: #fff;
+        font: inherit;
+        padding: 12px;
+        box-sizing: border-box;
+      }
+      .support-policy-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .support-policy-list p {
+        margin: 0;
+        padding: 12px;
+        border: 1px solid rgba(180, 150, 255, 0.14);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.035);
+        color: rgba(240, 232, 255, 0.72);
+        line-height: 1.5;
+      }
+      .donation-confirm-btn {
+        min-height: 48px;
+        border: 0;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #ff5fa2, #9f8bc7);
+        color: #fff;
+        font: inherit;
+        font-weight: 900;
+      }
+      .donation-confirm-btn:disabled {
+        opacity: 0.56;
+        cursor: not-allowed;
+      }
+      .support-login-preview-btn {
+        min-height: 44px;
+        border: 1px solid rgba(180, 150, 255, 0.28);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #f7f2ff;
+        font: inherit;
+        font-weight: 800;
+      }
+      .support-route-note {
+        margin: 0;
+        color: rgba(240, 232, 255, 0.62);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .donation-sheet,
+      .donation-backdrop,
+      .donation-confirm-modal,
+      .donation-confirm-backdrop {
+        display: none;
+      }
+      @media (max-width: 640px) {
+        .support-route {
+          width: min(100% - 24px, 960px);
+          padding-top: 32px;
+        }
+        .support-preview-panel {
+          padding: 16px;
+        }
+        .donation-amount-grid,
+        .support-form-grid,
+        .support-policy-list {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="support-route">
+      <h1>프리미엄챗 후원 안내</h1>
+      <p class="support-route-lead">
+        지금은 후원 금액과 정책을 미리 확인하는 읽기 전용 화면입니다.
+        실제 결제, 지갑 차감, 환불, 정산 요청은 열려 있지 않습니다.
+      </p>
+
+      <section class="support-preview-panel" aria-label="프리미엄챗 후원 읽기 전용 미리보기">
+        <div class="donation-status-banner" id="donationStatusBanner" data-state="loading">
+          <strong>후원 정책을 확인하고 있어요</strong>
+          <p>비로그인 또는 계약 조회 실패 시에도 안전한 읽기 전용 안내만 보여줍니다.</p>
+        </div>
+
+        <div class="donation-amount-grid" id="donationFixedAmounts" role="radiogroup" aria-label="후원 금액 미리보기"></div>
+
+        <div class="support-form-grid">
+          <label>
+            직접 입력
+            <input id="donationCustomAmount" type="number" min="1" inputmode="numeric" placeholder="예: 100" />
+            <small id="donationCustomHint">금액 범위를 확인하고 있어요.</small>
+          </label>
+          <label>
+            메시지
+            <textarea id="donationMessage" rows="4" placeholder="응원 메시지를 입력할 수 있어요." maxlength="200"></textarea>
+            <small id="donationMessageCounter">0 / 200</small>
+          </label>
+        </div>
+
+        <div class="donation-summary" id="donationSummary" aria-live="polite">
+          <span>금액을 선택하면 합계가 표시됩니다.</span>
+        </div>
+
+        <div class="support-policy-list" aria-label="후원 정책">
+          <p id="donationPolicyHighValue">고액 후원 정책을 확인하고 있어요.</p>
+          <p id="donationPolicyDailyLimit">일일 한도를 확인하고 있어요.</p>
+        </div>
+
+        <button class="donation-confirm-btn" id="donationConfirmBtn" type="button" disabled aria-disabled="true">
+          <span id="donationConfirmLabel">후원 안내 확인</span>
+        </button>
+        <button class="support-login-preview-btn" id="supportLoginPreviewBtn" type="button">로그인 필요 안내 보기</button>
+        <p class="support-route-note">
+          후원 기능이 정식으로 열릴 때까지 버튼은 비활성 상태로 유지됩니다.
+        </p>
+      </section>
+
+      <button id="chatDonationOpen" type="button" hidden>후원 시트 열기</button>
+      <div class="donation-backdrop" id="chatDonationBackdrop" hidden></div>
+      <section class="donation-sheet" id="chatDonationSheet" hidden>
+        <button type="button" data-donation-close>닫기</button>
+      </section>
+      <div class="donation-confirm-backdrop" id="donationConfirmBackdrop" hidden></div>
+      <section class="donation-confirm-modal" id="donationConfirmModal" hidden>
+        <strong id="donationConfirmAmount"></strong>
+        <button type="button" id="donationConfirmProceed" disabled>진행 잠금</button>
+        <button type="button" data-donation-confirm-cancel>취소</button>
+      </section>
+    </main>
+
+    <script src="/app.js?v=luffy-11-20260709"></script>
+    <script src="/pages/premium-chat-support.js?v=luffy-11-20260709"></script>
+    <script>
+      document.getElementById("supportLoginPreviewBtn")?.addEventListener("click", function () {
+        if (window.openAuthModal) {
+          window.openAuthModal("login", {
+            returnTo: { href: window.location.pathname, label: "프리미엄챗 후원 안내" }
+          });
+        }
+      });
+      if (window.LuminaPremiumChatSupport) {
+        window.LuminaPremiumChatSupport.refresh();
+      }
+    </script>
+  </body>
+</html>

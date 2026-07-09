@@ -281,7 +281,7 @@
 /* 모바일 (390px 기준) */
 @media (max-width: 768px) {
   .user-profile-section {
-    padding: 24px 0 60px;
+    padding: 24px 0 calc(120px + env(safe-area-inset-bottom, 0px));
   }
   .user-profile-shell {
     gap: 20px;
@@ -1760,6 +1760,9 @@
    파일 내 중복 정의된 .user-profile-actions/.user-profile-tabs 규칙들과 충돌하지 않도록
    캐스케이드 마지막에 두어 좁은 화면에서 줄바꿈·축소가 확실히 적용되게 한다. */
 @media (max-width: 480px) {
+  .user-profile-section {
+    padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+  }
   .user-profile-shell {
     padding: 0 12px;
     overflow-x: hidden;

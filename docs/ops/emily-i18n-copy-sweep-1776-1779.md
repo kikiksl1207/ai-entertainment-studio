@@ -1,6 +1,6 @@
 # Emily i18n Copy Sweep - Tasks 1776 and 1779
 
-Date: 2026-07-08 KST
+Date: 2026-07-09 KST
 Owner: Emily
 Scope: AI content status copy, global mojibake/i18n sweep
 Languages: `ko`, `en`, `ja`, `zh-Hans`, `zh-Hant`
@@ -35,15 +35,15 @@ Recommended reason/detail copy:
 | i18n key | Raw trigger | ko | en | ja | zh-Hans | zh-Hant | Length/use note |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `aiPremiumContent.safetyPrecheck.safe` | `safe` | 기준을 통과했어요. | Passed the checks. | 基準を通過しました。 | 已通过检查。 | 已通過檢查。 | detail one line |
-| `aiPremiumContent.safetyPrecheck.reviewRequired` | `review_required` | 확인 후 진행할게요. | We will review it first. | 確認後に進めます。 | 将先审核后继续。 | 將先審核後繼續。 | avoid "moderation" |
-| `aiPremiumContent.safetyPrecheck.blocked` | `blocked` | 안전 기준상 진행할 수 없어요. | This cannot continue under safety rules. | 安全基準により続行できません。 | 因安全规则无法继续。 | 因安全規則無法繼續。 | 2 lines max |
-| `aiPremiumContent.safetyPrecheck.realPersonReviewRequired` | real person similarity | 인물 유사성 확인이 필요해요. | Likeness review is needed. | 人物類似性の確認が必要です。 | 需要确认人物相似性。 | 需要確認人物相似性。 | no identity guess |
-| `aiPremiumContent.safetyPrecheck.copyrightReviewRequired` | copyright risk | 권리 확인이 필요해요. | Rights review is needed. | 権利確認が必要です。 | 需要版权确认。 | 需要版權確認。 | no legal verdict |
+| `aiPremiumContent.safetyPrecheck.reviewRequired` | `review_required` | 먼저 확인한 뒤 진행할게요. | We will review it first. | 先に確認してから進めます。 | 我们会先审核后继续。 | 我們會先審核後繼續。 | avoid "moderation" |
+| `aiPremiumContent.safetyPrecheck.blocked` | `blocked` | 안전 기준상 진행할 수 없어요. | This cannot continue under safety rules. | 安全基準により続行できません。 | 根据安全规则，无法继续。 | 根據安全規則，無法繼續。 | 2 lines max |
+| `aiPremiumContent.safetyPrecheck.realPersonReviewRequired` | real person similarity | 인물 유사성 확인이 필요해요. | Likeness review is needed. | 人物の類似性確認が必要です。 | 需要确认人物相似性。 | 需要確認人物相似性。 | no identity guess |
+| `aiPremiumContent.safetyPrecheck.copyrightReviewRequired` | copyright risk | 권리 확인이 필요해요. | Rights review is needed. | 権利確認が必要です。 | 需要确认权利。 | 需要確認權利。 | no legal verdict |
 | `aiPremiumContent.precheck.costCapExceeded` | cost cap denied | 예상 제작 범위를 넘었어요. | This exceeds the estimate range. | 想定制作範囲を超えています。 | 超出预计制作范围。 | 超出預計製作範圍。 | no internal cost key |
 | `aiPremiumContent.precheck.insufficientBalance` | wallet precheck denied | 잔액 확인 후 다시 시도해 주세요. | Check your balance and try again. | 残高を確認して再試行してください。 | 请确认余额后重试。 | 請確認餘額後重試。 | CTA helper |
-| `aiPremiumContent.error.providerUnavailable` | provider unavailable/routing blocked | 제작 경로를 준비 중이에요. | The creation route is being prepared. | 制作ルートを準備中です。 | 制作路径准备中。 | 製作路徑準備中。 | do not name provider |
-| `aiPremiumContent.error.retryLimitReached` | regeneration limit | 다시 요청할 수 있는 횟수를 모두 사용했어요. | No more retry requests are available. | 再リクエスト回数を使い切りました。 | 已用完再次请求次数。 | 已用完再次要求次數。 | 2 lines max |
-| `aiPremiumContent.videoConsent.required` | video consent required | 영상 제작 비용 동의가 필요해요. | Video creation cost consent is required. | 動画制作費用の同意が必要です。 | 需要同意视频制作费用。 | 需要同意影片製作費用。 | status sheet |
+| `aiPremiumContent.error.providerUnavailable` | provider unavailable/routing blocked | 제작 경로를 준비 중이에요. | The creation route is being prepared. | 制作経路を準備中です。 | 正在准备制作路径。 | 正在準備製作路徑。 | do not name provider |
+| `aiPremiumContent.error.retryLimitReached` | regeneration limit | 다시 요청할 수 있는 횟수를 모두 사용했어요. | No more retry requests are available. | 再リクエスト回数を使い切りました。 | 已用完可再次请求的次数。 | 已用完可再次要求的次數。 | 2 lines max |
+| `aiPremiumContent.videoConsent.required` | video consent required | 영상 제작 비용 동의가 필요해요. | Video creation cost consent is required. | 動画制作費用への同意が必要です。 | 需要同意视频制作费用。 | 需要同意影片製作費用。 | status sheet |
 
 Button/CTA copy:
 
@@ -71,15 +71,16 @@ Scanned source groups:
 - `data/fan-engagement-copy.js`
 
 Result:
-- No current primary-source matches for obvious mojibake patterns such as `?붾`, `?뺤`, replacement character `�`, or common UTF-8 double-encoding fragments in the scanned high-priority files.
-- The active risk is hardcoded Korean, English-only API labels, and Korean-only fallback maps on surfaces that are expected to support `ko/en/ja/zh-Hans/zh-Hant`.
+- This handoff file is now normal UTF-8 and contains no replacement-character or double-encoding examples as visible copy.
+- Broken strings must not be copied into UI examples. When a source still needs cleanup, describe the location and replace the user-facing copy with the approved table above.
+- The active risk is hardcoded Korean, English-only API labels, and Korean-only fallback maps on surfaces expected to support `ko/en/ja/zh-Hans/zh-Hant`.
 
 Priority findings:
 
 | Priority | Location | Issue | Recommended key/work |
 | --- | --- | --- | --- |
 | P0 | `server/src/ai-premium-content/ai-premium-content-state-contract.ts` | `AI_PREMIUM_CONTENT_STATUS_COPY_KO`, preview `labelKo`, and user-facing status fallback are Korean-only. | Add `aiPremiumContent.status.*`, `aiPremiumContent.preview.*`, `aiPremiumContent.precheck.*` 5-locale maps using Task 1776 table. |
-| P0 | `app.js` auth modal | Login/register/reset modal strings are hardcoded Korean. Long labels can wrap poorly on 390px when localized later. | Split into `auth.modal.*` keys: tab labels, headings, field labels, helper text, submit buttons, resend verification, consent sentence. |
+| P0 | `app.js` auth modal | Login/register/reset modal strings need source-key coverage and mobile wrap QA. | Split into `auth.modal.*` keys: tab labels, headings, field labels, helper text, submit buttons, resend verification, consent sentence. |
 | P1 | `app.js` `statusMeta` | Character status labels are hardcoded Korean: public/debut/pending/secret/candidate. | Add `character.status.public/debut/pending/private/candidate.label` and `.summary`. |
 | P1 | `pages/character-catalog.js` | `statusLabelMap` repeats Korean labels independently from `statusMeta`. | Reuse the same `character.status.*` map or derive from i18n helper. |
 | P1 | `server/src/debut/debut.service.ts` | Debut owner status has `labelKo/defaultMessageKo` only, although `messageKey` exists. | Add 5-locale default copy for `debut.application.status.*` and `debut.application.cta.*`. |
@@ -100,6 +101,7 @@ Suggested common i18n namespace order:
 
 Handoff notes:
 - 루피: apply user-visible UI keys first on auth, character status, and any AI content preview surface.
+- 큐알1: verify this file stays UTF-8, and no broken copy examples are used as visible app text.
 - 뷰어: after UI keying, verify 390px and 400px widths for status pill, CTA rows, modal headings, and helper text.
 - 조로/클라우드: when reflecting to main/live, verify that raw enum/provider/moderation/cost keys are API-only and not visible copy.
 

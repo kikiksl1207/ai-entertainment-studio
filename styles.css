@@ -2281,6 +2281,25 @@ p {
   flex-direction: column;
   gap: 8px;
 }
+.auth-social-fallback {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid rgba(230, 255, 152, 0.18);
+  border-radius: 10px;
+  background: rgba(230, 255, 152, 0.07);
+  color: rgba(246, 255, 218, 0.8);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.auth-social-fallback strong {
+  color: #f7ffd0;
+  font-size: 12.5px;
+}
+.auth-social-fallback p {
+  margin: 0;
+}
 .auth-social-btn {
   width: 100%;
   padding: 12px 16px;
@@ -2316,6 +2335,32 @@ p {
 .auth-social-kakao:hover { background: rgba(254, 229, 0, 0.14); border-color: rgba(254, 229, 0, 0.4); }
 .auth-social-naver { background: rgba(3, 199, 90, 0.08); }
 .auth-social-naver:hover { background: rgba(3, 199, 90, 0.14); border-color: rgba(3, 199, 90, 0.4); }
+
+@media (max-width: 480px) {
+  .auth-modal-overlay {
+    align-items: flex-start;
+    overflow-y: auto;
+    padding: 14px 12px calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+  .auth-modal {
+    max-height: calc(100dvh - 112px - env(safe-area-inset-bottom, 0px));
+    padding: 34px 20px 22px;
+    border-radius: 18px;
+  }
+  .auth-modal-subtitle {
+    margin-bottom: 16px;
+  }
+  .auth-modal-field {
+    margin-bottom: 11px;
+  }
+  .auth-modal-divider {
+    margin: 16px 0 12px;
+  }
+  .auth-social-btn {
+    min-height: 42px;
+    padding: 10px 12px;
+  }
+}
 
 /* ══════════════════════════════════════
    좋아요 버튼 (Like Button) — 캐릭터 카드용

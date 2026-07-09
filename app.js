@@ -253,6 +253,7 @@ const I18N_DICT = {
   "auth.modal.register.title": { "ko-KR": "Lumina Stage 가입", "ja-JP": "Lumina Stage登録", "en-US": "Create your Lumina Stage account", "zh-CN": "注册 Lumina Stage", "zh-Hant": "註冊 Lumina Stage" },
   "auth.modal.register.subtitle": { "ko-KR": "팬으로서 좋아요와 응원을 보내세요", "ja-JP": "ファンとしていいねや応援を送れます", "en-US": "Send likes and support as a fan", "zh-CN": "以粉丝身份发送喜欢和支持", "zh-Hant": "以粉絲身份送出喜歡與支持" },
   "auth.modal.email": { "ko-KR": "이메일", "ja-JP": "メール", "en-US": "Email", "zh-CN": "邮箱", "zh-Hant": "信箱" },
+  "auth.modal.email.placeholder": { "ko-KR": "you@example.com", "ja-JP": "you@example.com", "en-US": "you@example.com", "zh-CN": "you@example.com", "zh-Hant": "you@example.com" },
   "auth.modal.password": { "ko-KR": "비밀번호", "ja-JP": "パスワード", "en-US": "Password", "zh-CN": "密码", "zh-Hant": "密碼" },
   "auth.modal.passwordMin": { "ko-KR": "비밀번호 (8자 이상)", "ja-JP": "パスワード（8文字以上）", "en-US": "Password (8+ characters)", "zh-CN": "密码（至少 8 个字符）", "zh-Hant": "密碼（至少 8 個字元）" },
   "auth.modal.nickname": { "ko-KR": "닉네임", "ja-JP": "ニックネーム", "en-US": "Nickname", "zh-CN": "昵称", "zh-Hant": "暱稱" },
@@ -270,6 +271,8 @@ const I18N_DICT = {
   "auth.modal.firstTime": { "ko-KR": "처음이신가요?", "ja-JP": "初めてですか？", "en-US": "New here?", "zh-CN": "第一次来？", "zh-Hant": "第一次來？" },
   "auth.modal.hasAccount": { "ko-KR": "이미 계정이 있으신가요?", "ja-JP": "すでにアカウントがありますか？", "en-US": "Already have an account?", "zh-CN": "已有账号？", "zh-Hant": "已有帳號？" },
   "auth.modal.or": { "ko-KR": "또는", "ja-JP": "または", "en-US": "or", "zh-CN": "或", "zh-Hant": "或" },
+  "auth.modal.socialFallback.title": { "ko-KR": "이메일로 계속할 수 있어요", "ja-JP": "メールで続行できます", "en-US": "You can continue with email", "zh-CN": "可使用邮箱继续", "zh-Hant": "可使用信箱繼續" },
+  "auth.modal.socialFallback.body": { "ko-KR": "소셜 로그인이 아직 준비되지 않았거나 잠시 불안정하면 이메일 로그인 또는 가입을 이용해 주세요.", "ja-JP": "ソーシャルログインが未準備または一時的に不安定な場合は、メールでログインまたは登録してください。", "en-US": "If social login is not ready or is temporarily unavailable, use email login or sign-up.", "zh-CN": "如果社交登录尚未准备好或暂时不可用，请使用邮箱登录或注册。", "zh-Hant": "如果社群登入尚未準備好或暫時不可用，請使用信箱登入或註冊。" },
   "auth.modal.terms.prefix": { "ko-KR": "", "ja-JP": "", "en-US": "I agree to the ", "zh-CN": "我同意", "zh-Hant": "我同意" },
   "auth.modal.terms.terms": { "ko-KR": "이용약관", "ja-JP": "利用規約", "en-US": "Terms", "zh-CN": "使用条款", "zh-Hant": "使用條款" },
   "auth.modal.terms.and": { "ko-KR": "과", "ja-JP": "と", "en-US": " and ", "zh-CN": "和", "zh-Hant": "和" },
@@ -1133,7 +1136,9 @@ function t(key, locale) {
   const useLocale = locale ? normalizeLocale(locale) : _currentLocale;
   const entry = I18N_DICT[key];
   if (!entry) return key;
-  return entry[useLocale] || entry[I18N_FALLBACK] || key;
+  if (Object.prototype.hasOwnProperty.call(entry, useLocale)) return entry[useLocale];
+  if (Object.prototype.hasOwnProperty.call(entry, I18N_FALLBACK)) return entry[I18N_FALLBACK];
+  return key;
 }
 
 /** locale 자동 감지: localStorage > navigator.language > ko-KR */
@@ -1470,7 +1475,7 @@ function createAuthModal() {
         <p class="auth-modal-subtitle" data-i18n="auth.modal.login.subtitle">Lumina Stage에 입장하세요</p>
         <div class="auth-modal-error" data-error hidden></div>
         <label class="auth-modal-field"><span data-i18n="auth.modal.email">이메일</span>
-          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
+          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" data-i18n-attr="placeholder:auth.modal.email.placeholder" /></label>
         <label class="auth-modal-field"><span data-i18n="auth.modal.password">비밀번호</span>
           <input type="password" name="password" required autocomplete="current-password" /></label>
         <button type="submit" class="auth-modal-submit" data-i18n="auth.modal.login.submit">로그인</button>
@@ -1485,7 +1490,7 @@ function createAuthModal() {
         <div class="auth-modal-error" data-error hidden></div>
         <div class="auth-modal-info" data-info hidden></div>
         <label class="auth-modal-field"><span data-i18n="auth.modal.email">이메일</span>
-          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
+          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" data-i18n-attr="placeholder:auth.modal.email.placeholder" /></label>
         <button type="submit" class="auth-modal-submit" data-i18n="auth.modal.forgot.submit">재설정 메일 보내기</button>
         <p class="auth-modal-meta">
           <button type="button" class="auth-modal-link" data-switch="login" data-i18n="auth.modal.backToLogin">로그인으로 돌아가기</button>
@@ -1511,7 +1516,7 @@ function createAuthModal() {
         <p class="auth-modal-subtitle" data-i18n="auth.modal.register.subtitle">팬으로서 좋아요와 응원을 보내세요</p>
         <div class="auth-modal-error" data-error hidden></div>
         <label class="auth-modal-field"><span data-i18n="auth.modal.email">이메일</span>
-          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" /></label>
+          <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" data-i18n-attr="placeholder:auth.modal.email.placeholder" /></label>
         <label class="auth-modal-field"><span><span data-i18n="auth.modal.nickname">닉네임</span> <small class="auth-modal-optional" data-i18n="auth.modal.optional">(선택)</small></span>
           <input type="text" name="displayName" autocomplete="nickname" placeholder="비워두면 기본 닉네임이 자동 부여돼요" data-i18n-attr="placeholder:auth.modal.nickname.placeholder" />
           <small class="auth-modal-helper" data-i18n="auth.modal.nickname.helper">이메일이나 실명은 공개 닉네임으로 사용하지 않아요. 계정 설정에서 언제든 바꿀 수 있어요.</small></label>
@@ -1534,6 +1539,10 @@ function createAuthModal() {
       <div class="auth-modal-social-section" id="authSocialSection" hidden>
         <div class="auth-modal-divider"><span data-i18n="auth.modal.or">또는</span></div>
         <div class="auth-modal-social" id="authSocialButtons"></div>
+        <div class="auth-social-fallback" id="authSocialFallback" role="note" hidden>
+          <strong data-i18n="auth.modal.socialFallback.title">이메일로 계속할 수 있어요</strong>
+          <p data-i18n="auth.modal.socialFallback.body">소셜 로그인이 아직 준비되지 않았거나 잠시 불안정하면 이메일 로그인 또는 가입을 이용해 주세요.</p>
+        </div>
       </div>
 
       <!-- 탭별 푸터 -->
@@ -1812,6 +1821,8 @@ function closeAuthModal() {
   modal.classList.remove("is-open");
   document.body.style.overflow = "";
 }
+window.openAuthModal = openAuthModal;
+window.closeAuthModal = closeAuthModal;
 function switchAuthTab(tab) {
   const modal = document.getElementById("authModal");
   if (!modal) return;
@@ -1849,17 +1860,27 @@ function getProviderIcon(provider) {
 }
 
 async function renderSocialButtons() {
-  const providers = await loadSocialProviders();
   const section = document.getElementById("authSocialSection");
   const container = document.getElementById("authSocialButtons");
+  const fallback = document.getElementById("authSocialFallback");
   if (!section || !container) return;
+  let providers = [];
+  try {
+    providers = await loadSocialProviders();
+  } catch (_) {
+    providers = [];
+  }
 
   if (!providers || providers.length === 0) {
-    section.hidden = true;
+    section.hidden = false;
+    container.innerHTML = "";
+    if (fallback) fallback.hidden = false;
+    if (window.luminaI18n && typeof window.luminaI18n.apply === "function") window.luminaI18n.apply(section);
     return;
   }
 
   section.hidden = false;
+  if (fallback) fallback.hidden = true;
   container.innerHTML = providers.map(p => `
     <button type="button" class="auth-social-btn auth-social-${p.provider}" data-provider="${p.provider}">
       <span class="auth-social-icon">${getProviderIcon(p.provider)}</span>

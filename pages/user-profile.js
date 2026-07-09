@@ -10,10 +10,20 @@
 let _userProfileData = null;
 let _userProfilePostsCursor = null;
 
-const FEED_PROFILE_FIXTURE_FAN_NAMES = ["루미나_민지", "무대앞_해든", "조용한_관객", "서랍속_별", "오늘의_픽러", "팬클럽_여울"];
+const FEED_PROFILE_FIXTURE_FAN_NAMES = ["루미나민", "무대든든", "조용한관객", "서열한별", "오늘의컬러", "피클서울"];
 
 const FOLLOW_PROFILE_FIXTURE_DEFAULT_HANDLE = "qa-fb-qa-20260629-run1-target";
 const FEED_PROFILE_FIXTURE_HANDLE_RE = /^(fan|debut)\d+$/i;
+
+function userProfileUsesFeedProfileFixture(params = new URLSearchParams(window.location.search || "")) {
+  try {
+    const handle = String(params.get("handle") || "").trim();
+    const userId = String(params.get("id") || "").trim();
+    return params.get("feedfixture") === "1" || FEED_PROFILE_FIXTURE_HANDLE_RE.test(handle) || (followListUsesFixture() && Boolean(handle || userId));
+  } catch (_) {
+    return false;
+  }
+}
 
 function userProfileUsesFollowFixture(params = new URLSearchParams(window.location.search || "")) {
   try {
@@ -88,7 +98,7 @@ function buildFollowProfileFixture(params) {
       id: isSelfFixture ? "qa-fixture-viewer" : "qa-fixture-target",
       displayName,
       publicHandle: handle,
-      bio: "팔로워/팔로잉/차단 진입점을 확인하기 위한 read-only QA fixture입니다.",
+      bio: "루미나 피드 모바일 QA용 공개 프로필입니다. 팔로워/팔로잉 관계 화면과 차단 진입점을 read-only로 확인합니다.",
       avatarUrl: null,
       coverImageUrl: null,
     },
@@ -178,7 +188,11 @@ function renderFeedProfileFixture(fixture) {
   const emptyEl = document.getElementById("userProfilePostsEmpty");
   if (section) { section.hidden = false; section.style.display = ""; }
   if (list) list.innerHTML = "";
-  if (emptyEl) { emptyEl.hidden = false; emptyEl.style.display = ""; }
+  if (emptyEl) {
+    emptyEl.hidden = false;
+    emptyEl.style.display = "";
+    emptyEl.innerHTML = "<strong>아직 공개 글이 없어요.</strong><p>프로필과 관계 UI를 읽기 전용으로 확인할 수 있습니다.</p>";
+  }
   bindUserProfileTabs();
   bindProfileEditModal();
   bindFollowListStatClick();
@@ -216,6 +230,12 @@ async function initUserProfilePage() {
 
   if (!handle && !userId) {
     showUserProfileNotFound();
+    return;
+  }
+
+  const immediateFixture = buildFeedProfileFixture(handle, userId);
+  if (immediateFixture && userProfileUsesFeedProfileFixture(params)) {
+    renderFeedProfileFixture(immediateFixture);
     return;
   }
 
@@ -1164,7 +1184,11 @@ async function loadUserProfilePosts(endpoint, isAuth, append) {
     // 카드 렌더 + 빈 상태 명시 토글 (display까지 같이)
     if (!append && normalized.length === 0) {
       list.innerHTML = "";
-      if (emptyEl) { emptyEl.hidden = false; emptyEl.style.display = ""; }
+      if (emptyEl) {
+    emptyEl.hidden = false;
+    emptyEl.style.display = "";
+    emptyEl.innerHTML = "<strong>아직 공개 글이 없어요.</strong><p>프로필과 관계 UI를 읽기 전용으로 확인할 수 있습니다.</p>";
+  }
     } else if (emptyEl) {
       emptyEl.hidden = true;
       emptyEl.style.display = "none";
