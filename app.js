@@ -1451,6 +1451,28 @@ function currentAuthReturn(label) {
   return normalizeAuthReturnIntent({ href: window.location?.pathname || "/", label });
 }
 
+function shouldOpenAuthBridgeFixture() {
+  try {
+    const path = String(window.location?.pathname || "").replace(/\/$/, "");
+    if (path !== "/lumina-feed") return false;
+    const params = new URLSearchParams(window.location.search || "");
+    return params.get("feedfixture") === "1" || params.get("authfixture") === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function openAuthBridgeFixtureIfNeeded() {
+  if (!shouldOpenAuthBridgeFixture()) return;
+  if (typeof getAccessToken === "function" && getAccessToken()) return;
+  window.setTimeout(() => {
+    if (document.querySelector("#authModal.is-open")) return;
+    if (typeof openAuthModal === "function") {
+      openAuthModal("login", { returnTo: currentAuthReturn() });
+    }
+  }, 120);
+}
+
 function updateAuthReturnNotice(modal) {
   const root = modal || document.getElementById("authModal");
   if (!root) return;
@@ -4833,6 +4855,7 @@ async function init() {
     // #411 — postId 쿼리 파람 진입 시 상세 보기 오픈 + 뒤로가기 popstate 핸들러
     initFeedPostDetailFromURL();
     bindFeedPostDetailPopstate();
+    openAuthBridgeFixtureIfNeeded();
   }
 
   // #057: 충전소 페이지 (charge.html)
@@ -5092,6 +5115,7 @@ init().catch(err => {
 function syncLateNavigationUI() {
   window.luminaI18n?.apply?.(document.body);
   activateCurrentNavItem();
+  openAuthBridgeFixtureIfNeeded();
 }
 
 if (document.readyState === "loading") {
