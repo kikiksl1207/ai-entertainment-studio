@@ -150,7 +150,7 @@ function buildFeedProfileFixture(handle, userId) {
       id: userId || ("fixture-" + publicHandle),
       displayName,
       publicHandle,
-      bio: "루미나 피드 모바일 QA용 공개 프로필입니다. 팔로워/팔로잉 관계 화면과 차단 진입점을 read-only로 확인합니다.",
+      bio: "루미나 피드에서 팔로워와 팔로잉 관계를 미리 볼 수 있는 공개 프로필입니다.",
       avatarUrl: "",
       coverImageUrl: ""
     },
