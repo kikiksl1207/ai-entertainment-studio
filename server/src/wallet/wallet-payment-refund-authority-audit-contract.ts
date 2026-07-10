@@ -1,0 +1,61 @@
+export const WALLET_PAYMENT_REFUND_AUTHORITY_AUDIT_CONTRACT = {
+  version: '2026-07-08.wallet-payment-refund-authority-audit.v1',
+  feature: 'wallet_payment_refund_authority_audit',
+  auditedSurfaces: [
+    {
+      surface: 'payment_charge_confirm',
+      authority: 'payment provider event plus server order state',
+      clientAmountTrusted: false,
+      ledgerRequired: true,
+      idempotencyRequired: true,
+    },
+    {
+      surface: 'first_charge_bonus',
+      authority: 'server first successful charge history',
+      clientBonusTrusted: false,
+      ledgerRequired: true,
+      idempotencyRequired: true,
+    },
+    {
+      surface: 'premium_chat_refund',
+      authority: 'server refund policy moderation outcome and existing wallet ledger',
+      clientRefundRateTrusted: false,
+      ledgerRequired: true,
+      idempotencyRequired: true,
+    },
+    {
+      surface: 'support_or_paid_feature_debit',
+      authority: 'wallet_accounts.cached_balance plus server product policy',
+      clientBalanceTrusted: false,
+      ledgerRequired: true,
+      idempotencyRequired: true,
+    },
+  ],
+  crossSurfaceGuards: {
+    walletMutationRequiresLedger: true,
+    walletAndLedgerSameTransaction: true,
+    replayDoesNotCreateSecondLedger: true,
+    idempotencyMismatchCreatesNoWalletMutation: true,
+    insufficientBalanceCreatesNoWalletLedger: true,
+    refundDoesNotMutateSettlementOrPayout: true,
+  },
+  qaBlockerWhenLiveCredentialsMissing: {
+    blockedBy: 'safe QA wallet/payment credential source needed',
+    nextAction:
+      'Run authority checks only with approved private payment and wallet QA credentials; record status and stable keys only.',
+    passwordRequestAllowed: false,
+    providerSecretRecordAllowed: false,
+  },
+  safeOutputPolicy: {
+    recordRunId: true,
+    recordPublicPath: true,
+    recordHttpStatus: true,
+    recordStableCodeMessageKey: true,
+    recordRawEmail: false,
+    recordToken: false,
+    recordCookie: false,
+    recordApiKey: false,
+    recordDatabaseUrl: false,
+    recordProviderPayload: false,
+  },
+} as const;

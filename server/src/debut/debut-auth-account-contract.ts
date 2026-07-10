@@ -119,5 +119,53 @@ export const DEBUT_AUTH_ACCOUNT_GAP_CONTRACT = {
       note: 'Server exposes email verification state; debut submit currently stays open to active logged-in users.',
     },
   ],
+  identityProviderGapCheck: {
+    version: '2026-07-08.debut-identity-provider-gap-check.v1',
+    currentMvpProvider: 'phone_number_mvp_or_self_declaration',
+    realProviderCallbacksConnected: false,
+    realProviderSignatureVerificationConnected: false,
+    providerCandidates: [
+      {
+        provider: 'nice',
+        status: 'credentials_and_callbacks_required',
+        blocksDebutSubmitToday: false,
+      },
+      {
+        provider: 'ipin',
+        status: 'not_connected',
+        blocksDebutSubmitToday: false,
+      },
+      {
+        provider: 'mobile_carrier',
+        status: 'not_connected',
+        blocksDebutSubmitToday: false,
+      },
+    ],
+    debutSubmitPolicy: {
+      authRequired: true,
+      emailVerificationHardGate: false,
+      identityProviderHardGate: false,
+      adultSelfDeclarationRequired: true,
+      verifiedMinorBlocked: true,
+    },
+    blockedLiveQa: {
+      blockedBy: 'identity provider credentials/callbacks needed',
+      nextAction:
+        'Confirm approved provider sandbox credentials and callback URLs through a private integration channel.',
+      passwordRequestAllowed: false,
+      providerSecretRecordAllowed: false,
+      rawPiiRecordAllowed: false,
+    },
+    safeOutputPolicy: {
+      recordProviderStatus: true,
+      recordStableCodeMessageKey: true,
+      recordRawName: false,
+      recordRawBirthdate: false,
+      recordRawPhone: false,
+      recordToken: false,
+      recordCookie: false,
+      recordProviderPayload: false,
+    },
+  },
   sensitiveValuesRecorded: false,
 } as const;

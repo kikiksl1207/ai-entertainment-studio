@@ -67,6 +67,7 @@ export {
   STORY_SCENE_FIXTURE_LOCALE_FIELD_CONTRACT,
   STORY_SCENE_PROVIDER_GUARD_CONTRACT,
   STORY_SCENE_READ_MODEL_CONTRACT,
+  STORY_STAGE_LIVE_FIXTURE_EXPOSURE_GUARD_CONTRACT,
 } from './story-scene-read-model';
 export {
   findStoryShortsAnalyticsPayloadViolations,
@@ -1137,9 +1138,31 @@ export const FREE_CHOICE_AI_RESPONSE_BUDGET_GUARD_CONTRACT = {
     maxConnectorCallsPerPart: 1,
     providerCallDuringContractWork: false,
   },
+  runtimeCostGuard: {
+    tokenBudget: {
+      promptInputs: [
+        'currentPartSummary',
+        'previousChoice',
+        'stateSummary',
+      ],
+      full75PartManuscriptAttached: false,
+      maxOutputCharacters: 800,
+    },
+    freeChoiceAiResponseBudget: {
+      maxConnectorCallsPerPart: 1,
+      outputCharacters: '300-800',
+      freeChatEnabled: false,
+      longBodyRegenerationAllowed: false,
+    },
+    endingGenerationLimit: {
+      finalEndingMaxCalls: 1,
+      nonEndingAiGenerationAllowed: false,
+    },
+  },
   mutationPolicy: {
     providerCall: false,
     paymentMutation: false,
+    accountMutation: false,
     storyWrite: false,
     progressWrite: false,
   },
@@ -1162,6 +1185,7 @@ export const STORY_STAGE_CONTRACT = {
     STORY_STAGE_AUTHOR_SETTLEMENT_REFUND_READ_MODEL,
   sceneAssetReadModel: STORY_SCENE_ASSET_READ_MODEL_CONTRACT,
   storySceneReadModel: STORY_SCENE_READ_MODEL_CONTRACT,
+  liveFixtureExposureGuard: STORY_STAGE_LIVE_FIXTURE_EXPOSURE_GUARD_CONTRACT,
   freeStoryStateAccumulator: FREE_STORY_STATE_ACCUMULATOR_CONTRACT,
   freeEndingPersonalizationCostGuard:
     FREE_ENDING_PERSONALIZATION_COST_GUARD_CONTRACT,

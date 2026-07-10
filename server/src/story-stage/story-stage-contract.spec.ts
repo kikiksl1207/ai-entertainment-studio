@@ -923,6 +923,28 @@ describe('Story Stage contract skeleton', () => {
       maxConnectorCallsPerPart: 1,
       providerCallDuringContractWork: false,
     });
+    expect(contract.runtimeCostGuard).toMatchObject({
+      tokenBudget: {
+        promptInputs: [
+          'currentPartSummary',
+          'previousChoice',
+          'stateSummary',
+        ],
+        full75PartManuscriptAttached: false,
+        maxOutputCharacters: 800,
+      },
+      freeChoiceAiResponseBudget: {
+        maxConnectorCallsPerPart: 1,
+        outputCharacters: '300-800',
+        freeChatEnabled: false,
+        longBodyRegenerationAllowed: false,
+      },
+      endingGenerationLimit: {
+        finalEndingMaxCalls: 1,
+        nonEndingAiGenerationAllowed: false,
+      },
+    });
+    expect(contract.mutationPolicy.accountMutation).toBe(false);
     expect(
       Object.values(contract.mutationPolicy).every((enabled) => enabled === false),
     ).toBe(true);

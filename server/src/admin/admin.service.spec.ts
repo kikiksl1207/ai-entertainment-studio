@@ -315,7 +315,7 @@ describe('AdminService auth action token audit', () => {
         failedAt: null,
       },
       target: {
-        userId: '00000000-0000-4000-8000-000000000001',
+        userRef: 'user_ref_ee8e362c781efe4c',
         emailMasked: 'qa***@example.com',
         userStatus: 'active',
         emailVerified: false,
@@ -325,9 +325,11 @@ describe('AdminService auth action token audit', () => {
         rawTokenReturned: false,
         tokenHashReturned: false,
         rawEmailReturned: false,
+        rawUserIdReturned: false,
         mailBodyReturned: false,
       },
     });
+    expect(result.items[0].target).not.toHaveProperty('userId');
     expect(result.filters).toMatchObject({
       purpose: 'email_verification',
       status: 'pending',
@@ -336,6 +338,8 @@ describe('AdminService auth action token audit', () => {
       email: null,
     });
     expect(result.policy).toMatchObject({
+      targetUserRefMasked: true,
+      rawUserIdReturned: false,
       supportedDeliveryStatuses: expect.arrayContaining(['accepted', 'failed']),
       supportedDeliveryProviders: expect.arrayContaining(['resend', 'sendgrid', 'none']),
       requestCooldownSeconds: 60,
@@ -352,8 +356,13 @@ describe('AdminService auth action token audit', () => {
         'reuse_recent_pending_token_within_cooldown_else_consume_previous',
       cooldownDuplicateRequestsCreateNewRow: false,
     });
+    expect(ADMIN_AUTH_EMAIL_VERIFICATION_COOLDOWN_CONTRACT.visibleFields).toMatchObject({
+      targetEmailMasked: true,
+      targetUserRefMasked: true,
+    });
     expect(ADMIN_AUTH_EMAIL_VERIFICATION_COOLDOWN_CONTRACT.forbiddenFields).toMatchObject({
       rawEmail: false,
+      rawUserId: false,
       rawToken: false,
       tokenHash: false,
       mailBody: false,

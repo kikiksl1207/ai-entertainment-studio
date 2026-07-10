@@ -5,6 +5,7 @@ export const AUTH_SESSION_INVALIDATION_CONTRACT = {
     frontendContract: {
       source: 'local auth storage refresh token',
       sendsRefreshTokenBodyWhenPresent: true,
+      authorizationHeaderAllowedForAccessSessionHint: true,
       clearsLocalAuthAfterAttempt: true,
     },
     backendContract: {
@@ -30,9 +31,11 @@ export const AUTH_SESSION_INVALIDATION_CONTRACT = {
   },
   refreshRotation: {
     endpoint: 'POST /api/v1/auth/refresh',
+    requestBody: ['refreshToken'],
     mutationOrder: [
       'verify refresh jwt signature',
       'require tokenType refresh and tracked tokenId',
+      'load active user',
       'load stored user_refresh_tokens row',
       'reject revoked expired mismatched hash or wrong owner',
       'revoke previous refresh token row',
@@ -43,6 +46,13 @@ export const AUTH_SESSION_INVALIDATION_CONTRACT = {
       expectedStatus: 401,
       walletMutation: false,
       accountMutationExceptRevocation: false,
+    },
+    responsePolicy: {
+      returnsAccessToken: true,
+      returnsRefreshToken: true,
+      returnsCookie: false,
+      returnsTokenHash: false,
+      returnsRawSessionId: false,
     },
   },
   protectedAfterLogout: {

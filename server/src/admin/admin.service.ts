@@ -4003,7 +4003,7 @@ export class AdminService {
         status,
         deliveryStatus,
         deliveryProvider,
-        userId: userId ?? null,
+        userRef: this.maskStableUserRef(userId),
         email: email ? this.maskEmail(email) : null,
       },
       policy: this.authActionTokenAuditPolicy(),
@@ -7656,7 +7656,7 @@ export class AdminService {
         statusKey: `admin.authActionTokens.delivery.${row.deliveryStatus}`,
       },
       target: {
-        userId: row.userId,
+        userRef: this.maskStableUserRef(row.userId),
         emailMasked: row.targetEmailMasked ?? this.maskEmail(row.user.email),
         userStatus: row.user.status,
         emailVerified: Boolean(row.user.emailVerifiedAt),
@@ -7666,6 +7666,7 @@ export class AdminService {
         rawTokenReturned: false,
         tokenHashReturned: false,
         rawEmailReturned: false,
+        rawUserIdReturned: false,
         mailBodyReturned: false,
       },
     };
@@ -7686,7 +7687,9 @@ export class AdminService {
   private authActionTokenAuditPolicy() {
     return {
       targetEmailMasked: true,
+      targetUserRefMasked: true,
       rawEmailReturned: false,
+      rawUserIdReturned: false,
       rawTokenReturned: false,
       tokenHashReturned: false,
       mailBodyReturned: false,
@@ -7702,6 +7705,19 @@ export class AdminService {
       supportedDeliveryStatuses: [...AUTH_ACTION_TOKEN_DELIVERY_STATUSES],
       supportedDeliveryProviders: [...AUTH_ACTION_TOKEN_DELIVERY_PROVIDERS],
     };
+  }
+
+  private maskStableUserRef(userId?: string | null) {
+    if (!userId) {
+      return null;
+    }
+
+    const digest = createHash('sha256')
+      .update(`auth-action-token-audit:${userId}`)
+      .digest('hex')
+      .slice(0, 16);
+
+    return `user_ref_${digest}`;
   }
 
   private maskEmail(email?: string | null) {

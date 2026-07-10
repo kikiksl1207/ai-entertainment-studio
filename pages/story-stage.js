@@ -732,6 +732,29 @@
     stateSummary: "Trust-led route with low danger and one public clue.",
     budgetLabel: "Short connector only",
     outputGuard: "No free chat or long-form generation",
+    runtimeCostGuard: {
+      evidenceMode: "source_static_non_secret",
+      tokenBudget: {
+        promptInputs: ["currentPartSummary", "previousChoice", "stateSummary"],
+        fullManuscriptAttached: false,
+        maxOutputCharacters: 800,
+      },
+      freeChoiceAiResponseBudget: {
+        maxConnectorCallsPerPart: 1,
+        outputCharacters: "300-800",
+        freeChatEnabled: false,
+        longBodyRegenerationAllowed: false,
+      },
+      endingGenerationLimit: {
+        finalEndingMaxCalls: 1,
+        nonEndingAiGenerationAllowed: false,
+      },
+      mutationPolicy: {
+        paymentMutation: false,
+        accountMutation: false,
+        providerMutation: false,
+      },
+    },
   };
 
   let _storyScenes = STORY_SCENE_FALLBACKS.slice();
@@ -1445,13 +1468,20 @@
   function renderRuntimeAiPromptSummaryBridgeShell() {
     const copy = runtimeBridgeCopy();
     const runtime = RUNTIME_AI_SUMMARY_BRIDGE_FIXTURE;
+    const guard = runtime.runtimeCostGuard;
     return `
       <section class="story-section story-bridge-section"
                aria-labelledby="storyRuntimeAiTitle"
                data-runtime-ai-prompt-summary-bridge="true"
+               data-runtime-cost-guard="true"
+               data-token-budget="short-connector-summary-only"
+               data-free-choice-ai-response-budget="true"
+               data-ending-generation-limit="${escapeHtml(guard.endingGenerationLimit.finalEndingMaxCalls)}"
                data-full-manuscript-attached="false"
                data-free-chat-enabled="false"
-               data-provider-requested="false">
+               data-provider-requested="false"
+               data-payment-mutation="${escapeHtml(guard.mutationPolicy.paymentMutation)}"
+               data-account-mutation="${escapeHtml(guard.mutationPolicy.accountMutation)}">
         <div class="story-section-head">
           <span class="story-eyebrow story-eyebrow-react">AI</span>
           <h2 id="storyRuntimeAiTitle">${escapeHtml(copy.aiTitle)}</h2>
@@ -1461,6 +1491,8 @@
           <div><dt>${escapeHtml(copy.paragraph)}</dt><dd>${escapeHtml(runtime.currentPartSummary)}</dd></div>
           <div><dt>${escapeHtml(copy.bucket)}</dt><dd>${escapeHtml(runtime.stateSummary)}</dd></div>
           <div><dt>${escapeHtml(copy.mode)}</dt><dd>${escapeHtml(runtime.previousChoice)}</dd></div>
+          <div><dt>Connector</dt><dd>${escapeHtml(guard.freeChoiceAiResponseBudget.maxConnectorCallsPerPart)} call per part / ${escapeHtml(guard.freeChoiceAiResponseBudget.outputCharacters)} chars</dd></div>
+          <div><dt>Ending</dt><dd>Final ending AI max ${escapeHtml(guard.endingGenerationLimit.finalEndingMaxCalls)} / non-ending generation off</dd></div>
           <div><dt>${escapeHtml(copy.guard)}</dt><dd>${escapeHtml(runtime.budgetLabel)} · ${escapeHtml(runtime.outputGuard)}</dd></div>
         </dl>
       </section>
@@ -1526,6 +1558,7 @@
       ${renderBranchImplementationShell()}
 
       ${renderFreeStoryOutcomeShell()}
+
       ${renderFreeStoryStateBridgeShell()}
 
       ${renderModularEndingAssemblyBridgeShell()}
