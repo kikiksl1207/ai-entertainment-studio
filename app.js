@@ -222,15 +222,15 @@ function publicLocale(locale) {
 // 사전 — 에밀리 #064 톤/용어집 + 클라우드 추가 nav/footer/auth
 const I18N_DICT = {
   // ── 공통 nav ──
-  "nav.home": { "ko-KR": "홈", "ja-JP": "ホーム", "en-US": "Home", "zh-CN": "首页" },
-  "nav.artists": { "ko-KR": "아티스트", "ja-JP": "アーティスト", "en-US": "Artists", "zh-CN": "艺人" },
-  "nav.luminaPick": { "ko-KR": "루미나 픽", "ja-JP": "ルミナピック", "en-US": "Lumina Pick", "zh-CN": "Lumina Pick" },
-  "nav.luminaFeed": { "ko-KR": "루미나 피드", "ja-JP": "ルミナフィード", "en-US": "Lumina Feed", "zh-CN": "Lumina Feed" },
+  "nav.home": { "ko-KR": "홈", "ja-JP": "ホーム", "en-US": "Home", "zh-CN": "首页", "zh-Hant": "首頁" },
+  "nav.artists": { "ko-KR": "아티스트", "ja-JP": "アーティスト", "en-US": "Artists", "zh-CN": "艺人", "zh-Hant": "藝人" },
+  "nav.luminaPick": { "ko-KR": "루미나 픽", "ja-JP": "ルミナピック", "en-US": "Lumina Pick", "zh-CN": "Lumina Pick", "zh-Hant": "Lumina Pick" },
+  "nav.luminaFeed": { "ko-KR": "루미나 피드", "ja-JP": "ルミナフィード", "en-US": "Lumina Feed", "zh-CN": "Lumina Feed", "zh-Hant": "Lumina Feed" },
   "nav.shortform": { "ko-KR": "숏폼", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
   "nav.story": { "ko-KR": "스토리", "ja-JP": "ストーリー", "en-US": "Story", "zh-CN": "故事", "zh-Hant": "故事" },
   "nav.feedShorts": { "ko-KR": "쇼츠", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
-  "nav.debut": { "ko-KR": "데뷔하기", "ja-JP": "デビュー申請", "en-US": "Debut", "zh-CN": "出道申请" },
-  "nav.mypage": { "ko-KR": "마이페이지", "ja-JP": "マイページ", "en-US": "My Page", "zh-CN": "我的主页" },
+  "nav.debut": { "ko-KR": "데뷔하기", "ja-JP": "デビュー申請", "en-US": "Debut", "zh-CN": "出道申请", "zh-Hant": "出道申請" },
+  "nav.mypage": { "ko-KR": "마이페이지", "ja-JP": "マイページ", "en-US": "My Page", "zh-CN": "我的主页", "zh-Hant": "我的主頁" },
   // ── 헤더 auth ──
   "auth.login": { "ko-KR": "로그인", "ja-JP": "ログイン", "en-US": "Log in", "zh-CN": "登录", "zh-Hant": "登入" },
   "auth.signup": { "ko-KR": "회원가입", "ja-JP": "新規登録", "en-US": "Sign up", "zh-CN": "注册", "zh-Hant": "註冊" },
@@ -299,28 +299,29 @@ const I18N_DICT = {
   "miniProfile.detail": { "ko-KR": "상세 프로필 보기 →", "ja-JP": "詳細プロフィールを見る →", "en-US": "View full profile →", "zh-CN": "查看详细资料 →", "zh-Hant": "查看詳細資料 →" },
   "miniProfile.detail.self": { "ko-KR": "내 프로필 보기 →", "ja-JP": "自分のプロフィールを見る →", "en-US": "View my profile →", "zh-CN": "查看我的资料 →", "zh-Hant": "查看我的資料 →" },
   // ── 모바일 하단 탭바 ──
-  "tab.home": { "ko-KR": "홈", "ja-JP": "ホーム", "en-US": "Home", "zh-CN": "首页" },
-  "tab.artists": { "ko-KR": "아티스트", "ja-JP": "アーティスト", "en-US": "Artists", "zh-CN": "艺人" },
-  "tab.pick": { "ko-KR": "루미나 픽", "ja-JP": "ルミナピック", "en-US": "Lumina Pick", "zh-CN": "Lumina Pick" },
-  "tab.feed": { "ko-KR": "피드", "ja-JP": "フィード", "en-US": "Feed", "zh-CN": "动态" },
+  "tab.home": { "ko-KR": "홈", "ja-JP": "ホーム", "en-US": "Home", "zh-CN": "首页", "zh-Hant": "首頁" },
+  "tab.artists": { "ko-KR": "아티스트", "ja-JP": "アーティスト", "en-US": "Artists", "zh-CN": "艺人", "zh-Hant": "藝人" },
+  "tab.pick": { "ko-KR": "루미나 픽", "ja-JP": "ルミナピック", "en-US": "Lumina Pick", "zh-CN": "Lumina Pick", "zh-Hant": "Lumina Pick" },
+  "tab.feed": { "ko-KR": "피드", "ja-JP": "フィード", "en-US": "Feed", "zh-CN": "动态", "zh-Hant": "動態" },
   "tab.shortform": { "ko-KR": "숏폼", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
   "tab.story": { "ko-KR": "스토리", "ja-JP": "物語", "en-US": "Story", "zh-CN": "故事", "zh-Hant": "故事" },
   // ── 푸터 ──
-  "footer.artistRoster": { "ko-KR": "아티스트 라인업", "ja-JP": "アーティスト一覧", "en-US": "Artist Roster", "zh-CN": "艺人阵容" },
-  "footer.terms": { "ko-KR": "이용약관", "ja-JP": "利用規約", "en-US": "Terms of Service", "zh-CN": "服务条款" },
-  "footer.privacy": { "ko-KR": "개인정보처리방침", "ja-JP": "プライバシーポリシー", "en-US": "Privacy Policy", "zh-CN": "隐私政策" },
-  "footer.refund": { "ko-KR": "환불 정책", "ja-JP": "返金ポリシー", "en-US": "Refund Policy", "zh-CN": "退款政策" },
-  "footer.businessInquiry": { "ko-KR": "Business Inquiry", "ja-JP": "Business Inquiry", "en-US": "Business Inquiry", "zh-CN": "商务合作" },
+  "footer.artistRoster": { "ko-KR": "아티스트 라인업", "ja-JP": "アーティスト一覧", "en-US": "Artist Roster", "zh-CN": "艺人阵容", "zh-Hant": "藝人陣容" },
+  "footer.terms": { "ko-KR": "이용약관", "ja-JP": "利用規約", "en-US": "Terms of Service", "zh-CN": "服务条款", "zh-Hant": "服務條款" },
+  "footer.privacy": { "ko-KR": "개인정보처리방침", "ja-JP": "プライバシーポリシー", "en-US": "Privacy Policy", "zh-CN": "隐私政策", "zh-Hant": "隱私權政策" },
+  "footer.refund": { "ko-KR": "환불 정책", "ja-JP": "返金ポリシー", "en-US": "Refund Policy", "zh-CN": "退款政策", "zh-Hant": "退款政策" },
+  "footer.businessInquiry": { "ko-KR": "Business Inquiry", "ja-JP": "Business Inquiry", "en-US": "Business Inquiry", "zh-CN": "商务合作", "zh-Hant": "商務合作" },
   "footer.businessInquiry.helper": {
     "ko-KR": "브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.",
     "ja-JP": "ブランドコラボ、IP提携、制作のお問い合わせはLumina Stageのビジネス窓口へ。",
     "en-US": "Brand partnerships, IP collaborations, and production inquiries connect to Lumina Stage business.",
-    "zh-CN": "品牌合作、IP联动及制作咨询，请通过Lumina Stage商务渠道。"
+    "zh-CN": "品牌合作、IP联动及制作咨询，请通过Lumina Stage商务渠道。",
+    "zh-Hant": "品牌合作、IP 聯動與製作諮詢，請透過 Lumina Stage 商務渠道。"
   },
   // ── 브랜드 ──
-  "brand.tagline": { "ko-KR": "아티스트 레이블", "ja-JP": "アーティストレーベル", "en-US": "Artist Label", "zh-CN": "艺人厂牌" },
+  "brand.tagline": { "ko-KR": "아티스트 레이블", "ja-JP": "アーティストレーベル", "en-US": "Artist Label", "zh-CN": "艺人厂牌", "zh-Hant": "藝人廠牌" },
   // ── 데뷔하기 강조 CTA (모바일) ──
-  "cta.debut": { "ko-KR": "데뷔하기", "ja-JP": "デビュー申請", "en-US": "Debut", "zh-CN": "出道申请" },
+  "cta.debut": { "ko-KR": "데뷔하기", "ja-JP": "デビュー申請", "en-US": "Debut", "zh-CN": "出道申请", "zh-Hant": "出道申請" },
   // ── #219 정산 출금 5분리 카드 (에밀리 v1 톤, 4국 언어) ──
   "payout.card.kicker": {
     "ko-KR": "PAYOUT · 이번 정산 회차",
