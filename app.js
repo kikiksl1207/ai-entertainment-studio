@@ -874,6 +874,27 @@ const I18N_DICT = {
     "zh-CN": "再观察一会儿",
     "zh-Hant": "再觀察一會兒"
   },
+  "storyStage.hero.eyebrow": {
+    "ko-KR": "스토리 스테이지",
+    "ja-JP": "ストーリーステージ",
+    "en-US": "Story Stage",
+    "zh-CN": "故事舞台",
+    "zh-Hant": "故事舞台"
+  },
+  "storyStage.hero.title": {
+    "ko-KR": "아티스트와 함께 이어가는 장면형 이야기",
+    "ja-JP": "アーティストと紡ぐシーン型ストーリー",
+    "en-US": "A scene-led story with your artist",
+    "zh-CN": "与艺人一起延续的场景式故事",
+    "zh-Hant": "與藝人一起延續的場景式故事"
+  },
+  "storyStage.hero.body": {
+    "ko-KR": "무료 프롤로그로 가볍게 시작하고, 마음에 들면 원하는 챕터와 시즌만 골라 이어가세요. 장면마다 달라지는 배경과 캐릭터 미리보기도 함께 볼 수 있어요.",
+    "ja-JP": "無料プロローグから気軽に始めて、気に入った章やシーズンだけ続きを選べます。場面ごとに変わる背景とキャラクターのプレビューも見られます。",
+    "en-US": "Start with a free prologue, then continue only with the chapters and seasons you want. Preview changing backgrounds and characters in each scene.",
+    "zh-CN": "从免费序章轻松开始，再选择想继续的章节和季。还可以预览每个场景中变化的背景与角色。",
+    "zh-Hant": "從免費序章輕鬆開始，再選擇想繼續的章節和季。也可以預覽每個場景中變化的背景與角色。"
+  },
   "storyStage.setup.heading": {
     "ko-KR": "나 + AI 동반 설정",
     "ja-JP": "自分 + AI同行設定",

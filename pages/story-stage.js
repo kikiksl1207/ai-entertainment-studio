@@ -186,6 +186,13 @@
       "zh-CN": "先确认记录",
       "zh-Hant": "先確認記錄",
     },
+    "storyStage.branch.a.next": {
+      "ko-KR": "기록 경로",
+      "ja-JP": "記録ルート",
+      "en-US": "Record route",
+      "zh-CN": "记录路线",
+      "zh-Hant": "記錄路線",
+    },
     "storyStage.branch.a.outcome": {
       "ko-KR": "숨은 정보가 열리고 전령의 신뢰가 올라가요.",
       "ja-JP": "隠れた情報が開き、伝令の信頼が上がります。",
@@ -207,6 +214,13 @@
       "zh-CN": "跟随传令移动",
       "zh-Hant": "跟隨傳令移動",
     },
+    "storyStage.branch.b.next": {
+      "ko-KR": "항구 경로",
+      "ja-JP": "港ルート",
+      "en-US": "Harbor route",
+      "zh-CN": "港口路线",
+      "zh-Hant": "港口路線",
+    },
     "storyStage.branch.b.outcome": {
       "ko-KR": "위험도가 오르지만 봉인된 지도를 얻어요.",
       "ja-JP": "危険度は上がりますが、封じられた地図を得ます。",
@@ -227,6 +241,13 @@
       "en-US": "Detour to the shore",
       "zh-CN": "绕到海岸",
       "zh-Hant": "繞到海岸",
+    },
+    "storyStage.branch.c.next": {
+      "ko-KR": "해안 경로",
+      "ja-JP": "海岸ルート",
+      "en-US": "Shore route",
+      "zh-CN": "海岸路线",
+      "zh-Hant": "海岸路線",
     },
     "storyStage.branch.c.outcome": {
       "ko-KR": "관계가 흔들리고 작가 결말이 없을 때만 AI 보조 결말 후보가 돼요.",
@@ -424,7 +445,7 @@
     {
       label: "A",
       tone: "info",
-      next: "기록 경로",
+      nextKey: "storyStage.branch.a.next",
       titleKey: "storyStage.branch.a.title",
       outcomeKey: "storyStage.branch.a.outcome",
       rejoinKey: "storyStage.branch.a.rejoin",
@@ -433,7 +454,7 @@
     {
       label: "B",
       tone: "risk",
-      next: "항구 경로",
+      nextKey: "storyStage.branch.b.next",
       titleKey: "storyStage.branch.b.title",
       outcomeKey: "storyStage.branch.b.outcome",
       rejoinKey: "storyStage.branch.b.rejoin",
@@ -442,7 +463,7 @@
     {
       label: "C",
       tone: "ending",
-      next: "해안 경로",
+      nextKey: "storyStage.branch.c.next",
       titleKey: "storyStage.branch.c.title",
       outcomeKey: "storyStage.branch.c.outcome",
       rejoinKey: "storyStage.branch.c.rejoin",
@@ -1041,7 +1062,7 @@
             <article class="story-branch-card" data-branch-tone="${escapeHtml(branch.tone)}">
               <div class="story-branch-card-head">
                 <b>${escapeHtml(branch.label)}</b>
-                <strong>${escapeHtml(branch.next)}</strong>
+                <strong data-story-local-i18n="${escapeHtml(branch.nextKey)}">${escapeHtml(storyLocalT(branch.nextKey))}</strong>
               </div>
               <h3 data-story-local-i18n="${escapeHtml(branch.titleKey)}">${storyLocalT(branch.titleKey)}</h3>
               <p data-story-local-i18n="${escapeHtml(branch.outcomeKey)}">${storyLocalT(branch.outcomeKey)}</p>
