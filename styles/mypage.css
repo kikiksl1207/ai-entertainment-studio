@@ -1149,6 +1149,61 @@
   flex: 0 0 auto;
   white-space: nowrap;
 }
+
+.mypage-account-fixture-banner {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 16px 18px;
+  border: 1px solid rgba(94, 232, 168, 0.26);
+  border-radius: 12px;
+  background: rgba(94, 232, 168, 0.08);
+  color: rgba(245, 240, 255, 0.92);
+  min-width: 0;
+}
+.mypage-account-fixture-banner[hidden] {
+  display: none !important;
+}
+.mypage-account-fixture-banner > span {
+  color: rgba(190, 245, 220, 0.86);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.mypage-account-fixture-banner strong {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.mypage-account-fixture-banner p {
+  margin: 0;
+  color: rgba(220, 210, 240, 0.72);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.mypage-account-fixture-banner dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 2px 0 0;
+}
+.mypage-account-fixture-banner div {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+}
+.mypage-account-fixture-banner dt {
+  color: rgba(220, 210, 240, 0.58);
+  font-size: 11px;
+  font-weight: 800;
+}
+.mypage-account-fixture-banner dd {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
 @media (max-width: 640px) {
   .mypage-password-jump {
     flex-direction: column;
@@ -1156,6 +1211,9 @@
   }
   .mypage-password-jump .button-secondary {
     width: 100%;
+  }
+  .mypage-account-fixture-banner dl {
+    grid-template-columns: 1fr;
   }
 }
 

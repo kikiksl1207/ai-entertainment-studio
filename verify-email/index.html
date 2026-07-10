@@ -82,6 +82,23 @@
         const primary = document.getElementById("verifyEmailPrimaryAction");
         if (!card) return;
 
+        const SAFE_VERIFY_EMAIL_FIXTURES = {
+          success: {
+            state: "success",
+            message: "이메일 인증이 완료된 상태입니다. 이제 계정 안내를 계속 확인할 수 있어요."
+          },
+          expired: { state: "expired" },
+          "request-again": { state: "expired" },
+          used: { state: "used" },
+          invalid: { state: "invalid" }
+        };
+
+        function getSafeVerifyEmailFixture() {
+          const params = new URLSearchParams(location.search);
+          const key = (params.get("fixture") || params.get("state") || "").trim().toLowerCase();
+          return SAFE_VERIFY_EMAIL_FIXTURES[key] || null;
+        }
+
         function setState(state, payload) {
           card.dataset.state = state;
           if (spinner) spinner.hidden = state !== "checking";
@@ -124,6 +141,12 @@
         }
 
         async function run() {
+          const fixture = getSafeVerifyEmailFixture();
+          if (fixture) {
+            card.dataset.safeFixture = "action-token-landing";
+            setState(fixture.state, fixture);
+            return;
+          }
           const params = new URLSearchParams(location.search);
           const token = params.get("token") || "";
           if (!token) {

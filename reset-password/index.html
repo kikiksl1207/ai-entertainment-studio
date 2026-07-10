@@ -107,6 +107,26 @@
 
         const params = new URLSearchParams(location.search);
         const token = params.get("token") || "";
+        let safeResetFixtureMode = false;
+
+        const SAFE_RESET_PASSWORD_FIXTURES = {
+          "save-password": { state: "form", payload: { maskedEmail: "보호된 계정" } },
+          form: { state: "form", payload: { maskedEmail: "보호된 계정" } },
+          success: {
+            state: "success",
+            payload: { message: "새 비밀번호가 저장된 상태입니다. 이 화면은 안전 검수 상태라 계정 변경을 실행하지 않았어요." }
+          },
+          expired: { state: "expired" },
+          "request-again": { state: "expired" },
+          used: { state: "used" },
+          invalid: { state: "invalid" },
+          inactive: { state: "inactive" }
+        };
+
+        function getSafeResetPasswordFixture() {
+          const key = (params.get("fixture") || params.get("state") || "").trim().toLowerCase();
+          return SAFE_RESET_PASSWORD_FIXTURES[key] || null;
+        }
 
         function t(key, fallback) {
           try {
@@ -220,11 +240,18 @@
           return "error";
         }
 
-        if (!token) {
+        const safeFixture = getSafeResetPasswordFixture();
+        if (safeFixture) {
+          safeResetFixtureMode = true;
+          card.dataset.safeFixture = "action-token-landing";
+          applyState(safeFixture.state, safeFixture.payload || {});
+        } else if (!token) {
           // 토큰 없이 진입한 경우 폼 자체를 잠그고 invalid 안내
           applyState("invalid");
           return;
         }
+
+        else {
 
         // #455 — 페이지 진입 시 token 유효성 inspect (read-only, token 미소모)
         // 상태: valid→form(마스킹 이메일 힌트 포함) | expired→expired | already_used→used | user_not_active→inactive | 그 외→invalid
@@ -256,10 +283,17 @@
             else applyState("invalid");
           }
         }());
+        }
 
         form.addEventListener("submit", async (event) => {
           event.preventDefault();
           showError("");
+          if (safeResetFixtureMode) {
+            applyState("success", {
+              message: "저장 완료 화면입니다. 이 안전 검수 상태에서는 계정 변경을 실행하지 않았어요."
+            });
+            return;
+          }
           const newPassword = newPwEl?.value || "";
           const confirm = confirmEl?.value || "";
 

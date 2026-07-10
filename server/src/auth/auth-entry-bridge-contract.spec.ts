@@ -3,6 +3,7 @@ import {
   AUTH_ENTRY_STATUS_DASHBOARD_BRIDGE,
   AUTH_LIVE_QA_HANDOFF_SCHEMA,
   AUTH_PROTECTED_ENTRY_BRIDGE_CONTRACT,
+  AUTH_SAFE_VISUAL_FIXTURE_CONTRACT,
   AUTH_SOCIAL_PROVIDER_FALLBACK_BRIDGE,
 } from './auth-entry-bridge-contract';
 
@@ -96,6 +97,28 @@ describe('auth entry bridge contracts', () => {
       'databaseUrl',
       'apiKey',
     ]);
+  });
+
+  it('publishes safe visual fixtures without action tokens or account identifiers', () => {
+    const paths = [
+      ...AUTH_SAFE_VISUAL_FIXTURE_CONTRACT.actionTokenLanding.publicPaths,
+      ...AUTH_SAFE_VISUAL_FIXTURE_CONTRACT.accountStateVisual.publicPaths,
+    ];
+    const serialized = JSON.stringify(paths);
+
+    expect(AUTH_SAFE_VISUAL_FIXTURE_CONTRACT.actionTokenLanding.tokenRequiredForFixture).toBe(false);
+    expect(AUTH_SAFE_VISUAL_FIXTURE_CONTRACT.accountStateVisual.tokenRequiredForFixture).toBe(false);
+    expect(AUTH_SAFE_VISUAL_FIXTURE_CONTRACT.actionTokenLanding.mutationAllowed).toBe(false);
+    expect(AUTH_SAFE_VISUAL_FIXTURE_CONTRACT.accountStateVisual.mutationAllowed).toBe(false);
+    expect(AUTH_SAFE_VISUAL_FIXTURE_CONTRACT.accountStateVisual).toMatchObject({
+      socialOnlyPasswordResetVisible: false,
+      passwordSetupGuidanceRequiredForSocialOnly: true,
+    });
+    expect(serialized).not.toContain('@');
+    expect(serialized).not.toContain('token=');
+    expect(serialized).not.toContain('password=');
+    expect(serialized).not.toContain('providerId=');
+    expect(Object.values(AUTH_SAFE_VISUAL_FIXTURE_CONTRACT.privacy).every((value) => value === false)).toBe(true);
   });
 
   it('summarizes auth entry status for shared QA dashboard use', () => {
