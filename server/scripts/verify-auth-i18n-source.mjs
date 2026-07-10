@@ -28,6 +28,7 @@ const requiredModalKeys = [
   "auth.modal.terms.privacy",
   "auth.modal.terms.suffix",
 ];
+const requiredHeaderKeys = ["auth.logout", "auth.loginRequired"];
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -62,9 +63,22 @@ const runtime = vm.createContext({ globalThis: {} });
 vm.runInContext(`${source.slice(runtimeStart, runtimeEnd)}\nglobalThis.authTranslation = t;`, runtime);
 const translate = runtime.globalThis.authTranslation;
 const modalSource = source.slice(modalStart, modalEnd);
+const boundModalKeys = new Set();
 
-for (const key of requiredModalKeys) {
-  if (!modalSource.includes(key)) {
+for (const match of modalSource.matchAll(/data-i18n(?:-attr|-aria)?="([^"]+)"/g)) {
+  for (const value of match[1].split(",")) {
+    boundModalKeys.add(value.includes(":") ? value.split(":").at(-1).trim() : value.trim());
+  }
+}
+
+const keysToVerify = new Set([
+  ...requiredModalKeys,
+  ...requiredHeaderKeys,
+  ...boundModalKeys,
+]);
+
+for (const key of keysToVerify) {
+  if (requiredModalKeys.includes(key) && !modalSource.includes(key)) {
     fail(`auth modal is missing i18n binding for ${key}`);
   }
 
@@ -91,4 +105,4 @@ if (translate("auth.modal.terms.prefix", "ko-KR") !== "") {
   fail("Korean terms prefix must stay intentionally empty");
 }
 
-console.log(`PASS: auth i18n source guard (${requiredModalKeys.length} keys, ${requiredLocales.length} locales)`);
+console.log(`PASS: auth i18n source guard (${keysToVerify.size} keys, ${requiredLocales.length} locales)`);
