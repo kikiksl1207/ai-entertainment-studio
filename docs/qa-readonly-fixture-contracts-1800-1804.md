@@ -1,4 +1,4 @@
-# QA Read-Only Fixture Contracts (#1800-#1804)
+# QA Read-Only Fixture Contracts (#1800-#1804, #1811-#1812)
 
 This source pack defines safe QA fixture contracts only. It does not create
 accounts, read inboxes, mint sessions, call identity or payment providers, write
@@ -20,6 +20,10 @@ providers.
 - #1802: `WALLET_READONLY_QA_FIXTURE_CONTRACT`
 - #1803: `DEBUT_STATUS_READONLY_QA_FIXTURE_CONTRACT`
 - #1804: `STORY_BRANCH_SCENE_AUTHORITY_AUDIT_CONTRACT`
+- #1811: `SAFE_QA_FIXTURE_SOURCE_GUARD_CONTRACT` and source guard tests
+- #1812: branch background, rejoin, and public ending label source tests
 
-All five contracts are read-only/source-audit surfaces. QR can verify state keys
-and public paths without needing credentials or secret-bearing fixture data.
+All contracts are read-only/source-audit surfaces. They remain disabled in
+production and require both an explicit fixture flag and a server-side allowlist
+in development or test. QR can verify state keys and public paths without
+credentials or secret-bearing fixture data.

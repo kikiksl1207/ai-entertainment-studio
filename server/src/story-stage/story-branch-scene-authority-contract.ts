@@ -1,7 +1,10 @@
+import { SAFE_QA_FIXTURE_SOURCE_GUARD_CONTRACT } from '../qa-fixtures/safe-qa-fixture-source-guard-contract';
+
 export const STORY_BRANCH_SCENE_AUTHORITY_AUDIT_CONTRACT = {
-  version: '2026-07-10.story-branch-scene-authority.v1',
+  version: '2026-07-10.story-branch-scene-authority.v2',
   status: 'contract_only_source_audit',
   endpoint: 'GET /api/v1/story-stage/fixtures/branch-scene-authority',
+  sourceGuard: SAFE_QA_FIXTURE_SOURCE_GUARD_CONTRACT,
   purpose:
     'Verify that branch choices, next scenes, backgrounds, characters, and ending type remain server authoritative.',
   sourceOfTruth: [
@@ -10,6 +13,18 @@ export const STORY_BRANCH_SCENE_AUTHORITY_AUDIT_CONTRACT = {
     'story_scene_routes',
     'story_scene_character_presence',
     'story_endings',
+  ],
+  allowedOutput: [
+    'runId',
+    'fixtureStatus',
+    'choiceKey',
+    'nextSceneKey',
+    'backgroundKey',
+    'characterKeys',
+    'rejoinSceneKey',
+    'endingLabelKey',
+    'publicPath',
+    'safe boolean flags',
   ],
   choiceRouteMatrix: [
     {
@@ -39,6 +54,17 @@ export const STORY_BRANCH_SCENE_AUTHORITY_AUDIT_CONTRACT = {
     serverResolvedFrom: ['story_endings.endingType', 'story_route_outcome'],
     clientSubmittedEndingTrusted: false,
     aiEndingRequiresExplicitBudgetGuard: true,
+    publicLabelKeys: {
+      author_default: 'storyStage.ending.authorDefault',
+      author_sub: 'storyStage.ending.authorSub',
+      ai_generated: 'storyStage.ending.aiGenerated',
+    },
+    rawEndingTypeReturned: false,
+  },
+  rejoinPolicy: {
+    minimumDistinctScenesBeforeRejoin: 1,
+    sameImmediateNextSceneAllowed: false,
+    explicitRejoinSceneRequired: true,
   },
   validationRules: {
     allChoicesMayNotConvergeImmediately: true,

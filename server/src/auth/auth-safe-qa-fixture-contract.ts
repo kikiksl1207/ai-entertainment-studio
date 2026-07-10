@@ -1,7 +1,10 @@
+import { SAFE_QA_FIXTURE_SOURCE_GUARD_CONTRACT } from '../qa-fixtures/safe-qa-fixture-source-guard-contract';
+
 export const AUTH_SAFE_QA_FIXTURE_CONTRACT_PACK = {
-  version: '2026-07-10.auth-safe-qa-fixture-pack.v1',
+  version: '2026-07-10.auth-safe-qa-fixture-pack.v2',
   endpoint: 'GET /api/v1/qa-fixtures/auth/session-states',
   status: 'contract_only_read_only',
+  sourceGuard: SAFE_QA_FIXTURE_SOURCE_GUARD_CONTRACT,
   purpose:
     'Let QA reproduce logged-out, logged-in, protected-entry, and expired-session UI states without sharing real account credentials.',
   allowedOutput: [
@@ -86,9 +89,10 @@ export const AUTH_SAFE_QA_FIXTURE_CONTRACT_PACK = {
 } as const;
 
 export const EMAIL_RESET_SAFE_INBOX_FIXTURE_CONTRACT = {
-  version: '2026-07-10.email-reset-safe-inbox-fixture.v1',
+  version: '2026-07-10.email-reset-safe-inbox-fixture.v2',
   endpoint: 'GET /api/v1/qa-fixtures/auth/password-reset-inbox-preview',
   status: 'contract_only_read_only',
+  sourceGuard: SAFE_QA_FIXTURE_SOURCE_GUARD_CONTRACT,
   purpose:
     'Preview reset request and token-state UI without accessing a real inbox or exposing reset links.',
   allowedOutput: [
@@ -98,7 +102,7 @@ export const EMAIL_RESET_SAFE_INBOX_FIXTURE_CONTRACT = {
     'publicPath',
     'httpStatus',
     'messageKey',
-    'maskedEmailHint',
+    'emailDeliveryStateKey',
     'localeCopyKeys',
     'safe boolean flags',
   ],
@@ -140,6 +144,13 @@ export const EMAIL_RESET_SAFE_INBOX_FIXTURE_CONTRACT = {
     tokenLookup: false,
     tokenConsume: false,
     passwordUpdate: false,
+  },
+  mutationPolicy: {
+    accountMutation: false,
+    passwordMutation: false,
+    sessionMutation: false,
+    inboxRead: false,
+    providerSend: false,
   },
   forbiddenOutput: [
     'raw email',

@@ -1,7 +1,10 @@
+import { SAFE_QA_FIXTURE_SOURCE_GUARD_CONTRACT } from '../qa-fixtures/safe-qa-fixture-source-guard-contract';
+
 export const DEBUT_STATUS_READONLY_QA_FIXTURE_CONTRACT = {
-  version: '2026-07-10.debut-status-readonly-qa-fixture.v1',
+  version: '2026-07-10.debut-status-readonly-qa-fixture.v2',
   endpoint: 'GET /api/v1/qa-fixtures/debut/status-states',
   status: 'contract_only_read_only',
+  sourceGuard: SAFE_QA_FIXTURE_SOURCE_GUARD_CONTRACT,
   purpose:
     'Let QA verify debut status screens without submitting, resubmitting, or calling identity providers.',
   allowedOutput: [
