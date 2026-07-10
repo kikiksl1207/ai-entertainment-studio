@@ -1,0 +1,68 @@
+export const STORY_BRANCH_SCENE_AUTHORITY_AUDIT_CONTRACT = {
+  version: '2026-07-10.story-branch-scene-authority.v1',
+  status: 'contract_only_source_audit',
+  endpoint: 'GET /api/v1/story-stage/fixtures/branch-scene-authority',
+  purpose:
+    'Verify that branch choices, next scenes, backgrounds, characters, and ending type remain server authoritative.',
+  sourceOfTruth: [
+    'story_scenes',
+    'story_choices',
+    'story_scene_routes',
+    'story_scene_character_presence',
+    'story_endings',
+  ],
+  choiceRouteMatrix: [
+    {
+      choiceKey: 'choice_a_direct_confession',
+      nextSceneKey: 'scene_rehearsal_confession',
+      backgroundKey: 'bg_rehearsal_room',
+      characterKeys: ['lead_artist', 'manager'],
+      rejoinSceneKey: 'scene_after_showcase',
+    },
+    {
+      choiceKey: 'choice_b_delay_response',
+      nextSceneKey: 'scene_rooftop_delay',
+      backgroundKey: 'bg_rooftop_night',
+      characterKeys: ['lead_artist'],
+      rejoinSceneKey: 'scene_after_showcase',
+    },
+    {
+      choiceKey: 'choice_c_manager_intervention',
+      nextSceneKey: 'scene_manager_intervention',
+      backgroundKey: 'bg_backstage_corridor',
+      characterKeys: ['lead_artist', 'manager', 'rival_artist'],
+      rejoinSceneKey: 'scene_after_showcase',
+    },
+  ],
+  endingTypePolicy: {
+    allowedEndingTypes: ['author_default', 'author_sub', 'ai_generated'],
+    serverResolvedFrom: ['story_endings.endingType', 'story_route_outcome'],
+    clientSubmittedEndingTrusted: false,
+    aiEndingRequiresExplicitBudgetGuard: true,
+  },
+  validationRules: {
+    allChoicesMayNotConvergeImmediately: true,
+    nextSceneMustBeServerResolved: true,
+    backgroundMustBelongToNextScene: true,
+    characterPresenceMustBelongToNextScene: true,
+    laterRejoinAllowed: true,
+    branchLocalSceneAllowedBeforeRejoin: true,
+  },
+  mutationPolicy: {
+    choiceSubmit: false,
+    storyStateMutation: false,
+    providerCall: false,
+    walletMutation: false,
+    settlementMutation: false,
+    payoutMutation: false,
+  },
+  forbiddenOutput: [
+    'raw author note',
+    'provider prompt',
+    'provider payload',
+    'hidden future scene body',
+    'wallet ledger id',
+    'raw user id',
+    'database URL',
+  ],
+} as const;
