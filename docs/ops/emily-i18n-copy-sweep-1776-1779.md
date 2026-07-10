@@ -71,7 +71,7 @@ Scanned source groups:
 - `data/fan-engagement-copy.js`
 
 Result:
-- No current primary-source matches for obvious mojibake patterns such as `?붾`, `?뺤`, replacement character `�`, or common UTF-8 double-encoding fragments in the scanned high-priority files.
+- No current primary-source matches for obvious mojibake patterns such as `?붾`, `?뺤`, the Unicode replacement-character marker `U+FFFD`, or common UTF-8 double-encoding fragments in the scanned high-priority files.
 - The active risk is hardcoded Korean, English-only API labels, and Korean-only fallback maps on surfaces that are expected to support `ko/en/ja/zh-Hans/zh-Hant`.
 
 Priority findings:
