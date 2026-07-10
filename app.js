@@ -643,6 +643,13 @@ const I18N_DICT = {
     "zh-CN": "高额打赏仅限已完成身份确认的账号。",
     "zh-Hant": "高額打賞僅限已完成身分確認的帳號。"
   },
+  "chat.donation.confirm.locked": {
+    "ko-KR": "후원 준비 중",
+    "ja-JP": "応援機能は準備中",
+    "en-US": "Support opening soon",
+    "zh-CN": "打赏功能准备中",
+    "zh-Hant": "打賞功能準備中"
+  },
   "common.tag.paid": {
     "ko-KR": "유료",
     "ja-JP": "有料",
