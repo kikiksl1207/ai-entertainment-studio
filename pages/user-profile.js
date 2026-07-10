@@ -76,7 +76,7 @@ function buildFollowProfileFixture(params) {
   const hasExplicitTarget = Boolean(params.get("handle") || params.get("id"));
   const isSelfFixture = !hasExplicitTarget;
   const handle = isSelfFixture ? "qa-fb-qa-20260629-run1-viewer" : requestedHandle;
-  const displayName = isSelfFixture ? "QA 관계 확인 계정" : "QA 팔로워 타깃";
+  const displayName = isSelfFixture ? "관계 미리보기 계정" : "팔로워 미리보기 프로필";
 
   return {
     fixture: {
@@ -88,7 +88,7 @@ function buildFollowProfileFixture(params) {
       id: isSelfFixture ? "qa-fixture-viewer" : "qa-fixture-target",
       displayName,
       publicHandle: handle,
-      bio: "팔로워/팔로잉/차단 진입점을 확인하기 위한 read-only QA fixture입니다.",
+      bio: "팔로워와 팔로잉 흐름을 안전하게 미리 볼 수 있는 공개 프로필입니다.",
       avatarUrl: null,
       coverImageUrl: null,
     },
@@ -121,7 +121,7 @@ function renderFollowProfileFixturePosts() {
   if (empty) {
     empty.hidden = false;
     empty.style.display = "block";
-    empty.innerHTML = "<strong>QA fixture 전용 프로필입니다.</strong><p>실제 글, follow, block mutation 없이 관계 UI만 확인합니다.</p>";
+    empty.innerHTML = "<strong>관계 미리보기 프로필입니다.</strong><p>게시글은 아직 준비 중이며, 팔로우와 차단 흐름은 화면 안내만 확인할 수 있어요.</p>";
   }
   if (loadMore) {
     loadMore.hidden = true;
@@ -1644,7 +1644,7 @@ function bindBlockConfirmModal() {
       if (followListUsesFixture()) {
         closeBlockConfirmModal();
         if (submitBtn) submitBtn.disabled = false;
-        alert("QA fixture preview입니다. 실제 차단 요청은 실행하지 않습니다.");
+        alert("미리보기 화면에서는 차단 요청을 보낼 수 없어요.");
         return;
       }
 
