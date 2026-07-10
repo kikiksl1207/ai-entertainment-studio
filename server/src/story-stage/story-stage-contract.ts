@@ -48,6 +48,7 @@ import {
   STORY_UPLOAD_REVIEW_WORKFLOW_CONTRACT,
   WRITER_MANUSCRIPT_SCENE_CHOICE_ENDING_SCHEMA,
 } from './story-upload-intake-contract';
+import { STORY_BRANCH_SCENE_AUTHORITY_AUDIT_CONTRACT } from './story-branch-scene-authority-contract';
 
 export {
   buildStorySceneAssetFallbackErrorEnvelope,
@@ -1162,6 +1163,8 @@ export const STORY_STAGE_CONTRACT = {
     STORY_STAGE_AUTHOR_SETTLEMENT_REFUND_READ_MODEL,
   sceneAssetReadModel: STORY_SCENE_ASSET_READ_MODEL_CONTRACT,
   storySceneReadModel: STORY_SCENE_READ_MODEL_CONTRACT,
+  liveFixtureExposureGuard: STORY_STAGE_LIVE_FIXTURE_EXPOSURE_GUARD_CONTRACT,
+  branchSceneAuthorityAudit: STORY_BRANCH_SCENE_AUTHORITY_AUDIT_CONTRACT,
   freeStoryStateAccumulator: FREE_STORY_STATE_ACCUMULATOR_CONTRACT,
   freeEndingPersonalizationCostGuard:
     FREE_ENDING_PERSONALIZATION_COST_GUARD_CONTRACT,
