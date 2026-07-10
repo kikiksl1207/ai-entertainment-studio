@@ -223,6 +223,13 @@
     return !!(state.contract && state.contract.policy && state.contract.policy.walletMutationEnabled);
   }
 
+  function publicCopy(key, fallback) {
+    var translated = window.luminaI18n && typeof window.luminaI18n.t === "function"
+      ? window.luminaI18n.t(key)
+      : "";
+    return translated && translated !== key ? translated : fallback;
+  }
+
   function updateConfirmButton() {
     var btn = $("donationConfirmBtn");
     var label = $("donationConfirmLabel");
@@ -232,7 +239,7 @@
       btn.disabled = true;
       btn.setAttribute("aria-disabled", "true");
       // #484 — API의 disabledDisplayMessageKo를 신뢰하지 않음. 내부어 노출 방지를 위해 FALLBACK 고정 사용.
-      btn.title = FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
+      btn.title = publicCopy("chat.donation.locked.text", FALLBACK_CONTRACT.policy.disabledDisplayMessageKo);
       label.textContent = "후원 안내 확인";
       return;
     }
@@ -353,9 +360,9 @@
       var mutationOpen = isMutationEnabled();
       proceed.disabled = !mutationOpen;
       proceed.setAttribute("aria-disabled", mutationOpen ? "false" : "true");
-      proceed.textContent = mutationOpen ? "진행하기" : "진행 잠금";
+      proceed.textContent = mutationOpen ? "진행하기" : publicCopy("chat.donation.confirm.locked", "후원 준비 중");
       // #484 — API 값 무시, FALLBACK 고정 (API가 내부어 포함 가능).
-      proceed.title = mutationOpen ? "" : FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
+      proceed.title = mutationOpen ? "" : publicCopy("chat.donation.locked.text", FALLBACK_CONTRACT.policy.disabledDisplayMessageKo);
     }
   }
 
