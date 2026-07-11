@@ -66,6 +66,7 @@ model User {
   fanTitles                    UserFanTitle[]
   submittedArtistKnowledgeUrls ArtistKnowledgeUrl[]       @relation("ArtistKnowledgeUrlSubmittedBy")
   reviewedArtistKnowledgeUrls  ArtistKnowledgeUrl[]       @relation("ArtistKnowledgeUrlReviewedBy")
+  storyUploadSubmissions       StoryUploadSubmission[]
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -462,6 +463,48 @@ model Asset {
   @@unique([storageProvider, storageKey])
   @@index([assetType, visibility], map: "idx_assets_type_visibility")
   @@map("assets")
+}
+
+model StoryUploadSubmission {
+  id                 String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String                      @map("user_id") @db.Uuid
+  requestKeyHash     String                      @map("request_key_hash") @db.VarChar(64)
+  requestFingerprint String                      @map("request_fingerprint") @db.VarChar(64)
+  submissionType     String                      @map("submission_type") @db.VarChar(32)
+  title              String                      @db.VarChar(120)
+  originalLocale     String                      @map("original_locale") @db.VarChar(16)
+  sourceClass        String                      @map("source_class") @db.VarChar(32)
+  rightsReference    String?                     @map("rights_reference") @db.VarChar(200)
+  status             String                      @default("received") @db.VarChar(32)
+  totalBytes         BigInt                      @map("total_bytes")
+  createdAt          DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                    @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user               User                        @relation(fields: [userId], references: [id])
+  files              StoryUploadSubmissionFile[]
+
+  @@unique([userId, requestKeyHash], map: "story_upload_submissions_user_request_key")
+  @@index([userId, status, createdAt], map: "idx_story_upload_submissions_user_status_created")
+  @@map("story_upload_submissions")
+}
+
+model StoryUploadSubmissionFile {
+  id                 String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submissionId       String                @map("submission_id") @db.Uuid
+  category           String                @db.VarChar(24)
+  position           Int
+  extension          String                @db.VarChar(12)
+  clientFileNameHash String                @map("client_file_name_hash") @db.VarChar(64)
+  mimeType           String                @map("mime_type") @db.VarChar(160)
+  fileSizeBytes      BigInt                @map("file_size_bytes")
+  checksumSha256     String                @map("checksum_sha256") @db.VarChar(64)
+  storageProvider    String                @map("storage_provider") @db.VarChar(16)
+  storageKey         String                @map("storage_key")
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  submission         StoryUploadSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, category, position], map: "story_upload_files_submission_category_position")
+  @@index([submissionId], map: "idx_story_upload_files_submission")
+  @@map("story_upload_submission_files")
 }
 
 model ArtistAsset {
