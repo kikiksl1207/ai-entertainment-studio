@@ -82,6 +82,9 @@ export {
   STORY_LOCALE_PAYLOAD_FALLBACK_API_CONTRACT,
   STORY_PAYLOAD_LOCALES,
 } from './story-locale-payload-contract';
+import { STORY_PRODUCTION_RELEASE_CONTRACT } from './story-production-release-contract';
+
+export { STORY_PRODUCTION_RELEASE_CONTRACT } from './story-production-release-contract';
 
 export {
   buildStorySceneAssetFallbackErrorEnvelope,
@@ -1227,6 +1230,7 @@ export const STORY_STAGE_CONTRACT = {
   branchTimelinePacing: STORY_BRANCH_TIMELINE_PACING_BACKEND_CONTRACT,
   endingProvenancePolicy: STORY_ENDING_PROVENANCE_POLICY_BACKEND_CONTRACT,
   localePayloadFallbackApi: STORY_LOCALE_PAYLOAD_FALLBACK_API_CONTRACT,
+  productionRelease: STORY_PRODUCTION_RELEASE_CONTRACT,
   freeStoryStateAccumulator: FREE_STORY_STATE_ACCUMULATOR_CONTRACT,
   freeEndingPersonalizationCostGuard:
     FREE_ENDING_PERSONALIZATION_COST_GUARD_CONTRACT,
