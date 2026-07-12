@@ -49,6 +49,39 @@ import {
   WRITER_MANUSCRIPT_SCENE_CHOICE_ENDING_SCHEMA,
 } from './story-upload-intake-contract';
 import { STORY_BRANCH_SCENE_AUTHORITY_AUDIT_CONTRACT } from './story-branch-scene-authority-contract';
+import { STORY_SCENE_VISUAL_MANIFEST_API_CONTRACT } from './story-scene-visual-manifest-contract';
+import { STORY_WRITER_MANUSCRIPT_IMPORT_VALIDATION_CONTRACT } from './story-manuscript-import-validation-contract';
+import { STORY_BRANCH_TIMELINE_PACING_BACKEND_CONTRACT } from './story-branch-pacing-contract';
+import { STORY_ENDING_PROVENANCE_POLICY_BACKEND_CONTRACT } from './story-ending-provenance-contract';
+import { STORY_LOCALE_PAYLOAD_FALLBACK_API_CONTRACT } from './story-locale-payload-contract';
+
+export {
+  findStoryChoiceVisualRouteViolations,
+  projectStorySceneVisualManifest,
+  STORY_SCENE_VISUAL_MANIFEST_API_CONTRACT,
+} from './story-scene-visual-manifest-contract';
+export {
+  STORY_WRITER_MANUSCRIPT_IMPORT_VALIDATION_CONTRACT,
+  validateStoryManuscriptImport,
+} from './story-manuscript-import-validation-contract';
+export {
+  buildStoryBranchPacingProjection,
+  STORY_BRANCH_TIMELINE_PACING_BACKEND_CONTRACT,
+} from './story-branch-pacing-contract';
+export {
+  buildStoryEndingCompletionSignature,
+  canApplyStoryEndingTransition,
+  projectStoryEndingCompletion,
+  STORY_ENDING_PROVENANCE_LABEL_KEYS,
+  STORY_ENDING_PROVENANCE_POLICY_BACKEND_CONTRACT,
+  STORY_ENDING_PROVENANCE_VALUES,
+} from './story-ending-provenance-contract';
+export {
+  normalizeStoryPayloadLocale,
+  resolveStoryLocalizedValue,
+  STORY_LOCALE_PAYLOAD_FALLBACK_API_CONTRACT,
+  STORY_PAYLOAD_LOCALES,
+} from './story-locale-payload-contract';
 
 export {
   buildStorySceneAssetFallbackErrorEnvelope,
@@ -1188,6 +1221,12 @@ export const STORY_STAGE_CONTRACT = {
   storySceneReadModel: STORY_SCENE_READ_MODEL_CONTRACT,
   liveFixtureExposureGuard: STORY_STAGE_LIVE_FIXTURE_EXPOSURE_GUARD_CONTRACT,
   branchSceneAuthorityAudit: STORY_BRANCH_SCENE_AUTHORITY_AUDIT_CONTRACT,
+  sceneVisualManifestApi: STORY_SCENE_VISUAL_MANIFEST_API_CONTRACT,
+  writerManuscriptImportValidation:
+    STORY_WRITER_MANUSCRIPT_IMPORT_VALIDATION_CONTRACT,
+  branchTimelinePacing: STORY_BRANCH_TIMELINE_PACING_BACKEND_CONTRACT,
+  endingProvenancePolicy: STORY_ENDING_PROVENANCE_POLICY_BACKEND_CONTRACT,
+  localePayloadFallbackApi: STORY_LOCALE_PAYLOAD_FALLBACK_API_CONTRACT,
   freeStoryStateAccumulator: FREE_STORY_STATE_ACCUMULATOR_CONTRACT,
   freeEndingPersonalizationCostGuard:
     FREE_ENDING_PERSONALIZATION_COST_GUARD_CONTRACT,
