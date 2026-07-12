@@ -2321,16 +2321,14 @@ select.dm-field-input option {
   line-height: 1.35;
 }
 
-/* 390px 이하: 가로 스크롤 (카드 고정 폭 148px, 스크롤바 숨김) */
+/* Narrow screens keep every unavailable plan visible without relying on a clipped carousel. */
 @media (max-width: 480px) {
   .premium-chat-plan-list {
-    grid-template-columns: repeat(4, 148px);
-    overflow-x: auto;
-    padding-bottom: 6px;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
+    padding-bottom: 0;
   }
-  .premium-chat-plan-list::-webkit-scrollbar { display: none; }
+  .premium-chat-plan { min-width: 0; }
   .premium-chat-plans { padding: 14px 12px 10px; }
 }
 
