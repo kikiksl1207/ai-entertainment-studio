@@ -13,6 +13,13 @@
   let settlementPreview = null;
   let studioModalConfirmHandler = null;
   let studioToastTimer = null;
+  let storyIntakeRequestKey = null;
+
+  const storyIntakeFileRules = {
+    manuscripts: { maxCount: 10, maxBytes: 50 * 1024 * 1024, extensions: new Set([".md", ".txt", ".docx", ".pdf", ".json"]) },
+    metadata: { maxCount: 10, maxBytes: 10 * 1024 * 1024, extensions: new Set([".json", ".csv"]) },
+    visuals: { maxCount: 20, maxBytes: 25 * 1024 * 1024, extensions: new Set([".jpg", ".jpeg", ".png", ".webp"]) }
+  };
 
   function readAuth() {
     for (const key of authStorageKeys) {
@@ -157,6 +164,32 @@
       const refreshed = await refreshStudioAuthOnce();
       if (refreshed?.accessToken) {
         res = await fetchCreatorStudioApi(path, {
+          ...options,
+          token: refreshed.accessToken,
+          _retried: true
+        });
+      }
+    }
+    return res;
+  }
+
+  async function fetchStoryIntake(formData, idempotencyKey, options = {}) {
+    let auth = readAuth();
+    if (!options.token && !auth?.accessToken && auth?.refreshToken) {
+      auth = await refreshStudioAuthOnce();
+    }
+    const token = options.token || auth?.accessToken;
+    const headers = { "Idempotency-Key": idempotencyKey };
+    if (token) headers.Authorization = "Bearer " + token;
+    let res = await fetch(apiBase + "/api/v1/story-upload/intake", {
+      method: "POST",
+      headers,
+      body: formData
+    });
+    if (res.status === 401 && !options._retried) {
+      const refreshed = await refreshStudioAuthOnce();
+      if (refreshed?.accessToken) {
+        res = await fetchStoryIntake(formData, idempotencyKey, {
           ...options,
           token: refreshed.accessToken,
           _retried: true
@@ -878,6 +911,193 @@
     }
   }
 
+  // ── #1831 — 라이브 원고 접수 (검토용 multipart intake) ────────────────
+
+  function storyIntakeText(key, values = {}) {
+    const fullKey = "storyIntake." + key;
+    const translated = window.luminaI18n?.t?.(fullKey);
+    const template = translated && translated !== fullKey ? translated : fullKey;
+    return template.replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ""));
+  }
+
+  function setStoryIntakeState(messageKey, tone, values) {
+    const el = document.getElementById("storyIntakeFormState");
+    if (!el) return;
+    el.textContent = storyIntakeText(messageKey, values);
+    el.classList.toggle("is-good", tone === "good");
+    el.classList.toggle("is-danger", tone === "danger");
+  }
+
+  function setStoryIntakeSubmitting(submitting) {
+    const button = document.getElementById("storyIntakeSubmit");
+    if (!button) return;
+    button.disabled = submitting;
+    button.setAttribute("aria-disabled", submitting ? "true" : "false");
+    button.textContent = storyIntakeText(submitting ? "submit.pending" : "submit");
+    document.querySelectorAll("#storyIntakeForm input, #storyIntakeForm select, #storyIntakeReset").forEach(control => {
+      if (control !== button) control.disabled = submitting;
+    });
+  }
+
+  function syncStoryIntakeRightsField() {
+    const source = document.getElementById("storyIntakeSourceClass");
+    const field = document.getElementById("storyIntakeRightsField");
+    const input = document.getElementById("storyIntakeRightsReference");
+    const required = source?.value === "licensed_ip";
+    if (field) field.hidden = !required;
+    if (input) input.required = required;
+  }
+
+  function storyIntakeFiles(name) {
+    return Array.from(document.getElementById("storyIntake" + name)?.files || []);
+  }
+
+  function storyIntakeExtension(file) {
+    const name = String(file?.name || "");
+    const dot = name.lastIndexOf(".");
+    return dot >= 0 ? name.slice(dot).toLowerCase() : "";
+  }
+
+  function validateStoryIntakeFiles(groups) {
+    let totalCount = 0;
+    let totalBytes = 0;
+    for (const [field, files] of Object.entries(groups)) {
+      const rule = storyIntakeFileRules[field];
+      totalCount += files.length;
+      if (files.length > rule.maxCount) return { key: "state.files.tooMany" };
+      for (const file of files) {
+        totalBytes += Number(file.size || 0);
+        if (!rule.extensions.has(storyIntakeExtension(file))) return { key: "state.files.type" };
+        if (file.size < 1 || file.size > rule.maxBytes) return { key: "state.files.size" };
+      }
+    }
+    if (totalCount > 40 || totalBytes > 150 * 1024 * 1024) return { key: "state.files.total" };
+    return null;
+  }
+
+  function createStoryIntakeRequestKey() {
+    if (globalThis.crypto?.randomUUID) return "story-intake-" + globalThis.crypto.randomUUID();
+    return "story-intake-" + Date.now() + "-" + Math.random().toString(36).slice(2, 12);
+  }
+
+  function formatStoryIntakeReceivedAt(value) {
+    const date = new Date(value || "");
+    if (!Number.isFinite(date.getTime())) return storyIntakeText("receipt.receivedAt.unknown");
+    const locale = window.luminaI18n?.getRegionalLocale?.() || document.documentElement.lang || "ko-KR";
+    return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(date);
+  }
+
+  function renderStoryIntakeReceipt(receipt) {
+    const root = document.getElementById("storyIntakeReceipt");
+    if (!root) return;
+    const fileCount = Number(receipt?.fileCount || 0);
+    text("storyIntakeReceiptStatus", storyIntakeText("receipt.status.received"));
+    text("storyIntakeReceiptFiles", storyIntakeText("receipt.files.value", { count: fileCount }));
+    text("storyIntakeReceiptReceivedAt", formatStoryIntakeReceivedAt(receipt?.receivedAt));
+    root.hidden = false;
+  }
+
+  function clearStoryIntake() {
+    document.getElementById("storyIntakeForm")?.reset();
+    storyIntakeRequestKey = null;
+    syncStoryIntakeRightsField();
+    setStoryIntakeState("state.idle", "");
+  }
+
+  async function submitStoryIntake(event) {
+    event.preventDefault();
+    const titleInput = document.getElementById("storyIntakeTitle");
+    const localeSelect = document.getElementById("storyIntakeLocale");
+    const sourceSelect = document.getElementById("storyIntakeSourceClass");
+    const rightsInput = document.getElementById("storyIntakeRightsReference");
+    const title = titleInput?.value.trim() || "";
+    const originalLocale = localeSelect?.value || "ko";
+    const sourceClass = sourceSelect?.value || "original";
+    const rightsReference = rightsInput?.value.trim() || "";
+    const groups = {
+      manuscripts: storyIntakeFiles("Manuscripts"),
+      metadata: storyIntakeFiles("Metadata"),
+      visuals: storyIntakeFiles("Visuals")
+    };
+
+    if (!title) {
+      setStoryIntakeState("state.titleRequired", "danger");
+      titleInput?.focus();
+      return;
+    }
+    if (!groups.manuscripts.length) {
+      setStoryIntakeState("state.manuscriptRequired", "danger");
+      document.getElementById("storyIntakeManuscripts")?.focus();
+      return;
+    }
+    if (sourceClass === "licensed_ip" && !rightsReference) {
+      setStoryIntakeState("state.rightsRequired", "danger");
+      rightsInput?.focus();
+      return;
+    }
+    const fileError = validateStoryIntakeFiles(groups);
+    if (fileError) {
+      setStoryIntakeState(fileError.key, "danger");
+      return;
+    }
+    const auth = readAuth();
+    if (!auth?.accessToken && !auth?.refreshToken) {
+      setStoryIntakeState("state.authRequired", "danger");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("title", title);
+    formData.append("originalLocale", originalLocale);
+    formData.append("sourceClass", sourceClass);
+    formData.append("submissionType", "final");
+    if (rightsReference) formData.append("rightsReference", rightsReference);
+    Object.entries(groups).forEach(([field, files]) => {
+      files.forEach(file => formData.append(field, file));
+    });
+    storyIntakeRequestKey ||= createStoryIntakeRequestKey();
+    setStoryIntakeSubmitting(true);
+    setStoryIntakeState("state.submitting", "");
+
+    try {
+      const res = await fetchStoryIntake(formData, storyIntakeRequestKey);
+      if (res.status === 401) {
+        setStoryIntakeState("state.authRequired", "danger");
+        return;
+      }
+      if (res.status === 403) {
+        setStoryIntakeState("state.forbidden", "");
+        return;
+      }
+      if (res.status === 413) {
+        setStoryIntakeState("state.files.total", "danger");
+        return;
+      }
+      if (res.status === 409) {
+        setStoryIntakeState("state.conflict", "danger");
+        return;
+      }
+      if (!res.ok) {
+        setStoryIntakeState("state.failed", "danger");
+        return;
+      }
+      const receipt = await res.json().catch(() => null);
+      if (receipt?.status !== "received") {
+        setStoryIntakeState("state.failed", "danger");
+        return;
+      }
+      renderStoryIntakeReceipt(receipt);
+      setStoryIntakeState("state.received", "good");
+      storyIntakeRequestKey = null;
+      document.getElementById("storyIntakeForm")?.reset();
+      syncStoryIntakeRightsField();
+    } catch (_) {
+      setStoryIntakeState("state.network", "danger");
+    } finally {
+      setStoryIntakeSubmitting(false);
+    }
+  }
+
   // ── #545 — AI 프리미엄 콘텐츠 요청 상태 UI skeleton ──────────────────────
   // 8개 처리 상태: submitted / preparing / generating / reviewing /
   //                ready / info_needed / failed / rejected
@@ -1146,6 +1366,17 @@
     fillProfileEditor(selectedProfileItem());
   });
   document.getElementById("studioProfileSaveButton")?.addEventListener("click", saveProfileEditor);
+  document.getElementById("storyIntakeForm")?.addEventListener("submit", submitStoryIntake);
+  document.getElementById("storyIntakeReset")?.addEventListener("click", clearStoryIntake);
+  document.getElementById("storyIntakeSourceClass")?.addEventListener("change", () => {
+    storyIntakeRequestKey = null;
+    syncStoryIntakeRightsField();
+  });
+  document.querySelectorAll("#storyIntakeForm input, #storyIntakeForm select").forEach(input => {
+    input.addEventListener("change", () => { storyIntakeRequestKey = null; });
+    input.addEventListener("input", () => { storyIntakeRequestKey = null; });
+  });
+  syncStoryIntakeRightsField();
   document.querySelectorAll(".studio-nav button[data-section]").forEach(button => {
     button.addEventListener("click", () => {
       if (button.disabled) return;

@@ -854,6 +854,39 @@ label { gap: 8px; }
   color: var(--hot);
 }
 
+/* Story writer intake uses the live multipart receipt contract. */
+.story-intake-panel { display: grid; gap: 16px; }
+.story-intake-notice { margin: 0; }
+.story-intake-file-field input[type="file"] { padding: 9px 10px; }
+.story-intake-file-field small,
+.story-intake-file-guide {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+.story-intake-file-guide { margin: 12px 0 0; }
+.story-intake-receipt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.story-intake-receipt-grid > div {
+  display: grid;
+  gap: 7px;
+  min-height: 86px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.story-intake-receipt-grid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+.story-intake-receipt-grid strong { overflow-wrap: anywhere; }
+
 /* Creator Studio shared polish */
 .page-creator-studio .studio-nav b {
   color: #ff5aa8;
@@ -906,4 +939,6 @@ label { gap: 8px; }
   .page-creator-studio .modal-actions button {
     flex: 1 1 100%;
   }
+
+  .story-intake-receipt-grid { grid-template-columns: 1fr; }
 }

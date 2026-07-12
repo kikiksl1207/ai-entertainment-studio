@@ -1139,6 +1139,370 @@ const I18N_DICT = {
     "en-US": "Close",
     "zh-CN": "关闭",
     "zh-Hant": "關閉"
+  },
+  "storyIntake.nav": {
+    "ko-KR": "원고 접수",
+    "ja-JP": "原稿受付",
+    "en-US": "Manuscript intake",
+    "zh-CN": "稿件提交",
+    "zh-Hant": "稿件提交"
+  },
+  "storyIntake.kicker": {
+    "ko-KR": "WRITER INTAKE",
+    "ja-JP": "WRITER INTAKE",
+    "en-US": "WRITER INTAKE",
+    "zh-CN": "WRITER INTAKE",
+    "zh-Hant": "WRITER INTAKE"
+  },
+  "storyIntake.heading": {
+    "ko-KR": "스토리 원고 접수",
+    "ja-JP": "ストーリー原稿の受付",
+    "en-US": "Story manuscript intake",
+    "zh-CN": "故事稿件提交",
+    "zh-Hant": "故事稿件提交"
+  },
+  "storyIntake.badge": {
+    "ko-KR": "검토 접수",
+    "ja-JP": "審査受付",
+    "en-US": "For review",
+    "zh-CN": "审核提交",
+    "zh-Hant": "審核提交"
+  },
+  "storyIntake.notice.title": {
+    "ko-KR": "검토 전용 접수",
+    "ja-JP": "審査専用の受付",
+    "en-US": "Review-only intake",
+    "zh-CN": "仅供审核提交",
+    "zh-Hant": "僅供審核提交"
+  },
+  "storyIntake.notice.body": {
+    "ko-KR": "원고와 참고 파일은 검토 접수로만 저장됩니다. 공개, 판매, 정산은 이 화면에서 실행되지 않습니다.",
+    "ja-JP": "原稿と参考ファイルは審査受付としてのみ保存されます。この画面では公開、販売、精算は実行されません。",
+    "en-US": "Manuscripts and reference files are stored only for review. This screen does not publish, sell, or settle anything.",
+    "zh-CN": "稿件和参考文件仅作为审核提交保存。此页面不会发布、销售或结算任何内容。",
+    "zh-Hant": "稿件和參考檔案僅作為審核提交儲存。此頁面不會發布、銷售或結算任何內容。"
+  },
+  "storyIntake.title.label": {
+    "ko-KR": "작품 제목",
+    "ja-JP": "作品タイトル",
+    "en-US": "Title",
+    "zh-CN": "作品标题",
+    "zh-Hant": "作品標題"
+  },
+  "storyIntake.title.placeholder": {
+    "ko-KR": "검토할 작품 제목을 입력해주세요",
+    "ja-JP": "審査する作品タイトルを入力してください",
+    "en-US": "Enter the title for review",
+    "zh-CN": "请输入要审核的作品标题",
+    "zh-Hant": "請輸入要審核的作品標題"
+  },
+  "storyIntake.locale.label": {
+    "ko-KR": "원문 언어",
+    "ja-JP": "原文の言語",
+    "en-US": "Original language",
+    "zh-CN": "原文语言",
+    "zh-Hant": "原文語言"
+  },
+  "storyIntake.locale.ko": {
+    "ko-KR": "한국어",
+    "ja-JP": "韓国語",
+    "en-US": "Korean",
+    "zh-CN": "韩语",
+    "zh-Hant": "韓語"
+  },
+  "storyIntake.locale.en": {
+    "ko-KR": "영어",
+    "ja-JP": "英語",
+    "en-US": "English",
+    "zh-CN": "英语",
+    "zh-Hant": "英語"
+  },
+  "storyIntake.locale.ja": {
+    "ko-KR": "일본어",
+    "ja-JP": "日本語",
+    "en-US": "Japanese",
+    "zh-CN": "日语",
+    "zh-Hant": "日語"
+  },
+  "storyIntake.locale.zhHans": {
+    "ko-KR": "중국어 간체",
+    "ja-JP": "中国語（簡体）",
+    "en-US": "Chinese (Simplified)",
+    "zh-CN": "简体中文",
+    "zh-Hant": "簡體中文"
+  },
+  "storyIntake.locale.zhHant": {
+    "ko-KR": "중국어 번체",
+    "ja-JP": "中国語（繁体）",
+    "en-US": "Chinese (Traditional)",
+    "zh-CN": "繁体中文",
+    "zh-Hant": "繁體中文"
+  },
+  "storyIntake.source.label": {
+    "ko-KR": "원천 권리",
+    "ja-JP": "権利区分",
+    "en-US": "Rights source",
+    "zh-CN": "权利来源",
+    "zh-Hant": "權利來源"
+  },
+  "storyIntake.source.original": {
+    "ko-KR": "직접 창작",
+    "ja-JP": "オリジナル創作",
+    "en-US": "Original work",
+    "zh-CN": "原创作品",
+    "zh-Hant": "原創作品"
+  },
+  "storyIntake.source.publicDomain": {
+    "ko-KR": "퍼블릭 도메인",
+    "ja-JP": "パブリックドメイン",
+    "en-US": "Public domain",
+    "zh-CN": "公有领域",
+    "zh-Hant": "公有領域"
+  },
+  "storyIntake.source.licensedIp": {
+    "ko-KR": "라이선스 IP",
+    "ja-JP": "ライセンスIP",
+    "en-US": "Licensed IP",
+    "zh-CN": "授权 IP",
+    "zh-Hant": "授權 IP"
+  },
+  "storyIntake.rights.label": {
+    "ko-KR": "권리 근거",
+    "ja-JP": "権利の根拠",
+    "en-US": "Rights reference",
+    "zh-CN": "权利依据",
+    "zh-Hant": "權利依據"
+  },
+  "storyIntake.rights.placeholder": {
+    "ko-KR": "계약명, 권리 확인 문서 등 검토에 필요한 근거를 입력해주세요",
+    "ja-JP": "契約名や権利確認書類など、審査に必要な根拠を入力してください",
+    "en-US": "Enter the contract or other review reference for the licensed rights",
+    "zh-CN": "请输入合同名称或其他审核所需的权利依据",
+    "zh-Hant": "請輸入合約名稱或其他審核所需的權利依據"
+  },
+  "storyIntake.files.manuscripts.label": {
+    "ko-KR": "원고 파일",
+    "ja-JP": "原稿ファイル",
+    "en-US": "Manuscript files",
+    "zh-CN": "稿件文件",
+    "zh-Hant": "稿件檔案"
+  },
+  "storyIntake.files.manuscripts.help": {
+    "ko-KR": "필수 · 최대 10개 · MD, TXT, DOCX, PDF, JSON · 파일당 50MB",
+    "ja-JP": "必須 · 最大10件 · MD、TXT、DOCX、PDF、JSON · 1ファイル50MBまで",
+    "en-US": "Required · up to 10 · MD, TXT, DOCX, PDF, JSON · 50MB each",
+    "zh-CN": "必填 · 最多 10 个 · MD、TXT、DOCX、PDF、JSON · 每个 50MB",
+    "zh-Hant": "必填 · 最多 10 個 · MD、TXT、DOCX、PDF、JSON · 每個 50MB"
+  },
+  "storyIntake.files.metadata.label": {
+    "ko-KR": "메타데이터",
+    "ja-JP": "メタデータ",
+    "en-US": "Metadata",
+    "zh-CN": "元数据",
+    "zh-Hant": "中繼資料"
+  },
+  "storyIntake.files.metadata.help": {
+    "ko-KR": "선택 · 최대 10개 · JSON, CSV · 파일당 10MB",
+    "ja-JP": "任意 · 最大10件 · JSON、CSV · 1ファイル10MBまで",
+    "en-US": "Optional · up to 10 · JSON, CSV · 10MB each",
+    "zh-CN": "选填 · 最多 10 个 · JSON、CSV · 每个 10MB",
+    "zh-Hant": "選填 · 最多 10 個 · JSON、CSV · 每個 10MB"
+  },
+  "storyIntake.files.visuals.label": {
+    "ko-KR": "시각 자료",
+    "ja-JP": "ビジュアル資料",
+    "en-US": "Visual references",
+    "zh-CN": "视觉资料",
+    "zh-Hant": "視覺資料"
+  },
+  "storyIntake.files.visuals.help": {
+    "ko-KR": "선택 · 최대 20개 · JPG, PNG, WEBP · 파일당 25MB",
+    "ja-JP": "任意 · 最大20件 · JPG、PNG、WEBP · 1ファイル25MBまで",
+    "en-US": "Optional · up to 20 · JPG, PNG, WEBP · 25MB each",
+    "zh-CN": "选填 · 最多 20 个 · JPG、PNG、WEBP · 每个 25MB",
+    "zh-Hant": "選填 · 最多 20 個 · JPG、PNG、WEBP · 每個 25MB"
+  },
+  "storyIntake.files.guide": {
+    "ko-KR": "전체 40개, 합계 150MB까지 접수할 수 있습니다. 서버에서 파일 형식과 용량을 다시 확인합니다.",
+    "ja-JP": "合計40件、150MBまで受け付けます。サーバーでファイル形式と容量を再確認します。",
+    "en-US": "You can submit up to 40 files and 150MB in total. The server validates file type and size again.",
+    "zh-CN": "最多可提交 40 个文件，合计 150MB。服务器会再次验证文件类型和大小。",
+    "zh-Hant": "最多可提交 40 個檔案，合計 150MB。伺服器會再次驗證檔案類型和大小。"
+  },
+  "storyIntake.state.idle": {
+    "ko-KR": "필수 항목과 원고 파일을 입력하면 검토 접수를 보냅니다.",
+    "ja-JP": "必須項目と原稿ファイルを入力すると、審査受付を送信します。",
+    "en-US": "Enter the required details and manuscript file to send it for review.",
+    "zh-CN": "填写必填项并添加稿件文件后，即可发送审核提交。",
+    "zh-Hant": "填寫必填項並加入稿件檔案後，即可傳送審核提交。"
+  },
+  "storyIntake.submit": {
+    "ko-KR": "검토 접수 보내기",
+    "ja-JP": "審査受付を送信",
+    "en-US": "Send for review",
+    "zh-CN": "发送审核提交",
+    "zh-Hant": "傳送審核提交"
+  },
+  "storyIntake.submit.pending": {
+    "ko-KR": "접수 중",
+    "ja-JP": "受付中",
+    "en-US": "Submitting",
+    "zh-CN": "提交中",
+    "zh-Hant": "提交中"
+  },
+  "storyIntake.reset": {
+    "ko-KR": "입력 초기화",
+    "ja-JP": "入力をリセット",
+    "en-US": "Clear form",
+    "zh-CN": "清除输入",
+    "zh-Hant": "清除輸入"
+  },
+  "storyIntake.receipt.kicker": {
+    "ko-KR": "RECEIPT",
+    "ja-JP": "RECEIPT",
+    "en-US": "RECEIPT",
+    "zh-CN": "RECEIPT",
+    "zh-Hant": "RECEIPT"
+  },
+  "storyIntake.receipt.heading": {
+    "ko-KR": "최근 접수",
+    "ja-JP": "最新の受付",
+    "en-US": "Latest receipt",
+    "zh-CN": "最近提交",
+    "zh-Hant": "最近提交"
+  },
+  "storyIntake.receipt.files.label": {
+    "ko-KR": "접수 파일",
+    "ja-JP": "受付ファイル",
+    "en-US": "Submitted files",
+    "zh-CN": "提交文件",
+    "zh-Hant": "提交檔案"
+  },
+  "storyIntake.receipt.receivedAt.label": {
+    "ko-KR": "접수 시각",
+    "ja-JP": "受付時刻",
+    "en-US": "Received at",
+    "zh-CN": "提交时间",
+    "zh-Hant": "提交時間"
+  },
+  "storyIntake.receipt.status.received": {
+    "ko-KR": "접수됨",
+    "ja-JP": "受付済み",
+    "en-US": "Received",
+    "zh-CN": "已提交",
+    "zh-Hant": "已提交"
+  },
+  "storyIntake.receipt.files.value": {
+    "ko-KR": "{count}개 파일",
+    "ja-JP": "{count}件のファイル",
+    "en-US": "{count} files",
+    "zh-CN": "{count} 个文件",
+    "zh-Hant": "{count} 個檔案"
+  },
+  "storyIntake.receipt.receivedAt.unknown": {
+    "ko-KR": "확인 중",
+    "ja-JP": "確認中",
+    "en-US": "Checking",
+    "zh-CN": "确认中",
+    "zh-Hant": "確認中"
+  },
+  "storyIntake.state.titleRequired": {
+    "ko-KR": "작품 제목을 입력해주세요.",
+    "ja-JP": "作品タイトルを入力してください。",
+    "en-US": "Enter a title.",
+    "zh-CN": "请输入作品标题。",
+    "zh-Hant": "請輸入作品標題。"
+  },
+  "storyIntake.state.manuscriptRequired": {
+    "ko-KR": "원고 파일을 한 개 이상 선택해주세요.",
+    "ja-JP": "原稿ファイルを1件以上選択してください。",
+    "en-US": "Select at least one manuscript file.",
+    "zh-CN": "请至少选择一个稿件文件。",
+    "zh-Hant": "請至少選擇一個稿件檔案。"
+  },
+  "storyIntake.state.rightsRequired": {
+    "ko-KR": "라이선스 IP는 권리 근거를 입력해야 합니다.",
+    "ja-JP": "ライセンスIPには権利の根拠を入力してください。",
+    "en-US": "A rights reference is required for licensed IP.",
+    "zh-CN": "授权 IP 必须填写权利依据。",
+    "zh-Hant": "授權 IP 必須填寫權利依據。"
+  },
+  "storyIntake.state.files.tooMany": {
+    "ko-KR": "파일 개수가 허용 범위를 넘었습니다. 안내된 개수 이하로 선택해주세요.",
+    "ja-JP": "ファイル数が上限を超えています。案内された件数以内で選択してください。",
+    "en-US": "Too many files are selected. Stay within the stated limit.",
+    "zh-CN": "所选文件数量超过限制。请按说明减少文件数量。",
+    "zh-Hant": "所選檔案數量超過限制。請依說明減少檔案數量。"
+  },
+  "storyIntake.state.files.type": {
+    "ko-KR": "지원하지 않는 파일 형식이 포함되어 있습니다.",
+    "ja-JP": "対応していないファイル形式が含まれています。",
+    "en-US": "An unsupported file type is included.",
+    "zh-CN": "包含不支持的文件类型。",
+    "zh-Hant": "包含不支援的檔案類型。"
+  },
+  "storyIntake.state.files.size": {
+    "ko-KR": "파일 용량이 항목별 제한을 넘었거나 비어 있습니다.",
+    "ja-JP": "ファイル容量が項目ごとの上限を超えているか、空です。",
+    "en-US": "A file exceeds its category limit or is empty.",
+    "zh-CN": "文件超过分类大小限制或为空。",
+    "zh-Hant": "檔案超過分類大小限制或為空。"
+  },
+  "storyIntake.state.files.total": {
+    "ko-KR": "파일 수 또는 전체 용량이 접수 제한을 넘었습니다.",
+    "ja-JP": "ファイル数または合計容量が受付上限を超えています。",
+    "en-US": "The file count or total size exceeds the intake limit.",
+    "zh-CN": "文件数量或总大小超过提交限制。",
+    "zh-Hant": "檔案數量或總大小超過提交限制。"
+  },
+  "storyIntake.state.authRequired": {
+    "ko-KR": "로그인 정보를 다시 확인해주세요.",
+    "ja-JP": "ログイン情報をもう一度確認してください。",
+    "en-US": "Check your sign-in information and try again.",
+    "zh-CN": "请重新确认登录信息。",
+    "zh-Hant": "請重新確認登入資訊。"
+  },
+  "storyIntake.state.submitting": {
+    "ko-KR": "원고를 검토 접수로 보내는 중입니다.",
+    "ja-JP": "原稿を審査受付として送信しています。",
+    "en-US": "Sending the manuscript for review.",
+    "zh-CN": "正在将稿件发送审核。",
+    "zh-Hant": "正在將稿件傳送審核。"
+  },
+  "storyIntake.state.forbidden": {
+    "ko-KR": "이 계정에는 원고 접수 권한이 없습니다. 운영팀 안내 후 이용할 수 있습니다.",
+    "ja-JP": "このアカウントには原稿受付の権限がありません。運営チームの案内後に利用できます。",
+    "en-US": "This account does not have manuscript intake access. Follow the operations team's guidance to continue.",
+    "zh-CN": "此帐户没有稿件提交权限。请根据运营团队指引继续。",
+    "zh-Hant": "此帳戶沒有稿件提交權限。請依營運團隊指引繼續。"
+  },
+  "storyIntake.state.conflict": {
+    "ko-KR": "같은 접수 요청의 내용이 달라 다시 보낼 수 없습니다. 입력을 확인한 뒤 새로 접수해주세요.",
+    "ja-JP": "同じ受付リクエストの内容が異なるため、再送できません。入力を確認して新しく受付してください。",
+    "en-US": "This intake request changed and cannot be replayed. Review the form and submit it again.",
+    "zh-CN": "同一提交请求的内容已变更，无法重试。请检查输入后重新提交。",
+    "zh-Hant": "同一提交請求的內容已變更，無法重試。請檢查輸入後重新提交。"
+  },
+  "storyIntake.state.failed": {
+    "ko-KR": "접수하지 못했습니다. 잠시 후 다시 시도해주세요.",
+    "ja-JP": "受付できませんでした。しばらくしてからもう一度お試しください。",
+    "en-US": "The intake was not received. Try again shortly.",
+    "zh-CN": "未能提交，请稍后重试。",
+    "zh-Hant": "未能提交，請稍後重試。"
+  },
+  "storyIntake.state.network": {
+    "ko-KR": "접수 요청 중 연결 오류가 발생했습니다. 다시 시도하면 같은 요청을 안전하게 확인합니다.",
+    "ja-JP": "受付リクエスト中に接続エラーが発生しました。再試行すると同じリクエストを安全に確認します。",
+    "en-US": "A connection error occurred. Retrying safely checks the same intake request.",
+    "zh-CN": "提交请求时发生连接错误。重试会安全地确认同一提交请求。",
+    "zh-Hant": "提交請求時發生連線錯誤。重試會安全地確認同一提交請求。"
+  },
+  "storyIntake.state.received": {
+    "ko-KR": "검토 접수가 완료되었습니다. 아래 접수 내역을 확인해주세요.",
+    "ja-JP": "審査受付が完了しました。下の受付内容を確認してください。",
+    "en-US": "The review intake is complete. Check the receipt below.",
+    "zh-CN": "审核提交已完成。请查看下方提交回执。",
+    "zh-Hant": "審核提交已完成。請查看下方提交收據。"
   }
 };
 

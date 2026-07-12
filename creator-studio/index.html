@@ -52,6 +52,7 @@
           <button type="button" data-section="artists">아티스트 <b>3</b></button>
           <button type="button" data-section="feed">피드 작성 <b>6</b></button>
           <button type="button" data-section="media">이미지/숏폼 <b>24</b></button>
+          <button type="button" data-section="story-intake"><span data-i18n="storyIntake.nav">원고 접수</span> <b>!</b></button>
           <button type="button" data-section="image-lab" disabled aria-disabled="true" style="opacity:.45; cursor:not-allowed;">이미지 요청 <b>준비</b></button>
           <button type="button" data-section="knowledge-url">자료 URL <b>0</b></button>
           <button type="button" data-section="settlement">정산 <b>₩</b></button>
@@ -243,6 +244,86 @@
               <article class="media-tile"><img src="/assets/characters/yoon-serin/thumb.png" alt="gallery" onerror="this.src='/assets/brand/lumina-stage-logo.png'" /><footer><span>gallery</span><span>1</span></footer></article>
               <article class="media-tile"><img src="/assets/characters/ha-yuna/cover.png" alt="cover" onerror="this.src='/assets/brand/lumina-stage-logo.png'" /><footer><span>shortform</span><span>후보</span></footer></article>
               <article class="media-tile"><img src="/assets/characters/kwon-taejun/cover.png" alt="cover" onerror="this.src='/assets/brand/lumina-stage-logo.png'" /><footer><span>gallery</span><span>검수</span></footer></article>
+            </div>
+          </article>
+        </section>
+
+        <section class="studio-section" id="story-intake">
+          <article class="panel story-intake-panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker" data-i18n="storyIntake.kicker">WRITER INTAKE</span>
+                <h2 data-i18n="storyIntake.heading">스토리 원고 접수</h2>
+              </div>
+              <span class="badge" data-i18n="storyIntake.badge">검토 접수</span>
+            </div>
+            <div class="notice story-intake-notice">
+              <strong data-i18n="storyIntake.notice.title">검토 전용 접수</strong>
+              <span data-i18n="storyIntake.notice.body">원고와 참고 파일은 검토 접수로만 저장됩니다. 공개, 판매, 정산은 이 화면에서 실행되지 않습니다.</span>
+            </div>
+            <form id="storyIntakeForm" novalidate>
+              <div class="form-grid">
+                <label class="is-wide">
+                  <span data-i18n="storyIntake.title.label">작품 제목</span>
+                  <input id="storyIntakeTitle" name="title" maxlength="120" autocomplete="off" data-i18n-attr="placeholder:storyIntake.title.placeholder" placeholder="검토할 작품 제목을 입력해주세요" />
+                </label>
+                <label>
+                  <span data-i18n="storyIntake.locale.label">원문 언어</span>
+                  <select id="storyIntakeLocale" name="originalLocale">
+                    <option value="ko" data-i18n="storyIntake.locale.ko">한국어</option>
+                    <option value="en" data-i18n="storyIntake.locale.en">English</option>
+                    <option value="ja" data-i18n="storyIntake.locale.ja">日本語</option>
+                    <option value="zh-Hans" data-i18n="storyIntake.locale.zhHans">简体中文</option>
+                    <option value="zh-Hant" data-i18n="storyIntake.locale.zhHant">繁體中文</option>
+                  </select>
+                </label>
+                <label>
+                  <span data-i18n="storyIntake.source.label">원천 권리</span>
+                  <select id="storyIntakeSourceClass" name="sourceClass">
+                    <option value="original" data-i18n="storyIntake.source.original">직접 창작</option>
+                    <option value="public_domain" data-i18n="storyIntake.source.publicDomain">퍼블릭 도메인</option>
+                    <option value="licensed_ip" data-i18n="storyIntake.source.licensedIp">라이선스 IP</option>
+                  </select>
+                </label>
+                <label class="is-wide" id="storyIntakeRightsField" hidden>
+                  <span data-i18n="storyIntake.rights.label">권리 근거</span>
+                  <input id="storyIntakeRightsReference" name="rightsReference" maxlength="200" autocomplete="off" data-i18n-attr="placeholder:storyIntake.rights.placeholder" placeholder="계약명, 권리 확인 문서 등 검토에 필요한 근거를 입력해주세요" />
+                </label>
+                <label class="is-wide story-intake-file-field">
+                  <span data-i18n="storyIntake.files.manuscripts.label">원고 파일</span>
+                  <input id="storyIntakeManuscripts" name="manuscripts" type="file" multiple required accept=".md,.txt,.docx,.pdf,.json" aria-describedby="storyIntakeFileGuide" />
+                  <small data-i18n="storyIntake.files.manuscripts.help">필수 · 최대 10개 · MD, TXT, DOCX, PDF, JSON · 파일당 50MB</small>
+                </label>
+                <label class="story-intake-file-field">
+                  <span data-i18n="storyIntake.files.metadata.label">메타데이터</span>
+                  <input id="storyIntakeMetadata" name="metadata" type="file" multiple accept=".json,.csv" aria-describedby="storyIntakeFileGuide" />
+                  <small data-i18n="storyIntake.files.metadata.help">선택 · 최대 10개 · JSON, CSV · 파일당 10MB</small>
+                </label>
+                <label class="story-intake-file-field">
+                  <span data-i18n="storyIntake.files.visuals.label">시각 자료</span>
+                  <input id="storyIntakeVisuals" name="visuals" type="file" multiple accept=".jpg,.jpeg,.png,.webp" aria-describedby="storyIntakeFileGuide" />
+                  <small data-i18n="storyIntake.files.visuals.help">선택 · 최대 20개 · JPG, PNG, WEBP · 파일당 25MB</small>
+                </label>
+              </div>
+              <p class="story-intake-file-guide" id="storyIntakeFileGuide" data-i18n="storyIntake.files.guide">전체 40개, 합계 150MB까지 접수할 수 있습니다. 서버에서 파일 형식과 용량을 다시 확인합니다.</p>
+              <p class="studio-form-state" id="storyIntakeFormState" role="status" aria-live="polite" data-i18n="storyIntake.state.idle">필수 항목과 원고 파일을 입력하면 검토 접수를 보냅니다.</p>
+              <div class="composer-tools">
+                <button class="primary-action" type="submit" id="storyIntakeSubmit" data-i18n="storyIntake.submit">검토 접수 보내기</button>
+                <button class="secondary-action" type="button" id="storyIntakeReset" data-i18n="storyIntake.reset">입력 초기화</button>
+              </div>
+            </form>
+          </article>
+          <article class="panel story-intake-receipt" id="storyIntakeReceipt" hidden aria-live="polite">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker" data-i18n="storyIntake.receipt.kicker">RECEIPT</span>
+                <h3 data-i18n="storyIntake.receipt.heading">최근 접수</h3>
+              </div>
+              <span class="badge is-good" id="storyIntakeReceiptStatus"></span>
+            </div>
+            <div class="story-intake-receipt-grid">
+              <div><span data-i18n="storyIntake.receipt.files.label">접수 파일</span><strong id="storyIntakeReceiptFiles"></strong></div>
+              <div><span data-i18n="storyIntake.receipt.receivedAt.label">접수 시각</span><strong id="storyIntakeReceiptReceivedAt"></strong></div>
             </div>
           </article>
         </section>
