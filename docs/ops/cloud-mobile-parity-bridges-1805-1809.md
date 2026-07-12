@@ -18,12 +18,12 @@ Scope: frontend bridge map, public copy parity, mobile QA checkpoints, and small
 
 | State | Existing public screen/key | 390/400px checkpoint | Must not show |
 | --- | --- | --- | --- |
-| login-required | `auth.loginRequired`, `[data-auth-return]`, `[data-auth-protected-entry-bridge]` | Auth modal fits within viewport; return notice wraps; CTA remains reachable. | raw key, fixture name, local dev host, token value, raw email. |
+| login-required | `auth.loginRequired`, login/register tabs | Auth modal opens directly on the selected form and fits within the viewport; CTA remains reachable. Internal return intent stays non-visible and redirects only after successful login. | internal workflow guidance, raw key, fixture name, local dev host, token value, raw email. |
 | expired reset | `resetPassword.expired.*` | Reset landing title/body/primary button wraps without horizontal scroll. | reset link, query token, raw backend detail. |
 | invalid reset | `resetPassword.invalid.*` | Invalid state can route back to login without overlapping footer/tabbar. | action token, raw email, internal status. |
-| social fallback | `auth.bridge.social.*`, `[data-auth-social-provider-fallback]` | Email fallback panel remains visible and compact in auth modal. | provider payload, provider raw error, account id. |
+| social fallback | email login form and configured social login buttons | The email form remains the stable fallback without a development guidance panel above the form. | provider payload, provider raw error, account id, internal fallback guidance. |
 
-The bridge uses existing `app.js` copy keys and `styles.css` modal sizing. No live login, register, resend, reset, or social provider mutation is required for this source/static bridge.
+The bridge uses the existing auth return behavior and `styles.css` modal sizing without exposing internal bridge or QA guidance in the user-facing modal. No live login, register, resend, reset, or social provider mutation is required for this source/static bridge.
 
 ## #1806 Story Stage Scene Background Responsive Bridge
 

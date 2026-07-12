@@ -276,13 +276,6 @@ const I18N_DICT = {
   "auth.modal.terms.and": { "ko-KR": "과", "ja-JP": "と", "en-US": " and ", "zh-CN": "和", "zh-Hant": "和" },
   "auth.modal.terms.privacy": { "ko-KR": "개인정보처리방침", "ja-JP": "プライバシーポリシー", "en-US": "Privacy Policy", "zh-CN": "隐私政策", "zh-Hant": "隱私權政策" },
   "auth.modal.terms.suffix": { "ko-KR": "에 동의합니다.", "ja-JP": "に同意します。", "en-US": ".", "zh-CN": "。", "zh-Hant": "。" },
-  "auth.modal.return.prefix": { "ko-KR": "로그인 후 이어갈 작업", "ja-JP": "ログイン後に続ける操作", "en-US": "Continue after login", "zh-CN": "登录后继续", "zh-Hant": "登入後繼續" },
-  "auth.bridge.preview.title": { "ko-KR": "미리보기는 유지돼요", "ja-JP": "プレビューは維持されます", "en-US": "Preview stays available", "zh-CN": "预览仍可查看", "zh-Hant": "預覽仍可查看" },
-  "auth.bridge.preview.body": { "ko-KR": "저장·제출 같은 작업만 로그인 후 이어집니다.", "ja-JP": "保存や送信などの操作だけログイン後に続きます。", "en-US": "Only save and submit actions continue after login.", "zh-CN": "仅保存、提交等操作需登录后继续。", "zh-Hant": "僅儲存、送出等操作需登入後繼續。" },
-  "auth.bridge.account.title": { "ko-KR": "계정 상태 안내", "ja-JP": "アカウント状態案内", "en-US": "Account state guidance", "zh-CN": "账号状态提示", "zh-Hant": "帳號狀態提示" },
-  "auth.bridge.account.body": { "ko-KR": "인증, 소셜 전용, 본인확인 상태는 공개 가능한 안내만 보여줘요.", "ja-JP": "認証、ソーシャル専用、本人確認状態は公開可能な案内だけ表示します。", "en-US": "Verification, social-only, and identity states show public-safe guidance only.", "zh-CN": "验证、仅社交、身份状态仅显示公开安全提示。", "zh-Hant": "驗證、僅社群、身分狀態僅顯示公開安全提示。" },
-  "auth.bridge.social.title": { "ko-KR": "이메일 로그인 대안", "ja-JP": "メールログイン代替", "en-US": "Email login fallback", "zh-CN": "邮箱登录备选", "zh-Hant": "電子郵件登入備選" },
-  "auth.bridge.social.body": { "ko-KR": "소셜 연결이 불안정하면 이메일 로그인으로 계속 진행해 주세요.", "ja-JP": "ソーシャル接続が不安定な場合はメールログインで続行してください。", "en-US": "If social sign-in is unavailable, continue with email login.", "zh-CN": "社交登录不可用时，请使用邮箱登录继续。", "zh-Hant": "社群登入不可用時，請使用電子郵件登入繼續。" },
   "character.status.public.label": { "ko-KR": "공식 활동 중", "ja-JP": "公式活動中", "en-US": "Officially active", "zh-CN": "官方活动中", "zh-Hant": "官方活動中" },
   "character.status.public.summary": { "ko-KR": "활동 중", "ja-JP": "活動中", "en-US": "Active", "zh-CN": "活动中", "zh-Hant": "活動中" },
   "character.status.debut.label": { "ko-KR": "데뷔 예정", "ja-JP": "デビュー予定", "en-US": "Debut planned", "zh-CN": "即将出道", "zh-Hant": "即將出道" },
@@ -1474,25 +1467,9 @@ function openAuthBridgeFixtureIfNeeded() {
   }, 120);
 }
 
-function updateAuthReturnNotice(modal) {
-  const root = modal || document.getElementById("authModal");
-  if (!root) return;
-  const notice = root.querySelector("[data-auth-return]");
-  const label = root.querySelector("[data-auth-return-label]");
-  if (!notice || !label) return;
-  if (_authReturnIntent?.label) {
-    label.textContent = _authReturnIntent.label;
-    notice.hidden = false;
-  } else {
-    label.textContent = "";
-    notice.hidden = true;
-  }
-}
-
 function completeAuthReturnIntent(intent) {
   const pending = intent || _authReturnIntent;
   _authReturnIntent = null;
-  updateAuthReturnNotice();
   if (!pending?.href || !window.location) return;
   if (window.location.pathname.replace(/\/$/, "") === pending.href.replace(/\/$/, "")) return;
   setTimeout(() => {
@@ -1508,27 +1485,6 @@ function createAuthModal() {
   modal.innerHTML = `
     <div class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
       <button class="auth-modal-close" aria-label="닫기" data-i18n-aria="auth.modal.close">✕</button>
-      <p class="auth-modal-return" data-auth-return hidden>
-        <span data-i18n="auth.modal.return.prefix">로그인 후 이어갈 작업</span>
-        <strong data-auth-return-label></strong>
-      </p>
-      <div class="auth-bridge-panel"
-           data-auth-protected-entry-bridge="true"
-           data-auth-account-state-projection="true"
-           data-auth-social-provider-fallback="true">
-        <article>
-          <strong data-i18n="auth.bridge.preview.title">미리보기는 유지돼요</strong>
-          <p data-i18n="auth.bridge.preview.body">저장·제출 같은 작업만 로그인 후 이어집니다.</p>
-        </article>
-        <article>
-          <strong data-i18n="auth.bridge.account.title">계정 상태 안내</strong>
-          <p data-i18n="auth.bridge.account.body">인증, 소셜 전용, 본인확인 상태는 공개 가능한 안내만 보여줘요.</p>
-        </article>
-        <article>
-          <strong data-i18n="auth.bridge.social.title">이메일 로그인 대안</strong>
-          <p data-i18n="auth.bridge.social.body">소셜 연결이 불안정하면 이메일 로그인으로 계속 진행해 주세요.</p>
-        </article>
-      </div>
       <div class="auth-modal-tabs">
         <button class="auth-modal-tab is-active" data-tab="login" type="button" data-i18n="auth.login">로그인</button>
         <button class="auth-modal-tab" data-tab="register" type="button" data-i18n="auth.signup">회원가입</button>
@@ -1863,7 +1819,6 @@ function openAuthModal(tab = "login", options = {}) {
   createAuthModal();
   const modal = document.getElementById("authModal");
   _authReturnIntent = normalizeAuthReturnIntent(options?.returnTo || null);
-  updateAuthReturnNotice(modal);
   switchAuthTab(tab);
   modal.classList.add("is-open");
   document.body.style.overflow = "hidden";
