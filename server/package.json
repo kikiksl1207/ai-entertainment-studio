@@ -24,6 +24,7 @@
     "qa:follower-block-fixture": "node scripts/prepare-follower-block-qa-fixture.mjs",
     "qa:premium-chat-live-fixtures": "node scripts/prepare-premium-chat-live-qa-fixtures.mjs",
     "qa:story-upload-intake-staging": "node scripts/verify-story-upload-intake-staging.mjs",
+    "qa:story-production-release": "node scripts/verify-story-production-release-guard.mjs",
     "render:start": "npm run prisma:deploy && npm run start:prod",
     "render:start:seed": "npm run prisma:deploy && npm run prisma:seed:fast && npm run start:prod",
     "verify:object-storage": "node scripts/verify-object-storage-upload.mjs",
