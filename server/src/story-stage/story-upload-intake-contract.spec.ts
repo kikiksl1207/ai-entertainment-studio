@@ -34,9 +34,9 @@ describe('Story upload intake contract bundle', () => {
     );
   });
 
-  it('defines a disabled, safe DTO intake API skeleton for #1522', () => {
+  it('defines an authenticated, persistent, safe-receipt intake API', () => {
     expect(STORY_UPLOAD_INTAKE_API_CONTRACT).toMatchObject({
-      status: 'future_api_contract_skeleton_only',
+      status: 'authenticated_persistence_implemented',
       sourceReference: {
         pmBoardIsAuthority: true,
         externalPageContentPersisted: false,
@@ -54,6 +54,23 @@ describe('Story upload intake contract bundle', () => {
         choiceResultDeltasSeparateFromNextScene: true,
         endingTypeSeparateFromReviewStatus: true,
         reviewStatusSeparateFromPublishMutation: true,
+      },
+      endpoints: {
+        intakeSubmit: {
+          method: 'POST',
+          path: '/api/v1/story-upload/intake',
+          enabled: true,
+          authRequired: true,
+          contentType: 'multipart/form-data',
+          idempotentRetry: true,
+        },
+      },
+      persistenceBoundary: {
+        submissionTable: 'story_upload_submissions',
+        fileTable: 'story_upload_submission_files',
+        objectStorageRequiredOutsideDevelopment: true,
+        privateStorageKeyReturned: false,
+        rightsReferenceReturned: false,
       },
     });
     expect(STORY_UPLOAD_SAFE_DTO_FIELD_GROUPS.work).toEqual(
@@ -89,11 +106,11 @@ describe('Story upload intake contract bundle', () => {
         'all_choices_share_same_next_scene_body_and_result',
       ]),
     );
-    expect(
-      Object.values(STORY_UPLOAD_INTAKE_API_CONTRACT.endpoints).every(
-        (endpoint) => endpoint.enabled === false,
-      ),
-    ).toBe(true);
+    expect(STORY_UPLOAD_INTAKE_API_CONTRACT.endpoints).toMatchObject({
+      intakePreview: { enabled: false },
+      intakeValidate: { enabled: false },
+      intakeSubmit: { enabled: true, authRequired: true },
+    });
     expect(STORY_UPLOAD_INTAKE_API_CONTRACT.mobileStatusKeys).toEqual([
       'storyUpload.status.draft',
       'storyUpload.status.pmReview',
@@ -103,11 +120,15 @@ describe('Story upload intake contract bundle', () => {
       'storyUpload.status.publishReady',
       'storyUpload.status.blocked',
     ]);
-    expect(
-      Object.values(STORY_UPLOAD_INTAKE_API_CONTRACT.mutationPolicy).every(
-        (enabled) => enabled === false,
-      ),
-    ).toBe(true);
+    expect(STORY_UPLOAD_INTAKE_API_CONTRACT.mutationPolicy).toMatchObject({
+      uploadWrite: true,
+      intakeDbWrite: true,
+      objectStorageWrite: true,
+      publishMutation: false,
+      providerGeneration: false,
+      paymentMutation: false,
+      walletMutation: false,
+    });
   });
 
   it('keeps #1523 manuscript-first with scene, branch, background, cast, and ending markers', () => {
@@ -298,12 +319,19 @@ describe('Story upload intake contract bundle', () => {
     });
   });
 
-  it('keeps the upload bundle read-only and detects nested sensitive fields', () => {
-    expect(
-      Object.values(STORY_UPLOAD_CONTRACT_BUNDLE.mutationPolicy).every(
-        (enabled) => enabled === false,
-      ),
-    ).toBe(true);
+  it('opens intake persistence only and detects nested sensitive fields', () => {
+    expect(STORY_UPLOAD_CONTRACT_BUNDLE.mutationPolicy).toMatchObject({
+      uploadWrite: true,
+      intakeDbWrite: true,
+      objectStorageWrite: true,
+      publishMutation: false,
+      migrationWrite: false,
+      providerGeneration: false,
+      paymentMutation: false,
+      walletMutation: false,
+      settlementMutation: false,
+      payoutMutation: false,
+    });
     expect(
       findStoryUploadIntakeSensitiveFieldViolations({
         workId: 'fixture',

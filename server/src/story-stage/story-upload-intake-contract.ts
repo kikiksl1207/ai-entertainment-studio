@@ -84,8 +84,8 @@ export const STORY_UPLOAD_SAFE_DTO_FIELD_GROUPS = {
 } as const;
 
 export const STORY_UPLOAD_INTAKE_API_CONTRACT = {
-  version: '2026-07-01.story-upload-intake-api.v1',
-  status: 'future_api_contract_skeleton_only',
+  version: '2026-07-11.story-upload-intake-api.v2',
+  status: 'authenticated_persistence_implemented',
   sourceReference: {
     sourceName: 'Lumina Stage story upload workspace',
     pmBoardIsAuthority: true,
@@ -107,9 +107,28 @@ export const STORY_UPLOAD_INTAKE_API_CONTRACT = {
     intakeSubmit: {
       method: 'POST',
       path: '/api/v1/story-upload/intake',
-      enabled: false,
+      enabled: true,
+      authRequired: true,
+      contentType: 'multipart/form-data',
+      idempotentRetry: true,
       response: 'StoryUploadIntakeReceiptDto',
     },
+  },
+  persistenceBoundary: {
+    submissionTable: 'story_upload_submissions',
+    fileTable: 'story_upload_submission_files',
+    objectStorageRequiredOutsideDevelopment: true,
+    safeReceiptFields: [
+      'submissionId',
+      'status',
+      'submissionType',
+      'fileCount',
+      'totalBytes',
+      'replayed',
+      'receivedAt',
+    ],
+    privateStorageKeyReturned: false,
+    rightsReferenceReturned: false,
   },
   dtoFieldGroups: STORY_UPLOAD_SAFE_DTO_FIELD_GROUPS,
   partDefaults: {
@@ -150,7 +169,9 @@ export const STORY_UPLOAD_INTAKE_API_CONTRACT = {
     'storyUpload.status.blocked',
   ],
   mutationPolicy: {
-    uploadWrite: false,
+    uploadWrite: true,
+    intakeDbWrite: true,
+    objectStorageWrite: true,
     publishMutation: false,
     providerGeneration: false,
     paymentMutation: false,
@@ -409,7 +430,7 @@ export function findStoryUploadIntakeSensitiveFieldViolations(
 }
 
 export const STORY_UPLOAD_CONTRACT_BUNDLE = {
-  version: '2026-07-01.story-upload-contract-bundle.v1',
+  version: '2026-07-11.story-upload-contract-bundle.v2',
   status: 'contract_bundle_only',
   intakeApi: STORY_UPLOAD_INTAKE_API_CONTRACT,
   manuscriptSceneChoiceEndingSchema:
@@ -424,7 +445,9 @@ export const STORY_UPLOAD_CONTRACT_BUNDLE = {
     providerPayloadAllowed: false,
   },
   mutationPolicy: {
-    uploadWrite: false,
+    uploadWrite: true,
+    intakeDbWrite: true,
+    objectStorageWrite: true,
     publishMutation: false,
     migrationWrite: false,
     providerGeneration: false,

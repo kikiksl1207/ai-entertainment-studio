@@ -517,6 +517,24 @@ For the first admin:
 
 ## Object Storage Verification
 
+Authenticated final story intake is available at
+`POST /api/v1/story-upload/intake` as `multipart/form-data`. It accepts final
+manuscripts, branch/ending metadata, and visual assets, persists a private
+submission receipt and file rows, and writes the validated bytes to configured
+object storage. Retry safety is enforced with the `Idempotency-Key` header or a
+server-derived request fingerprint. The response contains only the receipt ID,
+status, file count, total bytes, replay flag, and receipt time.
+
+After staging DB, object storage, and a disposable authenticated QA session are
+configured, run the synthetic mutation smoke with:
+
+```powershell
+npm.cmd run qa:story-upload-intake-staging
+```
+
+The smoke performs one real intake, repeats it to verify the same receipt, and
+checks extension and size rejection. It prints only non-secret receipt fields.
+
 After `OBJECT_STORAGE_*` environment variables are configured, verify S3/R2 upload flow with:
 
 ```powershell
