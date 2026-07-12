@@ -574,11 +574,11 @@ const I18N_DICT = {
     "zh-Hant": "10L~50,000L · 確認後繼續"
   },
   "chat.donation.lockedHint": {
-    "ko-KR": "후원 준비 중 · 곧 열려요",
-    "ja-JP": "応援機能は準備中",
-    "en-US": "Support opening soon",
-    "zh-CN": "打赏功能准备中",
-    "zh-Hant": "打賞功能準備中"
+    "ko-KR": "현재 후원을 이용할 수 없어요",
+    "ja-JP": "現在は応援をご利用いただけません",
+    "en-US": "Support is unavailable right now",
+    "zh-CN": "暂时无法使用打赏功能",
+    "zh-Hant": "暫時無法使用打賞功能"
   },
   "chat.donation.loading.label": {
     "ko-KR": "상태 확인 중",
@@ -595,32 +595,32 @@ const I18N_DICT = {
     "zh-Hant": "正在載入打賞政策。"
   },
   "chat.donation.locked.label": {
-    "ko-KR": "후원 준비 중",
-    "ja-JP": "応援機能は準備中",
-    "en-US": "Support is preparing",
-    "zh-CN": "打赏功能准备中",
-    "zh-Hant": "打賞功能準備中"
+    "ko-KR": "후원 이용 안내",
+    "ja-JP": "応援のご案内",
+    "en-US": "Support information",
+    "zh-CN": "打赏说明",
+    "zh-Hant": "打賞說明"
   },
   "chat.donation.locked.text": {
-    "ko-KR": "후원 기능은 준비하고 있어요. 열리면 바로 알려드릴게요. 지금은 금액과 정책만 미리 볼 수 있어요.",
-    "ja-JP": "応援機能は準備中です。公開時にお知らせします。今は金額とポリシーのみ確認できます。",
-    "en-US": "Support is being prepared. We'll let you know when it opens. For now, you can preview amounts and policy only.",
-    "zh-CN": "打赏功能正在准备中。开放后会通知你。现在只能预览金额和政策。",
-    "zh-Hant": "打賞功能正在準備中。開放後會通知你。現在只能預覽金額與政策。"
+    "ko-KR": "현재 후원을 이용할 수 없습니다. 이용 가능해지면 알려드릴게요.",
+    "ja-JP": "現在は応援をご利用いただけません。利用可能になりましたらお知らせします。",
+    "en-US": "Support is unavailable right now. We will let you know when it becomes available.",
+    "zh-CN": "暂时无法使用打赏功能。开放后会通知你。",
+    "zh-Hant": "暫時無法使用打賞功能。開放後會通知你。"
   },
   "chat.donation.unauth.label": {
-    "ko-KR": "후원 준비 중",
-    "ja-JP": "応援機能は準備中",
-    "en-US": "Support is preparing",
-    "zh-CN": "打赏功能准备中",
-    "zh-Hant": "打賞功能準備中"
+    "ko-KR": "후원 이용 안내",
+    "ja-JP": "応援のご案内",
+    "en-US": "Support information",
+    "zh-CN": "打赏说明",
+    "zh-Hant": "打賞說明"
   },
   "chat.donation.unauth.text": {
-    "ko-KR": "로그인하면 후원 가능 여부를 확인할 수 있어요. 지금은 금액과 정책만 미리 볼 수 있어요.",
-    "ja-JP": "ログインすると応援可否を確認できます。今は金額とポリシーのみ確認できます。",
-    "en-US": "Log in to check whether support is available. For now, you can preview amounts and policy only.",
-    "zh-CN": "登录后可确认是否能打赏。现在只能预览金额和政策。",
-    "zh-Hant": "登入後可確認是否能打賞。現在只能預覽金額與政策。"
+    "ko-KR": "로그인하면 후원 가능 여부를 확인할 수 있어요.",
+    "ja-JP": "ログインすると応援の利用可否を確認できます。",
+    "en-US": "Log in to check whether support is available.",
+    "zh-CN": "登录后可确认是否可以打赏。",
+    "zh-Hant": "登入後可確認是否可以打賞。"
   },
   "chat.donation.ready.label": {
     "ko-KR": "후원 가능",

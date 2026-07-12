@@ -457,7 +457,7 @@ async function initChargePage() {
     renderChargePage();
     const loggedOutNotice = document.getElementById("chargeFixtureNotice");
     if (loggedOutNotice) {
-      loggedOutNotice.innerHTML = 'ⓘ <strong>미리보기</strong> — 충전 상품과 첫 충전 보너스를 먼저 확인해보세요. <strong>실제 충전은 로그인 후</strong> 이용할 수 있어요. <a href="#" id="chargePreviewLoginLink" class="text-link">로그인하기</a>';
+      loggedOutNotice.innerHTML = 'ⓘ <strong>충전 안내</strong> — 충전 상품과 첫 충전 보너스를 확인해보세요. <strong>충전은 로그인 후</strong> 이용할 수 있어요. <a href="#" id="chargePreviewLoginLink" class="text-link">로그인하기</a>';
       loggedOutNotice.hidden = false;
       const loginLink = document.getElementById("chargePreviewLoginLink");
       if (loginLink && !loginLink._bound) {
