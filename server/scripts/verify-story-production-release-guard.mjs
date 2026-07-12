@@ -10,7 +10,7 @@ const serviceUrl = new URL(
   import.meta.url,
 );
 const migrationUrl = new URL(
-  '../prisma/migrations/0047_story_production_backend/migration.sql',
+  '../prisma/migrations/0048_story_production_backend/migration.sql',
   import.meta.url,
 );
 

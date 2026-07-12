@@ -286,7 +286,7 @@ export class StoryProductionService {
     const work = await this.publicWorkById(workId);
     const parts = await this.prisma.storyPart.findMany({
       where: { workId, status: 'published', fixtureSource: false },
-      select: { id: true },
+      select: { id: true, actNumber: true },
       orderBy: { position: 'asc' },
     });
     if (!parts.length) throw new NotFoundException('Published story part not found');
@@ -301,33 +301,41 @@ export class StoryProductionService {
     const existing = await this.prisma.storyReaderProgress.findUnique({
       where: { userId_workId: { userId, workId } },
     });
-    let targetSceneId: string | null = existing?.currentSceneId ?? firstScene.id;
-    if (body.mode === 'restart') targetSceneId = firstScene.id;
-    if (body.mode === 'checkpoint') {
-      targetSceneId = body.checkpointSceneId ?? existing?.checkpointSceneId ?? null;
-      if (!targetSceneId) throw new BadRequestException('Checkpoint is not available');
-      const seen = jsonStringArray(existing?.seenSceneIds);
-      if (!seen.includes(targetSceneId)) throw new ForbiddenException('Checkpoint was not previously seen');
+    if (existing && body.mode !== 'continue') {
+      throw new BadRequestException({
+        code: 'STORY_PROGRESS_CONTROL_COMMAND_REQUIRED',
+        messageKey:
+          body.mode === 'restart'
+            ? 'story.progress.reset.previewRequired'
+            : 'story.progress.checkpoint.confirmRequired',
+        retryable: true,
+      });
     }
-    const progress = await this.prisma.storyReaderProgress.upsert({
-      where: { userId_workId: { userId, workId } },
-      create: {
+    if (existing) {
+      if (existing.storyVersion !== work.publishedVersion) {
+        throw new ConflictException({
+          code: 'STORY_PROGRESS_VERSION_MISMATCH',
+          messageKey: 'story.progress.status.versionMismatch',
+          retryable: false,
+        });
+      }
+      return this.currentProgress(userId, existing.id, body.locale);
+    }
+    if (body.mode === 'checkpoint') {
+      throw new BadRequestException('Checkpoint is not available');
+    }
+    const targetSceneId = firstScene.id;
+    const progress = await this.prisma.storyReaderProgress.create({
+      data: {
         userId,
         workId,
         currentSceneId: targetSceneId,
         currentBeatPosition: 0,
+        currentAct: parts.find((part) => part.id === firstScene.partId)?.actNumber ?? 1,
+        storyVersion: work.publishedVersion,
         checkpointSceneId: targetSceneId,
         seenSceneIds: [targetSceneId],
         pathSummary: [],
-      },
-      update: {
-        currentSceneId: targetSceneId,
-        currentBeatPosition: 0,
-        checkpointSceneId: body.mode === 'restart' ? targetSceneId : undefined,
-        pathSummary: body.mode === 'restart' ? [] : undefined,
-        seenSceneIds: body.mode === 'restart' ? [targetSceneId] : undefined,
-        status: 'active',
-        updatedAt: new Date(),
       },
     });
     return this.currentProgress(userId, progress.id, body.locale);
@@ -339,7 +347,16 @@ export class StoryProductionService {
     });
     if (!progress) throw new NotFoundException('Story progress not found');
     if (!progress.currentSceneId) {
-      return { progressId, status: progress.status, scene: null, choices: [], path: boundedPath(jsonArray(progress.pathSummary)) };
+      return {
+        progressId,
+        status: progress.status,
+        revision: progress.progressRevision,
+        storyVersion: progress.storyVersion,
+        currentAct: progress.currentAct,
+        scene: null,
+        choices: [],
+        path: boundedPath(jsonArray(progress.pathSummary)),
+      };
     }
     return this.sceneProjection(progress, locale);
   }
@@ -356,6 +373,14 @@ export class StoryProductionService {
     if (!progress?.currentSceneId) {
       throw new NotFoundException('Active story progress not found');
     }
+    if (progress.progressRevision !== body.expectedRevision) {
+      throw new ConflictException({
+        code: 'STORY_PROGRESS_STALE_REVISION',
+        messageKey: 'story.progress.error.staleRevision',
+        retryable: true,
+        currentRevision: progress.progressRevision,
+      });
+    }
     const beat = await this.prisma.storyBeat.findUnique({
       where: {
         sceneId_position: {
@@ -369,17 +394,46 @@ export class StoryProductionService {
         'Beat position is not available for the current scene',
       );
     }
-    await this.prisma.storyReaderProgress.update({
-      where: { id: progress.id },
-      data: { currentBeatPosition: body.position, updatedAt: new Date() },
+    const updated = await this.prisma.storyReaderProgress.updateMany({
+      where: {
+        id: progress.id,
+        userId,
+        progressRevision: body.expectedRevision,
+      },
+      data: {
+        currentBeatPosition: body.position,
+        progressRevision: { increment: 1 },
+        updatedAt: new Date(),
+      },
     });
+    if (updated.count !== 1) {
+      throw new ConflictException({
+        code: 'STORY_PROGRESS_STALE_REVISION',
+        messageKey: 'story.progress.error.staleRevision',
+        retryable: true,
+      });
+    }
     return this.currentProgress(userId, progressId, locale);
   }
 
-  async selectChoice(userId: string, progressId: string, choiceId: string, locale = 'ko') {
+  async selectChoice(
+    userId: string,
+    progressId: string,
+    choiceId: string,
+    expectedRevision: number,
+    locale = 'ko',
+  ) {
     await this.prisma.$transaction(async (tx) => {
       const progress = await tx.storyReaderProgress.findFirst({ where: { id: progressId, userId } });
       if (!progress?.currentSceneId) throw new NotFoundException('Active story progress not found');
+      if (progress.progressRevision !== expectedRevision) {
+        throw new ConflictException({
+          code: 'STORY_PROGRESS_STALE_REVISION',
+          messageKey: 'story.progress.error.staleRevision',
+          retryable: true,
+          currentRevision: progress.progressRevision,
+        });
+      }
       const choice = await tx.storyChoice.findFirst({ where: { id: choiceId, sceneId: progress.currentSceneId } });
       if (!choice) throw new BadRequestException('Choice is not available for the current scene');
       const target = choice.targetSceneId
@@ -387,6 +441,9 @@ export class StoryProductionService {
         : null;
       if (choice.targetSceneId && !target) throw new ConflictException('Choice target is unavailable');
       const endingType = target?.endingType ?? (choice.targetEndingKey ? 'author_sub' : null);
+      const targetPart = target
+        ? await tx.storyPart.findUnique({ where: { id: target.partId } })
+        : null;
       const path = boundedPath([
         ...jsonArray(progress.pathSummary),
         {
@@ -408,18 +465,35 @@ export class StoryProductionService {
           explicitRejoin: Boolean(choice.declaredRejoinSceneId),
         },
       });
-      await tx.storyReaderProgress.update({
-        where: { id: progress.id },
+      const updated = await tx.storyReaderProgress.updateMany({
+        where: { id: progress.id, userId, progressRevision: expectedRevision },
         data: {
           currentSceneId: endingType ? null : target?.id,
           currentBeatPosition: 0,
+          currentAct: targetPart?.actNumber ?? progress.currentAct,
+          progressRevision: { increment: 1 },
           checkpointSceneId: target?.id ?? progress.checkpointSceneId,
           pathSummary: path as Prisma.InputJsonValue,
           seenSceneIds: seen,
+          visitedEndingKeys: choice.targetEndingKey
+            ? [
+                ...new Set([
+                  ...jsonStringArray(progress.visitedEndingKeys),
+                  choice.targetEndingKey,
+                ]),
+              ]
+            : undefined,
           status: endingType ? 'completed' : 'active',
           updatedAt: new Date(),
         },
       });
+      if (updated.count !== 1) {
+        throw new ConflictException({
+          code: 'STORY_PROGRESS_STALE_REVISION',
+          messageKey: 'story.progress.error.staleRevision',
+          retryable: true,
+        });
+      }
     });
     return this.currentProgress(userId, progressId, locale);
   }
@@ -568,6 +642,9 @@ export class StoryProductionService {
       id: string;
       currentSceneId: string | null;
       currentBeatPosition: number;
+      currentAct: number;
+      progressRevision: number;
+      storyVersion: number;
       pathSummary: Prisma.JsonValue;
       status: string;
     },
@@ -590,6 +667,9 @@ export class StoryProductionService {
     return {
       progressId: progress.id,
       status: progress.status,
+      revision: progress.progressRevision,
+      storyVersion: progress.storyVersion,
+      currentAct: progress.currentAct,
       currentBeatPosition: progress.currentBeatPosition,
       scene: {
         id: scene.id,
