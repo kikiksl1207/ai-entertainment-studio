@@ -27,4 +27,4 @@ Structured analysis recognizes paragraph and dialogue boundaries plus explicit `
 
 ## Verification
 
-Run `npm run build`, the story production tests, and `npm run qa:story-production-release`. The release command emits only a run ID, public path, status, and boolean checks. Applying migration `0047_story_production_backend` and exercising a real published story require a configured staging database and an approved non-secret test identity; no credential material belongs in reports.
+Run `npm run build`, the story production tests, and `npm run qa:story-production-release`. The release command emits only a run ID, public path, status, and boolean checks. Applying migration `0048_story_production_backend` and exercising a real published story require a configured staging database and an approved non-secret test identity; no credential material belongs in reports.

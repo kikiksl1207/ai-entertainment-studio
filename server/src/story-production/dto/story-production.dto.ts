@@ -63,6 +63,100 @@ export class UpdateBeatProgressDto {
   @Min(0)
   @Max(1000)
   position: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  expectedRevision: number;
+}
+
+export class SelectStoryChoiceDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  expectedRevision: number;
+}
+
+export class StoryResetPreviewQueryDto {
+  @IsIn(['full', 'act'])
+  target: 'full' | 'act';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(150)
+  actNumber?: number;
+
+  @IsOptional()
+  @IsIn(STORY_LOCALES)
+  locale = 'ko';
+}
+
+export class ExecuteStoryResetDto extends StoryResetPreviewQueryDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  expectedRevision: number;
+}
+
+export class ConfirmStoryCheckpointDto {
+  @IsUUID()
+  sceneId: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1000)
+  beatPosition: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  expectedRevision: number;
+
+  @IsOptional()
+  @IsIn(STORY_LOCALES)
+  locale = 'ko';
+}
+
+export class SubmitCustomStoryChoiceDto {
+  @IsString()
+  @MaxLength(2000)
+  input: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  expectedRevision: number;
+}
+
+export class AdjustStoryResetQuotaDto {
+  @IsUUID()
+  userId: string;
+
+  @IsUUID()
+  workId: string;
+
+  @IsIn(['full', 'act'])
+  target: 'full' | 'act';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(150)
+  actNumber?: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  addedUses: number;
+
+  @IsString()
+  @MaxLength(500)
+  reason: string;
 }
 
 export class ManuscriptParagraphDto {

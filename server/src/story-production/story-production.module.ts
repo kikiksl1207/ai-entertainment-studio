@@ -1,9 +1,15 @@
 import { Module } from '@nestjs/common';
-import { StoryProductionController } from './story-production.controller';
+import { ModerationModule } from '../moderation/moderation.module';
+import { StoryProgressControlService } from './story-progress-control.service';
+import {
+  StoryProductionController,
+  StoryProgressAdminController,
+} from './story-production.controller';
 import { StoryProductionService } from './story-production.service';
 
 @Module({
-  controllers: [StoryProductionController],
-  providers: [StoryProductionService],
+  imports: [ModerationModule],
+  controllers: [StoryProductionController, StoryProgressAdminController],
+  providers: [StoryProductionService, StoryProgressControlService],
 })
 export class StoryProductionModule {}

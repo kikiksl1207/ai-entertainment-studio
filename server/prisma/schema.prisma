@@ -1664,20 +1664,22 @@ model UserEntitlement {
 }
 
 model StoryWork {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ownerUserId      String    @map("owner_user_id") @db.Uuid
-  slug             String    @unique
-  status           String    @default("draft")
-  defaultLocale    String    @default("ko") @map("default_locale")
-  supportedLocales Json      @default("[]") @map("supported_locales")
-  title            Json
-  summary          Json
-  coverManifest    Json      @default("{}") @map("cover_manifest")
-  priceLumina      Decimal   @default(0) @map("price_lumina") @db.Decimal(18, 2)
-  fixtureSource    Boolean   @default(false) @map("fixture_source")
-  publishedAt      DateTime? @map("published_at") @db.Timestamptz(6)
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId         String    @map("owner_user_id") @db.Uuid
+  slug                String    @unique
+  status              String    @default("draft")
+  defaultLocale       String    @default("ko") @map("default_locale")
+  supportedLocales    Json      @default("[]") @map("supported_locales")
+  title               Json
+  summary             Json
+  coverManifest       Json      @default("{}") @map("cover_manifest")
+  priceLumina         Decimal   @default(0) @map("price_lumina") @db.Decimal(18, 2)
+  fixtureSource       Boolean   @default(false) @map("fixture_source")
+  publishedVersion    Int       @default(1) @map("published_version")
+  customChoiceEnabled Boolean   @default(false) @map("custom_choice_enabled")
+  publishedAt         DateTime? @map("published_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@index([status, publishedAt, id], map: "idx_story_works_public_catalog")
   @@index([ownerUserId, updatedAt], map: "idx_story_works_owner_updated")
@@ -1688,6 +1690,7 @@ model StoryPart {
   id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workId        String    @map("work_id") @db.Uuid
   seasonKey     String    @default("season-1") @map("season_key")
+  actNumber     Int       @default(1) @map("act_number")
   position      Int
   status        String    @default("draft")
   title         Json
@@ -1757,9 +1760,13 @@ model StoryReaderProgress {
   workId              String   @map("work_id") @db.Uuid
   currentSceneId      String?  @map("current_scene_id") @db.Uuid
   currentBeatPosition Int      @default(0) @map("current_beat_position")
+  currentAct          Int      @default(1) @map("current_act")
+  progressRevision    Int      @default(1) @map("progress_revision")
+  storyVersion        Int      @default(1) @map("story_version")
   checkpointSceneId   String?  @map("checkpoint_scene_id") @db.Uuid
   pathSummary         Json     @default("[]") @map("path_summary")
   seenSceneIds        Json     @default("[]") @map("seen_scene_ids")
+  visitedEndingKeys   Json     @default("[]") @map("visited_ending_keys")
   status              String   @default("active")
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
@@ -1770,18 +1777,102 @@ model StoryReaderProgress {
 }
 
 model StoryChoiceEvent {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  progressId     String   @map("progress_id") @db.Uuid
-  sceneId        String   @map("scene_id") @db.Uuid
-  choiceId       String   @map("choice_id") @db.Uuid
-  targetSceneId  String?  @map("target_scene_id") @db.Uuid
-  endingKey      String?  @map("ending_key")
-  endingType     String?  @map("ending_type")
-  explicitRejoin Boolean  @default(false) @map("explicit_rejoin")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  progressId     String    @map("progress_id") @db.Uuid
+  sceneId        String    @map("scene_id") @db.Uuid
+  choiceId       String    @map("choice_id") @db.Uuid
+  targetSceneId  String?   @map("target_scene_id") @db.Uuid
+  endingKey      String?   @map("ending_key")
+  endingType     String?   @map("ending_type")
+  explicitRejoin Boolean   @default(false) @map("explicit_rejoin")
+  invalidatedAt  DateTime? @map("invalidated_at") @db.Timestamptz(6)
+  resetCommandId String?   @map("reset_command_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([progressId, createdAt], map: "idx_story_choice_events_progress")
   @@map("story_choice_events")
+}
+
+model StoryProgressCheckpoint {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  progressId        String   @map("progress_id") @db.Uuid
+  progressRevision  Int      @map("progress_revision")
+  storyVersion      Int      @map("story_version")
+  sceneId           String   @map("scene_id") @db.Uuid
+  beatPosition      Int      @map("beat_position")
+  actNumber         Int      @map("act_number")
+  visitedEndingKeys Json     @default("[]") @map("visited_ending_keys")
+  checkpointStatus  String   @default("confirmed") @map("checkpoint_status")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([progressId, progressRevision])
+  @@index([progressId, createdAt], map: "idx_story_checkpoints_progress_created")
+  @@map("story_progress_checkpoints")
+}
+
+model StoryResetQuotaBucket {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  workId     String   @map("work_id") @db.Uuid
+  scopeKey   String   @map("scope_key")
+  usedCount  Int      @default(0) @map("used_count")
+  limitCount Int      @map("limit_count")
+  revision   Int      @default(1)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userId, workId, scopeKey])
+  @@index([userId, workId], map: "idx_story_reset_quota_user_work")
+  @@map("story_reset_quota_buckets")
+}
+
+model StoryResetQuotaAdjustment {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quotaBucketId  String   @map("quota_bucket_id") @db.Uuid
+  adminUserId    String   @map("admin_user_id") @db.Uuid
+  idempotencyKey String   @unique @map("idempotency_key")
+  addedUses      Int      @map("added_uses")
+  beforeLimit    Int      @map("before_limit")
+  afterLimit     Int      @map("after_limit")
+  reason         String
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([quotaBucketId, createdAt], map: "idx_story_reset_adjustments_bucket")
+  @@map("story_reset_quota_adjustments")
+}
+
+model StoryResetCommand {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  progressId            String   @map("progress_id") @db.Uuid
+  userId                String   @map("user_id") @db.Uuid
+  idempotencyKey        String   @unique @map("idempotency_key")
+  targetType            String   @map("target_type")
+  targetAct             Int?     @map("target_act")
+  beforeRevision        Int      @map("before_revision")
+  afterRevision         Int      @map("after_revision")
+  invalidatedEventCount Int      @default(0) @map("invalidated_event_count")
+  status                String   @default("completed")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([progressId, createdAt], map: "idx_story_reset_commands_progress")
+  @@map("story_reset_commands")
+}
+
+model StoryCustomChoice {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  progressId         String   @map("progress_id") @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  workId             String   @map("work_id") @db.Uuid
+  sceneId            String   @map("scene_id") @db.Uuid
+  idempotencyKey     String   @unique @map("idempotency_key")
+  contentHash        String   @map("content_hash")
+  privateInput       String   @map("private_input")
+  moderationDecision String   @map("moderation_decision")
+  status             String   @default("accepted")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([progressId, createdAt], map: "idx_story_custom_choices_progress")
+  @@map("story_custom_choices")
 }
 
 model StoryManuscriptVersion {
