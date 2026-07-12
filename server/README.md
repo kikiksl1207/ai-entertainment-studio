@@ -503,10 +503,11 @@ Admin refund APIs create and track refund records only. Actual PG refund executi
 
 Auth email copy:
 
-- Email verification and password reset provider templates are Korean-first for v1.
+- Email verification and password reset use one shared responsive Lumina Stage brand template.
+- The saved account locale selects Korean, English, Japanese, Simplified Chinese, or Traditional Chinese copy; unknown or missing locales fall back to Korean.
 - Verification subject: `이메일 주소를 한 번만 확인해 주세요`.
 - Password reset subject: `비밀번호 재설정 링크가 도착했어요`.
-- Expiry text is rendered by the backend as `YYYY-MM-DD HH:mm KST`.
+- Expiry text is locale-formatted by the backend and always labels the `KST` timezone.
 - Do not log or document provider secrets, raw action tokens, or real recipient addresses while testing the templates.
 
 For the first admin:

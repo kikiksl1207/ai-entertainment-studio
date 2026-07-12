@@ -1646,6 +1646,11 @@ export class AuthService {
       select: {
         id: true,
         emailVerifiedAt: true,
+        settings: {
+          select: {
+            locale: true,
+          },
+        },
       },
     });
 
@@ -1662,6 +1667,7 @@ export class AuthService {
       to: email,
       purpose: EMAIL_VERIFICATION_PURPOSE,
       debugToken,
+      locale: user?.settings?.locale,
     });
 
     return {
@@ -1708,6 +1714,11 @@ export class AuthService {
           select: {
             status: true,
             deletedAt: true,
+            settings: {
+              select: {
+                locale: true,
+              },
+            },
           },
         },
       },
@@ -1730,6 +1741,7 @@ export class AuthService {
       to: email,
       purpose: PASSWORD_RESET_PURPOSE,
       debugToken,
+      locale: authAccount?.user.settings?.locale,
     });
 
     return {
@@ -3385,6 +3397,7 @@ export class AuthService {
     to: string;
     purpose: typeof EMAIL_VERIFICATION_PURPOSE | typeof PASSWORD_RESET_PURPOSE;
     debugToken: ActionTokenDebug | null;
+    locale?: string;
   }) {
     if (!input.debugToken) {
       return this.authEmailDeliveryService.requestStatus();
@@ -3398,6 +3411,7 @@ export class AuthService {
         purpose: input.purpose,
         actionToken: input.debugToken.token,
         expiresAt: input.debugToken.expiresAt,
+        locale: input.locale,
       });
       await this.recordActionTokenDelivery(input.debugToken.id, delivery, attemptedAt);
 
