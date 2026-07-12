@@ -230,6 +230,12 @@
     return translated && translated !== key ? translated : fallback;
   }
 
+  function publicCopyTemplate(key, fallback, values) {
+    return Object.keys(values || {}).reduce(function (text, name) {
+      return text.replace(new RegExp("\\{" + name + "\\}", "g"), values[name]);
+    }, publicCopy(key, fallback));
+  }
+
   function updateConfirmButton() {
     var btn = $("donationConfirmBtn");
     var label = $("donationConfirmLabel");
@@ -282,19 +288,20 @@
     var hv = (contract && contract.donation && contract.donation.highValuePolicy) || FALLBACK_CONTRACT.donation.highValuePolicy;
     setText(
       "donationPolicyHighValue",
-      formatLumina(hv.startsAtLumina) + "L 이상 후원은 본인확인이 끝난 계정만 진행할 수 있어요."
+      publicCopyTemplate("chat.donation.policy.highValue", "{amount}L 이상 후원은 본인확인이 끝난 계정만 진행할 수 있어요.", { amount: formatLumina(hv.startsAtLumina) })
     );
     setText(
       "donationPolicyDailyLimit",
-      "하루 후원 합계는 " + formatLumina(hv.dailyLimitLumina) + "L까지로 제한돼요."
+      publicCopyTemplate("chat.donation.policy.dailyLimit", "하루 후원 합계는 {amount}L까지로 제한돼요.", { amount: formatLumina(hv.dailyLimitLumina) })
     );
     // blockedStates 텍스트는 정적 유지 (계약상 message key 만 정의됨)
     var custom = (contract && contract.donation && contract.donation.customAmount) || FALLBACK_CONTRACT.donation.customAmount;
     var hint = $("donationCustomHint");
     if (hint) {
-      hint.textContent =
-        "최소 " + formatLumina(custom.minLumina) + "L, 최대 " +
-        formatLumina(custom.maxLumina) + "L까지 입력할 수 있어요. 정수만 가능합니다.";
+      hint.textContent = publicCopyTemplate("chat.donation.policy.customAmount", "최소 {min}L, 최대 {max}L까지 입력할 수 있어요. 정수만 가능합니다.", {
+        min: formatLumina(custom.minLumina),
+        max: formatLumina(custom.maxLumina)
+      });
     }
     var msgCfg = (contract && contract.donation && contract.donation.message) || FALLBACK_CONTRACT.donation.message;
     var ta = $("donationMessage");

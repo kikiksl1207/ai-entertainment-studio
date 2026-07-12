@@ -650,6 +650,27 @@ const I18N_DICT = {
     "zh-CN": "打赏功能准备中",
     "zh-Hant": "打賞功能準備中"
   },
+  "chat.donation.policy.highValue": {
+    "ko-KR": "{amount}L 이상 후원은 본인확인이 끝난 계정만 진행할 수 있어요.",
+    "ja-JP": "{amount}L以上の応援は、本人確認済みのアカウントのみ進められます。",
+    "en-US": "Support of {amount}L or more is available only to identity-verified accounts.",
+    "zh-CN": "{amount}L及以上的打赏仅限已完成身份确认的账号。",
+    "zh-Hant": "{amount}L 以上的打賞僅限已完成身分確認的帳號。"
+  },
+  "chat.donation.policy.dailyLimit": {
+    "ko-KR": "하루 후원 합계는 {amount}L까지로 제한돼요.",
+    "ja-JP": "1日の応援合計は{amount}Lまでです。",
+    "en-US": "Daily support is limited to {amount}L.",
+    "zh-CN": "每日打赏总额上限为{amount}L。",
+    "zh-Hant": "每日打賞總額上限為 {amount}L。"
+  },
+  "chat.donation.policy.customAmount": {
+    "ko-KR": "최소 {min}L, 최대 {max}L까지 입력할 수 있어요. 정수만 가능합니다.",
+    "ja-JP": "{min}Lから{max}Lまで、整数で入力できます。",
+    "en-US": "Enter a whole number from {min}L to {max}L.",
+    "zh-CN": "可输入{min}L至{max}L之间的整数。",
+    "zh-Hant": "可輸入 {min}L 至 {max}L 之間的整數。"
+  },
   "common.tag.paid": {
     "ko-KR": "유료",
     "ja-JP": "有料",
