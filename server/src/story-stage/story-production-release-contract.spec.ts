@@ -90,4 +90,64 @@ describe('Story production release contract', () => {
     expect(Object.values(contract.mutationPolicy).every((value) => value === false)).toBe(true);
     expect(Object.values(contract.privacy).every((value) => value === false)).toBe(true);
   });
+
+  it('requires actual analysis for the shared completion review state', () => {
+    const review = STORY_PRODUCTION_RELEASE_CONTRACT.writerCompletionReview;
+
+    expect(review).toMatchObject({
+      sourceOfTruth: 'future_writer_analysis_review_state',
+      actionPolicy: {
+        reanalysisCreatesNewAnalysisVersion: true,
+        criticalFindingBlocksFinalConfirmation: true,
+        duplicateSubmissionRequiresIdempotencyGuard: true,
+        mockAnalysisCanAdvanceReview: false,
+      },
+      sharedUiState: {
+        desktop: 'single_large_dialog',
+        mobile390And400: 'single_full_screen_dialog',
+        nestedDialogAllowed: false,
+        serverStateSharedAcrossLayouts: true,
+      },
+    });
+  });
+
+  it('bounds memory spend, keeps profiles consent-scoped, and does not fabricate IR metrics', () => {
+    const contract = STORY_PRODUCTION_RELEASE_CONTRACT;
+
+    expect(contract.hierarchicalMemoryBudget).toMatchObject({
+      analysisWindows: {
+        resendWholeManuscriptPerPart: false,
+      },
+      reuseAndInvalidation: {
+        unchangedPartAnalysisReusable: true,
+        changedPartInvalidatesOwnAnalysis: true,
+        failedRunResumesFromLastCompletedCheckpoint: true,
+      },
+      calculator: {
+        requiresMeasuredRateCardBeforeSpendApproval: true,
+      },
+    });
+    expect(contract.styleProfileConsent).toMatchObject({
+      sourceEligibility: {
+        writerApprovedManuscriptOnly: true,
+        aiGeneratedSentenceAllowedAsStyleSample: false,
+      },
+      isolation: {
+        crossWriterReuseAllowed: false,
+        crossWorkReuseAllowed: false,
+      },
+      publicClaim: 'writer_approved_manuscript_based_ai_expansion',
+    });
+    expect(contract.branchQualityObservability.measurementPolicy).toMatchObject({
+      irAndOperationsUseSameSource: true,
+      fabricatedMetricAllowed: false,
+      manuscriptTextStored: false,
+      privateChoiceContentStored: false,
+    });
+    expect(contract.irDemoEvidencePackage.evidencePolicy).toMatchObject({
+      stagingEvidenceRequiredForImplementedClaim: true,
+      designContractMayNotBePresentedAsImplemented: true,
+      fixtureOrMockMayNotBePresentedAsProductionEvidence: true,
+    });
+  });
 });
