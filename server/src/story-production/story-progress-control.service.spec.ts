@@ -15,6 +15,7 @@ describe('StoryProgressControlService', () => {
     feedSearchBlockedTerm: { findMany: jest.fn() },
     storyResetQuotaBucket: { findMany: jest.fn() },
     storyProgressCheckpoint: { findFirst: jest.fn() },
+    storyQualityEvent: { upsert: jest.fn() },
   };
   const moderation = { preview: jest.fn() };
   const service = new StoryProgressControlService(prisma as never, moderation as never);
@@ -48,6 +49,7 @@ describe('StoryProgressControlService', () => {
     prisma.feedSearchBlockedTerm.findMany.mockResolvedValue([]);
     prisma.userEntitlement.findFirst.mockResolvedValue(null);
     moderation.preview.mockReturnValue({ decision: 'allow' });
+    prisma.storyQualityEvent.upsert.mockResolvedValue({ id: 'quality-event' });
   });
 
   it('does not trust a client paid flag when no active server entitlement exists', async () => {

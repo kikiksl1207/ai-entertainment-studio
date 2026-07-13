@@ -6,6 +6,7 @@ import { StoryProductionService } from './story-production.service';
 describe('StoryProductionService', () => {
   const prisma = {
     storyWork: { findMany: jest.fn(), findFirst: jest.fn() },
+    storyRelease: { findMany: jest.fn(), findFirst: jest.fn() },
     userEntitlement: { findMany: jest.fn() },
     walletAccount: { findUnique: jest.fn() },
     $transaction: jest.fn(),
@@ -26,6 +27,7 @@ describe('StoryProductionService', () => {
         priceLumina: new Decimal(10),
         fixtureSource: false,
         publishedAt: new Date(),
+        activeReleaseId: '00000000-0000-0000-0000-000000000011',
       },
       {
         id: '00000000-0000-0000-0000-000000000002',
@@ -37,7 +39,12 @@ describe('StoryProductionService', () => {
         priceLumina: new Decimal(10),
         fixtureSource: false,
         publishedAt: new Date(),
+        activeReleaseId: '00000000-0000-0000-0000-000000000012',
       },
+    ]);
+    prisma.storyRelease.findMany.mockResolvedValue([
+      { id: '00000000-0000-0000-0000-000000000011' },
+      { id: '00000000-0000-0000-0000-000000000012' },
     ]);
 
     const result = await service.catalog(undefined, new StoryCatalogQueryDto());
@@ -59,6 +66,10 @@ describe('StoryProductionService', () => {
       fixtureSource: false,
       coverManifest: { url: '/public/story/cover.webp' },
       priceLumina: new Decimal(100),
+      activeReleaseId: '00000000-0000-0000-0000-000000000030',
+    });
+    prisma.storyRelease.findFirst.mockResolvedValue({
+      id: '00000000-0000-0000-0000-000000000030',
     });
     prisma.userEntitlement.findMany.mockResolvedValue([{ referenceId: workId }]);
 

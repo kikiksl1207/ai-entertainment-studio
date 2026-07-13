@@ -30,6 +30,7 @@ import {
   manuscriptContentHash,
   projectLocalizedValue,
 } from './story-production.policy';
+import { sessionKeyHash, storyPathSignature } from './story-lifecycle.policy';
 
 const STORY_ENTITLEMENT_TYPES = [
   'story_work',
@@ -48,6 +49,7 @@ export class StoryProductionService {
       where: {
         status: 'published',
         fixtureSource: false,
+        activeReleaseId: { not: null },
         publishedAt: { lte: new Date() },
       },
       select: {
@@ -60,18 +62,27 @@ export class StoryProductionService {
         priceLumina: true,
         fixtureSource: true,
         publishedAt: true,
+        activeReleaseId: true,
       },
       orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
       cursor: query.cursor ? { id: query.cursor } : undefined,
       skip: query.cursor ? 1 : 0,
       take: query.limit + 1,
     });
+    const activeReleases = await this.prisma.storyRelease.findMany({
+      where: {
+        id: { in: rows.map((row) => row.activeReleaseId).filter((id): id is string => Boolean(id)) },
+        status: 'active',
+      },
+      select: { id: true },
+    });
+    const activeReleaseIds = new Set(activeReleases.map((release) => release.id));
     const safeRows = rows.filter((row) =>
       isPublicStorySourceSafe({
         fixtureSource: row.fixtureSource,
         slug: row.slug,
         manifest: row.coverManifest,
-      }),
+      }) && Boolean(row.activeReleaseId && activeReleaseIds.has(row.activeReleaseId)),
     );
     const page = safeRows.slice(0, query.limit);
     const entitledIds = await this.entitledReferenceIds(
@@ -108,6 +119,7 @@ export class StoryProductionService {
         slug,
         status: 'published',
         fixtureSource: false,
+        activeReleaseId: { not: null },
         publishedAt: { lte: new Date() },
       },
     });
@@ -121,6 +133,10 @@ export class StoryProductionService {
     ) {
       throw new NotFoundException('Published story not found');
     }
+    const activeRelease = await this.prisma.storyRelease.findFirst({
+      where: { id: work.activeReleaseId!, workId: work.id, status: 'active' },
+    });
+    if (!activeRelease) throw new NotFoundException('Published story not found');
 
     const parts = await this.prisma.storyPart.findMany({
       where: {
@@ -333,10 +349,24 @@ export class StoryProductionService {
         currentBeatPosition: 0,
         currentAct: parts.find((part) => part.id === firstScene.partId)?.actNumber ?? 1,
         storyVersion: work.publishedVersion,
+        activeReleaseId: work.activeReleaseId,
         checkpointSceneId: targetSceneId,
         seenSceneIds: [targetSceneId],
         pathSummary: [],
       },
+    });
+    await this.prisma.storyQualityEvent.upsert({
+      where: { idempotencyKey: `session-start:${progress.id}` },
+      create: {
+        workId,
+        releaseId: progress.activeReleaseId,
+        sessionKeyHash: sessionKeyHash(progress.id),
+        eventType: 'session_started',
+        metricBucket: 'story_session',
+        dimensions: { storyVersion: progress.storyVersion },
+        idempotencyKey: `session-start:${progress.id}`,
+      },
+      update: {},
     });
     return this.currentProgress(userId, progress.id, body.locale);
   }
@@ -464,6 +494,46 @@ export class StoryProductionService {
           endingType,
           explicitRejoin: Boolean(choice.declaredRejoinSceneId),
         },
+      });
+      if (choice.targetEndingKey && progress.activeReleaseId) {
+        const signature = storyPathSignature(path);
+        await tx.storyEndingDiscovery.upsert({
+          where: {
+            userId_releaseId_endingKey_pathSignature: {
+              userId,
+              releaseId: progress.activeReleaseId,
+              endingKey: choice.targetEndingKey,
+              pathSignature: signature,
+            },
+          },
+          create: {
+            userId,
+            workId: progress.workId,
+            releaseId: progress.activeReleaseId,
+            endingKey: choice.targetEndingKey,
+            endingKind: endingType ?? 'author_sub',
+            pathSignature: signature,
+            provenance: endingType === 'ai_generated' ? 'ai_generated' : 'writer_original',
+          },
+          update: { lastSeenAt: new Date() },
+        });
+      }
+      await tx.storyQualityEvent.upsert({
+        where: { idempotencyKey: `choice:${progress.id}:${expectedRevision}` },
+        create: {
+          workId: progress.workId,
+          releaseId: progress.activeReleaseId,
+          sessionKeyHash: sessionKeyHash(progress.id),
+          eventType: choice.targetEndingKey ? 'ending_reached' : 'choice_selected',
+          metricBucket: 'story_path',
+          dimensions: {
+            choiceOutcomeKind: choice.routeKind,
+            endingKind: endingType,
+            rejoinDeclared: Boolean(choice.declaredRejoinSceneId),
+          },
+          idempotencyKey: `choice:${progress.id}:${expectedRevision}`,
+        },
+        update: {},
       });
       const updated = await tx.storyReaderProgress.updateMany({
         where: { id: progress.id, userId, progressRevision: expectedRevision },
@@ -694,8 +764,13 @@ export class StoryProductionService {
   }
 
   private async publicWorkById(workId: string) {
-    const work = await this.prisma.storyWork.findFirst({ where: { id: workId, status: 'published', fixtureSource: false, publishedAt: { lte: new Date() } } });
+    const work = await this.prisma.storyWork.findFirst({ where: { id: workId, status: 'published', fixtureSource: false, activeReleaseId: { not: null }, publishedAt: { lte: new Date() } } });
     if (!work || !isPublicStorySourceSafe({ fixtureSource: work.fixtureSource, slug: work.slug, manifest: work.coverManifest })) throw new NotFoundException('Published story not found');
+    const release = await this.prisma.storyRelease.findFirst({
+      where: { id: work.activeReleaseId!, workId: work.id, status: 'active' },
+      select: { id: true },
+    });
+    if (!release) throw new NotFoundException('Published story not found');
     return work;
   }
 

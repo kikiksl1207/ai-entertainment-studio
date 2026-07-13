@@ -27,6 +27,7 @@ import {
   storyResetScopeKey,
   validatePrivateCustomChoice,
 } from './story-progress-control.policy';
+import { sessionKeyHash } from './story-lifecycle.policy';
 
 type ResetPlan = {
   targetSceneId: string;
@@ -133,6 +134,19 @@ export class StoryProgressControlService {
         privateInput: validation.normalized,
         moderationDecision: moderation.decision,
       },
+    });
+    await this.prisma.storyQualityEvent.upsert({
+      where: { idempotencyKey: `custom-choice:${choice.id}` },
+      create: {
+        workId: context.work.id,
+        releaseId: context.progress.activeReleaseId,
+        sessionKeyHash: sessionKeyHash(context.progress.id),
+        eventType: 'custom_choice_accepted',
+        metricBucket: 'story_path',
+        dimensions: { moderationDecision: moderation.decision },
+        idempotencyKey: `custom-choice:${choice.id}`,
+      },
+      update: {},
     });
     return this.customChoiceReceipt(choice);
   }
@@ -382,6 +396,19 @@ export class StoryProgressControlService {
           actNumber: plan.targetAct,
           visitedEndingKeys: jsonStringArray(progress.visitedEndingKeys),
         },
+      });
+      await tx.storyQualityEvent.upsert({
+        where: { idempotencyKey: `reset:${command.id}` },
+        create: {
+          workId: work.id,
+          releaseId: progress.activeReleaseId,
+          sessionKeyHash: sessionKeyHash(progress.id),
+          eventType: 'reset_completed',
+          metricBucket: 'story_replay',
+          dimensions: { resetTarget: body.target, targetAct: plan.targetAct },
+          idempotencyKey: `reset:${command.id}`,
+        },
+        update: {},
       });
       await tx.auditEvent.create({
         data: {
