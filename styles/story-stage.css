@@ -435,6 +435,84 @@
   overflow-wrap: anywhere;
 }
 
+.story-custom-choice,
+.story-progress-controls {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.story-custom-choice label,
+.story-progress-controls h3,
+.story-resume-label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.story-custom-choice textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  background: #101116;
+  color: #f4f4f1;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.story-custom-choice > div,
+.story-progress-controls > div,
+.story-reset-dialog-panel > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.story-custom-choice > div span,
+.story-resume-label {
+  color: rgba(244, 244, 241, 0.62);
+  font-size: 12px;
+}
+
+.story-reset-dialog {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.story-reset-dialog-panel {
+  display: grid;
+  gap: 14px;
+  width: min(460px, 100%);
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: #17191e;
+}
+
+.story-reset-dialog-panel h2,
+.story-reset-dialog-panel p {
+  margin: 0;
+}
+
+.story-reset-dialog-panel p {
+  color: rgba(244, 244, 241, 0.72);
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 900px) {
   .story-catalog { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -456,6 +534,8 @@
   .story-detail-cover { min-height: 220px; aspect-ratio: 16 / 9; }
   .story-player-stage { min-height: 460px; aspect-ratio: auto; }
   .story-choice-list { grid-template-columns: 1fr; }
+  .story-reset-dialog { align-items: end; padding: 0; }
+  .story-reset-dialog-panel { width: 100%; max-height: min(78dvh, 620px); border-right: 0; border-bottom: 0; border-left: 0; border-radius: 8px 8px 0 0; overflow: auto; }
 }
 
 @media (max-width: 400px) {
@@ -469,6 +549,8 @@
   .story-player-characters img { max-width: 72%; height: 72%; bottom: 132px; }
   .story-player-copy { padding: 42px 14px 14px; }
   .story-player-copy p { font-size: 14px; line-height: 1.55; }
+  .story-custom-choice > div .story-button,
+  .story-progress-controls .story-button { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

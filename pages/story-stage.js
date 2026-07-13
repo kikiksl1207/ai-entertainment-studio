@@ -183,6 +183,94 @@
     },
   };
 
+  const STORY_CONTROL_COPY = {
+    ko: {
+      other: "기타",
+      customPrompt: "다음 행동을 직접 작성하세요",
+      customPlaceholder: "다음 행동을 입력해 주세요",
+      submitCustom: "선택 확정",
+      customEmpty: "다음 행동을 입력해 주세요.",
+      customUnavailable: "이 선택은 지금 이용할 수 없습니다.",
+      resumeFrom: "마지막 기록부터 이어보기",
+      resetProgress: "진행 초기화",
+      resetAll: "전체 초기화",
+      resetAct: "막 초기화",
+      remaining: "남은 횟수",
+      resetConfirm: "초기화 확인",
+      resetCancel: "취소",
+      resetApply: "초기화하기",
+      resetComplete: "새 시작 위치로 이동했습니다.",
+    },
+    en: {
+      other: "Other",
+      customPrompt: "Write your next action",
+      customPlaceholder: "Describe what you want to do next",
+      submitCustom: "Confirm choice",
+      customEmpty: "Enter your next action.",
+      customUnavailable: "This choice is unavailable right now.",
+      resumeFrom: "Continue from your last checkpoint",
+      resetProgress: "Reset progress",
+      resetAll: "Reset all",
+      resetAct: "Reset act",
+      remaining: "Remaining",
+      resetConfirm: "Confirm reset",
+      resetCancel: "Cancel",
+      resetApply: "Reset progress",
+      resetComplete: "You are back at the new starting point.",
+    },
+    ja: {
+      other: "その他",
+      customPrompt: "次の行動を入力してください",
+      customPlaceholder: "次にしたい行動を入力",
+      submitCustom: "選択を確定",
+      customEmpty: "次の行動を入力してください。",
+      customUnavailable: "現在この選択は利用できません。",
+      resumeFrom: "最後の記録から続ける",
+      resetProgress: "進行をリセット",
+      resetAll: "全体をリセット",
+      resetAct: "幕をリセット",
+      remaining: "残り回数",
+      resetConfirm: "リセットの確認",
+      resetCancel: "キャンセル",
+      resetApply: "リセットする",
+      resetComplete: "新しい開始位置に移動しました。",
+    },
+    "zh-Hans": {
+      other: "其他",
+      customPrompt: "输入下一步行动",
+      customPlaceholder: "请输入下一步想做的事",
+      submitCustom: "确认选择",
+      customEmpty: "请输入下一步行动。",
+      customUnavailable: "暂时无法使用此选择。",
+      resumeFrom: "从上次记录继续",
+      resetProgress: "重置进度",
+      resetAll: "全部重置",
+      resetAct: "重置本幕",
+      remaining: "剩余次数",
+      resetConfirm: "确认重置",
+      resetCancel: "取消",
+      resetApply: "重置进度",
+      resetComplete: "已回到新的开始位置。",
+    },
+    "zh-Hant": {
+      other: "其他",
+      customPrompt: "輸入下一步行動",
+      customPlaceholder: "請輸入下一步想做的事",
+      submitCustom: "確認選擇",
+      customEmpty: "請輸入下一步行動。",
+      customUnavailable: "暫時無法使用此選擇。",
+      resumeFrom: "從上次記錄繼續",
+      resetProgress: "重設進度",
+      resetAll: "全部重設",
+      resetAct: "重設本幕",
+      remaining: "剩餘次數",
+      resetConfirm: "確認重設",
+      resetCancel: "取消",
+      resetApply: "重設進度",
+      resetComplete: "已回到新的開始位置。",
+    },
+  };
+
   const state = {
     locale: resolveLocale(),
     packs: [],
@@ -191,6 +279,9 @@
     scene: null,
     choices: [],
     busy: false,
+    progress: null,
+    customChoiceOpen: false,
+    resetPreview: null,
   };
 
   function resolveLocale() {
@@ -202,6 +293,10 @@
 
   function tr(key) {
     return COPY[state.locale]?.[key] || COPY.ko[key] || key;
+  }
+
+  function controlTr(key) {
+    return STORY_CONTROL_COPY[state.locale]?.[key] || STORY_CONTROL_COPY.ko[key] || key;
   }
 
   function escapeHtml(value) {
@@ -280,6 +375,69 @@
     return pack?.slug || pack?.packSlug || "";
   }
 
+  function progressProjection(source) {
+    const progress = source?.progress || source?.readerProgress || source?.checkpoint;
+    return progress && typeof progress === "object" ? progress : null;
+  }
+
+  function safeSessionId(value) {
+    return typeof value === "string" && value.length > 0 && value.length <= 160 ? value : "";
+  }
+
+  function relativeStoryPath(value) {
+    return typeof value === "string" && /^\/api\/v1\/story-sessions\//.test(value) ? value : "";
+  }
+
+  function customChoiceCapability(scene) {
+    const capability = scene?.customChoiceCapability;
+    const submitPath = relativeStoryPath(capability?.submitPath);
+    const maxChars = Number(capability?.maxChars);
+    return capability?.enabled === true && capability?.entitled === true && submitPath && Number.isInteger(maxChars) && maxChars > 0
+      ? { submitPath, maxChars }
+      : null;
+  }
+
+  function resetCapability(progress) {
+    const reset = progress?.reset;
+    const previewPath = relativeStoryPath(reset?.previewPath);
+    const commandPath = relativeStoryPath(reset?.commandPath);
+    return reset?.enabled === true && previewPath && commandPath ? { ...reset, previewPath, commandPath } : null;
+  }
+
+  function renderResetControls(progress) {
+    const reset = resetCapability(progress);
+    if (!reset) return "";
+    const fullRemaining = Number.isInteger(reset.fullRemaining) ? reset.fullRemaining : 0;
+    const actRemaining = Number.isInteger(reset.actRemaining) ? reset.actRemaining : 0;
+    return `
+      <section class="story-progress-controls" aria-label="${escapeHtml(controlTr("resetProgress"))}">
+        <h3>${escapeHtml(controlTr("resetProgress"))}</h3>
+        <div>
+          <button type="button" class="story-button story-button-secondary" data-story-reset-preview="full" ${fullRemaining > 0 ? "" : "disabled"}>${escapeHtml(controlTr("resetAll"))} · ${escapeHtml(controlTr("remaining"))} ${fullRemaining}</button>
+          <button type="button" class="story-button story-button-secondary" data-story-reset-preview="act" ${actRemaining > 0 ? "" : "disabled"}>${escapeHtml(controlTr("resetAct"))} · ${escapeHtml(controlTr("remaining"))} ${actRemaining}</button>
+        </div>
+      </section>`;
+  }
+
+  function renderResetDialog() {
+    const preview = state.resetPreview;
+    if (!preview) return "";
+    const summary = textValue(preview.summary || preview.resetTargetSummary) || "";
+    const remaining = Number.isInteger(preview.remaining) ? preview.remaining : "";
+    return `
+      <div class="story-reset-dialog" role="dialog" aria-modal="true" aria-labelledby="storyResetTitle">
+        <div class="story-reset-dialog-panel">
+          <h2 id="storyResetTitle">${escapeHtml(controlTr("resetConfirm"))}</h2>
+          ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
+          ${remaining !== "" ? `<p>${escapeHtml(controlTr("remaining"))}: ${escapeHtml(String(remaining))}</p>` : ""}
+          <div>
+            <button type="button" class="story-button story-button-secondary" data-story-reset-cancel>${escapeHtml(controlTr("resetCancel"))}</button>
+            <button type="button" class="story-button story-button-primary" data-story-reset-confirm>${escapeHtml(controlTr("resetApply"))}</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
   function renderCatalog() {
     updateHeading();
     if (!state.packs.length) {
@@ -315,6 +473,8 @@
     const title = packTitle(pack);
     const cover = coverUrl(pack);
     const chapters = Array.isArray(pack.chapters) ? pack.chapters : [];
+    const progress = state.progress || progressProjection(pack);
+    const resumeSessionId = progress?.canResume === true ? safeSessionId(progress.sessionId || progress.resumeSessionId) : "";
     root.innerHTML = `
       <section class="story-pack-detail">
         <button type="button" class="story-back" data-story-back>← ${escapeHtml(tr("backToStories"))}</button>
@@ -324,15 +484,18 @@
             <div class="story-pack-status"><b>${escapeHtml(lifecycleLabel(pack.lifecycleStatus))}</b><em>${escapeHtml(pricingLabel(pack.pricingMode))}</em></div>
             <h2>${escapeHtml(title)}</h2>
             ${packSummary(pack) ? `<h3>${escapeHtml(tr("synopsis"))}</h3><p>${escapeHtml(packSummary(pack))}</p>` : ""}
-            <button type="button" class="story-button story-button-primary" data-story-start data-pack-slug="${escapeHtml(packSlug(pack))}">${escapeHtml(tr("start"))}</button>
+            <button type="button" class="story-button story-button-primary" ${resumeSessionId ? `data-story-resume="${escapeHtml(resumeSessionId)}"` : `data-story-start data-pack-slug="${escapeHtml(packSlug(pack))}"`}>${escapeHtml(resumeSessionId ? tr("continue") : tr("start"))}</button>
+            ${resumeSessionId ? `<p class="story-resume-label">${escapeHtml(textValue(progress.checkpointLabel) || controlTr("resumeFrom"))}</p>` : ""}
             <p class="story-action-status" data-story-action-status aria-live="polite"></p>
+            ${renderResetControls(progress)}
           </div>
         </div>
         ${chapters.length ? `
           <section class="story-chapters">
             <h3>${escapeHtml(tr("chapterList"))}</h3>
             <ol>${chapters.map((chapter) => `<li><span>${escapeHtml(String(chapter.chapterNo || chapter.partNo || chapter.no || ""))}</span><strong>${escapeHtml(textValue(chapter.title) || textValue(chapter.summary))}</strong></li>`).join("")}</ol>
-          </section>` : ""}
+        </section>` : ""}
+        ${renderResetDialog()}
       </section>`;
   }
 
@@ -351,6 +514,8 @@
     const characters = Array.isArray(scene.characters) ? scene.characters.filter((item) => characterUrl(item)) : [];
     const sceneText = textValue(scene.sceneText) || textValue(scene.body) || textValue(scene.content);
     const isEnding = Boolean(scene.ending || scene.isEnding || scene.endingType);
+    const customChoice = customChoiceCapability(scene);
+    const fixedChoices = state.choices.slice(0, 3);
     root.innerHTML = `
       <section class="story-player" data-has-background="${background ? "true" : "false"}">
         <a class="story-back" href="/story-stage">← ${escapeHtml(tr("backToStories"))}</a>
@@ -364,12 +529,19 @@
             <p>${escapeHtml(sceneText)}</p>
           </div>
         </div>
-        ${state.choices.length && !isEnding ? `
+        ${fixedChoices.length && !isEnding ? `
           <div class="story-choice-panel">
             <h2>${escapeHtml(tr("choices"))}</h2>
             <div class="story-choice-list">
-              ${state.choices.map((choice) => `<button type="button" data-choice-id="${escapeHtml(choice.choiceId || choice.id || "")}">${escapeHtml(textValue(choice.label) || textValue(choice.choiceBody) || textValue(choice.body))}</button>`).join("")}
+              ${fixedChoices.map((choice, index) => `<button type="button" data-choice-id="${escapeHtml(choice.choiceId || choice.id || "")}" aria-label="${escapeHtml(textValue(choice.label) || textValue(choice.choiceBody) || textValue(choice.body) || String(index + 1))}">${index + 1}</button>`).join("")}
+              ${customChoice ? `<button type="button" data-story-custom-choice>${escapeHtml(controlTr("other"))}</button>` : ""}
             </div>
+            ${customChoice && state.customChoiceOpen ? `
+              <form class="story-custom-choice" data-story-custom-form>
+                <label for="storyCustomChoice">${escapeHtml(controlTr("customPrompt"))}</label>
+                <textarea id="storyCustomChoice" name="customChoice" maxlength="${customChoice.maxChars}" placeholder="${escapeHtml(controlTr("customPlaceholder"))}" required></textarea>
+                <div><span data-story-custom-count>0 / ${customChoice.maxChars}</span><button type="submit" class="story-button story-button-primary">${escapeHtml(controlTr("submitCustom"))}</button></div>
+              </form>` : ""}
             <p class="story-action-status" data-story-action-status aria-live="polite"></p>
           </div>` : ""}
       </section>`;
@@ -405,6 +577,8 @@
       state.pack = state.packs.find((pack) => packSlug(pack) === slug) || null;
     }
     if (!state.pack) return renderState(tr("loadErrorTitle"), tr("loadErrorBody"), true);
+    state.progress = progressProjection(state.pack);
+    state.resetPreview = null;
     history.replaceState(null, "", `/story-stage?slug=${encodeURIComponent(slug)}`);
     renderPack();
   }
@@ -435,6 +609,8 @@
     try {
       state.scene = await request(`/api/v1/story-sessions/${encodeURIComponent(state.sessionId)}/current-scene`, { auth: true });
       state.choices = Array.isArray(state.scene?.choices) ? state.scene.choices : listFrom(await request(`/api/v1/story-sessions/${encodeURIComponent(state.sessionId)}/choices`, { auth: true }));
+      state.progress = progressProjection(state.scene) || state.progress;
+      state.customChoiceOpen = false;
       renderScene();
     } catch (_) {
       renderState(tr("sceneFailed"), tr("loadErrorBody"), true);
@@ -461,6 +637,74 @@
     }
   }
 
+  async function submitCustomChoice(value) {
+    const capability = customChoiceCapability(state.scene);
+    const input = String(value || "").trim();
+    const status = root.querySelector("[data-story-action-status]");
+    if (!capability || !state.sessionId || !state.scene?.sceneId) {
+      if (status) status.textContent = controlTr("customUnavailable");
+      return;
+    }
+    if (!input) {
+      if (status) status.textContent = controlTr("customEmpty");
+      return;
+    }
+    if (state.busy) return;
+    state.busy = true;
+    if (status) status.textContent = tr("choosing");
+    try {
+      await request(capability.submitPath, {
+        method: "POST",
+        auth: true,
+        headers: { "Idempotency-Key": `story-custom-choice-${state.sessionId}-${state.scene.sceneId}-${Date.now()}` },
+        body: { customChoice: input },
+      });
+      state.busy = false;
+      await loadScene();
+    } catch (_) {
+      if (status) status.textContent = tr("choiceFailed");
+      state.busy = false;
+    }
+  }
+
+  async function requestResetPreview(target) {
+    const reset = resetCapability(state.progress);
+    if (!reset || state.busy) return;
+    state.busy = true;
+    try {
+      const separator = reset.previewPath.includes("?") ? "&" : "?";
+      state.resetPreview = await request(`${reset.previewPath}${separator}target=${encodeURIComponent(target)}`, { auth: true });
+      state.resetPreview.target = target;
+      renderPack();
+    } finally {
+      state.busy = false;
+    }
+  }
+
+  async function confirmReset() {
+    const reset = resetCapability(state.progress);
+    if (!reset || !state.resetPreview?.target || state.busy) return;
+    state.busy = true;
+    try {
+      const payload = await request(reset.commandPath, {
+        method: "POST",
+        auth: true,
+        headers: { "Idempotency-Key": `story-reset-${state.sessionId}-${state.resetPreview.target}-${Date.now()}` },
+        body: { target: state.resetPreview.target },
+      });
+      state.progress = progressProjection(payload) || state.progress;
+      state.resetPreview = null;
+      renderPack();
+      const status = root.querySelector("[data-story-action-status]");
+      if (status) status.textContent = controlTr("resetComplete");
+    } catch (_) {
+      const status = root.querySelector("[data-story-action-status]");
+      if (status) status.textContent = tr("choiceFailed");
+    } finally {
+      state.busy = false;
+    }
+  }
+
   root.addEventListener("click", (event) => {
     const packButton = event.target.closest("[data-pack-slug]");
     if (packButton && !packButton.matches("[data-story-start]")) return loadPack(packButton.dataset.packSlug);
@@ -472,9 +716,36 @@
     }
     const startButton = event.target.closest("[data-story-start]");
     if (startButton) return startStory(startButton.dataset.packSlug);
+    const resumeButton = event.target.closest("[data-story-resume]");
+    if (resumeButton) return location.assign(`/story-stage?sessionId=${encodeURIComponent(resumeButton.dataset.storyResume)}`);
     const choiceButton = event.target.closest("[data-choice-id]");
     if (choiceButton) return submitChoice(choiceButton.dataset.choiceId);
+    if (event.target.closest("[data-story-custom-choice]")) {
+      state.customChoiceOpen = true;
+      return renderScene();
+    }
+    const resetPreviewButton = event.target.closest("[data-story-reset-preview]");
+    if (resetPreviewButton) return requestResetPreview(resetPreviewButton.dataset.storyResetPreview);
+    if (event.target.closest("[data-story-reset-cancel]")) {
+      state.resetPreview = null;
+      return renderPack();
+    }
+    if (event.target.closest("[data-story-reset-confirm]")) return confirmReset();
     if (event.target.closest("[data-story-retry]")) return state.sessionId ? loadScene() : loadCatalog();
+  });
+
+  root.addEventListener("input", (event) => {
+    const input = event.target.closest("#storyCustomChoice");
+    if (!input) return;
+    const counter = root.querySelector("[data-story-custom-count]");
+    if (counter) counter.textContent = `${input.value.length} / ${input.maxLength}`;
+  });
+
+  root.addEventListener("submit", (event) => {
+    const form = event.target.closest("[data-story-custom-form]");
+    if (!form) return;
+    event.preventDefault();
+    submitCustomChoice(form.elements.customChoice?.value);
   });
 
   updateHeading();

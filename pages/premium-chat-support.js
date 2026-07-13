@@ -19,7 +19,7 @@
     policy: {
       authRequired: true,
       walletMutationEnabled: false,
-      disabledDisplayMessageKo: "후원 기능을 준비하고 있어요. 열리면 바로 알려드릴게요. 지금은 금액과 정책만 미리 볼 수 있어요." // #1341 locked preview copy
+      disabledDisplayMessageKo: "현재 후원을 이용할 수 없습니다. 이용 가능해지면 알려드릴게요."
     },
     donation: {
       fixedAmountsLumina: [10, 50, 100, 500, 1000, 5000, 10000, 50000],
@@ -207,7 +207,7 @@
     var amount = state.selectedAmount;
     var parts = [];
     if (amount != null) {
-      parts.push('<span class="donation-summary-amount"><strong>' + formatLumina(amount) + 'L</strong> 후원 미리보기</span>');
+      parts.push('<span class="donation-summary-amount"><strong>' + formatLumina(amount) + 'L</strong> 후원 금액</span>');
       if (amount >= currentHighValueStart()) {
         parts.push('<span class="donation-summary-tag">고액 후원 — 본인확인 필요</span>');
       }
@@ -252,12 +252,12 @@
     banner.dataset.state = unauth ? "unauth" : disabled ? "disabled" : "ready";
     var label, body;
     if (unauth) {
-      label = "후원 준비 중";
-      body = "로그인하면 후원 가능 여부를 확인할 수 있어요. 지금은 금액과 정책만 미리 볼 수 있어요.";
+      label = "후원 이용 안내";
+      body = "로그인하면 후원 가능 여부를 확인할 수 있어요.";
     } else if (disabled) {
       // #1341 — disabled 이유를 짧게 보이고, read-only 금액/정책 preview는 열어 둔다.
       // API 값 무시, FALLBACK 고정 (API가 내부어 포함 가능).
-      label = "후원 준비 중";
+      label = "후원 이용 안내";
       body = FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
     } else {
       label = "후원 가능";
