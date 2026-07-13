@@ -111,3 +111,15 @@
     box-sizing: border-box;
   }
 }
+
+@media (max-width: 600px) {
+  .premium-chat-support-page .donation-fixed-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .premium-chat-support-page .donation-step-bar .ds-step {
+    min-width: 0;
+    padding-inline: 4px;
+    white-space: normal;
+  }
+}

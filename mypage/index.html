@@ -700,7 +700,13 @@
           }
         };
 
+        function isLocalAccountFixtureEnvironment() {
+          const host = String(location.hostname || "").toLowerCase();
+          return host === "localhost" || host === "127.0.0.1" || host === "" || host.endsWith(".local");
+        }
+
         function getSafeAccountStateFixture() {
+          if (!isLocalAccountFixtureEnvironment()) return null;
           const params = new URLSearchParams(location.search);
           const raw = (params.get("accountfixture") || params.get("accountFixture") || "").trim().toLowerCase();
           const key = { verified_email: "verified", unverified_email: "unverified", social_only: "social-only", no_password: "no-password", identity_pending: "identity-pending" }[raw] || raw;

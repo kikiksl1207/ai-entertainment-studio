@@ -40,65 +40,65 @@
     <main class="premium-support-main">
       <section class="premium-support-head" aria-labelledby="premiumSupportTitle">
         <p class="premium-support-eyebrow">Premium Chat</p>
-        <h1 id="premiumSupportTitle">후원 안내 미리보기</h1>
-        <p>프리미엄 채팅의 후원 금액, 본인확인 조건, 환불 안내를 읽기 전용으로 확인합니다.</p>
-        <a class="premium-support-link" href="/character-chat">캐릭터챗으로 돌아가기</a>
+        <h1 id="premiumSupportTitle" data-support-copy="title">후원 안내</h1>
+        <p data-support-copy="description">프리미엄 채팅의 후원 금액, 본인확인 조건, 환불 안내를 읽기 전용으로 확인합니다.</p>
+        <a class="premium-support-link" href="/character-chat" data-support-copy="back">캐릭터챗으로 돌아가기</a>
       </section>
 
-      <section class="premium-support-panel" aria-label="프리미엄챗 후원 상태">
-        <div class="donation-step-bar" id="donationStepBar" aria-label="후원 단계">
-          <span class="ds-step is-active" id="donationStep1">금액 선택</span>
+      <section class="premium-support-panel" data-support-aria="panelLabel" aria-label="프리미엄챗 후원 상태">
+        <div class="donation-step-bar" id="donationStepBar" data-support-aria="stepsLabel" aria-label="후원 단계">
+          <span class="ds-step is-active" id="donationStep1" data-support-copy="stepAmount">금액 선택</span>
           <span class="ds-arrow" aria-hidden="true">→</span>
-          <span class="ds-step" id="donationStep2">내용 확인</span>
+          <span class="ds-step" id="donationStep2" data-support-copy="stepReview">내용 확인</span>
           <span class="ds-arrow" aria-hidden="true">→</span>
-          <span class="ds-step" id="donationStep3">후원 완료</span>
+          <span class="ds-step" id="donationStep3" data-support-copy="stepComplete">후원 완료</span>
         </div>
 
         <div class="donation-status" id="donationStatusBanner" data-state="loading" aria-live="polite">
-          <strong class="donation-status-label" data-i18n="chat.donation.loading.label">상태 확인 중</strong>
-          <p class="donation-status-text" data-i18n="chat.donation.loading.text">후원 정책을 불러오는 중입니다.</p>
+          <strong class="donation-status-label" data-support-copy="loadingLabel">상태 확인 중</strong>
+          <p class="donation-status-text" data-support-copy="loadingText">후원 정책을 불러오는 중입니다.</p>
         </div>
 
         <fieldset class="donation-fixed">
-          <legend>고정 후원 금액</legend>
-          <div class="donation-fixed-grid" id="donationFixedAmounts" role="radiogroup" aria-label="고정 후원 금액 선택"></div>
+          <legend data-support-copy="fixedLegend">고정 후원 금액</legend>
+          <div class="donation-fixed-grid" id="donationFixedAmounts" role="radiogroup" data-support-aria="fixedAria" aria-label="고정 후원 금액 선택"></div>
         </fieldset>
 
         <fieldset class="donation-custom">
-          <legend>직접 입력</legend>
+          <legend data-support-copy="customLegend">직접 입력</legend>
           <label class="donation-custom-field">
-            <span>후원 금액 (L)</span>
-            <input type="number" id="donationCustomAmount" min="1" max="50000" step="1" inputmode="numeric" placeholder="1 ~ 50,000" aria-describedby="donationCustomHint" />
+            <span data-support-copy="amountLabel">후원 금액 (L)</span>
+            <input type="number" id="donationCustomAmount" min="1" max="50000" step="1" inputmode="numeric" data-support-placeholder="amountPlaceholder" placeholder="1 ~ 50,000" aria-describedby="donationCustomHint" />
           </label>
           <p class="donation-custom-hint" id="donationCustomHint">최소 1L, 최대 50,000L까지 정수만 입력할 수 있어요.</p>
         </fieldset>
 
         <fieldset class="donation-message">
-          <legend>메시지</legend>
+          <legend data-support-copy="messageLegend">메시지</legend>
           <label class="donation-message-field">
-            <textarea id="donationMessage" maxlength="200" rows="3" placeholder="응원 메시지를 미리 작성해 볼 수 있어요." aria-describedby="donationMessageHint"></textarea>
+            <textarea id="donationMessage" maxlength="200" rows="3" data-support-placeholder="messagePlaceholder" placeholder="응원 메시지를 미리 작성해 볼 수 있어요." aria-describedby="donationMessageHint"></textarea>
             <span class="donation-message-counter" id="donationMessageCounter" aria-live="polite">0 / 200</span>
           </label>
-          <p class="donation-message-hint" id="donationMessageHint">이 화면은 preview입니다. 실제 제출은 열리지 않습니다.</p>
+          <p class="donation-message-hint" id="donationMessageHint" data-support-copy="messageHint">이 화면은 읽기 전용입니다. 실제 제출은 열리지 않습니다.</p>
         </fieldset>
 
         <div class="donation-summary" id="donationSummary" aria-live="polite">
-          <span class="donation-summary-amount">금액을 선택하면 합계가 표시됩니다.</span>
+          <span class="donation-summary-amount" data-support-copy="summaryEmpty">금액을 선택하면 합계가 표시됩니다.</span>
         </div>
 
         <div class="donation-policy" id="donationPolicyInfo">
           <ul>
             <li id="donationPolicyHighValue">10,000L 이상은 본인확인 안내가 필요합니다.</li>
-            <li id="donationPolicyBlockedStates">신고 또는 운영 검토 중인 방에서는 후원이 잠길 수 있어요.</li>
-            <li id="donationPolicy24h">24시간 미응답 상태는 환불 검토 대상입니다.</li>
-            <li id="donationPolicyRefundRate">정책 사유 발생 시 환불 금액은 조건에 따라 제한될 수 있어요.</li>
+            <li id="donationPolicyBlockedStates" data-support-copy="policyBlocked">신고 또는 운영 검토 중인 방에서는 후원이 잠길 수 있어요.</li>
+            <li id="donationPolicy24h" data-support-copy="policyReview">24시간 미응답 상태는 환불 검토 대상입니다.</li>
+            <li id="donationPolicyRefundRate" data-support-copy="policyRefund">정책 사유 발생 시 환불 금액은 조건에 따라 제한될 수 있어요.</li>
           </ul>
         </div>
 
         <footer class="premium-support-actions">
-          <a class="dm-sheet-secondary" href="/premium-chat-hub">허브 보기</a>
+          <a class="dm-sheet-secondary" href="/premium-chat-hub" data-support-copy="hub">허브 보기</a>
           <button type="button" class="dm-sheet-primary" id="donationConfirmBtn" disabled aria-disabled="true">
-            <span id="donationConfirmLabel">후원 안내 확인</span>
+            <span id="donationConfirmLabel" data-support-copy="confirmInfo">후원 안내 확인</span>
           </button>
         </footer>
       </section>
@@ -107,21 +107,21 @@
     <div class="dm-modal-backdrop" id="donationConfirmBackdrop" hidden></div>
     <div class="dm-modal donation-confirm-modal" id="donationConfirmModal" role="dialog" aria-modal="true" aria-labelledby="donationConfirmTitle" hidden>
       <header class="dm-modal-head">
-        <h2 id="donationConfirmTitle">고액 후원 확인</h2>
+        <h2 id="donationConfirmTitle" data-support-copy="confirmTitle">고액 후원 확인</h2>
       </header>
       <div class="dm-modal-body">
-        <p>아래 금액으로 후원할지 확인합니다.</p>
+        <p data-support-copy="confirmBody">아래 금액으로 후원할지 확인합니다.</p>
         <p class="donation-confirm-amount" id="donationConfirmAmount">0L</p>
         <ul class="donation-confirm-checks">
-          <li id="donationConfirmIdentity">본인확인이 필요한 금액입니다.</li>
-          <li id="donationConfirmDaily">일일 한도 안에서만 진행됩니다.</li>
-          <li>정책 사유가 있으면 환불 범위가 제한될 수 있어요.</li>
+          <li id="donationConfirmIdentity" data-support-copy="confirmIdentity">본인확인이 필요한 금액입니다.</li>
+          <li id="donationConfirmDaily" data-support-copy="confirmDaily">일일 한도 안에서만 진행됩니다.</li>
+          <li data-support-copy="confirmRefund">정책 사유가 있으면 환불 범위가 제한될 수 있어요.</li>
         </ul>
-        <p class="donation-confirm-note" id="donationConfirmNote">preview에서는 진행 버튼이 잠겨 있습니다.</p>
+        <p class="donation-confirm-note" id="donationConfirmNote" data-support-copy="confirmNote">읽기 전용 화면에서는 진행 버튼이 잠겨 있습니다.</p>
       </div>
       <footer class="dm-modal-foot">
-        <button type="button" class="dm-sheet-secondary" data-donation-confirm-cancel>다시 보기</button>
-        <button type="button" class="dm-sheet-primary" id="donationConfirmProceed" disabled aria-disabled="true">진행 잠금</button>
+        <button type="button" class="dm-sheet-secondary" data-donation-confirm-cancel data-support-copy="cancel">다시 보기</button>
+        <button type="button" class="dm-sheet-primary" id="donationConfirmProceed" disabled aria-disabled="true" data-support-copy="locked">진행 잠금</button>
       </footer>
     </div>
 

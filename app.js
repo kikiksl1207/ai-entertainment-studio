@@ -1590,6 +1590,9 @@ async function setLocale(locale) {
   if (typeof document !== "undefined") document.documentElement.lang = normalizedLocale;
   try { localStorage.setItem(I18N_STORAGE_KEY, normalizedLocale); } catch (_) {}
   applyI18n();
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new CustomEvent("lumina:localechange", { detail: { locale: publicLocale(normalizedLocale) } }));
+  }
   // 로그인 사용자만 서버 저장 (실패해도 로컬 적용 유지)
   if (isLoggedIn()) {
     try {
@@ -1621,6 +1624,9 @@ async function initI18n() {
   _currentLocale = resolved;
   if (typeof document !== "undefined") document.documentElement.lang = resolved;
   applyI18n();
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new CustomEvent("lumina:localechange", { detail: { locale: publicLocale(resolved) } }));
+  }
 }
 
 // 외부 노출 — 마이페이지 언어 select 등에서 사용
