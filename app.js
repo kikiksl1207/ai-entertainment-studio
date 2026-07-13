@@ -1503,6 +1503,251 @@ const I18N_DICT = {
     "en-US": "The review intake is complete. Check the receipt below.",
     "zh-CN": "审核提交已完成。请查看下方提交回执。",
     "zh-Hant": "審核提交已完成。請查看下方提交收據。"
+  },
+  "writerReview.analysis.summary.title": {
+    "ko-KR": "요약 확인",
+    "ja-JP": "要約を確認",
+    "en-US": "Review summary",
+    "zh-CN": "确认摘要",
+    "zh-Hant": "確認摘要"
+  },
+  "writerReview.analysis.summary.body": {
+    "ko-KR": "AI가 읽은 흐름을 요약했습니다. 원문은 바뀌지 않습니다.",
+    "ja-JP": "AIが読んだ流れの要約です。原稿本文は変わりません。",
+    "en-US": "This is an AI reading summary. Your manuscript is unchanged.",
+    "zh-CN": "这是 AI 阅读后的摘要，原稿不会被更改。",
+    "zh-Hant": "這是 AI 閱讀後的摘要，原稿不會被更改。"
+  },
+  "writerReview.analysis.background.title": {
+    "ko-KR": "배경 제안",
+    "ja-JP": "背景の提案",
+    "en-US": "Background suggestions",
+    "zh-CN": "背景建议",
+    "zh-Hant": "背景建議"
+  },
+  "writerReview.analysis.background.body": {
+    "ko-KR": "장면 이해를 돕는 제안입니다. 적용 전 원문을 확인하세요.",
+    "ja-JP": "場面理解を助ける提案です。反映前に原文を確認してください。",
+    "en-US": "Suggestions to support the scene. Review the original before applying.",
+    "zh-CN": "这是帮助理解场景的建议，应用前请确认原文。",
+    "zh-Hant": "這是幫助理解場景的建議，套用前請確認原文。"
+  },
+  "writerReview.analysis.branch.title": {
+    "ko-KR": "분기 추가 제안",
+    "ja-JP": "分岐の追加提案",
+    "en-US": "Branch suggestions",
+    "zh-CN": "分支建议",
+    "zh-Hant": "分支建議"
+  },
+  "writerReview.analysis.branch.body": {
+    "ko-KR": "현재 원고를 바꾸지 않는 대안 경로 제안입니다.",
+    "ja-JP": "現在の原稿を変えない代替ルートの提案です。",
+    "en-US": "Alternative paths that do not change your current manuscript.",
+    "zh-CN": "不会更改当前原稿的替代路线建议。",
+    "zh-Hant": "不會更改目前原稿的替代路線建議。"
+  },
+  "writerReview.analysis.foreshadow.title": {
+    "ko-KR": "떡밥 중요도",
+    "ja-JP": "伏線の重要度",
+    "en-US": "Foreshadow importance",
+    "zh-CN": "伏笔重要度",
+    "zh-Hant": "伏筆重要度"
+  },
+  "writerReview.analysis.foreshadow.body": {
+    "ko-KR": "나중에 회수할 계획이라면 중요도를 정해 주세요.",
+    "ja-JP": "後で回収する予定なら重要度を設定してください。",
+    "en-US": "Set importance when you plan to resolve this later.",
+    "zh-CN": "若计划在后文回收，请设置重要度。",
+    "zh-Hant": "若計畫在後文回收，請設定重要度。"
+  },
+  "writerReview.analysis.conflict.title": {
+    "ko-KR": "설정 충돌 확인",
+    "ja-JP": "設定の矛盾を確認",
+    "en-US": "Check continuity conflict",
+    "zh-CN": "确认设定冲突",
+    "zh-Hant": "確認設定衝突"
+  },
+  "writerReview.analysis.conflict.previousEvidence": {
+    "ko-KR": "이전 근거",
+    "ja-JP": "過去の根拠",
+    "en-US": "Earlier evidence",
+    "zh-CN": "先前依据",
+    "zh-Hant": "先前依據"
+  },
+  "writerReview.analysis.conflict.currentEvidence": {
+    "ko-KR": "현재 근거",
+    "ja-JP": "現在の根拠",
+    "en-US": "Current evidence",
+    "zh-CN": "当前依据",
+    "zh-Hant": "目前依據"
+  },
+  "writerReview.analysis.exception.title": {
+    "ko-KR": "의도된 예외인가요?",
+    "ja-JP": "意図した例外ですか？",
+    "en-US": "Is this intentional?",
+    "zh-CN": "这是有意的例外吗？",
+    "zh-Hant": "這是刻意的例外嗎？"
+  },
+  "writerReview.analysis.exception.body": {
+    "ko-KR": "의도된 예외로 남기면 이후 검수에서 같은 충돌로 다시 묻지 않습니다.",
+    "ja-JP": "意図した例外として残すと、以後の確認で同じ矛盾を繰り返し尋ねません。",
+    "en-US": "Marking this as intentional records your decision and prevents the same question later.",
+    "zh-CN": "标记为有意例外后，后续审核不会再次询问同一冲突。",
+    "zh-Hant": "標記為刻意例外後，後續審核不會再次詢問相同衝突。"
+  },
+  "writerReview.analysis.publishBlocked.title": {
+    "ko-KR": "발행 전 확인이 필요합니다",
+    "ja-JP": "公開前に確認が必要です",
+    "en-US": "Review required before publishing",
+    "zh-CN": "发布前需要确认",
+    "zh-Hant": "發布前需要確認"
+  },
+  "writerReview.analysis.publishBlocked.body": {
+    "ko-KR": "치명적 충돌을 확인하거나 예외로 기록한 뒤 최종본을 올릴 수 있습니다.",
+    "ja-JP": "重大な矛盾を確認するか例外として記録すると、最終版をアップロードできます。",
+    "en-US": "Resolve the critical conflict or record an exception before uploading the final version.",
+    "zh-CN": "确认严重冲突或记录例外后，才能上传最终稿。",
+    "zh-Hant": "確認嚴重衝突或記錄例外後，才能上傳最終稿。"
+  },
+  "writerReview.issue.critical": {
+    "ko-KR": "치명적 확인 필요",
+    "ja-JP": "重大な確認が必要",
+    "en-US": "Critical review required",
+    "zh-CN": "需要严重确认",
+    "zh-Hant": "需要嚴重確認"
+  },
+  "writerReview.issue.warning": {
+    "ko-KR": "확인 권장",
+    "ja-JP": "確認を推奨",
+    "en-US": "Review recommended",
+    "zh-CN": "建议确认",
+    "zh-Hant": "建議確認"
+  },
+  "writerReview.source.original": {
+    "ko-KR": "원문",
+    "ja-JP": "原文",
+    "en-US": "Original",
+    "zh-CN": "原文",
+    "zh-Hant": "原文"
+  },
+  "writerReview.source.suggestion": {
+    "ko-KR": "AI 제안",
+    "ja-JP": "AIの提案",
+    "en-US": "AI suggestion",
+    "zh-CN": "AI 建议",
+    "zh-Hant": "AI 建議"
+  },
+  "writerReview.source.approved": {
+    "ko-KR": "승인 후 반영",
+    "ja-JP": "承認後に反映",
+    "en-US": "Applied after approval",
+    "zh-CN": "批准后应用",
+    "zh-Hant": "核准後套用"
+  },
+  "writerReview.action.confirm": {
+    "ko-KR": "확인",
+    "ja-JP": "確認",
+    "en-US": "Confirm",
+    "zh-CN": "确认",
+    "zh-Hant": "確認"
+  },
+  "writerReview.action.edit": {
+    "ko-KR": "수정",
+    "ja-JP": "修正",
+    "en-US": "Edit",
+    "zh-CN": "修改",
+    "zh-Hant": "修改"
+  },
+  "writerReview.action.delete": {
+    "ko-KR": "삭제",
+    "ja-JP": "削除",
+    "en-US": "Delete",
+    "zh-CN": "删除",
+    "zh-Hant": "刪除"
+  },
+  "writerReview.action.important": {
+    "ko-KR": "중요함",
+    "ja-JP": "重要",
+    "en-US": "Important",
+    "zh-CN": "重要",
+    "zh-Hant": "重要"
+  },
+  "writerReview.action.hold": {
+    "ko-KR": "보류",
+    "ja-JP": "保留",
+    "en-US": "Hold",
+    "zh-CN": "暂缓",
+    "zh-Hant": "暫緩"
+  },
+  "writerReview.action.intentionalException": {
+    "ko-KR": "의도된 예외로 기록",
+    "ja-JP": "意図した例外として記録",
+    "en-US": "Mark as intentional",
+    "zh-CN": "记录为有意例外",
+    "zh-Hant": "記錄為刻意例外"
+  },
+  "writerReview.action.aiMistake": {
+    "ko-KR": "AI 오판으로 표시",
+    "ja-JP": "AIの誤判定として記録",
+    "en-US": "Mark as AI mistake",
+    "zh-CN": "标记为 AI 误判",
+    "zh-Hant": "標記為 AI 誤判"
+  },
+  "writerReview.dialog.step.summary": {
+    "ko-KR": "분석 요약",
+    "ja-JP": "分析の要約",
+    "en-US": "Analysis summary",
+    "zh-CN": "分析摘要",
+    "zh-Hant": "分析摘要"
+  },
+  "writerReview.dialog.step.story": {
+    "ko-KR": "이야기 제안",
+    "ja-JP": "物語の提案",
+    "en-US": "Story suggestions",
+    "zh-CN": "故事建议",
+    "zh-Hant": "故事建議"
+  },
+  "writerReview.dialog.step.continuity": {
+    "ko-KR": "설정 검수",
+    "ja-JP": "設定の確認",
+    "en-US": "Continuity review",
+    "zh-CN": "设定审核",
+    "zh-Hant": "設定審核"
+  },
+  "writerReview.dialog.step.final": {
+    "ko-KR": "최종 확인",
+    "ja-JP": "最終確認",
+    "en-US": "Final confirmation",
+    "zh-CN": "最终确认",
+    "zh-Hant": "最終確認"
+  },
+  "writerReview.dialog.backToManuscript": {
+    "ko-KR": "원고로 돌아가기",
+    "ja-JP": "原稿に戻る",
+    "en-US": "Back to manuscript",
+    "zh-CN": "返回原稿",
+    "zh-Hant": "返回原稿"
+  },
+  "writerReview.dialog.analyzeAgain": {
+    "ko-KR": "다시 분석",
+    "ja-JP": "もう一度分析",
+    "en-US": "Analyze again",
+    "zh-CN": "再次分析",
+    "zh-Hant": "再次分析"
+  },
+  "writerReview.dialog.noIssuesConfirm": {
+    "ko-KR": "이상 없음, 최종 확인",
+    "ja-JP": "問題なし、最終確認",
+    "en-US": "No issues, confirm final",
+    "zh-CN": "无问题，确认最终稿",
+    "zh-Hant": "無問題，確認最終稿"
+  },
+  "writerReview.dialog.uploadFinal": {
+    "ko-KR": "최종본 올리기",
+    "ja-JP": "最終版をアップロード",
+    "en-US": "Upload final version",
+    "zh-CN": "上传最终稿",
+    "zh-Hant": "上傳最終稿"
   }
 };
 
