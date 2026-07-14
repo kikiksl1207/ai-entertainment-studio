@@ -18,8 +18,7 @@
     status: "contract_pending",
     policy: {
       authRequired: true,
-      walletMutationEnabled: false,
-      disabledDisplayMessageKo: "현재 후원을 이용할 수 없습니다. 이용 가능해지면 알려드릴게요."
+      walletMutationEnabled: false
     },
     donation: {
       fixedAmountsLumina: [10, 50, 100, 500, 1000, 5000, 10000, 50000],
@@ -42,15 +41,27 @@
     pendingConfirmAmount: null,
     sheetTrigger: null,
     escBound: false,
-    ready: false
+    ready: false,
+    source: ""
   };
 
   function $(id) { return document.getElementById(id); }
 
+  function copy(key, values) {
+    var value = window.luminaI18n && typeof window.luminaI18n.t === "function" ? window.luminaI18n.t(key) : key;
+    if (!values) return value;
+    return value.replace(/\{(\w+)\}/g, function (_, name) {
+      return Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : "";
+    });
+  }
+
   function formatLumina(amount) {
     var num = Number(amount);
     if (!Number.isFinite(num)) return "0";
-    return num.toLocaleString("ko-KR");
+    var locale = window.luminaI18n && typeof window.luminaI18n.getRegionalLocale === "function"
+      ? window.luminaI18n.getRegionalLocale()
+      : "ko-KR";
+    return num.toLocaleString(locale);
   }
 
   function setText(id, text) {
@@ -167,14 +178,14 @@
     if (!Number.isInteger(n) || n < 1) {
       state.customAmount = null;
       state.selectedAmount = null;
-      updateSummary("정수만 입력할 수 있어요.");
+      updateSummary(copy("chat.donation.input.integer"));
       return;
     }
     var max = currentMax();
     if (n > max) {
       state.customAmount = null;
       state.selectedAmount = null;
-      updateSummary("직접 입력은 1L ~ " + formatLumina(max) + "L까지 가능해요.");
+      updateSummary(copy("chat.donation.input.max", { max: formatLumina(max) }));
       return;
     }
     state.selectedSource = "custom";
@@ -207,12 +218,12 @@
     var amount = state.selectedAmount;
     var parts = [];
     if (amount != null) {
-      parts.push('<span class="donation-summary-amount"><strong>' + formatLumina(amount) + 'L</strong> 후원 금액</span>');
+      parts.push('<span class="donation-summary-amount">' + copy("chat.donation.summary.amount", { amount: formatLumina(amount) }) + '</span>');
       if (amount >= currentHighValueStart()) {
-        parts.push('<span class="donation-summary-tag">고액 후원 — 본인확인 필요</span>');
+        parts.push('<span class="donation-summary-tag">' + copy("chat.donation.summary.highValue") + '</span>');
       }
     } else {
-      parts.push('<span class="donation-summary-amount">금액을 선택하면 합계가 표시됩니다.</span>');
+      parts.push('<span class="donation-summary-amount">' + copy("chat.donation.summary.empty") + '</span>');
     }
     if (hint) parts.push('<span class="donation-summary-hint">' + hint + '</span>');
     summary.innerHTML = parts.join("");
@@ -232,15 +243,17 @@
       btn.disabled = true;
       btn.setAttribute("aria-disabled", "true");
       // #484 — API의 disabledDisplayMessageKo를 신뢰하지 않음. 내부어 노출 방지를 위해 FALLBACK 고정 사용.
-      btn.title = FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
-      label.textContent = "후원 안내 확인";
+      btn.title = copy("chat.donation.locked.text");
+      label.textContent = copy("chat.donation.action.info");
       return;
     }
     var hasAmount = state.selectedAmount != null;
     btn.disabled = !hasAmount;
     btn.setAttribute("aria-disabled", btn.disabled ? "true" : "false");
-    btn.title = hasAmount ? "" : "금액을 먼저 선택하세요";
-    label.textContent = hasAmount ? formatLumina(state.selectedAmount) + "L 후원하기" : "금액 선택";
+    btn.title = hasAmount ? "" : copy("chat.donation.action.selectAmount");
+    label.textContent = hasAmount
+      ? copy("chat.donation.action.support", { amount: formatLumina(state.selectedAmount) })
+      : copy("chat.donation.action.select");
   }
 
   function renderStatusBanner(contract, source) {
@@ -252,20 +265,20 @@
     banner.dataset.state = unauth ? "unauth" : disabled ? "disabled" : "ready";
     var label, body;
     if (unauth) {
-      label = "후원 이용 안내";
-      body = "로그인하면 후원 가능 여부를 확인할 수 있어요.";
+      label = copy("chat.donation.unauth.label");
+      body = copy("chat.donation.unauth.text");
     } else if (disabled) {
       // #1341 — disabled 이유를 짧게 보이고, read-only 금액/정책 preview는 열어 둔다.
       // API 값 무시, FALLBACK 고정 (API가 내부어 포함 가능).
-      label = "후원 이용 안내";
-      body = FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
+      label = copy("chat.donation.locked.label");
+      body = copy("chat.donation.locked.text");
     } else {
-      label = "후원 가능";
-      body = "고액 후원은 본인확인이 끝난 계정만 진행할 수 있어요.";
+      label = copy("chat.donation.ready.label");
+      body = copy("chat.donation.ready.text");
     }
     banner.innerHTML =
-      '<strong class="donation-status-label" data-i18n="' + (disabled ? "chat.donation.locked.label" : unauth ? "chat.donation.unauth.label" : "chat.donation.ready.label") + '">' + label + "</strong>" +
-      '<p class="donation-status-text" data-i18n="' + (disabled ? "chat.donation.locked.text" : unauth ? "chat.donation.unauth.text" : "chat.donation.ready.text") + '">' + body + "</p>";
+      '<strong class="donation-status-label" data-i18n="' + (unauth ? "chat.donation.unauth.label" : disabled ? "chat.donation.locked.label" : "chat.donation.ready.label") + '">' + label + "</strong>" +
+      '<p class="donation-status-text" data-i18n="' + (unauth ? "chat.donation.unauth.text" : disabled ? "chat.donation.locked.text" : "chat.donation.ready.text") + '">' + body + "</p>";
     if (window.luminaI18n && typeof window.luminaI18n.apply === "function") {
       window.luminaI18n.apply(banner);
     }
@@ -275,19 +288,20 @@
     var hv = (contract && contract.donation && contract.donation.highValuePolicy) || FALLBACK_CONTRACT.donation.highValuePolicy;
     setText(
       "donationPolicyHighValue",
-      formatLumina(hv.startsAtLumina) + "L 이상 후원은 본인확인이 끝난 계정만 진행할 수 있어요."
+      copy("chat.donation.policy.highValue", { amount: formatLumina(hv.startsAtLumina) })
     );
     setText(
       "donationPolicyDailyLimit",
-      "하루 후원 합계는 " + formatLumina(hv.dailyLimitLumina) + "L까지로 제한돼요."
+      copy("chat.donation.policy.dailyLimit", { amount: formatLumina(hv.dailyLimitLumina) })
     );
     // blockedStates 텍스트는 정적 유지 (계약상 message key 만 정의됨)
     var custom = (contract && contract.donation && contract.donation.customAmount) || FALLBACK_CONTRACT.donation.customAmount;
     var hint = $("donationCustomHint");
     if (hint) {
-      hint.textContent =
-        "최소 " + formatLumina(custom.minLumina) + "L, 최대 " +
-        formatLumina(custom.maxLumina) + "L까지 입력할 수 있어요. 정수만 가능합니다.";
+      hint.textContent = copy("chat.donation.policy.customAmount", {
+        min: formatLumina(custom.minLumina),
+        max: formatLumina(custom.maxLumina)
+      });
     }
     var msgCfg = (contract && contract.donation && contract.donation.message) || FALLBACK_CONTRACT.donation.message;
     var ta = $("donationMessage");
@@ -353,9 +367,9 @@
       var mutationOpen = isMutationEnabled();
       proceed.disabled = !mutationOpen;
       proceed.setAttribute("aria-disabled", mutationOpen ? "false" : "true");
-      proceed.textContent = mutationOpen ? "진행하기" : "진행 잠금";
+      proceed.textContent = mutationOpen ? copy("chat.donation.proceed") : copy("chat.donation.proceedLocked");
       // #484 — API 값 무시, FALLBACK 고정 (API가 내부어 포함 가능).
-      proceed.title = mutationOpen ? "" : FALLBACK_CONTRACT.policy.disabledDisplayMessageKo;
+      proceed.title = mutationOpen ? "" : copy("chat.donation.locked.text");
     }
   }
 
@@ -394,12 +408,20 @@
     if (state.ready && state.contract) return;
     var result = await fetchContract();
     state.contract = result.contract;
+    state.source = result.source;
     renderStatusBanner(result.contract, result.source);
     renderFixedAmounts(result.contract);
     renderPolicyInfo(result.contract);
     updateConfirmButton();
     state.ready = true;
   }
+
+  window.addEventListener("lumina:localechange", function () {
+    if (!state.contract) return;
+    renderStatusBanner(state.contract, state.source);
+    renderPolicyInfo(state.contract);
+    updateSummary();
+  });
 
   function bind() {
     var openBtn = $("chatDonationOpen");
