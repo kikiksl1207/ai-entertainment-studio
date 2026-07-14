@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
@@ -24,10 +25,14 @@ import {
   qualityDimensionViolations,
   releaseChecksum,
 } from './story-lifecycle.policy';
+import { StoryEconomicsService } from './story-economics.service';
 
 @Injectable()
 export class StoryLifecycleService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly economics?: StoryEconomicsService,
+  ) {}
 
   async lifecycle(userId: string, workId: string) {
     const work = await this.assertOwner(userId, workId);
@@ -133,6 +138,9 @@ export class StoryLifecycleService {
         const validation = release.validationSummary as Record<string, unknown>;
         if (validation.ready !== true || Number(validation.blockingIssueCount ?? 0) > 0) {
           throw new ConflictException('Release validation is not ready');
+        }
+        if (this.economics) {
+          await this.economics.assertReleasePublishableTx(tx, work, release);
         }
       }
       const afterRevision = work.releaseRevision + 1;
@@ -291,6 +299,14 @@ export class StoryLifecycleService {
       where: { id: job.manuscriptVersionId, workId, ownerUserId: userId },
     });
     if (!manuscript) throw new NotFoundException('Analysis source not found');
+    if (this.economics && body.retrievalTypes.includes('style')) {
+      const consent = await this.economics.activeStyleConsent(workId);
+      if (!consent || consent.manuscriptVersionId !== manuscript.id) {
+        throw new ConflictException(
+          'Active style consent for this manuscript is required',
+        );
+      }
+    }
     const evidence = await this.prisma.storyAnalysisEvidence.findMany({
       where: { analysisJobId: job.id },
       orderBy: [{ sourcePartKey: 'asc' }, { sourceParagraphIndex: 'asc' }],
@@ -351,12 +367,29 @@ export class StoryLifecycleService {
   async retrieveMemory(userId: string, workId: string, query: StoryMemoryQueryDto) {
     await this.assertOwner(userId, workId);
     const types = (query.types ?? '').split(',').map((value) => value.trim()).filter(Boolean);
+    const styleConsent = this.economics
+      ? await this.economics.activeStyleConsent(workId)
+      : null;
+    const allowedTypes = (types.length
+      ? types
+      : ['summary', 'scene', 'entity', 'event', 'foreshadow', 'branch', 'style']
+    ).filter((type) => type !== 'style' || Boolean(styleConsent));
+    if (!allowedTypes.length) {
+      return { bounded: true, fullManuscriptIncluded: false, items: [] };
+    }
     const rows = await this.prisma.storyMemoryRecord.findMany({
       where: {
         workId,
         status: 'approved',
-        ...(types.length ? { memoryType: { in: types } } : {}),
-        OR: [{ partKey: query.partKey }, { memoryType: { in: ['entity', 'event', 'foreshadow', 'branch', 'style'] } }],
+        memoryType: { in: allowedTypes },
+        OR: [
+          { partKey: query.partKey },
+          {
+            memoryType: {
+              in: ['entity', 'event', 'foreshadow', 'branch', ...(styleConsent ? ['style'] : [])],
+            },
+          },
+        ],
       },
       orderBy: [{ partKey: 'desc' }, { createdAt: 'desc' }],
       take: 50,

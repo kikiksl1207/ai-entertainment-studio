@@ -1,5 +1,30 @@
 import { randomUUID } from 'node:crypto';
 
+const runId = randomUUID();
+const publicPath = '/api/v1/story-upload/intake';
+
+if (process.env.STORY_UPLOAD_STAGING_MODE === 'preflight') {
+  const originConfigured = Boolean(
+    process.env.STORY_UPLOAD_STAGING_API_ORIGIN?.trim(),
+  );
+  const privateSessionConfigured = Boolean(
+    process.env.STORY_UPLOAD_STAGING_ACCESS_TOKEN?.trim(),
+  );
+  console.log(
+    JSON.stringify({
+      runId,
+      publicPath,
+      status:
+        originConfigured && privateSessionConfigured
+          ? 'ready_for_private_run'
+          : 'blocked_private_session_required',
+      checks: { originConfigured, privateSessionConfigured },
+      mutationExecuted: false,
+    }),
+  );
+  process.exit(0);
+}
+
 const origin = requiredEnv('STORY_UPLOAD_STAGING_API_ORIGIN').replace(/\/+$/, '');
 const accessToken = requiredEnv('STORY_UPLOAD_STAGING_ACCESS_TOKEN');
 const endpoint = `${origin}/api/v1/story-upload/intake`;
@@ -21,14 +46,18 @@ if (process.env.STORY_UPLOAD_STAGING_TEST_LIMITS !== '0') {
 
 console.log(
   JSON.stringify({
-    status: 'PASS',
-    submissionId: first.submissionId,
-    receiptStatus: first.status,
-    replayed: replay.replayed,
-    fileCount: first.fileCount,
-    extensionRejection: 'PASS',
-    sizeRejection:
-      process.env.STORY_UPLOAD_STAGING_TEST_LIMITS === '0' ? 'SKIPPED' : 'PASS',
+    runId,
+    publicPath,
+    status: 'passed',
+    checks: {
+      receiptReturned: first.status === 'received',
+      idempotentReplay: replay.replayed,
+      expectedFileCount: first.fileCount === 3,
+      extensionRejected: true,
+      sizeRejected:
+        process.env.STORY_UPLOAD_STAGING_TEST_LIMITS === '0' ? null : true,
+    },
+    mutationExecuted: true,
   }),
 );
 
